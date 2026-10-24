@@ -54,16 +54,16 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 ## 本仓库现状（single-context）
 
-2026-10-23 由 `/setup-matt-pocock-skills` 探查：
+2026-10-25 复核：
 
-- `GLOSSARY.md` — **不存在**（按上面规则，先静默跳过，等 `/domain-modeling` 需要时再建）
+- `GLOSSARY.md` — 不存在（按上面规则，先静默跳过，等 `/domain-modeling` 需要时再建）
 - `GLOSSARY-MAP.md` — 不存在 → 单上下文
-- `docs/adr/` — **不存在**。本仓库的架构决策目前散在别处，不在此目录：
-  - `docs/ADR_AGENT_BRIDGE.md`
-  - `docs/ADR_*` 系列（用 `Get-ChildItem docs -Filter 'ADR*'` 查最新）
-  - `docs/CONTRACT_V2_SCOPE.md`（契约 v2 的边界与冻结项）
-- monorepo 信号（`pnpm-workspace.yaml` / `package.json` 的 `workspaces` / `packages/*`）— 全无
+- `docs/adr/` — 不存在。本仓库目前还没有 ADR 目录，架构决策写在：
+  - `docs/SPEC.md` — v1 定稿（三层规则、潮汐、灯油、事件日志、记忆、存档）
+  - `docs/SPEC_DRAFT_20261025.md` — 定稿前的五轮 grill 结论
+  - `docs/MIGRATION_FROM_XIAOXI.md` — 从旧仓 `cs1lion/xiaoxi` 迁入时的实测盘点与差异
+- monorepo 信号（`pnpm-workspace.yaml` / 根 `package.json` 的 `workspaces` / `packages/*`）— 全无。
+  `world-client/` 有自己的 `package.json`，但根目录没有 workspace 声明，仍是单上下文。
 
-**给 skill 的一条本地补充**：本仓库的 ADR 命名不是 `docs/adr/NNNN-*.md` 惯例，
-而是 `docs/ADR_*.md`。读决策时先看 `docs/ADR_*.md` 与 `docs/CONTRACT_V2_SCOPE.md`，
-不要因为 `docs/adr/` 不存在就认为没有 ADR。
+**给 skill 的一条本地补充**：读决策先看 `docs/SPEC.md`，它是当前唯一的权威来源；
+与 `docs/SPEC_DRAFT_*.md` 冲突时以 `SPEC.md` 为准，草稿只作为取舍理由的溯源。
