@@ -339,6 +339,18 @@ export interface WorldSnapshot {
   readonly altar: GridPoint;
   readonly events: readonly WorldEvent[];
   readonly weather: Weather;
+  /**
+   * 潮汐：水位 0..1 与一句话说法。
+   *
+   * 它是世界自己的时钟，不读墙钟；同一个存档回放出同一条曲线。
+   * `level` 给渲染层插值水位，`label` 给状态行与报纸用。
+   */
+  readonly tide: {
+    readonly level: number;
+    readonly label: string;
+    /** 这一拍相对上一拍是在涨还是在退。持平也算退，渲染层不靠它判断。 */
+    readonly rising: boolean;
+  };
   /** 交付积累的信仰点数与已达成的世界记忆数。 */
   readonly faith: { readonly points: number; readonly milestones: number };
   /** 交付统计：台账交付与离线 Mock 交付分开计，禁止合并成一个数。 */

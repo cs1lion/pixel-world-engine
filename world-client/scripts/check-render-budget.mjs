@@ -10,7 +10,7 @@
  *   1. npm run dev
  *   2. node scripts/check-render-budget.mjs
  */
-import { chromium } from '../../node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 

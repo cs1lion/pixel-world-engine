@@ -10,6 +10,7 @@ import type { WorldGrid } from './grid.ts';
 import { TASK_PROFILES, taskDurationFor } from './tasks.ts';
 import { pickVenue, type VenueCandidate } from './venue.ts';
 import { fogAt, revealedRadiusFor } from './fog.ts';
+import { describeTide, tideLevelAt } from './tide.ts';
 import { awaitingDecree } from './decree.ts';
 
 import { parseOracle } from './oracle.ts';
@@ -286,6 +287,13 @@ export class Simulation {
 
   private readonly beats: readonly RoutineBeat[];
   private weather: WeatherState = clearWeather();
+  /**
+   * 上一拍的潮位，只用来判断"在涨还是在退"。
+   *
+   * 潮位本身不存字段：它是 `now` 的纯函数（`tideLevelAt`），存了反而会在
+   * 回放时和 `now` 打架。这里留一个上一拍的值，只为给状态行一句话。
+   */
+  private lastTideLevel = 0;
   private faithPoints = 0;
   private milestones = 0;
   /** 交付统计按来源分开：台账的活只有台账能收，沙盒/离线 Mock 另计。 */
@@ -379,6 +387,7 @@ export class Simulation {
       this.lastResults.push(this.apply(command));
     }
     this.weather = stepWeather(this.weather, deltaMs);
+    this.stepTide();
     this.stepConstructions(deltaMs);
     for (const villager of this.villagers) this.stepVillager(villager, deltaMs);
     this.stepWorkstations();
@@ -439,6 +448,11 @@ export class Simulation {
       trails: visibleTrails(this.trails),
       events: this.events.slice(-12),
       weather: this.weather.kind,
+      tide: {
+        level: tideLevelAt(this.now),
+        label: describeTide(tideLevelAt(this.now), this.lastTideLevel),
+        rising: tideLevelAt(this.now) > this.lastTideLevel,
+      },
       faith: { points: this.faithPoints, milestones: this.milestones },
       /** 台账交付与 Mock 交付分开计，不合并成一个数。 */
       deliveries: { ledger: this.ledgerDeliveries, mock: this.mockDeliveries },
@@ -978,7 +992,10 @@ export class Simulation {
       busy:
         this.constructions.has(building.instanceId) ||
         this.activities.get(building.instanceId)?.kind === 'overheating' ||
-        this.buildingBusy(building),
+        this.buildingBusy(building) ||
+        // 门口在水里：这栋铺子此刻不接活。人可以涉水，但没道理让他在
+        // 齐腰的水里干活。收进 busy 而不是另开字段，两条派活路径都自然受益。
+        this.grid.isFloodedAt(building.door),
     }));
   }
 
@@ -1115,6 +1132,7 @@ export class Simulation {
     }
 
     // 你派的活优先去郊野：那是探索性的外部工作。
+    // 泡在水里的铺子不算数：人可以涉水过去，但没道理让他在齐腰的水里干活。
     const chosen = pickVenue(this.venueCandidates(), taskKind, 'oracle');
     if (chosen === null) {
       const message = `没有空闲的 ${taskKind} 铺子。`;
@@ -1776,6 +1794,19 @@ export class Simulation {
     const message = `${building.displayName} 拆掉了。`;
     this.log('info', message);
     return { ok: true, message };
+  }
+
+  /**
+   * 潮汐每拍推进一次。
+   *
+   * 潮位是 `now` 的纯函数，所以这里没有状态机、没有累加器，也不读墙钟：
+   * 同一个存档走同一串步长，回放出来的曲线逐拍一致。
+   * 唯一写进世界的是"寻路代价"，那在 `grid.setTideLevel` 里。
+   */
+  private stepTide(): void {
+    const level = tideLevelAt(this.now);
+    this.grid.setTideLevel(level);
+    this.lastTideLevel = level;
   }
 
   private stepConstructions(deltaMs: number): void {

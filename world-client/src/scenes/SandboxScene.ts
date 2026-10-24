@@ -16,6 +16,7 @@ import { createVillager, updateVillager, type VillagerView } from '../render/vil
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
 import { createWeatherView, type WeatherView } from '../render/weather.ts';
+import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
@@ -67,9 +68,12 @@ export class SandboxScene extends Phaser.Scene {
   private blueprints!: ReadonlyMap<string, PrefabBlueprint>;
   private sim!: Simulation;
   private snapshot!: WorldSnapshot;
+  /** 世界时钟相对墙钟的倍率。?speed=0.5 放慢，?speed=12 加速，?speed=1 回到实时。 */
+  private timeScale = 6;
   private readonly villagerViews = new Map<string, VillagerView>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
+  private tideView!: TideView;
   private phaseView!: PhaseView;
   /** 白天的鸟、黄昏的蝙蝠。纯画面，不占快照、不进存档。 */
   private ambienceView!: AmbienceView;
@@ -173,6 +177,7 @@ export class SandboxScene extends Phaser.Scene {
       h: this.world.grid.height * TILE_PX,
     };
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
+    this.tideView = createTideView(this, this.world.grid, originX, originY);
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
@@ -227,6 +232,10 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
+    // 时间倍率：默认 6 倍，潮汐在 2 分钟内走完一轮，肉眼能看见涨落。
+    // 截图与回归要精确复现时用 ?speed=1，让世界按实时推进。
+    const speed = Number(params.get('speed'));
+    if (Number.isFinite(speed) && speed > 0 && speed <= 60) this.timeScale = speed;
     const forced = parsePhaseParam(params.get('time'));
     const legacyNight = params.get('night') === '1';
     const initialPhase: PhaseId = forced ?? (legacyNight ? 'night' : phaseAt(Date.now()));
@@ -405,6 +414,7 @@ export class SandboxScene extends Phaser.Scene {
     // 烘焙的纹理不随场景销毁自动释放，必须手动清：否则热更新或重进场景时
     // 会留下同名旧纹理，下一次 generateTexture 直接复用，画面停在上一版。
     this.terrainLayer?.destroy();
+    this.tideView?.destroy();
     this.fogView?.destroy();
     this.ledger?.stop();
     this.ledger = null;
@@ -545,7 +555,10 @@ export class SandboxScene extends Phaser.Scene {
     let steps = 0;
     while (this.accumulator >= LOGIC_STEP_MS && steps < MAX_STEPS_PER_FRAME) {
       this.accumulator -= LOGIC_STEP_MS;
-      const results = this.sim.update(LOGIC_STEP_MS);
+      // 时间倍率：世界时钟走得比墙钟快，潮汐才在几分钟里看得见涨落。
+      // 倍率只放大「喂给 Simulation 的步长」，不引入第二个时钟——
+      // 世界的可回放性仍然只取决于它收到的那串步长。
+      const results = this.sim.update(LOGIC_STEP_MS * this.timeScale);
       for (const result of results) {
         for (const listener of this.resultListeners) listener(result);
       }
@@ -1076,6 +1089,7 @@ export class SandboxScene extends Phaser.Scene {
       updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE);
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
+    this.tideView.update(this.snapshot.tide.level);
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。

@@ -7,6 +7,7 @@
 import type { GridPoint, PrefabBlueprint, TileCell, ZoneId } from './types.ts';
 import { WALK_COST, walkCostOf } from './terrain-cost.ts';
 import { shouldGrowTree } from './wilderness.ts';
+import { FLOODED_WALK_COST, isFlooded } from './tide.ts';
 
 /**
  * 未被任何分区覆盖的格子落到这里。
@@ -51,6 +52,14 @@ export class WorldGrid {
   readonly width: number;
   readonly height: number;
   private readonly cells: TileCell[];
+  /**
+   * 当前潮位，0..1。只有寻路读它。
+   *
+   * 水不是不可走，只是走起来贵——不可走会让读档时落在水里的角色卡死，
+   * 那正是「迷雾只拦建造、不拦通行」踩过的坑。代价抬高到涉水很慢，
+   * A* 自己会绕开，真需要时仍然过得去。
+   */
+  private tideLevel = 0;
 
   constructor(spec: GridSpec, wilderness?: { readonly center: GridPoint }) {
     this.width = spec.width;
@@ -106,6 +115,31 @@ export class WorldGrid {
 
   isWalkable(p: GridPoint): boolean {
     return this.at(p)?.walkable === true;
+  }
+
+  /** 潮汐每拍调一次。只影响寻路代价，不改格子的可走性。 */
+  setTideLevel(level: number): void {
+    this.tideLevel = Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 0;
+  }
+
+  tideLevelNow(): number {
+    return this.tideLevel;
+  }
+
+  /** 这一格此刻是不是泡在水里。渲染层与派活规则都读它。 */
+  isFloodedAt(p: GridPoint): boolean {
+    const cell = this.at(p);
+    if (cell === undefined) return false;
+    return isFlooded(cell.terrain, this.tideLevel);
+  }
+
+  /** 这一格的通行代价：地形代价，涨潮时草地与农田按涉水算。 */
+  costAt(p: GridPoint): number {
+    const cell = this.at(p);
+    if (cell === undefined) return WALK_COST.grass;
+    return isFlooded(cell.terrain, this.tideLevel)
+      ? FLOODED_WALK_COST
+      : walkCostOf(cell.terrain);
   }
 
   /** 能不能往上放建筑：在界内、不是树、没人占。 */
@@ -261,8 +295,9 @@ export class WorldGrid {
         const nextIndex = index(next);
         if (closed[nextIndex]) continue;
 
-        // 代价来自地形：石板路便宜、密林贵，路线自己会先上大路。
-        const tentative = gScore[currentIndex] + walkCostOf(cell.terrain);
+        // 代价来自地形：石板路便宜、密林贵，路线自己会先上大路；
+        // 涨潮时草地与农田按涉水算，路线会自己挑没被淹的格子走。
+        const tentative = gScore[currentIndex] + this.costAt(next);
         if (tentative < gScore[nextIndex]) {
           gScore[nextIndex] = tentative;
           cameFrom[nextIndex] = currentIndex;

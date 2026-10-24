@@ -8,7 +8,7 @@
  *   1. npm run dev
  *   2. node scripts/check-creation.mjs
  */
-import { chromium } from '../../node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';

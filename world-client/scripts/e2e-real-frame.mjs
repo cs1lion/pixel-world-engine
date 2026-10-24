@@ -20,7 +20,7 @@
  *   node pixel-world/scripts/e2e-real-frame.mjs --keep     # 保留临时目录便于排查
  *   证据 JSON 默认写到系统临时目录，可用 E2E_EVIDENCE 覆盖路径。
  */
-import { chromium } from '../../node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import net from 'node:net';

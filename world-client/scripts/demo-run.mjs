@@ -16,7 +16,7 @@
  *   node scripts/demo-run.mjs --mode live [--keep]
  * 环境变量：CDP_URL（默认 http://127.0.0.1:9333）、DEMO_DEV_URL（mock 页面地址）。
  */
-import { chromium } from '../../node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import {
   appendFileSync,

@@ -27,7 +27,7 @@
  *   --anim          帧动画证据（idle/walk 各两帧 + manifest）
  *   --scenario slice 切片评审：晴/雨/夜同构图，先扩建第 4 栋 workshop，每态 5 档尺寸
  */
-import { chromium } from '../../node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import process from 'node:process';

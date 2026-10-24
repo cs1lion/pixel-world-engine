@@ -16,7 +16,7 @@
  *      LEDGER=1 node scripts/smoke.mjs       # 台账模式（需先起 8000）
  * 浏览器用主仓库根目录的 Playwright；原型目录不带这份依赖。
  */
-import { chromium } from '../../node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
