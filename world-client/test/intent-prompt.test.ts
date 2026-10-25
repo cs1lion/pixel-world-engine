@@ -27,12 +27,13 @@ test('提示词把三档天气都讲了，模型才知道有暴雨', () => {
   assert.match(prompt, /暴雨/);
 });
 
-test('提示词覆盖全部八种意图', () => {
+test('提示词覆盖全部九种意图', () => {
   for (const kind of [
     'dispatch',
     'complete',
     'cancelPending',
     'setWeather',
+    'setTide',
     'build',
     'demolish',
     'miracle',
@@ -40,6 +41,14 @@ test('提示词覆盖全部八种意图', () => {
   ]) {
     assert.ok(prompt.includes(`"${kind}"`), `提示词没讲 ${kind}`);
   }
+});
+
+test('提示词把拨潮的时长上限写出来，并禁止模型自己改数', () => {
+  // 模型最爱做的「贴心事」就是把 5 悄悄改成 1，然后回一句办好了。
+  // 那正是世界要拒绝的事——用户以为他要的办成了。
+  assert.match(prompt, /durationMs/);
+  assert.match(prompt, /120000/);
+  assert.match(prompt, /不要自己改数/);
 });
 
 test('提示词把 unknown 说成一等公民，而不是失败', () => {

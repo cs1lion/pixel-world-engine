@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { IntentSchemaError, parseIntent } from '../src/world/intent-schema.ts';
+import { TIDE_OVERRIDE_MAX_MS } from '../src/world/tide.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { readFileSync } from 'node:fs';
 
@@ -40,6 +41,29 @@ test('天气三档：晴、雨、暴雨', () => {
     assert.deepEqual(ok({ kind: 'setWeather', weather }), { kind: 'setWeather', weather });
   }
   assert.throws(() => ok({ kind: 'setWeather', weather: 'snow' }), /不在取值域里/);
+});
+
+test('拨潮：潮位与时长都要在域内，上限与世界那条命令同源', () => {
+  assert.deepEqual(ok({ kind: 'setTide', level: 1, durationMs: 30_000 }), {
+    kind: 'setTide',
+    level: 1,
+    durationMs: 30_000,
+  });
+  // 上限从 `tide.ts` 取，不在这里另抄一个常量——抄了就会有一个先改一个漏改。
+  assert.match(
+    bad({ kind: 'setTide', level: 1, durationMs: TIDE_OVERRIDE_MAX_MS + 1 }),
+    /最多 120000/,
+  );
+  assert.match(bad({ kind: 'setTide', level: 1, durationMs: 0 }), /正数毫秒/);
+  assert.match(bad({ kind: 'setTide', level: 1.5, durationMs: 1000 }), /0\.\.1/);
+  assert.match(bad({ kind: 'setTide', level: 'high', durationMs: 1000 }), /必须是数字/);
+});
+
+test('拨潮不接受多余的字段：reason 不能混进来', () => {
+  assert.match(
+    bad({ kind: 'setTide', level: 1, durationMs: 1000, reason: '因为' }),
+    /不接受字段 "reason"/,
+  );
 });
 
 test('造物：模板必须是注册表里有的', () => {

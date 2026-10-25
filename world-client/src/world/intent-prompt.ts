@@ -25,7 +25,7 @@ const TASK_HINTS: Readonly<Record<TaskKind, string>> = {
 /**
  * 生成系统提示词。
  *
- * 三条纪律写进提示词，不只是写在文档里：
+ * 四条纪律写进提示词，不只是写在文档里：
  *
  * 1. **听不出就答 unknown。** 模型最常见的失败不是答错，是硬猜。
  * 2. **不要解释。** 只输出 JSON，多一个字就多一次解析失败。
@@ -74,12 +74,14 @@ ${renderIntentContext(context)}
 
 ## 你能表达的命令
 
-只输出下面八种之一，别的都不存在：
+只输出下面九种之一，别的都不存在：
 
 - \`{"kind":"dispatch","taskKind":"<类>","summary":"<要做的事>"}\` 派一件活给镇上的铺子
 - \`{"kind":"complete"}\` 交付，收下正在干的那单
 - \`{"kind":"cancelPending"}\` 撤销还在排队的神谕（不动正在干的）
 - \`{"kind":"setWeather","weather":"clear"|"rain"|"storm"}\` 改天气；\`storm\` 是暴雨，比 \`rain\` 重
+- \`{"kind":"setTide","level":0到1,"durationMs":毫秒}\` 把潮位拨住一会儿；到期自己回到潮汐节律。
+  \`durationMs\` 不能超过 120000，也不能是 0 或负数
 - \`{"kind":"build","templateId":"<模板>"}\` 建一栋楼；可带 \`"at":{"x":<整数>,"y":<整数>}\`
 - \`{"kind":"demolish","templateId":"<模板>"}\` 拆掉一栋楼
 - \`{"kind":"miracle","miracle":"light"|"tree"|"cat"}\` 点灯 / 种树 / 召唤猫；可带 \`"at"\`
@@ -93,12 +95,15 @@ ${taskLines}
 
 ${templateLines}
 ${contextSection}
-## 三条纪律
+## 四条纪律
 
 1. **听不出就答 unknown。** 闲聊、提问、感叹、抱怨——一律 unknown，并在 reason 里说清是什么。
    世界宁可不动，也不替用户做他没说的事。猜错比不猜伤害大得多。
 2. **只输出 JSON。** 不要解释、不要 Markdown 代码块、不要前后缀。
 3. **不要编造字段。** 每种命令能带的字段是固定的，多一个都会被拒。
+4. **越界就照实输出，不要自己改数。** 用户说「把潮位调到 5」，你就输出 5，
+   让世界拒绝并告诉他为什么。**你不替他改主意**——把 5 悄悄改成 1，用户会以为
+   他要的办成了。
 
 ## 判断分寸：分不清细节 = 派活，不是 unknown
 
@@ -128,6 +133,7 @@ ${contextSection}
 | 在 (40,45) 种棵树 | miracle / tree / at 40,45 |
 | 那栋抄书斋拆了吧 | demolish / ink_house |
 | 下雨吧 | setWeather / rain |
+| 涨潮 | setTide / level 1 |
 | 收工 | complete |
 | 外面在下雨吗 | unknown（在提问，不是在改天气） |
 | 这个 bug 怎么写都不对 | unknown（在抱怨，不是在派活） |

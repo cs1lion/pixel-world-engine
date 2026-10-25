@@ -92,6 +92,21 @@ test('模型的意图回到命令队列并生效', async () => {
   assert.equal(sim.snapshot().weather, 'rain', '模型的意图真的改变了世界');
 });
 
+test('模型判出的拨潮，落到与规则同一条有期限的覆盖上', async () => {
+  // 模型这条路不能有特权：它拨出来的潮位覆盖与「涨潮」那条规则命令
+  // 必须走同一个 `setTideLevel`，否则两条路的到期语义迟早会分叉。
+  const model: IntentModel = {
+    classify: async () => ({ kind: 'setTide', level: 1, durationMs: 30_000 }),
+  };
+  const sim = makeSim(model);
+  say(sim, '把水涨上来一点');
+  await settle(sim);
+
+  const tide = sim.snapshot().tide;
+  assert.equal(tide.level, 1);
+  assert.equal(tide.overridden, true, '模型拨的潮同样是有期限的覆盖，不是永久设值');
+});
+
 test('模型判出的造物，落的还是同一套校验', async () => {
   const model: IntentModel = {
     classify: async () => ({ kind: 'build', templateId: 'workshop_plot' }),

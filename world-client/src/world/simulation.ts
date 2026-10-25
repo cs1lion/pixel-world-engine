@@ -778,6 +778,13 @@ export class Simulation {
         return this.settleIntent({ kind: 'dispatch', taskKind: intent.taskKind, summary: intent.summary }, raw);
       case 'setWeather':
         return this.settleIntent({ kind: 'setWeather', weather: intent.weather }, raw);
+      case 'setTide':
+        // 模型给的是一句「涨潮」，世界落成一条**有期限**的覆盖——与规则那条路
+        // （`parseOracle` 的 `tide`）落到同一条命令上，没有第二条特权路径。
+        return this.settleIntent(
+          { kind: 'setTideLevel', level: intent.level, durationMs: intent.durationMs },
+          raw,
+        );
       case 'cancelPending':
         return this.settleIntent({ kind: 'cancelPending' }, raw);
       case 'complete':

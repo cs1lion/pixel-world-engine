@@ -28,6 +28,7 @@
 import type { GridPoint, TaskKind, Weather } from './types.ts';
 import type { MiracleKind } from './oracle-miracle.ts';
 import type { PrefabBlueprint } from './types.ts';
+import { TIDE_OVERRIDE_MAX_MS } from './tide.ts';
 
 /** 模型能表达的意图种类。与 `WorldCommand` 一一对应，不多不少。 */
 export type IntentKind =
@@ -35,6 +36,7 @@ export type IntentKind =
   | 'complete'
   | 'cancelPending'
   | 'setWeather'
+  | 'setTide'
   | 'build'
   | 'demolish'
   | 'miracle'
@@ -48,6 +50,13 @@ export type ParsedIntent =
   | { readonly kind: 'complete' }
   | { readonly kind: 'cancelPending' }
   | { readonly kind: 'setWeather'; readonly weather: Weather }
+  /**
+   * 拨一下潮水。**有期限**——`durationMs` 是命令的一部分，不是可选的注解。
+   *
+   * 潮汐同时是世界时钟：一条能永久按住它的命令，会让所有依赖它的确定性
+   * 跟着松动（见 `tide.ts` 的 `TIDE_OVERRIDE_MAX_MS`）。
+   */
+  | { readonly kind: 'setTide'; readonly level: number; readonly durationMs: number }
   | { readonly kind: 'build'; readonly templateId: string; readonly at: GridPoint | null }
   | { readonly kind: 'demolish'; readonly templateId: string }
   | { readonly kind: 'miracle'; readonly miracle: MiracleKind; readonly at: GridPoint | null }
@@ -68,6 +77,7 @@ const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
   complete: ['kind'],
   cancelPending: ['kind'],
   setWeather: ['kind', 'weather'],
+  setTide: ['kind', 'level', 'durationMs'],
   build: ['kind', 'templateId', 'at'],
   demolish: ['kind', 'templateId'],
   miracle: ['kind', 'miracle', 'at'],
@@ -120,6 +130,18 @@ export function parseIntent(
       return { kind: 'cancelPending' };
     case 'setWeather':
       return { kind: 'setWeather', weather: readOneOf(record.weather, WEATHERS, 'weather', fail) };
+    case 'setTide': {
+      const level = readNumber(record.level, 'level', fail);
+      // 取值域与上限都在这里判：模型不该有机会让世界收到一条越界命令。
+      // 具体的错误说法由世界那条路（`setTideLevel`）再说一次，这里只挡形状。
+      if (level < 0 || level > 1) fail(`level 必须在 0..1，收到 ${level}`);
+      const durationMs = readNumber(record.durationMs, 'durationMs', fail);
+      if (durationMs <= 0) fail('durationMs 必须是正数毫秒');
+      if (durationMs > TIDE_OVERRIDE_MAX_MS) {
+        fail(`durationMs 最多 ${TIDE_OVERRIDE_MAX_MS}——再久就成了夺权，不只是拨一下`);
+      }
+      return { kind: 'setTide', level, durationMs };
+    }
     case 'build':
       return {
         kind: 'build',
@@ -150,6 +172,18 @@ function readOneOf<T extends string>(
     fail(`${field} 的 "${String(value)}" 不在取值域里：可选 ${allowed.join(' / ')}`);
   }
   return value as T;
+}
+
+/** 数字字段。整数与小数都收——潮位是 0..1 的连续量。 */
+function readNumber(
+  value: unknown,
+  field: string,
+  fail: (why: string) => never,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    fail(`${field} 必须是数字`);
+  }
+  return value as number;
 }
 
 function readNonEmpty(

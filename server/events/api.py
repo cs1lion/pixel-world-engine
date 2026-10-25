@@ -29,6 +29,7 @@ from fastapi.responses import JSONResponse
 from events.log import DEFAULT_LIMIT, MAX_LIMIT, EventLog, EventValidationError
 from events.world_changes import router as world_changes_router
 from events.world_changes import register_error_handler as register_world_change_errors
+from oracle.api import register_routes as register_oracle_routes
 
 router = APIRouter()
 
@@ -64,6 +65,8 @@ def create_app(log: EventLog | None = None) -> FastAPI:
     app.state.event_log = log if log is not None else EventLog()
     app.include_router(router)
     app.include_router(world_changes_router)
+    # 意图解析与事件日志互不依赖：解析失败不该影响世界读日志，反之亦然。
+    register_oracle_routes(app)
 
     @app.exception_handler(EventValidationError)
     async def _validation_error(_request: Request, exc: EventValidationError) -> JSONResponse:
