@@ -99,7 +99,10 @@ export class FeedClient {
     }
   }
 
-  /** 当前折叠结果。测试与调试面板读它，世界不读（世界读快照）。 */
+  /**
+   * 当前折叠结果。世界并不直接读它——`onUpdate` 把同一份结果推进命令队列，
+   * 世界只认队列里的那一份。这里留给测试与调试面板查当前状态。
+   */
   state(): TaskFoldState {
     return this.fold;
   }

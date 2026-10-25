@@ -5,6 +5,7 @@ import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { awaitingDecree } from '../src/world/decree.ts';
+import { excerptBlockedQuestion } from '../src/world/types.ts';
 import { syncCommand } from './feed-helpers.ts';
 
 const blueprints = parseBlueprintTable(
@@ -49,6 +50,30 @@ test('有带问题的活时产生一张急件，带完整问题原文', () => {
   assert.ok(decree !== null);
   assert.equal(decree.taskId, id);
   assert.equal(decree.question, '要删掉 ./temp_build 吗？', '必须是完整原文，不能截断');
+});
+
+test('急件给全文，状态行只给 60 字的摘要：快照里留的是完整原文', () => {
+  // 两处展示用同一份 `blockedQuestion`，但截断规则不同：急件要用户看着它做决定，
+  // 一个字都不能少；状态行是一行字，长了会把 HUD 撑破。
+  const long = '问'.repeat(80);
+  const sim = makeSim();
+  blockOne(sim, long);
+
+  const question = sim.snapshot().tasks[0]?.blockedQuestion ?? null;
+  assert.equal(question, long, '快照保留完整原文');
+  assert.equal(excerptBlockedQuestion(question), `${'问'.repeat(60)}…`);
+  assert.equal(awaitingDecree(sim.snapshot())?.question, long, '急件不截断');
+
+  assert.equal(excerptBlockedQuestion('短问题'), '短问题');
+  assert.equal(excerptBlockedQuestion(null), '', '没有问题就是空串');
+  assert.equal(excerptBlockedQuestion('   '), '', '只剩空白也当没有');
+});
+
+test('上游说这单在问、但问题只有空白：按没有问题处理，不出急件', () => {
+  const sim = makeSim();
+  blockOne(sim, '   ');
+  assert.equal(sim.snapshot().tasks[0]?.blockedQuestion, null);
+  assert.equal(awaitingDecree(sim.snapshot()), null);
 });
 
 test('多个带问题的活时只取最早的一个', () => {

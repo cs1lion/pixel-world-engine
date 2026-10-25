@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, buildWorldFromSave, placeBlueprint } from '../src/world/setup.ts';
-import { Simulation } from '../src/world/simulation.ts';
+import { Simulation, completedAtMs } from '../src/world/simulation.ts';
 import { assertSave, migrateSave, SAVE_SETTLED_KEYS, SAVE_TASK_KEYS, type WorldSave } from '../src/world/save.ts';
 import type { PlacedBuilding, WorldProp } from '../src/world/types.ts';
 import { syncCommand } from './feed-helpers.ts';
@@ -106,6 +106,31 @@ test('settled 时钟不混用：本地=wall clock，上游=事件带来的时间
   assert.equal(ledgerSettled?.source, 'ledger');
   assert.equal(ledgerSettled?.completedAtClock, 'ledger');
   assert.equal(ledgerSettled?.completedAt, null, '事件没带时间就记 null，不拿本地时间顶替');
+});
+
+test('事件带的时间：秒与毫秒都认，缺失或非法记 null——绝不拿本地时间顶替', () => {
+  // 事件流约定给毫秒；但老日志与别的写入方可能给秒，所以有一层归一。
+  // 这条是 `completedAtMs` 的回归锁：秒 ×1000、毫秒原样、其余一律 null。
+  assert.equal(completedAtMs(1_792_377_786), 1_792_377_786_000, '秒级时间放大到毫秒');
+  assert.equal(completedAtMs(1_792_377_786_000), 1_792_377_786_000, '毫秒原样');
+  assert.equal(completedAtMs(null), null);
+  assert.equal(completedAtMs(undefined), null);
+  assert.equal(completedAtMs(Number.NaN), null);
+  assert.equal(completedAtMs(Number.POSITIVE_INFINITY), null);
+
+  // 端到端：事件带的是秒，落进 settled 的必须是毫秒。
+  const sim = makeSim(() => 999_999);
+  sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
+  let guard = 0;
+  while (sim.snapshot().villager.mode !== 'working') {
+    sim.update(100);
+    if ((guard += 1) > 200) throw new Error('没走到铺子');
+  }
+  sim.enqueue(syncCommand({ finished: [{ id: 'c_1', completedAt: 1_792_377_786 }] }));
+  sim.update(16);
+  const settled = sim.toSave().world.settled.find((item) => item.id === 'c_1');
+  assert.equal(settled?.completedAt, 1_792_377_786_000);
+  assert.equal(settled?.completedAtClock, 'ledger', '时间来自事件，不是本地看的钟');
 });
 
 test('对账：已结算不重复、不复活；缺席不是撤单；撤单才撤', () => {

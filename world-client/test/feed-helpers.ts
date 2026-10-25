@@ -68,7 +68,9 @@ export function syncCommand(input: SyncCommandInput): {
       id: task.id,
       kind: task.kind,
       title: task.title,
-      question: task.question ?? null,
+      // 与 `foldTaskEvents` 一致：只有空白的问题等于没有问题。
+      // 手造的状态也要守折叠层的不变量，否则测的是一个真实日志里不会出现的输入。
+      question: task.question == null || task.question.trim() === '' ? null : task.question,
     }));
   cursor += 1 + open.length + settled.length;
   return {
