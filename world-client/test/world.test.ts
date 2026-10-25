@@ -168,6 +168,13 @@ test('神谕按动词收敛，认不出的落 unknown', () => {
   assert.equal(parseOracle('交付').kind, 'complete');
   assert.deepEqual(parseOracle('下雨了'), { kind: 'weather', weather: 'rain' });
   assert.deepEqual(parseOracle('放晴吧'), { kind: 'weather', weather: 'clear' });
+  // 「暴雨」打头才算——句中顺带提到不该改天。
+  assert.deepEqual(parseOracle('暴雨来一场'), { kind: 'weather', weather: 'storm' });
+  assert.equal(parseOracle('查一下暴雨记录').kind, 'dispatch');
+  // 拨潮水：只认固定短语，两个端点。
+  assert.deepEqual(parseOracle('涨潮'), { kind: 'tide', level: 1, durationMs: 60_000 });
+  assert.deepEqual(parseOracle('退潮吧'), { kind: 'tide', level: 0, durationMs: 60_000 });
+  assert.equal(parseOracle('涨潮了吗').kind, 'unknown', '提问不改潮汐');
   assert.equal(parseOracle('今天真好看').kind, 'unknown');
   assert.equal(parseOracle('   ').kind, 'unknown');
   assert.equal(parseOracle('撤销').kind, 'cancelPending');

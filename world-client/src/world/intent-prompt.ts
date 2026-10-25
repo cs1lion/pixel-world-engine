@@ -79,7 +79,7 @@ ${renderIntentContext(context)}
 - \`{"kind":"dispatch","taskKind":"<类>","summary":"<要做的事>"}\` 派一件活给镇上的铺子
 - \`{"kind":"complete"}\` 交付，收下正在干的那单
 - \`{"kind":"cancelPending"}\` 撤销还在排队的神谕（不动正在干的）
-- \`{"kind":"setWeather","weather":"clear"|"rain"}\` 改天气
+- \`{"kind":"setWeather","weather":"clear"|"rain"|"storm"}\` 改天气；\`storm\` 是暴雨，比 \`rain\` 重
 - \`{"kind":"build","templateId":"<模板>"}\` 建一栋楼；可带 \`"at":{"x":<整数>,"y":<整数>}\`
 - \`{"kind":"demolish","templateId":"<模板>"}\` 拆掉一栋楼
 - \`{"kind":"miracle","miracle":"light"|"tree"|"cat"}\` 点灯 / 种树 / 召唤猫；可带 \`"at"\`

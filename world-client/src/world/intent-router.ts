@@ -142,6 +142,11 @@ function matchRules(
       return { kind: 'cancelPending' };
     case 'weather':
       return { kind: 'setWeather', weather: oracle.weather };
+    // 规则能拨潮水，但模型协议里还没有这条意图（白名单 #6 再加）。
+    // 这里返回 null 而不是硬塞一条 setWeather：宁可模型这条路"没听懂"，
+    // 也不要让世界做一件模型没说的事。
+    case 'tide':
+      return null;
     case 'unknown':
       return null;
   }
@@ -162,7 +167,7 @@ export function describeIntent(intent: ParsedIntent): string {
     case 'cancelPending':
       return '撤销';
     case 'setWeather':
-      return intent.weather === 'rain' ? '下雨' : '放晴';
+      return intent.weather === 'clear' ? '放晴' : intent.weather === 'storm' ? '暴雨' : '下雨';
     case 'build':
       return '造物';
     case 'demolish':

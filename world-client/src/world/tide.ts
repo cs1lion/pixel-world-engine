@@ -104,3 +104,110 @@ export function describeTide(level: number, previous: number): string {
   if (level <= 0.15) return '退潮见底';
   return rising ? '涨潮' : '退潮';
 }
+
+// ------------------------------------------------------------ 有期限的覆盖
+
+/**
+ * 潮位覆盖：一句话让潮水涨/退，但它有期限。
+ *
+ * 潮位本来是 `now` 的纯函数，可确定性回放靠的就是这一条。让命令直接写潮位
+ * 会当场毁掉它，所以命令写的是一条**有期限的覆盖**：到期自动失效，
+ * 世界回到自己的节律上。覆盖本身进存档，回放仍然唯一。
+ *
+ * 形状与存档里那份是同一个（`save.ts` 从这里导入，不是各写一份）。
+ */
+export interface TideOverride {
+  /** 0..1，命令要求的潮位。 */
+  readonly level: number;
+  /** 世界时间，到这个时刻覆盖失效。 */
+  readonly until: number;
+}
+
+/**
+ * 一次命令最多能压住潮汐多久。
+ *
+ * 2 分钟是拍的（spec §8 记了这条：没有实测依据）。下限的理由是硬规则——
+ * 「潮汐是时钟」这条承诺只有在覆盖**必然会过去**时才成立。上限不超过
+ * 一个周期的一半：超过半周期，覆盖就比潮汐自己走完还能造成的改变更大，
+ * 那就不是"一句话拨了一下"，是夺权。
+ */
+export const TIDE_OVERRIDE_MAX_MS = 2 * 60_000;
+
+/**
+ * 把读到的潮位夹回 0..1。只在**读**的那一侧用，不在命令那侧。
+ *
+ * 存档是可以被手改的文件，读到 `1.5` 也不该让整片海变成负高度。命令那条路
+ * 走不到越界值——`tideOverrideRejection` 先拒了；这里留着只是防手改的存档。
+ */
+function clampLevel(level: number): number {
+  if (!Number.isFinite(level)) return 0;
+  return Math.min(1, Math.max(0, level));
+}
+
+/**
+ * 此刻的有效潮位。
+ *
+ * 覆盖到期就自动作废——**不需要谁去删它**：读的时候按 `now` 判，
+ * 这样回放与读档都不会因为「清理字段」的时序不同而分叉。
+ */
+export function effectiveTideLevel(now: number, override: TideOverride | null): number {
+  if (override === null) return tideLevelAt(now);
+  if (now >= override.until) return tideLevelAt(now);
+  return clampLevel(override.level);
+}
+
+/** 覆盖是否还有效。存档里留着过期的覆盖无害，但不必显示它。 */
+export function isOverrideActive(now: number, override: TideOverride | null): boolean {
+  return override !== null && now < override.until;
+}
+
+/**
+ * 快照里的潮汐一栏。纯函数，好离线断言。
+ *
+ * `overridden` 与 `label` 都要看覆盖：被压住时潮水可能停着不动，
+ * 只报「满潮」会让用户以为潮汐坏了。
+ */
+export function tideView(
+  now: number,
+  override: TideOverride | null,
+  previous: number,
+): { level: number; label: string; rising: boolean; overridden: boolean } {
+  const level = effectiveTideLevel(now, override);
+  const active = isOverrideActive(now, override);
+  return {
+    level,
+    label: active
+      ? `潮位被人拨住了（${describeTide(level, previous)}）`
+      : describeTide(level, previous),
+    rising: level > previous,
+    overridden: active,
+  };
+}
+
+/** 一条覆盖请求为什么站不住。给调用方一个稳定的词，而不是一句中文。 */
+export type TideOverrideRejection = 'level-out-of-range' | 'duration-not-positive' | 'duration-too-long';
+
+/**
+ * 校验一条覆盖请求。`null` = 可以落。
+ *
+ * **超上限是拒，不是夹。** 夹住会让「拨 10 分钟」变成「拨了 2 分钟」——
+ * 世界照办了，但办的不是那件事，而调用方拿到的是成功。这里宁可整条命令失败：
+ * 至少失败是看得见的。
+ */
+export function tideOverrideRejection(
+  level: number,
+  durationMs: number,
+): TideOverrideRejection | null {
+  if (!Number.isFinite(level) || level < 0 || level > 1) return 'level-out-of-range';
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 'duration-not-positive';
+  if (durationMs > TIDE_OVERRIDE_MAX_MS) return 'duration-too-long';
+  return null;
+}
+
+/**
+ * 造一条覆盖。调用前必须已经过了 `tideOverrideRejection`——
+ * 这里不重复校验，只做"落到具体时刻"这件纯算术。
+ */
+export function makeTideOverride(level: number, durationMs: number, now: number): TideOverride {
+  return { level, until: now + Math.round(durationMs) };
+}

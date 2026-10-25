@@ -93,6 +93,18 @@ test('不出现坐标：模型拿不到可推断的实现细节', () => {
   }
 });
 
+test('三档天气在给模型的现状里各说各的，暴雨不会被说成「下雨」', () => {
+  // 说成「在下雨」时，模型会把用户说的「雨太大了」当成已经在办的事而答 unknown。
+  const base = summarizeForIntent(makeSim().snapshot());
+  const textFor = (weather: 'clear' | 'rain' | 'storm'): string =>
+    renderIntentContext({ ...base, weather });
+
+  assert.match(textFor('clear'), /天晴/);
+  assert.match(textFor('rain'), /在下雨/);
+  assert.match(textFor('storm'), /暴雨/);
+  assert.notEqual(textFor('storm'), textFor('rain'), '暴雨不能和雨说成同一句');
+});
+
 // ------------------------------------------------------------ 提示词
 
 test('提示词包含世界现状，并说明它不改变判断规则', () => {

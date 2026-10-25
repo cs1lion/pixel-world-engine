@@ -69,7 +69,13 @@ export interface PrefabBlueprint {
   readonly upgradeTo?: string;
 }
 
-export type Weather = 'clear' | 'rain';
+/**
+ * 天气。`storm` 不是新机制，是 `rain` 的强度档——`WeatherState.intensity`
+ * 早已能表达浓淡，渲染层按它插值。所以三档只改了取值域，没加分支。
+ *
+ * 旧存档只有两档；`storm` 是新增值，读进来只会出现在新档里。#14。
+ */
+export type Weather = 'clear' | 'rain' | 'storm';
 
 export type VillagerMode =
   | 'idle'
@@ -360,6 +366,13 @@ export interface WorldSnapshot {
     readonly label: string;
     /** 这一拍相对上一拍是在涨还是在退。持平也算退，渲染层不靠它判断。 */
     readonly rising: boolean;
+    /**
+     * 此刻是不是有人在压着潮汐（`tide.setLevel` 的覆盖还没到期）。
+     *
+     * 世界照样按覆盖走，但这个标记让界面能说出「这是被拨过的」——
+     * 否则用户看到潮水停在半满不动，会以为潮汐坏了。
+     */
+    readonly overridden: boolean;
   };
   /** 交付积累的信仰点数与已达成的世界记忆数。 */
   readonly faith: { readonly points: number; readonly milestones: number };

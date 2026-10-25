@@ -28,6 +28,7 @@ import type {
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
 import type { WeatherState } from './weather.ts';
+import type { TideOverride } from './tide.ts';
 
 export const CURRENT_SCHEMA_VERSION = 3;
 /** 槽位键沿用 v1：升 schema 不改存储键，老档才读得到、才谈得上迁移。 */
@@ -241,18 +242,10 @@ export const SAVE_SETTLED_KEYS = [
 /**
  * 潮位覆盖：一句话让潮水涨/退，但它有期限。
  *
- * 潮位本来是 `now` 的纯函数（`tideLevelAt`），可确定性回放靠的就是这一条。
- * 让命令直接写潮位会当场毁掉它，所以命令写的是一条**有期限的覆盖**：
- * 到期自动失效，世界回到自己的节律上。覆盖本身进存档，回放仍然唯一。
- *
- * v3 只定形状，谁写、上限多少由 #14 决定。
+ * 形状定义在 `tide.ts`——那里是唯一能算它的地方（`effectiveTideLevel`）。
+ * 存档只是把它序列化，不另立一份。
  */
-export interface TideOverride {
-  /** 0..1，命令要求的潮位。 */
-  readonly level: number;
-  /** 世界时间，到这个时刻覆盖失效。 */
-  readonly until: number;
-}
+export type { TideOverride } from './tide.ts';
 
 /** 存档里的角色：快照缺的续跑字段由 toSave() 补齐（ADR_SAVE §1.2）。 */
 export interface SavedVillager {
@@ -503,7 +496,8 @@ export const ZONES: readonly ZoneId[] = [
 export const PROP_KINDS: readonly PropKind[] = ['lamp', 'tree', 'banner'];
 export const WORK_ACCENTS: readonly WorkAccent[] = ['smoke', 'pages', 'ink'];
 export const SILHOUETTES: readonly Silhouette[] = ['gable', 'tower', 'flat'];
-export const WEATHER_KINDS: readonly Weather[] = ['clear', 'rain'];
+/** 三档。旧档只会出现前两档，读进来照常合法。 */
+export const WEATHER_KINDS: readonly Weather[] = ['clear', 'rain', 'storm'];
 export const ACTIVITY_KINDS: readonly WorkstationActivity['kind'][] = [
   'idle', 'operating', 'overheating', 'cooling',
 ];

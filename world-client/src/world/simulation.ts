@@ -10,7 +10,14 @@ import type { WorldGrid } from './grid.ts';
 import { TASK_PROFILES, taskDurationFor } from './tasks.ts';
 import { pickVenue, type VenueCandidate } from './venue.ts';
 import { fogAt, revealedRadiusFor } from './fog.ts';
-import { describeTide, tideLevelAt } from './tide.ts';
+import {
+  TIDE_OVERRIDE_MAX_MS,
+  effectiveTideLevel,
+  makeTideOverride,
+  tideOverrideRejection,
+  tideView,
+  type TideOverrideRejection,
+} from './tide.ts';
 import { awaitingDecree } from './decree.ts';
 import type { TaskFoldState } from './task-events.ts';
 import type { WorldChange } from './world-changes.ts';
@@ -35,8 +42,10 @@ import {
 import { routineBeats, routineFor, shelterTarget, type RoutineBeat } from './routines.ts';
 import {
   clearWeather,
-  rainWeather,
+  fadingToClear,
+  renderIntensity,
   stepWeather,
+  weatherFor,
   type WeatherState,
 } from './weather.ts';
 import type {
@@ -84,6 +93,20 @@ export type MiracleKind = 'light' | 'tree' | 'cat';
 /** 猫在世界里待多久。到点自己走开，不占位。 */
 const CAT_DWELL_MS = 20_000;
 
+/** 已经就是这个天气时的回执。`ok: false` = 世界没变，不是命令被拒。 */
+const WEATHER_ALREADY: Readonly<Record<Weather, string>> = {
+  clear: '天本来就是晴的。',
+  rain: '天已经在下雨了。',
+  storm: '已经在刮暴雨了。',
+};
+
+/** 三种拒绝各自的说法。分开写是因为用户能改的是不同的东西。 */
+const TIDE_REJECTIONS: Readonly<Record<TideOverrideRejection, string>> = {
+  'level-out-of-range': '潮位只能是 0 到 1 之间的一个数。',
+  'duration-not-positive': '潮位要拨住多久？给一个正数毫秒。',
+  'duration-too-long': `潮水最多拨住 ${TIDE_OVERRIDE_MAX_MS / 60_000} 分钟——再久就成了夺权，不只是拨一下。`,
+};
+
 export type WorldCommand =
   /**
    * 一句神谕的原文。世界自己解析，解析结果再落到下面的具体命令上。
@@ -103,6 +126,13 @@ export type WorldCommand =
   | { readonly kind: 'complete'; readonly target?: string }
   | { readonly kind: 'cancelPending'; readonly id?: string }
   | { readonly kind: 'setWeather'; readonly weather: Weather }
+  /**
+   * 拨一下潮水：**有期限的**，到期回到潮汐自己的节律。
+   *
+   * 不是"设潮位"。前者是一次事件，后者是夺权——潮汐同时是世界时钟，
+   * 让它被人永久按住，所有依赖它的确定性都会跟着松动。
+   */
+  | { readonly kind: 'setTideLevel'; readonly level: number; readonly durationMs: number }
   /**
    * 造物。`at` 省略时自动选址（旧行为）；给了就是玩家在造物模式里指定的位置。
    */
@@ -295,8 +325,11 @@ export class Simulation {
    */
   private lastTideLevel = 0;
   /**
-   * 潮位覆盖（v3 存档字段）。**只存不用**：写它、让它在 `until` 之后失效
-   * 都是 #14 的事；这一版只保证它进得了存档、读得回来。
+   * 潮位覆盖：一句话让潮水涨/退，到期自动失效。
+   *
+   * **过期不删字段，读的时候判。** 每次 `stepTide` 都拿 `now` 跟 `until` 比，
+   * 过期就忽略它。这样回放与读档不会因为「谁先清理字段」的时序不同而分叉——
+   * 一个需要被"清理"的状态，迟早会在某条路径上漏掉清理。
    */
   private tideOverride: TideOverride | null = null;
   /**
@@ -458,11 +491,7 @@ export class Simulation {
       trails: visibleTrails(this.trails),
       events: this.events.slice(-12),
       weather: this.weather.kind,
-      tide: {
-        level: tideLevelAt(this.now),
-        label: describeTide(tideLevelAt(this.now), this.lastTideLevel),
-        rising: tideLevelAt(this.now) > this.lastTideLevel,
-      },
+      tide: tideView(this.now, this.tideOverride, this.lastTideLevel),
       faith: { points: this.faithPoints, milestones: this.milestones },
       /** 上游交付与本地交付分开计，不合并成一个数。 */
       deliveries: { feed: this.feedDeliveries, local: this.localDeliveries },
@@ -486,9 +515,14 @@ export class Simulation {
     };
   }
 
-  /** 天气浓淡给渲染层插值雨幕用。 */
+  /**
+   * 天气浓淡给渲染层插值雨幕用。
+   *
+   * 经过 `renderIntensity` 折算：暴雨在同一份浓淡上再重一档。折算放在世界侧而不是
+   * 渲染层，是为了让渲染层不必知道天气有几档——加第三档时它一行没改。
+   */
   weatherIntensity(): number {
-    return this.weather.intensity;
+    return renderIntensity(this.weather);
   }
 
   /** 调试面板用：取最近 N 条事件（快照只带 12 条，面板要 50 条）。只读。 */
@@ -513,6 +547,8 @@ export class Simulation {
         return this.cancelPending(command.id);
       case 'setWeather':
         return this.setWeather(command.weather);
+      case 'setTideLevel':
+        return this.setTideLevel(command.level, command.durationMs);
       case 'build':
         return this.build(command.prefabId, command.instanceId, command.at, command.source);
       case 'miracle':
@@ -684,6 +720,9 @@ export class Simulation {
         break;
       case 'weather':
         command = { kind: 'setWeather', weather: intent.weather };
+        break;
+      case 'tide':
+        command = { kind: 'setTideLevel', level: intent.level, durationMs: intent.durationMs };
         break;
       case 'cancelPending':
         command = { kind: 'cancelPending' };
@@ -1114,22 +1153,64 @@ export class Simulation {
     this.log('warn', `${task.summary} 被上游撤回，${villager.name}停手了。`);
   }
 
+  /**
+   * 改天气。三档都走这一条路：`storm` 只是目标浓淡与时长更大的一档雨。
+   *
+   * 判"世界没变"用 `kind`，不用 `intensity`：浓淡是渐变过程，几乎每拍都在变；
+   * 拿它判会让同一条命令时而被当成"变了"、时而不是。
+   *
+   * 换档时从**当前浓淡**接着走，不清零：从雨转暴雨不该先停一下再下大。
+   */
   private setWeather(weather: Weather): CommandResult {
-    if (weather === this.weather.kind && this.weather.remainingMs !== null) {
+    if (weather === this.weather.kind) {
       // `ok: false` 表示"世界没变"，与"命令被拒"是两回事；调用方只把 ok 当"变了"用。
-      return { ok: false, message: '天已经在下雨了。' };
+      return { ok: false, message: WEATHER_ALREADY[weather] };
     }
-    if (weather === 'rain') {
-      this.weather = rainWeather(this.now);
-      this.log('info', '神谕说：下雨。天暗下来了。');
-      this.scatterToShelter();
-      this.announce({ change: 'weather', weather: 'rain' });
-      return { ok: true, message: '雨落下来了。' };
+    if (weather === 'clear') {
+      // 从当前浓淡慢慢退，不当场归零——否则雨幕一帧消失，像开关灯。
+      this.weather = fadingToClear(this.weather);
+      this.log('info', '神谕说：放晴。雨停了。');
+      this.announce({ change: 'weather', weather: 'clear' });
+      return { ok: true, message: '天放晴了。' };
     }
-    this.weather = clearWeather();
-    this.log('info', '神谕说：放晴。雨停了。');
-    this.announce({ change: 'weather', weather: 'clear' });
-    return { ok: true, message: '天放晴了。' };
+
+    const heavier = weather === 'storm';
+    // 从雨转暴雨（或反过来）：浓淡接着当前值往下走，不清零。
+    // 停了再下大，中间那一截空白看起来像两条不相干的消息。
+    const from = this.weather.kind === 'clear' ? 0 : this.weather.intensity;
+    this.weather = weatherFor(weather, from);
+    this.log('info', heavier ? '神谕说：暴雨。天黑下来了。' : '神谕说：下雨。天暗下来了。');
+    this.scatterToShelter();
+    this.announce({ change: 'weather', weather });
+    return { ok: true, message: heavier ? '暴雨砸下来了。' : '雨落下来了。' };
+  }
+
+  /**
+   * 拨一下潮水。写一条有期限的覆盖，不改潮汐的曲线。
+   *
+   * 两条拒绝，都是"世界不会做这件事"而不是参数格式错：潮位不是 0..1 的数，
+   * 时长不是正数（0 或负数等于没拨）。
+   *
+   * **重复拨同一个位置算世界变了。** 判重会需要比较"还剩多久"，而时长是从
+   * 当前时刻算的——两次完全相同的命令落在不同时刻，本来就是两条不同的覆盖。
+   * 与其猜用户想不想延期，不如照做：再拨一次 = 从这个时刻重新压住。
+   *
+   * 时长超上限**拒掉**，不夹。夹住的话「拨 10 分钟」会变成「拨了 2 分钟」，
+   * 而回执说成功——世界做了件别的事，调用方还以为办成了。
+   */
+  private setTideLevel(level: number, durationMs: number): CommandResult {
+    const rejection = tideOverrideRejection(level, durationMs);
+    if (rejection !== null) return { ok: false, message: TIDE_REJECTIONS[rejection] };
+
+    const next = makeTideOverride(level, durationMs, this.now);
+    this.tideOverride = next;
+    // 立刻生效：命令落下就该看见水动，不必等下一拍的 `stepTide`。
+    this.grid.setTideLevel(effectiveTideLevel(this.now, next));
+    this.log('info', `神谕拨了一下潮水：${Math.round(level * 100)}%，${Math.round((next.until - this.now) / 1000)} 秒后回到节律。`);
+    return {
+      ok: true,
+      message: `潮水停在 ${Math.round(level * 100)}%，${Math.round((next.until - this.now) / 1000)} 秒后自己回去。`,
+    };
   }
 
   /** 下雨的那一刻，户外还闲着的角色立刻改主意，不等到下一个作息拍。 */
@@ -1446,6 +1527,16 @@ export class Simulation {
     );
   }
 
+  /**
+   * 此刻在下雨（含暴雨）。
+   *
+   * 集中一处而不是散着写 `=== 'rain'`：加第三档时漏掉一处，就会出现
+   * 「暴雨天有人不打伞」这种只有截图才看得见的 bug。
+   */
+  private isRaining(): boolean {
+    return this.weather.kind === 'rain' || this.weather.kind === 'storm';
+  }
+
   private isFree(villager: Villager): boolean {
     return villager.mode === 'idle' || villager.mode === 'sheltering';
   }
@@ -1465,7 +1556,7 @@ export class Simulation {
       taskId: villager.taskId,
       bubble: villager.bubble,
       routine: villager.routineLabel,
-      umbrella: this.weather.kind === 'rain' && villager.mode !== 'working',
+      umbrella: this.isRaining() && villager.mode !== 'working',
       carrying: villager.carrying,
     };
   }
@@ -1518,8 +1609,11 @@ export class Simulation {
         if (villager.path.length === 0) {
           villager.mode = 'idle';
           villager.nextRoutineAt = this.now + 2500;
-          villager.routineLabel =
-            this.weather.kind === 'rain' ? '在屋檐下看雨' : '雨停了，抖了抖身上的水';
+          villager.routineLabel = this.isRaining()
+            ? this.weather.kind === 'storm'
+              ? '在屋檐下躲暴雨'
+              : '在屋檐下看雨'
+            : '雨停了，抖了抖身上的水';
         }
         return;
       case 'idle':
@@ -1870,7 +1964,8 @@ export class Simulation {
    * 唯一写进世界的是"寻路代价"，那在 `grid.setTideLevel` 里。
    */
   private stepTide(): void {
-    const level = tideLevelAt(this.now);
+    // 覆盖仍然只改「结果」，不改「节律」：过期的那一刻自动回到纯函数曲线。
+    const level = effectiveTideLevel(this.now, this.tideOverride);
     this.grid.setTideLevel(level);
     this.lastTideLevel = level;
   }

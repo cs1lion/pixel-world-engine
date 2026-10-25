@@ -65,11 +65,12 @@ export function routineFor(
   beats: readonly RoutineBeat[],
   index: number,
 ): RoutineBeat {
-  if (weather === 'rain') {
+  // 暴雨一样躲，只是说法不同——这一档是雨的强度，不是新行为。
+  if (weather === 'rain' || weather === 'storm') {
     const altar = beats[0];
     return {
       id: 'shelter',
-      label: '躲到屋檐下看雨',
+      label: weather === 'storm' ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
       target: altar.target,
       dwellMs: DWELL_MS,
     };

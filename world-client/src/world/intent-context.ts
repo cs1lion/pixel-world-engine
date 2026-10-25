@@ -19,7 +19,7 @@
 
 import { WILD_PREFABS } from './setup.ts';
 import { TASK_PROFILES, WORKSHOP_TASKS } from './tasks.ts';
-import type { PlacedBuilding, TaskKind, VillagerSnapshot, WorldSnapshot } from './types.ts';
+import type { PlacedBuilding, TaskKind, VillagerSnapshot, Weather, WorldSnapshot } from './types.ts';
 
 /**
  * 喂给模型的世界现状。
@@ -39,7 +39,7 @@ export interface IntentContext {
   readonly busy: readonly { readonly name: string; readonly taskKind: TaskKind }[];
   /** 还有几条神谕在排队。 */
   readonly queued: number;
-  readonly weather: 'clear' | 'rain';
+  readonly weather: Weather;
   /** 已经建过、不能再建第二栋的模板。与 `simulation.ts` 的 build 拒绝一致。 */
   readonly exhausted: readonly string[];
 }
@@ -120,7 +120,15 @@ export function renderIntentContext(context: IntentContext): string {
   }
 
   if (context.queued > 0) lines.push(`还有 ${context.queued} 条神谕在排队。`);
-  lines.push(context.weather === 'rain' ? '外面在下雨。' : '天晴。');
+  // 三档都要说出来：告诉模型「天在下雨」而实际是暴雨，它就会把用户说的
+  // 「雨太大了」当成已经在办的事，答 unknown。
+  lines.push(
+    context.weather === 'clear'
+      ? '天晴。'
+      : context.weather === 'storm'
+        ? '外面在刮暴雨。'
+        : '外面在下雨。',
+  );
 
   if (context.exhausted.length > 0) {
     lines.push(

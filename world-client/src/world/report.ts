@@ -78,7 +78,12 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     lines.push(`有 ${failed.length} 单没办成，记在案上。`);
   }
 
-  const weather = snapshot.weather === 'rain' ? '今天下了雨' : '今天晴';
+  const weather =
+    snapshot.weather === 'clear'
+      ? '今天晴'
+      : snapshot.weather === 'storm'
+        ? '今天刮了暴雨'
+        : '今天下了雨';
   lines.push(`${weather}。${villagerTail(snapshot)}`);
 
   // 没有里程碑时不能写"第 1 次神恩"：那是还没发生的事。

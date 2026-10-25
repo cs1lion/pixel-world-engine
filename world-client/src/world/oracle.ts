@@ -28,8 +28,18 @@ interface Rule {
 const COMPLETE_WORDS = ['完成', '交付', '收工', 'done', 'finish', 'complete'];
 const RAIN_WORDS = ['下雨', '降雨', '落雨', 'rain'];
 const CLEAR_WORDS = ['放晴', '雨停', '天晴', '出太阳', 'clear'];
+/** 暴雨要先于「下雨」判：`暴` 打头的句子不会命中 RAIN_WORDS，但顺序仍要摆对。 */
+const STORM_WORDS = ['暴雨', '大雨', '雷雨', '刮风下雨', 'storm'];
 /** 撤销排队中的神谕；只撤等待队列，不动正在干的活。 */
 const CANCEL_WORDS = ['撤销', '取消', 'cancel', 'undo'];
+/**
+ * 拨潮水。只认两个固定短语，不给数值——「涨到 0.37」这种话是白名单命令
+ * 该管的事（#6），规则词表这一层只做「听得懂的那几句」。
+ */
+const TIDE_RISE_WORDS = ['涨潮', '涨水', '满潮'];
+const TIDE_FALL_WORDS = ['退潮', '退水', '落潮'];
+/** 拨住多久。够看见，又不至于让人以为潮汐坏了。 */
+const TIDE_HOLD_MS = 60_000;
 /** 短活必须「顺手」打头：句中顺带提到「简单」不算短活，也抢不走长活的词。 */
 const QUICK_PREFIXES = ['顺手', '随便', '简单', '小事'];
 
@@ -49,7 +59,9 @@ const TASK_RULES: readonly Rule[] = [
 
 export type OracleAction =
   | OracleIntent
-  | { readonly kind: 'weather'; readonly weather: Weather };
+  | { readonly kind: 'weather'; readonly weather: Weather }
+  /** 拨潮水。同样是有期限的覆盖，不是"设潮位"。 */
+  | { readonly kind: 'tide'; readonly level: number; readonly durationMs: number };
 
 export function parseOracle(raw: string): OracleAction {
   const text = raw.trim();
@@ -75,11 +87,22 @@ export function parseOracle(raw: string): OracleAction {
   if (leads(CLEAR_WORDS) && !isQuestion(lower)) {
     return { kind: 'weather', weather: 'clear' };
   }
+  // 暴雨先判：它的词里也有「下雨」，但落到的档不同。
+  if (leads(STORM_WORDS) && !isQuestion(lower)) {
+    return { kind: 'weather', weather: 'storm' };
+  }
   if (leads(RAIN_WORDS) && !isQuestion(lower)) {
     return { kind: 'weather', weather: 'rain' };
   }
   if (leads(CANCEL_WORDS) && !isQuestion(lower)) {
     return { kind: 'cancelPending' };
+  }
+  // 拨潮水。满潮 1、退到底 0——两个端点，不给中间值。
+  if (leads(TIDE_RISE_WORDS) && !isQuestion(lower)) {
+    return { kind: 'tide', level: 1, durationMs: TIDE_HOLD_MS };
+  }
+  if (leads(TIDE_FALL_WORDS) && !isQuestion(lower)) {
+    return { kind: 'tide', level: 0, durationMs: TIDE_HOLD_MS };
   }
 
   // 短活：句首就是「顺手 / 随便」这类，本身就是祈使，不必再套动词表。

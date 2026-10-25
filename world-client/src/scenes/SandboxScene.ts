@@ -16,6 +16,7 @@ import { createVillager, updateVillager, type VillagerView } from '../render/vil
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
 import { createWeatherView, type WeatherView } from '../render/weather.ts';
+import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
@@ -1184,7 +1185,7 @@ export class SandboxScene extends Phaser.Scene {
         return `${villager.name}：${modeLabel[villager.mode]}`;
       })
       .join('　/　');
-    const weather = this.snapshot.weather === 'rain' ? '雨' : '晴';
+    const weather = WEATHER_LABEL[this.snapshot.weather];
     const faith = this.snapshot.faith;
     const { feed: feedDelivered, local: localDelivered } = this.snapshot.deliveries;
     // 离线必须显式标出：状态行不只说"上游离线"，还说现在跑的是本地活。

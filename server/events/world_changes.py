@@ -124,7 +124,7 @@ def _check_miracle(payload: dict[str, Any], path: str) -> None:
 def _check_weather(payload: dict[str, Any], path: str) -> None:
     _only(payload, {"weather"}, path)
     weather = _require_str(payload, "weather", path)
-    if weather not in ("clear", "rain"):
+    if weather not in ("clear", "rain", "storm"):
         raise WorldChangeError(f"{path}.weather 不认识：{weather!r}")
 
 

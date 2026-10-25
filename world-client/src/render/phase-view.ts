@@ -191,7 +191,9 @@ export function createPhaseView(
 
   const drawFireflies = (snapshot: WorldSnapshot, view: Blend): void => {
     fireflies.clear();
-    if (!view.fireflies || snapshot.weather === 'rain') return;
+    // 暴雨天也没有萤火虫：它们是「晴天夜里」的装饰，不是天气系统的例外。
+    // 写 `!== 'clear'` 而不是列举两种雨——再添一档天气时这里不必再改。
+    if (!view.fireflies || snapshot.weather !== 'clear') return;
     for (let i = 0; i < FIREFLIES.length; i += 1) {
       const point = FIREFLIES[i]!;
       const phase = Math.sin(snapshot.now / 700 + i * 1.9);

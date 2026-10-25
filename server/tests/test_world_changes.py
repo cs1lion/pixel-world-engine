@@ -35,7 +35,8 @@ VALID_PAYLOADS = {
     },
     "building.removed": {"instanceId": "bookshop#1", "displayName": "书斋"},
     "miracle": {"miracle": "lamp", "at": {"x": 3, "y": 4}},
-    "weather": {"weather": "rain"},
+    # 三档都收；storm 是 #14 加的强度档，不是新机制。
+    "weather": {"weather": "storm"},
 }
 
 
@@ -196,6 +197,18 @@ def test_神迹坐标必须是整数格(client: TestClient) -> None:
     for at in ({"x": 1.5, "y": 2}, {"x": 1}, {"x": 1, "y": 2, "z": 3}, {"x": True, "y": 2}, "1,2"):
         response = post(client, "miracle", {"miracle": "lamp", "at": at})
         assert response.status_code == 422, at
+
+
+@pytest.mark.parametrize("weather", ["clear", "rain", "storm"])
+def test_天气三档都收(client: TestClient, weather: str) -> None:
+    """#14 把 `Weather` 扩成三档；回写白名单必须同步，否则暴雨天世界写不回去。"""
+    assert post(client, "weather", {"weather": weather}).status_code == 201
+
+
+def test_天气不认识的值被拒(client: TestClient) -> None:
+    response = post(client, "weather", {"weather": "snow"})
+    assert response.status_code == 422
+    assert "weather" in response.json()["detail"]
 
 
 def test_建筑来由可以是_null(client: TestClient) -> None:

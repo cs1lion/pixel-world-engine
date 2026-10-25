@@ -42,7 +42,7 @@
       "at": 16000,
       "change": "weather",
       "payload": {
-        "weather": "rain"
+        "weather": "storm"
       }
     }
   ]

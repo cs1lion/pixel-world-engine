@@ -281,7 +281,7 @@ test('task-32：枚举常量与 types.ts 联合类型逐项对齐', () => {
   assert.deepEqual([...PROP_KINDS].sort(), ['banner', 'lamp', 'tree']);
   assert.deepEqual([...WORK_ACCENTS].sort(), ['ink', 'pages', 'smoke']);
   assert.deepEqual([...SILHOUETTES].sort(), ['flat', 'gable', 'tower']);
-  assert.deepEqual([...WEATHER_KINDS].sort(), ['clear', 'rain']);
+  assert.deepEqual([...WEATHER_KINDS].sort(), ['clear', 'rain', 'storm']);
   assert.deepEqual([...ACTIVITY_KINDS].sort(), ['cooling', 'idle', 'operating', 'overheating']);
 });
 

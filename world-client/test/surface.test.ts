@@ -40,6 +40,25 @@ test('还没交付时，日报说实话，不用填充句', () => {
   assert.ok(report.lines.length <= 3);
 });
 
+test('日报把暴雨写出来，不把三档折成「下没下雨」', () => {
+  // 三元判断 `=== 'rain' ? '今天下了雨' : '今天晴'` 会把暴雨写成「今天晴」——
+  // 加第三档时最容易漏的正是这种不是 switch 的地方。
+  const sim = makeSim();
+  const snapshot = (): ReturnType<Simulation['snapshot']> => sim.snapshot();
+  const weatherLine = (): string =>
+    composeReport(snapshot()).lines.find((line) => line.includes('今天')) ?? '';
+
+  assert.match(weatherLine(), /今天晴/);
+
+  sim.enqueue({ kind: 'setWeather', weather: 'rain' });
+  sim.update(16);
+  assert.match(weatherLine(), /今天下了雨/);
+
+  sim.enqueue({ kind: 'setWeather', weather: 'storm' });
+  sim.update(16);
+  assert.match(weatherLine(), /今天刮了暴雨/);
+});
+
 test('交付一单之后，日报写的是这单本身', () => {
   const sim = makeSim();
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });

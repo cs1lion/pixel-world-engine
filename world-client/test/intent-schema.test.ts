@@ -35,11 +35,11 @@ test('交付与撤销没有载荷', () => {
   assert.deepEqual(ok({ kind: 'cancelPending' }), { kind: 'cancelPending' });
 });
 
-test('天气只有晴与雨', () => {
-  assert.deepEqual(ok({ kind: 'setWeather', weather: 'rain' }), {
-    kind: 'setWeather',
-    weather: 'rain',
-  });
+test('天气三档：晴、雨、暴雨', () => {
+  for (const weather of ['clear', 'rain', 'storm'] as const) {
+    assert.deepEqual(ok({ kind: 'setWeather', weather }), { kind: 'setWeather', weather });
+  }
+  assert.throws(() => ok({ kind: 'setWeather', weather: 'snow' }), /不在取值域里/);
 });
 
 test('造物：模板必须是注册表里有的', () => {
