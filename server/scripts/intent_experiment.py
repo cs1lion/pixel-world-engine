@@ -3,7 +3,12 @@
 这不是功能，是一次测量。跑法：
 
     cd server
-    LLM_API_KEY=... LLM_BASE_URL=... LLM_MODEL=... python scripts/intent_experiment.py
+    cp .env.example .env      # 填进 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+    python scripts/intent_experiment.py
+
+`.env` 会被本脚本读进来（`oracle/env_file.py`），不必在命令行上写 Key——
+那样 Key 会留在 shell 历史里。直接 `export LLM_API_KEY=...` 也行，
+显式环境变量优先于 `.env`。
 
 不带 Key 也能跑，但会**全部记成 not-run**——那不算一次实验，只是把
 脚本的算术验一遍。结果写成 Markdown，路径由 `--out` 给。
@@ -31,6 +36,7 @@ sys.path.insert(0, str(ROOT))
 import os  # noqa: E402
 
 from oracle import api, orchestrator, wire  # noqa: E402
+from oracle.env_file import load_env  # noqa: E402
 from oracle.orchestrator import ModelUnavailable  # noqa: E402
 
 #: 与 `world-client/src/world/prefabs.json` 里的真实模板对齐。
@@ -252,11 +258,29 @@ def render(outcomes: list[Outcome], model: str, note: str, *, ran: bool = True) 
 
 
 def main() -> int:
+    # Windows 控制台默认 GBK：进度行里的中文与 ✅/❌ 会让 `print` 抛
+    # `UnicodeEncodeError`——而那发生在**已经烧掉一次真实 API 调用之后**。
+    # 与其让人去记 `chcp 65001`，不如脚本自己把输出切成 UTF-8，
+    # 兜一个 `errors="replace"`：万一还有编不出的字符，宁可显示成 ?，
+    # 也不让一场跑到第 40 条的实验因为一个标点崩掉。
+    #
+    # 在 `main()` 里做，不在模块顶层：这个文件被 `test_intent_experiment.py`
+    # import，模块级改 stdout 会干扰 pytest 的捕获。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(ROOT.parent / "docs" / "INTENT_EXPERIMENT.md"))
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 条（调试用）")
     parser.add_argument("--dump", default="", help="把逐条原始结果写成 JSON，便于复查")
     args = parser.parse_args()
+
+    # 先读 `.env`：这样 Key 不必出现在命令行上（会留在 shell 历史里）。
+    # 只打印**变量名**，不打印值。
+    loaded = load_env()
+    if loaded:
+        print(f"从 .env 读到：{', '.join(loaded)}")
 
     caller, why = _caller_factory()
     cases = ALL_CASES[: args.limit] if args.limit else ALL_CASES
