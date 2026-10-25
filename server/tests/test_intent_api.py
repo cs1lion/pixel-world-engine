@@ -6,18 +6,26 @@
 1. 信封形状是 `{intent, model, source}`，不多不少（客户端会拒缺 `intent`）。
 2. **装进 `intent` 的东西真的能过客户端的校验器**——这一条由
    `world-client/test/intent-contract.test.ts` 反向钉住：它拿这里的响应当输入。
+
+两边拿的是**同一份**冻结样例 `docs/intent.sample.json`。不是各写一张表：
+各写一张只钉住「写那天两边一致」，共读一份才钉得住端点本身。
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from events.api import create_app
 from events.log import EventLog
+from oracle.api import command_to_intent
 from oracle.orchestrator import ModelUnavailable
+from rules.schema import validate_command
+
+SAMPLE = Path(__file__).resolve().parents[2] / "docs" / "intent.sample.json"
 
 TEMPLATES = [
     {"id": "code_forge", "displayName": "炼码工坊", "boundTask": "code"},
@@ -46,6 +54,56 @@ def post(client: TestClient, **overrides):
 
 def commands(*items: dict) -> str:
     return json.dumps({"commands": list(items), "narrative": "听懂了"})
+
+
+# ---------------------------------------------------------------- 冻结样例
+
+def _sample_cases() -> list[dict]:
+    return json.loads(SAMPLE.read_text(encoding="utf-8"))["responses"]
+
+
+def test_冻结样例里的每一条端点都真的这么回() -> None:
+    """`docs/intent.sample.json` 是意图线的冻结产物。
+
+    客户端 `intent-contract.test.ts` 拿它当输入，断言自己的校验器全收得下；
+    这里拿它当**期望值**，断言端点真的产出这些形状。两边各自冻结，
+    改协议时两边同时红——样例是那条共同的钉子。
+    """
+    cases = _sample_cases()
+    assert cases, "样例空了，这条测试等于没跑"
+    for case in cases:
+        command = case["command"]
+        if command is None:
+            # 没听懂：命令为空，原因走 narrative → unknown.reason。
+            reply = json.dumps({"commands": [], "narrative": case["intent"]["reason"]}, ensure_ascii=False)
+        else:
+            reply = commands(command)
+        response = post(client_with(reply))
+        assert response.status_code == 200, case["why"]
+        assert response.json()["intent"] == case["intent"], case["why"]
+
+
+def test_端点能回的意图种类与样例覆盖的种类一致() -> None:
+    """反方向：样例没覆盖的类型，说明有人加了命令却没加样例；
+    样例多出来的类型，说明样例过期了。两种都该当场红。"""
+    sample_kinds = {case["intent"]["kind"] for case in _sample_cases()}
+    reachable = {
+        intent["kind"]
+        for intent in (
+            command_to_intent(command)
+            for command in (
+                validate_command({"command": "weather.set", "args": {"value": "rain"}}),
+                validate_command({"command": "tide.setLevel", "args": {"value": 1, "durationMs": 1000}}),
+                validate_command(
+                    {"command": "building.add", "args": {"prefabId": "code_forge", "at": {"x": 1, "y": 1}}}
+                ),
+                validate_command({"command": "building.remove", "args": {"instanceId": "x#1"}}),
+                validate_command({"command": "miracle.spawn", "args": {"kind": "cat"}}),
+            )
+        )
+        if intent is not None
+    } | {"unknown"}
+    assert sample_kinds == reachable
 
 
 # ---------------------------------------------------------------- 成功

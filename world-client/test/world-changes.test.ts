@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import type { IntentModel } from '../src/world/intent-router.ts';
 import { EMPTY_FOLD, foldTaskEvents } from '../src/world/task-events.ts';
 import {
   WORLD_CHANGE_KINDS,
@@ -19,25 +20,41 @@ const blueprints = parseBlueprintTable(
   ) as Record<string, Record<string, unknown>>,
 );
 
-/** 接住世界交出来的每一条改变。 */
-function makeSim(): { sim: Simulation; changes: WorldChange[] } {
+/** 接住世界交出来的每一条改变，连同它标的世界时间。 */
+function makeSim(model?: IntentModel): {
+  sim: Simulation;
+  changes: WorldChange[];
+  envelopes: { at: number }[];
+} {
   const world = buildWorld(blueprints);
   const changes: WorldChange[] = [];
+  const envelopes: { at: number }[] = [];
   const sim = new Simulation({
     grid: world.grid,
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    blueprints,
+    intentModel: model,
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;
       return placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
     },
-    onChange: (change) => {
+    onChange: (change, at) => {
       changes.push(change);
+      envelopes.push({ at });
     },
   });
-  return { sim, changes };
+  return { sim, changes, envelopes };
+}
+
+/** 推几拍，给异步的模型留出回来的时间。 */
+async function settle(sim: Simulation, ticks = 3): Promise<void> {
+  for (let i = 0; i < ticks; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+    sim.update(16);
+  }
 }
 
 // ------------------------------------------------------- 世界真的写回了吗
@@ -106,6 +123,130 @@ test('被拒的命令不写回：世界没变，就没什么可记', () => {
   assert.deepEqual(changes, [], '被拒的命令不该留下任何痕迹');
 });
 
+// ------------------------------------------------- 闭环：模型 → 世界 → 回写
+
+test('闭环：模型给的意图真的改变世界，改变真的写回成一条能过的载荷', async () => {
+  // #6 要证明的就是这一条链子中间没有断口：
+  //
+  //   造物主（模型）+ 那句话说出口
+  //        → routeIntent → parseIntent（客户端校验）
+  //        → 命令队列 → applyIntent（世界执行）
+  //        → announce → toEnvelope → POST /api/world/changes
+  //
+  // 任何一段自己测自己都不算——那些早就有了。这条测试让**一条真实形状的
+  // 模型意图**走完整条路，最后检查它落成的回写载荷，与世界改变白名单的
+  // 冻结样例同形。样例那头由 `server/tests/test_world_changes.py` 断言
+  // 服务端收得下，所以这里等于说：模型能说出来的事，服务端一定记得住。
+  const model: IntentModel = {
+    // 与 `docs/intent.sample.json` 里那条 tide 一致。模型只说意图，
+    // `until` 由世界按它自己的时钟算出来——这正是「时间归世界」。
+    classify: async () => ({ kind: 'setTide', level: 0.25, durationMs: 30_000 }),
+  };
+  const { sim, changes, envelopes } = makeSim(model);
+
+  sim.enqueue({ kind: 'oracle', raw: '把潮水压下去一点' });
+  await settle(sim);
+
+  // 一、世界真的变了。
+  assert.equal(sim.snapshot().tide.overridden, true, '模型说的话得让世界动');
+  assert.equal(sim.snapshot().tide.level, 0.25);
+
+  // 二、这件事真的被交出去写回了。
+  const index = changes.findIndex((item) => item.change === 'tide');
+  assert.ok(index >= 0, '世界变了就必须有一条回写，否则记忆里没有这件事');
+  const event = changes[index]!;
+  assert.ok(event.change === 'tide');
+  assert.equal(event.level, 0.25);
+  // 到期时刻按**世界时钟**算：覆盖落下的那一刻 + 模型给的时长。
+  // 拿 `snapshot().now` 比会差几拍——那是"现在"，不是"当时"。
+  assert.equal(event.until, envelopes[index]!.at + 30_000, 'until 是相对的，起点是世界自己的时钟');
+
+  // 三、这条回写与冻结样例同形——所以服务端一定收得下。
+  const sample = JSON.parse(
+    readFileSync(new URL('../../docs/world-changes.sample.json', import.meta.url), 'utf8'),
+  ) as { changes: { change: string; payload: Record<string, unknown> }[] };
+  const frozen = sample.changes.find((item) => item.change === 'tide');
+  assert.ok(frozen !== undefined, '样例里没有 tide，那这条闭环就没有对端可以对照');
+  assert.deepEqual(
+    Object.keys(toEnvelope(event, 0).payload).sort(),
+    Object.keys(frozen.payload).sort(),
+    '回写的字段与样例分叉了：服务端会 422，而世界只看到一次安静的写失败',
+  );
+});
+
+test('闭环：模型说「暴雨」，世界与回写都不会退化成「雨」', async () => {
+  // 三档天气穿过整条链子最容易掉档——路上任何一处 `=== 'rain' ? … : …`
+  // 都会把 storm 静默说成 rain。回写是链子的最后一站，它说错了，
+  // 日志里就永久留错了。
+  const model: IntentModel = {
+    classify: async () => ({ kind: 'setWeather', weather: 'storm' }),
+  };
+  const { sim, changes } = makeSim(model);
+  sim.enqueue({ kind: 'oracle', raw: '雨再大一点吧' });
+  await settle(sim);
+
+  assert.equal(sim.snapshot().weather, 'storm');
+  const weather = changes.filter((item) => item.change === 'weather');
+  assert.equal(weather.length, 1);
+  if (weather[0]?.change === 'weather') assert.equal(weather[0].weather, 'storm');
+});
+
+test('闭环断在模型那一头：世界照常运行，只是没写成', async () => {
+  // 「造物主不可用时世界照常运行」不是一句口号，它要能在这条链子的
+  // 每一个断点上成立。模型超时是第一个断点。
+  const model: IntentModel = {
+    classify: async () => {
+      throw new Error('timeout');
+    },
+  };
+  const { sim, changes } = makeSim(model);
+  const before = sim.snapshot();
+
+  sim.enqueue({ kind: 'oracle', raw: '把那份报告弄一下' });
+  await settle(sim);
+  // 世界还在走：再推几拍，时间照常前进。
+  sim.update(16);
+  sim.update(16);
+
+  assert.deepEqual(changes, [], '没听懂就没有世界改变，也就没有可写的');
+  assert.equal(sim.snapshot().weather, before.weather);
+  assert.equal(sim.snapshot().buildings.length, before.buildings.length);
+  assert.ok(sim.snapshot().now > before.now, '模型挂了不该让世界停摆');
+});
+
+test('闭环断在写回那一头：世界照常运行，日志少一条', async () => {
+  // 第二个断点：回写请求失败。世界已经变了，这事无法回滚，也不该回滚——
+  // 世界不因为日志服务挂了就撤销自己做过的事。
+  const results: unknown[] = [];
+  const client = createEventsClient({
+    writeUrl: 'http://x/api/world/changes',
+    fetchImpl: (async () => {
+      throw new Error('ECONNREFUSED');
+    }) as unknown as typeof fetch,
+  });
+  const world = buildWorld(blueprints);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    onChange: (change, at) => {
+      // 与 `SandboxScene` 同一条接法：丢出去，不等，也不让异常冒回世界。
+      void client.record(change, at).then((result) => results.push(result));
+    },
+  });
+
+  sim.enqueue({ kind: 'setWeather', weather: 'rain' });
+  sim.update(16);
+  for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(sim.snapshot().weather, 'rain', '世界确实变了，写不进去也不撤销');
+  assert.equal(results.length, 1, '回写真的发出去了，只是没落地');
+  const outcome = results[0] as { ok: boolean; status: number | null };
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.status, null, '连不上时没有状态码');
+});
+
 test('读日志不写回：syncEvents 是读，不是改世界', () => {
   const { sim, changes } = makeSim();
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
@@ -162,6 +303,44 @@ test('天气写回两档', () => {
     changes.filter((item) => item.change === 'weather').map((item) => item.change === 'weather' && item.weather),
     ['rain', 'clear'],
   );
+});
+
+test('天气三档都写回，暴雨不会退化成雨', () => {
+  const { sim, changes } = makeSim();
+  for (const weather of ['rain', 'storm', 'clear'] as const) {
+    sim.enqueue({ kind: 'setWeather', weather });
+    sim.update(16);
+  }
+  assert.deepEqual(
+    changes
+      .filter((item) => item.change === 'weather')
+      .map((item) => (item.change === 'weather' ? item.weather : null)),
+    ['rain', 'storm', 'clear'],
+  );
+});
+
+test('拨潮水写回的是覆盖，不是当时的潮位', () => {
+  // 潮位是 `now` 的纯函数，记下来等于记时钟。事件记的是「谁在什么时候
+  // 把潮水压到多少、压到什么时候」——那才会留在世界状态里（进存档）。
+  const { sim, changes } = makeSim();
+  sim.enqueue({ kind: 'setTideLevel', level: 0.25, durationMs: 30_000 });
+  sim.update(16);
+
+  const tide = changes.filter((item) => item.change === 'tide');
+  assert.equal(tide.length, 1);
+  const event = tide[0];
+  assert.ok(event?.change === 'tide');
+  assert.equal(event.level, 0.25);
+  // 覆盖的到期时刻是「落下的那一刻 + 时长」。落下的那一刻就是这拍的 now。
+  assert.equal(event.until, sim.snapshot().now + 30_000);
+});
+
+test('被拒的拨潮不写回：世界没变就没什么可记', () => {
+  const { sim, changes } = makeSim();
+  sim.update(16);
+  sim.enqueue({ kind: 'setTideLevel', level: 5, durationMs: 1000 });
+  sim.update(16);
+  assert.equal(changes.filter((item) => item.change === 'tide').length, 0);
 });
 
 test('已经是雨天时再叫下雨：世界没变，不写回', () => {
@@ -225,7 +404,7 @@ test('白名单与服务端那份逐个对上', () => {
   // 服务端那份在 server/events/world_changes.py 的 WORLD_CHANGE_CHECKS。
   assert.deepEqual(
     [...WORLD_CHANGE_KINDS].sort(),
-    ['building.built', 'building.removed', 'miracle', 'task.delivered', 'weather'],
+    ['building.built', 'building.removed', 'miracle', 'task.delivered', 'tide', 'weather'],
   );
 });
 
@@ -251,6 +430,7 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
   const removed = byChange.get('building.removed')!.payload;
   const miracle = byChange.get('miracle')!.payload;
   const weather = byChange.get('weather')!.payload;
+  const tide = byChange.get('tide')!.payload;
 
   const changes: WorldChange[] = [
     {
@@ -278,7 +458,12 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
       miracle: miracle.miracle as 'lamp' | 'tree' | 'cat',
       at: miracle.at as { x: number; y: number },
     },
-    { change: 'weather', weather: weather.weather as 'clear' | 'rain' },
+    { change: 'weather', weather: weather.weather as 'clear' | 'rain' | 'storm' },
+    {
+      change: 'tide',
+      level: Number(tide.level),
+      until: Number(tide.until),
+    },
   ];
 
   for (const change of changes) {

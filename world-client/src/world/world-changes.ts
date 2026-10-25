@@ -28,7 +28,9 @@ export const WORLD_CHANGED = 'world.changed';
  * 两边不一致时服务端会拒收——宁可少记，不可乱记。
  *
  * 不收的东西与理由：
- *   - 潮位：`tideLevelAt(now)` 的纯函数，日志里记它等于记时钟；
+ *   - 潮位曲线本身：`tideLevelAt(now)` 的纯函数，记它等于记时钟。
+ *     **但潮位「被拨过」要记**——那是一次事件，而且它进存档（`tideOverride`），
+ *     是会留在世界状态里的事。两者不是一回事。
  *   - 角色走动、气泡、作息：渲染层的读感，不是世界事实；
  *   - 队列的增删（`cancelPending`）：只在世界内存里，读档不保留。
  */
@@ -64,6 +66,17 @@ export type WorldChange =
   | {
       readonly change: 'weather';
       readonly weather: Weather;
+    }
+  | {
+      /**
+       * 有人拨了一下潮水。记的是**覆盖**，不是当时的潮位：
+       * 潮位是 `now` 的纯函数，记下来等于记时钟；而「谁在什么时刻
+       * 把潮水压到多少、压到什么时候」是一次真正的事件。
+       */
+      readonly change: 'tide';
+      readonly level: number;
+      /** 世界时间，覆盖到这一刻失效。 */
+      readonly until: number;
     };
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
@@ -73,6 +86,7 @@ export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [
   'building.removed',
   'miracle',
   'weather',
+  'tide',
 ];
 
 /**

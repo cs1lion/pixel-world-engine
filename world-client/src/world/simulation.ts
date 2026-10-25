@@ -766,6 +766,13 @@ export class Simulation {
         return;
       }
       this.enqueue({ kind: 'intent', intent: result.intent, raw });
+    } catch (error) {
+      // `routeIntent` 自己已经把模型失败吞成 unknown 了，所以走到这里的是
+      // 它管不着的那种：取快照、拼上下文、入队时抛的错。这条 async 方法由
+      // `speak()` 用 `void` 调用，没人 await——不接住就是一次未捕获的
+      // Promise 拒绝，浏览器会把它报到控制台，世界这一拍之后照常跑，
+      // 但「造物主不可用时世界照常运行」就成了一句运气好的话。
+      this.log('warn', `问模型时出了岔子：${error instanceof Error ? error.message : String(error)}`);
     } finally {
       this.pendingClassify.delete(raw);
     }
@@ -1213,6 +1220,8 @@ export class Simulation {
     this.tideOverride = next;
     // 立刻生效：命令落下就该看见水动，不必等下一拍的 `stepTide`。
     this.grid.setTideLevel(effectiveTideLevel(this.now, next));
+    // 回写：覆盖会进存档，是会留在世界状态里的事，所以归 `world.changed` 管。
+    this.announce({ change: 'tide', level: next.level, until: next.until });
     this.log('info', `神谕拨了一下潮水：${Math.round(level * 100)}%，${Math.round((next.until - this.now) / 1000)} 秒后回到节律。`);
     return {
       ok: true,

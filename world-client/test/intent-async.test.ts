@@ -166,6 +166,57 @@ test('没有模型时，认不出就是认不出', () => {
   assert.match(result.message, /没听懂/);
 });
 
+test('问模型的路上出了岔子，不会变成一次未捕获的 Promise 拒绝', async () => {
+  // `speak()` 用 `void` 调 `classifyLater()`，没人 await 它。`routeIntent`
+  // 只把**模型那一段**吞成 unknown——它的 try 从 `classify` 才开始，前面的
+  // 规则段（`matchRules` → 各解析器 → 查模板表）在外面。那里抛出来的东西
+  // 会一路逃到浏览器，成为一次 unhandledRejection。
+  //
+  // 让模板表在**第二次**查表时抛：第一次是 `speak()` 的同步解析（它必须活着
+  // 才能走到"去问模型"），第二次是 `classifyLater` 里 `routeIntent` 的规则段。
+  // 这样打中的正是那条没人 await 的路径，而不是同步那条。
+  // 「造物主不可用时世界照常运行」要是靠运气成立，就不算成立。
+  const rejections: unknown[] = [];
+  const onRejection = (why: unknown): void => {
+    rejections.push(why);
+  };
+  process.on('unhandledRejection', onRejection);
+  try {
+    let lookups = 0;
+    const broken = {
+      has(): boolean {
+        lookups += 1;
+        if (lookups > 1) throw new Error('注册表坏了');
+        return false;
+      },
+      get(): undefined {
+        return undefined;
+      },
+    } as unknown as ReadonlyMap<string, never>;
+
+    const world = buildWorld(templates);
+    const sim = new Simulation({
+      grid: world.grid,
+      buildings: world.buildings,
+      altar: world.altar,
+      villagerName: '阿禾',
+      blueprints: broken,
+      intentModel: { classify: async () => ({ kind: 'unknown', reason: '闲聊' }) },
+    });
+
+    say(sim, '建一间书阁');
+    await settle(sim);
+    sim.update(16);
+    // Node 在微任务排空之后才报未捕获拒绝，多等一轮才查得到。
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(rejections, [], '没人 await 的 async 方法必须自己接住');
+    assert.ok(sim.snapshot().now > 0, '世界照常在走');
+  } finally {
+    process.off('unhandledRejection', onRejection);
+  }
+});
+
 test('同一句话连着说三遍，只问模型一次', async () => {
   let calls = 0;
   const model: IntentModel = {

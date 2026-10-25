@@ -1,0 +1,53 @@
+{
+  "//": "意图线协议的冻结样例：服务端 POST /api/world/intent 对每种命令回什么，客户端就得认什么。两边各自冻结——server/tests/test_intent_api.py 断言端点真的产出这些形状，world-client/test/intent-contract.test.ts 断言客户端解析器全都收得下。改协议时两边同时红。",
+  "responses": [
+    {
+      "why": "天气三档之一",
+      "command": { "command": "weather.set", "args": { "value": "rain" } },
+      "intent": { "kind": "setWeather", "weather": "rain" }
+    },
+    {
+      "why": "暴雨是雨之上的强度档，走同一条命令",
+      "command": { "command": "weather.set", "args": { "value": "storm" } },
+      "intent": { "kind": "setWeather", "weather": "storm" }
+    },
+    {
+      "why": "潮位覆盖：带时长，不是永久设值",
+      "command": { "command": "tide.setLevel", "args": { "value": 1, "durationMs": 30000 } },
+      "intent": { "kind": "setTide", "level": 1, "durationMs": 30000 }
+    },
+    {
+      "why": "时长正好等于上限也是合法的",
+      "command": { "command": "tide.setLevel", "args": { "value": 0.5, "durationMs": 120000 } },
+      "intent": { "kind": "setTide", "level": 0.5, "durationMs": 120000 }
+    },
+    {
+      "why": "造物：白名单叫 prefabId，客户端叫 templateId",
+      "command": {
+        "command": "building.add",
+        "args": { "prefabId": "code_forge", "at": { "x": 3, "y": 4 } }
+      },
+      "intent": { "kind": "build", "templateId": "code_forge", "at": { "x": 3, "y": 4 } }
+    },
+    {
+      "why": "拆除：白名单收实例 id，客户端收模板 id——去掉 #N 后缀是明确的换算",
+      "command": { "command": "building.remove", "args": { "instanceId": "ink_house#2" } },
+      "intent": { "kind": "demolish", "templateId": "ink_house" }
+    },
+    {
+      "why": "神迹不带坐标",
+      "command": { "command": "miracle.spawn", "args": { "kind": "cat" } },
+      "intent": { "kind": "miracle", "miracle": "cat", "at": null }
+    },
+    {
+      "why": "神迹带坐标",
+      "command": { "command": "miracle.spawn", "args": { "kind": "tree", "at": { "x": 40, "y": 45 } } },
+      "intent": { "kind": "miracle", "miracle": "tree", "at": { "x": 40, "y": 45 } }
+    },
+    {
+      "why": "没听懂：原因要留给用户看，不能是个空字符串",
+      "command": null,
+      "intent": { "kind": "unknown", "reason": "这句话不是在要求世界做任何事" }
+    }
+  ]
+}

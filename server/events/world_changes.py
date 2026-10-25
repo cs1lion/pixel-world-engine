@@ -51,15 +51,18 @@ class WorldChangeError(ValueError):
     一个是「你说的这件事世界做不出来」。"""
 
 
-def _require(payload: dict[str, Any], key: str, kind: type, path: str) -> Any:
+def _require(payload: dict[str, Any], key: str, kind: type | tuple[type, ...], path: str) -> Any:
     if key not in payload:
         raise WorldChangeError(f"{path} 缺字段 {key}")
     value = payload[key]
+    kinds = kind if isinstance(kind, tuple) else (kind,)
     # bool 是 int 的子类，要单独挡：True 不该被当成 1。
-    if kind is int and isinstance(value, bool):
-        raise WorldChangeError(f"{path}.{key} 必须是 {kind.__name__}")
+    # 但只有**要求数字**时才挡——要求 bool 时它本来就合法。
+    if isinstance(value, bool) and int in kinds:
+        raise WorldChangeError(f"{path}.{key} 不能是布尔值")
     if not isinstance(value, kind):
-        raise WorldChangeError(f"{path}.{key} 必须是 {kind.__name__}")
+        names = " / ".join(item.__name__ for item in kinds)
+        raise WorldChangeError(f"{path}.{key} 必须是 {names}")
     return value
 
 
@@ -128,6 +131,22 @@ def _check_weather(payload: dict[str, Any], path: str) -> None:
         raise WorldChangeError(f"{path}.weather 不认识：{weather!r}")
 
 
+def _check_tide(payload: dict[str, Any], path: str) -> None:
+    """拨潮水。记的是**覆盖**，不是当时的潮位。
+
+    潮位本身是 `now` 的纯函数，记下来等于记时钟；「在什么时刻把潮水压到多少、
+    压到什么时候」才是一次事件，而且它进存档，会留在世界状态里。
+    """
+    _only(payload, {"level", "until"}, path)
+    # `_require` 已经挡掉 bool（要求数字时 True 不算 1），这里只管取值域。
+    level = _require(payload, "level", (int, float), path)
+    if not 0 <= level <= 1:
+        raise WorldChangeError(f"{path}.level 必须在 0..1，收到 {level}")
+    until = _require(payload, "until", (int, float), path)
+    if until < 0:
+        raise WorldChangeError(f"{path}.until 不能为负")
+
+
 #: 白名单：change → 校验函数。不在表里的一律拒收。
 WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "task.delivered": _check_task_delivered,
@@ -135,6 +154,7 @@ WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "building.removed": _check_building_removed,
     "miracle": _check_miracle,
     "weather": _check_weather,
+    "tide": _check_tide,
 }
 
 

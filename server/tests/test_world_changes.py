@@ -37,6 +37,8 @@ VALID_PAYLOADS = {
     "miracle": {"miracle": "lamp", "at": {"x": 3, "y": 4}},
     # 三档都收；storm 是 #14 加的强度档，不是新机制。
     "weather": {"weather": "storm"},
+    # 记的是覆盖，不是当时的潮位：潮位是 now 的纯函数，记它等于记时钟。
+    "tide": {"level": 0.25, "until": 120_000},
 }
 
 
@@ -209,6 +211,33 @@ def test_天气不认识的值被拒(client: TestClient) -> None:
     response = post(client, "weather", {"weather": "snow"})
     assert response.status_code == 422
     assert "weather" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "patch, fragment",
+    [
+        ({"level": 1.5}, "0..1"),
+        ({"level": -0.1}, "0..1"),
+        ({"level": True}, "布尔"),
+        ({"until": -1}, "不能为负"),
+        ({"extra": "x"}, "不认识的字段"),
+        ({"level": "0.5"}, "必须是"),
+    ],
+)
+def test_撥潮载荷越界被拒(client: TestClient, patch: dict, fragment: str) -> None:
+    """拨潮记的是覆盖：潮位必须在 0..1，到期时刻不能为负。"""
+    payload = {**VALID_PAYLOADS["tide"], **patch}
+    response = post(client, "tide", payload)
+    assert response.status_code == 422, payload
+    assert fragment in response.json()["detail"]
+
+
+def test_拨潮缺字段被拒(client: TestClient) -> None:
+    for missing in ("level", "until"):
+        payload = {k: v for k, v in VALID_PAYLOADS["tide"].items() if k != missing}
+        response = post(client, "tide", payload)
+        assert response.status_code == 422
+        assert missing in response.json()["detail"]
 
 
 def test_建筑来由可以是_null(client: TestClient) -> None:

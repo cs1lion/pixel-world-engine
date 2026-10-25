@@ -44,6 +44,14 @@
       "payload": {
         "weather": "storm"
       }
+    },
+    {
+      "at": 17000,
+      "change": "tide",
+      "payload": {
+        "level": 0.25,
+        "until": 47000
+      }
     }
   ]
 }
