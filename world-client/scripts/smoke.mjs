@@ -745,8 +745,8 @@ async function runSandboxSuite() {
   );
   const savedParsed = typeof savedRaw === 'string' ? JSON.parse(savedRaw) : null;
   check(
-    savedParsed !== null && savedParsed.schemaVersion === 2,
-    '单槽里是 v2 JSON',
+    savedParsed !== null && savedParsed.schemaVersion === 3,
+    '单槽里是 v3 JSON',
   );
   // 石板与摆件来源是 v2 新增字段，写档必须带上；缺了就是字段漂移。
   check(

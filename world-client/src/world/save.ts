@@ -29,7 +29,7 @@ import type {
 import { ORACLE_SLAB_LIMIT } from './types.ts';
 import type { WeatherState } from './weather.ts';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 /** 槽位键沿用 v1：升 schema 不改存储键，老档才读得到、才谈得上迁移。 */
 export const SAVE_STORAGE_KEY = 'xiaoxi.pixel-world.save.v1';
 /** 已结算记录超过这个数就告警一次（每会话一次）。 */
@@ -38,6 +38,14 @@ export const SETTLED_WARN_THRESHOLD = 5000;
 export const SCHEMA_V1_FINGERPRINT = 'f53a0736d782d657';
 /** v2 冻结指纹（ADR_WORLD_ALIVE §8）。由 docs/save-v2.sample.json 算出，单测核对。 */
 export const SCHEMA_V2_FINGERPRINT = '72c4a6c0f1f444f7';
+/**
+ * v3 冻结指纹。由 docs/save-v3.sample.json 算出，单测核对。
+ *
+ * v3 只扩位置，不加业务：`villagers[].lampOil`、`tideOverride`、
+ * `worldChangeVersion` 三个字段一次加齐，好让灯油、潮位覆盖、折返计数
+ * 三张票各自去填，不必各升一次版本、各重算一次指纹。
+ */
+export const SCHEMA_V3_FINGERPRINT = '7b6a0058c54ba3e4';
 
 /** v1 冻结路径全集（99 条，来自 docs/save-v1.sample.json；指纹见上，单测核对）。
  * `assertSaveV1` 做**集合包含**校验：存档出现的每条叶子路径都必须在这个集合里；
@@ -178,6 +186,33 @@ export const SAVE_V2_ADDED_PATHS: readonly string[] = [
 ];
 
 /**
+ * v3 在 v2 之上新增的叶子路径。
+ *
+ * 三个字段一次加齐（见 SCHEMA_V3_FINGERPRINT 的注释）。都是**位置**：
+ * 谁来写、写成什么，由各自的票决定；这一版只保证能存能读、缺省明确。
+ *
+ * `tideOverride` 是 `{level, until} | null`。样例里给 null，
+ * 所以元素键 `tideOverride.level` / `.until` 不在样例路径里，
+ * 但运行中非空时必须合法——补进下面的 v3 可选路径。
+ */
+export const SAVE_V3_ADDED_PATHS: readonly string[] = [
+  'world.tideOverride',
+  'world.villagers[].lampOil',
+  'world.worldChangeVersion',
+];
+
+/**
+ * v3 样例里没走到、但运行中合法的嵌套路径。
+ *
+ * 与 v1 的 `path[].x/y` 同因：样例里 `tideOverride` 是 null，
+ * `collectSavePaths` 不会记下它的元素键；覆盖一旦生效就是非空对象。
+ */
+export const SAVE_V3_OPTIONAL_PATHS: readonly string[] = [
+  'world.tideOverride.level',
+  'world.tideOverride.until',
+];
+
+/**
  * v1 冻结的 `world.tasks[]` 键集合（必须与 docs/save-v1.sample.json 逐键一致）。
  * 运行时字段（如 ledgerCompletedAt）不得落盘；字段漂移必须升版本，不能裸加。
  */
@@ -203,6 +238,22 @@ export const SAVE_SETTLED_KEYS = [
   'workerId',
 ] as const;
 
+/**
+ * 潮位覆盖：一句话让潮水涨/退，但它有期限。
+ *
+ * 潮位本来是 `now` 的纯函数（`tideLevelAt`），可确定性回放靠的就是这一条。
+ * 让命令直接写潮位会当场毁掉它，所以命令写的是一条**有期限的覆盖**：
+ * 到期自动失效，世界回到自己的节律上。覆盖本身进存档，回放仍然唯一。
+ *
+ * v3 只定形状，谁写、上限多少由 #14 决定。
+ */
+export interface TideOverride {
+  /** 0..1，命令要求的潮位。 */
+  readonly level: number;
+  /** 世界时间，到这个时刻覆盖失效。 */
+  readonly until: number;
+}
+
 /** 存档里的角色：快照缺的续跑字段由 toSave() 补齐（ADR_SAVE §1.2）。 */
 export interface SavedVillager {
   readonly id: string;
@@ -223,6 +274,13 @@ export interface SavedVillager {
   readonly inPlaceUntil: number;
   readonly pendingRoute: readonly GridPoint[];
   readonly pendingBuildingId: string | null;
+  /**
+   * v3：灯油余量 0..1，缺省 1（满油）。
+   *
+   * 它在存档里，但**不进 `Simulation` 的读路径**——世界的确定性回放不受它影响。
+   * 存它是因为「你离开一段时间再回来，灯该灭的已经灭了」，那是世界自有的事实。
+   */
+  readonly lampOil: number;
 }
 
 /** 已结算记录：save-only 的去重与分账唯一真相（ADR_SAVE §2.1/§2.2）。 */
@@ -265,6 +323,20 @@ export interface SaveWorld {
   readonly oracle: readonly OracleRecord[];
   /** v2 新增：氛围实体（猫等）。旧档迁移后是空数组。 */
   readonly critters: readonly Critter[];
+  /**
+   * v3：当前生效的潮位覆盖。旧档迁移后是 null（没有覆盖，走纯函数）。
+   *
+   * 空值用 null 而不是省略键：省略键会让路径集合合法缩小，
+   * 那正是 `assertSave` 分不清「旧档」与「坏档」的地方。
+   */
+  readonly tideOverride: TideOverride | null;
+  /**
+   * v3：世界被玩家实质改变过几次。旧档迁移后是 0。
+   *
+   * 只影响画什么（同一个场景该长成什么样），不影响世界怎么走。
+   * 写它的是 #8，这一版只留位置。
+   */
+  readonly worldChangeVersion: number;
 }
 
 export interface SaveMeta {
@@ -288,8 +360,14 @@ export interface WorldSaveV2 {
   readonly meta: SaveMeta;
 }
 
-/** 运行期只认当前版本。v1 只在迁移入口出现，不流进 Simulation。 */
-export type WorldSave = WorldSaveV2;
+export interface WorldSaveV3 {
+  readonly schemaVersion: 3;
+  readonly world: SaveWorld;
+  readonly meta: SaveMeta;
+}
+
+/** 运行期只认当前版本。v1/v2 只在迁移入口出现，不流进 Simulation。 */
+export type WorldSave = WorldSaveV3;
 
 export type RawSave = Record<string, unknown>;
 
@@ -365,8 +443,16 @@ export const SAVE_V2_ALLOWED_PATHS: readonly string[] = [
   ...SAVE_V2_ADDED_PATHS,
 ];
 
+/** v3 允许全集 = v2 全集 + v3 新增 + v3 可选嵌套。 */
+export const SAVE_V3_ALLOWED_PATHS: readonly string[] = [
+  ...SAVE_V2_ALLOWED_PATHS,
+  ...SAVE_V3_ADDED_PATHS,
+  ...SAVE_V3_OPTIONAL_PATHS,
+];
+
 const SAVE_V1_PATH_SET = new Set(SAVE_V1_ALLOWED_PATHS);
 const SAVE_V2_PATH_SET = new Set(SAVE_V2_ALLOWED_PATHS);
+const SAVE_V3_PATH_SET = new Set(SAVE_V3_ALLOWED_PATHS);
 
 /** 对任意存档对象取指纹（跳过 meta.schemaFingerprint）。 */
 export function saveFingerprint(save: unknown): string {
@@ -504,10 +590,10 @@ function checkPointList(value: unknown, path: string): void {
 /**
  * 逐个字段校验：类型/范围/存在性。只做「值」层面，路径越界由集合包含校验负责。
  *
- * `version` 决定要不要检查 v2 新增字段：v1 旧档在迁移前必须能过这一层，
- * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`。
+ * `version` 决定查到哪一版为止：旧档在迁移前必须能过这一层，
+ * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`，v2 不查 v3 的三个字段。
  */
-function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2): void {
+function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3): void {
   const world = asRecord(raw.world, 'world');
 
   checkNumber(requireKey(world, 'now', 'world'), 'world.now', { min: 0 });
@@ -546,6 +632,13 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2): void
     checkNumber(requireKey(villager, 'inPlaceUntil', path), `${path}.inPlaceUntil`, { min: 0 });
     checkPointList(requireKey(villager, 'pendingRoute', path), `${path}.pendingRoute`);
     checkStringOrNull(requireKey(villager, 'pendingBuildingId', path), `${path}.pendingBuildingId`);
+    if (version >= 3) {
+      // 灯油是 0..1 的余量，不是无限可负的计数器：越界即坏档。
+      const lampOil = checkNumber(requireKey(villager, 'lampOil', path), `${path}.lampOil`, {
+        min: 0,
+      });
+      if (lampOil > 1) fail(`${path}.lampOil`, `必须在 0..1，实际 ${lampOil}`);
+    }
   });
 
   // ---- 建筑
@@ -718,6 +811,25 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2): void
     if (remaining > total) fail(`${path}.remainingMs`, `不能大于 totalMs（${remaining} > ${total}）`);
   });
 
+  if (version >= 3) {
+    // ---- 潮位覆盖（v3）：null 表示没有覆盖，世界走 `tideLevelAt(now)`。
+    const override = requireKey(world, 'tideOverride', 'world');
+    if (override !== null) {
+      const record = asRecord(override, 'world.tideOverride');
+      const level = checkNumber(
+        requireKey(record, 'level', 'world.tideOverride'), 'world.tideOverride.level', { min: 0 },
+      );
+      if (level > 1) fail('world.tideOverride.level', `必须在 0..1，实际 ${level}`);
+      checkNumber(requireKey(record, 'until', 'world.tideOverride'), 'world.tideOverride.until', {
+        min: 0,
+      });
+    }
+    // ---- 折返计数（v3）：只影响画什么，所以只要求是非负整数。
+    checkNumber(requireKey(world, 'worldChangeVersion', 'world'), 'world.worldChangeVersion', {
+      min: 0, integer: true,
+    });
+  }
+
   // ---- 天气
   const weather = asRecord(requireKey(world, 'weather', 'world'), 'world.weather');
   checkEnum(requireKey(weather, 'kind', 'world.weather'), WEATHER_KINDS, 'world.weather.kind');
@@ -780,8 +892,8 @@ function validateMetaFields(raw: Record<string, unknown>): void {
  */
 export function validateSaveFields(
   raw: unknown,
-  version: 1 | 2 = 2,
-): asserts raw is WorldSaveV1 | WorldSaveV2 {
+  version: 1 | 2 | 3 = 3,
+): asserts raw is WorldSaveV1 | WorldSaveV2 | WorldSaveV3 {
   if (!isObject(raw)) fail('存档', '不是对象');
   validateMetaFields(raw);
   validateWorldFields(raw, version);
@@ -795,14 +907,14 @@ export function validateSaveFields(
  *    绝不静默补默认值。
  * 2. **形状/嵌套键集合**：`world.tasks[]` / `world.settled[]` 键集合必须与冻结常量逐键一致。
  * 3. **路径集合包含**：存档里出现的每条叶子路径都必须落在允许全集里，越界即拒并指名
- *    越界路径——只防「新增字段」。v1 用 v1 全集，v2 用 v1 ∪ v2 新增。
+ *    越界路径——只防「新增字段」。v1 用 v1 全集，v2 用 v1 ∪ v2 新增，v3 再加 v3 新增。
  *
  * 三层各管一段，合起来才等价于"形状完全没变"；任何一层失败都按坏档处理。
  *
  * v1 仍被接受，是因为迁移前的旧档要先按 v1 形状自证一次（`MIGRATIONS[1]`）。
- * 迁移完成后到这里的存档一律是 v2。
+ * 迁移完成后到这里的存档一律是 v3。
  */
-export function assertSave(raw: unknown): asserts raw is WorldSaveV2 {
+export function assertSave(raw: unknown): asserts raw is WorldSaveV3 {
   if (!isObject(raw)) throw new Error('存档不是对象');
   if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`schemaVersion 不是 ${CURRENT_SCHEMA_VERSION}（迁移没跑？）`);
@@ -814,13 +926,13 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV2 {
   // meta.schemaFingerprint 是冻结产物的自证字段：缺失/不是字符串一律拒绝，避免
   // 「删掉它就能绕过旧检查」；存在但与常量不等也拒绝（被改过或字段漂移）。
   if (typeof meta.schemaFingerprint !== 'string') {
-    throw new Error('存档缺 meta.schemaFingerprint（v2 要求该字段存在）');
+    throw new Error('存档缺 meta.schemaFingerprint（v3 要求该字段存在）');
   }
-  if (meta.schemaFingerprint !== SCHEMA_V2_FINGERPRINT) {
+  if (meta.schemaFingerprint !== SCHEMA_V3_FINGERPRINT) {
     throw new Error('存档指纹不符（字段变了但版本没升，或存档损坏）');
   }
   // 第 1 层：字段级类型/范围/存在性（含 weather/faith、各数组元素、done⊆settled）。
-  validateSaveFields(raw, 2);
+  validateSaveFields(raw, 3);
   // 第 2 层：嵌套键集合冻结（多一个运行时字段就是漂移）。
   for (const record of world.settled as unknown[]) {
     assertKeys(record as Record<string, unknown>, SAVE_SETTLED_KEYS, 'world.settled[]');
@@ -829,44 +941,64 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV2 {
     assertKeys(task as Record<string, unknown>, SAVE_TASK_KEYS, 'world.tasks[]');
   }
   // 第 3 层：路径集合包含校验——只防「新增路径」（顶层/world/meta/数组元素里多字段）。
-  const outside = collectSavePaths(raw).filter((path) => !SAVE_V2_PATH_SET.has(path));
+  const outside = collectSavePaths(raw).filter((path) => !SAVE_V3_PATH_SET.has(path));
   if (outside.length > 0) {
     throw new Error(
-      `存档字段漂移：出现 v2 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
+      `存档字段漂移：出现 v3 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
     );
   }
 }
 
 /**
- * 只认 v1 形状的自证校验。迁移链在改写存档前先跑它，确保「旧档确实是旧档」，
- * 而不是被改过的、或已经混进 v2 字段的假旧档。
+ * 只认某个历史版本形状的自证校验。迁移链在改写存档前先跑它，确保「旧档确实是旧档」，
+ * 而不是被改过的、或已经混进新版本字段的假旧档。
+ *
+ * v1 与 v2 各有一条，共用这段实现：差别只在版本号、指纹、字段校验的截止版本、
+ * 以及允许的路径集合。
  */
-export function assertSaveV1(raw: unknown): asserts raw is WorldSaveV1 {
+function assertLegacySave(
+  raw: unknown,
+  version: 1 | 2,
+  fingerprint: string,
+  pathSet: ReadonlySet<string>,
+): void {
   if (!isObject(raw)) throw new Error('存档不是对象');
-  if (raw.schemaVersion !== 1) throw new Error(`schemaVersion 不是 1（实际 ${String(raw.schemaVersion)}）`);
+  if (raw.schemaVersion !== version) {
+    throw new Error(`schemaVersion 不是 ${version}（实际 ${String(raw.schemaVersion)}）`);
+  }
   const world = raw.world;
   if (!isObject(world)) throw new Error('存档缺 world');
   const meta = raw.meta;
   if (!isObject(meta)) throw new Error('存档缺 meta');
   if (typeof meta.schemaFingerprint !== 'string') {
-    throw new Error('存档缺 meta.schemaFingerprint（v1 要求该字段存在）');
+    throw new Error(`存档缺 meta.schemaFingerprint（v${version} 要求该字段存在）`);
   }
-  if (meta.schemaFingerprint !== SCHEMA_V1_FINGERPRINT) {
+  if (meta.schemaFingerprint !== fingerprint) {
     throw new Error('存档指纹不符（字段变了但版本没升，或存档损坏）');
   }
-  validateSaveFields(raw, 1);
+  validateSaveFields(raw, version);
   for (const record of world.settled as unknown[]) {
     assertKeys(record as Record<string, unknown>, SAVE_SETTLED_KEYS, 'world.settled[]');
   }
   for (const task of world.tasks as unknown[]) {
     assertKeys(task as Record<string, unknown>, SAVE_TASK_KEYS, 'world.tasks[]');
   }
-  const outside = collectSavePaths(raw).filter((path) => !SAVE_V1_PATH_SET.has(path));
+  const outside = collectSavePaths(raw).filter((path) => !pathSet.has(path));
   if (outside.length > 0) {
     throw new Error(
-      `存档字段漂移：出现 v1 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
+      `存档字段漂移：出现 v${version} 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
     );
   }
+}
+
+/** 只认 v1 形状的自证校验。 */
+export function assertSaveV1(raw: unknown): asserts raw is WorldSaveV1 {
+  assertLegacySave(raw, 1, SCHEMA_V1_FINGERPRINT, SAVE_V1_PATH_SET);
+}
+
+/** 只认 v2 形状的自证校验。v2→v3 迁移前用它，理由同 v1。 */
+export function assertSaveV2(raw: unknown): asserts raw is WorldSaveV2 {
+  assertLegacySave(raw, 2, SCHEMA_V2_FINGERPRINT, SAVE_V2_PATH_SET);
 }
 
 /** 逐级迁移链入口；任一步抛错都拒绝加载（ADR_SAVE §3）。 */
@@ -918,12 +1050,43 @@ export const MIGRATIONS: Record<number, Migration> = {
       meta: { ...meta, schemaFingerprint: SCHEMA_V2_FINGERPRINT },
     };
   },
+
+  /**
+   * v2 → v3：一次把三个新字段的位置扩好（见 SCHEMA_V3_FINGERPRINT 的注释）。
+   *
+   * 缺省值的理由：
+   *   - `lampOil: 1`：满油。老档没有灯，读作「灯还亮着」比读作「已经灭了」诚实——
+   *     灭灯是一个发生过的事件，不能凭空安到旧世界上。
+   *   - `tideOverride: null`：没有覆盖。老档的潮汐本来就走纯函数，不该凭空多一段。
+   *   - `worldChangeVersion: 0`：老档没有记过改变次数，从零开始数。
+   *
+   * 三个都是**位置**：这一版不写业务，谁去改它们由各自的票决定。
+   */
+  2: (raw) => {
+    const world = isObject(raw.world) ? raw.world : {};
+    const meta = isObject(raw.meta) ? raw.meta : {};
+    const villagers = Array.isArray(world.villagers) ? world.villagers : [];
+    return {
+      ...raw,
+      schemaVersion: 3,
+      world: {
+        ...world,
+        villagers: villagers.map((villager) =>
+          isObject(villager) ? { ...villager, lampOil: villager.lampOil ?? 1 } : villager,
+        ),
+        tideOverride: world.tideOverride ?? null,
+        worldChangeVersion: world.worldChangeVersion ?? 0,
+      },
+      meta: { ...meta, schemaFingerprint: SCHEMA_V3_FINGERPRINT },
+    };
+  },
 };
 
 export function migrateSave(raw: RawSave): RawSave {
   const version = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 0;
   // 迁移前先按起点版本自证：被改过的旧档不能靠迁移「洗白」成合法档。
   if (version === 1) assertSaveV1(raw);
+  if (version === 2) assertSaveV2(raw);
   let current = raw;
   let cursor = version;
   while (cursor < CURRENT_SCHEMA_VERSION) {

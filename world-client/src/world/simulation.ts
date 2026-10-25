@@ -61,8 +61,8 @@ import type {
   WorldSnapshot,
 } from './types.ts';
 import { excerptBlockedQuestion, ORACLE_SLAB_LIMIT } from './types.ts';
-import type { SavedVillager, SettledRecord, WorldSave } from './save.ts';
-import { SCHEMA_V2_FINGERPRINT } from './save.ts';
+import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
+import { SCHEMA_V3_FINGERPRINT } from './save.ts';
 
 /**
  * 台账事件时间 → settled 用的 epoch 毫秒。协议 §19 给的是秒（×1000）；
@@ -228,6 +228,13 @@ interface Villager {
   pendingBuilding: PlacedBuilding | null;
   /** 手上带着的东西。郊野返程时非空。 */
   carrying: CarryKind | null;
+  /**
+   * 灯油余量 0..1（v3 存档字段）。
+   *
+   * **`Simulation` 只负责原样存与取，不读它做任何决定**：衰减、亮度、
+   * 发灰全在渲染层（见 #4）。世界要是读它，确定性回放就不成立了。
+   */
+  lampOil: number;
 }
 
 interface WorkstationState {
@@ -294,6 +301,15 @@ export class Simulation {
    * 回放时和 `now` 打架。这里留一个上一拍的值，只为给状态行一句话。
    */
   private lastTideLevel = 0;
+  /**
+   * 潮位覆盖（v3 存档字段）。**只存不用**：写它、让它在 `until` 之后失效
+   * 都是 #14 的事；这一版只保证它进得了存档、读得回来。
+   */
+  private tideOverride: TideOverride | null = null;
+  /**
+   * 世界被玩家实质改变过几次（v3 存档字段）。**只存不用**：写它是 #8 的事。
+   */
+  private worldChangeVersion = 0;
   private faithPoints = 0;
   private milestones = 0;
   /** 交付统计按来源分开：台账的活只有台账能收，沙盒/离线 Mock 另计。 */
@@ -361,6 +377,8 @@ export class Simulation {
       pendingRoute: [],
       pendingBuilding: null,
       carrying: null,
+      // 新世界开局是满油。谁把油烧掉是渲染层的事（见 #4）。
+      lampOil: 1,
     }));
     for (const villager of this.villagers) this.pending.set(villager.id, []);
     for (const villager of this.villagers) {
@@ -1861,9 +1879,10 @@ export class Simulation {
       inPlaceUntil: villager.inPlaceUntil,
       pendingRoute: villager.pendingRoute.map((cell) => ({ x: cell.x, y: cell.y })),
       pendingBuildingId: villager.pendingBuilding?.instanceId ?? null,
+      lampOil: villager.lampOil,
     }));
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       world: {
         now: this.now,
         villagers,
@@ -1893,11 +1912,14 @@ export class Simulation {
         settled: this.settledLog.map((record) => ({ ...record })),
         nextTaskNumber: this.nextTaskNumber,
         nextPendingNumber: this.nextPendingNumber,
+        // v3 的三个位置：#14 写覆盖、#8 写折返计数，这一版原样存取。
+        tideOverride: this.tideOverride === null ? null : { ...this.tideOverride },
+        worldChangeVersion: this.worldChangeVersion,
       },
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.ledgerReconciled,
-        schemaFingerprint: SCHEMA_V2_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V3_FINGERPRINT,
       },
     };
   }
@@ -1941,6 +1963,8 @@ export class Simulation {
         saved.pendingBuildingId === null
           ? null
           : (sim.buildings.find((item) => item.instanceId === saved.pendingBuildingId) ?? null);
+      // 灯油只搬运，不参与任何世界判定（见 #4）。
+      villager.lampOil = saved.lampOil;
     }
 
     for (const queue of sim.pending.values()) queue.length = 0;
@@ -2012,6 +2036,9 @@ export class Simulation {
 
     sim.nextTaskNumber = world.nextTaskNumber;
     sim.nextPendingNumber = world.nextPendingNumber;
+    // v3 的两个位置：原样读回，这一版不用它们（见 #14 / #8）。
+    sim.tideOverride = world.tideOverride === null ? null : { ...world.tideOverride };
+    sim.worldChangeVersion = world.worldChangeVersion;
     sim.ledgerConnected = false;
     sim.ledgerSyncedAt = null;
     sim.ledgerComplete = true;

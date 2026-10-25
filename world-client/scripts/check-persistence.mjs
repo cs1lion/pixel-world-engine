@@ -66,7 +66,7 @@ check(
   `存档体积低于 ${MAX_SAVE_BYTES / 1024}KB`,
   `${(before.bytes / 1024).toFixed(1)}KB`,
 );
-check(before.schemaVersion === 2, '存档是当前版本 v2', String(before.schemaVersion));
+check(before.schemaVersion === 3, '存档是当前版本 v3', String(before.schemaVersion));
 check(before.props >= 2, '造出的摆件进了存档', String(before.props));
 
 // 刷新：不清 localStorage，验证真实恢复。

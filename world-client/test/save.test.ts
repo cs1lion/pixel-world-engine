@@ -114,7 +114,7 @@ test('settled 时钟不混用：mock=local/wall clock，ledger=ledger/null', () 
 
 test('对账：已结算不重复、不复活；缺席且完整不复活；不完整则保留', () => {
   const sample = JSON.parse(
-    readFileSync(new URL('../../docs/save-v2.sample.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../docs/save-v3.sample.json', import.meta.url), 'utf8'),
   ) as WorldSave;
   assertSave(sample);
   const demo = 'c_demo000001';
@@ -206,8 +206,9 @@ test('v1→v2 迁移：样例级旧档完整可迁移，迁移后能过当前校
   ) as Record<string, unknown>;
   const migrated = migrateSave(v1);
 
-  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v2 校验');
-  assert.equal(migrated.schemaVersion, 2);
+  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过当前版校验');
+  // v1 的档要一路走到当前版本（v3），中间不会停在 v2。
+  assert.equal(migrated.schemaVersion, 3);
 });
 
 test('v1→v2 迁移：老摆件没有来源，记 null 而不是编造', () => {
@@ -243,12 +244,30 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
   const {
     oracle: _oracle,
     critters: _critters,
+    // v3 的三个新字段单独断言（见下方），这里只比「迁移不该碰」的部分。
+    tideOverride: _tideOverride,
+    worldChangeVersion: _worldChangeVersion,
     props: migratedProps,
     buildings: migratedBuildings,
+    villagers: migratedVillagers,
     ...migratedRest
   } = migrated.world;
-  const { props: v1Props, buildings: v1Buildings, ...v1Rest } = v1.world;
+  const { props: v1Props, buildings: v1Buildings, villagers: v1Villagers, ...v1Rest } = v1.world;
   assert.deepEqual(migratedRest, v1Rest, '迁移不能顺手改动别的世界状态');
+
+  // v3 新增：灯油缺省满油，其余角色字段一个不动。
+  const stripLampOil = (list: readonly { lampOil?: number }[]): unknown[] =>
+    list.map((villager) => {
+      const { lampOil: _oil, ...rest } = villager;
+      return rest;
+    });
+  assert.deepEqual(
+    stripLampOil(migratedVillagers),
+    v1Villagers,
+    '角色除灯油外必须逐字段一致',
+  );
+  assert.equal(migrated.world.tideOverride, null, 'v1 没有覆盖，迁移后是 null');
+  assert.equal(migrated.world.worldChangeVersion, 0, 'v1 没记过改变次数，从零开始');
 
   const stripBuildings = (list: readonly PlacedBuilding[]): unknown[] =>
     list.map((building) => {
@@ -421,4 +440,69 @@ test('P2 契约：满数据存档（settled / constructions / 队列非空）通
   assert.ok(save.world.settled.length > 0, '满数据档应有 settled');
   assert.ok(save.world.constructions.length > 0, '满数据档应有 constructions');
   assert.doesNotThrow(() => assertSave(save));
+});
+
+/* ------------------------------------------------ v3 扩位置：三个字段能存能读 */
+
+test('v3：toSave 写出三个新字段，缺省是满油 / 无覆盖 / 零次改变', () => {
+  const sim = makeSim();
+  sim.update(16);
+  const save = sim.toSave();
+
+  assert.equal(save.schemaVersion, 3);
+  for (const villager of save.world.villagers) {
+    assert.equal(villager.lampOil, 1, '新世界开局满油');
+  }
+  assert.equal(save.world.tideOverride, null, '没有命令就没有覆盖');
+  assert.equal(save.world.worldChangeVersion, 0, '还没改变过世界');
+  assert.doesNotThrow(() => assertSave(save));
+});
+
+test('v3：三个新字段经 toSave → fromSave → 再 toSave 原样往返', () => {
+  const a = makeSim();
+  a.update(16);
+  // 直接改存档里的值（这一版还没有写它们的命令），验证的是**搬运**而不是业务。
+  const save = a.toSave() as unknown as {
+    world: {
+      villagers: { lampOil: number }[];
+      tideOverride: { level: number; until: number } | null;
+      worldChangeVersion: number;
+    };
+  };
+  save.world.villagers[0].lampOil = 0.25;
+  save.world.tideOverride = { level: 0.9, until: 12_345 };
+  save.world.worldChangeVersion = 7;
+
+  const restored = fromSave(save as unknown as WorldSave).toSave();
+  assert.equal(restored.world.villagers[0]?.lampOil, 0.25, '灯油必须原样搬回来');
+  assert.deepEqual(restored.world.tideOverride, { level: 0.9, until: 12_345 }, '覆盖必须原样搬回来');
+  assert.equal(restored.world.worldChangeVersion, 7, '折返计数必须原样搬回来');
+  assert.doesNotThrow(() => assertSave(restored));
+});
+
+test('v3：灯油不进世界的读路径（Simulation 不因它改变行为）', () => {
+  // 这条是「灯油只在渲染层」那条硬约束的存档侧版本：
+  // 把所有人的油抽干，世界跑出来的快照必须与满油时逐字段一致。
+  const full = makeSim();
+  const dry = makeSim();
+  for (let index = 0; index < 30; index += 1) {
+    full.update(100);
+    dry.update(100);
+  }
+  const drySave = dry.toSave() as unknown as {
+    world: { villagers: { lampOil: number }[] };
+  };
+  for (const villager of drySave.world.villagers) villager.lampOil = 0;
+
+  const a = fromSave(drySave as unknown as WorldSave);
+  const b = fromSave(full.toSave());
+  for (let index = 0; index < 20; index += 1) {
+    a.update(100);
+    b.update(100);
+  }
+  const strip = (sim: Simulation): unknown => {
+    const snapshot = sim.snapshot() as unknown as Record<string, unknown>;
+    return { ...snapshot, villagers: (snapshot.villagers as Record<string, unknown>[]) };
+  };
+  assert.deepEqual(strip(a), strip(b), '油多油少不能改变世界怎么走');
 });

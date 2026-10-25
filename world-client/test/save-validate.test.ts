@@ -29,7 +29,7 @@ import {
   PROP_KINDS,
   SAVE_STORAGE_KEY,
   SAVE_V1_ALLOWED_PATHS,
-  SCHEMA_V2_FINGERPRINT,
+  SCHEMA_V3_FINGERPRINT,
   SILHOUETTES,
   TASK_KINDS,
   TASK_SOURCES,
@@ -47,7 +47,7 @@ const rawPrefabs = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(rawPrefabs);
-const sampleText = readFileSync(new URL('../../docs/save-v2.sample.json', import.meta.url), 'utf8');
+const sampleText = readFileSync(new URL('../../docs/save-v3.sample.json', import.meta.url), 'utf8');
 
 class FakeStorage implements StorageLike {
   readonly data = new Map<string, string>();
@@ -236,15 +236,17 @@ const NULLABLE_PATHS: ReadonlySet<string> = new Set([
   'world.props[].sourceSummary',
   'world.buildings[].sourceTaskId',
   'world.buildings[].sourceSummary',
+  // v3：没有覆盖是 null（世界走 tideLevelAt 纯函数），置空是合法值不是变异。
+  'world.tideOverride',
 ]);
 
 /* ---------------------------------------------------------------- 用例 */
 
 test('task-32：冻结样例仍能加载（read + importText + parseSaveText 三口一致）', () => {
   const sample = JSON.parse(sampleText) as WorldSave;
-  assert.doesNotThrow(() => validateSaveFields(sample, 2), '样例必须过字段级校验');
+  assert.doesNotThrow(() => validateSaveFields(sample, 3), '样例必须过字段级校验');
   assert.doesNotThrow(() => assertSave(sample), '样例必须过完整校验');
-  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V2_FINGERPRINT);
+  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V3_FINGERPRINT);
 
   const parsed = parseSaveText(sampleText);
   assert.equal(parsed.ok, true);
@@ -261,7 +263,7 @@ test('task-32：冻结样例仍能加载（read + importText + parseSaveText 三
 
 test('task-32：四种合法存档全部通过（样例 / fresh / 走路中 / 满数据）', () => {
   for (const { label, save } of legalSaves()) {
-    assert.doesNotThrow(() => validateSaveFields(save, 2), `${label} 必须过字段级校验`);
+    assert.doesNotThrow(() => validateSaveFields(save, 3), `${label} 必须过字段级校验`);
     assert.doesNotThrow(() => assertSave(save), `${label} 必须过完整校验`);
     // 合法档经 JSON 往返（真实读写路径）后仍合法。
     const roundTrip = JSON.parse(JSON.stringify(save)) as WorldSave;
@@ -308,7 +310,7 @@ test('task-32：字段级拒绝的具体理由（每个字段族各一例）', (
   for (const [label, mutate, pattern] of cases) {
     const copy = clone(sample) as unknown as Json;
     mutate(copy);
-    assert.throws(() => validateSaveFields(copy, 2), pattern, `${label} 必须按该理由拒绝`);
+    assert.throws(() => validateSaveFields(copy, 3), pattern, `${label} 必须按该理由拒绝`);
   }
 });
 
