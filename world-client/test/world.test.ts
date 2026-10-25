@@ -15,6 +15,7 @@ import { parseOracle } from '../src/world/oracle.ts';
 import { TASK_PROFILES } from '../src/world/tasks.ts';
 import { MILESTONE_POINTS, POINTS_PER_TASK } from '../src/world/faith.ts';
 import { stepWeather, rainWeather, clearWeather, RAIN_DURATION_MS } from '../src/world/weather.ts';
+import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
@@ -456,20 +457,20 @@ test('撤销排队：省略 id 撤最后一条，可按 id 撤，空了再撤被
 test('交付归属到实际干活的角色，交付统计不串', () => {
   const rig = makeRig();
   makeBothBusy(rig);
-  assert.equal(rig.state().deliveries.mock, 0);
+  assert.equal(rig.state().deliveries.local, 0);
 
   rig.sim.enqueue({ kind: 'complete' });
   rig.sim.update(16);
   let state = rig.state();
   assert.equal(state.villagers[0]?.mode, 'delivering', '主角色那单先交付');
   assert.equal(state.villagers[1]?.mode, 'working', '另一人还在工坊');
-  assert.equal(state.deliveries.mock, 1);
+  assert.equal(state.deliveries.local, 1);
 
   rig.sim.enqueue({ kind: 'complete' });
   rig.sim.update(16);
   state = rig.state();
   assert.equal(state.villagers[1]?.mode, 'delivering', '第二单由它自己的角色交付');
-  assert.equal(state.deliveries.mock, 2);
+  assert.equal(state.deliveries.local, 2);
 });
 
 test('固定步长回放：同样的命令与步长，快照完全一致', () => {
@@ -493,47 +494,38 @@ test('固定步长回放：同样的命令与步长，快照完全一致', () =>
   assert.deepEqual(a.state(), b.state(), '同命令同步长必须逐字段一致');
 });
 
-test('台账优先：空闲时先派台账单，oracle 排队单继续等', () => {
+test('上游优先：空闲时先派上游单，oracle 排队单继续等', () => {
   const rig = makeRig();
   makeBothBusy(rig);
   rig.sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '排队的 oracle 单' });
   rig.sim.update(16);
   assert.equal(rig.state().pending.length, 1);
 
-  // 主角色那单交付后：台账有单在册，先派台账的。
-  rig.sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_ledger', kind: 'writing', title: '台账的活', agentName: '甲' }],
-    finished: [],
-    connected: true,
-    order: ['c_ledger'],
-  });
+  // 主角色那单交付后：日志里有单在册，先派上游的。
+  rig.sim.enqueue(
+    syncCommand({ tasks: [{ id: 'c_up', kind: 'writing', title: '上游来的活' }] }),
+  );
   rig.sim.enqueue({ kind: 'complete' });
   rig.sim.update(16);
   rig.runUntil(
     () =>
-      rig.state().villagers[0]?.taskId === 'c_ledger' &&
+      rig.state().villagers[0]?.taskId === 'c_up' &&
       (rig.state().villagers[0]?.mode === 'saluting' || rig.state().villagers[0]?.mode === 'toWork'),
     20_000,
   );
   const state = rig.state();
-  assert.equal(state.villagers[0]?.taskId, 'c_ledger', '台账单先派给空出来的人');
+  assert.equal(state.villagers[0]?.taskId, 'c_up', '上游单先派给空出来的人');
   assert.equal(state.pending.length, 1, 'oracle 排队单还在等');
 });
 
-test('行礼还没出发时台账收工：取消行礼、清路线，不残留旧目标', () => {
+test('行礼还没出发时上游收工：取消行礼、清路线，不残留旧目标', () => {
   const rig = makeRig();
-  rig.sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_1', kind: 'writing', title: '台账的活', agentName: '甲' }],
-    finished: [],
-    connected: true,
-  });
+  rig.sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'writing', title: '上游来的活' }] }));
   rig.sim.update(16);
   assert.equal(rig.state().villager.mode, 'saluting');
 
-  // 还在行礼（未出发）时台账收工：直接转交付，不能继续行礼/走旧路线。
-  rig.sim.enqueue({ kind: 'sync', tasks: [], finished: ['c_1'], connected: true });
+  // 还在行礼（未出发）时上游收工：直接转交付，不能继续行礼/走旧路线。
+  rig.sim.enqueue(syncCommand({ finished: ['c_1'] }));
   rig.sim.update(16);
   const state = rig.state();
   assert.equal(state.villager.mode, 'delivering', '行礼被取消，直接交付');
@@ -547,18 +539,13 @@ test('行礼还没出发时台账收工：取消行礼、清路线，不残留�
   assert.equal(rig.state().tasks.at(-1)?.summary, '新活');
 });
 
-test('行礼还没出发时台账撤单：回到空闲，旧行礼计时器不再推进', () => {
+test('行礼还没出发时上游撤单：回到空闲，旧行礼计时器不再推进', () => {
   const rig = makeRig();
-  rig.sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_1', kind: 'writing', title: '台账的活', agentName: '甲' }],
-    finished: [],
-    connected: true,
-  });
+  rig.sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'writing', title: '上游来的活' }] }));
   rig.sim.update(16);
   assert.equal(rig.state().villager.mode, 'saluting');
 
-  rig.sim.enqueue({ kind: 'sync', tasks: [], finished: [], connected: true });
+  rig.sim.enqueue(syncCommand({ cancelled: ['c_1'] }));
   rig.sim.update(16);
   assert.equal(rig.state().villager.mode, 'idle');
   assert.equal(rig.state().tasks.length, 0);
@@ -576,16 +563,11 @@ test('空手时交付被拒绝', () => {
 
 // ------------------------------------------------------- 人工交付与离线 Mock（D3）
 
-test('台账单不能人工完成：完成权在台账，状态不变', () => {
+test('上游单不能人工完成：完成权在日志，状态不变', () => {
   const rig = makeRig();
-  rig.sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_1', kind: 'code', title: '写爬虫', agentName: '甲' }],
-    finished: [],
-    connected: true,
-  });
+  rig.sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
   rig.runUntil(() => rig.state().villager.mode === 'working');
-  assert.equal(rig.state().ledger.mock, false, '台账在线');
+  assert.equal(rig.state().feed.connected, true, '上游在线');
 
   rig.sim.enqueue({ kind: 'complete' });
   const result = rig.sim.update(16);
@@ -593,13 +575,13 @@ test('台账单不能人工完成：完成权在台账，状态不变', () => {
   assert.ok(result[0].message.includes('完成权在台账'), result[0].message);
 
   const state = rig.state();
-  assert.equal(state.villager.mode, 'working', '被拒后台账单继续跑');
+  assert.equal(state.villager.mode, 'working', '被拒后这条活继续跑');
   assert.equal(state.tasks[0].status, 'in_progress');
-  assert.equal(state.deliveries.ledger, 0);
-  assert.equal(state.deliveries.mock, 0);
+  assert.equal(state.deliveries.feed, 0);
+  assert.equal(state.deliveries.local, 0);
 });
 
-test('沙盒单可以人工收尾，回执标明离线 Mock 且不计入台账', () => {
+test('沙盒单可以人工收尾，回执标明离线本地且不计入上游', () => {
   const rig = makeRig();
   rig.sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写个脚本' });
   rig.runUntil(() => rig.state().villager.mode === 'working');
@@ -607,13 +589,13 @@ test('沙盒单可以人工收尾，回执标明离线 Mock 且不计入台账',
   rig.sim.enqueue({ kind: 'complete' });
   const result = rig.sim.update(16);
   assert.equal(result[0].ok, true);
-  assert.ok(result[0].message.includes('离线 Mock'), result[0].message);
+  assert.ok(result[0].message.includes('离线本地'), result[0].message);
   assert.ok(result[0].message.includes('不计入台账'), result[0].message);
 
   const state = rig.state();
   assert.equal(state.villager.mode, 'delivering');
-  assert.equal(state.deliveries.mock, 1, '沙盒交付计入 Mock');
-  assert.equal(state.deliveries.ledger, 0, '不冒充台账交付');
+  assert.equal(state.deliveries.local, 1, '沙盒交付计入本地');
+  assert.equal(state.deliveries.feed, 0, '不冒充上游交付');
 });
 
 test('人工交付可指定角色 id 或名字，不串任务与统计', () => {
@@ -637,7 +619,7 @@ test('人工交付可指定角色 id 或名字，不串任务与统计', () => {
   assert.equal(state.tasks[1]?.status, 'done');
   assert.equal(state.tasks[0]?.status, 'in_progress');
   assert.deepEqual(
-    state.deliveriesByVillager.map((item) => [item.name, item.mock]),
+    state.deliveriesByVillager.map((item) => [item.name, item.local]),
     [
       ['莞尔', 0],
       ['阿雾', 1],
@@ -653,7 +635,7 @@ test('人工交付可指定角色 id 或名字，不串任务与统计', () => {
   assert.equal(state.villagers[0]?.mode, 'delivering');
   assert.equal(state.tasks[0]?.status, 'done');
   assert.deepEqual(
-    state.deliveriesByVillager.map((item) => [item.name, item.mock]),
+    state.deliveriesByVillager.map((item) => [item.name, item.local]),
     [
       ['莞尔', 1],
       ['阿雾', 1],
@@ -678,34 +660,32 @@ test('人工交付指定未知角色：明确拒绝，世界不动', () => {
   assert.deepEqual(after.deliveries, before.deliveries);
 });
 
-test('指定角色也不能绕过台账完成权', () => {
+test('指定角色也不能绕过上游完成权', () => {
   const rig = makeRig();
-  rig.sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_1', kind: 'code', title: '写爬虫', agentName: '甲' }],
-    finished: [],
-    connected: true,
-  });
+  rig.sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
   rig.runUntil(() => rig.state().villager.mode === 'working');
   rig.sim.enqueue({ kind: 'complete', target: 'v0' });
   const result = rig.sim.update(16);
   assert.equal(result[0].ok, false);
   assert.ok(result[0].message.includes('完成权在台账'), result[0].message);
   assert.equal(rig.state().tasks[0]?.status, 'in_progress');
-  assert.equal(rig.state().deliveries.ledger, 0);
+  assert.equal(rig.state().deliveries.feed, 0);
 });
 
-test('快照的离线 Mock 标记随台账连接变化', () => {
+test('快照的上游连接标记随事件流读取变化', () => {
   const rig = makeRig();
-  assert.equal(rig.state().ledger.mock, true, '没接台账就是离线 Mock');
+  assert.equal(rig.state().feed.connected, false, '还没读过上游就是离线');
+  assert.equal(rig.state().feed.reconciled, true, '新世界不需要对账');
 
-  rig.sim.enqueue({ kind: 'sync', tasks: [], finished: [], connected: true });
+  rig.sim.enqueue(syncCommand({}));
   rig.sim.update(16);
-  assert.equal(rig.state().ledger.mock, false, '连上后不再是 Mock');
+  assert.equal(rig.state().feed.connected, true, '读到事件后算在线');
+  assert.equal(rig.state().feed.lastReadAt, rig.state().now, '记的是世界时间，不是墙钟');
 
-  rig.sim.enqueue({ kind: 'sync', tasks: [], finished: [], connected: false });
+  rig.sim.enqueue(syncCommand({ connected: false }));
   rig.sim.update(16);
-  assert.equal(rig.state().ledger.mock, true, '断线后标回离线 Mock');
+  assert.equal(rig.state().feed.connected, false, '断线后标回离线');
+  assert.ok(rig.state().feed.cursor > 0, '断线不清游标——下次从这里续读');
 });
 
 test('每条命令只在 update 开头结算一次', () => {

@@ -84,27 +84,37 @@ export type VillagerMode =
 
 export type TaskStatus = 'assigned' | 'in_progress' | 'done' | 'failed';
 
-/** 这条活的完成权归谁。沙盒自己造的活由计时器收尾；台账来的活只有台账能收。 */
+/**
+ * 这条活的完成权归谁。
+ *
+ * - `sandbox`：世界自己造的活（神谕派下来的），由世界内的计时器收尾。
+ * - `ledger`：**由上游事件流派来的活**，只有上游的 `task.settled` 能收。
+ *
+ * 值 `'ledger'` 是历史遗留的字面量，冻结在存档 v1–v3 的样例与校验里，
+ * 改它要升 schema。语义已经换了（不再是读台账快照，而是折叠事件流），
+ * 但存进去的那个字符串不能动——那是别人的旧档。
+ */
 export type TaskSource = 'sandbox' | 'ledger';
 
 export interface TaskRecord {
   readonly id: string;
   readonly kind: TaskKind;
-  readonly summary: string;
-  /** 原地做的活没有铺子；台账的活等派下去才写。 */
+  /** 上游给的说法。上游改标题时跟着改——标题只有它知道，世界不自己编。 */
+  summary: string;
+  /** 原地做的活没有铺子；上游派来的活等派下去才写。 */
   buildingId: string | null;
   readonly source: TaskSource;
   status: TaskStatus;
   readonly createdAt: number;
   completedAt: number | null;
   /**
-   * 台账事件时间（epoch 秒，closed_at ?? updated_at）。只给 settled 用：
-   * 交付/对账时 ×1000 写入 settled.completedAt；缺失保持 null，禁止本地时间顶替。
+   * 上游事件时间（epoch 毫秒，来自 `task.settled` 的 `completedAt`）。只给 settled 用：
+   * 交付时直接写入 `settled.completedAt`；缺失保持 null，禁止本地时间顶替。
    */
   ledgerCompletedAt?: number | null;
   /**
-   * 台账 blocked 单要请示的问题。只透传、只展示，世界绝不在内部回答；
-   * 非 blocked 单（转 running / 完成 / 撤单）必须清成 null，不残留。
+   * 上游 `task.blocked` 带来的问题。只透传、只展示，世界绝不在内部回答；
+   * 非 blocked 状态（转 running / 完成 / 撤单）必须清成 null，不残留。
    * 这里保留完整原文，展示截断由 excerptBlockedQuestion 负责。
    */
   blockedQuestion: string | null;
@@ -214,18 +224,18 @@ export interface ConstructionSnapshot {
   readonly totalMs: number;
 }
 
-/** 交付统计：台账交付与离线 Mock 交付分开计，不合并。 */
+/** 交付统计：上游事件流来的活与本地造的活分开计，不合并。 */
 export interface DeliveryStats {
-  readonly ledger: number;
-  readonly mock: number;
+  readonly feed: number;
+  readonly local: number;
 }
 
-/** 单个角色的交付归属：按人分账，Mock 与台账仍分开。 */
+/** 单个角色的交付归属：按人分账，上游与本地仍分开。 */
 export interface VillagerDeliveries {
   readonly villagerId: string;
   readonly name: string;
-  readonly ledger: number;
-  readonly mock: number;
+  readonly feed: number;
+  readonly local: number;
 }
 
 /**
@@ -357,15 +367,14 @@ export interface WorldSnapshot {
   readonly deliveries: DeliveryStats;
   /** 按角色分账的交付归属（顺序同 villagers）；日报据此写「谁交付了几单」。 */
   readonly deliveriesByVillager: readonly VillagerDeliveries[];
-  /** 上游台账的在线情况。离线时世界照常过日子，但不再谎报"没有活"。 */
-  readonly ledger: {
+  /** 上游事件流的连接情况。断线时世界照常过日子，但不再谎报"没有活"。 */
+  readonly feed: {
     readonly connected: boolean;
-    readonly lastSyncAt: number | null;
-    /** 当前按离线 Mock 运行（没接台账或已断线）。状态行据此显式标注。 */
-    readonly mock: boolean;
-    /** 最近一次 REST 快照是否完整；false 表示"台账可能未取全"。 */
-    readonly complete: boolean;
-    /** 读档后首个成功 sync 之前为 false；此时台账单只读展示、不驱动。 */
+    /** 最近一次成功读到事件的**世界时间**（不是墙钟）。 */
+    readonly lastReadAt: number | null;
+    /** 已消费到的事件 id。下次从这里续读。 */
+    readonly cursor: number;
+    /** 读档后首个成功读取之前为 false；此时上游单只读展示、不驱动。 */
     readonly reconciled: boolean;
   };
 }

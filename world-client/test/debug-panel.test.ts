@@ -8,7 +8,7 @@ import type { WorldEvent, WorldSnapshot } from '../src/world/types.ts';
 import {
   buildDebugModel,
   DEBUG_EVENT_LIMIT,
-  ledgerSummary,
+  feedSummary,
   saveStatusLine,
   selectEvents,
   type SaveStatusView,
@@ -87,8 +87,8 @@ test('事件流：最近 50 条上限 + tone 过滤', () => {
 
 test('连接与存档摘要可读，不依赖 DOM', () => {
   const snapshot = makeSim().snapshot();
-  assert.ok(ledgerSummary(snapshot.ledger).includes('connected='));
-  assert.ok(ledgerSummary(snapshot.ledger).includes('reconciled='));
+  assert.ok(feedSummary(snapshot.feed).includes('connected='));
+  assert.ok(feedSummary(snapshot.feed).includes('reconciled='));
   const save: SaveStatusView = {
     schemaVersion: 1,
     savedAtWallClock: 1_700_000_000_000,

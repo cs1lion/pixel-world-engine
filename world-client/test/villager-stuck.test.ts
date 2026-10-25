@@ -10,12 +10,13 @@ import {
   type BuiltWorld,
 } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { syncCommand } from './feed-helpers.ts';
 
 /** D-1 回归锁：屋内正在干活的单被判「没了」时，角色不能卡死。
  *
  * 缺陷形态（QA 在 S5 e2e 发现）：角色 mode=working、visible=false、pos=工位（占地内
- * 不可走格）。该单从台账消失后，状态机把 mode 收回 idle，但：
- *   - 读档对账路径（reconcile → removeTask）：visible 没恢复、位置没移出 →
+ * 不可走格）。该单从上游消失后，状态机把 mode 收回 idle，但：
+ *   - 读档对账路径（removeTask）：visible 没恢复、位置没移出 →
  *     不渲染 + 走不动，且入档跨会话持久，只有清档能恢复；
  *   - live-sync 路径（abandonActiveTask）：visible 恢复了，但位置仍留在工位 →
  *     看得见却钉在屋里不动。
@@ -23,8 +24,12 @@ import { Simulation } from '../src/world/simulation.ts';
  *
  * 本文件覆盖三条路径：
  *   ① live-sync 撤单（abandonActiveTask）
- *   ② 读档 + 首次 sync 对账（reconcile → removeTask）  ← 任务卡要求的原始场景
+ *   ② 读档 + 首次 sync 对账（removeTask）  ← 任务卡要求的原始场景
  *   ③ 两条路径修复后都能真正走动
+ *
+ * 事件流把「单没了」说得比快照清楚：撤单是一条 `task.cancelled`，
+ * 不是「这一页里没看见」。所以两条路径都靠 `cancelled` 触发，
+ * 区别只在读档后的第一轮会跳过「停手」那一步（那时她已经不在干活了）。
  */
 
 const raw = JSON.parse(
@@ -55,15 +60,13 @@ function tick(sim: Simulation, times: number): void {
   for (let i = 0; i < times; i += 1) sim.update(STEP);
 }
 
-/** 把一个台账单派给角色并让他走到工位（mode=working、visible=false）。 */
-function dispatchAndWork(sim: Simulation, commissionId: string): void {
-  sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId, kind: 'writing', title: '台账的活', agentName: '甲' }],
-    finished: [],
-    connected: true,
-    order: [commissionId],
-  });
+/** 把一条上游活派给角色并让他走到工位（mode=working、visible=false）。 */
+function dispatchAndWork(sim: Simulation, taskId: string): void {
+  sim.enqueue(
+    syncCommand({
+      tasks: [{ id: taskId, kind: 'writing', title: '上游来的活' }],
+    }),
+  );
   sim.update(STEP);
   // 走完 行礼 → 出门 → 进屋；最多跑 60 秒
   for (let i = 0; i < 600; i += 1) {
@@ -74,7 +77,7 @@ function dispatchAndWork(sim: Simulation, commissionId: string): void {
   throw new Error('没能把角色送进工位：' + JSON.stringify(sim.snapshot().villager));
 }
 
-test('D-1：对账判缺席后，屋内干活的角色必须恢复可见并移到建筑外', () => {
+test('D-1：上游撤单后，屋内干活的角色必须恢复可见并移到建筑外', () => {
   const { sim, grid } = makeSim();
   dispatchAndWork(sim, 'c_d1');
 
@@ -82,8 +85,8 @@ test('D-1：对账判缺席后，屋内干活的角色必须恢复可见并移�
   assert.equal(working.villager.mode, 'working', '前置：应在干活');
   assert.equal(working.villager.visible, false, '前置：干活时不可见');
 
-  // 完整快照里这一单消失 → reconcile 按「撤单」处理
-  sim.enqueue({ kind: 'sync', tasks: [], finished: [], connected: true, complete: true });
+  // 日志里来了一条 task.cancelled
+  sim.enqueue(syncCommand({ cancelled: ['c_d1'] }));
   sim.update(STEP);
 
   const after = sim.snapshot();
@@ -104,7 +107,7 @@ test('D-1：对账判缺席后，屋内干活的角色必须恢复可见并移�
 test('D-1：恢复后角色能真正走动（寻路不再恒空）', () => {
   const { sim } = makeSim();
   dispatchAndWork(sim, 'c_d1b');
-  sim.enqueue({ kind: 'sync', tasks: [], finished: [], connected: true, complete: true });
+  sim.enqueue(syncCommand({ cancelled: ['c_d1b'] }));
   sim.update(STEP);
 
   const before = sim.snapshot().villager.pos;
@@ -113,15 +116,16 @@ test('D-1：恢复后角色能真正走动（寻路不再恒空）', () => {
   const moved = Math.hypot(afterPos.x - before.x, afterPos.y - before.y);
   assert.ok(moved > 0.5, `恢复后应该能走动，实际位移 ${moved.toFixed(2)}`);
 });
+
 /**
  * 任务卡要求的原始场景：**读档 + 首次 sync 对账**。
  *
- * 为什么单独写一条：本文件前两条用的是新建 Simulation，此时 ledgerReconciled 默认 true
- * （simulation.ts:191），sync 走 live 路径（:404 只在 !ledgerReconciled 时才进 reconcile）。
- * 也就是说前两条测的是 abandonActiveTask，**没覆盖 reconcile**。
- * 这里用 toSave → fromSave 造出「关页时他在屋内干活」的存档，再发首次 sync 走对账分支。
+ * 为什么单独写一条：本文件前两条用的是新建 Simulation，此时 feedReconciled 默认 true
+ * （simulation.ts:313），sync 走 live 路径。这里用 toSave → fromSave 造出
+ * 「关页时她在屋内干活」的存档，再发首次 sync 走 `firstRead` 分支——
+ * 那条分支只对齐、不停手（她那时已经不在干活了），但同样要把人从屋里挪出来。
  */
-test('D-1：读档 + 首次对账判缺席，角色必须恢复可见且不在建筑内', () => {
+test('D-1：读档 + 首次对账发现单已撤，角色必须恢复可见且不在建筑内', () => {
   const { sim, grid } = makeSim();
   dispatchAndWork(sim, 'c_load');
 
@@ -129,7 +133,7 @@ test('D-1：读档 + 首次对账判缺席，角色必须恢复可见且不在�
   assert.equal(working.villager.mode, 'working', '前置：应在干活');
   assert.equal(working.villager.visible, false, '前置：干活时不可见');
 
-  // 存档 → 读档（复现「关页时他在屋内干活」）
+  // 存档 → 读档（复现「关页时她在屋内干活」）
   const save = sim.toSave();
   assert.equal(save.world.villagers[0]?.mode, 'working', '存档里应保留干活态');
 
@@ -146,8 +150,8 @@ test('D-1：读档 + 首次对账判缺席，角色必须恢复可见且不在�
     },
   });
 
-  // 首次 sync：完整快照里这单缺席 → 走 reconcile
-  reloaded.enqueue({ kind: 'sync', tasks: [], finished: [], connected: true, complete: true });
+  // 首次 sync：日志说这单在关页期间被撤了 → 走 firstRead 分支
+  reloaded.enqueue(syncCommand({ cancelled: ['c_load'] }));
   reloaded.update(STEP);
 
   const after = reloaded.snapshot();

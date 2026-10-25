@@ -62,7 +62,7 @@ export interface DebugModel {
   readonly buildings: readonly DebugBuildingRow[];
   readonly tasks: readonly DebugTaskRow[];
   readonly pending: readonly DebugPendingRow[];
-  readonly ledger: WorldSnapshot['ledger'];
+  readonly feed: WorldSnapshot['feed'];
   readonly save: SaveStatusView | null;
   readonly events: readonly WorldEvent[];
   readonly counts: {
@@ -134,7 +134,7 @@ export function buildDebugModel(
       blockedQuestion: task.blockedQuestion ?? '—',
     })),
     pending,
-    ledger: snapshot.ledger,
+    feed: snapshot.feed,
     save,
     events: selectedEvents,
     counts: {
@@ -157,16 +157,16 @@ export function saveStatusLine(save: SaveStatusView | null): string {
   return `存档：v${save.schemaVersion} · 保存于 ${savedAt} UTC · 自动存档${save.autoSavePaused ? '已暂停' : '开启'}`;
 }
 
-const LEDGER_FIELDS: readonly (keyof WorldSnapshot['ledger'])[] = [
+const FEED_FIELDS: readonly (keyof WorldSnapshot['feed'])[] = [
   'connected',
-  'complete',
   'reconciled',
-  'mock',
+  'cursor',
+  'lastReadAt',
 ];
 
-export function ledgerSummary(ledger: WorldSnapshot['ledger']): string {
-  const parts = LEDGER_FIELDS.map((key) => `${key}=${String(ledger[key])}`);
-  return `台账：${parts.join(' · ')}`;
+export function feedSummary(feed: WorldSnapshot['feed']): string {
+  const parts = FEED_FIELDS.map((key) => `${key}=${String(feed[key])}`);
+  return `事件流：${parts.join(' · ')}`;
 }
 
 export interface DebugPanelSources {
@@ -179,7 +179,8 @@ export interface DebugPanelSources {
     readonly taskKind: 'code' | 'research' | 'writing' | 'quick';
     readonly summary: string;
   }) => { readonly ok: boolean; readonly message: string };
-  readonly pushLedger?: (commission: unknown) => void;
+  /** 注入一条上游事件，验证「事件流 → 世界」这条链路通着。 */
+  readonly pushEvent?: (event: { kind: string; payload: Record<string, unknown> }) => void;
 }
 
 export interface DebugPanelHandle {
@@ -235,11 +236,11 @@ export function bindDebugPanel(sources: DebugPanelSources): DebugPanelHandle {
 
   // 注入区随面板创建一次，放在 #debug-content 之外：repaint 只清 content，
   // details 的 open 状态与按钮事件绑定都不会丢（task-19 P2 修复）。
-  if (injectSlot !== null && (sources.feed !== undefined || sources.pushLedger !== undefined)) {
+  if (injectSlot !== null && (sources.feed !== undefined || sources.pushEvent !== undefined)) {
     const details = element('details', 'dbg-inject');
     details.id = 'debug-inject';
     const summary = element('summary');
-    summary.textContent = '调试注入（仅调试、不写台账；默认收起）';
+    summary.textContent = '调试注入（仅调试、不写日志；默认收起）';
     details.append(summary);
     if (sources.feed !== undefined) {
       const feedButton = element('button');
@@ -256,22 +257,22 @@ export function bindDebugPanel(sources: DebugPanelSources): DebugPanelHandle {
       });
       details.append(feedButton);
     }
-    if (sources.pushLedger !== undefined) {
-      const ledgerButton = element('button');
-      ledgerButton.type = 'button';
-      ledgerButton.dataset.debugAction = 'pushLedger';
-      ledgerButton.textContent = '注入一帧台账推送';
-      ledgerButton.addEventListener('click', () => {
-        sources.pushLedger?.({
-          id: `dbg_c_${Date.now()}`,
-          title: '调试注入的督办（不写台账）',
-          agent_id: 'scribe',
-          status: 'running',
-          step_idx: 0,
-          blocked_question: '',
+    if (sources.pushEvent !== undefined) {
+      const eventButton = element('button');
+      eventButton.type = 'button';
+      eventButton.dataset.debugAction = 'pushEvent';
+      eventButton.textContent = '注入一条上游任务事件';
+      eventButton.addEventListener('click', () => {
+        sources.pushEvent?.({
+          kind: 'task.opened',
+          payload: {
+            id: `dbg_${Date.now()}`,
+            kind: 'code',
+            title: '调试注入的活（不写日志）',
+          },
         });
       });
-      details.append(ledgerButton);
+      details.append(eventButton);
     }
     injectSlot.append(details);
   }
@@ -376,7 +377,7 @@ export function bindDebugPanel(sources: DebugPanelSources): DebugPanelHandle {
     const status = element('section', 'dbg-section');
     const heading = element('h3');
     heading.textContent = '连接与存档';
-    status.append(heading, row('连接', ledgerSummary(model.ledger), 'ledger'));
+    status.append(heading, row('连接', feedSummary(model.feed), 'feed'));
     status.append(row('存档', saveStatusLine(model.save), 'save'));
     content.append(status);
 

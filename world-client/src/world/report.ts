@@ -18,12 +18,12 @@ const LINE_LIMIT = 3;
 export function composeReport(snapshot: WorldSnapshot): DailyReport {
   const done = snapshot.tasks.filter((task) => task.status === 'done');
   const failed = snapshot.tasks.filter((task) => task.status === 'failed');
-  const { ledger: ledgerDelivered, mock: mockDelivered } = snapshot.deliveries;
-  const delivered = ledgerDelivered + mockDelivered;
+  const { feed: feedDelivered, local: localDelivered } = snapshot.deliveries;
+  const delivered = feedDelivered + localDelivered;
   const lines: string[] = [];
 
   if (delivered > 0) {
-    // 先按角色分账，再在每个人名下把台账与 Mock 分开；不合并成一个总数。
+    // 先按角色分账，再在每个人名下把上游来的与本地造的活分开；不合并成一个总数。
     const workers =
       snapshot.deliveriesByVillager.length > 0
         ? snapshot.deliveriesByVillager
@@ -31,17 +31,17 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
             {
               villagerId: snapshot.villager.id,
               name: snapshot.villager.name,
-              ledger: ledgerDelivered,
-              mock: mockDelivered,
+              feed: feedDelivered,
+              local: localDelivered,
             },
           ];
-    const mockLabel = snapshot.ledger.mock ? '离线 Mock' : 'Mock';
+    const localLabel = snapshot.feed.connected ? '本地' : '离线本地';
     const parts = workers.map((worker) => {
-      const total = worker.ledger + worker.mock;
+      const total = worker.feed + worker.local;
       if (total === 0) return `${worker.name}交付 0 单`;
       const sources: string[] = [];
-      if (worker.ledger > 0) sources.push(`台账 ${worker.ledger}`);
-      if (worker.mock > 0) sources.push(`${mockLabel} ${worker.mock}`);
+      if (worker.feed > 0) sources.push(`上游 ${worker.feed}`);
+      if (worker.local > 0) sources.push(`${localLabel} ${worker.local}`);
       return `${worker.name}交付 ${total} 单（${sources.join(' / ')}）`;
     });
     const latest = done[done.length - 1];

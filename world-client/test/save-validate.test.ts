@@ -102,7 +102,7 @@ function legalSaves(): { label: string; save: WorldSave }[] {
   const full = makeSim();
   full.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   guard = 0;
-  while (full.snapshot().deliveries.mock < 1) {
+  while (full.snapshot().deliveries.local < 1) {
     full.update(100);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }

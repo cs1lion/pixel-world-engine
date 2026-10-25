@@ -68,7 +68,7 @@ test('召唤猫：猫只在氛围层，不参与任务、不改变交付统计',
 
   const after = sim.snapshot();
   assert.equal(after.tasks.length, before.tasks.length, '猫不产生任务');
-  assert.equal(after.deliveries.mock, before.deliveries.mock, '猫不算交付');
+  assert.equal(after.deliveries.local, before.deliveries.local, '猫不算交付');
   assert.ok(after.critters.length > 0, '猫应当出现在快照的氛围实体里');
 });
 

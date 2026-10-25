@@ -12,6 +12,8 @@ import { pickVenue, type VenueCandidate } from './venue.ts';
 import { fogAt, revealedRadiusFor } from './fog.ts';
 import { describeTide, tideLevelAt } from './tide.ts';
 import { awaitingDecree } from './decree.ts';
+import type { TaskFoldState } from './task-events.ts';
+import type { WorldChange } from './world-changes.ts';
 
 import { parseOracle } from './oracle.ts';
 import { parseOracleBuild, type BuildIntent } from './oracle-build.ts';
@@ -65,11 +67,13 @@ import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './sa
 import { SCHEMA_V3_FINGERPRINT } from './save.ts';
 
 /**
- * 台账事件时间 → settled 用的 epoch 毫秒。协议 §19 给的是秒（×1000）；
- * 已经是毫秒（>1e12，历史档/测试直给）就原样。缺失/非法 → null，
- * **禁止用本地时间顶替**（ADR_SAVE §2.2）。
+ * 上游事件带的时间 → settled 用的 epoch 毫秒。
+ *
+ * 事件流约定给毫秒；但历史存档与旧调用方可能给秒，所以这里做一次归一：
+ * 大于 1e12 的当毫秒原样，否则当秒 ×1000。缺失/非法 → null，
+ * **禁止用本地时间顶替**——那会让"这单什么时候成的"变成"我什么时候读到的"。
  */
-export function ledgerCompletedAtMs(value: number | null | undefined): number | null {
+export function completedAtMs(value: number | null | undefined): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   return Math.round(value > 1e12 ? value : value * 1000);
 }
@@ -84,7 +88,7 @@ export type WorldCommand =
   /**
    * 一句神谕的原文。世界自己解析，解析结果再落到下面的具体命令上。
    *
-   * 只有走这条入口才会进石板：外部 Agent 的 `feed`、台账的 `sync` 都不是
+   * 只有走这条入口才会进石板：外部 Agent 的 `feed`、上游的 `syncEvents` 都不是
    * 「你对世界说的话」，不该被记成神谕。
    */
   | { readonly kind: 'oracle'; readonly raw: string }
@@ -126,39 +130,20 @@ export type WorldCommand =
    * 后者不是为了保护建筑，是为了保护正在干的活——拆了会让那单悬空。
    */
   | { readonly kind: 'demolish'; readonly instanceId: string }
-  /** 台账快照。这是世界接真实工作的唯一入口。 */
+  /**
+   * 上游事件流。这是世界接真实工作的**唯一**入口。
+   *
+   * 传的是调用方已经折叠好的结果（`foldTaskEvents` 的输出），不是原始事件：
+   * 折叠是纯函数，世界只负责把结果与自己的任务表对齐。判断全在折叠层，
+   * 这里不做业务推理——这条边界让「事件怎么变成活」可以离线单测。
+   *
+   * `connected: false` 表示这一轮没读到（断网/超时）。世界照常过日子，
+   * 只是不更新任何上游状态——**绝不能**把"没读到"当成"全都撤了"。
+   */
   | {
-      readonly kind: 'sync';
-      readonly tasks: readonly {
-        readonly commissionId: string;
-        readonly kind: TaskKind;
-        readonly title: string;
-        readonly agentName: string;
-        /** 台账状态；blocked 表示这单在等用户答复。旧调用方省略时按无 blocked 处理。 */
-        readonly status?: string;
-        /** blocked 单要请示的问题；只透传，世界不回答。省略/空串即没有。 */
-        readonly blockedQuestion?: string;
-        /** 台账事件时间（epoch 秒，closed_at ?? updated_at）；缺失/省略 = 无台账时间。 */
-        readonly completedAt?: number | null;
-      }[];
-      /** 台账里已经收工的督办；世界据此把她的活收尾。 */
-      readonly finished: readonly string[];
-      /** 收工条目的台账事件时间（epoch 秒）；settled.completedAt 的唯一来源。 */
-      readonly finishedAt?: readonly {
-        readonly commissionId: string;
-        readonly completedAt: number | null;
-      }[];
+      readonly kind: 'syncEvents';
+      readonly fold: TaskFoldState;
       readonly connected: boolean;
-      /**
-       * 快照是否完整（REST 没取满 limit）。false 时"不在快照里"不能当撤单，
-       * 否则台账一次分页截断就会把她手上的活误判成被撤回。省略按完整处理。
-       */
-      readonly complete?: boolean;
-      /**
-       * 活动督办的优先级顺序（LedgerView.order）。省略时退回插入序，
-       * 保持旧调用方（测试、旧快照）行为不变。
-       */
-      readonly order?: readonly string[];
     };
 
 export interface NewBuilding {
@@ -202,6 +187,14 @@ export interface SimulationDeps {
   readonly intentModel?: IntentModel;
   /** 世界尺寸。给意图校验判坐标越界用；省略时从 grid 推。 */
   readonly worldSize?: { readonly width: number; readonly height: number };
+  /**
+   * 回写：世界改了什么，交出去记进日志。
+   *
+   * 省略表示纯离线（测试与无服务端的演示）。**世界不读自己写的东西**：
+   * `world.changed` 不归折叠层管，所以回写不会变成反馈回路。
+   * 调用方负责把失败吞掉——写不进去是世界之外的遗憾，不是世界该停下的理由。
+   */
+  readonly onChange?: (change: WorldChange, at: number) => void;
 }
 
 /** 一个角色的完整本地状态。渲染层只读快照，不碰这里。 */
@@ -313,30 +306,28 @@ export class Simulation {
   private faithPoints = 0;
   private milestones = 0;
   /** 交付统计按来源分开：台账的活只有台账能收，沙盒/离线 Mock 另计。 */
-  private ledgerDeliveries = 0;
-  private mockDeliveries = 0;
+  private feedDeliveries = 0;
+  private localDeliveries = 0;
   /** 每个角色各自的交付归属（台账/Mock 分开），日报按人分账用。 */
-  private readonly deliveryTally = new Map<string, { ledger: number; mock: number }>();
+  private readonly deliveryTally = new Map<string, { feed: number; local: number }>();
   /** 私有结算日志：save-only，不入快照（ADR_SAVE §2.1）。 */
   private readonly settledLog: SettledRecord[] = [];
   private readonly wallClock: () => number;
   private readonly blueprints: ReadonlyMap<string, PrefabBlueprint> | undefined;
   private readonly intentModel: IntentModel | undefined;
   private readonly worldSize: { readonly width: number; readonly height: number };
+  /** 回写出口。省略表示不记日志（离线/测试）。 */
+  private readonly onChange: ((change: WorldChange, at: number) => void) | undefined;
   /** 正在问模型的句子。防止同一句被重复投递时问两次。 */
   private readonly pendingClassify = new Set<string>();
-  /** 是否已与台账对过账。读档后为 false：对账前不驱动台账单。 */
-  private ledgerReconciled = true;
-  /** 上游台账是否在线。离线时世界照常过日子，但状态行必须说出来。 */
-  private ledgerConnected = false;
-  private ledgerSyncedAt: number | null = null;
-  /**
-   * 最近一次快照是否完整（REST 没取满 limit）。false 时"不在快照里"不能当撤单，
-   * 否则一次分页截断就会把她手上的活误判成被上游撤回。
-   */
-  private ledgerComplete = true;
-  /** 台账给的派活优先级（commissionId 从高到低）；空表示没给顺序，退回插入序。 */
-  private ledgerOrder: readonly string[] = [];
+  /** 是否已与上游对过账。读档后为 false：对账前不驱动上游单。 */
+  private feedReconciled = true;
+  /** 上游事件流是否在线。离线时世界照常过日子，但状态行必须说出来。 */
+  private feedConnected = false;
+  /** 最近一次成功读到事件的世界时间（不是墙钟）。 */
+  private feedLastReadAt: number | null = null;
+  /** 已消费到的事件 id。下次从这里续读。 */
+  private feedCursor = 0;
 
   /** 每个角色自己的等待队列（FIFO）。只存在 Simulation 内，随快照暴露。 */
   private readonly pending = new Map<string, PendingDispatch[]>();
@@ -353,6 +344,7 @@ export class Simulation {
     this.blueprints = deps.blueprints;
     this.intentModel = deps.intentModel;
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
+    this.onChange = deps.onChange;
     this.buildings = [...deps.buildings];
     this.beats = routineBeats(deps.altar, deps.grid);
     const names = deps.villagerNames ?? [deps.villagerName, DEFAULT_ASSISTANT_NAME];
@@ -382,7 +374,7 @@ export class Simulation {
     }));
     for (const villager of this.villagers) this.pending.set(villager.id, []);
     for (const villager of this.villagers) {
-      this.deliveryTally.set(villager.id, { ledger: 0, mock: 0 });
+      this.deliveryTally.set(villager.id, { feed: 0, local: 0 });
     }
     for (const building of this.buildings) {
       this.activities.set(building.instanceId, { kind: 'idle' });
@@ -460,7 +452,7 @@ export class Simulation {
       // 揭示半径由交付数决定：用得越久，迷雾退得越多。
       fog: {
         center: this.altar,
-        revealedRadius: revealedRadiusFor(this.ledgerDeliveries + this.mockDeliveries),
+        revealedRadius: revealedRadiusFor(this.feedDeliveries + this.localDeliveries),
       },
       roads: this.roads,
       trails: visibleTrails(this.trails),
@@ -473,25 +465,23 @@ export class Simulation {
       },
       faith: { points: this.faithPoints, milestones: this.milestones },
       /** 台账交付与 Mock 交付分开计，不合并成一个数。 */
-      deliveries: { ledger: this.ledgerDeliveries, mock: this.mockDeliveries },
+      deliveries: { feed: this.feedDeliveries, local: this.localDeliveries },
       /** 按角色分账：日报与状态行据此写清是谁交付的。 */
       deliveriesByVillager: this.villagers.map((villager) => {
-        const tally = this.deliveryTally.get(villager.id) ?? { ledger: 0, mock: 0 };
+        const tally = this.deliveryTally.get(villager.id) ?? { feed: 0, local: 0 };
         return {
           villagerId: villager.id,
           name: villager.name,
-          ledger: tally.ledger,
-          mock: tally.mock,
+          feed: tally.feed,
+          local: tally.local,
         };
       }),
-      ledger: {
-        connected: this.ledgerConnected,
-        lastSyncAt: this.ledgerSyncedAt,
-        mock: !this.ledgerConnected,
-        /** 最近一次快照是否完整；false 时状态行标"台账可能未取全"。 */
-        complete: this.ledgerComplete,
-        /** 读档后到首次成功对账前为 false；此时台账单只读展示。 */
-        reconciled: this.ledgerReconciled,
+      feed: {
+        connected: this.feedConnected,
+        lastReadAt: this.feedLastReadAt,
+        cursor: this.feedCursor,
+        /** 读档后到首次成功读取前为 false；此时上游单只读展示。 */
+        reconciled: this.feedReconciled,
       },
     };
   }
@@ -529,9 +519,8 @@ export class Simulation {
         return this.performMiracle(command.miracle, command.at);
       case 'demolish':
         return this.demolish(command.instanceId);
-      case 'sync':
-        return this.sync(command.tasks, command.finished, command.connected,
-          command.complete ?? true, command.order ?? [], command.finishedAt ?? []);
+      case 'syncEvents':
+        return this.syncEvents(command.fold, command.connected);
     }
   }
 
@@ -566,6 +555,11 @@ export class Simulation {
         leavesAt: this.now + CAT_DWELL_MS,
       });
       this.log('info', '神迹：一只猫从街角溜达过来。');
+      this.announce({
+        change: 'miracle',
+        miracle: 'cat',
+        at: { x: Math.round(at?.x ?? this.altar.x + 2), y: Math.round(at?.y ?? this.altar.y + 2) },
+      });
       return { ok: true, message: '一只猫来了，它会自己走开。' };
     }
 
@@ -587,6 +581,11 @@ export class Simulation {
       sourceSummary: kind === 'light' ? '神迹：点灯' : '神迹：种树',
     });
     this.log('info', `神迹：${label}落在祭坛边。`);
+    this.announce({
+      change: 'miracle',
+      miracle: kind === 'light' ? 'lamp' : 'tree',
+      at: spot,
+    });
     return { ok: true, message: `${label}落下了。` };
   }
 
@@ -605,7 +604,7 @@ export class Simulation {
     if (cell.occupant !== null) return '那里被建筑占着。';
     if (fogAt(at, {
       center: this.altar,
-      revealedRadius: revealedRadiusFor(this.ledgerDeliveries + this.mockDeliveries),
+      revealedRadius: revealedRadiusFor(this.feedDeliveries + this.localDeliveries),
     })) {
       return '那里还没长出来。';
     }
@@ -846,114 +845,137 @@ export class Simulation {
   }
 
   /**
-   * 台账快照落地。这是世界接真实工作的入口，也是唯一一条**替换**式命令：
-   * 沙盒的活照旧由计时器收尾，台账的活只有台账说完了才算完。
+   * 事件流落地。这是世界接上游工作的**唯一**入口，也是唯一一条替换式命令。
+   *
+   * 与旧 `sync` 的根本区别：旧的是**快照**——「不在列表里」既可能是撤单，
+   * 也可能是这一页没取到，只能靠一个 `complete` 标志去猜。事件流没有这个问题：
+   * 撤单是一个显式事件，「没发生」就是没发生。缺页只会漏事件，不会伪造出撤单。
+   *
+   * `fold` 是调用方已经折叠好的结果（纯函数，见 `task-events.ts`）。
+   * 世界只负责把折叠结果与自己的任务表对齐——判断全在折叠层，这里不做业务推理。
    */
-  private sync(
-    incoming: readonly {
-      readonly commissionId: string;
-      readonly kind: TaskKind;
-      readonly title: string;
-      readonly agentName: string;
-      readonly status?: string;
-      readonly blockedQuestion?: string;
-      readonly completedAt?: number | null;
-    }[],
-    finished: readonly string[],
-    connected: boolean,
-    complete: boolean,
-    order: readonly string[],
-    finishedAt: readonly { readonly commissionId: string; readonly completedAt: number | null }[] = [],
-  ): CommandResult {
-    this.ledgerConnected = connected;
+  private syncEvents(fold: TaskFoldState, connected: boolean): CommandResult {
+    this.feedConnected = connected;
     if (!connected) {
-      const message = '台账连不上了，世界照常过日子。';
+      const message = '上游连不上了，世界照常过日子。';
       this.log('warn', message);
       return { ok: false, message };
     }
-    this.ledgerSyncedAt = this.now;
-    this.ledgerOrder = order;
-    const wasComplete = this.ledgerComplete;
-    this.ledgerComplete = complete;
-    if (!complete && wasComplete) {
-      this.log('warn', '台账快照可能未取全：暂不把不在快照里的督办当撤单。');
-    }
-    // 读档后的第一次成功 sync：先对账；对账前台账单只读展示，不派活/不交付/不撤单。
-    if (!this.ledgerReconciled) {
-      return this.reconcile(incoming, finished, complete, order, finishedAt);
-    }
+    this.feedLastReadAt = this.now;
+    this.feedCursor = fold.cursor;
 
-    const finishedIds = new Set(finished);
-    const finishedAtById = new Map(
-      finishedAt.map((item) => [item.commissionId, item.completedAt]),
-    );
-    const next = new Set([...incoming.map((item) => item.commissionId), ...finished]);
+    // 读档后的第一次成功读取：先对账。对账前上游单只读展示，不派活/不交付/不撤单。
+    const firstRead = !this.feedReconciled;
+    this.feedReconciled = true;
 
-    // blocked_question 只透传、只展示：只有仍处于 blocked 且问题非空的单才带问题。
-    const blockedQuestions = new Map<string, string>();
-    for (const item of incoming) {
-      if (item.status !== 'blocked') continue;
-      if ((item.blockedQuestion ?? '').trim() === '') continue;
-      blockedQuestions.set(item.commissionId, item.blockedQuestion ?? '');
-    }
-    // 已有的台账单立刻对齐：转 running / 空问题 / 完成 / 撤单都清成 null，不残留。
-    for (const task of this.tasks) {
-      if (task.source !== 'ledger') continue;
-      task.blockedQuestion = blockedQuestions.get(task.id) ?? null;
-    }
+    const settledIds = new Set(fold.settled.map((item) => item.id));
+    const settledAtById = new Map(fold.settled.map((item) => [item.id, item.completedAt]));
 
-    // 台账说收工了：由实际接下这单的角色走正常交付；被撤则停手。
-    for (const villager of this.villagers) {
-      const active = this.activeTaskOf(villager);
-      if (active === null || active.source !== 'ledger') continue;
-      if (finishedIds.has(active.id)) {
-        // 先记下这单的台账事件时间，settled 只认它（缺失就是 null）。
-        active.ledgerCompletedAt = finishedAtById.get(active.id) ?? active.ledgerCompletedAt ?? null;
-        if (this.isSettled(active.id)) this.removeTask(active.id);
-        else this.finishActiveTask(villager);
-      } else if (complete && !next.has(active.id)) {
-        this.abandonActiveTask(villager);
-      }
-    }
-
-    // 已收工的条不再进活动清单；完整快照里已消失的直接删掉。
-    for (const task of [...this.tasks]) {
-      if (task.source !== 'ledger') continue;
-      if (finishedIds.has(task.id) || (complete && !next.has(task.id))) {
-        const index = this.tasks.indexOf(task);
-        if (index >= 0) this.tasks.splice(index, 1);
-        this.idleWorkstationFor(task.id);
-      }
-    }
-
+    // 一、还在开的活：补进表里（已结算/已撤的 id 不复活，折叠层已经挡住，
+    //     这里再挡一次是因为存档里可能还留着上次会话的 settledLog）。
     let added = 0;
-    for (const item of incoming) {
-      if (this.tasks.some((task) => task.id === item.commissionId)) continue;
-      // 已结算的 id 不复活（ADR_SAVE §2.1）。
-      if (this.isSettled(item.commissionId)) continue;
+    for (const incoming of fold.open) {
+      if (this.isSettled(incoming.id)) continue;
+      const existing = this.tasks.find((task) => task.id === incoming.id);
+      if (existing !== undefined) {
+        // 已有的只更新上游知道的两样：说法（标题）与「在问什么」。
+        // 别的字段归世界自己管——谁在干、在哪干、干到哪了。
+        // 标题必须跟着上游走：它是上游对这条活的唯一描述，世界不自己编。
+        if (existing.source === 'ledger') {
+          existing.summary = incoming.title;
+          existing.blockedQuestion = incoming.question;
+        }
+        continue;
+      }
       this.tasks.push({
-        id: item.commissionId,
-        kind: item.kind,
-        summary: item.title,
+        id: incoming.id,
+        kind: incoming.kind,
+        summary: incoming.title,
         buildingId: null,
         source: 'ledger',
         status: 'assigned',
         createdAt: this.now,
         completedAt: null,
-        blockedQuestion: blockedQuestions.get(item.commissionId) ?? null,
-        ledgerCompletedAt: item.completedAt ?? null,
+        blockedQuestion: incoming.question,
+        ledgerCompletedAt: null,
         workerId: null,
       });
       added += 1;
     }
 
-    if (added > 0) this.log('info', `台账来了 ${added} 条新督办。`);
-    let message = `台账已同步，${this.tasks.length} 条在册。`;
+    // 二、上游说收工了：由实际接下这单的角色走正常交付。
+    //     读档后的第一次读取只对齐、不交付——那是上一次会话就该发生的事，
+    //     在这里补做会让时间线错位（她会在刚打开的页面上突然开始庆祝）。
+    let finished = 0;
+    for (const task of [...this.tasks]) {
+      if (task.source !== 'ledger') continue;
+      if (!settledIds.has(task.id)) continue;
+      finished += 1;
+      task.ledgerCompletedAt = settledAtById.get(task.id) ?? task.ledgerCompletedAt ?? null;
+      const owner = this.villagers.find((villager) => villager.taskId === task.id);
+      if (firstRead) {
+        this.removeTask(task.id);
+        continue;
+      }
+      if (this.isSettled(task.id)) {
+        this.removeTask(task.id);
+        continue;
+      }
+      if (owner !== undefined && this.isOnTask(owner)) {
+        // 她正在这单上：走正常交付（庆祝、冷却、加信仰），**不能**用 removeTask
+        // ——那会把她的 mode 重置成 idle，交付动画当场消失。
+        this.finishActiveTask(owner);
+        this.dropFromList(task.id);
+        this.idleWorkstationFor(task.id);
+      } else {
+        this.settleDetachedTask(task);
+        this.removeTask(task.id);
+      }
+    }
+
+    // 三、上游撤了单，或者这条活压根不在了：停手、熄火、删掉。
+    //     注意这里**不需要** `complete` 标志：事件流里「不在 open 里」只有一种含义
+    //     ——它被结算了或被撤了，两种都已在上面处理。剩下的才是真正「日志里没有」，
+    //     那是日志缺页，不是撤单——所以只在上游明确说撤时才停手。
+    const cancelled = new Set(fold.cancelled);
+    for (const task of [...this.tasks]) {
+      if (task.source !== 'ledger') continue;
+      if (!cancelled.has(task.id)) continue;
+      const owner = this.villagers.find((villager) => villager.taskId === task.id);
+      if (owner !== undefined && this.isOnTask(owner) && !firstRead) this.abandonActiveTask(owner);
+      this.idleWorkstationFor(task.id);
+      this.removeTask(task.id);
+    }
+
+    if (added > 0) this.log('info', `上游来了 ${added} 条新活。`);
+    if (finished > 0 && !firstRead) this.log('done', `上游结了 ${finished} 条。`);
+    let message = `上游已同步，${this.tasks.length} 条在册。`;
     const waiting = this.tasks.find((task) => task.blockedQuestion !== null);
     if (waiting !== undefined && waiting.blockedQuestion !== null) {
       message += `在等你的答复：${excerptBlockedQuestion(waiting.blockedQuestion)}（仅展示，世界不代为回答）`;
     }
     return { ok: true, message };
+  }
+
+  /** 这个角色是不是正走在这条活上（赶路、干活、交付都算）。 */
+  private isOnTask(villager: Villager): boolean {
+    return (
+      villager.mode === 'working' ||
+      villager.mode === 'saluting' ||
+      villager.mode === 'toWork' ||
+      villager.mode === 'delivering'
+    );
+  }
+
+  /**
+   * 只把这条活从活动清单里去掉，不碰任何角色的状态。
+   *
+   * 与 `removeTask` 的区别：那个是「这单没了，人也别干了」，会把角色重置成 idle；
+   * 这个用于**正常交付之后**——她正处在 delivering，重置会抹掉交付动画。
+   */
+  private dropFromList(taskId: string): void {
+    const index = this.tasks.findIndex((task) => task.id === taskId);
+    if (index >= 0) this.tasks.splice(index, 1);
   }
 
   /** 把还挂着这条活的铺子熄火。 */
@@ -968,16 +990,16 @@ export class Simulation {
   }
 
   /**
-   * 给一个空闲角色派台账的活：按台账 order 挑第一条接得下的。
+   * 给一个空闲角色派上游来的活：按 id 顺序挑第一条接得下的。
    * 一个角色一次只接一单；铺子被占/施工/走不通就跳过，等下一拍。
    */
-  private assignFromLedgerTo(villager: Villager): void {
+  private assignFromFeedTo(villager: Villager): void {
     if (!this.isFree(villager)) return;
-    // 读档后对账前：台账单只读展示，不派活。
-    if (!this.ledgerReconciled) return;
-    for (const task of this.nextLedgerTasks()) {
-      // 台账活只去镇内铺子：那是本地确定性工作。郊野留给探索性的神谕活。
-      const chosen = pickVenue(this.venueCandidates(), task.kind, 'ledger');
+    // 读档后对账前：上游单只读展示，不派活。
+    if (!this.feedReconciled) return;
+    for (const task of this.nextFeedTasks()) {
+      // 上游活只去镇内铺子：那是本地确定性工作。郊野留给探索性的神谕活。
+      const chosen = pickVenue(this.venueCandidates(), task.kind, 'feed');
       if (chosen === null) {
         this.log('warn', `没有空闲的镇内铺子承接 ${task.kind}，「${task.summary}」先等着。`);
         continue;
@@ -989,7 +1011,7 @@ export class Simulation {
       task.buildingId = building.instanceId;
       task.workerId = villager.id;
       this.routeToBuilding(villager, task, building, path);
-      this.log('oracle', `台账派活：${task.summary} → ${building.displayName}（${villager.name}）`);
+      this.log('oracle', `上游派活：${task.summary} → ${building.displayName}（${villager.name}）`);
       return;
     }
   }
@@ -1017,18 +1039,19 @@ export class Simulation {
     }));
   }
 
-  /** 按台账给的优先级排好的、还没人接的台账单。 */
-  private nextLedgerTasks(): readonly TaskRecord[] {
-    const candidates = this.tasks.filter(
-      (item) =>
-        item.source === 'ledger' && item.status === 'assigned' && item.workerId === null,
-    );
-    if (candidates.length === 0) return [];
-    const rank = (task: TaskRecord): number => {
-      const index = this.ledgerOrder.indexOf(task.id);
-      return index < 0 ? Number.MAX_SAFE_INTEGER : index;
-    };
-    return [...candidates].sort((a, b) => rank(a) - rank(b));
+  /**
+   * 还没人接的上游单，按 id 字典序。
+   *
+   * 为什么按 id 而不是按上游给的顺序：事件流本身就是有序的（id 单调），
+   * 再让上游另发一份 `order` 数组就等于有两个顺序来源，两边不一致时无人能判断
+   * 该信哪个。id 是日志自己的顺序，天然稳定、可回放。
+   */
+  private nextFeedTasks(): readonly TaskRecord[] {
+    return this.tasks
+      .filter(
+        (item) => item.source === 'ledger' && item.status === 'assigned' && item.workerId === null,
+      )
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   /** 这栋铺子是否已经被一单活着的工作占着（含正在赶路的那一单）。 */
@@ -1100,10 +1123,12 @@ export class Simulation {
       this.weather = rainWeather(this.now);
       this.log('info', '神谕说：下雨。天暗下来了。');
       this.scatterToShelter();
+      this.announce({ change: 'weather', weather: 'rain' });
       return { ok: true, message: '雨落下来了。' };
     }
     this.weather = clearWeather();
     this.log('info', '神谕说：放晴。雨停了。');
+    this.announce({ change: 'weather', weather: 'clear' });
     return { ok: true, message: '天放晴了。' };
   }
 
@@ -1208,7 +1233,7 @@ export class Simulation {
   private pumpPending(): void {
     for (const villager of this.villagers) {
       if (!this.isFree(villager)) continue;
-      this.assignFromLedgerTo(villager);
+      this.assignFromFeedTo(villager);
       if (!this.isFree(villager)) continue;
       const queue = this.pendingOf(villager);
       const next = queue[0];
@@ -1359,7 +1384,7 @@ export class Simulation {
       this.log('warn', message);
       return { ok: false, message };
     }
-    const label = this.ledgerConnected ? '沙盒 Mock' : '离线 Mock';
+    const label = this.feedConnected ? '本地' : '离线本地';
     if (task.buildingId === null) {
       this.finishInPlace(villager, task);
       return { ok: true, message: `这单办了（${villager.name}，${label}，不计入台账）。` };
@@ -1398,6 +1423,13 @@ export class Simulation {
       if (!this.roads.some((p) => p.x === cell.x && p.y === cell.y)) this.roads.push(cell);
     }
     this.log('info', `造物主动工：${spawned.building.displayName}。`);
+    this.announce({
+      change: 'building.built',
+      instanceId: spawned.building.instanceId,
+      prefabId: spawned.building.prefabId,
+      displayName: spawned.building.displayName,
+      summary: source?.summary ?? null,
+    });
     return { ok: true, message: `${spawned.building.displayName} 开工建造。` };
   }
 
@@ -1682,22 +1714,32 @@ export class Simulation {
   /** 交付按人和来源分开记账：台账/沙盒各自分开，角色之间也不合并。 */
   private recordDelivery(villagerId: string, task: TaskRecord): void {
     const source = task.source;
-    if (source === 'ledger') this.ledgerDeliveries += 1;
-    else this.mockDeliveries += 1;
+    if (source === 'ledger') this.feedDeliveries += 1;
+    else this.localDeliveries += 1;
     const tally = this.deliveryTally.get(villagerId) ?? this.deliveryTally.get(this.villagers[0].id);
     if (tally !== undefined) {
-      if (source === 'ledger') tally.ledger += 1;
-      else tally.mock += 1;
+      if (source === 'ledger') tally.feed += 1;
+      else tally.local += 1;
     }
     this.settledLog.push({
       id: task.id,
       source: source === 'ledger' ? 'ledger' : 'mock',
       workerId: villagerId,
-      // 台账时间只认 closed_at ?? updated_at（×1000）；缺失保持 null，绝不本地时间顶替。
+      // 上游时间只认 task.settled 带来的那个；缺失保持 null，绝不本地时间顶替。
       completedAt: source === 'ledger'
-        ? ledgerCompletedAtMs(task.ledgerCompletedAt)
+        ? completedAtMs(task.ledgerCompletedAt)
         : this.wallClock(),
       completedAtClock: source === 'ledger' ? 'ledger' : 'local',
+    });
+    // 交付是这个世界最要紧的「发生过的事」：记回日志，记忆层才有素材。
+    // 放在这里而不是每个调用点：这是交付的唯一漏斗，三处交付都经过它。
+    this.announce({
+      change: 'task.delivered',
+      taskId: task.id,
+      summary: task.summary,
+      workerId: villagerId,
+      source: source === 'ledger' ? 'feed' : 'local',
+      taskKind: task.kind,
     });
   }
 
@@ -1811,6 +1853,11 @@ export class Simulation {
 
     const message = `${building.displayName} 拆掉了。`;
     this.log('info', message);
+    this.announce({
+      change: 'building.removed',
+      instanceId: building.instanceId,
+      displayName: building.displayName,
+    });
     return { ok: true, message };
   }
 
@@ -1918,7 +1965,7 @@ export class Simulation {
       },
       meta: {
         savedAtWallClock: this.wallClock(),
-        savedReconciled: this.ledgerReconciled,
+        savedReconciled: this.feedReconciled,
         schemaFingerprint: SCHEMA_V3_FINGERPRINT,
       },
     };
@@ -2019,19 +2066,19 @@ export class Simulation {
       sim.settledLog.push({ ...record });
     }
     for (const tally of sim.deliveryTally.values()) {
-      tally.ledger = 0;
-      tally.mock = 0;
+      tally.feed = 0;
+      tally.local = 0;
     }
-    sim.ledgerDeliveries = 0;
-    sim.mockDeliveries = 0;
+    sim.feedDeliveries = 0;
+    sim.localDeliveries = 0;
     for (const record of sim.settledLog) {
-      if (record.source === 'ledger') sim.ledgerDeliveries += 1;
-      else sim.mockDeliveries += 1;
+      if (record.source === 'ledger') sim.feedDeliveries += 1;
+      else sim.localDeliveries += 1;
       const tally =
         sim.deliveryTally.get(record.workerId) ?? sim.deliveryTally.get(sim.villagers[0].id);
       if (tally === undefined) continue;
-      if (record.source === 'ledger') tally.ledger += 1;
-      else tally.mock += 1;
+      if (record.source === 'ledger') tally.feed += 1;
+      else tally.local += 1;
     }
 
     sim.nextTaskNumber = world.nextTaskNumber;
@@ -2039,125 +2086,23 @@ export class Simulation {
     // v3 的两个位置：原样读回，这一版不用它们（见 #14 / #8）。
     sim.tideOverride = world.tideOverride === null ? null : { ...world.tideOverride };
     sim.worldChangeVersion = world.worldChangeVersion;
-    sim.ledgerConnected = false;
-    sim.ledgerSyncedAt = null;
-    sim.ledgerComplete = true;
-    sim.ledgerOrder = [];
-    sim.ledgerReconciled = false;
+    sim.feedConnected = false;
+    sim.feedLastReadAt = null;
+    sim.feedCursor = 0;
+    sim.feedReconciled = false;
     sim.log('info', '读档回来：世界从关页那一刻继续。');
     return sim;
   }
 
-  /** 读档后的首次对账：台账覆盖本地、已结算不重复、缺席且完整不复活。 */
-  private reconcile(
-    incoming: readonly {
-      readonly commissionId: string;
-      readonly kind: TaskKind;
-      readonly title: string;
-      readonly agentName: string;
-      readonly status?: string;
-      readonly blockedQuestion?: string;
-      readonly completedAt?: number | null;
-    }[],
-    finished: readonly string[],
-    complete: boolean,
-    order: readonly string[],
-    finishedAt: readonly { readonly commissionId: string; readonly completedAt: number | null }[] = [],
-  ): CommandResult {
-    this.ledgerOrder = order;
-    this.ledgerComplete = complete;
-    const finishedIds = new Set(finished);
-    const finishedAtById = new Map(
-      finishedAt.map((item) => [item.commissionId, item.completedAt]),
-    );
-    const incomingById = new Map(incoming.map((item) => [item.commissionId, item]));
-    const questionOf = (item: {
-      readonly status?: string;
-      readonly blockedQuestion?: string;
-    }): string | null => {
-      if (item.status !== 'blocked') return null;
-      const question = (item.blockedQuestion ?? '').trim();
-      return question === '' ? null : question;
-    };
-
-    for (const task of [...this.tasks]) {
-      if (task.source !== 'ledger') continue;
-      const item = incomingById.get(task.id);
-      if (item !== undefined) {
-        const index = this.tasks.indexOf(task);
-        this.tasks[index] = {
-          ...task,
-          kind: item.kind,
-          summary: item.title,
-          blockedQuestion: questionOf(item),
-          // 台账在跑的单也会带 updated_at：先记住，settle 时没有 closed_at 就用它。
-          ledgerCompletedAt: item.completedAt ?? task.ledgerCompletedAt ?? null,
-        };
-        if (!this.villagers.some((villager) => villager.taskId === task.id)) {
-          this.tasks[index].workerId = null;
-        }
-        continue;
-      }
-      if (finishedIds.has(task.id)) {
-        // 台账事件时间从 finishedAt 映射取；缺失就保留上次见到的 updated_at，再没有就 null。
-        task.ledgerCompletedAt =
-          finishedAtById.get(task.id) ?? task.ledgerCompletedAt ?? null;
-        if (!this.isSettled(task.id)) {
-          const owner = this.villagers.find(
-            (villager) =>
-              villager.taskId === task.id &&
-              (villager.mode === 'working' ||
-                villager.mode === 'saluting' ||
-                villager.mode === 'toWork' ||
-                villager.mode === 'delivering'),
-          );
-          if (owner !== undefined) this.finishActiveTask(owner);
-          else this.settleDetachedLedgerTask(task);
-        }
-        this.removeTask(task.id);
-        continue;
-      }
-      // 台账完整快照里缺席：丢弃，不复活（沿用撤单语义）。
-      if (complete) this.removeTask(task.id);
-    }
-
-    let added = 0;
-    for (const item of incoming) {
-      if (this.tasks.some((task) => task.id === item.commissionId)) continue;
-      // 已结算的 id 不复活（ADR_SAVE §2.1）。
-      if (this.isSettled(item.commissionId)) continue;
-      this.tasks.push({
-        id: item.commissionId,
-        kind: item.kind,
-        summary: item.title,
-        buildingId: null,
-        source: 'ledger',
-        status: 'assigned',
-        createdAt: this.now,
-        completedAt: null,
-        blockedQuestion: questionOf(item),
-        ledgerCompletedAt: item.completedAt ?? null,
-        workerId: null,
-      });
-      added += 1;
-    }
-
-    this.ledgerReconciled = true;
-    this.ledgerConnected = true;
-    const message = `台账已对账，${this.tasks.length} 条在册。`;
-    this.log('info', message);
-    if (added > 0) this.log('info', `对账补进 ${added} 条新督办。`);
-    return { ok: true, message };
-  }
-
-  private settleDetachedLedgerTask(task: TaskRecord): void {
+  /** 上游说这单成了，但她不在单上（例如读档后她已经站回祭坛）：直接收尾。 */
+  private settleDetachedTask(task: TaskRecord): void {
     if (this.isSettled(task.id)) return;
     task.status = 'done';
     task.completedAt = this.now;
     task.blockedQuestion = null;
     const workerId = task.workerId ?? this.villagers[0].id;
     this.recordDelivery(workerId, task);
-    this.log('done', `${task.summary} 按台账对账收尾。`);
+    this.log('done', `${task.summary} 按上游事件收尾。`);
   }
 
   private removeTask(taskId: string): void {
@@ -2195,6 +2140,24 @@ export class Simulation {
   private log(tone: WorldEvent['tone'], text: string): void {
     this.events.push({ at: this.now, tone, text });
     if (this.events.length > EVENT_LIMIT) this.events.splice(0, this.events.length - EVENT_LIMIT);
+  }
+
+  /**
+   * 把一次世界改变交出去记进日志。
+   *
+   * 三条边界：
+   *   - `at` 用 `this.now`（世界时间），不是墙钟：回放同一条日志得到同一条时间线；
+   *   - 只报**已经发生**的事。调用点都在成功分支里，被拒的命令不经过这里；
+   *   - 回调里的异常吞掉。写日志失败是世界之外的遗憾，不该让世界当场停摆，
+   *     更不该让一拍 `update` 抛到渲染循环里。
+   */
+  private announce(change: WorldChange): void {
+    if (this.onChange === undefined) return;
+    try {
+      this.onChange(change, this.now);
+    } catch {
+      // 有意吞掉：回写是尽力而为的旁路，不是世界的一部分。
+    }
   }
 }
 

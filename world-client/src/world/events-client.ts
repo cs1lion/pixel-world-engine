@@ -9,7 +9,13 @@
  *     主动动作，失败要立刻让他看见；日志是背景读取，失败只是「这一拍没读到」。
  *
  * 断点续读靠 `since`：把上次读到的最后一条 id 传回来，服务端只返回严格更新的那些。
+ *
+ * 另有一件事，与读相对：`record()` 把世界做过的事记回去（`world.changed`）。
+ * 服务端只收白名单里的世界改变，不收裸的 append——「谁能往日志里写什么」
+ * 因此是一件在服务端说得清的事。写失败与读失败同一条纪律：降级成 `ok: false`，不抛。
  */
+
+import { toEnvelope, type WorldChange } from './world-changes.ts';
 
 /** 一条事件。字段与服务端 `WorldEvent` 一致，`at` 是**世界时间毫秒**，不是墙钟。 */
 export interface WorldEventRow {
@@ -44,6 +50,12 @@ export function nextCursor(page: EventsPage, previous: number): number {
 }
 
 export const EVENTS_URL = '/api/events';
+/** 回写端点。收的是「世界改了什么」，由服务端落成一条 `world.changed`。 */
+export const WORLD_CHANGES_URL = '/api/world/changes';
+
+export type WriteResult =
+  | { readonly ok: true; readonly id: number }
+  | { readonly ok: false; readonly reason: string; readonly status: number | null };
 
 /** 单次读取超时。日志是背景读取，等太久不如这一拍先跳过。 */
 export const EVENTS_TIMEOUT_MS = 5000;
@@ -54,6 +66,13 @@ export const EVENTS_DEFAULT_LIMIT = 200;
 export interface EventsClient {
   /** 读 `id > since` 的事件。任何失败都落到 `ok: false`。 */
   fetchSince(since: number, limit?: number): Promise<EventsResult>;
+  /**
+   * 把世界做过的一件事记回日志。`at` 是**世界时间**，由调用方给。
+   *
+   * 只报已经发生的事——被拒的命令不经过这里。写失败不重试：日志缺一条
+   * 「她交付了」是遗憾，但重试会让同一条改变在日志里出现两次。
+   */
+  record(change: WorldChange, at: number): Promise<WriteResult>;
 }
 
 export interface EventsClientOptions {
@@ -61,12 +80,15 @@ export interface EventsClientOptions {
   readonly timeoutMs?: number;
   /** 测试注入：便于断言请求地址。默认 `EVENTS_URL`。 */
   readonly url?: string;
+  /** 回写地址。默认 `WORLD_CHANGES_URL`；测试注入用。 */
+  readonly writeUrl?: string;
 }
 
 export function createEventsClient(options: EventsClientOptions = {}): EventsClient {
   const fetchImpl = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const timeoutMs = options.timeoutMs ?? EVENTS_TIMEOUT_MS;
   const url = options.url ?? EVENTS_URL;
+  const writeUrl = options.writeUrl ?? WORLD_CHANGES_URL;
 
   return {
     async fetchSince(since: number, limit = EVENTS_DEFAULT_LIMIT): Promise<EventsResult> {
@@ -106,6 +128,44 @@ export function createEventsClient(options: EventsClientOptions = {}): EventsCli
           return { ok: false, reason: '事件日志响应形状不对', status: response.status };
         }
         return { ok: true, page: parsed };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+
+    async record(change: WorldChange, at: number): Promise<WriteResult> {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        let response: Response;
+        try {
+          response = await fetchImpl(writeUrl, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify(toEnvelope(change, at)),
+            signal: controller.signal,
+          });
+        } catch (error) {
+          const why = controller.signal.aborted ? `超时 ${timeoutMs}ms` : errorText(error);
+          return { ok: false, reason: `回写不可达：${why}`, status: null };
+        }
+
+        if (!response.ok) {
+          return { ok: false, reason: `回写被拒 ${response.status}`, status: response.status };
+        }
+
+        let body: unknown;
+        try {
+          body = await response.json();
+        } catch {
+          return { ok: false, reason: '回写返回的不是 JSON', status: response.status };
+        }
+        const id = isRecord(body) && isPositiveInt(body.id) ? body.id : null;
+        // 服务端必须回一个 id：没有它，调用方无法确认这条真的落进去了。
+        if (id === null) {
+          return { ok: false, reason: '回写响应里没有 id', status: response.status };
+        }
+        return { ok: true, id };
       } finally {
         clearTimeout(timer);
       }

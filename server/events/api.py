@@ -27,6 +27,8 @@ from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 
 from events.log import DEFAULT_LIMIT, MAX_LIMIT, EventLog, EventValidationError
+from events.world_changes import router as world_changes_router
+from events.world_changes import register_error_handler as register_world_change_errors
 
 router = APIRouter()
 
@@ -61,10 +63,12 @@ def create_app(log: EventLog | None = None) -> FastAPI:
     app = FastAPI(title="pixel-world-server", version="0.1.0")
     app.state.event_log = log if log is not None else EventLog()
     app.include_router(router)
+    app.include_router(world_changes_router)
 
     @app.exception_handler(EventValidationError)
     async def _validation_error(_request: Request, exc: EventValidationError) -> JSONResponse:
         # 参数越界说清是哪一条、错在哪，不回一个笼统的 400。
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
+    register_world_change_errors(app)
     return app

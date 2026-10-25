@@ -41,14 +41,14 @@ export function bindHud(getApi: () => HudApi | undefined): void {
     load.textContent =
       busy === 0 ? `天下太平 · ${snapshot.villagers.length} 人在镇` : `${busy} 人在忙 · ${open} 单在手`;
 
-    // 台账离线是「你不知道发生了什么」，不是「没事发生」。必须显式写出来。
+    // 上游离线是「你不知道发生了什么」，不是「没事发生」。必须显式写出来。
     if (net !== null) {
-      const connected = snapshot.ledger.connected;
-      net.textContent = connected ? '台账在线' : '台账离线';
+      const connected = snapshot.feed.connected;
+      net.textContent = connected ? '上游在线' : '上游离线';
       net.classList.toggle('bad', !connected);
       net.title = connected
-        ? '督办台账已连接'
-        : '督办台账离线：世界照常过日子，但手上的单可能不全';
+        ? `事件流已连接（读到 #${snapshot.feed.cursor}）`
+        : '事件流离线：世界照常过日子，但手上的单可能不全';
     }
 
     const lines = snapshot.tasks

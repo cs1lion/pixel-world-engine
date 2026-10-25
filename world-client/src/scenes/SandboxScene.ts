@@ -38,7 +38,9 @@ import { composeReport, type DailyReport } from '../world/report.ts';
 import { describePropSource } from '../world/faith.ts';
 import { createLazyAnimalese, type Animalese } from '../audio/animalese.ts';
 import { toWorldCommand, type AgentToWorld } from '../world/bridge.ts';
-import { LedgerClient } from '../world/ledger.ts';
+import { FeedClient } from '../world/feed.ts';
+import { createEventsClient, type EventsClient } from '../world/events-client.ts';
+import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
 import type { WorldSave } from '../world/save.ts';
@@ -111,7 +113,9 @@ export class SandboxScene extends Phaser.Scene {
   private lastConstructionKey = '';
   private readonly lastBubbles = new Map<string, string | null>();
   private readonly animalese: Animalese = createLazyAnimalese();
-  private ledger: LedgerClient | null = null;
+  private feedClient: FeedClient | null = null;
+  /** 回写用。与 feed 共用一个 client（同一个服务端），但方向相反。 */
+  private eventsClient: EventsClient | null = null;
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
   private saveNotice: string | null = null;
@@ -326,6 +330,10 @@ export class SandboxScene extends Phaser.Scene {
       buildings: this.world.buildings,
       altar: this.world.altar,
       villagerName: this.villagerName,
+      // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
+      onChange: (change: WorldChange, at: number): void => {
+        void this.eventsClient?.record(change, at);
+      },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
       // 规则认不出的话才问模型。没有 Key 时它会 503，世界照样离线可用。
@@ -383,31 +391,26 @@ export class SandboxScene extends Phaser.Scene {
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
-    this.connectLedger();
+    this.connectFeed();
   }
 
   /**
-   * 接主服务的台账。连不上不算错误：世界照常过日子，状态行会写明离线。
-   * 用 `?ledger=off` 可以显式跑纯沙盒（离线演示与浏览器回归都用它）。
+   * 接上游事件流。连不上不算错误：世界照常过日子，状态行会写明离线。
+   * 用 `?feed=off`（旧名 `?ledger=off` 也认）可以显式跑纯沙盒。
    */
-  private connectLedger(): void {
+  private connectFeed(): void {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('ledger') === 'off') return;
-    const client = new LedgerClient({
-      onChange: (view) => {
-        this.sim.enqueue({
-          kind: 'sync',
-          tasks: view.tasks,
-          finished: view.finished,
-          finishedAt: view.finishedAt,
-          connected: view.connected,
-          complete: view.complete,
-          order: view.order,
-        });
+    if (params.get('feed') === 'off' || params.get('ledger') === 'off') return;
+    const events = createEventsClient();
+    this.eventsClient = events;
+    const client = new FeedClient({
+      client: events,
+      onUpdate: ({ fold, connected }) => {
+        this.sim.enqueue({ kind: 'syncEvents', fold, connected });
       },
     });
-    this.ledger = client;
-    void client.start();
+    this.feedClient = client;
+    client.start();
   }
 
   shutdown(): void {
@@ -416,8 +419,9 @@ export class SandboxScene extends Phaser.Scene {
     this.terrainLayer?.destroy();
     this.tideView?.destroy();
     this.fogView?.destroy();
-    this.ledger?.stop();
-    this.ledger = null;
+    this.feedClient?.stop();
+    this.feedClient = null;
+    this.eventsClient = null;
     this.overlay?.dispose();
     this.overlay = null;
     if (this.nightKeyListener !== null) {
@@ -802,8 +806,8 @@ export class SandboxScene extends Phaser.Scene {
   private saveStateKey(): string {
     const deliveries = this.snapshot.deliveries;
     return [
-      deliveries.ledger,
-      deliveries.mock,
+      deliveries.feed,
+      deliveries.local,
       this.snapshot.faith.milestones,
       this.snapshot.constructions.length,
       this.snapshot.props.length,
@@ -833,11 +837,11 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
-   * 喂一帧台账增量给客户端，等价于服务端真的发了一帧 commission_update。
-   * 浏览器回归用它验证"操作台与世界连通"，不写主服务。
+   * 喂一条上游事件，等价于服务端真的写进了一条日志。
+   * 浏览器回归用它验证"事件流与世界连通"，不写服务端。
    */
-  pushLedger(commission: unknown): void {
-    this.ledger?.applyPush(commission);
+  pushEvent(event: { kind: string; payload: Record<string, unknown> }): void {
+    this.feedClient?.inject(event);
   }
 
   view(): WorldSnapshot {
@@ -927,25 +931,11 @@ export class SandboxScene extends Phaser.Scene {
       cancelCreation: (): CommandResult => this.cancelCreation(),
       creation: () => this.creating(),
       /**
-       * 调试注入：造一条 blocked 的台账督办，用来验证急件流程。
+       * 调试注入：开一条带问题的活，用来验证急件流程。
        * 只供调试面板与浏览器回归用，正常路径不会有调用方。
        */
-      injectBlocked: (commissionId: string, title: string, question: string): void => {
-        this.sim.enqueue({
-          kind: 'sync',
-          tasks: [
-            {
-              commissionId,
-              kind: 'code',
-              title,
-              agentName: '甲',
-              status: 'blocked',
-              blockedQuestion: question,
-            },
-          ],
-          finished: [],
-          connected: true,
-        });
+      injectBlocked: (taskId: string, title: string, question: string): void => {
+        this.feedClient?.injectBlocked(taskId, title, question);
       },
       /** 世界状态摘要：界面据此显示"世界缺什么"。 */
       worldState: () => {
@@ -1006,7 +996,8 @@ export class SandboxScene extends Phaser.Scene {
         this.sim.enqueue({ kind: 'miracle', miracle: kind });
       },
       feed: (message: AgentToWorld): CommandResult => this.feed(message),
-      pushLedger: (commission: unknown): void => this.pushLedger(commission),
+      pushEvent: (event: { kind: string; payload: Record<string, unknown> }): void =>
+        this.pushEvent(event),
       onResult: (listener: (result: CommandResult) => void): (() => void) => {
         this.resultListeners.add(listener);
         return () => this.resultListeners.delete(listener);
@@ -1195,16 +1186,13 @@ export class SandboxScene extends Phaser.Scene {
       .join('　/　');
     const weather = this.snapshot.weather === 'rain' ? '雨' : '晴';
     const faith = this.snapshot.faith;
-    const { ledger: ledgerDelivered, mock: mockDelivered } = this.snapshot.deliveries;
-    // 离线 Mock 必须显式标出：状态行不只说"台账离线"，还说现在跑的是 Mock。
-    const ledgerState = this.snapshot.ledger.connected ? '台账在线' : '台账离线 · 离线 Mock';
-    // 读档后未对账：明说，且此时台账单只读展示。
-    const reconciledState =
-      this.snapshot.ledger.reconciled ? ledgerState : `读档未对账 · ${ledgerState}`;
-    // 分页取满时快照不完整：说出来，别让"少了一条"看起来像"被撤了"。
-    const ledger = this.snapshot.ledger.complete
-      ? reconciledState
-      : `${reconciledState} · 台账可能未取全`;
+    const { feed: feedDelivered, local: localDelivered } = this.snapshot.deliveries;
+    // 离线必须显式标出：状态行不只说"上游离线"，还说现在跑的是本地活。
+    const feedState = this.snapshot.feed.connected ? '上游在线' : '上游离线 · 仅本地活';
+    // 读档后未对账：明说，且此时上游单只读展示。
+    const feedLabel = this.snapshot.feed.reconciled
+      ? feedState
+      : `读档未对账 · ${feedState}`;
     // 存档提示（坏档/高版本/配额）只写一次即可，这里保持可见直到下次成功写档。
     const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
     // blocked_question 只展示，不在世界内回答：完整值留在快照，这里按 60 字符截断。
@@ -1226,7 +1214,7 @@ export class SandboxScene extends Phaser.Scene {
     // 最近落下的那件摆件写清来路：这是"被记住"在纸面上唯一的具体落点。
     const latestProp = this.snapshot.props[this.snapshot.props.length - 1];
     const memory = latestProp === undefined ? '' : `　　${describePropSource(latestProp)}`;
-    return `${summary}　　${weather}　　${ledger}　　台账交付 ${ledgerDelivered} 单 · Mock 交付 ${mockDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${saveNote}`;
+    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${saveNote}`;
   }
 
   private buildingName(id: string | null): string | null {

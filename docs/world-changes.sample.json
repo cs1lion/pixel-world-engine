@@ -1,0 +1,49 @@
+{
+  "//": "世界改变白名单的冻结样例：一个 change 一条合法载荷，外加信封上的 at。客户端 test/world-changes.test.ts 断言自己造得出这些形状；服务端 test_world_changes.py 断言全部收得下。两边各自冻结，改协议时两边同时红。",
+  "changes": [
+    {
+      "at": 12000,
+      "change": "task.delivered",
+      "payload": {
+        "taskId": "c_1",
+        "summary": "写爬虫",
+        "workerId": "v0",
+        "source": "feed",
+        "taskKind": "code"
+      }
+    },
+    {
+      "at": 13000,
+      "change": "building.built",
+      "payload": {
+        "instanceId": "bookshop#1",
+        "prefabId": "bookshop",
+        "displayName": "书斋",
+        "summary": "建一间书斋"
+      }
+    },
+    {
+      "at": 14000,
+      "change": "building.removed",
+      "payload": {
+        "instanceId": "bookshop#1",
+        "displayName": "书斋"
+      }
+    },
+    {
+      "at": 15000,
+      "change": "miracle",
+      "payload": {
+        "miracle": "lamp",
+        "at": { "x": 12, "y": 9 }
+      }
+    },
+    {
+      "at": 16000,
+      "change": "weather",
+      "payload": {
+        "weather": "rain"
+      }
+    }
+  ]
+}

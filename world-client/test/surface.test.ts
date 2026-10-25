@@ -8,6 +8,7 @@ import { composeReport, composeDiary } from '../src/world/report.ts';
 import { syllablePlan } from '../src/audio/animalese.ts';
 import { Bridge, toWorldCommand } from '../src/world/bridge.ts';
 import type { WorldEvent } from '../src/world/types.ts';
+import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
@@ -53,45 +54,42 @@ test('交付一单之后，日报写的是这单本身', () => {
   assert.equal(report.headline, '今日有交付', '没攒满里程碑就不能写"神恩"');
 });
 
-test('日报按角色与来源分账：Mock 与台账分开，不合并计数', () => {
+test('日报按角色与来源分账：上游与本地分开，不合并计数', () => {
   const sim = makeSim();
-  // 台账单：完成权在台账，由 sync 收尾，归实际接单的角色。
-  sim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_1', kind: 'code', title: '写爬虫', agentName: '甲' }],
-    finished: [],
-    connected: true,
-  });
+  // 上游单：完成权在上游日志，由 task.settled 收尾，归实际接单的角色。
+  sim.enqueue(
+    syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }),
+  );
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
     sim.update(100);
     if ((guard += 1) > 200) throw new Error('没走到铺子');
   }
-  sim.enqueue({ kind: 'sync', tasks: [], finished: ['c_1'], connected: true });
+  sim.enqueue(syncCommand({ finished: ['c_1'] }));
   sim.update(16);
-  assert.equal(sim.snapshot().deliveries.ledger, 1);
+  assert.equal(sim.snapshot().deliveries.feed, 1);
   guard = 0;
   while (sim.snapshot().villager.mode !== 'idle') {
     sim.update(100);
-    if ((guard += 1) > 200) throw new Error('台账单没走完交付');
+    if ((guard += 1) > 200) throw new Error('上游单没走完交付');
   }
 
-  // 沙盒单：短活自己结束，计入 Mock。
+  // 沙盒单：短活自己结束，计入本地。
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   guard = 0;
-  while (sim.snapshot().deliveries.mock !== 1) {
+  while (sim.snapshot().deliveries.local !== 1) {
     sim.update(100);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
 
-  // 断线后 Mock 必须显式标成「离线 Mock」，日报据此分开写。
-  sim.enqueue({ kind: 'sync', tasks: [], finished: [], connected: false });
+  // 断线后本地交付必须显式标成「离线本地」，日报据此分开写。
+  sim.enqueue(syncCommand({ connected: false }));
   sim.update(16);
   const snapshot = sim.snapshot();
-  assert.equal(snapshot.deliveries.ledger, 1);
-  assert.equal(snapshot.deliveries.mock, 1);
+  assert.equal(snapshot.deliveries.feed, 1);
+  assert.equal(snapshot.deliveries.local, 1);
   assert.deepEqual(
-    snapshot.deliveriesByVillager.map((item) => [item.name, item.ledger, item.mock]),
+    snapshot.deliveriesByVillager.map((item) => [item.name, item.feed, item.local]),
     [
       ['莞尔', 1, 1],
       ['阿雾', 0, 0],
@@ -101,8 +99,8 @@ test('日报按角色与来源分账：Mock 与台账分开，不合并计数', 
   const report = composeReport(snapshot);
   const line = report.lines.find((item) => item.includes('交付')) ?? '';
   assert.ok(line.includes('莞尔交付 2 单'), line);
-  assert.ok(line.includes('台账 1'), line);
-  assert.ok(line.includes('离线 Mock 1'), line);
+  assert.ok(line.includes('上游 1'), line);
+  assert.ok(line.includes('离线本地 1'), line);
   assert.ok(!line.includes('交付 3 单'), '不能把两个人/两种来源合并成一个数');
   assert.equal(report.headline, '今日有交付');
 });
@@ -126,7 +124,7 @@ test('日报写清每个角色交付了几单', () => {
 
   const snapshot = sim.snapshot();
   assert.deepEqual(
-    snapshot.deliveriesByVillager.map((item) => [item.name, item.ledger, item.mock]),
+    snapshot.deliveriesByVillager.map((item) => [item.name, item.feed, item.local]),
     [
       ['莞尔', 0, 1],
       ['阿雾', 0, 1],
@@ -136,39 +134,32 @@ test('日报写清每个角色交付了几单', () => {
   const line = report.lines.find((item) => item.includes('交付')) ?? '';
   assert.ok(line.includes('莞尔交付 1 单'), line);
   assert.ok(line.includes('阿雾交付 1 单'), line);
-  assert.ok(line.includes('离线 Mock 1'), line);
+  assert.ok(line.includes('本地 1'), line);
   assert.equal(report.headline, '今日有交付');
 });
 
-test('台账单按实际接单的角色分账', () => {
+test('上游单按实际接单的角色分账', () => {
   const sim = makeSim();
-  sim.enqueue({
-    kind: 'sync',
-    tasks: [
-      { commissionId: 'c_a', kind: 'code', title: '写爬虫', agentName: '甲' },
-      { commissionId: 'c_b', kind: 'research', title: '查资料', agentName: '乙' },
-    ],
-    finished: [],
-    connected: true,
-    order: ['c_a', 'c_b'],
-  });
+  sim.enqueue(
+    syncCommand({
+      tasks: [
+        { id: 'c_a', kind: 'code', title: '写爬虫' },
+        { id: 'c_b', kind: 'research', title: '查资料' },
+      ],
+    }),
+  );
   sim.update(16);
   let guard = 0;
   while (!sim.snapshot().villagers.every((item) => item.mode === 'working')) {
     sim.update(100);
     if ((guard += 1) > 300) throw new Error('两个人没各接一单');
   }
-  sim.enqueue({
-    kind: 'sync',
-    tasks: [],
-    finished: ['c_a', 'c_b'],
-    connected: true,
-  });
+  sim.enqueue(syncCommand({ finished: ['c_a', 'c_b'] }));
   sim.update(16);
   const snapshot = sim.snapshot();
-  assert.equal(snapshot.deliveries.ledger, 2);
+  assert.equal(snapshot.deliveries.feed, 2);
   assert.deepEqual(
-    snapshot.deliveriesByVillager.map((item) => [item.name, item.ledger, item.mock]),
+    snapshot.deliveriesByVillager.map((item) => [item.name, item.feed, item.local]),
     [
       ['莞尔', 1, 0],
       ['阿雾', 1, 0],
@@ -178,7 +169,7 @@ test('台账单按实际接单的角色分账', () => {
   const line = report.lines.find((item) => item.includes('交付')) ?? '';
   assert.ok(line.includes('莞尔交付 1 单'), line);
   assert.ok(line.includes('阿雾交付 1 单'), line);
-  assert.ok(line.includes('台账 1'), line);
+  assert.ok(line.includes('上游 1'), line);
 });
 
 test('日报收尾写清谁在忙、谁在祭坛', () => {

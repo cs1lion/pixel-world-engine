@@ -6,6 +6,7 @@ import { ALTAR, buildWorld, buildWorldFromSave, placeBlueprint } from '../src/wo
 import { Simulation } from '../src/world/simulation.ts';
 import { assertSave, migrateSave, SAVE_SETTLED_KEYS, SAVE_TASK_KEYS, type WorldSave } from '../src/world/save.ts';
 import type { PlacedBuilding, WorldProp } from '../src/world/types.ts';
+import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
@@ -78,12 +79,12 @@ test('续跑等价：toSave → fromSave → 再跑 50 拍，快照一致', () =
   assert.equal(pick(b), pick(a));
 });
 
-test('settled 时钟不混用：mock=local/wall clock，ledger=ledger/null', () => {
+test('settled 时钟不混用：本地=wall clock，上游=事件带来的时间或 null', () => {
   let wall = 1000;
   const mockSim = makeSim(() => (wall += 1));
   mockSim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
-  while (mockSim.snapshot().deliveries.mock !== 1) {
+  while (mockSim.snapshot().deliveries.local !== 1) {
     mockSim.update(100);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
@@ -93,26 +94,21 @@ test('settled 时钟不混用：mock=local/wall clock，ledger=ledger/null', () 
   assert.equal(typeof mockSettled?.completedAt, 'number');
 
   const ledgerSim = makeSim();
-  ledgerSim.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: 'c_1', kind: 'code', title: '写爬虫', agentName: '甲' }],
-    finished: [],
-    connected: true,
-  });
+  ledgerSim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
   guard = 0;
   while (ledgerSim.snapshot().villager.mode !== 'working') {
     ledgerSim.update(100);
     if ((guard += 1) > 200) throw new Error('没走到铺子');
   }
-  ledgerSim.enqueue({ kind: 'sync', tasks: [], finished: ['c_1'], connected: true });
+  ledgerSim.enqueue(syncCommand({ finished: ['c_1'] }));
   ledgerSim.update(16);
   const ledgerSettled = ledgerSim.toSave().world.settled.find((item) => item.id === 'c_1');
   assert.equal(ledgerSettled?.source, 'ledger');
   assert.equal(ledgerSettled?.completedAtClock, 'ledger');
-  assert.equal(ledgerSettled?.completedAt, null, '台账时间缺失记 null，不拿本地时间顶替');
+  assert.equal(ledgerSettled?.completedAt, null, '事件没带时间就记 null，不拿本地时间顶替');
 });
 
-test('对账：已结算不重复、不复活；缺席且完整不复活；不完整则保留', () => {
+test('对账：已结算不重复、不复活；缺席不是撤单；撤单才撤', () => {
   const sample = JSON.parse(
     readFileSync(new URL('../../docs/save-v3.sample.json', import.meta.url), 'utf8'),
   ) as WorldSave;
@@ -127,77 +123,51 @@ test('对账：已结算不重复、不复活；缺席且完整不复活；不�
   };
   const baseline = fresh().snapshot().deliveries;
 
-  // 1) finished 里是已结算 id：不重复交付/计数。
+  // 1) settled 里是已结算 id：不重复交付/计数。
   const finished = fresh();
   const before = finished.snapshot().deliveries;
   assert.deepEqual(before, baseline);
-  finished.enqueue({
-    kind: 'sync',
-    tasks: [],
-    finished: [settledLedger],
-    connected: true,
-    complete: true,
-    order: [],
-  });
+  finished.enqueue(syncCommand({ finished: [settledLedger] }));
   finished.update(16);
   assert.deepEqual(finished.snapshot().deliveries, before);
 
-  // 2) 已结算 id 以活动单回来：不复活。
+  // 2) 已结算 id 以 open 回来：不复活。
   const revive = fresh();
-  revive.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: settledLedger, kind: 'code', title: '不该复活', agentName: '甲' }],
-    finished: [],
-    connected: true,
-    complete: true,
-    order: [settledLedger],
-  });
+  revive.enqueue(
+    syncCommand({ tasks: [{ id: settledLedger, kind: 'code', title: '不该复活' }] }),
+  );
   revive.update(16);
   assert.equal(revive.snapshot().tasks.some((task) => task.id === settledLedger), false);
   assert.deepEqual(revive.snapshot().deliveries, before);
 
-  // 3) 未结算单缺席且完整快照：丢弃，不复活。
+  // 3) 未结算单不在这一轮的事件里：**保留**。
+  //    这是事件流相对快照最要紧的一条：缺席只说明"没有新事件"，
+  //    不说明"它被撤了"。旧世界靠 `complete` 标志猜这件事，猜错就把活判没了。
+  const kept = fresh();
+  assert.ok(kept.snapshot().tasks.some((task) => task.id === demo));
+  kept.enqueue(syncCommand({}));
+  kept.update(16);
+  assert.ok(
+    kept.snapshot().tasks.some((task) => task.id === demo),
+    '日志里没有新事件，不等于这条活被撤了',
+  );
+
+  // 4) 明确撤单：这才撤。
   const dropped = fresh();
-  assert.ok(dropped.snapshot().tasks.some((task) => task.id === demo));
-  dropped.enqueue({
-    kind: 'sync',
-    tasks: [],
-    finished: [],
-    connected: true,
-    complete: true,
-    order: [],
-  });
+  dropped.enqueue(syncCommand({ cancelled: [demo] }));
   dropped.update(16);
   assert.equal(dropped.snapshot().tasks.some((task) => task.id === demo), false);
   assert.deepEqual(dropped.snapshot().deliveries, before);
 
-  // 4) 快照不完整：保留未对账单，不撤单。
-  const kept = fresh();
-  kept.enqueue({
-    kind: 'sync',
-    tasks: [],
-    finished: [],
-    connected: true,
-    complete: false,
-    order: [],
-  });
-  kept.update(16);
-  assert.ok(kept.snapshot().tasks.some((task) => task.id === demo));
-
-  // 5) 台账覆盖本地标题，对账完成后才恢复驱动。
+  // 5) 上游改标题：跟着改；对账完成后才恢复驱动。
   const overwritten = fresh();
-  overwritten.enqueue({
-    kind: 'sync',
-    tasks: [{ commissionId: demo, kind: 'writing', title: '对账后的新标题', agentName: '笔录官' }],
-    finished: [],
-    connected: true,
-    complete: true,
-    order: [demo],
-  });
+  overwritten.enqueue(
+    syncCommand({ tasks: [{ id: demo, kind: 'writing', title: '对账后的新标题' }] }),
+  );
   overwritten.update(16);
   const task = overwritten.snapshot().tasks.find((item) => item.id === demo);
   assert.equal(task?.summary, '对账后的新标题');
-  assert.equal(overwritten.snapshot().ledger.reconciled, true);
+  assert.equal(overwritten.snapshot().feed.reconciled, true);
 });
 
 test('v1→v2 迁移：样例级旧档完整可迁移，迁移后能过当前校验', () => {
@@ -301,37 +271,25 @@ test('迁移前的旧档要自证：被改过的假 v1 档不能靠迁移洗白'
 
 test('toSave 剥离运行时字段：tasks[] 键集合=样例、done⊆settled、settled 键集合固定', () => {
   const sim = makeSim();
-  // 台账单跑到 working 再按时收工：此时运行时的 TaskRecord 带 ledgerCompletedAt。
-  sim.enqueue({
-    kind: 'sync',
-    tasks: [{
-      commissionId: 'c_led', kind: 'code', title: '写爬虫', agentName: '甲',
-      status: 'running', completedAt: 1_792_377_700,
-    }],
-    finished: [],
-    connected: true,
-  });
+  // 上游单跑到 working 再按时收工。
+  sim.enqueue(syncCommand({ tasks: [{ id: 'c_led', kind: 'code', title: '写爬虫' }] }));
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
     sim.update(100);
     if ((guard += 1) > 400) throw new Error('没走到铺子');
   }
-  // 关键点：先在中途存档——运行时任务正带着 ledgerCompletedAt，落盘必须剥离。
+  // 关键点：先在中途存档——此时这条活还没收尾，落盘的键集合必须与冻结样例一致。
+  // `ledgerCompletedAt` 是运行时的中转字段（事件带来的时间在这里过一手），
+  // 无论它此刻有没有值，都不得出现在存档里。
   const midSave = sim.toSave();
   const midTask = midSave.world.tasks.find((task) => task.id === 'c_led');
-  assert.ok(midTask !== undefined, '中途存档里应有这条台账任务');
+  assert.ok(midTask !== undefined, '中途存档里应有这条上游任务');
   assert.deepEqual(Object.keys(midTask).sort(), [...SAVE_TASK_KEYS].sort(),
     'tasks[] 键集合必须与 v1 冻结样例一致');
   assert.equal('ledgerCompletedAt' in midTask, false, '运行时字段 ledgerCompletedAt 不得落盘');
   assert.doesNotThrow(() => assertSave(midSave), '中途存档必须通过 v1 嵌套校验');
 
-  sim.enqueue({
-    kind: 'sync',
-    tasks: [],
-    finished: ['c_led'],
-    finishedAt: [{ commissionId: 'c_led', completedAt: 1_792_377_786 }],
-    connected: true,
-  });
+  sim.enqueue(syncCommand({ finished: [{ id: 'c_led', completedAt: 1_792_377_786 }] }));
   sim.update(16);
   while (sim.snapshot().villager.mode !== 'idle') {
     sim.update(100);
@@ -339,13 +297,13 @@ test('toSave 剥离运行时字段：tasks[] 键集合=样例、done⊆settled�
   }
   // 再交一单沙盒活，保证存档里既有 done 任务又有对应 settled。
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
-  while (sim.snapshot().deliveries.mock < 1) {
+  while (sim.snapshot().deliveries.local < 1) {
     sim.update(100);
     if ((guard += 1) > 1200) throw new Error('短活没结束');
   }
 
   const save = sim.toSave();
-  assert.ok(save.world.settled.length >= 2, '台账与 Mock 各有一条 settled');
+  assert.ok(save.world.settled.length >= 2, '上游与本地各有一条 settled');
   for (const task of save.world.tasks) {
     assert.deepEqual(
       Object.keys(task).sort(),
@@ -428,7 +386,7 @@ test('P2 契约：满数据存档（settled / constructions / 队列非空）通
   const sim = makeSim();
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
-  while (sim.snapshot().deliveries.mock < 1) {
+  while (sim.snapshot().deliveries.local < 1) {
     sim.update(100);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }

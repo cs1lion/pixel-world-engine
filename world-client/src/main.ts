@@ -78,7 +78,7 @@ interface DebugOracle {
   events(limit: number): readonly WorldEvent[];
   saveStatus(): SaveStatusView;
   feed(message: AgentToWorld): { ok: boolean; message: string };
-  pushLedger(commission: unknown): void;
+  pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
 }
 const debugOracle = (): DebugOracle | undefined =>
   (window as unknown as { Oracle?: DebugOracle }).Oracle;
@@ -87,11 +87,11 @@ bindDebugPanel({
   getEvents: (limit) => debugOracle()?.events(limit) ?? [],
   getSaveStatus: () => debugOracle()?.saveStatus() ?? null,
   feed: (message) => debugOracle()?.feed(message) ?? { ok: false, message: '世界还没醒来。' },
-  pushLedger: (commission) => debugOracle()?.pushLedger(commission),
+  pushEvent: (event) => debugOracle()?.pushEvent(event),
 });
 
 // task-22：存档手动导出/导入。导出 = 单槽原文（就是 toSave() 的 v1 JSON，不二次加工）；
-// 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与台账对账。
+// 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与上游对账。
 interface SaveOracle {
   saveNow(): { readonly ok: boolean; readonly message: string };
 }
