@@ -252,7 +252,7 @@ export function bindDebugPanel(sources: DebugPanelSources): DebugPanelHandle {
           type: 'task.assigned',
           taskId: `dbg-${Date.now()}`,
           taskKind: 'quick',
-          summary: '调试注入的小事（不写台账）',
+          summary: '调试注入的小事（不写日志）',
         });
       });
       details.append(feedButton);

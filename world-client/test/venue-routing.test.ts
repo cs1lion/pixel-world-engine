@@ -11,7 +11,7 @@ const blueprints = parseBlueprintTable(
   ) as Record<string, Record<string, unknown>>,
 );
 
-/** 大世界里的世界层，不接台账。 */
+/** 大世界里的世界层，不接上游。 */
 function makeLargeSim(): Simulation {
   const world = buildLargeWorld(blueprints);
   return new Simulation({

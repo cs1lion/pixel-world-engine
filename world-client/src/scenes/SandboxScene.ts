@@ -357,7 +357,7 @@ export class SandboxScene extends Phaser.Scene {
         );
       },
     };
-    // 有档就重建世界；读档后台账标未对账，等首个 sync 走 reconcile。
+    // 有档就重建世界；读档后标未对账，等首个成功读取从头折一遍。
     this.sim =
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
@@ -867,7 +867,7 @@ export class SandboxScene extends Phaser.Scene {
     };
   }
 
-  /** 时相是纯渲染态：不写世界、不写台账。 */
+  /** 时相是纯渲染态：不写世界、不写事件日志。 */
   setPhase(phase: PhaseId): void {
     this.phaseView.setPhase(phase);
     this.phaseView.setAutoAdvance(false);

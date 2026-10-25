@@ -288,7 +288,12 @@ export interface SettledRecord {
   readonly id: string;
   readonly source: 'ledger' | 'mock';
   readonly workerId: string;
-  /** ledger 用台账事件时间；缺失记 null，禁止本地时间顶替。mock 用本地 wall clock。 */
+  /**
+   * `'ledger'` 用上游事件时间（`task.settled` 带来的 `completedAt`）；
+   * 缺失记 null，禁止本地时间顶替。`'mock'` 用本地 wall clock。
+   *
+   * 两个字符串都是存档 v1–v3 的字面量，冻结着；语义已换成「事件流派来的」与「本地造的」。
+   */
   readonly completedAt: number | null;
   readonly completedAtClock: 'ledger' | 'local';
 }
@@ -342,7 +347,7 @@ export interface SaveWorld {
 export interface SaveMeta {
   /** 仅诊断，永不喂逻辑（ADR_SAVE §5）。 */
   readonly savedAtWallClock: number;
-  /** 写档时是否已与台账对账（仅诊断）。 */
+  /** 写档时是否已与上游事件流对过（仅诊断）。 */
   readonly savedReconciled: boolean;
   /** 冻结指纹；加载时存在且不符 → 按坏档处理。 */
   readonly schemaFingerprint: string;

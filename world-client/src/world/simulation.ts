@@ -217,7 +217,7 @@ interface Villager {
   inPlaceUntil: number;
   /** 神谕下达时算好的路线，等行礼结束再交给她走。 */
   pendingRoute: GridPoint[];
-  /** 这一趟要去哪栋楼。台账同步派活时同样走这条路。 */
+  /** 这一趟要去哪栋楼。上游同步派活时同样走这条路。 */
   pendingBuilding: PlacedBuilding | null;
   /** 手上带着的东西。郊野返程时非空。 */
   carrying: CarryKind | null;
@@ -305,10 +305,10 @@ export class Simulation {
   private worldChangeVersion = 0;
   private faithPoints = 0;
   private milestones = 0;
-  /** 交付统计按来源分开：台账的活只有台账能收，沙盒/离线 Mock 另计。 */
+  /** 交付统计按来源分开：上游的活只有上游能收，沙盒/离线本地另计。 */
   private feedDeliveries = 0;
   private localDeliveries = 0;
-  /** 每个角色各自的交付归属（台账/Mock 分开），日报按人分账用。 */
+  /** 每个角色各自的交付归属（上游/本地分开），日报按人分账用。 */
   private readonly deliveryTally = new Map<string, { feed: number; local: number }>();
   /** 私有结算日志：save-only，不入快照（ADR_SAVE §2.1）。 */
   private readonly settledLog: SettledRecord[] = [];
@@ -404,7 +404,7 @@ export class Simulation {
     this.stepDecrees();
     this.stepCritters();
     for (const villager of this.villagers) this.expireBubble(villager);
-    // 固定步长的最后一拍：每个空闲角色先接台账的活，再轮到自己队列里的神谕。
+    // 固定步长的最后一拍：每个空闲角色先接上游的活，再轮到自己队列里的神谕。
     this.pumpPending();
     return this.lastResults;
   }
@@ -464,7 +464,7 @@ export class Simulation {
         rising: tideLevelAt(this.now) > this.lastTideLevel,
       },
       faith: { points: this.faithPoints, milestones: this.milestones },
-      /** 台账交付与 Mock 交付分开计，不合并成一个数。 */
+      /** 上游交付与本地交付分开计，不合并成一个数。 */
       deliveries: { feed: this.feedDeliveries, local: this.localDeliveries },
       /** 按角色分账：日报与状态行据此写清是谁交付的。 */
       deliveriesByVillager: this.villagers.map((villager) => {
@@ -1227,7 +1227,7 @@ export class Simulation {
   }
 
   /**
-   * 每个空闲角色各自推进：先接台账的活（真实活优先），再按 FIFO 开自己的排队单。
+   * 每个空闲角色各自推进：先接上游的活（真实活优先），再按 FIFO 开自己的排队单。
    * 固定步长末尾调用一次；只依赖 this.now 与命令顺序，回放可复现。
    */
   private pumpPending(): void {
@@ -1304,7 +1304,7 @@ export class Simulation {
     villager.pendingBuilding = null;
   }
 
-  /** 让她停下手上的事、行礼、走进这栋铺子。派活与台账同步共用这一条路。 */
+  /** 让她停下手上的事、行礼、走进这栋铺子。派活与上游同步共用这一条路。 */
   private routeToBuilding(
     villager: Villager,
     task: TaskRecord,
@@ -1378,19 +1378,20 @@ export class Simulation {
       this.log('warn', message);
       return { ok: false, message };
     }
-    // 完成权唯一来源是台账：台账单必须由台账收尾，人工入口一律拒绝，也不写台账。
+    // 完成权唯一来源是上游：上游单必须由上游的 `task.settled` 收尾，
+    // 人工入口一律拒绝。世界也不替上游写这条收工事件——那会变成回路。
     if (task.source === 'ledger') {
-      const message = '这单的完成权在台账，人工不能收尾。';
+      const message = '这单的完成权在上游，人工不能收尾。';
       this.log('warn', message);
       return { ok: false, message };
     }
     const label = this.feedConnected ? '本地' : '离线本地';
     if (task.buildingId === null) {
       this.finishInPlace(villager, task);
-      return { ok: true, message: `这单办了（${villager.name}，${label}，不计入台账）。` };
+      return { ok: true, message: `这单办了（${villager.name}，${label}，不计入上游）。` };
     }
     this.finishActiveTask(villager);
-    return { ok: true, message: `成果已交付（${villager.name}，${label}，不计入台账）。` };
+    return { ok: true, message: `成果已交付（${villager.name}，${label}，不计入上游）。` };
   }
 
   private build(
@@ -1617,7 +1618,7 @@ export class Simulation {
       villager.mode = 'idle';
       return;
     }
-    // 台账的活没有 buildingId（上游不知道我们的铺子），用派活时记下的那栋。
+    // 上游的活建单时没有 buildingId（它不知道我们的铺子），用派活时记下的那栋。
     const building = this.buildingOf(task) ?? villager.pendingBuilding ?? undefined;
     villager.pendingBuilding = null;
     if (building === undefined) {
@@ -1638,7 +1639,7 @@ export class Simulation {
       startedAt: this.now,
       // 郊野的活更久：走那么远，做的活也该更重。
       estimateMs: taskDurationFor(task.kind, WILD_PREFABS.has(building.prefabId)),
-      // 台账的活只有台账知道还要多久；沙盒的活由计时器收尾。
+      // 上游的活只有上游知道还要多久；沙盒的活由计时器收尾。
       determinate: task.source === 'sandbox',
     });
     this.log('work', `${building.displayName} 开工（${villager.name}）。`);
@@ -1711,7 +1712,7 @@ export class Simulation {
     this.log('done', `${task.summary} 已交付（${villager.name}）。`);
   }
 
-  /** 交付按人和来源分开记账：台账/沙盒各自分开，角色之间也不合并。 */
+  /** 交付按人和来源分开记账：上游/沙盒各自分开，角色之间也不合并。 */
   private recordDelivery(villagerId: string, task: TaskRecord): void {
     const source = task.source;
     if (source === 'ledger') this.feedDeliveries += 1;
@@ -1814,7 +1815,7 @@ export class Simulation {
     return awaitingDecree(this.snapshotForDecree()) !== null;
   }
 
-  /** 造一个只含台账单的视图给 `awaitingDecree` 用。 */
+  /** 造一个只含上游单的视图给 `awaitingDecree` 用。 */
   private snapshotForDecree(): WorldSnapshot {
     return { ...this.snapshot(), tasks: this.tasks };
   }
@@ -1905,7 +1906,7 @@ export class Simulation {
 
   // ---------------------------------------------------------------- save
 
-  /** 序列化世界自有事实；台账链接态与派生计数不入档（ADR_SAVE §1）。 */
+  /** 序列化世界自有事实；上游链接态与派生计数不入档（ADR_SAVE §1）。 */
   toSave(): WorldSave {
     const villagers: SavedVillager[] = this.villagers.map((villager) => ({
       id: villager.id,
@@ -1974,7 +1975,7 @@ export class Simulation {
   /**
    * 从存档重建世界。deps.grid 必须已按存档 buildings 顺序重放
    * （`rebuildGridFromPlacements`），deps.buildings 用存档里的那批。
-   * 读档后台账一律标记未对账，等首个成功 sync 走 reconcile。
+   * 读档后一律标记未对账，等首个成功的读取从头折一遍。
    */
   static fromSave(save: WorldSave, deps: SimulationDeps): Simulation {
     const names = save.world.villagers.map((villager) => villager.name);

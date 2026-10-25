@@ -424,7 +424,7 @@ test('等待队列按角色分：每人 3 条，全部占满才拒单', () => {
     ['v0', 'v1'],
     '队列按角色分',
   );
-  assert.equal(rig.state().tasks.length, 2, '被拒的单没有进台账');
+  assert.equal(rig.state().tasks.length, 2, '被拒的单没有进任务表');
 });
 
 test('撤销排队：省略 id 撤最后一条，可按 id 撤，空了再撤被拒', () => {
@@ -572,7 +572,7 @@ test('上游单不能人工完成：完成权在日志，状态不变', () => {
   rig.sim.enqueue({ kind: 'complete' });
   const result = rig.sim.update(16);
   assert.equal(result[0].ok, false);
-  assert.ok(result[0].message.includes('完成权在台账'), result[0].message);
+  assert.ok(result[0].message.includes('完成权在上游'), result[0].message);
 
   const state = rig.state();
   assert.equal(state.villager.mode, 'working', '被拒后这条活继续跑');
@@ -590,7 +590,7 @@ test('沙盒单可以人工收尾，回执标明离线本地且不计入上游',
   const result = rig.sim.update(16);
   assert.equal(result[0].ok, true);
   assert.ok(result[0].message.includes('离线本地'), result[0].message);
-  assert.ok(result[0].message.includes('不计入台账'), result[0].message);
+  assert.ok(result[0].message.includes('不计入上游'), result[0].message);
 
   const state = rig.state();
   assert.equal(state.villager.mode, 'delivering');
@@ -667,7 +667,7 @@ test('指定角色也不能绕过上游完成权', () => {
   rig.sim.enqueue({ kind: 'complete', target: 'v0' });
   const result = rig.sim.update(16);
   assert.equal(result[0].ok, false);
-  assert.ok(result[0].message.includes('完成权在台账'), result[0].message);
+  assert.ok(result[0].message.includes('完成权在上游'), result[0].message);
   assert.equal(rig.state().tasks[0]?.status, 'in_progress');
   assert.equal(rig.state().deliveries.feed, 0);
 });

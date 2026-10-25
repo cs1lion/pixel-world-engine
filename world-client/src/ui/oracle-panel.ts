@@ -37,8 +37,8 @@ export interface OracleApi {
     readonly line: string;
     readonly missingWild: readonly string[];
   };
-  /** 当前急件：台账 blocked 单的完整问题。 */
-  readonly decree: () => { readonly commissionId: string; readonly question: string; readonly title: string } | null;
+  /** 当前急件：上游 blocked 单的完整问题。 */
+  readonly decree: () => { readonly taskId: string; readonly question: string; readonly title: string } | null;
   /** 渲染统计：绘制对象数与指令总量。 */
   readonly renderStats: () => {
     readonly graphicsObjects: number;
@@ -164,9 +164,9 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
   };
 
   /**
-   * 急件：把台账 blocked 单的完整问题呈出来。
+   * 急件：把上游 blocked 单的完整问题呈出来。
    *
-   * 这里**只展示**，不给「准奏/驳回」按钮：世界是纯投影，改台账状态是主产品的事。
+   * 这里**只展示**，不给「准奏/驳回」按钮：世界是纯投影，改上游状态是主产品的事。
    * 放一对按不动的印章比不放更糟——用户会以为点了就该有反应。
    */
   const paintDecree = (api: OracleApi): void => {

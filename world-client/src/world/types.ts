@@ -79,7 +79,7 @@ export type VillagerMode =
   | 'delivering'
   | 'toAltar'
   | 'sheltering'
-  /** 举着急件跑去祭坛：台账有单在等人答复。 */
+  /** 举着急件跑去祭坛：上游有单在等人答复。 */
   | 'bearingDecree';
 
 export type TaskStatus = 'assigned' | 'in_progress' | 'done' | 'failed';
@@ -146,7 +146,7 @@ export interface PendingDispatch {
   readonly summary: string;
   /** 入队时刻（this.now）。 */
   readonly requestedAt: number;
-  /** 只排神谕单；台账单走 tasks.assigned，天然排队且不可被神谕撤销。 */
+  /** 只排神谕单；上游单走 tasks.assigned，天然排队且不可被神谕撤销。 */
   readonly source: 'oracle';
   /** 预留按角色分队列：当前单角色世界固定用 v0。 */
   readonly villagerId: string;
@@ -192,7 +192,7 @@ export type WorkstationActivity =
       readonly estimateMs: number;
       /**
        * 世界知不知道这条活还要多久。沙盒的活由计时器估，所以是 true；
-       * 台账的活只有台账自己知道，世界不许编一个百分比，所以是 false。
+       * 上游的活只有上游自己知道，世界不许编一个百分比，所以是 false。
        */
       readonly determinate: boolean;
     }
@@ -211,7 +211,7 @@ export interface WorkstationSnapshot {
   readonly elapsedMs: number;
   /**
    * 0..1。粗估进度，用于铺子上方那条细线；任务仍以状态机终态为准。
-   * 台账的活是 null：世界不知道真实工作跑到哪了，就不画一条假的进度。
+   * 上游的活是 null：世界不知道真实工作跑到哪了，就不画一条假的进度。
    */
   readonly progress: number | null;
 }
@@ -328,7 +328,7 @@ export interface WorldSnapshot {
   readonly workstations: readonly WorkstationSnapshot[];
   readonly constructions: readonly ConstructionSnapshot[];
   readonly tasks: readonly TaskRecord[];
-  /** 排队等待派发的神谕（FIFO）。只展示/可撤销，不影响台账完成权。 */
+  /** 排队等待派发的神谕（FIFO）。只展示/可撤销，不影响上游完成权。 */
   readonly pending: readonly PendingDispatch[];
   readonly props: readonly WorldProp[];
   /** 神谕石板：最近 N 条改变了世界的神谕，旧在前。 */
@@ -363,7 +363,7 @@ export interface WorldSnapshot {
   };
   /** 交付积累的信仰点数与已达成的世界记忆数。 */
   readonly faith: { readonly points: number; readonly milestones: number };
-  /** 交付统计：台账交付与离线 Mock 交付分开计，禁止合并成一个数。 */
+  /** 交付统计：上游交付与离线本地交付分开计，禁止合并成一个数。 */
   readonly deliveries: DeliveryStats;
   /** 按角色分账的交付归属（顺序同 villagers）；日报据此写「谁交付了几单」。 */
   readonly deliveriesByVillager: readonly VillagerDeliveries[];
