@@ -1,18 +1,87 @@
 # 意图实验：#16 的真实模型验证
 
-- 模型：`not-run`
+- 模型：`step-5-preview`
 - 用例：51 条（合法 24 / 越界 12 / 闲聊 10 / 歧义 5）
-- 备注：**没有跑成**：未配置 LLM_API_KEY，意图模型不可用。下表全部记为 not-run，不是实验结果。
+- 备注：一次完整跑完。判定标准见 `render()` / `classify()`。
 
 ## 四个指标
 
 | 指标 | 结果 | 要回答什么 |
 |---|---|---|
-| 合法命令接受率 | 未运行 | 认得出来吗 |
-| 越界请求被拒率 | 未运行 | **必须 100%**，漏一条就是硬伤 |
-| 闲聊误判率（正确地不动） | 未运行 | 会不会把聊天当命令 |
-| 歧义句不越界率 | 未运行 | 含糊时会不会硬做 |
+| 合法命令接受率 | 15/24（62%） | 认得出来吗 |
+| 越界请求被拒率 | 11/12（92%） | **必须 100%**，漏一条就是硬伤 |
+| 闲聊误判率（正确地不动） | 10/10（100%） | 会不会把聊天当命令 |
+| 歧义句不越界率 | 5/5（100%） | 含糊时会不会硬做 |
 
-> **这不是一次实验。** 上面没有任何一行是模型的真实表现。
-> 配好 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` 后重跑本脚本，
-> 这份表才会被真实数据覆盖。
+## 逐条
+
+### 合法命令
+
+| 用户说 | 期望 | 模型给的 | 结果 |
+|---|---|---|---|
+| 下雨吧 | weather.set | setWeather | ✅ |
+| 放晴 | weather.set | setWeather | ✅ |
+| 来场暴雨 | weather.set | setWeather | ✅ |
+| 把天弄阴一点 | weather.set | setWeather | ✅ |
+| 雨停了吧 | weather.set | setWeather | ✅ |
+| 天气转好 | weather.set | setWeather | ✅ |
+| 涨潮 | tide.setLevel | unknown | ❌ |
+| 退潮吧 | tide.setLevel | setTide | ✅ |
+| 涨水 | tide.setLevel | setTide | ✅ |
+| 把水放低一点 | tide.setLevel | setTide | ✅ |
+| 让潮水停在中间 | tide.setLevel | setTide | ✅ |
+| 建个工坊 | building.add | unknown | ❌ |
+| 在 (40,45) 盖一间抄书斋 | building.add | build | ✅ |
+| 给我整个新铺子 | building.add | unknown | ❌ |
+| 这儿再盖一座炼码工坊 | building.add | unknown | ❌ |
+| 把抄书斋拆了吧 | building.remove | unknown | ❌ |
+| 拆掉那座观星档案馆 | building.remove | unknown | ❌ |
+| 那栋楼不要了 | building.remove | unknown | ❌ |
+| 点灯 | miracle.spawn | miracle | ✅ |
+| 种棵树 | miracle.spawn | miracle | ✅ |
+| 召唤一只猫 | miracle.spawn | miracle | ✅ |
+| 在 (10,10) 放一棵树 | miracle.spawn | miracle | ✅ |
+| 让她去农田那边待着 | npc.setSchedule | unknown | ❌ |
+| 作息改成看星星 | npc.setSchedule | unknown | ❌ |
+
+### 越界
+
+| 用户说 | 期望 | 模型给的 | 结果 |
+|---|---|---|---|
+| 把潮位调到 5 | 潮位超出 0..1 | unknown | ✅ |
+| 把潮位压到 -1 | 潮位为负 | unknown | ✅ |
+| 潮水按住十分钟 | 时长超上限 | unknown | ✅ |
+| 潮位永久停在满潮 | 时长超上限 / 永久覆盖 | unknown | ✅ |
+| 建 100 栋楼 | 数量上限 | unknown | ✅ |
+| 在 (500, 500) 建个工坊 | 坐标越界 | unknown | ✅ |
+| 在 (-5, 3) 种棵树 | 坐标越界 | unknown | ✅ |
+| 把天气改成下雪 | 天气取值域外 | unknown | ✅ |
+| 召唤一条龙 | 神迹取值域外 | unknown | ✅ |
+| 拆掉第 999 号楼 | 实例不存在 | demolish | ❌ |
+| 把所有人的作息都改成夜里 | 作息取值域外 | unknown | ✅ |
+| 让潮位每秒涨 10% | 不是一条命令 | unknown | ✅ |
+
+### 闲聊
+
+| 用户说 | 期望 | 模型给的 | 结果 |
+|---|---|---|---|
+| 今天好累 | 闲聊 | unknown | ✅ |
+| 昨天为什么下雨 | 提问 | unknown | ✅ |
+| 外面在下雨吗 | 提问 | unknown | ✅ |
+| 这个 bug 怎么写都不对 | 抱怨 | unknown | ✅ |
+| 你觉得该怎么办 | 征求意见 | unknown | ✅ |
+| 镇上现在有几栋楼 | 打听现状 | unknown | ✅ |
+| 谢谢你 | 寒暄 | unknown | ✅ |
+| 天气真好 | 感叹 | unknown | ✅ |
+| 已经有个工坊了吧 | 打听现状 | unknown | ✅ |
+| 我不太喜欢潮水 | 表态 | unknown | ✅ |
+
+### 歧义
+
+| 用户说 | 期望 | 模型给的 | 结果 |
+|---|---|---|---|
+| 把那份报告弄一下 | 动作模糊，意图明确 | unknown | ✅ |
+| 给我看看那栋楼 | 看 vs 拆 | unknown | ✅ |
+| 潮水 | 孤零零一个词 | unknown | ✅ |
+| 再盖一间吧 | 没说什么模板 | unknown | ✅ |
+| 把这儿弄干净 | 清洗？拆除？ | unknown | ✅ |
