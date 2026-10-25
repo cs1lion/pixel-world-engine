@@ -1,0 +1,27 @@
+{
+  "events": [
+    {
+      "id": 1,
+      "at": 0,
+      "kind": "world.changed",
+      "actor": "world",
+      "payload": { "reason": "initial", "now": 0 }
+    },
+    {
+      "id": 2,
+      "at": 12000,
+      "kind": "oracle.spoken",
+      "actor": "player",
+      "payload": { "raw": "让天晴" }
+    },
+    {
+      "id": 3,
+      "at": 12000,
+      "kind": "weather.changed",
+      "actor": "oracle",
+      "payload": { "from": "rain", "to": "clear" }
+    }
+  ],
+  "latestId": 3,
+  "hasMore": false
+}
