@@ -10,6 +10,7 @@
  */
 
 import type { VillagerMode } from '../world/types.ts';
+import { LAMP_DRY } from '../world/lampoil.ts';
 
 export const ANIM_FPS = 12;
 export const FRAME_MS = 1000 / ANIM_FPS;
@@ -92,9 +93,6 @@ export function villagerPose(mode: VillagerMode, nowMs: number): VillagerPose {
   };
 }
 
-/** 灯油见底。低于它灯就灭，人也发灰。 */
-export const LAMP_DRY = 0.12;
-
 /**
  * 灯油余量 → 画面上取样的时间。
  *
@@ -102,6 +100,9 @@ export const LAMP_DRY = 0.12;
  * simulation 决定。所以这里只把动画采样的时刻向后拖，位置、寻路、任务一概不碰。
  * 油干时隔 4 帧取一次样（约 3fps），看得出疲惫；油量正常时原样返回，不改变
  * 已验证的 12fps 动作。
+ *
+ * 阈值 `LAMP_DRY` 住在 `world/lampoil.ts`：它是油量的属性，不是采样的属性。
+ * 这个文件在渲染层，往世界层借一个常量比在这儿再抄一份强。
  */
 export function lampAnimationTime(lampOil: number, nowMs: number): number {
   if (!Number.isFinite(nowMs)) return 0;

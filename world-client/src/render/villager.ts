@@ -12,9 +12,10 @@ import { TILE_PX } from '../world/setup.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import { LAMP_DRY, advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
+import { drawLamp, lampActivityOf } from './lampoil-view.ts';
 import {
   isWalkingMode,
-  LAMP_DRY,
   lampAnimationTime,
   pixelAt,
   villagerPose,
@@ -90,6 +91,8 @@ export interface VillagerView {
   readonly container: Phaser.GameObjects.Container;
   readonly body: Phaser.GameObjects.Graphics;
   readonly shadow: Phaser.GameObjects.Graphics;
+  /** 这盏灯的余量。跟着人走，不跟着帧——掉帧不该让油少烧。 */
+  lamp: LampState;
 }
 
 export function createVillager(
@@ -112,7 +115,7 @@ export function createVillager(
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
-  return { container, body, shadow };
+  return { container, body, shadow, lamp: newLamp() };
 }
 
 /** 每帧把快照画出来；坐标换算只在这里做一次，且结果取整到整数像素。 */
@@ -133,7 +136,16 @@ export function updateVillager(
   view.container.setDepth(altitude + py + 8);
 
   // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
-  const oil = colors?.lamp === true ? villager.lampOil : 1;
+  // 推进发生在更新路径上，用的是 simulation 时间：世界暂停时灯也停，
+  // 重放同一个存档灯走同一条曲线。`Simulation` 从头到尾不知道有这盏灯。
+  view.lamp = advanceLamp(
+    view.lamp,
+    villager.lampOil,
+    nowMs,
+    lampActivityOf(villager.mode),
+    lampDayOf(nowMs),
+  );
+  const oil = colors?.lamp === true ? view.lamp.oil : 1;
   // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
   const pose = villagerPose(villager.mode, lampAnimationTime(oil, nowMs));
@@ -153,19 +165,7 @@ export function updateVillager(
   );
   if (colors?.lamp === true) {
     // 快照里的灯油只在这里影响画面；燃料不会变成任务或路径的隐藏条件。
-    const lit = oil >= LAMP_DRY;
-    view.body.fillStyle(lit ? palette.amber : palette.charcoal, 1);
-    view.body.fillRect(8, -10, 5, 7);
-    if (lit) {
-      view.body.fillStyle(palette.warmLight, 1);
-      view.body.fillRect(9, -9, 3, 4);
-      if (oil > 0.65) {
-        view.body.fillStyle(palette.warmLight, 0.12);
-        view.body.fillRect(5, -13, 11, 13);
-      }
-    }
-    view.body.fillStyle(palette.timberDark, 1);
-    view.body.fillRect(9, -13, 1, 3);
+    drawLamp(view.body, oil, palette);
   }
   if (villager.umbrella) drawUmbrella(view.body, pose.offsetY);
   if (villager.carrying !== null) drawCarried(view.body, villager.carrying, pose.offsetY);

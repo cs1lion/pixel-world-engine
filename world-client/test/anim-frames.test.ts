@@ -9,11 +9,11 @@ import { readFileSync } from 'node:fs';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { LAMP_DRY } from '../src/world/lampoil.ts';
 import {
   ANIM_FPS,
   FRAME_MS,
   IDLE_FRAMES,
-  LAMP_DRY,
   WALK_FRAMES,
   animFrame,
   animStep,
