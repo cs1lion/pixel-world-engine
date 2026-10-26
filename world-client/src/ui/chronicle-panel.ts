@@ -244,6 +244,14 @@ export interface ChronicleSources {
       | { readonly ok: false; readonly reason: string }
     >;
   };
+  /**
+   * 造 DOM 节点的那一道。默认是真的 `document.createElement`。
+   *
+   * 注它是为了「每个字都走 textContent」这道关能盖住**生产真正渲染**的那条路：
+   * 抽屉的全文来自服务端读回来的 Markdown 文件——那是磁盘上的字，
+   * 不是本应用写的。测试注一个假的，谁往 `innerHTML` 里写一个字就炸。
+   */
+  readonly create?: ElementFactory;
 }
 
 export interface ChronicleHandle {
@@ -312,6 +320,7 @@ export function blockNode(block: MemoryBlock, create: ElementFactory = element):
 }
 
 export function bindChronicle(sources: ChronicleSources): ChronicleHandle {
+  const create = sources.create ?? element;
   const drawer = document.querySelector<HTMLElement>('#chronicle');
   const listButton = document.querySelector<HTMLButtonElement>('#chronicle-open');
   const closeButton = document.querySelector<HTMLButtonElement>('#chronicle-close');
@@ -351,20 +360,22 @@ export function bindChronicle(sources: ChronicleSources): ChronicleHandle {
     heading.textContent = chronicleHeading(rows.length);
     listPane.replaceChildren();
     if (rows.length === 0) {
-      const empty = element('p', 'chronicle-empty');
+      const empty = create('p', 'chronicle-empty');
       empty.textContent = '还没有人记下什么。世界自己跑着，观测到了就会落下来。';
       listPane.append(empty);
       return;
     }
     for (const row of rows) {
-      const item = element('button', 'chronicle-row');
+      // 行上的字全部来自服务端读回来的 Markdown（标题、摘要都是），
+      // 所以和生产渲染那条路走同一个 factory——别在这儿另起一条没人守的路。
+      const item = create('button', 'chronicle-row');
       item.type = 'button';
       item.dataset.chroniclePath = row.path;
-      const title = element('span', 'chronicle-row-title');
+      const title = create('span', 'chronicle-row-title');
       title.textContent = row.title;
-      const meta = element('span', 'chronicle-row-meta');
+      const meta = create('span', 'chronicle-row-meta');
       meta.textContent = [row.dayText, row.kindText].filter((part) => part !== '').join(' · ');
-      const summary = element('span', 'chronicle-row-summary');
+      const summary = create('span', 'chronicle-row-summary');
       summary.textContent = row.summary;
       item.append(meta, title, summary);
       item.addEventListener('click', () => {
@@ -377,7 +388,9 @@ export function bindChronicle(sources: ChronicleSources): ChronicleHandle {
   const paintReader = (title: string, subtitle: string, blocks: readonly MemoryBlock[]): void => {
     readerTitle.textContent = title;
     readerSubtitle.textContent = subtitle;
-    readerBody.replaceChildren(...blocks.map((block) => blockNode(block)));
+    // 走注进来的 factory，不走默认的那个：默认值等于把「谁写 innerHTML 就炸」
+    // 这道关留在单元测试里，而生产渲染走的是另一条没人守的路。
+    readerBody.replaceChildren(...blocks.map((block) => blockNode(block, create)));
   };
 
   const showList = (): void => {
@@ -415,7 +428,10 @@ export function bindChronicle(sources: ChronicleSources): ChronicleHandle {
     readerTitle.textContent = row.title;
     readerSubtitle.textContent = readingSubtitle(row);
     readerBody.replaceChildren();
-    const pending = element('p', 'chronicle-paragraph');
+    // 这一行也走注进来的 factory：它和 `paintReader` 造的是同一种节点，
+    // 而「等它读回来」那一下人看见的就是它。留一条直连默认 factory 的路，
+    // 等于真机上仍有一处没人守的渲染。
+    const pending = create('p', 'chronicle-paragraph');
     pending.textContent = '正在翻开…';
     readerBody.append(pending);
 

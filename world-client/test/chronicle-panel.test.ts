@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  bindChronicle,
   blockNode,
   chronicleHeading,
   chronicleRows,
@@ -339,4 +340,169 @@ class FakeNode {
 test('frontmatter 里的值原样留着，不当成标记', () => {
   const blocks = parseMemoryBlocks('---\ntitle: <b>加粗</b>\n---\n\n正文');
   assert.deepEqual(blocks[0], { kind: 'field', key: 'title', value: '<b>加粗</b>' });
+});
+
+
+// ---------------------------------------------- 生产那条渲染路也要过这道关
+
+/** 一个只会 textContent / append / addEventListener 的假元素。三个 HTML 写入口都是 setter。 */
+class FakeElement {
+  textContent = '';
+  type = '';
+  hidden = false;
+  readonly dataset: Record<string, string> = {};
+  readonly kids: FakeElement[] = [];
+  readonly listeners: (() => void)[] = [];
+
+  readonly tag: string;
+  readonly className: string;
+
+  constructor(tag: string, className: string) {
+    this.tag = tag;
+    this.className = className;
+  }
+
+  append(...nodes: FakeElement[]): void {
+    this.kids.push(...nodes);
+  }
+
+  replaceChildren(...nodes: FakeElement[]): void {
+    this.kids.length = 0;
+    this.kids.push(...nodes);
+  }
+
+  addEventListener(_kind: string, listener: () => void): void {
+    this.listeners.push(listener);
+  }
+
+  setAttribute(): void {}
+
+  set innerHTML(value: string) {
+    throw new Error(`innerHTML 被写了：${value}`);
+  }
+
+  set outerHTML(value: string) {
+    throw new Error(`outerHTML 被写了：${value}`);
+  }
+
+  insertAdjacentHTML(_position: string, value: string): void {
+    throw new Error(`insertAdjacentHTML 被写了：${value}`);
+  }
+}
+
+/** 一份够用的假 document。`pane` 取某个钩子上的元素，好过从 `made` 里猜第一个。 */
+function fakeDocument(body: FakeElement): {
+  pane(selector: string): FakeElement;
+  querySelector(selector: string): FakeElement;
+  addEventListener(): void;
+  removeEventListener(): void;
+} {
+  const cache = new Map<string, FakeElement>();
+  const nodeFor = (selector: string): FakeElement => {
+    if (selector === '#chronicle-reader-body') return body;
+    let node = cache.get(selector);
+    if (node === undefined) {
+      node = new FakeElement('div', selector);
+      cache.set(selector, node);
+    }
+    return node;
+  };
+  return {
+    pane: nodeFor,
+    querySelector: nodeFor,
+    addEventListener(): void {},
+    removeEventListener(): void {},
+  };
+}
+
+const NEEDLES = ['<img src=x onerror=alert(1)>', '<script>alert(2)</script>'];
+
+test('真机那条渲染路也走注进来的 factory：列表与读者两处都是', async () => {
+  // 上面那条只测了 `blockNode` 本身。`bindChronicle` 原先两处都调默认 factory
+  // （`paintList` 用 `element()`，`paintReader` 用 `blockNode(block)`），
+  // 于是真机上渲染的那条路没有任何守卫——而抽屉里的每个字都来自服务端
+  // 读回来的 Markdown 文件，那是磁盘上的字，不是本应用写的。
+  //
+  // 这条把假 document 和假 factory 一起注进去，走完「开抽屉 → 点开一篇」。
+  // 谁在那两处里写 innerHTML，这里就炸。
+  const made: FakeElement[] = [];
+  const fake = ((tag: string, className?: string) => {
+    const node = new FakeElement(tag, className ?? '');
+    made.push(node);
+    return node;
+  }) as unknown as ElementFactory;
+  const readerBody = new FakeElement('div', 'chronicle-reader-body');
+  const original = globalThis.document;
+  const doc = fakeDocument(readerBody);
+  globalThis.document = doc as unknown as Document;
+
+  try {
+    const rows: MemoryEntryRow[] = [
+      {
+        kind: 'event',
+        title: NEEDLES[0]!,
+        path: 'events/E0001-渡口的第一夜.md',
+        summary: NEEDLES[1]!,
+        at: 1500,
+        day: 0,
+        section: null,
+      },
+    ];
+    const handle = bindChronicle({
+      client: {
+        list: async () => ({ ok: true, value: { entries: rows } }),
+        read: async () => ({
+          ok: true,
+          value: {
+            title: NEEDLES[0]!,
+            path: 'events/E0001-渡口的第一夜.md',
+            section: null,
+            kind: 'event',
+            text: `# ${NEEDLES[0]!}\n\n> 旁注里也带 ${NEEDLES[1]!}`,
+            truncated: false,
+          },
+        }),
+      },
+      create: fake,
+    });
+
+    handle.open();
+    // 让 `load()` 那个 await 落地。
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // 列表那一处：标题与摘要都是服务端来的字，必须经过假 factory。
+    assert.ok(
+      made.some((node) => node.textContent === NEEDLES[0]),
+      '列表标题该走注进来的 factory',
+    );
+    assert.ok(
+      made.some((node) => node.textContent === NEEDLES[1]),
+      '列表摘要该走注进来的 factory',
+    );
+
+    // 点开那一行，读者那几块渲染。列表窗格是 `#chronicle-list` 那个钩子，
+    // 不是 `made` 里第一个造出来的节点——第一个是标题那句「镇志 · 共 1 条」。
+    const listPane = doc.pane('#chronicle-list');
+    const row = listPane.kids.find((kid) => kid.className === 'chronicle-row');
+    assert.ok(row !== undefined, '列表里该有一行');
+    row.listeners[0]!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // 读者那处：正文块也走同一个 factory，原文一个字都没丢。
+    assert.ok(
+      made.some((node) => node.textContent.includes(NEEDLES[0]!)),
+      '读者标题该走注进来的 factory',
+    );
+    assert.ok(
+      made.some((node) => node.textContent.includes(NEEDLES[1]!)),
+      '读者旁注该走注进来的 factory',
+    );
+    // 没有一个是把上面的字符串当 HTML 解析出来的。
+    assert.ok(
+      made.every((node) => node.kids.every((kid) => kid instanceof FakeElement)),
+      '孩子们只能是造出来的节点',
+    );
+  } finally {
+    globalThis.document = original;
+  }
 });
