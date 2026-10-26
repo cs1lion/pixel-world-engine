@@ -91,9 +91,20 @@ def _number(args: dict[str, Any], key: str, path: str) -> float:
     # bool 是 int 的子类：True 不该被当成 1。
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         _fail("type-mismatch", f"{path}.{key} 必须是数字")
-    if value != value or value in (float("inf"), float("-inf")):  # NaN / Inf
+    # `isinstance(x, int)` 收的是**任意精度**的整数，而 `float()` 只吃得到 1.8e308。
+    # 中间那一大段（比如 10**400）过了上面那道类型检查，却在这一行炸 OverflowError——
+    # 它不是 CommandRejected，API 层接不住，于是线上协议多出第四种失败面：500。
+    # 冻结的失败面只有三种（503 / 422 / 200+unknown），所以这里必须自己收口。
+    try:
+        number = float(value)
+    except OverflowError:
+        _fail(
+            "type-mismatch",
+            f"{path}.{key} 必须是有限数字，收到 {value}——这个数大到转不成世界时间",
+        )
+    if number != number or number in (float("inf"), float("-inf")):  # NaN / Inf
         _fail("type-mismatch", f"{path}.{key} 必须是有限数字")
-    return float(value)
+    return number
 
 
 def _integer(args: dict[str, Any], key: str, path: str) -> int:

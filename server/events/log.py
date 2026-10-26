@@ -88,7 +88,16 @@ def _check_at(at: Any) -> float:
     # bool 是 int 的子类，单独挡掉：`True` 当世界时间显然是调用方写错了。
     if isinstance(at, bool) or not isinstance(at, (int, float)):
         raise EventValidationError(f"at 必须是数字（世界时间 ms），收到 {at!r}")
-    value = float(at)
+    # `isinstance(x, int)` 收任意精度的整数，`float()` 只到 1.8e308。中间那一大段
+    # （10**400）过了上面那道检查，却在这一行炸 OverflowError——它不是
+    # EventValidationError，API 层那个转 422 的处理器接不住，于是回 500。
+    # 「不做静默修正」包括不许把形状错升级成服务端错。
+    try:
+        value = float(at)
+    except OverflowError:
+        raise EventValidationError(
+            f"at 太大，转不成世界时间：{at}。世界时间以毫秒计，没有这么大的数"
+        ) from None
     if value != value or value in (float("inf"), float("-inf")):
         raise EventValidationError(f"at 必须是有限数，收到 {at!r}")
     if value < 0:

@@ -151,7 +151,15 @@ def _check_at(at: object) -> None:
     # bool 是 int 的子类，单独挡掉：`True` 当世界时间显然是调用方写错了。
     if isinstance(at, bool) or not isinstance(at, (int, float)):
         raise MemoryWriteError(f"at 必须是数字（世界时间 ms），收到 {at!r}")
-    value = float(at)
+    # 与 `events/log.py` 的 `_check_at` 同一道口子：任意精度的整数过得了上面那道
+    # isinstance，却在 `float()` 上炸 OverflowError。那不是 MemoryWriteError，
+    # 写记忆的端点于是回 500，而它该回 422。
+    try:
+        value = float(at)
+    except OverflowError:
+        raise MemoryWriteError(
+            f"at 太大，转不成世界时间：{at}。世界时间以毫秒计，没有这么大的数"
+        ) from None
     if value != value or value in (float("inf"), float("-inf")):
         raise MemoryWriteError("at 必须是有限数")
     if value < 0:

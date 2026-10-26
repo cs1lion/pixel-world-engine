@@ -86,6 +86,23 @@ def test_缺字段报的是缺哪一个(client):
     assert "缺字段 body" in response.json()["detail"]
 
 
+def test_at_大到转不成浮点也是_422_不是_500(client):
+    """`isinstance(at, int)` 收任意精度的整数，`float(at)` 只到 1.8e308。
+
+    中间的巨数过了类型检查，炸出来的是 OverflowError——不是 MemoryWriteError，
+    写记忆的端点于是回 500。而这个端点的每一处拒绝都写着 422。
+    """
+    response = client.post("/api/memory/write", json=body(at=10**400))
+    assert response.status_code == 422, f"回了 {response.status_code}，客户端只认 422"
+    assert "at" in response.json()["detail"]
+
+
+def test_at_为负被拒(client):
+    response = client.post("/api/memory/write", json=body(at=-1))
+    assert response.status_code == 422
+    assert "at" in response.json()["detail"]
+
+
 def test_标题不能当文件名被拒(client):
     response = client.post("/api/memory/write", json=body(title="con"))
     assert response.status_code == 422

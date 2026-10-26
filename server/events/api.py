@@ -36,6 +36,14 @@ from memory.api import register_memory_routes
 from memory.writer import MemoryWriter
 from oracle.api import register_routes as register_oracle_routes
 
+#: 游标 `since` 的上限。SQLite 的 INTEGER 是 64 位有符号，超过它的数绑不进去，
+#: `sqlite3` 抛的是 OverflowError——不是 EventValidationError，于是 `ge=0` 放行的
+#: 一个巨大游标把读接口打成 500。给它一个上限，越界就落到 422 那句话上。
+#:
+#: 不 clamp 而是拒：把一个巨大游标悄悄夹成上限，客户端会以为「后面没有了」，
+#: 而它问的是「第 N 条之后」。那是用静默修正换一个好看的 200。
+MAX_SINCE = 2**63 - 1
+
 router = APIRouter()
 
 
@@ -54,7 +62,12 @@ def _log_of(request: Request) -> EventLog:
 @router.get("/api/events")
 def read_events(
     request: Request,
-    since: int = Query(0, ge=0, description="排他游标：只返回 id 更大的事件"),
+    since: int = Query(
+        0,
+        ge=0,
+        le=MAX_SINCE,
+        description=f"排他游标：只返回 id 更大的事件（不超过 {MAX_SINCE}）",
+    ),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
 ) -> dict[str, object]:
     log = _log_of(request)

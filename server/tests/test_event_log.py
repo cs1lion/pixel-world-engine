@@ -117,6 +117,18 @@ def test_at_必须是有限非负数(log: EventLog, at: object) -> None:
         log.append(kind="world.changed", actor="world", payload={}, at=at)
 
 
+@pytest.mark.parametrize("at", [10**400, -(10**400)])
+def test_at_大到转不成浮点也是形状错_不是_OverflowError(log: EventLog, at: object) -> None:
+    """任意精度的整数过得了 `isinstance(at, int)`，却炸在 `float(at)` 上。
+
+    OverflowError 不是 `EventValidationError`，于是它一路漏到 API 层，
+    读日志的端点回 500。日志的写入方是服务端自己，但「校验器漏一种形状」
+    这件事不该等它真的从网络进来才发现。
+    """
+    with pytest.raises(EventValidationError, match="at"):
+        log.append(kind="world.changed", actor="world", payload={}, at=at)
+
+
 def test_at_是浮点毫秒_原样存回(log: EventLog) -> None:
     event = _append(log, at=12345.5)
     assert log.read()[0].at == 12345.5

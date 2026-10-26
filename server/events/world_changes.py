@@ -182,10 +182,20 @@ def validate_world_change(body: Any) -> tuple[str, float, dict[str, Any]]:
         raise WorldChangeError("信封.at 必须是数字（世界时间毫秒）")
     if at < 0:
         raise WorldChangeError("信封.at 不能为负")
+    # 任意精度的整数过得了上面两道检查，却在 `float()` 上炸 OverflowError。
+    # 它不是 WorldChangeError，写日志的端点于是回 500——而这里每一处拒绝
+    # 都该是 422。`append` 里还有一道 `_check_at`，但那时候异常已经从
+    # 校验层漏出去了，报出来的不再是「信封.at 有问题」这句话。
+    try:
+        at_ms = float(at)
+    except OverflowError:
+        raise WorldChangeError(
+            f"信封.at 太大，转不成世界时间：{at}。世界时间以毫秒计，没有这么大的数"
+        ) from None
 
     payload = _require(body, "payload", dict, "信封")
     check(payload, change)
-    return change, float(at), payload
+    return change, at_ms, payload
 
 
 def _log_of(request: Request) -> EventLog:

@@ -124,6 +124,25 @@ def test_潮位不能是_NaN_或无穷() -> None:
     reject({"command": "tide.setLevel", "args": {"value": float("inf")}}, "type-mismatch")
 
 
+def test_潮位大到转不成浮点也被拒_不能变成_500() -> None:
+    """`isinstance(x, int)` 收的是任意精度的整数，`float()` 只到 1.8e308。
+
+    中间那一大段过得了「必须是数字」那道检查，却在 `float(value)` 上炸
+    OverflowError。它不是 `CommandRejected`，API 层那个转 422 的处理器接不住，
+    于是冻结的失败面多出第四种：500。而 `docs/` 上写着只有三种
+    （503 / 422 / 200+unknown）——多一种，客户端就有一条没处理过的路。
+    """
+    reject(
+        {"command": "tide.setLevel", "args": {"value": 10**400, "durationMs": 60_000}},
+        "type-mismatch",
+    )
+    # 正常的小数照旧收得到：这道口子不许把合法的也一起挡了。
+    command = validate_command(
+        {"command": "tide.setLevel", "args": {"value": 0.25, "durationMs": 60_000}},
+    )
+    assert command.args["value"] == 0.25
+
+
 # ---------------------------------------------------------------- building.add
 
 def test_建楼_模板名与坐标() -> None:

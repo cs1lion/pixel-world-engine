@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from events.api import create_app
+from events.api import MAX_SINCE, create_app
 from events.log import MAX_LIMIT, EventLog
 
 
@@ -98,6 +98,23 @@ def test_读满且后面还有_hasMore_为_true(client_and_log) -> None:
 def test_since_越界或非整数返回_422(client_and_log, since) -> None:
     client, _ = client_and_log
     assert client.get("/api/events", params={"since": since}).status_code == 422
+
+
+def test_since_超过_SQLite_整数上限也返回_422_不是_500(client_and_log) -> None:
+    """SQLite 的 INTEGER 是 64 位有符号，超出去的数绑不进去。
+
+    `sqlite3` 抛的是 OverflowError，不是 `EventValidationError`——API 层那个
+    转 422 的处理器接不住，于是读接口回 500。`ge=0` 只挡住了负数，
+    挡不住「大到不是游标」的那种数。
+
+    不把它夹成上限：客户端问的是「第 N 条之后」，夹一下等于回答「没有了」，
+    那是用静默修正换一个好看的 200。
+    """
+    client, _ = client_and_log
+    response = client.get("/api/events", params={"since": 2**63})
+    assert response.status_code == 422, f"回了 {response.status_code}，客户端只认 422"
+    # 上限本身是合法游标：追平了的客户端传的就是它附近的值。
+    assert client.get("/api/events", params={"since": MAX_SINCE}).status_code == 200
 
 
 @pytest.mark.parametrize("limit", [0, MAX_LIMIT + 1, "abc"])

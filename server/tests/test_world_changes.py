@@ -153,6 +153,19 @@ def test_at_必须是世界时间的非负数(client: TestClient, at) -> None:
     assert "at" in response.json()["detail"]
 
 
+@pytest.mark.parametrize("at", [10**400, -(10**400)])
+def test_at_大到转不成浮点也是_422_不是_500(client: TestClient, at) -> None:
+    """`at < 0` 对任意精度的整数照样判得出来，所以负的巨数在前一道就被拒。
+
+    正的巨数一路走到 `float(at)` 才炸 OverflowError。它不是 `WorldChangeError`，
+    于是这个端点回 500——而它的每一处拒绝都该是 422。世界时间以毫秒计，
+    没有 1e400 这么大的时刻，这不是一个合法但极端的世界时间。
+    """
+    response = post(client, "weather", {"weather": "rain"}, at=at)
+    assert response.status_code == 422, f"回了 {response.status_code}，客户端只认 422"
+    assert "at" in response.json()["detail"]
+
+
 def test_at_省略也被拒(client: TestClient) -> None:
     response = client.post(
         "/api/world/changes", json={"change": "weather", "payload": {"weather": "rain"}}
