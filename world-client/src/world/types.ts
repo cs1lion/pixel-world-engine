@@ -379,6 +379,18 @@ export interface WorldSnapshot {
   /** 全部角色（2–3 个），渲染与状态行都读这里。 */
   readonly villagers: readonly VillagerSnapshot[];
   readonly buildings: readonly PlacedBuilding[];
+  /**
+   * 开局（或读档）那一刻世界**已经有的**楼的实例 id。
+   *
+   * 有了它才能回答「这栋楼是玩家这次玩起来之后造的吗」——而不必去猜。
+   * 猜过的两种猜法都错过：`boundTask === null` 问的是接不接活（民居不接活但是开局落的），
+   * `zone === 'living'` 问的是分区（灯潮界那六栋楼全是 `industry`，同一句话在设定集上原样重现）。
+   *
+   * **不落档。** 读档那一刻，档里所有的楼都算"开局就有"——包括上次玩的时候造的。
+   * 这不是遗漏，是诚实：一个存档证明不了一栋楼是哪一次会话里造的，
+   * 而日报宁可少说一句，不能多说一句假的。
+   */
+  readonly startupBuildingIds: ReadonlySet<string>;
   readonly workstations: readonly WorkstationSnapshot[];
   readonly constructions: readonly ConstructionSnapshot[];
   readonly tasks: readonly TaskRecord[];

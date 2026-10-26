@@ -54,13 +54,15 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     lines.push('还没有交付。祭坛在等第一条神谕。');
   }
 
-  // 「新起」问的是**玩家动过手没有**，「boundTask === null」问的是**这栋楼接不接活**——
-  // 两个问题。民居（zone === 'living'）不接活，却是开局就落好的，一天都没动过。
-  // 拿后一个当前一个的判据，大世界的日报会在玩家什么都没做的那天写
-  // 「造物主新起 5 栋楼」，把五间农舍说成今天的功劳。小世界不落民居，
-  // 所以那条判据在 30×20 的夹具上看着一直是对的——错的是没有人拿大世界问过它。
+  // 「新起」问的是**玩家这次玩起来之后造没造**。答案在快照里存着：
+  // `startupBuildingIds` 之外的就是。不猜——猜过的两种猜法都错过：
+  //   - `boundTask === null` 问的是「接不接活」。民居不接活却是开局落的，
+  //     于是大世界的日报在玩家什么都没做的那天写「造物主新起 5 栋楼」。
+  //   - `zone !== 'living'` 问的是分区。灯潮界那六栋楼全是 `zone: 'industry'` +
+  //     `boundTask: null`，同一句话在设定集上原样重现；而小世界里玩家真能建一间
+  //     民居（白名单只查模板在不在），那条判据又把它整句话吞掉。
   const newBuildings = snapshot.buildings.filter(
-    (building) => building.boundTask === null && building.zone !== 'living',
+    (building) => !snapshot.startupBuildingIds.has(building.instanceId),
   );
   if (newBuildings.length > 0) {
     // 有来由的楼写清来由：那是"被记住"在建筑上的落点。

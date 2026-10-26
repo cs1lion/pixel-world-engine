@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildLargeWorld, buildWorld, placeBlueprint } from '../src/world/setup.ts';
+import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
+import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { composeReport, composeDiary } from '../src/world/report.ts';
 import { syllablePlan } from '../src/audio/animalese.ts';
@@ -262,18 +264,13 @@ test('日报会写上新起的楼与落地的东西', () => {
   assert.ok(report.lines.some((line) => line.includes('造物主新起 1 栋楼')));
 });
 
-test('「新起」问的是玩家动没动手，不是这栋楼接不接活', () => {
-  // 这条是上面那条的防线。判据曾经是 `boundTask === null`——「不接活」。
-  // 民居也不接活，却是开局就落好的。两个问题被当成一个的那天，
-  // 大世界的日报会在玩家什么都没做的那天写「造物主新起 5 栋楼」，
-  // 把五间农舍算成今天的功劳。30×20 的夹具不落民居，所以那一侧永远绿。
+test('玩家一天都没动手时，日报不许写「新起」——大世界', () => {
+  // 判据曾经是 `boundTask === null`（「不接活」）。民居也不接活，却是开局就落好的，
+  // 于是大世界的日报在玩家什么都没做的那天写「造物主新起 5 栋楼」。
+  // 30×20 的夹具不落民居，所以那一侧永远绿——错的是没有人拿大世界问过它。
   const notTakingWork = buildLargeWorld(blueprints)
     .buildings.filter((building) => building.boundTask === null);
   assert.ok(notTakingWork.length > 0, '大世界里一栋「不接活」的楼都没有，这条没在问它想问的');
-  assert.ok(
-    notTakingWork.every((building) => building.zone === 'living'),
-    `开局不接活的楼只剩民居；多了别的（${notTakingWork.map((b) => b.prefabId).join('、')}）说明这条判据又不够用了`,
-  );
 
   const report = composeReport(makeLargeSim().snapshot());
   assert.ok(
@@ -282,8 +279,48 @@ test('「新起」问的是玩家动没动手，不是这栋楼接不接活', ()
   );
 });
 
+test('玩家一天都没动手时，日报不许写「新起」——设定集也照样', () => {
+  // 第二张地图上同一个 bug 原样重现过：改成 `zone !== 'living'` 那一版修好了莞尔镇，
+  // 灯潮界六栋楼却全是 `zone: 'industry'` + `boundTask: null`，那句话一字不改地回来。
+  // 判据现在问的是「这次玩起来之后造的吗」，跟分区、跟接不接活都无关——
+  // 所以这条钉的是**换一张地图也成立**，不是再钉一个分区名。
+  const world = buildSettingWorld(loadSettingPack(DENGCHAO_RAW));
+  const atStart = world.buildings.filter((b) => b.boundTask === null);
+  assert.ok(atStart.length > 0, '灯潮界一栋「不接活」的楼都没有，这条没在问它想问的');
+
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: loadSettingPack(DENGCHAO_RAW).hub,
+    villagerName: loadSettingPack(DENGCHAO_RAW).villagers[0]!.name,
+    wallClock: () => 1000,
+  });
+  const report = composeReport(sim.snapshot());
+  assert.ok(
+    !report.lines.some((line) => line.includes('造物主新起')),
+    `玩家一天都没动手，日报却写了新起的楼：${report.lines.join(' / ')}`,
+  );
+});
+
+test('小世界里玩家建一间民居，日报也写——修完不能修成吞话', () => {
+  // `zone !== 'living'` 那一版在这里静默吞掉了一个真实的玩家动作：意图白名单只查
+  // 模板在不在，不分区，所以小世界（开局不落民居）真能建起一间橡木小屋。
+  // 修之前它靠 `boundTask === null` 蒙对了；改成按分区剪，这句话就整句不见了。
+  const sim = makeSim();
+  sim.enqueue({ kind: 'build', prefabId: 'cottage_oak', instanceId: 'cottage_oak#1' });
+  sim.update(16);
+  assert.ok(
+    sim.snapshot().buildings.some((b) => b.instanceId === 'cottage_oak#1'),
+    '小世界没建成民居，这条测试的夹具不成立',
+  );
+  const report = composeReport(sim.snapshot());
+  const line = report.lines.find((item) => item.includes('造物主新起'));
+  assert.ok(line !== undefined, `玩家建了楼，日报却没写：${report.lines.join(' / ')}`);
+  assert.ok(line.includes('造物主新起 1 栋楼'), `只该数玩家那一栋：${line}`);
+});
+
 test('大世界里玩家真建了楼，日报照写，而且只数玩家建的那一栋', () => {
-  // 修完不能修成一句废话：民居是不写了，玩家建的也得写。
+  // 修完不能修成一句废话：开局那几栋是不写了，玩家建的也得写。
   const sim = makeLargeSim();
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#1' });
   sim.update(16);
@@ -294,6 +331,37 @@ test('大世界里玩家真建了楼，日报照写，而且只数玩家建的�
   assert.ok(
     !line.includes('小屋') && !line.includes('农舍'),
     `民居被算进「新起」了：${line}`,
+  );
+});
+
+test('读档之后，上一次造的楼不算「这次新起」——证不明就不判', () => {
+  // 存档证明不了一栋楼是哪一次会话里造的。读档那一刻档里所有的楼都算"开局就有"，
+  // 于是报纸宁可少说一句，不多说一句假的。少说一句的代价是这一句，
+  // 多说一句的代价是又一场「造物主新起 6 栋楼」。
+  const played = makeSim();
+  played.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#1' });
+  played.update(16);
+  assert.ok(
+    composeReport(played.snapshot()).lines.some((line) => line.includes('造物主新起 1 栋楼')),
+    '同一场里刚建的楼，报纸该写',
+  );
+
+  const save = played.toSave();
+  const fresh = buildWorld(blueprints);
+  const reloaded = Simulation.fromSave(JSON.parse(JSON.stringify(save)), {
+    grid: fresh.grid,
+    buildings: fresh.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    wallClock: () => 1000,
+  });
+  assert.ok(
+    reloaded.snapshot().buildings.some((b) => b.instanceId === 'plot#1'),
+    '读档没把那一栋读回来，这条测试的夹具不成立',
+  );
+  assert.ok(
+    !composeReport(reloaded.snapshot()).lines.some((line) => line.includes('造物主新起')),
+    `读档后报纸把上一次造的楼说成这一次新起的：${composeReport(reloaded.snapshot()).lines.join(' / ')}`,
   );
 });
 

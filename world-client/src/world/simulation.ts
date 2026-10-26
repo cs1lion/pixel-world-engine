@@ -341,6 +341,8 @@ export class Simulation {
     | undefined;
 
   private readonly buildings: PlacedBuilding[];
+  /** 开局那一刻就有的楼。见 `WorldSnapshot.startupBuildingIds`。 */
+  private readonly startupBuildingIds: ReadonlySet<string>;
   private readonly villagers: Villager[];
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
@@ -444,6 +446,9 @@ export class Simulation {
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
     this.buildings = [...deps.buildings];
+    // 开局（读档也是开局）那一刻就有的楼。之后 `build` 推进来的都不在这个集合里，
+    // 于是「这次玩起来之后造的吗」是一个查得到的事实，不是一个猜出来的判据。
+    this.startupBuildingIds = new Set(this.buildings.map((building) => building.instanceId));
     this.seedInstanceIds();
     const names = deps.villagerNames ?? [deps.villagerName, DEFAULT_ASSISTANT_NAME];
     this.beats = names.map((_, index) => deps.villagerProfiles?.[index]?.routine ?? routineBeats(deps.altar, deps.grid));
@@ -581,6 +586,7 @@ export class Simulation {
       villager: villagers[0] as VillagerSnapshot,
       villagers,
       buildings: this.buildings,
+      startupBuildingIds: this.startupBuildingIds,
       workstations,
       constructions,
       tasks: this.tasks.map((task) => ({ ...task })),
@@ -1758,6 +1764,16 @@ export class Simulation {
     return { ok: true, message: `${spawned.building.displayName} 开工建造。` };
   }
 
+  /**
+   * 开局（读档也是开局）那一刻就有的楼。之后 `build` 推进来的都不在这个集合里，
+   * 于是「这次玩起来之后造的吗」是一个查得到的事实，不是一个猜出来的判据。
+   *
+   * 读档后要再调一次：`fromSave` 先构造（拿空壳世界的楼记一遍），再把档里的楼换进去。
+   */
+  private rememberStartupBuildings(): void {
+    this.startupBuildingIds = new Set(this.buildings.map((building) => building.instanceId));
+  }
+
   // ---------------------------------------------------------------- villagers
 
   private pendingOf(villager: Villager): PendingDispatch[] {
@@ -2521,6 +2537,10 @@ export class Simulation {
     sim.buildings.push(...world.buildings.map((building) => ({ ...building })));
     // 编号水位按幸存建筑重推：幸存的 id 一个不变，新建的号一定比它们大。
     sim.seedInstanceIds();
+    // 构造时记的是 `deps.buildings`——那是个空壳世界的几栋常驻铺子，不是档里这些。
+    // 不重算的话，读档后「这次新起的」会把上一次会话造的楼也算进来，
+    // 而那句话正是这笔改动要堵的。少说一句比多说一句假话好。
+    sim.rememberStartupBuildings();
 
     for (const saved of world.villagers) {
       const villager = sim.villagers.find((item) => item.id === saved.id);
