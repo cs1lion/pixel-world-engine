@@ -12,7 +12,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -55,6 +55,54 @@ test('world/simulation.ts 不认识 lampoil', () => {
     !text.includes('lampoil'),
     '灯油只活在渲染层：simulation 一引用它，「固定步长、无内部时钟、可确定性回放」就没了',
   );
+});
+
+/** 世界里碰过 `lampOil` 的文件，以及各自被允许怎么碰。
+ *
+ * 这份清单是**白名单**，不是备忘：新开一个世界文件提到 `lampOil`，下面那条
+ * 扫描立刻红，逼人决定「它该不该在这张表里」。
+ *
+ * - `types.ts`：`VillagerSnapshot` 的字段声明。渲染层从快照读油，走的是这条路。
+ * - `simulation.ts`：五处纯搬运——声明、初始化、快照、存、读回。
+ * - `save.ts`：读档时的范围校验（0..1）与老档补默认值。那是**形状**检查，
+ *   不是世界判定：一个越界的数不会让世界走不同的路，只会让存档被拒。
+ * - `lampoil.ts`：模型自己，注释里提到存档字段名。
+ */
+const MAY_TOUCH_LAMPOIL: Readonly<Record<string, string>> = {
+  'types.ts': 'VillagerSnapshot 的字段声明',
+  'simulation.ts': '五处纯搬运',
+  'save.ts': '读档范围校验与老档补默认值',
+  'lampoil.ts': '模型自己',
+};
+
+/** 判定一行是不是在**拿油量做决定**。 */
+const DECIDES_ON_OIL = /[<>]=?|===?|!==|[+*/]|\?|&&|\|\||\bif\b|\bwhile\b|\bfor\b/;
+
+test('除了清单上那几个文件，世界没人碰灯油', () => {
+  // SPEC §4.2 的铁律是「灯油衰减只活在渲染层，不进 Simulation」。
+  // 原先那条扫描只看 `simulation.ts`——于是「油尽了不走这条路」写进 `grid.ts`
+  // 或 `bustle.ts`，全套照旧绿。铁律守的是整个 `world/`，不是一个文件。
+  const worldDir = fileURLToPath(new URL('../src/world', import.meta.url));
+  const strays: string[] = [];
+  for (const entry of readdirSync(worldDir)) {
+    if (!entry.endsWith('.ts')) continue;
+    const rel = entry;
+    const text = readFileSync(`${worldDir}/${entry}`, 'utf8');
+    if (!text.includes('lampOil')) continue;
+    if (MAY_TOUCH_LAMPOIL[rel] === undefined) {
+      strays.push(`${rel}：提到了 lampOil，而它不在清单里（${Object.keys(MAY_TOUCH_LAMPOIL).join(' / ')}）`);
+      continue;
+    }
+    // 在清单里的，也只许搬运。`save.ts` 例外：那里的 `>` 是读档校验，不是世界判定。
+    if (rel === 'save.ts' || rel === 'lampoil.ts') continue;
+    for (const [index, line] of text.split('\n').entries()) {
+      if (!line.includes('lampOil')) continue;
+      if (DECIDES_ON_OIL.test(line)) {
+        strays.push(`${rel}:${index + 1} 在拿油量做决定：${line.trim()}`);
+      }
+    }
+  }
+  assert.deepEqual(strays, [], `灯油只活在渲染层：\n${strays.join('\n')}`);
 });
 
 test('灯油模型不 import Phaser、不 import simulation', () => {
