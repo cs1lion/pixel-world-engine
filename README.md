@@ -39,6 +39,19 @@ cd world-client && npm run dev:live
 
 要接模型，复制 `server/.env.example` 成 `server/.env` 并填 Key。服务端启动时会读它，**只打印读到了哪些变量名，不打印值**。
 
+## 选一个世界
+
+两个世界共用同一套模拟、同一套命令协议，只是设定集不同：
+
+| 地址 | 世界 | 存档槽 |
+| --- | --- | --- |
+| `/`（省略参数） | 莞尔镇：旧的 96×72 大世界 | `xiaoxi.pixel-world.save.v1` |
+| `/?world=dengchao` | 灯潮界：64×48 的渡口—灯街—叠浪楼 | `dengchao.pixel-world.save.v1` |
+
+两套存档各自独立：在一个世界里清档、导入或坏档备份都不会碰另一个。存档 schema 仍是同一份冻结的 v3。
+
+灯潮界的实现范围（哪些设定真的跑起来了、哪些还没有）见 [`docs/SETTING_DENGCHAO.md`](docs/SETTING_DENGCHAO.md)。
+
 ## 验证
 
 ```bash
@@ -57,6 +70,24 @@ cd world-client && npm run test:live
 
 它走真实 HTTP：一句话 → 服务端白名单 → 回到世界 → 世界里真的多了一栋楼；一句办不到的话 → 具体原因回到回执上；停掉服务端 → 世界照常过日子，顶栏改说「上游离线」。
 
+**两个世界各跑一遍。** 换设定集不只是换皮：模板表、世界尺寸、合法落位都不一样，
+所以灯潮界那一条会另外验「发出去的确实是这张图的模板表」与「两套存档互不覆盖」。
+
+另有一条只验画面的灯潮界验收，不需要服务端（世界用 `?feed=off` 离线自转），
+但需要一个跑着的 Vite：区域标签、居民走动、拨潮改画面、两套存档互不串。
+
+```bash
+cd world-client && npm run dev
+```
+
+（另开一个终端跑下面这条。）
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
+```
+
+不设 `PIXEL_WORLD_URL` 时默认找 `http://127.0.0.1:5188/`（`npm run dev:live` 的前端端口）。
+
 ## 与旧仓的关系
 
 渲染与模拟内核来自 `cs1lion/xiaoxi` 的 `pixel-world/`。旧仓保留为参考，不再演进。
@@ -65,4 +96,8 @@ cd world-client && npm run test:live
 ## 状态
 
 P0 真实命令闭环已通：生产世界上下文接进意图端点，拒绝原因一路回到用户手上，命令与实例 id 的协议有测试钉住。
-设定集 B 与时间线记忆还没开始。
+
+灯潮界首版已落地：五个户外区域、两位自主居民、真实潮汐（淹低地、改路径代价、驱动作息）、
+灯油只改画面的衰减，以及每套设定集独立的存档槽。范围与未实现项见 `docs/SETTING_DENGCHAO.md`。
+
+时间线记忆还没开始。

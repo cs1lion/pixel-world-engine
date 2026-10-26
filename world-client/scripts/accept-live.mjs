@@ -41,6 +41,14 @@ const STUB_PORT = Number(process.env.LIVE_STUB_PORT ?? 8012);
 /** 这次验收要盖的那栋楼。大世界里这一格是合规的工业区空地。 */
 const PLOT = { x: 18, y: 22 };
 
+/**
+ * 灯潮界那一条：渡口码头上的空地。
+ *
+ * 必须自己挑一格，不能沿用默认世界的坐标——两个地图尺寸与地形都不同
+ * （64×48 对 96×72）。这一格是石砌码头，永远在潮线之上，涨潮也不会被淹。
+ */
+const DENGCHAO_PLOT = { x: 20, y: 15 };
+
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 const portOpen = (port) =>
@@ -89,6 +97,11 @@ const STUB_ANSWERS = new Map([
     // 世界之外的东西：雪不在天气的三档里。白名单应当拒，且说清可选什么。
     '让天上掉雪',
     { commands: [{ command: 'weather.set', args: { value: 'snow' } }] },
+  ],
+  [
+    // 灯潮界这一句同样以「建」以外的词打头，一定会落到服务端。
+    '在渡口张罗一座候车亭',
+    { commands: [{ command: 'building.add', args: { prefabId: 'waiting_shelter', at: DENGCHAO_PLOT } }] },
   ],
 ]);
 
@@ -380,7 +393,71 @@ async function main() {
       '刷新后那栋楼还是同一栋（实例 id 不变）',
     );
 
-    // ---- 6) 停掉服务端：世界照常过日子，但状态行说实话
+    // ---- 6) 换一套设定集，同一条闭环再走一遍
+    //
+    // 只验默认世界等于只验了协议，没验命是不是真能落到另一张图上：
+    // 灯潮界的蓝图 id、区域、地形全不一样，模板表随请求换了一份。
+    await page.goto(`http://127.0.0.1:${CLIENT_PORT}/?world=dengchao`, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20_000 });
+    check(browserErrors.length === 0, '灯潮界加载无 JS 报错');
+
+    const denOpening = await state();
+    check(denOpening.buildings.length > 0, '灯潮界开局有楼');
+    check(
+      denOpening.buildings.every((building) => building.prefabId !== 'waiting_shelter'),
+      '灯潮界开局没有候车亭',
+    );
+
+    await say('在渡口张罗一座候车亭');
+    const denBuilt = await waitFor(
+      (snapshot) => snapshot.buildings.some((b) => b.prefabId === 'waiting_shelter'),
+      '候车亭出现在灯潮界',
+    );
+    const shelter = denBuilt.buildings.find((b) => b.prefabId === 'waiting_shelter');
+    check(shelter !== undefined, '灯潮界里真的多了一座候车亭');
+    check(
+      shelter.origin.x === DENGCHAO_PLOT.x && shelter.origin.y === DENGCHAO_PLOT.y,
+      '建在了模型说的那一格（灯潮界自己的坐标）',
+    );
+    check(
+      shelter.zone === 'industry',
+      '新楼落在灯潮界声明的建造分区里',
+    );
+    const denReply = await page.textContent('#reply');
+    check(
+      denReply !== null && denReply.includes('开工建造'),
+      `灯潮界的回执说清做了什么：${denReply}`,
+    );
+
+    // 模板表确实换了一份：服务端看到的是灯潮界的七种模板，不是默认世界那一套。
+    // 断言按「含灯潮界的、不含默认世界的」来写，不钉总数——模板表还会长。
+    const denRequest = intentRequests.find((r) => r.utterance === '在渡口张罗一座候车亭');
+    check(denRequest !== undefined, '灯潮界那句话走到了服务端');
+    const denTemplateIds = (denRequest?.templates ?? []).map((t) => t.id);
+    check(
+      denTemplateIds.includes('waiting_shelter') && !denTemplateIds.includes('workshop_plot'),
+      `灯潮界发的是自己的模板表：${denTemplateIds.join(' / ')}`,
+    );
+    check(
+      JSON.stringify(denRequest?.worldSize) === JSON.stringify({ width: 64, height: 48 }),
+      '灯潮界的世界尺寸随请求到了服务端',
+    );
+    const denSystem = stub.calls
+      .filter((call) => call.utterance === '在渡口张罗一座候车亭')
+      .at(-1)?.messages.find((message) => message.role === 'system')?.content;
+    check(
+      typeof denSystem === 'string' && denSystem.includes('候车亭'),
+      '服务端给模型的提示词里带着灯潮界的模板',
+    );
+
+    // 默认世界的存档不能因为打开过灯潮界就消失：两套槽各自独立。
+    check(
+      (await page.evaluate(() => localStorage.getItem('xiaoxi.pixel-world.save.v1'))) !== null,
+      '打开灯潮界没有覆盖默认世界的存档',
+    );
+    await page.screenshot({ path: join(OUT, '05-dengchao-built.png') });
+
+    // ---- 7) 停掉服务端：世界照常过日子，但状态行说实话
     killTree(api);
     await sleep(500);
     await page.waitForFunction(

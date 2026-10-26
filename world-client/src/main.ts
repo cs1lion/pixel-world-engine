@@ -36,6 +36,24 @@ const worldTitle = document.querySelector<HTMLElement>('#world-title');
 if (worldTitle !== null) worldTitle.textContent = pack.name;
 const brand = document.querySelector<HTMLElement>('#topbar .brand');
 if (brand !== null) brand.textContent = pack.name;
+/**
+ * 输入框里的例子必须在这张图上真能办到。
+ *
+ * `index.html` 写死的是「建一间工坊」——那是莞尔镇的模板。灯潮界没有工坊，
+ * 照抄这句就是给用户一个注定被拒的例子。有设定集的图改用自己**还没落位**的
+ * 模板：那个模板本来就为「能建一栋」留着的。
+ */
+const unplaced = pack.authored
+  ? [...pack.blueprints.values()].find(
+      (blueprint) => !pack.placements.some((placement) => placement.prefabId === blueprint.id),
+    )
+  : undefined;
+if (unplaced !== undefined) {
+  const utterance = document.querySelector<HTMLInputElement>('#utterance');
+  if (utterance !== null) {
+    utterance.placeholder = `对世界说一句话：建一座${unplaced.displayName} / 涨潮 / 查一下资料`;
+  }
+}
 const world = pack.authored
   ? worldForSetting(pack, loadedSave.ok ? loadedSave.save.world.buildings : undefined)
   : loadedSave.ok
