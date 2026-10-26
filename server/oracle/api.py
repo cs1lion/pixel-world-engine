@@ -189,7 +189,14 @@ def command_to_intent(command: Any) -> dict[str, Any] | None:
     if name == "villager.carry":
         # 渡有仪式：名字原样到客户端——`carries` 已经是闭集里的词。
         # 客户端 `applyIntent` 再把它翻成 id，那是世界才知道的事。
-        return {"kind": "carry", "villager": args["villager"], "carries": args["carries"]}
+        # 给与收是两条路：给是整锅换上，收是从现有的里减（`remove`）。
+        # 两个键必须且只能给一个，`rules/schema.py` 已经挡过。
+        intent: dict[str, Any] = {"kind": "carry", "villager": args["villager"]}
+        if "remove" in args:
+            intent["remove"] = args["remove"]
+        else:
+            intent["carries"] = args["carries"]
+        return intent
     # `npc.setSchedule` 在白名单里，但客户端与世界都还没有这条意图。
     # 返回 None → 落 unknown 并说清，而不是装作执行了。
     return None

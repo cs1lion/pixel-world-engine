@@ -57,7 +57,7 @@ ALLOWED_KEYS: dict[str, frozenset[str]] = {
     # 两个键都在表里，但必须且只能给一个：见 `validate_intent` 的 demolish 分支。
     "demolish": frozenset({"kind", "instanceId", "templateId"}),
     "miracle": frozenset({"kind", "miracle", "at"}),
-    "carry": frozenset({"kind", "villager", "carries"}),
+    "carry": frozenset({"kind", "villager", "carries", "remove"}),
     "unknown": frozenset({"kind", "reason"}),
 }
 
@@ -117,13 +117,15 @@ def to_command(intent: dict[str, Any], world: dict[str, Any] | None = None) -> C
             args["at"] = intent["at"]
         return validate_command({"command": "miracle.spawn", "args": args}, world)
     if kind == "carry":
-        return validate_command(
-            {
-                "command": "villager.carry",
-                "args": {"villager": intent["villager"], "carries": intent["carries"]},
-            },
-            world,
-        )
+        # 给与收是两条路：给是整锅换上，收是世界从她现有的里减。
+        # 「收回她的鞋」走 carries: [] 会把她手里的灯一起拿走——用户要的
+        # 只是一双鞋。收走那条走 remove，两个键必须且只能给一个。
+        args: dict[str, Any] = {"villager": intent["villager"]}
+        if "remove" in intent:
+            args["remove"] = intent["remove"]
+        else:
+            args["carries"] = intent["carries"]
+        return validate_command({"command": "villager.carry", "args": args}, world)
     return None
 
 
@@ -177,29 +179,41 @@ def validate_intent(raw: Any, world: dict[str, Any] | None = None) -> tuple[dict
         # 按**名字**点人，与客户端 `carry` 意图同源：上下文只给得起名字。
         # 那个人在不在，是世界判的事——这里只管形状。
         _non_empty(raw, "villager", "villager")
-        _carries(raw)
+        has_carries = "carries" in raw
+        has_remove = "remove" in raw
+        if has_carries and has_remove:
+            raise WireError("carry 只能给 carries 或 remove 之一，不能同时给")
+        if not has_carries and not has_remove:
+            raise WireError("carry 需要 carries（给她什么）或 remove（收走什么）")
+        _carry_list(raw, "carries" if has_carries else "remove")
     elif kind == "unknown":
         _non_empty(raw, "reason", "reason")
 
     return raw, to_command(raw, world)
 
 
-def _carries(raw: dict[str, Any]) -> None:
+def _carry_list(raw: dict[str, Any], field: str) -> None:
     """凭证清单：必须是数组，且每一件都在闭集里。
 
-    空数组合法——「让她两手空空」是说得出口的。只有给没有收，
+    `carries` 的空数组合法——「让她两手空空」是说得出口的。只有给没有收，
     那道门就永远开着，世界再也回不到没人有灯的样子。
+
+    `remove` 不行：一件都不收，那句话就是没说话。与客户端 `readCarryList`
+    逐条同源——两边的错话不一样，用户看到的就是「同样一句话，
+    换个入口就换种拒法」。
     """
-    if "carries" not in raw:
-        raise WireError("carries 缺字段：要带什么，一件都没有就是两手空空")
-    carries = raw["carries"]
+    if field not in raw:
+        raise WireError(f"{field} 缺字段：要带什么，一件都没有就是两手空空")
+    carries = raw[field]
     if not isinstance(carries, list):
-        raise WireError("carries 必须是数组")
+        raise WireError(f"{field} 必须是数组")
     for item in carries:
         if not isinstance(item, str) or item not in CARRY_ITEMS:
             raise WireError(
-                f"carries 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}"
+                f"{field} 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}"
             )
+    if field == "remove" and not carries:
+        raise WireError("remove 至少要有一件：一件都不收，那句话就是没说话")
 
 
 def _tide(raw: dict[str, Any]) -> None:

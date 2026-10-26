@@ -23,12 +23,15 @@
 import type { CarryItem } from './types.ts';
 import { hasNarrativeMarker, isQuestion, stripLeadIns } from './imperative.ts';
 
-export interface CarryIntent {
-  /** 收件人。名字，不是 id——离线规则手里没有 id。 */
-  readonly villager: string;
-  /** 空数组是收走：两手空空。 */
-  readonly carries: readonly CarryItem[];
-}
+/**
+ * 交接意图：给她什么，或从她手里收走什么。
+ *
+ * 两个方向分成两个形状，不共用一个可选字段——`'remove' in intent`
+ * 才是靠得住的判别，`intent.remove !== undefined` 在两边都可能成立。
+ */
+export type CarryIntent =
+  | { readonly villager: string; readonly carries: readonly CarryItem[] }
+  | { readonly villager: string; readonly remove: readonly CarryItem[] };
 
 /**
  * 凭证的说法。长的优先匹配：「一盏灯」不该被「灯」抢先切碎。
@@ -87,7 +90,7 @@ function takeOf(body: string): CarryIntent | null {
     const found = SORTED_WORDS.find((entry) => rest.includes(entry.word));
     if (found === undefined) return null;
     // 那件东西先从这半句里抹掉再取名字：不抹的话「汐的灯」里名字就成了「汐的灯」。
-    return named(firstNameOf(rest.replace(found.word, ' ')), []);
+    return named(firstNameOf(rest.replace(found.word, ' ')), [], [found.kind]);
   }
 
   // 东西打头：「把汐的灯收走」。动词在句尾，所以「把」打头也算祈使。
@@ -95,7 +98,7 @@ function takeOf(body: string): CarryIntent | null {
   if (handed === null) return null;
   const found = SORTED_WORDS.find((entry) => (handed[1] ?? '').includes(entry.word));
   if (found === undefined) return null;
-  return named(firstNameOf((handed[1] ?? '').replace(found.word, ' ')), []);
+  return named(firstNameOf((handed[1] ?? '').replace(found.word, ' ')), [], [found.kind]);
 }
 
 /** 「给汐一盏灯」与「把一盏灯给汐」。 */
@@ -106,7 +109,7 @@ function giveOf(body: string): CarryIntent | null {
     const rest = body.slice(head.length);
     const found = SORTED_WORDS.find((entry) => rest.endsWith(entry.word));
     if (found === undefined) return null;
-    return named(firstNameOf(rest.slice(0, rest.length - found.word.length)), [found.kind]);
+    return named(firstNameOf(rest.slice(0, rest.length - found.word.length)), [found.kind], []);
   }
 
   // 东西打头：「把一盏灯给汐」。动词不在句首，得从句子当中找。
@@ -115,7 +118,7 @@ function giveOf(body: string): CarryIntent | null {
   const item = body.slice(0, hand.at);
   const found = SORTED_WORDS.find((entry) => item.includes(entry.word));
   if (found === undefined) return null;
-  return named(firstNameOf(body.slice(hand.at + hand.verb.length)), [found.kind]);
+  return named(firstNameOf(body.slice(hand.at + hand.verb.length)), [found.kind], []);
 }
 
 /** 句子里第一个交接动词在哪儿、是哪个。 */
@@ -135,9 +138,13 @@ function firstGiveAt(body: string): { readonly at: number; readonly verb: string
  * 「送灯」说的是给出去一件东西，没说给谁——那是半句话，不是命令。
  * 老实返回 null 让它落进 unknown，世界会问「说给谁」。猜一个最近的居民，
  * 就是把她的兜动了，而用户从没要求过。
+ *
+ * 给与收是两个方向：`gives` 是整锅换上，`takes` 是从现有的里减。
+ * 一句话不会同时是两者——动词表互不抢词。
  */
-function named(villager: string, carries: readonly CarryItem[]): CarryIntent | null {
-  return villager.length === 0 ? null : { villager, carries };
+function named(villager: string, gives: readonly CarryItem[], takes: readonly CarryItem[]): CarryIntent | null {
+  if (villager.length === 0) return null;
+  return takes.length > 0 ? { villager, remove: takes } : { villager, carries: gives };
 }
 
 /**

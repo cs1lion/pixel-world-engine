@@ -84,8 +84,14 @@ export type ParsedIntent =
    *
    * `carries` 是闭集，与区域声明的 `requires` 同一套词（`gate.ts`）。
    * 空数组是「两手空空」，是说得出口的：只有给没有收，那道门就永远开着。
+   *
+   * **给与收必须且只能给一个**，与 `demolish` 的 instanceId/templateId 同一条规矩。
+   * 收走不是「给一个更短的清单」：世界那边 `setCarries` 是整锅换上，
+   * 「收回她的鞋」若翻成 `carries: []`，会把她手里的灯一起拿走。
+   * 所以收要走 `remove`——世界从她现有的里减。
    */
-  | { readonly kind: 'carry'; readonly villager: string; readonly carries: readonly CarryItem[] }
+  | { readonly kind: 'carry'; readonly villager: string; readonly carries: readonly CarryItem[]; readonly remove?: never }
+  | { readonly kind: 'carry'; readonly villager: string; readonly remove: readonly CarryItem[]; readonly carries?: never }
   /** 明确表示"没听懂"。带一句给用户看的说明。 */
   | { readonly kind: 'unknown'; readonly reason: string };
 
@@ -112,7 +118,9 @@ export const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
   // 两个键都在表里，但**必须且只能给一个**：见 `demolish` 的两种形状。
   demolish: ['kind', 'instanceId', 'templateId'],
   miracle: ['kind', 'miracle', 'at'],
-  carry: ['kind', 'villager', 'carries'],
+  // 四个键都在表里，但 carries 与 remove **必须且只能给一个**：
+  // 给是整锅换上，收是从现有的里减。混着给，世界不知道该照哪句办。
+  carry: ['kind', 'villager', 'carries', 'remove'],
   unknown: ['kind', 'reason'],
 };
 
@@ -204,14 +212,21 @@ export function parseIntent(
         miracle: readOneOf(record.miracle, MIRACLES, 'miracle', fail),
         at: readPoint(record.at, worldSize, fail),
       };
-    case 'carry':
-      return {
-        kind: 'carry',
-        villager: readNonEmpty(record.villager, 'villager', fail),
-        // 闭集在**这儿**就挡掉，不等世界再答一遍：模型不该有机会让世界收到
-        // 一个世界上不存在的东西。逐件查，不整锅端——部分接受比整条拒更难查。
-        carries: readCarries(record, fail),
-      };
+    case 'carry': {
+      const villager = readNonEmpty(record.villager, 'villager', fail);
+      const hasCarries = 'carries' in record;
+      const hasRemove = 'remove' in record;
+      // 两条路只能走一条，与 `demolish` 的 instanceId/templateId 同一条规矩。
+      if (hasCarries && hasRemove) {
+        fail('carry 只能给 carries 或 remove 之一，不能同时给');
+      }
+      if (!hasCarries && !hasRemove) {
+        fail('carry 需要 carries（给她什么）或 remove（收走什么）');
+      }
+      return hasRemove
+        ? { kind: 'carry', villager, remove: readCarryList(record.remove, 'remove', fail) }
+        : { kind: 'carry', villager, carries: readCarryList(record.carries, 'carries', fail) };
+    }
     case 'unknown':
       return { kind: 'unknown', reason: readNonEmpty(record.reason, 'reason', fail) };
   }
@@ -224,22 +239,28 @@ export function parseIntent(
  * 后者是填了世界上不存在的东西。合成一句，用户明明什么都没填，
  * 却收到「必须是数组」——那句话是假的，比不报更糟。
  * 服务端 `rules/schema.py` 的 `_villager_carry` 也是这么分的。
+ *
+ * 闭集在**这儿**就挡掉，不等世界再答一遍：模型不该有机会让世界收到
+ * 一个世界上不存在的东西。逐件查，不整锅端——部分接受比整条拒更难查。
+ *
+ * `carries` 可以是空数组（「让她两手空空」）；`remove` 不行——一件都不收，
+ * 那句话就是没说话，该让用户把话说完，而不是记一次什么都没发生的收缴。
  */
-function readCarries(
-  record: Record<string, unknown>,
+function readCarryList(
+  value: unknown,
+  field: string,
   fail: (why: string) => never,
 ): readonly CarryItem[] {
-  if (!('carries' in record)) {
-    fail('carries 缺字段：要带什么，一件都没有就是两手空空');
-  }
-  const value = record.carries;
-  if (!Array.isArray(value)) fail('carries 必须是数组');
+  if (!Array.isArray(value)) fail(`${field} 必须是数组`);
   const out: CarryItem[] = [];
   for (const item of value as unknown[]) {
     if (typeof item !== 'string' || !isCarryItem(item)) {
-      fail(`carries 的 "${String(item)}" 不是这个世界上认得的凭证：可选 lamp / shoes`);
+      fail(`${field} 的 "${String(item)}" 不是这个世界上认得的凭证：可选 lamp / shoes`);
     }
     out.push(item);
+  }
+  if (field === 'remove' && out.length === 0) {
+    fail('remove 至少要有一件：一件都不收，那句话就是没说话');
   }
   return out;
 }

@@ -66,6 +66,11 @@
       "why": "收缴凭证：空数组是说得出口的。只有给没有收，那道门就永远开着",
       "command": { "command": "villager.carry", "args": { "villager": "莞尔", "carries": [] } },
       "intent": { "kind": "carry", "villager": "莞尔", "carries": [] }
+    },
+    {
+      "why": "收走一件：remove 是减法，不动她其余的。翻成 carries: [] 会把灯一起拿走——用户要的只是一双鞋",
+      "command": { "command": "villager.carry", "args": { "villager": "莞尔", "remove": ["shoes"] } },
+      "intent": { "kind": "carry", "villager": "莞尔", "remove": ["shoes"] }
     }
   ]
 }

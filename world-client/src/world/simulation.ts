@@ -197,8 +197,14 @@ export type WorldCommand =
    *
    * 整体替换而不是增删：白名单命令说出口的必须是完整事实，
    * 「加一双鞋」那种半句会让世界和说话的人对不上账。
+   * **说话的人得知道她此刻带着什么，才说得出这个完整事实。**
+   * 喂给模型的现状里有 `carries`，模型算得出来；离线规则没有名册也没有
+   * 兜里有什么，它算不出来。所以另有一条 `removeCarries`：它说的不是
+   * 结果，是动作——世界从她现有的里减。没有它，「收回她的鞋」只能翻成
+   * `carries: []`，那会把她手里的灯一起拿走，而用户要的只是一双鞋。
    */
-  | { readonly kind: 'setCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] };
+  | { readonly kind: 'setCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] }
+  | { readonly kind: 'removeCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] };
 
 export interface NewBuilding {
   readonly building: PlacedBuilding;
@@ -341,8 +347,13 @@ export class Simulation {
     | undefined;
 
   private readonly buildings: PlacedBuilding[];
-  /** 开局那一刻就有的楼。见 `WorldSnapshot.startupBuildingIds`。 */
-  private readonly startupBuildingIds: ReadonlySet<string>;
+  /**
+   * 开局那一刻就有的楼。见 `WorldSnapshot.startupBuildingIds`。
+   *
+   * 不是 `readonly`：读档后要重记一次（`rememberStartupBuildings`）。
+   * 构造时记的是 `deps.buildings`——空壳世界的几栋常驻铺子，不是档里这些。
+   */
+  private startupBuildingIds: ReadonlySet<string>;
   private readonly villagers: Villager[];
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
@@ -673,6 +684,8 @@ export class Simulation {
         return this.setNameState(command.villagerId, command.nameState);
       case 'setCarries':
         return this.setCarries(command.villagerId, command.carries);
+      case 'removeCarries':
+        return this.removeCarries(command.villagerId, command.carries);
     }
   }
 
@@ -962,10 +975,17 @@ export class Simulation {
           this.log('warn', target.message);
           return { ok: false, message: target.message };
         }
-        return this.settleIntent(
-          { kind: 'setCarries', villagerId: target.villager.id, carries: intent.carries },
-          raw,
-        );
+        // 给是整锅换上，收是从现有的里减——两条路不能混。
+        // 「收回她的鞋」走 `carries: []` 会把她手里的灯一起拿走。
+        return intent.remove !== undefined
+          ? this.settleIntent(
+              { kind: 'removeCarries', villagerId: target.villager.id, carries: intent.remove },
+              raw,
+            )
+          : this.settleIntent(
+              { kind: 'setCarries', villagerId: target.villager.id, carries: intent.carries },
+              raw,
+            );
       }
       case 'unknown': {
         // 原样回给用户。到这里的原因已经过校验（非空），比我另编一句有用——
@@ -1250,17 +1270,28 @@ export class Simulation {
     // 读档后对账前：上游单只读展示，不派活。
     if (!this.feedReconciled) return;
     for (const task of this.nextFeedTasks()) {
+      // 原地办的短活不挑铺子：quick 这类压根不去铺子。曾和别的活一起走到
+      // pickVenue，于是回一句「这座镇子没有接 quick 的铺子」——把「这类活
+      // 不占铺子」说成了「这座镇子缺一座铺子」。而那座镇子可能明明有六栋。
+      if (TASK_PROFILES[task.kind].venue === 'in_place') {
+        this.startInPlace(villager, task, '上游');
+        return;
+      }
       // 上游活只去镇内铺子：那是本地确定性工作。郊野留给探索性的神谕活。
       const chosen = pickVenue(this.venueCandidates(), task.kind, 'feed');
       if (!chosen.ok) {
-        // 「没有空闲的镇内铺子」和「这座镇子没有接这类活的铺子」是两句不同的话。
-        // 混成一句就是撒谎：灯潮界六栋楼 boundTask 全是 null，这时候说
-        // 「没有空闲的」等于告诉用户「有，只是忙」——它一栋都没有。
+        // 三句不同的话，混成一句就是撒谎：
+        //   - 灯潮界六栋楼 boundTask 全是 null，这时候说「没有空闲的」等于
+        //     告诉用户「有，只是忙」——它一栋都没有；
+        //   - 反过来，镇内被拆空了、只剩郊野铺子时，说「没有空闲的镇内铺子」
+        //     也断言了镇内有——而镇内一栋都不剩（demolish 拆得出来）。
         this.log(
           'warn',
           chosen.reason === 'none'
             ? `这座镇子没有接 ${task.kind} 的铺子，「${task.summary}」派不出去。`
-            : `没有空闲的镇内铺子承接 ${task.kind}，「${task.summary}」先等着。`,
+            : chosen.reason === 'wild'
+              ? `接 ${task.kind} 的铺子都在郊野，上游的活只去镇内，「${task.summary}」先等着。`
+              : `没有空闲的镇内铺子承接 ${task.kind}，「${task.summary}」先等着。`,
         );
         continue;
       }
@@ -1274,6 +1305,30 @@ export class Simulation {
       this.log('oracle', `上游派活：${task.summary} → ${building.displayName}（${villager.name}）`);
       return;
     }
+  }
+
+  /**
+   * 让这个角色原地办一条**已经存在**的短活：不占铺子，时间一到自己结束。
+   *
+   * 神谕与上游两条路都走这里。上游的活曾和别的活一起进 `pickVenue`，
+   * 于是 `quick` 单回一句「这座镇子没有接 quick 的铺子」——那句话把
+   * 「这类活不占铺子」说成了「这座镇子缺一座铺子」，而在灯潮界也照样说。
+   * 而 `stepWorking`/`finishInPlace` 只认 `buildingId === null`，
+   * 与这单是谁派来的无关，所以两条路共用一套收尾是安全的。
+   */
+  private startInPlace(villager: Villager, task: TaskRecord, origin: '神谕' | '上游'): void {
+    const profile = TASK_PROFILES[task.kind];
+    villager.mode = 'working';
+    villager.taskId = task.id;
+    villager.visible = true;
+    villager.bubble = '这个我顺手就办了。';
+    villager.bubbleUntil = this.now + 1400;
+    villager.routineLabel = profile.label;
+    villager.inPlaceUntil = this.now + profile.estimateMs;
+    villager.path = [];
+    task.workerId = villager.id;
+    task.status = 'in_progress';
+    this.log('oracle', `${origin}：${task.summary}（${villager.name}原地办）`);
   }
 
   /**
@@ -1466,16 +1521,7 @@ export class Simulation {
     const profile = TASK_PROFILES[taskKind];
     if (profile.venue === 'in_place') {
       const task = this.openTask(taskKind, summary, null, villager.id);
-      villager.mode = 'working';
-      villager.taskId = task.id;
-      villager.visible = true;
-      villager.bubble = '这个我顺手就办了。';
-      villager.bubbleUntil = this.now + 1400;
-      villager.routineLabel = profile.label;
-      villager.inPlaceUntil = this.now + profile.estimateMs;
-      villager.path = [];
-      task.status = 'in_progress';
-      this.log('oracle', `神谕：${summary}（${villager.name}原地办）`);
+      this.startInPlace(villager, task, '神谕');
       return { ok: true, message: '这点小事她当场就办。' };
     }
 
@@ -1945,6 +1991,36 @@ export class Simulation {
     const held = carries.length === 0 ? '两手空空' : carries.join('、');
     this.log('info', `${villager.name}现在带着：${held}。`);
     return { ok: true, message: `${villager.name}现在带着${held}。` };
+  }
+
+  /**
+   * 从她手里收走几件。**其余的留着。**
+   *
+   * 与 `setCarries` 分开是因为说话的人未必知道她此刻带着什么：离线规则
+   * 没有名册也没有她的兜，「收回她的鞋」翻不成一个完整的最终清单。
+   * 硬翻成 `carries: []`，灯就一起没了——用户要的只是一双鞋。
+   *
+   * 她本来就没带着那几件时，说清楚，不假装收下了什么。
+   */
+  private removeCarries(villagerId: string, carries: readonly CarryItem[]): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return { ok: false, message: `没有 ${villagerId} 这个人。` };
+    const unknown = carries.filter((item) => !isCarryItem(item));
+    if (unknown.length > 0) {
+      return {
+        ok: false,
+        message: `世界上没有「${unknown.join('、')}」这种东西；带得动的只有 ${CARRY_ITEMS.join('、')}。`,
+      };
+    }
+    const left = villager.carries.filter((item) => !carries.includes(item));
+    if (left.length === villager.carries.length) {
+      return { ok: false, message: `${villager.name}没有带着${carries.join('、')}。` };
+    }
+    villager.carries = left;
+    const held = left.length === 0 ? '两手空空' : left.join('、');
+    const gave = carries.join('、');
+    this.log('info', `${villager.name}交出了${gave}，现在带着：${held}。`);
+    return { ok: true, message: `${villager.name}交出了${gave}，现在带着${held}。` };
   }
 
   private snapshotVillager(villager: Villager): VillagerSnapshot {

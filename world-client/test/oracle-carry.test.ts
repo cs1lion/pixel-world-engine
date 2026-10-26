@@ -48,9 +48,9 @@ test('长的说法不被短的切碎：「一盏灯」不能被「灯」抢先',
 // ------------------------------------------------------------------ 收
 
 test('收走：同一个动作的反方向，兜里就空了', () => {
-  assert.deepEqual(parseOracleCarry('收走汐的灯'), { villager: '汐', carries: [] });
-  assert.deepEqual(parseOracleCarry('把汐的灯收走'), { villager: '汐', carries: [] });
-  assert.deepEqual(parseOracleCarry('收回汐的鞋'), { villager: '汐', carries: [] });
+  assert.deepEqual(parseOracleCarry('收走汐的灯'), { villager: '汐', remove: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('把汐的灯收走'), { villager: '汐', remove: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('收回汐的鞋'), { villager: '汐', remove: ['shoes'] });
 });
 
 // ------------------------------------------------------------------ 不认的
@@ -89,8 +89,8 @@ test('叙述不收东西：「汐收走了莞尔的鞋」说的不是命令', ()
 });
 
 test('祈使的收走只有两种形状：动词打头，或「把」打头', () => {
-  assert.deepEqual(parseOracleCarry('收走汐的灯'), { villager: '汐', carries: [] });
-  assert.deepEqual(parseOracleCarry('把汐的灯收走'), { villager: '汐', carries: [] });
+  assert.deepEqual(parseOracleCarry('收走汐的灯'), { villager: '汐', remove: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('把汐的灯收走'), { villager: '汐', remove: ['lamp'] });
   // 动词在句尾但前面不是「把」：那是在说一件事，不是在下命令。
   assert.equal(parseOracleCarry('汐的灯收走'), null);
 });

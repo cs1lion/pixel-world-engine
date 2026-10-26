@@ -240,8 +240,24 @@ test('carries 没给和给错了，是两句不同的话', () => {
   // 从前「没给 carries」回的是「carries 必须是数组」——那句话是假的：
   // 用户明明一个都没填，世界却说他填错了类型。服务端 `rules/schema.py`
   // 分得清 missing-field 与 type-mismatch，两边说的必须是同一件事。
-  assert.match(bad({ kind: 'carry', villager: '莞尔' }), /carries 缺字段/);
+  assert.match(bad({ kind: 'carry', villager: '莞尔' }), /carry 需要 carries/);
   assert.match(bad({ kind: 'carry', villager: '莞尔', carries: 'lamp' }), /必须是数组/);
   // 数组里混进不是字符串的，也是「给错了」，不是「没给」
   assert.match(bad({ kind: 'carry', villager: '莞尔', carries: [1] }), /不是这个世界上认得的凭证/);
+});
+
+test('给与收只能走一条：两个都给、两个都不给，都是没说清楚', () => {
+  // 与 `demolish` 的 instanceId/templateId 同一条规矩。混着给，
+  // 世界不知道该照哪句办——给她一双鞋，还是收走她那双鞋？
+  assert.match(bad({ kind: 'carry', villager: '莞尔', carries: ['lamp'], remove: ['shoes'] }), /只能给 carries 或 remove 之一/);
+  // 收走至少要有一件：一件都不收，那句话就是没说话。
+  assert.match(bad({ kind: 'carry', villager: '莞尔', remove: [] }), /remove 至少要有一件/);
+  // 收走认得的词与给是同一套闭集，错话说得也一样。
+  assert.match(bad({ kind: 'carry', villager: '莞尔', remove: ['torch'] }), /不是这个世界上认得的凭证/);
+  // 收得对：名字照旧要按名字给，不按 id。
+  assert.deepEqual(ok({ kind: 'carry', villager: '莞尔', remove: ['shoes'] }), {
+    kind: 'carry',
+    villager: '莞尔',
+    remove: ['shoes'],
+  });
 });

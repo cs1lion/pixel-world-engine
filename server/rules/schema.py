@@ -277,32 +277,43 @@ def _npc_set_schedule(args: dict[str, Any], world: dict[str, Any]) -> dict[str, 
 
 
 def _villager_carry(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]:
-    """给谁什么凭证（渡有仪式）。
+    """给谁什么凭证，或从谁手里收走什么（渡有仪式）。
 
     **按名字点人，不按 id。** 喂给模型的上下文里只有名字（客户端
     `intent-context.ts` 的 `busy` 是 `{name, taskKind}`），叫 id 就是
     `demolish` 那个 bug 重演：模型手里没有 id 可填，只能编一个。
     那个人在不在，是世界判的事——这里只管形状。
 
-    `carries` 逐件查，不整锅端：收下 `lamp` 放过 `torch` 比整条拒更难查。
+    凭证逐件查，不整锅端：收下 `lamp` 放过 `torch` 比整条拒更难查。
 
-    空数组是「两手空空」，是说得出口的——只有给没有收，那道门就永远开着。
+    `carries` 是完整清单（空数组＝「让她两手空空」），`remove` 是减法。
+    两者必须且只能给一个——混着给，世界不知道该照哪句办。要有 `remove`
+    是因为说话的人未必知道她此刻带着什么：离线规则没有名册也没有她的兜，
+    「收回她的鞋」翻不成一个完整的最终清单，硬翻成空清单会把灯一起拿走。
     """
-    _only(args, {"villager", "carries"}, "villager.carry")
+    _only(args, {"villager", "carries", "remove"}, "villager.carry")
     villager = _text(args, "villager", "villager.carry")
 
-    if "carries" not in args:
-        _fail("missing-field", "villager.carry 缺字段 carries")
-    carries = args["carries"]
+    has_carries = "carries" in args
+    has_remove = "remove" in args
+    if has_carries and has_remove:
+        _fail("conflicting-fields", "villager.carry 只能给 carries 或 remove 之一，不能同时给")
+    if not has_carries and not has_remove:
+        _fail("missing-field", "villager.carry 需要 carries（给她什么）或 remove（收走什么）")
+
+    field = "carries" if has_carries else "remove"
+    carries = args[field]
     if not isinstance(carries, list):
-        _fail("type-mismatch", "villager.carry.carries 必须是数组")
+        _fail("type-mismatch", f"villager.carry.{field} 必须是数组")
     for item in carries:
         if not isinstance(item, str) or item not in CARRY_ITEMS:
             _fail(
                 "out-of-domain",
-                f"villager.carry.carries 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}",
+                f"villager.carry.{field} 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}",
             )
-    return {"villager": villager, "carries": list(carries)}
+    if field == "remove" and not carries:
+        _fail("empty-list", "villager.carry.remove 至少要有一件：一件都不收，那句话就是没说话")
+    return {"villager": villager, field: list(carries)}
 
 
 #: 白名单：命令名 → 校验函数。不在表里的一律拒收。

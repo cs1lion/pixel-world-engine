@@ -439,3 +439,47 @@ def test_交接凭证_carries_必须是数组() -> None:
         {"command": "villager.carry", "args": {"villager": "莞尔", "carries": "lamp"}},
         "type-mismatch",
     )
+
+
+def test_收走凭证_remove_是减法_不动她其余的() -> None:
+    """给是整锅换上，收是从现有的里减。`carries: []` 会把灯一起拿走——
+    用户要的只是一双鞋。"""
+    command = validate_command(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "remove": ["shoes"]}}
+    )
+    assert command.name == "villager.carry"
+    assert command.args == {"villager": "莞尔", "remove": ["shoes"]}
+
+
+def test_收走凭证_至少要有一件() -> None:
+    """一件都不收，那句话就是没说话。空清单在 `carries` 那边是「两手空空」，
+    在 `remove` 这边什么都不是。"""
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "remove": []}},
+        "empty-list",
+    )
+
+
+def test_给与收只能走一条() -> None:
+    """两个都给，世界不知道该照哪句办——给她一双鞋，还是收走她那双鞋？"""
+    reject(
+        {
+            "command": "villager.carry",
+            "args": {"villager": "莞尔", "carries": ["lamp"], "remove": ["shoes"]},
+        },
+        "conflicting-fields",
+    )
+
+
+def test_收走凭证_闭集外的词也当场拒() -> None:
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "remove": ["torch"]}},
+        "out-of-domain",
+    )
+
+
+def test_收走凭证_remove_也必须是数组() -> None:
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "remove": "shoes"}},
+        "type-mismatch",
+    )

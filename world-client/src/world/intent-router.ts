@@ -139,7 +139,9 @@ function matchRules(
   // 于是落进 unknown。渡有仪式在离线世界里就永远打不开了。
   const carry = parseOracleCarry(text);
   if (carry !== null) {
-    return { kind: 'carry', villager: carry.villager, carries: carry.carries };
+    return 'remove' in carry
+      ? { kind: 'carry', villager: carry.villager, remove: carry.remove }
+      : { kind: 'carry', villager: carry.villager, carries: carry.carries };
   }
 
   const oracle = parseOracle(text);
@@ -184,7 +186,8 @@ export function describeIntent(intent: ParsedIntent): string {
     case 'miracle':
       return MIRACLE_LABEL[intent.miracle];
     case 'carry':
-      return intent.carries.length === 0 ? '收缴凭证' : '交接凭证';
+      // 收与给是两条路：收是世界从她现有的里减，给是整锅换上。
+      return 'remove' in intent || intent.carries.length === 0 ? '收缴凭证' : '交接凭证';
     case 'unknown':
       return '没听懂';
   }

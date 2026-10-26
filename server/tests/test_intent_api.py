@@ -527,6 +527,40 @@ def test_拨潮收到_inf_与_nan_说的都是不是数字_不是越界() -> Non
         assert "必须是数字" in str(caught.value)
 
 
+def test_交接凭证_给与收都翻得成白名单命令() -> None:
+    """两个方向都要走到 `to_command`：给是整锅换上，收是从现有的里减。
+    少走一条，表现就是模型说「收回她的鞋」、服务端 502——而离线那一侧
+    （`oracle-carry.ts`）早就走得通。"""
+    _, give = wire.validate_intent({"kind": "carry", "villager": "莞尔", "carries": ["lamp"]})
+    assert give is not None and give.name == "villager.carry"
+    assert give.args == {"villager": "莞尔", "carries": ["lamp"]}
+
+    _, take = wire.validate_intent({"kind": "carry", "villager": "莞尔", "remove": ["shoes"]})
+    assert take is not None and take.name == "villager.carry"
+    assert take.args == {"villager": "莞尔", "remove": ["shoes"]}
+
+
+def test_交接凭证_两个方向只能给一个() -> None:
+    """与 `demolish` 的 instanceId/templateId 同一条规矩。混着给，
+    世界不知道该照哪句办——给她一双鞋，还是收走她那双鞋？"""
+    with pytest.raises(wire.WireError) as caught:
+        wire.validate_intent({"kind": "carry", "villager": "莞尔", "carries": ["lamp"], "remove": ["shoes"]})
+    assert "只能给 carries 或 remove 之一" in str(caught.value)
+
+    with pytest.raises(wire.WireError) as caught:
+        wire.validate_intent({"kind": "carry", "villager": "莞尔"})
+    assert "需要 carries" in str(caught.value)
+
+
+def test_交接凭证_remove_一件都不收是被拒的() -> None:
+    """空清单在 `carries` 那边是「让她两手空空」，在 `remove` 这边什么都不是。
+    客户端 `readCarryList` 说的是同一句话——两边不能一个收一个拒。"""
+    with pytest.raises(wire.WireError) as caught:
+        wire.validate_intent({"kind": "carry", "villager": "莞尔", "remove": []})
+    assert "remove 至少要有一件" in str(caught.value)
+
+
+
 # ---------------------------------------------------------------- 端点自身的错误
 
 def test_没配_Key_回_503() -> None:
