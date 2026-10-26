@@ -44,6 +44,7 @@ export function createIntentClient(
     readonly fetchImpl?: typeof fetch;
     readonly timeoutMs?: number;
     readonly context?: () => IntentContext | undefined;
+    readonly worldSize?: { readonly width: number; readonly height: number };
   } = {},
 ): IntentModel {
   const fetchImpl = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
@@ -51,11 +52,11 @@ export function createIntentClient(
   const contextOf = options.context;
 
   return {
-    async classify(utterance: string): Promise<unknown> {
+    async classify(utterance: string, currentContext?: IntentContext): Promise<unknown> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       // 每次调用现取：世界在两次问之间可能建了楼、有人开工了。
-      const context = contextOf?.();
+      const context = currentContext ?? contextOf?.();
       try {
         let response: Response;
         try {
@@ -64,6 +65,7 @@ export function createIntentClient(
             headers: { 'content-type': 'application/json', accept: 'application/json' },
             body: JSON.stringify({
               utterance,
+              ...(options.worldSize === undefined ? {} : { worldSize: options.worldSize }),
               templates: [...templates().values()].map((template) => ({
                 id: template.id,
                 displayName: template.displayName,

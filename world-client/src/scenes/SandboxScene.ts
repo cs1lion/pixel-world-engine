@@ -338,7 +338,9 @@ export class SandboxScene extends Phaser.Scene {
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
       // 规则认不出的话才问模型。没有 Key 时它会 503，世界照样离线可用。
-      intentModel: createIntentClient(() => this.blueprints),
+      intentModel: createIntentClient(() => this.blueprints, {
+        worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+      }),
       worldSize: { width: this.world.grid.width, height: this.world.grid.height },
       spawnBuilding: (
         prefabId: string,
@@ -603,8 +605,9 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   build(prefabId: string): void {
-    const instanceId = `${prefabId}#${this.snapshot.buildings.length + 1}`;
-    this.sim.enqueue({ kind: 'build', prefabId, instanceId });
+    // 编号由世界发（`nextInstanceId`），不在场景层拿 `buildings.length` 现算：
+    // 拆一栋再建一栋会拿到用过的号，旧 id 就指向了新楼。
+    this.sim.enqueue({ kind: 'build', prefabId, instanceId: this.sim.nextInstanceId(prefabId) });
   }
 
   // -------------------------------------------------------------- 造物模式
@@ -654,7 +657,7 @@ export class SandboxScene extends Phaser.Scene {
       // 留在造物模式里让玩家换个位置，并说明为什么这里不行。
       return { ok: false, message: check.message };
     }
-    const instanceId = `${session.prefabId}#${this.snapshot.buildings.length + 1}`;
+    const instanceId = this.sim.nextInstanceId(session.prefabId);
 
     // 玩家的选择先拼成一份**造物意图**，过 schema 再落位。
     // 这样手动造物与将来的 LLM 输出走同一条校验，schema 不是死代码。

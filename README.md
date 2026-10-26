@@ -12,11 +12,50 @@
 ## 目录
 
 ```text
-world-client/   Phaser 前端（复用 pixel-world 的渲染与模拟内核）
+world-client/   Phaser 前端（模拟内核 + 渲染 + HUD）
 server/         FastAPI：规则校验、事件日志、LLM 造物主
-memory/         时间线记忆（Markdown + YAML）
-docs/           设计与决策
+docs/           设计与决策（规范见 docs/SPEC.md）
 ```
+
+## 跑起来
+
+```bash
+cd world-client && npm ci
+```
+
+```bash
+cd server && python -m pip install -r requirements.txt
+```
+
+一条命令起两半（服务端 `main:app` + 前端 Vite），事件库落在 `tmp/`，不碰 `data/events.db`：
+
+```bash
+cd world-client && npm run dev:live
+```
+
+- 默认服务端 8000、前端 5188；两个端口都能用 `PIXEL_WORLD_SERVER_PORT` / `PIXEL_WORLD_CLIENT_PORT` 改，被占就直接报错，不偷偷换端口。
+- 停：`Ctrl+C`，或者 `node scripts/dev-live.mjs --stop`。
+- 没有 `server/.env` 也能起：世界照常跑，意图端点回 503，顶栏会写「上游离线」。
+
+要接模型，复制 `server/.env.example` 成 `server/.env` 并填 Key。服务端启动时会读它，**只打印读到了哪些变量名，不打印值**。
+
+## 验证
+
+```bash
+cd world-client && npm run check && npm test && npm run build
+```
+
+```bash
+cd server && python -m pytest -q
+```
+
+浏览器验收（自带隔离端口与事件库，不需要先起 `dev:live`）：
+
+```bash
+cd world-client && npm run test:live
+```
+
+它走真实 HTTP：一句话 → 服务端白名单 → 回到世界 → 世界里真的多了一栋楼；一句办不到的话 → 具体原因回到回执上；停掉服务端 → 世界照常过日子，顶栏改说「上游离线」。
 
 ## 与旧仓的关系
 
@@ -25,4 +64,5 @@ docs/           设计与决策
 
 ## 状态
 
-骨架阶段。规范见 `docs/`，票据见本仓 issues。
+P0 真实命令闭环已通：生产世界上下文接进意图端点，拒绝原因一路回到用户手上，命令与实例 id 的协议有测试钉住。
+设定集 B 与时间线记忆还没开始。

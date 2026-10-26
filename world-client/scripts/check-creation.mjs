@@ -29,7 +29,7 @@ const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 
 await page.addInitScript(() => localStorage.clear());
-await page.goto(`${BASE}?ledger=off&time=noon&debug=1`, { waitUntil: 'load' });
+await page.goto(`${BASE}?feed=off&time=noon&debug=1`, { waitUntil: 'load' });
 await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
 await page.waitForTimeout(600);
 
@@ -173,29 +173,11 @@ const fogCheck = await page.evaluate(() => {
 });
 check(fogCheck.allowed === false, '迷雾区不能建', JSON.stringify(fogCheck));
 
-// 急件请旨：blocked 单必须完整呈现在纸面上。
-const decreeQuestion = '要执行 rm -rf ./temp_build 吗？这个目录里有 3 个未提交的文件。';
-await page.evaluate(
-  (q) => window.Oracle.injectBlocked('c_decree', '清理临时目录', q),
-  decreeQuestion,
-);
-await page.waitForTimeout(800);
-const decreeState = await page.evaluate(() => ({
-  decree: window.Oracle.decree(),
-  panelHidden: document.querySelector('#decree')?.hidden,
-  shown: document.querySelector('#decree-question')?.textContent ?? '',
-}));
-check(
-  decreeState.decree?.question === decreeQuestion,
-  '急件保留完整问题原文',
-  decreeState.decree?.question ?? 'null',
-);
-check(decreeState.panelHidden === false, '急件面板显示出来');
-check(
-  decreeState.shown === decreeQuestion,
-  '纸面显示的是完整原文，没有截断',
-  decreeState.shown,
-);
+// 急件请旨（blocked 单完整呈现在纸面上）不在这里测：
+// 它要的是**连着上游**的世界，本脚本起的是纯沙盒（`?feed=off`）。
+// 断网时 `syncEvents` 会整帧丢弃折叠结果——这是对的（不能把"没读到"当成"全都撤了"），
+// 但也就意味着沙盒里注入的 blocked 单永远到不了急件面板。
+// 这条断言在 `scripts/smoke.mjs` 的 `FEED=1` 模式里（那边有真服务端）。
 
 check(errors.length === 0, '全程无 JS 报错', errors.join('; '));
 

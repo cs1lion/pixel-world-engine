@@ -110,10 +110,6 @@ def _envelope(result: Interpretation, model_name: str) -> dict[str, Any]:
     body: dict[str, Any] = {"intent": intent, "model": model_name, "source": "model"}
     if result.narrative:
         body["narrative"] = result.narrative
-    # 一次只执行第一条：世界侧还没有"一批命令按序结算"。悄悄丢掉第二条
-    # 比明确只做第一条更坏，所以把条数报出来。
-    if len(result.commands) > 1:
-        body["dropped"] = len(result.commands) - 1
     return body
 
 
@@ -140,10 +136,8 @@ def command_to_intent(command: Any) -> dict[str, Any] | None:
     if name == "building.add":
         return {"kind": "build", "templateId": args["prefabId"], "at": args["at"]}
     if name == "building.remove":
-        # 白名单收的是 instanceId（`bookshop#1`），客户端的 demolish 收 templateId。
-        # 去掉 `#N` 后缀就是模板 id —— 这是**明确的换算**，不是猜。
-        instance_id = str(args["instanceId"])
-        return {"kind": "demolish", "templateId": instance_id.split("#", 1)[0]}
+        # 实例身份必须原样到世界：模板 id 无法指出要拆哪一栋。
+        return {"kind": "demolish", "instanceId": args["instanceId"]}
     if name == "miracle.spawn":
         return {"kind": "miracle", "miracle": args["kind"], "at": args.get("at")}
     # `npc.setSchedule` 在白名单里，但客户端与世界都还没有这条意图。

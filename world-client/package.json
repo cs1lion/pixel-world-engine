@@ -12,6 +12,8 @@
     "check": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
     "test:inprocess": "node --test --experimental-test-isolation=none test/*.test.ts",
+    "dev:live": "node scripts/dev-live.mjs",
+    "test:live": "node scripts/accept-live.mjs",
     "test:browser": "node scripts/smoke.mjs",
     "test:phases": "node scripts/check-phases.mjs",
     "test:persistence": "node scripts/check-persistence.mjs",

@@ -368,6 +368,19 @@ export class Simulation {
 
   private now = 0;
   private nextTaskNumber = 1;
+  /**
+   * 实例编号的水位：世界之内只增不减。
+   *
+   * 早先拿 `buildings.length + 1` 当编号，拆一栋再建一栋就会得到一个**用过的** id
+   * ——旧 id 指向新楼，一句「拆掉 workshop_plot#7」会拆掉不是它说的那一栋。
+   *
+   * 水位不落档（存档 v3 已冻结），读档时从幸存建筑里重新推：
+   * 幸存的 id 一个不变，新建的编号一定大于它们。跨读档后，**已被拆掉**的那个
+   * 编号可以再用一次——那需要有人拿着上一次会话的旧 id 来拆，而模型只从
+   * 上下文里拿现存 id。这条残余风险记在这里，不让它变成一句没人知道的假设。
+   */
+  private buildingSerial = 0;
+  private readonly usedInstanceIds = new Set<string>();
 
   constructor(deps: SimulationDeps) {
     this.grid = deps.grid;
@@ -379,6 +392,7 @@ export class Simulation {
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
     this.buildings = [...deps.buildings];
+    this.seedInstanceIds();
     this.beats = routineBeats(deps.altar, deps.grid);
     const names = deps.villagerNames ?? [deps.villagerName, DEFAULT_ASSISTANT_NAME];
     this.villagers = names.map((name, index) => ({
@@ -417,6 +431,30 @@ export class Simulation {
 
   enqueue(command: WorldCommand): void {
     this.queue.push(command);
+  }
+
+  /**
+   * 领一个新的实例 id。**领了就算用掉**，即使这一次建造失败。
+   *
+   * 在入队时就领：命令要下一拍才结算，两栋楼在同一个队列里就不会拿到同一个号。
+   */
+  nextInstanceId(prefabId: string): string {
+    let instanceId: string;
+    do {
+      this.buildingSerial += 1;
+      instanceId = `${prefabId}#${this.buildingSerial}`;
+    } while (this.usedInstanceIds.has(instanceId));
+    this.usedInstanceIds.add(instanceId);
+    return instanceId;
+  }
+
+  /** 把已有建筑的编号收进水位。构造与读档各调一次。 */
+  private seedInstanceIds(): void {
+    for (const building of this.buildings) {
+      this.usedInstanceIds.add(building.instanceId);
+      const serial = instanceSerialOf(building.instanceId);
+      if (serial !== null && serial > this.buildingSerial) this.buildingSerial = serial;
+    }
   }
 
   /** 返回本次 update 结算的命令结果，供调用方展示。 */
@@ -760,8 +798,11 @@ export class Simulation {
         context: summarizeForIntent(this.snapshot()),
       });
       if (result.intent.kind === 'unknown') {
-        const message = '没听懂这句，世界没有动。';
-        this.log('warn', result.modelError ?? message);
+        // **原因要一路带到回执上。** 模型自己说了为什么听不懂，或者叫模型那一段
+        // 出了什么错（超时 / 没配 Key / 输出不合法），都比我这儿一句
+        // 「没听懂」有用：用户据此才知道该换句话、还是该去看服务端。
+        const message = result.modelError ?? result.intent.reason;
+        this.log('warn', message);
         this.enqueue({ kind: 'intent', intent: { kind: 'unknown', reason: message }, raw });
         return;
       }
@@ -797,22 +838,32 @@ export class Simulation {
       case 'complete':
         return this.settleIntent({ kind: 'complete' }, raw);
       case 'build': {
-        const instanceId = `${intent.templateId}#${this.buildings.length + 1}`;
+        const instanceId = this.nextInstanceId(intent.templateId);
         return this.settleIntent(
           { kind: 'build', prefabId: intent.templateId, instanceId, at: intent.at ?? undefined },
           raw,
         );
       }
       case 'demolish': {
-        const target = this.buildings.find((b) => b.prefabId === intent.templateId);
-        if (target === undefined) {
-          const message = `没有${this.blueprints?.get(intent.templateId)?.displayName ?? intent.templateId}可拆。`;
+        // 指名道姓的一条：世界只认那一栋，找不到就拒——绝不改拆同模板的另一栋。
+        // 只有规则解析器（用户说「拆掉抄书斋」没说哪一栋）才走模板那条路，
+        // 那条路由 `demolishTargetOf` 判歧义。
+        if (intent.instanceId !== undefined) {
+          return this.settleIntent({ kind: 'demolish', instanceId: intent.instanceId }, raw);
+        }
+        const byTemplate = intent.templateId;
+        if (byTemplate === undefined) {
+          // schema 已经保证二者必给其一；走到这里是上游有人绕过了校验。
+          const message = '这条拆除没说拆哪一栋。';
           this.log('warn', message);
           return { ok: false, message };
         }
-        const result = this.demolish(target.instanceId);
-        if (result.ok) this.inscribe(raw, result.message);
-        return result;
+        const target = this.demolishTargetOf(byTemplate);
+        if ('message' in target) {
+          this.log('warn', target.message);
+          return { ok: false, message: target.message };
+        }
+        return this.settleIntent({ kind: 'demolish', instanceId: target.instanceId }, raw);
       }
       case 'miracle': {
         const result = this.performMiracle(intent.miracle, intent.at ?? undefined);
@@ -820,8 +871,11 @@ export class Simulation {
         return result;
       }
       case 'unknown': {
+        // 原样回给用户。到这里的原因已经过校验（非空），比我另编一句有用——
+        // 「模型调用失败：超时 10000ms」与「这句话没有对应的世界命令」，
+        // 用户要做的下一步完全不同。
         this.log('warn', intent.reason);
-        return { ok: false, message: '没听懂这句，世界没有动。' };
+        return { ok: false, message: intent.reason };
       }
     }
   }
@@ -848,11 +902,10 @@ export class Simulation {
   private buildFromIntent(raw: string, intent: BuildIntent): CommandResult {
     // 拆：同一份意图，方向相反。找到那栋楼再走 demolish 的三条拒绝。
     if (intent.action === 'demolish') {
-      const target = this.buildings.find((b) => b.prefabId === intent.templateId);
-      if (target === undefined) {
-        const message = `没有${this.blueprints?.get(intent.templateId)?.displayName ?? intent.templateId}可拆。`;
-        this.log('warn', message);
-        return { ok: false, message };
+      const target = this.demolishTargetOf(intent.templateId);
+      if ('message' in target) {
+        this.log('warn', target.message);
+        return { ok: false, message: target.message };
       }
       const result = this.demolish(target.instanceId);
       if (result.ok) this.inscribe(raw, result.message);
@@ -880,13 +933,33 @@ export class Simulation {
       this.log('warn', message);
       return { ok: false, message };
     }
-    const instanceId = `${intent.templateId}#${this.buildings.length + 1}`;
+    const instanceId = this.nextInstanceId(intent.templateId);
     const result = this.build(intent.templateId, instanceId, intent.at ?? undefined, {
       taskId: `oracle-build-${instanceId}`,
       summary: `按神谕建了${blueprint.displayName}`,
     });
     if (result.ok) this.inscribe(raw, result.message);
     return result;
+  }
+
+  /**
+   * 「拆掉抄书斋」——只说模板、没说哪一栋时，世界该怎么办。
+   *
+   * 世界只允许每种铺子一栋（`build` 里拒第二栋），所以正常只会有一栋。
+   * 但**不假设**：真有两栋（比如读档读进了旧版本留下的）时，必须让用户
+   * 说清是哪一栋，而不是替用户挑第一栋——那正是「替你改主意」。
+   */
+  private demolishTargetOf(
+    templateId: string,
+  ): { readonly instanceId: string } | { readonly message: string } {
+    const matches = this.buildings.filter((building) => building.prefabId === templateId);
+    if (matches.length === 1 && matches[0] !== undefined) {
+      return { instanceId: matches[0].instanceId };
+    }
+    const name = this.blueprints?.get(templateId)?.displayName ?? templateId;
+    if (matches.length === 0) return { message: `没有${name}可拆。` };
+    const ids = matches.map((building) => building.instanceId).join('、');
+    return { message: `有 ${matches.length} 栋${name}（${ids}），说清拆哪一栋。` };
   }
 
   /** 刻石板。只记真正改变了世界的那句话；超出上限丢最旧。 */
@@ -2099,6 +2172,8 @@ export class Simulation {
     sim.now = world.now;
     sim.buildings.length = 0;
     sim.buildings.push(...world.buildings.map((building) => ({ ...building })));
+    // 编号水位按幸存建筑重推：幸存的 id 一个不变，新建的号一定比它们大。
+    sim.seedInstanceIds();
 
     for (const saved of world.villagers) {
       const villager = sim.villagers.find((item) => item.id === saved.id);
@@ -2276,4 +2351,17 @@ export class Simulation {
 function facingFor(dx: number, dy: number): Facing {
   if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
   return dy >= 0 ? 'down' : 'up';
+}
+
+/**
+ * 实例 id 里的序号，`workshop_plot#7` → `7`；不是这个形状就是 `null`。
+ *
+ * 只用来推编号水位，**不解释身份**：`plot#report` 这类手工 id 是合法的，
+ * 它只是不参与自增。所以匹配失败不能抛错，也不能当成 0。
+ */
+function instanceSerialOf(instanceId: string): number | null {
+  const match = /#(\d+)$/.exec(instanceId);
+  if (match === null) return null;
+  const serial = Number(match[1]);
+  return Number.isSafeInteger(serial) && serial > 0 ? serial : null;
 }

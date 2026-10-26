@@ -58,7 +58,19 @@ export type ParsedIntent =
    */
   | { readonly kind: 'setTide'; readonly level: number; readonly durationMs: number }
   | { readonly kind: 'build'; readonly templateId: string; readonly at: GridPoint | null }
-  | { readonly kind: 'demolish'; readonly templateId: string }
+  /**
+   * 拆一栋楼。**两个来源，两种说法，不能混着用**：
+   *
+   * - `instanceId`：指名道姓。模型/服务端给的就是这个，世界**只认那一栋**，
+   *   找不到就拒绝——绝不改拆另一栋同模板的。
+   * - `templateId`：用户只说了「拆掉抄书斋」。这是规则解析器的产物，世界按模板
+   *   找，且必须**恰好一栋**；有两栋就得让用户说清是哪一栋，不替用户挑。
+   *
+   * 早先只有 `templateId`，服务端还把实例 id 降级成模板 id 再传——「拆 2 号楼」
+   * 落到「拆第一栋抄书斋」，是替用户改了主意。
+   */
+  | { readonly kind: 'demolish'; readonly instanceId: string; readonly templateId?: never }
+  | { readonly kind: 'demolish'; readonly templateId: string; readonly instanceId?: never }
   | { readonly kind: 'miracle'; readonly miracle: MiracleKind; readonly at: GridPoint | null }
   /** 明确表示"没听懂"。带一句给用户看的说明。 */
   | { readonly kind: 'unknown'; readonly reason: string };
@@ -79,7 +91,8 @@ const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
   setWeather: ['kind', 'weather'],
   setTide: ['kind', 'level', 'durationMs'],
   build: ['kind', 'templateId', 'at'],
-  demolish: ['kind', 'templateId'],
+  // 两个键都在表里，但**必须且只能给一个**：见 `demolish` 的两种形状。
+  demolish: ['kind', 'instanceId', 'templateId'],
   miracle: ['kind', 'miracle', 'at'],
   unknown: ['kind', 'reason'],
 };
@@ -148,8 +161,24 @@ export function parseIntent(
         templateId: readTemplate(record.templateId, templates, fail),
         at: readPoint(record.at, worldSize, fail),
       };
-    case 'demolish':
-      return { kind: 'demolish', templateId: readTemplate(record.templateId, templates, fail) };
+    case 'demolish': {
+      // 实例 id 是**不透明字符串**：注册表里没有它，世界才判它存不存在。
+      // 模板 id 反过来要查注册表——模型不能发明建筑。
+      const instanceId = readOptionalNonEmpty(record.instanceId, 'instanceId', fail);
+      const templateId =
+        record.templateId === undefined
+          ? null
+          : readTemplate(record.templateId, templates, fail);
+      if (instanceId !== null && templateId !== null) {
+        fail('demolish 只接受 instanceId 或 templateId 之一，不能同时给');
+      }
+      if (instanceId === null && templateId === null) {
+        fail('demolish 需要 instanceId（指名道姓）或 templateId（按模板拆）');
+      }
+      return instanceId !== null
+        ? { kind: 'demolish', instanceId }
+        : { kind: 'demolish', templateId: templateId as string };
+    }
     case 'miracle':
       return {
         kind: 'miracle',
@@ -195,6 +224,16 @@ function readNonEmpty(
   const text = (value as string).trim();
   if (text === '') fail(`${field} 不能为空`);
   return text;
+}
+
+/** 可省略的非空字符串：省略是 `null`，给了就必须有内容。 */
+function readOptionalNonEmpty(
+  value: unknown,
+  field: string,
+  fail: (why: string) => never,
+): string | null {
+  if (value === undefined) return null;
+  return readNonEmpty(value, field, fail);
 }
 
 /**

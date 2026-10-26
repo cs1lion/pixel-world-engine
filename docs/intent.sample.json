@@ -30,9 +30,9 @@
       "intent": { "kind": "build", "templateId": "code_forge", "at": { "x": 3, "y": 4 } }
     },
     {
-      "why": "拆除：白名单收实例 id，客户端收模板 id——去掉 #N 后缀是明确的换算",
+      "why": "拆除：实例 id 原样到世界。模板 id 指不出要拆哪一栋，降级成模板就是替用户挑一栋",
       "command": { "command": "building.remove", "args": { "instanceId": "ink_house#2" } },
-      "intent": { "kind": "demolish", "templateId": "ink_house" }
+      "intent": { "kind": "demolish", "instanceId": "ink_house#2" }
     },
     {
       "why": "神迹不带坐标",

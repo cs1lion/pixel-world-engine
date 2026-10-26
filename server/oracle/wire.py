@@ -45,7 +45,8 @@ ALLOWED_KEYS: dict[str, frozenset[str]] = {
     "cancelPending": frozenset({"kind"}),
     "setWeather": frozenset({"kind", "weather"}),
     "build": frozenset({"kind", "templateId", "at"}),
-    "demolish": frozenset({"kind", "templateId"}),
+    # 两个键都在表里，但必须且只能给一个：见 `validate_intent` 的 demolish 分支。
+    "demolish": frozenset({"kind", "instanceId", "templateId"}),
     "miracle": frozenset({"kind", "miracle", "at"}),
     "unknown": frozenset({"kind", "reason"}),
 }
@@ -77,8 +78,18 @@ def to_command(intent: dict[str, Any], world: dict[str, Any] | None = None) -> C
             args["at"] = intent["at"]
         return validate_command({"command": "building.add", "args": args}, world)
     if kind == "demolish":
-        return validate_command(
-            {"command": "building.remove", "args": {"instanceId": intent["templateId"]}}, world
+        # 有实例 id 就用实例 id：模板 id 无法指出要拆哪一栋，拿它去拆等于
+        # 替用户挑了「第一栋」。只有调用方明确只给了模板时才交模板给世界判。
+        instance_id = intent.get("instanceId")
+        if instance_id is not None:
+            return validate_command(
+                {"command": "building.remove", "args": {"instanceId": instance_id}}, world
+            )
+        # 客户端意图的 `templateId` 不是白名单字段：世界侧拆楼只收 instanceId。
+        # 这里不能凭空编一个 id（`templateId#1` 会拆错楼），只能拒。
+        raise WireError(
+            "demolish 需要 instanceId：模板 id 指不出要拆哪一栋，"
+            "请先在上下文里找到那一栋的 instanceId"
         )
     if kind == "miracle":
         args = {"kind": intent["miracle"]}
@@ -123,7 +134,12 @@ def validate_intent(raw: Any, world: dict[str, Any] | None = None) -> tuple[dict
         _non_empty(raw, "templateId", "templateId")
         _point(raw.get("at"), world)
     elif kind == "demolish":
-        _non_empty(raw, "templateId", "templateId")
+        instance_id = _optional_non_empty(raw, "instanceId", "instanceId")
+        template_id = _optional_non_empty(raw, "templateId", "templateId")
+        if instance_id is not None and template_id is not None:
+            raise WireError("demolish 只接受 instanceId 或 templateId 之一，不能同时给")
+        if instance_id is None and template_id is None:
+            raise WireError("demolish 需要 instanceId（指名道姓）或 templateId（按模板拆）")
     elif kind == "miracle":
         _one_of(raw, "miracle", MIRACLES, "miracle")
         _point(raw.get("at"), world)
@@ -150,6 +166,13 @@ def _non_empty(raw: dict[str, Any], key: str, field: str) -> str:
     if text == "":
         raise WireError(f"{field} 不能为空")
     return text
+
+
+def _optional_non_empty(raw: dict[str, Any], key: str, field: str) -> str | None:
+    """可省略的非空字符串：省略是 `None`，给了就必须有内容。"""
+    if key not in raw:
+        return None
+    return _non_empty(raw, key, field)
 
 
 def _point(value: Any, world: dict[str, Any] | None) -> None:

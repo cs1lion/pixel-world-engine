@@ -7,14 +7,17 @@
  *   4. 认不出的话不让世界动
  *
  * 两种模式：
- *   - 默认（?ledger=off）：纯沙盒，不依赖本地服务
- *   - `LEDGER=1 node scripts/smoke.mjs`：接主服务台账，验"操作台与世界连通"
+ *   - 默认（?feed=off）：纯沙盒，不依赖本地服务
+ *   - `FEED=1 node scripts/smoke.mjs`：接服务端事件流，验"上游的活能驱动这个世界"
  *
- * 跑法：
- *   1. npm run dev（端口 5188）
- *   2. node scripts/smoke.mjs                # 沙盒模式
- *      LEDGER=1 node scripts/smoke.mjs       # 台账模式（需先起 8000）
- * 浏览器用主仓库根目录的 Playwright；原型目录不带这份依赖。
+ * 真实 HTTP 那一条（意图端点 + 事件库 + 离线降级）在 `scripts/accept-live.mjs`，
+ * 它自己起隔离的服务端与前端，不需要先跑 `npm run dev`。
+ *
+ * 跑法（先 `npm run dev:live` 把世界起起来）：
+ *   node scripts/smoke.mjs                  # 沙盒模式
+ *   FEED=1 node scripts/smoke.mjs           # 事件流模式（服务端那半也得在）
+ *
+ * 端口不是 5188 时用 `PIXEL_WORLD_URL` 指过去。
  */
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
@@ -22,8 +25,8 @@ import assert from 'node:assert/strict';
 
 const URL_BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = 'eval/screens';
-// 台账模式：先起主服务（8000），再 `LEDGER=1 node scripts/smoke.mjs`。
-const LEDGER = process.env.LEDGER === '1';
+// 事件流模式：先起服务端（8000），再 `FEED=1 node scripts/smoke.mjs`。
+const FEED = process.env.FEED === '1';
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
@@ -72,36 +75,32 @@ const report = (title) => {
   for (const label of checks) console.log(`  ok  ${label}`);
 };
 
-/** 台账模式：验主服务的督办状态真的能驱动这个世界。 */
-async function runLedgerSuite() {
-  await waitFor((s) => s.ledger.connected === true, '台账连接建立', 15000);
+/** 事件流模式：验服务端那条只增日志真的能驱动这个世界。 */
+async function runFeedSuite() {
+  await waitFor((s) => s.feed.connected === true, '事件流连接建立', 15000);
   const linked = await state();
-  check(linked.ledger.lastSyncAt !== null, '世界拿到过一次台账快照');
+  check(linked.feed.lastReadAt !== null, '世界拿到过一次上游快照');
   await page.waitForFunction(
-    () => (document.querySelector('#status')?.textContent ?? '').includes('台账在线'),
+    () => (document.querySelector('#status')?.textContent ?? '').includes('上游在线'),
     null,
     { timeout: 5000 },
   );
   const statusText = await page.textContent('#status');
   check(
-    statusText.includes('台账在线') || statusText.includes('台账离线'),
-    '状态行读得出台账状态',
+    statusText.includes('上游在线') || statusText.includes('上游离线'),
+    '状态行读得出上游状态',
   );
   check(
-    statusText.includes('台账在线') && !statusText.includes('离线 Mock'),
-    '台账在线时状态行不标离线 Mock',
+    statusText.includes('上游在线') && !statusText.includes('仅本地活'),
+    '上游在线时状态行不标「仅本地活」',
   );
 
-  // 注入一帧 commission_update，等价于服务端真发了一帧。不写主服务：
-  // 推送帧本来就是外部数据，用它验"上游派活 → 世界动起来"这条链。
+  // 注入一条 task.opened，走与真实日志完全相同的折叠路径。不写服务端：
+  // 这条链要验的是「事件 → 世界」，日志落库由 accept-live.mjs 验。
   const driven = await page.evaluate(async () => {
-    window.Oracle.pushLedger({
-      id: 'c_smoke_probe',
-      title: '把便笺整理成三版标题',
-      agent_id: 'scribe',
-      status: 'running',
-      step_idx: 2,
-      blocked_question: '',
+    window.Oracle.pushEvent({
+      kind: 'task.opened',
+      payload: { id: 'c_smoke_probe', kind: 'writing', title: '把便笺整理成三版标题' },
     });
     await new Promise((resolve) => setTimeout(resolve, 400));
     return window.Oracle.view();
@@ -109,53 +108,53 @@ async function runLedgerSuite() {
   check(driven.tasks.some((t) => t.id === 'c_smoke_probe'), '上游单进了世界的活动清单');
   check(driven.villager.mode !== 'idle', '她停下日常，去干上游派的活');
 
-  // 完成权在台账：台账单不许人工收尾，按 #finish 必须被拒且她继续干活。
+  // 完成权在上游：上游单不许人工收尾，按 #finish 必须被拒且她继续干活。
   await waitFor((s) => s.villager.mode === 'working', '上游单进入干活态', 15000);
   await page.click('#finish');
   await page.waitForFunction(
-    () => (document.querySelector('#reply')?.textContent ?? '').includes('完成权在台账'),
+    () => (document.querySelector('#reply')?.textContent ?? '').includes('完成权在上游'),
     null,
     { timeout: 5000 },
   );
-  check(true, '台账单人工完成被拒，回执写明完成权在台账');
-  check((await state()).villager.mode === 'working', '被拒后台账单继续跑');
+  check(true, '上游单人工完成被拒，回执写明完成权在上游');
+  check((await state()).villager.mode === 'working', '被拒后上游单继续跑');
 
   // 上游说收工，她走正常交付，不是凭空结束。
   const delivered = await page.evaluate(async () => {
-    window.Oracle.pushLedger({
-      id: 'c_smoke_probe',
-      title: '把便笺整理成三版标题',
-      agent_id: 'scribe',
-      status: 'ready_to_report',
-      step_idx: 3,
-      blocked_question: '',
+    window.Oracle.pushEvent({
+      kind: 'task.settled',
+      payload: { id: 'c_smoke_probe' },
     });
     await new Promise((resolve) => setTimeout(resolve, 300));
     return window.Oracle.view();
   });
   check(
     delivered.villager.mode === 'delivering' || delivered.villager.mode === 'toAltar',
-    '台账说收工，她走交付',
+    '上游说收工，她走交付',
   );
   check(!delivered.tasks.some((t) => t.id === 'c_smoke_probe'), '收工的单退出活动清单');
-  check(delivered.deliveries.ledger === 1, '台账交付单独计入台账统计');
-  check(delivered.deliveries.mock === 0, '台账交付不混进 Mock 统计');
+  check(delivered.deliveries.feed === 1, '上游交付单独计入上游统计');
+  check(delivered.deliveries.local === 0, '上游交付不混进本地统计');
 
-  // blocked_question 只展示、不回答：进快照，状态行与回执都能读到，转 running 后清除。
-  const blocked = await page.evaluate(async () => {
-    window.Oracle.pushLedger({
-      id: 'c_smoke_blocked',
-      title: '把便笺整理成三版标题',
-      agent_id: 'scribe',
-      status: 'blocked',
-      step_idx: 3,
-      blocked_question: '先按短句还是完整句式？',
+  // blocked_question 只展示、不回答：进快照，状态行、回执与急件面板都能读到，
+  // 之后上游发 `task.opened` 重述（问题为空）时清除。
+  //
+  // 问题故意用一句长而具体的：急件面板必须**一个字都不截**，用户要看着它做决定。
+  const blockedQuestion = '要执行 rm -rf ./temp_build 吗？这个目录里有 3 个未提交的文件。';
+  const blocked = await page.evaluate(async (question) => {
+    window.Oracle.pushEvent({
+      kind: 'task.opened',
+      payload: { id: 'c_smoke_blocked', kind: 'writing', title: '清理临时目录' },
+    });
+    window.Oracle.pushEvent({
+      kind: 'task.blocked',
+      payload: { id: 'c_smoke_blocked', question },
     });
     await new Promise((resolve) => setTimeout(resolve, 400));
     return window.Oracle.view();
-  });
+  }, blockedQuestion);
   check(
-    blocked.tasks.some((t) => t.blockedQuestion === '先按短句还是完整句式？'),
+    blocked.tasks.some((t) => t.blockedQuestion === blockedQuestion),
     'blocked_question 进了世界快照',
   );
   await page.waitForFunction(
@@ -169,34 +168,46 @@ async function runLedgerSuite() {
     '同步回执写出在等你的答复',
   );
 
-  // 上游把单转成 running：问题立刻清掉，不残留。
+  // 急件请旨：同一张 blocked 单必须完整呈到纸面上。这一条只能在这里验——
+  // 纯沙盒（`?feed=off`）断网时 `syncEvents` 会整帧丢弃折叠结果，
+  // 注入的 blocked 单永远到不了急件面板。
+  await page.waitForTimeout(400);
+  const decreeState = await page.evaluate(() => ({
+    decree: window.Oracle.decree(),
+    panelHidden: document.querySelector('#decree')?.hidden,
+    question: document.querySelector('#decree-question')?.textContent ?? '',
+    title: document.querySelector('#decree-title')?.textContent ?? '',
+  }));
+  check(
+    decreeState.decree?.question === blockedQuestion && decreeState.decree.taskId === 'c_smoke_blocked',
+    '急件指向那张在等答复的单，问题原文完整',
+    decreeState.decree?.question ?? 'null',
+  );
+  check(decreeState.panelHidden === false, '急件面板显示出来');
+  check(
+    decreeState.question === blockedQuestion,
+    '纸面显示的是完整原文，没有截断',
+    decreeState.question,
+  );
+  check(decreeState.title === '清理临时目录', '急件标题写清这单在做什么', decreeState.title);
+
+  // 上游重述这条活（问题为空）：答复等待立刻清掉，不残留。
   const resumed = await page.evaluate(async () => {
-    window.Oracle.pushLedger({
-      id: 'c_smoke_blocked',
-      title: '把便笺整理成三版标题',
-      agent_id: 'scribe',
-      status: 'running',
-      step_idx: 4,
-      blocked_question: '',
+    window.Oracle.pushEvent({
+      kind: 'task.opened',
+      payload: { id: 'c_smoke_blocked', kind: 'writing', title: '把便笺整理成三版标题' },
     });
     await new Promise((resolve) => setTimeout(resolve, 400));
     return window.Oracle.view();
   });
   check(
     resumed.tasks.every((t) => t.blockedQuestion === null),
-    '转 running 后答复等待被清除',
+    '上游重述后答复等待被清除',
   );
 
   // 收工后这条单离开活动清单，问题不残留。
   await page.evaluate(async () => {
-    window.Oracle.pushLedger({
-      id: 'c_smoke_blocked',
-      title: '把便笺整理成三版标题',
-      agent_id: 'scribe',
-      status: 'ready_to_report',
-      step_idx: 5,
-      blocked_question: '',
-    });
+    window.Oracle.pushEvent({ kind: 'task.settled', payload: { id: 'c_smoke_blocked' } });
     await new Promise((resolve) => setTimeout(resolve, 300));
   });
   check(
@@ -214,16 +225,16 @@ async function runSandboxSuite() {
       opening.villagers[0]?.id !== opening.villagers[1]?.id,
     '两个角色各有独立 id 与名字',
   );
-  check(opening.ledger.mock === true, '离线模式在快照里标成离线 Mock');
+  check(opening.feed.connected === false, '纯沙盒模式在快照里标成未连上游');
   await page.waitForFunction(
-    () => (document.querySelector('#status')?.textContent ?? '').includes('离线 Mock'),
+    () => (document.querySelector('#status')?.textContent ?? '').includes('上游离线'),
     null,
     { timeout: 5000 },
   );
   const openingStatus = await page.textContent('#status');
   check(
-    openingStatus.includes('离线 Mock') && openingStatus.includes('台账离线'),
-    '状态行标出离线 Mock',
+    openingStatus.includes('上游离线') && openingStatus.includes('仅本地活'),
+    '状态行标出上游离线、只剩本地活',
   );
   check(
     openingStatus.includes('莞尔：') && openingStatus.includes('阿雾：'),
@@ -352,7 +363,7 @@ async function runSandboxSuite() {
 
   const delivering = await waitFor((s) => s.villager.mode === 'delivering', '活干完，她出门交付');
   check(delivering.villager.visible === true, '交付时人重新出现在画面里');
-  check(delivering.tasks[0]?.status === 'done', '台账里这单已完成');
+  check(delivering.tasks[0]?.status === 'done', '世界的单列表里这单已完成');
   check(
     delivering.workstations.some((w) => w.activity.kind === 'cooling'),
     '铺子进入冷却',
@@ -382,7 +393,7 @@ async function runSandboxSuite() {
   );
   check(true, '两人都忙时新神谕进排队，回执写明第几位');
   const queuedView = await state();
-  check(queuedView.tasks.length === 3, '排队的单没有立刻进台账');
+  check(queuedView.tasks.length === 3, '排队的单没有立刻被派下去');
   check(queuedView.pending.length === 1, '排队单在快照 pending 里可见');
   await page.waitForFunction(
     () => (document.querySelector('#status')?.textContent ?? '').includes('排队 1 条'),
@@ -397,15 +408,15 @@ async function runSandboxSuite() {
   check(manual.tasks[1]?.status === 'done', '人工交付对沙盒单生效');
   const manualReply = await page.textContent('#reply');
   check(
-    manualReply.includes('离线 Mock') && manualReply.includes('不计入台账'),
-    '沙盒单人工交付回执标明离线 Mock、不计入台账',
+    manualReply.includes('离线本地') && manualReply.includes('不计入上游'),
+    '沙盒单人工交付回执标明离线本地、不计入上游',
   );
   check(manualReply.includes('莞尔'), '回执写清收的是谁的单');
   check(
-    manual.deliveries.ledger === 0 && manual.deliveries.mock >= 2,
-    '交付统计把 Mock 单独计，不混进台账',
+    manual.deliveries.feed === 0 && manual.deliveries.local >= 2,
+    '交付统计把本地单单独计，不混进上游',
   );
-  check(manual.deliveriesByVillager[0]?.mock >= 1, '交付归属到指定角色');
+  check(manual.deliveriesByVillager[0]?.local >= 1, '交付归属到指定角色');
 
   // 按名字指定另一个人：只收阿雾那单。
   await waitFor((s) => s.villagers[1]?.mode === 'working', '助手也在干活', 20000);
@@ -418,7 +429,7 @@ async function runSandboxSuite() {
   check(true, '按名字指定交付对象');
   const perWorker = await state();
   check(
-    perWorker.deliveriesByVillager.every((item) => item.mock >= 1),
+    perWorker.deliveriesByVillager.every((item) => item.local >= 1),
     '两个角色都各自记了交付',
   );
 
@@ -643,13 +654,13 @@ async function runSandboxSuite() {
     '400ms 后注入区仍在且两个按钮可点',
   );
   check(
-    injectAt400.text.includes('仅调试') && injectAt400.text.includes('不写台账'),
-    '注入区文案标明仅调试、不写台账',
+    injectAt400.text.includes('仅调试') && injectAt400.text.includes('不写日志'),
+    '注入区文案标明仅调试、不写日志',
   );
   check(injectAt400.open === false && injectAt400.insideContent === false, '注入区默认折叠且在刷新区之外');
   await page.screenshot({ path: `${OUT}/07-debug-panel-400ms.png` });
 
-  // 展开后点一次 feed：只进世界命令队列，不写台账。
+  // 展开后点一次 feed：只进世界命令队列，不写事件日志。
   const tasksBeforeFeed = await page.evaluate(() => window.Oracle.view().tasks.length);
   await page.evaluate(() => {
     const details = document.querySelector('#debug-inject');
@@ -769,7 +780,7 @@ async function runSandboxSuite() {
       JSON.stringify(beforeSave.deliveriesByVillager),
     '刷新后按角色交付统计恢复',
   );
-  check(restored.ledger.reconciled === false, '读档后标记未对账');
+  check(restored.feed.reconciled === false, '读档后标记未对账');
   await page.waitForFunction(
     () => (document.querySelector('#status')?.textContent ?? '').includes('读档未对账'),
     null,
@@ -792,7 +803,7 @@ async function runSandboxSuite() {
     '清档后从新世界开始',
   );
 
-  // 时相是纯渲染态：可切到夜、状态保持，且不写世界/台账。
+  // 时相是纯渲染态：可切到夜、状态保持，且不写世界/上游。
   // 页面按真实时间开局，所以先显式落到昼，再切夜，断言才与时刻无关。
   const nightWorldBefore = await state();
   await page.evaluate(() => window.Oracle.setPhase('noon'));
@@ -808,7 +819,7 @@ async function runSandboxSuite() {
     JSON.stringify(nightWorldAfter.buildings) === JSON.stringify(nightWorldBefore.buildings) &&
       nightWorldAfter.weather === nightWorldBefore.weather &&
       JSON.stringify(nightWorldAfter.faith) === JSON.stringify(nightWorldBefore.faith),
-    '夜景不写世界/台账',
+    '夜景不写世界/上游',
   );
   // 关闭 = 交还给真实时间。真实时间此刻可能就是夜，所以不能断言「不再是夜」；
   // 断言的是「回到自动推进」，这才是这条开关的契约。
@@ -829,7 +840,7 @@ try {
   await page.goto(
     // ?debug=1：维护条（派活按钮、造物、神迹、存档、调试面板）只在调试层出现，
     // 产品页默认没有它们。回归脚本要驱动它们，就必须显式打开这一层。
-    LEDGER ? `${URL_BASE}?ledger=on&debug=1` : `${URL_BASE}?ledger=off&debug=1`,
+    FEED ? `${URL_BASE}?feed=on&debug=1` : `${URL_BASE}?feed=off&debug=1`,
     { waitUntil: 'load' },
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });
@@ -857,9 +868,9 @@ try {
   check(opening.buildings.length === counts.total, '快照与统计同源');
   check(opening.villager.mode === 'idle', '开局她在闲逛');
 
-  if (LEDGER) {
-    await runLedgerSuite();
-    report('台账模式');
+  if (FEED) {
+    await runFeedSuite();
+    report('事件流模式');
   } else {
     await runSandboxSuite();
     report('神谕闭环');

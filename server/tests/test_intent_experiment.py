@@ -22,14 +22,31 @@ from oracle import wire  # noqa: E402
 
 
 def test_用例覆盖四类且条数够() -> None:
-    # 票面要求：六条命令各 5 条以上、越界 10 条以上、闲聊 10 条以上、歧义 5 条以上。
-    assert len(experiment.LEGAL) >= 24
+    # 票面要求：五条世界能执行的命令各 5 条以上、越界 10 条以上、
+    # 闲聊 10 条以上、歧义 5 条以上。
+    assert len(experiment.LEGAL) >= 25
     assert len(experiment.OUT_OF_BOUNDS) >= 10
     assert len(experiment.CHITCHAT) >= 10
     assert len(experiment.AMBIGUOUS) >= 5
 
 
+def test_每一条能执行的命令都至少有五条用例() -> None:
+    """按命令分组再数一遍。总数够不代表每条都够——某一条只有两条用例时，
+    它在表上那个「通过率」就是一个太小的分母。"""
+    counts: dict[str, int] = {}
+    for _, expected in experiment.LEGAL:
+        counts[expected] = counts.get(expected, 0) + 1
+    for command, count in counts.items():
+        assert count >= 5, f"{command} 只有 {count} 条用例"
+
+
 def test_合法的用例点到了每一条命令() -> None:
+    """五条世界真能执行的命令各有用例。
+
+    `npc.setSchedule` 不在里面：它在白名单里，但客户端与世界都还没有这条意图，
+    拿它当「合法命令」测模型，测的是一个世界接不住的东西。它仍然在越界/歧义
+    那一侧出现（「让她去农田那边待着」），因为用户的期待是真的。
+    """
     covered = {expected for _, expected in experiment.LEGAL}
     assert covered == {
         "weather.set",
@@ -37,7 +54,6 @@ def test_合法的用例点到了每一条命令() -> None:
         "building.add",
         "building.remove",
         "miracle.spawn",
-        "npc.setSchedule",
     }
 
 

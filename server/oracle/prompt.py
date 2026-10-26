@@ -15,14 +15,17 @@ from __future__ import annotations
 
 from typing import Any
 
-#: 六条命令，逐条写清能带什么。模型抄错一个字段名就被校验器拒。
+#: 五条命令，逐条写清能带什么。模型抄错一个字段名就被校验器拒。
+#:
+#: 只列世界真能执行的五条。`npc.setSchedule` 还在规则层白名单里（它是一条
+#: 合法的世界命令），但客户端与世界都还没有对应的意图，写进提示词就是让模型
+#: 去说一件世界办不到的事——用户会看到「听懂了」然后什么也没发生。
 COMMAND_LINES = """- {"command":"weather.set","args":{"value":"clear"|"rain"|"storm"}} 改天气；storm 是暴雨，比 rain 重
 - {"command":"tide.setLevel","args":{"value":0..1,"durationMs":毫秒}} 把潮位拨住一会儿；到期自己回到潮汐节律。
   durationMs 可省略（省略时取上限 120000）；不能超过 120000，也不能是 0 或负数
 - {"command":"building.add","args":{"prefabId":"<模板>","at":{"x":整数,"y":整数}}} 落一栋楼
-- {"command":"building.remove","args":{"instanceId":"<实例 id>"}} 拆一栋楼
-- {"command":"miracle.spawn","args":{"kind":"light"|"tree"|"cat"}} 点灯 / 种树 / 召唤猫；可带 "at"
-- {"command":"npc.setSchedule","args":{"id":"<居民>","schedule":"altar"|"garden"|"promenade"|"shelter"}} 改作息"""
+- {"command":"building.remove","args":{"instanceId":"<实例 id>"}} 拆一栋楼；instanceId 必须原样抄世界现状里的那个，不要自己拼
+- {"command":"miracle.spawn","args":{"kind":"light"|"tree"|"cat"}} 点灯 / 种树 / 召唤猫；可带 "at\""""
 
 
 def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any] | None = None) -> str:
@@ -46,6 +49,9 @@ def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any]
 
 - 已经有了某栋楼，仍然照常输出 building.add。世界会拒绝并说明已经有了。
   你替世界提前判 unknown，用户会以为你没听懂。
+- **要拆楼就抄现状里的 instanceId。** 「已经建了」那行给了每一栋的 instanceId，
+  原样抄；不要在模板名后面自己拼一个 `#1`——那可能指着另一栋，世界会照你说的拆。
+  上下文里没有的楼，答 unknown 并说明你没找到。
 - 只有用户在**问现状**时才答 unknown。「镇上现在有几栋楼」是在打听，不是在要求改。
 
 判断口诀：看用户**要你做什么**，不看世界**现在是什么样**。
@@ -55,7 +61,7 @@ def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any]
 
 ## 你能表达的命令
 
-只输出下面六种之一，别的都不存在。命令名与字段名都写死在 schema 里，
+只输出下面五种之一，别的都不存在。命令名与字段名都写死在 schema 里，
 多一个字段、少一个字段、拼错一个字母，都会被拒：
 
 {COMMAND_LINES}
@@ -82,7 +88,7 @@ def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any]
 ```
 
 `commands` 可以为空（当 user 不是命令时），此时 `narrative` 要说清为什么不动。
-一次最多三条命令，按执行顺序排。
+一次最多一条命令。想改多件事就请用户分开说，不要批量输出。
 """
 
 
@@ -91,9 +97,14 @@ def render_context(context: dict[str, Any]) -> str:
     一句「未知」会让模型以为它该去猜。"""
     lines: list[str] = []
 
-    buildings = context.get("buildings") or []
+    built = context.get("built") or {}
+    buildings = [entry for group in ("town", "wild") for entry in built.get(group, [])]
     if buildings:
-        lines.append(f"已经建了：{'、'.join(buildings)}。")
+        lines.append(
+            "已经建了："
+            + "、".join(f"{entry['name']}（instanceId={entry['instanceId']}）" for entry in buildings)
+            + "。"
+        )
 
     busy = context.get("busy") or []
     if busy:

@@ -51,7 +51,12 @@ TEMPLATES = [
 
 WORLD = {"width": 96, "height": 72, "buildingCount": 6}
 
-#: 六条命令各 5 条以上，含同义改写。
+#: 世界真能执行的五条命令各 5 条以上，含同义改写。
+#:
+#: `npc.setSchedule` 不在这里：它过得了白名单，但客户端与世界都还没有这条意图，
+#: 端点到它一律落 unknown（`oracle/api.py`）。把它算作「合法命令」，会把一次
+#: **服务端能力缺口**记成模型没听懂。它放在 `AMBIGUOUS` 那一组，并在结果文档里
+#: 注明「世界暂不执行」。
 LEGAL: list[tuple[str, str]] = [
     ("下雨吧", "weather.set"),
     ("放晴", "weather.set"),
@@ -68,15 +73,17 @@ LEGAL: list[tuple[str, str]] = [
     ("在 (40,45) 盖一间抄书斋", "building.add"),
     ("给我整个新铺子", "building.add"),
     ("这儿再盖一座炼码工坊", "building.add"),
+    ("帮我盖个资料馆", "building.add"),
     ("把抄书斋拆了吧", "building.remove"),
     ("拆掉那座观星档案馆", "building.remove"),
     ("那栋楼不要了", "building.remove"),
+    ("不要那间书斋了，拆掉", "building.remove"),
+    ("旧工坊推了重盖", "building.remove"),
     ("点灯", "miracle.spawn"),
     ("种棵树", "miracle.spawn"),
     ("召唤一只猫", "miracle.spawn"),
     ("在 (10,10) 放一棵树", "miracle.spawn"),
-    ("让她去农田那边待着", "npc.setSchedule"),
-    ("作息改成看星星", "npc.setSchedule"),
+    ("点一盏灯", "miracle.spawn"),
 ]
 
 #: 故意越界。**每一条都必须被拒**，漏一条就是硬伤。
@@ -110,12 +117,19 @@ CHITCHAT: list[tuple[str, str]] = [
 ]
 
 #: 歧义句。期望「要么合法要么 unknown」，**不能是越界命令**。
+#:
+#: 末尾两条是**服务端能力缺口**，不是模型问题：`npc.setSchedule` 在白名单里，
+#: 客户端与世界却都没有这条意图，所以端点一律落 unknown。它们放在这里是因为
+#: 用户的期待是真的（她确实是在要求改作息）；判「过」的口径是 unknown 或任何
+#: 合法命令——把「世界还执行不了」记成「模型没听懂」是归因错误。
 AMBIGUOUS: list[tuple[str, str]] = [
     ("把那份报告弄一下", "动作模糊，意图明确"),
     ("给我看看那栋楼", "看 vs 拆"),
     ("潮水", "孤零零一个词"),
     ("再盖一间吧", "没说什么模板"),
     ("把这儿弄干净", "清洗？拆除？"),
+    ("让她去农田那边待着", "世界暂不执行：没有 npc.setSchedule 意图"),
+    ("作息改成看星星", "世界暂不执行：没有 npc.setSchedule 意图"),
 ]
 
 ALL_CASES: list[tuple[str, str, str]] = [

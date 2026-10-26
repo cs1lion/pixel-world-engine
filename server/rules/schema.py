@@ -210,6 +210,11 @@ def _npc_set_schedule(args: dict[str, Any], world: dict[str, Any]) -> dict[str, 
 
 
 #: 白名单：命令名 → 校验函数。不在表里的一律拒收。
+#:
+#: 六条都过这里。但「过得了白名单」不等于「世界认得这个意图」：
+#: `npc.setSchedule` 目前客户端与世界都还没有对应的意图，所以提示词不列它
+#: （`oracle/prompt.py`），端点收到它也会落 unknown（`oracle/api.py`）。
+#: 两层各说各的实话：这里管「这条命令合法吗」，那里管「这个世界能执行吗」。
 COMMAND_CHECKS: dict[str, Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]] = {
     "weather.set": _weather_set,
     "tide.setLevel": _tide_set_level,

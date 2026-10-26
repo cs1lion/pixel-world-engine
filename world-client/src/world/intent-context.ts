@@ -12,6 +12,9 @@
  *
  * 2. **不含可推断的细节。** 不发完整建筑数组、不发每个格子、不发任务 id。
  *    发一串建筑清单，模型除了复述没有别的用途，还白烧 token。
+ *    唯一的例外是 `instanceId`：它不是细节，是**这栋楼的唯一名字**。
+ *    拆楼必须指名道姓（见 `intent-schema.ts` 的 demolish），不给它，
+ *    模型只能给模板，世界就得替用户挑一栋。
  *
  * 3. **形状稳定。** 这份结构同时喂 `intent-prompt.ts`（离线推演与测试）与
  *    `world_intent.py`（线上）。两处都从这里的字段渲染，改字段只改一处。
@@ -30,8 +33,8 @@ import type { PlacedBuilding, TaskKind, VillagerSnapshot, Weather, WorldSnapshot
 export interface IntentContext {
   /** 已有的建筑，按郊野 / 镇内分组，只给 id 与显示名。 */
   readonly built: {
-    readonly town: readonly { readonly templateId: string; readonly name: string }[];
-    readonly wild: readonly { readonly templateId: string; readonly name: string }[];
+    readonly town: readonly { readonly instanceId: string; readonly templateId: string; readonly name: string }[];
+    readonly wild: readonly { readonly instanceId: string; readonly templateId: string; readonly name: string }[];
   };
   /** 每类活有几栋能接。`0` 表示这类活目前没地方做。 */
   readonly capacity: readonly { readonly taskKind: TaskKind; readonly count: number }[];
@@ -48,6 +51,7 @@ export interface IntentContext {
 export function summarizeForIntent(snapshot: WorldSnapshot): IntentContext {
   const isWild = (building: PlacedBuilding): boolean => WILD_PREFABS.has(building.prefabId);
   const toEntry = (building: PlacedBuilding) => ({
+    instanceId: building.instanceId,
     templateId: building.prefabId,
     name: building.displayName,
   });

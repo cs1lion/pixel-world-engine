@@ -82,11 +82,29 @@ test('造物：位置可省略，也可给整数格', () => {
   });
 });
 
-test('拆：只要模板 id', () => {
+test('拆：实例 id 指名道姓，原样保留', () => {
+  // 实例 id **不查注册表**：它是世界的身份，不是模板名。查表会把它当成
+  // 未知模板拒掉，而世界其实认得它。
+  assert.deepEqual(ok({ kind: 'demolish', instanceId: 'ink_house#2' }), {
+    kind: 'demolish',
+    instanceId: 'ink_house#2',
+  });
+});
+
+test('拆：只说模板也行，那是「拆掉抄书斋」这一种说法', () => {
   assert.deepEqual(ok({ kind: 'demolish', templateId: 'ink_house' }), {
     kind: 'demolish',
     templateId: 'ink_house',
   });
+});
+
+test('拆：两个都给、两个都不给，都拒', () => {
+  assert.match(
+    bad({ kind: 'demolish', templateId: 'ink_house', instanceId: 'ink_house#2' }),
+    /不能同时给/,
+  );
+  assert.match(bad({ kind: 'demolish' }), /需要 instanceId/);
+  assert.match(bad({ kind: 'demolish', instanceId: '  ' }), /instanceId 不能为空/);
 });
 
 test('神迹：三件，可带坐标', () => {

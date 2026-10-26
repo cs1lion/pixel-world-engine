@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from events.api import create_app
 from events.log import EventLog
+from oracle import wire
 from oracle.api import command_to_intent
 from oracle.orchestrator import ModelUnavailable
 from rules.schema import validate_command
@@ -143,13 +144,16 @@ def test_建楼回到_build_形状() -> None:
     }
 
 
-def test_拆楼把实例_id_换成模板_id() -> None:
-    """白名单收 instanceId（bookshop#1），客户端的 demolish 收 templateId。
-    去掉 #N 后缀是**明确的换算**，不是猜。"""
+def test_拆楼的实例_id_原样到世界() -> None:
+    """实例 id 是身份，不是可以化简的名字。
+
+    早先这里把 `bookshop#1` 降级成 `bookshop`，世界再去拆「第一栋抄书斋」——
+    用户说拆 1 号，拆掉的是 2 号，而且回执还会说成功。
+    """
     response = post(
-        client_with(commands({"command": "building.remove", "args": {"instanceId": "bookshop#1"}}))
+        client_with(commands({"command": "building.remove", "args": {"instanceId": "bookshop#2"}}))
     )
-    assert response.json()["intent"] == {"kind": "demolish", "templateId": "bookshop"}
+    assert response.json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#2"}
 
 
 def test_神迹回到_miracle_形状() -> None:
@@ -157,8 +161,12 @@ def test_神迹回到_miracle_形状() -> None:
     assert response.json()["intent"] == {"kind": "miracle", "miracle": "cat", "at": None}
 
 
-def test_多给一条命令时只执行第一条并报出条数() -> None:
-    """世界侧还没有「一批命令按序结算」。悄悄丢掉第二条比明确只做第一条更坏。"""
+def test_多给一条命令时整条拒_不是悄悄只做第一条() -> None:
+    """世界侧还没有「一批命令按序结算」。
+
+    悄悄执行第一条比明确拒绝更坏：用户说了两件事，世界只做了一件，
+    回执却像办完了。要批处理是调用方拆成多次请求的事。
+    """
     response = post(
         client_with(
             commands(
@@ -168,8 +176,9 @@ def test_多给一条命令时只执行第一条并报出条数() -> None:
         )
     )
     body = response.json()
-    assert body["intent"] == {"kind": "setWeather", "weather": "rain"}
-    assert body["dropped"] == 1
+    assert body["intent"]["kind"] == "unknown"
+    assert "最多 1 条" in body["intent"]["reason"]
+    assert "dropped" not in body
 
 
 # ---------------------------------------------------------------- 没听懂
@@ -200,12 +209,39 @@ def test_越界命令落_unknown_并说清为什么() -> None:
 
 
 def test_世界还执行不了的命令落_unknown_而不是装作执行了() -> None:
+    """`npc.setSchedule` 过得了白名单（它是一条合法命令），但客户端与世界
+    都还没有这条意图。端点必须说「世界还执行不了」，不能装作办完了。"""
     response = post(
         client_with(
             commands({"command": "npc.setSchedule", "args": {"id": "v0", "schedule": "garden"}})
         )
     )
     assert response.json()["intent"]["kind"] == "unknown"
+
+
+def test_拆楼没有实例_id_时被拒_而不是编一个() -> None:
+    """只有模板 id 时，服务端**不能**自己拼一个 `templateId#1` 去拆——
+    那等于替用户挑了一栋。这一条钉的是那个诱惑。"""
+    with pytest.raises(wire.WireError) as caught:
+        wire.validate_intent({"kind": "demolish", "templateId": "ink_house"})
+    assert "instanceId" in str(caught.value)
+
+
+def test_拆楼两个键同时给也被拒() -> None:
+    """两个都给了，说明调用方对「拆哪一栋」没有拿定主意。猜一个不如问清楚。"""
+    with pytest.raises(wire.WireError) as caught:
+        wire.validate_intent(
+            {"kind": "demolish", "templateId": "ink_house", "instanceId": "ink_house#2"}
+        )
+    assert "不能同时给" in str(caught.value)
+
+
+def test_拆楼给了实例_id_就原样翻成白名单命令() -> None:
+    intent, command = wire.validate_intent({"kind": "demolish", "instanceId": "ink_house#3"})
+    assert intent["instanceId"] == "ink_house#3"
+    assert command is not None
+    assert command.name == "building.remove"
+    assert command.args == {"instanceId": "ink_house#3"}
 
 
 # ---------------------------------------------------------------- 端点自身的错误

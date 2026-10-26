@@ -149,11 +149,15 @@ def test_越界时连合法的那条也不执行() -> None:
     assert result.commands == []
 
 
-def test_命令条数超上限被拒() -> None:
+def test_一次只收一条命令_多了整条拒() -> None:
+    """世界侧没有「一批命令按序结算」。多给的命令**不能悄悄丢掉**——
+    用户说了两件事，世界只做了一件却说办完了，比拒掉更坏。"""
+    assert MAX_COMMANDS == 1
     many = [WEATHER_RAIN] * (MAX_COMMANDS + 1)
     result = interpret("随便", TEMPLATES, None, caller(reply(*many)))
     assert not result.ok
     assert result.code == "too-many-commands"
+    assert result.commands == []
 
 
 def test_空句子与超长句子在调模型之前就被拒() -> None:
@@ -171,7 +175,7 @@ def test_没有模板表就不问模型() -> None:
 
 # ---------------------------------------------------------------- 提示词
 
-def test_提示词列出每一条模板与每一种命令() -> None:
+def test_提示词列出每一条模板与每一种世界能执行的命令() -> None:
     prompt = build_system_prompt(TEMPLATES)
     for item in TEMPLATES:
         assert item["id"] in prompt
@@ -182,9 +186,19 @@ def test_提示词列出每一条模板与每一种命令() -> None:
         "building.add",
         "building.remove",
         "miracle.spawn",
-        "npc.setSchedule",
     ):
         assert command in prompt, f"提示词没讲 {command}"
+
+
+def test_提示词不列世界办不到的命令() -> None:
+    """`npc.setSchedule` 在白名单里，但客户端与世界都还没有这条意图。
+
+    把它写进提示词，等于让模型去说一件世界办不到的事——用户看到「听懂了」，
+    世界什么也没做。白名单管合法性，提示词管能力声明，两层不能混。
+    """
+    prompt = build_system_prompt(TEMPLATES)
+    assert "npc.setSchedule" not in prompt
+    assert "只输出下面五种之一" in prompt
 
 
 def test_提示词禁止模型自己改数() -> None:

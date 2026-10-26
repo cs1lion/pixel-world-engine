@@ -4,7 +4,7 @@
 
     orchestrator.interpret()   调模型，拿回原始 JSON
     rules.schema.validate_*    白名单与取值域
-    oracle.translate           六条命令 → 客户端能执行的意图
+    oracle.wire                白名单命令 → 客户端能执行的意图
 
 **失败一律 `ok: false`，绝不猜。** 模型超时、返回非 JSON、命令越界——
 这三种在用户眼里是同一件事：这句话没被听懂。退而求其次猜一个，
@@ -25,9 +25,9 @@ from typing import Any, Protocol
 from oracle.prompt import build_messages
 from rules.schema import Command, CommandRejected, validate_commands
 
-#: 模型输出的上限。一道命令三个数，三条命令也就一两百 token；
-#: 超过这个量级的回答多半是在解释，不是在给命令。
-MAX_COMMANDS = 3
+#: P0 一次请求只表达一个世界动作。多命令必须由调用方拆成多次请求，
+#: 不能由端点悄悄只执行第一条。
+MAX_COMMANDS = 1
 
 #: 一句话最多多长。再长的输入不是神谕，是一篇文章。
 MAX_UTTERANCE_CHARS = 500

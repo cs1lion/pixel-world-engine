@@ -59,6 +59,7 @@ test('规则的结果与 speak() 的既有行为一致', async () => {
     miracle: 'tree',
     at: { x: 40, y: 45 },
   });
+  // 规则侧听不出「哪一栋」，只能给模板；世界据此判「恰好一栋才拆」。
   assert.deepEqual((await route('拆掉抄书斋')).intent, {
     kind: 'demolish',
     templateId: 'ink_house',
@@ -95,12 +96,21 @@ test('规则认不出时问模型，模型的结果被采纳', async () => {
   assert.deepEqual(model.calls, ['把那份季度报告弄一下'], '问的是原话，不改写');
 });
 
-test('模型说 unknown，路由就认 unknown', async () => {
+test('模型说 unknown，路由就认 unknown，并把它的原因原样带回来', async () => {
   const model = fakeModel({ kind: 'unknown', reason: '在征求意见' });
   const result = await route('你觉得该怎么办', model);
   assert.equal(result.intent.kind, 'unknown');
   assert.equal(result.source, 'model', 'unknown 也是模型的合法输出，不是失败');
   assert.equal(result.modelError, null);
+  // 原因不能被一句通用的「没听懂」盖掉：用户看到的必须是模型给的那句。
+  assert.equal(result.intent.kind === 'unknown' ? result.intent.reason : '', '在征求意见');
+});
+
+test('模型点名实例拆楼：实例 id 原样到意图，不降级成模板', async () => {
+  const model = fakeModel({ kind: 'demolish', instanceId: 'ink_house#2' });
+  const result = await route('把二号抄书斋拆了', model);
+  assert.equal(result.source, 'model');
+  assert.deepEqual(result.intent, { kind: 'demolish', instanceId: 'ink_house#2' });
 });
 
 // ---------------------------------------------------------------- 失败必须落到 unknown

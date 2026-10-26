@@ -83,7 +83,8 @@ ${renderIntentContext(context)}
 - \`{"kind":"setTide","level":0到1,"durationMs":毫秒}\` 把潮位拨住一会儿；到期自己回到潮汐节律。
   \`durationMs\` 不能超过 120000，也不能是 0 或负数
 - \`{"kind":"build","templateId":"<模板>"}\` 建一栋楼；可带 \`"at":{"x":<整数>,"y":<整数>}\`
-- \`{"kind":"demolish","templateId":"<模板>"}\` 拆掉一栋楼
+- \`{"kind":"demolish","instanceId":"<实例 id>"}\` 拆掉指定的一栋；只说模板不说哪一栋时可用 \`"templateId"\`，
+  世界得在恰好一栋时才能落。**不要自己拼 instanceId**：抄现状里的那个
 - \`{"kind":"miracle","miracle":"light"|"tree"|"cat"}\` 点灯 / 种树 / 召唤猫；可带 \`"at"\`
 - \`{"kind":"unknown","reason":"<为什么听不出>"}\` 这句话不是在要求世界做任何事
 
@@ -131,7 +132,7 @@ ${contextSection}
 | 顺手看看有没有新邮件 | dispatch / quick |
 | 建个工坊 | build / workshop_plot |
 | 在 (40,45) 种棵树 | miracle / tree / at 40,45 |
-| 那栋抄书斋拆了吧 | demolish / ink_house |
+| 那栋抄书斋拆了吧 | demolish / instanceId（抄现状里的那个） |
 | 下雨吧 | setWeather / rain |
 | 涨潮 | setTide / level 1 |
 | 收工 | complete |

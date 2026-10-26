@@ -43,6 +43,19 @@ async function settle(sim: Simulation, ticks = 3): Promise<void> {
   }
 }
 
+/** 同 `settle`，但把这几拍结算出的回执收起来——回执只在当拍有效。 */
+async function settleCollect(
+  sim: Simulation,
+  ticks = 3,
+): Promise<readonly { ok: boolean; message: string }[]> {
+  const collected: { ok: boolean; message: string }[] = [];
+  for (let i = 0; i < ticks; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+    collected.push(...sim.update(16));
+  }
+  return collected;
+}
+
 const say = (sim: Simulation, text: string) => sim.enqueue({ kind: 'oracle', raw: text });
 
 /** 推一拍，返回本拍结算出的所有回执。 */
@@ -153,6 +166,37 @@ test('模型说 unknown → 世界不动', async () => {
   say(sim, '你觉得该怎么办');
   await settle(sim);
   assert.equal(sim.snapshot().buildings.length, before.buildings.length);
+});
+
+// ---------------------------------------------------------------- 原因要送到用户手里
+
+test('模型说听不懂的理由，原样出现在回执上', async () => {
+  // 「这句话没有要求世界做任何事」与「模型超时」对用户意味着完全不同的下一步：
+  // 前者该换句话，后者该去看服务端。一句通用的「没听懂」把这两件事抹平了。
+  const model: IntentModel = {
+    classify: async () => ({ kind: 'unknown', reason: '这句话没有要求世界做任何事' }),
+  };
+  const sim = makeSim(model);
+  say(sim, '你觉得该怎么办');
+  const receipts = await settleCollect(sim);
+  const receipt = receipts.find((item) => !item.ok);
+  assert.ok(receipt !== undefined, '应当有一条拒绝回执');
+  assert.equal(receipt.message, '这句话没有要求世界做任何事');
+});
+
+test('模型那一段出错时，回执说的是那条错，不是「没听懂」', async () => {
+  const model: IntentModel = {
+    classify: async () => {
+      throw new Error('调用模型超时 10000ms');
+    },
+  };
+  const sim = makeSim(model);
+  say(sim, '把那份报告弄一下');
+  const receipts = await settleCollect(sim);
+  const receipt = receipts.find((item) => !item.ok);
+  assert.ok(receipt !== undefined, '应当有一条拒绝回执');
+  assert.match(receipt.message, /超时/);
+  assert.doesNotMatch(receipt.message, /没听懂/);
 });
 
 // ---------------------------------------------------------------- 离线降级

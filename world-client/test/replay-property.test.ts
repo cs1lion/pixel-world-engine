@@ -20,9 +20,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
-import { ALTAR, buildWorld, buildWorldFromSave, placeBlueprint } from '../src/world/setup.ts';
+import {
+  buildLargeWorld,
+  buildWorldFromSave,
+  LARGE_ALTAR,
+  LARGE_WORLD_SPEC,
+  placeBlueprint,
+} from '../src/world/setup.ts';
+import type { BuiltWorld } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
-import type { WorldCommand } from '../src/world/simulation.ts';
+import type { SimulationDeps, WorldCommand } from '../src/world/simulation.ts';
 import type { WorldSave } from '../src/world/save.ts';
 
 const blueprints = parseBlueprintTable(
@@ -32,44 +39,44 @@ const blueprints = parseBlueprintTable(
 );
 
 /**
- * 从一份存档起一个世界。`spawnBuilding`/`blueprints` 也要带上：
- * 回放流里可能有造物命令，而 `Simulation.fromSave` 只是把存档灌回实例，
- * 造物能力来自 deps——**起世界的依赖与跑世界的依赖必须是同一套**，
- * 否则"重放"和"原跑"从构造上就不是同一个世界。
+ * 起世界的**唯一**一处装配。新建与读档共用它，规格固定为生产的大世界
+ * （`LARGE_WORLD_SPEC` + `LARGE_ALTAR`）。
+ *
+ * 为什么必须是生产规格：回放若跑在 30×20 的小世界里，郊野铺子、民居、
+ * 迷雾半径这些在生产里存在的东西在回放里根本不存在——那样验的是"另一个世界
+ * 也能同流同态"，不是这个世界的承诺。`spawnBuilding` 也要带上：回放流里
+ * 可能有造物命令，而 `Simulation.fromSave` 只是把存档灌回实例，造物能力
+ * 来自 deps——**起世界的依赖与跑世界的依赖必须是同一套**。
  */
-function worldFromSave(save: WorldSave): Simulation {
-  const clone = JSON.parse(JSON.stringify(save)) as WorldSave;
-  const world = buildWorldFromSave(clone.world.buildings, blueprints);
-  return Simulation.fromSave(clone, {
+function openWorld(world: BuiltWorld): SimulationDeps {
+  return {
     grid: world.grid,
     buildings: world.buildings,
-    altar: ALTAR,
+    altar: world.altar,
     villagerName: '莞尔',
     wallClock: () => 1000,
     blueprints,
     spawnBuilding: (prefabId, instanceId, at) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;
-      return placeBlueprint(world.grid, blueprint, instanceId, ALTAR, at);
+      return placeBlueprint(world.grid, blueprint, instanceId, world.altar, at);
     },
-  });
+  };
 }
 
 function newWorld(): Simulation {
-  const world = buildWorld(blueprints);
-  return new Simulation({
-    grid: world.grid,
-    buildings: world.buildings,
-    altar: ALTAR,
-    villagerName: '莞尔',
-    wallClock: () => 1000,
+  return new Simulation(openWorld(buildLargeWorld(blueprints)));
+}
+
+function worldFromSave(save: WorldSave): Simulation {
+  const clone = JSON.parse(JSON.stringify(save)) as WorldSave;
+  const world = buildWorldFromSave(
+    clone.world.buildings,
     blueprints,
-    spawnBuilding: (prefabId, instanceId, at) => {
-      const blueprint = blueprints.get(prefabId);
-      if (blueprint === undefined) return null;
-      return placeBlueprint(world.grid, blueprint, instanceId, ALTAR, at);
-    },
-  });
+    LARGE_WORLD_SPEC,
+    LARGE_ALTAR,
+  );
+  return Simulation.fromSave(clone, openWorld(world));
 }
 
 /**
@@ -96,11 +103,22 @@ export function replay(start: WorldSave, stream: InputStream): Simulation {
 }
 
 /**
- * 语义哈希：取 `toSave().world` 的可回放字段。刻意排除三类——
- *   1. **wall-clock**：`meta.savedAtWallClock` 与 settled 里 `mock` 来源的
- *      `completedAt`。那不是世界的时间，两次跑注定不同。
- *   2. **读档即归零的边沿状态**：`oracleLog`、`feed.*`。不定义回放语义。
- *   3. **纯渲染量**：trails、石板展示文本。世界不分叉它们。
+ * 语义哈希：取 `toSave().world` 里**不重复、不随文案变**的字段。
+ *
+ * 刻意排除两类：
+ *
+ * 1. **wall-clock**：`meta.savedAtWallClock` 与 settled 里 `mock` 来源的
+ *    `completedAt`。那不是世界的时间，两次跑注定不同。
+ * 2. **纯派生值**：雾半径、交付计数、潮位——它们分别是「settled 条数」「now」的
+ *    纯函数（`revealedRadiusFor` / `effectiveTideLevel`），上面已经通过
+ *    `settled` 与 `now` 进了哈希。再放一份进来，只会让同一次分叉在三个地方
+ *    各红一次，红的地方变多、指向的地方没变。
+ *
+ * 另外两样**在存档里、但不进哈希**：
+ *
+ * - `feed.*`：`fromSave` 一律归零（连接态、游标、对账位），回放语义就是"从零开始读"。
+ * - `oracle`（石板）：它是原话与回执的**转写稿**，措辞改一个字就变，而世界没动。
+ *   纳进来会把"改一句提示文案"报成"世界分叉"。它落盘是为了给读者看，不是为了回放。
  *
  * `pos` 与 `critters.at` 按**整数格**量化（`Math.round`，同 `cellOf`）。
  * 探针已证浮点 pos 随拆帧分叉；量化后"她在哪一格"是语义的（走没走到门口），
@@ -109,7 +127,6 @@ export function replay(start: WorldSave, stream: InputStream): Simulation {
  */
 export function semanticHash(sim: Simulation): string {
   const save = sim.toSave().world;
-  const snap = sim.snapshot();
   const cell = (p: { x: number; y: number }) => ({
     x: Math.round(p.x),
     y: Math.round(p.y),
@@ -135,11 +152,6 @@ export function semanticHash(sim: Simulation): string {
     nextPendingNumber: save.nextPendingNumber,
     tideOverride: save.tideOverride,
     worldChangeVersion: save.worldChangeVersion,
-    // 渲染读、但不落盘的少量语义字段：雾半径只由交付数决定，潮位视图由
-    // (now, override) 纯函数决定——它们分叉说明世界真的分叉了。
-    fog: snap.fog,
-    deliveries: snap.deliveries,
-    tide: { level: snap.tide.level, overridden: snap.tide.overridden },
   });
 }
 

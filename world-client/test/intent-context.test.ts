@@ -87,10 +87,23 @@ test('不出现坐标：模型拿不到可推断的实现细节', () => {
   const context = summarizeForIntent(makeSim().snapshot());
   const text = renderIntentContext(context);
   assert.doesNotMatch(text, /\d+\s*,\s*\d+/, '渲染结果里不该有坐标对');
-  // 结构层面也确认：条目只有 templateId 与 name 两个键。
+  // 结构层面也确认：条目只有 instanceId / templateId / name 三个键。
+  // `instanceId` 与坐标不同——它不是实现细节，是**这栋楼的唯一名字**。
+  // 没有它，模型说「拆掉 2 号抄书斋」时只能给模板，世界就得替它挑一栋。
   for (const entry of [...context.built.town, ...context.built.wild]) {
-    assert.deepEqual(Object.keys(entry).sort(), ['name', 'templateId']);
+    assert.deepEqual(Object.keys(entry).sort(), ['instanceId', 'name', 'templateId']);
+    assert.ok(entry.instanceId.length > 0);
   }
+});
+
+test('上下文里的实例 id 与世界里的建筑一一对应', () => {
+  const snapshot = makeSim().snapshot();
+  const context = summarizeForIntent(snapshot);
+  const fromContext = [...context.built.town, ...context.built.wild]
+    .map((entry) => entry.instanceId)
+    .sort();
+  const fromWorld = snapshot.buildings.map((building) => building.instanceId).sort();
+  assert.deepEqual(fromContext, fromWorld, '模型看到的 id 必须是世界真的认的那些');
 });
 
 test('三档天气在给模型的现状里各说各的，暴雨不会被说成「下雨」', () => {
