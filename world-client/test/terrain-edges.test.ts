@@ -107,13 +107,13 @@ test('暗边不能与本格底色相同（tree 用 ink，其余用 soil）', () 
   // 导致把实现改回 bug 时测试仍然绿（同义反复）。
   for (const self of TERRAINS) {
     assert.notEqual(
-      DARK[self],
+      WORLD[DARK[self]],
       TERRAIN_COLORS[self],
       `${self} 的暗边色与底色相同，画出来会隐形`,
     );
   }
   // tree 具体取值：必须比底色 soil 更深（亮度更低）
-  assert.equal(DARK.tree, WORLD.ink, 'tree 暗边必须用 ink：它的底色就是 soil，用 soil 落差 0.0');
+  assert.equal(DARK.tree, 'ink', 'tree 暗边必须用 ink：它的底色就是 soil，用 soil 落差 0.0');
   const lum = (hex: number): number =>
     0.2126 * ((hex >> 16) & 255) + 0.7152 * ((hex >> 8) & 255) + 0.0722 * (hex & 255);
   assert.ok(
@@ -124,7 +124,7 @@ test('暗边不能与本格底色相同（tree 用 ink，其余用 soil）', () 
 
 test('亮边不能与本格底色相同', () => {
   for (const self of TERRAINS) {
-    assert.notEqual(BRIGHT[self], TERRAIN_COLORS[self], `${self} 的亮边色与底色相同`);
+    assert.notEqual(WORLD[BRIGHT[self]], TERRAIN_COLORS[self], `${self} 的亮边色与底色相同`);
   }
 });
 
@@ -200,7 +200,7 @@ const dl = (a: number, b: number): number => Math.abs(lstar(a) - lstar(b));
 test('亮边色对本格底色 ΔL* ≥ 6（边可见性回归锁）', () => {
   const failing: string[] = [];
   for (const self of ['tree', 'grass', 'farm'] as const) {
-    const value = dl(BRIGHT[self], TERRAIN_COLORS[self]);
+    const value = dl(WORLD[BRIGHT[self]], TERRAIN_COLORS[self]);
     if (value < EDGE_VISIBLE_MIN_DL) {
       failing.push(`${self} 亮边 ΔL*=${value.toFixed(2)}`);
     }
@@ -212,7 +212,7 @@ test('亮边色对本格底色 ΔL* ≥ 6（边可见性回归锁）', () => {
 test('暗边色对本格底色 ΔL* ≥ 6（边可见性回归锁）', () => {
   const failing: string[] = [];
   for (const self of ['tree', 'grass', 'farm', 'stone'] as const) {
-    const value = dl(DARK[self], TERRAIN_COLORS[self]);
+    const value = dl(WORLD[DARK[self]], TERRAIN_COLORS[self]);
     if (value < EDGE_VISIBLE_MIN_DL) {
       failing.push(`${self} 暗边 ΔL*=${value.toFixed(2)}`);
     }
@@ -239,7 +239,7 @@ test('stone 亮边豁免的结构前提（改这三条任一都必须重估豁�
   assert.deepEqual(lowerNeighbors, ['plaza'], 'stone 的低邻格必须只有 plaza');
 
   // ② BRIGHT.stone 用的就是 plaza 的底色
-  assert.equal(BRIGHT.stone, WORLD.plaza, 'BRIGHT.stone 必须等于 plaza 底色，豁免才成立');
+  assert.equal(BRIGHT.stone, 'plaza', 'BRIGHT.stone 必须等于 plaza 底色，豁免才成立');
 
   // ③ 低邻格的底色 = plaza（TERRAIN_COLORS.plaza）
   assert.equal(TERRAIN_COLORS.plaza, WORLD.plaza, 'plaza 的底色必须是 WORLD.plaza');

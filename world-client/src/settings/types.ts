@@ -1,6 +1,6 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
-import type { WorldPalette } from '../world/theme.ts';
+import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import type { GridPoint, PrefabBlueprint, TerrainId } from '../world/types.ts';
 
 export interface SettingPlacement {
@@ -39,9 +39,10 @@ export interface SettingScenery {
   readonly length?: number;
 }
 
+/** 居民外观。斗篷与围巾只能是世界 24 色的 token 名，写错当场编译失败。 */
 export interface SettingVillagerStyle {
-  readonly cloak: string;
-  readonly scarf: string;
+  readonly cloak: WorldColor;
+  readonly scarf: WorldColor;
   readonly lamp: boolean;
 }
 

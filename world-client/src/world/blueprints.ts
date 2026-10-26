@@ -1,7 +1,7 @@
 /** 蓝图注册表。JSON 是外部数据，在边界解析成强类型；解析失败直接抛，不带着半个世界开工。 */
 
 import { WORLD } from './palette-data.ts';
-import type { WorldPalette } from './theme.ts';
+import type { WorldColor, WorldPalette } from './theme.ts';
 import { WORKSHOP_TASKS } from './tasks.ts';
 import type {
   PrefabBlueprint,
@@ -229,8 +229,10 @@ function readPaletteSlot(value: Record<string, unknown>, name: string, fail: Fai
       }
       return fail(`调色板槽 ${name} 的旧值 "${token}" 不合法：形如 "#8a5a44" 的 6 位十六进制`);
     }
+    // token 名来自不可信的外部 JSON，先用运行时的 hasOwnProperty 验明正身，
+    // 再把类型收窄成 WorldColor——闭集类型挡得住笔误，挡不住别人的配置文件。
     if (Object.prototype.hasOwnProperty.call(colors, token)) {
-      return colors[token]!;
+      return colors[token as WorldColor]!;
     }
     return fail(
       `调色板槽 ${name} 的颜色名 "${token}" 不在世界 24 色里；` +

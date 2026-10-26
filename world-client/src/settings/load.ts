@@ -1,14 +1,23 @@
 /** 外部设定集的唯一入口：先校验，再编译成已有的网格与蓝图。 */
 import { parseBlueprintTable } from '../world/blueprints.ts';
+import { WORLD } from '../world/palette-data.ts';
 import type { BuiltWorld } from '../world/setup.ts';
 import { placeBlueprint, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
+import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
-import type { PlacedBuilding } from '../world/types.ts';
+import type { PlacedBuilding, TerrainId } from '../world/types.ts';
 import type { RawSettingPack, SettingPack } from './types.ts';
 
 export class SettingPackError extends Error {}
 
-function point(value: unknown, label: string): void {
+/** 24 个色板槽的名字。闭集，加一个就要走 ADR（SPEC_V2 §4.2）。 */
+const TOKENS = Object.keys(WORLD) as WorldColor[];
+
+/** 八种地形各自要落到一个色板槽上，一种都不能少。 */
+const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal'];
+
+/** 名字读起来像取值，实际是断言：不合法就抛，合法就什么也不返回。 */
+function assertPoint(value: unknown, label: string): void {
   if (typeof value !== 'object' || value === null) throw new SettingPackError(`${label} 缺坐标`);
   const p = value as { x?: unknown; y?: unknown };
   if (!Number.isInteger(p.x) || !Number.isInteger(p.y)) {
@@ -19,33 +28,52 @@ function point(value: unknown, label: string): void {
 export function loadSettingPack(raw: RawSettingPack): SettingPack {
   if (!/^[a-z][a-z0-9-]*$/.test(raw.id)) throw new SettingPackError('设定集 id 不合法');
   if (raw.saveKey.length === 0) throw new SettingPackError('存档槽不能为空');
-  const palette = Object.fromEntries(
+  // 先按「不可信的外部数据」收一遍色值：此时键还是任意字符串，
+  // 等下面验明 24 个槽都在，才把它当 WorldPalette 用。
+  const slots = Object.fromEntries(
     Object.entries(raw.palette).map(([name, value]) => [name, parseColor(value, name)]),
-  );
-  const required = ['ink', 'soil', 'grass', 'grassLit', 'stone', 'plaza', 'farm', 'timber', 'timberDark', 'trim', 'amber', 'skin', 'cloak', 'cloakDark', 'ember', 'pale', 'plaster', 'terracotta', 'copper', 'water', 'moss', 'deepShade', 'warmLight', 'charcoal'];
-  for (const token of required) if (palette[token] === undefined) throw new SettingPackError(`缺少色板槽 ${token}`);
-  if (new Set(Object.values(palette)).size > 24) throw new SettingPackError('同屏源色不能超过 24');
-  const terrainColors = Object.fromEntries(
-    Object.entries(raw.terrainColors).map(([name, token]) => {
-      const color = palette[token];
-      if (color === undefined) throw new SettingPackError(`地形 ${name} 用了未知色 ${token}`);
-      return [name, color];
-    }),
-  );
-  for (const terrain of ['grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal']) {
-    if (terrainColors[terrain] === undefined) throw new SettingPackError(`缺少地形配色 ${terrain}`);
+  ) as Record<string, number>;
+  // 24 色预算是「24 个各不相同的槽」，不是「最多 24 个值」。
+  //
+  // 只查上界会漏掉重复：两个 token 填同一个色值时，画面上的实际色数少了，
+  // 而调用方以为 24 个槽都占着——那正是 `grassLit` 与 `stone` 同值发生过的事。
+  // 少一个槽（漏填）同样拒：槽位空着会让渲染层静默换色。
+  for (const token of TOKENS) {
+    if (slots[token] === undefined) throw new SettingPackError(`缺少色板槽 ${token}`);
   }
+  if (new Set(TOKENS.map((token) => slots[token])).size !== TOKENS.length) {
+    const distinct = new Set(TOKENS.map((token) => slots[token])).size;
+    throw new SettingPackError(`24 个色板槽必须各占一个不同的色值，实际只有 ${distinct} 个`);
+  }
+  const palette = slots as WorldPalette;
+  /**
+   * 八种地形各自落到一个色板槽上，一种都不能少。
+   *
+   * 少一种不会报缺省色，只会让那种地形在画面上用别的地形的颜色顶替——
+   * 「设定集里写了、场景里看不出」正是最难在浏览器里定位的那类静默失败。
+   */
+  const terrainColors = Object.fromEntries(
+    TERRAINS.map((terrain) => {
+      const token = raw.terrainColors[terrain];
+      const color = token === undefined ? undefined : palette[token as WorldColor];
+      if (color === undefined) {
+        const why = token === undefined ? '没有填' : `色 ${token} 不在 24 色里`;
+        throw new SettingPackError(`缺少地形配色 ${terrain}：${why}`);
+      }
+      return [terrain, color];
+    }),
+  ) as Record<TerrainId, number>;
   const { width, height } = raw.grid;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 30 || height < 20) {
     throw new SettingPackError('地图至少要有 30×20 格');
   }
   const inBounds = (p: { x: number; y: number }, label: string): void => {
-    point(p, label);
+    assertPoint(p, label);
     if (p.x < 0 || p.y < 0 || p.x >= width || p.y >= height) throw new SettingPackError(`${label} 越界`);
   };
   inBounds(raw.hub, '世界中心');
   for (const patch of raw.terrain) {
-    point(patch, '地形');
+    assertPoint(patch, '地形');
     if (patch.w < 1 || patch.h < 1 || patch.x < 0 || patch.y < 0 || patch.x + patch.w > width || patch.y + patch.h > height) {
       throw new SettingPackError('地形矩形越界');
     }
@@ -82,7 +110,7 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     if (villager.routine.length === 0) throw new SettingPackError(`${villager.name} 没有作息`);
     for (const stop of villager.routine) inBounds(stop, `${villager.name} 的作息`);
   }
-  return { ...raw, palette, terrainColors: terrainColors as SettingPack['terrainColors'], blueprints, authored: true };
+  return { ...raw, palette, terrainColors, blueprints, authored: true };
 }
 
 function parseColor(value: string, name: string): number {

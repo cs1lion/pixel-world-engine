@@ -11,6 +11,7 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
+import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import {
   isWalkingMode,
   LAMP_DRY,
@@ -33,29 +34,56 @@ interface VillagerStyle {
   readonly satchelLit: number;
 }
 
-const MAIN_STYLE: VillagerStyle = {
-  hair: WORLD.timberDark,
-  cloak: WORLD.cloak,
-  cloakDark: WORLD.cloakDark,
-  scarf: WORLD.ember,
-  scarfLit: WORLD.trim,
-  satchel: WORLD.timberDark,
-  satchelLit: WORLD.trim,
+/**
+ * 外观的 token 槽。存 token 名而不是解析好的色值：第二座镇子换掉 `cloak` 时，
+ * 小人要跟着换——存色值就等于把莞尔镇的衣服冻在灯潮界的人身上。
+ * 色值到 `resolveStyle` 里按当次色板取，默认仍是 `WORLD`。
+ */
+interface VillagerStyleTokens {
+  readonly hair: WorldColor;
+  readonly cloak: WorldColor;
+  readonly cloakDark: WorldColor;
+  readonly scarf: WorldColor;
+  readonly scarfLit: WorldColor;
+  readonly satchel: WorldColor;
+  readonly satchelLit: WorldColor;
+}
+
+const MAIN_STYLE: VillagerStyleTokens = {
+  hair: 'timberDark',
+  cloak: 'cloak',
+  cloakDark: 'cloakDark',
+  scarf: 'ember',
+  scarfLit: 'trim',
+  satchel: 'timberDark',
+  satchelLit: 'trim',
 };
 
 /** 阿雾：暖木斗篷 + 浅金围巾，和莞尔的蓝斗篷/橙围巾分开；仍在 24 色内。 */
-const ALT_STYLE: VillagerStyle = {
-  hair: WORLD.timberDark,
-  cloak: WORLD.timber,
-  cloakDark: WORLD.timberDark,
-  scarf: WORLD.trim,
-  scarfLit: WORLD.pale,
-  satchel: WORLD.terracotta,
-  satchelLit: WORLD.trim,
+const ALT_STYLE: VillagerStyleTokens = {
+  hair: 'timberDark',
+  cloak: 'timber',
+  cloakDark: 'timberDark',
+  scarf: 'trim',
+  scarfLit: 'pale',
+  satchel: 'terracotta',
+  satchelLit: 'trim',
 };
 
-function villagerStyle(villager: VillagerSnapshot): VillagerStyle {
-  return villager.name === '莞尔' ? MAIN_STYLE : ALT_STYLE;
+function resolveStyle(tokens: VillagerStyleTokens, palette: WorldPalette): VillagerStyle {
+  return {
+    hair: palette[tokens.hair],
+    cloak: palette[tokens.cloak],
+    cloakDark: palette[tokens.cloakDark],
+    scarf: palette[tokens.scarf],
+    scarfLit: palette[tokens.scarfLit],
+    satchel: palette[tokens.satchel],
+    satchelLit: palette[tokens.satchelLit],
+  };
+}
+
+function villagerStyle(villager: VillagerSnapshot, palette: WorldPalette): VillagerStyle {
+  return resolveStyle(villager.name === '莞尔' ? MAIN_STYLE : ALT_STYLE, palette);
 }
 
 export interface VillagerView {
@@ -80,7 +108,7 @@ export function createVillager(
   shadow.fillRect(-4, 0, 8, 1);
 
   const body = scene.add.graphics();
-  drawBody(body, 'down', villagerPose('idle', 0), 'idle', false, MAIN_STYLE, 0);
+  drawBody(body, 'down', villagerPose('idle', 0), 'idle', false, resolveStyle(MAIN_STYLE, WORLD), 0);
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
@@ -96,6 +124,7 @@ export function updateVillager(
   originY: number,
   altitude: number,
   colors?: { readonly cloak: number; readonly scarf: number; readonly lamp: boolean },
+  palette: WorldPalette = WORLD,
 ): void {
   const px = pixelAt(originX + (villager.pos.x + 0.5) * TILE_PX);
   const py = pixelAt(originY + (villager.pos.y + 1) * TILE_PX);
@@ -117,23 +146,25 @@ export function updateVillager(
     pose,
     villager.mode,
     isWalkingMode(villager.mode),
-    colors === undefined ? villagerStyle(villager) : { ...villagerStyle(villager), cloak: colors.cloak, scarf: colors.scarf },
+    colors === undefined
+      ? villagerStyle(villager, palette)
+      : { ...villagerStyle(villager, palette), cloak: colors.cloak, scarf: colors.scarf },
     nowMs,
   );
   if (colors?.lamp === true) {
     // 快照里的灯油只在这里影响画面；燃料不会变成任务或路径的隐藏条件。
     const lit = oil >= LAMP_DRY;
-    view.body.fillStyle(lit ? WORLD.amber : WORLD.charcoal, 1);
+    view.body.fillStyle(lit ? palette.amber : palette.charcoal, 1);
     view.body.fillRect(8, -10, 5, 7);
     if (lit) {
-      view.body.fillStyle(WORLD.warmLight, 1);
+      view.body.fillStyle(palette.warmLight, 1);
       view.body.fillRect(9, -9, 3, 4);
       if (oil > 0.65) {
-        view.body.fillStyle(WORLD.warmLight, 0.12);
+        view.body.fillStyle(palette.warmLight, 0.12);
         view.body.fillRect(5, -13, 11, 13);
       }
     }
-    view.body.fillStyle(WORLD.timberDark, 1);
+    view.body.fillStyle(palette.timberDark, 1);
     view.body.fillRect(9, -13, 1, 3);
   }
   if (villager.umbrella) drawUmbrella(view.body, pose.offsetY);

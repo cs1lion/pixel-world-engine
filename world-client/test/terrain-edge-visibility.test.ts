@@ -39,7 +39,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TERRAIN_COLORS } from '../src/world/palette-data.ts';
+import { TERRAIN_COLORS, WORLD } from '../src/world/palette-data.ts';
 import { BRIGHT, TERRAIN_HEIGHT } from '../src/render/terrain-edges.ts';
 import type { TerrainId } from '../src/world/types.ts';
 
@@ -83,7 +83,7 @@ function measurePairs(): readonly PairResult[] {
   for (const self of TERRAINS) {
     for (const neighbor of TERRAINS) {
       if (TERRAIN_HEIGHT[neighbor] >= TERRAIN_HEIGHT[self]) continue;
-      const token = BRIGHT[self];
+      const token = WORLD[BRIGHT[self]];
       const own = dl(token, TERRAIN_COLORS[self]);
       const against = dl(token, TERRAIN_COLORS[neighbor]);
       out.push({

@@ -29,6 +29,7 @@
 import type Phaser from 'phaser';
 import type { TerrainId } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
+import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { TILE_PX } from '../world/setup.ts';
 
 /** 材质高度序：边只画在高度**更大**的一侧。 */
@@ -43,24 +44,30 @@ export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
   coal: 2,
 };
 
-/** 亮一档 token：只用现有 24 色里的 `grassLit` / `plaza`（§1.2「不加色」）。 */
-export const BRIGHT: Readonly<Record<TerrainId, number>> = {
-  tree: WORLD.grassLit,
+/**
+ * 亮一档 token 名：只用现有 24 色里的 `grassLit` / `plaza`（§1.2「不加色」）。
+ *
+ * 存 **token 名**而不是解析后的色值：设定集换掉 `plaza` 时，边要跟着换，
+ * 存色值就等于把莞尔镇的颜色冻在第二座镇子的岸边上。色值到 `drawTileEdge`
+ * 里按当次色板解析，默认仍是 `WORLD`。
+ */
+export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
+  tree: 'grassLit',
   // grass 亮边用 plaza（ΔL* 9.5）；原 grassLit 对 grass 只有 3.0，18 条边不可见。
-  grass: WORLD.plaza,
-  farm: WORLD.plaza,
-  stone: WORLD.plaza,
+  grass: 'plaza',
+  farm: 'plaza',
+  stone: 'plaza',
   // plaza 是最低材质，邻格不可能更低，所以它**永远不画边**（实测 16 个 plaza 格
   // 一个都没画）。这里给 trim 而不是自身也是为此：万一将来改了高度序，画出来的
   // 边也不会与底色相同、变成隐形线。
-  plaza: WORLD.trim,
-  shallow: WORLD.water,
-  mud: WORLD.stone,
-  coal: WORLD.stone,
+  plaza: 'trim',
+  shallow: 'water',
+  mud: 'stone',
+  coal: 'stone',
 };
 
 /**
- * 暗边 token：按材质查表，**不能**全场统一用一个色。
+ * 暗边 token 名：按材质查表，**不能**全场统一用一个色。
  *
  * 原来全场统一用 soil（W02）。但 `tree` 的底色本身就是 soil
  * （`TERRAIN_COLORS.tree = WORLD.soil`），于是 tree 格朝下/朝右的暗边画出来
@@ -74,16 +81,16 @@ export const BRIGHT: Readonly<Record<TerrainId, number>> = {
  * 为什么其他材质不动：grass / farm / stone / plaza 的底色都比 soil 亮，落差
  * 20.9–45.6，本来就清楚。只补 tree 这一处漏洞，不顺手改已有正确的东西。
  */
-export const DARK: Readonly<Record<TerrainId, number>> = {
-  tree: WORLD.ink,
-  grass: WORLD.soil,
-  farm: WORLD.soil,
-  stone: WORLD.soil,
+export const DARK: Readonly<Record<TerrainId, WorldColor>> = {
+  tree: 'ink',
+  grass: 'soil',
+  farm: 'soil',
+  stone: 'soil',
   // 同 BRIGHT.plaza 的理由：plaza 永不画边；给 stone（比 plaza 暗）以防将来改高度序。
-  plaza: WORLD.stone,
-  shallow: WORLD.ink,
-  mud: WORLD.ink,
-  coal: WORLD.ink,
+  plaza: 'stone',
+  shallow: 'ink',
+  mud: 'ink',
+  coal: 'ink',
 };
 
 /** 四邻边掩码的位。 */
@@ -178,6 +185,9 @@ function bitCount(value: number): number {
 /**
  * 画一格的地形边。在底色与抖动纹理之后调用，只写本格内部的 1px 像素，不越界。
  *
+ * `palette` 决定亮/暗边落在哪个色值上：换设定集时边跟着新色板走，
+ * 不传就用莞尔镇的 24 色（旧调用点的行为完全不变）。
+ *
  * 绘制顺序：先暗边（下/右）再亮边（上/左），最后补角。暗亮在角上共用同一个像素时
  * 让亮边胜出——光从左上来，转角靠光的那一侧是受光面。
  */
@@ -187,15 +197,16 @@ export function drawTileEdge(
   around: EdgeNeighbors,
   px: number,
   py: number,
+  palette: WorldPalette = WORLD,
 ): void {
   const side = sideMask(self, around);
   const corner = cornerMask(self, around);
   if (side === 0 && corner === 0) return;
 
   const size = TILE_PX;
-  const bright = BRIGHT[self];
+  const bright = palette[BRIGHT[self]];
   // 暗边按材质取色：tree 用 ink（底色本身是 soil，用 soil 会隐形），其余用 soil。
-  const dark = DARK[self];
+  const dark = palette[DARK[self]];
 
   if ((side & SIDE_BIT.south) !== 0) {
     g.fillStyle(dark, 1);

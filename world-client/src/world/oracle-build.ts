@@ -45,6 +45,10 @@ const TEMPLATE_ALIASES: Readonly<Record<string, string>> = {
   文档磨坊: 'ink_mill',
   齿轮塔: 'gear_tower',
   炼码工坊: 'code_forge',
+  // 灯潮界唯一的可建模板（设定集渡口站台的瓦片母题）。旧世界没有这张蓝图，
+  // `templates.has` 会把它挡在门外——别名表可以跨设定集共用，不必分家。
+  候车亭: 'waiting_shelter',
+  旧候车亭: 'waiting_shelter',
 };
 
 export interface BuildIntent {

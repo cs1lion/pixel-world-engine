@@ -189,7 +189,7 @@ export class SandboxScene extends Phaser.Scene {
       h: this.world.grid.height * TILE_PX,
     };
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
-    this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette as never);
+    this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette);
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
@@ -199,10 +199,11 @@ export class SandboxScene extends Phaser.Scene {
     this.cameraCtl = createCameraController(this, worldPx.w, worldPx.h);
     // 设定集地图比旧镇大得多：默认 2 倍只能看到约 15×10 格，开局只露出叠浪楼一角，
     // 读不出"这是渡口—灯街—叠浪楼连成的一条世界"。放到 1 倍，首屏能同时看到楼、
-    // 街与灯；想细看仍可滚轮放大。
-    if (this.pack?.authored === true) this.cameraCtl.zoomStep(-1);
-    // 第二档：2 倍 → 1.5 倍 → 1 倍，两档才真正看得到整片街区。
-    if (this.pack?.authored === true) this.cameraCtl.zoomStep(-1);
+    // 街与灯；想细看仍可滚轮放大。2 倍 → 1.5 倍 → 1 倍要走两档，所以是两拍。
+    if (this.pack?.authored === true) {
+      this.cameraCtl.zoomStep(-1);
+      this.cameraCtl.zoomStep(-1);
+    }
     // 开局对准祭坛。放在下一帧做：Phaser 在 create() 结束后的首次 preRender
     // 会用 setBounds 重新夹取镜头，那时 camera.width 才是最终值；
     // 在 create() 里直接 centerOn 会被这次夹取推回左上角。
@@ -1107,7 +1108,8 @@ export class SandboxScene extends Phaser.Scene {
         scarf: this.pack!.palette[style.scarf] ?? WORLD.trim,
         lamp: style.lamp,
       };
-      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, colors);
+      // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
+      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, colors, this.pack?.palette ?? WORLD);
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.tideView.update(this.snapshot.tide.level);
@@ -1120,7 +1122,13 @@ export class SandboxScene extends Phaser.Scene {
       this.phaseView.currentPhase(),
       this.cameras.main.worldView,
     );
-    this.fogView.update(this.pack?.authored === true ? { ...this.snapshot.fog, revealedRadius: 1000 } : this.snapshot.fog, this.snapshot.now);
+    // 设定集地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是一口气铺开的，
+    // 留一片迷雾在中间会读成「这里还没长出来」。半径给到盖住整张图即可，
+    // 旧镇的迷雾照旧由世界自己收敛。
+    const fog = this.pack?.authored === true
+      ? { ...this.snapshot.fog, revealedRadius: this.world.grid.width + this.world.grid.height }
+      : this.snapshot.fog;
+    this.fogView.update(fog, this.snapshot.now);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {

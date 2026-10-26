@@ -19,7 +19,10 @@ const prefab = (
 export const DENGCHAO_RAW: RawSettingPack = {
   id: 'dengchao', name: '灯潮界', saveKey: 'dengchao.pixel-world.save.v1',
   palette: {
-    ink: '#111821', soil: '#202b35', grass: '#30454a', grassLit: '#52666a',
+    // 24 个槽必须各占一个不同的色值：`grassLit` 早先与 `stone` 都填 `#52666a`，
+    // 于是"草地受光面"这个槽在画面上根本不存在，而装载器以为 24 色都占着。
+    // 这里给它一个真正比 grass 亮、又和苔(moss)/石(stone)拉得开的值。
+    ink: '#111821', soil: '#202b35', grass: '#30454a', grassLit: '#4a6152',
     stone: '#52666a', plaza: '#7d8984', farm: '#3d5154', timber: '#7c4a40',
     timberDark: '#412d32', trim: '#dfbd7a', amber: '#f0a44b', skin: '#d5b28c',
     cloak: '#48727b', cloakDark: '#293f50', ember: '#bf5441', pale: '#d1d7bd',
@@ -68,6 +71,12 @@ export const DENGCHAO_RAW: RawSettingPack = {
     ferry_station: prefab('ferry_station', '旧渡口站台', 6, 4, 'copper', 'flat'),
     lamp_workshop: prefab('lamp_workshop', '补灯铺', 4, 4, 'terracotta'),
     boiler_annex: prefab('boiler_annex', '炉底入口', 4, 3, 'charcoal', 'flat'),
+    // 候车亭是这张图上**唯一开局不落位**的模板，这不是遗漏。
+    // 世界拒绝「同一种铺子建第二栋」，所以六个模板全落位之后，
+    // 白名单里的 building.add 在这张图上永远只能被拒——那句话就成了
+    // 摆设。留一个设定集里本来就有的构件（渡口站台的瓦片母题写着「候车亭」），
+    // 让「建一座候车亭」在这张图上真的能建成。
+    waiting_shelter: prefab('waiting_shelter', '候车亭', 4, 3, 'copper', 'flat'),
   },
   placements: [
     { prefabId: 'wave_house', at: { x: 28, y: 20 } },

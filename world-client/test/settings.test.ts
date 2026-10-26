@@ -4,6 +4,8 @@ import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack, SettingPackError } from '../src/settings/load.ts';
 import { routineProfiles, selectSetting } from '../src/settings/index.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { checkPlacement } from '../src/world/setup.ts';
+import { parseOracleBuild } from '../src/world/oracle-build.ts';
 import { SaveStore, SAVE_STORAGE_KEY, type StorageLike } from '../src/ui/save-store.ts';
 
 class Storage implements StorageLike {
@@ -79,4 +81,49 @@ test('浅滩底色与水色不同：潮汐得在画面上看得出来，不能�
   assert.notEqual(shallowGround, water, '退潮滩涂与满潮水面不能是同一块颜色');
   // 站台站在石砌码头上，不是浮在水面。
   assert.equal(buildSettingWorld(pack).grid.at({ x: 12, y: 12 })?.terrain, 'stone');
+});
+
+test('灯潮界至少留一个能建成的模板：所有模板都落位，白名单建造就永远只能被拒', () => {
+  const placed = new Set(pack.placements.map((placement) => placement.prefabId));
+  const buildable = [...pack.blueprints.keys()].filter((id) => !placed.has(id));
+  assert.ok(
+    buildable.length > 0,
+    '没有一个未落位的模板，building.add 在这张图上是一句永远做不到的话',
+  );
+  // 留白的那一个必须是世界真能落下的：找到至少一格合法空地。
+  const world = buildSettingWorld(pack);
+  const blueprint = pack.blueprints.get(buildable[0]!)!;
+  let spot: { x: number; y: number } | null = null;
+  for (let y = 2; y < world.grid.height - 4 && spot === null; y += 1) {
+    for (let x = 2; x < world.grid.width - 5; x += 1) {
+      if (checkPlacement(world.grid, blueprint, { x, y }).ok) {
+        spot = { x, y };
+        break;
+      }
+    }
+  }
+  assert.ok(spot !== null, `${blueprint.displayName} 一个合法位置都找不到`);
+});
+
+test('灯潮界的模板随名字能被说出来：造物规则要认得它的显示名', () => {
+  const intent = parseOracleBuild('建一座候车亭', pack.blueprints);
+  assert.notEqual(intent, null, '「建一座候车亭」应当认成造物，而不是落到问模型');
+  assert.equal(intent?.action, 'build');
+  assert.equal(intent?.templateId, 'waiting_shelter');
+  // 旧世界里没有这份蓝图：同一条别名表不能把旧世界也带偏。
+  const legacy = selectSetting('').blueprints;
+  assert.equal(parseOracleBuild('建一座候车亭', legacy), null);
+});
+
+test('输入框举的例子必须在这张图上真能办到：未落位的模板都得能按名字说出来', () => {
+  // `main.ts` 拿第一个未落位模板的显示名去写输入框占位符。占位符是玩家看到的
+  // 第一个例句，如果那句解析不出造物、或模板根本不存在，例句就成了个坑。
+  const unplaced = [...pack.blueprints.values()].filter(
+    (blueprint) => !pack.placements.some((placement) => placement.prefabId === blueprint.id),
+  );
+  assert.ok(unplaced.length > 0);
+  for (const blueprint of unplaced) {
+    const intent = parseOracleBuild(`建一座${blueprint.displayName}`, pack.blueprints);
+    assert.equal(intent?.templateId, blueprint.id, `「建一座${blueprint.displayName}」认不出来`);
+  }
 });
