@@ -30,6 +30,14 @@
       "intent": { "kind": "build", "templateId": "code_forge", "at": { "x": 3, "y": 4 } }
     },
     {
+      "why": "造物不带坐标：用户没说地点，世界自己挑空地方。客户端 build 意图的 at 本就是 GridPoint | null",
+      "command": {
+        "command": "building.add",
+        "args": { "prefabId": "code_forge" }
+      },
+      "intent": { "kind": "build", "templateId": "code_forge", "at": null }
+    },
+    {
       "why": "拆除：实例 id 原样到世界。模板 id 指不出要拆哪一栋，降级成模板就是替用户挑一栋",
       "command": { "command": "building.remove", "args": { "instanceId": "ink_house#2" } },
       "intent": { "kind": "demolish", "instanceId": "ink_house#2" }

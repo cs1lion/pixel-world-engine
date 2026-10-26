@@ -131,6 +131,42 @@ def test_建楼_模板名与坐标() -> None:
     assert command.args == {"prefabId": "bookshop", "at": {"x": 3, "y": 4}}
 
 
+def test_建楼可以不带坐标_世界自己挑地方() -> None:
+    """用户没说地点时，模型不该被逼着编一个。
+
+    55 条合法用例里 5 条是这种——「建个工坊」「帮我盖个资料馆」——模型全部答
+    unknown，因为它没有坐标可填。而客户端的 build 意图早就写着
+    `at: GridPoint | null`，`readPoint(undefined)` 回 null：服务端比它要对齐的
+    那份协议更严，严在这儿没有意义。
+
+    **不是模型挑地方**：模型不知道哪儿空着，它挑的那个数要么被拒，要么落在
+    别人家门口。省略 `at` 的意思是「随地」，挑哪儿是世界的事。
+    """
+    command = validate_command(
+        {"command": "building.add", "args": {"prefabId": "bookshop"}},
+        {"width": 96, "height": 72},
+    )
+    assert command.args == {"prefabId": "bookshop"}, "没有坐标就不该有 at 这个键"
+    # 空世界、没有尺寸，也都得过得去：世界自己挑地方，不需要先知道地图多大。
+    assert validate_command({"command": "building.add", "args": {"prefabId": "b"}}, {}).args == {
+        "prefabId": "b"
+    }
+
+
+def test_带了坐标就照旧判越界() -> None:
+    """放开「可以不带」不等于「带了不查」。越界那条一分钟都不能松。"""
+    reject(
+        {"command": "building.add", "args": {"prefabId": "b", "at": {"x": 96, "y": 0}}},
+        "out-of-range",
+        {"width": 96, "height": 72},
+    )
+    reject(
+        {"command": "building.add", "args": {"prefabId": "b", "at": {"x": 1.5, "y": 2}}},
+        "type-mismatch",
+        {"width": 96, "height": 72},
+    )
+
+
 def test_建楼坐标越界被拒_且说清范围() -> None:
     error = reject(
         {"command": "building.add", "args": {"prefabId": "b", "at": {"x": 96, "y": 0}}},
@@ -177,10 +213,24 @@ def test_楼层数到上限就拒() -> None:
     assert str(MAX_BUILDINGS) in error.message
 
 
-def test_建楼缺坐标被拒() -> None:
-    """v1 的 building.add 要求坐标。让模型自己挑位置，世界就多了一个
-    不受规则约束的决策点——选址是世界的活，但那是 #6 之后的事。"""
-    reject({"command": "building.add", "args": {"prefabId": "b"}}, "missing-field")
+def test_建楼不带坐标就交给世界挑地方() -> None:
+    """早先这条断言的是反的：「缺坐标 → 拒」，理由写的是「选址是世界的活，
+    但那是 #6 之后的事」。那个前提已经不成立了——
+
+    `world-client/src/world/setup.ts` 的 `placeBlueprint` 在 `at === undefined`
+    时走 `grid.findBestSlot`，自动选最靠近锚点的合规空地；`simulation.ts`
+    收到 build 意图时写的是 `at: intent.at ?? undefined`。整条客户端链路
+    本来就把「没有坐标」当作「随地」在处理。
+
+    服务端却一直要求 `at` 必填——比它要对齐的那份协议更严。后果测出来了：
+    55 条合法用例里 5 条不说地点的（「建个工坊」「帮我盖个资料馆」），
+    模型全部答 unknown。它没有坐标可填，而提示词说这一条命令必须有坐标。
+
+    **放开的是「模型不必编一个数」，不是「坐标可以不查」。** 带了坐标照旧
+    判越界（见上面那条）；没带，世界自己挑。
+    """
+    command = validate_command({"command": "building.add", "args": {"prefabId": "b"}}, {})
+    assert command.args == {"prefabId": "b"}
 
 
 # ---------------------------------------------------------------- 其余三条

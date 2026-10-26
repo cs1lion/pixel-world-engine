@@ -176,6 +176,40 @@ def test_建楼回到_build_形状() -> None:
     }
 
 
+def test_模型不说地点时_端点回一个at为null的build() -> None:
+    """「建个工坊」这种不说地点的话，模型不该被逼着编一个坐标。
+
+    55 条合法用例里 5 条是这种，模型全部答 unknown——提示词说这条命令必须带
+    坐标，而用户没给。现在 `at` 可省略，端点回 `at: null`，客户端
+    （`simulation.ts`）接着写成 `at: intent.at ?? undefined`，世界走
+    `findBestSlot` 自己挑地方。
+
+    这条钉的是**整条链**：白名单放行 → 映射成 `at: null` → 客户端解析得下
+    （`intent-contract.test.ts` 拿同一条冻结样例反向验过）。
+    """
+    response = post(
+        client_with(commands({"command": "building.add", "args": {"prefabId": "code_forge"}}))
+    )
+    assert response.status_code == 200
+    assert response.json()["intent"] == {"kind": "build", "templateId": "code_forge", "at": None}
+
+
+def test_模型自己编一个越界坐标_照旧被拒() -> None:
+    """放开「可以不带」不等于「带了不查」——越界那条一分钟都不能松。"""
+    response = post(
+        client_with(
+            commands(
+                {
+                    "command": "building.add",
+                    "args": {"prefabId": "code_forge", "at": {"x": 5000, "y": 5000}},
+                }
+            )
+        ),
+        worldSize={"width": 96, "height": 72},
+    )
+    assert response.json()["intent"]["kind"] == "unknown"
+
+
 def test_拆楼的实例_id_原样到世界() -> None:
     """实例 id 是身份，不是可以化简的名字。
 

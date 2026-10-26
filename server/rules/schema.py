@@ -188,6 +188,16 @@ def _building_add(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]
             "building-limit",
             f"世界已经有 {count} 栋楼了，上限是 {MAX_BUILDINGS} 栋",
         )
+    if "at" not in args:
+        # 用户没说地点。**世界自己挑**，不是模型挑——模型不知道哪儿空着，
+        # 它挑的那个数要么被拒，要么落在别人家门口。省略 `at` 就是「随地」。
+        #
+        # 这一条是协议对齐，不是放宽：客户端 `intent-schema.ts` 的 build 意图
+        # 早就写着 `at: GridPoint | null`，`readPoint(undefined)` 回 null。
+        # 服务端却一直要求 `at` 必填，比它要对齐的那份协议更严。后果测出来了：
+        # 55 条合法用例里 5 条「建个工坊」「帮我盖个资料馆」这种不说地点的，
+        # 模型全部答 unknown——它没有坐标可填。
+        return {"prefabId": prefab_id}
     return {"prefabId": prefab_id, "at": _point(args, "at", "building.add", world)}
 
 

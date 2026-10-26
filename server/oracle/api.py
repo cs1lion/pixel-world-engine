@@ -179,7 +179,8 @@ def command_to_intent(command: Any) -> dict[str, Any] | None:
             "durationMs": args["durationMs"],
         }
     if name == "building.add":
-        return {"kind": "build", "templateId": args["prefabId"], "at": args["at"]}
+        # `at` 可省略（用户没说地点，世界自己挑）——与 `miracle.spawn` 同一处理。
+        return {"kind": "build", "templateId": args["prefabId"], "at": args.get("at")}
     if name == "building.remove":
         # 实例身份必须原样到世界：模板 id 无法指出要拆哪一栋。
         return {"kind": "demolish", "instanceId": args["instanceId"]}
