@@ -49,9 +49,23 @@ test('只有镇内铺子时，神谕活照样能派', () => {
 });
 
 test('只有郊野铺子时，事件流来的活不去（宁可不动，也不假装在本地做）', () => {
-  // 楼是有的、也空着，只是不在上游的活能去的那一侧。所以是 busy 不是 none——
+  // 楼是有的、也空着，只是不在上游的活能去的那一侧。所以既不是 none——
   // 说「这座镇子没有接 code 的铺子」在这里是假话。
-  assert.equal(why(pickVenue([wild('code')], 'code', 'feed')), 'busy');
+  assert.equal(why(pickVenue([wild('code')], 'code', 'feed')), 'wild');
+});
+
+test('郊野铺子全忙着、镇内一栋都没有，也还是「都在郊野」不是「都忙着」', () => {
+  // 这一条钉的是问话的**顺序**。「镇内到底有没有接这类活的楼」与忙不忙无关，
+  // 所以必须在过滤 busy 之前问。问晚了，镇内拆空的世界会被判成 busy，
+  // 而调用方那句「没有空闲的镇内铺子」就断言了镇内有——它一栋都不剩。
+  const picked = pickVenue([{ ...wild('code'), busy: true }], 'code', 'feed');
+  assert.equal(why(picked), 'wild');
+});
+
+test('「镇内都忙着」与「都在郊野」分得开：前者镇内有楼，后者一栋都不在', () => {
+  // 两句真话的边界。混了就会有一半时间是假话。
+  assert.equal(why(pickVenue([{ ...town('code'), busy: true }], 'code', 'feed')), 'busy');
+  assert.equal(why(pickVenue([wild('code')], 'code', 'feed')), 'wild');
 });
 
 // ---------------------------------------------- 没有铺子，与铺子都忙着：两句不同的话
@@ -94,4 +108,15 @@ test('同类多个候选时取第一个可用的，顺序稳定', () => {
   assert.equal(why(pickVenue([a, b], 'code', 'feed')), 'town-code');
   const aBusy: VenueCandidate = { ...a, busy: true };
   assert.equal(why(pickVenue([aBusy, b], 'code', 'feed')), 'town-code-2');
+});
+
+test('神谕派郊野忙、退回镇内时，也取第一个可用的', () => {
+  // 「按传入顺序取第一个可用」这条保证对神谕侧同样成立。只测 feed 一侧的话，
+  // 把 oracle 的回落改成「取最后一个」全仓没有一条会红——而「顺序稳定」
+  // 是写进 docstring 的承诺，不是顺带的巧合。
+  const a = town('research');
+  const b: VenueCandidate = { ...town('research'), instanceId: 'town-research-2' };
+  assert.equal(why(pickVenue([a, b], 'research', 'oracle')), 'town-research');
+  const aBusy: VenueCandidate = { ...a, busy: true };
+  assert.equal(why(pickVenue([aBusy, b], 'research', 'oracle')), 'town-research-2');
 });
