@@ -12,13 +12,22 @@
  *
  * 所以这里把它变成一条 CI 跑得到的断言，而不是一份「写完就对一次」的清单。
  *
- * 查三样：
+ * 查四样：
  *   1. **指的文件存在**。引用写作 `grid.ts:230-237` 时只有一个裸文件名，
  *      所以按「引用者目录 → 仓库根 → 全仓唯一后缀」的顺序找。后缀撞上多个
  *      文件时报出来并列出候选——那不是脚本猜得了的，是人得挑一个写清楚。
  *   2. **行号在文件里**。越界比指错更糟：它连一个错位置都不指向。
  *   3. **那段里有可以落脚的东西**。空行与纯括号都算「什么都没指」——
  *      指着 `});` 不如不指。指着注释是正当的：ADR 经常引的就是注释的原文。
+ *   4. **省略文件名的续引也在查**。「调用在 `setup.ts:320`、`:595`，定义在
+ *      `:622`」这种写法只有第一处带文件名。不带文件名的那些曾完全没人管，
+ *      于是 `test/terrain-edge-visibility.test.ts` 里那个指向不存在文档的
+ *      第 218 行一直绿着。现在同一段里最近的那个文件会被带下去，空行一断就忘。
+ *
+ * 两处**不查**，都是有意的：
+ *   - 网址里的 `:8080` 是端口。整段挖掉，不是「这行有网址就整行跳过」——
+ *     一行里可以同时有网址和真引用，按行跳过会把真的那一处一起放过。
+ *   - 「见 a.ts 第 3 行」这种行文没有冒号，本来就不是指针。
  *
  * 不查「那段说的是不是那件事」：那是语义，机器判不了，也不该由脚本假装能判。
  * 所以「指着一段散文，可作者意思是那边的调用」这一类，脚本放它过去，
@@ -57,11 +66,60 @@ const TEXT_EXT = /\.(ts|mjs|py|md)$/;
 /** `file.ext:123` 或 `file.ext:123-145`。 */
 const REF = /([\w./-]+\.(?:ts|mjs|py|md)):(\d+)(?:-(\d+))?/g;
 
-/** 一行里带网址就不查：`//host/a` 后面跟的端口不是行号。 */
-const URL_ISH = /https?:\/\//;
+/**
+ * 省略了文件名的续引：`` `:123` ``、`` `:123-145` ``。
+ *
+ * 紧跟一个前引号是**硬条件**。`width: 64` 这种代码里的键值对也长得像，
+ * 少了这个条件就会把一段里随便一句 `x: 12` 当成续引去查——那是误报，
+ * 而误报一样毁掉一个守卫，只是毁得慢一点。
+ */
+const BARE_REF = /`:(\d+)(?:-(\d+))?`/g;
 
-/** 注释里写「见 grid.ts 第 12 行」这种行文不算指针：它没有坐标。 */
-const PROSE_LINE = /第\s*\d+\s*行/;
+/** 一处引用。`ref` 为 null 表示文件名省略了，要接同一段里上一处的那个。 */
+interface Hit {
+  readonly index: number;
+  readonly ref: string | null;
+  readonly first: string;
+  readonly last: string | undefined;
+}
+
+/** 一行里的全部引用，按出现顺序。
+ *
+ * 两个正则分开扫再合起来排序：省略文件名的那种要接着前一处带文件名的，
+ * 而「前一处」是按位置算的，不是按哪个先扫完算的。 */
+function hits(line: string): readonly Hit[] {
+  const out: Hit[] = [];
+  for (const m of line.matchAll(REF)) {
+    if (m[1] === undefined || m[2] === undefined) continue;
+    out.push({ index: m.index ?? 0, ref: m[1], first: m[2], last: m[3] });
+  }
+  for (const m of line.matchAll(BARE_REF)) {
+    if (m[1] === undefined) continue;
+    out.push({ index: m.index ?? 0, ref: null, first: m[1], last: m[2] });
+  }
+  return out.sort((a, b) => a.index - b.index);
+}
+
+/**
+ * 一行里的网址整段。`https?://` 后面跟到空白为止。
+ *
+ * 为什么要整段挖掉、而不是「这行有网址就整行不算」：一行里可以同时有网址和
+ * 真引用——「留白环见 `grid.ts:258-266`（背景见 https://…）」这种句子很自然。
+ * 按行跳过会把那句里**真的**那一处一起放过：代码挪走、行号烂掉，而 CI 全绿。
+ * 那正是这个脚本存在的理由所不容的一种沉默，比误报糟得多。
+ *
+ * 实测（2026-10-27）全仓当时只有一处落在那种沉默里，就是它自己测试数据里的
+ * 那一行。那是运气，不是设计——所以改成逐处判。
+ */
+const URL_SPAN = /https?:\/\/\S*/g;
+
+/** 把网址换成等长空白，剩下的才拿去找引用。
+ *
+ * 换空白而不是删掉：行里剩下的相对位置不变，将来若要在报错里带上列号也用得上。
+ */
+function stripUrls(line: string): string {
+  return line.replace(URL_SPAN, (span) => ' '.repeat(span.length));
+}
 
 /** 一行里有没有可读的字符。中文也算：行号常常就指着一段中文注释。 */
 const HAS_GLYPH = /[A-Za-z_$\p{Script=Han}]/u;
@@ -160,38 +218,57 @@ export function auditReferences({ root = ROOT }: { root?: string } = {}): Refere
   for (const file of index) {
     const text = readFileSync(file, 'utf8');
     const lines = text.split(/\r?\n/);
+    // 一个段落里最近解析出来的那个文件。
+    //
+    // 「调用在 `setup.ts:320`、`:595`，定义在 `:622`」这种写法很常见——同一个
+    // 文件连指几行，只有第一处带文件名。不带文件名的那些曾是完全没人查的：
+    // `test/terrain-edge-visibility.test.ts` 里就留着这么一个指向不存在文档的
+    // 「218 行」续引，而审计一直绿着。所以这里把最近的那个文件带下去。
+    //
+    // 只在**同一个段落**里带，且每个文件重新起算：空行一断就忘。跨段落或跨文件
+    // 带会把 `:218` 安到一个毫不相干的文件头上——那是误报，而误报一样毁掉一个守卫。
+    let carried: string | null = null;
     lines.forEach((line, at) => {
-      // 网址里的 `:8080` 是端口，「见 grid.ts 第 12 行」是行文——两者都没有坐标。
-      if (URL_ISH.test(line) || PROSE_LINE.test(line)) return;
-      for (const match of line.matchAll(REF)) {
-        const [, ref, first, last] = match;
-        if (ref === undefined || first === undefined) continue;
+      // 网址先挖掉：`http://example.com/a.ts:8080` 里那一段长得跟引用一模一样，
+      // 可 `:8080` 是端口，不是行号。见 `URL_SPAN` 上那段为什么不能按行跳过。
+      const scanned = stripUrls(line);
+      // 空行断段。注释壳（` *`、`//`、`---`）不算内容：它独自一行时什么都不说。
+      if (!HAS_GLYPH.test(scanned.replace(/^[\s*/#-]+/, ''))) {
+        carried = null;
+        return;
+      }
+      for (const hit of hits(scanned)) {
+        // 文件名省略时接着同一段里上一处那个；一段的开头没有可接的，那它就不是指针。
+        const named = hit.ref ?? carried;
+        if (named === null) continue;
         checked += 1;
         const where = `${path.relative(root, file)}:${at + 1}`;
-        const resolved = resolveRef(ref, path.dirname(file), index);
+        const resolved = resolveRef(named, path.dirname(file), index);
 
         if (resolved === null) {
-          findings.push({ where, ref, why: '找不到这个文件' });
+          findings.push({ where, ref: named, why: '找不到这个文件' });
           continue;
         }
         if ('candidates' in resolved) {
           const names = resolved.candidates.map((c) => path.relative(root, c)).join('、');
           findings.push({
             where,
-            ref,
+            ref: named,
             why: `裸文件名撞上 ${resolved.candidates.length} 个文件（${names}）——写全路径`,
           });
           continue;
         }
+        // 这一段指的文件记下来：后面省略文件名的那些处接它。
+        carried = named;
 
         const target = readFileSync(resolved.file, 'utf8').split(/\r?\n/);
-        const from = Number(first);
-        const to = last === undefined ? from : Number(last);
-        const span = `${path.relative(root, resolved.file)}:${first}${last === undefined ? '' : `-${last}`}`;
+        const from = Number(hit.first);
+        const to = hit.last === undefined ? from : Number(hit.last);
+        const span = `${path.relative(root, resolved.file)}:${hit.first}${hit.last === undefined ? '' : `-${hit.last}`}`;
         if (from < 1 || to > target.length) {
           findings.push({
             where,
-            ref,
+            ref: named,
             why: `${span} 越界：那份一共 ${target.length} 行`,
           });
           continue;
@@ -199,7 +276,7 @@ export function auditReferences({ root = ROOT }: { root?: string } = {}): Refere
         if (!hasCode(target.slice(from - 1, to).join('\n'))) {
           findings.push({
             where,
-            ref,
+            ref: named,
             why: `${span} 那段里没有代码，只有空行或括号`,
           });
         }

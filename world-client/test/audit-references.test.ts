@@ -48,6 +48,11 @@ function ref(file: string, from: number, to?: number): string {
   return `\`${file}:${from}${to === undefined ? '' : `-${to}`}\``;
 }
 
+/** 省略文件名的续引：`` `:99` ``。 */
+function bare(from: number, to?: number): string {
+  return `\`:${from}${to === undefined ? '' : `-${to}`}\``;
+}
+
 const WHY_OF = (findings: readonly { readonly where: string; readonly why: string }[], line: number): string =>
   findings.find((f) => f.where === `docs${path.sep}d.md:${line}`)?.why ?? '';
 
@@ -104,6 +109,97 @@ test('网址里的端口与「第 12 行」这种行文不算指针', () => {
     doc(root, '见 http://example.com/a.ts:8080 与 a.ts 第 3 行的说明。\n');
     const { findings } = auditReferences({ root });
     assert.equal(findings.length, 0, '两者都没有坐标，不该占一个存疑名额');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('网址和真引用在同一行时，真引用照样要查', () => {
+  // 这一条钉的是**逐处判**，不是逐行判。曾按行判：一行里出现网址就把整行
+  // 跳过，于是「留白环见 grid.ts:258-266（背景见 https://…）」这种句子里
+  // 真的那一处被一起放过——代码挪走、行号烂掉，CI 全绿。那正是这个脚本
+  // 存在的理由所不容的一种沉默，比误报糟得多。
+  const root = fixture();
+  try {
+    doc(root, `留白环见 ${ref('a.ts', 99)}，背景见 https://example.com/a.ts:8080 。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 1, '那一行里只有一处是坐标，该查的就是它');
+    assert.match(WHY_OF(findings, 1), /越界/, '网址旁边的真引用越界了要被查出来');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('「第 12 行」这种行文旁边有真引用时，也不许把真引用放过', () => {
+  // 同一处毛病的另一半：行文（「a.ts 第 3 行」）没有冒号，本来就不是指针；
+  // 可它不该顺带替同一行的真引用免检。
+  const root = fixture();
+  try {
+    doc(root, `a.ts 第 3 行是入口；越界的那处见 ${ref('a.ts', 99)}。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 1, '行文不算指针，可真引用算');
+    assert.match(WHY_OF(findings, 1), /越界/, '行文旁边的真引用越界了要被查出来');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------- 省略文件名的续引也得查
+
+test('同一个文件连指几行时，省略文件名的那几处也要查', () => {
+  // 「调用在 `setup.ts:320`、`:595`，定义在 `:622`」这种写法在 ADR 里到处是。
+  // 曾只有第一处带文件名的被查，后面几处完全没人管——于是
+  // `terrain-edge-visibility.test.ts` 里那个指向不存在文档的第 218 行
+  // 一直绿着。这一条钉住续引也在查。
+  //
+  // （顺带：本文件的注释里不写「:数字」这种白板续引。写了它就会接上同一段里
+  // 最近的那个文件，被当成一处真引用去查——这个守卫连自己的注释一起审。）
+  const root = fixture();
+  try {
+    doc(root, `调用在 ${ref('a.ts', 1)}，定义在 ${bare(99)}。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 2, '一行里那两处都是指针，该查两处');
+    assert.match(WHY_OF(findings, 1), /越界/, '省略文件名的续引越界了要被查出来');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('续引写在下一行、同一个段落里，也算数', () => {
+  const root = fixture();
+  try {
+    doc(root, `调用在 ${ref('a.ts', 1)}，\n定义在 ${bare(99)}。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 2, '同一段里跨一行也接得上');
+    assert.match(WHY_OF(findings, 2), /越界/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('空行一断就忘：新的一段开头出现 `:99` 不是指针', () => {
+  // 反方向也得钉。跨段或跨文件接着带，会把一个毫不相干的第 218 行
+  // 安到旁边那个文件头上——那是误报，而误报一样毁掉一个守卫。
+  const root = fixture();
+  try {
+    doc(root, `调用在 ${ref('a.ts', 1)}。\n\n另一段：${bare(99)}。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 1, '空行之后没有可接的文件，那处不算指针');
+    assert.equal(findings.length, 0, '不该把一个孤立的白板续引当成越界');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('代码里的键值对不是续引：少了前引号这个条件就会误报', () => {
+  // `width: 64`、`` `width: 64` `` 都长得像。前引号紧跟冒号是硬条件，
+  // 否则一段里随便一句配置都会被抓去查行号。
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 1)}；配置里 width: 64 与 \`height: 32\` 都不是指针。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 1, '只有带文件名的那一处是指针');
+    assert.equal(findings.length, 0, '键值对不该被当成越界的续引');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
