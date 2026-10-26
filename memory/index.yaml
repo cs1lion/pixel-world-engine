@@ -1,0 +1,16 @@
+# 记忆索引
+
+派生物，不要手改。由 `server/memory/` 在写入时维护；
+真正的事实在 `entries/`、`characters/`、`events/` 三个目录的文件里。
+
+字段：
+
+- `last_event_seq`：`events/` 里已分配的最大序号。**只作展示，不作分配凭据**——
+  序号分配扫的是文件名，拿索引当凭据会在索引变旧时重号，而重号会让两条记忆
+  互相覆盖。
+- `days`：已经生成过快照的世界日序号。
+- `characters`：已经有档案的角色名。
+
+last_event_seq: 0
+days: []
+characters: []

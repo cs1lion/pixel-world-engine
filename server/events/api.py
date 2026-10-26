@@ -23,15 +23,25 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 
 from events.log import DEFAULT_LIMIT, MAX_LIMIT, EventLog, EventValidationError
 from events.world_changes import router as world_changes_router
 from events.world_changes import register_error_handler as register_world_change_errors
+from memory.api import register_memory_routes
+from memory.writer import MemoryWriter
 from oracle.api import register_routes as register_oracle_routes
 
 router = APIRouter()
+
+
+def _default_memory_root() -> Path:
+    raw = os.environ.get("PIXEL_WORLD_MEMORY_DIR")
+    return Path(raw) if raw else Path(__file__).resolve().parents[2] / "memory"
 
 
 def _log_of(request: Request) -> EventLog:
@@ -59,14 +69,20 @@ def read_events(
     }
 
 
-def create_app(log: EventLog | None = None) -> FastAPI:
-    """装配一个 app。测试传内存库，生产传文件库。"""
+def create_app(
+    log: EventLog | None = None, memory_root: Path | None = None
+) -> FastAPI:
+    """装配一个 app。测试传内存库与临时记忆目录，生产传文件库。"""
     app = FastAPI(title="pixel-world-server", version="0.1.0")
-    app.state.event_log = log if log is not None else EventLog()
+    event_log = log if log is not None else EventLog()
+    app.state.event_log = event_log
+    # 记忆与事件日志共享同一个 log：证据链拿它核对，每日快照从它派生。
+    app.state.memory_writer = MemoryWriter(memory_root or _default_memory_root(), event_log)
     app.include_router(router)
     app.include_router(world_changes_router)
     # 意图解析与事件日志互不依赖：解析失败不该影响世界读日志，反之亦然。
     register_oracle_routes(app)
+    register_memory_routes(app)
 
     @app.exception_handler(EventValidationError)
     async def _validation_error(_request: Request, exc: EventValidationError) -> JSONResponse:

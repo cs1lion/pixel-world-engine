@@ -12,6 +12,8 @@ dependencies = [
     "uvicorn>=0.27",
     # 调模型用。OpenAI 兼容的 chat/completions，StepFun / DeepSeek / 自建网关同形。
     "httpx>=0.27",
+    # frontmatter 与 rules/*.yaml 都是 YAML（SPEC §4.7）。
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -21,7 +23,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["events", "oracle", "rules"]
+packages = ["events", "oracle", "rules", "memory"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
