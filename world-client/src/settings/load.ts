@@ -2,7 +2,7 @@
 import { parseBlueprintTable } from '../world/blueprints.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { BuiltWorld } from '../world/setup.ts';
-import { doorReaches, placeBlueprint, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
+import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import type { PlacedBuilding, TerrainId } from '../world/types.ts';
@@ -164,7 +164,13 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
       // 这里的可达性**故意不过渡有仪式的门**：装载时还没有人知道她以后会带上什么，
       // 而门后的作息点完全可以是合法的（等她有了灯就走得到）。
       // 按两手空空判会把这种包误拒；门是运行时的事，不该在装载时夺权。
-      if (grid.path(villager.at, stop).length === 0) throw new SettingPackError(`${villager.name} 到不了 ${stop.label}`);
+      //
+      // 走 `reaches`，不自己写 `path(...).length === 0`：那个返回值在
+      // 「作息点就踩在出生点上」时是空数组，照抄它会拒一份合法的包，
+      // 还说「她 到不了 就站在起点上」——那句话是假话。
+      if (!reaches(grid, villager.at, stop)) {
+        throw new SettingPackError(`${villager.name} 到不了 ${stop.label}`);
+      }
     }
   }
   return { grid, buildings, altar: pack.hub };

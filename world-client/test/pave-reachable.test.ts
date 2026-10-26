@@ -185,3 +185,28 @@ test('一扇真被围死的门，在同一个格子上仍然报死', () => {
   block(grid, 15, 11, 'd');
   assert.equal(doorReaches(grid, door, { x: 0, y: 10 }), false, '四邻都被占了，这门开在世界外');
 });
+
+// ---------------------------------------------- 同一个病，隔十一行还有一处
+
+test('作息点就踩在出生点上：这是连得出去的，不是到不了', () => {
+  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:115`/`:117`），
+  // 对 `at === stop` 一个字都没禁——而「她就站在那个点上」是一份完全合法的
+  // 设定集：守夜人认路认到自己的脚底下。
+  //
+  // `grid.path` 在起点即终点时返回空数组。`load.ts:167` 照抄这个返回值，
+  // 于是这份包被拒，还说「她 到不了 就站在起点上」——那句话是假话，
+  // 比不报更糟。`doorReaches` 早就特判了这种，这一处没沾上。
+  const pack = loadSettingPack({
+    ...DENGCHAO_RAW,
+    villagers: [
+      {
+        name: '守夜人',
+        at: { x: 23, y: 29 },
+        routine: [{ x: 23, y: 29, label: '就在原地站着', dwellMs: 5000 }],
+      },
+    ],
+  });
+  const world = buildSettingWorld(pack);
+  assert.equal(world.grid.isWalkable({ x: 23, y: 29 }), true, '前提：那个点真的可走');
+});
+

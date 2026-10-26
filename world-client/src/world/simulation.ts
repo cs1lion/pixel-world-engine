@@ -1213,11 +1213,11 @@ export class Simulation {
       }
       const building = this.buildings.find((item) => item.instanceId === chosen.instanceId);
       if (building === undefined) continue;
-      const path = this.pathFor(villager, this.cellOf(villager.pos), building.door);
-      if (path.length === 0) continue;
+      const route = this.routeTo(villager, building.door);
+      if (!route.there && route.path.length === 0) continue;
       task.buildingId = building.instanceId;
       task.workerId = villager.id;
-      this.routeToBuilding(villager, task, building, path);
+      this.routeToBuilding(villager, task, building, route.path);
       this.log('oracle', `上游派活：${task.summary} → ${building.displayName}（${villager.name}）`);
       return;
     }
@@ -1390,10 +1390,11 @@ export class Simulation {
       const cell = this.cellOf(villager.pos);
       const door = shelterTarget(this.buildings, cell);
       if (door === null) continue;
-      const path = this.pathFor(villager, cell, door);
-      if (path.length === 0) continue;
+      const route = this.routeTo(villager, door);
+      // 已经在门口的不算「没躲成」：她这会儿就站在屋檐下。
+      if (!route.there && route.path.length === 0) continue;
       villager.mode = 'sheltering';
-      villager.path = path;
+      villager.path = route.path;
       villager.bubble = '下雨了，快躲！';
       villager.bubbleUntil = this.now + 2200;
       villager.routineLabel = '跑到屋檐下躲雨';
@@ -1751,6 +1752,32 @@ export class Simulation {
    */
   private pathFor(villager: Villager, from: GridPoint, to: GridPoint): GridPoint[] {
     return this.grid.path(from, to, gateFilter(villager.carries, (p) => this.grid.requirementAt(p)));
+  }
+
+  /**
+   * 她走不走得到那儿，路一起拿回来。
+   *
+   * `pathFor` 的空数组有两种意思：她人已经在那儿，和根本走不到。
+   * 混成一种就是对世界说谎——
+   *   - 派活那条会说「门口走不过去」然后拒掉一单本该办的神谕，而她正站在门槛上
+   *     （`restoreOutOfBuilding` 就是把她放在门口格上的）；
+   *   - 急件那条会永远选不出举旨人，而她就站在祭坛边；
+   *   - 上游派活那条会静默跳过，单子躺着，谁都不知道为什么。
+   * 渡有仪式让「走不到」真的会出现，所以这不是理论上的。
+   *
+   * 与装载期的 `reaches`（`setup.ts`）是同一句话的两个版本：那边按两手空空判
+   * （装载时还没人知道她以后会带上什么），这边按她兜里那几件判。
+   */
+  private routeTo(
+    villager: Villager,
+    to: GridPoint,
+  ): { readonly path: GridPoint[]; readonly there: boolean } {
+    const from = this.cellOf(villager.pos);
+    // 终点不可走时 `grid.path` 把终点改写成离它最近的可走地；改写结果正好是
+    // 她脚下这格，空数组说的就是「已经到了」。先问出来，两种空数组才分得开。
+    const goal = this.grid.isWalkable(to) ? to : this.grid.nearestWalkable(to);
+    if (goal !== null && goal.x === from.x && goal.y === from.y) return { path: [], there: true };
+    return { path: this.pathFor(villager, from, to), there: false };
   }
 
   /**
@@ -2220,6 +2247,10 @@ export class Simulation {
     const free = this.villagers.find((item) => item.mode === 'idle' && item.path.length === 0);
     if (free === undefined) return;
 
+    // 她站在祭坛格上时 `pathFor` 也返回空数组。这里**故意**当作「这一拍不派」：
+    // 她不会永远站在祭坛上（作息会把她带走），下一拍就派得出。
+    // 改成「已经到了」会让 `bearingDecree` 带上一条空路径，下一个 step 就掉回 idle——
+    // 那一闪的过渡态看不见，而「跑过去举件」这条路正好是 decree.test.ts 守的。
     const path = this.pathFor(free, this.cellOf(free.pos), this.altar);
     if (path.length === 0) return;
     free.mode = 'bearingDecree';
