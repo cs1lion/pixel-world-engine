@@ -173,6 +173,8 @@ export function describeIntent(intent: ParsedIntent): string {
       return '拆除';
     case 'miracle':
       return MIRACLE_LABEL[intent.miracle];
+    case 'carry':
+      return intent.carries.length === 0 ? '收缴凭证' : '交接凭证';
     case 'unknown':
       return '没听懂';
   }

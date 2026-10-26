@@ -197,3 +197,41 @@ test('未知模板时把可选模板全列出来，模型才有机会改对', ()
   const why = bad({ kind: 'build', templateId: 'nope' });
   for (const id of templates.keys()) assert.ok(why.includes(id), `提示里缺 ${id}`);
 });
+
+// ---------------------------------------------------------------- 渡有仪式
+
+test('给谁什么凭证：按名字点人，不按 id', () => {
+  // 上下文喂给模型的是**名字**（`intent-context.ts` 的 busy 只有 name），
+  // 所以意图也必须说名字。叫 id 就是 demolish 那个 bug 重演：
+  // 模型手里根本没有 id 可填，只能编一个。
+  assert.deepEqual(ok({ kind: 'carry', villager: '莞尔', carries: ['lamp'] }), {
+    kind: 'carry',
+    villager: '莞尔',
+    carries: ['lamp'],
+  });
+});
+
+test('两手空空也是说得出口的：空数组不是缺字段', () => {
+  // 「让她把灯放下」和「给她一盏灯」是同一条命令的两半。
+  // 只有给、没有收，那道门就永远开着——世界再也回不到没人有灯的样子。
+  assert.deepEqual(ok({ kind: 'carry', villager: '莞尔', carries: [] }), {
+    kind: 'carry',
+    villager: '莞尔',
+    carries: [],
+  });
+});
+
+test('凭证是闭集：写错的一个字都进不了世界', () => {
+  // 表现成「她明明带着灯，那道门就是不认」——只有截图才看得见的那种 bug。
+  // 说法跟 readOneOf 一致（` / `，给模型看）；世界那条回执用「、」是给人看的。
+  assert.match(bad({ kind: 'carry', villager: '莞尔', carries: ['torch'] }), /torch/);
+  assert.match(bad({ kind: 'carry', villager: '莞尔', carries: ['torch'] }), /lamp \/ shoes/);
+  // 一锅端的也要拒，不能收下 lamp 放过 torch——部分接受比整条拒更难查。
+  assert.match(bad({ kind: 'carry', villager: '莞尔', carries: ['lamp', 'torch'] }), /torch/);
+});
+
+test('carry 要点名一个人，也要说带什么', () => {
+  assert.match(bad({ kind: 'carry', carries: ['lamp'] }), /villager/);
+  assert.match(bad({ kind: 'carry', villager: '莞尔' }), /carries/);
+  assert.match(bad({ kind: 'carry', villager: '  ', carries: ['lamp'] }), /villager 不能为空/);
+});

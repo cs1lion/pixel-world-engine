@@ -196,8 +196,7 @@ test('setCarries 只认闭集里的词：写错的一个字都进不了世界', 
 
 // ------------------------------------------------------------------ 接线
 
-test('Simulation 里每一次给角色寻路都过 pathFor：没有绕过门的后门', () => {
-  // 这条扫描守的是「漏接一个调用点」。漏接的那种 bug 在单元测试里看不见——
+test('Simulation 里每一次给角色寻路都过 pathFor：没有绕过门的后门', () => {  // 这条扫描守的是「漏接一个调用点」。漏接的那种 bug 在单元测试里看不见——
   // 世界上多一道谁都看得见、只有她视而不见的门。
   const source = readFileSync(new URL('../src/world/simulation.ts', import.meta.url), 'utf8');
   const direct = source
@@ -207,4 +206,50 @@ test('Simulation 里每一次给角色寻路都过 pathFor：没有绕过门的�
     .filter(({ line }) => line.startsWith('this.grid.path(') || line.includes('= this.grid.path('))
     .map(({ line, number }) => `${number}: ${line}`);
   assert.deepEqual(direct, [], `这些寻路绕过了门：\n${direct.join('\n')}`);
+});
+
+// ---------------------------------------------- 门要的东西，人说得出口
+
+test('神谕说「给她一盏灯」：门当场就开了，人真的过得去', () => {
+  // 整条链：意图按名字点人 → 世界命令按 id → 寻路过门。
+  // 少任何一环，这道门就是一面谁也打不开的墙——那比没有门更糟。
+  // 这也是 `setCarries` 存在的理由：没有写的入口，carries 永远是空的。
+  const sim = makeSim('lamp');
+  sim.enqueue({
+    kind: 'intent',
+    intent: { kind: 'carry', villager: '莞尔', carries: ['lamp'] },
+    raw: '给莞尔一盏灯',
+  });
+  runFor(sim, 400);
+
+  assert.deepEqual(sim.snapshot().villagers[0]!.pos, RIGHT, '凭证交到她手上，她就必须过得去');
+});
+
+test('点了世界上没有的名字：拒，不顺手把灯递给别人', () => {
+  const sim = makeSim('lamp');
+  sim.enqueue({
+    kind: 'intent',
+    intent: { kind: 'carry', villager: '阿绣', carries: ['lamp'] },
+    raw: '给阿绣一盏灯',
+  });
+  const results = sim.update(16);
+  const last = results[results.length - 1]!;
+
+  assert.equal(last.ok, false, '没这个人就不能办');
+  assert.deepEqual(sim.snapshot().villagers[0]!.carries, [], '更不能因此把灯塞给站在边上的那位');
+});
+
+test('说「让她两手空空」：门跟着关上，不是只开不关', () => {
+  // 只有给没有收，那道门就永远开着——世界再也回不到没人有灯的样子。
+  const sim = makeSim('lamp');
+  sim.enqueue({ kind: 'setCarries', villagerId: 'v0', carries: ['lamp'] });
+  sim.enqueue({
+    kind: 'intent',
+    intent: { kind: 'carry', villager: '莞尔', carries: [] },
+    raw: '让莞尔两手空空',
+  });
+  runFor(sim, 400);
+
+  assert.deepEqual(sim.snapshot().villagers[0]!.carries, [], '灯得真的收回去');
+  assert.deepEqual(sim.snapshot().villagers[0]!.pos, LEFT, '没收缴凭证她就该留在原处');
 });

@@ -25,9 +25,10 @@
  * 已经能被规则稳定识别的那部分行为。
  */
 
-import type { GridPoint, TaskKind, Weather } from './types.ts';
+import type { CarryItem, GridPoint, TaskKind, Weather } from './types.ts';
 import type { MiracleKind } from './oracle-miracle.ts';
 import type { PrefabBlueprint } from './types.ts';
+import { isCarryItem } from './gate.ts';
 import { TIDE_OVERRIDE_MAX_MS } from './tide.ts';
 
 /** 模型能表达的意图种类。与 `WorldCommand` 一一对应，不多不少。 */
@@ -40,6 +41,7 @@ export type IntentKind =
   | 'build'
   | 'demolish'
   | 'miracle'
+  | 'carry'
   | 'unknown';
 
 export class IntentSchemaError extends Error {}
@@ -72,6 +74,18 @@ export type ParsedIntent =
   | { readonly kind: 'demolish'; readonly instanceId: string; readonly templateId?: never }
   | { readonly kind: 'demolish'; readonly templateId: string; readonly instanceId?: never }
   | { readonly kind: 'miracle'; readonly miracle: MiracleKind; readonly at: GridPoint | null }
+  /**
+   * 给谁什么凭证（渡有仪式，SPEC_V2 §4.6）。
+   *
+   * **按名字点人，不按 id。** 喂给模型的上下文里只有名字
+   * （`intent-context.ts` 的 `busy` 是 `{name, taskKind}`），叫 id 就是
+   * `demolish` 那个 bug 重演：模型手里没有 id 可填，只能编一个。
+   * 名字重了怎么办是世界的事——它拒，不替用户挑。
+   *
+   * `carries` 是闭集，与区域声明的 `requires` 同一套词（`gate.ts`）。
+   * 空数组是「两手空空」，是说得出口的：只有给没有收，那道门就永远开着。
+   */
+  | { readonly kind: 'carry'; readonly villager: string; readonly carries: readonly CarryItem[] }
   /** 明确表示"没听懂"。带一句给用户看的说明。 */
   | { readonly kind: 'unknown'; readonly reason: string };
 
@@ -94,6 +108,7 @@ const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
   // 两个键都在表里，但**必须且只能给一个**：见 `demolish` 的两种形状。
   demolish: ['kind', 'instanceId', 'templateId'],
   miracle: ['kind', 'miracle', 'at'],
+  carry: ['kind', 'villager', 'carries'],
   unknown: ['kind', 'reason'],
 };
 
@@ -185,9 +200,33 @@ export function parseIntent(
         miracle: readOneOf(record.miracle, MIRACLES, 'miracle', fail),
         at: readPoint(record.at, worldSize, fail),
       };
+    case 'carry':
+      return {
+        kind: 'carry',
+        villager: readNonEmpty(record.villager, 'villager', fail),
+        // 闭集在**这儿**就挡掉，不等世界再答一遍：模型不该有机会让世界收到
+        // 一个世界上不存在的东西。逐件查，不整锅端——部分接受比整条拒更难查。
+        carries: readCarries(record.carries, fail),
+      };
     case 'unknown':
       return { kind: 'unknown', reason: readNonEmpty(record.reason, 'reason', fail) };
   }
+}
+
+/** 凭证清单：必须是数组，且每一件都在 `gate.ts` 的闭集里。 */
+function readCarries(
+  value: unknown,
+  fail: (why: string) => never,
+): readonly CarryItem[] {
+  if (!Array.isArray(value)) fail('carries 必须是数组');
+  const out: CarryItem[] = [];
+  for (const item of value as unknown[]) {
+    if (typeof item !== 'string' || !isCarryItem(item)) {
+      fail(`carries 的 "${String(item)}" 不是这个世界上认得的凭证：可选 lamp / shoes`);
+    }
+    out.push(item);
+  }
+  return out;
 }
 
 function readOneOf<T extends string>(

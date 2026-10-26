@@ -930,6 +930,25 @@ export class Simulation {
         if (result.ok) this.inscribe(raw, result.message);
         return result;
       }
+      case 'carry': {
+        // 意图说**名字**（上下文只给得起名字），世界命令认 **id**。
+        // 这一层翻译放在这里，不放进 schema：schema 只管形状，「阿绣在不在」
+        // 是世界才知道的事。点名了世界之外的人，拒——不顺手改递给站在边上的那位。
+        const villager = this.villagers.find((item) => item.name === intent.villager);
+        if (villager === undefined) {
+          const known = this.villagers.map((item) => item.name).join('、');
+          const message =
+            known === ''
+              ? `世界上还没有叫「${intent.villager}」的人。`
+              : `世界上没有叫「${intent.villager}」的人；有的是 ${known}。`;
+          this.log('warn', message);
+          return { ok: false, message };
+        }
+        return this.settleIntent(
+          { kind: 'setCarries', villagerId: villager.id, carries: intent.carries },
+          raw,
+        );
+      }
       case 'unknown': {
         // 原样回给用户。到这里的原因已经过校验（非空），比我另编一句有用——
         // 「模型调用失败：超时 10000ms」与「这句话没有对应的世界命令」，
