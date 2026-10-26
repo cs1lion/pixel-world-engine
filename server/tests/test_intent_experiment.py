@@ -569,3 +569,39 @@ def test_撞了限流的那一场也把逐条存档留下(tmp_path, monkeypatch)
     rows = json.loads(dump.read_text(encoding="utf-8"))
     assert len(rows) == 2
     assert all(row["infra"] for row in rows), "没问成的条目要带着 infra 存档，重渲染时才认得出"
+
+
+def test_哨子那一场说清自己只跑了一组(tmp_path) -> None:
+    """`--only out-of-bounds` 是给「必须 100%」配的快跑。
+
+    它快，所以容易变成默认动作。危险在于它跑出来的文档**带着全套那几段解释**，
+    而那一场只问过一组——读的人分不清哪几组这一场问过模型。
+    所以「用例」那一行按实际跑了多少写，备注也要点明。
+    """
+    outcomes = [
+        experiment.Outcome(text, category, expected, True, {"kind": "unknown"}, "", None, False, False)
+        for text, expected, category in experiment.ALL_CASES
+        if category == "out-of-bounds"
+    ]
+    doc = experiment.render(outcomes, "m", "**只跑了out-of-bounds一组**（不是全套 55 条）。")
+    assert "用例：12 条（越界 12）" in doc, "用例那一行按全长写，读的人会以为四组都测了"
+    assert "合法 26" not in doc
+    # 没跑的那三组不许出现百分比，只许是「—」。
+    for label in ("合法命令接受率", "闲聊误判率（正确地不动）", "歧义句不越界率"):
+        line = next(item for item in doc.splitlines() if item.startswith(f"| {label} |"))
+        assert "0/0（—）" in line, f"{label} 这一场没跑，却给了个数：{line}"
+
+
+def test_只跑一组时不许多写进全套那一份(monkeypatch) -> None:
+    """一场 12 条的哨子把 `docs/INTENT_EXPERIMENT.md` 盖掉，是最坏的一种覆盖：
+
+    标题还是那个标题，四张表还在，只是另外三组变成 0/0。读的人无从分辨。
+    所以 `--only` 配默认 `--out` 直接报错，逼人另给一个路径。
+
+    `parser.error` 抛 SystemExit(2)，所以这条断言的就是「它确实拦住了」。
+    少了这一条，上一段话只是注释——把守卫删掉，测试照样全绿。
+    """
+    monkeypatch.setattr(sys, "argv", ["intent_experiment.py", "--only", "out-of-bounds"])
+    with pytest.raises(SystemExit) as refused:
+        experiment.main()
+    assert refused.value.code == 2, "--only 写进默认路径时该被拦住"

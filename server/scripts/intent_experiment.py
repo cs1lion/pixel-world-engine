@@ -427,12 +427,19 @@ def render(outcomes: list[Outcome], model: str, note: str, *, ran: bool = True) 
         bucket = by_category.get(category, [])
         return sum(1 for item in bucket if classify(item)), len(bucket)
 
+    # 「用例」那一行按**实际跑了多少**写，不按四张表的全长写。
+    # 按全长写的话，`--only out-of-bounds` 跑出 12 条，那一行仍写着
+    # 「55 条（合法 26 / 越界 12 / 闲聊 10 / 歧义 7）」——读的人以为四组都测了，
+    # 而另外三组这一场根本没问过模型。少测不是错，把少测说成全都测了才是。
+    counts = {category: len(items) for category, items in by_category.items()}
+    ran_parts = [f"{label} {counts[key]}" for key, label in
+                 (("legal", "合法"), ("out-of-bounds", "越界"), ("chitchat", "闲聊"), ("ambiguous", "歧义"))
+                 if counts.get(key)]
     lines = [
         "# 意图实验：#16 的真实模型验证",
         "",
         f"- 模型：`{model}`",
-        f"- 用例：{len(outcomes)} 条（合法 {len(LEGAL)} / 越界 {len(OUT_OF_BOUNDS)} / "
-        f"闲聊 {len(CHITCHAT)} / 歧义 {len(AMBIGUOUS)}）",
+        f"- 用例：{len(outcomes)} 条（{' / '.join(ran_parts)}）",
         f"- 备注：{_one_line(note)}",
         "",
         "## 四个指标",
@@ -582,6 +589,24 @@ _WHY_IT_CHANGED = """
 读这份表之前先看「用例」那一行下面的备注写着什么。写着「没有跑成」，
 上面每一个数字都不是模型的。
 
+## 动完提示词，至少把哨子跑一遍
+
+上面那条纪律是「要动提示词，动完必须重跑本脚本，不能只看单条」。难处在于
+全套 55 条要烧一分多钟外加几十次调用，于是人会跳过它——而跳过的那几次，
+恰恰就是本轮那三条偷换溜过去的原因。
+
+所以有一个便宜的口子：
+
+    cd server && python scripts/intent_experiment.py --only out-of-bounds --out /tmp/canary.md
+
+12 条，只测越界那一组——表头写着它必须全过，漏一条就是硬伤。
+它不快到能每次提交都跑，但快到**改完提示词顺手跑一遍**不心疼。`--only` 不许写进 `docs/INTENT_EXPERIMENT.md`：
+那一份的位置是全套 55 条的，一场 12 条的哨子盖上去，标题还是那个标题，
+另外三组变成 0/0，读的人无从分辨。
+
+**哨子的数字不是全套的结论。** 它只回答「这一场越界的都拦住了吗」。
+别把一份 12 条的报告当成 55 条的替代品——那一行会写明这一场跑了几条。
+
 ## 还不能回答的
 
 - 合法命令接受率那一组剩下的缺口**只在严格模式下存在**，成因见上面那节。
@@ -695,7 +720,26 @@ def main() -> int:
             "验证那句话的，不是用来把数字变好看的。"
         ),
     )
+    parser.add_argument(
+        "--only",
+        default="",
+        choices=("", "legal", "out-of-bounds", "chitchat", "ambiguous"),
+        help=(
+            "只跑一组。`--only out-of-bounds` 是给「必须 100%」那条配的哨子："
+            "12 条、一分钟出头，动完提示词顺手跑一遍。别拿它的数字当全套的结论——"
+            "那一行会写明这一场跑了几条。"
+        ),
+    )
     args = parser.parse_args()
+
+    # `--only` 不许写进默认路径。那一份是**全套 55 条**跑出来的证据，
+    # 而一场 12 条的哨子把它盖掉，读的人看见的还是同样的标题、同样的四张表，
+    # 分不清哪几组这一场问过模型。少测不是错，把少测的证据留在全套的位置上才是。
+    if args.only and args.out == str(ROOT.parent / "docs" / "INTENT_EXPERIMENT.md"):
+        parser.error(
+            f"--only 只跑一组，别写进 {args.out}（那是全套 55 条的位置）。"
+            "另给一个 --out，例如 --out /tmp/canary.md"
+        )
 
     # 先读 `.env`：这样 Key 不必出现在命令行上（会留在 shell 历史里）。
     # 只打印**变量名**，不打印值。
@@ -713,6 +757,8 @@ def main() -> int:
 
     caller, why = _caller_factory()
     cases = ALL_CASES[: args.limit] if args.limit else ALL_CASES
+    if args.only:
+        cases = [case for case in cases if case[2] == args.only]
 
     if args.replay:
         # 从存档重渲染：不调模型、不看 Key。改了 `_WHY_IT_CHANGED` 之类的说明
@@ -771,6 +817,13 @@ def main() -> int:
     model = os.environ.get("LLM_MODEL", "unknown")
     side = "带了客户端现状（线上那一侧）" if args.with_context else "没带客户端现状（故意从严那一侧）"
     note = f"一次完整跑完，{side}。判定标准见 `render()` / `classify()`。"
+    if args.only:
+        # 哨子那一场也要说清自己不是全套。下面 `_WHY_IT_CHANGED` 那几段
+        # 通篇在讲 55 条怎么跑到今天的，而这一场只问了一组。
+        note = (
+            f"**只跑了{args.only}一组**（不是全套 55 条），{side}。"
+            "下面「这条通过线是怎么补齐的」等段落说的是全套那一场，不是这一场。"
+        )
     Path(args.out).write_text(render(outcomes, model, note), encoding="utf-8", newline="\n")
     _dump_to(args.dump, outcomes)
 
