@@ -106,12 +106,19 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   lines.push(`${weather}。${villagerTail(snapshot)}`);
 
   // 没有里程碑时不能写"第 1 次神恩"：那是还没发生的事。
+  //
+  // 头条也不许带时间词，理由同上面那句「新起」：报纸是现算的，日期跟着世界钟走，
+  // 而这两个数都是**整场累计**的——`deliveries` 由 `settledLog` 重建，而 `settledLog`
+  // 只追加不裁剪、整份落档（`toSave` 的 `settled`），所以它把上一次会话交付的单也
+  // 数在内。于是「今日有交付」会在一个今天什么都没交付的会话里说今天有交付；
+  // 「世界刚醒来」则在钟走了很远、仍然一单未交付时继续说刚醒来。
+  // 攒满里程碑那条本来是干净的（数的是已经落地的次数，不带时间词），不动。
   const headline =
     snapshot.faith.milestones > 0
       ? `第 ${snapshot.faith.milestones} 次神恩已落地`
       : delivered > 0
-        ? '今日有交付'
-        : '世界刚醒来';
+        ? '已有交付'
+        : '世界还没动静';
 
   return {
     headline,

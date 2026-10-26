@@ -54,7 +54,7 @@ function makeLargeSim(): Simulation {
 
 test('还没交付时，日报说实话，不用填充句', () => {
   const report = composeReport(makeSim().snapshot());
-  assert.equal(report.headline, '世界刚醒来');
+  assert.equal(report.headline, '世界还没动静');
   assert.ok(report.lines[0].includes('还没有交付'));
   assert.ok(report.lines.length <= 3);
 });
@@ -89,7 +89,7 @@ test('交付一单之后，日报写的是这单本身', () => {
   const report = composeReport(sim.snapshot());
   assert.ok(report.lines.some((line) => line.includes('交付 1 单')));
   assert.ok(report.lines.some((line) => line.includes('顺手看一眼')));
-  assert.equal(report.headline, '今日有交付', '没攒满里程碑就不能写"神恩"');
+  assert.equal(report.headline, '已有交付', '没攒满里程碑就不能写"神恩"');
 });
 
 test('日报按角色与来源分账：上游与本地分开，不合并计数', () => {
@@ -140,7 +140,7 @@ test('日报按角色与来源分账：上游与本地分开，不合并计数',
   assert.ok(line.includes('上游 1'), line);
   assert.ok(line.includes('离线本地 1'), line);
   assert.ok(!line.includes('交付 3 单'), '不能把两个人/两种来源合并成一个数');
-  assert.equal(report.headline, '今日有交付');
+  assert.equal(report.headline, '已有交付');
 });
 
 test('日报写清每个角色交付了几单', () => {
@@ -173,7 +173,7 @@ test('日报写清每个角色交付了几单', () => {
   assert.ok(line.includes('莞尔交付 1 单'), line);
   assert.ok(line.includes('阿雾交付 1 单'), line);
   assert.ok(line.includes('本地 1'), line);
-  assert.equal(report.headline, '今日有交付');
+  assert.equal(report.headline, '已有交付');
 });
 
 test('上游单按实际接单的角色分账', () => {
@@ -411,6 +411,53 @@ test('楼放久了，报纸那句话不许跟着变——只有来路，没有�
     /^开局之后造物主起了 \d+ 栋楼：/,
     `这一句得说清「开局之后」这个界，不能换成「今天」也不能不说：${soon}`,
   );
+});
+
+test('钟走了很远还什么都没发生，头条不许说「刚醒来」', () => {
+  // 旧措辞是「世界刚醒来」。「刚」是句时间断言，而它只看「一单未交付、没攒够里程碑」
+  // ——跟钟走了多久毫无关系。玩家开局发一条神谕（于是报纸重画），纸上日期已经是第 N 分，
+  // 头条仍说刚醒来。
+  const sim = makeSim();
+  sim.update(16);
+  assert.equal(
+    composeReport(sim.snapshot()).headline,
+    '世界还没动静',
+    '刚开局那一拍，该写这一句',
+  );
+
+  sim.update(30 * 60 * 1000);
+  const after = composeReport(sim.snapshot());
+  assert.notEqual(after.date, '第 0 分 00 秒', '钟没动，这条测试没在问它想问的');
+  assert.equal(after.headline, '世界还没动静', `钟走了半小时，头条还在说「刚」：${after.headline}`);
+});
+
+test('读档之后，上一次会话交付的单不算「今日」', () => {
+  // deliveries 由 settledLog 重建，而 settledLog 只追加不裁剪、整份落档（toSave 的
+  // settled）。于是读档后这个数把上一次会话的单也数在内——可这一次会话一单还没交。
+  // 旧措辞「今日有交付」就在这种时候说今天有交付。
+  const played = makeSim();
+  played.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
+  let guard = 0;
+  while (played.snapshot().tasks[0]?.status !== 'done') {
+    played.update(100);
+    if ((guard += 1) > 400) throw new Error('短活没结束');
+  }
+  assert.equal(composeReport(played.snapshot()).headline, '已有交付', '夹具：这一场确实交过');
+
+  const save = played.toSave();
+  const fresh = buildWorld(blueprints);
+  const reloaded = Simulation.fromSave(JSON.parse(JSON.stringify(save)), {
+    grid: fresh.grid,
+    buildings: fresh.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    wallClock: () => 1000,
+  });
+  reloaded.update(30 * 60 * 1000);
+  const after = composeReport(reloaded.snapshot());
+  assert.ok(after.lines.some((line) => line.includes('交付 1 单')), '夹具：读档后那个数还在');
+  assert.notEqual(after.date, '第 0 分 00 秒', '钟没动，这条测试没在问它想问的');
+  assert.equal(after.headline, '已有交付', '头条不许把上一次会话的单说成今天的');
 });
 
 test('日记只挑有信息量的事件，不编心情', () => {
