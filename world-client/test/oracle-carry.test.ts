@@ -12,7 +12,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseOracleCarry } from '../src/world/oracle-carry.ts';
+import { parseOracleCarry, CARRY_WORDS } from '../src/world/oracle-carry.ts';
+import { CARRY_ITEMS } from '../src/world/gate.ts';
 
 // ------------------------------------------------------------------ 给
 
@@ -76,4 +77,43 @@ test('空句与没说完的话都不猜', () => {
   assert.equal(parseOracleCarry('   '), null);
   assert.equal(parseOracleCarry('给汐'), null, '说了给谁、没说什么，交给世界去问');
   assert.equal(parseOracleCarry('给'), null);
+});
+
+// ------------------------------------------------------------------ 祈使，只有祈使
+
+test('叙述不收东西：「汐收走了莞尔的鞋」说的不是命令', () => {
+  // 这句话描述的是已经发生的事。收走那一路若在句子里随便找动词，
+  // 它就会把收件人取成「汐」、把她的兜掏空——而用户从没要求过。
+  assert.equal(parseOracleCarry('汐收走了莞尔的鞋'), null);
+  assert.equal(parseOracleCarry('她已经收回那盏灯了'), null);
+});
+
+test('祈使的收走只有两种形状：动词打头，或「把」打头', () => {
+  assert.deepEqual(parseOracleCarry('收走汐的灯'), { villager: '汐', carries: [] });
+  assert.deepEqual(parseOracleCarry('把汐的灯收走'), { villager: '汐', carries: [] });
+  // 动词在句尾但前面不是「把」：那是在说一件事，不是在下命令。
+  assert.equal(parseOracleCarry('汐的灯收走'), null);
+});
+
+test('没有收件人就不是交接：说给谁没说，就不猜', () => {
+  // 「送灯」被规则放过的话，意图里的 villager 是空串——客户端放行、
+  // 服务端 502。半句话该落进 unknown，让世界问「说给谁」。
+  assert.equal(parseOracleCarry('送灯'), null);
+  assert.equal(parseOracleCarry('给'), null);
+  assert.equal(parseOracleCarry('收走灯'), null);
+  assert.equal(parseOracleCarry('把灯收走'), null);
+});
+
+test('指示词也说得出：这盏灯不只是那盏灯', () => {
+  assert.deepEqual(parseOracleCarry('给汐这盏灯'), { villager: '汐', carries: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('给汐这双鞋'), { villager: '汐', carries: ['shoes'] });
+});
+
+// ------------------------------------------------------------------ 两张表不能漂
+
+test('离线认得世界上每一种凭证：只改一边就红', () => {
+  // `CARRY_WORDS` 是人嘴里的说法，`CARRY_ITEMS` 是世界的机制，两处各写一遍。
+  // 加一种凭证时只改一边，离线这条嘴就永远哑着——而没有任何测试会因此红。
+  const offline = [...new Set(CARRY_WORDS.map((entry) => entry.kind))].sort();
+  assert.deepEqual(offline, [...CARRY_ITEMS].sort());
 });
