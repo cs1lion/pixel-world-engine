@@ -15,6 +15,8 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { codeOf } from './source-scan.ts';
+
 import {
   LAMP_DRY,
   LAMP_DAY_MS,
@@ -78,16 +80,37 @@ const MAY_TOUCH_LAMPOIL: Readonly<Record<string, string>> = {
 /** 判定一行是不是在**拿油量做决定**。 */
 const DECIDES_ON_OIL = /[<>]=?|===?|!==|[+*/]|\?|&&|\|\||\bif\b|\bwhile\b|\bfor\b/;
 
+/** `src/world/` 下所有 `.ts` 的相对路径，子目录也往下走。
+ *
+ *  为什么递归：这条扫描当初失效，正是因为「只看 simulation.ts」一层。
+ *  扩到整个目录之后，同样的坑还在——`readdirSync` 不递归，多一层子目录
+ *  就又是一片安静的盲区，而测试照绿。
+ */
+function worldSources(dir: string, prefix = ''): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.isDirectory()) return worldSources(`${dir}/${entry.name}`, `${prefix}${entry.name}/`);
+    return entry.name.endsWith('.ts') ? [`${prefix}${entry.name}`] : [];
+  });
+}
+
 test('除了清单上那几个文件，世界没人碰灯油', () => {
   // SPEC §4.2 的铁律是「灯油衰减只活在渲染层，不进 Simulation」。
   // 原先那条扫描只看 `simulation.ts`——于是「油尽了不走这条路」写进 `grid.ts`
   // 或 `bustle.ts`，全套照旧绿。铁律守的是整个 `world/`，不是一个文件。
+  //
+  // 走 `codeOf()` 而不是裸 `readFileSync`：注释里提一句 `lampOil` 是解释历史
+  // （`save.ts:48` 就在讲 v3 扩了哪几个字段），不是把词汇接回来。裸读会把注释行
+  // 也喂给 `DECIDES_ON_OIL`——今天扫出来是 0 处（注释里那几个 `lampOil` 都在
+  // 被豁免的 `save.ts` / `lampoil.ts` 里），所以这是**潜在**误报，不是正在误报。
+  // 但「代码里有没有」和「文件里有没有」是两件事，这条界线 `test/source-scan.ts`
+  // 开头写着，而这里原先自己抄了一份 `codeOf`——正是那份文件说要消灭的第四份抄写。
+  //
+  // 递归往下走：`src/world/` 今天是平的，但这条扫描当初就是因为「只看一个文件」
+  // 失效过才扩到整个目录的。哪天多一层子目录，不该又安静地漏一片。
   const worldDir = fileURLToPath(new URL('../src/world', import.meta.url));
   const strays: string[] = [];
-  for (const entry of readdirSync(worldDir)) {
-    if (!entry.endsWith('.ts')) continue;
-    const rel = entry;
-    const text = readFileSync(`${worldDir}/${entry}`, 'utf8');
+  for (const rel of worldSources(worldDir)) {
+    const text = codeOf(`${worldDir}/${rel}`);
     if (!text.includes('lampOil')) continue;
     if (MAY_TOUCH_LAMPOIL[rel] === undefined) {
       strays.push(`${rel}：提到了 lampOil，而它不在清单里（${Object.keys(MAY_TOUCH_LAMPOIL).join(' / ')}）`);
@@ -125,19 +148,6 @@ test('灯油模型不读墙钟', () => {
   const hits = banned.filter((pattern) => text.includes(pattern));
   assert.deepEqual(hits, [], `灯油不许读墙钟：${hits.join(', ')}`);
 });
-
-/** 读一份源码，**去掉注释行**之后再还回来。
- *
- * 少了这一步，扫描就会被自己骗过去：把 `drawLamp(...)` 注释掉，那行字还在文件里，
- * `text.includes('drawLamp(...)')` 照样为真——而灯已经不在画面上了。
- * `purity.test.ts` 里那几条扫描早就是这么做的，这里跟上。
- */
-function codeOf(path: string): string {
-  return readFileSync(path, 'utf8')
-    .split('\n')
-    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
-    .join('\n');
-}
 
 test('见底发灰是接线接上去的，不是写在注释里的', () => {
   // 「灯暗到阈值以下时角色渲染发灰」是 #4 的验收条件。它发生在 `villager.ts`，
