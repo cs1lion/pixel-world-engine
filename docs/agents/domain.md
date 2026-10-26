@@ -56,7 +56,7 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 2026-10-27 复核：
 
-- `GLOSSARY.md` — 不存在（按上面规则，先静默跳过，等 `/domain-modeling` 需要时再建）
+- `GLOSSARY.md` — 已建立。收这个世界自己的词；写 issue 标题、重构提案、假设、测试名先用这里的词，别漂到各条 `_Avoid_` 列的同义词。
 - `GLOSSARY-MAP.md` — 不存在 → 单上下文
 - `docs/adr/` — 已建立（2026-10-26 起）。放的是**SPEC 之外**的取舍：SPEC 说的是
   「做成什么样」，ADR 说的是「为什么不是另一种做法，以及另一种会坏在哪里」。
