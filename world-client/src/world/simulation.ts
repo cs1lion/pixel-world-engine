@@ -31,7 +31,7 @@ import type { IntentModel } from './intent-router.ts';
 import type { ParsedIntent } from './intent-schema.ts';
 import { summarizeWorld } from './world-state.ts';
 import { summarizeForIntent } from './intent-context.ts';
-import type { GatedRegion } from './intent-context.ts';
+import type { BreathingRegion, GatedRegion } from './intent-context.ts';
 import { addTrail, visibleTrails, type TrailMap } from './trails.ts';
 import { carryKindFor } from './carry.ts';
 import { WILD_PREFABS } from './setup.ts';
@@ -901,7 +901,11 @@ export class Simulation {
         // 现取快照：这句话进队列时世界的样子。模型据此少犯「已有工坊还要建」这类错。
         // 门也一起给：渡有仪式在世界上是真的，现状里不说，模型就不知道
         // 「让她进得去」这句话该翻成 carry。
-        context: summarizeForIntent(this.snapshot(), this.gatedRegions()),
+        context: summarizeForIntent(
+          this.snapshot(),
+          this.gatedRegions(),
+          this.breathingRegions(),
+        ),
       });
       if (result.intent.kind === 'unknown') {
         // **原因要一路带到回执上。** 模型自己说了为什么听不懂，或者叫模型那一段
@@ -1876,9 +1880,23 @@ export class Simulation {
    * 与 `isFree` 分开是有意的：空闲是「此刻没在做事」，接得下是「有资格接」。
    * 抵押者永远空闲，但接不了——把两个条件合成一个方法，就会在某个只想知道
    * 「她有空吗」的调用点上把抵押者误判成不可用（或反过来放过她）。
+   *
+   * 呼吸段（SPEC_V2 §4.7）也是同一条理由：她正站在那一屏留白里，就不该被
+   * 一件活拽走。这里是派活三条路径（神谕、上游、自己的排队单）共同的那道门，
+   * 漏掉任一条就会出现「神谕派不下去，上游照样派」——抵押在那条上栽过一次。
+   *
+   * 只问**此刻站在哪儿**，不把她锁死：作息照旧把她带走，下一拍她就在外头了。
+   * 所以这里是「现在不派」，不是「永远不派」——留白是会过去的。
    */
   private canTakeWork(villager: Villager): boolean {
-    return this.isFree(villager) && villager.nameState !== 'pawned';
+    return (
+      this.isFree(villager) &&
+      villager.nameState !== 'pawned' &&
+      // 走 `cellOf`：她站在分数坐标上（4.048），网格是按整数格索引的，
+      // 直接拿 `villager.pos` 去问会落在一格之外——于是她一路走过整片
+      // 留白，世界一次都没看见。这个坑看不见：她照样在走、照样在干活。
+      !this.grid.breathingAt(this.cellOf(villager.pos))
+    );
   }
 
   /** 空闲**且名牌还在自己身上**的角色。抵押者不在候选里。 */
@@ -1910,6 +1928,19 @@ export class Simulation {
       id: gate.id,
       name: this.regionNames?.get(gate.id) ?? gate.id,
       needs: gate.needs,
+    }));
+  }
+
+  /**
+   * 哪几处是呼吸段（SPEC_V2 §4.7）。id 配上设定集的叫法。
+   *
+   * 与 `gatedRegions` 同一道手续：网格只记 id 不背显示名
+   * （见 `SettingPack['regions']` 那段「别为了去重把这边改成引用 GridSpec」）。
+   */
+  private breathingRegions(): BreathingRegion[] {
+    return this.grid.breathingRegions().map((place) => ({
+      id: place.id,
+      name: this.regionNames?.get(place.id) ?? place.id,
     }));
   }
 
@@ -2437,7 +2468,19 @@ export class Simulation {
       this.decreeBearer = null;
     }
 
-    const free = this.villagers.find((item) => item.mode === 'idle' && item.path.length === 0);
+    // 呼吸段里的人不接这一趟（SPEC_V2 §4.7）。急件是世界自己发起的一件事，
+    // 还带一句「急件！」的气泡——它同时是「随机事件」和「提示」，
+    // 而那一屏留白两样都不该有。
+    //
+    // 与 `canTakeWork` 那道门是**两处**，不是一处：那边管派活，这边管急件。
+    // 漏了这边，「不派活」做到了、「不弹提示」没做到——用户在留白里
+    // 照样被一句「急件！」拽走。走 `cellOf`：她站在分数坐标上。
+    const free = this.villagers.find(
+      (item) =>
+        item.mode === 'idle' &&
+        item.path.length === 0 &&
+        !this.grid.breathingAt(this.cellOf(item.pos)),
+    );
     if (free === undefined) return;
 
     // 她站在祭坛格上时 `routeTo` 也说「路是空的」。这里**故意**当作「这一拍不派」：

@@ -257,6 +257,31 @@ test('现状说出那道门：要什么、谁进得去、谁进不去', () => {
   assert.match(rendered, /carry/, '得告诉模型这件事能改——否则它只能答 unknown');
 });
 
+// -------------------------------------------------- 呼吸段进了现状
+
+test('一处呼吸都没有时，现状里一行都不多：莞尔镇不因此多出一句', () => {
+  // 与门同一条规矩：默认世界从来没有 `breathing`。给它写一行「浅滩轨道在呼吸」
+  // 是撒谎，而模型会拿这句话去解释用户明明在说的另一件事。
+  const context = summarizeForIntent(makeSim().snapshot(), [], []);
+  assert.deepEqual(context.breathing, [], '没有呼吸段就不该有这一项');
+  assert.ok(
+    !renderIntentContext(context).includes('留白'),
+    '没有呼吸段的现状里不该出现留白的说法',
+  );
+});
+
+test('现状说出哪几处是留白：世界自己的节律也是能说出口的事', () => {
+  // §4.7 说「留白也是规则，不是没内容」。不说出来，它就只是配置里的一行字——
+  // 用户看到世界静了一瞬，不知道那是设定，会以为它卡了。
+  const context = summarizeForIntent(
+    makeSim().snapshot(),
+    [],
+    [{ id: 'shoal', name: '浅滩轨道' }],
+  );
+  assert.deepEqual(context.breathing, [{ region: '浅滩轨道' }]);
+  assert.match(renderIntentContext(context), /浅滩轨道/, '得说清是哪一处在留白');
+});
+
 test('带上灯的人就在「进得去」那一侧：这是快照，不是永久属性', () => {
   const sim = makeSim();
   sim.enqueue({ kind: 'setCarries', villagerId: 'v0', carries: ['lamp'] });

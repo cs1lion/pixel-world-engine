@@ -76,6 +76,10 @@ export interface SettingPack {
    * 别为了「去重」把这边改成引用 `GridSpec`——那会逼着网格也背上显示名。
    *
    * `requires` 是渡有仪式的门（SPEC_V2 §4.6）：跨这道区界要带什么。
+   *
+   * `breathing` 是呼吸段（SPEC_V2 §4.7）：这一区里不派活、不出急件。
+   * 与 `requires` 是两个独立的槽位——一道区域可以又要凭证又呼吸。
+   * 省略就是「不留白」：莞尔镇的地域从来没有这一项。
    */
   readonly regions: readonly {
     readonly id: string;
@@ -85,6 +89,7 @@ export interface SettingPack {
     readonly w: number;
     readonly h: number;
     readonly requires?: CarryItem | null;
+    readonly breathing?: boolean;
   }[];
   readonly blueprints: ReadonlyMap<string, PrefabBlueprint>;
   readonly placements: readonly SettingPlacement[];

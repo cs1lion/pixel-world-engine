@@ -31,6 +31,12 @@ export interface GatedRegion {
   readonly needs: CarryItem;
 }
 
+/** 一处呼吸段（SPEC_V2 §4.7）：叫什么。叫法由拿着设定集的调用方给，不由网格给。 */
+export interface BreathingRegion {
+  readonly id: string;
+  readonly name: string;
+}
+
 /**
  * 喂给模型的世界现状。
  *
@@ -68,15 +74,27 @@ export interface IntentContext {
     readonly passed: readonly string[];
     readonly blocked: readonly string[];
   }[];
+  /**
+   * 哪几处是呼吸段（SPEC_V2 §4.7）。
+   *
+   * 与 `gated` 同一条理由：呼吸段在世界上是真的，不说出来它就只是配置里的
+   * 一行字。用户看到世界静了一瞬，不知道那是设定，会以为它卡了。
+   *
+   * 只给叫什么，不给谁在里头：里头的人是快照，会随她走动每拍都变，
+   * 而这一行要说的是**哪儿**是留白，不是**此刻**谁在歇。
+   */
+  readonly breathing: readonly { readonly region: string }[];
 }
 
 /** 从快照归纳出喂模型的上下文。纯函数。
  *
- * `gates` 是世界有哪几道门（`WorldGrid.gatedRegions()` 配上设定集的叫法）。
- * 省略就是一道门都没有——莞尔镇从来没有这一项，它的现状不该因此多出一行。 */
+ * `gates` 是世界有哪几道门（`WorldGrid.gatedRegions()` 配上设定集的叫法），
+ * `breathing` 是世界有哪几处留白（`WorldGrid.breathingRegions()` 同一条手续）。
+ * 两者省略都等于「一样都没有」——莞尔镇从来没有这两项，它的现状不该因此多出一行。 */
 export function summarizeForIntent(
   snapshot: WorldSnapshot,
   gates: readonly GatedRegion[] = [],
+  breathing: readonly BreathingRegion[] = [],
 ): IntentContext {
   const isWild = (building: PlacedBuilding): boolean => WILD_PREFABS.has(building.prefabId);
   const toEntry = (building: PlacedBuilding) => ({
@@ -116,6 +134,7 @@ export function summarizeForIntent(
       passed: snapshot.villagers.filter((v) => v.carries.includes(gate.needs)).map((v) => v.name),
       blocked: snapshot.villagers.filter((v) => !v.carries.includes(gate.needs)).map((v) => v.name),
     })),
+    breathing: breathing.map((place) => ({ region: place.name })),
   };
 }
 
@@ -186,6 +205,17 @@ export function renderIntentContext(context: IntentContext): string {
     lines.push(
       `${gate.region}要${CARRY_LABEL[gate.needs]}才进得去：${who(gate.passed)}进得去，` +
         `${who(gate.blocked)}进不去。要让人进得去，给她一件（见 carry）。`,
+    );
+  }
+
+  // 呼吸段跟在门后头说，也连「没有命令能改它」说：`carry` 改的是门，
+  // 改不了留白。不说这句，模型会以为用户说「让浅滩轨道别静了」时
+  // 该去改世界上的一道门。
+  // 一处都没有时整段不出现：莞尔镇的现状不该多出一行讲不存在的东西。
+  if (context.breathing.length > 0) {
+    lines.push(
+      `${context.breathing.map((place) => place.region).join('、')}是留白：` +
+        '那里不派活、不出急件。这是世界自己的节律，没有命令能改它。',
     );
   }
 

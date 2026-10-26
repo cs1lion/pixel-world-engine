@@ -57,6 +57,16 @@ export interface GridSpec {
      * 行为与从前完全一致），要卡谁由调用方按角色给。
      */
     readonly requires?: CarryItem | null;
+    /**
+     * 呼吸段（SPEC_V2 §4.7）：这一区里不派活、不触发随机事件、不弹提示。
+     *
+     * 与 `requires` 是**两个独立的槽位**：一道区域可以又要凭证又呼吸
+     * （「进了这道门才该安静下来」）。混成一个字段就会有一个表达不了。
+     *
+     * 省略就是「不留白」。莞尔镇的地域从来没有这一项——它们不能因为
+     * 这一版就变成静音区，否则整个世界都会停下。
+     */
+    readonly breathing?: boolean;
   }[];
 }
 
@@ -92,6 +102,12 @@ export class WorldGrid {
    * 每次去遍历 `spec.regions` 会让大世界的寻路平白多出几百次线性扫描。
    */
   private readonly requirements = new Map<string, CarryItem>();
+  /**
+   * 哪几道区域在呼吸（SPEC_V2 §4.7）。没有 `breathing` 的区域不在这张表里。
+   *
+   * 与 `requirements` 同一道手续：建表时算一次，问的时候只查。
+   */
+  private readonly breathing = new Set<string>();
 
   constructor(spec: GridSpec, wilderness?: { readonly center: GridPoint }) {
     this.width = spec.width;
@@ -133,6 +149,8 @@ export class WorldGrid {
     }
     for (const region of spec.regions ?? []) {
       if (region.requires != null) this.requirements.set(region.id, region.requires);
+      // 呼吸与门是两件事，同一个循环里各记各的：一道区域可以两者都要。
+      if (region.breathing === true) this.breathing.add(region.id);
       for (let y = region.y; y < region.y + region.h; y += 1) {
         for (let x = region.x; x < region.x + region.w; x += 1) {
           const cell = this.at({ x, y });
@@ -186,6 +204,39 @@ export class WorldGrid {
    */
   gatedRegions(): readonly { readonly id: string; readonly needs: CarryItem }[] {
     return [...this.requirements].map(([id, needs]) => ({ id, needs }));
+  }
+
+  /**
+   * 这一格此刻是不是在一处呼吸段里（SPEC_V2 §4.7）。
+   *
+   * 问的是「属于哪道区域」，答不上来就不呼吸——世界外、没被任何区域
+   * 覆盖的格子都返回 false。不抛：渲染层每帧都会问。
+   *
+   * 与 `requirementAt` 同构：那边问「要什么」，这边问「静不静」。
+   *
+   * **按整数格问。** 角色站在分数坐标上（她是一路滑过来的），直接拿
+   * `villager.pos` 来问会落到一格之外——`at()` 用坐标当下标，
+   * `cells[y * width + x]` 收一个 4.048 就是 undefined。调用方先过
+   * `cellOf`（`simulation.ts` 里那个 `Math.round`）。这个坑看不见：
+   * 她照样在走、照样在干活，只是世界一次都没看见那片留白。
+   */
+  breathingAt(p: GridPoint): boolean {
+    const region = this.at(p)?.region;
+    if (region === undefined) return false;
+    return this.breathing.has(region);
+  }
+
+  /**
+   * 世界上有几处呼吸段。没有就返回空数组。
+   *
+   * 与 `gatedRegions` 同一条理由：`breathingAt` 按格问，问不出「世界上
+   * 有几处」。而「有几处」是要说给人听的（界面、喂模型的世界现状）——
+   * 不说，呼吸段就只是配置里的一行字，设定了却没人知道它在起作用。
+   *
+   * 只给 id，不给显示名：网格不背显示名（同 `gatedRegions`）。
+   */
+  breathingRegions(): readonly { readonly id: string }[] {
+    return [...this.breathing].map((id) => ({ id }));
   }
 
   isWalkable(p: GridPoint): boolean {
