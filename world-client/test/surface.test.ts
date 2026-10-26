@@ -256,17 +256,17 @@ test('攒满里程碑后，标题写的是已经落地的那次神恩', () => {
   assert.equal(report.headline, '第 1 次神恩已落地');
 });
 
-test('日报会写上这一场起的楼与落地的东西', () => {
+test('日报会写上开局之后起的楼与落地的东西', () => {
   const sim = makeSim();
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#1' });
   sim.update(16);
   const report = composeReport(sim.snapshot());
-  assert.ok(report.lines.some((line) => line.includes('造物主起了 1 栋楼')));
+  assert.ok(report.lines.some((line) => line.includes('开局之后造物主起了 1 栋楼')));
 });
 
 test('玩家一天都没动手时，日报不许数出楼来——大世界', () => {
   // 判据曾经是 `boundTask === null`（「不接活」）。民居也不接活，却是开局就落好的，
-  // 于是大世界的日报在玩家什么都没做的那天写「造物主起了 5 栋楼」。
+  // 于是大世界的日报在玩家什么都没做的那天写「造物主新起 5 栋楼」（旧措辞）。
   // 30×20 的夹具不落民居，所以那一侧永远绿——错的是没有人拿大世界问过它。
   const notTakingWork = buildLargeWorld(blueprints)
     .buildings.filter((building) => building.boundTask === null);
@@ -274,7 +274,7 @@ test('玩家一天都没动手时，日报不许数出楼来——大世界', ()
 
   const report = composeReport(makeLargeSim().snapshot());
   assert.ok(
-    !report.lines.some((line) => line.includes('造物主起了')),
+    !report.lines.some((line) => line.includes('开局之后造物主起了')),
     `玩家一天都没动手，日报却数出了楼：${report.lines.join(' / ')}`,
   );
 });
@@ -297,7 +297,7 @@ test('玩家一天都没动手时，日报不许数出楼来——设定集也�
   });
   const report = composeReport(sim.snapshot());
   assert.ok(
-    !report.lines.some((line) => line.includes('造物主起了')),
+    !report.lines.some((line) => line.includes('开局之后造物主起了')),
     `玩家一天都没动手，日报却数出了楼：${report.lines.join(' / ')}`,
   );
 });
@@ -314,9 +314,9 @@ test('小世界里玩家建一间民居，日报也写——修完不能修成�
     '小世界没建成民居，这条测试的夹具不成立',
   );
   const report = composeReport(sim.snapshot());
-  const line = report.lines.find((item) => item.includes('造物主起了'));
+  const line = report.lines.find((item) => item.includes('开局之后造物主起了'));
   assert.ok(line !== undefined, `玩家建了楼，日报却没写：${report.lines.join(' / ')}`);
-  assert.ok(line.includes('造物主起了 1 栋楼'), `只该数玩家那一栋：${line}`);
+  assert.ok(line.includes('开局之后造物主起了 1 栋楼'), `只该数玩家那一栋：${line}`);
 });
 
 test('大世界里玩家真建了楼，日报照写，而且只数玩家建的那一栋', () => {
@@ -325,24 +325,24 @@ test('大世界里玩家真建了楼，日报照写，而且只数玩家建的�
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#1' });
   sim.update(16);
   const report = composeReport(sim.snapshot());
-  const line = report.lines.find((item) => item.includes('造物主起了'));
+  const line = report.lines.find((item) => item.includes('开局之后造物主起了'));
   assert.ok(line !== undefined, `玩家建了楼，日报却没写：${report.lines.join(' / ')}`);
-  assert.ok(line.includes('造物主起了 1 栋楼'), `只该数玩家那一栋：${line}`);
+  assert.ok(line.includes('开局之后造物主起了 1 栋楼'), `只该数玩家那一栋：${line}`);
   assert.ok(
     !line.includes('小屋') && !line.includes('农舍'),
     `民居被数进来了：${line}`,
   );
 });
 
-test('读档之后，上一次造的楼不算「这一场起的」——证不明就不判', () => {
+test('读档之后，上一次造的楼不算「开局之后起的」——证不明就不判', () => {
   // 存档证明不了一栋楼是哪一次会话里造的。读档那一刻档里所有的楼都算"开局就有"，
   // 于是报纸宁可少说一句，不多说一句假的。少说一句的代价是这一句，
-  // 多说一句的代价是又一场「造物主起了 6 栋楼」。
+  // 多说一句的代价是又一场「造物主新起 6 栋楼」（旧措辞）。
   const played = makeSim();
   played.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#1' });
   played.update(16);
   assert.ok(
-    composeReport(played.snapshot()).lines.some((line) => line.includes('造物主起了 1 栋楼')),
+    composeReport(played.snapshot()).lines.some((line) => line.includes('开局之后造物主起了 1 栋楼')),
     '同一场里刚建的楼，报纸该写',
   );
 
@@ -360,23 +360,25 @@ test('读档之后，上一次造的楼不算「这一场起的」——证不�
     '读档没把那一栋读回来，这条测试的夹具不成立',
   );
   assert.ok(
-    !composeReport(reloaded.snapshot()).lines.some((line) => line.includes('造物主起了')),
-    `读档后报纸把上一次造的楼说成这一场起的：${composeReport(reloaded.snapshot()).lines.join(' / ')}`,
+    !composeReport(reloaded.snapshot()).lines.some((line) => line.includes('开局之后造物主起了')),
+    `读档后报纸把上一次造的楼说成开局之后起的：${composeReport(reloaded.snapshot()).lines.join(' / ')}`,
   );
 });
 
-test('楼放久了，报纸那句话不许跟着变——它只有来路，没有时间', () => {
+test('楼放久了，报纸那句话不许跟着变——只有来路，没有时间', () => {
   // 这句话曾经写「造物主新起 N 栋楼」。「新」是句时间断言，可报纸是现算的
   // （composeReport 每次调用都从快照推一遍），日期还跟着世界钟走（formatDate 打的
-  // 是第几分第几秒）。一栋第 5 分落成的楼，到第 500 分那张报纸上仍叫「新起」——
-  // 越放越假。客户端也没有「一天」的长度可依（日长由服务端算，见 memory-client.ts），
-  // 想按天把「新」收窄都做不到。所以改成说「这一场」：只讲来路，不讲新旧。
+  // 是第几分第几秒）。楼是开局那一拍落的，到钟走过 5 分钟的那张报纸上它仍叫「新起」
+  // ——越放越假。想按天收窄也做不到：PlacedBuilding 上没记落成时刻，没有时刻戳可比
+  // （天界倒有，lampDayOf 按世界钟算得出第几天，可一天的两头只有一头）。
+  // 所以改成说「开局之后」：只讲来路，不讲新旧。
   const world = buildWorld(blueprints);
   const sim = new Simulation({
     grid: world.grid,
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    wallClock: () => 1000,
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       return blueprint === undefined
@@ -401,7 +403,14 @@ test('楼放久了，报纸那句话不许跟着变——它只有来路，没�
     soonDate,
     '世界钟没动，这条测试没在问它想问的',
   );
-  assert.equal(later, soon, `楼放久了，那句话跟着变了：${soon} → ${later}`);
+  assert.equal(later, soon, `楼放久了，那句话变了：${soon} → ${later === '' ? '整句没了' : later}`);
+  // 光钉「造物主起了」不够：换成「今天造物主起了」或把界整个去掉，上面三条全绿，
+  // 而那句话恰恰又变成了句时间断言。这一条钉的是**界**，不是那几个字。
+  assert.match(
+    soon,
+    /^开局之后造物主起了 \d+ 栋楼：/,
+    `这一句得说清「开局之后」这个界，不能换成「今天」也不能不说：${soon}`,
+  );
 });
 
 test('日记只挑有信息量的事件，不编心情', () => {

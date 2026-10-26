@@ -57,16 +57,20 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // 这一句数的是**玩家这次玩起来之后造没造**。答案在快照里存着：
   // `startupBuildingIds` 之外的就是。不猜——猜过的两种猜法都错过：
   //   - `boundTask === null` 问的是「接不接活」。民居不接活却是开局落的，
-  //     于是大世界的日报在玩家什么都没做的那天写「造物主起了 5 栋楼」。
+  //     于是大世界的日报在玩家什么都没做的那天写「造物主新起 5 栋楼」（旧措辞）。
   //   - `zone !== 'living'` 问的是分区。灯潮界那六栋楼全是 `zone: 'industry'` +
   //     `boundTask: null`，同一句话在设定集上原样重现；而小世界里玩家真能建一间
   //     民居（白名单只查模板在不在），那条判据又把它整句话吞掉。
   //
   // 也不说「新起」：报纸是现算的（`composeReport` 每次调用都从快照推一遍），
-  // 日期还跟着世界钟走（`formatDate` 打的是第几分第几秒）。一栋第 5 分落成的楼，
-  // 到第 500 分那张报纸上仍写着「新起」——「新」是句时间断言，而手里有的只是
-  // 「开局之后造的」这份来路。客户端也没有「一天」的长度可依（日长由服务端算，
-  // 见 `memory-client.ts`），所以连按天把「新」收窄都做不到。说来路，不说新旧。
+  // 日期还跟着世界钟走（`formatDate` 打的是第几分第几秒）。一栋开局后落成的楼，
+  // 到钟走了很远的那张报纸上仍写着「新起」——「新」是句时间断言，而手里有的只是
+  // 「开局之后造的」这份来路。
+  //
+  // 想改说「今天起的」也做不到：`PlacedBuilding` 上没记落成时刻（只记了人的一句
+  // `sourceSummary`），没有时刻戳可比。天界倒是有一个——`lampDayOf(snapshot.now)`
+  // 按世界钟算得出第几天——可一天的两头只有一头，比不出「这栋是不是今天落的」。
+  // 所以说来路，不说新旧。
   const newBuildings = snapshot.buildings.filter(
     (building) => !snapshot.startupBuildingIds.has(building.instanceId),
   );
@@ -77,7 +81,7 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
         ? building.displayName
         : `${building.displayName}（${building.sourceSummary}）`,
     );
-    lines.push(`这一场造物主起了 ${newBuildings.length} 栋楼：${described.join('、')}`);
+    lines.push(`开局之后造物主起了 ${newBuildings.length} 栋楼：${described.join('、')}`);
   }
 
   if (snapshot.props.length > 0) {
