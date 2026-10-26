@@ -1970,10 +1970,20 @@ export class Simulation {
       const target = this.resolvedTarget(beat, villager);
       if (target === null) continue;
       if (target.x === here.x && target.y === here.y) continue;
+      // 路先问，话后说。
+      //
+      // `pathFor` 的空数组有两种意思：她人已经在那儿，和根本走不到。
+      // 混成一种就是对世界说谎——渡有仪式（区域要凭证、她兜里没有）让后者
+      // 真的会出现。原先牌子先挂出去、路后问，走不通时她就挂着那一拍的説法
+      // 站在原地：读镇志的人以为她去了，而她半步也没动。
+      // 交付路早就守着这条（`mode === 'delivering'` 那段「空数组有两种意思」），
+      // 作息这条路漏了。
+      const path = this.pathFor(villager, here, target);
+      if (path.length === 0) continue;
+      villager.path = path;
       villager.routineLabel = beat.label;
       villager.nextRoutineAt = this.now + beat.dwellMs;
-      villager.path = this.pathFor(villager, here, target);
-      if (villager.path.length > 0) return;
+      return;
     }
     villager.nextRoutineAt = this.now + 1600;
   }
