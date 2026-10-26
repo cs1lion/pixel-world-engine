@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseIntent } from '../src/world/intent-schema.ts';
+import { CARRY_ITEMS } from '../src/world/gate.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 
 /**
@@ -67,4 +68,26 @@ test('服务端的拨潮时长受同一个上限约束', () => {
     () => parseIntent({ kind: 'setTide', level: 0.5, durationMs: 120_001 }, templates, WORLD),
     /最多 120000/,
   );
+});
+
+test('三处的凭证闭集是同一套词：少对上一处，门就只认得一半', () => {
+  // `CARRY_ITEMS` 现在有三份：客户端 `gate.ts`、服务端 `rules/schema.py`、
+  // `oracle/wire.py`。三处各写一遍就一定会漂，而漂开的表现是
+  // 「她明明带着灯，那道门就是不认」——只有截图才看得见的那种 bug。
+  //
+  // 冻结样例管不了这个：样例里只有 lamp 一件，加第三件凭证时三份全对，
+  // 漏改任何一份，样例照旧绿。所以这里直接比源。
+  const client = [...CARRY_ITEMS].sort().join(',');
+  for (const path of ['../../server/rules/schema.py', '../../server/oracle/wire.py']) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+    const found = /^CARRY_ITEMS\s*=\s*\(([^)]*)\)/m.exec(source);
+    assert.ok(found !== null, `${path} 里找不到 CARRY_ITEMS 了——它被改名或删了`);
+    const server = (found[1] ?? '')
+      .split(',')
+      .map((item) => item.trim().replace(/^["']|["']$/g, ''))
+      .filter((item) => item !== '')
+      .sort()
+      .join(',');
+    assert.equal(server, client, `${path} 的凭证闭集与客户端不一致：${server} ≠ ${client}`);
+  }
 });
