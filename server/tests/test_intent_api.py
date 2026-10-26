@@ -132,6 +132,10 @@ def test_端点能回的意图种类与样例覆盖的种类一致() -> None:
                 ),
                 validate_command({"command": "building.remove", "args": {"instanceId": "x#1"}}),
                 validate_command({"command": "miracle.spawn", "args": {"kind": "cat"}}),
+                # 渡有仪式：交接与收缴走同一条命令，回到同一种意图。
+                validate_command(
+                    {"command": "villager.carry", "args": {"villager": "莞尔", "carries": ["lamp"]}}
+                ),
             )
         )
         if intent is not None

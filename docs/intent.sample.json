@@ -56,6 +56,16 @@
       "why": "没听懂：原因要留给用户看，不能是个空字符串",
       "command": null,
       "intent": { "kind": "unknown", "reason": "这句话不是在要求世界做任何事" }
+    },
+    {
+      "why": "渡有仪式：按名字点人，不按 id。上下文只给得起名字，叫 id 模型只能编一个",
+      "command": { "command": "villager.carry", "args": { "villager": "莞尔", "carries": ["lamp"] } },
+      "intent": { "kind": "carry", "villager": "莞尔", "carries": ["lamp"] }
+    },
+    {
+      "why": "收缴凭证：空数组是说得出口的。只有给没有收，那道门就永远开着",
+      "command": { "command": "villager.carry", "args": { "villager": "莞尔", "carries": [] } },
+      "intent": { "kind": "carry", "villager": "莞尔", "carries": [] }
     }
   ]
 }

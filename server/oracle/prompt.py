@@ -15,17 +15,30 @@ from __future__ import annotations
 
 from typing import Any
 
-#: 五条命令，逐条写清能带什么。模型抄错一个字段名就被校验器拒。
+#: 六条命令，逐条写清能带什么。模型抄错一个字段名就被校验器拒。
 #:
-#: 只列世界真能执行的五条。`npc.setSchedule` 还在规则层白名单里（它是一条
+#: 只列世界真能执行的六条。`npc.setSchedule` 还在规则层白名单里（它是一条
 #: 合法的世界命令），但客户端与世界都还没有对应的意图，写进提示词就是让模型
 #: 去说一件世界办不到的事——用户会看到「听懂了」然后什么也没发生。
-COMMAND_LINES = """- {"command":"weather.set","args":{"value":"clear"|"rain"|"storm"}} 改天气；storm 是暴雨，比 rain 重
+COMMAND_LINES = """- {"command":"weather.set","args":{"value":"clear"|"rain"|"storm"}} 改天气；storm 是暴雨，比 rain 重。
+  只有这三档。用户嘴里那三个档位的别称，照这张表翻，别因此答 unknown：
+  晴 / 放晴 / 雨停 / 天好了 → clear；阴 / 多云 / 下雨 / 落雨 / 变天 → rain；暴雨 / 大雨 / 刮风下雨 → storm
+  但**表里没有的现象不许往邻居身上靠**：雪、雾、风、彩虹这个世界都没有。用户说「把天气改成下雪」，
+  要么照实输出 "snow" 让世界拒给你看（它只收三档），要么答 unknown 说清这个世界只有晴雨暴雨。
+  把雪悄悄改成雨，用户以为他要的办成了。
 - {"command":"tide.setLevel","args":{"value":0..1,"durationMs":毫秒}} 把潮位拨住一会儿；到期自己回到潮汐节律。
-  durationMs 可省略（省略时取上限 120000）；不能超过 120000，也不能是 0 或负数
+  durationMs 可省略（省略时取上限 120000）；不能超过 120000，也不能是 0 或负数。
+  用户没说具体数时按意思取：满 / 涨 / 高 → 1，低 / 放低 / 退 → 0.2，中间 / 停住 → 0.5。
+  **「永久 / 一直 / 永远 / 别再退回来」不是「可省略」的意思**——它超过上限。要么照实给一个
+  超上限的 durationMs（世界会拒，并说清最多能拨多久），要么答 unknown 说明世界只能拨一会儿。
+  别把「永久」偷偷换成 120000：用户以为他要的办成了，其实两分钟后就退回去。
 - {"command":"building.add","args":{"prefabId":"<模板>","at":{"x":整数,"y":整数}}} 落一栋楼。**at 可省略**：用户没说地点时就别填，世界自己挑空地方；用户说了坐标（「在 40,45」「靠河边」）才填
 - {"command":"building.remove","args":{"instanceId":"<实例 id>"}} 拆一栋楼；instanceId 必须原样抄世界现状里的那个，不要自己拼
-- {"command":"miracle.spawn","args":{"kind":"light"|"tree"|"cat"}} 点灯 / 种树 / 召唤猫；可带 "at\""""
+- {"command":"miracle.spawn","args":{"kind":"light"|"tree"|"cat"}} 点灯 / 种树 / 召唤猫；可带 "at"
+- {"command":"villager.carry","args":{"villager":"<名字>","carries":["lamp"|"shoes"]}} 给她一件通行凭证，或收回（carries 给 [] 就是两手空空）。
+  有些区域要凭证才进得去（渡有仪式）。她没带就过不去，路线会自己绕开——不是坏了。
+  **villager 写名字，不写 id**：世界现状里给的是名字，id 你手里没有。
+  只有 lamp / shoes 两样，别发明「火把」「钥匙」——说了世界也不认，门照样过不去。"""
 
 
 def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any] | None = None) -> str:
@@ -78,7 +91,8 @@ def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any]
 3. **不要编造字段。** 每种命令能带的字段是固定的。
 4. **越界就照实输出，不要自己改数。** 用户说「把潮位调到 5」，你就输出 5，
    让世界拒绝并告诉他为什么。**你不替他改主意**——把 5 悄悄改成 1，用户会以为
-   他要的办成了。
+   他要的办成了。这条只管**用户给了明确数**的时候；他说的是「高一点」「放低」
+   这种没给数的，按上面那张对照取一个值——那是把含糊的话翻成命令，不是改他的数。
 
 ## 输出的 JSON 形状
 

@@ -26,7 +26,7 @@ from typing import Any
 
 from rules.schema import Command, CommandRejected, validate_command
 
-#: 客户端的八种意图。与 `intent-schema.ts` 的 `IntentKind` 逐个对上。
+#: 客户端的九种意图。与 `intent-schema.ts` 的 `IntentKind` 逐个对上。
 INTENT_KINDS = (
     "dispatch",
     "complete",
@@ -35,6 +35,7 @@ INTENT_KINDS = (
     "build",
     "demolish",
     "miracle",
+    "carry",
     "unknown",
 )
 
@@ -48,11 +49,15 @@ ALLOWED_KEYS: dict[str, frozenset[str]] = {
     # 两个键都在表里，但必须且只能给一个：见 `validate_intent` 的 demolish 分支。
     "demolish": frozenset({"kind", "instanceId", "templateId"}),
     "miracle": frozenset({"kind", "miracle", "at"}),
+    "carry": frozenset({"kind", "villager", "carries"}),
     "unknown": frozenset({"kind", "reason"}),
 }
 
 TASK_KINDS = ("code", "research", "writing", "quick")
 MIRACLES = ("light", "tree", "cat")
+#: 渡有仪式认得的凭证。与 `rules/schema.py` 的 `CARRY_ITEMS`、客户端
+#: `world/gate.ts` 的 `CARRY_ITEMS` 是同一套闭集词，三处各写一遍就一定会漂。
+CARRY_ITEMS = ("lamp", "shoes")
 
 
 class WireError(ValueError):
@@ -96,6 +101,14 @@ def to_command(intent: dict[str, Any], world: dict[str, Any] | None = None) -> C
         if intent.get("at") is not None:
             args["at"] = intent["at"]
         return validate_command({"command": "miracle.spawn", "args": args}, world)
+    if kind == "carry":
+        return validate_command(
+            {
+                "command": "villager.carry",
+                "args": {"villager": intent["villager"], "carries": intent["carries"]},
+            },
+            world,
+        )
     return None
 
 
@@ -143,10 +156,33 @@ def validate_intent(raw: Any, world: dict[str, Any] | None = None) -> tuple[dict
     elif kind == "miracle":
         _one_of(raw, "miracle", MIRACLES, "miracle")
         _point(raw.get("at"), world)
+    elif kind == "carry":
+        # 按**名字**点人，与客户端 `carry` 意图同源：上下文只给得起名字。
+        # 那个人在不在，是世界判的事——这里只管形状。
+        _non_empty(raw, "villager", "villager")
+        _carries(raw)
     elif kind == "unknown":
         _non_empty(raw, "reason", "reason")
 
     return raw, to_command(raw, world)
+
+
+def _carries(raw: dict[str, Any]) -> None:
+    """凭证清单：必须是数组，且每一件都在闭集里。
+
+    空数组合法——「让她两手空空」是说得出口的。只有给没有收，
+    那道门就永远开着，世界再也回不到没人有灯的样子。
+    """
+    if "carries" not in raw:
+        raise WireError("carries 缺字段：要带什么，一件都没有就是两手空空")
+    carries = raw["carries"]
+    if not isinstance(carries, list):
+        raise WireError("carries 必须是数组")
+    for item in carries:
+        if not isinstance(item, str) or item not in CARRY_ITEMS:
+            raise WireError(
+                f"carries 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}"
+            )
 
 
 def _one_of(raw: dict[str, Any], key: str, allowed: tuple[str, ...], field: str) -> str:

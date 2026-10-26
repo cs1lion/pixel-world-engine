@@ -28,7 +28,7 @@ def reject(raw: object, code: str, world: dict | None = None) -> CommandRejected
 
 # ---------------------------------------------------------------- 白名单本身
 
-def test_白名单就是票面上的六条() -> None:
+def test_白名单就是票面上的七条() -> None:
     assert set(COMMAND_CHECKS) == {
         "weather.set",
         "tide.setLevel",
@@ -36,6 +36,9 @@ def test_白名单就是票面上的六条() -> None:
         "building.remove",
         "miracle.spawn",
         "npc.setSchedule",
+        # 渡有仪式：没有它，setCarries 只是客户端世界命令里的一个分支，
+        # 神谕说不出口——每一道门都是永远打不开的墙。
+        "villager.carry",
     }
 
 
@@ -359,3 +362,61 @@ def test_校验是纯函数_不改输入也不读外部状态() -> None:
     before = {"command": "weather.set", "args": {"value": "rain"}}
     validate_command(raw)
     assert raw == before, "校验不许改调用方的对象"
+
+
+# ---------------------------------------------------------------- 渡有仪式
+
+def test_交接凭证_按名字点人_凭证是闭集() -> None:
+    """`setCarries` 只活在客户端 WorldCommand 的联合类型里，服务端一直收不到。
+    后果是每一道门都是永远打不开的墙——那比没有门更糟。"""
+    command = validate_command(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "carries": ["lamp", "shoes"]}}
+    )
+    assert command.name == "villager.carry"
+    assert command.args == {"villager": "莞尔", "carries": ["lamp", "shoes"]}
+
+
+def test_交接凭证_空数组是收缴_不是缺字段() -> None:
+    """只有给没有收，那道门就永远开着。"""
+    command = validate_command(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "carries": []}}
+    )
+    assert command.args["carries"] == []
+
+
+def test_交接凭证_闭集外的词当场拒() -> None:
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "carries": ["torch"]}},
+        "out-of-domain",
+    )
+
+
+def test_交接凭证_一锅端的也拒_不做部分接受() -> None:
+    """收下 lamp 放过 torch，表现成「她明明带着灯，那道门就是不认」——
+    只有截图才看得见的那种 bug。"""
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "carries": ["lamp", "torch"]}},
+        "out-of-domain",
+    )
+
+
+def test_交接凭证_要点名一个人也要说带什么() -> None:
+    reject(
+        {"command": "villager.carry", "args": {"carries": ["lamp"]}},
+        "missing-field",
+    )
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔"}},
+        "missing-field",
+    )
+    reject(
+        {"command": "villager.carry", "args": {"villager": "  ", "carries": ["lamp"]}},
+        "empty-value",
+    )
+
+
+def test_交接凭证_carries_必须是数组() -> None:
+    reject(
+        {"command": "villager.carry", "args": {"villager": "莞尔", "carries": "lamp"}},
+        "type-mismatch",
+    )

@@ -186,6 +186,10 @@ def command_to_intent(command: Any) -> dict[str, Any] | None:
         return {"kind": "demolish", "instanceId": args["instanceId"]}
     if name == "miracle.spawn":
         return {"kind": "miracle", "miracle": args["kind"], "at": args.get("at")}
+    if name == "villager.carry":
+        # 渡有仪式：名字原样到客户端——`carries` 已经是闭集里的词。
+        # 客户端 `applyIntent` 再把它翻成 id，那是世界才知道的事。
+        return {"kind": "carry", "villager": args["villager"], "carries": args["carries"]}
     # `npc.setSchedule` 在白名单里，但客户端与世界都还没有这条意图。
     # 返回 None → 落 unknown 并说清，而不是装作执行了。
     return None

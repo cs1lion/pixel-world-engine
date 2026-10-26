@@ -44,7 +44,7 @@ test('样例覆盖了客户端的每一种意图，除了只能由规则产出�
   const covered = new Set(SAMPLE.responses.map((item) => String(item.intent.kind)));
   assert.deepEqual(
     [...covered].sort(),
-    ['build', 'demolish', 'miracle', 'setTide', 'setWeather', 'unknown'],
+    ['build', 'carry', 'demolish', 'miracle', 'setTide', 'setWeather', 'unknown'],
   );
 });
 

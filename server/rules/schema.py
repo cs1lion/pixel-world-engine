@@ -4,7 +4,7 @@
 
 三条与 `world-client/src/world/intent-schema.ts` 同源的原则：
 
-1. **只认六条命令。** 不在表里的一律拒，并在错误里列出表里有什么——
+1. **只认七条命令。** 不在表里的一律拒，并在错误里列出表里有什么——
    拒一条命令而不说可选什么，模型下次还会犯同一个错。
 2. **未知字段直接拒。** 模型多写 `confidence`、多带一个 `count`，说明它对形状的
    理解已经偏了。静默丢掉会让它一直错下去。
@@ -42,6 +42,11 @@ WEATHERS = ("clear", "rain", "storm")
 MIRACLES = ("light", "tree", "cat")
 #: 作息名。世界侧目前只有这一套日常，别的名字世界不认识。
 SCHEDULES = ("altar", "garden", "promenade", "shelter")
+#: 渡有仪式认得的凭证。与 `world-client/src/world/gate.ts` 的 `CARRY_ITEMS`
+#: 必须一致：区域声明的 `requires` 与角色带着的 `carries` 是**同一套闭集词**。
+#: 两边各写一遍就一定会漂，漂开的表现是「她明明带着灯，那道门就是不认」——
+#: 只有截图才看得见的那种 bug。
+CARRY_ITEMS = ("lamp", "shoes")
 
 
 @dataclass(frozen=True)
@@ -260,9 +265,38 @@ def _npc_set_schedule(args: dict[str, Any], world: dict[str, Any]) -> dict[str, 
     }
 
 
+def _villager_carry(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]:
+    """给谁什么凭证（渡有仪式）。
+
+    **按名字点人，不按 id。** 喂给模型的上下文里只有名字（客户端
+    `intent-context.ts` 的 `busy` 是 `{name, taskKind}`），叫 id 就是
+    `demolish` 那个 bug 重演：模型手里没有 id 可填，只能编一个。
+    那个人在不在，是世界判的事——这里只管形状。
+
+    `carries` 逐件查，不整锅端：收下 `lamp` 放过 `torch` 比整条拒更难查。
+
+    空数组是「两手空空」，是说得出口的——只有给没有收，那道门就永远开着。
+    """
+    _only(args, {"villager", "carries"}, "villager.carry")
+    villager = _text(args, "villager", "villager.carry")
+
+    if "carries" not in args:
+        _fail("missing-field", "villager.carry 缺字段 carries")
+    carries = args["carries"]
+    if not isinstance(carries, list):
+        _fail("type-mismatch", "villager.carry.carries 必须是数组")
+    for item in carries:
+        if not isinstance(item, str) or item not in CARRY_ITEMS:
+            _fail(
+                "out-of-domain",
+                f"villager.carry.carries 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}",
+            )
+    return {"villager": villager, "carries": list(carries)}
+
+
 #: 白名单：命令名 → 校验函数。不在表里的一律拒收。
 #:
-#: 六条都过这里。但「过得了白名单」不等于「世界认得这个意图」：
+#: 七条都过这里。但「过得了白名单」不等于「世界认得这个意图」：
 #: `npc.setSchedule` 目前客户端与世界都还没有对应的意图，所以提示词不列它
 #: （`oracle/prompt.py`），端点收到它也会落 unknown（`oracle/api.py`）。
 #: 两层各说各的实话：这里管「这条命令合法吗」，那里管「这个世界能执行吗」。
@@ -273,6 +307,7 @@ COMMAND_CHECKS: dict[str, Callable[[dict[str, Any], dict[str, Any]], dict[str, A
     "building.remove": _building_remove,
     "miracle.spawn": _miracle_spawn,
     "npc.setSchedule": _npc_set_schedule,
+    "villager.carry": _villager_carry,
 }
 
 
