@@ -138,3 +138,262 @@ def test_用假模型能跑完整场_管线没有断() -> None:
 def test_每一类都有判定标准_不会漏判(category: str) -> None:
     outcome = experiment.Outcome("x", category, "y", True, wire.unknown_intent("z"), "", None)
     assert isinstance(experiment.classify(outcome), bool)
+
+
+# ---------------------------------------------------------------- 没问成 ≠ 答了
+
+def test_限流与5xx算基础设施故障() -> None:
+    """首轮复跑就是这么废的：55 条里 27 条撞上并发上限，全部落成 unknown，
+    于是「合法命令接受率」从 68% 掉到 23%——看着像模型退化，其实是没问成。"""
+    assert experiment.is_infra_error('模型返回 429：{"error":{"message":"concurrency reached"}}')
+    assert experiment.is_infra_error("模型超时 8s")
+    assert experiment.is_infra_error("模型不可达：connect error")
+    assert experiment.is_infra_error("模型返回 503：bad gateway")
+    assert experiment.is_infra_error("模型返回的形状不认识：KeyError")
+
+
+def test_模型自己的回答不算基础设施故障() -> None:
+    """分不清这两者，一份限流造成的 92% 会被当成真的 92%，
+    而读报告的人只会去改提示词。"""
+    assert not experiment.is_infra_error(None)
+    assert not experiment.is_infra_error("")
+    assert not experiment.is_infra_error("模型返回的不是 JSON，没法当命令用")
+    assert not experiment.is_infra_error("unsupported")
+    assert not experiment.is_infra_error("潮位必须在 0..1，收到 5")
+
+
+def test_模型报的数字不算限流() -> None:
+    """早先 `_INFRA_MARKERS` 里有一个裸的 `"429"`，于是白名单拒收时写的那句
+    「潮位必须在 0..1，收到 429.0」被当成限流——一场好端端跑完的实验交白卷。
+    故障消息的数字都在固定位置上，认位置，不认全文。
+    """
+    assert not experiment.is_infra_error("tide.setLevel.value 必须在 0..1，收到 429.0")
+    assert not experiment.is_infra_error("一次最多 1 条命令，收到 429 条")
+    assert not experiment.is_infra_error("building.remove.instanceId 'a#429' 不在世界里")
+
+
+def test_只有真的状态码才算_我们自己的错不算() -> None:
+    """429 是并发上限，5xx 是服务端自己的事，等一分钟再问又是一句话。
+    400 形状不对、401 Key 错了是**我们**的问题——重试一百次也是同样一句拒绝，
+    而把它记成「没问成」会把一次真实验藏成一张空表。"""
+    assert experiment.is_infra_error('模型返回 429：{"error":{"message":"concurrency reached"}}')
+    assert experiment.is_infra_error("模型返回 503：bad gateway")
+    assert experiment.is_infra_error("模型返回 500：internal")
+    assert not experiment.is_infra_error("模型返回 400：bad request")
+    assert not experiment.is_infra_error("模型返回 401：invalid api key")
+
+
+def test_兜底那句异常也算没问成() -> None:
+    """`interpret` 最后那个 `except Exception` 捕到的是我们自己的 bug。
+    它不是模型的回答，所以不能进表——但它也不是限流，重试没有意义。"""
+    assert experiment.is_infra_error("模型调用失败：KeyError('choices')")
+
+
+def test_退避重试只重试基础设施故障() -> None:
+    """别的错（比如模型答得离谱）重试没有意义——同样的输入还是同样的答案。"""
+    calls: list[int] = []
+
+    def flaky(messages):
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("模型返回 429：concurrency reached")
+        return "第三次成了"
+
+    wrapped = experiment.retrying(flaky, attempts=4, backoff_ms=1)
+    assert wrapped([]) == "第三次成了"
+    assert len(calls) == 3
+
+
+def test_重试次数用完就抛_不悄悄当成模型的回答() -> None:
+    def always_429(messages):
+        raise RuntimeError("模型返回 429：concurrency reached")
+
+    wrapped = experiment.retrying(always_429, attempts=2, backoff_ms=1)
+    with pytest.raises(RuntimeError, match="429"):
+        wrapped([])
+
+
+def test_非基础设施故障不重试() -> None:
+    calls: list[int] = []
+
+    def broken(messages):
+        calls.append(1)
+        raise ValueError("模型返回的不是 JSON")
+
+    wrapped = experiment.retrying(broken, attempts=4, backoff_ms=1)
+    with pytest.raises(ValueError, match="不是 JSON"):
+        wrapped([])
+    assert len(calls) == 1, "答得不对重试也没用，别浪费时间与配额"
+
+
+def test_把重试关成_0_是零次重试_不是崩掉() -> None:
+    """`EXPERIMENT_RETRIES=0` 的意思是不重试。不夹那一下 `max(1, ...)`，
+    `range(0)` 空转，末尾那句 raise 拿着 `None` 去抛 TypeError——
+    想关重试的人看到的是一场崩掉的实验，而不是零次重试。
+    """
+    calls: list[int] = []
+
+    def rate_limited(messages):
+        calls.append(1)
+        raise RuntimeError("模型返回 429：concurrency reached")
+
+    wrapped = experiment.retrying(rate_limited, attempts=0, backoff_ms=1)
+    with pytest.raises(RuntimeError, match="429"):
+        wrapped([])
+    assert len(calls) == 1
+
+
+def test_run_one_把基础设施故障标出来() -> None:
+    def rate_limited(messages):
+        raise RuntimeError("模型返回 429：concurrency reached")
+
+    intent, _raw, error, infra = experiment.run_one("下雨吧", rate_limited)
+    assert intent["kind"] == "unknown"
+    assert infra is True
+    assert error is not None
+
+
+def test_run_one_把模型的拒绝与故障分开() -> None:
+    import json
+
+    def refuses(messages):
+        return json.dumps({"commands": [], "narrative": "这是在闲聊"})
+
+    _intent, _raw, error, infra = experiment.run_one("今天好累", refuses)
+    assert error is None
+    assert infra is False
+
+
+def test_有没问成的条目时_render_不给百分比() -> None:
+    """这一条是整个改动的理由：宁可交白卷，也不交一份把限流记成模型回答的数据。"""
+    outcomes = [
+        experiment.Outcome(text, category, expected, False, wire.unknown_intent("没问成"), "", "429", True)
+        for text, expected, category in experiment.ALL_CASES
+    ]
+    doc = experiment.render(outcomes, "not-run", "**没有跑成**：55/55 条没能问成模型。", ran=False)
+    results = [
+        line.split("|")[2].strip() for line in doc.splitlines() if line.startswith("| ") and "%" in line
+    ]
+    assert all("%" not in cell for cell in results), f"没问成的实验里出现了百分比：{results}"
+    assert "没能问成" in doc
+
+
+def test_说明段里不出现百分号() -> None:
+    """`render()` 里那条 `%` 断言只扫表格行。散文里的百分比扫不到，
+    而「越界被拒 92%」这种句子看起来跟一个真结论一模一样——
+    下一次有人改说明文字时就会把它加回来，所以在这里钉住。
+
+    表头里的「必须 100%」是要求，不是结论，允许出现在表格行里。
+
+    **先证明这段散文真的在文档里。** `list += str` 会把解释逐字拆开，
+    于是散文变成一个字一行——那条检查就一个字一个字地扫过去，什么都查不到。
+    所以这里先钉住「说明段是成行的文字」，再查百分号。
+    """
+    outcomes = [
+        experiment.Outcome(text, category, expected, True, {"kind": "setWeather"}, "", None)
+        for text, expected, category in experiment.ALL_CASES
+    ]
+    doc = experiment.render(outcomes, "some-model", "跑完了")
+    prose = [line for line in doc.splitlines() if not line.startswith("| ")]
+    offenders = [line for line in prose if "%" in line]
+    assert not offenders, f"说明段里出现了百分号：{offenders}"
+    long_lines = [line for line in prose if len(line) > 20]
+    assert long_lines, "说明段被拆成一个字一行了，那条百分号检查会因此什么都查不到"
+    assert any("首轮" in line for line in prose), "解释段整段不见了"
+
+
+def test_重渲染不调模型_且说清数据是哪一次的(tmp_path) -> None:
+    """改了说明文字之后，不该为了两行字再烧 55 次调用。
+
+    但重渲染出来的表必须自己说明「模型没有重新跑」——否则一份三天前的
+    数据会被当成今天的结论读，而表上一个字都看不出来。
+    """
+    import json
+
+    dump = tmp_path / "dump.json"
+    dump.write_text(
+        json.dumps(
+            [
+                {
+                    "text": text,
+                    "category": category,
+                    "expected": expected,
+                    "ok": True,
+                    "intent": {"kind": "setWeather"},
+                    "raw_reply": "",
+                    "error": None,
+                }
+                for text, expected, category in experiment.ALL_CASES
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "doc.md"
+    assert experiment._replay(dump, out) == 0
+    doc = out.read_text(encoding="utf-8")
+    assert "模型没有重新跑" in doc
+    assert "## 逐条" in doc
+
+
+def test_重渲染一份带着没问成条目的存档_仍然是空表(tmp_path) -> None:
+    import json
+
+    dump = tmp_path / "dump.json"
+    dump.write_text(
+        json.dumps(
+            [
+                {
+                    "text": text,
+                    "category": category,
+                    "expected": expected,
+                    "ok": False,
+                    "intent": {"kind": "unknown"},
+                    "raw_reply": "",
+                    "error": "429",
+                    "infra": True,
+                }
+                for text, expected, category in experiment.ALL_CASES
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "doc.md"
+    assert experiment._replay(dump, out) == 2, "带着没问成的条目必须按没跑成处理，并给出非零退出码"
+    doc = out.read_text(encoding="utf-8")
+    results = [
+        line.split("|")[2].strip() for line in doc.splitlines() if line.startswith("| ") and "%" in line
+    ]
+    assert all("%" not in cell for cell in results)
+
+
+def test_撞了限流的那一场也把逐条存档留下(tmp_path, monkeypatch) -> None:
+    """早先 `return 2` 排在 `if args.dump` 前面，于是没跑成的那一回什么都不留——
+    而下一次想改说明文字、用 `--replay` 重渲染时，手里只剩一份空表。
+    存档是留证据，不是只留好看的那些证据。
+    """
+    import json
+
+    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("LLM_MODEL", "fake-model")
+    monkeypatch.setenv("EXPERIMENT_RETRIES", "1")
+    monkeypatch.setenv("EXPERIMENT_BACKOFF_MS", "1")
+    monkeypatch.setattr(experiment, "load_env", lambda *a, **k: [])
+
+    def rate_limited(_messages):
+        raise RuntimeError("模型返回 429：concurrency reached")
+
+    monkeypatch.setattr(experiment, "_caller_factory", lambda: (rate_limited, None))
+
+    dump = tmp_path / "dump.json"
+    out = tmp_path / "doc.md"
+    monkeypatch.setattr(
+        experiment.sys,
+        "argv",
+        ["intent_experiment.py", "--limit", "2", "--out", str(out), "--dump", str(dump)],
+    )
+    assert experiment.main() == 2
+    rows = json.loads(dump.read_text(encoding="utf-8"))
+    assert len(rows) == 2
+    assert all(row["infra"] for row in rows), "没问成的条目要带着 infra 存档，重渲染时才认得出"

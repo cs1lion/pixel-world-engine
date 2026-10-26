@@ -28,6 +28,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
+from events.projection import world_summary
 from oracle import orchestrator, wire
 from oracle.orchestrator import Interpretation, ModelCaller, ModelUnavailable
 
@@ -60,10 +61,7 @@ def interpret_intent(request: Request, body: Any = Body(...)) -> Any:
             body["templates"],
             body.get("context"),
             caller,
-            # 世界尺寸由客户端发来。没发就跳过坐标越界检查——客户端自己的
-            # `parseIntent` 会再判一次，两边都判过才落到世界。这里**不猜**尺寸：
-            # 猜错会让一个合法坐标被判成越界。
-            body.get("worldSize") if isinstance(body.get("worldSize"), dict) else None,
+            _world_summary(request, body),
         )
     except ModelUnavailable as exc:
         # 缺 Key 是部署问题，不是"没听懂"。503 让客户端把那句话说成
@@ -71,6 +69,47 @@ def interpret_intent(request: Request, body: Any = Body(...)) -> Any:
         return JSONResponse(status_code=503, content={"detail": str(exc)})
 
     return _envelope(result, _model_name(request))
+
+
+def _world_summary(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """白名单用来判越界的那份世界摘要。
+
+    三份来源各管一段，**优先序是刻意的**（理由见 `events.projection.world_summary`）：
+
+    1. **建筑 id 听客户端的 `context.built`。** 那是世界此刻的自述，含开局就有的楼
+       ——那些楼在日志里没有 `building.built` 事件，只活在客户端的模拟快照里。
+       拿日志当全集，第一次拆一栋开局楼就会把之后每一句 demolish 误判成不存在。
+    2. 客户端没发 `context` 时退回事件日志投影。它不全，但比没有强——而且它正好是
+       实验里 `context=None` 那条更严的路。
+    3. **尺寸听客户端的。** 地图是设定集的内容，服务端没有它；猜错会把一个
+       合法坐标判成越界。
+
+    客户端发来的 `buildingCount` 一律忽略——那是它对世界的看法，不是事实。
+
+    **日志读不动时不给 500，给「不知道」。** 世界摘要是判越界的帮手，
+    不是「这句话翻不翻得出来」的前提：日志坏着的当口，仍然该把「下雨吧」
+    翻成天气命令，只是这一句不再查建筑存在性。多一个 500 就是多一种
+    客户端没准备过的失败，少的却是白名单里本来照常生效的那几项检查。
+    """
+    world_size = body.get("worldSize")
+    context = body.get("context")
+    try:
+        return world_summary(
+            _log_of(request),
+            world_size if isinstance(world_size, dict) else None,
+            context if isinstance(context, dict) else None,
+        )
+    except Exception:
+        # 读不到日志 = 服务端无从判断世界上有哪些楼。这与「日志里一条建筑记录
+        # 也没有」是同一种处境，按同一条纪律处理：证不明就不判，让世界自己去说。
+        return {}
+
+
+def _log_of(request: Request):
+    log = getattr(request.app.state, "event_log", None)
+    if log is None:  # pragma: no cover - 装配漏了才会走到
+        raise RuntimeError("app.state.event_log 未装配")
+    return log
 
 
 def _check_request(body: Any) -> str | None:

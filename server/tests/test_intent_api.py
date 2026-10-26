@@ -57,6 +57,38 @@ def commands(*items: dict) -> str:
     return json.dumps({"commands": list(items), "narrative": "听懂了"})
 
 
+def client_with_log(*built: str, removed: tuple[str, ...] = ()) -> TestClient:
+    """事件日志里先有建筑记录的客户端。
+
+    `docs/INTENT_EXPERIMENT.md` 里漏掉的那条（「拆掉第 999 号楼」）只有在
+    **服务端知道世界上有什么**的时候才拦得住——空日志里它照样过得去，
+    而那是故意的：证不明就不判。
+    """
+    app = create_app(EventLog(":memory:"))
+    log = app.state.event_log
+    for index, instance_id in enumerate(built):
+        log.append(
+            kind="world.changed",
+            actor="world",
+            payload={"change": "building.built", "instanceId": instance_id, "prefabId": "code_forge", "displayName": "工坊"},
+            at=float(index),
+        )
+    for offset, instance_id in enumerate(removed):
+        log.append(
+            kind="world.changed",
+            actor="world",
+            payload={"change": "building.removed", "instanceId": instance_id, "displayName": "工坊"},
+            at=float(len(built) + offset),
+        )
+
+    def caller(_messages):
+        return commands({"command": "building.remove", "args": {"instanceId": "observatory#999"}})
+
+    app.state.model_caller = caller
+    app.state.model_name = "fake-model"
+    return TestClient(app)
+
+
 # ---------------------------------------------------------------- 冻结样例
 
 def _sample_cases() -> list[dict]:
@@ -153,6 +185,121 @@ def test_拆楼的实例_id_原样到世界() -> None:
     response = post(
         client_with(commands({"command": "building.remove", "args": {"instanceId": "bookshop#2"}}))
     )
+    assert response.json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#2"}
+
+
+# ---------------------------------------------------------------- 存在性这道闸
+
+def test_日志里有建筑记录时_拆一栋不存在的楼落_unknown() -> None:
+    """#16 验收条件里「越界请求被拒率 = 100%」首轮漏的就是这一条。
+
+    模型给了一个世界上没有的 instanceId。早先白名单只查「是不是非空字符串」，
+    于是它原样到了世界那儿。坐标越界在 `_point` 里就拦，实例存在与否没有
+    理由放到世界那一层再答一遍。归因不在模型——服务端那时答不出
+    「世界上有哪些楼」。
+    """
+    response = post(client_with_log("code_forge#1", "bookshop#1"))
+    body = response.json()
+    assert body["intent"]["kind"] == "unknown"
+    assert "observatory#999" in body["intent"]["reason"]
+    assert "code_forge#1" in body["intent"]["reason"], "拒收时要把世界上有的列出来"
+
+
+def test_日志里有的楼_拆得过() -> None:
+    client = client_with_log("code_forge#1", "bookshop#1")
+    app = client.app
+
+    def caller(_messages):
+        return commands({"command": "building.remove", "args": {"instanceId": "bookshop#1"}})
+
+    app.state.model_caller = caller
+    assert post(client).json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#1"}
+
+
+def test_建了又拆掉的那栋_再拆就被拒() -> None:
+    """投影要跟着日志递减。只累加不递减的话，拆掉一次之后再也拆不了第二次，
+    而世界里的楼确实已经没了。"""
+    response = post(client_with_log("bookshop#1", removed=("bookshop#1",)))
+    assert response.json()["intent"]["kind"] == "unknown"
+
+
+def test_日志里没有建筑记录时不拿存在性拦人() -> None:
+    """证不明就不判。空日志时服务端无从判断，交给世界照它自己的话说——
+    否则每一句合理的「拆掉那栋楼」都会被拒，而世界明明在好好地建楼拆楼。"""
+    response = post(
+        client_with(commands({"command": "building.remove", "args": {"instanceId": "bookshop#2"}}))
+    )
+    assert response.json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#2"}
+
+
+# ---------------------------------------------------------------- 现状以客户端为准
+
+def _built_context(*instance_ids: str) -> dict:
+    return {
+        "built": {
+            "town": [{"instanceId": each, "templateId": "code_forge", "name": "工坊"} for each in instance_ids],
+            "wild": [],
+        }
+    }
+
+
+def test_客户端报了现状_拆一栋日志里没有的楼也拆得过() -> None:
+    """**开局就有的楼在日志里没有 `building.built` 事件。**
+
+    客户端只对运行时新建的楼发回写。所以一个会话里日志出现的第一条建筑记录
+    往往是一次拆除——那一刻投影的口袋是空的，于是之后每一句「拆掉它」都被拒
+    成 unknown-instance，还附一句「现在一栋楼也没有」。世界明明还在好好地
+    建楼拆楼。世界的现状只有客户端知道，所以以它为准，日志只做兜底。
+    """
+    client = client_with(commands({"command": "building.remove", "args": {"instanceId": "ferry#1"}}))
+    client.app.state.event_log.append(
+        kind="world.changed",
+        actor="world",
+        payload={"change": "building.removed", "instanceId": "old_shop#1", "displayName": "旧铺"},
+        at=0.0,
+    )
+    response = post(client, context=_built_context("ferry#1", "code_forge#1"))
+    assert response.json()["intent"] == {"kind": "demolish", "instanceId": "ferry#1"}
+
+
+def test_客户端报的现状里没有那栋_照拒() -> None:
+    """以现状为准不等于放宽。客户端说没有，就是没有——它比日志新。"""
+    client = client_with(commands({"command": "building.remove", "args": {"instanceId": "observatory#999"}}))
+    client.app.state.event_log.append(
+        kind="world.changed",
+        actor="world",
+        payload={"change": "building.built", "instanceId": "observatory#1", "prefabId": "code_forge", "displayName": "工坊"},
+        at=0.0,
+    )
+    response = post(client, context=_built_context("code_forge#1"))
+    body = response.json()
+    assert body["intent"]["kind"] == "unknown"
+    assert "observatory#999" in body["intent"]["reason"]
+    assert "code_forge#1" in body["intent"]["reason"]
+
+
+class _BrokenLog:
+    """一读就炸的日志。"""
+
+    def read(self, **_kwargs):
+        raise RuntimeError("数据库锁着")
+
+
+def test_日志读不动时不拿存在性拦人_也不回_500() -> None:
+    """世界摘要是判越界的帮手，不是「这句话翻不翻得出来」的前提。
+
+    日志坏着的当口，仍然该把「拆掉它」翻成拆除命令，只是这一句不再查存在性。
+    多一个 500 就是多一种客户端没准备过的失败，少的却是白名单里本来照常生效的
+    那几项检查——端点文档里只有 503 / 422 / 200 三种结局，别自己加第四种。
+    """
+    app = create_app(EventLog(":memory:"))
+    app.state.event_log = _BrokenLog()
+    app.state.model_caller = lambda _m: commands(
+        {"command": "building.remove", "args": {"instanceId": "bookshop#2"}}
+    )
+    app.state.model_name = "fake-model"
+    response = post(TestClient(app))
+    assert response.status_code == 200
     assert response.json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#2"}
 
 

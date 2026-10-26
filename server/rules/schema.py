@@ -10,6 +10,9 @@
    理解已经偏了。静默丢掉会让它一直错下去。
 3. **只管形状，不管可行性。** 「那栋楼有没有人在干活」「迷雾揭没揭」是世界自己
    判的事（在 `Simulation` 里）。这里只回答「这份 JSON 是不是一条合法命令」。
+   唯一的例外是**点名了世界之外的东西**：坐标越界、楼数超上限、实例不存在。
+   这些不是「这件事现在办不办得到」，而是「你说的那个东西不在这儿」——
+   与形状错误同类，放在这里一次拦掉，别让世界再答第二遍。
 
 校验是**纯函数**：同样的输入永远同样的结果，不读时钟、不碰日志、不联网。
 所以整套白名单可以离线单测，也可以在实验里对 60 条真实语句逐条复核。
@@ -189,8 +192,46 @@ def _building_add(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]
 
 
 def _building_remove(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]:
+    """拆楼要点名一栋**存在**的楼。
+
+    早先这里只查「instanceId 是不是非空字符串」。于是「拆掉第 999 号楼」——
+    一个世界上根本没有的 id——能原样过闸，然后由世界在更后面说「没这一栋」。
+    这不是严不严格的问题，是**两道闸门重复答同一个问题**：坐标越界在 `_point`
+    里就拦了，实例不存在凭什么要放到世界那一层？
+
+    拦的是「点名了世界之外的东西」，不是「这栋楼现在能不能拆」——后者
+    （有没有人在里面干活）仍然是世界自己判的事，见模块开头第 3 条。
+
+    没有建筑记录时跳过：证不明就不判，让世界照它自己的话说。
+    """
     _only(args, {"instanceId"}, "building.remove")
-    return {"instanceId": _text(args, "instanceId", "building.remove")}
+    instance_id = _text(args, "instanceId", "building.remove")
+
+    known = world.get("buildingIds")
+    if isinstance(known, (list, tuple, set)) and instance_id not in known:
+        _fail("unknown-instance", f"building.remove.instanceId {instance_id!r} 不在世界里；{_known_buildings(known)}")
+    return {"instanceId": instance_id}
+
+
+def _known_buildings(known: "list[str] | tuple[str, ...] | set[str]") -> str:
+    """拒收时把世界上有什么列出来。
+
+    纪律同模块开头第 1 条：拒一条命令而不说可选什么，模型下次还会犯同一个错。
+    楼多的时候不全列——四十个 id 会把错误消息撑成一段话，而模型要的只是
+    「你编的那个不在，照现状里那些抄」。
+
+    非字符串的条目不列：这句话是给模型看的，列一个它抄不出来的形状只会
+    让它再编一个。`buildingIds` 的两个来源（客户端 `context.built`、日志投影）
+    本来就只收字符串，所以这里防的是有人手搓一份世界摘要塞进来——
+    校验器不该因为一句给人看的话就整个崩掉。
+    """
+    existing = sorted(item for item in known if isinstance(item, str))
+    shown = "、".join(existing[:8])
+    if not existing:
+        return "现在一栋楼也没有"
+    if len(known) > 8:
+        return f"现有 {len(known)} 栋，前几栋是 {shown} 等"
+    return f"现有的是 {shown}"
 
 
 def _miracle_spawn(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]:

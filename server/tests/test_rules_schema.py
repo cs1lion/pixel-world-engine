@@ -193,6 +193,67 @@ def test_拆楼只要实例_id() -> None:
     reject({"command": "building.remove", "args": {"instanceId": "  "}}, "empty-value")
 
 
+def test_没有建筑记录时不判存在性() -> None:
+    """证不明就不判。日志里没有建筑记录时，服务端无从判断，交给世界自己说。"""
+    command = validate_command(
+        {"command": "building.remove", "args": {"instanceId": "bookshop#1"}},
+        {"width": 96, "height": 72},
+    )
+    assert command.args == {"instanceId": "bookshop#1"}
+
+
+def test_拆一栋不在世界里的楼被拒_并列出现有什么() -> None:
+    """`docs/INTENT_EXPERIMENT.md` 里漏掉的那一条：模型编了个第 999 号楼。
+
+    坐标越界在 `_point` 里就拦，实例不存在没有理由放到世界那一层再答一遍。
+    """
+    world = {"buildingIds": ["code_forge#1", "bookshop#1"], "buildingCount": 2}
+    error = reject(
+        {"command": "building.remove", "args": {"instanceId": "observatory#999"}}, "unknown-instance", world
+    )
+    assert "observatory#999" in error.message
+    assert "code_forge#1" in error.message, "拒收时要把世界上有的列出来"
+    assert "bookshop#1" in error.message
+
+
+def test_照现状抄的实例_id_拆得过() -> None:
+    world = {"buildingIds": ["code_forge#1"], "buildingCount": 1}
+    command = validate_command(
+        {"command": "building.remove", "args": {"instanceId": "code_forge#1"}}, world
+    )
+    assert command.args == {"instanceId": "code_forge#1"}
+
+
+def test_楼很多时错误消息不全列() -> None:
+    """四十个 id 会把错误撑成一段话，而模型要的只是「照现状里那些抄」。"""
+    world = {"buildingIds": [f"shop#{index}" for index in range(40)], "buildingCount": 40}
+    error = reject(
+        {"command": "building.remove", "args": {"instanceId": "ghost#1"}}, "unknown-instance", world
+    )
+    assert "现有 40 栋" in error.message
+    assert len(error.message) < 200
+
+
+def test_世界上一栋楼也没有时_拆楼被拒并说清() -> None:
+    """与「没有记录」是两件事：这里服务端确实知道世界是空的。"""
+    error = reject(
+        {"command": "building.remove", "args": {"instanceId": "bookshop#1"}},
+        "unknown-instance",
+        {"buildingIds": [], "buildingCount": 0},
+    )
+    assert "一栋楼也没有" in error.message
+
+
+def test_buildingIds_形状不对时不拿它判() -> None:
+    """上游给了个怪形状时跳过存在性检查，而不是把所有人都拒了。"""
+    for weird in ("bookshop#1", 7, {"a": 1}):
+        command = validate_command(
+            {"command": "building.remove", "args": {"instanceId": "bookshop#1"}},
+            {"buildingIds": weird},
+        )
+        assert command.args == {"instanceId": "bookshop#1"}
+
+
 def test_神迹三件_坐标可省略() -> None:
     assert validate_command({"command": "miracle.spawn", "args": {"kind": "cat"}}).args == {
         "kind": "cat"
