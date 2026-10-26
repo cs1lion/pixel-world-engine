@@ -2,11 +2,11 @@
 import { parseBlueprintTable } from '../world/blueprints.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { BuiltWorld } from '../world/setup.ts';
-import { placeBlueprint, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
+import { doorReaches, placeBlueprint, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import type { PlacedBuilding, TerrainId } from '../world/types.ts';
-import { CARRY_ITEMS } from '../world/save.ts';
+import { isCarryItem } from '../world/gate.ts';
 import type { RawSettingPack, SettingPack } from './types.ts';
 
 export class SettingPackError extends Error {}
@@ -86,8 +86,8 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     if (region.w < 1 || region.h < 1 || region.x < 0 || region.y < 0 || region.x + region.w > width || region.y + region.h > height) throw new SettingPackError(`区域越界 ${region.id}`);
     // 渡有仪式（SPEC_V2 §4.6）：requires 只能是闭集里的词。写错一个字母，
     // 表现成「这道门谁也过不去」——比当场报错难查得多。
-    if (region.requires != null && !CARRY_ITEMS.includes(region.requires)) {
-      throw new SettingPackError(`区域 ${region.id} 的 requires 只能是 ${CARRY_ITEMS.join('/')} 或 null`);
+    if (region.requires != null && !isCarryItem(region.requires)) {
+      throw new SettingPackError(`区域 ${region.id} 的 requires 只能是 lamp/shoes 或 null`);
     }
   }
   const blueprints = parseBlueprintTable(raw.prefabs, palette);
@@ -142,10 +142,28 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
     if (placed === null) throw new SettingPackError(`${blueprint.displayName} 的落位不合法`);
     return placed.building;
   });
+  // 门口到不了镇心：这栋楼在镇子外面。默认世界由 assertWorldInvariants 拦
+  // （「与祭坛之间没有通路」），包这条路原来谁都不拦——同一栋连不出去的楼，
+  // 在默认世界开工即抛，在包里静静成立（ADR_PACK_SKIPS_WORLD_BUDGET 待办 A）。
+  //
+  // **全部落完再查，不是落一栋查一栋。** 后一栋能把前一栋的门围死，
+  // 而落位时的 `reachable` 只看得到当时已经落下去的楼。逐栋查会漏那种，
+  // 漏掉的表现还是一栋静悄悄死掉的楼。
+  //
+  // 只查新建路：读档路不铺路，`grid.path` 在一条路都没有的格子上当然大多是空的，
+  // 拿它判会把每一份旧存档都拒掉。存档是照着一份当年通过的世界写的。
+  for (const building of buildings) {
+    if (!doorReaches(grid, building.door, pack.hub)) {
+      throw new SettingPackError(`${building.displayName} 的门口到不了镇心`);
+    }
+  }
   for (const villager of pack.villagers) {
     if (!grid.isWalkable(villager.at)) throw new SettingPackError(`${villager.name} 出生点不可走`);
     for (const stop of villager.routine) {
       if (!grid.isWalkable(stop)) throw new SettingPackError(`${villager.name} 的作息点不可走：${stop.label}`);
+      // 这里的可达性**故意不过渡有仪式的门**：装载时还没有人知道她以后会带上什么，
+      // 而门后的作息点完全可以是合法的（等她有了灯就走得到）。
+      // 按两手空空判会把这种包误拒；门是运行时的事，不该在装载时夺权。
       if (grid.path(villager.at, stop).length === 0) throw new SettingPackError(`${villager.name} 到不了 ${stop.label}`);
     }
   }

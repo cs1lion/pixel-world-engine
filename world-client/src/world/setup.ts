@@ -147,6 +147,19 @@ export interface SpawnResult {
   readonly building: PlacedBuilding;
   /** 从门口铺到主路的小径，由造物主顺手铺好。 */
   readonly road: readonly GridPoint[];
+  /**
+   * 门口与锚点之间**有没有路**。
+   *
+   * 与 `road` 空不空是两件事：路本来就已经铺好了（或者那段路在祭坛区里，
+   * 不归小径铺），`road` 就是空的，而楼是连得出去的。只有这个字段能说出
+   * 「这栋楼连不出去」——而这句话以前没有任何人说。
+   *
+   * `assertWorldInvariants` 在默认世界两条路的末尾各查一遍「与祭坛之间没有
+   * 通路」，所以默认世界早就拦得下；编译后的设定集那条路谁都没查
+   * （`ADR_PACK_SKIPS_WORLD_BUDGET` 待办 A），于是同一栋连不出去的楼，
+   * 在默认世界开工即抛、在包里静静成立。信号生在这里，两个世界就都拿得到。
+   */
+  readonly reachable: boolean;
 }
 
 /** 某处为什么不能建。造物模式的幽灵预览要把原因说给玩家听。 */
@@ -466,16 +479,42 @@ export function placeBlueprint(
     sourceSummary: source?.summary ?? null,
   };
 
-  const road = paveFrom(grid, door, anchor);
-  return { building, road };
+  const paved = paveFrom(grid, door, anchor);
+  return { building, road: paved.road, reachable: paved.reachable };
 }
 
-/** 从门口往祭坛铺一条小径，只铺没被占的空地。 */
-export function paveFrom(
-  grid: WorldGrid,
-  door: GridPoint,
-  anchor: GridPoint,
-): readonly GridPoint[] {
+/** 一条铺出来的小径，连同「铺不铺得出来」这个事实。 */
+export interface PavedRoute {
+  /** 铺出来的小径。空不等于连不出去——路可能本来就已经通了。 */
+  readonly road: readonly GridPoint[];
+  /** 门口与锚点之间有没有路。 */
+  readonly reachable: boolean;
+}
+
+/**
+ * 门口与锚点之间有没有路。
+ *
+ * **两个世界共用这一个定义。** 「这栋楼连不连得出去」以前在默认世界由
+ * `assertWorldInvariants` 判、在包里由 nobody 判，两边各写一遍 `path(...).length === 0`
+ * 就意味着它们迟早说出不同的话。抽出来放这儿，谁判都是同一句。
+ *
+ * 门口与锚点重合时算连通：她的门就开在祭坛上，没有比这更连得出去的。
+ * （`grid.path` 在这种情形返回空数组——「她人已经在那儿了」——照抄这个返回值，
+ * 会把一扇最好的门报成与祭坛没有通路。）
+ */
+export function doorReaches(grid: WorldGrid, door: GridPoint, anchor: GridPoint): boolean {
+  if (door.x === anchor.x && door.y === anchor.y) return true;
+  return grid.path(door, anchor).length > 0;
+}
+
+/**
+ * 从门口往祭坛铺一条小径，只铺没被占的空地。
+ *
+ * `reachable` 看的**不是 `road` 空不空**，而是有没有路：一段全在祭坛区里、
+ * 或者全被占用的路，`road` 是空的而楼是连得出去的。拿 `road` 判会把
+ * 「路已经铺好了」误报成「连不出去」——那比不报更糟，它会让人去拒一栋好楼。
+ */
+export function paveFrom(grid: WorldGrid, door: GridPoint, anchor: GridPoint): PavedRoute {
   const route = grid.path(door, anchor);
   const road: GridPoint[] = [];
   for (const cell of route) {
@@ -483,7 +522,7 @@ export function paveFrom(
     if (grid.at(cell)?.occupant !== null) continue;
     road.push(cell);
   }
-  return road;
+  return { road, reachable: doorReaches(grid, door, anchor) };
 }
 
 /** 读档重建网格：只按存档 buildings 顺序重放落位，不存 cells（ADR_SAVE §1.2）。 */
@@ -595,8 +634,9 @@ export function assertWorldInvariants(
     if (!grid.isWalkable(building.door)) {
       problems.push(`${building.displayName} 的门口不可通行`);
     }
-    const reachable = grid.path(altar, building.door);
-    if (reachable.length === 0) {
+    // 与包那条路共用同一个定义（`doorReaches`）：两边各写一遍
+    // `path(...).length === 0`，迟早有一边漏掉「门就开在祭坛上」这种真连通。
+    if (!doorReaches(grid, building.door, altar)) {
       problems.push(`${building.displayName} 与祭坛之间没有通路`);
     }
   }
