@@ -27,10 +27,11 @@ import {
   newLamp,
   type LampActivity,
 } from '../src/world/lampoil.ts';
-import { drawLamp, lampActivityOf } from '../src/render/lampoil-view.ts';
+import { drawLamp, lampActivityOf, lampBodyAlpha } from '../src/render/lampoil-view.ts';
 import { WORLD } from '../src/world/palette-data.ts';
 
 const SIMULATION = fileURLToPath(new URL('../src/world/simulation.ts', import.meta.url));
+const VILLAGER = fileURLToPath(new URL('../src/render/villager.ts', import.meta.url));
 
 /** 走一段路：从 `from` 推进到 `to`，一步一步来，像渲染层每帧那样。 */
 function burn(fromMs: number, toMs: number, activity: LampActivity = 'idle', seed = LAMP_FULL) {
@@ -64,6 +65,17 @@ test('灯油模型不 import Phaser、不 import simulation', () => {
   );
   assert.ok(!/from\s+['"][^'"]*phaser/.test(text), '油量模型与渲染后端无关');
   assert.ok(!/from\s+['"][^'"]*simulation/.test(text), '油量模型与世界内核无关');
+});
+
+test('见底发灰是接线接上去的，不是写在注释里的', () => {
+  // 「灯暗到阈值以下时角色渲染发灰」是 #4 的验收条件。它发生在 `villager.ts`，
+  // 而那个文件引 Phaser、node 下加载不了，所以这里查的是**那行调用确实在**：
+  // 有人哪天把 setAlpha 删了、或者改成只在见底那一次设，这条先红。
+  const text = readFileSync(VILLAGER, 'utf8');
+  assert.ok(
+    text.includes('setAlpha(lampBodyAlpha(oil))'),
+    'villager.ts 没在每帧按余量写回 alpha——回油以后上一帧的灰会留在身上',
+  );
 });
 
 // ---------------------------------------------------------------- 衰减
@@ -161,6 +173,22 @@ test('亮与灭分得开：见底是道坎，不是渐变', () => {
   assert.equal(isLit(LAMP_DRY), true, '刚好到底线还算亮');
   assert.equal(isLit(LAMP_DRY - 0.001), false);
   assert.equal(isLit(LAMP_FULL), true);
+});
+
+// ---------------------------------------------------------------- 人发灰
+
+test('见底的人发灰，油一补回来就恢复', () => {
+  // 每帧显式写回才有这条。只在见底那一次设的话，回油之后灰留在身上。
+  assert.equal(lampBodyAlpha(LAMP_FULL), 1);
+  assert.equal(lampBodyAlpha(LAMP_DRY), 1, '刚好到底线还亮着，不该开始灰');
+  assert.equal(lampBodyAlpha(LAMP_DRY - 0.001), 0.8);
+  assert.equal(lampBodyAlpha(0), 0.8);
+});
+
+test('发灰看得见，又不至于读成「他病了」', () => {
+  const dim = lampBodyAlpha(0);
+  assert.ok(dim < 1, '不灰等于没有这条验收条件');
+  assert.ok(dim > 0.7, `灰得太狠就开始读作生病：${dim}`);
 });
 
 test('怪形状的油量不当机', () => {

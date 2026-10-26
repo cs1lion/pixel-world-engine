@@ -12,8 +12,8 @@ import { TILE_PX } from '../world/setup.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
-import { LAMP_DRY, advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
-import { drawLamp, lampActivityOf } from './lampoil-view.ts';
+import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
+import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
 import {
   isWalkingMode,
   lampAnimationTime,
@@ -150,7 +150,7 @@ export function updateVillager(
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
   const pose = villagerPose(villager.mode, lampAnimationTime(oil, nowMs));
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
-  view.body.setAlpha(oil < LAMP_DRY ? 0.8 : 1);
+  view.body.setAlpha(lampBodyAlpha(oil));
   view.body.clear();
   drawBody(
     view.body,

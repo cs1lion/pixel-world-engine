@@ -29,6 +29,20 @@ export function lampActivityOf(mode: VillagerMode): LampActivity {
 }
 
 /**
+ * 余量 → 提灯那个人的 alpha。见底时整人发灰。
+ *
+ * 为什么是 0.8：一盏提灯的人暗到那个程度，站在满油的邻居旁边是看得出来的。
+ * 再低就开始读作「他病了」，而那不是这条要说的——他只是没油了。
+ *
+ * 必须每帧显式写回，不能只在见底那一次设：油补回来以后上一帧的灰得自己退掉。
+ * 这条正是它要抽成纯函数的原因——`villager.ts` 引 Phaser，在 node 下加载不了，
+ * 而「见底发灰、回满恢复」是 #4 的验收条件之一，得能离线单测。
+ */
+export function lampBodyAlpha(oil: number): number {
+  return isLit(oil) ? 1 : 0.8;
+}
+
+/**
  * 画一盏提在手上的灯。原点与 `drawBody` 同一处（脚下那一点），坐标相对它。
  *
  * **亮度是连续的，灭是突然的。** 光晕的大小与浓度都随余量走，所以油是看着一点点
