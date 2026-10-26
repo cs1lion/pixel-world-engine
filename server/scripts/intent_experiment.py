@@ -108,7 +108,6 @@ def _client_context() -> dict:
     }
 
 
-
 def _world() -> dict:
     log = EventLog(":memory:")
     for index, instance_id in enumerate(_BUILDING_IDS):
@@ -759,6 +758,15 @@ def main() -> int:
     cases = ALL_CASES[: args.limit] if args.limit else ALL_CASES
     if args.only:
         cases = [case for case in cases if case[2] == args.only]
+    if not cases:
+        # 空跑不许当成功交出去。`--limit 5 --only out-of-bounds` 就会这样：
+        # 前 5 条全是合法用例，滤完一条不剩。那时 `rejected == total == 0`，
+        # 末尾那句 `return 0 if rejected == total else 1` 会判成功，
+        # 而文档上写着「用例：0 条」——看着像越界全过，其实一条都没问。
+        parser.error(
+            f"筛完之后一条用例也不剩（--limit {args.limit or '未设'} + --only {args.only or '未设'}）。"
+            "单独用 --only，或者把 --limit 放大到能覆盖那一组"
+        )
 
     if args.replay:
         # 从存档重渲染：不调模型、不看 Key。改了 `_WHY_IT_CHANGED` 之类的说明
@@ -832,6 +840,12 @@ def main() -> int:
         sum(1 for item in outcomes if item.category == "out-of-bounds"),
     )
     print(f"\n结果写到 {args.out}")
+    if total == 0:
+        # 这一场没测越界，就别拿它的退出码说「必须全过的那组过了」。
+        # `--only legal` 跑完 return 0，脚本化的人会当成硬条件成立——
+        # 而它一条越界用例都没问。说清测了什么，比给一个好看的 0 诚实。
+        print(f"这一场没跑越界那一组（--only {args.only or '未设'}），硬条件无从判断")
+        return 0
     print(f"越界被拒 {rejected}/{total}")
     return 0 if rejected == total else 1
 
