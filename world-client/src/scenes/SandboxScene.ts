@@ -973,6 +973,10 @@ export class SandboxScene extends Phaser.Scene {
         return {
           line: describeWorldState(state),
           missingWild: state.gaps.missingWild,
+          // 界面据此把「建不出来的铺子」那排按钮收起来。灯潮界的图没有
+          // workshop_plot，也没有三类郊野铺子——不告诉界面的话，它会供出
+          // 四个点了必然撞一句「没有这份蓝图。」的按钮。
+          buildable: [...this.blueprints.keys()],
         };
       },
       /** 当前该呈给用户的急件；没有则为 null。 */

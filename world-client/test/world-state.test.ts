@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { buildLargeWorld } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
-import { describeWorldState, summarizeWorld } from '../src/world/world-state.ts';
+import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
+import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
+import { describeWorldState, fillableGaps, summarizeWorld } from '../src/world/world-state.ts';
 
 const blueprints = parseBlueprintTable(
   JSON.parse(
@@ -192,4 +194,43 @@ test('摘要里说得出郊野还剩多少空地', () => {
   const sim = makeSim();
   const line = describeWorldState(summarizeWorld(sim.snapshot()));
   assert.match(line, /空地/);
+});
+
+// ---------------------------------------------- 补得上的缺口，与补不上的缺口
+
+test('缺口补得上才列：那座世界得有那份蓝图', () => {
+  // 灯潮界七栋楼里没有 gear_tower / crawler_mine / ink_mill，而三类活它全「缺」。
+  // 原来界面照单全收，供出三个「补缺」按钮，点下去个个撞一句「没有这份蓝图。」
+  // ——那是一句屏上的空头承诺，而用户照着它点了。
+  assert.deepEqual(fillableGaps(['code', 'research', 'writing'], []), []);
+  assert.deepEqual(
+    fillableGaps(['code', 'research'], ['gear_tower']),
+    ['code'],
+    '有 gear_tower 才算补得上 code；research 的那份不在这张图上',
+  );
+});
+
+test('缺口本身不改：摘要是句真话，要收起来的只是那个承诺', () => {
+  // 「这世界没有查资料的郊野铺子」是真的。`missingWild` 照列，只是不拿它去
+  // 生成一个必然失败的按钮。
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const world = buildSettingWorld(pack);
+  const state = summarizeWorld({
+    buildings: world.buildings,
+    villagers: [],
+  } as unknown as Parameters<typeof summarizeWorld>[0]);
+  assert.deepEqual([...state.gaps.missingWild], ['code', 'research', 'writing']);
+  assert.deepEqual(fillableGaps(state.gaps.missingWild, [...pack.blueprints.keys()]), []);
+});
+
+test('莞尔镇三类缺口全都补得上：那里的按钮一个都不该少', () => {
+  // 反方向也得钉。过滤要是写反了，默认世界里该有的按钮会整排消失。
+  const sim = makeSim();
+  const state = summarizeWorld(sim.snapshot());
+  const registry = [...blueprints.keys()];
+  assert.deepEqual(
+    fillableGaps(state.gaps.missingWild, registry),
+    [...state.gaps.missingWild],
+    '默认世界里每个缺口都有一份对应的郊野蓝图',
+  );
 });

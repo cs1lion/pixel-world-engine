@@ -114,6 +114,31 @@ export const WILD_PREFAB_OF: Readonly<Record<TaskKind, string>> = {
 };
 
 /**
+ * 这座世界**补得上**哪些缺口。
+ *
+ * 只列补得上的：`WILD_PREFAB_OF` 指的那栋蓝图得真在登记册里。灯潮界七栋楼里
+ * 没有 gear_tower / crawler_mine / ink_mill，而三类活它全「缺」——于是界面上
+ * 并排三个「补缺：建X铺子」按钮，点下去个个撞一句「没有这份蓝图。」。
+ *
+ * 世界说得出「缺什么」却说不出「拿什么补」的时候，给一个必然失败的按钮比不给
+ * 更糟：那是一句屏上的空头承诺，而用户照着它点了。「说谎比不去更糟」在这里
+ * 不是比喻——不去（不建）是世界正当的行为，说谎不是。
+ *
+ * `missingWild` 本身不改：那一行摘要是句真话（这世界确实没有查资料的郊野铺子）。
+ * 要收起来的只是那个承诺。
+ */
+export function fillableGaps(
+  missing: readonly TaskKind[],
+  buildable: readonly string[],
+): readonly TaskKind[] {
+  const have = new Set(buildable);
+  return missing.filter((kind) => {
+    const prefabId = WILD_PREFAB_OF[kind];
+    return prefabId !== undefined && have.has(prefabId);
+  });
+}
+
+/**
  * 给界面用的一行摘要。
  *
  * 一行说完：镇内几栋、郊野几栋、还剩多少空地、缺什么。

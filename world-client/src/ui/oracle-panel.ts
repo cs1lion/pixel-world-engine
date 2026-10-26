@@ -5,7 +5,7 @@
  */
 
 import { TASK_PROFILES } from '../world/tasks.ts';
-import { WILD_PREFAB_OF } from '../world/world-state.ts';
+import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import type { TaskKind, WorldSnapshot } from '../world/types.ts';
 
 export interface OracleApi {
@@ -35,7 +35,9 @@ export interface OracleApi {
   /** 世界状态摘要：镇内郊野、空地、缺口。 */
   readonly worldState: () => {
     readonly line: string;
-    readonly missingWild: readonly string[];
+    readonly missingWild: readonly TaskKind[];
+    /** 这座世界认得的蓝图 id。缺口按钮只在这些里面挑。 */
+    readonly buildable: readonly string[];
   };
   /** 当前急件：上游 blocked 单的完整问题。 */
   readonly decree: () => { readonly taskId: string; readonly question: string; readonly title: string } | null;
@@ -193,7 +195,11 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     for (const button of [...buildRow.querySelectorAll('button[data-gap]')]) {
       button.remove();
     }
-    for (const kind of state.missingWild) {
+    // 建不出来的铺子，按钮也不该在。见 `fillableGaps`：灯潮界七栋楼里没有
+    // gear_tower / crawler_mine / ink_mill，而三类活它全「缺」。原来这里并排
+    // 三个「补缺」按钮，点下去个个撞一句「没有这份蓝图。」——那是一句屏上的
+    // 空头承诺，而用户照着它点了。
+    for (const kind of fillableGaps(state.missingWild, state.buildable)) {
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.gap = kind;
@@ -206,6 +212,15 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
         show(true, current.beginCreation(prefabId).message);
       });
       buildRow.appendChild(button);
+    }
+    // 静态那两个造房按钮同一个道理：index.html 是几张图共用的，它写的
+    // workshop_plot 在灯潮界没有蓝图。收起来，而不是留着一个点了必然失败的按钮。
+    for (const button of document.querySelectorAll<HTMLButtonElement>(
+      'button[data-build], button[data-create]',
+    )) {
+      const prefabId = button.dataset.build ?? button.dataset.create;
+      if (prefabId === undefined) continue;
+      button.hidden = !state.buildable.includes(prefabId);
     }
   };
 
