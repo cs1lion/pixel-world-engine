@@ -13,6 +13,8 @@ import { bindOraclePanel, type OracleApi } from './ui/oracle-panel.ts';
 import { bindHud } from './ui/hud.ts';
 import { bindShell } from './ui/shell.ts';
 import { bindDebugPanel, type SaveStatusView } from './ui/debug-panel.ts';
+import { bindChronicle } from './ui/chronicle-panel.ts';
+import { createMemoryClient } from './world/memory-client.ts';
 import { SaveStore, exportFileName, IMPORT_MAX_BYTES } from './ui/save-store.ts';
 import type { AgentToWorld } from './world/bridge.ts';
 import type { WorldEvent, WorldSnapshot } from './world/types.ts';
@@ -95,6 +97,10 @@ bindDebugPanel({
   feed: (message) => debugOracle()?.feed(message) ?? { ok: false, message: '世界还没醒来。' },
   pushEvent: (event) => debugOracle()?.pushEvent(event),
 });
+
+// 镇志抽屉：票据 #7 的「像读一本编年史」。只读 memory/，不改变仿真。
+// 客户端在这里才装配：它要知道 fetch 走哪（开发时是 vite 代理的 /api）。
+bindChronicle({ client: createMemoryClient() });
 
 // task-22：存档手动导出/导入。导出 = 单槽原文（就是 toSave() 的 v1 JSON，不二次加工）；
 // 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与上游对账。

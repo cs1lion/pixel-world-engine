@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from memory.paths import (
@@ -15,6 +17,7 @@ from memory.paths import (
     INDEX_NAME,
     MemoryLayout,
     MemoryPathError,
+    RULES_DIR,
     safe_name,
     slugify,
 )
@@ -157,3 +160,59 @@ def test_序号越界被拒(layout):
 def test_safe_name_对空标题抛错而不是返回空():
     with pytest.raises(MemoryPathError):
         safe_name("")
+
+
+# ------------------------------------------------------------------ 读面
+
+
+def test_读面解得出自己写下去的文件(layout):
+    layout.ensure()
+    path = layout.event_path(1, "渡口的第一夜")
+    path.write_text("# 渡口的第一夜\n", encoding="utf-8")
+    assert layout.resolve_entry("events/E0001-渡口的第一夜.md") == path
+
+
+def test_读面拒绝穿越(layout):
+    layout.ensure()
+    for hostile in (
+        "../index.yaml",
+        r"..\..\server\requirements.txt",
+        "../../.git/config",
+        "entries/../../index.yaml",
+        "C:/Windows/win.ini",
+        "/etc/passwd",
+    ):
+        with pytest.raises(MemoryPathError):
+            layout.resolve_entry(hostile)
+
+
+def test_读面只认自己列出去的文件(layout):
+    """白名单比「在 memory/ 里」更严：目录里将来多出什么都不该被读到。
+
+    `rules/铁律.yaml` 连后缀那关都过不去（先报「只能读 Markdown」），
+    所以真正考白名单的是 `rules/铁律.md`——它形状完全合法，只是不在名单里。
+    """
+    layout.ensure()
+    (layout.root / INDEX_NAME).write_text("kind: index\n", encoding="utf-8")
+    (layout.root / RULES_DIR / "铁律.yaml").write_text("kind: rule\n", encoding="utf-8")
+    (layout.root / RULES_DIR / "铁律.md").write_text("# 铁律\n", encoding="utf-8")
+    (layout.root / "散落的.md").write_text("# 散落\n", encoding="utf-8")
+    with pytest.raises(MemoryPathError, match="只能读 Markdown"):
+        layout.resolve_entry(INDEX_NAME)
+    with pytest.raises(MemoryPathError, match="只能读 Markdown"):
+        layout.resolve_entry(f"{RULES_DIR}/铁律.yaml")
+    for unlisted in (f"{RULES_DIR}/铁律.md", "散落的.md"):
+        with pytest.raises(MemoryPathError, match="没有这份记忆"):
+            layout.resolve_entry(unlisted)
+
+
+def test_读面不读目录(layout):
+    layout.ensure()
+    with pytest.raises(MemoryPathError):
+        layout.resolve_entry(EVENTS_DIR)
+
+
+def test_读面拒绝空与非字符串(layout):
+    for hostile in (None, "", "   ", 42, Path("index.yaml")):
+        with pytest.raises(MemoryPathError, match="缺 path|相对路径|Markdown"):
+            layout.resolve_entry(hostile)

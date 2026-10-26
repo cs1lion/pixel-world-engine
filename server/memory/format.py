@@ -35,28 +35,77 @@ def frontmatter(fields: dict[str, object]) -> str:
     return f"---\n{dumped.strip()}\n---\n"
 
 
+def read_frontmatter(text: str) -> dict[str, object]:
+    """读回一段 frontmatter。
+
+    **写出去的要能读回来**，否则「每日快照可重新生成」这件事只能靠人眼比对。
+    列表要按世界时间排成编年史，靠的也是这里的 `at`。
+
+    解析失败返回空字典，不抛：一份手写坏了的文件不该让整个列表打不开。
+    宁可少一个字段，也不能让读面因为一个文件而整体失败。
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    for index in range(1, len(lines)):
+        if lines[index].strip() != "---":
+            continue
+        block = "\n".join(lines[1:index])
+        try:
+            fields = yaml.safe_load(block)
+        except yaml.YAMLError:
+            return {}
+        return fields if isinstance(fields, dict) else {}
+    return {}
+
+
 def _evidence_line(check: EvidenceCheck) -> str:
     cited = "、".join(f"#{event.id} `{event.kind}`" for event in check.events)
     return f"依据：{cited}"
 
 
-def render_character(subject: str, check: EvidenceCheck, draft_title: str, body: str) -> str:
-    """一条角色记忆的正文小节（不含文件头的 frontmatter）。"""
-    lines = [f"## {draft_title}", "", _evidence_line(check), f"来源：direct_observation", ""]
+def render_character(
+    *,
+    at: float,
+    check: EvidenceCheck,
+    draft_title: str,
+    body: str,
+) -> str:
+    """一条角色记忆的正文小节（不含文件头的 frontmatter）。
+
+    `at` 与 `依据`、`来源` 并排写成一行：它们是同一类东西——这条记忆的出处。
+    没有它，一条居民记忆在编年史里就永远排不到它发生的位置上，
+    而「她记得那场雨」本该出现在那场雨那天，不是排在所有事件后面。
+    """
+    lines = [
+        f"## {draft_title}",
+        "",
+        f"at: {at}",
+        _evidence_line(check),
+        "来源：direct_observation",
+        "",
+    ]
     return "\n".join(lines) + body.strip() + "\n"
 
 
-def render_character_file(subject: str, check: EvidenceCheck, draft_title: str, body: str) -> str:
+def render_character_file(subject: str, check: EvidenceCheck, draft_title: str, body: str, at: float) -> str:
     """角色档案的第一次写入：文件头 + 第一节。"""
-    head = frontmatter({"kind": "character", "subject": subject, "source": "direct_observation"})
-    return head + "\n" + f"# {subject}\n\n{_CHARACTER_NOTE}\n\n" + render_character(
-        subject, check, draft_title, body
+    head = frontmatter(
+        {"kind": "character", "subject": subject, "source": "direct_observation", "at": at}
+    )
+    return (
+        head
+        + "\n"
+        + f"# {subject}\n\n{_CHARACTER_NOTE}\n\n"
+        + render_character(at=at, check=check, draft_title=draft_title, body=body)
     )
 
 
-def render_character_section(check: EvidenceCheck, draft_title: str, body: str) -> str:
+def render_character_section(check: EvidenceCheck, draft_title: str, body: str, at: float) -> str:
     """角色档案的后续写入：只接一节，不动前面已经写下的任何字节。"""
-    return _SECTION_JOIN + render_character("", check, draft_title, body)
+    return _SECTION_JOIN + render_character(
+        at=at, check=check, draft_title=draft_title, body=body
+    )
 
 
 def render_event(

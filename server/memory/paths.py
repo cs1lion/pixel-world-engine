@@ -147,22 +147,56 @@ class MemoryLayout:
     def index_path(self) -> Path:
         return self._resolve(Path(INDEX_NAME), "索引")
 
+    # ------------------------------------------------------------------ 读面
+
+    def resolve_entry(self, relative: str) -> Path:
+        """把调用方给的相对路径变成一个**读得动**的记忆文件。
+
+        读面与写面共用同一道 containment，但挡的东西相反：写面挡的是标题，
+        读面挡的是 `?path=../../.git/config`。所以这里多一道**白名单**——
+        只有自己会列出去的文件才读得回来，`rules/*.yaml` 与 `index.yaml`
+        不在其内，即使它们确实躺在 `memory/` 里。
+
+        两道都要过，理由和写面一样：`_resolve` 挡已知的穿越形状，
+        白名单挡将来目录里多出来的任何东西。
+        """
+        if not isinstance(relative, str) or relative.strip() == "":
+            raise MemoryPathError("缺 path：要读哪一份记忆")
+        candidate = Path(relative)
+        # `is_absolute` 在 Windows 上不认 `/x`（那是同盘下的相对路径），
+        # 而 `root` 不认 `C:x`。两个都查才不漏。
+        if candidate.is_absolute() or candidate.drive or candidate.root:
+            raise MemoryPathError(f"path 只能是 memory/ 里的相对路径：{relative}")
+        path = self._resolve(candidate, "记忆文件")
+        if path.suffix.lower() != ".md":
+            raise MemoryPathError(f"只能读 Markdown 记忆：{relative}")
+        listed = self.entry_files() + self.character_files() + self.event_files()
+        known = {item.resolve() for item in listed}
+        if path.resolve() not in known:
+            raise MemoryPathError(f"没有这份记忆：{relative}")
+        return path
+
     # ------------------------------------------------------------------ 列目录
 
-    def _markdown_in(self, dirname: str) -> list[Path]:
+    def markdown_files(self, dirname: str) -> list[Path]:
+        """某个子目录下的全部记忆文件，按文件名排序。
+
+        公开是因为读面要按目录走一遍（`list_entries`），而写面只关心
+        自己那一份。藏成私有的话，读面就得把三个目录名各自复制一遍。
+        """
         folder = self.root / dirname
         if not folder.is_dir():
             return []
         return sorted(path for path in folder.glob("*.md") if path.is_file())
 
     def entry_files(self) -> list[Path]:
-        return self._markdown_in(ENTRIES_DIR)
+        return self.markdown_files(ENTRIES_DIR)
 
     def character_files(self) -> list[Path]:
-        return self._markdown_in(CHARACTERS_DIR)
+        return self.markdown_files(CHARACTERS_DIR)
 
     def event_files(self) -> list[Path]:
-        return self._markdown_in(EVENTS_DIR)
+        return self.markdown_files(EVENTS_DIR)
 
     def next_event_seq(self) -> int:
         """下一条事件的序号。

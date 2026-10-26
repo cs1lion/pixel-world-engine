@@ -1,5 +1,5 @@
 """记忆的 HTTP 面：`POST /api/memory/write`、`GET /api/memory/list`、
-`POST /api/memory/snapshot`。
+`GET /api/memory/entry`、`POST /api/memory/snapshot`。
 
 **写入端点收的是「已经观测到的事」，不是「想让世界记住的话」。** 所以它不做
 任何生成：body 给什么就写什么，一个字都不添。模型当然可以参与——它转述观测，
@@ -26,7 +26,7 @@ from fastapi.responses import JSONResponse
 
 from memory.evidence import EvidenceError
 from memory.paths import MemoryLayout, MemoryPathError
-from memory.snapshot import SnapshotError, day_of, days_present, write_snapshot
+from memory.snapshot import SnapshotError, day_of, days_present, write_snapshot, write_snapshots
 from memory.writer import MemoryWriter
 
 from memory import MemoryDraft, MemoryWriteError  # noqa: E402
@@ -94,6 +94,29 @@ def list_memory(request: Request) -> dict[str, object]:
     return {"entries": entries, "count": len(entries)}
 
 
+@router.get("/api/memory/entry")
+def read_memory(
+    request: Request,
+    path: str | None = None,
+    section: str | None = None,
+) -> dict[str, object]:
+    """读一份记忆的全文。
+
+    票据 #7 的验收是「我能读到这座镇子过去发生过什么，像读一本编年史」——
+    只有标题和一行摘要是目录，不是编年史。所以读面必须给全文。
+
+    `section` 可省。列表里的一行是**一条**记忆，而一份角色档案里躺着好几条；
+    不带上小节名，点开「她记得那场雨」会读到她的整个档案——那倒不是错，
+    但列表答应的是那一条。带上就只要那一节（连同她的人名标题）。
+
+    `path` 故意不收在 URL 路径里（`/api/memory/entry/characters/莞尔.md`）：
+    那样 FastAPI 会先把斜杠解开，`%2F` 与真正的斜杠在不同版本下行为不一致，
+    而这里要的只是一个标识符。查询参数没有这层歧义。
+    """
+    writer = _writer_of(request)
+    return writer.read_entry(path, section)
+
+
 @router.post("/api/memory/snapshot")
 def snapshot_memory(request: Request, body: Any = Body(default=None)) -> dict[str, object]:
     """重新生成每日快照。不给 `day` 就把日志里出现过的每一天都重一遍。
@@ -118,7 +141,11 @@ def snapshot_memory(request: Request, body: Any = Body(default=None)) -> dict[st
             raise SnapshotError(f"day 必须是非负整数，收到 {day!r}")
 
     days = [day] if day is not None else days_present(log)
-    results = [write_snapshot(layout, log, item).to_json() for item in days]
+    # 「全部重生成」走单次翻页的那条路：三十天不该翻三十遍全量日志。
+    if day is not None:
+        results = [write_snapshot(layout, log, day).to_json()]
+    else:
+        results = [item.to_json() for item in write_snapshots(layout, log, days)]
     written = sum(1 for item in results if item["written"])
     return {
         "days": results,

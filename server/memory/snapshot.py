@@ -26,6 +26,10 @@ from memory.paths import MemoryLayout
 #: 这里只是给它一个「天」的长度，不引入任何新的时钟。
 DAY_MS = 24 * 60 * 60 * 1000
 
+#: 一次翻页读多少条。与 `EventLog.MAX_LIMIT` 一致——这是跨模块的一个常数，
+#: 改的时候两边一起改（`test_snapshot_paging.py` 钉住了它）。
+MAX_PAGE = 1000
+
 #: 一天之内最多列多少条。快照是给人读的一天概要，不是日志的镜像——
 #: 真到了上千条的那天，人要看的是日志，不是这个文件。
 MAX_LISTED = 200
@@ -125,33 +129,52 @@ def _text_of(payload: dict[str, object], key: str) -> str | None:
     return None
 
 
-def events_of_day(log: EventLog, day: int) -> list[WorldEvent]:
-    """第 `day` 个世界日里的全部事件，按 id 升序。
+def _scan(log: EventLog) -> dict[int, list[WorldEvent]]:
+    """翻完整份日志，按世界日分桶。
 
-    翻页读全量再按窗口筛。日志是只增的，`read` 又只给排他游标，
-    没有按时间查的入口——为了一个纯函数的快照去给日志加时间索引，
-    是把读路径搞复杂；翻页到当天的上界就停，量级和客户端追日志一样。
+    **一直翻到日志末尾，不因为「这一页已经翻过当天的窗口」就停。**
+
+    早先的版本在 `page[-1].at >= end` 时 break，那等于假设 `at` 随 id 单调。
+    日志没有这条保证：`read` 只按 id 排序，`append` 也不查 `at` 的相对大小。
+    于是掺一条 id 更大、`at` 更小的事件，那一天就会被安静地判成「什么都没发生」，
+    而 `derive` 本该是日志的纯函数。少列一条是遗憾，编一次是撒谎。
+
+    代价是每次调用都翻全量。可接受：这是快照端点，一天跑一次，
+    不是每帧都走的路。真要按时间查，那该给日志加索引，而不是在这里赌顺序。
     """
-    start, end = day_window(day)
-    found: list[WorldEvent] = []
+    buckets: dict[int, list[WorldEvent]] = {}
     since = 0
     while True:
-        page = log.read(since=since, limit=1000)
+        page = log.read(since=since, limit=MAX_PAGE)
         if not page:
             break
         for event in page:
-            if start <= event.at < end:
-                found.append(event)
-        if page[-1].at >= end or page[-1].id >= log.latest_id():
+            buckets.setdefault(day_of(event.at), []).append(event)
+        if page[-1].id >= log.latest_id():
             break
         since = page[-1].id
-    return found
+    return buckets
 
 
-def derive(log: EventLog, day: int) -> str:
-    """第 `day` 个世界日的快照文本。日志的纯函数。"""
-    events = events_of_day(log, day)[:MAX_LISTED]
+def events_of_day(log: EventLog, day: int) -> list[WorldEvent]:
+    """第 `day` 个世界日里的全部事件，按 id 升序。"""
+    return list(_scan(log).get(day, ()))
+
+
+def days_present(log: EventLog) -> list[int]:
+    """日志里出现过的全部世界日，升序。"""
+    return sorted(_scan(log))
+
+
+def render(day: int, events: list[WorldEvent]) -> str:
+    """第 `day` 个世界日的快照文本。
+
+    `events` 是这一天的**全部**事件；`MAX_LISTED` 只截下面列出来的那些，
+    不截 `event_count`。说「共 1200 条」然后列 200 条是诚实的，
+    说「共 200 条」是把多出来的 1000 条瞒下来了。
+    """
     start, end = day_window(day)
+    listed = events[:MAX_LISTED]
     # 时间窗写成整数：`8.64e+07` 虽然等价，但这份文件是给人读的，
     # 而人读的是 `86400000`。
     head = "\n".join(
@@ -175,9 +198,11 @@ def derive(log: EventLog, day: int) -> str:
     if not events:
         lines += ["这一天什么都没发生。", ""]
         return "\n".join(lines)
+    if len(listed) < len(events):
+        lines += [f"这一天有 {len(events)} 条，下面列前 {len(listed)} 条。", ""]
 
     for change, label in _SECTIONS:
-        picked = [event for event in events if _change_of(event) == change]
+        picked = [event for event in listed if _change_of(event) == change]
         if not picked:
             continue
         lines += [f"## {label}", ""]
@@ -187,13 +212,40 @@ def derive(log: EventLog, day: int) -> str:
     return "\n".join(lines)
 
 
+def derive(log: EventLog, day: int) -> str:
+    """第 `day` 个世界日的快照文本。日志的纯函数。"""
+    return render(day, events_of_day(log, day))
+
+
 def write_snapshot(layout: MemoryLayout, log: EventLog, day: int) -> SnapshotResult:
     """生成并落盘第 `day` 个世界日的快照。内容相同就不写。"""
     if isinstance(day, bool) or not isinstance(day, int) or day < 0:
         raise SnapshotError(f"世界日序号必须是非负整数，收到 {day!r}")
+    # 只翻一遍。早先这里 `derive` 翻一次、数条数再翻一次——
+    # 同一天读两遍全量日志，只为拿一个已经算过的数。
+    return _write_one(layout, day, events_of_day(log, day))
+
+
+def write_snapshots(layout: MemoryLayout, log: EventLog, days: list[int]) -> list[SnapshotResult]:
+    """把给定的这些世界日各写一遍。**整份日志只翻一次。**
+
+    「全部重生成」如果一天翻一遍日志，三十天就是三十遍全量。
+    这里先分桶再逐天落盘——每天的内容仍然各自独立，谁变了谁不变看得出来。
+    """
+    buckets = _scan(log)
+    results: list[SnapshotResult] = []
+    for day in days:
+        if isinstance(day, bool) or not isinstance(day, int) or day < 0:
+            raise SnapshotError(f"世界日序号必须是非负整数，收到 {day!r}")
+        results.append(_write_one(layout, day, buckets.get(day, [])))
+    return results
+
+
+def _write_one(layout: MemoryLayout, day: int, events: list[WorldEvent]) -> SnapshotResult:
+    """落盘一天。`write_snapshot` 与 `write_snapshots` 共用，免得两处各写一遍。"""
     path = layout.entry_path(day)
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = derive(log, day)
+    text = render(day, events)
     current = ""
     if path.exists():
         current = path.read_text(encoding="utf-8")
@@ -205,24 +257,8 @@ def write_snapshot(layout: MemoryLayout, log: EventLog, day: int) -> SnapshotRes
         path=path,
         relative=_relative(layout, path),
         written=written,
-        event_count=len(events_of_day(log, day)),
+        event_count=len(events),
     )
-
-
-def days_present(log: EventLog) -> list[int]:
-    """日志里出现过的全部世界日，升序。"""
-    days: set[int] = set()
-    since = 0
-    while True:
-        page = log.read(since=since, limit=1000)
-        if not page:
-            break
-        for event in page:
-            days.add(day_of(event.at))
-        if page[-1].id >= log.latest_id():
-            break
-        since = page[-1].id
-    return sorted(days)
 
 
 def _relative(layout: MemoryLayout, path: Path) -> str:
@@ -232,6 +268,7 @@ def _relative(layout: MemoryLayout, path: Path) -> str:
 __all__ = [
     "DAY_MS",
     "MAX_LISTED",
+    "MAX_PAGE",
     "SnapshotError",
     "SnapshotResult",
     "day_of",
@@ -239,5 +276,7 @@ __all__ = [
     "days_present",
     "derive",
     "events_of_day",
+    "render",
     "write_snapshot",
+    "write_snapshots",
 ]

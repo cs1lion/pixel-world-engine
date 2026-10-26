@@ -425,6 +425,98 @@
         overflow-wrap: anywhere;
       }
       #debug-panel[hidden] { display: none; }
+      /* 镇志抽屉：与调试面板同一套硬投影语言，只是换到屏幕左侧。
+         颜色一律走 CSS 变量——audit-palette 把 index.html 里的字面量逐个
+         计入 UI 层色数，写死一个新色就等于隐性加色。 */
+      #chronicle {
+        position: fixed;
+        top: 52px;
+        left: 10px;
+        z-index: 50;
+        box-sizing: border-box;
+        width: 340px;
+        max-width: calc(100vw - 20px);
+        max-height: 72vh;
+        overflow: auto;
+        padding: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow:
+          3px 3px 0 0 color-mix(in srgb, var(--base) 55%, transparent),
+          6px 6px 0 0 color-mix(in srgb, var(--base) 22%, transparent);
+        font-size: 12px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+      }
+      #chronicle[hidden] { display: none; }
+      #chronicle .chronicle-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+      #chronicle .chronicle-head strong {
+        color: var(--amber);
+        font-family: var(--font-pixel);
+        font-weight: 400;
+        letter-spacing: 0.1em;
+      }
+      #chronicle .chronicle-actions { display: flex; gap: 4px; }
+      #chronicle .chronicle-actions button { font-size: 11px; padding: 3px 6px; }
+      #chronicle .chronicle-actions button[hidden] { display: none; }
+      .chronicle-pane[hidden] { display: none; }
+      /* 一行一条记忆：第几天 · 种类 在上，标题在中，摘要在下。
+         三个 span 竖着排，因为一条记忆真正让人想点的是那句话，不是它的编号。 */
+      #chronicle .chronicle-row {
+        display: grid;
+        gap: 1px;
+        width: 100%;
+        margin-top: 6px;
+        padding: 6px 8px;
+        text-align: left;
+        white-space: normal;
+      }
+      #chronicle .chronicle-row:hover { background: var(--base); }
+      #chronicle .chronicle-row-meta { color: var(--dim); font-size: 10px; }
+      #chronicle .chronicle-row-title { color: var(--ink); font-size: 12px; }
+      #chronicle .chronicle-row-summary { color: var(--dim); font-size: 11px; }
+      #chronicle .chronicle-empty { color: var(--dim); margin: 10px 2px; }
+      #chronicle-reader-title {
+        margin: 10px 0 2px;
+        color: var(--ink);
+        font-family: var(--font-pixel);
+        font-size: 13px;
+        font-weight: 400;
+      }
+      #chronicle-reader-subtitle { margin: 0 0 8px; color: var(--dim); font-size: 11px; }
+      #chronicle-reader-body { color: var(--ink); font-size: 12px; }
+      #chronicle-reader-body .chronicle-heading {
+        margin: 12px 0 4px;
+        color: var(--amber);
+        font-family: var(--font-pixel);
+        font-size: 12px;
+        font-weight: 400;
+      }
+      #chronicle-reader-body .chronicle-paragraph { margin: 6px 0; }
+      #chronicle-reader-body .chronicle-item { margin: 2px 0; }
+      #chronicle-reader-body .chronicle-quote {
+        margin: 6px 0;
+        padding-left: 8px;
+        border-left: 2px solid var(--amber);
+        color: var(--dim);
+      }
+      /* frontmatter 是机器的字段，不是人写的话——压暗一档，别跟正文抢。 */
+      #chronicle-reader-body .chronicle-field {
+        display: flex;
+        gap: 6px;
+        justify-content: space-between;
+        font-size: 10px;
+        color: var(--dim);
+      }
+      #chronicle-reader-body .chronicle-field-key { color: var(--dim); }
       .dbg-head {
         display: flex;
         gap: 6px;
@@ -474,6 +566,7 @@
       <span class="brand">莞尔的世界</span>
       <span id="hud-load" aria-live="polite">世界正在醒来…</span>
       <span id="hud-net" title="上游事件流的连接状态">连接中</span>
+      <button type="button" id="chronicle-open" aria-expanded="false" aria-controls="chronicle">镇志</button>
       <span class="hintkey"><kbd>Ctrl</kbd>+<kbd>K</kbd> 降下神谕</span>
     </div>
 
@@ -555,6 +648,26 @@
       <div id="debug-stats"></div>
       <div id="debug-content"></div>
       <div id="debug-inject-slot"></div>
+    </aside>
+
+    <!-- 镇志抽屉：把 memory/ 读成一本能翻开的编年史（票据 #7）。
+         放在左侧，与右侧的调试面板错开——两个都从右边出来会互相压。
+         中文走 DOM 不走 canvas（SPEC §4.8），所以这里是普通 HTML。 -->
+    <aside id="chronicle" hidden aria-label="镇志">
+      <div class="chronicle-head">
+        <strong id="chronicle-heading">镇志</strong>
+        <span class="chronicle-actions">
+          <button type="button" id="chronicle-refresh">重读</button>
+          <button type="button" id="chronicle-back" hidden>返回</button>
+          <button type="button" id="chronicle-close">关闭</button>
+        </span>
+      </div>
+      <div id="chronicle-list" class="chronicle-pane"></div>
+      <div id="chronicle-reader" class="chronicle-pane" hidden>
+        <h3 id="chronicle-reader-title"></h3>
+        <p id="chronicle-reader-subtitle"></p>
+        <div id="chronicle-reader-body"></div>
+      </div>
     </aside>
 
     <section id="decree" aria-live="polite" hidden>
