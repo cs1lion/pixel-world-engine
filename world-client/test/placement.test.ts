@@ -204,7 +204,7 @@ test('有来由的楼在日报里写清来由', () => {
   sim.update(16);
 
   const report = composeReport(sim.snapshot());
-  const line = report.lines.find((item) => item.includes('造物主新起'));
+  const line = report.lines.find((item) => item.includes('造物主起了'));
   assert.ok(line !== undefined, '日报应当提到新建的楼');
   assert.match(line, /在 \(2,2\) 建了新工坊/, '日报要写清这栋楼是怎么来的');
 });
