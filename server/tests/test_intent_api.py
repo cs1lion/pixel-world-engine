@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -506,6 +507,24 @@ def test_拨潮水位越界与时长不是正数_都被拒() -> None:
     ):
         with pytest.raises(wire.WireError):
             wire.validate_intent(bad)
+
+
+def test_拨潮收到_inf_与_nan_说的都是不是数字_不是越界() -> None:
+    """NaN 与 Inf 都是「不是数字」，不是「数字但越界」——这句话得分明。
+
+    客户端 `readNumber` 用 `Number.isFinite` 一句挡掉两者，说的是「必须是数字」。
+    服务端这边原先只写 `level != level`（NaN 自反），`inf` 一路漏到取值域那句，
+    说法变成「必须在 0..1，收到 inf」。同一条意图换个入口就换种拒法，
+    而排查的人只有这两句话可看。"""
+    for field, value in (("level", math.inf), ("level", -math.inf), ("level", math.nan)):
+        with pytest.raises(wire.WireError) as caught:
+            wire.validate_intent({"kind": "setTide", field: value, "durationMs": 30_000})
+        assert "必须是数字" in str(caught.value), f"{field}={value} 被说成了别的问题"
+        assert "0..1" not in str(caught.value), f"{field}={value} 被当成了越界"
+    for value in (math.inf, math.nan):
+        with pytest.raises(wire.WireError) as caught:
+            wire.validate_intent({"kind": "setTide", "level": 0.5, "durationMs": value})
+        assert "必须是数字" in str(caught.value)
 
 
 # ---------------------------------------------------------------- 端点自身的错误

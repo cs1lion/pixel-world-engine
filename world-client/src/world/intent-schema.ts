@@ -97,8 +97,12 @@ const MIRACLES: readonly MiracleKind[] = ['light', 'tree', 'cat'];
  * 每种意图允许的字段。
  *
  * `unknown` 只接受 `reason`——它没有目标可带，带了就是模型在自作主张。
+ *
+ * 导出来是为了一份守卫：`test/intent-contract.test.ts` 拿它跟服务端
+ * `wire.py` 的 `ALLOWED_KEYS` 逐条比。两边各写一遍，「加一种意图时只改一边」
+ * 就是用户看得见的漂——客户端放过的字段，服务端 502。
  */
-const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
+export const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
   dispatch: ['kind', 'taskKind', 'summary'],
   complete: ['kind'],
   cancelPending: ['kind'],

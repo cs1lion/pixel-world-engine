@@ -2024,15 +2024,19 @@ export class Simulation {
       if (target.x === here.x && target.y === here.y) continue;
       // 路先问，话后说。
       //
-      // `pathFor` 的空数组有两种意思：她人已经在那儿，和根本走不到。
+      // `routeTo` 的空路径有两种意思：她人已经在那儿，和根本走不到。
       // 混成一种就是对世界说谎——渡有仪式（区域要凭证、她兜里没有）让后者
       // 真的会出现。原先牌子先挂出去、路后问，走不通时她就挂着那一拍的説法
       // 站在原地：读镇志的人以为她去了，而她半步也没动。
       // 交付路早就守着这条（`mode === 'delivering'` 那段「空数组有两种意思」），
       // 作息这条路漏了。
-      const path = this.pathFor(villager, here, target);
-      if (path.length === 0) continue;
-      villager.path = path;
+      //
+      // 两种意思在这一拍上都是 `continue`（到了就不用走，走不到就走不了），
+      // 所以这里不必分开——分开的是派活那条，那边「到了」与「走不到」是
+      // 接单与拒单两种回答。
+      const route = this.routeTo(villager, target);
+      if (route.path.length === 0) continue;
+      villager.path = route.path;
       villager.routineLabel = beat.label;
       villager.nextRoutineAt = this.now + beat.dwellMs;
       return;
@@ -2272,14 +2276,14 @@ export class Simulation {
     const free = this.villagers.find((item) => item.mode === 'idle' && item.path.length === 0);
     if (free === undefined) return;
 
-    // 她站在祭坛格上时 `pathFor` 也返回空数组。这里**故意**当作「这一拍不派」：
+    // 她站在祭坛格上时 `routeTo` 也说「路是空的」。这里**故意**当作「这一拍不派」：
     // 她不会永远站在祭坛上（作息会把她带走），下一拍就派得出。
     // 改成「已经到了」会让 `bearingDecree` 带上一条空路径，下一个 step 就掉回 idle——
     // 那一闪的过渡态看不见，而「跑过去举件」这条路正好是 decree.test.ts 守的。
-    const path = this.pathFor(free, this.cellOf(free.pos), this.altar);
-    if (path.length === 0) return;
+    const route = this.routeTo(free, this.altar);
+    if (route.path.length === 0) return;
     free.mode = 'bearingDecree';
-    free.path = path;
+    free.path = route.path;
     free.bubble = '急件！';
     free.bubbleUntil = this.now + 3000;
     this.decreeBearer = free.id;

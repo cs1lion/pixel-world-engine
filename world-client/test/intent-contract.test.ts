@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseIntent } from '../src/world/intent-schema.ts';
+import { ALLOWED_KEYS } from '../src/world/intent-schema.ts';
 import { CARRY_ITEMS } from '../src/world/gate.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 
@@ -79,10 +80,14 @@ test('凭证闭集两边各声明一次，而且说的是同一套词', () => {
   // 所以这里数的是**声明**，不是出现：`wire.py` 该引那一份，不许再写。
   // 它再写一个，这条测试就得改，而改的时候就会看见为什么不该写。
   const client = [...CARRY_ITEMS].sort().join(',');
+  // 正则容忍注解与换行：`CARRY_ITEMS: tuple[str, ...] = (\n  "lamp",\n)`。
+  // 钉死 `= (` 挨在一起的那种匹配，将来有人给这个元组加个类型注解，
+  // 这条会一声不响地找不到它——而找不到和「只有一处」在这条里不是一回事。
+  const declaration = /^CARRY_ITEMS\b[^=]*=\s*\(([^)]*)\)/m;
   const declaredIn: string[] = [];
   for (const path of ['../../server/rules/schema.py', '../../server/oracle/wire.py']) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8');
-    const found = /^CARRY_ITEMS\s*=\s*\(([^)]*)\)/m.exec(source);
+    const found = declaration.exec(source);
     if (found === null) continue;
     declaredIn.push(path);
     const server = (found[1] ?? '')
@@ -96,7 +101,7 @@ test('凭证闭集两边各声明一次，而且说的是同一套词', () => {
   assert.deepEqual(
     declaredIn,
     ['../../server/rules/schema.py'],
-    '服务端只该在 rules/schema.py 声明一次凭证闭集；别处要引它，不许再写',
+    `凭证闭集只该在 rules/schema.py 声明一次；实际声明在 ${declaredIn.join(' 与 ')}——别处要引它，不许再写`,
   );
 });
 
@@ -109,14 +114,17 @@ test('服务端的意图清单就是客户端的那一份：少一种，线协�
   //
   // 所以直接比源，跟上面那条凭证闭集同一个道理：手写的表只钉住写表那天。
   const clientSource = readFileSync(new URL('../src/world/intent-schema.ts', import.meta.url), 'utf8');
-  const union = /export type IntentKind =([\s\S]*?);/.exec(clientSource);
+  // 收到声明结束的那个分号：分号后面还得跟着换行。联合里某个成员的注释
+  // 也可能带分号，`[\s\S]*?;` 会在那儿提前收尾，于是拿半个联合去比——
+  // 比出来的"不一致"是真的，但缺的那几种是假的。
+  const union = /export type IntentKind =([\s\S]*?);\s*\n/.exec(clientSource);
   assert.ok(union !== null, 'intent-schema.ts 里找不到 IntentKind 联合了——它被改名或删了');
   const client = [...(union[1] ?? '').matchAll(/'([A-Za-z]+)'/g)]
     .map((found) => found[1] ?? '')
     .sort();
 
   const serverSource = readFileSync(new URL('../../server/oracle/wire.py', import.meta.url), 'utf8');
-  const tuple = /^INTENT_KINDS = \(([^)]*)\)/m.exec(serverSource);
+  const tuple = /^INTENT_KINDS\b[^=]*=\s*\(([^)]*)\)/m.exec(serverSource);
   assert.ok(tuple !== null, 'wire.py 里找不到 INTENT_KINDS 了——它被改名或删了');
   const server = (tuple[1] ?? '')
     .split(',')
@@ -128,5 +136,42 @@ test('服务端的意图清单就是客户端的那一份：少一种，线协�
     server,
     client,
     `服务端的意图清单与客户端不一致：${server.join(',')} ≠ ${client.join(',')}`,
+  );
+});
+
+test('每种意图允许的字段两边是同一张表：客户端放过的字段，服务端不能 502', () => {
+  // 上一句只说「意图有哪几种」，这一句说「每种意图带哪些字段」。
+  // 清单对上了、字段表没对上，是同一类漂的另一种形状，而且更难看：
+  // 客户端规规矩矩校验过的一份意图发到服务端，被 `ALLOWED_KEYS` 一句拒掉，
+  // 端点转成 502，用户只看到「没听懂」——而那句话在客户端明明是说得通的。
+  //
+  // 这里比的是**集合**，不是顺序：字段的先后不影响语义，而顺序一有出入
+  // 这条就会红，红得跟真漂了一模一样。
+  const client = new Map(
+    Object.entries(ALLOWED_KEYS).map(([kind, keys]) => [kind, [...keys].sort().join(',')]),
+  );
+
+  const serverSource = readFileSync(new URL('../../server/oracle/wire.py', import.meta.url), 'utf8');
+  const table = /^ALLOWED_KEYS[^=]*=\s*\{([\s\S]*?)\n\}/m.exec(serverSource);
+  assert.ok(table !== null, 'wire.py 里找不到 ALLOWED_KEYS 了——它被改名或删了');
+  const server = new Map(
+    [...(table[1] ?? '').matchAll(/^\s*"?([A-Za-z]+)"?:\s*frozenset\(\{([^}]*)\}\)/gm)].map(
+      ([, kind, keys]) => [
+        kind ?? '',
+        (keys ?? '')
+          .split(',')
+          .map((key) => key.trim().replace(/^["']|["']$/g, ''))
+          .filter((key) => key !== '')
+          .sort()
+          .join(','),
+      ],
+    ),
+  );
+
+  assert.ok(server.size > 0, 'ALLOWED_KEYS 一条都没解析出来——正则跟不上它的写法了');
+  assert.deepEqual(
+    server,
+    client,
+    `服务端的字段表与客户端不一致：${[...server.keys()].join(',')} ≠ ${[...client.keys()].join(',')}`,
   );
 });

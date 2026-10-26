@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from rules.schema import CARRY_ITEMS, TIDE_OVERRIDE_MAX_MS, Command, CommandRejected, validate_command
@@ -208,17 +209,18 @@ def _tide(raw: dict[str, Any]) -> None:
     一条能永久按住它的命令会让所有依赖它的确定性松动。客户端 `tide.ts` 里是同一个数，
     三处各写一遍就一定会漂。
 
-    与客户端 `parseIntent` 的 setTide 分支逐条同源：水位和时长都收 int/float、
-    都拒 bool 与 NaN/Inf。这里放宽一点、那边严一点，表现就是同一条意图
-    在客户端过得去、在服务端被 502——而用户只看到「没听懂」。
+    与客户端 `parseIntent` 的 setTide 分支逐条同源。`isfinite` 同时挡 NaN 与 Inf：
+    只写 `level != level`（NaN 自反）会让 `inf` 一路漏到取值域那句，
+    说法变成「必须在 0..1，收到 inf」——客户端对同一条说的是「必须是数字」。
+    两边的错话不一样，用户看到的就是「同样一句话，换个入口就换种拒法」。
     """
     level = raw.get("level")
-    if isinstance(level, bool) or not isinstance(level, (int, float)) or level != level:
+    if isinstance(level, bool) or not isinstance(level, (int, float)) or not math.isfinite(level):
         raise WireError("level 必须是数字")
     if not 0 <= level <= 1:
         raise WireError(f"level 必须在 0..1，收到 {level}")
     duration = raw.get("durationMs")
-    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or duration != duration:
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration):
         raise WireError("durationMs 必须是数字")
     if duration <= 0:
         raise WireError("durationMs 必须是正数毫秒")
