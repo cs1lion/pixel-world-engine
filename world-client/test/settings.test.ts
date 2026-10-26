@@ -22,7 +22,9 @@ const pack = loadSettingPack(DENGCHAO_RAW);
 // ------------------------------------------------------- 渡有仪式（SPEC_V2 §4.6）
 
 test('设定集可以给区域上一道门：requires 落到世界上，不设卡的区域照旧', () => {
-  // 渡口站台要灯。其余四个区域一个都没声明 requires——它们不能因此变成门。
+  // 这里拿渡口做实验：把一道本来不设卡的区域改成要灯，看它真的开始要，
+  // 而别的区域不因此变成门。原封不动的灯潮界里，要灯的只有叠浪楼——
+  // 所以渡口在这儿照样谁都能进，那一行断的是「改设定集能改出门」。
   const gated = loadSettingPack({
     ...DENGCHAO_RAW,
     regions: DENGCHAO_RAW.regions.map((region) =>
@@ -41,7 +43,7 @@ test('设定集可以给区域上一道门：requires 落到世界上，不设�
   assert.equal(
     buildSettingWorld(pack).grid.requirementAt(inside),
     null,
-    '不声明 requires 的老设定集不能被这一版改变',
+    '不声明 requires 的区域不能被这一版改变',
   );
 });
 
@@ -56,6 +58,45 @@ test('requires 写错一个字母：当场拒绝，不留一道谁也过不去�
       }),
     /requires 只能是 lamp\/shoes 或 null/,
   );
+});
+
+test('一道要凭证的区域，它的地整个都归它：没有被后声明的区域盖掉几格', () => {
+  // 地域是**按声明顺序画上去的**，后画的盖先画的（`grid.ts` 那道循环）。
+  // 一道要灯的区域若被后来一道不要的盖住几格，那几格就谁也不设卡——
+  // 设定集里写了、世界里没有，而且静悄悄。叠浪楼与灯街压着同一块地，
+  // 从前叠浪楼声明在前，于是它里头一百来格归了灯街：给它上一道门，
+  // 门会一整片消失，只剩顶上两行。
+  //
+  // 这条按声明矩形逐格查，不抽样——抽样的那种只会告诉你"还有几格是对的"。
+  const grid = buildSettingWorld(pack).grid;
+  const gated = pack.regions.filter((region) => region.requires != null);
+  assert.ok(gated.length > 0, '这张图上一道门都没有，这条就等于没跑');
+  for (const region of gated) {
+    const stolen: string[] = [];
+    for (let y = region.y; y < region.y + region.h; y += 1) {
+      for (let x = region.x; x < region.x + region.w; x += 1) {
+        if (grid.at({ x, y })?.region !== region.id) stolen.push(`(${x},${y})`);
+      }
+    }
+    assert.deepEqual(stolen, [], `${region.name}（要 ${region.requires}）有 ${stolen.length} 格被别的区域盖住了`);
+  }
+});
+
+test('灯潮界的叠浪楼真的要一盏灯：渡有仪式在这张图上真的落下来了', () => {
+  // 从前没有一份设定集声明过 requires——判定、命令、提示词三处都齐了，
+  // 就是没有一个区域真的要东西。这道门在整个世界里一直是潜伏的。
+  //
+  // 落在叠浪楼上而不是灯街：镇心 (32,29) 与两位居民的出生点都在灯街里，
+  // 灯街要灯就把世界的中心锚点和没带灯的人一起关在门后。叠浪楼不要灯，
+  // 而汐的第一个作息点「点亮楼前的长灯」正在它里面，迷路人那个
+  // 「在叠浪楼外等潮水退去」说的本来就是外头。
+  const grid = buildSettingWorld(pack).grid;
+  assert.equal(grid.requirementAt({ x: 32, y: 27 }), 'lamp', '叠浪楼里头要灯');
+  assert.equal(grid.requirementAt({ x: 31, y: 26 }), 'lamp', '叠浪楼的门口也在门后');
+  assert.equal(grid.requirementAt({ x: 32, y: 29 }), null, '楼外不要——镇心就在楼下两步');
+  assert.equal(grid.requirementAt({ x: 36, y: 29 }), null, '汐的出生点不在门后');
+  assert.equal(grid.requirementAt({ x: 23, y: 29 }), null, '迷路人的出生点不在门后');
+  assert.equal(grid.requirementAt({ x: 50, y: 42 }), null, '积尘滩不要灯');
 });
 
 test('灯潮界：六栋建筑显式落位，五个语义区域不改建造分区', () => {
@@ -77,8 +118,77 @@ test('设定集拒绝越界作息与未知蓝图，不带着半个世界开工',
   assert.throws(() => loadSettingPack({ ...DENGCHAO_RAW, palette: { ...DENGCHAO_RAW.palette, amber: 'orange' } }), SettingPackError);
 });
 
-test('两位居民有独立出生点，潮位让作息选择真实变化', () => {
+test('开局带什么凭证从设定集来：汐带着灯，迷路人两手空空', () => {  // `SettingVillagerStyle` 从前在整个代码库里没有被任何人读过——`style.lamp: true`
+  // 是死数据。设定集里汐明明提着一盏灯，世界里她开局两手空空，于是叠浪楼
+  // 那道门她一辈子也进不去，而她的第一个作息点就在楼里。
+  //
+  // 从 style 派生 carries，不在包里再开一个 carries 字段：两个字段就得永远
+  // 对齐，而对不上的表现正是「她明明提着灯，那道门就是不认」。
   const world = buildSettingWorld(pack);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: world.altar,
+    villagerName: '迷路人',
+    villagerNames: pack.villagers.map((v) => v.name),
+    villagerProfiles: routineProfiles(pack),
+    blueprints: pack.blueprints,
+  });
+  const carriesOf = (name: string): readonly string[] | undefined =>
+    sim.snapshot().villagers.find((v) => v.name === name)?.carries;
+
+  assert.deepEqual(carriesOf('汐'), ['lamp'], '设定集说她带着灯，开局她就带着');
+  assert.deepEqual(carriesOf('迷路人'), [], '没说带就是两手空空');
+});
+
+test('生在一道进不去的门里：当场拒，不让她静静生下来然后一步也动不了', () => {
+  // 她兜里那几件过不了脚下这道门，于是世界里会有一个人永远站着不动，
+  // 而没有任何东西会报错。装载期认得出这件事（style.lamp 已经算成 carries），
+  // 所以在这儿拒——这正是上面那段「可达性故意不过门」的例外：门后的作息点
+  // 可以合法，出生点不行，她 t=0 就在那儿。
+  const trapped = loadSettingPack({
+    ...DENGCHAO_RAW,
+    villagers: [
+      {
+        name: '守夜人',
+        at: { x: 32, y: 27 },
+        routine: [{ x: 32, y: 29, label: '下楼去', dwellMs: 5000 }],
+      },
+    ],
+  });
+  assert.throws(() => buildSettingWorld(trapped), /守夜人 出生在要 lamp 的叠浪楼里/);
+});
+
+test('门落下之后两个人的路真的不一样：汐进得去叠浪楼，迷路人进不去', () => {
+  // 这是整条链唯一看得见的后果。判定、命令、提示词、开局凭证四处都接上了，
+  // 若这里还是两个人走得一样，那道门就只是数据里的一行字。
+  const world = buildSettingWorld(pack);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: world.altar,
+    villagerName: '迷路人',
+    villagerNames: pack.villagers.map((v) => v.name),
+    villagerProfiles: routineProfiles(pack),
+    blueprints: pack.blueprints,
+  });
+  // 叠浪楼的声明矩形。汐的第一个作息点「点亮楼前的长灯」就在它里面，
+  // 迷路人四个作息点一个都不在。
+  const inBathhouse = (p: { x: number; y: number }): boolean =>
+    p.x >= 27 && p.x <= 38 && p.y >= 17 && p.y <= 27;
+  const entered = new Set<string>();
+  for (let i = 0; i < 900; i += 1) {
+    sim.update(100);
+    for (const villager of sim.snapshot().villagers) {
+      if (inBathhouse(villager.pos)) entered.add(villager.name);
+    }
+  }
+
+  assert.ok(entered.has('汐'), '汐兜里有灯，她该进得去叠浪楼');
+  assert.equal(entered.has('迷路人'), false, '迷路人两手空空，她一步也不该进去');
+});
+
+test('两位居民有独立出生点，潮位让作息选择真实变化', () => {  const world = buildSettingWorld(pack);
   const sim = new Simulation({ grid: world.grid, buildings: world.buildings, altar: world.altar, villagerName: '迷路人', villagerNames: pack.villagers.map(v => v.name), villagerProfiles: routineProfiles(pack), blueprints: pack.blueprints });
   assert.notDeepEqual(sim.snapshot().villagers[0]?.pos, sim.snapshot().villagers[1]?.pos);
   assert.equal(sim.snapshot().villagers[1]?.lampOil, 1);

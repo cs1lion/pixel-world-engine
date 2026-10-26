@@ -22,6 +22,22 @@ export interface SettingVillager {
   readonly style?: SettingVillagerStyle;
 }
 
+/**
+ * 编译后的居民：开局带什么凭证已经算好，下游不用再问 `style`。
+ *
+ * 为什么不直接给 `SettingVillager` 加一个 `carries`：那是两个字段说同一件事，
+ * 就得永远对齐，而对不上的表现是「她明明提着灯，那道门就是不认」。
+ * 装着灯的是 `style.lamp`（设定集写定的那一句），`carries` 是世界的机制——
+ * 由装载器从前者派生一次，往后只有这一个事实。
+ */
+export interface CompiledVillager {
+  readonly name: string;
+  readonly at: GridPoint;
+  readonly routine: readonly SettingRoutineStop[];
+  readonly style?: SettingVillagerStyle;
+  readonly carries: readonly CarryItem[];
+}
+
 export interface SettingScenery {
   readonly kind:
     | 'lantern'
@@ -73,7 +89,7 @@ export interface SettingPack {
   readonly blueprints: ReadonlyMap<string, PrefabBlueprint>;
   readonly placements: readonly SettingPlacement[];
   readonly hub: GridPoint;
-  readonly villagers: readonly SettingVillager[];
+  readonly villagers: readonly CompiledVillager[];
   readonly scenery: readonly SettingScenery[];
   readonly authored: boolean;
 }

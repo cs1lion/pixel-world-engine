@@ -7,7 +7,7 @@ import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import type { PlacedBuilding, TerrainId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
-import type { RawSettingPack, SettingPack } from './types.ts';
+import type { CompiledVillager, RawSettingPack, SettingPack } from './types.ts';
 
 export class SettingPackError extends Error {}
 
@@ -111,12 +111,23 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     }
   }
   if (raw.villagers.length === 0 || new Set(raw.villagers.map((v) => v.name)).size !== raw.villagers.length) throw new SettingPackError('居民必须至少一位且不重名');
-  for (const villager of raw.villagers) {
+  const villagers: CompiledVillager[] = raw.villagers.map((villager) => ({
+    ...villager,
+    // 开局带着什么，从设定集写定的那一句派生：`style.lamp` 是「她提着一盏灯」，
+    // `carries` 是世界认的凭证。一处派生，往后只有一个事实。
+    carries: villager.style?.lamp === true ? (['lamp'] as const) : [],
+  }));
+  for (const villager of villagers) {
     inBounds(villager.at, villager.name);
     if (villager.routine.length === 0) throw new SettingPackError(`${villager.name} 没有作息`);
     for (const stop of villager.routine) inBounds(stop, `${villager.name} 的作息`);
   }
-  return { ...raw, palette, terrainColors, blueprints, authored: true };
+  return { ...raw, palette, terrainColors, blueprints, villagers, authored: true };
+}
+
+/** 从设定集落成的格子上，反过来问一道地域的显示名。装载与报错共用。 */
+function regionNamesOf(pack: SettingPack): Map<string, string> {
+  return new Map(pack.regions.map((region) => [region.id, region.name]));
 }
 
 function parseColor(value: string, name: string): number {
@@ -157,8 +168,24 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
       throw new SettingPackError(`${building.displayName} 的门口到不了镇心`);
     }
   }
+  const names = regionNamesOf(pack);
+  const regionNameAt = (p: { x: number; y: number }): string => {
+    const id = grid.at(p)?.region;
+    return id === undefined ? '这片区域' : (names.get(id) ?? id);
+  };
   for (const villager of pack.villagers) {
     if (!grid.isWalkable(villager.at)) throw new SettingPackError(`${villager.name} 出生点不可走`);
+    // 生在一道她进不去的门里：她兜里那几件过不了脚下这道门，于是**一步也动不了**
+    // ——而世界不会报错，只会有一个站着不动的人。所以在这里拒，不让她静静出生。
+    //
+    // 只查出生点，不查作息点：门后的作息点完全可以是合法的（等她有了灯就走得到），
+    // 上面那段可达性注释说的就是这件事。出生点是另一回事——她 t=0 就在那儿。
+    const need = grid.requirementAt(villager.at);
+    if (need !== null && !villager.carries.includes(need)) {
+      throw new SettingPackError(
+        `${villager.name} 出生在要 ${need} 的${regionNameAt(villager.at)}里，而她开局没有——她会一步也动不了`,
+      );
+    }
     for (const stop of villager.routine) {
       if (!grid.isWalkable(stop)) throw new SettingPackError(`${villager.name} 的作息点不可走：${stop.label}`);
       // 这里的可达性**故意不过渡有仪式的门**：装载时还没有人知道她以后会带上什么，

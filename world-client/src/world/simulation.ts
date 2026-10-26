@@ -214,10 +214,12 @@ export interface SimulationDeps {
    * 传 3 个名字即可扩到 3 人，逻辑不需要再改。
    */
   readonly villagerNames?: readonly string[];
-  /** 设定集提供的出生点与作息；每项与 villagerNames 对齐。 */
+  /** 设定集提供的出生点、作息与开局带的凭证；每项与 villagerNames 对齐。 */
   readonly villagerProfiles?: readonly {
     readonly at: GridPoint;
     readonly routine: readonly RoutineBeat[];
+    /** 开局随身凭证（渡有仪式）。省略就是两手空空。 */
+    readonly carries?: readonly CarryItem[];
   }[];
   /**
    * 蓝图注册表。造物神谕（「建一间书阁」）要用它把词换成模板。
@@ -458,8 +460,9 @@ export class Simulation {
       lampOil: 1,
       // 开局名牌都在自己身上。谁把它抵押出去不在这一版里（#15）。
       nameState: 'held',
-      // 开局两手空空。谁给她灯与鞋不在这一版里（#15）。
-      carries: [],
+      // 开局两手空空，除非设定集说她带着什么（`load.ts` 从 style.lamp 算好）。
+      // 谁给她灯与鞋是日后的票——`villager.carry` 那条命令。
+      carries: [...(deps.villagerProfiles?.[index]?.carries ?? [])],
     }));
     for (const villager of this.villagers) this.pending.set(villager.id, []);
     for (const villager of this.villagers) {

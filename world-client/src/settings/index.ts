@@ -28,6 +28,9 @@ export function worldForSetting(pack: SettingPack, buildings?: Parameters<typeof
 export function routineProfiles(pack: SettingPack) {
   return pack.villagers.map((villager) => ({
     at: villager.at,
+    // 开局带什么凭证，装载时已经从 style.lamp 算好（`load.ts`）。
+    // 这里原样递下去，不再问一遍 style——那会变成第二个事实。
+    carries: villager.carries,
     routine: villager.routine.map((stop, index) => ({
       id: index === 0 ? 'altar' as const : 'promenade' as const,
       label: stop.label, target: { x: stop.x, y: stop.y },
