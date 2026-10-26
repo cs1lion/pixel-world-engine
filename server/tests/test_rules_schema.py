@@ -194,7 +194,11 @@ def test_拆楼只要实例_id() -> None:
 
 
 def test_没有建筑记录时不判存在性() -> None:
-    """证不明就不判。日志里没有建筑记录时，服务端无从判断，交给世界自己说。"""
+    """证不明就不判。日志里没有建筑记录时，服务端无从判断，交给世界自己说。
+
+    这一半是「不拦」；另一半在 `test_拆一栋不在世界里的楼被拒_并列出现有什么`：
+    现状里有记录时就得拦。两条合起来才钉得住「只在知道的时候判」。
+    """
     command = validate_command(
         {"command": "building.remove", "args": {"instanceId": "bookshop#1"}},
         {"width": 96, "height": 72},
@@ -217,11 +221,20 @@ def test_拆一栋不在世界里的楼被拒_并列出现有什么() -> None:
 
 
 def test_照现状抄的实例_id_拆得过() -> None:
+    """现状里有的放过去、没有的拦下来——两个方向都得在。
+
+    只写前一半的话，把存在性检查整个删掉这条也照过。
+    """
     world = {"buildingIds": ["code_forge#1"], "buildingCount": 1}
     command = validate_command(
         {"command": "building.remove", "args": {"instanceId": "code_forge#1"}}, world
     )
     assert command.args == {"instanceId": "code_forge#1"}
+    reject(
+        {"command": "building.remove", "args": {"instanceId": "observatory#999"}},
+        "unknown-instance",
+        world,
+    )
 
 
 def test_楼很多时错误消息不全列() -> None:

@@ -206,6 +206,11 @@ def test_日志里有建筑记录时_拆一栋不存在的楼落_unknown() -> No
 
 
 def test_日志里有的楼_拆得过() -> None:
+    """两个方向都要在：日志里有的放过去，日志里没有的拦下来。
+
+    只写前一半的话，把整个存在性检查删掉这条也照过——那正是这个 chunk
+    要修的那个 bug（白名单只查「是不是非空字符串」就放行）。
+    """
     client = client_with_log("code_forge#1", "bookshop#1")
     app = client.app
 
@@ -214,6 +219,12 @@ def test_日志里有的楼_拆得过() -> None:
 
     app.state.model_caller = caller
     assert post(client).json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#1"}
+
+    def liar(_messages):
+        return commands({"command": "building.remove", "args": {"instanceId": "observatory#999"}})
+
+    app.state.model_caller = liar
+    assert post(client).json()["intent"]["kind"] == "unknown", "日志里没有的那栋必须拦下"
 
 
 def test_建了又拆掉的那栋_再拆就被拒() -> None:
@@ -301,6 +312,41 @@ def test_日志读不动时不拿存在性拦人_也不回_500() -> None:
     response = post(TestClient(app))
     assert response.status_code == 200
     assert response.json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#2"}
+
+
+def test_日志读不动时尺寸不跟着一起丢_坐标越界照旧拦() -> None:
+    """建筑那一半不知道，尺寸那一半必须还知道。
+
+    这是上一版真踩过的坑：`_world_summary` 用一个 `try` 包住整件事，日志一坏
+    就回一个光秃秃的 `{}`，客户端报的 `worldSize` 跟着一起丢了。而坐标越界
+    检查靠的只有它——于是「在 5000,5000 建个工坊」堂而皇之地过了白名单，
+    200，`kind: "build"`。一次基础设施故障就这么变成了一个越界坐标。
+
+    `worldSize` 是客户端直接发来的，跟日志好不好**没有关系**。把它跟日志
+    放在同一个 `try` 里，等于让一件无关的事替另一件事买单。
+    """
+    app = create_app(EventLog(":memory:"))
+    app.state.event_log = _BrokenLog()
+    app.state.model_caller = lambda _m: commands(
+        {"command": "building.add", "args": {"prefabId": "code_forge", "at": {"x": 5000, "y": 5000}}}
+    )
+    app.state.model_name = "fake-model"
+    response = post(TestClient(app), worldSize={"width": 96, "height": 72})
+    assert response.status_code == 200
+    assert response.json()["intent"]["kind"] == "unknown", "5000,5000 在 96×72 之外，必须被拒"
+
+
+def test_日志读得动时尺寸也照旧用() -> None:
+    """反方向也钉一条：没坏的那半边不能因为加了兜底而失效。"""
+    response = post(
+        client_with(
+            commands(
+                {"command": "building.add", "args": {"prefabId": "code_forge", "at": {"x": 5000, "y": 5000}}}
+            )
+        ),
+        worldSize={"width": 96, "height": 72},
+    )
+    assert response.json()["intent"]["kind"] == "unknown"
 
 
 def test_神迹回到_miracle_形状() -> None:

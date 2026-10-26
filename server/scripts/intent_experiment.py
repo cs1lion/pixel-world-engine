@@ -213,22 +213,63 @@ _RETRYABLE_STATUS = frozenset({408, 409, 425, 429})
 #: 没有状态码的那几种故障。它们是消息**开头**的固定字样，不会与模型的数字撞上。
 _INFRA_MARKERS = ("模型超时", "模型不可达", "模型返回的形状不认识", "模型调用失败")
 
+#: 其中「等一等会有不同结果」的那几种。超时与不可达都是网络上的事，
+#: 而「形状不认识」与「模型调用失败」是**代码里的事**——重试六次得到的
+#: 还是同一个 bug，只是多烧一分半。后者仍然算「没问成」（见 `is_infra_error`），
+#: 只是不配得到重试。
+_RETRYABLE_MARKERS = ("模型超时", "模型不可达")
+
+
+def _status_of(error: str) -> int | None:
+    """从故障消息里取状态码。取不到就 `None`。
+
+    只认 `模型返回 <状态码>：<响应体>` 这个固定位置。别全文找数字——
+    模型自己报的一个数（「潮位必须在 0..1，收到 429.0」）不该被当成状态码。
+    """
+    match = _STATUS.search(error)
+    return None if match is None else int(match.group(1))
+
 
 def is_infra_error(error: str | None) -> bool:
     """这条是**没问成**，不是模型的回答。
 
-    它同时是两件事的判据：要不要退避重试，以及这一行算不算实验数据。
-    合起来用是因为分开没有意义——重试都不有用的故障，等来的还是同一个结果；
-    而一次真的限流，等一等就又是模型的一句话了。
+    判据只有一个问题：**模型开口了吗？** `模型返回 <状态码>` 意味着 HTTP 那一层
+    就没成功，模型一个字也没说。这种行记成实验数据就是造假——一份「越界被拒
+    0%」的报告可能只是一个过期的 Key，而读的人只会去改提示词。
+
+    **任何 4xx/5xx 都算，包括 400 和 401。** 它们当然多半是我们的问题
+    （请求形状不对、Key 轮换了），可「是我们的问题」不等于「是模型对世界的判断」。
+    一次 401 让 55 条全部落成 unknown，交出一份「合法命令接受率 0%」的报告，
+    比一份「没能问成」的空表坏得多：后者有人会去修，前者有人会去改提示词。
+
+    要不要**重试**是另一个问题，由 `is_retryable` 回答。这两个问题早先共用
+    一个判据，于是「不该重试的故障」被重试了六次，而「不该算数据的 401」
+    被当成了数据。
     """
     if not error:
         return False
     if any(marker in error for marker in _INFRA_MARKERS):
         return True
-    match = _STATUS.search(error)
-    if match is None:
+    status = _status_of(error)
+    return status is not None and status >= 400
+
+
+def is_retryable(error: str | None) -> bool:
+    """这条**等一等再问**会有不同结果吗？
+
+    与 `is_infra_error` 分开：那个管「算不算数据」，这个管「要不要退避」。
+    429 是并发上限，5xx 是服务端自己的事，超时与不可达是网络上的事——
+    这几种等一会儿就过去了。别的 4xx（400 请求形状不对、401 Key 错了）
+    是**我们**的问题，等一分钟再问还是同样一句拒绝；重试它们只是把一场
+    实验拖长一分半，再交同一份白卷。
+    """
+    if not error:
         return False
-    status = int(match.group(1))
+    if any(marker in error for marker in _RETRYABLE_MARKERS):
+        return True
+    status = _status_of(error)
+    if status is None:
+        return False
     return status in _RETRYABLE_STATUS or 500 <= status < 600
 
 
@@ -280,8 +321,8 @@ def retrying(caller, attempts: int | None = None, backoff_ms: int | None = None)
         for attempt in range(1, attempts + 1):
             try:
                 return caller(messages)
-            except Exception as exc:  # noqa: BLE001 - 只挑限流/5xx 重试，别的照抛
-                if attempt == attempts or not is_infra_error(str(exc)):
+            except Exception as exc:  # noqa: BLE001 - 只挑等一等有用的重试，别的照抛
+                if attempt == attempts or not is_retryable(str(exc)):
                     raise
                 print(f"    ……{exc}，{delay:.0f}s 后重试（{attempt}/{attempts - 1}）")
                 time.sleep(delay)
@@ -313,6 +354,19 @@ def _caller_factory():
         return None, str(exc)
 
 
+def _one_line(text: str) -> str:
+    """折行折掉的说明在 Markdown 里会把列表与引用撑破，所以结构里只放单行版。
+
+    `note` 同时被放进三处：`- 备注：{note}`（列表项）、`> {note}`（引用）、
+    以及 `unknown_intent(note)`（一个普通字符串字段）。第三处不怕换行，前两处怕：
+    一个 `\\n\\n` 会让列表在中间断掉、引用塌成普通段落，而「没能问成的有哪些」
+    那一串就夹在两段引用之间，读起来像正文。
+
+    信息一点没丢——折行只是排版，用空格接回去是同一句话。
+    """
+    return " ".join(part.strip() for part in text.splitlines() if part.strip())
+
+
 def render(outcomes: list[Outcome], model: str, note: str, *, ran: bool = True) -> str:
     by_category: dict[str, list[Outcome]] = {}
     for outcome in outcomes:
@@ -328,7 +382,7 @@ def render(outcomes: list[Outcome], model: str, note: str, *, ran: bool = True) 
         f"- 模型：`{model}`",
         f"- 用例：{len(outcomes)} 条（合法 {len(LEGAL)} / 越界 {len(OUT_OF_BOUNDS)} / "
         f"闲聊 {len(CHITCHAT)} / 歧义 {len(AMBIGUOUS)}）",
-        f"- 备注：{note}",
+        f"- 备注：{_one_line(note)}",
         "",
         "## 四个指标",
         "",
@@ -361,7 +415,7 @@ def render(outcomes: list[Outcome], model: str, note: str, *, ran: bool = True) 
         lines += [
             "",
             "> **这不是一次实验。** 上面没有任何一行是模型的真实表现。",
-            f"> {note}",
+            f"> {_one_line(note)}",
             "> 按上面的原因处理完，重跑本脚本，这份表才会被真实数据覆盖。",
         ]
         return "\n".join(lines)

@@ -151,6 +151,51 @@ def test_客户端形状写错时不凭一个空数组宣布世界是空的() ->
     assert world_summary(log, None, {"built": {"town": None, "wild": None}})["buildingIds"] == ["a#1"]
 
 
+def test_只报了一组建筑也算没给_不然野外的楼会凭空消失() -> None:
+    """少一组 = 没报完，不是「那一组一栋也没有」。
+
+    真实踩法：一个还没实现野外那一半的客户端发 `{"built": {"town": []}}`。
+    把它读成「世界是空的」，所有野外的楼就凭空消失了——于是每一句
+    「拆掉那栋渡口」都被拒，而日志里明明记着它建成过。
+
+    修法是**两组都必须是数组**：少一组就整体退回日志。日志不全，但不会凭空归零。
+    """
+    log = log_with(built("ferry#1"))
+    for partial in ({"town": []}, {"wild": []}, {"town": [{"instanceId": "a#1"}]}):
+        summary = world_summary(log, None, {"built": partial})
+        assert summary["buildingIds"] == ["ferry#1"], (
+            f"{partial} 被当成了完整的现状，野外的楼丢了：{summary}"
+        )
+
+
+def test_两组都报了才以它为准_包括都报空() -> None:
+    """反方向：报全了就必须听它的，哪怕两组都是空的。
+
+    听不回客户端会让「世界里已经没有楼了」这件事说不出口——日志里还留着
+    拆掉之前那条 `building.built`，翻日志永远翻出一个不存在的世界。
+    """
+    log = log_with(built("ferry#1"))
+    assert world_summary(log, None, {"built": {"town": [], "wild": []}})["buildingIds"] == []
+
+
+def test_尺寸与建筑分开失败_日志读不动只让建筑那一半不知道() -> None:
+    """这是真踩过的坑，值得单独钉一条。
+
+    早先 `world_summary` 把读日志与并尺寸放在同一段代码里，而调用方用一个
+    `try` 包住整件事：日志一坏就回 `{}`，客户端报的 `width`/`height` 跟着
+    一起丢。坐标越界检查靠的只有它们——「在 5000,5000 建个工坊」于是过了白名单。
+
+    两半必须分开失败：建筑可以变成「不知道」，尺寸不行。
+    """
+    class _BrokenLog:
+        def read(self, **_kwargs):
+            raise RuntimeError("数据库锁着")
+
+    summary = world_summary(_BrokenLog(), {"width": 96, "height": 72}, None)
+    assert "buildingIds" not in summary, "日志读不动时不拿存在性拦人"
+    assert summary["width"] == 96 and summary["height"] == 72, "尺寸不该跟着日志一起丢"
+
+
 def test_野外的楼也照算_两组一起去重() -> None:
     context = {
         "built": {

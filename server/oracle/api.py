@@ -28,7 +28,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
-from events.projection import world_summary
+from events.projection import merge_world_size, world_summary
 from oracle import orchestrator, wire
 from oracle.orchestrator import Interpretation, ModelCaller, ModelUnavailable
 
@@ -90,6 +90,9 @@ def _world_summary(request: Request, body: dict[str, Any]) -> dict[str, Any]:
     不是「这句话翻不翻得出来」的前提：日志坏着的当口，仍然该把「下雨吧」
     翻成天气命令，只是这一句不再查建筑存在性。多一个 500 就是多一种
     客户端没准备过的失败，少的却是白名单里本来照常生效的那几项检查。
+
+    **「不知道」只覆盖建筑那一半。** 尺寸是客户端直接发来的，与日志好不好
+    没有关系，所以它必须活着出去——坐标越界检查靠的只有它。
     """
     world_size = body.get("worldSize")
     context = body.get("context")
@@ -102,7 +105,10 @@ def _world_summary(request: Request, body: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         # 读不到日志 = 服务端无从判断世界上有哪些楼。这与「日志里一条建筑记录
         # 也没有」是同一种处境，按同一条纪律处理：证不明就不判，让世界自己去说。
-        return {}
+        # **尺寸必须原样带出去。** 早先这里回一个光秃秃的 `{}`，于是日志一坏，
+        # 客户端报的 width/height 跟着一起丢，坐标越界检查整个失效——
+        # 「在 5000,5000 建个工坊」就这么过了白名单。尺寸与建筑是两件事。
+        return merge_world_size({}, world_size)
 
 
 def _log_of(request: Request):

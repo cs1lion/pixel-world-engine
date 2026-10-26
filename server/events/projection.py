@@ -101,9 +101,9 @@ def building_ids_from_context(context: dict[str, Any] | None) -> list[str] | Non
     返回 `None` 表示**客户端没给出能用的建筑清单**，与「给了，但是现在一栋也没有」
     是两件事。前者才该退回日志投影；后者是世界此刻的事实，比日志新。
 
-    两组里一组都不是数组时算「没给」而不是「一栋也没有」：客户端形状写错时
-    宁可回去翻日志，也不要凭一个空数组宣布世界是空的——那会把每一句
-    「拆掉它」都拒掉，正是这个函数要避免的那种错。
+    **两组必须都是数组，少一组就算没给。** 只报 `town` 的客户端（还没实现野外
+    那一半的）会让所有野外的楼凭空消失，于是每一句「拆掉那栋渡口」都被拒，
+    而日志里明明记着它建成过。宁可回去翻日志——日志不全，但不会**凭空归零**。
     """
     if not isinstance(context, dict):
         return None
@@ -111,17 +111,30 @@ def building_ids_from_context(context: dict[str, Any] | None) -> list[str] | Non
     if not isinstance(built, dict):
         return None
     ids: list[str] = []
-    reported = False
     for group in ("town", "wild"):
         entries = built.get(group)
         if not isinstance(entries, list):
-            continue
-        reported = True
+            return None
         for entry in entries:
             if isinstance(entry, dict) and isinstance(entry.get("instanceId"), str):
                 if entry["instanceId"] not in ids:
                     ids.append(entry["instanceId"])
-    return ids if reported else None
+    return ids
+
+
+def merge_world_size(summary: dict[str, Any], world_size: Any) -> dict[str, Any]:
+    """把客户端报的地图尺寸并进摘要。
+
+    **尺寸与建筑是两件事，必须分开失败。** 日志读不动只该让「世界上有哪些楼」
+    变成不知道，不该顺手把坐标越界检查也关掉——而越界检查靠的只有 `width` /
+    `height`。合在一个 `try` 里正是那个结果：日志一坏，尺寸跟着一起丢，
+    一句「在 5000,5000 建个工坊」就堂而皇之地过了白名单。
+    """
+    if isinstance(world_size, dict):
+        for key in ("width", "height"):
+            if key in world_size:
+                summary[key] = world_size[key]
+    return summary
 
 
 def world_summary(
@@ -147,9 +160,20 @@ def world_summary(
     其实第 1001 条之前建的那栋楼会从投影里消失，于是「拆掉它」被误判成不存在。
     读全量的代价是每次意图请求重放一遍日志；世界的事件量到几千条之前不算什么，
     真到了那一天该加的是缓存，不是把上限当默认值。
+
+    **日志读不动只让建筑那一半变成「不知道」，尺寸照旧。** 见 `merge_world_size`。
     """
     from_context = building_ids_from_context(context)
     if from_context is None:
+        summary = _buildings_from_log(log)
+    else:
+        summary = {"buildingIds": from_context, "buildingCount": len(from_context)}
+    return merge_world_size(summary, world_size)
+
+
+def _buildings_from_log(log: Any) -> dict[str, Any]:
+    """读日志、投影建筑。读不动就还一个「不知道」，不往外抛。"""
+    try:
         events: list[WorldEvent] = []
         since = 0
         while True:
@@ -158,11 +182,9 @@ def world_summary(
             if len(page) < MAX_LIMIT:
                 break
             since = page[-1].id
-        summary = project_buildings(events).to_world()
-    else:
-        summary = {"buildingIds": from_context, "buildingCount": len(from_context)}
-    if isinstance(world_size, dict):
-        for key in ("width", "height"):
-            if key in world_size:
-                summary[key] = world_size[key]
-    return summary
+        return project_buildings(events).to_world()
+    except Exception:
+        # 读不到日志 = 服务端无从判断世界上有哪些楼。这与「日志里一条建筑记录
+        # 也没有」是同一种处境，按同一条纪律处理：证不明就不判，让世界自己去说。
+        # **只让建筑那一半不知道**：尺寸、以及靠尺寸的坐标越界检查不在这里面。
+        return {}

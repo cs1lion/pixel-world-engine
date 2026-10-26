@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -134,10 +135,45 @@ def test_用假模型能跑完整场_管线没有断() -> None:
     assert experiment.run_one("今天好累", fake)[0]["kind"] == "unknown"
 
 
-@pytest.mark.parametrize("category", ["legal", "out-of-bounds", "chitchat", "ambiguous"])
+def _outcome(category: str, *, understood: bool, infra: bool = False):
+    intent = wire.unknown_intent("没听懂") if not understood else {"kind": "setWeather", "weather": "rain"}
+    return experiment.Outcome("x", category, "y", True, intent, "", "模型返回 429" if infra else None, infra)
+
+
+@pytest.mark.parametrize("category", ["legal", "out-of-bounds", "chitchat"])
 def test_每一类都有判定标准_不会漏判(category: str) -> None:
-    outcome = experiment.Outcome("x", category, "y", True, wire.unknown_intent("z"), "", None)
-    assert isinstance(experiment.classify(outcome), bool)
+    """判定标准按类别不同，写在一处。
+
+    早先这条只断言 `isinstance(classify(...), bool)`——那把 `classify` 换成
+    `lambda o: True` 也照过，等于什么都没测。现在每一类都拿**听得懂**与
+    **没听懂**两种结果各问一遍，这两个方向必须给出不同的答案。
+
+    `ambiguous` 不在其中：那一类两种结果都算过（见下面单独那条），
+    它对「听没听懂」本来就没有区分。
+    """
+    assert experiment.classify(_outcome(category, understood=True)) != experiment.classify(
+        _outcome(category, understood=False)
+    ), f"{category} 这一类对「听没听懂」没有区分，等于没有判定标准"
+
+
+def test_合法命令认得出来就算过() -> None:
+    """认出来就算过。具体落成哪条命令由模型判断，这里只要求不是 unknown。"""
+    assert experiment.classify(_outcome("legal", understood=True))
+    assert not experiment.classify(_outcome("legal", understood=False))
+
+
+def test_越界请求必须被拒_闲聊不许当命令() -> None:
+    """这两类是「不动手」才算过：落成任何合法形状都是漏判。"""
+    assert experiment.classify(_outcome("out-of-bounds", understood=False))
+    assert not experiment.classify(_outcome("out-of-bounds", understood=True))
+    assert experiment.classify(_outcome("chitchat", understood=False))
+    assert not experiment.classify(_outcome("chitchat", understood=True))
+
+
+def test_歧义句不越界就行_硬做与装傻都算过() -> None:
+    """含糊的时候「不动手」与「不动手地装傻」都算过——现在只可能落成这两种。"""
+    assert experiment.classify(_outcome("ambiguous", understood=False))
+    assert experiment.classify(_outcome("ambiguous", understood=True))
 
 
 # ---------------------------------------------------------------- 没问成 ≠ 答了
@@ -173,20 +209,93 @@ def test_模型报的数字不算限流() -> None:
 
 
 def test_只有真的状态码才算_我们自己的错不算() -> None:
-    """429 是并发上限，5xx 是服务端自己的事，等一分钟再问又是一句话。
-    400 形状不对、401 Key 错了是**我们**的问题——重试一百次也是同样一句拒绝，
-    而把它记成「没问成」会把一次真实验藏成一张空表。"""
+    """这条判据问的是「**模型开口了吗**」，不是「这是谁的锅」。
+
+    `模型返回 <状态码>` 意味着 HTTP 那一层就没成功，模型一个字也没说。
+    这种行记成实验数据就是造假。
+
+    400 和 401 当然多半是我们的问题（请求形状不对、Key 轮换了）。可「是我们的
+    问题」不等于「是模型对世界的判断」：一次 401 让 55 条全部落成 unknown，
+    交出一份「合法命令接受率 0%」的报告——比一份「没能问成」的空表坏得多，
+    因为前者有人会去改提示词，后者有人会去换 Key。
+
+    早先这里断言 `401 不算没问成`，理由写的是「会把一次真实验藏成一张空表」。
+    那句话是反的：Key 死了的时候根本没有实验，藏起来的也不是实验。
+    """
     assert experiment.is_infra_error('模型返回 429：{"error":{"message":"concurrency reached"}}')
     assert experiment.is_infra_error("模型返回 503：bad gateway")
     assert experiment.is_infra_error("模型返回 500：internal")
-    assert not experiment.is_infra_error("模型返回 400：bad request")
-    assert not experiment.is_infra_error("模型返回 401：invalid api key")
+    assert experiment.is_infra_error("模型返回 400：bad request")
+    assert experiment.is_infra_error("模型返回 401：invalid api key")
 
 
-def test_兜底那句异常也算没问成() -> None:
+def test_Key_死了会交出一张空表_而不是一份0接受的报告() -> None:
+    """端到端钉住上一条的后果。
+
+    复现过的真事：caller 每条都抛 `模型返回 401`，`main()` 回 0，
+    文档写「一次完整跑完」，表上「合法命令接受率 0/26（0%）」。
+    读那份文档的人会去改提示词——而提示词一个字都不用改。
+    """
+    cases = experiment.ALL_CASES[:6]
+
+    def always_401(_messages):
+        raise RuntimeError("模型返回 401：invalid api key")
+
+    outcomes = [experiment.run_one(text, always_401) for text, _expected, _category in cases]
+    assert all(infra for _i, _r, _e, infra in outcomes), "401 必须条条算没问成"
+
+    rows = [
+        experiment.Outcome(text, category, expected, False,
+                           wire.unknown_intent("模型返回 401：invalid api key"), "", "模型返回 401", True)
+        for (text, expected, category), (_i, _r, _e, infra) in zip(cases, outcomes)
+    ]
+    note = f"**没有跑成**：{sum(1 for row in rows if row.infra)} 条没能问成模型。"
+    doc = experiment.render(rows, "not-run", note, ran=False)
+    assert "未运行" in doc, "没能问成时不许出现百分比"
+    # 「必须 100%」是表头里的**要求**，不是结论；查的是结论那一格。
+    assert not re.search(r"\d+/\d+（\d+%）", doc), f"没能问成却交出了比率：\n{doc}"
+
+
+def test_兜底那句异常算没问成_但不配得到重试() -> None:
     """`interpret` 最后那个 `except Exception` 捕到的是我们自己的 bug。
-    它不是模型的回答，所以不能进表——但它也不是限流，重试没有意义。"""
+
+    它不是模型的回答，所以不能进表；它也不是限流，重试六次得到的还是同一个
+    bug。这两个问题早先共用一个判据，于是它一边被算成数据、一边被重试一分半。
+    """
     assert experiment.is_infra_error("模型调用失败：KeyError('choices')")
+    assert not experiment.is_retryable("模型调用失败：KeyError('choices')")
+
+
+def test_模型答得离谱不重试_也照样进表() -> None:
+    """反方向：模型开口说了句胡话，那是**数据**，重试也没有第二句话。"""
+    assert not experiment.is_infra_error("这句话太长了（500 字），最多 200 字")
+    assert not experiment.is_retryable("这句话太长了（500 字），最多 200 字")
+
+
+def test_重试与算不算数据是两个问题() -> None:
+    """一张小表把两个判据的差别钉住，免得它们又合回去。
+
+    | 故障 | 算数据？ | 重试？ |
+    |---|---|---|
+    | 429 / 5xx | 否 | 是 |
+    | 400 / 401 | 否 | 否 |
+    | 超时 / 不可达 | 否 | 是 |
+    | 形状不认识 / 调用失败 | 否 | 否 |
+    """
+    table = [
+        ("模型返回 429：concurrency", False, True),
+        ("模型返回 503：bad gateway", False, True),
+        ("模型返回 400：bad request", False, False),
+        ("模型返回 401：invalid api key", False, False),
+        ("模型超时 8s", False, True),
+        ("模型不可达：connect error", False, True),
+        ("模型返回的形状不认识：没 JSON", False, False),
+        ("模型调用失败：KeyError", False, False),
+        ("白名单拒收：越界", True, False),
+    ]
+    for message, is_data, retry in table:
+        assert experiment.is_infra_error(message) is (not is_data), message
+        assert experiment.is_retryable(message) is retry, message
 
 
 def test_退避重试只重试基础设施故障() -> None:
@@ -202,6 +311,43 @@ def test_退避重试只重试基础设施故障() -> None:
     wrapped = experiment.retrying(flaky, attempts=4, backoff_ms=1)
     assert wrapped([]) == "第三次成了"
     assert len(calls) == 3
+
+
+def test_我们自己的bug不重试_哪怕它也算没问成() -> None:
+    """「算不算数据」与「要不要退避」是两个问题，这条钉住后者的那一半。
+
+    `模型调用失败：…` 是 `interpret` 最后那个 `except Exception` 捕到的——
+    我们自己的 bug。它确实不是模型的回答（所以不能进表），可重试六次得到的
+    还是同一个 bug，只是多烧一分半：55 条 × 1.5 分钟。
+
+    早先 `retrying` 用的是 `is_infra_error`，于是这条被重试了。两个判据
+    看起来一样，分开才有意义——而没有任何测试钉过重试那一半，所以它静悄悄地
+    错了很久。这条数的是**调用次数**，不是判据本身。
+    """
+    calls: list[int] = []
+
+    def our_bug(messages):
+        calls.append(1)
+        raise RuntimeError("模型调用失败：KeyError('choices')")
+
+    wrapped = experiment.retrying(our_bug, attempts=6, backoff_ms=1)
+    with pytest.raises(RuntimeError, match="choices"):
+        wrapped([])
+    assert len(calls) == 1, f"我们自己的 bug 被重试了 {len(calls)} 次"
+
+
+def test_401不重试_等一分钟还是同样一句拒绝() -> None:
+    """同上，另一种形状：Key 轮换了。请求一个字不改，再问六次还是 401。"""
+    calls: list[int] = []
+
+    def dead_key(messages):
+        calls.append(1)
+        raise RuntimeError("模型返回 401：invalid api key")
+
+    wrapped = experiment.retrying(dead_key, attempts=6, backoff_ms=1)
+    with pytest.raises(RuntimeError, match="401"):
+        wrapped([])
+    assert len(calls) == 1
 
 
 def test_重试次数用完就抛_不悄悄当成模型的回答() -> None:
@@ -300,6 +446,32 @@ def test_说明段里不出现百分号() -> None:
     long_lines = [line for line in prose if len(line) > 20]
     assert long_lines, "说明段被拆成一个字一行了，那条百分号检查会因此什么都查不到"
     assert any("首轮" in line for line in prose), "解释段整段不见了"
+
+
+def test_带换行的备注不会把文档结构撑破() -> None:
+    """`note` 会被塞进三处：`- 备注：`（列表项）、`> `（引用）、以及
+    `unknown_intent(note)`（普通字符串）。第三处不怕换行，前两处怕。
+
+    一个 `\\n\\n` 会让列表在中间断掉、引用塌成普通段落，「没能问成的有哪些」
+    那一串就夹在两段引用之间，读起来像正文。现在的代码路径都只产出单行
+    备注，所以这条钉的是**渲染器的 robustness**：备注的内容不该由 `render()`
+    的调用方保证，那正是它自己要处理的事。
+
+    信息一点没丢——折行只是排版，用空格接回去是同一句话。
+    """
+    note = "**没有跑成**：27 条没能问成模型。\n\n没问成的：下雨吧、放晴、来场暴雨"
+    outcomes = [
+        experiment.Outcome(text, category, expected, False, {"kind": "unknown"}, "", note, True)
+        for text, expected, category in experiment.ALL_CASES[:4]
+    ]
+    doc = experiment.render(outcomes, "not-run", note, ran=False)
+    bullet = [line for line in doc.splitlines() if line.startswith("- 备注：")]
+    quoted = [line for line in doc.splitlines() if line.startswith(">")]
+    assert len(bullet) == 1, f"备注把列表撑破了：{bullet}"
+    assert quoted and all(line.startswith(">") for line in quoted), f"备注把引用撑破了：{quoted}"
+    # 内容没丢：接回去还认得出原文。
+    joined = " ".join(part.strip() for part in note.splitlines() if part.strip())
+    assert joined in bullet[0]
 
 
 def test_重渲染不调模型_且说清数据是哪一次的(tmp_path) -> None:
