@@ -187,7 +187,10 @@ export function describeIntent(intent: ParsedIntent): string {
       return MIRACLE_LABEL[intent.miracle];
     case 'carry':
       // 收与给是两条路：收是世界从她现有的里减，给是整锅换上。
-      return 'remove' in intent || intent.carries.length === 0 ? '收缴凭证' : '交接凭证';
+      // 判别用 `!== undefined` 而不是 `'remove' in intent`：`ParsedIntent`
+      // 两个成员都带 `?: never`，`in` 判完 `remove` 仍可能是 undefined。
+      // 理由写在 `oracle-carry.ts` 的 `CarryIntent` 上。
+      return intent.remove !== undefined || intent.carries.length === 0 ? '收缴凭证' : '交接凭证';
     case 'unknown':
       return '没听懂';
   }

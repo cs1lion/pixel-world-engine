@@ -106,3 +106,28 @@ test('两份提示词在「不许替用户改主意」上说同一句话', () =>
     assert.ok(online.includes(needle), `线上提示词没有「${needle}」：${why}`);
   }
 });
+
+test('两份提示词都讲「收」那条路，都不许拿 carries 表达减法', () => {
+  // 加 `remove` 的那次只改了 schema、wire、rules 三处，两份提示词里那句仍是
+  // 「或收回（carries 给 [] 就是两手空空）」——正好在教模型用**整锅换上**
+  // 去表达收一件。用户说「收回她的鞋」，模型答 carries:["shoes"]，
+  // 她提着的灯跟着消失，而用户只要收鞋。
+  //
+  // 上面那条 `test_提示词列出每一种世界能执行的命令` 只数命令**名**，
+  // args 写成什么样它一声不响。所以形状在这里单独钉，而且两边一起钉——
+  // 漂任何一边，离线推演与线上模型就会对同一句话给出不同的世界。
+  const offline = readFileSync(new URL('../src/world/intent-prompt.ts', import.meta.url), 'utf8');
+  const online = readFileSync(new URL('../../server/oracle/prompt.py', import.meta.url), 'utf8');
+  for (const [name, text] of [
+    ['离线', offline],
+    ['线上', online],
+  ] as const) {
+    assert.ok(text.includes('remove'), `${name}提示词没讲 remove——模型只会给，不会收`);
+    assert.ok(text.includes('整锅换上'), `${name}提示词没说出 carries 是替换——模型会拿它表达减法`);
+    // 那一句不许回来：它把「放下一切」说成了「收一件」的办法。
+    assert.ok(
+      !text.includes('就是两手空空'),
+      `${name}提示词还在教 carries: [] 当收一件用`,
+    );
+  }
+});

@@ -195,15 +195,19 @@ def validate_intent(raw: Any, world: dict[str, Any] | None = None) -> tuple[dict
 def _carry_list(raw: dict[str, Any], field: str) -> None:
     """凭证清单：必须是数组，且每一件都在闭集里。
 
-    `carries` 的空数组合法——「让她两手空空」是说得出口的。只有给没有收，
-    那道门就永远开着，世界再也回不到没人有灯的样子。
+    两个方向对空数组的态度相反，这是**刻意的**：
 
-    `remove` 不行：一件都不收，那句话就是没说话。与客户端 `readCarryList`
-    逐条同源——两边的错话不一样，用户看到的就是「同样一句话，
-    换个入口就换种拒法」。
+    - `carries: []` 合法——「让她放下手的一切」是说得出口的。只有给没有收，
+      那道门就永远开着，世界再也回不到没人有灯的样子。
+    - `remove: []` 拒——一件都不收，那句话就是没说话。减法的空集不是「不变」，
+      是「这句白说了」；放它过，用户会看到一次什么也没发生的「办好了」。
+
+    调用方（`carry` 那一支）已经断定这个键在，所以这里不查缺字段——
+    `carries` 与 `remove` 必须且只能给一个是那边的事，这边只管值。
+
+    与客户端 `readCarryList` 逐条同源——两边的错话不一样，用户看到的就是
+    「同样一句话，换个入口就换种拒法」。
     """
-    if field not in raw:
-        raise WireError(f"{field} 缺字段：要带什么，一件都没有就是两手空空")
     carries = raw[field]
     if not isinstance(carries, list):
         raise WireError(f"{field} 必须是数组")

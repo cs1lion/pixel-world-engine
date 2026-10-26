@@ -63,7 +63,7 @@
       "intent": { "kind": "carry", "villager": "莞尔", "carries": ["lamp"] }
     },
     {
-      "why": "收缴凭证：空数组是说得出口的。只有给没有收，那道门就永远开着",
+      "why": "放下一切：carries: [] 是「她现在什么都不带」，整锅换上换成空。与收走一件是两句话——那条走 remove，见下一条",
       "command": { "command": "villager.carry", "args": { "villager": "莞尔", "carries": [] } },
       "intent": { "kind": "carry", "villager": "莞尔", "carries": [] }
     },

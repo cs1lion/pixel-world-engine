@@ -224,6 +224,35 @@ def test_提示词禁止模型自己改数() -> None:
 def test_提示词把时长上限写出来() -> None:
     prompt = build_system_prompt(TEMPLATES)
     assert "120000" in prompt
+
+
+def test_提示词把收那条路讲出来() -> None:
+    """`remove` 是渡有仪式减法那一侧，提示词不讲，模型就走不到它。
+
+    加 `remove` 的那次只改了 schema、wire 与 rules 三处，提示词里那句仍是
+    「或收回（carries 给 [] 就是两手空空）」——正好在教模型用**整锅换上**
+    去表达收一件。用户说「收回她的鞋」，模型答 carries:["shoes"]，
+    她提着的灯跟着消失，而用户只要收鞋。
+
+    上面那条 `test_提示词列出每一种世界能执行的命令` 只数命令**名**，
+    args 写成什么样它一声不响。所以形状在这里单独钉。
+    """
+    prompt = build_system_prompt(TEMPLATES)
+    assert '"remove"' in prompt, "提示词没讲 remove——模型只会给，不会收"
+    # 两个键必须且只能给一个：这是 schema 与 rules 同一条规矩，提示词得说。
+    assert "必须且只能给一个" in prompt
+    # 那一句话不许回来：它把「放下一切」说成了「收一件」的办法。
+    assert "carries 给 [] 就是两手空空" not in prompt
+
+
+def test_提示词说清carries是整锅换上() -> None:
+    """「给她一双鞋」与「收走她一双鞋」在 schema 里是两条路，提示词不能混。
+
+    `setCarries` 是整体替换。提示词若只写「给她一件通行凭证」，
+    模型会把所有交接都翻成 carries——包括收回。那句话必须在提示词里。
+    """
+    prompt = build_system_prompt(TEMPLATES)
+    assert "整锅换上" in prompt, "提示词没说出 carries 是替换——模型会拿它表达减法"
     assert "durationMs" in prompt
 
 

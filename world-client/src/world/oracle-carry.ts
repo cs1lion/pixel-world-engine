@@ -26,8 +26,14 @@ import { hasNarrativeMarker, isQuestion, stripLeadIns } from './imperative.ts';
 /**
  * 交接意图：给她什么，或从她手里收走什么。
  *
- * 两个方向分成两个形状，不共用一个可选字段——`'remove' in intent`
- * 才是靠得住的判别，`intent.remove !== undefined` 在两边都可能成立。
+ * 两个方向分成两个形状，不共用一个可选字段。这里**两个键都真的只存在于
+ * 一边**，所以 `'remove' in intent` 是靠得住的判别。
+ *
+ * 别把这个结论搬到 `ParsedIntent`（`intent-schema.ts`）上去：那边为了
+ * 让四个键都进 `ALLOWED_KEYS`，两个成员各带一个 `?: never`。在那种联合上
+ * `'remove' in intent` 判完仍然可能 `undefined`（tsc 报 TS18048），
+ * 只有 `intent.remove !== undefined` 能用。同一件事，两种形状，两种写法——
+ * 实测过的，不是推的。
  */
 export type CarryIntent =
   | { readonly villager: string; readonly carries: readonly CarryItem[] }
@@ -140,7 +146,9 @@ function firstGiveAt(body: string): { readonly at: number; readonly verb: string
  * 就是把她的兜动了，而用户从没要求过。
  *
  * 给与收是两个方向：`gives` 是整锅换上，`takes` 是从现有的里减。
- * 一句话不会同时是两者——动词表互不抢词。
+ * 两个数组里**永远只有一个非空**——动词表互不抢词（`takeOf` 先试，
+ * 它认了就不走 `giveOf`）。真出现两个都非空，`takes` 优先：收是减法，
+ * 给了又收不如当作没收，前者会把她其余的东西也换掉。
  */
 function named(villager: string, gives: readonly CarryItem[], takes: readonly CarryItem[]): CarryIntent | null {
   if (villager.length === 0) return null;

@@ -99,8 +99,13 @@ ${renderIntentContext(context)}
 - \`{"kind":"demolish","instanceId":"<实例 id>"}\` 拆掉指定的一栋；只说模板不说哪一栋时可用 \`"templateId"\`，
   世界得在恰好一栋时才能落。**不要自己拼 instanceId**：抄现状里的那个
 - \`{"kind":"miracle","miracle":"light"|"tree"|"cat"}\` 点灯 / 种树 / 召唤猫；可带 \`"at"\`
-- \`{"kind":"carry","villager":"<名字>","carries":["lamp"|"shoes"]}\` 给她一件通行凭证，或收回
-  （\`carries\` 给 \`[]\` 就是两手空空）。有些区域要凭证才进得去（渡有仪式），她没带就过不去，
+- \`{"kind":"carry","villager":"<名字>","carries":["lamp"|"shoes"]}\` 给她通行凭证
+- \`{"kind":"carry","villager":"<名字>","remove":["lamp"|"shoes"]}\` 从她手里收走一件
+  **\`carries\` 与 \`remove\` 两个键必须且只能给一个**：给是「她现在就带这些」，收是「把这些从她手里减掉」。
+  「收回她的鞋」「把她的鞋拿走」用 \`remove\`，别用 \`carries\`——\`carries\` 是**整锅换上**，
+  写 \`["shoes"]\` 等于宣布她此刻只带着鞋，她提着的灯会一起消失。用户只说要收鞋。
+  \`carries\` 给 \`[]\` 是另一句话：「让她放下手的一切」。她要的是空手，不是少一件。
+  有些区域要凭证才进得去（渡有仪式），她没带就过不去，
   路线会自己绕开——不是坏了。**\`villager\` 写名字，不写 id**：世界现状里给的是名字，id 你手里没有
 - \`{"kind":"unknown","reason":"<为什么听不出>"}\` 这句话不是在要求世界做任何事
 

@@ -36,7 +36,12 @@ COMMAND_LINES = """- {"command":"weather.set","args":{"value":"clear"|"rain"|"st
 - {"command":"building.add","args":{"prefabId":"<模板>","at":{"x":整数,"y":整数}}} 落一栋楼。**at 可省略**：用户没说地点时就别填，世界自己挑空地方；用户说了坐标（「在 40,45」「靠河边」）才填
 - {"command":"building.remove","args":{"instanceId":"<实例 id>"}} 拆一栋楼；instanceId 必须原样抄世界现状里的那个，不要自己拼
 - {"command":"miracle.spawn","args":{"kind":"light"|"tree"|"cat"}} 点灯 / 种树 / 召唤猫；可带 "at"
-- {"command":"villager.carry","args":{"villager":"<名字>","carries":["lamp"|"shoes"]}} 给她一件通行凭证，或收回（carries 给 [] 就是两手空空）。
+- {"command":"villager.carry","args":{"villager":"<名字>","carries":["lamp"|"shoes"]}} 给她通行凭证。
+- {"command":"villager.carry","args":{"villager":"<名字>","remove":["lamp"|"shoes"]}} 从她手里收走一件。
+  **carries 与 remove 两个键必须且只能给一个**：给是「她现在就带这些」，收是「把这些从她手里减掉」。
+  「收回她的鞋」「把她的鞋拿走」用 remove，别用 carries——carries 是**整锅换上**，
+  写 ["shoes"] 等于宣布她此刻只带着鞋，她提着的灯会一起消失。用户只说要收鞋。
+  carries 给 [] 是另一句话：「让她放下手的一切」。她要的是空手，不是少一件。
   有些区域要凭证才进得去（渡有仪式）。她没带就过不去，路线会自己绕开——不是坏了。
   **villager 写名字，不写 id**：世界现状里给的是名字，id 你手里没有。
   只有 lamp / shoes 两样，别发明「火把」「钥匙」——说了世界也不认，门照样过不去。"""
