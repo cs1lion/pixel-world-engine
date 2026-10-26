@@ -34,6 +34,7 @@ function villager(over: Partial<VillagerSnapshot> = {}): VillagerSnapshot {
     routine: null,
     umbrella: false,
     carrying: null,
+    lampOil: 1,
     ...over,
   };
 }

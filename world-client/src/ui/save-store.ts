@@ -43,6 +43,8 @@ export interface SaveStoreOptions {
   readonly storage?: StorageLike;
   readonly wallClock?: () => number;
   readonly onWarning?: (message: string) => void;
+  /** 每套设定集一个槽；默认值保持旧世界存档键不变。 */
+  readonly storageKey?: string;
 }
 
 export const CORRUPT_PREFIX = `${SAVE_STORAGE_KEY}.corrupt.`;
@@ -119,7 +121,9 @@ const CORRUPT_MESSAGE = '存档损坏，已备份原档，用新世界启动。'
 const QUOTA_MESSAGE = '本地存储已满：自动存档已暂停，世界继续运行。';
 
 export class SaveStore {
+  private readonly storageKey: string;
   private readonly storage: StorageLike;
+  private readonly corruptPrefix: string;
   private readonly wallClock: () => number;
   private readonly onWarning: (message: string) => void;
   private autoSave = true;
@@ -127,6 +131,8 @@ export class SaveStore {
   private lastSaved: { schemaVersion: number; savedAtWallClock: number } | null = null;
 
   constructor(options: SaveStoreOptions = {}) {
+    this.storageKey = options.storageKey ?? SAVE_STORAGE_KEY;
+    this.corruptPrefix = `${this.storageKey}.corrupt.`;
     this.storage = options.storage ?? (globalThis.localStorage as StorageLike);
     this.wallClock = options.wallClock ?? (() => Date.now());
     this.onWarning = options.onWarning ?? (() => {});
@@ -153,7 +159,7 @@ export class SaveStore {
   read(): SaveReadResult {
     let text: string | null;
     try {
-      text = this.storage.getItem(SAVE_STORAGE_KEY);
+      text = this.storage.getItem(this.storageKey);
     } catch {
       this.autoSave = false;
       this.warnOnce('storage', STORAGE_HINT);
@@ -214,7 +220,7 @@ export class SaveStore {
 
   clear(): void {
     try {
-      this.storage.removeItem(SAVE_STORAGE_KEY);
+      this.storage.removeItem(this.storageKey);
     } catch {
       // 清档失败不抛；下次再清。
     }
@@ -223,7 +229,7 @@ export class SaveStore {
   /** 导出用：直接取单槽原文（已经是 v1 JSON 文本，不再二次序列化）。 */
   readRawText(): string | null {
     try {
-      return this.storage.getItem(SAVE_STORAGE_KEY);
+      return this.storage.getItem(this.storageKey);
     } catch {
       return null;
     }
@@ -291,7 +297,7 @@ export class SaveStore {
 
   /** 坏档原样备份，带时间戳，保留最近 3 份；备份失败不影响主存档。 */
   backupCorrupt(text: string): void {
-    const key = `${CORRUPT_PREFIX}${this.wallClock()}`;
+    const key = `${this.corruptPrefix}${this.wallClock()}`;
     try {
       this.storage.setItem(key, text);
     } catch {
@@ -311,19 +317,19 @@ export class SaveStore {
     try {
       for (let index = 0; index < this.storage.length; index += 1) {
         const key = this.storage.key(index);
-        if (key !== null && key.startsWith(CORRUPT_PREFIX)) keys.push(key);
+        if (key !== null && key.startsWith(this.corruptPrefix)) keys.push(key);
       }
     } catch {
       return [];
     }
     return keys.sort(
-      (a, b) => Number(a.slice(CORRUPT_PREFIX.length)) - Number(b.slice(CORRUPT_PREFIX.length)),
+      (a, b) => Number(a.slice(this.corruptPrefix.length)) - Number(b.slice(this.corruptPrefix.length)),
     );
   }
 
   private writeRaw(text: string): boolean {
     try {
-      this.storage.setItem(SAVE_STORAGE_KEY, text);
+      this.storage.setItem(this.storageKey, text);
       return true;
     } catch {
       return false;

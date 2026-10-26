@@ -191,6 +191,11 @@ export interface SimulationDeps {
    * 传 3 个名字即可扩到 3 人，逻辑不需要再改。
    */
   readonly villagerNames?: readonly string[];
+  /** 设定集提供的出生点与作息；每项与 villagerNames 对齐。 */
+  readonly villagerProfiles?: readonly {
+    readonly at: GridPoint;
+    readonly routine: readonly RoutineBeat[];
+  }[];
   /**
    * 蓝图注册表。造物神谕（「建一间书阁」）要用它把词换成模板。
    * 省略时造物神谕一律认不出——那是安全的降级，不是错误。
@@ -315,7 +320,7 @@ export class Simulation {
   private readonly roads: GridPoint[] = [];
   private readonly constructions = new Map<string, WorkstationState>();
 
-  private readonly beats: readonly RoutineBeat[];
+  private readonly beats: readonly (readonly RoutineBeat[])[];
   private weather: WeatherState = clearWeather();
   /**
    * 上一拍的潮位，只用来判断"在涨还是在退"。
@@ -393,13 +398,13 @@ export class Simulation {
     this.onChange = deps.onChange;
     this.buildings = [...deps.buildings];
     this.seedInstanceIds();
-    this.beats = routineBeats(deps.altar, deps.grid);
     const names = deps.villagerNames ?? [deps.villagerName, DEFAULT_ASSISTANT_NAME];
+    this.beats = names.map((_, index) => deps.villagerProfiles?.[index]?.routine ?? routineBeats(deps.altar, deps.grid));
     this.villagers = names.map((name, index) => ({
       id: `v${index}`,
       name,
       mode: 'idle' as const,
-      pos: { x: deps.altar.x, y: deps.altar.y },
+      pos: { ...(deps.villagerProfiles?.[index]?.at ?? deps.altar) },
       facing: 'down' as const,
       visible: true,
       path: [],
@@ -469,6 +474,17 @@ export class Simulation {
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
+    if (this.villagers.some((villager) => villager.mode === 'idle')) {
+      const level = effectiveTideLevel(this.now, this.tideOverride);
+      for (const villager of this.villagers) {
+        if (villager.mode !== 'idle' || villager.path.length > 0) continue;
+        const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+        const beat = routineFor(this.weather.kind, beats, villager.routineIndex, level);
+        if (beat.tide !== undefined && ((beat.tide === 'low' && level > 0.34) || (beat.tide === 'high' && level < 0.6))) {
+          villager.nextRoutineAt = Math.min(villager.nextRoutineAt, this.now);
+        }
+      }
+    }
     this.stepConstructions(deltaMs);
     for (const villager of this.villagers) this.stepVillager(villager, deltaMs);
     this.stepWorkstations();
@@ -1647,6 +1663,7 @@ export class Simulation {
       routine: villager.routineLabel,
       umbrella: this.isRaining() && villager.mode !== 'working',
       carrying: villager.carrying,
+      lampOil: villager.lampOil,
     };
   }
 
@@ -1749,8 +1766,9 @@ export class Simulation {
 
     // 已经站在这一拍的落点上就跳过它，否则开局会在祭坛上干坐一轮。
     const here = this.cellOf(villager.pos);
-    for (let attempt = 0; attempt < this.beats.length; attempt += 1) {
-      const beat = routineFor(this.weather.kind, this.beats, villager.routineIndex);
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    for (let attempt = 0; attempt < beats.length; attempt += 1) {
+      const beat = routineFor(this.weather.kind, beats, villager.routineIndex, effectiveTideLevel(this.now, this.tideOverride));
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat, villager);
       if (target === null) continue;

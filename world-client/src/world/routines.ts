@@ -13,6 +13,7 @@ export interface RoutineBeat {
   readonly label: string;
   readonly target: GridPoint;
   readonly dwellMs: number;
+  readonly tide?: 'low' | 'high';
 }
 
 const DWELL_MS = 5200;
@@ -64,6 +65,7 @@ export function routineFor(
   weather: Weather,
   beats: readonly RoutineBeat[],
   index: number,
+  tideLevel = 0,
 ): RoutineBeat {
   // 暴雨一样躲，只是说法不同——这一档是雨的强度，不是新行为。
   if (weather === 'rain' || weather === 'storm') {
@@ -75,5 +77,20 @@ export function routineFor(
       dwellMs: DWELL_MS,
     };
   }
-  return beats[index % beats.length];
+  const beat = beats[index % beats.length]!;
+  const tide = beat.tide;
+  // 潮汐条件不成立的落点，一律退回锚点（beats[0]），并把说法换成锚点那一句。
+  //
+  // 早先这里只改 label、留着原来的 target：牌子写「沿街」，人照样往浅滩走。
+  // 世界可以在做不到时说「现在不行」，但不能一边说一边做别的——
+  // 那句话是给外面看的唯一凭据，说谎比不去更糟。
+  if (tide === 'low' && tideLevel > 0.34) return fallbackTo(beats, beat);
+  if (tide === 'high' && tideLevel < 0.6) return fallbackTo(beats, beat);
+  return beat;
+}
+
+/** 退回锚点：借锚点的 id、label、target，只保留原落点的停留时长。 */
+function fallbackTo(beats: readonly RoutineBeat[], beat: RoutineBeat): RoutineBeat {
+  const anchor = beats[0]!;
+  return { id: anchor.id, label: anchor.label, target: anchor.target, dwellMs: beat.dwellMs };
 }

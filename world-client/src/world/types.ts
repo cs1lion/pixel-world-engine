@@ -21,11 +21,13 @@ export type ZoneId =
   | 'agriculture'
   | 'living';
 
-export type TerrainId = 'grass' | 'stone' | 'plaza' | 'farm' | 'tree';
+export type TerrainId = 'grass' | 'stone' | 'plaza' | 'farm' | 'tree' | 'shallow' | 'mud' | 'coal';
 
 export interface TileCell {
   zone: ZoneId;
   terrain: TerrainId;
+  /** 地理区域。旧世界的 ZoneId 仍负责建造许可，两者不混用。 */
+  region?: string;
   walkable: boolean;
   /** 占用者 id（建筑实例名），null 表示空。 */
   occupant: string | null;
@@ -294,6 +296,8 @@ export interface VillagerSnapshot {
    * 纯视觉：它不影响任务结算，只是"跑了一趟，带了东西回来"的读感。
    */
   readonly carrying: CarryKind | null;
+  /** 渲染专用余量；Simulation 不读取它作任何决定。 */
+  readonly lampOil: number;
 }
 
 /**

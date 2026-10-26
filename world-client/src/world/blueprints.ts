@@ -1,6 +1,7 @@
 /** 蓝图注册表。JSON 是外部数据，在边界解析成强类型；解析失败直接抛，不带着半个世界开工。 */
 
 import { WORLD } from './palette-data.ts';
+import type { WorldPalette } from './theme.ts';
 import { WORKSHOP_TASKS } from './tasks.ts';
 import type {
   PrefabBlueprint,
@@ -27,7 +28,7 @@ const workshopZones: readonly ZoneId[] = ['industry', 'scholarly', 'agriculture'
 
 export class BlueprintError extends Error {}
 
-export function parseBlueprint(id: string, raw: unknown): PrefabBlueprint {
+export function parseBlueprint(id: string, raw: unknown, colors: WorldPalette = WORLD): PrefabBlueprint {
   const fail = (why: string): never => {
     throw new BlueprintError(`蓝图 ${id}: ${why}`);
   };
@@ -45,7 +46,7 @@ export function parseBlueprint(id: string, raw: unknown): PrefabBlueprint {
   const door = requirePoint(raw, 'door', fail);
   const chimney = requireVec(raw, 'chimney', fail);
   const workSpots = requirePoints(raw, 'workSpots', fail);
-  const palette = requirePalette(raw, 'palette', fail);
+  const palette = requirePalette(raw, 'palette', fail, colors);
 
   if (workSpots.length === 0) fail('workSpots 不能为空');
   if (inFootprint(door, footprint)) fail('门口落在占地内，人走不进去');
@@ -81,11 +82,11 @@ export function parseBlueprint(id: string, raw: unknown): PrefabBlueprint {
   };
 }
 
-export function parseBlueprintTable(raw: unknown): ReadonlyMap<string, PrefabBlueprint> {
+export function parseBlueprintTable(raw: unknown, palette?: WorldPalette): ReadonlyMap<string, PrefabBlueprint> {
   if (!isRecord(raw)) throw new BlueprintError('蓝图表不是对象');
   const out = new Map<string, PrefabBlueprint>();
   for (const [id, entry] of Object.entries(raw)) {
-    out.set(id, parseBlueprint(id, entry));
+    out.set(id, parseBlueprint(id, entry, palette));
   }
   if (out.size === 0) throw new BlueprintError('蓝图表为空');
   return out;
@@ -216,7 +217,7 @@ function warnLegacy(slot: string, raw: unknown): void {
  * 同时保留旧值兼容——`0..0xffffff` 整数与 `"#rrggbb"` 字符串仍然能用。
  * 这样做是为了让旧 JSON（以及将来可能导入的外部蓝图）不会因为一次改值就整份失效。
  */
-function readPaletteSlot(value: Record<string, unknown>, name: string, fail: Fail): number {
+function readPaletteSlot(value: Record<string, unknown>, name: string, fail: Fail, colors: WorldPalette): number {
   const raw = value[name];
   if (typeof raw === 'string') {
     const token = raw.trim();
@@ -228,8 +229,8 @@ function readPaletteSlot(value: Record<string, unknown>, name: string, fail: Fai
       }
       return fail(`调色板槽 ${name} 的旧值 "${token}" 不合法：形如 "#8a5a44" 的 6 位十六进制`);
     }
-    if (Object.prototype.hasOwnProperty.call(WORLD, token)) {
-      return WORLD[token as keyof typeof WORLD];
+    if (Object.prototype.hasOwnProperty.call(colors, token)) {
+      return colors[token]!;
     }
     return fail(
       `调色板槽 ${name} 的颜色名 "${token}" 不在世界 24 色里；` +
@@ -250,14 +251,15 @@ function requirePalette(
   raw: Record<string, unknown>,
   key: string,
   fail: Fail,
+  colors: WorldPalette,
 ): PrefabBlueprint['palette'] {
   const value = raw[key];
   if (!isRecord(value)) return fail(`${key} 必须是对象`);
   return {
-    body: readPaletteSlot(value, 'body', fail),
-    roof: readPaletteSlot(value, 'roof', fail),
-    trim: readPaletteSlot(value, 'trim', fail),
-    window: readPaletteSlot(value, 'window', fail),
+    body: readPaletteSlot(value, 'body', fail, colors),
+    roof: readPaletteSlot(value, 'roof', fail, colors),
+    trim: readPaletteSlot(value, 'trim', fail, colors),
+    window: readPaletteSlot(value, 'window', fail, colors),
   };
 }
 

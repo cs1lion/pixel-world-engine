@@ -485,7 +485,8 @@ test('v3：灯油不进世界的读路径（Simulation 不因它改变行为）'
   }
   const strip = (sim: Simulation): unknown => {
     const snapshot = sim.snapshot() as unknown as Record<string, unknown>;
-    return { ...snapshot, villagers: (snapshot.villagers as Record<string, unknown>[]) };
+    const villagers = (snapshot.villagers as Record<string, unknown>[]).map((villager) => ({ ...villager, lampOil: 0 }));
+    return { ...snapshot, villager: { ...(snapshot.villager as Record<string, unknown>), lampOil: 0 }, villagers };
   };
   assert.deepEqual(strip(a), strip(b), '油多油少不能改变世界怎么走');
 });

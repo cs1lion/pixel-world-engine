@@ -25,6 +25,10 @@ export const WALK_COST: Readonly<Record<TerrainId, number>> = {
   farm: 1.4,
   /** 密林：最慢，但可通行（郊野要能走进去）。 */
   tree: 2.5,
+  /** 退潮浅滩、淤泥与炉渣都走得动，但不会比主路更快。 */
+  shallow: 1.2,
+  mud: 1.8,
+  coal: 1.5,
 };
 
 /**

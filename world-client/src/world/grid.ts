@@ -4,7 +4,7 @@
  * 渲染层只读快照，不许自己改坐标。
  */
 
-import type { GridPoint, PrefabBlueprint, TileCell, ZoneId } from './types.ts';
+import type { GridPoint, PrefabBlueprint, TerrainId, TileCell, ZoneId } from './types.ts';
 import { WALK_COST, walkCostOf } from './terrain-cost.ts';
 import { shouldGrowTree } from './wilderness.ts';
 import { FLOODED_WALK_COST, isFlooded } from './tide.ts';
@@ -33,6 +33,22 @@ export interface GridSpec {
   readonly zones: readonly ZoneRegion[];
   /** 四周这几圈是不可通行的树篱。 */
   readonly border: number;
+  /** 设定集显式绘制的地面。缺省保持旧的按分区推地形。 */
+  readonly terrain?: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+    readonly terrain: TerrainId;
+  }[];
+  /** 地名只用于展示与设定，不参与旧的建造许可。 */
+  readonly regions?: readonly {
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+  }[];
 }
 
 export interface PlacementRequest {
@@ -89,6 +105,22 @@ export class WorldGrid {
           walkable: !edge,
           occupant: null,
         };
+      }
+    }
+    for (const patch of spec.terrain ?? []) {
+      for (let y = patch.y; y < patch.y + patch.h; y += 1) {
+        for (let x = patch.x; x < patch.x + patch.w; x += 1) {
+          const cell = this.at({ x, y });
+          if (cell !== undefined) cell.terrain = patch.terrain;
+        }
+      }
+    }
+    for (const region of spec.regions ?? []) {
+      for (let y = region.y; y < region.y + region.h; y += 1) {
+        for (let x = region.x; x < region.x + region.w; x += 1) {
+          const cell = this.at({ x, y });
+          if (cell !== undefined) cell.region = region.id;
+        }
       }
     }
   }

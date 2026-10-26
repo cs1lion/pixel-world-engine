@@ -95,3 +95,28 @@ test('寻路是确定性的：同起点终点重复调用结果一致', () => {
     assert.equal(JSON.stringify(grid.path({ x: 2, y: 2 }, { x: 18, y: 2 })), first);
   }
 });
+
+// ------------------------------------------------------------------ 潮水与路
+
+test('涨潮改变浅滩与非浅滩的通行代价，退潮复原', () => {
+  // 浅滩与草地并排：同一格在两种潮位下的代价必须不同，且都仍然可走。
+  const grid = gridWith(7, 5, (x) => (x < 3 ? 'shallow' : 'grass'));
+  const onShoal = { x: 1, y: 2 };
+  const onGrass = { x: 5, y: 2 };
+
+  grid.setTideLevel(0);
+  assert.equal(grid.isFloodedAt(onShoal), false);
+  const dryShoal = grid.costAt(onShoal);
+  assert.equal(dryShoal, WALK_COST.shallow);
+
+  grid.setTideLevel(1);
+  assert.equal(grid.isFloodedAt(onShoal), true, '满潮时浅滩必须真的进水');
+  assert.ok(grid.costAt(onShoal) > dryShoal, '涉水的代价必须高于干着走');
+  assert.ok(grid.isWalkable(onShoal), '被淹的格子仍可通行，不能造出孤岛');
+
+  // 草地地势也低，但石板这类路基不该被淹——路一断，镇子就分两半了。
+  assert.equal(grid.isFloodedAt(onGrass), true);
+  const paved = gridWith(7, 5, () => 'stone');
+  paved.setTideLevel(1);
+  assert.equal(paved.isFloodedAt({ x: 3, y: 2 }), false, '石板是垫高的路基，满潮也要露出');
+});

@@ -774,3 +774,13 @@ test('同一种铺子不能建第二栋', () => {
   assert.equal(rig.sim.update(16)[0].ok, false);
   assert.equal(rig.state().buildings.length, 3);
 });
+test('带参数的拨潮：认得出就说数值，做不到就照实交出去拒', () => {
+  assert.deepEqual(parseOracle('潮位 0.4'), { kind: 'tide', level: 0.4, durationMs: 60_000 });
+  assert.deepEqual(parseOracle('潮位 40%'), { kind: 'tide', level: 0.4, durationMs: 60_000 });
+  assert.deepEqual(parseOracle('满潮 0.8'), { kind: 'tide', level: 0.8, durationMs: 60_000 });
+  // 带着世界没有的参数：不能悄悄读成干净的「涨潮」，要留一个越界值给世界去拒。
+  assert.deepEqual(parseOracle('涨潮到五米'), { kind: 'tide', level: 5, durationMs: 60_000 });
+  assert.deepEqual(parseOracle('涨潮到十二米'), { kind: 'tide', level: 12, durationMs: 60_000 });
+  // 句中顺带提到潮位的话不是命令，仍旧派活。
+  assert.equal(parseOracle('查一下潮位 40 的历史').kind, 'dispatch');
+});

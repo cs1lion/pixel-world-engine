@@ -10,3 +10,7 @@ data/
 tmp/
 .claude/
 .DS_Store
+
+# 本地跑出来的审计/比对产物
+.audit/
+.pixdiff/

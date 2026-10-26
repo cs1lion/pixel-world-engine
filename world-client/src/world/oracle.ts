@@ -98,10 +98,21 @@ export function parseOracle(raw: string): OracleAction {
     return { kind: 'cancelPending' };
   }
   // 拨潮水。满潮 1、退到底 0——两个端点，不给中间值。
-  if (leads(TIDE_RISE_WORDS) && !isQuestion(lower)) {
+  // 带参数的拨潮：只认「涨潮 0.4 / 潮位 40% / 潮位 0.4」这类明确写法。
+  // 先把带参数的说完，再落到两个干净的端点命令上。
+  const tideLevel = isQuestion(lower) ? null : parseTideLevel(lower);
+  if (tideLevel !== null) {
+    // NaN = 说的是潮位，但没给出能用的数（「涨潮到五米」）。用句子里那个数
+    // 拼一条越界命令，让世界照实拒绝——不要把它当成干净的「涨潮」执行。
+    const level = Number.isNaN(tideLevel)
+      ? (chineseAmount(lower) ?? 5)
+      : tideLevel;
+    return { kind: 'tide', level, durationMs: TIDE_HOLD_MS };
+  }
+  if (leads(TIDE_RISE_WORDS) && !isQuestion(lower) && !hasAmount(lower)) {
     return { kind: 'tide', level: 1, durationMs: TIDE_HOLD_MS };
   }
-  if (leads(TIDE_FALL_WORDS) && !isQuestion(lower)) {
+  if (leads(TIDE_FALL_WORDS) && !isQuestion(lower) && !hasAmount(lower)) {
     return { kind: 'tide', level: 0, durationMs: TIDE_HOLD_MS };
   }
 
@@ -120,4 +131,55 @@ export function parseOracle(raw: string): OracleAction {
     }
   }
   return { kind: 'unknown', raw };
+}
+
+/**
+ * 句子里有没有一个具体的量。
+ *
+ * 只用来区分「涨潮」与「涨潮到五米」。后者带了一个世界没有的参数，**必须被拒**，
+ * 而不是被 `startsWith` 读成干净的「涨潮」：那等于把一句做不到的话悄悄当成
+ * 另一件事执行，回执照样说成功。
+ */
+function hasAmount(lower: string): boolean {
+  return /[0-9]/.test(lower) || /米|度|成|级|分|秒|分钟/.test(lower);
+}
+
+/**
+ * 「潮位 0.4」「潮位 40%」「涨潮 0.4」这类明确给了 0..1 的写法。
+ *
+ * **必须以拨潮的词打头**，与另外几条世界法则同一个纪律：句中顺带提到潮位的话
+ * （「查一下潮位 40 的历史」）不是改潮水的命令。只认显式数值，不把「涨潮」
+ * 本身读成一个数。
+ *
+ * 返回 `NaN` 表示「说的是潮位，但没有给出一个 0..1 的数」——例如「涨潮到五米」。
+ * 它会被翻成一条越界命令，由世界照实拒绝并给出原因，而不是掉进「规则认不出，
+ * 正在问模型」：既然它带着世界没有的参数，就不该再去问模型要一个数值。
+ */
+function parseTideLevel(lower: string): number | null {
+  const prefix = /^(?:潮位|水位|涨潮|涨水|满潮|退潮|退水|落潮)(.*)$/.exec(lower);
+  if (prefix === null) return null;
+  const matched = /^\s*(?:到|调到|设为)?\s*([0-9]+(?:\.[0-9]+)?)\s*(%|％)?/.exec(prefix[1]!);
+  // 没给出数：后面也没有任何量，那就是干净的「涨潮 / 退潮」，交给端点命令。
+  // 只有带着量却说不出一个可用数值时，才算「说了做不到的事」。
+  if (matched === null) return hasAmount(prefix[1]!) ? Number.NaN : null;
+  const value = Number.parseFloat(matched[1]!);
+  if (!Number.isFinite(value)) return Number.NaN;
+  return matched[2] === undefined ? value : value / 100;
+}
+
+/** 中文数字。只到「十」，够读「涨潮到五米」这类说法。 */
+const CHINESE_DIGITS: Readonly<Record<string, number>> = {
+  零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10,
+};
+
+/** 「五米」写成数字再去拒，用户才在回执里看到自己说的那个数。 */
+function chineseAmount(lower: string): number | null {
+  const matched = /([零一二两三四五六七八九十]+)\s*(?:米|度|成|级)/.exec(lower);
+  if (matched === null) return null;
+  const digits = matched[1]!;
+  if (digits.length === 1) return CHINESE_DIGITS[digits] ?? null;
+  // 只处理「十X」「X十」，不假装看懂任意中文数词。
+  if (digits.startsWith('十')) return 10 + (CHINESE_DIGITS[digits.slice(1)] ?? 0);
+  if (digits.endsWith('十')) return (CHINESE_DIGITS[digits[0]!] ?? 0) * 10;
+  return CHINESE_DIGITS[digits[0]!] ?? null;
 }

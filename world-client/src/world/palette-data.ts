@@ -78,6 +78,9 @@ export const TERRAIN_COLORS = {
   farm: WORLD.farm,
   /** 树冠底色用深土色，比草地暗一档才压得住树影。 */
   tree: WORLD.soil,
+  shallow: WORLD.water,
+  mud: WORLD.deepShade,
+  coal: WORLD.charcoal,
 } as const;
 
 /** 每种地形的抖动色：与基色是调色板里相邻的一档，2×2 有序网点把两者之间调出来。

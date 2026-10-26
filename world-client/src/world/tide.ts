@@ -41,6 +41,9 @@ export const TERRAIN_HEIGHT: Readonly<Record<string, number>> = {
   farm: 0.18,
   // 林地比草地略高一点（树根固土），但满潮时也会湿脚。
   tree: 0.42,
+  shallow: 0.12,
+  mud: 0.24,
+  coal: 0.75,
 };
 
 /**
