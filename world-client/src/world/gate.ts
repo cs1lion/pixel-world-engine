@@ -1,15 +1,31 @@
 /** 渡有仪式的判定（SPEC_V2 §4.6）。
  *
  * 区域声明 `requires`，角色带着 `carries`，两边是**同一套闭集词**：
- * 对不上就是过不去。判定放成纯函数而不是塞进 `WorldGrid` 或 `Simulation`，
- * 是因为它同时被寻路、被设定集校验、被纸面状态行读——三处各写一遍
- * 「她有没有灯」，迟早有一处漏掉 `'shoes'`。
+ * 对不上就是过不去。
+ *
+ * 判定放成纯函数而不是塞进 `WorldGrid` 或 `Simulation`，是因为「她带的东西」
+ * 和「门要的东西」各归一边，合成一个方法就会在某个只想知道「这门要什么」的
+ * 调用点上顺手把她的兜也翻出来。现在寻路只向 `gateFilter` 要一个过滤器，
+ * 设定集校验只向 `isCarryItem` 问一个词——谁都不用认识另一个半。
  */
 
-import type { CarryItem, GridPoint } from './types.ts';
+import type { CarryItem, GridPoint, RegionRequirement } from './types.ts';
 
-/** 这道门要什么。`null` 表示没要，谁都能过。 */
-export type RegionRequirement = CarryItem | null;
+/**
+ * 通行仪式认得的凭证（SPEC_V2 §4.6）。
+ *
+ * 闭集：区域声明的 `requires` 与角色带着的 `carries` 必须是同一套词，
+ * 否则「她明明带着灯，那道门就是不认」这种只有截图才看得见的 bug 会出现。
+ *
+ * 住在 `gate.ts` 而不是和 `save.ts` 里那十个枚举常量做邻居：它是**这道门**
+ * 的词汇表，设定集校验、存档校验、`setCarries` 三处都向它问话。
+ */
+export const CARRY_ITEMS: readonly CarryItem[] = ['lamp', 'shoes'];
+
+/** 这个世界上认不认这个东西当凭证。设定集与命令入口共用一句判定。 */
+export function isCarryItem(value: string): value is CarryItem {
+  return (CARRY_ITEMS as readonly string[]).includes(value);
+}
 
 /**
  * 她带着的这些东西，过不过得了要 `requires` 的门。

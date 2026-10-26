@@ -46,7 +46,7 @@ test('带了凭证就直接穿过去，不绕', () => {
   const path = target.path(LEFT, RIGHT, acceptFor(target, ['lamp']));
   assert.ok(path.length > 0, '有凭证必须过得去');
   assert.ok(
-    path.some((step) => target.regionIdAt(step) === 'tide_gate'),
+    path.some((step) => target.requirementAt(step) !== null),
     '有凭证就该走直线穿过去',
   );
 });
@@ -62,7 +62,7 @@ test('绕得开就绕：没凭证的人走缺口，不硬闯', () => {
   const path = target.path(LEFT, RIGHT, acceptFor(target, []));
   assert.ok(path.length > 0, '有缺口就必须绕得到');
   for (const step of path) {
-    assert.notEqual(target.regionIdAt(step), 'tide_gate', '路线不该踏进要凭证的区域');
+    assert.equal(target.requirementAt(step), null, '路线不该踏进任何要凭证的格子');
   }
   assert.ok(
     path.some((step) => step.y === 7 || step.y === 8),
@@ -74,21 +74,21 @@ test('区域没要凭证时不设卡：两手空空也走得进去', () => {
   const target = grid([{ id: 'open', x: 6, y: 1, w: 1, h: 8, requires: null }]);
   const path = target.path(LEFT, RIGHT, acceptFor(target, []));
   assert.ok(path.length > 0);
-  assert.ok(path.some((step) => target.regionIdAt(step) === 'open'));
+  assert.ok(path.some((step) => step.x === 6), '不设卡的区域该直接穿过去');
 });
 
 test('不给 accept 时行为与从前完全一致：门不拦任何人', () => {
   const target = grid(WALL);
   const plain = target.path(LEFT, RIGHT);
   assert.ok(plain.length > 0, '旧调用点不该因为世界多了门就被改变行为');
-  assert.ok(plain.some((step) => target.regionIdAt(step) === 'tide_gate'));
+  assert.ok(plain.some((step) => target.requirementAt(step) !== null));
 });
 
 test('设定集不声明 requires 的老区域一样不设卡', () => {
   // 莞尔镇的地域只用于展示，从来没有 requires——它们不能因为这一版就变成门。
   const target = grid([{ id: 'old_quarter', x: 6, y: 1, w: 1, h: 8 }]);
   assert.ok(target.path(LEFT, RIGHT, acceptFor(target, [])).length > 0);
-  assert.equal(target.requirementAt({ x: 6, y: 3 }), null);
+  assert.equal(target.requirementAt({ x: 6, y: 3 }), null, '没声明 requires 的老区域不是门');
 });
 
 // ------------------------------------------------------------------ 纯判定

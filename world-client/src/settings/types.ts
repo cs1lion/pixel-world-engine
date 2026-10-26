@@ -1,7 +1,7 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
-import type { GridPoint, PrefabBlueprint, TerrainId, CarryItem } from '../world/types.ts';
+import type { CarryItem, GridPoint, PrefabBlueprint, TerrainId } from '../world/types.ts';
 
 export interface SettingPlacement {
   readonly prefabId: string;
@@ -54,6 +54,13 @@ export interface SettingPack {
   readonly terrainColors: Readonly<Record<TerrainId, number>>;
   readonly grid: GridSpec;
   readonly terrain: readonly { readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly terrain: TerrainId }[];
+  /**
+   * 地域。比 `GridSpec.regions` 多一个 `name`：那是给界面看的，
+   * 网格自己不显示名字，所以两边**不是**同一个形状。
+   * 别为了「去重」把这边改成引用 `GridSpec`——那会逼着网格也背上显示名。
+   *
+   * `requires` 是渡有仪式的门（SPEC_V2 §4.6）：跨这道区界要带什么。
+   */
   readonly regions: readonly {
     readonly id: string;
     readonly name: string;
@@ -61,7 +68,6 @@ export interface SettingPack {
     readonly y: number;
     readonly w: number;
     readonly h: number;
-    /** 渡有仪式：跨这道区界要带什么。缺省 / null = 不设卡。 */
     readonly requires?: CarryItem | null;
   }[];
   readonly blueprints: ReadonlyMap<string, PrefabBlueprint>;

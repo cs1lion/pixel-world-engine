@@ -304,6 +304,14 @@ export interface WorldProp {
 /** 通行仪式认得的凭证。区域声明 `requires`，角色带着 `carries`，两边同一套词。 */
 export type CarryItem = 'lamp' | 'shoes';
 
+/**
+ * 一道门要什么。`null` 表示没要，谁都能过。
+ *
+ * 单独起名而不是处处写 `CarryItem | null`：寻路、设定集校验、存档三处都要
+ * 表达「这一格要不要凭证」，三种写法迟早有一种漏掉 null 那一半。
+ */
+export type RegionRequirement = CarryItem | null;
+
 export interface VillagerSnapshot {
   /** 世界内稳定 id（v0 = 主角色）。渲染按它对齐多个实例。 */
   readonly id: string;

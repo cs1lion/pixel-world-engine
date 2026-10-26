@@ -5,6 +5,7 @@
  */
 
 import type { CarryItem, GridPoint, PrefabBlueprint, TerrainId, TileCell, ZoneId } from './types.ts';
+import type { RegionRequirement } from './types.ts';
 import { WALK_COST, walkCostOf } from './terrain-cost.ts';
 import { shouldGrowTree } from './wilderness.ts';
 import { FLOODED_WALK_COST, isFlooded } from './tide.ts';
@@ -161,18 +162,13 @@ export class WorldGrid {
     return this.at(p)?.zone ?? ZONE_DEFAULT;
   }
 
-  /** 这一格属于哪道地域；不在任何地域里（或越界）时是 null。 */
-  regionIdAt(p: GridPoint): string | null {
-    return this.at(p)?.region ?? null;
-  }
-
   /**
    * 这一格要带什么才进得去。没设门的格子（含越界）返回 null。
    *
-   * 与 `regionIdAt` 分开：多数格子属于某道地域，但只有少数地域有门。
-   * 寻路每格都问一次，直接返回需求比让调用方再查一次表省一趟。
+   * 多数格子属于某道地域，但只有少数地域有门——所以问的是「要什么」而不是
+   * 「属哪道地域」。寻路每格都问一次，直接返回需求比让调用方再查一次表省一趟。
    */
-  requirementAt(p: GridPoint): CarryItem | null {
+  requirementAt(p: GridPoint): RegionRequirement {
     const region = this.at(p)?.region;
     if (region === undefined) return null;
     return this.requirements.get(region) ?? null;
@@ -335,7 +331,10 @@ export class WorldGrid {
     if (!this.inBounds(start) || !this.inBounds(goal)) return [];
     let target = goal;
     if (!passable(target)) {
-      const alt = this.nearestWalkable(target);
+      // 兜底也得过同一道门：不然目标在门里时，兜底会摸一个门里的格子，
+      // A* 进不去，整条路返回空——调用方看到「到不了」，
+      // 而真正的原因是「她要的东西不对」。
+      const alt = this.nearestWalkable(target, accept);
       if (!alt) return [];
       target = alt;
     }
@@ -406,14 +405,20 @@ export class WorldGrid {
     return candidates[Math.floor(random() * candidates.length)];
   }
 
-  /** 离目标最近的一块可走空地。作息落点用它兜底。 */
-  nearestWalkable(goal: GridPoint): GridPoint | null {
+  /**
+   * 离目标最近的一块可走空地。作息落点用它兜底。
+   *
+   * `accept` 是渡有仪式的门（SPEC_V2 §4.6）：给了就只在不设卡的格子里找。
+   * 寻路的兜底路径必须把它透传进来，否则门里的目标会被兜底成门里的格子。
+   */
+  nearestWalkable(goal: GridPoint, accept?: (p: GridPoint) => boolean): GridPoint | null {
     let best: GridPoint | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
     for (let y = 0; y < this.height; y += 1) {
       for (let x = 0; x < this.width; x += 1) {
         const p = { x, y };
         if (!this.isWalkable(p)) continue;
+        if (accept !== undefined && !accept(p)) continue;
         const distance = Math.abs(x - goal.x) + Math.abs(y - goal.y);
         if (distance < bestDistance) {
           bestDistance = distance;

@@ -7,7 +7,7 @@
  */
 
 import type { WorldGrid } from './grid.ts';
-import { gateFilter } from './gate.ts';
+import { CARRY_ITEMS, gateFilter, isCarryItem } from './gate.ts';
 import { TASK_PROFILES, taskDurationFor } from './tasks.ts';
 import { pickVenue, type VenueCandidate } from './venue.ts';
 import { fogAt, revealedRadiusFor } from './fog.ts';
@@ -76,7 +76,7 @@ import type {
 } from './types.ts';
 import { excerptBlockedQuestion, ORACLE_SLAB_LIMIT } from './types.ts';
 import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CARRY_ITEMS, CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -1712,6 +1712,15 @@ export class Simulation {
    * 抵押者永远空闲，但接不了——把两个条件合成一个方法，就会在某个只想知道
    * 「她有空吗」的调用点上把抵押者误判成不可用（或反过来放过她）。
    */
+  private canTakeWork(villager: Villager): boolean {
+    return this.isFree(villager) && villager.nameState !== 'pawned';
+  }
+
+  /** 空闲**且名牌还在自己身上**的角色。抵押者不在候选里。 */
+  private workerFor(): Villager | null {
+    return this.villagers.find((villager) => this.canTakeWork(villager)) ?? null;
+  }
+
   /**
    * 这个角色走这段路。
    *
@@ -1723,15 +1732,6 @@ export class Simulation {
    */
   private pathFor(villager: Villager, from: GridPoint, to: GridPoint): GridPoint[] {
     return this.grid.path(from, to, gateFilter(villager.carries, (p) => this.grid.requirementAt(p)));
-  }
-
-  private canTakeWork(villager: Villager): boolean {
-    return this.isFree(villager) && villager.nameState !== 'pawned';
-  }
-
-  /** 空闲**且名牌还在自己身上**的角色。抵押者不在候选里。 */
-  private workerFor(): Villager | null {
-    return this.villagers.find((villager) => this.canTakeWork(villager)) ?? null;
   }
 
   /**
@@ -1799,7 +1799,7 @@ export class Simulation {
   private setCarries(villagerId: string, carries: readonly CarryItem[]): CommandResult {
     const villager = this.villagers.find((item) => item.id === villagerId);
     if (villager === undefined) return { ok: false, message: `没有 ${villagerId} 这个人。` };
-    const unknown = carries.filter((item) => !CARRY_ITEMS.includes(item));
+    const unknown = carries.filter((item) => !isCarryItem(item));
     if (unknown.length > 0) {
       return {
         ok: false,
@@ -1812,7 +1812,8 @@ export class Simulation {
     return { ok: true, message: `${villager.name}现在带着${held}。` };
   }
 
-  private snapshotVillager(villager: Villager): VillagerSnapshot {    return {
+  private snapshotVillager(villager: Villager): VillagerSnapshot {
+    return {
       id: villager.id,
       name: villager.name,
       mode: villager.mode,
@@ -1849,18 +1850,32 @@ export class Simulation {
         return;
       case 'delivering':
         if (this.now >= villager.deliverUntil) {
-          villager.mode = 'toAltar';
           villager.path = this.pathFor(villager, this.cellOf(villager.pos), this.altar);
           villager.bubble = null;
-          if (villager.path.length === 0) this.arriveAtAltar(villager);
+          // 空数组有两种意思：人已经在祭坛边（那就地交付），和根本走不到。
+          // 混成一种就是对世界说谎——后者会说成「东西已经送到了」，
+          // 而她人还在没门的那一半。渡有仪式让后者真的会出现。
+          if (villager.path.length === 0) {
+            if (this.atAltar(villager)) {
+              villager.mode = 'toAltar';
+              this.dropAtAltar(villager);
+            } else {
+              villager.bubble = '过不去，东西先留着。';
+              villager.bubbleUntil = this.now + 2400;
+              // 隔一会儿再试：世界不放弃，但也不每拍喊一遍。
+              villager.deliverUntil = this.now + 2000;
+              this.log('warn', `${villager.name}到不了祭坛，这一交付先搁着。`);
+            }
+          } else {
+            villager.mode = 'toAltar';
+          }
         }
         return;
       case 'toAltar':
         this.walk(villager, deltaMs);
         if (villager.path.length === 0) {
           // 到祭坛就把东西放下。
-          villager.carrying = null;
-          this.arriveAtAltar(villager);
+          this.dropAtAltar(villager);
         }
         return;
       case 'bearingDecree':
@@ -2007,6 +2022,18 @@ export class Simulation {
       determinate: task.source === 'sandbox',
     });
     this.log('work', `${building.displayName} 开工（${villager.name}）。`);
+  }
+
+  /** 她此刻就站在祭坛那一格上。 */
+  private atAltar(villager: Villager): boolean {
+    const cell = this.cellOf(villager.pos);
+    return cell.x === this.altar.x && cell.y === this.altar.y;
+  }
+
+  /** 到祭坛就把东西放下。 */
+  private dropAtAltar(villager: Villager): void {
+    villager.carrying = null;
+    this.arriveAtAltar(villager);
   }
 
   private arriveAtAltar(villager: Villager): void {

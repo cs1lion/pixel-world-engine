@@ -29,6 +29,7 @@ import type {
   ZoneId,
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
+import { CARRY_ITEMS } from './gate.ts';
 import type { WeatherState } from './weather.ts';
 import type { TideOverride } from './tide.ts';
 
@@ -544,12 +545,9 @@ export const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
 /** 名牌的两态（SPEC_V2 §4.6）。抵押者接不到新活。 */
 export const NAME_STATES: readonly NameState[] = ['held', 'pawned'];
 /**
- * 通行仪式认得的凭证（SPEC_V2 §4.6）。
- *
- * 闭集：区域声明的 `requires` 与角色带着的 `carries` 必须是同一套词，
- * 否则「她明明带着灯，那道门就是不认」这种只有截图才看得见的 bug 会出现。
+ * 通行仪式认得的凭证（SPEC_V2 §4.6）。住在 `gate.ts`——它是那道门的词汇表，
+ * 存档只是向它问话的一方。
  */
-export const CARRY_ITEMS: readonly CarryItem[] = ['lamp', 'shoes'];
 export const ZONES: readonly ZoneId[] = [
   'street', 'altar', 'industry', 'scholarly', 'agriculture', 'living',
 ];
