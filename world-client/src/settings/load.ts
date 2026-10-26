@@ -5,7 +5,7 @@ import type { BuiltWorld } from '../world/setup.ts';
 import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
-import type { PlacedBuilding, TerrainId } from '../world/types.ts';
+import type { PlacedBuilding, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
 import type {
   CompiledVillager,
@@ -36,6 +36,47 @@ const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
 
 /** 作息的潮位条件。`routines.ts` 只认这两个词。 */
 const TIDE_BEATS: readonly NonNullable<SettingRoutineStop['tide']>[] = ['low', 'high'];
+
+/** 六个建造分区。与 `ZoneId` 是同一份名单，运行时再验一次。 */
+const ZONES: readonly ZoneId[] = ['street', 'altar', 'industry', 'scholarly', 'agriculture', 'living'];
+
+/**
+ * 一道门得真的占着格子。
+ *
+ * 地域按声明顺序画上去，后声明的盖先声明的（`grid.ts` 那道循环）。所以一道写了
+ * `requires` 的地域如果整个被后声明的区域盖住，它一个格子都不占：`gatedRegions`
+ * 照样把它报给提示词和界面，而没有任何一格真的要求凭证。模型被告知有一道门，
+ * 到了那儿发现谁都能进——比没有门更糟。
+ *
+ * **不能反过来要求「区域不许重叠」。** 灯潮界的渡口压在浅滩上、叠浪楼的轮廓伸进
+ * 灯街，那是有意的写法（`pack.ts` 里写了理由：街先画、楼后画）。只有「一道门
+ * 一格都不剩」才是错。
+ */
+function assertGateOwnsCells(raw: RawSettingPack, label: (id: string) => string): void {
+  // 与 `WorldGrid` 同一条画法：按声明顺序写，后写的赢。
+  const owner = new Map<string, string>();
+  for (const region of raw.regions) {
+    for (let y = region.y; y < region.y + region.h; y += 1) {
+      for (let x = region.x; x < region.x + region.w; x += 1) {
+        owner.set(`${x},${y}`, region.id);
+      }
+    }
+  }
+  for (const region of raw.regions) {
+    if (region.requires == null) continue;
+    let owns = false;
+    for (let y = region.y; y < region.y + region.h && !owns; y += 1) {
+      for (let x = region.x; x < region.x + region.w && !owns; x += 1) {
+        owns = owner.get(`${x},${y}`) === region.id;
+      }
+    }
+    if (!owns) {
+      throw new SettingPackError(
+        `${label(region.id)} 要 ${region.requires}，可它每一格都被后声明的区域盖住了——这道门只存在于数据里`,
+      );
+    }
+  }
+}
 
 /** 名字读起来像取值，实际是断言：不合法就抛，合法就什么也不返回。 */
 function assertPoint(value: unknown, label: string): void {
@@ -137,6 +178,16 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       throw new SettingPackError(`区域 ${region.id} 的 requires 只能是 lamp/shoes 或 null`);
     }
   }
+  // 分区 id 只能是那六个词。蓝图的 `zone` 已经按闭集验过了，但分区表这边没有，
+  // 于是「表里写了第七个词」会安静地通过：每一格的分区都不是任何蓝图认的那个，
+  // `checkPlacement` 对整张图恒为 outOfZone——世界照常开门，`building.add`
+  // 在这张图上永远只会被拒。那是「一句话等于摆设」，而且一句话都说不出为什么。
+  for (const zone of raw.grid.zones) {
+    if (!ZONES.includes(zone.id)) {
+      throw new SettingPackError(`分区 ${String(zone.id)} 不是六个分区之一`);
+    }
+  }
+  assertGateOwnsCells(raw, (id) => raw.regions.find((region) => region.id === id)?.name ?? id);
   const blueprints = parseBlueprintTable(raw.prefabs, palette);
   const placementIds = new Set<string>();
   for (const placement of raw.placements) {
