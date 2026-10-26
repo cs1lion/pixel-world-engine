@@ -216,3 +216,52 @@ test('真仓库现在是干净的：0 处存疑', () => {
     '仓库里有没有哪处行号引用对不上了',
   );
 });
+
+// ---------------------------------------------- 「那东西就在这儿」也得真的是它
+
+test('写着「这东西在那儿」的引用，那儿得有那样东西', () => {
+  // 前四样只查「行号自己烂没烂」：越界、空行、文件不存在。可还有一种烂法
+  // 它们一句都说不出来——行号还在文件里、那段也有代码，只是那段是**别的**。
+  // 实测样本：`scatterToShelter` 的定义挪走之后，它引的那行是讲潮位的注释，
+  // 而 CI 全绿。这一条钉住那种。
+  const root = fixture();
+  try {
+    doc(root, `搬走的是 two()（${ref('a.ts', 1)}）。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 2, '同一行里两处都是指针');
+    const why = WHY_OF(findings, 1);
+    assert.match(why, /附近没有 two/, '名字写在坐标旁边，那儿就得有那个名字');
+    assert.match(why, /a\.ts:1/, '报出来时要带上到底指的哪儿');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('顺带提一句名字不算报位置：坐标说的多半是另一件事', () => {
+  // 反方向也得钉。ADR 里「每个模板都过同一个 prefab() 助手、boundTask 硬编码
+  // null（pack.ts:14）」这种句子，prefab() 是顺带提的，坐标说的是 boundTask。
+  // 隔开半句去认领一个坐标，就是把一句真话说成疑点——而误报一样毁掉一个守卫。
+  const root = fixture();
+  try {
+    doc(root, `每个模板都过同一个 prefab() 助手、boundTask 硬编码 null（${ref('a.ts', 5)}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.equal(findings.length, 0, '顺带提的名字不该被当成一处坐标声明');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('坐标偏几行还算数：引的常是函数上面那段注释', () => {
+  // 夹具里 `two` 的定义在第六行，可它上面第五行是段注释。ADR 经常引的就是那段
+  // 注释的原文，而注释里不一定再写一遍函数名。所以容许偏几行，不是逐字对齐。
+  // （这条注释里因此不写「文件名:数字」——这个守卫连自己的测试数据一起审，
+  //   而真实仓库里没有那个文件。）
+  const root = fixture();
+  try {
+    doc(root, `见 two()（${ref('a.ts', 5)}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.equal(findings.length, 0, '偏几行落在同一个函数上，不该报');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

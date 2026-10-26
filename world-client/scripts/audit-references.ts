@@ -12,7 +12,7 @@
  *
  * 所以这里把它变成一条 CI 跑得到的断言，而不是一份「写完就对一次」的清单。
  *
- * 查四样：
+ * 查五样：
  *   1. **指的文件存在**。引用写作 `grid.ts:230-237` 时只有一个裸文件名，
  *      所以按「引用者目录 → 仓库根 → 全仓唯一后缀」的顺序找。后缀撞上多个
  *      文件时报出来并列出候选——那不是脚本猜得了的，是人得挑一个写清楚。
@@ -23,6 +23,10 @@
  *      `:622`」这种写法只有第一处带文件名。不带文件名的那些曾完全没人管，
  *      于是 `test/terrain-edge-visibility.test.ts` 里那个指向不存在文档的
  *      第 218 行一直绿着。现在同一段里最近的那个文件会被带下去，空行一断就忘。
+ *   5. **「那东西就在这儿」这种引用，那儿得有那样东西**。`scatterToShelter()`
+ *      （`simulation.ts:1440`）这种写法把名字写在坐标旁边，本身是一句可验的
+ *      断言——而 1440 那段今天讲的是潮位拒收。它曾一直绿着：行号在文件里、
+ *      那段也有代码，只是代码是**别的**。见 `CALL_REF` 上那段。
  *
  * 两处**不查**，都是有意的：
  *   - 网址里的 `:8080` 是端口。整段挖掉，不是「这行有网址就整行跳过」——
@@ -127,6 +131,39 @@ const HAS_GLYPH = /[A-Za-z_$\p{Script=Han}]/u;
 /** 一行里除了空白与括号，什么都没有。 */
 const ONLY_BRACES = /^[\s{}()[\];,]*$/;
 
+/**
+ * 「那东西就在这儿」这种引用：一个带括号的函数名，后面紧跟一个坐标。
+ *
+ * 前四样都只查「行号自己烂没烂」——越界、空行、文件不存在。可还有一种烂法
+ * 它们一句都说不出来：行号还在文件里、那段也有代码，只是那段是**别的**。
+ * `scatterToShelter` 的定义挪走之后，它引的那个 1440 是一段讲潮位的注释，
+ * 而 CI 全绿。这个脚本自己的文件头原来就写着「不查那段说的是不是那件事」——
+ * 那是语义，机器判不了，也不该由脚本假装能判。
+ *
+ * 可这一种**不需要**懂语义：引用者自己把名字写在了坐标旁边。名字加一对括号、
+ * 后面隔几个字一个坐标，这就是一句「这东西在那儿」的断言，而它可验。
+ *
+ * 两处收得很紧，都是有意的：
+ *   - **名字后面必须立刻跟着坐标**，中间只允许一个括号（和一个反引号）。
+ *     ADR 里有「每个模板都过同一个 `prefab()` 助手、`boundTask` 硬编码 null
+ *     （`pack.ts:14`）」这种句子：`prefab()` 是顺带提的，坐标说的是
+ *     `boundTask`。隔开半句再去认领一个坐标，就是把一句真话说成疑点——
+ *     而误报一样毁掉一个守卫，只是毁得慢一点。
+ *   - **必须带 `()`**。`placeBlueprint`（内部走…）这种只是提一句名字，
+ *     不是在报位置，拿它去查坐标就是误报。
+ *
+ * 名字与坐标两头都**不要求**反引号：实测的那个样本里两者都是裸的。第一版两头
+ * 都要求，于是一处都没匹配上——而它恰恰是这条判据唯一的活样本。守卫闭上嘴比
+ * 没有守卫更糟，所以拿真仓库里那个形状当验收，不是拿想象当中的形状。
+ *
+ * 本文件的注释里因此不写那种形状的示例：审计连自己的注释一起审。
+ */
+const CALL_REF =
+  /([A-Za-z_$][\w$]*)\(\)\s*[（(]?\s*`?([\w./-]+\.(?:ts|mjs|py|md)):(\d+)(?:-(\d+))?`?(?:[\s）)]|$)/g;
+
+/** 引用允许偏几行：ADR 常引函数上面那段注释，而注释里不一定再写一遍函数名。 */
+const CALL_REF_SLACK = 3;
+
 /** 一处存疑的引用。 */
 export interface ReferenceFinding {
   /** 引用写在哪儿：那份文档的路径，冒号后是行号。 */
@@ -205,6 +242,38 @@ function resolveRef(ref: string, fromDir: string, index: readonly string[]): Res
 }
 
 /**
+ * 把一个引用落到文件行上。
+ *
+ * 落不下去就回一句为什么；落得下去就回那份文件的全部行，连引用指的区间，
+ * 好让调用方自己再看那一段里该有什么。
+ */
+function land(
+  named: string,
+  first: string,
+  last: string | undefined,
+  file: string,
+  root: string,
+  index: readonly string[],
+):
+  | { readonly ok: true; readonly lines: readonly string[]; readonly from: number; readonly to: number; readonly span: string }
+  | { readonly ok: false; readonly why: string } {
+  const resolved = resolveRef(named, path.dirname(file), index);
+  if (resolved === null) return { ok: false, why: '找不到这个文件' };
+  if ('candidates' in resolved) {
+    const names = resolved.candidates.map((c) => path.relative(root, c)).join('、');
+    return { ok: false, why: `裸文件名撞上 ${resolved.candidates.length} 个文件（${names}）——写全路径` };
+  }
+  const target = readFileSync(resolved.file, 'utf8').split(/\r?\n/);
+  const from = Number(first);
+  const to = last === undefined ? from : Number(last);
+  const span = `${path.relative(root, resolved.file)}:${first}${last === undefined ? '' : `-${last}`}`;
+  if (from < 1 || to > target.length) {
+    return { ok: false, why: `${span} 越界：那份一共 ${target.length} 行` };
+  }
+  return { ok: true, lines: target, from, to, span };
+}
+
+/**
  * 审一遍。`root` 可换，为的是测试能拿一份临时目录跑，不必动真仓库。
  */
 export function auditReferences({ root = ROOT }: { root?: string } = {}): ReferenceAudit {
@@ -243,41 +312,42 @@ export function auditReferences({ root = ROOT }: { root?: string } = {}): Refere
         if (named === null) continue;
         checked += 1;
         const where = `${path.relative(root, file)}:${at + 1}`;
-        const resolved = resolveRef(named, path.dirname(file), index);
+        const landed = land(named, hit.first, hit.last, file, root, index);
 
-        if (resolved === null) {
-          findings.push({ where, ref: named, why: '找不到这个文件' });
-          continue;
-        }
-        if ('candidates' in resolved) {
-          const names = resolved.candidates.map((c) => path.relative(root, c)).join('、');
-          findings.push({
-            where,
-            ref: named,
-            why: `裸文件名撞上 ${resolved.candidates.length} 个文件（${names}）——写全路径`,
-          });
+        if (!landed.ok) {
+          findings.push({ where, ref: named, why: landed.why });
           continue;
         }
         // 这一段指的文件记下来：后面省略文件名的那些处接它。
         carried = named;
-
-        const target = readFileSync(resolved.file, 'utf8').split(/\r?\n/);
-        const from = Number(hit.first);
-        const to = hit.last === undefined ? from : Number(hit.last);
-        const span = `${path.relative(root, resolved.file)}:${hit.first}${hit.last === undefined ? '' : `-${hit.last}`}`;
-        if (from < 1 || to > target.length) {
+        if (!hasCode(landed.lines.slice(landed.from - 1, landed.to).join('\n'))) {
           findings.push({
             where,
             ref: named,
-            why: `${span} 越界：那份一共 ${target.length} 行`,
+            why: `${landed.span} 那段里没有代码，只有空行或括号`,
           });
+        }
+      }
+
+      // 第五样：「这东西在那儿」这种断言，那儿得有那样东西。见 `CALL_REF`。
+      // 单独立一段而不是并进上面那个循环：它多带一个名字，也多一条判据。
+      for (const m of scanned.matchAll(CALL_REF)) {
+        const name = m[1];
+        if (name === undefined || m[2] === undefined || m[3] === undefined) continue;
+        checked += 1;
+        const where = `${path.relative(root, file)}:${at + 1}`;
+        const landed = land(m[2], m[3], m[4], file, root, index);        if (!landed.ok) {
+          findings.push({ where, ref: m[2], why: landed.why });
           continue;
         }
-        if (!hasCode(target.slice(from - 1, to).join('\n'))) {
+        // 允许偏几行：引用指的常是函数上面那段注释，而注释里不一定再写一遍名字。
+        const lo = Math.max(0, landed.from - 1 - CALL_REF_SLACK);
+        const hi = Math.min(landed.lines.length, landed.to + CALL_REF_SLACK);
+        if (!landed.lines.slice(lo, hi).join('\n').includes(name)) {
           findings.push({
             where,
-            ref: named,
-            why: `${span} 那段里没有代码，只有空行或括号`,
+            ref: m[2],
+            why: `${landed.span} 那段附近没有 ${name}——引用说它在那儿，可那儿不是它`,
           });
         }
       }
