@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { codeOf } from './source-scan.ts';
 
 // 世界内核的三条纯度契约。
 //
@@ -71,13 +72,9 @@ test('src/world 不说上游快照的词汇', () => {
   for (const file of files) {
     const rel = file.slice(SRC.length + 1).split(path.sep).join('/');
     if (!rel.startsWith('world/')) continue;
-    const text = readFileSync(file, 'utf8');
     // 注释里提一句「旧接口曾经叫 commissions」是解释历史，不算把词汇接回来；
-    // 所以只看代码行，注释行（以 * 或 // 开头）跳过。
-    const code = text
-      .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
-      .join('\n');
+    // 所以只看代码行。剔注释那一行在 `source-scan.ts`。
+    const code = codeOf(file);
     const hits = SNAPSHOT_VOCAB.filter((word) => code.includes(word));
     if (hits.length > 0) offenders.push(`${rel}: ${hits.join(', ')}`);
   }
@@ -125,10 +122,7 @@ test('世界的网络入口是封闭的一份清单', () => {
     const rel = file.slice(SRC.length + 1).split(path.sep).join('/');
     if (!rel.startsWith('world/')) continue;
     if (ALLOWED.has(rel)) continue;
-    const code = readFileSync(file, 'utf8')
-      .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
-      .join('\n');
+    const code = codeOf(file);
     if (/\bfetch\s*\(|new WebSocket\s*\(/.test(code)) offenders.push(rel);
   }
   assert.deepEqual(offenders, [], `世界的网络入口只该是这份清单：\n${offenders.join('\n')}`);
@@ -190,9 +184,8 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
   for (const rel of OWNERS) {
     const file = worldFile(rel);
     assert.ok(file !== undefined, `找不到 ${rel}`);
-    const code = readFileSync(file, 'utf8')
+    const code = codeOf(file)
       .split('\n')
-      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
       .filter((line) => !line.includes(WALL_CLOCK_DEFAULT))
       .join('\n');
     const hits = banned.filter((pattern) => code.includes(pattern));

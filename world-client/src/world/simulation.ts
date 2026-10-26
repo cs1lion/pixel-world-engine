@@ -1649,13 +1649,20 @@ export class Simulation {
         return { ok: false, message };
       }
     } else {
-      // 指定目标：按 id 或名字精确匹配，未知目标明确拒绝。
-      villager = this.villagers.find((item) => item.id === target || item.name === target);
-      if (villager === undefined) {
-        const message = `没有叫「${target}」的角色，世界没有动。`;
-        this.log('warn', message);
-        return { ok: false, message };
+      // 指定目标。id 先查：id 是世界上唯一的，一个 id 指着两个人不可能。
+      // 名字走 `villagerNamed`：两个人都叫莞尔时，原先 `.find` 会把成果递给
+      // 排在前头的那位，然后照实说「成果已交付（莞尔）」——替用户挑了人，
+      // 而那句话听着像她点名的那位交了。`carry` 与 `demolish` 早就这么办，
+      // 这一处是同一条约束漏掉的第三个实例。
+      const byId = this.villagers.find((item) => item.id === target);
+      const named = byId !== undefined ? { villager: byId } : this.villagerNamed(target);
+      if ('message' in named) {
+        // 这句话比原先那句「没有叫「X」的角色」有用：它说世界上都有谁，
+        // 或者有几个人叫这个名字。
+        this.log('warn', named.message);
+        return { ok: false, message: named.message };
       }
+      villager = named.villager;
       if (villager.mode !== 'working' || this.activeTaskOf(villager) === null) {
         const message = `${villager.name}现在没有在干活，无需交付。`;
         this.log('warn', message);
