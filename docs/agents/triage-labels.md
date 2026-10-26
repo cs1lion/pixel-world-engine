@@ -14,4 +14,12 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
 
-All five labels already exist in `cs1lion/pixel-world-engine`, and the open tickets (#1, #4–#9) currently carry `ready-for-agent`.
+All five labels already exist in `cs1lion/pixel-world-engine`.
+
+They are in use: as of 2026-10-27 every open ticket carries `ready-for-agent`. That is a statement about one moment, not an invariant — #5 and #6 were open when an earlier version of this line named them, and they have since closed. So do not read a ticket list off this page; check it:
+
+```bash
+gh issue list --label ready-for-agent --state open
+```
+
+What is stable is the label set above, not which tickets carry it.
