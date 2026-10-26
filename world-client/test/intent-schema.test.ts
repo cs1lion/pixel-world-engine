@@ -235,3 +235,13 @@ test('carry 要点名一个人，也要说带什么', () => {
   assert.match(bad({ kind: 'carry', villager: '莞尔' }), /carries/);
   assert.match(bad({ kind: 'carry', villager: '  ', carries: ['lamp'] }), /villager 不能为空/);
 });
+
+test('carries 没给和给错了，是两句不同的话', () => {
+  // 从前「没给 carries」回的是「carries 必须是数组」——那句话是假的：
+  // 用户明明一个都没填，世界却说他填错了类型。服务端 `rules/schema.py`
+  // 分得清 missing-field 与 type-mismatch，两边说的必须是同一件事。
+  assert.match(bad({ kind: 'carry', villager: '莞尔' }), /carries 缺字段/);
+  assert.match(bad({ kind: 'carry', villager: '莞尔', carries: 'lamp' }), /必须是数组/);
+  // 数组里混进不是字符串的，也是「给错了」，不是「没给」
+  assert.match(bad({ kind: 'carry', villager: '莞尔', carries: [1] }), /不是这个世界上认得的凭证/);
+});

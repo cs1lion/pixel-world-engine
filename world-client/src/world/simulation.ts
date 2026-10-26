@@ -934,18 +934,13 @@ export class Simulation {
         // 意图说**名字**（上下文只给得起名字），世界命令认 **id**。
         // 这一层翻译放在这里，不放进 schema：schema 只管形状，「阿绣在不在」
         // 是世界才知道的事。点名了世界之外的人，拒——不顺手改递给站在边上的那位。
-        const villager = this.villagers.find((item) => item.name === intent.villager);
-        if (villager === undefined) {
-          const known = this.villagers.map((item) => item.name).join('、');
-          const message =
-            known === ''
-              ? `世界上还没有叫「${intent.villager}」的人。`
-              : `世界上没有叫「${intent.villager}」的人；有的是 ${known}。`;
-          this.log('warn', message);
-          return { ok: false, message };
+        const target = this.villagerNamed(intent.villager);
+        if ('message' in target) {
+          this.log('warn', target.message);
+          return { ok: false, message: target.message };
         }
         return this.settleIntent(
-          { kind: 'setCarries', villagerId: villager.id, carries: intent.carries },
+          { kind: 'setCarries', villagerId: target.villager.id, carries: intent.carries },
           raw,
         );
       }
@@ -1039,6 +1034,33 @@ export class Simulation {
     if (matches.length === 0) return { message: `没有${name}可拆。` };
     const ids = matches.map((building) => building.instanceId).join('、');
     return { message: `有 ${matches.length} 栋${name}（${ids}），说清拆哪一栋。` };
+  }
+
+  /**
+   * 按名字找出**那一个**人。
+   *
+   * 与 `demolishTargetOf` 是同一种约束的另一个实例：一个名字指着两个人时，
+   * 把东西递给排在前头的那位就是替用户挑了人。`villagerNames` 是调用方给的、
+   * 读档也不查重名，所以「两个莞尔」进得来——不假设它进不来。
+   *
+   * 返回带 `message` 的失败而不是抛：这句话要说给用户听，说清世界上都有谁。
+   */
+  private villagerNamed(
+    name: string,
+  ): { readonly villager: Villager } | { readonly message: string } {
+    const matches = this.villagers.filter((item) => item.name === name);
+    if (matches.length === 1 && matches[0] !== undefined) return { villager: matches[0] };
+    const known = this.villagers.map((item) => item.name).join('、');
+    if (matches.length === 0) {
+      return {
+        message:
+          known === ''
+            ? `世界上还没有叫「${name}」的人。`
+            : `世界上没有叫「${name}」的人；有的是 ${known}。`,
+      };
+    }
+    const ids = matches.map((item) => item.id).join('、');
+    return { message: `有 ${matches.length} 个人叫「${name}」（${ids}），说清是哪一个。` };
   }
 
   /** 刻石板。只记真正改变了世界的那句话；超出上限丢最旧。 */

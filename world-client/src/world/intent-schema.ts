@@ -206,18 +206,29 @@ export function parseIntent(
         villager: readNonEmpty(record.villager, 'villager', fail),
         // 闭集在**这儿**就挡掉，不等世界再答一遍：模型不该有机会让世界收到
         // 一个世界上不存在的东西。逐件查，不整锅端——部分接受比整条拒更难查。
-        carries: readCarries(record.carries, fail),
+        carries: readCarries(record, fail),
       };
     case 'unknown':
       return { kind: 'unknown', reason: readNonEmpty(record.reason, 'reason', fail) };
   }
 }
 
-/** 凭证清单：必须是数组，且每一件都在 `gate.ts` 的闭集里。 */
+/**
+ * 凭证清单：必须是数组，且每一件都在 `gate.ts` 的闭集里。
+ *
+ * 「没给」和「给错了」是两句话，不并成一句：前者是漏了字段，
+ * 后者是填了世界上不存在的东西。合成一句，用户明明什么都没填，
+ * 却收到「必须是数组」——那句话是假的，比不报更糟。
+ * 服务端 `rules/schema.py` 的 `_villager_carry` 也是这么分的。
+ */
 function readCarries(
-  value: unknown,
+  record: Record<string, unknown>,
   fail: (why: string) => never,
 ): readonly CarryItem[] {
+  if (!('carries' in record)) {
+    fail('carries 缺字段：要带什么，一件都没有就是两手空空');
+  }
+  const value = record.carries;
   if (!Array.isArray(value)) fail('carries 必须是数组');
   const out: CarryItem[] = [];
   for (const item of value as unknown[]) {

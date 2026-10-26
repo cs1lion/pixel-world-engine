@@ -7,12 +7,18 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
 from oracle import orchestrator
 from oracle.orchestrator import MAX_COMMANDS, ModelFailed, ModelUnavailable, interpret
-from oracle.prompt import build_messages, build_system_prompt
+from oracle.prompt import COMMAND_LINES, build_messages, build_system_prompt
+from rules.schema import COMMAND_CHECKS
+
+#: COMMAND_LINES 里每条形如 `- {"command":"weather.set","args":{...}}`。
+#: 数它，是为了让「提示词说有几种」这个数从正文里长出来，而不是谁的手写。
+COMMAND_IN_LINES = re.compile(r'\{"command":"([a-zA-Z.]+)"')
 
 TEMPLATES = [
     {"id": "code_forge", "displayName": "炼码工坊", "boundTask": "code"},
@@ -175,18 +181,27 @@ def test_没有模板表就不问模型() -> None:
 
 # ---------------------------------------------------------------- 提示词
 
-def test_提示词列出每一条模板与每一种世界能执行的命令() -> None:
+def test_提示词列出每一种模板() -> None:
+    """模板表是前端发来的，提示词负责把它写进去——漏一个，模型就建不出那一栋。"""
     prompt = build_system_prompt(TEMPLATES)
     for item in TEMPLATES:
         assert item["id"] in prompt
         assert item["displayName"] in prompt
-    for command in (
-        "weather.set",
-        "tide.setLevel",
-        "building.add",
-        "building.remove",
-        "miracle.spawn",
-    ):
+
+
+def test_提示词列出每一种世界能执行的命令() -> None:
+    """除了一条客户端还表达不了的，白名单里每一条命令提示词都得讲。
+
+    从前这里写死五个名字，于是 villager.carry 加进 COMMAND_LINES 时没有任何
+    测试红——把那一行从提示词里删掉，全套照旧绿。提交信息却说「三处一起」。
+    写死的表只钉住写表那天，所以这里从白名单问。
+    """
+    prompt = build_system_prompt(TEMPLATES)
+    # `npc.setSchedule` 是合法的世界命令，但客户端与世界都还没有对应的意图，
+    # 写进提示词就是让模型去说一件世界办不到的事（见下面那条）。
+    expressible = sorted(set(COMMAND_CHECKS) - {"npc.setSchedule"})
+    assert expressible, "白名单数不出来了——COMMAND_CHECKS 的形状变了"
+    for command in expressible:
         assert command in prompt, f"提示词没讲 {command}"
 
 
@@ -198,7 +213,6 @@ def test_提示词不列世界办不到的命令() -> None:
     """
     prompt = build_system_prompt(TEMPLATES)
     assert "npc.setSchedule" not in prompt
-    assert "只输出下面五种之一" in prompt
 
 
 def test_提示词禁止模型自己改数() -> None:
@@ -211,6 +225,34 @@ def test_提示词把时长上限写出来() -> None:
     prompt = build_system_prompt(TEMPLATES)
     assert "120000" in prompt
     assert "durationMs" in prompt
+
+
+def test_提示词说清了毫秒换算() -> None:
+    # 「潮水按住十分钟」→ `durationMs: 60000`：十分钟被当成一分钟，
+    # 而 60000 在上限之内，白名单完全合法地放行了。用户要十分钟，拿到一分钟。
+    #
+    # 这不是模型算错一次，是提示词从没说过单位怎么换。钉住这句，
+    # 下一个人「精简提示词」时至少会看见一个红着的原因。
+    prompt = build_system_prompt(TEMPLATES)
+    assert "600000" in prompt, "提示词没写十分钟是多少毫秒——模型会自己折算一个"
+
+
+def test_提示词不许把表里没有的现象换成邻居() -> None:
+    # 「把天气改成下雪」→ `value: "rain"`。雪、雾、风、彩虹这个世界都没有，
+    # 而提示词原先写着「不在表里，往最近的一档靠」——那句话就是在邀请替换。
+    # 用户要雪，拿到一场雨，还被告知「办好了」。
+    prompt = build_system_prompt(TEMPLATES)
+    assert "雪" in prompt and "不许往邻居身上靠" in prompt, (
+        "提示词又允许把世界没有的现象往最近一档靠了——那正是「下雪」被换成雨的原因"
+    )
+
+
+def test_提示词说清永久不是可省略() -> None:
+    # 「潮位永久停在满潮」→ `durationMs: 120000`。「可省略（省略时取上限）」
+    # 被读成「永久 = 能多长就多长」，于是用户要「一直」，拿到两分钟。
+    prompt = build_system_prompt(TEMPLATES)
+    assert "永久" in prompt, "提示词没提「永久」——它会和「可省略」混在一起"
+    assert "偷偷换成" in prompt, "提示词没点明不许把永久偷换成上限"
 
 
 def test_消息是_system_加_user_两条_user_就是原话() -> None:

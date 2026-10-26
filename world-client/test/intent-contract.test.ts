@@ -70,18 +70,21 @@ test('服务端的拨潮时长受同一个上限约束', () => {
   );
 });
 
-test('三处的凭证闭集是同一套词：少对上一处，门就只认得一半', () => {
-  // `CARRY_ITEMS` 现在有三份：客户端 `gate.ts`、服务端 `rules/schema.py`、
-  // `oracle/wire.py`。三处各写一遍就一定会漂，而漂开的表现是
-  // 「她明明带着灯，那道门就是不认」——只有截图才看得见的那种 bug。
+test('凭证闭集两边各声明一次，而且说的是同一套词', () => {
+  // `CARRY_ITEMS` 从前在三处各写一遍：客户端 `gate.ts`、服务端
+  // `rules/schema.py`、服务端 `oracle/wire.py`。「各写一遍就一定会漂」
+  // 这句话于是在服务端内部就先应验了——`wire.py` 早就 import 了 `rules.schema`，
+  // 却还是自己又写了一个元组。
   //
-  // 冻结样例管不了这个：样例里只有 lamp 一件，加第三件凭证时三份全对，
-  // 漏改任何一份，样例照旧绿。所以这里直接比源。
+  // 所以这里数的是**声明**，不是出现：`wire.py` 该引那一份，不许再写。
+  // 它再写一个，这条测试就得改，而改的时候就会看见为什么不该写。
   const client = [...CARRY_ITEMS].sort().join(',');
+  const declaredIn: string[] = [];
   for (const path of ['../../server/rules/schema.py', '../../server/oracle/wire.py']) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8');
     const found = /^CARRY_ITEMS\s*=\s*\(([^)]*)\)/m.exec(source);
-    assert.ok(found !== null, `${path} 里找不到 CARRY_ITEMS 了——它被改名或删了`);
+    if (found === null) continue;
+    declaredIn.push(path);
     const server = (found[1] ?? '')
       .split(',')
       .map((item) => item.trim().replace(/^["']|["']$/g, ''))
@@ -90,4 +93,40 @@ test('三处的凭证闭集是同一套词：少对上一处，门就只认得�
       .join(',');
     assert.equal(server, client, `${path} 的凭证闭集与客户端不一致：${server} ≠ ${client}`);
   }
+  assert.deepEqual(
+    declaredIn,
+    ['../../server/rules/schema.py'],
+    '服务端只该在 rules/schema.py 声明一次凭证闭集；别处要引它，不许再写',
+  );
+});
+
+test('服务端的意图清单就是客户端的那一份：少一种，线协议就比世界少说一句话', () => {
+  // `wire.py` 的文档说 `INTENT_KINDS` 与这里的 `IntentKind`「逐个对上」。
+  // 这句话从前没有任何东西守着，于是它假了一次：`setTide` 加进客户端和冻结样例之后，
+  // 服务端那份元组没跟着加——`validate_intent({"kind":"setTide"})` 抛「未知意图」，
+  // 而客户端收得下、样例里也躺着一条。两边对同一句话说不一样的话，
+  // 只有真的走到那条分支才看得见。
+  //
+  // 所以直接比源，跟上面那条凭证闭集同一个道理：手写的表只钉住写表那天。
+  const clientSource = readFileSync(new URL('../src/world/intent-schema.ts', import.meta.url), 'utf8');
+  const union = /export type IntentKind =([\s\S]*?);/.exec(clientSource);
+  assert.ok(union !== null, 'intent-schema.ts 里找不到 IntentKind 联合了——它被改名或删了');
+  const client = [...(union[1] ?? '').matchAll(/'([A-Za-z]+)'/g)]
+    .map((found) => found[1] ?? '')
+    .sort();
+
+  const serverSource = readFileSync(new URL('../../server/oracle/wire.py', import.meta.url), 'utf8');
+  const tuple = /^INTENT_KINDS = \(([^)]*)\)/m.exec(serverSource);
+  assert.ok(tuple !== null, 'wire.py 里找不到 INTENT_KINDS 了——它被改名或删了');
+  const server = (tuple[1] ?? '')
+    .split(',')
+    .map((item) => item.trim().replace(/^["']|["']$/g, ''))
+    .filter((item) => item !== '')
+    .sort();
+
+  assert.deepEqual(
+    server,
+    client,
+    `服务端的意图清单与客户端不一致：${server.join(',')} ≠ ${client.join(',')}`,
+  );
 });

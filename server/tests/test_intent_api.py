@@ -475,6 +475,39 @@ def test_拆楼给了实例_id_就原样翻成白名单命令() -> None:
     assert command.args == {"instanceId": "ink_house#3"}
 
 
+# ---------------------------------------------------------------- 拨潮这一条意图
+
+def test_拨潮翻成白名单命令_水位与时长都原样过去() -> None:
+    """`setTide` 曾经不在服务端的意图清单里：客户端收得下、冻结样例里也有一条，
+    而 `validate_intent` 抛「未知意图」。两边对同一句话说不一样的话，
+    只有真的走到这条分支才看得见——所以这里把它走一遍。"""
+    intent, command = wire.validate_intent({"kind": "setTide", "level": 1, "durationMs": 30_000})
+    assert intent == {"kind": "setTide", "level": 1, "durationMs": 30_000}
+    assert command is not None
+    assert command.name == "tide.setLevel"
+    assert command.args == {"value": 1, "durationMs": 30_000}
+
+
+def test_拨潮超上限被拒_而且拒绝的话就是上限那个数() -> None:
+    """上限必须与 `rules/schema.py` 的 `TIDE_OVERRIDE_MAX_MS` 是同一个数。
+    服务端这边放宽一点，表现就是模型给了三分钟、世界收了、客户端拒了——
+    用户看到「没听懂」，而世界其实已经准备好了。"""
+    with pytest.raises(wire.WireError) as caught:
+        wire.validate_intent({"kind": "setTide", "level": 0.5, "durationMs": 120_001})
+    assert "120000" in str(caught.value)
+
+
+def test_拨潮水位越界与时长不是正数_都被拒() -> None:
+    for bad in (
+        {"kind": "setTide", "level": 5, "durationMs": 30_000},
+        {"kind": "setTide", "level": -1, "durationMs": 30_000},
+        {"kind": "setTide", "level": 0.5, "durationMs": 0},
+        {"kind": "setTide", "level": 0.5, "durationMs": -1},
+    ):
+        with pytest.raises(wire.WireError):
+            wire.validate_intent(bad)
+
+
 # ---------------------------------------------------------------- 端点自身的错误
 
 def test_没配_Key_回_503() -> None:

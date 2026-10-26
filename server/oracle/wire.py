@@ -4,9 +4,10 @@
 `world-client/src/world/intent-client.ts`）。服务端没有资格改它来让自己好写，
 所以这里做一层显式的翻译：
 
-    模型的原话（八种 intent）
+    模型的原话（十种 intent）
         │
-        ├─ setWeather / build / demolish / miracle  →  落到白名单命令，过校验
+        ├─ setWeather / setTide / build / demolish /
+        │  miracle / carry                       →  落到白名单命令，过校验
         ├─ dispatch / complete / cancelPending      →  不是世界改变，原样放行
         └─ unknown / 任何解析失败                    →  unknown
 
@@ -24,14 +25,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from rules.schema import Command, CommandRejected, validate_command
+from rules.schema import CARRY_ITEMS, TIDE_OVERRIDE_MAX_MS, Command, CommandRejected, validate_command
 
-#: 客户端的九种意图。与 `intent-schema.ts` 的 `IntentKind` 逐个对上。
+#: 客户端的十种意图。与 `intent-schema.ts` 的 `IntentKind` 逐个对上。
+#:
+#: 「逐个对上」这句话有东西守着：`world-client/test/intent-contract.test.ts`
+#: 拿两边的源直接比。少一种的后果不是报错，是两边对同一句话说不一样的话——
+#: `setTide` 就缺席过一次，客户端与冻结样例都认它，这里抛「未知意图」。
 INTENT_KINDS = (
     "dispatch",
     "complete",
     "cancelPending",
     "setWeather",
+    "setTide",
     "build",
     "demolish",
     "miracle",
@@ -45,6 +51,7 @@ ALLOWED_KEYS: dict[str, frozenset[str]] = {
     "complete": frozenset({"kind"}),
     "cancelPending": frozenset({"kind"}),
     "setWeather": frozenset({"kind", "weather"}),
+    "setTide": frozenset({"kind", "level", "durationMs"}),
     "build": frozenset({"kind", "templateId", "at"}),
     # 两个键都在表里，但必须且只能给一个：见 `validate_intent` 的 demolish 分支。
     "demolish": frozenset({"kind", "instanceId", "templateId"}),
@@ -55,9 +62,8 @@ ALLOWED_KEYS: dict[str, frozenset[str]] = {
 
 TASK_KINDS = ("code", "research", "writing", "quick")
 MIRACLES = ("light", "tree", "cat")
-#: 渡有仪式认得的凭证。与 `rules/schema.py` 的 `CARRY_ITEMS`、客户端
-#: `world/gate.ts` 的 `CARRY_ITEMS` 是同一套闭集词，三处各写一遍就一定会漂。
-CARRY_ITEMS = ("lamp", "shoes")
+#: 渡有仪式认得的凭证在 `rules/schema.py` 声明一次，这里引它——不自己再写一份。
+#: 客户端 `world/gate.ts` 与它是同一套闭集词，三只嘴说三句话就一定会漂。
 
 
 class WireError(ValueError):
@@ -76,6 +82,14 @@ def to_command(intent: dict[str, Any], world: dict[str, Any] | None = None) -> C
     if kind == "setWeather":
         return validate_command(
             {"command": "weather.set", "args": {"value": intent["weather"]}}, world
+        )
+    if kind == "setTide":
+        return validate_command(
+            {
+                "command": "tide.setLevel",
+                "args": {"value": intent["level"], "durationMs": intent["durationMs"]},
+            },
+            world,
         )
     if kind == "build":
         args: dict[str, Any] = {"prefabId": intent["templateId"]}
@@ -143,6 +157,8 @@ def validate_intent(raw: Any, world: dict[str, Any] | None = None) -> tuple[dict
         _non_empty(raw, "summary", "summary")
     elif kind == "setWeather":
         _one_of(raw, "weather", ("clear", "rain", "storm"), "weather")
+    elif kind == "setTide":
+        _tide(raw)
     elif kind == "build":
         _non_empty(raw, "templateId", "templateId")
         _point(raw.get("at"), world)
@@ -183,6 +199,33 @@ def _carries(raw: dict[str, Any]) -> None:
             raise WireError(
                 f"carries 的 {item!r} 不在取值域里：可选 {' / '.join(CARRY_ITEMS)}"
             )
+
+
+def _tide(raw: dict[str, Any]) -> None:
+    """拨潮：水位 0..1，时长是正数毫秒且不超上限。
+
+    上限直接引 `rules/schema.py` 的 `TIDE_OVERRIDE_MAX_MS`——潮汐同时是世界时钟，
+    一条能永久按住它的命令会让所有依赖它的确定性松动。客户端 `tide.ts` 里是同一个数，
+    三处各写一遍就一定会漂。
+
+    与客户端 `parseIntent` 的 setTide 分支逐条同源：水位和时长都收 int/float、
+    都拒 bool 与 NaN/Inf。这里放宽一点、那边严一点，表现就是同一条意图
+    在客户端过得去、在服务端被 502——而用户只看到「没听懂」。
+    """
+    level = raw.get("level")
+    if isinstance(level, bool) or not isinstance(level, (int, float)) or level != level:
+        raise WireError("level 必须是数字")
+    if not 0 <= level <= 1:
+        raise WireError(f"level 必须在 0..1，收到 {level}")
+    duration = raw.get("durationMs")
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or duration != duration:
+        raise WireError("durationMs 必须是数字")
+    if duration <= 0:
+        raise WireError("durationMs 必须是正数毫秒")
+    if duration > TIDE_OVERRIDE_MAX_MS:
+        raise WireError(
+            f"durationMs 最多 {TIDE_OVERRIDE_MAX_MS}，收到 {duration}——再久就成了夺权，不只是拨一下"
+        )
 
 
 def _one_of(raw: dict[str, Any], key: str, allowed: tuple[str, ...], field: str) -> str:

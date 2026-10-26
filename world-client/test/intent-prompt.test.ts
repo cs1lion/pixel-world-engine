@@ -27,18 +27,16 @@ test('提示词把三档天气都讲了，模型才知道有暴雨', () => {
   assert.match(prompt, /暴雨/);
 });
 
-test('提示词覆盖全部九种意图', () => {
-  for (const kind of [
-    'dispatch',
-    'complete',
-    'cancelPending',
-    'setWeather',
-    'setTide',
-    'build',
-    'demolish',
-    'miracle',
-    'unknown',
-  ]) {
+test('提示词覆盖每一种意图——从联合类型问，不手写清单', () => {
+  // 从前这里手写九个名字。于是 carry 加进 `IntentKind` 时这条没红：
+  // 提示词少讲一种意图，模型就永远不说它，而全套测试照旧绿。
+  // 手写的表只钉住写表那天，所以从 `intent-schema.ts` 的联合类型问。
+  const source = readFileSync(new URL('../src/world/intent-schema.ts', import.meta.url), 'utf8');
+  const union = /export type IntentKind =([\s\S]*?);/.exec(source);
+  assert.ok(union !== null, 'intent-schema.ts 里找不到 IntentKind 联合了');
+  const kinds = [...(union[1] ?? '').matchAll(/'([A-Za-z]+)'/g)].map((found) => found[1] ?? '');
+  assert.ok(kinds.length > 0, 'IntentKind 联合里数不出种类了');
+  for (const kind of kinds) {
     assert.ok(prompt.includes(`"${kind}"`), `提示词没讲 ${kind}`);
   }
 });

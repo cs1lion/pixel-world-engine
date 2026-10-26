@@ -74,7 +74,7 @@ ${renderIntentContext(context)}
 
 ## 你能表达的命令
 
-只输出下面九种之一，别的都不存在：
+只能输出下面这些之一，别的都不存在：
 
 - \`{"kind":"dispatch","taskKind":"<类>","summary":"<要做的事>"}\` 派一件活给镇上的铺子
 - \`{"kind":"complete"}\` 交付，收下正在干的那单
@@ -86,6 +86,9 @@ ${renderIntentContext(context)}
 - \`{"kind":"demolish","instanceId":"<实例 id>"}\` 拆掉指定的一栋；只说模板不说哪一栋时可用 \`"templateId"\`，
   世界得在恰好一栋时才能落。**不要自己拼 instanceId**：抄现状里的那个
 - \`{"kind":"miracle","miracle":"light"|"tree"|"cat"}\` 点灯 / 种树 / 召唤猫；可带 \`"at"\`
+- \`{"kind":"carry","villager":"<名字>","carries":["lamp"|"shoes"]}\` 给她一件通行凭证，或收回
+  （\`carries\` 给 \`[]\` 就是两手空空）。有些区域要凭证才进得去（渡有仪式），她没带就过不去，
+  路线会自己绕开——不是坏了。**\`villager\` 写名字，不写 id**：世界现状里给的是名字，id 你手里没有
 - \`{"kind":"unknown","reason":"<为什么听不出>"}\` 这句话不是在要求世界做任何事
 
 ## 活分四类

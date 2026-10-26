@@ -196,8 +196,9 @@ test('setCarries 只认闭集里的词：写错的一个字都进不了世界', 
 
 // ------------------------------------------------------------------ 接线
 
-test('Simulation 里每一次给角色寻路都过 pathFor：没有绕过门的后门', () => {  // 这条扫描守的是「漏接一个调用点」。漏接的那种 bug 在单元测试里看不见——
-  // 世界上多一道谁都看得见、只有她视而不见的门。
+// 这条扫描守的是「漏接一个调用点」。漏接的那种 bug 在单元测试里看不见——
+// 世界上多一道谁都看得见、只有她视而不见的门。
+test('Simulation 里每一次给角色寻路都过 pathFor：没有绕过门的后门', () => {
   const source = readFileSync(new URL('../src/world/simulation.ts', import.meta.url), 'utf8');
   const direct = source
     .split('\n')
@@ -252,4 +253,46 @@ test('说「让她两手空空」：门跟着关上，不是只开不关', () =>
 
   assert.deepEqual(sim.snapshot().villagers[0]!.carries, [], '灯得真的收回去');
   assert.deepEqual(sim.snapshot().villagers[0]!.pos, LEFT, '没收缴凭证她就该留在原处');
+});
+
+test('世界上有两个同名的人：拒，不把灯递给第一个', () => {
+  // `villagerNames` 是调用方给的，读档也不查重名——所以「两个莞尔」进得来。
+  // 名字点人用的是 `.find()`，它会把手里的东西交给排在前头的那位。
+  // 而 `intent-schema.ts` 的 carry 注释答应的是「名字重了是世界的事——它拒，
+  // 不替用户挑」，`demolishTargetOf` 对同模板的两栋楼正是这么办的。
+  // 承诺与行为对不上，比没有承诺更糟。
+  const sim = new Simulation({
+    grid: gatedGrid('lamp'),
+    buildings: [],
+    altar: { x: 2, y: 2 },
+    villagerName: '莞尔',
+    villagerNames: ['莞尔', '莞尔'],
+    wallClock: () => 1000,
+    villagerProfiles: [
+      {
+        at: LEFT,
+        routine: [{ id: 'promenade', label: '去对岸', target: RIGHT, dwellMs: 300 }],
+      },
+      {
+        at: LEFT,
+        routine: [{ id: 'promenade', label: '去对岸', target: RIGHT, dwellMs: 300 }],
+      },
+    ],
+  });
+  sim.enqueue({
+    kind: 'intent',
+    intent: { kind: 'carry', villager: '莞尔', carries: ['lamp'] },
+    raw: '给莞尔一盏灯',
+  });
+  const results = sim.update(16);
+  const last = results[results.length - 1]!;
+
+  assert.equal(last.ok, false, '分不出是哪一个，就不能办');
+  assert.match(last.message, /有 2 个人叫「莞尔」/, '得说清是为什么办不了');
+  assert.match(last.message, /v0、v1/, '得把两个都点出来，用户才知道该说哪个');
+  assert.deepEqual(
+    sim.snapshot().villagers.map((villager) => villager.carries),
+    [[], []],
+    '谁都不该因此拿到灯',
+  );
 });

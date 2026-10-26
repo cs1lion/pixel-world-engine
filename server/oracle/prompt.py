@@ -75,7 +75,7 @@ def build_system_prompt(templates: list[dict[str, Any]], context: dict[str, Any]
 
 ## 你能表达的命令
 
-只输出下面五种之一，别的都不存在。命令名与字段名都写死在 schema 里，
+只能输出下面这些命令之一，别的都不存在。命令名与字段名都写死在 schema 里，
 多一个字段、少一个字段、拼错一个字母，都会被拒：
 
 {COMMAND_LINES}
