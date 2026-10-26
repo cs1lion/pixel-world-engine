@@ -1232,11 +1232,19 @@ export class Simulation {
     for (const task of this.nextFeedTasks()) {
       // 上游活只去镇内铺子：那是本地确定性工作。郊野留给探索性的神谕活。
       const chosen = pickVenue(this.venueCandidates(), task.kind, 'feed');
-      if (chosen === null) {
-        this.log('warn', `没有空闲的镇内铺子承接 ${task.kind}，「${task.summary}」先等着。`);
+      if (!chosen.ok) {
+        // 「没有空闲的镇内铺子」和「这座镇子没有接这类活的铺子」是两句不同的话。
+        // 混成一句就是撒谎：灯潮界六栋楼 boundTask 全是 null，这时候说
+        // 「没有空闲的」等于告诉用户「有，只是忙」——它一栋都没有。
+        this.log(
+          'warn',
+          chosen.reason === 'none'
+            ? `这座镇子没有接 ${task.kind} 的铺子，「${task.summary}」派不出去。`
+            : `没有空闲的镇内铺子承接 ${task.kind}，「${task.summary}」先等着。`,
+        );
         continue;
       }
-      const building = this.buildings.find((item) => item.instanceId === chosen.instanceId);
+      const building = this.buildings.find((item) => item.instanceId === chosen.venue.instanceId);
       if (building === undefined) continue;
       const route = this.routeTo(villager, building.door);
       if (!route.there && route.path.length === 0) continue;
@@ -1454,12 +1462,17 @@ export class Simulation {
     // 你派的活优先去郊野：那是探索性的外部工作。
     // 泡在水里的铺子不算数：人可以涉水过去，但没道理让他在齐腰的水里干活。
     const chosen = pickVenue(this.venueCandidates(), taskKind, 'oracle');
-    if (chosen === null) {
-      const message = `没有空闲的 ${taskKind} 铺子。`;
+    if (!chosen.ok) {
+      // 用户在屏幕上读到的就是这一句。一栋都不接的时候说「没有空闲的」，
+      // 是让用户去找一座不存在的铺子——那句话比「办不到」更糟。
+      const message =
+        chosen.reason === 'none'
+          ? `这座镇子没有接 ${taskKind} 的铺子。`
+          : `没有空闲的 ${taskKind} 铺子。`;
       this.log('warn', message);
       return { ok: false, message };
     }
-    const building = this.buildings.find((item) => item.instanceId === chosen.instanceId);
+    const building = this.buildings.find((item) => item.instanceId === chosen.venue.instanceId);
     if (building === undefined) {
       return { ok: false, message: `找不到那栋铺子。` };
     }

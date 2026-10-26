@@ -26,6 +26,23 @@ export interface VenueCandidate {
 }
 
 /**
+ * 挑不到铺子的两种原因。
+ *
+ * 分开是因为这两句话对用户是**不同的真话**，混成一句就是在撒谎：
+ *
+ *   - `none`：这座镇子没有任何一栋楼接这类活。说「没有空闲的」是假的——
+ *     它暗示有、只是忙。灯潮界六栋楼 `boundTask` 全是 null，正是这一种。
+ *   - `busy`：有接这类活的楼，但此刻都腾不出手（上游的活还包括
+ *     「空闲的那几栋都在郊野，而上游的活不去郊野」）。
+ */
+export type VenueMiss = 'none' | 'busy';
+
+/** 挑铺子的结果。挑不到时连原因一起回，好让调用方说一句真话。 */
+export type VenuePick =
+  | { readonly ok: true; readonly venue: VenueCandidate }
+  | { readonly ok: false; readonly reason: VenueMiss };
+
+/**
  * 挑一栋铺子。
  *
  * 规则：
@@ -37,12 +54,21 @@ export function pickVenue(
   candidates: readonly VenueCandidate[],
   kind: TaskKind,
   source: VenueSource,
-): VenueCandidate | null {
-  const matching = candidates.filter((item) => item.boundTask === kind && !item.busy);
-  if (matching.length === 0) return null;
+): VenuePick {
+  // 先问「这座镇子到底有没有接这类活的楼」——这个问题与忙不忙无关，
+  // 所以要在过滤掉 busy 之前问。问晚了就分不出「没有」与「都闲着」。
+  const takes = candidates.filter((item) => item.boundTask === kind);
+  if (takes.length === 0) return { ok: false, reason: 'none' };
+
+  const matching = takes.filter((item) => !item.busy);
+  if (matching.length === 0) return { ok: false, reason: 'busy' };
 
   if (source === 'feed') {
-    return matching.find((item) => !item.isWild) ?? null;
+    const town = matching.find((item) => !item.isWild);
+    // 空闲的都在郊野：对上游的活来说等于没有，但那不是因为忙。
+    // 归进 busy 而不是 none——楼是有的，只是不在它能去的那一侧。
+    return town === undefined ? { ok: false, reason: 'busy' } : { ok: true, venue: town };
   }
-  return matching.find((item) => item.isWild) ?? matching.find((item) => !item.isWild) ?? null;
+  const wild = matching.find((item) => item.isWild);
+  return { ok: true, venue: wild ?? matching[0]! };
 }
