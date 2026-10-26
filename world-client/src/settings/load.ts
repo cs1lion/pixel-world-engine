@@ -7,7 +7,13 @@ import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import type { PlacedBuilding, TerrainId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
-import type { CompiledVillager, RawSettingPack, SettingPack } from './types.ts';
+import type {
+  CompiledVillager,
+  RawSettingPack,
+  SettingPack,
+  SettingRoutineStop,
+  SettingScenery,
+} from './types.ts';
 
 export class SettingPackError extends Error {}
 
@@ -17,12 +23,47 @@ const TOKENS = Object.keys(WORLD) as WorldColor[];
 /** 八种地形各自要落到一个色板槽上，一种都不能少。 */
 const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal'];
 
+/**
+ * 构件闭集。与 `SettingScenery['kind']` 是同一份名单，运行时再验一次。
+ *
+ * 类型只在 TypeScript 里成立；设定集是外部数据，`pack.ts` 里的 `as never`
+ * 或一份从 JSON 读进来的包都能把别的词送进来。渲染层对没有分值的 kind
+ * 什么都不做，于是那种构件**不会报错，只是不存在**。
+ */
+const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
+  'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall',
+];
+
+/** 作息的潮位条件。`routines.ts` 只认这两个词。 */
+const TIDE_BEATS: readonly NonNullable<SettingRoutineStop['tide']>[] = ['low', 'high'];
+
 /** 名字读起来像取值，实际是断言：不合法就抛，合法就什么也不返回。 */
 function assertPoint(value: unknown, label: string): void {
   if (typeof value !== 'object' || value === null) throw new SettingPackError(`${label} 缺坐标`);
   const p = value as { x?: unknown; y?: unknown };
   if (!Number.isInteger(p.x) || !Number.isInteger(p.y)) {
     throw new SettingPackError(`${label} 必须是整数格`);
+  }
+}
+
+/**
+ * 一条作息的停留时长与潮位条件。
+ *
+ * 时长是**唯一**读它的地方写进 `nextRoutineAt = now + dwellMs` 的那个数。
+ * 负数或 NaN 把那个时刻放到过去或彻底作废，`now < nextRoutineAt` 于是恒为假，
+ * 她每一拍都重新挑一次作息点，原地打转——看起来像"卡住了"，查起来却是数据。
+ * 无穷大同理：那一站她永远不再离开。
+ *
+ * `tide` 写错一个词，`routines.ts` 的两个分支都不进：设定集里那句「趁退潮」
+ * 从此在满潮时也照去不误，而这行字还留在数据里。
+ */
+function assertRoutineStop(stop: SettingRoutineStop, villagerName: string): void {
+  const dwellMs = stop.dwellMs;
+  if (dwellMs !== undefined && (!Number.isFinite(dwellMs) || dwellMs <= 0)) {
+    throw new SettingPackError(`${villagerName} 的作息 ${stop.label} 停留时长必须是正数`);
+  }
+  if (stop.tide !== undefined && !TIDE_BEATS.includes(stop.tide)) {
+    throw new SettingPackError(`${villagerName} 的作息 ${stop.label} 潮位条件只能是 low 或 high`);
   }
 }
 
@@ -78,6 +119,12 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     if (patch.w < 1 || patch.h < 1 || patch.x < 0 || patch.y < 0 || patch.x + patch.w > width || patch.y + patch.h > height) {
       throw new SettingPackError('地形矩形越界');
     }
+    // 写错的地形名不会报缺省色，只会让那一片退回旧世界的底色（渲染层读
+    // `terrainColors[terrain]`，查不到就落 `TERRAIN_COLORS` 那条兜底）。
+    // 那样"设定集里写了、场景里看不出"——最难在浏览器里定位的静默失败。
+    if (!TERRAINS.includes(patch.terrain)) {
+      throw new SettingPackError(`地形 ${String(patch.terrain)} 不是八种地形之一`);
+    }
   }
   const regionIds = new Set<string>();
   for (const region of raw.regions) {
@@ -101,6 +148,10 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
   // 构件坐标也必须校验：越界的灯或轨道不会报错，只会安静地画到地图外，
   // 表现成"设定集里写了、场景里没有"——这种静默失败最难在浏览器里定位。
   for (const item of raw.scenery) {
+    // 渲染层按 kind 一串 if/else 画，认不出的那个词什么也不画，也不报错。
+    if (!SCENERY_KINDS.includes(item.kind)) {
+      throw new SettingPackError(`未知构件 ${String(item.kind)}`);
+    }
     inBounds(item.at, `构件 ${item.kind}`);
     if (item.kind === 'track' || item.kind === 'bridge') {
       const length = item.length ?? 0;
@@ -111,16 +162,37 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     }
   }
   if (raw.villagers.length === 0 || new Set(raw.villagers.map((v) => v.name)).size !== raw.villagers.length) throw new SettingPackError('居民必须至少一位且不重名');
-  const villagers: CompiledVillager[] = raw.villagers.map((villager) => ({
-    ...villager,
-    // 开局带着什么，从设定集写定的那一句派生：`style.lamp` 是「她提着一盏灯」，
-    // `carries` 是世界认的凭证。一处派生，往后只有一个事实。
-    carries: villager.style?.lamp === true ? (['lamp'] as const) : [],
-  }));
+  const villagers: CompiledVillager[] = raw.villagers.map((villager) => {
+    // 外观的色名只能是色板槽。渲染层写的是 `palette[style.cloak] ?? WORLD.cloak`，
+    // 那个兜底本身没错（画不出来不该抛），但它把「设定集写错了」这件事吃掉：
+    // 迷路人穿着一件莞尔镇的斗篷，而没有任何地方说过这件事。
+    const style = villager.style;
+    if (style !== undefined) {
+      for (const slot of ['cloak', 'scarf'] as const) {
+        if (!TOKENS.includes(style[slot])) {
+          throw new SettingPackError(`${villager.name} 的外观色 ${String(style[slot])} 不在 24 色里`);
+        }
+      }
+      // `lamp` 决定开局带不带灯（下面那句 `carries`）。写成字符串时
+      // `=== true` 为假，她就被当成两手空空——而设定集里明明写着提着灯。
+      if (typeof style.lamp !== 'boolean') {
+        throw new SettingPackError(`${villager.name} 的外观 lamp 只能是 true 或 false`);
+      }
+    }
+    return {
+      ...villager,
+      // 开局带着什么，从设定集写定的那一句派生：`style.lamp` 是「她提着一盏灯」，
+      // `carries` 是世界认的凭证。一处派生，往后只有一个事实。
+      carries: style?.lamp === true ? (['lamp'] as const) : [],
+    };
+  });
   for (const villager of villagers) {
     inBounds(villager.at, villager.name);
     if (villager.routine.length === 0) throw new SettingPackError(`${villager.name} 没有作息`);
-    for (const stop of villager.routine) inBounds(stop, `${villager.name} 的作息`);
+    for (const stop of villager.routine) {
+      inBounds(stop, `${villager.name} 的作息`);
+      assertRoutineStop(stop, villager.name);
+    }
   }
   return { ...raw, palette, terrainColors, blueprints, villagers, authored: true };
 }

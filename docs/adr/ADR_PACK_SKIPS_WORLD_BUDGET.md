@@ -12,9 +12,9 @@
 两条建世界的路，对世界法则的校验态度不同：
 
 - **程序生成的默认世界**：`buildLargeWorld → buildWorld` 落地后跑 `validateCoverage`（`setup.ts:259`）和 `assertWorldInvariants`（`setup.ts:320`）；读档路 `buildWorldFromSave` 跑 `assertWorldInvariants`（`setup.ts:595`）。
-- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:138-204`）——新建路与 `saved` 读档路（`load.ts:140-148`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:320`、`:595`，定义在 `:622`；测试直接调它：`test/world.test.ts:120,126`、`test/large-world.test.ts:106`；`simulation.ts:1397` 还在散文里援引它。）
+- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:211-276`）——新建路与 `saved` 读档路（`load.ts:213-221`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:320`、`:595`，定义在 `:622`；测试直接调它：`test/world.test.ts:120,126`、`test/large-world.test.ts:106`；`simulation.ts:1397` 还在散文里援引它。）
 
-`buildSettingWorld` 并非不校验，它的 docstring 把承诺划了界：「显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则」（`load.ts:121`）。它确实把每处落位交给 `placeBlueprint`（内部走 `checkPlacement`，调用 `setup.ts:435`、规则 `setup.ts:188-236`：出界、分区、占用、留白、门口可建），并核居民出生点可走、作息点可达（`load.ts:139-145`）。但这句话第二分句「不能由设定集绕过世界法则」没带限定词，而它实际只兑现了**空间**那一类——预算与覆盖这两类世界法则，包这条路一概没人跑。这就是本ADR 的主题：一处主动豁免（预算，合理），两处无人认领（门口可达、venue 覆盖）。
+`buildSettingWorld` 并非不校验，它的 docstring 把承诺划了界：「显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则」（`load.ts:210`）。它确实把每处落位交给 `placeBlueprint`（内部走 `checkPlacement`，调用 `setup.ts:435`、规则 `setup.ts:188-236`：出界、分区、占用、留白、门口可建），并核居民出生点可走、作息点可达（`load.ts:248-273`）。但这句话第二分句「不能由设定集绕过世界法则」没带限定词，而它实际只兑现了**空间**那一类——预算与覆盖这两类世界法则，包这条路一概没人跑。这就是本ADR 的主题：一处主动豁免（预算，合理），两处无人认领（门口可达、venue 覆盖）。
 
 ## 决策
 
@@ -37,7 +37,7 @@
 ## 后果
 
 - 好：手写包不会因「工坊数量不合生成器口味」被整体拒；包作者守的是空间律 + 自己的结构铁律（居民至少一位、不重名，`loadSettingPack` 编译期查）。
-- **待办 A（窄，真实）：包的新建路拿不到「门口可达 hub」这一条。** `assertWorldInvariants:659-663` 会为默认世界拦下与祭坛无通路的楼；`buildSettingWorld` 只核居民 `at→stop`（`load.ts:198-200`），不核每栋楼门口到 hub。但今天的前馈数据构造不出这个失败：`prefabs.json` 12 份蓝图 `clearMargin` 均为 1、灯潮界同样为 1（`pack.ts:11`），margin 环（`grid.ts:258-266`）让自由内部恒四连通、门口侧邻永不被封。要复现得靠三种之一：`clearMargin: 0` 的蓝图（合法，`blueprints.ts:45`、`test/placement.test.ts:91` 已练过）、门口偏移到很远的蓝图（合法，`blueprints.ts:52` 只拒门口落在占地内）、或 `saved` 读档路（`load.ts:144` 直接 `grid.place`，无留白/分区/门口检查）。而且新建路本就**尝试**连 hub：`placeBlueprint` 锚在 `pack.hub`，`paveFrom` 算 `door→hub` 路径（`setup.ts:482`）——失败形态是「没铺出路、也不报错」，不是「没尝试」。最小修点就在 `paveFrom`：空路由时它静默丢（`setup.ts:482-483`），在此发一处信号能同时惠及两个世界，比在 `buildSettingWorld` 单补一条更小。
+- **待办 A（窄，真实）：包的新建路拿不到「门口可达 hub」这一条。** `assertWorldInvariants:659-663` 会为默认世界拦下与祭坛无通路的楼；`buildSettingWorld` 只核居民 `at→stop`（`load.ts:261-273`），不核每栋楼门口到 hub。但今天的前馈数据构造不出这个失败：`prefabs.json` 12 份蓝图 `clearMargin` 均为 1、灯潮界同样为 1（`pack.ts:11`），margin 环（`grid.ts:258-266`）让自由内部恒四连通、门口侧邻永不被封。要复现得靠三种之一：`clearMargin: 0` 的蓝图（合法，`blueprints.ts:45`、`test/placement.test.ts:91` 已练过）、门口偏移到很远的蓝图（合法，`blueprints.ts:52` 只拒门口落在占地内）、或 `saved` 读档路（`load.ts:216` 直接 `grid.place`，无留白/分区/门口检查）。而且新建路本就**尝试**连 hub：`placeBlueprint` 锚在 `pack.hub`，`paveFrom` 算 `door→hub` 路径（`setup.ts:482`）——失败形态是「没铺出路、也不报错」，不是「没尝试」。最小修点就在 `paveFrom`：空路由时它静默丢（`setup.ts:482-483`），在此发一处信号能同时惠及两个世界，比在 `buildSettingWorld` 单补一条更小。
   - **已于 2026-10-27 补上。** 信号落在 `doorReaches`（`setup.ts`）——「这扇门连不连得出去」的两侧共用定义，`paveFrom` 的 `reachable` 与 `assertWorldInvariants`、`buildSettingWorld` 都从它取。包的新建路在**全部落完再查**（不是落一栋查一栋：后一栋能把前一栋的门围死），读档路照旧不查（存档是照着一份当年通过的世界写的）。复现见 `test/pave-reachable.test.ts`：四栋 `clearMargin: 0` 的蓝图把一栋 2×2 的孤屋围住，`buildSettingWorld` 当场抛。顺带修掉 `assertWorldInvariants` 同一处潜在误报——门就开在祭坛上时 `grid.path` 返回空数组（「她人已经在那儿了」），照抄它会把一扇最好的门报成没有通路。
   - 另两条门口检查对包是空转，勿计入损失：「门口可通行」由 `grid.place` 强制（`grid.ts:232-233` 把门口设成 walkable 的 stone）；「门口不开在 altar 区」需要真有名为 `altar` 的分区（`setup.ts:592`），灯潮界只声明 industry/street，永不触发。
 - **待办 B（宽，2026-10-27 已决：可以，且引擎早就容得下）：包这条路没有任何「venue 覆盖」法则。** 蓝图表层面有 `validateCoverage`（`blueprints.ts:96-118`）：每种活 1–2 栋常驻铺子，理由写得很直白——「0 栋等于这类活无处可去；超过 2 栋则是蓝图表失控」（`blueprints.ts:103-104`），并顺带查 `upgradeTo` 有落点（`:111-115`）。它只被 `buildWorld` 调（`setup.ts:259`），`loadSettingPack`/`buildSettingWorld` 都不调。于是灯潮界三种活各 0 个 venue——正是 `validateCoverage` 要防的状态，在包这条路静静成立；`intent-context.ts:63` 只是按 `WORKSHOP_TASKS` 逐类算 capacity 喂给提示词，没有谁据此拒。**一座包可不可以正当地图一地没有工坊？**
