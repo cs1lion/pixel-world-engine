@@ -174,6 +174,20 @@ export class WorldGrid {
     return this.requirements.get(region) ?? null;
   }
 
+  /**
+   * 每一道要凭证的区域：id 与要什么。没有门就返回空数组。
+   *
+   * `requirementAt` 是按格子问的，问不出「世界上有几道门」。而「有几道门」
+   * 是要说给人听的（界面、喂模型的世界现状）——不说，那道门就只是数据里的
+   * 一行字：机制、命令、提示词三处都齐了，没有一个区域真的用，也没人知道。
+   *
+   * 只给 id，不给显示名：网格不背显示名（见 `SettingPack['regions']` 那段
+   * 「别为了去重把这边改成引用 GridSpec」）。名字由拿着设定集的调用方配上。
+   */
+  gatedRegions(): readonly { readonly id: string; readonly needs: CarryItem }[] {
+    return [...this.requirements].map(([id, needs]) => ({ id, needs }));
+  }
+
   isWalkable(p: GridPoint): boolean {
     return this.at(p)?.walkable === true;
   }

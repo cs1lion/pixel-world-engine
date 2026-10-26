@@ -350,6 +350,11 @@ export class SandboxScene extends Phaser.Scene {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
         villagerProfiles: routineProfiles(this.pack),
       } : {}),
+      // 地域的叫法。喂模型的世界现状要说「叠浪楼要一盏灯」，不说 `bathhouse`。
+      // 没有设定集（莞尔镇）时这道门不存在，给张空表与不给等价。
+      ...(this.pack === undefined || this.pack === null
+        ? {}
+        : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
         void this.eventsClient?.record(change, at);

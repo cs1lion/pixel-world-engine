@@ -54,7 +54,14 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     lines.push('还没有交付。祭坛在等第一条神谕。');
   }
 
-  const newBuildings = snapshot.buildings.filter((building) => building.boundTask === null);
+  // 「新起」问的是**玩家动过手没有**，「boundTask === null」问的是**这栋楼接不接活**——
+  // 两个问题。民居（zone === 'living'）不接活，却是开局就落好的，一天都没动过。
+  // 拿后一个当前一个的判据，大世界的日报会在玩家什么都没做的那天写
+  // 「造物主新起 5 栋楼」，把五间农舍说成今天的功劳。小世界不落民居，
+  // 所以那条判据在 30×20 的夹具上看着一直是对的——错的是没有人拿大世界问过它。
+  const newBuildings = snapshot.buildings.filter(
+    (building) => building.boundTask === null && building.zone !== 'living',
+  );
   if (newBuildings.length > 0) {
     // 有来由的楼写清来由：那是"被记住"在建筑上的落点。
     const described = newBuildings.map((building) =>

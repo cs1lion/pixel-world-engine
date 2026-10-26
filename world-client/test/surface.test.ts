@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
-import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
+import { ALTAR, buildLargeWorld, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { composeReport, composeDiary } from '../src/world/report.ts';
 import { syllablePlan } from '../src/audio/animalese.ts';
@@ -27,6 +27,23 @@ function makeSim(): Simulation {
       return blueprint === undefined
         ? null
         : placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
+    },
+  });
+}
+
+/** 大世界：唯一会落民居的规格。上面那个 30×20 的夹具一栋民居都不落。 */
+function makeLargeSim(): Simulation {
+  const world = buildLargeWorld(blueprints);
+  return new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: world.altar,
+    villagerName: '莞尔',
+    spawnBuilding: (prefabId, instanceId) => {
+      const blueprint = blueprints.get(prefabId);
+      return blueprint === undefined
+        ? null
+        : placeBlueprint(world.grid, blueprint, instanceId, world.altar);
     },
   });
 }
@@ -243,6 +260,41 @@ test('日报会写上新起的楼与落地的东西', () => {
   sim.update(16);
   const report = composeReport(sim.snapshot());
   assert.ok(report.lines.some((line) => line.includes('造物主新起 1 栋楼')));
+});
+
+test('「新起」问的是玩家动没动手，不是这栋楼接不接活', () => {
+  // 这条是上面那条的防线。判据曾经是 `boundTask === null`——「不接活」。
+  // 民居也不接活，却是开局就落好的。两个问题被当成一个的那天，
+  // 大世界的日报会在玩家什么都没做的那天写「造物主新起 5 栋楼」，
+  // 把五间农舍算成今天的功劳。30×20 的夹具不落民居，所以那一侧永远绿。
+  const notTakingWork = buildLargeWorld(blueprints)
+    .buildings.filter((building) => building.boundTask === null);
+  assert.ok(notTakingWork.length > 0, '大世界里一栋「不接活」的楼都没有，这条没在问它想问的');
+  assert.ok(
+    notTakingWork.every((building) => building.zone === 'living'),
+    `开局不接活的楼只剩民居；多了别的（${notTakingWork.map((b) => b.prefabId).join('、')}）说明这条判据又不够用了`,
+  );
+
+  const report = composeReport(makeLargeSim().snapshot());
+  assert.ok(
+    !report.lines.some((line) => line.includes('造物主新起')),
+    `玩家一天都没动手，日报却写了新起的楼：${report.lines.join(' / ')}`,
+  );
+});
+
+test('大世界里玩家真建了楼，日报照写，而且只数玩家建的那一栋', () => {
+  // 修完不能修成一句废话：民居是不写了，玩家建的也得写。
+  const sim = makeLargeSim();
+  sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#1' });
+  sim.update(16);
+  const report = composeReport(sim.snapshot());
+  const line = report.lines.find((item) => item.includes('造物主新起'));
+  assert.ok(line !== undefined, `玩家建了楼，日报却没写：${report.lines.join(' / ')}`);
+  assert.ok(line.includes('造物主新起 1 栋楼'), `只该数玩家那一栋：${line}`);
+  assert.ok(
+    !line.includes('小屋') && !line.includes('农舍'),
+    `民居被算进「新起」了：${line}`,
+  );
 });
 
 test('日记只挑有信息量的事件，不编心情', () => {

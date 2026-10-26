@@ -12,7 +12,7 @@
 两条建世界的路，对世界法则的校验态度不同：
 
 - **程序生成的默认世界**：`buildLargeWorld → buildWorld` 落地后跑 `validateCoverage`（`setup.ts:259`）和 `assertWorldInvariants`（`setup.ts:320`）；读档路 `buildWorldFromSave` 跑 `assertWorldInvariants`（`setup.ts:595`）。
-- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:138-204`）——新建路与 `saved` 读档路（`load.ts:140-148`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:320`、`:595`，定义在 `:622`；测试直接调它：`test/world.test.ts:120,126`、`test/large-world.test.ts:106`；`simulation.ts:1314` 还在散文里援引它。）
+- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:138-204`）——新建路与 `saved` 读档路（`load.ts:140-148`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:320`、`:595`，定义在 `:622`；测试直接调它：`test/world.test.ts:120,126`、`test/large-world.test.ts:106`；`simulation.ts:1328` 还在散文里援引它。）
 
 `buildSettingWorld` 并非不校验，它的 docstring 把承诺划了界：「显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则」（`load.ts:121`）。它确实把每处落位交给 `placeBlueprint`（内部走 `checkPlacement`，调用 `setup.ts:435`、规则 `setup.ts:188-236`：出界、分区、占用、留白、门口可建），并核居民出生点可走、作息点可达（`load.ts:139-145`）。但这句话第二分句「不能由设定集绕过世界法则」没带限定词，而它实际只兑现了**空间**那一类——预算与覆盖这两类世界法则，包这条路一概没人跑。这就是本ADR 的主题：一处主动豁免（预算，合理），两处无人认领（门口可达、venue 覆盖）。
 

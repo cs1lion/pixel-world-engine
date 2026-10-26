@@ -227,3 +227,53 @@ test('规则认得出时根本不问模型，上下文也就不参与', async ()
   assert.equal(result.source, 'rule');
   assert.equal(result.intent.kind, 'setWeather');
 });
+
+// -------------------------------------------------- 渡有仪式进了现状
+
+test('一道门都没有时，现状里一行都不多：莞尔镇不因此多出一句', () => {
+  // 默认世界从来没有 `requires`。给它写一行「叠浪楼要一盏灯」是撒谎，
+  // 而模型会拿这句话去解释用户明明在说的另一件事。
+  const context = summarizeForIntent(makeSim().snapshot());
+  assert.deepEqual(context.gated, [], '没有门就不该有这一项');
+  assert.ok(
+    !renderIntentContext(context).includes('才进得去'),
+    '没有门的现状里不该出现门的说法',
+  );
+});
+
+test('现状说出那道门：要什么、谁进得去、谁进不去', () => {
+  const context = summarizeForIntent(
+    makeSim().snapshot(),
+    [{ id: 'bathhouse', name: '叠浪楼', needs: 'lamp' }],
+  );
+  assert.deepEqual(
+    context.gated,
+    [{ region: '叠浪楼', needs: 'lamp', passed: [], blocked: ['莞尔', '阿雾'] }],
+    '默认世界的人两手空空，所以谁都进不去',
+  );
+  const rendered = renderIntentContext(context);
+  assert.match(rendered, /叠浪楼要一盏灯才进得去/, '得说清是哪道门、要什么');
+  assert.match(rendered, /莞尔、阿雾进不去/, '得说清此刻谁被拦着——两个都点名');
+  assert.match(rendered, /carry/, '得告诉模型这件事能改——否则它只能答 unknown');
+});
+
+test('带上灯的人就在「进得去」那一侧：这是快照，不是永久属性', () => {
+  const sim = makeSim();
+  sim.enqueue({ kind: 'setCarries', villagerId: 'v0', carries: ['lamp'] });
+  sim.update(16);
+  const context = summarizeForIntent(sim.snapshot(), [
+    { id: 'bathhouse', name: '叠浪楼', needs: 'lamp' },
+  ]);
+  assert.deepEqual(context.gated[0]?.passed, ['莞尔'], '她兜里有灯了，人就过得去');
+  assert.deepEqual(context.gated[0]?.blocked, ['阿雾'], '另一个人还两手空空');
+  assert.ok(!renderIntentContext(context).includes('没人进得去'));
+});
+
+test('提示词不许模型看见门就擅自发凭证：用户没说就不给', () => {
+  // 与「看到没人干活不要自己补一句派活」是同一条纪律。现状里说出那道门，
+  // 是为了让「让她进得去」这句话听得懂；不是为了请模型随手发灯。
+  const prompt = buildIntentPrompt(blueprints, summarizeForIntent(makeSim().snapshot(), [
+    { id: 'bathhouse', name: '叠浪楼', needs: 'lamp' },
+  ]));
+  assert.match(prompt, /不要自己给她一件/, '得把这条禁忌写进提示词');
+});

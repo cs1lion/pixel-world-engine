@@ -338,7 +338,7 @@ try {
   /* ---------------- 前置自检：世界必须处于初始态 ----------------
    *
    * 注意：**不能**要求 localStorage 为空。SandboxScene.maybeAutoSave() 的
-   * `due` 分支（`SandboxScene.ts:847`）用 `lastSaveAt = Number.NEGATIVE_INFINITY`
+   * `due` 分支（`SandboxScene.ts:852`）用 `lastSaveAt = Number.NEGATIVE_INFINITY`
    * （`:130`）起步，首帧 `now - (-Infinity) = Infinity >= 30000` 恒为真，
    * 所以任何干净启动都会在**首帧立刻自动存一次档**——这是设计行为，不是脏档。
    * 因此这里断的是「世界内容处于初始态」，存档槽只验「若存在则必须是初始档」。

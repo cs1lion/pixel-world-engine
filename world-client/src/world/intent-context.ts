@@ -22,7 +22,14 @@
 
 import { WILD_PREFABS } from './setup.ts';
 import { TASK_PROFILES, WORKSHOP_TASKS } from './tasks.ts';
-import type { PlacedBuilding, TaskKind, VillagerSnapshot, Weather, WorldSnapshot } from './types.ts';
+import type { CarryItem, PlacedBuilding, TaskKind, VillagerSnapshot, Weather, WorldSnapshot } from './types.ts';
+
+/** 一道要凭证的区域：要什么、叫什么。叫法是给界面与模型看的，不由网格给。 */
+export interface GatedRegion {
+  readonly id: string;
+  readonly name: string;
+  readonly needs: CarryItem;
+}
 
 /**
  * 喂给模型的世界现状。
@@ -45,10 +52,32 @@ export interface IntentContext {
   readonly weather: Weather;
   /** 已经建过、不能再建第二栋的模板。与 `simulation.ts` 的 build 拒绝一致。 */
   readonly exhausted: readonly string[];
+  /**
+   * 要凭证才进得去的区域，以及此刻谁过得去、谁过不去。
+   *
+   * 渡有仪式（SPEC_V2 §4.6）从前不在这儿：那道门在世界上是真的，喂给模型的
+   * 现状里却没有。于是模型既不知道「汐进不去叠浪楼」，也不知道 `carry`
+   * 能改变这件事——用户说「让她进得去」，它只能答 unknown。
+   *
+   * `passed` / `blocked` 是**此刻**谁兜里有什么，不是永久属性：`carry`
+   * 一给一收，下一次快照这段话就变了。所以它和 `busy` 一样是快照，不是设定。
+   */
+  readonly gated: readonly {
+    readonly region: string;
+    readonly needs: CarryItem;
+    readonly passed: readonly string[];
+    readonly blocked: readonly string[];
+  }[];
 }
 
-/** 从快照归纳出喂模型的上下文。纯函数。 */
-export function summarizeForIntent(snapshot: WorldSnapshot): IntentContext {
+/** 从快照归纳出喂模型的上下文。纯函数。
+ *
+ * `gates` 是世界有哪几道门（`WorldGrid.gatedRegions()` 配上设定集的叫法）。
+ * 省略就是一道门都没有——莞尔镇从来没有这一项，它的现状不该因此多出一行。 */
+export function summarizeForIntent(
+  snapshot: WorldSnapshot,
+  gates: readonly GatedRegion[] = [],
+): IntentContext {
   const isWild = (building: PlacedBuilding): boolean => WILD_PREFABS.has(building.prefabId);
   const toEntry = (building: PlacedBuilding) => ({
     instanceId: building.instanceId,
@@ -80,6 +109,13 @@ export function summarizeForIntent(snapshot: WorldSnapshot): IntentContext {
     weather: snapshot.weather,
     // 世界拒绝「同一种铺子建第二栋」，所以每个已建的模板都算耗尽。
     exhausted: [...new Set(snapshot.buildings.map((b) => b.prefabId))],
+    // 谁兜里有什么按**此刻**的快照算：carry 一给一收，这段话下一拍就变了。
+    gated: gates.map((gate) => ({
+      region: gate.name,
+      needs: gate.needs,
+      passed: snapshot.villagers.filter((v) => v.carries.includes(gate.needs)).map((v) => v.name),
+      blocked: snapshot.villagers.filter((v) => !v.carries.includes(gate.needs)).map((v) => v.name),
+    })),
   };
 }
 
@@ -140,8 +176,27 @@ export function renderIntentContext(context: IntentContext): string {
     );
   }
 
+  // 门要在最后说，而且要连着「谁能改它」说。只说「叠浪楼要一盏灯」，
+  // 模型知道有这么道门，还是不知道用户说「让她进得去」时该答什么——
+  // 那句话要听成 `carry`，而 `carry` 在你能表达的命令那张表里。
+  // 一道门都没有时整段不出现：莞尔镇的现状不该多出一行讲不存在的东西。
+  for (const gate of context.gated) {
+    const who = (names: readonly string[]): string =>
+      names.length === 0 ? '没人' : names.join('、');
+    lines.push(
+      `${gate.region}要${CARRY_LABEL[gate.needs]}才进得去：${who(gate.passed)}进得去，` +
+        `${who(gate.blocked)}进不去。要让人进得去，给她一件（见 carry）。`,
+    );
+  }
+
   return lines.join('\n');
 }
+
+/** 凭证的中文叫法。提示词与现状说的是同两个词，不能让模型去猜 lamp 是什么。 */
+const CARRY_LABEL: Readonly<Record<CarryItem, string>> = {
+  lamp: '一盏灯',
+  shoes: '一双鞋',
+};
 
 function describeBuildings(
   list: readonly { readonly name: string }[],
