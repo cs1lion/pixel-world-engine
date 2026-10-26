@@ -9,7 +9,7 @@
 import type { WorldGrid } from './grid.ts';
 import { CARRY_ITEMS, gateFilter, isCarryItem } from './gate.ts';
 import { TASK_PROFILES, taskDurationFor } from './tasks.ts';
-import { pickVenue, type VenueCandidate } from './venue.ts';
+import { pickVenue, type VenueCandidate, type VenueMiss } from './venue.ts';
 import { fogAt, revealedRadiusFor } from './fog.ts';
 import {
   TIDE_OVERRIDE_MAX_MS,
@@ -359,6 +359,16 @@ export class Simulation {
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
   private readonly queue: WorldCommand[] = [];
+  /**
+   * 哪条上游的活、因为哪个原因已经报过一句「派不下去」。键是任务 id，值是原因。
+   *
+   * **不落档**：这是「上一回说到哪儿了」的记号，不是世界状态。读档之后重新
+   * 说一遍也无妨——那句话本身仍然是真的，只是没必要。
+   *
+   * 为什么不许同一句说第二遍见 `assignFromFeedTo` 里那段：事件流就是世界的
+   * 记忆，十六条同样的话会把真正发生的事挤出那十二条的窗口。
+   */
+  private readonly saidMiss = new Map<string, VenueMiss>();
   private readonly lastResults: CommandResult[] = [];
   private readonly props: WorldProp[] = [];
   /**
@@ -1269,7 +1279,13 @@ export class Simulation {
     if (!this.canTakeWork(villager)) return;
     // 读档后对账前：上游单只读展示，不派活。
     if (!this.feedReconciled) return;
-    for (const task of this.nextFeedTasks()) {
+    const open = this.nextFeedTasks();
+    // 只给这一拍还开着的活留着「说过了」的记号。活收了，记号跟着收——
+    // 不然这份表会跟着任务号一路长下去。
+    for (const id of [...this.saidMiss.keys()]) {
+      if (!open.some((task) => task.id === id)) this.saidMiss.delete(id);
+    }
+    for (const task of open) {
       // 原地办的短活不挑铺子：quick 这类压根不去铺子。曾和别的活一起走到
       // pickVenue，于是回一句「这座镇子没有接 quick 的铺子」——把「这类活
       // 不占铺子」说成了「这座镇子缺一座铺子」。而那座镇子可能明明有六栋。
@@ -1285,6 +1301,14 @@ export class Simulation {
         //     告诉用户「有，只是忙」——它一栋都没有；
         //   - 反过来，镇内被拆空了、只剩郊野铺子时，说「没有空闲的镇内铺子」
         //     也断言了镇内有——而镇内一栋都不剩（demolish 拆得出来）。
+        //
+        // 同一句不重复说：pumpPending 每个空闲角色每拍都问一遍，两个角色
+        // 跑八拍就是十六条一模一样的 warn。而事件流就是世界的记忆——
+        // 十六条同样的话会把真正发生的事挤出那十二条的窗口，记忆里那一晚
+        // 于是只剩一句重复过十六遍的抱怨。说错了比不说更糟，可把一句话
+        // 说十六遍也不是诚实，是噪音。原因变了就再说：那时是句新话。
+        if (this.saidMiss.get(task.id) === chosen.reason) continue;
+        this.saidMiss.set(task.id, chosen.reason);
         this.log(
           'warn',
           chosen.reason === 'none'
@@ -2614,7 +2638,7 @@ export class Simulation {
     // 编号水位按幸存建筑重推：幸存的 id 一个不变，新建的号一定比它们大。
     sim.seedInstanceIds();
     // 构造时记的是 `deps.buildings`——那是个空壳世界的几栋常驻铺子，不是档里这些。
-    // 不重算的话，读档后「这次新起的」会把上一次会话造的楼也算进来，
+    // 不重算的话，读档后「这一场起的」会把上一次会话造的楼也算进来，
     // 而那句话正是这笔改动要堵的。少说一句比多说一句假话好。
     sim.rememberStartupBuildings();
 

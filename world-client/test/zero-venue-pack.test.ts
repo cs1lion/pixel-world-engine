@@ -250,3 +250,40 @@ test('上游的 quick 单原地就办，不拿铺子说事', () => {
   );
   assert.ok(said.includes('原地办'), `quick 该被原地办掉，实际：${said || '（什么都没说）'}`);
 });
+
+test('同一句「派不下去」只说一遍，不说十六遍', () => {
+  // pumpPending 每个空闲角色每拍都问一遍：两个角色跑八拍，同一句 warn 就在
+  // 事件流里连排十六条。而事件流就是世界的记忆——十六条同样的话会把真正发生
+  // 的事挤出那十二条的窗口，记忆里那一晚只剩一句重复过十六遍的抱怨。
+  // 说错了比不说更糟，可把一句话说十六遍也不是诚实，是噪音。
+  const sim = dengchaoSim();
+  const said = capture(sim);
+  sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '修一盏灯' }], connected: true }));
+  for (let step = 0; step < 8; step += 1) sim.update(16);
+
+  const complaints = said.filter((line) => line.includes('派不出去'));
+  assert.equal(complaints.length, 1, `该只说一遍，实际说了 ${complaints.length} 遍：${complaints.join(' / ')}`);
+});
+
+test('原因变了就再说：那时是句新话', () => {
+  // 反方向也得钉。dedupe 要是按任务 id 一刀切，镇子从「都闲着」变成「一栋都
+  // 没有」（或反过来）时，屏幕上就再也不更新了——那又成了假的沉默。
+  const sim = largeSim();
+  const said = capture(sim);
+  withVenues(sim, [venue('forge#1', 'code', false, true)]);
+  sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '修一盏灯' }], connected: true }));
+  for (let step = 0; step < 4; step += 1) sim.update(16);
+  const busyCount = said.filter((line) => line.includes('没有空闲的镇内铺子')).length;
+  assert.equal(busyCount, 1, '忙那句该说一遍');
+
+  // 把镇内那栋也撤了：现在只剩郊野，原因是句新话，该再开口。
+  withVenues(sim, [venue('gear#1', 'code', true)]);
+  for (let step = 0; step < 4; step += 1) sim.update(16);
+  const wildCount = said.filter((line) => line.includes('都在郊野')).length;
+  assert.equal(wildCount, 1, `原因变了该再说一遍，实际 ${wildCount} 遍`);
+  assert.equal(
+    said.filter((line) => line.includes('没有空闲的镇内铺子')).length,
+    busyCount,
+    '旧原因那句不该跟着重复',
+  );
+});
