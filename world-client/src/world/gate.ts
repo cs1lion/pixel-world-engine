@@ -12,7 +12,7 @@
 import type { CarryItem, GridPoint, RegionRequirement } from './types.ts';
 
 /**
- * 通行仪式认得的凭证（SPEC_V2 §4.6）。
+ * 渡有仪式认得的凭证（SPEC_V2 §4.6）。
  *
  * 闭集：区域声明的 `requires` 与角色带着的 `carries` 必须是同一套词，
  * 否则「她明明带着灯，那道门就是不认」这种只有截图才看得见的 bug 会出现。

@@ -53,7 +53,7 @@ export const SCHEMA_V3_FINGERPRINT = '7b6a0058c54ba3e4';
 /**
  * v4 冻结指纹。由 docs/save-v4.sample.json 算出，单测核对。
  *
- * 沿用 v3 的做法：一次把四个槽位扩好，让「名牌抵押」「通行仪式」「污浊度」
+ * 沿用 v3 的做法：一次把四个槽位扩好，让「名牌抵押」「渡有仪式」「污浊度」
  * 三张票各自去填，不必各升一次版本、各重算一次指纹。四个都是**位置**，
  * 谁来写、写成什么由各自的票决定（SPEC_V2 §4.6）。
  */
@@ -228,7 +228,7 @@ export const SAVE_V3_OPTIONAL_PATHS: readonly string[] = [
  * v4 在 v3 之上新增的叶子路径（理由同 v3：一次扩好四个槽）。
  *
  *   - `world.villagers[].nameState`：名牌在谁手上（SPEC_V2 §4.6）。
- *   - `world.villagers[].carries[]`：她带着什么，通行仪式据此判（同上）。
+ *   - `world.villagers[].carries[]`：她带着什么，渡有仪式据此判（同上）。
  *   - `world.props[].grime`：物件的污浊度 0..1，渲染层照它叠噪点（同上）。
  *   - `world.props[].reveal`：洗干净后露出的那句话；没得可露时是 null。
  */
@@ -308,7 +308,7 @@ export interface SavedVillager {
    */
   readonly nameState: NameState;
   /**
-   * v4：她带着的凭证。通行仪式据此判某道门过不过得去（SPEC_V2 §4.6）。
+   * v4：她带着的凭证。渡有仪式据此判某道门过不过得去（SPEC_V2 §4.6）。
    *
    * 闭集 `CARRY_ITEMS`，缺省 `[]`（两手空空）。
    */
@@ -545,7 +545,7 @@ export const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
 /** 名牌的两态（SPEC_V2 §4.6）。抵押者接不到新活。 */
 export const NAME_STATES: readonly NameState[] = ['held', 'pawned'];
 /**
- * 通行仪式认得的凭证（SPEC_V2 §4.6）。住在 `gate.ts`——它是那道门的词汇表，
+ * 渡有仪式认得的凭证（SPEC_V2 §4.6）。住在 `gate.ts`——它是那道门的词汇表，
  * 存档只是向它问话的一方。
  */
 export const ZONES: readonly ZoneId[] = [
@@ -699,7 +699,7 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 
     if (version >= 4) {
       // 名牌只有两态，写成别的字符串就是坏档——它决定谁接得到活。
       checkEnum(requireKey(villager, 'nameState', path), NAME_STATES, `${path}.nameState`);
-      // 带着的东西：闭集。未知的一件就等于通行仪式认不出的凭证。
+      // 带着的东西：闭集。未知的一件就等于渡有仪式认不出的凭证。
       const carries = asArray(requireKey(villager, 'carries', path), `${path}.carries`);
       for (const item of carries) {
         checkEnum(item, CARRY_ITEMS, `${path}.carries[]`);

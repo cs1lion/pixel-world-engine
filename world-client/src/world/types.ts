@@ -301,7 +301,7 @@ export interface WorldProp {
   readonly reveal: string | null;
 }
 
-/** 通行仪式认得的凭证。区域声明 `requires`，角色带着 `carries`，两边同一套词。 */
+/** 渡有仪式认得的凭证。区域声明 `requires`，角色带着 `carries`，两边同一套词。 */
 export type CarryItem = 'lamp' | 'shoes';
 
 /**
