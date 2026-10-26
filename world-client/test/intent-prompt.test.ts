@@ -82,3 +82,27 @@ test('消息只有 system + user 两条，user 就是原话', () => {
   assert.equal(messages[1]?.role, 'user');
   assert.equal(messages[1]?.content, '帮我写个爬虫', '不许改写用户原话');
 });
+
+test('两份提示词在「不许替用户改主意」上说同一句话', () => {
+  // 这一份是**离线推演**那一侧，线上模型看的是 `server/oracle/prompt.py`。
+  // 两份讲的是不同的命令词汇（这边是 intent kind，那边是白名单命令），
+  // 所以不可能逐字相同；但「防偷换」那几句是**同一条纪律**，漂了就要出事。
+  //
+  // 漂过：线上那份补了毫秒换算、「表里没有的现象不许往邻居身上靠」、
+  // 「永久不是可省略」，这一份一个字都没有。离线推演于是会给出一个
+  // 与线上不同的 durationMs，或者把「下雪」翻译成 rain——而推演的人
+  // 以为自己在看线上的行为。三处都是这次手工 grep 才发现的。
+  const offline = readFileSync(new URL('../src/world/intent-prompt.ts', import.meta.url), 'utf8');
+  const online = readFileSync(new URL('../../server/oracle/prompt.py', import.meta.url), 'utf8');
+  // 两边的措辞不同（这边是 markdown 反引号，那边是中文破折号），所以钉**关键词**，
+  // 不钉整句。关键词任何一个被删掉，这一侧就不再防那一种偷换。
+  const shared = [
+    ['600000', '分钟换算成毫秒——少了它，「十分钟」会被折算成一个在上限内的数'],
+    ['不许往邻居身上靠', '表里没有的现象（雪、雾、风）会被换成最近的一档'],
+    ['永久', '「永久」会被当成「可省略」，于是拿到两分钟'],
+  ] as const;
+  for (const [needle, why] of shared) {
+    assert.ok(offline.includes(needle), `离线提示词没有「${needle}」：${why}`);
+    assert.ok(online.includes(needle), `线上提示词没有「${needle}」：${why}`);
+  }
+});
