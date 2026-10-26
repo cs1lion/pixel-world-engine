@@ -30,6 +30,7 @@ import type { IntentContext } from './intent-context.ts';
 import { IntentSchemaError, parseIntent } from './intent-schema.ts';
 import { parseOracle } from './oracle.ts';
 import { parseOracleBuild } from './oracle-build.ts';
+import { parseOracleCarry } from './oracle-carry.ts';
 import { parseOracleMiracle } from './oracle-miracle.ts';
 import type { MiracleKind } from './oracle-miracle.ts';
 
@@ -130,6 +131,15 @@ function matchRules(
   const miracle = parseOracleMiracle(text);
   if (miracle !== null) {
     return { kind: 'miracle', miracle: miracle.miracle, at: miracle.at };
+  }
+
+  // 交接凭证放在派活之前：「给汐一盏灯」句首是「给」，而派活那一路认的
+  // 祈使动词表里没有它——放先后放后都不抢词。但**必须放在这里**：
+  // 放到派活之后，这句话会先被 `isImperative` 判成不是命令（动词表里没有「给」），
+  // 于是落进 unknown。渡有仪式在离线世界里就永远打不开了。
+  const carry = parseOracleCarry(text);
+  if (carry !== null) {
+    return { kind: 'carry', villager: carry.villager, carries: carry.carries };
   }
 
   const oracle = parseOracle(text);

@@ -1,0 +1,79 @@
+/**
+ * 离线那一侧也要开得了一道门。
+ *
+ * 渡有仪式此前只有一个入口：模型的 `carry` 意图。没有 API Key 时
+ * `matchRules` 认不出「给汐一盏灯」，那句话落进 unknown——门还在，
+ * 凭证给不出去，她一辈子进不去叠浪楼。一个只有模型能用的机制，
+ * 等于离线世界里没有这个机制。
+ *
+ * 这里只测**解析**：这句话翻成了什么意图。翻出来的名字世界上有没有、
+ * 是不是指着两个人，是世界结算时的事（`villagerNamed`），不在这里重复。
+ */
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseOracleCarry } from '../src/world/oracle-carry.ts';
+
+// ------------------------------------------------------------------ 给
+
+test('给谁一盏灯：动词打头的三种写法都认', () => {
+  assert.deepEqual(parseOracleCarry('给汐一盏灯'), { villager: '汐', carries: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('送汐一盏灯'), { villager: '汐', carries: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('递给汐一盏灯'), { villager: '汐', carries: ['lamp'] });
+});
+
+test('东西打头也认：把一盏灯给汐', () => {
+  assert.deepEqual(parseOracleCarry('把一盏灯给汐'), { villager: '汐', carries: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('把那双鞋送给迷路人'), { villager: '迷路人', carries: ['shoes'] });
+});
+
+test('礼貌前缀与句尾标点都剥得掉', () => {
+  assert.deepEqual(parseOracleCarry('帮我给汐一盏灯'), { villager: '汐', carries: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('麻烦递给汐一盏灯。'), { villager: '汐', carries: ['lamp'] });
+  assert.deepEqual(parseOracleCarry('给汐一盏灯吧！'), { villager: '汐', carries: ['lamp'] });
+});
+
+test('两种凭证分得开：灯是灯，鞋是鞋', () => {
+  assert.deepEqual(parseOracleCarry('给汐一双鞋'), { villager: '汐', carries: ['shoes'] });
+  assert.deepEqual(parseOracleCarry('给汐鞋'), { villager: '汐', carries: ['shoes'] });
+});
+
+test('长的说法不被短的切碎：「一盏灯」不能被「灯」抢先', () => {
+  // 若按「灯」切，收件人就变成「汐一」——世界上没有这个人，
+  // 而那句话本来是清清楚楚的。
+  assert.deepEqual(parseOracleCarry('给汐一盏灯'), { villager: '汐', carries: ['lamp'] });
+});
+
+// ------------------------------------------------------------------ 收
+
+test('收走：同一个动作的反方向，兜里就空了', () => {
+  assert.deepEqual(parseOracleCarry('收走汐的灯'), { villager: '汐', carries: [] });
+  assert.deepEqual(parseOracleCarry('把汐的灯收走'), { villager: '汐', carries: [] });
+  assert.deepEqual(parseOracleCarry('收回汐的鞋'), { villager: '汐', carries: [] });
+});
+
+// ------------------------------------------------------------------ 不认的
+
+test('疑问不触发：问一句不该把她兜里的东西动了', () => {
+  assert.equal(parseOracleCarry('要不要给汐一盏灯？'), null);
+  assert.equal(parseOracleCarry('能给汐一盏灯吗'), null);
+});
+
+test('叙述不触发：说过的话不是命令', () => {
+  assert.equal(parseOracleCarry('昨天已经给汐一盏灯了'), null);
+  assert.equal(parseOracleCarry('别给汐一盏灯'), null);
+});
+
+test('没有收件人就不是交接：那是神迹，不是给东西', () => {
+  // 「点灯」是神迹（`oracle-miracle.ts`）。它没有一个收件人，
+  // 所以这条路不该接——接了就变成给一个不存在的人发凭证。
+  assert.equal(parseOracleCarry('点灯'), null);
+  assert.equal(parseOracleCarry('点亮楼前的长灯'), null);
+});
+
+test('空句与没说完的话都不猜', () => {
+  assert.equal(parseOracleCarry(''), null);
+  assert.equal(parseOracleCarry('   '), null);
+  assert.equal(parseOracleCarry('给汐'), null, '说了给谁、没说什么，交给世界去问');
+  assert.equal(parseOracleCarry('给'), null);
+});

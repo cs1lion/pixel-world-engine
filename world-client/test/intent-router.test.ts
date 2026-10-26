@@ -166,3 +166,25 @@ test('闲聊不会被模型硬翻成命令：模型自己也该答 unknown', asy
   assert.equal(result.intent.kind, 'unknown');
   assert.equal(result.source, 'model');
 });
+
+// ---------------------------------------------------------------- 交接凭证
+
+test('离线也能交接凭证：没有模型时「给汐一盏灯」照样走得通', async () => {
+  // 渡有仪式此前只有模型那一条路。没有 API Key 时这句话落进 unknown，
+  // 门还在、凭证给不出去——等于离线世界里没有这道门。
+  const result = await route('给汐一盏灯');
+  assert.equal(result.intent.kind, 'carry', '规则就该认出交接');
+  assert.equal(result.source, 'rule');
+  assert.deepEqual(result.intent.kind === 'carry' ? result.intent.carries : null, ['lamp']);
+});
+
+test('交接认得出就不问模型：派活那一路认不出「给汐一盏灯」', async () => {
+  // 这条钉的是顺序。「给汐一盏灯」句首是「给」，派活的祈使动词表里没有它，
+  // 所以放晚一步它就会被判成不是命令、落进 unknown。看着是同一句话，
+  // 能不能过这道门全看它排在哪儿。
+  const model = fakeModel({ kind: 'unknown', reason: '不该被问到' });
+  const result = await route('给汐一盏灯', model);
+  assert.equal(result.intent.kind, 'carry');
+  assert.equal(result.source, 'rule', '规则命中，不该惊动模型');
+  assert.deepEqual(model.calls, []);
+});
