@@ -141,3 +141,49 @@ test('潮汐逻辑不读墙钟', () => {
   const hits = banned.filter((pattern) => text.includes(pattern));
   assert.deepEqual(hits, [], `潮汐不许读墙钟：${hits.join(', ')}`);
 });
+
+/**
+ * SPEC_V2 §4.6 的三个新状态位都不读墙钟、不调外部服务。
+ *
+ * 抵押、通行仪式、污浊度都是**世界自有的事实**：它们改变谁接得到活、走哪条路、
+ * 画面上叠不叠噪点。一旦其中任何一个去问「现在几点」，同一个存档就回放不出
+ * 同一条曲线——那正是 v1 以来一切确定性测试的地基。
+ *
+ * 这条扫描按**文件**而不是按函数：三个状态位散落在 simulation / grid / save 里，
+ * 逐函数点名会漏掉新加的那一处。墙钟在世界里只有一个合法读者
+ * （`Simulation.wallClock`，只喂 `settled.completedAt`），所以这里禁的是
+ * 世界侧直接调时钟，不是「世界完全不知道时间」。
+ */
+/**
+ * 墙钟在世界里只有一个合法读者：`Simulation` 构造时收下的那个注入函数
+ * （`deps.wallClock ?? (() => Date.now())`）。它的产出只喂
+ * `settled.completedAt`，不喂任何世界判定。所以扫描要放过这一行，
+ * 禁的是**别处**直接去问时钟。
+ */
+const WALL_CLOCK_DEFAULT = 'deps.wallClock ?? (() => Date.now())';
+
+test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
+  const OWNERS = ['world/simulation.ts', 'world/grid.ts', 'world/save.ts', 'world/faith.ts'];
+  const banned = [
+    'Date.now',
+    'performance.now',
+    'new Date(',
+    'setTimeout',
+    'setInterval',
+    'fetch(',
+    'new WebSocket(',
+  ];
+  const offenders: string[] = [];
+  for (const rel of OWNERS) {
+    const file = worldFile(rel);
+    assert.ok(file !== undefined, `找不到 ${rel}`);
+    const code = readFileSync(file, 'utf8')
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .filter((line) => !line.includes(WALL_CLOCK_DEFAULT))
+      .join('\n');
+    const hits = banned.filter((pattern) => code.includes(pattern));
+    if (hits.length > 0) offenders.push(`${rel}: ${hits.join(', ')}`);
+  }
+  assert.deepEqual(offenders, [], `三个状态位必须是世界内的纯事实：\n${offenders.join('\n')}`);
+});

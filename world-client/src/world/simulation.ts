@@ -54,7 +54,9 @@ import type {
   CarryKind,
   Critter,
   Facing,
+  CarryItem,
   GridPoint,
+  NameState,
   OracleRecord,
   PendingDispatch,
   PlacedBuilding,
@@ -73,7 +75,7 @@ import type {
 } from './types.ts';
 import { excerptBlockedQuestion, ORACLE_SLAB_LIMIT } from './types.ts';
 import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { SCHEMA_V3_FINGERPRINT } from './save.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -174,7 +176,15 @@ export type WorldCommand =
       readonly kind: 'syncEvents';
       readonly fold: TaskFoldState;
       readonly connected: boolean;
-    };
+    }
+  /**
+   * 抵押或赎回一个角色的名牌。
+   *
+   * 这是世界侧的状态开关，不是玩家操作：v2 只交付「抵押后不再被派活」这道判定
+   * （SPEC_V2 §4.6），欠债的来处留给日后的经济票。没有这条命令，
+   * `nameState` 就是一个永远停在 `held` 的死字段。
+   */
+  | { readonly kind: 'setNameState'; readonly villagerId: string; readonly nameState: NameState };
 
 export interface NewBuilding {
   readonly building: PlacedBuilding;
@@ -263,6 +273,16 @@ interface Villager {
    * 发灰全在渲染层（见 #4）。世界要是读它，确定性回放就不成立了。
    */
   lampOil: number;
+  /**
+   * 名牌的状态。抵押者接不到新活，但手上的活照干完（SPEC_V2 §4.6）。
+   */
+  nameState: NameState;
+  /**
+   * 带着的凭证。通行仪式据此判某道门过不过得去（SPEC_V2 §4.6）。
+   *
+   * 开局两手空空：谁给她灯与鞋是日后的票，这一版只把槽位与判定做对。
+   */
+  carries: CarryItem[];
 }
 
 interface WorkstationState {
@@ -423,6 +443,10 @@ export class Simulation {
       carrying: null,
       // 新世界开局是满油。谁把油烧掉是渲染层的事（见 #4）。
       lampOil: 1,
+      // 开局名牌都在自己身上。谁把它抵押出去不在这一版里（#15）。
+      nameState: 'held',
+      // 开局两手空空。谁给她灯与鞋不在这一版里（#15）。
+      carries: [],
     }));
     for (const villager of this.villagers) this.pending.set(villager.id, []);
     for (const villager of this.villagers) {
@@ -611,6 +635,8 @@ export class Simulation {
         return this.demolish(command.instanceId);
       case 'syncEvents':
         return this.syncEvents(command.fold, command.connected);
+      case 'setNameState':
+        return this.setNameState(command.villagerId, command.nameState);
     }
   }
 
@@ -669,6 +695,9 @@ export class Simulation {
       sourceTaskId: null,
       // 神迹不是任务换来的；摘要写明来源，纸面据此区分"神迹"与"哪一单"。
       sourceSummary: kind === 'light' ? '神迹：点灯' : '神迹：种树',
+      // 刚落下的东西是干净的，也没藏话。谁来弄脏、谁来洗，是各自的票（#15）。
+      grime: 0,
+      reveal: null,
     });
     this.log('info', `神迹：${label}落在祭坛边。`);
     this.announce({
@@ -1136,7 +1165,9 @@ export class Simulation {
    * 一个角色一次只接一单；铺子被占/施工/走不通就跳过，等下一拍。
    */
   private assignFromFeedTo(villager: Villager): void {
-    if (!this.isFree(villager)) return;
+    // 抵押者不接上游的活：派活的三条路径（神谕、上游、自己的排队单）
+    // 必须过同一道门，漏掉任一条就会出现「神谕派不下去，上游照样派」。
+    if (!this.canTakeWork(villager)) return;
     // 读档后对账前：上游单只读展示，不派活。
     if (!this.feedReconciled) return;
     for (const task of this.nextFeedTasks()) {
@@ -1336,8 +1367,8 @@ export class Simulation {
   }
 
   private dispatch(taskKind: TaskKind, summary: string): CommandResult {
-    // 有人空着就叫一个人；全都在忙才进等待队列。
-    const free = this.freeVillager();
+    // 有人空着就叫一个人；全都在忙或全都抵押了名字才进等待队列。
+    const free = this.workerFor();
     if (free === null) return this.enqueuePendingDispatch(taskKind, summary);
     return this.startDispatch(free, taskKind, summary);
   }
@@ -1388,8 +1419,21 @@ export class Simulation {
 
   /** 所有人都忙时把神谕放进等待队列；按角色分，选排队最少的那位。 */
   private enqueuePendingDispatch(taskKind: TaskKind, summary: string): CommandResult {
-    let target = this.villagers[0] as Villager;
-    for (const villager of this.villagers) {
+    /**
+     * 抵押者不进候选。
+     *
+     * 排进她的队列就等于把单子埋了：队列只在角色空闲时才抽，而抵押者**永远**
+     * 空闲——这一单会躺到存档过期都没人开工，而调用方以为它已经排上了。
+     * 宁可当场拒这一条。
+     */
+    const candidates = this.villagers.filter((villager) => villager.nameState !== 'pawned');
+    if (candidates.length === 0) {
+      const message = '没人接得住这条：名字都抵押出去了。';
+      this.log('warn', message);
+      return { ok: false, message };
+    }
+    let target = candidates[0]!;
+    for (const villager of candidates) {
       if (this.pendingOf(villager).length < this.pendingOf(target).length) target = villager;
     }
     const queue = this.pendingOf(target);
@@ -1418,7 +1462,7 @@ export class Simulation {
    */
   private pumpPending(): void {
     for (const villager of this.villagers) {
-      if (!this.isFree(villager)) continue;
+      if (!this.canTakeWork(villager)) continue;
       this.assignFromFeedTo(villager);
       if (!this.isFree(villager)) continue;
       const queue = this.pendingOf(villager);
@@ -1646,8 +1690,35 @@ export class Simulation {
     return villager.mode === 'idle' || villager.mode === 'sheltering';
   }
 
-  private freeVillager(): Villager | null {
-    return this.villagers.find((villager) => this.isFree(villager)) ?? null;
+  /**
+   * 这个角色**接得下新活吗**。
+   *
+   * 与 `isFree` 分开是有意的：空闲是「此刻没在做事」，接得下是「有资格接」。
+   * 抵押者永远空闲，但接不了——把两个条件合成一个方法，就会在某个只想知道
+   * 「她有空吗」的调用点上把抵押者误判成不可用（或反过来放过她）。
+   */
+  private canTakeWork(villager: Villager): boolean {
+    return this.isFree(villager) && villager.nameState !== 'pawned';
+  }
+
+  /** 空闲**且名牌还在自己身上**的角色。抵押者不在候选里。 */
+  private workerFor(): Villager | null {
+    return this.villagers.find((villager) => this.canTakeWork(villager)) ?? null;
+  }
+
+  /** 抵押或赎回名牌。只有这两态，写成布尔会读不懂。 */
+  private setNameState(villagerId: string, nameState: NameState): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return { ok: false, message: `没有 ${villagerId} 这个人。` };
+    if (villager.nameState === nameState) {
+      return { ok: true, message: `${villager.name}的名牌本来就是这样。` };
+    }
+    villager.nameState = nameState;
+    this.log(
+      'info',
+      nameState === 'pawned' ? `${villager.name}把名牌抵押了出去。` : `${villager.name}赎回了名牌。`,
+    );
+    return { ok: true, message: nameState === 'pawned' ? `${villager.name}的名字押出去了。` : `${villager.name}赎回了名字。` };
   }
 
   private snapshotVillager(villager: Villager): VillagerSnapshot {
@@ -1664,6 +1735,7 @@ export class Simulation {
       umbrella: this.isRaining() && villager.mode !== 'working',
       carrying: villager.carrying,
       lampOil: villager.lampOil,
+      nameState: villager.nameState,
     };
   }
 
@@ -2130,9 +2202,11 @@ export class Simulation {
       pendingRoute: villager.pendingRoute.map((cell) => ({ x: cell.x, y: cell.y })),
       pendingBuildingId: villager.pendingBuilding?.instanceId ?? null,
       lampOil: villager.lampOil,
+      nameState: villager.nameState,
+      carries: [...villager.carries],
     }));
     return {
-      schemaVersion: 3,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
       world: {
         now: this.now,
         villagers,
@@ -2169,7 +2243,7 @@ export class Simulation {
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.feedReconciled,
-        schemaFingerprint: SCHEMA_V3_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V4_FINGERPRINT,
       },
     };
   }
@@ -2217,6 +2291,9 @@ export class Simulation {
           : (sim.buildings.find((item) => item.instanceId === saved.pendingBuildingId) ?? null);
       // 灯油只搬运，不参与任何世界判定（见 #4）。
       villager.lampOil = saved.lampOil;
+      // 名牌状态要原样恢复：读档后抵押者仍然抵押，不能凭空把她放回来接活。
+      villager.nameState = saved.nameState ?? 'held';
+      villager.carries = [...(saved.carries ?? [])];
     }
 
     for (const queue of sim.pending.values()) queue.length = 0;
@@ -2232,7 +2309,15 @@ export class Simulation {
     sim.roads.length = 0;
     sim.roads.push(...world.roads.map((cell) => ({ x: cell.x, y: cell.y })));
     sim.props.length = 0;
-    sim.props.push(...world.props.map((prop) => ({ ...prop })));
+    sim.props.push(
+      ...world.props.map((prop) => ({
+        ...prop,
+        // 读档不补默认值：缺字段的坏档要在 assertSave 就被拒，
+        // 静默补一个「干净」等于把玩家洗过的脏东西又擦亮一次。
+        grime: prop.grime,
+        reveal: prop.reveal,
+      })),
+    );
 
     sim.activities.clear();
     for (const saved of world.activities) {

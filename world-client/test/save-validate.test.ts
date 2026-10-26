@@ -29,7 +29,7 @@ import {
   PROP_KINDS,
   SAVE_STORAGE_KEY,
   SAVE_V1_ALLOWED_PATHS,
-  SCHEMA_V3_FINGERPRINT,
+  SCHEMA_V4_FINGERPRINT,
   SILHOUETTES,
   TASK_KINDS,
   TASK_SOURCES,
@@ -47,7 +47,7 @@ const rawPrefabs = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(rawPrefabs);
-const sampleText = readFileSync(new URL('../../docs/save-v3.sample.json', import.meta.url), 'utf8');
+const sampleText = readFileSync(new URL('../../docs/save-v4.sample.json', import.meta.url), 'utf8');
 
 class FakeStorage implements StorageLike {
   readonly data = new Map<string, string>();
@@ -238,6 +238,8 @@ const NULLABLE_PATHS: ReadonlySet<string> = new Set([
   'world.buildings[].sourceSummary',
   // v3：没有覆盖是 null（世界走 tideLevelAt 纯函数），置空是合法值不是变异。
   'world.tideOverride',
+  // v4：没有可露的话就是 null。置空是合法值不是变异。
+  'world.props[].reveal',
 ]);
 
 /* ---------------------------------------------------------------- 用例 */
@@ -246,7 +248,7 @@ test('task-32：冻结样例仍能加载（read + importText + parseSaveText 三
   const sample = JSON.parse(sampleText) as WorldSave;
   assert.doesNotThrow(() => validateSaveFields(sample, 3), '样例必须过字段级校验');
   assert.doesNotThrow(() => assertSave(sample), '样例必须过完整校验');
-  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V3_FINGERPRINT);
+  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V4_FINGERPRINT);
 
   const parsed = parseSaveText(sampleText);
   assert.equal(parsed.ok, true);

@@ -83,6 +83,9 @@ export function nextProp(
         sourceTaskKind: source?.kind ?? null,
         sourceTaskId: source?.taskId ?? null,
         sourceSummary: source?.summary ?? null,
+        // 里程碑换来的摆件是干净的，也没藏话（#15 的两个 v4 槽位）。
+        grime: 0,
+        reveal: null,
       };
     }
   }

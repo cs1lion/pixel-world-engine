@@ -11,7 +11,7 @@ import {
   collectSavePaths,
   SAVE_STORAGE_KEY,
   SAVE_TASK_KEYS,
-  SCHEMA_V3_FINGERPRINT,
+  SCHEMA_V4_FINGERPRINT,
   type WorldSave,
 } from '../src/world/save.ts';
 import {
@@ -27,7 +27,7 @@ const rawPrefabs = JSON.parse(
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(rawPrefabs);
 
-const sampleText = readFileSync(new URL('../../docs/save-v3.sample.json', import.meta.url), 'utf8');
+const sampleText = readFileSync(new URL('../../docs/save-v4.sample.json', import.meta.url), 'utf8');
 
 class FakeStorage implements StorageLike {
   readonly data = new Map<string, string>();
@@ -93,7 +93,7 @@ test('导出内容就是当前版存档：通过校验、字段不超出冻结�
   assert.ok(text !== null, '写完后应能读到单槽原文');
   const parsed = JSON.parse(text) as WorldSave;
   assert.doesNotThrow(() => assertSave(parsed));
-  assert.equal(parsed.meta.schemaFingerprint, SCHEMA_V3_FINGERPRINT);
+  assert.equal(parsed.meta.schemaFingerprint, SCHEMA_V4_FINGERPRINT);
   // 指纹是按“实际数据叶子路径”算的，空数组/空对象会让路径集合缩水，
   // 所以这里比的是「导出路径必须全部落在冻结样例的路径集合里」——多一个字段就红。
   const samplePaths = new Set(collectSavePaths(JSON.parse(sampleText)));
@@ -144,7 +144,7 @@ test('导入合法档：写入单槽、可读回、能重建世界（刷新恢�
   if (!read.ok) return;
   const world = buildWorldFromSave(read.save.world.buildings, blueprints);
   assert.equal(world.buildings.length, read.save.world.buildings.length);
-  assert.equal(read.save.meta.schemaFingerprint, SCHEMA_V3_FINGERPRINT);
+  assert.equal(read.save.meta.schemaFingerprint, SCHEMA_V4_FINGERPRINT);
 });
 
 test('导入坏档：拒绝、原文件按现有机制备份、不写主槽', () => {

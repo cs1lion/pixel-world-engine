@@ -93,6 +93,18 @@ export type VillagerMode =
 export type TaskStatus = 'assigned' | 'in_progress' | 'done' | 'failed';
 
 /**
+ * 名牌的状态（SPEC_V2 §4.6）。
+ *
+ * - `held`：名字还在自己身上，正常接活。
+ * - `pawned`：名字被抵押出去了。**只拦新活**——正在干的活照干完，
+ *   因为半途扔掉一单比不收一单更糟（那一单会悬空）。
+ *
+ * 这是世界状态位，不是玩法：v2 只交付「抵押后不再被派活」这道判定，
+ * 怎么欠下这笔债不在这一版里（SPEC_V2 §4.6 明确不做经济数值）。
+ */
+export type NameState = 'held' | 'pawned';
+
+/**
  * 这条活的完成权归谁。
  *
  * - `sandbox`：世界自己造的活（神谕派下来的），由世界内的计时器收尾。
@@ -275,7 +287,22 @@ export interface WorldProp {
    * 老摆件没有来源，记 null。
    */
   readonly sourceSummary: string | null;
+  /**
+   * v4：污浊度 0..1。渲染层照它叠噪点；1 是刚积满，0 是洗干净（SPEC_V2 §4.6）。
+   *
+   * 存在世界里而不是只在画面上：洗干净是一个发生过的事实，读档后不该复位。
+   */
+  readonly grime: number;
+  /**
+   * v4：洗干净后露出的那句话。没有可露的就是 null。
+   *
+   * 与 `label` 分开：label 是它此刻的名字，reveal 是藏在地皮下面那句话。
+   */
+  readonly reveal: string | null;
 }
+
+/** 通行仪式认得的凭证。区域声明 `requires`，角色带着 `carries`，两边同一套词。 */
+export type CarryItem = 'lamp' | 'shoes';
 
 export interface VillagerSnapshot {
   /** 世界内稳定 id（v0 = 主角色）。渲染按它对齐多个实例。 */
@@ -298,6 +325,8 @@ export interface VillagerSnapshot {
   readonly carrying: CarryKind | null;
   /** 渲染专用余量；Simulation 不读取它作任何决定。 */
   readonly lampOil: number;
+  /** 名牌在谁手上。抵押者接不到新活（SPEC_V2 §4.6）。 */
+  readonly nameState: NameState;
 }
 
 /**

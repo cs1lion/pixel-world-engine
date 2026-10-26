@@ -6,9 +6,11 @@
  */
 
 import type {
+  CarryItem,
   Critter,
   Facing,
   GridPoint,
+  NameState,
   OracleRecord,
   PendingDispatch,
   PlacedBuilding,
@@ -30,7 +32,7 @@ import { ORACLE_SLAB_LIMIT } from './types.ts';
 import type { WeatherState } from './weather.ts';
 import type { TideOverride } from './tide.ts';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 /** 槽位键沿用 v1：升 schema 不改存储键，老档才读得到、才谈得上迁移。 */
 export const SAVE_STORAGE_KEY = 'xiaoxi.pixel-world.save.v1';
 /** 已结算记录超过这个数就告警一次（每会话一次）。 */
@@ -47,6 +49,14 @@ export const SCHEMA_V2_FINGERPRINT = '72c4a6c0f1f444f7';
  * 三张票各自去填，不必各升一次版本、各重算一次指纹。
  */
 export const SCHEMA_V3_FINGERPRINT = '7b6a0058c54ba3e4';
+/**
+ * v4 冻结指纹。由 docs/save-v4.sample.json 算出，单测核对。
+ *
+ * 沿用 v3 的做法：一次把四个槽位扩好，让「名牌抵押」「通行仪式」「污浊度」
+ * 三张票各自去填，不必各升一次版本、各重算一次指纹。四个都是**位置**，
+ * 谁来写、写成什么由各自的票决定（SPEC_V2 §4.6）。
+ */
+export const SCHEMA_V4_FINGERPRINT = 'aea397c23b23cda4';
 
 /** v1 冻结路径全集（99 条，来自 docs/save-v1.sample.json；指纹见上，单测核对）。
  * `assertSaveV1` 做**集合包含**校验：存档出现的每条叶子路径都必须在这个集合里；
@@ -214,6 +224,21 @@ export const SAVE_V3_OPTIONAL_PATHS: readonly string[] = [
 ];
 
 /**
+ * v4 在 v3 之上新增的叶子路径（理由同 v3：一次扩好四个槽）。
+ *
+ *   - `world.villagers[].nameState`：名牌在谁手上（SPEC_V2 §4.6）。
+ *   - `world.villagers[].carries[]`：她带着什么，通行仪式据此判（同上）。
+ *   - `world.props[].grime`：物件的污浊度 0..1，渲染层照它叠噪点（同上）。
+ *   - `world.props[].reveal`：洗干净后露出的那句话；没得可露时是 null。
+ */
+export const SAVE_V4_ADDED_PATHS: readonly string[] = [
+  'world.villagers[].carries[]',
+  'world.villagers[].nameState',
+  'world.props[].grime',
+  'world.props[].reveal',
+];
+
+/**
  * v1 冻结的 `world.tasks[]` 键集合（必须与 docs/save-v1.sample.json 逐键一致）。
  * 运行时字段（如 ledgerCompletedAt）不得落盘；字段漂移必须升版本，不能裸加。
  */
@@ -274,6 +299,19 @@ export interface SavedVillager {
    * 存它是因为「你离开一段时间再回来，灯该灭的已经灭了」，那是世界自有的事实。
    */
   readonly lampOil: number;
+  /**
+   * v4：名牌状态。缺省 `'held'`（名字在自己身上）。
+   *
+   * 读档后抵押者必须还是抵押的：凭空把她放回来接活，等于让「抵押」这件事
+   * 在每次读档后失效一次。
+   */
+  readonly nameState: NameState;
+  /**
+   * v4：她带着的凭证。通行仪式据此判某道门过不过得去（SPEC_V2 §4.6）。
+   *
+   * 闭集 `CARRY_ITEMS`，缺省 `[]`（两手空空）。
+   */
+  readonly carries: readonly CarryItem[];
 }
 
 /** 已结算记录：save-only 的去重与分账唯一真相（ADR_SAVE §2.1/§2.2）。 */
@@ -364,8 +402,14 @@ export interface WorldSaveV3 {
   readonly meta: SaveMeta;
 }
 
-/** 运行期只认当前版本。v1/v2 只在迁移入口出现，不流进 Simulation。 */
-export type WorldSave = WorldSaveV3;
+export interface WorldSaveV4 {
+  readonly schemaVersion: 4;
+  readonly world: SaveWorld;
+  readonly meta: SaveMeta;
+}
+
+/** 运行期只认当前版本。v1/v2/v3 只在迁移入口出现，不流进 Simulation。 */
+export type WorldSave = WorldSaveV4;
 
 export type RawSave = Record<string, unknown>;
 
@@ -448,9 +492,16 @@ export const SAVE_V3_ALLOWED_PATHS: readonly string[] = [
   ...SAVE_V3_OPTIONAL_PATHS,
 ];
 
+/** v4 允许全集 = v3 全集 + v4 新增。 */
+export const SAVE_V4_ALLOWED_PATHS: readonly string[] = [
+  ...SAVE_V3_ALLOWED_PATHS,
+  ...SAVE_V4_ADDED_PATHS,
+];
+
 const SAVE_V1_PATH_SET = new Set(SAVE_V1_ALLOWED_PATHS);
 const SAVE_V2_PATH_SET = new Set(SAVE_V2_ALLOWED_PATHS);
 const SAVE_V3_PATH_SET = new Set(SAVE_V3_ALLOWED_PATHS);
+const SAVE_V4_PATH_SET = new Set(SAVE_V4_ALLOWED_PATHS);
 
 /** 对任意存档对象取指纹（跳过 meta.schemaFingerprint）。 */
 export function saveFingerprint(save: unknown): string {
@@ -490,6 +541,15 @@ export const TASK_STATUSES: readonly TaskStatus[] = ['assigned', 'in_progress', 
 export const TASK_KINDS: readonly TaskKind[] = ['code', 'research', 'writing', 'quick'];
 export const TASK_SOURCES: readonly TaskSource[] = ['sandbox', 'ledger'];
 export const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
+/** 名牌的两态（SPEC_V2 §4.6）。抵押者接不到新活。 */
+export const NAME_STATES: readonly NameState[] = ['held', 'pawned'];
+/**
+ * 通行仪式认得的凭证（SPEC_V2 §4.6）。
+ *
+ * 闭集：区域声明的 `requires` 与角色带着的 `carries` 必须是同一套词，
+ * 否则「她明明带着灯，那道门就是不认」这种只有截图才看得见的 bug 会出现。
+ */
+export const CARRY_ITEMS: readonly CarryItem[] = ['lamp', 'shoes'];
 export const ZONES: readonly ZoneId[] = [
   'street', 'altar', 'industry', 'scholarly', 'agriculture', 'living',
 ];
@@ -592,7 +652,7 @@ function checkPointList(value: unknown, path: string): void {
  * `version` 决定查到哪一版为止：旧档在迁移前必须能过这一层，
  * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`，v2 不查 v3 的三个字段。
  */
-function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3): void {
+function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4): void {
   const world = asRecord(raw.world, 'world');
 
   checkNumber(requireKey(world, 'now', 'world'), 'world.now', { min: 0 });
@@ -637,6 +697,15 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3): 
         min: 0,
       });
       if (lampOil > 1) fail(`${path}.lampOil`, `必须在 0..1，实际 ${lampOil}`);
+    }
+    if (version >= 4) {
+      // 名牌只有两态，写成别的字符串就是坏档——它决定谁接得到活。
+      checkEnum(requireKey(villager, 'nameState', path), NAME_STATES, `${path}.nameState`);
+      // 带着的东西：闭集。未知的一件就等于通行仪式认不出的凭证。
+      const carries = asArray(requireKey(villager, 'carries', path), `${path}.carries`);
+      for (const item of carries) {
+        checkEnum(item, CARRY_ITEMS, `${path}.carries[]`);
+      }
     }
   });
 
@@ -703,6 +772,13 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3): 
       checkStringOrNull(requireKey(prop, 'sourceSummary', path), `${path}.sourceSummary`, {
         allowEmpty: true,
       });
+    }
+    if (version >= 4) {
+      // 污浊度 0..1：越界就是坏档，渲染层会照它叠噪点，1.4 层噪点会画到格子外。
+      const grime = checkNumber(requireKey(prop, 'grime', path), `${path}.grime`, { min: 0 });
+      if (grime > 1) fail(`${path}.grime`, `必须在 0..1，实际 ${grime}`);
+      // 洗干净后露出的那句话。没得可露就是 null；空串没有意义（那等于露了一句空白）。
+      checkStringOrNull(requireKey(prop, 'reveal', path), `${path}.reveal`, { allowEmpty: true });
     }
   });
 
@@ -891,8 +967,8 @@ function validateMetaFields(raw: Record<string, unknown>): void {
  */
 export function validateSaveFields(
   raw: unknown,
-  version: 1 | 2 | 3 = 3,
-): asserts raw is WorldSaveV1 | WorldSaveV2 | WorldSaveV3 {
+  version: 1 | 2 | 3 | 4 = CURRENT_SCHEMA_VERSION,
+): asserts raw is WorldSaveV1 | WorldSaveV2 | WorldSaveV3 | WorldSaveV4 {
   if (!isObject(raw)) fail('存档', '不是对象');
   validateMetaFields(raw);
   validateWorldFields(raw, version);
@@ -913,7 +989,7 @@ export function validateSaveFields(
  * v1 仍被接受，是因为迁移前的旧档要先按 v1 形状自证一次（`MIGRATIONS[1]`）。
  * 迁移完成后到这里的存档一律是 v3。
  */
-export function assertSave(raw: unknown): asserts raw is WorldSaveV3 {
+export function assertSave(raw: unknown): asserts raw is WorldSaveV4 {
   if (!isObject(raw)) throw new Error('存档不是对象');
   if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`schemaVersion 不是 ${CURRENT_SCHEMA_VERSION}（迁移没跑？）`);
@@ -925,13 +1001,13 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV3 {
   // meta.schemaFingerprint 是冻结产物的自证字段：缺失/不是字符串一律拒绝，避免
   // 「删掉它就能绕过旧检查」；存在但与常量不等也拒绝（被改过或字段漂移）。
   if (typeof meta.schemaFingerprint !== 'string') {
-    throw new Error('存档缺 meta.schemaFingerprint（v3 要求该字段存在）');
+    throw new Error('存档缺 meta.schemaFingerprint（当前版本要求该字段存在）');
   }
-  if (meta.schemaFingerprint !== SCHEMA_V3_FINGERPRINT) {
+  if (meta.schemaFingerprint !== SCHEMA_V4_FINGERPRINT) {
     throw new Error('存档指纹不符（字段变了但版本没升，或存档损坏）');
   }
   // 第 1 层：字段级类型/范围/存在性（含 weather/faith、各数组元素、done⊆settled）。
-  validateSaveFields(raw, 3);
+  validateSaveFields(raw, CURRENT_SCHEMA_VERSION);
   // 第 2 层：嵌套键集合冻结（多一个运行时字段就是漂移）。
   for (const record of world.settled as unknown[]) {
     assertKeys(record as Record<string, unknown>, SAVE_SETTLED_KEYS, 'world.settled[]');
@@ -940,10 +1016,10 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV3 {
     assertKeys(task as Record<string, unknown>, SAVE_TASK_KEYS, 'world.tasks[]');
   }
   // 第 3 层：路径集合包含校验——只防「新增路径」（顶层/world/meta/数组元素里多字段）。
-  const outside = collectSavePaths(raw).filter((path) => !SAVE_V3_PATH_SET.has(path));
+  const outside = collectSavePaths(raw).filter((path) => !SAVE_V4_PATH_SET.has(path));
   if (outside.length > 0) {
     throw new Error(
-      `存档字段漂移：出现 v3 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
+      `存档字段漂移：出现 v${CURRENT_SCHEMA_VERSION} 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
     );
   }
 }
@@ -957,7 +1033,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV3 {
  */
 function assertLegacySave(
   raw: unknown,
-  version: 1 | 2,
+  version: 1 | 2 | 3,
   fingerprint: string,
   pathSet: ReadonlySet<string>,
 ): void {
@@ -998,6 +1074,18 @@ export function assertSaveV1(raw: unknown): asserts raw is WorldSaveV1 {
 /** 只认 v2 形状的自证校验。v2→v3 迁移前用它，理由同 v1。 */
 export function assertSaveV2(raw: unknown): asserts raw is WorldSaveV2 {
   assertLegacySave(raw, 2, SCHEMA_V2_FINGERPRINT, SAVE_V2_PATH_SET);
+}
+
+/**
+ * 只认 v3 形状的自证校验。v3→v4 迁移前用它，理由同 v1。
+ *
+ * 为什么 v3 也要有一条：v3 曾经是当前版本，那时它不需要自证——调用方会直接
+ * `assertSave` 它。一旦它变成旧版本（v4 起），迁移链就会先改写它再校验，
+ * 那道「先自证」的关口就空了：一个被改过的 v3 档会被安静地迁成 v4。
+ * 加一条与 v1/v2 同样的校验，把这道关口补回来。
+ */
+export function assertSaveV3(raw: unknown): asserts raw is WorldSaveV3 {
+  assertLegacySave(raw, 3, SCHEMA_V3_FINGERPRINT, SAVE_V3_PATH_SET);
 }
 
 /** 逐级迁移链入口；任一步抛错都拒绝加载（ADR_SAVE §3）。 */
@@ -1079,6 +1167,44 @@ export const MIGRATIONS: Record<number, Migration> = {
       meta: { ...meta, schemaFingerprint: SCHEMA_V3_FINGERPRINT },
     };
   },
+
+  /**
+   * v3 → v4：一次把四个槽位扩好（见 SCHEMA_V4_FINGERPRINT 的注释）。
+   *
+   * 缺省值的理由——老档里这些事都没发生过，不能凭空安上去：
+   *   - `nameState: 'held'`：名字都在自己身上。老档没人抵押过名牌。
+   *   - `carries: []`：两手空空。老档没有「带着灯/鞋通行」这回事。
+   *   - `grime: 0`：干净的。老档的物件没有污浊度，读作脏等于凭空弄脏它。
+   *   - `reveal: null`：没有可露的话。老档的物件没有藏话。
+   */
+  3: (raw) => {
+    const world = isObject(raw.world) ? raw.world : {};
+    const meta = isObject(raw.meta) ? raw.meta : {};
+    const villagers = Array.isArray(world.villagers) ? world.villagers : [];
+    const props = Array.isArray(world.props) ? world.props : [];
+    return {
+      ...raw,
+      schemaVersion: 4,
+      world: {
+        ...world,
+        villagers: villagers.map((villager) =>
+          isObject(villager)
+            ? {
+                ...villager,
+                nameState: villager.nameState ?? 'held',
+                carries: villager.carries ?? [],
+              }
+            : villager,
+        ),
+        props: props.map((prop) =>
+          isObject(prop)
+            ? { ...prop, grime: prop.grime ?? 0, reveal: prop.reveal ?? null }
+            : prop,
+        ),
+      },
+      meta: { ...meta, schemaFingerprint: SCHEMA_V4_FINGERPRINT },
+    };
+  },
 };
 
 export function migrateSave(raw: RawSave): RawSave {
@@ -1086,6 +1212,7 @@ export function migrateSave(raw: RawSave): RawSave {
   // 迁移前先按起点版本自证：被改过的旧档不能靠迁移「洗白」成合法档。
   if (version === 1) assertSaveV1(raw);
   if (version === 2) assertSaveV2(raw);
+  if (version === 3) assertSaveV3(raw);
   let current = raw;
   let cursor = version;
   while (cursor < CURRENT_SCHEMA_VERSION) {

@@ -54,6 +54,8 @@ const prop = (over: Partial<WorldProp> = {}): WorldProp => ({
   sourceTaskKind: null,
   sourceTaskId: null,
   sourceSummary: null,
+  grime: 0,
+  reveal: null,
   ...over,
 });
 

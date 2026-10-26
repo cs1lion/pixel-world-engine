@@ -4,7 +4,14 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, buildWorldFromSave, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation, completedAtMs } from '../src/world/simulation.ts';
-import { assertSave, migrateSave, SAVE_SETTLED_KEYS, SAVE_TASK_KEYS, type WorldSave } from '../src/world/save.ts';
+import {
+  assertSave,
+  CURRENT_SCHEMA_VERSION,
+  migrateSave,
+  SAVE_SETTLED_KEYS,
+  SAVE_TASK_KEYS,
+  type WorldSave,
+} from '../src/world/save.ts';
 import type { PlacedBuilding, WorldProp } from '../src/world/types.ts';
 import { syncCommand } from './feed-helpers.ts';
 
@@ -135,7 +142,7 @@ test('事件带的时间：秒与毫秒都认，缺失或非法记 null——绝
 
 test('对账：已结算不重复、不复活；缺席不是撤单；撤单才撤', () => {
   const sample = JSON.parse(
-    readFileSync(new URL('../../docs/save-v3.sample.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../docs/save-v4.sample.json', import.meta.url), 'utf8'),
   ) as WorldSave;
   assertSave(sample);
   const demo = 'c_demo000001';
@@ -202,8 +209,8 @@ test('v1→v2 迁移：样例级旧档完整可迁移，迁移后能过当前校
   const migrated = migrateSave(v1);
 
   assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过当前版校验');
-  // v1 的档要一路走到当前版本（v3），中间不会停在 v2。
-  assert.equal(migrated.schemaVersion, 3);
+  // v1 的档要一路走到当前版本，中间不会停在 v2 或 v3。
+  assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
 });
 
 test('v1→v2 迁移：老摆件没有来源，记 null 而不是编造', () => {
@@ -239,7 +246,7 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
   const {
     oracle: _oracle,
     critters: _critters,
-    // v3 的三个新字段单独断言（见下方），这里只比「迁移不该碰」的部分。
+    // v3 / v4 的新增字段单独断言（见下方），这里只比「迁移不该碰」的部分。
     tideOverride: _tideOverride,
     worldChangeVersion: _worldChangeVersion,
     props: migratedProps,
@@ -250,16 +257,23 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
   const { props: v1Props, buildings: v1Buildings, villagers: v1Villagers, ...v1Rest } = v1.world;
   assert.deepEqual(migratedRest, v1Rest, '迁移不能顺手改动别的世界状态');
 
-  // v3 新增：灯油缺省满油，其余角色字段一个不动。
-  const stripLampOil = (list: readonly { lampOil?: number }[]): unknown[] =>
+  // v3/v4 新增：灯油、名牌、带着的东西都有缺省，其余角色字段一个不动。
+  const stripVillagerAdditions = (
+    list: readonly { lampOil?: number; nameState?: string; carries?: readonly string[] }[],
+  ): unknown[] =>
     list.map((villager) => {
-      const { lampOil: _oil, ...rest } = villager;
+      const {
+        lampOil: _oil,
+        nameState: _nameState,
+        carries: _carries,
+        ...rest
+      } = villager;
       return rest;
     });
   assert.deepEqual(
-    stripLampOil(migratedVillagers),
+    stripVillagerAdditions(migratedVillagers),
     v1Villagers,
-    '角色除灯油外必须逐字段一致',
+    '角色除灯油 / 名牌 / 随身物外必须逐字段一致',
   );
   assert.equal(migrated.world.tideOverride, null, 'v1 没有覆盖，迁移后是 null');
   assert.equal(migrated.world.worldChangeVersion, 0, 'v1 没记过改变次数，从零开始');
@@ -277,10 +291,17 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
 
   const strip = (props: readonly WorldProp[]): unknown[] =>
     props.map((prop) => {
-      const { sourceTaskKind: _kind, sourceTaskId: _id, sourceSummary: _sum, ...rest } = prop;
+      const {
+        sourceTaskKind: _kind,
+        sourceTaskId: _id,
+        sourceSummary: _sum,
+        grime: _grime,
+        reveal: _reveal,
+        ...rest
+      } = prop;
       return rest;
     });
-  assert.deepEqual(strip(migratedProps), strip(v1Props), '摆件除来源外必须逐字段一致');
+  assert.deepEqual(strip(migratedProps), strip(v1Props), '摆件除来源 / 污浊度 / 藏话外必须逐字段一致');
 });
 
 test('迁移前的旧档要自证：被改过的假 v1 档不能靠迁移洗白', () => {
@@ -425,41 +446,53 @@ test('P2 契约：满数据存档（settled / constructions / 队列非空）通
   assert.doesNotThrow(() => assertSave(save));
 });
 
-/* ------------------------------------------------ v3 扩位置：三个字段能存能读 */
+/* ------------------------------------------------ v4 扩位置：四个槽位能存能读 */
 
-test('v3：toSave 写出三个新字段，缺省是满油 / 无覆盖 / 零次改变', () => {
+test('v4：toSave 写出四个新槽位，缺省是名牌在身 / 两手空空 / 干净 / 无话', () => {
   const sim = makeSim();
   sim.update(16);
   const save = sim.toSave();
 
-  assert.equal(save.schemaVersion, 3);
+  assert.equal(save.schemaVersion, CURRENT_SCHEMA_VERSION);
   for (const villager of save.world.villagers) {
     assert.equal(villager.lampOil, 1, '新世界开局满油');
+    assert.equal(villager.nameState, 'held', '开局名牌都在自己身上');
+    assert.deepEqual(villager.carries, [], '开局两手空空');
   }
   assert.equal(save.world.tideOverride, null, '没有命令就没有覆盖');
   assert.equal(save.world.worldChangeVersion, 0, '还没改变过世界');
+  for (const prop of save.world.props) {
+    assert.equal(prop.grime, 0, '刚落下的东西是干净的');
+    assert.equal(prop.reveal, null, '也没有藏话');
+  }
   assert.doesNotThrow(() => assertSave(save));
 });
 
-test('v3：三个新字段经 toSave → fromSave → 再 toSave 原样往返', () => {
+test('v4：四个槽位经 toSave → fromSave → 再 toSave 原样往返', () => {
   const a = makeSim();
+  // 先落一件摆件，好让 props 那一侧真的被走到（开局世界里一件都没有）。
+  a.enqueue({ kind: 'miracle', miracle: 'light' });
   a.update(16);
-  // 直接改存档里的值（这一版还没有写它们的命令），验证的是**搬运**而不是业务。
+  assert.ok(a.toSave().world.props.length > 0, '先得有一件摆件可供往返');
+  // 直接改存档里的值（这一版还没有写 carries / grime 的命令），验证的是**搬运**而不是业务。
   const save = a.toSave() as unknown as {
     world: {
-      villagers: { lampOil: number }[];
-      tideOverride: { level: number; until: number } | null;
-      worldChangeVersion: number;
+      villagers: { lampOil: number; nameState: string; carries: string[] }[];
+      props: { grime: number; reveal: string | null }[];
     };
   };
   save.world.villagers[0].lampOil = 0.25;
-  save.world.tideOverride = { level: 0.9, until: 12_345 };
-  save.world.worldChangeVersion = 7;
+  save.world.villagers[0].nameState = 'pawned';
+  save.world.villagers[0].carries = ['lamp', 'shoes'];
+  save.world.props[0].grime = 0.75;
+  save.world.props[0].reveal = '井底下压着一句话';
 
   const restored = fromSave(save as unknown as WorldSave).toSave();
   assert.equal(restored.world.villagers[0]?.lampOil, 0.25, '灯油必须原样搬回来');
-  assert.deepEqual(restored.world.tideOverride, { level: 0.9, until: 12_345 }, '覆盖必须原样搬回来');
-  assert.equal(restored.world.worldChangeVersion, 7, '折返计数必须原样搬回来');
+  assert.equal(restored.world.villagers[0]?.nameState, 'pawned', '抵押状态必须原样搬回来');
+  assert.deepEqual(restored.world.villagers[0]?.carries, ['lamp', 'shoes'], '带着的东西必须原样搬回来');
+  assert.equal(restored.world.props[0]?.grime, 0.75, '污浊度必须原样搬回来');
+  assert.equal(restored.world.props[0]?.reveal, '井底下压着一句话', '藏着的话必须原样搬回来');
   assert.doesNotThrow(() => assertSave(restored));
 });
 
