@@ -64,6 +64,50 @@ TEMPLATES = [
 #: 生产路径本身，而不是一份写着像真的常量。
 _BUILDING_IDS = ("code_forge#1", "star_archive#1", "ink_house#1", "workshop_plot#1", "crawler_mine#1", "ferry#1")
 
+#: 上面那几个 id 的显示名。`ferry#1` 不在模板表里（渡口是设定集落的，不是玩家建的），
+#: 但客户端一样会把它报上来——所以这里照样要有它。
+_BUILDING_NAMES = {
+    "code_forge": "炼码工坊",
+    "star_archive": "观星档案馆",
+    "ink_house": "抄书斋",
+    "workshop_plot": "新工坊",
+    "crawler_mine": "爬虫矿洞",
+    "ferry": "渡口",
+}
+
+#: 渡口算野外（客户端 `WILD_PREFABS`），其余算镇内。分组要与客户端一致，
+#: 否则 `render_context` 少说一栋，模型就少一个能抄的 id。
+_WILD_IDS = frozenset({"ferry#1"})
+
+
+def _client_context() -> dict:
+    """造一份客户端会发的现状——形状与 `world-client/src/world/intent-context.ts`
+    的 `summarizeForIntent` 对齐（`built.town` / `built.wild`，各带 instanceId）。
+
+    **只有 `--with-context` 用。** 默认那场故意不发：那是线上更严的一侧，
+    见 `_WHY_IT_CHANGED` 里「这份实验比线上更严」。加上这个开关不是为了
+    把数字变好看，是为了让那段话**能被验**——不然「线上客户端两样都会发，
+    模型本来就有现成的实例 id 可抄」只是一句没人试过的断言。
+    """
+    entries = [
+        {
+            "instanceId": instance_id,
+            "templateId": instance_id.split("#", 1)[0],
+            "name": _BUILDING_NAMES[instance_id.split("#", 1)[0]],
+        }
+        for instance_id in _BUILDING_IDS
+    ]
+    return {
+        "built": {
+            "town": [e for e in entries if e["instanceId"] not in _WILD_IDS],
+            "wild": [e for e in entries if e["instanceId"] in _WILD_IDS],
+        },
+        "busy": [],
+        "queued": 0,
+        "weather": "clear",
+    }
+
+
 
 def _world() -> dict:
     log = EventLog(":memory:")
@@ -182,6 +226,11 @@ class Outcome:
     #: 把故障记成数据，一份「越界被拒 92%」的报告就可能是限流造成的，
     #: 而读的人只会去改提示词。
     infra: bool = False
+    #: 这一场**发没发客户端现状**。严格与线上两侧的合法组数字差 3 条
+    #: （见 `_WHY_IT_CHANGED` 里「这份实验比线上更严」），所以哪一侧跑出来的
+    #: 必须跟着每条存档走。少了它，`--replay` 重渲染时只能说一句
+    #: 「从上次的 dump」，而读的人分不清这是 21/26 那一场还是 24/26 那一场。
+    with_context: bool = False
 
     @property
     def kind(self) -> str:
@@ -273,13 +322,15 @@ def is_retryable(error: str | None) -> bool:
     return status in _RETRYABLE_STATUS or 500 <= status < 600
 
 
-def run_one(text: str, caller) -> tuple[dict, str, str | None, bool]:
+def run_one(text: str, caller, context: dict | None = None) -> tuple[dict, str, str | None, bool]:
     """跑一条，返回 `(intent, 原始回复, 错误, 是不是基础设施故障)`。
 
     走的是端点用的同一条路：`interpret` → 白名单 → `command_to_intent`。
     实验与线上行为一致，不另开一条简化路径。
+
+    `context` 默认 `None`（从严那一侧）。给了就是线上那一侧。
     """
-    result = orchestrator.interpret(text, TEMPLATES, None, caller, WORLD)
+    result = orchestrator.interpret(text, TEMPLATES, context, caller, WORLD)
     if not result.ok:
         error = result.error or "没听懂"
         return wire.unknown_intent(error), error, error, is_infra_error(error)
@@ -477,13 +528,45 @@ _WHY_IT_CHANGED = """
 自己的话说。把「没有记录」当成「世界上一栋楼也没有」，会让每一句合理的
 「拆掉那栋楼」都被拒，而世界明明在好好地建楼拆楼。
 
+## 这一轮修的是「悄悄换掉用户说的话」
+
+第二轮（2026-10-27）复跑时，越界那一组**掉了**：三条越界用例被模型换成了一个
+世界肯收的值，于是 200 + 成功，而用户要的根本不是那个。
+
+| 用户说 | 模型换成了 | 为什么这是硬伤 |
+|---|---|---|
+| 潮位永久停在满潮 | `durationMs: 120000` | 用户要「一直」，拿到两分钟 |
+| 把天气改成下雪 | `value: "rain"` | 用户要雪，拿到雨 |
+| 潮水按住十分钟 | `durationMs: 60000` | 十分钟被当成一分钟，还在上限内 |
+
+三条是同一个形状：**提示词邀请模型替用户改主意。** 潮位那行写着「durationMs
+可省略（省略时取上限）」，模型就把「永久」读成「能多长就多长」；天气那行写着
+「用户说的词不在表里，往最近的一档靠」，模型就把「雪」读成「雨」。纪律第 4 条
+（越界就照实输出）在**用户给了明确数**的时候才生效，而这三句用户都没给数。
+
+修法不是放宽白名单，是把提示词那几句话改对：可省略只管**用户没说时长**；
+说几分钟就乘 60000（十分钟是 600000，超上限就让世界拒）；表里没有的现象
+（雪、雾、风）不许往邻居身上靠。三处改完重跑，越界回到 12/12。
+
+**这一轮真正该记住的是：闸门拦得住一个明确的越界数，拦不住一个被悄悄换过的数。**
+白名单看到 `durationMs: 60000` 时它完全合法——错在到达它之前。
+
 ## 这份实验比线上更严
 
-实验里 `context` 是 `None`——模型看不到「已经建了：……instanceId=……」那一段，
+实验默认 `context` 是 `None`——模型看不到「已经建了：……instanceId=……」那一段，
 服务端也不拿客户端的现状当摘要，只翻事件日志。线上客户端两样都会发，
 所以模型本来就有现成的实例 id 可抄，白名单也对着一份更全的清单判。
 
 这里是故意从严：**提示词是第一道闸，白名单是第二道**，只验第二道才说明它真的拦得住。
+
+但「线上会更好」这句话不能只靠嘴说。`--with-context` 就是用来验它的：
+同一份 55 条，把客户端的现状也发给模型。跑出来的差别全在合法组那 5 条
+`building.remove` 上——严格模式下它们全部答 unknown（没有 id 可抄，
+模型只能问），带上现状后能抄到 id 的 3 条就过了。剩下两条带上现状也过不了，
+而那是**真的歧义**：「那栋楼不要了」对着六栋楼、「旧工坊推了重盖」是拆和盖两件事。
+
+**所以那张缺口是实验设置造出来的，不是模型的。** 这个结论现在是跑出来的，
+不是断言的。
 
 ## 没问成 ≠ 答了
 
@@ -501,9 +584,9 @@ _WHY_IT_CHANGED = """
 
 ## 还不能回答的
 
-- 合法命令接受率那一组的缺口（`building.add` / `building.remove` 不给坐标时
-  模型答 unknown）是提示词的问题，不是闸门的问题。要动提示词，
-  动完必须重跑本脚本，不能只看单条。
+- 合法命令接受率那一组剩下的缺口**只在严格模式下存在**，成因见上面那节。
+  它是实验的 `context=None` 造出来的，不是提示词的问题——提示词那一侧
+  （`building.add` 不说地点就省略 `at`）本轮已经修好并重跑了。
 - `npc.setSchedule` 不进提示词：客户端与世界都还没有这条意图，
   写进去就是让模型去说一件世界办不到的事。
 - 这条线只有 `step-5-preview` 一个模型的数字。换模型必须重跑，
@@ -544,9 +627,14 @@ def _replay(source: Path, out: Path) -> int:
             raw_reply=row["raw_reply"],
             error=row["error"],
             infra=row.get("infra", False),
+            with_context=row.get("with_context", False),
         )
         for row in rows
     ]
+    # 备注要说清**这是哪一侧的数据**。同一批 55 条，带不带客户端现状，
+    # 合法组能差 3 条；只说「从 dump 重渲染」的话，21/26 与 24/26 看起来一样可信。
+    side = "带了客户端现状（线上那一侧）" if outcomes and outcomes[0].with_context else "没带客户端现状（故意从严那一侧）"
+    note = f"由 --replay 从 --dump 重渲染，模型没有重新跑，{side}。数据日期见文件时间戳。"
     if any(item.infra for item in outcomes):
         # 带着没能问成的条目，就必须按没跑成渲染。只打印一句警告是不够的——
         # 表上照样会出现百分比，而读的人看不出来那里面有 27 条是限流。
@@ -554,7 +642,7 @@ def _replay(source: Path, out: Path) -> int:
         note = (
             f"**没有跑成**：这份存档里有 {sum(1 for item in outcomes if item.infra)} 条"
             "没能问成模型（限流、超时或 5xx），所以不给百分比。"
-            f"{REPLAY_NOTE}"
+            f"{note}"
         )
         out.write_text(
             render(
@@ -571,14 +659,9 @@ def _replay(source: Path, out: Path) -> int:
         print(f"从 {source} 重渲染到 {out}（没有调用模型）")
         return 2
 
-    out.write_text(render(outcomes, os.environ.get("LLM_MODEL", "unknown"), REPLAY_NOTE), encoding="utf-8", newline="\n")
+    out.write_text(render(outcomes, os.environ.get("LLM_MODEL", "unknown"), note), encoding="utf-8", newline="\n")
     print(f"从 {source} 重渲染到 {out}（没有调用模型）")
     return 0
-
-
-#: 重渲染时写进备注的一句话。它必须让人一眼看出**这份表是哪一次跑的**——
-#: 否则一份三天前的数据会被当成今天的结论读。
-REPLAY_NOTE = "由 --replay 从上次的 --dump 重渲染，模型没有重新跑。数据日期见文件时间戳。"
 
 
 def main() -> int:
@@ -602,6 +685,15 @@ def main() -> int:
         "--replay",
         default="",
         help="从 --dump 出来的 JSON 重新渲染文档，不调模型。改了说明文字后用",
+    )
+    parser.add_argument(
+        "--with-context",
+        action="store_true",
+        help=(
+            "把客户端的现状也发给模型（线上那一侧）。默认不发，故意从严——"
+            "见 _WHY_IT_CHANGED 里「这份实验比线上更严」。这个开关是用来"
+            "验证那句话的，不是用来把数字变好看的。"
+        ),
     )
     args = parser.parse_args()
 
@@ -638,12 +730,15 @@ def main() -> int:
         return 2
 
     outcomes: list[Outcome] = []
+    context = _client_context() if args.with_context else None
     for index, (text, expected, category) in enumerate(cases, start=1):
         try:
-            intent, raw, error, infra = run_one(text, retrying(caller))
+            intent, raw, error, infra = run_one(text, retrying(caller), context)
         except Exception as exc:  # 一条炸了不该中断整场实验
             intent, raw, error, infra = wire.unknown_intent(str(exc)), "", str(exc), is_infra_error(str(exc))
-        outcomes.append(Outcome(text, category, expected, not error, intent, raw, error, infra))
+        outcomes.append(
+            Outcome(text, category, expected, not error, intent, raw, error, infra, args.with_context)
+        )
         status = "✅" if classify(outcomes[-1]) else "❌"
         mark = "（没问成）" if infra else ""
         print(f"[{index}/{len(cases)}] {status} {mark}{text} → {intent.get('kind')}")
@@ -674,7 +769,8 @@ def main() -> int:
         return 2
 
     model = os.environ.get("LLM_MODEL", "unknown")
-    note = "一次完整跑完。判定标准见 `render()` / `classify()`。"
+    side = "带了客户端现状（线上那一侧）" if args.with_context else "没带客户端现状（故意从严那一侧）"
+    note = f"一次完整跑完，{side}。判定标准见 `render()` / `classify()`。"
     Path(args.out).write_text(render(outcomes, model, note), encoding="utf-8", newline="\n")
     _dump_to(args.dump, outcomes)
 

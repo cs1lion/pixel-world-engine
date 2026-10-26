@@ -32,6 +32,7 @@ import { WORLD } from '../src/world/palette-data.ts';
 
 const SIMULATION = fileURLToPath(new URL('../src/world/simulation.ts', import.meta.url));
 const VILLAGER = fileURLToPath(new URL('../src/render/villager.ts', import.meta.url));
+const LAMPOIL = fileURLToPath(new URL('../src/world/lampoil.ts', import.meta.url));
 
 /** 走一段路：从 `from` 推进到 `to`，一步一步来，像渲染层每帧那样。 */
 function burn(fromMs: number, toMs: number, activity: LampActivity = 'idle', seed = LAMP_FULL) {
@@ -59,22 +60,67 @@ test('world/simulation.ts 不认识 lampoil', () => {
 test('灯油模型不 import Phaser、不 import simulation', () => {
   // 反方向也钉一条：模型自己是纯的，才能在 node 下直接加载、直接单测。
   // 查的是 import 语句，不是字面词——文件里到处都在解释「为什么不 import 它」。
-  const text = readFileSync(
-    fileURLToPath(new URL('../src/world/lampoil.ts', import.meta.url)),
-    'utf8',
-  );
+  const text = readFileSync(LAMPOIL, 'utf8');
   assert.ok(!/from\s+['"][^'"]*phaser/.test(text), '油量模型与渲染后端无关');
   assert.ok(!/from\s+['"][^'"]*simulation/.test(text), '油量模型与世界内核无关');
 });
+
+test('灯油模型不读墙钟', () => {
+  // 文件头第 11 行写着「时钟用 simulation 时间，不用墙钟」。那句话此前**没有任何
+  // 测试守着**：往 advanceLamp 里塞一个 Date.now()，21 条测试全绿，而「重放同一个
+  // 存档灯走同一条曲线」当场就不成立了——灯会跟着真实时间烧，暂停时也在烧。
+  //
+  // 与 `purity.test.ts` 里那条「潮汐逻辑不读墙钟」是同一个理由、同一个罚则。
+  // 潮汐那条先写，是因为潮汐早在 v1 就是确定性回放的地基；灯油来晚了，就漏到现在。
+  const text = readFileSync(LAMPOIL, 'utf8');
+  const banned = ['Date.now', 'performance.now', 'new Date('];
+  const hits = banned.filter((pattern) => text.includes(pattern));
+  assert.deepEqual(hits, [], `灯油不许读墙钟：${hits.join(', ')}`);
+});
+
+/** 读一份源码，**去掉注释行**之后再还回来。
+ *
+ * 少了这一步，扫描就会被自己骗过去：把 `drawLamp(...)` 注释掉，那行字还在文件里，
+ * `text.includes('drawLamp(...)')` 照样为真——而灯已经不在画面上了。
+ * `purity.test.ts` 里那几条扫描早就是这么做的，这里跟上。
+ */
+function codeOf(path: string): string {
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+    .join('\n');
+}
 
 test('见底发灰是接线接上去的，不是写在注释里的', () => {
   // 「灯暗到阈值以下时角色渲染发灰」是 #4 的验收条件。它发生在 `villager.ts`，
   // 而那个文件引 Phaser、node 下加载不了，所以这里查的是**那行调用确实在**：
   // 有人哪天把 setAlpha 删了、或者改成只在见底那一次设，这条先红。
-  const text = readFileSync(VILLAGER, 'utf8');
+  const text = codeOf(VILLAGER);
   assert.ok(
     text.includes('setAlpha(lampBodyAlpha(oil))'),
     'villager.ts 没在每帧按余量写回 alpha——回油以后上一帧的灰会留在身上',
+  );
+});
+
+test('灯是每帧画上去的，不是只在点着那一下', () => {
+  // 上一组扫描只盯住了三处接线里的一处（`setAlpha`）。`drawLamp` 那处此前没人守：
+  // 把 `villager.ts:168` 整行删掉，33 条测试全绿，而灯从此不再出现在画面上——
+  // 没人会发现，因为测试里驱动 `drawLamp` 的是个 recorder 假对象。
+  const text = codeOf(VILLAGER);
+  assert.ok(
+    text.includes('drawLamp(view.body, oil, palette)'),
+    'villager.ts 没在每帧画灯——灯会从画面上整个消失，而测试还在跟假 graphics 说话',
+  );
+});
+
+test('油尽时动作采样放慢，也是接线接上去的', () => {
+  // SPEC §4.5 的验收条件「动作帧率下降」。`anim-frames.test.ts` 只测了纯函数
+  // `lampAnimationTime` 本身；把它在 `villager.ts` 里的实参换成 `nowMs`
+  // （等于不放慢），全绿。这一条盯的是那处调用。
+  const text = codeOf(VILLAGER);
+  assert.ok(
+    text.includes('lampAnimationTime(oil, nowMs)'),
+    'villager.ts 没把余量喂给动作采样——油尽时动作该放慢，那是画面上的疲惫',
   );
 });
 
@@ -150,6 +196,38 @@ test('添油那一帧不把昨晚一起结清', () => {
 test('同一天之内不添油', () => {
   const oil = burn(60 * 60 * 1000, 3 * 60 * 60 * 1000);
   assert.ok(oil < LAMP_FULL, '一天还没过完就满油，等于没有余量这回事');
+});
+
+test('昨天烧干的灯，今天自己满回来', () => {
+  // 上面两条「添油」测试有个共同的前提毛病：它们都从**满油**出发，
+  // 跨过午实时只烧了 1 秒 / 60 秒。把添油整条分支删掉，灯在边界上本来就还是
+  // LAMP_FULL，`assert.equal(lamp.oil, LAMP_FULL)` 照样过——**一次真话也没说**。
+  //
+  // 所以这里先把灯烧到见底，再跨午夜。删掉添油的话返回 0，
+  // 也就是「第一个世界日之后全世界永远是灰的」——正是文件头第 15 行警告的那件事。
+  const yesterday = LAMP_DAY_MS - 1;
+  let lamp = advanceLamp(newLamp(), LAMP_FULL, 0, 'idle', lampDayOf(0));
+  // 满油只够烧一小时，走完一整天必然见底。
+  for (let now = 0; now <= yesterday; now += 60 * 1000) {
+    lamp = advanceLamp(lamp, LAMP_FULL, now, 'idle', lampDayOf(now));
+  }
+  assert.equal(lamp.oil, 0, '一整天下来该烧干了，否则这条测试没在测添油');
+
+  const today = LAMP_DAY_MS + 1;
+  lamp = advanceLamp(lamp, LAMP_FULL, today, 'idle', lampDayOf(today));
+  assert.equal(lamp.oil, LAMP_FULL, '新的一天该满油，否则昨天烧干的人今天还是灰的');
+});
+
+test('一个世界日就是 24 小时——这个数现在是全世界唯一的地方', () => {
+  // 把它改成 365 天，上面每条测试**照样全绿**：它们都拿 `LAMP_DAY_MS` 当符号用，
+  // 没人说过它必须等于一天。于是一盏一年才添一次油的灯可以悄悄上线，
+  // 而任何一局游戏里它都只是一盏越来越暗、永远不会再亮的灯。
+  //
+  // 顺带一句实话：世界里目前**没有别的**「一天有多长」的常量可对齐
+  // （`render/day-phase.ts` 的朝夕午夜用的是墙钟本地时间，与 simulation 时间无关）。
+  // 所以这里钉的不是「与谁一致」，是「这个决定本身」——灯一天添一次油，
+  // 这是 #4 验收条件「见底会自己满回来」的唯一期限。
+  assert.equal(LAMP_DAY_MS, 24 * 60 * 60 * 1000, '灯油的一天必须是 24 小时');
 });
 
 // ---------------------------------------------------------------- 亮度
