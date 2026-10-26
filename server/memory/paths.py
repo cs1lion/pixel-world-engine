@@ -162,6 +162,12 @@ class MemoryLayout:
         """
         if not isinstance(relative, str) or relative.strip() == "":
             raise MemoryPathError("缺 path：要读哪一份记忆")
+        # NUL 字节单独挡。写面的 `check_slug` 早就挡它（模块 docstring 的第 1 条
+        # 把它列为头号攻击形状），读面收的是同一个调用方能控的字符串，却漏了这同一个字节：
+        # `Path("events\x00.md").resolve()` 抛的是裸 `ValueError`，
+        # 不是 `MemoryPathError`，API 层的 422 handler 接不住——表现成 500。
+        if "\x00" in relative:
+            raise MemoryPathError(f"path 里不能有 NUL 字节：{relative!r}")
         candidate = Path(relative)
         # `is_absolute` 在 Windows 上不认 `/x`（那是同盘下的相对路径），
         # 而 `root` 不认 `C:x`。两个都查才不漏。

@@ -301,7 +301,13 @@ def test_列表带_at_与_day(client):
     assert by_path["events/E0001-渡口的第一夜.md"]["at"] == 1500
     # 快照不是谁写的记忆：它在编年史里是单独一类。
     assert by_path["entries/day-0000.md"]["kind"] == "day"
-    assert by_path["entries/day-0000.md"]["at"] is None
+    # 快照的 frontmatter 写的是 day/from_ms/to_ms，没有 at——但它那一天的世界时间
+    # 就是 from_ms（窗口起点）。读它：第 0 天的 at 是 0，day 也是 0。
+    # 早先这条钉的是 `at is None`，那是个**错的答案**：None 让排序键
+    # （`(at is None, at or 0, path)`）把整整一类条目排到最后，
+    # 第 3 天的日志于是排在第 2 天的记忆后面，而行上只剩「日志」两个字。
+    assert by_path["entries/day-0000.md"]["at"] == 0
+    assert by_path["entries/day-0000.md"]["day"] == 0
 
 
 def test_没有_at_的记忆排在最后不猜时间(client, tmp_path):
@@ -418,3 +424,196 @@ def test_摘要跳过机器的字段行(client):
     )
     entry = client.get("/api/memory/list").json()["entries"][0]
     assert entry["summary"] == "我在旧站牌下点了一盏灯。"
+
+
+# ------------------------------------------------------------------ 读面的分叉
+# 下面几条是子agent review 挑出来的。共同点：不是「功能没做」，
+# 是**做了一半**——写面想到了，读面没想到；或者一个文件想到了，一类文件没想到。
+# 半道把关比没有把关更危险：它让人以为有人守。
+
+
+def test_两份同名小节_不带_at_就报错_不静默挑一条(client):
+    """同一个人对同一件事的两次观测：两个小节同名，只有 at 不同。
+
+    这是最普通的数据。而小节只用**标题**当身份，`_slice_to_section` 取第一个
+    匹配就返回——列表里那两行 `path` 与 `section` 逐字节相同，读者点开
+    at=5000 那一行，读回的是 at=1000 的正文，而且没有任何迹象。
+    """
+    client.post(
+        "/api/memory/write",
+        json=body(kind="character", title="她记得那场雨", subject="莞尔", at=1000),
+    )
+    client.post(
+        "/api/memory/write",
+        json=body(
+            kind="character",
+            title="她记得那场雨",
+            subject="莞尔",
+            at=5000,
+            evidence=[2],
+            body="她把伞留在了渡口。",
+        ),
+    )
+    entries = client.get("/api/memory/list").json()["entries"]
+    same = [entry for entry in entries if entry["section"] == "她记得那场雨"]
+    assert len(same) == 2, "两条都是真记忆，列表两行都该在"
+    assert {entry["path"] for entry in same} == {"characters/莞尔.md"}
+    assert [entry["at"] for entry in same] == [1000, 5000]
+
+    # 不带 at：报错说明要带，不挑。
+    refused = client.get(
+        "/api/memory/entry",
+        params={"path": "characters/莞尔.md", "section": "她记得那场雨"},
+    )
+    assert refused.status_code == 422
+    assert "at" in refused.json()["detail"]
+
+    # 带了 at：读到对的那一条。
+    later = client.get(
+        "/api/memory/entry",
+        params={"path": "characters/莞尔.md", "section": "她记得那场雨", "at": 5000},
+    ).json()
+    assert "她把伞留在了渡口。" in later["text"]
+    assert "我在旧站牌下点了一盏灯。" not in later["text"]
+    earlier = client.get(
+        "/api/memory/entry",
+        params={"path": "characters/莞尔.md", "section": "她记得那场雨", "at": 1000},
+    ).json()
+    assert "我在旧站牌下点了一盏灯。" in earlier["text"]
+
+    # 带一个哪儿都没有的 at：也是 422，不是「找不到就退回第一条」。
+    missing = client.get(
+        "/api/memory/entry",
+        params={"path": "characters/莞尔.md", "section": "她记得那场雨", "at": 9999},
+    )
+    assert missing.status_code == 422
+
+
+def test_角色正文里的小节标题不让写(client):
+    """`## ` 是角色档案里**记忆的边界**，读面靠它把一份档案拆成一条一条。
+
+    调用方自由给的 4000 字里混进这样一行，那条记忆会被安静地截成两半，
+    后半以一条独立记忆的身份混进编年史——界面上看不出任何异常。
+    挡在写面：读面分不清「这是排版」与「这是下一条记忆」，它没有依据可依。
+    """
+    response = client.post(
+        "/api/memory/write",
+        json=body(
+            kind="character",
+            title="她记得那场雨",
+            subject="莞尔",
+            body="开头一句。\n\n## 后记\n\n这句本来属于同一条记忆。",
+        ),
+    )
+    assert response.status_code == 422
+    assert "body" in response.json()["detail"]
+
+
+def test_事件的正文可以有排版小节(client):
+    """`events/` 是一事一文件，没人按 `## ` 切——在那里它只是排版。"""
+    response = client.post(
+        "/api/memory/write",
+        json=body(body="## 后记\n\n一句话。"),
+    )
+    assert response.status_code == 201, response.text
+
+
+def test_标题不能跨行(client):
+    """标题要单独成为一行（`## {title}`）。带换行就是往文件里注入整行。"""
+    response = client.post(
+        "/api/memory/write",
+        json=body(kind="character", title="她记得那场雨\n\n## 后记", subject="莞尔"),
+    )
+    assert response.status_code == 422
+    assert "title" in response.json()["detail"]
+
+
+def test_非_UTF8_的文件不让整个列表打不开(client, tmp_path):
+    """`memory/` 是 checked-in 的 Markdown，本来就给人手改——手改就有人存成 GBK。
+
+    `read_text` 撞上非 UTF-8 字节抛 `UnicodeDecodeError`，那是 `ValueError`
+    的子类，不在 `except OSError` 里：两个读端点一起 500，
+    整个镇志抽屉全黑，只因为一个文件。`format.py` 早就为坏 YAML 做了降级，
+    编码这一路原来没有。
+    """
+    folder = tmp_path / "memory" / "events"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "E0009-手写的.md").write_bytes("# 手写的\n\n下雨了。\n".encode("gbk"))
+    client.post("/api/memory/write", json=body())
+    listed = client.get("/api/memory/list")
+    assert listed.status_code == 200, listed.text
+    assert any(e["path"] == "events/E0009-手写的.md" for e in listed.json()["entries"])
+    opened = client.get("/api/memory/entry", params={"path": "events/E0009-手写的.md"})
+    assert opened.status_code == 200, opened.text
+
+
+def test_path_里的_NUL_字节是_422_不是_500(client):
+    """写面的 `check_slug` 早就挡它，读面收的是同一个调用方能控的字符串。
+
+    `Path("events\x00.md").resolve()` 抛的是裸 `ValueError`，不是
+    `MemoryPathError`，API 层的 422 handler 接不住。
+    """
+    response = client.get("/api/memory/entry", params={"path": "events\x00.md"})
+    assert response.status_code == 422
+    assert "NUL" in response.json()["detail"]
+
+
+def test_给日志传_section_被拒(client):
+    """`## 天气` 是快照里的排版，不是记忆的边界。按它切只会读回半份文件。"""
+    client.post("/api/memory/write", json=body())
+    client.post("/api/memory/snapshot", json={})
+    response = client.get(
+        "/api/memory/entry",
+        params={"path": "entries/day-0000.md", "section": "天气"},
+    )
+    assert response.status_code == 422
+    assert "只有角色档案分节读" in response.json()["detail"]
+
+
+def test_两天的日志摘要各自说得清(client, tmp_path):
+    """正文第一句是模板行，任意两天除了区间数字完全一样。
+
+    「由事件日志派生，不要手改。世界时间 0–86400000 毫秒，共 2 条。」——
+    人在列表里看不出那天发生了什么。摘要该说的是那天的事。
+    """
+    log = EventLog(":memory:")
+    log.append(kind="world.changed", actor="world", payload={"change": "weather", "weather": "rain"}, at=1_000)
+    log.append(kind="world.changed", actor="world", payload={"change": "weather", "weather": "snow"}, at=90_000_000)
+    own = TestClient(create_app(log, tmp_path / "own-memory"))
+    own.post("/api/memory/snapshot", json={})
+    by_path = {e["path"]: e for e in own.get("/api/memory/list").json()["entries"]}
+    # 事件 id 跟着一起说：摘要是通往日志的指针，不只是那天的一句话。
+    assert by_path["entries/day-0000.md"]["summary"] == "#1 rain"
+    assert by_path["entries/day-0001.md"]["summary"] == "#2 snow"
+
+
+def test_什么都没发生的那天_摘要说的是这句(client, tmp_path):
+    """没有事件的那天会落到通用路径，读到「这一天什么都没发生。」——正好是实话。"""
+    log = EventLog(":memory:")
+    own = TestClient(create_app(log, tmp_path / "empty-memory"))
+    own.post("/api/memory/snapshot", json={"day": 0})
+    by_path = {e["path"]: e for e in own.get("/api/memory/list").json()["entries"]}
+    assert by_path["entries/day-0000.md"]["summary"] == "这一天什么都没发生。"
+
+
+def test_指到外面的符号链接不让整个列表打不开(client, tmp_path):
+    """一个解析到 memory/ 外的链接：跳过它，别让整个目录读不出来。
+
+    `list_entries` 原先先 `_read` 再 `_relative`，于是链接的目标先被读出来、
+    随后被拒——整个列表 422，而 detail 是一个**写**错误的类型名出现在读端点上。
+    `resolve_entry` 那条路是干净的（`_resolve` 先拒），两条路判定原本相反。
+    """
+    outside = tmp_path / "outside.md"
+    outside.write_text("# 外面的\n\n不该被读进来。\n", encoding="utf-8")
+    link = tmp_path / "memory" / "events" / "E0009-链.md"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("这台机器建不了符号链接（Windows 默认要管理员权限）")
+    client.post("/api/memory/write", json=body())
+    listed = client.get("/api/memory/list")
+    assert listed.status_code == 200, listed.text
+    paths = [e["path"] for e in listed.json()["entries"]]
+    assert "events/E0009-链.md" not in paths
+    # 读面那条路本来就是干净的：它拒，不是 500。
+    assert client.get("/api/memory/entry", params={"path": "events/E0009-链.md"}).status_code == 422

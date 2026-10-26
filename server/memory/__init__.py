@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from memory.paths import (
@@ -51,6 +52,13 @@ MAX_TITLE_CHARS = 60
 #: 正文长度上限。记忆是一段话，不是一篇文章；超长多半是把整个世界塞进来了。
 MAX_BODY_CHARS = 4000
 
+#: 一行读起来像小节标题。角色档案里 `## ` 是**记忆的边界**，读面靠它把一份档案
+#: 拆成一条一条（`writer._sections_of`）。所以正文里出现这样一行，那条记忆会被
+#: 安静地截成两半，后半还以一条独立记忆的身份混进编年史。
+#: 写面挡它，是因为这里收的是调用方自由给的最长 4000 字文本——能写出 `## `
+#: 的调用方不该被允许悄悄改变文件的形状。
+_HEADING_LINE = re.compile(r"^#{1,6}\s")
+
 
 class MemoryWriteError(ValueError):
     """写入被拒。API 层转成 422，不做静默修正。"""
@@ -83,8 +91,12 @@ class MemoryDraft:
             allowed = " 或 ".join(sorted(ENTRY_KINDS))
             raise MemoryWriteError(f"kind 必须是 {allowed}，收到 {self.kind!r}")
         _check_text(self.title, "title", MAX_TITLE_CHARS)
+        # 标题要单独成为一行（`format.render_character` 写的是 `## {title}`）。
+        # 带换行的标题会往文件里注入整行——那是调用方在改文件的形状，
+        # 不是在写一句话。
+        if "\n" in self.title or "\r" in self.title:
+            raise MemoryWriteError("title 不能跨行：它要单独成为一行的标题")
         _check_text(self.body, "body", MAX_BODY_CHARS)
-        _check_at(self.at)
         if self.kind == CHARACTER_ENTRY:
             if not isinstance(self.subject, str) or self.subject.strip() == "":
                 raise MemoryWriteError(
@@ -92,6 +104,8 @@ class MemoryDraft:
                     "title 只是这一节的标题"
                 )
             _check_text(self.subject, "subject", MAX_TITLE_CHARS)
+            _check_no_heading_lines(self.body)
+        _check_at(self.at)
 
 
 def _check_text(value: object, field: str, limit: int) -> None:
@@ -99,6 +113,26 @@ def _check_text(value: object, field: str, limit: int) -> None:
         raise MemoryWriteError(f"{field} 不能为空")
     if len(value) > limit:
         raise MemoryWriteError(f"{field} 最长 {limit} 字符，收到 {len(value)}")
+
+
+def _check_no_heading_lines(body: str) -> None:
+    """角色记忆的正文里不许出现读起来像小节标题的一行。
+
+    角色档案的 `## ` 是**记忆的边界**：读面靠它把一份档案拆成一条一条
+    （`writer._sections_of`）。调用方自由给的 4000 字里若混进这样一行，
+    那条记忆会被安静地截成两半——后半以一条独立记忆的身份混进编年史，
+    界面上看不出任何异常，而那条记忆已经缺了一半。
+
+    挡在写面而不是读面降级：读面分不清「这是排版」与「这是下一条记忆」，
+    它没有依据可依。能分清的是写面——它知道自己写的是什么。
+    事件不查：`events/` 是一事一文件，`## ` 在那里只是排版，没人按它切。
+    """
+    for line in body.splitlines():
+        if _HEADING_LINE.match(line.strip()):
+            raise MemoryWriteError(
+                f"body 里不能有「{line.strip()}」这样一行：角色档案的小节标题是记忆的边界，"
+                "混进正文那条记忆会被读成两条"
+            )
 
 
 def _check_at(at: object) -> None:

@@ -166,8 +166,16 @@ class MemoryWriter:
         entries: list[dict[str, object]] = []
         for dirname, kind in _SOURCES:
             for path in self._layout.markdown_files(dirname):
+                # 先确认这份文件在 memory/ 内，再读它。反过来的话，一个解析到
+                # `memory/` 外面的符号链接会先被读出来、随后被 `_relative` 拒，
+                # 于是**整个列表**422——而读端点该有的是「跳过这一份」。
+                # `resolve_entry` 那条路是干净的（`_resolve` 先拒），两条路
+                # 对同一个文件的判定原本相反。
+                try:
+                    relative = self._relative(path)
+                except MemoryWriteError:
+                    continue
                 text = _read(path)
-                relative = self._relative(path)
                 # 只有角色档案是一份文件若干条记忆。事件与每日快照里的 `## `
                 # 是排版（`## 天气`），不是记忆的边界——按它切就把一份文档
                 # 剁成了几段，每段都读起来像缺了什么。
@@ -183,7 +191,7 @@ class MemoryWriter:
                             "title": section.title,
                             "path": relative,
                             "section": section.title if section.is_section else None,
-                            "summary": _summary_of(section.body),
+                            "summary": _summary_of(section.body, kind),
                             "at": section.at,
                             # 第几个世界日由服务端算，不在客户端再写一遍 DAY_MS——
                             # 同一个常数出现在两边，迟早会有一边忘了改。
@@ -193,7 +201,12 @@ class MemoryWriter:
         entries.sort(key=lambda item: (item["at"] is None, item["at"] or 0, str(item["path"])))
         return entries
 
-    def read_entry(self, relative: str | None, section: str | None = None) -> dict[str, object]:
+    def read_entry(
+        self,
+        relative: str | None,
+        section: str | None = None,
+        at: float | None = None,
+    ) -> dict[str, object]:
         """读一份记忆的全文。
 
         票据 #7 的验收是「像读一本编年史」——只有标题与一行摘要是目录。
@@ -201,6 +214,12 @@ class MemoryWriter:
 
         给了 `section` 就只要那一节（连同它所属的 `# ` 人名标题）：
         列表里的一行是一条记忆，点开它就该读到那一条，不是整个人档案。
+
+        `at` 是**消歧**，可省。小节只用标题当身份，而同一个人对同一件事的
+        两次观测会有两个同名小节——列表里那是两行，`path` 与 `section`
+        逐字节相同，只有 `at` 不同。这时不给 `at` 就返回第一个，
+        等于在两条真相里挑一条，而读者看到的两行一模一样，
+        永远不知道自己读的是哪一条。所以这里报错，不挑。
 
         路径不接受调用方自由构造：走 `resolve_entry` 的白名单，
         只有 `list_entries` 会列出去的文件才读得回来。小节名也不接受——
@@ -210,7 +229,16 @@ class MemoryWriter:
         posix = self._relative(path)
         text = _read(path)
         if section is not None:
-            text = _slice_to_section(text, section)
+            # 只有角色档案分节读。事件与每日快照里的 `## ` 是排版
+            # （`snapshot.render` 的「## 天气」），按它切会把一份文档剁成几段，
+            # 每段都读起来像缺了什么。`list_entries` 早就按目录分了这层类，
+            # 读面这里原先漏了同一道分别——于是给一份日志传 section
+            # 会拿回被切掉大半的文件，还以「这条记忆的全文」的姿态。
+            if _kind_of(posix) != CHARACTER_ENTRY:
+                raise MemoryPathError(
+                    "只有角色档案分节读：这份记忆是一事一文件，给它 section 只会读回半份"
+                )
+            text = _slice_to_section(text, section, at)
         return {
             "path": posix,
             "section": section,
@@ -243,11 +271,27 @@ def _read(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except OSError:  # pragma: no cover - 文件在读之前被移走
         return ""
+    except UnicodeDecodeError:
+        # `memory/` 是 checked-in 的 Markdown，本来就是给人手改的——手改就有人
+        # 把它存成了 GBK。`read_text` 撞上非 UTF-8 字节抛的是 `UnicodeDecodeError`，
+        # 那是 `ValueError` 的子类，不在上面的 `except OSError` 里，
+        # 于是两个读端点一起 500：整个镇志抽屉全黑，只因为一个文件。
+        # `format.py` 的 `read_frontmatter` 早就为坏 YAML 做了降级
+        # （「一份手写坏了的文件不该让整个列表打不开」），编码这一路原来没有。
+        return path.read_bytes().decode("utf-8", "replace")
 
 
 def _at_of(text: str) -> float | None:
     """frontmatter 里的世界时间。读不回来就 `None`，不猜。"""
-    value = fmt.read_frontmatter(text).get("at")
+    fields = fmt.read_frontmatter(text)
+    value = fields.get("at")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        # 每日快照的 frontmatter 写的是 `day:` / `from_ms:` / `to_ms:`，没有 `at`
+        # （`snapshot.render`）。它那一天的世界时间就是 `from_ms`——窗口起点。
+        # 不认它的话，整整一类条目在编年史里 `at` 是 `None`、`day` 也是 `None`：
+        # 排序键把 `None` 排在最后，于是第 3 天的日志排在第 2 天的记忆后面，
+        # 而行上只剩「日志」两个字，既排不进它所属的那天，也看不出是哪一天。
+        value = fields.get("from_ms")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value)
@@ -294,34 +338,66 @@ def _sections_of(text: str) -> list[_Section]:
         end = heads[position + 1] if position + 1 < len(heads) else len(lines)
         chunk = lines[start:end]
         title = _SECTION_HEADING.match(chunk[0].strip()).group(1)
-        at: float | None = None
-        for line in chunk[1:]:
-            match = _AT_LINE.match(line.strip())
-            if match is not None:
-                at = float(match.group(1))
-                break
-        sections.append(_Section(title=title, body="\n".join(chunk), at=at, is_section=True))
+        sections.append(
+            _Section(
+                title=title,
+                body="\n".join(chunk),
+                at=_at_of_chunk(lines, heads, position),
+                is_section=True,
+            )
+        )
     return sections
 
 
-def _slice_to_section(text: str, section: str) -> str:
+def _at_of_chunk(lines: list[str], heads: list[int], position: int) -> float | None:
+    """第 `position` 节里的世界时间行。认不出来是 `None`，不猜。"""
+    start = heads[position]
+    end = heads[position + 1] if position + 1 < len(heads) else len(lines)
+    for line in lines[start + 1 : end]:
+        match = _AT_LINE.match(line.strip())
+        if match is not None:
+            return float(match.group(1))
+    return None
+
+
+def _slice_to_section(text: str, section: str, at: float | None = None) -> str:
     """取一份角色档案里名为 `section` 的那一节，连同文件头的 `# ` 人名。
 
     小节名必须是那份文件里真有的一个 `## ` 标题——不是的话报错，
     不退回「给整份文件」：那会让调用方以为读到了那一节，其实读到了全部。
+
+    `at` 给了就只认那一条。同名小节是有的：同一个人对同一件事的两次观测，
+    两个小节同名、`at` 不同。这时不给 `at` 会**静默返回第一条**——
+    列表里那两行逐字节相同，读者永远不知道自己读的是哪一条。
     """
     lines = text.splitlines()
     heads = [index for index, line in enumerate(lines) if _SECTION_HEADING.match(line.strip())]
     wanted = section.strip()
-    for position, start in enumerate(heads):
-        title = _SECTION_HEADING.match(lines[start].strip()).group(1)
-        if title != wanted:
-            continue
-        end = heads[position + 1] if position + 1 < len(heads) else len(lines)
-        # 人名那一行（第一个 `# `）留着：读一节时也该知道这是谁的档案。
-        head = [line for line in lines[: heads[0]] if line.strip().startswith("# ")]
-        return "\n".join(head + lines[start:end]).strip() + "\n"
-    raise MemoryPathError(f"这份档案里没有「{section}」这一节")
+    matches = [
+        position
+        for position, start in enumerate(heads)
+        if _SECTION_HEADING.match(lines[start].strip()).group(1) == wanted
+    ]
+    if not matches:
+        raise MemoryPathError(f"这份档案里没有「{section}」这一节")
+    if len(matches) > 1 and at is None:
+        when = "、".join(str(_at_of_chunk(lines, heads, item)) for item in matches)
+        raise MemoryPathError(
+            f"「{section}」在这份档案里有 {len(matches)} 条（世界时间 {when}），"
+            "要读哪一条得带上 at"
+        )
+    if at is None:
+        position = matches[0]
+    else:
+        found = [item for item in matches if _at_of_chunk(lines, heads, item) == at]
+        if not found:
+            raise MemoryPathError(f"这份档案里没有世界时间 {at} 的「{section}」")
+        position = found[0]
+    start = heads[position]
+    end = heads[position + 1] if position + 1 < len(heads) else len(lines)
+    # 人名那一行（第一个 `# `）留着：读一节时也该知道这是谁的档案。
+    head = [line for line in lines[: heads[0]] if line.strip().startswith("# ")]
+    return "\n".join(head + lines[start:end]).strip() + "\n"
 
 
 def _title_of(text: str, fallback: str) -> str:
@@ -342,21 +418,50 @@ def _title_of(text: str, fallback: str) -> str:
 _MACHINE_LINES = ("#", ">", "依据：", "来源：", "at:")
 
 
-def _summary_of(text: str, limit: int = 120) -> str:
+def _body_lines(text: str) -> list[str]:
+    """frontmatter 之后的各行，逐行 trim 过。没有 frontmatter 就原样给。
+
+    摘要是给人看的一句话，frontmatter 是机器的字段——`day: 0` 不是「那天发生了什么」。
+    抽出来是因为两条路径都要跳过它：原先只有通用那条自己记着 `in_frontmatter`，
+    快照那条漏了，于是「共 0 条」那天的摘要变成了 `day: 0`。
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return [line.strip() for line in lines]
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return [line.strip() for line in lines[index + 1 :]]
+    return [line.strip() for line in lines]
+
+
+def _summary_of(text: str, kind: str, limit: int = 120) -> str:
     """取正文第一句：跳过 frontmatter、标题、旁注与机器的字段行。
 
     事件与每日快照是一事一文件（只有 `# ` 标题）；角色档案是一人一文件，
-    下面是若干 `## ` 小节。两种都要能读，所以这里按「行首像什么」判，
+    下面是若干 `## ` 小节。两种都要能读，所以按「行首像什么」判，
     不按文件形态判。
+
+    `kind` 只为每日快照而传。它的正文第一句是模板行（「由事件日志派生，
+    不要手改。世界时间 0–86400000 毫秒，共 2 条。」）——任意两天的摘要
+    除了区间数字完全一样，人在列表里看不出那天发生了什么。所以快照取
+    **第一条事件**；没有事件的那天，模板行之后紧跟的才是实话
+    （「这一天什么都没发生。」），按**位置**跳过头两行，不按内容认——
+    认内容就等于把快照的措辞抄进摘要层，那边一改这边就静默失效。
     """
-    lines = text.splitlines()
-    in_frontmatter = bool(lines) and lines[0].strip() == "---"
-    for index, line in enumerate(lines):
-        if in_frontmatter:
-            if index > 0 and line.strip() == "---":
-                in_frontmatter = False
-            continue
-        stripped = line.strip()
+    lines = _body_lines(text)
+    if kind == DAY_ENTRY:
+        for stripped in lines:
+            if stripped.startswith("- "):
+                return stripped[2:].strip()[:limit]
+        seen = 0
+        for stripped in lines:
+            if not stripped or stripped.startswith("#"):
+                continue
+            seen += 1
+            if seen > 1:
+                return stripped[:limit]
+        return ""
+    for stripped in lines:
         if not stripped or stripped.startswith(_MACHINE_LINES):
             continue
         return stripped[:limit]

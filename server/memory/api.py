@@ -99,6 +99,7 @@ def read_memory(
     request: Request,
     path: str | None = None,
     section: str | None = None,
+    at: float | None = None,
 ) -> dict[str, object]:
     """读一份记忆的全文。
 
@@ -109,12 +110,17 @@ def read_memory(
     不带上小节名，点开「她记得那场雨」会读到她的整个档案——那倒不是错，
     但列表答应的是那一条。带上就只要那一节（连同她的人名标题）。
 
+    `at` 是 `section` 的消歧，可省。同一个人对同一件事的两次观测会有两个
+    同名小节，列表里那是两行（只有 `at` 不同）。客户端把行上的 `at` 原样带回，
+    服务端据此只回那一条；不带而又有多个同名小节时服务端答 422 说明要带，
+    而不是悄悄返回第一条。
+
     `path` 故意不收在 URL 路径里（`/api/memory/entry/characters/莞尔.md`）：
     那样 FastAPI 会先把斜杠解开，`%2F` 与真正的斜杠在不同版本下行为不一致，
     而这里要的只是一个标识符。查询参数没有这层歧义。
     """
     writer = _writer_of(request)
-    return writer.read_entry(path, section)
+    return writer.read_entry(path, section, at)
 
 
 @router.post("/api/memory/snapshot")
