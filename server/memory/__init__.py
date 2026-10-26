@@ -90,12 +90,7 @@ class MemoryDraft:
         if self.kind not in ENTRY_KINDS:
             allowed = " 或 ".join(sorted(ENTRY_KINDS))
             raise MemoryWriteError(f"kind 必须是 {allowed}，收到 {self.kind!r}")
-        _check_text(self.title, "title", MAX_TITLE_CHARS)
-        # 标题要单独成为一行（`format.render_character` 写的是 `## {title}`）。
-        # 带换行的标题会往文件里注入整行——那是调用方在改文件的形状，
-        # 不是在写一句话。
-        if "\n" in self.title or "\r" in self.title:
-            raise MemoryWriteError("title 不能跨行：它要单独成为一行的标题")
+        _check_one_line(self.title, "title", MAX_TITLE_CHARS)
         _check_text(self.body, "body", MAX_BODY_CHARS)
         if self.kind == CHARACTER_ENTRY:
             if not isinstance(self.subject, str) or self.subject.strip() == "":
@@ -103,9 +98,26 @@ class MemoryDraft:
                     "character 记忆必须带 subject：它是这个人是谁（决定文件名），"
                     "title 只是这一节的标题"
                 )
-            _check_text(self.subject, "subject", MAX_TITLE_CHARS)
+            # subject 与 title 走同一道检查。它俩都单独成为一行——
+            # `format.render_character` 写的是 `# {subject}` 与 `## {title}`。
+            # 只挡 title 不挡 subject，注入就从 subject 那条路走：
+            # `subject="莞尔\\n\\n## 后记"` 落盘后 `GET /api/memory/list`
+            # 会把一条记忆数成三条，其中一条连 `# 莞尔` 那行都读不回来。
+            _check_one_line(self.subject, "subject", MAX_TITLE_CHARS)
             _check_no_heading_lines(self.body)
         _check_at(self.at)
+
+
+def _check_one_line(value: object, field: str, limit: int) -> None:
+    """这段字要单独成为一行，所以不许带换行。
+
+    带换行不是「句子长了」：它是调用方在往文件里注入整行，
+    也就是在改文件的形状，不是在写一句话。读面靠行边界把一份档案
+    拆成一条一条，注入一行就等于凭空多出一条记忆。
+    """
+    _check_text(value, field, limit)
+    if "\n" in value or "\r" in value:
+        raise MemoryWriteError(f"{field} 不能跨行：它要单独成为一行")
 
 
 def _check_text(value: object, field: str, limit: int) -> None:

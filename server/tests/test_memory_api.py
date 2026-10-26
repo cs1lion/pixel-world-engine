@@ -617,3 +617,127 @@ def test_指到外面的符号链接不让整个列表打不开(client, tmp_path
     assert "events/E0009-链.md" not in paths
     # 读面那条路本来就是干净的：它拒，不是 500。
     assert client.get("/api/memory/entry", params={"path": "events/E0009-链.md"}).status_code == 422
+
+
+def test_subject_带换行同样往档案里注入小节标题(client, tmp_path):
+    """`subject` 与 `title` 一样单独成为一行（`format` 写的是 `# {subject}`）。
+
+    只挡 `title` 不挡 `subject`，注入就从 subject 那条路走：
+    `subject="莞尔\n\n## 后记"` 落盘后，`GET /api/memory/list` 会把**一条**
+    记忆数成三条，其中一条连 `# 莞尔` 那行都读不回来。人只写了一条。
+    """
+    response = client.post(
+        "/api/memory/write",
+        json=body(kind="character", title="她记得那场雨", subject="莞尔\n\n## 后记"),
+    )
+    assert response.status_code == 422, (
+        f"subject 带换行该被拒（title 那条已经拒了），实际 "
+        f"{response.status_code} 并写出了 {response.json().get('path')}"
+    )
+    assert "subject" in response.json()["detail"]
+
+
+def test_同名小节都没写世界时间_别劝人带一个指不到它们的_at(client, tmp_path):
+    """`_at_of_chunk` 认不出 `at:` 行时返回 None，而 `at=None` 永远匹配不上任何一节。
+
+    于是「要读哪一条得带上 at」是一句做不到的劝告：那两条从此读不回来。
+    仓库里现成的旧档案就有不带 `at:` 的小节，所以这不是假包。
+    """
+    path = tmp_path / "memory" / "characters" / "莞尔.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(
+            [
+                "---",
+                "kind: character",
+                "subject: 莞尔",
+                "---",
+                "",
+                "# 莞尔",
+                "",
+                "## 她记得那场雨",
+                "",
+                "第一回，没写时间。",
+                "",
+                "## 她记得那场雨",
+                "",
+                "第二回，也没写。",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    listed = client.get("/api/memory/list")
+    assert listed.status_code == 200, listed.text
+    rows = [
+        e
+        for e in listed.json()["entries"]
+        if e["path"] == "characters/莞尔.md" and e["section"] == "她记得那场雨"
+    ]
+    assert len(rows) == 2, f"该有两条同名的：{[r['at'] for r in rows]}"
+
+    refused = client.get(
+        "/api/memory/entry", params={"path": "characters/莞尔.md", "section": "她记得那场雨"}
+    )
+    assert refused.status_code == 422
+    detail = refused.json()["detail"]
+    assert "没写" in detail, f"得说清它们没有世界时间，别说成 None：{detail}"
+    assert "带 at 也指不到" in detail, f"别说一句做不到的劝告：{detail}"
+
+
+def test_非_UTF8_的快照文件不让快照端点_500(client, tmp_path):
+    """`writer._read` 早就按 replacement 解码了，`snapshot._write_one` 没沾上。
+
+    同一个「手写文件存成 GBK」：列表端点现在回 200，快照端点仍抛裸
+    `UnicodeDecodeError`——events 那层只有一个 `EventValidationError` handler，
+    接不住，表现成 500。
+    """
+    day0 = tmp_path / "memory" / "entries" / "day-0000.md"
+    day0.parent.mkdir(parents=True, exist_ok=True)
+    day0.write_bytes("# 世界日 0\n\n下雨了。\n".encode("gbk"))
+    response = client.post("/api/memory/snapshot", json={"day": 0})
+    assert response.status_code == 200, response.text
+
+def test_每日摘要是序号最小的那条_不是文件里排最前的那条(client, log):
+    """快照按 `_SECTIONS` 的固定次序分节（天气→潮水→盖了起来→…），不是按事件序号。
+
+    一天里 `#1 盖了起来` 与 `#2 rain` 并存时，`## 天气` 排在 `## 盖了起来`
+    前面，取「第一个 `- ` 行」拿到的是 `#2 rain`——而 docstring 承诺的是
+    「第一条事件」。行里带着序号，挑得出来。
+    """
+    # 盖楼在 1000，下雨在 9000。文件里 `## 天气` 排在 `## 盖了起来` 前面，
+    # 所以「第一个 `- ` 行」是 #2；序号最小的是 #1。
+    log.append(
+        kind="world.changed",
+        actor="world",
+        payload={"change": "building.built", "instanceId": "wave_house#1", "prefabId": "wave_house", "displayName": "叠浪楼", "summary": "为抄书斋那条活而建"},
+        at=1000,
+    )
+    log.append(kind="world.changed", actor="world", payload={"change": "weather", "weather": "rain"}, at=9000)
+    client.post("/api/memory/snapshot", json={"day": 0})
+
+    listed = client.get("/api/memory/list")
+    assert listed.status_code == 200, listed.text
+    row = next(e for e in listed.json()["entries"] if e["kind"] == "day" and e["day"] == 0)
+    assert row["summary"].startswith("#1"), (
+        f"摘要该是序号最小的那条：{row['summary']!r}"
+    )
+    assert "叠浪楼" in row["summary"], f"摘要是最早那条的原文：{row['summary']!r}"
+
+
+def test_没闭合的_frontmatter_别让摘要变成_day(client, tmp_path):
+    """`_body_lines` 只在 frontmatter **闭合**时剥它。没闭合时 `day:` 以正文
+    第一行的身份出现，而它不在 `_MACHINE_LINES` 里——摘要于是变成 `day: 2`，
+    正是这个函数当初要消灭的那个表现，只是换了条路进来。
+    """
+    path = tmp_path / "memory" / "entries" / "day-0002.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\nday: 2\nfrom_ms: 172800000\n\n# 世界日 2\n\n这一天什么都没发生。\n",
+        encoding="utf-8",
+    )
+    listed = client.get("/api/memory/list")
+    assert listed.status_code == 200, listed.text
+    row = next(e for e in listed.json()["entries"] if e["path"] == "entries/day-0002.md")
+    assert row["summary"] != "day: 2", f"机器的字段行被当成了正文：{row['summary']!r}"
+    assert row["summary"] == "这一天什么都没发生。", row["summary"]

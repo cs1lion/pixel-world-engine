@@ -246,9 +246,7 @@ def _write_one(layout: MemoryLayout, day: int, events: list[WorldEvent]) -> Snap
     path = layout.entry_path(day)
     path.parent.mkdir(parents=True, exist_ok=True)
     text = render(day, events)
-    current = ""
-    if path.exists():
-        current = path.read_text(encoding="utf-8")
+    current = _read_current(path)
     written = current != text
     if written:
         path.write_text(text, encoding="utf-8", newline="\n")
@@ -259,6 +257,23 @@ def _write_one(layout: MemoryLayout, day: int, events: list[WorldEvent]) -> Snap
         written=written,
         event_count=len(events),
     )
+
+
+def _read_current(path: Path) -> str:
+    """读回盘上那一版，只为回答「要不要重写」。
+
+    读不出来时**当作不一样**：宁可重写一遍，也不要让整个快照端点 500。
+    一份手写的日志存成 GBK，`read_text(encoding="utf-8")` 抛的是裸
+    `UnicodeDecodeError`，events 那层只有一个 `EventValidationError` handler，
+    接不住——表现成 500。读面的 `writer._read` 早就按 replacement 解码了，
+    这里是同一个形状漏掉的姊妹处。
+    """
+    if not path.exists():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
 
 
 def _relative(layout: MemoryLayout, path: Path) -> str:

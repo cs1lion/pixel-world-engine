@@ -381,10 +381,18 @@ def _slice_to_section(text: str, section: str, at: float | None = None) -> str:
     if not matches:
         raise MemoryPathError(f"这份档案里没有「{section}」这一节")
     if len(matches) > 1 and at is None:
-        when = "、".join(str(_at_of_chunk(lines, heads, item)) for item in matches)
+        # 说不清就得说清「哪里说不清」。早先这里把 `None` 直接拼进句子：
+        # 「世界时间 None、9000.0，要读哪一条得带上 at」——而 `at=None`
+        # 永远匹配不上任何一节（`_at_of_chunk` 认不出 `at:` 行时返回 None，
+        # 那一条就此读不回来），这句劝告是做不到的。手写的旧档案里就有这种节。
+        times = [_at_of_chunk(lines, heads, item) for item in matches]
+        silent = sum(1 for value in times if value is None)
+        when = "、".join("没写" if value is None else str(value) for value in times)
+        hint = "要读哪一条得带上 at"
+        if silent:
+            hint = f"其中 {silent} 条没写世界时间，带 at 也指不到它们"
         raise MemoryPathError(
-            f"「{section}」在这份档案里有 {len(matches)} 条（世界时间 {when}），"
-            "要读哪一条得带上 at"
+            f"「{section}」在这份档案里有 {len(matches)} 条（世界时间 {when}），{hint}"
         )
     if at is None:
         position = matches[0]
@@ -415,7 +423,14 @@ def _title_of(text: str, fallback: str) -> str:
 
 #: 机器的字段行。它们不是人写的话，所以摘要把它们跳过。
 #: `at:` 与 `依据：`、`来源：` 并排——一节的开头三行都是出处，没有一句是正文。
-_MACHINE_LINES = ("#", ">", "依据：", "来源：", "at:")
+#: 后面四个是每日快照 frontmatter 的键。正常情况下 `_body_lines` 已经把
+#: frontmatter 整段剥掉了，列在这儿是为**没闭合**的那种：一份手写坏了的
+#: 快照文件里 `day: 2` 会以正文第一行的身份出现，摘要于是变成 `day: 2`
+#: ——正是这个函数当初要消灭的那个表现，只是换了条路进来。
+_MACHINE_LINES = ("#", ">", "依据：", "来源：", "at:", "day:", "from_ms:", "to_ms:", "event_count:")
+
+#: 快照里一条事件的行首：`- #12 天气转晴`。序号是挑「最早那条」的唯一凭据。
+_EVENT_LINE = re.compile(r"^#(\d+)\s")
 
 
 def _body_lines(text: str) -> list[str]:
@@ -424,6 +439,10 @@ def _body_lines(text: str) -> list[str]:
     摘要是给人看的一句话，frontmatter 是机器的字段——`day: 0` 不是「那天发生了什么」。
     抽出来是因为两条路径都要跳过它：原先只有通用那条自己记着 `in_frontmatter`，
     快照那条漏了，于是「共 0 条」那天的摘要变成了 `day: 0`。
+
+    「没闭合的 frontmatter」按**没有 frontmatter** 算，与 `format.read_frontmatter`
+    同一个约定（那边也返回空字典）。那种文件是坏的一行都在，交给 `_MACHINE_LINES`
+    去认，不在这儿猜它该在哪儿结束。
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -445,17 +464,32 @@ def _summary_of(text: str, kind: str, limit: int = 120) -> str:
     不要手改。世界时间 0–86400000 毫秒，共 2 条。」）——任意两天的摘要
     除了区间数字完全一样，人在列表里看不出那天发生了什么。所以快照取
     **第一条事件**；没有事件的那天，模板行之后紧跟的才是实话
-    （「这一天什么都没发生。」），按**位置**跳过头两行，不按内容认——
+    （「这一天什么都没发生。」），按**位置**跳过头一句，不按内容认——
     认内容就等于把快照的措辞抄进摘要层，那边一改这边就静默失效。
     """
     lines = _body_lines(text)
     if kind == DAY_ENTRY:
+        # 「第一条事件」是**序号最小**的那条，不是文件里排最前的那条。
+        # 快照按 `_SECTIONS` 的固定次序分节（天气→潮水→盖了起来→…），不是按
+        # 事件序号：一天里 `#1 盖了起来` 与 `#2 rain` 并存时，`## 天气` 排在
+        # `## 盖了起来` 前面，取「第一个 `- ` 行」拿到的是 `#2 rain`。
+        # 行里带着序号（`- #{id} ...`），所以挑得出来。认不出序号的不参与
+        # 比较——那是手写的，不是这条链子写的。
+        earliest: tuple[int, str] | None = None
         for stripped in lines:
-            if stripped.startswith("- "):
-                return stripped[2:].strip()[:limit]
+            if not stripped.startswith("- "):
+                continue
+            match = _EVENT_LINE.match(stripped[2:].strip())
+            if match is None:
+                continue
+            candidate = (int(match.group(1)), stripped[2:].strip())
+            if earliest is None or candidate[0] < earliest[0]:
+                earliest = candidate
+        if earliest is not None:
+            return earliest[1][:limit]
         seen = 0
         for stripped in lines:
-            if not stripped or stripped.startswith("#"):
+            if not stripped or stripped.startswith(_MACHINE_LINES):
                 continue
             seen += 1
             if seen > 1:
