@@ -158,6 +158,16 @@
         overflow: hidden;
         pointer-events: none;
       }
+      .setting-region-label {
+        position: absolute;
+        color: var(--ink);
+        opacity: 0.7;
+        font: 12px/1 var(--font-pixel);
+        text-shadow: 1px 1px 0 var(--base);
+        white-space: nowrap;
+        /* 锚点是区域上沿中点：文字从中心向外展开，标签才压在区域正中。 */
+        transform: translateX(-50%);
+      }
       .overlay-name {
         position: absolute;
         transform: translate(-50%, -100%);

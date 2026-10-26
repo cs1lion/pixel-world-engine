@@ -46,6 +46,9 @@ import { createIntentClient } from '../world/intent-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
 import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
+import type { SettingPack } from '../settings/types.ts';
+import { createSettingScenery, type SettingSceneryView } from '../render/setting-scenery.ts';
+import { routineProfiles } from '../settings/index.ts';
 
 export interface ScenePayload {
   readonly world: BuiltWorld;
@@ -54,6 +57,7 @@ export interface ScenePayload {
   readonly saveStore?: SaveStore;
   readonly save?: WorldSave | null;
   readonly saveNotice?: string | null;
+  readonly pack?: SettingPack;
 }
 
 const LOGIC_STEP_MS = 100;
@@ -68,6 +72,8 @@ interface BuildingEntry {
 
 export class SandboxScene extends Phaser.Scene {
   private world!: BuiltWorld;
+  private pack: SettingPack | null = null;
+  private settingScenery: SettingSceneryView | null = null;
   private blueprints!: ReadonlyMap<string, PrefabBlueprint>;
   private sim!: Simulation;
   private snapshot!: WorldSnapshot;
@@ -138,6 +144,7 @@ export class SandboxScene extends Phaser.Scene {
 
   init(payload: ScenePayload): void {
     this.world = payload.world;
+    this.pack = payload.pack ?? null;
     this.blueprints = payload.blueprints;
     this.villagerName = payload.villagerName;
     this.loadedSave = payload.save ?? null;
@@ -154,18 +161,18 @@ export class SandboxScene extends Phaser.Scene {
   create(): void {
     const originX = 0;
     const originY = 0;
-    this.cameras.main.setBackgroundColor(WORLD.ink);
+    this.cameras.main.setBackgroundColor(this.pack?.palette.ink ?? WORLD.ink);
 
     // 地形烘焙成一张纹理：它每帧要 51 万条绘制指令，而可见区域只占世界 12.5%。
     // 只在开局画一次，之后每帧只贴一个 quad。
     this.terrainLayer = bakeLayer(
       this,
-      'world-terrain',
+      `world-terrain-${this.pack?.id ?? 'default'}`,
       this.world.grid.width * TILE_PX,
       this.world.grid.height * TILE_PX,
       -10,
       // 传祭坛坐标：地表细节按群落配方分化，镇内与郊野长得不一样。
-      (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar),
+      (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar, this.pack ?? undefined),
     );
     ensureAccentTextures(this);
     this.decor = createDecorView(this, originX, originY);
@@ -182,14 +189,20 @@ export class SandboxScene extends Phaser.Scene {
       h: this.world.grid.height * TILE_PX,
     };
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
-    this.tideView = createTideView(this, this.world.grid, originX, originY);
-    this.phaseView = createPhaseView(this, worldPx.w, worldPx.h);
+    this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette as never);
+    this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
     this.fogView = createFogView(this, this.world.grid.width, this.world.grid.height);
 
     // 相机：锁在世界边界内，初始对准祭坛。
     this.cameraCtl = createCameraController(this, worldPx.w, worldPx.h);
+    // 设定集地图比旧镇大得多：默认 2 倍只能看到约 15×10 格，开局只露出叠浪楼一角，
+    // 读不出"这是渡口—灯街—叠浪楼连成的一条世界"。放到 1 倍，首屏能同时看到楼、
+    // 街与灯；想细看仍可滚轮放大。
+    if (this.pack?.authored === true) this.cameraCtl.zoomStep(-1);
+    // 第二档：2 倍 → 1.5 倍 → 1 倍，两档才真正看得到整片街区。
+    if (this.pack?.authored === true) this.cameraCtl.zoomStep(-1);
     // 开局对准祭坛。放在下一帧做：Phaser 在 create() 结束后的首次 preRender
     // 会用 setBounds 重新夹取镜头，那时 camera.width 才是最终值；
     // 在 create() 里直接 centerOn 会被这次夹取推回左上角。
@@ -204,7 +217,7 @@ export class SandboxScene extends Phaser.Scene {
     const minimapHost = document.querySelector<HTMLDivElement>('#minimap');
     if (minimapHost !== null) {
       this.minimap = createMinimapView(minimapHost, worldPx.w, worldPx.h);
-      this.minimap.paintTerrain(this.world.grid);
+      this.minimap.paintTerrain(this.world.grid, this.pack?.terrainColors);
       minimapHost.addEventListener('pointerdown', (event: PointerEvent) => {
         const point = this.minimap?.toWorld(event.clientX, event.clientY);
         if (point === null || point === undefined) return;
@@ -324,13 +337,18 @@ export class SandboxScene extends Phaser.Scene {
     // 捕获阶段先拦：按钮的默认点击发生在冒泡之后，冒泡阶段拦住也晚了。
     window.addEventListener('keydown', this.creationKeyListener, true);
 
-    this.drawAltar(originX, originY);
+    if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack);
+    else this.drawAltar(originX, originY);
 
     const simDeps = {
       grid: this.world.grid,
       buildings: this.world.buildings,
       altar: this.world.altar,
       villagerName: this.villagerName,
+      ...(this.pack?.villagers.length ? {
+        villagerNames: this.pack.villagers.map((villager) => villager.name),
+        villagerProfiles: routineProfiles(this.pack),
+      } : {}),
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
         void this.eventsClient?.record(change, at);
@@ -367,7 +385,7 @@ export class SandboxScene extends Phaser.Scene {
         : new Simulation(simDeps);
     this.snapshot = this.sim.snapshot();
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
-    if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot);
+    if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);
     this.lastSaveKey = this.saveStateKey();
     // 省电模式：切到后台就降频。这是常驻窗口能不能长期开着的前提——
     // 用户写代码时如果它还跑满 60fps，笔记本会发烫。
@@ -420,6 +438,8 @@ export class SandboxScene extends Phaser.Scene {
     // 烘焙的纹理不随场景销毁自动释放，必须手动清：否则热更新或重进场景时
     // 会留下同名旧纹理，下一次 generateTexture 直接复用，画面停在上一版。
     this.terrainLayer?.destroy();
+    this.settingScenery?.destroy();
+    this.settingScenery = null;
     this.tideView?.destroy();
     this.fogView?.destroy();
     this.feedClient?.stop();
@@ -1081,10 +1101,17 @@ export class SandboxScene extends Phaser.Scene {
         view = createVillager(this, 0, 0);
         this.villagerViews.set(villager.id, view);
       }
-      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE);
+      const style = this.pack?.villagers.find((item) => item.name === villager.name)?.style;
+      const colors = style === undefined ? undefined : {
+        cloak: this.pack!.palette[style.cloak] ?? WORLD.cloak,
+        scarf: this.pack!.palette[style.scarf] ?? WORLD.trim,
+        lamp: style.lamp,
+      };
+      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, colors);
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.tideView.update(this.snapshot.tide.level);
+    this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now);
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。
@@ -1093,7 +1120,7 @@ export class SandboxScene extends Phaser.Scene {
       this.phaseView.currentPhase(),
       this.cameras.main.worldView,
     );
-    this.fogView.update(this.snapshot.fog, this.snapshot.now);
+    this.fogView.update(this.pack?.authored === true ? { ...this.snapshot.fog, revealedRadius: 1000 } : this.snapshot.fog, this.snapshot.now);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {
@@ -1189,6 +1216,10 @@ export class SandboxScene extends Phaser.Scene {
       })
       .join('　/　');
     const weather = WEATHER_LABEL[this.snapshot.weather];
+    const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
+    if (this.pack?.authored === true) {
+      return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${saveNote}`;
+    }
     const faith = this.snapshot.faith;
     const { feed: feedDelivered, local: localDelivered } = this.snapshot.deliveries;
     // 离线必须显式标出：状态行不只说"上游离线"，还说现在跑的是本地活。
@@ -1198,7 +1229,6 @@ export class SandboxScene extends Phaser.Scene {
       ? feedState
       : `读档未对账 · ${feedState}`;
     // 存档提示（坏档/高版本/配额）只写一次即可，这里保持可见直到下次成功写档。
-    const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
     // blocked_question 只展示，不在世界内回答：完整值留在快照，这里按 60 字符截断。
     const waitingTask = this.snapshot.tasks.find((item) => item.blockedQuestion !== null);
     const waiting =

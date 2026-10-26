@@ -1,8 +1,6 @@
 /** 原型入口：装载世界，起 Phaser。 */
 
 import Phaser from 'phaser';
-import prefabs from './world/prefabs.json';
-import { parseBlueprintTable } from './world/blueprints.ts';
 import {
   buildLargeWorld,
   buildWorldFromSave,
@@ -19,11 +17,10 @@ import { SaveStore, exportFileName, IMPORT_MAX_BYTES } from './ui/save-store.ts'
 import type { AgentToWorld } from './world/bridge.ts';
 import type { WorldEvent, WorldSnapshot } from './world/types.ts';
 import { WORLD } from './world/palette-data.ts';
-
-const blueprints = parseBlueprintTable(prefabs);
+import { selectSetting, worldForSetting } from './settings/index.ts';
 // 读档必须在建世界/起 Phaser 之前：有档按存档 buildings 顺序重放网格（ADR_SAVE §1.2）。
 const saveNotices: string[] = [];
-const saveStore = new SaveStore({ onWarning: (message) => saveNotices.push(message) });
+const saveStore = new SaveStore({ storageKey: selectSetting(window.location.search).saveKey, onWarning: (message) => saveNotices.push(message) });
 const loadedSave = saveStore.read();
 /**
  * 生产用大世界：80×60 格。旧规格 30×20 保留给测试夹具，生产入口不再用它。
@@ -31,9 +28,17 @@ const loadedSave = saveStore.read();
  * 读档时按大世界规格重建网格：存档里没有网格数据，只有建筑坐标；
  * 旧档的建筑坐标在新图里仍然合法（新图包含原来的镇中心）。
  */
-const world = loadedSave.ok
-  ? buildWorldFromSave(loadedSave.save.world.buildings, blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR)
-  : buildLargeWorld(blueprints);
+const pack = selectSetting(window.location.search);
+document.title = `${pack.name} · 像素世界`;
+const worldTitle = document.querySelector<HTMLElement>('#world-title');
+if (worldTitle !== null) worldTitle.textContent = pack.name;
+const brand = document.querySelector<HTMLElement>('#topbar .brand');
+if (brand !== null) brand.textContent = pack.name;
+const world = pack.authored
+  ? worldForSetting(pack, loadedSave.ok ? loadedSave.save.world.buildings : undefined)
+  : loadedSave.ok
+    ? buildWorldFromSave(loadedSave.save.world.buildings, pack.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR)
+    : buildLargeWorld(pack.blueprints);
 
 /** 画布尺寸：只显示世界的一小块，靠相机移动看其余部分。 */
 const VIEW_WIDTH = 30 * TILE_PX;
@@ -60,8 +65,9 @@ const game = new Phaser.Game({
 // 场景配置要等 Game 建好之后才能 push：payload 在 init 里读。
 game.scene.add('SandboxScene', SandboxScene, true, {
   world,
-  blueprints,
-  villagerName: '莞尔',
+  blueprints: pack.blueprints,
+  villagerName: pack.villagers[0]?.name ?? '莞尔',
+  pack,
   saveStore,
   save: loadedSave.ok ? loadedSave.save : null,
   saveNotice: loadedSave.ok ? saveNotices[0] ?? null : loadedSave.message,

@@ -17,6 +17,7 @@ import { TERRAIN_COLORS, WORLD } from '../world/palette-data.ts';
 import { biomeAt } from '../world/biomes.ts';
 import { DRESSING } from '../world/dressing.ts';
 import { drawTileEdge, type EdgeNeighbors } from './terrain-edges.ts';
+import type { WorldPalette } from '../world/theme.ts';
 
 type Terrain = keyof typeof TERRAIN_COLORS;
 
@@ -27,6 +28,7 @@ export function drawTerrain(
   originY: number,
   target?: Phaser.GameObjects.Graphics,
   altar?: GridPoint,
+  theme?: { readonly palette: WorldPalette; readonly terrainColors: Readonly<Record<TerrainId, number>> },
 ): void {
   // 给了 target 就画进它：烘焙到纹理时用同一个 Graphics，
   // 否则每次子绘制都会多创建一个对象。
@@ -37,7 +39,7 @@ export function drawTerrain(
     for (let x = 0; x < grid.width; x += 1) {
       const cell = grid.at({ x, y });
       if (cell === undefined) continue;
-      g.fillStyle(TERRAIN_COLORS[cell.terrain], 1);
+      g.fillStyle(theme?.terrainColors[cell.terrain] ?? TERRAIN_COLORS[cell.terrain], 1);
       g.fillRect(originX + x * TILE_PX, originY + y * TILE_PX, TILE_PX, TILE_PX);
     }
   }
@@ -69,6 +71,7 @@ export function drawTerrain(
   drawPlantingBeds(scene, grid, originX, originY, g);
   drawFarmFence(scene, grid, originX, originY, g);
   drawDressing(scene, grid, originX, originY, g, altar);
+  drawWaterline(grid, originX, originY, g, theme);
 
   // 网格线只是排查落位用的辅助层，默认不画：铺满全屏的细线会把地形纹理与轮廓压成
   // “表格纸”，也会让建筑/道路的边线失去对比。需要时用 ?debug-grid=1 打开。
@@ -137,6 +140,18 @@ function drawTexture(
   y: number,
   terrain: Terrain,
 ): void {
+  if (terrain === 'shallow' || terrain === 'mud' || terrain === 'coal') {
+    const h = hash2(x, y);
+    g.fillStyle(terrain === 'coal' ? WORLD.soil : WORLD.plaza, 0.42);
+    if (terrain === 'shallow') {
+      g.fillRect(px + h % 7, py + 5 + (h % 4), 7, 1);
+      g.fillRect(px + 4, py + 12, 5, 1);
+    } else {
+      g.fillRect(px + 3 + h % 7, py + 4 + (h % 7), terrain === 'coal' ? 3 : 5, 1);
+      if (terrain === 'coal') g.fillRect(px + 5, py + 10, 2, 2);
+    }
+    return;
+  }
   if (terrain === 'farm') {
     drawFarmRows(g, px, py, x, y);
     return;
@@ -556,6 +571,34 @@ function drawWildflower(
     g.fillStyle(WORLD.moss, 1);
     g.fillRect(px + ox + 1, py + oy, 2, 1);
     g.fillRect(px + ox + 5, py + oy + 1, 2, 1);
+  }
+}
+
+/**
+ * 水线高光：浅滩贴着陆地的那一条边。
+ *
+ * 为什么按地形找、不写死行号：写死的那一行只对某一张开图成立，换个设定集
+ * 就画到草地中间去；而没有浅滩的旧世界更会凭空多出一道蓝线——
+ * 那正是「画面与改动前一致」被破坏的方式。按浅滩与非浅滩的邻接找，
+ * 有浅滩才画，画的位置就是真正的岸。
+ */
+function drawWaterline(
+  grid: WorldGrid,
+  originX: number,
+  originY: number,
+  g: Phaser.GameObjects.Graphics,
+  theme?: { readonly palette: WorldPalette },
+): void {
+  const water = theme?.palette.water ?? WORLD.water;
+  g.fillStyle(water, 0.4);
+  for (let y = 0; y < grid.height; y += 1) {
+    for (let x = 0; x < grid.width; x += 1) {
+      const cell = grid.at({ x, y });
+      if (cell?.terrain !== 'shallow') continue;
+      // 只画朝下那一侧：岸线下面就是陆地，视线先落到这里。
+      if (grid.at({ x, y: y + 1 })?.terrain === 'shallow') continue;
+      g.fillRect(originX + x * TILE_PX, originY + (y + 1) * TILE_PX, TILE_PX - 3, 1);
+    }
   }
 }
 

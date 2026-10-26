@@ -13,10 +13,12 @@ import {
   ANIM_FPS,
   FRAME_MS,
   IDLE_FRAMES,
+  LAMP_DRY,
   WALK_FRAMES,
   animFrame,
   animStep,
   isWalkingMode,
+  lampAnimationTime,
   pixelAt,
   villagerPose,
 } from '../src/render/villager-frames.ts';
@@ -155,4 +157,19 @@ test('动画采样不改变世界确定性回放（边跑边采样，结果与�
     }
   }
   assert.deepEqual(sampled.snapshot(), plain.snapshot(), '采样改变了仿真回放结果');
+});
+
+test('灯油只改画面取样：油干时采样变慢，补回油后立刻恢复', () => {
+  assert.equal(lampAnimationTime(1, 1234), 1234, '有油时必须原样返回，不改已验证的动作');
+  assert.equal(lampAnimationTime(LAMP_DRY, 1234), 1234, '刚好到底线算还有油');
+  const dry = lampAnimationTime(0, 1234);
+  assert.ok(dry < 1234, '油干时采样时刻要落后，动作才会变慢');
+  assert.equal(dry % 400, 0, '慢速取样按 400ms 一档，而不是连续变慢');
+  // 同一档内的两个时刻必须给出同一个姿态：这就是"慢"本身。
+  assert.deepEqual(
+    villagerPose('idle', lampAnimationTime(0, 1234)),
+    villagerPose('idle', lampAnimationTime(0, 1400)),
+  );
+  // 补回油后不能再被慢速取样影响。
+  assert.notEqual(lampAnimationTime(1, 1234), dry);
 });

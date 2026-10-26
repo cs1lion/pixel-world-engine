@@ -33,7 +33,14 @@ function readStageScale(stage: HTMLElement): number {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
-export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement): WorldOverlay {
+export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement, regions: readonly { id: string; name: string; x: number; y: number; w: number; h: number }[] = []): WorldOverlay {
+  const regionNodes = regions.map((region) => {
+    const node = document.createElement('div');
+    node.className = 'setting-region-label';
+    node.textContent = region.name;
+    root.append(node);
+    return { node, region };
+  });
   const entries = new Map<string, OverlayEntry>();
   let lastSnapshot: WorldSnapshot | null = null;
 
@@ -103,6 +110,25 @@ export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement): Worl
       cameraZoom: camera.zoom,
     };
     const dpr = window.devicePixelRatio || 1;
+    const overlayWidth = canvasRect.width / rootScale;
+    for (const { node, region } of regionNodes) {
+      // 锚在区域上沿的**中间**，不是左上角：左上角在区域贴近画布边缘时，
+      // 标签会被 overlay 的 overflow 裁掉一半（实测渡口站台只剩半边字）。
+      const point = projectWorldToOverlay(
+        (region.x + region.w / 2) * 16,
+        region.y * 16 + 2,
+        viewport,
+      );
+      // 再夹进画布内：文字宽度由内容决定，按实际宽度夹，避免再次被裁。
+      const width = node.offsetWidth;
+      const left = Math.min(
+        Math.max(point.x / rootScale, 2),
+        Math.max(2, overlayWidth - width - 2),
+      );
+      node.style.display = 'block';
+      node.style.left = `${left}px`;
+      node.style.top = `${point.y / rootScale}px`;
+    }
     const seen = new Set<string>();
     for (const villager of snapshot.villagers) {
       seen.add(villager.id);

@@ -38,6 +38,9 @@ export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
   farm: 2,
   stone: 1,
   plaza: 0,
+  shallow: 1,
+  mud: 1,
+  coal: 2,
 };
 
 /** 亮一档 token：只用现有 24 色里的 `grassLit` / `plaza`（§1.2「不加色」）。 */
@@ -51,6 +54,9 @@ export const BRIGHT: Readonly<Record<TerrainId, number>> = {
   // 一个都没画）。这里给 trim 而不是自身也是为此：万一将来改了高度序，画出来的
   // 边也不会与底色相同、变成隐形线。
   plaza: WORLD.trim,
+  shallow: WORLD.water,
+  mud: WORLD.stone,
+  coal: WORLD.stone,
 };
 
 /**
@@ -75,6 +81,9 @@ export const DARK: Readonly<Record<TerrainId, number>> = {
   stone: WORLD.soil,
   // 同 BRIGHT.plaza 的理由：plaza 永不画边；给 stone（比 plaza 暗）以防将来改高度序。
   plaza: WORLD.stone,
+  shallow: WORLD.ink,
+  mud: WORLD.ink,
+  coal: WORLD.ink,
 };
 
 /** 四邻边掩码的位。 */

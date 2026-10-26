@@ -11,7 +11,14 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
-import { isWalkingMode, pixelAt, villagerPose, type VillagerPose } from './villager-frames.ts';
+import {
+  isWalkingMode,
+  LAMP_DRY,
+  lampAnimationTime,
+  pixelAt,
+  villagerPose,
+  type VillagerPose,
+} from './villager-frames.ts';
 
 export const VILLAGER_W = 12;
 export const VILLAGER_H = 20;
@@ -88,6 +95,7 @@ export function updateVillager(
   originX: number,
   originY: number,
   altitude: number,
+  colors?: { readonly cloak: number; readonly scarf: number; readonly lamp: boolean },
 ): void {
   const px = pixelAt(originX + (villager.pos.x + 0.5) * TILE_PX);
   const py = pixelAt(originY + (villager.pos.y + 1) * TILE_PX);
@@ -95,7 +103,13 @@ export function updateVillager(
   view.container.setVisible(villager.visible);
   view.container.setDepth(altitude + py + 8);
 
-  const pose = villagerPose(villager.mode, nowMs);
+  // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
+  const oil = colors?.lamp === true ? villager.lampOil : 1;
+  // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
+  // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
+  const pose = villagerPose(villager.mode, lampAnimationTime(oil, nowMs));
+  // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
+  view.body.setAlpha(oil < LAMP_DRY ? 0.8 : 1);
   view.body.clear();
   drawBody(
     view.body,
@@ -103,9 +117,25 @@ export function updateVillager(
     pose,
     villager.mode,
     isWalkingMode(villager.mode),
-    villagerStyle(villager),
+    colors === undefined ? villagerStyle(villager) : { ...villagerStyle(villager), cloak: colors.cloak, scarf: colors.scarf },
     nowMs,
   );
+  if (colors?.lamp === true) {
+    // 快照里的灯油只在这里影响画面；燃料不会变成任务或路径的隐藏条件。
+    const lit = oil >= LAMP_DRY;
+    view.body.fillStyle(lit ? WORLD.amber : WORLD.charcoal, 1);
+    view.body.fillRect(8, -10, 5, 7);
+    if (lit) {
+      view.body.fillStyle(WORLD.warmLight, 1);
+      view.body.fillRect(9, -9, 3, 4);
+      if (oil > 0.65) {
+        view.body.fillStyle(WORLD.warmLight, 0.12);
+        view.body.fillRect(5, -13, 11, 13);
+      }
+    }
+    view.body.fillStyle(WORLD.timberDark, 1);
+    view.body.fillRect(9, -13, 1, 3);
+  }
   if (villager.umbrella) drawUmbrella(view.body, pose.offsetY);
   if (villager.carrying !== null) drawCarried(view.body, villager.carrying, pose.offsetY);
 

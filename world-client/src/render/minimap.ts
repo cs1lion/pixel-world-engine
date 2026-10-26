@@ -19,7 +19,7 @@ export interface MinimapPoint {
 
 export interface MinimapView {
   /** 重画地形底图。世界地形不变，只在开局与扩建后调一次。 */
-  paintTerrain(grid: WorldGrid): void;
+  paintTerrain(grid: WorldGrid, colors?: Readonly<Record<string, number>>): void;
   /** 每帧更新：角色、建筑、视野框。 */
   update(snapshot: WorldSnapshot, viewport: { x: number; y: number; width: number; height: number }): void;
   /** 把画布坐标换成世界格坐标；点在小地图外时返回 null。 */
@@ -59,7 +59,7 @@ export function createMinimapView(
   return {
     canvas,
 
-    paintTerrain(grid) {
+    paintTerrain(grid, colors) {
       if (terrainCtx === null) return;
       terrainCtx.fillStyle = hex(WORLD.ink);
       terrainCtx.fillRect(0, 0, width, height);
@@ -70,7 +70,7 @@ export function createMinimapView(
         for (let x = 0; x < grid.width; x += 1) {
           const cell = grid.at({ x, y });
           if (cell === undefined) continue;
-          terrainCtx.fillStyle = hex(TERRAIN_COLORS[cell.terrain]);
+          terrainCtx.fillStyle = hex(colors?.[cell.terrain] ?? TERRAIN_COLORS[cell.terrain]);
           terrainCtx.fillRect(x * cellW, y * cellH, Math.ceil(cellW), Math.ceil(cellH));
         }
       }

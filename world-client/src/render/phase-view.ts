@@ -85,10 +85,11 @@ export function createPhaseView(
   scene: Phaser.Scene,
   worldWidth: number,
   worldHeight: number,
+  dimColor: number = WORLD.deepShade,
 ): PhaseView {
   const WIDTH = worldWidth;
   const HEIGHT = worldHeight;
-  const dim = scene.add.rectangle(0, 0, WIDTH, HEIGHT, WORLD.deepShade, 0).setOrigin(0, 0);
+  const dim = scene.add.rectangle(0, 0, WIDTH, HEIGHT, dimColor, 0).setOrigin(0, 0);
   dim.setDepth(DIM_DEPTH);
 
   const glows = scene.add.graphics();

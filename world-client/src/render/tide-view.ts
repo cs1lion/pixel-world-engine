@@ -37,6 +37,7 @@ export function createTideView(
   grid: WorldGrid,
   originX: number,
   originY: number,
+  colors: { readonly water: number; readonly deepShade: number; readonly ink: number; readonly pale: number } = WORLD,
 ): TideView {
   // 水在地面层之上、建筑与角色之下：depth 3 与天气水洼（2）分开，
   // 免得两者叠在一起互相压暗。
@@ -55,7 +56,7 @@ export function createTideView(
     water.setVisible(true);
     const alpha = Math.min(MAX_WATER_ALPHA, level * MAX_WATER_ALPHA);
     // 潮位越高，水色越深一档：退潮时是浅滩，满潮时是深水。
-    const body = level > 0.66 ? WORLD.deepShade : WORLD.water;
+    const body = level > 0.66 ? colors.deepShade : colors.water;
 
     for (let y = 0; y < grid.height; y += 1) {
       for (let x = 0; x < grid.width; x += 1) {
@@ -65,7 +66,7 @@ export function createTideView(
         const py = originY + y * TILE_PX;
 
         // 水下压暗：让被淹的地形读起来是"在下面"，而不是"换了个颜色"。
-        water.fillStyle(WORLD.ink, SUBMERGE_DIM * Math.min(1, level * 1.4));
+        water.fillStyle(colors.ink, SUBMERGE_DIM * Math.min(1, level * 1.4));
         water.fillRect(px, py, TILE_PX, TILE_PX);
 
         water.fillStyle(body, alpha);
@@ -73,11 +74,11 @@ export function createTideView(
 
         // 水边泡沫：只在没被淹的邻居那一侧画 1px，水线才有形。
         if (!grid.isFloodedAt({ x, y: y - 1 })) {
-          water.fillStyle(WORLD.pale, Math.min(0.85, alpha + 0.2));
+          water.fillStyle(colors.pale, Math.min(0.85, alpha + 0.2));
           water.fillRect(px, py, TILE_PX, 1);
         }
         if (!grid.isFloodedAt({ x: x - 1, y })) {
-          water.fillStyle(WORLD.pale, Math.min(0.85, alpha + 0.2));
+          water.fillStyle(colors.pale, Math.min(0.85, alpha + 0.2));
           water.fillRect(px, py, 1, TILE_PX);
         }
       }

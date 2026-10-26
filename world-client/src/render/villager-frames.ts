@@ -91,3 +91,20 @@ export function villagerPose(mode: VillagerMode, nowMs: number): VillagerPose {
     footRight: base.footRight,
   };
 }
+
+/** 灯油见底。低于它灯就灭，人也发灰。 */
+export const LAMP_DRY = 0.12;
+
+/**
+ * 灯油余量 → 画面上取样的时间。
+ *
+ * 设定里「灯暗时角色发灰、动作变慢」是**观感**，不是世界规则：角色该走多快由
+ * simulation 决定。所以这里只把动画采样的时刻向后拖，位置、寻路、任务一概不碰。
+ * 油干时隔 4 帧取一次样（约 3fps），看得出疲惫；油量正常时原样返回，不改变
+ * 已验证的 12fps 动作。
+ */
+export function lampAnimationTime(lampOil: number, nowMs: number): number {
+  if (!Number.isFinite(nowMs)) return 0;
+  if (!(lampOil < LAMP_DRY)) return nowMs;
+  return Math.floor(nowMs / 400) * 400;
+}
