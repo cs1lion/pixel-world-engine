@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack, SettingPackError } from '../src/settings/load.ts';
 import { WorldGrid } from '../src/world/grid.ts';
-import { paveFrom } from '../src/world/setup.ts';
+import { doorReaches, paveFrom } from '../src/world/setup.ts';
 import type { GridSpec } from '../src/world/grid.ts';
 
 /** 空地网格：四周一圈树篱不可走，其余全通。 */
@@ -143,4 +143,45 @@ test('读档路不查这一条：存档是照着一份当年通过的世界写�
   const buildings = buildSettingWorld(loadSettingPack(DENGCHAO_RAW)).buildings;
   const reloaded = buildSettingWorld(pack, buildings);
   assert.equal(reloaded.buildings.length, buildings.length);
+});
+
+// ------------------------------------------------------- 镇心不可走时别误杀
+
+test('镇心在树篱上、门是离它最近的那块地：这是连得出去的', () => {
+  // `loadSettingPack` 对 hub 只查越界，不查可走——hub 落在四周树篱环上是合法的。
+  // 而 `grid.path` 在目标不可走时会把目标改写成离它最近的一块可走地；
+  // 改写结果正好是这扇门时，它返回空数组，与「走不到」长得一模一样。
+  //
+  // 于是「门口到不了镇心」会报在一扇曼哈顿距离 1 的门上——那是全图离镇心
+  // 最近的一块可走格。错误信息说的是假话，比不报更糟。
+  const grid = new WorldGrid({
+    width: 30,
+    height: 20,
+    border: 1,
+    zones: [{ id: 'industry', x: 1, y: 1, w: 28, h: 18 }],
+  });
+  const door = { x: 1, y: 10 };
+  // hub 在北边树篱上（x=0 整列都不可走），它周围唯一可走的就是 (1,10)。
+  assert.equal(grid.isWalkable({ x: 0, y: 10 }), false, '树篱上不可走');
+  assert.equal(grid.isWalkable(door), true);
+  assert.deepEqual(grid.nearestWalkable({ x: 0, y: 10 }), door);
+  assert.equal(doorReaches(grid, door, { x: 0, y: 10 }), true, '一门之隔，没有比这更连得出去的');
+  // 反面对照：门在别处，hub 仍在树篱上——那种也该放行（改写后走得过去）。
+  assert.equal(doorReaches(grid, { x: 20, y: 10 }, { x: 0, y: 10 }), true);
+});
+
+test('一扇真被围死的门，在同一个格子上仍然报死', () => {
+  // 上面那条放过的是「改写后起点即终点」，不是「一律放过」。
+  const grid = new WorldGrid({
+    width: 30,
+    height: 20,
+    border: 1,
+    zones: [{ id: 'industry', x: 1, y: 1, w: 28, h: 18 }],
+  });
+  const door = { x: 15, y: 10 };
+  block(grid, 14, 10, 'a');
+  block(grid, 16, 10, 'b');
+  block(grid, 15, 9, 'c');
+  block(grid, 15, 11, 'd');
+  assert.equal(doorReaches(grid, door, { x: 0, y: 10 }), false, '四邻都被占了，这门开在世界外');
 });

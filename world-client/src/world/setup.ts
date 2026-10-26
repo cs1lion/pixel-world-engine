@@ -498,13 +498,24 @@ export interface PavedRoute {
  * `assertWorldInvariants` 判、在包里由 nobody 判，两边各写一遍 `path(...).length === 0`
  * 就意味着它们迟早说出不同的话。抽出来放这儿，谁判都是同一句。
  *
- * 门口与锚点重合时算连通：她的门就开在祭坛上，没有比这更连得出去的。
- * （`grid.path` 在这种情形返回空数组——「她人已经在那儿了」——照抄这个返回值，
- * 会把一扇最好的门报成与祭坛没有通路。）
+ * 锚点不可走时，「到锚点」实际是「到离锚点最近的那块可走地」——`grid.path`
+ * 自己也是这么做的（`grid.ts` 的兜底）。先把它问出来，是为了不把**两种空数组**
+ * 混为一谈：`path` 在「起点即终点」时返回空数组，在「走不到」时也返回空数组。
+ * 前者是她已经到了，后者是真过不去。
+ *
+ * hub 落在树篱环上、或被某栋楼盖住，都是合法的（装载只查越界，不查可走）。
+ * 不认前者，一扇离镇心一步远的门会被报成「门口到不了镇心」——而错误信息说的
+ * 是假话：曼哈顿距离 1，那是全图离镇心最近的一块可走格。
  */
 export function doorReaches(grid: WorldGrid, door: GridPoint, anchor: GridPoint): boolean {
-  if (door.x === anchor.x && door.y === anchor.y) return true;
-  return grid.path(door, anchor).length > 0;
+  // 越界的点不在世界里，谈不上一不一致。
+  if (!grid.inBounds(door) || !grid.inBounds(anchor)) return false;
+  const goal = grid.isWalkable(anchor) ? anchor : grid.nearestWalkable(anchor);
+  if (goal === null) return false;
+  // 门就在那块可走地上：她人已经在那儿了，没有比这更连得出去的。
+  // 门与锚点坐标全等只是它的一种（锚点可走、门就开在它上面）。
+  if (goal.x === door.x && goal.y === door.y) return true;
+  return grid.path(door, goal).length > 0;
 }
 
 /**

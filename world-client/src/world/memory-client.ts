@@ -50,6 +50,14 @@ export interface MemoryEntry {
   readonly kind: string;
   readonly title: string;
   readonly text: string;
+  /**
+   * 这一页被截断了。
+   *
+   * 角色档案「逐条追加，只增不改」，写到第几条就会超过 `MEMORY_TEXT_CHARS`。
+   * 静默截断的表现是「这条记忆就这么长」——读者无从知道后面还有，
+   * 而一份被悄悄切短的档案，读起来像一份写完了的档案。
+   */
+  readonly truncated: boolean;
 }
 
 export type MemoryResult<T> =
@@ -108,6 +116,11 @@ export function createMemoryClient(options: MemoryClientOptions = {}): MemoryCli
       const query = new URLSearchParams({ path: row.path });
       // 小节名也原样带回去：列表答应的是一条记忆，服务端据此只回那一节。
       if (row.section !== null) query.set('section', row.section);
+      // 世界时间也带回去。同一个人对同一件事的两次观测会有两个同名小节，
+      // 列表里那两行只有 at 不同；不带 at 服务端答 422 说明要带，
+      // 而不是静默返回第一条——那等于在两条真相里挑一条，
+      // 而读者看到的两行一模一样，永远不知道自己读的是哪一条。
+      if (row.at !== null) query.set('at', String(row.at));
       const outcome = await getJson(fetchImpl, `${entryUrl}?${query.toString()}`, timeoutMs, '记忆');
       if (!outcome.ok) return outcome;
       const parsed = parseEntry(outcome.body);
@@ -246,6 +259,7 @@ export function parseEntry(body: unknown): MemoryEntry | null {
     kind,
     title,
     text: text.slice(0, MEMORY_TEXT_CHARS),
+    truncated: text.length > MEMORY_TEXT_CHARS,
   };
 }
 

@@ -17,6 +17,7 @@
  */
 
 import type { MemoryEntry, MemoryEntryRow } from '../world/memory-client.ts';
+import { MEMORY_TEXT_CHARS } from '../world/memory-client.ts';
 
 /** 第几天的标签。`null` 表示这条记忆没有世界时间，标签就空着，不写「第 undefined 天」。 */
 export function dayLabel(day: number | null): string {
@@ -261,36 +262,48 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/**
+ * 造一个 DOM 节点。
+ *
+ * 抽出来只为一样事：让「每个字都走 textContent」这道关能在没有浏览器的环境里被测。
+ * 测试注一个假的 `document.createElement`，谁往 `innerHTML` 里写一个字就炸——
+ * 而这道关原先只在注释里（「用 innerHTML 就等于把一份文件交给浏览器执行」）。
+ */
+export type ElementFactory = <K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+) => HTMLElementTagNameMap[K];
+
 /** 把一块内容变成一个 DOM 节点。每个字都走 textContent。 */
-function blockNode(block: MemoryBlock): HTMLElement {
+export function blockNode(block: MemoryBlock, create: ElementFactory = element): HTMLElement {
   switch (block.kind) {
     case 'heading': {
       const tag = (`h${Math.min(block.level + 2, 6)}`) as 'h3' | 'h4' | 'h5' | 'h6';
-      const node = element(tag, 'chronicle-heading');
+      const node = create(tag, 'chronicle-heading');
       node.textContent = block.text;
       return node;
     }
     case 'item': {
-      const node = element('li', 'chronicle-item');
+      const node = create('li', 'chronicle-item');
       node.textContent = block.text;
       return node;
     }
     case 'quote': {
-      const node = element('blockquote', 'chronicle-quote');
+      const node = create('blockquote', 'chronicle-quote');
       node.textContent = block.text;
       return node;
     }
     case 'field': {
-      const node = element('div', 'chronicle-field');
-      const key = element('span', 'chronicle-field-key');
+      const node = create('div', 'chronicle-field');
+      const key = create('span', 'chronicle-field-key');
       key.textContent = block.key;
-      const value = element('span', 'chronicle-field-value');
+      const value = create('span', 'chronicle-field-value');
       value.textContent = block.value;
       node.append(key, value);
       return node;
     }
     default: {
-      const node = element('p', 'chronicle-paragraph');
+      const node = create('p', 'chronicle-paragraph');
       // 段内的换行要留得住：记忆的正文常常一段一句，压成一行就没了呼吸。
       node.textContent = block.text;
       return node;
@@ -364,7 +377,7 @@ export function bindChronicle(sources: ChronicleSources): ChronicleHandle {
   const paintReader = (title: string, subtitle: string, blocks: readonly MemoryBlock[]): void => {
     readerTitle.textContent = title;
     readerSubtitle.textContent = subtitle;
-    readerBody.replaceChildren(...blocks.map(blockNode));
+    readerBody.replaceChildren(...blocks.map((block) => blockNode(block)));
   };
 
   const showList = (): void => {
@@ -423,7 +436,19 @@ export function bindChronicle(sources: ChronicleSources): ChronicleHandle {
       ]);
       return;
     }
-    paintReader(result.value.title, readingSubtitle(row), parseMemoryBlocks(result.value.text));
+    // 截断了就要说出来。静默截断的表现是「这条记忆就这么长」——
+    // 读者无从知道后面还有，而一份被悄悄切短的档案，读起来像一份写完了的档案。
+    const blocks = parseMemoryBlocks(result.value.text);
+    const shown = result.value.truncated
+      ? [
+          ...blocks,
+          {
+            kind: 'paragraph' as const,
+            text: `这一页只读到前 ${MEMORY_TEXT_CHARS} 字，后面还有。档案是逐条追加的，原文在 memory/ 里。`,
+          },
+        ]
+      : blocks;
+    paintReader(result.value.title, readingSubtitle(row), shown);
   };
 
   const onKey = (event: KeyboardEvent): void => {

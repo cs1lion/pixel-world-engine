@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  blockNode,
   chronicleHeading,
   chronicleRows,
   dayLabel,
   kindLabel,
   parseMemoryBlocks,
   readingSubtitle,
+  type ElementFactory,
 } from '../src/ui/chronicle-panel.ts';
 import type { MemoryEntryRow } from '../src/world/memory-client.ts';
 import type { MemoryBlock } from '../src/ui/chronicle-panel.ts';
@@ -246,15 +248,93 @@ test('空文件与只有空行的文件都翻得出空列表', () => {
   assert.deepEqual(parseMemoryBlocks('\n\n\n'), []);
 });
 
-test('块里没有任何一处是 HTML', () => {
-  // 这是整份抽屉的地基：每个字都走 textContent，所以一个 <script> 都进不来。
+test('块里没有任何一处是 HTML：原文只是数据', () => {
+  // 这是整份抽屉的地基：渲染层每个字都走 textContent（`blockNode` 五个分支），
+  // 所以一个 <script> 都进不来。解析层**不消毒**——消毒会把读者的记忆改掉，
+  // 而记忆是只增不改的。这里钉的是「解析层把原文原样当数据交出来」。
+  //
+  // 早先这条写的是 `doesNotMatch(joined, /onerror=alert\(1\)"\]/)`：
+  // `JSON.stringify` 出来的块里 `)` 后面紧跟的是 `>`，不是 `"]`，
+  // 所以那个正则永远不匹配、断言永远通过——换成任何会把 HTML 原样吐进块文本的
+  // 实现，它照样绿。防 HTML 的那道关在渲染层，由下面一条钉。
   const blocks = parseMemoryBlocks('# <img src=x onerror=alert(1)>\n\n<script>alert(2)</script>');
-  const joined = JSON.stringify(blocks);
-  assert.match(joined, /&lt;img|<img/);
-  assert.doesNotMatch(joined, /onerror=alert\(1\)"\]/);
-  // 原文一个字都没丢——它只是不再是标记。
-  assert.match(joined, /script/);
+  assert.equal(textOf(blocks[0]), '<img src=x onerror=alert(1)>');
+  assert.equal(textOf(blocks[1]), '<script>alert(2)</script>');
+  // 「没有 html 这种块」不用运行时断言：`MemoryBlock` 的联合里就没有它，
+  // tsc 会以「两个类型没有交集」直接拒掉那条比较——那本身就是证明。
 });
+
+test('每个字都走 textContent：谁写 innerHTML 就炸', () => {
+  // 上面那条管「解析层不消毒」，这条管「渲染层不执行」。
+  // 抽屉的全文来自服务端读回来的 Markdown 文件——那是磁盘上的字，
+  // 不是本应用写的。`blockNode` 有一个分支漏成 innerHTML，
+  // 一份手写的记忆就能在整个镇志里跑脚本。
+  //
+  // 用一个假 document 钉住：innerHTML / outerHTML / insertAdjacentHTML
+  // 三个写入口都是 setter，谁碰谁抛。五种块各走一遍。
+  const made: FakeNode[] = [];
+  const fake = ((tag: string, className?: string) => {
+    const node = new FakeNode(tag, className ?? '');
+    made.push(node);
+    return node;
+  }) as unknown as ElementFactory;
+
+  const source = [
+    '# <img src=x onerror=alert(1)>',
+    '',
+    '依据：#1 `world.changed`',
+    '',
+    '> 旁注里也带 <script>alert(2)</script>',
+    '',
+    '- 列表项带 <b>标记</b>',
+    '',
+    '正文最后一句。',
+  ].join('\n');
+  for (const block of parseMemoryBlocks(source)) blockNode(block, fake);
+
+  assert.ok(made.length >= 6, '五种块都该造出节点来');
+  const has = (needle: string): boolean => made.some((node) => node.textContent.includes(needle));
+  // 原文一个字都没丢——它只是不再是标记。
+  assert.ok(has('<img src=x onerror=alert(1)>'), '标题原文要在这儿');
+  assert.ok(has('<script>alert(2)</script>'), '旁注原文要在这儿');
+  assert.ok(has('列表项带 <b>标记</b>'), '列表项原文要在这儿');
+  assert.ok(has('world.changed'), '字段原文要在这儿');
+  assert.ok(has('正文最后一句。'), '正文原文要在这儿');
+  // 孩子们全是造出来的节点：没有一个是把上面的字符串当 HTML 解析出来的。
+  assert.ok(
+    made.every((node) => node.children.every((kid) => kid instanceof FakeNode)),
+    '孩子们只能是造出来的节点',
+  );
+});
+
+/** 一个只认 textContent / append / className 的假节点。三个 HTML 写入口都是 setter。 */
+class FakeNode {
+  textContent = '';
+  readonly children: FakeNode[] = [];
+  readonly tagName: string;
+  readonly className: string;
+
+  constructor(tag: string, className: string) {
+    this.tagName = tag;
+    this.className = className;
+  }
+
+  append(...kids: FakeNode[]): void {
+    this.children.push(...kids);
+  }
+
+  set innerHTML(value: string) {
+    throw new Error(`innerHTML 被写了：${value}`);
+  }
+
+  set outerHTML(value: string) {
+    throw new Error(`outerHTML 被写了：${value}`);
+  }
+
+  insertAdjacentHTML(_position: string, value: string): void {
+    throw new Error(`insertAdjacentHTML 被写了：${value}`);
+  }
+}
 
 test('frontmatter 里的值原样留着，不当成标记', () => {
   const blocks = parseMemoryBlocks('---\ntitle: <b>加粗</b>\n---\n\n正文');
