@@ -1438,15 +1438,15 @@ export class Simulation {
     if (building === undefined) {
       return { ok: false, message: `找不到那栋铺子。` };
     }
-    const path = this.pathFor(villager, this.cellOf(villager.pos), building.door);
-    if (path.length === 0) {
+    const route = this.routeTo(villager, building.door);
+    if (!route.there && route.path.length === 0) {
       const message = `${building.displayName} 门口走不过去。`;
       this.log('warn', message);
       return { ok: false, message };
     }
 
     const task = this.openTask(taskKind, summary, building.instanceId, villager.id);
-    this.routeToBuilding(villager, task, building, path);
+    this.routeToBuilding(villager, task, building, route.path);
 
     this.log('oracle', `神谕：${summary} → ${building.displayName}（${villager.name}）`);
     return { ok: true, message: `神谕已送达 ${building.displayName}。` };
