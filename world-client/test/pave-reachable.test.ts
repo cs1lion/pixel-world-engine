@@ -75,8 +75,9 @@ test('门就开在镇心上：也算连得出去', () => {
  * 一份只摆四栋楼的灯潮界：一栋 2×2 的「孤屋」，三栋 1×1 的墙把它围住。
  *
  * 围得住的前提是 `clearMargin: 0`——`clearMargin: 1` 时留白环让自由内部恒四连通、
- * 门口侧邻永不被封（`grid.ts:230-237`），这正是今天的前馈数据构造不出这个失败的
- * 原因。`clearMargin: 0` 是合法的（`blueprints.ts:45`），所以这不是一份假包。
+ * 门口侧邻永不被封（`grid.ts:258-266` 的 `canPlace`，margin 把周围几圈算进检查），
+ * 这正是今天的前馈数据构造不出这个失败的原因。
+ * `clearMargin: 0` 是合法的（`blueprints.ts:45`），所以这不是一份假包。
  *
  * 四栋都声明 `zone: 'industry'`：灯潮界的 `grid.zones` 拿 industry 盖住整张图
  * （`pack.ts:41`，x 1–62、y 1–46），只有 x 30–34 一条窄巷是 street。
@@ -137,7 +138,7 @@ test('灯潮界原封不动照样起得来：这是守卫，不是误杀', () =>
 });
 
 test('读档路不查这一条：存档是照着一份当年通过的世界写的', () => {
-  // 读档分支不铺路（`load.ts:127` 直接 grid.place），一份没铺路的格子上
+  // 读档分支不铺路（`load.ts:144` 直接 grid.place），一份没铺路的格子上
   // `grid.path` 当然大多是空的。拿它判，每一份旧存档都别想再打开。
   const pack = walledInPack();
   const buildings = buildSettingWorld(loadSettingPack(DENGCHAO_RAW)).buildings;

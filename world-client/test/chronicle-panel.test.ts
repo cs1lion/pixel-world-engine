@@ -353,6 +353,8 @@ class FakeElement {
   readonly dataset: Record<string, string> = {};
   readonly kids: FakeElement[] = [];
   readonly listeners: (() => void)[] = [];
+  /** 记下 `setAttribute` 的每一次调用。静默吞掉等于给 `onerror=` 开一道门。 */
+  readonly attributes: [string, string][] = [];
 
   readonly tag: string;
   readonly className: string;
@@ -375,7 +377,9 @@ class FakeElement {
     this.listeners.push(listener);
   }
 
-  setAttribute(): void {}
+  setAttribute(name: string, value: string): void {
+    this.attributes.push([name, value]);
+  }
 
   set innerHTML(value: string) {
     throw new Error(`innerHTML 被写了：${value}`);
@@ -394,6 +398,7 @@ class FakeElement {
 function fakeDocument(body: FakeElement): {
   pane(selector: string): FakeElement;
   querySelector(selector: string): FakeElement;
+  createElement(): never;
   addEventListener(): void;
   removeEventListener(): void;
 } {
@@ -410,6 +415,13 @@ function fakeDocument(body: FakeElement): {
   return {
     pane: nodeFor,
     querySelector: nodeFor,
+    // 谁绕过注进来的 factory 直接造节点，这里给一句点名的话。
+    // 早先这个假 document 根本没有 `createElement`，报的是
+    // 「document.createElement is not a function」——那句话既不提 textContent
+    // 也不提读者，看报错的人得自己倒推出「哦，它走了默认 factory」。
+    createElement(): never {
+      throw new Error('真 document.createElement 被调用了：这条路没走注进来的 factory');
+    },
     addEventListener(): void {},
     removeEventListener(): void {},
   };
@@ -435,6 +447,14 @@ test('真机那条渲染路也走注进来的 factory：列表与读者两处都
   const original = globalThis.document;
   const doc = fakeDocument(readerBody);
   globalThis.document = doc as unknown as Document;
+
+  // 渲染是 `void readEntry(row)` 起的火：它抛的东西不走 assert，走
+  // unhandledRejection。在这里接住，最后当断言判。
+  const rejections: unknown[] = [];
+  const onRejection = (reason: unknown): void => {
+    rejections.push(reason);
+  };
+  process.on('unhandledRejection', onRejection);
 
   try {
     const rows: MemoryEntryRow[] = [
@@ -488,21 +508,47 @@ test('真机那条渲染路也走注进来的 factory：列表与读者两处都
     row.listeners[0]!();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // 读者那处：正文块也走同一个 factory，原文一个字都没丢。
+    // 读者那处：**只看 readerBody 的孩子**，不看 `made`。
+    // 早先这里写的是 `made.some(node => node.textContent.includes(NEEDLES[0]))`，
+    // 而 `made` 里已经有列表那两行——`chronicle-row-title` 的 textContent 正好
+    // 等于 NEEDLES[0]，`chronicle-row-summary` 正好等于 NEEDLES[1]。一个字符串
+    // 当然 `includes` 它自己，于是这两条在读者被渲染之前就已经满足了。
+    // 实测：把上面那次点击整个删掉，它们照样过。那等于什么都没验。
+    const readerText = readerBody.kids.map((kid) => kid.textContent).join('\n');
+    assert.ok(readerBody.kids.length >= 2, '读者至少该渲染出标题与旁注两块');
+    assert.ok(readerText.includes(NEEDLES[0]!), '读者标题该走注进来的 factory');
+    assert.ok(readerText.includes(NEEDLES[1]!), '读者旁注该走注进来的 factory');
+    // 孩子只能是注进来的 factory 造出来的。走默认 factory 的那条路在这里现形：
+    // 它造的是真 HTMLElement，不是 FakeElement。
     assert.ok(
-      made.some((node) => node.textContent.includes(NEEDLES[0]!)),
-      '读者标题该走注进来的 factory',
-    );
-    assert.ok(
-      made.some((node) => node.textContent.includes(NEEDLES[1]!)),
-      '读者旁注该走注进来的 factory',
+      readerBody.kids.every((kid) => kid instanceof FakeElement),
+      '读者的孩子只能是注进来的 factory 造出来的节点',
     );
     // 没有一个是把上面的字符串当 HTML 解析出来的。
     assert.ok(
       made.every((node) => node.kids.every((kid) => kid instanceof FakeElement)),
       '孩子们只能是造出来的节点',
     );
+    // `setAttribute` 早先是个静默空函数，比没有它还糟：真 DOM 上
+    // `setAttribute('onerror', 服务端来的字)` 是会执行的。现在每次调用都记着。
+    // 造的节点上一个属性都不该有——服务端的字只走 textContent。
+    const onMadeNodes = made.flatMap((node) => node.attributes);
+    assert.deepEqual(onMadeNodes, [], 'factory 造出来的节点上一个属性都不该有');
+    // 而 document 钩子上那些是应用自己的开关字，不是数据。这条也顺带证明
+    // 「记下每次调用」不是句空话——如果哪天它又变回静默空函数，这里看不出来，
+    // 但上面那条照样在守真正要紧的那一侧。
+    assert.deepEqual(
+      doc.pane('#chronicle-open').attributes,
+      [['aria-expanded', 'true']],
+      '开抽屉该把 aria-expanded 翻成 true',
+    );
+    // 渲染路上不该有异步异常。`readEntry` 是 `void readEntry(row)` 起的火，
+    // 它抛的东西会变成 unhandledRejection——那是条没人看的报错，
+    // 所以在这里收成一条断言。
+    assert.deepEqual(rejections, [], '渲染路上不该有异步异常');
+    handle.dispose();
   } finally {
+    process.off('unhandledRejection', onRejection);
     globalThis.document = original;
   }
 });

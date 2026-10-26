@@ -21,6 +21,9 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node scripts/audit-palette.mjs --strict
+      # 行号引用对不上就红。文档与注释里写的「代码在那儿」得真的是在那儿——
+      # 这个仓库的信条是「说谎比不去更糟」，那句话也管仓库自己。
+      - run: node scripts/audit-references.ts --strict
 
   server:
     runs-on: ubuntu-latest
