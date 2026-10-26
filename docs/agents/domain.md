@@ -54,14 +54,15 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 ## 本仓库现状（single-context）
 
-2026-10-25 复核：
+2026-10-27 复核：
 
 - `GLOSSARY.md` — 不存在（按上面规则，先静默跳过，等 `/domain-modeling` 需要时再建）
 - `GLOSSARY-MAP.md` — 不存在 → 单上下文
-- `docs/adr/` — 不存在。本仓库目前还没有 ADR 目录，架构决策写在：
-  - `docs/SPEC.md` — v1 定稿（三层规则、潮汐、灯油、事件日志、记忆、存档）
-  - `docs/SPEC_DRAFT_20261025.md` — 定稿前的五轮 grill 结论
-  - `docs/MIGRATION_FROM_XIAOXI.md` — 从旧仓 `cs1lion/xiaoxi` 迁入时的实测盘点与差异
+- `docs/adr/` — 已建立（2026-10-26 起）。放的是**SPEC 之外**的取舍：SPEC 说的是
+  「做成什么样」，ADR 说的是「为什么不是另一种做法，以及另一种会坏在哪里」。
+  命名跟随仓库现有约定（`ADR_<主题>.md`，全大写下划线），不编号。
+  SPEC 与 ADR 冲突时，先看日期——晚的那个通常是在补前一个没考虑到的情况。
+  仍然以 `docs/SPEC.md` 为权威来源，ADR 只解释它没解释的那一半。
 - monorepo 信号（`pnpm-workspace.yaml` / 根 `package.json` 的 `workspaces` / `packages/*`）— 全无。
   `world-client/` 有自己的 `package.json`，但根目录没有 workspace 声明，仍是单上下文。
 
