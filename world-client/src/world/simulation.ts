@@ -31,6 +31,7 @@ import type { IntentModel } from './intent-router.ts';
 import type { ParsedIntent } from './intent-schema.ts';
 import { summarizeWorld } from './world-state.ts';
 import { summarizeForIntent } from './intent-context.ts';
+import type { GatedRegion } from './intent-context.ts';
 import { addTrail, visibleTrails, type TrailMap } from './trails.ts';
 import { carryKindFor } from './carry.ts';
 import { WILD_PREFABS } from './setup.ts';
@@ -222,6 +223,14 @@ export interface SimulationDeps {
     readonly carries?: readonly CarryItem[];
   }[];
   /**
+   * 地域 id → 给人看的叫法。喂模型的世界现状要用它说出「叠浪楼要一盏灯」。
+   *
+   * 网格只记 id 不记叫法（`SettingPack['regions']` 那段写明别让它背显示名），
+   * 所以这一份由拿着设定集的调用方给。省略时现状里那道门只说得出 id——
+   * 比不说好，但模型看到的是一个英文词。
+   */
+  readonly regionNames?: ReadonlyMap<string, string>;
+  /**
    * 蓝图注册表。造物神谕（「建一间书阁」）要用它把词换成模板。
    * 省略时造物神谕一律认不出——那是安全的降级，不是错误。
    */
@@ -387,6 +396,8 @@ export class Simulation {
   private readonly settledLog: SettledRecord[] = [];
   private readonly wallClock: () => number;
   private readonly blueprints: ReadonlyMap<string, PrefabBlueprint> | undefined;
+  /** 地域 id → 给人看的叫法。现状里说「叠浪楼」不说 `bathhouse`。 */
+  private readonly regionNames: ReadonlyMap<string, string> | undefined;
   private readonly intentModel: IntentModel | undefined;
   private readonly worldSize: { readonly width: number; readonly height: number };
   /** 回写出口。省略表示不记日志（离线/测试）。 */
@@ -428,6 +439,7 @@ export class Simulation {
     this.spawnBuilding = deps.spawnBuilding;
     this.wallClock = deps.wallClock ?? (() => Date.now());
     this.blueprints = deps.blueprints;
+    this.regionNames = deps.regionNames;
     this.intentModel = deps.intentModel;
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
@@ -858,7 +870,9 @@ export class Simulation {
         worldSize: this.worldSize,
         model,
         // 现取快照：这句话进队列时世界的样子。模型据此少犯「已有工坊还要建」这类错。
-        context: summarizeForIntent(this.snapshot()),
+        // 门也一起给：渡有仪式在世界上是真的，现状里不说，模型就不知道
+        // 「让她进得去」这句话该翻成 carry。
+        context: summarizeForIntent(this.snapshot(), this.gatedRegions()),
       });
       if (result.intent.kind === 'unknown') {
         // **原因要一路带到回执上。** 模型自己说了为什么听不懂，或者叫模型那一段
@@ -1797,6 +1811,20 @@ export class Simulation {
    */
   private pathFor(villager: Villager, from: GridPoint, to: GridPoint): GridPoint[] {
     return this.grid.path(from, to, gateFilter(villager.carries, (p) => this.grid.requirementAt(p)));
+  }
+
+  /**
+   * 世界上有几道门，各要什么、叫什么。喂模型的世界现状用。
+   *
+   * 从网格拿 id 与凭证，从设定集拿叫法——两处各是一个事实，这里只是对上。
+   * 没有门时返回空数组，现状里就一行都不多。
+   */
+  private gatedRegions(): GatedRegion[] {
+    return this.grid.gatedRegions().map((gate) => ({
+      id: gate.id,
+      name: this.regionNames?.get(gate.id) ?? gate.id,
+      needs: gate.needs,
+    }));
   }
 
   /**
