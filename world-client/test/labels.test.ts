@@ -36,6 +36,7 @@ function villager(over: Partial<VillagerSnapshot> = {}): VillagerSnapshot {
     carrying: null,
     lampOil: 1,
     nameState: 'held',
+    carries: [],
     ...over,
   };
 }

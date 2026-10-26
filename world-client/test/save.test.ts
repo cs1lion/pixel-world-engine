@@ -474,7 +474,8 @@ test('v4：四个槽位经 toSave → fromSave → 再 toSave 原样往返', () 
   a.enqueue({ kind: 'miracle', miracle: 'light' });
   a.update(16);
   assert.ok(a.toSave().world.props.length > 0, '先得有一件摆件可供往返');
-  // 直接改存档里的值（这一版还没有写 carries / grime 的命令），验证的是**搬运**而不是业务。
+  // 直接改存档里的值，验证的是**搬运**而不是业务：这些槽能不能原样读回来。
+  //（`carries` 与 `nameState` 现在都有命令可写了，`grime` 还没有——但那不影响搬运。）
   const save = a.toSave() as unknown as {
     world: {
       villagers: { lampOil: number; nameState: string; carries: string[] }[];

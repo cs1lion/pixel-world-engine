@@ -6,6 +6,7 @@ import { placeBlueprint, rehydratePalettes, WorldSetupError } from '../world/set
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import type { PlacedBuilding, TerrainId } from '../world/types.ts';
+import { CARRY_ITEMS } from '../world/save.ts';
 import type { RawSettingPack, SettingPack } from './types.ts';
 
 export class SettingPackError extends Error {}
@@ -83,6 +84,11 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     if (regionIds.has(region.id)) throw new SettingPackError(`区域重复 ${region.id}`);
     regionIds.add(region.id);
     if (region.w < 1 || region.h < 1 || region.x < 0 || region.y < 0 || region.x + region.w > width || region.y + region.h > height) throw new SettingPackError(`区域越界 ${region.id}`);
+    // 渡有仪式（SPEC_V2 §4.6）：requires 只能是闭集里的词。写错一个字母，
+    // 表现成「这道门谁也过不去」——比当场报错难查得多。
+    if (region.requires != null && !CARRY_ITEMS.includes(region.requires)) {
+      throw new SettingPackError(`区域 ${region.id} 的 requires 只能是 ${CARRY_ITEMS.join('/')} 或 null`);
+    }
   }
   const blueprints = parseBlueprintTable(raw.prefabs, palette);
   const placementIds = new Set<string>();

@@ -1,7 +1,7 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
-import type { GridPoint, PrefabBlueprint, TerrainId } from '../world/types.ts';
+import type { GridPoint, PrefabBlueprint, TerrainId, CarryItem } from '../world/types.ts';
 
 export interface SettingPlacement {
   readonly prefabId: string;
@@ -54,7 +54,16 @@ export interface SettingPack {
   readonly terrainColors: Readonly<Record<TerrainId, number>>;
   readonly grid: GridSpec;
   readonly terrain: readonly { readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly terrain: TerrainId }[];
-  readonly regions: readonly { readonly id: string; readonly name: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number }[];
+  readonly regions: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+    /** 渡有仪式：跨这道区界要带什么。缺省 / null = 不设卡。 */
+    readonly requires?: CarryItem | null;
+  }[];
   readonly blueprints: ReadonlyMap<string, PrefabBlueprint>;
   readonly placements: readonly SettingPlacement[];
   readonly hub: GridPoint;

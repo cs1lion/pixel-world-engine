@@ -19,6 +19,45 @@ class Storage implements StorageLike {
 
 const pack = loadSettingPack(DENGCHAO_RAW);
 
+// ------------------------------------------------------- 渡有仪式（SPEC_V2 §4.6）
+
+test('设定集可以给区域上一道门：requires 落到世界上，不设卡的区域照旧', () => {
+  // 渡口站台要灯。其余四个区域一个都没声明 requires——它们不能因此变成门。
+  const gated = loadSettingPack({
+    ...DENGCHAO_RAW,
+    regions: DENGCHAO_RAW.regions.map((region) =>
+      region.id === 'ferry' ? { ...region, requires: 'lamp' as const } : region,
+    ),
+  });
+
+  // (10,16) 只在渡口里——浅滩轨道（y<14）盖不住它，才不会拿到浅滩的「没门」。
+  const inside = { x: 10, y: 16 };
+  const outside = { x: 2, y: 2 };
+  const gatedGrid = buildSettingWorld(gated).grid;
+  assert.equal(gatedGrid.requirementAt(inside), 'lamp', '声明了 requires 的区域必须真的要东西');
+  assert.equal(gatedGrid.requirementAt(outside), null, '没声明的区域不设卡');
+
+  // 而灯潮界原封不动的那一份，渡口照样谁都能进。
+  assert.equal(
+    buildSettingWorld(pack).grid.requirementAt(inside),
+    null,
+    '不声明 requires 的老设定集不能被这一版改变',
+  );
+});
+
+test('requires 写错一个字母：当场拒绝，不留一道谁也过不去的门', () => {
+  assert.throws(
+    () =>
+      loadSettingPack({
+        ...DENGCHAO_RAW,
+        regions: [
+          { id: 'ferry', name: '渡口站台', x: 5, y: 8, w: 20, h: 10, requires: 'torch' as never },
+        ],
+      }),
+    /requires 只能是 lamp\/shoes 或 null/,
+  );
+});
+
 test('灯潮界：六栋建筑显式落位，五个语义区域不改建造分区', () => {
   const world = buildSettingWorld(pack);
   assert.equal(world.buildings.length, 6);

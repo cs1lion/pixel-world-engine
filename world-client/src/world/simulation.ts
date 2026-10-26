@@ -7,6 +7,7 @@
  */
 
 import type { WorldGrid } from './grid.ts';
+import { gateFilter } from './gate.ts';
 import { TASK_PROFILES, taskDurationFor } from './tasks.ts';
 import { pickVenue, type VenueCandidate } from './venue.ts';
 import { fogAt, revealedRadiusFor } from './fog.ts';
@@ -75,7 +76,7 @@ import type {
 } from './types.ts';
 import { excerptBlockedQuestion, ORACLE_SLAB_LIMIT } from './types.ts';
 import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
+import { CARRY_ITEMS, CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -184,7 +185,19 @@ export type WorldCommand =
    * （SPEC_V2 §4.6），欠债的来处留给日后的经济票。没有这条命令，
    * `nameState` 就是一个永远停在 `held` 的死字段。
    */
-  | { readonly kind: 'setNameState'; readonly villagerId: string; readonly nameState: NameState };
+  | { readonly kind: 'setNameState'; readonly villagerId: string; readonly nameState: NameState }
+  /**
+   * 把一个角色带着的东西设成 `carries`（灯、鞋）。
+   *
+   * 渡有仪式的另一半天。区域能要东西了，可没有这条命令，`carries` 就永远是
+   * 空数组，每一道门都是一堵永远的墙——那比没有门更糟：世界看着能走，
+   * 其实谁都走不动。灯与鞋从哪来交给设定集和日后的票，这里只交付
+   * 「她带着什么」这个状态位本身，理由同 `setNameState`。
+   *
+   * 整体替换而不是增删：白名单命令说出口的必须是完整事实，
+   * 「加一双鞋」那种半句会让世界和说话的人对不上账。
+   */
+  | { readonly kind: 'setCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] };
 
 export interface NewBuilding {
   readonly building: PlacedBuilding;
@@ -637,6 +650,8 @@ export class Simulation {
         return this.syncEvents(command.fold, command.connected);
       case 'setNameState':
         return this.setNameState(command.villagerId, command.nameState);
+      case 'setCarries':
+        return this.setCarries(command.villagerId, command.carries);
     }
   }
 
@@ -1179,7 +1194,7 @@ export class Simulation {
       }
       const building = this.buildings.find((item) => item.instanceId === chosen.instanceId);
       if (building === undefined) continue;
-      const path = this.grid.path(this.cellOf(villager.pos), building.door);
+      const path = this.pathFor(villager, this.cellOf(villager.pos), building.door);
       if (path.length === 0) continue;
       task.buildingId = building.instanceId;
       task.workerId = villager.id;
@@ -1356,7 +1371,7 @@ export class Simulation {
       const cell = this.cellOf(villager.pos);
       const door = shelterTarget(this.buildings, cell);
       if (door === null) continue;
-      const path = this.grid.path(cell, door);
+      const path = this.pathFor(villager, cell, door);
       if (path.length === 0) continue;
       villager.mode = 'sheltering';
       villager.path = path;
@@ -1403,7 +1418,7 @@ export class Simulation {
     if (building === undefined) {
       return { ok: false, message: `找不到那栋铺子。` };
     }
-    const path = this.grid.path(this.cellOf(villager.pos), building.door);
+    const path = this.pathFor(villager, this.cellOf(villager.pos), building.door);
     if (path.length === 0) {
       const message = `${building.displayName} 门口走不过去。`;
       this.log('warn', message);
@@ -1697,6 +1712,19 @@ export class Simulation {
    * 抵押者永远空闲，但接不了——把两个条件合成一个方法，就会在某个只想知道
    * 「她有空吗」的调用点上把抵押者误判成不可用（或反过来放过她）。
    */
+  /**
+   * 这个角色走这段路。
+   *
+   * 她带着什么决定哪道门她过不过得去：区域声明 `requires`，她兜里有 `carries`，
+   * 两边是同一套闭集词。世界不问她「有没有灯」——只把她带的和门要的对上，
+   * 对不上的格子 A* 当作不可走，于是路线自己绕开。
+   *
+   * 没有区域声明 `requires` 时这个过滤器处处放行，行为和从前逐字节一致。
+   */
+  private pathFor(villager: Villager, from: GridPoint, to: GridPoint): GridPoint[] {
+    return this.grid.path(from, to, gateFilter(villager.carries, (p) => this.grid.requirementAt(p)));
+  }
+
   private canTakeWork(villager: Villager): boolean {
     return this.isFree(villager) && villager.nameState !== 'pawned';
   }
@@ -1706,12 +1734,22 @@ export class Simulation {
     return this.villagers.find((villager) => this.canTakeWork(villager)) ?? null;
   }
 
-  /** 抵押或赎回名牌。只有这两态，写成布尔会读不懂。 */
+  /**
+   * 抵押或赎回名牌。只有这两态，写成布尔会读不懂。
+   *
+   * 抵押是**单向门**：她从此不会再空闲（空闲正是抽队列的时机），
+   * 所以抵押前必须把她名下的排队神谕交出去。否则那一单会躺到存档过期
+   * 都没人开工，而调用方还以为它已经排上了——那比当场拒掉更坏。
+   */
   private setNameState(villagerId: string, nameState: NameState): CommandResult {
     const villager = this.villagers.find((item) => item.id === villagerId);
     if (villager === undefined) return { ok: false, message: `没有 ${villagerId} 这个人。` };
     if (villager.nameState === nameState) {
       return { ok: true, message: `${villager.name}的名牌本来就是这样。` };
+    }
+    if (nameState === 'pawned') {
+      const blocked = this.rehomeQueuedDispatches(villager);
+      if (blocked !== null) return blocked;
     }
     villager.nameState = nameState;
     this.log(
@@ -1721,8 +1759,60 @@ export class Simulation {
     return { ok: true, message: nameState === 'pawned' ? `${villager.name}的名字押出去了。` : `${villager.name}赎回了名字。` };
   }
 
-  private snapshotVillager(villager: Villager): VillagerSnapshot {
-    return {
+  /**
+   * 把一个即将被抵押的角色名下的排队神谕转交给还没抵押的人。
+   *
+   * 候选是「名牌还在自己身上」而不是「此刻有空」：队列本来就排给忙人，
+   * 她一空出手就会开走。转不出去（人人抵押、或队队都满）就返回拒绝，
+   * 让调用方知道抵押没成——不能先抵押再悄悄把单子埋了。
+   */
+  private rehomeQueuedDispatches(villager: Villager): CommandResult | null {
+    const queue = this.pendingOf(villager);
+    if (queue.length === 0) return null;
+
+    for (const item of [...queue]) {
+      const target = this.villagers.find(
+        (candidate) =>
+          candidate.id !== villager.id &&
+          candidate.nameState !== 'pawned' &&
+          this.pendingOf(candidate).length < MAX_PENDING_DISPATCHES,
+      );
+      if (target === undefined) {
+        return {
+          ok: false,
+          message: `${villager.name}手上还排着 ${queue.length} 条神谕，没人接得住；先撤掉再抵押。`,
+        };
+      }
+      queue.splice(queue.indexOf(item), 1);
+      this.pendingOf(target).push({ ...item, villagerId: target.id });
+      this.log('info', `抵押前转交：${item.summary} → ${target.name}`);
+    }
+    return null;
+  }
+
+  /**
+   * 把她带着的东西整个换一遍。
+   *
+   * 白名单外的词当场拒：`carries` 是和区域 `requires` 对照的闭集，
+   * 放进一个不存在的词，表现成一道永远问「要什么」却永远对不上的门。
+   */
+  private setCarries(villagerId: string, carries: readonly CarryItem[]): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return { ok: false, message: `没有 ${villagerId} 这个人。` };
+    const unknown = carries.filter((item) => !CARRY_ITEMS.includes(item));
+    if (unknown.length > 0) {
+      return {
+        ok: false,
+        message: `世界上没有「${unknown.join('、')}」这种东西；带得动的只有 ${CARRY_ITEMS.join('、')}。`,
+      };
+    }
+    villager.carries = [...carries];
+    const held = carries.length === 0 ? '两手空空' : carries.join('、');
+    this.log('info', `${villager.name}现在带着：${held}。`);
+    return { ok: true, message: `${villager.name}现在带着${held}。` };
+  }
+
+  private snapshotVillager(villager: Villager): VillagerSnapshot {    return {
       id: villager.id,
       name: villager.name,
       mode: villager.mode,
@@ -1736,6 +1826,7 @@ export class Simulation {
       carrying: villager.carrying,
       lampOil: villager.lampOil,
       nameState: villager.nameState,
+      carries: [...villager.carries],
     };
   }
 
@@ -1759,7 +1850,7 @@ export class Simulation {
       case 'delivering':
         if (this.now >= villager.deliverUntil) {
           villager.mode = 'toAltar';
-          villager.path = this.grid.path(this.cellOf(villager.pos), this.altar);
+          villager.path = this.pathFor(villager, this.cellOf(villager.pos), this.altar);
           villager.bubble = null;
           if (villager.path.length === 0) this.arriveAtAltar(villager);
         }
@@ -1847,7 +1938,7 @@ export class Simulation {
       if (target.x === here.x && target.y === here.y) continue;
       villager.routineLabel = beat.label;
       villager.nextRoutineAt = this.now + beat.dwellMs;
-      villager.path = this.grid.path(here, target);
+      villager.path = this.pathFor(villager, here, target);
       if (villager.path.length > 0) return;
     }
     villager.nextRoutineAt = this.now + 1600;
@@ -2073,7 +2164,7 @@ export class Simulation {
     const free = this.villagers.find((item) => item.mode === 'idle' && item.path.length === 0);
     if (free === undefined) return;
 
-    const path = this.grid.path(this.cellOf(free.pos), this.altar);
+    const path = this.pathFor(free, this.cellOf(free.pos), this.altar);
     if (path.length === 0) return;
     free.mode = 'bearingDecree';
     free.path = path;

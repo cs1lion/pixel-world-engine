@@ -150,7 +150,9 @@ memory/
 
 ### 4.9 存档
 
-v3。新增 `tide.level`、`lampOil[id]`、`world_change_version`。
+v4。v3 新增 `tide.level`、`lampOil[id]`、`world_change_version`；v4 一次占了四个槽：
+`world.villagers[].nameState`（名牌 held/pawned）、`world.villagers[].carries[]`
+（lamp/shoes）、`world.props[].grime`、`world.props[].reveal`。
 v2 存档自动升级（默认 `tide=0.5`、`lampOil=full`），指纹重算。
 
 ## 5. 测试决策

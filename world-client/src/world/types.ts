@@ -327,6 +327,13 @@ export interface VillagerSnapshot {
   readonly lampOil: number;
   /** 名牌在谁手上。抵押者接不到新活（SPEC_V2 §4.6）。 */
   readonly nameState: NameState;
+  /**
+   * 她随身带着的东西，决定哪道门她过不过得去（SPEC_V2 §4.6）。
+   *
+   * 和 `carrying` 不是一回事：`carrying` 是干完活捎回来的视觉读感，
+   * 这个是通行凭证。`carrying` 可以随时变，这个只有白名单命令能改。
+   */
+  readonly carries: readonly CarryItem[];
 }
 
 /**

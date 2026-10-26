@@ -108,14 +108,17 @@ test("`'ledger'` 只作为存档格式的冻结值存在，不当概念用", () 
 
 test('世界的网络入口是封闭的一份清单', () => {
   // 旧世界自己 fetch 督办列表、自己开 WebSocket 收增量——传输细节漏进了逻辑层。
-  // 现在只剩两扇门，各自只做一件事：
-  //   - events-client.ts：读只增日志（任务从这条流里长出来）；
-  //   - intent-client.ts：把一句话发给意图模型（神谕那条路，与任务无关）。
+  // 现在只剩三扇门，各自只做一件事：
+  //   - events-client.ts：读只增日志（任务从这条流里长出来），并把世界做过的事回写；
+  //   - intent-client.ts：把一句话发给意图模型（神谕那条路，与任务无关）；
+  //   - memory-client.ts：读记忆目录（票据 #7 的编年史）。只读，不写——
+  //     写入走服务端，由「已经观测到的事」触发，不该由界面上的按钮触发。
   // 新增任何一扇门都必须先想清楚它是不是在重造已有的一扇。
   const ALLOWED = new Set([
     'world/events-client.ts',
     'world/feed.ts',
     'world/intent-client.ts',
+    'world/memory-client.ts',
   ]);
   const offenders: string[] = [];
   for (const file of files) {
@@ -149,21 +152,31 @@ test('潮汐逻辑不读墙钟', () => {
  * 画面上叠不叠噪点。一旦其中任何一个去问「现在几点」，同一个存档就回放不出
  * 同一条曲线——那正是 v1 以来一切确定性测试的地基。
  *
- * 这条扫描按**文件**而不是按函数：三个状态位散落在 simulation / grid / save 里，
- * 逐函数点名会漏掉新加的那一处。墙钟在世界里只有一个合法读者
- * （`Simulation.wallClock`，只喂 `settled.completedAt`），所以这里禁的是
- * 世界侧直接调时钟，不是「世界完全不知道时间」。
+ * 这条扫描按**文件**而不是按函数：三个状态位的声明和用法散落在 types / gate /
+ * simulation / grid / save / faith 里，逐函数点名会漏掉新加的那一处。
+ * 新开一个装 §4.6 状态的文件，就把它加进下面的 `OWNERS`。
  */
+const OWNERS = [
+  'world/types.ts', // 闭集词：NameState / CarryItem
+  'world/gate.ts', // 渡有仪式的判定
+  'world/simulation.ts', // 谁能接活、走哪条路
+  'world/grid.ts', // 区域 requires 与寻路过滤
+  'world/save.ts', // 三个位子的存档槽
+  'world/faith.ts', // 里程碑道具的 grime / reveal
+];
+
 /**
  * 墙钟在世界里只有一个合法读者：`Simulation` 构造时收下的那个注入函数
  * （`deps.wallClock ?? (() => Date.now())`）。它的产出只喂
  * `settled.completedAt`，不喂任何世界判定。所以扫描要放过这一行，
  * 禁的是**别处**直接去问时钟。
+ *
+ * 按整行匹配而不是按 `Date.now` 排除：这一行要是被改坏了（比如有人把默认值
+ * 挪去喂世界判定），它就不再等于这串字面量，扫描立刻咬住。
  */
 const WALL_CLOCK_DEFAULT = 'deps.wallClock ?? (() => Date.now())';
 
 test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
-  const OWNERS = ['world/simulation.ts', 'world/grid.ts', 'world/save.ts', 'world/faith.ts'];
   const banned = [
     'Date.now',
     'performance.now',

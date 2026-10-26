@@ -148,6 +148,51 @@ test('每个人都抵押时上游的活不落地，也不冒充「没人手」',
   assert.equal(open.length, 1, '上游的单还开着，等有资格的人');
 });
 
+// ------------------------------------------------------- 抵押时不埋排队的神谕
+
+test('抵押的人手上排着的神谕不跟着烂掉：转交给还能接活的人', () => {
+  const { sim } = makeSim();
+  run(sim, { kind: 'dispatch', taskKind: 'code', summary: '甲' });
+  run(sim, { kind: 'dispatch', taskKind: 'code', summary: '乙' });
+  run(sim, { kind: 'dispatch', taskKind: 'code', summary: '丙' });
+
+  const before = sim.snapshot();
+  const queued = before.pending.find((item) => item.summary === '丙');
+  assert.ok(queued !== undefined, '两条活都有人干了，第三条才该排队');
+  const owner = before.villagers.find((v) => v.id === queued.villagerId)!;
+  assert.notEqual(owner.taskId, null, '排队得排在手上有活的人名下');
+
+  // 抵押她。她再也不会空出手来——这条神谕不能跟着她躺到存档过期。
+  run(sim, { kind: 'setNameState', villagerId: owner.id, nameState: 'pawned' });
+
+  const after = sim.snapshot();
+  const moved = after.pending.find((item) => item.summary === '丙');
+  assert.ok(moved !== undefined, '神谕不该凭空消失');
+  const newOwner = after.villagers.find((v) => v.id === moved.villagerId)!;
+  assert.equal(newOwner.nameState, 'held', '排队的神谕必须落到没抵押的人头上');
+});
+
+test('没人能接手时，带着排队神谕的抵押被拒：不造一条永远不会开工的单', () => {
+  const { sim } = makeSim();
+  run(sim, { kind: 'dispatch', taskKind: 'code', summary: '甲' });
+  run(sim, { kind: 'dispatch', taskKind: 'code', summary: '乙' });
+  run(sim, { kind: 'dispatch', taskKind: 'code', summary: '丙' });
+
+  const before = sim.snapshot();
+  const queued = before.pending.find((item) => item.summary === '丙');
+  assert.ok(queued !== undefined);
+  const owner = before.villagers.find((v) => v.id === queued.villagerId)!;
+  const other = before.villagers.find((v) => v.id !== owner.id)!;
+
+  // 另一个先抵押。再抵押手上排着神谕的这位，就没人可交了。
+  pawn(sim, other.id);
+  const result = run(sim, { kind: 'setNameState', villagerId: owner.id, nameState: 'pawned' });
+
+  assert.equal(result.ok, false, '没人接得住这条神谕，抵押就该被拒');
+  assert.match(result.message, /神谕/);
+  assert.equal(sim.snapshot().villagers.find((v) => v.id === owner.id)!.nameState, 'held');
+});
+
 // ------------------------------------------------------------------ 存档
 
 test('抵押状态进存档、读档后还在：不会每次读档把她放回来接活', () => {

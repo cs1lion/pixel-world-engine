@@ -777,8 +777,11 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 
       // 污浊度 0..1：越界就是坏档，渲染层会照它叠噪点，1.4 层噪点会画到格子外。
       const grime = checkNumber(requireKey(prop, 'grime', path), `${path}.grime`, { min: 0 });
       if (grime > 1) fail(`${path}.grime`, `必须在 0..1，实际 ${grime}`);
-      // 洗干净后露出的那句话。没得可露就是 null；空串没有意义（那等于露了一句空白）。
-      checkStringOrNull(requireKey(prop, 'reveal', path), `${path}.reveal`, { allowEmpty: true });
+      // 洗干净后露出的那句话。没得可露就是 null；空串是第二套「没得可露」，
+      // 两种说法迟早有一处对不上，所以这里只认 null。
+      checkStringOrNull(requireKey(prop, 'reveal', path), `${path}.reveal`, {
+        allowEmpty: false,
+      });
     }
   });
 

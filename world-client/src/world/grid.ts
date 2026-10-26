@@ -4,7 +4,7 @@
  * 渲染层只读快照，不许自己改坐标。
  */
 
-import type { GridPoint, PrefabBlueprint, TerrainId, TileCell, ZoneId } from './types.ts';
+import type { CarryItem, GridPoint, PrefabBlueprint, TerrainId, TileCell, ZoneId } from './types.ts';
 import { WALK_COST, walkCostOf } from './terrain-cost.ts';
 import { shouldGrowTree } from './wilderness.ts';
 import { FLOODED_WALK_COST, isFlooded } from './tide.ts';
@@ -48,6 +48,14 @@ export interface GridSpec {
     readonly y: number;
     readonly w: number;
     readonly h: number;
+    /**
+     * 渡有仪式：进这道区域要带什么（SPEC_V2 §4.6）。
+     *
+     * 省略或 null 都是「没要」——莞尔镇的地域从来没有这一项，
+     * 它们不能因为这一版就变成门。寻路默认不设卡（`path` 的 `accept` 省略时
+     * 行为与从前完全一致），要卡谁由调用方按角色给。
+     */
+    readonly requires?: CarryItem | null;
   }[];
 }
 
@@ -76,6 +84,13 @@ export class WorldGrid {
    * A* 自己会绕开，真需要时仍然过得去。
    */
   private tideLevel = 0;
+  /**
+   * 每道区域要带什么才进得去。没有 `requires` 的区域不在这张表里。
+   *
+   * 建表时算一次，寻路时只查：A* 每展开一格都会问一遍，
+   * 每次去遍历 `spec.regions` 会让大世界的寻路平白多出几百次线性扫描。
+   */
+  private readonly requirements = new Map<string, CarryItem>();
 
   constructor(spec: GridSpec, wilderness?: { readonly center: GridPoint }) {
     this.width = spec.width;
@@ -116,6 +131,7 @@ export class WorldGrid {
       }
     }
     for (const region of spec.regions ?? []) {
+      if (region.requires != null) this.requirements.set(region.id, region.requires);
       for (let y = region.y; y < region.y + region.h; y += 1) {
         for (let x = region.x; x < region.x + region.w; x += 1) {
           const cell = this.at({ x, y });
@@ -143,6 +159,23 @@ export class WorldGrid {
 
   zoneOf(p: GridPoint): ZoneId {
     return this.at(p)?.zone ?? ZONE_DEFAULT;
+  }
+
+  /** 这一格属于哪道地域；不在任何地域里（或越界）时是 null。 */
+  regionIdAt(p: GridPoint): string | null {
+    return this.at(p)?.region ?? null;
+  }
+
+  /**
+   * 这一格要带什么才进得去。没设门的格子（含越界）返回 null。
+   *
+   * 与 `regionIdAt` 分开：多数格子属于某道地域，但只有少数地域有门。
+   * 寻路每格都问一次，直接返回需求比让调用方再查一次表省一趟。
+   */
+  requirementAt(p: GridPoint): CarryItem | null {
+    const region = this.at(p)?.region;
+    if (region === undefined) return null;
+    return this.requirements.get(region) ?? null;
   }
 
   isWalkable(p: GridPoint): boolean {
@@ -281,11 +314,27 @@ export class WorldGrid {
     return true;
   }
 
-  /** 4 邻域 A*。终点不可达时返回空数组（调用方自己决定怎么降级）。 */
-  path(start: GridPoint, goal: GridPoint): GridPoint[] {
+  /**
+   * 4 邻域 A*。终点不可达时返回空数组（调用方自己决定怎么降级）。
+   *
+   * `accept` 是**逐格**的通行许可：返回 false 的格子当作不可走。
+   * 渡有仪式用它把「没带凭证的区域」整体划掉，于是 A* 自己绕开，
+   * 而不是先给一条穿门的路、走了一半才发现过不去。
+   * 省略时行为与从前完全一致——门不拦任何人。
+   */
+  path(
+    start: GridPoint,
+    goal: GridPoint,
+    accept?: (p: GridPoint) => boolean,
+  ): GridPoint[] {
+    const passable = (p: GridPoint): boolean => {
+      const cell = this.at(p);
+      if (cell === undefined || !cell.walkable) return false;
+      return accept === undefined || accept(p);
+    };
     if (!this.inBounds(start) || !this.inBounds(goal)) return [];
     let target = goal;
-    if (!this.isWalkable(target)) {
+    if (!passable(target)) {
       const alt = this.nearestWalkable(target);
       if (!alt) return [];
       target = alt;
@@ -322,8 +371,7 @@ export class WorldGrid {
       const current = { x: currentIndex % this.width, y: Math.floor(currentIndex / this.width) };
       for (const step of ORTHOGONAL) {
         const next = { x: current.x + step.x, y: current.y + step.y };
-        const cell = this.at(next);
-        if (cell === undefined || !cell.walkable) continue;
+        if (!passable(next)) continue;
         const nextIndex = index(next);
         if (closed[nextIndex]) continue;
 
