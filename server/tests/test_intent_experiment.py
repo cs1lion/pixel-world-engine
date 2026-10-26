@@ -592,7 +592,35 @@ def test_哨子那一场说清自己只跑了一组(tmp_path) -> None:
         assert "0/0（—）" in line, f"{label} 这一场没跑，却给了个数：{line}"
 
 
-def test_只跑一组时不许多写进全套那一份(monkeypatch) -> None:
+def _refuse(monkeypatch, capsys, argv: list[str]) -> str:
+    """跑一遍 `main()`，确认它被 argparse 拦住，并把它那句抱怨原样带回。
+
+    只断言退出码是不够的：`main()` 还有一条路也回 2（没配 Key，写一张空表）。
+    少了「拦的是哪一句」，把守卫删掉、让脚本继续跑到没 Key 那儿，测试照绿——
+    而那时候它已经把一份 0 条的空表写进文档了。这不是假想：变异验证时删掉
+    `--limit` 那道拒绝，退出码断言真的没红，是加上这一句之后才红的。
+    """
+    monkeypatch.setattr(sys, "argv", ["intent_experiment.py", *argv])
+    with pytest.raises(SystemExit) as refused:
+        experiment.main()
+    assert refused.value.code == 2, "argparse 的拒绝是 2；别的码子不是它拦的"
+    return capsys.readouterr().err
+
+
+def _stand_in(monkeypatch, tmp_path) -> Path:
+    """把默认落点换成一份临时文件，再返回它。
+
+    这几条测的都是「不许写进默认路径」那道闸。闸万一失效，被写坏的必须是
+    一份临时文件，不能是仓库里那份全套 55 条的证据——变异验证时真的写坏过
+    一次（四张表没了，标题还是那个标题），所以这一步不是洁癖。
+    """
+    stand_in = tmp_path / "INTENT_EXPERIMENT.md"
+    stand_in.write_text("# 替身" + chr(10), encoding="utf-8")
+    monkeypatch.setattr(experiment, "DEFAULT_OUT", stand_in)
+    return stand_in
+
+
+def test_只跑一组时不许多写进全套那一份(monkeypatch, capsys, tmp_path) -> None:
     """一场 12 条的哨子把 `docs/INTENT_EXPERIMENT.md` 盖掉，是最坏的一种覆盖：
 
     标题还是那个标题，四张表还在，只是另外三组变成 0/0。读的人无从分辨。
@@ -601,7 +629,80 @@ def test_只跑一组时不许多写进全套那一份(monkeypatch) -> None:
     `parser.error` 抛 SystemExit(2)，所以这条断言的就是「它确实拦住了」。
     少了这一条，上一段话只是注释——把守卫删掉，测试照样全绿。
     """
-    monkeypatch.setattr(sys, "argv", ["intent_experiment.py", "--only", "out-of-bounds"])
-    with pytest.raises(SystemExit) as refused:
-        experiment.main()
-    assert refused.value.code == 2, "--only 写进默认路径时该被拦住"
+    _stand_in(monkeypatch, tmp_path)
+    err = _refuse(monkeypatch, capsys, ["--only", "out-of-bounds"])
+    assert "只跑一组" in err, f"拦的不是那一句：{err}"
+
+
+def test_只跑一组时相对路径也绕不过那道闸(monkeypatch, capsys, tmp_path) -> None:
+    """那道闸原先比的是**字符串**：`args.out == str(ROOT.parent / ...)`。
+
+    于是从仓库根目录跑一句 `--out docs/INTENT_EXPERIMENT.md`（相对路径）、
+    `./docs/...`、或者正斜杠拼的绝对路径，三样全都绕得过——而它们指向的
+    正是同一份文件。这份文档真的被那么盖掉过一次：四张表里三张变成 0/0，
+    标题还是那个标题，读的人无从分辨。
+
+    所以现在比的是解析之后的绝对路径。这条钉的正是「换几种写法都拦得住」，
+    少了它，把 `Path(...).resolve()` 删掉、改回字符串比较，测试照绿。
+    """
+    stand_in = _stand_in(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    for spelling in ("INTENT_EXPERIMENT.md", "./INTENT_EXPERIMENT.md", stand_in.as_posix()):
+        err = _refuse(monkeypatch, capsys, ["--only", "out-of-bounds", "--out", spelling])
+        assert "只跑一组" in err, f"这么写也该被拦住：{spelling}"
+
+
+def test_limit_与_only_一起用直接被拒(monkeypatch, capsys, tmp_path) -> None:
+    """`--limit` 先切前 N 条、`--only` 再滤，拿到的是那一组里一个**说不清是哪几条**的子集。
+
+    `--limit 30 --only out-of-bounds` 实际只跑 4 条，而表上写着
+    「越界请求被拒率 4/4（100%）」——看着这一组全过，其实十二条只问了四条，
+    而且问的是哪四条，从命令行上看不出来。证不明就不判：这个组合直接不收。
+
+    少了这一条，`rejected == total == 4` 会让 `main()` 交一个 0 出去，
+    脚本化的人会当成「必须 100%」那条硬条件成立。
+    """
+    out = tmp_path / "canary.md"
+    err = _refuse(
+        monkeypatch, capsys, ["--limit", "30", "--only", "out-of-bounds", "--out", str(out)]
+    )
+    assert "--limit" in err and "--only" in err, f"拦的不是那一句：{err}"
+
+
+def test_replay_路上那两个开关是死的_不许默默收下(monkeypatch, capsys, tmp_path) -> None:
+    """`_replay` 的 `with_context` 是从 dump 里每一条自己读的——那一场发没发现状，
+    只有那一场知道。命令行给了 `--with-context` 也不算；`--only` 更是从头到尾
+    不筛存档。默默收下一个不生效的开关，比没有这个开关糟：人会以为自己换了那一侧。
+
+    改说明文字时才用 `--replay`，那时候这两个开关确实一个都用不上。
+    """
+    dump = tmp_path / "dump.json"
+    dump.write_text("[]", encoding="utf-8")
+    out = tmp_path / "out.md"
+    for extra in (["--with-context"], ["--only", "legal"], ["--with-context", "--only", "legal"]):
+        err = _refuse(
+            monkeypatch, capsys, ["--replay", str(dump), "--out", str(out), *extra]
+        )
+        assert "不生效" in err, f"--replay 路上收了不生效的开关：{extra}"
+
+
+def test_说明文字两份同步_文档与脚本不许各说各话() -> None:
+    """`_WHY_IT_CHANGED` 与 `docs/INTENT_EXPERIMENT.md` 是同一段话的两份拷贝。
+
+    为什么要有两份：脚本默认就把文档写出来，说明文字得跟着文档一起走，
+    改了脚本不改文档，下一跑就把改动盖掉。代价就是会漂——
+    而漂了没有任何测试会红，因为两边都只是散文。
+
+    这条按 `##` 小节标题对：脚本里每一节都得在文档里找得到。
+    对的是标题不是全文——文档比脚本多几节（哨子、没问成、还不能回答），
+    那是有意的，反过来漏一节就是漂了。
+    """
+    doc = experiment.DEFAULT_OUT.read_text(encoding="utf-8")
+    sections = [
+        chunk.strip().split("\n", 1)[0].strip()
+        for chunk in experiment._WHY_IT_CHANGED.split("## ")
+        if chunk.strip()
+    ]
+    assert sections, "一段都没解析出来，这条测试等于没跑"
+    missing = [title for title in sections if title not in doc]
+    assert not missing, f"_WHY_IT_CHANGED 里这些节在文档里找不到：{missing}"
