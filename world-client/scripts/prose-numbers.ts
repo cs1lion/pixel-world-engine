@@ -38,7 +38,6 @@ interface Hit {
 
 const SRC = 'src';
 const TEST = 'test';
-const SCRIPTS = 'scripts';
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -76,8 +75,30 @@ function stripCode(line: string): string {
  */
 const NUM = /(?<![\w.])(\d+\.\d+|\d{2,}%?|\d+%)(?![\w])/g;
 
-/** 结构性坐标与编号，不是实测值。 */
-const SKIP = /(第\s*\d+\s*行|§\s*\d|ADR[-_ ]?\d|issue\s*#?\d|#\d)/i;
+/**
+ * 结构性坐标与编号，不是实测值。
+ *
+ * **片段级，不是整行级。** 第一版拿它当整行开关：`if (SKIP.test(raw)) return;`
+ * ——一行里出现 `§6` 就把整行丢了。可注释里「§6 缺口 2」与「77 万与 87% 还在那个
+ * 脚本第 6 行」常常同住一行，后者正是这个工具唯一该抓的东西，却因为同一行有个
+ * §号被一起丢掉。2026-10-28 在本仓实测：整行丢 568 处候选，改成先把这些片段
+ * 挖掉再数是 581 处——少的 13 处里有 `fog-view.ts` 的 `77 万`/`87%`、
+ * `fuse.ts` 的 `95%`、`palette-data.ts` 的两个 luma，全是量过的值。
+ * （**这三个数是 2026-10-28 那一刻的，加一个源文件就漂**——它们只为说明
+ * 「漏的是量过的值」，不承重。承重的是 `test/prose-numbers.test.ts`。）
+ * **而那 13 处是单调多出来的**：整行丢的时候这一行一条都不报，不存在
+ * 「改完反而漏掉」的那一侧。
+ *
+ * 所以下面只 `replace`，不 `test`。也因此它必须带 `g`：不带 `g` 只挖得掉第一处，
+ * 同一行第二个 `§4.1` 会留下一个 `.1`。而带 `g` 的正则被 `.test()`/`.exec()` 调会
+ * 留下 `lastIndex`，下一次测同一行就时灵时不灵——**别在这儿加 `.test()`**。
+ *
+ * 数字部分一律 `\d+` 而不是 `\d`：`ADR[-_ ]?\d` 只吃掉 `ADR-1`，`ADR-12345`
+ * 会剩一个 `2345` 变成假候选。`#\d+` 对十六进制色值（`#3a3f3b`）一样安全——
+ * 它只吃到 `#3`，剩下的 `a3f3b` 里没有连续两位数字。`§\s*\d+` 吃掉 `§4` 留下
+ * `.1`，而 `NUM` 的数字前有 `(?<![\w.])` 挡着，`.` 后面的单个数字不算。
+ */
+const SKIP = /(第\s*\d+\s*行|§\s*\d+|ADR[-_ ]?\d+|issue\s*#?\d+|#\d+)/gi;
 
 /** 源码文件 → 守卫它的测试文件们。 */
 function guardsFor(src: string, testFiles: readonly string[]): string[] {
@@ -103,7 +124,6 @@ function guardsFor(src: string, testFiles: readonly string[]): string[] {
 function main(): void {
   const srcFiles = walk(SRC);
   const testFiles = walk(TEST);
-  const scriptFiles = walk(SCRIPTS);
   const only = process.argv.includes('--file')
     ? process.argv[process.argv.indexOf('--file') + 1]
     : null;
@@ -114,8 +134,11 @@ function main(): void {
     if (only !== null && rel !== only) continue;
     const lines = readFileSync(f, 'utf8').split(/\r?\n/);
     const guards = guardsFor(f, testFiles);
-    /** 守卫文件里出现过的数字。审计脚本**不算**——25 个脚本里什么数都有，
-     *  把它们算进「 watched 」就等于没有判据（`96`、`24` 到处都有）。 */
+    /** 守卫文件里出现过的数字。审计脚本**不算**——`scripts/` 里什么数都有，
+     *  把它们算进「 watched 」就等于没有判据（`96`、`24` 到处都有）。
+     *  （原来这里写着「25 个脚本」。那个数今天对不上：`git ls-tree -r --name-only
+     *  HEAD -- scripts` 是 29 个。它在本文件里不承重，删掉——同文件头删掉
+     *  「全仓库 103 个测试文件」是同一条规矩。） */
     const watched = new Set<string>();
     for (const g of guards) {
       for (const m of readFileSync(g, 'utf8').matchAll(NUM)) watched.add(m[1]);
@@ -138,8 +161,8 @@ function main(): void {
 
     lines.forEach((raw, i) => {
       if (!/\/\/|\*|<!--/.test(raw)) return;
-      if (SKIP.test(raw)) return;
-      for (const m of stripCode(raw).matchAll(NUM)) {
+      // 先把结构性编号从这一行里挖掉，再在剩下的里数——见 SKIP 上面那段。
+      for (const m of stripCode(raw.replace(SKIP, '')).matchAll(NUM)) {
         const n = m[1];
         if (inCode.has(n)) continue;
         if (watched.has(n)) continue;
