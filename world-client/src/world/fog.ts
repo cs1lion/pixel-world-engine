@@ -82,3 +82,25 @@ export function revealedRadiusFor(deliveries: number): number {
   const steps = Math.floor(deliveries / DELIVERIES_PER_STEP);
   return Math.min(MAX_RADIUS, FOG_INITIAL_RADIUS + steps);
 }
+
+/**
+ * 盖住整张网格的揭示半径：一格迷雾都不剩。
+ *
+ * 只给设定集（`SettingPack.authored`）用。那种地图整张都是「已经到过的地方」——
+ * 渡口、灯街、积尘滩是一口气铺开的，中间留一片迷雾读起来像「这里还没长出来」。
+ * 旧镇的迷雾照旧由世界自己收敛，不走这条。
+ *
+ * 取 `width + height`，不是量出来的最小值。圆心落在网格**任意**位置时，最远那一格
+ * 隔 `hypot(w-1, h-1)`；两直角边之和永远不小于斜边，所以 `w + h` 对任何圆心都够
+ * （96×72 取 168，实际最远角隔 118.6）。取和而不取对角线 `hypot(w, h)`（=120）：
+ * 这个数只需要「够」，不需要紧，紧的那一档没有观众，而和式不用多引一个 `Math`。
+ *
+ * 「够」有锁：`fog.test.ts` 的「盖住整张网格」那条按三种真实网格逐格扫，
+ * 圆心取左上角——离所有格子最远的位置，所以那条过得去，任何圆心都过得去。
+ */
+export function wholeGridRadius(grid: {
+  readonly width: number;
+  readonly height: number;
+}): number {
+  return grid.width + grid.height;
+}

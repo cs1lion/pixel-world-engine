@@ -4,9 +4,10 @@ import {
   FOG_INITIAL_RADIUS,
   fogAt,
   revealedRadiusFor,
+  wholeGridRadius,
   type FogState,
 } from '../src/world/fog.ts';
-import { LARGE_ALTAR, LARGE_WORLD_SPEC } from '../src/world/setup.ts';
+import { LARGE_ALTAR, LARGE_WORLD_SPEC, SMALL_WORLD_SPEC } from '../src/world/setup.ts';
 
 const CENTER = { x: 40, y: 30 };
 const state = (radius: number): FogState => ({ center: CENTER, revealedRadius: radius });
@@ -110,4 +111,65 @@ test('揭示半径增长是阶梯的，不是每单都变', () => {
   assert.equal(revealedRadiusFor(4), revealedRadiusFor(7), '4 与 7 应落在同一档');
   // 跨档才变。
   assert.ok(revealedRadiusFor(8) > revealedRadiusFor(7), '跨档应当变大');
+});
+
+// ------------------------------------------------- 整图可见（设定集专用）
+
+/**
+ * 仓库里真有的三种网格形状，不编尺寸：
+ * 96×72 是默认世界上限（`LARGE_WORLD_SPEC`），30×20 是小世界（`SMALL_WORLD_SPEC`），
+ * 64×48 是灯潮界（`docs/` 下的设定集）。第三种写死而不引常量，因为它在 `src/` 里
+ * 没有对应的规格对象——引不到就不要假装引到了。
+ */
+const GRID_SHAPES = [
+  { width: LARGE_WORLD_SPEC.width, height: LARGE_WORLD_SPEC.height },
+  { width: 64, height: 48 },
+  { width: SMALL_WORLD_SPEC.width, height: SMALL_WORLD_SPEC.height },
+];
+
+/**
+ * 网格里是否有一格在迷雾里。
+ *
+ * 圆心固定取左上角 (0,0)——那是离**所有**格子都最远的位置。所以「连这个圆心
+ * 都盖得住」比「祭坛当圆心盖得住」强：后者只证明了一个圆心，前者证明了任意圆心。
+ */
+function anyFoggy(grid: { readonly width: number; readonly height: number }, radius: number): boolean {
+  const center = { x: 0, y: 0 };
+  for (let y = 0; y < grid.height; y += 1) {
+    for (let x = 0; x < grid.width; x += 1) {
+      if (fogAt({ x, y }, { center, revealedRadius: radius })) return true;
+    }
+  }
+  return false;
+}
+
+test('盖住整张网格的半径：设定集的地图整张都该是「已经到过的地方」', () => {
+  for (const grid of GRID_SHAPES) {
+    const radius = wholeGridRadius(grid);
+    assert.equal(
+      anyFoggy(grid, radius),
+      false,
+      `半径 ${radius} 盖不住 ${grid.width}×${grid.height}：还有格子在迷雾里，` +
+        `而设定集的注释声称整张图都是已经到过的地方`,
+    );
+  }
+});
+
+test('整图半径的对照：只给一个宽，角上就漏回迷雾', () => {
+  // 反面对照，证明上一条**会红**。上一条只断言「没有雾」，单看它像句永远为真的话；
+  // 这一条把尺子架在**宽**上——圆心在左上角时最远那一格比宽远（96×72 是 118.6
+  // 对 96），所以「return grid.width」这种实现会让上一条红在这儿。
+  //
+  // 它**不**防「取个大到离谱的数」：`revealedRadius` 的所有下游（`fogAt`、
+  // `fog-view` 的渐隐、`fog-drift` 的烟圈半径）都只会「更大 = 揭得更开」，
+  // 取 Infinity 与取 168 在画面上没有区别。那不是这条声称要防的失败，
+  // 所以别把它写成这条的理由——写了的后果是下一个人真去防它，然后发现防不住。
+  for (const grid of GRID_SHAPES) {
+    assert.equal(
+      anyFoggy(grid, grid.width),
+      true,
+      `${grid.width}×${grid.height} 在半径=宽 时居然没有迷雾——这条对照失效了，` +
+        `说明这个形状量不出「宽不够」，上一条也就没有了牙齿`,
+    );
+  }
 });

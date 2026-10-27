@@ -338,9 +338,16 @@ try {
   /* ---------------- 前置自检：世界必须处于初始态 ----------------
    *
    * 注意：**不能**要求 localStorage 为空。SandboxScene.maybeAutoSave() 的
-   * `due` 分支（`SandboxScene.ts:852`）用 `lastSaveAt = Number.NEGATIVE_INFINITY`
-   * （`:130`）起步，首帧 `now - (-Infinity) = Infinity >= 30000` 恒为真，
+   * `due` 分支（`SandboxScene.ts` 里 `const due = this.snapshot.now - this.lastSaveAt >= 30_000`
+   * 那句）用 `lastSaveAt = Number.NEGATIVE_INFINITY`（同文件 `private lastSaveAt` 那句）起步，
+   * 首帧 `now - (-Infinity) = Infinity >= 30000` 恒为真，
    * 所以任何干净启动都会在**首帧立刻自动存一次档**——这是设计行为，不是脏档。
+   *
+   * （这两处原来写的是行号 852 与 130。852 先烂的：往 `SandboxScene.ts` 里加方法
+   *  把行数推下去，它落到一段空行上，审计响了一声。130 烂得悄无声息——它指着
+   *  `private lastAdvanceAt = 0;`，另一行**有代码**的别行；`audit-references.ts`
+   *  的 `hasCode()` 只判「那段不是空行、不只是括号」，注释行都算过关，所以照样
+   *  报 0 处存疑。两处都改成引原句：原句被删或被改时字符串搜不到，那才会响。）
    * 因此这里断的是「世界内容处于初始态」，存档槽只验「若存在则必须是初始档」。
    */
 

@@ -26,7 +26,7 @@ import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
 import { shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '../render/eco-mode.ts';
-import { fogAt } from '../world/fog.ts';
+import { fogAt, wholeGridRadius, type FogState } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
 import { BIOME_RADII } from '../world/biomes.ts';
@@ -807,11 +807,33 @@ export class SandboxScene extends Phaser.Scene {
    * 各写一遍就会漏掉其中一条，而漏掉的那条会在真机上表现为
    * 「预览说可以，确认却建到了不该建的地方」。
    */
+  /**
+   * 玩家**看得见**的那片迷雾。
+   *
+   * 设定集（`authored`）的地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是
+   * 一口气铺开的，留一片迷雾在中间会读成「这里还没长出来」。所以视图把半径给到
+   * 盖住整张图。旧镇的迷雾照旧由世界自己收敛。
+   *
+   * 建造闸必须读**这一个**，不能读 `this.snapshot.fog`。原先视图盖了、闸没盖：
+   * 画面上一点雾都没有，玩家把指针放到 38 格外的空地，却被回一句
+   * 「那里还没长出来，先让世界走到那儿」——那句话指着屏幕上不存在的东西。
+   * 灯潮界实测有 37 个 industry 格在 38 格外（最远 41.77），这个坑踩得到。
+   *
+   * 半径本身为什么够盖住整张图，见 `wholeGridRadius`——那儿有逐格扫的锁。
+   */
+  private visibleFog(): FogState {
+    if (this.pack?.authored !== true) return this.snapshot.fog;
+    return {
+      ...this.snapshot.fog,
+      revealedRadius: wholeGridRadius(this.world.grid),
+    };
+  }
+
   private canPlaceBlueprintHere(
     blueprint: PrefabBlueprint,
     cell: GridPoint,
   ): { ok: true } | { ok: false; message: string } {
-    if (fogAt(cell, this.snapshot.fog)) {
+    if (fogAt(cell, this.visibleFog())) {
       return { ok: false, message: '那里还没长出来，先让世界走到那儿。' };
     }
     const check = checkPlacement(this.world.grid, blueprint, cell);
@@ -1230,11 +1252,8 @@ export class SandboxScene extends Phaser.Scene {
     );
     // 设定集地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是一口气铺开的，
     // 留一片迷雾在中间会读成「这里还没长出来」。半径给到盖住整张图即可，
-    // 旧镇的迷雾照旧由世界自己收敛。
-    const fog = this.pack?.authored === true
-      ? { ...this.snapshot.fog, revealedRadius: this.world.grid.width + this.world.grid.height }
-      : this.snapshot.fog;
-    this.fogView.update(fog, this.snapshot.now);
+    // 旧镇的迷雾照旧由世界自己收敛。理由与建造闸共用一处，见 `visibleFog`。
+    this.fogView.update(this.visibleFog(), this.snapshot.now);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {
