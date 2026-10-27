@@ -33,7 +33,16 @@ import {
   type Perceiver,
   type PlaceAnchor,
 } from './perception.ts';
-import { deleteCascade, writeModeOf, type DeletionReport, type DeletionRoot } from './privacy.ts';
+import {
+  cascadeBeliefs,
+  cascadeClaims,
+  cascadeLegends,
+  cascadeTraces,
+  deleteCascade,
+  writeModeOf,
+  type DeletionReport,
+  type DeletionRoot,
+} from './privacy.ts';
 import {
   announcementReach,
   canFanout,
@@ -913,20 +922,60 @@ export class MemoryWorld {
 
   // ---------------------------------------------------------------- 删除
 
+  /**
+   * 删一个根，沿五条库一路清下去。
+   *
+   * 协议第 15 节第 1 条点名的派生物是五样：**记忆、摘要、信念副本、痕迹、
+   * 传说**。原先这里只调了 `deleteCascade`，另外四样一样没碰，而
+   * `counts.traces` / `counts.legends` 是**写死的 0**、`counts.claims` 是
+   * `root.kind === 'claim' ? 1 : 0` 拍出来的——于是 `memory.deleted` 事件
+   * 向外面汇报「清了两条记忆，别的一切正常」，而实际上别的一样没看。
+   *
+   * 实测（10 人村、一件全员目击的大事、跑 7 天）删完之后：
+   * 11 条信念还挂着那个 `event_ref`（村里每人嘴里还当它真）、
+   * 1 道焦痕还在（`lookAtTraces` 照旧从它推断出事故并写成新记忆）、
+   * 1 条传说的 `eventRefs` 还指着它、`createClaimFrom` 对同一个事件
+   * **照样成功**——删掉的事实在靠四条通道同时复活。
+   *
+   * 顺序有讲究：先摘记忆（`deleteCascade` 要读 `derivedFrom`），再清另外
+   * 四库，最后拿掉事件根本身。事实一拿走，`createClaimFrom` 自己就返回
+   * `null` 了——§15 末行「不得再次被整理写回」不用另立一道闸。
+   */
   delete(root: DeletionRoot): DeletionReport {
-    const claimIds = new Set(this.claims.keys());
-    const result = deleteCascade(this.entries, root, claimIds);
-    this.entries = [...result.entries] as MemoryEntry[];
+    const cascaded = deleteCascade(this.entries, root);
+    this.entries = [...cascaded.entries] as MemoryEntry[];
+
+    const beliefs = cascadeBeliefs(this.beliefs, root);
+    this.beliefs = [...beliefs.beliefs] as Belief[];
+
+    // 痕迹按地点分库存。删一个事件只动它落过的那些地方，别处的 stack 不动。
+    let tracesRemoved = 0;
+    for (const [placeId, layers] of this.traces) {
+      const next = cascadeTraces(layers, root);
+      if (next.removed.length === 0) continue;
+      tracesRemoved += next.removed.length;
+      this.traces.set(placeId, [...next.layers]);
+    }
+
+    const legends = cascadeLegends(this.legends, root);
+    this.legends = [...legends.legends] as Legend[];
+
+    const claims = cascadeClaims([...this.claims.values()], root);
+    for (const claimId of claims.removed) this.claims.delete(claimId);
+
+    // 事件根才拿事实。记忆与断言被删时，别的事件还好好在那儿。
+    if (root.kind === 'event') this.facts.delete(root.id);
 
     const counts = {
-      memories: result.report.removedMemoryIds.length,
-      summaries: result.report.redactedMemoryIds.length,
-      claims: root.kind === 'claim' ? 1 : 0,
-      traces: 0,
-      legends: 0,
+      memories: cascaded.report.removedMemoryIds.length,
+      summaries: cascaded.report.redactedMemoryIds.length,
+      beliefs: beliefs.removed.length,
+      claims: claims.removed.length,
+      traces: tracesRemoved,
+      legends: legends.removed.length + legends.stripped.length,
     };
     this.emit('memory.deleted', this.currentDay * this.config.dayMs, { rootId: root.id, counts });
-    return { ...result.report, counts };
+    return { ...cascaded.report, counts };
   }
 
   // ------------------------------------------------------------ 内部件
