@@ -4,7 +4,7 @@
  * 没发生就不写，不用"今天很平静"这种填充句糊过去。
  */
 
-import type { TaskRecord, WorldSnapshot } from './types.ts';
+import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
 import { describePropSource } from './faith.ts';
 
 export interface DailyReport {
@@ -140,12 +140,19 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
 
   const weather =
     snapshot.weather === 'clear'
-      ? '今天晴'
+      ? '外头晴着'
       : snapshot.weather === 'storm'
-        ? '今天刮了暴雨'
-        : '今天下了雨';
+        ? '外头刮着暴雨'
+        : '外头下着雨';
   lines.push(`${weather}。${villagerTail(snapshot)}`);
 
+  // 天气那一句不带时间词，理由是同一条：`snapshot.weather` 是**这一拍**的读数，
+  // 而世界钟里没有"天"——`formatDate` 打的是「第 N 分 MM 秒」，只增不减、
+  // 从不翻篇（实测 now 走到 18000000 仍是「第 300 分」，没有第二天）。
+  // 旧措辞「今天晴」「今天下了雨」断言了一个世界上不存在的单位；「下了雨」
+  // 还多一层过去时——晴着的那一拍，无从知道今天早些时候下没下过。
+  // 改成现在时：外头晴着 / 下着雨 / 刮着暴雨，全都只描述手里这一拍。
+  //
   // 没有里程碑时不能写"第 1 次神恩"：那是还没发生的事。
   //
   // 头条也不许带时间词，理由同上面那句「新起」：报纸是现算的，日期跟着世界钟走，
@@ -154,12 +161,21 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // 数在内。于是「今日有交付」会在一个今天什么都没交付的会话里说今天有交付；
   // 「世界刚醒来」则在钟走了很远、仍然一单未交付时继续说刚醒来。
   // 攒满里程碑那条本来是干净的（数的是已经落地的次数，不带时间词），不动。
+  //
+  // 「世界还没动静」这半句也不许只看那两计数：实测零交付、零里程碑而神迹树的
+  // 照片已经落在祭坛边（props=1），同一份报纸的第二行正写着「一棵神迹种的树
+  // 已经落在祭坛边」——头条说没动静，纸上别处写着它动过。所以把 props、
+  // 开局后起的楼、没办成的单一起算进"动没动过"；真的什么都没发生才这么说。
+  const changed =
+    snapshot.props.length > 0 || newBuildings.length > 0 || failed.length > 0;
   const headline =
     snapshot.faith.milestones > 0
       ? `第 ${snapshot.faith.milestones} 次神恩已落地`
       : delivered > 0
         ? '已有交付'
-        : '世界还没动静';
+        : changed
+          ? '镇子上已经有了变化'
+          : '世界还没动静';
 
   return {
     headline,
@@ -175,26 +191,66 @@ export function formatDate(nowMs: number): string {
   return `第 ${minutes} 分 ${String(seconds).padStart(2, '0')} 秒`;
 }
 
-/** 多角色收尾：谁在忙、谁在祭坛，都按名字写清；全闲/全忙各有可读措辞。 */
+/**
+ * 多角色收尾：谁在忙、谁在做什么，都按名字写清。
+ *
+ * 闲人那一半**不许**一律写「在祭坛边坐着」。实测两个村民跑 8000 拍，
+ * 这话在 7766 拍上是假的——她在农田边、街口、屋檐下，纸上说她在祭坛。
+ * 而且 `VillagerSnapshot.routine` 一直有值（16000 拍里 15964 拍有牌子），
+ * 字段注释写明「没活干时她在做什么，给纸面状态行用」——纸上本该用它，
+ * 自己另编一句位置，等于把世界已经说过的那句话盖掉。
+ */
 function villagerTail(snapshot: WorldSnapshot): string {
   const states = snapshot.villagers.map((villager) => ({
     villager,
     task: snapshot.tasks.find((item) => item.id === villager.taskId),
   }));
   const busy = states.filter((item) => item.task !== undefined);
-  const idleNames = states
-    .filter((item) => item.task === undefined)
-    .map((item) => item.villager.name);
-  if (busy.length === 0) {
-    return snapshot.villagers.length > 1
-      ? `${idleNames.join('、')}都在祭坛边坐着。`
-      : '在祭坛边坐着。';
-  }
+  const idle = states.filter((item) => item.task === undefined);
+  if (busy.length === 0) return `${idleClauses(idle, snapshot).join('、')}。`;
   const parts = busy.map(
     ({ villager, task }) => `${villager.name}手上是「${task?.summary ?? ''}」`,
   );
-  if (idleNames.length > 0) parts.push(`${idleNames.join('、')}在祭坛边坐着`);
+  if (idle.length > 0) parts.push(idleClauses(idle, snapshot).join('、'));
   return `${parts.join('，')}。`;
+}
+
+/** 一句话能不能并成「A、B都……」：带标点的牌子并起来不是话。 */
+function mergeable(body: string): boolean {
+  return body !== NOT_SOMEWHERE && !/[，。！？；、]/.test(body);
+}
+
+const NOT_SOMEWHERE = '这会儿没个准地方';
+
+/**
+ * 闲人们在干什么。只写查过的，不猜。
+ *
+ * 牌子是世界自己对这一幕的说法，优先用它——它连动词带地点都是世界算出来的。
+ * 没有牌子时才轮到纸上判断位置，而且只判手上有坐标可比的那一个点：
+ * 人在祭坛格上才说「在祭坛边坐着」，不在就只说"没个准地方"，
+ * 不给她安一个没查过的去处。
+ */
+function idleClauses(
+  idle: readonly { readonly villager: VillagerSnapshot }[],
+  snapshot: WorldSnapshot,
+): string[] {
+  const groups = new Map<string, string[]>();
+  for (const { villager } of idle) {
+    const body =
+      villager.routine ??
+      (Math.floor(villager.pos.x) === snapshot.altar.x &&
+      Math.floor(villager.pos.y) === snapshot.altar.y
+        ? '在祭坛边坐着'
+        : NOT_SOMEWHERE);
+    const names = groups.get(body);
+    if (names === undefined) groups.set(body, [villager.name]);
+    else names.push(villager.name);
+  }
+  // 同样的一句话并成一组：两个人都祭坛边坐着时，「莞尔、阿雾都在祭坛边坐着」
+  // 比把同一句写两遍可读。原来那句不可读的根源不是写法，是内容不真。
+  return [...groups].map(([body, names]) =>
+    names.length > 1 && mergeable(body) ? `${names.join('、')}都${body}` : names.map((name) => `${name}${body}`).join('、'),
+  );
 }
 
 export { LINE_LIMIT };

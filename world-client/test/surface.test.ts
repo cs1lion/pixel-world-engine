@@ -59,22 +59,29 @@ test('还没交付时，日报说实话，不用填充句', () => {
 });
 
 test('日报把暴雨写出来，不把三档折成「下没下雨」', () => {
-  // 三元判断 `=== 'rain' ? '今天下了雨' : '今天晴'` 会把暴雨写成「今天晴」——
-  // 加第三档时最容易漏的正是这种不是 switch 的地方。
+  // 三元判断 `=== 'rain' ? '下着雨' : '晴着'` 会把暴雨写成晴——加第三档时最容易漏的
+  // 正是这种不是 switch 的地方。
+  //
+  // 这一句也不带「今天」：`snapshot.weather` 是**这一拍**的读数，而世界钟里没有天
+  // （`formatDate` 打「第 N 分 MM 秒」，只增不减、从不翻篇）。「今天晴」断言了一个
+  // 世界上不存在的单位，「今天下了雨」还多一层过去时——晴着的那一拍无从知道早些
+  // 时候下没下过。所以只说手里这一拍：晴着 / 下着雨 / 刮着暴雨。
   const sim = makeSim();
   const snapshot = (): ReturnType<Simulation['snapshot']> => sim.snapshot();
   const weatherLine = (): string =>
-    composeReport(snapshot()).lines.find((line) => line.includes('今天')) ?? '';
+    composeReport(snapshot()).lines.find((line) => /外头(晴着|下着雨|刮着暴雨)/.test(line)) ?? '';
 
-  assert.match(weatherLine(), /今天晴/);
+  assert.match(weatherLine(), /外头晴着/);
 
   sim.enqueue({ kind: 'setWeather', weather: 'rain' });
   sim.update(16);
-  assert.match(weatherLine(), /今天下了雨/);
+  assert.match(weatherLine(), /外头下着雨/);
 
   sim.enqueue({ kind: 'setWeather', weather: 'storm' });
   sim.update(16);
-  assert.match(weatherLine(), /今天刮了暴雨/);
+  assert.match(weatherLine(), /外头刮着暴雨/);
+  // 三档都不许带时间词：世界上没有"今天"这个单位可比。
+  assert.doesNotMatch(weatherLine(), /今天|昨日|刚才/);
 });
 
 test('交付一单之后，日报写的是这单本身', () => {
@@ -209,8 +216,9 @@ test('上游单按实际接单的角色分账', () => {
   assert.ok(line.includes('上游 1'), line);
 });
 
-test('日报收尾写清谁在忙、谁在祭坛', () => {
-  // 两个人都在祭坛：措辞要能读。
+test('日报收尾写清谁在忙、谁在做什么——不把闲人一律说成在祭坛', () => {
+  // 两个人都空着且都在祭坛：措辞要能读。这一条能成立是因为**查过坐标**：
+  // 开局那一拍两人真在祭坛格上（15,9）。旧写法不看坐标，见下面那条。
   const idle = composeReport(makeSim().snapshot());
   assert.ok(
     idle.lines.some((line) => line.includes('莞尔、阿雾都在祭坛边坐着')),
@@ -241,6 +249,54 @@ test('日报收尾写清谁在忙、谁在祭坛', () => {
   );
 });
 
+test('闲人不在祭坛时，收尾照她本当在做的事说，不按祭坛说', () => {
+  // 旧写法是 `idleNames.join('、') + '都在祭坛边坐着'`，一个坐标都不查。
+  // 实测两个村民跑 8000 拍，这句话在 7766 拍上是假的：人在农田边、街口、
+  // 屋檐下，纸上说人在祭坛。而 `routine` 那 15964/16000 拍一直有值，
+  // 字段注释写明「给纸面状态行用」——纸上本该用它。
+  const sim = makeSim();
+  // 跑到「有人空着、有牌子、且人不在祭坛格上」那一拍再问。起手那一拍两人都在祭坛，
+  // 而刚挂上牌子时人也才起身——不到时候问，问到的还是祭坛。
+  let snapshot = sim.snapshot();
+  const away = (s: ReturnType<Simulation['snapshot']>): boolean =>
+    s.villagers.some(
+      (villager) =>
+        villager.taskId === null &&
+        villager.routine !== null &&
+        (Math.floor(villager.pos.x) !== s.altar.x || Math.floor(villager.pos.y) !== s.altar.y),
+    );
+  for (let guard = 0; guard < 600 && !away(snapshot); guard += 1) {
+    sim.update(100);
+    snapshot = sim.snapshot();
+  }
+  const idle = snapshot.villagers.filter((villager) => villager.taskId === null);
+  assert.equal(idle.length, 2, '夹具：两个人都空着');
+  // 夹具真的造出了"人不在祭坛"：都在祭坛的话这条测试就没在问它想问的。
+  assert.ok(away(snapshot), `没等到有人离开祭坛：${idle.map((v) => `${v.name}@${v.pos.x},${v.pos.y}`).join(' ; ')}`);
+
+  const report = composeReport(snapshot);
+  const tail = report.lines.find((line) => /外头/.test(line)) ?? '';
+  // 纸上说的每一句，都得是那个人自己的牌子。
+  for (const villager of idle) {
+    if (villager.routine === null) continue;
+    assert.ok(
+      tail.includes(`${villager.name}${villager.routine}`),
+      `纸上没照 ${villager.name} 的牌子说话：${tail}`,
+    );
+  }
+  // 也不许把不在祭坛的人说成在祭坛。
+  for (const villager of idle) {
+    const atAltar =
+      Math.floor(villager.pos.x) === snapshot.altar.x &&
+      Math.floor(villager.pos.y) === snapshot.altar.y;
+    if (atAltar) continue;
+    assert.ok(
+      !tail.includes(`${villager.name}在祭坛边坐着`),
+      `${villager.name} 不在祭坛，纸上说她在：${tail}`,
+    );
+  }
+});
+
 test('攒满里程碑后，标题写的是已经落地的那次神恩', () => {
   const sim = makeSim();
   for (let i = 0; i < 3; i += 1) {
@@ -261,6 +317,31 @@ test('日报会写上开局之后起的楼与落地的东西', () => {
   sim.update(16);
   const report = composeReport(sim.snapshot());
   assert.ok(report.lines.some((line) => line.includes('开局之后造物主起了 1 栋楼')));
+});
+
+test('神迹落了地而一单未交，头条不许说「世界还没动静」', () => {
+  // 旧判据只看 `milestones === 0 && delivered === 0`。可零交付、零里程碑时神迹种的
+  // 树已经落在祭坛边（实测 props=1），同一份报纸的第二行正写着「一棵神迹种的树
+  // 已经落在祭坛边」——头条说没动静，纸上别处写着它动过。说错了比不说更糟。
+  const sim = makeSim();
+  sim.enqueue({ kind: 'miracle', miracle: 'tree' });
+  for (let i = 0; i < 40; i += 1) sim.update(100);
+
+  const snapshot = sim.snapshot();
+  assert.equal(snapshot.props.length, 1, '夹具：树落下来了');
+  assert.equal(snapshot.faith.milestones, 0, '夹具：没攒够里程碑');
+  assert.equal(snapshot.deliveries.feed + snapshot.deliveries.local, 0, '夹具：一单未交');
+
+  const report = composeReport(snapshot);
+  assert.notEqual(
+    report.headline,
+    '世界还没动静',
+    `纸上别处写着世界动过，头条说没有：${report.lines.join(' / ')}`,
+  );
+  // 头条也不带时间词——跟下面几条同一个纪律。
+  assert.doesNotMatch(report.headline, /今天|刚|新/);
+  // 真的什么都没发生时才这么说（开局那一拍、钟走了很远都算）。
+  assert.equal(composeReport(makeSim().snapshot()).headline, '世界还没动静');
 });
 
 test('玩家一天都没动手时，日报不许数出楼来——大世界', () => {
