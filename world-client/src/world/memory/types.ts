@@ -87,6 +87,26 @@ export interface Holder {
 
 export type MemoryKind = 'episodic' | 'summary' | 'impression' | 'habit' | 'trace';
 export type MemoryTier = 'day' | 'long' | 'legend';
+/**
+ * 这条记忆是怎么来的。
+ *
+ * 全仓库扫一遍，四种出处各落在哪儿是定数：`witnessed` 在 `ingest` 与
+ * 整理（摘要继承亲历），`heard` 在 `rememberTold`，`inferred` 是
+ * `traces.ts` 查表的前五行，而 **`read` 只有一处**——同一张表的最后
+ * 一行，碑文。
+ *
+ * 这不是漏接，是补充设计 §3.2 定稿表就这么定的。那张表五行里，只有
+ * 「碑文 / 留言牌」一行写着「高保真转化，直接升级为 source_mode = read」。
+ * 广播与书面两行只描述**信念**那一侧——范围、可信度、条数上限、谁能读——
+ * 没有一个字提到记忆条目。所以 `readAnnouncement` 与 `readWritten` 只写
+ * `Belief`：不是少做了一半，是表里就只有这么多。
+ *
+ * 广播那条还另有一条结构性理由，让「漏了」这个怀疑更站不住：公告栏立在
+ * 事发地（`postDailyReport` 取 `claim.content.where` 的落点），而
+ * `broadcastRadius`（4）小于 `perceptionRadius`（8）——室外事件里，四格内
+ * 的人必然在感知半径内；视线这一条见证要查、广播不查，所以墙后的人是唯一
+ * 的例外。他已经亲眼记过一次了，再补一条 `read` 只是把同一件事抄成两行。
+ */
 export type SourceMode = 'witnessed' | 'heard' | 'read' | 'inferred';
 
 /** 记忆的结构化内容。`detailLevel` 是 0–3 的细节层级，传播每跳降一级。 */
