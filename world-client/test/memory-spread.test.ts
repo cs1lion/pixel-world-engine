@@ -187,6 +187,34 @@ test('心电图：全员同知的平静与全员孤立的死寂都能读出来',
   assert.ok(homogeneous.infoEntropy < 0.5, '全员只知道同一件事，熵该低');
 });
 
+test('孤立单位只数人，不数楼', () => {
+  // 楼不参与 `claim.told`——它不说话。把地点 Holder 算进孤立统计，每一栋
+  // 楼都会被永久算成孤立单位：一个两三个人、六七栋楼的村子，这个数会常年
+  // 停在 7 以上。而导演读它是要看「世界是不是死了」，那个数必须会动。
+  const world = new MemoryWorld();
+  world.addHolder({ holderId: 'a', type: 'character', profile: {}, at: { x: 0, y: 0 } });
+  world.addHolder({ holderId: 'b', type: 'character', profile: {}, at: { x: 50, y: 0 } });
+  world.addHolder({ holderId: 'shop', type: 'place', profile: {}, at: { x: 0, y: 0 } });
+  world.addHolder({ holderId: 'shop2', type: 'place', profile: {}, at: { x: 50, y: 0 } });
+  world.ingest({
+    eventId: 'ev_1',
+    at: 1000,
+    kind: 'workshop_accident',
+    place: { placeId: 'shop', at: { x: 0, y: 0 }, indoor: false },
+    actors: ['a'],
+    outcome: {},
+    visibility: 'world',
+    source: 'world',
+    importanceHint: 1,
+    parentEventId: null,
+    witnesses: ['a'],
+  });
+  world.createClaimFrom('ev_1', 'a', 1000);
+  const vitals = world.dayClosed(0, DAY_MS - 1);
+  // 隔 50 格的 b 一句话没听到，他是唯一该被算作孤立的人。两栋楼不算。
+  assert.equal(vitals.isolatedHoldersCount, 1, '楼不该被算成孤立单位');
+});
+
 test('回放一致：同一天两次扩散得到同一份信念', () => {
   const run = (): string => {
     const world = village(8);

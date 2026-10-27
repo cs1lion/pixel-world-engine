@@ -739,6 +739,9 @@ export class MemoryWorld {
       beliefs: this.beliefs,
       tells: this.tells,
       holderIds: ids,
+      // 孤立只看人。楼不说话，把它算进来会让这个数常年钉在楼的数量上，
+      // 而导演读它是要看「世界是不是死了」——那个数得会动。
+      characterIds: ids.filter((holderId) => this.holders.get(holderId)?.type === 'character'),
       config: this.config,
     });
     // 心电图向外广播。本组不读它做任何决定——那是导演的事。

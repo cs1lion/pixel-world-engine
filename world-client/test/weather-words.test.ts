@@ -37,8 +37,8 @@ const KINDS = ['clear', 'rain', 'storm'] as const;
 
 /** 每一档天气在三处各是怎么说的。 */
 function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
-  // 一、状态行：`statusLine()`（`SandboxScene.ts:1496`）里 `WEATHER_LABEL` 原样
-  //（`SandboxScene.ts:1509`）。
+  // 一、状态行：`statusLine()`（`SandboxScene.ts:1509`）里 `WEATHER_LABEL` 原样
+  //（`SandboxScene.ts:1522`）。
   //
   // 这两个坐标是本测试最脆的地方，值得记下它们为什么还在这儿。
   //

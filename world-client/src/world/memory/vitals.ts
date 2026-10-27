@@ -34,6 +34,15 @@ export interface VitalsInput {
   readonly tells: readonly TellRecord[];
   readonly holderIds: readonly string[];
   readonly config: MemoryConfig;
+  /**
+   * 会说话的那几个。省略时按「全部 Holder」算——那是老行为。
+   *
+   * **必须给。** 地点 Holder 不参与 `claim.told`（楼不说话），把它们算进
+   * 孤立统计，每一栋楼都会被永久算成孤立单位。一个两三个人、六七栋楼的
+   * 村子，`isolated_holders_count` 会常年停在 7 以上——导演读到的永远是
+   * 「世界死寂」，而那个数根本不是在说人。
+   */
+  readonly characterIds?: readonly string[];
 }
 
 export function computeVitals(input: VitalsInput): WorldVitals {
@@ -57,7 +66,10 @@ export function computeVitals(input: VitalsInput): WorldVitals {
   }
   const infoEntropy = entropyOf(claims.size, coverage, input.holderIds.length);
 
-  const isolated = input.holderIds.filter((holderId) => {
+  // 只看会说话的那几个。楼与集体不参与交谈，把它们算进来等于给每个村子
+  // 加一个恒定的孤立人数——那个数会常年不动，而心电图的价值恰恰在于它动。
+  const speakers = input.characterIds ?? input.holderIds;
+  const isolated = speakers.filter((holderId) => {
     const windowStart = day - config.isolatedDays + 1;
     return !input.tells.some(
       (tell) =>
