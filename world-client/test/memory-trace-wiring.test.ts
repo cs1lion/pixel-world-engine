@@ -101,8 +101,14 @@ test('求证闭环走通了：存疑 → 日程 → 到现场 → 辟谣 → 造
   );
 
   // b 说：同一件事是好事。这条断言由 b 持有。
+  //
+  // 这是**另一件**事（同一个地点、同一天，但效价相反），所以它有自己
+  // 的事件 id。早先这里复用了 `ev_1`，靠的是「断言按调用方给什么就造什么」；
+  // 而事件 id 是日志里的身份，两件事共用一个 id 在真实世界里不会发生。
+  // 断言改为「一个事件只诞生一条」之后，复用 id 会让第二次 `createClaimFrom`
+  // 返回第一条断言——测试于是红在这里，红得对。
   rt.world.ingest({
-    eventId: 'ev_1',
+    eventId: 'ev_2',
     at: 1100,
     kind: 'celebration',
     place: { placeId: 'foundry', at: { x: 0, y: 0 }, indoor: false },
@@ -114,7 +120,7 @@ test('求证闭环走通了：存疑 → 日程 → 到现场 → 辟谣 → 造
     parentEventId: null,
     witnesses: ['b'],
   });
-  const claim = rt.world.createClaimFrom('ev_1', 'b', 1100)!;
+  const claim = rt.world.createClaimFrom('ev_2', 'b', 1100)!;
 
   // 让扩散跑一天：b 会把这条说给身边的 a 听。
   rt.tick(DAY_MS);
@@ -157,7 +163,7 @@ test('求证日程结完就撤：跑一趟只解决一条传言', () => {
     1000,
   );
   rt.world.ingest({
-    eventId: 'ev_1',
+    eventId: 'ev_2',
     at: 1100,
     kind: 'celebration',
     place: { placeId: 'foundry', at: { x: 0, y: 0 }, indoor: false },
@@ -169,7 +175,7 @@ test('求证日程结完就撤：跑一趟只解决一条传言', () => {
     parentEventId: null,
     witnesses: ['b'],
   });
-  rt.world.createClaimFrom('ev_1', 'b', 1100);
+  rt.world.createClaimFrom('ev_2', 'b', 1100);
   rt.tick(DAY_MS);
 
   for (const plan of rt.pendingVerifications('a')) {

@@ -293,6 +293,11 @@ test('删除级联：一条记忆只挂着一个事件时整条删除', () => {
 // ---------------------------------------------------------------- 隐私
 
 test('隐私：private_to_player 的明文不进任何单位记忆', () => {
+  // **这条测试曾经是空转的。** 文件名原先放在 `outcome.filename` 里，而
+  // `whatOf` 只读 `outcome.what`——于是不管 `writeModeOf` 接没接上，它都绿。
+  // 真正会漏的是把明文写进 `outcome.what`，那正是上游最容易做的事
+  // （`observe.ts` 给 `task_delivered` 填的就是 `{ what: ..., summary: ... }`）。
+  // 现在明文放在 `what` 里，泄漏路径才算真的被覆盖。
   const world = new MemoryWorld();
   world.addHolder({ holderId: 'v0', type: 'character', profile: {} });
   world.ingest({
@@ -301,7 +306,7 @@ test('隐私：private_to_player 的明文不进任何单位记忆', () => {
     kind: 'workshop_accident',
     place: { placeId: 'foundry', at: { x: 1, y: 1 }, indoor: false },
     actors: ['v0'],
-    outcome: { filename: 'secret_plan.ts' },
+    outcome: { what: '改了 secret_plan.ts 里的部署密钥', filename: 'secret_plan.ts' },
     visibility: 'private_to_player',
     source: 'agent',
     importanceHint: 0.9,
@@ -309,9 +314,37 @@ test('隐私：private_to_player 的明文不进任何单位记忆', () => {
     witnesses: ['v0'],
   });
   const view = world.viewOf('v0')!;
+  assert.ok(view.memories.length > 0, '抽象化不等于不记——「有人做了件事」是允许的');
   for (const memory of view.memories) {
     assert.ok(!memory.content.what.includes('secret_plan'), '上游文件名不该出现在任何记忆里');
+    assert.ok(!JSON.stringify(memory.content).includes('secret_plan'), '整条内容都不许带明文');
+    assert.deepEqual(memory.content.who, [], '参与者也不该点名');
+    assert.equal(memory.content.detailLevel, 1, '抽象化就是降到最低细节');
   }
+});
+
+test('隐私：sanitized 照用编译后的世界语汇，只压细节不压内容', () => {
+  // `sanitized` 的 `outcome` 进世界之前已经被 `compile()` 洗过，
+  // 那些字段（`harvest` / `retries`）本来就是世界语汇。压掉它等于白编译一遍。
+  const world = new MemoryWorld();
+  world.addHolder({ holderId: 'v0', type: 'character', profile: {} });
+  world.ingest({
+    eventId: 'ev_up',
+    at: 1000,
+    kind: 'workshop_accident',
+    place: { placeId: 'place_foundry', at: { x: 1, y: 1 }, indoor: false },
+    actors: ['v0'],
+    outcome: { what: '炉子炸了三次' },
+    visibility: 'sanitized',
+    source: 'agent',
+    importanceHint: 0.8,
+    parentEventId: null,
+    witnesses: ['v0'],
+  });
+  const memory = world.viewOf('v0')!.memories[0]!;
+  assert.equal(memory.content.what, '炉子炸了三次', '编译过的世界语汇该留着');
+  assert.equal(memory.content.detailLevel, 1, '但细节要压下来');
+  assert.deepEqual(memory.content.who, []);
 });
 
 // ---------------------------------------------------------------- 预算

@@ -19,7 +19,7 @@ import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.t
 import { consolidateHolder } from './consolidate.ts';
 import { candidatesFrom, decayLegend, faded, formLegend, qualifies } from './legend.ts';
 import { witnessesOf, type OcclusionGrid, type Perceiver, type PlaceAnchor } from './perception.ts';
-import { deleteCascade, type DeletionReport, type DeletionRoot } from './privacy.ts';
+import { deleteCascade, writeModeOf, type DeletionReport, type DeletionRoot } from './privacy.ts';
 import {
   canFanout,
   canSpread,
@@ -257,6 +257,8 @@ export class MemoryWorld {
     // place Holder：后果规则，不走显著度。
     this.depositTraces(fact, input.at, input.place.placeType ?? 'generic', valence);
 
+    this.birthClaim(fact, written, input.at);
+
     return { witnesses, written };
   }
 
@@ -363,11 +365,64 @@ export class MemoryWorld {
   // -------------------------------------------------------------- 传播
 
   /**
+   * 一条事件进来之后，断言在谁嘴里诞生。
+   *
+   * **这是传播层的地基。** `diffuseDay` 遍历的是 `this.claims`，而断言原本
+   * 只有测试手工调用 `createClaimFrom` 才会存在——于是跑着的世界里这一层
+   * 永远是空的：三天下来零次交谈、熵恒为 0、所有人被算成孤立。交谈、广播、
+   * 书面、求证四条通道全都建在它上面，所以它们一起是死的，而且不报错。
+   *
+   * 三条规则，都不调模型：
+   *
+   * 1. **得有人真的记住了它。** 一条没人当回事的事不会有人去讲。所以断言的
+   *    诞生门槛不是显著度（那是逐人的），而是「至少有一个目击者把它写进了
+   *    记忆」——`written` 非空。
+   * 2. **断言诞生在目击者身上，不在事件身上。** 起源者是按 `witnesses` 顺序
+   *    第一个真正写下了记忆的人。楼不算：`place` Holder 记得痕迹，但它不开口。
+   * 3. **一件事只诞生一条断言。** 重复 `ingest` 同一个 `eventId`，或者调用方
+   *    已经手工 `createClaimFrom` 过，都不再生成第二条——否则同一天里
+   *    同一个事件会有两种说法在村里并行流传，而它们本该是同一句话的两个版本。
+   *
+   * `private_to_player` 不诞生断言：那是玩家自己的事，村里的单位没有版本可讲。
+   * （`sanitized` 事件照常诞生——它进世界时已经被编译成脱敏版本了。）
+   */
+  private birthClaim(fact: WorldFact, written: readonly string[], at: number): void {
+    if (written.length === 0) return;
+    if (fact.visibility === 'private_to_player') return;
+    if (this.claimOfEvent(fact.eventId) !== undefined) return;
+    const origin = written
+      .map((memoryId) => this.entries.find((entry) => entry.memoryId === memoryId))
+      .find((entry) => entry !== undefined);
+    if (origin === undefined) return;
+    this.createClaimFrom(fact.eventId, origin.holderId, at);
+  }
+
+  /** 这个事件已经有断言了吗。按 `eventRefs` 找，不按 id 猜。 */
+  private claimOfEvent(eventId: string): Claim | undefined {
+    for (const claim of this.claims.values()) {
+      if (claim.eventRefs.includes(eventId)) return claim;
+    }
+    return undefined;
+  }
+
+  /**
    * 造一条断言。断言诞生在目击者身上。
    *
    * `claim.created` 事件照发，但**不调模型**：内容直接取自事件的结构化字段。
+   *
+   * **一件事只有一条断言。** 已经有了就原样返回，不再发第二次
+   * `claim.created`。这条不是防重的小聪明：同一个事件如果同时挂着两条断言，
+   * 它们会各自扩散、各自算覆盖率，而 `coverage_curve` 的分母是一个事件——
+   * 同一件事在村里有两个「版本」同时流传，正是协议想避免的那种重复。
+   * 不同的讲法由 `retell` 的逐跳变形表达（`hop` 与 `sourceChain`），
+   * 不是由第二条断言表达。
+   *
+   * 先到先得也适用于 `secret`：第一次诞生时不是秘密，后来再有人想把它
+   * 标成秘密，不会成功——秘密是断言出生时的属性，不是谁都能事后盖的章。
    */
   createClaimFrom(eventId: string, originHolderId: string, at: number, secret = false): Claim | null {
+    const existing = this.claimOfEvent(eventId);
+    if (existing !== undefined) return existing;
     const fact = this.facts.get(eventId);
     if (fact === undefined) return null;
     const claim = createClaim({
@@ -792,7 +847,7 @@ export class MemoryWorld {
     fact: WorldFact,
     extra: { valence: number; arousal: number; salience: number; detailLevel: number },
   ): MemoryEntry {
-    const content: MemoryContent = {
+    let content: MemoryContent = {
       what: this.whatOf(fact),
       who: [...fact.actors],
       where: fact.placeId,
@@ -801,6 +856,32 @@ export class MemoryWorld {
       valence: extra.valence,
       arousal: extra.arousal,
     };
+    // **可见性在这里落。** `writeModeOf` 写好很久了，但从来没有人调过它——
+    // 于是 `private_to_player` 事件的明文（上游的文件名、密钥、邮件正文）
+    // 原样落进记忆，而 `privacy.ts` 的文件头一直说它被处理了。
+    //
+    // 两档抽象化，**只降细节，不删条目**：
+    //
+    // - `sanitized`：`outcome` 进世界之前已经被 `compile()` 洗过（`harvest`、
+    //   `retries`、`blessing` 这些是世界语汇），照用。它的问题只是「说得太细」，
+    //   所以只压 `detailLevel`，不碰 `what`。
+    // - `private_to_player`：`outcome` **没洗过**，一个字都不许取。用事件类型
+    //   的先验句子顶上——「有人做了件事」是允许的，「他改了哪个文件」不是。
+    //
+    // 早先两档被我一视同仁地压成先验句子，`sanitized` 的语义就丢了：斥候带回来
+    // 什么、炸了几次炉，本来都是脱敏后的世界事实，压掉等于白编译一遍。
+    const mode = writeModeOf(fact, false);
+    if (mode === 'abstracted') {
+      content = {
+        ...content,
+        what:
+          fact.visibility === 'private_to_player'
+            ? (DEFAULT_WHAT[fact.kind] ?? '有人做了件事')
+            : content.what,
+        who: [],
+        detailLevel: 1,
+      };
+    }
     const flashbulb = extra.salience >= this.config.T_flash;
     return {
       memoryId: this.nextId('m'),
