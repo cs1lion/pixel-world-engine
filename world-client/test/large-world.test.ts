@@ -147,6 +147,60 @@ test('空网格：大世界规格能独立构造，不依赖 buildLargeWorld', (
   assert.equal(grid.at({ x: 96, y: 71 }), undefined);
 });
 
+// ------------------------------------------------------------------ 未覆盖格子
+
+/**
+ * 「默认成草地」这句话得有事可核。
+ *
+ * `grid.ts` 的 `ZONE_DEFAULT` 注释原来写「实测大世界 72% 是石头」。两个错：
+ * 石头实测只占 **8.96%**（619/6912），世界上没有任何东西是七成石头；而 72 是
+ * 个**反事实**的占比——「未覆盖格子若全铺成石板」——反事实实测 80.73%，
+ * 也不是 72。把反事实写成「实测」，读起来像在描述这个世界，于是整句是假话。
+ *
+ * 这条钉两件事。一是未覆盖格子的真实占比（`ZONE_DEFAULT` 那句「八成」的出处）。
+ * 二是它们的兜底 zone 不是 `street`——那才是决策本身：`terrainFor` 把 `street`
+ * 映到 stone，所以把默认值改回 `street`，这一条会红，而不是等谁在屏幕上
+ * 看见一块工地。
+ *
+ * **查 zone 不查 terrain。** 第一版这条断言「未覆盖格里一片石头都没有」，跑出来
+ * 是 7 格——差一点就成了一句冤判：那 7 格不是兜底铺的，是铺子门口通往主路的
+ * 小径（`setup.ts` 给每栋铺子铺的 `road`），正当得很。判据盯错对象比没有判据
+ * 更糟：它会拦下一次正当的铺路，而铺路的人得先来改测试。
+ */
+test('未覆盖格子占大世界八成，兜底 zone 不是 street', () => {
+  const grid = buildLargeWorld(blueprints).grid;
+  const total = LARGE_WORLD_SPEC.width * LARGE_WORLD_SPEC.height;
+  const uncovered: string[] = [];
+  const wrongZone: string[] = [];
+  for (let y = 0; y < LARGE_WORLD_SPEC.height; y += 1) {
+    for (let x = 0; x < LARGE_WORLD_SPEC.width; x += 1) {
+      const p = { x, y };
+      const covered = LARGE_WORLD_SPEC.zones.some(
+        (z) => x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h,
+      );
+      if (covered) continue;
+      uncovered.push(`${x},${y}`);
+      if (grid.at(p)?.zone === 'street') wrongZone.push(`${x},${y}`);
+    }
+  }
+
+  assert.equal(
+    uncovered.length,
+    5580,
+    `未覆盖 ${uncovered.length}/${total}，不是 5580——ZONE_DEFAULT 那句「八成」要改`,
+  );
+  assert.ok(
+    uncovered.length / total > 0.8,
+    `未覆盖占比 ${((uncovered.length / total) * 100).toFixed(2)}% 已不到八成，那句「八成」不再成立`,
+  );
+  assert.deepEqual(
+    wrongZone,
+    [],
+    `这些未覆盖格子的兜底 zone 是 street，会被铺成石板：${wrongZone.join(' ')}。`
+      + ' ZONE_DEFAULT 是不是被改回 street 了？',
+  );
+});
+
 // ------------------------------------------------------------------ 群落与落位一致
 
 test('镇内建筑落在工坊环内，郊野建筑落在郊野圈外', () => {
