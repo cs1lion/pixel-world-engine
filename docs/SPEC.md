@@ -90,6 +90,17 @@ L1 的三条铁律（用户 2026-10-25 确认）：
 | `miracle.spawn` | `kind: 'light' \| 'tree' \| 'cat'` | 神迹 |
 | `npc.setSchedule` | `id, schedule` | 改某个居民的作息 |
 
+**这份表是 v1 的冻结清单，与今天的代码有两处对不上**（2026-10-27 补记，
+改表不在本次职权内，只把实情写在下面）：
+
+- **`npc.setSchedule` 从未实现。** 今天的白名单是 `src/world/intent-schema.ts` 的
+  `ParsedIntent`，共十种：`dispatch` / `complete` / `cancelPending` / `setWeather` /
+  `setTide` / `build` / `demolish` / `miracle` / `carry` / `unknown`。里面没有
+  「改某个居民的作息」这一条。所以连「从外面改她的作息」这条路也没通。
+- **名字换过一轮。** 表里的 `weather.set` / `tide.setLevel` / `building.add` /
+  `building.remove` / `miracle.spawn`，今天分别是 `setWeather` / `setTide` /
+  `build` / `demolish` / `miracle`。照这张表去代码里搜命令名，一条也搜不到。
+
 ### 4.4 潮汐
 
 状态机在 `world/tide.ts`：
