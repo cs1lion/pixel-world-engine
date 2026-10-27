@@ -739,6 +739,26 @@ export class MemoryWorld {
       const spec = inferenceOf(trace.layerType);
       if (spec === null) continue;
       out.push(spec);
+      // 同一个人、同一处、同一类痕迹，只落一条记忆。
+      //
+      // `deliver` 靠「已经有这条信念了」保证一句话只被收下一次；痕迹通道
+      // 这边原来没有任何等价物——`lookAtTraces` 每调一次就多写一条，而
+      // 唯一的调用方（SandboxScene）是拿自己那张 `seenToday` 表挡住的。
+      // 账本自己不认这条性质，换个调用方就原形毕露：一个人站在门口不动，
+      // 每拍都重新推断同一道焦痕，一天下来记忆库被同一条痕迹灌满，而痕迹
+      // 的价值恰恰在于稀少。
+      //
+      // **回报照旧给。** 看得见与记下来是两件事：重复调用仍然拿得到这条
+      // 痕迹，调用方因此照旧知道「今天看过了」。要是改成返回空数组，
+      // 调用方便永远学不会这件事，于是每拍都来问一遍。
+      const already = this.entries.some(
+        (entry) =>
+          entry.holderId === holderId &&
+          entry.content.where === placeId &&
+          entry.content.what === spec.what &&
+          entry.sourceMode === spec.sourceMode,
+      );
+      if (already) continue;
       const content: MemoryContent = {
         what: spec.what,
         who: [],

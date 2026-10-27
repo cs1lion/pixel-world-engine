@@ -192,3 +192,52 @@ test('没有日程的人，settleVerification 返回 null 而不是瞎判', () =
   const { rt } = world();
   assert.equal(rt.settleVerification('a', 'claim_nonexistent'), null);
 });
+
+test('同一道痕迹不重复记：站在门口看一百遍也只有一条', () => {
+  const { rt, place } = world();
+  const first = rt.lookAtTraces('near', place);
+  assert.equal(rt.viewOf('near')!.memories.length, 1);
+
+  // 再看一次、再再看一次。**看得见**与**记下来**是两件事：痕迹还留在
+  // 现场，他照样推断得出来；只是不再往记忆库里写第二遍。
+  const second = rt.lookAtTraces('near', place);
+  assert.ok(second.length > 0, '痕迹还在，就该还看得见');
+  assert.equal(second.length, first.length, '看见的东西不该因为记过就变少');
+  for (let round = 0; round < 10; round += 1) rt.lookAtTraces('near', place);
+  assert.equal(
+    rt.viewOf('near')!.memories.length,
+    1,
+    '同一个人、同一处、同一类痕迹，看一百遍也只该留下一条',
+  );
+});
+
+test('「不重复记」管的是这个人这个地方，不是全村共用一条', () => {
+  const { rt, place } = world();
+  rt.lookAtTraces('near', place);
+  rt.lookAtTraces('near', place);
+  assert.equal(rt.viewOf('near')!.memories.length, 1, '先钉住：重复看不重复记');
+
+  // 换个人去看同一道焦痕——他没去过，该记下自己的那一条。
+  // 不能拿 `a`：`world()` 里它就是事故的目击者，记忆库里早有一条了。
+  rt.syncHolders([{ holderId: 'bystander', type: 'character', at: { x: 1, y: 1 } }]);
+  rt.lookAtTraces('bystander', place);
+  assert.equal(rt.viewOf('bystander')!.memories.length, 1, '另一个人有自己的记忆');
+
+  // 同类痕迹换个地方，也是另一条：两处工坊各出过一次事故，就是两件事。
+  rt.syncHolders([{ holderId: 'foundry2', type: 'place', at: { x: 2, y: 2 } }]);
+  rt.observe(
+    {
+      eventId: 'ev_2',
+      kind: 'workshop_accident',
+      placeId: 'foundry2',
+      at: { x: 2, y: 2 },
+      actors: ['a'],
+      outcome: {},
+      importanceHint: 1,
+    },
+    ['a'],
+    2000,
+  );
+  rt.lookAtTraces('near', 'foundry2');
+  assert.equal(rt.viewOf('near')!.memories.length, 2, '另一处的痕迹是另一条记忆');
+});
