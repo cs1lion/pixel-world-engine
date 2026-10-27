@@ -22,9 +22,12 @@
  *   ego-browser nodejs -e "await import('file:///D:/project/neurosama/tmp/wt-pixel-world/pixel-world/scripts/smoke-ego.mjs')"
  *
  * 前置条件：
- *   1. dev server 在 5188（`npm run dev`；若 `vite.config.ts` 在沙箱里报
- *      `[plugin externalize-deps] Error: spawn EPERM`，改用同目录的
- *      `vite.harness.mjs`：`node node_modules/vite/bin/vite.js --config vite.harness.mjs`）
+ *   1. dev server 在 5188（`npm run dev`）。
+ *      （这里原来还写着一条退路：沙箱里若报
+ *      `[plugin externalize-deps] Error: spawn EPERM`，「改用同目录的
+ *      `vite.harness.mjs`」。**那个文件仓库里从来没有**——`git log --all
+ *      -- '*vite.harness*'` 全史为空。所以这不是一条退路，是一句指着空气的话。
+ *      真碰上 EPERM，现在没有写下来的办法；要加，先把文件建出来。）
  *   2. ego lite 已安装且当前会话能连到 ego_cli bootstrap
  *
  * 产物：截图写 `eval/screens/smoke-ego-*.png`（gitignored）。
@@ -805,8 +808,8 @@ try {
 
   // L471-479：下雨 / 躲雨 / 放晴
   // S-L474 不能拿「天气刚变」那个快照直接断言：`umbrella` 是
-  // `isRaining()`（`simulation.ts:2155`）与「不是 working」的与（`simulation.ts:2444`），天气一变立刻为真；
-  // 而 mode 切到 'sheltering' 依赖 `scatterToShelter()`（`simulation.ts:1806`）在同一拍把
+  // `isRaining()`（`simulation.ts:2181`）与「不是 working」的与（`simulation.ts:2444`），天气一变立刻为真；
+  // 而 mode 切到 'sheltering' 依赖 `scatterToShelter()`（`simulation.ts:1832`）在同一拍把
   // 空闲角色改主意。两条断言的稳定时机不同，挤在同一个快照上就会偶发假失败
   // （实测挂过一次、重跑即过）。改成等状态成立，而不是等天气成立。
   await page.click('#rain');

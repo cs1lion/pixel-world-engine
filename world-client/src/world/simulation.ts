@@ -473,6 +473,17 @@ export class Simulation {
   private readonly constructions = new Map<string, WorkstationState>();
 
   private readonly beats: readonly (readonly RoutineBeat[])[];
+  /**
+   * 求证闭环的两个探针。**由记忆层接线时注入**，不注入就没人求证——
+   * 世界不 import 记忆层，两层只在这一处相接。
+   *
+   * 用函数而不是直接拿 `MemoryRuntime`：`Simulation` 不该知道记忆层长什么样，
+   * 它只需要「这个人该去哪」与「他到了，判一下」这两个回答。
+   */
+  private verificationProbe:
+    | ((holderId: string) => readonly { readonly placeId: string; readonly claimId: string }[])
+    | null = null;
+  private verificationSettle: ((holderId: string, claimId: string) => void) | null = null;
   private weather: WeatherState = clearWeather();
   /**
    * 上一拍的潮位，只用来判断"在涨还是在退"。
@@ -564,6 +575,21 @@ export class Simulation {
    *
    * 占位是空操作之外最轻的一件：只推进序号，不碰世界、不碰队列。
    */
+  /**
+   * 接上求证闭环。
+   *
+   * 场景层在造好 `MemoryRuntime` 之后调一次。不调也不报错——世界照常过日子，
+   * 只是没有人会出门求证。这个「不调也能跑」是有意的：记忆层是可选的一层，
+   * 单元测试与离线推演都不需要它。
+   */
+  connectVerification(deps: {
+    readonly probe: (holderId: string) => readonly { readonly placeId: string; readonly claimId: string }[];
+    readonly settle: (holderId: string, claimId: string) => void;
+  }): void {
+    this.verificationProbe = deps.probe;
+    this.verificationSettle = deps.settle;
+  }
+
   claimReceipt(message: string): void {
     if (message === '') return;
     this.receiptOwnerSeq = this.nextSeq;
@@ -2585,6 +2611,9 @@ export class Simulation {
     // 停一拍就溜去农田）。
     if (this.decreeBearer === villager.id && this.hasDecree()) return;
     if (this.now < villager.nextRoutineAt) return;
+    // 心里存着疑的人先去求证。这一步在作息之前：作息是「没别的事时做什么」，
+    // 求证不是没别的事——它是此刻最要紧的一件事。
+    if (this.chaseVerification(villager)) return;
 
     // 已经站在这一拍的落点上就跳过它，否则开局会在祭坛上干坐一轮。
     const here = this.cellOf(villager.pos);
@@ -2639,6 +2668,46 @@ export class Simulation {
    */
   private resolvedTarget(beat: RoutineBeat): GridPoint | null {
     return this.grid.isWalkable(beat.target) ? beat.target : null;
+  }
+
+  /**
+   * 求证：心里存着疑的人，出门去事发地看一眼。
+   *
+   * 补充设计 §1.1 第 3 步「空间求证」在这里落地。没有这一步，求证闭环就只有
+   * 入口没有出口：`verifyPlans` 生成了、日程挂在每个单位的视图上，可没人出门，
+   * 于是「造谣者可靠度下调 0.15」永远咬不动，谣言与真相在传播网络里同权。
+   *
+   * **走的是普通的路，不是瞬移。** 他得真的走过去，路上会被人看见、会留下
+   * 足迹——求证是这个世界的**行为**，不是一次查询。到了之后由记忆层判结果。
+   *
+   * 返回 `true` 表示这一拍被求证占用了，调用方不该再派作息。
+   */
+  private chaseVerification(villager: Villager): boolean {
+    const plans = this.verificationProbe?.(villager.id) ?? [];
+    const plan = plans[0];
+    if (plan === undefined) return false;
+
+    const target = this.verificationTarget(plan.placeId);
+    if (target === null) return false;
+    const here = this.cellOf(villager.pos);
+    if (target.x === here.x && target.y === here.y) {
+      // 到了。看一眼，结掉这条日程。
+      this.verificationSettle?.(villager.id, plan.claimId);
+      villager.nextRoutineAt = this.now + 1200;
+      return true;
+    }
+    const route = this.routeTo(villager, target);
+    if (route.path.length === 0) return false;
+    villager.path = route.path;
+    villager.routineLabel = '心里存着疑，去现场看看';
+    villager.nextRoutineAt = this.now + 1200;
+    return true;
+  }
+
+  /** 求证日程上的 `placeId` 落在哪一格。楼用门口，其余用它的落点。 */
+  private verificationTarget(placeId: string): GridPoint | null {
+    const building = this.buildings.find((item) => item.instanceId === placeId);
+    return building?.door ?? null;
   }
 
   private walk(villager: Villager, deltaMs: number): void {

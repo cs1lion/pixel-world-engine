@@ -472,6 +472,18 @@ export class SandboxScene extends Phaser.Scene {
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
         : new Simulation(simDeps);
+    // 求证闭环：心里存疑的人会自己出门去现场。世界不问记忆层长什么样，
+    // 只问「这个人该去哪」与「他到了，判一下」。
+    this.sim.connectVerification({
+      probe: (holderId) =>
+        this.memory.pendingVerifications(holderId).map((plan) => ({
+          placeId: plan.placeId,
+          claimId: plan.claimId,
+        })),
+      settle: (holderId, claimId) => {
+        this.memory.settleVerification(holderId, claimId);
+      },
+    });
     this.snapshot = this.sim.snapshot();
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
     if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);

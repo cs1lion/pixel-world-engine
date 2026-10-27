@@ -121,7 +121,7 @@ test('D-1：恢复后角色能真正走动（寻路不再恒空）', () => {
  * 任务卡要求的原始场景：**读档 + 首次 sync 对账**。
  *
  * 为什么单独写一条：本文件前两条用的是新建 Simulation，此时 feedReconciled 默认 true
- * （字段声明 `simulation.ts:501`），sync 走 live 路径。这里用 toSave → fromSave 造出
+ * （字段声明 `simulation.ts:599`），sync 走 live 路径。这里用 toSave → fromSave 造出
  * 「关页时她在屋内干活」的存档，再发首次 sync 走 `firstRead` 分支——
  * 那条分支只对齐、不停手（她那时已经不在干活了），但同样要把人从屋里挪出来。
  */

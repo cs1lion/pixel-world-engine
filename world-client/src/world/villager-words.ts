@@ -68,7 +68,7 @@ export function villagerModeLabel(
       return venue === null ? '赶路' : `赶往 ${venue}`;
     case 'working': {
       // **没有铺子时不提地点。** 这一支曾经说「在祭坛边办「xxx」」——编的：
-      // 原地办的那种活（`startInPlace`，`simulation.ts:1579`）只把 mode 翻成
+      // 原地办的那种活（`startInPlace`，`simulation.ts:1604`）只把 mode 翻成
       // 'working'、`path = []`，**根本不挪人**。她站在接到活那一刻的位置，
       // 而那一刻她可以在世界任何一格。实测她绝大多数时候不在祭坛格上。
       //
