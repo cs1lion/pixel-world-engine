@@ -123,38 +123,81 @@ test('其余各 mode 都带着世界自己的状态，没有可编的空档', ()
     ['sheltering', '跑向屋檐下躲雨'],
     ['bearingDecree', '举着急件跑向祭坛'],
   ];
+  const task: TaskRecord = {
+    id: 't',
+    kind: 'writing',
+    summary: '抄一段书',
+    buildingId: 'b1',
+    source: 'sandbox',
+    status: 'in_progress',
+    createdAt: 0,
+    completedAt: null,
+    blockedQuestion: null,
+    workerId: 'v0',
+  };
   for (const [mode, expected] of cases) {
     const one = { ...villager, mode } as typeof villager;
-    const task: TaskRecord | undefined =
-      mode === 'working' || mode === 'toWork'
-        ? {
-            id: 't',
-            kind: 'writing',
-            summary: '抄一段书',
-            buildingId: 'b1',
-            source: 'sandbox',
-            status: 'in_progress',
-            createdAt: 0,
-            completedAt: null,
-            blockedQuestion: null,
-            workerId: 'v0',
-          }
-        : undefined;
+    const own: TaskRecord | undefined =
+      mode === 'working' || mode === 'toWork' ? task : undefined;
     assert.equal(
-      villagerModeLabel(one, snap, task, '齿轮塔'),
+      villagerModeLabel(one, snap, own, '齿轮塔'),
       expected,
       `mode=${mode} 该说「${expected}」`,
     );
   }
-  // 铺子查不到时不编铺子名。
+  // 铺子查不到时不编铺子名，也**不编地点**。
   const toWork = { ...villager, mode: 'toWork' } as typeof villager;
   assert.equal(villagerModeLabel(toWork, snap, undefined, null), '赶路');
   const working = { ...villager, mode: 'working' } as typeof villager;
   assert.equal(
     villagerModeLabel(working, snap, undefined, null),
-    '在祭坛边办「」',
-    '铺子为 null 时才说祭坛边——那一支由 mode 自己交代',
+    '正在干活',
+    '没有铺子时只说她在干活，不给她安一个去处',
   );
+  const withTask = { ...villager, mode: 'working' } as typeof villager;
+  assert.equal(
+    villagerModeLabel(withTask, snap, task, null),
+    '正在办「抄一段书」',
+    '有活就说活，不提地点',
+  );
+});
+
+test('working 而没有铺子时，不许说她在祭坛边——她人不在那儿', () => {
+  // 一条真事的回归。这一支曾经说「在祭坛边办「xxx」」，而**她不在祭坛**：
+  // 原地办的那种活（`startInPlace`，`simulation.ts:1558`）`path = []`，
+  // 根本不挪人——她站在接到活那一刻的位置，那一刻她可以在世界任何一格。
+  //
+  // 而这条路常见得很：`tasks.ts:13` 的 quick 活 `venue: 'in_place'`，
+  // **每一条 quick 都走它**，「顺手看一眼」按钮（`simulation.ts:1766`）与
+  // 上游事件流（`:1506`）两条来路都通。所以这不是罕见状态，是常态。
+  //
+  // 上一版还把「在祭坛边办「」」写成了 `assert.equal` 的期望值——那句话本身
+  // 是假的，而它是一条会红的测试。谁想修这句假话，得先改测试。锁错了方向
+  // 比不锁更糟：不锁只是没人拦，锁错了是拦着人不让修。
+  const { sim } = makeSim();
+  const snap = sim.snapshot();
+  // 把她放到离祭坛很远的一格上：`atAltar` 为假，世界对她的位置只有坐标。
+  const far = {
+    ...snap.villager,
+    mode: 'working' as const,
+    pos: { x: snap.altar.x + 9, y: snap.altar.y + 9 },
+  };
+  const task: TaskRecord = {
+    id: 't',
+    kind: 'writing',
+    summary: '抄一段书',
+    buildingId: null,
+    source: 'sandbox',
+    status: 'in_progress',
+    createdAt: 0,
+    completedAt: null,
+    blockedQuestion: null,
+    workerId: 'v0',
+  };
+  const said = villagerModeLabel(far, snap, task, null);
+  assert.ok(!said.includes('祭坛'), `她不在祭坛格上，屏上却说「${said}」`);
+  assert.ok(said.includes('抄一段书'), '活的名字照常说：那是世界真有的一条');
+  assert.ok(!said.includes('「」'), `空引号不是一句话：「${said}」`);
 });
 
 test('赶路的四支说得像正在赶路，不说已经到达', () => {
