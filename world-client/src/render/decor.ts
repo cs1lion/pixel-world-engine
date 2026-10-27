@@ -188,7 +188,7 @@ const NOISE_DEPTH_OFFSET = 0.5;
  *
  * 为什么必须是顶层对象：Phaser 的 Container 渲染时直接按 list 顺序遍历子对象，
  * 子对象的 depth 不参与全局深度排序。放进容器等于所有道具共用一个 depth，
- * 角色永远压在它们前面（这就是 §1.5 说的 D5「道具没有深度」）。
+ * 角色永远压在它们前面（D5「道具没有深度」说的就是这件事）。
  *
  * 落点 y 与 depth 都由 prop-depth.ts 算，保证与 drawProp 里的 setPosition 同源。
  */

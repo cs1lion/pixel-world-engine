@@ -27,6 +27,10 @@ jobs:
       # 不带行号的引用也管：`night.ts`、`docs/LARGE_WORLD.md` 这类只写文件名的，
       # 上面那个正则（冒号加行号是硬条件）一处都看不见。六个幽灵引用全是这么漏进来的。
       - run: node scripts/audit-citations.ts --strict
+      # 节号对不上也管：`SPEC_V2 §9`、`docs/adr/ADR_SAVE.md §9` 这种点名了文档、
+      # 而那份文档里没有这一节的。`villager.ts` 的「审计 §6.2」与 `day-phase.ts` 的
+      # 「§6 缺口 2」都是这一类，两处都靠人 review 才发现，没有任何机关会红。
+      - run: node scripts/audit-sections.ts --strict
 
   server:
     runs-on: ubuntu-latest

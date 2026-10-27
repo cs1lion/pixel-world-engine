@@ -45,8 +45,8 @@ export function layerDepth(
 }
 
 /**
- * front 为什么取 32（而不是美术文档 §1.3 写的 12）
- * ------------------------------------------------
+ * front 为什么取 32
+ * -----------------
  * 门口格恒在占地底边**下一行**（prefabs.json 里 `door.y === footprint.h`），所以：
  *
  *   baseY            = door.y * 16                  ← 门口格的上边
@@ -56,7 +56,11 @@ export function layerDepth(
  * 要让前檐压住站门口的人，需要 `front > baseY + 24`；同时不压到再下一格的人，
  * 需要 `front < baseY + 40`。取区间中点 **+32**。
  *
- * 文档的 +12 落在 baseY+12 < baseY+24，檐完全在人后面，等于这一层白做。
+ * （这里原来写「而不是美术文档 §1.3 写的 12」，末了还有一句「文档的 +12 落在
+ * baseY+12 < baseY+24」。那个出处不在仓里，git 全史也查不到 `front: 12`
+ * 或任何一份写着 12 的美术文档——**这个数在本仓没有痕迹**，拿它当对立面
+ * 等于给一句查无实据的话背书。上面的推导不依赖它：区间、端点、中点都从
+ * prefabs.json 的几何算得出来。所以只留推导，删出处。）
  */
 export const FRONT_OFFSET_MIN_EXCLUSIVE = 24;
 export const FRONT_OFFSET_MAX_EXCLUSIVE = 40;

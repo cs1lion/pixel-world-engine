@@ -4,7 +4,7 @@ import { TILE_PX } from '../src/world/setup.ts';
 import { ACTOR_DEPTH_OFFSET, propDepth, propFootY } from '../src/render/prop-depth.ts';
 import type { WorldProp } from '../src/world/types.ts';
 
-/** §1.5 D5：道具必须有 depth，且与角色同一把尺子，否则 Y-Sort 无效。 */
+/** D5：道具必须有 depth，且与角色同一把尺子，否则 Y-Sort 无效。 */
 
 const ALT = 1000;
 const prop = (y: number): WorldProp => ({
