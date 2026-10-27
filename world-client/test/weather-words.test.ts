@@ -37,8 +37,8 @@ const KINDS = ['clear', 'rain', 'storm'] as const;
 
 /** 每一档天气在三处各是怎么说的。 */
 function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
-  // 一、状态行：`statusLine()`（`SandboxScene.ts:1509`）里 `WEATHER_LABEL` 原样
-  //（`SandboxScene.ts:1522`）。
+  // 一、状态行：`statusLine()`（`SandboxScene.ts:1496`）里 `WEATHER_LABEL` 原样
+  //（`SandboxScene.ts:1509`）。
   //
   // 这两个坐标是本测试最脆的地方，值得记下它们为什么还在这儿。
   //
@@ -54,6 +54,13 @@ function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
   // 明白那是在注释里又钉了一个会漂的坐标：`SandboxScene.ts` 再长一截，那个 N
   // 落到一行只有 `},` 的地方，审计照样红。**历史不需要坐标**——要的是它当初
   // 错在哪一步，而这一步与第几行无关。
+  //
+  // 而这两个坐标**本身**就错过一次，错法值得记：上一版写的是 1509 / 1522，两个
+  // 都读自**工作区**——那一刻 `SandboxScene.ts` 带着别人未提交的 13 行，
+  // `statusLine` 在 1509、`WEATHER_LABEL` 在 1522。提交进去的树里它们是 1496 与
+  // 1509，于是 `statusLine()` 那个坐标落到了 `WEATHER_LABEL` 那一行上：一行有
+  // 代码的别行，`hasCode()` 放行，`CALL_REF` 因为名字对不上才响。**坐标只能对着
+  // 即将提交的那棵树核**（`git show HEAD:<file> | grep -n`），对着磁盘核等于没核。
   const statusLine = WEATHER_LABEL[kind];
 
   // 二、日报：天气那一行（`report.ts`）。
