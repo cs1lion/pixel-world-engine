@@ -119,8 +119,8 @@ test('其余各 mode 都带着世界自己的状态，没有可编的空档', ()
     ['toWork', '赶往 齿轮塔'],
     ['working', '在 齿轮塔 干活「抄一段书」'],
     ['delivering', '正在交付'],
-    ['toAltar', '回到祭坛'],
-    ['sheltering', '跑到屋檐下躲雨'],
+    ['toAltar', '赶回祭坛'],
+    ['sheltering', '跑向屋檐下躲雨'],
     ['bearingDecree', '举着急件跑向祭坛'],
   ];
   for (const [mode, expected] of cases) {
@@ -155,6 +155,28 @@ test('其余各 mode 都带着世界自己的状态，没有可编的空档', ()
     '在祭坛边办「」',
     '铺子为 null 时才说祭坛边——那一支由 mode 自己交代',
   );
+});
+
+test('赶路的四支说得像正在赶路，不说已经到达', () => {
+  // 这四个 mode 的世界状态全是「路还没走完」：`walk()` 只在 path 空掉那一刻
+  // 才翻 mode（`simulation.ts` 的 toWork / toAltar / sheltering 三支都是这个
+  // 形状）。所以这四支的说法必须带进行时的动词。
+  //
+  // 曾经 toAltar 说「回到祭坛」、sheltering 说「跑到屋檐下躲雨」——两个都断言
+  // 人已经到了，而那一刻她还在半路上，状态行每帧都这么播。同开关里 toWork 的
+  // 「赶往」与 bearingDecree 的「跑向」本来就是对的写法，照着办。
+  const { sim } = makeSim();
+  const snap = sim.snapshot();
+  const villager = snap.villager;
+  const walking = ['toWork', 'toAltar', 'sheltering', 'bearingDecree'] as const;
+  for (const mode of walking) {
+    const one = { ...villager, mode } as typeof villager;
+    const said = villagerModeLabel(one, snap, undefined, '齿轮塔');
+    assert.ok(
+      /(赶往|赶回|跑向|赶路)/.test(said),
+      `mode=${mode} 该是进行中的说法，实际「${said}」`,
+    );
+  }
 });
 
 test('活体：撤单之后屏上那一行确实不说祭坛', () => {

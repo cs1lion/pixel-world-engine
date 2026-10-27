@@ -1715,7 +1715,10 @@ export class Simulation {
       villager.path = route.path;
       villager.bubble = '下雨了，快躲！';
       villager.bubbleUntil = this.now + 2200;
-      villager.routineLabel = '跑到屋檐下躲雨';
+      // 说法得是进行中的：这一刻 mode 刚翻成 sheltering、路才交出去，人还在
+      // 原地。写「跑到屋檐下」就是断言她已经到了——她半步还没动。等 path 空掉
+      // 那一刻才换成落点那句（`sheltering` 支里 `path.length === 0` 那截）。
+      villager.routineLabel = '跑向屋檐下躲雨';
     }
   }
 

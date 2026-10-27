@@ -44,6 +44,14 @@ export function idleLabel(villager: VillagerSnapshot, snapshot: WorldSnapshot): 
  * `idle` 那一支是全部麻烦所在：她没活干，而**没牌子时不编地点**。见
  * `idleLabel`。其余各支都带着世界自己的状态（mode、坐标、活的名字），
  * 没有可编的空档。
+ *
+ * **赶路的四支必须说得像正在赶路。** `toWork`、`toAltar`、`sheltering`、
+ * `bearingDecree` 这四个 mode 的世界状态全是「路还没走完」——`walk()` 只在
+ * path 空掉那一刻才翻 mode（`simulation.ts` 的 `toWork`/`toAltar`/`sheltering`
+ * 三支都是这个形状），所以这四支的说法得是进行中的。曾经 `toAltar` 说
+ * 「回到祭坛」、`sheltering` 说「跑到屋檐下躲雨」，两个都断言人已经到了，
+ * 而那一刻她还在半路上——屏上每帧都这么播。同开关里 `toWork` 的「赶往」与
+ * `bearingDecree` 的「跑向」本来就是对的写法，照着办。
  */
 export function villagerModeLabel(
   villager: VillagerSnapshot,
@@ -65,9 +73,9 @@ export function villagerModeLabel(
     case 'delivering':
       return '正在交付';
     case 'toAltar':
-      return '回到祭坛';
+      return '赶回祭坛';
     case 'sheltering':
-      return '跑到屋檐下躲雨';
+      return '跑向屋檐下躲雨';
     case 'bearingDecree':
       return '举着急件跑向祭坛';
   }
