@@ -14,7 +14,19 @@ import { chromium } from '@playwright/test';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 
-/** 存档体积上限。当前 80×60 实测约 4KB；给到 100KB 留余量。 */
+/**
+ * 存档体积上限。
+ *
+ * 2026-10-28：这一行原来写「当前 80×60 实测约 4KB」。两处都不对，而且它是
+ * **一个已经结案过一回的错**——`9fa55ca` 修了六处「这个世界是 80×60」
+ * （`main.ts` / `biomes.ts` / `fog.ts` / `grid.ts` / `setup.ts`），漏了这里。
+ * 80×60 是个**从来没存在过的尺寸**：从 `996cbd3` 那一笔起就是 96×72
+ * （`setup.ts` 里 `LARGE_WORLD_SPEC`）。字节数也重测了：`buildWorld` 之后
+ * `sim.toSave()` 是 **2528 字节**，跑一个世界小时仍在 3.1KB 以下。
+ *
+ * 所以这里不写尺寸也不写字节数——两个都会漂，而这个上限要的只是「大一两个数量级」。
+ * 100KB 对 3KB 是 32 倍余量，够久了。要复核就现测，别信这一行。
+ */
 const MAX_SAVE_BYTES = 100 * 1024;
 
 const reports = [];
