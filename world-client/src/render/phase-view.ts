@@ -221,8 +221,9 @@ export function createPhaseView(
     const band = Math.round(view.mistBand);
     if (band <= 0 || view.mist <= 0.001) return;
 
-    // 雾跟着**镜头**走，不跟着世界底边：大世界里世界高 960px，视野只有 320px，
-    // 按世界高度算的雾带会永远落在视野之外（实测晨与午只剩 0.8% 差异）。
+    // 雾跟着**镜头**走，不跟着世界底边：大世界高 1152px（96×72 格，每格 16px），
+    // 默认 2 倍缩放下视野只有 160px 世界像素（画布 320 ÷ zoom）——雾带若按世界
+    // 高度钉死在一个 y 上，镜头不滚到那一带就整片看不见（实测晨与午只剩 0.8% 差异）。
     // 雾是"近地面的空气"，镜头看到哪片地，雾就在那片地的下段。
     const top = Math.round(cameraY + viewHeight * 0.62);
     const bottom = Math.min(cameraY + viewHeight, top + band);
