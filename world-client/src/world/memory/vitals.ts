@@ -126,8 +126,3 @@ function round(value: number, digits: number): number {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
 }
-
-/** 心电图的四个标量按固定次序排，便于日志与快照比对。 */
-export function vitalsOf(vitals: WorldVitals): readonly [number, number, number, number] {
-  return [vitals.meanValence, vitals.meanArousal, vitals.infoEntropy, vitals.isolatedHoldersCount];
-}
