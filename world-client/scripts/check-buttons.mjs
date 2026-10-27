@@ -44,6 +44,7 @@
  */
 
 import { chromium } from '@playwright/test';
+import { waitForQuiet } from './quiesce.ts';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 
@@ -415,26 +416,23 @@ for (const world of WORLDS) {
    * 之前读的，`after` 就比 `before` 多出几行条目——于是下一颗明明什么都没说，
    * 却因为上一颗的迟到效果被判「说了话」。原先只有 900ms 一拍，这个洞一直开着。
    *
-   * 等满了才收工，迟到的效果就落到它自己那颗头上；而下一颗的 `before` 是
-   * 重新等过的，起点干净。两处都堵上。
+   * 两头等：点之前等一次（起点干净），点之后也等一次（迟到效果落到它自己那颗
+   * 头上——`changed` 拿末次读数与起点比，所以算它的）。
+   *
+   * 判据本身在 `scripts/quiesce.ts`，那边有单元测试：页面这一侧没法在测试里
+   * 准时落一个改动，而这道等法闭上嘴时整套审计就开始洗白，不能没有守卫。
+   *
+   * **别在这里再加一段「把屏幕变了记回上一颗」。** 试过，撤了：`setLayers` 就在
+   * 上一行跑过，每颗按钮的层状态本来就未必相同，于是「屏幕变了」几乎每颗都命中
+   * （实测 18 次里 12 次 true），而判据只拦沉默行——那是一台洗白机，比不修更糟。
+   * 末了那次等已经够，见上面第二段。
    */
-  const settleScreen = async (ms = SETTLE_MS) => {
-    const deadline = Date.now() + ms;
-    let last = await readScreen();
-    for (;;) {
-      if (Date.now() >= deadline) return last;
-      await page.waitForTimeout(SETTLE_STEP_MS);
-      const now = await readScreen();
-      // 两次读数同源（同一个 `page.evaluate`），键一样、顺序也一样，直接按键比。
-      const same = Object.keys(now).every((key) => now[key] === last[key]);
-      last = now;
-      if (same) return last;
-    }
-  };
+  const settleScreen = (ms = SETTLE_MS) =>
+    waitForQuiet(readScreen, (n) => page.waitForTimeout(n), ms, SETTLE_STEP_MS);
 
-  /** 上一颗的末态读数，用来把迟到的效果记回它头上。 */
-  let previous = null;
-  /** 点下去之前页面重载过几次。出错时拿来分「按钮点不动」与「屏幕换了」。 */
+  /**
+   * 点下去之前页面重载过几次。出错时拿来分「按钮点不动」与「屏幕换了」。
+   */
   let reloadsAtClick = 0;
 
   /** 审一颗按钮。抛出去由外层接（见那边关于「崩在半路上」的注释）。 */
@@ -445,21 +443,16 @@ for (const world of WORLDS) {
 
     // 等屏幕安静下来，再取这一颗的起点。
     //
-    // 上一颗的迟到后效若在这时落到屏幕上，先记回它头上：它已经被判成「一句
-    // 话都不说」并进了 `silent`，不改正就是一次冤判——而这正是这项审计最不
-    // 该犯的错（它自己那份注释里记着被冤的三个）。
+    // **别在这儿把「屏幕变了」记回上一颗头上。** 试过，撤了：`setLayers` 就在
+    // 上一行跑过，每颗按钮的层状态本来就未必相同，于是「屏幕变了」几乎每颗都
+    // 命中（实测 18 次里 12 次 true）。判据只拦 `verdict === '一句话都不说'`，
+    // 所以那是一台**洗白机**：一颗真沉默的按钮，只要下一颗的层状态跟它不同，
+    // 就被改判成「在别处说了话」——比不修更糟。
+    //
+    // 而且它本来就是多余的：末了那次 `settleScreen()` 已经把迟到效果收在这一颗
+    // 头上了（见那边）。迟到效果唯一的漏网之路是「本颗等满了才落」，那窗口窄，
+    // 拿一台洗白机去换不值。
     const before = await settleScreen();
-    if (previous !== null && saidSomething(previous, before)) {
-      const row = rows[rows.length - 1];
-      if (row !== undefined && row.verdict === '一句话都不说') {
-        row.verdict = '在别处说了话（下一颗的起点里才看出来，记回这一颗）';
-        row.reply = '上一颗的异步后效落在这时候';
-        const at = silent.findIndex((item) => item.id === row.id && item.world === row.world);
-        if (at >= 0) silent.splice(at, 1);
-        console.log(`  ~ ${row.id.padEnd(16)} ${String(row.text).slice(0, 20).padEnd(22)} → 迟到的后效记回这一颗`);
-      }
-    }
-    previous = null;
 
     // 每颗按钮都从同一份界面状态起点问起：把上一颗留下的回执清掉，
     // 否则「这一颗什么都没说」会被上一颗的话冒充。
@@ -514,7 +507,6 @@ for (const world of WORLDS) {
     const said = after.reply || after.io;
     const changed =
       saidSomething(before, early) || saidSomething(before, after) || saidSomething(before, settled);
-    previous = settled;
 
     // 判词问的是「界面上有没有哪一面翻了」，不是「`#reply` 有没有字」。
     //
