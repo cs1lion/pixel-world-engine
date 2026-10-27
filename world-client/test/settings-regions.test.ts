@@ -102,3 +102,37 @@ test('一根一根数：分区表里那条被盖住的窄巷，确实一格也�
   assert.equal(owned.get('street') ?? 0, 0, 'street 声明了 160 格，实占 0 格——先声明者赢');
   assert.ok((owned.get('industry') ?? 0) > 0);
 });
+
+test('呼吸段被整片盖住也拒：留白是绕着格子算的，一格不占就是整条链空转', () => {
+  // 上一笔只查了 `requires`，漏了同一个结构的另一半。`breathing` 的留白
+  // 走的是另一条链（`breathingAt` → 不派活、不出急件），可它同样按**格子**
+  // 算：`breathingRegions()` 从 id 表里报，`breathingAt()` 从格子上的 region 查。
+  // 两者不一致时，报告说「这片是留白」，而没有一格真的在呼吸——探针验过，
+  // 一个被整片盖住的呼吸段仍然出现在 `breathingRegions()` 里。
+  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
+  // 声明在最前：后面每一道区域都盖在它上面，那 9 格一格也不归它。
+  const buried = raw({ regions: [INNER, ...DENGCHAO_RAW.regions] });
+  assert.throws(() => loadSettingPack(buried), SettingPackError, '里院的 9 格全被灯街盖住了');
+});
+
+test('一道地域同时要凭证又呼吸：两句话都成立就都查', () => {
+  // 两个槽位是独立的（`types.ts` 里写了）。上面那条只覆盖单个说法，
+  // 这条钉住「加起来查」——一道门加留白被盖住时，报错要把两句都说出来，
+  // 而不是只挑一句。
+  const BOTH = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, requires: 'lamp' as const, breathing: true };
+  const buried = raw({ regions: [BOTH, ...DENGCHAO_RAW.regions] });
+  assert.throws(
+    () => loadSettingPack(buried),
+    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是留白'),
+    '两个说法都得出现在报错里',
+  );
+});
+
+test('盖在后面的呼吸段是好的：重叠本身不是错，只有整片被吃掉才是', () => {
+  // 与前面那道门的对照组同一个意思。声明在最后，它赢，那 9 格真归它。
+  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
+  const wins = raw({ regions: [...DENGCHAO_RAW.regions, INNER] });
+  const world = buildSettingWorld(loadSettingPack(wins));
+  assert.equal(world.grid.at({ x: 20, y: 24 })?.region, 'inner_court');
+  assert.equal(world.grid.breathingAt({ x: 20, y: 24 }), true);
+});

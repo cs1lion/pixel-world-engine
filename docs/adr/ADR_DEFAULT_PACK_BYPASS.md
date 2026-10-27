@@ -11,13 +11,13 @@ SPEC §4.8 要求「换设定集 = 换一份配置包 + 可能改几个常量，
 
 矛盾在于：莞尔镇不是「写出来的」，是 `buildWorld` **程序生成**的——地形、常驻铺子按郊野锚点落位、居民作息都在运行时算（`world/setup.ts` 的 `buildLargeWorld → buildWorld`，以及 `WorldGrid.findBestSlot`/`paveFrom`）。把这些塞进一份静态设定集，等于把「要生成的东西」冻成数据；而 `LEGACY_PACK` 的 `terrain/regions/placements/villagers/scenery` 因此全是空的（`settings/index.ts:11-14`）。
 
-空的 `villagers` 过不了编译器的铁律：`loadSettingPack` 要求「居民必须至少一位且不重名」（`settings/load.ts:248`）。所以默认世界**不能**原样走编译器这条路：地形与铺位确是程序生成的，塞不进静态包；居民作息本可入包，却是 #13 里刻意留在代码中的一项（`routines.ts` 尚未搬）。二者叠加，`LEGACY_PACK` 今天就是一份**描述符 stub**，不是一份写定的设定集。
+空的 `villagers` 过不了编译器的铁律：`loadSettingPack` 要求「居民必须至少一位且不重名」（`settings/load.ts:256`）。所以默认世界**不能**原样走编译器这条路：地形与铺位确是程序生成的，塞不进静态包；居民作息本可入包，却是 #13 里刻意留在代码中的一项（`routines.ts` 尚未搬）。二者叠加，`LEGACY_PACK` 今天就是一份**描述符 stub**，不是一份写定的设定集。
 
 ## 决策
 
 默认世界继续走**原封不动的 `buildLargeWorld`**。`LEGACY_PACK` 是一份**描述符 stub**：它按引用复用 `WORLD`/`TERRAIN_COLORS`/`LARGE_WORLD_SPEC`/`LARGE_ALTAR`/`parseBlueprintTable(prefabs)`（`settings/index.ts:9-14`），`authored: false`，**不进 `loadSettingPack`**，直接当 `SettingPack` 供给走 pack 的通用代码（色板、存档槽、蓝图）。
 
-第二座镇子灯潮界是一份**真正写定的** `DENGCHAO_RAW`，走完整编译器（`loadSettingPack → buildSettingWorld`），`authored: true`（`load.ts:281`）。`selectSetting('?world=')` 分流：默认 → stub，`dengchao` → 编译后的包（`settings/index.ts:16-21`）。
+第二座镇子灯潮界是一份**真正写定的** `DENGCHAO_RAW`，走完整编译器（`loadSettingPack → buildSettingWorld`），`authored: true`（`load.ts:289`）。`selectSetting('?world=')` 分流：默认 → stub，`dengchao` → 编译后的包（`settings/index.ts:16-21`）。
 
 ## 理由
 
@@ -35,7 +35,7 @@ SPEC §4.8 要求「换设定集 = 换一份配置包 + 可能改几个常量，
 - 好：编译器在一座真世界上被证明（灯潮界），「可换设定集」从纸面变成实证。
 - 好：stub 按引用共享常量（单一真相）；`test/settings-default-pack.test.ts`（提交 aaba2ed）钉住它绕开的那几条数据不变量——palette 同源、八种地形各落 24 色、中心是整数格且在图内。
 - 代价：默认包**绕开** `loadSettingPack`，它携带的数据（palette/terrainColors/hub）不受编译器保护——由上面那条专属测试兜底。
-- 代价：存在两条建世界路径（`buildLargeWorld` 与 `buildSettingWorld`）。二者在落位上必须行为一致——`buildSettingWorld` 复用 `placeBlueprint`/`grid.place`（`load.ts:295-360`；`checkPlacement` 由 `placeBlueprint` 内部走，调用在 `setup.ts:435`、规则 `setup.ts:201-236`，`load.ts:294` 只写「占地/留白/门口检查」未点名它）。但 `buildSettingWorld` 不跑 `assertWorldInvariants`（`setup.ts:622`，`buildWorld` 会跑），所以「同一套法则」目前只覆盖落位、不含世界预算不变量。**（2026-10-27 更正）** 此处原写「今天无害（灯潮界每个模板 `boundTask` 都为 null）」是错的——`boundTask` 为 null 意味着每种活 0 栋铺子，正触发 `assertWorldInvariants` 的 1–2 栋下限（`setup.ts:635-640`）而抛错（`:664`）；即「跑了就会把灯潮界整体拒掉」，不是无害。详见 `ADR_PACK_SKIPS_WORLD_BUDGET`。
+- 代价：存在两条建世界路径（`buildLargeWorld` 与 `buildSettingWorld`）。二者在落位上必须行为一致——`buildSettingWorld` 复用 `placeBlueprint`/`grid.place`（`load.ts:303-368`；`checkPlacement` 由 `placeBlueprint` 内部走，调用在 `setup.ts:435`、规则 `setup.ts:201-236`，`load.ts:302` 只写「占地/留白/门口检查」未点名它）。但 `buildSettingWorld` 不跑 `assertWorldInvariants`（`setup.ts:622`，`buildWorld` 会跑），所以「同一套法则」目前只覆盖落位、不含世界预算不变量。**（2026-10-27 更正）** 此处原写「今天无害（灯潮界每个模板 `boundTask` 都为 null）」是错的——`boundTask` 为 null 意味着每种活 0 栋铺子，正触发 `assertWorldInvariants` 的 1–2 栋下限（`setup.ts:635-640`）而抛错（`:664`）；即「跑了就会把灯潮界整体拒掉」，不是无害。详见 `ADR_PACK_SKIPS_WORLD_BUDGET`。
 - 将来若要把默认世界也变成写定的包：那是一次刻意的迁移——把世界 author 成数据、改走编译器、退役 stub。在那之前，stub 是对「默认世界是程序生成的」这一事实的诚实表示。
 
 ## 备选

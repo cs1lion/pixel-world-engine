@@ -41,18 +41,23 @@ const TIDE_BEATS: readonly NonNullable<SettingRoutineStop['tide']>[] = ['low', '
 const ZONES: readonly ZoneId[] = ['street', 'altar', 'industry', 'scholarly', 'agriculture', 'living'];
 
 /**
- * 一道门得真的占着格子。
+ * 一道有说法的地域，得真的占着格子。
  *
- * 地域按声明顺序画上去，后声明的盖先声明的（`grid.ts` 那道循环）。所以一道写了
- * `requires` 的地域如果整个被后声明的区域盖住，它一个格子都不占：`gatedRegions`
- * 照样把它报给提示词和界面，而没有任何一格真的要求凭证。模型被告知有一道门，
- * 到了那儿发现谁都能进——比没有门更糟。
+ * 地域按声明顺序画上去，后声明的盖先声明的（`grid.ts` 那道循环）。所以一道地域
+ * 如果整个被后声明的区域盖住，它一个格子都不占，可它的**说法**还在生效：
+ *
+ * - `requires` 的门——`gatedRegions` 照样把它报给提示词和界面，而没有任何一格
+ *   真的要求凭证。模型被告知有一道门，到了那儿发现谁都能进，比没有门更糟：
+ *   它已经按「有门」规划过了。
+ * - `breathing` 的留白——`breathingRegions` 同样照报，界面上那片写着「留白」，
+ *   而它一格都不呼吸。呼吸段的整条链（`breathingAt`、不派活、不出急件）是绕着
+ *   格子算的，一格不占就是整条链空转。
  *
  * **不能反过来要求「区域不许重叠」。** 灯潮界的渡口压在浅滩上、叠浪楼的轮廓伸进
- * 灯街，那是有意的写法（`pack.ts` 里写了理由：街先画、楼后画）。只有「一道门
+ * 灯街，那是有意的写法（`pack.ts` 里写了理由：街先画、楼后画）。只有「一整片
  * 一格都不剩」才是错。
  */
-function assertGateOwnsCells(raw: RawSettingPack, label: (id: string) => string): void {
+function assertSaidRegionsOwnCells(raw: RawSettingPack, label: (id: string) => string): void {
   // 与 `WorldGrid` 同一条画法：按声明顺序写，后写的赢。
   const owner = new Map<string, string>();
   for (const region of raw.regions) {
@@ -63,7 +68,10 @@ function assertGateOwnsCells(raw: RawSettingPack, label: (id: string) => string)
     }
   }
   for (const region of raw.regions) {
-    if (region.requires == null) continue;
+    const says: string[] = [];
+    if (region.requires != null) says.push(`要 ${region.requires}`);
+    if (region.breathing === true) says.push('是留白');
+    if (says.length === 0) continue;
     let owns = false;
     for (let y = region.y; y < region.y + region.h && !owns; y += 1) {
       for (let x = region.x; x < region.x + region.w && !owns; x += 1) {
@@ -72,7 +80,7 @@ function assertGateOwnsCells(raw: RawSettingPack, label: (id: string) => string)
     }
     if (!owns) {
       throw new SettingPackError(
-        `${label(region.id)} 要 ${region.requires}，可它每一格都被后声明的区域盖住了——这道门只存在于数据里`,
+        `${label(region.id)} ${says.join('、')}，可它每一格都被后声明的区域盖住了——这句话只存在于数据里`,
       );
     }
   }
@@ -219,7 +227,7 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       throw new SettingPackError(`分区 ${String(zone.id)} 不是六个分区之一`);
     }
   }
-  assertGateOwnsCells(raw, (id) => raw.regions.find((region) => region.id === id)?.name ?? id);
+  assertSaidRegionsOwnCells(raw, (id) => raw.regions.find((region) => region.id === id)?.name ?? id);
   const blueprints = parseBlueprintTable(raw.prefabs, palette);
   assertTemplateZonesExist(raw, blueprints);
   const placementIds = new Set<string>();
