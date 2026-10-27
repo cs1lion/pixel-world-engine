@@ -1,8 +1,8 @@
 /**
  * 氛围层（天上的鸟与蝙蝠）在层叠里的位置，得一直是对的。
  *
- * `ambience-view.ts` 的文件头写着那句话：「压在角色之上、时相压暗（8009）之下：
- * 鸟在天上，但不该比夜色更亮。」两个断言，各有一种看不见的破法：
+ * `ambience-view.ts` 里 `AMBIENCE_DEPTH` 上面那段注释写着：「压在角色之上、
+ * 时相压暗（8009）之下：鸟在天上，但不该比夜色更亮。」两个断言，各有一种看不见的破法：
  *
  *   1. **鸟比夜色亮。** `DIM_DEPTH` 掉到 `AMBIENCE_DEPTH` 以下时，时相压暗那块
  *      矩形盖不住鸟——夜里鸟还是亮的。没有任何测试看画面，所以这件事要等到有人
@@ -36,15 +36,13 @@ import { codeOf } from './source-scan.ts';
 import { LARGE_WORLD_SPEC } from '../src/world/setup.ts';
 import { actorDepthAt } from '../src/render/building-depth.ts';
 
-const SRC = new URL('../src/render/', import.meta.url);
+const RENDER_DIR = new URL('../src/render/', import.meta.url);
 
 /** 从一个源码文件里读出一个数字常量的值。注释已经由 `codeOf` 剔掉。 */
 function constOf(file: string, name: string): number {
-  const m = codeOf(new URL(file, SRC)).match(new RegExp(`const ${name}\\s*=\\s*(\\d+)`));
+  const m = codeOf(new URL(file, RENDER_DIR)).match(new RegExp(`const ${name}\\s*=\\s*(\\d+)`));
   assert.ok(m !== null, `${file} 里找不到 const ${name}`);
-  const n = m[1];
-  assert.ok(n !== undefined, `${file} 里 ${name} 没有数值`);
-  return Number(n);
+  return Number(m[1]);
 }
 
 const AMBIENCE_DEPTH = constOf('ambience-view.ts', 'AMBIENCE_DEPTH');
@@ -84,6 +82,6 @@ test('氛围层在迷雾之上：雾里的鸟看得见，不叫雾整个糊掉',
   // 而「视野外的鸟不画」本来就已经由 `shouldAnimateAt` 管着，两件事会互相掩盖。
   assert.ok(
     AMBIENCE_DEPTH > FOG_DEPTH,
-    `氛围层 ${AMBIENCE_DEPTH} 该在迷雾 ${FOG_DEPTH} 之上——并反了鸟会跟着雾一起被盖掉`,
+    `氛围层 ${AMBIENCE_DEPTH} 该在迷雾 ${FOG_DEPTH} 之上——反过来了，鸟会跟着雾一起被盖掉`,
   );
 });

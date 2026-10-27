@@ -41,8 +41,8 @@ function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
   //
   // 原来这里写的是 `WEATHER_LABEL` 原样（`SandboxScene.ts:1316`）——一个光坐标，
   // 审计的 `CALL_REF` 要求「名字()」挨着坐标才查，它不查，于是那一处悄悄地
-  // 偏了 17 行：1316 落在画小图标的 `fillRect` 上，而要说的话在 1333。
-  // `hasCode()` 两行都放行（都有代码）。现在把名字写上去，偏了会红。
+  // 偏了 17 行：1316 是 `container.add(icon);`（画小图标那几行的收尾），
+  // 而要说的话在 1333。`hasCode()` 两行都放行（都有代码）。现在把名字写上去，偏了会红。
   const statusLine = WEATHER_LABEL[kind];
 
   // 二、日报：天气那一行（`report.ts`）。
