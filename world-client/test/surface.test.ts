@@ -466,7 +466,7 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
 });
 
 test('「最近一单」数的是最晚交付的，不是数组末尾那一单', () => {
-  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1198、:1768，全程不排序），
+  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1234、:1816，全程不排序），
   // `done` 过滤一遍还是那个顺序。两个人同时干活时创建顺序和交付顺序会分叉：
   // 先派下去的长活后交，后派下去的短活先交。照数组末尾取，报纸就把**先**交的
   // 那单叫「最近」——一句话说着当下，指的却是过去。
@@ -523,8 +523,12 @@ test('「最近一单」数的是最晚交付的，不是数组末尾那一单',
 test('两单同一拍落成时不说「最近一单」：那会儿没有更近的那一单', () => {
   // 上面那条测的是"分叉时选最晚交付的"。这一条测它对面：`completedAt` 打平时
   // 根本没有最晚可言，纸上却仍写「最近一单：甲」——一句话说着唯一，那儿有两个。
-  // 打平走得到：两单在同一帧里派下去，两个铺子同一拍越过预估就同时落成。
-  // 实测 createdAt 都是 100、completedAt 都是 1300。
+  //
+  // 夹具走的是**唯一**那条打得平的路：同一帧里派两条 `quick`，两个村民都空着。
+  // 两条都原地办（`finishInPlace`，铺子是 null），于是在同一拍写上同一个
+  // `this.now`。实测 createdAt 100/100、completedAt 1300/1300。
+  // 不是「同一帧派两单就会打平」：四类活时长两两不同，不同类落不到同一拍；
+  // 同一类派两条，第二条连单都建不出来。也只有一个村民时打不平（第二条要排队）。
   const world = buildWorld(blueprints);
   const sim = new Simulation({
     grid: world.grid,
@@ -545,6 +549,10 @@ test('两单同一拍落成时不说「最近一单」：那会儿没有更近�
 
   const done = sim.snapshot().tasks.filter((task) => task.status === 'done');
   assert.equal(done.length, 2, '夹具：两单都交了');
+  assert.ok(
+    done.every((task) => task.buildingId === null),
+    '夹具得走原地办那条路：`quick` 不进铺子，两条才能在同一个 this.now 上落成',
+  );
   assert.equal(
     done[0]!.completedAt,
     done[1]!.completedAt,

@@ -12,6 +12,7 @@ import {
 } from '../src/world/setup.ts';
 import { Simulation, MAX_PENDING_DISPATCHES } from '../src/world/simulation.ts';
 import { parseOracle } from '../src/world/oracle.ts';
+import { NON_IMPERATIVE_MARKERS, NEGATION_MARKERS } from '../src/world/imperative.ts';
 import { TASK_PROFILES } from '../src/world/tasks.ts';
 import { MILESTONE_POINTS, POINTS_PER_TASK } from '../src/world/faith.ts';
 import { stepWeather, rainWeather, clearWeather, RAIN_DURATION_MS } from '../src/world/weather.ts';
@@ -250,16 +251,34 @@ test('「交付」还要过整份叙述表：过去时与评价收尾都不收�
   // `complete` 与短活、派活同属"收单/派活"这一路，查的是 `hasNarrativeMarker`
   // 全表（28 个标记），不是 `commandLeads` 那 12 个。少了过去时与评价收尾这 16 个，
   // 陈述句就变成了收单命令——实测「交付已经交了」真的交付、faith 0→1、
-  // 回执还报 ok。这里把六句全钉住，免得下一个人为了"少拦几句"再收窄一遍。
-  for (const text of [
-    '交付已经交了',
-    '交付之前先说一声',
-    '完成总是拖到最后',
-    '交付昨天就交了',
-    '完成一直没交',
-    '交付真累',
-  ]) {
-    assert.equal(parseOracle(text).kind, 'unknown', `「${text}」是陈述，不该收单`);
+  // 回执还报 ok。
+  //
+  // 这 16 个是 `commandLeads` 唯独放过去时与评价的那一批，全部钉住：只钉六句的
+  // 话，把闸收窄回那六个词测试还是绿的，那等于没钉。下面先拿表本身对账，
+  // 再拿每个词造一句陈述——两件事任一坏了都红。
+  const pastAndEvaluative = [
+    // 过去/进行
+    '昨天', '前天', '刚才', '之前', '已经', '一直', '老是', '总是',
+    // 评价性收尾：写代码真累 / 查资料很烦
+    '真累', '好累', '很累', '真烦', '好烦', '很烦', '有点累', '有点烦',
+  ];
+  for (const marker of pastAndEvaluative) {
+    assert.ok(
+      NON_IMPERATIVE_MARKERS.includes(marker),
+      `叙述表里没有「${marker}」了：闸少了一个词，这句就重新变成命令`,
+    );
+    assert.ok(
+      !NEGATION_MARKERS.includes(marker),
+      `「${marker}」被归进了否定词：那道闸的职责就变了`,
+    );
+  }
+  assert.equal(NON_IMPERATIVE_MARKERS.length, 28, '叙述表的规模也钉住：28 个');
+  for (const marker of pastAndEvaluative) {
+    assert.equal(
+      parseOracle(`交付${marker}就交了`).kind,
+      'unknown',
+      `「交付${marker}就交了」是陈述，不该收单`,
+    );
   }
   // 否定那四个词是叙述表的子集，所以一并挡住了——不是只靠 negation 那一道。
   for (const text of ['交付别交错了', '交付不要交']) {

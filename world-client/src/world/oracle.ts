@@ -98,10 +98,13 @@ export function parseOracle(raw: string): OracleAction {
   // 宣布一件他没说的事。`hasNegation` 那四个词是 `NON_IMPERATIVE_MARKERS` 的
   // 子集，所以 `taskLeads` 一并挡住了否定句，不会把上面那批放回来。
   //
-  // 这里曾把 `complete` 也改成 `commandLeads`，本意是少拦几句，实测放进来
-  // 六句改世界的：「交付已经交了」「交付之前先说一声」「完成总是拖到最后」
-  // 「交付昨天就交了」「完成一直没交」「交付真累」——全部真的交付、faith 0→1。
-  // 已回退并留此注。
+  // 这里曾把 `complete` 也改成 `commandLeads`——`37654f0` 那句「`complete` 与
+  // 短活那两处本来就带着叙述排除，这五处漏了」是错的：它自己的 diff 就把
+  // `complete` 从 `leads && !hasNarrativeMarker` 挪上了 `commandLeads`，
+  // 叙述排除当场没了。作者以为没动，实测放进来六句改世界的：
+  // 「交付已经交了」「交付之前先说一声」「完成总是拖到最后」「交付昨天就交了」
+  // 「完成一直没交」「交付真累」——全部真的交付、faith 0→1。
+  // 已回退并留此注：`taskLeads` 就是挪走之前那一式。
   const leads = (words: readonly string[]): boolean =>
     words.some((word) => lower.startsWith(word));
   const commandLeads = (words: readonly string[]): boolean =>

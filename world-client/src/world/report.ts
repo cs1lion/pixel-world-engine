@@ -46,7 +46,7 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     });
     // 「最近一单」要的是**最晚交付**的那一单，不是数组末尾那一单。
     //
-    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1198`、`:1768`，
+    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1234`、`:1816`，
     // 读档那条 `:2919` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
     // 没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
     // 这两个顺序会分叉：先派下去的长活后交，后派下去的短活先交。照数组末尾取，
@@ -60,11 +60,22 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // 每次 `+=`），所以按 `completedAt` 排出来的才是真正的交付顺序。读档回来的
     // 单带着原来的 `completedAt`，新交的只会更大，跨会话也还排得对。
     //
-    // 打平怎么办：同一拍里两单都落成时 `completedAt` 相等（两单一起派下去就会——
-    // 一帧里两条命令、两个铺子同一拍越过预估，都走得到）。那时没有"更近"可言，
+    // 打平怎么办：同一拍里两单都落成时 `completedAt` 相等。那时没有"更近"可言，
     // 可纸上仍要写「最近一单」——写了就是句假话，说的是唯一，那儿有两个。
     // 所以打平时**整句不提**，跟 `done` 为空时同一个处置：说不出就不说。
     // 这不是保守过头：`deliveries.local` 已经如实报了两单，少的只是一个排名。
+    //
+    // 打得平只有一条路，窄得很：同一帧里派两条 `quick`，且有两个以上空闲村民
+    // ——两条都原地办（`finishInPlace`，铺子是 null），于是在同一拍写上同一个
+    // `this.now`。实测 createdAt 100/100、completedAt 1300/1300；只有一个村民时
+    // 第二条要排队（created 1300、completed 2500），打不平。
+    //
+    // 别把这条读成「同一帧派两单就会打平」——实测不是：四类活的时长两两不同
+    // （镇内 6000/4200/3200/1200，郊野同乘 1.8 得 10800/7560/5760/1200），
+    // 不同类永远落不到同一拍；同一类在同一帧里派两条，第二条连单都建不出来
+    // （一种活一座铺子，`pickVenue` 直接回「没有空闲的」）。上游那条更到不了
+    // 这儿：`syncEvents` 收工的单一律 splice 出表（`:1272`、`:1276`），
+    // 所以 `done` 里只会有本地派的活。
     const latest = done.reduce<TaskRecord | undefined>(
       (newest, task) =>
         newest === undefined || (task.completedAt ?? 0) > (newest.completedAt ?? 0)
