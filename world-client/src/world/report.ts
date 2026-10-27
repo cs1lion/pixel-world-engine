@@ -6,6 +6,7 @@
 
 import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
 import { describePropSource } from './faith.ts';
+import { NOT_SOMEWHERE, atAltar } from './villager-words.ts';
 
 export interface DailyReport {
   readonly headline: string;
@@ -56,7 +57,7 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
     // `completedAt` 是落成那一刻。三个收尾处写的都是 `this.now`——
     // `finishInPlace`（`simulation.ts:2400`）、`finishActiveTask`（`:2587`）、
-    // `settleDetachedTask`（`:3051`）；而世界钟只增不减（`update` 里 `:611`
+    // `settleDetachedTask`（`:3108`）；而世界钟只增不减（`update` 里 `:611`
     // 每次 `+=`），所以按 `completedAt` 排出来的才是真正的交付顺序。读档回来的
     // 单带着原来的 `completedAt`，新交的只会更大，跨会话也还排得对。
     //
@@ -146,11 +147,18 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
         : '外头下着雨';
   lines.push(`${weather}。${villagerTail(snapshot)}`);
 
-  // 天气那一句不带时间词，理由是同一条：`snapshot.weather` 是**这一拍**的读数，
-  // 而世界钟里没有"天"——`formatDate` 打的是「第 N 分 MM 秒」，只增不减、
-  // 从不翻篇（实测 now 走到 18000000 仍是「第 300 分」，没有第二天）。
-  // 旧措辞「今天晴」「今天下了雨」断言了一个世界上不存在的单位；「下了雨」
-  // 还多一层过去时——晴着的那一拍，无从知道今天早些时候下没下过。
+  // 天气那一句不带时间词，理由是同一条：`snapshot.weather` 是**这一拍**的读数。
+  //
+  // 这里原先写「世界钟里没有"天"」——不成立，同一份文件第 113 行就写着反面：
+  // `lampDayOf(snapshot.now)` 按世界钟算得出第几天（`lampoil.ts:59`，一天 24 个
+  // 世界小时），记忆也按天归档。「没有天」只对 `formatDate` 成立：它打「第 N 分
+  // MM 秒」，只增不减（实测 now 到 180000000 仍是「第 3000 分」）。原先那句
+  // 「实测 18000000 没有第二天」也举错了例子——那才 5 小时，第一个整天都没走完
+  // （`lampDayOf` 那天还是 0），第二天要到 86400000 才来。
+  //
+  // 结论不变，换一条理由：有天也照样不能说「今天晴」。天气是这一拍的读数，
+  // 快照里没有按天记的天气史，「今天早些时候下没下过」无从知道——与上面
+  // 「新起」是同一道坎：有单位，没有可比的第二个数。「下了雨」还多一层过去时。
   // 改成现在时：外头晴着 / 下着雨 / 刮着暴雨，全都只描述手里这一拍。
   //
   // 没有里程碑时不能写"第 1 次神恩"：那是还没发生的事。
@@ -220,8 +228,6 @@ function mergeable(body: string): boolean {
   return body !== NOT_SOMEWHERE && !/[，。！？；、]/.test(body);
 }
 
-const NOT_SOMEWHERE = '这会儿没个准地方';
-
 /**
  * 闲人们在干什么。只写查过的，不猜。
  *
@@ -229,6 +235,9 @@ const NOT_SOMEWHERE = '这会儿没个准地方';
  * 没有牌子时才轮到纸上判断位置，而且只判手上有坐标可比的那一个点：
  * 人在祭坛格上才说「在祭坛边坐着」，不在就只说"没个准地方"，
  * 不给她安一个没查过的去处。
+ *
+ * 「在祭坛格上」这一判与状态行那句是同一判（`villager-words.ts` 的 `atAltar`），
+ * 搬过去共用：纸与屏各写各的判据时，修一处漏一处就是这么来的。
  */
 function idleClauses(
   idle: readonly { readonly villager: VillagerSnapshot }[],
@@ -237,11 +246,7 @@ function idleClauses(
   const groups = new Map<string, string[]>();
   for (const { villager } of idle) {
     const body =
-      villager.routine ??
-      (Math.floor(villager.pos.x) === snapshot.altar.x &&
-      Math.floor(villager.pos.y) === snapshot.altar.y
-        ? '在祭坛边坐着'
-        : NOT_SOMEWHERE);
+      villager.routine ?? (atAltar(villager, snapshot) ? '在祭坛边坐着' : NOT_SOMEWHERE);
     const names = groups.get(body);
     if (names === undefined) groups.set(body, [villager.name]);
     else names.push(villager.name);

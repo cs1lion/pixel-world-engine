@@ -36,6 +36,7 @@ import { checkPlacement, hintFor } from '../world/setup.ts';
 import { parsePhaseParam, phaseAt, type PhaseId } from '../render/day-phase.ts';
 import { createDecorView, type DecorView } from '../render/decor.ts';
 import { composeReport, type DailyReport } from '../world/report.ts';
+import { villagerModeLabel } from '../world/villager-words.ts';
 import { describePropSource } from '../world/faith.ts';
 import { createLazyAnimalese, type Animalese } from '../audio/animalese.ts';
 import { toWorldCommand, type AgentToWorld } from '../world/bridge.ts';
@@ -592,11 +593,13 @@ export class SandboxScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     this.updateCount += 1;
 
-    // 省电：后台时按最小间隔跳帧。**跳过的是这一帧的渲染与逻辑推进**，
-    // 世界本身不会错乱——逻辑时钟按真实经过的时间推进，只是推得粗一些。
+    // 省电：后台时按最小间隔跳帧。**跳过的是这一帧的渲染与逻辑推进**。
+    // 少的是帧数，不是世界时间——累加器按真实经过的时间补，所以推得粗一些
+    // 而不错乱。但补齐有 250ms 的上限（下面那行 `Math.min`）：间隔超过它的
+    // 场合——隐藏标签页被浏览器压到 1fps——世界会实实在在地走慢，不补齐。
     //
     // 闸门在 `eco-mode.ts`（纯函数）。它保证「一次都没推进过时放过」，
-    // 所以下面第一次推进一定拿得到基准；早先这里自己判，基准立不起来，
+    // 所以下面第一次推进就立得起基准；早先这里自己判，第一次永远判不过，
     // 失焦但仍在合成的窗口里世界一步都不走（实测 advanceCount 恒为 0）。
     if (!shouldAdvanceFrame(this.lastAdvanceAt, time, this.backgroundMode, this.minFrameIntervalMs)) return;
     // 累加的是**上一帧到现在**的真实间隔。第一次推进时 `lastAdvanceAt` 还是 0，
@@ -1300,20 +1303,11 @@ export class SandboxScene extends Phaser.Scene {
       .map((villager) => {
         const task = this.snapshot.tasks.find((item) => item.id === villager.taskId);
         const where = task === null || task === undefined ? null : this.buildingName(task.buildingId);
-        const modeLabel: Record<typeof villager.mode, string> = {
-          idle: villager.routine ?? '在祭坛边闲逛',
-          saluting: '正向神谕行礼',
-          toWork: where === null ? '赶路' : `赶往 ${where}`,
-          working:
-            where === null
-              ? `在祭坛边办「${task?.summary ?? ''}」`
-              : `在 ${where} 干活「${task?.summary ?? ''}」`,
-          delivering: '正在交付',
-          toAltar: '回到祭坛',
-          sheltering: '跑到屋檐下躲雨',
-          bearingDecree: '举着急件跑向祭坛',
-        };
-        return `${villager.name}：${modeLabel[villager.mode]}`;
+        // 她那一句怎么说法，全在 `villager-words.ts`：这里只查铺子名字。
+        // 原先这张表长在这儿，`idle` 那一支写的是 `routine ?? '在祭坛边闲逛'`——
+        // 她没牌子时世界对她位置一无所知，那句话是替世界编的。日报那边同一个
+        // 错已经修过（`report.ts` 的 `NOT_SOMEWHERE`），状态行漏了。
+        return `${villager.name}：${villagerModeLabel(villager, this.snapshot, task, where)}`;
       })
       .join('　/　');
     const weather = WEATHER_LABEL[this.snapshot.weather];
