@@ -99,3 +99,16 @@
 | 服务端也要求 `at`，但在提示词里教模型「用户没说就随便给一个」 | 同上，只是把锅从校验器挪到提示词。随便一个坐标仍然会被拒，用户看到的是「听懂了」然后被拒 |
 | 客户端先放宽，服务端维持严格 | 两边说不同的话。冻结线协议的意义就在于两边必须是同一句 |
 | 加一条 `building.addAnywhere` 命令 | 六条命令已经够记。「随地」是 `building.add` 的一种参数形状，不是一件不同的事 |
+
+> **2026-10-28 补记：上一行「六条命令」是假的，而且是写下那天就假的。**
+> 本 ADR 引入的那一笔（`c11897d`，2026-10-27）里 `server/rules/schema.py` 的
+> `COMMAND_CHECKS` 已经是**七条**：`weather.set` / `tide.setLevel` /
+> `building.add` / `building.remove` / `miracle.spawn` / `npc.setSchedule` /
+> `villager.carry`（`git show c11897d:server/rules/schema.py` 可核）。
+> 所以这不是「后来长到七条」——写的时候就是七条。
+> **结论（不选 `building.addAnywhere`）不受影响**：`at` 可省略已经办到，
+> 而「一条命令一种参数形状」那条理由与总数无关。要复核就数
+> `COMMAND_CHECKS` 的键，别看这一行。
+> 同一个文件第 21-23 行还记着另一个数错的例子（「add 是 4 条不是 5 条」）——
+> 那一处的数今天在 `server/tests/test_rules_schema.py` 两处、
+> `server/tests/test_intent_api.py` 一处又复发过，四处都已补记。

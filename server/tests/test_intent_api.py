@@ -184,13 +184,20 @@ def test_建楼回到_build_形状() -> None:
 def test_模型不说地点时_端点回一个at为null的build() -> None:
     """「建个工坊」这种不说地点的话，模型不该被逼着编一个坐标。
 
-    55 条合法用例里 5 条是这种，模型全部答 unknown——提示词说这条命令必须带
+    合法用例里不说地点的那几条，模型全部答 unknown——提示词说这条命令必须带
     坐标，而用户没给。现在 `at` 可省略，端点回 `at: null`，客户端
     （`simulation.ts`）接着写成 `at: intent.at ?? undefined`，世界走
     `findBestSlot` 自己挑地方。
 
     这条钉的是**整条链**：白名单放行 → 映射成 `at: null` → 客户端解析得下
     （`intent-contract.test.ts` 拿同一条冻结样例反向验过）。
+
+    2026-10-28 补记：这里原来写「55 条合法用例里 5 条是这种」，两处都不对。
+    55 是**全套**用例（26 合法 / 12 越界 / 10 闲聊 / 7 歧义），不是合法用例；
+    不说地点的是 `building.add` 5 条里的 4 条。这个错
+    `docs/adr/ADR_BUILDING_AT_OPTIONAL.md` 第 21-23 行最早记过，之后在
+    `rules/schema.py`、`tests/test_rules_schema.py`（两处）反复复发——
+    这是第四处。数不写死，要数就数 `scripts/intent_experiment.py` 的 `LEGAL`。
     """
     response = post(
         client_with(commands({"command": "building.add", "args": {"prefabId": "code_forge"}}))
