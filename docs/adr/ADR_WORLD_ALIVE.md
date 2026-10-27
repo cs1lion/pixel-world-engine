@@ -74,11 +74,16 @@
 
 **它不进世界**（反向证据）：`src/world/` 下的 import 目标**只有 `./` 与落在
 `src/world/` 里面的 `../`**——世界内核不 import 渲染层，不 import `day-phase.ts`，
-不 import Phaser。`src/world/` 里出现 `day-phase` 这个词的
-只有 `weather.ts` 的注释——`renderIntensity` 上方那一段解释萤火条件为什么搬了家的话里
-提了四次 `day-phase`（**指名，不叫行号**：那几行会随我自己的编辑漂，而引用审计只认
-「那一行有没有代码」，认不出那一行是不是说的那个东西），**不是 import**——所以
-`test/phase-purity.test.ts` 那条词汇扫描走 `codeOf()`，注释不算。
+不 import Phaser。`src/world/` 里出现 `day-phase` 这个词的只有 `weather.ts` 的
+注释——`renderIntensity` 上方那一段解释萤火条件为什么搬了家的话里提了四次
+`day-phase`（**指名，不叫行号**：那几行会随我自己的编辑漂，而引用审计只认
+「那一行有没有代码」，认不出那一行是不是说的那个东西），**不是 import**。
+（**逼着词汇扫描走 `codeOf()` 的不是 `day-phase`。** 它压根不在词表里，提四次
+也红不了；真正必须走 `codeOf()` 的是同一段注释里的 `PHASES`——那一个在表里。
+这一段原来写的是「……不是 import——所以词汇扫描走 `codeOf()`，注释不算」，
+把原因安在了 `day-phase` 头上。安错原因比没有原因更坏：下一个人会去删那四处
+`day-phase`，删完照旧红，还以为是别的地方漏了。2026-10-28 改，实测见
+`test/phase-purity.test.ts` 那段注释。）
 `WorldSnapshot`（`src/world/types.ts`）的 23 个字段是 now、villager、villagers、
 buildings、startupBuildingIds、workstations、constructions、tasks、pending、props、
 oracle、critters、fog、roads、trails、altar、events、weather、tide、faith、deliveries、
@@ -290,7 +295,14 @@ SPEC 那一行是超前的。
   正则字面量它都活得过去。它不在是因为**没用**：加进来唯一想抓的那种走法
   （把 `day-phase.ts` 抄进 `src/world/` 再 import 它）恰好抓不到，import 的路径
   在字符串里，被 `codeOf()` 挖掉了；而抄过来的文件里总得有 `phaseAt`，那一个键
-  就够了。这一行原来把 `day-phase` 列在词表里，是本节自己的错。）
+  就够了。
+
+  **membership 从来没写错过，写错的是排除它的理由。** 上面那份名单从头到尾是
+  五个名字，`day-phase` 一天也没在过；旧版在这儿写的是「它不可能在」——那才是
+  假的那半句。我修的时候顺手补了一句「这一行原来把 `day-phase` 列在词表里，是
+  本节自己的错」，**那句本身是假的**：翻它之前每一版，名单都是五个。一次散文
+  更正被写成了一次成员更正，而那是给下一轮复审白留的靶子——2026-10-28 由复审
+  挑出来，连这句话一起改掉。）
 - **快照里开一个字段。** 不 import、不抄，只在 `WorldSnapshot` 上加一个 `phase`，
   渲染层读快照就拿到了时辰。由 `test/phase-purity.test.ts` 的字段清单拦：
   它不猜字段名，把**今天的 23 个字段**列死，加一个字段就得先改那个文件。
