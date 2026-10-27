@@ -14,7 +14,7 @@ import { TILE_PX } from '../world/setup.ts';
 import type { WorldSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import { propFootY } from './prop-depth.ts';
-import { PHASES, type PhaseId, type PhaseRecipe } from './day-phase.ts';
+import { firefliesVisible, PHASES, type PhaseId, type PhaseRecipe } from './day-phase.ts';
 import { isWildLanternOn } from '../world/wilderness-signal.ts';
 import { litWindowCount } from '../world/bustle.ts';
 
@@ -192,9 +192,7 @@ export function createPhaseView(
 
   const drawFireflies = (snapshot: WorldSnapshot, view: Blend): void => {
     fireflies.clear();
-    // 暴雨天也没有萤火虫：它们是「晴天夜里」的装饰，不是天气系统的例外。
-    // 写 `!== 'clear'` 而不是列举两种雨——再添一档天气时这里不必再改。
-    if (!view.fireflies || snapshot.weather !== 'clear') return;
+    if (!firefliesVisible(view, snapshot.weather)) return;
     for (let i = 0; i < FIREFLIES.length; i += 1) {
       const point = FIREFLIES[i]!;
       const phase = Math.sin(snapshot.now / 700 + i * 1.9);

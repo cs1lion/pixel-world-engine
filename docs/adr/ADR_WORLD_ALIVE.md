@@ -220,23 +220,40 @@ SPEC 那一行是超前的。
 |---|---|---|
 | §2 时辰不进世界 | **没有专门的源码扫描**。成立靠的是 import 图本身（§2 的反向证据）。间接的是 `test/purity.test.ts` 的「src/world 不 import Phaser」与「§4.6 三个状态位不读墙钟」（按文件扫 `types.ts` / `gate.ts` / `simulation.ts` / `grid.ts` / `save.ts` / `faith.ts` / `grime.ts`，只豁免 `deps.wallClock ?? (() => Date.now())` 那一整行） | `npm test` |
 | §2 四刻可辨 | `test/day-phase.test.ts`（配方表） | `npm test` |
+| §2 暴雨天没有萤火 | `test/day-phase.test.ts` 的「萤火虫只要晴天的那几刻」与「加一档天气不必改这里」（2026-10-27 补；原 §6 缺口 2） | `npm test` |
 | §2 四刻在真渲染器上可辨 | `scripts/check-phases.mjs`（截图量像素） | 要 `npm run dev`，**CI 不跑** |
 | §3 编年史不落档 | `test/save-fingerprint.test.ts` 钉路径条数与指纹 | `npm test` |
 | §3 记忆那扇门是只读的 | `test/purity.test.ts` 的「世界的网络入口是封闭的一份清单」（白名单里 `memory-client.ts` 注明只读不写） | `npm test` |
 | §4 角色不是 Agent | `test/purity.test.ts` 的上游词汇扫描 | `npm test` |
 | §8 v1→v2 迁移 | `test/save-fingerprint.test.ts` 的「v2 样例仍原样不动」+ `test/save.test.ts` 的 v1→v2 四条 | `npm test` |
 
-**两处缺口，说清楚免得误以为有闸**：
+**一处缺口，说清楚免得误以为有闸**：
 
 1. **§2 没有「世界不碰时辰」这道扫描。** 明天有人把 `phaseAt` 接进 `Simulation`，
    今天没有一道闸会红——除非他顺手写了 `Date.now()`（那会红，见上表第一行）。
    同族纪律是补得上的：`test/lampoil.test.ts` 的「除了清单上那几个文件，世界没人碰灯油」
    就是因为「只看 `simulation.ts`」失效过（有人把「油尽了不走这条路」写进 `grid.ts` 或
    `bustle.ts`，全套照旧绿），才扩到整个 `src/world/` 目录并递归往下。时辰缺的正是这一道。
-2. **「暴雨天不该有萤火」没有用例。** `phase-view.ts` 的 `drawFireflies` 在
-   `snapshot.weather !== 'clear'` 时直接 return，`PHASES.night` 的注释也写着「下雨时隐藏」，
-   但 `test/day-phase.test.ts` 只断言 `PHASES.night.fireflies` 这个**配置值**，
-   没有一条用例把「夜里下雨了所以没有萤火」跑成红。`src/world/weather.ts` 的注释自己记着这件事。
+
+**一处已经补上的缺口（2026-10-27，原本列在下面）**：**「暴雨天不该有萤火」没有用例。**
+`phase-view.ts` 的 `drawFireflies` 在天气不是晴时直接 return，`PHASES.night` 的注释也写着
+「下雨时隐藏」，但 `test/day-phase.test.ts` 只断言 `PHASES.night.fireflies` 这个**配置值**，
+没有一条用例把「夜里下雨了所以没有萤火」跑成红。`src/world/weather.ts` 的注释自己记着这件事，
+还写着「想让它真的会红，得先给 `phase-view` 的萤火虫条件补一条用例」。
+
+补法有两半，缺一半都不成立：
+
+- **把条件搬出 `phase-view.ts`。** 用例原先没法写，不是因为懒——`phase-view.ts` import Phaser，
+  node 下一 import 就 `window is not defined`（实测：往 `day-phase.test.ts` 里加一句
+  `import ... from '../src/render/phase-view.ts'`，整个文件直接崩，一条用例都跑不到）。
+  所以条件搬到 `day-phase.ts` 的 `firefliesVisible(view, weather)`——那个文件不碰 Phaser，
+  测试本来就在跑。`drawFireflies` 改为调它。
+- **补两条用例。** 「萤火虫只要晴天的那几刻」把四刻 × 三种天气全走一遍；
+  「加一档天气不必改这里」拿三种已知之外的天气词断言一律没有萤火虫——这条钉的正是
+  `weather.ts` 里那句「再加一档天气渲染层不用改」：改回列举两种雨，红的是它。
+
+**这道闸不是形式上的**：实测把 `=== 'clear'` 改回 `!== 'rain' && !== 'storm'`，
+「加一档天气不必改这里」立刻红；把天气那一半整条删掉，两条全红。还原后 15/15 绿。
 
 ## §7 现在证不出来的，以及已经对不上的地方
 

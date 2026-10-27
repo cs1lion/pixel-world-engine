@@ -129,3 +129,56 @@ test('认不出的 URL 参数返回 null，调用方退回真实时间', () => {
   assert.equal(parsePhaseParam('sunset'), null);
   assert.equal(parsePhaseParam('99'), null);
 });
+
+// ------------------------------------------------------------------ 萤火虫那道门
+
+/**
+ * 夜里下雨了就没有萤火虫。
+ *
+ * 这条规矩原来**一条用例都没有**：条件写在 `drawFireflies` 里，而那个函数长在一个
+ * import Phaser 的模块里，node 下构造不出来。ADR_WORLD_ALIVE §6 缺口 2 记的就是它，
+ * `src/world/weather.ts` 的注释也写着「想让它真的会红，得先给 `phase-view` 的萤火虫
+ * 条件补一条用例」。所以把条件抽成 `firefliesVisible`（纯函数），由这里盯着。
+ *
+ * 顺带把两半都钉住，别只钉天气那一半：
+ *   - 天气那一半要是被人改回列举两种雨（`weather === 'rain' || weather === 'storm'`），
+ *     这里红——而改回去是加第三档天气时最自然的一笔错。
+ *   - 配方那一半（`view.fireflies`）也钉：它现在只有夜里有，将来若给黄昏也配上，
+ *     这条测试会提醒你「记得连渲染层的门一起看」。
+ */
+import { firefliesVisible } from '../src/render/day-phase.ts';
+import type { Weather } from '../src/world/types.ts';
+
+test('萤火虫只要晴天的那几刻：夜里有，下雨/暴雨就没有', () => {
+  const kinds: readonly Weather[] = ['clear', 'rain', 'storm'];
+  for (const phase of PHASE_ORDER) {
+    const view = PHASES[phase];
+    for (const weather of kinds) {
+      const visible = firefliesVisible(view, weather);
+      if (weather === 'clear') {
+        // 只有夜里那一刻的配方开着萤火虫。
+        assert.equal(
+          visible,
+          view.fireflies,
+          `${phase} + ${weather}：${view.fireflies ? '该有' : '不该有'}`,
+        );
+      } else {
+        assert.equal(visible, false, `${phase} + ${weather}：天上云着就不该有萤火虫`);
+      }
+    }
+  }
+  // 四刻里只有夜开着这一档——这条要是也绿不了，上面那个循环等于什么都没查。
+  assert.deepEqual(
+    PHASE_ORDER.filter((phase) => PHASES[phase].fireflies),
+    ['night'],
+  );
+});
+
+test('加一档天气不必改这里：非晴一律没有萤火虫', () => {
+  // `firefliesVisible` 判的是 `=== 'clear'`，所以任何新档位默认「没有萤火虫」。
+  // 这不是猜的：把三种已知天气之外的词塞进去，照样是 false。
+  for (const weather of ['snow', 'fog', ''] as unknown as Weather[]) {
+    assert.equal(firefliesVisible(PHASES.night, weather), false);
+  }
+  assert.equal(firefliesVisible(PHASES.night, 'clear'), true);
+});

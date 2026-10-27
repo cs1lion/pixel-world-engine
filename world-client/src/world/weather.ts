@@ -121,11 +121,13 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
  *
  * 为什么加在这里而不是渲染层：天气视图（`render/weather.ts`）只收这一个数，
  * 收齐了它就不必知道天气有几档——加第三档时它一行没改，就是这条设计的回报。
- * 整个 `src/render/` 只有两处碰天气，另一处是 `phase-view.ts:197` 的萤火虫。
+ * 整个 `src/render/` 只有两处碰天气，另一处是 `phase-view.ts` 的 `drawFireflies`
+ * 调的那一句 `firefliesVisible`（**叫名字，不叫行号**：这里原先写
+ * `phase-view.ts:197`，而行号跟着我自己的编辑漂——往 `drawFireflies` 里加一行，
+ * 那个数指的就是别处了，而行号引用审计查不出来，因为那两行都"有代码"）。
  *
  * 这里原来写「`Simulation.weatherIntensity()` 是渲染层唯一的输入」，不成立——
- * 萤火虫直接读 `snapshot.weather !== 'clear'`。渲染层有两条天气通道：这条给
- * 浓淡，那条只给「是不是晴天」一个布尔。
+ * 萤火虫也看天气。渲染层有两条天气通道：这条给浓淡，那条只给「是不是晴天」一个布尔。
  *
  * 「再加一档天气渲染层不用改」仍然是真的，但它**不是本来就有的，是补出来
  * 的**：萤火虫那句从 `996cbd3` 起写的是 `=== 'rain'`，那正是在数档位；加暴雨
@@ -133,13 +135,17 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
  * 靠两条通道一起做到，不是 `renderIntensity` 这一条独力。哪一天有人把
  * `!== 'clear'` 改回列举两种雨，红的是渲染层——而这句话已经先把原因写在这儿。
  *
- * 上限仍然是 1，因为插值的那几个量都是 0..1 语义。
+ * （上面那句「哪一天有人把 `!== 'clear'` 改回列举两种雨，红的是渲染层」
+ * 2026-10-27 才真的成立。此前它说的是空话：萤火虫那个天气条件**没有测试守着**，
+ * `test/day-phase.test.ts` 只断言 `PHASES.night.fireflies` 这个配置值，
+ * 没有一条用例把「暴雨天不该有萤火虫」跑成红。同日把那个条件从 `drawFireflies`
+ * 里搬到 `day-phase.ts` 的 `firefliesVisible`——`drawFireflies` 长在一个 import
+ * Phaser 的模块里，node 下一 import 就 `window is not defined`，用例根本跑不起来；
+ * `day-phase.ts` 不碰 Phaser，测试已经在跑——并补了「萤火虫只要晴天的那几刻」
+ * 与「加一档天气不必改这里」两条。现在把 `=== 'clear'` 改回列举两种雨，
+ * 红的是 `test/day-phase.test.ts`。）
  *
- * （上面那句「哪一天有人把 `!== 'clear'` 改回列举两种雨，**红的是渲染层**」
- * 说得过强：萤火虫那个天气条件今天**没有测试守着**——`test/day-phase.test.ts`
- * 只断言 `PHASES.night.fireflies` 这个配置值，没有一条用例把
- * 「暴雨天不该有萤火虫」跑成红。所以真有人改回去，红的是**没有东西会红**，
- * 坏的只是画面。想让它真的会红，得先给 `phase-view` 的萤火虫条件补一条用例。）
+ * 上限仍然是 1，因为插值的那几个量都是 0..1 语义。
  */
 export function renderIntensity(state: WeatherState): number {
   if (state.kind !== 'storm') return state.intensity;

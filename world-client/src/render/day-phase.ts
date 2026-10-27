@@ -9,6 +9,7 @@
  */
 
 import { WORLD } from '../world/palette-data.ts';
+import type { Weather } from '../world/types.ts';
 
 export type PhaseId = 'dawn' | 'noon' | 'dusk' | 'night';
 
@@ -123,4 +124,33 @@ export function parsePhaseParam(raw: string | null): PhaseId | null {
   if (value === 'dusk' || value === 'evening') return 'dusk';
   if (value === 'night') return 'night';
   return null;
+}
+
+/**
+ * 这一刻该不该画萤火虫：开着萤火虫的那几刻、且天上没有云。
+ *
+ * **放在这个文件而不是 `phase-view.ts`，是为了让它能被测试跑到红。** 条件原来写在
+ * `drawFireflies` 里，而那个函数长在一个 import Phaser 的模块里——node 下一 import
+ * 就 `window is not defined`（实测：往 `day-phase.test.ts` 里加一句
+ * `import ... from '../src/render/phase-view.ts'`，整个文件直接崩，一条用例都跑不到）。
+ * 本文件不碰 Phaser，测试已经在跑了，所以门放这儿。
+ *
+ * ADR_WORLD_ALIVE §6 缺口 2 记的就是这件事：「暴雨天不该有萤火」原来**没有用例**。
+ * `src/world/weather.ts` 的注释自己也写着「想让它真的会红，得先给 `phase-view` 的
+ * 萤火虫条件补一条用例」——现在补上了，那条注释里「没有测试守着」的说法要跟着改。
+ *
+ * 判据是两条，各管一半：
+ *   - `view.fireflies`：配方说这一刻有没有萤火虫（今天只有夜里有）。**运行时调用方
+ *     传进来的是插值后的 `Blend`，不是 `PhaseRecipe`**——黄昏往夜里过渡时它也跟着
+ *     渐变，所以黄昏前半没有、后半才有，不是一到黄昏就整群出现。参数因此收一个
+ *     只要 `{fireflies}` 的形状：收 `PhaseRecipe` 调用方过不了类型，收 `Blend`
+ *     测试又拿不到一份现成的配方。
+ *   - `weather === 'clear'`：暴雨天也没有。写 `=== 'clear'` 而不是列举两种雨——
+ *     再添一档天气时这里不必再改（`src/world/weather.ts` 记着这条承诺的来路）。
+ *
+ * 只 import 了 `Weather` 这个**类型**：不读世界状态，只是拿一个枚举词来比。
+ * 本文件「不碰 Phaser、不读世界状态」的约定因此仍然成立。
+ */
+export function firefliesVisible(view: { readonly fireflies: boolean }, weather: Weather): boolean {
+  return view.fireflies && weather === 'clear';
 }
