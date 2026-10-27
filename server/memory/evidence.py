@@ -26,6 +26,10 @@ from events.log import MAX_LIMIT, EventLog, WorldEvent
 #:
 #: 只认这一种不是过度收紧：交付、建造、拆除、神迹、天气、拨潮全是 `world.changed`。
 #: 真要引用别的 kind（比如上游来了一单），改这一行常量，不用动校验逻辑。
+#: （2026-10-28：上面那串是**列举，不是清单**——`WORLD_CHANGE_CHECKS` 今天是七种，
+#: 漏说的第七种是 `world.vitals`（一天结束时那四个标量）。它落成的 kind 同样是
+#: `world.changed`，所以「证据至少要引用一条世界自己做成的事」对它也成立。
+#: 别把这串当成可引用事件的全集。）
 WORLD_FACT_KIND = "world.changed"
 
 

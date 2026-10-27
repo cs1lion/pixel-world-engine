@@ -92,8 +92,13 @@ class MemoryWriter:
 
         照原来那句写 `except MemoryWriteError` 的调用方，会漏掉 `EvidenceError`
         与 `MemoryPathError` 两种真实失败。要全都接住，就接 `ValueError`，
-        或把这三个名字都列出来。`memory/api.py` 正是分别给
-        `MemoryWriteError` 与 `MemoryPathError` 挂了 handler——它没被这句骗到。
+        或把这三个名字都列出来。
+        （2026-10-28 第二笔补记：这里原来接着写「`memory/api.py` 正是分别给
+        `MemoryWriteError` 与 `MemoryPathError` 挂了 handler——它没被这句骗到」。
+        **那是选择性列举，读起来像穷举。** `memory/api.py` 实际挂了**四个**
+        handler：`MemoryWriteError`、`MemoryPathError`、`EvidenceError`、
+        `SnapshotError`，四个全回 422。调用方那一边四个都接住了，
+        被那句骗到的只会是下一个读这个 docstring 的人。）
         """
         check_draft(draft)
         check = check_evidence(self._log, draft.evidence)
