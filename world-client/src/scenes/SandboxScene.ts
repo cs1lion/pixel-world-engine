@@ -25,7 +25,7 @@ import { createCameraController, type CameraController } from '../render/camera-
 import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
-import { shouldAnimateAt, targetFpsFor } from '../render/eco-mode.ts';
+import { shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '../render/eco-mode.ts';
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
@@ -589,17 +589,20 @@ export class SandboxScene extends Phaser.Scene {
     altar.setDepth(ALTITUDE + ay + 24);
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     this.updateCount += 1;
 
     // 省电：后台时按最小间隔跳帧。**跳过的是这一帧的渲染与逻辑推进**，
     // 世界本身不会错乱——逻辑时钟按真实经过的时间推进，只是推得粗一些。
     //
-    // 用真实经过的时间而不是上一帧的 delta：跳帧后 delta 只有 16ms，
-    // 直接累加会让世界时钟在后台越走越慢。
-    const elapsed = this.lastAdvanceAt === 0 ? delta : _time - this.lastAdvanceAt;
-    if (this.backgroundMode && elapsed < this.minFrameIntervalMs) return;
-    this.lastAdvanceAt = _time;
+    // 闸门在 `eco-mode.ts`（纯函数）。它保证「一次都没推进过时放过」，
+    // 所以下面第一次推进一定拿得到基准；早先这里自己判，基准立不起来，
+    // 失焦但仍在合成的窗口里世界一步都不走（实测 advanceCount 恒为 0）。
+    if (!shouldAdvanceFrame(this.lastAdvanceAt, time, this.backgroundMode, this.minFrameIntervalMs)) return;
+    // 累加的是**上一帧到现在**的真实间隔。第一次推进时 `lastAdvanceAt` 还是 0，
+    // 减出来会是页面启动至今的时间，所以那一回拿本帧 delta 兜底。
+    const elapsed = this.lastAdvanceAt === 0 ? delta : time - this.lastAdvanceAt;
+    this.lastAdvanceAt = time;
     // 真正推进过的帧才计数：`updateCount` 统计的是 Phaser 的调用次数，
     // 跳帧时它仍然每帧加一，看不出降频。
     this.advanceCount += 1;

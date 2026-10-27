@@ -43,3 +43,31 @@ export function shouldAnimateAt(point: GridPoint, view: ViewRect): boolean {
     point.y <= view.y + view.height + VIEW_MARGIN
   );
 }
+
+/**
+ * 这一帧推进世界吗（后台降频的闸门）。
+ *
+ * `lastAdvanceAt` 是上一次**推进过**的时刻，`0` 表示一次都还没推进。
+ * 调用方的契约：放过时把它改成 `now`，跳过时原样留着。
+ *
+ * **一次都没推进过时必须放过。** 少了这一句，`lastAdvanceAt` 永远是 0，
+ * 于是每一帧都落在「没有基准」那条路上——而那里能拿来当「已经过去的时间」
+ * 的只有本帧 delta，60fps 下是 16.7ms，后台档要 83.3ms，永远判不过。
+ * 调用方又只在放过时才记时间戳，基准因此永远立不起来：世界一步不走。
+ *
+ * 这不是假想的。失焦的无头面板里实测：Phaser 以 59.6fps 调 `update()`
+ * （`updateCount` 14617），`advanceCount` 是 0。窗口失焦但仍在合成的两种情况
+ * ——双屏里盯着另一块、页面刚加载完还没点回来——都会走进来。
+ *
+ * 前台（`backgroundMode` 为 false）不拦：拦了就是掉帧。
+ */
+export function shouldAdvanceFrame(
+  lastAdvanceAt: number,
+  now: number,
+  backgroundMode: boolean,
+  minFrameIntervalMs: number,
+): boolean {
+  if (!backgroundMode) return true;
+  if (lastAdvanceAt === 0) return true;
+  return now - lastAdvanceAt >= minFrameIntervalMs;
+}
