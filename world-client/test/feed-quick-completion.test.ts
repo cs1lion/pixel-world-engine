@@ -162,3 +162,35 @@ test('上游的 quick 带着急件：那句问题不被擦掉', () => {
     '那句急件得留着，用户还等着答它',
   );
 });
+
+test('同一条原地办的路，日志说的来处不一样：上游的单不叫神谕', () => {
+  // `startInPlace` 是两条路共用的，来处是它唯一的入参。把它写错（上游的单
+  // 记成「神谕」）不会红任何现有测试——可事件流是世界的记忆，记忆里一单
+  // 上游派来的活被记成用户亲口说的，就是记错了来历。
+  const feed = sim();
+  feed.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'quick', title: '上游那件' }] }));
+  assert.ok(tickUntilWorking(feed), '前置：她该在干');
+  assert.equal(
+    feed.recentEvents(50).some((event) => event.text === '上游：上游那件（莞尔原地办）'),
+    true,
+    '上游派来的那单，日志得说上游',
+  );
+
+  const oracle = sim();
+  oracle.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '我说的那件' });
+  assert.ok(tickUntilWorking(oracle), '前置：她该在干');
+  assert.equal(
+    oracle.recentEvents(50).some((event) => event.text === '神谕：我说的那件（莞尔原地办）'),
+    true,
+    '用户自己说的那单，日志得说神谕',
+  );
+});
+
+test('她一边干一边说的那句话：屏上唯一一句进度', () => {
+  // 干活那几秒里，用户能读到的只有她头上那一句。改动它不会有任何测试红——
+  // 而它是这整段时间唯一的反馈。
+  const s = sim();
+  s.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
+  assert.ok(tickUntilWorking(s), '前置：她该在干');
+  assert.equal(s.snapshot().villager.bubble, '这个我顺手就办了。');
+});
