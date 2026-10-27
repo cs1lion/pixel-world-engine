@@ -10,7 +10,7 @@ import type { WorldGrid } from './grid.ts';
 import { CARRY_ITEMS, gateFilter, isCarryItem } from './gate.ts';
 import { TASK_PROFILES, taskDurationFor } from './tasks.ts';
 import { pickVenue, type VenueCandidate, type VenueMiss } from './venue.ts';
-import { fogAt, revealedRadiusFor } from './fog.ts';
+import { fogAt, revealedRadiusFor, wholeGridRadius, type FogState } from './fog.ts';
 import {
   TIDE_OVERRIDE_MAX_MS,
   effectiveTideLevel,
@@ -294,6 +294,21 @@ export interface SimulationDeps {
    */
   readonly propReveals?: ReadonlyMap<PropKind, readonly string[]>;
   /**
+   * 这张地图是不是设定集作者一口气铺开的（`SettingPack.authored`）。
+   *
+   * 与 `regionNames` / `propReveals` 同一条规矩：**话是谁的就说谁拿着**。
+   * 引擎不读设定集文件，所以这一位由拿着设定集的调用方给。
+   *
+   * 它只决定一件事：迷雾。设定集的地图整张都是「已经到过的地方」，中间留一片
+   * 迷雾读起来像「这里还没长出来」；旧镇的迷雾照旧由交付数自己收敛。给了 true，
+   * 揭示半径盖住整张图——**快照、建造闸、神迹闸读的都是同一个数**。
+   *
+   * 为什么非得传进来：`c716a4a` 只在渲染层盖了这一下，于是屏幕上没有雾，
+   * 神迹闸还按 38 拦人，「在 (1,1) 种一棵树」回一句「那里还没长出来」——
+   * 那句话指着屏幕上不存在的东西。三道门分两个数，就一定会分家。
+   */
+  readonly authored?: boolean;
+  /**
    * 蓝图注册表。造物神谕（「建一间书阁」）要用它把词换成模板。
    * 省略时造物神谕一律认不出——那是安全的降级，不是错误。
    */
@@ -493,6 +508,8 @@ export class Simulation {
   private readonly regionNames: ReadonlyMap<string, string> | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
   private readonly propReveals: ReadonlyMap<PropKind, readonly string[]> | undefined;
+  /** 设定集铺开的地图：迷雾整张掀掉。旧镇是 false，迷雾自己收敛。 */
+  private readonly authored: boolean;
   private readonly intentModel: IntentModel | undefined;
   private readonly worldSize: { readonly width: number; readonly height: number };
   /** 回写出口。省略表示不记日志（离线/测试）。 */
@@ -598,6 +615,7 @@ export class Simulation {
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
     this.propReveals = deps.propReveals;
+    this.authored = deps.authored === true;
     this.intentModel = deps.intentModel;
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
@@ -753,10 +771,9 @@ export class Simulation {
       oracle: this.oracleLog,
       critters: this.critters,
       // 揭示半径由交付数决定：用得越久，迷雾退得越多。
-      fog: {
-        center: this.altar,
-        revealedRadius: revealedRadiusFor(this.feedDeliveries + this.localDeliveries),
-      },
+      // 设定集例外——那种地图整张都是到过的地方，半径盖住整张图。判据只有一处，
+      // 见 `visibleFog`。
+      fog: this.visibleFog(),
       roads: this.roads,
       trails: visibleTrails(this.trails),
       events: this.events.slice(-12),
@@ -894,22 +911,34 @@ export class Simulation {
     }
 
     if (kind === 'cat') {
+      // 先定**格子**，浮点位置一律是格子中心（cell + 0.5）。
+      //
+      // 不给位置时贴着祭坛。但**祭坛可能就长在边线上**：`loadSettingPack` 只验
+      // hub 在界内，不验 hub+2.5。一个把 hub 放在右下角附近的设定集，会让每只
+      // 默认落点的猫生在世界外——然后这个槽里此后的**每一份存档都被越界检查拒掉**，
+      // 玩家只能手删存档（`save.ts` 的 `findOutOfWorldCoordinates`）。所以先问一声，
+      // 越界就退到与摆件同一个 `miracleSpot()` 的环上找空格（它只回走得通的格子，
+      // 天然在界内）。今天的两个包都碰不到这条路，它防的是下一个包。
+      const cell =
+        at ??
+        (this.grid.inBounds({ x: this.altar.x + 2, y: this.altar.y + 2 })
+          ? { x: this.altar.x + 2, y: this.altar.y + 2 }
+          : this.miracleSpot());
+      if (cell === null) {
+        return { ok: false, message: '祭坛周围没有空地了。' };
+      }
       this.nextMiracleNumber += 1;
       this.critters.push({
         id,
         kind: 'cat',
-        // 指定位置时落在格子中央；不给时仍贴着祭坛。
-        at:
-          at === undefined
-            ? { x: this.altar.x + 2.5, y: this.altar.y + 2.5 }
-            : { x: at.x + 0.5, y: at.y + 0.5 },
+        at: { x: cell.x + 0.5, y: cell.y + 0.5 },
         leavesAt: this.now + CAT_DWELL_MS,
       });
       this.log('info', '神迹：一只猫从街角溜达过来。');
       this.announce({
         change: 'miracle',
         miracle: 'cat',
-        at: { x: Math.round(at?.x ?? this.altar.x + 2), y: Math.round(at?.y ?? this.altar.y + 2) },
+        at: { x: cell.x, y: cell.y },
       });
       return { ok: true, message: '一只猫来了，它会自己走开。' };
     }
@@ -953,6 +982,11 @@ export class Simulation {
    *
    * 三条与建造同一套口径：在界内、不在迷雾里、格子空着。
    * 神迹不占网格（摆件只是装饰），所以只查这三条，不查留白与门口。
+   *
+   * 迷雾读 `visibleFog()`，不是这里另算一份：`c716a4a` 只改了建造闸，这一道
+   * 还在按 `revealedRadiusFor(交付数)`（开局 38）拦人。设定集的地图上一片雾都没有，
+   * 玩家把树种到 58 格外，回过来的却是「那里还没长出来」——那句话指着屏幕上
+   * 不存在的东西。三道门分两个数，就一定会分家。
    */
   private miracleSpotProblem(at: GridPoint): string | null {
     if (!this.grid.inBounds(at)) return '那里在世界外面。';
@@ -961,16 +995,33 @@ export class Simulation {
     const cell = this.grid.at(at);
     if (cell === undefined) return '那里在世界外面。';
     if (cell.occupant !== null) return '那里被建筑占着。';
-    if (fogAt(at, {
-      center: this.altar,
-      revealedRadius: revealedRadiusFor(this.feedDeliveries + this.localDeliveries),
-    })) {
+    if (fogAt(at, this.visibleFog())) {
       return '那里还没长出来。';
     }
     if (this.props.some((prop) => prop.at.x === at.x && prop.at.y === at.y)) {
       return '那里已经有一件神迹了。';
     }
     return null;
+  }
+
+  /**
+   * **玩家看得见的那片迷雾。** 快照、建造闸、神迹闸读的都是这一处。
+   *
+   * 设定集（`authored`）的地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是
+   * 一口气铺开的，中间留一片迷雾读起来像「这里还没长出来」。旧镇的迷雾照旧由
+   * 交付数自己收敛。
+   *
+   * 为什么是方法而不是两处各写：`c716a4a` 修建造闸时在渲染层盖了一下，快照与
+   * 神迹闸还在读收敛值——屏幕上没有雾，闸却按 38 拦人。分两个数就一定会分家，
+   * 所以收成一处，`fog.ts` 的 `wholeGridRadius` 负责「够不够盖住整张图」。
+   */
+  private visibleFog(): FogState {
+    return {
+      center: this.altar,
+      revealedRadius: this.authored
+        ? wholeGridRadius(this.grid)
+        : revealedRadiusFor(this.feedDeliveries + this.localDeliveries),
+    };
   }
 
   /** 神迹落点：从祭坛外环开始找，避开已占格与已有摆件。 */

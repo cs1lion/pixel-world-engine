@@ -74,7 +74,7 @@ export function villagerModeLabel(
       //
       // 而这条路比「铺子挑不到」常见得多：`tasks.ts:13` 的 quick 活
       // `venue: 'in_place'`，**每一条 quick 都走它**，「顺手看一眼」按钮
-      // （`simulation.ts:1787`）与上游事件流（`:1527`）两条来路都通。
+      // （`simulation.ts:1838`）与上游事件流（`:1578`）两条来路都通。
       //
       // 世界这一刻只知道她在办这件事，不知道她在哪儿——那就只说这件事。
       // 空summary 也别说成「」：那是两个引号夹一片空白，不是一句话。

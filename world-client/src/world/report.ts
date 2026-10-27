@@ -52,7 +52,7 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // 同一形状的引用它一律不查（它自己的注释里记着这个数）。所以改过
     // `simulation.ts` 之后，这些数得手工核，没有东西会替你红。
     //
-    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1392`、`:1977`，
+    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1443`、`:2028`，
     // 读档那条 `:3097` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
     // 没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
     // 这两个顺序会分叉：先派下去的长活后交、后派下去的短活先交。照数组末尾取，
@@ -187,12 +187,13 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // 开局后起的楼、没办成的单一起算进"动没动过"；真的什么都没发生才这么说。
   //
   // 这里原来写「神迹树的**照片**」——这个世界没有照片。`WorldProp`（`types.ts` 里
-  // 那个 interface，**别信行号**：这句原来写 `types.ts:270`，而那行是
-  // `ConstructionSnapshot.totalMs`，`WorldProp` 在它下面二十多行——我写错了，
-  // 而行号引用审计查不出来，因为那两行都"有代码"）是一盏灯/一棵树/一面幌布，
-  // 带 `kind`、`at`、`label`，是画在地图上的一件东西，不是任何影像；
-  // 全仓 grep「照片」只命中这一处注释自己。实测描述的是 props 数组里多出来
-  // 那一项，照实说「一棵树」就行。
+  // 那个 interface）是一盏灯/一棵树/一面幌布，带 `kind`、`at`、`label`，是画在
+  // 地图上的一件东西，不是任何影像；全仓 grep「照片」只命中这一处注释自己。
+  // 实测描述的是 props 数组里多出来那一项，照实说「一棵树」就行。
+  //
+  // 这一句原来还带一个指向 `ConstructionSnapshot.totalMs` 的行号，而
+  // `WorldProp` 在它下面二十多行——我写错了，而行号引用审计查不出来：那两行都
+  // "有代码"，`hasCode()` 只判「不是空行、不只是括号」。所以这里只引名字不引行号。
   const changed =
     snapshot.props.length > 0 || newBuildings.length > 0 || failed.length > 0;
   const headline =

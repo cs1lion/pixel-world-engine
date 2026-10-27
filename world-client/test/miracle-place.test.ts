@@ -5,6 +5,7 @@ import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { buildLargeWorld } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { parseOracleMiracle } from '../src/world/oracle-miracle.ts';
+import { fogAt, revealedRadiusFor } from '../src/world/fog.ts';
 
 const blueprints = parseBlueprintTable(
   JSON.parse(
@@ -12,7 +13,7 @@ const blueprints = parseBlueprintTable(
   ) as Record<string, Record<string, unknown>>,
 );
 
-function makeSim(): Simulation {
+function makeSim(options: { readonly authored?: boolean } = {}): Simulation {
   const world = buildLargeWorld(blueprints);
   return new Simulation({
     grid: world.grid,
@@ -21,6 +22,7 @@ function makeSim(): Simulation {
     villagerName: '莞尔',
     wallClock: () => 1000,
     blueprints,
+    ...(options.authored === true ? { authored: true } : {}),
   });
 }
 
@@ -107,6 +109,61 @@ test('猫也能指定位置', () => {
   assert.ok(critter !== undefined);
   assert.equal(critter.at.x, at.x + 0.5, '猫落在格子中央');
   assert.equal(critter.at.y, at.y + 0.5);
+});
+
+// ------------------------------------------------------------------ 设定集的地图
+
+/**
+ * 设定集（`authored`）的地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是一口气
+ * 铺开的，中间不该留一片迷雾。所以快照里的揭示半径盖住整张图，**神迹闸也跟着盖住**
+ * ——否则屏幕上一点雾都没有，玩家把树种到 58 格外，回过来的却是「那里还没长出来」，
+ * 那句话指着屏幕上不存在的东西。
+ *
+ * 这条守着 `c716a4a` 只修了一半的那半边：那一笔让建造闸读了视图的半径，神迹闸还在
+ * 读世界自己收敛出来的那一份（`revealedRadiusFor(交付数)`，开局 38）。实测过：
+ * 祭坛 (48,36) 的 96×72 世界里，(1,1) 隔 58.60 格，屏幕无雾、闸说有雾。
+ */
+test('设定集的神迹闸不拿迷雾拦人：种到最远的格子也长得下', () => {
+  const sim = makeSim({ authored: true });
+  const altar = sim.snapshot().altar;
+  // 界内离祭坛最远的那一格。半径取什么都不该盖得住它——`wholeGridRadius` 也不该，
+  // 而它恰好够，这正是要验的那件事。
+  let far = { x: 0, y: 0 };
+  for (let y = 0; y < 72; y += 1) {
+    for (let x = 0; x < 96; x += 1) {
+      if (Math.hypot(x - altar.x, y - altar.y) > Math.hypot(far.x - altar.x, far.y - altar.y)) {
+        far = { x, y };
+      }
+    }
+  }
+  assert.ok(Math.hypot(far.x - altar.x, far.y - altar.y) > 38, '这一格必须在旧半径之外，否则这条是空炮');
+
+  const result = miracle(sim, 'tree', far);
+  assert.equal(result?.ok, true, result?.message);
+  assert.deepEqual(sim.snapshot().props[0]?.at, far);
+});
+
+test('设定集的快照迷雾盖住整张图：一格都不剩', () => {
+  const sim = makeSim({ authored: true });
+  const fog = sim.snapshot().fog;
+  // 逐格扫，不是只查半径够不够大：半径够大而圆心漂了照样漏，扫过才叫验过。
+  for (let y = 0; y < 72; y += 1) {
+    for (let x = 0; x < 96; x += 1) {
+      assert.equal(
+        fogAt({ x, y }, fog),
+        false,
+        `(${x},${y}) 不该还有雾——设定集的地图整张都是到过的地方`,
+      );
+    }
+  }
+});
+
+test('旧镇（非 authored）的迷雾照旧由交付数收敛，不被上面那条带跑', () => {
+  const sim = makeSim();
+  const fog = sim.snapshot().fog;
+  assert.equal(fog.revealedRadius, revealedRadiusFor(0), '开局没有任何交付，迷雾停在初始半径');
+  // 远处仍然有雾——这条是上一面的对照：改动没有把「世界自己收敛」那条路一起改掉。
+  assert.equal(fogAt({ x: 1, y: 1 }, fog), true);
 });
 
 // ------------------------------------------------------------------ 从神谕里说

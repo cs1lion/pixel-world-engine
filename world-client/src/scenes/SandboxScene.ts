@@ -26,7 +26,7 @@ import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
 import { shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '../render/eco-mode.ts';
-import { fogAt, wholeGridRadius, type FogState } from '../world/fog.ts';
+import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
 import { BIOME_RADII } from '../world/biomes.ts';
@@ -77,6 +77,15 @@ export class SandboxScene extends Phaser.Scene {
   private settingScenery: SettingSceneryView | null = null;
   private blueprints!: ReadonlyMap<string, PrefabBlueprint>;
   private sim!: Simulation;
+  /**
+   * 最新一帧的世界现状。**迷雾也只认这一份**（`snapshot.fog`）。
+   *
+   * 视图与建造闸、神迹闸读同一个数，不再在渲染层另盖一次。曾经这里盖过：
+   * `visibleFog()` 拿 `wholeGridRadius(this.world.grid)` 把半径改掉，于是快照说 38、
+   * 视图说 168、神迹闸还说 38——屏幕上一片雾都没有，玩家把树种到 58 格外，
+   * 回过来的却是「那里还没长出来」。判据收进世界（`Simulation.visibleFog`）之后
+   * 三个数合成一个，这类分家就没有地方可发生了。
+   */
   private snapshot!: WorldSnapshot;
   /** 世界时钟相对墙钟的倍率。?speed=0.5 放慢，?speed=12 加速，?speed=1 回到实时。 */
   private timeScale = 6;
@@ -385,6 +394,9 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack?.propReveals !== undefined
         ? { propReveals: this.pack.propReveals }
         : {}),
+      // 设定集铺开的地图：迷雾整张掀掉。快照、建造闸、神迹闸因此是同一个数，
+      // 不会出现「屏幕没雾、闸说没长出来」。莞尔镇是 undefined，等同 false。
+      ...(this.pack?.authored === true ? { authored: true } : {}),
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
         void this.eventsClient?.record(change, at);
@@ -807,33 +819,11 @@ export class SandboxScene extends Phaser.Scene {
    * 各写一遍就会漏掉其中一条，而漏掉的那条会在真机上表现为
    * 「预览说可以，确认却建到了不该建的地方」。
    */
-  /**
-   * 玩家**看得见**的那片迷雾。
-   *
-   * 设定集（`authored`）的地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是
-   * 一口气铺开的，留一片迷雾在中间会读成「这里还没长出来」。所以视图把半径给到
-   * 盖住整张图。旧镇的迷雾照旧由世界自己收敛。
-   *
-   * 建造闸必须读**这一个**，不能读 `this.snapshot.fog`。原先视图盖了、闸没盖：
-   * 画面上一点雾都没有，玩家把指针放到 38 格外的空地，却被回一句
-   * 「那里还没长出来，先让世界走到那儿」——那句话指着屏幕上不存在的东西。
-   * 灯潮界实测有 37 个 industry 格在 38 格外（最远 41.77），这个坑踩得到。
-   *
-   * 半径本身为什么够盖住整张图，见 `wholeGridRadius`——那儿有逐格扫的锁。
-   */
-  private visibleFog(): FogState {
-    if (this.pack?.authored !== true) return this.snapshot.fog;
-    return {
-      ...this.snapshot.fog,
-      revealedRadius: wholeGridRadius(this.world.grid),
-    };
-  }
-
   private canPlaceBlueprintHere(
     blueprint: PrefabBlueprint,
     cell: GridPoint,
   ): { ok: true } | { ok: false; message: string } {
-    if (fogAt(cell, this.visibleFog())) {
+    if (fogAt(cell, this.snapshot.fog)) {
       return { ok: false, message: '那里还没长出来，先让世界走到那儿。' };
     }
     const check = checkPlacement(this.world.grid, blueprint, cell);
@@ -1251,9 +1241,10 @@ export class SandboxScene extends Phaser.Scene {
       this.cameras.main.worldView,
     );
     // 设定集地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是一口气铺开的，
-    // 留一片迷雾在中间会读成「这里还没长出来」。半径给到盖住整张图即可，
-    // 旧镇的迷雾照旧由世界自己收敛。理由与建造闸共用一处，见 `visibleFog`。
-    this.fogView.update(this.visibleFog(), this.snapshot.now);
+    // 留一片迷雾在中间会读成「这里还没长出来」。半径由世界给到盖住整张图，
+    // 旧镇的迷雾照旧由世界自己收敛。判据在 `Simulation.visibleFog`，视图与两道闸
+    // 读快照里同一个数，这里不再另算。
+    this.fogView.update(this.snapshot.fog, this.snapshot.now);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {
