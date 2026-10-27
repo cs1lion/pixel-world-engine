@@ -37,12 +37,23 @@ const KINDS = ['clear', 'rain', 'storm'] as const;
 
 /** 每一档天气在三处各是怎么说的。 */
 function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
-  // 一、状态行：`statusLine()`（`SandboxScene.ts:1430`）里 `WEATHER_LABEL` 原样。
+  // 一、状态行：`statusLine()`（`SandboxScene.ts:1484`）里 `WEATHER_LABEL` 原样
+  //（`SandboxScene.ts:1497`）。
   //
-  // 原来这里写的是 `WEATHER_LABEL` 原样（`SandboxScene.ts:1316`）——一个光坐标，
-  // 审计的 `CALL_REF` 要求「名字()」挨着坐标才查，它不查，于是那一处悄悄地
-  // 偏了 17 行：1316 是 `container.add(icon);`（画小图标那几行的收尾），
-  // 而要说的话在 1333。`hasCode()` 两行都放行（都有代码）。现在把名字写上去，偏了会红。
+  // 这两个坐标是本测试最脆的地方，值得记下它们为什么还在这儿。
+  //
+  // 早先这一行只写「`WEATHER_LABEL` 原样」后面缀一个坐标——没有名字。审计的
+  // `CALL_REF` 要求「名字()」挨着坐标才查，光坐标它不查，于是那一处悄悄地
+  // 偏了十几行也没人知道。把名字写上去之后，偏了会红。
+  //
+  // 但「偏了会红」只对一半。审计偏到一行**没有代码**的代码上才响（`hasCode()`
+  // 不放行）；偏到另一行**有代码**的代码上，它照放行，一声不出。所以这两个
+  // 坐标仍然要靠人跟——`SandboxScene.ts` 每长几十行，它们就得跟着走。
+  //
+  // 曾经想在这里写一段「当初偏到第 N 行、真正的说法在第 M 行」的历史，写完才
+  // 明白那是在注释里又钉了一个会漂的坐标：`SandboxScene.ts` 再长一截，那个 N
+  // 落到一行只有 `},` 的地方，审计照样红。**历史不需要坐标**——要的是它当初
+  // 错在哪一步，而这一步与第几行无关。
   const statusLine = WEATHER_LABEL[kind];
 
   // 二、日报：天气那一行（`report.ts`）。

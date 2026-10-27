@@ -160,6 +160,11 @@ export class SandboxScene extends Phaser.Scene {
   private memory!: MemoryRuntime;
   /** 记忆层的观察编号。与日志里的 id 不是一回事——这里只需要自己内部唯一。 */
   private memoryEventSerial = 0;
+  /** 今天已经看过哪几栋楼（`villager\u0000building`）。跨日清空。 */
+  private seenToday = new Set<string>();
+  private seenDay = -1;
+  /** 上一拍还站着的楼。用来认出这一拍少掉的那几栋。 */
+  private placeHolders = new Set<string>();
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
   private saveNotice: string | null = null;
@@ -709,7 +714,56 @@ export class SandboxScene extends Phaser.Scene {
         at: { x: villager.pos.x, y: villager.pos.y },
       })),
     );
+    this.sightsee();
     this.memory.tick(this.snapshot.now);
+  }
+
+  /**
+   * 路过的痕迹。
+   *
+   * 痕迹通道在这之前没有调用方——`lookAtTraces` 只在测试里活着，于是
+   * 「地点的物质化记忆」这句话在跑着的世界里是假的。这里把它接上：
+   * 村民走到某栋楼跟前，就看一眼那栋楼留下了什么。
+   *
+   * **每栋楼每人每天只记一次**（`seenToday`）。不设这个的话，一个人站在
+   * 门口不动，每拍都会重新推断一遍同一道焦痕，一天下来他的记忆库会被
+   * 同一条痕迹灌满——而痕迹的价值恰恰在于稀少。
+   *
+   * 地点 Holder 也要在名册里，否则 `traceRadius` 那道闸无从判定距离。
+   */
+  private sightsee(): void {
+    if (this.memory === undefined) return;
+    const day = Math.floor(this.snapshot.now / DAY_MS);
+    if (this.seenDay !== day) {
+      this.seenDay = day;
+      this.seenToday.clear();
+    }
+    // 地点 Holder 每次对齐都补一遍：楼会被拆，但痕迹还在原地。
+    this.memory.syncHolders(
+      this.snapshot.buildings.map((building) => ({
+        holderId: building.instanceId,
+        type: 'place' as const,
+        at: { x: building.door.x, y: building.door.y },
+      })),
+    );
+    // 拆掉的楼从名册里摘掉。留着的话，一栋不存在的楼会「听得见」任何
+    // 发生在原地的传言，而 `spreadCandidates` 会把它当成听众。
+    // 摘的是 Holder，不是痕迹——那儿原来有间铺子这件事，还该有人记得。
+    const standing = new Set(this.snapshot.buildings.map((building) => building.instanceId));
+    for (const placeId of this.placeHolders) {
+      if (standing.has(placeId)) continue;
+      this.memory.removePlace(placeId);
+    }
+    this.placeHolders = standing;
+    for (const villager of this.snapshot.villagers) {
+      for (const building of this.snapshot.buildings) {
+        const key = `${villager.id}\u0000${building.instanceId}`;
+        if (this.seenToday.has(key)) continue;
+        const inferred = this.memory.lookAtTraces(villager.id, building.instanceId);
+        if (inferred.length === 0) continue;
+        this.seenToday.add(key);
+      }
+    }
   }
 
   // ------------------------------------------------------------------ input

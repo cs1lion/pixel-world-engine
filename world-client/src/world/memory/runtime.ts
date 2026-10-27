@@ -196,6 +196,42 @@ export class MemoryRuntime {
     return this.world.viewOf(holderId);
   }
 
+  /**
+   * 某个人路过一个地点。走到跟前才看得见痕迹（`traceRadius`），
+   * 看见之后按 `traces.ts` 的查表推断——不调模型，不猜。
+   *
+   * 返回他这次新推出的东西，调用方拿去挂牌子。返回空数组是常态：
+   * 大多数地点大多数时候什么都没留下。
+   */
+  lookAtTraces(holderId: string, placeId: string): ReturnType<MemoryWorld['lookAtTraces']> {
+    return this.world.lookAtTraces(holderId, placeId, this.now);
+  }
+
+  /**
+   * **求证闭环的出口**。
+   *
+   * `verifyPlans` 早在传播时就写进了每个单位的视图里（`HolderView.verifyPlans`），
+   * 但在这之前没有任何人读它——日程生成了，没人出门，于是 `verify()` 是死代码，
+   * 而「造谣者可靠度下调 0.15」永远咬不动。
+   *
+   * 这里把它接上：行为层看到一个人站在他求证日程的落点上，就调一次。
+   * 返回 `null` 表示他没这条日程（或已经跑过了）。
+   */
+  settleVerification(
+    holderId: string,
+    claimId: string,
+  ): { readonly outcome: 'confirmed' | 'debunked' | 'inconclusive'; readonly debunkedSpeaker: string | null } | null {
+    const plans = this.world.viewOf(holderId)?.verifyPlans ?? [];
+    const plan = plans.find((item) => item.claimId === claimId);
+    if (plan === undefined) return null;
+    return this.world.verify(holderId, claimId, plan.placeId, this.now);
+  }
+
+  /** 这个人此刻该去哪求证。行为层每拍读一次，读完就派路。 */
+  pendingVerifications(holderId: string): HolderView['verifyPlans'] {
+    return this.world.viewOf(holderId)?.verifyPlans ?? [];
+  }
+
   /** 已经关到第几天（含）。给状态行与调试用。 */
   get closedThroughDay(): number {
     return this.lastClosedDay - 1;

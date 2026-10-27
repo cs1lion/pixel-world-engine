@@ -166,6 +166,22 @@ export class MemoryWorld {
     return this.holders.has(holderId);
   }
 
+  /**
+   * 一栋楼没了。
+   *
+   * **只删地点 Holder，不删人物的记忆。** 楼拆了，但它留下的痕迹与
+   * 「那儿原来有间铺子」这件事还该有人记得——记忆不是世界状态的副本，
+   * 它比世界慢半拍，这正是它该有的样子。
+   *
+   * 不删的话，`spreadCandidates` 会把一栋不存在的楼当成听众，
+   * 而它永远「听得见」任何发生在原地的传言。
+   */
+  removePlace(holderId: string): void {
+    const holder = this.holders.get(holderId);
+    if (holder === undefined || holder.type !== 'place') return;
+    this.holders.delete(holderId);
+  }
+
   holderIds(): readonly string[] {
     return [...this.holders.keys()].sort();
   }
