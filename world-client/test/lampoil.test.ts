@@ -31,6 +31,7 @@ import {
 } from '../src/world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from '../src/render/lampoil-view.ts';
 import { WORLD } from '../src/world/palette-data.ts';
+import { DAY_MS } from '../src/world/memory/config.ts';
 
 const SIMULATION = fileURLToPath(new URL('../src/world/simulation.ts', import.meta.url));
 const VILLAGER = fileURLToPath(new URL('../src/render/villager.ts', import.meta.url));
@@ -280,15 +281,25 @@ test('昨天烧干的灯，今天自己满回来', () => {
   assert.equal(lamp.oil, LAMP_FULL, '新的一天该满油，否则昨天烧干的人今天还是灰的');
 });
 
-test('一个世界日就是 24 小时——这个数现在是全世界唯一的地方', () => {
+test('一个世界日就是 24 小时——灯油这一份与记忆层那一份是同一个数', () => {
   // 把它改成 365 天，上面每条测试**照样全绿**：它们都拿 `LAMP_DAY_MS` 当符号用，
   // 没人说过它必须等于一天。于是一盏一年才添一次油的灯可以悄悄上线，
   // 而任何一局游戏里它都只是一盏越来越暗、永远不会再亮的灯。
   //
-  // 顺带一句实话：世界里目前**没有别的**「一天有多长」的常量可对齐
-  // （`render/day-phase.ts` 的朝夕午夜用的是墙钟本地时间，与 simulation 时间无关）。
-  // 所以这里钉的不是「与谁一致」，是「这个决定本身」——灯一天添一次油，
-  // 这是 #4 验收条件「见底会自己满回来」的唯一期限。
+  // **这里原来的标题写的是「这个数现在是全世界唯一的地方」，注释写的是「世界里
+  // 目前没有别的『一天有多长』的常量可对齐」。两句在写下时都是实话，2026-10-27
+  // 21:20 的 `6514cae` 之后都不是了。** 那天记忆内核落地，`memory/config.ts`
+  // 有了自己的 `DAY_MS`；服务端 `server/memory/snapshot.py` 本来也有一份。本用例
+  // 写于同日 03:22，早了 18 小时，而那句话我没跟着改——于是它从「事实」变成了
+  // 「过期的事实」。过期的事实比错话更难发现：它读起来完全像真的。
+  //
+  // 今天的对齐关系是**三处代码常量**：`lampoil.ts` 的 `LAMP_DAY_MS`、
+  // `memory/config.ts` 的 `DAY_MS`、`server/memory/snapshot.py` 的 `DAY_MS`，
+  // 由 `test/memory-day.test.ts` 钉住（服务端那份是从源码读的，不是再抄一个数）。
+  // **这个数不在这儿手写第二遍**——旧句子的病根就是手写，而手写的数一定会漂。
+  // 下面第一条断言只是把「不止一处」这件事摆在翻到这一页的人眼前，
+  // 免得他信了我上面那句话就去找一个不存在的东西。
+  assert.equal(LAMP_DAY_MS, DAY_MS, '灯油的一天与记忆层的一天不是同一个长度');
   assert.equal(LAMP_DAY_MS, 24 * 60 * 60 * 1000, '灯油的一天必须是 24 小时');
 });
 
