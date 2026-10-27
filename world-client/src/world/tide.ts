@@ -23,9 +23,13 @@ export const TIDE_JITTER_MS = 2 * 60_000;
 /**
  * 作息落点的两条潮汐线。
  *
- * `routines.ts` 的 `tideBeatApplies` 是这两个数**唯一**的读者：作息落点写着
- * `tide: 'low'` 时，潮位不高于 `TIDE_LOW_MAX` 才算「现在去得了」；写着
- * `tide: 'high'` 时不低于 `TIDE_HIGH_MIN`。没写 `tide` 的落点不看这两个数。
+ * `routines.ts` 的 `tideBeatApplies` 是这两个数在 `src/` 下**唯一**的读者：
+ * 作息落点写着 `tide: 'low'` 时，潮位不高于 `TIDE_LOW_MAX` 才算「现在去得了」；
+ * 写着 `tide: 'high'` 时不低于 `TIDE_HIGH_MIN`。没写 `tide` 的落点不看这两个数。
+ *
+ * （`test/` 下还有一个读者——`routine-tide-single-source.test.ts` import 它们，
+ *   为的是让闸门的正则跟着常量走。它不决定任何行为，所以那句话不算被它否掉；
+ *   但「全仓唯一」在字面上是假的，写「`src/` 下唯一」才是真的。）
  *
  * **两个数都是拍的，规格里没有依据**：`docs/SPEC_V2.md` 的潮汐只到 §4.3 的
  * 覆盖，没给定作息的门槛。能老实说的只有两条结构事实，不是理由——
