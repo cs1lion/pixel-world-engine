@@ -109,6 +109,43 @@ L1 的三条铁律（用户 2026-10-25 确认）：
   `building.remove` / `miracle.spawn`，今天分别是 `setWeather` / `setTide` /
   `build` / `demolish` / `miracle`。照这张表去代码里搜命令名，一条也搜不到。
 
+> **2026-10-28 补记：上面这两条**整段作废**——它们是 2026-10-27 那次改动写下的，
+> 而那次改动只看了客户端一层，就宣布了「全仓搜不到」。两句都是假的。**
+>
+> **根本错在把两个白名单当一个。** 今天仓里有**两份**命令清单，各活着：
+>
+> 1. **`server/rules/schema.py` 的 `COMMAND_CHECKS`**——七条，名字**与本表一字不差**：
+>    `weather.set` / `tide.setLevel` / `building.add` / `building.remove` /
+>    `miracle.spawn` / `npc.setSchedule` / `villager.carry`。
+> 2. **`world-client/src/world/intent-schema.ts` 的 `ParsedIntent`**——十种
+>    （就是上面列的那十个 `kind`），名字确实另起了一套。
+>
+> 所以「照这张表去代码里搜命令名，一条也搜不到」是假的：七条里有六条原样躺在
+> `server/rules/schema.py` 的分发表里。原句只 grep 了 `world-client/src`。
+>
+> **`npc.setSchedule` 也不是「从未实现」。** 它在规则层有完整的校验
+> （`_npc_set_schedule`，`_only(args, {"id", "schedule"}, ...)`，取值域走
+> `SCHEDULES`）。代码自己把边界说得很准，比原句准：「`npc.setSchedule` 目前
+> 客户端与世界都还没有对应的意图，所以提示词不列它（`oracle/prompt.py`），
+> 端点收到它也会落 unknown（`oracle/api.py`）。两层各说各的实话」——
+> `oracle/prompt.py` 的文件头也只说「只列世界真能执行的**六条**」。
+> 所以真话是：**规则层收得下，世界层执行不了**。原来那句「连从外面改她作息的
+> 路也没通」反而没错（`world-client/src` 全 grep `setSchedule`，0 命中），
+> 错的是它给出的理由。
+>
+> **本表与 `COMMAND_CHECKS` 真正对不上的是两处，都与名字无关：**
+> - **漏了 `villager.carry`**——七条里的第七条，而且是提示词真列的那六条之一
+>   （给她 / 收走 `lamp`、`shoes` 两件凭证，渡有仪式那道门）。表里没有它。
+> - **`tide.setLevel` 少一个参数。** 表里只写 `value: 0.0–1.0`，实现还收
+>   `durationMs`（`schema.py` 的 `_tide_set_level` 与 `prompt.py` 的命令行都有它），
+>   客户端那份 `setTide` 也带 `durationMs`。上限 `TIDE_OVERRIDE_MAX_MS` 两边同源。
+>
+> 复核方式：`git grep -n 'COMMAND_CHECKS' HEAD -- server/rules/schema.py`，
+> 再看它下面那张字典；客户端那份 `git grep -n "readonly kind" HEAD --
+> world-client/src/world/intent-schema.ts`。**两份清单不会合并**——它们答的
+> 不是同一个问题（「这条命令合法吗」与「这个世界能执行吗」），`schema.py`
+> 的文件头与 §4.2 第 3 条都把这条界线写着。
+
 ### 4.4 潮汐
 
 状态机在 `world/tide.ts`：
@@ -176,6 +213,31 @@ memory/
 - **只有 `direct_observation` 能触发写入**。LLM 的角色是「总结观察到的事」，不是「创作回忆」。
 - 每条 entry 必须带 `source` 与证据链。
 - 没有依据时，宁可不写。
+
+> **2026-10-28 补记：这棵树五行里有两行是仓里没有的东西，而「Markdown + YAML
+> frontmatter」与三条铁律全都对得上。**
+>
+> - **上面那行给每日快照起的名字，形状就不对。** 它写的是 `entries/` 底下一个
+>   **日历日期**（2026-10-25）。真实文件名是 `entries/day-0000.md`、
+>   `entries/day-0001.md`——前面的数是**世界日序号**，不是日期。
+>   `memory/index.yaml` 自己的字段注释写得很清楚：`days` 是「已经生成过快照的
+>   世界日序号」。所以照这棵树去 `entries/` 底下找 2026-10-25 那一天，永远找不到，
+>   而那天确实有过东西。
+> - **`rules/礼仪.yaml` 不存在。** `memory/rules/` 这个目录在，但里面只有一个
+>   `.gitkeep`——槽位开着，一份规则文件都没有。L2 社会规则今天既没有文件，
+>   也没有第二条路能进去。
+> - **`index.yaml` 不只是一份「索引」，它是派生物。** 文件头写着「派生物，
+>   不要手改。由 `server/memory/` 在写入时维护；真正的事实在 `entries/`、
+>   `characters/`、`events/` 三个目录的文件里」。上面那棵树把它和另外三类
+>   并列画着，读起来像手写的总目录——而手改它正是它自己警告的那件事。
+> - **对得上的三处**：`characters/莞尔.md`、`events/E0001-渡口的第一夜.md`
+>   两个文件名一字不差，且三类文件都真有 YAML frontmatter（`day-0000.md`
+>   起头是 `day: 0 / from_ms: 0 / to_ms: 86400000`，`莞尔.md` 起头是
+>   `kind: character / subject: 莞尔 / source: direct_observation`）。
+>   三条铁律也都在代码里：`server/memory/__init__.py` 的 `check_source`
+>   （「铁律一：只有 direct_observation 能写」）与
+>   `server/tests/test_memory_writer.py` 的「只有 direct_observation 能写」
+>   「证据必须查得到」两条用例。
 
 ### 4.8 可扩展性
 
