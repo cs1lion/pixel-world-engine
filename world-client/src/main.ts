@@ -25,7 +25,7 @@ const saveNotices: string[] = [];
 const saveStore = new SaveStore({ storageKey: selectSetting(window.location.search).saveKey, onWarning: (message) => saveNotices.push(message) });
 const loadedSave = saveStore.read();
 /**
- * 生产用大世界：80×60 格。旧规格 30×20 保留给测试夹具，生产入口不再用它。
+ * 生产用大世界：96×72 格。旧规格 30×20 保留给测试夹具，生产入口不再用它。
  *
  * 读档时按大世界规格重建网格：存档里没有网格数据，只有建筑坐标；
  * 旧档的建筑坐标在新图里仍然合法（新图包含原来的镇中心）。

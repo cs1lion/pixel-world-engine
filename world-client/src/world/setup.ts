@@ -45,8 +45,8 @@ export const GRID_WIDTH = SMALL_WORLD_SPEC.width;
 export const GRID_HEIGHT = SMALL_WORLD_SPEC.height;
 
 /**
- * 大世界：80×60 格，1280×960 像素，面积是旧世界的 8 倍。
- *
+ * 大世界：96×72 格，1536×1152 像素，面积是旧世界的 11.52 倍。
+ * 原写着「80×60、1280×960、8 倍」——从 `996cbd3` 那笔起就是假的，同一笔的规格就是 96×72；六处照抄了这个数，一并改了（见 `biomes.ts`）。
  * 分区是同心圆的近似：中心是祭坛，四角方向各留一条通向郊野的路。
  * 这里只给矩形分区，群落（离中心多远）由 `biomes.ts` 单独判定——
  * 两者职责不同：分区决定能建什么，群落决定看起来像哪一带。
@@ -385,7 +385,7 @@ function wildernessAnchorOf(spec: GridSpec, zone: ZoneId, altar: GridPoint): Gri
   );
 }
 
-/** 生产用的大世界：80×60，常驻铺子按郊野锚点重新落位。 */
+/** 生产用的大世界：96×72，常驻铺子按郊野锚点重新落位。 */
 export function buildLargeWorld(
   blueprints: ReadonlyMap<string, PrefabBlueprint>,
 ): BuiltWorld {
