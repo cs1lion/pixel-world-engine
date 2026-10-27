@@ -87,6 +87,23 @@ export interface Holder {
 
 export type MemoryKind = 'episodic' | 'summary' | 'impression' | 'habit' | 'trace';
 export type MemoryTier = 'day' | 'long' | 'legend';
+
+/**
+ * 五个种类，今天有写出点的是几个——扫一遍比看着声明猜准。
+ *
+ * | 种类 | 谁写 | 状态 |
+ * | --- | --- | --- |
+ * | `episodic` | `ingest`、`rememberTold`、`lookAtTraces` | 主力 |
+ * | `summary` | `makeSummary`、`mergeWeekly` | 主力 |
+ * | `habit` | `lookAtTraces` 的磨损小径那一行 | 补设计 §1.2 第三行明写 `kind: habit` |
+ * | `impression` | **无** | 协议第 6 节把它单列为「对人或事的印象」，但没有任何一行要产出它 |
+ * | `trace` | **无，也不该有** | 痕迹是 `Trace` 类型，不是 `MemoryEntry`；这一项是声明里的历史遗留 |
+ *
+ * 后两行不是漏接的清单，是**别急着补**的清单：声明一个种类不等于有东西要
+ * 往里写。`impression` 与 `trace` 空着，`budget.impression`（32 条）与
+ * `limitFor('impression')` 也就空着——等第一条真该写成印象的记忆出现，
+ * 那里就是它非过不可的那道闸。
+ */
 /**
  * 这条记忆是怎么来的。
  *
@@ -152,6 +169,22 @@ export interface MemoryEntry {
   readonly createdDay: number;
   readonly lastRecalledDay: number;
   readonly recallCount: number;
+  /**
+   * 三个旗子，各有几个写出点——扫一遍，别看着声明猜。
+   *
+   * - `flashbulb`：两处写 `true`，都是同一句 `salience >= T_flash`
+   *   （`makeEpisodic` 与 `rememberTold`）。其余一律 `false`。
+   * - `pinned`：**七处，全是 `false`。没有任何一处写 `true`。**
+   *   协议第 6 节把它和 flashbulb、redacted 并列在 flags 里，第 7 节说
+   *   「flashbulb 与 pinned 不衰减」，而**没有任何一行规定什么东西该被钉住**。
+   *   于是它有三个消费者（`decayStrength` 的豁免、归档豁免、`trimBudget`
+   *   的「固定与闪光灯先保」）和零个生产者。碑文差一点就用它——见
+   *   `test/memory-legend-inscribe.test.ts` 里「碑文不钉住」那条：钉住的碑文
+   *   四十天 strength 一动不动停在 1.000，`tierFactor.legend = 0.05` 成了摆设。
+   *   这一位在等一个具体的「什么该被钉住」，在那之前它就该是 `false`。
+   * - `redacted`：两处写 `true`，都在 `privacy.ts` 的删除级联里
+   *   （事件根摘掉一个出处、记忆根摘掉一环）。其余一律 `false`。
+   */
   readonly flashbulb: boolean;
   readonly pinned: boolean;
   readonly redacted: boolean;

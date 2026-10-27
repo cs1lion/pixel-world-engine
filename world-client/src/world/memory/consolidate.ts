@@ -305,8 +305,15 @@ function average(values: readonly number[]): number {
 /**
  * 预算裁剪：每层超限时淘汰强度最低且未被固定的条目。
  *
- * 摘要不参与淘汰——它是这一层里唯一「一天一条」的东西，淘汰它等于让那一天
- * 从记忆里消失，而它的强度本来就是 1。
+ * **摘要在这里没有豁免**，别被旧说法误导。`makeSummary` 与 `mergeWeekly` 都给
+ * 摘要 `tier: 'long'`，而桶键是 `kind === 'impression' ? 'impression' : tier`，
+ * 所以它们进 `long` 桶（64 格），和别的一条规矩都没有。
+ *
+ * 实测 520 天、每天一件拉满显著性的大事：`long` 桶第 499 天到 63 条，随后
+ * 掉回头，始终没碰 64。**归档比淘汰先到**——long 层日衰减 4.5%，42 天就掉到
+ * `T_forget` 以下，而一周才添一条周摘要。所以「摘要淘汰不掉」这句话今天是
+ * 真的，但真的原因是归档，不是豁免。哪天摘要的产出速率上去了，这里就会开
+ * 始裁，而那一天从记忆里消失的就是它。
  */
 function trimBudget(entries: readonly MemoryEntry[], config: MemoryConfig): MemoryEntry[] {
   const kept: MemoryEntry[] = [];
