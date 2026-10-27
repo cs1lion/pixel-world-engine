@@ -720,6 +720,11 @@ export class MemoryWorld {
 
     this.diffuseDay(at);
 
+    // **日记要写在整理之前。** 整理会把当天的片段降级或压成摘要，写在那之后
+    // 就一条都收不到了——日记收的正是「今天的片段」。这一句放错过位置，
+    // 表现是日记从来不存在，而 `diary.written` 这个事件类型一直躺在类型表里。
+    this.writeDailies(closedDay, at);
+
     const ids = this.holderIds();
     for (const holderId of ids) {
       const result = consolidateHolder(holderId, this.entries, closedDay, this.config, this.facts);
@@ -928,6 +933,42 @@ export class MemoryWorld {
     const plan = planVerify(holderId, check, claim, this.announcements.length > 0);
     if (plan === null) return;
     this.verifyPlans.set(holderId, [...(this.verifyPlans.get(holderId) ?? []), plan]);
+  }
+
+  /**
+   * 日终写日记。协议第 7 节把日记列为整理的**表现产物**之一——
+   * 一个世界过了一天，该有人把今天的事记下来。
+   *
+   * 为什么放在整理之后：日记收的是 `sourceMode === 'witnessed'` 的当日片段，
+   * 而整理会把没被挑中的片段降一级细节。写日记要在整理之后，记下的才是
+   * 「他今天记住的样子」，不是「他今天经历的样子」——后者是事件日志的事。
+   *
+   * 为什么不是每个人都写：`writeDiary` 只收亲历的条目，一天什么都没亲历的
+   * 人写不出日记，返回 `null`。这不是缺陷，是这个世界该有的样子——
+   * 不是每天每个人都有值得写下来的事。
+   */
+  private writeDailies(day: number, at: number): void {
+    for (const holderId of this.holderIds()) {
+      const holder = this.holders.get(holderId);
+      if (holder === undefined || holder.type !== 'character') continue;
+      const record = writeDiary({
+        recordId: this.nextId('diary'),
+        authorId: holderId,
+        entries: this.entries,
+        day,
+        placeId: holder.at === undefined ? '' : `at_${holder.at.x}_${holder.at.y}`,
+        config: this.config,
+      });
+      if (record === null) continue;
+      this.written = [...this.written, record];
+      this.emit('diary.written', at, {
+        recordId: record.recordId,
+        kind: record.kind,
+        authorId: record.authorId,
+        recipientId: null,
+        claimIds: record.claims.map((claim) => claim.claimId),
+      });
+    }
   }
 
   private updateLegends(day: number, at: number): void {

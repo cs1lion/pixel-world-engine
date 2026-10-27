@@ -241,8 +241,17 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 // 同文件上面「src/world 不 import Phaser」那条也是裸读，理由相同。
 const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/;
 
-/** import 语句里的模块说明符。裸 import（`import './x.ts'`）也算。 */
-const IMPORT_SPECIFIER = /(?:from\s+|import\s+)['"]([^'"]+)['"]/;
+/**
+ * import 语句里的模块说明符。三种写法都要抓：
+ *
+ * - `from '...'`——具名与默认 import 的尾巴；
+ * - `import '...'`——裸 import（只为副作用）；
+ * - `import('...')`——**动态 import**。这一条原先漏了，而它是最容易被
+ *   绕过去的一种：`const m = await import('../../render/x.ts')` 在语法上
+ *   跟 import 语句没有任何相似之处，但它是**同一件事**——那一刻世界就
+ *   拿到了上一层的东西，而且是延迟到运行时才拿，静态检查更容易放过。
+ */
+const IMPORT_SPECIFIER = /(?:from\s+|import\s*\(?\s*)['"]([^'"]+)['"]/;
 
 const WORLD_DIR = join(SRC, 'world');
 
@@ -271,4 +280,24 @@ test('src/world 不 import 它上面的任何一层（时辰进不来）', () =>
       `一旦世界 import 上去，「现在几点」就成了第二个墙钟读者，确定性回放当场不成立。\n` +
       offenders.join('\n'),
   );
+});
+
+test('那条闸认得动态 import——`import()` 也是 import', () => {
+  // 这条守的是闸门自己的正则。上面那条只证明「当前仓库里没有越界 import」，
+  // 证明不了「出现了会被抓住」——一个永远返回空的正则也能让上面那条绿。
+  //
+  // 动态 import 是最容易被绕过的一种：`const m = await import('../../render/x.ts')`
+  // 在语法上跟 import 语句没有任何相似之处，但它是**同一件事**。闸门的正则
+  // 原先要求 `import` 后面跟空白，`import(` 就被漏掉了。
+  const forms = [
+    "import { phaseAt } from '../../render/day-phase.ts';",
+    "import '../../render/day-phase.ts';",
+    "const m = import('../../render/day-phase.ts');",
+    "const m = await import( '../../render/day-phase.ts' );",
+  ];
+  for (const form of forms) {
+    const match = IMPORT_SPECIFIER.exec(form);
+    assert.ok(match !== null, `闸门漏了这种写法：${form}`);
+    assert.equal(match[1], '../../render/day-phase.ts', `抓错了说明符：${form}`);
+  }
 });

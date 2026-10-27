@@ -87,6 +87,9 @@ export function writeDiary(input: {
     .filter(
       (entry) =>
         entry.holderId === input.authorId &&
+        // 只收**片段**，不收摘要：摘要已经是这一天的抽象，再进日记就是同一件事
+        // 写两遍。日记该是「今天发生的几件事」，摘要该是「今天大概是什么样」。
+        entry.kind === 'episodic' &&
         entry.sourceMode === 'witnessed' &&
         entry.createdDay === input.day &&
         !entry.redacted,
