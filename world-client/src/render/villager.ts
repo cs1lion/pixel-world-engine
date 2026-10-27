@@ -123,7 +123,12 @@ export function createVillager(
 ): VillagerView {
   // D6：接地不能只有一枚椭圆。椭圆说明「这里有团暗」，但脚和地面没有接触点，
   // 走起来会像浮着。这里用阶梯像素块代替矢量椭圆，再加一条 1px 接触线压在脚底。
-  // alpha 纪律（ART_SPEC §2.4）：阴影只允许 ink，且不超过既有档位（0.55 是现值上限）。
+  // alpha 用两色两档：外层两块走 `deepShade` 0.3，脚底接触线走 `ink` 0.55。
+  // 原来这里写「alpha 纪律（ART_SPEC §2.4）：阴影只允许 ink，且不超过既有档位
+  // （0.55 是现值上限）」——三半里两半不成立：**仓库里从来没有 `ART_SPEC` 这个
+  // 文档**（`git log --all --diff-filter=A -- '*ART_SPEC*'` 全史为空），那条
+  // 「纪律」没有出处；而「只允许 ink」也不成立，上一行就是 `deepShade`。
+  // 「0.55 是现值上限」这半是对的（两档取大）。已按代码改成现状，不引不存在的文档。
   const shadow = scene.add.graphics();
   shadow.fillStyle(WORLD.deepShade, 0.3);
   shadow.fillRect(-6, 0, 12, 2);
