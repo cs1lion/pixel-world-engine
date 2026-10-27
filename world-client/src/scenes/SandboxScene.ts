@@ -178,8 +178,10 @@ export class SandboxScene extends Phaser.Scene {
     const originY = 0;
     this.cameras.main.setBackgroundColor(this.pack?.palette.ink ?? WORLD.ink);
 
-    // 地形烘焙成一张纹理：它每帧要 51 万条绘制指令，而可见区域只占世界 12.5%。
-    // 只在开局画一次，之后每帧只贴一个 quad。
+    // 地形烘焙成一张纹理：Graphics 每帧都要重算整条 commandBuffer，而地形画完
+    // 就不再变。只在开局画一次，之后每帧只贴一个 quad。
+    // 这里原来还写着「每帧要 51 万条绘制指令，可见区域只占世界 12.5%」——两个数
+    // 都没有出处（可见区域实测是 8.7%），理由不靠它们也成立，详见 `bake.ts`。
     this.terrainLayer = bakeLayer(
       this,
       `world-terrain-${this.pack?.id ?? 'default'}`,
