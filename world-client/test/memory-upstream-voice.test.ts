@@ -140,3 +140,45 @@ test('世界侧事件不受影响：没有 voice 时照旧按 kind 先验推', (
   assert.equal(entry.content.valence, 0, 'milestone 没有先验效价');
   assert.equal(entry.content.arousal, 0.3, '落回 defaultArousal 的兜底值');
 });
+
+/**
+ * 兜底表对五个上游 kind 各给什么——**逐 kind 钉住**，因为「编译器和兜底差多少」
+ * 原先是一段散文，而那段散文把两张兜底表说成了一张。
+ *
+ * 真相是：五个 kind 的**效价一列都不差**（`defaultValence` 连 `discipline`
+ * 都有 -0.6 那一行），差的只有**唤醒度**一列的两个 kind——`discipline`
+ * （该 0.7，兜底 0.3）与 `oracle_prayer`（该 0.4，兜底 0.3）。
+ *
+ * 这条测试不是「等有人来修」的待办，是一道**记号**：`observe` 收的是
+ * `kind: string`，谁来敲一个 `'discipline'` 都落 0.3，门是开着的，只是今天
+ * 没有人从世界侧发这两个 kind。谁哪天补了 `defaultArousal` 那两行，
+ * 这条会红——而那正是想让它响的理由。
+ */
+test('兜底表 vs 编译器：效价一列不差，唤醒度差两个 kind', () => {
+  const table: ReadonlyArray<readonly [string, number, number, number, number]> = [
+    // kind, 兜底效价, 兜底唤醒, 编译器效价, 编译器唤醒
+    ['expedition_done', 0.3, 0.3, 0.3, 0.3],
+    ['workshop_accident', -0.7, 0.8, -0.7, 0.8],
+    ['oracle_prayer', 0, 0.3, 0, 0.4],
+    ['celebration', 0.8, 0.6, 0.8, 0.6],
+    ['discipline', -0.6, 0.3, -0.6, 0.7],
+  ];
+  const rt = new MemoryRuntime({ worldId: 'upstream-fallback', occlusion: { isWalkable: () => true } });
+  rt.syncHolders([{ holderId: 'a', type: 'character', at: { x: 0, y: 0 } }]);
+  for (const [kind, fbv, fba, cv, ca] of table) {
+    rt.observe(
+      { eventId: `fb_${kind}`, kind, placeId: 'p', at: { x: 0, y: 0 }, actors: ['a'], outcome: {}, importanceHint: null },
+      undefined,
+      1000,
+    );
+    const entry = rt.viewOf('a')!.memories.find((m) => m.eventRefs.includes(`fb_${kind}`))!;
+    assert.equal(entry.content.valence, fbv, `${kind} 的兜底效价`);
+    assert.equal(entry.content.arousal, fba, `${kind} 的兜底唤醒度`);
+    const voice = claimContentFor({ kind } as CompiledEvent);
+    assert.equal(voice.valence, cv, `${kind} 的编译器效价`);
+    assert.equal(voice.arousal, ca, `${kind} 的编译器唤醒度`);
+    if (fbv !== cv || fba !== ca) {
+      console.log(`      ${kind}: 效价 ${fbv}→${cv}，唤醒 ${fba}→${ca}`);
+    }
+  }
+});

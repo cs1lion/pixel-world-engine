@@ -120,8 +120,31 @@ export interface IngestInput {
   readonly arousal?: number;
   /**
    * 这件事被怎么说。**`source = agent / genesis` 的事件必须给**——那是
-   * 脱敏编译器自己那张表，比世界侧按 kind 的先验推更具体（`discipline`
-   * 与 `oracle_prayer` 在世界侧那张表里根本没有行）。
+   * 脱敏编译器自己那张表，比世界侧按 kind 的先验推更具体。
+   *
+   * 具体差在哪儿，说准了是这样（原先写「世界侧那张表根本没有这两行」，那是
+   * 把两张表说成了一张）：
+   *
+   * | kind | `defaultValence` | `defaultArousal` | 编译器 |
+   * | --- | --- | --- | --- |
+   * | `discipline` | **有行，-0.6** | 兜底 0.3 | -0.6 / **0.7** |
+   * | `oracle_prayer` | 兜底 0 | 兜底 0.3 | 0 / **0.4** |
+   *
+   * 差的全在**唤醒度**一列，而且只在这两个 kind 上；五个 kind 的效价
+   * **一列都不差**。所以这句话该说成「`defaultArousal` 没有这两行」，
+   * 不是「那张表没有这两行」。表里那两行是拿公开 API 量出来的：
+   * `observe` 一个不带 `voice` 的事件，读它落下来的 `content.arousal`。
+   *
+   * 别顺手把这两行补进 `defaultArousal`：这两个 kind 只有 `compile()` 产出
+   * （`grep -rn "discipline\|oracle_prayer" src | grep -v sanitize.ts`，
+   * 剩下的命中是 `salience.ts` 的先验表与这两张兜底表自己），世界侧没有
+   * 发出方，补了就是给不发生的路径加行。而 `ingestUpstream` 无条件给
+   * `voice`，所以**跑着的世界**走不到这条兜底。
+   *
+   * 但「走不到」只到「没人这么发」为止，**门是开着的**：`observe` 收的是
+   * 一个 `kind: string`，谁来敲一个 `'discipline'` 它都落 0.3。所以这不
+   * 是一条够不着的兜底，是一条**没人走的兜底**——留着不补，是留着
+   * 「世界侧哪天真要发一条训诫，这里会静悄悄地给它 0.3」这个记号。
    */
   readonly voice?: EventVoice;
 }
@@ -343,11 +366,14 @@ export class MemoryWorld {
     if (compiled === null) return null;
     const eventId = this.nextEventId('up');
     // 编译器的定性一路带进世界。**早先这里把 `valence` / `arousal` 显式传成
-    // `undefined`**，于是上游事件的情绪落回 `defaultValence` 那张世界侧的表，
-    // 而 `discipline` 与 `oracle_prayer` 在那张表里没有行——`COMPILE_TABLE`
-    // 上写着「高唤醒、负效价」的训诫，进世界时唤醒度是通用的 0.3。
+    // `undefined`**，于是上游事件的情绪落回 `defaultValence` / `defaultArousal`
+    // 那两张世界侧的兜底表。差的是唤醒度那一列：`defaultArousal` 没有
+    // `discipline`（0.7）与 `oracle_prayer`（0.4）两行，兜底给 0.3，于是
+    // `COMPILE_TABLE` 上写着「高唤醒」的训诫，进世界时唤醒度是通用的 0.3。
     // `claimContentFor` 的 `what` 也一并不被读取：上游事件说的是
     // 「有人被训诫了」，不是「有人在祭坛被训诫了」。
+    // （效价那一列原来也是这么说的，那半句已经过期：`defaultValence`
+    // 现在有 `discipline` → -0.6 这一行。详见 `EventVoice` 上那张对照表。）
     const voice = claimContentFor(compiled);
     this.ingest({
       eventId,
