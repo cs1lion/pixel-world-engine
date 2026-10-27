@@ -39,6 +39,12 @@ import { sourceFiles } from './source-scan.ts';
  * - **瓦片配方**（`tilemap.ts` 里按地形画什么）与**潮汐周期/抖动幅度**。
  *   #13 的交付清单里有这两样，但它们不在验收条件那一行里（那一行只点四样）。
  *   瓦片配方是渲染算法不是世界数据；潮汐那条另有冲突，见下。
+ * - **`scripts/` 与 `test/` 不在扫描范围里**。`test/` 是夹具——测试**本该**引用
+ *   设定集的数据，扫它只会得到一片噪声（实测 150 个文件里 8 个命中）。`scripts/`
+ *   是工具，其中 `audit-palette.mjs` 那一份 24 色正是它自己要审的东西。
+ *   但 `scripts/check-dengchao.mjs` 手抄了五个区域名，而它只查「这五个都在」——
+ *   包里多一道区域它不红，会静默少查一项。所以那一处由最后一条测试单独钉着，
+ *   不并进扫描范围。
  * - **莞尔镇本身没有配置包**。它的分区、预制体、四个落点全在 `setup.ts` 与
  *   `routines.ts` 里。`KNOWN_PREFABS` / `KNOWN_STOPS` 里绝大多数记录的理由
  *   就是这一句。等它有包了，两张表一起清空——在那之前，本闸门守的是
@@ -66,6 +72,14 @@ import { sourceFiles } from './source-scan.ts';
  * | `KNOWN_OTHER_LABELS` 加一行不存在的 | 判据四（盲区）`gone` 红 |
  * | 去掉「`label:` 得是字符串字面量」 | 多抓 `routines.ts` 的 14/84/92/125 四行 |
  * | `src/world/` 里写一个不带 `dwellMs` 的 `label:` | 盲区那条 `appeared` 红 |
+ * | `check-dengchao.mjs` 的数组多加一个区域名 | 第八条红 |
+ * | `check-dengchao.mjs` 的数组少一个区域名 | 第八条红 |
+ *
+ * 另有一条**不在本文件**的更正，记在这儿是因为它是同一轮复审挑出来的：
+ * `settings-region-colors.test.ts` 原写「§4.2 的行已被两道各自拦下」——假的。
+ * 复量确认：删掉节边界时 §4.2 漏七行，其第三格正是
+ * `water`/`copper`/`terracotta`/`amber`/`ink`/`charcoal`/`moss`，token 判据一道
+ * 都拦不住。拦 §4.2 的只有节边界；token 判据拦的是 §4.1 自己的表头与分隔行。
  */
 
 const SRC = new URL('../src/', import.meta.url);
@@ -450,4 +464,36 @@ test('四个判据的出处都还在，且没有缩水', () => {
   assert.ok(DENGCHAO_RAW.regions.length >= 5, '灯潮界的区域少于 5 道——判据二的出处缩水了');
   assert.ok(packWords().length >= 15, `包里的名字与说法只有 ${packWords().length} 个——判据二的出处缩水了`);
   assert.ok(prefabIds().length >= 19, `预制体 id 只有 ${prefabIds().length} 个——判据四的出处缩水了`);
+});
+
+/**
+ * `scripts/check-dengchao.mjs` 手抄的那份区域名，必须与包里的**一模一样**。
+ *
+ * 那个脚本是浏览器冒烟验收，验「五个区域标签真的画在 DOM 上」。它自己写死了
+ * 五个名字——而它只查「这五个**都在**」。于是包里添第六道区域时它一声不响，
+ * 静默少查一项；改一个名字时它才红。**「只在」与「都在」不是同一句话**，这条把
+ * 它钉成一样。
+ *
+ * 为什么不并进上面四条判据的扫描范围：那条扫的是 `src/`（产品代码），`scripts/`
+ * 是工具，`test/` 是夹具——两处都不该按「代码里不写死世界数据」来量。这一处是
+ * 例外，因为它是一份**会静默腐烂的手抄**，与闸门守的是同一类东西。
+ */
+test('check-dengchao.mjs 手抄的区域名与包里一模一样', () => {
+  const script = readFileSync(new URL('../scripts/check-dengchao.mjs', import.meta.url), 'utf8');
+  // 锚在 `.every((name) => labels.includes(name))` 上，那才是承重的那半——
+  // 换成在全文里找第一个字符串数组，明天有人在脚本别处加一个数组就会抓错。
+  const list = /\[([^\]]+)\]\s*\.every\(\(name\)\s*=>\s*labels\.includes/.exec(script);
+  assert.ok(
+    list !== null,
+    'check-dengchao.mjs 里那份「五个区域标签都在」的数组找不到了——脚本改了写法，先回来看这条',
+  );
+
+  const names = (list[1]!.match(/'([^']+)'/g) ?? []).map((s) => s.slice(1, -1));
+  const declared = DENGCHAO_RAW.regions.map((r) => r.name);
+  assert.deepEqual(
+    [...names].sort(),
+    [...declared].sort(),
+    'check-dengchao.mjs 那份区域名与包里的不一致。包里添了区域它不会自己知道——'
+      + '那个脚本只查「这几个都在」，多一道不红。',
+  );
 });
