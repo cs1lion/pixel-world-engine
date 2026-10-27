@@ -160,3 +160,51 @@ test('跑着的世界会自己传起来：三天之后不再全员孤立', () =>
   assert.ok(last.infoEntropy > 0, '有人在传，熵就不该是 0');
   assert.ok(last.isolatedHoldersCount < 3, '说过话的人不该被算成孤立');
 });
+
+test('显式给的效价，断言与记忆同一个数——不能一个 0.3 一个 0.8', () => {
+  // `ingest` 里那条三级取值（显式 > 编译器 > kind 先验）算出来的 valence，
+  // 原来**只在这个函数里用一次**：进了显著度与痕迹强度，却没有落进事实。
+  // 事实里存的是 `input.voice` 原样，于是事后任何读 `contentForFact(fact)`
+  // 的人——断言的内容就是其中一个——都只拿得到 kind 先验值。
+  //
+  // 结果：一次庆典显式给了 valence 0.3，目击者的记忆是 0.3，
+  // 而同一条事件的断言是 `defaultValence('celebration')` 的 0.8。
+  // 一件事两个版本，而 `ingest` 上面那段注释防的正是这个。
+  const w = world();
+  for (const id of ['a', 'b']) {
+    w.addHolder({ holderId: id, type: 'character', profile: {}, at: { x: 0, y: 0 } });
+  }
+  w.ingest({
+    eventId: 'ev_party',
+    at: 1000,
+    kind: 'celebration',
+    place: { placeId: 'plaza', at: { x: 0, y: 0 }, indoor: false, placeType: 'plaza' },
+    actors: ['a'],
+    outcome: {},
+    visibility: 'world',
+    source: 'world',
+    importanceHint: 1,
+    parentEventId: null,
+    witnesses: ['a'],
+    // 显式给一个**不是**先验值的数：celebration 的先验是 0.8。
+    valence: 0.3,
+    arousal: 0.55,
+  });
+
+  const claim = w.createClaimFrom('ev_party', 'a', 1000)!;
+  const memory = w.viewOf('a')!.memories[0]!;
+
+  assert.equal(claim.content.valence, 0.3, '断言该用显式给的效价');
+  assert.equal(claim.content.arousal, 0.55, '断言该用显式给的唤醒度');
+  assert.equal(
+    claim.content.valence,
+    memory.content.valence,
+    '同一件事，断言与记忆的效价必须同一个数',
+  );
+  assert.equal(
+    claim.content.arousal,
+    memory.content.arousal,
+    '同一件事，断言与记忆的唤醒度必须同一个数',
+  );
+  assert.notEqual(claim.content.valence, 0.8, '不该退回 kind 先验值');
+});

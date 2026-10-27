@@ -237,6 +237,25 @@ export class MemoryWorld {
     const tick = input.at - day * this.config.dayMs;
     const witnesses = this.resolveWitnesses(input);
 
+    const written: string[] = [];
+    // 三级取值：显式给的 > 编译器给的 > 按 kind 先验推。
+    // 中间那一级不能漏——漏了它，`makeEpisodic` 会用先验值盖掉编译器定的性，
+    // 于是同一条上游事件的记忆是 0.3、断言是 0.7，一件事两个版本。
+    const valence = input.valence ?? input.voice?.valence ?? defaultValence(input.kind);
+    const arousal = input.arousal ?? input.voice?.arousal ?? defaultArousal(input.kind);
+
+    // **生效的那一版要落进事实里**，不能只在这个函数里用一次。
+    //
+    // 原来这里存的是 `input.voice` 原样，于是调用方显式给的 `valence` 进了
+    // 显著度（`inputsFor`）与痕迹强度（`depositTraces`），却没有进事实本身。
+    // 事后任何读 `contentForFact(fact)` 的人——断言的内容、以及碑文继承的
+    // 效价——都只拿得到 kind 先验值。结果就是：目击者的记忆是 0.6，
+    // 同一条事件的断言是 0，读碑文的人也是 0。一件事三个版本，
+    // 而上面那条注释防的正是这个。
+    //
+    // `what` 与 `detailLevel` 也一并解析掉：`whatOf` 是先看 `outcome.what`
+    // 再看 `voice.what`，把先验句填进来不改变它的结果（`outcome` 优先），
+    // 但省得以后有人以为 `voice.what` 空着就等于「没有定过性」。
     const fact: WorldFact = {
       eventId: input.eventId,
       day,
@@ -250,16 +269,14 @@ export class MemoryWorld {
       visibility: input.visibility,
       importanceHint: input.importanceHint,
       source: input.source,
-      voice: input.voice,
+      voice: {
+        what: input.voice?.what ?? DEFAULT_WHAT[input.kind] ?? input.kind,
+        valence,
+        arousal,
+        detailLevel: input.voice?.detailLevel ?? 3,
+      },
     };
     this.facts.set(fact.eventId, fact);
-
-    const written: string[] = [];
-    // 三级取值：显式给的 > 编译器给的 > 按 kind 先验推。
-    // 中间那一级不能漏——漏了它，`makeEpisodic` 会用先验值盖掉编译器定的性，
-    // 于是同一条上游事件的记忆是 0.3、断言是 0.7，一件事两个版本。
-    const valence = input.valence ?? input.voice?.valence ?? defaultValence(input.kind);
-    const arousal = input.arousal ?? input.voice?.arousal ?? defaultArousal(input.kind);
 
     for (const holderId of witnesses) {
       const holder = this.holders.get(holderId);
@@ -738,7 +755,12 @@ export class MemoryWorld {
     for (const trace of traces) {
       const spec = inferenceOf(trace.layerType);
       if (spec === null) continue;
-      out.push(spec);
+      // 碑文的效价继承它绑着的那个事件（见 `traceValence`）。别的痕迹照表里的来。
+      const valence = this.traceValence(trace, spec);
+      // 回报出去的也是**生效的那份**：调用方拿它去挂牌子，牌子上写的情绪
+      // 得跟落进记忆的是同一个。原来这里原样push 表里那一行，于是碑文
+      // 「说」出来是 0，写下去是 0.6——同一个函数两个口径。
+      out.push(valence === spec.valence ? spec : { ...spec, valence });
       // 同一个人、同一处、同一类痕迹，只落一条记忆。
       //
       // `deliver` 靠「已经有这条信念了」保证一句话只被收下一次；痕迹通道
@@ -765,7 +787,7 @@ export class MemoryWorld {
         where: placeId,
         when: Math.floor(at / this.config.dayMs),
         detailLevel: spec.detailLevel,
-        valence: spec.valence,
+        valence,
         arousal: spec.arousal,
       };
       const entry: MemoryEntry = {
@@ -777,7 +799,7 @@ export class MemoryWorld {
         sourceMode: spec.sourceMode,
         sourceChain: [],
         content,
-        salience: spec.confidence * 0.6 + Math.abs(spec.valence) * 0.4,
+        salience: spec.confidence * 0.6 + Math.abs(valence) * 0.4,
         confidence: spec.confidence,
         strength: 1,
         createdDay: content.when,
@@ -1528,6 +1550,31 @@ export class MemoryWorld {
       valence: fact.voice?.valence ?? defaultValence(fact.kind),
       arousal: fact.voice?.arousal ?? defaultArousal(fact.kind),
     };
+  }
+
+  /**
+   * 一道痕迹推断出来的记忆，效价该取多少。
+   *
+   * `INFERENCE_TABLE` 里 inscription 那条写着「碑文继承原事件的效价，由调用方
+   * 在生成记忆时覆盖」——而这句话一直没有调用方认领：这里原样用了表里的
+   * `valence: 0`，于是**每一道碑文在记忆里都是不带情绪的**。
+   *
+   * 后果不只是「读起来平淡」。效价 0 的记忆通不过 `judge` 的冲突检测
+   * （`belief.valence * claim.content.valence < 0`，乘 0 永远是 0），也产不出
+   * 求证冲动（`|valence_new − valence_old|` 有一边恒为 0）。一道记着庆典的
+   * 碑文与一道记着事故的碑文，在村民记忆里因此长得一模一样——而碑文恰是
+   * 唯一一种 `confidence 0.9` 的高保真痕迹，它本该是情绪最清楚的那条。
+   *
+   * 走 `contentForFact` 的同一条推导（`voice ?? defaultValence(kind)`），
+   * 不在这里另抄一份：读碑文的人与当场目击的人，对同一件事的情绪必须对得上。
+   *
+   * 只改效价，不改唤醒度——表里那句要求说的就是效价，顺手把 arousal 也继承了
+   * 属于替规范加需求。事件已经不在了（痕迹还在、事实被关账收走）时退回表里的值。
+   */
+  private traceValence(trace: Trace, spec: InferenceSpec): number {
+    if (spec.sourceMode !== 'read') return spec.valence;
+    const fact = this.facts.get(trace.eventRef);
+    return fact === undefined ? spec.valence : this.contentForFact(fact).valence;
   }
 
   private ruleMeta(holderId: string, opId: string, day: number): MemoryEntry['generatedBy'] {

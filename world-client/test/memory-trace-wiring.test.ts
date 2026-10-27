@@ -241,3 +241,63 @@ test('「不重复记」管的是这个人这个地方，不是全村共用一�
   rt.lookAtTraces('near', 'foundry2');
   assert.equal(rt.viewOf('near')!.memories.length, 2, '另一处的痕迹是另一条记忆');
 });
+
+test('碑文的效价跟着它记的那件事，不是表里那个 0', () => {
+  // `INFERENCE_TABLE` 里 inscription 那条写着「碑文继承原事件的效价，由调用方
+  // 在生成记忆时覆盖」——而这句话一直没有人认领。`lookAtTraces` 原样用了表里的
+  // `valence: 0`，于是每一道碑文在记忆里都是不带情绪的。
+  //
+  // 立一栋楼：`building.built` 经 `observationOf` 变成 `milestone` 事件，
+  // `consequenceOf` 给它落一道碑文。给这件事一个明确的正面效价。
+  const rt = new MemoryRuntime({ worldId: 'inscription-valence' });
+  rt.syncHolders([
+    { holderId: 'a', type: 'character', at: { x: 0, y: 0 } },
+    { holderId: 'reader', type: 'character', at: { x: 2, y: 0 } },
+    { holderId: 'hall', type: 'place', at: { x: 0, y: 0 } },
+  ]);
+  rt.observe(
+    {
+      eventId: 'ev_hall',
+      kind: 'milestone',
+      placeId: 'hall',
+      at: { x: 0, y: 0 },
+      actors: ['a'],
+      outcome: {},
+      importanceHint: 0.9,
+      valence: 0.6,
+    },
+    ['a'],
+    1000,
+  );
+
+  const inferred = rt.lookAtTraces('reader', 'hall');
+  assert.equal(inferred.length, 1, '该看得见那道碑文');
+  assert.equal(inferred[0]!.sourceMode, 'read', '碑文是唯一一种高保真痕迹');
+  assert.equal(
+    inferred[0]!.valence,
+    0.6,
+    '碑文的效价该是它记的那件事的效价，不是表里的 0',
+  );
+
+  const entry = rt.viewOf('reader')!.memories[0]!;
+  assert.equal(entry.content.valence, 0.6, '写进记忆的也该是继承来的效价');
+  // 显著度里效价那一项因此也活了：0.9 × 0.6 + 0.6 × 0.4 = 0.78。
+  // 效价恒 0 时它只有 0.54——碑文是 confidence 最高的一条痕迹，
+  // 却因为不带情绪而只比一道焦痕（0.35 × 0.6 + 0.6 × 0.4 = 0.45）强得有限。
+  assert.ok(
+    entry.salience > 0.7,
+    `碑文的显著度该带上情绪，实际 ${entry.salience.toFixed(3)}`,
+  );
+});
+
+test('焦痕的效价照表里的来：这条继承规则只管碑文', () => {
+  // 别把继承规则扩大到所有痕迹。焦痕的效价是「此地出过事故」这个推断自带的，
+  // 与它下面埋着的那件事的情绪无关——一次庆典之后的冲突照样留焦痕。
+  const { rt, place } = world();
+  const inferred = rt.lookAtTraces('near', place);
+  assert.ok(inferred.length > 0);
+  for (const spec of inferred) {
+    assert.equal(spec.sourceMode, 'inferred', '事故留下的是推断，不是记录');
+    assert.equal(spec.valence, -0.6, '焦痕照表里的负效价来');
+  }
+});
