@@ -24,6 +24,21 @@ export const POLITE_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * 否定词。`NON_IMPERATIVE_MARKERS` 的一个子集，单独拆出来。
+ *
+ * 固定短语打头的那几道闸（`oracle.ts` 的天气 / 潮汐 / 撤销）要拦的是**否定句**——
+ * 「撤销别撤错单」是在说别做错，不是在下命令。可它们不能直接拿整份叙述表去拦：
+ * 那份表里混着过去时（「刚才」「昨天」），而「撤销刚才那条」是句再正常不过的
+ * 命令。拿整份表拦，就把它一起拦掉了。所以只查否定这四个词。
+ */
+export const NEGATION_MARKERS: readonly string[] = ['别', '不用', '不要', '不必'];
+
+/** 这句话含否定词吗。 */
+export function hasNegation(text: string): boolean {
+  return NEGATION_MARKERS.some((marker) => text.includes(marker));
+}
+
+/**
  * 明确不是命令的标记：疑问、否定、过去叙述、评价收尾。
  *
  * 整句查 substring。这样会误伤——见下面 `SINGLE_CHAR_OVERREACH`。
@@ -31,8 +46,8 @@ export const POLITE_PREFIXES: readonly string[] = [
 export const NON_IMPERATIVE_MARKERS: readonly string[] = [
   // 疑问
   '？', '?', '吗', '呢', '要不要', '能不能', '可不可以', '是不是',
-  // 否定
-  '别', '不用', '不要', '不必',
+  // 否定（与 `NEGATION_MARKERS` 同一份；有地方只按否定查，见那个函数）
+  ...NEGATION_MARKERS,
   // 过去/进行
   '昨天', '前天', '刚才', '之前', '已经', '一直', '老是', '总是',
   // 评价性收尾：写代码真累 / 查资料很烦

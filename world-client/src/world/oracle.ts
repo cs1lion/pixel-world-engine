@@ -17,7 +17,7 @@
  */
 
 import type { OracleIntent, TaskKind, Weather } from './types.ts';
-import { hasNarrativeMarker, isImperative, isQuestion } from './imperative.ts';
+import { hasNegation, hasNarrativeMarker, isImperative, isQuestion } from './imperative.ts';
 
 interface Rule {
   readonly kind: TaskKind;
@@ -80,27 +80,40 @@ export function parseOracle(raw: string): OracleAction {
   //
   // 打头判定是**主防线**；问句与叙述排除留着做第二道——有些合法的打头句仍
   // 不是命令（「下雨了吗」以「下雨」打头但是提问），两道一起才够。
+  //
+  // 可打头判定挡不住「打头的否定句」：「撤销别撤错单」确实以「撤销」打头，
+  // 但它是在说别做错，不是在下命令。所以 `commandLeads` 比 `leads` 多查一道
+  // 否定词。`complete` 与短活那两处本来就带着；天气三档、撤销、潮汐两端这五处
+  // 只查了问句——实测漏的后果：「撤销别撤错单」「取消别取消错了」都会真的撤掉
+  // 等待队列。上面「先别取消排队」那条说的就是这一类误判，而打头规则只修好了
+  // 它句首的那半句，没修好句中是否定。
+  //
+  // 查的是 `hasNegation` 而不是 `hasNarrativeMarker`：后者混着过去时，
+  // 「撤销刚才那条」是句正常命令，不能因为它含「刚才」就拦掉。
   const leads = (words: readonly string[]): boolean =>
     words.some((word) => lower.startsWith(word));
+  const commandLeads = (words: readonly string[]): boolean =>
+    leads(words) && !isQuestion(lower) && !hasNegation(lower);
 
-  if (leads(COMPLETE_WORDS) && !hasNarrativeMarker(lower)) return { kind: 'complete' };
-  if (leads(CLEAR_WORDS) && !isQuestion(lower)) {
+  if (commandLeads(COMPLETE_WORDS)) return { kind: 'complete' };
+  if (commandLeads(CLEAR_WORDS)) {
     return { kind: 'weather', weather: 'clear' };
   }
   // 暴雨先判：它的词里也有「下雨」，但落到的档不同。
-  if (leads(STORM_WORDS) && !isQuestion(lower)) {
+  if (commandLeads(STORM_WORDS)) {
     return { kind: 'weather', weather: 'storm' };
   }
-  if (leads(RAIN_WORDS) && !isQuestion(lower)) {
+  if (commandLeads(RAIN_WORDS)) {
     return { kind: 'weather', weather: 'rain' };
   }
-  if (leads(CANCEL_WORDS) && !isQuestion(lower)) {
+  if (commandLeads(CANCEL_WORDS)) {
     return { kind: 'cancelPending' };
   }
   // 拨潮水。满潮 1、退到底 0——两个端点，不给中间值。
   // 带参数的拨潮：只认「涨潮 0.4 / 潮位 40% / 潮位 0.4」这类明确写法。
   // 先把带参数的说完，再落到两个干净的端点命令上。
-  const tideLevel = isQuestion(lower) ? null : parseTideLevel(lower);
+  const tideLevel =
+    isQuestion(lower) || hasNegation(lower) ? null : parseTideLevel(lower);
   if (tideLevel !== null) {
     // NaN = 说的是潮位，但没给出能用的数（「涨潮到五米」）。用句子里那个数
     // 拼一条越界命令，让世界照实拒绝——不要把它当成干净的「涨潮」执行。
@@ -109,10 +122,10 @@ export function parseOracle(raw: string): OracleAction {
       : tideLevel;
     return { kind: 'tide', level, durationMs: TIDE_HOLD_MS };
   }
-  if (leads(TIDE_RISE_WORDS) && !isQuestion(lower) && !hasAmount(lower)) {
+  if (commandLeads(TIDE_RISE_WORDS) && !hasAmount(lower)) {
     return { kind: 'tide', level: 1, durationMs: TIDE_HOLD_MS };
   }
-  if (leads(TIDE_FALL_WORDS) && !isQuestion(lower) && !hasAmount(lower)) {
+  if (commandLeads(TIDE_FALL_WORDS) && !hasAmount(lower)) {
     return { kind: 'tide', level: 0, durationMs: TIDE_HOLD_MS };
   }
 
