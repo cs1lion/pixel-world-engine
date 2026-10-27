@@ -97,15 +97,16 @@ v2 不推翻 v1 的引擎决策，补四件事：
 
 31. 作为维护者，我能用一条命令验证世界没跑偏。
 32. 作为维护者，换一份设定集能起来这件事有一条测试证明，不是一句口号。
-33. 作为维护者，潮汐、灯油二者谁读谁各有一条源码扫描测试锁住，
-    防止有人顺手把灯油塞进 `Simulation`。
-    （这条原来把**时辰**也算作「三者」之一——**时辰没有这道扫描**。2026-10-27 实测：
-    潮汐有（`test/purity.test.ts` 的「潮汐逻辑不读墙钟」）、灯油有
-    （`test/lampoil.test.ts` 的「`world/simulation.ts` 不认识 lampoil」与
-    「除了清单上那几个文件，世界没人碰灯油」），时辰一条也没有——
-    它成立靠的只是 import 图本身（`src/world/` 下没有一个 `../` import），
-    明天有人把 `phaseAt` 接进 `Simulation`，今天没有一道闸会红。
-    详见 `docs/adr/ADR_WORLD_ALIVE.md` §6 的缺口 1。）
+33. 作为维护者，潮汐、灯油、时辰三者谁读谁各有一条源码扫描测试锁住，
+    防止有人顺手把灯油塞进 `Simulation`、或把 `phaseAt` 接进 `Simulation`。
+    （潮汐：`test/purity.test.ts` 的「潮汐逻辑不读墙钟」。灯油：
+    `test/lampoil.test.ts` 的「`world/simulation.ts` 不认识 lampoil」与
+    「除了清单上那几个文件，世界没人碰灯油」。时辰：
+    `test/phase-purity.test.ts` 三条（词汇、快照字段清单、时辰层不 import Phaser）
+    加 `test/purity.test.ts` 的「src/world 不 import 它上面的任何一层」。
+    这条原来把时辰算进来时，**时辰一道扫描都没有**——2026-10-27 补齐，
+    详见 `docs/adr/ADR_WORLD_ALIVE.md` §6。规范曾经比代码超前，这句话本身
+    就是那一次的记录。）
 
 ## 4. 实现决策
 

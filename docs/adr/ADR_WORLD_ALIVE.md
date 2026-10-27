@@ -17,15 +17,17 @@
 > **节号**：§2 与 §8 是代码已经引用的那两个号，本记录沿用原号，好让那几处引用不用改。
 > §1 与 §3–§7 原本也是自己补的、代码没有引用——2026-10-27 起**这句不再成立**：
 > 补「暴雨天没有萤火」那道闸时，代码新增了两处引 §6（`src/render/day-phase.ts` 与
-> `test/day-phase.test.ts`），加上 `test/purity.test.ts` 原有的「§6 的缺口 1」，
+> `test/day-phase.test.ts`），`test/purity.test.ts` 的时辰那一层也引 §6，
 > §6 现在是被引用的。所以改 §6 的编号**也要动代码**——这次就改了编号（把萤火那条
 > 移出编号列表）而没动代码，两处新引用当场变成空引用，见 §6 与文末附录。
+> 同一天补「世界不碰时辰」那道闸时又加了一处（`test/phase-purity.test.ts`，
+> 同时引 §2 与 §6）。**今天共九处**，见文末附录。
 
 ## §1 三条规矩，以及代码里谁在指着它们
 
 搬迁清单给这个主题的摘要是一句话：**时辰只改渲染、编年史不落档、角色是手不是 Agent**。
-代码里实际指着它的，立传时有四条（今天七条；另三条是 2026-10-27 补萤火那道闸时加的，
-都引 §6，见文末附录）：
+代码里实际指着它的，立传时有四条（今天九处；另五处是 2026-10-27 补的两道闸加的——
+补萤火时三处、补「世界不碰时辰」时一处同时引 §2 与 §6，都见文末附录）：
 
 | 引用处 | 原话 | 指向 |
 |---|---|---|
@@ -50,7 +52,11 @@
 **它是什么**：定义全在 `src/render/day-phase.ts`——`PhaseId`、`PHASE_ORDER`、
 `PHASES`（四刻配方：压暗色、压暗浓度、暖光强度、亮窗数、屋脊受光、贴地雾带、萤火）、
 `phaseAt(epochMs)`（本地时刻 → 相位）、`parsePhaseParam(raw)`（URL 参数 → 相位）。
-它是纯函数，只 import `../world/palette-data.ts` 的 `WORLD`（24 色表），不 import Phaser。
+它是纯函数，不 import Phaser。它 import 两样，两样都在 `src/world/` 下，而方向是对的
+（世界提供数据给时辰，不是时辰驱动世界）：`palette-data.ts` 的 `WORLD`（24 色表）与
+`types.ts` 的 `Weather` 这个**类型**（`import type`，编译后不存在）。
+（这里原来写着「只 import `../world/palette-data.ts` 的 `WORLD`」——少了一个
+`import type { Weather }`。2026-10-27 补记。）
 
 **谁消费它**（正向证据，2026-10-27 实测）：
 
@@ -66,14 +72,32 @@
 - 测试侧：`test/day-phase.test.ts`（配方表）、`test/ambience.test.ts`（`PHASE_ORDER`）、
   `scripts/check-phases.mjs`（浏览器截图量像素）。
 
-**它不进世界**（反向证据，同一次实测）：`src/world/` 下 48 个 `.ts` 文件的
-import 目标**只有 `./` 开头的同目录文件，没有一个 `../`**——世界内核不 import 渲染层，
-不 import `day-phase.ts`，不 import Phaser。`src/world/` 里唯一出现 `day-phase` 这个词的
-是 `weather.ts` 的一处**注释**（在解释萤火那个天气条件**原来**没有测试守着——2026-10-27
-补上了，见 §6 的「一处已经补上的缺口」），不是 import。
-`WorldSnapshot`（`src/world/types.ts`）逐字段列的是 now、角色、楼、工作站、施工、任务、
-排队、摆件、石板、氛围实体、迷雾、路、痕迹、祭坛、事件、天气、潮位、信仰、交付、上游连接——
-**没有时辰字段**。快照里没有它，世界就没有它。
+**它不进世界**（反向证据）：`src/world/` 下的 import 目标**只有 `./` 与落在
+`src/world/` 里面的 `../`**——世界内核不 import 渲染层，不 import `day-phase.ts`，
+不 import Phaser。`src/world/` 里出现 `day-phase` 这个词的
+只有 `weather.ts` 的注释——`renderIntensity` 上方那一段解释萤火条件为什么搬了家的话里
+提了四次 `day-phase`（**指名，不叫行号**：那几行会随我自己的编辑漂，而引用审计只认
+「那一行有没有代码」，认不出那一行是不是说的那个东西），**不是 import**——所以
+`test/phase-purity.test.ts` 那条词汇扫描走 `codeOf()`，注释不算。
+`WorldSnapshot`（`src/world/types.ts`）的 23 个字段是 now、villager、villagers、
+buildings、startupBuildingIds、workstations、constructions、tasks、pending、props、
+oracle、critters、fog、roads、trails、altar、events、weather、tide、faith、deliveries、
+deliveriesByVillager、feed——**没有时辰字段**。快照里没有它，世界就没有它。
+（这一列原来是分组写的，20 组，漏了 `startupBuildingIds` 与 `deliveriesByVillager`
+两个字段；2026-10-27 改成逐字段列全 23 个。）
+
+**这条的反向证据原来的说法是「48 个文件、没有一个 `../`」，那个说法已经不能用了。**
+它是 2026-10-27 在 `src/world/` 还是**平铺**的时候实测的（`git ls-tree -r HEAD` 数出来
+正是 48 个 `.ts`，`git grep` 也确实是零个 `../`）。后来 `src/world/memory/` 开了子目录，
+`memory/perception.ts` 里的 `from '../types.ts'` 解析到 `world/types.ts`——那是世界内核
+**自己**，不是它上面的一层。于是「没有一个 `../`」这句话当场变成假的，而更糟的是
+`test/purity.test.ts` 的闸照着字面判，会把这种世界内部的子目录依赖一并禁掉。
+
+**所以判据从字面改成了落点**：把 import 说明符真的解析一遍，再问落点还在不在
+`src/world/` 里面。守的东西没变（不越过 `src/world/` 的边界），跟上的是目录结构。
+这件事值得记下来，是因为它与 §6 那条「一道长得很像的闸可以是空的」是同一类错误：
+**一条扫描写明的判据，与它实际检查的东西，会在别处改代码的时候悄悄分开**——
+而分开之后测试照绿，人还以为规矩还守着。
 
 代码自己把这句话写了两遍：`SandboxScene.setPhase` 的注释「时相是纯渲染态：不写世界、
 不写事件日志」；`phase-view.ts` 文件头第一句「时相渲染层：把四刻配方画到世界上。
@@ -224,7 +248,7 @@ SPEC 那一行是超前的。
 
 | 规矩 | 今天谁在看守 | 跑在哪 |
 |---|---|---|
-| §2 时辰不进世界 | **没有专门的源码扫描**。成立靠的是 import 图本身（§2 的反向证据）。间接的是 `test/purity.test.ts` 的「src/world 不 import Phaser」与「§4.6 三个状态位不读墙钟」（按文件扫 `types.ts` / `gate.ts` / `simulation.ts` / `grid.ts` / `save.ts` / `faith.ts` / `grime.ts`，只豁免 `deps.wallClock ?? (() => Date.now())` 那一整行） | `npm test` |
+| §2 时辰不进世界 | `test/phase-purity.test.ts` 三条：① 世界代码里没有时辰模块的标识符（抄一份也拦得住）② 时辰那一层不 import Phaser ③ 快照字段清单冻在测试里。另有 `test/purity.test.ts` 的「src/world 不 import 它上面的任何一层」拦 import 这一条路 | `npm test` |
 | §2 四刻可辨 | `test/day-phase.test.ts`（配方表） | `npm test` |
 | §2 暴雨天没有萤火 | `test/day-phase.test.ts` 的「萤火虫只要晴天的那几刻」与「加一档天气不必改这里」（2026-10-27 补；原 §6 缺口 2） | `npm test` |
 | §2 四刻在真渲染器上可辨 | `scripts/check-phases.mjs`（截图量像素） | 要 `npm run dev`，**CI 不跑** |
@@ -233,15 +257,70 @@ SPEC 那一行是超前的。
 | §4 角色不是 Agent | `test/purity.test.ts` 的上游词汇扫描 | `npm test` |
 | §8 v1→v2 迁移 | `test/save-fingerprint.test.ts` 的「v2 样例仍原样不动」+ `test/save.test.ts` 的 v1→v2 四条 | `npm test` |
 
-**一处缺口，说清楚免得误以为有闸**：
+**两处缺口，说清楚免得误以为有闸**：
 
-1. **§2 没有「世界不碰时辰」这道扫描。** 明天有人把 `phaseAt` 接进 `Simulation`，
-   今天没有一道闸会红——除非他顺手写了 `Date.now()`（那会红，见上表第一行）。
-   同族纪律是补得上的：`test/lampoil.test.ts` 的「除了清单上那几个文件，世界没人碰灯油」
-   就是因为「只看 `simulation.ts`」失效过（有人把「油尽了不走这条路」写进 `grid.ts` 或
-   `bustle.ts`，全套照旧绿），才扩到整个 `src/world/` 目录并递归往下。时辰缺的正是这一道。
+1. **「世界按时间自己派生一个相位」这道闸拦不住。** 有人不 import、不抄、也不开字段，
+   而是在 `Simulation.update` 里写一句 `const hour = (this.now / 3_600_000) % 24`，
+   然后按时辰派活。上面的三道闸一条都不会红：没有时辰模块的标识符，快照字段没变，
+   也没读墙钟（`this.now` 是世界时间）。这不是扫描漏了一个正则，是**词级扫描的天花板**
+   ——`test/source-scan.ts` 开头把这条界线写明着。要拦它得在构建期做标识符解析，
+   那不属于一条测试的体量。所以这里说清楚，别让读的人以为三道闸合起来等于
+   「时辰不可能进世界」。
 
-**一处已经补上的缺口（2026-10-27，原本列在下面）**：**「暴雨天不该有萤火」没有用例。**
+**一处已经补上的缺口（2026-10-27，原本列在下面）**：**「世界不碰时辰」一道扫描都没有。**
+`ADR_WORLD_ALIVE.md` §6 原来把这一条列在缺口 1：「明天有人把 `phaseAt` 接进 `Simulation`，
+今天没有一道闸会红」。同族纪律是补得上的，而且当初正是失效过才补的：
+`test/lampoil.test.ts` 的「除了清单上那几个文件，世界没人碰灯油」起先只看 `simulation.ts`，
+于是「油尽了不走这条路」写进 `grid.ts` 或 `bustle.ts`，全套照旧绿，才扩到整个
+`src/world/` 目录并递归往下。时辰缺的正是这一道。
+
+补的时候发现「一道闸」是不够的——**时辰进世界有三条不同的路**，一条闸拦不住三条：
+
+- **import 进来。** 这条由 `test/purity.test.ts` 的「src/world 不 import 它上面的任何一层」
+  拦（`83a8dcf`，在本条之前落地）。它禁的是**解析后落在 `src/world/` 之外**的任何 import，
+  所以换个入口（`phase-view.ts`、`ambience.ts`、或者一个新文件）也一样进不来。
+  （它原先判的是「这一行有没有 `../`」，`src/world/` 平铺的时候两者等价；
+  `world/memory/` 一开子目录就分开了，判据跟着改成落点，见 §2。）
+- **抄一份进来。** `phaseAt` 复制粘贴到 `src/world/` 下，import 图一片干净，
+  而世界照样知道「现在几点」。由 `test/phase-purity.test.ts` 的词汇扫描拦：
+  递归整个 `src/world/`，走 `codeOf()`（注释不算），找 `phaseAt` / `PhaseId` /
+  `PhaseRecipe` / `PHASE_ORDER` / `PHASES` / `day-phase`。
+- **快照里开一个字段。** 不 import、不抄，只在 `WorldSnapshot` 上加一个 `phase`，
+  渲染层读快照就拿到了时辰。由 `test/phase-purity.test.ts` 的字段清单拦：
+  它不猜字段名，把**今天的 23 个字段**列死，加一个字段就得先改那个文件。
+
+**词汇为什么挑这几个词，以及为什么不是裸词 `phase`**：`src/world/bustle.ts` 的
+`litWindowCount` 有一个参数就叫 `phase: { readonly litWindows: number }`，函数体里读
+`phase.litWindows`。那是「楼里亮着几扇窗」的入参，与时辰无关——§2 把这件事当作正向证据记着
+（世界内核因此对「时辰」这个概念一无所知，只收到了一个数）。拿裸词扫，今天就会误报；
+而误报一样毁掉一道闸，只是毁得慢一点：下次真出事时，人会先学会忽略这条红。
+同理不拿 `dawn` / `noon` / `dusk` / `night` 四个档位名当键——它们是普通英文词，
+将来完全可能名一个别的东西。要拦「开了一个时辰字段」，字段清单比任何词表都准。
+
+**第三道用例守的是可验证性，不是时辰本身**：`test/phase-purity.test.ts` 里
+「时辰那一层不 import Phaser」看起来反向，其实与 §6 缺口 2 是同一件事——
+`phase-view.ts` 的萤火条件当初就是因为它 import Phaser、node 下构造不出来，
+才一直「有注释、没用例」。时辰模块自己一旦依赖渲染后端，本文件三道闸的用例
+就都跑不起来了，而闸跑不起来与没有闸在这份仓里的后果是一样的。
+
+**这道闸不是形式上的，而且第三道第一次是假的**：mutation 实测三种走法各自会不会红，
+结果是——往 `src/world/bustle.ts` 末尾粘一个用到 `phaseAt` 的函数，词汇扫描**红**；
+往 `Simulation.snapshot()` 的返回对象里加一个 `phase` 字段，字段清单**红**；
+往 `src/render/day-phase.ts` 里加一句 `import Phaser from 'phaser'`，**三条全绿**。
+
+第三道不红，是因为它走错了助手：`codeOf()` 把字符串字面量的内容换成等长空白，
+`from 'phaser'` 一变就只剩 `from '       '`，正则永远不命中。**这道闸从上线第一秒
+起就是空的**，而它看上去与另外两道一模一样。同一个坑 `test/purity.test.ts` 的时辰
+那一层已经踩过一次并写在注释里（`83a8dcf` 那次），我这次又踩了——所以修法不是
+"把正则改宽"，而是把 import 扫描与词汇扫描的分工写明：词汇用 `codeOf()`（注释里提一句
+旧词不算），**import 只能裸读 + 剔注释行**。`test/source-scan.ts` 为此新增 `codeLines()`，
+并把两边的坑都记在它的说明里。改完再 mutation，第三条红了，还原后 3/3 绿。
+
+**教训值得单独记**：一道长得很像的闸可以是空的，而"测试写着、跑着、绿着"完全不构成
+它在干活的证据。这份仓里因此凡是新增扫描，都要附一次 mutation 实测——包括**先证明它会红**，
+不是只证明它现在是绿的。
+
+**另一处已经补上的缺口（2026-10-27，更早）**：**「暴雨天不该有萤火」没有用例。**
 `phase-view.ts` 的 `drawFireflies` 在天气不是晴时直接 return，`PHASES.night` 的注释也写着
 「下雨时隐藏」，但 `test/day-phase.test.ts` 只断言 `PHASES.night.fireflies` 这个**配置值**，
 没有一条用例把「夜里下雨了所以没有萤火」跑成红。`src/world/weather.ts` 的注释自己记着这件事，
@@ -284,10 +363,14 @@ SPEC 那一行是超前的。
    **2026-10-27 已修**：两条词条都把时辰摘出去了，并各补一句「别把时辰列进来」，
    说明它为什么不在回放的管辖范围内。本记录落笔时它还是错的，改词典也不在本记录的
    职权内（本记录只新增一个文件）——所以这里记的是「当时错、后来改了什么」。
-2. **`docs/SPEC_V2.md` §3 用户故事 33 对时辰是超前的。** 它说「潮汐、灯油、时辰三者谁读谁
-   有一条源码扫描测试锁住」。实测：潮汐有（`purity.test.ts` 的「潮汐逻辑不读墙钟」）、
+2. **`docs/SPEC_V2.md` §3 用户故事 33 对时辰曾经是超前的。** 它说「潮汐、灯油、时辰三者谁读谁
+   有一条源码扫描测试锁住」。本记录落笔时实测：潮汐有（`purity.test.ts` 的「潮汐逻辑不读墙钟」）、
    灯油有（`lampoil.test.ts` 的「world/simulation.ts 不认识 lampoil」与
-   「除了清单上那几个文件，世界没人碰灯油」）、**时辰没有**（见 §6 缺口 1）。
+   「除了清单上那几个文件，世界没人碰灯油」）、**时辰一条也没有**（见 §6 缺口 1）。
+   **2026-10-27 已修**：缺口 1 补上了，`test/phase-purity.test.ts` 三条加上
+   `purity.test.ts` 的 import 闸，时辰与另两者对齐；§3 故事 33 的括注也跟着改成
+   「时辰原来没有，现在有了」。所以这条现在**不再是「对不上」**，留着它是为了记下
+   「规范曾经比代码超前」这件事发生过一次——而它的代价是那句超前的话在仓里躺了几天。
 3. **`docs/SPEC.md` §4.3 的 `npc.setSchedule` 不在白名单里**（见 §4 末）。
 
 ## §8 世界变活：v1 → v2 存档迁移
@@ -361,16 +444,21 @@ SPEC 那一行是超前的。
 
 ## 附：本记录覆盖不到的地方
 
-- **§2 / §6 / §8 三节被代码引用，共七处**：§2 两处（`src/render/day-phase.ts` 文件头、
-  `scripts/check-phases.mjs` 文件头）；§6 三处（`src/render/day-phase.ts` 的
-  `firefliesVisible` 上方、`test/day-phase.test.ts` 的萤火用例上方、`test/purity.test.ts`
-  的「§6 的缺口 1」）；§8 两处（`src/world/save.ts` 的 `SCHEMA_V2_FINGERPRINT` 与
-  `MIGRATIONS[1]` 上方）。**改这三节的编号都要动代码。**
+- **§2 / §6 / §8 三节被代码引用，共九处**（按**位置**数，不按出现次数：一个文件里
+  提三次算一处）：§2 三处（`src/render/day-phase.ts` 文件头、
+  `scripts/check-phases.mjs` 文件头、`test/phase-purity.test.ts`）；§6 四处
+  （`src/render/day-phase.ts` 的 `firefliesVisible` 上方、`test/day-phase.test.ts`
+  的萤火用例上方、`test/purity.test.ts` 的时辰那一层、`test/phase-purity.test.ts`）；
+  §8 两处（`src/world/save.ts` 的 `SCHEMA_V2_FINGERPRINT` 与 `MIGRATIONS[1]` 上方）。
+  **改这三节的编号都要动代码。**
   §1 与 §3–§5、§7 仍没有被引用——改它们的编号不用动代码。
 
   这一条原来写的是「§2 与 §8 之外，代码里再没有别处引用……那 4 处引用」。
   补萤火那道闸时加了三条引 §6 的，这句没跟着改，于是它说的是一件不再真的事。
   `docs/adr/ADR_SAVE.md` 的附录抄了同一个「4 处」，一起改。
+  补「世界不碰时辰」那道闸时又加了一处同时引 §2 与 §6 的（`test/phase-purity.test.ts`），
+  于是 7 处变 9 处——**这条自己就是「改编号要动代码」的活证**：它每次跟不上，
+  都是因为有人改了节的内容而没数引用。
 - `day-phase.ts` 文件头还引着 `proto/day-phase.html` 与「ADR 附录 A」，两者都不在本仓。
 - 同一份搬迁清单（`docs/MIGRATION_FROM_XIAOXI.md` §五）里的 `docs/ADR_PALETTE_24.md`
   已由另一份记录补上（`docs/adr/ADR_PALETTE_24.md`）；`docs/LARGE_WORLD.md` 仍不在本仓，
