@@ -42,6 +42,7 @@ import { decideWrite, inputsFor } from './salience.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import { rollBelow, seedOf } from './seed.ts';
 import { exposedTraces, consequenceOf, fitTraceLayers, inferenceOf, makeTrace, type InferenceSpec } from './traces.ts';
+import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './written.ts';
 import type {
   Belief,
   Claim,
@@ -132,6 +133,7 @@ export class MemoryWorld {
   private legends: Legend[] = [];
   private announcements: Announcement[] = [];
   private readonly tells: TellRecord[] = [];
+  private written: WrittenRecord[] = [];
   private cooldowns: CooldownState[] = [];
   private fanout: FanoutState = { day: 0, counts: new Map() };
   private readonly verifyPlans = new Map<string, VerifyPlan[]>();
@@ -304,7 +306,13 @@ export class MemoryWorld {
     };
   }
 
-  /** 单位的一次回忆。走 `recall`，`commit` 时强化并可能变形。 */
+  /**
+   * 单位的一次回忆。走 `recall`，`commit` 时强化并可能变形。
+   *
+   * 取几条由调用方定：**对话注入是 `dialogueTopK`（3），一般回忆是 `budgetK`（5）**。
+   * 两个数不是重复——对话里塞五条记忆，模型的话就会变成流水账；而主动回忆时
+   * 捞得太少又接不上。早先只接了后者，于是 `dialogueTopK` 是个死数。
+   */
   recallFor(holderId: string, request: Omit<RecallRequest, 'holderId'>): RecallOutcome {
     const mine = this.entries.filter((entry) => entry.holderId === holderId);
     const outcome = recall(mine, { ...request, holderId }, this.config, rollBelow);
@@ -320,6 +328,20 @@ export class MemoryWorld {
       }
     }
     return outcome;
+  }
+
+  /**
+   * 对话时注入的那几条。`dialogueTopK` 在这里落地。
+   *
+   * 与 `recallFor` 的差别只有取几条与默认 `commit`：对话是**读**，
+   * 读一次就把这条记忆强化一次会让「被反复提起的事」迅速变得比事实更牢固，
+   * 而它可能只是一句闲话。所以默认不 commit，要 commit 得明说。
+   */
+  recallForDialogue(
+    holderId: string,
+    request: Omit<RecallRequest, 'holderId' | 'budgetK'>,
+  ): RecallOutcome {
+    return this.recallFor(holderId, { ...request, budgetK: this.config.dialogueTopK });
   }
 
   // -------------------------------------------------------------- 传播
@@ -371,6 +393,18 @@ export class MemoryWorld {
     let accepted = 0;
     let suspicious = 0;
 
+    // 一次批量扩散 = 每对单位之间的一次交谈。两条闸各管一头：
+    //
+    // - `talkTopicsPerChat`（2 条）：**这一次交谈**能带几个话题。没有它，
+    //   一个人一天之内可以把世上所有断言一口气讲给同一个人听。
+    // - `chatCooldownDays`（0.25 天）：**下一次交谈**得等多久。它记的是
+    //   交谈结束的时刻，所以本次交谈期间的后续话题不受它拦。
+    //
+    // 两条分开记，是因为它们是两件事。早先只推了后者，于是前者永远咬不到：
+    // 同一对单位一次只能传一条断言，而「一次交谈 2 条」这个上限根本没机会生效。
+    const topicsByPair = new Map<string, number>();
+    const chatCooldowns: CooldownState[] = [];
+
     // 按 claimId 排序处理：同一天里多条断言的先后必须确定。
     const claimIds = [...this.claims.keys()].sort();
     for (const claimId of claimIds) {
@@ -412,8 +446,17 @@ export class MemoryWorld {
           });
           for (const step of steps) {
             if (!canFanout(this.fanout, step.from, claimId, day, this.config)) break;
+            const pair = pairOf(step.from, step.to);
+            const used = topicsByPair.get(pair) ?? 0;
+            // 这一对已经聊满了，换下一对。不是 `break`：别的单位对还能说。
+            if (used >= this.config.talkTopicsPerChat) continue;
             const delivered = this.deliver(step.from, step.to, step.claim, step.verdict, at);
             if (!delivered) continue;
+            if (used === 0) {
+              // 第一次开口：这一对今天聊过了。散完之后整体记冷却。
+              chatCooldowns.push({ pairKey: pair, claimId: null, atMs: at });
+            }
+            topicsByPair.set(pair, used + 1);
             told += 1;
             if (step.verdict === 'accept') accepted += 1;
             if (step.verdict === 'verify') suspicious += 1;
@@ -422,6 +465,10 @@ export class MemoryWorld {
         }
       }
     }
+
+    // 交谈结束了才记冷却。中途记的话，本次交谈的第二个话题会被自己刚写的
+    // 冷却拦住——「一次交谈 2 条」就变成了一句空话。
+    this.cooldowns = [...this.cooldowns, ...chatCooldowns];
 
     return { told, accepted, suspicious };
   }
@@ -449,6 +496,102 @@ export class MemoryWorld {
     return belief;
   }
 
+  // -------------------------------------------------------------- 书面
+
+  /**
+   * 写一封信。一封信一条断言，超了就写不成（见 `written.ts` 的解释）。
+   */
+  writeLetter(input: {
+    readonly authorId: string;
+    readonly recipientId: string;
+    readonly claimIds: readonly string[];
+    readonly placeId: string;
+    readonly at: number;
+  }): WrittenRecord | null {
+    const claims = input.claimIds
+      .map((claimId) => this.claims.get(claimId))
+      .filter((claim): claim is Claim => claim !== undefined);
+    const record = writeLetter({
+      recordId: this.nextId('letter'),
+      authorId: input.authorId,
+      recipientId: input.recipientId,
+      claims,
+      day: Math.floor(input.at / this.config.dayMs),
+      placeId: input.placeId,
+      config: this.config,
+    });
+    if (record === null) return null;
+    this.written = [...this.written, record];
+    this.emit('diary.written', input.at, {
+      recordId: record.recordId,
+      kind: record.kind,
+      authorId: record.authorId,
+      recipientId: record.recipientId,
+      claimIds: record.claims.map((claim) => claim.claimId),
+    });
+    return record;
+  }
+
+  /**
+   * 写今天的日记。只收亲历的条目，超 `diaryClaimsPerDay` 条按显著度截断。
+   */
+  writeDiary(input: {
+    readonly authorId: string;
+    readonly placeId: string;
+    readonly at: number;
+  }): WrittenRecord | null {
+    const record = writeDiary({
+      recordId: this.nextId('diary'),
+      authorId: input.authorId,
+      entries: this.entries,
+      day: Math.floor(input.at / this.config.dayMs),
+      placeId: input.placeId,
+      config: this.config,
+    });
+    if (record === null) return null;
+    this.written = [...this.written, record];
+    this.emit('diary.written', input.at, {
+      recordId: record.recordId,
+      kind: record.kind,
+      authorId: record.authorId,
+      recipientId: null,
+      claimIds: record.claims.map((claim) => claim.claimId),
+    });
+    return record;
+  }
+
+  /**
+   * 读一封信或一本日记。读到的断言原样进信念，**跳数为 0**——
+   * 书面通道不随跳数衰减，这是它存在的理由。
+   *
+   * 读不到（不是收件人、不是本人、记录不存在）时返回空数组，
+   * 调用方分不出「没有」和「不给读」——这两种情况下他本来就都该什么都不知道。
+   */
+  readWritten(holderId: string, recordId: string, at: number): readonly Belief[] {
+    const record = this.written.find((item) => item.recordId === recordId);
+    if (record === undefined) return [];
+    const claims = readRecord(record, holderId);
+    const out: Belief[] = [];
+    for (const claim of claims) {
+      this.claims.set(claim.claimId, claim);
+      out.push(this.addBelief(holderId, claim, record.authorId, 'held', at));
+    }
+    if (out.length > 0) {
+      this.emit('announcement.read', at, {
+        recordId,
+        holderId,
+        kind: record.kind,
+        claimIds: claims.map((claim) => claim.claimId),
+      });
+    }
+    return out;
+  }
+
+  /** 这个人写得下、也读得到的那几条记录。给 UI 与调试用。 */
+  writtenOf(holderId: string): readonly WrittenRecord[] {
+    return this.written.filter((record) => readRecord(record, holderId).length > 0);
+  }
+
   // -------------------------------------------------------- 痕迹与推断
 
   /**
@@ -458,6 +601,10 @@ export class MemoryWorld {
    * 碑文是唯一例外——它升级成 `read`，因为碑文绑着 event_ref。
    */
   lookAtTraces(holderId: string, placeId: string, at: number): InferenceSpec[] {
+    // 走到那栋楼跟前才看得见痕迹。`traceRadius`（3 格）是这一步的准入，
+    // 不是装饰参数：没有它，任何一个 unit 都能在村子另一头「路过」，
+    // 于是痕迹通道等于免费的全村广播，而它本该是最慢、最费力的一条。
+    if (!this.withinTraceReach(holderId, placeId)) return [];
     const traces = exposedTraces(this.traces.get(placeId) ?? [], this.config.traceExposedLayers);
     const out: InferenceSpec[] = [];
     for (const trace of traces) {
@@ -704,10 +851,11 @@ export class MemoryWorld {
     const state = verdict === 'verify' ? 'suspicious' : 'held';
     this.addBelief(to, claim, from, state, at);
     this.tells.push({ day: this.currentDay, from, to, claimId: claim.claimId });
+    // 逐话题冷却（同一对单位、同一条断言）在这里记。闲聊冷却由
+    // `diffuseDay` 在整场交谈结束时记——它记的是「聊过」这件事，不是某一条。
     this.cooldowns = [
       ...this.cooldowns,
       { pairKey: pairOf(from, to), claimId: claim.claimId, atMs: at },
-      { pairKey: pairOf(from, to), claimId: null, atMs: at },
     ];
     this.emit('claim.told', at, {
       claimId: claim.claimId,
@@ -786,6 +934,23 @@ export class MemoryWorld {
    * 位置缺失的单位**不参与**传播。它们不是被禁言，是「不知道他在哪」——
    * 而世界不能假装知道他站在谁旁边。调用方接上位置之后它们自然回来。
    */
+  /**
+   * 这个人此刻够不够得着那个地点的痕迹。
+   *
+   * 地点 Holder 永远够得着自己（它就是那个地点）。人物要走到 `traceRadius` 以内。
+   * 位置缺失的单位**够不着**——不是禁足，是「不知道他在哪」，而世界不能
+   * 假装他从那儿路过。
+   */
+  private withinTraceReach(holderId: string, placeId: string): boolean {
+    const holder = this.holders.get(holderId);
+    if (holder === undefined) return false;
+    if (holder.type === 'place') return holder.holderId === placeId;
+    const from = holder.at;
+    const to = this.holders.get(placeId)?.at;
+    if (from === undefined || to === undefined) return false;
+    return Math.hypot(from.x - to.x, from.y - to.y) <= this.config.traceRadius;
+  }
+
   private spreadCandidates(speaker: string): SpreadCandidate[] {
     const from = this.holders.get(speaker)?.at;
     if (from === undefined) return [];

@@ -77,8 +77,18 @@ export function perceives(
   grid: OcclusionGrid,
   config: MemoryConfig,
 ): boolean {
-  if (place.indoor) return perceiver.inside === place.placeId;
-  if (perceiver.inside !== null) return false;
+  // 室内事件：默认只有同一个房间里的人在场。
+  //
+  // `indoorSameRoom = false` 时退回「室内也按半径算」——那是另一种世界设定
+  // （比如一间大通铺工坊，屋里屋外都看得见）。这个开关存在是因为设定集可换：
+  // 千与千寻的油屋是隔间的，换成一个大棚就不是了。**但默认必须是 true**：
+  // 按半径发室内事件，痕迹通道就退化成装饰。
+  if (place.indoor) {
+    if (config.indoorSameRoom) return perceiver.inside === place.placeId;
+  } else if (perceiver.inside !== null) {
+    // 观察者在室内：他看不见室外发生的事。窗外的事不归他。
+    return false;
+  }
   if (distance(perceiver.at, place.at) > config.perceptionRadius) return false;
   if (!config.occlusion) return true;
   return hasLineOfSight(perceiver.at, place.at, grid);

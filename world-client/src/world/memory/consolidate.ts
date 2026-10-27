@@ -103,7 +103,8 @@ export function consolidateHolder(
     }));
 
   const candidates = [...archived, ...kept, ...(summary === null ? [] : [summary])];
-  const merged = trimBudget(candidates, config);
+  const withWeekly = mergeWeekly(candidates, holderId, day, config);
+  const merged = trimBudget(withWeekly, config);
 
   return {
     entries: [...others, ...merged],
@@ -182,6 +183,85 @@ function makeSummary(
     },
     archived: false,
   };
+}
+
+/**
+ * 周摘要：每 `weekLength` 天，把这一周的日摘要压成一条，进 `long` 层。
+ *
+ * 补充设计 §3.1「层级周期」：连续 7 天的 `DaySummary` 合并压缩为周摘要。
+ * 没有这一步，长层会被日摘要灌满——一天一条，64 条的预算两个多月就顶到
+ * 上限，然后开始按强度淘汰，而被淘汰的正是最早那些天。周摘要把七条换一条，
+ * 于是「三个月前发生过什么」还有一句能查。
+ *
+ * 触发日取 `day % weekLength === weekLength - 1`：第 6、13、20 天……
+ * 也就是每七天一次的**最后一天**。这样第 0 天不会在开局第一拍就触发。
+ *
+ * 规则版压缩：只把这一周日摘要的 `what` 拼起来，`eventRefs` 取并集。
+ * 不加任何新词——周摘要说的每一句都能追到某个事件，这是「不编造」的下限。
+ */
+function mergeWeekly(
+  entries: readonly MemoryEntry[],
+  holderId: string,
+  day: number,
+  config: MemoryConfig,
+): MemoryEntry[] {
+  if (config.weekLength <= 0) return [...entries];
+  if (day % config.weekLength !== config.weekLength - 1) return [...entries];
+
+  const from = day - config.weekLength + 1;
+  const dailies = entries.filter(
+    (entry) =>
+      entry.holderId === holderId &&
+      entry.kind === 'summary' &&
+      entry.tier === 'long' &&
+      entry.createdDay >= from &&
+      entry.createdDay <= day,
+  );
+  if (dailies.length === 0) return [...entries];
+
+  const weekly: MemoryEntry = {
+    memoryId: `m_week_${holderId}_${day}`,
+    holderId,
+    kind: 'summary',
+    tier: 'long',
+    eventRefs: [dailies[0]!.eventRefs[0]!, ...dailies.flatMap((entry) => entry.eventRefs.slice(1))],
+    sourceMode: 'witnessed',
+    sourceChain: [],
+    content: {
+      what: dailies.map((entry) => entry.content.what).join('；'),
+      who: unique(dailies.flatMap((entry) => entry.content.who)),
+      where: dailies[0]!.content.where,
+      when: day,
+      // 周摘要的细节取被压日摘要的最高一档——它是浓缩，不是又一次降级。
+      detailLevel: Math.max(...dailies.map((entry) => entry.content.detailLevel)),
+      valence: average(dailies.map((entry) => entry.content.valence)),
+      arousal: average(dailies.map((entry) => entry.content.arousal)),
+    },
+    salience: Math.max(...dailies.map((entry) => entry.salience)),
+    confidence: Math.max(...dailies.map((entry) => entry.confidence)),
+    strength: 1,
+    createdDay: day,
+    lastRecalledDay: day,
+    recallCount: 0,
+    flashbulb: false,
+    pinned: false,
+    redacted: false,
+    derivedFrom: {
+      memoryIds: dailies.map((entry) => entry.memoryId),
+      claimIds: [],
+    },
+    generatedBy: {
+      by: 'rule',
+      rulesetVersion: RULESET,
+      inputHash: String(seedOf(holderId, day, 'weekly')),
+      seed: seedOf(holderId, day, 'weekly'),
+    },
+    archived: false,
+  };
+
+  // 被压进去的日摘要让位。留着它们，周摘要只是又多了七条。
+  const absorbed = new Set(dailies.map((entry) => entry.memoryId));
+  return [...entries.filter((entry) => !absorbed.has(entry.memoryId)), weekly];
 }
 
 /** 规则集版本。规则一改，旧档里那些条目的 `generatedBy` 就说明它是哪一版做的。 */
