@@ -13,7 +13,7 @@
  * 「地上有东西，但谁也看不懂」——而且不报错。
  */
 
-import type { Trace, TraceLayer } from './types.ts';
+import type { MemoryKind, Trace, TraceLayer } from './types.ts';
 
 /** 生成痕迹的输入。`intensity` 0..1。 */
 export interface ConsequenceInput {
@@ -175,6 +175,11 @@ export function exposedTraces(traces: readonly Trace[], limit: number): Trace[] 
  * `detailLevel` 全是 1（缺省 who）——推断出来的记忆不该比看见的人更详细。
  * `confidence` 是这张表的核心：焦痕只有 0.35，碑文 0.90。路过者据此决定
  * 要不要去打听，而传播链据此决定每跳掉多少。
+ *
+ * `kind` 也是表里的一列，不是这里现编的：§1.2 第三行「磨损小径 / 固定座位」
+ * 的初始字段特征写着 `kind: habit`。原先这一列根本没接——所有推断记忆一律
+ * 落 `kind: 'episodic'`，于是 `MemoryKind` 声明的五个种类里只有两个被写出过，
+ * `budget.impression`（32 条）与 `limitFor('impression')` 也一直是死的。
  */
 export interface InferenceSpec {
   readonly what: string;
@@ -186,6 +191,8 @@ export interface InferenceSpec {
   readonly spread: 'ask' | 'colleagues' | 'positive' | 'background';
   /** 碑文是唯一一种直接升级成 `read` 的痕迹。 */
   readonly sourceMode: 'inferred' | 'read';
+  /** 落成哪种记忆。只有磨损小径是 `habit`，其余都是情景片段。 */
+  readonly kind: MemoryKind;
 }
 
 /**
@@ -207,6 +214,7 @@ const INFERENCE_TABLE: Readonly<Record<TraceLayer, InferenceSpec>> = {
     arousal: 0.7,
     spread: 'ask',
     sourceMode: 'inferred',
+    kind: 'episodic',
   },
   damage: {
     what: '这里好像出过事，东西被弄坏了',
@@ -216,6 +224,7 @@ const INFERENCE_TABLE: Readonly<Record<TraceLayer, InferenceSpec>> = {
     arousal: 0.7,
     spread: 'ask',
     sourceMode: 'inferred',
+    kind: 'episodic',
   },
   patch: {
     what: '这里的设施刚经历过抢修',
@@ -225,6 +234,7 @@ const INFERENCE_TABLE: Readonly<Record<TraceLayer, InferenceSpec>> = {
     arousal: 0.4,
     spread: 'colleagues',
     sourceMode: 'inferred',
+    kind: 'episodic',
   },
   garland: {
     what: '这里刚刚举办过一场庆典或嘉奖',
@@ -234,15 +244,27 @@ const INFERENCE_TABLE: Readonly<Record<TraceLayer, InferenceSpec>> = {
     arousal: 0.6,
     spread: 'positive',
     sourceMode: 'inferred',
+    kind: 'episodic',
   },
   worn_path: {
     what: '最近有人频繁往返于这条路线',
     detailLevel: 1,
-    confidence: 0.3,
+    // 0.60，不是 0.3。§1.2 那一行的初始字段特征写的是 `confidence: 0.60`，
+    // 原先照抄成了焦痕那一档。差得不多，但它是这条路上**最高**的一档：
+    // 一条被走出来的路是反复见过的东西，比一道说不清来由的焦痕可信得多。
+    // 顺带把 salience 从 0.18 抬到 0.36——原先它是全表最低，比
+    // `T_write`（0.3）还低一截，而 `lookAtTraces` 又不查 `T_write`，
+    // 于是「显著性最低的一条」照样写进了记忆。
+    confidence: 0.6,
     valence: 0,
     arousal: 0.2,
     spread: 'background',
     sourceMode: 'inferred',
+    // §1.2 第三行明写 `kind: habit`，另外两行没写这一列——它们落情景片段。
+    // 效果那一栏说它「沉积为对地点繁忙程度的长期印象」：一条路被走出来的
+    // 事实不是某一天发生的事，是一次又一次。用 `episodic` 记它，等于把
+    // 「这里一直有人来」当成「那天我看见了一道痕」。
+    kind: 'habit',
   },
   inscription: {
     what: '碑文上记着一件事',
@@ -253,6 +275,7 @@ const INFERENCE_TABLE: Readonly<Record<TraceLayer, InferenceSpec>> = {
     arousal: 0.4,
     spread: 'background',
     sourceMode: 'read',
+    kind: 'episodic',
   },
 };
 

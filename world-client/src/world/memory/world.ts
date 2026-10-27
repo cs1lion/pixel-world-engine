@@ -802,7 +802,9 @@ export class MemoryWorld {
       const entry: MemoryEntry = {
         memoryId: this.nextId('m'),
         holderId,
-        kind: 'episodic',
+        // 照表里那一行的来，不一律写 `episodic`：磨损小径推出来的是 `habit`
+        // （§1.2 第三行），它记的是「这里一直有人来」，不是「那天我看见了一道痕」。
+        kind: spec.kind,
         tier: 'day',
         eventRefs: [trace.eventRef],
         sourceMode: spec.sourceMode,
