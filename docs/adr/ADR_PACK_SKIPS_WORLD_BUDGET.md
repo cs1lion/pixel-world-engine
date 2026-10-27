@@ -12,7 +12,7 @@
 两条建世界的路，对世界法则的校验态度不同：
 
 - **程序生成的默认世界**：`buildLargeWorld → buildWorld` 落地后跑 `validateCoverage`（`setup.ts:258`）和 `assertWorldInvariants`（`setup.ts:324`）；读档路 `buildWorldFromSave` 跑 `assertWorldInvariants`（`setup.ts:602`）。
-- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:359-423`）——新建路与 `saved` 读档路（`load.ts:361-367`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:324`、`setup.ts:602`，定义在 `setup.ts:629`；测试直接调它：`test/world.test.ts:123,129`、`test/large-world.test.ts:106`；`simulation.ts:1738` 还在散文里援引它。）
+- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:359-423`）——新建路与 `saved` 读档路（`load.ts:361-367`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:324`、`setup.ts:602`，定义在 `setup.ts:629`；测试直接调它：`test/world.test.ts:123,129`、`test/large-world.test.ts:106`；`simulation.ts:1738` 还在散文里援引它。**这份测试名单漏了两处，见文末 2026-10-28 补记。**）
 
 `buildSettingWorld` 并非不校验，它的 docstring 把承诺划了界：「显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则」（`load.ts:358`）。它确实把每处落位交给 `placeBlueprint`（内部走 `checkPlacement`，调用 `setup.ts:455`、规则 `setup.ts:201-245`：出界、分区、占用、留白、门口可建），并核居民出生点可走、作息点可达（`load.ts:391-422`）。但这句话第二分句「不能由设定集绕过世界法则」没带限定词，而它实际只兑现了**空间**那一类——预算与覆盖这两类世界法则，包这条路一概没人跑。这就是本ADR 的主题：一处主动豁免（预算，合理），两处无人认领（门口可达、venue 覆盖）。
 
@@ -54,3 +54,17 @@
 | 拆 `assertWorldInvariants` 成 generic/procedural 两半，包只跑 generic 半 | 方向对，是待办 A 的正式形态；但对稳定、被测函数是重构，单开一项，不夹带 |
 | 只在 `buildSettingWorld` 补「门口可达 hub」 | 待办 A 的最小候选；但更小的修点在 `paveFrom`（已算该路径、空路由静默丢），一处信号惠及两个世界 |
 | 让 `loadSettingPack` 顺手接上 `validateCoverage` | 待办 B 的一侧；但是个设计决定（包能否无工坊），要先定 L1 命令的归宿，不能顺手接上 |
+
+---
+
+> **2026-10-28 补记：§背景里那份「测试直接调它」的名单漏了两处，都在同一个文件里。**
+> `test/world.test.ts` 里除了已列的那两处，还有两组断言也直接调 `assertWorldInvariants`
+> （都在 `moveOthersTo` 那一段：一组断言搬动之后不抛，一组断言搬空之后抛）。
+> 「`world-client/src` 内只有 `setup.ts:324`、`setup.ts:602`」这半句核过，**为真**。
+> 漏的两处不影响本 ADR 的结论——结论说的是 `src` 里没有人跑它，测试调它是测试的事。
+>
+> **这条补记放在文件末尾，不放在那一行旁边**，而且 deliberately 不写行号：
+> `test/audit-references.test.ts` 有一个 FROZEN 清单钉着本文件第 14、15、27、43、47 行
+> 各出现哪个名字（CALL_REF 的盲区守卫）。第一稿把补记插在第 15 行下面，
+> 那几行当场全部下移，测试立刻红——**它自己就是「行号会被下一次编辑推翻」的活证**，
+> 而这份仓里今天已经为同一件事栽过三次。要找就 grep `assertWorldInvariants`。

@@ -225,6 +225,20 @@ deliveriesByVillager、feed——**没有时辰字段**。快照里没有它，�
 白名单里没有它。也就是说连「从外面改她的作息」这条路都还没通——角色更没有自己的判断。
 SPEC 那一行是超前的。
 
+> **2026-10-28 补记：这段的第二句是假的，第一句的方向也反了。**
+> `npc.setSchedule` **在**白名单里：`server/rules/schema.py` 的分发表
+> `COMMAND_CHECKS` 收着它（`"npc.setSchedule": _npc_set_schedule`），
+> 参数校验完整（`_only(args, {"id", "schedule"})` + `schedule` 过 `SCHEDULES` 域），
+> `server/tests/test_rules_schema.py` 有它的用例。
+> 准确的说法是**规则层收得下，世界层执行不了**：客户端与世界都没有这条意图，
+> 所以服务端自己的注释写的是「在白名单里，但客户端与世界都还没有这条意图」
+> （`server/oracle/api.py`、`server/oracle/prompt.py`、`server/scripts/intent_experiment.py`
+> 各一处，连提示词都因此不列它）。
+> 也就是说「从外面改她的作息」这条路**通到了规则层就断了**，不是「还没通」。
+> 角色没有自己的判断回路这半句不受影响，仍然为真。
+> 同一个错在 `docs/SPEC.md` 已经更正过（2026-10-28 补记：把两个白名单当一个了），
+> 本记录落笔比那次更正早，把同一句错话留到了今天。
+
 **读不出来的**：「手」这个比喻当初针对的是什么（是旧仓里「每个村民背后一个 Agent」的做法，
 还是别的），以及是否认真否掉过「角色各有各的模型」。代码里没有留这句话的论证。
 上面能证的只是：**现在的代码里，角色确实没有自己的判断回路**。
@@ -391,6 +405,11 @@ SPEC 那一行是超前的。
    「规范曾经比代码超前」这件事发生过一次——而它的代价是那句超前的话在仓里躺了几天。
 3. **`docs/SPEC.md` §4.3 的 `npc.setSchedule` 不在白名单里**（见 §4 末）。
 
+   > **2026-10-28 补记：这一条不再是「对不上」，是说错了。** 它在白名单里
+   > （`server/rules/schema.py` 的 `COMMAND_CHECKS`），断在客户端与世界没有这条意图。
+   > 本节的小节标题是「已经对不上的（2026-10-27 实测，未修）」——「对不上」说的是
+   > 规范与代码各有各的说法，而这里只有一边说法是假的。改正见 §4 末的补记。
+
 ## §8 世界变活：v1 → v2 存档迁移
 
 **规矩**：v1 → v2 这一次升级叫「世界变活」。它**不写任何业务**，只把新路径的位置扩好；
@@ -477,6 +496,27 @@ SPEC 那一行是超前的。
   补「世界不碰时辰」那道闸时又加了一处同时引 §2 与 §6 的（`test/phase-purity.test.ts`），
   于是 7 处变 9 处——**这条自己就是「改编号要动代码」的活证**：它每次跟不上，
   都是因为有人改了节的内容而没数引用。
+
+  > **2026-10-28 补记：上面那张「3 / 4 / 2」的分布是错的，而错的正是它存在的理由。**
+  > 这份附录唯一的用途是「改编号之前先看它」，所以一处错的分布比一条错的散文危险：
+  > 照它改 §2 的编号会漏两个文件，照它改 §6 会去动一个根本不引 §6 的文件。
+  > 逐文件重数（`git grep -n ADR_WORLD_ALIVE HEAD -- world-client | grep §`）之后的实情：
+  >
+  > - **§2 五处**：`scripts/check-phases.mjs` 文件头、`src/render/day-phase.ts` 文件头、
+  >   `test/day-phase.test.ts`（上限 0.46 那条上方）、`test/phase-purity.test.ts`、
+  >   `test/purity.test.ts` 的时辰那一层。原清单漏了后两个。
+  > - **§6 三处**：`src/render/day-phase.ts` 的 `firefliesVisible` 上方、
+  >   `test/day-phase.test.ts` 的萤火用例上方、`test/phase-purity.test.ts`。
+  >   原清单把 `test/purity.test.ts` 记在 §6 名下——它引的是 **§2**（「时辰只喂渲染层」那条），
+  >   不是 §6。
+  > - **§8 一处**：`src/world/save.ts`。原清单数成两处，可两处都在同一个文件里
+  >   （`SCHEMA_V2_FINGERPRINT` 与 `MIGRATIONS[1]` 上方），而这一条自己定的规矩是
+  >   「一个文件里提三次算一处」——**它违反了自己的数法**。
+  >
+  > 合起来仍是九处，所以「共九处」这个总数一直蒙对；分布从 3/4/2 变成 5/3/1。
+  > 「§1 与 §3–§5、§7 仍没有被引用」这半句核过，**为真**（`villager.ts` 与
+  > `scripts/audit-sections.ts` 提的「§6.2」是本记录里没有的小节，不算引用）。
+  > **这个分布仍然会漂**——它已经漂了三次。要动编号就现数，别信这张表。
 - `day-phase.ts` 文件头还引着 `proto/day-phase.html` 与「ADR 附录 A」，两者都不在本仓。
 - 同一份搬迁清单（`docs/MIGRATION_FROM_XIAOXI.md` §五）里的 `docs/ADR_PALETTE_24.md`
   已由另一份记录补上（`docs/adr/ADR_PALETTE_24.md`）；`docs/LARGE_WORLD.md` 仍不在本仓，
