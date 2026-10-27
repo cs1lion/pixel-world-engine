@@ -115,15 +115,35 @@
    23 处、横跨 7 个文件——它不是保留槽。这行只是报告里的一个标签，不改任何判定，
    但按本仓的标准它是一句假话，所以照实改了。
 
-   **这两个数补记时也写错了，一并记下。** 补记写的是「约 50 处引用、横跨 9 个文件」，
-   而三种数法数不出这个组合：`WORLD.soil` 这个写法是 23 处 / 7 个文件
-   （`src/render/buildings.ts` 4、`decor.ts` 6、`terrain-edges.ts` 1、`villager.ts` 1、
+   **这两个数补记时也写错了，一并记下（而且错得不只一处）。** 补记写的是
+   「约 50 处引用、横跨 9 个文件」，三种数法数不出这个组合。重新数过之后，
+   这一段的原样也是错的，错在三个地方：
+
+   - **数法写错了。** 原文说「数法是 `grep -rc`，照着能重算」，而它给的两个数
+     （23/7 与 74/12）里，窄的那个能用 `grep -rc` 重算，裸词那个不能。
+   - **裸词那个数今天已经重算不出来。** 它是补记那天数的，此后仓里长了新文件
+     （`terrain-edge-pixels.test.ts`、`terrain-edges.test.ts` 里的用例都多了），
+     今天 `grep -rc "soil" src test` 是 **81 处 / 13 个文件**。
+     所以这里不再报一个"今天的数"——报了就是下一句假话。要数的时候自己重跑。
+   - **给裸词更大编的理由是假的。** 原文说「因为色板里不止 `soil` 一个槽带这个词」
+     ——`palette-data.ts` 里**只有一个**键叫 `soil`（`soil: 0x1b211c`，W02）。
+     翻遍色板找不到第二个带这个词的槽，想据此改个名的人会白花时间，更糟的是他
+     可能反过来"修"这句话，凭想象添一个槽名进去。
+
+   真实的原因是三样，都能指到文件：`palette.soil` 这种**解构后的本地名**
+   （`src/render/tilemap.ts` 11 处，全仓只有这一个文件这么写）、设定集里的
+   **地形键映射**（`src/settings/dengchao/pack.ts` 把 `tree` / `mud` 映到 `soil`）、
+   以及**散文**（`terrain-edges.ts` 与 `tide-view.ts` 的注释在解释为什么某个材质
+   不用 soil）。所以裸词大不是因为色板里有重名，是因为 `WORLD.soil` 只是同一个
+   颜色的其中一种写法。
+
+   窄写法那个数（`WORLD.soil`，23 处 / 7 个文件）复核过，逐文件一个不差：
+   `src/render/buildings.ts` 4、`decor.ts` 6、`terrain-edges.ts` 1、`villager.ts` 1、
    `src/scenes/SandboxScene.ts` 1、`src/world/palette-data.ts` 3、
-   `test/terrain-edges.test.ts` 7）；`soil` 这个裸词是 74 处 / 12 个文件——多出
-   `tide-view.ts`、`tilemap.ts`、`settings/dengchao/pack.ts`、`palette-budget.test.ts`、
-   `terrain-edge-visibility.test.ts`，因为色板里不止 `soil` 一个槽带这个词
-   （`palette-data.ts` 里还有别的 `soil` 注释）。所以现在按最窄的写法写，
-   数法是 `grep -rc`，照着能重算。
+   `test/terrain-edges.test.ts` 7。**它也会漂**——同一天数的裸词就已经从 74 漂到 81。
+   所以这条结论（"它不是保留槽"）不依赖任何一个具体数：`palette-data.ts` 自己
+   写着 `tree: WORLD.soil`、`grass: WORLD.soil`、`farm: WORLD.soil`，三个地形槽
+   都在用它，这一条就够定性了。
 
 **仍然开着的一项**：
 
