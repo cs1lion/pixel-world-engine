@@ -18,6 +18,14 @@
 **越界命令不给错误码，给 unknown。** 请求没错、模型也答了，只是答的东西
 世界不肯做。这正是客户端 `routeIntent` 把一切失败落到 unknown 的同一条纪律：
 没做就是没做，不要退而求其次猜一个。原因写在 `reason` 里，用户看得见。
+
+**2026-10-28 补记：这三行是一个要守的不变量，不是一句描述。** 曾经有第四条路：
+`LLM_TIMEOUT_SECONDS` 写错时，`env_caller()` 里那个 `float()` 抛 `ValueError`，
+而它是在下面那个只捕 `ModelUnavailable` 的 `try` 里调的，于是端点多出一个
+**500**——正是 `rules/schema.py::_number` 收口 `OverflowError` 时防的那件事。
+`main.py` 从不注入 `model_caller`，所以生产永远走 `env_caller()`，那条路是真的。
+已在 `env_caller()` 里收口成 503，`test_超时环境变量写错时回_503_不是_500` 钉着。
+**再加第五种失败面前，先看这张表有没有地方该补。**
 """
 
 from __future__ import annotations

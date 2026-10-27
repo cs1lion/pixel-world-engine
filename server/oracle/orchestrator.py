@@ -190,7 +190,19 @@ def env_caller() -> ModelCaller:
 
     base_url = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
-    timeout = float(os.environ.get("LLM_TIMEOUT_SECONDS", "8"))
+    # `float()` 吃不了一个非数字的 `LLM_TIMEOUT_SECONDS`，而它抛的 `ValueError`
+    # 在这条路上没有人接：`_caller_of()` 是在 `interpret_intent` 的 `try` 里调的，
+    # 那个 `try` 只捕 `ModelUnavailable`。于是线上协议多出**第四种失败面：500**——
+    # 正是 `rules/schema.py::_number` 收口 `OverflowError` 时防的那件事
+    # （「冻结的失败面只有三种（503 / 422 / 200+unknown），所以这里必须自己收口」）。
+    # 配置写错是部署问题，跟没配 Key 同一种：照 503 出去，detail 里点名是哪个变量。
+    raw_timeout = os.environ.get("LLM_TIMEOUT_SECONDS", "8")
+    try:
+        timeout = float(raw_timeout)
+    except ValueError as exc:
+        raise ModelUnavailable(
+            f"LLM_TIMEOUT_SECONDS 不是数字：{raw_timeout!r}，意图模型不可用"
+        ) from exc
 
     def call(messages: list[dict[str, str]]) -> str:
         import httpx

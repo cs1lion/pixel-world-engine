@@ -72,10 +72,18 @@ class WireError(ValueError):
 
     2026-10-28 补记：这句原来写「端点把它转成 502」。**服务端没有 502。**
     `oracle/api.py` 冻结的失败面是三行——503（没配 Key）/ 422（请求形状不对）/
-    200 + unknown（模型没听懂或给的命令越界）。`WireError` 由 `interpret()`
-    接住后走 `_failure(...)` → `ok: false` → `_envelope` → **HTTP 200 + unknown**，
-    原因写在 `reason` 里。把不存在的状态码写在一个异常类上，下一个照它写代码的
-    人会去返回一个端点永远不返回的东西。
+    200 + unknown（模型没听懂或给的命令越界）。把不存在的状态码写在一个异常类上，
+    下一个照它写代码的人会去返回一个端点永远不返回的东西。
+
+    2026-10-28 二次补记：**上面那段原来还接着写「`WireError` 由 `interpret()`
+    接住后走 `_failure(...)` → `ok: false` → `_envelope` → HTTP 200 + unknown」，
+    而那条路今天不存在。** `interpret()` 的 `try` 只包着 `caller(...)`，
+    `WireError` 不可能从那儿抛出来；`parse_reply()` 走的是 `validate_commands`
+    → `validate_command`（`rules/schema.py`），抛的是 `CommandRejected`，
+    在 `parse_reply` 里被接住落 `_failure`。而 `to_command` / `validate_intent`
+    **在生产与脚本里一个调用方都没有**（`api.py` 只用 `wire.unknown_intent`，
+    全仓其余命中在 `server/tests/` 与 `__all__`）。所以那句话描述的是一条
+    「本该如此」的设计，不是今天跑着的代码——**照它推端点行为会推错。**
     """
 
 

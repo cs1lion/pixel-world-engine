@@ -24,7 +24,7 @@ from events.api import create_app
 from events.log import EventLog
 from oracle import wire
 from oracle.api import command_to_intent
-from oracle.orchestrator import ModelUnavailable
+from oracle.orchestrator import ModelUnavailable, env_caller
 from rules.schema import validate_command
 
 SAMPLE = Path(__file__).resolve().parents[2] / "docs" / "intent.sample.json"
@@ -360,6 +360,42 @@ def test_日志读不动时不拿存在性拦人_也不回_500() -> None:
     assert response.json()["intent"] == {"kind": "demolish", "instanceId": "bookshop#2"}
 
 
+@pytest.mark.parametrize("bad", ["not-a-number", "", "8s", "1,5"])
+def test_超时环境变量写错时回_503_不是_500(monkeypatch, bad: str) -> None:
+    """第四种失败面的另一道口子：`LLM_TIMEOUT_SECONDS` 不是数字。
+
+    `env_caller()` 里那个 `float()` 原来裸着。它抛的 `ValueError` 没人接——
+    `_caller_of()` 在 `interpret_intent` 的 `try` 里，而那个 `try` 只捕
+    `ModelUnavailable`。线上（`main.py` 从不注入 `model_caller`，所以生产永远
+    走 `env_caller()`）于是多出一个 500，正是端点文档冻结掉的那第四种结局。
+
+    配置写错跟没配 Key 是同一种事：**照 503 出去，detail 点名是哪个变量。**
+    与 `rules/schema.py::_number` 收口 `OverflowError` 是同一条纪律。
+    """
+    monkeypatch.setenv("LLM_API_KEY", "sk-probe-not-real")
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", bad)
+    # 不注入 caller：要的就是 `_caller_of()` 走 `env_caller()` 那条路。
+    app = create_app(EventLog(":memory:"))
+    app.state.model_name = "fake-model"
+    response = post(TestClient(app, raise_server_exceptions=False))
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert "LLM_TIMEOUT_SECONDS" in detail
+    assert bad in detail
+
+
+def test_超时环境变量写得对时不再被这条拦住() -> None:
+    """别把闸做坏：正常值仍然造得出 caller。
+
+    这一条是给上面那条当对照的——只钉「坏值回 503」的话，一个把所有值都拒掉的
+    实现也能让测试绿。
+    """
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setenv("LLM_API_KEY", "sk-probe-not-real")
+        monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "12")
+        assert callable(env_caller())
+
+
 def test_日志读不动时尺寸不跟着一起丢_坐标越界照旧拦() -> None:
     """建筑那一半不知道，尺寸那一半必须还知道。
 
@@ -540,11 +576,21 @@ def test_交接凭证_给与收都翻得成白名单命令() -> None:
     「没听懂」——而离线那一侧（`oracle-carry.ts`）早就走得通。
 
     2026-10-28 补记：这里原来写「服务端 502」。**服务端没有 502。**
-    `oracle/api.py` 只有三种结果：503（没配 Key）、422（请求形状不对）、
-    200 + unknown；`wire.WireError` 也一律走 `ok: false`。同一处错我在
-    `src/world/intent-schema.ts`、`src/world/intent-client.ts`、
-    `test/intent-contract.test.ts`、`test/oracle-carry.test.ts` 各改过一处，
-    这个测试文件是最后一处。"""
+    `oracle/api.py` 冻结的失败面是三种：503（没配 Key）、422（请求形状不对）、
+    200 + unknown。同一处错我在 `src/world/intent-schema.ts`、
+    `src/world/intent-client.ts`、`test/intent-contract.test.ts`（**两处**：
+    测试名本身与注释）、`test/oracle-carry.test.ts` 改过，这个测试文件是最后一处。
+
+    2026-10-28 二次补记：原句有两处不成立，都已改。
+    一、「`wire.WireError` 也一律走 `ok: false`」——`WireError` 在生产里没有
+       调用方：`api.py` 只用 `wire.unknown_intent`，`wire.validate_intent` 的
+       命中全在 `server/tests/`。拿它说明端点失败面，是举了一条没人走的路。
+    二、「各改过一处」——`test/intent-contract.test.ts` 改的是**两处**，
+       上面已按实际列。
+    另外「只有三种结果」这句一度是假的：`LLM_TIMEOUT_SECONDS` 写错时
+    `env_caller()` 的 `float()` 抛一个没人接的 `ValueError`，端点多出第四种
+    结局 500（`test_超时环境变量写错时回_503_不是_500` 钉着）。那一笔已经收口，
+    所以这句现在重新为真——**但它是被修回来才为真的，不是一直为真。**"""
     _, give = wire.validate_intent({"kind": "carry", "villager": "莞尔", "carries": ["lamp"]})
     assert give is not None and give.name == "villager.carry"
     assert give.args == {"villager": "莞尔", "carries": ["lamp"]}
