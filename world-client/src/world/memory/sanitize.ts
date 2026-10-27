@@ -20,7 +20,7 @@
  * 默认分支。
  */
 
-import type { Visibility } from './types.ts';
+import type { EventVoice, Visibility } from './types.ts';
 
 /**
  * 上游动作的拓扑类型。**这是白名单**，不是提示。
@@ -156,13 +156,15 @@ const COMPILE_TABLE: Readonly<Record<UpstreamTopology, Row>> = {
  * 网关只负责「这条事件长什么样」，怎么说给村民听是传播层的事。
  * 分开的理由是回放——同一条事件在不同设定集里会有不同的说法，
  * 而网关的产物必须与设定集无关。
+ *
+ * **这张表是世界侧唯一给上游事件定性的地方。** `ingestUpstream` 把产物
+ * 挂进事实的 `voice`，记忆条目与断言都从那儿读——不读的话，上游事件
+ * 会落进 `defaultValence` / `defaultArousal` 那张世界侧的表，而那张表
+ * 根本没有 `discipline` 与 `oracle_prayer` 两行：它们会拿到通用的 0.3，
+ * 于是「高唤醒、负效价」这条写在 `COMPILE_TABLE` 上的意图，在跑着的
+ * 世界里一次都没实现过。
  */
-export function claimContentFor(event: CompiledEvent): {
-  what: string;
-  valence: number;
-  arousal: number;
-  detailLevel: number;
-} {
+export function claimContentFor(event: CompiledEvent): EventVoice {
   const table: Readonly<Record<string, { what: string; valence: number; arousal: number }>> = {
     expedition_done: { what: '斥候从哨塔那边回来了', valence: 0.3, arousal: 0.3 },
     workshop_accident: { what: '工坊里出了事故，炉子炸了', valence: -0.7, arousal: 0.8 },

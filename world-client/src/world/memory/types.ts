@@ -34,6 +34,26 @@ export interface WorldFact {
   readonly visibility: Visibility;
   readonly importanceHint: number | null;
   readonly source: EventSource;
+  /**
+   * 这件事在世界里被怎么说。**只在事件出生时给定**，之后不可改。
+   *
+   * 存在的理由是记忆条目与断言必须同源：它们是同一次感知的两种读法，
+   * 各推一份情绪就会长出两条不一样的说法。世界侧事件留空，按 kind 先验推。
+   */
+  readonly voice?: EventVoice;
+}
+
+/**
+ * 一条事件被说出来时的样子：文本与情绪。
+ *
+ * `source = agent / genesis` 的事件由脱敏编译器给（`claimContentFor` 自己
+ * 那张表）；世界侧事件不给，按 kind 的先验推。
+ */
+export interface EventVoice {
+  readonly what: string;
+  readonly valence: number;
+  readonly arousal: number;
+  readonly detailLevel: number;
 }
 
 /** Holder 的三种类型。玩家（上帝）不在这三者里——他的记忆在上游。 */

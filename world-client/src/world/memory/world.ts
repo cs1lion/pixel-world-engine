@@ -54,13 +54,14 @@ import {
 } from './propagate.ts';
 import { recall, type RecallOutcome, type RecallRequest } from './recall.ts';
 import { decideWrite, inputsFor } from './salience.ts';
-import { compile, type UpstreamAction } from './sanitize.ts';
+import { claimContentFor, compile, type UpstreamAction } from './sanitize.ts';
 import { rollBelow, seedOf } from './seed.ts';
 import { exposedTraces, consequenceOf, fitTraceLayers, inferenceOf, makeTrace, weatherTrace, type InferenceSpec } from './traces.ts';
 import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './written.ts';
 import type {
   Belief,
   Claim,
+  EventVoice,
   Holder,
   HolderType,
   Legend,
@@ -106,6 +107,12 @@ export interface IngestInput {
   /** 事件的情绪。没给时按 kind 的先验推。 */
   readonly valence?: number;
   readonly arousal?: number;
+  /**
+   * 这件事被怎么说。**`source = agent / genesis` 的事件必须给**——那是
+   * 脱敏编译器自己那张表，比世界侧按 kind 的先验推更具体（`discipline`
+   * 与 `oracle_prayer` 在世界侧那张表里根本没有行）。
+   */
+  readonly voice?: EventVoice;
 }
 
 /**
@@ -242,12 +249,16 @@ export class MemoryWorld {
       visibility: input.visibility,
       importanceHint: input.importanceHint,
       source: input.source,
+      voice: input.voice,
     };
     this.facts.set(fact.eventId, fact);
 
     const written: string[] = [];
-    const valence = input.valence ?? defaultValence(input.kind);
-    const arousal = input.arousal ?? defaultArousal(input.kind);
+    // 三级取值：显式给的 > 编译器给的 > 按 kind 先验推。
+    // 中间那一级不能漏——漏了它，`makeEpisodic` 会用先验值盖掉编译器定的性，
+    // 于是同一条上游事件的记忆是 0.3、断言是 0.7，一件事两个版本。
+    const valence = input.valence ?? input.voice?.valence ?? defaultValence(input.kind);
+    const arousal = input.arousal ?? input.voice?.arousal ?? defaultArousal(input.kind);
 
     for (const holderId of witnesses) {
       const holder = this.holders.get(holderId);
@@ -303,6 +314,13 @@ export class MemoryWorld {
     const compiled = compile(action);
     if (compiled === null) return null;
     const eventId = this.nextEventId('up');
+    // 编译器的定性一路带进世界。**早先这里把 `valence` / `arousal` 显式传成
+    // `undefined`**，于是上游事件的情绪落回 `defaultValence` 那张世界侧的表，
+    // 而 `discipline` 与 `oracle_prayer` 在那张表里没有行——`COMPILE_TABLE`
+    // 上写着「高唤醒、负效价」的训诫，进世界时唤醒度是通用的 0.3。
+    // `claimContentFor` 的 `what` 也一并不被读取：上游事件说的是
+    // 「有人被训诫了」，不是「有人在祭坛被训诫了」。
+    const voice = claimContentFor(compiled);
     this.ingest({
       eventId,
       at,
@@ -321,8 +339,7 @@ export class MemoryWorld {
       ...(sight === undefined
         ? { witnesses: [...actors] }
         : { perceivers: sight.perceivers, grid: sight.grid }),
-      valence: undefined,
-      arousal: undefined,
+      voice,
     });
     return this.facts.get(eventId) ?? null;
   }
@@ -887,11 +904,11 @@ export class MemoryWorld {
     fact: WorldFact,
     extra: { valence: number; arousal: number; salience: number; detailLevel: number },
   ): MemoryEntry {
+    // 内容走 `contentForFact`，**不再在这里重抄一遍**。早先这两处各写一份
+    // 同样的五字段字面量，于是给上游事件接上编译器的定性时只改一处——
+    // 记忆条目换了说法，断言还是老说法，同一件事两个版本。
     let content: MemoryContent = {
-      what: this.whatOf(fact),
-      who: [...fact.actors],
-      where: fact.placeId,
-      when: fact.day,
+      ...this.contentForFact(fact),
       detailLevel: extra.detailLevel,
       valence: extra.valence,
       arousal: extra.arousal,
@@ -1362,7 +1379,7 @@ export class MemoryWorld {
   private whatOf(fact: WorldFact): string {
     const what = fact.outcome['what'];
     if (typeof what === 'string' && what !== '') return what;
-    return DEFAULT_WHAT[fact.kind] ?? fact.kind;
+    return fact.voice?.what ?? DEFAULT_WHAT[fact.kind] ?? fact.kind;
   }
 
   private contentForFact(fact: WorldFact): MemoryContent {
@@ -1371,9 +1388,9 @@ export class MemoryWorld {
       who: [...fact.actors],
       where: fact.placeId,
       when: fact.day,
-      detailLevel: 3,
-      valence: defaultValence(fact.kind),
-      arousal: defaultArousal(fact.kind),
+      detailLevel: fact.voice?.detailLevel ?? 3,
+      valence: fact.voice?.valence ?? defaultValence(fact.kind),
+      arousal: fact.voice?.arousal ?? defaultArousal(fact.kind),
     };
   }
 
