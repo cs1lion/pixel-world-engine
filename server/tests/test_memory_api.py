@@ -97,6 +97,34 @@ def test_at_大到转不成浮点也是_422_不是_500(client):
     assert "at" in response.json()["detail"]
 
 
+def test_day_大到拼不出文件名也是_422_不是_500(client):
+    """`isinstance(day, int)` 同样收任意精度的整数，而 `day` 的归宿是一个文件名。
+
+    `paths.py` 的 `entry_path` 拼 `day-{day:04d}.md`。10**250 过得了类型检查，
+    落盘时文件名 258 字节，撞上文件系统单组件 255 字节那面墙，抛 `OSError`——
+    四个 422 handler 一个都接不住，于是这个端点回 500，而它冻住的失败面只有
+    422 / 200 两种。
+
+    同一种病本仓治过四次（`events/log.py::_check_at`、`events/world_changes.py`、
+    `rules/schema.py::_number`、`memory/__init__.py::_check_at`），`day` 是第五个
+    入口，也是唯一没写的那一个。这一条钉住它别再闭上嘴。
+    """
+    response = client.post("/api/memory/snapshot", json={"day": 10**250})
+    assert response.status_code == 422, f"回了 {response.status_code}，客户端只认 422"
+    assert "day" in response.json()["detail"]
+
+
+def test_day_还拼得出文件名就照写(client):
+    """另一侧也得钉：10**200 的文件名 208 字节，放得下，该写成。
+
+    只钉「大的被拒」不够——把上限写窄了（比如干脆只收四位数）同样会让这一条
+    绿着，而真实世界的第 100001 天会被无辜拒掉。
+    """
+    response = client.post("/api/memory/snapshot", json={"day": 10**200})
+    assert response.status_code == 200, f"回了 {response.status_code}：{response.json()}"
+    assert response.json()["days"][0]["day"] == 10**200
+
+
 def test_at_为负被拒(client):
     response = client.post("/api/memory/write", json=body(at=-1))
     assert response.status_code == 422

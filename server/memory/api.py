@@ -21,7 +21,8 @@
 抛的）——但它既不在这张表里，也不在「三种」之内。同一句套话写在
 `oracle/api.py` 上名副其实（那边表格三行），搬到这里就名不副实。
 现在按表写「两种」。`SnapshotError` 的归属另记一句：它是**调用方传进来的
-`day` 不是正整数**，与 422 同类，不是第三种状态码。
+`day` 不对**——不是正整数，或者大到最后那个文件名放不下（见 `snapshot_memory`
+里 2026-10-28 那段）——与 422 同类，不是第三种状态码。
 """
 
 from __future__ import annotations
@@ -39,6 +40,11 @@ from memory.writer import MemoryWriter
 from memory import MemoryDraft, MemoryWriteError  # noqa: E402
 
 router = APIRouter()
+
+#: 文件系统单个路径组件最长 255 字节（ext4 / APFS / NTFS 都是这个数）。
+#: `day` 最后要变成一个文件名，所以它不是一个可以任意大的整数——见下面
+#: `snapshot_memory` 里 2026-10-28 那段补记。
+_FILENAME_MAX_BYTES = 255
 
 
 def _layout_of(request: Request) -> MemoryLayout:
@@ -152,6 +158,22 @@ def snapshot_memory(request: Request, body: Any = Body(default=None)) -> dict[st
         day = body["day"]
         if isinstance(day, bool) or not isinstance(day, int) or day < 0:
             raise SnapshotError(f"day 必须是非负整数，收到 {day!r}")
+        # 2026-10-28 补记：上面那道 `isinstance(day, int)` 收的是**任意精度**整数，
+        # 而 `day` 的归宿是一个文件名（`paths.py` 的 `entry_path` 拼
+        # `day-{day:04d}.md`）。10**250 堂堂正正过得了类型检查，落盘时文件名
+        # 258 字节，撞上文件系统单组件 255 字节那面墙，抛出来的是 `OSError`——
+        # 既不是 `SnapshotError` 也不是 `MemoryPathError`，两端点四个 422 handler
+        # 一个都接不住，于是回 500。而本文件开头那张表冻住的失败面只有 422 / 200。
+        # **同一种病本仓已经治过四次**：`events/log.py::_check_at`、
+        # `events/world_changes.py`、`rules/schema.py::_number`、
+        # `memory/__init__.py::_check_at`，后两处还各有一道测试钉着 10**400 → 422
+        # （grep `10**400`）。`day` 是第五个入口，也是唯一没写的那一个。
+        # 所以这里自己收口：**文件名放不下就是调用方写错了，不是服务端的错。**
+        if len(f"day-{day:04d}.md") > _FILENAME_MAX_BYTES:
+            raise SnapshotError(
+                f"day 太大，拼不出文件名：{day}。世界日序号是给文件起名用的，"
+                f"没有那么大的世界"
+            )
 
     days = [day] if day is not None else days_present(log)
     # 「全部重生成」走单次翻页的那条路：三十天不该翻三十遍全量日志。

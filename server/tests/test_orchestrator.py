@@ -113,6 +113,25 @@ def test_模型抛错落_model_failed() -> None:
     assert "超时" in (result.error or "")
 
 
+def test_嵌套几千层的_JSON_落_not_json_不是_500() -> None:
+    """`json` 的解析器是递归的，层数够深它会抛 `RecursionError`。
+
+    它是 `RuntimeError` 的子类，**不在** `extract_json` 原来那个
+    `(json.JSONDecodeError, ValueError)` 里。而 `parse_reply` 在 `interpret` 那个
+    try 的**外面**（那句 `except Exception` 兜的是 `caller`，不是我们自己的代码），
+    于是这个错一路直达端点——线上协议多出第五种失败面 500，而模块开头冻住的只有
+    503 / 422 / 200+unknown 三种。
+
+    几千层嵌套在用户眼里就是「这不是能用的 JSON」，与「非 JSON」同一件事，
+    所以它该落在 `not-json` 上，跟上面那条参数化测试同一种结局。
+    """
+    deep = "[" * 5_000 + "]" * 5_000
+    result = interpret("下雨吧", TEMPLATES, None, caller(deep))
+    assert not result.ok
+    assert result.code == "not-json"
+    assert result.commands == []
+
+
 def test_没有_Key_继续往上抛而不是当成没听懂() -> None:
     """503 与「没听懂」是两回事：前者要人去配 Key，后者用户换句话就行。"""
 

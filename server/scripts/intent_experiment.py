@@ -371,6 +371,36 @@ def run_one(text: str, caller, context: dict | None = None) -> tuple[dict, str, 
     return intent, "", None, False
 
 
+def _env_int(name: str, default: int) -> int:
+    """读一个整数环境变量。**写错就说清是哪一个，并且当场停下。**
+
+    2026-10-28 补记：这里原来是裸 `int(os.environ.get(name, str(default)))`。
+    它抛出来的 `ValueError: invalid literal for int() with base 10: 'six'`
+    **不说变量名**，而唯一的调用处 `retrying()` 是在 `main` 那个循环的 `try` 里
+    被调的——于是 `EXPERIMENT_RETRIES=six` 这样一个手误，在**每一条**用例上抛一次
+    ValueError，全被「一条炸了不该中断整场实验」接住，记成模型的回答。
+
+    `is_infra_error` 的判据是「错误信息里有没有 HTTP 状态码」，ValueError 没有，
+    所以 55 条全量跑完、交出一份「合法命令接受率 0%」的报告、exit 0。
+    **一份完整跑完的假报告。** 而 `is_infra_error` 自己的 docstring 点名这就是最坏
+    的那种结果（「一次 401 让 55 条全部落成 unknown……前者有人会去改提示词」）——
+    它防住了 401，没防住在它上面两层的一个手误。
+
+    `SystemExit` 是 `BaseException`，那个 `except Exception` 接不住——**这是故意的**，
+    配置写错就该在第一声炸掉，一条数据都不该记。
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise SystemExit(
+            f"{name} 不是整数：{raw!r}。它是实验的重试策略，写错就该在这里停下，"
+            f"不是让 {name} 的每一条例都记一条假的模型回答。"
+        ) from None
+
+
 def retrying(caller, attempts: int | None = None, backoff_ms: int | None = None):
     """限流时退避重试。
 
@@ -383,9 +413,9 @@ def retrying(caller, attempts: int | None = None, backoff_ms: int | None = None)
     单条最多能扛过约一分半的限流窗口。
     """
     if attempts is None:
-        attempts = int(os.environ.get("EXPERIMENT_RETRIES", "6"))
+        attempts = _env_int("EXPERIMENT_RETRIES", 6)
     if backoff_ms is None:
-        backoff_ms = int(os.environ.get("EXPERIMENT_BACKOFF_MS", "3000"))
+        backoff_ms = _env_int("EXPERIMENT_BACKOFF_MS", 3000)
     # `EXPERIMENT_RETRIES=0` 的意思是「一次都不重试」，不是「一次都不问」。
     # 不夹这一下，`range(0)` 空转，末尾那句 raise 会拿着 `None` 去抛
     # TypeError——把重试关掉的人看到的是一场崩掉的实验，而不是零次重试。
@@ -855,9 +885,14 @@ def main() -> int:
 
     outcomes: list[Outcome] = []
     context = _client_context() if args.with_context else None
+    # 2026-10-28 补记：`retrying(caller)` 原来在这一行里面（`run_one(text, retrying(caller), ...)`）。
+    # 它在 `retrying()` 里读那两个环境变量，而读的那一句原来什么错都不防——见
+    # `_env_int` 的 docstring 里那场「55 条全量跑完、接受率 0%、exit 0」的假报告。
+    # 提到循环外来：**配置写错就该在第一声炸掉，一条数据都不该记。**
+    ask = retrying(caller)
     for index, (text, expected, category) in enumerate(cases, start=1):
         try:
-            intent, raw, error, infra = run_one(text, retrying(caller), context)
+            intent, raw, error, infra = run_one(text, ask, context)
         except Exception as exc:  # 一条炸了不该中断整场实验
             intent, raw, error, infra = wire.unknown_intent(str(exc)), "", str(exc), is_infra_error(str(exc))
         outcomes.append(

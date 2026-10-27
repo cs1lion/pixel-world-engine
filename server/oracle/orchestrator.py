@@ -107,7 +107,14 @@ def interpret(
         raise
     except ModelFailed as exc:
         return _failure("model-failed", str(exc))
-    except Exception as exc:  # pragma: no cover - 兜底，别让意外炸到端点
+    # 这一句兜的是**调用方**（`caller`），不是我们自己。`parse_reply` 在下面那个
+    # try 的外面，是故意的：我们自己的代码抛错就该是 500，不该被扮成「模型没回对」
+    # ——那会把我们的 bug 记成模型的成绩。
+    # 2026-10-28 补记：原来这句注释写「兜底，别让意外炸到端点」，而它兜不住自己
+    # 下一行。一个返回几千层嵌套的模型让 `json` 抛 `RecursionError`，从
+    # `parse_reply` 直达端点回 500——正是它声称防住的那件事。现在那一路由
+    # `extract_json` 收口（见那儿），这句的范围也照实说。
+    except Exception as exc:  # pragma: no cover - 兜底调用方，别让意外炸到端点
         return _failure("model-failed", f"模型调用失败：{exc}")
 
     return parse_reply(reply, world)
@@ -171,7 +178,15 @@ def extract_json(reply: str) -> Any | None:
         return None
     try:
         return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError, RecursionError):
+        # 2026-10-28 补记：`RecursionError` 是 `RuntimeError` 的子类，不在前两个里，
+        # 而它真的会发生——一个返回几千层嵌套数组的模型会让 `json` 的递归解析器
+        # 炸掉。它从 `interpret` 里 `parse_reply` 那一行（在那个 try 的**外面**）
+        # 一路直达端点，线上协议于是多出**第五种失败面：500**，而模块开头冻住的
+        # 只有三种（503 / 422 / 200+unknown）。几千层嵌套在用户眼里就是
+        # 「这不是能用的 JSON」，与「非 JSON」是同一件事，所以这里一并收口成 None。
+        # （`JSONDecodeError` 是 `ValueError` 的子类，那个元组本来就是冗余的——
+        #  留着它，读到的人会以为还有第三种被漏掉的错。）
         return None
 
 

@@ -22,6 +22,57 @@ import intent_experiment as experiment  # noqa: E402
 from oracle import wire  # noqa: E402
 
 
+def test_重试次数写错就当场停下_名字还要说清(monkeypatch) -> None:
+    """`EXPERIMENT_RETRIES=six` 这样的手误，**不许变成模型的数据**。
+
+    裸 `int()` 抛的 `ValueError: invalid literal for int() with base 10: 'six'`
+    不说变量名，而 `retrying()` 原来是在 `main` 那个循环的 `try` 里被调的——
+    于是每一条用例都记一条「模型返回了 ValueError」，55 条全量跑完、
+    「合法命令接受率 0%」、exit 0。**一份完整跑完的假报告。**
+
+    `SystemExit` 是 `BaseException`，那个 `except Exception` 接不住——这是这道
+    闸唯一的机制，所以连它继承自谁一起钉住。
+    """
+    monkeypatch.setenv("EXPERIMENT_RETRIES", "six")
+    with pytest.raises(SystemExit) as caught:
+        experiment.retrying(lambda _messages: None)
+    assert "EXPERIMENT_RETRIES" in str(caught.value)
+    assert "six" in str(caught.value)
+
+
+def test_没配就用默认值_不拿默认值去_int(monkeypatch) -> None:
+    """另一侧：没配这个变量时走默认值，不该因为「默认值不是数字」而炸。"""
+    monkeypatch.delenv("EXPERIMENT_RETRIES", raising=False)
+    monkeypatch.delenv("EXPERIMENT_BACKOFF_MS", raising=False)
+
+    calls: list[int] = []
+
+    def fake(_messages):
+        calls.append(1)
+        return "ok"
+
+    experiment.retrying(fake)(["m"])
+    assert calls == [1]
+
+
+def test_零次重试是一次都不重试_不是一次都不问(monkeypatch) -> None:
+    """`EXPERIMENT_RETRIES=0` 的意思是把重试关掉，问题还是问一次的。
+
+    `max(1, attempts)` 那一夹就是为这个。没有它，`range(0)` 空转，末尾那句
+    raise 会拿着 `None` 去抛 TypeError——把重试关掉的人看到的是崩掉的实验。
+    """
+    monkeypatch.setenv("EXPERIMENT_RETRIES", "0")
+    calls: list[int] = []
+
+    def flaky(_messages):
+        calls.append(1)
+        raise RuntimeError("模型返回 429")
+
+    with pytest.raises(RuntimeError):
+        experiment.retrying(flaky)(["m"])
+    assert calls == [1], f"问了 {len(calls)} 次——0 次重试应该是 1 次调用"
+
+
 def test_用例覆盖四类且条数够() -> None:
     # 票面要求：五条世界能执行的命令各 5 条以上、越界 10 条以上、
     # 闲聊 10 条以上、歧义 5 条以上。
