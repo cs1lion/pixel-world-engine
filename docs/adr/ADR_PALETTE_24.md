@@ -7,9 +7,9 @@
 
 ## 背景
 
-`world-client/src/world/palette-data.ts` 的文件头写着「依据 `docs/ADR_PALETTE_24.md` 与 `ART_PALETTE_AUDIT` §5.3」；`world-client/test/palette-budget.test.ts` 的文件头写着「2026-10-21 用户批准 24 色 ADR（`docs/ADR_PALETTE_24.md`）」。`docs/MIGRATION_FROM_XIAOXI.md:69` 把 `docs/ADR_PALETTE_24.md` 列为**要从旧仓搬过来**的文档——用途「24 色预算与使用规则」，去向「新仓 `docs/`，改写成『色板预算』通用规则」。
+`world-client/src/world/palette-data.ts` 的文件头写着「依据 `docs/ADR_PALETTE_24.md` 与 `ART_PALETTE_AUDIT` §5.3」；`world-client/test/palette-budget.test.ts` 的文件头写着「2026-10-21 用户批准 24 色 ADR（`docs/ADR_PALETTE_24.md`）」。`docs/MIGRATION_FROM_XIAOXI.md`（grep `docs/ADR_PALETTE_24.md` | 24 色预算）把 `docs/ADR_PALETTE_24.md` 列为**要从旧仓搬过来**的文档——用途「24 色预算与使用规则」，去向「新仓 `docs/`，改写成『色板预算』通用规则」。
 
-**那份文档从未被写下来。** 补记开始时把 `docs/adr/` 列过一遍，只有五份（`ADR_BUILDING_AT_OPTIONAL`、`ADR_DEFAULT_PACK_BYPASS`、`ADR_MEMORY`、`ADR_PACK_SKIPS_WORLD_BUDGET`、`ADR_WORLD_FACTS_SOURCE`）；在本仓全部历史里（`git log --all`）没有任何提交碰过 `docs/ADR_PALETTE_24.md` 这个路径——它不是被删了，是没来过。同一次盘点里点名要搬的 `scripts/audit-palette.mjs`（`MIGRATION_FROM_XIAOXI.md:72`）跟着代码一起来了，**文档没有跟着来**：把它带进本仓的 `996cbd3`（2026-10-25「搬入世界内核与渲染层，独立跑起来」）落下了 `palette-data.ts`、`palette-budget.test.ts`、`audit-palette.mjs`——前两个从第一版起就带着对那份不存在文档的引用，第三个的文件头也写着「2026-10-21 ADR」，只是没写路径。
+**那份文档从未被写下来。** 补记开始时把 `docs/adr/` 列过一遍，只有五份（`ADR_BUILDING_AT_OPTIONAL`、`ADR_DEFAULT_PACK_BYPASS`、`ADR_MEMORY`、`ADR_PACK_SKIPS_WORLD_BUDGET`、`ADR_WORLD_FACTS_SOURCE`）；在本仓全部历史里（`git log --all`）没有任何提交碰过 `docs/ADR_PALETTE_24.md` 这个路径——它不是被删了，是没来过。同一次盘点里点名要搬的 `scripts/audit-palette.mjs`（同一份文档里 grep `scripts/audit-palette.mjs` | 色板审计）跟着代码一起来了，**文档没有跟着来**：把它带进本仓的 `996cbd3`（2026-10-25「搬入世界内核与渲染层，独立跑起来」）落下了 `palette-data.ts`、`palette-budget.test.ts`、`audit-palette.mjs`——前两个从第一版起就带着对那份不存在文档的引用，第三个的文件头也写着「2026-10-21 ADR」，只是没写路径。
 
 所以本 ADR 是 2026-10-27 从代码反推的补记。它能证明的是「代码今天守什么」；它**不能**证明「当初为什么这么定」。两件事在下面分开写，不混——本仓的信条是「证不明就不判」，一条没有出处的理由和一条错的理由一样是 bug。
 
@@ -97,7 +97,7 @@
 - 好：**预算是被执行着的，不是一句口号。** 四条互相独立的机关——默认世界与 UI 的值表（`palette-budget.test.ts`）、每份设定集的槽表（`loadSettingPack` + `setting-palette.test.ts`）、两个输入口的白名单（`creator-schema.ts` / `blueprints.ts`）、CI 里的色数审计（`audit-palette.mjs --strict`）。换值、加色、写十六进制、漏槽、重复值，各有至少一条会红。
 - 好：**换设定集不破预算这件事有实证。** 灯潮界给了另一组 24 个值，`loadSettingPack` 收下它、`test/setting-palette.test.ts` 证明它装载后仍是 24 个互不相同的值。`docs/SPEC_V2.md` §4.2 那条「24 色不变，设定集只做映射」因此不只是规范文字。
 - 代价：**同一份 24 色表在仓库里存在三份。** `palette-data.ts` 的 `WORLD`（权威）、`palette-budget.test.ts` 的 `PROPOSED_WORLD`、`audit-palette.mjs` 的 `PROPOSED_WORLD`。后两份是故意的（测试要「换值必须变红」，脚本要「越界色最近的是谁」），但改一个色值要同时动三处，漏一处就红——这是设计好的摩擦，只是它不是免费的。
-- 代价：**`audit-palette.mjs` 看不见设定集。** 它的文件清单是 `src/main.ts`、`src/render/*.ts`、`src/scenes/*.ts`、`src/ui/*.ts`、`index.html`、`src/world/prefabs.json`、`src/world/palette-data.ts`——**没有 `src/settings/`**。所以它审计的是默认世界 + UI，灯潮界的色板它一个都没看见。而盘点文档对它的嘱咐正是「搬，换设定集后改预算」（`MIGRATION_FROM_XIAOXI.md:72`），那一改没有发生。
+- 代价：**`audit-palette.mjs` 看不见设定集。** 它的文件清单是 `src/main.ts`、`src/render/*.ts`、`src/scenes/*.ts`、`src/ui/*.ts`、`index.html`、`src/world/prefabs.json`、`src/world/palette-data.ts`——**没有 `src/settings/`**。所以它审计的是默认世界 + UI，灯潮界的色板它一个都没看见。而盘点文档对它的嘱咐正是「搬，换设定集后改预算」（同一份文档里 grep `scripts/audit-palette.mjs` | 色板审计），那一改没有发生。
 - 代价：**造物主那条路认的是默认世界的值。** `creator-schema.ts` 的 `readPalette` 用 `WORLD[token]` 取值，`SandboxScene` 用 `tokenNameOf`（同样只翻 `WORLD`）把模板配色反查成 token 名喂回去。于是灯潮界里造一座楼，模型给的 token 名解析出来的是**莞尔镇的色值**。槽名这一层是通用的，取值这一层不是。本条只是如实记下代码现状，**不是**本 ADR 做的决定，也没有对应的决定可引。
 - 代价：**24 与 24 个槽名仍然住在 `palette-data.ts` 里。** 那份文件同时是「24 个槽叫什么」的定义处与「默认世界用哪些值」的存放处（`blueprints.ts` 的 `parseBlueprint` 第三个参数默认就是 `WORLD`）。要加第 25 个槽，改的是那个数据表——`GLOSSARY.md` 提醒过「它是**色值数**，不是槽位数」，而在今天的强制执行下这两个数恒相等（`loadSettingPack` 要求 24 个槽 24 个不同值），那条区分目前没有可观测的场合。
 
@@ -189,3 +189,11 @@
 | 把 24 改成别的数（20、32……） | 要动 `palette-data.ts`、两份提案表、`GLOSSARY.md`、`docs/SPEC_V2.md` §4.2，并且按本 ADR 第 2 条要再走一次 ADR。**为什么当年定 24，无出处。** |
 | 让 `audit-palette.mjs` 也审设定集（把 `src/settings/` 加进文件清单、预算随包走） | 未做。做之前要先回答「一份包的预算是 24 还是它自己声明的」——`loadSettingPack` 今天按 `Object.keys(WORLD)` 这个全局表判，没有「每包一份预算」的槽位 |
 | 让造物主那条路认当前包的色值 | 未做。要改的是 `creator-schema.ts` 的取值来源与 `SandboxScene` 的反查，不是 schema 的形状 |
+
+---
+
+**2026-10-28 补记：本文件上面三处原写的「`MIGRATION_FROM_XIAOXI.md` 第 69 行 / 第 72 行」已换成 grep 记号，因为三个坐标今天全错，而弄错它们的正是同一笔提交。**
+
+`dbaa9f8`（2026-10-28「一轮文档审查挑出 13 处假话」）往 `MIGRATION_FROM_XIAOXI.md` 插了 9 行，把 69 推到 78、72 推到 81；**同一笔还给本文件加了 27 行**——也就是引着那份文件的那一份。三处引用一处都没跟着改。它自己的提交信息里写着「**行号会被下一次编辑推翻，而这次连「纠正假话的补记」都会触发它。** 补记因此移到文件末尾，并且不写行号。这是本仓今天为同一件事栽的第四次」——**而那正是第五次，发生在同一笔里，只是受害者换了一份文件。**
+
+两个闸门在这三处上全绿，而绿的原因正是它们各自承认的那个：`audit-references.ts` 的 `hasCode()` 判据只是「有非空白字符、不是纯括号」（`HAS_GLYPH` 与 `ONLY_BRACES` 两条正则，grep 常量名就能看到），markdown 表格行当然两条都过；`audit-citations.ts --strict` 只回答「文件在不在」，它自己的收尾句就写着「这句话只指「文件不在」，不指「说得对不对」」。**所以「坐标错」这一类从此不写坐标，只写能 grep 的记号**——上面三处已经改成这样，本条也不留坐标。
