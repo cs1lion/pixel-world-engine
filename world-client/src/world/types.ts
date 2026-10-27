@@ -179,8 +179,14 @@ export interface PendingDispatch {
    * 快照也按人展开。
    *
    * 这里原来写「预留按角色分队列：当前单角色世界固定用 v0」——两句都不成立。
-   * 一、默认设定集有**两**个居民（迷路人、汐，`settings/dengchao/pack.ts`），
-   * `Simulation` 按 index 发 v0/v1，从来不是单角色。二、队列也不固定 v0：
+   * 一、默认世界（不带 `?world=`）有**两**个居民：莞尔与阿雾。
+   * `LEGACY_PACK.villagers` 是空的（`settings/index.ts`），所以 `SandboxScene`
+   * 根本不递 `villagerNames`，`Simulation` 于是走
+   * `?? [villagerName, DEFAULT_ASSISTANT_NAME]` 那条兜底——阿雾就是这么来的。
+   * `Simulation` 按 index 发 v0/v1，从来不是单角色。
+   * （迷路人、汐是**灯潮界**那两个，住在 `settings/dengchao/pack.ts`，而那份包
+   * `authored: true`，不是默认设定集。原来这儿把他们写成了「默认设定集」的居民。）
+   * 二、队列也不固定 v0：
    * `enqueuePendingDispatch` 从「没抵押」的候选里挑队列最短的那个，然后
    * `queue.push({ ..., villagerId: target.id })`——完全可能写进 v1。
    */

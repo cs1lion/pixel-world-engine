@@ -26,6 +26,7 @@ import { composeReport } from '../src/world/report.ts';
 import {
   CURRENT_SCHEMA_VERSION,
   findOutOfWorldCoordinates,
+  type WorldBounds,
   type WorldSave,
 } from '../src/world/save.ts';
 import { parseSaveText, SaveStore, type StorageLike } from '../src/ui/save-store.ts';
@@ -40,8 +41,6 @@ const blueprints = parseBlueprintTable(rawPrefabs);
 const SMALL: WorldBounds = { width: 30, height: 20 };
 /** 大世界 96×72：生产入口那一套。 */
 const LARGE: WorldBounds = { width: LARGE_WORLD_SPEC.width, height: LARGE_WORLD_SPEC.height };
-
-type WorldBounds = { readonly width: number; readonly height: number };
 
 function makeSave(wallClock: () => number = () => 1000): WorldSave {
   const world = buildWorld(blueprints);
@@ -118,6 +117,14 @@ test('世界自己跑出来的存档，坐标全在界内', () => {
     }
   }
   const save = sim.toSave();
+  // **先证明这个世界真的活了。** 没有这一条，`sim.update` 哪怕整个变成空转，
+  // 下面两个 deepEqual 也照样绿——「跑了 64 分钟」就只是个装饰性的数字。
+  //
+  // 为什么拿「结过账」当活证，而不拿「走过路」：`VillagerSnapshot` 不带 `path`，
+  // 采样要走快照；而跑满 64 分钟那一刻她大概率站着发呆，存档里的 `path` 是空的——
+  // 于是「她得走过路」会把一条本来成立的测试打成红。结得过账这件事本身要求她
+  // 走到作坊、干完、送回来，所以它一条就够，而且它在存档里，跑完再看也来得及。
+  assert.ok(save.world.settled.length > 0, '她得真的结过账，否则这条测试什么都没验');
   assert.deepEqual(
     findOutOfWorldCoordinates(save, LARGE),
     [],
@@ -284,6 +291,37 @@ class FakeStorage implements StorageLike {
   }
 }
 
+/**
+ * 越界坐标一多就只列前几条。
+ *
+ * 从一张更大的图搬过来的存档，越界的 road 格子能有一条报一条，几十上百行。
+ * 一个两百行的状态栏是另一个 bug——所以截断，并把总数说清楚、完整的清单送进
+ * 控制台（`console.warn`，那儿没有行长）。
+ */
+test('越界坐标一多就只列前几条：总数说清楚，完整清单进控制台', () => {
+  const base = makeSave();
+  const save = editSave(base, (world) => {
+    world.roads = Array.from({ length: 12 }, (_, index) => ({ x: 100 + index, y: 3 }));
+  });
+  // 十二条越界坐标，`findOutOfWorldCoordinates` 一条都不省——截断发生在拼消息那一步，
+  // 不发生在检查那一步。这两件事分开，检查才敢说「我全查了」。
+  assert.equal(findOutOfWorldCoordinates(save, SMALL).length, 12);
+
+  const storage = new FakeStorage();
+  storage.setItem('xiaoxi.pixel-world.save.v1', JSON.stringify(save));
+  const store = new SaveStore({ storage, bounds: SMALL, wallClock: () => 1700000000000 });
+
+  const result = store.read();
+  assert.equal(result.ok, false, '界外坐标按坏档处理');
+  if (result.ok) return;
+  const lines = result.message.split('\n');
+  assert.equal(lines.length, 7, `表头一行 + 五条指控 + 一行「还有 7 处」，实际 ${lines.length} 行`);
+  assert.match(lines[6]!, /还有 7 处/);
+  assert.match(lines[6]!, /控制台/, '完整的清单得有个去处');
+  // 前五条是指名到 JSON 路径的，不是摘要。
+  assert.match(lines[1]!, /world\.roads\[0\] = \{x:100, y:3\}/);
+});
+
 test('读档拦住界外坐标：备份原档、指名、用新世界启动', () => {
   const base = makeSave();
   const broken = JSON.parse(JSON.stringify(base)) as Record<string, unknown>;
@@ -358,6 +396,10 @@ test('界外 path 格子会把她一路拖出世界，而且不回来', () => {
   const sim = loadInto(save, 0);
   const before = sim.snapshot().villagers[0].pos;
   assert.ok(before !== undefined);
+  assert.ok(
+    before.x < 30 && before.y < 20,
+    `起点必须在界内，否则这条断言跟拖不拖出去无关：${before.x},${before.y}`,
+  );
   for (let i = 0; i < 30_000; i += 1) sim.update(16);
   const after = sim.snapshot().villagers[0].pos;
   assert.ok(after !== undefined);

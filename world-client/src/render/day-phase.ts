@@ -135,7 +135,10 @@ export function parsePhaseParam(raw: string | null): PhaseId | null {
  * `import ... from '../src/render/phase-view.ts'`，整个文件直接崩，一条用例都跑不到）。
  * 本文件不碰 Phaser，测试已经在跑了，所以门放这儿。
  *
- * ADR_WORLD_ALIVE §6 缺口 2 记的就是这件事：「暴雨天不该有萤火」原来**没有用例**。
+ * ADR_WORLD_ALIVE §6 的「一处已经补上的缺口」记的就是这件事：「暴雨天不该有萤火」
+ * 原来**没有用例**。（这句原来写的是「§6 缺口 2」——2026-10-27 把萤火那条移出 §6 的
+ * 编号列表、改成不带号的一段，那个节号当场指向不存在的东西，而没有任何机关会红：
+ * 引用审计只认「文件.ts:NNN」，节号它根本不查。所以这里指名那一段，不叫它的号。）
  * `src/world/weather.ts` 的注释自己也写着「想让它真的会红，得先给 `phase-view` 的
  * 萤火虫条件补一条用例」——现在补上了，那条注释里「没有测试守着」的说法要跟着改。
  *
@@ -147,6 +150,8 @@ export function parsePhaseParam(raw: string | null): PhaseId | null {
  *     测试又拿不到一份现成的配方。
  *   - `weather === 'clear'`：暴雨天也没有。写 `=== 'clear'` 而不是列举两种雨——
  *     再添一档天气时这里不必再改（`src/world/weather.ts` 记着这条承诺的来路）。
+ *     萤火虫是「晴天夜里」的装饰，**不是天气系统的一个例外**——所以这道门长在
+ *     渲染层，不长在天气状态机里。
  *
  * 只 import 了 `Weather` 这个**类型**：不读世界状态，只是拿一个枚举词来比。
  * 本文件「不碰 Phaser、不读世界状态」的约定因此仍然成立。

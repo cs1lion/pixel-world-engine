@@ -136,7 +136,8 @@ test('认不出的 URL 参数返回 null，调用方退回真实时间', () => {
  * 夜里下雨了就没有萤火虫。
  *
  * 这条规矩原来**一条用例都没有**：条件写在 `drawFireflies` 里，而那个函数长在一个
- * import Phaser 的模块里，node 下构造不出来。ADR_WORLD_ALIVE §6 缺口 2 记的就是它，
+ * import Phaser 的模块里，node 下构造不出来。ADR_WORLD_ALIVE §6 的「一处已经补上的
+ * 缺口」记的就是它，
  * `src/world/weather.ts` 的注释也写着「想让它真的会红，得先给 `phase-view` 的萤火虫
  * 条件补一条用例」。所以把条件抽成 `firefliesVisible`（纯函数），由这里盯着。
  *

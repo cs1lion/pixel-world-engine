@@ -1120,12 +1120,24 @@ function showPoint(point: { readonly x: number; readonly y: number }): string {
  * 所以一份**正常写出来的存档**过不了这条检查，只可能是它被改过、被截断、
  * 或者是从另一张地图搬过来的。
  *
- * **建筑不在这里查。** 建筑的落位早就有人拦，而且拦得更响：
- * `rebuildGridFromPlacements()` 放不下就抛 `WorldSetupError`。但那道抛错在
- * `main.ts` 顶层没有人接，白屏；把建筑也并到本函数，同样的存档就从「白屏」
- * 变成「备份原档 + 用新世界启动 + 说明白为什么」。并进来的代价是**别的事仍旧白屏**：
- * 两栋楼重叠、门口落在自己占地里、门口到不了镇心，这三样 `place()` 一样返回 false，
- * 与本函数查的「坐标在不在世界里」不是一件事。那三样仍然白屏，这里不装作补上了。
+ * **建筑也并进来了，但别以为落位合法也一并查了。** 建筑的落位早就有人拦，而且拦得更响：
+ * `rebuildGridFromPlacements()` 放不下就抛 `WorldSetupError`，而那道抛错原来在
+ * `main.ts` 顶层没有人接——白屏。所以 `main.ts` 现在把建造整个包起来，
+ * 由 `SaveStoreOptions.tryBuildWorld` 递进来的就是开工要用的那个 `buildWorldFor`：
+ * 检查的与建造的不可能是两套。于是同样的存档从「白屏」变成「备份原档 + 用新世界
+ * 启动 + 指名是哪栋楼」。
+ *
+ * 本函数对建筑查的仍然只是**坐标这个数在不在世界里**，跟落位合不合法不是一件事。
+ * 落位那一层有三个不放行的路子，出处是两处：两栋楼重叠、门口落在自己占地里是
+ * `WorldGrid.place()` 返回 false；门口到不了镇心是 `assertWorldInvariants` 经
+ * `doorReaches` 抛的 `WorldSetupError`。它们一个都不归本函数管，今天也都不白屏了。
+ *
+ * **`chimney` 故意不查。** 它是存档里第十个坐标族，也是 `checkPoint` 点名的那三个
+ * 带小数的点之一（另两个是 `world.villagers[].pos` 与 `world.critters[].at`，
+ * 本函数都查）。但今天全仓没有一个**读者**——`setup.ts` 按蓝图表算出来、进存档、
+ * 读档还原，然后没人读它（`render/buildings.ts` 的 `chimneyWorld` 是从楼的像素
+ * 位置另算的，不吃这个字段）。列进来只会让指控变长一倍。
+ * 哪天它真被读了，这里要跟着加。
  *
  * 返回值是人类可读的一行行指控，直接给玩家看。
  */

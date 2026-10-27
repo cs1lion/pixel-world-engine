@@ -99,7 +99,7 @@ export function isVisiblyRaining(state: WeatherState): boolean {
 /**
  * 天气的一两个字说法。
  *
- * **只有状态行从这里取**（`SandboxScene.ts:1316`）。这里曾经写着「状态行、日报、
+ * **只有状态行从这里取**（`SandboxScene` 拼状态行那一句）。这里曾经写着「状态行、日报、
  * 喂给模型的世界现状都从这里取，免得三处各写一份三元判断」——那句话是假的：
  * 日报（`report.ts` 的天气那句）和喂模型的世界现状（`intent-context.ts` 的
  * 天气那句）各自写着自己的三元，一句话都没来过这儿。而这正是它说要防的那件事：
@@ -109,6 +109,11 @@ export function isVisiblyRaining(state: WeatherState): boolean {
  * 而状态行只要一两个字。所以不硬合，改为拿测试把**档位一致**钉住——
  * 三处对同一个 `Weather` 必须说出同一种天气（见 `weather.test.ts` 的
  * 「三处对同一档天气说出同一种天气」）。加第四档时漏掉哪一处，那条红。
+ *
+ * （上一版这儿挂着 `SandboxScene.ts` 的一个行号，而 `WEATHER_LABEL` 真正的读者
+ * 在拼状态行那一句——偏了二十几行，`audit-references.ts` 还报「0 处存疑」：
+ * 那一行有代码，所以它认，而它认不出那一行是不是说的那个东西。
+ * 现在改成指名，不叫行号。）
  */
 export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
   clear: '晴',

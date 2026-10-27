@@ -183,12 +183,41 @@ const QUOTA_MESSAGE = '本地存储已满：自动存档已暂停，世界继续
  */
 const OUT_OF_WORLD_MESSAGE =
   '存档里有坐标落在世界外面，已备份原档，用新世界启动。这些坐标留在了原档里：';
+const IMPORT_OUT_OF_WORLD_MESSAGE =
+  '导入失败：存档里有坐标落在世界外面，原文件已备份。越界的是：';
 /**
  * 落位放不下的说明。**必须指名是哪栋楼、为什么放不下**：只说「存档有问题」，
  * 玩家没有办法知道该去改哪儿，而原档已经备份在，他本来是可以去修的。
  */
 const UNPLACEABLE_MESSAGE =
   '存档里的建筑放不进这张地图，已备份原档，用新世界启动。放不下的是：';
+const IMPORT_UNPLACEABLE_MESSAGE =
+  '导入失败：存档里的建筑放不进这张地图，原文件已备份。放不下的是：';
+
+/** 指控最多列几条。 */
+const PROBLEM_LIMIT = 5;
+
+/**
+ * 一条条指控拼成给人看的一段话。
+ *
+ * **必须换行，而且收的人必须肯换行。** 一条坐标一行，玩家照着去改原档。
+ * 而 `textContent` 不折行——HTML 把 `\n` 折成一个空格，于是
+ * 「…这些坐标留在了原档里： world.villagers[0].pos = {x:99999, y:-98765}
+ * world.roads[0] = {x:30, y:3} …」挤成一句，指名了个寂寞。
+ * 所以 `#status` 与 `#save-io-reply` 都要有 `white-space: pre-wrap`
+ * （`index.html`）。这条原来没有，两种坏档的说明全都糊成一行。
+ *
+ * **也要有上限。** 从一张更大的图搬过来的存档，越界的 road 格子能有一条报一条，
+ * 几十上百行——一个两百行的状态栏是另一个 bug。超了只列前几条，总数说清楚，
+ * 完整的清单进控制台（那儿没有行长）。
+ */
+function describeProblems(headline: string, problems: readonly string[]): string {
+  const shown = problems.slice(0, PROBLEM_LIMIT);
+  const rest = problems.length - shown.length;
+  if (rest > 0) console.warn(`${headline}\n${problems.join('\n')}`);
+  const tail = rest > 0 ? `\n…还有 ${rest} 处，完整清单在控制台里。` : '';
+  return `${headline}\n${shown.join('\n')}${tail}`;
+}
 
 export class SaveStore {
   private readonly storageKey: string;
@@ -258,7 +287,7 @@ export class SaveStore {
         // 不静默修——`nearestWalkable` 一类「搬回来」等于替玩家决定她站在哪儿，
         // 而那是世界自己的事实。原档留着，他看得见、改得动。
         this.backupCorrupt(text);
-        const message = [OUT_OF_WORLD_MESSAGE, ...(parsed.outside ?? [])].join('\n');
+        const message = describeProblems(OUT_OF_WORLD_MESSAGE, parsed.outside ?? []);
         this.warnOnce('out-of-world', message);
         return { ok: false, reason: 'corrupt', message, paused: false };
       }
@@ -268,7 +297,7 @@ export class SaveStore {
         // `WorldSetupError` 在 `main.ts` 顶层没有人接，页面只剩一片空白，
         // 只留一条 console 错误——玩家连「存档有问题」都看不到。
         this.backupCorrupt(text);
-        const message = [UNPLACEABLE_MESSAGE, ...(parsed.problems ?? [])].join('\n');
+        const message = describeProblems(UNPLACEABLE_MESSAGE, parsed.problems ?? []);
         this.warnOnce('unplaceable', message);
         return { ok: false, reason: 'corrupt', message, paused: false };
       }
@@ -361,9 +390,9 @@ export class SaveStore {
       const message = parsed.jsonInvalid
         ? '导入失败：不是合法 JSON，原文件已备份。'
         : parsed.reason === 'out-of-world'
-          ? ['导入失败：存档里有坐标落在世界外面，原文件已备份。越界的是：', ...(parsed.outside ?? [])].join('\n')
+          ? describeProblems(IMPORT_OUT_OF_WORLD_MESSAGE, parsed.outside ?? [])
           : parsed.reason === 'unplaceable'
-            ? ['导入失败：存档里的建筑放不进这张地图，原文件已备份。放不下的是：', ...(parsed.problems ?? [])].join('\n')
+            ? describeProblems(IMPORT_UNPLACEABLE_MESSAGE, parsed.problems ?? [])
             : '导入失败：存档内容校验不通过，原文件已备份。';
       this.warnOnce('import-corrupt', message);
       return { ok: false, reason: 'corrupt', message };
