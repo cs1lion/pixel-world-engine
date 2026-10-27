@@ -21,6 +21,9 @@ export interface LegendCandidate {
   readonly firstDay: number;
   readonly variants: readonly string[];
   readonly homePlaceId: string;
+  /** 事件的情绪。刻在碑上的那一笔也得有情绪，不然它只是一行字。 */
+  readonly valence: number;
+  readonly arousal: number;
 }
 
 /**
@@ -35,7 +38,10 @@ export function candidatesFrom(
   beliefs: readonly Belief[],
   claims: ReadonlyMap<string, Claim>,
 ): LegendCandidate[] {
-  const byEvent = new Map<string, { holders: Set<string>; days: number[]; variants: string[]; placeId: string }>();
+  const byEvent = new Map<
+    string,
+    { holders: Set<string>; days: number[]; variants: string[]; placeId: string; valence: number; arousal: number }
+  >();
   for (const belief of beliefs) {
     if (belief.state === 'debunked') continue;
     const claim = claims.get(belief.claimId);
@@ -46,6 +52,10 @@ export function candidatesFrom(
       days: [],
       variants: [],
       placeId: claim.content.where,
+      // 同一事件的几条断言共用一个事件的情绪（`contentForFact` 从 kind 取），
+      // 所以取先见到的那条就够，不存在「挑哪条」的问题。
+      valence: claim.content.valence,
+      arousal: claim.content.arousal,
     };
     bucket.holders.add(belief.holderId);
     bucket.days.push(belief.learnedDay);
@@ -61,6 +71,8 @@ export function candidatesFrom(
       firstDay: Math.min(...bucket.days),
       variants: bucket.variants,
       homePlaceId: bucket.placeId,
+      valence: bucket.valence,
+      arousal: bucket.arousal,
     });
   }
   return candidates;
@@ -102,9 +114,19 @@ export function formLegend(
 /**
  * 传说淡去：无人复述则 reach 下降。
  *
- * 每天掉 1，因为「一天里没有一个人讲过它」在只有两人的世界里是很强的信号：
- * 两个设定集（莞尔镇、灯潮界）都只有 2 个村民，一个人不讲就是一半的人口
- * 沉默了。掉到 `reach <= 1` 就不再是传说——一个人记得的事是私事，不是集体记忆。
+ * 每天掉 1，因为「一天里没有一个人讲过它」在两人的世界里是很强的信号：
+ * 一个人不讲就是一半的人口沉默了。
+ *
+ * 那两个人是这么来的：莞尔镇的包**一个村民都不声明**（`villagers: []`），
+ * 运行时由 `Simulation` 补上默认的两个名字（`villagerName` 与
+ * `DEFAULT_ASSISTANT_NAME`）；灯潮界声明 2 个。原写「两个设定集都只有 2 个村民」，
+ * 听着像两份包各自写了 2 个，其实是「一份写了 0 个、另一份写了 2 个」。
+ *
+ * 也别把「两人」当成这个世界的定律：loader 只要求至少 1 个且不重名，没有上限
+ * （`settings/load.ts`）——写一份 5 人以上的包就进得了 5–10 人的世界，那时
+ * 「一半人口」不再是 1 个人，这条注释的力道要重新掂量。
+ *
+ * 掉到 `reach <= 1` 就不再是传说——一个人记得的事是私事，不是集体记忆。
  */
 export function decayLegend(legend: Legend): Legend {
   return { ...legend, reach: Math.max(0, legend.reach - 1) };

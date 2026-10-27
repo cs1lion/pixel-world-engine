@@ -17,7 +17,15 @@
 
 import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
 import { consolidateHolder } from './consolidate.ts';
-import { candidatesFrom, decayLegend, faded, formLegend, qualifies, reinforceLegend } from './legend.ts';
+import {
+  candidatesFrom,
+  decayLegend,
+  faded,
+  formLegend,
+  qualifies,
+  reinforceLegend,
+  type LegendCandidate,
+} from './legend.ts';
 import {
   distance,
   witnessesOf,
@@ -1211,6 +1219,72 @@ export class MemoryWorld {
       const legend = formLegend(this.nextId('legend'), candidate, day);
       this.legends.push(legend);
       this.emit('legend.formed', at, { legendId: legend.legendId, eventRefs: legend.eventRefs });
+      this.inscribe(legend, candidate, at);
+    }
+  }
+
+  /**
+   * 传说立起来的那一刻，给它涉及的每个人刻一条 `legend` 层的记忆。
+   *
+   * `MemoryTier` 一直列着 `'legend'`，`tierFactor.legend = 0.05`、
+   * `limitFor('legend') = Infinity` 也早就配好了——**而没有任何一处写出过
+   * 这个层的条目**。于是「淡去不是删除，它降到 legend 层之后衰减系数只有
+   * 0.05，能撑很久」这句话的后半截在代码里是空的：碑文从来没有被刻过，
+   * 那两个数一次都没用过。
+   *
+   * 下游全是现成的：`consolidateHolder` 按 `tierFactor[entry.tier]` 衰减，
+   * `trimBudget` 对 legend 层不设上限。缺的只是**谁写第一笔**。
+   *
+   * 只写给形成时持有它的那几个人。后来才听说的人照旧只有一条普通信念——
+   * 碑文是世界对这件事的记录，不是每个人各自的一份。
+   */
+  private inscribe(legend: Legend, candidate: LegendCandidate, at: number): void {
+    for (const holderId of candidate.holders) {
+      const entry: MemoryEntry = {
+        memoryId: this.nextId('m'),
+        holderId,
+        kind: 'episodic',
+        tier: 'legend',
+        eventRefs: legend.eventRefs,
+        // 碑文的来历是「大家都这么说」，不是某一个人告诉我的。
+        sourceMode: 'heard',
+        sourceChain: [],
+        content: {
+          // 几种讲法都刻上：传说的价值恰在于同一件事有几种说法。
+          what: candidate.variants.join('；'),
+          who: [],
+          where: legend.homePlaceId,
+          when: legend.formedDay,
+          detailLevel: 3,
+          valence: candidate.valence,
+          arousal: candidate.arousal,
+        },
+        salience: 1,
+        confidence: 1,
+        strength: 1,
+        createdDay: legend.formedDay,
+        lastRecalledDay: legend.formedDay,
+        recallCount: 0,
+        flashbulb: false,
+        // **不钉**。钉住会让 `consolidateHolder` 把它整个跳过衰减
+        // （`exempt = flashbulb || pinned`），于是 `tierFactor.legend = 0.05`
+        // 这个数又成了没人用的摆设——「衰减系数只有 0.05，能撑很久」的
+        // 后半截再次落空。碑文该慢，不该停：0.15 × 0.05 = 每天掉 0.75%，
+        // 一百天后还剩一半，这才是「撑很久」。
+        pinned: false,
+        redacted: false,
+        derivedFrom: { memoryIds: [], claimIds: [] },
+        generatedBy: this.ruleMeta(holderId, 'legend', legend.formedDay),
+        archived: false,
+      };
+      this.entries.push(entry);
+      this.emit('memory.written', at, {
+        memoryId: entry.memoryId,
+        holderId,
+        eventRefs: entry.eventRefs,
+        salience: entry.salience,
+        tier: 'legend',
+      });
     }
   }
 
