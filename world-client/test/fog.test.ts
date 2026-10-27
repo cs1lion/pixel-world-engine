@@ -6,21 +6,22 @@ import {
   revealedRadiusFor,
   type FogState,
 } from '../src/world/fog.ts';
-import { LARGE_WORLD_SPEC } from '../src/world/setup.ts';
-import { LARGE_ALTAR } from '../src/world/setup.ts';
+import { LARGE_ALTAR, LARGE_WORLD_SPEC } from '../src/world/setup.ts';
 
 const CENTER = { x: 40, y: 30 };
 const state = (radius: number): FogState => ({ center: CENTER, revealedRadius: radius });
 
 /**
- * 地图上离祭坛最远的那格，单位格。
+ * 地图上离祭坛最远那一格的**距离**，单位格。
  *
- * 从规格现算，不写死 96×72：改了 `LARGE_WORLD_SPEC` 或 `LARGE_ALTAR`，
- * 凡是引用「约 60 格」的注释与上限都该跟着动，写死就发现不了。
+ * 从规格现算，不写死 96×72：`MAX_RADIUS` 这个上限跟着世界尺寸走，
+ * 写死一个 60 就只能发现手改的那一半，改了规格那一半照样静。
  *
  * 用的是 `fogAt` 自己那把尺子——整数格坐标（`Math.hypot(point.x - center.x, …)`）。
+ * 它量的是**格位**不是格心：最远那格的格心只差 59.30，而格位是 60.00。
+ * 取大的那个，因为 `fogAt` 比的正是格位；60 也是「每一格都点得亮」的最小半径。
  */
-function farthestCell(): number {
+const FARTHEST_CELL_DISTANCE = (() => {
   let farthest = 0;
   for (let y = 0; y < LARGE_WORLD_SPEC.height; y += 1) {
     for (let x = 0; x < LARGE_WORLD_SPEC.width; x += 1) {
@@ -28,7 +29,7 @@ function farthestCell(): number {
     }
   }
   return farthest;
-}
+})();
 
 // ------------------------------------------------------------------ 判定
 
@@ -69,11 +70,10 @@ test('交付越多，揭示越大，但有上限', () => {
   assert.ok(r2 > r1, '交付 10 单应比 0 单揭得多');
   assert.ok(r3 > r2);
   // 原话是「半径不该超过地图半宽」——半宽是 48，约 60 的是**最远角**，名字错了。
-  // 数也从规格现算，不写死 60：写死的那个 60 与 MAX_RADIUS 的 58 各说各话，
-  // 而 58 其实没到最远角（见下一条）。
+  // 数也从规格现算：写死 60 与 MAX_RADIUS 的 58 各说各话，而 58 其实没到最远角。
   assert.ok(
-    r3 <= farthestCell(),
-    `半径 ${r3} 越过了地图最远角 ${farthestCell().toFixed(2)}`,
+    r3 <= FARTHEST_CELL_DISTANCE,
+    `半径 ${r3} 越过了地图最远角 ${FARTHEST_CELL_DISTANCE.toFixed(2)}`,
   );
 });
 
@@ -90,13 +90,19 @@ test('交付越多，揭示越大，但有上限', () => {
 test('揭示半径的上限够得到最远角：不留永远揭不亮的一圈', () => {
   const capped = revealedRadiusFor(Number.MAX_SAFE_INTEGER);
   assert.ok(
-    capped >= farthestCell(),
-    `上限只到 ${capped}，而最远格在 ${farthestCell().toFixed(2)}——` +
+    capped >= FARTHEST_CELL_DISTANCE,
+    `上限只到 ${capped}，而最远格在 ${FARTHEST_CELL_DISTANCE.toFixed(2)}——` +
       `那一圈永远揭不亮，注释里「超过最远角就没有意义」也就成了空话`,
   );
-  // 反面对照：真有那么一格在上限之外，它就该报有雾——否则这条是空过的。
-  assert.equal(fogAt({ x: 0, y: 0 }, { center: LARGE_ALTAR, revealedRadius: capped }), false,
-    '最远角那一格在顶格半径下必须已经点亮');
+  // 边界那一格压在半径上：必须算点亮。这一条守的是 `fogAt` 用严格 `>` 而不是
+  // `>=`——MAX_RADIUS 现在就正好等于最远角距离，改成 `>=` 整张图的角就黑了。
+  const corner = { x: 0, y: 0 };
+  assert.equal(fogAt(corner, { center: LARGE_ALTAR, revealedRadius: capped }), false,
+    '最远角那一格压在半径上，必须算已经点亮');
+  // 真对照：半径收一格，同一格就该回雾里。少了这条，上面那条把 fogAt 桩成
+  // 「永远返回 false」也能过——那正是它声称排除的失败。
+  assert.equal(fogAt(corner, { center: LARGE_ALTAR, revealedRadius: capped - 1 }), true,
+    '半径收一格，最远角那一格必须回到雾里');
 });
 
 test('揭示半径增长是阶梯的，不是每单都变', () => {
