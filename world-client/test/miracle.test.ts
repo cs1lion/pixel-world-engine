@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
+import { WorldGrid } from '../src/world/grid.ts';
 import { ALTAR, buildWorld } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { ORACLE_SLAB_LIMIT } from '../src/world/types.ts';
@@ -80,6 +81,46 @@ test('猫会自己走开：过一段时间后离开世界，不永久占位', ()
   // 猫待一会儿就走；跑满一分钟必须已经离开。
   for (let i = 0; i < 60; i += 1) sim.update(1000);
   assert.equal(sim.snapshot().critters.length, 0, '猫不该永久留在世界里');
+});
+
+// ------------------------------------------------------------------ 默认落点与界
+
+test('猫的默认落点不会生在界外：祭坛贴边时退回环上找空格', () => {
+  // 一张 10×8 的图，祭坛钉在右下角 (8,6)——`altar + 2` 是 (10,8)，已经出界。
+  // 这不是臆想的设定集：`loadSettingPack` 只验 hub 在界内，不验 hub+2.5。
+  const grid = new WorldGrid({
+    width: 10,
+    height: 8,
+    border: 1,
+    zones: [{ id: 'altar', x: 7, y: 5, w: 2, h: 2 }],
+  });
+  const sim = new Simulation({
+    grid,
+    buildings: [],
+    altar: { x: 8, y: 6 },
+    villagerName: '莞尔',
+    wallClock: () => 1000,
+  });
+  assert.ok(grid.inBounds({ x: 8, y: 6 }), '前提：祭坛本身在界内');
+  assert.equal(grid.inBounds({ x: 10, y: 8 }), false, '前提：祭坛 +2 已经出界');
+
+  const result = miracle(sim, 'cat');
+  const critters = sim.snapshot().critters;
+  for (const critter of critters) {
+    assert.ok(
+      grid.inBounds(critter.at),
+      `猫生在了世界外：${critter.at.x},${critter.at.y}（这张图 ${grid.width}×${grid.height}）`,
+    );
+  }
+  // 要么在环上找到空地落下来，要么明说没有空地。两种情况都不许把一个界外坐标
+  // 写进存档——那会让这个槽里此后的每一份存档都被 `findOutOfWorldCoordinates` 拒掉，
+  // 玩家只能手删存档。
+  if (result?.ok === true) {
+    assert.equal(critters.length, 1, '落下来了就应当正好一只');
+    assert.notDeepEqual(critters[0]!.at, { x: 10.5, y: 8.5 }, '不该还是老的祭坛+2.5');
+  } else {
+    assert.match(result?.message ?? '', /空地/);
+  }
 });
 
 // ------------------------------------------------------------------ 与摆件去重
