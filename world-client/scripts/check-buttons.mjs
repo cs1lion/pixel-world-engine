@@ -83,8 +83,12 @@ async function requireBackend() {
     if (!response.ok) {
       detail = `HTTP ${response.status}`;
     } else {
-      // 形状是 `{entries, count}`（`server/memory/api.py:94`）。解析不了就当
-      // 没有条目——别拿一个猜出来的数去放行。
+      // 形状是 `{entries, count}`（`server/memory/api.py:107`，`list_memory`
+      // 那一行 return）。解析不了就当没有条目——别拿一个猜出来的数去放行。
+      //
+      // 这一行原写 `:94`，`eeb96ca` 引进时是对的，之后 `api.py` 往上长了 13 行，
+      // 94 落成一道空行——`audit-references --strict` 因此一直红着，而它只让
+      // 输出变长、不让 `check`/`test` 变红，所以没人看见。
       try {
         const payload = await response.json();
         entries = Array.isArray(payload?.entries) ? payload.entries.length : null;
