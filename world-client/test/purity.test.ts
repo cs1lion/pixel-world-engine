@@ -194,3 +194,57 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
   }
   assert.deepEqual(offenders, [], `三个状态位必须是世界内的纯事实：\n${offenders.join('\n')}`);
 });
+
+// ---------------------------------------------------------------- 时辰那一层
+//
+// `docs/adr/ADR_WORLD_ALIVE.md` §6 的缺口 1：「时辰不进世界」这条规矩今天**没有闸**。
+// 它成立靠的只是 import 图本身（`src/world/` 下零个 `../` import），而 import 图不是
+// 一道闸——明天有人把 `phaseAt` 接进 `Simulation`，什么都不会红。
+//
+// 同族纪律已经补过一遍，而且当初正是失效过才补的：`lampoil.test.ts` 那条
+// 「除了清单上那几个文件，世界没人碰灯油」起先只看 `simulation.ts`，于是
+// 「油尽了不走这条路」写进 `grid.ts` 或 `bustle.ts`，全套照旧绿。所以这条扫描
+// 一上来就覆盖整个 `src/world/` 目录，不点名任何文件。
+//
+// 为什么断言「零个 `../`」而不只是「不 import day-phase.ts」：`day-phase.ts`
+// 只是今天被 ADR 点到的那一个。真正要守的是**世界内核不依赖它上面的任何一层**
+// （render / scenes / ui / settings / audio）。只禁一个文件名，明天换个入口
+// （`phase-view.ts`、`ambience.ts`、或者一个新文件）照样进得来，而测试还绿着。
+//
+// 代价说清楚：这条断言也禁掉「世界 import `../settings/types.ts`」这类将来可能
+// 合理的依赖。真到那天，加一条**带理由的**豁免，而不是把断言放宽——放宽一次，
+// 这条闸就再也不知道自己守的是什么了。
+//
+// **这条扫描不走 `codeOf()`，同文件其他几条走。** 差别是有原因的，而且我第一笔
+// 写错了：`codeOf()` 会把字符串字面量的内容换成等长空白（`source-scan.ts` 的
+// `STRING_SPAN`，为的是挖掉注释里引用的旧词）。于是
+// `from '../render/day-phase.ts'` 被换成 `from '                  '`——路径没了，
+// 正则永远不命中。**第一版的这条闸因此是空的**：往 `src/world/` 里塞一个
+// `import type { PhaseId } from '../render/day-phase.ts'`，七条测试照绿。
+// （实测过：`weather.ts` 末尾挂上那行，`node --test test/purity.test.ts` 全过。）
+//
+// 词汇扫描要用 `codeOf`——注释里提一句「旧接口曾经叫 commissions」是解释历史。
+// 但 import 扫描不能：`from '../...'` 本身**就是**依赖，不是关于依赖的话。
+// 所以这里裸读，只自己剔掉注释行（`//`、块注释续行 `*`、块注释头 `/*`）。
+// 同文件上面「src/world 不 import Phaser」那条也是裸读，理由相同。
+const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/;
+
+test('src/world 不 import 它上面的任何一层（时辰进不来）', () => {
+  const offenders: string[] = [];
+  for (const file of files) {
+    const rel = file.slice(SRC.length + 1).split(path.sep).join('/');
+    if (!rel.startsWith('world/')) continue;
+    for (const [index, line] of readFileSync(file, 'utf8').split('\n').entries()) {
+      if (COMMENT_LINE.test(line)) continue;
+      if (!/from\s+['"]\.\.\//.test(line)) continue;
+      offenders.push(`${rel}:${index + 1} 往上一层 import：${line.trim()}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `世界内核只能依赖它自己。时辰（render/day-phase.ts）、氛围、界面都长在它上面，\n` +
+      `一旦世界 import 上去，「现在几点」就成了第二个墙钟读者，确定性回放当场不成立。\n` +
+      offenders.join('\n'),
+  );
+});
