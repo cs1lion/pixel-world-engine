@@ -13,6 +13,7 @@ import { WORLD, tokenNameOf } from '../world/palette-data.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
+import type { OracleApi } from '../ui/oracle-panel.ts';
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -1346,7 +1347,19 @@ export class SandboxScene extends Phaser.Scene {
         return { ok: true, message: '正在读档…' };
       },
     };
-    (window as unknown as { Oracle: typeof api }).Oracle = api;
+    // **这一行是「场景真的实现了界面要的那份契约」的唯一检查点。**
+    //
+    // 两边原来各写一次 `as unknown as`：这边写 `typeof api`（照自己的形状），
+    // `main.ts` 那边写 `OracleApi`（照界面要的形状）——中间没有任何东西核对两者
+    // 一致。于是世界那头改一个字段名，界面那头读到 `undefined`，而编译器两边都
+    // 满意。`ReportApi` 的 `date` → `clock` 就是这么漏的：手抄的形状漂了，
+    // 而漂的时候一个人都没红。
+    //
+    // 赋值给一个标了 `OracleApi` 的变量，缺口与类型不符当场就报；`api` 比
+    // `OracleApi` 多的那些字段（`hoverCell`、`camera`、`pushEvent`、`events`、
+    // `saveStatus`……调试面板在用）不受影响——多给不是错。
+    const oracle: OracleApi = api;
+    (window as unknown as { Oracle: OracleApi }).Oracle = oracle;
   }
 
   // ----------------------------------------------------------------- render
