@@ -52,6 +52,11 @@ export function trustBetween(relations: RelationshipMap, a: string, b: string): 
  * 每被辟谣一次扣 `credibilityPenalty`（0.15），封底 0。**扣了要有人读**：
  * `judge` 拿它打折听者的采信，否则这个数只是一张没人看的表，而注释里
  * 「下一次他从这个人嘴里听到什么，可信度会低一档」就是句空话。
+ *
+ * 名字是特意挑过的。更顺手的那个英文词在这个仓库里是旧上游接口的冻结值，
+ * `purity.test.ts` 有一条扫描盯着 `world/` 下的每一个文件，读到就红——
+ * 而它是**裸读全文**的，所以在注释里提一句那个词也一样红。这句说明因此
+ * 只能说到这个地步：真要给这里改名，先去 `test/purity.test.ts` 看一眼那道闸。
  */
 export interface CredibilityScores {
   readonly scores: ReadonlyMap<string, number>;
