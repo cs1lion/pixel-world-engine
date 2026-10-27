@@ -115,7 +115,8 @@ test('落不下时点数真的留着：一个里程碑不会因为没空地被�
   // 「由调用方保留点数」。实测：攒到 3 点、触发里程碑、落不下，改之前
   // points 归 0、props 空、milestones 不动。
   const sim = makeSim();
-  const grid = sim.grid as { isWalkable(p: GridPoint): boolean };
+  // `grid` 是私有的，这里只要换个 `isWalkable`，所以走 unknown 绕一手。
+  const grid = (sim as unknown as { grid: { isWalkable(p: GridPoint): boolean } }).grid;
   const statusOf = (summary: string): string | undefined =>
     sim.snapshot().tasks.find((task) => task.summary === summary)?.status;
 
