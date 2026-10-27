@@ -8,9 +8,60 @@
  * 与 `report.ts` 同一个原则：能派生的不落档。
  */
 
-import { WILD_PREFABS } from './setup.ts';
+import { LARGE_ALTAR, LARGE_WORLD_SPEC, WILD_PREFABS } from './setup.ts';
+import { BIOME_RADII } from './biomes.ts';
 import { TASK_PROFILES, WORKSHOP_TASKS } from './tasks.ts';
-import type { TaskKind, WorldSnapshot } from './types.ts';
+import type { GridPoint, TaskKind, WorldSnapshot } from './types.ts';
+
+/**
+ * 一块分区矩形离祭坛**最近**的那一点的距离（单位：格）。
+ *
+ * 分区是轴对齐矩形，所以最近点就是把两个轴各自夹进矩形范围，不必遍历格子。
+ */
+function nearestDistance(
+  zone: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+  altar: GridPoint,
+): number {
+  const dx = Math.max(zone.x - altar.x, 0, altar.x - (zone.x + zone.w - 1));
+  const dy = Math.max(zone.y - altar.y, 0, altar.y - (zone.y + zone.h - 1));
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * 郊野可建面积的估算基数：整块都落在工坊环**之外**的分区矩形，合计多少格。
+ *
+ * 这里原来写死 `384`，而 `LARGE_WORLD_SPEC` 的四块郊野分区是 9×8×4 = **288**。
+ * 384 = 288×4/3，多出的正好是三分之一。
+ *
+ * **这个数从落地那天起就是错的，不是「后来没跟着改」。** 我第一版注释写的是
+ * 「分区矩形的尺寸改过，这个数没跟着改」——那句话是我编的：`LARGE_WORLD_SPEC`
+ * 那一块在 `setup.ts` 全部 8 个 commit 里逐字节相同（`3bc504d8`），384 和四块
+ * 矩形出生在同一个 commit（`996cbd3`），谁都没动过。真相更简单也更难看：
+ * 它一开始就没对过。写「跟不上规格」会把一个从头的错讲成一次漂移，而漂移听起来
+ * 像意外，从头的错是没核过——这两件事该分开说。
+ *
+ * 它唯一的闸是 `test/world-state.test.ts` 的 `wildFree >= 0`，那条对 384 和 288
+ * 一样绿。所以改成从规格算：改分区与改基数变成同一件事。
+ *
+ * 「哪块算郊野」用**离祭坛的距离**判，和 `biomeAt` 同一把尺：整块分区都在
+ * `BIOME_RADII.craftRing` 之外。不按尺寸认（`w === 9`）——按尺寸认，将来谁把
+ * 郊野块改成 10×8 它就又错一次，而且错得和这次一样安静。
+ *
+ * 这**仍是估算**，不是精确槽位数：铺子要整块落在分区里、要留白、要躲开门，
+ * 那些只有网格知道，而归纳层不持有网格（`summarizeWorld` 里那段说的是这件事）。
+ * 基数错了是另一回事——那不再是估算偏乐观，是估算的对象不存在。
+ *
+ * 但基数对了**不等于**估得准，现在还差一点：`wildFree` 数的是「还能建几栋」，
+ * 而能建的那个东西（`workshop_plot`）是 `zone: 'industry'`，于是四块郊野分区里
+ * 只有 industry 那一块（`18,18` 的 9×8 = 72 格）够得着，另外三块它进不去。那 72
+ * 格里有 36 格已经被 gear_tower 占了。实测今天还能再建 **3** 栋
+ * （落点 23,19 / 18,23 / 18,19，都在郊野圈里），而公式给 4。
+ * 也就是说 384 那版多报 3 栋，现在这版多报 1 栋——方向对了，没到底。
+ * 要到底得让基数跟着「能建什么」走，那是另一笔，不在这一笔里。
+ */
+const WILD_ZONE_AREA = LARGE_WORLD_SPEC.zones
+  .filter((zone) => nearestDistance(zone, LARGE_ALTAR) > BIOME_RADII.craftRing)
+  .reduce((sum, zone) => sum + zone.w * zone.h, 0);
 
 /** 某一类活的铺子覆盖情况。 */
 export interface KindCoverage {
@@ -86,8 +137,9 @@ export function summarizeWorld(snapshot: WorldSnapshot): WorldState {
     taskKinds,
     space: {
       wildBuilt: wild,
-      // 郊野四块分区合计约 384 格；减去已占与留白，按 40 格一栋粗估。
-      wildFree: Math.max(0, Math.floor((384 - wildFootprint * 3) / 40)),
+      // 基数 WILD_ZONE_AREA（288，从 LARGE_WORLD_SPEC 算的，不是写死的）；
+      // 减去已占与留白，按 40 格一栋粗估。
+      wildFree: Math.max(0, Math.floor((WILD_ZONE_AREA - wildFootprint * 3) / 40)),
     },
     activity: {
       total: snapshot.villagers.length,
