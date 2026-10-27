@@ -64,7 +64,12 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
         if (!isRoad(cell.x - 1, cell.y)) roads.fillRect(px + 1, py + 1, 1, TILE_PX - 2);
         if (!isRoad(cell.x + 1, cell.y)) roads.fillRect(px + TILE_PX - 2, py + 1, 1, TILE_PX - 2);
 
-        // 路面不再是 8px 通栏板缝：3 块大小不一的板岩，缝用 stone（对 plaza ΔL* 11.35）。
+        // 路面不再是 8px 通栏板缝：3 块大小不一的板岩，缝用 stone（对 plaza ΔL* 4.95）。
+        // 4.95 在 `EDGE_VISIBLE_MIN_DL`（6）以下。那条线量的是 1px **地形边**，路缝
+        // 不归它判，所以这不是「不合格」；但同一个观感问题上，这条缝确实落在偏弱那侧。
+        // 原来写 11.35——色板里没有哪一对是它：stone 对 soil 15.85、对 water 14.79、
+        // 对重排前的 stone（#3a3f3b）6.72。`terrain-edges.test.ts` 的 `DOCUMENTED_DL`
+        // 早就记着「实为 4.95」，但没人回来改这一行；现已连同锁一起补上。
         // 每格 hash 稳定，同种子截图可复现；不跨格画，避免覆盖邻格。
         const h = Math.imul(cell.x + 17, 374761393) + Math.imul(cell.y + 31, 668265263);
         const seed = (h ^ (h >>> 13)) >>> 0;

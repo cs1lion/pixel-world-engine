@@ -338,6 +338,10 @@ const DOCUMENTED_DL: readonly {
   { file: 'test/terrain-edges.test.ts', quote: '对 plaza 底色差 20.80', a: WORLD.soil, b: TERRAIN_COLORS.plaza, says: 20.8 },
   // 这两条住在另一个文件的 KNOWN_FAILING 注释里，一起钉。
   { file: 'test/terrain-edge-visibility.test.ts', quote: '与各邻格底色差 9.98 以上（最小是 tree/farm）', a: TERRAIN_COLORS.tree, b: TERRAIN_COLORS.farm, says: 9.98 },
+  // 路面板岩的缝色（`decor.ts` 画 slabs 那段）。这一对原来也写着 11.35，而上面那份
+  // 「已经这么错了四处」的清单里早就记了「实为 4.95」——记录在，源注释没改，锁也没有，
+  // 于是它又继续错着。补上：quote 现在指向 decor.ts 改过的那一句。
+  { file: 'src/render/decor.ts', quote: '缝用 stone（对 plaza ΔL* 4.95）', a: TERRAIN_COLORS.stone, b: TERRAIN_COLORS.plaza, says: 4.95 },
 ];
 
 test('注释里逐个引用的 dL* 数字必须与当前色板一致', () => {
