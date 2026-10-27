@@ -77,7 +77,7 @@ import type {
   WorldProp,
   WorldSnapshot,
 } from './types.ts';
-import { excerptBlockedQuestion, ORACLE_SLAB_LIMIT } from './types.ts';
+import { ORACLE_SLAB_LIMIT } from './types.ts';
 import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
 import { CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
 
@@ -1193,7 +1193,8 @@ export class Simulation {
     //
     // 「说错了比不说更糟，可把一句话说二十遍也不是诚实，是噪音。」这与
     // `saidMiss` 是同一个病：按状态去重，不按调用次数。
-    const changed = this.feedSaidConnected !== connected;
+    const previous = this.feedSaidConnected;
+    const changed = previous !== connected;
     this.feedSaidConnected = connected;
     if (!connected) {
       // 回执那一行是**用户自己的话**的归宿，不是上游状态的归宿：上游在顶栏
@@ -1292,12 +1293,24 @@ export class Simulation {
 
     if (added > 0) this.log('info', `上游来了 ${added} 条新活。`);
     if (finished > 0 && !firstRead) this.log('done', `上游结了 ${finished} 条。`);
-    let message = `上游已同步，${this.tasks.length} 条在册。`;
-    const waiting = this.tasks.find((task) => task.blockedQuestion !== null);
-    if (waiting !== undefined && waiting.blockedQuestion !== null) {
-      message += `在等你的答复：${excerptBlockedQuestion(waiting.blockedQuestion)}（仅展示，世界不代为回答）`;
+    // 连上这一侧也只在一句话该说的时候说：**真的恢复过**那一次。
+    //
+    // 与掉线那一侧是同一条规矩（上面 `!connected` 分支的注释写着了）：回执那一行
+    // 是用户自己的话的归宿，不是上游状态的归宿。可这里原来每次都回一句
+    // 「上游已同步，N 条在册。」——轮询 4 秒一次，于是用户说「下雨了」，
+    // 屏上一秒后是「上游已同步」。他不知道雨到底下没下。实测复现过：
+    // `scripts/verify-reply.mjs` 走一遍，回执那一行从「雨落下来了。」变成
+    // 「上游已同步，0 条在册。」，而世界时间与天气都照常变了。
+    //
+    // 第一次就连上不算「连上了」：没有东西恢复过，那句话是编一个事件。
+    // 而这句话里的每一样信息状态行都另有其一处在说，且说得更全——
+    // 在册数在「上游交付 N 单」，在等的答复在状态行末尾与急件面板各一处。
+    // 所以稳态下给空，不损失任何用户读得到的东西。
+    if (previous === false) {
+      this.log('info', '上游连上了。');
+      return { ok: true, message: '上游连上了。' };
     }
-    return { ok: true, message };
+    return { ok: true, message: '' };
   }
 
   /** 这个角色是不是正走在这条活上（赶路、干活、交付都算）。 */

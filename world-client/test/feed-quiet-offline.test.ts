@@ -115,6 +115,58 @@ test('第一次掉线那句话照旧说：它不是被删掉，是被去重', ()
   assert.equal(s.snapshot().feed.connected, false, '状态行要知道自己离线');
 });
 
+// ---------------------------------------------- 连上那一侧，同一条规矩
+
+test('轮询成功时不给心跳：用户那句话的回执活着', () => {
+  // 掉线那一侧安静之后，连上那一侧还在每 4 秒说一遍「上游已同步，N 条在册。」
+  // ——回执那一行照旧被擦。实测：`scripts/verify-reply.mjs` 里说「下雨了」，
+  // 世界天气确实变成 rain、石板确实刻了一条，而屏上那一行是「上游已同步」。
+  // 用户不知道自己那句话到底办没办。
+  //
+  // 这句话里的每一样信息状态行都另有其一处，且说得更全：在册数在
+  // 「上游交付 N 单」，在等的答复在状态行末尾与急件面板各一处。所以
+  // 稳态下给空不损失任何读得到的东西。
+  const s = sim();
+  s.enqueue({ kind: 'setWeather', weather: 'rain' });
+  const [said] = s.update(16);
+  assert.equal(said!.message, '雨落下来了。', '先让用户那句话落成回执');
+
+  for (let round = 1; round <= 5; round += 1) {
+    s.enqueue({ kind: 'syncEvents', fold: EMPTY_FOLD, connected: true });
+    const [poll] = s.update(16);
+    assert.equal(
+      poll!.message,
+      '',
+      `第 ${round} 次成功轮询该安静，实际给的是「${poll!.message}」`,
+    );
+    assert.equal(poll!.ok, true, '安静也是成功，不是拒了');
+  }
+  assert.equal(s.snapshot().weather, 'rain', '世界照常过日子');
+});
+
+test('真的恢复过才说「上游连上了」；第一次就连上不说', () => {
+  // 反方向：别把安静做成永久的沉默。上游真的回来了，世界得说一句。
+  // 可「第一次就连上」不是连上了——没有东西恢复过，那句话是编一个事件。
+  const s = sim();
+
+  // 开局就通：一个字都不该说。
+  s.enqueue({ kind: 'syncEvents', fold: EMPTY_FOLD, connected: true });
+  const [first] = s.update(16);
+  assert.equal(first!.message, '', '第一次就连上不是一条新闻');
+
+  // 掉线再回来：这一次该说。
+  disconnect(s, 2);
+  s.enqueue({ kind: 'syncEvents', fold: EMPTY_FOLD, connected: true });
+  const [back] = s.update(16);
+  assert.equal(back!.message, '上游连上了。', '真的恢复过才说');
+  assert.equal(back!.ok, true, '连上是好事');
+
+  // 之后一直通着：又安静了。
+  s.enqueue({ kind: 'syncEvents', fold: EMPTY_FOLD, connected: true });
+  const [again] = s.update(16);
+  assert.equal(again!.message, '', '状态没变就闭嘴，与掉线那一侧同一条规矩');
+});
+
 test('离线不影响世界自己过日子：本地单照常派照常交', () => {
   // `feed-recovery.test.ts` 钉过「离线时本地单照样能交」，这里只补那之后
   // 新长出来的一问：去重那条提前 return 的路，会不会顺手把本地那套也停了。
