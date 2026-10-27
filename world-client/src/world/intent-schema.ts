@@ -1,7 +1,13 @@
 /** 意图 schema 与校验器：模糊输入与 LLM 之间的那道闸。
  *
- * 这是 LLM 接入的**唯一入口**。模型读一句人话，输出一份 JSON，这里决定它
- * 能不能变成世界命令。
+ * **LLM 的入口有两个，这是管「一句话变成命令」的那一个**；另一个是
+ * `creator-schema.ts`，管「一份 JSON 变成一座楼」（`SandboxScene` 的造物
+ * 提示走它的 `parseCreationPlan`）。
+ *
+ * 这里原来写「LLM 接入的唯一入口」——不成立：`creator-schema.ts` 就是第二个，
+ * 而下面还写着「前三条与 `creator-schema.ts` 同源」，同一段里自相矛盾。
+ *
+ * 模型读一句人话，输出一份 JSON，这里决定它能不能变成世界命令。
  *
  * 四条设计原则（前三条与 `creator-schema.ts` 同源）：
  *
