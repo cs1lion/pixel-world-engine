@@ -188,7 +188,7 @@ test('上游的活也一样：派不出去要说是镇子没有，不是铺子�
 
 test('上游那条路的三句话，一句都不能混', () => {
   // 「没有」「都闲着」「都在郊野」是三件不同的事实。曾有两种变异在全仓
-  // 938 条测试里全绿：任一条路把三句并成一句。那句话是用户在屏幕上读到的，
+  // 测试里一路全绿：任一条路把三句并成一句。那句话是用户在屏幕上读到的，
   // 而它一半时间是假话——所以逐句钉住，连它说的原话一起。
   const cases: readonly { readonly venues: readonly VenueCandidate[]; readonly want: string }[] = [
     { venues: [venue('star#1', 'research', false)], want: '这座镇子没有接 code 的铺子，「修一盏灯」派不出去。' },
