@@ -197,14 +197,18 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 
 // ---------------------------------------------------------------- 时辰那一层
 //
-// `docs/adr/ADR_WORLD_ALIVE.md` §6 的缺口 1：「时辰不进世界」这条规矩今天**没有闸**。
-// 它成立靠的只是 import 图本身（`src/world/` 下零个 `../` import），而 import 图不是
-// 一道闸——明天有人把 `phaseAt` 接进 `Simulation`，什么都不会红。
+// `docs/adr/ADR_WORLD_ALIVE.md` §2 的规矩是「时辰只喂渲染层」。它成立靠三件事，
+// 本文件只负责其中一件，另外两件在 `test/phase-purity.test.ts`：
 //
-// 同族纪律已经补过一遍，而且当初正是失效过才补的：`lampoil.test.ts` 那条
-// 「除了清单上那几个文件，世界没人碰灯油」起先只看 `simulation.ts`，于是
-// 「油尽了不走这条路」写进 `grid.ts` 或 `bustle.ts`，全套照旧绿。所以这条扫描
-// 一上来就覆盖整个 `src/world/` 目录，不点名任何文件。
+//   1. **不 import 上来**（本文件这条）。`src/world/` 下零个 `../` import。
+//   2. **不抄一份**（`phase-purity.test.ts` 的词汇扫描）：把 `phaseAt` 复制粘贴到
+//      `src/world/` 下，import 图一片干净，而世界照样知道「现在几点」。
+//   3. **快照里不开字段**（`phase-purity.test.ts` 的字段清单）：不 import、不抄，
+//      只在 `WorldSnapshot` 上加一个 `phase`，渲染层读快照就拿到了时辰。
+//
+// （这三条原来是 §6 的缺口 1——「时辰不进世界这条规矩今天没有闸」。
+// 2026-10-27 补齐，缺口 1 已从 §6 移除。留着这段是因为分工写在这儿，
+// 读的人不用去翻 ADR 就知道另外两件归谁。）
 //
 // 为什么断言「零个 `../`」而不只是「不 import day-phase.ts」：`day-phase.ts`
 // 只是今天被 ADR 点到的那一个。真正要守的是**世界内核不依赖它上面的任何一层**
@@ -214,6 +218,14 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 // 代价说清楚：这条断言也禁掉「世界 import `../settings/types.ts`」这类将来可能
 // 合理的依赖。真到那天，加一条**带理由的**豁免，而不是把断言放宽——放宽一次，
 // 这条闸就再也不知道自己守的是什么了。
+//
+// **判据是「解析后的落点」，不是「这一行有没有 `../`」。** 这条扫描原先只看
+// 字面：`from '../` 一出现就算越界。那在 `src/world/` 平铺的时候成立，一旦
+// 开了子目录（`world/memory/`）就错了——`memory/perception.ts` 里的
+// `from '../types.ts'` 解析到 `world/types.ts`，那是世界内核**自己**，
+// 而不是它上面的一层。照着字面判，等于禁掉世界内部的子目录，而那道闸
+// 要守的是「不越过 `src/world/` 的边界」。所以这里把路径真的解析一遍，
+// 再问落点还在不在 `src/world/` 里面。守的东西没变，判据跟上了目录结构。
 //
 // **这条扫描不走 `codeOf()`，同文件其他几条走。** 差别是有原因的，而且我第一笔
 // 写错了：`codeOf()` 会把字符串字面量的内容换成等长空白（`source-scan.ts` 的
@@ -229,6 +241,11 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 // 同文件上面「src/world 不 import Phaser」那条也是裸读，理由相同。
 const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/;
 
+/** import 语句里的模块说明符。裸 import（`import './x.ts'`）也算。 */
+const IMPORT_SPECIFIER = /(?:from\s+|import\s+)['"]([^'"]+)['"]/;
+
+const WORLD_DIR = join(SRC, 'world');
+
 test('src/world 不 import 它上面的任何一层（时辰进不来）', () => {
   const offenders: string[] = [];
   for (const file of files) {
@@ -236,7 +253,14 @@ test('src/world 不 import 它上面的任何一层（时辰进不来）', () =>
     if (!rel.startsWith('world/')) continue;
     for (const [index, line] of readFileSync(file, 'utf8').split('\n').entries()) {
       if (COMMENT_LINE.test(line)) continue;
-      if (!/from\s+['"]\.\.\//.test(line)) continue;
+      const match = IMPORT_SPECIFIER.exec(line);
+      if (match === null) continue;
+      const specifier = match[1]!;
+      if (!specifier.startsWith('.')) continue;
+      // 解析后的落点还在 `src/world/` 里就算自己人。用 `resolve` 而不是
+      // 字符串前缀比较：`world/../render/x.ts` 这种绕一圈的写法同样拦得住。
+      const landed = path.resolve(path.dirname(file), specifier);
+      if (landed === WORLD_DIR || landed.startsWith(WORLD_DIR + path.sep)) continue;
       offenders.push(`${rel}:${index + 1} 往上一层 import：${line.trim()}`);
     }
   }
