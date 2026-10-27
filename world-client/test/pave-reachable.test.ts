@@ -2,7 +2,7 @@
  * 「门口连不连得出去」这个信号，以及包这条路第一次真的拦它。
  *
  * `ADR_PACK_SKIPS_WORLD_BUDGET` 待办 A 记的是：默认世界两条路由
- * `assertWorldInvariants` 拦「与祭坛之间没有通路」（`setup.ts:598-601`），
+ * `assertWorldInvariants` 拦「与祭坛之间没有通路」（它往 problems 里推的那句原文），
  * 而编译后的设定集走 `buildSettingWorld`，谁都没查。同一栋连不出去的楼，
  * 在默认世界开工即抛，在包里静静成立。
  *

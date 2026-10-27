@@ -625,7 +625,9 @@ export function assertWorldInvariants(
 ): void {
   const problems: string[] = [];
   const workshops = buildings.filter((item) => item.boundTask !== null);
-  // 每种活 1–2 栋：镇内 + 郊野。总预算随世界规格变化，不再写死。
+  // 每种活 1–2 栋，只数栋数。括号里那个「镇内 + 郊野」是这个函数的**意图**，不是它
+  // 查的东西：下面按 `boundTask` 分组计数，从头到尾不看 prefabId，因而看不出镇内
+  // 郊野。小世界就是 3 栋全在镇内、郊野 0 栋，照样过——所以别把这句话读成已校验。
   const byKind = new Map<string, number>();
   for (const building of workshops) {
     if (building.boundTask === null) continue;
@@ -637,8 +639,18 @@ export function assertWorldInvariants(
       problems.push(`承接 ${kind} 的铺子 ${count} 栋，必须是 1 或 2 栋`);
     }
   }
-  // 同分区的两栋必须是「一栋镇内、一栋郊野」：同类铺子挨着会互相抢活，
-  // 而镇内与郊野本就该分开。
+  // 每个 ZoneId 里最多 2 栋铺子：同类铺子挤在同一个分区会互相抢活。
+  //
+  // 这里数的是 `building.zone`（ZoneId：street / altar / industry / scholarly /
+  // agriculture / living），**不是**镇内/郊野。那是另一码事，由 prefab 集合决定
+  // （`isWildSide`），这个函数从头到尾不碰 prefabId。
+  //
+  // 这段注释原写「同分区的两栋必须是『一栋镇内、一栋郊野』」，说的是一条代码没有
+  // 实现的规则：把原话写成断言，它是红的——同 zone 两栋同在镇内，这里一声不响。
+  // 已改成说代码做的事。镇内/郊野的配比不在这一层校验：它由 `homes.test.ts` 对着
+  // `buildLargeWorld` 落成的世界断言（镇内三栋、郊野三栋、每种活各一栋），不靠这个
+  // 函数。`wilderness-feel.test.ts` 只测时长倍率、落点距离与常明灯，没有一条在数
+  // 栋数——别把配比记在它头上。
   const zones = new Map<string, number>();
   for (const building of workshops) {
     zones.set(building.zone, (zones.get(building.zone) ?? 0) + 1);

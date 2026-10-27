@@ -100,11 +100,16 @@ export function validateCoverage(
   const workshops = [...table.values()].filter((bp) => bp.boundTask !== null);
   for (const task of TASKS) {
     const matches = workshops.filter((bp) => bp.boundTask === task);
-    // 每种活允许 1–2 栋：镇内一栋（本地确定性工作）+ 郊野一栋（探索性工作）。
-    // 0 栋等于这类活无处可去；超过 2 栋则是蓝图表失控，没有对应的调度规则。
+    // 每种活允许 1–2 栋。0 栋等于这类活无处可去；超过 2 栋则是蓝图表失控，
+    // 没有对应的调度规则。
+    //
+    // 「镇内 + 郊野」是**设计意图**（本地确定性工作 + 郊野探索性工作），不是这里查的
+    // 东西：下面只按 `boundTask` 数匹配的蓝图数，不读 prefabId，看不出镇内郊野。
+    // 两栋都在镇内、郊野空着，这里一声不响。原注释和原报错文案都把意图写成了规则，
+    // 那句话是假的——已改成只说查了的那半个。
     if (matches.length < 1 || matches.length > 2) {
       problems.push(
-        `任务 ${task} 绑定了 ${matches.length} 栋铺子，必须是 1 或 2 栋（镇内 + 郊野）`,
+        `任务 ${task} 绑定了 ${matches.length} 栋铺子，必须是 1 或 2 栋`,
       );
     }
   }

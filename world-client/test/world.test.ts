@@ -8,8 +8,10 @@ import {
   assertWorldInvariants,
   placeBlueprint,
   WorldSetupError,
+  WILD_PREFABS,
   type BuiltWorld,
 } from '../src/world/setup.ts';
+import type { PlacedBuilding, ZoneId } from '../src/world/types.ts';
 import { Simulation, MAX_PENDING_DISPATCHES } from '../src/world/simulation.ts';
 import { parseOracle } from '../src/world/oracle.ts';
 import { NON_IMPERATIVE_MARKERS, NEGATION_MARKERS } from '../src/world/imperative.ts';
@@ -126,6 +128,51 @@ test('世界越出预算时拒绝开工', () => {
   assert.throws(
     () => assertWorldInvariants(world.grid, world.buildings.slice(0, 2)),
     WorldSetupError,
+  );
+});
+
+// 每个 ZoneId 里最多 2 栋铺子。这里数的是 ZoneId，不是镇内/郊野——那个由 prefab
+// 集合决定（`isWildSide`），这个函数从头到尾不碰 prefabId。这段位置的注释原写
+// 「同分区的两栋必须是一栋镇内、一栋郊野」，说的是一条代码没有的规则：把原话写成
+// 断言，它是红的——同 zone 两栋同在镇内，这里一声不响。注释已改成说代码做的事，
+// 这条把两边都钉住。
+//
+// 反面那半更要紧：这里不校验镇内/郊野配比。谁要是给这个函数添上那条判断，这条会红，
+// 红的意思是「新增了一条不变量，那是决策，得先说清要不要」。
+test('每个 ZoneId 里最多 2 栋铺子；镇内/郊野配比不在这里校验', () => {
+  const world = buildWorld(blueprints);
+  // 前置写全，免得下面两半靠巧合绿：恰好三栋、三种活各一栋、各占一个 ZoneId，
+  // 且没有一栋在郊野那一侧（小世界放不下郊野铺子）。
+  assert.equal(world.buildings.length, 3, '小世界恰好三栋铺子');
+  assert.deepEqual(
+    world.buildings.map((item) => item.zone),
+    ['industry', 'scholarly', 'agriculture'],
+    '三种活各占一个 ZoneId，这是下面挪 zone 的前提',
+  );
+  for (const building of world.buildings) {
+    assert.ok(!WILD_PREFABS.has(building.prefabId), `${building.prefabId} 竟是郊野铺子，前提不成立`);
+  }
+
+  /** 把 `ids` 之外的铺子都挪到 `into` 这个 ZoneId 上，`ids` 里的原样留着。 */
+  const moveOthersTo = (ids: readonly string[], into: ZoneId): readonly PlacedBuilding[] =>
+    world.buildings.map((item) => (ids.includes(item.instanceId) ? item : { ...item, zone: into }));
+
+  const [first, second] = world.buildings;
+  if (first === undefined || second === undefined) throw new Error('前提不成立');
+
+  // 两栋挤进同一个 ZoneId：不拒。这两栋还同在镇内这一侧，也不拒。
+  assert.doesNotThrow(() =>
+    assertWorldInvariants(world.grid, moveOthersTo([first.instanceId, second.instanceId], second.zone)),
+  );
+
+  // 三栋全挤进同一个 ZoneId：拒，且报的是分区那条，不是「每种活 1–2 栋」那条。
+  assert.throws(
+    () => assertWorldInvariants(world.grid, moveOthersTo([], first.zone)),
+    (error: unknown) => {
+      assert.ok(error instanceof WorldSetupError, '抛的该是 WorldSetupError');
+      assert.match(error.message, /分区 industry 里有 3 栋铺子，最多 2 栋/);
+      return true;
+    },
   );
 });
 

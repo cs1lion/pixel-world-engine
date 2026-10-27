@@ -17,8 +17,10 @@
  *      存在）。表一写错就带着走，所以先在这时把它的契约钉住。
  *   4. **upgradeTo 有落点时不误报。** 第 3 条的对偶：落点在表里就不该记 problem，
  *      否则一份正当的升级链会被拦。
- *   5. **每种活 1–2 栋。** `validateCoverage` 自己有这条（`blueprints.ts:101-110`），
- *      和 `assertWorldInvariants` 的那条（`setup.ts:637-638`）是**两份独立实现、
+ *   5. **每种活 1–2 栋。** `validateCoverage` 自己有这条（判据是
+ *      `matches.length < 1 || matches.length > 2`），和 `assertWorldInvariants`
+ *      的那条（`count < 1 || count > 2`）是**两份独立实现、各带各的消息——测一边
+ *      护不住另一边。
  *      各带各的消息**——测一边护不住另一边，而 `validateCoverage` 的失败侧此前
  *      一条测试都没有。
  */
@@ -97,8 +99,11 @@ test('upgradeTo 有落点时不误报：落点在表里就不该记', () => {
 // ------------------------------------------------------- 每种活 1–2 栋
 
 test('每种活 1–2 栋：0 栋与 3 栋都记 problem', () => {
-  // validateCoverage 自己有这条（blueprints.ts:101-110），和 assertWorldInvariants
-  // 的那条（setup.ts:637-638）是两份独立实现、各带各的消息——测一边护不住另一边。
+  // validateCoverage 自己有这条（matches.length < 1 || matches.length > 2），
+  // assertWorldInvariants 的那条（count < 1 || count > 2）是两份独立实现、
+  // 各带各的消息——测一边护不住另一边。
+  // 引表达式不引行号：这两处原来写 `blueprints.ts:101-110` / `setup.ts:637-638`，
+  // 改过一次注释后就都指错了地方，而 audit-references 一声不响（它不查语义）。
   const under = validateCoverage(parseBlueprintTable({ code_forge: raw.code_forge }));
   assert.ok(
     under.some((p) => p.includes('research') && p.includes('0 栋')),
@@ -115,4 +120,30 @@ test('每种活 1–2 栋：0 栋与 3 栋都记 problem', () => {
     over.some((p) => p.includes('code') && p.includes('3 栋')),
     `3 栋该记，实际：${JSON.stringify(over)}`,
   );
+});
+
+/**
+ * 那句报错文案不许再把「镇内 + 郊野」说成要求。
+ *
+ * 它原样是「必须是 1 或 2 栋（镇内 + 郊野）」，而 `validateCoverage` 只按
+ * `boundTask` 数蓝图数，不读 prefabId——两栋都在镇内、郊野空着，这里一声不响。
+ * 那句话是给用户看的，假的比不报更糟：用户照它配「一栋镇内一栋郊野」，配错了
+ * 也不会被这条拦下。已改成只说查了的那半个，这条把括号钉住。
+ */
+test('每种活 1–2 栋的报错文案不许带上「镇内 + 郊野」那个没校验的括注', () => {
+  const over = validateCoverage(
+    parseBlueprintTable({
+      a: { ...raw.code_forge, id: 'a' },
+      b: { ...raw.code_forge, id: 'b' },
+      c: { ...raw.code_forge, id: 'c' },
+    }),
+  );
+  const said = over.filter((p) => p.includes('栋'));
+  assert.ok(said.length > 0, `总得说点什么，实际：${JSON.stringify(over)}`);
+  for (const line of said) {
+    assert.ok(
+      !line.includes('镇内') && !line.includes('郊野'),
+      `「${line}」把镇内/郊野说成了要求——这里只查栋数，没查那一半`,
+    );
+  }
 });
