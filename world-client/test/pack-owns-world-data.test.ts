@@ -22,6 +22,18 @@ import { sourceFiles } from './source-scan.ts';
  * 立过的规矩）：多出一处会红，修好一处也会红（提示删行）。只看一边的闸门会被
  * 「悄悄修好」绕过，而清单失真之后，下一次真退化就会被当成已知项放过去。
  *
+ * ## 登记表的 `why` 本身也会假（2026-10-28 逐条核过）
+ *
+ * 双向 diff 保的是「表里的行与代码里的行对得上」，保不了 `why` 说对了。
+ * 2026-10-28 把 19 行 `why` 逐条对着代码核了一遍，**三处是假话**：`world-state.ts`
+ * 四条把 `TaskKind` 说成「研究节点」（还把 `gear_tower` 的活对错了）、同四条
+ * 说「莞尔镇没有配置包」（那张表不分局）、`wave_house` 那条说查找它是「才好把
+ * 幌布挂在它两侧」（幌布走 `pack.scenery`，与它无关）。已按实测改写。
+ *
+ * 教训不是「下次写仔细点」——是**`why` 是散文，散文说错了只有复核能发现**。
+ * 所以加了一条「`why` 里反引号点名的符号得还在」，并在那条测试里写明它拦不住
+ * 上面这三处（它们一个符号都没带）。别把那条读成全自动保障。
+ *
  * ## 为什么色值判据能全自动、预制体 id 判据不能
  *
  * 色值有唯一的出处：`palette-data.ts` 的 `WORLD`。判据直接拿 `Object.values(WORLD)`
@@ -392,18 +404,51 @@ const KNOWN_PREFABS: Readonly<Record<string, { readonly why: string }>> = {
   'world/setup.ts|cottage_stone': { why: '莞尔镇没有配置包。三种镇内住宅之一。' },
   'world/setup.ts|homestead_far': { why: '莞尔镇没有配置包。两种野外庄院之一。' },
   'world/setup.ts|homestead_ridge': { why: '莞尔镇没有配置包。两种野外庄院之一。' },
-  // world/world-state.ts：四个 id 是研究节点的键，写在那张表里。
-  'world/world-state.ts|gear_tower': { why: '莞尔镇没有配置包。研究节点「齿轮」的落点预制体。' },
-  'world/world-state.ts|crawler_mine': { why: '莞尔镇没有配置包。研究节点「研究」的落点预制体。' },
-  'world/world-state.ts|ink_mill': { why: '莞尔镇没有配置包。研究节点「书写」的落点预制体。' },
-  'world/world-state.ts|workshop_plot': { why: '莞尔镇没有配置包。研究节点「快建」的落点预制体。' },
-  // render/buildings.ts：三种楼各有各的画法。
-  'render/buildings.ts|code_forge': { why: '莞尔镇没有配置包。这一栋窗光的画法与别家不同。' },
-  'render/buildings.ts|star_archive': { why: '莞尔镇没有配置包。这一栋窗光的画法与别家不同。' },
-  'render/buildings.ts|ink_house': { why: '莞尔镇没有配置包。这一栋窗光的画法与别家不同。' },
-  // render/setting-scenery.ts：灯街的主楼要从包里的落位里找出来。
+  // world/world-state.ts：每类活对应的郊野模板 id。
+  //
+  // 这一组的 why 我第一版全写错了，2026-10-28 逐条核过：
+  //   - 写的是「研究节点」，可 `WILD_PREFAB_OF` 的键是 `TaskKind`，四类活
+  //     （`tasks.ts` 的 `TASK_PROFILES`）分别是写代码 / 查资料 / 整理便笺 /
+  //     顺手查一件小事，没有一类叫「研究」。
+  //   - 写的是「莞尔镇没有配置包」，可这张表**不分局**：`oracle-panel.ts` 的
+  //     补缺面板拿它决定建哪栋，不管当前加载哪个设定集。
+  //   - `gear_tower` 那条还把 id 与显示名对错了：齿轮塔接的是「写代码」，
+  //     不是「研究」。
+  'world/world-state.ts|gear_tower': {
+    why: '补缺按钮要建哪栋：`WILD_PREFAB_OF` 把「写代码」映到齿轮塔，而它不分局——'
+      + 'oracle 面板不管当前是哪个设定集都读这张表。包侧没有对应字段。',
+  },
+  'world/world-state.ts|crawler_mine': {
+    why: '同上，「查资料」映到爬虫矿洞。',
+  },
+  'world/world-state.ts|ink_mill': {
+    why: '同上，「整理便笺」映到文档磨坊。',
+  },
+  'world/world-state.ts|workshop_plot': {
+    why: '同上，「顺手查一件小事」映到新工坊。',
+  },
+  // render/buildings.ts：三栋常驻铺子各自的立面识别件（`drawFacade` 的原文）。
+  //
+  // 别写成「窗光」——实测三栋各画各的：炼码工坊是炉口加铁砧、星图书阁是高窗
+  // 加书堆加星形徽记、抄书斋是纸屏（连窗都不是）。承重的共同点只有一句
+  // 「这一栋认得出来」。
+  'render/buildings.ts|code_forge': {
+    why: '莞尔镇没有配置包。`drawFacade` 里炉口 + 铁砧那一支，别家没有。',
+  },
+  'render/buildings.ts|star_archive': {
+    why: '莞尔镇没有配置包。`drawFacade` 里高窗 + 书堆 + 星形徽记那一支。',
+  },
+  'render/buildings.ts|ink_house': {
+    why: '莞尔镇没有配置包。`drawFacade` 里纸屏那一支——它连窗都不是。',
+  },
+  // render/setting-scenery.ts：叠浪楼要从包里的落位里认出来。
+  //
+  // 这一条的 why 原来写着「才好把幌布挂在它两侧」——假话。幌布来自
+  // `pack.scenery` 里 kind 为 'banner' 的项，跟这次查找半点关系没有。
+  // 实测这次查找画的是陶土红栏（dy 23/44/65 三层）与逐层窗火。
   'render/setting-scenery.ts|wave_house': {
-    why: '莞尔镇没有配置包。灯街的主楼（叠浪楼）要从包里的落位里认出来，才好把幌布挂在它两侧。',
+    why: '莞尔镇没有配置包。灯街的主楼（叠浪楼）要从包里的落位里认出来，'
+      + '给它画三层红栏与逐层窗火——这是「哪一栋特殊」写死在渲染器里。',
   },
 };
 
@@ -445,6 +490,55 @@ test('代码里写死的预制体 id 必须与 KNOWN_PREFABS 一模一样', () =
     [],
     `这些 id 已经不在代码里了，KNOWN_PREFABS 里的记录过期了，删掉对应行：${gone.join('、')}`,
   );
+});
+
+/**
+ * `KNOWN_PREFABS` 的 `why` 里点名的符号，得还在它自己那个文件里。
+ *
+ * ## 先说清这条**不能**防什么
+ *
+ * 2026-10-28 我逐条核过这 19 行的 `why`，挑出**三处假话**：
+ *
+ * - `world-state.ts` 四条写着「研究节点」——可 `WILD_PREFAB_OF` 的键是
+ *   `TaskKind`，四类活是写代码 / 查资料 / 整理便笺 / 顺手查一件小事，
+ *   没有一类叫「研究」；`gear_tower` 那条还把 id 和显示名对错了。
+ * - 同四条写着「莞尔镇没有配置包」——可那张表**不分局**，补缺面板不管当前
+ *   是哪个设定集都读它。
+ * - `wave_house` 那条写着「才好把幌布挂在它两侧」——幌布来自 `pack.scenery`
+ *   里 kind 为 `'banner'` 的项，与那次查找无关；那次画的是三层红栏与逐层窗火。
+ *
+ * **这三处一条都不带反引号符号**，所以下面这条判据一道都拦不住。拦不住是
+ * 实话：`why` 是散文，散文说错了只有人能发现。这一轮是靠复核发现的，不是靠
+ * 闸门。别把这条读成「以后假 `why` 会被自动抓到」——那是下一个假话。
+ *
+ * ## 那这条还防什么
+ *
+ * 防下一轮：新写下的 `why` 是带着符号写的（`WILD_PREFAB_OF` / `drawFacade` /
+ * `pack.scenery`…）。哪天这些符号被改名或删掉，`why` 当场变成一句指向空气的
+ * 话——而它会安静地躺在登记表里，直到下一个人核它。符号改名是**会响的**那种
+ * 破坏，这一条让它在这里就响。
+ *
+ * 判据只认反引号里的内容，且只在本行对应的那个文件里找。之所以不认中文引号
+ * 「」：那里面装的是人话，不是标识符。
+ */
+test('KNOWN_PREFABS 的 why 点名的符号都还在自己那个文件里', () => {
+  const missing: string[] = [];
+  for (const [key, entry] of Object.entries(KNOWN_PREFABS)) {
+    const [file] = key.split('|');
+    // 拿 rel() 反查而不自己拼路径：CODE 的键是 sourceFiles() 拼出来的，
+    // 那边在已带尾斜杠的目录后又接了一个 "/"（`src//main.ts`），复刻这个形状
+    // 等于把一处巧合写进判据。rel() 认得它，就让 rel() 去认。
+    const text = CODE.get(FILES.find((f) => rel(f) === file) ?? '');
+    assert.ok(text !== undefined, `${key} 指向的文件 ${file} 不在 src/ 里`);
+    for (const named of entry.why.match(/`([^`]+)`/g) ?? []) {
+      const symbol = named.slice(1, -1);
+      // 形如 'banner' / "banner" 的是字面量，不是标识符。
+      const bare = symbol.replace(/^['"`]|['"`]$/g, '');
+      if (!/^[A-Za-z_$][\w$]*$/.test(bare)) continue;
+      if (!text!.includes(bare)) missing.push(`${key} 的 why 写了 \`${symbol}\`，可 ${file} 里没有它`);
+    }
+  }
+  assert.deepEqual(missing, [], `${missing.join('；')}。why 是给人核的，符号没了它就是一句指向空气的话。`);
 });
 
 /**
