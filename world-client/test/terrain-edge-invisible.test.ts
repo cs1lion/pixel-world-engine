@@ -35,7 +35,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { TERRAIN_COLORS, WORLD } from '../src/world/palette-data.ts';
-import { BRIGHT, DARK } from '../src/render/terrain-edges.ts';
+import { BRIGHT, DARK, EDGE_VISIBLE_MIN_DL } from '../src/render/terrain-edges.ts';
 import { loadSettingPack, buildSettingWorld } from '../src/settings/load.ts';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
@@ -383,4 +383,91 @@ test('没有一条未登记的边落在「几乎同色」里（dL* >= 3）', () 
     `这些边与底色的落差已在「肉眼分不出」的量级上：${faintEdges(READINGS, KNOWN_SAME).join('；')}。`
       + ' 这里只是哨兵，验收线仍是 terrain-edge-visibility.test.ts 的 8。',
   );
+});
+
+/**
+ * 「24 色里挑不出一个能当浅滩亮边」是假话：规则 3 那张清单里就有一个。
+ *
+ * `docs/iterations/issue-bright-shallow.md` 第 22 行写着：24 色里再也挑不出一个
+ * 与 `WORLD.water` 有落差、又适合当水面色高光的 token，所以「这个约束下无解」，
+ * 要么破例加色（违反 §1.2），要么让浅滩不画亮边。**前半句是假的。**
+ *
+ * 实测：规则 3 那张 7 token 清单（`terrain-edges.ts` 文件头第 3 条，由
+ * `terrain-edges.test.ts` 的「边色 token 清单」钉住）里，`trim` 比 `WORLD.water`
+ * **亮**，落差 **27.87**——压过可辨下限 6 四倍多，也比 grass / farm / mud 三条
+ * 已经在用的亮边（9.51 / 10.82 / 14.42）都醒目。而 `trim` 本来就在册、本来就在
+ * 那张清单里：用它不新增颜色、不动 24 色预算、不违反 §1.2「不加色」。
+ *
+ * 那份文档把两件事混成了一件：**调色板无解**（假）与**清单里没有一个比水色亮的**
+ * （也假，`trim` 就是）。真正无解的是更窄的一句——「清单里除 trim 外没有第二个」，
+ * 而这一句不构成阻碍。文档因此列出的 A（破例加色）建立在不存在的前提上。
+ *
+ * 这条测试钉住那个实测事实。哪天 `trim` 离开了清单、或色板改了让 `trim` 不再
+ * 比水色亮，这里会红——红的意思是「文档第 22 行那句要重新看」，不是去改测试。
+ *
+ * **这不授权改 `BRIGHT.shallow`。** 换色是调色板决策，要 ADR + 用户批准
+ * （规矩写在 `terrain-edge-visibility.test.ts` 的文件头与 `KNOWN_FAILING` 的
+ * `skipReason` 上）。这里只把「为什么一直没换」的真实理由查实，不代决。
+ *
+ * 盖不住的那一半：「适合当水面色高光」里的**适合**是审美判断，机器判不了。
+ * 这里只钉客观的那半——比底色亮、落差压过可辨下限、且在册。`trim` 是暖金色，
+ * 当作水面高光好不好看，得人盯着屏幕定。
+ */
+test('浅滩亮边缺色的理由不在 24 色里：规则 3 的清单内就有一个能用的 token', () => {
+  const base = TERRAIN_COLORS.shallow;
+
+  // 今天的状态：`shallow` 的亮边就是水色自己，与底色同色。
+  assert.equal(WORLD[BRIGHT.shallow as keyof typeof WORLD], base, 'BRIGHT.shallow 已经不与底色同色了——KNOWN_SAME 那一行该删，这条也该重新看');
+
+  // 规则 3 那张清单（BRIGHT 与 DARK 两表合起来用到的在册 token）。
+  const whitelist = [...new Set([...Object.values(BRIGHT), ...Object.values(DARK)])].sort();
+  assert.deepEqual(
+    whitelist,
+    ['grassLit', 'ink', 'plaza', 'soil', 'stone', 'trim', 'water'],
+    '规则 3 的清单变了——这条测的是「清单内有没有能用的」，先回来重看它在问什么',
+  );
+
+  /** 够格当浅滩亮边：比水色亮（高光的定义），且落差压过可辨下限。 */
+  const usable = whitelist.filter((token) => {
+    const value = WORLD[token as keyof typeof WORLD];
+    return typeof value === 'number' && lstar(value) > lstar(base) && dl(value, base) >= EDGE_VISIBLE_MIN_DL;
+  });
+
+  assert.deepEqual(
+    usable,
+    ['trim'],
+    '规则 3 的清单里，能当浅滩亮边的 token 不是正好 trim 一个——'
+      + '文档第 22 行「再也挑不出一个」的依据变了，回去重写那段',
+  );
+
+  // 它不光「够」，比现有三条亮边都醒目。这条是那份文档真正的错处：它把
+  // 「没有理想的」写成了「一个都没有」，而实测有一个比在用的都好的。
+  const trimDl = dl(WORLD.trim, base);
+  assert.ok(
+    Math.abs(trimDl - 27.87) <= 0.05,
+    `trim 对水色的落差实为 ${trimDl.toFixed(2)}，注释里写的 27.87 失真了`,
+  );
+  for (const terrain of ['grass', 'farm', 'mud'] as const) {
+    const inUse = dl(WORLD[BRIGHT[terrain] as keyof typeof WORLD], TERRAIN_COLORS[terrain]);
+    assert.ok(
+      trimDl > inUse,
+      `trim 的落差 ${trimDl.toFixed(2)} 已经不比 ${terrain} 那条在用的亮边（${inUse.toFixed(2)}）醒目了——`
+        + '「比现有亮边都好」这半句成了假话',
+    );
+  }
+});
+
+/**
+ * 上一条的判据不能是空转的：喂一个**暗** token 与一个**落差不够**的 token，
+ * 它们必须被筛掉。否则「usable 只有 trim」可能只是判据什么都没筛。
+ */
+test('上条的判据不是空转的：暗于底色、或落差不够的，都进不了 usable', () => {
+  const base = TERRAIN_COLORS.shallow;
+  const usable = (token: keyof typeof WORLD): boolean =>
+    lstar(WORLD[token]) > lstar(base) && dl(WORLD[token], base) >= EDGE_VISIBLE_MIN_DL;
+
+  assert.equal(usable('water'), false, '同色当然不够');
+  assert.equal(usable('stone'), false, `stone 比水色暗（${dl(WORLD.stone, base).toFixed(2)}）——暗 token 当不了高光`);
+  assert.equal(usable('terracotta'), false, `terracotta 比水色亮但落差只有 ${dl(WORLD.terracotta, base).toFixed(2)}，不到下限`);
+  assert.equal(usable('trim'), true, 'trim 该过得去——上一条靠它成立');
 });
