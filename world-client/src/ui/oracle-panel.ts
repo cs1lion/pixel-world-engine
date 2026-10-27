@@ -251,6 +251,10 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     paintSlab(api);
     paintDecree(api);
     paintWorldState(api);
+  }, {
+    // 等不到就换一句真话。场景自己也跑在 rAF 上，一帧都不合成时它压根不会
+    // create()——屏上那句「世界正在醒来…」会挂一辈子，那是一句没人来兑的承诺。
+    onGiveUp: () => show(false, '世界没有醒来。刷新页面再试。'),
   });
 
   const submit = (text: string): boolean => {

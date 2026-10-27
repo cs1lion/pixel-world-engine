@@ -74,5 +74,11 @@ export function bindHud(getApi: () => HudApi | undefined): void {
   whenApi(getApi, (api) => {
     api.onStatus(() => paint(api.view()));
     paint(api.view());
+  }, {
+    // 顶栏那句「世界正在醒来…」不能挂一辈子。等不到就照实说，别让一句
+    // 没人来兑的承诺占着位置——见 `when-api.ts` 上那段。
+    onGiveUp: () => {
+      if (load !== null) load.textContent = '世界没有醒来 · 刷新页面再试';
+    },
   });
 }

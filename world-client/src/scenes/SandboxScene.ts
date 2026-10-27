@@ -96,6 +96,18 @@ export class SandboxScene extends Phaser.Scene {
   private tick = 0;
   private villagerName = '莞尔';
   private lastStatus = '';
+  /**
+   * 上一次**说出口的**结果。null 表示还没说过。
+   *
+   * 与 `lastStatus` 做同一件事：订阅来晚了，把最后那一句补给它。`onStatus`
+   * 一直这么做，`onResult` 从前不做——于是场景挂上与界面订阅之间那段时间里
+   * 产生的结果**整条丢掉**。用户点的按钮就在那个窗口里的话，世界照办，
+   * 屏上一个字都不显示。
+   *
+   * 只记有话可说的那些：轮询每次失败都带一个空结果过来（见 `simulation.ts`
+   * 的 `syncEvents`），补一句空话等于没补。
+   */
+  private lastReply: CommandResult | null = null;
   private lastRoadCount = -1;
   /** 造物模式会话。null 表示不在造物模式里。 */
   private creation: { readonly prefabId: string; ghostAt: GridPoint | null } | null = null;
@@ -593,7 +605,7 @@ export class SandboxScene extends Phaser.Scene {
       // 世界的可回放性仍然只取决于它收到的那串步长。
       const results = this.sim.update(LOGIC_STEP_MS * this.timeScale);
       for (const result of results) {
-        for (const listener of this.resultListeners) listener(result);
+        this.speak(result);
       }
       this.tick += 1;
       steps += 1;
@@ -810,9 +822,20 @@ export class SandboxScene extends Phaser.Scene {
     return targets;
   }
 
+  /**
+   * 把一个命令结算结果说给所有订阅者，并记住最后那句有话说的。
+   *
+   * 单独一个漏斗：交付是这个世界最要紧的「发生过的事」，而这里是它到界面的
+   * 唯一出口。两处发射（`update` 的结算、造物提示）都走它，补发时也只补一处。
+   */
+  private speak(result: CommandResult): void {
+    if (result.message !== '') this.lastReply = result;
+    for (const listener of this.resultListeners) listener(result);
+  }
+
   private publishCreationHint(line: string): void {
     if (line === '') return;
-    for (const listener of this.resultListeners) listener({ ok: true, message: line });
+    this.speak({ ok: true, message: line });
   }
 
   /** 手动存档：立即把当前世界写进单槽。 */
@@ -1033,6 +1056,9 @@ export class SandboxScene extends Phaser.Scene {
       pushEvent: (event: { kind: string; payload: Record<string, unknown> }): void =>
         this.pushEvent(event),
       onResult: (listener: (result: CommandResult) => void): (() => void) => {
+        // 订阅来晚了就补最后那一句，与 `onStatus` 同一个道理：场景挂上与界面
+        // 订阅之间那段时间里产生的结果不能整条丢掉。见 `lastReply`。
+        if (this.lastReply !== null) listener(this.lastReply);
         this.resultListeners.add(listener);
         return () => this.resultListeners.delete(listener);
       },
