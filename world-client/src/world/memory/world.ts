@@ -18,9 +18,16 @@
 import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
 import { consolidateHolder } from './consolidate.ts';
 import { candidatesFrom, decayLegend, faded, formLegend, qualifies } from './legend.ts';
-import { witnessesOf, type OcclusionGrid, type Perceiver, type PlaceAnchor } from './perception.ts';
+import {
+  distance,
+  witnessesOf,
+  type OcclusionGrid,
+  type Perceiver,
+  type PlaceAnchor,
+} from './perception.ts';
 import { deleteCascade, writeModeOf, type DeletionReport, type DeletionRoot } from './privacy.ts';
 import {
+  announcementReach,
   canFanout,
   canSpread,
   createClaim,
@@ -794,6 +801,10 @@ export class MemoryWorld {
 
     this.updateLegends(closedDay, at);
 
+    // 日报贴在 legends 之后、心电图之前：读到公告的人当天就算被广播触达，
+    // 而「今天有几个人被孤立」这个数要把他们算进去。
+    this.postDailyReport(closedDay, at);
+
     const vitals = computeVitals({
       day: closedDay,
       memories: this.entries,
@@ -1051,6 +1062,71 @@ export class MemoryWorld {
         claimIds: record.claims.map((claim) => claim.claimId),
       });
     }
+  }
+
+  /**
+   * 日终日报：把今天最重大的一件事贴到公告栏，让够得着的人读到。
+   *
+   * 五类通道里的**广播**在这之前没有生产方：`postAnnouncement` 与
+   * `readAnnouncement` 在测试之外一个调用方都没有，`announcementReach`
+   * 只被它自己读。于是「官方渠道」这句话在跑着的世界里是假的——而
+   * `latency_ratio` 那条指标（公告 ≤ 0.5 天 vs 传言 1.5–2.5 天）少了一半。
+   *
+   * 补充设计 §3.2 的定稿表把发布权留给三方：玩家（神明）、村长（Planner）、
+   * **系统日终日报**。前两方都不在本组边界内——神明的入口是
+   * `ingestUpstream`，Planner 属于造物主/导演那一节。所以这里只做第三方，
+   * 而它恰好是唯一不需要任何生成逻辑的那一方：日报贴什么，是**从已经发生
+   * 的事情里挑**，不是编一件新的。
+   *
+   * 挑法：今天诞生的断言里，取其起源者写下那条记忆的显著度最高的一条。
+   * 显著度是这个世界自己的注意力，不是谁的偏好。同分按 claimId 取先——
+   * 同一份存档跑两遍，贴上去的是同一张。
+   */
+  private postDailyReport(day: number, at: number): void {
+    const claim = this.reportClaimOf(day);
+    if (claim === null) return;
+    // 公告栏得有地方站。地点 Holder 不在名册里（或没有落点）就没有广播——
+    // 世界不能假装那儿立着一块板子。
+    const board = this.holders.get(claim.content.where)?.at;
+    if (board === undefined) return;
+
+    const announcement: Announcement = {
+      announcementId: this.nextId('notice'),
+      claim,
+      postedDay: day,
+      placeId: claim.content.where,
+      // 日报没有「人」作者。写 'system' 而不是某个村民：今天最重大的事
+      // 不见得是村长经历的，而公告的可信度来自渠道，不来自发言人。
+      poster: 'system',
+    };
+    if (!this.postAnnouncement(announcement)) return;
+
+    // 读到的人才算被触达。范围 4 格，不看遮挡——公告栏立在明处。
+    // 没有位置的人不在听众里：不知道他在哪，就不能假装他路过了一块板子。
+    const listeners = this.holderIds()
+      .filter((holderId) => this.holders.get(holderId)?.type === 'character')
+      .map((holderId) => ({ holderId, at: this.holders.get(holderId)!.at }))
+      .filter((listener): listener is { holderId: string; at: { x: number; y: number } } => listener.at !== undefined)
+      .map((listener) => ({ holderId: listener.holderId, distance: distance(board, listener.at) }));
+    for (const holderId of announcementReach(listeners, this.config)) {
+      this.readAnnouncement(holderId, announcement.announcementId, at);
+    }
+  }
+
+  /** 今天最值得贴上公告栏的那条断言。没有就返回 `null`——安静的一天没有新闻。 */
+  private reportClaimOf(day: number): Claim | null {
+    let best: { claim: Claim; salience: number } | null = null;
+    for (const claim of [...this.claims.values()].sort()) {
+      if (claim.createdDay !== day) continue;
+      const entry = this.entries.find(
+        (item) =>
+          item.holderId === claim.originHolderId &&
+          item.eventRefs.some((ref) => claim.eventRefs.includes(ref)),
+      );
+      if (entry === undefined) continue;
+      if (best === null || entry.salience > best.salience) best = { claim, salience: entry.salience };
+    }
+    return best?.claim ?? null;
   }
 
   /**
