@@ -62,6 +62,28 @@ import { sourceFiles } from './source-scan.ts';
  *   就是这一句。等它有包了，两张表一起清空——在那之前，本闸门守的是
  *   「灯潮界完全由包驱动，且莞尔镇那部分不会再长」。
  *
+ *   **这一句管不到 `render/setting-scenery.ts|wave_house` 那一行**：叠浪楼是
+ *   灯潮界包的资产（`pack.ts` 声明并落位它），莞尔镇长出包也清不掉它。它进表的
+ *   理由是「渲染器按 prefabId 分叉」，不是「莞尔镇没包」。所以清表那天要一行一行
+ *   看 `why`，不能照这一句一把扫。
+ *
+ * ## 登记表的 `why` 本身也会假（2026-10-28 逐条核过，两轮）
+ *
+ * 双向 diff 保的是「表里的行与代码里的行对得上」，保不了 `why` 说对了。
+ * 两轮核下来，**19 行里有过四处假话**：
+ *
+ * - `world-state.ts` 四条把 `TaskKind` 说成「研究节点」（还把 `gear_tower` 的活
+ *   对错了）、同四条说「莞尔镇没有配置包」（那张表不分局）。
+ * - `render/buildings.ts` 的 `ink_house` 说「窗光」——那一支画的是纸屏，
+ *   `drawFacade` 的原文写着「替代普通窗」。
+ * - `wave_house` 说「才好把幌布挂在它两侧」——幌布走 `pack.scenery`，与它无关。
+ *
+ * 已按实测改写。**教训不是「下次写仔细点」**——是 `why` 是散文，散文说错了只有
+ * 复核能发现。第一轮改完我又新写了一处假的（`workshop_plot` 那条跟着上面三行写
+ * 「同上」，而 `quick` 永远进不了补缺面板），第二轮才挑出来。所以加了一条
+ * 「`why` 里反引号点名的符号得还在」，并在那条测试里写明它拦不住上面四处
+ * （它们一个符号都没带），覆盖面是 19 行里的 4 行。别把那条读成全自动保障。
+ *
  * ## 潮汐那条与 #13 的冲突（记账，不在本文件解决）
  *
  * #13 的交付清单写着「潮汐周期与抖动幅度」要进配置包。可 `tide.ts` 的文件头
@@ -146,8 +168,19 @@ function codeKeepStrings(file: string): string {
 const FILES = sourceFiles(SRC_DIR);
 const CODE = new Map(FILES.map((f) => [f, codeKeepStrings(f)]));
 
-/** 设定集自己的文件：那儿写着世界数据是天经地义，不是违例。 */
-const isPackFile = (file: string) => rel(file).startsWith('settings/');
+/**
+ * 设定集**自己**那一份数据文件：那儿写着世界数据是天经地义，不是违例。
+ *
+ * 按**角色**排，不按目录排。原来写的是 `rel(file).startsWith('settings/')`，
+ * 把 `load.ts`（装载与校验器）、`index.ts`（注册表）、`types.ts`（类型）三个引擎
+ * 文件一起排掉了——它们不是设定集数据，是读设定集的机器。往里写一句
+ * `export const MUT_D = '渡口站台'`，四条判据一条都不红。
+ *
+ * 2026-10-28 收窄成只排 `pack.ts`，实测**没有新增违规**（9 条全绿）：那三个
+ * 引擎文件里今天确实没有世界数据字面量。所以收窄不是"修一处红"，是把排除的
+ * 理由从"这个目录"改成"这一份是包数据"——明天谁把数据写进 `load.ts`，它会响。
+ */
+const isPackFile = (file: string) => rel(file) === 'settings/dengchao/pack.ts';
 
 // ------------------------------------------------------------------ 判据一：色值
 
@@ -201,8 +234,28 @@ function packWords(): readonly string[] {
  * 某个具体词来比」。`beat.label === '点亮楼前的长灯'` 是后一种——它不声明落点，
  * 但同样把设定集的一个选择焊死在了代码里。
  *
- * 引号三种都算（`'` `"` `` ` ``）：只查单引号会漏，而漏掉的那一处正是有人
- * 「顺手改了个引号风格」的地方。
+ * 判据是**子串**，不是「整串恰好等于这个词」。
+ *
+ * 第一版写的是引号紧贴着词（`line.includes(\`'${word}'\`)` 一类）。那有个洞：
+ * 模板串里除这个词还有别的内容就整条逃掉——`` `区域是渡口站台` `` 全绿。而模板串
+ * 最常见的写法正是前者。改成子串之后**当天就抓出两处真的**：
+ * `intent-prompt.ts` 的提示词散文里写着「迷路人进不去叠浪楼」，而那份提示词
+ * 跨设定集共用（`buildIntentPrompt` 只收模板表与现状，不知道当前是哪个世界），
+ * 对莞尔镇是一句假话。两处已改写成占位（2026-10-28）。
+ *
+ * 代价是单字名的假阳性，所以**单字名不按子串查**：`汐` 是一位居民的名字，
+ * 也是「潮汐」的右半边。按子串查，今天这棵树裸扫 84 处命中里 56 处是它，
+ * 剔了注释还剩 1 处——`intent-prompt.ts` 的「到期自己回到潮汐节律」。
+ * 一个字的词没有词边界可言，中文里尤其如此。所以单字名仍旧要求引号贴着
+ * （`'汐'` / `"汐"` / `` `汐` ``），那是它在代码里被当真名字用的唯一形状。
+ *
+ * 实测（2026-10-28）：裸扫 84 处命中；剔掉注释剩 1 处，是「潮汐节律」里的
+ * `汐`；单字名改回引号判据之后 **0 处**。
+ *
+ * 还有一层说得清但补不上的：包内 15 个词里有两个是另两个的词里的子串
+ * （`灯街` ⊂ 「沿着灯街找一盏认识的灯」、`叠浪楼` ⊂ 「在叠浪楼外等潮水退去」，
+ * 都是作息说法）。所以命中一条说法时会连带报出它含着的区域名——同一处报两行，
+ * 不是漏报。
  */
 function packWordReferences(): readonly string[] {
   const words = packWords();
@@ -211,16 +264,19 @@ function packWordReferences(): readonly string[] {
     if (isPackFile(file)) continue;
     text.split('\n').forEach((line, i) => {
       for (const word of words) {
-        for (const q of ['\'', '"', '`']) {
-          if (line.includes(`${q}${word}${q}`)) hits.push(`${rel(file)}:${i + 1} ${word}`);
-        }
+        // 单字名按引号查，多字名按子串查——理由见上面的「潮汐」。
+        const hit =
+          word.length === 1
+            ? line.includes(`'${word}'`) || line.includes(`"${word}"`) || line.includes(`\`${word}\``)
+            : line.includes(word);
+        if (hit) hits.push(`${rel(file)}:${i + 1} ${word}`);
       }
     });
   }
   return hits.sort();
 }
 
-test('src/settings/ 之外不引用设定集的名字与说法', () => {
+test('除包数据那一份之外，不引用设定集的名字与说法', () => {
   assert.deepEqual(
     packWordReferences(),
     [],
@@ -416,19 +472,23 @@ const KNOWN_PREFABS: Readonly<Record<string, { readonly why: string }>> = {
   'world/setup.ts|cottage_stone': { why: '莞尔镇没有配置包。三种镇内住宅之一。' },
   'world/setup.ts|homestead_far': { why: '莞尔镇没有配置包。两种野外庄院之一。' },
   'world/setup.ts|homestead_ridge': { why: '莞尔镇没有配置包。两种野外庄院之一。' },
-  // world/world-state.ts：每类活对应的郊野模板 id。
+  // world/world-state.ts：`WILD_PREFAB_OF` 把四类活映到模板 id。
   //
   // 这一组的 why 我第一版全写错了，2026-10-28 逐条核过：
   //   - 写的是「研究节点」，可 `WILD_PREFAB_OF` 的键是 `TaskKind`，四类活
   //     （`tasks.ts` 的 `TASK_PROFILES`）分别是写代码 / 查资料 / 整理便笺 /
   //     顺手查一件小事，没有一类叫「研究」。
-  //   - 写的是「莞尔镇没有配置包」，可这张表**不分局**：`oracle-panel.ts` 的
-  //     补缺面板拿它决定建哪栋，不管当前加载哪个设定集。
+  //   - 写的是「莞尔镇没有配置包」，可这张表**不分局**：补缺面板不管当前
+  //     加载哪个设定集都读它。
   //   - `gear_tower` 那条还把 id 与显示名对错了：齿轮塔接的是「写代码」，
   //     不是「研究」。
+  // 第二版又把「郊野模板」写成了四行的共同点——**不成立**：`WILD_PREFABS`
+  // 只有 crawler_mine / ink_mill / gear_tower 三项，`workshop_plot` 是扩建样板
+  // （`setup.ts` 明写「不参与开局落位」，`prefabs.json` 给它 zone=industry）。
+  // 四行的共同点只有一句：`WILD_PREFAB_OF` 是个必须填满的 Record<TaskKind, string>。
   'world/world-state.ts|gear_tower': {
     why: '补缺按钮要建哪栋：`WILD_PREFAB_OF` 把「写代码」映到齿轮塔，而它不分局——'
-      + 'oracle 面板不管当前是哪个设定集都读这张表。包侧没有对应字段。',
+      + '补缺面板不管当前是哪个设定集都读这张表。包侧没有对应字段。',
   },
   'world/world-state.ts|crawler_mine': {
     why: '同上，「查资料」映到爬虫矿洞。',
@@ -436,8 +496,16 @@ const KNOWN_PREFABS: Readonly<Record<string, { readonly why: string }>> = {
   'world/world-state.ts|ink_mill': {
     why: '同上，「整理便笺」映到文档磨坊。',
   },
+  // 这一行**不能**跟着上面三行写「同上」：`quick` 永远进不了补缺面板。
+  // `WorkshopTask = Exclude<TaskKind, 'quick'>`、`boundTask: WorkshopTask | null`
+  // （没有建筑能带 quick）、`missingWild` 由 `WORKSHOP_TASKS`（三项）派生。
+  // 所以这个字面量在缺口路径上一次都没被读过——它待在这儿，只是因为
+  // `WILD_PREFAB_OF` 是 Record<TaskKind, string>，四个键必须全填。
   'world/world-state.ts|workshop_plot': {
-    why: '同上，「顺手查一件小事」映到新工坊。',
+    why: '`WILD_PREFAB_OF` 是 Record<TaskKind, string>，四个键必须全填，所以 quick '
+      + '也得有一个值。可 `WorkshopTask = Exclude<TaskKind, \'quick\'>`、'
+      + '`boundTask: WorkshopTask | null`、`missingWild` 由三项的 `WORKSHOP_TASKS` '
+      + '派生——这个字面量在缺口路径里一次都没被读过。',
   },
   // render/buildings.ts：三栋常驻铺子各自的立面识别件（`drawFacade` 的原文）。
   //
@@ -457,10 +525,20 @@ const KNOWN_PREFABS: Readonly<Record<string, { readonly why: string }>> = {
   //
   // 这一条的 why 原来写着「才好把幌布挂在它两侧」——假话。幌布来自
   // `pack.scenery` 里 kind 为 'banner' 的项，跟这次查找半点关系没有。
-  // 实测这次查找画的是陶土红栏（dy 23/44/65 三层）与逐层窗火。
+  //
+  // 第二版我又写错两处（2026-10-28 由子 agent 挑出、我复量确认）：
+  //   - 「莞尔镇没有配置包」不成立。叠浪楼**是**灯潮界包的资产：`pack.ts`
+  //     声明它、落位它，这一行正是从 `pack.placements` 里把它找出来的。
+  //     所以文件头「等莞尔镇有包了两张表一起清空」那句**管不到这一行**——
+  //     它不会因为莞尔镇长出包而消失。
+  //   - 「逐层窗火」也不是那块画的。那一整块只用 `c.terracotta` 画两样：
+  //     每层一道 118×3 的横栏，和每层 8 根 2×10 的竖档（从横栏顶部往下挂）。
+  //     **没有单独配色的窗火**——那个词是从 `setting-scenery.ts` 自己的注释
+  //     原文抄的，实测能证成的只有「三层红栏、dy 23/44/65、全陶土色」。
   'render/setting-scenery.ts|wave_house': {
-    why: '莞尔镇没有配置包。灯街的主楼（叠浪楼）要从包里的落位里认出来，'
-      + '给它画三层红栏与逐层窗火——这是「哪一栋特殊」写死在渲染器里。',
+    why: '渲染器按 prefabId 分叉：叠浪楼从包里的落位里认出来，给它画三层红栏'
+      + '（dy 23/44/65，每层一道 118×3 横栏加 8 根 2×10 竖档，全 terracotta）。'
+      + '这是「哪一栋特殊」写死在渲染器里——包里有这栋楼，却没有字段说它特殊。',
   },
 };
 
@@ -509,7 +587,8 @@ test('代码里写死的预制体 id 必须与 KNOWN_PREFABS 一模一样', () =
  *
  * ## 先说清这条**不能**防什么
  *
- * 2026-10-28 我逐条核过这 19 行的 `why`，挑出**三处假话**：
+ * 2026-10-28 我逐条核过这 19 行的 `why`，挑出**四处假话**（第一版这里写「三处」，
+ * 少算了第四处——子 agent 挑出来的，我复量确认）：
  *
  * - `world-state.ts` 四条写着「研究节点」——可 `WILD_PREFAB_OF` 的键是
  *   `TaskKind`，四类活是写代码 / 查资料 / 整理便笺 / 顺手查一件小事，
@@ -517,18 +596,31 @@ test('代码里写死的预制体 id 必须与 KNOWN_PREFABS 一模一样', () =
  * - 同四条写着「莞尔镇没有配置包」——可那张表**不分局**，补缺面板不管当前
  *   是哪个设定集都读它。
  * - `wave_house` 那条写着「才好把幌布挂在它两侧」——幌布来自 `pack.scenery`
- *   里 kind 为 `'banner'` 的项，与那次查找无关；那次画的是三层红栏与逐层窗火。
+ *   里 kind 为 `'banner'` 的项，与那次查找无关。
+ * - `render/buildings.ts` 的 `ink_house` 写着「窗光」——那一支画的是三扇 pale
+ *   屏风加 trim 木格，`drawFacade` 的原文自己写着「**替代普通窗**」。对它而言
+ *   「窗光」不是「不准」，是假话。
  *
- * **这三处一条都不带反引号符号**，所以下面这条判据一道都拦不住。拦不住是
+ * **这四处一条都不带反引号符号**，所以下面这条判据一道都拦不住。拦不住是
  * 实话：`why` 是散文，散文说错了只有人能发现。这一轮是靠复核发现的，不是靠
  * 闸门。别把这条读成「以后假 `why` 会被自动抓到」——那是下一个假话。
  *
+ * （这句话是实测的，不是推理：把改写前的原文整批贴回去跑，这条判据全绿。
+ *   子 agent 2026-10-28 验过。）
+ *
  * ## 那这条还防什么
  *
- * 防下一轮：新写下的 `why` 是带着符号写的（`WILD_PREFAB_OF` / `drawFacade` /
- * `pack.scenery`…）。哪天这些符号被改名或删掉，`why` 当场变成一句指向空气的
- * 话——而它会安静地躺在登记表里，直到下一个人核它。符号改名是**会响的**那种
- * 破坏，这一条让它在这里就响。
+ * 防下一轮：有些 `why` 是带着符号写的（`WILD_PREFAB_OF` / `drawFacade` /
+ * `Record<TaskKind, string>` / `WorkshopTask` / `setup.ts`）。哪天这些符号被改名或
+ * 删掉，`why` 当场变成一句指向空气的话——而它会安静地躺在登记表里，直到下一个
+ * 人核它。符号改名是**会响的**那种破坏，这一条让它在这里就响。
+ *
+ * ## 覆盖面：19 行里只有 4 行真的过这条判据
+ *
+ * 带反引号的 `why` 一共 5 行，其中 `` `setup.ts` `` 因为带点过不了下面的标识符
+ * 正则，被静默 `continue` 掉。所以**真正被这条判据盖住的是 4/19 行**——不是全部，
+ * 也别以为是全部。反引号里装的是路径时，它不报警，也不该报警（路径不是标识符），
+ * 但它确实不在覆盖范围内。
  *
  * 判据只认反引号里的内容，且只在本行对应的那个文件里找。之所以不认中文引号
  * 「」：那里面装的是人话，不是标识符。
@@ -544,7 +636,14 @@ test('KNOWN_PREFABS 的 why 点名的符号都还在自己那个文件里', () =
     assert.ok(text !== undefined, `${key} 指向的文件 ${file} 不在 src/ 里`);
     for (const named of entry.why.match(/`([^`]+)`/g) ?? []) {
       const symbol = named.slice(1, -1);
-      // 形如 'banner' / "banner" 的是字面量，不是标识符。
+      // 先把首尾的引号剥掉，**再**把剩下的当标识符送进正则。所以反引号里写着
+      // `'banner'` 时，受检的是标识符 `banner`，不是被跳过。
+      //
+      // （第一版这条注释写的是「形如 'banner' 的是字面量，不是标识符」——把它
+      //   标注的那行做的事说反了。子 agent 挑出来的。）
+      //
+      // 顺带：反引号里装着路径（`setup.ts`）时，剥不掉点，正则不过，于是**静默
+      // 跳过**。上面文档里说了这是已知的覆盖面缺口（19 行只盖住 4 行）。
       const bare = symbol.replace(/^['"`]|['"`]$/g, '');
       if (!/^[A-Za-z_$][\w$]*$/.test(bare)) continue;
       if (!text!.includes(bare)) missing.push(`${key} 的 why 写了 \`${symbol}\`，可 ${file} 里没有它`);
