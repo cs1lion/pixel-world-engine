@@ -94,13 +94,6 @@ export function isVisiblyRaining(state: WeatherState): boolean {
   return state.intensity > 0.05;
 }
 
-/**
- * 给渲染层的强度：暴雨在同样的 `intensity` 上再加一档。
- *
- * 为什么加在这里而不是渲染层：`Simulation.weatherIntensity()` 是渲染层唯一的输入，
- * 让它一次给全，渲染层就不必知道天气有几档——加第三档时渲染层一行没改，
- * 就是这条设计的回报。上限仍然是 1，因为插值的那几个量都是 0..1 语义。
- */
 /** 天气的一两个字说法。状态行、日报、喂给模型的世界现状都从这里取，
  *  免得三处各写一份三元判断、加档时漏掉其中两处。 */
 export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
@@ -109,6 +102,13 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
   storm: '暴雨',
 };
 
+/**
+ * 给渲染层的强度：暴雨在同样的 `intensity` 上再加一档。
+ *
+ * 为什么加在这里而不是渲染层：`Simulation.weatherIntensity()` 是渲染层唯一的输入，
+ * 让它一次给全，渲染层就不必知道天气有几档——加第三档时渲染层一行没改，
+ * 就是这条设计的回报。上限仍然是 1，因为插值的那几个量都是 0..1 语义。
+ */
 export function renderIntensity(state: WeatherState): number {
   if (state.kind !== 'storm') return state.intensity;
   // 加 0.25 而不是乘以系数：浓淡正在渐入时（比如 0.2）暴雨也该比雨重，
