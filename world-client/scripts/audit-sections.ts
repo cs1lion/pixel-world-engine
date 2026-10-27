@@ -74,7 +74,10 @@ const SEC = /§\s*(\d+(?:\.\d+)*)(?::\d+)?/g;
  * 文档 token 的形状：一份仓内路径、一个全大写下划线名、或一个中文文档词。
  * 单拿出来不判对错——它得**紧贴在一个 `§N` 前面**才算点名了文档。
  */
-const DOC_TOK = /([\w./-]+\.(?:ts|mjs|md|py))|([A-Z][A-Z0-9]{1,}_[A-Z0-9_]{1,})|([一-龥]{2,}(?:文档|设计|规格|协议|审计|规范))/;
+const DOC_TOK =
+  '(?:[\\w./-]+\\.(?:ts|mjs|md|py)|[A-Z][A-Z0-9]{1,}_[A-Z0-9_]{1,}|[一-龥]{2,}(?:文档|设计|规格|协议|审计|规范))';
+/** token 紧贴在一个 `§N` 前面。反引号/引号/括号与空白都允许夹在中间。 */
+const DOC_BEFORE_SEC = new RegExp(`(${DOC_TOK})\\s*[\`」』）)]*\\s*$`);
 /** 往前看这么多字符找文档 token。够装下 `world-client/src/world/palette-data.ts`。 */
 const WINDOW = 64;
 /** 标题行：`## §1 标题` 与 `## 1. 标题` 都认。 */
@@ -200,7 +203,9 @@ export function auditSections({
 
   const findings: SectionFinding[] = [];
   const skips = new Map<string, number>();
-  const bump = (reason: string): void => skips.set(reason, (skips.get(reason) ?? 0) + 1);
+  const bump = (reason: string): void => {
+    skips.set(reason, (skips.get(reason) ?? 0) + 1);
+  };
   let checked = 0;
 
   for (const abs of scan ?? scanFiles(root)) {
@@ -218,9 +223,7 @@ export function auditSections({
         // 改成紧贴判据之后误报归零，代价说清楚：`§8` 前面只写着「与」的那种
         // （`ADR_WORLD_ALIVE.md:4`）会漏掉——那是漏，不是冤。
         const before = line.slice(Math.max(0, m.index - WINDOW), m.index);
-        const tok = /([\w./-]+\.(?:ts|mjs|md|py)|[A-Z][A-Z0-9]{1,}_[A-Z0-9_]{1,}|[一-龥]{2,}(?:文档|设计|规格|协议|审计|规范))\s*[`」』）)]*\s*$/.exec(
-          before,
-        );
+        const tok = DOC_BEFORE_SEC.exec(before);
         if (!tok) {
           bump('没点名文档（裸 §N，前面没有一个紧贴的文档 token）');
           continue;
