@@ -794,9 +794,9 @@ try {
   await waitFor('S-L468 短活自己结束', (s) => s.villager.mode === 'idle');
 
   // L471-479：下雨 / 躲雨 / 放晴
-  // S-L474 不能拿「天气刚变」那个快照直接断言：umbrella 是
-  // `this.isRaining() && villager.mode !== 'working'`（simulation.ts:2061），天气一变立刻为真；
-  // 而 mode 切到 'sheltering' 依赖 scatterToShelter()（simulation.ts:1519）在同一拍把
+  // S-L474 不能拿「天气刚变」那个快照直接断言：`umbrella` 是
+  // `isRaining()`（`simulation.ts:1869`）与「不是 working」的与（`simulation.ts:2092`），天气一变立刻为真；
+  // 而 mode 切到 'sheltering' 依赖 `scatterToShelter()`（`simulation.ts:1523`）在同一拍把
   // 空闲角色改主意。两条断言的稳定时机不同，挤在同一个快照上就会偶发假失败
   // （实测挂过一次、重跑即过）。改成等状态成立，而不是等天气成立。
   await page.click('#rain');
