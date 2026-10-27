@@ -19,7 +19,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -196,4 +196,44 @@ test('退出码透传到进程上：坏了就必须非零', (t) => {
   });
   assert.notEqual(run.status, 0, '夹具是坏的，进程必须非零退出');
   assert.match(run.stderr, /没算/);
+});
+
+/**
+ * 仓库**自己**那份 `tsconfig.json` 的 `include` 必须同时盖住 `src` 与 `test`。
+ *
+ * 上面十一条全是临时目录里的夹具，**没有一条看过真配置**。于是真配置被收窄时，
+ * 全套照绿：把 `include` 改成 `["src"]`，`npm run check` 与 `npm run build`
+ * 从此不再查那 150 多个测试文件，而它们的输出只会变短、不会变红。
+ *
+ * 这不是假想的坑。`c9d574d` 那一笔往 `test/` 里留了 11 处编译错没人发现，
+ * 倒查时第一反应是「check-types 漏了 test/」——那句话是假的（它走
+ * `tsconfig.json`，而 `include` 明明是 `["src", "test"]`，查得见），
+ * 真正的原因是那一笔拿 `vite build` 当了类型验证，而 `vite build`
+ * **一个类型都不查**（`package.json` 的 `build` 是
+ * `node scripts/check-types.ts && vite build`，类型检查是前一半的事）。
+ * 可倒查走到一半就够让人后怕：覆盖面全靠一行 `include` 撑着，
+ * 而没有任何东西守着这一行。
+ *
+ * 所以这条不测行为，测**配置**：`src` 与 `test` 都得在 `include` 里。
+ * 少一个就红，红的时候该做的是把它加回去，不是把这条改绿。
+ *
+ * 为什么只查这两项、不查 `exclude`：`exclude` 今天没有值，而一条
+ * 「exclude 必须为空」的断言会在有人合理排除 `test/fixtures/` 时莫名其妙地红。
+ * 真到了那天，该红的是别的判据，不是这一条。
+ */
+test('仓库真 tsconfig 的 include 同时盖住 src 与 test', () => {
+  const raw = readFileSync(
+    fileURLToPath(new URL('../tsconfig.json', import.meta.url)),
+    'utf8',
+  );
+  const config = JSON.parse(raw) as { include?: unknown; exclude?: unknown };
+  const include = config.include;
+  assert.ok(Array.isArray(include), 'tsconfig.json 里找不到 include 数组——它被删了或改了形状');
+  for (const needed of ['src', 'test']) {
+    assert.ok(
+      (include as string[]).includes(needed),
+      `tsconfig.json 的 include 里没有 "${needed}"——npm run check 从此不再查那一层，`
+        + '而输出只会变短、不会变红。加回去，别把这条改绿。',
+    );
+  }
 });
