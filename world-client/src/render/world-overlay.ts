@@ -89,9 +89,16 @@ export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement, regio
     const stageRect = stage.getBoundingClientRect();
     // 缩放必须取 transform 矩阵的真实值，**不能**用 stageRect.width / stage.offsetWidth 反推：
     // offsetWidth 是整数取整值（实测 962），而 stageRect.width 是小数（961.7778），
-    // 两者相除得到 0.99977 这种假缩放，把 overlay 宽度写成 960.215px 而不是 960px。
-    // 亚像素偏差会随 stage 缩放放大（100% 0.215px → 200% 0.431px → 400% 0.861px），
+    // 两者相除得 0.9997690。overlay 的宽度是**除以**这个缩放的（下面 `width` 与
+    // `overlayWidth` 两处都是除），于是 960 被写成 960.2218px。这个亚像素偏差随
+    // stage 缩放等比放大：100% 0.2218px → 200% 0.4436px → 400% 0.8872px，
     // 到 400% 就超出 overlay 贴合 canvas 的 0.5px 容差（S-L544 实测 contained=false）。
+    //
+    // 哪些数是谁说的：`962` 与 `961.7778` 是浏览器实测（S-L544），我复核不了；
+    // 后面三个偏差数是从这两个数现算的，算式就是上面那一除，拿计算器按得出来。
+    // 原来写的是 0.215 / 0.431 / 0.861，三个都比算式小 2.6%——先把 0.9997690
+    // 舍成 0.99977 再算是 0.2209，同样对不上，所以那三个数的来路已经查不出来了。
+    // 结论不受影响：0.8872 比 0.861 更超出容差，方向一致，只是数不对。
     // 矩阵在 stage 未被缩放时是 none，此时取 1，正好也是正确值。
     const rootScale = readStageScale(stage);
     // overlay 与 canvas 完全同框：大小/位置每帧按真实 rect 同步，避免边框/缩放误差。
