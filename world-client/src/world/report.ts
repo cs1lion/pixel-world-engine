@@ -46,8 +46,8 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     });
     // 「最近一单」要的是**最晚交付**的那一单，不是数组末尾那一单。
     //
-    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1234`、`:1816`，
-    // 读档那条 `:2919` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
+    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1285`、`:1867`，
+    // 读档那条 `:2970` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
     // 没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
     // 这两个顺序会分叉：先派下去的长活后交，后派下去的短活先交。照数组末尾取，
     // 报纸就把**先**交的那单叫「最近」——一句话说着当下，指的却是过去。
@@ -55,8 +55,8 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     //
     // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
     // `completedAt` 是落成那一刻。三个收尾处写的都是 `this.now`——
-    // `finishInPlace`（`simulation.ts:2353`）、`finishActiveTask`（`:2541`）、
-    // `settleDetachedTask`（`:3003`）；而世界钟只增不减（`update` 里 `:581`
+    // `finishInPlace`（`simulation.ts:2400`）、`finishActiveTask`（`:2587`）、
+    // `settleDetachedTask`（`:3051`）；而世界钟只增不减（`update` 里 `:611`
     // 每次 `+=`），所以按 `completedAt` 排出来的才是真正的交付顺序。读档回来的
     // 单带着原来的 `completedAt`，新交的只会更大，跨会话也还排得对。
     //
@@ -74,7 +74,7 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // （镇内 6000/4200/3200/1200，郊野同乘 1.8 得 10800/7560/5760/1200），
     // 不同类永远落不到同一拍；同一类在同一帧里派两条，第二条连单都建不出来
     // （一种活一座铺子，`pickVenue` 直接回「没有空闲的」）。上游那条更到不了
-    // 这儿：`syncEvents` 收工的单一律 splice 出表（`:1272`、`:1276`），
+    // 这儿：`syncEvents` 收工的单一律 splice 出表（`:1323`、`:1327`），
     // 所以 `done` 里只会有本地派的活。
     const latest = done.reduce<TaskRecord | undefined>(
       (newest, task) =>

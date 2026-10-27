@@ -279,3 +279,84 @@ test('同一句话连着说三遍，只问模型一次', async () => {
   await settle(sim, 6);
   assert.equal(calls, 1, '去重是按原话，不是按时间窗');
 });
+
+// ---------------------------------------------- 迟到的答复不抢回执那一行
+
+/** 一个要等人放行的模型：`release()` 之前它永远不回来。 */
+function gatedModel(answer: unknown): { readonly model: IntentModel; readonly release: () => void } {
+  let release: (() => void) | undefined;
+  const model: IntentModel = {
+    classify: () => new Promise((resolve) => { release = () => resolve(answer); }),
+  };
+  return { model, release: () => release?.() };
+}
+
+test('用户又说了话，迟到的模型答复不抢回执那一行', async () => {
+  // 一次真事的回归，在真的浏览器里复现过（`scripts/_probe-late.mjs`）：
+  // 「今天天气不错」送进模型，紧接着说「下雨了」，屏上先是对的
+  // 「雨落下来了。」，4.8 秒后那一行变成「你只是在感叹天气……所以世界
+  // 不动」——而屏上正在下雨。
+  //
+  // 那不是盖掉一句话的事，是一句假话：回执说世界没动，世界动了。
+  // 与上游轮询每 4 秒擦一次回执（`feed-quiet-offline.test.ts`）是同一条规矩：
+  // 回执那一行是**用户自己的话**的归宿，不是任何别的东西的归宿——
+  // 包括用户自己早先说过的另一句。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '在感叹天气' });
+  const sim = makeSim(model);
+
+  say(sim, '今天天气不错');
+  const [asked] = tick(sim);
+  assert.equal(asked!.message, '这句话规则认不出，正在问模型……');
+
+  // 用户紧接着说了第二句：规则认得出，当场就办。
+  say(sim, '下雨了');
+  const [rained] = tick(sim);
+  assert.equal(rained!.message, '雨落下来了。');
+
+  // 模型那边现在才回来。世界效果照算（这里是「不动」），话不往那一行上说。
+  release();
+  const late = await settleCollect(sim);
+  for (const result of late) {
+    assert.equal(result.message, '', `迟到的答复该安静，实际说的是「${result.message}」`);
+  }
+});
+
+test('迟到的答复改了世界，也不抢回执那一行', async () => {
+  // 上一条的反方向：别把安静做成「世界也不动了」。模型判出来的是一条真命令，
+  // 该下的雨照样下、石板照样刻。要拦的只是那句话别落到 `#reply` 上——
+  // 那一行归用户最新那句话。
+  const { model, release } = gatedModel({ kind: 'setTide', level: 1, durationMs: 30_000 });
+  const sim = makeSim(model);
+
+  say(sim, '把水弄一弄');
+  tick(sim);
+  say(sim, '下雨了');
+  const [rained] = tick(sim);
+  assert.equal(rained!.message, '雨落下来了。');
+
+  release();
+  const late = await settleCollect(sim);
+  for (const result of late) {
+    assert.equal(result.message, '', `迟到的答复该安静，实际说的是「${result.message}」`);
+  }
+  const tide = sim.snapshot().tide;
+  assert.equal(tide.level, 1, '潮照样拨——拦的是那句话，不是那件事');
+  assert.equal(tide.overridden, true, '落的还是那条有期限的覆盖，不是永久设值');
+  assert.ok(sim.snapshot().oracle.length > 0, '石板照样刻：世界自己的记忆不归回执那一行管');
+});
+
+test('没人插话，模型的答复照常上回执那一行', async () => {
+  // 反方向：别把这条规矩做成永久的沉默。模型答的就是用户刚说的那一句时，
+  // 它该出现——包括模型说听不懂的理由（那正是用户下一步的依据）。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '这句话没有对应的世界命令' });
+  const sim = makeSim(model);
+
+  say(sim, '你觉得该怎么办');
+  tick(sim);
+  release();
+  const late = await settleCollect(sim);
+  assert.ok(
+    late.some((result) => result.message === '这句话没有对应的世界命令'),
+    `该说的没说：${late.map((r) => r.message).join(' / ')}`,
+  );
+});

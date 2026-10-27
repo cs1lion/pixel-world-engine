@@ -127,7 +127,22 @@ export type WorldCommand =
    * 为什么不直接调 `applyIntent`：模型是异步的，回来时世界可能已经走了几拍。
    * 回队让它的时序与玩家同步输入完全一致——石板、事件、排队顺序都不特殊。
    */
-  | { readonly kind: 'intent'; readonly intent: ParsedIntent; readonly raw: string }
+  | {
+      readonly kind: 'intent';
+      readonly intent: ParsedIntent;
+      readonly raw: string;
+      /**
+       * 这句话去问模型时，回执那一行归谁。**只有 `classifyLater` 填。**
+       *
+       * 模型的答复要过网络，回来时用户可能已经又说了几句。结算时拿它和
+       * 现在的 `receiptOwner` 对一下：对不上就是那句话已经不归这一行了，
+       * 世界效果照算，话不往 `#reply` 上说。
+       *
+       * 省略表示「不是从模型回来的」——测试直接投的意图、以及任何将来
+       * 别的来路，都没有「迟到」这回事，不该被这条规矩拦住。
+       */
+      readonly owner?: string;
+    }
   | { readonly kind: 'dispatch'; readonly taskKind: TaskKind; readonly summary: string }
   | { readonly kind: 'complete'; readonly target?: string }
   | { readonly kind: 'cancelPending'; readonly id?: string }
@@ -452,6 +467,21 @@ export class Simulation {
   private readonly onChange: ((change: WorldChange, at: number) => void) | undefined;
   /** 正在问模型的句子。防止同一句被重复投递时问两次。 */
   private readonly pendingClassify = new Set<string>();
+  /**
+   * 用户最近说过的那句话（trim 过）。**回执那一行归它。**
+   *
+   * 模型的答复要过网络，回来时用户可能已经又说了几句——而回执只有一行。
+   * 让一句答给旧话的话落上去，比不说话更糟：实测「今天天气不错」送进模型，
+   * 紧接着说「下雨了」，屏上先是「雨落下来了。」，4.8 秒后那一行变成
+   * 「你只是在感叹天气……所以世界不动」——而屏上正在下雨。那是字面意义上
+   * 的说谎，正是这个仓库最不容的那一件。
+   *
+   * 与 `syncEvents` 那条同源（见那边 `!connected` 分支的注释）：回执那一行是
+   * **用户自己的话**的归宿，不是任何别的东西的归宿——包括用户自己早先说过
+   * 的另一句。那句话的世界效果照算（该下的雨照样下、石板照样刻），
+   * 只是话不往那一行上说。
+   */
+  private receiptOwner = '';
   /** 是否已与上游对过账。读档后为 false：对账前不驱动上游单。 */
   private feedReconciled = true;
   /** 上游事件流是否在线。离线时世界照常过日子，但状态行必须说出来。 */
@@ -706,8 +736,23 @@ export class Simulation {
     switch (command.kind) {
       case 'oracle':
         return this.speak(command.raw);
-      case 'intent':
-        return this.applyIntent(command.intent, command.raw);
+      case 'intent': {
+        const result = this.applyIntent(command.intent, command.raw);
+        // 迟到的答复：用户已经又说过话了，回执那一行归新那句话。
+        //
+        // 世界效果照算——模型判出来的是一条真命令，该下的雨照样下、石板
+        // 照样刻（`settleIntent` 里已经做了）。要拦的只是那句话别落到
+        // `#reply` 上：那一行是新句的归宿。空 message 就是「这话不说」，
+        // `oracle-panel` 与 `SandboxScene.speak` 都认这个记号。
+        //
+        // 只拦从模型回来的那一批（`owner` 有值）：直接投的意图没有
+        // 「迟到」这回事。实测教训见 `receiptOwner`：不拦的话，
+        // 屏上在下雨而回执说「世界不动」。
+        if (command.owner !== undefined && command.owner !== this.receiptOwner) {
+          return { ok: result.ok, message: '' };
+        }
+        return result;
+      }
       case 'dispatch':
         return this.dispatch(command.taskKind, command.summary);
       case 'complete':
@@ -870,6 +915,9 @@ export class Simulation {
    * 认不出的输入不落石板，回执里明说没听懂：石板不是聊天记录。
    */
   private speak(raw: string): CommandResult {
+    // 这句话一进来，回执那一行就归它了。要记在**所有提前返回之前**：
+    // 造物、神绩、没听懂都从这儿返回，而每一种都已经是用户最新的一句话。
+    this.receiptOwner = raw.trim();
     // 先试造物：它认「建一间书阁」这类话，与派活解析器不重叠
     // （那个的动词表里没有「建 / 盖 / 造」）。
     const buildIntent = this.parseBuildIntent(raw);
@@ -936,6 +984,9 @@ export class Simulation {
     if (model === undefined) return;
     if (this.pendingClassify.has(raw)) return; // 同一句只问一次
     this.pendingClassify.add(raw);
+    // 这句话去问模型时，回执那一行归谁。模型回来时用它和现在的对一下——
+    // 用户多半已经又说了几句，而那一行只有一行。见 `receiptOwner`。
+    const owner = this.receiptOwner;
     try {
       const result = await routeIntent(raw, {
         templates: this.blueprints ?? new Map(),
@@ -956,10 +1007,10 @@ export class Simulation {
         // 「没听懂」有用：用户据此才知道该换句话、还是该去看服务端。
         const message = result.modelError ?? result.intent.reason;
         this.log('warn', message);
-        this.enqueue({ kind: 'intent', intent: { kind: 'unknown', reason: message }, raw });
+        this.enqueue({ kind: 'intent', intent: { kind: 'unknown', reason: message }, raw, owner });
         return;
       }
-      this.enqueue({ kind: 'intent', intent: result.intent, raw });
+      this.enqueue({ kind: 'intent', intent: result.intent, raw, owner });
     } catch (error) {
       // `routeIntent` 自己已经把模型失败吞成 unknown 了，所以走到这里的是
       // 它管不着的那种：取快照、拼上下文、入队时抛的错。这条 async 方法由
