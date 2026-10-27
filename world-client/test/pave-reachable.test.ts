@@ -11,8 +11,17 @@
  *   2. 包的新建路拿到这句，连不出去就当场拒；
  *   3. 灯潮界原封不动照样起得来——这是守卫，不是误杀。
  *
- * 同源的 `test/world-door-reachability.test.ts` 守的是「两条路的现状都是绿的」，
- * 这里守的是「分叉被堵上了」。
+ * 原来这儿还有一句「同源的 `test/world-door-reachability.test.ts` 守的是『两条路的
+ * 现状都是绿的』，这里守的是『分叉被堵上了』」——**那个文件已经没有了**，而且不是
+ * 改名，是 `4cead00` 主动删的：它的判据 `grid.path(altar, door).length === 0` 两个
+ * 方向都不 sound（假绿——door 是 path 的 goal，被别处占地盖住的门会被改写到
+ * nearestWalkable，于是非空、报成「连得到」，正好漏掉它要防的死门；假红——门开在
+ * hub 上时 `start === target` 直接返回空，被判成「连不到」）。删它的人写的是
+ * 「既不 sound 又被取代」。
+ *
+ * 所以那句话现在**两半都假**：文件不在，「两条路的现状都是绿的」也再也没有第二道
+ * 闸在守。本文件钉的是三件别的事（下面那三条），没有一件是它。留着这句不改，
+ * 读的人会以为删掉的那份还在这儿顶着。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -107,7 +107,7 @@ export function isVisiblyRaining(state: WeatherState): boolean {
  *
  * 两句整话没法合成一张表：日报要「外头…着」的口气，喂模型要「天…」的口气，
  * 而状态行只要一两个字。所以不硬合，改为拿测试把**档位一致**钉住——
- * 三处对同一个 `Weather` 必须说出同一种天气（见 `weather.test.ts` 的
+ * 三处对同一个 `Weather` 必须说出同一种天气（见 `weather-words.test.ts` 的
  * 「三处对同一档天气说出同一种天气」）。加第四档时漏掉哪一处，那条红。
  *
  * （上一版这儿挂着 `SandboxScene.ts` 的一个行号，而 `WEATHER_LABEL` 真正的读者

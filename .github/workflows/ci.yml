@@ -24,6 +24,9 @@ jobs:
       # 行号引用对不上就红。文档与注释里写的「代码在那儿」得真的是在那儿——
       # 这个仓库的信条是「说谎比不去更糟」，那句话也管仓库自己。
       - run: node scripts/audit-references.ts --strict
+      # 不带行号的引用也管：`night.ts`、`docs/LARGE_WORLD.md` 这类只写文件名的，
+      # 上面那个正则（冒号加行号是硬条件）一处都看不见。六个幽灵引用全是这么漏进来的。
+      - run: node scripts/audit-citations.ts --strict
 
   server:
     runs-on: ubuntu-latest
