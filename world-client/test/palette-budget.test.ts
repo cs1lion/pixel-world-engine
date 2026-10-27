@@ -4,6 +4,10 @@
  * 2026-10-21 用户批准 24 色 ADR（`docs/adr/ADR_PALETTE_24.md`），新增 W17–W24。
  * （原文在这两句各挂了一个「ART_PALETTE_AUDIT §5.3 第 6 步」的出处——那份文档
  * 在仓库里不存在，全仓 4 处命中全是引用、零处定义。出处删了，目标照留。）
+ * （**2026-10-28：上一句里的「4 处命中」也过期了**——今天是 12 行 / 4 个文件，
+ * `git grep -n ART_PALETTE_AUDIT HEAD` 现数。承重的是「零处定义」那一句，它没变：
+ * 12 行全是引用，或在记录「引用被删了」。同一个错在 `palette-data.ts` 的
+ * `TERRAIN_SPECK` 上头与 `docs/adr/ADR_PALETTE_24.md` 各记了一次，别在这里再抄一份数。）
  * 这里用纯逻辑断言锁住，不依赖 `npm test` 的默认子进程隔离（沙箱里会 spawn EPERM）。
  */
 
