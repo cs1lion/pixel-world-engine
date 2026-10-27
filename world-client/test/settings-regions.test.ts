@@ -18,10 +18,25 @@ import type { RawSettingPack } from '../src/settings/types.ts';
 
 const raw = (patch: Partial<RawSettingPack>): RawSettingPack => ({ ...DENGCHAO_RAW, ...patch });
 
-/** 一道要鞋的两格小门，声明在最后（重叠时它赢）。三色槽位照渡口站台给。 */
+/**
+ * 这一串小门小院的三色槽位。
+ *
+ * `c9d574d` 起三个槽必填，而本文件每一条测的都是「被整片盖住」「盖在后面赢」，
+ * **一条都不断言颜色**。所以这里统一借渡口站台那一组（`docs/SPEC_V2.md` §4.1
+ * 那张表的第一行），不为别的——借一处说得出处的，比六处各编三个好看，也比
+ * 六处各抄一行的维护面小。
+ *
+ * 别再手抄这三个数：本文件原来有六处字面量各写各的，其中五处**干脆没写**，
+ * 于是 `c9d574d` 把槽位改必填的那一笔留下 11 处编译错（全是这个文件的）。
+ */
+const FIXTURE_COLORS = {
+  primary: 'deepShade', accent: 'amber', forbidden: 'terracotta',
+} as const;
+
+/** 一道要鞋的两格小门，声明在最后（重叠时它赢）。 */
 const GATE = {
   id: 'deep', name: '深巷', x: 36, y: 30, w: 2, h: 2, requires: 'shoes' as const,
-  primary: 'deepShade', accent: 'amber', forbidden: 'terracotta',
+  ...FIXTURE_COLORS,
 };
 
 test('整道地域被后声明的区域盖住时拒：那道门会变成数据里的一行字', () => {
@@ -112,7 +127,7 @@ test('呼吸段被整片盖住也拒：留白是绕着格子算的，一格不�
   // 算：`breathingRegions()` 从 id 表里报，`breathingAt()` 从格子上的 region 查。
   // 两者不一致时，报告说「这片是留白」，而没有一格真的在呼吸——探针验过，
   // 一个被整片盖住的呼吸段仍然出现在 `breathingRegions()` 里。
-  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
+  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true, ...FIXTURE_COLORS };
   // 声明在最前：后面每一道区域都盖在它上面，那 9 格一格也不归它。
   const buried = raw({ regions: [INNER, ...DENGCHAO_RAW.regions] });
   assert.throws(() => loadSettingPack(buried), SettingPackError, '里院的 9 格全被灯街盖住了');
@@ -122,7 +137,7 @@ test('一道地域同时要凭证又呼吸：两句话都成立就都查', () =>
   // 两个槽位是独立的（`types.ts` 里写了）。上面那条只覆盖单个说法，
   // 这条钉住「加起来查」——一道门加留白被盖住时，报错要把两句都说出来，
   // 而不是只挑一句。
-  const BOTH = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, requires: 'lamp' as const, breathing: true };
+  const BOTH = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, requires: 'lamp' as const, breathing: true, ...FIXTURE_COLORS };
   const buried = raw({ regions: [BOTH, ...DENGCHAO_RAW.regions] });
   assert.throws(
     () => loadSettingPack(buried),
@@ -133,7 +148,7 @@ test('一道地域同时要凭证又呼吸：两句话都成立就都查', () =>
 
 test('盖在后面的呼吸段是好的：重叠本身不是错，只有整片被吃掉才是', () => {
   // 与前面那道门的对照组同一个意思。声明在最后，它赢，那 9 格真归它。
-  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
+  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true, ...FIXTURE_COLORS };
   const wins = raw({ regions: [...DENGCHAO_RAW.regions, INNER] });
   const world = buildSettingWorld(loadSettingPack(wins));
   assert.equal(world.grid.at({ x: 20, y: 24 })?.region, 'inner_court');
@@ -206,29 +221,12 @@ test('没有居民出生在呼吸段里：开局谁也躺不得', () => {
   assert.equal(world.grid.breathingAt(pack.hub), false, '镇心不在呼吸段里');
 });
 
-test('一道有说法的地域，被整片盖住时两句话都拒：requires 与 breathing 同时存在', () => {
-  // 两个槽位是独立的（`types.ts` 里写了）。上面那条只覆盖单个说法，
-  // 这条钉住「加起来查」——一道门加呼吸段被盖住时，报错要把两句都说出来，
-  // 而不是只挑一句。
-  const BOTH = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, requires: 'lamp' as const, breathing: true };
-  const buried = raw({ regions: [BOTH, ...DENGCHAO_RAW.regions] });
-  assert.throws(
-    () => loadSettingPack(buried),
-    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是呼吸段'),
-    '两个说法都得出现在报错里',
-  );
-});
-
-test('呼吸段被整片盖住也拒：留白是绕着格子算的，一格不占就是整条链空转', () => {
-  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
-  const buried = raw({ regions: [INNER, ...DENGCHAO_RAW.regions] });
-  assert.throws(() => loadSettingPack(buried), SettingPackError, '里院的 9 格全被灯街盖住了');
-});
-
-test('盖在后面的呼吸段是好的：重叠本身不是错，只有整片被吃掉才是', () => {
-  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
-  const wins = raw({ regions: [...DENGCHAO_RAW.regions, INNER] });
-  const world = buildSettingWorld(loadSettingPack(wins));
-  assert.equal(world.grid.at({ x: 20, y: 24 })?.region, 'inner_court');
-  assert.equal(world.grid.breathingAt({ x: 20, y: 24 }), true);
-});
+/**
+ * 到这里结束。**上面那三条「被盖住 / 两句都拒 / 盖在后面赢」各只有一份。**
+ *
+ * 本文件原来在末尾还有第二份：`d41cfed`（一笔 UI 文案的提交）往这个文件追加了
+ * 94 行，其中三条与 `862c304` 已经加过的**逐字相同**，只少了注释、并把断言里的
+ * 「是留白」按 `56290bc` 的改名写成了「是呼吸段」。两个会话各写了一遍同一批
+ * 用例，谁都没发现对方已经提交了。已删，这里留一句记号——同名的用例再来一遍时，
+ * 先 `git log -p` 看看是不是又撞了。
+ */

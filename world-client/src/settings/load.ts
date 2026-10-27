@@ -220,6 +220,25 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     if (region.requires != null && !isCarryItem(region.requires)) {
       throw new SettingPackError(`区域 ${region.id} 的 requires 只能是 lamp/shoes 或 null`);
     }
+    // 三色槽位（SPEC_V2 §4.1）同样只能是 24 色的 token 名。
+    //
+    // 为什么原文层已经写着 `WorldColor` 还要再查一遍：`RawSettingPack` 是
+    // **不可信边界**（文件头那句「先按不可信的外部数据收一遍色值」说的就是它），
+    // 而 `as never` 绕得过任何类型——`test/settings.test.ts` 里
+    // `requires: 'torch' as never` 正是本仓自己立的写法。同一个文件里
+    // `style.cloak`/`scarf` 也是 `WorldColor`，照样在装载期查（下面那段），
+    // `terrainColors` 在原文层干脆是 `Record<string, string>`、只能靠这里查。
+    // 三色槽位是这一层里唯一没有 runtime 检查的颜色字段，补上。
+    //
+    // **今天还没有任何一处读这三个槽**（`src/` 下除类型声明外零个读者），
+    // 所以写错的后果不是「画面变色」，是「包里躺着一个错值，等第一个读者
+    // 上线时才发现」。那时候再查要比现在查难得多——这正是文件头说的
+    // 「设定集里写了、场景里看不出」。
+    for (const slot of ['primary', 'accent', 'forbidden'] as const) {
+      if (!TOKENS.includes(region[slot])) {
+        throw new SettingPackError(`区域 ${region.id} 的 ${slot} ${String(region[slot])} 不在 24 色里`);
+      }
+    }
   }
   // 分区 id 只能是那六个词。蓝图的 `zone` 已经按闭集验过了，但分区表这边没有，
   // 于是「表里写了第七个词」会安静地通过：每一格的分区都不是任何蓝图认的那个，

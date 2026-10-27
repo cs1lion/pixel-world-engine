@@ -67,6 +67,45 @@ test('requires 写错一个字母：当场拒绝，不留一道谁也过不去�
   );
 });
 
+/**
+ * 三色槽位写错一个字母：装载期就拒，不留一个错值等第一个读者。
+ *
+ * 这条与上面那条是**同一个形状**：闭集里的词写错了，原文层的 `WorldColor`
+ * 拦不住（`as never` 绕得过，`test/settings.test.ts` 自己就这么写 `requires`），
+ * 所以装载期再查一遍。
+ *
+ * **为什么值得单独立一条**：`src/` 下一个读这三个槽的地方都还没有（除类型声明
+ * 外零个读者）。所以今天写错的后果不是画面变色，是包里躺着一个错值——
+ * 等哪天有人接上「区域主色」，那个错会以「渲染层莫名少一种颜色」的面目出现，
+ * 而查起来要穿透装载、编译、渲染三层。那时候补这道闸门要比现在补难得多。
+ *
+ * 三个槽各写错一个，都报：少查一个槽就有一条静默通过。
+ */
+test('三色槽位写错一个字母：装载期就拒，不留一个错值等第一个读者', () => {
+  // 三个槽都给**合法**的值，每次只改坏一个——否则先报的是那个没填的槽，
+  // 断言就变成在查「槽位在不在」，不是「值在不在 24 色里」。
+  const good = { id: 'ferry', name: '渡口站台', x: 5, y: 8, w: 20, h: 10 } as const;
+  const colors = { primary: 'deepShade', accent: 'amber', forbidden: 'terracotta' } as const;
+  for (const slot of ['primary', 'accent', 'forbidden'] as const) {
+    assert.throws(
+      () =>
+        loadSettingPack({
+          ...DENGCHAO_RAW,
+          regions: [{ ...good, ...colors, [slot]: 'terracota' as never } as never],
+        }),
+      new RegExp(`${slot} terracota 不在 24 色里`),
+      `${slot} 写错了一个字母，装载期却放行了`,
+    );
+  }
+  // 24 色里的三个真 token 照旧放行——上面三条不能是「一律拒」。
+  assert.doesNotThrow(() =>
+    loadSettingPack({
+      ...DENGCHAO_RAW,
+      regions: [{ ...good, ...colors }],
+    }),
+  );
+});
+
 test('一道要凭证的区域，它的地整个都归它：没有被后声明的区域盖掉几格', () => {
   // 地域是**按声明顺序画上去的**，后画的盖先画的（`grid.ts` 那道循环）。
   // 一道要灯的区域若被后来一道不要的盖住几格，那几格就谁也不设卡——

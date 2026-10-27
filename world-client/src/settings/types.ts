@@ -90,7 +90,12 @@ export interface SettingPack {
    * 几何与门。上面那句「两边不是同一个形状」说的就是这个——网格背上显示名
    * 已经不对，再背 24 色槽位更不对。
    *
-   * 三个值都只能是世界 24 色的 token 名（`WorldColor`），写错编译不过。
+   * 三个值都只能是世界 24 色的 token 名（`WorldColor`）。**类型帮 TS 作者
+   * 当场指出来，但帮不了 runtime**：`as never` 绕得过它（`test/settings.test.ts`
+   * 里 `requires: 'torch' as never` 就是本仓自己的写法），而非 TS 来源的包
+   * 连类型都没有。所以 `loadSettingPack` 在装载期对着 `TOKENS` 再查一遍——
+   * 与 `style.cloak`/`scarf`、`terrainColors` 同一个做法，理由写在 `load.ts`
+   * 的循环里。
    *
    * **莞尔镇一道地域都没声明**（`regions: []`），所以这一层没有它的份。它的
    * 四个分区只定得出主色（分区 → `terrainFor` → `TERRAIN_COLORS` 一条链），
