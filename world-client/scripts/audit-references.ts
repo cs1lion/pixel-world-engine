@@ -173,13 +173,18 @@ const ONLY_BRACES = /^[\s{}()[\];,]*$/;
  *  了九小时：17:01 那一笔读起来像修复，实际是 08:13 那一笔修的。这正是本文件要防
  *  的那种事，只是发生在提交信息上——提交信息也是自述为真。）
  *
- * **它仍然只看得见一小部分，别把这话读成全覆盖。** 复核时数过：收紧之后全仓
- * 5 处走这条判据，另外 8 处「名字写在坐标旁边但不带 `()`」的写法它一律看不见
- * （`validateCoverage`（`setup.ts:258`）、`placeFromPlan`（`setup.ts:404-425`）
- * 这一批）。那 8 处今天恰好都是对的，所以沉默是理论上的——可「理论上的沉默」
- * 也是沉默。附带一个数，为的是将来有人再夸大时有个对照：收紧**之前**全仓只有
- * 1 处匹配，而它不是安静的，是把那一处报了两遍（见 `audit-references.test.ts`
- * 里「报一遍，不是两遍」那条）。
+ * **它仍然只看得见一小部分，别把这话读成全覆盖。** 有一种写法它一律看不见：
+ * 名字挨着坐标，可名字后面跟的是**一对全角括号**而不是 `()`。全仓有若干处，
+ * 集中在两个 ADR 里。**那个数由 `audit-references.test.ts` 的「盲区是数得出来
+ * 的」那条冻着**，不在这儿手写——手写的数会漂，而漂掉的表现就是这段自述变成
+ * 它所警告的那种烂法。它已经漂过一次：原写 8 处，2026-10-27 复核，把 `()`
+ * 放宽成「括号即可」重数是 9 处，而多出来的正是本段自己举的两个例子。
+ *
+ * 为什么不把全角括号也收进来：收了会误报。全角括号在中文里就是普通括注，
+ * 「……问题（`setup.ts:634-639`）」这种句子，括号前那个词是 `problem`，
+ * 不是标识符；拿去查「附近有没有 problem」必然开口。而误报一样毁掉一个守卫，
+ * 只是毁得慢一点。要收得先能分辨「这个词是不是代码里的名字」——那是另一道闸
+ * 的事，不该由这条正则假装能判。
  *
  * 本文件的注释里因此不写那种形状的示例：审计连自己的注释一起审。
  */
@@ -188,6 +193,83 @@ const CALL_REF =
 
 /** 引用允许偏几行：ADR 常引函数上面那段注释，而注释里不一定再写一遍函数名。 */
 const CALL_REF_SLACK = 3;
+
+/**
+ * `CALL_REF` 看不见的那一批：名字挨着坐标，可名字后面跟的不是 `()`。
+ *
+ * 正则与 `CALL_REF` 只差一处——那个 `()` 改成可有可无。**边界必须自己补**：
+ * `CALL_REF` 靠 `()` 隔开名字与文件名，放宽之后 `simulation.ts:1604` 会被读成
+ * 「名字 = simulation、文件 = n.ts」。所以名字与坐标之间至少要有一个分隔符
+ * （反引号、空白、括号任一个）。
+ *
+ * 为什么要有这个函数：`CALL_REF` 的盲区原先只在注释里写着一个数，而那个数
+ * 会漂（原写 8 处，实测 9 处）。数得出来才冻得住——`audit-references.test.ts`
+ * 拿它把今天的集合冻死，多一处少一处都红。
+ *
+ * 网址照挖：`http://example.com/a.ts:8080` 里那一段长得跟引用一模一样，
+ * 而 `:8080` 是端口。复用的是上面那个 `stripUrls`。
+ */
+const NAME_REF_RELAXED = new RegExp(
+  "([A-Za-z_$][\\w$]*)(\\(\\))?[`\\s（(]+`?\\s*`?([\\w./-]+\\.(?:ts|mjs|py|md)):(\\d+)(?:-(\\d+))?`?(?:[\\s）)]|$)",
+  'g',
+);
+
+/** 一处 `CALL_REF` 看不见的「名字挨着坐标」。 */
+export interface InvisibleNameRef {
+  /** 引用写在哪儿：仓库相对路径，冒号后是行号。 */
+  readonly where: string;
+  /** 挨着坐标的那个词。 */
+  readonly name: string;
+  /** 它指的坐标。 */
+  readonly target: string;
+  /** 落点那个文件里，`CALL_REF_SLACK` 行之内有没有这个名字。 */
+  readonly nameNearby: boolean;
+}
+
+/**
+ * 全仓扫一遍，把 `CALL_REF` 看不见的那批列出来。
+ *
+ * 只收**像是代码里的名字**的那些：含第一个字符之后的大写字母，或者全大写。
+ * 这不是判据，是个筛子——全角括号在中文里就是普通括注，「问题（坐标）」前面
+ * 那个词不是名字。筛子会漏（全小写的函数名它也看不见），所以漏掉的那部分
+ * **不在这个数里**，别把它读成盲区的全集。
+ */
+export function invisibleNameRefs({ root = ROOT }: { root?: string } = {}): InvisibleNameRef[] {
+  const index: string[] = [];
+  for (const entry of SCAN_ROOTS) walk(path.resolve(root, entry), index);
+  index.sort();
+
+  const out: InvisibleNameRef[] = [];
+  for (const file of index) {
+    const text = readFileSync(file, 'utf8');
+    text.split(/\r?\n/).forEach((line, at) => {
+      const scanned = stripUrls(line);
+      for (const m of scanned.matchAll(NAME_REF_RELAXED)) {
+        const name = m[1];
+        if (name === undefined || m[3] === undefined || m[4] === undefined) continue;
+        // 带 `()` 的归 `CALL_REF` 管，不是盲区。
+        if (m[2] !== undefined) continue;
+        if (!/[A-Z]/.test(name.slice(1))) continue;
+        const landed = land(m[3], m[4], m[5], file, root, index);
+        const where = `${path.relative(root, file).split(path.sep).join('/')}:${at + 1}`;
+        const target = `${m[3]}:${m[4]}${m[5] === undefined ? '' : `-${m[5]}`}`;
+        if (!landed.ok) {
+          out.push({ where, name, target, nameNearby: false });
+          continue;
+        }
+        const lo = Math.max(0, landed.from - 1 - CALL_REF_SLACK);
+        const hi = Math.min(landed.lines.length, landed.to + CALL_REF_SLACK);
+        out.push({
+          where,
+          name,
+          target,
+          nameNearby: landed.lines.slice(lo, hi).join('\n').includes(name),
+        });
+      }
+    });
+  }
+  return out;
+}
 
 /** 一处存疑的引用。 */
 export interface ReferenceFinding {

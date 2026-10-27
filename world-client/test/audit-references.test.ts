@@ -16,7 +16,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { auditReferences } from '../scripts/audit-references.ts';
+import { auditReferences, invisibleNameRefs } from '../scripts/audit-references.ts';
 
 /** 一份够用的假仓库：两个源文件 + 一份文档。 */
 function fixture(): string {
@@ -403,5 +403,54 @@ test('坐标偏几行还算数：引的常是函数上面那段注释', () => {
     assert.equal(findings.length, 0, '偏几行落在同一个函数上，不该报');
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('盲区是数得出来的：CALL_REF 看不见的那批，今天冻在这儿', () => {
+  // `CALL_REF` 有个盲区：名字挨着坐标，可名字后面跟的是**全角括号**而不是
+  // `()`。那批引用它一律不查——行号烂了、名字对不上，CI 照绿。
+  //
+  // 这个盲区原先只在 `audit-references.ts` 的注释里写着一个数（「8 处」）。
+  // 而那个数是手写的，会漂：2026-10-27 拿放宽后的正则重数，实际 9 处，多出来
+  // 的正是那段注释自己举的两个例子——它一边举例一边在六行之下写着「本文件的
+  // 注释里因此不写那种形状的示例」，自相矛盾。把例子改成语义描述之后剩 7 处。
+  //
+  // 所以数不写在注释里，写在这儿：**集合冻死**，多一处少一处都红。来的人
+  // 被迫看一眼这一批，而不是继续读一个没人核过的数。
+  //
+  // 只冻「哪儿、哪个名字」，不冻坐标：坐标烂没烂是 `auditReferences` 的事，
+  // 这条只管盲区的边界。坐标的真假由下面那个循环查——每一处都得在落点附近
+  // 找得到那个名字，找不到就红。原注释说「那几处今天恰好都是对的」，
+  // 那句话从此是查过的，不是顺口说的。
+  // 存成三元组而不是拼好的字符串：拼好了源码里就多出一个「Markdown 文件名
+  // 加冒号加行号」的形状，而这个守卫连自己的测试数据一起审——它会把那一处
+  // 也当成一处引用去查，「真仓库 0 处存疑」那条的计数随之漂（实测漂了 5 处）。
+  // 拆开写，源码里就没有那个形状。
+  const FROZEN: readonly (readonly [string, number, string])[] = [
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 14, 'validateCoverage'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 14, 'assertWorldInvariants'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 14, 'assertWorldInvariants'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 15, 'buildSettingWorld'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 27, 'WORKSHOP_TASKS'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 43, 'validateCoverage'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 47, 'placeFromPlan'],
+  ];
+  const seen = invisibleNameRefs().map((entry) => {
+    const [file, line, ...rest] = entry.where.split(':');
+    return [file ?? '', Number(line), entry.name, ...rest] as const;
+  });
+  assert.deepEqual(
+    seen.map((row) => row.slice(0, 3)),
+    [...FROZEN],
+    'CALL_REF 的盲区变了。多出来的每一处都得人工核一遍：名字对不对得上坐标。\n' +
+      '核完了把它加进上面那个清单——别为了让测试绿就把 CALL_REF 放宽，\n' +
+      '放宽会误报（全角括号在中文里就是普通括注），理由见 audit-references.ts。',
+  );
+  for (const entry of invisibleNameRefs()) {
+    assert.ok(
+      entry.nameNearby,
+      `${entry.where} 的 ${entry.name} 在 ${entry.target} 附近找不到——这处盲区引用本身是烂的，\n` +
+        '只是 CALL_REF 看不见它。修掉它，再从上面那个清单里删掉。',
+    );
   }
 });
