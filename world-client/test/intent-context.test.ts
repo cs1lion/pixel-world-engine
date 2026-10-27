@@ -1,5 +1,5 @@
 /**
- * 意图层把世界状态喂给模型（`docs/WORLD_INTENT.md` §八 原先的已知边界）。
+ * 意图层把世界状态喂给模型。
  *
  * 三条要锁住的性质：
  *
@@ -8,6 +8,12 @@
  *      在"接上状态"之后被顺手改成"有楼就答 unknown"。
  *   2. **省略上下文时整段不出现。** 写「世界状态未知」会让模型以为该去猜。
  *   3. **不发可推断的细节。** 只有建筑名与产能计数，没有坐标、占地、任务 id。
+ *
+ * （这里原来写着「`docs/WORLD_INTENT.md` §八 原先的已知边界」——**那个文档不存在**：
+ * `git log --all --diff-filter=A -- 'docs/WORLD_INTENT.md'` 全史为空，`WORLD_INTENT`
+ * 这个字样在全仓也只出现在这一行里。§八 更指不上：没有那本书，就没有第八章。
+ * 引用已删；这三条性质的真实出处就是本文件 import 的那两个模块——
+ * `src/world/intent-context.ts`（现状摘要）与 `src/world/intent-prompt.ts`（提示词）。）
  */
 
 import { test } from 'node:test';

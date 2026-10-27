@@ -1,11 +1,18 @@
 /**
- * 地表细节按群落分化（`docs/LARGE_WORLD.md` 的「丰富地表层次」）。
+ * 地表细节按群落分化。
  *
  * 这条规格容易被后来的改动悄悄抹平：把 `DRESSING` 表整个换成一个常量、
  * 或者 `drawDressing` 忘了往下传祭坛坐标，画面都不会报错，只会变回
  * 「一大片同密度的草地」——而那种退化在缩略图里几乎看不出来。
  *
  * 所以这里断言的是**配方本身分化了**，而不是某个像素画成了什么。
+ *
+ * （这里原来写着「`docs/LARGE_WORLD.md` 的『丰富地表层次』」——**那个文档不存在**：
+ * `git log --all --diff-filter=A -- 'docs/LARGE_WORLD.md'` 全史为空，而「丰富地表层次」
+ * 这六个字在全仓也只出现在这一行里，`docs/SPEC.md` 与 `docs/adr/` 下都没有这一条。
+ * 所以这条规矩的真实出处是**代码本身**：`src/world/dressing.ts` 的 `DRESSING` 表与
+ * `src/world/biomes.ts` 的 `BIOME_ORDER`。引用已删，改指向那儿。
+ * 换句话说：这是一条**只有测试在守的规格**——动 `DRESSING` 之前先来这儿看哪几条会红。）
  */
 
 import { test } from 'node:test';

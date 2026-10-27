@@ -54,7 +54,11 @@ export function createGhostView(scene: Phaser.Scene): GhostView {
       g.lineStyle(1, color, 0.9);
       g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 
-      // 门口：一个 3px 的缺口标记，告诉玩家入口在哪边。
+      // 门口：一个 4×4 的色块压一个 2×2 的墨点，告诉玩家入口在哪边。
+      // （这里原来写「一个 3px 的缺口标记」——两处都不对：没有 3px 的东西，
+      // 也没有在轮廓上开缺口，`strokeRect` 画的是完整矩形，这个标记是画在它
+      // 上面的。而且它和本文件文件头那句「门口是一个 4×4 的色块压一个 2×2 的
+      // 墨点」当场矛盾——头是对的，这行是错的。）
       const dx = x + blueprint.door.x * TILE_PX + TILE_PX / 2;
       const dy = y + blueprint.door.y * TILE_PX + TILE_PX / 2;
       g.fillStyle(color, 1);

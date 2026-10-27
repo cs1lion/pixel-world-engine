@@ -103,10 +103,19 @@ test('配方只用现有 24 色，不引入第 25 色', () => {
   }
 });
 
-test('压暗浓度都在 0..1，且不超过 ART_SPEC 的压暗上限 0.46', () => {
+test('压暗浓度都在 0..1，且不超过 ADR 定的 0.46', () => {
+  // 上限 0.46 的出处是 `docs/adr/ADR_WORLD_ALIVE.md`（§2 的规矩那条：
+  // 「亮窗只在黄昏与夜里、压暗色必须在 24 色表里、浓度不超 0.46」）。
+  // 这里原来写「不超过 ART_SPEC 的压暗上限 0.46」——**两半都是假的**：
+  // `ART_SPEC` 这个文档仓库里从来没有（`git log --all --diff-filter=A
+  // -- '*ART_SPEC*'` 全史为空），而更要紧的是**这条测试从没查过 0.46**，
+  // 身子只有 `dim >= 0 && dim <= 1` 一句。名字许诺了一道不存在的闸。
+  // 现在把 0.46 真的查上：`scripts/check-phases.mjs` 也不查这个数，
+  // 所以这是全仓唯一一道守着它的闸。
   for (const id of PHASE_ORDER) {
     const dim = PHASES[id].dim;
     assert.ok(dim >= 0 && dim <= 1, `${id} 压暗浓度越界：${dim}`);
+    assert.ok(dim <= 0.46, `${id} 压暗浓度超过 ADR 的上限 0.46：${dim}`);
   }
 });
 
