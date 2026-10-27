@@ -2,6 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DAY_MS } from '../src/world/memory/config.ts';
 import { MemoryWorld } from '../src/world/memory/world.ts';
+import {
+  coolingDown,
+  pairKey,
+  type CooldownState,
+} from '../src/world/memory/propagate.ts';
 import { computeVitals, type TellRecord } from '../src/world/memory/vitals.ts';
 import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
 
@@ -97,6 +102,26 @@ test('孤立单位：站得太远的人永远不会知道', () => {
   world.createClaimFrom('ev_1', 'v0', 1000);
   world.dayClosed(0, DAY_MS - 1);
   assert.equal(world.viewOf('hermit')!.beliefs.length, 0, '离得远就该一直不知道');
+});
+
+test('一对单位没有方向：关系与冷却查的是同一个键', () => {
+  // 「一对单位」的规范键在这个世界里原来有**两份逐字相同的实现**：
+  // `propagate.ts` 的 `pairKey` 与 `world.ts` 的 `pairOf`。关系表用前者，
+  // 冷却表用后者——两份一模一样，所以一直相安无事；而它们只要有一份改了
+  // 分隔符，「昨天聊过」与「关系很近」就从此对不上，且没有任何测试会红。
+  // 现在只剩 `pairKey` 一份，这一条把它无向这条性质钉住。
+  assert.equal(pairKey('v0', 'v1'), pairKey('v1', 'v0'), '一对单位的键不该有方向');
+
+  // 冷却记下的是「这一对」，反方向也得认。v0 讲给 v1 听之后，v1 不能在
+  // 冷却期内就同一句话回讲给 v0——那是同一次聊天的两个方向，不是两次。
+  const cooldowns: readonly CooldownState[] = [
+    { pairKey: pairKey('v0', 'v1'), claimId: 'claim_0001', atMs: 1000 },
+  ];
+  assert.ok(coolingDown(cooldowns, 'v0', 'v1', 'claim_0001', 1000, DEFAULT_MEMORY_CONFIG));
+  assert.ok(
+    coolingDown(cooldowns, 'v1', 'v0', 'claim_0001', 1000, DEFAULT_MEMORY_CONFIG),
+    '反方向也该在冷却——同一对单位，没有来路一去之说',
+  );
 });
 
 test('扇出上限：一个人就一条断言一天最多讲给 3 个人', () => {

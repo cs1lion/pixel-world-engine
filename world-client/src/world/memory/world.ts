@@ -40,6 +40,7 @@ import {
   canSpread,
   createClaim,
   fanoutKey,
+  pairKey,
   postAnnouncement,
   retell,
   spreadStep,
@@ -559,7 +560,7 @@ export class MemoryWorld {
           });
           for (const step of steps) {
             if (!canFanout(this.fanout, step.from, claimId, day, this.config)) break;
-            const pair = pairOf(step.from, step.to);
+            const pair = pairKey(step.from, step.to);
             const used = topicsByPair.get(pair) ?? 0;
             // 这一对已经聊满了，换下一对。不是 `break`：别的单位对还能说。
             if (used >= this.config.talkTopicsPerChat) continue;
@@ -1018,7 +1019,7 @@ export class MemoryWorld {
     // `diffuseDay` 在整场交谈结束时记——它记的是「聊过」这件事，不是某一条。
     this.cooldowns = [
       ...this.cooldowns,
-      { pairKey: pairOf(from, to), claimId: claim.claimId, atMs: at },
+      { pairKey: pairKey(from, to), claimId: claim.claimId, atMs: at },
     ];
     this.emit('claim.told', at, {
       claimId: claim.claimId,
@@ -1446,9 +1447,13 @@ function defaultArousal(kind: string): number {
   return 0.3;
 }
 
-function pairOf(a: string, b: string): string {
-  return a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
-}
+/**
+ * 一对单位的规范键**只有一份**，在 `propagate.ts` 的 `pairKey`。
+ *
+ * 这里原来另写了一个逐字相同的 `pairOf`。关系表与冷却表查的是同一个键，
+ * 各写一份就会各自漂移——哪天其中一份换了分隔符，另一份毫不知情，
+ * 于是「昨天聊过」与「关系很近」从此对不上。
+ */
 
 /**
  * 一条断言在第 `hop` 跳时的样子。
