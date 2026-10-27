@@ -1014,6 +1014,7 @@ export class MemoryWorld {
     }
     const state = verdict === 'verify' ? 'suspicious' : 'held';
     this.addBelief(to, claim, from, state, at);
+    this.rememberTold(to, claim, from, at);
     this.tells.push({ day: this.currentDay, from, to, claimId: claim.claimId });
     // 逐话题冷却（同一对单位、同一条断言）在这里记。闲聊冷却由
     // `diffuseDay` 在整场交谈结束时记——它记的是「聊过」这件事，不是某一条。
@@ -1048,6 +1049,119 @@ export class MemoryWorld {
     this.beliefs = [...this.beliefs.filter((item) => !(item.holderId === holderId && item.claimId === claim.claimId)), belief];
     this.emit('belief.updated', at, { holderId, claimId: claim.claimId, state });
     return belief;
+  }
+
+  /**
+   * 听说一件事，就记下它——`source_mode = heard` 的条目在这里诞生。
+   *
+   * 协议第 6 节末行：「听说类记忆走传播协议：单位收到 `ClaimTold` 并更新信念后，
+   * 生成 source_mode = heard 的条目。」而 `deliver` 原先只写一条 `Belief`。
+   * 实测：一条事故在 10 人的村里传到第 7 个人，7 个人都「知道」这件事，
+   * **只有目击者本人有一条记忆**，另外 6 个人的记忆库是空的。
+   *
+   * 后果不止「记不住」这么轻。补充设计 §1.1 的求证闭环第 1 步是「单位收到
+   * `ClaimTold`（准备生成 heard 记忆）时，检索自身记忆库中是否存在相同
+   * `event_refs` 或同地点同日的高置信度记忆」——`checkConflict` 读的正是这个
+   * 单位的记忆条目。heard 条目从来不存在，于是冲突检测只能拿目击者自己的
+   * 记忆去比对，「听来的说法和我亲眼看见的不一样」这条触发路径一次都没走过。
+   *
+   * 显著度走目击者那条同一条路（`inputsFor` → `decideWrite`），阈值也是同一个
+   * `T_write`：世界只有一个写入门槛，没有两个。`involvement` 天然偏低——
+   * 他不是当事人，`inputsFor` 按 `actors` 判，用不着为传闻另立一个数。
+   * 于是同一件事亲历者记得比听说者牢，而这道差是算出来的，不是写死的。
+   * 过不了门槛的传闻照旧变成信念（他听说了），只是不落成记忆。
+   */
+  private rememberTold(holderId: string, claim: Claim, from: string, at: number): void {
+    const holder = this.holders.get(holderId);
+    if (holder === undefined || holder.type !== 'character') return;
+    const eventRef = claim.eventRefs[0];
+    if (eventRef === undefined) return;
+    const fact = this.facts.get(eventRef);
+    if (fact === undefined) return;
+
+    const parts = inputsFor({
+      kind: fact.kind,
+      holderId,
+      actors: fact.actors,
+      importanceHint: fact.importanceHint,
+      valence: claim.content.valence,
+      arousal: claim.content.arousal,
+    });
+    const weights = weightsFor(this.config.salienceWeights, holder.profile, this.config.salienceBias);
+    const decision = decideWrite(weights, parts, this.config.T_write);
+    if (!decision.write) return;
+
+    const day = Math.floor(at / this.config.dayMs);
+    const entry: MemoryEntry = {
+      memoryId: this.nextId('m'),
+      holderId,
+      kind: 'episodic',
+      tier: 'day',
+      eventRefs: claim.eventRefs,
+      sourceMode: 'heard',
+      sourceChain: this.toldChainOf(from, claim, eventRef),
+      content: {
+        what: claim.content.what,
+        who: claim.content.who,
+        where: claim.content.where,
+        when: claim.content.when,
+        // 细节照断言上的来：`retell` 每跳降一级，三跳的传闻进来就是 0 级。
+        // 这里不再压一次——压两次就成了「传闻永远说不清」，而保真度曲线
+        // 要的是跳数与细节一一对应。
+        detailLevel: claim.content.detailLevel,
+        valence: claim.content.valence,
+        arousal: claim.content.arousal,
+      },
+      salience: decision.salience.salience,
+      // 可信度照断言上的来，不再乘一次信任。说话人可不可信已经算进断言的
+      // `confidence` 里了（`hopConfidenceFactor` 逐跳打折），在这儿再打一次
+      // 就是把同一个因素算两遍。
+      confidence: claim.confidence,
+      strength: 1,
+      createdDay: day,
+      lastRecalledDay: day,
+      recallCount: 0,
+      flashbulb: decision.salience.salience >= this.config.T_flash,
+      pinned: false,
+      redacted: false,
+      // 这条记忆是断言的副本，删断言时它该跟着走（`matchesRoot` 查的正是它）。
+      derivedFrom: { memoryIds: [], claimIds: [claim.claimId] },
+      generatedBy: this.ruleMeta(holderId, eventRef, day),
+      archived: false,
+    };
+    this.entries.push(entry);
+    this.emit('memory.written', at, {
+      memoryId: entry.memoryId,
+      holderId,
+      eventRefs: entry.eventRefs,
+      salience: entry.salience,
+    });
+  }
+
+  /**
+   * 这一条听来的记忆，来源链长什么样。
+   *
+   * 协议第 4 节只要求「claim_id 与前手 holder_id」——最少是 `[claimId, from]`。
+   * 而 `types.ts` 上那句「谁告诉我的，他又是听谁的」要的是整条链。
+   *
+   * 链**不从断言上取**。`Claim.sourceChain` 那条链是死的：`withLink` 从第一天
+   * 起就没有调用方，`retell` 只加 `hop` 不加链节，所以断言上的链永远只有诞生
+   * 那一节，拿它拼出来的链三跳之后还是一个名字。
+   *
+   * 从**人**上取：说话人对同一件事也有一条听来的记忆，把他的链接在我前面，
+   * 我排在最后。于是一跳是 `[claim, 讲的人]`，三跳是 `[claim, 甲, 乙, 讲的人]`
+   * ——每多一跳链条真长一节，这才叫「他又是听谁的」。领头的 claimId 在每一级
+   * 都重写一次，所以拼之前先把说话人那条的前头去掉。
+   */
+  private toldChainOf(from: string, claim: Claim, eventRef: string): readonly string[] {
+    const speaker =
+      this.entries.find(
+        (entry) =>
+          entry.holderId === from && entry.eventRefs.includes(eventRef) && entry.sourceMode === 'heard',
+      ) ??
+      this.entries.find((entry) => entry.holderId === from && entry.eventRefs.includes(eventRef));
+    const upstream = speaker === undefined ? [] : speaker.sourceChain.slice(1);
+    return [claim.claimId, ...upstream, from];
   }
 
   /**
