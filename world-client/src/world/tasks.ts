@@ -41,7 +41,14 @@ export function taskDurationFor(kind: TaskKind, isWild: boolean): number {
   return isWild ? Math.round(base * WILD_DURATION_FACTOR) : base;
 }
 
-/** 报错率写死为 0：这个原型里没有真实工具，伪造失败会变成假动作。 */
+/** 报错率写死为 0：这个原型里没有真实工具，伪造失败会变成假动作。
+ *
+ * **它现在也没有调用方**——`src/` 与 `test/` 里除了本定义没有第二个
+ * `shouldOverheat`。于是 `WorkstationActivity` 的 `'overheating'` 一支
+ * （渲染、存档校验、`Simulation` 都认得它）没有任何入口，见 `types.ts`
+ * 那一支上的说明。留这个函数是为了把「这里将来会有一个概率」这件事留在
+ * 明面上，而不是把 0 散落进调用点。
+ */
 export function shouldOverheat(): boolean {
   return false;
 }

@@ -296,8 +296,15 @@ export interface SavedVillager {
   /**
    * v3：灯油余量 0..1，缺省 1（满油）。
    *
-   * 它在存档里，但**不进 `Simulation` 的读路径**——世界的确定性回放不受它影响。
-   * 存它是因为「你离开一段时间再回来，灯该灭的已经灭了」，那是世界自有的事实。
+   * **世界自己的拍点不读它。** 存它是因为「你离开一段时间再回来，灯该灭的已经灭了」，
+   * 那是世界自有的事实；但烧油的动作在渲染层（`render/villager.ts` 调
+   * `advanceLamp`，拿这个数只起头一次），`Simulation` 没有任何分支看它。
+   *
+   * 这里原来写「不进 `Simulation` 的读路径」——读起来像「Simulation 不碰它」，
+   * 而它其实**是个 Simulation 字段**：`fromSave` 把它写进 `villager.lampOil`，
+   * 快照与 `toSave()` 又读出来。准确说法是「不进世界自己的推进路径」：
+   * 世界照常走，灯照常烧，两者不相干。原话把这两件事压成一句，读的人会去
+   * `simulation.ts` 里找读它的地方，然后误以为找到了反例。
    */
   readonly lampOil: number;
   /**
@@ -545,8 +552,13 @@ export const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
 /** 名牌的两态（SPEC_V2 §4.6）。抵押者接不到新活。 */
 export const NAME_STATES: readonly NameState[] = ['held', 'pawned'];
 /**
- * 渡有仪式认得的凭证（SPEC_V2 §4.6）。住在 `gate.ts`——它是那道门的词汇表，
- * 存档只是向它问话的一方。
+ * 六个建造分区（与 `ZoneId` 同一份名单）。`grid.ts` 的 `zoneAt` 是它的主人，
+ * 存档校验只是照单点名，防的是「表里冒出第七个词」。
+ *
+ * 这里原来挂的是 `gate.ts` 里 `CARRY_ITEMS` 的文档字符串——「渡有仪式认得的凭证…
+ * 住在 `gate.ts`……存档只是向它问话的一方」。那段讲的是渡有仪式的闭集凭证，
+ * 贴在分区枚举头上，而 `ZONES` 自己一条注释都没有。同一段话在两个文件里各出现
+ * 一次，其中一个贴错了符号；以 `gate.ts` 那份为准，这份删掉重写。
  */
 export const ZONES: readonly ZoneId[] = [
   'street', 'altar', 'industry', 'scholarly', 'agriculture', 'living',
@@ -631,7 +643,29 @@ function checkEnum<T extends string>(
   return value as T;
 }
 
-/** 网格坐标：整数、落在世界内。允许多一个无关键？不——有键集合校验兜着，这里只查存在键。 */
+/**
+ * 一个 `{x, y}`：两个键都在、都是数。就这些。
+ *
+ * 这里原来写「网格坐标：整数、落在世界内」——两半都不成立：
+ *
+ * - **「整数」看调用方。** `opts.integer` 由调用方给，而三个点故意不给：
+ *   `world.villagers[].pos`、`world.critters[].at` 与 `world.buildings[].chimney`
+ *   都是 `Vec2`（浮点），不是 `GridPoint`。她是**一路滑过来的**——`grid.ts`
+ *   的 `breathingAt` 专门写了「拿 `villager.pos` 直接问会落到一格之外」。
+ *   这些点带小数是对的。反过来 `origin` / `door` / `workSpot` / `at`（prop）
+ *   与 `checkPointList` 都传了 `{ integer: true }`。
+ *
+ * - **「落在世界内」这里根本问不了。** 本函数跑在原始 JSON 上，那会儿还没有
+ *   网格；而世界多大是个参数（`GridSpec`，设定集自己选），存档这一层不知道。
+ *   实测：把 `villagers[0].pos` 手改成 `{x: 99999, y: -98765}`，`validateSaveFields`
+ *   放行，`fromSave` 原样恢复，之后每一步 `at()` 都返回 `undefined`——
+ *   不抛、不记日志，她只是从此看不见也够不着，一直站在世界外面。
+ *   命令那条路是有人拦的（`simulation.ts` 会回「那里在世界外面。」），
+ *   所以这个洞只有手改存档才够得着。真要补，该补在有 `GridSpec` 的那一层。
+ *
+ * 原注释后半句「有键集合校验兜着，这里只查存在键」说的也是 JSON 路径的键，
+ * 不是坐标——见下面 `validateWorldFields` 的注释。
+ */
 function checkPoint(value: unknown, path: string, opts: { integer?: boolean } = {}): void {
   const point = asRecord(value, path);
   checkNumber(requireKey(point, 'x', path), `${path}.x`, { integer: opts.integer });
@@ -645,7 +679,12 @@ function checkPointList(value: unknown, path: string): void {
 }
 
 /**
- * 逐个字段校验：类型/范围/存在性。只做「值」层面，路径越界由集合包含校验负责。
+ * 逐个字段校验：类型/范围/存在性。只做「值」层面。
+ *
+ * 「坐标有没有跑出世界外面」不归这里管——那需要知道世界多大，而这一层只有
+ * 一段 JSON（见 `checkPoint`）。上面说的「越界」全是**JSON 叶子路径**的越界：
+ * 集合包含校验专防「多出字段」，删字段会让路径集合合法缩小，所以「少字段」
+ * 「换错类型」「值越界」这三样必须由本函数逐字段点名兜住。
  *
  * `version` 决定查到哪一版为止：旧档在迁移前必须能过这一层，
  * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`，v2 不查 v3 的三个字段。
@@ -983,12 +1022,17 @@ export function validateSaveFields(
  *    绝不静默补默认值。
  * 2. **形状/嵌套键集合**：`world.tasks[]` / `world.settled[]` 键集合必须与冻结常量逐键一致。
  * 3. **路径集合包含**：存档里出现的每条叶子路径都必须落在允许全集里，越界即拒并指名
- *    越界路径——只防「新增字段」。v1 用 v1 全集，v2 用 v1 ∪ v2 新增，v3 再加 v3 新增。
+ *    越界路径——只防「新增字段」。v1 用 v1 全集，v2 用 v1 ∪ v2 新增，v3 再加 v3 新增，
+ *    v4 用 v4 全集（`SAVE_V4_PATH_SET`）。
  *
  * 三层各管一段，合起来才等价于"形状完全没变"；任何一层失败都按坏档处理。
  *
  * v1 仍被接受，是因为迁移前的旧档要先按 v1 形状自证一次（`MIGRATIONS[1]`）。
- * 迁移完成后到这里的存档一律是 v3。
+ * 迁移完成后到这里的存档是 **v4**——`CURRENT_SCHEMA_VERSION = 4`，而 `assertSave`
+ * 第一件事就是拿它比（下面那个 `schemaVersion 不是 4` 的抛错）。
+ *
+ * 这里原来写「一律是 v3」——v4 落地时漏改的旧话，而它挂在整个存档校验唯一入口的
+ * 文档上。同一段上面那句枚举也停在 v3，没提 v4 全集，一并补上。
  */
 export function assertSave(raw: unknown): asserts raw is WorldSaveV4 {
   if (!isObject(raw)) throw new Error('存档不是对象');
@@ -1096,13 +1140,21 @@ export const MIGRATIONS: Record<number, Migration> = {
   /**
    * v1 → v2：世界变活（ADR_WORLD_ALIVE §8）。
    *
-   * 只补 v2 真正新增的两处，不猜别的：
+   * 补的是 `SAVE_V2_ADDED_PATHS` 那 15 条路径，横跨 buildings / critters / oracle /
+   * props 四类：
    *   - `world.oracle`：v1 没有石板，迁移后是空数组；
-   *   - `props[].sourceTaskKind` / `sourceTaskId`：v1 的摆件没有来源，记 null。
+   *   - `props[].sourceTaskKind` / `sourceTaskId` / `sourceSummary`：v1 的摆件没有来源，记 null；
+   *   - `buildings[].sourceTaskId` / `sourceSummary`：同上，楼也没有；
+   *   - `settled[].completedAtClock`：曾在这条迁移里补过（旧样例），v1 冻结后它已必填，
+   *     这里保留兜底以防极早的非样例档；对合法 v1 档是无操作；
+   *   - `world.critters[]` 及其五个叶子：v1 没有活物，迁移后是空数组。
+   *
+   * 这里原来写「只补 v2 真正新增的两处，不猜别的」，然后只列了 oracle 与 props 两处。
+   * 「两处」这个数与它自己脚下那份表矛盾（15 条、四类），「不猜别的」也与满屏的
+   * `??` 默认值矛盾——那句话自己在 `completedAtClock` 上找补过，但 buildings 与
+   * critters 两处只字未提。照着「两处」去改这条迁移，会漏掉三类。
    *
    * 历史摆件不编造来源。`null` 在世界里读作「来路不明」，这是诚实的默认值。
-   * `completedAtClock` 曾在这条迁移里补过（旧样例），v1 冻结后它已必填，
-   * 这里保留兜底以防极早的非样例档；对合法 v1 档是无操作。
    */
   1: (raw) => {
     const world = isObject(raw.world) ? raw.world : {};

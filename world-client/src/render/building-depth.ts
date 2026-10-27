@@ -6,9 +6,15 @@
  * **没有任何回归保护** —— 当时那 15 项断言是临时的、没入库。QA 指出这是真问题。
  * 这里把算术抽出来，`building-depth.test.ts` 就能直接锁住它。
  *
- * 角色一侧的口径（`villager.ts:133,136`）：`depth = ALTITUDE + py + 8`，
- * 其中 `py = (pos.y + 1) * TILE_PX`。抽成 `actorDepthAt` 是为了能在 Node 里验算，
- * 那边怎么算仍以 `villager.ts` 为准——改一处必须改两处。
+ * 角色一侧的口径（`villager.ts` 里 `setDepth(altitude + py + 8)` 那一行）：
+ * `depth = ALTITUDE + py + 8`，其中 `py = (pos.y + 1) * TILE_PX`。
+ * 抽成 `actorDepthAt` 是为了能在 Node 里验算，那边怎么算仍以 `villager.ts` 为准——
+ * 改一处必须改两处。
+ *
+ * （这里原来写着两个行号，指的是同一行代码。它们在 2026-10-27 我往
+ * `villager.ts` 文件头加了一段说明之后集体失效——那行现在在更下面，
+ * 而行号引用审计查不出来，因为它仍然"有代码"，只是不再是那一行。
+ * 所以改成指名那行代码长什么样。）
  */
 
 import { TILE_PX } from '../world/setup.ts';

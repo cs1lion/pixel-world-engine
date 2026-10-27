@@ -17,8 +17,15 @@ import type { CarryItem, GridPoint, RegionRequirement } from './types.ts';
  * 闭集：区域声明的 `requires` 与角色带着的 `carries` 必须是同一套词，
  * 否则「她明明带着灯，那道门就是不认」这种只有截图才看得见的 bug 会出现。
  *
- * 住在 `gate.ts` 而不是和 `save.ts` 里那十个枚举常量做邻居：它是**这道门**
- * 的词汇表，设定集校验、存档校验、`setCarries` 三处都向它问话。
+ * 住在 `gate.ts` 而不是和 `save.ts` 里那十几个枚举常量做邻居：它是**这道门**
+ * 的词汇表，设定集校验（`settings/load.ts`）、存档校验、`setCarries`
+ * 与 `intent-schema.ts` 四处都向它问话。
+ *
+ * 这里原来写「那十个枚举常量」「三处都向它问话」——两个数都小了。
+ * `save.ts` 里 `export const [A-Z_]*: readonly` 有 13 个，另有三个私有的
+ * （`SETTLED_SOURCES` / `SETTLED_CLOCKS` / `PENDING_SOURCES`），共 16。
+ * 问话的第四处是 `src/world/intent-schema.ts`。数不在意对错，这里在意的是
+ * 那句话想表达的分工（词汇表归门，存档只是问话的一方）——那个分工没错。
  */
 export const CARRY_ITEMS: readonly CarryItem[] = ['lamp', 'shoes'];
 

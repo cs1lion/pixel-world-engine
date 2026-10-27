@@ -73,7 +73,12 @@ export interface PrefabBlueprint {
 
 /**
  * 天气。`storm` 不是新机制，是 `rain` 的强度档——`WeatherState.intensity`
- * 早已能表达浓淡，渲染层按它插值。所以三档只改了取值域，没加分支。
+ * 早已能表达浓淡，渲染层按它插值。三档主要改的是取值域，但**加了一条分支**：
+ * `renderIntensity` 对 `storm` 在同一个 `intensity` 上多加 0.25（见 `weather.ts`）。
+ *
+ * 这里原来写「三档只改了取值域，没加分支」——不成立。`weather.ts` 那边同一句话
+ * 已经更正过（`8bae0c4`），这一处是漏掉的第二个现场，而它还在替那个已撤回的
+ * 结论作证。测试把分支钉着：同浓淡 0.5 下 rain 得 0.5、storm 得 0.75。
  *
  * 旧存档只有两档；`storm` 是新增值，读进来只会出现在新档里。#14。
  */
@@ -168,7 +173,17 @@ export interface PendingDispatch {
   readonly requestedAt: number;
   /** 只排神谕单；上游单走 tasks.assigned，天然排队且不可被神谕撤销。 */
   readonly source: 'oracle';
-  /** 预留按角色分队列：当前单角色世界固定用 v0。 */
+  /**
+   * 这条排队的神谕打算给谁。按角色分队列**已经落地**，不是预留：
+   * `pendingOf(villager)` 按人取（`simulation.ts` 的 `this.pending.get(villager.id)`），
+   * 快照也按人展开。
+   *
+   * 这里原来写「预留按角色分队列：当前单角色世界固定用 v0」——两句都不成立。
+   * 一、默认设定集有**两**个居民（迷路人、汐，`settings/dengchao/pack.ts`），
+   * `Simulation` 按 index 发 v0/v1，从来不是单角色。二、队列也不固定 v0：
+   * `enqueuePendingDispatch` 从「没抵押」的候选里挑队列最短的那个，然后
+   * `queue.push({ ..., villagerId: target.id })`——完全可能写进 v1。
+   */
   readonly villagerId: string;
 }
 
@@ -217,7 +232,18 @@ export type WorkstationActivity =
       readonly determinate: boolean;
     }
   | {
-      /** 工具报错后的滑稽故障态，黑烟，不会自己恢复。 */
+      /**
+       * 工具报错后的滑稽故障态，黑烟，不会自己恢复。
+       *
+       * **目前没有任何代码进入这个态。** 全仓唯一写着 `kind: 'overheating'` 的
+       * 赋值处就是本行这个类型声明；六个地方会**读**它（渲染画黑烟、存档校验
+       * 收这个枚举值、`Simulation` 两处判断它算不算在忙），但写它的人不存在。
+       * 唯一打算写它的是 `tasks.ts` 的 `shouldOverheat()`，那个函数写死返回
+       * false，而且**没有任何调用方**。所以这一支是「形状齐全、还没接线」。
+       *
+       * 留着不删：渲染与存档都已经为它备好了位置，接上时不该再改一圈类型。
+       * 但别照这句注释去 `simulation.ts` 里找故障转移——那边没有。
+       */
       readonly kind: 'overheating';
       readonly taskId: string;
       readonly since: number;

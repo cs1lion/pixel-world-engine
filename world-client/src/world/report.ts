@@ -180,10 +180,13 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // 已经落在祭坛边」——头条说没动静，纸上别处写着它动过。所以把 props、
   // 开局后起的楼、没办成的单一起算进"动没动过"；真的什么都没发生才这么说。
   //
-  // 这里原来写「神迹树的**照片**」——这个世界没有照片。`WorldProp`（`types.ts:270`）
-  // 是一盏灯/一棵树/一面幌布，带 `kind`、`at`、`label`，是画在地图上的一件东西，
-  // 不是任何影像；全仓 grep「照片」只命中这一处注释自己。实测描述的是 props
-  // 数组里多出来那一项，照实说「一棵树」就行。
+  // 这里原来写「神迹树的**照片**」——这个世界没有照片。`WorldProp`（`types.ts` 里
+  // 那个 interface，**别信行号**：这句原来写 `types.ts:270`，而那行是
+  // `ConstructionSnapshot.totalMs`，`WorldProp` 在它下面二十多行——我写错了，
+  // 而行号引用审计查不出来，因为那两行都"有代码"）是一盏灯/一棵树/一面幌布，
+  // 带 `kind`、`at`、`label`，是画在地图上的一件东西，不是任何影像；
+  // 全仓 grep「照片」只命中这一处注释自己。实测描述的是 props 数组里多出来
+  // 那一项，照实说「一棵树」就行。
   const changed =
     snapshot.props.length > 0 || newBuildings.length > 0 || failed.length > 0;
   const headline =

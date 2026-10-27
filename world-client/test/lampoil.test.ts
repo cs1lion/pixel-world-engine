@@ -162,8 +162,12 @@ test('见底发灰是接线接上去的，不是写在注释里的', () => {
 
 test('灯是每帧画上去的，不是只在点着那一下', () => {
   // 上一组扫描只盯住了三处接线里的一处（`setAlpha`）。`drawLamp` 那处此前没人守：
-  // 把 `villager.ts:168` 整行删掉，33 条测试全绿，而灯从此不再出现在画面上——
+  // 把 `villager.ts` 里 `drawLamp(view.body, oil, palette)` 那一行整行删掉，
+  // 33 条测试全绿，而灯从此不再出现在画面上——
   // 没人会发现，因为测试里驱动 `drawLamp` 的是个 recorder 假对象。
+  // （这里原来写着一个行号。2026-10-27 我往那个文件头加了一段说明，
+  // 那一行被推到更下面，而审计查不出这个行号已经指错——那行仍然"有代码"。
+  // 所以改成指名要删的是哪一行。）
   const text = codeOf(VILLAGER);
   assert.ok(
     text.includes('drawLamp(view.body, oil, palette)'),

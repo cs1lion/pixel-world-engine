@@ -24,7 +24,13 @@ export interface MinimapPoint {
 export interface MinimapView {
   /** 重画地形底图。世界地形不变，只在开局与扩建后调一次。 */
   paintTerrain(grid: WorldGrid, colors?: Readonly<Record<string, number>>): void;
-  /** 每帧更新：角色、建筑、视野框。 */
+  /**
+   * 每帧更新：角色、建筑、摆件、视野框。
+   *
+   * （这里原来写「角色、建筑、视野框」三样，漏了摆件——而本文件上面刚为同一件事
+   * 修过一笔「四样」→「五样」。少说一样的害处在这儿：下一个人以为可以动那几行，
+   * 而它们其实在画第五样东西。）
+   */
   update(snapshot: WorldSnapshot, viewport: { x: number; y: number; width: number; height: number }): void;
   /** 把画布坐标换成世界格坐标；点在小地图外时返回 null。 */
   toWorld(clientX: number, clientY: number): MinimapPoint | null;

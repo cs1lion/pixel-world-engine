@@ -134,6 +134,12 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
  * `!== 'clear'` 改回列举两种雨，红的是渲染层——而这句话已经先把原因写在这儿。
  *
  * 上限仍然是 1，因为插值的那几个量都是 0..1 语义。
+ *
+ * （上面那句「哪一天有人把 `!== 'clear'` 改回列举两种雨，**红的是渲染层**」
+ * 说得过强：萤火虫那个天气条件今天**没有测试守着**——`test/day-phase.test.ts`
+ * 只断言 `PHASES.night.fireflies` 这个配置值，没有一条用例把
+ * 「暴雨天不该有萤火虫」跑成红。所以真有人改回去，红的是**没有东西会红**，
+ * 坏的只是画面。想让它真的会红，得先给 `phase-view` 的萤火虫条件补一条用例。）
  */
 export function renderIntensity(state: WeatherState): number {
   if (state.kind !== 'storm') return state.intensity;
