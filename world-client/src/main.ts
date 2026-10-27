@@ -42,16 +42,24 @@ if (brand !== null) brand.textContent = pack.name;
  * `index.html` 写死的是「建一间工坊」——那是莞尔镇的模板。灯潮界没有工坊，
  * 照抄这句就是给用户一个注定被拒的例子。有设定集的图改用自己**还没落位**的
  * 模板：那个模板本来就为「能建一栋」留着的。
+ *
+ * **一个都没剩下的时候不能就不管了。** 世界拒绝「同一种铺子建第二栋」，
+ * 所以模板全落位之后这张图上一栋新楼也建不出来；这时留着的那个例子
+ * 仍然是莞尔镇的「建一间工坊」，比原来更糟——它连模板名都不是这张图上的。
+ * 换成一个不靠建造也能办的例子。
  */
 const unplaced = pack.authored
   ? [...pack.blueprints.values()].find(
       (blueprint) => !pack.placements.some((placement) => placement.prefabId === blueprint.id),
     )
   : undefined;
-if (unplaced !== undefined) {
+if (pack.authored) {
   const utterance = document.querySelector<HTMLInputElement>('#utterance');
   if (utterance !== null) {
-    utterance.placeholder = `对世界说一句话：建一座${unplaced.displayName} / 涨潮 / 查一下资料`;
+    utterance.placeholder =
+      unplaced === undefined
+        ? '对世界说一句话：涨潮 / 查一下资料 / 让她带上灯'
+        : `对世界说一句话：建一座${unplaced.displayName} / 涨潮 / 查一下资料`;
   }
 }
 const world = pack.authored

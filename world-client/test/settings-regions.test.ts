@@ -123,13 +123,106 @@ test('一道地域同时要凭证又呼吸：两句话都成立就都查', () =>
   const buried = raw({ regions: [BOTH, ...DENGCHAO_RAW.regions] });
   assert.throws(
     () => loadSettingPack(buried),
-    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是留白'),
+    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是呼吸段'),
     '两个说法都得出现在报错里',
   );
 });
 
 test('盖在后面的呼吸段是好的：重叠本身不是错，只有整片被吃掉才是', () => {
   // 与前面那道门的对照组同一个意思。声明在最后，它赢，那 9 格真归它。
+  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
+  const wins = raw({ regions: [...DENGCHAO_RAW.regions, INNER] });
+  const world = buildSettingWorld(loadSettingPack(wins));
+  assert.equal(world.grid.at({ x: 20, y: 24 })?.region, 'inner_court');
+  assert.equal(world.grid.breathingAt({ x: 20, y: 24 }), true);
+});
+
+// ---------------------------------------------- 灯潮界的呼吸段落在哪几格
+
+test('浅滩轨道真的在呼吸：806 格，一格不多一格不少', () => {
+  // 上面几条守的是「被吃掉的道/留白要拒」，没有一条断言**这本设定集自己**
+  // 到底哪儿在呼吸。缺了它，`pack.ts` 把坐标写歪、或者后来一道区域悄悄
+  // 压到浅滩上，测试全绿而世界一次都不安静——那个坑是静默的。
+  //
+  // 806 是 `pack.ts` 里声明的那个矩形自己算出来的：浅滩轨道 x∈[1,63)、
+  // y∈[1,14)，即 62×13。没有任何别的区域与它相交（灯街 y≥19、积尘滩 y≥34、
+  // 叠浪楼 y≥17），所以声明多少格就真的是多少格。
+  const world = buildSettingWorld(loadSettingPack(DENGCHAO_RAW));
+  let breathing = 0;
+  for (let y = 0; y < world.grid.height; y += 1) {
+    for (let x = 0; x < world.grid.width; x += 1) {
+      if (world.grid.breathingAt({ x, y })) breathing += 1;
+    }
+  }
+  assert.equal(breathing, 806, '浅滩轨道 62×13：写歪一个坐标这里就红');
+});
+
+test('渡口站台 200 格里 120 格归了浅滩轨道，只剩 y∈[14,17] 四行', () => {
+  // 重叠是有意的（楼盖在街上，所以楼后声明），这里把**账**算清：
+  // 站台 x∈[5,25)、y∈[8,18)，浅滩轨道 y<14，所以 y∈[8,14) 那 20×6 格
+  // 归浅滩轨道。`pack.ts` 的注释与这条断言说的是同一笔账，改一处得改另一处。
+  const world = buildSettingWorld(loadSettingPack(DENGCHAO_RAW));
+  assert.equal(world.grid.at({ x: 10, y: 10 })?.region, 'shoal', '站台里头归浅滩轨道');
+  assert.equal(world.grid.at({ x: 10, y: 16 })?.region, 'ferry', '站台沿子那四行还归自己');
+  assert.equal(world.grid.at({ x: 10, y: 13 })?.region, 'shoal', 'y=13 是浅滩的最后一行');
+  assert.equal(world.grid.at({ x: 10, y: 14 })?.region, 'ferry', 'y=14 起归站台');
+  // 门落在楼里那半格算楼，落在留白那半格不算——这是呼吸段与区界要求
+  // 两个槽位互不干涉的一处实证：bathhouse 要一盏灯，可它一格都不呼吸。
+  assert.equal(world.grid.breathingAt({ x: 32, y: 27 }), false, '叠浪楼不呼吸');
+  assert.equal(world.grid.requirementAt({ x: 32, y: 27 }), 'lamp', '但它要一盏灯');
+});
+
+test('旧渡口站台整栋落在呼吸段里，而它一本活都不接：没有活被困在留白', () => {
+  // 这条看着像在给一个巧合背书，其实是在钉一个**前提**：哪本设定集给铺子
+  // 写了 `boundTask` 又把它放进呼吸段，那类活就永远派不出去了——铺子在留白里，
+  // 站在铺子门口的人也在留白里。灯潮界六栋模板的 `boundTask` 全是 null，
+  // 所以这个前提现在成立。改坏了这里会红，而不是让一类活静静消失。
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const world = buildSettingWorld(pack);
+  const station = world.buildings.find((b) => b.prefabId === 'ferry_station');
+  assert.ok(station !== undefined, '开局六栋模板各就各位');
+  assert.equal(world.grid.breathingAt(station.origin), true, '站台落在浅滩轨道里');
+  for (const building of world.buildings) {
+    assert.equal(building.boundTask, null, `${building.prefabId} 不接活，所以没有活会被派进留白`);
+  }
+});
+
+test('没有居民出生在呼吸段里：开局谁也躺不得', () => {
+  // 出生点与镇心都在留白外头，所以「站在留白里的人」只能是**走着走着路过**的，
+  // 而路过的人下一拍就被作息带走。这一条防的是把出生点写进浅滩轨道——
+  // 那不会报错，只会让那个人在开局那一刻接不到任何活。
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const world = buildSettingWorld(pack);
+  for (const villager of pack.villagers) {
+    assert.equal(
+      world.grid.breathingAt(villager.at),
+      false,
+      `${villager.name} 不该出生在呼吸段里`,
+    );
+  }
+  assert.equal(world.grid.breathingAt(pack.hub), false, '镇心不在呼吸段里');
+});
+
+test('一道有说法的地域，被整片盖住时两句话都拒：requires 与 breathing 同时存在', () => {
+  // 两个槽位是独立的（`types.ts` 里写了）。上面那条只覆盖单个说法，
+  // 这条钉住「加起来查」——一道门加留白被盖住时，报错要把两句都说出来，
+  // 而不是只挑一句。
+  const BOTH = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, requires: 'lamp' as const, breathing: true };
+  const buried = raw({ regions: [BOTH, ...DENGCHAO_RAW.regions] });
+  assert.throws(
+    () => loadSettingPack(buried),
+    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是留白'),
+    '两个说法都得出现在报错里',
+  );
+});
+
+test('呼吸段被整片盖住也拒：留白是绕着格子算的，一格不占就是整条链空转', () => {
+  const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
+  const buried = raw({ regions: [INNER, ...DENGCHAO_RAW.regions] });
+  assert.throws(() => loadSettingPack(buried), SettingPackError, '里院的 9 格全被灯街盖住了');
+});
+
+test('盖在后面的呼吸段是好的：重叠本身不是错，只有整片被吃掉才是', () => {
   const INNER = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, breathing: true };
   const wins = raw({ regions: [...DENGCHAO_RAW.regions, INNER] });
   const world = buildSettingWorld(loadSettingPack(wins));

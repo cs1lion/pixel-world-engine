@@ -49,9 +49,9 @@ const ZONES: readonly ZoneId[] = ['street', 'altar', 'industry', 'scholarly', 'a
  * - `requires` 的门——`gatedRegions` 照样把它报给提示词和界面，而没有任何一格
  *   真的要求凭证。模型被告知有一道门，到了那儿发现谁都能进，比没有门更糟：
  *   它已经按「有门」规划过了。
- * - `breathing` 的留白——`breathingRegions` 同样照报，界面上那片写着「留白」，
- *   而它一格都不呼吸。呼吸段的整条链（`breathingAt`、不派活、不出急件）是绕着
- *   格子算的，一格不占就是整条链空转。
+ * - `breathing` 的呼吸段——`breathingRegions` 同样照报，而它一格都不呼吸。
+ *   呼吸段的整条链（`breathingAt`、不派活、不出急件）是绕着格子算的，
+ *   一格不占就是整条链空转。
  *
  * **不能反过来要求「区域不许重叠」。** 灯潮界的渡口压在浅滩上、叠浪楼的轮廓伸进
  * 灯街，那是有意的写法（`pack.ts` 里写了理由：街先画、楼后画）。只有「一整片
@@ -70,7 +70,7 @@ function assertSaidRegionsOwnCells(raw: RawSettingPack, label: (id: string) => s
   for (const region of raw.regions) {
     const says: string[] = [];
     if (region.requires != null) says.push(`要 ${region.requires}`);
-    if (region.breathing === true) says.push('是留白');
+    if (region.breathing === true) says.push('是呼吸段');
     if (says.length === 0) continue;
     let owns = false;
     for (let y = region.y; y < region.y + region.h && !owns; y += 1) {
