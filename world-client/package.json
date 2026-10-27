@@ -6,8 +6,8 @@
   "description": "像素世界引擎的前端：模拟内核 + 渲染 + HUD",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:world": "tsc --noEmit && vite build --base=/world/",
+    "build": "node scripts/check-types.ts && vite build",
+    "build:world": "node scripts/check-types.ts && vite build --base=/world/",
     "preview": "vite preview",
     "check": "node scripts/check-types.ts",
     "test": "node --test test/*.test.ts",
