@@ -473,6 +473,10 @@ export class SandboxScene extends Phaser.Scene {
     // （补充设计 §0）。它不回到世界：世界不读自己抛出去的体检报告。
     this.memory = new MemoryRuntime({
       worldId: this.pack?.id ?? 'world',
+      // 遮挡网格：不给的话「谁能看见一件事」就只能按 actors 算，而
+      // 神迹、新楼、拆楼、天气这几种改变的 actors 是空的——那就没人记得。
+      // `WorldGrid` 只要 `isWalkable` 就满足 `OcclusionGrid`，直接递。
+      occlusion: this.world.grid,
       onVitals: (vitals) => {
         // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
         // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。

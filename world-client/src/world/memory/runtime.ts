@@ -18,6 +18,7 @@
 
 import { DEFAULT_MEMORY_CONFIG, type MemoryConfig } from './config.ts';
 import type { OcclusionGrid, Perceiver } from './perception.ts';
+import { witnessesOf } from './perception.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import type { HolderType, MemoryEvent, WorldFact, WorldVitals } from './types.ts';
 import { MemoryWorld, type HolderView } from './world.ts';
@@ -58,6 +59,14 @@ export interface MemoryRuntimeDeps {
   readonly onVitals?: (vitals: WorldVitals) => void;
   /** 记忆层事件的出口（写日志用）。省略表示不记。 */
   readonly onEvent?: (event: MemoryEvent) => void;
+  /**
+   * 遮挡网格。**给了，「谁能看见一件事」才真的按感知模型算。**
+   *
+   * 世界那侧的 `WorldGrid` 直接满足 `OcclusionGrid`（只要 `isWalkable`），
+   * 场景构造时把 `this.world.grid` 递进来即可。省略表示「判断不了遮挡」，
+   * 于是退回归 `actors`——那是最保守的一档，宁可少记。
+   */
+  readonly occlusion?: OcclusionGrid;
 }
 
 export class MemoryRuntime {
@@ -79,6 +88,14 @@ export class MemoryRuntime {
    * 与 `toEnvelope` 同一条纪律）。误差不超过一拍。
    */
   private now = 0;
+  /**
+   * 谁站在哪。**只记人物**，由 `syncHolders` 维护。
+   *
+   * 放在适配器这一层而不是 `MemoryWorld` 里：位置是行为层的知识，适配器的
+   * 本职就是搬运它。放进世界就成了「任何人都能一次读到全村的位置」，
+   * 而单位读世界的门至今只有 `viewOf` 一扇——那扇门后只有他自己的东西。
+   */
+  private readonly positions = new Map<string, { readonly x: number; readonly y: number }>();
 
   constructor(deps: MemoryRuntimeDeps = {}) {
     this.config = deps.config ?? DEFAULT_MEMORY_CONFIG;
@@ -99,6 +116,14 @@ export class MemoryRuntime {
    */
   syncHolders(holders: readonly RuntimeHolder[]): void {
     for (const holder of holders) {
+      // 位置先记账，再管名册。**两个分支都要记**：第一次对齐时名册还是空的，
+      // 人人走「新建」那条然后 `continue`——只写在另一条分支里的话，开局这
+      // 一拍所有人都没有位置，感知模型于是谁都看不见。
+      //
+      // 地点 Holder 不记：一栋楼不会「看见」发生在它门口的事。
+      if (holder.at !== undefined && holder.type === 'character') {
+        this.positions.set(holder.holderId, holder.at);
+      }
       if (!this.world.hasHolder(holder.holderId)) {
         this.world.addHolder({
           holderId: holder.holderId,
@@ -116,9 +141,8 @@ export class MemoryRuntime {
   /**
    * 世界做成了一件事。返回写下的记忆 id。
    *
-   * `witnesses` 不在这里算：记忆层没有遮挡网格，也不知道谁能看见谁。
-   * 由调用方给（它手上有 `Simulation` 的快照），给不出就按「在场者」——
-   * 也就是 `actors`，这是最保守的一档，宁可少记。
+   * `witnesses` 不传时**按感知模型算**（见 `witnessesFor`）。调用方手上
+   * 有比位置更多的东西时（比如它知道谁真的在看），可以显式给一份盖过去。
    */
   observe(
     observation: RuntimeObservation,
@@ -132,6 +156,10 @@ export class MemoryRuntime {
       place: {
         placeId: observation.placeId,
         at: observation.at,
+        // `indoor` 恒为 false：世界模型还答不上「这栋楼是不是室内空间」
+        // （`PlaceAnchor.indoor` 至今没有生产方）。按室外算是**多记**的方向——
+        // 屋里屋外八格内的人都算在场。反过来一律按「室内同房间」会让每件事
+        // 只剩 actors 一个人记得，而那正是 `witnessesFor` 要修的那个静默失效。
         indoor: false,
       },
       actors: observation.actors,
@@ -140,11 +168,66 @@ export class MemoryRuntime {
       source: 'world',
       importanceHint: observation.importanceHint,
       parentEventId: null,
-      witnesses: witnesses ?? observation.actors,
+      witnesses: witnesses ?? this.witnessesFor(observation),
       ...(observation.valence === undefined ? {} : { valence: observation.valence }),
       ...(observation.arousal === undefined ? {} : { arousal: observation.arousal }),
     });
     return result.written;
+  }
+
+  /**
+   * 谁看见了这件事。
+   *
+   * **感知模型在真实世界里的唯一入口。** `perception.ts` 的 `witnessesOf`
+   * 写好了、测过了，而在这之前 `observe` 一直写死 `witnesses ?? actors`——
+   * 一个调用方都没有。偏偏 `observe.ts` 里 `building.built`、
+   * `building.removed`、`miracle`、`weather` 四种改变的 `actors` **都是空数组**：
+   * 一栋新楼立起来、一次神迹、一场拆楼、一回天气反常，全村没有一个人记得，
+   * 连站在原地的那个都不记得。没有目击者就没有记忆，没有记忆就没有断言，
+   * 没有断言传播层就整层空转——而日志里一声不响，单元测试还全绿。
+   *
+   * `actors` 仍然算在场者，而且**排在最前**：参与这件事的人按定义就在那；
+   * 更重要的是 witnesses 的顺序决定断言诞生在谁身上（`birthClaim` 取第一个），
+   * 动手的人该是那个起源者。
+   *
+   * 没有遮挡网格时退回归 `actors`：判断不了遮挡，就不能假装看得见。
+   */
+  private witnessesFor(observation: RuntimeObservation): readonly string[] {
+    const witnesses = [...observation.actors];
+    const grid = this.deps.occlusion;
+    if (grid === undefined) return witnesses;
+    const perceivers = this.perceivers();
+    if (perceivers.length === 0) return witnesses;
+
+    const seen = new Set(witnesses);
+    for (const holderId of witnessesOf({
+      place: { placeId: observation.placeId, at: observation.at, indoor: false },
+      perceivers,
+      grid,
+      config: this.config,
+    })) {
+      if (seen.has(holderId)) continue;
+      seen.add(holderId);
+      witnesses.push(holderId);
+    }
+    return witnesses;
+  }
+
+  /**
+   * 这一刻可能看见事情的人，按 holderId 排序。
+   *
+   * 排序不是洁癖：感知的输入顺序决定 witnesses 的顺序，witnesses 的顺序
+   * 决定断言诞生在谁身上。同一份存档跑两遍要得到同一个答案，就不许按
+   * Map 的插入顺序走——插入顺序取决于行为层这拍先同步了谁。
+   */
+  private perceivers(): readonly Perceiver[] {
+    const perceivers: Perceiver[] = [];
+    for (const holderId of [...this.positions.keys()].sort()) {
+      const at = this.positions.get(holderId);
+      if (at === undefined) continue;
+      perceivers.push({ holderId, at, inside: null });
+    }
+    return perceivers;
   }
 
   /**
@@ -161,7 +244,18 @@ export class MemoryRuntime {
     actors: readonly string[],
     sight?: { readonly perceivers: readonly Perceiver[]; readonly grid: OcclusionGrid },
   ): WorldFact | null {
-    return this.world.ingestUpstream(action, at, { ...place, indoor: false }, actors, sight);
+    // 调用方没给现场，就用适配器自己这一份：位置是 `syncHolders` 喂进来的，
+    // 遮挡网格是构造时给的。两份都有才算得动；缺一个就按 `actors`——
+    // 参与这件事的人按定义就在场。
+    //
+    // 不这么接的话，上游事件（`source = agent`）的记忆面会比本地事件窄一截：
+    // 神迹从日志进来没人记得，神迹从 `observe` 进来就有人记得。
+    const scene =
+      sight ??
+      (this.deps.occlusion === undefined
+        ? undefined
+        : { perceivers: this.perceivers(), grid: this.deps.occlusion });
+    return this.world.ingestUpstream(action, at, { ...place, indoor: false }, actors, scene);
   }
 
   /** 一条上游动作会变成什么事件。不写世界，只回答「会不会发生」。 */
