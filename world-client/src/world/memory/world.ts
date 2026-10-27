@@ -642,6 +642,28 @@ export class MemoryWorld {
 
   /**
    * 写一封信。一封信一条断言，超了就写不成（见 `written.ts` 的解释）。
+   *
+   * **这一路在跑着的世界里是断的，两头都断。** 扫一遍（`grep -rn "\.writeLetter(" src`）
+   * 可知：`writeLetter` 与 `readWritten`、`writtenOf` 在 `src/` 里一个调用方都没有，
+   * 层内也没有。而五类通道里另外四类都有生产方——直接感知走 `observe`/`ingest`，
+   * 对话走 `diffuseDay`，广播走 `postDailyReport`，痕迹随 `ingest` 落。所以书面通道
+   * 是**半接**的：日记那一半由 `dayClosed` → `writeDailies` 天天在产，书信那一半
+   * 从来没有被触发过一次，`kind: 'letter'` 在跑着的世界里一次都没落过地。
+   *
+   * 没有替它接上，是因为补设计 §3.2 那一行只规定了书面通道的**参数**（`letterClaims`
+   * 一条、去档案室主动查阅、慢、最高保真）与**权限**（收发双方），没有一个字说
+   * 「什么时候该有人写信」。对照广播：那一行明写了三方发布权，其中「系统日终日报」
+   * 不需要生成逻辑，所以 `postDailyReport` 接得上。书信缺的正是这个「谁该写」的判据，
+   * 而它是外环的事。出口留着，不假装它接着。
+   *
+   * 顺带两处贴错的事件标签，病根同一个——`MemoryEventKind` 那个闭集里，写侧只有
+   * `diary.written`、读侧只有 `announcement.read`，书信被塞进了这两格，而协议 §13
+   * 那张表本来就没有书信事件：
+   * - 本函数发的竟是 `'diary.written'`。写一封信，报的是「有人写了一篇日记」。
+   *   `memory-diary.test.ts` 里「两天两条」那条断言能过，只因为那个测试里恰好没有信。
+   * - `readWritten` 发的是 `'announcement.read'`。读一封信，报的是「有人读了一条公告」。
+   * 要修就得往闭集里加 `letter.written` / `written.read` 两格——那是 taxonomy 决定，
+   * 而归将来接这条流的人（今天它一个消费方都没有，见 `MemoryEventKind` 上那张表）。
    */
   writeLetter(input: {
     readonly authorId: string;
