@@ -5,6 +5,7 @@ import type { SimulationDeps } from '../src/world/simulation.ts';
 import type { IntentModel } from '../src/world/intent-router.ts';
 import { buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
+import { EMPTY_FOLD } from '../src/world/task-events.ts';
 import { readFileSync } from 'node:fs';
 
 const templates = parseBlueprintTable(
@@ -358,5 +359,91 @@ test('没人插话，模型的答复照常上回执那一行', async () => {
   assert.ok(
     late.some((result) => result.message === '这句话没有对应的世界命令'),
     `该说的没说：${late.map((r) => r.message).join(' / ')}`,
+  );
+});
+
+// ---------------------------------------------- 别只在「用户又说话」时让渡主权
+
+/**
+ * 上面三条只覆盖了「用户又说了另一句话」这一种插话。**那一种远远不是全部。**
+ *
+ * 会往回执那一行写字的来路有六种以上：用户的话、神迹按钮、造物按钮、交付按钮、
+ * 上游轮询、外部 Agent 的 feed。第一版的所有权记的是「用户最后说了什么」，
+ * 于是另外五种全漏——实测「今天天气不错」送进模型，紧接着点一下「神迹：点灯」：
+ * 屏上「一盏神迹点的灯落下了。」，4.8 秒后变成「听起来你在感叹天气……所以世界
+ * 不动」。灯刚落在地上，回执说世界没动。**根本不需要第二句话。**
+ *
+ * 所以这里按来路各钉一条：每一种插进来，迟到的答复都得闭嘴。
+ */
+const INTERRUPTS: readonly (readonly [string, (sim: Simulation) => void])[] = [
+  ['神迹按钮', (sim) => sim.enqueue({ kind: 'miracle', miracle: 'light' })],
+  ['造物按钮', (sim) => sim.enqueue({ kind: 'build', prefabId: 'scripture_pavilion', instanceId: 'scripture_pavilion#99' })],
+  ['交付按钮', (sim) => sim.enqueue({ kind: 'complete' })],
+  ['派活按钮', (sim) => sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' })],
+  ['世界法则：下雨', (sim) => sim.enqueue({ kind: 'setWeather', weather: 'rain' })],
+  [
+    '上游轮询掉线',
+    (sim) => sim.enqueue({ kind: 'syncEvents', fold: EMPTY_FOLD, connected: false }),
+  ],
+];
+
+for (const [label, interrupt] of INTERRUPTS) {
+  test(`「${label}」占了那一行之后，迟到的模型答复不抢`, async () => {
+    const { model, release } = gatedModel({ kind: 'unknown', reason: '在感叹天气' });
+    const sim = makeSim(model);
+
+    say(sim, '今天天气不错');
+    const asked = tick(sim);
+    assert.ok(
+      asked.some((r) => r.message === '这句话规则认不出，正在问模型……'),
+      `前置：这句话送进模型了，那一行归它，实际：${asked.map((r) => r.message).join(' / ')}`,
+    );
+
+    // 插进来的那一件：它写了字，那一行就归它。
+    interrupt(sim);
+    const intruded = tick(sim);
+    assert.ok(
+      intruded.some((r) => r.message !== ''),
+      `前置：「${label}」该给一句话，实际：${intruded.map((r) => r.message).join(' / ')}`,
+    );
+
+    release();
+    const late = await settleCollect(sim);
+    assert.ok(
+      !late.some((r) => r.message === '在感叹天气'),
+      `「${label}」刚说过话，迟到的答复却把它盖成了「在感叹天气」——屏上的事刚发生，回执说世界没动`,
+    );
+  });
+}
+
+test('插进来的那一件没说话（空结果），迟到的答复照常说', async () => {
+  // 反方向：空结果不占那一行（`oracle-panel` 的 onResult 认这个记号，空来它不擦）。
+  // 所以它不该把模型那句话闷死——那会让「点了一下没反应的按钮」变成永久沉默。
+  //
+  // 用首次 `syncEvents(connected:true)`：`previous === null` 时走的是稳态那一支，
+  // 给空。第一次就报「上游连上了」是编一个事件——没有什么恢复过。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '在感叹天气' });
+  const sim = makeSim(model);
+
+  say(sim, '今天天气不错');
+  const asked = tick(sim);
+  assert.ok(
+    asked.some((r) => r.message === '这句话规则认不出，正在问模型……'),
+    `前置：这句话送进模型了，实际：${asked.map((r) => r.message).join(' / ')}`,
+  );
+
+  sim.enqueue({ kind: 'syncEvents', fold: EMPTY_FOLD, connected: true });
+  const quiet = tick(sim);
+  assert.deepEqual(
+    quiet.map((r) => r.message),
+    [''],
+    `前置：这一件该一句话都不说，实际：${quiet.map((r) => r.message).join(' / ')}`,
+  );
+
+  release();
+  const late = await settleCollect(sim);
+  assert.ok(
+    late.some((r) => r.message === '在感叹天气'),
+    `没人真的说话，模型那句该上来：${late.map((r) => r.message).join(' / ')}`,
   );
 });

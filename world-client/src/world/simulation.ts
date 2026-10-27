@@ -131,17 +131,24 @@ export type WorldCommand =
       readonly kind: 'intent';
       readonly intent: ParsedIntent;
       readonly raw: string;
-      /**
-       * 这句话去问模型时，回执那一行归谁。**只有 `classifyLater` 填。**
-       *
-       * 模型的答复要过网络，回来时用户可能已经又说了几句。结算时拿它和
-       * 现在的 `receiptOwner` 对一下：对不上就是那句话已经不归这一行了，
-       * 世界效果照算，话不往 `#reply` 上说。
-       *
-       * 省略表示「不是从模型回来的」——测试直接投的意图、以及任何将来
-       * 别的来路，都没有「迟到」这回事，不该被这条规矩拦住。
-       */
-      readonly owner?: string;
+    }
+  /**
+   * 模型判定的结果，回队结算。**只有 `classifyLater` 产得出这一种。**
+   *
+   * 与上面的 `intent` 分成两个成员，是为了让「这是从模型回来的」成为类型层面
+   * 的事实，而不是一个忘了填就静默失效的可选字段（`owner?: string` 那一版
+   * 就是：将来任何一个新的调用点忘了写它，整条保护一声不响地消失，类型不报错、
+   * 测试不红）。分开之后，忘了填 `askedAtSeq` 编译不过。
+   *
+   * 为什么迟到的答复要单独一种：模型的答复要过网络，回来时那一行可能已经归了
+   * 别的东西。见 `receiptOwnerSeq`。
+   */
+  | {
+      readonly kind: 'intentFromModel';
+      readonly intent: ParsedIntent;
+      readonly raw: string;
+      /** 发问那一条神谕的入队序号。回执那一行归谁，按它算，不按本条的序号算。 */
+      readonly askedAtSeq: number;
     }
   | { readonly kind: 'dispatch'; readonly taskKind: TaskKind; readonly summary: string }
   | { readonly kind: 'complete'; readonly target?: string }
@@ -232,6 +239,18 @@ export type WorldCommand =
    * 报酬是露出来的那句话。要「搓三下才洗干净」那是另一个票。
    */
   | { readonly kind: 'cleanProp'; readonly propId: string };
+
+/**
+ * 不需要特殊仲裁的命令：`apply()` 亲自接走的那两种之外的全部。
+ *
+ * 排掉 `oracle`（要解析、要发问）与 `intentFromModel`（要按发问那一条的序号
+ * 仲裁，不按本条入队的序号）。参数写成这个类型，`applyCommand` 里的 switch
+ * 就是穷尽的——给 `WorldCommand` 加一种而那里忘了写，编译不过。
+ */
+export type SettledCommand = Exclude<
+  WorldCommand,
+  { readonly kind: 'oracle' } | { readonly kind: 'intentFromModel' }
+>;
 
 export interface NewBuilding {
   readonly building: PlacedBuilding;
@@ -396,7 +415,20 @@ export class Simulation {
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
-  private readonly queue: WorldCommand[] = [];
+  /**
+   * 排队等结算的命令，各带一个**入队序号**。
+   *
+   * 序号是回执那一行「归谁」的唯一依据，所以它必须跟着命令走、并且对所有来路
+   * 一视同仁：用户的话、神迹按钮、造物按钮、交付按钮、上游轮询、外部 Agent 的
+   * feed，全部排在同一条递增的序列上。按调用点分别记「谁算新」的那种写法
+   * （早先的 `receiptOwner` 只认「用户又说了一句话」）漏一个就是一个谎言：
+   * 实测「今天天气不错」送进模型之后点一下「神迹：点灯」，灯落下了，4.8 秒后
+   * 回执变成「听起来你在感叹天气……所以世界不动」——屏上一盏新灯，回执说世界
+   * 没动。神迹、造物、交付、下雨、上游重连五条路全是这样。
+   */
+  private readonly queue: { readonly command: WorldCommand; readonly seq: number }[] = [];
+  /** 下一条命令的入队序号。从 1 起，0 表示「还没有谁占过那一行」。 */
+  private nextSeq = 1;
   /**
    * 哪条上游的活、因为哪个原因已经报过一句「派不下去」。键是任务 id，值是原因。
    *
@@ -468,20 +500,28 @@ export class Simulation {
   /** 正在问模型的句子。防止同一句被重复投递时问两次。 */
   private readonly pendingClassify = new Set<string>();
   /**
-   * 用户最近说过的那句话（trim 过）。**回执那一行归它。**
+   * 回执那一行现在归谁——**按入队序号记，不记内容**。0 表示还没有谁占过它。
    *
-   * 模型的答复要过网络，回来时用户可能已经又说了几句——而回执只有一行。
-   * 让一句答给旧话的话落上去，比不说话更糟：实测「今天天气不错」送进模型，
-   * 紧接着说「下雨了」，屏上先是「雨落下来了。」，4.8 秒后那一行变成
-   * 「你只是在感叹天气……所以世界不动」——而屏上正在下雨。那是字面意义上
-   * 的说谎，正是这个仓库最不容的那一件。
+   * 那一行只有一个位置。规则：**最后一条真的往上写了字的命令占着它**；一条
+   * 更老的结果迟回来时，那儿已经换了主人，它就把嘴闭上。
    *
-   * 与 `syncEvents` 那条同源（见那边 `!connected` 分支的注释）：回执那一行是
-   * **用户自己的话**的归宿，不是任何别的东西的归宿——包括用户自己早先说过
-   * 的另一句。那句话的世界效果照算（该下的雨照样下、石板照样刻），
-   * 只是话不往那一行上说。
+   * 为什么是序号而不是「用户最后说了什么」：会往那一行写字的远不止用户的话。
+   * 神迹按钮、造物按钮、交付按钮、上游轮询、外部 Agent 的 feed 都写。按
+   * 「用户又说话了吗」判，这些全都漏——实测「今天天气不错」送进模型后点一下
+   * 「神迹：点灯」，灯落下了，4.8 秒后回执变成「听起来你在感叹天气……所以
+   * 世界不动」：屏上一盏新灯，回执说世界没动。那是这个仓库最不容的那一件
+   * （「说谎比不去更糟」，`docs/SPEC.md`），而触发点根本不需要第二句话。
+   *
+   * 被闭上嘴的结果，**世界效果照算**——模型判出来的是一条真命令，该下的雨
+   * 照样下、石板照样刻（`settleIntent` 里已经做了）。要拦的只是那句话别落到
+   * `#reply` 上。空 message 就是「这话不说」，`oracle-panel` 与
+   * `SandboxScene.speak` 都认这个记号。
+   *
+   * 与 `syncEvents` 的 `!connected` 分支、与 `00e46bf`（场景挂上前的结果整条
+   * 丢掉）是同一条规矩的各面：那一行是**刚刚发生过的事**的归宿，不是任何
+   * 更早的东西的归宿。
    */
-  private receiptOwner = '';
+  private receiptOwnerSeq = 0;
   /** 是否已与上游对过账。读档后为 false：对账前不驱动上游单。 */
   private feedReconciled = true;
   /** 上游事件流是否在线。离线时世界照常过日子，但状态行必须说出来。 */
@@ -578,7 +618,8 @@ export class Simulation {
   }
 
   enqueue(command: WorldCommand): void {
-    this.queue.push(command);
+    this.queue.push({ command, seq: this.nextSeq });
+    this.nextSeq += 1;
   }
 
   /**
@@ -611,9 +652,9 @@ export class Simulation {
     this.now += deltaMs;
     this.lastResults.length = 0;
     while (this.queue.length > 0) {
-      const command = this.queue.shift();
-      if (command === undefined) break;
-      this.lastResults.push(this.apply(command));
+      const entry = this.queue.shift();
+      if (entry === undefined) break;
+      this.lastResults.push(this.apply(entry));
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
@@ -732,27 +773,49 @@ export class Simulation {
 
   // ---------------------------------------------------------------- commands
 
-  private apply(command: WorldCommand): CommandResult {
+  private apply(entry: { readonly command: WorldCommand; readonly seq: number }): CommandResult {
+    const command = entry.command;
+    if (command.kind === 'oracle') {
+      // 序号要一路带到 `speak()`：它发问时得记住「这一行归哪一条」，
+      // 模型的答复回来时才有个可比的数。见 `receiptOwnerSeq`。
+      return this.arbitrate(entry.seq, this.speak(command.raw, entry.seq));
+    }
+    if (command.kind === 'intentFromModel') {
+      // 迟到的答复：**按发问那一条的序号仲裁**，不按本条入队的序号。
+      //
+      // 本条是网络回来后才入队的，序号最新——拿它比，它永远赢，那道闸就白设了。
+      // 该比的是「我问出这句话的时候，那一行归谁」：那之后只要有别的命令写了
+      // 字，序号就更大，这话该闭嘴。
+      return this.arbitrate(command.askedAtSeq, this.applyIntent(command.intent, command.raw));
+    }
+    return this.arbitrate(entry.seq, this.applyCommand(command));
+  }
+
+  /**
+   * 一条结果能不能落到回执那一行上。
+   *
+   * 两条路都短：没字可说的原样回去（空结果不擦回执，`oracle-panel` 的
+   * `onResult` 认这个记号）；有字而那一行已经归了更新的命令，就把字收回去。
+   * 收回去的只是**那句话**，世界效果在调用方那头早就落完了。
+   */
+  private arbitrate(seq: number, result: CommandResult): CommandResult {
+    if (result.message === '') return result;
+    if (seq < this.receiptOwnerSeq) return { ok: result.ok, message: '' };
+    this.receiptOwnerSeq = seq;
+    return result;
+  }
+
+  /**
+   * 除 `oracle` / `intentFromModel` 之外的命令：原样结算，不仲裁。
+   *
+   * 这两种不进这里：`oracle` 要解析、要发问，`intentFromModel` 要按发问那一条的
+   * 序号仲裁——都由 `apply()` 亲自接。参数类型把它们排掉，于是这个 switch 是穷尽的，
+   * 将来给 `WorldCommand` 加一种而这里忘了写，编译不过。
+   */
+  private applyCommand(command: SettledCommand): CommandResult {
     switch (command.kind) {
-      case 'oracle':
-        return this.speak(command.raw);
-      case 'intent': {
-        const result = this.applyIntent(command.intent, command.raw);
-        // 迟到的答复：用户已经又说过话了，回执那一行归新那句话。
-        //
-        // 世界效果照算——模型判出来的是一条真命令，该下的雨照样下、石板
-        // 照样刻（`settleIntent` 里已经做了）。要拦的只是那句话别落到
-        // `#reply` 上：那一行是新句的归宿。空 message 就是「这话不说」，
-        // `oracle-panel` 与 `SandboxScene.speak` 都认这个记号。
-        //
-        // 只拦从模型回来的那一批（`owner` 有值）：直接投的意图没有
-        // 「迟到」这回事。实测教训见 `receiptOwner`：不拦的话，
-        // 屏上在下雨而回执说「世界不动」。
-        if (command.owner !== undefined && command.owner !== this.receiptOwner) {
-          return { ok: result.ok, message: '' };
-        }
-        return result;
-      }
+      case 'intent':
+        return this.applyIntent(command.intent, command.raw);
       case 'dispatch':
         return this.dispatch(command.taskKind, command.summary);
       case 'complete':
@@ -914,10 +977,7 @@ export class Simulation {
    *
    * 认不出的输入不落石板，回执里明说没听懂：石板不是聊天记录。
    */
-  private speak(raw: string): CommandResult {
-    // 这句话一进来，回执那一行就归它了。要记在**所有提前返回之前**：
-    // 造物、神绩、没听懂都从这儿返回，而每一种都已经是用户最新的一句话。
-    this.receiptOwner = raw.trim();
+  private speak(raw: string, seq: number): CommandResult {
     // 先试造物：它认「建一间书阁」这类话，与派活解析器不重叠
     // （那个的动词表里没有「建 / 盖 / 造」）。
     const buildIntent = this.parseBuildIntent(raw);
@@ -939,7 +999,7 @@ export class Simulation {
       // 走 `enqueue({kind:'intent'})` 重新排队，由下一个逻辑拍结算。
       // 这样世界的时间线不依赖网络延迟，离线时也只是"这句话没听懂"。
       if (this.intentModel !== undefined) {
-        void this.classifyLater(raw);
+        void this.classifyLater(raw, seq);
         return { ok: true, message: '这句话规则认不出，正在问模型……' };
       }
       const message = '没听懂这句，世界没有动。';
@@ -963,7 +1023,7 @@ export class Simulation {
       default:
         command = { kind: 'complete' };
     }
-    const result = this.apply(command);
+    const result = this.applyCommand(command);
     if (result.ok) this.inscribe(raw, result.message);
     return result;
   }
@@ -979,14 +1039,11 @@ export class Simulation {
    * 3. **失败只是没听懂。** 超时、网络错、JSON 不合法，全部落到 unknown，
    *    绝不退而求其次猜一个。
    */
-  private async classifyLater(raw: string): Promise<void> {
+  private async classifyLater(raw: string, askedAtSeq: number): Promise<void> {
     const model = this.intentModel;
     if (model === undefined) return;
     if (this.pendingClassify.has(raw)) return; // 同一句只问一次
     this.pendingClassify.add(raw);
-    // 这句话去问模型时，回执那一行归谁。模型回来时用它和现在的对一下——
-    // 用户多半已经又说了几句，而那一行只有一行。见 `receiptOwner`。
-    const owner = this.receiptOwner;
     try {
       const result = await routeIntent(raw, {
         templates: this.blueprints ?? new Map(),
@@ -1007,10 +1064,10 @@ export class Simulation {
         // 「没听懂」有用：用户据此才知道该换句话、还是该去看服务端。
         const message = result.modelError ?? result.intent.reason;
         this.log('warn', message);
-        this.enqueue({ kind: 'intent', intent: { kind: 'unknown', reason: message }, raw, owner });
+        this.enqueue({ kind: 'intentFromModel', intent: { kind: 'unknown', reason: message }, raw, askedAtSeq });
         return;
       }
-      this.enqueue({ kind: 'intent', intent: result.intent, raw, owner });
+      this.enqueue({ kind: 'intentFromModel', intent: result.intent, raw, askedAtSeq });
     } catch (error) {
       // `routeIntent` 自己已经把模型失败吞成 unknown 了，所以走到这里的是
       // 它管不着的那种：取快照、拼上下文、入队时抛的错。这条 async 方法由
@@ -1106,8 +1163,8 @@ export class Simulation {
   }
 
   /** 走命令、成功就刻石板。`applyIntent` 里几处共用的收尾。 */
-  private settleIntent(command: WorldCommand, raw: string): CommandResult {
-    const result = this.apply(command);
+  private settleIntent(command: SettledCommand, raw: string): CommandResult {
+    const result = this.applyCommand(command);
     if (result.ok) this.inscribe(raw, result.message);
     return result;
   }
