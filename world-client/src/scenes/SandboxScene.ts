@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
-import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldSnapshot } from '../world/types.ts';
+import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp, WorldSnapshot } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
 import { WORLD, tokenNameOf } from '../world/palette-data.ts';
@@ -129,6 +129,8 @@ export class SandboxScene extends Phaser.Scene {
   private terrainLayer!: BakedLayer;
   /** 拖拽平移的起点（屏幕坐标）；null 表示没在拖。 */
   private dragFrom: { x: number; y: number } | null = null;
+  /** 这一回按下之后指针挪过没有。挪过了就是拖镜头，没挪过才算点一下。 */
+  private pressMoved = false;
   private lastConstructionKey = '';
   private readonly lastBubbles = new Map<string, string | null>();
   private readonly animalese: Animalese = createLazyAnimalese();
@@ -242,9 +244,14 @@ export class SandboxScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
       this.dragFrom = { x: pointer.x, y: pointer.y };
+      this.pressMoved = false;
     });
-    this.input.on('pointerup', () => {
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       this.dragFrom = null;
+      // 抬手时没怎么动，才算「点了一下」而不是拖镜头。没有这个区分的话，
+      // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
+      if (this.pressMoved) return;
+      this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null || this.dragFrom === null) return;
@@ -255,6 +262,9 @@ export class SandboxScene extends Phaser.Scene {
       const dx = pointer.x - this.dragFrom.x;
       const dy = pointer.y - this.dragFrom.y;
       this.dragFrom = { x: pointer.x, y: pointer.y };
+      // 判「移动过」而不是判移动距离：一格以内的抖动照样是拖动，
+      // 而拖动与点击的分界本来就该是「有没有挪过」。
+      if (Math.abs(dx) > 0 || Math.abs(dy) > 0) this.pressMoved = true;
       this.cameraCtl.panBy(dx, dy);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
@@ -367,6 +377,11 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack === undefined || this.pack === null
         ? {}
         : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 露话池（SPEC_V2 §4.6）。设定集一份都没给时这项整个不出现——
+      // 于是那本世界里没有一件摆件会脏，也没有一句编出来的话。
+      ...(this.pack?.propReveals !== undefined
+        ? { propReveals: this.pack.propReveals }
+        : {}),
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
         void this.eventsClient?.record(change, at);
@@ -646,6 +661,46 @@ export class SandboxScene extends Phaser.Scene {
     // 编号由世界发（`nextInstanceId`），不在场景层拿 `buildings.length` 现算：
     // 拆一栋再建一栋会拿到用过的号，旧 id 就指向了新楼。
     this.sim.enqueue({ kind: 'build', prefabId, instanceId: this.sim.nextInstanceId(prefabId) });
+  }
+
+  /**
+   * 洗一件摆件（SPEC_V2 §4.6 的清洗即还原）。这是玩家对世界做的那一下。
+   *
+   * 为什么在场景层而不是神谕里：清洗是**摸到东西**的那个动作，不是说一句话。
+   * 神谕走 `IntentKind`（模型能说的白名单），而这条与 `setCarries` /
+   * `setNameState` 同属客户端命令——服务端收不到，`server/tests/test_rules_schema.py`
+   * 钉着这一条。
+   *
+   * 不判断脏不脏：那是世界的事（`cleanProp` 会照实说「本来就是干净的」）。
+   * 场景层先替它拒一遍的话，同一句实话就有两个家，而对不上的那个更早说话。
+   */
+  wash(propId: string): CommandResult {
+    this.sim.enqueue({ kind: 'cleanProp', propId });
+    return { ok: true, message: '洗了，随下一拍生效。' };
+  }
+
+  /** 世界坐标上有没有一件可洗的摆件。点空白处不该弹出任何回执。 */
+  propAtCell(at: GridPoint): WorldProp | null {
+    return this.snapshot.props.find((prop) => prop.at.x === at.x && prop.at.y === at.y) ?? null;
+  }
+
+  /**
+   * 指针底下那格上的摆件，洗掉它。空白处什么也不做。
+   *
+   * 取格而不是取对象：摆件是 Graphics，命中测试要么给它加交互区（那会拦掉
+   * 拖镜头），要么按格反查。按格反查与「这座世界就是格」是同一个模型，
+   * 也顺带不会因为缩放级别变化而点空。
+   */
+  private washUnder(pointer: Phaser.Input.Pointer): void {
+    if (this.creation !== null) return;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const at = {
+      x: Math.floor(world.x / TILE_PX),
+      y: Math.floor(world.y / TILE_PX),
+    };
+    const prop = this.propAtCell(at);
+    if (prop === null) return;
+    this.wash(prop.id);
   }
 
   // -------------------------------------------------------------- 造物模式

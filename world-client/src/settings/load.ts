@@ -5,7 +5,7 @@ import type { BuiltWorld } from '../world/setup.ts';
 import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
-import type { PlacedBuilding, PrefabBlueprint, TerrainId, ZoneId } from '../world/types.ts';
+import type { PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
 import type {
   CompiledVillager,
@@ -33,6 +33,9 @@ const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree
 const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
   'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall',
 ];
+
+/** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */
+const PROP_KINDS: readonly PropKind[] = ['lamp', 'tree', 'banner'];
 
 /** 作息的潮位条件。`routines.ts` 只认这两个词。 */
 const TIDE_BEATS: readonly NonNullable<SettingRoutineStop['tide']>[] = ['low', 'high'];
@@ -286,7 +289,41 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       assertRoutineStop(stop, villager.name);
     }
   }
-  return { ...raw, palette, terrainColors, blueprints, villagers, authored: true };
+  const propReveals = compilePropReveals(raw.propReveals);
+  return { ...raw, palette, terrainColors, blueprints, villagers, propReveals, authored: true };
+}
+
+/**
+ * 露话池：校验一遍，顺手把键收窄成 `PropKind`。
+ *
+ * 空数组与「这一项没写」是**两件事**，而这里的规矩只认后者：写了 `lamp: []`
+ * 却什么都不说是说谎——那句话说「这儿有灯底下的话，只是我还没想好」，
+ * 而世界的实际行为是「灯不脏」。想不给话就整项省掉，那是诚实的省略。
+ *
+ * 返回的 `Map` 就是 `SettingPack.propReveals` 的形状，与 `parseBlueprintTable`
+ * 同一路数：原文是不可信的 `Record`，编译后才有一张能直接 `.get(kind)` 的表。
+ * 键的收窄只发生在这一个地方——下游若各自 cast，校验就散了一地。
+ */
+function compilePropReveals(
+  reveals: RawSettingPack['propReveals'],
+): ReadonlyMap<PropKind, readonly string[]> | undefined {
+  if (reveals === undefined) return undefined;
+  const compiled = new Map<PropKind, readonly string[]>();
+  for (const [kind, lines] of Object.entries(reveals)) {
+    if (!PROP_KINDS.includes(kind as PropKind)) {
+      throw new SettingPackError(`露话池的种类 ${kind} 不是 lamp / tree / banner 之一`);
+    }
+    if (!Array.isArray(lines) || lines.length === 0) {
+      throw new SettingPackError(`${kind} 的露话池是空的——不想给话就整项省掉`);
+    }
+    for (const line of lines) {
+      if (typeof line !== 'string' || line.trim() === '') {
+        throw new SettingPackError(`${kind} 的露话池里有一句是空的`);
+      }
+    }
+    compiled.set(kind as PropKind, lines);
+  }
+  return compiled;
 }
 
 /** 从设定集落成的格子上，反过来问一道地域的显示名。装载与报错共用。 */

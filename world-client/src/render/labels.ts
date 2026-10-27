@@ -5,6 +5,7 @@
  */
 
 import { TILE_PX } from '../world/setup.ts';
+import { GRIME_CLEAN } from '../world/grime.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 
 export interface OverlayRect {
@@ -82,3 +83,43 @@ export function alignmentError(
   const dy = actual.y - expected.y;
   return Math.hypot(dx, dy) / cssPerLogical;
 }
+
+/** 露话看得见吗（SPEC_V2 §4.6 的清洗即还原）。 */
+export interface RevealState {
+  readonly reveal: string | null;
+  readonly grime: number;
+}
+
+/**
+ * 这句话此刻看得见吗：底下的格子里得真有一句，而且泥已经洗干净了。
+ *
+ * 两个条件都不能少。只判 `reveal !== null` 的话，脏着的时候那句话就明面上
+ * 摆着——「露」这个字就没有意义了，玩家洗之前就已经读完。
+ * 只判 `grime` 的话，没有露话的摆件（莞尔镇全部）会在洗干净时显示一个空框。
+ *
+ * 阈值用 `GRIME_CLEAN` 而不是 `=== 0`：命令在世界时钟里生效，同一拍世界
+ * 也往前走了，所以洗完立刻又有一丝灰尘。见 `grime.ts` 里那个数的来历。
+ */
+export function revealVisible(prop: RevealState): boolean {
+  return prop.reveal !== null && prop.grime <= GRIME_CLEAN;
+}
+
+/**
+ * 露话的锚点：摆件落点正上方，高过三种摆件的剪影。
+ *
+ * 0.8 与 `propFootY` 同一个落点偏移（站在格内偏下），27 是三种剪影的
+ * 实测最高点（y=-23）再放几格——放得不够，话会压在灯罩上。
+ */
+export function revealAnchor(
+  prop: { readonly at: { readonly x: number; readonly y: number } },
+  viewport: OverlayViewport,
+): OverlayPoint {
+  return projectWorldToOverlay(
+    (prop.at.x + 0.5) * TILE_PX,
+    (prop.at.y + 0.8) * TILE_PX - REVEAL_LIFT_PX,
+    viewport,
+  );
+}
+
+/** 露话比落点高多少（世界像素）。与 `REVEAL_LIFT_PX` 同值，供测试引用。 */
+export const REVEAL_LIFT_PX = 27;

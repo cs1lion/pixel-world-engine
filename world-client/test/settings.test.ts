@@ -6,6 +6,7 @@ import { routineProfiles, selectSetting } from '../src/settings/index.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { checkPlacement } from '../src/world/setup.ts';
 import { parseOracleBuild } from '../src/world/oracle-build.ts';
+import { GRIME_FULL } from '../src/world/grime.ts';
 import { SaveStore, SAVE_STORAGE_KEY, type StorageLike } from '../src/ui/save-store.ts';
 
 class Storage implements StorageLike {
@@ -186,6 +187,71 @@ test('门落下之后两个人的路真的不一样：汐进得去叠浪楼，�
 
   assert.ok(entered.has('汐'), '汐兜里有灯，她该进得去叠浪楼');
   assert.equal(entered.has('迷路人'), false, '迷路人两手空空，她一步也不该进去');
+});
+
+// ------------------------------- 露话池（清洗即还原，SPEC_V2 §4.6）
+
+test('露话池整条链通到世界上：灯潮界的灯洗得出它自己那句话', () => {
+  // 链是四段：池子写在设定集里 → 装载器编译成一张表 → 世界落件时按种类
+  // 取一句 → 洗干净那句话才出来。断在任何一环，清洗就只是数据里的一行字。
+  const world = buildSettingWorld(pack);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: world.altar,
+    villagerName: '汐',
+    villagerNames: pack.villagers.map((v) => v.name),
+    villagerProfiles: routineProfiles(pack),
+    blueprints: pack.blueprints,
+    propReveals: pack.propReveals,
+  });
+
+  sim.enqueue({ kind: 'miracle', miracle: 'light' });
+  sim.update(16);
+  const prop = sim.snapshot().props[0]!;
+  assert.equal(prop.kind, 'lamp', '夹具：神迹落下的是一盏灯');
+  assert.equal(prop.grime, GRIME_FULL, '落地就脏——话在脏底下');
+  assert.ok(
+    DENGCHAO_RAW.propReveals!.lamp.includes(prop.reveal!),
+    `配的得是灯潮界写的那三句之一，结果是 ${prop.reveal}`,
+  );
+
+  sim.enqueue({ kind: 'cleanProp', propId: prop.id });
+  const results = sim.update(16);
+  const reply = results[results.length - 1]!;
+  assert.equal(reply.ok, true, `洗不该被拒：${reply.message}`);
+  assert.ok(reply.message.includes(prop.reveal!), '回执里得有那句话本身');
+});
+
+test('露话池的种类写错一个字母：当场拒绝，不留一类永远不脏的摆件', () => {
+  // 按 `Record<string, …>` 收原文，这个错才写得出来。若按 PropKind 收，
+  // 类型上就没有 `lanp` 这种键，装载期那道校验也就白写了。
+  assert.throws(
+    () => loadSettingPack({
+      ...DENGCHAO_RAW,
+      propReveals: { ...DENGCHAO_RAW.propReveals, lanp: ['写错了'] },
+    }),
+    /不是 lamp \/ tree \/ banner 之一/,
+  );
+});
+
+test('露话池写了却空着：拒绝——「还没想好」和「不想给」是两件事', () => {
+  // `lamp: []` 那句话的实际行为是「灯不脏」，可它读起来像「这儿有话」。
+  // 诚实的省略是整项省掉，所以空池子必须被拒。
+  assert.throws(
+    () => loadSettingPack({ ...DENGCHAO_RAW, propReveals: { lamp: [] } }),
+    /露话池是空的/,
+  );
+  assert.throws(
+    () => loadSettingPack({ ...DENGCHAO_RAW, propReveals: { tree: [' ', ''] } }),
+    /露话池里有一句是空的/,
+  );
+});
+
+test('一份露话都不给：编译成「没有」，不是错误', () => {
+  // 莞尔镇就是这样。v2 只交付承载设定的槽位（§6）——槽空着不是失败。
+  const bare = loadSettingPack({ ...DENGCHAO_RAW, propReveals: undefined });
+  assert.equal(bare.propReveals, undefined, '没有池子就是没有');
 });
 
 test('两位居民有独立出生点，潮位让作息选择真实变化', () => {  const world = buildSettingWorld(pack);

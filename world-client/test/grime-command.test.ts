@@ -30,7 +30,11 @@ const REVEALS: ReadonlyMap<PropKind, readonly string[]> = new Map([
   ['tree', ['根须里缠着半张药方']],
 ]);
 
-function makeSim(): Simulation {
+/**
+ * 世界。`reveals` 省掉就是「这本设定集一句都没给」——莞尔镇的样子，
+ * 于是没有一件摆件会脏。两个夹具只差这一项，所以它是一个参数不是两份。
+ */
+function makeSim(reveals?: ReadonlyMap<PropKind, readonly string[]>): Simulation {
   const world = buildWorld(blueprints);
   return new Simulation({
     grid: world.grid,
@@ -38,7 +42,7 @@ function makeSim(): Simulation {
     altar: ALTAR,
     villagerName: '莞尔',
     wallClock: () => 1000,
-    propReveals: REVEALS,
+    ...(reveals !== undefined ? { propReveals: reveals } : {}),
   });
 }
 
@@ -68,7 +72,7 @@ test('洗一件脏摆件：污浊度归零，回执把露出来的那句话说�
   // 露话是这个动作唯一的报酬，所以它必须出现在玩家看得见的地方。
   // 只把 grime 改成 0 而一句话不说，玩家洗完不知道发生了什么——
   // 那比不洗更糟：他以为自己错过了什么。
-  const sim = makeSim();
+  const sim = makeSim(REVEALS);
   untilOneProp(sim);
   const prop = sim.snapshot().props[0]!;
   assert.equal(prop.grime, GRIME_FULL, '夹具：刚落下的摆件是脏的');
@@ -88,7 +92,7 @@ test('洗一件脏摆件：污浊度归零，回执把露出来的那句话说�
 test('世界里没有那样东西：拒，而且不碰别的摆件', () => {
   // 摆件只增不删，所以「找不到」只可能是 id 写错了。这时候动的必须
   // 只有回执——顺手洗掉第一件是把世界的记忆改成了玩家的笔误。
-  const sim = makeSim();
+  const sim = makeSim(REVEALS);
   untilOneProp(sim);
   const before = sim.snapshot().props[0]!;
 
@@ -104,7 +108,7 @@ test('世界里没有那样东西：拒，而且不碰别的摆件', () => {
 test('本来就是干净的：说「没变」，不谎报办成了', () => {
   // `ok: false` 在这里是「世界没变」，与「命令被拒」是两回事——
   // 与 `setWeather` 撞上同一档时返回的那句同一个口径（见那边的注释）。
-  const sim = makeSim();
+  const sim = makeSim(REVEALS);
   untilOneProp(sim);
   const prop = sim.snapshot().props[0]!;
   run(sim, { kind: 'cleanProp', propId: prop.id });
@@ -117,16 +121,9 @@ test('本来就是干净的：说「没变」，不谎报办成了', () => {
 
 test('没有露话的摆件没有什么可洗：它从来就不脏', () => {
   // 不给设定集（莞尔镇）时池子是空的，于是一件摆件都不脏。
-  // 这时候 `cleanProp` 该照实说「本来就是干净的」——编一个「洗好了」
+  // 这时候 `cleanProp` 该照实说「底下没有东西」——编一个「洗好了」
   // 就是世界在演一件没发生的事。
-  const world = buildWorld(blueprints);
-  const bare = new Simulation({
-    grid: world.grid,
-    buildings: world.buildings,
-    altar: ALTAR,
-    villagerName: '莞尔',
-    wallClock: () => 1000,
-  });
+  const bare = makeSim();
   untilOneProp(bare);
   const prop = bare.snapshot().props[0]!;
   assert.equal(prop.grime, 0, '夹具：没有池子就不脏');
@@ -134,7 +131,23 @@ test('没有露话的摆件没有什么可洗：它从来就不脏', () => {
 
   const result = run(bare, { kind: 'cleanProp', propId: prop.id });
   assert.equal(result.ok, false, '没什么可洗');
-  assert.match(result.message, /干净/);
+  assert.match(result.message, /没有压着东西/, '说它底下没有话，不说它干净');
+});
+
+test('没有露话的摆件走过再久也不脏：规则三得长在攒脏的那一步', () => {
+  // 规则三说的是「没有什么可盖的，攒脏只会得到一个『洗了也不怎样』的
+  // 噪音」。只在**落件**那一下执行它是做一半：莞尔镇不给话，于是一件
+  // 摆件落地 grime 0，而世界自己走上 240 秒后它攒到了满值——
+  // 接着 `cleanProp` 会答一句「灯洗干净了。」，底下一句话都没有。
+  //
+  // 这句话在默认世界里听得见，所以这条钉的是攒的那一步，不是落的那一步。
+  // 上一条测试不走时钟，正好看不见这里。
+  const bare = makeSim();
+  untilOneProp(bare);
+  assert.equal(bare.snapshot().props[0]!.grime, 0, '夹具：没有池子，落地就不脏');
+
+  for (let i = 0; i < 30; i += 1) bare.update(GRIME_FILL_MS / 10);
+  assert.equal(bare.snapshot().props[0]!.grime, 0, '三个周期过去还是干净的');
 });
 
 // ------------------------------------------------------------ 洗完接着脏
@@ -145,7 +158,7 @@ test('洗干净之后世界接着攒脏：露话是有时限的，不是永久�
   //
   // 断言的是**重新攒满**而不是「变脏了一点」：一点点脏在画面上读不出来，
   // 而这个测试要钉的是整条曲线走得回去。
-  const sim = makeSim();
+  const sim = makeSim(REVEALS);
   untilOneProp(sim);
   const prop = sim.snapshot().props[0]!;
   run(sim, { kind: 'cleanProp', propId: prop.id });
@@ -155,11 +168,32 @@ test('洗干净之后世界接着攒脏：露话是有时限的，不是永久�
   assert.equal(sim.snapshot().props[0]!.grime, GRIME_FULL, '两个周期足够再攒满');
 });
 
-test('攒脏只走世界时间：同一串步长回放出同一条曲线', () => {
+test('攒脏按世界时间走：每一拍多出来的脏是个已知数', () => {
   // 三个新状态位都必须进存档、都必须是纯函数判定，不许读墙钟
   // （SPEC_V2 §8 的风险段）。这条是它在清洗上的样子。
+  //
+  // 断言**逐拍增量**而不是「两次回放一样」：步长取的是「从干净到积满」的
+  // 二十分之一，所以每拍该多 0.05。只比两次回放的话，把 `stepGrime`
+  // 整个删掉它还是绿的——两次都是十二个 0，那它就没在守任何东西。
+  const sim = makeSim(REVEALS);
+  untilOneProp(sim);
+  run(sim, { kind: 'cleanProp', propId: sim.snapshot().props[0]!.id });
+
+  const seen: number[] = [];
+  for (let i = 0; i < 12; i += 1) {
+    sim.update(GRIME_FILL_MS / 20);
+    seen.push(sim.snapshot().props[0]!.grime);
+  }
+  for (let i = 1; i < seen.length; i += 1) {
+    const step = seen[i]! - seen[i - 1]!;
+    assert.ok(Math.abs(step - 0.05) < 1e-9, `第 ${i} 拍只该多 0.05，实际多了 ${step}`);
+  }
+  assert.ok(seen[11]! < GRIME_FULL, `十二拍还没积满：${seen[11]}`);
+});
+
+test('同一串步长回放出同一条曲线：攒脏不读墙钟', () => {
   const trace = (): number[] => {
-    const sim = makeSim();
+    const sim = makeSim(REVEALS);
     untilOneProp(sim);
     run(sim, { kind: 'cleanProp', propId: sim.snapshot().props[0]!.id });
     const out: number[] = [];
@@ -179,7 +213,7 @@ test('神迹点的灯也一样落地就脏：两条落件的路走同一条规�
   // 落件有两个调用点（里程碑、神迹）。只在一边装上「落地即脏」的话，
   // 另一边会静静地不脏——而它的露话从落地那一瞬就明面上摆着，
   // 玩家拿到手的东西和设定集写的不是一回事。
-  const sim = makeSim();
+  const sim = makeSim(REVEALS);
   const result = run(sim, { kind: 'miracle', miracle: 'light' });
   assert.equal(result.ok, true, `神迹点灯不该被拒：${result.message}`);
 
@@ -195,7 +229,7 @@ test('神迹点的灯也一样落地就脏：两条落件的路走同一条规�
 test('第二件配第二句：露话按世界上已有几件来取，不是永远第一句', () => {
   // 序数取 `props.length`。两件都配第一句的话，池子从第二件起就是死的——
   // 而设定集写的每一句话都该有被读到的那一天。
-  const sim = makeSim();
+  const sim = makeSim(REVEALS);
   run(sim, { kind: 'miracle', miracle: 'light' });
   run(sim, { kind: 'miracle', miracle: 'light' });
   const props = sim.snapshot().props;

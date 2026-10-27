@@ -1,7 +1,7 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
-import type { CarryItem, GridPoint, PrefabBlueprint, TerrainId } from '../world/types.ts';
+import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
 
 export interface SettingPlacement {
   readonly prefabId: string;
@@ -96,6 +96,18 @@ export interface SettingPack {
   readonly hub: GridPoint;
   readonly villagers: readonly CompiledVillager[];
   readonly scenery: readonly SettingScenery[];
+  /**
+   * 编译后的露话池：摆件种类 → 它底下的那几句。
+   *
+   * 与 `blueprints` 同一条规矩——`RawSettingPack` 那边是 `Record<string, …>`
+   * （未经校验的原文），这边是装载器编译出来的 `ReadonlyMap`，键已经收窄成
+   * `PropKind`。校验（种类得是 lamp/tree/banner、每池至少一句）在装载时做，
+   * 于是下游拿到手就是一个能直接 `.get(kind)` 的表，不用再各自 cast 一遍。
+   *
+   * 缺席（`undefined`）就是「这本设定集一句都没给」：那件摆件没有露话，
+   * 也就没有什么要盖的，于是一件都不脏。莞尔镇就是这样。
+   */
+  readonly propReveals?: ReadonlyMap<PropKind, readonly string[]>;
   readonly authored: boolean;
 }
 
@@ -113,4 +125,19 @@ export interface RawSettingPack {
   readonly hub: GridPoint;
   readonly villagers: readonly SettingVillager[];
   readonly scenery: readonly SettingScenery[];
+  /**
+   * 摆件种类 → 它底下的那几句露话（清洗即还原，SPEC_V2 §4.6）。
+   *
+   * **话是谁的就说谁拿着**：引擎不编设定集的内容，所以这一份由设定集给。
+   * 某个种类缺席（或整份省掉）时，那类摆件没有露话，也就没有什么要盖的——
+   * 于是一件都不脏。莞尔镇一份都没给，默认世界里因此没有一件摆件会脏。
+   *
+   * 这不是降级失败，是槽位空着：v2 只交付承载设定的槽位（SPEC_V2 §6）。
+   * 与 `regions` 的 `name` 同一条规矩——显示名归拿着设定集的那一层。
+   *
+   * 原文一律按 `Record<string, …>` 收，不按 `PropKind`：写错一个种类
+   * （`lanp`）必须**有可能**写出来，装载期才拦得住它。按 `PropKind` 收的
+   * 话那个错在类型上就不存在，`compilePropReveals` 也就白写了。
+   */
+  readonly propReveals?: Readonly<Record<string, readonly string[]>>;
 }

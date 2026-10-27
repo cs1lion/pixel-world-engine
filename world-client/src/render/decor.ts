@@ -8,6 +8,8 @@ import { TILE_PX } from '../world/setup.ts';
 import type { ConstructionSnapshot, Critter, GridPoint, TaskKind, WorldProp } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import { ACTOR_DEPTH_OFFSET, propDepth, propFootY } from './prop-depth.ts';
+import { grimeSpecks } from './prop-grime.ts';
+import { GRIME_CLEAN } from '../world/grime.ts';
 
 /** 场景把 ALTITUDE 传给装饰层，道具 depth 与角色用同一把尺子。 */
 export const DECOR_ALTITUDE = 1000;
@@ -30,7 +32,11 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
   // 道具**不能**放进容器：Phaser 的 Container 按 list 顺序渲染子对象，容器内子对象的
   // depth 不参与全局排序（见 ContainerWebGLRenderer：直接遍历 container.list）。
   // 所以每个道具都是独立顶层对象，各自 setDepth，才能与角色做 Y-Sort。
-  const props = new Map<string, Phaser.GameObjects.Graphics>();
+  //
+  // 一件道具是两个顶层对象：剪影 + 泥点。分成两个是因为 alpha 是**按对象**的，
+  // 画在同一个 Graphics 里就没法只让泥点褪色。泥点depth 只高 0.5，
+  // 落在本行与下一行之间（相邻两行差一整个 TILE_PX），排序因此不乱。
+  const props = new Map<string, PropNode>();
   const critters = new Map<string, Phaser.GameObjects.Graphics>();
   // 痕迹单独一层，压在路下面：踩出来的东西该比铺出来的更轻。
   const trails = scene.add.graphics();
@@ -107,7 +113,8 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
       const alive = new Set(list.map((prop) => prop.id));
       for (const [id, node] of [...props.entries()]) {
         if (alive.has(id)) continue;
-        node.destroy();
+        node.shape.destroy();
+        node.noise.destroy();
         props.delete(id);
       }
       for (const prop of list) {
@@ -115,7 +122,11 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
         if (existing !== undefined) {
           // 只在落地位置真的变了时改 depth，避免每帧无意义写入。
           const depth = propDepth(prop, originY, DECOR_ALTITUDE);
-          if (existing.depth !== depth) existing.setDepth(depth);
+          if (existing.shape.depth !== depth) {
+            existing.shape.setDepth(depth);
+            existing.noise.setDepth(depth + NOISE_DEPTH_OFFSET);
+          }
+          applyGrime(existing.noise, prop.grime);
           continue;
         }
         props.set(prop.id, drawProp(scene, prop, originX, originY));
@@ -158,11 +169,20 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
   };
 }
 
+/** 一件道具在画面上的两个顶层对象：剪影，和压在剪影上的泥点。 */
+interface PropNode {
+  readonly shape: Phaser.GameObjects.Graphics;
+  readonly noise: Phaser.GameObjects.Graphics;
+}
+
+/** 泥点层比剪影高多少。相邻两行道具差一整个 TILE_PX，0.5 稳稳落在中间。 */
+const NOISE_DEPTH_OFFSET = 0.5;
+
 /**
- * 画一个摆件，返回它自己（顶层对象，**不**挂容器）。
+ * 画一个道具，返回它的两层（剪影 + 泥点）。两者都是顶层对象，**不**挂容器。
  *
  * 为什么必须是顶层对象：Phaser 的 Container 渲染时直接按 list 顺序遍历子对象，
- * 子对象的 depth 不参与全局深度排序。放进容器等于所有摆件共用一个 depth，
+ * 子对象的 depth 不参与全局深度排序。放进容器等于所有道具共用一个 depth，
  * 角色永远压在它们前面（这就是 §1.5 说的 D5「道具没有深度」）。
  *
  * 落点 y 与 depth 都由 prop-depth.ts 算，保证与 drawProp 里的 setPosition 同源。
@@ -172,27 +192,55 @@ function drawProp(
   prop: WorldProp,
   originX: number,
   originY: number,
-): Phaser.GameObjects.Graphics {
+): PropNode {
   const px = originX + (prop.at.x + 0.5) * TILE_PX;
   const py = propFootY(prop, originY);
-  const g = scene.add.graphics();
   const seed = propHash(prop.id);
   // 外观由「换来它的那种活」决定，其次才是摆件大类：
   // 写代码的灯带齿轮，查资料的树带书，整理文稿的旗带砚台。
   // 老档的摆件没有来源，退回原来的三种画法。
   const accent = accentFor(prop.sourceTaskKind);
+  const shape = scene.add.graphics();
   if (prop.kind === 'lamp') {
-    drawLamp(g, seed, accent);
+    drawLamp(shape, seed, accent);
   } else if (prop.kind === 'tree') {
-    drawTree(g, seed, accent);
+    drawTree(shape, seed, accent);
   } else {
-    drawBanner(g, seed, accent);
+    drawBanner(shape, seed, accent);
   }
-  g.setPosition(px, py);
+  shape.setPosition(px, py);
   // 与角色同口径的 Y-Sort：落点 y 越大（越靠下）越靠前，角色能走到树后面/前面。
-  g.setDepth(propDepth(prop, originY, DECOR_ALTITUDE));
+  const depth = propDepth(prop, originY, DECOR_ALTITUDE);
+  shape.setDepth(depth);
+
+  // 泥点：位置由纯函数定（`prop-grime.ts`），浓淡由 grime 定，这边只负责画。
+  // 与剪影同一个原点，所以那些坐标可以直接用。
+  const noise = scene.add.graphics();
+  for (const speck of grimeSpecks(seed)) {
+    noise.fillStyle(speck.size === 2 ? WORLD.ink : WORLD.charcoal, 1);
+    noise.fillRect(speck.x, speck.y, speck.size, speck.size);
+  }
+  noise.setPosition(px, py);
+  noise.setDepth(depth + NOISE_DEPTH_OFFSET);
+  applyGrime(noise, prop.grime);
+
   // 摆件标签已随 D5-A 删除：图形自己说明是什么，中文不进 canvas。
-  return g;
+  return { shape, noise };
+}
+
+/**
+ * 按污浊度定泥点的浓淡（SPEC_V2 §4.6）。
+ *
+ * 直接拿 `grime` 当 alpha，不乘系数：`GRIME_CLEAN`（1/128）是「洗干净」的
+ * 知觉下限，而它是同一个量的同一个刻度——再乘一个系数的话，「画面看不出脏」
+ * 和「世界认为脏」就分了家，洗完那一瞬间会看见一层不肯散的雾。
+ *
+ * 只在真的变了时写：这一层每帧都会被 `syncProps` 碰到，无条件写入等于
+ * 每帧都推一次渲染状态。
+ */
+function applyGrime(noise: Phaser.GameObjects.Graphics, grime: number): void {
+  const alpha = grime > GRIME_CLEAN ? grime : 0;
+  if (noise.alpha !== alpha) noise.setAlpha(alpha);
 }
 
 /** 摆件上的来源记号。`null` 表示老档摆件，不加记号。 */

@@ -4,10 +4,13 @@ import {
   alignmentError,
   projectWorldToOverlay,
   snapToDevicePixel,
+  revealAnchor,
+  revealVisible,
   villagerLabelAnchors,
   type OverlayViewport,
 } from '../src/render/labels.ts';
 import type { VillagerSnapshot } from '../src/world/types.ts';
+import { GRIME_CLEAN } from '../src/world/grime.ts';
 
 function viewport(over: Partial<OverlayViewport> = {}): OverlayViewport {
   return {
@@ -83,4 +86,39 @@ test('角色名字/气泡锚点：跟随 pos，且沿用旧的隐藏规则', () 
 test('对齐误差：≤1 逻辑像素才算通过', () => {
   assert.ok(alignmentError({ x: 100, y: 100 }, { x: 100.4, y: 100 }, 2) <= 1);
   assert.ok(alignmentError({ x: 100, y: 100 }, { x: 105, y: 100 }, 2) > 1);
+});
+
+// ------------------------------------------------------- 露话（SPEC_V2 §4.6）
+
+const prop = (over: { reveal?: string | null; grime?: number; x?: number; y?: number } = {}) => ({
+  at: { x: over.x ?? 4, y: over.y ?? 8 },
+  reveal: over.reveal === undefined ? '井底下压着一句话' : over.reveal,
+  grime: over.grime === undefined ? 1 : over.grime,
+});
+
+test('露话脏着的时候看不见：洗干净才「露」', () => {
+  // 只判 reveal !== null 的话，玩家洗完之前就已经把这句话读完了——
+  // 那「露」这个字就白写了，清洗也不再是一件有报酬的事。
+  assert.equal(revealVisible(prop({ grime: 1 })), false, '刚积满时压在泥底下');
+  assert.equal(revealVisible(prop({ grime: 0.5 })), false, '洗了一半还是看不见');
+  assert.equal(revealVisible(prop({ grime: GRIME_CLEAN })), true, '洗到知觉下限就看得见');
+  assert.equal(revealVisible(prop({ grime: 0 })), true, '全干净当然看得见');
+});
+
+test('没有露话的摆件什么都不显示：不显示一个空框', () => {
+  // 莞尔镇一件露话都没有。只判 grime 的话，它的摆件洗完会显示一个空框——
+  // 那是在说「这儿本来有东西，只是你看不见」。
+  assert.equal(revealVisible(prop({ reveal: null, grime: 0 })), false);
+});
+
+test('露话锚在摆件正上方：高过三种剪影，横向不偏', () => {
+  // 剪影最高到 y=-23（decor.ts 三个 draw 的实测范围）。锚得不够高，
+  // 那句话会压在灯罩上；横向上要对着格子中央，不能偏出一格去。
+  const at = revealAnchor(prop({ x: 4, y: 8 }), viewport());
+  // 落点 (4.5, 8.8) 格 → 世界像素 x=72、y=140.8，再抬 27 得 y≈113.8。
+  // overlay 是画布的两倍（960/480），所以 CSS 像素 x=144、y≈227.6。
+  // y 用容差而不是字面量：140.8-27 在二进制里本就不是个整数，
+  // 钉住 227.6 只会让这条测试在某个 Node 版本上无故变红。
+  assert.equal(at.x, 144, '横向上对着格子中央');
+  assert.ok(Math.abs(at.y - 227.6) < 1e-9, `抬过了剪影：${at.y}`);
 });

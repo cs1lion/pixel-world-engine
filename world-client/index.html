@@ -216,6 +216,24 @@
         border-right: 2px solid transparent;
         border-top: 3px solid var(--ink);
       }
+      /* 露话（SPEC_V2 §4.6 的清洗即还原）：洗干净才看得见的那句话。
+         与气泡分开两套样子，因为它们是两回事——气泡是「她此刻在说什么」，
+         露话是「这东西底下一直压着什么」。气泡会走，露话不走。
+         中文只能走 DOM：`no-cjk-canvas.test.ts` 禁 canvas 里的 .text()。 */
+      .overlay-reveal {
+        position: absolute;
+        transform: translate(-50%, -100%);
+        z-index: 6;
+        padding: 2px 5px;
+        font: 11px/1.35 var(--font-pixel);
+        color: var(--paper-ink);
+        /* 不用实底：露话该读成「从地皮下浮上来」，不是又一块面板。
+           半透明纸色把字托住，背后的剪影与泥点照样透得出来。 */
+        background: color-mix(in srgb, var(--ink) 82%, transparent);
+        border-bottom: 1px solid var(--line);
+        white-space: nowrap;
+        pointer-events: none;
+      }
       /* 神谕栏：产品页的主输入。默认只有一条输入框，其余派活按钮收进
          ?debug=1 那一层——产品界面上不该有一排写死的派活类型。 */
       .oracle {

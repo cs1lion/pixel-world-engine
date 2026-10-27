@@ -1,6 +1,6 @@
 /** 清洗即还原（SPEC_V2 §4.6）：物件上的污浊度与露话。
  *
- * 两个槽位都在 `WorldProp` 上、都进存档，但在 v3 之前它们一动不动——
+ * 两个槽位都在 `WorldProp` 上、都进存档，但在 v4 之前它们一动不动——
  * 出生时写 0 与 null，之后再没有第二个人写过。字段在那儿，世界不用它。
  * 这个文件是那个「用」。
  *
@@ -28,6 +28,10 @@ export const GRIME_FULL = 1;
  * 240 秒是拍的，参照物是世界的其他节律：一场雨 45 秒、一场暴雨 90 秒。
  * 选一个数量级而不是一个精确值——它要的是「洗完能安心读一会儿，
  * 但不会读到以为它永远干净」。实测时按体感调，调完只改这一个数。
+ *
+ * 它是模块常量而不是设定集的槽，与 `LAMP_DAY_MS` / `TIDE_HOLD_MS` /
+ * `DWELL_MS` 同一条规矩：世界的节律归世界，设定集给的是内容
+ * （露话池、作息、地域），不是世界走多快。
  */
 export const GRIME_FILL_MS = 240_000;
 
@@ -51,6 +55,11 @@ export const GRIME_CLEAN = 1 / 128;
  *
  * 线性，且夹在 0..1：这个量是给渲染层定噪点浓淡的，溢出去的部分没有任何
  * 用处，而浮点累加攒到 1.0000000002 是必然的。
+ *
+ * `deltaMs <= 0` 时原样返回（夹一遍）：脏只会因为世界往前走而多，
+ * 不会因为谁把时钟拨回去而少。`Simulation.update` 已经在门口拒了负数
+ * （`simulation.ts` 那段 `deltaMs 不能为负`），这儿是第二道——
+ * 它是个导出的纯函数，测试与渲染层都直接调它。
  */
 export function grimeAfter(grime: number, deltaMs: number): number {
   if (!(deltaMs > 0)) return clamp01(grime);
@@ -62,6 +71,9 @@ export function grimeAfter(grime: number, deltaMs: number): number {
  *
  * 按余数取而不是按第几圈：`ordinal` 是「它落地时世界上已经有几件」，
  * 读档回来件数一样，所以这句话跨存档稳定。
+ *
+ * 序数不是个数时退回第一句（与 `lampoil.ts` 的 `clamp01` 同一路数）：
+ * 一个对不上的数该有个确定的答案，而不是让渲染层拿到 undefined。
  */
 export function revealFor(
   pool: readonly string[] | undefined,

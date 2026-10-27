@@ -8,6 +8,8 @@ import type Phaser from 'phaser';
 import type { WorldSnapshot } from '../world/types.ts';
 import {
   projectWorldToOverlay,
+  revealAnchor,
+  revealVisible,
   snapToDevicePixel,
   villagerLabelAnchors,
   type OverlayViewport,
@@ -42,6 +44,9 @@ export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement, regio
     return { node, region };
   });
   const entries = new Map<string, OverlayEntry>();
+  // 露话单独一份，不与居民的名字/气泡共用 entries：那边的回收是按 id 整条
+  // remove 的，混在一起会让一方的清理把另一方一起带走。
+  const reveals = new Map<string, HTMLDivElement>();
   let lastSnapshot: WorldSnapshot | null = null;
 
   const ensure = (id: string): OverlayEntry => {
@@ -145,6 +150,28 @@ export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement, regio
       entry.bubble.remove();
       entries.delete(id);
     }
+    // 露话（SPEC_V2 §4.6）：洗干净才看得见。脏着的时候那句话在泥点底下，
+    // 所以这里什么都不显示——「露」是一个由 grime 决定的状态，不是一段文案。
+    // 判断与锚点都在 labels.ts（纯函数，`labels.test.ts` 钉着）。
+    const revealed = new Set<string>();
+    for (const prop of snapshot.props) {
+      if (!revealVisible(prop)) continue;
+      revealed.add(prop.id);
+      let node = reveals.get(prop.id);
+      if (node === undefined) {
+        node = document.createElement('div');
+        node.className = 'overlay-reveal';
+        root.append(node);
+        reveals.set(prop.id, node);
+      }
+      node.textContent = prop.reveal ?? '';
+      place(node, revealAnchor(prop, viewport), rootScale, dpr);
+    }
+    for (const [id, node] of reveals) {
+      if (revealed.has(id)) continue;
+      node.remove();
+      reveals.delete(id);
+    }
   };
 
   const onResize = (): void => {
@@ -158,6 +185,7 @@ export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement, regio
       window.removeEventListener('resize', onResize);
       root.replaceChildren();
       entries.clear();
+      reveals.clear();
     },
   };
 }
