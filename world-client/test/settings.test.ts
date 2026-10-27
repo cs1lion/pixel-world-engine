@@ -54,7 +54,13 @@ test('requires 写错一个字母：当场拒绝，不留一道谁也过不去�
       loadSettingPack({
         ...DENGCHAO_RAW,
         regions: [
-          { id: 'ferry', name: '渡口站台', x: 5, y: 8, w: 20, h: 10, requires: 'torch' as never },
+          {
+            id: 'ferry', name: '渡口站台', x: 5, y: 8, w: 20, h: 10,
+            requires: 'torch' as never,
+            // 三色槽位照渡口站台原样给：这条用例问的是 requires 写错，
+            // 与颜色无关，别让它顺带也变成一条颜色错的用例。
+            primary: 'deepShade', accent: 'amber', forbidden: 'terracotta',
+          },
         ],
       }),
     /requires 只能是 lamp\/shoes 或 null/,

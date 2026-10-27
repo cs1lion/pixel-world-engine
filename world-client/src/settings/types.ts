@@ -80,6 +80,21 @@ export interface SettingPack {
    * `breathing` 是呼吸段（SPEC_V2 §4.7）：这一区里不派活、不出急件。
    * 与 `requires` 是两个独立的槽位——一道区域可以又要凭证又呼吸。
    * 省略就是「不呼吸」：莞尔镇的地域从来没有这一项。
+   *
+   * `primary` / `accent` / `forbidden` 是区域的三色槽位（SPEC_V2 §4.1）：
+   * 主色、点缀、禁用。**三个都必填**——设定集 B 长不出自己的颜色，缺的正是
+   * 这三个槽。设成可选的话，「写漏了一道区域的点缀色」这个错要到画面上才
+   * 看得见，而那时候已经说不清是设定集漏了、还是引擎忘了读。
+   *
+   * 为什么只在这一层、不上 `GridSpec.regions`：颜色是设定集的事，网格只认
+   * 几何与门。上面那句「两边不是同一个形状」说的就是这个——网格背上显示名
+   * 已经不对，再背 24 色槽位更不对。
+   *
+   * 三个值都只能是世界 24 色的 token 名（`WorldColor`），写错编译不过。
+   *
+   * **莞尔镇一道地域都没声明**（`regions: []`），所以这一层没有它的份。它的
+   * 四个分区只定得出主色（分区 → `terrainFor` → `TERRAIN_COLORS` 一条链），
+   * 点缀与禁用在现有画面上**没有对应物**——宁可不填，也不编两个数凑满三个槽。
    */
   readonly regions: readonly {
     readonly id: string;
@@ -90,6 +105,12 @@ export interface SettingPack {
     readonly h: number;
     readonly requires?: CarryItem | null;
     readonly breathing?: boolean;
+    /** 主色：这一区的地面与大块面积。 */
+    readonly primary: WorldColor;
+    /** 点缀：小面积提亮——招牌、幌布、灯。 */
+    readonly accent: WorldColor;
+    /** 禁用：这一区不许出现的颜色。 */
+    readonly forbidden: WorldColor;
   }[];
   readonly blueprints: ReadonlyMap<string, PrefabBlueprint>;
   readonly placements: readonly SettingPlacement[];

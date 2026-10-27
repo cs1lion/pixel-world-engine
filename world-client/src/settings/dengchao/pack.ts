@@ -57,8 +57,13 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { x: 28, y: 34, w: 9, h: 12, terrain: 'stone' },
     { x: 39, y: 35, w: 18, h: 8, terrain: 'mud' },
   ],
+  // 三色槽位（主色/点缀/禁用）逐个照 `docs/SPEC_V2.md` §4.1 那张表抄，
+  // 不自己推——那张表是用户 2026-10-25 确认过的。五个都在表里，一格不差。
+  // 表里还有第六道「炉底层」（charcoal / ember / pale），这本设定集**没有**
+  // 把它声明成地域：加了它就多一道区域，画面上多一片归属，那已经不是「不改变
+  // 渲染结果」。缺的这一道记在案上，不在这儿补。
   regions: [
-    { id: 'ferry', name: '渡口站台', x: 5, y: 8, w: 20, h: 10 },
+    { id: 'ferry', name: '渡口站台', x: 5, y: 8, w: 20, h: 10, primary: 'deepShade', accent: 'amber', forbidden: 'terracotta' },
     // 浅滩轨道是这本设定集的**呼吸段**（SPEC_V2 §4.7）：水面的轨道、孤站牌、
     // 倒影——紧张段之后的那一屏。这里不派活、不出急件，萤火与猫照常。
     //
@@ -67,9 +72,9 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 这不是顺手排的——呼吸问的是「这一格属于哪道区域」，重叠处归后声明的那道。
     // `settings-regions.test.ts` 钉着这 120 格：重叠是允许的，一整道区域被吃得
     // 一格不剩才是装载期的错。
-    { id: 'shoal', name: '浅滩轨道', x: 1, y: 1, w: 62, h: 13, breathing: true },
-    { id: 'lampstreet', name: '灯街', x: 12, y: 19, w: 40, h: 15 },
-    { id: 'sootbank', name: '积尘滩', x: 37, y: 34, w: 23, h: 13 },
+    { id: 'shoal', name: '浅滩轨道', x: 1, y: 1, w: 62, h: 13, breathing: true, primary: 'copper', accent: 'plaster', forbidden: 'terracotta' },
+    { id: 'lampstreet', name: '灯街', x: 12, y: 19, w: 40, h: 15, primary: 'timber', accent: 'warmLight', forbidden: 'water' },
+    { id: 'sootbank', name: '积尘滩', x: 37, y: 34, w: 23, h: 13, primary: 'soil', accent: 'moss', forbidden: 'amber' },
     // 叠浪楼**声明在灯街之后**，这不是随手排的：地域按声明顺序画上去，
     // 后画的盖先画的（`grid.ts` 那道循环）。灯街压着叠浪楼同一块地，
     // 叠浪楼写在前面时它里头一百来格归了灯街——给它上一道门，
@@ -79,7 +84,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 要的是灯：汐的第一个作息点「点亮楼前的长灯」就在这楼里，她兜里有灯；
     // 迷路人那个「在叠浪楼外等潮水退去」说的本来就是外头。门落在楼上，
     // 落在灯街就会把镇心 (32,29) 和两位居民的出生点一起关在门后。
-    { id: 'bathhouse', name: '叠浪楼', x: 27, y: 17, w: 12, h: 11, requires: 'lamp' },
+    { id: 'bathhouse', name: '叠浪楼', x: 27, y: 17, w: 12, h: 11, requires: 'lamp', primary: 'terracotta', accent: 'trim', forbidden: 'grassLit' },
   ],
   prefabs: {
     wave_house: prefab('wave_house', '叠浪楼', 7, 6, 'terracotta', 'tower'),

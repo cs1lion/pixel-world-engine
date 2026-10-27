@@ -18,8 +18,11 @@ import type { RawSettingPack } from '../src/settings/types.ts';
 
 const raw = (patch: Partial<RawSettingPack>): RawSettingPack => ({ ...DENGCHAO_RAW, ...patch });
 
-/** 一道要鞋的两格小门，声明在最后（重叠时它赢）。 */
-const GATE = { id: 'deep', name: '深巷', x: 36, y: 30, w: 2, h: 2, requires: 'shoes' as const };
+/** 一道要鞋的两格小门，声明在最后（重叠时它赢）。三色槽位照渡口站台给。 */
+const GATE = {
+  id: 'deep', name: '深巷', x: 36, y: 30, w: 2, h: 2, requires: 'shoes' as const,
+  primary: 'deepShade', accent: 'amber', forbidden: 'terracotta',
+};
 
 test('整道地域被后声明的区域盖住时拒：那道门会变成数据里的一行字', () => {
   // 声明在最前，于是灯街的每一格都盖在它上面。
