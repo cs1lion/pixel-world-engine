@@ -251,6 +251,50 @@ test('顺带提一句名字不算报位置：坐标说的多半是另一件事',
   }
 });
 
+test('坐标两头都带反引号的那种写法也在查：仓库里主流是它', () => {
+  // 一次真事的回归。这条判据第二版把可选反引号只放在坐标**前面**，于是它只认
+  // 「名字带一对括号、坐标两头都裸」那一种；而仓库里真正主流的是代码Span的
+  // 收反引号排在名字后面、坐标自己又带一对反引号——ADR 通篇如此。漏掉的
+  // 表现不是少查几处，是这条判据对全仓绝大多数引用**静默失效**：行号烂了、
+  // 名字对不上，CI 照绿。而它存在的全部理由就是不让那种沉默发生。
+  const root = fixture();
+  try {
+    doc(root, `搬走的是 \`two()\`（${ref('a.ts', 1)}）。\n`);
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 2, '这一处得真被当成指针：名字那处 + 坐标那处');
+    const why = WHY_OF(findings, 1);
+    assert.match(why, /附近没有 two/, '名字写在坐标旁边，那儿就得有那个名字');
+    assert.match(why, /a\.ts:1/, '报出来时要带上到底指的哪儿');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('坐标两头都带反引号而指对了：不该开口', () => {
+  // 上一条的对照。收紧了正则就多认一批引用，认错了方向会把一堆正当的引用
+  // 审成疑点——那一样毁掉一个守卫。
+  const root = fixture();
+  try {
+    doc(root, `搬走的是 \`two()\`（${ref('a.ts', 6)}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.equal(findings.length, 0, `指对了就不该报：${findings.map((f) => f.why).join(' / ')}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('顺带提一句名字，坐标也带反引号，照样不算报位置', () => {
+  // 收紧不能把反方向那条一起弄坏：隔开半句仍然是隔开半句，与带不带反引号无关。
+  const root = fixture();
+  try {
+    doc(root, `每个模板都过同一个 \`prefab()\` 助手、boundTask 硬编码 null（${ref('a.ts', 5)}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.equal(findings.length, 0, '隔开半句不该认领坐标，带上反引号也不该');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('坐标偏几行还算数：引的常是函数上面那段注释', () => {
   // 夹具里 `two` 的定义在第六行，可它上面第五行是段注释。ADR 经常引的就是那段
   // 注释的原文，而注释里不一定再写一遍函数名。所以容许偏几行，不是逐字对齐。
