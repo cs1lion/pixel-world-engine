@@ -162,3 +162,38 @@ test('没有呼吸段时照旧有人举急件：这道门不是凭空多出来�
   }
   assert.ok(sawBearer, '没声明 breathing 的老区域照旧弹提示');
 });
+
+// ------------------------------------------------------------- 氛围实体照常
+
+test('呼吸段里的猫和外头的猫同一时刻走：留白不赶氛围', () => {
+  // §4.7 把「氛围实体（萤火、猫）照常」和三条禁令并列写成一句。它最容易在
+  // 装门的时候被顺手带过去——`stepCritters` 只按 `leavesAt` 过期，本来就不看
+  // 呼吸，所以**坏掉了也不报错**：猫只是悄悄早走或晚走，没人会注意到。
+  //
+  // 所以断言的是「同一时刻」而不是「后来走了」：拿一只外头的猫当尺子，
+  // 留白里的猫是早走还是晚走，一比就出来。单跑一只永远绿。
+  const inside = makeSim(true);
+  run(inside, { kind: 'miracle', miracle: 'cat', at: INSIDE });
+  inside.update(16);
+  const outside = makeSim(true);
+  run(outside, { kind: 'miracle', miracle: 'cat', at: OUTSIDE });
+  outside.update(16);
+
+  assert.equal(inside.snapshot().critters.length, 1, '猫落在了呼吸段里');
+  assert.equal(outside.snapshot().critters.length, 1, '另一只落在外头');
+
+  /** 数到猫不见的那一拍。400 拍 × 100ms 够它走完整个 dwell。 */
+  const ticksUntilGone = (sim: Simulation): number => {
+    for (let i = 1; i <= 400; i += 1) {
+      sim.update(100);
+      if (sim.snapshot().critters.length === 0) return i;
+    }
+    return -1;
+  };
+
+  const a = ticksUntilGone(inside);
+  const b = ticksUntilGone(outside);
+  assert.ok(a > 0, '留白里的猫到点走了');
+  assert.ok(b > 0, '外头的猫到点走了');
+  assert.equal(a, b, '留白不改变氛围实体的节律：不早走，也不晚走');
+});

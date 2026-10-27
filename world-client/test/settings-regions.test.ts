@@ -205,13 +205,13 @@ test('没有居民出生在呼吸段里：开局谁也躺不得', () => {
 
 test('一道有说法的地域，被整片盖住时两句话都拒：requires 与 breathing 同时存在', () => {
   // 两个槽位是独立的（`types.ts` 里写了）。上面那条只覆盖单个说法，
-  // 这条钉住「加起来查」——一道门加留白被盖住时，报错要把两句都说出来，
+  // 这条钉住「加起来查」——一道门加呼吸段被盖住时，报错要把两句都说出来，
   // 而不是只挑一句。
   const BOTH = { id: 'inner_court', name: '里院', x: 20, y: 24, w: 3, h: 3, requires: 'lamp' as const, breathing: true };
   const buried = raw({ regions: [BOTH, ...DENGCHAO_RAW.regions] });
   assert.throws(
     () => loadSettingPack(buried),
-    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是留白'),
+    (error: Error) => error instanceof SettingPackError && error.message.includes('要 lamp') && error.message.includes('是呼吸段'),
     '两个说法都得出现在报错里',
   );
 });

@@ -79,7 +79,7 @@ export interface SettingPack {
    *
    * `breathing` 是呼吸段（SPEC_V2 §4.7）：这一区里不派活、不出急件。
    * 与 `requires` 是两个独立的槽位——一道区域可以又要凭证又呼吸。
-   * 省略就是「不留白」：莞尔镇的地域从来没有这一项。
+   * 省略就是「不呼吸」：莞尔镇的地域从来没有这一项。
    */
   readonly regions: readonly {
     readonly id: string;

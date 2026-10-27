@@ -81,7 +81,7 @@ export interface IntentContext {
    * 一行字。用户看到世界静了一瞬，不知道那是设定，会以为它卡了。
    *
    * 只给叫什么，不给谁在里头：里头的人是快照，会随她走动每拍都变，
-   * 而这一行要说的是**哪儿**是留白，不是**此刻**谁在歇。
+   * 而这一行要说的是**哪儿**是呼吸段，不是**此刻**谁在歇。
    */
   readonly breathing: readonly { readonly region: string }[];
 }
@@ -89,7 +89,7 @@ export interface IntentContext {
 /** 从快照归纳出喂模型的上下文。纯函数。
  *
  * `gates` 是世界有哪几道门（`WorldGrid.gatedRegions()` 配上设定集的叫法），
- * `breathing` 是世界有哪几处留白（`WorldGrid.breathingRegions()` 同一条手续）。
+ * `breathing` 是世界有哪几处呼吸段（`WorldGrid.breathingRegions()` 同一条手续）。
  * 两者省略都等于「一样都没有」——莞尔镇从来没有这两项，它的现状不该因此多出一行。 */
 export function summarizeForIntent(
   snapshot: WorldSnapshot,
@@ -209,12 +209,20 @@ export function renderIntentContext(context: IntentContext): string {
   }
 
   // 呼吸段跟在门后头说，也连「没有命令能改它」说：`carry` 改的是门，
-  // 改不了留白。不说这句，模型会以为用户说「让浅滩轨道别静了」时
+  // 改不了呼吸段。不说这句，模型会以为用户说「让浅滩轨道别静了」时
   // 该去改世界上的一道门。
-  // 一处都没有时整段不出现：莞尔镇的现状不该多出一行讲不存在的东西。
+  //
+  // 说「呼吸段」而不说「留白」：**留白在这个代码库里另有所指**——落楼时
+  // 四周要空出来的那一圈 margin（`setup.ts` 的占地 / 留白 / 门口三查，
+  // `grid.ts` 的 `canPlace`）。模型既要为 build 判那块 margin、又要读这一行，
+  // 两个词混成一个就说岔了。SPEC_V2 §4.7 的标题「呼吸段（留白）」是给人看的
+  // gloss，不是给模型的词；`GLOSSARY.md` 呼吸段那条也把「空区 / 无内容区」
+  // 列在 _Avoid_ 里。
+  //
+  // 一处都没有时整段不出现，理由同门：莞尔镇的现状不该多出一行讲不存在的东西。
   if (context.breathing.length > 0) {
     lines.push(
-      `${context.breathing.map((place) => place.region).join('、')}是留白：` +
+      `${context.breathing.map((place) => place.region).join('、')}是呼吸段：` +
         '那里不派活、不出急件。这是世界自己的节律，没有命令能改它。',
     );
   }

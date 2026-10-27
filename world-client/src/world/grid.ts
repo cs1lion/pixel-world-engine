@@ -63,7 +63,7 @@ export interface GridSpec {
      * 与 `requires` 是**两个独立的槽位**：一道区域可以又要凭证又呼吸
      * （「进了这道门才该安静下来」）。混成一个字段就会有一个表达不了。
      *
-     * 省略就是「不留白」。莞尔镇的地域从来没有这一项——它们不能因为
+     * 省略就是「不呼吸」。莞尔镇的地域从来没有这一项——它们不能因为
      * 这一版就变成静音区，否则整个世界都会停下。
      */
     readonly breathing?: boolean;
@@ -210,7 +210,8 @@ export class WorldGrid {
    * 这一格此刻是不是在一处呼吸段里（SPEC_V2 §4.7）。
    *
    * 问的是「属于哪道区域」，答不上来就不呼吸——世界外、没被任何区域
-   * 覆盖的格子都返回 false。不抛：渲染层每帧都会问。
+   * 覆盖的格子都返回 false。答不上来是「这一格不属于谁」，不是错误，
+   * 所以返回 false 而不抛。
    *
    * 与 `requirementAt` 同构：那边问「要什么」，这边问「静不静」。
    *
@@ -218,7 +219,7 @@ export class WorldGrid {
    * `villager.pos` 来问会落到一格之外——`at()` 用坐标当下标，
    * `cells[y * width + x]` 收一个 4.048 就是 undefined。调用方先过
    * `cellOf`（`simulation.ts` 里那个 `Math.round`）。这个坑看不见：
-   * 她照样在走、照样在干活，只是世界一次都没看见那片留白。
+   * 她照样在走、照样在干活，只是世界一次都没看见那片呼吸段。
    */
   breathingAt(p: GridPoint): boolean {
     const region = this.at(p)?.region;

@@ -265,9 +265,20 @@ test('一处呼吸都没有时，现状里一行都不多：莞尔镇不因此�
   const context = summarizeForIntent(makeSim().snapshot(), [], []);
   assert.deepEqual(context.breathing, [], '没有呼吸段就不该有这一项');
   assert.ok(
-    !renderIntentContext(context).includes('留白'),
-    '没有呼吸段的现状里不该出现留白的说法',
+    !renderIntentContext(context).includes('呼吸段'),
+    '没有呼吸段的现状里不该出现呼吸段的说法',
   );
+});
+
+test('现状说「呼吸段」不说「留白」：留白在这个仓里另有所指', () => {
+  // 落楼时四周要空出来的那一圈 margin 叫留白（`setup.ts` 的占地/留白/门口
+  // 三查）。模型既要为 build 判那块 margin、又要读这一行，两个词混一个就说岔了。
+  // SPEC_V2 §4.7 的标题「呼吸段（留白）」是给人看的 gloss，不是给模型的词。
+  const context = summarizeForIntent(makeSim().snapshot(), [], [{ id: 'shoal', name: '浅滩轨道' }]);
+  const rendered = renderIntentContext(context);
+  assert.match(rendered, /浅滩轨道是呼吸段/, '给模型的那个词是呼吸段');
+  assert.ok(!rendered.includes('留白'), '同一句里不能再出现留白——那是 margin 的词');
+  assert.match(rendered, /没有命令能改它/, '得连「改不了」一起说，否则模型会去找一道门');
 });
 
 test('现状说出哪几处是留白：世界自己的节律也是能说出口的事', () => {
