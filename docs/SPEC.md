@@ -185,7 +185,7 @@ memory/
 - 换设定集 = 换一份配置包 + 可能改几个常量，不改引擎骨架。
 
 > **2026-10-28 补记：「潮汐周期」那一项是假的，而且代码朝着相反的方向专门定了规矩。**
-> 它今天是 `world/tide.ts:19` 的模块常量 `TIDE_PERIOD_MS = 12 * 60_000`，读者只有
+> 它今天是 `world/tide.ts` 的模块常量 `TIDE_PERIOD_MS = 12 * 60_000`，读者只有
 > `periodLength()` 与测试。设定集那一层（`src/settings/types.ts`）**没有潮汐周期的
 > 槽位**——唯一的潮汐键是 `SettingRoutineStop.tide?: 'low' | 'high'`，那是作息上的
 > 一个拍点，不是周期。
