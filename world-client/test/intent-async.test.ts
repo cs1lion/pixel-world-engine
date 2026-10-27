@@ -281,6 +281,39 @@ test('同一句话连着说三遍，只问模型一次', async () => {
   assert.equal(calls, 1, '去重是按原话，不是按时间窗');
 });
 
+test('模型还没回来，原句又说了一遍——答复照常说，那一行不停在「正在问模型……」', async () => {
+  // 回归：序号仲裁那一笔之前不会，之后会。`pendingClassify` 原先只记「这句问过了」，
+  // 于是第二遍原话不再更新发问序号：`speak()` 照样回「正在问模型……」并把那一行
+  // 推到 seq2，而模型带回来的是 seq1 —— 1 < 2，被 `arbitrate` 当成迟到的话闷死。
+  // 屏上那一行就此停在一个不再被兑的承诺上。那句话写下时是真的，所以够不上说谎，
+  // 但它是回执那一行的规矩自己做出来的坑，而且「同一句话连着说三遍」那条测试
+  // 只断言 `calls === 1`，拦不住。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '在征求意见' });
+  const sim = makeSim(model);
+
+  say(sim, '你觉得该怎么办');
+  const first = tick(sim);
+  assert.ok(
+    first.some((r) => r.message === '这句话规则认不出，正在问模型……'),
+    `前置：这句送进模型了，实际：${first.map((r) => r.message).join(' / ')}`,
+  );
+
+  // 模型还没回来，原句再说一遍。屏上还是那句「正在问模型……」，那一行归它。
+  say(sim, '你觉得该怎么办');
+  const again = tick(sim);
+  assert.ok(
+    again.some((r) => r.message === '这句话规则认不出，正在问模型……'),
+    `前置：第二遍也还在问，实际：${again.map((r) => r.message).join(' / ')}`,
+  );
+
+  release();
+  const late = await settleCollect(sim);
+  assert.ok(
+    late.some((r) => r.message === '在征求意见'),
+    `没人真的插话，答复该上来把那一行兑掉，实际：${late.map((r) => r.message).join(' / ')}`,
+  );
+});
+
 // ---------------------------------------------- 迟到的答复不抢回执那一行
 
 /** 一个要等人放行的模型：`release()` 之前它永远不回来。 */

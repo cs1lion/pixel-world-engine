@@ -497,8 +497,17 @@ export class Simulation {
   private readonly worldSize: { readonly width: number; readonly height: number };
   /** 回写出口。省略表示不记日志（离线/测试）。 */
   private readonly onChange: ((change: WorldChange, at: number) => void) | undefined;
-  /** 正在问模型的句子。防止同一句被重复投递时问两次。 */
-  private readonly pendingClassify = new Set<string>();
+  /**
+   * 正在问模型的句子 → **最近一次发问的入队序号**。防止同一句被重复投递时问两次。
+   *
+   * 值必须跟着最新那一次走，不能只记「问过了」。原句在模型回来之前又说一遍时，
+   * `speak()` 照样回「这句话规则认不出，正在问模型……」并把那一行推到新的序号；
+   * 而模型的答复带的是**第一次**发问的序号——更老，于是被 `arbitrate` 闷死。
+   * 屏上那一行就此停在一个不再被兑的承诺上，而那句话本身写下时是真的。
+   * 实测（回归，序号仲裁那一笔引入的）：`intent-async.test.ts` 的
+   * 「同一句话连着说三遍，只问模型一次」只断言 `calls === 1`，不红。
+   */
+  private readonly pendingClassify = new Map<string, number>();
   /**
    * 回执那一行现在归谁——**按入队序号记，不记内容**。0 表示还没有谁占过它。
    *
@@ -1042,8 +1051,16 @@ export class Simulation {
   private async classifyLater(raw: string, askedAtSeq: number): Promise<void> {
     const model = this.intentModel;
     if (model === undefined) return;
-    if (this.pendingClassify.has(raw)) return; // 同一句只问一次
-    this.pendingClassify.add(raw);
+    // 同一句只问模型一次，但**发问序号要更新到最新那一次**：这句正在问着，
+    // 而回执那一行已经归了更晚说的同一句。答复回来时得按新的序号仲裁，
+    // 否则它被当成迟到的话闷死，那一行永远停在「正在问模型……」。见
+    // `pendingClassify`。
+    const waiting = this.pendingClassify.get(raw);
+    if (waiting !== undefined) {
+      this.pendingClassify.set(raw, Math.max(waiting, askedAtSeq));
+      return;
+    }
+    this.pendingClassify.set(raw, askedAtSeq);
     try {
       const result = await routeIntent(raw, {
         templates: this.blueprints ?? new Map(),
@@ -1064,10 +1081,22 @@ export class Simulation {
         // 「没听懂」有用：用户据此才知道该换句话、还是该去看服务端。
         const message = result.modelError ?? result.intent.reason;
         this.log('warn', message);
-        this.enqueue({ kind: 'intentFromModel', intent: { kind: 'unknown', reason: message }, raw, askedAtSeq });
+        // 序号取 Map 里的当前值，不取参数：等的这些拍里用户可能原句又说了一遍，
+        // 那一行归的是更晚那一次。见 `pendingClassify`。
+        this.enqueue({
+          kind: 'intentFromModel',
+          intent: { kind: 'unknown', reason: message },
+          raw,
+          askedAtSeq: this.pendingClassify.get(raw) ?? askedAtSeq,
+        });
         return;
       }
-      this.enqueue({ kind: 'intentFromModel', intent: result.intent, raw, askedAtSeq });
+      this.enqueue({
+        kind: 'intentFromModel',
+        intent: result.intent,
+        raw,
+        askedAtSeq: this.pendingClassify.get(raw) ?? askedAtSeq,
+      });
     } catch (error) {
       // `routeIntent` 自己已经把模型失败吞成 unknown 了，所以走到这里的是
       // 它管不着的那种：取快照、拼上下文、入队时抛的错。这条 async 方法由
