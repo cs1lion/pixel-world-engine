@@ -1464,16 +1464,6 @@ export class MemoryWorld {
   }
 
   /**
-   * 这个人可能说给谁听：只列他身边的人。
-   *
-   * 距离是**真实距离**，不是 1。没有这一条，候选表就是全连接图，而
-   * `talkDistance = 2` 那道闸永远咬不到任何人——全村一天之内全知，
-   * 正是护栏 sheet 第一行警告的那件事。
-   *
-   * 位置缺失的单位**不参与**传播。它们不是被禁言，是「不知道他在哪」——
-   * 而世界不能假装知道他站在谁旁边。调用方接上位置之后它们自然回来。
-   */
-  /**
    * 这个人此刻够不够得着那个地点的痕迹。
    *
    * 地点 Holder 永远够得着自己（它就是那个地点）。人物要走到 `traceRadius` 以内。
@@ -1490,6 +1480,16 @@ export class MemoryWorld {
     return Math.hypot(from.x - to.x, from.y - to.y) <= this.config.traceRadius;
   }
 
+  /**
+   * 这个人可能说给谁听：只列他身边的人。
+   *
+   * 距离是**真实距离**，不是 1。没有这一条，候选表就是全连接图，而
+   * `talkDistance = 2` 那道闸永远咬不到任何人——全村一天之内全知，
+   * 正是护栏 sheet 第一行警告的那件事。
+   *
+   * 位置缺失的单位**不参与**传播。它们不是被禁言，是「不知道他在哪」——
+   * 而世界不能假装知道他站在谁旁边。调用方接上位置之后它们自然回来。
+   */
   private spreadCandidates(speaker: string): SpreadCandidate[] {
     const from = this.holders.get(speaker)?.at;
     if (from === undefined) return [];
