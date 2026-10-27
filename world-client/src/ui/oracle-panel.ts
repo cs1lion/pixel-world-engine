@@ -234,7 +234,10 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
   // 等它用的是 setTimeout 不是 requestAnimationFrame：见 `when-api.ts`。
   whenApi(getApi, (api) => {
     api.onResult((result) => {
-      show(result.ok, result.message);
+      // 空结果不是回执，别把屏上那一句擦了。上游轮询每次都带一个结果过来，
+      // 而它绝大多数时候无话可说（见 `simulation.ts` 的 syncEvents）——
+      // 从前景说话它一开口，用户那句「雨落下来了。」就没了。
+      if (result.message !== '') show(result.ok, result.message);
       paintPaper(api);
     });
     api.onStatus((line) => {
