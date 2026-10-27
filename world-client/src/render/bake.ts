@@ -21,8 +21,15 @@
  *   6912 格 × 2 条 = 13824 条（`tilemap.ts` 的第一次遍历），上面还有材质结构、
  *   拼接边、种植带、篱笆、dressing、水线六趟，总数随地形配比变，不是常数。
  *   **但「没人量过」这句话我说错了。** 仓库里确实有一份量：
- *   `scripts/check-render-budget.mjs`（npm 的 `test:render-budget`，从 `996cbd3`
- *   起就没再改过）记着「实测 77 万条，其中 87% 在屏幕外」与「烘焙后实测约 2 万」。
+ *   `scripts/check-render-budget.mjs`（npm 的 `test:render-budget`）记着「实测 77 万条，
+ *   其中 87% 在屏幕外」与「烘焙后实测约 2 万」。这三个数自 `996cbd3` 写下那天起没被动过
+ *   ——`cff1bed` 后来碰过**那个脚本**一次，只改了 playwright 的 import 路径
+ *   （`'../../node_modules/@playwright/test/index.mjs'` → `'@playwright/test'`），
+ *   数字一行没动。注意那笔动的不是本文件：`bake.ts` 自 `996cbd3` 之后只被注释修订
+ *   碰过（`0d70cad` / `6bf0a57` / `46ec540` / `d36aad2`），没有一笔改过实现。
+ *   它也不是 CI 会重跑的东西：脚本要一个活在 5188 的开发服务器（`ci.yml` 跑的是
+ *   check / test / build / audit-palette / audit-references，没有它），所以那是一份
+ *   **手工记下的量**，不是每次提交都在复核的量。
  *   所以「指令总量这个量级有人量过」是真的，被删掉的那个「77 万」总数也确实有出处；
  *   站不住的只是**地形/迷雾那个拆分**——迷雾那半已由上面的算术证伪，地形那半
  *   （51 万）没有任何记录把 77 万拆成 51 + 24。而那 87% 在屏幕外，正是与这句
