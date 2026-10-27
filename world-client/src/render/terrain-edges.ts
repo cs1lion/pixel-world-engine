@@ -16,8 +16,15 @@
  *    不画。这样每条交界线上**恰好只有一条 1px 线**，不会出现 2px 双描边。
  * 2. **亮边在上/左，暗边在下/右**。世界的光统一从左上打（与 ART_STYLE_TARGET §1.3 的
  *    建筑投影、§1.5 的角色接触阴影同向）。高台朝上/朝左的立面受光 → 用该材质**亮一档**
- *    的 token；朝下/朝右的立面背光 → 用 `soil`（W02，全场最深的土色，兼作阴影色）。
- * 3. **不加色**。只用 `soil / plaza / grassLit` 三个现有 token，24 色预算不变。
+ *    的 token；朝下/朝右的立面背光 → 默认 `soil`（W02，全场最深的土色，兼作阴影色），
+ *    但 `tree` 的底色本身就是 soil，用它等于白画，所以 `tree` 改用 `ink`（见 `DARK` 表）。
+ * 3. **不加色**。两表一共只用在册的 **7 个** token：`soil / plaza / grassLit / ink /
+ *    stone / trim / water`，24 色预算不变。
+ *
+ *    这条规则原写「三个」（`soil / plaza / grassLit`），而两表实际用到七个——同一个数
+ *    错了很久没人发现，因为没有任何东西在数它。现在 `terrain-edges.test.ts` 有一条
+ *    「边色 token 清单」把这份名单钉住：往表里加一个新 token 那条就会红，红的意思是
+ *    来改这个数，不是去改测试。
  *
  * 内凹角修正是干什么的
  * --------------------
@@ -76,10 +83,20 @@ export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
  *
  * 这不是风格选择，是 §1.2「暗边比底色更深」这条规则在 tree 上的漏洞：它的底色
  * 已经是最深的土色，没有更深的同色可用。修法是 tree 的暗边改用 ink（W01，比 soil
- * 再深一档），落差 14.0 —— 可辨，且仍在 24 色预算内，不新增颜色。
+ * 再深一档），落差 6.76 —— 压过边可见性下限 6，可辨，且仍在 24 色预算内，
+ * 不新增颜色。
  *
  * 为什么其他材质不动：grass / farm / stone / plaza 的底色都比 soil 亮，落差
- * 20.9–45.6，本来就清楚。只补 tree 这一处漏洞，不顺手改已有正确的东西。
+ * 9.98–20.80，全部压过下限 6，本来就清楚。只补 tree 这一处漏洞，不顺手改已有
+ * 正确的东西。
+ *
+ * 这两段里的**落差数**有锁，其余没有，说清楚免得这句本身变成新的空话：
+ *   - `6.76`（ink 比 soil 深一档）—— `terrain-edges.test.ts` 的「逐个引用」那条
+ *   - `9.98–20.80`（其他材质对 soil 的区间）—— 同文件的「区间」那条
+ *   - `6`（可辨下限）—— 就是本文件导出的 `EDGE_VISIBLE_MIN_DL`，两处测试都 import 它
+ *   - `24`（色预算）—— 不在这儿锁，归 `palette-budget.test.ts`
+ *   - 上一段的 `96 / 48 / 25.6%` 是**像素计数**，不是落差，没有任何测试在算它
+ * 改色或换 token 之后，前三条会红；红的意思是来改注释，不是去改测试。
  */
 export const DARK: Readonly<Record<TerrainId, WorldColor>> = {
   tree: 'ink',
@@ -93,9 +110,30 @@ export const DARK: Readonly<Record<TerrainId, WorldColor>> = {
   coal: 'ink',
 };
 
+/**
+ * 1px 地形边的**可辨下限**：边色与本格底色的 ΔL\* 低于它，那条边肉眼看不出来。
+ *
+ * 这是本仓库自己的「不退化」线，**不是** §4.1:218 的验收线 8。那条管的是亮边
+ * 对本格底色与对紧邻那一格两个方向，用途不同，两者不要混用（
+ * `terrain-edge-visibility.test.ts` 文件头把这句话写在那儿）。
+ *
+ * 依据：画面里已证明可读的 1px 线是角色墨线（ink vs grass ΔL\* 18.1），那是强轮廓，
+ * 地形边只需弱一档；实测 6 以下（原 grass 亮边 3.02、tree 暗边 0.0）肉眼不可辨。
+ *
+ * 放这儿而不是留在某个测试文件里：两个测试文件都要用它（边可见性回归锁，以及
+ * `KNOWN_FAILING` 的兜底是否还撑得住），而 `DARK` 那段里「压过边可见性下限 6」
+ * 那句也指着它——留成测试里的私有常量，那句话就仍然是没人算的 prose。
+ *
+ * 指的是**原句**，不是行号。这里原来写的是 `terrain-edges.ts:79`：那次往文件头部
+ * 加注释把行号往下推了 7 行，`:79` 于是落到一段不相干的散文上，而
+ * `audit-references.ts` 一声没响——它自己的文件头就写着「不查『那段说的是不是
+ * 那件事』」，而且「指着注释是正当的」。语义上烂掉没有任何机器能挡，所以改成引
+ * 原句，由 `terrain-edges.test.ts` 的「互相引用」那条钉住它还在。
+ */
+export const EDGE_VISIBLE_MIN_DL = 6;
+
 /** 四邻边掩码的位。 */
-export const SIDE_BIT = { north: 1, east: 2, south: 4, west: 8 } as const;
-/** 四内凹角修正掩码的位。 */
+export const SIDE_BIT = { north: 1, east: 2, south: 4, west: 8 } as const;/** 四内凹角修正掩码的位。 */
 export const CORNER_BIT = { northWest: 1, northEast: 2, southWest: 4, southEast: 8 } as const;
 
 export const SIDE_VARIANTS = 16;
