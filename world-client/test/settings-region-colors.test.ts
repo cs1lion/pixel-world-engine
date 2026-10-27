@@ -25,14 +25,19 @@ import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 
 /**
  * `docs/SPEC_V2.md` §4.1 那张表里，灯潮界**已经声明成地域**的五道：
- * 区域 id → [主色, 点缀, 禁用]。逐格抄自那张表。
+ * 区域名 → [主色, 点缀, 禁用]。逐格抄自那张表。
+ *
+ * **键用区域名，不用 id。** 表的第一列是名字（渡口站台 / 灯街 / …），id 是仓里
+ * 自己起的内部标签——`grep` 过，`src/`、`test/`、`scripts/` 下没有任何一处按
+ * id 读地域。拿 id 当键等于把一个人畜无害的改名弄成一条红，而改名是随时会
+ * 发生的（`sootbank` → `soot 就是这么来的）。名字才是规格钉住的那一列。
  */
 const DECLARED: Readonly<Record<string, readonly [string, string, string]>> = {
-  ferry: ['deepShade', 'amber', 'terracotta'],
-  lampstreet: ['timber', 'warmLight', 'water'],
-  bathhouse: ['terracotta', 'trim', 'grassLit'],
-  shoal: ['copper', 'plaster', 'terracotta'],
-  sootbank: ['soil', 'moss', 'amber'],
+  渡口站台: ['deepShade', 'amber', 'terracotta'],
+  灯街: ['timber', 'warmLight', 'water'],
+  叠浪楼: ['terracotta', 'trim', 'grassLit'],
+  浅滩轨道: ['copper', 'plaster', 'terracotta'],
+  积尘滩: ['soil', 'moss', 'amber'],
 };
 
 /**
@@ -42,12 +47,12 @@ const DECLARED: Readonly<Record<string, readonly [string, string, string]>> = {
  * 结果」。规格表有六道、包里五道，这个差是账，不是漏洞。
  */
 const NOT_DECLARED: Readonly<Record<string, readonly [string, string, string]>> = {
-  boiler: ['charcoal', 'ember', 'pale'],
+  炉底层: ['charcoal', 'ember', 'pale'],
 };
 
 test('灯潮界的三色槽位与 SPEC_V2 §4.1 的表逐格一致', () => {
   for (const region of DENGCHAO_RAW.regions) {
-    const want = DECLARED[region.id];
+    const want = DECLARED[region.name];
     assert.ok(
       want !== undefined,
       `${region.name}（${region.id}）不在这张表里——规格表没有它，就是抄错了对象`,
@@ -64,7 +69,7 @@ test('灯潮界的三色槽位与 SPEC_V2 §4.1 的表逐格一致', () => {
 test('表里该声明的都声明了：少一道就是设定集缺一片', () => {
   // 反方向。只查 DECLARED——NOT_DECLARED 那道是刻意不声明的（见上）。
   assert.deepEqual(
-    DENGCHAO_RAW.regions.map((region) => region.id).sort(),
+    DENGCHAO_RAW.regions.map((region) => region.name).sort(),
     Object.keys(DECLARED).sort(),
     '灯潮界声明的地域与 SPEC_V2 §4.1 对不上',
   );

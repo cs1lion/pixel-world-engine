@@ -42,7 +42,7 @@ import {
   POINTS_PER_TASK,
 } from './faith.ts';
 import { GRIME_CLEAN, grimeAfter, landProp } from './grime.ts';
-import { routineBeats, routineFor, shelterTarget, type RoutineBeat } from './routines.ts';
+import { routineBeats, routineFor, shelterTarget, tideBeatApplies, type RoutineBeat } from './routines.ts';
 import {
   clearWeather,
   fadingToClear,
@@ -739,7 +739,11 @@ export class Simulation {
         if (villager.mode !== 'idle' || villager.path.length > 0) continue;
         const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
         const beat = routineFor(this.weather.kind, beats, villager.routineIndex, level);
-        if (beat.tide !== undefined && ((beat.tide === 'low' && level > 0.34) || (beat.tide === 'high' && level < 0.6))) {
+        // 这一拍去不了（潮位不成立）就把下一拍提前到现在：她已经到了该出发的
+        // 时刻，只是世界说「现在不行」。判定走 `tideBeatApplies`，与 `routineFor`
+        // 里退回锚点用的是同一个——两处各写一份字面量的话，改一处忘另一处，
+        // 牌子会说锚点、人却照原落点走。
+        if (!tideBeatApplies(beat.tide, level)) {
           villager.nextRoutineAt = Math.min(villager.nextRoutineAt, this.now);
         }
       }

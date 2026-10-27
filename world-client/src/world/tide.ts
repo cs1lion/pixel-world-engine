@@ -21,25 +21,29 @@ export const TIDE_PERIOD_MS = 12 * 60_000;
 export const TIDE_JITTER_MS = 2 * 60_000;
 
 /**
- * 「低处」的判定线：潮位高于它就算淹。
+ * 作息落点的两条潮汐线。
  *
- * 这里原来写「它不是潮位阈值，而是地形高度的说法：地形自身的高度（见
- * `terrainHeight`）低于当前水位就被淹。0.34 让草地与农田的一部分在满潮时进水」——
- * 三处都不成立：
+ * `routines.ts` 的 `tideBeatApplies` 是这两个数**唯一**的读者：作息落点写着
+ * `tide: 'low'` 时，潮位不高于 `TIDE_LOW_MAX` 才算「现在去得了」；写着
+ * `tide: 'high'` 时不低于 `TIDE_HIGH_MIN`。没写 `tide` 的落点不看这两个数。
  *
- * - **`terrainHeight` 全仓不存在。** grep 只命中这条注释自己。真实存在的是下面
- *   这张 `TERRAIN_HEIGHT` 表与 `isFlooded()`。
- * - **`TIDE_FLOOD_LEVEL` 是死常量。** 它 export 出来，而 `src/`、`test/`、
- *   `scripts/` 下零个读者——真正决定淹不淹的是 `TERRAIN_HEIGHT`（grass 0.3 /
- *   farm 0.18 / plaza 1.3 / stone 1.2）。把「0.34 让草地与农田进水」这个效果
- *   归给一个没人读的数，读的人会去改它，然后发现什么都没变。
- * - **0.34 这个语义在别处是硬编码字面量**：`simulation.ts` 的作息潮位条件写的
- *   就是 `beat.tide === 'low' && level > 0.34`，没有 import 这个常量。
+ * **两个数都是拍的，规格里没有依据**：`docs/SPEC_V2.md` 的潮汐只到 §4.3 的
+ * 覆盖，没给定作息的门槛。能老实说的只有两条结构事实，不是理由——
+ *   - `TIDE_LOW_MAX` 0.34 略高于 `TERRAIN_HEIGHT.grass` 的 0.3，于是「草地
+ *     开始进水」与「浅滩作息不再成立」之间隔着 0.04；
+ *   - `TIDE_HIGH_MIN` 0.6 与 `describeTide` 的两个标签（0.85 满潮 /
+ *     0.15 见底）刻意不重合：作息问的是「去得了吗」，不是「现在叫什么」。
  *
- * 它现在还在，是因为删一个 export 要确认没有外部消费者；但在它被接上或被删掉
- * 之前，注释不该把效果归给它。
+ * 改这两个数之前先读上面两条。它们一动，「趁退潮拾灯芯」那几个落点什么时候
+ * 退化成锚点就全变了，而那是画面上唯一看得见的地方。
+ *
+ * **这两个数不许在别处再写一遍。** 它们原先在两处各写了一份字面量
+ * （`routines.ts` 的退回判定与 `simulation.ts` 的快进判定），改一处忘另一处
+ * 时，世界会一边说「现在不行」一边把她送过去。
+ * `test/routine-tide-single-source.test.ts` 盯着源码里不再出现裸的比较。
  */
-export const TIDE_FLOOD_LEVEL = 0.34;
+export const TIDE_LOW_MAX = 0.34;
+export const TIDE_HIGH_MIN = 0.6;
 
 /**
  * 地形离水面的高度。越小越容易被淹。

@@ -5,6 +5,7 @@
  */
 
 import type { GridPoint, PlacedBuilding, Weather } from './types.ts';
+import { TIDE_HIGH_MIN, TIDE_LOW_MAX } from './tide.ts';
 
 export type RoutineId = 'altar' | 'garden' | 'promenade' | 'shelter';
 
@@ -102,9 +103,24 @@ export function routineFor(
   // 早先这里只改 label、留着原来的 target：牌子写「沿街」，人照样往浅滩走。
   // 世界可以在做不到时说「现在不行」，但不能一边说一边做别的——
   // 那句话是给外面看的唯一凭据，说谎比不去更糟。
-  if (tide === 'low' && tideLevel > 0.34) return fallbackTo(beats, beat);
-  if (tide === 'high' && tideLevel < 0.6) return fallbackTo(beats, beat);
+  if (!tideBeatApplies(tide, tideLevel)) return fallbackTo(beats, beat);
   return beat;
+}
+
+/**
+ * 一个作息落点的潮汐条件此刻成立吗。
+ *
+ * 这是全仓**唯一**判定「现在去得了吗」的地方。`Simulation` 的快进判定也走
+ * 这儿，不另写一份字面量——两处各写一遍时，改一处忘另一处，世界就会一边说
+ * 「现在不行」一边把她送过去。那两个数在 `tide.ts`（`TIDE_LOW_MAX` /
+ * `TIDE_HIGH_MIN`），也不许在调用处再写一遍。
+ *
+ * 没写 `tide` 的落点恒真：它不挑潮位。
+ */
+export function tideBeatApplies(tide: RoutineBeat['tide'], level: number): boolean {
+  if (tide === 'low') return level <= TIDE_LOW_MAX;
+  if (tide === 'high') return level >= TIDE_HIGH_MIN;
+  return true;
 }
 
 /** 退回锚点：借锚点的 id、label、target，只保留原落点的停留时长。 */

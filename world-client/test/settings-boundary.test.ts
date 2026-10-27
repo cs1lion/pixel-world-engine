@@ -77,8 +77,8 @@ test('作息停留时长必须是正数：负数或 NaN 会让那一格每一次
 });
 
 test('作息的 tide 只能是 low / high：写错一个词，那条作息永远不成立', () => {
-  // 判定写的是 `tide === 'low' && level > 0.34` 与 `tide === 'high' && level < 0.6`。
-  // 写成 'ebb' 两个分支都不进，于是这条作息在满潮退潮时都照去不误——
+  // 判定只有 `tideBeatApplies` 一处：`'low'` 与 `'high'` 两个分支之外的一律
+  // 恒真。写成 'ebb' 两个分支都不进，于是这条作息在满潮退潮时都照去不误——
   // 设定集里那句「趁退潮」从此只是数据里的一行字。
   const ebb = raw({
     villagers: DENGCHAO_RAW.villagers.map((villager, index) =>

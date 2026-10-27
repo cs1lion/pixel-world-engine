@@ -31,31 +31,58 @@
  *   - **裸 `§N`（没点名文档）不查。** 全仓两百多处，绝大多数指的是同文件或
  *     上文的某份文档，猜不出来。只计数。
  *
- * 「已提交」按 `git ls-files` 算，不按磁盘算：`docs/iterations/` 在磁盘上存在但
- * 从未入库，按磁盘算会把「读者打开这个仓库能拿到什么」这件事算错。git 不可用时
- * 退化成按磁盘算，并在输出第一行说明——那意味着本次运行的判据与设计不符。
+ * 「已提交」的**文件清单**按 `git ls-files` 算，不按磁盘算：`docs/iterations/`
+ * 在磁盘上存在但从未入库，按磁盘算会把「读者打开这个仓库能拿到什么」这件事算错。
+ * git 不可用时退化成按磁盘算，并在输出第一行说明——那意味着本次运行的判据与
+ * 设计不符。
+ *
+ * **但节号集合是从工作区读的**：`sectionsOf` 走 `readFileSync`，不是 `git show`。
+ * 于是「哪些文件算已提交」按 git 算、「那份文件里有哪些节」按磁盘算，两边会不一致：
+ * 一份文档改到某一节临时消失，闸门就报一条假缺陷、CI 红在跟 `§N` 无关的事上。
+ * 要真做到「不按磁盘算」，内容也得从 `git show <rev>:<path>` 取。**这是已知的
+ * 不一致，记在这儿，不是漏改。**
  *
  * **这条闸门看不见的一类，写在这儿免得它装成全能**：`src/world/memory/` 与
- * `SandboxScene.ts` 里有 25 处裸写「补充设计 §N」。`docs/iterations/1027-task-2/`
+ * `SandboxScene.ts` 里有一批裸写「补充设计 §N」的引用。`docs/iterations/1027-task-2/`
  * 底下**两份**补充设计（v0.2 与 v1.0-params）都有 §0/§1/§1.1/§1.2/§1.3/§2/§2.1/
  * §2.2/§2.3/§3/§3.1/§3.2，而 §3.1 在两份里一个是「每日心电图指标汇总」、一个是
- * 「记忆协议参数初值表」，**内容不相干**。25 处**没有一处**点名版本，所以读者
+ * 「记忆协议参数初值表」，**内容不相干**。这一批**没有一处**点名版本，所以读者
  * 按 README 索引先翻到 v0.2，翻到的是另一件事。这一形别名对应不到任何一份已提交
  * 文件（文件名是 `architecture-supplement-*`，对不上「补充设计」四个字），因此
  * 全部落进上面的「要人判」计数里——**机器判不了是哪一份，只有人能判**。
- * 那 25 处都在别人的在飞工作里，本闸门不越界去改，只把形状记在这儿。
+ * 那一批都在别人的在飞工作里，本闸门不越界去改，只把形状记在这儿。
+ *
+ * （这一批的处数**不写死**：2026-10-28 在 `src/world/memory/` 与 `SandboxScene.ts`
+ *   里量是 23 处，而这个数随别人的在飞工作漂。写死一个会变假的数，比不写更糟——
+ *   要数就现 grep：`grep -rh "补充设计 §" world-client/src/world/ | wc -l`。）
  *
  * **试过、量掉了、所以不扩的一个判据，记在这儿免得下一个人再试一遍**：把
- * 「同一行紧贴」放宽成「同一个注释块里往上找最近点名的文档」。在 `world-client/`
- * 里量过：117 处裸 `§N` 中 18 处能解出唯一一份 `.md`，其中报「没有这一节」3 处，
- * **3 处全是冤的**——`villager.ts:36` 与 `audit-sections.ts:8` 那两处是**记录
- * 「原来挂着这个出处、已删」**的说明文字，`audit-sections.ts:223` 那处是 `§8`
- * 被反引号引着当判据的例子。三个的形状是同一个：`§N` 是**被引用的对象**，
- * 不是依据。而「紧贴」判据一个都没冤——它靠的正是这个：真引用把文档名贴在
- * `§` 前面，记录与举例都把文档名放在别处（`villager.ts` 里它还在 `§6.2`
- * **后面**）。所以不扩：231 处跳过是数得出来的，扩成 18 处受换 3 处冤，不值。
- * 另外 `.ts` 不能当上查的文档：它没有 `## N` 标题，把 `§N` 归给它等于必然误报
- * （实测认 `.ts` 时误报从 3 涨到 35）。
+ * 「同一行紧贴」放宽成「同一个注释块里往上找最近点名的文档」。放宽后会多报
+ * **3 处**（2026-10-28，两个人独立复现，逐字一致；这个数也可能随别人的在飞
+ * 工作漂，信不过就现量），而 3 处**全是冤的**——三处的形状是同一个：`§N` 是
+ * **被引用的对象**（一句「原来写着……没有那个小节」），不是依据。两处是记录
+ * 已删出处的说明文字，另一处是 `§8` 被反引号引着当判据的例子。
+ * （具体在哪几行不写死：这个文件自己一改，行号就漂，写谁谁假。按形状认。）
+ *
+ * **但「紧贴判据一个都没冤」那句话是错的，别信它。** 本文件二十行之上刚写过
+ * 「拿它当依据」与「记录它被删了」是语义、机器分不开——那句才对。实测：
+ * `terrain-edges.ts`、`ghost.ts`、`palette-data.ts`、`building-depth.ts`、
+ * `palette-budget.test.ts`、`audit-citations.ts` 里有一批记录已删出处的说明
+ * 文字，文档名**就贴在 `§N` 正前面**（`ART_STYLE_TARGET §4.1`、`ART_SPEC §2.4`、
+ * `ART_PALETTE_AUDIT §5.3` 全是这个形状）。它们今天没被报，靠的不是紧贴，
+ * 是**别名那一步**：这三份文档一件都没入库，`byStem` 里查不到，落进「要人判」
+ * 的跳过桶。所以真实情况是「今天恰好没冤」，不是「结构上不会冤」——哪天其中
+ * 一份进了仓，紧贴判据立刻开始冤，那时候要改的是别名那一步或补一道形状判据，
+ * **不是把紧贴改宽**（改宽只会连那 3 处冤的一起收进来）。
+ *
+ * 上查时也不能把 `.ts` 当文档：它没有 `## N` 标题，`§N` 归给它等于必然误报。
+ * 这条也不只对 `.ts`——`README.md`、`GLOSSARY.md`、`docs/adr/ADR_PALETTE_24.md`
+ * 同样没有编号标题（后者的标题是一、二、三、四）。判据是「那份文档有没有编号
+ * 标题」，不是「它是不是 `.ts`」。
+ *
+ * 放宽后到底多报几处、分别冤成什么样，**以现量为准，这里不写死**：那个数随
+ * 别人在飞的工作漂。要量就照 `audit-sections.test.ts` 里那条夹具的做法，把
+ * 上查判据装上再跑一遍。
  *
  * 用法：
  *   node scripts/audit-sections.ts           # 人读报告（stdout）
@@ -70,7 +97,12 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-const SCAN_ROOTS: readonly string[] = [
+/**
+ * 闸门自己声明的扫描范围。**导出是为了让测试能核它**：列了七个根却只扫五个，
+ * 这种塌陷从输出上看不出来（`checked` 少几处，而少几处是正常的）。
+ * `test/audit-sections.test.ts` 有一条逐个根核「真的扫到了东西」。
+ */
+export const SCAN_ROOTS: readonly string[] = [
   'docs',
   'GLOSSARY.md',
   'README.md',
@@ -88,8 +120,15 @@ const SEC = /§\s*(\d+(?:\.\d+)*)(?::\d+)?/g;
  */
 const DOC_TOK =
   '(?:[\\w./-]+\\.(?:ts|mjs|md|py)|[A-Z][A-Z0-9]{1,}_[A-Z0-9_]{1,}|[一-龥]{2,}(?:文档|设计|规格|协议|审计|规范))';
-/** token 紧贴在一个 `§N` 前面。反引号/引号/括号与空白都允许夹在中间。 */
-const DOC_BEFORE_SEC = new RegExp(`(${DOC_TOK})\\s*[\`」』）)]*\\s*$`);
+/**
+ * token 紧贴在一个 `§N` 前面。反引号/引号/括号与空白都允许夹在中间。
+ *
+ * `》` 必须在尾部标点里：`《补充设计》§0` 少了它就被当成「没点名文档」，
+ * 而 `补充设计 §0`（同一个形状、另一种写法）走的是别名那一支。同一种引用
+ * 落进两个跳过桶，桶的名字就失真了——而桶的名字正是「报得出跳过次数」
+ * 那句承诺的全部内容。
+ */
+const DOC_BEFORE_SEC = new RegExp(`(${DOC_TOK})\\s*[\`」』》）)]*\\s*$`);
 /** 往前看这么多字符找文档 token。够装下 `world-client/src/world/palette-data.ts`。 */
 const WINDOW = 64;
 /** 标题行：`## §1 标题` 与 `## 1. 标题` 都认。 */
@@ -108,7 +147,13 @@ export interface SectionAudit {
   readonly skips: ReadonlyMap<string, number>;
   /** 受查的 `§N` 处数（认得出文档的那些）。 */
   readonly checked: number;
-  /** git 是否可用。false 时「已提交」是拿磁盘冒充的。 */
+  /**
+   * 这次的「已提交」清单是不是真来自 `git ls-files`。
+   *
+   * **不是「git 是否可用」。** 调用方注入了 `files` 时它也是 false——那时候
+   * git 好着呢，只是清单是人家给的。false 一律只意味一件事：别把这份清单
+   * 当成「git 说这些是已提交的」来用。
+   */
   readonly viaGit: boolean;
 }
 
@@ -154,8 +199,17 @@ function sectionsOf(root: string, rel: string): Set<string> {
   return out;
 }
 
-/** 磁盘上要扫的源文件（含未提交的——未提交的自述一样会骗到读的人）。 */
-function scanFiles(root: string): string[] {
+/**
+ * 磁盘上要扫的源文件（含未提交的——未提交的自述一样会骗到读的人）。
+ *
+ * **根可以是文件。** `SCAN_ROOTS` 里 `GLOSSARY.md` 与 `README.md` 就是两个
+ * 文件而不是目录，而 `walk()` 只会 `readdirSync`：对着一个文件调它抛 `ENOTDIR`，
+ * 被 `walk` 开头的 catch 吞掉，于是这两个根**一个字符都没被扫过**，而闸门
+ * 自己的文件头列着它们。实测过：默认扫描 `checked = 132`，把这两个文件单独
+ * 喂进来各有 1 处受查——那 2 处默认扫描一处都没算，而 6 条用例一条都不红。
+ * 所以根先问一句「是文件吗」，是就直接收下。
+ */
+export function scanFiles(root: string): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
     let entries: string[];
@@ -167,11 +221,33 @@ function scanFiles(root: string): string[] {
     for (const e of entries) {
       if (e === 'node_modules' || e === '.git' || e === 'dist') continue;
       const p = path.join(dir, e);
-      if (statSync(p).isDirectory()) walk(p);
+      // `statSync` 也要守：多会话同时写的时候，一个文件在 `readdirSync` 与
+      // 这里之间被删/改名是常事。不守的话闸门整体崩掉退出，CI 红在一个跟
+      // `§N` 无关的原因上——那比漏扫更糟，它让人以为闸门在管事。
+      let isDir = false;
+      try {
+        isDir = statSync(p).isDirectory();
+      } catch {
+        continue;
+      }
+      if (isDir) walk(p);
       else if (/\.(ts|mjs|md)$/.test(e)) out.push(p);
     }
   };
-  for (const r of SCAN_ROOTS) walk(path.join(root, r));
+  for (const r of SCAN_ROOTS) {
+    const p = path.join(root, r);
+    let isFile = false;
+    try {
+      isFile = statSync(p).isFile();
+    } catch {
+      continue;
+    }
+    if (isFile) {
+      if (/\.(ts|mjs|md)$/.test(path.basename(p))) out.push(p);
+      continue;
+    }
+    walk(p);
+  }
   return out;
 }
 
@@ -222,7 +298,15 @@ export function auditSections({
 
   for (const abs of scan ?? scanFiles(root)) {
     const rel = path.relative(root, abs).split(path.sep).join('/');
-    const lines = readFileSync(abs, 'utf8').split(/\r?\n/);
+    // 与 `statSync` 同一个理由：多会话同写，文件可能在列出之后、读之前消失。
+    // 读不到就跳过这一个文件，别让整道闸门崩掉——崩掉的闸门看起来像在管事。
+    let text: string;
+    try {
+      text = readFileSync(abs, 'utf8');
+    } catch {
+      continue;
+    }
+    const lines = text.split(/\r?\n/);
     lines.forEach((line, i) => {
       SEC.lastIndex = 0;
       for (const m of line.matchAll(SEC)) {
