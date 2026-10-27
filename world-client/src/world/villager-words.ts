@@ -16,8 +16,15 @@ import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
  * 说不准她在哪儿时的说法。**不许拿一句地点顶替。**
  *
  * 这里曾经（`report.ts` 与状态行两处）是「在祭坛边坐着」/「在祭坛边闲逛」。
- * 那句话假不假看她这会儿在不在祭坛：走作息时她在农田边、街口、屋檐下，
- * 而那时她**有**牌子，说的就是牌子——假的形状是另一条路：清牌子。
+ * 那句话假不假看她这会儿在不在祭坛：走作息时她在农田边、街口、屋檐下。
+ *
+ * 「那时她**有**牌子，说的就是牌子」也曾是假的另一半球：牌子挂的是**到了
+ * 之后**那一句，而多半时候她还在路上——牌子说她站在街口看一会儿，她的坐标
+ * 正在动。2026-10-28 起牌子分两半：`routineGoing` 说她正往哪儿去，
+ * `routineLabel` 说她到了之后做什么，快照按在不在走挑一个（`simulation.ts`
+ * 的 `snapshotVillager`；`test/routine-going-label.test.ts` 钉着「走着的那
+ * 些拍不说着到之后的话」，也钉着走路的拍多于站着的拍）。所以到如今，假的
+ * 样子只剩清牌子这一条，见下。
  *
  * 清牌子而人不在祭坛的路口有四条（`simulation.ts` 里 `routineLabel = null`
  * 一共 6 处，其中让人回到 idle 的是这四条，由 `test/labelless-idle.test.ts`
@@ -81,13 +88,13 @@ export function villagerModeLabel(
       return venue === null ? '赶路' : `赶往 ${venue}`;
     case 'working': {
       // **没有铺子时不提地点。** 这一支曾经说「在祭坛边办「xxx」」——编的：
-      // 原地办的那种活（`startInPlace`，`simulation.ts:1608`）只把 mode 翻成
+      // 原地办的那种活（`startInPlace`，`simulation.ts:1615`）只把 mode 翻成
       // 'working'、`path = []`，**根本不挪人**。她站在接到活那一刻的位置，
       // 而那一刻她可以在世界任何一格。实测她绝大多数时候不在祭坛格上。
       //
       // 而这条路比「铺子挑不到」常见得多：`tasks.ts:13` 的 quick 活
       // `venue: 'in_place'`，**每一条 quick 都走它**，「顺手看一眼」按钮
-      // （`simulation.ts:1868`）与上游事件流（`:1608`）两条来路都通。
+      // （`simulation.ts:1875`）与上游事件流（`:1615`）两条来路都通。
       //
       // 世界这一刻只知道她在办这件事，不知道她在哪儿——那就只说这件事。
       // 空summary 也别说成「」：那是两个引号夹一片空白，不是一句话。

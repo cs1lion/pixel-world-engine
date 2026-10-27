@@ -12,7 +12,7 @@
 两条建世界的路，对世界法则的校验态度不同：
 
 - **程序生成的默认世界**：`buildLargeWorld → buildWorld` 落地后跑 `validateCoverage`（`setup.ts:296`）和 `assertWorldInvariants`（`setup.ts:358`）；读档路 `buildWorldFromSave` 跑 `assertWorldInvariants`（`setup.ts:636`）。
-- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:359-423`）——新建路与 `saved` 读档路（`load.ts:361-367`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:358`、`setup.ts:636`，定义在 `setup.ts:663`；测试直接调它：`test/world.test.ts:123,129`、`test/large-world.test.ts:106`；`simulation.ts:1738` 还在散文里援引它。**这份测试名单漏了两处，见文末 2026-10-28 补记。**）
+- **编译后的设定集**：`loadSettingPack → buildSettingWorld`（`load.ts:359-423`）——新建路与 `saved` 读档路（`load.ts:361-367`）**两个都不跑**上面任何一个。（`world-client/src` 内对 `assertWorldInvariants` 的调用只有 `setup.ts:358`、`setup.ts:636`，定义在 `setup.ts:663`；测试直接调它：`test/world.test.ts:123,129`、`test/large-world.test.ts:106`；`simulation.ts:1744` 还在散文里援引它。**这份测试名单漏了两处，见文末 2026-10-28 补记。**）
 
 `buildSettingWorld` 并非不校验，它的 docstring 把承诺划了界：「显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则」（`load.ts:358`）。它确实把每处落位交给 `placeBlueprint`（内部走 `checkPlacement`，调用 `setup.ts:489`、规则 `setup.ts:239-283`：出界、分区、占用、留白、门口可建），并核居民出生点可走、作息点可达（`load.ts:391-422`）。但这句话第二分句「不能由设定集绕过世界法则」没带限定词，而它实际只兑现了**空间**那一类——预算与覆盖这两类世界法则，包这条路一概没人跑。这就是本ADR 的主题：一处主动豁免（预算，合理），两处无人认领（门口可达、venue 覆盖）。
 
@@ -41,7 +41,7 @@
   - **已于 2026-10-27 补上。** 信号落在 `doorReaches`（`setup.ts`）——「这扇门连不连得出去」的两侧共用定义，`paveFrom` 的 `reachable` 与 `assertWorldInvariants`、`buildSettingWorld` 都从它取。包的新建路在**全部落完再查**（不是落一栋查一栋：后一栋能把前一栋的门围死），读档路照旧不查（存档是照着一份当年通过的世界写的）。复现见 `test/pave-reachable.test.ts`：四栋 `clearMargin: 0` 的蓝图把一栋 2×2 的孤屋围住，`buildSettingWorld` 当场抛。顺带修掉 `assertWorldInvariants` 同一处潜在误报——门就开在祭坛上时 `grid.path` 返回空数组（「她人已经在那儿了」），照抄它会把一扇最好的门报成没有通路。
   - 另两条门口检查对包是空转，勿计入损失：「门口可通行」由 `grid.place` 强制（`grid.ts:306-307` 把门口设成 walkable 的 stone）；「门口不开在 altar 区」需要真有名为 `altar` 的分区（`setup.ts:707`），灯潮界只声明 industry/street，永不触发。
 - **待办 B（宽，2026-10-27 已决：可以，且引擎早就容得下）：包这条路没有任何「venue 覆盖」法则。** 蓝图表层面有 `validateCoverage`（`blueprints.ts:96-118`）：每种活 1–2 栋常驻铺子，理由写得很直白——「0 栋等于这类活无处可去；超过 2 栋则是蓝图表失控」（`blueprints.ts:103-104`），并顺带查 `upgradeTo` 有落点（`:117-118`）。它只被 `buildWorld` 调（`setup.ts:296`），`loadSettingPack`/`buildSettingWorld` 都不调。于是灯潮界三种活各 0 个 venue——正是 `validateCoverage` 要防的状态，在包这条路静静成立；`intent-context.ts:110` 只是按 `WORKSHOP_TASKS` 逐类算 capacity 喂给提示词，没有谁据此拒。**一座包可不可以正当地图一地没有工坊？**
-  - **答案是可以。** 引擎在派活那一侧本来就拒，不编一座铺子出来：`pickVenue()`（`venue.ts:56`）挑不到就回一句原因，两条派活路径——事件流 `pickVenue()`（`simulation.ts:1612`）、神谕 `pickVenue()`（`simulation.ts:1874`）——据它拒绝，谁都不造假铺子。所以这不是个漏洞，是个已经成立的设计。
+  - **答案是可以。** 引擎在派活那一侧本来就拒，不编一座铺子出来：`pickVenue()`（`venue.ts:56`）挑不到就回一句原因，两条派活路径——事件流 `pickVenue()`（`simulation.ts:1618`）、神谕 `pickVenue()`（`simulation.ts:1880`）——据它拒绝，谁都不造假铺子。所以这不是个漏洞，是个已经成立的设计。
   - **L1 命令的归宿也清楚了，而且比原先问的更干脆：在这张图上根本造不出接活的铺子。** 灯潮界的 `prefab()` 助手把 `boundTask` 写死成 `null`（`pack.ts:14`），七个模板一视同仁——连白名单里唯一建得成的候车亭（`pack.ts:96-100` 说明了为什么留它）也不接活。所以那三类活在灯潮界不是「暂时办不到」，是**这个世界不办的事**。派单时如实说没有，就是全部正确的行为；要真给它一个 venue，改的是设定集（给某栋楼填 `boundTask`），不是引擎。
   - **要修的是拒的时候说的那句话。** 原话是「没有空闲的 code 铺子。」——那是假的：它暗示有、只是忙，而这里一栋都没有，照着它去找的用户会去找一座不存在的铺子。`pickVenue` 因此从 `VenueCandidate | null` 改成 `VenuePick`，挑不到时连原因一起回：`none` 是镇子的事，`busy` 是楼的事，两句话对用户是不同的真话。复现与钉住见 `test/zero-venue-pack.test.ts`（含一条默认世界的对照组，防「派活本来就崩」冒充修好）。这也意味着**待办 B 不需要给 `loadSettingPack` 接上 `validateCoverage`**——那会拒掉一张合法且自洽的图。
 - 运行期提醒：`assertWorldInvariants` 只在开工/读档跑。造物主/玩家的落位接缝 `placeFromPlan`（`setup.ts:446-467`）走 `placeBlueprint` 后**不复检**，`src` 内别无调用。所以「默认世界两条路都拦」只对**建成/读档那一刻**成立；运行期 `building.add` 引入的门口问题，两个世界都不拦。门口缺口因此是建时/读档时的分叉，不是运行期的。

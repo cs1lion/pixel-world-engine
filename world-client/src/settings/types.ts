@@ -10,6 +10,14 @@ export interface SettingPlacement {
 
 export interface SettingRoutineStop extends GridPoint {
   readonly label: string;
+  /**
+   * 赶路时牌子说的那句。省略就说「赶路」。
+   *
+   * `label` 是她到了之后在做什么，这一句是她此刻正往那儿去——同一拍的两半，
+   * 缺一半屏上就在演「她已经站在那儿了」。设定集不写也能跑，只是每个人
+   * 赶路时都只说「赶路」。
+   */
+  readonly going?: string;
   readonly dwellMs?: number;
   /** low = 只在退潮去；high = 涨潮时改去别处。 */
   readonly tide?: 'low' | 'high';

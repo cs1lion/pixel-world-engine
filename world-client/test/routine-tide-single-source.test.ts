@@ -85,10 +85,10 @@ test('routineFor 放行原落点，当且仅当这道判据说去得了', () => 
   // 防的是把条件又抄回 `routineFor`。抄回去时它与 `simulation.ts` 的快进
   // 判定就是两份，差一个等号，牌子与快进在不同潮位上分叉。
   const beats: readonly RoutineBeat[] = [
-    { id: 'altar', label: '在旧站牌下认路', target: { x: 19, y: 15 }, dwellMs: 6500 },
-    { id: 'promenade', label: '点亮楼前的长灯', target: { x: 32, y: 27 }, dwellMs: 5800 },
-    { id: 'promenade', label: '满潮时收起滩边的灯', target: { x: 39, y: 29 }, dwellMs: 4800, tide: 'high' },
-    { id: 'promenade', label: '趁退潮拾回还能用的灯芯', target: { x: 50, y: 42 }, dwellMs: 6000, tide: 'low' },
+    { id: 'altar', label: '在旧站牌下认路', going: '去旧站牌下', target: { x: 19, y: 15 }, dwellMs: 6500 },
+    { id: 'promenade', label: '点亮楼前的长灯', going: '去楼前', target: { x: 32, y: 27 }, dwellMs: 5800 },
+    { id: 'promenade', label: '满潮时收起滩边的灯', going: '去滩边收灯', target: { x: 39, y: 29 }, dwellMs: 4800, tide: 'high' },
+    { id: 'promenade', label: '趁退潮拾回还能用的灯芯', going: '去滩边拾灯芯', target: { x: 50, y: 42 }, dwellMs: 6000, tide: 'low' },
   ];
   // 门槛那一格也在扫的范围内：`<=` 与 `<` 的差别就在这儿。
   const levels = [0, 0.1, TIDE_LOW_MAX, 0.45, TIDE_HIGH_MIN, 0.9, 1];

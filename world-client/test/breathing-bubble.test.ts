@@ -59,11 +59,11 @@ function makeSim(): Simulation {
     villagerProfiles: [
       {
         at: INSIDE,
-        routine: [{ id: 'altar', label: '去祭坛', target: ALTAR, dwellMs: 5000 }],
+        routine: [{ id: 'altar', label: '去祭坛', going: '去祭坛', target: ALTAR, dwellMs: 5000 }],
       },
       {
         at: OUTSIDE,
-        routine: [{ id: 'altar', label: '去祭坛', target: ALTAR, dwellMs: 5000 }],
+        routine: [{ id: 'altar', label: '去祭坛', going: '去祭坛', target: ALTAR, dwellMs: 5000 }],
       },
     ],
   });
@@ -113,8 +113,8 @@ test('没有呼吸段时一样说：这句话不是呼吸段带来的新行为',
     villagerName: '汐',
     wallClock: () => 1000,
     villagerProfiles: [
-      { at: INSIDE, routine: [{ id: 'altar', label: '去祭坛', target: ALTAR, dwellMs: 5000 }] },
-      { at: OUTSIDE, routine: [{ id: 'altar', label: '去祭坛', target: ALTAR, dwellMs: 5000 }] },
+      { at: INSIDE, routine: [{ id: 'altar', label: '去祭坛', going: '去祭坛', target: ALTAR, dwellMs: 5000 }] },
+      { at: OUTSIDE, routine: [{ id: 'altar', label: '去祭坛', going: '去祭坛', target: ALTAR, dwellMs: 5000 }] },
     ],
   });
   plain.update(16);

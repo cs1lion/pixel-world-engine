@@ -48,7 +48,7 @@ function makeSim(requires: CarryItem | null | undefined): Simulation {
     villagerProfiles: [
       {
         at: LEFT,
-        routine: [{ id: 'promenade', label: '去对岸', target: RIGHT, dwellMs: 300 }],
+        routine: [{ id: 'promenade', label: '去对岸', going: '去对岸', target: RIGHT, dwellMs: 300 }],
       },
     ],
   });
@@ -133,7 +133,7 @@ function makeDeliverySim(): Simulation {
     villagerProfiles: [
       {
         at: { x: 6, y: 7 },
-        routine: [{ id: 'altar', label: '在祭坛边', target: { x: 6, y: 7 }, dwellMs: 999_999 }],
+        routine: [{ id: 'altar', label: '在祭坛边', going: '去祭坛边', target: { x: 6, y: 7 }, dwellMs: 999_999 }],
       },
     ],
   });
@@ -271,11 +271,11 @@ test('世界上有两个同名的人：拒，不把灯递给第一个', () => {
     villagerProfiles: [
       {
         at: LEFT,
-        routine: [{ id: 'promenade', label: '去对岸', target: RIGHT, dwellMs: 300 }],
+        routine: [{ id: 'promenade', label: '去对岸', going: '去对岸', target: RIGHT, dwellMs: 300 }],
       },
       {
         at: LEFT,
-        routine: [{ id: 'promenade', label: '去对岸', target: RIGHT, dwellMs: 300 }],
+        routine: [{ id: 'promenade', label: '去对岸', going: '去对岸', target: RIGHT, dwellMs: 300 }],
       },
     ],
   });

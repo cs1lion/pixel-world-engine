@@ -12,6 +12,21 @@ export type RoutineId = 'altar' | 'garden' | 'promenade' | 'shelter';
 export interface RoutineBeat {
   readonly id: RoutineId;
   readonly label: string;
+  /**
+   * 赶路时牌子说的那句。**与 `label` 成对，缺一个就是假话。**
+   *
+   * `label` 说她到了之后在做什么，`going` 说她此刻正往那儿去。只挂 `label`
+   * 的那一版，屏上四分之三的时间都在演「她已经站在那儿了」——而她的坐标
+   * 正在动（`test/routine-going-label.test.ts` 钉的就是这一条）。
+   *
+   * 同一个文件里的 `sheltering` 早就这么分了：出发挂「跑向屋檐下躲雨」，
+   * `path` 空掉那一刻换成「在屋檐下看雨」。作息这条路当初漏了。
+   *
+   * **必填**，让「新落点忘了配赶路那句」在类型上就过不去。设定集的落点没有
+   * 目的地名字（`SettingRoutineStop` 只有坐标），那边由 `routineProfiles`
+   * 统一填「赶路」——`villager-words.ts` 的 `toWork` 没场地时也是这么说的。
+   */
+  readonly going: string;
   readonly target: GridPoint;
   readonly dwellMs: number;
   readonly tide?: 'low' | 'high';
@@ -24,20 +39,28 @@ export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly Routi
   const garden = grid.nearestWalkable({ x: altar.x - 8, y: altar.y + 4 });
   const promenade = grid.nearestWalkable({ x: altar.x + 8, y: altar.y - 3 });
   return [
-    { id: 'altar', label: '在祭坛边坐着', target: altar, dwellMs: DWELL_MS },
+    { id: 'altar', label: '在祭坛边坐着', going: '去祭坛', target: altar, dwellMs: DWELL_MS },
     {
       id: 'garden',
       label: '去看了一眼农田',
+      going: '去农田边',
       target: garden ?? altar,
       dwellMs: DWELL_MS * 1.4,
     },
     {
       id: 'promenade',
       label: '在街口站着看了一会儿',
+      going: '去街口',
       target: promenade ?? altar,
       dwellMs: DWELL_MS,
     },
-    { id: 'altar', label: '回到祭坛等神谕', target: altar, dwellMs: DWELL_MS },
+    {
+      id: 'altar',
+      label: '回到祭坛等神谕',
+      going: '回祭坛',
+      target: altar,
+      dwellMs: DWELL_MS,
+    },
   ];
 }
 
@@ -84,6 +107,7 @@ export function routineFor(
       return {
         id: 'shelter',
         label: weather === 'storm' ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
+        going: weather === 'storm' ? '跑向屋檐下躲暴雨' : '跑向屋檐下躲雨',
         target: shelterAt,
         dwellMs: DWELL_MS,
       };
@@ -92,6 +116,9 @@ export function routineFor(
     return {
       id: 'shelter',
       label: weather === 'storm' ? '在祭坛边缩着等暴雨过去' : '在祭坛边看雨',
+      // 没门可躲时落点是锚点，所以赶路那句也得说锚点——说屋檐就是一边把她
+      // 往祭坛送、一边告诉外面她去了屋檐。
+      going: '去祭坛边',
       target: anchor.target,
       dwellMs: DWELL_MS,
     };
@@ -126,8 +153,14 @@ export function tideBeatApplies(tide: RoutineBeat['tide'], level: number): boole
   return true;
 }
 
-/** 退回锚点：借锚点的 id、label、target，只保留原落点的停留时长。 */
+/** 退回锚点：借锚点的 id、label、going、target，只保留原落点的停留时长。 */
 function fallbackTo(beats: readonly RoutineBeat[], beat: RoutineBeat): RoutineBeat {
   const anchor = beats[0]!;
-  return { id: anchor.id, label: anchor.label, target: anchor.target, dwellMs: beat.dwellMs };
+  return {
+    id: anchor.id,
+    label: anchor.label,
+    going: anchor.going,
+    target: anchor.target,
+    dwellMs: beat.dwellMs,
+  };
 }

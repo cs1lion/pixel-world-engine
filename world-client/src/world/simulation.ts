@@ -361,6 +361,11 @@ interface Villager {
   nextRoutineAt: number;
   routineIndex: number;
   routineLabel: string | null;
+  /**
+   * 赶路时牌子说的那句，与 `routineLabel` 是同一拍的两半。不进存档。
+   * 为什么分两半、快照怎么挑，见 `snapshotVillager`。
+   */
+  routineGoing: string | null;
   inPlaceUntil: number;
   /** 神谕下达时算好的路线，等行礼结束再交给她走。 */
   pendingRoute: GridPoint[];
@@ -669,6 +674,7 @@ export class Simulation {
       nextRoutineAt: 1200 + index * 1400,
       routineIndex: index * 2,
       routineLabel: null,
+      routineGoing: null,
       inPlaceUntil: 0,
       pendingRoute: [],
       pendingBuilding: null,
@@ -2470,7 +2476,20 @@ export class Simulation {
       visible: villager.visible,
       taskId: villager.taskId,
       bubble: villager.bubble,
-      routine: villager.routineLabel,
+      // 牌子说哪一半，看她这会儿在不在走。
+      //
+      // 判据必须带上 `mode === 'idle'`：赶路的不只是作息——`toWork`、`toAltar`、
+      // `sheltering`、`bearingDecree` 四种 mode 的路也没走完，而它们的说法在
+      // `villagerModeLabel` 里各自写着（「赶往」「跑向」），且出发时就把
+      // `routineLabel` 换成了进行中的那句。不带上 mode，一个正跑向屋檐的人会被
+      // 这句盖成「去街口」——她压根不去街口。
+      //
+      // 剩下真在走作息路的只有 `stepIdle` 与 `chaseVerification` 两处派活，
+      // 两处都同时写 `routineGoing`，所以走着而不说话的那一刻不存在。
+      routine:
+        villager.mode === 'idle' && villager.path.length > 0
+          ? villager.routineGoing
+          : villager.routineLabel,
       umbrella: this.isRaining() && villager.mode !== 'working',
       carrying: villager.carrying,
       lampOil: villager.lampOil,
@@ -2652,6 +2671,7 @@ export class Simulation {
       if (route.path.length === 0) continue;
       villager.path = route.path;
       villager.routineLabel = beat.label;
+      villager.routineGoing = beat.going;
       villager.nextRoutineAt = this.now + beat.dwellMs;
       return;
     }
@@ -2703,7 +2723,9 @@ export class Simulation {
     const route = this.routeTo(villager, target);
     if (route.path.length === 0) return false;
     villager.path = route.path;
+    // 求证这一句本来就是赶路的形状，所以两半都填它自己：走到之后她照样在现场。
     villager.routineLabel = '心里存着疑，去现场看看';
+    villager.routineGoing = '心里存着疑，去现场看看';
     villager.nextRoutineAt = this.now + 1200;
     return true;
   }
@@ -3197,6 +3219,8 @@ export class Simulation {
       villager.nextRoutineAt = saved.nextRoutineAt;
       villager.routineIndex = saved.routineIndex;
       villager.routineLabel = saved.routineLabel;
+      // 赶路那句不存档，读档即失：走着的人退回「没个准地方」，直到下一拍自己写上。
+      villager.routineGoing = null;
       villager.inPlaceUntil = saved.inPlaceUntil;
       villager.pendingRoute = saved.pendingRoute.map((cell) => ({ x: cell.x, y: cell.y }));
       villager.pendingBuilding =

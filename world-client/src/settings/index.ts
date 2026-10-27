@@ -33,7 +33,12 @@ export function routineProfiles(pack: SettingPack) {
     carries: villager.carries,
     routine: villager.routine.map((stop, index) => ({
       id: index === 0 ? 'altar' as const : 'promenade' as const,
-      label: stop.label, target: { x: stop.x, y: stop.y },
+      label: stop.label,
+      // 设定集的落点只有坐标，没有目的地的名字，所以默认那句是「赶路」——
+      // 与 `villager-words.ts` 里 `toWork` 挑不到铺子时的说法同一句。想说
+      // 「去浅滩」的设定集自己在 `going` 里写，写了就说它写的。
+      going: stop.going ?? '赶路',
+      target: { x: stop.x, y: stop.y },
       dwellMs: stop.dwellMs ?? 5200, ...(stop.tide === undefined ? {} : { tide: stop.tide }),
     })),
   }));

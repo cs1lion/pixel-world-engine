@@ -38,10 +38,10 @@ function makeSim(breathing: boolean, bothInside = false): Simulation {
     villagerName: '汐',
     wallClock: () => 1000,
     villagerProfiles: [
-      { at: INSIDE, routine: [{ id: 'altar', label: '去祭坛', target: OUTSIDE, dwellMs: 5000 }] },
+      { at: INSIDE, routine: [{ id: 'altar', label: '去祭坛', going: '去祭坛', target: OUTSIDE, dwellMs: 5000 }] },
       {
         at: second,
-        routine: [{ id: 'altar', label: '在祭坛边坐着', target: second, dwellMs: 5000 }],
+        routine: [{ id: 'altar', label: '在祭坛边坐着', going: '去祭坛边', target: second, dwellMs: 5000 }],
       },
     ],
   });

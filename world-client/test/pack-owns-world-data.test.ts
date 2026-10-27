@@ -300,16 +300,16 @@ test('除包数据那一份之外，不引用设定集的名字与说法', () =>
  * 但每一行都写出来——复制一句「同上」的清单，读的人不会真去核上面那句。
  */
 const KNOWN_STOPS: Readonly<Record<string, { readonly why: string }>> = {
-  'world/routines.ts:27': {
+  'world/routines.ts:42': {
     why: '莞尔镇没有配置包。这一拍是「在祭坛边坐着」，锚点就是祭坛本身，目标由参数传进来。',
   },
-  'world/routines.ts:30': {
+  'world/routines.ts:45': {
     why: '莞尔镇没有配置包。这一拍去农田边，落点是 `altar` 偏移 (-8,+4) 后找的最近可走格。',
   },
-  'world/routines.ts:36': {
+  'world/routines.ts:52': {
     why: '莞尔镇没有配置包。这一拍在街口站着，落点是 `altar` 偏移 (+8,-3) 后找的最近可走格。',
   },
-  'world/routines.ts:40': {
+  'world/routines.ts:59': {
     why: '莞尔镇没有配置包。这一拍回到祭坛等神谕，与第一拍同一个 target，一圈的收尾。',
   },
 };

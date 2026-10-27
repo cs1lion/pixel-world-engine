@@ -4,10 +4,10 @@ import { routineFor, type RoutineBeat } from '../src/world/routines.ts';
 
 /** 汐的一圈：锚点、楼前、只在满潮去的滩边、只在退潮去的灯芯。 */
 const beats: readonly RoutineBeat[] = [
-  { id: 'altar', label: '在旧站牌下认路', target: { x: 19, y: 15 }, dwellMs: 6500 },
-  { id: 'promenade', label: '点亮楼前的长灯', target: { x: 32, y: 27 }, dwellMs: 5800 },
-  { id: 'promenade', label: '满潮时收起滩边的灯', target: { x: 39, y: 29 }, dwellMs: 4800, tide: 'high' },
-  { id: 'promenade', label: '趁退潮拾回还能用的灯芯', target: { x: 50, y: 42 }, dwellMs: 6000, tide: 'low' },
+  { id: 'altar', label: '在旧站牌下认路', going: '去旧站牌下', target: { x: 19, y: 15 }, dwellMs: 6500 },
+  { id: 'promenade', label: '点亮楼前的长灯', going: '去楼前', target: { x: 32, y: 27 }, dwellMs: 5800 },
+  { id: 'promenade', label: '满潮时收起滩边的灯', going: '去滩边收灯', target: { x: 39, y: 29 }, dwellMs: 4800, tide: 'high' },
+  { id: 'promenade', label: '趁退潮拾回还能用的灯芯', going: '去滩边拾灯芯', target: { x: 50, y: 42 }, dwellMs: 6000, tide: 'low' },
 ];
 
 test('潮位不成立的落点退回锚点，label 与 target 必须指向同一个地方', () => {
