@@ -3,7 +3,12 @@
  *
  * 守的东西只有一件：**tsc 看见语法错时，整个工程的语义诊断一处都不算**——这件
  * 事必须一直被说着，因为它的失败形态是"看起来很干净"：输出短短一两行，还全在
- * 别人的草稿文件里，人就这样收工、提交。本仓已经因此红过一次。
+ * 别人的草稿文件里，人就这样收工、提交。
+ *
+ * （这里**不写**"本仓已经因此红过一次"。那句话我在第一稿里写过，是证不出来的：
+ * 我看得见 `be825d5` 的提交信息说"我那次 typecheck 是假的干净"，可看不见他当时
+ * 的本地输出，没法说那就是这一条机制造成的。旁证不是因果，写成因果就成了这个仓
+ * 最忌讳的那种假话。）
  *
  * 所以第 1 条用例不是测我的代码，是测 **tsc 的行为**：拿一个真的夹具喂真的
  * tsc，看语义错是不是真的不见了。哪天 TypeScript 改了这个行为，这条用例会红，
@@ -158,6 +163,27 @@ test('tally 按码段分家：TS1xxx 是语法，TS2xxx 往后是语义', () => 
     ].join('\n'),
   );
   assert.deepEqual(tally(parsed), { syntactic: 1, semantic: 3, unparsed: 0 });
+});
+
+test('缩进的续行不算独立的一条——真跑一遍的 170 行里 34 行是续行', () => {
+  // 这一段是**真跑** `node scripts/check-types.ts` 抓下来的输出，只把那条长绝对
+  // 路径截短了，形状一动没动。当时那份输出一共 170 行：136 条诊断 + 34 行续行。
+  //
+  // 为什么值得单独钉一条：不认续行的话，一条 TS2719 能派出三四行"解析不上"，
+  // 全进 `unparsed`，安全闸当场把整个计数作废。实测就是这样——那一遍的计数是
+  // "34 行没解析上"，而"语义没算"那句该响的时候响不出来。响不出来是安全闸在
+  // 干活，但计数全废是它的代价，这个代价不必付。
+  const parsed = parseDiagnostics(
+    [
+      "a.ts(1,1): error TS1110: Type expected.",
+      "b.ts(2,3): error TS2719: Type '{ readonly id: string; }' is not assignable to type '{ readonly id: string; readonly primary: string; }'. Two different types with this name exist, but they are unrelated.",
+      "  Type '{ id: string; }' is not assignable to type '{ readonly id: string; readonly primary: string; }'.",
+      "    Types of property 'primary' are incompatible.",
+      "b.ts(4,5): error TS2739: Type '{ id: string; }' is missing the following properties from type 'T': primary, accent",
+    ].join('\n'),
+  );
+  assert.equal(parsed.length, 3, '两条诊断 + 一条语法错，续行不该各算一条');
+  assert.deepEqual(tally(parsed), { syntactic: 1, semantic: 2, unparsed: 0 });
 });
 
 test('退出码透传到进程上：坏了就必须非零', (t) => {
