@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { codeOf } from './source-scan.ts';
 
@@ -249,7 +250,7 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/;
 
 /**
- * import 语句里的模块说明符。三种写法都要抓：
+ * import 语句里的模块说明符。四种写法都要抓：
  *
  * - `from '...'`——具名与默认 import 的尾巴；
  * - `import '...'`——裸 import（只为副作用）；
@@ -257,35 +258,140 @@ const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/;
  *   绕过去的一种：`const m = await import('../../render/x.ts')` 在语法上
  *   跟 import 语句没有任何相似之处，但它是**同一件事**——那一刻世界就
  *   拿到了上一层的东西，而且是延迟到运行时才拿，静态检查更容易放过。
+ * - `require('...')`——这个 ESM 工程里本来没有 `require`，要用得先
+ *   `createRequire`，是故意的一步，不是排版器能无意造出来的。补它只是
+ *   顺手，别当成跟折行同一个量级的洞。
+ *
+ * **带 `g`，而且扫的是接起来的整份代码。** 两处都是实测漏过才补的：
+ *
+ * 1. 不带的 `g` 的话，一行里两个 import 只看第一个。
+ *    `import { a } from './types.ts'; import { b } from '../../render/day-phase.ts';`
+ *    ——第一个合法、第二个越界，闸门一片绿（实测：闸门"看见"的说明符只有
+ *    `./types.ts`）。
+ * 2. 按行扫的话，`import(` 与它的参数字符串分居两行就整体消失：
+ *    ```
+ *    const m = import(
+ *      '../../render/day-phase.ts'
+ *    );
+ *    ```
+ *    而这个形状**排版器就能造出来**，没人需要故意那么写。
+ *
+ * 所以注释行是**删掉**而不是留空：留着空行一样能把上一行结尾的 `import(`
+ * 和下一行的字符串接上，于是一段讲解"这里别写 `import(...)`"的块注释就会
+ * 把闸门点红。删掉就没这条缝——代价是行号得自己记，见下面那条扫描。
  */
-const IMPORT_SPECIFIER = /(?:from\s+|import\s*\(?\s*)['"]([^'"]+)['"]/;
+const IMPORT_SPECIFIER =
+  /(?:from\s+|import\s*\(?\s*|require\s*\(?\s*)['"]([^'"]+)['"]/g;
 
 const WORLD_DIR = join(SRC, 'world');
 
-test('src/world 不 import 它上面的任何一层（时辰进不来）', () => {
+/**
+ * 把「越界 import」一个一个找出来。抽成函数是为了能拿临时目录里的假树喂它——
+ * 不然这条扫描只能对着真仓库跑，而真仓库今天是干净的，"出现了会被抓住"这一条
+ * 就永远证明不了（一个永远返回空数组的函数也能让真仓库绿着）。
+ *
+ * `srcRoot` 也收参数，同理：判据是"解析后的落点在不在 `<srcRoot>/world/` 里"，
+ * 写死仓库那一份就没法在别处复现。
+ */
+export function importOffenders(
+  worldFiles: readonly string[],
+  srcRoot: string,
+): string[] {
+  const worldDir = join(srcRoot, 'world');
   const offenders: string[] = [];
-  for (const file of files) {
-    const rel = file.slice(SRC.length + 1).split(path.sep).join('/');
+  for (const file of worldFiles) {
+    const rel = file.slice(srcRoot.length + 1).split(path.sep).join('/');
     if (!rel.startsWith('world/')) continue;
-    for (const [index, line] of readFileSync(file, 'utf8').split('\n').entries()) {
-      if (COMMENT_LINE.test(line)) continue;
-      const match = IMPORT_SPECIFIER.exec(line);
-      if (match === null) continue;
-      const specifier = match[1]!;
-      if (!specifier.startsWith('.')) continue;
-      // 解析后的落点还在 `src/world/` 里就算自己人。用 `resolve` 而不是
+    const raw = readFileSync(file, 'utf8').split('\n');
+    // 注释行删掉，但**记下它原来是第几行**：报出去的行号得指向原文件。
+    // 指向删过之后的副本，那个人就再也找不到那一行了——而这道闸的全部价值
+    // 就在"红的时候说得清是哪一行"。
+    const kept: { text: string; at: number }[] = [];
+    raw.forEach((line, at) => {
+      if (!COMMENT_LINE.test(line)) kept.push({ text: line, at });
+    });
+    const code = kept.map((entry) => entry.text).join('\n');
+    for (const match of code.matchAll(IMPORT_SPECIFIER)) {
+      const specifier = match[1];
+      if (specifier === undefined || !specifier.startsWith('.')) continue;
+      // 解析后的落点还在 `<srcRoot>/world/` 里就算自己人。用 `resolve` 而不是
       // 字符串前缀比较：`world/../render/x.ts` 这种绕一圈的写法同样拦得住。
       const landed = path.resolve(path.dirname(file), specifier);
-      if (landed === WORLD_DIR || landed.startsWith(WORLD_DIR + path.sep)) continue;
-      offenders.push(`${rel}:${index + 1} 往上一层 import：${line.trim()}`);
+      if (landed === worldDir || landed.startsWith(worldDir + path.sep)) continue;
+      const seen = code.slice(0, match.index ?? 0).split('\n').length;
+      const at = kept[seen - 1]?.at ?? 0;
+      offenders.push(`${rel}:${at + 1} 往上一层 import：${raw[at]?.trim() ?? specifier}`);
     }
   }
+  return offenders;
+}
+
+test('src/world 不 import 它上面的任何一层（时辰进不来）', () => {
+  const offenders = importOffenders(
+    files.filter((file) => file.startsWith(WORLD_DIR + path.sep)),
+    SRC,
+  );
   assert.deepEqual(
     offenders,
     [],
     `世界内核只能依赖它自己。时辰（render/day-phase.ts）、氛围、界面都长在它上面，\n` +
       `一旦世界 import 上去，「现在几点」就成了第二个墙钟读者，确定性回放当场不成立。\n` +
       offenders.join('\n'),
+  );
+});
+
+test('折行的动态 import 也拦得住，而且行号指向原文件', (t) => {
+  // 这一条对着假树跑，因为真仓库里没有越界 import——不造假树就证明不了
+  // "出现了会被抓住"，而证明不了这个，上面那条绿得毫无意义。
+  //
+  // 行号那一半是同一次改动新写的逻辑（注释行删掉之后自己数回去），
+  // 它错了不会让任何一条现有用例红，只会让将来真红的人找不到那一行。
+  const dir = mkdtempSync(join(tmpdir(), 'pwe-purity-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const src = join(dir, 'src');
+  mkdirSync(join(src, 'world', 'memory'), { recursive: true });
+  mkdirSync(join(src, 'render'), { recursive: true });
+  writeFileSync(join(src, 'world', 'types.ts'), 'export type T = 1;\n', 'utf8');
+  // 第 3 行才是越界那个。前面垫一行注释、一行合法 import，
+  // 行号 mapping 错一位这里就看得出来。
+  writeFileSync(
+    join(src, 'world', 'memory', 'perception.ts'),
+    [
+      '// 世界自己的子目录，往上是自己人',
+      "import type { T } from '../types.ts';",
+      'const m = import(',
+      "  '../../render/day-phase.ts'",
+      ');',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  // 子目录里 `../types.ts` 解析到 `world/types.ts`，那是世界内核自己。
+  writeFileSync(
+    join(src, 'world', 'memory', 'ok.ts'),
+    "import type { T } from '../types.ts';\n",
+    'utf8',
+  );
+  // 注释里提一句越界路径不算：它是**关于**依赖的话，不是依赖。
+  writeFileSync(
+    join(src, 'world', 'talk.ts'),
+    "// 别在这儿写 import('../../render/day-phase.ts')\nexport const a = 1;\n",
+    'utf8',
+  );
+
+  const offenders = importOffenders(
+    [
+      join(src, 'world', 'types.ts'),
+      join(src, 'world', 'memory', 'perception.ts'),
+      join(src, 'world', 'memory', 'ok.ts'),
+      join(src, 'world', 'talk.ts'),
+    ],
+    src,
+  );
+  assert.deepEqual(
+    offenders,
+    [`world/memory/perception.ts:3 往上一层 import：const m = import(`],
+    '折行的动态 import 该被抓住，且行号得指向 import( 那一行',
   );
 });
 
@@ -301,10 +407,22 @@ test('那条闸认得动态 import——`import()` 也是 import', () => {
     "import '../../render/day-phase.ts';",
     "const m = import('../../render/day-phase.ts');",
     "const m = await import( '../../render/day-phase.ts' );",
+    "export { phaseAt } from '../../render/day-phase.ts';",
+    "export * from '../../render/day-phase.ts';",
+    "import type { PhaseId } from '../../render/day-phase.ts';",
+    // 折行：`import(` 在第一行末尾，字符串在第二行。按行扫的版本整体看不见它。
+    "const m = import(\n  '../../render/day-phase.ts'\n);",
+    // 一行两个：第一个合法、第二个越界。只 exec 第一个的版本会放过第二个。
+    "import { a } from './types.ts'; import { b } from '../../render/day-phase.ts';",
   ];
   for (const form of forms) {
-    const match = IMPORT_SPECIFIER.exec(form);
-    assert.ok(match !== null, `闸门漏了这种写法：${form}`);
-    assert.equal(match[1], '../../render/day-phase.ts', `抓错了说明符：${form}`);
+    // 走 matchAll 而不是 exec：`IMPORT_SPECIFIER` 带 `g`，exec 会推它的
+    // lastIndex，循环到第二个 form 就从半中间开始找——那种错要让用例
+    // 时好时坏才看得出来，而时好时坏的用例等于没有。
+    const found = [...form.matchAll(IMPORT_SPECIFIER)].map((m) => m[1]);
+    assert.ok(
+      found.includes('../../render/day-phase.ts'),
+      `闸门漏了这种写法：${form}\n实际看见：${JSON.stringify(found)}`,
+    );
   }
 });
