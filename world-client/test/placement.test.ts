@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
-import { ALTAR, LARGE_ALTAR, WILD_PREFABS, buildLargeWorld, buildWorld, checkPlacement, placeBlueprint } from '../src/world/setup.ts';
+import { ALTAR, LARGE_ALTAR, biomeRingAllows, buildLargeWorld, buildWorld, checkPlacement, isWildSide, placeBlueprint } from '../src/world/setup.ts';
 import { BIOME_RADII } from '../src/world/biomes.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { composeReport } from '../src/world/report.ts';
@@ -160,6 +160,43 @@ test('指定非法位置时返回 null，不建半截楼', () => {
 
 // ---------------------------------------------- 群落闸为什么必须存在
 
+test('群落环的边界：craftRing 上是镇内，外侧一寸才是郊野', () => {
+  // 距离按左上角在整数尺上量。这里全部取正东方向，dy=0，距离就是 dx。
+  const east = (dx: number): { x: number; y: number } => ({
+    x: LARGE_ALTAR.x + dx,
+    y: LARGE_ALTAR.y,
+  });
+
+  // 郊野铺子：21 格还在工坊环内 → 拒；22 格出环 → 收。
+  assert.equal(biomeRingAllows('gear_tower', east(21), LARGE_ALTAR), false);
+  assert.equal(biomeRingAllows('gear_tower', east(22), LARGE_ALTAR), true);
+  // 上界 wilderness(37)：37 收，38 已经出了郊野。
+  assert.equal(biomeRingAllows('gear_tower', east(37), LARGE_ALTAR), true);
+  assert.equal(biomeRingAllows('gear_tower', east(38), LARGE_ALTAR), false);
+
+  // 镇内铺子正好相反。
+  assert.equal(biomeRingAllows('workshop_plot', east(21), LARGE_ALTAR), true);
+  assert.equal(biomeRingAllows('workshop_plot', east(22), LARGE_ALTAR), false);
+
+  // 郊野民居与郊野铺子同侧——这正是旧代码分错的那一类。
+  assert.equal(isWildSide('homestead_far'), true);
+  assert.equal(biomeRingAllows('homestead_far', east(22), LARGE_ALTAR), true);
+  assert.equal(biomeRingAllows('homestead_far', east(21), LARGE_ALTAR), false);
+  // 镇内民居与镇内铺子同侧。
+  assert.equal(biomeRingAllows('cottage_oak', east(21), LARGE_ALTAR), true);
+  assert.equal(biomeRingAllows('cottage_oak', east(22), LARGE_ALTAR), false);
+});
+
+test('开局落位每一栋都过群落环：规则与 buildLargeWorld 的 accept 是同一份', () => {
+  const world = buildLargeWorld(blueprints);
+  for (const building of world.buildings) {
+    assert.ok(
+      biomeRingAllows(building.prefabId, building.origin, LARGE_ALTAR),
+      `${building.instanceId} 落在 (${building.origin.x},${building.origin.y})，过不了群落环`,
+    );
+  }
+});
+
 /**
  * `checkPlacement` 不知道「郊野」是什么意思——它只看出界 / 分区 / 占地 / 留白 /
  * 门口。所以单靠它，玩家能把郊野铺子的幽灵拖进镇子并确认成功。
@@ -212,14 +249,26 @@ test('checkPlacement 自己会放行镇内的郊野落点——群落闸不是�
     );
   }
 
-  // 注释里那条「今天追不上来」的不对称：三类铺子的合法落点没有一个越过
-  // wilderness(37)，所以 SandboxScene 少的那条上界现在追不上来。
-  for (const id of WILD_PREFABS) {
-    const farthest = legalSlots(id).reduce((a, b) => (b.d > a.d ? b : a));
-    assert.ok(
-      farthest.d <= BIOME_RADII.wilderness,
-      `${id} 最远的合法落点 ${farthest.d.toFixed(3)} 仍在 wilderness 内`,
-    );
+  // 郊野民居：`checkPlacement` 在镇内放行成百上千个落点，而群落环一个都不放。
+  // 这条钉住旧代码分错的那一类——SandboxScene 原来拿 `WILD_PREFABS` 认郊野，
+  // 漏了 `homestead_far` / `homestead_ridge` 两栋民居（它们的 zone 是三栋镇内
+  // 民居共用的 `living`，`ZONE_DEFAULT` 也是 `living`，分区那道关拦不住）。
+  for (const id of ['homestead_far', 'homestead_ridge']) {
+    const bp = blueprints.get(id);
+    assert.ok(bp !== undefined, `要有 ${id} 这份蓝图`);
+    let checkOkInTown = 0;
+    let ringOkInTown = 0;
+    for (let y = 0; y < world.grid.height - bp.footprint.h + 1; y += 1) {
+      for (let x = 0; x < world.grid.width - bp.footprint.w + 1; x += 1) {
+        const origin = { x, y };
+        if (!checkPlacement(world.grid, bp, origin).ok) continue;
+        if (Math.hypot(x - LARGE_ALTAR.x, y - LARGE_ALTAR.y) > BIOME_RADII.craftRing) continue;
+        checkOkInTown += 1;
+        if (biomeRingAllows(id, origin, LARGE_ALTAR)) ringOkInTown += 1;
+      }
+    }
+    assert.ok(checkOkInTown > 0, `${id} 在镇内有 checkPlacement 判合法的落点，否则这条没测到东西`);
+    assert.equal(ringOkInTown, 0, `${id} 是郊野民居，镇内一个都不许放`);
   }
 });
 

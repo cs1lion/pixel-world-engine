@@ -130,8 +130,11 @@ const RESIDENT_PREFABS = new Set<string>([
  *
  * 铺子与民居都要答这个问题，但两边的判断依据不同（铺子按 prefab 集合，
  * 民居按所属集合）。合成一处，免得落位锚点与群落校验各写一份、慢慢漂移。
+ *
+ * 导出是因为**玩家造物也要问同一个问题**：`SandboxScene` 的群落闸原来自己拿
+ * `WILD_PREFABS` 认郊野，漏了下面那两栋郊野民居。见 `biomeRingAllows`。
  */
-function isWildSide(prefabId: string): boolean {
+export function isWildSide(prefabId: string): boolean {
   return WILD_PREFABS.has(prefabId) || WILD_HOMES.has(prefabId);
 }
 
@@ -188,6 +191,41 @@ export function hintFor(reason: PlacementProblem): string {
     case 'doorBlocked':
       return '门口被堵住了，人走不进去。';
   }
+}
+
+/**
+ * 群落环：这座建筑许不许落在 `origin`。
+ *
+ * 郊野建筑（郊野铺子**与郊野民居**）整块落在工坊环之外、郊野环之内；
+ * 镇内建筑落在工坊环之内。距离按**左上角**在整数尺上量，与 `biomeAt` /
+ * `fogAt` 同一把尺——不拿格心尺，也不拿分区最近点。
+ *
+ * 为什么单独一个函数：这条规则原来写了两份。`buildLargeWorld` 的 `accept`
+ * 拿 `isWildSide` 认郊野，`SandboxScene` 的群落闸拿 `WILD_PREFABS` 认——
+ * 后者漏掉两栋郊野民居（`homestead_far` / `homestead_ridge`）。而这两栋的
+ * `zone` 是 `living`，与三栋镇内民居同一个分区，`ZONE_DEFAULT` 也是
+ * `living`，所以分区那道关拦不住它们。
+ *
+ * 实测（开局大世界，只数 `checkPlacement` 也判合法的落点）：对这两栋民居，
+ * 开局的 `accept` 在 craftRing 内放行 **0** 个，而幽灵那道闸放行
+ * **186**（homestead_far）/ **240**（homestead_ridge）个。也就是说，那道
+ * 声称「与开局落位同一套规则」的闸，对郊野民居恰好是反的——它专门放行开局
+ * 永远不做的那种落位。
+ *
+ * 合成一处之后，「同一套规则」由代码保证，不靠读者两边对照。
+ *
+ * 今天 UI 还没有「建民居」的入口，所以这不是正在发生的事故；但
+ * `beginCreation` 收任何 prefabId，加一个按钮就会踩上。
+ */
+export function biomeRingAllows(
+  prefabId: string,
+  origin: GridPoint,
+  altar: GridPoint,
+): boolean {
+  const d = Math.hypot(origin.x - altar.x, origin.y - altar.y);
+  return isWildSide(prefabId)
+    ? d > BIOME_RADII.craftRing && d <= BIOME_RADII.wilderness
+    : d <= BIOME_RADII.craftRing;
 }
 
 /**
@@ -305,15 +343,11 @@ export function buildWorld(
     // 落位必须与群落一致，否则「郊野」只是名义上的：
     //   - 郊野建筑在郊野圈（craftRing 之外、wilderness 之内）
     //   - 镇内建筑在工坊环内（否则镇内书斋会落到 23 格外的"郊野"）
+    // 规则本体在 `biomeRingAllows`，与玩家造物的群落闸共用一份。
     const accept =
       spec !== LARGE_WORLD_SPEC
         ? undefined
-        : (origin: GridPoint): boolean => {
-            const d = Math.hypot(origin.x - altar.x, origin.y - altar.y);
-            return wild
-              ? d > BIOME_RADII.craftRing && d <= BIOME_RADII.wilderness
-              : d <= BIOME_RADII.craftRing;
-          };
+        : (origin: GridPoint): boolean => biomeRingAllows(blueprint.id, origin, altar);
     const placed = placeBlueprint(grid, blueprint, `${blueprint.id}#1`, anchor, undefined, undefined, accept);
     if (placed === null) {
       throw new WorldSetupError(`${blueprint.displayName} 在 ${blueprint.zone} 找不到合规空地`);
