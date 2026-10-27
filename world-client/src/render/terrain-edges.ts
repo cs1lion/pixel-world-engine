@@ -117,7 +117,7 @@ export const DARK: Readonly<Record<TerrainId, WorldColor>> = {
  * 对本格底色与对紧邻那一格两个方向，用途不同，两者不要混用（
  * `terrain-edge-visibility.test.ts` 文件头把这句话写在那儿）。
  *
- * 依据：画面里已证明可读的 1px 线是角色墨线（ink vs grass ΔL\* 18.1），那是强轮廓，
+ * 依据：画面里已证明可读的 1px 线是角色墨线（ink vs grass ΔL\* 18.05），那是强轮廓，
  * 地形边只需弱一档；实测 6 以下（原 grass 亮边 3.02、tree 暗边 0.0）肉眼不可辨。
  *
  * 放这儿而不是留在某个测试文件里：两个测试文件都要用它（边可见性回归锁，以及

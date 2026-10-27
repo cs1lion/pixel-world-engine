@@ -153,10 +153,10 @@ test('plaza 是最低材质，任何邻格都不触发它的边', () => {
  * 1px 边的可辨性用 **ΔL\***（CIE L*，从 sRGB 换算）度量，不是 WCAG 比值。
  *
  * 为什么不用 WCAG：它的 +0.05 底数是给「中等亮度背景上的文字」校准的，而这套调色板
- * 本调色板里有 11 色在 L* 33 以下。同一个 ink vs grass，WCAG 只给 1.59，ΔL* 是 18.1——
- * 用 WCAG 会得出「所有边都一样弱」的错误结论（实测暗边其实全部合格）。
+ * 本调色板里有 12 色在 L* 33 以下（24 色预算的正好一半）。同一个 ink vs grass，WCAG
+ * 只给 1.59，ΔL* 是 18.05——用 WCAG 会得出「所有边都一样弱」的错误结论（实测暗边其实全部合格）。
  *
- * 阈值 6 的依据：画面里已证明可读的 1px 线是角色墨线（ink vs grass ΔL* 18.1）。
+ * 阈值 6 的依据：画面里已证明可读的 1px 线是角色墨线（ink vs grass ΔL* 18.05）。
  * 但那是强轮廓，地形边只需弱一档；实测 6 以下（如原 grass 亮边 3.0、tree 暗边 0.0）
  * 肉眼不可辨。取 6 作为下限，留出与强轮廓的区分空间。
  *
@@ -177,6 +177,26 @@ function lstar(hex: number): number {
 }
 
 const dl = (a: number, b: number): number => Math.abs(lstar(a) - lstar(b));
+
+/**
+ * WCAG 2.x 对比度：(亮的那一个 + 0.05) / (暗的那一个 + 0.05)，底数是**相对亮度 Y**，
+ * 不是 L\*。上面那段用它说明「同一对色，WCAG 与 ΔL\* 会给出相反印象」。
+ */
+function wcagRatio(a: number, b: number): number {
+  const lum = (hex: number): number => {
+    const channel = (v: number): number => {
+      const s = v / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    };
+    return (
+      0.2126 * channel((hex >> 16) & 0xff) +
+      0.7152 * channel((hex >> 8) & 0xff) +
+      0.0722 * channel(hex & 0xff)
+    );
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 /**
  * 亮边：对**本格底色**必须可辨。
@@ -311,6 +331,9 @@ const DOCUMENTED_DL: readonly {
   { file: 'src/render/terrain-edges.ts', quote: '原 grassLit 对 grass 只有 3.0', a: WORLD.grassLit, b: TERRAIN_COLORS.grass, says: 3.0 },
   { file: 'src/render/terrain-edges.ts', quote: '亮度落差 **0.0**', a: WORLD.soil, b: TERRAIN_COLORS.tree, says: 0.0 },
   { file: 'src/render/terrain-edges.ts', quote: '落差 6.76', a: WORLD.ink, b: WORLD.soil, says: 6.76 },
+  // 阈值 6 的**全部依据**（`EDGE_VISIBLE_MIN_DL` 的文档）。这个数此前一把锁都没有，
+  // 而它一错，下限 6 的理由整个悬空。原写 18.1，实测 18.05，已改成两位小数。
+  { file: 'src/render/terrain-edges.ts', quote: 'ink vs grass ΔL\\* 18.05', a: WORLD.ink, b: TERRAIN_COLORS.grass, says: 18.05 },
   { file: 'test/terrain-edges.test.ts', quote: '底色差本身只有 4.95', a: TERRAIN_COLORS.stone, b: TERRAIN_COLORS.plaza, says: 4.95 },
   { file: 'test/terrain-edges.test.ts', quote: '对 plaza 底色差 20.80', a: WORLD.soil, b: TERRAIN_COLORS.plaza, says: 20.8 },
   // 这两条住在另一个文件的 KNOWN_FAILING 注释里，一起钉。
@@ -412,6 +435,56 @@ test('边色 token 清单：7 个在册色，且都在 WORLD 里', () => {
       `${token} 不在 WORLD 里——「不加色」被破坏了`,
     );
   }
+});
+
+/**
+ * 「为什么不用 WCAG」那一段的三个数。
+ *
+ * 那段的论据是「调色板太暗，WCAG 会失真」，而它自己带着的三个数此前**一个都没锁**：
+ *   - 上段「L* 33 以下」的计数 —— 实测 **12** 色，原写的那个少一个。这个错法和
+ *     文件头规则 3 的「三个」是同一类：手数的，没有任何东西在数它。
+ *   - 「ink vs grass ΔL* 18.05」—— 实测就是这个数，一位小数 18.1。它是阈值 6 的
+ *     **全部依据**（见 `EDGE_VISIBLE_MIN_DL` 的文档），却是全仓库最没保障的一个数。
+ *   - 「WCAG 只给 1.59」—— 精确。
+ *
+ * 计数那一半**只认注释行**（以 ` * ` 开头），这是要紧的：这条测试自己也在同一个
+ * 文件里，直接搜字符串会搜到自己——头一版就是这么写的，绿了，而注释里那个数照旧
+ * 错着。那是条永远绿的空断言，比没有断言更糟。
+ */
+test('「为什么不用 WCAG」那一段的三个数必须与当前色板一致', () => {
+  // 不写类型谓词：`WORLD` 的值是数字字面量联合，`v is number` 那个谓词 tsc 不认
+  // （TS2677：谓词类型必须能赋给参数类型）。`typeof` 窄化就够，`lstar` 收 number。
+  const numeric = Object.values(WORLD).filter((v) => typeof v === 'number');
+  const under = numeric.filter((v) => lstar(v) < 33);
+
+  // 计数：只在本文件的注释行里找那句话，且只允许有一处。
+  const own = readFileSync(new URL('../test/terrain-edges.test.ts', import.meta.url), 'utf8');
+  const claims = own
+    .split('\n')
+    .filter((line) => line.startsWith(' * '))
+    .map((line) => /(\d+)\s*色在 L\* 33 以下/.exec(line))
+    .filter((m): m is RegExpExecArray => m !== null);
+  assert.equal(claims.length, 1, `注释里「N 色在 L* 33 以下」出现了 ${claims.length} 处，应恰好一处`);
+  assert.equal(
+    Number(claims[0]?.[1]),
+    under.length,
+    `注释写「${claims[0]?.[1]} 色在 L* 33 以下」，实测 ${under.length} 色`
+      + `（24 色预算的正好一半）。去改那段，别改这条。`,
+  );
+
+  // ΔL* 18.05：阈值 6 的依据，也是 DOCUMENTED_DL 里锁着的那个数。
+  assert.equal(
+    dl(WORLD.ink, TERRAIN_COLORS.grass).toFixed(2),
+    '18.05',
+    'ink vs grass 的 ΔL* 变了，`EDGE_VISIBLE_MIN_DL` 文档里那个 18.05 与下限 6 的理由要一起重估。',
+  );
+
+  // WCAG 1.59：精确到两位。这个数反过来证明「WCAG 会失真」那句话。
+  assert.equal(
+    wcagRatio(WORLD.ink, TERRAIN_COLORS.grass).toFixed(2),
+    '1.59',
+    'ink vs grass 的 WCAG 比值变了，注释里那个 1.59 要一起改。',
+  );
 });
 
 /**
