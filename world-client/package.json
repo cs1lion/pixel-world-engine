@@ -18,7 +18,8 @@
     "test:phases": "node scripts/check-phases.mjs",
     "test:persistence": "node scripts/check-persistence.mjs",
     "test:render-budget": "node scripts/check-render-budget.mjs",
-    "test:setting": "node scripts/check-dengchao.mjs"
+    "test:setting": "node scripts/check-dengchao.mjs",
+    "test:buttons": "node scripts/check-buttons.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"

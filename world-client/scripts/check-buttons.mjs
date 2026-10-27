@@ -1,0 +1,450 @@
+#!/usr/bin/env node
+/**
+ * 按钮审计：界面上每一个按得动的按钮，点下去世界都得给一句话。
+ *
+ * 为什么单独立一项：这个仓库的信条是「说谎比不去更糟」（`docs/SPEC.md`、
+ * `world-client/src/world/routines.ts` 开头那段）。那句话原本管世界对用户说的
+ * 话，可按钮是同一件事的另一面——一个摆在界面上的按钮就是一句承诺：「点我，
+ * 会发生某事」。承诺了而什么都不发生，比没有这个按钮更糟：用户点了，屏幕
+ * 安静，他不知道是世界坏了、是自己点错了、还是这事根本不该由他点。
+ *
+ * 这项审计不做语义判断（那句话说得准不准），只查一件机械的事：**每个按钮
+ * 点下去之后，界面上有没有出现一句新的话**。没有就是 silence，也就是
+ * `bindOraclePanel` 用 `requestAnimationFrame` 等 `window.Oracle` 时出过的
+ * 毛病——世界照办，回执一个字都不显示。见 `src/ui/when-api.ts`。
+ *
+ * 「一句话」不止 `#reply` 一处。各面的反馈落在各自的表面上：
+ *   - 神谕栏的话 → `#reply` / `#save-io-reply`
+ *   - 世界的状态   → `#slab-count`、`#queue`
+ *   - 抽屉的开关   → `#chronicle` / `#debug-panel` 的 hidden
+ *   - 镇志的内容   → `#chronicle-heading` 与列表里的行
+ * 只盯 `#reply` 会把好按钮审成沉默——第一版就这么冤了 `#chronicle-refresh`：
+ * 它的反馈是标题翻成「镇志正在翻…」，压根不往神谕栏写。
+ *
+ * 按钮也不全摆在同一层上：镇志抽屉里有「重读」「关闭」「返回」，还有一按钮
+ * 一条的记忆条目行；调试面板里有「关闭」。所以枚举要走过三层各自开/关的组合
+ * ——只枚举一种状态，抽屉里那几颗一次都没被点到，那不是它们没反应，是审计
+ * 没给它们机会。
+ *
+ * 两张图都过：默认世界（莞尔镇）与灯潮界。两张图的蓝图登记册不一样，
+ * `oracle-panel` 的缺口按钮和静态造房按钮是按它显隐的，只测一张会漏一半。
+ *
+ * rAF 替身：与 `scripts/smoke-ego.mjs` 同一套（那段注释里有完整的实测记录）。
+ * 无头 Chromium 里页面不合成时 rAF 近乎不触发，Phaser 场景不会 `create()`，
+ * 世界时间不走——按钮点得下去，命令一个都不结算，于是每个按钮都会被审成
+ * 「点了什么都不说」。那是脚本的毛病，不是按钮的。
+ *
+ * 用法：
+ *   node scripts/dev-live.mjs &            # 或任何在 5188 的 vite
+ *   node scripts/check-buttons.mjs         # 默认打 5188
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5175/ node scripts/check-buttons.mjs
+ *
+ * 退出码：有按钮点下去一句话都不给，就是 1；背后没有服务端，是 2。
+ */
+
+import { chromium } from '@playwright/test';
+
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
+
+/**
+ * 先问一句「背后有没有服务端」，没有就拒跑。
+ *
+ * 这项审计的结论分两种：「按钮是哑的」和「我什么都没测出来」。把后者印成
+ * 前者就是它自己在说谎——而这个仓库最不容的就是那一件。
+ *
+ * 实测踩过：对着一个裸 `vite`（没起服务端）跑，镇志那条 `/api/memory/list`
+ * 回 404，列表一条都没有。于是阅读页永远打不开（`setLayers` 里那一等
+ * 8 轮等不到 `.chronicle-row`），抽屉里四颗按钮一次都没被点到；镇志标题
+ * 停在「读不到镇志：Not Found」上不再翻，「重读」于是被审成沉默。
+ * 那次报出「46 个按钮、3 个一句话都不说」——三个全是冤的，同一份代码对着
+ * 带后端的 5188 是 56 个按钮、0 个沉默。
+ *
+ * 一条后端就够了：`/api/memory/list` 是镇志的数据源，它 404 时这半界
+ * 界面都不该拿来下结论。
+ */
+async function requireBackend() {
+  let ok = false;
+  let detail = '';
+  try {
+    const response = await fetch(new URL('api/memory/list', BASE));
+    ok = response.ok;
+    if (!ok) detail = `HTTP ${response.status}`;
+  } catch (error) {
+    detail = error instanceof Error ? error.message : String(error);
+  }
+  if (ok) return;
+  console.error(
+    `背后没有服务端：${BASE}api/memory/list ${detail}\n` +
+      '这项审计要连着后端跑（镇志条目、意图端点都靠它）。\n' +
+      '  node scripts/dev-live.mjs &     # 服务端 + 前端，5188\n' +
+      '对着裸 vite 跑，测不出沉默也测不出说话——它只会把好按钮冤成哑巴。',
+  );
+  process.exit(2);
+}
+await requireBackend();
+
+/** MessageChannel 门控到 60fps。测试专用，不进产物。 */
+const RAF_PATCH = `(() => {
+  const realNow = performance.now.bind(performance);
+  const channel = new MessageChannel();
+  const cbs = [];
+  let scheduled = false;
+  let last = -1e9;
+  const FRAME = 1000 / 60;
+  const pump = () => {
+    const t = realNow();
+    if (t - last < FRAME) { channel.port2.postMessage(0); return; }
+    last = t;
+    scheduled = false;
+    const batch = cbs.splice(0, cbs.length);
+    for (const cb of batch) { try { cb(t); } catch (e) {} }
+  };
+  channel.port1.onmessage = () => { pump(); };
+  window.requestAnimationFrame = (cb) => { cbs.push(cb); if (!scheduled) { scheduled = true; channel.port2.postMessage(0); } return cbs.length; };
+  window.cancelAnimationFrame = () => {};
+  window.__rafPatched = '60fps';
+})();`;
+
+/** 三层：调试面板、镇志抽屉、镇志的阅读页。各自开/关。 */
+const LAYER_STATES = [
+  { debug: false, chronicle: false, reader: false },
+  { debug: true, chronicle: false, reader: false },
+  { debug: false, chronicle: true, reader: false },
+  { debug: true, chronicle: true, reader: false },
+  { debug: false, chronicle: true, reader: true },
+  { debug: true, chronicle: true, reader: true },
+];
+
+/** 两张图。`?debug=1` 才展开维护条——产品页默认只有世界、神谕栏和镇志。 */
+const WORLDS = [
+  { label: '莞尔镇（默认）', query: '?debug=1' },
+  { label: '灯潮界', query: '?world=dengchao&debug=1' },
+];
+
+/**
+ * 点了会离开当前界面的，不进循环：刷新会把后半截按钮全测成「没反应」，
+ * 而那不是它们的毛病。
+ */
+const SKIP = new Set(['load-save', 'save-import']);
+
+/**
+ * 反馈在「某一层开没开」上的按钮，不在 `#reply` 上。
+ *
+ * 判它们看的是「可见性翻没翻」，不指定方向——这一组里既有开层的（镇志、
+ * 调试面板、条目行）也有关层的（两个「关闭」与「返回」）。
+ */
+const LAYER_IDS = new Set([
+  'chronicle-open',
+  'chronicle-close',
+  'chronicle-back',
+  'debug-toggle',
+  'debug-close',
+]);
+
+/** 条目行没有 id，按选择器认。选择器长这样：`button[data-chronicle-path="…"]`。 */
+const isEntryRow = (selector) => selector.startsWith('button[data-chronicle-path=');
+
+const opensLayer = (button) => LAYER_IDS.has(button.id) || isEntryRow(button.selector);
+
+/**
+ * 提交神谕那一颗：得先往输入框里放一句话。
+ *
+ * 空句子本来就说不出话（`submit` 挡在 trimmed.length === 0），拿空输入去点
+ * 会把一颗好按钮审成 silence。放的是一句世界**认不出**的话：这样它会回一句
+ * 拒绝的理由，而世界一个比特都不改——后面的按钮还在同一份界面上被审。
+ */
+const FILL_BEFORE = new Map([['#oracle button[type="submit"]', '今天天气不错']]);
+
+const browser = await chromium.launch({ headless: true });
+
+/** 一句话都说不出来的按钮。 */
+const silent = [];
+/** 每一行的记录，最后整张打出来。 */
+const rows = [];
+
+for (const world of WORLDS) {
+  // 一张图一个浏览器。多个页面挤在一个浏览器里时，Chromium 会把不是当前标签的
+  // 那几个的定时器节流到 1 秒一拍（`scripts/verify-reply.mjs` 的注释里记着实测）。
+  // 这项审计不等页内定时器，可世界那一侧等——别让浏览器怎么调度掺进来。
+  const worldBrowser = await chromium.launch({ headless: true });
+  const page = await worldBrowser.newPage({ viewport: { width: 1180, height: 960 } });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  // 每张图都从一份干净的存档开始：上一张图写下的单槽会让这张图一开局就
+  // 「读档重建」，测的就不是这张图自己的开局了。
+  await page.addInitScript(() => {
+    try {
+      localStorage.clear();
+    } catch {
+      /* 隐私模式等场景忽略 */
+    }
+  });
+  await page.addInitScript(RAF_PATCH);
+
+  await page.goto(`${BASE}${world.query}`, { waitUntil: 'load' });
+  await page.waitForFunction(() => window.__rafPatched === '60fps', null, { timeout: 10000 });
+  await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
+
+  // 等界面真画上：`whenApi` 挂上之后 `#world-state` 才会离开占位那句。
+  await page.waitForFunction(
+    () => {
+      const line = document.querySelector('#world-state')?.textContent ?? '';
+      return line.length > 0 && !line.includes('正在醒来');
+    },
+    null,
+    { timeout: 20000 },
+  );
+
+  const worldState = await page.textContent('#world-state');
+  const gapButtons = await page.$$eval('#build-row button[data-gap]', (nodes) => nodes.map((n) => n.textContent));
+  const hiddenStatic = await page.$$eval('button[data-build], button[data-create]', (nodes) =>
+    nodes.map((n) => `${n.dataset.build ?? n.dataset.create}=${n.hidden ? 'hidden' : 'shown'}`),
+  );
+
+  /** 此刻三层各开着没有。 */
+  const layersNow = () =>
+    page.evaluate(`({
+      debug: !(document.querySelector('#debug-panel')?.hidden ?? true),
+      chronicle: !(document.querySelector('#chronicle')?.hidden ?? true),
+      reader: !(document.querySelector('#chronicle-reader')?.hidden ?? true),
+    })`);
+
+  /** 把三层调到想要的状态。 */
+  const setLayers = async (want) => {
+    for (let guard = 0; guard < 8; guard += 1) {
+      const now = await layersNow();
+      if (now.debug === want.debug && now.chronicle === want.chronicle && now.reader === want.reader) return;
+      if (now.debug !== want.debug) await page.click('#debug-toggle');
+      else if (now.chronicle !== want.chronicle) await page.click('#chronicle-open');
+      else if (now.reader !== want.reader) {
+        // 开阅读页：点列表里第一行。关阅读页：点「返回」。
+        // 镇志刚开时 `load()` 还在飞，行可能还没画出来——下一轮 guard 再试。
+        if (want.reader) {
+          const clicked = await page.evaluate(() => {
+            const row = document.querySelector('.chronicle-row');
+            if (row === null) return false;
+            row.click();
+            return true;
+          });
+          if (!clicked) {
+            await page.waitForTimeout(250);
+            continue;
+          }
+        } else {
+          await page.click('#chronicle-back');
+        }
+      }
+      await page.waitForTimeout(300);
+    }
+  };
+
+  /**
+   * 此刻看得见的按钮，每颗带一个**稳定的**选择器。
+   *
+   * 不能靠下标：`paintWorldState` 每次 `onStatus` 都把缺口按钮删了重加，下标会漂。
+   *
+   * 可见性用 `checkVisibility()`，不用 `offsetParent !== null`：`#debug-toggle` 是
+   * `position: fixed`，它的 `offsetParent` 永远是 null——第一版就这么把那颗按钮
+   * 整颗从审计里漏掉了，而它恰是开调试面板的那一颗。
+   */
+  const visibleButtons = () =>
+    page.$$eval('button', (nodes) =>
+      nodes
+        .filter((n) => n.checkVisibility({ checkVisibilityCSS: true }))
+        .map((n) => {
+          let selector = null;
+          if (n.id !== '') selector = `#${n.id}`;
+          else if (n.dataset.kind !== undefined) selector = `button[data-kind="${n.dataset.kind}"]`;
+          else if (n.dataset.build !== undefined) selector = `button[data-build="${n.dataset.build}"]`;
+          else if (n.dataset.create !== undefined) selector = `button[data-create="${n.dataset.create}"]`;
+          else if (n.dataset.miracle !== undefined) selector = `button[data-miracle="${n.dataset.miracle}"]`;
+          else if (n.dataset.gap !== undefined) selector = `button[data-gap="${n.dataset.gap}"]`;
+          else if (n.dataset.chroniclePath !== undefined) {
+            selector = `button[data-chronicle-path="${n.dataset.chroniclePath}"]`;
+          } else if (n.type === 'submit') selector = '#oracle button[type="submit"]';
+          return {
+            id: n.id || '(anon)',
+            text: (n.textContent || '').trim(),
+            selector,
+          };
+        })
+        .filter((entry) => entry.selector !== null),
+    );
+
+  // 六种界面状态各枚举一遍，按选择器合并。记下每颗按钮在哪几种状态下看得见：
+  // 点它之前要先把界面调成那样。
+  const seen = new Map();
+  for (const state of LAYER_STATES) {
+    await setLayers(state);
+    await page.waitForTimeout(150);
+    for (const button of await visibleButtons()) {
+      const key = button.selector;
+      if (!seen.has(key)) seen.set(key, { ...button, states: [] });
+      seen.get(key).states.push(state);
+    }
+  }
+  const buttons = [...seen.values()];
+
+  console.log(`\n=== ${world.label} · ${world.query} ===`);
+  console.log(`世界状态：${worldState}`);
+  console.log(`缺口按钮：${gapButtons.length === 0 ? '（无）' : gapButtons.join(' / ')}`);
+  console.log(`静态造房按钮：${hiddenStatic.join(' / ')}`);
+  console.log(`六种界面状态合起来 ${buttons.length} 个按钮\n`);
+
+  /** 界面上几处该看的表面，一次读完。 */
+  const readScreen = () =>
+    page.evaluate(`({
+      reply: (document.querySelector('#reply')?.textContent ?? '').trim(),
+      bad: document.querySelector('#reply')?.classList.contains('bad') ?? false,
+      io: (document.querySelector('#save-io-reply')?.textContent ?? '').trim(),
+      slab: document.querySelector('#slab-count')?.textContent ?? '',
+      queue: document.querySelector('#queue')?.hidden ?? true,
+      chronicle: document.querySelector('#chronicle')?.hidden ?? true,
+      heading: (document.querySelector('#chronicle-heading')?.textContent ?? '').trim(),
+      entries: document.querySelectorAll('.chronicle-row').length,
+      reader: document.querySelector('#chronicle-reader')?.hidden ?? true,
+      debug: document.querySelector('#debug-panel')?.hidden ?? true,
+    })`);
+
+  /** 两块屏幕之间，哪一样翻了都算「说了话」。 */
+  const saidSomething = (before, after) =>
+    after.reply !== before.reply ||
+    after.io !== before.io ||
+    after.slab !== before.slab ||
+    after.queue !== before.queue ||
+    after.chronicle !== before.chronicle ||
+    after.heading !== before.heading ||
+    after.entries !== before.entries ||
+    after.reader !== before.reader ||
+    after.debug !== before.debug;
+
+  /** 审一颗按钮。抛出去由外层接（见那边关于「崩在半路上」的注释）。 */
+  const auditButton = async (button) => {
+    // 只在某几种界面状态下看得见的按钮（抽屉里那几颗），先把界面调成那样再点——
+    // 否则它会被前面调层时关掉的抽屉挡住，报成「藏起来了」，读起来像按钮坏了。
+    await setLayers(button.states[button.states.length - 1]);
+
+    // 每颗按钮都从同一份界面状态起点问起：把上一颗留下的回执清掉，
+    // 否则「这一颗什么都没说」会被上一颗的话冒充。
+    await page.evaluate(() => {
+      const reply = document.querySelector('#reply');
+      if (reply !== null) reply.textContent = '';
+      const io = document.querySelector('#save-io-reply');
+      if (io !== null) io.textContent = '';
+    });
+
+    // 到了点击这一刻再问一次可见性。照着枚举时的那份状态去点，只会等到一个
+    // 超时——那读起来像按钮坏了，其实是它已经不在界面上。
+    const visible = await page.evaluate(
+      (selector) => {
+        const node = document.querySelector(selector);
+        return node !== null && node.checkVisibility({ checkVisibilityCSS: true });
+      },
+      button.selector,
+    );
+    if (!visible) {
+      rows.push({ world: world.label, ...button, verdict: '藏起来了（点它之前它已经不在界面上）', reply: '' });
+      console.log(`  -- ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 藏起来了：点它之前它已经不在界面上`);
+      return;
+    }
+
+    const before = await readScreen();
+
+    const fill = FILL_BEFORE.get(button.selector);
+    if (fill !== undefined) await page.fill('#utterance', fill);
+
+    await page.click(button.selector, { timeout: 5000 });
+
+    // 早读一次：有的反馈是瞬态的。「重读」把标题翻成「镇志正在翻…」，本地
+    // 取数几十毫秒就翻回来了——只读末态会一样都没看见，于是把一颗好按钮
+    // 审成沉默。读两头，任一头翻了都算它说了话。
+    await page.waitForTimeout(150);
+    const early = await readScreen();
+    // 再给世界几拍。命令的结算在下一个逻辑拍，结果走 onResult → #reply。
+    await page.waitForTimeout(opensLayer(button) ? 350 : 900);
+    const after = await readScreen();
+
+    const said = after.reply || after.io;
+    const changed = saidSomething(before, early) || saidSomething(before, after);
+
+    // 判词问的是「界面上有没有哪一面翻了」，不是「`#reply` 有没有字」。
+    //
+    // 曾按后者判：于是 `chronicle-refresh` 被审成沉默——它的反馈是标题翻成
+    // 「镇志正在翻…」，压根不往神谕栏写。还有条目行：它开的是阅读页，
+    // 反馈在 `#chronicle-reader` 的 hidden 上。只盯一处就会把好按钮冤死。
+    //
+    // 翻在了哪儿另说一句：`#reply` / `#save-io-reply` 是神谕栏的回执，
+    // 别处翻了的（层开关、镇志内容、世界状态）记成「在别处说了话」——
+    // 那也是说了话，只是不在那一行。
+    let verdict;
+    let note = '';
+    if (!changed) {
+      verdict = '一句话都不说';
+      silent.push({ world: world.label, id: button.id, text: button.text.slice(0, 20) });
+    } else if (said.length > 0) {
+      verdict = after.bad ? '拒了（说了理由）' : '办了';
+      if (fill !== undefined) {
+        note = `（输入框先放了「${fill}」——世界认不出它，正好有个理由可说，且一个比特都不改）`;
+      }
+    } else {
+      verdict = '在别处说了话';
+    }
+
+    rows.push({ world: world.label, ...button, verdict, reply: said.slice(0, 70) });
+    const mark = verdict === '办了' ? 'ok' : verdict === '一句话都不说' || verdict === '点不动' ? '!!' : '~ ';
+    console.log(`  ${mark} ${button.id.padEnd(16)} ${button.text.slice(0, 20).padEnd(22)} → ${said.slice(0, 60) || verdict}${note}`);
+  };
+
+  for (const button of buttons) {
+    if (SKIP.has(button.id)) {
+      rows.push({ world: world.label, ...button, verdict: '跳过（会离开当前界面）', reply: '' });
+      console.log(`  -- ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 跳过：点了会离开当前界面`);
+      continue;
+    }
+
+    // 每颗按钮单独接错。
+    //
+    // 审计做到一半抛一个栈出来，是最坏的收场：前面几十颗的结果全没了，
+    // 而读的人只看见一个崩溃。实测崩过一次——某颗按钮让页面重载
+    // （`location.reload` 在 `loadSave` 与存档导入两处，`save-export`
+    // 走 blob 下载，无头下偶发也被当成导航），下一颗的 `page.evaluate`
+    // 就报「Execution context was destroyed」。
+    //
+    // 接住之后分两种：页面还在，那是这一颗点不动，记下来往下走；
+    // 页面不在了，剩下的按钮这一轮审不到，说清楚审到第几颗，别装作审完了。
+    try {
+      await auditButton(button);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const alive = await page.evaluate(() => document.readyState).then(() => true).catch(() => false);
+      if (!alive) {
+        const rest = buttons.length - rows.length;
+        rows.push({ world: world.label, ...button, verdict: '这一颗之后页面不在了', reply: message.slice(0, 80) });
+        console.log(`  !! ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 这一颗之后页面不在了`);
+        console.log(`\n${world.label}：审到第 ${rows.length} 颗，剩下 ${rest} 颗这一轮没审到。`);
+        console.log(`原因：${message.slice(0, 120)}`);
+        break;
+      }
+      rows.push({ world: world.label, ...button, verdict: '点不动', reply: message.slice(0, 80) });
+      console.log(`  !! ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 点不动：${message.slice(0, 60)}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    console.log(`\n页面报错：\n${errors.join('\n')}`);
+  }
+  await worldBrowser.close();
+}
+
+await browser.close();
+
+console.log(`\n=== 汇总 ===`);
+console.log(`两张图共 ${rows.length} 个按钮，其中 ${silent.length} 个点下去一句话都不说。`);
+for (const item of silent) {
+  console.log(`  [${item.world}] #${item.id} 「${item.text}」`);
+}
+if (silent.length > 0) {
+  console.log('\n一个按钮就是一句承诺。承诺了而屏幕安静，比没有这个按钮更糟。');
+  process.exitCode = 1;
+}
