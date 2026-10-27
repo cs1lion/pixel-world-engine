@@ -279,3 +279,58 @@ test('折叠是增量的：分批喂与一次喂结果相同', () => {
   );
   assert.deepEqual(incremental, oneShot);
 });
+
+/**
+ * 读档后**第一轮**撤单：状态行上那句假话。
+ *
+ * 撤单有两条收尾路：live-sync 走 `abandonActiveTask`，读档对账走 `removeTask`
+ * （`simulation.ts` 那句「两条『单没了』的路径都必须调它」说的就是这件事）。
+ * 前者收 `routineLabel`，后者不收——而读档后第一轮恰好跳过前者
+ * （`!firstRead` 那个条件），只剩后者。于是 mode 已经回 idle、taskId 已经空了，
+ * 屏上那一行还在说她正在办一件已经不在世界上的活。
+ *
+ * 为什么只有这条路漏：非首轮撤单时 `abandonActiveTask` 先跑，牌子当场就收了，
+ * 探不出来。`firstRead` 那一格才是唯一能同时满足「牌子写过」与「只走 removeTask」
+ * 的地方。
+ *
+ * 这条测试钉的是**快照上的 `routine`**（`simulation.ts` 把 `routineLabel` 抄成它，
+ * 状态行读的就是这个），不是内部字段——内部字段改名不该让它红。
+ */
+test('读档后第一轮撤单：她没活了，嘴上那句也得收', async () => {
+  const log = makeLog();
+  log.append({ at: 0, kind: 'task.opened', actor: 'up', payload: { id: 'c_q', kind: 'quick', title: '顺手查一件小事' } });
+  const feedA = new FeedClient({ client: log.client, onUpdate: () => {} });
+  const a = makeSim();
+  await syncOnce(feedA, a);
+
+  let guard = 0;
+  while (a.snapshot().villager.mode !== 'working') {
+    a.update(100);
+    if ((guard += 1) > 600) throw new Error('没能把角色送进工位');
+  }
+  const before = a.snapshot().villager;
+  assert.equal(before.routine, '顺手查一件小事', '前置：随手活把牌子写上了');
+  assert.equal(before.taskId, 'c_q', '前置：她正办着这条');
+
+  const save = a.toSave();
+  const rebuilt = buildWorldFromSave(save.world.buildings, blueprints);
+  const b = Simulation.fromSave(JSON.parse(JSON.stringify(save)) as WorldSave, {
+    grid: rebuilt.grid,
+    buildings: rebuilt.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+  });
+
+  // 上游这时说：那条撤了。这是读档后的第一轮。
+  log.append({ at: 0, kind: 'task.cancelled', actor: 'up', payload: { id: 'c_q' } });
+  await syncOnce(new FeedClient({ client: log.client, onUpdate: () => {} }), b);
+
+  const after = b.snapshot().villager;
+  assert.equal(after.mode, 'idle', '前置：状态机收回空闲');
+  assert.equal(after.taskId, null, '前置：活已经删了');
+  assert.equal(
+    after.routine,
+    null,
+    `她没活了，状态行却说她在办「${after.routine ?? ''}」——那句牌子是撤单前写下的`,
+  );
+});
