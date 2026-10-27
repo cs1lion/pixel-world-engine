@@ -63,11 +63,11 @@ const KNOWN_UNMET: Readonly<Record<string, { readonly why: string }>> = {
   },
   'A|预制体 id': {
     why: 'LEGACY_PACK.placements 是空数组，莞尔镇六栋常驻铺子与住宅都在 setup.ts 里'
-      + '（KNOWN_PREFABS 里 19 对中的 11 对）。',
+      + '（KNOWN_PREFABS 里 19 对中的 11 对——这个数会漂，去数那张表本身）。',
   },
   'A|作息落点': {
     why: 'LEGACY_PACK.villagers 是空数组，莞尔镇四个落点在 routines.ts 的 routineBeats() 里'
-      + '（KNOWN_STOPS 那 4 行）。',
+      + '（KNOWN_STOPS 全部 4 行）。',
   },
   'A|三色槽位': {
     why: 'regions 为空，一个槽位都没有，谈不上填。设定集 B 的五道区域三槽齐全'
@@ -254,4 +254,52 @@ test('登记表本身没长毛：每个键都还能说出它量的是什么', ()
     assert.match(key, /^(?:A|B|build)\|.+\S$/, `KNOWN_UNMET 的键 "${key}" 不是「设定集|验收项」的形状`);
     assert.ok(entry.why.trim().length > 0, `${key} 没写为什么——登记不写理由就成了豁免名单`);
   }
+});
+
+/**
+ * `KNOWN_UNMET` 的 `why` 里写了另外两张表有多大——那两句也得是真的。
+ *
+ * ## 为什么值得一道闸
+ *
+ * 「`KNOWN_PREFABS` 里 19 对中的 11 对」「`KNOWN_STOPS` 里 routines.ts 那 4 行」
+ * 是**债务的规模**。它漂起来的时候没有别的东西会红：那两张表各自的双向 diff
+ * 只管自己那一行在不在，不管一共有几行。而规模正是读记分板的人最先看的东西——
+ * 它假了，整张记分板都不可信。
+ *
+ * 规矩与 `rules/schema.py` 那句「这个数会随用例增减而漂，别照抄这一段，
+ * 去数那四个列表」是同一条：数照写，但得有人量。
+ *
+ * ## 这一条**不**查什么
+ *
+ * 它只数**行数**，不核那两行写得对不对——那是它们自己文件里双向 diff 的事。
+ * 它也不查 `KNOWN_PREFABS` 之外的表（`KNOWN_STOPS` 只在这里被引用了一次）。
+ */
+test('KNOWN_UNMET 的 why 引用的那两张表，行数与写下的相符', () => {
+  // 两张表在另一个文件里，且没有 export。所以读源文件、按表格体切。
+  // 切法是「从 `const <表名>` 到下第一个独占一行的 `};`」——表里每一行都是
+  // `  '键': {` 起头，行数与键的个数一致，不需要真解析 TypeScript。
+  const source = readFileSync(new URL('./pack-owns-world-data.test.ts', import.meta.url), 'utf8');
+  const keysOf = (table: 'KNOWN_STOPS' | 'KNOWN_PREFABS'): readonly string[] => {
+    const from = source.indexOf(`const ${table}`);
+    assert.ok(from !== -1, `pack-owns-world-data.test.ts 里找不到 ${table} 了——这条判据失去对象`);
+    const block = source.slice(from, source.indexOf('\n};', from));
+    return [...block.matchAll(/^ {2}'([^']+)': \{/gm)].map((found) => found[1] ?? '');
+  };
+
+  const stops = keysOf('KNOWN_STOPS');
+  const prefabs = keysOf('KNOWN_PREFABS');
+
+  // 「KNOWN_STOPS 全部 4 行」——全在 routines.ts，一行不多。
+  assert.equal(stops.length, 4);
+  assert.equal(stops.filter((k) => k.startsWith('world/routines.ts:')).length, 4);
+
+  // 「KNOWN_PREFABS 里 19 对中的 11 对」
+  assert.equal(prefabs.length, 19);
+  assert.equal(prefabs.filter((k) => k.startsWith('world/setup.ts|')).length, 11);
+
+  // 任何一个数变了，先改那张表、再改 KNOWN_UNMET 的 why——两处必须同时真。
+  assert.ok(
+    prefabs.length > 0 && stops.length > 0,
+    '两张表数出行数了——判据失去对象，回来重写它',
+  );
 });
