@@ -17,7 +17,7 @@
 
 import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
 import { consolidateHolder } from './consolidate.ts';
-import { candidatesFrom, decayLegend, faded, formLegend, qualifies } from './legend.ts';
+import { candidatesFrom, decayLegend, faded, formLegend, qualifies, reinforceLegend } from './legend.ts';
 import {
   distance,
   witnessesOf,
@@ -673,6 +673,19 @@ export class MemoryWorld {
   // -------------------------------------------------------- 痕迹与推断
 
   /**
+   * 集体记忆：活着的与淡去的传说。
+   *
+   * 不挂在 `HolderView` 上——传说不是任何一个单位的记忆，它挂在事件上。
+   * 但世界得能读它：协议第 12 节要验「同一事件的断言被足够多的人持有」，
+   * 而 `reach` 是这个世界上唯一会自己涨自己跌的数，不给读就没法验。
+   *
+   * 返回拷贝：调用方改了它，表里不受影响。
+   */
+  legendsOf(): readonly Legend[] {
+    return this.legends.map((legend) => ({ ...legend }));
+  }
+
+  /**
    * 一个单位路过某地，看见痕迹，推断出点什么。
    *
    * 这是「痕迹」通道的落点：低保真、需推断、0 次模型调用。
@@ -799,12 +812,10 @@ export class MemoryWorld {
       }
     }
 
-    this.updateLegends(closedDay, at);
-
-    // 日报贴在 legends 之后、心电图之前：读到公告的人当天就算被广播触达，
-    // 而「今天有几个人被孤立」这个数要把他们算进去。
+    // 日报先贴，传说后算：公告也是一条「有人知道了」的路，而传说分不出
+    // 也不该分他是从公告栏知道的还是从邻居那儿听来的。
     this.postDailyReport(closedDay, at);
-
+    this.updateLegends(closedDay, at);
     const vitals = computeVitals({
       day: closedDay,
       memories: this.entries,
@@ -1130,6 +1141,26 @@ export class MemoryWorld {
   }
 
   /**
+   * 这条传说今天被讲给了几个人听。
+   *
+   * 按「今天新落地的信念」数，不按某一条通道数：交谈、公告、书信、
+   * 痕迹推断都是「有人知道了」，而传说分不出也不该分他是从哪知道的。
+   * 按人去重——同一天从两个渠道听说，只算一次「今天有人讲」。
+   *
+   * 这里数的是**昨天之后**新增的听众，所以一条刚形成的传说（reach 已经
+   * 等于持有者数）不会在同一天又被自己喂一次。
+   */
+  private toldToday(legend: Legend, day: number): number {
+    const holders = new Set<string>();
+    for (const belief of this.beliefs) {
+      if (belief.learnedDay !== day) continue;
+      if (!belief.eventRefs.some((ref) => legend.eventRefs.includes(ref))) continue;
+      holders.add(belief.holderId);
+    }
+    return holders.size;
+  }
+
+  /**
    * 日终风化：每道痕迹按自己的层掉一天可见度。
    *
    * 协议第 11 节：「风化只降低可见度，不删除记录。」所以这里**从不删**，
@@ -1149,11 +1180,29 @@ export class MemoryWorld {
   }
 
   private updateLegends(day: number, at: number): void {
-    this.legends = this.legends.map(decayLegend).filter((legend) => !faded(legend));
+    // **先补后削，淡去的不补。** 「靠传播维持」四个字在这里落地：今天有几个人
+    // 听说，活着的传说 reach 就加几个；一整天没人讲，才掉 1。
+    //
+    // 少了补这一句，`reinforceLegend` 一个调用方都没有，而传说只淡不长。
+    // 实测：一条 reach=7 的传说此后每天准掉 1（7,6,5,4,3,2），到 1 淡去，
+    // 然后**当天就从信念库里重新形成一条 reach=7 的**，再掉 6 天。于是
+    // `legend.formed` 每 6 天响一次，永远响下去——那不是集体记忆的生死，
+    // 那是一台节拍器，而「无人讲则淡去」这句话一次都没应验过。
+    //
+    // 而**淡去的传说不删**：`faded` 就是 `reach <= 1`，`decayLegend` 又把
+    // reach 夹在 0，所以淡去这件事写在记录自己身上，不需要另立一个 flag。
+    // 删掉它，下面那段 Formation 当天就看见同样的信念、当场再造一条一模一样的
+    // （除了 id）。留着它，它继续占着这个事件——这才是「淡去不是删除」。
+    this.legends = this.legends.map((legend) =>
+      faded(legend) ? legend : reinforceLegend(legend, this.toldToday(legend, day)),
+    );
+    this.legends = this.legends.map(decayLegend);
     const candidates = candidatesFrom(this.beliefs, this.claims);
     for (const candidate of candidates) {
       if (!qualifies(candidate, day, this.config)) continue;
       const key = candidate.eventRefs.join(',');
+      // 有过传说就不再生成了——淡去的也算有过。它是这条传说的晚年，
+      // 不是另一条传说的童年。
       if (this.legends.some((legend) => legend.eventRefs.join(',') === key)) continue;
       const legend = formLegend(this.nextId('legend'), candidate, day);
       this.legends.push(legend);
