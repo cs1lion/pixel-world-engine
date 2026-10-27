@@ -21,7 +21,7 @@
 
 ## 为什么单独立项
 
-`terrain-edges.ts` 的 `BRIGHT` 表注释写着「只用现有 24 色里的 `grassLit` / `plaza`（§1.2「不加色」）」。`shallow` 现在取 `water`，而 `water` 同时就是浅滩自己的底色——所以这一项在「不加色」的约束下**没有正确答案**。
+`terrain-edges.ts` 的 `BRIGHT` 表注释写着「亮一档 token 名：只用现有 24 色里的 `grassLit` / `plaza`。」（这行原来末尾还挂着 `（§1.2「不加色」）`，本文到此为止一直照着那一版引。`1bcb137` 把那个出处删了——`ART_STYLE_TARGET` 从未入库，而规矩本身就在同文件规则 3 里，不需要一份不在仓里的文档替它背书。引文跟着改成现在的原文，**规矩一个字没动**，下面照旧按它推。）`shallow` 现在取 `water`，而 `water` 同时就是浅滩自己的底色——所以这一项在「不加色」的约束下**没有正确答案**。
 
 **这句话是假话，已按实测改写。** 原文在这里写「24 色里再也挑不出一个与 `WORLD.water` 有落差、又适合当水面色高光的 token」，据此推出「这个约束下无解」。实测：`terrain-edges.ts` 文件头规则 3 那张 7 token 清单里，**`trim` 就比 `WORLD.water` 亮，落差 27.87**——压过可辨下限 6 四倍多，比 grass / farm / mud 三条已经在用的亮边（9.51 / 10.82 / 14.42）都醒目。而 `trim` 本来就在册、本来就在那张清单里。实测由 `world-client/test/terrain-edge-invisible.test.ts` 的「浅滩亮边缺色的理由不在 24 色里」钉住，两种改法（`trim` 离开清单、`trim` 变得不比水色亮）都验过会红。
 
@@ -29,8 +29,8 @@
 
 要么：
 
-- **A. 破例加一个新色**（真违反 §1.2，需先改规范）——已无必要，见上；或
-- **A′. 把 `BRIGHT.shallow` 改成清单内已有的 `trim`**。不新增颜色、不动 24 色预算、不违反 §1.2「不加色」，也不需要改规范。代价只有一条：`terrain-edges.test.ts` 的「边色 token 清单」不会红（trim 早就在册），但 `terrain-edge-invisible.test.ts` 的 `KNOWN_SAME` 双向比对会红在 `gone` 方向——那正是它该有的样子，删掉那一行即可。**这是唯一一个不需要动规范的选项。** 剩下的问题只是审美：`trim` 是暖金色，当水面高光好不好看得盯着屏幕定；或
+- **A. 破例加一个新色**（真违反 `terrain-edges.ts` 规则 3 的「不加色」，需先改 `docs/SPEC_V2.md` §4.2 的「24 色不变」）——已无必要，见上；或
+- **A′. 把 `BRIGHT.shallow` 改成清单内已有的 `trim`**。不新增颜色、不动 24 色预算、不违反 `terrain-edges.ts` 规则 3 的「不加色」，也不需要改 `docs/SPEC_V2.md` §4.2。代价只有一条：`terrain-edges.test.ts` 的「边色 token 清单」不会红（trim 早就在册），但 `terrain-edge-invisible.test.ts` 的 `KNOWN_SAME` 双向比对会红在 `gone` 方向——那正是它该有的样子，删掉那一行即可。**这是唯一一个不需要动规范的选项。** 剩下的问题只是审美：`trim` 是暖金色，当水面高光好不好看得盯着屏幕定；或
 - **B. 改 `TERRAIN_HEIGHT.shallow`**，让浅滩不画亮边（现在 1，与 stone/mud 同）；或
 - **C. 维持现状，登记为已知限制**——即当前 `KNOWN_SAME` 那一行。
 
