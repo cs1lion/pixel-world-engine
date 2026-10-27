@@ -121,8 +121,13 @@ test('地形集合是 8 种：缺口正是从「只量了 5 种」里漏出去�
  * 已知的同色边，附实测落差与它为什么今天没人看见。
  *
  * 这张表是**已知限制清单**：清单外多出一处会红，清单里的修好了也会红。
- * 修它属调色板决策（`terrain-edges.ts` 自己写着「改 BRIGHT 表需 ADR + 用户
- * 批准」），所以这里只登记、不擅自改色。
+ * 修它属调色板决策，所以这里只登记、不擅自改色。
+ *
+ * 「需 ADR + 用户批准」这条规矩**不写在 `terrain-edges.ts` 里**——它写在兄弟
+ * 守卫 `terrain-edge-visibility.test.ts` 的同一条断言消息上，根子在
+ * `palette-data.ts` 记着的那次「2026-10-21 用户批准 24 色 ADR」（`creator-schema.ts`
+ * 拿它当理由拒十六进制字面量）。第一版这段注释把原话安到了 `terrain-edges.ts`
+ * 头上，那句话在那儿一个字都没有——指一处规矩得指对地方，指错了比不指更糟。
  */
 const KNOWN_SAME: Readonly<Record<string, { readonly dl: number; readonly why: string }>> = {
   '莞尔镇/shallow/亮边': {
@@ -196,9 +201,9 @@ export function faintEdges(
  * 两个方向都查（`diffAgainstKnown`）：多出清单外的一处 → 新退化；清单里的一处
  * 已经不撞底色了 → 记录过期。所以清单不会悄悄长，也不会悄悄失真。
  *
- * **别把这读成「登记了就能过」**——每登记一行就是多认一处破例，而
- * `terrain-edges.ts` 自己写着改 BRIGHT 表需 ADR + 用户批准。没有 ADR 就先别改色，
- * 也别登记。
+ * **别把这读成「登记了就能过」**——每登记一行就是多认一处破例，而改 BRIGHT
+ * 表属调色板决策、需 ADR + 用户批准（规矩写在 `terrain-edge-visibility.test.ts`
+ * 的同一条断言消息上，见 `KNOWN_SAME` 上那段）。没有 ADR 就先别改色，也别登记。
  */
 test('撞底色的边的集合必须与 KNOWN_SAME 一模一样', () => {
   const { appeared, gone } = diffAgainstKnown(READINGS, KNOWN_SAME);
