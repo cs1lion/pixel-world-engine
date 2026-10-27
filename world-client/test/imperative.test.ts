@@ -51,30 +51,22 @@ test('陈述句不算叙述标记', () => {
   }
 });
 
-test('单字「别」只在分句开头算否定——含「别」的词不是否定', () => {
-  // 按整句查 substring 时，「特别」「识别」「级别」「差别」「别墅」里的那个
-  // 「别」会被当成否定词，整句判成叙述。而 hasNarrativeMarker 是四个解析器
-  // 进门的第一道闸，一律返回 null——一句命令就这么被吞掉。
-  for (const text of ['建一栋别墅', '特别整理一份报告', '识别这块地', '查一下差别']) {
-    assert.equal(
-      hasNarrativeMarker(text),
-      false,
-      `「${text}」里的「别」是词的一部分，不是否定——判成叙述就把这句命令吞了`,
-    );
+test('含「别」的词一律还算否定——不收窄，收了窄会放行改世界的命令', () => {
+  // 已知误伤：「特别」「区别」「识别」「级别」「差别」「别墅」里的那个「别」
+  // 不是否定，按整句查 substring 就会被吞，用户听到一句「没听懂」。
+  //
+  // 但不收窄。汉语里「别」也落在动词短语中间，那时句首仍然是祈使动词——
+  // `hasNarrativeMarker` 一放行，动词表那一关也跟着放行，于是：
+  //   交付别交错了 → complete、撤销别撤错单 → cancelPending、写报告别写太长 → dispatch
+  // 为了少吞几句查询放改世界的命令进门，这笔账不换。误伤的方向安全（只说
+  // 「没听懂」），漏判的方向不安全。详见 imperative.ts 里 SINGLE_CHAR_OVERREACH
+  // 那段注释。这条测试就是钉住那个选择，免得下一个人再「修」一遍。
+  for (const text of ['查一下A和B的区别', '特别整理一份报告', '建一栋别墅', '整理呢绒', '查一下吗啡']) {
+    assert.equal(hasNarrativeMarker(text), true, `「${text}」含单字标记，还算否定`);
   }
-  // 真正的否定还得认得出，别为了修误伤把否定的本行也丢了。
-  for (const text of ['别建房子', '别写了', '查一下，别查太旧的']) {
-    assert.equal(hasNarrativeMarker(text), true, `「${text}」应当被判为叙述`);
-  }
-});
-
-test('收窄「别」之后，否定句仍被动词表那一关拦住', () => {
-  // 「请别建」「先别建」不在分句开头，「别」认不出来。但它们也不该变成命令：
-  // 剥掉礼貌前缀后句首是「别」而不是动词。
-  const verbs = ['建', '盖', '整理', '查', '写'];
-  for (const text of ['请别建房子', '先别建房子']) {
-    assert.equal(hasNarrativeMarker(text), false, `「${text}」里的「别」确实不在分句开头`);
-    assert.equal(isImperative(text, verbs), false, `「${text}」仍不该是命令——句首不是动词`);
+  // 否定的本行更不能丢。
+  for (const text of ['别建房子', '别写了', '交付别交错了', '点灯别点太亮']) {
+    assert.equal(hasNarrativeMarker(text), true, `「${text}」是真否定，必须拦下`);
   }
 });
 

@@ -23,12 +23,16 @@ export const POLITE_PREFIXES: readonly string[] = [
   '再', '继续', '接着', '顺便', '另外',
 ];
 
-/** 明确不是命令的标记：疑问、否定、过去叙述、评价收尾。 */
+/**
+ * 明确不是命令的标记：疑问、否定、过去叙述、评价收尾。
+ *
+ * 整句查 substring。这样会误伤——见下面 `SINGLE_CHAR_OVERREACH`。
+ */
 export const NON_IMPERATIVE_MARKERS: readonly string[] = [
   // 疑问
   '？', '?', '吗', '呢', '要不要', '能不能', '可不可以', '是不是',
   // 否定
-  '不用', '不要', '不必',
+  '别', '不用', '不要', '不必',
   // 过去/进行
   '昨天', '前天', '刚才', '之前', '已经', '一直', '老是', '总是',
   // 评价性收尾：写代码真累 / 查资料很烦
@@ -36,45 +40,31 @@ export const NON_IMPERATIVE_MARKERS: readonly string[] = [
 ];
 
 /**
- * 只在分句开头才算数的标记。
+ * 整句查 substring 是**故意**的：宁可多吞几句命令，不可放一句改世界的进门。
  *
- * 「别」是这张表里唯一的单字，也因此唯一会撞车：「特别」「识别」「级别」
- * 「差别」「别墅」都含一个不表否定的「别」。按整句查 substring，
- * 「特别整理一份报告」「识别这块地」会被判成叙述——而 `hasNarrativeMarker`
- * 是四个解析器（`oracle` / `oracle-build` / `oracle-carry` /
- * `oracle-miracle`）进门的第一道闸，一律直接返回 null。一句明明白白的
- * 命令就这么被吞掉，连「听不懂」都不问。
+ * 表里有三个单字标记会撞车——「别」（`特别`/`区别`/`识别`/`级别`/`差别`/`别墅`）、
+ * 「吗」（`吗啡`）、「呢」（`呢绒`/`呢子`/`呢喃`）。于是「查一下 A 和 B 的区别」
+ * 「整理呢绒」都会被判成叙述，用户听到一句「没听懂」。
  *
- * 否定词「别」只可能站在分句的开头：「别建房子」「查一下，别查太旧的」。
- * 所以只在那里认它；落在别处的「别」证不明是否定，就不判。
+ * 试过把「别」收窄成「只在分句开头算否定」，**回滚了**。汉语里「别」也落在
+ * 动词短语中间，那时句首仍然是祈使动词，`hasNarrativeMarker` 一放行，动词表
+ * 那一关也跟着放行：
  *
- * 收窄之后漏掉的那几种（「请别建」「先别建」）不会因此变成命令：剥掉礼貌
- * 前缀后句首是「别」而不是动词，`isImperative` 的动词表那一关照样拦得住。
+ *   交付别交错了    → complete（真的收单）
+ *   撤销别撤错单    → cancelPending（真的撤单）
+ *   写报告别写太长  → dispatch（真的派活）
+ *
+ * 为了少吞几句查询，放改世界的命令进门——这笔账不换。误伤的方向是安全的
+ * （世界只说「没听懂」，不动），漏判的方向不安全。所以不收窄，并拿测试把
+ * 这个选择钉住，免得下一个人再「修」一遍。
+ *
+ * 「吗」「呢」同理：收窄它们等于放宽疑问判定，而 `isQuestion` 直接管着
+ * 天气与潮汐那几道闸（`oracle.ts`），也不动。
  */
-const BOUNDARY_ONLY_MARKERS: readonly string[] = ['别'];
-
-/** 分句边界：否定词只在这些字符之后还算否定。 */
-const CLAUSE_BOUNDARY = /^[\s，。；！？、,;!?]/;
 
 /** 这句话含叙述标记吗。 */
 export function hasNarrativeMarker(text: string): boolean {
-  if (NON_IMPERATIVE_MARKERS.some((marker) => text.includes(marker))) return true;
-  return BOUNDARY_ONLY_MARKERS.some((marker) => startsClause(text, marker));
-}
-
-/**
- * `marker` 有没有站在某个分句的开头：整句开头，或紧跟在一个标点之后。
- *
- * `at === 0` 必须先判——`slice(-1)` 会绕回去取到最后一个字符。
- */
-function startsClause(text: string, marker: string): boolean {
-  let from = 0;
-  for (;;) {
-    const at = text.indexOf(marker, from);
-    if (at === -1) return false;
-    if (at === 0 || CLAUSE_BOUNDARY.test(text.slice(at - 1))) return true;
-    from = at + 1;
-  }
+  return NON_IMPERATIVE_MARKERS.some((marker) => text.includes(marker));
 }
 
 /**
