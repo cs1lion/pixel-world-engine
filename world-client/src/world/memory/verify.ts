@@ -145,26 +145,6 @@ function traceSignOf(trace: Trace): number {
  * 这个记分与台账无关，换个词，免得那道闸分不清。
  * （扫描是裸读全文的，注释里提一句也照样红，所以这里连提都不提。）
  */
-export interface CredibilityScores {
-  readonly scores: ReadonlyMap<string, number>;
-}
-
-export const DEFAULT_CREDIBILITY = 1;
-
-export function credibilityOf(scores: CredibilityScores, holderId: string): number {
-  return scores.scores.get(holderId) ?? DEFAULT_CREDIBILITY;
-}
-
-export function penalize(
-  current: CredibilityScores,
-  holderId: string,
-  config: MemoryConfig,
-): CredibilityScores {
-  const next = Math.max(0, credibilityOf(current, holderId) - config.credibilityPenalty);
-  const scores = new Map(current.scores);
-  scores.set(holderId, next);
-  return { scores };
-}
 
 /**
  * 求证冲动变成一条日程。

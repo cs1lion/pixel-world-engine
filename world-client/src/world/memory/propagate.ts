@@ -38,6 +38,42 @@ export function trustBetween(relations: RelationshipMap, a: string, b: string): 
   return relations.get(pairKey(a, b))?.trust ?? 0;
 }
 
+/**
+ * 每个人的「信息源可靠度」：他嘴里的话有多算数。
+ *
+ * 与 `Relationship.trust` 是两件事，别混：
+ * - `trust` 是**一对单位之间**的——「我信不信你」，无向，随关系涨落；
+ * - `credibility` 是**一个人自己的**——「这人被辟谣过几次」，全局一份。
+ *
+ * 区分是必要的：一个你并不熟的人（trust 低）也可能是从不说错的人
+ * （credibility 高）；反过来，几十年的老朋友被当场抓了造谣，他不该因为
+ * 「我们关系好」就继续被全信。两个数各管一半。
+ *
+ * 每被辟谣一次扣 `credibilityPenalty`（0.15），封底 0。**扣了要有人读**：
+ * `judge` 拿它打折听者的采信，否则这个数只是一张没人看的表，而注释里
+ * 「下一次他从这个人嘴里听到什么，可信度会低一档」就是句空话。
+ */
+export interface CredibilityScores {
+  readonly scores: ReadonlyMap<string, number>;
+}
+
+export const DEFAULT_CREDIBILITY = 1;
+
+export function credibilityOf(scores: CredibilityScores, holderId: string): number {
+  return scores.scores.get(holderId) ?? DEFAULT_CREDIBILITY;
+}
+
+export function penalize(
+  current: CredibilityScores,
+  holderId: string,
+  config: MemoryConfig,
+): CredibilityScores {
+  const next = Math.max(0, credibilityOf(current, holderId) - config.credibilityPenalty);
+  const scores = new Map(current.scores);
+  scores.set(holderId, next);
+  return { scores };
+}
+
 /** 从一条事件与它的内容造出断言。断言诞生在目击者身上（`hop = 0`）。 */
 export function createClaim(input: {
   readonly claimId: string;
@@ -258,6 +294,7 @@ export interface ListenerBelief {
 export function judge(
   claim: Claim,
   trust: number,
+  speakerCredibility: number,
   existing: readonly ListenerBelief[],
   config: MemoryConfig,
 ): Verdict {
@@ -276,12 +313,16 @@ export function judge(
   // 不信任而拒绝——求证闭环里那个「可靠度下调 0.15」的惩罚也就永远咬不动。
   // 世界会变成「谁说的话都算数」，而传播护栏的一半是白写的。
   const trustFactor = (Math.max(-1, Math.min(1, trust)) + 1) / 2;
+  // 说话人的可靠度：被辟谣过的人，话打一次折。**没被辟谣过的是 1，不打折**
+  // ——所以这一步在没有任何辟谣发生的世界里是恒等变换，覆盖率曲线不受影响。
+  // 少了它，`credibility` 就是一张没人看的表：扣分扣了，效果没有。
+  const credibilityFactor = Math.max(0, Math.min(1, speakerCredibility));
   const corroboration = existing.some((belief) =>
     belief.eventRefs.some((ref) => claim.eventRefs.includes(ref)),
   )
     ? 1.2
     : 1;
-  const credibility = Math.min(1, claim.confidence * trustFactor * corroboration);
+  const credibility = Math.min(1, claim.confidence * trustFactor * credibilityFactor * corroboration);
   return credibility >= config.T_write ? 'accept' : 'doubt';
 }
 
@@ -323,6 +364,8 @@ export interface SpreadInput {
   readonly claim: Claim;
   readonly candidates: readonly SpreadCandidate[];
   readonly relations: RelationshipMap;
+  /** 每个人的信息源可靠度。`judge` 拿它给采信打折——被辟谣过的人说话不好使。 */
+  readonly credibility: CredibilityScores;
   readonly beliefs: ReadonlyMap<string, readonly ListenerBelief[]>;
   readonly talkativeness: ReadonlyMap<string, number>;
   readonly cooldowns: readonly CooldownState[];
@@ -382,7 +425,13 @@ export function spreadStep(input: SpreadInput): SpreadStep[] {
   for (const { candidate } of eligible) {
     const retold = retell(claim, config);
     const trust = trustBetween(input.relations, candidate.speaker, candidate.listener);
-    const verdict = judge(retold, trust, input.beliefs.get(candidate.listener) ?? [], config);
+    const verdict = judge(
+      retold,
+      trust,
+      credibilityOf(input.credibility, candidate.speaker),
+      input.beliefs.get(candidate.listener) ?? [],
+      config,
+    );
     steps.push({ from: candidate.speaker, to: candidate.listener, claim: retold, verdict });
   }
   return steps;

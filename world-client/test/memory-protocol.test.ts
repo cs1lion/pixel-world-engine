@@ -418,7 +418,7 @@ test('关系阈值：信任低于 -0.2 不会主动告知', () => {
     speakerTalkativeness: 0.9,
   }, config), false, '信任 -0.5 低于 -0.2，不该开口');
 
-  const verdict = judge(claim, -0.5, [], config);
+  const verdict = judge(claim, -0.5, 1, [], config);
   assert.notEqual(verdict, 'accept', '完全不信的人说的话不该被采信');
 });
 
