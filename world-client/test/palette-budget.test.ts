@@ -1,7 +1,9 @@
 /** D6-A 调色板预算的回归门禁。
  *
- * 目标（ART_PALETTE_AUDIT §5.3 第 6 步）：世界 24 色、UI 8 色、共享 1、并集 31。
- * 2026-10-21 用户批准 24 色 ADR（docs/ADR_PALETTE_24.md），新增 W17–W24。
+ * 目标：世界 24 色、UI 8 色、共享 1、并集 31。
+ * 2026-10-21 用户批准 24 色 ADR（`docs/adr/ADR_PALETTE_24.md`），新增 W17–W24。
+ * （原文在这两句各挂了一个「ART_PALETTE_AUDIT §5.3 第 6 步」的出处——那份文档
+ * 在仓库里不存在，全仓 4 处命中全是引用、零处定义。出处删了，目标照留。）
  * 这里用纯逻辑断言锁住，不依赖 `npm test` 的默认子进程隔离（沙箱里会 spawn EPERM）。
  */
 
@@ -57,8 +59,10 @@ test('UI 层正好 8 个源色', () => {
   assert.equal(colors.length, UI_BUDGET, `UI 预算 8 色，实际 ${colors.join(', ')}`);
 });
 
-/** 提案表（ART_PALETTE_AUDIT §4.1 / §4.2）逐字抄在这里：色数对但换值也必须变红。
+/** 这张表逐字抄在这里：色数对但换值也必须变红。
  *  P3-1：`--strict` 只判色数，`WORLD.ink` 换成 `#000000` 时它仍是 0——这条断言补上“值”的门禁。
+ * （原文写「提案表（ART_PALETTE_AUDIT §4.1 / §4.2）逐字抄在这里」——那份文档不存在，
+ * 出处删了。「逐字抄在这里」这半句仍成立：下面这张表确实与 `WORLD` 逐项对应。）
  */
 const PROPOSED_WORLD: Record<string, string> = {
   ink: '#14110d',
