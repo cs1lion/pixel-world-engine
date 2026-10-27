@@ -6,8 +6,9 @@
  * `CLAUDE.md` 定了域内文档是**单上下文**：一份 `GLOSSARY.md` 加 `docs/adr/`。
  * 单上下文的意思是「读那一份就够」——而「够」有个前提：它指的东西还在。
  *
- * 词典里写着 58 个代码标识符（`worldChangeVersion` / `doorReaches` / `ZoneId` /
- * `lampOil` / `LEGACY_PACK`……）。改名是**会响的**那种破坏——可响在编译器里，
+ * 词典里反引号点着 44 个互不相同的代码标识符（`worldChangeVersion` /
+ * `doorReaches` / `ZoneId` / `lampOil` / `LEGACY_PACK`……），一共出现 58 次。
+ * 改名是**会响的**那种破坏——可响在编译器里，
  * 不响在词典里。`worldChangeVersion` 改成 `changeCount`，`tsc` 一路绿，
  * 词典那条从此指向空气，而它会安静地躺在那儿直到下一个人核它。
  *
@@ -15,21 +16,51 @@
  * 点名的符号也得还在自己那个文件里。区别只在于对象换了——那张表管 19 行债务登记，
  * 这一份管整本词典。
  *
- * ## 今天量出来（2026-10-28）
+ * ## 今天量出来（2026-10-28，两个数都数过）
  *
-/**
- * 词典里反引号内容 69 处，其中形如「点分段标识符链」的贡献 **58 个**标识符段，
- * 在 `src/` 与 `server/` 里逐个搜，**0 个搜不到**。
+ * 词典里反引号内容 **69 处**，其中形如「点分段标识符链」的：
  *
- * 语料选 `src` + `server` 是量出来的，不是猜的：
+ * - **出现 58 次**（`checked.length` 数的就是这个——按「token × 段」累计）
+ * - **去重后 44 个**（`SandboxScene`、`Date`、`now`、`worldChangeVersion`、
+ *   `simulation`、`altar`、`save` 各重复了一次以上）
  *
- * | 语料 | 受查段数 | 搜不到 |
+ * 第一版这儿写「词典里写着 58 个代码标识符」——那句话是假的。去重只有 44 个，
+ * 58 是**出现次数**。一个 58 一个 44，读的人按哪个理解都会错一半，所以两个都写。
+ *
+ * 受查的 58 次里，**0 次搜不到**。语料是量出来的，不是猜的：
+ *
+ * | 语料 | 文件数 | 搜不到 |
  * |---|---|---|
- * | 只 `src` | 58 | **1**（`direct_observation`——它住在 `server/memory/`） |
- * | `src` + `server` | 58 | **0** |
- * | 再加 `scripts/` 与 `test/` | 58 | 0 |
+ * | 只 `src` | 115 | **1**（`direct_observation`——它住在 `server/memory/`） |
+ * | `src` + `server` | 153 | 0 |
+ * | 再加 `scripts/` | 183 | 0 |
+ * | 再加 `test/`（本文件取的） | 341 | 0 |
  *
- * 所以取中间那个：再放宽只是让判据变钝，而今天并没有假阳性需要它去容。
+ * 取最宽那个，理由不是「今天更严」——四种语料今天都是 0 假阳性，严不了。
+ * 理由是**最宽的那种未来不会误报**：词典今天没有只住在 `test/` 里的符号，
+ * 可它随时会添一条（`codeOf`、`codeLines`、`KNOWN_PREFABS` 都住在那儿）。
+ * 到那天，窄语料会红，而红的原因是语料选窄了，不是词典错了——那种红没人会信。
+ *
+ * 所以**加宽是保险，不是今天的需要**：今天窄语料也一片绿，没有哪一段
+ * 非得靠 `test/` 才找得到。也因此没有为「语料有多宽」立断言——立了就是
+ * 一个会漂的假数字（文件数今天 341，明天就不一定是）。宽度只靠这段说明撑着。
+ *
+ * ## 为什么 `docs/adr/` 没有一道同样的闸
+ *
+ * 试过，量完拆了。7 份 ADR 里反引号点名的标识符，用最宽语料扫，
+ * **真正搜不到的只有一类：被否决的选项**——`ADR_BUILDING_AT_OPTIONAL.md:101`
+ * 写「加一条 `building.addAnywhere` 命令……不是一件不同的事」，`:109` 又写
+ * 「结论（不选 `building.addAnywhere`）不受影响」。那个符号**不在代码里正是对的**，
+ * 因为 ADR 的职责就是记下没选的那条路。
+ *
+ * 扫出来另外 9 处也都是假阳性：提交号（`c11897d`、`ff1a742`）、
+ * 不带后缀的文件名（`R_WORLD_FACTS_SOURCE`、`test_projection.py`）、
+ * 以及**被明令禁止的词汇**——`ADR_WORLD_ALIVE.md:226` 点名禁 `agentName` /
+ * `step_idx`，它们在 `src/world/` 里不存在恰好是 `test/purity.test.ts` 的功劳。
+ *
+ * 十处误报一道闸，正是「判据错了比没有判据更糟」那句话说的东西：
+ * 它会一直在响，响到没有人再读它。所以 ADR 不设这道闸——
+ * **ADR 是历史记录，只有人能核**；本文件只管那本「读一份就够」的词典。
  *
  * ## 判据是**词边界**，不是子串
  *
@@ -100,11 +131,16 @@ function segmentsOf(token: string): readonly string[] {
 test('GLOSSARY.md 点名的代码符号都还在', () => {
   assert.ok(existsSync(GLOSSARY), `找不到 ${GLOSSARY}——单上下文的词典不在了，这一条失去对象`);
 
+  // 语料取最宽：src + server + scripts + test。为什么不是只 src + server，
+  // 见文件头那张表——窄语料今天也是 0，可词典明天添一条住在 test/ 里的符号
+  // （`codeOf`、`KNOWN_PREFABS` 都住那儿）就会误报，而误报的原因在语料不在词典。
   const corpus = [
     ...sources(path.join(ROOT, 'src'), ['.ts']),
     ...sources(path.join(ROOT, '..', 'server'), ['.py']),
+    ...sources(path.join(ROOT, 'scripts'), ['.ts', '.mjs']),
+    ...sources(path.join(ROOT, 'test'), ['.ts']),
   ];
-  assert.ok(corpus.length > 0, 'src/ 与 server/ 里一个源文件都没有——语料空了，判据失去对象');
+  assert.ok(corpus.length > 0, '一个源文件都没有——语料空了，判据失去对象');
   const code = corpus.map((file) => readFileSync(file, 'utf8'));
   const named = (symbol: string): RegExp =>
     new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
