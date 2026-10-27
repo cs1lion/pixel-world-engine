@@ -1346,8 +1346,16 @@ export class SandboxScene extends Phaser.Scene {
     return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${saveNote}`;
   }
 
+  /**
+   * 铺子的名字。**查不到就给 null，不把 instanceId 当名字还回去。**
+   *
+   * 曾经是 `?? id`：楼不在世界上了（拆掉、或别的什么路子让活指向了空气），
+   * 状态行就播「莞尔：赶往 scripture_pavilion#3」——一串内部编号被当成地名
+   * 念出来，而那儿什么都没有。调用方（`villagerModeLabel`）认得 null，那一支
+   * 只说「赶路」：她确实在赶路，只是去处说不准。说不准比说错好。
+   */
   private buildingName(id: string | null): string | null {
     if (id === null) return null;
-    return this.snapshot.buildings.find((item) => item.instanceId === id)?.displayName ?? id;
+    return this.snapshot.buildings.find((item) => item.instanceId === id)?.displayName ?? null;
   }
 }

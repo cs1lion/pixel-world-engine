@@ -136,6 +136,53 @@ test('有角色在里面干活的楼不能拆', () => {
   assert.match(result?.message ?? '', /干活|忙|运转/);
 });
 
+test('她还在赶路时那栋楼不能拆——`task.buildingId` 不许指向一栋已经不存在的楼', () => {
+  // 「里头有人」那一支只看 `activities[...].kind === 'operating'`，而那个标记是
+  // `arriveAtWork` **到了**才写的。她还在半路上时它是 'idle'，于是楼照拆：
+  // `task.buildingId` 留在一栋已经不在世界上的楼上，状态行跟着 `buildingName()`
+  // 查不到，回退成原 instanceId 字符串——屏上播「莞尔：赶往 scripture_pavilion#3」，
+  // 而那栋楼已经没有了。等她走到地方，`arriveAtWork` 也找不到它。
+  //
+  // `buildingBusy` 的任务判据（不挑 status，只排除 done/failed）本来就覆盖这一种，
+  // 只是 `demolish` 没用它。
+  const sim = makeSim();
+  sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写脚本' });
+  sim.update(16);
+
+  // 抓到「活已派下去、人还没到」的那一刻：有活指着铺子，而铺子还没运转。
+  let target: string | null = null;
+  for (let i = 0; i < 400 && target === null; i += 1) {
+    sim.update(100);
+    const snap = sim.snapshot();
+    const walking = snap.villager.mode === 'toWork';
+    const claimed = snap.tasks.find(
+      (task) => task.buildingId !== null && task.status !== 'done' && task.status !== 'failed',
+    );
+    if (walking && claimed?.buildingId != null) target = claimed.buildingId;
+  }
+  assert.ok(target !== null, '前置：该抓到她在赶路、而活已指着某栋铺子');
+
+  const stillOperating = sim
+    .snapshot()
+    .workstations.some((w) => w.activity.kind === 'operating' && w.buildingId === target);
+  assert.equal(stillOperating, false, '前置：她还没到，铺子不该已在运转');
+
+  const result = demolish(sim, target);
+  assert.equal(result?.ok, false, '赶路中的那单也占着楼，拆不得');
+  assert.match(result?.message ?? '', /活|收工/);
+
+  // 世界没被拆坏：楼还在，活还指着它。
+  const after = sim.snapshot();
+  assert.ok(
+    after.buildings.some((item) => item.instanceId === target),
+    '楼该留在世界上',
+  );
+  assert.ok(
+    after.tasks.some((task) => task.buildingId === target && task.status !== 'done'),
+    '活该还指着它——世界状态里不许出现指向空气的 buildingId',
+  );
+});
+
 test('常驻铺子也能拆：世界允许把镇子拆空', () => {
   const sim = makeSim();
   const result = demolish(sim, 'crawler_mine#1');

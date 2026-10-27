@@ -2866,6 +2866,23 @@ export class Simulation {
       this.log('warn', message);
       return { ok: false, message };
     }
+    // 占着这栋楼的活，**包括还在赶路的那一单**。
+    //
+    // 上一支只看 `activities[instanceId].kind === 'operating'`，而那个标记是
+    // `arriveAtWork` 到了才写的（`:2618`）。她还在半路上时它是 'idle'，于是楼
+    // 照拆：`task.buildingId` 指着一栋已经不在世界上的楼，屏上的状态行跟着
+    // `buildingName()` 查不到，回退成原 instanceId 字符串——「莞尔：赶往
+    // scripture_pavilion#3」，而那栋楼已经没有了。等她走到地方，
+    // `arriveAtWork` 也找不到它。
+    //
+    // `buildingBusy` 早就覆盖了这一种（它的任务判据不挑 status，只排除
+    // done/failed），只是 `demolish` 没用它。这里补上，且**放在上一支之后**：
+    // 「里头有人」与「活指着它」是两句不同的真话，合成一句就得有一边不真。
+    if (this.buildingBusy(building)) {
+      const message = `${building.displayName} 还有一单活指着它，等收工再拆。`;
+      this.log('warn', message);
+      return { ok: false, message };
+    }
 
     // 释放网格占用。门口的路保留——那是铺过的路，拆楼不铲路。
     this.grid.remove(instanceId, building.origin, building.footprint.w, building.footprint.h);
@@ -3165,6 +3182,16 @@ export class Simulation {
       villager.pendingBuilding = null;
       villager.bubble = null;
       villager.nextRoutineAt = this.now + 1600;
+      // 嘴上那句牌子也得收。`abandonActiveTask` 收（`:1667`），这条路原先不收——
+      // 读档后第一轮撤单走的正是这条路（`firstRead` 那一支跳过 `abandonActiveTask`），
+      // 于是 mode 已经回 idle、taskId 已经空了，屏上那一行还在说她正在办一件已经
+      // 不存在的活。实测：quick 活 `c_q` 存读档、首轮撤单，快照 routine 仍是
+      // "顺手查一件小事" 而 taskId 是 null。
+      //
+      // 这一步不会误伤别的说法：这一轮只碰 `taskId` 正指着这单的人，而 mode 同在
+      // 这一轮被按成 idle——凡描述赶路/躲避/干活的牌子到这一刻全都失效了，新的
+      // 那句由 `nextRoutineAt` 到点后自己写上（1.6s 内）。
+      villager.routineLabel = null;
     }
     this.idleWorkstationFor(taskId);
   }
