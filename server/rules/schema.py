@@ -15,7 +15,14 @@
    与形状错误同类，放在这里一次拦掉，别让世界再答第二遍。
 
 校验是**纯函数**：同样的输入永远同样的结果，不读时钟、不碰日志、不联网。
-所以整套白名单可以离线单测，也可以在实验里对 60 条真实语句逐条复核。
+所以整套白名单可以离线单测，也可以在实验里对 55 条真实语句逐条复核。
+
+#: 2026-10-28 补记：上面这句原来写「60 条」。全仓只有这一处写 60——
+#: `docs/INTENT_EXPERIMENT.md`、`docs/adr/ADR_BUILDING_AT_OPTIONAL.md`、
+#: 以及 `scripts/intent_experiment.py` 自己的注释（十几处）都写 55。
+#: 55 是 `LEGAL 26 + OUT_OF_BOUNDS 12 + CHITCHAT 10 + AMBIGUOUS 7`
+#: （`scripts/intent_experiment.py` 里那四个列表）。这个数会随用例增减而漂，
+#: 别照抄这一段，去数那四个列表。
 
 错误码是稳定的字符串，不是中文句子。调用方（端点、实验脚本、将来的世界）
 按码分支，句子只给人看。
@@ -34,8 +41,14 @@ TIDE_OVERRIDE_MAX_MS = 2 * 60_000
 #: 世界里最多能有多少栋楼。
 #:
 #: 这个数不是拍脑袋的容量——`setup.ts` 的地图是 96×72，铺满之后没有空地可走，
-#: 镇子会变成一个实心方块。上限的作用是让「建 100 栋楼」在**规则层**就被拒，
-#: 而不是等世界一栋一栋建到没地方。
+#: 镇子会变成一个实心方块。
+#:
+#: 2026-10-28 补记：这里原来写「上限的作用是让『建 100 栋楼』在**规则层**就被拒」。
+#: 规则层没有「数量」这个概念——`building.add` 的 args 只接受 `prefabId` 与 `at`，
+#: 模型真写 `count: 100` 会被 `_only` 以 `unexpected-field` 拒，那是「字段不认识」，
+#: 不是「数量超上限」。真正的机制在 `_building_add` 里：拿世界**当前**楼数与 40 比。
+#: 连带一个测不到的用例：实验的越界组有一条 `("建 100 栋楼", "数量上限")`，
+#: 它跑在一份 6 栋楼的世界上，永远撞不到 `building-limit`。
 MAX_BUILDINGS = 40
 
 WEATHERS = ("clear", "rain", "storm")
@@ -138,7 +151,11 @@ def _one_of(args: dict[str, Any], key: str, allowed: tuple[str, ...], path: str)
     return value
 
 
-# ------------------------------------------------------------------ 六条命令
+# ------------------------------------------------------------------ 七条命令
+#: 2026-10-28 补记：这个小节标题原来写「六条命令」，而它下面挂着 7 个校验函数，
+#: 同一个文件第 7 行还写着「只认七条命令」——一份文件里隔 134 行自我矛盾，
+#: 而且少数的那条正是 `npc.setSchedule`（下面第 320 行附近专门解释它为什么
+#: 在白名单里却没有提示词条目）。照小节标题数白名单的人会少数一条。
 
 
 def _weather_set(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]:
@@ -196,8 +213,11 @@ def _building_add(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]
     _only(args, {"prefabId", "at"}, "building.add")
     prefab_id = _text(args, "prefabId", "building.add")
 
-    # 数量上限：世界已经满了就不再收。这一条让「建 100 栋楼」在规则层被拒，
-    # 而不是让世界一栋栋建到没地方走。
+    # 数量上限：世界已经满了就不再收。
+    # 2026-10-28 补记：这一条原来写「让『建 100 栋楼』在规则层被拒，而不是让
+    # 世界一栋栋建到没地方走」——它描述的是协议里表达不出来的请求。见
+    # `MAX_BUILDINGS` 上面那段：一次「要 100 栋」没有字段可写。这里实际做的
+    # 只有一件事：世界已经有 40 栋了，就不再收第 41 栋。
     count = world.get("buildingCount")
     if isinstance(count, int) and count >= MAX_BUILDINGS:
         _fail(
@@ -211,8 +231,15 @@ def _building_add(args: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]
         # 这一条是协议对齐，不是放宽：客户端 `intent-schema.ts` 的 build 意图
         # 早就写着 `at: GridPoint | null`，`readPoint(undefined)` 回 null。
         # 服务端却一直要求 `at` 必填，比它要对齐的那份协议更严。后果测出来了：
-        # 55 条合法用例里 5 条「建个工坊」「帮我盖个资料馆」这种不说地点的，
-        # 模型全部答 unknown——它没有坐标可填。
+        # 合法用例里不说地点的那些，模型全部答 unknown——它没有坐标可填。
+        #
+        # 2026-10-28 补记：这一行原来写「55 条合法用例里 5 条」，两处都不对。
+        # 55 是**全套**用例（26 合法 / 12 越界 / 10 闲聊 / 7 歧义），不是合法用例；
+        # 不说地点的是 `building.add` 5 条里的 4 条（另 1 条给了 `(40,45)`）。
+        # 更值得记的是：这不是新错——`docs/adr/ADR_BUILDING_AT_OPTIONAL.md`
+        # 第 21-23 行已经为同一个错记过一次（「add 是 4 条不是 5 条，而括号里
+        # 正好只列了 4 个例子，写着「5 条」」）。改掉的错从 ADR 回到了代码里，
+        # 所以这里连数都不写了：那四个列表自己会说话。
         return {"prefabId": prefab_id}
     return {"prefabId": prefab_id, "at": _point(args, "at", "building.add", world)}
 
