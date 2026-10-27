@@ -207,7 +207,9 @@ test('开局落位每一栋都过群落环：规则与 buildLargeWorld 的 accep
  * 不再成立，这里会红——而不是让 `SandboxScene.ts` 里那段注释慢慢变成一句
  * 没人核的话。
  *
- * 数与 `SandboxScene.ts` 那段注释同源，都是开局大世界一格一格枚举出来的。
+ * 数与 `SandboxScene.ts` 那段注释同源，都是默认设定集（莞尔镇）的开局大世界
+ * 一格一格枚举出来的——灯潮界七栋楼里这三栋郊野铺子一栋都没有，所以这组数
+ * 只对默认设定集成立。
  */
 test('checkPlacement 自己会放行镇内的郊野落点——群落闸不是装饰', () => {
   const world = buildLargeWorld(blueprints);
@@ -239,13 +241,37 @@ test('checkPlacement 自己会放行镇内的郊野落点——群落闸不是�
   assert.deepEqual({ x: nearest.x, y: nearest.y }, { x: 56, y: 27 }, '圈内最近的那个落点');
   assert.equal(nearest.d.toFixed(3), '12.042', '它离祭坛 12.042 格');
 
-  // 另两类同形状：都是「一半以上的合法落点在圈内」。
-  for (const id of ['ink_mill', 'gear_tower']) {
+  // 上面那个 31 有个死区，得说清，否则它看着比实际灵敏：圈内最远 18.358、
+  // 圈外最近 27.019，两者之间一个合法槽位都没有。于是 craftRing 取这个区间里
+  // 任何一个值，31 都不变——把半径从 21 改成 25，这条照绿，而注释里写的 21
+  // 已经过期。所以半径本身单独钉一道：它一动，这里就逼着人去改那段注释。
+  const farthestIn = inRing.reduce((a, b) => (b.d > a.d ? b : a));
+  const outside = mine.filter((s) => s.d > BIOME_RADII.craftRing);
+  assert.equal(farthestIn.d.toFixed(3), '18.358', '圈内最远的合法槽位');
+  assert.equal(outside.length, 16, '圈外合法的槽位');
+  assert.equal(
+    outside.reduce((a, b) => (b.d < a.d ? b : a)).d.toFixed(3),
+    '27.019',
+    '圈外最近的合法槽位——与 18.358 之间是死区',
+  );
+  assert.equal(
+    BIOME_RADII.craftRing,
+    21,
+    '半径钉住：上面那个 31 对 18.358～27.019 之间的任何半径都不灵敏',
+  );
+
+  // 另两类同形状。注释里写着 52/36 与 42/26，就把这两个数也钉死——
+  // 只断言「过半」的话，那两对数就成了注释里没人核的话。
+  for (const [id, total, inside] of [
+    ['ink_mill', 52, 36],
+    ['gear_tower', 42, 26],
+  ] as const) {
     const slots = legalSlots(id);
-    const inside = slots.filter((s) => s.d <= BIOME_RADII.craftRing).length;
-    assert.ok(
-      inside > slots.length / 2,
-      `${id} 合法 ${slots.length} 个，圈内 ${inside} 个——过半的落点要靠群落闸拦`,
+    assert.equal(slots.length, total, `${id} 的合法左上角`);
+    assert.equal(
+      slots.filter((s) => s.d <= BIOME_RADII.craftRing).length,
+      inside,
+      `${id} 其中 ${inside} 个在圈内`,
     );
   }
 
