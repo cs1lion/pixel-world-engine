@@ -661,7 +661,12 @@ function checkEnum<T extends string>(
  *   放行，`fromSave` 原样恢复，之后每一步 `at()` 都返回 `undefined`——
  *   不抛、不记日志，她只是从此看不见也够不着，一直站在世界外面。
  *   命令那条路是有人拦的（`simulation.ts` 会回「那里在世界外面。」），
- *   所以这个洞只有手改存档才够得着。真要补，该补在有 `GridSpec` 的那一层。
+ *   所以这个洞只有手改存档才够得着。
+ *
+ *   这个洞 2026-10-27 补了，但**不补在这里**：补在 `findOutOfWorldCoordinates`——
+ *   一个收 `{width, height}` 的纯函数，由 `parseSaveText` 在读档与导入两条路上调用。
+ *   不补在本函数里，是因为它拿不到世界多大；而把 `GridSpec` 拖进存档校验层，
+ *   等于让「存档形状」依赖「地图配置」，两件会各自演进的东西从此绑死。
  *
  * 原注释后半句「有键集合校验兜着，这里只查存在键」说的也是 JSON 路径的键，
  * 不是坐标——见下面 `validateWorldFields` 的注释。
@@ -1067,6 +1072,113 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV4 {
       `存档字段漂移：出现 v${CURRENT_SCHEMA_VERSION} 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
     );
   }
+}
+
+/**
+ * 世界的尺寸：只用来问「这个坐标在不在世界里」。
+ *
+ * 刻意不是 `GridSpec`：这一层不该为了问一句话把整套分区/地形配置拖进来。
+ * `width` / `height` 两个数就是 `WorldGrid.inBounds` 用的全部依据
+ * （`grid.ts` 里那句 `p.x >= 0 && p.y >= 0 && p.x < width && p.y < height`）。
+ */
+export interface WorldBounds {
+  readonly width: number;
+  readonly height: number;
+}
+
+/** 与 `WorldGrid.inBounds` 同一条判据。复制而不 import：存档层不依赖网格层。 */
+function outsideWorld(point: { readonly x: number; readonly y: number }, bounds: WorldBounds): boolean {
+  return !(point.x >= 0 && point.y >= 0 && point.x < bounds.width && point.y < bounds.height);
+}
+
+function showPoint(point: { readonly x: number; readonly y: number }): string {
+  return `{x:${point.x}, y:${point.y}}`;
+}
+
+/**
+ * 存档里落在世界外面的坐标，一条一个，指名到 JSON 路径。
+ *
+ * **为什么需要这一层。** `validateSaveFields` 跑在原始 JSON 上，那会儿还没有网格，
+ * 而世界多大是 `GridSpec` 参数——存档这一层天生问不出「在不在世界里」。于是下面这六类
+ * 坐标今天**验不出越界**，而它们越界之后没有一处会红：
+ *
+ * - `villagers[].pos`：她从此站在世界外。`grid.at()` 对她永远返回 `undefined`，
+ *   实测跑 30000 拍（8 分钟世界时间）她一次活都没接到过，不抛、不记日志。
+ * - `villagers[].path[]` / `pendingRoute[]`：**这一条会主动把她拖出世界。**
+ *   实测 `path:[{x:999,y:999}]` + `mode:'toWork'`，6000 拍后她站在 (218, 213)
+ *   ——那是个 30×20 的世界；66000 拍后她精确停在 (999, 999)，再也不回来。
+ * - `props[].at`：摆件还在 `snapshot.props` 里，日报照写「…已经落在祭坛边」，
+ *   而地图上哪都没有它。**纸上一句没有人会怀疑的假话。**
+ * - `critters[].at` / `roads[]`：只是画不出来，别的都在。
+ *
+ * **这不是一道防「世界跑偏」的闸，是一道防「存档坏了」的闸。** 分别说清楚：
+ * 世界自己的寻路只会产出界内的格子——`grid.path()` 的 `passable()` 要求 `at()` 有值
+ * （越界即 undefined），兜底的 `nearestWalkable()` 也只扫 `0..width` / `0..height`，
+ * 而相邻两个界内格子之间滑过去的人落不出这块矩形。实测佐证：大世界 96×72 跑
+ * 240000 拍（64 分钟世界时间）、八轮派活覆盖四类活，`pos` 全落在 x∈[42,52]、
+ * y∈[28,36]，`path`/`pendingRoute` 的格子同样全在界内，一次越界都没有。
+ * 所以一份**正常写出来的存档**过不了这条检查，只可能是它被改过、被截断、
+ * 或者是从另一张地图搬过来的。
+ *
+ * **建筑不在这里查。** 建筑的落位早就有人拦，而且拦得更响：
+ * `rebuildGridFromPlacements()` 放不下就抛 `WorldSetupError`。但那道抛错在
+ * `main.ts` 顶层没有人接，白屏；把建筑也并到本函数，同样的存档就从「白屏」
+ * 变成「备份原档 + 用新世界启动 + 说明白为什么」。并进来的代价是**别的事仍旧白屏**：
+ * 两栋楼重叠、门口落在自己占地里、门口到不了镇心，这三样 `place()` 一样返回 false，
+ * 与本函数查的「坐标在不在世界里」不是一件事。那三样仍然白屏，这里不装作补上了。
+ *
+ * 返回值是人类可读的一行行指控，直接给玩家看。
+ */
+export function findOutOfWorldCoordinates(
+  save: WorldSave,
+  bounds: WorldBounds,
+): readonly string[] {
+  const out: string[] = [];
+  const world = save.world;
+
+  world.villagers.forEach((villager, index) => {
+    const base = `world.villagers[${index}]`;
+    if (outsideWorld(villager.pos, bounds)) {
+      out.push(`${base}.pos = ${showPoint(villager.pos)}`);
+    }
+    villager.path.forEach((cell, at) => {
+      if (outsideWorld(cell, bounds)) out.push(`${base}.path[${at}] = ${showPoint(cell)}`);
+    });
+    villager.pendingRoute.forEach((cell, at) => {
+      if (outsideWorld(cell, bounds)) out.push(`${base}.pendingRoute[${at}] = ${showPoint(cell)}`);
+    });
+  });
+
+  world.buildings.forEach((building, index) => {
+    const base = `world.buildings[${index}]`;
+    for (const [slot, point] of [
+      ['origin', building.origin],
+      ['door', building.door],
+      ['workSpot', building.workSpot],
+    ] as const) {
+      if (outsideWorld(point, bounds)) out.push(`${base}.${slot} = ${showPoint(point)}`);
+    }
+  });
+
+  world.props.forEach((prop, index) => {
+    if (outsideWorld(prop.at, bounds)) {
+      out.push(`world.props[${index}].at = ${showPoint(prop.at)}`);
+    }
+  });
+
+  world.critters.forEach((critter, index) => {
+    if (outsideWorld(critter.at, bounds)) {
+      out.push(`world.critters[${index}].at = ${showPoint(critter.at)}`);
+    }
+  });
+
+  world.roads.forEach((cell, index) => {
+    if (outsideWorld(cell, bounds)) {
+      out.push(`world.roads[${index}] = ${showPoint(cell)}`);
+    }
+  });
+
+  return out;
 }
 
 /**

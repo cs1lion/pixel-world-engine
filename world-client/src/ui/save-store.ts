@@ -6,12 +6,14 @@
 import {
   assertSave,
   CURRENT_SCHEMA_VERSION,
+  findOutOfWorldCoordinates,
   migrateSave,
   SAVE_STORAGE_KEY,
   SCHEMA_V1_FINGERPRINT,
   SETTLED_WARN_THRESHOLD,
   saveFingerprint,
   type RawSave,
+  type WorldBounds,
   type WorldSave,
 } from '../world/save.ts';
 
@@ -45,6 +47,13 @@ export interface SaveStoreOptions {
   readonly onWarning?: (message: string) => void;
   /** 每套设定集一个槽；默认值保持旧世界存档键不变。 */
   readonly storageKey?: string;
+  /**
+   * 世界多大。给了才查「坐标在不在世界里」——存档层不知道，必须由建世界的那一方递进来。
+   *
+   * 递的是这一套设定集的 `grid`（`pack.grid.width/height`），不是写档时那一套：
+   * 一份从别的地图搬过来的存档，坐标在这张图上越界，那也是越界。
+   */
+  readonly bounds?: WorldBounds;
 }
 
 export const CORRUPT_PREFIX = `${SAVE_STORAGE_KEY}.corrupt.`;
@@ -68,19 +77,25 @@ export type SaveParseResult =
   | { readonly ok: true; readonly save: WorldSave }
   | {
       readonly ok: false;
-      readonly reason: 'empty' | 'corrupt' | 'version';
+      readonly reason: 'empty' | 'corrupt' | 'version' | 'out-of-world';
       /** 高版本时的版本号。 */
       readonly version?: number;
       /** true = JSON 本身就不合法（与「JSON 合法但形状/字段不对」区分，仅用于文案）。 */
       readonly jsonInvalid?: boolean;
+      /** `reason: 'out-of-world'` 时：落在世界外面的坐标，一行一条。 */
+      readonly outside?: readonly string[];
     };
 
 /**
  * 唯一的存档校验链（P3）：空白 → JSON/形状 → 高版本只读 → 迁移 → assertSave（含路径集合校验）。
  * `read()` 与 `importText()` 都走这里，避免两条平行实现慢慢漂移。
  * 纯函数：不碰存储、不备份、不改 autoSave——这些由调用方按各自语义处理。
+ *
+ * `bounds` 给了才查「坐标在不在世界里」（`findOutOfWorldCoordinates`）。存档层自己
+ * 不知道世界多大，所以这一步必须由知道的那一方递进来；不递就只做形状校验，
+ * 那是**知道有洞而不查**，不是「查过没问题」。
  */
-export function parseSaveText(text: string): SaveParseResult {
+export function parseSaveText(text: string, bounds?: WorldBounds): SaveParseResult {
   // 纯空白文本统一判 empty（不是 corrupt）：读档与导入都必须给出同一个标签。
   if (text.trim().length === 0) return { ok: false, reason: 'empty' };
   let raw: RawSave;
@@ -95,13 +110,19 @@ export function parseSaveText(text: string): SaveParseResult {
   }
   const version = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 0;
   if (version > CURRENT_SCHEMA_VERSION) return { ok: false, reason: 'version', version };
+  let migrated: WorldSave;
   try {
-    const migrated = migrateSave(raw);
-    assertSave(migrated);
-    return { ok: true, save: migrated };
+    const moved = migrateSave(raw);
+    assertSave(moved);
+    migrated = moved;
   } catch {
     return { ok: false, reason: 'corrupt' };
   }
+  if (bounds !== undefined) {
+    const outside = findOutOfWorldCoordinates(migrated, bounds);
+    if (outside.length > 0) return { ok: false, reason: 'out-of-world', outside };
+  }
+  return { ok: true, save: migrated };
 }
 
 /** 导出文件名：带本地时间戳，便于用户在同一目录里区分多份导出。 */
@@ -119,6 +140,12 @@ export function exportFileName(atMs: number): string {
 const STORAGE_HINT = '读不到本地存档：可能是来源(origin/端口)变了。';
 const CORRUPT_MESSAGE = '存档损坏，已备份原档，用新世界启动。';
 const QUOTA_MESSAGE = '本地存储已满：自动存档已暂停，世界继续运行。';
+/**
+ * 坐标越界的说明。**必须指名越界的是什么**：只说「存档有问题」，
+ * 玩家没有办法知道该去改哪儿，而原档已经备份在，他本来是可以去修的。
+ */
+const OUT_OF_WORLD_MESSAGE =
+  '存档里有坐标落在世界外面，已备份原档，用新世界启动。这些坐标留在了原档里：';
 
 export class SaveStore {
   private readonly storageKey: string;
@@ -129,6 +156,7 @@ export class SaveStore {
   private autoSave = true;
   private readonly warned = new Set<string>();
   private lastSaved: { schemaVersion: number; savedAtWallClock: number } | null = null;
+  private readonly bounds: WorldBounds | undefined;
 
   constructor(options: SaveStoreOptions = {}) {
     this.storageKey = options.storageKey ?? SAVE_STORAGE_KEY;
@@ -136,6 +164,7 @@ export class SaveStore {
     this.storage = options.storage ?? (globalThis.localStorage as StorageLike);
     this.wallClock = options.wallClock ?? (() => Date.now());
     this.onWarning = options.onWarning ?? (() => {});
+    this.bounds = options.bounds;
   }
 
   isAutoSaveEnabled(): boolean {
@@ -167,7 +196,7 @@ export class SaveStore {
     }
     if (text === null) return { ok: false, reason: 'empty', message: '没有存档。', paused: false };
 
-    const parsed = parseSaveText(text);
+    const parsed = parseSaveText(text, this.bounds);
     if (!parsed.ok) {
       if (parsed.reason === 'empty') {
         // 单槽里只有空白：与「没有存档」一样处理，不备份、不提示损坏。
@@ -178,6 +207,15 @@ export class SaveStore {
         const message = `存档版本 v${parsed.version ?? 0} 高于当前 v${CURRENT_SCHEMA_VERSION}：只读启动，自动存档已暂停。`;
         this.warnOnce('version', message);
         return { ok: false, reason: 'version', message, paused: true };
+      }
+      if (parsed.reason === 'out-of-world') {
+        // 坐标越界按坏档处理：备份原档，用新世界启动，并把越界的坐标一条条说清楚。
+        // 不静默修——`nearestWalkable` 一类「搬回来」等于替玩家决定她站在哪儿，
+        // 而那是世界自己的事实。原档留着，他看得见、改得动。
+        this.backupCorrupt(text);
+        const message = [OUT_OF_WORLD_MESSAGE, ...(parsed.outside ?? [])].join('\n');
+        this.warnOnce('out-of-world', message);
+        return { ok: false, reason: 'corrupt', message, paused: false };
       }
       this.backupCorrupt(text);
       this.warnOnce('corrupt', CORRUPT_MESSAGE);
@@ -250,7 +288,7 @@ export class SaveStore {
       };
     }
 
-    const parsed = parseSaveText(text);
+    const parsed = parseSaveText(text, this.bounds);
     if (!parsed.ok) {
       if (parsed.reason === 'empty') {
         // 空白文件与 read() 用同一个 empty 标签（都走 parseSaveText）。
@@ -267,7 +305,9 @@ export class SaveStore {
       this.backupCorrupt(text);
       const message = parsed.jsonInvalid
         ? '导入失败：不是合法 JSON，原文件已备份。'
-        : '导入失败：存档内容校验不通过，原文件已备份。';
+        : parsed.reason === 'out-of-world'
+          ? ['导入失败：存档里有坐标落在世界外面，原文件已备份。越界的是：', ...(parsed.outside ?? [])].join('\n')
+          : '导入失败：存档内容校验不通过，原文件已备份。';
       this.warnOnce('import-corrupt', message);
       return { ok: false, reason: 'corrupt', message };
     }

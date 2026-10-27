@@ -22,7 +22,14 @@ import { WORLD } from './world/palette-data.ts';
 import { selectSetting, worldForSetting } from './settings/index.ts';
 // 读档必须在建世界/起 Phaser 之前：有档按存档 buildings 顺序重放网格（ADR_SAVE §1.2）。
 const saveNotices: string[] = [];
-const saveStore = new SaveStore({ storageKey: selectSetting(window.location.search).saveKey, onWarning: (message) => saveNotices.push(message) });
+const packForSave = selectSetting(window.location.search);
+const saveStore = new SaveStore({
+  storageKey: packForSave.saveKey,
+  // 世界多大：读档时按它查「坐标在不在世界里」。递的是这一套设定集的 grid——
+  // 一份从别的地图搬过来的存档，坐标在这张图上越界，那也是越界。
+  bounds: { width: packForSave.grid.width, height: packForSave.grid.height },
+  onWarning: (message) => saveNotices.push(message),
+});
 const loadedSave = saveStore.read();
 /**
  * 生产用大世界：96×72 格。旧规格 30×20 保留给测试夹具，生产入口不再用它。
