@@ -80,9 +80,38 @@ test('指到文件外、指到空行、指到不存在的文件，三样都开�
 test('指着注释是正当的：ADR 引的就是注释的原文', () => {
   const root = fixture();
   try {
-    doc(root, `引一段注释（${ref('a.ts', 5)}）。\n`);
+    doc(root, `引一段注释——「一段注释」（${ref('a.ts', 5)}）。\n`);
     const { findings } = auditReferences({ root });
     assert.equal(findings.length, 0, '注释不是真空，指着它不该被当成指错了');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/**
+ * 这条钉住的是一个**盲区**，不是一个守卫。
+ *
+ * `c716a4a` 里 `smoke-ego.mjs` 引的 SandboxScene.ts 第 852 行想说
+ * `const due = …` 那个分支，落点却是一行讲别的事的注释（`* 导播要看的地方。`）。
+ * `hasCode()` 只判「不是空行、不只是括号」，注释行有汉字，过得和有代码的行一样顺
+ * ——于是这次漂移一次都没响过。同一笔里第 2393 行漂到第 2444 行更安静：落点是一行
+ * **有代码**的别行，两种 `hasCode()` 都放行。
+ *
+ * 想闭上它，可判据立不住。「引了原话」与「顺带提一句名字」在正文里是同一个形状：
+ * 「每个模板都过同一个 `prefab()` 助手、boundTask 硬编码 null」后面跟着 a.ts 第 5 行
+ * 的坐标时，`prefab()` 是顺带一提，坐标说的是 boundTask——这一句是正当的，而这个
+ * 仓库的自述里通篇都是。要分辨两者，得读懂句子。机器读不懂，就不该由脚本假装能判：
+ * 假判一次，这个守卫就被人整个不信了。
+ *
+ * 所以这里钉住「今天它放行」。哪天它忽然开口了，先回来看这一条：是误报，
+ * 还是真的有了立得住的判据。
+ */
+test('落点只有注释又没引原话：今天查不出来——这条钉住盲区', () => {
+  const root = fixture();
+  try {
+    doc(root, `引一段注释（${ref('a.ts', 5)}），理由写在设计笔记里。\n`);
+    const { findings } = auditReferences({ root });
+    assert.equal(findings.length, 0, '这一处今天就该放行；改了行为，先确认不是误报');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
