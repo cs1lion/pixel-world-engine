@@ -420,7 +420,7 @@ try {
   }
   passed.push('PRE 前置自检：世界处于初始态（允许首帧自动存档）');
 
-  /* ---------------- 顶层 4 条（smoke.mjs:780-794） ---------------- */
+  /* ---------------- 顶层 4 条（smoke.mjs:838-879） ---------------- */
 
   // L780 页面加载无 JS 报错 —— 用「world-overlay 已挂载 + Oracle 可调用」作为等价可观测证据，
   // 因为 ego-browser 拿不到 Playwright 的 pageerror 事件流。
@@ -451,7 +451,7 @@ try {
     `mode=${opening.villager.mode}`,
   );
 
-  /* ---------------- 沙盒套件（smoke.mjs:209-771） ---------------- */
+  /* ---------------- 沙盒套件（smoke.mjs:220-836） ---------------- */
 
   const state = () => page.evaluate(() => window.Oracle.view());
 

@@ -33,7 +33,7 @@ test('三层偏移：back < body < front，且 back 在楼体之下', () => {
 });
 
 test('角色 depth 偏移与 villager.ts 一致（+8）', () => {
-  assert.equal(ACTOR_DEPTH_OFFSET, 8, 'villager.ts:55 是 ALTITUDE + py + 8，改一处要改两处');
+  assert.equal(ACTOR_DEPTH_OFFSET, 8, 'villager.ts:172 是 ALTITUDE + py + 8，改一处要改两处');
   assert.equal(actorDepthAt(9, ALT), ALT + (9 + 1) * TILE_PX + 8);
 });
 

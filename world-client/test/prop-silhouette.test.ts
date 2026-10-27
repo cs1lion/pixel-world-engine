@@ -27,7 +27,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { drawBanner, drawLamp, drawTree, type PropAccent } from '../src/render/decor.ts';
-import { SPECK_BOX } from '../src/render/prop-grime.ts';
+import { SPECK_BOX, GRIME_SPECK_COUNT } from '../src/render/prop-grime.ts';
 
 /** 扫多少个种子。三个 draw 的尺寸全看 `seed % 3` / `% 5` / `% 2`，512 覆盖全部档位。 */
 const SEEDS = 512;
@@ -137,4 +137,25 @@ test('剪影不是一竖条：原来的 y∈[-23,2]、x∈[-9,8] 按不出来', 
   assert.ok(UNION.y0 < -23, `剪影上沿该比 -23 还高，实得 ${UNION.y0}`);
   assert.ok(UNION.x0 < -9, `剪影左沿该比 -9 还左，实得 ${UNION.x0}`);
   assert.ok(UNION.x1 > 8, `剪影右沿该比 8 还右，实得 ${UNION.x1}`);
+});
+
+test('方框的面积与密度：注释里那两个数是按出来的，不是抄的', () => {
+  // `prop-grime.ts` 那段写着「18×29 = 522」「约每 20 格一粒」。那两个数原先是
+  // 18×20 = 360 与「每 14 格一粒」——`spanY` 被拿 `bottom - top`（28）抹了零头，
+  // 于是面积、密度、覆盖率三个数一起错，而没有任何机器会响：它们不参与渲染，
+  // 只参与「26 粒算密还算稀」这个判断。
+  //
+  // 所以这里从 `SPECK_BOX` 自己算一遍。方框一改这条就红，红的意思是去改那段
+  // 注释，不是来改这条——同上面两条的规矩。
+  const spanX = SPECK_BOX.right - SPECK_BOX.left + 1;
+  const spanY = SPECK_BOX.bottom - SPECK_BOX.top + 1;
+  assert.equal(spanX, 18, `方框宽该是 18 列，实得 ${spanX}`);
+  assert.equal(spanY, 29, `方框高该是 29 行，实得 ${spanY}`);
+  assert.equal(spanX * spanY, 522, `方框面积该是 522 格，实得 ${spanX * spanY}`);
+  // 密度是 522/26 ≈ 20.1。钉的是「约每 20 格一粒」这个四舍五入，不是分数本身。
+  assert.equal(Math.round((spanX * spanY) / GRIME_SPECK_COUNT), 20,
+    `该约每 20 格一粒，实得 ${((spanX * spanY) / GRIME_SPECK_COUNT).toFixed(1)}`);
+  // 剪影 24×35 = 840 也一起钉：注释拿它当分母，而它上面已经量过是 840。
+  const silhouette = (UNION.x1 - UNION.x0 + 1) * (UNION.y1 - UNION.y0 + 1);
+  assert.equal(silhouette, 840, `剪影外框该是 840 格，实得 ${silhouette}`);
 });

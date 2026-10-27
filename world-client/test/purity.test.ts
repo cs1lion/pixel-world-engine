@@ -391,6 +391,10 @@ test('折行的动态 import 也拦得住，而且行号指向原文件', (t) =>
   assert.deepEqual(
     offenders,
     [`world/memory/perception.ts:3 往上一层 import：const m = import(`],
+    // 「:3」是**上面那份假树的第 3 行**，不是仓库里 src/world/memory/perception.ts
+    // 的第 3 行（那份第 3 行是文件头注释）。假树就在本函数上面 writeFileSync 出来，
+    // 垫了一行注释、一行合法 import，行的 mapping 错一位这里就看得出来。写清楚是因为
+    // 审计器与读的人都按真文件读它——那不是指针，是同一形状的巧合。
     '折行的动态 import 该被抓住，且行号得指向 import( 那一行',
   );
 });

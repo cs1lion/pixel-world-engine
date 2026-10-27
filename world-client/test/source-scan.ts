@@ -93,7 +93,7 @@ export function codeLines(path: URL | string): string {
  * 而测试照绿。差别只在返回值，于是同一件事有两种写法。
  *
  * 这一份与 `walk` 同形（绝对路径），因为调用方几乎总要自己算相对路径来写报错
- * 信息——`purity.test.ts:235` 那一行 `.split(path.sep).join('/')` 就是干这个的。
+ * 信息——`purity.test.ts` 里那一行 `.split(path.sep).join('/')` 就是干这个的。
  * 已存在的两份没有改动：它们正在跑，而改它们要动别人在飞的工作。
  * 新写的扫描用这一份，别再抄第三遍。
  */
