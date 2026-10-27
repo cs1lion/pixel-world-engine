@@ -7,7 +7,7 @@
 服务端内部调用 `EventLog.append`，不经过网络。
 
 **2026-10-28 补记：这个「将来」已经到了，而且挂在同一个 `create_app` 里。**
-下面第 94-95 行，`app.include_router(router)` 之后紧挨着
+下面第 100-101 行，`app.include_router(router)` 之后紧挨着
 `app.include_router(world_changes_router)`——`POST /api/world/changes`
 正是这里描述的那种「带校验和身份的命令端点」：它校验完再调 `EventLog.append`，
 回 201。`events/world_changes.py` 的 docstring 把它称作「只开这一个口子」。

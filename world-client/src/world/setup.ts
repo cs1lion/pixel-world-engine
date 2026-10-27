@@ -723,8 +723,8 @@ export function assertWorldInvariants(
 //
 // `LARGE_WORLD_SPEC` 上头那句「`9fa55ca` 改了六处」**读起来像穷举，其实不是**。
 // 在 `9fa55ca^` 上 `git grep -n '80×60' -- world-client` 数出来是**七处**：
-//   `main.ts` / `biomes.ts` / `fog.ts` / `grid.ts` / `setup.ts`（两处：本注释与
-//   `LARGE_WORLD_SPEC` 上头那行）/ **`scripts/check-persistence.mjs`**。
+//   `main.ts` / `biomes.ts` / `fog.ts` / `grid.ts` / `setup.ts`（两处：
+//   `LARGE_WORLD_SPEC` 的 doc 与 `buildLargeWorld` 的 doc）/ **`scripts/check-persistence.mjs`**。
 // 那一笔改了前六处，漏了第七处。而漏的那处是**唯一一处写着「存档体积上限」的地方**，
 // 读它的人正是要判断「存档会不会太大」的人——它比 `src/` 里任何一处都更该改对。
 //
