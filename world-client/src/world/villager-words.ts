@@ -17,13 +17,21 @@ import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
  *
  * 这里曾经（`report.ts` 与状态行两处）是「在祭坛边坐着」/「在祭坛边闲逛」。
  * 那句话假不假看她这会儿在不在祭坛：走作息时她在农田边、街口、屋檐下，
- * 而那时她**有**牌子，说的就是牌子——假的形状是另一条路：撤单
- * （`abandonActiveTask`）把 `routineLabel` 清成 null，同时按
- * `restoreOutOfBuilding` 把她挪到铺子门口。人在门口、没牌子，接下去
- * 1800 拍（`nextRoutineAt = now + 1800`）里说她在祭坛，就是替世界编一个
- * 它没说过的去处。
+ * 而那时她**有**牌子，说的就是牌子——假的形状是另一条路：清牌子。
  *
- * 所以退路只有一个判据：`atAltar`。人在祭坛格上才说祭坛，不在就说这句。
+ * 清牌子而人不在祭坛的路口有四条（`simulation.ts` 里 `routineLabel = null`
+ * 一共 6 处，其中让人回到 idle 的是这四条，由 `test/labelless-idle.test.ts`
+ * 各驱一次）：
+ *
+ *   - `abandonActiveTask`（上游撤单）与 `removeTask`（读档对账删单）都按
+ *     `restoreOutOfBuilding` 把她挪到铺子门口；
+ *   - `finishInPlace`（quick 原地办完）**一步都不挪人**——她站在接到活那一刻
+ *     的位置，那一格哪儿都可能；
+ *   - `arriveAtAltar` 她人就在祭坛，退路恰好是真的。
+ *
+ * 所以「只有撤单那条路」是假的——原话这么写，读的人会以为另外三条不必防。
+ *
+ * 退路本身仍然只有一个判据：`atAltar`。人在祭坛格上才说祭坛，不在就说这句。
  */
 export const NOT_SOMEWHERE = '这会儿没个准地方';
 

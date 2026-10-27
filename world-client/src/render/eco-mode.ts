@@ -11,7 +11,7 @@ import type { GridPoint } from '../world/types.ts';
 
 /** 前台帧率。像素动画不需要更高。 */
 export const FOREGROUND_FPS = 60;
-/** 后台帧率。像素动画本来就是低帧率风格，15 帧在余光里仍然流畅。 */
+/** 后台帧率。像素动画本来就是低帧率风格，12 帧在余光里仍然流畅。 */
 export const BACKGROUND_FPS = 12;
 
 /** 视野边缘的余量（世界像素）：刚出界一点点的对象不该立刻停动画。 */

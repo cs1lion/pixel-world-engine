@@ -72,6 +72,8 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // 干活时这两个顺序会分叉：先派下去的长活后交、后派下去的短活先交。照数组末尾
     // 取，报纸就把**先**交的那单叫「最近」——一句话说着当下，指的却是过去。
     // 实测：长活 8500 交付、短活 3800 交付，纸上写「最近一单：短活」。
+    // 那两个数由 `test/surface.test.ts` 的「最近一单」那条按同一个夹具钉住
+    // （长活 created 100 / completed 8500，短活 created 2600 / completed 3800）。
     //
     // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
     // `completedAt` 是落成那一刻。三个收尾处写的都是 `this.now`——
@@ -259,14 +261,14 @@ export function formatWorldClock(nowMs: number): string {
  *
  * `routine` 也**不是**从第 0 拍起就有：起手有一段空窗，长度是
  * `nextRoutineAt: 1200 + index * 1400` 那个错峰——第一个村民 1200 拍、
- * 第二个 2600 拍，合上之后每一拍都有牌子（实测跑 16000 拍：莞尔 14801 拍
- * 有、阿雾 13401 拍有；两个数不一样长，所以报不出一个合并的「多少拍」）。
- * 由 `test/routine-warmup.test.ts` 按这个式子和这两个数核。
+ * 第二个 2600 拍，合上之后每一拍都有牌子（实测跑 16000 次 update、收 16001
+ * 个快照：莞尔 14801 拍有、阿雾 13401 拍有；两个数不一样长，所以报不出一个
+ * 合并的「多少拍」）。由 `test/routine-warmup.test.ts` 按这个式子和这两个数核。
  *
- * 空窗里她还在祭坛上，所以那会儿退回去说祭坛是真的。会假的是另一条路：
- * 撤单（`abandonActiveTask`）把 `routineLabel` 清成 null，同时按
- * `restoreOutOfBuilding` 把她挪到铺子门口——人在门口、没牌子，那 1800 拍里
- * 说她在祭坛才是编的。所以退路只在 `atAltar` 为真时走。
+ * 空窗里她还在祭坛上，所以那会儿退回去说祭坛是真的。会假的是清牌子而人不在
+ * 祭坛：四条路口（`abandonActiveTask`、`removeTask`、`finishInPlace`、
+ * `arriveAtAltar`）里有三条把她留在祭坛外，见 `villager-words.ts` 那段与
+ * `test/labelless-idle.test.ts`。所以退路只在 `atAltar` 为真时走。
  */
 function villagerTail(snapshot: WorldSnapshot): string {
   const states = snapshot.villagers.map((villager) => ({

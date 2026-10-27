@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GRIME_SPECK_COUNT, grimeSpecks } from '../src/render/prop-grime.ts';
+import { GRIME_SPECK_COUNT, SPECK_BOX, grimeSpecks } from '../src/render/prop-grime.ts';
 
 /**
  * 摆件泥点的几何（SPEC_V2 §4.6 的渲染半边，§5 的第二道接缝）。
@@ -8,18 +8,20 @@ import { GRIME_SPECK_COUNT, grimeSpecks } from '../src/render/prop-grime.ts';
  * 世界那半在 `grime.test.ts` / `grime-command.test.ts`。这里只问一件事：
  * **泥点画在哪儿、动不动。** 浓淡（`grime` → alpha）归 `decor.ts`，
  * 因为它得和「洗干净」的知觉下限（`GRIME_CLEAN`）对上。
+ *
+ * 方框从 `prop-grime.ts`  import 过来，不在这儿重抄一份：抄一份就成了两处真相，
+ * 而「方框跟剪影什么关系」这件事昨天刚因为只有一处真相（注释里那句说反了的话）
+ * 反了很久。关系本身由 `prop-silhouette.test.ts` 量剪影、钉方框。
  */
 
-/** 三个 draw 函数的实测剪影：y∈[-23,2]、x∈[-9,8]，各向外放一格。 */
-const BOX = { left: -9, right: 8, top: -25, bottom: 3 };
-
-test('泥点铺在三种摆件的剪影里：没有一粒落在画面外', () => {
-  // 灯、树、幡都画在这一竖条里（`decor.ts` 三个 draw 的实测范围）。
-  // 泥点跑到剪影外头就是「地上有灰」而不是「东西脏了」——读法完全不同。
+test('泥点铺在方框里：没有一粒跑到摆件外头', () => {
+  // 灯、树、幡的剪影合起来是 x∈[-13,10]、y∈[-31,3]（`prop-silhouette.test.ts`
+  // 量），方框整个在里头。泥点跑到剪影外头就是「地上有灰」而不是「东西脏了」——
+  // 读法完全不同。
   const specks = grimeSpecks(12345);
   for (const speck of specks) {
-    assert.ok(speck.x >= BOX.left && speck.x <= BOX.right, `x=${speck.x} 出了竖条`);
-    assert.ok(speck.y >= BOX.top && speck.y <= BOX.bottom, `y=${speck.y} 出了竖条`);
+    assert.ok(speck.x >= SPECK_BOX.left && speck.x <= SPECK_BOX.right, `x=${speck.x} 出了方框`);
+    assert.ok(speck.y >= SPECK_BOX.top && speck.y <= SPECK_BOX.bottom, `y=${speck.y} 出了方框`);
     assert.ok(speck.size === 1 || speck.size === 2, `size=${speck.size} 只能是尘或泥块`);
   }
 });

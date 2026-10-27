@@ -252,10 +252,10 @@ test('日报收尾写清谁在忙、谁在做什么——不把闲人一律说�
 test('闲人不在祭坛时，收尾照她本当在做的事说，不按祭坛说', () => {
   // 旧写法是 `idleNames.join('、') + '都在祭坛边坐着'`，一个坐标都不查。
   // 她走作息时在农田边、街口、屋檐下，那时她有牌子，说的就是牌子；
-  // 没牌子又不在祭坛只有撤单那条路（`abandonActiveTask` 把她挪到铺子门口，
-  // 清空 `routineLabel`，之后 1800 拍才再挂）。`routine` 也不是从第 0 拍
-  // 就有：起手有一段 `1200 + index * 1400` 的空窗，由
-  // `test/routine-warmup.test.ts` 核。
+  // 没牌子又不在祭坛有四条路口（`abandonActiveTask` / `removeTask` /
+  // `finishInPlace` / `arriveAtAltar`，由 `test/labelless-idle.test.ts` 各驱一次），
+  // 不是原来写的「只有撤单那条路」。`routine` 也不是从第 0 拍就有：起手有一段
+  // `1200 + index * 1400` 的空窗，由 `test/routine-warmup.test.ts` 核。
   const sim = makeSim();
   // 跑到「有人空着、有牌子、且人不在祭坛格上」那一拍再问。起手那一拍两人都在祭坛，
   // 而刚挂上牌子时人也才起身——不到时候问，问到的还是祭坛。
@@ -549,7 +549,7 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
 });
 
 test('「最近一单」数的是最晚交付的，不是数组末尾那一单', () => {
-  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1285、:1867，全程不排序），
+  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1473、:2058，全程不排序），
   // `done` 过滤一遍还是那个顺序。两个人同时干活时创建顺序和交付顺序会分叉：
   // 先派下去的长活后交，后派下去的短活先交。照数组末尾取，报纸就把**先**交的
   // 那单叫「最近」——一句话说着当下，指的却是过去。
@@ -591,6 +591,14 @@ test('「最近一单」数的是最晚交付的，不是数组末尾那一单',
     lastDelivered?.summary,
     '夹具没造出分叉：创建顺序和交付顺序一样，这条测试就没在问它想问的',
   );
+  // 四个时刻戳按这个夹具钉住：`report.ts` 那段注释引的就是它们（「长活 8500
+  // 交付、短活 3800 交付」）。不钉的话，那句话又是一处按不出来的数。
+  const long = done.find((task) => task.kind === 'code');
+  const short = done.find((task) => task.kind === 'quick');
+  assert.equal(long?.createdAt, 100, '长活该在开局那一帧派下去');
+  assert.equal(long?.completedAt, 8500, `长活该 8500 交付，实得 ${long?.completedAt}`);
+  assert.equal(short?.createdAt, 2600, `短活该等长活开工后才派下去，实得 ${short?.createdAt}`);
+  assert.equal(short?.completedAt, 3800, `短活该 3800 交付，实得 ${short?.completedAt}`);
 
   const line = composeReport(snapshot).lines.find((item) => item.includes('最近一单')) ?? '';
   assert.ok(

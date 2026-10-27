@@ -808,8 +808,8 @@ try {
 
   // L471-479：下雨 / 躲雨 / 放晴
   // S-L474 不能拿「天气刚变」那个快照直接断言：`umbrella` 是
-  // `isRaining()`（`simulation.ts:2181`）与「不是 working」的与（`simulation.ts:2444`），天气一变立刻为真；
-  // 而 mode 切到 'sheltering' 依赖 `scatterToShelter()`（`simulation.ts:1832`）在同一拍把
+  // `isRaining()`（`simulation.ts:2185`）与「不是 working」的与（`simulation.ts:2474`），天气一变立刻为真；
+  // 而 mode 切到 'sheltering' 依赖 `scatterToShelter()`（`simulation.ts:1836`）在同一拍把
   // 空闲角色改主意。两条断言的稳定时机不同，挤在同一个快照上就会偶发假失败
   // （实测挂过一次、重跑即过）。改成等状态成立，而不是等天气成立。
   await page.click('#rain');

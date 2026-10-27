@@ -102,7 +102,7 @@ test('每种活 1–2 栋：0 栋与 3 栋都记 problem', () => {
   // validateCoverage 自己有这条（matches.length < 1 || matches.length > 2），
   // assertWorldInvariants 的那条（count < 1 || count > 2）是两份独立实现、
   // 各带各的消息——测一边护不住另一边。
-  // 引表达式不引行号：这两处原来写 `blueprints.ts:101-110` / `setup.ts:637-638`，
+  // 引表达式不引行号：这两处原来写着 `blueprints.ts` 与 `setup.ts` 各一处行号，
   // 改过一次注释后就都指错了地方，而 audit-references 一声不响（它不查语义）。
   const under = validateCoverage(parseBlueprintTable({ code_forge: raw.code_forge }));
   assert.ok(

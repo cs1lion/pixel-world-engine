@@ -38,7 +38,7 @@ export interface ZoneRegion {
 export interface GridSpec {
   readonly width: number;
   readonly height: number;
-  /** 分区矩形；未覆盖到的格子落 street。 */
+  /** 分区矩形；未覆盖到的格子落 `ZONE_DEFAULT`（草地 living）。 */
   readonly zones: readonly ZoneRegion[];
   /** 四周这几圈是不可通行的树篱。 */
   readonly border: number;

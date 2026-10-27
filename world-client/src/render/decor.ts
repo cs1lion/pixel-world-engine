@@ -249,7 +249,7 @@ function applyGrime(noise: Phaser.GameObjects.Graphics, grime: number): void {
 }
 
 /** 摆件上的来源记号。`null` 表示老档摆件，不加记号。 */
-type PropAccent = 'gear' | 'book' | 'inkstone' | null;
+export type PropAccent = 'gear' | 'book' | 'inkstone' | null;
 
 function accentFor(kind: TaskKind | null): PropAccent {
   if (kind === 'code') return 'gear';
@@ -311,7 +311,7 @@ function propHash(id: string): number {
 }
 
 /** 路灯：柱 + 灯笼 + 1px 硬光池。不用 fillCircle，避免矢量圆和像素块混用。 */
-function drawLamp(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
+export function drawLamp(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
   // 接触阴影：两级实心块，读成“灯柱踩在地上”。
   g.fillStyle(WORLD.deepShade, 0.28);
   g.fillRect(-4, -1, 9, 2);
@@ -369,7 +369,7 @@ function drawLamp(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAcce
 }
 
 /** 树：树干 + 3–5 个树冠团块 + 根部阴影。树冠用实心像素块，不用圆。 */
-function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
+export function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
   const size = seed % 3; // 小 / 中 / 大
   const trunkH = 8 + size * 2;
   const cw = 13 + size * 3;
@@ -430,7 +430,7 @@ function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAcce
 }
 
 /** 旗帜：木杆 + 布面 + 顶部亮边；布面有一个像素缺口，读成被风吹起。 */
-function drawBanner(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
+export function drawBanner(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
   g.fillStyle(WORLD.ink, 0.2);
   g.fillRect(-3, -1, 8, 2);
   g.fillStyle(WORLD.ink, 1);
