@@ -113,7 +113,9 @@ const MIRACLES: readonly MiracleKind[] = ['light', 'tree', 'cat'];
  *
  * 导出来是为了一份守卫：`test/intent-contract.test.ts` 拿它跟服务端
  * `wire.py` 的 `ALLOWED_KEYS` 逐条比。两边各写一遍，「加一种意图时只改一边」
- * 就是用户看得见的漂——客户端放过的字段，服务端 502。
+ * 就是用户看得见的漂——客户端放过的字段，服务端拒（`ok: false` → unknown）。
+ * （2026-10-28：这里原来写「服务端 502」。没有 502，见 `intent-client.ts`
+ * 同一处的更正；而且拒的方式也不是错误码，是 200 + unknown。）
  */
 export const ALLOWED_KEYS: Readonly<Record<IntentKind, readonly string[]>> = {
   dispatch: ['kind', 'taskKind', 'summary'],

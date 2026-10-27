@@ -84,7 +84,10 @@ export function createIntentClient(
         }
 
         if (!response.ok) {
-          // 服务端把原因放在 detail 里（503 无 Key / 502 模型失败 / 422 参数错）。
+          // 服务端把原因放在 detail 里（503 无 Key / 422 参数错）。
+          // 2026-10-28：这一行原来还列着一个「502 模型失败」。服务端没有 502——
+          // `server/oracle/api.py` 冻结的失败面是 503 / 422 / 200+unknown 三行，
+          // 模型失败走 `ok: false` 落 200，原因在 intent.reason 里，不进 detail。
           const detail = await readDetail(response);
           throw new IntentClientError(detail, response.status);
         }

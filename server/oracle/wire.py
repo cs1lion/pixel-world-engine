@@ -68,7 +68,15 @@ MIRACLES = ("light", "tree", "cat")
 
 
 class WireError(ValueError):
-    """模型的回复不是一份合法意图。端点把它转成 502：模型没能给出可用的答案。"""
+    """模型的回复不是一份合法意图。
+
+    2026-10-28 补记：这句原来写「端点把它转成 502」。**服务端没有 502。**
+    `oracle/api.py` 冻结的失败面是三行——503（没配 Key）/ 422（请求形状不对）/
+    200 + unknown（模型没听懂或给的命令越界）。`WireError` 由 `interpret()`
+    接住后走 `_failure(...)` → `ok: false` → `_envelope` → **HTTP 200 + unknown**，
+    原因写在 `reason` 里。把不存在的状态码写在一个异常类上，下一个照它写代码的
+    人会去返回一个端点永远不返回的东西。
+    """
 
 
 def to_command(intent: dict[str, Any], world: dict[str, Any] | None = None) -> Command | None:

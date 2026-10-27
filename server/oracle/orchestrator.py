@@ -38,7 +38,14 @@ class ModelUnavailable(RuntimeError):
 
 
 class ModelFailed(RuntimeError):
-    """模型调用失败（超时、网络、HTTP 错）。端点转成 502。"""
+    """模型调用失败（超时、网络、HTTP 错）。
+
+    2026-10-28 补记：这句原来写「端点转成 502」。**没有 502。**
+    `interpret()` 捕它之后 `return _failure("model-failed", str(exc))`，
+    `ok=False`，于是 `api.py:_envelope` 落 **HTTP 200 + unknown**。
+    同一个类里 `ModelUnavailable` 才是被重新抛出去的那个，转 503。
+    真正回到调用方面前的失败面见 `oracle/api.py` 顶部那张三行表。
+    """
 
 
 class ModelCaller(Protocol):

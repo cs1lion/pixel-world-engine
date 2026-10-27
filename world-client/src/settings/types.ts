@@ -98,8 +98,13 @@ export interface SettingPack {
    * 的循环里。
    *
    * **莞尔镇一道地域都没声明**（`regions: []`），所以这一层没有它的份。它的
-   * 四个分区只定得出主色（分区 → `terrainFor` → `TERRAIN_COLORS` 一条链），
+   * 每个分区都定得出主色（分区 → `terrainFor` → `TERRAIN_COLORS` 一条链），
    * 点缀与禁用在现有画面上**没有对应物**——宁可不填，也不编两个数凑满三个槽。
+   * （2026-10-28：这里原来写「四个分区」。`ZoneId` 是**六个**值
+   * `street` / `altar` / `industry` / `scholarly` / `agriculture` / `living`，
+   * 而 `terrainFor` 六个都返回一种地形，于是六个都有一条主色。同一个错在
+   * `docs/SPEC_V2.md` §4.1 已经记过（2026-10-28 补记），这里是它在代码里的
+   * 第二处，`test/settings-region-colors.test.ts` 还有第三处——都改成不写数。）
    */
   readonly regions: readonly {
     readonly id: string;
