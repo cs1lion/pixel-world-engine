@@ -25,14 +25,27 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { TERRAIN_COLORS, WORLD } from '../src/world/palette-data.ts';
 import { BRIGHT, DARK } from '../src/render/terrain-edges.ts';
-import { loadSettingPack } from '../src/settings/load.ts';
+import { loadSettingPack, buildSettingWorld } from '../src/settings/load.ts';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
+import { parseBlueprintTable } from '../src/world/blueprints.ts';
+import { buildLargeWorld } from '../src/world/setup.ts';
 import type { TerrainId } from '../src/world/types.ts';
 import type { WorldPalette } from '../src/world/theme.ts';
 
 const PACK = loadSettingPack(DENGCHAO_RAW);
+
+const blueprints = parseBlueprintTable(
+  JSON.parse(
+    readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
+  ) as Record<string, Record<string, unknown>>,
+);
+
+/** 两座真的世界，为的是能数格子——`KNOWN_SAME` 那句 `why` 得有事可核。 */
+const waner = { grid: buildLargeWorld(blueprints).grid };
+const dengchao = { grid: buildSettingWorld(PACK).grid };
 
 /** 两套已交付的色板，各带自己的地形底色表。 */
 const PALETTES: readonly (readonly [string, WorldPalette, Readonly<Record<TerrainId, number>>])[] = [
@@ -199,6 +212,40 @@ test('撞底色的边的集合必须与 KNOWN_SAME 一模一样', () => {
     gone,
     [],
     `这些隐形边已经不撞底色了，KNOWN_SAME 里的记录过期了，删掉对应行：${gone.join('、')}`,
+  );
+});
+
+/**
+ * `KNOWN_SAME` 那句 `why` 的依据，得是能核的。
+ *
+ * 那一行写着「莞尔镇一张 shallow 格都没有，所以肉眼从没看见过；灯潮界有浅滩」。
+ * 这是**全部依据**：它解释了为什么一处 dL*=0 的隐形边能一直躺着没人发现。
+ * 可它是散文——上面那条集合比对只量「边的颜色」，不量「世界上有没有这种格」。
+ * 于是将来有人往莞尔镇加一片浅滩，`why` 变成了假话，而全套照样绿。
+ *
+ * 「说谎比不去更糟」对注释一样成立。所以把这句话的两半各钉一根桩：莞尔镇确实
+ * 没有，灯潮界确实有。任一半塌了都会红，逼着改注释——而改注释的时候就会
+ * 重新看见那处 dL*=0。
+ */
+test('登记理由的依据：莞尔镇没有浅滩，灯潮界有', () => {
+  const count = (grid: { width: number; height: number; at: (p: { x: number; y: number }) => { terrain: TerrainId } | undefined }, terrain: TerrainId): number => {
+    let n = 0;
+    for (let y = 0; y < grid.height; y += 1) {
+      for (let x = 0; x < grid.width; x += 1) {
+        if (grid.at({ x, y })?.terrain === terrain) n += 1;
+      }
+    }
+    return n;
+  };
+
+  assert.equal(
+    count(waner.grid, 'shallow'),
+    0,
+    '莞尔镇有浅滩了——KNOWN_SAME 那句「肉眼从没看见过」就是假话，回去改注释',
+  );
+  assert.ok(
+    count(dengchao.grid, 'shallow') > 0,
+    '灯潮界没有浅滩了——那句「灯潮界有浅滩，靠的是那份包把底色改成 copper」也是假话',
   );
 });
 
