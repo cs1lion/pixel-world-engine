@@ -4,6 +4,7 @@
  * 面板不改变仿真：所有数据都来自快照 / 只读事件 / 只读存档元信息。
  */
 
+import type { AgentToWorld } from '../world/bridge.ts';
 import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
 import { summarizeWorld } from '../world/world-state.ts';
 
@@ -181,6 +182,26 @@ export interface DebugPanelSources {
   }) => { readonly ok: boolean; readonly message: string };
   /** 注入一条上游事件，验证「事件流 → 世界」这条链路通着。 */
   readonly pushEvent?: (event: { kind: string; payload: Record<string, unknown> }) => void;
+}
+
+/**
+ * 场景挂在 `window.Oracle` 上的那一面里，调试面板要用的那几样。
+ *
+ * 它原来声明在 `main.ts` 里——而 `main.ts` 是接线的地方，不是契约待的地方。更麻
+ * 烦的是**它在生产侧没有对手**：场景那头是 `as unknown as { Oracle: typeof api }`，
+ * 消费侧（`main.ts`）另写一次 `as unknown as { Oracle?: DebugOracle }`，两次断言
+ * 中间没有任何东西核对。场景少挂一样，这边照样"类型安全"，运行时才炸。
+ *
+ * 所以搬到这里，并由场景在挂载时赋一次值——见 `SandboxScene.registerOracleApi()`
+ * 里那三行 `const xxx: Xxx = api`。`OracleApi` 那一处已经这么接了（`6ac7a6b`），
+ * 这两处是同一个洞，一起堵上。
+ */
+export interface DebugOracle {
+  view(): WorldSnapshot;
+  events(limit: number): readonly WorldEvent[];
+  saveStatus(): SaveStatusView;
+  feed(message: AgentToWorld): { ok: boolean; message: string };
+  pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
 }
 
 export interface DebugPanelHandle {

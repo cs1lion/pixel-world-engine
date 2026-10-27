@@ -12,12 +12,15 @@ import { SandboxScene } from './scenes/SandboxScene.ts';
 import { bindOraclePanel, type OracleApi } from './ui/oracle-panel.ts';
 import { bindHud } from './ui/hud.ts';
 import { bindShell } from './ui/shell.ts';
-import { bindDebugPanel, type SaveStatusView } from './ui/debug-panel.ts';
+import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
 import { bindChronicle } from './ui/chronicle-panel.ts';
 import { createMemoryClient } from './world/memory-client.ts';
-import { SaveStore, exportFileName, IMPORT_MAX_BYTES } from './ui/save-store.ts';
-import type { AgentToWorld } from './world/bridge.ts';
-import type { WorldEvent, WorldSnapshot } from './world/types.ts';
+import {
+  SaveStore,
+  exportFileName,
+  IMPORT_MAX_BYTES,
+  type SaveOracle,
+} from './ui/save-store.ts';
 import type { WorldSave } from './world/save.ts';
 import type { BuiltWorld } from './world/setup.ts';
 import type { SettingPack } from './settings/types.ts';
@@ -147,13 +150,8 @@ bindHud(() => (window as unknown as { Oracle?: OracleApi }).Oracle);
 bindShell();
 
 // 上帝调试面板：只读浮层，数据来自 Oracle 只读接口（不改变仿真）。
-interface DebugOracle {
-  view(): WorldSnapshot;
-  events(limit: number): readonly WorldEvent[];
-  saveStatus(): SaveStatusView;
-  feed(message: AgentToWorld): { ok: boolean; message: string };
-  pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
-}
+// `DebugOracle` 住在 `ui/debug-panel.ts` 里，与它要的那几样放在一起——契约不放
+// 在接线处。场景在挂载时会赋一次值核对它（见 `registerOracleApi`）。
 const debugOracle = (): DebugOracle | undefined =>
   (window as unknown as { Oracle?: DebugOracle }).Oracle;
 bindDebugPanel({
@@ -170,9 +168,7 @@ bindChronicle({ client: createMemoryClient() });
 
 // task-22：存档手动导出/导入。导出 = 单槽原文（就是 toSave() 的 v1 JSON，不二次加工）；
 // 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与上游对账。
-interface SaveOracle {
-  saveNow(): { readonly ok: boolean; readonly message: string };
-}
+// `SaveOracle` 同 `DebugOracle`：住在 `ui/save-store.ts`，由场景挂载时核对。
 const saveOracle = (): SaveOracle | undefined =>
   (window as unknown as { Oracle?: SaveOracle }).Oracle;
 

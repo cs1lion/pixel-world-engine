@@ -25,6 +25,17 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
+/**
+ * 存档导入/导出要的场景那一面：立刻写一次单槽。
+ *
+ * 它原来声明在 `main.ts` 里，和 `DebugOracle` 一样只在消费侧有形状、生产侧没人
+ * 核对。搬来这里，由场景挂载时赋一次值（`registerOracleApi` 里那几行
+ * `const xxx: Xxx = api`）。
+ */
+export interface SaveOracle {
+  saveNow(): { readonly ok: boolean; readonly message: string };
+}
+
 export type SaveReadResult =
   | { readonly ok: true; readonly save: WorldSave }
   | {

@@ -14,6 +14,18 @@ import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
+import type { DebugOracle } from '../ui/debug-panel.ts';
+import type { SaveOracle } from '../ui/save-store.ts';
+
+/**
+ * 场景挂在 `window.Oracle` 上的那一面，三边消费者各要一个子集。
+ *
+ * 神谕面板要 `OracleApi`，调试面板要 `DebugOracle`，存档导入导出要 `SaveOracle`。
+ * 三个子集没有一个是全的，所以挂载时按交集核一遍——见 `registerOracleApi()` 末尾。
+ * 这三个接口原先都只有消费侧一份声明，生产侧是推断，两边各写一次 `as unknown as`，
+ * 中间没人对账。
+ */
+type OracleSurfaces = OracleApi & DebugOracle & SaveOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -1355,11 +1367,11 @@ export class SandboxScene extends Phaser.Scene {
     // 满意。`ReportApi` 的 `date` → `clock` 就是这么漏的：手抄的形状漂了，
     // 而漂的时候一个人都没红。
     //
-    // 赋值给一个标了 `OracleApi` 的变量，缺口与类型不符当场就报；`api` 比
-    // `OracleApi` 多的那些字段（`hoverCell`、`camera`、`pushEvent`、`events`、
-    // `saveStatus`……调试面板在用）不受影响——多给不是错。
-    const oracle: OracleApi = api;
-    (window as unknown as { Oracle: OracleApi }).Oracle = oracle;
+    // 三边（神谕面板 / 调试面板 / 存档导入导出）各要一个子集，而这三个子集没有
+    // 一个是全的——所以取交集一次核完，缺哪边哪边报。`api` 比交集多的那些字段
+    // （`hoverCell`、`camera`、`pushEvent`、`events`……）不受影响：多给不是错。
+    const oracle: OracleSurfaces = api;
+    (window as unknown as { Oracle: OracleSurfaces }).Oracle = oracle;
   }
 
   // ----------------------------------------------------------------- render
