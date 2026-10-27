@@ -354,10 +354,14 @@ export function auditReferences({ root = ROOT }: { root?: string } = {}): Refere
         checked += 1;
         const where = `${path.relative(root, file)}:${at + 1}`;
         const landed = land(m[2], m[3], m[4], file, root, index);
-        if (!landed.ok) {
-          findings.push({ where, ref: m[2], why: landed.why });
-          continue;
-        }
+        // 指不到就到此为止，**不在这里再报一次**。
+        //
+        // `REF` 不要求坐标前面有名字，所以它认得的坐标集合永远包含这一处——
+        // 越界、文件不存在这两种早就由前四样报过了，`where` 与 `why` 一字不差。
+        // 留着 push 的那一版实测出来是每条错在报告里出现两遍（同一行、同一句），
+        // 读报告的人以为有两处。所以这里只 `continue`：拦住名字那一段别拿一份
+        // 落不了地的坐标去查。
+        if (!landed.ok) continue;
         // 允许偏几行：引用指的常是函数上面那段注释，而注释里不一定再写一遍名字。
         const lo = Math.max(0, landed.from - 1 - CALL_REF_SLACK);
         const hi = Math.min(landed.lines.length, landed.to + CALL_REF_SLACK);

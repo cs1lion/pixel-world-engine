@@ -237,6 +237,39 @@ test('写着「这东西在那儿」的引用，那儿得有那样东西', () =>
   }
 });
 
+test('带着名字的引用指到文件外、指到不存在的文件：报一遍，不是两遍', () => {
+  // 一次真事的回归。第五样那段原来自己也 push 一份，可 `REF` 不要求坐标前面
+  // 有名字——越界、文件不存在这两种它早就报过了，`where` 与 `why` 一字不差。
+  // 实测同一条错在报告里出现两遍（同一行、同一句），读的人以为有两处。
+  // 这一条钉「只报一次」：既是别重复，也是前四样那两样确实还在此处生效。
+  const root = fixture();
+  try {
+    doc(
+      root,
+      [
+        `越界：two()（${ref('a.ts', 99)}）。`,
+        `不存在：two()（${ref('nope.ts', 3)}）。`,
+        '',
+      ].join('\n'),
+    );
+    const { findings } = auditReferences({ root });
+    assert.match(WHY_OF(findings, 1), /越界/, '带着名字也拦得住行号越界');
+    assert.match(WHY_OF(findings, 2), /找不到这个文件/, '带着名字也拦得住文件不存在');
+    assert.equal(
+      findings.filter((f) => f.where.endsWith(':1')).length,
+      1,
+      '同一处错只报一次，别让读报告的人以为有两处',
+    );
+    assert.equal(
+      findings.filter((f) => f.where.endsWith(':2')).length,
+      1,
+      '不存在的文件同理',
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('顺带提一句名字不算报位置：坐标说的多半是另一件事', () => {
   // 反方向也得钉。ADR 里「每个模板都过同一个 prefab() 助手、boundTask 硬编码
   // null（pack.ts:14）」这种句子，prefab() 是顺带提的，坐标说的是 boundTask。
