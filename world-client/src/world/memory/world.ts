@@ -65,7 +65,17 @@ import type {
   WorldFact,
   WorldVitals,
 } from './types.ts';
-import { checkConflict, credibilityOf, penalize, planVerify, verifyAt, type CredibilityScores, type VerifyPlan } from './verify.ts';
+import {
+  asListenerBelief,
+  beliefFrom,
+  checkConflict,
+  credibilityOf,
+  penalize,
+  planVerify,
+  verifyAt,
+  type CredibilityScores,
+  type VerifyPlan,
+} from './verify.ts';
 import { computeVitals, type TellRecord } from './vitals.ts';
 
 /** 交进来的一条事件：世界侧已经知道谁在场，或由这里按感知模型算。 */
@@ -1005,16 +1015,10 @@ export class MemoryWorld {
     state: Belief['state'],
     at: number,
   ): Belief {
-    const belief: Belief = {
-      holderId,
-      claimId: claim.claimId,
-      eventRefs: claim.eventRefs,
-      confidence: claim.confidence,
-      learnedDay: Math.floor(at / this.config.dayMs),
-      sourceHolderId,
-      hop: claim.hop,
-      state,
-    };
+    // 形状由 `beliefFrom` 定，不在这儿另写一遍。它的注释说「存疑信念与采信
+    // 的区别只在 state 与日程上，形状是同一个」——那句话只有真的共用同一个
+    // 构造器才作数；两边各写一份字面量的话，「同一个形状」只是个愿望。
+    const belief = beliefFrom(holderId, claim, sourceHolderId, Math.floor(at / this.config.dayMs), state);
     this.beliefs = [...this.beliefs.filter((item) => !(item.holderId === holderId && item.claimId === claim.claimId)), belief];
     this.emit('belief.updated', at, { holderId, claimId: claim.claimId, state });
     return belief;
@@ -1253,15 +1257,13 @@ export class MemoryWorld {
   private beliefViews(): ReadonlyMap<string, readonly ListenerBelief[]> {
     const map = new Map<string, ListenerBelief[]>();
     for (const belief of this.beliefs) {
-      const claim = this.claims.get(belief.claimId);
-      if (claim === undefined) continue;
+      // 走 `asListenerBelief`，不在这儿另写一遍字面量。那个函数早就写好了，
+      // 注释也说它是给 `judge` 用的——而这里手抄了一份。两份抄在同一处文件里
+      // 意味着改一处忘一处：哪天 `judge` 多看一个字段，传播会静默地不喂它。
+      const view = asListenerBelief(belief, this.claims.get(belief.claimId));
+      if (view === null) continue;
       const list = map.get(belief.holderId) ?? [];
-      list.push({
-        eventRefs: belief.eventRefs,
-        valence: claim.content.valence,
-        confidence: belief.confidence,
-        sourceMode: 'heard',
-      });
+      list.push(view);
       map.set(belief.holderId, list);
     }
     return map;

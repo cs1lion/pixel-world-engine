@@ -7,7 +7,7 @@ import { seedOf, rollBelow } from '../src/world/memory/seed.ts';
 import { consequenceOf, inferenceOf, exposedTraces, makeTrace, fitTraceLayers } from '../src/world/memory/traces.ts';
 import { createClaim, retell, canSpread, canTell, judge, verifyImpulse } from '../src/world/memory/propagate.ts';
 import { checkConflict, verifyAt } from '../src/world/memory/verify.ts';
-import { compile } from '../src/world/memory/sanitize.ts';
+import { compile, claimContentFor, FORBIDDEN_TOKENS } from '../src/world/memory/sanitize.ts';
 import { recall, isSubsetFacts } from '../src/world/memory/recall.ts';
 import { consolidateHolder } from '../src/world/memory/consolidate.ts';
 import { deleteCascade } from '../src/world/memory/privacy.ts';
@@ -567,6 +567,38 @@ test('脱敏：上游文件名进不了世界事件', () => {
   for (const token of ['filename', 'repo', 'token', '.ts']) {
     assert.ok(!text.includes(token), `编译产物里不该有 ${token}`);
   }
+});
+
+test('脱敏：整张编译表与先验句里没有一个危险词', () => {
+  // 用**声明的那份清单**扫，不手写几个词。
+  //
+  // `FORBIDDEN_TOKENS` 的注释写着「测试拿它扫 `claimContentFor` 与
+  // `COMPILE_TABLE` 的产物，确认没有一处泄露」——而那件事从来没有发生过：
+  // 上面那条测试手写了 `['filename','repo','token','.ts']`，与这份清单
+  // 各管各的。于是往清单里加一个词，测试不知道；清单就成了一纸空文，
+  // 而它是这份接口唯一一份「什么不许出去」的名单。
+  const topologies = ['retrieve', 'execute', 'awaiting_human', 'human_approved', 'human_rejected'] as const;
+  const statuses = ['ok', 'retrying', 'blocked'] as const;
+  const difficulties = ['easy', 'normal', 'hard'] as const;
+  const leaks: string[] = [];
+  for (const topology of topologies) {
+    for (const status of statuses) {
+      for (const difficulty of difficulties) {
+        for (const retries of [0, 1, 5]) {
+          const compiled = compile({ topology, status, retries, elapsedMs: 1234, difficulty });
+          if (compiled === null) continue;
+          const label = `${topology}/${status}/${difficulty}/r${retries}`;
+          const texts = [JSON.stringify(compiled), JSON.stringify(claimContentFor(compiled))];
+          for (const text of texts) {
+            for (const token of FORBIDDEN_TOKENS) {
+              if (text.toLowerCase().includes(token)) leaks.push(`${label} 泄露了 ${token}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(leaks, [], '编译产物与先验句都不许带上游的业务字段名');
 });
 
 test('脱敏：平静的检索不进世界', () => {
