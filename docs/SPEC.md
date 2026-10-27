@@ -2,7 +2,15 @@
 
 **状态**：定稿，可拆票。
 **日期锚**：2026-10-25。
-**上游**：`SPEC_DRAFT_20261025.md`（用户与 Claude 五轮 grill 后的结论）、`MIGRATION_FROM_XIAOXI.md`（实测盘点）。
+**上游**：`SPEC_DRAFT_20261025.md`（2026-10-25 的草案）、`MIGRATION_FROM_XIAOXI.md`（实测盘点）。
+
+> **2026-10-28 补记：上一行原来写的是「`SPEC_DRAFT_20261025.md`（用户与 Claude
+> 五轮 grill 后的结论）」——「五轮」在这个仓库里没有任何依据。** 那份草案自己的
+> 状态行是「草案，等待 /grill-with-docs 第二轮细化」，它第 171 行还写着「执行
+> `/grill-with-docs`：带着这份 spec 去 grill 一轮」——那是**待办**，不是已做过的
+> 记录。git 里它从生下来到现在只有一笔（`8516aa9`，2026-10-25），此后再没被改过。
+> grill 的结论落在**本文件**里，不在草案里；把草案说成「 grill 后的结论」正好
+> 把这件事颠倒过来。已按实情改掉，只留「草案」两个字。
 
 ---
 
@@ -112,6 +120,22 @@ L1 的三条铁律（用户 2026-10-25 确认）：
 
 渲染在 `render/tide-view.ts`：水位图层、淹没区压暗、岸边泡沫。
 
+> **2026-10-28 补记：这一节有三处与代码对不上，代码那边还专门写了注释记着「上面
+> 那句是假的」。**
+>
+> - **「只做涨/退两档」是假的。** `world/tide.ts` 的 `tideLevelAt` 沿余弦返回
+>   0..1 的**连续值**，`describeTide` 有四个标签（满潮 / 退潮见底 / 涨潮 / 退潮），
+>   命令入口 `world/oracle.ts` 的 `parseTideLevel` 收任意数值（另有两个端点词：
+>   涨 = 1、退 = 0）。`world/tide.ts:10` 与 `render/tide-view.ts:27` 两处注释都
+>   写着「这里原来写『只做涨/退两档』——前半句是假的」，即代码已经改正过一轮，
+>   只有本文件的这一行没跟着改。
+> - **「种子来自世界时间」说得太松。** 种子是**周期序号** `n`：`periodLength(n)`
+>   拿一个整数哈希把 `n` 打散，同样子的 `n` 永远得到同样的长度。`n` 确实是由世界
+>   时间算出来的，但仓库里没有一个按时间做种子的 RNG——照这句话去找会找不到。
+>   `world/tide.ts` 的文件头把这事说清了：「抖动由周期序号经一个整数哈希决定」。
+> - **±2 分钟与 12 分钟这两个数是对的**：`TIDE_PERIOD_MS = 12 * 60_000`、
+>   `TIDE_JITTER_MS = 2 * 60_000`。
+
 ### 4.5 灯油
 
 在 `world/lampoil.ts`，但**只被渲染层读**：
@@ -127,6 +151,12 @@ L1 的三条铁律（用户 2026-10-25 确认）：
 
 - 只增不改。每条事件有 `id / at / kind / actor / payload`。
 - 世界侧通过 `world/events-client.ts` 读最近 N 条，投影成世界状态。
+
+> **2026-10-28 补记：这一句的两半都安错了模块。** `world/events-client.ts` 的
+> 文件头写明它「只做运输与形状校验，**不做判断**」——它是按游标增量拉的
+> （`fetchSince(since, limit)`），不是「读最近 N 条」。投影在 `world/feed.ts`
+> （`foldTaskEvents`）与 `world/task-events.ts` 里，客户端连 `kind` 的含义都不认识。
+> 所以「读」与「投影」都不在它这儿。
 - 世界的状态改变也写回日志（`kind: 'world.changed'`），形成闭环。
 
 ### 4.7 记忆
@@ -154,6 +184,18 @@ memory/
 - **留在代码里**：潮汐状态机逻辑、灯油衰减公式、寻路、模拟步进。
 - 换设定集 = 换一份配置包 + 可能改几个常量，不改引擎骨架。
 
+> **2026-10-28 补记：「潮汐周期」那一项是假的，而且代码朝着相反的方向专门定了规矩。**
+> 它今天是 `world/tide.ts:19` 的模块常量 `TIDE_PERIOD_MS = 12 * 60_000`，读者只有
+> `periodLength()` 与测试。设定集那一层（`src/settings/types.ts`）**没有潮汐周期的
+> 槽位**——唯一的潮汐键是 `SettingRoutineStop.tide?: 'low' | 'high'`，那是作息上的
+> 一个拍点，不是周期。
+>
+> 更关键的是 `world/grime.ts` 把反面那条写成了规矩：「它是模块常量而不是设定集的
+> 槽，与 `LAMP_DAY_MS` / `TIDE_HOLD_MS` / `DWELL_MS` 同一条规矩：**世界的节律归
+> 世界，设定集给的是内容**（露话池、作息、地域），**不是世界走多快**。」所以这不是
+> 「还没做」，是一个朝着相反方向做过的决定，而本条与第 42 行的用户故事 11
+> （「我改潮汐周期只改一个配置值」）都还在断言反的那一面。
+
 自进化范围（用户确认 A+B）：
 - **A 记忆层**：世界记住玩家偏好。
 - **B 规则层**：LLM 根据反馈调整 `rules/*.yaml`。
@@ -165,6 +207,24 @@ v4。v3 新增 `tide.level`、`lampOil[id]`、`world_change_version`；v4 一次
 `world.villagers[].nameState`（名牌 held/pawned）、`world.villagers[].carries[]`
 （lamp/shoes）、`world.props[].grime`、`world.props[].reveal`。
 v2 存档自动升级（默认 `tide=0.5`、`lampOil=full`），指纹重算。
+
+> **2026-10-28 补记：这两句里有三处是代码里没有的东西，而 `docs/SPEC_V2.md` §4.5
+> 早就把它们换成真名字了。**
+>
+> - **没有 `tide.level` 这个字段。** v3 新增的三个槽位写在 `world/save.ts` 的
+>   `SAVE_V3_ADDED_PATHS`：`world.tideOverride`、`world.villagers[].lampOil`、
+>   `world.worldChangeVersion`。潮位覆盖是一个 `{level, until} | null`，不是浮点数。
+> - **`world_change_version` 在整个仓库里一处都不存在**（`src/` `test/` `server/`
+>   全 grep 过，0 命中）。真名是 `worldChangeVersion`——本文件用的是草案时代的
+>   蛇形名（`SPEC_DRAFT_20261025.md:55`）。`GLOSSARY.md` 那条用的是对的。
+> - **v2 升上来的默认值是 `null`，不是 `0.5`。** `save.ts` 写的是
+>   `tideOverride: world.tideOverride ?? null`，它上面一行注释说明了理由：
+>   「没有覆盖。老档的潮汐本来就走纯函数，**不该凭空多一段**。」填 0.5 恰恰就是
+>   代码拒绝做的那件事。
+>
+> 对得上的部分：`lampOil=full` 对应 `villager.lampOil ?? 1`，「指纹重算」对应
+> `schemaFingerprint: SCHEMA_V3_FINGERPRINT`，v4 那四个槽与 `SAVE_V4_ADDED_PATHS`
+> 一字不差。
 
 ## 5. 测试决策
 
@@ -189,5 +249,20 @@ v2 存档自动升级（默认 `tide=0.5`、`lampOil=full`），指纹重算。
   迁移清单里写清了搬什么，搬完就在旧仓 `pixel-world/` 顶部加一行「已迁移，勿改」。
 - **事件日志取代台账**是本仓最大的一次改造。`simulation.ts` 2146 行里所有吃 `sync` 命令的
   地方都要改，且现有 57 个测试里有一批要重写。
+
+> **2026-10-28 补记：这一条整段都是过去的数字，而且它说的那个命令已经没有了。**
+> 现量：`simulation.ts` 是 **3394 行**（`world-client/src/world/simulation.ts`，
+> 该文件有别人在改，要复核就现 `wc -l`），测试是 **139 个文件**。而 `sync` 命令
+> 今天叫 `syncEvents`（`simulation.ts` 的 `readonly kind: 'syncEvents'`），代码里
+> 还留着一句「与旧 `sync` 的根本区别：旧的是**快照**……」。
+>
+> 所以这一条现在读起来像「接下来要改什么」，其实是「当时改的是什么」。它的日期锚
+> 在文件头（2026-10-25），本节没有单独的补记机制——但 §4.3 已经立过「对不上就写
+> 实情」的规矩，这儿照办。**这三个数都不写死在这里**：`simulation.ts` 天天在长，
+> 测试文件天天在加，写谁谁假。
+>
+> 同一条底下那句「要有一条测试证明『换一份配置能起来』」**已经满足了**：
+> `test/settings.test.ts` 里 `loadSettingPack(DENGCHAO_RAW)` 加
+> `buildSettingWorld(pack)` 是真跑通的。
 - **设定集可换**这个承诺，在第一版只有一套设定集时是纸面的。要有一条测试证明
   「换一份配置能起来」，否则它会退化成口号。
