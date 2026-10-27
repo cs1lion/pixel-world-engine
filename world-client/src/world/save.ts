@@ -1,4 +1,4 @@
-/** 存档 v1：只序列化世界自有事实（ADR_SAVE §1.2，final / frozen）。
+/** 存档 v1：只序列化世界自有事实（ADR_SAVE §1，final / frozen）。
  *
  * 这里刻意不 import Simulation：存档形状与运行时类解耦，测试可离线校验。
  * 字段冻结规则：WorldSaveV1 与 docs/save-v1.sample.json 必须一致；
@@ -38,7 +38,7 @@ export const CURRENT_SCHEMA_VERSION = 4;
 export const SAVE_STORAGE_KEY = 'xiaoxi.pixel-world.save.v1';
 /** 已结算记录超过这个数就告警一次（每会话一次）。 */
 export const SETTLED_WARN_THRESHOLD = 5000;
-/** v1 冻结指纹（ADR_SAVE §1，frozen）。旧档迁移前用它自证，仍然有效。 */
+/** v1 冻结指纹（ADR_SAVE §1.3 的「旧版自证」，frozen）。旧档迁移前用它自证，仍然有效。 */
 export const SCHEMA_V1_FINGERPRINT = 'f53a0736d782d657';
 /** v2 冻结指纹（ADR_WORLD_ALIVE §8）。由 docs/save-v2.sample.json 算出，单测核对。 */
 export const SCHEMA_V2_FINGERPRINT = '72c4a6c0f1f444f7';
@@ -273,7 +273,7 @@ export const SAVE_SETTLED_KEYS = [
  */
 export type { TideOverride } from './tide.ts';
 
-/** 存档里的角色：快照缺的续跑字段由 toSave() 补齐（ADR_SAVE §1.2）。 */
+/** 存档里的角色：快照缺的续跑字段由 toSave() 补齐（ADR_SAVE §1）。 */
 export interface SavedVillager {
   readonly id: string;
   readonly name: string;
@@ -427,7 +427,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * 取叶子路径：数组记 `[]`（数组本身也记一条），元素内的键继承 `[]`。
- * 同路径去重；`meta.schemaFingerprint` 不参与（ADR_SAVE §1 冻结规则）。
+ * 同路径去重；`meta.schemaFingerprint` 不参与（ADR_SAVE §1.3 的路径集合包含校验）。
  */
 export function collectSavePaths(value: unknown, prefix = '', out: string[] = []): string[] {
   if (Array.isArray(value)) {

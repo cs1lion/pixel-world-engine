@@ -132,7 +132,11 @@ console 错误，玩家连「存档有问题」都看不见。把建筑的三类
 
 - v1 → v2：世界变活。见 `ADR_WORLD_ALIVE §8`（那份记录同样迟到——见其开头的说明）。
   补的是 `SAVE_V2_ADDED_PATHS` 那 15 条路径，横跨 buildings / critters / oracle / props。
-- v2 → v3：加潮汐覆盖与灯油余量。
+- v2 → v3：**三样**——`world.tideOverride`（潮汐覆盖）、`world.villagers[].lampOil`
+  （灯油余量）、`world.worldChangeVersion`（折返计数）。`save.ts` 那条注释自己说着
+  「三个字段一次加齐，好让灯油、潮位覆盖、折返计数」。
+  （这一行原来只写「加潮汐覆盖与灯油余量」——漏了第三样。一张列 added paths 的
+  表漏一项，读的人就以为迁移链比实际的短。）
 - v3 → v4：四样——`villagers[].nameState`（名牌两态）、`villagers[].carries`（随身凭证）、
   `props[].grime` 与 `props[].reveal`（摆件的尘与显隐），并把 `meta.schemaFingerprint`
   重算成 v4 的。
@@ -151,7 +155,13 @@ console 错误，玩家连「存档有问题」都看不见。把建筑的三类
 读档的人看到的是一个世界从未抵达过的瞬间——角色在半路上、任务在结算中途。
 更糟的是那一帧未必可复现，于是同一份存档两次读出的行为不同。
 
-**`save-store` 那一半（§3/§4，标着 final）**：
+**`save-store` 那一半（代码里引作 `§4`；标着 final）**：
+
+> 这一半原来在标题里写着「§3/§4」——而 §3 是「迁移是逐级链」、§4 是「写档时机」，
+> 两条都跟单槽 I/O 不相干，那个斜杠两边的节号一个都对不上。`save-store.ts`
+> 文件头照抄了这个标签，于是一处悬的引用传成了两处。现在统一叫 §4 的这半节，
+> 代码那边也改成指名「§4 的 `save-store` 那一半」——不写节号，写名字，免得下次
+> 章节一重排又对不上。
 
 - **单槽**：`SAVE_STORAGE_KEY` 从 v1 起就没变过。升 schema 不改存储键，老档才读得到、
   才谈得上迁移。
@@ -168,15 +178,29 @@ console 错误，玩家连「存档有问题」都看不见。把建筑的三类
 
 **规矩**：`meta.savedAtWallClock` 与 `meta.savedReconciled` 仅诊断，不进任何逻辑判断。
 
-**证据**：`meta.schemaFingerprint` 是唯一被逻辑读取的 `meta` 字段（存在且不符 → 按坏档处理），
-另两个只在写档时记录。
+**证据**：`meta.schemaFingerprint` 是唯一被逻辑读取的 `meta` 字段（存在且不符 → 按坏档处理）。
+另两个不进逻辑判断，但**并非没人读**：`savedAtWallClock` 被 `debug-panel.ts` 取出来
+格式化成一行时刻给人看，`SandboxScene` 也把它抄进存档状态。那是展示，不是判断。
 
 **这条规矩真正防的事**：`savedAtWallClock` 是墙钟。世界自己不读墙钟——潮汐、作息、
-固定步长全都吃世界自己的 `now`，确定性回放靠的就是这一条。一旦有逻辑开始看墙钟，
-「同一天重开是同一片海」就没了。
+固定步长全都吃世界自己的 `now`，确定性回放靠的就是这一条。一旦有**逻辑**开始看墙钟，
+「同一天重开是同一片海」就没了。展示层读它不要紧：它不参与任何一步计算。
 
-**同一个洞见的另一处**：`world.worldChangeVersion` 目前**只存不用**——`GLOSSARY.md`
-里记着它是预留给事件日志的存档字段，`src/` 与 `test/` 下没有读者。
+**同一个洞见的另一处（2026-10-27 更正）**：`world.worldChangeVersion` 原来在这儿被写成
+「**只存不用**……`src/` 与 `test/` 下没有读者」——**这句话是假的，而且就在 `GLOSSARY.md`
+把它撤下十分钟之后又写了一遍**。读者是有的，全在存档/校验这一层：
+
+- `save.ts` 的字段级校验点名查它的类型（`checkNumber(... 'world.worldChangeVersion' ...)`）；
+- `save.ts` 的迁移链里 `worldChangeVersion: world.worldChangeVersion ?? 0`；
+- `simulation.ts` 的 `fromSave()` 读档赋值；
+- 测试里另有七处读它（`save-fingerprint.test.ts` 四条、`save.test.ts` 两条、
+  `replay-property.test.ts` 一条）。
+
+准确的说法是：**读它的都在存档/校验这一层，`src/render` 与 `src/scenes` 下零命中**。
+「没有读者」过强，「没人拿它做判断」才是真的——`GLOSSARY.md` 的折返词条记的是
+**预留给「世界被玩家实质改变累计过的次数」**（一个改变计数器，不是事件日志字段），
+`SPEC_V2 §4.5` 要求的「每次实质改变加一」与「渲染层与设定集读它」两件都还没发生。
+本记录原来那半句还把它写成了「预留给事件日志的存档字段」——也错了。
 
 ---
 

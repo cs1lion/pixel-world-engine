@@ -1,4 +1,4 @@
-/** 单槽存档 I/O：读/写/清 + 坏档备份 + 配额降级（ADR_SAVE §3/§4，final）。
+/** 单槽存档 I/O：读/写/清 + 坏档备份 + 配额降级（ADR_SAVE §4 的 `save-store` 那一半，final）。
  *
  * 只碰 localStorage 与本模块的类型；不 import Simulation，方便用假存储测试。
  */
