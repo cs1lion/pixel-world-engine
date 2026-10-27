@@ -102,8 +102,9 @@ export function formLegend(
 /**
  * 传说淡去：无人复述则 reach 下降。
  *
- * 每天掉 1，因为「一天里没有一个人讲过它」在人口 5–10 的世界里是很强的信号。
- * 掉到 `reach <= 1` 就不再是传说——一个人记得的事是私事，不是集体记忆。
+ * 每天掉 1，因为「一天里没有一个人讲过它」在只有两人的世界里是很强的信号：
+ * 两个设定集（莞尔镇、灯潮界）都只有 2 个村民，一个人不讲就是一半的人口
+ * 沉默了。掉到 `reach <= 1` 就不再是传说——一个人记得的事是私事，不是集体记忆。
  */
 export function decayLegend(legend: Legend): Legend {
   return { ...legend, reach: Math.max(0, legend.reach - 1) };

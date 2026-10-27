@@ -112,7 +112,10 @@ function actorOn(lane: Lane, now: number, kind: AmbienceKind, altitude: number):
   const x = lane.x - lane.amplitude + wave * lane.amplitude * 2;
   // 朝 1 表示从右往左飞。
   const facing: 1 | -1 = t < 0.5 ? 1 : -1;
-  // 上下起伏：高度 ±0.35 格，周期是水平的两倍（一次往返浮沉两次太忙）。
+  // 上下起伏：高度 ±0.35 格，频率是水平的两倍——一次往返浮沉两次。
+  // （这一行原来写「周期是水平的两倍」，**写反了**：`wave` 的周期是 1，
+  // `Math.sin(t * π * 4)` 的周期是 0.5。所以浮沉的**周期**是水平的一半，
+  // **频率**才是两倍。括号里那句「一次往返浮沉两次」一直是对的，是主句反了。）
   const bob = Math.sin(t * Math.PI * 4) * 0.35;
   return {
     kind,

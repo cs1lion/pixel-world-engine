@@ -16,9 +16,14 @@ import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
  * 说不准她在哪儿时的说法。**不许拿一句地点顶替。**
  *
  * 这里曾经（`report.ts` 与状态行两处）是「在祭坛边坐着」/「在祭坛边闲逛」。
- * 实测两个村民跑 8000 拍，这话在 7766 拍上是假的——她在农田边、街口、屋檐下，
- * 纸上说她在祭坛。她没有牌子（`routine === null`）时世界**没有**关于她位置的
- * 任何断言，这时说她在祭坛，就是替世界编一个它没说过的去处。
+ * 那句话假不假看她这会儿在不在祭坛：走作息时她在农田边、街口、屋檐下，
+ * 而那时她**有**牌子，说的就是牌子——假的形状是另一条路：撤单
+ * （`abandonActiveTask`）把 `routineLabel` 清成 null，同时按
+ * `restoreOutOfBuilding` 把她挪到铺子门口。人在门口、没牌子，接下去
+ * 1800 拍（`nextRoutineAt = now + 1800`）里说她在祭坛，就是替世界编一个
+ * 它没说过的去处。
+ *
+ * 所以退路只有一个判据：`atAltar`。人在祭坛格上才说祭坛，不在就说这句。
  */
 export const NOT_SOMEWHERE = '这会儿没个准地方';
 
