@@ -292,7 +292,34 @@ export interface WorldVitals {
   readonly isolatedHoldersCount: number;
 }
 
-/** 记忆层的事件 kind。写入这些事件不调模型，全部由规则产生。 */
+/**
+ * 18 个 kind，是协议 §13 那张表的一一对应转写——那一张也是 18 行。
+ * 「转写得全」不等于「接得通」。扫一遍（`grep -rn "'toponym.changed'" src test scripts`，
+ * 再加一次全仓库裸搜 `toponym`）有两条要记在这儿：
+ *
+ * | 事项 | 状态 |
+ * | --- | --- |
+ * | `toponym.changed` | **零发出方、零接收方**。仓库的代码里只有下面这一行声明它 |
+ * | 其余 17 个 | 都有发出方（`world.ts` 的 `emit`），但**运行中的 app 一个都没接** |
+ *
+ * 第一条不是漏了一个枚举项，是漏了**协议 §11 那半条规则**。§11 写着「地名演变保存
+ * 历史链：`ToponymChanged(place_id, old, new, event_ref)`」，§11 的痕迹表又把「里程碑」
+ * 一行指向「留言牌、碑文、地名变更」，补充设计还说叙事装饰层「由内环的 `Trace` 与
+ * `ToponymChanged` 规则实时驱动」。于是这儿该有而今天没有的是四样：地点 Holder 的
+ * 当前名字、一条历史链、一条「什么里程碑配改名」的判据、以及这个事件的发出点。
+ * 四样里前两样是存储，第三样是规则，第四样只是一行 `emit`。
+ *
+ * 同一个洞在 `traces.ts` 还留了一个更小的脚印：`consequenceOf` 里
+ * `input.kind === 'toponym'` 那个析取项。全仓库没有一处创建 `kind: 'toponym'`
+ * 的事件（对照：`'milestone'` 有，`observe.ts` 发），所以那一支今天咬不动。
+ *
+ * 第二条的根源在**外面**，不在这一层：`SandboxScene` 给 `MemoryRuntime` 传了
+ * `occlusion` 与 `onVitals`（后者经 `eventsClient.record` 落成 `world.vitals`），
+ * 唯独没传 `onEvent`。而 `WorldChange` 是七个成员的闭集，记忆层这 17 个 kind
+ * 一个都不在里面——要接就得先改服务端契约。那是外环的决定，不是本组的：
+ * 所以出口留成注入点（`MemoryWorldDeps.emit` / `MemoryRuntimeDeps.onEvent`），
+ * 本组不替他接，也不假装它接着。
+ */
 export type MemoryEventKind =
   | 'memory.written'
   | 'memory.consolidated'
@@ -312,7 +339,14 @@ export type MemoryEventKind =
   | 'rumor.debunked'
   | 'day.closed';
 
-/** 记忆层发出的事件。形状与 `events-client.ts` 的信封一致，便于回写日志。 */
+/**
+ * 记忆层发出的事件。
+ *
+ * 信封与 `events-client.ts` 对得上，为的是「能回写日志」——但**今天没有一个
+ * kind 真的被写进去**：`SandboxScene` 没给 `MemoryRuntime` 传 `onEvent`，
+ * 而 `WorldChange` 那七个成员的闭集里也没有记忆层的位置。上面那张表记着这事，
+ * 别把这行注释读成「这些事件正在进日志」。
+ */
 export interface MemoryEvent {
   readonly kind: MemoryEventKind;
   readonly at: number;

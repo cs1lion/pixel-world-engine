@@ -63,6 +63,13 @@ export function consequenceOf(input: ConsequenceInput): TraceSpec[] {
 
   if (input.kind === 'milestone' || input.kind === 'toponym') {
     // 里程碑刻碑文。碑文是唯一一种高保真痕迹：它绑着一个 event_ref。
+    //
+    // `|| input.kind === 'toponym'` 这一支今天咬不动：全仓库没有一处创建
+    // `kind: 'toponym'` 的事件（对照 `'milestone'`——`observe.ts` 发）。
+    // 它等的是协议 §11「地名演变保存历史链」那半条规则，那条规则今天整个没建，
+    // `MemoryEventKind` 里的 `toponym.changed` 因此也是零发出零接收。详见
+    // `types.ts` 上 `MemoryEventKind` 那张表——留着这一支，是为了建那条规则的
+    // 人不用回来翻这里。
     specs.push({ layerType: 'inscription', intensity: Math.max(0.6, input.intensity), mergeKey: 'inscription' });
   }
 
