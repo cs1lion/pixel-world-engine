@@ -39,7 +39,8 @@
  *   node scripts/check-buttons.mjs         # 默认打 5188
  *   PIXEL_WORLD_URL=http://127.0.0.1:5175/ node scripts/check-buttons.mjs
  *
- * 退出码：有按钮点下去一句话都不给，就是 1；背后没有服务端，是 2。
+ * 退出码：测出问题就是 1（沉默、点不动、审到一半页面没了，三类都算）；
+ * 一样都没测出来（背后没有服务端、镇志是空的）是 2。**0 只代表「跑完了且干净」。**
  */
 
 import { chromium } from '@playwright/test';
@@ -47,7 +48,7 @@ import { chromium } from '@playwright/test';
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 
 /**
- * 先问一句「背后有没有服务端」，没有就拒跑。
+ * 先问一句「背后有没有服务端，且镇志里有没有条目」，没有就拒跑。
  *
  * 这项审计的结论分两种：「按钮是哑的」和「我什么都没测出来」。把后者印成
  * 前者就是它自己在说谎——而这个仓库最不容的就是那一件。
@@ -59,27 +60,78 @@ const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
  * 那次报出「46 个按钮、3 个一句话都不说」——三个全是冤的，同一份代码对着
  * 带后端的 5188 是 56 个按钮、0 个沉默。
  *
- * 一条后端就够了：`/api/memory/list` 是镇志的数据源，它 404 时这半界
+ * 一条后端就够了：`/api/memory/list` 是镇志的数据源，它拿不出条目时这半界
  * 界面都不该拿来下结论。
+ *
+ * **三种拒跑的理由分开说**，因为它们不是一回事：
+ *   1. 连不上（`fetch` 抛）——背后真的没有服务端。
+ *   2. 连上了但回非 2xx——服务端明明在，是那一个端点不高兴。原先这里也印
+ *      「背后没有服务端：… HTTP 500」，前半句是假的：服务端在。
+ *   3. 回了 200 但 `entries` 是空的——服务端在，可镇志里没有条目。阅读页
+ *      照样打不开（没有 `.chronicle-row` 可点），抽屉里那几颗照样审不到，
+ *      结论照样是冤的。所以这也算拒跑。
  */
 async function requireBackend() {
-  let ok = false;
+  const url = new URL('api/memory/list', BASE);
+  let status = 0;
   let detail = '';
+  let entries = null;
   try {
-    const response = await fetch(new URL('api/memory/list', BASE));
-    ok = response.ok;
-    if (!ok) detail = `HTTP ${response.status}`;
+    const response = await fetch(url);
+    status = response.status;
+    if (!response.ok) {
+      detail = `HTTP ${response.status}`;
+    } else {
+      // 形状是 `{entries, count}`（`server/memory/api.py:94`）。解析不了就当
+      // 没有条目——别拿一个猜出来的数去放行。
+      try {
+        const payload = await response.json();
+        entries = Array.isArray(payload?.entries) ? payload.entries.length : null;
+        if (entries === null) detail = '可里面没有 entries 数组';
+      } catch {
+        detail = '可响应体不是 JSON';
+      }
+    }
   } catch (error) {
     detail = error instanceof Error ? error.message : String(error);
   }
-  if (ok) return;
-  console.error(
-    `背后没有服务端：${BASE}api/memory/list ${detail}\n` +
-      '这项审计要连着后端跑（镇志条目、意图端点都靠它）。\n' +
-      '  node scripts/dev-live.mjs &     # 服务端 + 前端，5188\n' +
-      '对着裸 vite 跑，测不出沉默也测不出说话——它只会把好按钮冤成哑巴。',
-  );
-  process.exit(2);
+
+  // 1. 连不上：服务端不在。
+  if (status === 0) {
+    console.error(
+      `背后没有服务端：${url.href} ${detail}\n` +
+        '这项审计要连着后端跑（镇志条目、意图端点都靠它）。\n' +
+        '  node scripts/dev-live.mjs &     # 服务端 + 前端，5188\n' +
+        '对着裸 vite 跑，测不出沉默也测不出说话——它只会把好按钮冤成哑巴。',
+    );
+    process.exit(2);
+  }
+  // 2. 连上了但那一端不高兴：别把服务端说成不在。
+  if (status < 200 || status >= 300) {
+    console.error(
+      `服务端在，但 ${url.href} 回了 ${detail}。\n` +
+        '服务端活着而这条数据源拿不到，审计的结论一样是冤的——镇志条目靠它，\n' +
+        '没有条目，阅读页打不开，抽屉里那几颗一次都点不到。',
+    );
+    process.exit(2);
+  }
+  // 3. 服务端在、端点也高兴，可镇志拿不出条目（空数组，或响应体不是想要的形状）。
+  if (entries === null) {
+    console.error(
+      `服务端在，${url.href} 也回了 200，${detail}。\n` +
+        '不知道镇志里有没有条目，就不该拿这一屏下结论。',
+    );
+    process.exit(2);
+  }
+  if (entries === 0) {
+    console.error(
+      `服务端在，可镇志里一条条目都没有（${url.href} 的 entries 是空的）。\n` +
+        '阅读页打不开（没有 .chronicle-row 可点），抽屉里那几颗按钮一次都审不到——\n' +
+        '那种「沉默」是这条数据源造成的，不是按钮的毛病。先往镇志里写几条：\n' +
+        '  POST /api/memory/write，或跑一次带神谕的会话。',
+    );
+    process.exit(2);
+  }
 }
 await requireBackend();
 
@@ -128,6 +180,17 @@ const WORLDS = [
 const SKIP = new Set(['load-save', 'save-import']);
 
 /**
+ * 每颗按钮前后各等一次「屏幕安静」：连读两次一样才算安静，最多等这么久。
+ *
+ * 镇志的 `load()` 慢过那 900ms 时，它的后效会落进**下一颗**按钮的窗口——
+ * 下一颗的 `before` 是它之前读的，`after` 就凭空多出几行条目，于是一颗
+ * 什么都没说的按钮被判「说了话」。等满再收工，迟到的效果才落到它自己那颗
+ * 头上。上限 3 秒：再等下去只是在拖慢全套，而真实的镇志读取是几十毫秒。
+ */
+const SETTLE_MS = 3000;
+const SETTLE_STEP_MS = 100;
+
+/**
  * 反馈在「某一层开没开」上的按钮，不在 `#reply` 上。
  *
  * 判它们看的是「可见性翻没翻」，不指定方向——这一组里既有开层的（镇志、
@@ -159,6 +222,16 @@ const browser = await chromium.launch({ headless: true });
 
 /** 一句话都说不出来的按钮。 */
 const silent = [];
+/**
+ * 没能审完的按钮：点不动的，和它之后页面就没了的。
+ *
+ * 与 `silent` 分开记，因为这两类**不是按钮的毛病，是审计的**——可它们一样
+ * 得让退出码非 0。原先只把 `silent` 算进 `process.exitCode = 1`，于是
+ * 「点不动」与「这一颗之后页面不在了」都退 0：一个按钮摆在界面上点不动，
+ * 比它不说话更糟，而脚本说没事。页面不在了更重——那意味着**后半截一颗都
+ * 没审**，而汇总里读起来像审完了。
+ */
+const blocked = [];
 /** 每一行的记录，最后整张打出来。 */
 const rows = [];
 
@@ -201,6 +274,21 @@ for (const world of WORLDS) {
   const hiddenStatic = await page.$$eval('button[data-build], button[data-create]', (nodes) =>
     nodes.map((n) => `${n.dataset.build ?? n.dataset.create}=${n.hidden ? 'hidden' : 'shown'}`),
   );
+
+  /**
+   * 页面被重载过几次。开发服务器上每次保存文件都整页重载（Vite 的
+   * `page reload`），执行上下文当场销毁——实测踩到：同伴在改 `render/` 下的文件，
+   * 这一轮审计连着三颗按钮报「点不动」，其中一颗是「下雨」。那不是按钮的毛病，
+   * 是屏幕在它脚底下换了。
+   *
+   * 而这个仓库最不容的就是冤判——脚本自己那份注释里记着被冤的三个按钮。所以
+   * 每一次点完都问一句「这中间页面换过没有」：换过就记成「赶上页面重载」，
+   * 不记成「点不动」。
+   */
+  let reloads = 0;
+  page.on('framenavigated', () => {
+    reloads += 1;
+  });
 
   /** 此刻三层各开着没有。 */
   const layersNow = () =>
@@ -319,20 +407,76 @@ for (const world of WORLDS) {
     after.reader !== before.reader ||
     after.debug !== before.debug;
 
+  /**
+   * 等到屏幕连读两次一样，或等满 `SETTLE_MS`。返回末一次的读数。
+   *
+   * **这是为了不把一颗沉默的按钮洗干净。** 镇志的 `load()` 是异步的，慢过
+   * 900ms 时它的后效落在**下一颗**按钮的窗口里：下一颗的 `before` 若是那时
+   * 之前读的，`after` 就比 `before` 多出几行条目——于是下一颗明明什么都没说，
+   * 却因为上一颗的迟到效果被判「说了话」。原先只有 900ms 一拍，这个洞一直开着。
+   *
+   * 等满了才收工，迟到的效果就落到它自己那颗头上；而下一颗的 `before` 是
+   * 重新等过的，起点干净。两处都堵上。
+   */
+  const settleScreen = async (ms = SETTLE_MS) => {
+    const deadline = Date.now() + ms;
+    let last = await readScreen();
+    for (;;) {
+      if (Date.now() >= deadline) return last;
+      await page.waitForTimeout(SETTLE_STEP_MS);
+      const now = await readScreen();
+      // 两次读数同源（同一个 `page.evaluate`），键一样、顺序也一样，直接按键比。
+      const same = Object.keys(now).every((key) => now[key] === last[key]);
+      last = now;
+      if (same) return last;
+    }
+  };
+
+  /** 上一颗的末态读数，用来把迟到的效果记回它头上。 */
+  let previous = null;
+  /** 点下去之前页面重载过几次。出错时拿来分「按钮点不动」与「屏幕换了」。 */
+  let reloadsAtClick = 0;
+
   /** 审一颗按钮。抛出去由外层接（见那边关于「崩在半路上」的注释）。 */
   const auditButton = async (button) => {
     // 只在某几种界面状态下看得见的按钮（抽屉里那几颗），先把界面调成那样再点——
     // 否则它会被前面调层时关掉的抽屉挡住，报成「藏起来了」，读起来像按钮坏了。
     await setLayers(button.states[button.states.length - 1]);
 
+    // 等屏幕安静下来，再取这一颗的起点。
+    //
+    // 上一颗的迟到后效若在这时落到屏幕上，先记回它头上：它已经被判成「一句
+    // 话都不说」并进了 `silent`，不改正就是一次冤判——而这正是这项审计最不
+    // 该犯的错（它自己那份注释里记着被冤的三个）。
+    const before = await settleScreen();
+    if (previous !== null && saidSomething(previous, before)) {
+      const row = rows[rows.length - 1];
+      if (row !== undefined && row.verdict === '一句话都不说') {
+        row.verdict = '在别处说了话（下一颗的起点里才看出来，记回这一颗）';
+        row.reply = '上一颗的异步后效落在这时候';
+        const at = silent.findIndex((item) => item.id === row.id && item.world === row.world);
+        if (at >= 0) silent.splice(at, 1);
+        console.log(`  ~ ${row.id.padEnd(16)} ${String(row.text).slice(0, 20).padEnd(22)} → 迟到的后效记回这一颗`);
+      }
+    }
+    previous = null;
+
     // 每颗按钮都从同一份界面状态起点问起：把上一颗留下的回执清掉，
     // 否则「这一颗什么都没说」会被上一颗的话冒充。
+    //
+    // 清完得把 `before` 里那两个字段一起改掉，不能重新读一遍屏：上一颗的异步
+    // 后效可能正在这时落下来，重读就把它并进了起点，下一颗又洗白了。而这两个
+    // 字段是我们自己清的，清成什么我们知道——照着改，不用问屏幕。
+    // （`bad` 那个 class 不动：`textContent = ''` 不会摘掉它，所以它还是上一颗
+    // 留下的样子。`saidSomething` 不比它，别去改一个不是我们改的东西。）
     await page.evaluate(() => {
       const reply = document.querySelector('#reply');
       if (reply !== null) reply.textContent = '';
       const io = document.querySelector('#save-io-reply');
       if (io !== null) io.textContent = '';
     });
+    before.reply = '';
+    before.io = '';
 
     // 到了点击这一刻再问一次可见性。照着枚举时的那份状态去点，只会等到一个
     // 超时——那读起来像按钮坏了，其实是它已经不在界面上。
@@ -349,11 +493,10 @@ for (const world of WORLDS) {
       return;
     }
 
-    const before = await readScreen();
-
     const fill = FILL_BEFORE.get(button.selector);
     if (fill !== undefined) await page.fill('#utterance', fill);
 
+    reloadsAtClick = reloads;
     await page.click(button.selector, { timeout: 5000 });
 
     // 早读一次：有的反馈是瞬态的。「重读」把标题翻成「镇志正在翻…」，本地
@@ -364,9 +507,14 @@ for (const world of WORLDS) {
     // 再给世界几拍。命令的结算在下一个逻辑拍，结果走 onResult → #reply。
     await page.waitForTimeout(opensLayer(button) ? 350 : 900);
     const after = await readScreen();
+    // 末了再等一次：异步的后效（镇志的 load）可能比那 900ms 还慢。不等着，
+    // 它就落到下一颗的窗口里，把下一颗洗干净。
+    const settled = await settleScreen();
 
     const said = after.reply || after.io;
-    const changed = saidSomething(before, early) || saidSomething(before, after);
+    const changed =
+      saidSomething(before, early) || saidSomething(before, after) || saidSomething(before, settled);
+    previous = settled;
 
     // 判词问的是「界面上有没有哪一面翻了」，不是「`#reply` 有没有字」。
     //
@@ -417,15 +565,26 @@ for (const world of WORLDS) {
       await auditButton(button);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      // 这一颗点下去之后页面换过没有？换过就不是按钮的毛病——屏幕在它脚底下
+      // 换了，点什么都一样。别把这种记成「点不动」：那是冤判，而冤判比漏判更糟。
+      const navigated = reloads > reloadsAtClick;
+      if (navigated) {
+        blocked.push({ world: world.label, id: button.id, text: button.text.slice(0, 20), kind: '页面重载' });
+        rows.push({ world: world.label, ...button, verdict: '赶上页面重载，这一颗审不了', reply: message.slice(0, 80) });
+        console.log(`  ~~ ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 赶上页面重载：审这一颗的中间屏幕换了，不是它的毛病`);
+        continue;
+      }
       const alive = await page.evaluate(() => document.readyState).then(() => true).catch(() => false);
       if (!alive) {
         const rest = buttons.length - rows.length;
+        blocked.push({ world: world.label, id: button.id, text: button.text.slice(0, 20), kind: '页面不在了' });
         rows.push({ world: world.label, ...button, verdict: '这一颗之后页面不在了', reply: message.slice(0, 80) });
         console.log(`  !! ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 这一颗之后页面不在了`);
         console.log(`\n${world.label}：审到第 ${rows.length} 颗，剩下 ${rest} 颗这一轮没审到。`);
         console.log(`原因：${message.slice(0, 120)}`);
         break;
       }
+      blocked.push({ world: world.label, id: button.id, text: button.text.slice(0, 20), kind: '点不动' });
       rows.push({ world: world.label, ...button, verdict: '点不动', reply: message.slice(0, 80) });
       console.log(`  !! ${button.id.padEnd(16)} ${button.text.slice(0, 20)}  → 点不动：${message.slice(0, 60)}`);
     }
@@ -444,7 +603,26 @@ console.log(`两张图共 ${rows.length} 个按钮，其中 ${silent.length} 个
 for (const item of silent) {
   console.log(`  [${item.world}] #${item.id} 「${item.text}」`);
 }
+if (blocked.length > 0) {
+  // 单独一段、分开数：这几类不是按钮的毛病，可它们一样得让退出码非 0。
+  // 混在 silent 里念，读的人会以为界面上多了几个哑巴。
+  const dead = blocked.filter((item) => item.kind === '点不动');
+  const cut = blocked.filter((item) => item.kind === '页面不在了');
+  const reloaded = blocked.filter((item) => item.kind === '页面重载');
+  console.log(`\n没能审完的 ${blocked.length} 处（这些是审计自己的问题，不是按钮的毛病，但一样不让它过）：`);
+  for (const item of dead) console.log(`  [${item.world}] #${item.id} 「${item.text}」点不动`);
+  for (const item of cut) console.log(`  [${item.world}] #${item.id} 「${item.text}」之后页面不在了，后面的没审到`);
+  for (const item of reloaded) console.log(`  [${item.world}] #${item.id} 「${item.text}」赶上页面重载（开发服务器保存文件就会整页重载），这一颗没审到`);
+  if (dead.length > 0) {
+    console.log('点不动的比不说话更糟：它还在界面上，玩家点了，什么都没有。');
+  }
+  if (reloaded.length > 0) {
+    console.log('页面重载不是按钮的毛病，可它意味着这一颗确实没审——对着一个正在改代码的开发服务器跑，就会出现这种。');
+  }
+}
 if (silent.length > 0) {
   console.log('\n一个按钮就是一句承诺。承诺了而屏幕安静，比没有这个按钮更糟。');
+}
+if (silent.length > 0 || blocked.length > 0) {
   process.exitCode = 1;
 }
