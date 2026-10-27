@@ -47,7 +47,7 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // 「最近一单」要的是**最晚交付**的那一单，不是数组末尾那一单。
     //
     // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1198`、`:1768`，
-    // 读档那条 `:2878` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
+    // 读档那条 `:2919` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
     // 没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
     // 这两个顺序会分叉：先派下去的长活后交，后派下去的短活先交。照数组末尾取，
     // 报纸就把**先**交的那单叫「最近」——一句话说着当下，指的却是过去。
@@ -55,8 +55,8 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     //
     // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
     // `completedAt` 是落成那一刻。三个收尾处写的都是 `this.now`——
-    // `finishInPlace`（`simulation.ts:2329`）、`finishActiveTask`（`:2500`）、
-    // `settleDetachedTask`（`:2962`）；而世界钟只增不减（`update` 里 `:581`
+    // `finishInPlace`（`simulation.ts:2353`）、`finishActiveTask`（`:2541`）、
+    // `settleDetachedTask`（`:3003`）；而世界钟只增不减（`update` 里 `:581`
     // 每次 `+=`），所以按 `completedAt` 排出来的才是真正的交付顺序。读档回来的
     // 单带着原来的 `completedAt`，新交的只会更大，跨会话也还排得对。
     //

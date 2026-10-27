@@ -2170,26 +2170,30 @@ export class Simulation {
    *
    * 三条拒绝，说的都是事实而不是规则：
    *   - 没有这件东西——摆件只增不删，所以只可能是 id 写错了；
+   *   - 它底下没有压着东西——脏只是盖着露话的那层（`grime.ts` 第三条规则），
+   *     没有话的摆件从来不脏。正常走不到这儿，读档回来的旧档才可能带着一个；
    *   - 它本来就是干净的——`ok: false` 在这里是「世界没变」，与「命令被拒」
    *     是两回事（同 `setWeather` 撞上同一档时的口径）。
    *
-   * 不编「洗好了」：没有露话的摆件从来不脏（`grime.ts` 的第三条规则），
-   * 对它说洗好了就是世界在演一件没发生的事。
+   * 不编「洗好了」：没有露话的摆件从来不脏，对它说洗好了就是世界在演
+   * 一件没发生的事。
    */
   private cleanProp(propId: string): CommandResult {
     const index = this.props.findIndex((prop) => prop.id === propId);
     if (index === -1) return { ok: false, message: `世界里没有 ${propId} 这样东西。` };
     const prop = this.props[index]!;
+    // 脏只是盖着话的那层东西，所以「有脏而无话」是说不过去的状态。
+    // 正常走不到这儿（`stepGrime` 只给有露话的摆件攒脏），但读档回来的
+    // 旧档理论上可能带着这么一个：这时候该说的是它底下没有东西，
+    // 而不是一句「洗干净了」——那是世界在演一件没发生的事。
+    if (prop.reveal === null) return { ok: false, message: `${prop.label}底下没有压着东西。` };
     if (prop.grime <= GRIME_CLEAN) return { ok: false, message: `${prop.label}本来就是干净的。` };
     this.props[index] = { ...prop, grime: 0 };
     this.log('info', `${prop.label}洗干净了。`);
     // 露话是这件事唯一的报酬，所以它必须出现在玩家看得见的地方：
     // 只把 grime 改成 0 而一句话不说，他洗完不知道发生了什么——
     // 那比不洗更糟，因为他以为自己错过了什么。
-    return {
-      ok: true,
-      message: prop.reveal === null ? `${prop.label}洗干净了。` : `${prop.label}洗干净了。${prop.reveal}`,
-    };
+    return { ok: true, message: `${prop.label}洗干净了。${prop.reveal}` };
   }
 
   /**
@@ -2198,10 +2202,17 @@ export class Simulation {
    * 与 `stepWeather` / `stepTide` 同一类：都是世界时钟往前走带来的一件事。
    * 只动 `grime` 一个槽，且只在真的变了时才换对象——不然每一拍都给每件
    * 摆件做一个新引用，快照那边的浅拷贝（`{...prop}`）会全部失效。
+   *
+   * **没有露话的摆件不攒。** 规则三（`grime.ts` 开头）不能只写在 `landProp`
+   * 里：那边管的是「落下来那一下」，这边管的是往后每一拍。只堵一边的话，
+   * 莞尔镇（一份露话都不给）的摆件落地时是干净的，240 秒后自己攒到满值，
+   * 于是 `cleanProp` 会答一句「洗干净了」——而底下一句话都没有。
+   * 那句话在默认世界里听得见，所以这条得长在攒脏的这一步上。
    */
   private stepGrime(deltaMs: number): void {
     for (let index = 0; index < this.props.length; index += 1) {
       const prop = this.props[index]!;
+      if (prop.reveal === null) continue;
       const grime = grimeAfter(prop.grime, deltaMs);
       if (grime !== prop.grime) this.props[index] = { ...prop, grime };
     }
@@ -2367,9 +2378,17 @@ export class Simulation {
     const here = this.cellOf(villager.pos);
     const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
     for (let attempt = 0; attempt < beats.length; attempt += 1) {
-      const beat = routineFor(this.weather.kind, beats, villager.routineIndex, effectiveTideLevel(this.now, this.tideOverride));
+      // 躲雨那一拍的落点是道门，这里现算现给：`routineFor` 不认识建筑，
+      // 它自己编的那个落点会让牌子说屋檐、脚往祭坛走。
+      const beat = routineFor(
+        this.weather.kind,
+        beats,
+        villager.routineIndex,
+        effectiveTideLevel(this.now, this.tideOverride),
+        shelterTarget(this.buildings, here),
+      );
       villager.routineIndex += 1;
-      const target = this.resolvedTarget(beat, villager);
+      const target = this.resolvedTarget(beat);
       if (target === null) continue;
       if (target.x === here.x && target.y === here.y) continue;
       // 路先问，话后说。
@@ -2394,10 +2413,19 @@ export class Simulation {
     villager.nextRoutineAt = this.now + 1600;
   }
 
-  private resolvedTarget(beat: RoutineBeat, villager: Villager): GridPoint | null {
-    if (beat.id === 'shelter') {
-      return shelterTarget(this.buildings, this.cellOf(villager.pos));
-    }
+  /**
+   * 这一拍的落点。走不通就返回 null，调用方跳过这一拍。
+   *
+   * 躲雨那道门也走这把尺子：门格是可走的（`checkPlacement` 就要求门口能过人），
+   * 而过不了尺子时正确的动作正是「不挂这块牌子」。
+   *
+   * 这里原先为 `shelter` 单开一道，直接采信 `shelterTarget`。那一开不要紧，
+   * 要紧的是它让 `routineFor` 返回的 `target` 成了摆设——牌子与落点因此有两个
+   * 真相来源，而单元测试钉的是假的那一个（`routine-tide.test.ts` 断言躲雨回锚点，
+   * 可跑起来的人早就被这里改去了门口）。现在 `routineFor` 由调用方喂真门，
+   * 落点只有一个出处。
+   */
+  private resolvedTarget(beat: RoutineBeat): GridPoint | null {
     return this.grid.isWalkable(beat.target) ? beat.target : null;
   }
 

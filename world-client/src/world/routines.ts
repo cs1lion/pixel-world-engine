@@ -61,19 +61,37 @@ export function shelterTarget(
   return best;
 }
 
+/**
+ * 按天气与潮汐挑下一拍。
+ *
+ * `shelterAt` 是下雨时她要躲的那道门，**由调用方给**：本文件不认识建筑，
+ * 自己编一个落点就是让牌子说一套、脚走一套。调用方给不出（一栋楼都没有）
+ * 时退回锚点，牌子也照锚点说——世界可以在做不到时说「现在不行」，
+ * 不能一边说屋檐一边把人放在露天里。
+ */
 export function routineFor(
   weather: Weather,
   beats: readonly RoutineBeat[],
   index: number,
   tideLevel = 0,
+  shelterAt: GridPoint | null = null,
 ): RoutineBeat {
   // 暴雨一样躲，只是说法不同——这一档是雨的强度，不是新行为。
   if (weather === 'rain' || weather === 'storm') {
-    const altar = beats[0];
+    // 落点是那道门；没门才退回锚点，并且连说法一起退回。
+    if (shelterAt !== null) {
+      return {
+        id: 'shelter',
+        label: weather === 'storm' ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
+        target: shelterAt,
+        dwellMs: DWELL_MS,
+      };
+    }
+    const anchor = beats[0]!;
     return {
       id: 'shelter',
-      label: weather === 'storm' ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
-      target: altar.target,
+      label: weather === 'storm' ? '在祭坛边缩着等暴雨过去' : '在祭坛边看雨',
+      target: anchor.target,
       dwellMs: DWELL_MS,
     };
   }

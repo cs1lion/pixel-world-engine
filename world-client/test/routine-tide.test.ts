@@ -47,8 +47,29 @@ test('没有潮汐条件的落点任何潮位都照常去', () => {
 });
 
 test('下雨仍然优先躲雨，潮汐判定插不进来', () => {
-  const beat = routineFor('storm', beats, 2, 0.2);
+  // 落点是调用方喂的那道门，不是锚点。
+  //
+  // 早先这里断言「躲雨回锚点」（target.x === 19）——那条断言钉的是一句假话：
+  // 牌子写「缩进屋檐下躲暴雨」，落点却是露天的锚点。跑起来的人没被这句骗到，
+  // 只因为 `Simulation.resolvedTarget` 另外单开一道，把 shelter 的落点改去了门口。
+  // 于是纯函数与真实世界各说一套，而测试站在假的那一套那边。现在 `routineFor`
+  // 由调用方喂真门，落点只有一个出处。
+  const door = { x: 18, y: 9 };
+  const beat = routineFor('storm', beats, 2, 0.2, door);
   assert.equal(beat.id, 'shelter');
-  assert.equal(beat.target.x, 19, '躲雨回锚点');
+  assert.equal(beat.target.x, 18, '躲雨落在门上，不落在锚点');
+  assert.equal(beat.target.y, 9);
   assert.match(beat.label, /暴雨/);
+  assert.doesNotMatch(beat.label, /站牌/, '牌子说的得是落点那儿的事');
+});
+
+test('一栋楼都没有时，躲雨退回锚点，牌子也照锚点说', () => {
+  // 给不出门就别说是屋檐：世界可以在做不到时说「现在不行」，
+  // 不能一边说屋檐一边把人放在露天里。
+  const beat = routineFor('rain', beats, 2, 0.2, null);
+  assert.equal(beat.id, 'shelter');
+  assert.equal(beat.target.x, 19, '没有门就退回锚点');
+  assert.equal(beat.target.y, 15);
+  assert.doesNotMatch(beat.label, /屋檐/, '落点是露天，牌子不能说是屋檐');
+  assert.match(beat.label, /祭坛边/);
 });
