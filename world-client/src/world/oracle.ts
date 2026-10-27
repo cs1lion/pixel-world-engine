@@ -83,19 +83,34 @@ export function parseOracle(raw: string): OracleAction {
   //
   // 可打头判定挡不住「打头的否定句」：「撤销别撤错单」确实以「撤销」打头，
   // 但它是在说别做错，不是在下命令。所以 `commandLeads` 比 `leads` 多查一道
-  // 否定词。`complete` 与短活那两处本来就带着；天气三档、撤销、潮汐两端这五处
-  // 只查了问句——实测漏的后果：「撤销别撤错单」「取消别取消错了」都会真的撤掉
+  // 否定词——天气三档、撤销、潮汐两端这**六处**，加上 `parseTideLevel` 那道
+  // 共七处，实测漏的后果：「撤销别撤错单」「取消别取消错了」都会真的撤掉
   // 等待队列。上面「先别取消排队」那条说的就是这一类误判，而打头规则只修好了
   // 它句首的那半句，没修好句中是否定。
   //
   // 查的是 `hasNegation` 而不是 `hasNarrativeMarker`：后者混着过去时，
   // 「撤销刚才那条」是句正常命令，不能因为它含「刚才」就拦掉。
+  //
+  // **`complete` 不走 `commandLeads`，走 `taskLeads`。** 它与短活、派活那两处
+  // 一样查整份叙述表（28 个标记，含过去时与「真累/很烦」这类评价收尾）。
+  // 理由有两条：一是收单改世界（攒神恩点、记交付、回执），和另两处同级；
+  // 二是「交付已经交了」这种句子是在陈述，不是在下令，拿它收单等于替玩家
+  // 宣布一件他没说的事。`hasNegation` 那四个词是 `NON_IMPERATIVE_MARKERS` 的
+  // 子集，所以 `taskLeads` 一并挡住了否定句，不会把上面那批放回来。
+  //
+  // 这里曾把 `complete` 也改成 `commandLeads`，本意是少拦几句，实测放进来
+  // 六句改世界的：「交付已经交了」「交付之前先说一声」「完成总是拖到最后」
+  // 「交付昨天就交了」「完成一直没交」「交付真累」——全部真的交付、faith 0→1。
+  // 已回退并留此注。
   const leads = (words: readonly string[]): boolean =>
     words.some((word) => lower.startsWith(word));
   const commandLeads = (words: readonly string[]): boolean =>
     leads(words) && !isQuestion(lower) && !hasNegation(lower);
+  /** 任务三道（交付/短活/派活）另外还查整份叙述表：过去时与评价收尾也不收单。 */
+  const taskLeads = (words: readonly string[]): boolean =>
+    leads(words) && !hasNarrativeMarker(lower);
 
-  if (commandLeads(COMPLETE_WORDS)) return { kind: 'complete' };
+  if (taskLeads(COMPLETE_WORDS)) return { kind: 'complete' };
   if (commandLeads(CLEAR_WORDS)) {
     return { kind: 'weather', weather: 'clear' };
   }

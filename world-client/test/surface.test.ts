@@ -466,7 +466,7 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
 });
 
 test('「最近一单」数的是最晚交付的，不是数组末尾那一单', () => {
-  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1174、:1742，全程不排序），
+  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1198、:1768，全程不排序），
   // `done` 过滤一遍还是那个顺序。两个人同时干活时创建顺序和交付顺序会分叉：
   // 先派下去的长活后交，后派下去的短活先交。照数组末尾取，报纸就把**先**交的
   // 那单叫「最近」——一句话说着当下，指的却是过去。
@@ -518,6 +518,43 @@ test('「最近一单」数的是最晚交付的，不是数组末尾那一单',
     !line.includes(`最近一单：${lastCreated.summary}`),
     `纸上把先交的那单叫「最近」：${line}`,
   );
+});
+
+test('两单同一拍落成时不说「最近一单」：那会儿没有更近的那一单', () => {
+  // 上面那条测的是"分叉时选最晚交付的"。这一条测它对面：`completedAt` 打平时
+  // 根本没有最晚可言，纸上却仍写「最近一单：甲」——一句话说着唯一，那儿有两个。
+  // 打平走得到：两单在同一帧里派下去，两个铺子同一拍越过预估就同时落成。
+  // 实测 createdAt 都是 100、completedAt 都是 1300。
+  const world = buildWorld(blueprints);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    wallClock: () => 1000,
+  });
+
+  sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '甲' });
+  sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '乙' });
+  sim.update(100);
+  let guard = 0;
+  while (sim.snapshot().tasks.some((task) => task.status !== 'done')) {
+    sim.update(100);
+    if ((guard += 1) > 600) throw new Error('两单没交完');
+  }
+
+  const done = sim.snapshot().tasks.filter((task) => task.status === 'done');
+  assert.equal(done.length, 2, '夹具：两单都交了');
+  assert.equal(
+    done[0]!.completedAt,
+    done[1]!.completedAt,
+    '夹具没造出打平：这一条就没在问它想问的',
+  );
+
+  const line = composeReport(sim.snapshot()).lines.find((item) => item.includes('交付')) ?? '';
+  assert.ok(!line.includes('最近一单'), `打平时不该指定哪一单最近：${line}`);
+  // 少的只是排名，单数照实：两单分在两个工人名下，各一单。
+  assert.ok(line.includes('交付 1 单'), `两单都报到了，只是不排名：${line}`);
 });
 
 // ------------------------------------------------------------------ animalese

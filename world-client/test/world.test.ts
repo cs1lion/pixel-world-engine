@@ -225,12 +225,12 @@ test('句中顺带提到撤销不动队列，动词打头才收', () => {
   assert.equal(parseOracle('撤销刚才那条').kind, 'cancelPending');
 });
 
-test('打头的否定句不改世界：撤销、天气、潮汐五处闸都得过叙述那一关', () => {
+test('打头的否定句不改世界：撤销、天气、潮汐六处闸都得过否定那一关', () => {
   // 「撤销别撤错单」确实以「撤销」打头，可它是在说别做错，不是在下命令。
   // 打头规则只修好了「先别取消排队」那种**句首**的否定，修不好**句中**的——
-  // 天气三档、撤销、潮汐两端这五处闸原来只查了 `isQuestion`，没查
-  // `hasNarrativeMarker`。实测漏的后果：「撤销别撤错单」「取消别取消错了」
-  // 都会真的撤掉等待队列。
+  // 天气三档、撤销、潮汐两端这六处闸原来只查了 `isQuestion`，没查
+  // `hasNegation`（另有一处 `parseTideLevel`，同样补上了）。实测漏的后果：
+  // 「撤销别撤错单」「取消别取消错了」都会真的撤掉等待队列。
   for (const text of ['撤销别撤错单', '取消别取消错了', '撤销别撤销错了']) {
     assert.equal(parseOracle(text).kind, 'unknown', `「${text}」是否定句，不该撤队列`);
   }
@@ -244,6 +244,31 @@ test('打头的否定句不改世界：撤销、天气、潮汐五处闸都得�
   assert.equal(parseOracle('放晴').kind, 'weather');
   assert.equal(parseOracle('涨潮').kind, 'tide');
   assert.equal(parseOracle('退潮').kind, 'tide');
+});
+
+test('「交付」还要过整份叙述表：过去时与评价收尾都不收单', () => {
+  // `complete` 与短活、派活同属"收单/派活"这一路，查的是 `hasNarrativeMarker`
+  // 全表（28 个标记），不是 `commandLeads` 那 12 个。少了过去时与评价收尾这 16 个，
+  // 陈述句就变成了收单命令——实测「交付已经交了」真的交付、faith 0→1、
+  // 回执还报 ok。这里把六句全钉住，免得下一个人为了"少拦几句"再收窄一遍。
+  for (const text of [
+    '交付已经交了',
+    '交付之前先说一声',
+    '完成总是拖到最后',
+    '交付昨天就交了',
+    '完成一直没交',
+    '交付真累',
+  ]) {
+    assert.equal(parseOracle(text).kind, 'unknown', `「${text}」是陈述，不该收单`);
+  }
+  // 否定那四个词是叙述表的子集，所以一并挡住了——不是只靠 negation 那一道。
+  for (const text of ['交付别交错了', '交付不要交']) {
+    assert.equal(parseOracle(text).kind, 'unknown', `「${text}」是否定句，不该收单`);
+  }
+  // 本行的照旧放行。
+  assert.equal(parseOracle('交付').kind, 'complete');
+  assert.equal(parseOracle('完成').kind, 'complete');
+  assert.equal(parseOracle('收工').kind, 'complete');
 });
 
 test('英文命中词同样只认打头，问句落 unknown', () => {

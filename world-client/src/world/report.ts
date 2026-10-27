@@ -46,17 +46,25 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     });
     // 「最近一单」要的是**最晚交付**的那一单，不是数组末尾那一单。
     //
-    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1174`、`:1742`，
-    // 全程没有 sort、没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
+    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1198`、`:1768`，
+    // 读档那条 `:2878` 也只是按存档里的顺序原样 push 回去，全程没有 sort、
+    // 没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
     // 这两个顺序会分叉：先派下去的长活后交，后派下去的短活先交。照数组末尾取，
     // 报纸就把**先**交的那单叫「最近」——一句话说着当下，指的却是过去。
     // 实测：长活 8500 交付、短活 3800 交付，纸上写「最近一单：短活」。
     //
     // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
-    // `completedAt` 是落成那一刻。三个收尾处（`:2187`、`:2358`、`:2809`）写的都是
-    // `this.now`，而世界钟只增不减（`:536` 起每次 update 都 `+=`），所以按
-    // `completedAt` 排出来的才是真正的交付顺序。读档回来的单带着原来的
-    // `completedAt`，新交的只会更大，跨会话也还排得对。
+    // `completedAt` 是落成那一刻。三个收尾处写的都是 `this.now`——
+    // `finishInPlace`（`simulation.ts:2329`）、`finishActiveTask`（`:2500`）、
+    // `settleDetachedTask`（`:2962`）；而世界钟只增不减（`update` 里 `:581`
+    // 每次 `+=`），所以按 `completedAt` 排出来的才是真正的交付顺序。读档回来的
+    // 单带着原来的 `completedAt`，新交的只会更大，跨会话也还排得对。
+    //
+    // 打平怎么办：同一拍里两单都落成时 `completedAt` 相等（两单一起派下去就会——
+    // 一帧里两条命令、两个铺子同一拍越过预估，都走得到）。那时没有"更近"可言，
+    // 可纸上仍要写「最近一单」——写了就是句假话，说的是唯一，那儿有两个。
+    // 所以打平时**整句不提**，跟 `done` 为空时同一个处置：说不出就不说。
+    // 这不是保守过头：`deliveries.local` 已经如实报了两单，少的只是一个排名。
     const latest = done.reduce<TaskRecord | undefined>(
       (newest, task) =>
         newest === undefined || (task.completedAt ?? 0) > (newest.completedAt ?? 0)
@@ -64,8 +72,11 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
           : newest,
       undefined,
     );
+    const tied =
+      latest !== undefined &&
+      done.some((task) => task !== latest && (task.completedAt ?? 0) === (latest.completedAt ?? 0));
     lines.push(
-      latest === undefined
+      latest === undefined || tied
         ? parts.join(' / ')
         : `${parts.join(' / ')}，最近一单：${latest.summary}`,
     );

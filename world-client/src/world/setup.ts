@@ -244,7 +244,6 @@ export function checkPlacement(
   return { ok: true };
 }
 
-/** 常驻铺子开局落位。扩建样板不在这里出现。 */
 /**
  * 建一个世界。
  *
