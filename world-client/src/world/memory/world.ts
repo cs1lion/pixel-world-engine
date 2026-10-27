@@ -91,6 +91,7 @@ import {
   asListenerBelief,
   beliefFrom,
   checkConflict,
+  judgeVerify,
   planVerify,
   verifyAt,
   type VerifyPlan,
@@ -835,22 +836,38 @@ export class MemoryWorld {
   verify(holderId: string, claimId: string, placeId: string, at: number): {
     readonly outcome: ReturnType<typeof verifyAt>;
     readonly debunkedSpeaker: string | null;
+    /** 被升级成 `witnessed` / `read` 的记忆 id。求证没成就是空数组。 */
+    readonly upgradedMemoryIds: readonly string[];
   } {
     const claim = this.claims.get(claimId);
-    if (claim === undefined) return { outcome: 'inconclusive', debunkedSpeaker: null };
+    if (claim === undefined) {
+      return { outcome: 'inconclusive', debunkedSpeaker: null, upgradedMemoryIds: [] };
+    }
 
     const announcementClaims = this.announcements
       .filter((item) => item.placeId === placeId)
       .map((item) => item.claim);
-    const outcome = verifyAt(
+    const verdict = judgeVerify(
       { traces: this.traces.get(placeId) ?? [], announcementClaims },
       claim,
     );
+    const outcome = verdict.outcome;
 
     const state = outcome === 'confirmed' ? 'confirmed' : outcome === 'debunked' ? 'debunked' : 'suspicious';
     this.beliefs = this.beliefs.map((belief) =>
       belief.holderId === holderId && belief.claimId === claimId ? { ...belief, state } : belief,
     );
+
+    // 求证成功还有后半句，见 `upgradeOnVerify`。**先升级再报事件**：一条
+    // `belief.updated` 把「信念变了」和「记忆也变了」一起说清。反过来先报，
+    // 回放的人会先看到信念已证实、而记忆还是 `heard` 打折后的那一版。
+    // `upgradedMemoryIds` 只在求证这一路上有：求证没成就是空数组——
+    // 「跑了一趟，但没有听说记忆可升」本身也是个结果。
+    const upgraded =
+      outcome === 'confirmed' && verdict.evidence !== null
+        ? this.upgradeOnVerify(holderId, claimId, verdict.evidence)
+        : [];
+    this.emit('belief.updated', at, { holderId, claimId, state, upgradedMemoryIds: upgraded });
 
     let debunkedSpeaker: string | null = null;
     if (outcome === 'debunked') {
@@ -868,7 +885,44 @@ export class MemoryWorld {
     // 求证完就撤掉这条日程：跑一趟只解决一条传言。
     const remaining = (this.verifyPlans.get(holderId) ?? []).filter((plan) => plan.claimId !== claimId);
     this.verifyPlans.set(holderId, remaining);
-    return { outcome, debunkedSpeaker };
+    return { outcome, debunkedSpeaker, upgradedMemoryIds: upgraded };
+  }
+
+  /**
+   * 求证成功之后，听说来的那条升级成亲眼或亲读。
+   *
+   * 补充设计 §1.1 第 3 步的后半句：「若在事发地目击到对应的物质痕迹，或在公告栏
+   * 读到官方通告，则将原 `heard` 记忆升级为 `witnessed / read`，置信度拉满」。
+   * 原先这一句一处都没有——只有前半句（辟谣、可靠度下调 0.15）落了地。全仓
+   * `sourceMode` 与 `confidence` 都只在条目**诞生**时写一次，之后再也不改，
+   * 于是跑完一趟求证，他的记忆仍旧是 `heard`、可信度还是跳数打折后的那个数。
+   * 「他亲自去现场看过」这件事在世界里没有留下任何痕迹。
+   *
+   * 痕迹定的案升 `witnessed`（他到过现场，看见的是物质），公告定的案升 `read`
+   * （他读到的是记录）。`sourceChain` 一并清空：那个字段的定义是「heard 时的
+   * 来源链」，一条 `witnessed` 却挂着三层转述的条目自己和自己矛盾。
+   *
+   * 只升 `heard` 的。已经 `witnessed` 的不用升；`inferred` 是从痕迹推出来的，
+   * 不是听说，也不该被这条路改动——他从没信过任何人，他只是看见了地上的东西。
+   *
+   * 不挑 `claimIds` 里只有这一条的：同一条断言常常派生出好几段说法（当面讲的、
+   * 广播听的），它们都是同一个传闻，一起升。
+   */
+  private upgradeOnVerify(
+    holderId: string,
+    claimId: string,
+    evidence: 'trace' | 'announcement',
+  ): readonly string[] {
+    const sourceMode = evidence === 'announcement' ? 'read' : 'witnessed';
+    const upgraded: string[] = [];
+    this.entries = this.entries.map((entry) => {
+      if (entry.holderId !== holderId) return entry;
+      if (entry.sourceMode !== 'heard') return entry;
+      if (!entry.derivedFrom.claimIds.includes(claimId)) return entry;
+      upgraded.push(entry.memoryId);
+      return { ...entry, sourceMode, confidence: 1, sourceChain: [] };
+    });
+    return upgraded;
   }
 
   // -------------------------------------------------------------- 天界

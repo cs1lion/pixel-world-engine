@@ -314,7 +314,7 @@ export class MemoryRuntime {
   settleVerification(
     holderId: string,
     claimId: string,
-  ): { readonly outcome: 'confirmed' | 'debunked' | 'inconclusive'; readonly debunkedSpeaker: string | null } | null {
+  ): ReturnType<MemoryWorld['verify']> | null {
     const plans = this.world.viewOf(holderId)?.verifyPlans ?? [];
     const plan = plans.find((item) => item.claimId === claimId);
     if (plan === undefined) return null;

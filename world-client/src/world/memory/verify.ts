@@ -7,7 +7,8 @@
  * 2. **求证冲动**：`verify_impulse = salience × |valence_new − valence_old| × speaker_trust`，
  *    过 0.45 就变成「存疑」并插一条高优日程。
  * 3. **空间求证**：走到事发地读痕迹（或读公告）之后，证实是假就发 `RumorDebunked`，
- *    并把造谣者的可靠度下调 0.15。
+ *    并把造谣者的可靠度下调 0.15；证实是真的，就把原来听来的那条记忆升级成
+ *    `witnessed`（痕迹定的案）或 `read`（公告定的案），可信度拉满。
  *
  * 这一条闭环是「行为决策」与「传播协议」之间唯一的连接点。没有它，传言
  * 只是数据库里的一行；有了它，传言会长成一个小人走出门去的动作。
@@ -88,6 +89,12 @@ export interface VerifyScene {
   readonly announcementClaims: readonly Claim[];
 }
 
+/** 定案。`evidence` 是「什么东西替他定的案」，`inconclusive` 时是 null。 */
+export interface VerifyVerdict {
+  readonly outcome: VerifyOutcome;
+  readonly evidence: 'trace' | 'announcement' | null;
+}
+
 /**
  * 到了事发地之后怎么判。
  *
@@ -99,8 +106,15 @@ export interface VerifyScene {
  * 「方向一致」用效价符号判：焦痕（负）与「这里出了事故」（负）一致。
  * 这不是在判真假，是在判「现场看起来像不像他说的那样」——世界能给的
  * 只有这个程度的确证，把它说成「真相大白」就是撒谎。
+ *
+ * 多报一样 `evidence`：定案的是物质痕迹还是官方公告。这不是装饰——
+ * 补充设计 §1.1 第 3 步的后半句按它分两路（痕迹定的案升级成
+ * `witnessed`，公告定的案升级成 `read`）。原先只有前半句落了地，
+ * 而那一句只要一个 `VerifyOutcome` 就够了，所以判据里根本没留下
+ * 「是什么定的案」。拆成 `judgeVerify` + 一扇只问结果的薄门
+ * （`verifyAt`），老调用方一处都不用改。
  */
-export function verifyAt(scene: VerifyScene, claim: Claim): VerifyOutcome {
+export function judgeVerify(scene: VerifyScene, claim: Claim): VerifyVerdict {
   const sign = Math.sign(claim.content.valence);
   const traceSign = scene.traces
     .filter((trace) => trace.visibility > 0)
@@ -110,8 +124,8 @@ export function verifyAt(scene: VerifyScene, claim: Claim): VerifyOutcome {
   if (traceSign.length > 0) {
     const agrees = traceSign.some((value) => value === sign);
     const disagrees = traceSign.some((value) => value === -sign);
-    if (agrees && !disagrees) return 'confirmed';
-    if (disagrees && !agrees) return 'debunked';
+    if (agrees && !disagrees) return { outcome: 'confirmed', evidence: 'trace' };
+    if (disagrees && !agrees) return { outcome: 'debunked', evidence: 'trace' };
     // 两种都有：现场说不清，去看公告。
   }
 
@@ -121,10 +135,18 @@ export function verifyAt(scene: VerifyScene, claim: Claim): VerifyOutcome {
         posted.eventRefs.some((ref) => claim.eventRefs.includes(ref)) &&
         Math.sign(posted.content.valence) === sign,
     );
-    return authoritative ? 'confirmed' : 'debunked';
+    return {
+      outcome: authoritative ? 'confirmed' : 'debunked',
+      evidence: 'announcement',
+    };
   }
 
-  return 'inconclusive';
+  return { outcome: 'inconclusive', evidence: null };
+}
+
+/** 只问结果的那一扇。要「是什么定的案」就走 `judgeVerify`。 */
+export function verifyAt(scene: VerifyScene, claim: Claim): VerifyOutcome {
+  return judgeVerify(scene, claim).outcome;
 }
 
 function traceSignOf(trace: Trace): number {
