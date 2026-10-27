@@ -8,7 +8,7 @@ import { TASK_PROFILES } from '../world/tasks.ts';
 import type { DailyReport } from '../world/report.ts';
 import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import { whenApi } from './when-api.ts';
-import type { TaskKind, WorldSnapshot } from '../world/types.ts';
+import type { PrefabBlueprint, TaskKind, WorldSnapshot } from '../world/types.ts';
 
 export interface OracleApi {
   /** 世界快照只读视图。HUD 与浏览器回归都从这里读，不另开接口。 */
@@ -99,6 +99,41 @@ const BUTTON_TEXT: Record<string, string> = {
   writing: '帮我整理一下便笺',
   quick: '顺手看一眼',
 };
+
+/**
+ * 输入框里那个例子必须**在这张图上真能办到**。
+ *
+ * 世界拒绝「同一种铺子建第二栋」（`simulation.ts` 的 `build`，`SandboxScene`
+ * 在入队之前还有一道同样的），所以「现在还能建什么」= 蓝图表里有、而还没有任何
+ * 一栋楼用它。玩家把最后一种也建掉、或是读一份已经建了它的档之后，一种都不剩——
+ * 这时不能还拿建造当例子：那句话注定被拒，而 `intent-context.ts` 自己承认这种
+ * 拒绝是**事后**才知道的，例子却是在玩家动手之前就给出去的。
+ *
+ * 两种设定集共用这一个判断，而且递进来的必须是**建成之后的事实**：默认世界的
+ * 开局楼由 `buildLargeWorld` 生成，包的开局楼由 `pack.placements` 落，读档时两者
+ * 都是存档里那批楼。按包里的静态声明算，读档就漏了——`main.ts` 原来正是这么算的，
+ * 于是它只为「有设定集的图」挡住了这一种，默认世界（十二种铺子开局落十一栋，
+ * 能建的只有 `workshop_plot` 一种）照旧拿写死的「建一间工坊」当例子。
+ */
+export function buildableExample(
+  blueprints: ReadonlyMap<string, PrefabBlueprint>,
+  placedPrefabIds: ReadonlySet<string>,
+): PrefabBlueprint | undefined {
+  return [...blueprints.values()].find((blueprint) => !placedPrefabIds.has(blueprint.id));
+}
+
+const NO_BUILD_EXAMPLE = '对世界说一句话：涨潮 / 查一下资料 / 让她带上灯';
+
+/** 还有一种铺子能建，就说建它；一种都不剩，就换个不靠建造的例子。 */
+export function utterancePlaceholder(
+  blueprints: ReadonlyMap<string, PrefabBlueprint>,
+  placedPrefabIds: ReadonlySet<string>,
+): string {
+  const pick = buildableExample(blueprints, placedPrefabIds);
+  return pick === undefined
+    ? NO_BUILD_EXAMPLE
+    : `对世界说一句话：建一座${pick.displayName} / 涨潮 / 查一下资料`;
+}
 
 export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
   const form = document.querySelector<HTMLFormElement>('#oracle');

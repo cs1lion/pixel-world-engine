@@ -9,7 +9,7 @@ import {
   TILE_PX,
 } from './world/setup.ts';
 import { SandboxScene } from './scenes/SandboxScene.ts';
-import { bindOraclePanel, type OracleApi } from './ui/oracle-panel.ts';
+import { bindOraclePanel, utterancePlaceholder, type OracleApi } from './ui/oracle-panel.ts';
 import { bindHud } from './ui/hud.ts';
 import { bindShell } from './ui/shell.ts';
 import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
@@ -83,33 +83,32 @@ const worldTitle = document.querySelector<HTMLElement>('#world-title');
 if (worldTitle !== null) worldTitle.textContent = pack.name;
 const brand = document.querySelector<HTMLElement>('#topbar .brand');
 if (brand !== null) brand.textContent = pack.name;
+const world = buildWorldFor(pack, loadedSave.ok ? loadedSave.save : null);
+
 /**
  * 输入框里的例子必须在这张图上真能办到。
  *
  * `index.html` 写死的是「建一间工坊」——那是莞尔镇的模板。灯潮界没有工坊，
- * 照抄这句就是给用户一个注定被拒的例子。有设定集的图改用自己**还没落位**的
- * 模板：那个模板本来就为「能建一栋」留着的。
+ * 照抄这句就是给用户一个注定被拒的例子。
  *
  * **一个都没剩下的时候不能就不管了。** 世界拒绝「同一种铺子建第二栋」，
- * 所以模板全落位之后这张图上一栋新楼也建不出来；这时留着的那个例子
- * 仍然是莞尔镇的「建一间工坊」，比原来更糟——它连模板名都不是这张图上的。
+ * 所以每种铺子都落位之后这张图上一栋新楼也建不出来；这时留着的那个例子
+ * 仍然是「建一间工坊」，比原来更糟——它连模板名都不是这张图上的。
  * 换成一个不靠建造也能办的例子。
+ *
+ * 这段原来只对 `pack.authored` 跑，默认世界始终用 `index.html` 那句写死的。
+ * 可默认世界正是最容易踩中的那一支：十二种铺子开局落了十一栋，能建的只有
+ * `workshop_plot` 一种，玩家把它建掉（或读一份已经建了它的档）之后就一种不剩，
+ * 而例子还在说「建一间工坊」。现在两支共用 `utterancePlaceholder`，而且喂它的
+ * 是**建成之后的世界**（读档时是存档里那批楼），不是包里的静态声明。
  */
-const unplaced = pack.authored
-  ? [...pack.blueprints.values()].find(
-      (blueprint) => !pack.placements.some((placement) => placement.prefabId === blueprint.id),
-    )
-  : undefined;
-if (pack.authored) {
-  const utterance = document.querySelector<HTMLInputElement>('#utterance');
-  if (utterance !== null) {
-    utterance.placeholder =
-      unplaced === undefined
-        ? '对世界说一句话：涨潮 / 查一下资料 / 让她带上灯'
-        : `对世界说一句话：建一座${unplaced.displayName} / 涨潮 / 查一下资料`;
-  }
+const utterance = document.querySelector<HTMLInputElement>('#utterance');
+if (utterance !== null) {
+  utterance.placeholder = utterancePlaceholder(
+    pack.blueprints,
+    new Set(world.buildings.map((building) => building.prefabId)),
+  );
 }
-const world = buildWorldFor(pack, loadedSave.ok ? loadedSave.save : null);
 
 /** 画布尺寸：只显示世界的一小块，靠相机移动看其余部分。 */
 const VIEW_WIDTH = 30 * TILE_PX;
