@@ -41,7 +41,7 @@ import { recall, type RecallOutcome, type RecallRequest } from './recall.ts';
 import { decideWrite, inputsFor } from './salience.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import { rollBelow, seedOf } from './seed.ts';
-import { exposedTraces, consequenceOf, fitTraceLayers, inferenceOf, makeTrace, type InferenceSpec } from './traces.ts';
+import { exposedTraces, consequenceOf, fitTraceLayers, inferenceOf, makeTrace, weatherTrace, type InferenceSpec } from './traces.ts';
 import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './written.ts';
 import type {
   Belief,
@@ -719,6 +719,7 @@ export class MemoryWorld {
     this.currentDay = closedDay;
 
     this.diffuseDay(at);
+    this.weatherTraces(closedDay);
 
     // **日记要写在整理之前。** 整理会把当天的片段降级或压成摘要，写在那之后
     // 就一条都收不到了——日记收的正是「今天的片段」。这一句放错过位置，
@@ -968,6 +969,25 @@ export class MemoryWorld {
         recipientId: null,
         claimIds: record.claims.map((claim) => claim.claimId),
       });
+    }
+  }
+
+  /**
+   * 日终风化：每道痕迹按自己的层掉一天可见度。
+   *
+   * 协议第 11 节：「风化只降低可见度，不删除记录。」所以这里**从不删**，
+   * 连 `visibility` 归零的也留着——它只是不再出现在 `exposedTraces` 里，
+   * 但 `eventRef` 还在，地点 Holder 还追得到「这里发生过什么」。
+   *
+   * **当天新落的痕迹不风化。** 中午炸的炉子，第二天早上路过的人该看见
+   * 完整的焦痕。少了这个判断，痕迹落地当天的日终就先掉一天——一条
+   * `garland`（0.30/天）会在它被看见之前就短了一截，而「今天刚办过庆典」
+   * 正是它唯一想说的那句话。
+   */
+  private weatherTraces(day: number): void {
+    for (const [placeId, traces] of this.traces) {
+      const weathered = traces.map((trace) => (trace.createdDay >= day ? trace : weatherTrace(trace)));
+      this.traces.set(placeId, weathered);
     }
   }
 

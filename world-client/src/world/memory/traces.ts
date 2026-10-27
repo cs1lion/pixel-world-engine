@@ -91,13 +91,64 @@ export function makeTrace(
     layerType: spec.layerType,
     intensity: spec.intensity,
     createdDay: input.day,
-    // 新痕迹全可见；风化是日终整理的事。
+    // 新痕迹全可见；风化是日终整理的事（`weatherTrace`），而且**当天不算**：
+    // 中午炸的炉子，第二天早上路过的人该看见完整的焦痕，而不是已经掉了一天的。
     visibility: 1,
   };
 }
 
 /**
- * 这个地点此刻**显式暴露**哪几层痕迹。
+ * 这道痕迹一天掉多少可见度。**按层定，不按全局一个数**。
+ *
+ * 协议第 11 节把 `visibility_decay` 列为 Trace 自己的字段，补充设计 §3.1 的
+ * 定稿表也没有给过这一行的数——因为它本来就不是一个全局旋钮：一场庆典的
+ * 花环撑不过两天，一块刻进石头的碑文该比在场所有人都活得久。用同一个速率
+ * 冲掉所有痕迹，等于说「焦痕和碑文一样容易忘」，而那正是痕迹通道想区分的
+ * 那件事。
+ *
+ * 取值口径：**活几天**。`0.1` 是十天掉光，`0.02` 是五十天。都按世界日算。
+ *
+ * | 层 | 一天 | 大约撑 | 为什么 |
+ * | --- | --- | --- | --- |
+ * | `garland` | 0.30 | 3 天 | 花会枯。这是唯一一种「几天后必然看不见」的痕迹。 |
+ * | `damage` | 0.12 | 8 天 | 坏掉的东西要么被修，要么被习惯。 |
+ * | `scorch` | 0.10 | 10 天 | 焦痕能扫，但扫不干净。 |
+ * | `patch` | 0.06 | 17 天 | 补丁比伤痕耐看——修好了就少有人再提。 |
+ * | `worn_path` | 0.03 | 33 天 | 路是走出来的，也靠走维持；没人走了才慢慢长草。 |
+ * | `inscription` | 0.01 | 100 天 | 碑文是石头上的字。它几乎不风化。 |
+ *
+ * 这张表与 `INFERENCE_TABLE` 一样是「材料的事」，所以放在 `traces.ts` 而不是
+ * `config.ts`：加一种痕迹要同时回答「它说明什么」与「它能撑多久」，两件事
+ * 分开写，早晚会有一边被忘掉。
+ */
+const VISIBILITY_DECAY: Readonly<Record<TraceLayer, number>> = {
+  garland: 0.3,
+  damage: 0.12,
+  scorch: 0.1,
+  patch: 0.06,
+  worn_path: 0.03,
+  inscription: 0.01,
+};
+
+/**
+ * 风化一天：可见度按层衰减，**记录不删**。
+ *
+ * 协议第 11 节那条「风化只降低可见度，不删除记录」是这一行唯一的规矩。
+ * 于是这里连 `visibility` 到 0 的痕迹都原样留着——它不再出现在
+ * `exposedTraces` 里（那里按 `visibility > 0` 过滤），但仍然挂在 place Holder
+ * 的记忆上，仍然带着 `eventRef`。删掉它等于让世界忘掉「这里曾经发生过什么」，
+ * 而地点 Holder 的定义就是「不遗忘，只被覆盖或风化」。
+ *
+ * 已经到 0 的直接返回原对象：不是优化，是**不要再往下减成负数**。负数会让
+ * 「快风化的」排到「已经看不见的」后面，两个都该看不见的东西之间还比出个高低。
+ */
+export function weatherTrace(trace: Trace): Trace {
+  if (trace.visibility <= 0) return trace;
+  const rate = VISIBILITY_DECAY[trace.layerType];
+  return { ...trace, visibility: Math.max(0, trace.visibility - rate) };
+}
+
+/** 这个地点此刻**显式暴露**哪几层痕迹。
  *
  * 补充设计 §3.2 A：每个建筑最多显式暴露前 3 个高强度 Trace。按
  * `intensity × visibility` 排序取前 N——强度与残存可见度都算，因为一道
