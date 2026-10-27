@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
-import { ALTAR, buildWorld, checkPlacement, placeBlueprint } from '../src/world/setup.ts';
+import { ALTAR, LARGE_ALTAR, WILD_PREFABS, buildLargeWorld, buildWorld, checkPlacement, placeBlueprint } from '../src/world/setup.ts';
+import { BIOME_RADII } from '../src/world/biomes.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { composeReport } from '../src/world/report.ts';
 import { WorldGrid } from '../src/world/grid.ts';
@@ -155,6 +156,71 @@ test('指定非法位置时返回 null，不建半截楼', () => {
   const placed = placeBlueprint(world.grid, plot, 'plot#bad', ALTAR, { x: -3, y: -3 });
   assert.equal(placed, null);
   assert.equal(world.grid.countOccupied(), before, '被拒时不能占用任何格子');
+});
+
+// ---------------------------------------------- 群落闸为什么必须存在
+
+/**
+ * `checkPlacement` 不知道「郊野」是什么意思——它只看出界 / 分区 / 占地 / 留白 /
+ * 门口。所以单靠它，玩家能把郊野铺子的幽灵拖进镇子并确认成功。
+ *
+ * `SandboxScene.canPlaceBlueprintHere` 那道群落闸是唯一拦住它们的东西，
+ * 而它没有运行时测试（没有测试 new 过 SandboxScene）。这条把它的**存在理由**
+ * 钉住：`checkPlacement` 自己会放行多少个镇内落点。谁改了分区或半径，让这组数
+ * 不再成立，这里会红——而不是让 `SandboxScene.ts` 里那段注释慢慢变成一句
+ * 没人核的话。
+ *
+ * 数与 `SandboxScene.ts` 那段注释同源，都是开局大世界一格一格枚举出来的。
+ */
+test('checkPlacement 自己会放行镇内的郊野落点——群落闸不是装饰', () => {
+  const world = buildLargeWorld(blueprints);
+
+  /** 枚举某份蓝图在开局世界里的全部合法左上角，附它到祭坛的距离（整数尺）。 */
+  const legalSlots = (
+    id: string,
+  ): { readonly x: number; readonly y: number; readonly d: number }[] => {
+    const bp = blueprints.get(id);
+    assert.ok(bp !== undefined, `要有 ${id} 这份蓝图`);
+    const out: { x: number; y: number; d: number }[] = [];
+    for (let y = 0; y < world.grid.height - bp.footprint.h + 1; y += 1) {
+      for (let x = 0; x < world.grid.width - bp.footprint.w + 1; x += 1) {
+        if (!checkPlacement(world.grid, bp, { x, y }).ok) continue;
+        out.push({ x, y, d: Math.hypot(x - LARGE_ALTAR.x, y - LARGE_ALTAR.y) });
+      }
+    }
+    return out;
+  };
+
+  // 注释里承重的那三个数，逐个独立可复算。
+  const mine = legalSlots('crawler_mine');
+  assert.equal(mine.length, 47, '开局世界 crawler_mine 的合法左上角共 47 个');
+
+  const inRing = mine.filter((s) => s.d <= BIOME_RADII.craftRing);
+  assert.equal(inRing.length, 31, '其中 31 个在 craftRing(21) 内，checkPlacement 一律放行');
+
+  const nearest = mine.reduce((a, b) => (b.d < a.d ? b : a));
+  assert.deepEqual({ x: nearest.x, y: nearest.y }, { x: 56, y: 27 }, '圈内最近的那个落点');
+  assert.equal(nearest.d.toFixed(3), '12.042', '它离祭坛 12.042 格');
+
+  // 另两类同形状：都是「一半以上的合法落点在圈内」。
+  for (const id of ['ink_mill', 'gear_tower']) {
+    const slots = legalSlots(id);
+    const inside = slots.filter((s) => s.d <= BIOME_RADII.craftRing).length;
+    assert.ok(
+      inside > slots.length / 2,
+      `${id} 合法 ${slots.length} 个，圈内 ${inside} 个——过半的落点要靠群落闸拦`,
+    );
+  }
+
+  // 注释里那条「今天追不上来」的不对称：三类铺子的合法落点没有一个越过
+  // wilderness(37)，所以 SandboxScene 少的那条上界现在追不上来。
+  for (const id of WILD_PREFABS) {
+    const farthest = legalSlots(id).reduce((a, b) => (b.d > a.d ? b : a));
+    assert.ok(
+      farthest.d <= BIOME_RADII.wilderness,
+      `${id} 最远的合法落点 ${farthest.d.toFixed(3)} 仍在 wilderness 内`,
+    );
+  }
 });
 
 // ------------------------------------------------------------------ 建筑来源

@@ -983,8 +983,25 @@ export class SandboxScene extends Phaser.Scene {
     if (!check.ok) return { ok: false, message: hintFor(check.reason) };
 
     // 群落：郊野铺子必须在郊野圈，镇内铺子在工坊环内。
-    // 与开局落位同一套规则（setup.ts 的 accept 谓词），否则拆了重建会把
-    // 郊野铺子建到镇里——实测 crawler_mine 曾被建到 15.5 格的 craftRing。
+    // 与开局落位同一把尺：`setup.ts` 的 accept 拿左上角 `origin` 算距，这里拿
+    // 幽灵格 `cell` 算距。两者都是**整数尺上的铺面锚点**，不混格心尺。
+    //
+    // 为什么非得有这一道：`checkPlacement` 只看出界 / 分区 / 占地 / 留白 / 门口，
+    // 不知道「郊野」是什么意思。开局世界里它判 crawler_mine 能落的左上角有 **47**
+    // 个，其中 **31** 个在 craftRing(21) 之内，最近的一个在 (56,27)、**12.042**
+    // 格。没有这道闸，把幽灵拖进镇子就能把郊野铺子建进镇子。
+    // （ink_mill 52 个 / 圈内 36 个，gear_tower 42 个 / 圈内 26 个，同一个形状。）
+    //
+    // 这里原来写「实测 crawler_mine 曾被建到 15.5 格的 craftRing」。那个数
+    // **复核不了**——它是某次真实对局里指针落点的记录，取决于当时的世界状态。
+    // 而且它把问题说窄了：15.5 只是那 31 个圈内槽位中的一个（d=15.524，确实存在，
+    // 但只有一个），真正最近的是 12.042。所以故事留着当动机，承重的数换成上面
+    // 那些能复算的。
+    //
+    // 与 `setup.ts` 的 accept 还差一条上界：那边要求 `d <= BIOME_RADII.wilderness`，
+    // 这边只管下界。今天追不上来——三类郊野铺子的合法槽位 d 全距最远只到 34.986
+    // （gear_tower），都在 wilderness(37) 之内。所以不是现在的 bug，但是条会随
+    // 分区长大而咬人的不对称，记在这儿免得将来没人知道它存在过。
     const distance = Math.hypot(cell.x - this.world.altar.x, cell.y - this.world.altar.y);
     const isWild = WILD_PREFABS.has(blueprint.id);
     if (isWild && distance <= BIOME_RADII.craftRing) {
