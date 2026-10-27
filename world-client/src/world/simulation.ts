@@ -41,6 +41,7 @@ import {
   describePropSource,
   POINTS_PER_TASK,
 } from './faith.ts';
+import { GRIME_CLEAN, grimeAfter, landProp } from './grime.ts';
 import { routineBeats, routineFor, shelterTarget, type RoutineBeat } from './routines.ts';
 import {
   clearWeather,
@@ -63,6 +64,7 @@ import type {
   PendingDispatch,
   PlacedBuilding,
   PrefabBlueprint,
+  PropKind,
   TaskRecord,
   TaskKind,
   Vec2,
@@ -150,10 +152,9 @@ export type WorldCommand =
     }
   /**
    * 神迹：纯世界侧动作，不是你的话，所以不刻石板。
+   *
    * 三件：点灯、种树、召唤猫（猫只做氛围，会自己走开）。
-   */
-  /**
-   * 神迹。`at` 省略时落在祭坛周围；给了就落在指定位置。
+   * `at` 省略时落在祭坛周围；给了就落在指定位置。
    * 指定位置要过三道：在界内、不在迷雾里、格子空着。
    */
   | { readonly kind: 'miracle'; readonly miracle: MiracleKind; readonly at?: GridPoint }
@@ -204,7 +205,18 @@ export type WorldCommand =
    * `carries: []`，那会把她手里的灯一起拿走，而用户要的只是一双鞋。
    */
   | { readonly kind: 'setCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] }
-  | { readonly kind: 'removeCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] };
+  | { readonly kind: 'removeCarries'; readonly villagerId: string; readonly carries: readonly CarryItem[] }
+  /**
+   * 洗一件摆件（清洗即还原，SPEC_V2 §4.6）。污浊度归零，露话因此看得见。
+   *
+   * 与 `setCarries` / `setNameState` 同一条边界：它只存在于客户端的命令表里，
+   * 上游收不到、模型也说不出（`IntentKind` 里没有它）。清洗是玩家对世界做的
+   * 一件事，不是世界从上游听来的一句话。
+   *
+   * 不做小游戏、不做物品栏（SPEC_V2 §4.6 明写不加这两样）：一按就干净，
+   * 报酬是露出来的那句话。要「搓三下才洗干净」那是另一个票。
+   */
+  | { readonly kind: 'cleanProp'; readonly propId: string };
 
 export interface NewBuilding {
   readonly building: PlacedBuilding;
@@ -236,6 +248,17 @@ export interface SimulationDeps {
    * 比不说好，但模型看到的是一个英文词。
    */
   readonly regionNames?: ReadonlyMap<string, string>;
+  /**
+   * 摆件种类 → 它底下的那几句露话（清洗即还原，SPEC_V2 §4.6）。
+   *
+   * 与 `regionNames` 同一条规矩：**话是谁的就说谁拿着**。引擎不编设定集的
+   * 内容，所以这一份由拿着设定集的调用方给。省略（或某个种类缺席）时
+   * 那类摆件没有露话，也就没有什么要盖的——于是一件都不脏。
+   *
+   * 莞尔镇一份都没给，所以默认世界里没有一件摆件会脏。这不是降级失败，
+   * 是槽位空着：v2 只交付承载设定的槽位（SPEC_V2 §6）。
+   */
+  readonly propReveals?: ReadonlyMap<PropKind, readonly string[]>;
   /**
    * 蓝图注册表。造物神谕（「建一间书阁」）要用它把词换成模板。
    * 省略时造物神谕一律认不出——那是安全的降级，不是错误。
@@ -421,6 +444,8 @@ export class Simulation {
   private readonly blueprints: ReadonlyMap<string, PrefabBlueprint> | undefined;
   /** 地域 id → 给人看的叫法。现状里说「叠浪楼」不说 `bathhouse`。 */
   private readonly regionNames: ReadonlyMap<string, string> | undefined;
+  /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
+  private readonly propReveals: ReadonlyMap<PropKind, readonly string[]> | undefined;
   private readonly intentModel: IntentModel | undefined;
   private readonly worldSize: { readonly width: number; readonly height: number };
   /** 回写出口。省略表示不记日志（离线/测试）。 */
@@ -472,6 +497,7 @@ export class Simulation {
     this.wallClock = deps.wallClock ?? (() => Date.now());
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
+    this.propReveals = deps.propReveals;
     this.intentModel = deps.intentModel;
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
@@ -561,6 +587,7 @@ export class Simulation {
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
+    this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
       const level = effectiveTideLevel(this.now, this.tideOverride);
       for (const villager of this.villagers) {
@@ -705,6 +732,8 @@ export class Simulation {
         return this.setCarries(command.villagerId, command.carries);
       case 'removeCarries':
         return this.removeCarries(command.villagerId, command.carries);
+      case 'cleanProp':
+        return this.cleanProp(command.propId);
     }
   }
 
@@ -754,19 +783,24 @@ export class Simulation {
       return { ok: false, message: '祭坛周围没有空地了。' };
     }
     this.nextMiracleNumber += 1;
-    this.props.push({
-      id,
-      kind: propKind,
-      at: spot,
-      label,
-      sourceTaskKind: null,
-      sourceTaskId: null,
-      // 神迹不是任务换来的；摘要写明来源，纸面据此区分"神迹"与"哪一单"。
-      sourceSummary: kind === 'light' ? '神迹：点灯' : '神迹：种树',
-      // 刚落下的东西是干净的，也没藏话。谁来弄脏、谁来洗，是各自的票（#15）。
-      grime: 0,
-      reveal: null,
-    });
+    this.props.push(
+      landProp(
+        {
+          id,
+          kind: propKind,
+          at: spot,
+          label,
+          sourceTaskKind: null,
+          sourceTaskId: null,
+          // 神迹不是任务换来的；摘要写明来源，纸面据此区分"神迹"与"哪一单"。
+          sourceSummary: kind === 'light' ? '神迹：点灯' : '神迹：种树',
+          grime: 0,
+          reveal: null,
+        },
+        this.propReveals?.get(propKind),
+        this.props.length,
+      ),
+    );
     this.log('info', `神迹：${label}落在祭坛边。`);
     this.announce({
       change: 'miracle',
@@ -2118,6 +2152,48 @@ export class Simulation {
     return { ok: true, message: `${villager.name}交出了${gave}，现在带着${held}。` };
   }
 
+  /**
+   * 洗一件摆件（SPEC_V2 §4.6）。污浊度归零，露话因此看得见。
+   *
+   * 三条拒绝，说的都是事实而不是规则：
+   *   - 没有这件东西——摆件只增不删，所以只可能是 id 写错了；
+   *   - 它本来就是干净的——`ok: false` 在这里是「世界没变」，与「命令被拒」
+   *     是两回事（同 `setWeather` 撞上同一档时的口径）。
+   *
+   * 不编「洗好了」：没有露话的摆件从来不脏（`grime.ts` 的第三条规则），
+   * 对它说洗好了就是世界在演一件没发生的事。
+   */
+  private cleanProp(propId: string): CommandResult {
+    const index = this.props.findIndex((prop) => prop.id === propId);
+    if (index === -1) return { ok: false, message: `世界里没有 ${propId} 这样东西。` };
+    const prop = this.props[index]!;
+    if (prop.grime <= GRIME_CLEAN) return { ok: false, message: `${prop.label}本来就是干净的。` };
+    this.props[index] = { ...prop, grime: 0 };
+    this.log('info', `${prop.label}洗干净了。`);
+    // 露话是这件事唯一的报酬，所以它必须出现在玩家看得见的地方：
+    // 只把 grime 改成 0 而一句话不说，他洗完不知道发生了什么——
+    // 那比不洗更糟，因为他以为自己错过了什么。
+    return {
+      ok: true,
+      message: prop.reveal === null ? `${prop.label}洗干净了。` : `${prop.label}洗干净了。${prop.reveal}`,
+    };
+  }
+
+  /**
+   * 污浊度往前走一格（SPEC_V2 §4.6）。世界自己攒，不等谁动手。
+   *
+   * 与 `stepWeather` / `stepTide` 同一类：都是世界时钟往前走带来的一件事。
+   * 只动 `grime` 一个槽，且只在真的变了时才换对象——不然每一拍都给每件
+   * 摆件做一个新引用，快照那边的浅拷贝（`{...prop}`）会全部失效。
+   */
+  private stepGrime(deltaMs: number): void {
+    for (let index = 0; index < this.props.length; index += 1) {
+      const prop = this.props[index]!;
+      const grime = grimeAfter(prop.grime, deltaMs);
+      if (grime !== prop.grime) this.props[index] = { ...prop, grime };
+    }
+  }
+
   private snapshotVillager(villager: Villager): VillagerSnapshot {
     return {
       id: villager.id,
@@ -2506,7 +2582,8 @@ export class Simulation {
     );
     if (prop === null) return;
     this.faithPoints -= FAITH_MILESTONE;
-    this.props.push(prop);
+    // 露话与污浊度在这里配（`landProp`）：`nextProp` 是纯函数，不碰设定集。
+    this.props.push(landProp(prop, this.propReveals?.get(prop.kind), this.props.length));
     this.milestones += 1;
     // 日志写清是哪一单换的：这是"被记住"在事件流里的第一次落地。
     this.log('info', `神恩落地：${describePropSource(prop)}。`);

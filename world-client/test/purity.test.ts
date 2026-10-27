@@ -157,6 +157,7 @@ const OWNERS = [
   'world/grid.ts', // 区域 requires 与寻路过滤
   'world/save.ts', // 三个位子的存档槽
   'world/faith.ts', // 里程碑道具的 grime / reveal
+  'world/grime.ts', // 清洗即还原：grime 与 reveal 的纯函数
 ];
 
 /**

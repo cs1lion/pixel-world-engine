@@ -83,7 +83,9 @@ export function nextProp(
         sourceTaskKind: source?.kind ?? null,
         sourceTaskId: source?.taskId ?? null,
         sourceSummary: source?.summary ?? null,
-        // 里程碑换来的摆件是干净的，也没藏话（#15 的两个 v4 槽位）。
+        // grime 与 reveal 两个 v4 槽位在这里先给默认值：#15 的清洗规则
+        // 由调用方落地时配上（`landProp`）——这个函数不碰设定集，
+        // 也就不知道那片世界底下压着哪几句话。
         grime: 0,
         reveal: null,
       };
