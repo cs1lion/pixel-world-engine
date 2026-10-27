@@ -6,6 +6,7 @@
 
 import { TASK_PROFILES } from '../world/tasks.ts';
 import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
+import { whenApi } from './when-api.ts';
 import type { TaskKind, WorldSnapshot } from '../world/types.ts';
 
 export interface OracleApi {
@@ -230,12 +231,8 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
   };
 
   // 场景在 create() 里才挂上 window.Oracle。等它出现再订阅一次结果流。
-  const subscribe = (): void => {
-    const api = getApi();
-    if (api === undefined) {
-      requestAnimationFrame(subscribe);
-      return;
-    }
+  // 等它用的是 setTimeout 不是 requestAnimationFrame：见 `when-api.ts`。
+  whenApi(getApi, (api) => {
     api.onResult((result) => {
       show(result.ok, result.message);
       paintPaper(api);
@@ -251,8 +248,7 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     paintSlab(api);
     paintDecree(api);
     paintWorldState(api);
-  };
-  subscribe();
+  });
 
   const submit = (text: string): boolean => {
     const api = getApi();

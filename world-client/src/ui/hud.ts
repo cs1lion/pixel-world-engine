@@ -6,6 +6,7 @@
 
 import type { WorldSnapshot } from '../world/types.ts';
 import { TASK_PROFILES } from '../world/tasks.ts';
+import { whenApi } from './when-api.ts';
 
 export interface HudApi {
   readonly view: () => WorldSnapshot;
@@ -68,14 +69,10 @@ export function bindHud(getApi: () => HudApi | undefined): void {
     if (queueBar !== null) queueBar.hidden = lines.length === 0;
   };
 
-  const subscribe = (): void => {
-    const api = getApi();
-    if (api === undefined) {
-      requestAnimationFrame(subscribe);
-      return;
-    }
+  // 等的是场景挂上 window.Oracle，不是下一帧。用 rAF 等的话，后台标签页里
+  // 这个队列永远空着也不报错——见 `when-api.ts`。
+  whenApi(getApi, (api) => {
     api.onStatus(() => paint(api.view()));
     paint(api.view());
-  };
-  subscribe();
+  });
 }
