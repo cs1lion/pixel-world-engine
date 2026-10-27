@@ -119,9 +119,21 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
 /**
  * 给渲染层的强度：暴雨在同样的 `intensity` 上再加一档。
  *
- * 为什么加在这里而不是渲染层：`Simulation.weatherIntensity()` 是渲染层唯一的输入，
- * 让它一次给全，渲染层就不必知道天气有几档——加第三档时渲染层一行没改，
- * 就是这条设计的回报。上限仍然是 1，因为插值的那几个量都是 0..1 语义。
+ * 为什么加在这里而不是渲染层：天气视图（`render/weather.ts`）只收这一个数，
+ * 收齐了它就不必知道天气有几档——加第三档时它一行没改，就是这条设计的回报。
+ * 整个 `src/render/` 只有两处碰天气，另一处是 `phase-view.ts:197` 的萤火虫。
+ *
+ * 这里原来写「`Simulation.weatherIntensity()` 是渲染层唯一的输入」，不成立——
+ * 萤火虫直接读 `snapshot.weather !== 'clear'`。渲染层有两条天气通道：这条给
+ * 浓淡，那条只给「是不是晴天」一个布尔。
+ *
+ * 「再加一档天气渲染层不用改」仍然是真的，但它**不是本来就有的，是补出来
+ * 的**：萤火虫那句从 `996cbd3` 起写的是 `=== 'rain'`，那正是在数档位；加暴雨
+ * 那一笔（`00d67ed`）改的就是它，改成 `!== 'clear'` 才不必再数。所以这条承诺
+ * 靠两条通道一起做到，不是 `renderIntensity` 这一条独力。哪一天有人把
+ * `!== 'clear'` 改回列举两种雨，红的是渲染层——而这句话已经先把原因写在这儿。
+ *
+ * 上限仍然是 1，因为插值的那几个量都是 0..1 语义。
  */
 export function renderIntensity(state: WeatherState): number {
   if (state.kind !== 'storm') return state.intensity;
