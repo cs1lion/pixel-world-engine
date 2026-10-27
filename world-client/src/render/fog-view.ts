@@ -35,6 +35,14 @@ const FOG_DEPTH = 7950;
 const FADE_CELLS = 14;
 /** 铺雾的小块边长（像素）。4px 在 2 倍显示下是 8px 的过渡，看不出阶梯。 */
 const BLOCK = 4;
+/**
+ * 雾团的小块边长（像素）。
+ *
+ * 与上面 `BLOCK` 那个 4px 不是一回事：`BLOCK` 铺的是**烘焙的雾体**，这个铺的是
+ * 每帧重画的**边缘雾团**。雾团按 8px 算的理由写在 `update` 里那段注释上，
+ * 由 `test/fog-puff-budget.test.ts` 按这个数与 `PUFF_RADII_TILES` 重算。
+ */
+export const PUFF_CELL_PX = 8;
 
 export function createFogView(
   scene: Phaser.Scene,
@@ -104,19 +112,21 @@ export function createFogView(
       // 超的是**整帧**：烘焙后实测约 2 万那个数是在 8px 下量的，换回 4px 要再加
       // 15368−3862 = 11506 条，合计约 3.1 万，那才越过 30000。所以 8px 这个选择
       // 仍然对，但理由得算整帧，不能只算雾团——原句把两层混成了一层。）
-      const CELL = 8;
+      //
+      // 上面这一串数由 `test/fog-puff-budget.test.ts` 按 `PUFF_CELL_PX` 与
+      // `PUFF_RADII_TILES` 重算，改任一个它都会红。
       for (const puff of driftPuffs(fog.center, fog.revealedRadius, timeMs)) {
         const cx = puff.at.x * TILE_PX;
         const cy = puff.at.y * TILE_PX;
         const r = puff.radius * TILE_PX;
-        for (let dy = -r; dy <= r; dy += CELL) {
-          for (let dx = -r; dx <= r; dx += CELL) {
+        for (let dy = -r; dy <= r; dy += PUFF_CELL_PX) {
+          for (let dx = -r; dx <= r; dx += PUFF_CELL_PX) {
             const d = Math.hypot(dx, dy) / r;
             if (d > 1) continue;
             // 中心浓、边缘趋零，平方衰减让过渡更柔。
             const falloff = (1 - d) * (1 - d);
             puffs.fillStyle(WORLD.water, puff.alpha * 0.24 * falloff);
-            puffs.fillRect(Math.round(cx + dx), Math.round(cy + dy), CELL, CELL);
+            puffs.fillRect(Math.round(cx + dx), Math.round(cy + dy), PUFF_CELL_PX, PUFF_CELL_PX);
           }
         }
       }

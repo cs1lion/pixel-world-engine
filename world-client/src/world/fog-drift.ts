@@ -15,6 +15,16 @@ import type { GridPoint } from './types.ts';
 export const DRIFT_PUFFS = 14;
 
 /**
+ * 三类雾团半径，单位是**格**。
+ *
+ * 提出来当常量，是因为 `fog-view.ts` 那段注释在按它算渲染预算（「4px 时一团要
+ * 317～841 块」那几个数）。散在 `2.5 + (i % 3) * 0.8` 里，那些数就只能靠手按；
+ * 提出来之后 `test/fog-puff-budget.test.ts` 能 import 它、把账重算一遍。
+ * **改这里会让那条测试红**，红的意思是去改那段注释，不是去改测试。
+ */
+export const PUFF_RADII_TILES: readonly number[] = [2.5, 3.3, 4.1];
+
+/**
  * 角速度（弧度/秒）。
  *
  * 注意这是**角**速度不是线速度：轨道半径约 16 格，0.35 rad/s 对应 5.6 格/秒，
@@ -65,7 +75,7 @@ export function driftPuffs(
       },
       // 浓度在 0.35..0.75 之间呼吸，周期各不相同。
       alpha: 0.35 + 0.4 * ((Math.sin(seconds * 0.45 + i * 2.1) + 1) / 2),
-      radius: 2.5 + (i % 3) * 0.8,
+      radius: PUFF_RADII_TILES[i % PUFF_RADII_TILES.length]!,
     });
   }
   return puffs;
