@@ -18,16 +18,53 @@ import { createMemoryClient } from './world/memory-client.ts';
 import { SaveStore, exportFileName, IMPORT_MAX_BYTES } from './ui/save-store.ts';
 import type { AgentToWorld } from './world/bridge.ts';
 import type { WorldEvent, WorldSnapshot } from './world/types.ts';
+import type { WorldSave } from './world/save.ts';
+import type { BuiltWorld } from './world/setup.ts';
+import type { SettingPack } from './settings/types.ts';
 import { WORLD } from './world/palette-data.ts';
 import { selectSetting, worldForSetting } from './settings/index.ts';
+
+/**
+ * 按这份存档建世界；`save` 为 null 表示没有存档，建一套默认世界。
+ *
+ * **读档的校验与开工的建造必须走这同一个函数。** 落位放不放得进网格，只有真建一次
+ * 才知道（`WorldGrid.place()` 是那套规矩的唯一的住处）。校验时另写一套判据，
+ * 就是第二份真相：将来 `place()` 多一条不放行的路子，判据不知道，照旧放行，
+ * 然后 `buildWorldFromSave()` 抛在顶层——白屏。
+ *
+ * 两条路的分别只在「有档没档」与「哪套建造器」，都是 `pack` 自己的事，
+ * 所以判定也长在这儿，不分给调用方。
+ */
+function buildWorldFor(pack: SettingPack, save: WorldSave | null): BuiltWorld {
+  if (!pack.authored) {
+    return save === null
+      ? buildLargeWorld(pack.blueprints)
+      : buildWorldFromSave(save.world.buildings, pack.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR);
+  }
+  // 有设定集的图：显式落位与读档重放都归 `buildSettingWorld`，规格和祭坛都在包里。
+  return worldForSetting(pack, save === null ? undefined : save.world.buildings);
+}
+
 // 读档必须在建世界/起 Phaser 之前：有档按存档 buildings 顺序重放网格（ADR_SAVE §1.2）。
 const saveNotices: string[] = [];
-const packForSave = selectSetting(window.location.search);
+const pack = selectSetting(window.location.search);
 const saveStore = new SaveStore({
-  storageKey: packForSave.saveKey,
+  storageKey: pack.saveKey,
   // 世界多大：读档时按它查「坐标在不在世界里」。递的是这一套设定集的 grid——
   // 一份从别的地图搬过来的存档，坐标在这张图上越界，那也是越界。
-  bounds: { width: packForSave.grid.width, height: packForSave.grid.height },
+  bounds: { width: pack.grid.width, height: pack.grid.height },
+  // 落位放不放得进网格：也在这儿查，同样是真建一次。不查的话 `buildWorldFor`
+  // 抛的 `WorldSetupError` 在模块顶层没有人接——页面一片空白，只留一条 console
+  // 错误，玩家连「存档有问题」都看不见。递进来的就是下面开工要用的那个函数，
+  // 所以检查的与建造的不可能是两套。
+  tryBuildWorld: (save) => {
+    try {
+      buildWorldFor(pack, save);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  },
   onWarning: (message) => saveNotices.push(message),
 });
 const loadedSave = saveStore.read();
@@ -36,8 +73,8 @@ const loadedSave = saveStore.read();
  *
  * 读档时按大世界规格重建网格：存档里没有网格数据，只有建筑坐标；
  * 旧档的建筑坐标在新图里仍然合法（新图包含原来的镇中心）。
+ * （`buildWorldFor` 上面那段就是这两句话的住处。）
  */
-const pack = selectSetting(window.location.search);
 document.title = `${pack.name} · 像素世界`;
 const worldTitle = document.querySelector<HTMLElement>('#world-title');
 if (worldTitle !== null) worldTitle.textContent = pack.name;
@@ -69,11 +106,7 @@ if (pack.authored) {
         : `对世界说一句话：建一座${unplaced.displayName} / 涨潮 / 查一下资料`;
   }
 }
-const world = pack.authored
-  ? worldForSetting(pack, loadedSave.ok ? loadedSave.save.world.buildings : undefined)
-  : loadedSave.ok
-    ? buildWorldFromSave(loadedSave.save.world.buildings, pack.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR)
-    : buildLargeWorld(pack.blueprints);
+const world = buildWorldFor(pack, loadedSave.ok ? loadedSave.save : null);
 
 /** 画布尺寸：只显示世界的一小块，靠相机移动看其余部分。 */
 const VIEW_WIDTH = 30 * TILE_PX;

@@ -54,6 +54,19 @@ export interface SaveStoreOptions {
    * 一份从别的地图搬过来的存档，坐标在这张图上越界，那也是越界。
    */
   readonly bounds?: WorldBounds;
+  /**
+   * 试着按这份存档建一次世界，建不成就说为什么。给了才查「落位放不放得进网格」。
+   *
+   * **为什么不写成存档层自己的一个函数**：落位合法不合法由 `WorldGrid.place()` 定
+   * （两栋楼重叠、门落在自家占地里、门到不了镇心……），那套规矩住在 `setup.ts`，
+   * 还要蓝图表、`GridSpec`、祭坛三个入参——存档层一个都没有。在这儿照抄一套就是
+   * 第二份真相，而两份真相一定漂：将来 `place()` 多一条不放行的路子，抄的那套
+   * 不知道，于是照旧放行、照旧白屏。所以反过来，由建世界的那一方把「真建一次」
+   * 递进来——检查的代码与开工的代码从此是同一段。
+   *
+   * 返回 null = 建得起来；返回一句话 = 那句话就是理由（会指名是哪栋楼）。
+   */
+  readonly tryBuildWorld?: (save: WorldSave) => string | null;
 }
 
 export const CORRUPT_PREFIX = `${SAVE_STORAGE_KEY}.corrupt.`;
@@ -77,13 +90,18 @@ export type SaveParseResult =
   | { readonly ok: true; readonly save: WorldSave }
   | {
       readonly ok: false;
-      readonly reason: 'empty' | 'corrupt' | 'version' | 'out-of-world';
+      readonly reason: 'empty' | 'corrupt' | 'version' | 'out-of-world' | 'unplaceable';
       /** 高版本时的版本号。 */
       readonly version?: number;
       /** true = JSON 本身就不合法（与「JSON 合法但形状/字段不对」区分，仅用于文案）。 */
       readonly jsonInvalid?: boolean;
       /** `reason: 'out-of-world'` 时：落在世界外面的坐标，一行一条。 */
       readonly outside?: readonly string[];
+      /**
+       * `reason: 'unplaceable'` 时：放不进网格的理由。**今天恒为一条**——
+       * `rebuildGridFromPlacements()` 逐栋落位，第一枚放不下就抛，后面的楼没试过。
+       */
+      readonly problems?: readonly string[];
     };
 
 /**
@@ -94,8 +112,20 @@ export type SaveParseResult =
  * `bounds` 给了才查「坐标在不在世界里」（`findOutOfWorldCoordinates`）。存档层自己
  * 不知道世界多大，所以这一步必须由知道的那一方递进来；不递就只做形状校验，
  * 那是**知道有洞而不查**，不是「查过没问题」。
+ *
+ * `tryBuildWorld` 给了才查「落位放不放得进网格」。同一个道理，反过来递：
+ * 那套规矩在 `setup.ts`，存档层没有（见 `SaveStoreOptions.tryBuildWorld` 的说明）。
+ *
+ * 两道都查，因为它们防的不是同一件事，谁也替不了谁：`bounds` 查的是**坐标这个数**
+ * 在不在世界里面；`tryBuildWorld` 查的是**这些坐标合在一起**摆不摆得下一座镇子。
+ * 实测：把一栋楼整体搬到另一栋身上，两边坐标全都规规矩矩在界内，`bounds` 放行，
+ * 而 `place()` 第二次就返回 false。
  */
-export function parseSaveText(text: string, bounds?: WorldBounds): SaveParseResult {
+export function parseSaveText(
+  text: string,
+  bounds?: WorldBounds,
+  tryBuildWorld?: (save: WorldSave) => string | null,
+): SaveParseResult {
   // 纯空白文本统一判 empty（不是 corrupt）：读档与导入都必须给出同一个标签。
   if (text.trim().length === 0) return { ok: false, reason: 'empty' };
   let raw: RawSave;
@@ -122,6 +152,13 @@ export function parseSaveText(text: string, bounds?: WorldBounds): SaveParseResu
     const outside = findOutOfWorldCoordinates(migrated, bounds);
     if (outside.length > 0) return { ok: false, reason: 'out-of-world', outside };
   }
+  if (tryBuildWorld !== undefined) {
+    const problem = tryBuildWorld(migrated);
+    // 一条就够：`rebuildGridFromPlacements()` 逐栋落位，遇上第一枚放不下就抛，
+    // 后面的楼根本没试过。列一堆「可能也放不下」是猜，而猜中的那几条里
+    // 说不定有 merely 被前一栋挡住的——那不算它自己放不下。
+    if (problem !== null) return { ok: false, reason: 'unplaceable', problems: [problem] };
+  }
   return { ok: true, save: migrated };
 }
 
@@ -146,6 +183,12 @@ const QUOTA_MESSAGE = '本地存储已满：自动存档已暂停，世界继续
  */
 const OUT_OF_WORLD_MESSAGE =
   '存档里有坐标落在世界外面，已备份原档，用新世界启动。这些坐标留在了原档里：';
+/**
+ * 落位放不下的说明。**必须指名是哪栋楼、为什么放不下**：只说「存档有问题」，
+ * 玩家没有办法知道该去改哪儿，而原档已经备份在，他本来是可以去修的。
+ */
+const UNPLACEABLE_MESSAGE =
+  '存档里的建筑放不进这张地图，已备份原档，用新世界启动。放不下的是：';
 
 export class SaveStore {
   private readonly storageKey: string;
@@ -157,6 +200,7 @@ export class SaveStore {
   private readonly warned = new Set<string>();
   private lastSaved: { schemaVersion: number; savedAtWallClock: number } | null = null;
   private readonly bounds: WorldBounds | undefined;
+  private readonly tryBuildWorld: ((save: WorldSave) => string | null) | undefined;
 
   constructor(options: SaveStoreOptions = {}) {
     this.storageKey = options.storageKey ?? SAVE_STORAGE_KEY;
@@ -165,6 +209,7 @@ export class SaveStore {
     this.wallClock = options.wallClock ?? (() => Date.now());
     this.onWarning = options.onWarning ?? (() => {});
     this.bounds = options.bounds;
+    this.tryBuildWorld = options.tryBuildWorld;
   }
 
   isAutoSaveEnabled(): boolean {
@@ -196,7 +241,7 @@ export class SaveStore {
     }
     if (text === null) return { ok: false, reason: 'empty', message: '没有存档。', paused: false };
 
-    const parsed = parseSaveText(text, this.bounds);
+    const parsed = parseSaveText(text, this.bounds, this.tryBuildWorld);
     if (!parsed.ok) {
       if (parsed.reason === 'empty') {
         // 单槽里只有空白：与「没有存档」一样处理，不备份、不提示损坏。
@@ -215,6 +260,16 @@ export class SaveStore {
         this.backupCorrupt(text);
         const message = [OUT_OF_WORLD_MESSAGE, ...(parsed.outside ?? [])].join('\n');
         this.warnOnce('out-of-world', message);
+        return { ok: false, reason: 'corrupt', message, paused: false };
+      }
+      if (parsed.reason === 'unplaceable') {
+        // 落位放不下同样按坏档处理：备份原档，用新世界启动，并指名是哪栋楼。
+        // **这一道原先不存在**，而它拦的正是白屏：`buildWorldFromSave()` 抛的
+        // `WorldSetupError` 在 `main.ts` 顶层没有人接，页面只剩一片空白，
+        // 只留一条 console 错误——玩家连「存档有问题」都看不到。
+        this.backupCorrupt(text);
+        const message = [UNPLACEABLE_MESSAGE, ...(parsed.problems ?? [])].join('\n');
+        this.warnOnce('unplaceable', message);
         return { ok: false, reason: 'corrupt', message, paused: false };
       }
       this.backupCorrupt(text);
@@ -288,7 +343,7 @@ export class SaveStore {
       };
     }
 
-    const parsed = parseSaveText(text, this.bounds);
+    const parsed = parseSaveText(text, this.bounds, this.tryBuildWorld);
     if (!parsed.ok) {
       if (parsed.reason === 'empty') {
         // 空白文件与 read() 用同一个 empty 标签（都走 parseSaveText）。
@@ -307,7 +362,9 @@ export class SaveStore {
         ? '导入失败：不是合法 JSON，原文件已备份。'
         : parsed.reason === 'out-of-world'
           ? ['导入失败：存档里有坐标落在世界外面，原文件已备份。越界的是：', ...(parsed.outside ?? [])].join('\n')
-          : '导入失败：存档内容校验不通过，原文件已备份。';
+          : parsed.reason === 'unplaceable'
+            ? ['导入失败：存档里的建筑放不进这张地图，原文件已备份。放不下的是：', ...(parsed.problems ?? [])].join('\n')
+            : '导入失败：存档内容校验不通过，原文件已备份。';
       this.warnOnce('import-corrupt', message);
       return { ok: false, reason: 'corrupt', message };
     }
