@@ -4,9 +4,14 @@
  * ## 为什么要有这个文件
  *
  * #13 的正文有五条验收条件，打成五个勾。可仓库里只有 `pack-owns-world-data.test.ts`
- * 守着第 2 条的一部分，另外四条**没有任何东西量过**。于是「#13 完成了吗」这个问题，
- * 每个人都要从头推一遍：读一遍 issue、读一遍 `settings/`、跑一遍审计——而推出来的
- * 结论各不相同，因为没有人把数落在同一处。
+ * 守着第 2 条的一部分，**没有一处把它们当成验收条件来量**。于是「#13 完成了吗」
+ * 这个问题，每个人都要从头推一遍：读一遍 issue、读一遍 `settings/`、跑一遍审计——
+ * 而推出来的结论各不相同，因为没有人把数落在同一处。
+ *
+ * （第一版这儿写「另外四条没有任何东西量过」——那句话是假的，子 agent 挑出来的。
+ *   条件 4 一直被 `scripts/audit-palette.mjs --strict` 量着，CI 也跑它；条件 3 的
+ *   设定集 B 那一半被 `test/settings-region-colors.test.ts` 一格一格钉着。真话是
+ *   **窄一点的那句**：没有一处把它们当「#13 的验收条件」来量、来报。）
  *
  * 这个文件就是那一处。每条条件一个用例，量的是**今天的真实状态**，不是想要的状态。
  *
@@ -27,7 +32,7 @@
  * | 2 | 代码里没有写死的区域名/色值/预制体 id/作息落点 | **不满足**（莞尔镇四样全在代码里） |
  * | 3 | 每区主色/点缀/禁用三槽，设定集 A 已填 | **不满足**（设定集 A 的 `regions` 是空数组） |
  * | 4 | 画面与改动前一致（`audit-palette --strict`） | **满足** |
- * | 5 | `check` / `test` / `build` 通过 | **部分**：check 与 test 过，build 被既有故障挡着 |
+ * | 5 | `check` / `test` / `build` 通过 | **满足**：三条都真跑过（`build` 见下） |
  *
  * 第 2、3 条不是疏漏，是**范围**：`docs/SPEC_V2.md` §4.1 写明「现有的四个分区
  * 保留为设定集 A……灯潮界的六个区域做成设定集 B」，而 `settings/index.ts` 的
@@ -62,8 +67,11 @@ const KNOWN_UNMET: Readonly<Record<string, { readonly why: string }>> = {
       + 'SPEC_V2 §4.1 定了 A 是现有四个分区那条路，本文件不替它改范围。',
   },
   'A|预制体 id': {
-    why: 'LEGACY_PACK.placements 是空数组，莞尔镇六栋常驻铺子与住宅都在 setup.ts 里'
-      + '（KNOWN_PREFABS 里 19 对中的 11 对——这个数会漂，去数那张表本身）。',
+    why: 'LEGACY_PACK.placements 是空数组，莞尔镇十一个预制体 id 都在 setup.ts 里'
+      + '（KNOWN_PREFABS 里 19 对中的 11 对：镇心三件套、野外三栋、三种住宅、'
+      + '两种庄院——这个数会漂，去数那张表本身）。'
+      + '（第一版这儿写「六栋常驻铺子与住宅」，可同一句后面就说 11 对——六栋是'
+      + '那 11 个里的一个子集，一句话里两个数。已按实测改写。）',
   },
   'A|作息落点': {
     why: 'LEGACY_PACK.villagers 是空数组，莞尔镇四个落点在 routines.ts 的 routineBeats() 里'
@@ -82,11 +90,6 @@ const KNOWN_UNMET: Readonly<Record<string, { readonly why: string }>> = {
     why: '交付清单里有，验收条件那一行没有。而且它与 tide.ts 的「潮汐：世界自己的时钟」、'
       + 'grime.ts 的「世界的节律归世界」、SPEC_V2 §4.3 的「『潮汐是时钟』这条不被夺权」'
       + '直接冲突——是范围问题，该由用户定，不由一道测试定。',
-  },
-  'build|原生绑定': {
-    why: 'node_modules/rolldown 缺 @rolldown/binding-win32-x64-msvc，vite build 起不来。'
-      + '这是 npm 可选依赖的已知毛病（它自己的报错就这么写），与仓库代码无关：'
-      + '把改动全部还原到 HEAD 再跑，崩得一字不差。',
   },
 };
 
@@ -215,7 +218,7 @@ test('条件四：audit-palette --strict 真的退出 0', () => {
   assert.equal(run.status, 0, `audit-palette --strict 非零退出：\n${run.stdout}\n${run.stderr}`);
 });
 
-test('条件五：三条命令的口子都在，check 真的过，build 的故障是登记过的那一个', () => {
+test('条件五：三条命令的口子都在，三条都真跑过', () => {
   const pkg = JSON.parse(readFileSync(`${ROOT}package.json`, 'utf8')) as {
     scripts: Record<string, string>;
   };
@@ -231,7 +234,7 @@ test('条件五：三条命令的口子都在，check 真的过，build 的故�
     );
   }
 
-  // check 真跑一遍。它只有几秒，而它正是条件点点名的三条之一。
+  // check 与 build 真跑一遍。各几秒，而它们正是条件点点名的三条之二。
   const check = spawnSync(
     process.execPath,
     [`${ROOT}scripts/check-types.ts`],
@@ -239,11 +242,28 @@ test('条件五：三条命令的口子都在，check 真的过，build 的故�
   );
   assert.equal(check.status, 0, `npm run check 非零退出：\n${check.stdout}\n${check.stderr}`);
 
+  const build = spawnSync(
+    process.execPath,
+    [`${ROOT}node_modules/vite/bin/vite.js`, 'build'],
+    { cwd: ROOT, encoding: 'utf8' },
+  );
+  assert.equal(
+    build.status,
+    0,
+    `vite build 非零退出：\n${build.stdout}\n${build.stderr}\n\n`
+      + '第一版这一条不断言 build，只在 KNOWN_UNMET 里登记了一行「node_modules/rolldown '
+      + '缺 @rolldown/binding-win32-x64-msvc」。那句话是假的——那个绑定在，build 也过'
+      + '（2026-10-28 实测三次）。更糟的是不断言就永远看不见它好起来：登记表会一直在'
+      + '那儿，而文件头的记分板会一直说「被既有故障挡着」，两句话都是反的。',
+  );
+
   // test 就是你现在跑的这套，不能再跑一遍（会递归）。这里只说清这一点，不假装验过。
-  // build 的故障登记在 KNOWN_UNMET 的 build|原生绑定 里，理由与复现方式都写在那儿。
   assert.ok(
-    'build|原生绑定' in KNOWN_UNMET,
-    'build|原生绑定 从登记表里没了——要么 build 修好了（好，删行），要么这条该更新。',
+    !('build|原生绑定' in KNOWN_UNMET),
+    'build|原生绑定 又回到登记表里了。它原来的理由是「node_modules/rolldown 缺'
+      + ' @rolldown/binding-win32-x64-msvc」——那个绑定今天在，build 也过。如果 build '
+      + '真的坏了，先看上面那条断言报出来的原文，别急着登记：登记一行「既有故障」'
+      + '会让这条判据从此不再量 build。',
   );
 });
 

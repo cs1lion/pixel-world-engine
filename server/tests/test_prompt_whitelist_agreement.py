@@ -4,12 +4,17 @@
 
 `oracle/prompt.py` 的 `COMMAND_LINES` 告诉模型它能说什么；
 `rules/schema.py` 的 `COMMAND_CHECKS` 决定什么过得去。两份各自维护，就一定会漂。
-漂的方向三种，**没有一种被完整盖住**：
+漂的方向三种，今天各自被盖住多少见下面「已经盖住多少」——**那一节是实测的，
+这一节只列方向，不重复盖住情况**（第一版在这儿写「没有一种被完整盖住」，
+而方向 2 是被完整盖住的那一个，那句话是假的，已删）。
 
 1. **提示词列了白名单里没有的命令**——模型每一次都说它，每一次都被拒，
    而用户看到的是「听懂了，然后什么也没发生」。
-2. **白名单加了命令而提示词没列**——那条命令永远说不出口，是死的；同时
-   `oracle/prompt.py` 开头那句「六条命令」变成假话。
+2. **白名单加了命令而提示词没列**——那条命令永远说不出口，是死的。
+   注意它**不会**让 `oracle/prompt.py` 开头那句「六条命令」变成假话：那句数的
+   是**列出来的**条数，不是白名单的条数。第一版的失败信息里写着「同时变成假话」，
+   那句话是假的——判据三自己就能 disprove 它（往 `COMMAND_CHECKS` 加一条不列的
+   命令，判据三照旧绿）。失败信息里的话最容易被下一个人当真，所以改对。
 3. **为不列某条命令写的理由过期了**——比如前端已经补上了那个意图，注释里
    「客户端与世界都还没有对应的意图」还在，依据没了。
 
@@ -19,7 +24,10 @@
 
 - `test_提示词列出每一种世界能执行的命令`：`expressible = sorted(set(COMMAND_CHECKS)
   - {"npc.setSchedule"})`，逐条断言在提示词里。往 `COMMAND_CHECKS` 加一条
-  `foo.bar`，它红（实测：`missing == ['foo.bar']`）。
+  `foo.bar`，它红，报的是 `AssertionError: 提示词没讲 foo.bar`
+  （`test_orchestrator.py:205` 的 `assert command in prompt, f"提示词没讲 {command}"`）。
+  第一版在这儿写「实测：`missing == ['foo.bar']`」——那个变量名和那个值是**我编的**，
+  那个测试里没有叫 `missing` 的东西。红是真红，引号里那半句是假的。
 - `test_提示词不列世界办不到的命令`：断言 `npc.setSchedule` 不在提示词里。
 
 所以本文件**不是**「三种都没有任何机关会红」——第一版文件头就是这么写的，
@@ -30,10 +38,13 @@
 
 - **方向 1 的反向**：`test_提示词列出每一种世界能执行的命令` 只从白名单问
   （白名单 → 提示词），提示词点名而白名单没有的它查不到。
-- **那句「N 条命令」的散文**：`rules/schema.py` 的小节标题写「六条命令」而下面
-  挂着七个校验函数；`test_rules_schema.py` 的模块 docstring 同样写「六条」，
-  而同一份文件第 31 行的测试名字就叫 `test_白名单就是票面上的七条`——一份文件
-  隔 30 行自我矛盾。`067dd3a`、`cdcb2e4`、`b6e5063`、`bca5def`、`183b292`、
+- **那句「N 条」的散文**：`rules/schema.py` 的小节标题**现在**写「七条命令」
+  （第 154 行），`test_rules_schema.py` 的模块 docstring 也写「七条」——两处都带
+  补记说明原来写「六条」。而 `test_rules_schema.py` 第 38 行的测试名字就叫
+  `test_白名单就是票面上的七条`，与 docstring 第 1 行隔 37 行。**这三处今天是一致的**，
+  没有矛盾；记在这儿是说那六笔修的就是这一类，以及修完之后连「隔几行」这种
+  附带描述都会过期（第一版写「第 31 行」「隔 30 行」，那是补记之前的坐标，
+  补记本身把行数推走了）。`067dd3a`、`cdcb2e4`、`b6e5063`、`bca5def`、`183b292`、
   `6d51bf9` 六笔全是人手 grep 出来的，其中 `cdcb2e4` 自己写着「我上一笔的 grep
   被 `| head -8` 截断了」。**没有一道闸量过那句话。**
 - **方向 3 的理由**：`test_提示词不列世界办不到的命令` 只断言「不在提示词里」，
@@ -127,8 +138,10 @@ def test_白名单里每一条都被处置了() -> None:
     unhandled = sorted(whitelist() - listed - set(NOT_LISTED))
     assert unhandled == [], (
         f"白名单里有这些命令，提示词没列，NOT_LISTED 里也没登记：{unhandled}。"
-        "模型永远说不出口它，而 `oracle/prompt.py` 开头那句「N 条命令」同时变成假话。"
-        "两种处置：加进 `COMMAND_LINES`，或往 NOT_LISTED 登记并写清为什么可以不被列。"
+        "模型永远说不出口它。两种处置：加进 `COMMAND_LINES`，"
+        "或往 NOT_LISTED 登记并写清为什么可以不被列。"
+        "（别顺带说「`prompt.py` 开头那句六条命令变成假话」——那句话数的是"
+        "*列出来的*条数，加一条不列的命令它照旧是真的。第一版就这么写的，是假的。）"
     )
 
     stale = sorted(set(NOT_LISTED) & listed)
@@ -144,25 +157,32 @@ def test_白名单里每一条都被处置了() -> None:
 
 
 def test_提示词开头的条数与列出来的条数一致() -> None:
-    """「N 条命令」那句散文必须等于 `COMMAND_LINES` 里实际点名的条数。
+    """「N 条」那几句散文必须等于 `COMMAND_LINES` 里实际点名的条数。
 
-    这就是本仓库犯过六回的那个错：注释写「六条」，代码是七条。
-    数字从代码里现算，注释里的中文数字一个一个拿来比——**有几处就要比几处**，
-    因为同一个文件里两处写不一样的值也是同一个错。
+    这一类错本仓库犯过六回，但那六回全在 `rules/schema.py` 与
+    `test_rules_schema.py`，而且它们数的都是**白名单**的条数。本文件这一条数的是
+    **列出来的**条数——两回事：白名单长一条不列的命令，白名单那句该跟着长，
+    这一条不该动。所以别把「犯过六回」直接套过来说这个文件也潜伏着同一个谎。
+
+    数字从代码里现算，散文里的中文数字一处一处拿来比。**同一个数量可以被好几处
+    散文各自声明，漏掉哪一处，那一处就在没人看的地方烂掉。**
+
+    第一版只锚一种写法，于是漏掉了 `docs/SPEC.md` 第 154 行**当作权威引用**的
+    那一处：`prompt.py` 第 27 行「只列世界真能执行的六条」。子 agent 实测：
+    把第 27 行改成「只列世界真能执行的七条」，**462 条测试全绿**。也就是说
+    SPEC 引来做依据的那句话，当时没有任何机关量它。现在两个锚都查。
 
     只读 `COMMAND_LINES =` 上面那段 `#:` 注释，**不读整个文件**：
     `COMMAND_LINES` 自己那段提示词正文里有一句「一次最多一条命令」（第 118 行），
     那是说单次响应里能有几条，不是说清单里有几条。第一版正则扫整个文件，
     把它一起抓了，于是这条判据天天红——红成噪声之后就没人看它了。
 
-    判据的形状是「N 条**命令**」，不是「N 条」：那段注释里还有一句
-    「它是一条合法的世界命令」，指的是 `npc.setSchedule` 那一条命令的身份，
-    不是清单的条数。第二版正则写的是 `N 条`，把它一起抓了。
-    所以现在要求 `条` 后面紧跟着 `命令`。
+    两个锚都要求数字后面是「条」，且各自带一段独有的上下文：
+    那段注释里还有一句「它是一条合法的世界命令」，指的是 `npc.setSchedule`
+    那一条命令的身份，不是条数——写成 `N 条` 就会把它一起抓了（第二版就这么红的）。
 
-    代价说清：只锚「N 条命令」这一种写法。同一段注释里「只列世界真能执行的六条」
-    那种写法今天不被查——一个锚足够抓住那个假话，而写法真变了，下面那句
-    「找不到」会红，那正是要人回来重新指路的意思。
+    代价说清：只锚今天这两种写法。散文真改成第三种说法，下面那句「找不到」会红，
+    那正是要人回来重新指路的意思——**不是**去把第三种说法悄悄加进来而不看它。
     """
     expected = len(prompt_commands())
     source = PROMPT_SRC.read_text(encoding="utf-8")
@@ -175,14 +195,13 @@ def test_提示词开头的条数与列出来的条数一致() -> None:
     started = False
     for line in reversed(source[:anchor].split("\n")):
         stripped = line.strip()
-        if not started:
-            if not stripped:
+        if not stripped:
+            if not started:
                 continue
-            if not stripped.startswith("#:"):
-                break
-            started = True
-        elif not stripped.startswith("#:"):
             break
+        if not stripped.startswith("#:"):
+            break
+        started = True
         above.append(line)
     block = "\n".join(reversed(above))
     assert block.strip(), (
@@ -190,16 +209,27 @@ def test_提示词开头的条数与列出来的条数一致() -> None:
         "注释没了这条判据就失去对象。如果是刻意删掉，回来把这条与文件头一起改对。"
     )
 
-    found = re.findall(r"([一二两三四五六七八九十])条命令", block)
-    assert found, (
-        f"`COMMAND_LINES` 上面的注释里找不到「N 条命令」这个说法了（现在写的是：{block.strip()}）。"
-        "说法没了这条判据就失去对象。如果是刻意改成别的说法，回来把正则一起改对，别把这条删掉。"
+    # 两个锚：prompt.py 第 25 行与第 27 行。各带一段独有上下文，免得抓到
+    # 「它是一条合法的世界命令」那句。
+    anchors = (
+        ("「N 条命令」", r"([一二两三四五六七八九十])条命令"),
+        ("「只列世界真能执行的 N 条」", r"只列世界真能执行的([一二两三四五六七八九十])条"),
     )
+    found: list[tuple[str, str]] = []
+    for label, pattern in anchors:
+        hits = re.findall(pattern, block)
+        assert hits, (
+            f"`COMMAND_LINES` 上面的注释里找不到{label}这个说法了"
+            f"（现在写的是：{block.strip()}）。"
+            "说法没了这条判据就失去对象。如果是刻意改成别的说法，回来把 anchors"
+            "一起改对，别把这条删掉。"
+        )
+        found.extend((label, numeral) for numeral in hits)
 
-    for numeral in found:
+    for label, numeral in found:
         assert _CN_NUMERAL[numeral] == expected, (
-            f"`COMMAND_LINES` 上面的注释写着「{numeral}条」，而它实际点名 "
-            f"{expected} 条（{sorted(prompt_commands())}）。"
+            f"`COMMAND_LINES` 上面的注释里{label}写着「{numeral}条」，"
+            f"而它实际点名 {expected} 条（{sorted(prompt_commands())}）。"
             "改条数就得改这句话——这句话是给人核的第一手信息，它假了比没有更糟。"
         )
 
