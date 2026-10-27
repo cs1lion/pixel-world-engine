@@ -21,10 +21,16 @@ export interface FaithSource {
 
 /**
  * 按活类型选摆件。钱不写进世界，但形状要说明来源：
- * 写代码换来的是一盏灯（夜里还亮着），查资料换来的是一棵树（长在祭坛边），
- * 整理文稿换来的是一面旗（写着那天的字）。
+ * 写代码换来的是一盏灯（灯笼亮着，夜里那一刻也亮），查资料换来的是一棵树
+ * （长在祭坛边，`nextProp` 的锚点就是祭坛），整理文稿换来的是一面旗
+ * （旗杆底一方砚台，见 `drawBanner` 的 `inkstone`）。
  *
- * 短活（quick）不进铺子，也就不留痕：顺手办的小事换不来地标。
+ * 短活（quick）也留痕，只是留得小：一盏小灯，不是写代码那种路灯。
+ * 这里曾经写着「quick 不进铺子，所以换不来地标」——那句话从文件诞生那天起
+ * 就是假的，`PROP_FOR_TASK` 与 `LABEL_FOR_TASK` 同一笔就收了 `quick`，
+ * `accrueFaith` 照 `task.kind` 原样传下去。实测三条 quick 就落地一件
+ * `prop-0 kind=lamp label=一盏小灯`。「不进铺子」只决定它换的东西小一档，
+ * 不决定它换不换得到。
  */
 const PROP_FOR_TASK: Readonly<Record<TaskKind, PropKind>> = {
   code: 'lamp',
