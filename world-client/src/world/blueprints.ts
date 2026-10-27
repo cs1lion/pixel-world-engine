@@ -232,7 +232,7 @@ function readPaletteSlot(value: Record<string, unknown>, name: string, fail: Fai
         warnLegacy(name, token);
         return parseInt(match[1], 16);
       }
-      return fail(`调色板槽 ${name} 的旧值 "${token}" 不合法：形如 "#8a5a44" 的 6 位十六进制`);
+      return fail(`调色板槽 ${name} 的旧值 "${token}" 不合法：形如 "#rrggbb" 的 6 位十六进制`);
     }
     // token 名来自不可信的外部 JSON，先用运行时的 hasOwnProperty 验明正身，
     // 再把类型收窄成 WorldColor——闭集类型挡得住笔误，挡不住别人的配置文件。
