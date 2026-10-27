@@ -400,7 +400,9 @@ function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAcce
   g.fillRect(-Math.floor(cw / 2) + 2, top + 3, 2, ch - 4);
   g.fillRect(-Math.floor(cw / 2) + 2, top - 2, Math.floor(cw / 2), 2);
 
-  // 树冠孔隙：2–3 个 1×2 的土壤色缺口。
+  // 树冠孔隙：2–3 个土壤色缺口。小树（size 0）两个，中/大多一个。
+  // 三笔的尺寸不一样——一个 1×2、一个 2×1、一个 1×2，别读成「都是 1×2」：
+  // 中间那笔是横的（`fillRect(…, 2, 1)`），原注释写成「1×2」是看串行了。
   g.fillStyle(WORLD.soil, 1);
   g.fillRect(-2 + (seed % 3), top + 4, 1, 2);
   g.fillRect(3 - (seed % 2), top + 7, 2, 1);

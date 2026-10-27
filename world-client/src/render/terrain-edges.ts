@@ -60,7 +60,13 @@ export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
  */
 export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
   tree: 'grassLit',
-  // grass 亮边用 plaza（ΔL* 9.5）；原 grassLit 对 grass 只有 3.0，18 条边不可见。
+  // grass 亮边用 plaza（ΔL* 9.5）；原 grassLit 对 grass 只有 3.0，落在
+  // `EDGE_VISIBLE_MIN_DL`（6）以下——于是**每一条** grass 亮边都是看不见的，
+  // 默认世界实测 176 条（北 95 + 西 81），一条不剩。
+  //
+  // 原注释写「18 条边不可见」。那个数对不上任何数法：默认世界 176 条、小世界
+  // （30×20）16 条（北 2 + 西 14），连边带内凹角一起数也不是 18。已改成引
+  // ΔL* 与下限——那两个有锁；条数没有锁，写死了只会再烂一次。
   grass: 'plaza',
   farm: 'plaza',
   stone: 'plaza',
