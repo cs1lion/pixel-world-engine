@@ -232,6 +232,20 @@ export class MemoryRuntime {
     return this.world.viewOf(holderId)?.verifyPlans ?? [];
   }
 
+  /**
+   * 一栋楼没了。**只删地点 Holder，不删人物的记忆。**
+   *
+   * 透出 `MemoryWorld.removePlace`——行为层拆楼时喊这一声，理由写在那儿的
+   * 注释里（楼拆了，「那儿原来有间铺子」还该有人记得）。
+   *
+   * 这个转发方法原先不存在，而 `SandboxScene` 从 `6e8ec48` 起就在调它：
+   * `npm run check` 从那一笔起一直是红的（TS2339，`MemoryRuntime` 没这个成员）。
+   * 补上不是顺手——门少一层，喊的人就喊不到。
+   */
+  removePlace(holderId: string): void {
+    this.world.removePlace(holderId);
+  }
+
   /** 已经关到第几天（含）。给状态行与调试用。 */
   get closedThroughDay(): number {
     return this.lastClosedDay - 1;

@@ -41,7 +41,7 @@ import { createCameraController, type CameraController } from '../render/camera-
 import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
-import { shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '../render/eco-mode.ts';
+import { paceFrame, shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '../render/eco-mode.ts';
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
@@ -78,6 +78,15 @@ export interface ScenePayload {
 }
 
 const LOGIC_STEP_MS = 100;
+/**
+ * 一帧最多跑几步。帧预算，不是世界时间的闸——那个是 `FRAME_CLAMP_MS`。
+ *
+ * 两个数是**不同的事**，别合并：`FRAME_CLAMP_MS`（250ms）决定「世界最多
+ * 承认过了多久」，这一步决定「一步最多跑几次，免得一帧卡死」。
+ * `paceFrame` 先按前者收池子，再按后者跑，所以前者是紧的那道。
+ * 由 `test/frame-pace.test.ts` 钉着两者的关系（这里必须 ≥ 3，否则它会抢先
+ * 于 `FRAME_CLAMP_MS` 生效，世界的走慢就变成帧预算说了算）。
+ */
 const MAX_STEPS_PER_FRAME = 5;
 const ALTITUDE = 1000;
 
@@ -675,8 +684,8 @@ export class SandboxScene extends Phaser.Scene {
 
     // 省电：后台时按最小间隔跳帧。**跳过的是这一帧的渲染与逻辑推进**。
     // 少的是帧数，不是世界时间——累加器按真实经过的时间补，所以推得粗一些
-    // 而不错乱。但补齐有 250ms 的上限（下面那行 `Math.min`）：间隔超过它的
-    // 场合——隐藏标签页被浏览器压到 1fps——世界会实实在在地走慢，不补齐。
+    // 而不错乱。但补齐有 `FRAME_CLAMP_MS` 的上限：间隔超过它的场合——隐藏
+    // 标签页被浏览器压到 1fps——世界会实实在在地走慢，不补齐。
     //
     // 闸门在 `eco-mode.ts`（纯函数）。它保证「一次都没推进过时放过」，
     // 所以下面第一次推进就立得起基准；早先这里自己判，第一次永远判不过，
@@ -689,7 +698,6 @@ export class SandboxScene extends Phaser.Scene {
     // 真正推进过的帧才计数：`updateCount` 统计的是 Phaser 的调用次数，
     // 跳帧时它仍然每帧加一，看不出降频。
     this.advanceCount += 1;
-    this.accumulator += Math.min(elapsed, 250);
     // 造物模式暂停世界：幽灵预览期间不该有人走动或收工。
     // 只暂停推进，不清空累加器——退出后不会一次性补跑一大段。
     if (this.creation !== null) {
@@ -698,9 +706,11 @@ export class SandboxScene extends Phaser.Scene {
       this.renderSnapshot(delta);
       return;
     }
+    // 收池子、跑几步，都在 `paceFrame` 里——纯函数，node 下能单测。
+    const pace = paceFrame(this.accumulator, elapsed, LOGIC_STEP_MS, MAX_STEPS_PER_FRAME);
+    this.accumulator = pace.leftover;
     let steps = 0;
-    while (this.accumulator >= LOGIC_STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-      this.accumulator -= LOGIC_STEP_MS;
+    while (steps < pace.steps) {
       // 时间倍率：世界时钟走得比墙钟快，潮汐才在几分钟里看得见涨落。
       // 倍率只放大「喂给 Simulation 的步长」，不引入第二个时钟——
       // 世界的可回放性仍然只取决于它收到的那串步长。

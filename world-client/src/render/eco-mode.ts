@@ -17,6 +17,55 @@ export const BACKGROUND_FPS = 12;
 /** 视野边缘的余量（世界像素）：刚出界一点点的对象不该立刻停动画。 */
 const VIEW_MARGIN = 32;
 
+/**
+ * 一帧最多补进去多少毫秒的世界时间。
+ *
+ * 补齐是为了让世界按真实经过的时间走，而不是按帧数走——60fps 与 12fps 下
+ * 村民都该在同一时刻走到同一格。但补齐得有上限：隐藏标签页被浏览器压到
+ * 1fps 时一帧就是 1000ms，全补进去等于世界在玩家睡着的时候跑了一整天，
+ * 回来时任务全交了、潮汐全落了，而玩家一秒都没看着。
+ *
+ * 所以超过这个数的部分**不补**：世界会实实在在地走慢，不拿一句「补齐了」
+ * 骗人。由 `test/frame-pace.test.ts` 钉着。
+ */
+export const FRAME_CLAMP_MS = 250;
+
+/** 一帧推进的结果。 */
+export interface FramePace {
+  /** 这一帧该跑几步。 */
+  readonly steps: number;
+  /** 跑完还剩多少毫秒，留给下一帧。 */
+  readonly leftover: number;
+}
+
+/**
+ * 真实过了 `elapsedMs`，这一帧推进几步、剩多少。
+ *
+ * 纯函数：只做加法、比较与减法，不碰 Phaser、不读墙钟。提出来的理由是这条
+ * 算式原先长在 `SandboxScene.update()` 里，而场景引 Phaser，node 下连文件都
+ * 加载不了——于是「补齐有 250ms 上限」与「一步最多跑几次」这两个数没有任何
+ * 测试碰过，注释说它们是什么就是什么。放这儿就能离线钉。
+ *
+ * `carriedMs` 是上一帧剩下的，`stepMs` 是世界一步的长度，`maxSteps` 是帧预算。
+ */
+export function paceFrame(
+  carriedMs: number,
+  elapsedMs: number,
+  stepMs: number,
+  maxSteps: number,
+): FramePace {
+  // 负的间隔没有意义：Phaser 的 `time` 理论上只增，真出现回退时按 0 算，
+  // 免得一个负的 leftover 把下一帧也拖成负的。
+  const admitted = Math.min(Math.max(elapsedMs, 0), FRAME_CLAMP_MS);
+  let pool = Math.max(0, carriedMs) + admitted;
+  let steps = 0;
+  while (pool >= stepMs && steps < maxSteps) {
+    pool -= stepMs;
+    steps += 1;
+  }
+  return { steps, leftover: pool };
+}
+
 export interface ViewRect {
   readonly x: number;
   readonly y: number;
@@ -36,8 +85,9 @@ export function targetFpsFor(focused: boolean): number {
  * 而它们的逻辑状态照旧每拍结算——这个函数跳的只是绘制。
  *
  * 别把上面那句读成「世界逻辑从不跳帧」。后台降频是另一道闸门
- * （`shouldAdvanceFrame`），它跳的是整帧，逻辑与渲染一起跳；而且累加器
- * 补齐真实经过的时间时有 250ms 的上限，间隔超过它的场合世界会走慢。
+ * （`shouldAdvanceFrame`），它跳的是整帧，逻辑与渲染一起跳；而累加器补齐
+ * 真实经过的时间时有 `FRAME_CLAMP_MS` 的上限（`paceFrame`），间隔超过它的
+ * 场合世界会走慢。
  */
 export function shouldAnimateAt(point: GridPoint, view: ViewRect): boolean {
   return (
