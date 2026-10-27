@@ -8,7 +8,8 @@
  * 这里钉三件事：
  *   1. 没牌子只发生在起手一段，那之后每一拍都有——**不是**「一直有值」；
  *   2. 那段空窗的长度就是 `nextRoutineAt` 的错峰（`1200 + index * 1400`），
- *      两个人不一样长，所以「多少拍有牌子」按人分别说，报不出一个合并数；
+ *      两个人不一样长，所以「多少拍有牌子」按人分别说，报不出一个合并数——
+ *      `report.ts` 报的 14801 / 13401 就是 16001 减这两个数，这里按人钉住；
  *   3. 空窗里她还在祭坛上——所以「没牌子就说祭坛」这个退路在空窗里是**真的**，
  *      它假的形状要走撤单那条路（`abandonActiveTask`），不是空窗。
  */
@@ -18,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { atAltar } from '../src/world/villager-words.ts';
 
 const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
@@ -49,45 +51,46 @@ interface Gap {
 /** 一遍跑完，把每个村民「没牌子的拍」的极大连续段、以及空窗里在不在祭坛，一次收齐。 */
 function survey(): {
   readonly gaps: ReadonlyMap<string, readonly Gap[]>;
+  readonly labelled: ReadonlyMap<string, number>;
   readonly offAltarInGap: readonly string[];
-  readonly labelledAfterGap: number;
 } {
   const sim = makeSim();
   const gaps = new Map<string, Gap[]>();
+  const labelled = new Map<string, number>();
   const offAltarInGap: string[] = [];
-  let labelledAfterGap = 0;
   for (let t = 0; t <= TOTAL; t += 1) {
     const snapshot = sim.snapshot();
     for (const villager of snapshot.villagers) {
-      const labelled = villager.routine !== null && villager.routine !== '';
+      // 「没牌子」就是 `idleLabel` 会退回问祭坛的那一刻：routine 是 null。
+      // 判据跟生产同源（那边是 `routine ?? atAltar(...)`），所以这里也别自己
+      // 另写一套——另写一套，改的就不是被守的那一个了。
+      const hasLabel = villager.routine !== null;
       const own = gaps.get(villager.name) ?? [];
       const open = own.length > 0 ? own[own.length - 1]! : undefined;
-      if (labelled) {
-        if (open === undefined || t > open.to + 1) {
-          // 有牌子且上一段已合上：这一段到此为止，不开新的。
+      if (!hasLabel) {
+        if (open !== undefined && open.to === t - 1) {
+          open.to = t;
+        } else {
+          own.push({ from: t, to: t });
         }
-      } else if (open !== undefined && open.to === t - 1) {
-        open.to = t;
-      } else {
-        own.push({ from: t, to: t });
       }
+      // 有牌子的一拍既不开新区间、也不延长上一段：极大连续段到此为止。
+
       gaps.set(villager.name, own);
 
-      // 空窗闭区间是 [from, to]；跑到 t 时最后一段可能还没合上，用 to 判会漏掉
-      // 正在写的那一拍，所以这里按「t 落在任一段里」判。
+      // 空窗闭区间是 [from, to]；跑到 t 时最后一段可能还没合上，而上面已经把它
+      // 写到 t 了（同一个数组，`some` 读的是写后的状态），所以这里按「t 落在
+      // 任一段里」判，不会漏掉正在写的那一拍。
       const inGap = own.some((gap) => t >= gap.from && t <= gap.to);
       if (inGap) {
-        const atAltar =
-          Math.floor(villager.pos.x) === snapshot.altar.x &&
-          Math.floor(villager.pos.y) === snapshot.altar.y;
-        if (!atAltar) offAltarInGap.push(`${villager.name}@${t}`);
-      } else if (labelled) {
-        labelledAfterGap += 1;
+        if (!atAltar(villager, snapshot)) offAltarInGap.push(`${villager.name}@${t}`);
+      } else if (hasLabel) {
+        labelled.set(villager.name, (labelled.get(villager.name) ?? 0) + 1);
       }
     }
     sim.update(1);
   }
-  return { gaps, offAltarInGap, labelledAfterGap };
+  return { gaps, labelled, offAltarInGap };
 }
 
 const seen = survey();
@@ -121,7 +124,18 @@ test('空窗那一段她还在祭坛上：所以「没牌子就说祭坛」在�
   assert.deepEqual(seen.offAltarInGap, [], '空窗里有人离开过祭坛——退路就假了');
 });
 
-test('空窗不是全剧终：合上之后仍有的是牌子', () => {
-  // 防前两条退化成「她从第 0 拍起就永远没牌子」也过得去。
-  assert.ok(seen.labelledAfterGap > 0, `空窗之后一拍牌子都没有：${seen.labelledAfterGap}`);
+test('合上之后每一拍都有牌子：report.ts 报的 14801 / 13401 就是这么减出来的', () => {
+  const names = [...seen.gaps.keys()];
+  names.forEach((name, index) => {
+    // 空窗是闭区间、from 恒为 0，所以「有牌子的拍」就是剩下的每一拍。
+    // 这条同时防前两条退化成「她从第 0 拍起就永远没牌子」也过得去。
+    assert.equal(
+      seen.labelled.get(name) ?? 0,
+      TOTAL + 1 - (1200 + index * 1400),
+      `${name} 该在其余每一拍都有牌子（index ${index}）`,
+    );
+  });
+  // 报在纸上的那两个数按人分别钉住：两个人空窗不一样长，合并数没有意义。
+  assert.equal(seen.labelled.get('莞尔'), 14801, 'report.ts 说莞尔 14801 拍有牌子');
+  assert.equal(seen.labelled.get('阿雾'), 13401, 'report.ts 说阿雾 13401 拍有牌子');
 });

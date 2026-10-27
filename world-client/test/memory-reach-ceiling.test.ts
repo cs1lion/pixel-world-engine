@@ -12,11 +12,19 @@
  *
  * 而现在两个设定集都只有 2 个村民——这个上限一辈子摸不到。它仍值得算：
  * 它是护栏的刻度，改了 `maxFanout`/`maxHops` 而刻度不动，覆盖率目标就成了空话。
+ * 而刻度要成立，两条护栏都得真的在闸：深度那条由第 2 个测试核，配额那条
+ * （`canFanout`）由第 4 个核——只核算式的话，第一层是不是 3 个人并没被验证。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
-import { canSpread, retell } from '../src/world/memory/propagate.ts';
+import {
+  canFanout,
+  canSpread,
+  fanoutKey,
+  retell,
+  type FanoutState,
+} from '../src/world/memory/propagate.ts';
 
 /** 深度 `hops` 内，除起源者之外最多有多少人拿过这条断言。 */
 function ceiling(fanout: number, hops: number): number {
@@ -93,4 +101,21 @@ test('改了 fanout 或 hops，这个上限会跟着动——所以注释里的�
   assert.equal(ceiling(3, 2), 12);
   assert.equal(ceiling(3, 3), 39);
   assert.equal(ceiling(4, 3), 84);
+});
+
+test('第一层真的只有 maxFanout 个人：讲满就不准再讲', () => {
+  // 39 这个数站在「每个单位一天就同一条断言只向 maxFanout 个人提起」上。
+  // 上面几条只核了算式与深度，没核这条配额本身——配额不设闸，第一层就不是
+  // `maxFanout` 个人，39 立刻是空话。所以这里让 `maxFanout` 真的去咬一次。
+  const config = DEFAULT_MEMORY_CONFIG;
+  const counts = new Map<string, number>();
+  const state: FanoutState = { day: 1, counts };
+  for (let told = 0; told < config.maxFanout; told += 1) {
+    assert.equal(canFanout(state, 'v0', 'c1', 1, config), true, `第 ${told + 1} 个该还讲得动`);
+    counts.set(fanoutKey('v0', 'c1'), told + 1);
+  }
+  assert.equal(canFanout(state, 'v0', 'c1', 1, config), false, '讲满 maxFanout 个就不该再讲');
+  // 换一天、换一条断言，配额各自归零——否则深度到不了 maxHops 就被自己堵死。
+  assert.equal(canFanout(state, 'v0', 'c1', 2, config), true, '第二天该归零');
+  assert.equal(canFanout(state, 'v0', 'c2', 1, config), true, '换一条断言该归零');
 });
