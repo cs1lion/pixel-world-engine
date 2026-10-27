@@ -109,6 +109,48 @@ test('周围没有空地时返回 null，由调用方保留点数', () => {
   assert.equal(made, null);
 });
 
+test('落不下时点数真的留着：一个里程碑不会因为没空地被吞掉', () => {
+  // `accrueFaith` 原来是先扣点数再落件，落不下就 return——那一个里程碑的点数
+  // 再也要不回来。而 `simulation.ts` 的注释和上面那条测试的名字说的都是
+  // 「由调用方保留点数」。实测：攒到 3 点、触发里程碑、落不下，改之前
+  // points 归 0、props 空、milestones 不动。
+  const sim = makeSim();
+  const grid = sim.grid as { isWalkable(p: GridPoint): boolean };
+  const statusOf = (summary: string): string | undefined =>
+    sim.snapshot().tasks.find((task) => task.summary === summary)?.status;
+
+  for (const summary of ['第一单', '第二单']) {
+    sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary });
+    let guard = 0;
+    while (statusOf(summary) !== 'done') {
+      sim.update(100);
+      if ((guard += 1) > 400) throw new Error(`${summary} 没交完`);
+    }
+  }
+  assert.equal(sim.snapshot().faith.points, 2, '夹具：前两单各攒 1 点');
+
+  // 第三单等她到了铺子再动手：把祭坛外圈判成不可走。nextProp 的候选全在
+  // 距离 >= 2，于是落不下；而交付发生在铺子里，不走这些格，单子照旧交完。
+  sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '第三单' });
+  let guard = 0;
+  while (statusOf('第三单') !== 'in_progress') {
+    sim.update(100);
+    if ((guard += 1) > 400) throw new Error('第三单没开工');
+  }
+  grid.isWalkable = (p) =>
+    Math.max(Math.abs(p.x - ALTAR.x), Math.abs(p.y - ALTAR.y)) < 2;
+  guard = 0;
+  while (statusOf('第三单') !== 'done') {
+    sim.update(100);
+    if ((guard += 1) > 400) throw new Error('第三单没交完');
+  }
+
+  const after = sim.snapshot();
+  assert.equal(after.props.length, 0, '夹具：这一回确实什么都没落下');
+  assert.equal(after.faith.milestones, 0, '没落下就不算里程碑');
+  assert.equal(after.faith.points, 3, '点数得留着，下一单接着试');
+});
+
 test('摆在已有摆件旁边，不叠在同一个格子上', () => {
   const first = nextProp(0, anchor, everywhere, null);
   assert.ok(first !== null);

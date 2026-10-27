@@ -431,6 +431,15 @@ export class Simulation {
   private feedReconciled = true;
   /** 上游事件流是否在线。离线时世界照常过日子，但状态行必须说出来。 */
   private feedConnected = false;
+  /**
+   * 上一次**说出口的**上游状态。null 表示还没说过。
+   *
+   * 与 `feedConnected` 分开存：后者是事实，前者是「这话讲过了没有」。
+   * 轮询每次失败都往里写一句「上游连不上了」，那句话就会在事件流里排成
+   * 二十遍——事件流是世界的记忆，重复会把它真正发生过的事挤干净。
+   * 去重按状态，不按调用次数，和 `saidMiss` 同一个道理。
+   */
+  private feedSaidConnected: boolean | null = null;
   /** 最近一次成功读到事件的世界时间（不是墙钟）。 */
   private feedLastReadAt: number | null = null;
   /** 已消费到的事件 id。下次从这里续读。 */
@@ -1140,10 +1149,26 @@ export class Simulation {
    */
   private syncEvents(fold: TaskFoldState, connected: boolean): CommandResult {
     this.feedConnected = connected;
+    // 连没连上，只在**变了**的时候说一次。
+    //
+    // 从前每次轮询失败都往事件流里写一句「上游连不上了，世界照常过日子。」。
+    // 实测断线 20 次轮询，那句话就在世界的记忆里排了 20 遍，真正发生过的
+    // 事被挤得一条都不剩；而它每次还作为命令结果发给界面，把用户上一句话
+    // 的回执擦掉，换成一句他没问过的事——他说「下雨了」，屏上一秒后是
+    // 「上游连不上了」。
+    //
+    // 「说错了比不说更糟，可把一句话说二十遍也不是诚实，是噪音。」这与
+    // `saidMiss` 是同一个病：按状态去重，不按调用次数。
+    const changed = this.feedSaidConnected !== connected;
+    this.feedSaidConnected = connected;
     if (!connected) {
-      const message = '上游连不上了，世界照常过日子。';
-      this.log('warn', message);
-      return { ok: false, message };
+      // 回执那一行是**用户自己的话**的归宿，不是上游状态的归宿：上游在顶栏
+      // 「上游离线」与事件流里各有一处，都说得比这句全（连「手上的单可能
+      // 不全」都写着）。所以这句话只在状态刚变那一次作为结果出去，之后
+      // 给空——空结果不擦回执，见 `oracle-panel.ts` 的 onResult。
+      if (!changed) return { ok: true, message: '' };
+      this.log('warn', '上游连不上了，世界照常过日子。');
+      return { ok: false, message: '上游连不上了，世界照常过日子。' };
     }
     this.feedLastReadAt = this.now;
     this.feedCursor = fold.cursor;
@@ -1336,13 +1361,15 @@ export class Simulation {
   }
 
   /**
-   * 让这个角色原地办一条**已经存在**的短活：不占铺子，时间一到自己结束。
+   * 让这个角色原地办一条**已经存在**的短活：不占铺子。
    *
    * 神谕与上游两条路都走这里。上游的活曾和别的活一起进 `pickVenue`，
    * 于是 `quick` 单回一句「这座镇子没有接 quick 的铺子」——那句话把
    * 「这类活不占铺子」说成了「这座镇子缺一座铺子」，而在灯潮界也照样说。
-   * 而 `stepWorking`/`finishInPlace` 只认 `buildingId === null`，
-   * 与这单是谁派来的无关，所以两条路共用一套收尾是安全的。
+   *
+   * 两条路共用这一套**开工**，收尾是分开的：`stepWorking` 只让本地单自己结束，
+   * 上游的单等 `task.settled`。见 `stepWorking` 上那段——别把这儿读成
+   * 「两条路的收尾也共用」，那句话从前就写在这儿，而它是假的。
    */
   private startInPlace(villager: Villager, task: TaskRecord, origin: '神谕' | '上游'): void {
     const profile = TASK_PROFILES[task.kind];
@@ -1881,22 +1908,35 @@ export class Simulation {
    * 抵押者永远空闲，但接不了——把两个条件合成一个方法，就会在某个只想知道
    * 「她有空吗」的调用点上把抵押者误判成不可用（或反过来放过她）。
    *
-   * 呼吸段（SPEC_V2 §4.7）也是同一条理由：她正站在那一屏留白里，就不该被
+   * 呼吸段（SPEC_V2 §4.7）也是同一条理由：她正站在那一屏呼吸段里，就不该被
    * 一件活拽走。这里是派活三条路径（神谕、上游、自己的排队单）共同的那道门，
    * 漏掉任一条就会出现「神谕派不下去，上游照样派」——抵押在那条上栽过一次。
    *
    * 只问**此刻站在哪儿**，不把她锁死：作息照旧把她带走，下一拍她就在外头了。
-   * 所以这里是「现在不派」，不是「永远不派」——留白是会过去的。
+   * 所以这里是「现在不派」，不是「永远不派」——呼吸段是会过去的。
    */
   private canTakeWork(villager: Villager): boolean {
     return (
       this.isFree(villager) &&
       villager.nameState !== 'pawned' &&
-      // 走 `cellOf`：她站在分数坐标上（4.048），网格是按整数格索引的，
-      // 直接拿 `villager.pos` 去问会落在一格之外——于是她一路走过整片
-      // 留白，世界一次都没看见。这个坑看不见：她照样在走、照样在干活。
-      !this.grid.breathingAt(this.cellOf(villager.pos))
+      !this.inBreathing(villager)
     );
+  }
+
+  /**
+   * 她此刻是不是站在一处呼吸段里（SPEC_V2 §4.7）。
+   *
+   * 走 `cellOf` 而不是直接递 `villager.pos`：她站在分数坐标上（4.048），
+   * 而网格是按整数格索引的——`cells[y * width + x]` 收一个 4.048 就是
+   * undefined，于是她一路走过整片呼吸段，世界一次都没看见。这个坑看不见：
+   * 她照样在走、照样在干活，只是那一片从不安静。
+   *
+   * **派活与急件两处都问这件事，所以收在一处**：`cellOf` 那个 Math.round
+   * 只需要被写对一次。漏掉哪一处都不会报错，只会让 §4.7 的三条禁令
+   * 有一条静静失效。
+   */
+  private inBreathing(villager: Villager): boolean {
+    return this.grid.breathingAt(this.cellOf(villager.pos));
   }
 
   /** 空闲**且名牌还在自己身上**的角色。抵押者不在候选里。 */
@@ -2172,14 +2212,40 @@ export class Simulation {
     }
   }
 
-  /** 原地办的短活：不占铺子，时间一到自己结束。 */
+  /**
+   * 原地办的短活：时间一到自己结束。
+   *
+   * **但只限本地单。** 上游的活不在这里收尾——`stepWorkstations` 对铺子里的
+   * 活早就守着同一条：`determinate` 只在 `task.source === 'sandbox'` 时为真
+   * （见 `arriveAtWork` 那段）。原地这条路从前没有那道守卫，于是 `quick` 成了
+   * 唯一一种「世界自己宣布干完」的上游活。
+   *
+   * 那不是漏了一个边界，是把这个世界的根本约定反过来说了。`completeManually`
+   * 明写「完成权唯一来源是上游」，`test/unsettled-event-stuck.test.ts` 钉着
+   * 「上游没说成的单不算交付」，`save.ts` 的 `SettledRecord` 钉着「`'ledger'`
+   * 用上游事件时间，禁止本地时间顶替」。三处都被 `quick` 一个人绕过去：报告说
+   * 「已有交付」、名字记进她的功劳簿、信仰照发，而上游从没说过这单成了。
+   * 更难看的是它每次还把用户那句急件擦掉（`blockedQuestion` 无条件置 null）——
+   * 世界刚请他回答，下一秒就说这单办完了。
+   *
+   * 上游真说了，走 `syncEvents` 第二节的 `finishActiveTask`：那一刻才结算，
+   * 时间戳、庆祝、信仰一样不少。在此之前她照旧在干活，屏上是个正在干活的人。
+   */
   private stepWorking(villager: Villager): void {
     const task = this.activeTaskOf(villager);
     if (task === null || task.buildingId !== null) return;
+    if (task.source !== 'sandbox') return;
     if (this.now < villager.inPlaceUntil) return;
     this.finishInPlace(villager, task);
   }
 
+  /**
+   * 收一件原地办的本地单。
+   *
+   * 上游的单到不了这儿：`stepWorking` 按 `source` 拦了一道，`completeManually`
+   * 也拦了一道。两道都别拆——拆了就是把「完成权唯一来源是上游」这句话作废，
+   * 而 `test/unsettled-event-stuck.test.ts` 会红。
+   */
   private finishInPlace(villager: Villager, task: TaskRecord): void {
     if (task.status === 'done') return;
     this.clearDeparture(villager);
@@ -2427,7 +2493,10 @@ export class Simulation {
   private accrueFaith(task: TaskRecord): void {
     this.faithPoints += POINTS_PER_TASK;
     if (this.faithPoints < FAITH_MILESTONE) return;
-    this.faithPoints -= FAITH_MILESTONE;
+    // 先落，落下了再扣点数。反过来的话，周围没空地那一回就把一个里程碑的
+    // 点数吞掉了——而上面那行注释和 `faith.test.ts` 里那条测试的名字
+    // （「由调用方保留点数」）说的都是留着。实测：第三单触发里程碑、落不下，
+    // 改之前 points 归 0、props 空、milestones 不动，那 3 点再也要不回来。
     const prop = nextProp(
       this.milestones,
       this.altar,
@@ -2436,6 +2505,7 @@ export class Simulation {
       this.props.map((item) => item.at),
     );
     if (prop === null) return;
+    this.faithPoints -= FAITH_MILESTONE;
     this.props.push(prop);
     this.milestones += 1;
     // 日志写清是哪一单换的：这是"被记住"在事件流里的第一次落地。
@@ -2470,16 +2540,22 @@ export class Simulation {
 
     // 呼吸段里的人不接这一趟（SPEC_V2 §4.7）。急件是世界自己发起的一件事，
     // 还带一句「急件！」的气泡——它同时是「随机事件」和「提示」，
-    // 而那一屏留白两样都不该有。
+    // 而那一屏呼吸段两样都不该有。
     //
     // 与 `canTakeWork` 那道门是**两处**，不是一处：那边管派活，这边管急件。
-    // 漏了这边，「不派活」做到了、「不弹提示」没做到——用户在留白里
-    // 照样被一句「急件！」拽走。走 `cellOf`：她站在分数坐标上。
+    // 漏了这边，「不派活」做到了、「不弹提示」没做到——用户在呼吸段里
+    // 照样被一句「急件！」拽走。
+    //
+    // §4.7 的「不弹提示」到这里就是全的：**它禁的是世界自己开口**。
+    // 另六处写 bubble 的地方（这单被撤了 / 下雨了快躲 / 办好了 / 任务交付 /
+    // 过不去东西先留着 / 有急件请旨）说的都是世界在**回答**——回答玩家刚下的
+    // 命令，或回答一件早就派给她的活。那些不堵：堵了就是玩家说了话世界不理，
+    // 那是另一种坏。这条边界由 `breathing-bubble.test.ts` 钉住。
     const free = this.villagers.find(
       (item) =>
         item.mode === 'idle' &&
         item.path.length === 0 &&
-        !this.grid.breathingAt(this.cellOf(item.pos)),
+        !this.inBreathing(item),
     );
     if (free === undefined) return;
 
