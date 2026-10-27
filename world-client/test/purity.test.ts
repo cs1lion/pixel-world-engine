@@ -200,7 +200,10 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 // `docs/adr/ADR_WORLD_ALIVE.md` §2 的规矩是「时辰只喂渲染层」。它成立靠三件事，
 // 本文件只负责其中一件，另外两件在 `test/phase-purity.test.ts`：
 //
-//   1. **不 import 上来**（本文件这条）。`src/world/` 下零个 `../` import。
+//   1. **不 import 上来**（本文件这条）：`src/world/` 下没有一个 import 的
+//      **解析落点**在 `src/world/` 之外。注意不是「零个 `../`」——开了子目录
+//      （`world/memory/`、`world/creator/`）之后，`memory/perception.ts` 写
+//      `from '../types.ts'` 是**世界内核依赖自己**，那是合法的，今天就真有。
 //   2. **不抄一份**（`phase-purity.test.ts` 的词汇扫描）：把 `phaseAt` 复制粘贴到
 //      `src/world/` 下，import 图一片干净，而世界照样知道「现在几点」。
 //   3. **快照里不开字段**（`phase-purity.test.ts` 的字段清单）：不 import、不抄，
@@ -210,10 +213,10 @@ test('§4.6 三个状态位不读墙钟、不调外部服务', () => {
 // 2026-10-27 补齐，缺口 1 已从 §6 移除。留着这段是因为分工写在这儿，
 // 读的人不用去翻 ADR 就知道另外两件归谁。）
 //
-// 为什么断言「零个 `../`」而不只是「不 import day-phase.ts」：`day-phase.ts`
-// 只是今天被 ADR 点到的那一个。真正要守的是**世界内核不依赖它上面的任何一层**
-// （render / scenes / ui / settings / audio）。只禁一个文件名，明天换个入口
-// （`phase-view.ts`、`ambience.ts`、或者一个新文件）照样进得来，而测试还绿着。
+// 为什么不只禁一个文件名（`day-phase.ts`）：那只是今天被 ADR 点到的那一个。
+// 真正要守的是**世界内核不依赖它上面的任何一层**（render / scenes / ui /
+// settings / audio）。只禁一个文件名，明天换个入口（`phase-view.ts`、
+// `ambience.ts`、或者一个新文件）照样进得来，而测试还绿着。
 //
 // 代价说清楚：这条断言也禁掉「世界 import `../settings/types.ts`」这类将来可能
 // 合理的依赖。真到那天，加一条**带理由的**豁免，而不是把断言放宽——放宽一次，

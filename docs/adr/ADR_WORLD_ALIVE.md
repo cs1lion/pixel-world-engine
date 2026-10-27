@@ -283,8 +283,12 @@ SPEC 那一行是超前的。
   `world/memory/` 一开子目录就分开了，判据跟着改成落点，见 §2。）
 - **抄一份进来。** `phaseAt` 复制粘贴到 `src/world/` 下，import 图一片干净，
   而世界照样知道「现在几点」。由 `test/phase-purity.test.ts` 的词汇扫描拦：
-  递归整个 `src/world/`，走 `codeOf()`（注释不算），找 `phaseAt` / `PhaseId` /
-  `PhaseRecipe` / `PHASE_ORDER` / `PHASES` / `day-phase`。
+  递归整个 `src/world/`，走 `codeOf()`（注释行整行剔掉，字符串字面量换成等长空白），
+  找 `phaseAt` / `PhaseId` / `PhaseRecipe` / `PHASE_ORDER` / `PHASES`。
+  （**`day-phase` 不在词表里，而且它不可能在**：带连字符的这个形状在 TypeScript 里
+  只可能出现在字符串（import 的那条路径）或注释里，而这两样 `codeOf()` 都拿掉了。
+  把它加进词表，那道闸不会更严，只会多一个永远不会命中的键——而一个永不命中的键
+  与一个起作用的键在代码里长得一模一样。）
 - **快照里开一个字段。** 不 import、不抄，只在 `WorldSnapshot` 上加一个 `phase`，
   渲染层读快照就拿到了时辰。由 `test/phase-purity.test.ts` 的字段清单拦：
   它不猜字段名，把**今天的 23 个字段**列死，加一个字段就得先改那个文件。

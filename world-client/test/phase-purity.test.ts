@@ -26,7 +26,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codeOf, codeLines, sourceFiles, srcRelative } from './source-scan.ts';
 import { ALTAR, buildWorld } from '../src/world/setup.ts';
@@ -97,6 +99,51 @@ test('世界代码里没有时辰模块的标识符（抄一份也拦得住）',
       `说明它要么 import 了那一层（该红的是 purity.test.ts），要么抄了一份。\n` +
       strays.join('\n'),
   );
+});
+
+test('词表里没有死键——每个键都得真能命中', () => {
+  // 上面那条只证明「当前仓库里没出现这些词」，证明不了「出现了会被抓住」——
+  // 一个永远返回空的词表也能让它绿。`purity.test.ts` 的时辰那一层为同一个
+  // 理由长了「闸门认得动态 import」这条，这儿是它的对应物。
+  //
+  // 而这里有一个**具体的死键**，不是假想的：`day-phase`。它原先在词表里，
+  // 而它不可能命中——带连字符的这个形状在 TypeScript 里只出现在字符串
+  // （import 的那条路径）或注释里，而 `codeOf()` 两样都拿掉了（注释行整行剔、
+  // 字符串换成等长空白）。实测四种形状：写在注释里、写在 import 路径里、
+  // 写成裸标识符 `dayPhase`、写在注释里的裸词——`day-phase` 四种全不命中，
+  // 而同文件里 `phaseAt` 在 import 路径那种形状下**是**命中的。
+  //
+  // **第一版这条探针是错的，而且错得很像对的**：我写的是
+  // `writeFileSync(p, 'const probe = day-phase;')` 然后问 `codeOf()` 认不认。
+  // 它对 `day-phase` 答「认」——于是这条闸绿着放过了唯一一个死键。原因：
+  // `codeOf()` 是**文本**变换（剔注释行、把字符串换成等长空白），它不解析，
+  // `const probe = day-phase;` 根本不是合法 TypeScript，可文本上它既不是注释
+  // 也没有字符串，于是原样活下来。拿一个非法的位置去问"它活不活"，
+  // 问出来的答案是假的。
+  //
+  // 所以判据换成**形状**：一个键要想在代码里被找到，它先得能长在代码里——
+  // 而连字符进不了标识符。带连字符的键只能长在字符串（import 的那条路径）
+  // 或注释里，`codeOf()` 两样都拿掉，所以它**结构上**不可能命中。
+  //
+  // 探针落在系统临时目录，不落在仓里：往 `src/` 底下写文件会污染别人正在飞的工作，
+  // 而 `codeOf()` 只挑路径读，读哪儿都一样。
+  const probePath = join(tmpdir(), 'phase-vocabulary-probe.ts');
+  for (const word of PHASE_VOCABULARY) {
+    assert.ok(
+      /^[A-Za-z_$][\w$]*$/.test(word),
+      `词表里的 ${word} 不是标识符形状：连字符进不了标识符，它只能长在字符串或注释里，` +
+        `而 codeOf() 两样都拿掉——它结构上不可能命中，删掉它`,
+    );
+    // 形状对还不够，还得真能在代码里活下来：写进一条代码行，走一遍 `codeOf()`。
+    // **这条今天不可能红**——标识符形状的键没有能被 `codeOf()` 拿掉的去处。
+    // 留着它是为了 `codeOf()` 将来改动的那一天：它是共享的，到今天有三笔提交
+    // 动过它，而它哪天多挖一类东西，词表里的某个键会悄悄变成死的，只有这条会叫。
+    writeFileSync(probePath, `const probe = ${word};\n`);
+    assert.ok(
+      codeOf(probePath).includes(word),
+      `词表里的 ${word} 写进代码行走一遍 codeOf() 就没了，删掉它`,
+    );
+  }
 });
 
 test('时辰那一层不 import Phaser——否则配方在 node 下一条都测不了', () => {
