@@ -160,6 +160,16 @@ export interface Claim {
   readonly content: MemoryContent;
   readonly confidence: number;
   readonly hop: number;
+  /**
+   * 断言诞生时的来源：谁第一个说出它、用哪条 claim_id、第几跳。
+   *
+   * **只有一节，而且永远只有一节。** 原来这里有个 `withLink`，注释写的是
+   * 「一条断言被讲出去之后，来源链上多一节」——它一个调用方都没有，所以那一
+   * 节从来就没有被加上去过。而它是**结构上加不上来的**：一条断言被全村共享，
+   * 同一跳上有好几个人持有它，把链挂在断言上，最后一个听到的人会把所有人的
+   * 路径一起改掉。真正的来源链在 `MemoryEntry.sourceChain` 上——一条记忆一个
+   * 持有者，链才长得起来。
+   */
   readonly sourceChain: readonly SourceChainLink[];
   readonly originHolderId: string;
   readonly createdDay: number;

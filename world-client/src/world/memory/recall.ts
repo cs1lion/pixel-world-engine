@@ -188,17 +188,14 @@ export function recall(
 }
 
 /**
- * 事实集合：一条记忆里「确定发生过的事」。
+ * 新条目的事实集合是不是旧条目的子集。
  *
- * 验收测试「不编造」靠它：重构性回忆之后，新条目的事实集合必须是旧条目的**子集**。
- * 这里把事实拆成 `eventRefs` 与 `who` 两个维度——细节层级与情绪幅度都不算事实，
- * 它们正是允许变的那两样。
+ * 「重构性回忆不得新增事实」这条验收靠的正是它（`memory-protocol.test.ts`
+ * 那条「变形不得新增事实」调的是这个）。这里原来还有一个 `factSet`，把事实
+ * 拼成一个字符串，而它的注释说「验收测试靠它」——那句话是假的：`factSet`
+ * 从写下来那天起就没有任何一个调用方，测试也好、运行时也好。留着它只会让
+ * 下一个人以为事实的定义在那边，于是改一处漏一处。
  */
-export function factSet(entry: MemoryEntry): string {
-  return `${[...entry.eventRefs].sort().join(',')}|${[...entry.content.who].sort().join(',')}|${entry.content.where}`;
-}
-
-/** 新条目的事实集合是不是旧条目的子集。 */
 export function isSubsetFacts(before: MemoryEntry, after: MemoryEntry): boolean {
   const beforeRefs = new Set(before.eventRefs);
   if (!after.eventRefs.every((ref) => beforeRefs.has(ref))) return false;

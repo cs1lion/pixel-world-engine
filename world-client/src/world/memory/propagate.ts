@@ -15,7 +15,7 @@
 
 import type { MemoryConfig } from './config.ts';
 import { seedOf } from './seed.ts';
-import type { Claim, MemoryContent, SourceChainLink } from './types.ts';
+import type { Claim, MemoryContent } from './types.ts';
 
 /** 关系：这一对单位之间有多信任。传播的准入与听者的采信都看它。 */
 export interface Relationship {
@@ -144,11 +144,6 @@ export function wantsToTell(claim: Claim, context: TellContext, relations: Relat
     strength * 0.2 +
     context.speakerTalkativeness * 0.1;
   return claim.secret ? raw * 0.3 : raw;
-}
-
-/** 冷却表的键：同一对单位 + 同一条断言。 */
-export function cooldownKey(a: string, b: string, claimId: string): string {
-  return `${pairKey(a, b)}\u0000${claimId}`;
 }
 
 /**
@@ -391,16 +386,6 @@ export function spreadStep(input: SpreadInput): SpreadStep[] {
     steps.push({ from: candidate.speaker, to: candidate.listener, claim: retold, verdict });
   }
   return steps;
-}
-
-/** 一条断言被讲出去之后，来源链上多一节。 */
-export function withLink(claim: Claim, listenerId: string): Claim {
-  const link: SourceChainLink = {
-    holderId: listenerId,
-    claimId: claim.claimId,
-    hop: claim.hop,
-  };
-  return { ...claim, sourceChain: [...claim.sourceChain, link] };
 }
 
 /**
