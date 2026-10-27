@@ -94,11 +94,23 @@ import { sourceFiles } from './source-scan.ts';
  * 都拦不住。拦 §4.2 的只有节边界；token 判据拦的是 §4.1 自己的表头与分隔行。
  */
 
-const SRC = new URL('../src/', import.meta.url);
+/**
+ * `src/` 的绝对路径，**两个平台上都对**。
+ *
+ * 只去掉盘符前面那一条斜杠（`/D:/…` → `D:/…`）。POSIX 上的 `/home/…` **原样留着**，
+ * 因为它本来就是绝对路径。
+ *
+ * 这里原来写的是 `.replace(/^\//, '')`——Windows 上碰巧对，Linux 上把绝对路径砍成
+ * 相对路径，`readdirSync` 便按 cwd 解析，抛 ENOENT。而它发生在**模块顶层**：
+ * 整个文件一条测试都跑不到，报的是「找不到 src/」，不是某条断言红。CI 是
+ * `runs-on: ubuntu-latest`，所以一推上去就是整份红，且红得看不出原因。
+ * 与 `test/routine-tide-single-source.test.ts` 同一处写法。
+ */
+const SRC_DIR = new URL('../src/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
 /** `src/` 为根的正斜杠相对路径，与 `srcRelative` 同一口径（报错里要能搜到）。 */
 function rel(file: string): string {
-  return file.slice(SRC.pathname.length).replace(/^[/\\]/, '').split(/[\\/]/).join('/');
+  return file.slice(SRC_DIR.length).replace(/^[/\\]/, '').split(/[\\/]/).join('/');
 }
 
 /**
@@ -131,7 +143,7 @@ function codeKeepStrings(file: string): string {
     .join('\n');
 }
 
-const FILES = sourceFiles(SRC.pathname.replace(/^\//, ''));
+const FILES = sourceFiles(SRC_DIR);
 const CODE = new Map(FILES.map((f) => [f, codeKeepStrings(f)]));
 
 /** 设定集自己的文件：那儿写着世界数据是天经地义，不是违例。 */
