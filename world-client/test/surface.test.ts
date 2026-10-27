@@ -6,10 +6,9 @@ import { ALTAR, buildLargeWorld, buildWorld, placeBlueprint } from '../src/world
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
 import { Simulation } from '../src/world/simulation.ts';
-import { composeReport, composeDiary } from '../src/world/report.ts';
+import { composeReport } from '../src/world/report.ts';
 import { syllablePlan } from '../src/audio/animalese.ts';
 import { Bridge, toWorldCommand } from '../src/world/bridge.ts';
-import type { WorldEvent } from '../src/world/types.ts';
 import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
@@ -444,6 +443,7 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
   }
   assert.equal(composeReport(played.snapshot()).headline, '已有交付', '夹具：这一场确实交过');
 
+  const savedNow = played.snapshot().now;
   const save = played.toSave();
   const fresh = buildWorld(blueprints);
   const reloaded = Simulation.fromSave(JSON.parse(JSON.stringify(save)), {
@@ -456,24 +456,68 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
   reloaded.update(30 * 60 * 1000);
   const after = composeReport(reloaded.snapshot());
   assert.ok(after.lines.some((line) => line.includes('交付 1 单')), '夹具：读档后那个数还在');
-  assert.notEqual(after.date, '第 0 分 00 秒', '钟没动，这条测试没在问它想问的');
+  // 拿存档那一刻的世界钟比，不拿「第 0 分 00 秒」这个字面量比：夹具跑到存档时
+  // 钟早就过了 0（短活要 1.2 秒才交），跟那个字符串比永远不等于，等于没查。
+  assert.ok(
+    reloaded.snapshot().now >= savedNow + 30 * 60 * 1000,
+    `钟没走够：存档那一刻 now=${savedNow}，半小时后 now=${reloaded.snapshot().now}`,
+  );
   assert.equal(after.headline, '已有交付', '头条不许把上一次会话的单说成今天的');
 });
 
-test('日记只挑有信息量的事件，不编心情', () => {
-  const events: WorldEvent[] = [
-    { at: 0, tone: 'info', text: '世界醒来。' },
-    { at: 1, tone: 'oracle', text: '神谕：写个脚本 → 炼码工坊' },
-    { at: 2, tone: 'done', text: '写个脚本 已交付。' },
-  ];
-  const diary = composeDiary(events);
-  assert.equal(diary.length, 2);
-  assert.ok(diary[0].startsWith('今天，'));
-  assert.ok(diary.every((line) => !line.includes('世界醒来')));
-});
+test('「最近一单」数的是最晚交付的，不是数组末尾那一单', () => {
+  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1174、:1742，全程不排序），
+  // `done` 过滤一遍还是那个顺序。两个人同时干活时创建顺序和交付顺序会分叉：
+  // 先派下去的长活后交，后派下去的短活先交。照数组末尾取，报纸就把**先**交的
+  // 那单叫「最近」——一句话说着当下，指的却是过去。
+  const world = buildWorld(blueprints);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    villagerNames: ['莞尔', '阿雾'],
+    spawnBuilding: (prefabId, instanceId) => {
+      const blueprint = blueprints.get(prefabId);
+      return blueprint === undefined
+        ? null
+        : placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
+    },
+  });
 
-test('空事件时日记不硬凑', () => {
-  assert.deepEqual(composeDiary([]), ['今天没什么事。']);
+  sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '甲长活' });
+  let guard = 0;
+  while (sim.snapshot().tasks[0]?.status !== 'in_progress') {
+    sim.update(100);
+    if ((guard += 1) > 400) throw new Error('长活没开工');
+  }
+  sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '乙短活' });
+  guard = 0;
+  while (sim.snapshot().tasks.some((task) => task.status !== 'done')) {
+    sim.update(100);
+    if ((guard += 1) > 800) throw new Error('活没交完');
+  }
+
+  const snapshot = sim.snapshot();
+  const done = snapshot.tasks.filter((task) => task.status === 'done');
+  assert.equal(done.length, 2, '夹具：两单都交了');
+  const lastCreated = done[done.length - 1];
+  const lastDelivered = [...done].sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0)).at(-1);
+  assert.notEqual(
+    lastCreated.summary,
+    lastDelivered?.summary,
+    '夹具没造出分叉：创建顺序和交付顺序一样，这条测试就没在问它想问的',
+  );
+
+  const line = composeReport(snapshot).lines.find((item) => item.includes('最近一单')) ?? '';
+  assert.ok(
+    line.includes(`最近一单：${lastDelivered?.summary ?? ''}`),
+    `纸上说的不是最晚交付的那单：${line}`,
+  );
+  assert.ok(
+    !line.includes(`最近一单：${lastCreated.summary}`),
+    `纸上把先交的那单叫「最近」：${line}`,
+  );
 });
 
 // ------------------------------------------------------------------ animalese

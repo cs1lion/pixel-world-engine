@@ -4,7 +4,7 @@
  * 没发生就不写，不用"今天很平静"这种填充句糊过去。
  */
 
-import type { WorldEvent, WorldSnapshot } from './types.ts';
+import type { TaskRecord, WorldSnapshot } from './types.ts';
 import { describePropSource } from './faith.ts';
 
 export interface DailyReport {
@@ -44,7 +44,26 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
       if (worker.local > 0) sources.push(`${localLabel} ${worker.local}`);
       return `${worker.name}交付 ${total} 单（${sources.join(' / ')}）`;
     });
-    const latest = done[done.length - 1];
+    // 「最近一单」要的是**最晚交付**的那一单，不是数组末尾那一单。
+    //
+    // `snapshot.tasks` 是照创建顺序 push 的（`simulation.ts:1174`、`:1742`，
+    // 全程没有 sort、没有重排），`done` 过滤一遍还是那个顺序。两个人同时干活时
+    // 这两个顺序会分叉：先派下去的长活后交，后派下去的短活先交。照数组末尾取，
+    // 报纸就把**先**交的那单叫「最近」——一句话说着当下，指的却是过去。
+    // 实测：长活 8500 交付、短活 3800 交付，纸上写「最近一单：短活」。
+    //
+    // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
+    // `completedAt` 是落成那一刻。三个收尾处（`:2187`、`:2358`、`:2809`）写的都是
+    // `this.now`，而世界钟只增不减（`:536` 起每次 update 都 `+=`），所以按
+    // `completedAt` 排出来的才是真正的交付顺序。读档回来的单带着原来的
+    // `completedAt`，新交的只会更大，跨会话也还排得对。
+    const latest = done.reduce<TaskRecord | undefined>(
+      (newest, task) =>
+        newest === undefined || (task.completedAt ?? 0) > (newest.completedAt ?? 0)
+          ? task
+          : newest,
+      undefined,
+    );
     lines.push(
       latest === undefined
         ? parts.join(' / ')
@@ -125,15 +144,6 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     lines: lines.slice(0, LINE_LIMIT),
     date: formatDate(snapshot.now),
   };
-}
-
-/** 夜里写日记：从当天事件里挑最有信息量的三条，不编造心情。 */
-export function composeDiary(events: readonly WorldEvent[]): readonly string[] {
-  const picks = events.filter((event) => event.tone !== 'info').slice(-3);
-  if (picks.length === 0) return ['今天没什么事。'];
-  return picks.map((event, index) =>
-    index === 0 ? `今天，${event.text}` : event.text,
-  );
 }
 
 export function formatDate(nowMs: number): string {
