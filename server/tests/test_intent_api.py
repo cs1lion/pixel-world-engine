@@ -381,7 +381,9 @@ def test_超时环境变量写错时回_503_不是_500(monkeypatch, bad: str) ->
     assert response.status_code == 503
     detail = response.json()["detail"]
     assert "LLM_TIMEOUT_SECONDS" in detail
-    assert bad in detail
+    # `repr(bad)` 而不是 `bad`：`bad == ""` 时 `bad in detail` 对任何字符串都成立，
+    # 那一行会变成一个永远不红的空断言。`repr` 下四种值都真的在 detail 里（`''` 也是）。
+    assert repr(bad) in detail
 
 
 def test_超时环境变量写得对时不再被这条拦住() -> None:
@@ -582,9 +584,10 @@ def test_交接凭证_给与收都翻得成白名单命令() -> None:
     测试名本身与注释）、`test/oracle-carry.test.ts` 改过，这个测试文件是最后一处。
 
     2026-10-28 二次补记：原句有两处不成立，都已改。
-    一、「`wire.WireError` 也一律走 `ok: false`」——`WireError` 在生产里没有
-       调用方：`api.py` 只用 `wire.unknown_intent`，`wire.validate_intent` 的
-       命中全在 `server/tests/`。拿它说明端点失败面，是举了一条没人走的路。
+    一、「`wire.WireError` 也一律走 `ok: false`」——`WireError` 在生产与脚本里没有
+       调用方：`api.py` 只用 `wire.unknown_intent`，`wire.validate_intent` 的调用方
+       全在 `server/tests/`（`to_command` 只被它调，跟着走不到）。拿它说明端点失败面，
+       是举了一条没人走的路。
     二、「各改过一处」——`test/intent-contract.test.ts` 改的是**两处**，
        上面已按实际列。
     另外「只有三种结果」这句一度是假的：`LLM_TIMEOUT_SECONDS` 写错时

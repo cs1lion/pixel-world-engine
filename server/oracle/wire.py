@@ -80,10 +80,11 @@ class WireError(ValueError):
     而那条路今天不存在。** `interpret()` 的 `try` 只包着 `caller(...)`，
     `WireError` 不可能从那儿抛出来；`parse_reply()` 走的是 `validate_commands`
     → `validate_command`（`rules/schema.py`），抛的是 `CommandRejected`，
-    在 `parse_reply` 里被接住落 `_failure`。而 `to_command` / `validate_intent`
-    **在生产与脚本里一个调用方都没有**（`api.py` 只用 `wire.unknown_intent`，
-    全仓其余命中在 `server/tests/` 与 `__all__`）。所以那句话描述的是一条
-    「本该如此」的设计，不是今天跑着的代码——**照它推端点行为会推错。**
+    在 `parse_reply` 里被接住落 `_failure`。而 `validate_intent` **在生产与脚本里
+    没有调用方**——调用方全在 `server/tests/test_intent_api.py`；`to_command` 只被
+    `validate_intent` 调（`wire.py` 内那一处），跟着一起走不到端点（`api.py` 只用
+    `wire.unknown_intent`）。所以那句话描述的是一条「本该如此」的设计，不是今天
+    跑着的代码——**照它推端点行为会推错。**
     """
 
 

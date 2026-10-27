@@ -154,8 +154,8 @@ test('每种意图允许的字段两边是同一张表：客户端放过的字�
   // 见 `intent-schema.ts` 的补记。
   //
   // 2026-10-28 二次补记：原句还接着写「`wire.py` 的 `WireError` 也一律走
-  // `ok: false`」。那句是**一个真句子、一条假路**：`WireError` 今天在生产里
-  // 没有调用方（`wire.validate_intent` 的命中全在 `server/tests/`），拿它说明
+  // `ok: false`」。那句是**一个真句子、一条假路**：`wire.validate_intent` 在生产与
+  // 脚本里没有调用方（调用方全在 `server/tests/test_intent_api.py`），拿它说明
   // 端点的失败面等于举了一条没人走的路。已删，别再把它当端点行为的依据。）
   //
   // 这里比的是**集合**，不是顺序：字段的先后不影响语义，而顺序一有出入
