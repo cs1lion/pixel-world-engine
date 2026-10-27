@@ -81,7 +81,20 @@ class MemoryWriter:
     # ---------------------------------------------------------------- 主入口
 
     def write(self, draft: MemoryDraft) -> WrittenMemory:
-        """写一条记忆。任何一关不过就抛 `MemoryWriteError`，磁盘上不留痕迹。"""
+        """写一条记忆。磁盘上不留半条痕迹——要么整条写成，要么一个字节都不落。
+
+        2026-10-28 补记：这行原来写「任何一关不过就抛 `MemoryWriteError`」，
+        **后半句真，前半句假**。`write()` 里没有任何 try/except 做转换，
+        三关抛的是三个平级的 `ValueError` 子类：
+        - `check_draft`（`memory/__init__.py`，形状与铁律）→ `MemoryWriteError`
+        - `check_evidence`（`memory/evidence.py`，引用的事件要在日志里）→ `EvidenceError`
+        - 路径/版面那几关（`memory/paths.py`）→ `MemoryPathError`
+
+        照原来那句写 `except MemoryWriteError` 的调用方，会漏掉 `EvidenceError`
+        与 `MemoryPathError` 两种真实失败。要全都接住，就接 `ValueError`，
+        或把这三个名字都列出来。`memory/api.py` 正是分别给
+        `MemoryWriteError` 与 `MemoryPathError` 挂了 handler——它没被这句骗到。
+        """
         check_draft(draft)
         check = check_evidence(self._log, draft.evidence)
 

@@ -18,7 +18,13 @@
     合法命令接受率      认得出来吗
     越界请求被拒率      **必须 100%**，漏一条就是硬伤
     闲聊误判率          会不会把聊天当命令
-    非 JSON / 越界的次数  客户端那套校验真的用得上吗
+    歧义句不越界率      含糊时会不会硬做
+
+#: 2026-10-28 补记：第四行原来写「非 JSON / 越界的次数」。**报告里从来没有这一行。**
+#: `render()` 实际出四个标签（grep `labels = {`），第四个是「歧义句不越界率」，
+#: 对应 `AMBIGUOUS` 那一组 7 条。照 docstring 去报告里找「非 JSON 次数」的人找不到，
+#: 而真正在报告里等着他的是另一件事。「越界请求被拒率」已经覆盖了越界，
+#: 「非 JSON」根本不是一个用例组——脚本只发文本，收上来的非 JSON 记的是失败，不是指标。
 """
 
 from __future__ import annotations
@@ -80,8 +86,20 @@ _BUILDING_NAMES = {
     "ferry": "渡口",
 }
 
-#: 渡口算野外（客户端 `WILD_PREFABS`），其余算镇内。分组要与客户端一致，
-#: 否则 `render_context` 少说一栋，模型就少一个能抄的 id。
+#: 分组尽量与客户端 `intent-context.ts` 的 `summarizeForIntent` 对齐，否则
+#: `render_context` 少说一栋，模型就少一个能抄的 id。
+#:
+#: 2026-10-28 补记：这里原来写「渡口算野外（客户端 `WILD_PREFABS`），其余算镇内」，
+#: **两个方向都与客户端相反，而且依据不存在**：
+#: - `WILD_PREFABS` 是 `{crawler_mine, ink_mill, gear_tower}`，**没有 `ferry`**。
+#:   `ferry` 在 `setup.ts` 里一次都没以 prefab 身份出现——它是区域/门，不是可建的铺子。
+#:   所以「渡口算野外（客户端 WILD_PREFABS）」这个依据是空的。
+#: - 反方向也错：下面这个集合只把 `ferry#1` 算野外，于是 `crawler_mine#1` 被算成
+#:   **镇内**，而客户端把它算**野外**。这正是这句注释自己要求的「要与客户端一致」
+#:   被违反的那一条。
+#: 客户端判野外的唯一依据是 `WILD_PREFABS.has(prefabId)`（`intent-context.ts` 里
+#: 的 `isWild`），本脚本要与它一致就只有照抄那个集合。**没改代码**——改了会动
+#: 实验造出来的那份 context，那属于改实验语义；这里只把对不上的地方写明。
 _WILD_IDS = frozenset({"ferry#1"})
 
 

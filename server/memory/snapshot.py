@@ -4,7 +4,11 @@
 所以这里没有任何一处读墙钟、读随机数、读当前目录——同一份日志进来，
 出去的字节一模一样。也因此：
 
-- 已存在的文件内容相同 → **不写**。`write_snapshot` 返回 `unchanged`。
+- 已存在的文件内容相同 → **不写**。`write_snapshot` 返回的
+  `SnapshotResult.written` 是 `False`（2026-10-28 补记：这里原来写「`write_snapshot`
+  返回 `unchanged`」。它返回的是 `SnapshotResult`，没有叫 `unchanged` 的返回值；
+  `unchanged` 是 `memory/api.py` 里 `len(results) - written` 现算出来的**上层响应字段**。
+  把一个上层字段说成本函数的返回值，照着写代码的人会去 `.unchanged` 取一个不存在的属性）。
   重跑一次快照不该让 `git status` 多一行改动，那会让「不重复落档」变成空话。
 - 内容不同 → 覆盖写。差异只可能来自日志真的变了，那不是丢数据。
 

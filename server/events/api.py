@@ -1,13 +1,19 @@
 """事件日志的 HTTP 面。
 
-**只读。** 这条 API 只有 `GET /api/events`，没有 POST/PUT/DELETE。
+**这条 API 自己只读：只有 `GET /api/events`，没有 POST/PUT/DELETE。**
 
 不是还没写，是刻意不写：日志是世界的事实来源，能通过 HTTP 往里塞事件，
 等于把「世界发生过什么」交给了任何能访问端口的人。#5 #6 #7 写日志的方式是
 服务端内部调用 `EventLog.append`，不经过网络。
 
-将来真需要一个写入入口（比如玩家操作要落库），那应该是一条**带校验和身份**的
-命令端点，由它校验完再调 `append`，而不是把裸的 append 暴露成 HTTP。
+**2026-10-28 补记：这个「将来」已经到了，而且挂在同一个 `create_app` 里。**
+下面第 94-95 行，`app.include_router(router)` 之后紧挨着
+`app.include_router(world_changes_router)`——`POST /api/world/changes`
+正是这里描述的那种「带校验和身份的命令端点」：它校验完再调 `EventLog.append`，
+回 201。`events/world_changes.py` 的 docstring 把它称作「只开这一个口子」。
+所以「没有 POST」作为**事件日志 HTTP 面**的整体描述已经失实；准确的说法是
+**读面只读，写面是另一条带校验的端点**，两者在同一个 app 上并存。
+上面那段「将来真需要……」因此从预测改成了对已存在之物的说明。
 
 响应形状与 `world-client/src/world/events-client.ts` 的解析对齐：
 
