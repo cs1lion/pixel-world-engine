@@ -52,6 +52,17 @@
         "level": 0.25,
         "until": 47000
       }
+    },
+    {
+      "at": 86400000,
+      "change": "world.vitals",
+      "payload": {
+        "day": 0,
+        "meanValence": -0.12,
+        "meanArousal": 0.38,
+        "infoEntropy": 0.44,
+        "isolatedHoldersCount": 1
+      }
     }
   ]
 }

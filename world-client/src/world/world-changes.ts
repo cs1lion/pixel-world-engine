@@ -77,6 +77,28 @@ export type WorldChange =
       readonly level: number;
       /** 世界时间，覆盖到这一刻失效。 */
       readonly until: number;
+    }
+  | {
+      /**
+       * 一天结束了，世界的心电图。四个标量，一个日子。
+       *
+       * 这是**唯一一条不是「世界改了什么」的改变**，收在这里是因为它是内环
+       * 唯一被允许的对外输出（补充设计 §0 的边界）：`DayClosed` 之后把这份
+       * 快照抛出去，谁接是别人的事。世界自己不读它做任何决定——心电图是
+       * 体检报告，不是处方。
+       *
+       * 四个数各有定义，抄自补充设计 §2.3：
+       * - `meanValence` 全村近 3 日记忆情绪均值，-1~1；
+       * - `meanArousal` 兴奋度均值，0~1；
+       * - `infoEntropy` 当日传播的独立断言数与覆盖方差折算的熵，0~1；
+       * - `isolatedHoldersCount` 连续 3 天没跟任何人说过话的单位数。
+       */
+      readonly change: 'world.vitals';
+      readonly day: number;
+      readonly meanValence: number;
+      readonly meanArousal: number;
+      readonly infoEntropy: number;
+      readonly isolatedHoldersCount: number;
     };
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
@@ -87,6 +109,7 @@ export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [
   'miracle',
   'weather',
   'tide',
+  'world.vitals',
 ];
 
 /**

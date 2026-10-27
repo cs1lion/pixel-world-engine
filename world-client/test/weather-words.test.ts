@@ -37,7 +37,7 @@ const KINDS = ['clear', 'rain', 'storm'] as const;
 
 /** 每一档天气在三处各是怎么说的。 */
 function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
-  // 一、状态行：`statusLine()`（`SandboxScene.ts:1407`）里 `WEATHER_LABEL` 原样。
+  // 一、状态行：`statusLine()`（`SandboxScene.ts:1430`）里 `WEATHER_LABEL` 原样。
   //
   // 原来这里写的是 `WEATHER_LABEL` 原样（`SandboxScene.ts:1316`）——一个光坐标，
   // 审计的 `CALL_REF` 要求「名字()」挨着坐标才查，它不查，于是那一处悄悄地

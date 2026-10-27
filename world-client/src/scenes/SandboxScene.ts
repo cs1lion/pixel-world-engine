@@ -10,6 +10,9 @@ import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
 import { WORLD, tokenNameOf } from '../world/palette-data.ts';
+import { DAY_MS } from '../world/memory/config.ts';
+import { MemoryRuntime } from '../world/memory/runtime.ts';
+import { observationOf } from '../world/memory/observe.ts';
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -147,6 +150,16 @@ export class SandboxScene extends Phaser.Scene {
   private feedClient: FeedClient | null = null;
   /** 回写用。与 feed 共用一个 client（同一个服务端），但方向相反。 */
   private eventsClient: EventsClient | null = null;
+  /**
+   * 内环：记忆与传播。世界每拍交一份处境给它，跨日时它关账。
+   *
+   * 单独一个对象而不是长在 `Simulation` 里：世界只管自己的事（任务、天气、
+   * 潮汐），记忆是**关于**这些事的第二层。把它塞进固定步长里，等于让世界
+   * 每 100ms 顺手整理一次自己的记忆。
+   */
+  private memory!: MemoryRuntime;
+  /** 记忆层的观察编号。与日志里的 id 不是一回事——这里只需要自己内部唯一。 */
+  private memoryEventSerial = 0;
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
   private saveNotice: string | null = null;
@@ -400,6 +413,7 @@ export class SandboxScene extends Phaser.Scene {
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
         void this.eventsClient?.record(change, at);
+        this.remember(change, at);
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
@@ -426,6 +440,28 @@ export class SandboxScene extends Phaser.Scene {
         );
       },
     };
+    // 记忆世界先立起来：`simDeps.onChange` 会往里写，世界一开跑就会回调。
+    //
+    // 心电图的出口是**回写日志**——这是内环唯一被允许的对外广播
+    // （补充设计 §0）。它不回到世界：世界不读自己抛出去的体检报告。
+    this.memory = new MemoryRuntime({
+      worldId: this.pack?.id ?? 'world',
+      onVitals: (vitals) => {
+        // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
+        // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。
+        void this.eventsClient?.record(
+          {
+            change: 'world.vitals',
+            day: vitals.day,
+            meanValence: vitals.meanValence,
+            meanArousal: vitals.meanArousal,
+            infoEntropy: vitals.infoEntropy,
+            isolatedHoldersCount: vitals.isolatedHoldersCount,
+          },
+          (vitals.day + 1) * DAY_MS,
+        );
+      },
+    });
     // 有档就重建世界；读档后标未对账，等首个成功读取从头折一遍。
     this.sim =
       this.loadedSave !== null
@@ -646,11 +682,34 @@ export class SandboxScene extends Phaser.Scene {
       steps += 1;
     }
     this.snapshot = this.sim.snapshot();
+    this.stepMemory();
     this.renderSnapshot(delta);
     this.cameraCtl.update(delta);
     this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
     this.maybeAutoSave();
+  }
+
+  /**
+   * 记忆层跟上世界：对齐处境，跨日就关账。
+   *
+   * 只在这一拍真的推进过世界时做（`steps > 0` 由 `snapshot.now` 变化体现，
+   * 这里不额外判——对齐是幂等的，重复对齐不会多记一条记忆）。
+   *
+   * 位置每拍都同步：传播要算「两个人隔多远」，而人在走动。不传位置的话，
+   * `spreadCandidates` 会把所有人当成不知道在哪，于是**谁都不会说话**——
+   * 那比传错位置更糟，因为它是静默的。
+   */
+  private stepMemory(): void {
+    if (this.memory === undefined) return;
+    this.memory.syncHolders(
+      this.snapshot.villagers.map((villager) => ({
+        holderId: villager.id,
+        type: 'character' as const,
+        at: { x: villager.pos.x, y: villager.pos.y },
+      })),
+    );
+    this.memory.tick(this.snapshot.now);
   }
 
   // ------------------------------------------------------------------ input
@@ -980,6 +1039,34 @@ export class SandboxScene extends Phaser.Scene {
     this.feedClient?.inject(event);
   }
 
+  /**
+   * 世界做成了一件事 → 记忆层记下它。
+   *
+   * 这一步在 `onChange` 里，与世界回写日志同一个入口：**日志记一份，记忆记一份**，
+   * 而两份说的是同一件事。日志给未来的规则引擎与编年史看，记忆给村里的人看。
+   *
+   * 没有落点的事件（潮位、心电图）由 `observationOf` 返回 `null`，这里直接跳过。
+   * 位置查不到也跳过——世界不能假装知道一个人站在哪。
+   */
+  private remember(change: WorldChange, at: number): void {
+    if (this.memory === undefined) return;
+    this.memoryEventSerial += 1;
+    const observation = observationOf(change, `mem_${this.memoryEventSerial}`, {
+      atOfHolder: (holderId) => {
+        const villager = this.snapshot?.villagers.find((item) => item.id === holderId);
+        return villager === undefined ? undefined : { x: villager.pos.x, y: villager.pos.y };
+      },
+      atOfBuilding: (instanceId) => {
+        const building = this.snapshot?.buildings.find((item) => item.instanceId === instanceId);
+        return building === undefined ? undefined : { x: building.door.x, y: building.door.y };
+      },
+      buildingOfTask: (taskId) =>
+        this.snapshot?.tasks.find((item) => item.id === taskId)?.buildingId ?? undefined,
+    });
+    if (observation === null) return;
+    this.memory.observe(observation, undefined, at);
+  }
+
   view(): WorldSnapshot {
     return this.snapshot;
   }
@@ -1115,6 +1202,29 @@ export class SandboxScene extends Phaser.Scene {
       },
       /** 立刻把镜头中心对准世界坐标（不带动画）。小地图跳转与测试都用它。 */
       centerCameraOn: (x: number, y: number): void => this.cameraCtl.panTo(x, y, 0),
+      /**
+       * 诊断：某个单位此刻记得什么。
+       *
+       * 走的是 `MemoryRuntime.viewOf`，也就是单位**自己**那扇门——不是全库。
+       * 调试口不该是那条「读全局状态」的后门；想看别人记得什么，得问别人。
+       * 不传 `holderId` 时给一份摘要：几个人、各记得几条、关到第几天。
+       */
+      memory: (holderId?: string) => {
+        if (this.memory === undefined) return null;
+        if (holderId !== undefined) return this.memory.viewOf(holderId);
+        return {
+          ready: this.memory.ready,
+          closedThroughDay: this.memory.closedThroughDay,
+          holders: this.snapshot.villagers.map((villager) => {
+            const view = this.memory.viewOf(villager.id);
+            return {
+              holderId: villager.id,
+              memories: view?.memories.length ?? 0,
+              beliefs: view?.beliefs.length ?? 0,
+            };
+          }),
+        };
+      },
       /** 只查询某处能不能建，不改变任何状态。造物模式与测试都用它。 */
       canPlaceAt: (cell: GridPoint): boolean => {
         const session = this.creation;

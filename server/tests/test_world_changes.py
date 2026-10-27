@@ -39,6 +39,15 @@ VALID_PAYLOADS = {
     "weather": {"weather": "storm"},
     # 记的是覆盖，不是当时的潮位：潮位是 now 的纯函数，记它等于记时钟。
     "tide": {"level": 0.25, "until": 120_000},
+    # 一天结束了，世界的心电图。不是「世界改了什么」，是「世界现在什么样」——
+    # 内环唯一被允许的对外输出（补充设计 §0）。
+    "world.vitals": {
+        "day": 0,
+        "meanValence": -0.12,
+        "meanArousal": 0.38,
+        "infoEntropy": 0.44,
+        "isolatedHoldersCount": 1,
+    },
 }
 
 

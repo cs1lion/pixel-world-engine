@@ -147,6 +147,33 @@ def _check_tide(payload: dict[str, Any], path: str) -> None:
         raise WorldChangeError(f"{path}.until 不能为负")
 
 
+def _check_world_vitals(payload: dict[str, Any], path: str) -> None:
+    """一天结束了，世界的心电图。四个标量加一个日子。
+
+    这条与其余几条不同：它记的**不是世界改了什么**，而是世界现在什么样。
+    收在这里是因为它是内环唯一被允许的对外输出（补充设计 §0 的边界）——
+    `DayClosed` 之后抛一份快照出去，谁接是别人的事。
+
+    取值范围按补充设计 §2.3 逐个卡死。宽松解析会让一份坏掉的读数安静地
+    流到下游导演手里，而导演的动作（注入事件）是从这些数推出来的。
+    """
+    _only(payload, {"day", "meanValence", "meanArousal", "infoEntropy", "isolatedHoldersCount"}, path)
+    day = _require(payload, "day", int, path)
+    if day < 0:
+        raise WorldChangeError(f"{path}.day 不能为负，收到 {day}")
+    for key in ("meanValence",):
+        value = _require(payload, key, (int, float), path)
+        if not -1 <= value <= 1:
+            raise WorldChangeError(f"{path}.{key} 必须在 -1..1，收到 {value}")
+    for key in ("meanArousal", "infoEntropy"):
+        value = _require(payload, key, (int, float), path)
+        if not 0 <= value <= 1:
+            raise WorldChangeError(f"{path}.{key} 必须在 0..1，收到 {value}")
+    isolated = _require(payload, "isolatedHoldersCount", int, path)
+    if isolated < 0:
+        raise WorldChangeError(f"{path}.isolatedHoldersCount 不能为负，收到 {isolated}")
+
+
 #: 白名单：change → 校验函数。不在表里的一律拒收。
 WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "task.delivered": _check_task_delivered,
@@ -155,6 +182,7 @@ WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "miracle": _check_miracle,
     "weather": _check_weather,
     "tide": _check_tide,
+    "world.vitals": _check_world_vitals,
 }
 
 

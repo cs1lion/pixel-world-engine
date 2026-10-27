@@ -402,10 +402,16 @@ test('信封把世界时间与载荷分开：神迹坐标不会顶掉 at', () =>
 test('白名单与服务端那份逐个对上', () => {
   // 两边不一致时，世界会写出服务端拒收的事件——上线才发现，很难查。
   // 服务端那份在 server/events/world_changes.py 的 WORLD_CHANGE_CHECKS。
-  assert.deepEqual(
-    [...WORLD_CHANGE_KINDS].sort(),
-    ['building.built', 'building.removed', 'miracle', 'task.delivered', 'tide', 'weather'],
+  // 这一份**直接读那个文件**，不再手抄一份：抄的话这条测试只是在校对
+  // 我刚刚写下的两个字面量，而它要校的是两端。
+  const source = readFileSync(
+    new URL('../../server/events/world_changes.py', import.meta.url),
+    'utf8',
   );
+  const table = /WORLD_CHANGE_CHECKS[^=]*=\s*\{([\s\S]*?)\n\}/.exec(source);
+  assert.ok(table !== null, '找不到 server/events/world_changes.py 的 WORLD_CHANGE_CHECKS');
+  const serverKinds = [...table[1]!.matchAll(/"([a-z][a-z.]*)":/g)].map((match) => match[1]!);
+  assert.deepEqual([...WORLD_CHANGE_KINDS].sort(), serverKinds.sort());
 });
 
 test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻结）', () => {
@@ -431,6 +437,7 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
   const miracle = byChange.get('miracle')!.payload;
   const weather = byChange.get('weather')!.payload;
   const tide = byChange.get('tide')!.payload;
+  const vitals = byChange.get('world.vitals')!.payload;
 
   const changes: WorldChange[] = [
     {
@@ -463,6 +470,14 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
       change: 'tide',
       level: Number(tide.level),
       until: Number(tide.until),
+    },
+    {
+      change: 'world.vitals',
+      day: Number(vitals.day),
+      meanValence: Number(vitals.meanValence),
+      meanArousal: Number(vitals.meanArousal),
+      infoEntropy: Number(vitals.infoEntropy),
+      isolatedHoldersCount: Number(vitals.isolatedHoldersCount),
     },
   ];
 
