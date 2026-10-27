@@ -46,7 +46,7 @@ export const GRID_HEIGHT = SMALL_WORLD_SPEC.height;
 
 /**
  * 大世界：96×72 格，1536×1152 像素，面积是旧世界的 11.52 倍。
- * 原写着「80×60、1280×960、8 倍」——从 `996cbd3` 那笔起就是假的，同一笔的规格就是 96×72；六处照抄了这个数，一并改了（见 `biomes.ts`）。
+ * 原写着「80×60、1280×960、8 倍」——从 `996cbd3` 那笔起就是假的，同一笔的规格就是 96×72；`9fa55ca` 改了六处，**而 `9fa55ca^` 上 `git grep '80×60'` 数出来是七处**，漏的第七处是 `scripts/check-persistence.mjs`（本文件末尾 2026-10-28 补记）。
  * 分区是同心圆的近似：中心是祭坛，四角方向各留一条通向郊野的路。
  * 这里只给矩形分区，群落（离中心多远）由 `biomes.ts` 单独判定——
  * 两者职责不同：分区决定能建什么，群落决定看起来像哪一带。
@@ -684,3 +684,19 @@ export function assertWorldInvariants(
   }
   if (problems.length > 0) throw new WorldSetupError(problems.join('；'));
 }
+
+// ------------------------------------------------------------------ 2026-10-28 补记
+//
+// `LARGE_WORLD_SPEC` 上头那句「`9fa55ca` 改了六处」**读起来像穷举，其实不是**。
+// 在 `9fa55ca^` 上 `git grep -n '80×60' -- world-client` 数出来是**七处**：
+//   `main.ts` / `biomes.ts` / `fog.ts` / `grid.ts` / `setup.ts`（两处：本注释与
+//   `LARGE_WORLD_SPEC` 上头那行）/ **`scripts/check-persistence.mjs`**。
+// 那一笔改了前六处，漏了第七处。而漏的那处是**唯一一处写着「存档体积上限」的地方**，
+// 读它的人正是要判断「存档会不会太大」的人——它比 `src/` 里任何一处都更该改对。
+//
+// 为什么没够到：写「六处」的时候是在 `src/` 里 grep 的，`scripts/` 不在搜索路径里。
+// 所以「N 处」这种写法本身是个坑——它让后人以为穷举过了。
+//
+// 这条补记放在文件末尾而不放在那句话旁边，是**刻意的**：本文件 201～685 行有十几处
+// 行号引用（`docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md` 与 `ADR_DEFAULT_PACK_BYPASS.md`），
+// 在第 49 行插字会把它们全部推歪，`audit-references.ts --strict` 当场红。

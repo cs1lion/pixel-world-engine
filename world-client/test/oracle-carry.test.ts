@@ -97,7 +97,11 @@ test('祈使的收走只有两种形状：动词打头，或「把」打头', ()
 
 test('没有收件人就不是交接：说给谁没说，就不猜', () => {
   // 「送灯」被规则放过的话，意图里的 villager 是空串——客户端放行、
-  // 服务端 502。半句话该落进 unknown，让世界问「说给谁」。
+  // 服务端拒掉，落成 unknown。半句话该落进 unknown，让世界问「说给谁」。
+  //
+  // （2026-10-28：这里原来写「服务端 502」。没有 502——`oracle/api.py` 只有
+  // 503 / 422 / 200+unknown 三种，`wire.WireError` 一律 `ok: false`。
+  // 同一个错在 `src/world/intent-schema.ts` 等处改过，这几个测试文件漏了。）
   assert.equal(parseOracleCarry('送灯'), null);
   assert.equal(parseOracleCarry('给'), null);
   assert.equal(parseOracleCarry('收走灯'), null);

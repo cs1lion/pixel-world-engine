@@ -113,6 +113,19 @@ export function createFogView(
       // 15368−3862 = 11506 条，合计约 3.1 万，那才越过 30000。所以 8px 这个选择
       // 仍然对，但理由得算整帧，不能只算雾团——原句把两层混成了一层。）
       //
+      // （2026-10-28 复审补记：上面那句「烘焙后实测约 2 万」现在**没有出处了**。
+      // `scripts/check-render-budget.mjs` 里的原话是「烘焙后实测约 2 万；给一倍余量」，
+      // 而那一天起它既没记是什么时候、在哪张图上测的，`git log` 里也查不到——
+      // 那个文件自 `996cbd3` 之后没再动过。已按「无从复核就不当已知量用」处理：
+      // 该脚本现在只留 `MAX_COMMANDS = 30000` 一条绝对天花板，两个实测数都不留。
+      // **所以本段那句「在 8px 下量的」是个无从复核的断言**，不是我核过的。
+      // 还站得住的是这一串里**不依赖 2 万的那半**：4px 下雾团 15368 条、8px 下
+      // 3862 条、差 11506 条，这些由 `test/fog-puff-budget.test.ts` 按
+      // `PUFF_CELL_PX` 与 `PUFF_RADII_TILES` 重算。**整帧 3.1 万因此悬着**——
+      // 它等于 2 万 + 11506，2 万那一项今天核不了。要把它落到实处，得开着 dev server
+      // 跑一次 `npm run test:render-budget` 现看 `stats.totalCommands`，那不在
+      // `npm test` 里，所以我没跑。**在跑过之前，别把「3.1 万越过 30000」当结论用。**）
+      //
       // 上面这一串数由 `test/fog-puff-budget.test.ts` 按 `PUFF_CELL_PX` 与
       // `PUFF_RADII_TILES` 重算，改任一个它都会红。
       for (const puff of driftPuffs(fog.center, fog.revealedRadius, timeMs)) {

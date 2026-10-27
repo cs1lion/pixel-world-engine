@@ -529,8 +529,15 @@ def test_拨潮收到_inf_与_nan_说的都是不是数字_不是越界() -> Non
 
 def test_交接凭证_给与收都翻得成白名单命令() -> None:
     """两个方向都要走到 `to_command`：给是整锅换上，收是从现有的里减。
-    少走一条，表现就是模型说「收回她的鞋」、服务端 502——而离线那一侧
-    （`oracle-carry.ts`）早就走得通。"""
+    少走一条，表现就是模型说「收回她的鞋」、服务端把它拒掉、用户只看到
+    「没听懂」——而离线那一侧（`oracle-carry.ts`）早就走得通。
+
+    2026-10-28 补记：这里原来写「服务端 502」。**服务端没有 502。**
+    `oracle/api.py` 只有三种结果：503（没配 Key）、422（请求形状不对）、
+    200 + unknown；`wire.WireError` 也一律走 `ok: false`。同一处错我在
+    `src/world/intent-schema.ts`、`src/world/intent-client.ts`、
+    `test/intent-contract.test.ts`、`test/oracle-carry.test.ts` 各改过一处，
+    这个测试文件是最后一处。"""
     _, give = wire.validate_intent({"kind": "carry", "villager": "莞尔", "carries": ["lamp"]})
     assert give is not None and give.name == "villager.carry"
     assert give.args == {"villager": "莞尔", "carries": ["lamp"]}
