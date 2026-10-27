@@ -285,7 +285,21 @@ export class MemoryRuntime {
     return closed;
   }
 
-  /** 单位读自己。唯一那扇门，原样透出，不加任何东西。 */
+  /**
+   * 单位读自己。唯一那扇门，原样透出，不加任何东西。
+   *
+   * **今天没有人在用这扇门。** 它在 `SandboxScene` 只出现在
+   * `Oracle.memory(holderId?)` 诊断里，而那个诊断在代码里零调用点——唯一调它的
+   * 办法是人在浏览器控制台敲 `Oracle.memory('...')`。`src/ui/debug-panel.ts` 的
+   * `DebugOracle` 五成员契约里也没有它；诊断摘要那一分支读的还是
+   * `memories.length`，不是记忆本身。**验它要带注释过滤**，否则 grep 命中的是
+   * 正在说明这件事的这几行：`grep -rn "\.memory(" src test scripts | grep -v ":[0-9]*: *\*"`。
+   *
+   * 注意这不是**回忆**：回忆是 `recall.ts`（打分、裁剪、强化），那一条链在
+   * 本类一个方法都没有——见 `recall.ts` 文件头「在跑着的世界里没有调用方」。
+   * 这一扇给的是**全量原样**，两者的区别正是「单位只能读自己」与
+   * 「他要想起什么」。
+   */
   viewOf(holderId: string): HolderView | null {
     return this.world.viewOf(holderId);
   }

@@ -424,6 +424,11 @@ export class MemoryWorld {
    * 与 `recallFor` 的差别只有取几条与默认 `commit`：对话是**读**，
    * 读一次就把这条记忆强化一次会让「被反复提起的事」迅速变得比事实更牢固，
    * 而它可能只是一句闲话。所以默认不 commit，要 commit 得明说。
+   *
+   * **今天只有一个测试调用它**（`test/memory-written.test.ts`），`MemoryRuntime`
+   * 也没有转发它的方法——村民对话系统整个不存在，`src/` 里记忆层之外
+   * `dialogue` 一次都没出现。所以 `dialogueTopK` 是「有读出点、没调用链」，
+   * 不是死数。整条读链的形状见 `recall.ts` 文件头。
    */
   recallForDialogue(
     holderId: string,
