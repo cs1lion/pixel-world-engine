@@ -531,6 +531,27 @@ export class Simulation {
    * 更早的东西的归宿。
    */
   private receiptOwnerSeq = 0;
+
+  /**
+   * 占一下回执那一行：从现在起，序号比这小的命令再说的话都不许往那一行落。
+   *
+   * 给**不经过命令队列**的说话用。典型是造物提示（「可以建在这里，回车确认。」
+   * `SandboxScene.publishCreationHint`）：它是玩家挪光标挪出来的，不是一条
+   * `WorldCommand`，可它一样往 `#reply` 上写字。不占位的话，一个**更早**发问、
+   * 更晚回来的模型答复会把它盖掉——而玩家正照着那一行按回车。
+   *
+   * **空句不占位**，这句话写在函数里而不是写在调用方那儿：调用方那句
+   * `if (line === '') return` 将来被人挪个位置，空句就占了位，一个还没回来的
+   * 答复被闷死——而玩家什么都还没做错，他只是把光标挪开了。放在这里，
+   * 怎么挪都闷不死。
+   *
+   * 占位是空操作之外最轻的一件：只推进序号，不碰世界、不碰队列。
+   */
+  claimReceipt(message: string): void {
+    if (message === '') return;
+    this.receiptOwnerSeq = this.nextSeq;
+    this.nextSeq += 1;
+  }
   /** 是否已与上游对过账。读档后为 false：对账前不驱动上游单。 */
   private feedReconciled = true;
   /** 上游事件流是否在线。离线时世界照常过日子，但状态行必须说出来。 */

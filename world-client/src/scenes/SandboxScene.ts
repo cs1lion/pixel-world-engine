@@ -896,7 +896,15 @@ export class SandboxScene extends Phaser.Scene {
     for (const listener of this.resultListeners) listener(result);
   }
 
+  /**
+   * 造物提示。空句什么都不做——**也不占回执那一行**。
+   *
+   * 占位只发生在真有字可说的时候：玩家把光标挪开时进来的是空句，那时要是占了位，
+   * 一个还没回来的模型答复就被闷死了——他什么都还没做错。这条判断写在
+   * `Simulation.claimReceipt` 里，不靠这一行的顺序。
+   */
   private publishCreationHint(line: string): void {
+    this.sim.claimReceipt(line);
     if (line === '') return;
     this.speak({ ok: true, message: line });
   }

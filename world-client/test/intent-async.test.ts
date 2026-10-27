@@ -491,3 +491,80 @@ test('插进来的那一件没说话（空结果），迟到的答复照常说',
     `没人真的说话，模型那句该上来：${late.map((r) => r.message).join(' / ')}`,
   );
 });
+
+// ---------------------------------------------- 不经过命令队列的说话
+
+test('造物提示占了那一行之后，迟到的模型答复不抢', async () => {
+  // 造物提示不是一条 `WorldCommand`：它是玩家挪光标挪出来的，
+  // `SandboxScene.publishCreationHint` 直接往 `#reply` 上写，压根不进队列。
+  // 所以 `INTERRUPTS` 那张表盖不到它——表里每一样都是 `enqueue` 进去的。
+  //
+  // 不占位的后果：玩家先问了一句（送进模型，还没回来），接着挪光标选地方，
+  // 屏上写着「可以建在这里，回车确认。」；模型那边回来一句「在感叹天气」，
+  // 把那行盖了。玩家照着按回车——而那行已经不是让他确认的那行了。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '在感叹天气' });
+  const sim = makeSim(model);
+
+  say(sim, '今天天气不错');
+  const asked = tick(sim);
+  assert.ok(
+    asked.some((r) => r.message === '这句话规则认不出，正在问模型……'),
+    `前置：这句话送进模型了，实际：${asked.map((r) => r.message).join(' / ')}`,
+  );
+
+  // 玩家挪光标：提示出去了，那一行归它。它没走队列，所以得自己占位。
+  sim.claimReceipt('可以建在这里，回车确认。');
+
+  release();
+  const late = await settleCollect(sim);
+  assert.ok(
+    !late.some((r) => r.message === '在感叹天气'),
+    '造物提示刚说过「可以建在这里，回车确认。」，迟到的答复却把它盖成了「在感叹天气」——玩家正照着那一行按回车',
+  );
+});
+
+test('空句不占那一行——玩家只是把光标挪开了', async () => {
+  // 反方向，也是这一条规矩唯一容易写错的地方：光标挪开时
+  // `publishCreationHint` 进来的是空句，它什么都不该做。那时若占了位，
+  // 一个还没回来的答复就被闷死了——玩家什么都还没做错。
+  //
+  // 判断写在 `Simulation.claimReceipt` 里而不是调用方那句 `if` 旁边：
+  // 写在调用方那儿，将来那句 `if` 被人挪个位置，空句就占了位，而没有任何
+  // 测试会红。写在函数里，怎么挪都闷不死。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '在感叹天气' });
+  const sim = makeSim(model);
+
+  say(sim, '今天天气不错');
+  tick(sim);
+
+  sim.claimReceipt('');
+  release();
+  const late = await settleCollect(sim);
+  assert.ok(
+    late.some((r) => r.message === '在感叹天气'),
+    `空句不占那一行，模型那句该照常上来：${late.map((r) => r.message).join(' / ')}`,
+  );
+});
+
+test('占了那一行不等于把以后都闷死', async () => {
+  // 反方向：占位只挡**更老**的序号，不是一道永久的沉默。玩家占了位之后
+  // 又真的说了一句话，那句话该上来——否则「确认建在这儿」会把接下来所有
+  // 神谕都变成哑巴。
+  const { model, release } = gatedModel({ kind: 'unknown', reason: '在感叹天气' });
+  const sim = makeSim(model);
+
+  say(sim, '今天天气不错');
+  tick(sim);
+  sim.claimReceipt('可以建在这里，回车确认。');
+
+  say(sim, '下雨了');
+  const [rained] = tick(sim);
+  assert.equal(rained!.message, '雨落下来了。');
+
+  release();
+  const late = await settleCollect(sim);
+  assert.ok(
+    !late.some((r) => r.message === '在感叹天气'),
+    '占了位之后新说的话照样归那一行，迟到的答复仍旧闭嘴',
+  );
+});
