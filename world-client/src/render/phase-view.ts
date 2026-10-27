@@ -1,8 +1,14 @@
 /** 时相渲染层：把四刻配方画到世界上。纯渲染态，不写世界快照、不写事件日志。
  *
- * 与旧 `night.ts` 的关系：那个是二值开关（夜 / 非夜），这里是连续的四刻。
- * 绘制手法沿用它的三件事——`deepShade` 压暗、窗/门/灯/祭坛的暖光 ADD 叠加、
- * 萤火；新增的是每刻的压暗色、贴地雾带、屋脊受光。
+ * 三样绘制手法：`deepShade` 压暗、窗/门/灯/祭坛的暖光 ADD 叠加、萤火；
+ * 四刻各自的东西是每刻的压暗色、贴地雾带、屋脊受光。
+ *
+ * （这里原来写着「与旧 `night.ts` 的关系：那个是二值开关（夜 / 非夜）」，
+ * 连「绘制手法沿用它的三件事」——**`night.ts` 这个文件在仓库里从来不存在**：
+ * `git log --all --diff-filter=A --name-only -- '*night.ts'` 全史为空；全仓提到
+ * `night.ts` 的地方也只有这一处注释自己，`docs/MIGRATION_FROM_XIAOXI.md` 里没有它。
+ * 三样手法本身是真的（压暗、ADD 暖光、萤火都在下面），假的是「沿用它的」那个出处。
+ * 已删。）
  *
  * 不用整屏 CSS filter：那会把暖窗一起压灰，夜里会变成「白天调暗」。
  *
@@ -17,24 +23,13 @@ import { propFootY } from './prop-depth.ts';
 import { firefliesVisible, PHASES, type PhaseId, type PhaseRecipe } from './day-phase.ts';
 import { isWildLanternOn } from '../world/wilderness-signal.ts';
 import { litWindowCount } from '../world/bustle.ts';
+import { FIREFLIES } from './fireflies.ts';
 
 const DIM_DEPTH = 8009;
 const GLOW_DEPTH = 8010;
 const FIREFLY_DEPTH = 8011;
 const MIST_DEPTH = 7998;
 const FADE_MS = 900;
-
-/** 固定萤火位置：只放在空地上，不跟着仿真走，避免夜景变成随机噪声。 */
-const FIREFLIES: readonly { readonly x: number; readonly y: number }[] = [
-  { x: 64, y: 190 },
-  { x: 118, y: 258 },
-  { x: 184, y: 118 },
-  { x: 220, y: 300 },
-  { x: 296, y: 186 },
-  { x: 352, y: 252 },
-  { x: 412, y: 300 },
-  { x: 430, y: 148 },
-];
 
 /** 插值后的实际观感。颜色不插值，只插数值；两刻的色差靠切换瞬间的重绘体现。 */
 interface Blend {
