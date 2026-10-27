@@ -26,9 +26,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { codeOf, codeLines, sourceFiles, srcRelative } from './source-scan.ts';
 import { ALTAR, buildWorld } from '../src/world/setup.ts';
@@ -41,13 +39,22 @@ const WORLD_DIR = `${SRC}/world`;
 /**
  * 时辰模块的标识符。出现任意一个，就说明世界那一层知道"一天有四刻"这件事。
  *
- * **`day-phase`（模块路径）故意不在表里。** 它只会出现在 import 语句的字符串里，
- * 而 `codeOf()` 正好把字符串内容换成等长空白——写进来就是一个永远不会命中的键，
- * 看上去像覆盖了一层，其实是空的。第三道闸就是因为这个坑空了一整天（见下面第二条
- * 用例的说明）。路径那一路由 `test/purity.test.ts` 的「src/world 不 import 它上面的
- * 任何一层」管（禁 `src/world/` 下任何 `../`），而"把 `day-phase.ts` 抄进
- * `src/world/` 再 `./` 着 import"这种走法，会被下面另外五个键抓住——抄过来的文件
- * 里总得有 `phaseAt`。
+ * **`day-phase`（模块路径）故意不在表里。** 它不是"结构上不可能命中"——
+ * 这话我写过，是错的，复审拿实验推翻了：`codeOf()` 按行切完才挖字符串，
+ * 所以块注释里不带 `*` 的体行、多行模板字符串、正则字面量，这三样它都活得
+ * 过去（实测过，`day-phase` 与 `phaseAt` 在七种形状下表现完全一样，没有一种
+ * 能把两者分开）。
+ *
+ * 它不在表里的真实理由是**没用**：把这个键加进来，唯一想抓的那种走法——
+ * 把 `day-phase.ts` 抄进 `src/world/` 再 import 它——恰好抓不到。那条 import
+ * 的路径在字符串里，而 `codeOf()` 正好把字符串内容换成等长空白。而抄过来的
+ * 文件里总得有 `phaseAt`（否则它也不叫时辰模块了），那一个键就够了。
+ * 路径那一路归 `test/purity.test.ts` 的「src/world 不 import 它上面的任何一层」
+ * 管——它禁的是**解析后落在 `src/world/` 之外**的 import，不是"有 `../`"，
+ * 开了子目录之后这两件事不是一回事。
+ *
+ * 顺带记一笔：`docs/adr/ADR_WORLD_ALIVE.md` 原来把 `day-phase` 列在这道闸的
+ * 词表里，列了六个名字，而代码里只有五个。那个文档错误已经修了。
  *
  * **为什么不拿裸词 `phase` 当键**：`src/world/bustle.ts` 的 `litWindowCount` 有一个
  * 参数就叫 `phase: { readonly litWindows: number }`，函数体里读 `phase.litWindows`。
@@ -73,10 +80,16 @@ const PHASE_VOCABULARY: readonly string[] = [
 ];
 
 test('世界代码里没有时辰模块的标识符（抄一份也拦得住）', () => {
-  // 走 `codeOf()` 而不是裸读：`src/world/weather.ts` 的注释里提了四次
-  // `day-phase`（全在 `renderIntensity` 上方那一段，解释萤火那个天气条件为什么
-  // 搬了家），那是解释历史，不是把时辰接回来。裸读会让这条闸从上线
-  // 第一秒起就是红的——而一道从第一天就红的闸，等于没有。
+  // 走 `codeOf()` 而不是裸读：裸读会让这条闸从上线第一秒起就是红的——而一道
+  // 从第一天就红的闸，等于没有。
+  //
+  // **逼着用 `codeOf()` 的是 `PHASES`，不是 `day-phase`。** 这话我原来写错了：
+  // 写的是「`src/world/weather.ts` 的注释里提了四次 `day-phase`」，可
+  // `day-phase` 根本不在词表里，提四次也红不了。实测裸读整个 `src/world/`、
+  // 六个候选词全试，一共五处命中：`PHASES` 一处（`weather.ts` 那段讲萤火的
+  // 注释里，`PHASES.night.fireflies`）、`day-phase` 四处（同一段）。所以
+  // 结论没变（裸读确实会红），但**原因**是另一个词——而原因写错了，
+  // 下一个人就会去删那四处 `day-phase`，删完照旧红，还以为是别的地方漏了。
   // （**指名，不叫行号**：那几行会随编辑漂，而引用审计只认「那一行有没有代码」。）
   //
   // 递归整个 `src/world/`：这个目录今天是平的，但同族的灯油扫描当初失效，
@@ -99,51 +112,6 @@ test('世界代码里没有时辰模块的标识符（抄一份也拦得住）',
       `说明它要么 import 了那一层（该红的是 purity.test.ts），要么抄了一份。\n` +
       strays.join('\n'),
   );
-});
-
-test('词表里没有死键——每个键都得真能命中', () => {
-  // 上面那条只证明「当前仓库里没出现这些词」，证明不了「出现了会被抓住」——
-  // 一个永远返回空的词表也能让它绿。`purity.test.ts` 的时辰那一层为同一个
-  // 理由长了「闸门认得动态 import」这条，这儿是它的对应物。
-  //
-  // 而这里有一个**具体的死键**，不是假想的：`day-phase`。它原先在词表里，
-  // 而它不可能命中——带连字符的这个形状在 TypeScript 里只出现在字符串
-  // （import 的那条路径）或注释里，而 `codeOf()` 两样都拿掉了（注释行整行剔、
-  // 字符串换成等长空白）。实测四种形状：写在注释里、写在 import 路径里、
-  // 写成裸标识符 `dayPhase`、写在注释里的裸词——`day-phase` 四种全不命中，
-  // 而同文件里 `phaseAt` 在 import 路径那种形状下**是**命中的。
-  //
-  // **第一版这条探针是错的，而且错得很像对的**：我写的是
-  // `writeFileSync(p, 'const probe = day-phase;')` 然后问 `codeOf()` 认不认。
-  // 它对 `day-phase` 答「认」——于是这条闸绿着放过了唯一一个死键。原因：
-  // `codeOf()` 是**文本**变换（剔注释行、把字符串换成等长空白），它不解析，
-  // `const probe = day-phase;` 根本不是合法 TypeScript，可文本上它既不是注释
-  // 也没有字符串，于是原样活下来。拿一个非法的位置去问"它活不活"，
-  // 问出来的答案是假的。
-  //
-  // 所以判据换成**形状**：一个键要想在代码里被找到，它先得能长在代码里——
-  // 而连字符进不了标识符。带连字符的键只能长在字符串（import 的那条路径）
-  // 或注释里，`codeOf()` 两样都拿掉，所以它**结构上**不可能命中。
-  //
-  // 探针落在系统临时目录，不落在仓里：往 `src/` 底下写文件会污染别人正在飞的工作，
-  // 而 `codeOf()` 只挑路径读，读哪儿都一样。
-  const probePath = join(tmpdir(), 'phase-vocabulary-probe.ts');
-  for (const word of PHASE_VOCABULARY) {
-    assert.ok(
-      /^[A-Za-z_$][\w$]*$/.test(word),
-      `词表里的 ${word} 不是标识符形状：连字符进不了标识符，它只能长在字符串或注释里，` +
-        `而 codeOf() 两样都拿掉——它结构上不可能命中，删掉它`,
-    );
-    // 形状对还不够，还得真能在代码里活下来：写进一条代码行，走一遍 `codeOf()`。
-    // **这条今天不可能红**——标识符形状的键没有能被 `codeOf()` 拿掉的去处。
-    // 留着它是为了 `codeOf()` 将来改动的那一天：它是共享的，到今天有三笔提交
-    // 动过它，而它哪天多挖一类东西，词表里的某个键会悄悄变成死的，只有这条会叫。
-    writeFileSync(probePath, `const probe = ${word};\n`);
-    assert.ok(
-      codeOf(probePath).includes(word),
-      `词表里的 ${word} 写进代码行走一遍 codeOf() 就没了，删掉它`,
-    );
-  }
 });
 
 test('时辰那一层不 import Phaser——否则配方在 node 下一条都测不了', () => {
