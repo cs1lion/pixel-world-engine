@@ -116,6 +116,13 @@ const SKIP_DIRS = new Set([
  * 脚本要防的事。所以放行只放到**列出名的那些文件**，换一个文件提就报。
  * 清单也因此是一份可复审的东西：某条只在一个文件里出现，哪天那个文件改了，
  * 这条要么跟着改，要么变成一处新缺陷，不会无声无息地继续赦免。
+ *
+ * **「不会无声无息」这句，2026-10-28 之前是没有东西守的。** 实测：`84bb27e`
+ * 为 `purity.test.ts` 里一个被禁 import 的示例加了 `../settings/types.ts` 这条，
+ * 后来 `7c7d508` 把那个示例删了，条目留在原处——**它从此一条都没放过，而 `why`
+ * 还在描述一处已经不存在的示例，审计照绿。** 所以 `main` 现在把「一条都没放过」
+ * 的条目报出来，`--strict` 下直接算失败。删那条的时候顺手加了这道自查：
+ * 清单会烂，烂了要响。
  */
 const KNOWN: Readonly<Record<string, { why: string; at: readonly string[] }>> = {
   // —— 旧项目路径。`docs/MIGRATION_FROM_XIAOXI.md` 与
@@ -183,10 +190,6 @@ const KNOWN: Readonly<Record<string, { why: string; at: readonly string[] }>> = 
   },
   'world/../render/x.ts': {
     why: 'purity.test.ts 里说明字符串前缀比较的示例',
-    at: ['world-client/test/purity.test.ts'],
-  },
-  '../settings/types.ts': {
-    why: 'purity.test.ts 里说明被禁的 import 写法的示例',
     at: ['world-client/test/purity.test.ts'],
   },
   'frames.js': {
@@ -321,6 +324,11 @@ export interface CitationAudit {
   readonly skips: ReadonlyMap<string, number>;
   /** 真正受查的 token 数（白名单外的）。 */
   readonly checked: number;
+  /**
+   * **一条都没放过**的白名单条目。这些条目的 `why` 今天是假的——
+   * 它在描述一处已经不在那儿的示例，而清单看着依旧满满当当。
+   */
+  readonly unused: readonly string[];
 }
 
 /** 递归收集目录下的所有文件路径（已归一成正斜杠）。 */
@@ -398,6 +406,8 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
 
   const findings: CitationFinding[] = [];
   const skips = new Map<string, number>();
+  /** 真放过事的白名单 key。对不上 `KNOWN` 的那批就是一条都没放过的。 */
+  const fired = new Set<string>();
   let knownCount = 0;
   let checked = 0;
 
@@ -421,6 +431,7 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
           const known = KNOWN[tok];
           if (known !== undefined && known.at.includes(rel)) {
             knownCount++;
+            fired.add(tok);
             continue;
           }
           checked++;
@@ -435,12 +446,20 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
       }
     }
   }
-  return { findings, known: knownCount, skips, checked };
+  return {
+    findings,
+    known: knownCount,
+    skips,
+    checked,
+    unused: Object.keys(KNOWN)
+      .filter((key) => !fired.has(key))
+      .sort(),
+  };
 }
 
 function main(): void {
   const strict = process.argv.includes('--strict');
-  const { findings, known, skips, checked } = auditCitations();
+  const { findings, known, skips, checked, unused } = auditCitations();
 
   const skipLine = [...skips]
     .sort((a, b) => b[1] - a[1])
@@ -457,9 +476,21 @@ function main(): void {
   if (findings.length === 0) {
     process.stdout.write('  没有白名单外的引用——这句话只指「文件不在」，不指「说得对不对」。\n');
   }
+  // 一条都没放过事的白名单条目：`why` 里描述的那处示例已经不在那儿了，
+  // 而清单看着依旧满满当当。**不报出来，这份清单就会悄悄烂掉**——2026-10-28
+  // 实测过一条（`../settings/types.ts`：它举的例子被 7c7d508 删了，条目留在
+  // 84bb27e），删掉之前没有任何东西会响。
+  if (unused.length > 0) {
+    process.stdout.write(
+      `  白名单里有 ${unused.length} 条目一条都没放过——它们的 why 今天是假的：\n`,
+    );
+    for (const key of unused) process.stdout.write(`    ${key}\n`);
+    process.stdout.write('  要么把示例改回来，要么把条目删掉；别留着让它继续赦免不存在的东西。\n');
+  }
   // 跟调色板那个不一样：这里没有预算可超，只有自述为真这一条。
   // 所以 `--strict` 的退出码只看有没有白名单外的，不看多少。
-  if (strict && findings.length > 0) process.exitCode = 1;
+  // 白名单烂条目也算：**一份放着不用的赦免清单，比没有清单更容易让人放心。**
+  if (strict && (findings.length > 0 || unused.length > 0)) process.exitCode = 1;
 }
 
 // 被 import 时不跑 main：测试要的就是那个纯函数，不是它的退出码。
