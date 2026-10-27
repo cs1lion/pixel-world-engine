@@ -11,7 +11,16 @@ import { NOT_SOMEWHERE, atAltar } from './villager-words.ts';
 export interface DailyReport {
   readonly headline: string;
   readonly lines: readonly string[];
-  readonly date: string;
+  /**
+   * 世界开跑至今过了多久，**不是日历上的日期**。
+   *
+   * 这个字段原来叫 `date`，生成它的函数原来叫 `formatDate`——两个名字都在承诺
+   * 一件它们不做的事：这个世界没有日历，`formatWorldClock` 打的是
+   * 「第 N 分 MM 秒」，一个从开局起只增不减的秒表。叫 `date` 的害处是具体的：
+   * 下一个读它的人会拿它当日期用（排月份、比大小、或者写"今日"），而它连翻篇都不会。
+   * 所以名字改成说实话的那个。
+   */
+  readonly clock: string;
 }
 
 const LINE_LIMIT = 3;
@@ -110,9 +119,9 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   //     民居（白名单只查模板在不在），那条判据又把它整句话吞掉。
   //
   // 也不说「新起」：报纸是现算的（`composeReport` 每次调用都从快照推一遍），
-  // 日期还跟着世界钟走（`formatDate` 打的是第几分第几秒）。一栋开局后落成的楼，
-  // 到钟走了很远的那张报纸上仍写着「新起」——「新」是句时间断言，而手里有的只是
-  // 「开局之后造的」这份来路。
+  // 而世界钟是个只增不减的秒表（`formatWorldClock` 打的是第几分第几秒，见文件
+  // 末尾）。一栋开局后落成的楼，到钟走了很远的那张报纸上仍写着「新起」——
+  // 「新」是句时间断言，而手里有的只是「开局之后造的」这份来路。
   //
   // 想改说「今天起的」也做不到：`PlacedBuilding` 上没记落成时刻（只记了人的一句
   // `sourceSummary`），没有时刻戳可比。天界倒是有一个——`lampDayOf(snapshot.now)`
@@ -157,15 +166,16 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // 这里原先写「世界钟里没有"天"」——不成立，同一份文件上面那段「开局之后造物主
   // 起了 N 栋楼」的注释里就写着反面：`lampDayOf(snapshot.now)` 按世界钟算得出第几天
   // （`lampoil.ts:59`，一天 24 个世界小时），记忆也按天归档。「没有天」只对
-  // `formatDate` 成立：它打「第 N 分 MM 秒」，只增不减（实测 now 到 180000000 仍是
+  // `formatWorldClock` 成立：它打「第 N 分 MM 秒」，只增不减（实测 now 到 180000000 仍是
   // 「第 3000 分」）。原先那句「实测 18000000 没有第二天」也举错了例子——那才 5 小时，
   // 第一个整天都没走完（`lampDayOf` 那天还是 0），第二天要到 86400000 才来。
   //
   // （原来这里写的是「同一份文件第 113 行」——**一个文件内的自指行号**，正是这个仓库
-  // 反复吃亏的那类引用：它跟着我自己的编辑漂。改过几笔之后 113 行说的是 `formatDate`
-  // 打第几分第几秒，而要说的是 `lampDayOf` 那句，它在另一段注释里。行号引用审计也看不见
-  // 这种漂：`audit-references.ts` 只认「文件.ts:NNN」这个形状，一句光秃秃的「第 113 行」
-  // 它根本不查。所以这里改成叫名字，不叫行号——也不写「上面第几行」，那同样是会漂的数。）
+  // 反复吃亏的那类引用：它跟着我自己的编辑漂。改过几笔之后那一行说的是
+  // `formatWorldClock` 打第几分第几秒，而要说的是 `lampDayOf` 那句，它在另一段注释里。
+  // 行号引用审计也看不见这种漂：`audit-references.ts` 只认「文件.ts:NNN」这个形状，
+  // 一句光秃秃的「第 113 行」它根本不查。所以这里改成叫名字，不叫行号——也不写
+  // 「上面第几行」，那同样是会漂的数。）
   //
   // 结论不变，换一条理由：有天也照样不能说「今天晴」。天气是这一拍的读数，
   // 快照里没有按天记的天气史，「今天早些时候下没下过」无从知道——与上面
@@ -208,11 +218,21 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   return {
     headline,
     lines: lines.slice(0, LINE_LIMIT),
-    date: formatDate(snapshot.now),
+    clock: formatWorldClock(snapshot.now),
   };
 }
 
-export function formatDate(nowMs: number): string {
+/**
+ * 世界开跑至今过了多久：一个只增不减的秒表，不是日期。
+ *
+ * 名字里不带 `Date` 是故意的（原来叫 `formatDate`）：这个世界没有日历，
+ * 而一个叫 `formatDate` 的函数会让人以为它哪天能翻篇——它不会，`now` 到
+ * 180000000 打的还是「第 3000 分」。要"第几天"有另一个函数：
+ * `lampoil.ts` 的 `lampDayOf(snapshot.now)`（一天 24 个世界小时）。
+ * 两者不要在这里合：报纸每一拍都重算，一个会翻篇的日期会让同一天里
+ * 的两次刷新打出不同的"今天"。
+ */
+export function formatWorldClock(nowMs: number): string {
   const totalSeconds = Math.floor(nowMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;

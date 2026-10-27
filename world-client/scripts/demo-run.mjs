@@ -238,7 +238,9 @@ async function seg2Paper(page) {
   await shot(page, '2-paper');
   log('seg2-paper', 'end', {
     headline: report.headline,
-    date: report.date,
+    // 字段原来叫 `date`，2026-10-27 改成 `clock`：它打的是「第 N 分 MM 秒」，
+    // 一个只增不减的秒表，不是日历上的日期。名字不改，下一个读它的人会当日期用。
+    clock: report.clock,
     lines: report.lines.length,
     domText: (await paper.textContent())?.slice(0, 120) ?? '',
   });

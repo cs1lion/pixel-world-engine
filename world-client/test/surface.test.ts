@@ -63,7 +63,7 @@ test('日报把暴雨写出来，不把三档折成「下没下雨」', () => {
   // 正是这种不是 switch 的地方。
   //
   // 这一句也不带「今天」：`snapshot.weather` 是**这一拍**的读数，而世界钟里没有天
-  // （`formatDate` 打「第 N 分 MM 秒」，只增不减、从不翻篇）。「今天晴」断言了一个
+  // （`formatWorldClock` 打「第 N 分 MM 秒」，只增不减、从不翻篇）。「今天晴」断言了一个
   // 世界上不存在的单位，「今天下了雨」还多一层过去时——晴着的那一拍无从知道早些
   // 时候下没下过。所以只说手里这一拍：晴着 / 下着雨 / 刮着暴雨。
   const sim = makeSim();
@@ -447,7 +447,7 @@ test('读档之后，上一次造的楼不算「开局之后起的」——证�
 
 test('楼放久了，报纸那句话不许跟着变——只有来路，没有时间', () => {
   // 这句话曾经写「造物主新起 N 栋楼」。「新」是句时间断言，可报纸是现算的
-  // （composeReport 每次调用都从快照推一遍），日期还跟着世界钟走（formatDate 打的
+  // （composeReport 每次调用都从快照推一遍），日期还跟着世界钟走（formatWorldClock 打的
   // 是第几分第几秒）。楼是开局那一拍落的，到钟走过 5 分钟的那张报纸上它仍叫「新起」
   // ——越放越假。想按天收窄也做不到：PlacedBuilding 上没记落成时刻，没有时刻戳可比
   // （天界倒有，lampDayOf 按世界钟算得出第几天，可一天的两头只有一头）。
@@ -472,15 +472,15 @@ test('楼放久了，报纸那句话不许跟着变——只有来路，没有�
   const lineOf = (): string =>
     composeReport(sim.snapshot()).lines.find((line) => line.includes('造物主起了')) ?? '';
   const soon = lineOf();
-  const soonDate = composeReport(sim.snapshot()).date;
+  const soonClock = composeReport(sim.snapshot()).clock;
 
   sim.update(5 * 60 * 1000);
   const later = lineOf();
 
   assert.ok(soon !== '', '刚建完那一会儿，报纸该写出这一句');
   assert.notEqual(
-    composeReport(sim.snapshot()).date,
-    soonDate,
+    composeReport(sim.snapshot()).clock,
+    soonClock,
     '世界钟没动，这条测试没在问它想问的',
   );
   assert.equal(later, soon, `楼放久了，那句话变了：${soon} → ${later === '' ? '整句没了' : later}`);
@@ -507,7 +507,7 @@ test('钟走了很远还什么都没发生，头条不许说「刚醒来」', ()
 
   sim.update(30 * 60 * 1000);
   const after = composeReport(sim.snapshot());
-  assert.notEqual(after.date, '第 0 分 00 秒', '钟没动，这条测试没在问它想问的');
+  assert.notEqual(after.clock, '第 0 分 00 秒', '钟没动，这条测试没在问它想问的');
   assert.equal(after.headline, '世界还没动静', `钟走了半小时，头条还在说「刚」：${after.headline}`);
 });
 

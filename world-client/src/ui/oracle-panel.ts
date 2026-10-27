@@ -5,6 +5,7 @@
  */
 
 import { TASK_PROFILES } from '../world/tasks.ts';
+import type { DailyReport } from '../world/report.ts';
 import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import { whenApi } from './when-api.ts';
 import type { TaskKind, WorldSnapshot } from '../world/types.ts';
@@ -80,11 +81,17 @@ export interface OracleApi {
   readonly slab: () => readonly { readonly raw: string; readonly receipt: string; readonly at: number }[];
 }
 
-export interface ReportApi {
-  readonly headline: string;
-  readonly lines: readonly string[];
-  readonly date: string;
-}
+/**
+ * 报纸那一块的形状。**不是手抄的一份**，是从 `DailyReport` 上摘的。
+ *
+ * 原来这里是手写三个 `readonly` 字段，2026-10-27 把 `date` 改名 `clock` 时只改了
+ * 世界那一边，漏了这边——于是面板读 `report.clock` 读到一个没有这个字段的类型上。
+ * 而这一次**编译器没响**：`src/world/creator/fuse.ts` 里一个语法错误
+ * （`${x.toFixed(2%)}`，少一层引号）把整个项目的语义诊断全部压掉了，`tsc --noEmit`
+ * 只报那一处语法错误就走了。手抄的形状会漂，而漂了不一定有人红——所以这里改成
+ * `Pick`，让世界那头改名时这边跟着改，没有第二份可以漂的清单。
+ */
+export type ReportApi = Pick<DailyReport, 'headline' | 'lines' | 'clock'>;
 
 const BUTTON_TEXT: Record<string, string> = {
   code: '帮我写一段代码',
@@ -101,7 +108,7 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
   const finish = document.querySelector<HTMLButtonElement>('#finish');
   const paperHeadline = document.querySelector<HTMLHeadingElement>('#paper-headline');
   const paperLines = document.querySelector<HTMLUListElement>('#paper-lines');
-  const paperDate = document.querySelector<HTMLSpanElement>('#paper-date');
+  const paperClock = document.querySelector<HTMLSpanElement>('#paper-clock');
   const slabCount = document.querySelector<HTMLSpanElement>('#slab-count');
   const slabLines = document.querySelector<HTMLOListElement>('#slab-lines');
   const decreePanel = document.querySelector<HTMLElement>('#decree');
@@ -117,7 +124,7 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     finish === null ||
     paperHeadline === null ||
     paperLines === null ||
-    paperDate === null ||
+    paperClock === null ||
     slabCount === null ||
     slabLines === null ||
     decreePanel === null ||
@@ -132,7 +139,7 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
   const paintPaper = (api: OracleApi): void => {
     const report = api.report();
     paperHeadline.textContent = report.headline;
-    paperDate.textContent = report.date;
+    paperClock.textContent = report.clock;
     paperLines.replaceChildren(
       ...report.lines.map((line) => {
         const item = document.createElement('li');

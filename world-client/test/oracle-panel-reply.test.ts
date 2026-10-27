@@ -84,9 +84,14 @@ class FakeElement {
 
 /** 一份能让 `bindOraclePanel` 完整跑起来的假 document。 */
 function fakeDocument(): { doc: Document; byId(id: string): FakeElement } {
+  // 这份清单是 `index.html` 的真契约，**不是备忘**：`bindOraclePanel` 开头把每个
+  // `querySelector` 的结果一起判空，少一个就整体 return——于是一个对不上的 id 会让
+  // 整块面板静静消失，而测试只会看到"什么都没画"。改 `index.html` 里的 id 时这里
+  // 要跟着改（2026-10-27 把 `paper-date` 改成 `paper-clock` 时就红过一次，
+  // 红的不是报纸那一条，是回执那三条——因为整个面板都没上屏）。
   const ids = [
     'oracle', 'utterance', 'reply', 'status', 'finish',
-    'paper-headline', 'paper-lines', 'paper-date',
+    'paper-headline', 'paper-lines', 'paper-clock',
     'slab-count', 'slab-lines', 'decree', 'decree-title', 'decree-question',
     'world-state', 'build-row',
   ];
@@ -154,7 +159,7 @@ function fakeApi(): {
     setNight: () => {},
     toggleNight: () => false,
     nightEnabled: () => false,
-    report: () => ({ headline: '天下太平', lines: [], date: '今天' }),
+    report: () => ({ headline: '天下太平', lines: [], clock: '今天' }),
     slab: () => [],
   };
   return {
