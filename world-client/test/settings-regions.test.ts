@@ -59,3 +59,46 @@ test('灯潮界本身的重叠是有意的：渡口压在浅滩上、楼的轮�
   // 唯一那道门（叠浪楼要灯）仍然占着它的格子。
   assert.equal(world.grid.requirementAt({ x: 32, y: 22 }), 'lamp');
 });
+
+// ------------------------------------- 同一个病，从地域挪到分区与模板上
+
+test('模板写进一个不存在的分区就拒：它一个落点也没有，一辈子建不出来', () => {
+  // 分区的归属是**先声明者赢**（`grid.ts` 的 `zoneAt`），与地域的「后声明者赢」
+  // 正好相反。所以在分区表里把一条窄巷写在一整块工坊区后面，它就一格也占不到。
+  // 分区表自己死一格不致命；**蓝图**写进那个不存在的分区才致命：
+  // `checkPlacement` 逐格比 `zoneOf`，对整张图恒为 `outOfZone`——
+  // 探针数过全图 3072 个落点，0 个成功，2494 个 outOfZone、578 个 edge。
+  // 界面照样给它按钮、提示词照样告诉模型这个名字能建，回执只有「没地方」。
+  const school = raw({
+    prefabs: {
+      ...DENGCHAO_RAW.prefabs,
+      night_school: {
+        ...(DENGCHAO_RAW.prefabs.wave_house as object),
+        id: 'night_school', displayName: '夜学堂', zone: 'scholarly',
+      },
+    },
+    placements: [],
+  });
+  assert.throws(() => loadSettingPack(school as RawSettingPack), SettingPackError, 'scholarly 一格都没有');
+});
+
+test('一根一根数：分区表里那条被盖住的窄巷，确实一格也不占', () => {
+  // 这条揭的是**数据本身**的一个事实，不是规则的假设：灯潮界的 `grid.zones`
+  // 里写着 `street: x 30–34, y 14–45`（160 格），可 `industry`（x 1–62、y 1–46）
+  // 声明在它前面、先声明的赢，于是 street 实占 0 格。
+  //
+  // 它今天不致命（六个模板全是 industry），但它是一句读起来像街、实际是死字的
+  // 声明——把 `street` 挪到 `industry` 前面，六栋楼会全部因为落位不合法被拒。
+  // 所以这条测试不要求它「有格子」，而是把「它现在没有」这件事写下来：
+  // 谁哪天想靠这条巷子做点什么，测试会先告诉他那条巷子不存在。
+  const world = buildSettingWorld(loadSettingPack(DENGCHAO_RAW));
+  const owned = new Map<string, number>();
+  for (let y = 0; y < DENGCHAO_RAW.grid.height; y += 1) {
+    for (let x = 0; x < DENGCHAO_RAW.grid.width; x += 1) {
+      const zone = world.grid.zoneOf({ x, y });
+      owned.set(zone, (owned.get(zone) ?? 0) + 1);
+    }
+  }
+  assert.equal(owned.get('street') ?? 0, 0, 'street 声明了 160 格，实占 0 格——先声明者赢');
+  assert.ok((owned.get('industry') ?? 0) > 0);
+});

@@ -138,7 +138,7 @@ test('灯潮界原封不动照样起得来：这是守卫，不是误杀', () =>
 });
 
 test('读档路不查这一条：存档是照着一份当年通过的世界写的', () => {
-  // 读档分支不铺路（`load.ts:267` 直接 grid.place），一份没铺路的格子上
+  // 读档分支不铺路（`load.ts:300` 直接 grid.place），一份没铺路的格子上
   // `grid.path` 当然大多是空的。拿它判，每一份旧存档都别想再打开。
   const pack = walledInPack();
   const buildings = buildSettingWorld(loadSettingPack(DENGCHAO_RAW)).buildings;
@@ -190,11 +190,11 @@ test('一扇真被围死的门，在同一个格子上仍然报死', () => {
 // ---------------------------------------------- 同一个病，隔十一行还有一处
 
 test('作息点就踩在出生点上：这是连得出去的，不是到不了', () => {
-  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:241`/`:244`），
+  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:274`/`:277`），
   // 对 `at === stop` 一个字都没禁——而「她就站在那个点上」是一份完全合法的
   // 设定集：守夜人认路认到自己的脚底下。
   //
-  // `grid.path` 在起点即终点时返回空数组。`load.ts:321` 照抄这个返回值，
+  // `grid.path` 在起点即终点时返回空数组。`load.ts:354` 照抄这个返回值，
   // 于是这份包被拒，还说「她 到不了 就站在起点上」——那句话是假话，
   // 比不报更糟。`doorReaches` 早就特判了这种，这一处没沾上。
   const pack = loadSettingPack({

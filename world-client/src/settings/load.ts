@@ -5,7 +5,7 @@ import type { BuiltWorld } from '../world/setup.ts';
 import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
-import type { PlacedBuilding, TerrainId, ZoneId } from '../world/types.ts';
+import type { PlacedBuilding, PrefabBlueprint, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
 import type {
   CompiledVillager,
@@ -75,6 +75,38 @@ function assertGateOwnsCells(raw: RawSettingPack, label: (id: string) => string)
         `${label(region.id)} 要 ${region.requires}，可它每一格都被后声明的区域盖住了——这道门只存在于数据里`,
       );
     }
+  }
+}
+
+/**
+ * 每个模板声明的分区，得在这张图上真的有一格。
+ *
+ * 分区的归属是**先声明者赢**（`grid.ts` 的 `zoneAt`），与地域的「后声明者赢」
+ * 正好相反——两处规则不一样，而数据文件里看不出来。所以在分区表里把一条窄巷写在
+ * 一整块工坊区**后面**，它就一格也占不到：那行字读起来像一张街，实际上是死的。
+ *
+ * 分区表自己死一格不致命，可**蓝图**要是写进一个不存在的分区就致命了：
+ * `checkPlacement` 逐格比 `zoneOf`，对整张图恒为 `outOfZone`。于是
+ * 「白名单里有一份模板」这件事成了空话——界面给它按钮、提示词告诉模型这个名字、
+ * 回执却只有一句「没地方」，而且永远说不出为什么。这是最坏的一种：
+ * 玩家试一次、试两次、试三次，每次都以为是位置没选对。
+ *
+ * 只查「这一片地方在不在」，不查「现在还有没有空地」。后者是会变的：
+ * 地图建满了、留白挤没了都是合法的临时状态，而一个不存在分区永远建不进去。
+ */
+function assertTemplateZonesExist(raw: RawSettingPack, blueprints: ReadonlyMap<string, PrefabBlueprint>): void {
+  // 问网格本身，不另写一遍「先声明者赢」——那两处迟早对不上，而对不上的
+  // 时候这里会放行一份真正建不出来的包。
+  const grid = new WorldGrid({ ...raw.grid, terrain: raw.terrain, regions: raw.regions });
+  const present = new Set<ZoneId>();
+  for (let y = 0; y < raw.grid.height; y += 1) {
+    for (let x = 0; x < raw.grid.width; x += 1) present.add(grid.zoneOf({ x, y }));
+  }
+  for (const blueprint of blueprints.values()) {
+    if (present.has(blueprint.zone)) continue;
+    throw new SettingPackError(
+      `${blueprint.displayName} 要建在 ${blueprint.zone} 区，而这张图上一格 ${blueprint.zone} 都没有——它永远建不出来`,
+    );
   }
 }
 
@@ -189,6 +221,7 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
   }
   assertGateOwnsCells(raw, (id) => raw.regions.find((region) => region.id === id)?.name ?? id);
   const blueprints = parseBlueprintTable(raw.prefabs, palette);
+  assertTemplateZonesExist(raw, blueprints);
   const placementIds = new Set<string>();
   for (const placement of raw.placements) {
     if (placementIds.has(placement.prefabId)) throw new SettingPackError(`开局建筑重复 ${placement.prefabId}`);
