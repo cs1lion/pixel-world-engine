@@ -277,8 +277,19 @@ test('同一句话连着说三遍，只问模型一次', async () => {
   say(sim, '今天好累啊');
   tick(sim);
   say(sim, '今天好累啊');
-  await settle(sim, 6);
+  // **等到模型真的被问过，再数它被问了几次。**
+  //
+  // 原先固定推六拍。模型那段是 `setTimeout(5)`，六轮 `setImmediate` 排完它
+  // 还没回来——`calls` 还是 0，这条就假红。实测挂过一次（全套跑到一半时），
+  // 单跑不挂。轮数等到的是"大概问过了"，这里要的是"确实问过了"。
+  for (let i = 0; i < 50 && calls === 0; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+    sim.update(16);
+  }
   assert.equal(calls, 1, '去重是按原话，不是按时间窗');
+  // 再跑一会儿：去重是持久的，不是"这一阵只问一次"。
+  await settle(sim, 6);
+  assert.equal(calls, 1, '去重是持久的，不是时间窗');
 });
 
 test('模型还没回来，原句又说了一遍——答复照常说，那一行不停在「正在问模型……」', async () => {
