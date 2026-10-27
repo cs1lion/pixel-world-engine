@@ -4,11 +4,16 @@
  * `terrain-edges.ts` 自己把这条规矩写在了 `BRIGHT.plaza` 的注释里——「给 trim
  * 而不是自身也是为此：万一将来改了高度序，画出来的边也不会与底色相同、变成
  * 隐形线」——同一个文件 `DARK` 的注释还记着一次真事：`tree` 的暗边曾与底色
- * 完全相同，48 条边白画，占总写入像素的 25.6%。
+ * 完全相同。那批像素的计数住在 `terrain-edges.ts` 里，由
+ * `terrain-edge-pixels.test.ts` 钉住（默认世界 2597 个 tree 格、630 格画暗边、
+ * 整批 11568 px）；这里**不重抄**那些数。
  *
- * 而这条不变量**全仓库没有一处守着**。`terrain-edge-visibility.test.ts` 查的是
- * §4.1:218 那条更严的判据，但它的 `TERRAINS` 只列 5 种——`shallow`、`mud`、
- * `coal` 三种被结构性地排除在外，还硬钉「一共 10 对」。色板也只有默认那一套。
+ * 而这条不变量**只被守住一半**。`terrain-edges.test.ts` 有「暗边不能与本格底色
+ * 相同」（`terrain-edges.test.ts:107`）与「亮边不能与本格底色相同」（`:127`）
+ * 两条，可它的 `TERRAINS` 只列 5 种——`shallow`、`mud`、`coal` 三种被结构性地
+ * 排除在外，色板也只有默认那一套。第一版这里写「全仓库没有一处守着」，那是假话：
+ * 那两条就在那儿。把已经有人守的地方说成空白，比没有守卫更糟——照着这句话动手
+ * 的人会以为自己在补缺口，其实那儿已经有人了，而他会重复问一个已经问过的问题。
  *
  * 于是 `BRIGHT.shallow = 'water'` 与 `TERRAIN_COLORS.shallow = WORLD.water`
  * **同色**（实测 dL* 0.00）能一直躺着：莞尔镇一张 shallow 格都没有，所以肉眼
@@ -124,10 +129,14 @@ test('地形集合是 8 种：缺口正是从「只量了 5 种」里漏出去�
  * 修它属调色板决策，所以这里只登记、不擅自改色。
  *
  * 「需 ADR + 用户批准」这条规矩**不写在 `terrain-edges.ts` 里**——它写在兄弟
- * 守卫 `terrain-edge-visibility.test.ts` 的同一条断言消息上，根子在
+ * 守卫 `terrain-edge-visibility.test.ts` 的文件头（`terrain-edge-visibility.test.ts:35`）
+ * 与 `KNOWN_FAILING` 的 `skipReason`（`:184`）上，根子在
  * `palette-data.ts` 记着的那次「2026-10-21 用户批准 24 色 ADR」（`creator-schema.ts`
  * 拿它当理由拒十六进制字面量）。第一版这段注释把原话安到了 `terrain-edges.ts`
  * 头上，那句话在那儿一个字都没有——指一处规矩得指对地方，指错了比不指更糟。
+ * （第二版又错一处：写的是「同一条**断言消息**上」。它不是断言消息，是文件头
+ *  的散文加一个 `skipReason` 字符串。实质的归属是对的，错的只是那个名词——
+ *  可「写在断言消息上」会让人去断言里找，找不到就以为规矩没了。）
  */
 const KNOWN_SAME: Readonly<Record<string, { readonly dl: number; readonly why: string }>> = {
   '莞尔镇/shallow/亮边': {
@@ -138,6 +147,33 @@ const KNOWN_SAME: Readonly<Record<string, { readonly dl: number; readonly why: s
       + '靠的是那份包把 shallow 的底色改成 copper，撞对了，不是被守着。',
   },
 };
+
+/**
+ * 那句 `why` 的第三分句原来没有任何 stake。
+ *
+ * 「靠的是那份包把 shallow 的底色改成 copper」是三句可验事实之一（另两句是
+ * 莞尔镇没有浅滩、灯潮界有，都由下面那条测试钉着）。可集合比对只可能在一处
+ * 让它红：底色变成**恰好** water。若改成别的任意 token，只要解析后的色值不等于
+ * water，同色就消失了、`gone` 会红——那条路是通的；但若那个 token 解析出来**正是**
+ * water（或将来有人在 `palette` 里把 water 改得与 copper 同值），同色照旧，
+ * 集合比对一声不响，而这句话已经成了假话。
+ *
+ * 所以这里直接钉 token 名，并且钉「不是水色」这个实质。两条都指向
+ * `DENGCHAO_RAW`——`loadSettingPack` 把一切都解析成数字了，token 名在装载器
+ * 出口处就拿不到，而这句话说的恰恰是**写在包里的那个选择**。
+ */
+test('登记理由的第三分句：灯潮界把 shallow 的底色选成了 copper，且那不是水色', () => {
+  assert.equal(
+    DENGCHAO_RAW.terrainColors.shallow,
+    'copper',
+    'KNOWN_SAME 那句「那份包把 shallow 的底色改成 copper」成了假话——回去改注释',
+  );
+  assert.notEqual(
+    PACK.terrainColors.shallow,
+    PACK.palette.water,
+    '灯潮界的浅滩底色与水色同值了——那句「撞对了」不再成立，这是新的同色退化',
+  );
+});
 
 /** 撞底色的边，按「色板/材质/边」作键。 */
 export function sameColorEdges(readings: readonly EdgeReading[]): readonly string[] {
@@ -203,7 +239,7 @@ export function faintEdges(
  *
  * **别把这读成「登记了就能过」**——每登记一行就是多认一处破例，而改 BRIGHT
  * 表属调色板决策、需 ADR + 用户批准（规矩写在 `terrain-edge-visibility.test.ts`
- * 的同一条断言消息上，见 `KNOWN_SAME` 上那段）。没有 ADR 就先别改色，也别登记。
+ * 的文件头与 `skipReason` 上，见 `KNOWN_SAME` 上那段）。没有 ADR 就先别改色，也别登记。
  */
 test('撞底色的边的集合必须与 KNOWN_SAME 一模一样', () => {
   const { appeared, gone } = diffAgainstKnown(READINGS, KNOWN_SAME);
@@ -333,8 +369,9 @@ test('KNOWN_SAME 登记的落差必须与当前一致', () => {
  *
  * 0.05 与 0.00 在屏幕上没有区别。集合比对守的是「同色」这个硬事实，这一条守
  * 「几乎同色」——后者不会一次性出现，会一点点漂过去，而逐次都看着还行。
- * 阈值取自 `terrain-edge-visibility.test.ts` 的「不退化」下限 6 的一半：
- * 这里只当哨兵，不当验收线（验收仍是那一条的 8）。
+ * 阈值 3 是**可辨下限 6 的一半**：那个 6 是 `terrain-edges.ts` 导出的
+ * `EDGE_VISIBLE_MIN_DL`，`terrain-edge-visibility.test.ts` 只是 import 它，
+ * 并不拥有它。这里只当哨兵，不当验收线（验收线是那一条的 8）。
  */
 test('没有一条未登记的边落在「几乎同色」里（dL* >= 3）', () => {
   assert.deepEqual(
