@@ -63,12 +63,20 @@ function inscriptionOf(rt: MemoryRuntime, holderId: string): MemoryEntryLike {
  * 大事的当日片段会被摘要吃掉（`derivedFrom` 的删除级联），四十天后一条也不剩，
  * 于是「当日层早就归档了」这句话没法在同一世界里对照。小事显著度低，
  * 进不了摘要，才能一路衰减到归档线以下留在表里。
+ *
+ * kind 用的是**没登记过的** `breeze`，它落 `KIND_PRIORS.unknown` 那一行
+ * （0.3 / 0.3 / 0.3 / 0.2）。原先这里写的是 `milestone`——那是个错得住的
+ * 巧合：`inputsFor` 当时不读 `KIND_PRIORS.emotion`，一条没定性的事故算出来
+ * 只有 0.15，里程碑因此「显得」很轻。补上那一列之后，`milestone` 的先验是
+ * emotion 0.7、goal 0.7，本人是当事人，显著度 0.70——够 `T_promote`，当天
+ * 就被压成摘要，对照组整个消失。而 §3.1 明写 `T_flash`「仅重大神迹、严重
+ * 事故或**首次里程碑**可触发」：里程碑本来就该是重的，轻的是这一阵风。
  */
 function trivia(rt: MemoryRuntime): void {
   rt.observe(
     {
       eventId: 'trivia_1',
-      kind: 'milestone',
+      kind: 'breeze',
       placeId: 'board',
       at: { x: 6, y: 0 },
       actors: ['a'],

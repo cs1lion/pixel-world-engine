@@ -8,7 +8,11 @@
  *
  * 为什么显著度要拆成四个分量而不是一个「重要度」：`T_promote` 的定稿理由是
  * 「至少两个维度表现突出」（补充设计 §3.1）。一个合成分数说不出这件事，
- * 四个分量说得出——于是晋升判定可以要求「有两项过 0.5」，而不是「总分够高」。
+ * 四个分量说得出——晋升判定于是**可以**要求「有两项过 0.5」。
+ *
+ * 注意是「可以」：`strongParts` 今天算得出来，但还没有一个消费者读它，
+ * `consolidateHolder` 的挑选项只看 `salience >= T_promote`。那句话目前停在
+ * 「说得出口」这一步，差一个把四项存进条目的 schema 变更。
  */
 
 import type { SalienceWeights } from './config.ts';
@@ -32,7 +36,12 @@ export interface SalienceInputs {
 export interface SalienceResult {
   readonly salience: number;
   readonly parts: SalienceInputs;
-  /** 有几项过了 0.5。晋升与闪光灯都看它。 */
+  /**
+   * 有几项过了 0.5。
+   *
+   * 补充设计 §3.1 要 `T_promote` 卡这一条，而它今天**没有消费者**：
+   * `consolidateHolder` 只看 `salience`。字段先立在这儿，等条目把四项存下来。
+   */
   readonly strongParts: number;
 }
 
@@ -76,9 +85,26 @@ export function inputsFor(input: {
   const prior = kindPrior(input.kind);
   const involved = input.actors.includes(input.holderId);
   const hint = input.importanceHint;
+  // 事件自己那份情绪：情绪强度与唤醒度各占一半，取绝对值——大喜与大悲同样显著。
+  const felt = Math.min(1, (Math.abs(input.valence) + input.arousal) / 2);
   return {
-    // 情绪：情绪强度与唤醒度各占一半，取绝对值——大喜与大悲同样显著。
-    emotion: Math.min(1, (Math.abs(input.valence) + input.arousal) / 2),
+    // 情绪取「事件自己的」与「kind 先验」里**高的那个**，和 `surprise` 同一套规矩
+    // （先验是地板，具体值只能往上抬）。
+    //
+    // 原先这里只算 `felt`，`KIND_PRIORS` 的 `emotion` 一列 12 行一个都没被读过
+    // ——表头写着「事件类型 → 先验显著度」，实际只供应了三列，第四列是装饰。
+    // 后果不只是难看：没定性的事件落 `defaultValence` / `defaultArousal`，一律
+    // 给 0 / 0.3，算出来 `felt` 只有 0.15。于是 `T_flash`（0.85）**在任何 kind
+    // 上都达不到**——实测 12 类事件、本人是当事人、`importanceHint` 拉满 1.0，
+    // 最高只到 0.800（celebration）。
+    //
+    // 补上这一列只解决了「可达」。可达之后还有第二道关卡，而它更致命：
+    // `T_promote`（0.6）低于 `T_flash`（0.85），所以每条闪光灯片段在当天第一次
+    // 整理时就被 `makeSummary` 压成日摘要，摘要写死 `flashbulb: false`。实测一条
+    // 0.850 的里程碑片段，`dayClosed(0)` 一过就只剩摘要，第 6 天再并成周摘要。
+    // 「永不衰减」于是没有哪天是真的：没有哪条闪光灯活得到衰减那一步。
+    // 那道关卡在 `consolidate.ts` 的挑选项上拆了——见那里的注释。
+    emotion: Math.max(prior.emotion, felt),
     surprise: hint === null ? prior.surprise : Math.max(prior.surprise, hint),
     goalRelevance: prior.goalRelevance,
     involvement: involved ? 1 : prior.involvement,

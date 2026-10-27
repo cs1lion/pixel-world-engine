@@ -34,12 +34,21 @@ export interface ConsolidationResult {
  * 整理一个 Holder 在 `day` 这一天的一切。
  *
  * 顺序是刻意的，换一下就会算出不同的结果：
- * 1. 先挑（`T_promote` 与「至少两个维度突出」）——挑之前不衰减，否则
- *    一条刚好在门槛上的记忆会因为这次衰减而落选，而它本应被记住。
+ * 1. 先挑（`T_promote`）——挑之前不衰减，否则一条刚好在门槛上的记忆会因为
+ *    这次衰减而落选，而它本应被记住。
  * 2. 生成摘要（模板，只引用 eventRefs 里真有的事实）。
  * 3. 衰减当日之外的全部条目。
  * 4. 归档低于 `T_forget` 的条目。
  * 5. 预算裁剪。
+ *
+ * **`T_promote` 的定稿理由还有半句没兑现。** 补充设计 §3.1 那张表写着
+ * 「需至少两个维度表现突出（如高参与+高情绪）才进入 `DaySummary`」，而这里
+ * 只看了 `salience >= T_promote`。`strongParts`（四项里过 0.5 的个数）在
+ * `salienceOf` 里算得出来，但**没有一个消费者读它**，`MemoryEntry` 也没存
+ * 它——要兑现就得给条目加一列，那是 schema 变更，不塞进这次改动里。
+ * 差距是窄的：均匀权重下 `salience >= 0.6` 要求四项之和 ≥ 2.4，而只有一项
+ * 过 0.5 时最多也就 1 + 0.5 × 3 = 2.5，正好压在线上。也就是说这条规则今天
+ * 只影响「一项顶天、其余恰好半边」的那一档，不影响别的一切。
  */
 export function consolidateHolder(
   holderId: string,
@@ -58,9 +67,22 @@ export function consolidateHolder(
   const todayIds = new Set(todays.map((entry) => entry.memoryId));
   const rest = mine.filter((entry) => !todayIds.has(entry.memoryId));
 
-  // 1. 挑：显著度过线，且至少两个维度突出（补充设计 §3.1 对 T_promote 的说明）。
+  // 1. 挑：显著度过线。
+  //
+  //    **闪光灯与固定不挑。** 这不是偏爱，是「闪光灯记忆永久」那句话的唯一
+  //    兑现方式。`T_promote`（0.6）低于 `T_flash`（0.85），所以每条够格的闪光灯
+  //    片段按原样必然也够晋升——而晋升就是被 `makeSummary` 压成日摘要，摘要
+  //    写死 `flashbulb: false`。实测一条 0.850 的里程碑片段：`dayClosed(0)`
+  //    一过就只剩摘要，第 6 天再并成周摘要，flag 活不过一天。于是
+  //    `decayStrength` 的豁免分支、下面第 4 步的归档豁免、`trimBudget` 的
+  //    「固定与闪光灯先保」三个消费者从来咬不动——没有哪条闪光灯活得着衰减。
+  //
+  //    留成当天那条鲜明的片段，它才谈得上「永久」：不衰减所以不归档，又在
+  //    `day` 桶里被 `trimBudget` 排在最前，16 条的预算挤不掉它。代价是它
+  //    长期占着当日预算的一格——而 `T_flash` 是刻意罕见的，实测 40 天 120 件
+  //    事只出一条。
   const promoted = todays
-    .filter((entry) => entry.salience >= config.T_promote)
+    .filter((entry) => entry.salience >= config.T_promote && !entry.flashbulb && !entry.pinned)
     .sort((a, b) => {
       if (a.salience !== b.salience) return b.salience - a.salience;
       return a.memoryId < b.memoryId ? -1 : 1;
