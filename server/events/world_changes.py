@@ -45,6 +45,35 @@ ACTOR = "world"
 #: 信封只允许这两个键加 `payload`。多一个都说明调用方在猜协议。
 _ENVELOPE_KEYS = {"at", "change", "payload"}
 
+#: `task.delivered.source`：这单是上游派的还是世界自己造的。
+#:
+#: 与 `world-client/src/world/world-changes.ts` 的 `readonly source` 那一行是同一个
+#: 取值域，两边各写一遍。`test_value_domains.py` 拿着两边对——**在那之前没有任何
+#: 机关对过**，而漂开的表现是「世界交上来一单，服务端说不认识」。
+SOURCES = ("feed", "local")
+
+#: `task.delivered.taskKind`：这单是什么活。
+#:
+#: 三个地方声明同一个域，两处服务端一处客户端：
+#: `oracle/wire.py` 的 `TASK_KINDS`（意图进来的那一侧）、这里（事件记下来的那一侧）、
+#: `world-client/src/world/types.ts` 的 `TaskKind`。三者必须相等：
+#: 意图侧收得下而事件侧收不下，表现是模型说「派一单研究」→ 世界做完了 →
+#: 回写时被自己的服务端拒掉，那一单于是什么也没留下。
+TASK_KINDS = ("code", "research", "writing", "quick")
+
+#: `miracle` 事件里记的神迹名。**与 `rules/schema.py` 的 `MIRACLES` 不是同一个域**，
+#: 别看错了：意图侧叫 `light`（点灯），这里叫 `lamp`——摆件就叫 lamp，
+#: 日志用摆件的名字。翻译发生在客户端的 `simulation.ts`（`light` → `lamp`）。
+#:
+#: 两边是**两套词**，所以 `test_value_domains.py` 不拿它们直接比，而是分别与
+#: 客户端对应的两处比，再各数一遍个数。
+MIRACLES = ("lamp", "tree", "cat")
+
+#: `weather` 事件里记的天气。与 `rules/schema.py` 的 `WEATHERS` 是同一个域：
+#: 意图侧说「下雨」改的是世界的天气，事件侧记的就是那场雨。同一天气两套词的话，
+#: 模型下一场服务端不认识的雨，世界收了、改了，然后回写被拒。
+WEATHERS = ("clear", "rain", "storm")
+
 
 class WorldChangeError(ValueError):
     """回写载荷不合规。与 EventValidationError 分开：一个是事件本身坏了，
@@ -91,10 +120,10 @@ def _check_task_delivered(payload: dict[str, Any], path: str) -> None:
     _require_str(payload, "summary", path)
     _require_str(payload, "workerId", path)
     source = _require_str(payload, "source", path)
-    if source not in ("feed", "local"):
+    if source not in SOURCES:
         raise WorldChangeError(f"{path}.source 必须是 feed 或 local，收到 {source!r}")
     task_kind = _require_str(payload, "taskKind", path)
-    if task_kind not in ("code", "research", "writing", "quick"):
+    if task_kind not in TASK_KINDS:
         raise WorldChangeError(f"{path}.taskKind 不认识：{task_kind!r}")
 
 
@@ -116,7 +145,7 @@ def _check_building_removed(payload: dict[str, Any], path: str) -> None:
 def _check_miracle(payload: dict[str, Any], path: str) -> None:
     _only(payload, {"miracle", "at"}, path)
     miracle = _require_str(payload, "miracle", path)
-    if miracle not in ("lamp", "tree", "cat"):
+    if miracle not in MIRACLES:
         raise WorldChangeError(f"{path}.miracle 不认识：{miracle!r}")
     at = _require(payload, "at", dict, path)
     _only(at, {"x", "y"}, f"{path}.at")
@@ -127,7 +156,7 @@ def _check_miracle(payload: dict[str, Any], path: str) -> None:
 def _check_weather(payload: dict[str, Any], path: str) -> None:
     _only(payload, {"weather"}, path)
     weather = _require_str(payload, "weather", path)
-    if weather not in ("clear", "rain", "storm"):
+    if weather not in WEATHERS:
         raise WorldChangeError(f"{path}.weather 不认识：{weather!r}")
 
 

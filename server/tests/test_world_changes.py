@@ -62,11 +62,27 @@ def post(client: TestClient, change: str, payload: dict, at: object = 1000):
 
 # ---------------------------------------------------------------- 白名单
 
-def test_白名单就是客户端那份联合类型() -> None:
-    """两边不一致时，世界会写出服务端拒收的事件——上线才发现，很难查。
+def test_白名单与载荷表是同一批名字() -> None:
+    """`WORLD_CHANGE_CHECKS` 与 `VALID_PAYLOADS` 必须覆盖同一批 `change`。
 
-    这份清单要与 `world-client/src/world/world-changes.ts` 的 `WorldChange`
-    联合类型逐个对上。改一边必须改另一边。
+    2026-10-28 補记：这一条**原来叫** `test_白名单就是客户端那份联合类型`，
+    docstring 写着「这份清单要与 `world-client/src/world/world-changes.ts` 的
+    `WorldChange` 联合类型逐个对上」。**那句话是假的**——断言比的是本文件里的
+    两张服务端表，一个客户端文件都没读过（本文件至今不读任何客户端源码，
+    grep `world-client` 只有这行補记）。跨边界那一半在客户端那一侧：
+    `world-client/test/world-changes.test.ts` 有一条读
+    `server/events/world_changes.py` 的 `WORLD_CHANGE_CHECKS`，
+    与 `WORLD_CHANGE_KINDS` 逐个对。两边各守一半，加起来才闭环。
+
+    一句假话比没有话更坏：它读起来像那道闸已经跨过边界了，
+    于是没有人再去写真正跨边界的那一条。所以名字与 docstring 都按实测改。
+
+    本条自己仍然有用，而且**只此一处**：它是唯一一个拿 `WORLD_CHANGE_CHECKS`
+    当输入遍历的表。往白名单加一种 `change` 而 `VALID_PAYLOADS` 没跟，
+    别的测试一个都不会红——`test_每种合法的世界改变都能写进去` 只遍历
+    `VALID_PAYLOADS` 自己的键，`test_取值域之外被拒` 的参数化是写死的五行。
+    实测过：从 `VALID_PAYLOADS` 里删掉一个键，红的只有这一条。
+    但那是「两张服务端表对齐」，不是「两端对齐」，别把它说成后者。
     """
     assert set(WORLD_CHANGE_CHECKS) == set(VALID_PAYLOADS)
 
