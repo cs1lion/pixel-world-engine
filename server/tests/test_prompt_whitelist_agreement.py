@@ -107,21 +107,28 @@ SPEC_SRC = ROOT / "docs" / "SPEC.md"
 
 #: 命令名的形状：`weather.set` / `villager.carry`。点左边是命名空间。
 #:
+#: 命令名的形状。**两份判据共用这一份**：`_COMMAND_IN_PROMPT` 拿它从提示词里刨名字，
+#: 判据五拿它审 `NOT_LISTED` 的键。原来这两处各写一份，于是下面这种事能发生——
+#: `_COMMAND_IN_PROMPT` 放宽到认 `npc.set_schedule`（它自己的注释点名了这个形状），
+#: 而判据五还拿着旧的 `[a-z]+\.[A-Za-z]+`：往 `NOT_LISTED` 登记一个**形状正确**的键，
+#: 它报「不是『命名空间.动词』的形状」。那是红得指错地方——该改的是判据五，
+#: 不是那个键。实测（2026-10-28）注入 `npc.set_schedule`，判据五当场这么红。
+#:
 #: 放宽过一回。第一版写 `[a-z]+\.[A-Za-z]+`——只认「小写命名空间.字母动词」。
 #: 那个形状**认不出**带数字、下划线或第三段的名字，而且是**安静地认不出**：
 #: `villager.carry2` 整条从 `prompt_commands()` 里消失，于是判据一再也看不见它，
 #: 判据三的 `expected` 也跟着少数一条——三道判据一起绿，而绿的前提是假的。
 #: 今天量出来：`COMMAND_LINES` 里 `command` 字段出现 7 次，旧正则提出 6 个不同的名字
-#: （第 7 次是 `villager.carry` 的第二种形状，去重后是 6）。改成
-#: `[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*` 之后**今天一个都没多抓**，
-#: 而 `villager.carry2` / `npc.schedule.set` / `npc.set_schedule` 都认得了。
+#: （第 7 次是 `villager.carry` 的第二种形状，去重后是 6）。改成现在这个形状之后
+#: **今天一个都没多抓**，而 `villager.carry2` / `npc.schedule.set` /
+#: `npc.set_schedule` 都认得了。
 #:
 #: 但放宽正则治的是**今天想得到的形状**。真正靠得住的是下面那条判据零：
 #: 它拿一个不设形状的「裸名」正则来对，一旦哪个名字这条正则吃不下，
 #: 它会点名说是哪个——而另外两条判据只会红得指错地方（实测见判据零的 docstring）。
-_COMMAND_IN_PROMPT = re.compile(
-    r'"command"\s*:\s*"([a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)"'
-)
+_COMMAND_SHAPE = r"[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*"
+
+_COMMAND_IN_PROMPT = re.compile(rf'"command"\s*:\s*"({_COMMAND_SHAPE})"')
 
 #: 不设形状的「裸名」正则：只要是 `command` 字段的字符串值就抓。
 #: 它只用来跟 `_COMMAND_IN_PROMPT` 对，不参与任何判据——见判据零。
@@ -466,9 +473,16 @@ def test_没被列出来的那条_理由还成立() -> None:
 
 
 def test_登记表本身没长毛() -> None:
-    """键得是命令名，理由得非空——形状一乱，上面的差集就会静默漏掉它。"""
+    """键得是命令名，理由得非空——形状一乱，上面的差集就会静默漏掉它。
+
+    形状与 `_COMMAND_IN_PROMPT` 共用 `_COMMAND_SHAPE`，不另写一份：
+    2026-10-28 之前这儿写的是旧的窄形状 `[a-z]+\\.[A-Za-z]+`，而刨名字那条已经放宽。
+    实测往 `NOT_LISTED` 注入 `npc.set_schedule`（放宽后的正则点名认得的形状），
+    这一条报「不是『命名空间.动词』的形状」——红得指错地方：键是对的，
+    陈旧的是这一条。共用一个常量，那种事再也发生不了。
+    """
     for command, why in NOT_LISTED.items():
-        assert re.fullmatch(r"[a-z]+\.[A-Za-z]+", command), (
-            f"NOT_LISTED 的键 {command!r} 不是「命名空间.动词」的形状"
+        assert re.fullmatch(_COMMAND_SHAPE, command), (
+            f"NOT_LISTED 的键 {command!r} 不是命令名的形状（{_COMMAND_SHAPE}）"
         )
         assert why.strip(), f"{command} 没写为什么——登记不写理由就成了豁免名单"
