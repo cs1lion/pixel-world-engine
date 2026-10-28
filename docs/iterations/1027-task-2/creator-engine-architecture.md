@@ -169,6 +169,9 @@ if (rates.replayHashConsistencyRate === null || rates.replayHashConsistencyRate 
 
 ## 五、集成接口
 
+> **这一节是拟议接口，不是今天的代码。** 下面两段都引用 `CreatorEngine`，
+> 而它今天编译不过（见第六节末）。本节说的是「接上之后长什么样」。
+
 ### 从 `SandboxScene` 调用
 
 ```typescript
@@ -224,9 +227,24 @@ function broadcastVitalsSnapshot(vitals: WorldVitalsSnapshot) {
 | Fuse 控制器 | `test/creator-fuse.test.ts` | 30 |
 | Director 引擎 | `test/creator-director.test.ts` | 21 |
 | 指标系统 | `test/creator-metrics.test.ts` | 20 |
-| 架构集成 | `test/creator-engine.test.ts` | **新增** |
 | 边界守护 | `test/creator-boundary.test.ts` | 6 |
 | 命令白名单 | `test/creator-commands.test.ts` | 28 |
+| 设定集常量 | `test/creator-config.test.ts` | 29 |
+| 逆向审校合成器 | `test/creator-synthesizer.test.ts` | 14 |
+| 造物指令 schema | `test/creator-schema.test.ts` | 21 |
+
+**`CreatorEngine`（本文第一节那个入口）还没有落地。** 它的草稿在
+`world-client/src/world/creator/engine.ts`，今天过不了 `npm run check`（8 处语义错：
+`MemoryConfig` / `computeMemoryConfig` / `DirectorEngine` / `RawSettingPack` 四个名字
+没导入），对应的 `test/creator-engine.test.ts` 另有 40 处。它还有两处越界：
+`creator-boundary.test.ts` 拦的是它 `import` 了 `memory/types.ts`，
+`purity.test.ts` 拦的是它从 `world/` 往上层 `settings/` 里 import。
+
+所以上面那张表里**没有它**——把一份编译不过的草稿列成「新增」，就是本文档最该
+避免的那种假话。第一节的组件图是**目标形态**，不是今天的形态：Fuse、Director、
+Metrics、Synthesizer、Schema 五个模块各自跑着、各自有测试，但它们之间今天还没有
+那个把它们串起来的东西，也还没有任何生产代码 import 它们
+（`grep -rn "world/creator/" src --include=*.ts` 在 `src/` 下零命中）。
 
 ---
 
