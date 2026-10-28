@@ -34,6 +34,7 @@
  * | `"clear"\|"rain"\|"storm"` 少一个 `"storm"` | 红，消息与原文都对 |
  * | `weather.set` 改名成 `weather.setX` | 红，报「在 `weather.set` 那一行里找不到……那一处现在写的是 (提不出来)」 |
  * | 往 `intent-prompt.ts` 插一行 `{"kind":"dialTide","tide":"low"\|"high"}` | **加第二条判据之前**十三条全绿；之后第二条红，点名 `tide` |
+ * | 线上那一侧改成**单引号**（`'clear'\|'rain'\|'storm'`） | 两条都红，而红得指对地方：「找不到 `"value"`（在 `weather.set` 那一行里）后面的选项表了……那一处现在写的是 'clear'\|'rain'\|'storm'」。单引号不是模型能抄的 JSON，所以这红是对的——记在这儿是为了下一个人不必再验一遍这个方向 |
  *
  * ## 天气那一档有三个手写副本，这里对着类型问
  *
