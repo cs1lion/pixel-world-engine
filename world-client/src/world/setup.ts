@@ -21,8 +21,24 @@ export const BORDER = 1;
  */
 
 /**
- * 旧规格：30×20。**保留为测试夹具**——20 处既有单测依赖它，
- * 换掉等于把已有验收数字全部作废。生产入口用 `LARGE_WORLD_SPEC`。
+ * 旧规格：30×20。**保留为测试夹具**——换掉等于把已有验收数字全部作废。
+ * 生产入口用 `LARGE_WORLD_SPEC`。
+ *
+ * 「多少测试依赖它」这个数**本文档写过一回假的**：原写「20 处既有单测依赖它」，
+ * 从第一个提交 `996cbd3`（2026-10-25）起就在，三天没人复量。2026-10-28 按三种口径量，都不是 20：
+ *
+ * | 口径 | 今天 |
+ * |---|---|
+ * | `test/` 里按名字引用 `SMALL_WORLD_SPEC` | 2 个文件 / 9 处 |
+ * | `buildWorld(...)` 调用里**不传 spec**、悄悄吃默认值的 | 39 个文件 / 71 处 |
+ * | `test/` 里 `import … from 'setup.ts'` 的 | 48 个文件 |
+ *
+ * 第一行才是「点名依赖」，第二行才是**真正的依赖**——绝大多数测试靠的是
+ * `buildWorld(blueprints)` 的默认参数，改这个规格它们全都会变，而它们自己
+ * 一个字都没提它。所以别把「没人提它」读成「没人依赖它」。
+ *
+ * 这三个数会随 `test/` 增长漂，没有闸守着——它们量的是「动的代价有多大」，
+ * 不是判据。真要动这个规格，按第二行那个数去估。
  */
 export const SMALL_WORLD_SPEC: GridSpec = {
   width: 30,
@@ -112,7 +128,8 @@ export const WILD_PREFABS: ReadonlySet<string> = new Set([
  * 民居 `boundTask` 是 null，本来就不进 `validateCoverage` 的铺子预算，
  * 混进铺子集合会让计数与灯光一起错。
  *
- * 只在大世界落位：旧规格 30×20 是 20 处既有测试的夹具，那里凭空多出房子
+ * 只在大世界落位：旧规格 30×20 是测试夹具（多少测试依赖它见 `SMALL_WORLD_SPEC`
+ * 上面那段——原来这里也写着「20 处」，同一个假数第三处），那里凭空多出房子
  * 会让「小世界三栋」这条验收数字全部作废。
  */
 const TOWN_HOMES = new Set<string>(['cottage_oak', 'cottage_plaster', 'cottage_stone']);
@@ -285,8 +302,12 @@ export function checkPlacement(
 /**
  * 建一个世界。
  *
- * `spec` 与 `altar` 都省略时用旧规格 30×20——20 处既有测试依赖这个默认值，
- * 不改它们。生产入口传 `LARGE_WORLD_SPEC` + `LARGE_ALTAR`（见 `buildLargeWorld`）。
+ * `spec` 与 `altar` 都省略时用旧规格 30×20——**`test/` 里 39 个文件的 71 处
+ * `buildWorld(...)` 调用靠这个默认值**（2026-10-28 量），所以别改它的行为。
+ * 生产入口传 `LARGE_WORLD_SPEC` + `LARGE_ALTAR`（见 `buildLargeWorld`）。
+ *
+ * 这一行原来写「20 处既有测试依赖这个默认值」，与 `SMALL_WORLD_SPEC` 上面那段
+ * 是同一个假数——同一个错在两个地方各写一遍，改一处漏一处就是这么来的。
  */
 export function buildWorld(
   blueprints: ReadonlyMap<string, PrefabBlueprint>,
@@ -304,7 +325,8 @@ export function buildWorld(
   const buildings: PlacedBuilding[] = [];
 
   // 小世界放不下六栋：郊野铺子与民居只在大世界里落位。
-  // 小规格继续服务 20 处既有测试，行为与以前完全一致。
+  // 小规格继续服务 `test/` 里那 71 处吃默认值的 `buildWorld(...)` 调用，
+  // 行为与以前完全一致。
   const wildAllowed = spec === LARGE_WORLD_SPEC;
 
   // 同一个分区里放多栋民居，要各给一个锚点，否则 findBestSlot 每轮都挑

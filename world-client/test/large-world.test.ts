@@ -122,7 +122,12 @@ test('大世界把郊野铺子放在核心圈之外', () => {
 
 // ------------------------------------------------------------------ 旧规格不受影响
 
-test('默认 buildWorld 仍用旧规格：20 处既有调用点行为不变', () => {
+// 这一条原来叫「默认 buildWorld 仍用旧规格：20 处既有调用点行为不变」。
+// 后半句是它**验不了的**：这个测试只看宽高是不是 30×20，压根不知道有几个调用点。
+// 而那个「20」本身就是假的——2026-10-28 量出来是 39 个文件 71 处（详见
+// `src/world/setup.ts` 里 `SMALL_WORLD_SPEC` 上面那段）。名字里的数比没有更糟，
+// 所以改成它真在做的事。
+test('默认 buildWorld 仍用旧规格：不传 spec 就是 30×20', () => {
   const world = buildWorld(blueprints);
   assert.equal(world.grid.width, 30);
   assert.equal(world.grid.height, 20);
