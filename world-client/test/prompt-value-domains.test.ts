@@ -23,6 +23,18 @@
  * **从世界的类型与常量问，不手写清单**（与 `intent-prompt.test.ts` 第三条
  * 「从联合类型问，不手写清单」同一条纪律）。
  *
+ * ## 变异记录（2026-10-28 逐个跑过，含新加的按命令定位）
+ *
+ * | 变异 | 结果 |
+ * |---|---|
+ * | `Weather` 加一档 `'snow'` | `tsc` 4 处 TS2741 + 本文件红 |
+ * | `"clear"\|"rain"\|"storm"` 改成整体一个引号 | 上面那条「找不到选项表」红 |
+ * | 管道两侧加空格 | 上面那条红，且 `statedLoosely` 报得出原文 |
+ * | `tide.setLevel` 的 `"value":0..1` 改成 `"value":"low"\|"high"` | **按命令定位之前**：红，但报的是「天气取值域写的是 [low \| high]……那一处的原文："clear"\|"rain"\|"storm"」——假话，照着修会去改天气那一处。**之后**：红，报的是「这些地方也拿着它写了取值域形状：tide.setLevel」，指对地方 |
+ * | `"clear"\|"rain"\|"storm"` 少一个 `"storm"` | 红，消息与原文都对 |
+ * | `weather.set` 改名成 `weather.setX` | 红，报「在 `weather.set` 那一行里找不到……那一处现在写的是 (提不出来)」 |
+ * | 往 `intent-prompt.ts` 插一行 `{"kind":"dialTide","tide":"low"\|"high"}` | **加第二条判据之前**十三条全绿；之后第二条红，点名 `tide` |
+ *
  * ## 天气那一档有三个手写副本，这里对着类型问
  *
  * 同一个天气取值域在仓库里被手写了三遍：`types.ts` 的 `Weather` 联合、
@@ -135,6 +147,29 @@ assert.ok(
 const CARRIES = [...CARRY_ITEMS];
 
 /**
+ * 只保留**点名了某条命令**的那些行。
+ *
+ * 为什么需要它：`"value"` 是个通用键。`weather.set` 的 `"value"` 是天气取值域
+ * （`"clear"|"rain"|"storm"`），`tide.setLevel` 的 `"value"` 是 0..1 的潮位
+ * （`"value":0..1`，不带引号所以不算取值域）。今天后者不进提取，所以按裸键提
+ * 也碰巧对。可一旦有人把潮位改成字符串档位（`"value":"low"|"high"`），
+ * **两条命令的选项表会被混在一起比**——实测（2026-10-28）那一刻报的是
+ * 「线上提示词的天气取值域写的是 [low | high]，而世界实际是 [clear | rain | storm]。
+ * 那一处的原文："clear"|"rain"|"storm"」。**那句话是假的**：天气那一处没动，
+ * 动的是潮位那一处，而「那一处的原文」显示的正是没动的那一处。照它去修，
+ * 会去改一条本来就对的行。
+ *
+ * 所以登记时可以写 `command`，提取只在那条命令的行上进行。
+ * 没有 `command` 的行（离线提示词的 `kind` 等）行为与以前完全一样。
+ */
+function scopeToCommand(text: string, command: string): string {
+  return text
+    .split('\n')
+    .filter((line) => line.includes(`"${command}"`))
+    .join('\n');
+}
+
+/**
  * 提示词里某个键后面写的引号选项表：`"a"|"b"` 或 `["a"|"b"]`。
  *
  * **每个选项必须各自带引号。** 第一版写的是 `"([a-z|"]+)"`——一个捕获组吃下
@@ -149,10 +184,13 @@ const CARRIES = [...CARRY_ITEMS];
  * 漏改任何一处都红。今天最极端的是离线提示词的 `"kind"`：**11 处**。
  * （第一版的 docstring 举的例子是「`carries` 与 `remove` 各写一遍」，
  * 实测那两个键今天各只出现 1 次——那个例子是假的，真例子是 `kind`。）
+ *
+ * 传了 `command` 就只在那条命令的行上提，理由见 `scopeToCommand`。
  */
-function alternatives(text: string, key: string): readonly (readonly string[])[] {
+function alternatives(text: string, key: string, command?: string): readonly (readonly string[])[] {
   const pattern = new RegExp(`"${key}"\\s*:\\s*\\[?((?:"[a-zA-Z0-9_]+"\\|?)+)`, 'g');
-  return [...text.matchAll(pattern)].map((found) =>
+  const source = command ? scopeToCommand(text, command) : text;
+  return [...source.matchAll(pattern)].map((found) =>
     (found[1] ?? '').split('|').map((part) => part.replace(/"/g, '')),
   );
 }
@@ -166,11 +204,36 @@ function alternatives(text: string, key: string): readonly (readonly string[])[]
  * **那句话少报了两个值**，因为捕获组 `[a-z|"]+` 不吃空格，`rain` 与 `storm`
  * 被静默丢掉。提示词是对的、闸门红了、而红的消息比真相少一半。
  * 在这个仓库里失败消息是最容易被下一段话引用的东西，所以它不能比真相少。
+ *
+ * 与 `alternatives` 同样认 `command`——否则「那一处的原文」会报成另一条命令的
+ * 那一处，那比不报更糟（实测见 `scopeToCommand`）。
  */
-function statedLoosely(text: string, key: string): string {
+function statedLoosely(text: string, key: string, command?: string): string {
   const pattern = new RegExp(`"${key}"\\s*:\\s*([^,}\\n]{0,120})`);
-  const hit = pattern.exec(text);
+  const source = command ? scopeToCommand(text, command) : text;
+  const hit = pattern.exec(source);
   return hit ? hit[1]!.trim() : '(提不出来)';
+}
+
+/**
+ * 带着某个键的取值域形状、却**不属于**已登记那条命令的行。
+ *
+ * 这一条治的是「登记按命令定位」引入的新盲区：要是第二个取值域出现在另一条
+ * 命令名下，`scopeToCommand` 会把它挡在比较之外——挡对了，可它就再也没人看了。
+ * 所以这里反着问一遍：除了登记的那条命令，还有谁拿着这个键写了取值域形状？
+ * 有一个就点名一个，让回来给它也登记一行。
+ */
+function domainsOutsideCommand(text: string, key: string, command: string): readonly string[] {
+  const shape = new RegExp(`"${key}"\\s*:\\s*\\[?(?:"[a-zA-Z0-9_]+"\\|?)+`, 'g');
+  const stray: string[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.includes(`"${command}"`) && shape.test(line)) {
+      const owner = /"command"\s*:\s*"([a-z][A-Za-z0-9_.]*)"/.exec(line);
+      stray.push(owner ? owner[1]! : '(这一行没写 command 字段)');
+    }
+    shape.lastIndex = 0;
+  }
+  return stray;
 }
 
 /**
@@ -199,6 +262,8 @@ const DOMAINS: readonly {
   readonly truth: readonly string[];
   readonly what: string;
   readonly mode: 'each' | 'union';
+  /** 这个键只属于哪条命令。通用键必须写，独占有键可以不写。 */
+  readonly command?: string;
 }[] = [
   { where: '离线提示词', text: CLIENT_PROMPT, key: 'weather', truth: WEATHERS, what: '天气', mode: 'each' },
   { where: '离线提示词', text: CLIENT_PROMPT, key: 'miracle', truth: MIRACLES, what: '神迹', mode: 'each' },
@@ -206,7 +271,18 @@ const DOMAINS: readonly {
   { where: '离线提示词', text: CLIENT_PROMPT, key: 'carries', truth: CARRIES, what: '给出的凭证', mode: 'each' },
   { where: '离线提示词', text: CLIENT_PROMPT, key: 'remove', truth: CARRIES, what: '收回的凭证', mode: 'each' },
   // 线上那一侧的天气写在 `"value"` 上（`weather.set` 的 args），神迹写在 `"kind"` 上。
-  { where: '线上提示词', text: SERVER_PROMPT, key: 'value', truth: WEATHERS, what: '天气', mode: 'each' },
+  // `value` 是**通用键**：`tide.setLevel` 的 args 里也有一个 `"value"`（0..1 的潮位，
+  // 不带引号所以今天不进提取）。所以这一行必须写 `command`——理由见 `scopeToCommand`，
+  // 那儿记着实测：不写的话，潮位改成字符串档位那一刻，红的消息会指着天气那一处。
+  {
+    where: '线上提示词',
+    text: SERVER_PROMPT,
+    key: 'value',
+    truth: WEATHERS,
+    what: '天气',
+    mode: 'each',
+    command: 'weather.set',
+  },
   { where: '线上提示词', text: SERVER_PROMPT, key: 'kind', truth: MIRACLES, what: '神迹', mode: 'each' },
   { where: '线上提示词', text: SERVER_PROMPT, key: 'carries', truth: CARRIES, what: '给出的凭证', mode: 'each' },
   { where: '线上提示词', text: SERVER_PROMPT, key: 'remove', truth: CARRIES, what: '收回的凭证', mode: 'each' },
@@ -217,13 +293,30 @@ test('提示词写下的取值域与世界的真实取值域一模一样', () =>
   assert.ok(expected.length > 0, 'DOMAINS 空了——这一条判据失去对象');
 
   for (const domain of DOMAINS) {
-    const found = alternatives(domain.text, domain.key);
+    const found = alternatives(domain.text, domain.key, domain.command);
     assert.ok(
       found.length > 0,
-      `${domain.where}里找不到 \`"${domain.key}"\` 后面的选项表了。它换了写法——`
-        + `那一处现在写的是 ${statedLoosely(domain.text, domain.key)}。`
+      `${domain.where}里找不到 \`"${domain.key}"\``
+        + (domain.command ? `（在 \`${domain.command}\` 那一行里）` : '')
+        + '后面的选项表了。它换了写法——'
+        + `那一处现在写的是 ${statedLoosely(domain.text, domain.key, domain.command)}。`
         + '回来把正则与这张表一起改对，别把这条删掉。',
     );
+
+    // 反方向：登记按命令定位，就别让第二个取值域躲在别的命令名下没人看。
+    if (domain.command) {
+      const stray = domainsOutsideCommand(domain.text, domain.key, domain.command);
+      assert.deepEqual(
+        stray,
+        [],
+        `键 \`"${domain.key}"\` 在本文件里是按 \`${domain.command}\` 登记的，`
+          + `可这些地方也拿着它写了取值域形状：${stray.join('、')}。`
+          + '按命令定位会把它们挡在比较之外——挡对了，但它们从此没有任何东西对过。'
+          + '两种处置：往 DOMAINS 加一行，写清它与哪份真实取值域比；'
+          + '或者确认那不是取值域（那也该回来把这儿说清，别让它悄悄漏掉）。',
+      );
+    }
+
     const truth = [...domain.truth].sort();
 
     if (domain.mode === 'union') {
@@ -248,7 +341,7 @@ test('提示词写下的取值域与世界的真实取值域一模一样', () =>
           + `而世界实际是 [${domain.truth.join(' | ')}]。`
           + '少一样，模型永远不说它，用户要的那个效果永远办不成；'
           + '多一样，模型会说出一个被校验器拒的值。两边都该回来改提示词。'
-          + `（那一处的原文：${statedLoosely(domain.text, domain.key)}——若这里只列了一部分，`
+          + `（那一处的原文：${statedLoosely(domain.text, domain.key, domain.command)}——若这里只列了一部分，`
           + '是提取正则漏了，回来改它，别照着一半的清单去改提示词。）',
       );
     }
