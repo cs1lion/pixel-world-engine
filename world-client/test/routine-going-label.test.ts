@@ -306,3 +306,113 @@ test('举急件跑向祭坛的路上，牌子不留在上一拍的那一处', ()
     `举急件的路上牌子还说着上一拍站的那一处，共 ${stale.length} 处：\n${stale.slice(0, 5).join('\n')}`,
   );
 });
+
+/**
+ * 站着带牌子的时候，她真站在牌子说的那一处。
+ *
+ * 上面四条判的都是**形状**：走着不说落脚那句，站着不挂赶路那句。可形状对不等于
+ * 地方对。「在街口站着看了一会儿」这句话本身没毛病——她人站在祭坛边上时，它照样
+ * 是句通顺的话。所以 `ARRIVAL` / `GOING` 那两个集合 membership 一放就过，
+ * **而那是假话**。
+ *
+ * 这条补位置。`RoutineBeat` 带着 `target`，所以判据是硬的：她站着而牌子是某一句
+ * 落脚那句话，她的坐标就必须是那一拍的 `target`。落点判据不带容差：
+ * `walk()` 最后一步 `pos = next`，落点就是 `target` 本身，实测距离恒为 0.000。
+ *
+ * 它抓得住上面漏过去的那一整类：举急件那位到了祭坛还挂着「在街口站着看了一会儿」，
+ * 形状对、集合 membership 对，而距离是 8.54。`stepDecrees` 清牌子修掉的是那一个
+ * 生产者；这条修掉的是**这一类判据看不见东西**。
+ *
+ * 范围只说作息这一家：天气合成那四句的落点是门廊，随她当时在哪而变，不在这张表
+ * 里（那四句由 `GOING`/`ARRIVAL` 配对着守）。`startInPlace` 的活计那句与
+ * `chaseVerification` 那句也不在——前者不描述地方，后者她人就在现场。
+ *
+ * 每个局面核到多少拍，跑一遍就知道，**不在这儿报数**——它随 `TICKS`、种子、
+ * 世界布局一起漂。`minChecked` 红着的时候，消息里带的就是当次的真数。
+ */
+/**
+ * 四种局面，都核同一件事。第四种是真漏过的那一种。
+ *
+ * `decree` 那一局面非有不可：举急件的那位到了祭坛会**站住举牌**，而她是从
+ * idle 里挑出来的——`routineLabel` 里留着上一拍作息的落脚那句。`stepDecrees`
+ * 曾经不清它，于是她站在祭坛上，屏上与纸上印的是「在街口站着看了一会儿」。
+ * 那一幕**形状完全正确**，`ARRIVAL` / `GOING` 两个集合 membership 都放行，
+ * 只有位置判据看得见：祭坛 (15,9) 与街口 (23,6) 差 8.54。
+ *
+ * 没有这一局面，这条测试对急件那一整段是瞎的——实测过：把 `free.routineLabel = null`
+ * 从 `stepDecrees` 删掉，只有第四条（举急件的路上）会红，这一条照旧绿。
+ *
+ * **这一局面的「核到多少拍」与前三面不同，别一律要求 >500。** 修好之后她一路
+ * 空牌子，另一个村民又被那张带问题的活占着不来逛，于是这一局面**一拍都核不到**
+ * （实测 `checked = 0`）。那不是没验：判据只在「她带着牌子站着」的时候看得见她，
+ * 而修好之后她就不带着了。所以这一面改问「她确实在祭坛上站过」——那才是缺陷
+ * 需要的那幕。实测（缺陷在场时）：`decree t=623 阿雾「在街口站着看了一会儿」
+ * 站在 (15,9)，那一拍该在 (23,6)，差 8.544`。
+ */
+const REGIMES: readonly (readonly [string, (sim: Simulation) => void, number])[] = [
+  ['clear', () => {}, 500],
+  ['rain', (sim) => sim.enqueue({ kind: 'setWeather', weather: 'rain' }), 500],
+  ['storm', (sim) => sim.enqueue({ kind: 'setWeather', weather: 'storm' }), 500],
+  [
+    'decree',
+    (sim) => {
+      sim.enqueue(
+        syncCommand({
+          tasks: [
+            { id: 'c_pos', kind: 'code', title: '清理临时目录', question: '要删掉 ./temp_build 吗？' },
+          ],
+        }),
+      );
+    },
+    0,
+  ],
+];
+
+test('站着带牌子的时候，她真站在牌子说的那一处', () => {
+  const beats = routineBeats(ALTAR, world.grid);
+  const byLabel = new Map(beats.map((beat) => [beat.label, beat]));
+
+  for (const [name, setup, minChecked] of REGIMES) {
+    const sim = makeSim();
+    setup(sim);
+
+    const wrong: string[] = [];
+    let checked = 0;
+    let stoodAtAltar = 0;
+    let before = new Map(sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos } }]));
+    for (let t = 0; t < TICKS; t += 1) {
+      sim.update(16);
+      for (const villager of sim.snapshot().villagers) {
+        const was = before.get(villager.id)!;
+        const moved = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;
+        const atAltar =
+          Math.abs(villager.pos.x - ALTAR.x) < 1.5 && Math.abs(villager.pos.y - ALTAR.y) < 1.5;
+        if (!moved && atAltar) stoodAtAltar += 1;
+        // 到了的那一拍她也动了（`walk()` 先落位再清 path），由「没动」自动排除。
+        if (moved || villager.routine === null) continue;
+        const beat = byLabel.get(villager.routine);
+        if (beat === undefined) continue;
+        checked += 1;
+        const d = Math.hypot(
+          villager.pos.x - beat.target.x,
+          villager.pos.y - beat.target.y,
+        );
+        if (d !== 0) {
+          wrong.push(
+            `${name} t=${t} ${villager.name}「${villager.routine}」`
+            + ` 站在 (${villager.pos.x},${villager.pos.y})，那一拍该在`
+            + ` (${beat.target.x},${beat.target.y})，差 ${d.toFixed(3)}`,
+          );
+        }
+      }
+      before = new Map(sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos } }]));
+    }
+
+    assert.ok(checked >= minChecked, `${name} 下只核到 ${checked} 拍，这条什么都没验`);
+    // 只有急件那一面需要这句：那一位得真在祭坛上站过，缺陷才演得出来。
+    if (name === 'decree') {
+      assert.ok(stoodAtAltar > 0, '没有人在祭坛上站过——那一幕根本没上演，这条对急件是瞎的');
+    }
+    assert.deepEqual(wrong.slice(0, 5), [], `牌子说的地方与她站的地方不是一处：\n${wrong.slice(0, 5).join('\n')}`);
+  }
+});
