@@ -217,3 +217,63 @@ test('读档遇到不存在的 prefab：保留存档色并告警，不崩', () =
   assert.equal(loaded.buildings[0]?.prefabId, 'ghost_forge');
   assert.deepEqual(loaded.buildings[0]?.palette, orphan[0]?.palette);
 });
+
+// ------------------------------------------------- 审色板的工具自己那一份 24 色
+
+/**
+ * `scripts/audit-palette.mjs` 里有**它自己手抄的一份** 24 色（`PROPOSED_WORLD`）
+ * 与 8 色（`PROPOSED_UI`）。`test/scripts-region-copy.test.ts` 与
+ * `test/pack-owns-world-data.test.ts` 的文件头都写着这件事（「那一份 24 色正是
+ * 它自己要审的东西」「那是它的输入」），**两处都只是说明，没有一处对着它**。
+ *
+ * 而这一份是**承重的**，不是给人看的展示列：`outOfBudget()` 拿
+ * `new Set(PROPOSED_WORLD_HEX)` 去筛扫到的色，筛出来多少就是
+ * `overBudgetWorld`，也就是 `--strict` 的退出码。审计脚本自己也会
+ * `parsePaletteTokens()` 读 `palette-data.ts`——但它读来只做报告，
+ * **从来没有把那两份比过**。
+ *
+ * 于是有两条漂的方向，都不响：
+ * - 它那份**多**一个 `WORLD` 里没有的色值 → 代码里正在用这个色，
+ *   而审计认为它在预算内。**闸悄悄少防一种色，全套绿。**
+ * - 它那份**少**一个 → `WORLD` 里正当的色被报成超预算 → 狼来了。
+ *
+ * 上面那几条断言把 `WORLD` 与本文件的 `PROPOSED_WORLD` 钉在一起，
+ * 但那是**本文件的抄本**，不是审计脚本那一份。这两条补上后半段。
+ */
+const AUDIT_SCRIPT = '../scripts/audit-palette.mjs';
+
+/** 从审计脚本里刨出某一层的提案色值。刨不到必须红，不能当成空集合比过去。 */
+function auditProposedHex(layer: 'WORLD' | 'UI'): string[] {
+  const source = readText(AUDIT_SCRIPT);
+  const block = new RegExp(`const PROPOSED_${layer} = \\[([\\s\\S]*?)\\n\\];`).exec(source);
+  assert.ok(
+    block !== null,
+    `${AUDIT_SCRIPT} 里找不到 PROPOSED_${layer} 了。这条判据的对象就是那一份手抄的色表，` +
+      '它没了这条就失去对象——回来把这条与文件头一起改对，别把这条删掉。',
+  );
+  return [...block[1]!.matchAll(/'(#[0-9a-fA-F]{6})'/g)].map((match) => match[1]!.toLowerCase());
+}
+
+test('audit-palette.mjs 自己那一份世界色就是 WORLD', () => {
+  const audit = auditProposedHex('WORLD');
+  const actual = Object.values(WORLD).map(hex);
+  assert.deepEqual(
+    [...audit].sort(),
+    [...actual].sort(),
+    '审计脚本手抄的那份世界色与 WORLD 不一致。它多一个值，代码里正在用的色就被它当成预算内；' +
+      '少一个值，WORLD 里正当的色又被它报成超预算。改 audit-palette.mjs 的 PROPOSED_WORLD，' +
+      '或者改 palette-data.ts——两边必须一起。',
+  );
+  assert.equal(audit.length, WORLD_BUDGET, `审计那份世界色应有 ${WORLD_BUDGET} 个，实际 ${audit.length}`);
+});
+
+test('audit-palette.mjs 自己那一份 UI 色就是 index.html 的源色', () => {
+  const audit = auditProposedHex('UI');
+  const actual = uiSourceColors();
+  assert.deepEqual(
+    [...audit].sort(),
+    [...actual].sort(),
+    '审计脚本手抄的那份 UI 色与 index.html 的源色不一致，同上：这份是 --strict 的判据。',
+  );
+  assert.equal(audit.length, UI_BUDGET, `审计那份 UI 色应有 ${UI_BUDGET} 个，实际 ${audit.length}`);
+});
