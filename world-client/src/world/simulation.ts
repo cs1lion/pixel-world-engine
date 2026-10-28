@@ -2472,6 +2472,9 @@ export class Simulation {
       name: villager.name,
       mode: villager.mode,
       pos: villager.pos,
+      // 脚下有没有没走完的路。渲染层按它放步态（见 `VillagerSnapshot.walking`），
+      // 世界自己不用它——世界的判据到处都是 `path.length === 0`。
+      walking: villager.path.length > 0,
       facing: villager.facing,
       visible: villager.visible,
       taskId: villager.taskId,

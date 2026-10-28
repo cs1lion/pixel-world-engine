@@ -30,6 +30,7 @@ function villager(over: Partial<VillagerSnapshot> = {}): VillagerSnapshot {
     name: '莞尔',
     mode: 'idle',
     pos: { x: 7, y: 9 },
+    walking: false,
     facing: 'down',
     visible: true,
     taskId: null,

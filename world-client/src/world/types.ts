@@ -350,6 +350,20 @@ export interface VillagerSnapshot {
   readonly name: string;
   readonly mode: VillagerMode;
   readonly pos: Vec2;
+  /**
+   * 她这会儿脚下有没有一条没走完的路。**别从 `mode` 推。**
+   *
+   * 渲染层要知道她是不是在动：走路该放四帧步态、站着才放两帧呼吸，阴影也
+   * 跟着抬脚落地变淡。而 `mode` 答不了这个问题——走作息的那个 mode 是
+   * `'idle'`（`stepIdle` 只写 `path` 与 `routineGoing`，不翻 mode），举急件的
+   * 那位是 `'bearingDecree'`。曾经渲染层自己列了一张「哪些 mode 算在走」的表
+   * （`isWalkingMode` = `toWork|toAltar|sheltering`），于是走环线的人一路在
+   * 滑，腿上放的是站着的两帧；举急件的那位同理。**表会漏，路不会**：她走的
+   * 那条 `path` 是世界自己的事实，`path.length > 0` 就是全部判据。
+   *
+   * 这是派生字段，不进存档：读档还原 `path`，它就自己回来了。
+   */
+  readonly walking: boolean;
   readonly facing: Facing;
   readonly visible: boolean;
   readonly taskId: string | null;

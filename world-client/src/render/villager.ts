@@ -45,7 +45,6 @@ import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
 import {
-  isWalkingMode,
   lampAnimationTime,
   pixelAt,
   villagerPose,
@@ -147,7 +146,7 @@ export function createVillager(
   shadow.fillRect(-4, 0, 8, 1);
 
   const body = scene.add.graphics();
-  drawBody(body, 'down', villagerPose('idle', 0), 'idle', false, resolveStyle(MAIN_STYLE, WORLD), 0);
+  drawBody(body, 'down', villagerPose('idle', false, 0), 'idle', false, resolveStyle(MAIN_STYLE, WORLD), 0);
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
@@ -178,13 +177,13 @@ export function updateVillager(
     view.lamp,
     villager.lampOil,
     nowMs,
-    lampActivityOf(villager.mode),
+    lampActivityOf(villager.mode, villager.walking),
     lampDayOf(nowMs),
   );
   const oil = colors?.lamp === true ? view.lamp.oil : 1;
   // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
-  const pose = villagerPose(villager.mode, lampAnimationTime(oil, nowMs));
+  const pose = villagerPose(villager.mode, villager.walking, lampAnimationTime(oil, nowMs));
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
   view.body.setAlpha(lampBodyAlpha(oil));
   view.body.clear();
@@ -193,7 +192,7 @@ export function updateVillager(
     villager.facing,
     pose,
     villager.mode,
-    isWalkingMode(villager.mode),
+    villager.walking,
     colors === undefined
       ? villagerStyle(villager, palette)
       : { ...villagerStyle(villager, palette), cloak: colors.cloak, scarf: colors.scarf },
@@ -208,8 +207,11 @@ export function updateVillager(
 
   // 走路时整条阴影（椭圆 + 接触线）一起变淡：抬脚时接触减弱，落地时才压深。
   // 用容器级 alpha 而不是改每个 fillStyle，保证椭圆与接触线的相对深浅不变。
-  const walking = villager.mode === 'toWork' || villager.mode === 'toAltar';
-  view.shadow.setAlpha(walking ? 0.28 : 0.35);
+  //
+  // 判据与步态同一个（`villager.walking`，即 `path.length > 0`）。曾经这儿另列
+  // 了一张只有 `toWork|toAltar` 的表，于是走作息环线的人——她 mode 是 `'idle'`
+  // ——阴影一路压着 0.35，像脚一直踩在地上。**两处判据分家，就会一处修一处漏。**
+  view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
 }
 
 /**

@@ -32,11 +32,6 @@ export interface VillagerPose {
   readonly footRight: number;
 }
 
-/** 走路态：到工位、回祭坛、躲雨。其余模式一律按待机采样。 */
-export function isWalkingMode(mode: VillagerMode): boolean {
-  return mode === 'toWork' || mode === 'toAltar' || mode === 'sheltering';
-}
-
 /** simulation 时间 → 12fps 的步号。负数也能稳定回绕。 */
 export function animStep(nowMs: number): number {
   if (!Number.isFinite(nowMs)) return 0;
@@ -79,9 +74,21 @@ function modeLift(mode: VillagerMode): number {
   return 0;
 }
 
-/** 某一时刻的姿态。纯函数：同参数 → 同结果，不读时钟、不写外部状态。 */
-export function villagerPose(mode: VillagerMode, nowMs: number): VillagerPose {
-  const frames = isWalkingMode(mode) ? WALK_POSES : IDLE_POSES;
+/**
+ * 某一时刻的姿态。纯函数：同参数 → 同结果，不读时钟、不写外部状态。
+ *
+ * `walking` 是快照里那个派生字段（`VillagerSnapshot.walking`），不是 mode。
+ * 曾经这儿自己列了一张「哪些 mode 算在走」的表（`isWalkingMode` =
+ * `toWork|toAltar|sheltering`），于是走作息环线的人——她的 mode 是 `'idle'`——
+ * 一路在滑，腿上放的还是站着的那两帧；举急件的那位（`'bearingDecree'`）同理。
+ * **表会漏，路不会**：走路这件事由 `path` 说，不由 mode 说。
+ */
+export function villagerPose(
+  mode: VillagerMode,
+  walking: boolean,
+  nowMs: number,
+): VillagerPose {
+  const frames = walking ? WALK_POSES : IDLE_POSES;
   const frame = animFrame(nowMs, frames.length);
   const base = frames[frame] as Omit<VillagerPose, 'frame' | 'frameCount'>;
   return {

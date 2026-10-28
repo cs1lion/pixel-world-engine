@@ -24,16 +24,25 @@
 import type { VillagerMode } from '../world/types.ts';
 import { isLit, lampGlow, type LampActivity } from '../world/lampoil.ts';
 import type { WorldPalette } from '../world/theme.ts';
-import { isWalkingMode } from './villager-frames.ts';
 
 /**
  * 村民的忙碌程度 → 灯的耗油档。
  *
  * 归拢成三档而不是八种 mode：要的是「跑动的人灯晃得厉害、站着的人灯稳」，
  * 不是给每种动作配一条耗油曲线。八档曲线调不动，也没人看得出差别。
+ *
+ * `walking` 与 `villagerPose` 用同一个判据（`VillagerSnapshot.walking`，
+ * 即 `path.length > 0`）。曾经这儿按 mode 列了一张表，于是走作息环线的人
+ * ——mode 是 `'idle'`——灯是稳的，而她的坐标正在动。**表会漏，路不会。**
+ *
+ * 原来这一支还挂着 `|| mode === 'bearingDecree'`。现在那半是死的：
+ * `stepDecrees` 只在 `route.path.length > 0` 时才把她设成 `bearingDecree`，
+ * 而 `stepVillager` 在 `walk()` 走空 path 的那一刻就把 mode 翻回 `'idle'`
+ * （`simulation.ts` 的 `bearingDecree` 支）。所以那个 mode 必然带着路，
+ * `walking` 已经覆盖它。留着不删，读的人会以为它承重。
  */
-export function lampActivityOf(mode: VillagerMode): LampActivity {
-  if (isWalkingMode(mode) || mode === 'bearingDecree') return 'walk';
+export function lampActivityOf(mode: VillagerMode, walking: boolean): LampActivity {
+  if (walking) return 'walk';
   if (mode === 'working' || mode === 'delivering') return 'work';
   return 'idle';
 }

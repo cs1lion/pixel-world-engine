@@ -17,7 +17,6 @@ import {
   WALK_FRAMES,
   animFrame,
   animStep,
-  isWalkingMode,
   lampAnimationTime,
   pixelAt,
   villagerPose,
@@ -61,22 +60,52 @@ test('待机 2 帧 / 走路 4 帧，帧号始终在范围内且会回绕', () =>
   assert.deepEqual([...walkSeen].sort(), [0, 1, 2, 3]);
 });
 
-test('只有走路态用 4 帧，其余模式用 2 帧待机', () => {
-  assert.equal(isWalkingMode('toWork'), true);
-  assert.equal(isWalkingMode('toAltar'), true);
-  assert.equal(isWalkingMode('sheltering'), true);
-  for (const mode of ['idle', 'saluting', 'working', 'delivering'] as const) {
-    const pose = villagerPose(mode, 250);
-    assert.equal(pose.frameCount, IDLE_FRAMES, `${mode} 应该走待机 2 帧`);
+test('走路放四帧、站着放两帧——判据是脚下有没有路，不是 mode', () => {
+  // 这一条原来叫「只有走路态用 4 帧，其余模式用 2 帧待机」，判据是渲染层
+  // 自己列的一张 mode 表（`isWalkingMode` = `toWork|toAltar|sheltering`）。
+  // **那张表漏了两种真的在走的人**：走作息环线的那位 mode 是 `'idle'`
+  // （`stepIdle` 只写 `path` 与 `routineGoing`，不翻 mode），举急件的那位是
+  // `'bearingDecree'`。两种人一路在滑，腿上放的还是站着的那两帧——而她们
+  // 嘴上的牌子（「去街口」「举着急件跑向祭坛」）说的是正在跑。
+  //
+  // 所以判据换成快照里那个派生字段：`path.length > 0`。**表会漏，路不会。**
+  assert.equal(villagerPose('toWork', true, 250).frameCount, WALK_FRAMES);
+  assert.equal(villagerPose('toAltar', true, 250).frameCount, WALK_FRAMES);
+  assert.equal(villagerPose('sheltering', true, 250).frameCount, WALK_FRAMES);
+  assert.equal(villagerPose('bearingDecree', true, 250).frameCount, WALK_FRAMES);
+  // 走作息环线：mode 是 idle，可她真的在走。这一支是原来漏掉的那一种。
+  assert.equal(villagerPose('idle', true, 250).frameCount, WALK_FRAMES);
+  // 站着的时候一律两帧，不管她是什么 mode。
+  for (const mode of ['idle', 'saluting', 'working', 'delivering', 'bearingDecree'] as const) {
+    const pose = villagerPose(mode, false, 250);
+    assert.equal(pose.frameCount, IDLE_FRAMES, `${mode} 站着应该放待机 2 帧`);
   }
-  const walking = villagerPose('toWork', 250);
-  assert.equal(walking.frameCount, WALK_FRAMES);
+});
+
+test('同一个 mode，走与不走的帧数必须真的不一样', () => {
+  // 上一行只说了「idle 走着给四帧」。这一行钉住它**不是白给的**：如果哪天
+  // 有人把 `walking` 那个参数接漏了（比如又改回按 mode 判），这一行会红，
+  // 而上一行只会静静地继续绿。
+  const walking = villagerPose('idle', true, 250);
+  const standing = villagerPose('idle', false, 250);
+  assert.notEqual(walking.frameCount, standing.frameCount, 'idle 走着与站着得是两套帧');
+  // 走路的四帧里必须有抬脚——两帧待机的脚永远是 0。
+  const feet = new Set<string>();
+  for (let t = 0; t < 400; t += 17) {
+    const pose = villagerPose('idle', true, t);
+    feet.add(`${pose.footLeft},${pose.footRight}`);
+  }
+  assert.ok(feet.size > 1, `走路该有脚的动作，实得 ${[...feet].join(' / ')}`);
+  for (let t = 0; t < 400; t += 17) {
+    const pose = villagerPose('idle', false, t);
+    assert.equal(`${pose.footLeft},${pose.footRight}`, '0,0', '待机两帧不该有脚的动作');
+  }
 });
 
 test('姿态偏移全是整数像素（没有逐帧浮点晃动）', () => {
   for (let t = 0; t < 5000; t += 7) {
     for (const mode of ['idle', 'toWork', 'saluting', 'delivering', 'working'] as const) {
-      const pose = villagerPose(mode, t);
+      const pose = villagerPose(mode, false, t);
       assert.ok(Number.isInteger(pose.offsetY), `${mode}@${t} offsetY 非整数`);
       assert.ok(Number.isInteger(pose.footLeft), `${mode}@${t} footLeft 非整数`);
       assert.ok(Number.isInteger(pose.footRight), `${mode}@${t} footRight 非整数`);
@@ -86,9 +115,9 @@ test('姿态偏移全是整数像素（没有逐帧浮点晃动）', () => {
 });
 
 test('行礼/交付的额外偏移也是整数，且叠在帧偏移上', () => {
-  const base = villagerPose('idle', 250);
-  const salute = villagerPose('saluting', 250);
-  const deliver = villagerPose('delivering', 250);
+  const base = villagerPose('idle', false, 250);
+  const salute = villagerPose('saluting', false, 250);
+  const deliver = villagerPose('delivering', false, 250);
   assert.equal(salute.offsetY, base.offsetY - 2);
   assert.equal(deliver.offsetY, base.offsetY - 1);
 });
@@ -119,10 +148,74 @@ test('像素取整不返回 -0（strictEqual 会红）', () => {
 test('采样是纯函数：调用它不会改变输入，也不依赖调用次数', () => {
   const mode = 'toWork' as const;
   const now = 1234;
-  const first = villagerPose(mode, now);
-  for (let i = 0; i < 100; i += 1) villagerPose(mode, now + i * 13);
-  const again = villagerPose(mode, now);
+  const first = villagerPose(mode, true, now);
+  for (let i = 0; i < 100; i += 1) villagerPose(mode, true, now + i * 13);
+  const again = villagerPose(mode, true, now);
   assert.deepEqual(again, first);
+});
+
+test('活体：走作息环线的人放的是四帧，不是站着的那两帧', () => {
+  // 上面几条钉的是纯函数。这一条钉的是**世界真的会把 walking 送到渲染层**：
+  // 走环线的那个人 mode 是 `'idle'`，她不在 `toWork|toAltar|sheltering` 里，
+  // 所以按 mode 判的那一版给她两帧——她一路在滑，腿上没有动作。
+  //
+  // 判据是「坐标动了的那些拍」，与 `routine-going-label.test.ts` 同一条：
+  // 快照里没有 `path`，而位置是世界自己的事实，不需要给测试加观察口。
+  const raw = JSON.parse(
+    readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
+  ) as Record<string, Record<string, unknown>>;
+  const blueprints = parseBlueprintTable(raw);
+  const world = buildWorld(blueprints);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    spawnBuilding: (prefabId, instanceId) => {
+      const blueprint = blueprints.get(prefabId);
+      if (blueprint === undefined) return null;
+      return placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
+    },
+  });
+
+  let movingIdle = 0;
+  const wrong: string[] = [];
+  let before = new Map(
+    sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos }, walking: v.walking }]),
+  );
+  for (let t = 0; t < 1800; t += 1) {
+    sim.update(16);
+    const snapshot = sim.snapshot();
+    for (const villager of snapshot.villagers) {
+      const was = before.get(villager.id)!;
+      const moved = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;
+      const pose = villagerPose(villager.mode, villager.walking, snapshot.now);
+      // **只判「这一整拍都在走」的那些拍**：`walking` 这一拍开始时为真、
+      // 结束时还为真，说明路没在这一拍里走完。
+      //
+      // 到了的那一拍不算：`walk()` 在 `pos = next` 之后才 `path.shift()`，
+      // 于是最后一步走完的那一刻她动了，而 `path` 已经空了——`walking` 是假，
+      // 放的是两帧。那一帧她确实站在了落脚点上，两帧不算假。这与
+      // `routine-going-label.test.ts` 的 `stale` 规则是同一条：**被同一拍改写
+      // 的东西，描述的是改写前那一帧。**
+      if (moved && villager.mode === 'idle' && was.walking && villager.walking) {
+        movingIdle += 1;
+        if (pose.frameCount !== WALK_FRAMES) {
+          wrong.push(`t=${t} ${villager.name} 整拍都在走却放 ${pose.frameCount} 帧`);
+        }
+      }
+    }
+    before = new Map(
+      snapshot.villagers.map((v) => [v.id, { pos: { ...v.pos }, walking: v.walking }]),
+    );
+  }
+
+  assert.ok(movingIdle > 200, `只观察到 ${movingIdle} 整拍在走，像是世界没跑起来`);
+  assert.deepEqual(
+    wrong.slice(0, 5),
+    [],
+    `走着的拍放的不是四帧，共 ${wrong.length} 处：\n${wrong.slice(0, 5).join('\n')}`,
+  );
 });
 
 test('动画采样不改变世界确定性回放（边跑边采样，结果与不采样一致）', () => {
@@ -152,7 +245,7 @@ test('动画采样不改变世界确定性回放（边跑边采样，结果与�
     // 每步都按当前快照时间采样一次：纯函数，不许影响仿真。
     const snapshot = sampled.snapshot();
     for (const villager of snapshot.villagers) {
-      const pose = villagerPose(villager.mode, snapshot.now);
+      const pose = villagerPose(villager.mode, villager.walking, snapshot.now);
       assert.ok(Number.isInteger(pose.offsetY));
     }
   }
@@ -167,8 +260,8 @@ test('灯油只改画面取样：油干时采样变慢，补回油后立刻恢�
   assert.equal(dry % 400, 0, '慢速取样按 400ms 一档，而不是连续变慢');
   // 同一档内的两个时刻必须给出同一个姿态：这就是"慢"本身。
   assert.deepEqual(
-    villagerPose('idle', lampAnimationTime(0, 1234)),
-    villagerPose('idle', lampAnimationTime(0, 1400)),
+    villagerPose('idle', false, lampAnimationTime(0, 1234)),
+    villagerPose('idle', false, lampAnimationTime(0, 1400)),
   );
   // 补回油后不能再被慢速取样影响。
   assert.notEqual(lampAnimationTime(1, 1234), dry);

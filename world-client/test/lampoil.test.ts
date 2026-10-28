@@ -359,14 +359,20 @@ test('怪形状的油量不当机', () => {
 // ---------------------------------------------------------------- 忙碌档
 
 test('跑动的人费油，干活的人更费，站着的最省', () => {
-  assert.equal(lampActivityOf('idle'), 'idle');
-  assert.equal(lampActivityOf('saluting'), 'idle');
-  assert.equal(lampActivityOf('toWork'), 'walk');
-  assert.equal(lampActivityOf('toAltar'), 'walk');
-  assert.equal(lampActivityOf('sheltering'), 'walk');
-  assert.equal(lampActivityOf('bearingDecree'), 'walk', '举着急件跑也是跑');
-  assert.equal(lampActivityOf('working'), 'work');
-  assert.equal(lampActivityOf('delivering'), 'work');
+  // 判据是「脚下有没有没走完的路」，不是 mode——走作息环线的人 mode 是
+  // 'idle'，可她的坐标正在动。这儿显式把 `walking` 传进去，因为
+  // `lampActivityOf` 不再自己从 mode 推（`VillagerSnapshot.walking`）。
+  assert.equal(lampActivityOf('idle', false), 'idle');
+  assert.equal(lampActivityOf('saluting', false), 'idle');
+  assert.equal(lampActivityOf('toWork', true), 'walk');
+  assert.equal(lampActivityOf('toAltar', true), 'walk');
+  assert.equal(lampActivityOf('sheltering', true), 'walk');
+  assert.equal(lampActivityOf('bearingDecree', true), 'walk', '举着急件跑也是跑');
+  // 走作息环线：mode 是 idle，可她真的在走。曾经这一支答 'idle'——灯稳着，
+  // 而她的坐标正在动。
+  assert.equal(lampActivityOf('idle', true), 'walk', '走作息环线的也是跑');
+  assert.equal(lampActivityOf('working', false), 'work');
+  assert.equal(lampActivityOf('delivering', false), 'work');
 });
 
 // ---------------------------------------------------------------- 画
