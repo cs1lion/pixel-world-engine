@@ -32,7 +32,7 @@
  * | 2 | 代码里没有写死的区域名/色值/预制体 id/作息落点 | **不满足**（莞尔镇四样全在代码里） |
  * | 3 | 每区主色/点缀/禁用三槽，设定集 A 已填 | **不满足**（设定集 A 的 `regions` 是空数组） |
  * | 4 | 画面与改动前一致（`audit-palette --strict`） | **满足** |
- * | 5 | `check` / `test` / `build` 通过 | **满足**：三条都真跑过（`build` 见下） |
+ * | 5 | `check` / `test` / `build` 通过 | **满足**：`check` 与 `build` 真跑过；`test` 就是这一套，自己跑自己会递归 |
  *
  * 第 2、3 条不是疏漏，是**范围**：`docs/SPEC_V2.md` §4.1 写明「现有的四个分区
  * 保留为设定集 A……灯潮界的六个区域做成设定集 B」，而 `settings/index.ts` 的
@@ -218,7 +218,7 @@ test('条件四：audit-palette --strict 真的退出 0', () => {
   assert.equal(run.status, 0, `audit-palette --strict 非零退出：\n${run.stdout}\n${run.stderr}`);
 });
 
-test('条件五：三条命令的口子都在，三条都真跑过', () => {
+test('条件五：三条命令的口子都在，check 与 build 真跑过', () => {
   const pkg = JSON.parse(readFileSync(`${ROOT}package.json`, 'utf8')) as {
     scripts: Record<string, string>;
   };
@@ -258,6 +258,12 @@ test('条件五：三条命令的口子都在，三条都真跑过', () => {
   );
 
   // test 就是你现在跑的这套，不能再跑一遍（会递归）。这里只说清这一点，不假装验过。
+  //
+  // **2026-10-28：上一行那句话与这个用例的名字吵了整整一天。** 名字写的是
+  // 「三条都真跑过」，文件头的记分板也写「三条都真跑过」——可 `test` 这一条
+  // 从来没被跑过，上面两行就是承认。测试名也是自述，本仓对它的标准与对注释、
+  // docstring 一样。名字改成「check 与 build 真跑过」，记分板跟着改。
+  // 口子（package.json 里那三条脚本）三条都查了，那是真的；跑过的是两条。
   assert.ok(
     !('build|原生绑定' in KNOWN_UNMET),
     'build|原生绑定 又回到登记表里了。它原来的理由是「node_modules/rolldown 缺'
