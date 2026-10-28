@@ -219,8 +219,8 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 - 记忆在**内存里**是活的：`MemoryRuntime` 接在 `SandboxScene` 上，每拍喂位置、跨日关账、
   抛心电图。但它不进存档，刷新就重来。
 
-**没接的**：外环五个模块（见上一节）、`CreatorEngine`（草稿在
-`world-client/src/world/creator/engine.ts`，没入库，今天过不了 `npm run check`）。
+**没接的**：外环五个模块（见上一节）、`CreatorEngine`（只有一份未入库的草稿，
+不在这个仓库里，今天过不了 `npm run check`）。
 
 **没写入方的**：`memory/index.yaml`。它的文件头写着「由 `server/memory/` 在写入时维护」，
 而 `INDEX_NAME` 只在 `paths.py` 里定义了路径，没有任何地方写它。那句话是假的。

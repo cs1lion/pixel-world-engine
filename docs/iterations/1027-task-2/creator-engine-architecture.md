@@ -233,12 +233,17 @@ function broadcastVitalsSnapshot(vitals: WorldVitalsSnapshot) {
 | 逆向审校合成器 | `test/creator-synthesizer.test.ts` | 14 |
 | 造物指令 schema | `test/creator-schema.test.ts` | 21 |
 
-**`CreatorEngine`（本文第一节那个入口）还没有落地。** 它的草稿在
-`world-client/src/world/creator/engine.ts`，今天过不了 `npm run check`（8 处语义错：
+**`CreatorEngine`（本文第一节那个入口）还没有落地。** 它**不在这个仓库里**——只有一份
+未入库的草稿，停在某个开发者的工作区。那份草稿今天过不了 `npm run check`（8 处语义错：
 `MemoryConfig` / `computeMemoryConfig` / `DirectorEngine` / `RawSettingPack` 四个名字
-没导入），对应的 `test/creator-engine.test.ts` 另有 40 处。它还有两处越界：
+没导入），它对应的测试文件另有 40 处。它还有两处越界：
 `creator-boundary.test.ts` 拦的是它 `import` 了 `memory/types.ts`，
 `purity.test.ts` 拦的是它从 `world/` 往上层 `settings/` 里 import。
+
+（这里原来写的是「它的草稿在 `<那个路径>`」——路径写成反引号里的仓内形状，于是
+`audit-citations.ts` 会去磁盘上找它。磁盘上确实有一份，**而 git 里没有**：闸门按磁盘
+解析，CI 按 clone 解析，两边对同一句话给出相反的答案。这个仓库的引用审计只保证
+「文件在」，不保证「你 clone 下来能拿到」——所以这种引用不该被写成路径。）
 
 所以上面那张表里**没有它**——把一份编译不过的草稿列成「新增」，就是本文档最该
 避免的那种假话。第一节的组件图是**目标形态**，不是今天的形态：Fuse、Director、
