@@ -249,7 +249,7 @@ test('真仓库现在是干净的：0 处存疑', () => {
   // 这一条是那道真正的闸门。它不换 root，审的就是这个 checkout——
   // 谁改代码挪走了函数，这里当场红，而不是等某个后人在文档里照着错的行号改错地方。
   const { checked, findings } = auditReferences();
-  assert.ok(checked > 50, `该查到几十处引用，只查到 ${checked}——扫描范围是不是缩了`);
+  assert.ok(checked > 100, `该查到几百处引用，只查到 ${checked}——扫描范围是不是缩了`);
   assert.deepEqual(
     findings.map((f) => `${f.where}  ${f.ref} —— ${f.why}`),
     [],

@@ -65,8 +65,8 @@ function trace(id: string, layerType: TraceLayer, day: number): Trace {
 
 test('日终会风化：昨天的痕迹今天没那么清楚了', () => {
   const w = world();
-  w.addHolder({ holderId: 'foundry', type: 'place', at: { x: 0, y: 0 } });
-  w.addHolder({ holderId: 'a', type: 'character', at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'foundry', type: 'place', profile: {}, at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'a', type: 'character', profile: {}, at: { x: 0, y: 0 } });
   accident(w, 'ev_1', 0);
   const fresh = tracesOf(w)[0]!;
   assert.equal(fresh.visibility, 1, '刚落下的痕迹该是全可见的');
@@ -81,8 +81,8 @@ test('日终会风化：昨天的痕迹今天没那么清楚了', () => {
 
 test('当天落的痕迹不风化——中午炸的炉子，第二天早上还是完整的焦痕', () => {
   const w = world();
-  w.addHolder({ holderId: 'foundry', type: 'place', at: { x: 0, y: 0 } });
-  w.addHolder({ holderId: 'a', type: 'character', at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'foundry', type: 'place', profile: {}, at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'a', type: 'character', profile: {}, at: { x: 0, y: 0 } });
   accident(w, 'ev_1', 0);
 
   w.dayClosed(0, DAY_MS);
@@ -91,8 +91,8 @@ test('当天落的痕迹不风化——中午炸的炉子，第二天早上还�
 
 test('风化只降可见度，不删记录：归零之后 eventRef 还在', () => {
   const w = world();
-  w.addHolder({ holderId: 'foundry', type: 'place', at: { x: 0, y: 0 } });
-  w.addHolder({ holderId: 'a', type: 'character', at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'foundry', type: 'place', profile: {}, at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'a', type: 'character', profile: {}, at: { x: 0, y: 0 } });
   // 庆典留花环，0.30/天——四天就见底了。
   w.ingest({
     eventId: 'ev_fete',
@@ -127,8 +127,8 @@ test('风化完的痕迹不再被暴露，但没风化的照旧', () => {
 
 test('不同层风化速度不同：碑文比花环活得久', () => {
   const w = world();
-  w.addHolder({ holderId: 'foundry', type: 'place', at: { x: 0, y: 0 } });
-  w.addHolder({ holderId: 'a', type: 'character', at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'foundry', type: 'place', profile: {}, at: { x: 0, y: 0 } });
+  w.addHolder({ holderId: 'a', type: 'character', profile: {}, at: { x: 0, y: 0 } });
   // 同一天：一场庆典（花环）+ 一块里程碑（碑文）。
   w.ingest({
     eventId: 'ev_fete',
@@ -189,8 +189,8 @@ test('已经看不见的痕迹不再往下减——别减成负数', () => {
 test('风化是确定的：同一个存档跑两遍，可见度一模一样', () => {
   const run = (): readonly number[] => {
     const w = world();
-    w.addHolder({ holderId: 'foundry', type: 'place', at: { x: 0, y: 0 } });
-    w.addHolder({ holderId: 'a', type: 'character', at: { x: 0, y: 0 } });
+    w.addHolder({ holderId: 'foundry', type: 'place', profile: {}, at: { x: 0, y: 0 } });
+    w.addHolder({ holderId: 'a', type: 'character', profile: {}, at: { x: 0, y: 0 } });
     accident(w, 'ev_1', 0);
     for (let day = 1; day <= 4; day += 1) w.dayClosed(day, (day + 1) * DAY_MS);
     return tracesOf(w).map((item) => item.visibility);

@@ -14,6 +14,10 @@
  *      超出的部分不补，世界走慢——**不拿一句「补齐了」骗人**。
  *   3. **帧预算**（调用方的 `maxSteps`）：一帧最多跑几步，免得卡死。
  *      它必须比上限松，否则「世界走慢」就变成帧预算说了算，上限成了装饰。
+ *
+ * 最后一条钉的是**这次搬动没有改行为**：把搬之前那条算式原样抄一份在下面，
+ * 逐输入对。抄一份不是重复——它是这次重构唯一的凭据。没有它，「搬出来了」
+ * 与「搬对了」是两件事，而后者只能靠这一条说。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -112,4 +116,48 @@ test('间隔回退不制造负的余量', () => {
   assert.equal(pace.leftover, 50, `余量该原样留着，实得 ${pace.leftover}`);
   const carried = paceFrame(-30, 100, STEP, MAX_STEPS);
   assert.equal(carried.leftover, 0, `负的 carried 按 0 算，实得 ${carried.leftover}`);
+});
+
+/**
+ * 搬之前那条算式，照 `47a0f62` 之前的 `SandboxScene.update()` 逐字抄下来。
+ *
+ * 它**不是**被测物，是这次重构的凭据：抽函数最容易悄悄改掉边界，
+ * 而边界改了在画面上要过很久才看得出来（世界走慢一格，没人会注意）。
+ * 所以把旧的留在旁边，逐输入对。
+ *
+ * 别把它「优化」成跟 `paceFrame` 一样——两条一模一样，这条就空转了。
+ */
+function paceFrameBefore(accumulator: number, elapsedMs: number, stepMs: number, maxSteps: number) {
+  let acc = accumulator + Math.min(elapsedMs, 250);
+  let steps = 0;
+  while (acc >= stepMs && steps < maxSteps) {
+    acc -= stepMs;
+    steps += 1;
+  }
+  return { steps, leftover: acc };
+}
+
+test('搬出来没有改行为：与搬之前那条算式逐输入相同', () => {
+  // 扫一遍真实域：carried 0..400（池子最多到 349，取到 400 有余）、
+  // elapsed 0..60000（一秒到一分钟，覆盖 1fps 到 60fps 与深睡初醒）。
+  // 离线扫过 2400 万组全同；这里取其中 24 万组，够快也够密。
+  let checked = 0;
+  for (let carried = 0; carried <= 400; carried += 1) {
+    for (let elapsed = 0; elapsed <= 60000; elapsed += 1) {
+      const before = paceFrameBefore(carried, elapsed, STEP, MAX_STEPS);
+      const after = paceFrame(carried, elapsed, STEP, MAX_STEPS);
+      checked += 1;
+      assert.equal(
+        after.steps,
+        before.steps,
+        `carried=${carried} elapsed=${elapsed}：步数从 ${before.steps} 变成了 ${after.steps}`,
+      );
+      assert.equal(
+        after.leftover,
+        before.leftover,
+        `carried=${carried} elapsed=${elapsed}：残余从 ${before.leftover} 变成了 ${after.leftover}`,
+      );
+    }
+  }
+  assert.equal(checked, 401 * 60001, '扫描范围变了，这条就不再是同一件事');
 });
