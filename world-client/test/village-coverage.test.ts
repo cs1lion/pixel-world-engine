@@ -1,73 +1,68 @@
 /**
- * 村里几个人——以及 §3.2 B 的 `coverage_curve` 在这个规模下取不取得到。
+ * 村里几个人——以及 §3.2 B 的 `coverage_curve` 在今天连**分母都没有定**。
  *
  * ## 为什么要有这个文件
  *
  * §3.2 B 的五条评测指标里，`coverage_curve` 是**唯一一条全仓没有任何测量的**：
  * 它只作为一句话出现在 `src/world/memory/world.ts:516`（「同一件事在村里有两个
- * 版本同时流传，正是协议想避免的那种重复」）与 `propagate.ts:450` 的注释里，
- * 两个地方都是拿它当论据，不是拿它当指标。没有测试、没有探针、没有 eval。
+ * 版本同时流传，正是协议想避免的那种重复」）与 `src/world/memory/propagate.ts:450`
+ * 的注释里，两个地方都是拿它当论据，不是拿它当指标。没有测试、没有探针、没有 eval。
  *
- * 而它要的三个数是这样的（`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md:150`）：
+ * 它要的三个数是这样的（`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md:150`）：
  *
  * | 时点 | 目标 |
  * | --- | --- |
  * | 第 1 天末 | 知晓比例 `≤ 35%`，严禁 100% 全知 |
  * | 第 3 天末 | 达到稳态 `60% ~ 80%` |
  *
+ * ## 这个文件第一版写错了一件事，更正记在这儿
+ *
+ * 第一版（`635a169`）的结论是「村里只有两个人，所以 `60% ~ 80%` 一个值都取不到」。
+ * **那句是拿一个没定下来的分母当既成事实。** 「村落中的知晓比例」的分母可以指
+ * **村民**，也可以指**全部 holder**——而楼是 holder，楼也真的会持有信念
+ * （本条第二个测试量这件事）。两种分母在同一次运行上给出**相反的判定**：
+ *
+ * | 时点 | 只算村民（分母 2） | 算全部 holder（分母 8） | 目标 | 谁达标 |
+ * | --- | --- | --- | --- | --- |
+ * | 第 1 天末 | **100%** | **25%** | ≤ 35% | 只有全部-holder 达标 |
+ * | 第 3 天末 | 100% | 50% | 60% ~ 80% | 两个都不达标（一个超高、一个偏低） |
+ * | 第 6 天末 | 100% | 63% | — | 全部-holder 落进区间里了 |
+ *
+ * 所以真正的缺陷不是「指标达不到」，而是**分母没有定义，而两种定义让同一次运行
+ * 一个通过一个不通过**。在这个定下来之前，`coverage_curve` 既不能算达标，
+ * 也不能算不达标——它量的还不是一个数。
+ *
  * ## 今天量出来（2026-10-28）
  *
- * 跑真实 `MemoryRuntime`、两个村民、喂一条 `importanceHint = 0.95` 的重大事件、
- * 两人开局就站在 `talkDistance = 2` 之内：
+ * 出货的村子：**两个居民 + 六栋楼 = 八个 holder**。
  *
- * | 时点 | 实测 | 目标 | |
- * | --- | --- | --- | --- |
- * | 第 1 天末 | **50%** | ≤ 35% | 超了 |
- * | 第 2 天末 | 100% | — | |
- * | 第 3 天末 | **100%** | 60% ~ 80% | 超了 |
+ * - 居民两个：`src/world/simulation.ts:658` 的兜底是
+ *   `[deps.villagerName, DEFAULT_ASSISTANT_NAME]`；灯潮界设定集
+ *   （`src/settings/dengchao/pack.ts:135`）是迷路人与汐，两条。两条路都是 2。
+ * - 楼六栋：`pack.ts:103` 的 `placements` 六条。默认世界那边是十一栋
+ *   （`src/main.ts:44` 走 `buildLargeWorld`，`test/large-world.test.ts:142` 钉住 11）。
  *
- * 但**别把这个 50% / 100% 当成Bug**——它是村里只有两个人的算术后果，不是传播写错了：
- *
- * ```
- * 知晓比例的分母是村民数，而村民数是 2
- * 所以比例只能取 0% / 50% / 100%
- * ```
- *
- * `60% ~ 80%` 这个区间，**两个村民时一个值都取不到**——不是「差一点」，是集合里
- * 没有。`≤ 35%` 也好不了多少：它塌缩成「一个都不能知道」。
- *
- * ## 村民为什么是 2，这个数有谁盯着
- *
- * 两条产出路径都恰好给 2 个：
- *
- * - 默认世界：`src/world/simulation.ts:658` 的兜底是
- *   `[deps.villagerName, DEFAULT_ASSISTANT_NAME]`，两个名字。
- * - 灯潮界设定集：`src/settings/dengchao/pack.ts:135` 的 `villagers` 数组，
- *   迷路人与汐，两条。
- *
- * **没有任何东西钉住这个 2。** 谁往设定集里加第三个居民，`coverage_curve` 的
- * 分母就变了，而三条指标一条都不会响——它们本来就没有闸。这个文件就是那道闸：
- * 它钉住「今天村里几个人」，以及几个人之下 `coverage_curve` 取不取得到。
+ * **没有任何东西钉住「几个居民、几栋楼」这组数**，而 `coverage_curve` 的分母、
+ * `legendHolders` 的门槛、`maxFanout` 的天花板全是它的函数。这个文件就是那道闸。
  *
  * ## 这一条**不**查什么
  *
- * - **不裁该往哪边走。** 往设定集加人、回去改 §3.2 B 的三个数、或者承认
- *   `coverage_curve` 是要靠 eval 而不是单测——三种都是设计决定。这个文件只保证
- *   「现状是多少」有人盯着：加了第三个居民它会红，改了声誉门槛它会红，
- *   而红了之后要重算的是上面那张表。
+ * - **不裁分母该选哪个。** 选村民、选全部 holder、或者给楼单开一个不进分母的
+ *   口径——三种都是设计决定，而这个决定该由定 §3.2 B 的人做。这个文件只保证
+ *   「两种口径各是多少」有人盯着，并且让「没人定过分母」这件事有红可红。
  * - **不测传播本身快不快、准不准。** 那是 `memory-spread` / `memory-reach-ceiling`
- *   那一批的事。这里只数「第 N 天末有几个人知道」。
- * - **不测 `latency_ratio`。** 那条指标（公告 ≤ 0.5 天 vs 传言 1.5–2.5 天）
- *   的量是「触达半数人口的时延」，而半数人口在两人村里是 1 个人——同一个病，
- *   另一条命。它今天也没有数字测量，本条不替它主张。
+ *   那一批的事。这里只数「第 N 天末有几个 holder 知道」。
+ * - **不测 `latency_ratio`。** 那条指标（公告 ≤ 0.5 天 vs 传言 1.5–2.5 天）的量是
+ *   「触达半数人口的时延」，同样没有分母定义，也同样没有数字测量。本条不替它主张。
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
+import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
-import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 
 /** §3.2 B 的 `coverage_curve` 目标，三个数都从定稿表来。 */
 const DAY1_CEILING = 35;
@@ -77,8 +72,13 @@ const DAY3_HIGH = 80;
 const DAY_MS = DEFAULT_MEMORY_CONFIG.dayMs;
 const TALK_DISTANCE = DEFAULT_MEMORY_CONFIG.talkDistance;
 
-/** 灯潮界的两位居民。名字从设定集读，不在这儿重抄——抄了就成了会漂的第二份。 */
-const VILLAGERS: readonly string[] = DENGCHAO_RAW.villagers.map((villager) => villager.name);
+/** 出货的那份设定集，和它落成的世界。都是真的，不是替身。 */
+const PACK = loadSettingPack(DENGCHAO_RAW);
+const WORLD = buildSettingWorld(PACK);
+
+const VILLAGERS: readonly string[] = PACK.villagers.map((villager) => villager.name);
+const BUILDING_IDS: readonly string[] = WORLD.buildings.map((building) => building.instanceId);
+const ALL_HOLDERS: readonly string[] = [...VILLAGERS, ...BUILDING_IDS];
 
 /**
  * 默认世界（不走设定集）会有几个村民。
@@ -95,36 +95,52 @@ function defaultWorldVillagerCount(): number {
   return 2;
 }
 
-/** 两个村民时，「知晓比例」这个量能取到的全部值。 */
+/** 分母为 `population` 时，「知晓比例」这个量能取到的全部值（百分数）。 */
 function reachablePercents(population: number): readonly number[] {
   const out: number[] = [];
-  for (let know = 0; know <= population; know += 1) out.push(Math.round((know / population) * 100));
+  for (let know = 0; know <= population; know += 1) out.push(Math.round((know / population) * 1000) / 10);
   return out;
 }
 
+interface Awareness {
+  /** 只算村民。 */
+  readonly villagers: number;
+  /** 算全部 holder（村民 + 楼）。 */
+  readonly all: number;
+  /** 知道这事的楼有几栋。 */
+  readonly knowingBuildings: number;
+}
+
 /**
- * 第 `dayCount` 天末，一条重大事件被几个村民知道。
+ * 第 `days` 天末，一条重大事件被多少 holder 知道。
  *
- * 两人开局就放在 `talkDistance` 之内——这不是偏袒传播，是把「最有利的情形」
- * 固定住：位置是这条要控制的变量之一，换成真实作息的话，量到的就不再是
- * `coverage_curve` 的上界，而是某一套作息的巧合。
+ * 全部 holder 一字排开、间距 `talkDistance`——这不是偏袒传播，是把「最有利的
+ * 摆法」固定住：位置是这条要控制的变量之一，换成真实作息的话，量到的就不再是
+ * `coverage_curve` 的量，而是某一套作息的巧合。
  */
-function awarenessPercentAtDayEnd(dayCount: number): number {
+function awarenessAtDayEnd(days: number): Awareness {
   const rt = new MemoryRuntime({ worldId: 'coverage', occlusion: { isWalkable: () => true } });
-  rt.syncHolders(
-    VILLAGERS.map((holderId, index) => ({
+  rt.syncHolders([
+    ...VILLAGERS.map((holderId, index) => ({
       holderId,
       type: 'character' as const,
       at: { x: index * TALK_DISTANCE, y: 0 },
       profile: {},
     })),
-  );
+    ...BUILDING_IDS.map((holderId, index) => ({
+      holderId,
+      type: 'place' as const,
+      at: { x: (index + VILLAGERS.length) * TALK_DISTANCE, y: 0 },
+      profile: {},
+    })),
+  ]);
   rt.observe(
     {
       eventId: 'ev_major',
-      kind: 'workshop_accident',
-      placeId: 'p',
+      kind: 'celebration',
+      placeId: BUILDING_IDS[0],
       at: { x: 0, y: 0 },
+      // 一个目击者：事件的出生状态取最小，传播要负责把剩下的人送到。
       actors: [VILLAGERS[0]],
       outcome: {},
       importanceHint: 0.95,
@@ -132,38 +148,68 @@ function awarenessPercentAtDayEnd(dayCount: number): number {
     undefined,
     1000,
   );
-  for (let day = 1; day <= dayCount; day += 1) rt.tick(day * DAY_MS);
+  for (let day = 1; day <= days; day += 1) rt.tick(day * DAY_MS);
 
-  let know = 0;
-  for (const holderId of VILLAGERS) {
+  const knows = (holderId: string): boolean => {
     const view = rt.viewOf(holderId);
-    if (view === null) continue;
-    if (view.beliefs.some((belief) => belief.eventRefs.includes('ev_major'))) know += 1;
-  }
-  return Math.round((know / VILLAGERS.length) * 100);
+    return view !== null && view.beliefs.some((belief) => belief.eventRefs.includes('ev_major'));
+  };
+  const percent = (ids: readonly string[]): number =>
+    Math.round((ids.filter(knows).length / ids.length) * 1000) / 10;
+  return {
+    villagers: percent(VILLAGERS),
+    all: percent(ALL_HOLDERS),
+    knowingBuildings: BUILDING_IDS.filter(knows).length,
+  };
 }
 
-test('出货的村子今天两个人：设定集与默认世界两条路都是', () => {
+test('出货的村子今天八个人：两个居民 + 六栋楼', () => {
   assert.equal(VILLAGERS.length, 2, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
+  assert.equal(BUILDING_IDS.length, 6, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:103 的 placements 是六条）`);
   assert.equal(defaultWorldVillagerCount(), 2, '默认世界的村民兜底不再是两个');
+  // 两组数合起来才是分母：设定集 8。
+  assert.equal(ALL_HOLDERS.length, 8, '设定集的 holder 总数不再是八个');
+  // 默认世界那边不在这一条里重建——它走 `buildLargeWorld`，十一个楼，
+  // 已经由 `test/large-world.test.ts:142` 钉住。这里只把「那条钉的是同一个量」
+  // 说清：它钉的是楼数，而楼数正是 coverage_curve 分母的另一半。
 });
 
-test('两个人之下，coverage_curve 的 60%~80% 一个值都取不到', () => {
-  const reachable = reachablePercents(VILLAGERS.length);
-  assert.deepEqual([...reachable], [0, 50, 100], '两人村的知晓比例集合');
-  const inBand = reachable.filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
-  assert.deepEqual(inBand, [], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在两人村里取不到——这条红说明村里加了人，那时这个区间可能第一次真的可达，回来把文件头那张表改对`);
-  // 「第 1 天末 ≤ 35%」在两人村塌缩成「谁都不能知道」。
-  const underCeiling = reachable.filter((pct) => pct <= DAY1_CEILING);
-  assert.deepEqual(underCeiling, [0], `第 1 天末的 ${DAY1_CEILING}% 上限在两人村里只剩 0% 一个解`);
+test('楼会持有信念：所以「全部 holder」不是硬凑出来的分母', () => {
+  // 这一条是整个更正的支点。第一版默认了「知道某事的只有人」，而楼也在
+  // spreadCandidates 的候选人里（world.ts:1651 按 holderIds() 全量枚举，
+  // 不过 holder 类型），judge 也不按类型拒。量出来：六栋楼全都在说话距离内
+  // 时，全都学到了一条第 0 跳的断言。
+  const { knowingBuildings } = awarenessAtDayEnd(6);
+  assert.ok(knowingBuildings > 0, `六栋楼里一栋都没学到——传播的听众选择变了，回来重新定 coverage_curve 的分母（它可能又变回「只有人」）`);
 });
 
-test('实测：第 1 天末 50%（超 35% 上限），第 3 天末 100%（超 80% 上限）', () => {
-  // 这两个数是「最有利位置下」的量，不是Bug报告——文件头解释了为什么。
-  // 它们存在的意义是让「传播变慢/变快」这件事有红可红：
+test('同一次运行，两种分母给出相反的判定', () => {
+  // 第 1 天末：只算村民 100%（超过 35% 上限，不达标），算全部 holder 25%（达标）。
+  const day1 = awarenessAtDayEnd(1);
+  assert.equal(day1.villagers, 100, '第 1 天末、只算村民');
+  assert.equal(day1.all, 25, '第 1 天末、算全部 holder');
+  assert.ok(day1.villagers > DAY1_CEILING, `村民口径 ${day1.villagers}% 超过第 1 天末的 ${DAY1_CEILING}% 上限`);
+  assert.ok(day1.all <= DAY1_CEILING, `全部-holder 口径 ${day1.all}% 却落在 ${DAY1_CEILING}% 上限之内——两条断言同时成立，正是「分母没定」的样子`);
+});
+
+test('比例能取到的值：村民口径三个，全部-holder 口径九个', () => {
+  assert.deepEqual([...reachablePercents(VILLAGERS.length)], [0, 50, 100], '两个村民时，村民口径的知晓比例集合');
+  assert.deepEqual([...reachablePercents(ALL_HOLDERS.length)], [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100], '八个 holder 时，全部-holder 口径的知晓比例集合');
+  // 60%~80% 在村民口径里一个都没有，在全部-holder 口径里有两个。
+  const inBandVillagers = reachablePercents(VILLAGERS.length).filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
+  const inBandAll = reachablePercents(ALL_HOLDERS.length).filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
+  assert.deepEqual(inBandVillagers, [], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在村民口径里取不到`);
+  assert.deepEqual(inBandAll, [62.5, 75], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在全部-holder 口径里取得到——这条红说明 holder 总数变了，回来重算`);
+});
+
+test('实测曲线：第 1 天末 25%，第 3 天末 50%，第 6 天末 63%（全部-holder 口径）', () => {
+  // 三个数都是从真实设定集的世界跑出来的，不是推演。它们盯的是传播的快慢：
   // 谁改了 talkDistance、pairCooldown、chatCooldown 或扇出，这里会动。
-  assert.equal(awarenessPercentAtDayEnd(1), 50, '第 1 天末的知晓比例');
-  assert.equal(awarenessPercentAtDayEnd(3), 100, '第 3 天末的知晓比例');
-  // 满员不是第 3 天才到的——第 2 天就全知道了。这正说明 100% 不是巧合。
-  assert.equal(awarenessPercentAtDayEnd(2), 100, '第 2 天末就已经满员');
+  assert.equal(awarenessAtDayEnd(1).all, 25, '第 1 天末');
+  assert.equal(awarenessAtDayEnd(3).all, 50, '第 3 天末');
+  assert.equal(awarenessAtDayEnd(6).all, 62.5, '第 6 天末');
+  // 第 3 天末的 50% 低于 60% 的下限，而第 6 天末的 62.5% 落进区间里——
+  // 所以「第 3 天末达到稳态」这句话今天在全部-holder 口径下是偏快的。
+  const day3 = awarenessAtDayEnd(3).all;
+  assert.ok(day3 < DAY3_LOW, `第 3 天末 ${day3}% 还没到 ${DAY3_LOW}% 的下限`);
 });
