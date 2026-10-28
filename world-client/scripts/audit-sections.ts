@@ -212,6 +212,13 @@ function sectionsOf(root: string, rel: string): Set<string> {
  */
 export function scanFiles(root: string): string[] {
   const out: string[] = [];
+  // 扫描后缀与 `SCAN_ROOTS` 里的根必须对得上：`server` 是个根，而它底下一份
+  // `.ts|.mjs|.md` 都没有（39 个 `.py`、1 个 `toml`、1 个 `txt`）。只认前三个
+  // 后缀时这个根**一个文件都扫不到**，`server/` 里那五处 `§N` 一处都没查过——
+  // 而 `audit-references.ts` 与 `audit-citations.ts` 早就把 `.py` 算在内
+  // （`TEXT_EXT` / `KNOWN_EXT`），三个闸门对同一棵树的口径不该差这一格。
+  // 2026-10-28：`audit-sections.test.ts` 的「每个根都扫到了东西」就是红在这儿。
+  const SCAN_EXT = /\.(ts|mjs|md|py)$/;
   const walk = (dir: string): void => {
     let entries: string[];
     try {
@@ -232,7 +239,7 @@ export function scanFiles(root: string): string[] {
         continue;
       }
       if (isDir) walk(p);
-      else if (/\.(ts|mjs|md)$/.test(e)) out.push(p);
+      else if (SCAN_EXT.test(e)) out.push(p);
     }
   };
   for (const r of SCAN_ROOTS) {
@@ -244,7 +251,7 @@ export function scanFiles(root: string): string[] {
       continue;
     }
     if (isFile) {
-      if (/\.(ts|mjs|md)$/.test(path.basename(p))) out.push(p);
+      if (SCAN_EXT.test(path.basename(p))) out.push(p);
       continue;
     }
     walk(p);
