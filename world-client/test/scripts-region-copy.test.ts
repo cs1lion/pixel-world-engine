@@ -37,6 +37,10 @@
  * 都不在这一条的判据里：
  *
  * - `audit-palette.mjs` 那一份 24 色——它**就是**审色板的工具，那是它的输入。
+ *   （2026-10-28 补记：这句原来读起来像「所以它不用被守」。**那一份是承重的**：
+ *   `outOfBudget()` 拿它筛色，筛出来多少就是 `--strict` 的退出码。已由
+ *   `palette-budget.test.ts` 末尾两条补上——它那份多一个 `WORLD` 里没有的色值，
+ *   代码里正在用的色就被它当成预算内，而那一版全套绿。别再把这两句读成赦免。）
  * - `palette-capture.mjs` / `palette-serve.mjs` 里的单个色值——同上，取色工具。
  * - `accept-live.mjs` / `smoke.mjs` / `smoke-ego.mjs` / `check-creation.mjs` /
  *   `capture-palette.mjs` 里的预制体 id（`workshop_plot` / `waiting_shelter`）——

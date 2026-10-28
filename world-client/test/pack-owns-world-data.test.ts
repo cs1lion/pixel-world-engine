@@ -56,6 +56,9 @@ import { sourceFiles } from './source-scan.ts';
  *   里 9 个有命中，共 78 处；包里的词今天 15 个，其中 1 个是单字名）。
  *   `scripts/`
  *   是工具，其中 `audit-palette.mjs` 那一份 24 色正是它自己要审的东西。
+ *   （2026-10-28 补记：「是它自己要审的东西」不等于「不用被守」——那一份是
+ *   `--strict` 的判据本身，已由 `palette-budget.test.ts` 末尾两条对着 `WORLD`
+ *   与 `index.html` 钉住。扫不进本文件的理由不变：本文件扫的是 `src/`。）
  *   但 `scripts/check-dengchao.mjs` 手抄了五个区域名，而它只查「这五个都在」——
  *   包里多一道区域它不红，会静默少查一项。所以那一处由最后一条测试单独钉着，
  *   不并进扫描范围。
