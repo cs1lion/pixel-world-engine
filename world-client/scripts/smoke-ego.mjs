@@ -1,5 +1,11 @@
 #!/usr/bin/env node
-/* task-33：用 ego-browser 复跑 `scripts/smoke.mjs` 的 114 条 check（等价映射，不改写语义）。
+/* task-33：用 ego-browser 复跑 `scripts/smoke.mjs` 的 check（等价映射，不改写语义）。
+ *
+ * **标题里不写条数。** 这里原来写「114 条 check」——那个数在搬入那笔（`996cbd3`）
+ * 是对的，`smoke.mjs` 后来变了（复算：`grep -cE "^\s*check\(" scripts/smoke.mjs`，
+ * 今天与 114 已经不是一个数）。没有任何闸门审标题里的数，所以它不会红，只会安静
+ * 地假——与 `prose-numbers.ts` 管「注释里的实测数」是同一条道理，而它够不着这份
+ * 文件（`SRC`/`TEST` 只有 `src` 与 `test`，`scripts/` 整个不在扫描范围里）。
  *
  * 为什么需要这份脚本
  * ------------------
@@ -10,16 +16,53 @@
  *
  * 映射原则
  * --------
- * 1. **一一对应**：`scripts/smoke.mjs` 里每个 `check(...)` / `waitFor(...)` 在本文件里
- *    都恰好有一个同名断言（`CHECKS` 表里 `smoke` 字段的原文一字不改）。
+ * （2026-10-28：原来那三条**两条是假的，一条半对**，全部按实测改过。数字复算见
+ * 每条附的命令；都是那一刻的数，命令才是承重的。）
+ *
+ * 1. **对应关系靠标签正文，不靠 `S-L<n>`。** 那个数字原来是 `smoke.mjs` 的
+ *    **行号**，在 `996cbd3` 上有几处对得上（`S-L211` 当时正是
+ *    `check(opening.villagers.length === 2, '世界里有两个小人')`），而 `smoke.mjs`
+ *    一路长行，行号全漂了（与下面 `SandboxScene.ts` 那条 852/130 同一个病，只是
+ *    那处的提交说明**已经把它改成了引原句**——这一处的 109 个行号反倒没人管，
+ *    因为 `S-L<n>` 长得不像 `文件.ts:NNN`（本仓写例子的惯例，NNN 不是数字——
+ *    写成数字就会被自己的审计当成真指针，2026-10-28 踩过），`audit-references.ts`
+ *    的 `CALL_REF`
+ *    认不出这种形状）。所以 `S-L<n>` 是**历史编号**，不是活指针：别拿它去
+ *    `smoke.mjs` 定位，要定位就用标签正文。
+ *    **有多少条对得上，不写在注释里——由 `test/smoke-ego-labels.test.ts` 冻着。**
+ *    那是这一句唯一的理由：上一版这里写着「109 条里 95 条对得上」，而那种数
+ *    会被上游一次改名悄悄磨掉，红不了任何东西。现在上游改掉一个被引用的标签名，
+ *    那条测试就红，人来核。（变异实测过：把 `smoke.mjs` 里
+ *    「世界里有两个小人」改成「世界里有两个村民」，闸从 95 掉到 94，红。改回来了。）
+ *    对不上的那几条不是错误清单，是**历史**：有的来自上游改名/删检查
+ *    （如「离线模式在快照里标成离线 Mock」，今天的 `smoke.mjs` 只剩
+ *    「状态行标出上游离线、只剩本地活」），有的从来只是本文件的分组名或改写
+ *    （「失败现场」「世界里摆了三栋铺子」，`996cbd3` 上就没有同名 check）。
+ *    反向**本来就不对应**：`smoke.mjs` 里大量断言没有搬进本文件（见上面第 3 条），
+ *    所以这里只朝一个方向核——本文件引用的标签名，上游还在不在。
  * 2. **不改写语义**：断言条件、阈值、等待顺序都照抄；只是把 Playwright 调用换成
  *    ego-browser 的 Page API。
- * 3. **不合并、不删减**：`MANUAL` 表里列出本脚本无法自动化的条目及原因，
- *    而不是悄悄跳过或并到别的 check 里。
+ * 3. **跳过的条目记进运行时数组 `manual`**（小写，`const manual = []`，
+ *    汇总行以 `MAN` 前缀打印它的 `smoke` 字段）。原来这句写作「`CHECKS` 表」与
+ *    「`MANUAL` 表」——**两张表从来不存在**：改之前这两个词全文只出现在那一句
+ *    「记进某某表」里，此外哪张表都没建过。这里不报「出现几次」——写下这句复算
+ *    命令的当儿，命令本身就把计数加了 1（踩过，别再犯）；复算
+ *    `grep -nE '\bCHECKS\b|\bMANUAL\b' scripts/smoke-ego.mjs`，命中的只有本段这几行，
+ *    代码里没有一处用到它们。
+ *    与下面那条 `vite.harness.mjs` 同一形状：指着空气当退路。
+ *    另注意：没有一份**静态**的「无法自动化清单」——`manual` 只在视口等三类失败
+ *    发生时才有条目。没被搬过来的那些 check，没有任何地方记着。
  *
- * 跑法（Windows 无 heredoc，必须写文件再 import）
+ * 跑法（Windows 无 heredoc，必须写文件再 import；ego 只认绝对路径）
  * ------------------------------------------------
- *   ego-browser nodejs -e "await import('file:///D:/project/neurosama/tmp/wt-pixel-world/pixel-world/scripts/smoke-ego.mjs')"
+ *   ego-browser nodejs -e "await import('file:///D:/project/pixel-world-engine/world-client/scripts/smoke-ego.mjs')"
+ *   （2026-10-28：原来那行把绝对路径写死成
+ *   `D:/project/neurosama/tmp/wt-pixel-world` 那个搬入前的旧 worktree——
+ *   整个目录今天不存在
+ *   （复算：`ls -d /d/project/neurosama/tmp/wt-pixel-world` 报 No such file）。
+ *   照抄的人只会得到一句 import 失败，不会说「路径没了」。换成了本仓今天的绝对
+ *   路径——**它会随 checkout 搬家而漂**，跑之前先看一眼。`SHOT_DIR` 同理，见它在
+ *   下面的注释。）
  *
  * 前置条件：
  *   1. dev server 在 5188（`npm run dev`）。
@@ -30,16 +73,36 @@
  *      真碰上 EPERM，现在没有写下来的办法；要加，先把文件建出来。）
  *   2. ego lite 已安装且当前会话能连到 ego_cli bootstrap
  *
- * 产物：截图写 `eval/screens/smoke-ego-*.png`（gitignored）。
+ * 产物：截图写本仓 `eval/screens/smoke-ego-*.png`（2026-10-28 实测：**这 11 张
+ * 一张都不在库里**——`ls world-client/eval/screens | grep -c '^smoke-ego-'` 是 0。
+ * 原因在上面：`SHOT_DIR` 原先指向那个已删除的 worktree，跑一次就把证据写到别处
+ * 去了。库里那 23 张（`01-salute.png`、`phase-dawn.png`…）是别的脚本用**相对**路径
+ * `eval/screens` 写的。原来这句还写着「gitignored」——**正好相反**：`eval/screens`
+ * 是被跟踪的目录（`git ls-files eval/screens | wc -l` 是 23，`.gitignore` 里
+ * 一条 `screens`/`eval` 都没有）。不改成 ignore：那 23 张是要进 diff 的验收证据。
  */
+
+// 下面 SHOT_DIR 那两处（`resolve` 与 `mkdirSync`）的写法抄 `check-dengchao.mjs`。
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const URL_BASE = 'http://127.0.0.1:5188/';
 /** 实际打开的页面地址（沙盒模式固定 ?ledger=off）；reload 等价做法是重新 goto 同一地址。 */
 const PAGE_URL = `${URL_BASE}?ledger=off&debug=1`;
 /** CDP 清存储要用的 origin（不带路径与查询串）。 */
 const ORIGIN = 'http://127.0.0.1:5188';
-/** 截图必须用绝对路径（ego 拒绝相对路径）；落在 pixel-world/eval/screens/。 */
-const SHOT_DIR = 'D:/project/neurosama/tmp/wt-pixel-world/pixel-world/eval/screens';
+/**
+ * 截图必须用绝对路径（ego 拒绝相对路径）。**由本文件位置推出来**，不写死。
+ *
+ * 原来写死成 `D:/project/neurosama/tmp/wt-pixel-world/pixel-world/eval/screens`
+ * ——那是搬入前（`996cbd3` 之前）那个 worktree 的路径，今天整个不存在。后果不是
+ * 报错而是**证据失踪**：跑一次，11 张 `smoke-ego-*.png` 全写到别处（或写失败），
+ * 本仓 `eval/screens/` 里一张都没有。同一形状的另一处见上面「跑法」那条。
+ * `check-dengchao.mjs` 早就是这一句的写法（`resolve(import.meta.dirname, …)`），
+ * 抄它。
+ */
+const SHOT_DIR = resolve(import.meta.dirname, '..', 'eval', 'screens');
+mkdirSync(SHOT_DIR, { recursive: true });
 
 /**
  * rAF 替身：ego 后台窗口被 Chromium 节流 → 用 MessageChannel 门控到 60fps。
@@ -349,11 +412,19 @@ try {
    * （这两处原来写的是行号 852 与 130，`f87b74b` 引进的。文件往下长，两处都漂了：
    *  修之前那个提交（`5248611`）上，852 落在 `* 导播要看的地方。`——一行**注释**，
    *  130 落在 `private terrainLayer!: BakedLayer;`——另一段有代码的别行。
-   *  `audit-references.ts` 的 `hasCode()`（第 218 行）只问窗口里有没有字母或汉字、
-   *  是不是只剩括号；注释行有汉字，于是它和有代码的行过得一样顺。**两处漂移它
-   *  一次都没响过。**现在都改成引原句：引句不带 `:行号`，审计的尺子根本量不到它，
-   *  换来的只是人 `grep` 一句原文能找到——没有任何脚本盯着这两句引文，所以这比
-   *  真锁弱。弱多少记在这里，不记成「那才会响」。）
+   *  `audit-references.ts` 的 `hasCode()`（按这个名字 grep 得到）只问窗口里有没有
+   *  字母或汉字、是不是只剩括号；注释行有汉字，于是它和有代码的行过得一样顺。
+   *  **两处漂移它一次都没响过。**现在都改成引原句：引句不带 `:行号`，审计的尺子
+   *  根本量不到它，换来的只是人 `grep` 一句原文能找到——没有任何脚本盯着这两句
+   *  引文，所以这比真锁弱。弱多少记在这里，不记成「那才会响」。
+   *  （**2026-10-28 补记：这一条自己就是它要讲的那个病的样本。**它原来写
+   *  「`hasCode()`（第 218 行）」——218 在 `5248611` 上是对的（那一笔把 852/130
+   *  改成了引原句），而 `audit-references.ts` 后来长行，`hasCode()` 早已不在 218。
+   *  一句解释「行号会漂，所以别写行号」的注释，自己带着一个漂了的行号活了两年，
+   *  而且**没有任何闸门查得动它**：`第N行` 正是 `SKIP` 豁免的形状（见
+   *  `audit-references.ts` 里 SKIP 那段——它豁免的动机与这个漏洞是同一个）。
+   *  现在改成按名字找。教训不是「218 该换成今天那个数」——换成哪个数都会再漂——
+   *  是这条规矩要立刻用到自己身上，写进 diff 之前先审自己的 diff。）
    * 因此这里断的是「世界内容处于初始态」，存档槽只验「若存在则必须是初始档」。
    */
 
