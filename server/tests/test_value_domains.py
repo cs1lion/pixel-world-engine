@@ -33,6 +33,26 @@
 
 （潮位上限那个数单独算，两处。）
 
+（**2026-10-28 补记：上一版这张表自己就对不上，而要紧的不在数上。** 三行漏了
+提示词：`intent-prompt.ts` 里 `"weather":"clear"|"rain"|"storm"`、
+`"miracle":"light"|"tree"|"cat"` 各一份，`carries` 与 `remove` 那两行里
+`["lamp"|"shoes"]` 各一份——按表里的口径，「天气（意图侧）」该是 5（原来就写着 5，
+可格子里只列得出 4 个名字），「神迹（意图侧）」该是 7，「通行凭证」该是 4
+（原来写 2）。**同一张表两行口径不一致**，而真正的错是：提示词那份副本
+**一道闸都没有**——本文件原来读的八个前端文件里没有 `intent-prompt.ts`。
+提示词是模型唯一读到的东西；服务端加了第四档天气而它不跟着改，模型就只知道
+三档，而提示词自己教它「表里没有的现象往邻居身上靠」，于是新档被悄悄翻成旧档，
+用户以为他要的办成了。现已补上三行 `_GUARDED`，那四处副本归它们管。）
+
+（同一天补第二记：**「二十七处」这个总数从这张表里复现不出来**，别拿去引用。
+「活计」那行的「`ui/*` 与 `SandboxScene.ts` 五处」数的不是字面量副本——
+`'code'|'research'|'writing'|'quick'` 照字面抄出来的只有两处
+（`debug-panel.ts` 与 `oracle-panel.ts` 各一处），`SandboxScene.ts` 那处是
+**用**不是抄。其余 `TaskKind` 出现都是引用类型或 `Record<TaskKind, …>` 的键，
+由 TS 管。所以那 8 是怎么凑出来的，写表的人没留口径，今天谁也复现不了。
+承重的是下面 `_GUARDED` 与逐条判据——它们比对的是真读出来的集合，
+不是这张表里的数字。）
+
 这二十七处**今天全都一致**——所以本文件不是「抓到了一个漂移」，是「漂移从今天
 起会红」。写它的理由与 `test_prompt_whitelist_agreement.py` 同一条：约定写在注释里，
 而注释不会响。
@@ -59,6 +79,10 @@
 - **`MAX_BUILDINGS`** 同理，服务端独有。
 - **`change` 名字的白名单**已经被 `world-changes.test.ts` 从客户端那一侧守着，
   不重复守。
+- **`intent-prompt.ts` 里 `dispatch` 的 `"taskKind":"<类>"`** 不查——那是个
+  占位符，不是字面量清单；真正列给模型的活计名是 `TASK_HINTS` 的键，
+  而那个 `Record<TaskKind, …>` 由 TS 管，加一种活计不改它编译不过。
+  天气、神迹、通行凭证在提示词里是**照字面抄**的，那三样已由上面三行管着。
 
 ## 读法：抓不到就红，不跳过
 
@@ -115,6 +139,7 @@ _SIMULATION = CLIENT_SRC / "world" / "simulation.ts"
 _WORLD_CHANGES = CLIENT_SRC / "world" / "world-changes.ts"
 _GATE = CLIENT_SRC / "world" / "gate.ts"
 _TIDE = CLIENT_SRC / "world" / "tide.ts"
+_PROMPT = CLIENT_SRC / "world" / "intent-prompt.ts"
 
 
 def _read(path: Path) -> str:
@@ -180,6 +205,38 @@ def const_number(path: Path, name: str) -> int:
     return _arith(body.strip(), f"{path.name} 的 {name}")
 
 
+def prompt_field(field: str) -> set[str]:
+    """`intent-prompt.ts` 命令示例里某个字段的内联取值域（抄了几处都得一样）。
+
+    提示词是给模型看的纯字符串，**引用不了 TS 的联合类型**，只能把
+    `"clear"|"rain"|"storm"` 照字面写进去。于是同一套词在提示词里又有了副本，
+    而**模型读到的就是这一份**——`types.ts` 那边加了第四档天气而这份不跟着改，
+    模型就只知道三档。更坏的是提示词自己教它「表里没有的现象往邻居身上靠」，
+    于是新档被悄悄翻成旧档，用户以为他要的办成了。
+
+    所以这几处不是「顺手也看一眼」，是本文件最该守的地方之一。
+    抄几处必须全都一样：这里返回共同的那个集合，不一致就红——那说明
+    有人只改了一处，而模型在不同命令里会看到两套词。
+    """
+    source = _read(_PROMPT)
+    # 两种形状都收：`"weather":"clear"|"rain"` 与 `"carries":["lamp"|"shoes"]`。
+    # 词与词之间是 `"|"`——**引号竖线引号**，不是 `_quoted` 那种单引号。
+    pattern = rf'"{re.escape(field)}"\s*:\s*\[?"((?:[a-z]+"\|")*[a-z]+)"'
+    found = [set(m.group(1).split('"|"')) for m in re.finditer(pattern, source)]
+    assert found, (
+        f"提示词里找不到 \"{field}\" 的内联取值域（正则 {pattern!r}）。"
+        "要么它改成引用 TS 类型了（那这一条该删），要么它被删了——"
+        "删了就是模型再也看不到这套词，回来把这一条连同 _GUARDED 一起改对。"
+    )
+    first, *rest = found
+    for other in rest:
+        assert first == other, (
+            f"提示词里 \"{field}\" 抄了好几处却不一致：{sorted(first)} 对 {sorted(other)}。"
+            "模型在不同命令里会看到两套词，而它只会挑一套用。"
+        )
+    return first
+
+
 def _arith(text: str, what: str) -> int:
     """算一个 `2 * 60_000` 这样的常量表达式。
 
@@ -232,6 +289,10 @@ _GUARDED: dict[str, tuple[set[str], ...]] = {
     "活计（事件）": (set(EVENT_TASK_KINDS), type_union(_TYPES, "TaskKind")),
     "交付来源": (set(SOURCES), _quoted(field_type(_WORLD_CHANGES, "source"))),
     "通行凭证": (set(CARRY_ITEMS), const_list(_GATE, "CARRY_ITEMS")),
+    # 提示词里那几份：引用不了 TS 类型，只能照字面抄，而模型读的就是它。
+    "天气（提示词）": (set(INTENT_WEATHERS), prompt_field("weather")),
+    "神迹（提示词）": (set(INTENT_MIRACLES), prompt_field("miracle")),
+    "通行凭证（提示词）": (set(CARRY_ITEMS), prompt_field("carries"), prompt_field("remove")),
 }
 
 
@@ -266,7 +327,12 @@ def test_取值域一个都没刨空() -> None:
 # ------------------------------------------------------- 逐个域对
 
 def test_两边各写一遍的取值域必须相等() -> None:
-    """七个域，一处一处比。漂哪一处，红的信息里就点名哪一处。"""
+    """`_GUARDED` 里每一处，一处一处比。漂哪一处，红的信息里就点名哪一处。
+
+    （这里原来写「七个域」。`_GUARDED` 是按「哪几份声明要比」登记的，
+    不是按域——天气就分了意图 / 事件 / 存档 / 提示词四条。所以不写个数，
+    写个数那天它就开始漂。真想知道今天有几处，数 `_GUARDED` 去。）
+    """
     for label, sides in _GUARDED.items():
         first, *rest = sides
         for other in rest:
