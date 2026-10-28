@@ -428,14 +428,17 @@ test('盲区是数得出来的：CALL_REF 看不见的那批，今天冻在这�
   // 加冒号加行号」的形状，而这个守卫连自己的测试数据一起审——它会把那一处
   // 也当成一处引用去查，「真仓库 0 处存疑」那条的计数随之漂（实测漂了 5 处）。
   // 拆开写，源码里就没有那个形状。
+  //
+  // **2026-10-28：七处降到三处。** 降下来的四处全是我自己造出来的——我给
+  // `setup.ts` 补文档那一笔让全文每处 `setup.ts` 行号下移约 20 行，而这个文件
+  // 里的清单拿行号当地址，于是跟着一起烂。四处里有三处连坐标带名字一起没了
+  // （原文把 `setup.ts:296` 这类换成了能 grep 的记号，见
+  // `ADR_PACK_SKIPS_WORLD_BUDGET.md` 文末第二段补记），剩下 `placeFromPlan`
+  // 那处只是坐标被删掉。**剩的三处今天核过，附近都找得到那个名字。**
   const FROZEN: readonly (readonly [string, number, string])[] = [
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 14, 'validateCoverage'],
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 14, 'assertWorldInvariants'],
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 14, 'assertWorldInvariants'],
     ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 15, 'buildSettingWorld'],
     ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 27, 'WORKSHOP_TASKS'],
     ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 43, 'validateCoverage'],
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 47, 'placeFromPlan'],
   ];
   const seen = invisibleNameRefs().map((entry) => {
     const [file, line, ...rest] = entry.where.split(':');
