@@ -10,6 +10,7 @@ import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { LAMP_DRY } from '../src/world/lampoil.ts';
+import { syncCommand } from './feed-helpers.ts';
 import {
   ANIM_FPS,
   FRAME_MS,
@@ -236,7 +237,6 @@ test('动画采样不改变世界确定性回放（边跑边采样，结果与�
         return placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
       },
     });
-
   const sampled = makeSim();
   const plain = makeSim();
   for (let i = 0; i < 300; i += 1) {
@@ -265,4 +265,78 @@ test('灯油只改画面取样：油干时采样变慢，补回油后立刻恢�
   );
   // 补回油后不能再被慢速取样影响。
   assert.notEqual(lampAnimationTime(1, 1234), dry);
+});
+
+test('活体：举急件的那位放的是四帧，不是站着的那两帧', () => {
+  // 上面那条活体跑的是默认世界——**一个急件都没有**。举急件的那位
+  // （`bearingDecree`）从来没上过场，她那一档四帧全靠上面第 75 行那条纯函数
+  // 断言撑着。而那个 `true` 是测试自己传进去的，所以把快照的 `walking` 改回
+  // 按 mode 判时，第 75 行**照旧绿**：变异实测只红上面那条活体。
+  //
+  // 这条驱真的急件补上这个缺口。步长 100ms，与 `decree.test.ts`、
+  // `routine-going-label.test.ts` 一致——16ms 一拍拍 400 下不够她走到被派上。
+  const raw = JSON.parse(
+    readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
+  ) as Record<string, Record<string, unknown>>;
+  const blueprints = parseBlueprintTable(raw);
+  const world = buildWorld(blueprints);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: ALTAR,
+    villagerName: '莞尔',
+    spawnBuilding: (prefabId, instanceId) => {
+      const blueprint = blueprints.get(prefabId);
+      if (blueprint === undefined) return null;
+      return placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
+    },
+  });
+  // 一张带问题的活，才派得出急件。
+  sim.enqueue(
+    syncCommand({
+      tasks: [
+        { id: 'c_block', kind: 'code', title: '清理临时目录', question: '要删掉 ./temp_build 吗？' },
+      ],
+    }),
+  );
+
+  let bearingMoved = 0;
+  let bearingWalk = 0;
+  const wrong: string[] = [];
+  let before = new Map(
+    sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos }, walking: v.walking }]),
+  );
+  for (let t = 0; t < 400; t += 1) {
+    sim.update(100);
+    const snapshot = sim.snapshot();
+    for (const villager of snapshot.villagers) {
+      if (villager.mode !== 'bearingDecree') continue;
+      const was = before.get(villager.id)!;
+      const moved = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;
+      if (!moved) continue;
+      bearingMoved += 1;
+      // 同一条「整拍都在走」规则：`walk()` 在 `pos = next` 之后才 `path.shift()`，
+      // 所以最后一步走完的那一刻她动了而 `walking` 已经是假——那一帧她确实站在
+      // 落脚点上，两帧不算假。
+      if (!was.walking || !villager.walking) continue;
+      bearingWalk += 1;
+      const pose = villagerPose(villager.mode, villager.walking, snapshot.now);
+      if (pose.frameCount !== WALK_FRAMES) {
+        wrong.push(`t=${t} ${villager.name} 举着急件整拍都在走却放 ${pose.frameCount} 帧`);
+      }
+    }
+    before = new Map(
+      snapshot.villagers.map((v) => [v.id, { pos: { ...v.pos }, walking: v.walking }]),
+    );
+  }
+
+  assert.ok(bearingMoved > 0, '一趟急件都没派出来——这条什么都没验');
+  // 这句是这条的价值所在：把快照的 `walking` 改回按 mode 判，`bearingDecree`
+  // 不在那张表里，于是她一个整拍走路的样本都不剩，上面红的是这句而不是判据。
+  assert.ok(bearingWalk > 0, `只见到 ${bearingMoved} 拍在动，却没有一整拍在走的——她像是没拿到 walking`);
+  assert.deepEqual(
+    wrong.slice(0, 5),
+    [],
+    `举急件走着的那几拍放的不是四帧，共 ${wrong.length} 处：\n${wrong.slice(0, 5).join('\n')}`,
+  );
 });
