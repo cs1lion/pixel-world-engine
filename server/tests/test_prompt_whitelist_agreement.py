@@ -25,7 +25,10 @@
 - `test_提示词列出每一种世界能执行的命令`：`expressible = sorted(set(COMMAND_CHECKS)
   - {"npc.setSchedule"})`，逐条断言在提示词里。往 `COMMAND_CHECKS` 加一条
   `foo.bar`，它红，报的是 `AssertionError: 提示词没讲 foo.bar`
-  （`test_orchestrator.py:205` 的 `assert command in prompt, f"提示词没讲 {command}"`）。
+  （`test_orchestrator.py:224` 的 `assert command in prompt, f"提示词没讲 {command}"`；
+  第一版写 `:205`，那是 `test_提示词列出每一种模板` 里的
+  `prompt = build_system_prompt(TEMPLATES)`——行号错了，行为描述是对的。
+  同一节还在教人「连『隔几行』这种附带描述都会过期」，自己就有一个过期的）。
   第一版在这儿写「实测：`missing == ['foo.bar']`」——那个变量名和那个值是**我编的**，
   那个测试里没有叫 `missing` 的东西。红是真红，引号里那半句是假的。
 - `test_提示词不列世界办不到的命令`：断言 `npc.setSchedule` 不在提示词里。
@@ -157,6 +160,12 @@ def test_判据零_命令名正则吃得下提示词点名的每一条() -> None
     - 判据二 **红**，报「白名单里有这些命令，提示词没列：`['villager.carry']`」
     - 判据三 **红**，报「写着「六条」，而它实际点名 5 条」
 
+    **这个变异只换 `villager.carry` 两处中的一处时，结论会反过来**：三道判据
+    **全绿**，只有判据零红（2026-10-28 实测）。所以「盲区造成的不是静默的绿，
+    是红得指错了地方」这个一般性结论，在它字面描述的那个变异的一半解读下
+    恰好吃秤——那一半是静默的绿。结论（需要判据零）反而被加强，但证据撑不起
+    它写下的那句话，所以两种解读都记在这儿。
+
     所以盲区造成的**不是静默的绿，是红得指错了地方**：报出来的 `villager.carry`
     明明就在提示词里，下一个来修的人会去找一条不存在的缺失；或者更糟——照着
     提示往 `NOT_LISTED` 登记 `villager.carry`，而那条命令说出口说得好好的。
@@ -165,6 +174,20 @@ def test_判据零_命令名正则吃得下提示词点名的每一条() -> None
 
     这一条补上它俩缺的那半句：**直接点名是哪个名字吃不下**。
     正则本身也一并放宽了（见上面 `_COMMAND_IN_PROMPT` 的注释），今天一个都没多抓。
+
+    ## 键变形它治不了——所以下面还有半条
+
+    上面那两个正则都以 `"command"\s*:\s*"` 开头，所以**只要键改名，两个一起聋**。
+    2026-10-28 实测：把某一行的 `"command"` 改成 `"cmd"`（该行命令名在别处还出现），
+    **本文件七条测试全绿**——那一行整条从 `prompt_commands()` 里消失，没有任何机关响。
+    （第一版在这儿写「六条」，那是判据六补上之前的条数；数变了不是因为测试变松，
+    是因为多了一道。）
+    `assert any_names` 那道闸只在**所有**行同时变形时才响。
+
+    键变形比值变形常见得多（改个字段名是日常重构），所以下面补半条：
+    **`COMMAND_LINES` 里每一条命令形状的行，都必须带 `"command"` 键**。
+    判据不是「有多少个 `"command"`」，是「命令形状的行数与带键的行数相等」——
+    这样多一行、少一行、改一个键，三种漂都抓得到。
 
     ## 这一条**不**查什么
 
@@ -189,6 +212,24 @@ def test_判据零_命令名正则吃得下提示词点名的每一条() -> None
         "但红得指错了地方——判据二会报一条明明在提示词里的命令「没列」，"
         "判据三会报条数少了，而照着那个提示去修就会修错。"
         "改 `_COMMAND_IN_PROMPT` 让它吃下这个形状，别把这条删掉。"
+    )
+
+    # 键变形：上面两个正则都以 `"command"` 开头，所以键一改名两个一起聋。
+    # 实测（2026-10-28）把某一行的 `"command"` 改成 `"cmd"`，本文件七条全绿——
+    # 那一行整条消失，没有任何机关响。所以这儿按**行数**对，不按个数对：
+    # 命令形状的行数与带 `"command"` 键的行数必须相等。
+    command_lines = [
+        line
+        for line in COMMAND_LINES.split("\n")
+        if line.strip().startswith("- {")
+    ]
+    keyed = [line for line in command_lines if _COMMAND_NAME_ANY.search(line)]
+    assert len(command_lines) == len(keyed), (
+        f"`COMMAND_LINES` 里有 {len(command_lines)} 条命令形状的行"
+        f"（`- {{…}}` 开头），可只有 {len(keyed)} 条带着 `\"command\"` 键。"
+        "键一改名，`prompt_commands()` 就整条看不见那一行——上面所有判据的输入"
+        "都从它来，于是那条命令从此没有任何东西对过。"
+        "把键改回 `\"command\"`，别把这条删掉。"
     )
 
 
