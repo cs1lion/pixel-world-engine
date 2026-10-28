@@ -84,7 +84,7 @@ import { sourceFiles } from './source-scan.ts';
  * 复核能发现。第一轮改完我又新写了一处假的（`workshop_plot` 那条跟着上面三行写
  * 「同上」，而 `quick` 永远进不了补缺面板），第二轮才挑出来。所以加了一条
  * 「`why` 里反引号点名的符号得还在」，并在那条测试里写明它拦不住上面四处
- * （它们一个符号都没带），覆盖面是 19 行里的 4 行。别把那条读成全自动保障。
+ * （它们一个符号都没带），覆盖面是 19 行里的 5 行。别把那条读成全自动保障。
  *
  * ## 潮汐那条与 #13 的冲突（记账，不在本文件解决）
  *
@@ -300,16 +300,16 @@ test('除包数据那一份之外，不引用设定集的名字与说法', () =>
  * 但每一行都写出来——复制一句「同上」的清单，读的人不会真去核上面那句。
  */
 const KNOWN_STOPS: Readonly<Record<string, { readonly why: string }>> = {
-  'world/routines.ts:42': {
+  'world/routines.ts:43': {
     why: '莞尔镇没有配置包。这一拍是「在祭坛边坐着」，锚点就是祭坛本身，目标由参数传进来。',
   },
-  'world/routines.ts:45': {
+  'world/routines.ts:46': {
     why: '莞尔镇没有配置包。这一拍去农田边，落点是 `altar` 偏移 (-8,+4) 后找的最近可走格。',
   },
-  'world/routines.ts:52': {
+  'world/routines.ts:53': {
     why: '莞尔镇没有配置包。这一拍在街口站着，落点是 `altar` 偏移 (+8,-3) 后找的最近可走格。',
   },
-  'world/routines.ts:59': {
+  'world/routines.ts:60': {
     why: '莞尔镇没有配置包。这一拍回到祭坛等神谕，与第一拍同一个 target，一圈的收尾。',
   },
 };
@@ -322,11 +322,22 @@ const KNOWN_STOPS: Readonly<Record<string, { readonly why: string }>> = {
  * 一视同仁。两个条件都得要，**各自都承重**（变异实测过，不是推理）：
  *
  * 去掉「`label:` 的值得是字符串字面量」这一个条件，`world/routines.ts` 会多出
- * 四行——`:14` 是 `RoutineBeat` 的类型声明（`readonly label: string`），它在说
- * 「有一个 label 字段」，不是在说某一拍的词；`:84` 与 `:92` 是下雨 / 暴雨时
- * **换一句说法**（`label: 天气 === 'storm' ? '缩进屋檐下躲暴雨' : …`）；`:125`
- * 是 `fallbackTo` 把锚点的字段搬过来（`label: anchor.label`）。后三处是**行为**，
+ * 四行——`RoutineBeat` 的类型声明（`readonly label: string`），它在说
+ * 「有一个 label 字段」，不是在说某一拍的词；两处下雨 / 暴雨时
+ * **换一句说法**（`label: weather === 'storm' ? …`）；以及 `fallbackTo`
+ * 把锚点的字段搬过来（`label: anchor.label`）。后三处是**行为**，
  * 不是数据——世界在下雨时换个说法，不等于哪个世界的作息被焊死在这儿。
+ *
+ * **这一段原来写着 `:14` / `:84` / `:92` / `:125` 四个行号，全是过期的。**
+ * 2026-10-28 实测那四个坐标在 `routines.ts` 里已经漂到 14 / 110 / 119 / 162
+ * （`753227f` 那笔把 `codeKeepStrings` 从「删掉整行注释」改成「置空」，行号
+ * 整体下移，而同一笔只改了 `KNOWN_OTHER_LABELS` 的键，漏了描述同一件事的这段散文）。
+ * 所以这里从此**不留行号，只留能 grep 的记号**——要找就 grep
+ * `readonly label: string`（1 处）/ `label: weather === 'storm' ?`（**2 处**，
+ * 注意带上 `label:`：同一个条件在 `going:` 上还有第三处，那不是牌子）
+ * / `label: anchor.label`（1 处）。
+ * 这与 `docs/iterations/README.md` 立的规矩是同一条：行号会被任何一次编辑推翻，
+ * 而记号不会。
  *
  * 「`dwellMs:` 得在同一个字面量里」放掉的 8 行见 `KNOWN_OTHER_LABELS`：时辰名与
  * 活计名。它们也是写在代码里的世界数据，只是不属于 #13 点的那四样——所以单独
@@ -669,7 +680,7 @@ test('KNOWN_PREFABS 的 why 点名的符号都还在自己那个文件里', () =
       //   标注的那行做的事说反了。子 agent 挑出来的。）
       //
       // 顺带：反引号里装着路径（`setup.ts`）时，剥不掉点，正则不过，于是**静默
-      // 跳过**。上面文档里说了这是已知的覆盖面缺口（19 行只盖住 4 行）。
+      // 跳过**。上面文档里说了这是已知的覆盖面缺口（19 行只盖住 5 行）。
       const bare = symbol.replace(/^['"`]|['"`]$/g, '');
       if (!/^[A-Za-z_$][\w$]*$/.test(bare)) continue;
       if (!text!.includes(bare)) missing.push(`${key} 的 why 写了 \`${symbol}\`，可 ${file} 里没有它`);
