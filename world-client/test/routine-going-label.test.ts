@@ -1,12 +1,13 @@
 /**
  * 走着的时候，牌子不许说「到了之后」的那句话。
  *
- * 这一条守的不是边角。默认世界里跑起来，坐标在动的拍远多于站着带牌子的拍——
- * 下面 `moved > stillLabelled` 就把这件事钉住，所以「多数时刻她都在往某处走，
- * 而牌子说她已经站在那儿了」是这个世界的常态，不是偶发。
- * （早先这里写着「76.1%」「16248 拍」四个数，是一次性探针量出来的。探针删了
- *   之后四个数一个都复算不出来，而它们正是本条最容易被当成边角的原因——
- *   所以换成一条断言：要这个比例，跑一遍看两条计数就有了。）
+ * 这一条守的不是边角。默认世界里跑起来，坐标在动的拍**多于**站着带牌子的拍
+ * ——`moved > stillLabelled` 钉住的就是「多于」这一个字，不是「多多少」。
+ * 于是「她多数时候在往某处走，而牌子说她已经站在那儿了」是这个世界的常态，
+ * 不是偶发。（别在这一句里填比例：这个文件早先写着「76.1%」「16248 拍」四个
+ *   数，是一次性探针量出来的，探针删了之后一个都复算不出来。要那个比例，
+ *   跑一遍看 `moved` 与 `stillLabelled` 两条计数就有了——写进注释只会变成
+ *   下一颗没人能复核的数字。）
  *
  * 假的意思是**可复算的**：牌子说她站在某处，而她的坐标这一拍动了。所以判据
  * 不需要摸世界内部——拿相邻两拍的坐标比一下就知道。这也是本条不用 `path`
@@ -24,6 +25,7 @@ import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { routineBeats } from '../src/world/routines.ts';
+import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
@@ -47,13 +49,29 @@ function makeSim(): Simulation {
 }
 
 /**
- * 所有「到了之后」的说法。**独立枚举，不问被测代码要。**
+ * 所有「到了之后」的说法。**半独立**：节拍那半是读过来的数据，天气那半才是
+ * 照抄的字面量。
  *
- * 节拍表里那四句是数据，直接读；天气合成的四句在 `routineFor` 里是字面量，
- * 所以在这儿照抄——照抄正是为了让它成为一份独立的凭据：哪天有人在
- * `routineFor` 里添一句新的落脚说法而忘了配赶路的说法，这条会红，逼他回去
- * 把两只配齐。反过来问 `routineFor` 要这份集合，新句子会自动进集合，这条
- * 就再也红不了了。
+ * 节拍表那几句直接读 `routineBeats`——它们是数据不是逻辑，读过来不构成循环
+ * 论证。天气合成那四句在 `routineFor` 里是字面量，所以在这儿照抄。
+ *
+ * **别把这份集合当成一道「新落脚说法忘了配赶路那句」的闸。** 那种事编译器
+ * 早就拦了：`going` 是 `RoutineBeat` 的必填字段，少一个 `npm run check` 就红。
+ * 这份集合真正的用处是给下面两条断言一个判据——没有它，「走着的时候牌子说的
+ * 是落脚那句」没得可判。
+ *
+ * 天气那四条**默认世界里一次都跑不到**：`clearWeather()` 的 `remainingMs` 是
+ * null，`stepWeather` 看一眼就返回，晴永不下雨。所以第三条测试专门
+ * `setWeather` 把雨和暴雨各驱一遍——不然那四条只是死字面量，`routineFor` 的
+ * 雨天支路哪天改了也没人知道。
+ *
+ * **它只覆盖作息这一家，别读成「所有落脚说法」。** 给 `routineLabel` 写字的
+ * 另外两处都不在这集合里，也**不该**进来：`startInPlace` 写的是活计那句
+ * （`TASK_PROFILES[kind].label`，mode `working`、`path` 清空）——她站着把顺手
+ * 活办完，那句话是真的，只是不描述地方；`chaseVerification` 更特殊，它把同一
+ * 句同时写进两半（见 `GOING` 上头那段）。这两处由 `GOING` 那道判据兜着。
+ * 早先这里只有一句「独立枚举」，读的人会以为站着时牌子不在这个集合里就是错
+ * ——那会把一个正在干活的村民判成假话。
  */
 const ARRIVAL = new Set<string>([
   ...routineBeats(ALTAR, world.grid).map((beat) => beat.label),
@@ -63,7 +81,45 @@ const ARRIVAL = new Set<string>([
   '在祭坛边看雨',
 ]);
 
+/**
+ * 只属于赶路的说法。站着的时候冒出其中任何一句，就是「路走完了而牌子还挂在
+ * 半路上」——这次修掉的那个形状，留一道回归。
+ *
+ * `chaseVerification` 那句**故意不进来**：「心里存着疑，去现场看看」它同时
+ * 写进两半，因为走到之后照样成立——她人就在现场，疑也没消。那句既不是纯粹
+ * 的「到了之后」也不是纯粹的「赶路中说」，两个集合都容不下它，而它跟哪道
+ * 判据都不冲突。硬把它塞进任一个，只会让那道判据平白多响一次。
+ */
+const GOING = new Set<string>([
+  ...routineBeats(ALTAR, world.grid).map((beat) => beat.going),
+  '跑向屋檐下躲暴雨',
+  '跑向屋檐下躲雨',
+  '去祭坛边',
+]);
+
+/**
+ * 三世界分钟。够她把一圈作息（祭坛→农田→街口→祭坛，`DWELL_MS` 5200 起）
+ * 走完好几轮，也够天气合成那条支路轮到；再长只是让这条测试跑得更久，
+ * 不增加它验得到的东西。
+ */
 const TICKS = 60 * 180;
+
+/**
+ * 天气合成那七句（四条落脚 + 三条赶路）。**只为证明雨天那条支路真的跑到了。**
+ *
+ * 晴永不下雨，所以默认世界里这七句一句都不会出现；第三条测试专门去
+ * `setWeather` 把它们驱出来，再核这七句确实露过面。少了这个数，「跑了三分钟
+ * 没红」与「那条支路一次没执行」在报告里长得一模一样。
+ */
+const SHELTER_SAID = new Set<string>([
+  '缩进屋檐下躲暴雨',
+  '躲到屋檐下看雨',
+  '在祭坛边缩着等暴雨过去',
+  '在祭坛边看雨',
+  '跑向屋檐下躲暴雨',
+  '跑向屋檐下躲雨',
+  '去祭坛边',
+]);
 
 interface Survey {
   /** 坐标动了的拍数——她在赶路。 */
@@ -74,8 +130,10 @@ interface Survey {
   readonly walkingLies: readonly string[];
   /** 赶路时牌子整个是空的处数。把牌子收走也一样是假，这条也要为零。 */
   readonly walkingSilent: readonly string[];
-  /** 站着时牌子不说落脚那句的处数。 */
+  /** 站着时牌子还挂着赶路那句的处数——路走完了而说法没跟上。 */
   readonly standingWrong: readonly string[];
+  /** 牌子说到天气合成那七句的拍数。证明雨天支路跑到了，不是死字面量。 */
+  readonly sheltered: number;
 }
 
 /**
@@ -85,6 +143,13 @@ interface Survey {
  * 牌子在同一拍换成落脚那句）。事后取样的话，那一拍会同时「动了」又「说着
  * 落脚那句」——而那是真的到了，不是假。事前取样问的是「她动身时嘴上说的是
  * 什么」，那才是屏上演给她看的那句话。
+ *
+ * 但事前取样会冤枉一种拍：**牌子在这一拍里被改写的那些**。改写生效于
+ * `update` 之内，而它描述的是改写前那一帧——她那会儿确实站在那儿。典型的是
+ * `scatterToShelter`：一句「下雨吧」让它在同一拍里交出路线、写下「跑向屋檐下
+ * 躲雨」、并且迈出第一步。事前取样看到的是旧的那句，于是像说了假话。
+ * 所以判据收成一句：**牌子这一拍没变，而她的坐标动了**——那才叫牌子在描述
+ * 一个已经过去的位置。原来这一版把「动了」全算上，第一次跑雨天就红在这里。
  */
 function survey(sim: Simulation): Survey {
   const before = new Map(sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos }, routine: v.routine }]));
@@ -93,6 +158,7 @@ function survey(sim: Simulation): Survey {
   const standingWrong: string[] = [];
   let moved = 0;
   let stillLabelled = 0;
+  let sheltered = 0;
 
   for (let t = 0; t < TICKS; t += 1) {
     sim.update(16);
@@ -100,23 +166,39 @@ function survey(sim: Simulation): Survey {
       const was = before.get(villager.id)!;
       const isMoving = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;
       const label = was.routine;
+      if (label !== null && SHELTER_SAID.has(label)) sheltered += 1;
       before.set(villager.id, { pos: { ...villager.pos }, routine: villager.routine });
+      // 牌子这一拍没被改写，才轮得到它挨判。
+      const stale = label === villager.routine;
       if (isMoving) {
         moved += 1;
+        if (!stale) continue;
         if (label === null) walkingSilent.push(`t=${t} ${villager.name}`);
         else if (ARRIVAL.has(label)) walkingLies.push(`t=${t} ${villager.name}「${label}」`);
         continue;
       }
       if (label === null) continue;
       stillLabelled += 1;
-      if (!ARRIVAL.has(label)) standingWrong.push(`t=${t} ${villager.name}「${label}」`);
+      if (stale && GOING.has(label)) {
+        standingWrong.push(`t=${t} ${villager.name}「${label}」`);
+      }
     }
   }
-  return { moved, stillLabelled, walkingLies, walkingSilent, standingWrong };
+  return { moved, stillLabelled, walkingLies, walkingSilent, standingWrong, sheltered };
 }
 
+/**
+ * 两条断言看的是同一趟巡视，**所以只跑一次**。
+ *
+ * 这个文件原来两条 test 各调一遍 `survey(makeSim())`，同一批观察被完整重算了
+ * 一遍。观察是确定性的（同一份世界加同一串固定步长），重算只会得到同一组数，
+ * 第二遍不增加任何覆盖，只是把这条测试的耗时翻倍。提到模块级还顺带一件事：
+ * 用 `--test-name-pattern` 单跑其中一条时，另一条要用的数也已经在那儿了。
+ */
+const SEEN = survey(makeSim());
+
 test('坐标动了的那些拍，牌子不是一句「已经到了」', () => {
-  const seen = survey(makeSim());
+  const seen = SEEN;
 
   assert.ok(seen.moved > 1000, `只观察到 ${seen.moved} 拍在动，像是世界没跑起来`);
   assert.ok(
@@ -135,13 +217,92 @@ test('坐标动了的那些拍，牌子不是一句「已经到了」', () => {
   );
 });
 
-test('不动的拍才说「已经到了」，而且说得出是哪儿', () => {
-  const seen = survey(makeSim());
+test('不动的那些拍，牌子不还挂在半路上', () => {
+  const seen = SEEN;
 
   assert.ok(seen.stillLabelled > 1000, `只观察到 ${seen.stillLabelled} 拍站着带牌子，这条什么都没验`);
   assert.deepEqual(
     seen.standingWrong.slice(0, 5),
     [],
-    `站着却不说落脚的那句，共 ${seen.standingWrong.length} 处：\n${seen.standingWrong.slice(0, 5).join('\n')}`,
+    `站着却还挂着赶路那句，共 ${seen.standingWrong.length} 处：\n${seen.standingWrong.slice(0, 5).join('\n')}`,
+  );
+});
+
+/**
+ * 雨天与暴雨：屋檐那两句也得成对。
+ *
+ * 这条不是为了覆盖率好看。`routineFor` 的雨天支路是**手写的字面量**，不是数据
+ * ——节拍表少一个字段编译器会响，那儿少一句不响。而默认世界晴永不下雨，这条支路
+ * 默认一次都不执行：不专门去 `setWeather`，`ARRIVAL` 里那四条就是死的，改了也
+ * 没人知道。
+ */
+test('雨天与暴雨：屋檐那两句也得成对', () => {
+  for (const weather of ['rain', 'storm'] as const) {
+    const sim = makeSim();
+    // 「下雨吧」是玩家说的一句话。`setWeather` 会把户外的人叫醒，`routineFor`
+    // 这才真的走到屋檐那一支。
+    sim.enqueue({ kind: 'setWeather', weather });
+    const seen = survey(sim);
+
+    assert.ok(seen.sheltered > 0, `${weather} 下一句天气合成的话都没出现——那条支路还是死的`);
+    assert.deepEqual(
+      seen.walkingSilent.slice(0, 5),
+      [],
+      `${weather} 下走着却什么都没说的拍有 ${seen.walkingSilent.length} 个`,
+    );
+    assert.deepEqual(
+      seen.walkingLies.slice(0, 5),
+      [],
+      `${weather} 下走着却说着到了之后的话，共 ${seen.walkingLies.length} 处：\n${seen.walkingLies.slice(0, 5).join('\n')}`,
+    );
+    assert.deepEqual(
+      seen.standingWrong.slice(0, 5),
+      [],
+      `${weather} 下站着却还挂着赶路那句，共 ${seen.standingWrong.length} 处：\n${seen.standingWrong.slice(0, 5).join('\n')}`,
+    );
+  }
+});
+
+/**
+ * 举急件跑向祭坛的路上，牌子不留在上一拍站在的那一处。
+ *
+ * 这条守的是一个真漏过的地方。`stepDecrees` 从 idle 里挑人，只翻 mode、交路线，
+ * 没碰牌子——她 `routineLabel` 里还留着上一拍作息的落脚那句，而 `snapshotVillager`
+ * 对非 idle 的 mode 一律吐 `routineLabel`。于是她举着急件跑向祭坛的整条路上，纸上
+ * 印的是她站在街口，而她的坐标正在动。`toWork` 那条早在 `routeToBuilding` 就把这
+ * 句清了，漏的只有急件。
+ *
+ * 与上面两条不同，这条得先有一张带问题的活才派得出急件，所以它自己造一张。
+ * 步长用 100ms 与 `decree.test.ts` 一致——16ms 一拍拍 400 下不够她走到被派上。
+ */
+test('举急件跑向祭坛的路上，牌子不留在上一拍的那一处', () => {
+  const sim = makeSim();
+  sim.enqueue(
+    syncCommand({
+      tasks: [
+        { id: 'c_block', kind: 'code', title: '清理临时目录', question: '要删掉 ./temp_build 吗？' },
+      ],
+    }),
+  );
+
+  let bearing = 0;
+  const said: string[] = [];
+  for (let i = 0; i < 400; i += 1) {
+    sim.update(100);
+    for (const villager of sim.snapshot().villagers) {
+      if (villager.mode !== 'bearingDecree') continue;
+      bearing += 1;
+      if (villager.routine !== null) said.push(villager.routine);
+    }
+  }
+
+  // 先证明这条真的跑到了：派得出人、也真的跑过。修好之后她一路都是空牌子，
+  // 所以判据不能写成「收到过一句话」——那等于要求 bug 在场。
+  assert.ok(bearing > 0, '一趟急件都没派出来——这条什么都没验');
+  const stale = said.filter((label) => ARRIVAL.has(label));
+  assert.deepEqual(
+    stale.slice(0, 5),
+    [],
+    `举急件的路上牌子还说着上一拍站的那一处，共 ${stale.length} 处：\n${stale.slice(0, 5).join('\n')}`,
   );
 });

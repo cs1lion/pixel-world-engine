@@ -15,9 +15,10 @@ export interface RoutineBeat {
   /**
    * 赶路时牌子说的那句。**与 `label` 成对，缺一个就是假话。**
    *
-   * `label` 说她到了之后在做什么，`going` 说她此刻正往那儿去。只挂 `label`
-   * 的那一版，屏上四分之三的时间都在演「她已经站在那儿了」——而她的坐标
-   * 正在动（`test/routine-going-label.test.ts` 钉的就是这一条）。
+   * `label` 说她到了之后在做什么，`going` 说她此刻正往哪儿去。只挂 `label`
+   * 的那一版，在路上的拍多于站着带牌子的拍（`test/routine-going-label.test.ts`
+   * 钉的就是这一条，判据就一句 `moved > stillLabelled`），于是牌子有字的那
+   * 些拍全在演「她已经站在那儿了」——而她的坐标正在动。
    *
    * 同一个文件里的 `sheltering` 早就这么分了：出发挂「跑向屋檐下躲雨」，
    * `path` 空掉那一刻换成「在屋檐下看雨」。作息这条路当初漏了。

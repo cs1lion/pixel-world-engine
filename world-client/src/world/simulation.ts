@@ -2479,13 +2479,23 @@ export class Simulation {
       // 牌子说哪一半，看她这会儿在不在走。
       //
       // 判据必须带上 `mode === 'idle'`：赶路的不只是作息——`toWork`、`toAltar`、
-      // `sheltering`、`bearingDecree` 四种 mode 的路也没走完，而它们的说法在
-      // `villagerModeLabel` 里各自写着（「赶往」「跑向」），且出发时就把
-      // `routineLabel` 换成了进行中的那句。不带上 mode，一个正跑向屋檐的人会被
-      // 这句盖成「去街口」——她压根不去街口。
+      // `sheltering`、`bearingDecree` 四种 mode 的路也没走完，而她们的说法归
+      // `villagerModeLabel` 管（「赶往」「跑向」），那个开关按 mode 分支，根本
+      // 不会读这个字段。不带上 mode，一个正跑向屋檐的人会被这句盖成「去街口」
+      // ——她压根不去街口。
+      //
+      // **别把上面读成「那四种出发时会写 routineLabel」。** 只有 `sheltering`
+      // 写（1858）；`toWork` 与 `toAltar` 两位带的是 null——`routeToBuilding`
+      // 在行礼那一步就清了（2040），走路只是沿用；`bearingDecree` 也清
+      // （`stepDecrees`）。所以非 idle 的赶路者带着的是 null，这个分支一概
+      // 不吐给她们。清与不清都不改变屏上与纸上，清了只是让存档里少存一句没人
+      // 会读的旧话——急件那位不清可不行，她带的不是 null 是旧值，见上。
       //
       // 剩下真在走作息路的只有 `stepIdle` 与 `chaseVerification` 两处派活，
-      // 两处都同时写 `routineGoing`，所以走着而不说话的那一刻不存在。
+      // 两处都同时写 `routineGoing`。**读档是唯一的例外**：`fromSave` 还原
+      // mode 与 path，却把 `routineGoing` 留空（那句不进存档），于是刚读完档
+      // 的那一刻她走着而牌子是空的。那不是假话，是清牌子那条公认的退路
+      // （`villager-words.ts` 的 `NOT_SOMEWHERE`），走到这一拍的落脚点就自己写上。
       routine:
         villager.mode === 'idle' && villager.path.length > 0
           ? villager.routineGoing
@@ -2992,6 +3002,14 @@ export class Simulation {
     if (route.path.length === 0) return;
     free.mode = 'bearingDecree';
     free.path = route.path;
+    // 牌子跟着清。她是从 idle 里挑出来的（上面的判据写着 `mode === 'idle'`），
+    // `routineLabel` 还留着上一拍作息的落脚那句——比如「在街口站着看了一会儿」。
+    // 不清的话：`snapshotVillager` 对非 idle 的 mode 一律吐 `routineLabel`，于是
+    // 她举着急件跑向祭坛的整条路上，纸上印的是她站在街口，而她的坐标正在动。
+    // `routeToBuilding`（toWork/toAltar 那条）早在 2040 就把这句清了，漏的只有
+    // 急件这一条。
+    free.routineLabel = null;
+    free.routineGoing = null;
     free.bubble = '急件！';
     free.bubbleUntil = this.now + 3000;
     this.decreeBearer = free.id;

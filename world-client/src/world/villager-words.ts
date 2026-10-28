@@ -27,8 +27,12 @@ import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
  * 样子只剩清牌子这一条，见下。
  *
  * 清牌子而人不在祭坛的路口有四条（`simulation.ts` 里 `routineLabel = null`
- * 一共 6 处，其中让人回到 idle 的是这四条，由 `test/labelless-idle.test.ts`
- * 各驱一次）：
+ * 一共 7 处，其中让人回到 idle 的是这四条。`test/labelless-idle.test.ts` 真驱
+ * 的只有 `finishInPlace` 与 `abandonActiveTask` 两条，另两条只在那份测试里按
+ * 名字点到、没跑过——所以这四条里有两条的退路至今只有源码可依）。剩下三处
+ * 都不回 idle：`routeToBuilding` 与 `arriveAtWork` 在路上与工位上，
+ * `stepDecrees` 举着急件——三处的说法归 `villagerModeLabel` 管，不读牌子。
+ * 那四条是：
  *
  *   - `abandonActiveTask`（上游撤单）与 `removeTask`（读档对账删单）都按
  *     `restoreOutOfBuilding` 把她挪到铺子门口；
@@ -93,8 +97,10 @@ export function villagerModeLabel(
       // 而那一刻她可以在世界任何一格。实测她绝大多数时候不在祭坛格上。
       //
       // 而这条路比「铺子挑不到」常见得多：`tasks.ts:13` 的 quick 活
-      // `venue: 'in_place'`，**每一条 quick 都走它**，「顺手看一眼」按钮
-      // （`simulation.ts:1875`）与上游事件流（`:1615`）两条来路都通。
+      // `venue: 'in_place'`，**每一条 quick 都走它**。两条来路都通到
+      // `startInPlace`：神谕派活（`simulation.ts:1874`——「顺手看一眼」那个
+      // 按钮 `index.html:628` 发的就是这条命令）与上游事件流
+      // （`simulation.ts:1614`）。
       //
       // 世界这一刻只知道她在办这件事，不知道她在哪儿——那就只说这件事。
       // 空summary 也别说成「」：那是两个引号夹一片空白，不是一句话。

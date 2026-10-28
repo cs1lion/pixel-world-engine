@@ -261,7 +261,12 @@ export function formatWorldClock(nowMs: number): string {
  *
  * 那句话分两半，纸上这侧不必分辨：`snapshotVillager` 已经按在不在走挑好了
  * ——走着的那半是「去街口」，站着的那半是「在街口站着看了一会儿」。早年只有
- * 站着那半，于是纸上大半的闲人句子都在说她已经站住了，而她的坐标正在动。
+ * 站着那半，于是纸上走着的那部分闲人句子都在说她已经站住了，而她的坐标正在动。
+ *
+ * 这只对 idle 成立：另外四种 mode 各有自己的说法（见 `villagerModeLabel`），
+ * 纸面走那条。`stepDecrees` 曾经漏了清牌子——举急件的那位从 idle 里挑出来，
+ * 带着上一拍站的那一处跑向祭坛，纸上就印了她站在街口。已在 `stepDecrees`
+ * 连同 `routineGoing` 一起清掉。
  *
  * `routine` 也**不是**从第 0 拍起就有：起手有一段空窗，长度是
  * `nextRoutineAt: 1200 + index * 1400` 那个错峰——第一个村民 1200 拍、
