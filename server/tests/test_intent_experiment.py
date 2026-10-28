@@ -32,6 +32,12 @@ def test_重试次数写错就当场停下_名字还要说清(monkeypatch) -> No
 
     `SystemExit` 是 `BaseException`，那个 `except Exception` 接不住——这是这道
     闸唯一的机制，所以连它继承自谁一起钉住。
+    （**2026-10-28 补记：「唯一的机制」说满了，实际是两道。** 另一道是
+    `ask = retrying(caller)` 从 `main` 那个循环里提出来——原来它在 `try` 里，
+    于是每条用例都记一条「模型返回了 ValueError」。`intent_experiment.py` 里
+    那处自己挂着补记，而它才是代码注释领头讲的那道。两道兜的不是一件事：
+    `SystemExit` 那道兜「配错了当场停下」，提出来那道兜「别把配置错误混进
+    实验报告」。缺哪一道，都还剩一条能漏过去的路。）
     """
     monkeypatch.setenv("EXPERIMENT_RETRIES", "six")
     with pytest.raises(SystemExit) as caught:
@@ -40,8 +46,18 @@ def test_重试次数写错就当场停下_名字还要说清(monkeypatch) -> No
     assert "six" in str(caught.value)
 
 
-def test_没配就用默认值_不拿默认值去_int(monkeypatch) -> None:
-    """另一侧：没配这个变量时走默认值，不该因为「默认值不是数字」而炸。"""
+def test_没配就用默认值_而且真的问了一次(monkeypatch) -> None:
+    """另一侧：没配这个变量时走默认值，不该因为「默认值不是数字」而炸。
+
+    （**2026-10-28 补记：这条的名字原来叫「不拿默认值去_int」，那名不副实。**
+    它**探不出**默认值有没有过 `int()`：`_env_int(name, default: int)` 的
+    `default` 参数类型就是 `int`，调用处给的永远是数字字符串，于是旧的
+    `int(os.environ.get(name, str(default)))` 与新的写法返回值一模一样。
+    实测：把 `EXPERIMENT_RETRIES` 那条换回裸 `int()`，**本条照绿**，
+    红的只有 `test_重试次数写错就当场停下_名字还要说清` 那一条。
+    所以本条真正钉住的只有「没配也能跑，而且问了一次」，已照此改名。
+    「默认值不过 `int()`」那件事今天没有闸——也不必给它设一道：类型上就成立。）
+    """
     monkeypatch.delenv("EXPERIMENT_RETRIES", raising=False)
     monkeypatch.delenv("EXPERIMENT_BACKOFF_MS", raising=False)
 
