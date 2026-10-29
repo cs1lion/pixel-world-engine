@@ -48,7 +48,12 @@ function blankStrings(line: string): string {
  * 说清楚，别让读的人以为它拦得住。
  */
 export function codeOf(path: URL | string): string {
-  return readFileSync(path, 'utf8')
+  return codeText(readFileSync(path, 'utf8'));
+}
+
+/** `codeOf` 的文本版：手上有原文、不想为它建一个临时文件时用这个。 */
+export function codeText(raw: string): string {
+  return raw
     .split('\n')
     .filter((line) => !COMMENT_LINE.test(line))
     .map((line) => blankStrings(line).replace(INLINE_BLOCK, (span) => ' '.repeat(span.length)))
@@ -77,7 +82,12 @@ export function codeOf(path: URL | string): string {
  * 剔注释仍然要：`// 这里不 import Phaser` 是解释，不是依赖。
  */
 export function codeLines(path: URL | string): string {
-  return readFileSync(path, 'utf8')
+  return codeLinesText(readFileSync(path, 'utf8'));
+}
+
+/** `codeLines` 的文本版。 */
+export function codeLinesText(raw: string): string {
+  return raw
     .split('\n')
     .filter((line) => !COMMENT_LINE.test(line))
     .join('\n');
