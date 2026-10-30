@@ -15,3 +15,7 @@ tmp/
 .audit/
 .pixdiff/
 .vite/
+world-client/.tmp-audit/
+
+# 个人简历的构建产物，与引擎无关
+resume-v3/

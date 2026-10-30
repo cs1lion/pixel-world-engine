@@ -113,7 +113,9 @@ def test_模型抛错落_model_failed() -> None:
     assert "超时" in (result.error or "")
 
 
-def test_嵌套几千层的_JSON_落_not_json_不是_500() -> None:
+def test_json_抛_RecursionError_时落_not_json_不是_500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """`json` 的解析器是递归的，层数够深它会抛 `RecursionError`。
 
     它是 `RuntimeError` 的子类，**不在** `extract_json` 原来那个
@@ -124,11 +126,37 @@ def test_嵌套几千层的_JSON_落_not_json_不是_500() -> None:
 
     几千层嵌套在用户眼里就是「这不是能用的 JSON」，与「非 JSON」同一件事，
     所以它该落在 `not-json` 上，跟上面那条参数化测试同一种结局。
+
+    **2026-10-30 修：这条原来靠真的塞 `"[" * 5000` 去撞深度，那样钉的是解释器，
+    不是我们的代码。** CI 上 Python 3.12.15 在 5000 层**解析成功**（返回一个
+    list，于是落 `not-an-object`），本机 3.12.4 在 2998 层抛 `RecursionError`
+    ——同一份代码，两台机器一红一绿，而 CI 从 10-28 起一直红着。
+    `json` 走的是 C 扫描器，`sys.setrecursionlimit()` 管不到它，阈值是编译期定
+    的、跨小版本会动。所以这里改成**注入**：让 `json.loads` 直接抛
+    `RecursionError`，钉住「我们接住了它」这件事本身，不再赌解释器在哪一层炸。
     """
-    deep = "[" * 5_000 + "]" * 5_000
-    result = interpret("下雨吧", TEMPLATES, None, caller(deep))
+    def boom(*_args: object, **_kwargs: object) -> object:
+        raise RecursionError("simulated deep nesting")
+
+    monkeypatch.setattr(orchestrator.json, "loads", boom)
+    result = interpret("下雨吧", TEMPLATES, None, caller("[" * 5_000 + "]" * 5_000))
     assert not result.ok
     assert result.code == "not-json"
+    assert result.commands == []
+
+
+def test_极深的嵌套数组即使解析成了也不是对象() -> None:
+    """上面那条钉「接住了 `RecursionError`」。这条钉另一边。
+
+    如果换一台机器的解释器能把这 5000 层解析出来（返回的是 `list`），那也不该
+    落成 500——`extract_json` 返回的不是 `dict`，`parse_reply` 落 `not-an-object`。
+    两种结局都是「没听懂」，差别只在 `code` 这个给实验统计用的字符串上。
+
+    这条不依赖解释器深度：`[]` 在哪种解释器上都解析得成、都不是对象。
+    """
+    result = orchestrator.parse_reply("[]")
+    assert not result.ok
+    assert result.code == "not-an-object"
     assert result.commands == []
 
 
