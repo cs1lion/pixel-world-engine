@@ -17,6 +17,7 @@ import { TERRAIN_COLORS, WORLD } from '../world/palette-data.ts';
 import { biomeAt } from '../world/biomes.ts';
 import { DRESSING } from '../world/dressing.ts';
 import { drawTileEdge, type EdgeNeighbors } from './terrain-edges.ts';
+import { drawRegionGrounding, type RegionSlots } from './region-paint.ts';
 import type { WorldPalette } from '../world/theme.ts';
 
 type Terrain = keyof typeof TERRAIN_COLORS;
@@ -28,7 +29,17 @@ export function drawTerrain(
   originY: number,
   target?: Phaser.GameObjects.Graphics,
   altar?: GridPoint,
-  theme?: { readonly palette: WorldPalette; readonly terrainColors: Readonly<Record<TerrainId, number>> },
+  theme?: {
+    readonly palette: WorldPalette;
+    readonly terrainColors: Readonly<Record<TerrainId, number>>;
+    /**
+     * 地域的三色槽位（SPEC_V2 §4.1）。
+     *
+     * 省略就一道都不画——莞尔镇 `regions: []`，画面与从前逐像素一致。
+     * 这条缺席路径是有意的：第二座镇子多出来的那层地界不该漏到第一座上去。
+     */
+    readonly regions?: readonly RegionSlots[];
+  },
 ): void {
   // 给了 target 就画进它：烘焙到纹理时用同一个 Graphics，
   // 否则每次子绘制都会多创建一个对象。
@@ -81,6 +92,9 @@ export function drawTerrain(
   drawFarmFence(scene, grid, originX, originY, palette, g);
   drawDressing(scene, grid, originX, originY, palette, g, altar);
   drawWaterline(grid, originX, originY, g, palette);
+  // 地域三色最后画：地界要压在草簇、碎石、水线之上，才读得出「这块地归谁」。
+  // 排在材质拼接边之后、网格线之前——前者是地形自己的语法，后者只是排查辅助。
+  drawRegionGrounding(g, grid, originX, originY, palette, theme?.regions ?? []);
 
   // 网格线只是排查落位用的辅助层，默认不画：铺满全屏的细线会把地形纹理与轮廓压成
   // “表格纸”，也会让建筑/道路的边线失去对比。需要时用 ?debug-grid=1 打开。

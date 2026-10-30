@@ -51,8 +51,8 @@
  *
  * - 居民两个：`src/world/simulation.ts:658` 的兜底是
  *   `[deps.villagerName, DEFAULT_ASSISTANT_NAME]`；灯潮界设定集
- *   （`src/settings/dengchao/pack.ts:135`）是迷路人与汐，两条。两条路都是 2。
- * - 楼六栋：`pack.ts:103` 的 `placements` 六条。默认世界那边是十一栋
+ *   （`src/settings/dengchao/pack.ts:151`）是迷路人与汐，两条。两条路都是 2。
+ * - 楼六栋：`pack.ts:119` 的 `placements` 六条。默认世界那边是十一栋
  *   （`src/main.ts:44` 走 `buildLargeWorld`，`test/large-world.test.ts:144` 钉住 11）。
  *
  * **没有任何东西钉住「几个居民、几栋楼」这组数**，而 `coverage_curve` 的分母、
@@ -189,7 +189,7 @@ function awarenessAtDayEnd(days: number): Awareness {
 
 test('出货的村子今天八个人：两个居民 + 六栋楼', () => {
   assert.equal(VILLAGERS.length, 2, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
-  assert.equal(BUILDING_IDS.length, 6, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:103 的 placements 是六条）`);
+  assert.equal(BUILDING_IDS.length, 6, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:119 的 placements 是六条）`);
   assert.equal(defaultWorldVillagerCount(), 2, '默认世界的村民兜底不再是两个');
   // 两组数合起来才是分母：设定集 8。
   assert.equal(ALL_HOLDERS.length, 8, '设定集的 holder 总数不再是八个');

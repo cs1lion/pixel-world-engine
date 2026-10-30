@@ -32,9 +32,25 @@ export const DENGCHAO_RAW: RawSettingPack = {
   terrainColors: {
     grass: 'grass', stone: 'stone', plaza: 'plaza', farm: 'farm', tree: 'soil',
     // 浅滩底色**不能**等于水色：两者一样时，退潮露出的滩涂和满潮的水面在屏幕上
-    // 是同一块蓝，潮汐就只剩下 HUD 上的一个数字。这里用湿沙的灰绿，
+    // 是同一块蓝，潮汐就只剩下 HUD 上的一个数字。这里用湿滩的苔绿，
     // 水面叠上去才会真的变深、变蓝。
-    shallow: 'copper', mud: 'soil', coal: 'charcoal',
+    //
+    // 2026-10-30：从 `copper` 换成 `moss`。原来取 `copper` 有两个问题：
+    //
+    // 1. **它同时是 `shoal` 的主色**（§4.1）。`region-paint.ts` 拿 `palette[primary]`
+    //    去盖 `terrainColors[terrain]`，两者同值 ⇒ 画了等于没画。实测 806 格里只有
+    //    65 格（那 65 格压在 stone 上）看得见，其余 741 格的主色斑块全是空转。
+    // 2. 换一个不撞主色的底色，得同时满足四个条件，24 色里只有 `moss` 全过
+    //    （候选与读数见 `region-paint.ts` 那段「浅滩轨道那一处」）：
+    //    - 对 `copper` 主色可辨（ΔE 6.15，过下限 6，但是在**画得出的那四道
+    //      区域里最低的**：渡口 10.16、灯街 33.42、叠浪楼 52.96）
+    //    - 色相离水色 35°（`moss` 163°、`water` 199°），叠水之后仍读得出「变深」
+    //    - 不与任何其它地形底色撞 token
+    //    - 不撞本区点缀色 `plaster`、不禁用色 `terracotta`
+    //
+    // `moss` 的语义也正：湿滩上长的苔。原本那个 `copper` 的注释说它「是湿沙的灰绿」，
+    // 可 `copper` 在色板里的本义是铜绿**屋顶**，用它当滩涂本来就是借的。
+    shallow: 'moss', mud: 'soil', coal: 'charcoal',
   },
   grid: {
     width: 64, height: 48, border: 1,
