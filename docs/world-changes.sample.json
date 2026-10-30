@@ -54,6 +54,17 @@
       }
     },
     {
+      "at": 20000,
+      "change": "world.event",
+      "payload": {
+        "kind": "tide_turn",
+        "text": "潮水退过一半，滩涂露出来了",
+        "placeId": "place:12,7",
+        "where": { "x": 12, "y": 7 },
+        "actorId": null
+      }
+    },
+    {
       "at": 86400000,
       "change": "world.vitals",
       "payload": {

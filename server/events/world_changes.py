@@ -61,6 +61,15 @@ SOURCES = ("feed", "local")
 #: 回写时被自己的服务端拒掉，那一单于是什么也没留下。
 TASK_KINDS = ("code", "research", "writing", "quick")
 
+#: `world.event.kind`：世界自己报的事的种类。
+#:
+#: 与 `world-client/src/world/ambient.ts` 的 `AmbientKind` 是同一个域，两边各写
+#: 一遍。漂开的表现是：世界自己走到潮水掉头，回写时被自己的服务端拒掉——那一
+#: 刻于是什么也没留下，而事件流里连一句抱怨都不会有（`announce` 吞异常）。
+#: 客户端那条读本文件的测试盯着 `WORLD_CHANGE_CHECKS`，这一条的值域靠
+#: `test_world_changes.py` 的参数化收着。
+WORLD_EVENT_KINDS = ("tide_turn", "routine_done")
+
 #: `miracle` 事件里记的神迹名。**与 `rules/schema.py` 的 `MIRACLES` 不是同一个域**，
 #: 别看错了：意图侧叫 `light`（点灯），这里叫 `lamp`——摆件就叫 lamp，
 #: 日志用摆件的名字。翻译发生在客户端的 `simulation.ts`（`light` → `lamp`）。
@@ -176,6 +185,36 @@ def _check_tide(payload: dict[str, Any], path: str) -> None:
         raise WorldChangeError(f"{path}.until 不能为负")
 
 
+def _check_world_event(payload: dict[str, Any], path: str) -> None:
+    """世界自己发生的一件事：潮水掉头、有人停在作息落点上。
+
+    与 `world.vitals` 的区别是它**有落点**：能算「谁看得见」，所以能进记忆。
+    坐标叫 `where` 不叫 `at`——信封的 `at` 是世界时间，撞名的后果见模块头。
+    """
+    _only(payload, {"kind", "text", "placeId", "where", "actorId"}, path)
+    kind = _require_str(payload, "kind", path)
+    if kind not in WORLD_EVENT_KINDS:
+        raise WorldChangeError(
+            f"{path}.kind 不认识：{kind!r}；白名单：{'、'.join(WORLD_EVENT_KINDS)}"
+        )
+    _require_str(payload, "text", path)
+    _require_str(payload, "placeId", path)
+    # 当事人：日常落点是那个村民，潮水是 null。**必须是 null 或非空串**——
+    # 空串既不是「有人」也不是「没人」，收下来会让记忆层的 actors 里多一个
+    # 谁也查不到的 id。
+    actor = _require(payload, "actorId", (str, type(None)), path)
+    if actor == "":
+        raise WorldChangeError(f"{path}.actorId 不能为空串；没有当事人请写 null")
+    where = _require(payload, "where", dict, path)
+    extra = set(where) - {"x", "y"}
+    if extra:
+        raise WorldChangeError(f"{path}.where 有不认识的字段：{', '.join(sorted(extra))}")
+    for axis in ("x", "y"):
+        value = _require(where, axis, int, path + ".where")
+        if value < 0:
+            raise WorldChangeError(f"{path}.where.{axis} 不能为负，收到 {value}")
+
+
 def _check_world_vitals(payload: dict[str, Any], path: str) -> None:
     """一天结束了，世界的心电图。四个标量加一个日子。
 
@@ -211,6 +250,7 @@ WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "miracle": _check_miracle,
     "weather": _check_weather,
     "tide": _check_tide,
+    "world.event": _check_world_event,
     "world.vitals": _check_world_vitals,
 }
 

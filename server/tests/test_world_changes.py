@@ -39,6 +39,15 @@ VALID_PAYLOADS = {
     "weather": {"weather": "storm"},
     # 记的是覆盖，不是当时的潮位：潮位是 now 的纯函数，记它等于记时钟。
     "tide": {"level": 0.25, "until": 120_000},
+    # 世界自己发生的一件事。有落点（where），所以能进记忆——这是它与
+    # world.vitals 的分界：心电图是体检报告，这一条是「刚才发生了什么」。
+    "world.event": {
+        "kind": "tide_turn",
+        "text": "潮水退过一半，滩涂露出来了",
+        "placeId": "place:12,7",
+        "where": {"x": 12, "y": 7},
+        "actorId": None,
+    },
     # 一天结束了，世界的心电图。不是「世界改了什么」，是「世界现在什么样」——
     # 内环唯一被允许的对外输出（补充设计 §0）。
     "world.vitals": {
@@ -276,6 +285,49 @@ def test_拨潮缺字段被拒(client: TestClient) -> None:
         response = post(client, "tide", payload)
         assert response.status_code == 422
         assert missing in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "patch, fragment",
+    [
+        ({"kind": "earthquake"}, "kind"),
+        ({"text": ""}, "不能为空"),
+        ({"placeId": ""}, "不能为空"),
+        ({"where": {"x": 1.5, "y": 2}}, "where.x"),
+        ({"where": {"x": 1, "y": 2, "z": 3}}, "不认识的字段"),
+        ({"where": "1,2"}, "where"),
+        ({"extra": "x"}, "不认识的字段"),
+        # 当事人只能是 null 或一个真的 id。空串两边都不是——收下来记忆层的
+        # `actors` 里会多一个谁也查不到的 id。
+        ({"actorId": ""}, "不能为空串"),
+        ({"actorId": 7}, "actorId"),
+    ],
+)
+def test_世界自己生的事_取值域之外被拒(client: TestClient, patch: dict, fragment: str) -> None:
+    """世界自己报的事也要过白名单。
+
+    这一条不是走形式：`announce()` 把回写的异常吞掉了，所以服务端拒收的表现
+    是「那一刻什么也没留下」——事件流里连一句抱怨都没有。值域漂开只能靠这里
+    当场红，不能指望线上发现。
+    """
+    payload = {**VALID_PAYLOADS["world.event"], **patch}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert fragment in response.json()["detail"]
+
+
+def test_世界自己生的事_当事人可以是个真的_id(client: TestClient) -> None:
+    """日常落点有当事人——那件事就是那个村民做的。null 是合法值，不是缺字段。"""
+    payload = {**VALID_PAYLOADS["world.event"], "kind": "routine_done", "actorId": "v1"}
+    assert post(client, "world.event", payload).status_code == 201
+
+
+def test_世界自己生的事_缺当事人字段被拒(client: TestClient) -> None:
+    """`actorId` 是必填字段：缺了它和写 null 是两回事，前者是协议漂了。"""
+    payload = {k: v for k, v in VALID_PAYLOADS["world.event"].items() if k != "actorId"}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "actorId" in response.json()["detail"]
 
 
 def test_建筑来由可以是_null(client: TestClient) -> None:

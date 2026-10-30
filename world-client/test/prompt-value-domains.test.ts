@@ -12,7 +12,7 @@
  *
  * 第一版这里写「两种都没有任何东西会红」——**那句话是假的**，复审实测：
  * 往 `types.ts` 的 `Weather` 联合里加 `'snow'`，`tsc` 当场报 **4 处** TS2741
- * （`simulation.ts:103` 的 `WEATHER_ALREADY`、`src/world/weather.ts:36` 的
+ * （`simulation.ts:104` 的 `WEATHER_ALREADY`、`src/world/weather.ts:36` 的
  * `TARGET_INTENSITY`、`src/world/weather.ts:42` 的 `DURATION_MS`、
  * `src/world/weather.ts:118` 的
  * `WEATHER_LABEL`）。本文件自己也是会红的那一个。

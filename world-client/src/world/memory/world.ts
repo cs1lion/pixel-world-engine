@@ -1820,6 +1820,11 @@ const DEFAULT_WHAT: Readonly<Record<string, string>> = {
   visitor_arrival: '有生人进了村',
   weather_anomaly: '天气反常',
   tavern_feast: '酒馆里摆了宴',
+  // 世界自己的节律。正常路径上这两句用不到——`observe.ts` 把世界组织好的
+  // 那句话写进了 `what`。留着是为了别的入口（上游、造物主）报这两种事时
+  // 也有话说，而不是把 kind 本身当句子印出来。
+  tide_turn: '潮水掉头了',
+  routine_done: '有人在镇子上停了一会儿',
 };
 
 function defaultValence(kind: string): number {

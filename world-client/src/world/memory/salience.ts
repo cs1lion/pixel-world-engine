@@ -140,6 +140,10 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   // 造物主注入的两类（§2.3）。
   visitor_arrival: { emotion: 0.5, surprise: 0.8, goalRelevance: 0.4, involvement: 0.15 },
   weather_anomaly: { emotion: 0.6, surprise: 0.85, goalRelevance: 0.3, involvement: 0.1 },
+  // 世界自己的节律（`world/ambient.ts`）。潮水掉头是环境，日常落点是闲话：
+  // 前者意外度高、情绪低，后者两样都低——它本来就该是村子里最寻常的话。
+  tide_turn: { emotion: 0.2, surprise: 0.5, goalRelevance: 0.25, involvement: 0.1 },
+  routine_done: { emotion: 0.2, surprise: 0.15, goalRelevance: 0.2, involvement: 0.15 },
   tavern_feast: { emotion: 0.85, surprise: 0.4, goalRelevance: 0.4, involvement: 0.35 },
   unknown: { emotion: 0.3, surprise: 0.3, goalRelevance: 0.3, involvement: 0.2 },
 };

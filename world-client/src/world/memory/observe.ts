@@ -123,6 +123,29 @@ export function observationOf(
       };
     }
 
+    case 'world.event': {
+      // 世界自己发生的事。**落点由世界给，不在这里编**——`where` 决定谁看得见，
+      // 编一个坐标就等于让一件没在任何地方发生过的事进记忆。
+      //
+      // `what` 直接写那句话：这件事的文案是世界自己组织好的（「潮水退过一半，
+      // 滩涂露出来了」），落到 `DEFAULT_WHAT` 那张表上只会得到一句更笼统的话。
+      //
+      // `actors` 是**当事人**，不是目击者：日常落点就是那个村民。少了它，
+      // 她对这件事的卷入度只有先验的 0.15，显著度 0.4375 掉到 0.225，
+      // 够不着 `T_write`——她自己的一天她一件也记不住。
+      return {
+        eventId,
+        kind: change.kind,
+        placeId: change.placeId,
+        at: change.where,
+        actors: change.actorId === null ? [] : [change.actorId],
+        outcome: { what: change.text },
+        importanceHint: 0.35,
+        valence: change.kind === 'routine_done' ? 0.1 : 0,
+        arousal: change.kind === 'tide_turn' ? 0.35 : 0.25,
+      };
+    }
+
     // 潮位是 `now` 的纯函数，记它等于记时钟；心电图是本层的输出，
     // 喂回来就成了自己吃自己。两者都不进记忆。
     case 'tide':

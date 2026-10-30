@@ -42,6 +42,7 @@ import {
   POINTS_PER_TASK,
 } from './faith.ts';
 import { GRIME_CLEAN, grimeAfter, landProp } from './grime.ts';
+import { ambientBetween, type AmbientDweller } from './ambient.ts';
 import { routineBeats, routineFor, shelterTarget, tideBeatApplies, type RoutineBeat } from './routines.ts';
 import {
   clearWeather,
@@ -729,6 +730,9 @@ export class Simulation {
   /** 返回本次 update 结算的命令结果，供调用方展示。 */
   update(deltaMs: number): readonly CommandResult[] {
     if (deltaMs < 0) throw new Error('deltaMs 不能为负');
+    // 上一拍的世界时间。世界自己生事要判「跨没跨过时间槽」，
+    // 而判据只有 `prevNow` 与 `now` 两头——不存游标，见 `ambient.ts` 的约束一。
+    const prevNow = this.now;
     this.now += deltaMs;
     this.lastResults.length = 0;
     while (this.queue.length > 0) {
@@ -738,6 +742,7 @@ export class Simulation {
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
+    this.stepAmbient(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
       const level = effectiveTideLevel(this.now, this.tideOverride);
@@ -3431,6 +3436,63 @@ export class Simulation {
   private log(tone: WorldEvent['tone'], text: string): void {
     this.events.push({ at: this.now, tone, text });
     if (this.events.length > EVENT_LIMIT) this.events.splice(0, this.events.length - EVENT_LIMIT);
+  }
+
+  /**
+   * 世界自己报一件事。没有就什么都不做——大多数拍是这样。
+   *
+   * 判据全在 `ambientBetween`（纯函数），这里只负责把世界此刻的样子递过去，
+   * 再把回音落到两个地方：`log` 给玩家看的事件流，`announce` 给日志与记忆层。
+   * 两条都要，缺一条这件事就只活在一半的世界里——只 `log` 的话记忆层永远
+   * 不知道镇子上发生过什么，`beliefs` 还是涨不起来。
+   *
+   * **它只读世界，不改世界。** 潮水本来就跨过了中线，村民本来就站在落点上；
+   * 这里一个字段都不写回。所以它不可能让回放分叉，也不需要任何存档字段。
+   */
+  private stepAmbient(prevNow: number): void {
+    const dwellers: AmbientDweller[] = [];
+    for (const villager of this.villagers) {
+      // 「站在落点上」= 不在走路、没有活、牌子上写着作息的那一句。
+      // 与 `snapshotVillager` 判牌子的条件同源，不另立一套。
+      if (villager.mode !== 'idle' || villager.path.length > 0) continue;
+      if (villager.routineLabel === null) continue;
+      const here = this.cellOf(villager.pos);
+      dwellers.push({
+        id: villager.id,
+        name: villager.name,
+        placeId: `place:${here.x},${here.y}`,
+        where: here,
+        label: villager.routineLabel,
+      });
+    }
+    // 潮水那件事落在哪儿：有楼进水就用那栋楼的门（那是画面里看得见的地方），
+    // 没有就用祭坛。落点决定「谁看得见」，所以不能随便编一个坐标。
+    const flooded = this.buildings.find((building) => this.grid.isFloodedAt(building.door));
+    const tidePlace =
+      flooded === undefined
+        ? { placeId: `place:${this.altar.x},${this.altar.y}`, where: this.altar }
+        : { placeId: flooded.instanceId, where: flooded.door };
+
+    const events = ambientBetween({
+      prevNow,
+      now: this.now,
+      // 潮位按时刻问，不按「这一拍前/后」两个读数问：跨槽那一拍的窗口只有
+      // 100 毫秒，而潮水半周期 6 分钟才跨一次，两读数法会把跨越全漏掉。
+      tideAt: (t) => effectiveTideLevel(t, this.tideOverride),
+      dwellers,
+      tidePlace,
+    });
+    for (const event of events) {
+      this.log('info', event.text);
+      this.announce({
+        change: 'world.event',
+        kind: event.kind,
+        text: event.text,
+        placeId: event.placeId,
+        where: event.where,
+        actorId: event.actorId,
+      });
+    }
   }
 
   /**

@@ -28,9 +28,14 @@ export const WORLD_CHANGED = 'world.changed';
  * 两边不一致时服务端会拒收——宁可少记，不可乱记。
  *
  * 不收的东西与理由：
- *   - 潮位曲线本身：`tideLevelAt(now)` 的纯函数，记它等于记时钟。
+ *   - 潮位曲线本身：`tideLevelAt(now)` 的纯函数，每一拍都记等于记时钟。
  *     **但潮位「被拨过」要记**——那是一次事件，而且它进存档（`tideOverride`），
  *     是会留在世界状态里的事。两者不是一回事。
+ *   - **潮水跨过中线那一下要记**（`world.event` 的 `tide_turn`）：它同样是
+ *     纯函数推得出来的，但它是一个**转折**，不是每一拍的读数。记的是
+ *     「潮水掉头了」这件事，不是「此刻潮位是多少」。
+ *     （潮水 12 分钟一个周期，一天掉头 240 次；真正限流的是 `ambient.ts` 的
+ *     节拍，一天 6 条。别把「一天 240 次」当成事件密度。）
  *   - 角色走动、气泡、作息：渲染层的读感，不是世界事实；
  *   - 队列的增删（`cancelPending`）：只在世界内存里，读档不保留。
  */
@@ -80,6 +85,34 @@ export type WorldChange =
     }
   | {
       /**
+       * 世界自己发生的一件事：没有谁下命令，镇子自己走到了这一刻。
+       *
+       * 与 `world.vitals` 的区别是它有落点、能被看见、能进记忆——心电图是
+       * 体检报告，这一条是「刚才发生了什么」。
+       *
+       * **载荷里不能有 `at`**：信封的 `at` 是世界时间毫秒，`{ at: {x, y} }`
+       * 会被服务端当成「时间是个对象」整条拒掉（`miracle` 那一支的注释记着
+       * 这件事）。坐标叫 `where`。
+       */
+      readonly change: 'world.event';
+      /** 世界自己报的事的种类。与 `ambient.ts` 的 `AmbientKind` 同一套字面量。 */
+      readonly kind: 'tide_turn' | 'routine_done';
+      /** 一句话，玩家在事件流里读到的就是它。 */
+      readonly text: string;
+      /** 落点。合成地点用 `place:x,y`，楼用它的 `instanceId`。 */
+      readonly placeId: string;
+      readonly where: GridPoint;
+      /**
+       * 这件事的当事人；没有就是 `null`（潮水没有当事人）。
+       *
+       * 与「谁看见了」不是一回事：看见谁由记忆层的感知模型算。这里是「这件事
+       * 是谁做的」——日常落点就是那个村民。记忆层拿它算卷入度，缺了它，
+       * 环境事件的显著度够不着写入线，一条闲话也生不出来。
+       */
+      readonly actorId: string | null;
+    }
+  | {
+      /**
        * 一天结束了，世界的心电图。四个标量，一个日子。
        *
        * 这是**唯一一条不是「世界改了什么」的改变**，收在这里是因为它是内环
@@ -109,6 +142,7 @@ export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [
   'miracle',
   'weather',
   'tide',
+  'world.event',
   'world.vitals',
 ];
 

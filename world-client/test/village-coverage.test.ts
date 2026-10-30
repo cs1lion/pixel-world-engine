@@ -49,7 +49,7 @@
  *
  * 出货的村子：**两个居民 + 六栋楼 = 八个 holder**。
  *
- * - 居民两个：`src/world/simulation.ts:658` 的兜底是
+ * - 居民两个：`src/world/simulation.ts:659` 的兜底是
  *   `[deps.villagerName, DEFAULT_ASSISTANT_NAME]`；灯潮界设定集
  *   （`src/settings/dengchao/pack.ts:151`）是迷路人与汐，两条。两条路都是 2。
  * - 楼六栋：`pack.ts:119` 的 `placements` 六条。默认世界那边是十一栋
@@ -107,7 +107,7 @@ const ALL_HOLDERS: readonly string[] = [...VILLAGERS, ...BUILDING_IDS];
 /**
  * 默认世界（不走设定集）会有几个村民。
  *
- * 从 `simulation.ts:658` 那一行读，不重抄：那个兜底数组的字面量一改，
+ * 从 `simulation.ts:659` 那一行读，不重抄：那个兜底数组的字面量一改，
  * 这里必须跟着改，否则这条钉的是一个已经不属于代码的数。
  */
 function defaultWorldVillagerCount(): number {

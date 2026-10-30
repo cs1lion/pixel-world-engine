@@ -437,6 +437,7 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
   const miracle = byChange.get('miracle')!.payload;
   const weather = byChange.get('weather')!.payload;
   const tide = byChange.get('tide')!.payload;
+  const ambient = byChange.get('world.event')!.payload;
   const vitals = byChange.get('world.vitals')!.payload;
 
   const changes: WorldChange[] = [
@@ -470,6 +471,14 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
       change: 'tide',
       level: Number(tide.level),
       until: Number(tide.until),
+    },
+    {
+      change: 'world.event',
+      kind: ambient.kind as 'tide_turn' | 'routine_done',
+      text: String(ambient.text),
+      placeId: String(ambient.placeId),
+      where: ambient.where as { x: number; y: number },
+      actorId: ambient.actorId as string | null,
     },
     {
       change: 'world.vitals',

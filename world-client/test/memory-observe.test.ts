@@ -87,6 +87,14 @@ test('每一种会进记忆的改变，都带得动一个落点', () => {
     { change: 'building.removed', instanceId: 'bookshop#1', displayName: '书斋' },
     { change: 'miracle', miracle: 'lamp', at: { x: 12, y: 9 } },
     { change: 'weather', weather: 'storm' },
+    {
+      change: 'world.event',
+      kind: 'tide_turn',
+      text: '潮水退过一半，滩涂露出来了',
+      placeId: 'place:12,7',
+      where: { x: 12, y: 7 },
+      actorId: null,
+    },
   ];
   for (const change of changes) {
     const observation = observationOf(change, 'ev', lookups);
@@ -95,6 +103,47 @@ test('每一种会进记忆的改变，都带得动一个落点', () => {
     assert.equal(typeof observation.at.y, 'number');
     assert.ok(observation.eventId === 'ev', '事件 id 由调用方给，与日志里那一条对齐');
   }
+});
+
+test('世界自己生的事：kind 原样透传，落点用世界给的，不在这里编', () => {
+  const observation = observationOf(
+    {
+      change: 'world.event',
+      kind: 'routine_done',
+      text: '汐在旧站牌下认路',
+      placeId: 'place:18,22',
+      where: { x: 18, y: 22 },
+      actorId: 'v1',
+    },
+    'e',
+    lookups,
+  )!;
+  // 记忆层不认得 `routine_done` 这个 kind 也不要紧——kind 是开放字符串，
+  // 落 `unknown` 先验；但落点编不得，编了就成了一件没在任何地方发生过的事。
+  assert.equal(observation.kind, 'routine_done');
+  assert.equal(observation.placeId, 'place:18,22');
+  assert.deepEqual(observation.at, { x: 18, y: 22 });
+  assert.deepEqual(observation.outcome, { what: '汐在旧站牌下认路' }, '文案是世界组织好的那句，不是兜底表');
+  // `actors` 是**当事人**，不是目击者——目击者由感知模型按遮挡网格算。
+  // 少了这一条，她对这件事的卷入度只有 0.15，显著度 0.4375 掉到 0.225，
+  // 够不着 `T_write`：她自己的一天，她一件也记不住。
+  assert.deepEqual(observation.actors, ['v1'], '做这件事的人是她');
+});
+
+test('潮水那件事没有当事人：actors 是空的，目击者交给感知模型', () => {
+  const observation = observationOf(
+    {
+      change: 'world.event',
+      kind: 'tide_turn',
+      text: '潮水退过一半，滩涂露出来了',
+      placeId: 'place:12,7',
+      where: { x: 12, y: 7 },
+      actorId: null,
+    },
+    'e',
+    lookups,
+  )!;
+  assert.deepEqual(observation.actors, [], '潮水不是谁做的');
 });
 
 test('神迹的落点就是那格坐标，不借任何建筑', () => {
