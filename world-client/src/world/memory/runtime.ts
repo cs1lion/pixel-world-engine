@@ -135,6 +135,10 @@ export class MemoryRuntime {
       }
       if (holder.at !== undefined) this.world.moveHolder(holder.holderId, holder.at);
     }
+    // 位置搬完再记一次照面。**不能放进上面那个循环**：循环里名册是逐个补齐
+    // 的，第一拍只有半村人有位置，边算边记会漏掉后一半。放在这里，一次
+    // `syncHolders` 就是行为层的一拍，照面按拍记。
+    this.world.sampleEncounters();
     this.started = true;
   }
 

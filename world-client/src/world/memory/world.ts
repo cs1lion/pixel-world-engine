@@ -206,6 +206,20 @@ export class MemoryWorld {
   private credibility: CredibilityScores = { scores: new Map() };
   private nextSerial = 1;
   private currentDay = 0;
+  /**
+   * 今天谁和谁照过面。键是 `pairKey`，值是这一对今天最近的一次距离。
+   *
+   * **这一张表是「日终只拍一格」那个 bug 的解。** 原先 `spreadCandidates`
+   * 只问「此刻谁挨着谁」，整整一天的相处被压成子夜那一格坐标：两个人在街上
+   * 碰了一整天面，日终各自走开，这一天就等于谁也没见过谁。三天实测里两人
+   * 相距 2 格以内的拍数是 89,242（约两个半世界小时），而三个日终分别相距
+   * 13.5 / 14.0 / 17.0 格——`beliefs` 一直是 0，`diffuseDay` 一次也没开过口。
+   *
+   * 现在按「今天照过面」算。`sampleEncounters` 在行为层每拍喂位置时记一次，
+   * 日终再补一次（只摆好位置、从没动过的单位靠这一下，老行为因此不会丢）。
+   * `diffuseDay` 用完就清，所以它是**这一天的账**，不是历史。
+   */
+  private metToday = new Map<string, number>();
 
   constructor(deps: MemoryWorldDeps = {}) {
     this.config = deps.config ?? DEFAULT_MEMORY_CONFIG;
@@ -560,6 +574,10 @@ export class MemoryWorld {
     const day = Math.floor(at / this.config.dayMs);
     this.currentDay = day;
     if (this.fanout.day !== day) this.fanout = { day, counts: new Map() };
+    // 日终再补一次照面：只摆好位置、从没被行为层挪动过的单位（测试里全是
+    // 这样）靠这一下进 `metToday`，于是「日终那一格」这个老行为原样保留，
+    // 新的「白天碰过面」只是加在它上面。
+    this.sampleEncounters();
 
     let told = 0;
     let accepted = 0;
@@ -642,6 +660,10 @@ export class MemoryWorld {
     // 交谈结束了才记冷却。中途记的话，本次交谈的第二个话题会被自己刚写的
     // 冷却拦住——「一次交谈 2 条」就变成了一句空话。
     this.cooldowns = [...this.cooldowns, ...chatCooldowns];
+
+    // 这一天的账到此为止。不清的话，「昨天见过」会一直算数，几天之后村里
+    // 就成了全连接图——那正是 `talkDistance` 想拦的东西。
+    this.metToday.clear();
 
     return { told, accepted, suspicious };
   }
@@ -1639,24 +1661,52 @@ export class MemoryWorld {
   }
 
   /**
-   * 这个人可能说给谁听：只列他身边的人。
+   * 记下这一刻谁和谁挨得够近。行为层每拍调一次，日终再补一次。
    *
-   * 距离是**真实距离**，不是 1。没有这一条，候选表就是全连接图，而
-   * `talkDistance = 2` 那道闸永远咬不到任何人——全村一天之内全知，
-   * 正是护栏 sheet 第一行警告的那件事。
+   * 只留这一对今天最近的那一次距离：`canTell` 还要拿它跟 `talkDistance` 比
+   * 一次，只记「见过」不带距离，等于把那道闸的输入抽掉。用平方比大小是为了
+   * 省掉每拍每对的 `Math.hypot`——这一支在跑着的世界里每帧都被调一次，
+   * 而真正要开方记下来的只有已经够近的那几对。
+   */
+  sampleEncounters(): void {
+    const ids = this.holderIds();
+    const limit = this.config.talkDistance * this.config.talkDistance;
+    for (let i = 0; i < ids.length; i += 1) {
+      const a = this.holders.get(ids[i]!)?.at;
+      if (a === undefined) continue;
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const b = this.holders.get(ids[j]!)?.at;
+        if (b === undefined) continue;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const squared = dx * dx + dy * dy;
+        if (squared > limit) continue;
+        const distance = Math.sqrt(squared);
+        const key = pairKey(ids[i]!, ids[j]!);
+        const seen = this.metToday.get(key);
+        if (seen === undefined || distance < seen) this.metToday.set(key, distance);
+      }
+    }
+  }
+
+  /**
+   * 这个人可能说给谁听：**今天照过面的人**。
    *
-   * 位置缺失的单位**不参与**传播。它们不是被禁言，是「不知道他在哪」——
-   * 而世界不能假装知道他站在谁旁边。调用方接上位置之后它们自然回来。
+   * 距离是照面时最近的那一次，不是此刻的。没有这一条，候选表就是全连接图，
+   * 而 `talkDistance = 2` 那道闸永远咬不到任何人——全村一天之内全知，正是
+   * 护栏 sheet 第一行警告的那件事。
+   *
+   * 今天没照过面的单位**不参与**传播。它们不是被禁言，是「今天没碰上」——
+   * 而世界不能假装他们说过话。位置缺失的单位自然也不在表里，调用方接上
+   * 位置之后它们自然回来。
    */
   private spreadCandidates(speaker: string): SpreadCandidate[] {
-    const from = this.holders.get(speaker)?.at;
-    if (from === undefined) return [];
     const out: SpreadCandidate[] = [];
     for (const listener of this.holderIds()) {
       if (listener === speaker) continue;
-      const to = this.holders.get(listener)?.at;
-      if (to === undefined) continue;
-      out.push({ speaker, listener, distance: Math.hypot(from.x - to.x, from.y - to.y) });
+      const distance = this.metToday.get(pairKey(speaker, listener));
+      if (distance === undefined) continue;
+      out.push({ speaker, listener, distance });
     }
     return out;
   }
