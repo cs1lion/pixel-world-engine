@@ -654,6 +654,21 @@ export function evaluateFuseDecision(controller: AutonomousFuseController, roleI
     return { action: 'requireReview', reason: '需要人工逐项确认' };
   }
 
+  /**
+   * L0：人工预制裸模骨架——**所有生成全部手动**。
+   *
+   * 这一支原先不存在，而下面那个 `default` 返回的是 `allow`。于是所有角色
+   * 从 L0 起步的那一刻，每一条命令都直接放行：§3.3 表里 L0 那一行「全部手动」
+   * 与代码正好相反，而且不会有任何东西红——因为「放行」不是异常，它只是
+   * 少问了一句。`creator-fuse.test.ts` 的「L1 要求逐项确认，L4 放行，熔断中
+   * 要求隔离」那条钉了 L1 / L4 / 熔断三种，L0 那一格一直空着；补它的是
+   * `creator-engine.test.ts` 的「执行命令时 L0 需要人工确认」（拿 HEAD 的
+   * `fuse.ts` 跑一遍，那条会红——补的不是一条永远不会失败的断言）。
+   */
+  if (state.currentLevel === AutonomyLevel.L0) {
+    return { action: 'requireReview', reason: 'L0 阶段所有生成都要人工逐项确认' };
+  }
+
   const rates = ratesOf(state.metrics);
 
   if (state.currentLevel === AutonomyLevel.L2) {
