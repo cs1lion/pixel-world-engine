@@ -2640,6 +2640,10 @@ export class Simulation {
   private stepIdle(villager: Villager, deltaMs: number): void {
     if (villager.path.length > 0) {
       this.walk(villager, deltaMs);
+      // 到了才开始算停留。派路那截不扣表——钟在她迈第一步时就开始走的话，
+      // 走一段比停留更长的路，人到的时候表早空了，下一拍立刻领走，屏上就
+      // 永远是「赶路」。
+      if (villager.path.length === 0) villager.nextRoutineAt = this.now + this.dwellOf(villager);
       return;
     }
     // 举着急件的人不走作息：他得守在祭坛等答复。
@@ -2685,10 +2689,36 @@ export class Simulation {
       villager.path = route.path;
       villager.routineLabel = beat.label;
       villager.routineGoing = beat.going;
-      villager.nextRoutineAt = this.now + beat.dwellMs;
+      // 不在这里扣表：钟在走到的那一刻才起（见本函数开头那截）。
       return;
     }
     villager.nextRoutineAt = this.now + 1600;
+  }
+
+  /**
+   * 这一拍到了之后站多久。
+   *
+   * **在到达那一刻现查，不派路时记在角色身上。** 记在身上就要多一个字段；
+   * 那个字段不进存档的话，读档续跑的人到站就不停（`save.test.ts` 的「续跑
+   * 等价」当场红），进存档就得升 schema。现查只用存档里已经有的
+   * `routineIndex`：它指向「下一拍」，减一就是脚下这一拍，而挑拍的
+   * `routineFor` 是纯函数——同一个下标、同一份天气与潮位，原世界与读档世界
+   * 查出来的是同一个数。
+   *
+   * 唯一的不精确：走到半路天气变了，回查会拿到雨天那一拍的时长。雨天那三句
+   * 的时长与晴天同量级（都是 `DWELL_MS`），改不了「到站会停」这件事。
+   */
+  private dwellOf(villager: Villager): number {
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    const beat = routineFor(
+      this.weather.kind,
+      beats,
+      Math.max(0, villager.routineIndex - 1),
+      effectiveTideLevel(this.now, this.tideOverride),
+      shelterTarget(this.buildings, here),
+    );
+    return beat.dwellMs;
   }
 
   /**
@@ -2739,7 +2769,9 @@ export class Simulation {
     // 求证这一句本来就是赶路的形状，所以两半都填它自己：走到之后她照样在现场。
     villager.routineLabel = '心里存着疑，去现场看看';
     villager.routineGoing = '心里存着疑，去现场看看';
-    villager.nextRoutineAt = this.now + 1200;
+    // 这里不写 `nextRoutineAt`：停留的钟在到达那刻才起（`stepIdle` 走完那截），
+    // 写了也会被那一下盖掉。求证不占作息的下标，所以她到现场停的是上一拍
+    // 作息的时长——够她站一会儿，不是原地打个转就走。
     return true;
   }
 

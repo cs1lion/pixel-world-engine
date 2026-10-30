@@ -1,13 +1,17 @@
 /**
  * 走着的时候，牌子不许说「到了之后」的那句话。
  *
- * 这一条守的不是边角。默认世界里跑起来，坐标在动的拍**多于**站着带牌子的拍
- * ——`moved > stillLabelled` 钉住的就是「多于」这一个字，不是「多多少」。
- * 于是「她多数时候在往某处走，而牌子说她已经站在那儿了」是这个世界的常态，
- * 不是偶发。（别在这一句里填比例：这个文件早先写着「76.1%」「16248 拍」四个
- *   数，是一次性探针量出来的，探针删了之后一个都复算不出来。要那个比例，
- *   跑一遍看 `moved` 与 `stillLabelled` 两条计数就有了——写进注释只会变成
- *   下一颗没人能复核的数字。）
+ * 这一条守的不是边角。**2026-10-30 之前**，默认世界里坐标在动的拍多于站着
+ * 带牌子的拍——不是这个世界喜欢走路，是停留的钟在她迈第一步时就开始走了：
+ * 派路那截写 `nextRoutineAt = now + beat.dwellMs`，路一长（3 格/秒，二十格要
+ * 六秒多）表在走到之前就空了，于是「她多数时候在往某处走，而牌子说她已经站
+ * 在那儿了」是常态。钟改到到达起算之后这条比值翻了过来——但比值不是本条要
+ * 守的东西，真正要守的是「停留真的发生过」，判据见 `longestDwell`。
+ *
+ * （别在这一句里填比例：这个文件早先写着「76.1%」「16248 拍」四个数，是一次性
+ *   探针量出来的，探针删了之后一个都复算不出来。要那个比例，跑一遍看 `moved`
+ *   与 `stillLabelled` 两条计数就有了——写进注释只会变成下一颗没人能复核的
+ *   数字。上面那句也照这条规矩，只写「翻了过来」，没写翻到几比几。）
  *
  * 假的意思是**可复算的**：牌子说她站在某处，而她的坐标这一拍动了。所以判据
  * 不需要摸世界内部——拿相邻两拍的坐标比一下就知道。这也是本条不用 `path`
@@ -104,6 +108,17 @@ const GOING = new Set<string>([
  */
 const TICKS = 60 * 180;
 
+/** 一次 `update` 走多久。停留的连续拍数要乘回毫秒，才跟作息表比得了。 */
+const TICK_MS = 16;
+
+/**
+ * 作息表里最短的一次停留。停留跑没跑成，拿它当尺子。
+ *
+ * 读数据不读字面量：`DWELL_MS` 在 `routines.ts` 里是私有常量，而这把尺子要
+ * 量的正是「节拍表说要站多久」。哪天有人把某一拍调短，这里跟着动。
+ */
+const MIN_DWELL_MS = Math.min(...routineBeats(ALTAR, world.grid).map((beat) => beat.dwellMs));
+
 /**
  * 天气合成那七句（四条落脚 + 三条赶路）。**只为证明雨天那条支路真的跑到了。**
  *
@@ -134,6 +149,15 @@ interface Survey {
   readonly standingWrong: readonly string[];
   /** 牌子说到天气合成那七句的拍数。证明雨天支路跑到了，不是死字面量。 */
   readonly sheltered: number;
+  /**
+   * 最长的一段「站着不动、牌子是作息落点那句」的连续拍数。
+   *
+   * **这是「停留真的发生过」的唯一判据。** `moved` 与 `stillLabelled` 的比值
+   * 说明不了这件事：一个从不停留的世界照样凑得出站着带牌子的拍——等下一拍的
+   * 1600ms 兜底、原地办活、躲雨，都算。只有连续站着超过作息表里最短的一次
+   * 停留那么久，才不可能来自那些地方。
+   */
+  readonly longestDwell: number;
 }
 
 /**
@@ -159,9 +183,12 @@ function survey(sim: Simulation): Survey {
   let moved = 0;
   let stillLabelled = 0;
   let sheltered = 0;
+  let longestDwell = 0;
+  /** 每个人当前连着站了几拍（只数「站着 + 牌子是落点那句」）。 */
+  const stillRun = new Map<string, number>();
 
   for (let t = 0; t < TICKS; t += 1) {
-    sim.update(16);
+    sim.update(TICK_MS);
     for (const villager of sim.snapshot().villagers) {
       const was = before.get(villager.id)!;
       const isMoving = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;
@@ -170,6 +197,11 @@ function survey(sim: Simulation): Survey {
       before.set(villager.id, { pos: { ...villager.pos }, routine: villager.routine });
       // 牌子这一拍没被改写，才轮得到它挨判。
       const stale = label === villager.routine;
+      // 停留：站着不动，而牌子说的是作息表上的落点。
+      const dwelling = !isMoving && label !== null && ARRIVAL.has(label);
+      const run = dwelling ? (stillRun.get(villager.id) ?? 0) + 1 : 0;
+      stillRun.set(villager.id, run);
+      if (run > longestDwell) longestDwell = run;
       if (isMoving) {
         moved += 1;
         if (!stale) continue;
@@ -184,7 +216,7 @@ function survey(sim: Simulation): Survey {
       }
     }
   }
-  return { moved, stillLabelled, walkingLies, walkingSilent, standingWrong, sheltered };
+  return { moved, stillLabelled, walkingLies, walkingSilent, standingWrong, sheltered, longestDwell };
 }
 
 /**
@@ -201,9 +233,12 @@ test('坐标动了的那些拍，牌子不是一句「已经到了」', () => {
   const seen = SEEN;
 
   assert.ok(seen.moved > 1000, `只观察到 ${seen.moved} 拍在动，像是世界没跑起来`);
+  assert.ok(seen.stillLabelled > 1000, `只观察到 ${seen.stillLabelled} 拍站着带牌子，这条什么都没验`);
+  // 停留真的发生过：连着站满一次最短的停留，只可能来自作息表，不来自
+  // 兜底的 1600ms、原地办活或躲雨（那几处都短于这把尺子）。
   assert.ok(
-    seen.moved > seen.stillLabelled,
-    `赶路 ${seen.moved} 拍却少于站着 ${seen.stillLabelled} 拍——本条守的就不再是常态`,
+    seen.longestDwell * TICK_MS >= MIN_DWELL_MS,
+    `最长一次停留只有 ${seen.longestDwell * TICK_MS}ms，短于作息表最短的 ${MIN_DWELL_MS}ms——她一次也没停下来过`,
   );
   assert.deepEqual(
     seen.walkingSilent.slice(0, 5),
