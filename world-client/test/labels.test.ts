@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   alignmentError,
+  overlayViewportOf,
   projectWorldToOverlay,
   snapToDevicePixel,
   revealAnchor,
@@ -122,4 +123,41 @@ test('露话锚在摆件正上方：高过三种剪影，横向不偏', () => {
   // 钉住 227.6 只会让这条测试在某个 Node 版本上无故变红。
   assert.equal(at.x, 144, '横向上对着格子中央');
   assert.ok(Math.abs(at.y - 227.6) < 1e-9, `抬过了剪影：${at.y}`);
+});
+
+// ------------------------------------------------------------------ 相机口径
+
+/**
+ * overlay 的 `cameraWorldX` 必须是**视野左上角**，不是 `scrollX`。
+ *
+ * 这条守的是一次真发生过的回归：`world-overlay.ts` 曾经直接传 `camera.scrollX`，
+ * 1 倍时恰好相等、看不出问题，放大到 2 倍后名字与气泡整体偏 120 世界像素。
+ * 光验 `viewOriginOf` 的算式守不住它——算式一直是对的，错的是调用方没调它。
+ */
+test('overlay 的相机原点按视野算，不是 scrollX', () => {
+  const camera = { scrollX: 0, scrollY: 0, width: 480, height: 320, zoom: 2 };
+  const v = overlayViewportOf(camera, { width: 960, height: 640 }, { width: 480, height: 320 });
+  assert.equal(v.cameraWorldX, 120, '2 倍下 scrollX=0 的视野原点在 120，不是 0');
+  assert.equal(v.cameraWorldY, 80);
+  assert.equal(v.cameraZoom, 2);
+  assert.equal(v.gameWidth, 480, 'gameWidth 是画布逻辑像素，不是显示像素 960');
+});
+
+test('1 倍时原点恰好等于 scrollX——这正是那个 bug 当初看不出来的原因', () => {
+  const camera = { scrollX: 300, scrollY: 200, width: 480, height: 320, zoom: 1 };
+  const v = overlayViewportOf(camera, { width: 960, height: 640 }, { width: 480, height: 320 });
+  assert.equal(v.cameraWorldX, 300);
+  assert.equal(v.cameraWorldY, 200);
+});
+
+test('原点交给投影后，世界点落在画布中央', () => {
+  // 2 倍、原点 120：世界 x=120 是视野左缘，x=240 是视野正中。
+  const v = overlayViewportOf(
+    { scrollX: 0, scrollY: 0, width: 480, height: 320, zoom: 2 },
+    { width: 960, height: 640 },
+    { width: 480, height: 320 },
+  );
+  const center = projectWorldToOverlay(240, 160, v);
+  assert.equal(center.x, 480, 'overlay 宽 960，正中就是 480');
+  assert.equal(center.y, 320);
 });

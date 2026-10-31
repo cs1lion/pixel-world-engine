@@ -7,6 +7,7 @@
 import { TILE_PX } from '../world/setup.ts';
 import { GRIME_CLEAN } from '../world/grime.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
+import { viewOriginOf } from './camera-math.ts';
 
 export interface OverlayRect {
   readonly left: number;
@@ -28,6 +29,43 @@ export interface OverlayViewport {
 export interface OverlayPoint {
   readonly x: number;
   readonly y: number;
+}
+
+/** 相机在某一帧能读到的四个数。只要这四个，不依赖 Phaser 的类型。 */
+export interface CameraLike {
+  readonly scrollX: number;
+  readonly scrollY: number;
+  readonly width: number;
+  readonly height: number;
+  readonly zoom: number;
+}
+
+/**
+ * 相机 + 画布尺寸 → 投影参数。**`cameraWorldX/Y` 是视野左上角，不是 `scrollX`。**
+ *
+ * 两者差半个视野，只有 1 倍时相等：480 宽画布在 2 倍下差 120 世界像素。
+ * 这里原来直接传 `scrollX`，名字、气泡、区域标签整体偏了 240 逻辑像素——正好半个画布。
+ *
+ * 用 `scrollX` 现算而不是读 `camera.worldView`：worldView 由相机的 preRender 更新，
+ * 而场景 update 在它之前跑，读到的是上一帧的值——开局第一帧就是 (0,0)，
+ * overlay 会整整错开一个屏幕。scroll 是即时值，换算（`viewOriginOf`）是纯算式。
+ *
+ * `gameWidth/Height` 取**画布的逻辑像素**（480×320），不是显示像素（960×640）：
+ * 传错的话 rect/gameWidth 恒为 1，overlay 按世界像素直接摆放，2 倍显示下偏一半（实测 486px）。
+ */
+export function overlayViewportOf(
+  camera: CameraLike,
+  canvasRect: { readonly width: number; readonly height: number },
+  canvas: { readonly width: number; readonly height: number },
+): OverlayViewport {
+  return {
+    rect: { left: 0, top: 0, width: canvasRect.width, height: canvasRect.height },
+    gameWidth: canvas.width,
+    gameHeight: canvas.height,
+    cameraWorldX: viewOriginOf(camera.scrollX, camera.width, camera.zoom),
+    cameraWorldY: viewOriginOf(camera.scrollY, camera.height, camera.zoom),
+    cameraZoom: camera.zoom,
+  };
 }
 
 /** 世界像素 → overlay 内 CSS 像素（相对 overlay 左上角）。 */

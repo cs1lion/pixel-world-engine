@@ -19,7 +19,9 @@ import {
   ZOOM_STEPS,
   clampScroll,
   createDirectorClock,
+  scrollForOrigin,
   stepZoomIndex,
+  viewOriginOf,
 } from './camera-math.ts';
 
 export type CameraMode = 'free' | 'follow' | 'director';
@@ -35,9 +37,39 @@ export interface CameraController {
   readonly zoom: () => number;
   /** 跟随某个对象（通常是角色）。传 null 回到自由模式。 */
   follow(target: Phaser.GameObjects.GameObject | null): void;
+  /**
+   * 有没有可跟随的目标。
+   *
+   * 「跟随」按钮在没跟过任何人时该是 disabled——按了不动的按钮比没有按钮更糟。
+   * 用户自己拖走镜头不算丢掉目标，所以拖完这个仍然为真。
+   */
+  canFollow(): boolean;
+  /**
+   * 松开跟随，但**记住**跟的是谁。
+   *
+   * 与 `follow(null)` 的差别只在这一点：那个把目标也忘了，于是「跟随」按钮
+   * 跟着变成 disabled。关掉村民面板只是不想再跟，不是不想再跟**她**。
+   */
+  releaseFollow(): void;
   /** 打开自动导播；`candidates` 返回当前值得看的世界坐标。 */
   enableDirector(candidates: () => readonly { x: number; y: number }[]): void;
   disableDirector(): void;
+  /**
+   * 显式切到某个模式。三个按钮走这条。
+   *
+   * `'follow'` 用**上一次**的跟随目标；一次都没跟过就不动（按钮那边是 disabled）。
+   * `'director'` 立刻接管，不等闲置计时——按了按钮还要等 15 秒是说不通的。
+   * `'free'` 会把导播整个关掉，之后不会再自己接管。
+   */
+  setMode(mode: CameraMode): void;
+  /**
+   * 世界刚发生一件事，落点在这儿。
+   *
+   * **只有已经处在导播时才理会**：自由与跟随模式下绝不抢镜头——玩家正看着
+   * 某处，一次潮水掉头不该把画面拽走。导播下它会打断当前的轮转，立刻过去，
+   * 并吃掉这一档（不然刚落地又被轮转切走）。
+   */
+  notifyEvent(point: { readonly x: number; readonly y: number }): void;
   /** 每帧调用：处理闲置计时与导播切换。 */
   update(deltaMs: number): void;
   /** 用户有任何输入时调用：重置闲置计时并退出导播。 */
@@ -46,10 +78,16 @@ export interface CameraController {
   viewportRect(): { x: number; y: number; width: number; height: number };
 }
 
+export interface CameraOptions {
+  /** 初始缩放档位。省略就是 2 倍。设定集地图比旧镇大得多，它要 1 倍起。 */
+  readonly zoomIndex?: number;
+}
+
 export function createCameraController(
   scene: Phaser.Scene,
   worldWidth: number,
   worldHeight: number,
+  options: CameraOptions = {},
 ): CameraController {
   const cam = scene.cameras.main;
   cam.setBounds(0, 0, worldWidth, worldHeight);
@@ -58,12 +96,29 @@ export function createCameraController(
   const clock = createDirectorClock(DIRECTOR_IDLE_MS, DIRECTOR_DWELL_MS);
   /** 跟随模式是相机自己的事，时钟只管"自由 / 导播"。 */
   let following = false;
+  /** 上一次跟随的对象。显式的「跟随」按钮没有别的目标可挑，只能用它。 */
+  let lastFollowTarget: Phaser.GameObjects.GameObject | null = null;
   let candidates: (() => readonly { x: number; y: number }[]) | null = null;
-  let nextCandidate = 0;
+  /**
+   * 这一档已经平移过了没有（`-1` 表示不在导播里）。
+   *
+   * 原来用的是 `nextCandidate > 0`——那是个只增不减的计数，于是**第二次**
+   * 进入导播时它已经大于 0，进入那一帧不会平移，要干等一个 `DIRECTOR_DWELL_MS`
+   * 才动。按档位记就没有这个问题：离开导播时复位，再进来一定重新平移。
+   */
+  let lastPannedIndex = -1;
+  /** 刚发生、还没给镜头看的事件落点。只在导播里被消费。 */
+  let pendingEvent: { x: number; y: number } | null = null;
 
   const mode = (): CameraMode => (following ? 'follow' : clock.mode());
 
-  let zoomIndex = Math.max(0, ZOOM_STEPS.indexOf(2));
+  const zoomIndex0 = options.zoomIndex ?? ZOOM_STEPS.indexOf(2);
+  let zoomIndex = Math.max(0, Math.min(ZOOM_STEPS.length - 1, zoomIndex0));
+  // **必须真的设上去。** 原来只记了档位索引，`cam.zoom` 停在 Phaser 的默认 1：
+  // 于是索引说 2 倍、画面是 1 倍，滚轮第一格从 1 跳到 1.5 是「放大」，第二格
+  // 直接越过 2 到 3。设定集那支靠连按两次 `zoomStep(-1)` 把画面救回 1 倍，
+  // 而默认世界没有这一步，档位一直是分家的。
+  cam.setZoom(ZOOM_STEPS[zoomIndex]!);
 
   return {
     mode,
@@ -90,11 +145,14 @@ export function createCameraController(
       this.notifyInput();
       zoomIndex = stepZoomIndex(zoomIndex, direction);
       const next = ZOOM_STEPS[zoomIndex]!;
+      // 先按**旧**倍率把 scroll 换算成视野原点，再夹，再按**新**倍率换回 scroll。
+      // 直接拿 scrollX 去夹是错的：夹的是原点，两者差半个视野（见 `viewOriginOf`）。
+      const originX = viewOriginOf(cam.scrollX, cam.width, cam.zoom);
+      const originY = viewOriginOf(cam.scrollY, cam.height, cam.zoom);
       cam.setZoom(next);
-      // 缩放后可能露出世界外，立刻夹回来。
-      const clamped = clampScroll(cam.scrollX, cam.scrollY, worldWidth, worldHeight, cam.width, cam.height, next);
-      cam.scrollX = clamped.x;
-      cam.scrollY = clamped.y;
+      const clamped = clampScroll(originX, originY, worldWidth, worldHeight, cam.width, cam.height, next);
+      cam.scrollX = scrollForOrigin(clamped.x, cam.width, next);
+      cam.scrollY = scrollForOrigin(clamped.y, cam.height, next);
       return next;
     },
 
@@ -105,10 +163,20 @@ export function createCameraController(
       if (target === null) {
         cam.stopFollow();
         following = false;
+        lastFollowTarget = null;
         return;
       }
       following = true;
+      lastFollowTarget = target;
       cam.startFollow(target, true, 0.08, 0.08);
+    },
+
+    canFollow: () => lastFollowTarget !== null,
+
+    releaseFollow() {
+      if (!following) return;
+      cam.stopFollow();
+      following = false;
     },
 
     enableDirector(nextCandidates) {
@@ -123,29 +191,95 @@ export function createCameraController(
       clock.disable();
     },
 
+    setMode(next) {
+      if (next === 'follow') {
+        if (lastFollowTarget === null) return;
+        this.follow(lastFollowTarget);
+        return;
+      }
+      // 没有候选就不动——**而且要在 `notifyInput` 之前判**：按了个不动的按钮，
+      // 不该顺手把人从跟随里踢出来。
+      if (next === 'director' && candidates === null) return;
+      // 先退出跟随（`notifyInput` 会停掉 Phaser 的 follow），再决定时钟。
+      this.notifyInput();
+      if (next === 'free') {
+        clock.disable();
+        return;
+      }
+      clock.enable();
+      clock.force();
+    },
+
+    notifyEvent(point) {
+      // 判 `mode()` 而不是 `clock.mode()`：跟随中镜头归 Phaser 的 startFollow，
+      // 此刻哪怕时钟内部已经数到导播，这一帧也不该有第二个人摆镜头。
+      if (mode() !== 'director') return;
+      pendingEvent = { x: point.x, y: point.y };
+    },
+
     update(deltaMs) {
-      const before = clock.targetIndex();
+      // 跟随中什么都不做，并把导播的闲置计时按在 0。
+      //
+      // 原来没有这一段：`follow()` 只 reset 了一次闲置计时，时钟仍登记着，
+      // 于是 15 秒后导播一边平移、Phaser 一边跟随，`mode()` 却还报告 'follow'。
+      // 跟随是用户自己挑的目标，不能被闲置计时抢走。松开跟随后，闲置计时
+      // 从松开那一刻重新起算——世界照旧会自己接管。
+      if (following) {
+        clock.notifyInput();
+        pendingEvent = null;
+        lastPannedIndex = -1;
+        return;
+      }
       clock.tick(deltaMs);
-      if (clock.mode() !== 'director') return;
-      if (clock.targetIndex() === before && nextCandidate > 0) return;
+      if (clock.mode() !== 'director') {
+        lastPannedIndex = -1;
+        pendingEvent = null;
+        return;
+      }
+
+      // 事件优先：它比轮转更该被看见。吃掉这一档，免得刚落地又被切走。
+      if (pendingEvent !== null) {
+        const point = pendingEvent;
+        pendingEvent = null;
+        lastPannedIndex = clock.targetIndex();
+        cam.pan(point.x, point.y, 900, 'Sine.easeInOut', true);
+        return;
+      }
+
+      const index = clock.targetIndex();
+      if (index === lastPannedIndex) return;
+      lastPannedIndex = index;
 
       const list = candidates?.() ?? [];
       if (list.length === 0) return;
-      const point = list[nextCandidate % list.length]!;
-      nextCandidate += 1;
+      // 用时钟的档位索引取候选，不另记一个计数器：`candidates()` 每帧重新算，
+      // 列表长度与顺序都可能变，两个各自递增的计数器迟早指向不同的元素。
+      const point = list[index % list.length]!;
       cam.pan(point.x, point.y, 900, 'Sine.easeInOut', true);
     },
 
     notifyInput() {
+      // 四件事都要做。原来只做了最后一件：
+      //  - `stopFollow`：否则 `mode()` 说自由、Phaser 还在跟着她走；
+      //  - `panEffect.reset`：否则一次 900ms 的导播平移会逐帧盖掉拖拽，
+      //    玩家按住拖半天，镜头等平移跑完才跟手；
+      //  - 丢掉还没给镜头看的事件、忘掉「这一档平移过」：否则再进导播时，
+      //    镜头会先跳到一个已经过时的落点，或者干等一档不动；
+      //  - 时钟回自由。
+      if (following) cam.stopFollow();
       following = false;
+      if (cam.panEffect.isRunning) cam.panEffect.reset();
+      pendingEvent = null;
+      lastPannedIndex = -1;
       clock.notifyInput();
     },
 
     viewportRect() {
       const zoom = cam.zoom;
       return {
-        x: cam.scrollX,
-        y: cam.scrollY,
+        // 视野**左上角**在世界里的坐标，不是 `scrollX`——小地图的白框按它画。
+        x: viewOriginOf(cam.scrollX, cam.width, zoom),
+        y: viewOriginOf(cam.scrollY, cam.height, zoom),
         width: cam.width / zoom,
         height: cam.height / zoom,
       };

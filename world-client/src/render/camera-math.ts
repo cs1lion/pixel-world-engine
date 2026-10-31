@@ -22,10 +22,36 @@ export function zoomAtStep(index: number): number {
 }
 
 /**
- * 夹取镜头滚动值。
+ * 相机 scroll 与「视野左上角在世界里的坐标」之间的换算。
+ *
+ * Phaser 的 `worldView.x = scrollX + width/2 - width/(2*zoom)`：scroll 是**镜头中心**
+ * 的滚动量，而视野左上角要减掉半个视野。只有 `zoom === 1` 时两者相等——
+ * 480 宽的画布在 2 倍下差 120 世界像素。
+ *
+ * 这个差是 `world-overlay.ts` 里名字与气泡错位的根因：那一处一直把 `scrollX`
+ * 当原点传下去，于是放大到 2 倍时整层 DOM 文字偏了半个画布。改成用这个函数
+ * 现算，而不是改用 `camera.worldView`——后者由相机的 preRender 更新，而场景
+ * 的 update 在它之前跑，开局第一帧会拿到 (0,0)。
+ */
+export function viewOriginOf(scroll: number, viewportSize: number, zoom: number): number {
+  return scroll + viewportSize / 2 - viewportSize / (2 * zoom);
+}
+
+/** `viewOriginOf` 的反函数：要把视野原点摆到 `origin`，scroll 该是多少。 */
+export function scrollForOrigin(origin: number, viewportSize: number, zoom: number): number {
+  return origin - viewportSize / 2 + viewportSize / (2 * zoom);
+}
+
+/**
+ * 夹取**视野原点**（不是 `scrollX`）。
  *
  * `viewportWidth/Height` 是**画布**尺寸（逻辑像素），缩放后覆盖的世界范围是
  * 它除以 zoom。世界比视野小时贴左上，不出现负偏移——否则会看到世界外的空白。
+ *
+ * **定义域是原点。** 早先 `camera-controller.ts` 的 `zoomStep` 把 `cam.scrollX`
+ * 喂进来，两者在 zoom≠1 时差半个视野，于是放大到 2 倍会多露出 120 像素的边界外。
+ * `test/camera.test.ts` 那四条数值在原点口径下全部成立，所以那组测试并没有钉住
+ * 错误——错的是调用方用错了函数的定义域。
  */
 export function clampScroll(
   x: number,
@@ -58,6 +84,8 @@ export function createDirectorClock(idleMs: number, dwellMs: number): {
   mode(): DirectorMode;
   enable(): void;
   disable(): void;
+  /** 立刻接管，不等闲置计时。显式的「导播」按钮走这条。 */
+  force(): void;
   notifyInput(): void;
   tick(deltaMs: number): void;
   targetIndex(): number;
@@ -79,6 +107,12 @@ export function createDirectorClock(idleMs: number, dwellMs: number): {
       registered = false;
       if (mode === 'director') mode = 'free';
     },
+    force() {
+      if (!registered) return;
+      mode = 'director';
+      dwell = 0;
+      idle = 0;
+    },
     notifyInput() {
       idle = 0;
       if (mode === 'director') mode = 'free';
@@ -96,7 +130,14 @@ export function createDirectorClock(idleMs: number, dwellMs: number): {
       idle += deltaMs;
       if (idle >= idleMs) {
         mode = 'director';
-        dwell = dwellMs; // 进来立刻切一次
+        // 从 0 起算，不是 `dwellMs`。
+        //
+        // 原来是 `dwellMs`，意思是「进来立刻切一次」——可控制器本来就会在进入
+        // 导播的那一帧挑 `list[0]` 平移过去，而下一帧 dwell 到点又把 index
+        // 推一格，于是 `list[0]` 只出现一帧就被 `list[1]` 强制作废。
+        // 优先级最高的目标（正在忙的人）恰恰是这一个。从 0 起算，它就能停满
+        // 一个完整的 `dwellMs`。
+        dwell = 0;
         idle = 0;
       }
     },

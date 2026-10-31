@@ -423,7 +423,7 @@ test('代码里声明的作息落点必须与 KNOWN_STOPS 一模一样', () => {
 });
 
 /**
- * `dwellMs` 条件放掉的那 8 行。**这不是豁免名单，是盲区登记。**
+ * `dwellMs` 条件放掉的那些行。**这不是豁免名单，是盲区登记。**
  *
  * 「同字面量里有 `dwellMs:`」把作息落点与别的 `label:` 字面量分开。可代码里还有
  * 别的 `label:`：时辰的四个名字（`day-phase.ts`）与活计的四个名字（`tasks.ts`）。
@@ -443,6 +443,12 @@ const KNOWN_OTHER_LABELS: Readonly<Record<string, { readonly why: string }>> = {
   'world/tasks.ts:11': { why: '同上，四类活计之一。' },
   'world/tasks.ts:12': { why: '同上，四类活计之一。' },
   'world/tasks.ts:13': { why: '同上，四类活计之一。' },
+  // 取景的三个按钮名。**这不是世界数据**：它们说的是镜头怎么摆，不是这个世界里
+  // 有什么——换一套设定集，三个字一个不改，也没有哪份设定集能给出别的叫法。
+  // 写在代码里正是对的，搬进设定集反而会让同一组控件在不同世界叫不同名字。
+  'ui/camera-bar.ts:24': { why: '取景按钮：自由。界面控件名，不描述世界内容，任何设定集都是这三个字。' },
+  'ui/camera-bar.ts:25': { why: '同上，跟随。' },
+  'ui/camera-bar.ts:26': { why: '同上，导播。' },
 };
 
 test('dwellMs 条件放掉的其他 label 字面量必须与 KNOWN_OTHER_LABELS 一模一样', () => {

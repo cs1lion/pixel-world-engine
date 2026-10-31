@@ -564,6 +564,75 @@
       .dbg-val { text-align: right; min-width: 0; overflow-wrap: anywhere; }
       .dbg-inject { margin-top: 10px; color: var(--dim); }
       .dbg-inject button { display: block; margin-top: 4px; font-size: 11px; }
+      /* 取景的三个按钮：自由 / 跟随 / 导播。放在顶栏，与镇志同一个位置语言。
+         颜色只走 CSS 变量——audit-palette 把这里的字面量逐个计入 UI 层色数。 */
+      #camera-bar { display: flex; gap: 2px; }
+      #camera-bar button {
+        font-size: 11px;
+        padding: 3px 7px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--dim);
+      }
+      #camera-bar button[aria-pressed='true'] {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      #camera-bar button:disabled { opacity: 0.45; }
+
+      /* 村民面板：点一个人，她说她记得的事。
+         与镇志同一套硬投影语言，但落在**右侧**——镇志已经占了左边，
+         而右侧那个调试面板只在 ?debug=1 时才展开。 */
+      #villager-panel {
+        position: fixed;
+        top: 52px;
+        right: 10px;
+        z-index: 50;
+        box-sizing: border-box;
+        width: 300px;
+        max-width: calc(100vw - 20px);
+        max-height: 72vh;
+        overflow: auto;
+        padding: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow:
+          3px 3px 0 0 color-mix(in srgb, var(--base) 55%, transparent),
+          6px 6px 0 0 color-mix(in srgb, var(--base) 22%, transparent);
+        font-size: 12px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+      }
+      #villager-panel[hidden] { display: none; }
+      #villager-panel .villager-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+      #villager-panel .villager-head strong {
+        color: var(--amber);
+        font-family: var(--font-pixel);
+        font-weight: 400;
+        letter-spacing: 0.1em;
+      }
+      #villager-panel .villager-head button { font-size: 11px; padding: 3px 6px; }
+      #villager-panel-body blockquote {
+        margin: 8px 0;
+        padding-left: 8px;
+        border-left: 2px solid var(--line);
+        color: var(--ink);
+      }
+      #villager-panel-body .villager-when {
+        display: block;
+        margin-top: 2px;
+        color: var(--dim);
+        font-size: 10px;
+      }
+      #villager-panel-body .villager-empty { color: var(--dim); margin: 10px 2px; }
+
       /* 像素字只用于标题、短标签与交互控件；新闻纸正文仍用可读宋体。 */
       h1, header p, .overlay-name, .overlay-bubble, input, button,
       #status, #reply, #save-io-reply, #paper .masthead .name, footer,
@@ -589,6 +658,7 @@
       <span id="hud-load" aria-live="polite">世界正在醒来…</span>
       <span id="hud-net" title="上游事件流的连接状态">连接中</span>
       <button type="button" id="chronicle-open" aria-expanded="false" aria-controls="chronicle">镇志</button>
+      <div id="camera-bar" role="group" aria-label="取景"></div>
       <span class="hintkey"><kbd>Ctrl</kbd>+<kbd>K</kbd> 降下神谕</span>
     </div>
 
@@ -690,6 +760,17 @@
         <p id="chronicle-reader-subtitle"></p>
         <div id="chronicle-reader-body"></div>
       </div>
+    </aside>
+
+    <!-- 村民面板：点一个人，她说她记得的事。读的是检索 Top-3（`recallForDialogue`），
+         不调模型、不改世界。落在右侧——镇志已经占了左边，而调试面板只在 ?debug=1
+         时展开。中文全走 DOM（SPEC §4.8）。 -->
+    <aside id="villager-panel" hidden aria-label="她记得的事">
+      <div class="villager-head">
+        <strong id="villager-panel-name"></strong>
+        <button type="button" id="villager-panel-close">关闭</button>
+      </div>
+      <div id="villager-panel-body"></div>
     </aside>
 
     <section id="decree" aria-live="polite" hidden>

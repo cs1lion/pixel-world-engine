@@ -53,6 +53,31 @@ test('导播每停留一段时间换一次目标', () => {
   assert.notEqual(c.targetIndex(), before, '停留到点应换目标');
 });
 
+test('force：显式按下「导播」就立刻接管，不等闲置', () => {
+  const c = clock();
+  c.enable();
+  c.force();
+  assert.equal(c.mode(), 'director');
+});
+
+test('没登记目标时 force 也不接管——没有候选就不该自己动', () => {
+  const c = clock();
+  c.force();
+  assert.equal(c.mode(), 'free');
+});
+
+test('进入导播不跳过第一个候选：先停满一个 dwell 再换', () => {
+  const c = clock();
+  c.enable();
+  c.tick(DIRECTOR_IDLE_MS);
+  assert.equal(c.mode(), 'director');
+  assert.equal(c.targetIndex(), 0, '进来先看第 0 个，不是第 1 个');
+  c.tick(DIRECTOR_DWELL_MS - 1);
+  assert.equal(c.targetIndex(), 0, '没停满不该换');
+  c.tick(1);
+  assert.equal(c.targetIndex(), 1);
+});
+
 test('没登记目标时永远不接管', () => {
   const c = clock();
   c.tick(DIRECTOR_IDLE_MS * 3);

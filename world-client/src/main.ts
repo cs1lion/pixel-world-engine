@@ -14,6 +14,8 @@ import { bindHud } from './ui/hud.ts';
 import { bindShell } from './ui/shell.ts';
 import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
 import { bindChronicle } from './ui/chronicle-panel.ts';
+import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
+import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
 import { createMemoryClient } from './world/memory-client.ts';
 import {
   SaveStore,
@@ -164,6 +166,16 @@ bindDebugPanel({
 // 镇志抽屉：票据 #7 的「像读一本编年史」。只读 memory/，不改变仿真。
 // 客户端在这里才装配：它要知道 fetch 走哪（开发时是 vite 代理的 /api）。
 bindChronicle({ client: createMemoryClient() });
+
+// 取景三按钮与村民面板。两个都只读场景暴露的那一面：一个改镜头模式，
+// 一个把「她记得什么」摆出来——都不改仿真。
+const cameraOracle = (): CameraOracle | undefined =>
+  (window as unknown as { Oracle?: CameraOracle }).Oracle;
+bindCameraBar(cameraOracle);
+
+const villagerOracle = (): VillagerOracle | undefined =>
+  (window as unknown as { Oracle?: VillagerOracle }).Oracle;
+bindVillagerPanel(villagerOracle);
 
 // task-22：存档手动导出/导入。导出 = 单槽原文（就是 toSave() 的 v1 JSON，不二次加工）；
 // 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与上游对账。

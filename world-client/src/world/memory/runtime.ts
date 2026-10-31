@@ -19,6 +19,7 @@
 import { DEFAULT_MEMORY_CONFIG, type MemoryConfig } from './config.ts';
 import type { OcclusionGrid, Perceiver } from './perception.ts';
 import { witnessesOf } from './perception.ts';
+import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import type { HolderType, MemoryEvent, WorldFact, WorldVitals } from './types.ts';
 import { MemoryWorld, type HolderView } from './world.ts';
@@ -299,13 +300,35 @@ export class MemoryRuntime {
    * `memories.length`，不是记忆本身。**验它要带注释过滤**，否则 grep 命中的是
    * 正在说明这件事的这几行：`grep -rn "\.memory(" src test scripts | grep -v ":[0-9]*: *\*"`。
    *
-   * 注意这不是**回忆**：回忆是 `recall.ts`（打分、裁剪、强化），那一条链在
-   * 本类一个方法都没有——见 `recall.ts` 文件头「在跑着的世界里没有调用方」。
-   * 这一扇给的是**全量原样**，两者的区别正是「单位只能读自己」与
-   * 「他要想起什么」。
+   * 注意这不是**回忆**：回忆是 `recall.ts`（打分、裁剪、强化），走下面的
+   * `recallForDialogue`。这一扇给的是**全量原样**，那一扇给的是「他此刻想得起
+   * 什么」——两条路的区别正是「他手上有什么」与「他要想起什么」。
    */
   viewOf(holderId: string): HolderView | null {
     return this.world.viewOf(holderId);
+  }
+
+  /** 世界走到第几天。检索算近因要用它；与 `observe` 定时刻是同一个 `now`。 */
+  get day(): number {
+    return Math.floor(this.now / this.config.dayMs);
+  }
+
+  /**
+   * 他此刻想得起什么。对话注入取 Top-`dialogueTopK`（3）。
+   *
+   * 这条链原先断在三层之外：`recall()` 只被 `world.recallFor` 叫，`recallFor`
+   * 只被 `world.recallForDialogue` 叫，而后者只被 `test/memory-written.test.ts`
+   * 叫——本类上没有一扇门通到它，场景连伸手都伸不到。现在「点一个村民」走这里。
+   *
+   * `commit` 由调用方给，而且**读的时候应当传 `false`**：`commit` 会强化、
+   * 可能变形，还往事件流写 `memory.recalled`。面板上点一下就改了世界状态，
+   * 还能靠连点把某条记忆强化得比事实更牢。
+   */
+  recallForDialogue(
+    holderId: string,
+    request: Omit<RecallRequest, 'holderId' | 'budgetK'>,
+  ): RecallOutcome {
+    return this.world.recallForDialogue(holderId, request);
   }
 
   /**

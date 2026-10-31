@@ -7,12 +7,12 @@
 import type Phaser from 'phaser';
 import type { WorldSnapshot } from '../world/types.ts';
 import {
+  overlayViewportOf,
   projectWorldToOverlay,
   revealAnchor,
   revealVisible,
   snapToDevicePixel,
   villagerLabelAnchors,
-  type OverlayViewport,
 } from './labels.ts';
 
 interface OverlayEntry {
@@ -107,21 +107,10 @@ export function createWorldOverlay(scene: Phaser.Scene, root: HTMLElement, regio
     root.style.top = `${(canvasRect.top - stageRect.top) / rootScale}px`;
     root.style.width = `${canvasRect.width / rootScale}px`;
     root.style.height = `${canvasRect.height / rootScale}px`;
-    const camera = scene.cameras.main;
-    const viewport: OverlayViewport = {
-      rect: { left: 0, top: 0, width: canvasRect.width, height: canvasRect.height },
-      // gameWidth 必须是**画布的逻辑像素**（480×320），不是显示像素（960×640）。
-      // 传错的话 rect/gameWidth 恒为 1，overlay 会按世界像素直接摆放，
-      // 在 2 倍显示下正好偏一半——实测偏 486px。
-      gameWidth: canvas.width,
-      gameHeight: canvas.height,
-      // 用 scrollX/Y 而不是 worldView：worldView 由相机的 preRender 更新，
-      // 而场景 update 在 preRender 之前跑，拿到的会是上一帧的值——开局第一帧
-      // 就是 (0,0)，overlay 会整整错开一个屏幕。scroll 是即时值。
-      cameraWorldX: camera.scrollX,
-      cameraWorldY: camera.scrollY,
-      cameraZoom: camera.zoom,
-    };
+    // 投影参数由 `labels.ts` 的 `overlayViewportOf` 统一折出来：那里写着为什么
+    // `cameraWorldX` 是视野原点而不是 `scrollX`（差半个视野，只有 1 倍时相等），
+    // 以及为什么 gameWidth 要取逻辑像素。公式只写一处，才有一处可测。
+    const viewport = overlayViewportOf(scene.cameras.main, canvasRect, canvas);
     const dpr = window.devicePixelRatio || 1;
     const overlayWidth = canvasRect.width / rootScale;
     for (const { node, region } of regionNodes) {

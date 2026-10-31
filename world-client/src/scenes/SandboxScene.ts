@@ -13,19 +13,22 @@ import { WORLD, tokenNameOf } from '../world/palette-data.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
+import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
 import type { DebugOracle } from '../ui/debug-panel.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
+import type { CameraOracle } from '../ui/camera-bar.ts';
+import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
 
 /**
- * 场景挂在 `window.Oracle` 上的那一面，三边消费者各要一个子集。
+ * 场景挂在 `window.Oracle` 上的那一面，每边消费者各要一个子集。
  *
- * 神谕面板要 `OracleApi`，调试面板要 `DebugOracle`，存档导入导出要 `SaveOracle`。
- * 三个子集没有一个是全的，所以挂载时按交集核一遍——见 `registerOracleApi()` 末尾。
- * 这三个接口原先都只有消费侧一份声明，生产侧是推断，两边各写一次 `as unknown as`，
- * 中间没人对账。
+ * 神谕面板要 `OracleApi`，调试面板要 `DebugOracle`，存档导入导出要 `SaveOracle`，
+ * 取景按钮要 `CameraOracle`，村民面板要 `VillagerOracle`。没有一个子集是全的，
+ * 所以挂载时按交集核一遍——见 `registerOracleApi()` 末尾。这些接口原先都只有
+ * 消费侧一份声明，生产侧是推断，两边各写一次 `as unknown as`，中间没人对账。
  */
-type OracleSurfaces = OracleApi & DebugOracle & SaveOracle;
+type OracleSurfaces = OracleApi & DebugOracle & SaveOracle & CameraOracle & VillagerOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -37,7 +40,11 @@ import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
-import { createCameraController, type CameraController } from '../render/camera-controller.ts';
+import {
+  createCameraController,
+  type CameraController,
+  type CameraMode,
+} from '../render/camera-controller.ts';
 import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
@@ -185,6 +192,17 @@ export class SandboxScene extends Phaser.Scene {
   private memory!: MemoryRuntime;
   /** 记忆层的观察编号。与日志里的 id 不是一回事——这里只需要自己内部唯一。 */
   private memoryEventSerial = 0;
+  /**
+   * 上一次「看某个村民」读出来的那几句。
+   *
+   * 与 `lastReply` / `lastStatus` 同一个道理：面板订阅得比场景挂载晚，那段时间里
+   * 产生的读数不能整条丢掉。只留最后一份——面板同时只显示一个人。
+   */
+  private lastVillagerMemory: VillagerMemoryView | null = null;
+  private readonly villagerMemoryListeners = new Set<(view: VillagerMemoryView | null) => void>();
+  private readonly cameraModeListeners = new Set<(mode: CameraMode) => void>();
+  /** 上一次广播出去的镜头模式。导播是闲置后自己接管的，没有它就没有变化可广播。 */
+  private lastCameraMode: CameraMode = 'free';
   /** 今天已经看过哪几栋楼（`villager\u0000building`）。跨日清空。 */
   private seenToday = new Set<string>();
   private seenDay = -1;
@@ -265,14 +283,20 @@ export class SandboxScene extends Phaser.Scene {
     this.fogView = createFogView(this, this.world.grid.width, this.world.grid.height);
 
     // 相机：锁在世界边界内，初始对准祭坛。
-    this.cameraCtl = createCameraController(this, worldPx.w, worldPx.h);
+    //
     // 设定集地图比旧镇大得多：默认 2 倍只能看到约 15×10 格，开局只露出叠浪楼一角，
     // 读不出"这是渡口—灯街—叠浪楼连成的一条世界"。放到 1 倍，首屏能同时看到楼、
-    // 街与灯；想细看仍可滚轮放大。2 倍 → 1.5 倍 → 1 倍要走两档，所以是两拍。
-    if (this.pack?.authored === true) {
-      this.cameraCtl.zoomStep(-1);
-      this.cameraCtl.zoomStep(-1);
-    }
+    // 街与灯；想细看仍可滚轮放大。
+    //
+    // 这里给的是**初始档位**，不是连按两次缩小：那两拍会把索引和 Phaser 的实际
+    // 缩放一起改，而默认世界（`authored:false`）没有这一步——索引说 2 倍、画面
+    // 停在 1 倍，滚轮第一格就成了「放大」。档位现在在构造函数里真的设上去。
+    this.cameraCtl = createCameraController(
+      this,
+      worldPx.w,
+      worldPx.h,
+      this.pack?.authored === true ? { zoomIndex: 0 } : {},
+    );
     // 开局对准祭坛。放在下一帧做：Phaser 在 create() 结束后的首次 preRender
     // 会用 setBounds 重新夹取镜头，那时 camera.width 才是最终值；
     // 在 create() 里直接 centerOn 会被这次夹取推回左上角。
@@ -306,6 +330,9 @@ export class SandboxScene extends Phaser.Scene {
       // 抬手时没怎么动，才算「点了一下」而不是拖镜头。没有这个区分的话，
       // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
       if (this.pressMoved) return;
+      // 点到人就是「看她」：镜头跟过去，面板读出她记得的事。
+      // 没点到人才退回洗地——两种动作共用一次点击，靠落点上有没有人分开。
+      if (this.lookAtVillagerAt(pointer)) return;
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -444,6 +471,7 @@ export class SandboxScene extends Phaser.Scene {
       onChange: (change: WorldChange, at: number): void => {
         void this.eventsClient?.record(change, at);
         this.remember(change, at);
+        this.focusCameraOn(change);
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
@@ -732,6 +760,7 @@ export class SandboxScene extends Phaser.Scene {
     this.stepMemory();
     this.renderSnapshot(delta);
     this.cameraCtl.update(delta);
+    this.publishCameraMode();
     this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
     this.maybeAutoSave();
@@ -877,6 +906,112 @@ export class SandboxScene extends Phaser.Scene {
     const prop = this.propAtCell(at);
     if (prop === null) return;
     this.wash(prop.id);
+  }
+
+  /**
+   * 指针底下那一格上站着的人。没有就是 null。
+   *
+   * 与 `washUnder` 同一套「世界就是格」的模型：按格反查，不给精灵加交互区——
+   * 那会拦掉拖镜头，而拖镜头是这一屏最常用的动作。`visible === false` 的人
+   * 点不到：她这会儿不在画面上。
+   */
+  private villagerAt(pointer: Phaser.Input.Pointer): WorldSnapshot['villagers'][number] | null {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const x = Math.floor(world.x / TILE_PX);
+    const y = Math.floor(world.y / TILE_PX);
+    return (
+      this.snapshot.villagers.find(
+        (villager) => villager.visible && villager.pos.x === x && villager.pos.y === y,
+      ) ?? null
+    );
+  }
+
+  /** 点到人就看她，返回 true；没点到返回 false，让调用方退回洗地。 */
+  private lookAtVillagerAt(pointer: Phaser.Input.Pointer): boolean {
+    const villager = this.villagerAt(pointer);
+    if (villager === null) return false;
+    this.lookAtVillager(villager.id);
+    return true;
+  }
+
+  /**
+   * 点一个村民：镜头跟住她，并读出她此刻想得起的事。
+   *
+   * 读的是 `recallForDialogue`（Top-3），**`commit: false`**：面板是读，不是对话。
+   * `commit` 会强化、可能变形，还往事件流写 `memory.recalled`——一次点击就改了
+   * 世界状态，而且连点能把某条记忆强化得比事实更牢。协议里重构性回忆是留给
+   * 真正的交谈的，不给一次点击。
+   *
+   * `cues: {}` 是有意的：不带地点/人物线索时相关度给中性 0.5，排序实际由近因
+   * 与显著度决定，这正是「她现在想得起什么」。归档的条目默认不参与——她不会
+   * 无缘无故想起被压下去很久的事。
+   */
+  lookAtVillager(villagerId: string): void {
+    const villager = this.snapshot.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return;
+
+    const view = this.villagerViews.get(villagerId);
+    if (view !== undefined) this.cameraCtl.follow(view.container);
+
+    const nowDay = this.memory?.day ?? 0;
+    const lines =
+      this.memory === undefined
+        ? []
+        : memoryVoice(
+            this.memory.recallForDialogue(villagerId, {
+              cues: {},
+              commit: false,
+              nowDay,
+              seedKey: `villager-panel:${villagerId}`,
+            }).hits,
+            nowDay,
+          );
+    const next: VillagerMemoryView = { id: villager.id, name: villager.name, lines };
+    this.lastVillagerMemory = next;
+    for (const listener of this.villagerMemoryListeners) listener(next);
+  }
+
+  /**
+   * 世界刚发生的事如果有落点，就转手给导播。
+   *
+   * 只转手，不判断「该不该看」——那个判断在控制器里（只有已经处于导播时才理会），
+   * 因为只有它知道镜头现在归谁。自由与跟随模式下这里什么也不会发生。
+   */
+  private focusCameraOn(change: WorldChange): void {
+    if (this.cameraCtl === undefined) return;
+    if (change.change === 'world.event') {
+      this.cameraCtl.notifyEvent({ x: change.where.x * TILE_PX, y: change.where.y * TILE_PX });
+      return;
+    }
+    if (change.change === 'miracle') {
+      this.cameraCtl.notifyEvent({ x: change.at.x * TILE_PX, y: change.at.y * TILE_PX });
+    }
+  }
+
+  /**
+   * 镜头模式变了就广播一次。
+   *
+   * 必须推、不能靠面板轮询：导播是闲置 15 秒后**自己**接管的，那一刻没有用户
+   * 操作、也没有别的状态变化——轮询要等到下一次别的什么发生才跟上，按钮就
+   * 一直停在旧的按下态上。
+   */
+  private publishCameraMode(): void {
+    const mode = this.cameraCtl.mode();
+    if (mode === this.lastCameraMode) return;
+    const left = this.lastCameraMode;
+    this.lastCameraMode = mode;
+    // 面板与镜头不许各说各的：镜头一旦离开跟随（拖拽、滚轮、小地图、按了
+    // 自由/导播），面板就收起。否则屏幕上还摆着「她在想什么」，镜头却已经
+    // 不看她了——玩家会以为那几句话是此刻正在发生的事。
+    if (left === 'follow' && mode !== 'follow') this.closeVillagerPanel();
+    for (const listener of this.cameraModeListeners) listener(mode);
+  }
+
+  /** 收起面板。广播 `null` 而不是只藏 DOM：晚订阅的人也不该再看见一个已经关掉的她。 */
+  private closeVillagerPanel(): void {
+    if (this.lastVillagerMemory === null) return;
+    this.lastVillagerMemory = null;
+    for (const listener of this.villagerMemoryListeners) listener(null);
   }
 
   // -------------------------------------------------------------- 造物模式
@@ -1369,6 +1504,27 @@ export class SandboxScene extends Phaser.Scene {
         worldViewX: this.cameras.main.worldView.x,
         mode: this.cameraCtl.mode(),
       }),
+      cameraMode: (): CameraMode => this.cameraCtl.mode(),
+      setCameraMode: (mode: CameraMode): void => this.cameraCtl.setMode(mode),
+      canFollow: (): boolean => this.cameraCtl.canFollow(),
+      onCameraMode: (listener: (mode: CameraMode) => void): (() => void) => {
+        // 与 `onStatus` / `onResult` 同一个道理：订阅来晚了先把现状补给它。
+        listener(this.cameraCtl.mode());
+        this.cameraModeListeners.add(listener);
+        return () => this.cameraModeListeners.delete(listener);
+      },
+      lookAtVillager: (villagerId: string): void => this.lookAtVillager(villagerId),
+      onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
+        if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
+        this.villagerMemoryListeners.add(listener);
+        return () => this.villagerMemoryListeners.delete(listener);
+      },
+      dismissVillager: (): void => {
+        // 先收面板再松跟随：`releaseFollow` 会让 `publishCameraMode` 下一帧
+        // 发现「离开跟随」，它自己也会收一次——`closeVillagerPanel` 幂等。
+        this.closeVillagerPanel();
+        this.cameraCtl.releaseFollow();
+      },
       miracle: (kind: MiracleKind): void => {
         this.sim.enqueue({ kind: 'miracle', miracle: kind });
       },

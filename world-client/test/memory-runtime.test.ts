@@ -190,3 +190,49 @@ test('genesis 事件与本地事件走同一条路', () => {
   assert.equal(rt.viewOf('a')!.memories.length, 1, '创世事件也该被记住');
   assert.equal(rt.viewOf('b')!.beliefs.length, 1, '也该像本地事件一样传出去');
 });
+
+// ------------------------------------------------------------ 读侧：想得起什么
+
+test('day 跟着 tick 走：检索算近因要用它', () => {
+  const { rt } = runtime();
+  assert.equal(rt.day, 0, '还没走过，就是第 0 天');
+  rt.syncHolders([{ holderId: 'a', type: 'character', at: { x: 0, y: 0 } }]);
+  rt.tick(DAY_MS * 2 + 5);
+  assert.equal(rt.day, 2);
+});
+
+test('recallForDialogue：取 Top-3，且 commit:false 不动世界', () => {
+  const { rt } = runtime();
+  rt.syncHolders([{ holderId: 'a', type: 'character', at: { x: 0, y: 0 } }]);
+  for (let i = 0; i < 4; i += 1) {
+    rt.observe(
+      {
+        eventId: `e${i}`,
+        kind: 'milestone',
+        placeId: 'p1',
+        at: { x: 0, y: 0 },
+        actors: ['a'],
+        outcome: { what: `第${i}件` },
+        importanceHint: 0.9,
+      },
+      ['a'],
+      i * 1000,
+    );
+  }
+  const before = rt.viewOf('a')!.memories;
+  assert.equal(before.length, 4, '先得有东西可读');
+
+  const outcome = rt.recallForDialogue('a', {
+    cues: {},
+    commit: false,
+    nowDay: rt.day,
+    seedKey: 'villager-panel:a',
+  });
+  assert.equal(outcome.hits.length, 3, '对话注入取 dialogueTopK，不是 budgetK');
+  assert.equal(outcome.updated.length, 0);
+  assert.deepEqual(
+    rt.viewOf('a')!.memories,
+    before,
+    '读一次不该改世界——commit 会强化、变形，还往事件流写 memory.recalled',
+  );
+});

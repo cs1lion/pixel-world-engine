@@ -7,6 +7,8 @@ import {
   zoomAtStep,
   stepZoomIndex,
   clampScroll,
+  scrollForOrigin,
+  viewOriginOf,
 } from '../src/render/camera-math.ts';
 
 // ------------------------------------------------------------------ 缩放档位
@@ -64,6 +66,39 @@ test('世界比视野还小时，镜头贴住左上，不会出现负偏移', ()
 
 test('合法范围内的滚动值原样保留', () => {
   assert.deepEqual(clampScroll(300, 200, 1280, 960, 480, 320, 2), { x: 300, y: 200 });
+});
+
+// ------------------------------------------------------------------ 视野原点
+
+/**
+ * `scrollX` 不是视野左上角。
+ *
+ * 这组数不是从规范里抄的，是 Phaser 的 `worldView` 算式
+ * （`scrollX + width/2 - width/(2*zoom)`）在 480 宽画布上的值。
+ * `world-overlay.ts` 曾经把 `scrollX` 当原点传给 DOM 层，于是放大到 2 倍时
+ * 名字与气泡整体偏了 120 世界像素——正好半个画布。
+ */
+test('视野原点不是 scroll：只有 1 倍时两者相等', () => {
+  assert.equal(viewOriginOf(0, 480, 1), 0, '1 倍时相等');
+  assert.equal(viewOriginOf(0, 480, 2), 120, '2 倍时差 120 世界像素');
+  assert.equal(viewOriginOf(0, 480, 3), 160);
+});
+
+test('原点与 scroll 的换算是可逆的', () => {
+  for (const zoom of ZOOM_STEPS) {
+    const scroll = scrollForOrigin(300, 480, zoom);
+    assert.ok(Math.abs(viewOriginOf(scroll, 480, zoom) - 300) < 1e-9, `${zoom} 倍下来回一趟该回到 300`);
+  }
+});
+
+test('2 倍下夹到右下角，换回的 scrollX 落在 Phaser 自己的夹取范围里', () => {
+  // 视野原点最大是 worldW - 480/2 = 1040；换算成 scrollX 要再减 120。
+  const origin = clampScroll(9999, 9999, 1280, 960, 480, 320, 2);
+  assert.equal(origin.x, 1040);
+  const scrollX = scrollForOrigin(origin.x, 480, 2);
+  assert.equal(scrollX, 920, 'Phaser 的 scrollX 上限是 worldW - W/2 - W/(2z)');
+  // 原来直接拿 scrollX 去夹，会停在 1040——比 Phaser 允许的多 120，放大时露白边。
+  assert.notEqual(scrollX, 1040);
 });
 
 // ------------------------------------------------------------------ 导播节奏
