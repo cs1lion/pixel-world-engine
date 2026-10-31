@@ -1574,7 +1574,18 @@ export class MemoryWorld {
       if (this.legends.some((legend) => legend.eventRefs.join(',') === key)) continue;
       const legend = formLegend(this.nextId('legend'), candidate, day);
       this.legends.push(legend);
-      this.emit('legend.formed', at, { legendId: legend.legendId, eventRefs: legend.eventRefs });
+      // 载荷补全到「外面那一层能直接用」的形状：`WorldChange` 那条 `legend`
+      // 要的是碑上那句话、落点、几个人在讲、哪一天。传出去的是
+      // `{legendId, eventRefs}` 时，场景那一侧只能回头再读一遍 `legendsOf()`
+      // 按 id 对齐，于是 `text` 在两处各算一次——而 `variants.join('；')`
+      // 这行代码有两份，迟早会分叉。
+      this.emit('legend.formed', at, {
+        legendId: legend.legendId,
+        text: candidate.variants.join('；'),
+        placeId: legend.homePlaceId,
+        reach: legend.reach,
+        day: legend.formedDay,
+      });
       this.inscribe(legend, candidate, at);
     }
   }

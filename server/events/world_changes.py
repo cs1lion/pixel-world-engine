@@ -242,6 +242,26 @@ def _check_world_vitals(payload: dict[str, Any], path: str) -> None:
         raise WorldChangeError(f"{path}.isolatedHoldersCount 不能为负，收到 {isolated}")
 
 
+def _check_legend(payload: dict[str, Any], path: str) -> None:
+    """传说立起来了：一件事被足够多的人讲了足够久，镇上认下了它。
+
+    这是记忆层攒出来的**共识**，不是它收到的一条经历——所以客户端那边
+    `observe.ts` 为它返回 `null`（喂回去就是自己吃自己）。服务端收它，是
+    为了把它记进镇志：那一天翻开账，能看见「镇上认下了这件事」。
+    """
+    _only(payload, {"legendId", "text", "placeId", "reach", "day"}, path)
+    _require_str(payload, "legendId", path)
+    _require_str(payload, "text", path)
+    _require_str(payload, "placeId", path)
+    # `_require` 已经挡掉 bool（要求整数时 True 不算 1），这里只管取值域。
+    reach = _require(payload, "reach", int, path)
+    if reach < 1:
+        raise WorldChangeError(f"{path}.reach 至少是 1，收到 {reach}")
+    day = _require(payload, "day", int, path)
+    if day < 0:
+        raise WorldChangeError(f"{path}.day 不能为负，收到 {day}")
+
+
 #: 白名单：change → 校验函数。不在表里的一律拒收。
 WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "task.delivered": _check_task_delivered,
@@ -252,6 +272,7 @@ WORLD_CHANGE_CHECKS: dict[str, Callable[[dict[str, Any], str], None]] = {
     "tide": _check_tide,
     "world.event": _check_world_event,
     "world.vitals": _check_world_vitals,
+    "legend": _check_legend,
 }
 
 

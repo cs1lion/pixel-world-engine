@@ -1,5 +1,14 @@
 import type { RawSettingPack } from '../types.ts';
 
+/**
+ * 一栋楼的模板。`accent` 与 `boundTask` **必须成对**，这是 `blueprints.ts`
+ * 那三条配对的同一条规则在设定集这一侧的写法：`code` ⇒ `smoke`、
+ * `research` ⇒ `pages`、`writing` ⇒ `ink`。写错装载期当场拒（`parseBlueprint`
+ * 的「代码活必须冒烟」那三条），不会带着一栋冒错烟的楼开工。
+ *
+ * 三种 accent 在 `render/smoke.ts` 的 `TEXTURE_KEYS` 里都实现了，所以楼接活
+ * 这件事**不需要改渲染层**——三栋新楼只是数据。
+ */
 const prefab = (
   id: string,
   displayName: string,
@@ -7,11 +16,13 @@ const prefab = (
   h: number,
   roof: string,
   silhouette: 'gable' | 'tower' | 'flat' = 'gable',
+  accent: 'smoke' | 'pages' | 'ink' = 'smoke',
+  boundTask: 'code' | 'research' | 'writing' | null = null,
 ): unknown => ({
   id, displayName, zone: 'industry', footprint: { w, h }, clearMargin: 1,
   door: { x: Math.floor(w / 2), y: h },
   workSpots: [{ x: Math.floor(w / 2), y: Math.floor(h / 2) }],
-  chimney: { x: w - 1.2, y: 0.4 }, accent: 'smoke', silhouette, boundTask: null,
+  chimney: { x: w - 1.2, y: 0.4 }, accent, silhouette, boundTask,
   palette: { body: 'timber', roof, trim: 'trim', window: 'amber' },
 });
 
@@ -109,12 +120,23 @@ export const DENGCHAO_RAW: RawSettingPack = {
     ferry_station: prefab('ferry_station', '旧渡口站台', 6, 4, 'copper', 'flat'),
     lamp_workshop: prefab('lamp_workshop', '补灯铺', 4, 4, 'terracotta'),
     boiler_annex: prefab('boiler_annex', '炉底入口', 4, 3, 'charcoal', 'flat'),
-    // 候车亭是这张图上**唯一开局不落位**的模板，这不是遗漏。
-    // 世界拒绝「同一种铺子建第二栋」，所以六个模板全落位之后，
+    // 候车亭是这张图上**开局不落位**的模板，这不是遗漏。
+    // 世界拒绝「同一种铺子建第二栋」，所以模板全落位之后，
     // 白名单里的 building.add 在这张图上永远只能被拒——那句话就成了
     // 摆设。留一个设定集里本来就有的构件（渡口站台的瓦片母题写着「候车亭」），
     // 让「建一座候车亭」在这张图上真的能建成。
     waiting_shelter: prefab('waiting_shelter', '候车亭', 4, 3, 'copper', 'flat'),
+
+    // 三栋接活的楼。它们补的是「每类活各有一栋常驻铺子」这半张网——
+    // `validateCoverage` 要求每种 `boundTask` 有 1–2 栋模板，而原来这张图上
+    // 一栋都没有，于是上游派下来的每一条活都被拒，回执说「这座镇子没有接
+    // code 的铺子」。楼的模板齐了，活才有地方去。
+    //
+    // 名字：账房与灯录阁是**这一仓起的**（文档列的是叠浪楼的楼层，不是铺名）。
+    // 炉匠铺跟着文档点名的「炉匠」走，字面也是这一仓的。
+    ledger_house: prefab('ledger_house', '账房', 4, 4, 'timberDark', 'gable', 'ink', 'writing'),
+    lamp_archive: prefab('lamp_archive', '灯录阁', 4, 4, 'copper', 'gable', 'pages', 'research'),
+    soot_forge: prefab('soot_forge', '炉匠铺', 4, 4, 'charcoal', 'flat', 'smoke', 'code'),
   },
   placements: [
     { prefabId: 'wave_house', at: { x: 28, y: 20 } },
@@ -123,6 +145,16 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { prefabId: 'ferry_station', at: { x: 10, y: 10 } },
     { prefabId: 'lamp_workshop', at: { x: 43, y: 34 } },
     { prefabId: 'boiler_annex', at: { x: 29, y: 14 } },
+    // 三栋接活的楼。坐标是逐格枚举出来的（`checkPlacement` + `doorReaches` +
+    // `!breathingAt(door)` + 避开镇心/全部作息点/现有六栋的占地与留白），
+    // 不是手挑的。三扇门都在 lampstreet / sootbank 里，都不呼吸。
+    //
+    // `lamp_archive` 落在灯街东段而不是镇心旁边：镇心周围 4×4 的空地被
+    // 叠浪楼门口和账房门口夹住，两栋 4×4 塞不下（枚举里 40 个近处候选全部
+    // `occupied`）。
+    { prefabId: 'ledger_house', at: { x: 28, y: 28 } },
+    { prefabId: 'lamp_archive', at: { x: 40, y: 27 } },
+    { prefabId: 'soot_forge', at: { x: 37, y: 34 } },
   ],
   hub: { x: 32, y: 29 },
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
@@ -148,6 +180,24 @@ export const DENGCHAO_RAW: RawSettingPack = {
       '旗杆是三段接起来的，接缝处还留着上一个人的名字。',
     ],
   },
+  // 七位居民。前两位是原有的；后五位的**岗位与地点**来自 `SETTING_DENGCHAO.md`：
+  // 文档点名了灯笼头、炉匠、沉灯夫人（后面跟着「等」），另一条「还没有做的」
+  // 列着叠浪楼的六层（账房 / 宴席 / 浴池 / 大堂 / 洗衣仓 / 炉底层）——账房先生
+  // 与洗衣妇就是从那两层推出来的。**只有字面是这一仓起的。**
+  //
+  // 为什么加到七个人，而不是原来那两个：传说要五个人讲同一件事讲满三天
+  // （`legendHolders = 5`，`legendDays = 3`）。两个人时那条阈值**结构上够不着**
+  // ——说话距离是 2 格，而世界里只有两个人物，最多三个 holder 会知道同一件事
+  // （两个人物加一栋在广播半径里的楼）。七个人加九栋楼才有余量。
+  //
+  // 出生点全在镇心的空地上（x32..39, y28..31）。**一个都不能生在叠浪楼里**：
+  // 那道门要灯（`requires: 'lamp'`），没有灯的人 t=0 就被关在门后，一步也动不了，
+  // 而装载器拒的正是这种包。要进楼的四位（沉灯夫人、账房先生、洗衣妇，以及
+  // 原有的汐）都写着 `lamp: true`。
+  //
+  // 作息点的落点集中在 (33..37, 28..31) 这一小片：`talkDistance = 2`，
+  // 只有人真的凑到两格内才算照面。**挪开这批落点，信念就涨不动、传说立不起来
+  // ——而那时所有单元测试还是绿的。** `test/legend-forms.test.ts` 量的正是这件事。
   villagers: [
     { name: '迷路人', at: { x: 23, y: 29 }, style: { cloak: 'cloak', scarf: 'pale', lamp: false }, routine: [
       { x: 19, y: 15, label: '在旧站牌下认路', dwellMs: 6500 },
@@ -161,6 +211,36 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { x: 39, y: 29, label: '满潮时收起滩边的灯', dwellMs: 4800, tide: 'high' },
       { x: 50, y: 42, label: '趁退潮拾回还能用的灯芯', dwellMs: 6000, tide: 'low' },
     ] },
+    { name: '灯笼头', at: { x: 33, y: 30 }, style: { cloak: 'ember', scarf: 'warmLight', lamp: true }, routine: [
+      { x: 33, y: 29, label: '在镇心把街灯一盏盏点亮', dwellMs: 5200 },
+      { x: 19, y: 26, label: '在迎灯舍前数新到的灯罩', dwellMs: 5000 },
+      { x: 30, y: 12, label: '趁退潮去浅滩点数旧灯桩', dwellMs: 6200, tide: 'low' },
+      { x: 48, y: 40, label: '在滩边挑还能补的灯壳', dwellMs: 5400 },
+    ] },
+    { name: '炉匠', at: { x: 38, y: 30 }, style: { cloak: 'charcoal', scarf: 'ember', lamp: false }, routine: [
+      { x: 39, y: 38, label: '在炉匠铺门口抖灰', dwellMs: 5600 },
+      { x: 35, y: 30, label: '在镇心石边上歇脚', dwellMs: 5000 },
+      { x: 33, y: 15, label: '到炉底入口边上搬炭', dwellMs: 6000 },
+      { x: 24, y: 24, label: '在街边喝一碗热的', dwellMs: 4800 },
+    ] },
+    { name: '沉灯夫人', at: { x: 35, y: 31 }, style: { cloak: 'cloakDark', scarf: 'trim', lamp: true }, routine: [
+      { x: 34, y: 29, label: '在镇心石边沉灯', dwellMs: 6000 },
+      { x: 36, y: 29, label: '在镇心石边讲那年的潮', dwellMs: 5200 },
+      { x: 27, y: 29, label: '沿街巡一遍还没灭的灯', dwellMs: 5000 },
+      { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
+    ] },
+    { name: '账房先生', at: { x: 34, y: 28 }, style: { cloak: 'plaster', scarf: 'copper', lamp: true }, routine: [
+      { x: 34, y: 30, label: '在镇心听人报今日的账', dwellMs: 4600 },
+      { x: 30, y: 32, label: '在账房门口核今天的账', dwellMs: 5600 },
+      { x: 23, y: 29, label: '去街口找人说一笔旧账', dwellMs: 5000 },
+      { x: 17, y: 26, label: '在摊位间对一遍零钱', dwellMs: 4800 },
+    ] },
+    { name: '洗衣妇', at: { x: 37, y: 31 }, style: { cloak: 'moss', scarf: 'pale', lamp: true }, routine: [
+      { x: 36, y: 30, label: '在镇心石边拧干最后一件', dwellMs: 5000 },
+      { x: 33, y: 26, label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
+      { x: 52, y: 42, label: '把洗好的布晾在滩边', dwellMs: 6000, tide: 'low' },
+      { x: 24, y: 31, label: '把干净衣裳送到街尾', dwellMs: 5400 },
+    ] },
   ],
   scenery: [
     // 叠浪楼门前的朱红桥：横跨楼前那道水口，潮水从桥下过。
@@ -169,6 +249,9 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { kind: 'track', at: { x: 2, y: 8 }, length: 60 },
     { kind: 'sign', at: { x: 19, y: 15 } },
     { kind: 'statue', at: { x: 26, y: 28 } },
+    // 碑立在镇心 (32,29) 旁边：世界共识刻在这儿，而不是刻在某栋楼的外墙上。
+    // 碑上不写字（中文不进 canvas），字在 `#stele-panel` 里。
+    { kind: 'stele', at: { x: 34, y: 28 } },
     // 灯街的灯沿街两侧排，站在街边而不是草地深处：灯是街的，不是野地的。
     ...Array.from({ length: 10 }, (_, i) => ({
       kind: 'lantern' as const,

@@ -1,11 +1,13 @@
 /**
  * 一座没有任何铺子的设定集：世界得说「没有」，不能说「没有空闲的」。
  *
- * 灯潮界六栋楼的 `boundTask` 全是 null——三种活一种都接不了。这是设定集
- * 作者的有意选择（每栋楼在 `pack.ts` 里都写着它是干什么的），而包这条路
- * 没有任何「venue 覆盖」法则，所以它静静成立：`validateCoverage` 只被
- * `buildWorld` 调，`loadSettingPack` / `buildSettingWorld` 都不调
- * （`ADR_PACK_SKIPS_WORLD_BUDGET` 待办 B）。
+ * **夹具是合成的，不是灯潮界本身。** 这一版之前，灯潮界就是这份夹具：
+ * 六栋楼的 `boundTask` 全是 null，三种活一种都接不了。那一版把三栋楼接了
+ * 活之后，灯潮界不再是一座「没有铺子」的镇子，可这三句话仍然是世界必须
+ * 说得对的——所以夹具改成**把灯潮界所有模板的 `boundTask` 抹成 null**，
+ * 其余原样。包这条路没有任何「venue 覆盖」法则，所以它静静成立：
+ * `validateCoverage` 只被 `buildWorld` 调，`loadSettingPack` /
+ * `buildSettingWorld` 都不调（`ADR_PACK_SKIPS_WORLD_BUDGET` 待办 B）。
  *
  * 待办 B 问的是「一座包可不可以正当地图一地没有工坊」。这里的回答是
  * **可以，而且引擎早就容得下**：派活那一侧本来就拒，不编一座铺子出来。
@@ -26,10 +28,29 @@ import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildLargeWorld, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import type { VenueCandidate } from '../src/world/venue.ts';
+import type { RawSettingPack } from '../src/settings/types.ts';
 import { syncCommand } from './feed-helpers.ts';
 
+/**
+ * 灯潮界，但**每一栋模板的 `boundTask` 都抹成 null**。
+ *
+ * 这不是替身：它仍是一份合法的灯潮界包（地域、落位、居民全在），只是没有
+ * 任何楼接活。为什么需要它：真实出货的包现在三栋楼接活，拿它当「没有铺子」
+ * 的夹具就测不到那三句话了。**这条合成包就是 `none` 分支的守卫**——
+ * 删了它，`none` 那句真话没有任何测试盯着。
+ */
+const ZERO_VENUE_PACK: RawSettingPack = {
+  ...DENGCHAO_RAW,
+  prefabs: Object.fromEntries(
+    Object.entries(DENGCHAO_RAW.prefabs).map(([id, blueprint]) => [
+      id,
+      { ...(blueprint as Record<string, unknown>), boundTask: null },
+    ]),
+  ) as RawSettingPack['prefabs'],
+};
+
 function dengchaoSim(): Simulation {
-  const pack = loadSettingPack(DENGCHAO_RAW);
+  const pack = loadSettingPack(ZERO_VENUE_PACK);
   const world = buildSettingWorld(pack);
   return new Simulation({
     grid: world.grid,
@@ -129,14 +150,21 @@ function feedSays(sim: Simulation, kind: 'code' | 'research' | 'writing' | 'quic
   return said.join('\n');
 }
 
-test('灯潮界一栋接 code 的楼都没有：先确认这个前提，不然下面测的不是这件事', () => {
-  const pack = loadSettingPack(DENGCHAO_RAW);
+test('合成包一栋接活的楼都没有：先确认这个前提，不然下面测的不是这件事', () => {
+  const pack = loadSettingPack(ZERO_VENUE_PACK);
   const world = buildSettingWorld(pack);
   assert.ok(world.buildings.length > 0, '一座空图的镇志没有意义');
   assert.deepEqual(
     world.buildings.map((building) => building.boundTask),
     world.buildings.map(() => null),
-    '灯潮界的楼都不接活——这是设定集的有意选择',
+    '夹具里每栋楼都该被抹成 null',
+  );
+  // 反过来钉住**出货的包现在不是这样**：三栋楼接了活，这条合成包只是判据。
+  // 哪天有人把真包也改回全 null，`pack-venue.test.ts` 会红，而这里顺带说一声。
+  const real = buildSettingWorld(loadSettingPack(DENGCHAO_RAW));
+  assert.ok(
+    real.buildings.some((building) => building.boundTask !== null),
+    '真实出货的灯潮界现在有三栋楼接活——这条合成包不该顺手把真包也抹平',
   );
 });
 

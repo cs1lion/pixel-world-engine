@@ -99,7 +99,7 @@ test('这五道门只拒写错的，不误伤现有的灯潮界', () => {
   // 同一条边界上，拒得准和拒得狠是两件事。灯潮界本身必须原样通过。
   const pack = loadSettingPack(DENGCHAO_RAW);
   const world = buildSettingWorld(pack);
-  assert.equal(world.buildings.length, 6);
-  assert.equal(pack.villagers.length, 2);
+  assert.equal(world.buildings.length, 9);
+  assert.equal(pack.villagers.length, 7);
   assert.ok(pack.scenery.length > 0);
 });

@@ -16,6 +16,7 @@ import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
 import { bindChronicle } from './ui/chronicle-panel.ts';
 import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
 import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
+import { bindStelePanel, type SteleOracle } from './ui/stele-panel.ts';
 import { createMemoryClient } from './world/memory-client.ts';
 import {
   SaveStore,
@@ -176,6 +177,12 @@ bindCameraBar(cameraOracle);
 const villagerOracle = (): VillagerOracle | undefined =>
   (window as unknown as { Oracle?: VillagerOracle }).Oracle;
 bindVillagerPanel(villagerOracle);
+
+// 碑面板。**这一行是最容易漏的那一环**：`stele.ts`、面板文件、`Oracle.stele()`
+// 全绿而这里不绑，屏幕上点那块石头什么也不会出来——而只看 Oracle 的验收也照样绿。
+const steleOracle = (): SteleOracle | undefined =>
+  (window as unknown as { Oracle?: SteleOracle }).Oracle;
+bindStelePanel(steleOracle);
 
 // task-22：存档手动导出/导入。导出 = 单槽原文（就是 toSave() 的 v1 JSON，不二次加工）；
 // 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与上游对账。

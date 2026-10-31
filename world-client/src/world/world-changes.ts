@@ -132,6 +132,28 @@ export type WorldChange =
       readonly meanArousal: number;
       readonly infoEntropy: number;
       readonly isolatedHoldersCount: number;
+    }
+  | {
+      /**
+       * 一件事被足够多的人讲了足够久，镇上认下了它——碑上刻一行字。
+       *
+       * 这是记忆层的**输出**变成世界共识的那一刻。与 `world.vitals` 一样，
+       * 它是本层的产物而不是喂给本层的输入（`observe.ts` 为它返回 `null`）：
+       * 把「传说立起来了」再记成一条经历，就会自己吃自己。
+       *
+       * 载荷里**不带坐标**：`placeId` 已经是落点（与 `world.event` 同一套写法），
+       * 而信封的 `at` 是世界时间——`miracle` 那一支踩过的同名坑不再踩第二遍。
+       */
+      readonly change: 'legend';
+      readonly legendId: string;
+      /** 碑上那句话：几种讲法用「；」连起来（`candidatesFrom` 的 `variants`）。 */
+      readonly text: string;
+      /** 这件事在哪。楼用 `instanceId`，合成地点用 `place:x,y`。 */
+      readonly placeId: string;
+      /** 此刻还有几个人在讲。淡去的传说 `reach` 掉到 1 以下就不再往日志里记。 */
+      readonly reach: number;
+      /** 立碑那天。 */
+      readonly day: number;
     };
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
@@ -144,6 +166,7 @@ export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [
   'tide',
   'world.event',
   'world.vitals',
+  'legend',
 ];
 
 /**

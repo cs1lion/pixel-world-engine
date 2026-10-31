@@ -74,6 +74,17 @@
         "infoEntropy": 0.44,
         "isolatedHoldersCount": 1
       }
+    },
+    {
+      "at": 432000000,
+      "change": "legend",
+      "payload": {
+        "legendId": "legend_3",
+        "text": "潮水退过一半，滩涂露出来了",
+        "placeId": "place:12,7",
+        "reach": 6,
+        "day": 4
+      }
     }
   ]
 }

@@ -145,9 +145,9 @@ test('灯潮界的叠浪楼真的要一盏灯：渡有仪式在这张图上真�
   assert.equal(grid.requirementAt({ x: 50, y: 42 }), null, '积尘滩不要灯');
 });
 
-test('灯潮界：六栋建筑显式落位，五个语义区域不改建造分区', () => {
+test('灯潮界：九栋建筑显式落位，五个语义区域不改建造分区', () => {
   const world = buildSettingWorld(pack);
-  assert.equal(world.buildings.length, 6);
+  assert.equal(world.buildings.length, 9);
   assert.equal(world.grid.at({ x: 20, y: 10 })?.region, 'shoal');
   assert.equal(world.grid.at({ x: 20, y: 10 })?.zone, 'industry');
   assert.equal(world.grid.at({ x: 20, y: 7 })?.terrain, 'shallow');

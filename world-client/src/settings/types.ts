@@ -58,7 +58,15 @@ export interface SettingScenery {
     /** 灯街的幌布：一根斜杆挂两幅布，给街面立起垂直节奏。 */
     | 'banner'
     /** 灯街的摊位：矮柜台 + 布棚，撑起"有人做买卖"的读法。 */
-    | 'stall';
+    | 'stall'
+    /**
+     * 碑：镇心旁边的一块矮石板，世界共识刻在上面。
+     *
+     * 它是一件**摆件而不是楼**，因为它不占地、不可建、不接活——世界对它做的事
+     * 只有一件：传说立起来时，碑上就多一行字。字在 DOM 面板里，不在 canvas 上
+     * （中文不进 canvas，D5-A），所以这一支画出来的只是那块石头。
+     */
+    | 'stele';
   readonly at: GridPoint;
   readonly length?: number;
 }

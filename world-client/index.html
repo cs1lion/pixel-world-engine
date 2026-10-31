@@ -633,6 +633,67 @@
       }
       #villager-panel-body .villager-empty { color: var(--dim); margin: 10px 2px; }
 
+      /* 碑：点镇心旁边那块石头，看镇上认下了哪些事。
+         与村民面板同一套硬投影语言，但落在**左下**——村民面板占了右侧，
+         镇志占了左边那条抽屉，而碑是「看世界共识」，该压在最不抢注意力的角上。
+         颜色一律复用上面的变量：palette 审计把这份 <style> 也算进 UI 预算。 */
+      #stele-panel {
+        position: fixed;
+        left: 10px;
+        bottom: 10px;
+        z-index: 50;
+        box-sizing: border-box;
+        width: 320px;
+        max-width: calc(100vw - 20px);
+        max-height: 60vh;
+        overflow: auto;
+        padding: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow:
+          3px 3px 0 0 color-mix(in srgb, var(--base) 55%, transparent),
+          6px 6px 0 0 color-mix(in srgb, var(--base) 22%, transparent);
+        font-size: 12px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+      }
+      #stele-panel[hidden] { display: none; }
+      #stele-panel .stele-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+      #stele-panel .stele-head strong {
+        color: var(--amber);
+        font-family: var(--font-pixel);
+        font-weight: 400;
+        letter-spacing: 0.1em;
+      }
+      #stele-panel .stele-head button { font-size: 11px; padding: 3px 6px; }
+      #stele-panel-body blockquote {
+        margin: 8px 0;
+        padding-left: 8px;
+        border-left: 2px solid var(--line);
+        color: var(--ink);
+      }
+      #stele-panel-body blockquote p { margin: 0; }
+      #stele-panel-body .stele-when {
+        display: block;
+        margin-top: 2px;
+        color: var(--dim);
+        font-size: 10px;
+      }
+      #stele-panel-body .stele-empty { color: var(--dim); margin: 10px 2px; }
+      /* 截断必须说出来：少掉的每一条都得有个数，静默截断是这里唯一的错法。 */
+      #stele-panel-body .stele-more {
+        margin: 10px 2px 2px;
+        color: var(--dim);
+        font-size: 10px;
+      }
+
       /* 像素字只用于标题、短标签与交互控件；新闻纸正文仍用可读宋体。 */
       h1, header p, .overlay-name, .overlay-bubble, input, button,
       #status, #reply, #save-io-reply, #paper .masthead .name, footer,
@@ -771,6 +832,18 @@
         <button type="button" id="villager-panel-close">关闭</button>
       </div>
       <div id="villager-panel-body"></div>
+    </aside>
+
+    <!-- 碑：点镇心旁边那块石头，看镇上认下了哪些事。
+         碑文全走 DOM（SPEC §4.8 / D5-A）：canvas 里只有一块石头，字在这里。
+         空态那句把 `legendHolders` / `legendDays` 两个数说给用户听，
+         不让他对着空白等。 -->
+    <aside id="stele-panel" hidden aria-label="碑">
+      <div class="stele-head">
+        <strong>碑</strong>
+        <button type="button" id="stele-panel-close">关闭</button>
+      </div>
+      <div id="stele-panel-body"></div>
     </aside>
 
     <section id="decree" aria-live="polite" hidden>

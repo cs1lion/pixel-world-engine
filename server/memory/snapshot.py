@@ -91,6 +91,7 @@ _SECTIONS: tuple[tuple[str, str], ...] = (
     ("building.built", "盖了起来"),
     ("building.removed", "拆掉了"),
     ("miracle", "神迹"),
+    ("legend", "传说"),
     ("task.delivered", "交付"),
     ("其他", "其他"),
 )
@@ -103,6 +104,13 @@ def _describe(event: WorldEvent) -> str:
     而快照是给人扫的，不是给机器 diff 的。
     """
     payload = event.payload
+    # 传说先判一次，不进下面那张通用表：`world.event` 的载荷里也有 `text`，
+    # 把 `text` 加进 `("weather", "title")` 那行会把「其他」那一节的每一条
+    # 都换一套读法——那是另一件事。
+    if _change_of(event) == "legend":
+        text = _text_of(payload, "text")
+        if text is not None:
+            return f"碑上刻着：{text}"
     name = _text_of(payload, "displayName") or _text_of(payload, "name")
     summary = _text_of(payload, "summary")
     if name is not None and summary is not None:

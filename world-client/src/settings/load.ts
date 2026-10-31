@@ -31,7 +31,7 @@ const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree
  * 什么都不做，于是那种构件**不会报错，只是不存在**。
  */
 const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
-  'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall',
+  'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall', 'stele',
 ];
 
 /** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */

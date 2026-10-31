@@ -21,7 +21,7 @@ import type { OcclusionGrid, Perceiver } from './perception.ts';
 import { witnessesOf } from './perception.ts';
 import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
-import type { HolderType, MemoryEvent, WorldFact, WorldVitals } from './types.ts';
+import type { HolderType, Legend, MemoryEvent, WorldFact, WorldVitals } from './types.ts';
 import { MemoryWorld, type HolderView } from './world.ts';
 
 /** 一个单位此刻的处境。位置是格坐标，与 `Simulation` 的 `Vec2` 同一套。 */
@@ -311,6 +311,20 @@ export class MemoryRuntime {
   /** 世界走到第几天。检索算近因要用它；与 `observe` 定时刻是同一个 `now`。 */
   get day(): number {
     return Math.floor(this.now / this.config.dayMs);
+  }
+
+  /**
+   * 此刻立着的传说（含淡去的）。转发 `world.legendsOf()`——同一扇门，不另开数据源。
+   *
+   * 这扇门为什么该存在：`legendsOf()` 到今天为止**零生产调用方**，它自己那条
+   * 注释记着这件事。传说立得起来、`legend.formed` 发得出去，而没有任何一处能
+   * 读回来——于是「碑」这块地方，世界已经刻好了，只是没人去看。
+   *
+   * 不算漏出 `MemoryWorld`：给的是镇上共识（不是任何单位的知识），而且是副本，
+   * 拿不到 `holder` / `facts` / `positions`。`recallForDialogue` 已有同样的先例。
+   */
+  legends(): readonly Legend[] {
+    return this.world.legendsOf();
   }
 
   /**

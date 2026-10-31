@@ -39,9 +39,18 @@ const FIXTURE_COLORS = {
   primary: 'deepShade', accent: 'amber', forbidden: 'terracotta',
 } as const;
 
-/** 一道要鞋的两格小门，声明在最后（重叠时它赢）。 */
+/**
+ * 一道要鞋的两格小门，声明在最后（重叠时它赢）。
+ *
+ * **坐标不是随手挑的，也不是原来的 (36,30)。** 这一版把七位居民的作息点铺开
+ * 之后，(36,30) 成了洗衣妇的必经落点，盖在这儿的小门会要求她穿鞋——她没有，
+ * `buildSettingWorld` 当场抛「她一步也动不了」。要的是「一道压在任何楼、任何
+ * 居民路径之外的小门」，不是「把路封死」。这份坐标是逐格枚举出来的：2×2 全在
+ * 同一个分区里、不碰任何楼的轮廓（含一格余量）、不碰任何出生点/作息点/碑。
+ * 下面那两条测试都靠它，所以它一挪，两条一起挪。
+ */
 const GATE = {
-  id: 'deep', name: '深巷', x: 36, y: 30, w: 2, h: 2, requires: 'shoes' as const,
+  id: 'deep', name: '深巷', x: 17, y: 14, w: 2, h: 2, requires: 'shoes' as const,
   ...FIXTURE_COLORS,
 };
 
@@ -56,8 +65,8 @@ test('盖在后面的门是好的：重叠不过是一道更具体的地域压�
   const wins = raw({ regions: [...DENGCHAO_RAW.regions, GATE] });
   const pack = loadSettingPack(wins);
   const world = buildSettingWorld(pack);
-  assert.equal(world.grid.at({ x: 36, y: 30 })?.region, 'deep');
-  assert.equal(world.grid.requirementAt({ x: 36, y: 30 }), 'shoes');
+  assert.equal(world.grid.at({ x: 17, y: 14 })?.region, 'deep');
+  assert.equal(world.grid.requirementAt({ x: 17, y: 14 }), 'shoes');
 });
 
 test('未知分区 id 拒：它让这张图上一栋楼也建不成，而世界照常开门', () => {
@@ -196,22 +205,47 @@ test('渡口站台 200 格里 120 格归了浅滩轨道，只剩 y∈[14,17] 四
   assert.equal(world.grid.requirementAt({ x: 32, y: 27 }), 'lamp', '但它要一盏灯');
 });
 
-test('旧渡口站台整栋落在呼吸段里，而它一本活都不接：没有活被困在留白', () => {
-  // 这条看着像在给一个巧合背书，其实是在钉一个**前提**：哪本设定集给铺子
-  // 写了 `boundTask` 又把它放进呼吸段，那类活就永远派不出去了——铺子在留白里，
-  // 站在铺子门口的人也在留白里。灯潮界六栋模板的 `boundTask` 全是 null，
-  // 所以这个前提现在成立。改坏了这里会红，而不是让一类活静静消失。
+test('没有活被困在留白里：接活的楼，其轮廓与门口都不在呼吸段', () => {
+  // 这条原先写的是「灯潮界六栋模板的 `boundTask` 全是 null，所以没有活会被
+  // 派进留白」——那是**用「一条活都不接」来回避问题**，不是不变量本身。
+  // 这一版三栋楼真的接活了，回避不成立了，所以换成真正要守的那句话：
+  //
+  //   **一道活只能在「能派得出去」的地方**。铺子在呼吸段里、或门口在呼吸段里，
+  //   那类活就永远派不出去——而世界一声不响，日志里没有一句「派不下去」。
+  //
+  // 顺带留一条对照：`ferry_station` 仍然整栋落在呼吸段里，它仍然一本活都不接。
+  // 那条不是巧合，是这条不变量在当前设定集上的一个**例子**：接不了活的地方，
+  // 也没给它接活。它红了说明有人给站台填了 `boundTask`——那时要么挪楼，要么
+  // 接受那类活永远消失，两种都得有人明说。
   const pack = loadSettingPack(DENGCHAO_RAW);
   const world = buildSettingWorld(pack);
   const station = world.buildings.find((b) => b.prefabId === 'ferry_station');
-  assert.ok(station !== undefined, '开局六栋模板各就各位');
+  assert.ok(station !== undefined, '渡口站台还在原位');
   assert.equal(world.grid.breathingAt(station.origin), true, '站台落在浅滩轨道里');
+  assert.equal(station.boundTask, null, '接不了活的地方，也没给它接活');
+
+  // 真身：每一栋接活的楼，轮廓里一个呼吸格都没有，门口也不呼吸。
+  // 轮廓逐格查而不是只查 `origin`：4×4 的楼斜着伸进浅滩，`origin` 那一格查不出来。
   for (const building of world.buildings) {
-    assert.equal(building.boundTask, null, `${building.prefabId} 不接活，所以没有活会被派进留白`);
+    if (building.boundTask === null) continue;
+    for (let dy = 0; dy < building.footprint.h; dy += 1) {
+      for (let dx = 0; dx < building.footprint.w; dx += 1) {
+        assert.equal(
+          world.grid.breathingAt({ x: building.origin.x + dx, y: building.origin.y + dy }),
+          false,
+          `${building.prefabId} 接 ${building.boundTask}，可它的轮廓伸进了呼吸段`,
+        );
+      }
+    }
+    assert.equal(
+      world.grid.breathingAt(building.door),
+      false,
+      `${building.prefabId} 的门口在呼吸段里：站在门口的人接不到活，这栋楼白接`,
+    );
   }
 });
 
-test('没有居民出生在呼吸段里：开局谁也躺不得', () => {
+test('村民不会出生在呼吸段里：开局谁也躺不得', () => {
   // 出生点与镇心都在留白外头，所以「站在留白里的人」只能是**走着走着路过**的，
   // 而路过的人下一拍就被作息带走。这一条防的是把出生点写进浅滩轨道——
   // 那不会报错，只会让那个人在开局那一刻接不到任何活。

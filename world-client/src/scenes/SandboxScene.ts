@@ -19,6 +19,8 @@ import type { DebugOracle } from '../ui/debug-panel.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
+import type { SteleOracle, SteleView } from '../ui/stele-panel.ts';
+import { STELE_MAX_LINES, steleLines } from '../world/memory/stele.ts';
 
 /**
  * 场景挂在 `window.Oracle` 上的那一面，每边消费者各要一个子集。
@@ -28,7 +30,12 @@ import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts
  * 所以挂载时按交集核一遍——见 `registerOracleApi()` 末尾。这些接口原先都只有
  * 消费侧一份声明，生产侧是推断，两边各写一次 `as unknown as`，中间没人对账。
  */
-type OracleSurfaces = OracleApi & DebugOracle & SaveOracle & CameraOracle & VillagerOracle;
+type OracleSurfaces = OracleApi &
+  DebugOracle &
+  SaveOracle &
+  CameraOracle &
+  VillagerOracle &
+  SteleOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -200,6 +207,14 @@ export class SandboxScene extends Phaser.Scene {
    */
   private lastVillagerMemory: VillagerMemoryView | null = null;
   private readonly villagerMemoryListeners = new Set<(view: VillagerMemoryView | null) => void>();
+  /**
+   * 上一次「点碑」摆出来的那几行。
+   *
+   * 与 `lastVillagerMemory` 同一个道理：面板订阅得比场景挂载晚，那段时间里
+   * 产生的读数不能整条丢掉。只留最后一份——面板同时只显示一块碑。
+   */
+  private lastSteleView: SteleView | null = null;
+  private readonly steleListeners = new Set<(view: SteleView | null) => void>();
   private readonly cameraModeListeners = new Set<(mode: CameraMode) => void>();
   /** 上一次广播出去的镜头模式。导播是闲置后自己接管的，没有它就没有变化可广播。 */
   private lastCameraMode: CameraMode = 'free';
@@ -331,8 +346,11 @@ export class SandboxScene extends Phaser.Scene {
       // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
       if (this.pressMoved) return;
       // 点到人就是「看她」：镜头跟过去，面板读出她记得的事。
-      // 没点到人才退回洗地——两种动作共用一次点击，靠落点上有没有人分开。
+      // 其次点碑：镇上认下的事都在那块石头上。
+      // 两个都不中才退回洗地——三种动作共用一次点击，靠落点上有什么分开。
+      // 先比人再比碑：人在碑上站着时，点她应该还是看她。
       if (this.lookAtVillagerAt(pointer)) return;
+      if (this.openSteleAt(pointer)) return;
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -508,6 +526,46 @@ export class SandboxScene extends Phaser.Scene {
       // 神迹、新楼、拆楼、天气这几种改变的 actors 是空的——那就没人记得。
       // `WorldGrid` 只要 `isWalkable` 就满足 `OcclusionGrid`，直接递。
       occlusion: this.world.grid,
+      // 记忆层的事件出口（写日志用）。**只开 `legend.formed` 一种**：
+      // `MemoryEventKind` 那 17 个里 16 个有发出方，一次全开就是 16 种新载荷、
+      // 16 个服务端校验函数——那是另一笔工作。这里开的这一条，是「传说变成
+      // 世界共识」在那本账上留下的唯一一笔。
+      //
+      // `?feed=off` 时 `eventsClient` 是 null：传说照旧在记忆里立起来、碑照旧
+      // 能读，只是镇志那一条不落。这是诚实的降级，不是失败。
+      onEvent: (event) => {
+        if (event.kind !== 'legend.formed') return;
+        const payload = event.payload as {
+          readonly legendId?: unknown;
+          readonly text?: unknown;
+          readonly placeId?: unknown;
+          readonly reach?: unknown;
+          readonly day?: unknown;
+        };
+        // 载荷形状由 `world.ts` 的 `updateLegends` 写死；这里只收齐了才记，
+        // 缺一个字段就整条不记——一条缺字段的「传说」比没有更糟，服务端会拒，
+        // 而拒的声音只出现在控制台里。
+        if (
+          typeof payload.legendId !== 'string'
+          || typeof payload.text !== 'string'
+          || typeof payload.placeId !== 'string'
+          || typeof payload.reach !== 'number'
+          || typeof payload.day !== 'number'
+        ) {
+          return;
+        }
+        void this.eventsClient?.record(
+          {
+            change: 'legend',
+            legendId: payload.legendId,
+            text: payload.text,
+            placeId: payload.placeId,
+            reach: payload.reach,
+            day: payload.day,
+          },
+          event.at,
+        );
+      },
       onVitals: (vitals) => {
         // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
         // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。
@@ -1012,6 +1070,56 @@ export class SandboxScene extends Phaser.Scene {
     if (this.lastVillagerMemory === null) return;
     this.lastVillagerMemory = null;
     for (const listener of this.villagerMemoryListeners) listener(null);
+  }
+
+  // ------------------------------------------------------------------ 碑
+
+  /**
+   * 打开碑：读出此刻立着的传说，排好序，交给面板。
+   *
+   * 读的是 `MemoryRuntime.legends()`（转发 `world.legendsOf()`），**不调模型、
+   * 不改世界**。截断在这一层做而不是在 `steleLines` 里：纯函数返回全部，
+   * 测试要能数清总共有几条；面板拿到的是「摆几条 + 还有几条没摆」。
+   */
+  openStele(): void {
+    if (this.memory === undefined) return;
+    const all = steleLines(this.memory.legends(), this.memory.day);
+    const next: SteleView = {
+      lines: all.slice(0, STELE_MAX_LINES),
+      hidden: Math.max(0, all.length - STELE_MAX_LINES),
+    };
+    this.lastSteleView = next;
+    for (const listener of this.steleListeners) listener(next);
+  }
+
+  /**
+   * 收起碑面板。广播 `null` 而不是只藏 DOM——晚订阅的人不该再看见一块
+   * 已经关掉的碑。
+   *
+   * 与村民面板不同，**这里不松镜头**：碑不跟镜头，点了它镜头没动过。
+   */
+  private closeStelePanel(): void {
+    if (this.lastSteleView === null) return;
+    this.lastSteleView = null;
+    for (const listener of this.steleListeners) listener(null);
+  }
+
+  /**
+   * 指针底下那一格上有没有碑。有就开面板，返回 true。
+   *
+   * 碑是 `pack.scenery` 里的一条数据（`kind: 'stele'`），**不占格**——所以它和
+   * 「那格上站着的人」不会抢格子，但两者都在同一套「世界就是格」的命中模型里：
+   * 先比村民（人在上面），再比碑，两个都不中才退回洗地。
+   */
+  private openSteleAt(pointer: Phaser.Input.Pointer): boolean {
+    const stele = this.pack?.scenery.find((item) => item.kind === 'stele');
+    if (stele === undefined) return false;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const x = Math.floor(world.x / TILE_PX);
+    const y = Math.floor(world.y / TILE_PX);
+    if (stele.at.x !== x || stele.at.y !== y) return false;
+    this.openStele();
+    return true;
   }
 
   // -------------------------------------------------------------- 造物模式
@@ -1524,6 +1632,24 @@ export class SandboxScene extends Phaser.Scene {
         // 发现「离开跟随」，它自己也会收一次——`closeVillagerPanel` 幂等。
         this.closeVillagerPanel();
         this.cameraCtl.releaseFollow();
+      },
+      openStele: (): void => this.openStele(),
+      onStele: (listener: (view: SteleView | null) => void): (() => void) => {
+        if (this.lastSteleView !== null) listener(this.lastSteleView);
+        this.steleListeners.add(listener);
+        return () => this.steleListeners.delete(listener);
+      },
+      dismissStele: (): void => this.closeStelePanel(),
+      /**
+       * 碑上此刻刻着什么。给脚本与浏览器验收用——与 `memory()` 同一个口子。
+       *
+       * 返回的是**全部**传说（不截断）：验收要看的是「世界立起了几条」，
+       * 而面板摆几条是展示的决定。`reach` 与 `formedDay` 一起给，测试能钉住
+       * 「第几天立起来、几个人在讲」。
+       */
+      stele: () => {
+        if (this.memory === undefined) return [];
+        return steleLines(this.memory.legends(), this.memory.day);
       },
       miracle: (kind: MiracleKind): void => {
         this.sim.enqueue({ kind: 'miracle', miracle: kind });

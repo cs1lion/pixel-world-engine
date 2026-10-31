@@ -76,14 +76,18 @@ const open = async (query) => {
 };
 
 try {
-  // ---------------- 1) 灯潮界能启动，五个区域与六栋建筑都在
+  // ---------------- 1) 灯潮界能启动，五个区域与九栋建筑都在
   await open('?world=dengchao&feed=off&time=noon');
   const first = await view();
   check((await page.title()).includes('灯潮界'), '页面标题是灯潮界');
-  check(first.buildings.length === 6, '六栋建筑显式落位');
+  check(first.buildings.length === 9, '九栋建筑显式落位');
   check(
-    first.villagers.length === 2 && first.villagers.every((v) => v.lampOil === 1),
-    '两位居民满油出生',
+    first.villagers.length === 7,
+    `七位居民都在（实际 ${first.villagers.length} 位）`,
+  );
+  check(
+    first.villagers.every((v) => v.lampOil === 1),
+    '七位居民满油出生',
   );
   const labels = await page.evaluate(() =>
     [...document.querySelectorAll('.setting-region-label')].map((node) => node.textContent),
@@ -93,8 +97,8 @@ try {
     `五个区域标签都在：${labels.join(' / ')}`,
   );
   check(
-    first.villagers[0].pos.x !== first.villagers[1].pos.x,
-    '两位居民没有重叠出生',
+    new Set(first.villagers.map((v) => `${v.pos.x},${v.pos.y}`)).size === first.villagers.length,
+    '七位居民没有重叠出生',
   );
   // 输入框里的例句是玩家看到的第一句"能说什么"。默认世界写死的「建一间工坊」
   // 在灯潮界没有这个模板，照抄就是个注定被拒的例子。
@@ -102,6 +106,29 @@ try {
   check(
     typeof placeholder === 'string' && placeholder.includes('候车亭'),
     `输入框的例子换成了这张图真能建的东西：${placeholder}`,
+  );
+
+  // ---------------- 1b) 碑：点得开、空态说得对（立碑要跑 4 个世界日，不在浏览器里等）
+  check(
+    (await page.evaluate(() => window.Oracle.stele().length)) === 0,
+    '开局碑上是空的（传说还没立）',
+  );
+  await page.evaluate(() => window.Oracle.openStele());
+  const emptyText = await page.evaluate(
+    () => document.querySelector('#stele-panel-body')?.textContent ?? '',
+  );
+  check(
+    emptyText.includes('碑上还没有刻字') && emptyText.includes('5') && emptyText.includes('3'),
+    `空态把那两个数说出来了：${emptyText}`,
+  );
+  check(
+    (await page.evaluate(() => !document.querySelector('#stele-panel')?.hidden)) === true,
+    '碑面板真的打开了',
+  );
+  await page.evaluate(() => window.Oracle.dismissStele());
+  check(
+    (await page.evaluate(() => document.querySelector('#stele-panel')?.hidden)) === true,
+    '碑面板能关掉',
   );
 
   // ---------------- 2) 世界真的自己过日子，不是一张静止的画
@@ -156,10 +183,12 @@ try {
   await open('?world=dengchao&feed=off&time=noon');
   const reloaded = await view();
   check((await page.title()).includes('灯潮界'), '刷新后仍是灯潮界');
-  check(reloaded.buildings.length === 6, '刷新后建筑没有丢');
+  check(reloaded.buildings.length === 9, '刷新后建筑没有丢');
   check(
-    ['迷路人', '汐'].every((name) => reloaded.villagers.some((v) => v.name === name)),
-    '刷新后还是那两位居民',
+    ['迷路人', '汐', '灯笼头', '炉匠', '沉灯夫人', '账房先生', '洗衣妇'].every((name) =>
+      reloaded.villagers.some((v) => v.name === name),
+    ),
+    '刷新后还是那七位居民',
   );
 
   // ---------------- 6) 打开灯潮界不会改坏旧世界

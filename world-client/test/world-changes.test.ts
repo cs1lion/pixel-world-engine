@@ -439,6 +439,7 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
   const tide = byChange.get('tide')!.payload;
   const ambient = byChange.get('world.event')!.payload;
   const vitals = byChange.get('world.vitals')!.payload;
+  const legendPayload = byChange.get('legend')!.payload;
 
   const changes: WorldChange[] = [
     {
@@ -487,6 +488,14 @@ test('docs/world-changes.sample.json 里的每一条都造得出（跨语言冻�
       meanArousal: Number(vitals.meanArousal),
       infoEntropy: Number(vitals.infoEntropy),
       isolatedHoldersCount: Number(vitals.isolatedHoldersCount),
+    },
+    {
+      change: 'legend',
+      legendId: String(legendPayload.legendId),
+      text: String(legendPayload.text),
+      placeId: String(legendPayload.placeId),
+      reach: Number(legendPayload.reach),
+      day: Number(legendPayload.day),
     },
   ];
 

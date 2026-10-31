@@ -113,6 +113,21 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
       props.fillRect(x + 9, y - 21, 3, 1);
       props.fillStyle(c.terracotta, 1);
       props.fillRect(x + 15, y - 25, 4, 8);
+    } else if (item.kind === 'stele') {
+      // 碑压在 props 层（1050），与 statue 同层：它是一块立在广场上的石头，
+      // 不该像楼那样压在人身上。碑面刻痕是三条横线——**不是字**：中文不进
+      // canvas（D5-A），碑文由确认面板渲染，这里只画"这块石头上有东西"。
+      props.fillStyle(c.ink, 1);
+      props.fillRect(x - 1, y + 12, 18, 4);
+      props.fillStyle(c.stone, 1);
+      props.fillRect(x + 1, y, 14, 13);
+      props.fillStyle(c.plaza, 1);
+      props.fillRect(x + 2, y + 1, 12, 3);
+      props.fillStyle(c.copper, 1);
+      props.fillRect(x + 3, y + 6, 10, 1);
+      props.fillRect(x + 3, y + 9, 10, 1);
+      props.fillStyle(c.trim, 0.8);
+      props.fillRect(x + 6, y + 1, 1, 3);
     } else if (item.kind === 'statue') {
       props.fillStyle(c.stone, 1);
       props.fillRect(x, y + 8, 16, 8);

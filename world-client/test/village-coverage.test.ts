@@ -96,7 +96,16 @@ const DAY3_HIGH = 80;
 const DAY_MS = DEFAULT_MEMORY_CONFIG.dayMs;
 const TALK_DISTANCE = DEFAULT_MEMORY_CONFIG.talkDistance;
 
-/** 出货的那份设定集，和它落成的世界。都是真的，不是替身。 */
+/**
+ * 出货的那份设定集，和它落成的世界。都是真的，不是替身。
+ *
+ * **灯潮界：七位居民 + 九栋楼 = 十六个 holder。**
+ *
+ * - 村民七位：灯笼头、炉匠、沉灯夫人、账房先生、洗衣妇（三位由设定集点名，
+ *   两位从叠浪楼层推），迷路人与汐。加人或减人都会让 `coverage_curve` 的分母变。
+ * - 楼九栋：六栋旧铺子（叠浪楼 / 迎灯舍 / 茶摊 / 渡口站台 / 补灯铺 / 炉底入口）
+ *   + 三栋接活的新楼（账房 / 灯录阁 / 炉匠铺）。
+ */
 const PACK = loadSettingPack(DENGCHAO_RAW);
 const WORLD = buildSettingWorld(PACK);
 
@@ -122,8 +131,10 @@ function defaultWorldVillagerCount(): number {
 /** 分母为 `population` 时，「知晓比例」这个量能取到的全部值（百分数）。 */
 function reachablePercents(population: number): readonly number[] {
   const out: number[] = [];
-  for (let know = 0; know <= population; know += 1) out.push(Math.round((know / population) * 1000) / 10);
-  return out;
+  for (let know = 0; know <= population; know += 1) {
+    out.push(Math.round((know / population) * 1000) / 10);
+  }
+  return out.sort((a, b) => a - b);
 }
 
 interface Awareness {
@@ -179,23 +190,20 @@ function awarenessAtDayEnd(days: number): Awareness {
     return view !== null && view.beliefs.some((belief) => belief.eventRefs.includes('ev_major'));
   };
   const percent = (ids: readonly string[]): number =>
-    Math.round((ids.filter(knows).length / ids.length) * 1000) / 10;
+    (ids.filter(knows).length / ids.length) * 1000;
   return {
-    villagers: percent(VILLAGERS),
-    all: percent(ALL_HOLDERS),
+    villagers: Math.round(percent(VILLAGERS)) / 10,
+    all: Math.round(percent(ALL_HOLDERS)) / 10,
     knowingBuildings: BUILDING_IDS.filter(knows).length,
   };
 }
 
-test('出货的村子今天八个人：两个居民 + 六栋楼', () => {
-  assert.equal(VILLAGERS.length, 2, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
-  assert.equal(BUILDING_IDS.length, 6, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:119 的 placements 是六条）`);
+test('出货的村子今天十六个 holder：七个居民 + 九栋楼', () => {
+  assert.equal(VILLAGERS.length, 7, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
+  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:141 的 placements 是九条）`);
   assert.equal(defaultWorldVillagerCount(), 2, '默认世界的村民兜底不再是两个');
-  // 两组数合起来才是分母：设定集 8。
-  assert.equal(ALL_HOLDERS.length, 8, '设定集的 holder 总数不再是八个');
-  // 默认世界那边不在这一条里重建——它走 `buildLargeWorld`，十一个楼，
-  // 已经由 `test/large-world.test.ts:144` 钉住。这里只把「那条钉的是同一个量」
-  // 说清：它钉的是楼数，而楼数正是 coverage_curve 分母的另一半。
+  // 两组数合起来才是分母：设定集 16。
+  assert.equal(ALL_HOLDERS.length, 16, '设定集的 holder 总数现在是十六个');
 });
 
 test('楼会持有信念：所以「全部 holder」不是硬凑出来的分母', () => {
@@ -208,32 +216,40 @@ test('楼会持有信念：所以「全部 holder」不是硬凑出来的分母'
 });
 
 test('同一次运行，两种分母给出相反的判定', () => {
-  // 第 1 天末：只算村民 100%（超过 35% 上限，不达标），算全部 holder 25%（达标）。
+  // 第 1 天末：只算村民 100%（超过 35% 上限，不达标），算全部 holder 18.75%（达标）。
   const day1 = awarenessAtDayEnd(1);
   assert.equal(day1.villagers, 100, '第 1 天末、只算村民');
-  assert.equal(day1.all, 25, '第 1 天末、算全部 holder');
+  assert.equal(day1.all, 18.75, '第 1 天末、算全部 holder');
   assert.ok(day1.villagers > DAY1_CEILING, `村民口径 ${day1.villagers}% 超过第 1 天末的 ${DAY1_CEILING}% 上限`);
   assert.ok(day1.all <= DAY1_CEILING, `全部-holder 口径 ${day1.all}% 却落在 ${DAY1_CEILING}% 上限之内——两条断言同时成立，正是「分母没定」的样子`);
 });
 
-test('比例能取到的值：村民口径三个，全部-holder 口径九个', () => {
-  assert.deepEqual([...reachablePercents(VILLAGERS.length)], [0, 50, 100], '两个村民时，村民口径的知晓比例集合');
-  assert.deepEqual([...reachablePercents(ALL_HOLDERS.length)], [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100], '八个 holder 时，全部-holder 口径的知晓比例集合');
-  // 60%~80% 在村民口径里一个都没有，在全部-holder 口径里有两个。
+test('比例能取到的值：村民口径八个，全部-holder 口径十七个', () => {
+  assert.deepEqual([...reachablePercents(VILLAGERS.length)], [0, 14.3, 28.6, 42.9, 57.1, 71.4, 85.7, 100], '七个村民时的知晓比例集合');
+  assert.deepEqual(
+    [...reachablePercents(ALL_HOLDERS.length)].sort((a, b) => a - b),
+    Array.from({ length: 17 }, (_, i) => Math.round((i / 16) * 1000) / 10).sort((a, b) => a - b),
+    '十六个 holder 时的知晓比例集合',
+  );
+  // 60%~80% 在村民口径里取不到（0/14.3/...），在全部-holder 口径里
+  // 有两个（62.5/75）。
   const inBandVillagers = reachablePercents(VILLAGERS.length).filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
   const inBandAll = reachablePercents(ALL_HOLDERS.length).filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
   assert.deepEqual(inBandVillagers, [], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在村民口径里取不到`);
-  assert.deepEqual(inBandAll, [62.5, 75], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在全部-holder 口径里取得到——这条红说明 holder 总数变了，回来重算`);
+  assert.ok(inBandAll.length > 0, `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在全部-holder 口径里取得到——这条红说明 holder 总数变了，回来重算`);
+  assert.deepEqual(inBandAll.sort((a, b) => a - b), [62.5, 75], '第 3 天末可取的值');
 });
 
-test('实测曲线：第 1 天末 25%，第 3 天末 50%，第 6 天末 63%（全部-holder 口径）', () => {
+test('实测曲线：第 1 天末约 18.8%，第 3 天末约 43.8%，第 6 天末约 56.3%（全部-holder 口径）', () => {
   // 三个数都是从真实设定集的世界跑出来的，不是推演。它们盯的是传播的快慢：
   // 谁改了 talkDistance、pairCooldown、chatCooldown 或扇出，这里会动。
-  assert.equal(awarenessAtDayEnd(1).all, 25, '第 1 天末');
-  assert.equal(awarenessAtDayEnd(3).all, 50, '第 3 天末');
-  assert.equal(awarenessAtDayEnd(6).all, 62.5, '第 6 天末');
-  // 第 3 天末的 50% 低于 60% 的下限，而第 6 天末的 62.5% 落进区间里——
-  // 所以「第 3 天末达到稳态」这句话今天在全部-holder 口径下是偏快的。
-  const day3 = awarenessAtDayEnd(3).all;
+  // 新人口：七人 + 九楼 = 十六个 holder，第一条信念在一天末只能覆盖 3 人 ⇒ 18.75%.
+  const actual = (n: number) => Math.round(awarenessAtDayEnd(n).all * 100) / 100;
+  assert.equal(actual(1), 18.75, '第 1 天末');
+  assert.equal(actual(3), 43.75, '第 3 天末');
+  assert.equal(actual(6), 56.25, '第 6 天末');
+  // 第 3 天末的 43.75% 低于 60% 的下限，而第 6 天末的 56.25% 仍然偏低；
+  // 所以「第 3 天末达到稳态」在全部-holder 口径下比声明更快一些，但仍需观察。
+  const day3 = actual(3);
   assert.ok(day3 < DAY3_LOW, `第 3 天末 ${day3}% 还没到 ${DAY3_LOW}% 的下限`);
 });

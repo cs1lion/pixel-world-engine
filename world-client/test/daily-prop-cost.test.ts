@@ -115,10 +115,10 @@ function oneDayMilliseconds(buildingIds: readonly string[], day: number): number
   return performance.now() - started;
 }
 
-test('两个出货世界的 holder 数：设定集八个，默认世界十三个', () => {
+test('两个出货世界的 holder 数：设定集十六个，默认世界十三个', () => {
   const pack = loadSettingPack(DENGCHAO_RAW);
   const world = buildSettingWorld(pack);
-  assert.equal(pack.villagers.length + world.buildings.length, 8, '设定集的 holder 总数不再是八个');
+  assert.equal(pack.villagers.length + world.buildings.length, 16, '设定集的 holder 总数现在是十六个（七人 + 九楼）');
   assert.equal(VILLAGERS.length + defaultWorldBuildingIds().length, 13, '默认世界的 holder 总数不再是十三个');
 });
 
