@@ -1,7 +1,7 @@
 /**
  * 碑面板的截断：只摆 `STELE_MAX_LINES` 条，但必须是最高的那几条。
  *
- * 19 条同时立起是实测到的真实形态（`legend-forms.test.ts`）。面板不摆全，但
+ * 第 4 天一次立起 15 条是实测到的真实形态（`legend-forms.test.ts`）。面板不摆全，但
  * 摆出来的必须是「讲的人最多」的那几条——不是任意几条、不是输入顺序的前五。
  * 这一条就是钉这个排序与截断。
  */
@@ -10,8 +10,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { steleLines, STELE_MAX_LINES } from '../src/world/memory/stele.ts';
+import type { Legend } from '../src/world/memory/types.ts';
 
-const legend = (legendId: string, reach: number, formedDay: number) => ({
+const legend = (legendId: string, reach: number, formedDay: number): Legend => ({
   legendId,
   eventRefs: [`ev_${legendId}`],
   variants: [`${legendId} 的话`],
@@ -23,15 +24,16 @@ const legend = (legendId: string, reach: number, formedDay: number) => ({
 /**
  * `STELE_MAX_LINES` 是个硬闸，改了它直接改屏幕。
  *
- * 5 这个数字是从实测出发的：19 条一次立起是**跑真实设定集（7 人 9 楼）量出来**
- * 的。5 不是随手挑的，而是「一块能读的碑」和「19 条流水账」之间唯一的那道闸。
+ * 5 这个数字是从实测出发的：15 条一次立起是**跑真实设定集（7 人 9 楼）量出来**
+ * 的（`.tmp-audit/census-after.txt`，收束之后重跑的同一份探针）。5 不是随手挑的，
+ * 而是「一块能读的碑」和「15 条流水账」之间唯一的那道闸。
  * 改这个数会直接改屏幕，所以测试要把它钉住。
  */
 test('STELE_MAX_LINES = 5 是一条闸——比 5 多的都看不见', () => {
   assert.equal(STELE_MAX_LINES, 5);
 });
 
-test('从十九条里取前五：按 `reach` 降序，然后按 `formedDay` 降序', () => {
+test('从十一条里取前五：按 `reach` 降序，然后按 `formedDay` 降序', () => {
   // 用一组精心控制的数字，把排序规则拆开成几层：
   // - 前四条：全部活着、reach 完全相同 → 靠 formedDay 区分
   // - 第五条：被截掉的第一条，但它的 reach > 后面那些

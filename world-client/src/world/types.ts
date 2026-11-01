@@ -391,6 +391,31 @@ export interface VillagerSnapshot {
 }
 
 /**
+ * 指针落在 (x, y) 这一格时，那一格上站着谁。没有就是 `null`。
+ *
+ * **用 `Math.floor`，不是 `pos.x === x`。** 她走路时 `pos` 是分数（`27.3`），
+ * 而指针算出来的永远是整格号——严格相等只有「恰好停在整格」的那一瞬才成立，
+ * 于是站着的人点得到、走着的人永远点不到，而世界大部分时间都在走。
+ * 走着的这一刻她站在哪一格，就是她脚下那一格：`floor`。
+ *
+ * `visible === false` 的人点不到：她这会儿不在画面上。
+ */
+export function villagerAtCell(
+  villagers: readonly VillagerSnapshot[],
+  x: number,
+  y: number,
+): VillagerSnapshot | null {
+  return (
+    villagers.find(
+      (villager) =>
+        villager.visible &&
+        Math.floor(villager.pos.x) === x &&
+        Math.floor(villager.pos.y) === y,
+    ) ?? null
+  );
+}
+
+/**
  * 只做氛围的环境实体，不参与任务、不改交付统计。
  * 猫是第一个：它会自己走开，不永久占位。
  */
@@ -430,7 +455,7 @@ export interface WorldSnapshot {
    *
    * 有了它才能回答「这栋楼是玩家这次玩起来之后造的吗」——而不必去猜。
    * 猜过的两种猜法都错过：`boundTask === null` 问的是接不接活（民居不接活但是开局落的），
-   * `zone === 'living'` 问的是分区（灯潮界那六栋楼全是 `industry`，同一句话在设定集上原样重现）。
+   * `zone === 'living'` 问的是分区（灯潮界那九栋楼全是 `industry`，同一句话在设定集上原样重现）。
    *
    * **不落档。** 读档那一刻，档里所有的楼都算"开局就有"——包括上次玩的时候造的。
    * 这不是遗漏，是诚实：一个存档证明不了一栋楼是哪一次会话里造的，

@@ -22,6 +22,8 @@ import {
   decayLegend,
   faded,
   formLegend,
+  maxImportance,
+  mergeByPlace,
   qualifies,
   reinforceLegend,
   type LegendCandidate,
@@ -70,6 +72,7 @@ import { decideWrite, inputsFor } from './salience.ts';
 import { claimContentFor, compile, type UpstreamAction } from './sanitize.ts';
 import { rollBelow, seedOf } from './seed.ts';
 import { exposedTraces, consequenceOf, fitTraceLayers, inferenceOf, makeTrace, weatherTrace, type InferenceSpec } from './traces.ts';
+import { epithetFor, renamed } from './toponym.ts';
 import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './written.ts';
 import type {
   Belief,
@@ -82,6 +85,8 @@ import type {
   MemoryEntry,
   MemoryEvent,
   MemoryTier,
+  Toponym,
+  ToponymEntry,
   Trace,
   Visibility,
   WorldFact,
@@ -197,6 +202,14 @@ export class MemoryWorld {
   private beliefs: Belief[] = [];
   private readonly traces = new Map<string, Trace[]>();
   private legends: Legend[] = [];
+  /**
+   * 每个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
+   *
+   * 名字从**外面**进来（`syncHolders` 的 `RuntimeHolder.name`，场景从
+   * `PlacedBuilding.displayName` 递）：记忆层不认识「账房」这个词，它只认得
+   * 谁在哪个 id 上。改名则由这一层自己判——判据在 `toponym.ts`。
+   */
+  private readonly placeNames = new Map<string, { name: string; history: ToponymEntry[] }>();
   private announcements: Announcement[] = [];
   private readonly tells: TellRecord[] = [];
   private written: WrittenRecord[] = [];
@@ -823,6 +836,25 @@ export class MemoryWorld {
    */
   legendsOf(): readonly Legend[] {
     return this.legends.map((legend) => ({ ...legend }));
+  }
+
+  /**
+   * 给一个地点登记它的名字。**只登记第一次**。
+   *
+   * 名字是场景每一拍递进来的（`PlacedBuilding.displayName`），而改名是这一层
+   * 自己的事。如果这里每次都覆盖，下一次 `syncHolders` 就会把改过的名字抹回
+   * 原名——历史链还在，名字却倒退，那比不改名更难看。
+   */
+  setPlaceName(placeId: string, name: string): void {
+    if (this.placeNames.has(placeId)) return;
+    this.placeNames.set(placeId, { name, history: [] });
+  }
+
+  /** 一个地点此刻叫什么、改过几次名。没登记过就是 `null`——不编一个名字给它。 */
+  placeNameOf(placeId: string): Toponym | null {
+    const entry = this.placeNames.get(placeId);
+    if (entry === undefined) return null;
+    return { name: entry.name, history: entry.history.map((item) => ({ ...item })) };
   }
 
   /**
@@ -1566,12 +1598,10 @@ export class MemoryWorld {
     );
     this.legends = this.legends.map(decayLegend);
     const candidates = candidatesFrom(this.beliefs, this.claims);
-    for (const candidate of candidates) {
-      if (!qualifies(candidate, day, this.config)) continue;
-      const key = candidate.eventRefs.join(',');
-      // 有过传说就不再生成了——淡去的也算有过。它是这条传说的晚年，
-      // 不是另一条传说的童年。
-      if (this.legends.some((legend) => legend.eventRefs.join(',') === key)) continue;
+    const fresh = candidates.filter(
+      (candidate) => qualifies(candidate, day, this.config) && !this.alreadyTold(candidate),
+    );
+    for (const candidate of this.formable(fresh)) {
       const legend = formLegend(this.nextId('legend'), candidate, day);
       this.legends.push(legend);
       // 载荷补全到「外面那一层能直接用」的形状：`WorldChange` 那条 `legend`
@@ -1587,7 +1617,110 @@ export class MemoryWorld {
         day: legend.formedDay,
       });
       this.inscribe(legend, candidate, at);
+      this.maybeRename(legend, candidate, at);
     }
+  }
+
+  /**
+   * 这块碑立起来的时候，这个地点该不该换个名字（协议 §11）。
+   *
+   * 判据在 `toponym.ts`（查表 + 门槛），这里只负责**何时问**与**记住**：
+   *
+   *   - 只在一条传说立起来时问——改名总得有个由头，而碑就是这个由头；
+   *   - 一个地点**只改一次**（`history.length === 0`）。改两次的历史链读起来
+   *     就是世界说话不算数：昨天叫「账房·立事」，今天叫「账房·立事·张灯」，
+   *     而两次之间没有任何一件事能解释名字为什么又长了一截；
+   *   - 不知道它原来叫什么就不改——「无名·立事」不是名字。
+   *
+   * 取并集里**最重**那件事的 kind，与 `formable()` 判大事同一个口径：
+   * 一块碑里并着几件闲话与一件里程碑时，说的是那件里程碑。
+   */
+  private maybeRename(legend: Legend, candidate: LegendCandidate, at: number): void {
+    const entry = this.placeNames.get(legend.homePlaceId);
+    if (entry === undefined) return;
+    if (entry.history.length > 0) return;
+
+    let heaviest: { ref: string; kind: string; weight: number } | null = null;
+    for (const eventRef of candidate.eventRefs) {
+      const fact = this.facts.get(eventRef);
+      if (fact === undefined) continue;
+      const weight = fact.importanceHint ?? 0;
+      if (heaviest === null || weight > heaviest.weight) {
+        heaviest = { ref: eventRef, kind: fact.kind, weight };
+      }
+    }
+    if (heaviest === null) return;
+
+    const epithet = epithetFor(heaviest.kind, heaviest.weight, this.config.renameImportanceFloor);
+    if (epithet === null) return;
+
+    const old = entry.name;
+    const next = renamed(old, epithet);
+    entry.history.push({ name: next, fromEventRef: heaviest.ref, day: legend.formedDay });
+    entry.name = next;
+    this.emit('toponym.changed', at, {
+      placeId: legend.homePlaceId,
+      old,
+      new: next,
+      eventRef: heaviest.ref,
+    });
+  }
+
+  /**
+   * 这件事是不是已经有传说了——淡去的也算。
+   *
+   * 原来是「`eventRefs` 拼出来的 key 与某条传说完全相同」。归并之后那条传说
+   * 手里攥着一组事件，而候选仍然一件一件地来，两个 key 再也不会相等，于是
+   * 每天都会把同一批闲话重新立一遍（它们每天都还够格）。所以改成「它引用的
+   * **任何一个**事件已经在某条传说里」。
+   *
+   * 这两种写法在归并之前是同一句话：候选按 `eventRefs` 的集合归并，
+   * 一个事件只属于一个候选，所以「整组相等」与「有交集」等价。放宽之后它
+   * 还多守住一件事——一条被并进去的闲话不会因为它的同伴进了碑就被落单。
+   */
+  private alreadyTold(candidate: LegendCandidate): boolean {
+    return this.legends.some((legend) =>
+      candidate.eventRefs.some((ref) => legend.eventRefs.includes(ref)),
+    );
+  }
+
+  /**
+   * 今天该立哪几条：大事各立各的，闲话同日同地并成一条。
+   *
+   * 裁决是「大事优先，闲话同日同地兜底」：
+   *
+   *   - `maxImportance >= legendImportanceFloor` 的候选是大事，一条一块碑；
+   *   - 够不着门槛的是闲话，**同一天同一个地点**的并成一块——但那个地点那天
+   *     若有大事，闲话今天不立（大事已经替那个地点说过话了）。不立不是丢：
+   *     信念还在，明天那个地点没有大事时它们照样会被并进去。
+   *
+   * 门槛为什么落在这一层而不在 `qualifies()`：`qualifies` 判的是「反复讲述」，
+   * 门槛判的是「是不是大事」。塞进 `qualifies` 会让「不够格」与「不够重」
+   * 变成同一句话，而它们该有不同的出路——前者继续等，后者并进邻座的碑。
+   *
+   * 实测（`.tmp-audit/legend-census.ts`，8 个世界日）：35 条传说的
+   * `max(importanceHint)` 一律 0.35，全在门槛之下，所以这条路径今天是**唯一**
+   * 在出碑的路径；门槛以上的分支（`task_done` 0.45）在灯潮界还没出现过。
+   */
+  private formable(fresh: readonly LegendCandidate[]): LegendCandidate[] {
+    const importanceOf = (eventRef: string): number =>
+      this.facts.get(eventRef)?.importanceHint ?? 0;
+    const big: LegendCandidate[] = [];
+    const chatter: LegendCandidate[] = [];
+    for (const candidate of fresh) {
+      if (maxImportance(candidate, importanceOf) >= this.config.legendImportanceFloor) {
+        big.push(candidate);
+      } else {
+        chatter.push(candidate);
+      }
+    }
+    // 大事优先：同一天同一个地点有大事，那天的闲话今天不立。
+    const bigPlaces = new Set(big.map((candidate) => candidate.homePlaceId));
+    const merged = mergeByPlace(
+      chatter.filter((candidate) => !bigPlaces.has(candidate.homePlaceId)),
+      importanceOf,
+    );
+    return [...big, ...merged];
   }
 
   /**

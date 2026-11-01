@@ -22,8 +22,13 @@ import { TILE_PX } from '../world/setup.ts';
 /** 角色 depth 的偏移量，与 villager.ts 保持一致。改一处必须改两处。 */
 export const ACTOR_DEPTH_OFFSET = 8;
 
-/** 三层相对建筑落地线 baseY 的像素偏移。front 的推导见下方 frontOffset 说明。 */
-export const BUILDING_DEPTH = { back: -2, body: 0, front: 32 } as const;
+/**
+ * 各层相对建筑落地线 baseY 的像素偏移。front 的推导见下方 frontOffset 说明。
+ *
+ * `decal`（墙上的痕迹）取 16：在楼体（0）之后、站在门口的人（+24）之前——
+ * 痕迹是墙的一部分，人走过去该挡住它。这一层不动其余三个数。
+ */
+export const BUILDING_DEPTH = { back: -2, body: 0, decal: 16, front: 32 } as const;
 
 /** 建筑落地线：占地底边的世界 y。 */
 export function buildingBaseY(originY: number, footprintH: number): number {

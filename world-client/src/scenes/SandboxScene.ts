@@ -7,6 +7,7 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
 import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp, WorldSnapshot } from '../world/types.ts';
+import { villagerAtCell } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
 import { WORLD, tokenNameOf } from '../world/palette-data.ts';
@@ -20,13 +21,15 @@ import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
 import type { SteleOracle, SteleView } from '../ui/stele-panel.ts';
+import type { BuildingActivity, BuildingOracle, BuildingPanelView } from '../ui/building-panel.ts';
 import { STELE_MAX_LINES, steleLines } from '../world/memory/stele.ts';
 
 /**
  * 场景挂在 `window.Oracle` 上的那一面，每边消费者各要一个子集。
  *
  * 神谕面板要 `OracleApi`，调试面板要 `DebugOracle`，存档导入导出要 `SaveOracle`，
- * 取景按钮要 `CameraOracle`，村民面板要 `VillagerOracle`。没有一个子集是全的，
+ * 取景按钮要 `CameraOracle`，村民面板要 `VillagerOracle`，碑与楼面板各要一个。
+ * 没有一个子集是全的，
  * 所以挂载时按交集核一遍——见 `registerOracleApi()` 末尾。这些接口原先都只有
  * 消费侧一份声明，生产侧是推断，两边各写一次 `as unknown as`，中间没人对账。
  */
@@ -35,9 +38,10 @@ type OracleSurfaces = OracleApi &
   SaveOracle &
   CameraOracle &
   VillagerOracle &
-  SteleOracle;
+  SteleOracle &
+  BuildingOracle;
 import { drawTerrain } from '../render/tilemap.ts';
-import { createBuilding, updateBuilding, type BuildingView } from '../render/buildings.ts';
+import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -215,6 +219,15 @@ export class SandboxScene extends Phaser.Scene {
    */
   private lastSteleView: SteleView | null = null;
   private readonly steleListeners = new Set<(view: SteleView | null) => void>();
+  /**
+   * 楼面板此刻摆的是哪一栋，以及摆出去的那一份视图。
+   *
+   * 与碑不同，楼面板**会自己更新**：`toponym.changed` 落地时，开着的那一栋
+   * 要当场换成新名字（协议 §11 的历史链就是给这个时候读的）。所以要记住
+   * 「现在开的是谁」，而不是只记住最后一份视图。
+   */
+  private lastBuildingView: BuildingPanelView | null = null;
+  private readonly buildingListeners = new Set<(view: BuildingPanelView | null) => void>();
   private readonly cameraModeListeners = new Set<(mode: CameraMode) => void>();
   /** 上一次广播出去的镜头模式。导播是闲置后自己接管的，没有它就没有变化可广播。 */
   private lastCameraMode: CameraMode = 'free';
@@ -223,6 +236,13 @@ export class SandboxScene extends Phaser.Scene {
   private seenDay = -1;
   /** 上一拍还站着的楼。用来认出这一拍少掉的那几栋。 */
   private placeHolders = new Set<string>();
+  /**
+   * 每栋楼上一次画出去的痕迹单子的指纹。
+   *
+   * 痕迹一天才风化一次、出事才添一道，每拍重画是白烧；而按指纹跳过重画，
+   * 又不会漏掉「今天风化了一格」——`visibility` 就在指纹里。
+   */
+  private decalSignatures = new Map<string, string>();
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
   private saveNotice: string | null = null;
@@ -347,10 +367,12 @@ export class SandboxScene extends Phaser.Scene {
       if (this.pressMoved) return;
       // 点到人就是「看她」：镜头跟过去，面板读出她记得的事。
       // 其次点碑：镇上认下的事都在那块石头上。
-      // 两个都不中才退回洗地——三种动作共用一次点击，靠落点上有什么分开。
+      // 再其次点楼：它叫什么、接过什么活、墙上留着什么。
+      // 都不中才退回洗地——四种动作共用一次点击，靠落点上有什么分开。
       // 先比人再比碑：人在碑上站着时，点她应该还是看她。
       if (this.lookAtVillagerAt(pointer)) return;
       if (this.openSteleAt(pointer)) return;
+      if (this.lookAtBuildingAt(pointer)) return;
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -534,6 +556,35 @@ export class SandboxScene extends Phaser.Scene {
       // `?feed=off` 时 `eventsClient` 是 null：传说照旧在记忆里立起来、碑照旧
       // 能读，只是镇志那一条不落。这是诚实的降级，不是失败。
       onEvent: (event) => {
+        // 改名（协议 §11）：只有一件事要做——**开着的那一栋当场换名字**。
+        //
+        // 楼面板是「打开那一刻的快照」，不追着世界跑；而改名恰恰是它存在的
+        // 理由，所以这一条单独刷新。别的时候面板不动，与村民面板同一条。
+        //
+        // 它不进世界回写日志：`WorldChange` 那七个成员里没有地名，也不该为
+        // 它加第八个——改名是记忆层的读法，不是世界做成的一件事。
+        if (event.kind === 'toponym.changed') {
+          const renamed = event.payload as {
+            readonly placeId?: unknown;
+            readonly old?: unknown;
+            readonly new?: unknown;
+            readonly eventRef?: unknown;
+          };
+          // 与 `legend.formed` 同一条：收齐了才动。少一个字段就当没发生，
+          // 而不是拿半个载荷去改一个开着的面板。
+          if (
+            typeof renamed.placeId !== 'string'
+            || typeof renamed.old !== 'string'
+            || typeof renamed.new !== 'string'
+            || typeof renamed.eventRef !== 'string'
+          ) {
+            return;
+          }
+          if (this.lastBuildingView?.placeId === renamed.placeId) {
+            this.openBuilding(renamed.placeId);
+          }
+          return;
+        }
         if (event.kind !== 'legend.formed') return;
         const payload = event.payload as {
           readonly legendId?: unknown;
@@ -869,11 +920,16 @@ export class SandboxScene extends Phaser.Scene {
       this.seenToday.clear();
     }
     // 地点 Holder 每次对齐都补一遍：楼会被拆，但痕迹还在原地。
+    //
+    // `name` 是地名演变的起点（协议 §11）：记忆层拿它当**原名**，改名时
+    // 在它后面挂称号。不传的话 `placeNameOf` 恒为 null，改名就永远没有起点。
+    // 记忆层只认第一次登记的那个名字——楼名不会变，变的是地名。
     this.memory.syncHolders(
       this.snapshot.buildings.map((building) => ({
         holderId: building.instanceId,
         type: 'place' as const,
         at: { x: building.door.x, y: building.door.y },
+        name: building.displayName,
       })),
     );
     // 拆掉的楼从名册里摘掉。留着的话，一栋不存在的楼会「听得见」任何
@@ -883,6 +939,9 @@ export class SandboxScene extends Phaser.Scene {
     for (const placeId of this.placeHolders) {
       if (standing.has(placeId)) continue;
       this.memory.removePlace(placeId);
+      // 面板正摆着一栋已经不在了的楼，就收起来。留着的话它会一直说着
+      // 一个不存在的地方的活与痕迹——而屏幕上没有任何东西提示你它没了。
+      if (this.lastBuildingView?.placeId === placeId) this.closeBuildingPanel();
     }
     this.placeHolders = standing;
     for (const villager of this.snapshot.villagers) {
@@ -894,6 +953,27 @@ export class SandboxScene extends Phaser.Scene {
         this.seenToday.add(key);
       }
     }
+  }
+
+  /**
+   * 墙上的痕迹。
+   *
+   * 记忆层算、这一层画：`memory.placeHints(楼id)` 是**唯一入口**（补充设计 §10
+   * 「表现层只消费 ExpressionHint，不直接读记忆库」）。所以这里不去 `viewOf` 翻
+   * `traces`——翻得动，就等于绕开了 `traceExposedLayers` 那道闸。
+   *
+   * 单子没变就不重画：痕迹一天才风化一次、出事才添一道，每拍重画是白烧。
+   * 指纹里带着 `visibility`，所以「今天风化了一格」照样会被画出来。
+   */
+  private refreshDecals(entry: BuildingEntry): void {
+    if (this.memory === undefined) return;
+    const hints = this.memory.placeHints(entry.building.instanceId);
+    const signature = hints
+      .map((hint) => `${hint.traceId}:${hint.visibility.toFixed(3)}`)
+      .join('|');
+    if (this.decalSignatures.get(entry.building.instanceId) === signature) return;
+    this.decalSignatures.set(entry.building.instanceId, signature);
+    drawBuildingDecals(entry.view, hints, entry.building);
   }
 
   // ------------------------------------------------------------------ input
@@ -970,17 +1050,17 @@ export class SandboxScene extends Phaser.Scene {
    * 指针底下那一格上站着的人。没有就是 null。
    *
    * 与 `washUnder` 同一套「世界就是格」的模型：按格反查，不给精灵加交互区——
-   * 那会拦掉拖镜头，而拖镜头是这一屏最常用的动作。`visible === false` 的人
-   * 点不到：她这会儿不在画面上。
+   * 那会拦掉拖镜头，而拖镜头是这一屏最常用的动作。
+   *
+   * 判据在 `villagerAtCell` 里（`world/types.ts`），不在这儿现写一遍：那条
+   * 判据吃过一次亏——写成 `pos.x === x` 时，站着的人点得到、走着的人永远点不到。
    */
   private villagerAt(pointer: Phaser.Input.Pointer): WorldSnapshot['villagers'][number] | null {
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const x = Math.floor(world.x / TILE_PX);
-    const y = Math.floor(world.y / TILE_PX);
-    return (
-      this.snapshot.villagers.find(
-        (villager) => villager.visible && villager.pos.x === x && villager.pos.y === y,
-      ) ?? null
+    return villagerAtCell(
+      this.snapshot.villagers,
+      Math.floor(world.x / TILE_PX),
+      Math.floor(world.y / TILE_PX),
     );
   }
 
@@ -1023,6 +1103,12 @@ export class SandboxScene extends Phaser.Scene {
               seedKey: `villager-panel:${villagerId}`,
             }).hits,
             nowDay,
+            // 「从谁听来」的名字从现成的名册上查（`snapshot.villagers`），
+            // 不另存一份 id→name。查不到就是 null，面板那边照实说
+            // 「从一个不在这张图上的人听来」——楼会被拆、人可能不在场，
+            // 那些都是真实状态，而裸 id 既不是名字也不是状态。
+            (holderId) =>
+              this.snapshot.villagers.find((item) => item.id === holderId)?.name ?? null,
           );
     const next: VillagerMemoryView = { id: villager.id, name: villager.name, lines };
     this.lastVillagerMemory = next;
@@ -1120,6 +1206,91 @@ export class SandboxScene extends Phaser.Scene {
     if (stele.at.x !== x || stele.at.y !== y) return false;
     this.openStele();
     return true;
+  }
+
+  // ------------------------------------------------------------------ 楼
+
+  /**
+   * 指针底下那一格上有没有楼。有就开面板，返回 true。
+   *
+   * 命中的是**整块占地**，不只是门：一栋 4×4 的铺子，点它屋顶和点它门口
+   * 应该是同一件事。与 `villagerAt` / `openSteleAt` 同一套「世界就是格」的
+   * 模型——不给精灵加交互区，那会拦掉拖镜头。
+   */
+  private lookAtBuildingAt(pointer: Phaser.Input.Pointer): boolean {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const x = Math.floor(world.x / TILE_PX);
+    const y = Math.floor(world.y / TILE_PX);
+    const building = this.snapshot.buildings.find(
+      (item) =>
+        x >= item.origin.x
+        && x < item.origin.x + item.footprint.w
+        && y >= item.origin.y
+        && y < item.origin.y + item.footprint.h,
+    );
+    if (building === undefined) return false;
+    this.openBuilding(building.instanceId);
+    return true;
+  }
+
+  /**
+   * 打开一栋楼的面板：名字、接什么活、此刻在干什么、墙上留着什么。
+   *
+   * 四行四个来源，一个都不新造：名字与历史链读 `MemoryRuntime.placeNamesOf`
+   * （协议 §11），活读 `boundTask`，状态读工位快照，痕迹读 `placeHints`——
+   * **与画在墙上的那一份同源**（补充设计 §10：表现层只消费 ExpressionHint）。
+   *
+   * 面板是**打开那一刻的快照**，与村民面板同一条：点一下看一次，不追着世界跑。
+   * 唯一的例外是改名——`toponym.changed` 落地时会把开着的那一栋刷新一遍，
+   * 因为「它刚换了名字」正是这块面板存在的理由。
+   */
+  openBuilding(placeId: string): void {
+    const view = this.buildingViewOf(placeId);
+    if (view === null) return;
+    this.lastBuildingView = view;
+    for (const listener of this.buildingListeners) listener(view);
+  }
+
+  /** 收起楼面板。广播 `null`，晚订阅的人不该再看见一个已经关掉的楼。 */
+  private closeBuildingPanel(): void {
+    if (this.lastBuildingView === null) return;
+    this.lastBuildingView = null;
+    for (const listener of this.buildingListeners) listener(null);
+  }
+
+  /**
+   * 一栋楼此刻该读成什么样。楼不在了就是 `null`——**不编一栋出来**。
+   *
+   * 名字兜底用 `displayName`：记忆层还没登记过这栋楼（刚建起来、或记忆层
+   * 没开）时，楼自己的名字仍然是真的，只是还没有历史链。
+   */
+  private buildingViewOf(placeId: string): BuildingPanelView | null {
+    const building = this.snapshot.buildings.find((item) => item.instanceId === placeId);
+    if (building === undefined) return null;
+    const toponym = this.memory?.placeNamesOf(placeId) ?? null;
+    const hints = this.memory?.placeHints(placeId) ?? [];
+    const activity: BuildingActivity =
+      this.snapshot.workstations.find((station) => station.buildingId === placeId)?.activity.kind
+      ?? 'idle';
+    // 改名的由头引的是**碑上那句话**（`Legend.variants` 的第一种讲法），不是
+    // 事件 id：内部编号上纸面，读起来就是另一件事了。查不到那条传说就照实
+    // 只写「第 N 天改成…」，不编一个理由。
+    const legends = this.memory?.legends() ?? [];
+    return {
+      placeId,
+      name: toponym?.name ?? building.displayName,
+      history: (toponym?.history ?? []).map((entry) => {
+        const legend = legends.find((item) => item.eventRefs.includes(entry.fromEventRef));
+        return {
+          day: entry.day,
+          name: entry.name,
+          because: legend?.variants[0] ?? null,
+        };
+      }),
+      task: building.boundTask,
+      activity,
+      traces: hints.map((hint) => ({ layer: hint.layer, visibility: hint.visibility })),
+    };
   }
 
   // -------------------------------------------------------------- 造物模式
@@ -1640,6 +1811,21 @@ export class SandboxScene extends Phaser.Scene {
         return () => this.steleListeners.delete(listener);
       },
       dismissStele: (): void => this.closeStelePanel(),
+      lookAtBuilding: (placeId: string): void => this.openBuilding(placeId),
+      onBuilding: (listener: (view: BuildingPanelView | null) => void): (() => void) => {
+        if (this.lastBuildingView !== null) listener(this.lastBuildingView);
+        this.buildingListeners.add(listener);
+        return () => this.buildingListeners.delete(listener);
+      },
+      dismissBuilding: (): void => this.closeBuildingPanel(),
+      /**
+       * 一栋楼此刻该读成什么样。给脚本与浏览器验收用——与 `stele()` 同一个口子。
+       *
+       * 它读的是**同一条** `buildingViewOf`，不是另算一份：验收里读到的东西
+       * 与面板上摆的东西必须是同一个函数算出来的，否则「面板显示对了」这句话
+       * 就没有证据。
+       */
+      building: (placeId: string): BuildingPanelView | null => this.buildingViewOf(placeId),
       /**
        * 碑上此刻刻着什么。给脚本与浏览器验收用——与 `memory()` 同一个口子。
        *
@@ -1715,6 +1901,7 @@ export class SandboxScene extends Phaser.Scene {
         (item) => item.buildingId === entry.building.instanceId,
       );
       updateBuilding(this, entry.view, entry.building, workstation, ALTITUDE);
+      this.refreshDecals(entry);
       const operating = workstation?.activity.kind === 'operating';
       const broken = workstation?.activity.kind === 'overheating';
       if ((operating || broken) && this.tick % 3 === 0) {

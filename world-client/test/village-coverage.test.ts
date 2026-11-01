@@ -11,7 +11,7 @@
  * - **断言**：`test/creator-config.test.ts:222` 断言这三个数在配置里就是这三个数。
  *   它**一条都没量世界**——配置写着 0.35 与这个世界跑不跑得到 0.35 是两件事。
  * - **测量**：**没有。** 没有任何测试、探针或 eval 跑过世界再算这个比例。
- *   它另外只作为一句话出现在 `src/world/memory/world.ts:516`（「同一件事在村里
+ *   它另外只作为一句话出现在 `src/world/memory/world.ts:534`（「同一件事在村里
  *   有两个版本同时流传，正是协议想避免的那种重复」）与
  *   `src/world/memory/propagate.ts:450` 的注释里，两处都是拿它当论据。
  *
@@ -45,18 +45,21 @@
  * 一个通过一个不通过**。在这个定下来之前，`coverage_curve` 既不能算达标，
  * 也不能算不达标——它量的还不是一个数。
  *
- * ## 今天量出来（2026-10-28）
+ * ## 今天量出来（2026-11-01 更新）
  *
- * 出货的村子：**两个居民 + 六栋楼 = 八个 holder**。
+ * 出货的村子：**七个居民 + 九栋楼 = 十六个 holder**（这个文件里的断言量的是它）。
  *
- * - 居民两个：`src/world/simulation.ts:659` 的兜底是
- *   `[deps.villagerName, DEFAULT_ASSISTANT_NAME]`；灯潮界设定集
- *   （`src/settings/dengchao/pack.ts:151`）是迷路人与汐，两条。两条路都是 2。
- * - 楼六栋：`pack.ts:119` 的 `placements` 六条。默认世界那边是十一栋
- *   （`src/main.ts:44` 走 `buildLargeWorld`，`test/large-world.test.ts:144` 钉住 11）。
+ * - 居民七个：灯潮界设定集的 `villagers` 七条（灯笼头、炉匠、沉灯夫人、账房先生、
+ *   洗衣妇，加上原有的迷路人与汐）；默认世界那边仍是 `[villagerName,
+ *   DEFAULT_ASSISTANT_NAME]` 两条兜底（`simulation.ts` 的 `const names =
+ *   deps.villagerNames` 那一行，`defaultWorldVillagerCount()` 现场读它）。
+ * - 楼九栋：`pack.ts` 的 `placements` 九条（六栋旧铺子 + 三栋接活的新楼）。
+ *   默认世界那边是十一栋（`src/main.ts:48` 走 `buildLargeWorld`，
+ *   `test/large-world.test.ts:144` 钉住 11）。
  *
- * **没有任何东西钉住「几个居民、几栋楼」这组数**，而 `coverage_curve` 的分母、
- * `legendHolders` 的门槛、`maxFanout` 的天花板全是它的函数。这个文件就是那道闸。
+ * **加人或减人都会让下面的分母变**：`coverage_curve` 的分母、`legendHolders` 的
+ * 门槛、`maxFanout` 的天花板全是它的函数。这个文件就是那道闸——它现在钉住
+ * 「七个居民 + 九栋楼 = 十六个 holder」这组数（`test('出货的村子今天十六个 holder…')`）。
  *
  * ## 这一条**不**查什么
  *
@@ -208,18 +211,19 @@ test('出货的村子今天十六个 holder：七个居民 + 九栋楼', () => {
 
 test('楼会持有信念：所以「全部 holder」不是硬凑出来的分母', () => {
   // 这一条是整个更正的支点。第一版默认了「知道某事的只有人」，而楼也在
-  // spreadCandidates 的候选人里（world.ts:1651 按 holderIds() 全量枚举，
-  // 不过 holder 类型），judge 也不按类型拒。量出来：六栋楼全都在说话距离内
+  // spreadCandidates 的候选人里（world.ts:1850 按 holderIds() 全量枚举，
+  // 不过 holder 类型），judge 也不按类型拒。量出来：九栋楼全都在说话距离内
   // 时，全都学到了一条第 0 跳的断言。
   const { knowingBuildings } = awarenessAtDayEnd(6);
-  assert.ok(knowingBuildings > 0, `六栋楼里一栋都没学到——传播的听众选择变了，回来重新定 coverage_curve 的分母（它可能又变回「只有人」）`);
+  assert.ok(knowingBuildings > 0, `九栋楼里一栋都没学到——传播的听众选择变了，回来重新定 coverage_curve 的分母（它可能又变回「只有人」）`);
 });
 
 test('同一次运行，两种分母给出相反的判定', () => {
-  // 第 1 天末：只算村民 100%（超过 35% 上限，不达标），算全部 holder 18.75%（达标）。
+  // 第 1 天末：只算村民 42.9%（超过 35% 上限，不达标），算全部 holder 18.8%（达标）。
+  // 两个数都是 2026-11-01 在 7 人 9 楼的人口上量的（`.tmp-audit/coverage-probe.ts`）。
   const day1 = awarenessAtDayEnd(1);
-  assert.equal(day1.villagers, 100, '第 1 天末、只算村民');
-  assert.equal(day1.all, 18.75, '第 1 天末、算全部 holder');
+  assert.equal(day1.villagers, 42.9, '第 1 天末、只算村民');
+  assert.equal(day1.all, 18.8, '第 1 天末、算全部 holder');
   assert.ok(day1.villagers > DAY1_CEILING, `村民口径 ${day1.villagers}% 超过第 1 天末的 ${DAY1_CEILING}% 上限`);
   assert.ok(day1.all <= DAY1_CEILING, `全部-holder 口径 ${day1.all}% 却落在 ${DAY1_CEILING}% 上限之内——两条断言同时成立，正是「分母没定」的样子`);
 });
@@ -231,25 +235,25 @@ test('比例能取到的值：村民口径八个，全部-holder 口径十七个
     Array.from({ length: 17 }, (_, i) => Math.round((i / 16) * 1000) / 10).sort((a, b) => a - b),
     '十六个 holder 时的知晓比例集合',
   );
-  // 60%~80% 在村民口径里取不到（0/14.3/...），在全部-holder 口径里
-  // 有两个（62.5/75）。
+  // 两种分母都能落进 60%~80%：村民口径只有 71.4 一个，全部-holder 口径有
+  // 62.5 / 68.8 / 75 三个。**「分母没定」不是「一边取不到」**——换分母换的是
+  // 判定，不是可达性（两个人时 60% 一个都取不到，七个人时取得到了）。
   const inBandVillagers = reachablePercents(VILLAGERS.length).filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
   const inBandAll = reachablePercents(ALL_HOLDERS.length).filter((pct) => pct >= DAY3_LOW && pct <= DAY3_HIGH);
-  assert.deepEqual(inBandVillagers, [], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在村民口径里取不到`);
-  assert.ok(inBandAll.length > 0, `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在全部-holder 口径里取得到——这条红说明 holder 总数变了，回来重算`);
-  assert.deepEqual(inBandAll.sort((a, b) => a - b), [62.5, 75], '第 3 天末可取的值');
+  assert.deepEqual(inBandVillagers, [71.4], `第 3 天末的稳态目标 ${DAY3_LOW}%~${DAY3_HIGH}% 在村民口径里只取得到 71.4`);
+  assert.deepEqual(inBandAll.sort((a, b) => a - b), [62.5, 68.8, 75], '第 3 天末在全部-holder 口径里取得到三个值——这条红说明 holder 总数变了，回来重算');
 });
 
-test('实测曲线：第 1 天末约 18.8%，第 3 天末约 43.8%，第 6 天末约 56.3%（全部-holder 口径）', () => {
-  // 三个数都是从真实设定集的世界跑出来的，不是推演。它们盯的是传播的快慢：
-  // 谁改了 talkDistance、pairCooldown、chatCooldown 或扇出，这里会动。
-  // 新人口：七人 + 九楼 = 十六个 holder，第一条信念在一天末只能覆盖 3 人 ⇒ 18.75%.
-  const actual = (n: number) => Math.round(awarenessAtDayEnd(n).all * 100) / 100;
-  assert.equal(actual(1), 18.75, '第 1 天末');
-  assert.equal(actual(3), 43.75, '第 3 天末');
-  assert.equal(actual(6), 56.25, '第 6 天末');
-  // 第 3 天末的 43.75% 低于 60% 的下限，而第 6 天末的 56.25% 仍然偏低；
-  // 所以「第 3 天末达到稳态」在全部-holder 口径下比声明更快一些，但仍需观察。
-  const day3 = actual(3);
-  assert.ok(day3 < DAY3_LOW, `第 3 天末 ${day3}% 还没到 ${DAY3_LOW}% 的下限`);
+test('实测曲线：第 1 天末 18.8%，第 3 天末 56.3%，第 6 天末 62.5%（全部-holder 口径）', () => {
+  // 三个数都是从真实设定集的世界跑出来的，不是推演（2026-11-01，7 人 9 楼，
+  // `.tmp-audit/coverage-probe.ts`）。它们盯的是传播的快慢：谁改了 talkDistance、
+  // pairCooldown、chatCooldown 或扇出，这里会动。
+  const actual = (n: number) => awarenessAtDayEnd(n).all;
+  assert.equal(actual(1), 18.8, '第 1 天末');
+  assert.equal(actual(3), 56.3, '第 3 天末');
+  assert.equal(actual(6), 62.5, '第 6 天末');
+  // 第 3 天末的 56.3% 低于 60% 的下限，第 4 天才到 62.5%；所以「第 3 天末达到
+  // 稳态」在全部-holder 口径下**晚一天**，这条断言把这件事钉住。
+  assert.ok(actual(3) < DAY3_LOW, `第 3 天末 ${actual(3)}% 还没到 ${DAY3_LOW}% 的下限`);
+  assert.ok(actual(4) >= DAY3_LOW, `第 4 天末 ${actual(4)}% 该已进入 ${DAY3_LOW}% 的下限`);
 });

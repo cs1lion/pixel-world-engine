@@ -273,6 +273,21 @@ export type TraceLayer =
   | 'worn_path'
   | 'inscription';
 
+/** 一次改名的记录。协议 §11 的「历史链」就是这几条串起来。 */
+export interface ToponymEntry {
+  /** 改完之后的名字。 */
+  readonly name: string;
+  /** 因为哪件事改的。查得到那件事，这条记录才算数。 */
+  readonly fromEventRef: string;
+  readonly day: number;
+}
+
+/** 一个地点此刻叫什么、改过几次名。 */
+export interface Toponym {
+  readonly name: string;
+  readonly history: readonly ToponymEntry[];
+}
+
 /** 传说：集体记忆中被反复讲述的事件。 */
 export interface Legend {
   readonly legendId: string;
@@ -300,31 +315,37 @@ export interface WorldVitals {
  * 数字别手数——`grep -c "^  | '"` 数下面这个联合，协议那一份数
  * `awk '/^## 13\./,/^## 14\./' …`。这一行原先写的是「18」，手数错的。
  *
- * 「转写得全」不等于「接得通」。扫一遍（`grep -rn "'toponym.changed'" src test scripts`，
- * 再加一次全仓库裸搜 `toponym`）有两条要记在这儿：
+ * 「转写得全」不等于「接得通」。扫一遍（`grep -rn "onEvent\\|emit(" src`）数一下
+ * 今天谁在发、谁在接：
  *
  * | 事项 | 状态 |
  * | --- | --- |
- * | `toponym.changed` | **零发出方、零接收方**。仓库的代码里只有下面这一行声明它 |
- * | 其余 16 个 | 都有发出方（`world.ts` 的 `emit`），但**运行中的 app 一个都没接** |
+ * | `legend.formed` | 有发出方（`updateLegends`）、有接收方（`SandboxScene` 的 `onEvent` → 镇志） |
+ * | `toponym.changed` | 有发出方（`maybeRename`）、有接收方（`SandboxScene` 的 `onEvent` → 刷开着的那块楼面板） |
+ * | 其余 15 个 | 都有发出方（`world.ts` 的 `emit`），但**运行中的 app 一个都没接** |
  *
- * 第一条不是漏了一个枚举项，是漏了**协议 §11 那半条规则**。§11 写着「地名演变保存
+ * 前两行是这一版补上的，补的正是**协议 §11 那半条规则**。§11 写着「地名演变保存
  * 历史链：`ToponymChanged(place_id, old, new, event_ref)`」，§11 的痕迹表又把「里程碑」
  * 一行指向「留言牌、碑文、地名变更」，补充设计还说叙事装饰层「由内环的 `Trace` 与
- * `ToponymChanged` 规则实时驱动」。于是这儿该有而今天没有的是四样：地点 Holder 的
- * 当前名字、一条历史链、一条「什么里程碑配改名」的判据、以及这个事件的发出点。
- * 四样里前两样是存储，第三样是规则，第四样只是一行 `emit`。
+ * `ToponymChanged` 规则实时驱动」。当时缺的是四样：地点 Holder 的当前名字、一条历史链、
+ * 一条「什么里程碑配改名」的判据、以及这个事件的发出点。四样现在分别在
+ * `MemoryWorld.placeNames` / `ToponymEntry[]` / `toponym.ts` 的 `epithetFor` / `maybeRename`。
+ *
+ * **接收方这一格要读准**：`toponym.changed` 的接收方不是「唯一刷新路径」——
+ * 楼面板打开时会自己读一遍 `placeNamesOf`，改名事件只是让**已经开着**的那一栋
+ * 当场换名字。删掉那个分支，屏幕上不会立刻看出差别（关一次再开就对了），
+ * 所以它没有一条能变红的变异测试；发出去的那一条有（`test/toponym.test.ts`
+ * 的「发出一次、载荷四个键」）。两件事都写着，免得下一个人以为这里有个假闸。
  *
  * 同一个洞在 `traces.ts` 还留了一个更小的脚印：`consequenceOf` 里
- * `input.kind === 'toponym'` 那个析取项。全仓库没有一处创建 `kind: 'toponym'`
- * 的事件（对照：`'milestone'` 有，`observe.ts` 发），所以那一支今天咬不动。
+ * `input.kind === 'toponym'` 那个析取项。全仓库仍然没有一处创建 `kind: 'toponym'`
+ * 的事件——**改名不是世界事件，是记忆层的读法**（对照：`'milestone'` 有，`observe.ts` 发），
+ * 所以那一支今天仍然咬不动。留着不删：接的人不用再翻一遍。
  *
- * 第二条的根源在**外面**，不在这一层：`SandboxScene` 给 `MemoryRuntime` 传了
- * `occlusion` 与 `onVitals`（后者经 `eventsClient.record` 落成 `world.vitals`），
- * 唯独没传 `onEvent`。而 `WorldChange` 是七个成员的闭集，记忆层真发得出的那 16 个
- * 一个都不在里面——要接就得先改服务端契约。那是外环的决定，不是本组的：
- * 所以出口留成注入点（`MemoryWorldDeps.emit` / `MemoryRuntimeDeps.onEvent`），
- * 本组不替他接，也不假装它接着。
+ * 剩下 15 个的根源在**外面**，不在这一层：`WorldChange` 是七个成员的闭集，
+ * 记忆层真发得出的那 15 个一个都不在里面——要接就得先改服务端契约。
+ * 那是外环的决定：所以出口留成注入点（`MemoryWorldDeps.emit` /
+ * `MemoryRuntimeDeps.onEvent`），这一层不替它接，也不假装它接着。
  */
 export type MemoryEventKind =
   | 'memory.written'
@@ -348,10 +369,11 @@ export type MemoryEventKind =
 /**
  * 记忆层发出的事件。
  *
- * 信封与 `events-client.ts` 对得上，为的是「能回写日志」——但**今天没有一个
- * kind 真的被写进去**：`SandboxScene` 没给 `MemoryRuntime` 传 `onEvent`，
- * 而 `WorldChange` 那七个成员的闭集里也没有记忆层的位置。上面那张表记着这事，
- * 别把这行注释读成「这些事件正在进日志」。
+ * 信封与 `events-client.ts` 对得上，为的是「能回写日志」。**今天只有一个 kind
+ * 真的被写进日志**：`legend.formed`（`SandboxScene` 把它转成 `WorldChange 'legend'`，
+ * 落进镇志）。`toponym.changed` 有接收方，但接收方只刷面板、不落日志——
+ * `WORLD_CHANGE_KINDS` 那九种里没有地名，这一版不为它加第十种。
+ * 别把这行注释读成「这些事件都在进日志」。
  */
 export interface MemoryEvent {
   readonly kind: MemoryEventKind;

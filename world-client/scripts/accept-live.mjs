@@ -429,7 +429,7 @@ async function main() {
       `灯潮界的回执说清做了什么：${denReply}`,
     );
 
-    // 模板表确实换了一份：服务端看到的是灯潮界的七种模板，不是默认世界那一套。
+    // 模板表确实换了一份：服务端看到的是灯潮界的十种模板，不是默认世界那一套。
     // 断言按「含灯潮界的、不含默认世界的」来写，不钉总数——模板表还会长。
     const denRequest = intentRequests.find((r) => r.utterance === '在渡口张罗一座候车亭');
     check(denRequest !== undefined, '灯潮界那句话走到了服务端');

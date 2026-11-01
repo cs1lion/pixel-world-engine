@@ -57,6 +57,15 @@ VALID_PAYLOADS = {
         "infoEntropy": 0.44,
         "isolatedHoldersCount": 1,
     },
+    # 一件事被足够多的人讲了足够久，立成了传说。载荷里没有 `at`——信封的
+    # `at` 是世界时间毫秒，坐标撞名的坑 `miracle` 那一支记着；地点叫 `placeId`。
+    "legend": {
+        "legendId": "legend_1",
+        "text": "灯芯是退潮后拾回来的",
+        "placeId": "place:32,29",
+        "reach": 6,
+        "day": 4,
+    },
 }
 
 

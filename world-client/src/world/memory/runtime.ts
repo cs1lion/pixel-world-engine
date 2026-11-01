@@ -17,11 +17,12 @@
  */
 
 import { DEFAULT_MEMORY_CONFIG, type MemoryConfig } from './config.ts';
+import { placeHints, type NarrativeHint } from './hints.ts';
 import type { OcclusionGrid, Perceiver } from './perception.ts';
 import { witnessesOf } from './perception.ts';
 import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
-import type { HolderType, Legend, MemoryEvent, WorldFact, WorldVitals } from './types.ts';
+import type { HolderType, Legend, MemoryEvent, Toponym, WorldFact, WorldVitals } from './types.ts';
 import { MemoryWorld, type HolderView } from './world.ts';
 
 /** 一个单位此刻的处境。位置是格坐标，与 `Simulation` 的 `Vec2` 同一套。 */
@@ -30,6 +31,14 @@ export interface RuntimeHolder {
   readonly type: HolderType;
   readonly at?: { readonly x: number; readonly y: number };
   readonly talkativeness?: number;
+  /**
+   * 地点 Holder 的显示名（「账房」「炉匠铺」）。人物不给。
+   *
+   * 记忆层不认识这些词——它只拿它当「这个 id 原来叫什么」，好让改名有个底。
+   * 名字**只登记第一次**（`MemoryWorld.setPlaceName`）：每拍覆盖会把改过的
+   * 名字抹回原名。
+   */
+  readonly name?: string;
 }
 
 /**
@@ -124,6 +133,11 @@ export class MemoryRuntime {
       // 地点 Holder 不记：一栋楼不会「看见」发生在它门口的事。
       if (holder.at !== undefined && holder.type === 'character') {
         this.positions.set(holder.holderId, holder.at);
+      }
+      // 名字也要在「新建」之前记：第一次对齐时名册是空的，走的是下面那条
+      // `continue`，名字只写在新建分支里就永远登记不上（与位置同一个坑）。
+      if (holder.type === 'place' && holder.name !== undefined) {
+        this.world.setPlaceName(holder.holderId, holder.name);
       }
       if (!this.world.hasHolder(holder.holderId)) {
         this.world.addHolder({
@@ -325,6 +339,29 @@ export class MemoryRuntime {
    */
   legends(): readonly Legend[] {
     return this.world.legendsOf();
+  }
+
+  /**
+   * 一栋楼此刻该画出来的叙事装饰（补充设计 §10：表现层只消费提示，不读记忆库）。
+   *
+   * 与 `lookAtTraces` **同一道闸**：那边用 `config.traceExposedLayers` 决定
+   * 「路过的人能推断出几道」，这边用同一个数决定「画面上画几道」。两处各翻一次
+   * 库、各写一个上限，迟早会分叉成「看得见的推断不出来」或反过来。
+   *
+   * 读侧零模型调用，也不写任何东西：这是一次纯读。
+   */
+  placeHints(placeId: string): NarrativeHint[] {
+    return placeHints(this.world.viewOf(placeId)?.traces ?? [], this.config.traceExposedLayers);
+  }
+
+  /**
+   * 一个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
+   *
+   * 读它的是楼面板与 `Oracle`——DOM 那一侧。canvas 上不写字（D5-A），
+   * 所以名字不进 `placeHints`：那不是装饰，是名字本身。
+   */
+  placeNamesOf(placeId: string): Toponym | null {
+    return this.world.placeNameOf(placeId);
   }
 
   /**

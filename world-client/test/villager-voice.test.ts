@@ -94,3 +94,64 @@ test('age 按条目自己的创建日算', () => {
   const lines = memoryVoice([hit(entry({ createdDay: 10 }), 0.6)], 12);
   assert.equal(lines[0]!.age, '2 天前');
 });
+
+// ---------------------------------------------------------------- 从谁听来
+
+/** 一张够用的名册。查不到的 id 一律返回 null——与场景那条 `?? null` 同一个口径。 */
+const nameOf = (holderId: string): string | null =>
+  ({ v1: '汐', v2: '炉匠', v3: '灯笼头' })[holderId] ?? null;
+
+test('听来的记忆取来源链的末节——那是直接前手，不是最初的源头', () => {
+  // `toldChainOf` 的返回形状是 `[claimId, ...上游, 讲的人]`：说话人排在最末。
+  // 三跳的链是 `[claim, 甲, 乙, 讲的人]`，末节仍然是讲的人。
+  const lines = memoryVoice(
+    [
+      hit(
+        entry({
+          sourceMode: 'heard',
+          sourceChain: ['claim_7', 'v1', 'v2', 'v3'],
+        }),
+        0.8,
+      ),
+    ],
+    12,
+    nameOf,
+  );
+  assert.deepEqual(lines[0]!.heardFrom, { kind: 'person', name: '灯笼头' });
+});
+
+test('亲历、读到、从痕迹推出来的都没有「谁说的」', () => {
+  for (const sourceMode of ['witnessed', 'read', 'inferred'] as const) {
+    const lines = memoryVoice([hit(entry({ sourceMode }), 0.5)], 12, nameOf);
+    assert.equal(lines[0]!.heardFrom, null, `${sourceMode} 不该有来源`);
+  }
+});
+
+test('听来了，可那个人查不到：照实说查不到，不编一个名字', () => {
+  const lines = memoryVoice(
+    [hit(entry({ sourceMode: 'heard', sourceChain: ['claim_7', 'v9'] }), 0.5)],
+    12,
+    nameOf,
+  );
+  assert.deepEqual(
+    lines[0]!.heardFrom,
+    { kind: 'person', name: null },
+    '查不到就是 null——面板那边会说「从一个不在这张图上的人听来」',
+  );
+});
+
+test('空链是碑文，不是「查不到的人」：没有具体的人，是镇上的人都这么说', () => {
+  // 全仓只有两处写 `sourceMode: 'heard'`：`rememberTold`（链至少两节）
+  // 与 `inscribe`（碑文，链为空，注释原话是「大家都这么说，不是某一个人告诉我的」）。
+  const lines = memoryVoice(
+    [hit(entry({ sourceMode: 'heard', sourceChain: [], tier: 'legend' }), 0.5)],
+    12,
+    nameOf,
+  );
+  assert.deepEqual(lines[0]!.heardFrom, { kind: 'everyone' });
+});
+
+test('不给名册时一律查不到——默认值不假装认识谁', () => {
+  const lines = memoryVoice([hit(entry({ sourceMode: 'heard', sourceChain: ['claim_7', 'v2'] }), 0.5)], 12);
+  assert.deepEqual(lines[0]!.heardFrom, { kind: 'person', name: null });
+});

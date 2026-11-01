@@ -17,6 +17,7 @@ import { bindChronicle } from './ui/chronicle-panel.ts';
 import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
 import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
 import { bindStelePanel, type SteleOracle } from './ui/stele-panel.ts';
+import { bindBuildingPanel, type BuildingOracle } from './ui/building-panel.ts';
 import { createMemoryClient } from './world/memory-client.ts';
 import {
   SaveStore,
@@ -183,6 +184,12 @@ bindVillagerPanel(villagerOracle);
 const steleOracle = (): SteleOracle | undefined =>
   (window as unknown as { Oracle?: SteleOracle }).Oracle;
 bindStelePanel(steleOracle);
+
+// 楼面板。与碑同一条教训：面板文件、`Oracle.building()`、测试全绿，这里不绑
+// 就还是点不出东西来。绑定漏一环，测试全绿屏幕空白——上一版已经踩过一次。
+const buildingOracle = (): BuildingOracle | undefined =>
+  (window as unknown as { Oracle?: BuildingOracle }).Oracle;
+bindBuildingPanel(buildingOracle);
 
 // task-22：存档手动导出/导入。导出 = 单槽原文（就是 toSave() 的 v1 JSON，不二次加工）；
 // 导入 = 先按现有校验链验一遍，再写单槽、停自动存档、刷新，让启动流程重建世界并与上游对账。

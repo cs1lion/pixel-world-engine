@@ -7,8 +7,25 @@
  * 东西都还没有。这里做的是「把她记得的那句摆出来」，不假装她会说话。
  */
 
-import type { MemoryLine } from '../world/memory/voice.ts';
+import type { HeardFrom, MemoryLine } from '../world/memory/voice.ts';
 import { whenApi } from './when-api.ts';
+
+/**
+ * 「从谁听来」那一行。不是听来的就没有这一行。
+ *
+ * 三种说法，各有各的实话：
+ *
+ * - 查得到人 → 「从炉匠听来」。
+ * - 听来了，可那个人查不到 → 「从一个不在这张图上的人听来」。**不显示裸 id**：
+ *   楼会被拆、人可能不在场，那些都是真实状态，而一串内部编号糊在屏幕上
+ *   既不是名字也不是状态。
+ * - 没有具体的人（碑文）→ 「镇上的人都这么说」。这一句说的是世界里的事实：
+ *   碑文本来就是「大家都这么说」，不是某一个人告诉她的。
+ */
+export function heardFromText(from: HeardFrom): string {
+  if (from.kind === 'everyone') return '镇上的人都这么说';
+  return from.name === null ? '从一个不在这张图上的人听来' : `从${from.name}听来`;
+}
 
 export interface VillagerMemoryView {
   readonly id: string;
@@ -64,7 +81,11 @@ export function bindVillagerPanel(getApi: () => VillagerOracle | undefined): voi
             quote.textContent = line.text;
             const when = document.createElement('span');
             when.className = 'villager-when';
-            when.textContent = line.age;
+            // 「从谁听来」排在时刻前面：先问这话是谁说的，再问什么时候的事。
+            when.textContent =
+              line.heardFrom === null
+                ? line.age
+                : `${heardFromText(line.heardFrom)} · ${line.age}`;
             quote.append(when);
             return quote;
           }),

@@ -694,6 +694,58 @@
         font-size: 10px;
       }
 
+      /* 楼：点一栋铺子，看它叫什么、接过什么活、墙上留着什么。
+         落在**右下**——碑占了左下、村民面板占了右上，四个角各管一件事，
+         谁也不压谁。颜色一律复用上面的变量：palette 审计把这份 <style>
+         也算进 UI 预算，这里一个新色都不加。 */
+      #building-panel {
+        position: fixed;
+        right: 10px;
+        bottom: 10px;
+        z-index: 50;
+        box-sizing: border-box;
+        width: 300px;
+        max-width: calc(100vw - 20px);
+        max-height: 60vh;
+        overflow: auto;
+        padding: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow:
+          3px 3px 0 0 color-mix(in srgb, var(--base) 55%, transparent),
+          6px 6px 0 0 color-mix(in srgb, var(--base) 22%, transparent);
+        font-size: 12px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+      }
+      #building-panel[hidden] { display: none; }
+      #building-panel .building-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+      #building-panel .building-head strong {
+        color: var(--amber);
+        font-family: var(--font-pixel);
+        font-weight: 400;
+        letter-spacing: 0.1em;
+      }
+      #building-panel .building-head button { font-size: 11px; padding: 3px 6px; }
+      #building-panel-body p { margin: 6px 0; }
+      #building-panel-body .building-task { color: var(--ink); }
+      #building-panel-body .building-state,
+      #building-panel-body .building-trace,
+      #building-panel-body .building-history { color: var(--dim); font-size: 11px; }
+      #building-panel-body .building-trace-list {
+        margin: 0 0 6px;
+        padding-left: 16px;
+        color: var(--dim);
+        font-size: 11px;
+      }
+
       /* 像素字只用于标题、短标签与交互控件；新闻纸正文仍用可读宋体。 */
       h1, header p, .overlay-name, .overlay-bubble, input, button,
       #status, #reply, #save-io-reply, #paper .masthead .name, footer,
@@ -844,6 +896,17 @@
         <button type="button" id="stele-panel-close">关闭</button>
       </div>
       <div id="stele-panel-body"></div>
+    </aside>
+
+    <!-- 楼：点一栋铺子，看它叫什么、接过什么活、墙上留着什么。
+         四行四个来源，一个都不新造（见 `ui/building-panel.ts` 文件头那张表）。
+         名字带称号时标题就是「账房·立事」——地名演变（协议 §11）在这里落地。 -->
+    <aside id="building-panel" hidden aria-label="楼">
+      <div class="building-head">
+        <strong id="building-panel-name"></strong>
+        <button type="button" id="building-panel-close">关闭</button>
+      </div>
+      <div id="building-panel-body"></div>
     </aside>
 
     <section id="decree" aria-live="polite" hidden>

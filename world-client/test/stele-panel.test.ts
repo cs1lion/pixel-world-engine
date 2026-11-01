@@ -2,7 +2,7 @@
  * 碑面板：摆出来、收回去、Escape 只在开着时生效、截断要说出来。
  *
  * 形状照 `villager-panel.test.ts` 那六条。这里多的一条是**截断**：一次立起
- * 十九条是实测到的真实形态，而面板只摆 `STELE_MAX_LINES` 条。静默截断是这
+ * 十五条是实测到的真实形态，而面板只摆 `STELE_MAX_LINES` 条。静默截断是这
  * 一面板唯一的错法——用户会以为世界只立了五条。
  */
 
@@ -137,7 +137,7 @@ test('淡去的碑带一句「已淡去」——但不删除，它还在碑上',
 });
 
 test('截断必须说出来：少掉的每一条都得有个数', () => {
-  // 一次立起十九条是实测到的真实形态（`legend-forms.test.ts`）。静默截断是
+  // 一次立起十五条是实测到的真实形态（`legend-forms.test.ts`）。静默截断是
   // 这一面板唯一的错法：用户会以为世界只立了五条。
   const dom = installFakeDom(IDS);
   try {
@@ -146,13 +146,13 @@ test('截断必须说出来：少掉的每一条都得有个数', () => {
     bindStelePanel(() => harness.api);
     harness.emit({
       lines: Array.from({ length: 5 }, (_, i) => line(i)),
-      hidden: 14,
+      hidden: 17,
     });
     const body = dom.byId('stele-panel-body');
     assert.equal(body.children.length, 6, '五块碑 + 一行「还有 N 块」');
     const more = body.children.at(-1)!;
     assert.equal(more.className, 'stele-more');
-    assert.equal(more.textContent, '还有 14 块碑没刻上来。');
+    assert.equal(more.textContent, '还有 17 块碑没刻上来。');
   } finally {
     dom.restore();
   }

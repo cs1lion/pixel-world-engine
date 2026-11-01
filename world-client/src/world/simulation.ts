@@ -1623,8 +1623,8 @@ export class Simulation {
       const chosen = pickVenue(this.venueCandidates(), task.kind, 'feed');
       if (!chosen.ok) {
         // 三句不同的话，混成一句就是撒谎：
-        //   - 灯潮界六栋楼 boundTask 全是 null，这时候说「没有空闲的」等于
-        //     告诉用户「有，只是忙」——它一栋都没有；
+        //   - 一座镇子一栋接这类活的楼都没有时，说「没有空闲的」等于告诉用户
+        //     「有，只是忙」——它一栋都没有（灯潮界曾经如此，今天三栋接了活）；
         //   - 反过来，镇内被拆空了、只剩郊野铺子时，说「没有空闲的镇内铺子」
         //     也断言了镇内有——而镇内一栋都不剩（demolish 拆得出来）。
         //

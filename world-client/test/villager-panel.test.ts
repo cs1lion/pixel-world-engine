@@ -63,9 +63,9 @@ test('名字与三句引文摆上屏，每句带一个时间', () => {
     bindVillagerPanel(() => harness.api);
     harness.emit(
       view([
-        { memoryId: 'm1', text: '潮水退过一半', age: '今天' },
-        { memoryId: 'm2', text: '在旧站牌下认路', age: '昨天' },
-        { memoryId: 'm3', text: '灯芯换过一回', age: '3 天前' },
+        { memoryId: 'm1', text: '潮水退过一半', age: '今天', heardFrom: null },
+        { memoryId: 'm2', text: '在旧站牌下认路', age: '昨天', heardFrom: null },
+        { memoryId: 'm3', text: '灯芯换过一回', age: '3 天前', heardFrom: null },
       ]),
     );
     assert.equal(dom.byId('villager-panel-name').textContent, '汐');
@@ -100,12 +100,63 @@ test('一条都没有时照实说，不留空白框', () => {
   }
 });
 
+test('从谁听来：查得到人就说名字，亲历的那句不硬编一个来源', () => {
+  const dom = installFakeDom(IDS);
+  try {
+    const harness = fakeApi();
+    bindVillagerPanel(() => harness.api);
+    harness.emit(
+      view([
+        {
+          memoryId: 'm1',
+          text: '潮水退过一半',
+          age: '昨天',
+          heardFrom: { kind: 'person', name: '炉匠' },
+        },
+        { memoryId: 'm2', text: '在旧站牌下认路', age: '今天', heardFrom: null },
+      ]),
+    );
+    const quotes = dom.byId('villager-panel-body').children;
+    assert.equal(quotes[0]!.children[0]!.textContent, '从炉匠听来 · 昨天', '先说谁说的，再说什么时候');
+    assert.equal(
+      quotes[1]!.children[0]!.textContent,
+      '今天',
+      '亲历的那句没有「谁说的」——硬编一个来源比不说更糟',
+    );
+  } finally {
+    dom.restore();
+  }
+});
+
+test('查不到那个人：说人话，不把内部编号当名字摆在屏幕上', () => {
+  const dom = installFakeDom(IDS);
+  try {
+    const harness = fakeApi();
+    bindVillagerPanel(() => harness.api);
+    harness.emit(
+      view([
+        { memoryId: 'm1', text: '甲', age: '今天', heardFrom: { kind: 'person', name: null } },
+        { memoryId: 'm2', text: '乙', age: '今天', heardFrom: { kind: 'everyone' } },
+      ]),
+    );
+    const quotes = dom.byId('villager-panel-body').children;
+    assert.equal(quotes[0]!.children[0]!.textContent, '从一个不在这张图上的人听来 · 今天');
+    // 碑文没有具体的人，那句话说的是世界里的事实。
+    assert.equal(quotes[1]!.children[0]!.textContent, '镇上的人都这么说 · 今天');
+    for (const quote of quotes) {
+      assert.ok(!quote.children[0]!.textContent.includes('v1'), '裸 id 不该出现在屏幕上');
+    }
+  } finally {
+    dom.restore();
+  }
+});
+
 test('null 收起面板——镜头不看她了，屏上就不该还摆着她', () => {
   const dom = installFakeDom(IDS);
   try {
     const harness = fakeApi();
     bindVillagerPanel(() => harness.api);
-    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天' }]));
+    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天', heardFrom: null }]));
     assert.equal(dom.byId('villager-panel').hidden, false);
     harness.emit(null);
     assert.equal(dom.byId('villager-panel').hidden, true);
@@ -119,7 +170,7 @@ test('关闭按钮：收起，并松开跟随', () => {
   try {
     const harness = fakeApi();
     bindVillagerPanel(() => harness.api);
-    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天' }]));
+    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天', heardFrom: null }]));
     dom.byId('villager-panel-close').click();
     assert.equal(dom.byId('villager-panel').hidden, true);
     assert.equal(harness.dismissed(), 1);
@@ -138,7 +189,7 @@ test('Escape 只在面板开着时收起', () => {
     bindVillagerPanel(() => harness.api);
     dom.doc.key('Escape');
     assert.equal(harness.dismissed(), 0, '面板没开，Escape 不该去动镜头');
-    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天' }]));
+    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天', heardFrom: null }]));
     dom.doc.key('Escape');
     assert.equal(dom.byId('villager-panel').hidden, true);
     assert.equal(harness.dismissed(), 1);
@@ -155,7 +206,7 @@ test('关掉之后，晚订阅的人不会再被补发一份', () => {
   try {
     const harness = fakeApi();
     bindVillagerPanel(() => harness.api);
-    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天' }]));
+    harness.emit(view([{ memoryId: 'm1', text: '甲', age: '今天', heardFrom: null }]));
     harness.emit(null);
     let replayed = 0;
     harness.subscribe(() => {

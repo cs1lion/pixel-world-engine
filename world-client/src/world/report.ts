@@ -126,8 +126,8 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // `startupBuildingIds` 之外的就是。不猜——猜过的两种猜法都错过：
   //   - `boundTask === null` 问的是「接不接活」。民居不接活却是开局落的，
   //     于是大世界的日报在玩家什么都没做的那天写「造物主新起 5 栋楼」（旧措辞）。
-  //   - `zone !== 'living'` 问的是分区。灯潮界那六栋楼全是 `zone: 'industry'` +
-  //     `boundTask: null`，同一句话在设定集上原样重现；而小世界里玩家真能建一间
+  //   - `zone !== 'living'` 问的是分区。灯潮界那九栋楼全是 `zone: 'industry'`，
+  //     同一句话在设定集上原样重现；而小世界里玩家真能建一间
   //     民居（白名单只查模板在不在），那条判据又把它整句话吞掉。
   //
   // 也不说「新起」：报纸是现算的（`composeReport` 每次调用都从快照推一遍），

@@ -132,7 +132,7 @@ test('灯潮界的叠浪楼真的要一盏灯：渡有仪式在这张图上真�
   // 从前没有一份设定集声明过 requires——判定、命令、提示词三处都齐了，
   // 就是没有一个区域真的要东西。这道门在整个世界里一直是潜伏的。
   //
-  // 落在叠浪楼上而不是灯街：镇心 (32,29) 与两位居民的出生点都在灯街里，
+  // 落在叠浪楼上而不是灯街：镇心 (32,29) 与七位居民的出生点都在灯街里，
   // 灯街要灯就把世界的中心锚点和没带灯的人一起关在门后。叠浪楼不要灯，
   // 而汐的第一个作息点「点亮楼前的长灯」正在它里面，迷路人那个
   // 「在叠浪楼外等潮水退去」说的本来就是外头。
@@ -299,7 +299,7 @@ test('一份露话都不给：编译成「没有」，不是错误', () => {
   assert.equal(bare.propReveals, undefined, '没有池子就是没有');
 });
 
-test('两位居民有独立出生点，潮位让作息选择真实变化', () => {  const world = buildSettingWorld(pack);
+test('居民们有独立出生点，潮位让作息选择真实变化', () => {  const world = buildSettingWorld(pack);
   const sim = new Simulation({ grid: world.grid, buildings: world.buildings, altar: world.altar, villagerName: '迷路人', villagerNames: pack.villagers.map(v => v.name), villagerProfiles: routineProfiles(pack), blueprints: pack.blueprints });
   assert.notDeepEqual(sim.snapshot().villagers[0]?.pos, sim.snapshot().villagers[1]?.pos);
   assert.equal(sim.snapshot().villagers[1]?.lampOil, 1);

@@ -20,6 +20,8 @@ import { TILE_PX } from '../world/setup.ts';
 import type { PlacedBuilding, WorkstationSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
+import { drawDecal, roofHeight } from './decal.ts';
+import type { NarrativeHint } from '../world/memory/hints.ts';
 
 export { BUILDING_DEPTH };
 
@@ -30,6 +32,12 @@ export interface BuildingView {
   readonly container: Phaser.GameObjects.Container;
   /** 前檐层：前檐 + 门框外侧，depth = ALTITUDE + baseY + 32，压住站在门口的人。 */
   readonly front: Phaser.GameObjects.Container;
+  /**
+   * 痕迹层：记忆层交下来的叙事装饰（焦痕、补板、花环……），
+   * depth = ALTITUDE + baseY + 16——在楼体之后、站门口的人（+24）之前。
+   * 痕迹是墙上的东西，人走过去该挡住它。
+   */
+  readonly decal: Phaser.GameObjects.Graphics;
   readonly chimney: Phaser.GameObjects.Graphics;
   readonly window: Phaser.GameObjects.Graphics;
   readonly progress: Phaser.GameObjects.Graphics;
@@ -58,7 +66,7 @@ export function createBuilding(
 
   const g = scene.add.graphics();
   const { roof, trim, window: windowColor } = building.palette;
-  const roofH = Math.max(10, Math.round(h * 0.34));
+  const roofH = roofHeight(h);
   const doorX = building.door.x * TILE_PX - px;
 
   drawGroundShadow(scene, back, building, w, h, px, py);
@@ -87,6 +95,12 @@ export function createBuilding(
   const progress = scene.add.graphics();
   progress.setVisible(false);
 
+  // 痕迹层单独一张 Graphics，**不进任何容器**——它要有自己的 depth
+  // （在 body 与 front 之间），而容器里的子对象共用容器的 depth。
+  // 位置与容器相同，内部坐标就与楼体那一套一致。
+  const decal = scene.add.graphics();
+  decal.setPosition(px, py);
+
   // 静态招牌：不再画中文，按接的活画一枚像素图标（D5-A）。
   // 民居不挂牌：招牌是"这栋楼对外承接什么"的招牌，住家没有这回事。
   const sign = scene.add.graphics();
@@ -110,6 +124,7 @@ export function createBuilding(
     back,
     container,
     front,
+    decal,
     chimney,
     window: windowG,
     progress,
@@ -118,6 +133,28 @@ export function createBuilding(
     // baseY 用纯函数算，测试与实现共用同一个算式，不会各写一套而漂移。
     baseY: buildingBaseY(py, building.footprint.h),
   };
+}
+
+/**
+ * 把记忆层交下来的痕迹画到墙上。
+ *
+ * 补充设计 §10：「表现层只消费 ExpressionHint，不直接读记忆库」。所以这个函数
+ * 收的是**单子**（`NarrativeHint[]`），不是 `Traces`——它没有能力去翻库，
+ * 也就不可能绕开 `traceExposedLayers` 那道闸。
+ *
+ * 调用方（`SandboxScene`）只在单子变了的时候调它：痕迹一天才风化一次，
+ * 每拍重画是白烧。`clear()` 在画之前，所以传空单子就是擦干净。
+ */
+export function drawBuildingDecals(
+  view: BuildingView,
+  hints: readonly NarrativeHint[],
+  building: PlacedBuilding,
+): void {
+  const w = building.footprint.w * TILE_PX;
+  const h = building.footprint.h * TILE_PX;
+  const roofH = roofHeight(h);
+  view.decal.clear();
+  for (const hint of hints) drawDecal(view.decal, hint, w, h, roofH);
 }
 
 /**
@@ -662,11 +699,12 @@ export function updateBuilding(
   const broken = activity.kind === 'overheating';
   const busy = working || broken;
 
-  // 三层各自一个 depth（相对数值见 BUILDING_DEPTH）：
-  //   back  < body  < 站门口的角色(+24) < front(+32) < 门口下 1 格的人(+40)
+  // 四层各自一个 depth（相对数值见 BUILDING_DEPTH）：
+  //   back < body < decal(+16) < 站门口的角色(+24) < front(+32) < 门口下 1 格的人(+40)
   // 于是只有「站在门口」这一格会被檐压住，再往外走一格就恢复正常。
   view.back.setDepth(layerDepth('back', view.baseY, altitude));
   view.container.setDepth(layerDepth('body', view.baseY, altitude));
+  view.decal.setDepth(layerDepth('decal', view.baseY, altitude));
   view.front.setDepth(layerDepth('front', view.baseY, altitude));
   view.sign.setAlpha(busy ? 1 : 0.72);
   view.chimney.setAlpha(busy ? 1 : 0);

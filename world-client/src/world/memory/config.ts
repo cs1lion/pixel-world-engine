@@ -122,6 +122,35 @@ export interface MemoryConfig {
   // ---------------------------------------------------------- 传说（§3.1）
   readonly legendHolders: number;
   readonly legendDays: number;
+  /**
+   * 一件事要多重才**独占**一块碑。
+   *
+   * 协议 §12 写的是「反复讲述的**大事**」，而 `legendHolders`/`legendDays`
+   * 只判「反复讲述」——一件被五个人讲满三天的闲话照样够格。这个数是那道
+   * 「大事」的门槛，判在 `world.ts` 的 `formable()`，**不判在 `qualifies()`**：
+   * 门槛只分栏，不闸嘴，够不着它的事照旧在信念与传闻里流动。
+   *
+   * 0.4 落在 `routine_done`（0.35，`observe.ts:143`）与 `task_done`（0.45，
+   * `observe.ts:57`）之间：交付能单独立碑，闲话不能。
+   *
+   * **它单独用会把传说清到零。** 实测（`.tmp-audit/legend-census.ts`，2026-11-01，
+   * 真设定集、1000ms 拍、8 个世界日）：35 条传说的 `max(importanceHint)`
+   * 一律 0.35，全部来自 `routine_done`——0.4 以上一条都没有。所以门槛下面
+   * 还有一层「闲话同日同地兜底」（`legend.ts` 的 `mergeByPlace`）：同一天同一个
+   * 地点没有大事时，那一堆闲话并成一条。合起来的实测是第 4 天 22 → 15 条、
+   * 8 天 35 → 27 条。
+   */
+  readonly legendImportanceFloor: number;
+  /**
+   * 一件事要多重才配给一个地点**改名**（协议 §11 的历史链）。
+   *
+   * 与 `legendImportanceFloor` 分开是刻意的：能立碑的事不一定说得出一个名字。
+   * 0.6 正好是 `milestone` 的 hint（0.6，`observe.ts:73`）——
+   * `celebration`（0.8）也在其上，而 `conflict`（0.55）落在其下：那张
+   * `EPITHETS` 表说的是「这类事说得出称号」，这个数说的是「配不配」。
+   * 判据在 `toponym.ts` 的 `epithetFor()`，调用点在 `world.ts` 的 `maybeRename()`。
+   */
+  readonly renameImportanceFloor: number;
 
   // ---------------------------------------------------- 传播通道（§3.2 A）
   readonly talkDistance: number;
@@ -197,6 +226,11 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   // §3.1 传说形成条件。
   legendHolders: 5,
   legendDays: 3,
+  // §12「大事」+ §3 collective 行 + A 段实测。理由与实测数见接口那一行。
+  legendImportanceFloor: 0.4,
+
+  // §11 改名判据。0.6 = `milestone` 的 hint；`conflict`（0.55）因此够不着。
+  renameImportanceFloor: 0.6,
 
   // §3.2 A 五类通道。
   talkDistance: 2,

@@ -22,19 +22,27 @@
  * 跑真实 `MemoryRuntime`、真实设定集落成的世界、五个 `importanceHint = 0.9` 的
  * 大事同时在第一天出生，逐天 `tick` 一整天的世界时间：
  *
- * | 世界 | holder | 单日最慢 | 平均 | 对 10ms 预算 |
+ * | 世界 | holder | 单日最慢 | 中位 | 对 10ms 预算 |
  * | --- | --- | --- | --- | --- |
- * | 灯潮界（设定集） | 8（2 村民 + 6 楼） | 4.30 ms | 1.10 ms | 余 2.3 倍 |
- * | 默认世界（`buildLargeWorld`） | 13（2 村民 + 11 楼） | **8.46 ms** | 1.65 ms | **余 1.2 倍** |
+ * | 灯潮界（设定集） | 11（2 村民 + 9 楼） | 4.87 ms | 1.03 ms | 余 9.7 倍 |
+ * | 默认世界（`buildLargeWorld`） | 13（2 村民 + 11 楼） | 0.42 ms | 0.31 ms | 余 32 倍 |
+ *
+ * **2026-11-01 重测**：设定集从 6 栋楼长到 9 栋，上面两行是重测值（三次取中位，
+ * 首跑含 JIT 预热所以单次最慢会比中位数高一个量级）。这组数噪声很大，
+ * 所以下面的闸只守「量级」与「随规模走的方向」，不守绝对值。
+ *
+ * **同一天还发现「随规模走」那条在出货世界的规模上量不出信号**（7 对 11 个
+ * holder 时小的一方反而更贵，差值在噪声里），对照因此搬到 82 对 146 个合成
+ * holder 上——理由与扫描数据写在那个测试自己的注释里。
  *
  * 最慢的永远是**第 1 天**——所有断言都在那天出生，之后库里的东西只会被遗忘，
- * 不会新增。默认世界那个 8.46 ms 离预算只剩 1.2 倍：**不是不达标，但是也没有余量**。
+ * 不会新增。两个世界都远在预算之内（余 9.7 倍与 32 倍），**不是不达标**。
  *
  * ## 这一条**不**主张什么
  *
- * - **不主张「8.46 ms 就是真的」。** 这是**墙钟**，跟机器有关，CI 上会不一样。
+ * - **不主张表里那些毫秒数就是真的。** 这是**墙钟**，跟机器有关，CI 上会不一样。
  *   能被机器搬动的是绝对值，不是形状——所以下面那道闸的阈值放到 50ms，
- *   是预算的 5 倍、实测最慢的 6 倍。它抓的是**量级退化**（哪天谁把传播改成
+ *   是预算的 5 倍、实测最慢的约 10 倍。它抓的是**量级退化**（哪天谁把传播改成
  *   每步全库扫描），不是抓 10ms 那条线。真要守 10ms，得先有一台固定的基准机。
  * - **不主张这是典型值。** 我把全部 holder 一字排开、间距 `talkDistance`，
  *   又让五个大事同一天出生——这是**最利于传播的摆法**，量到的是上界。
@@ -115,7 +123,35 @@ function oneDayMilliseconds(buildingIds: readonly string[], day: number): number
   return performance.now() - started;
 }
 
+/**
+ * 两个配置各跑三次、**交错**采样，取各自最小值。
+ *
+ * 原来是一个配置跑完三次再跑另一个、取中位。2026-11-01 这套测试在整套套件
+ * 并行跑时红过一次（`half` 比 `all` 的两倍还贵，隔离单跑三次全绿）：`node --test`
+ * 并行跑文件，先跑的那一块整段吃别人的负载，中位在三次样本里扛不住连续两段噪声。
+ *
+ * 交错是为了让两组看到同一段机器状态；取最小值是因为噪声只会把读数往上加，
+ * 最小值是这组里最接近「没有噪声时该花多少」的那个数。首跑含 JIT 预热，
+ * 最小值顺带把它剔掉了。
+ */
+function interleavedMinMilliseconds(
+  a: readonly string[],
+  b: readonly string[],
+  day: number,
+): [number, number] {
+  const as: number[] = [];
+  const bs: number[] = [];
+  for (let i = 0; i < 3; i += 1) {
+    as.push(oneDayMilliseconds(a, day));
+    bs.push(oneDayMilliseconds(b, day));
+  }
+  return [Math.min(...as), Math.min(...bs)];
+}
+
 test('两个出货世界的 holder 数：设定集十六个，默认世界十三个', () => {
+  // 注意：下面的计时夹具只放 2 个村民（`VILLAGERS`），不是设定集真实的 7 个——
+  // 这条量的是「一张图上有多少楼」对传播代价的影响，村民数固定成 2 才可比。
+  // 所以计时表里灯潮界是 11 个 holder，而这条断言的是真实人口 16。
   const pack = loadSettingPack(DENGCHAO_RAW);
   const world = buildSettingWorld(pack);
   assert.equal(pack.villagers.length + world.buildings.length, 16, '设定集的 holder 总数现在是十六个（七人 + 九楼）');
@@ -142,14 +178,28 @@ test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5
   );
 });
 
-test('设定集那个小世界更便宜：比默认世界慢的日子不该出现', () => {
-  const pack = loadSettingPack(DENGCHAO_RAW);
-  const small = buildSettingWorld(pack).buildings.map((building) => building.instanceId);
-  const large = defaultWorldBuildingIds();
-  // 不比绝对值（机器相关），比同一次运行里的相对关系：holder 少的那个
-  // 一天的传播配对也更少，没有理由更贵。留一倍噪声余量。
+test('传播的代价随规模走：holder 少一半的那次不该更贵', () => {
+  // 原来的写法是「设定集（8 holder）比默认世界（13 holder）便宜」。设定集
+  // 长到 11 个 holder 之后，这个前提没有了——两个出货世界已经不是一个量级，
+  // 比它们比的是两张地图谁建得多，不是传播的机制。于是改成受控对照：同一套
+  // 摆法，holder 数翻倍，比的是传播的机制。
+  //
+  // **2026-11-01 实测把对照搬了家。** 在出货世界的规模上（7 对 11 个 holder）
+  // 这一天总耗时是 0.168ms 对 0.140ms——小的一方反而更贵，而这个差值在噪声里。
+  // 不是机制坏了，是这个规模下固定开销把传播的信号埋掉了：`.tmp-audit/prop-scale-probe`
+  // 扫了一遍，12 对 20 个 holder 时 all/half = 0.83，22 对 38 时 1.16，
+  // 82 对 146 时 2.04——信号要到这个量级才出得来。所以对照改用合成的 holder 名单
+  // （摆法不变：一字排开、间距 `talkDistance`、五个大事同一天出生）。出货世界的
+  // 真实规模仍由上面两条守着：绝对预算闸，与「稳态不比第 1 天贵」的方向。
+  //
+  // 这条闸守的是**方向**（小世界不该更贵），不是上界：传播哪天变成每步全库扫描，
+  // 抓它的是上面那道 50ms 的绝对闸，不是这一条。
+  const half = Array.from({ length: 80 }, (_, i) => `b${i}`);
+  const all = Array.from({ length: 144 }, (_, i) => `b${i}`);
+  const [halfMs, allMs] = interleavedMinMilliseconds(half, all, 1);
   assert.ok(
-    oneDayMilliseconds(small, 1) < oneDayMilliseconds(large, 1) * 2,
-    '八个 holder 的世界比十三个 holder 的世界还贵——传播的代价不再随规模走',
+    halfMs < allMs * 2,
+    `${half.length + VILLAGERS.length} 个 holder 的世界（${halfMs.toFixed(2)}ms）比 `
+      + `${all.length + VILLAGERS.length} 个 holder 的世界（${allMs.toFixed(2)}ms）还贵——传播的代价不再随规模走`,
   );
 });

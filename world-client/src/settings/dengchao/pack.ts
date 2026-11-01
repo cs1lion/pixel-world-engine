@@ -110,7 +110,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
     //
     // 要的是灯：汐的第一个作息点「点亮楼前的长灯」就在这楼里，她兜里有灯；
     // 迷路人那个「在叠浪楼外等潮水退去」说的本来就是外头。门落在楼上，
-    // 落在灯街就会把镇心 (32,29) 和两位居民的出生点一起关在门后。
+    // 落在灯街就会把镇心 (32,29) 和居民们的出生点一起关在门后。
     { id: 'bathhouse', name: '叠浪楼', x: 27, y: 17, w: 12, h: 11, requires: 'lamp', primary: 'terracotta', accent: 'trim', forbidden: 'grassLit' },
   ],
   prefabs: {
