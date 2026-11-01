@@ -138,7 +138,8 @@ export interface MemoryConfig {
    * 一律 0.35，全部来自 `routine_done`——0.4 以上一条都没有。所以门槛下面
    * 还有一层「闲话同日同地兜底」（`legend.ts` 的 `mergeByPlace`）：同一天同一个
    * 地点没有大事时，那一堆闲话并成一条。合起来的实测是第 4 天 22 → 15 条、
-   * 8 天 35 → 27 条。
+   * 8 天 35 → 27 条（2026-11-01 修痕迹之前的数；修完同一口径重测是 38 → 14、
+   * 59 → 28，见 `docs/SETTING_DENGCHAO.md`）。
    */
   readonly legendImportanceFloor: number;
   /**

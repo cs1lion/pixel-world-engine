@@ -65,6 +65,73 @@ export function decalSpot(hint: NarrativeHint, w: number, h: number, roofH: numb
 }
 
 /**
+ * 画某一格**地面上**的痕迹。
+ *
+ * 楼上的痕迹画在墙上（`drawDecal`），地标上的画在地上——同一张单子
+ * （`placeHints`）、同一道闸（`traceExposedLayers`），只是落脚的地方不同。
+ *
+ * **今天地标上只可能出现 `worn_path`。** 生成那一侧的白名单
+ * （`traces.ts` 的 `FOOTFALL_KINDS`）只放 `routine_done` 与 `task_done`，
+ * 两者只产这一层；其余分支是给上游接上以后留的，别把它们当成在跑的东西。
+ *
+ * 两条与 `drawDecal` 相同的纪律：alpha 就是 `visibility`（风化只降可见度），
+ * 位置由 `traceId` 决定（同一个 `traceId` 永远落在同一处，回放看得出同一块地）。
+ */
+export function drawGroundDecals(
+  g: DecalCanvas,
+  hints: readonly NarrativeHint[],
+  cell: { readonly x: number; readonly y: number },
+  tile: number,
+): void {
+  const left = cell.x * tile;
+  const top = cell.y * tile;
+  const bandTop = top + Math.floor(tile * 0.45);
+  for (const hint of hints) {
+    const alpha = Math.max(0, Math.min(1, hint.visibility));
+    if (alpha === 0) continue;
+    const strength = Math.max(0, Math.min(1, hint.intensity));
+    const seed = drift(hint.traceId);
+    const jitter = (shift: number): number => left + 1 + ((seed >>> shift) % Math.max(1, tile - 2));
+
+    switch (hint.layer) {
+      case 'worn_path': {
+        // 走出来的路：一条横贯这一格的石面，越走越宽。
+        g.fillStyle(WORLD.stone, alpha);
+        g.fillRect(left, bandTop, tile, 1 + Math.round(strength * tile * 0.25));
+        g.fillStyle(WORLD.plaza, alpha);
+        for (let i = 0; i < 3; i += 1) g.fillRect(jitter(i * 5), bandTop + 1, 1, 1);
+        break;
+      }
+      case 'scorch': {
+        g.fillStyle(WORLD.ink, alpha);
+        g.fillRect(jitter(0), top + Math.floor(tile * 0.5), 4, 3);
+        break;
+      }
+      case 'damage': {
+        g.fillStyle(WORLD.timberDark, alpha);
+        for (let i = 0; i < 3; i += 1) g.fillRect(jitter(0) + i, bandTop + i, 1, 1);
+        break;
+      }
+      case 'patch': {
+        g.fillStyle(WORLD.timber, alpha);
+        g.fillRect(jitter(0), bandTop, 4, 3);
+        break;
+      }
+      case 'garland': {
+        g.fillStyle(WORLD.amber, alpha);
+        for (let i = 0; i < 3; i += 1) g.fillRect(jitter(i * 4), bandTop, 1, 1);
+        break;
+      }
+      case 'inscription': {
+        g.fillStyle(WORLD.trim, alpha);
+        for (let i = 0; i < 3; i += 1) g.fillRect(jitter(0) + i * 2, bandTop, 1, 1);
+        break;
+      }
+    }
+  }
+}
+
+/**
  * 画一道痕迹。每一种层一个固定画法，只用现有 token。
  *
  * 不返回笔数：那是个手维护的数，改了画法就过期，而测试能直接数 `fillRect`。

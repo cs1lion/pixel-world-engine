@@ -60,6 +60,61 @@ export const TIDE_BEAT_SLOTS = 8;
 /** 看一槽里潮水有没有跨过中线时的取样间隔。半周期 6 分钟，1 分钟一格不会漏。 */
 const TIDE_SAMPLE_MS = 60 * 1000;
 
+/**
+ * 一个作息落点该记在哪儿：几格之内有楼门，就是那栋楼。
+ *
+ * 为什么要有这条规则：痕迹要落在一个**看得见的地方**。村民按作息站在落点上，
+ * 那件事的 `placeId` 本来只是脚下那一格（`place:x,y`），而只有楼登记成了
+ * 地点 Holder——落在格子上的痕迹没有主人，谁也读不到、也画不出来。
+ *
+ * 2 格是量出来的，不是推的（2026-11-01，灯潮界 27 个作息落点）：
+ *
+ * | 半径 | 归到楼上的落点 |
+ * | --- | --- |
+ * | 2 格 | 5 个（叠浪楼 ×2、迎灯舍、炉匠铺、账房） |
+ * | 3 格 | 再多两个：潮声茶摊前（2.83）、炉底入口边（2.83） |
+ *
+ * 取 2 不取 3，是因为那两个地方**各有各的名字**（茶摊、炉底入口都是楼），
+ * 把人站在茶摊前做的事记到茶摊隔壁的楼上去，墙上就会多出不属于它的痕迹。
+ */
+export const FOOTFALL_ATTRIBUTION_RADIUS = 2;
+
+/** 一扇门：只认 id 与坐标，这一层不认识 `Building`。 */
+export interface FootfallDoor {
+  readonly instanceId: string;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** 脚下那一格的合成地点 id。`observe.ts` 给神迹用的也是这一套写法。 */
+export function cellPlaceId(cell: GridPoint): string {
+  return `place:${cell.x},${cell.y}`;
+}
+
+/**
+ * 这件事记在哪儿：最近的楼门够得着就是那栋楼，否则是脚下那一格。
+ *
+ * 同距按 `instanceId` 升序取第一个——回放要一致，不能靠数组顺序。
+ */
+export function footfallPlace(
+  cell: GridPoint,
+  doors: readonly FootfallDoor[],
+  radius = FOOTFALL_ATTRIBUTION_RADIUS,
+): string {
+  let best: FootfallDoor | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const door of doors) {
+    const distance = Math.hypot(door.x - cell.x, door.y - cell.y);
+    const closer = distance < bestDistance;
+    const tieBreak = distance === bestDistance && best !== null && door.instanceId < best.instanceId;
+    if (!closer && !tieBreak) continue;
+    best = door;
+    bestDistance = distance;
+  }
+  if (best !== null && bestDistance <= radius) return best.instanceId;
+  return cellPlaceId(cell);
+}
+
 /** 世界自己报的事，目前两种。 */
 export type AmbientKind = 'tide_turn' | 'routine_done';
 
@@ -67,7 +122,11 @@ export type AmbientKind = 'tide_turn' | 'routine_done';
 export interface AmbientDweller {
   readonly id: string;
   readonly name: string;
-  /** 她脚下那格的合成地点 id，与 `observe.ts` 给神迹用的是同一套写法。 */
+  /**
+   * 这件事记在哪儿：够得着楼门就是那栋楼的 id，否则是脚下那一格
+   * （`footfallPlace` 算的）。`where` 与它**不是一回事**——`where` 是她站的
+   * 那一格，决定谁看得见；`placeId` 是这件事留在哪，决定痕迹落在谁身上。
+   */
   readonly placeId: string;
   readonly where: GridPoint;
   /** 作息牌子，例如「在旧站牌下认路」。 */

@@ -36,6 +36,16 @@ export interface TraceSpec {
 }
 
 /**
+ * 踩得出路的那些事：人到了、站了、干了活。
+ *
+ * `routine_done` 是村民按作息站在某个落点上（`simulation.ts` 的 `stepAmbient`），
+ * `task_done` 是一单活在那栋楼里做完。两件事都意味着「有人反复走这条线」。
+ * 事故、冲突、庆典、里程碑不在表里——它们各自已经有自己的痕迹（焦痕、修补、
+ * 花环、碑文），重复再多也还是那几样，不该再叠一条路。
+ */
+const FOOTFALL_KINDS: ReadonlySet<string> = new Set(['routine_done', 'task_done']);
+
+/**
  * 后果规则：这件事在这个地点留下什么。
  *
  * 返回空数组是正当结果——大部分事件不留痕。留痕要克制：每个地点只有 5 层装饰
@@ -74,7 +84,18 @@ export function consequenceOf(input: ConsequenceInput): TraceSpec[] {
   }
 
   // 反复发生：走的人多了就是路。阈值 3 次，低于它只是偶尔经过。
-  if (input.recurrence >= 3 && input.placeType !== 'altar') {
+  //
+  // **只有「有人来过」的重复才算走路。** 补充设计 §1.2 给 `worn_path` 的溯因
+  // 是「最近有人频繁往返于这条路线」——潮水反复冲刷同一个地方，冲不出人走的路。
+  // 白名单而不是黑名单：这里每加一种 kind 都是在说「这种事重复了会踩出路」，
+  // 该由加的人负责。`tide_turn` 一天来回四次，落进这张表就是给祭坛画一条
+  // 谁也不曾走过的路。
+  //
+  // `placeType !== 'altar'` 今天恒真：`runtime.observe` 从不填 `placeType`，
+  // 所以 `depositTraces` 拿到的永远是 `'generic'`。留着它是给上游
+  // `ingestUpstream` 那条路——那里真的会递 `placeType`。别因为「测不出差别」
+  // 就删掉，那正是它现在还咬不到人的原因。
+  if (input.recurrence >= 3 && FOOTFALL_KINDS.has(input.kind) && input.placeType !== 'altar') {
     specs.push({
       layerType: 'worn_path',
       intensity: Math.min(1, input.recurrence / 10),

@@ -1223,7 +1223,23 @@ export class MemoryWorld {
 
   private depositTraces(fact: WorldFact, at: number, placeType: string, valence: number): void {
     const existing = this.traces.get(fact.placeId) ?? [];
-    const recurrence = existing.filter((trace) => trace.eventRef !== fact.eventId).length;
+    // 「这一类事在这个地点重复过几次」——数**事件**，不是数已有的痕迹层数。
+    //
+    // 原来这里数的是 `existing.length`（这个地点已经有几道痕迹）。那样写，
+    // `worn_path` 的门槛就成了一句空话：它要求先有三层**别的**痕迹才轮得到
+    // 自己，而灯潮界一天到晚只有 `routine_done`，一条痕迹都不产——那道门
+    // 永远打不开，`trace.added` 在跑着的世界里一次都没发过。
+    //
+    // 扫 `this.facts` 而不另立计数器：事实会被隐私级联删掉（`deleteCascade`
+    // 里的 `this.facts.delete`），计数器会跟它漂移，扫描不会。代价是每次
+    // ingest 扫一遍事实库——8 个世界日 382 条，量级可忽略；真跑到上百天
+    // 该换成按 `placeId\u0000kind` 建的索引，那时这里会先慢下来。
+    let recurrence = 0;
+    for (const prior of this.facts.values()) {
+      if (prior.eventId === fact.eventId) continue;
+      if (prior.placeId !== fact.placeId || prior.kind !== fact.kind) continue;
+      recurrence += 1;
+    }
     const specs = consequenceOf({
       eventId: fact.eventId,
       kind: fact.kind,
@@ -1701,6 +1717,8 @@ export class MemoryWorld {
    * 实测（`.tmp-audit/legend-census.ts`，8 个世界日）：35 条传说的
    * `max(importanceHint)` 一律 0.35，全在门槛之下，所以这条路径今天是**唯一**
    * 在出碑的路径；门槛以上的分支（`task_done` 0.45）在灯潮界还没出现过。
+   * 2026-11-01 修完痕迹（地标 Holder 落地）同一口径重测是 28 条，hint 分布不变
+   * （仍是 `routine_done` 一种），所以这条路径照旧是唯一的那条。
    */
   private formable(fresh: readonly LegendCandidate[]): LegendCandidate[] {
     const importanceOf = (eventRef: string): number =>
@@ -1846,6 +1864,20 @@ export class MemoryWorld {
    * 位置之后它们自然回来。
    */
   private spreadCandidates(speaker: string): SpreadCandidate[] {
+    // **楼不说话。** 协议 §3 把两种 Holder 记的东西分得很清：人记「亲历与听说
+    // 的事」，地点记「在此发生过的事，按空间沉积」（痕迹）。一栋楼把听来的话
+    // 再讲给路过的人，不是这个世界该有的样子。
+    //
+    // 这句话在这里一直是**注释**，不是闸：`test/memory-spread.test.ts` 里
+    // 那句「楼不参与 claim.told——它不说话」只对孤立度统计成立，传播路径上
+    // 没人拦。实测（8 个世界日、7 人 9 楼 + 22 地标）：拆掉这道闸，村民信念
+    // 从 330 条涨到 591 条，其中 261 条（44%）的前手是楼——面板上会读成
+    // 「从一个不在这张图上的人听来」。闸在，是 0 条。
+    //
+    // 地点仍然**听**（`deliver` 照旧给它写信念、照旧算进传说的 reach）：
+    // 那是覆盖率曲线与传说条数的分母，动它要重算一整组文档里的数。
+    const speakerHolder = this.holders.get(speaker);
+    if (speakerHolder === undefined || speakerHolder.type !== 'character') return [];
     const out: SpreadCandidate[] = [];
     for (const listener of this.holderIds()) {
       if (listener === speaker) continue;

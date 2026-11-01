@@ -42,7 +42,13 @@ import {
   POINTS_PER_TASK,
 } from './faith.ts';
 import { GRIME_CLEAN, grimeAfter, landProp } from './grime.ts';
-import { ambientBetween, type AmbientDweller } from './ambient.ts';
+import {
+  ambientBetween,
+  cellPlaceId,
+  footfallPlace,
+  type AmbientDweller,
+  type FootfallDoor,
+} from './ambient.ts';
 import { routineBeats, routineFor, shelterTarget, tideBeatApplies, type RoutineBeat } from './routines.ts';
 import {
   clearWeather,
@@ -3451,6 +3457,11 @@ export class Simulation {
    */
   private stepAmbient(prevNow: number): void {
     const dwellers: AmbientDweller[] = [];
+    const doorways: FootfallDoor[] = this.buildings.map((building) => ({
+      instanceId: building.instanceId,
+      x: building.door.x,
+      y: building.door.y,
+    }));
     for (const villager of this.villagers) {
       // 「站在落点上」= 不在走路、没有活、牌子上写着作息的那一句。
       // 与 `snapshotVillager` 判牌子的条件同源，不另立一套。
@@ -3460,7 +3471,10 @@ export class Simulation {
       dwellers.push({
         id: villager.id,
         name: villager.name,
-        placeId: `place:${here.x},${here.y}`,
+        // 够得着楼门就记在那栋楼上（`footfallPlace` 的半径与理由写在 ambient.ts）。
+        // 不这么做的话，这件事的落点只是脚下那一格，而格子上没有 Holder——
+        // 痕迹落得下，却没有任何一层读得到，也画不出来。
+        placeId: footfallPlace(here, doorways),
         where: here,
         label: villager.routineLabel,
       });
@@ -3470,7 +3484,7 @@ export class Simulation {
     const flooded = this.buildings.find((building) => this.grid.isFloodedAt(building.door));
     const tidePlace =
       flooded === undefined
-        ? { placeId: `place:${this.altar.x},${this.altar.y}`, where: this.altar }
+        ? { placeId: cellPlaceId(this.altar), where: this.altar }
         : { placeId: flooded.instanceId, where: flooded.door };
 
     const events = ambientBetween({

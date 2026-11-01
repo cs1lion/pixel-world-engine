@@ -33,36 +33,33 @@ function foundry(): { rt: MemoryRuntime; place: string; stranger: string } {
 }
 
 /**
- * 一件只有 a 看得见的小事。
+ * 在同一个地方按作息站四次。
  *
- * `worn_path` 的来路是 `recurrence >= 3`，而 `recurrence` 数的是**这个地点
- * 已经有的痕迹层数**（`depositTraces` 里 `existing.filter(...)` 那条），不是
- * 事件次数。所以得先有三件各自留下不同层的事，第四件才踩出路来。
+ * `worn_path` 的来路是 `recurrence >= 3`，而 `recurrence` 数的是**同一地点、
+ * 同一 kind 的事此前发生过几次**。所以得是四件**同 kind** 的事，不是四件不同的。
  *
- * 三件都显式给 `valence: 0`：痕迹强度是 `|valence| + 0.2`，事故因此只留
- * `damage`（0.2）而不是 `scorch`（要 ≥ 0.5）。这一条不是为了好看——
- * `exposedTraces` 只暴露前三层，而磨损小径的强度是 `recurrence / 10 = 0.3`，
- * 正好压在 damage 与 garland 之上。换成默认效价，焦痕 0.9、花环 1.0，
- * 小路永远排第四，这条路就看不见了。
+ * **这一条是 2026-11-01 改的，改的是实现不是夹具。** 原先 `depositTraces` 数的是
+ * 「这个地点已经有几层痕迹」，于是四件不同 kind 的事恰好凑够三层、第四件踩出路来
+ * ——一个数错了东西的实现，被一个刚好绕开它的夹具钉成了绿。而在这个实现下
+ * 灯潮界一条痕迹也产不出来：那里只有 `routine_done`，它不在旧白名单里，
+ * `trace.added` 八个世界日一次都没发过。
+ *
+ * 用 `routine_done` 而不是 `task_done`：前者是这个设定集里真的天天在发生的那一种
+ * （村民按作息站在落点上）。`valence: 0` 让强度停在 0.2，这样即使哪天有人把
+ * 别的 kind 放进白名单，这条夹具也还在量同一条路。
  */
 function wearThePath(rt: MemoryRuntime, place: string): void {
-  const steps: readonly { kind: string; valence: number }[] = [
-    { kind: 'workshop_accident', valence: 0 },
-    { kind: 'celebration', valence: 0 },
-    { kind: 'milestone', valence: 0 },
-    { kind: 'task_done', valence: 0 },
-  ];
-  for (let i = 0; i < steps.length; i += 1) {
+  for (let i = 0; i < 4; i += 1) {
     rt.observe(
       {
         eventId: `ev_${i}`,
-        kind: steps[i]!.kind,
+        kind: 'routine_done',
         placeId: place,
         at: { x: 0, y: 0 },
         actors: ['a'],
-        outcome: { what: `第 ${i} 件` },
-        importanceHint: 0.1,
-        valence: steps[i]!.valence,
+        outcome: { what: `第 ${i} 次站在这儿` },
+        importanceHint: 0.35,
+        valence: 0,
       },
       ['a'],
       1000 + i * 100,
@@ -85,6 +82,40 @@ test('表：另外五种痕迹照旧是情景片段', () => {
     assert.ok(spec !== null, `${layer} 该有推断`);
     assert.equal(spec.kind, 'episodic', `${layer} 那一行没写 kind，落情景片段`);
   }
+});
+
+test('门槛：同一件事站三次还不算路，第四次才踩出来', () => {
+  // 「走的人多了就是路」的门槛是 3 次**重复**。三次只是偶尔经过——
+  // 这条同时钉住 `recurrence` 数的是事件、以及阈值本身没被顺手改掉。
+  const rt = new MemoryRuntime({ worldId: 'habit-threshold', occlusion: { isWalkable: () => true } });
+  rt.syncHolders([
+    { holderId: 'a', type: 'character', at: { x: 0, y: 0 } },
+    { holderId: 'foundry', type: 'place', at: { x: 0, y: 0 } },
+  ]);
+  const stand = (i: number): void => {
+    rt.observe(
+      {
+        eventId: `ev_${i}`,
+        kind: 'routine_done',
+        placeId: 'foundry',
+        at: { x: 0, y: 0 },
+        actors: ['a'],
+        outcome: { what: '站了一会儿' },
+        importanceHint: 0.35,
+        valence: 0,
+      },
+      ['a'],
+      1000 + i * 100,
+    );
+  };
+  stand(0);
+  stand(1);
+  stand(2);
+  assert.deepEqual(rt.viewOf('foundry')!.traces, [], '三次只是偶尔经过，地上什么都不该有');
+  stand(3);
+  const traces = rt.viewOf('foundry')!.traces;
+  assert.equal(traces.length, 1, '第四次才踩出那一条路');
+  assert.equal(traces[0]!.layerType, 'worn_path');
 });
 
 test('落点：走过一条被走出来的路，记下的是一条习惯', () => {

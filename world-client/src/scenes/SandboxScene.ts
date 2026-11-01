@@ -5,6 +5,8 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
+import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.ts';
+import { drawGroundDecals } from '../render/decal.ts';
 import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
 import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp, WorldSnapshot } from '../world/types.ts';
 import { villagerAtCell } from '../world/types.ts';
@@ -110,6 +112,14 @@ const LOGIC_STEP_MS = 100;
  */
 const MAX_STEPS_PER_FRAME = 5;
 const ALTITUDE = 1000;
+/**
+ * 地标痕迹那一层的深度。
+ *
+ * 地形烘焙在 -10（`drawTerrain` 的 `bakeLayer` 参数），而楼、道具、人全在
+ * `ALTITUDE = 1000` 以上按行排。地标上的痕迹是**地上**的东西：浮在地形之上、
+ * 压在一切立着的东西之下，所以取两者之间。
+ */
+const GROUND_DECAL_DEPTH = -5;
 
 interface BuildingEntry {
   readonly building: BuiltWorld['buildings'][number];
@@ -243,6 +253,16 @@ export class SandboxScene extends Phaser.Scene {
    * 又不会漏掉「今天风化了一格」——`visibility` 就在指纹里。
    */
   private decalSignatures = new Map<string, string>();
+  /**
+   * 不归楼的作息落点：设定集里它们登记成地点 Holder，痕迹画在地上。
+   *
+   * 由 `syncLandmarks` 从 `pack` 算出来，楼一栋都不建时它也不会变——
+   * 地标不是谁盖的，是人走出来的。
+   */
+  private landmarkCells: { readonly x: number; readonly y: number }[] = [];
+  /** 每块地标上一次画出去的痕迹单子的指纹，与 `decalSignatures` 同一个理由。 */
+  private groundSignatures = new Map<string, string>();
+  private groundLayer?: Phaser.GameObjects.Graphics;
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
   private saveNotice: string | null = null;
@@ -924,14 +944,23 @@ export class SandboxScene extends Phaser.Scene {
     // `name` 是地名演变的起点（协议 §11）：记忆层拿它当**原名**，改名时
     // 在它后面挂称号。不传的话 `placeNameOf` 恒为 null，改名就永远没有起点。
     // 记忆层只认第一次登记的那个名字——楼名不会变，变的是地名。
-    this.memory.syncHolders(
-      this.snapshot.buildings.map((building) => ({
+    this.syncLandmarks();
+    this.memory.syncHolders([
+      ...this.snapshot.buildings.map((building) => ({
         holderId: building.instanceId,
         type: 'place' as const,
         at: { x: building.door.x, y: building.door.y },
         name: building.displayName,
       })),
-    );
+      ...this.landmarkCells.map((cell) => ({
+        holderId: cellPlaceId(cell),
+        type: 'place' as const,
+        at: { x: cell.x, y: cell.y },
+        // **不传 `name`。** 作息点的 `label` 是「她在干什么」（「在旧站牌下认路」），
+        // 不是地名。拿它当地名，协议 §11 的地名演变会把这个地方改成
+        // 「在旧站牌下认路·张灯」——一句动作加一个称号。没有名字就不改名，照实。
+      })),
+    ]);
     // 拆掉的楼从名册里摘掉。留着的话，一栋不存在的楼会「听得见」任何
     // 发生在原地的传言，而 `spreadCandidates` 会把它当成听众。
     // 摘的是 Holder，不是痕迹——那儿原来有间铺子这件事，还该有人记得。
@@ -944,14 +973,91 @@ export class SandboxScene extends Phaser.Scene {
       if (this.lastBuildingView?.placeId === placeId) this.closeBuildingPanel();
     }
     this.placeHolders = standing;
+    // 楼与地标一起看：只走楼的话，村民天天站在旧站牌上，也永远不知道那条路
+    // 是被人踩出来的——痕迹就只剩画面上那几笔，进不了任何人的记忆。
+    const places = [
+      ...this.snapshot.buildings.map((building) => building.instanceId),
+      ...this.landmarkCells.map((cell) => cellPlaceId(cell)),
+    ];
     for (const villager of this.snapshot.villagers) {
-      for (const building of this.snapshot.buildings) {
-        const key = `${villager.id}\u0000${building.instanceId}`;
+      for (const placeId of places) {
+        const key = `${villager.id}\u0000${placeId}`;
         if (this.seenToday.has(key)) continue;
-        const inferred = this.memory.lookAtTraces(villager.id, building.instanceId);
+        const inferred = this.memory.lookAtTraces(villager.id, placeId);
         if (inferred.length === 0) continue;
         this.seenToday.add(key);
       }
+    }
+  }
+
+  /**
+   * 作息落点里**不归楼**的那些，登记成地标。
+   *
+   * 归楼的落点（2 格内有门）由 `stepAmbient` 把事件记在那栋楼上，痕迹也就落在
+   * 楼身上——这里再用同一把尺子（`footfallPlace`）把它们排除掉，否则同一个落点
+   * 会有一栋楼和一个地标两个主人，而其中一个永远空着。
+   *
+   * 只在设定集世界里有：莞尔镇的 `pack` 是 null，一个地标也不登记，行为与从前
+   * 逐字节相同。
+   */
+  private syncLandmarks(): void {
+    if (this.pack === null) {
+      this.landmarkCells = [];
+      return;
+    }
+    const doorways: FootfallDoor[] = this.snapshot.buildings.map((building) => ({
+      instanceId: building.instanceId,
+      x: building.door.x,
+      y: building.door.y,
+    }));
+    const cells: { readonly x: number; readonly y: number }[] = [];
+    const seen = new Set<string>();
+    for (const villager of this.pack.villagers) {
+      for (const stop of villager.routine) {
+        const key = `${stop.x},${stop.y}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (footfallPlace(stop, doorways) !== cellPlaceId(stop)) continue;
+        cells.push({ x: stop.x, y: stop.y });
+      }
+    }
+    cells.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    this.landmarkCells = cells;
+  }
+
+  /**
+   * 地标上的痕迹。
+   *
+   * 与 `refreshDecals` 同一个入口（`placeHints`）、同一道闸，只是画在地上而不是
+   * 墙上。签名没变就不重画——理由与楼那边一样：痕迹一天才风化一次。
+   */
+  private refreshGroundDecals(): void {
+    if (this.memory === undefined) return;
+    if (this.landmarkCells.length === 0) return;
+    // 先看有没有变。签名里带 `visibility`，所以「今天风化了一格」也算变了。
+    let changed = false;
+    for (const cell of this.landmarkCells) {
+      const placeId = cellPlaceId(cell);
+      const signature = this.memory
+        .placeHints(placeId)
+        .map((hint) => `${hint.traceId}:${hint.visibility.toFixed(3)}`)
+        .join('|');
+      if (this.groundSignatures.get(placeId) === signature) continue;
+      this.groundSignatures.set(placeId, signature);
+      changed = true;
+    }
+    if (!changed) return;
+    if (this.groundLayer === undefined) {
+      // 地形烘焙在 -10，道具与人在 1000 以上（`ALTITUDE`）。痕迹是地上的东西：
+      // 压在所有立着的东西之下，只浮在地形之上。
+      this.groundLayer = this.add.graphics();
+      this.groundLayer.setDepth(GROUND_DECAL_DEPTH);
+    }
+    // **整层重画，不是在旧的上面再叠一遍。** alpha 叠 alpha 会让同一块地
+    // 每风化一天就深一格，而风化该让它**变浅**。
+    this.groundLayer.clear();
+    for (const cell of this.landmarkCells) {
+      drawGroundDecals(this.groundLayer, this.memory.placeHints(cellPlaceId(cell)), cell, TILE_PX);
     }
   }
 
@@ -1895,6 +2001,7 @@ export class SandboxScene extends Phaser.Scene {
   private renderSnapshot(delta: number): void {
     const { snapshot } = this;
     this.syncBuildings();
+    this.refreshGroundDecals();
 
     for (const entry of this.entries) {
       const workstation = snapshot.workstations.find(

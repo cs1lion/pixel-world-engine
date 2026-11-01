@@ -119,7 +119,7 @@ const ALL_HOLDERS: readonly string[] = [...VILLAGERS, ...BUILDING_IDS];
 /**
  * 默认世界（不走设定集）会有几个村民。
  *
- * 从 `simulation.ts:659` 那一行读，不重抄：那个兜底数组的字面量一改，
+ * 从 `simulation.ts:665` 那一行读，不重抄：那个兜底数组的字面量一改，
  * 这里必须跟着改，否则这条钉的是一个已经不属于代码的数。
  */
 function defaultWorldVillagerCount(): number {
@@ -211,11 +211,14 @@ test('出货的村子今天十六个 holder：七个居民 + 九栋楼', () => {
 
 test('楼会持有信念：所以「全部 holder」不是硬凑出来的分母', () => {
   // 这一条是整个更正的支点。第一版默认了「知道某事的只有人」，而楼也在
-  // spreadCandidates 的候选人里（world.ts:1850 按 holderIds() 全量枚举，
-  // 不过 holder 类型），judge 也不按类型拒。量出来：九栋楼全都在说话距离内
-  // 时，全都学到了一条第 0 跳的断言。
+  // spreadCandidates 的**听众**里（`holderIds()` 全量枚举，不过 holder 类型），
+  // judge 也不按类型拒。
+  //
+  // **2026-11-01：地点不再当说话人，但仍当听众。** 这一条因此从「九栋楼全都
+  // 学到」变成「只有贴着村民的那一栋学到」——数字变了，结论没变：楼确实在
+  // 持有信念，「全部 holder」这个分母不是凭空多出来的。
   const { knowingBuildings } = awarenessAtDayEnd(6);
-  assert.ok(knowingBuildings > 0, `九栋楼里一栋都没学到——传播的听众选择变了，回来重新定 coverage_curve 的分母（它可能又变回「只有人」）`);
+  assert.equal(knowingBuildings, 1, '九栋楼里现在只有一栋学到（它挨着村民）；这条红说明听众选择变了，回来重算 coverage_curve 的分母');
 });
 
 test('同一次运行，两种分母给出相反的判定', () => {
@@ -244,16 +247,36 @@ test('比例能取到的值：村民口径八个，全部-holder 口径十七个
   assert.deepEqual(inBandAll.sort((a, b) => a - b), [62.5, 68.8, 75], '第 3 天末在全部-holder 口径里取得到三个值——这条红说明 holder 总数变了，回来重算');
 });
 
-test('实测曲线：第 1 天末 18.8%，第 3 天末 56.3%，第 6 天末 62.5%（全部-holder 口径）', () => {
-  // 三个数都是从真实设定集的世界跑出来的，不是推演（2026-11-01，7 人 9 楼，
-  // `.tmp-audit/coverage-probe.ts`）。它们盯的是传播的快慢：谁改了 talkDistance、
-  // pairCooldown、chatCooldown 或扇出，这里会动。
-  const actual = (n: number) => awarenessAtDayEnd(n).all;
-  assert.equal(actual(1), 18.8, '第 1 天末');
-  assert.equal(actual(3), 56.3, '第 3 天末');
-  assert.equal(actual(6), 62.5, '第 6 天末');
-  // 第 3 天末的 56.3% 低于 60% 的下限，第 4 天才到 62.5%；所以「第 3 天末达到
-  // 稳态」在全部-holder 口径下**晚一天**，这条断言把这件事钉住。
-  assert.ok(actual(3) < DAY3_LOW, `第 3 天末 ${actual(3)}% 还没到 ${DAY3_LOW}% 的下限`);
-  assert.ok(actual(4) >= DAY3_LOW, `第 4 天末 ${actual(4)}% 该已进入 ${DAY3_LOW}% 的下限`);
+test('实测曲线：村民口径 42.9 / 85.7 / 100，全部-holder 口径 18.8 / 50 / 50', () => {
+  // 数都是从真实设定集的世界跑出来的，不是推演（2026-11-01，7 人 9 楼）。
+  // 它们盯的是传播的快慢：谁改了 talkDistance、pairCooldown、chatCooldown
+  // 或扇出，这里会动。
+  //
+  // **2026-11-01 第二次更新：地点不再说话。** `spreadCandidates` 加了一道
+  // 「说话人必须是人物」的闸（协议 §3：地点记的是空间沉积，不是听说的事）。
+  // 同一天把闸去掉重测过一遍，两个口径的变化是分开的：
+  //
+  // | 口径 | 加闸前 | 加闸后 |
+  // | --- | --- | --- |
+  // | 村民 | 42.9 / 85.7 / 100 | **42.9 / 85.7 / 100（一个数没动）** |
+  // | 全部-holder | 18.8 / 56.3 / 62.5 | **18.8 / 50 / 50** |
+  //
+  // 村民那一行没动，是因为这个夹具里七个村民本来就两两相邻，楼从来不是他们的
+  // 中转站。全部-holder 那一行掉下去，掉的是**楼与楼之间的互相转述**：
+  // 从前九栋楼里最后有三栋学到，现在只有一栋（贴着村民的那栋）。
+  //
+  // 所以这张表要说的话变了：全部-holder 口径**再也进不了 60~80% 的稳态带**，
+  // 它量的已经主要是「楼会不会把闲话传给隔壁的楼」——而那不是
+  // 「单一重大事件在村落中的知晓比例」。村民口径才是那句话的读法，它在本夹具
+  // 里第 3 天末就 100%（摆得太密，最利于传播的摆法），**超出 80% 的上限**。
+  // 两条都不达标，而这个夹具本来就不该拿来判达标——它固定的是传播的**形状**，
+  // 判达标要看真实作息下的曲线（`docs/SETTING_DENGCHAO.md`）。
+  const villagers = (n: number): number => awarenessAtDayEnd(n).villagers;
+  const all = (n: number): number => awarenessAtDayEnd(n).all;
+  assert.equal(villagers(1), 42.9, '第 1 天末、只算村民');
+  assert.equal(villagers(3), 100, '第 3 天末、只算村民');
+  assert.equal(all(1), 18.8, '第 1 天末、算全部 holder');
+  assert.equal(all(3), 50, '第 3 天末、算全部 holder');
+  assert.equal(all(6), 50, '第 6 天末、算全部 holder——稳态，不再涨');
+  assert.ok(all(6) < DAY3_LOW, `全部-holder 口径第 6 天末 ${all(6)}% 仍在 ${DAY3_LOW}% 之下——地点不说话之后它到不了稳态带，这是它的现状，不是回归`);
 });

@@ -213,7 +213,8 @@ test('心电图：全员同知的平静与全员孤立的死寂都能读出来',
 });
 
 test('孤立单位只数人，不数楼', () => {
-  // 楼不参与 `claim.told`——它不说话。把地点 Holder 算进孤立统计，每一栋
+  // 楼不参与 `claim.told`——它不说话（这道闸在 `spreadCandidates` 开头，
+  // 由下面那条「楼不说话」守着）。把地点 Holder 算进孤立统计，每一栋
   // 楼都会被永久算成孤立单位：一个两三个人、六七栋楼的村子，这个数会常年
   // 停在 7 以上。而导演读它是要看「世界是不是死了」，那个数必须会动。
   const world = new MemoryWorld();
@@ -238,6 +239,36 @@ test('孤立单位只数人，不数楼', () => {
   const vitals = world.dayClosed(0, DAY_MS - 1);
   // 隔 50 格的 b 一句话没听到，他是唯一该被算作孤立的人。两栋楼不算。
   assert.equal(vitals.isolatedHoldersCount, 1, '楼不该被算成孤立单位');
+});
+
+test('楼不说话：地点 Holder 能听，但一个听众也传不出去', () => {
+  // 协议 §3 把两种 Holder 记的东西分得很清：人记「亲历与听说的事」，
+  // 地点记「在此发生过的事，按空间沉积」（痕迹）。一栋楼把听来的话再讲给
+  // 路过的人，不是这个世界该有的样子。
+  //
+  // 摆法把「楼会不会转述」单独隔出来：v0 与 v1 相距 4 格，谁也够不着谁；
+  // 中间那栋楼离两边各 2 格（`talkDistance`），是**唯一**的中转站。
+  // 于是 v1 听没听到，直接等于「楼说没说话」。
+  const world = new MemoryWorld();
+  world.addHolder({ holderId: 'v0', type: 'character', profile: {}, at: { x: 0, y: 0 } });
+  world.addHolder({ holderId: 'shop', type: 'place', profile: {}, at: { x: 2, y: 0 } });
+  world.addHolder({ holderId: 'v1', type: 'character', profile: {}, at: { x: 4, y: 0 } });
+  seedEvent(world, ['v0']);
+  world.createClaimFrom('ev_1', 'v0', 1000);
+
+  world.dayClosed(0, DAY_MS - 1);
+  assert.ok(
+    world.viewOf('shop')!.beliefs.length > 0,
+    '地点作为听众照旧要收到——它是覆盖率分母与传说 reach 的一部分，这条闸只关「说」这一头',
+  );
+  assert.equal(
+    world.viewOf('v1')!.beliefs.length,
+    0,
+    '唯一的中转站是一栋楼，而楼不说话：v1 什么都不该听说',
+  );
+
+  world.dayClosed(1, DAY_MS * 2 - 1);
+  assert.equal(world.viewOf('v1')!.beliefs.length, 0, '第二天也一样——楼昨天学到的那条，今天也传不出去');
 });
 
 test('回放一致：同一天两次扩散得到同一份信念', () => {
