@@ -121,6 +121,8 @@ class MemoryWriter:
         path.parent.mkdir(parents=True, exist_ok=True)
         text = fmt.render_event(seq=seq, title=draft.title, body=draft.body, check=check, at=draft.at)
         path.write_text(text, encoding="utf-8", newline="\n")
+        # 记忆落盘之后再更新索引：索引是派生物，不能比它描述的文件还新。
+        self._touch_index(seq)
         return WrittenMemory(
             kind=EVENT_ENTRY,
             title=draft.title,
@@ -160,6 +162,60 @@ class MemoryWriter:
             evidence=check.ids,
             appended=appended,
         )
+
+    # ---------------------------------------------------------------- 索引
+
+    def _touch_index(self, seq: int) -> None:
+        """把 `memory/index.yaml` 的 `last_event_seq` 推到 `seq`。
+
+        **这里是这个字段唯一的写入方。** 索引是派生物：`events/` 里的文件名才是
+        真相，序号分配也只扫文件名（`MemoryLayout.next_event_seq`），从不读这里。
+        所以更新失败不该让一条已经落盘的记忆变成 500——`OSError` 吞掉，
+        下次写入会再推一次。
+
+        只改这一行，不重写整份文件：头部那几行是给人读的说明，`yaml.dump`
+        会把它们连注释一起洗掉。值取 `max(旧值, seq)`，从不动到更小的数——
+        索引落后是旧，回退是错。
+        """
+        path = self._layout.index_path()
+        try:
+            lines = (
+                path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+            )
+        except (OSError, UnicodeDecodeError):
+            lines = []
+
+        current = 0
+        for line in lines:
+            if line.startswith("last_event_seq:"):
+                try:
+                    current = int(line.split(":", 1)[1].strip())
+                except ValueError:
+                    current = 0
+                break
+        value = max(current, seq)
+
+        updated: list[str] = []
+        replaced = False
+        for line in lines:
+            if line.startswith("last_event_seq:") and not replaced:
+                updated.append(f"last_event_seq: {value}")
+                replaced = True
+            else:
+                updated.append(line)
+        if not replaced:
+            updated.append(f"last_event_seq: {value}")
+
+        temp = path.with_name(f"{path.name}.tmp")
+        try:
+            temp.write_text("\n".join(updated) + "\n", encoding="utf-8", newline="\n")
+            temp.replace(path)
+        except OSError:
+            # 索引是派生的：写不动就不写，记忆本身已经落盘了。
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     # ---------------------------------------------------------------- 辅助
 

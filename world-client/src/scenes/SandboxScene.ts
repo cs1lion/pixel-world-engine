@@ -82,6 +82,13 @@ import { createLazyAnimalese, type Animalese } from '../audio/animalese.ts';
 import { toWorldCommand, type AgentToWorld } from '../world/bridge.ts';
 import { FeedClient } from '../world/feed.ts';
 import { createEventsClient, type EventsClient } from '../world/events-client.ts';
+import {
+  createMemoryClient,
+  createMemoryOutbox,
+  type MemoryClient,
+  type MemoryDraft,
+  type MemoryOutbox,
+} from '../world/memory-client.ts';
 import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
@@ -204,6 +211,15 @@ export class SandboxScene extends Phaser.Scene {
   private feedClient: FeedClient | null = null;
   /** 回写用。与 feed 共用一个 client（同一个服务端），但方向相反。 */
   private eventsClient: EventsClient | null = null;
+  /**
+   * 把世界观测到的事写回服务端 `memory/`。
+   *
+   * 只在 `connectFeed()` 里建：`?feed=off` 时没有服务端，也就没有可写的编年史。
+   * 出队器攒着，**跟着自动存档那条节流走**（`maybeAutoSave` 成功之后才交一条），
+   * 不是每拍一次——写记忆是落文件，拿磁盘当日志没有意义。
+   */
+  private memoryClient: MemoryClient | null = null;
+  private memoryOutbox: MemoryOutbox | null = null;
   /**
    * 内环：记忆与传播。世界每拍交一份处境给它，跨日时它关账。
    *
@@ -556,7 +572,14 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack?.authored === true ? { authored: true } : {}),
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
-        void this.eventsClient?.record(change, at);
+        const client = this.eventsClient;
+        if (client !== null) {
+          // 日志先写，拿到 id 才谈记忆：`POST /api/memory/write` 要的 `evidence`
+          // 是日志里的事件 id，没有那一条就没有依据可引。
+          void client.record(change, at).then((result) => {
+            if (result.ok) this.queueMemory(change, at, result.id);
+          });
+        }
         this.remember(change, at);
         this.focusCameraOn(change);
       },
@@ -685,6 +708,16 @@ export class SandboxScene extends Phaser.Scene {
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
         : new Simulation(simDeps);
+    // 记忆段是 v5 新增的位置：世界重建完再喂给记忆适配器，顺序不能反
+    // （它要用 `this.world.grid` 算遮挡，而网格已经按存档重放过）。
+    // 空串（v4 老档迁移的默认值）读作「没有记忆」，不报警。
+    if (this.loadedSave !== null) {
+      const memoryText = this.loadedSave.world.memory;
+      const restored = this.memory.fromJSON(memoryText);
+      if (!restored && memoryText !== '') {
+        console.warn('[memory] 存档里的记忆段无法复原，按空记忆继续。');
+      }
+    }
     // 求证闭环：心里存疑的人会自己出门去现场。世界不问记忆层长什么样，
     // 只问「这个人该去哪」与「他到了，判一下」。
     this.sim.connectVerification({
@@ -722,7 +755,7 @@ export class SandboxScene extends Phaser.Scene {
     this.focusListener();
 
     this.onPageHide = () => {
-      this.saveStore.write(this.sim.toSave());
+      this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
@@ -738,6 +771,8 @@ export class SandboxScene extends Phaser.Scene {
     if (params.get('feed') === 'off' || params.get('ledger') === 'off') return;
     const events = createEventsClient();
     this.eventsClient = events;
+    this.memoryClient = createMemoryClient();
+    this.memoryOutbox = createMemoryOutbox(this.memoryClient);
     const client = new FeedClient({
       client: events,
       onUpdate: ({ fold, connected }) => {
@@ -759,6 +794,8 @@ export class SandboxScene extends Phaser.Scene {
     this.feedClient?.stop();
     this.feedClient = null;
     this.eventsClient = null;
+    this.memoryClient = null;
+    this.memoryOutbox = null;
     this.overlay?.dispose();
     this.overlay = null;
     if (this.nightKeyListener !== null) {
@@ -1663,7 +1700,7 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
-    const result = this.saveStore.write(this.sim.toSave());
+    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
     if (result.ok) {
       this.lastSaveKey = this.saveStateKey();
       this.lastSaveAt = this.snapshot.now;
@@ -1697,13 +1734,16 @@ export class SandboxScene extends Phaser.Scene {
     const changed = this.saveStateKey() !== this.lastSaveKey;
     const due = this.snapshot.now - this.lastSaveAt >= 30_000;
     if (!changed && !due) return;
-    const result = this.saveStore.write(this.sim.toSave());
+    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
     if (!result.ok) {
       this.saveNotice = result.message;
       return;
     }
     this.lastSaveKey = this.saveStateKey();
     this.lastSaveAt = this.snapshot.now;
+    // 记忆写回跟着存档那一条节流走：这一拍既然已过「变了 / 满 30s」两道闸，
+    // 才轮到交一条。出队器自己还有在途互斥，失败留在队里下一拍再试。
+    void this.memoryOutbox?.flush();
   }
 
   /** 外部 Agent 的入口。它和打字、按钮走同一条队列。 */
@@ -1721,13 +1761,36 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
-   * 世界做成了一件事 → 记忆层记下它。
+   * 把一条世界改变排进写回队列（`POST /api/memory/write`）。
    *
-   * 这一步在 `onChange` 里，与世界回写日志同一个入口：**日志记一份，记忆记一份**，
-   * 而两份说的是同一件事。日志给未来的规则引擎与编年史看，记忆给村里的人看。
+   * 只有 `world.event` 进来：它是世界自己发生、带一句话与落点的那一类，
+   * 标题与正文都现成；其余改变要么没有话说（潮位、心电图），要么是记忆层的
+   * 输出（传说），再记一遍等于自己吃自己。
    *
-   * 没有落点的事件（潮位、心电图）由 `observationOf` 返回 `null`，这里直接跳过。
-   * 位置查不到也跳过——世界不能假装知道一个人站在哪。
+   * 服务端记忆是**一事一文件**，`title` 上限 60 字且不能跨行——在这里先截，
+   * 别指望那边替我们猜。
+   */
+  private queueMemory(change: WorldChange, at: number, eventId: number): void {
+    const outbox = this.memoryOutbox;
+    if (outbox === null) return;
+    if (change.change !== 'world.event') return;
+    const text = change.text.trim();
+    if (text === '') return;
+    const draft: MemoryDraft = {
+      kind: 'event',
+      title: text.slice(0, 60),
+      body: text,
+      at,
+      evidence: [eventId],
+    };
+    outbox.enqueue(draft);
+  }
+
+  /**
+   * 世界做成了一件事，记忆层记下它。
+   *
+   * 与世界回写日志同一个入口：日志记一份，记忆记一份，两份说的是同一件事。
+   * 没有落点的事件（潮位、心电图）由 `observationOf` 返回 null，这里跳过。
    */
   private remember(change: WorldChange, at: number): void {
     if (this.memory === undefined) return;

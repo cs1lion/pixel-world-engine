@@ -23,7 +23,116 @@ import { witnessesOf } from './perception.ts';
 import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import type { HolderType, Legend, MemoryEvent, Toponym, WorldFact, WorldVitals } from './types.ts';
-import { MemoryWorld, type HolderView } from './world.ts';
+import { MemoryWorld, type HolderView, type MemoryWorldSnapshot } from './world.ts';
+
+/**
+ * 记忆段的版本号。存档里 `world.memory` 是一段 JSON 字符串，开头就带这个数。
+ *
+ * 与存档的 `schemaVersion` 是**两条独立的版本线**：世界存档升版本不必动记忆，
+ * 记忆加字段也不必重算世界存档指纹。读取时版本不等就按「不认识的记忆」拒绝，
+ * 不让它污染世界。
+ */
+export const MEMORY_SCHEMA_VERSION = 1;
+
+/** `MemoryRuntime.toJSON()` 的完整载荷。 */
+export interface MemoryRuntimeSnapshot {
+  readonly memorySchemaVersion: number;
+  readonly lastClosedDay: number;
+  readonly started: boolean;
+  readonly now: number;
+  readonly positions: readonly {
+    readonly holderId: string;
+    readonly at: { readonly x: number; readonly y: number };
+  }[];
+  readonly world: MemoryWorldSnapshot;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isPoint(value: unknown): value is { readonly x: number; readonly y: number } {
+  return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
+}
+
+/**
+ * 结构校验。只查「读档会不会崩」这一层：顶层标量、各段是数组、Map 摊平的键值是
+ * `[string, number]`。数组**元素内部**的字段由记忆层自己的类型定义负责——
+ * 这些元素都是本项目自己写出去的，且 `schemaVersion` 已经先比过。
+ */
+function isWorldSnapshot(value: unknown): value is MemoryWorldSnapshot {
+  if (!isRecord(value)) return false;
+  const arrays = [
+    'holders',
+    'facts',
+    'entries',
+    'claims',
+    'beliefs',
+    'traces',
+    'legends',
+    'placeNames',
+    'announcements',
+    'tells',
+    'written',
+    'cooldowns',
+    'verifyPlans',
+    'metToday',
+  ] as const;
+  for (const key of arrays) {
+    if (!Array.isArray(value[key])) return false;
+  }
+  for (const key of ['traces', 'placeNames', 'verifyPlans'] as const) {
+    for (const item of value[key] as unknown[]) {
+      if (!isRecord(item)) return false;
+    }
+  }
+  for (const item of value.placeNames as unknown[]) {
+    if (!isRecord(item) || typeof item.placeId !== 'string' || typeof item.name !== 'string') {
+      return false;
+    }
+    if (!Array.isArray(item.history)) return false;
+  }
+  for (const item of value.traces as unknown[]) {
+    if (!isRecord(item) || typeof item.placeId !== 'string' || !Array.isArray(item.entries)) {
+      return false;
+    }
+  }
+  for (const item of value.verifyPlans as unknown[]) {
+    if (!isRecord(item) || typeof item.holderId !== 'string' || !Array.isArray(item.plans)) {
+      return false;
+    }
+  }
+  if (!isRecord(value.fanout) || !isFiniteNumber(value.fanout.day) || !Array.isArray(value.fanout.counts)) {
+    return false;
+  }
+  if (!Array.isArray(value.credibility)) return false;
+  // 照面表摊平的是 `[pairKey, distance]` 元组，不是对象——按数组校验。
+  for (const item of value.metToday as unknown[]) {
+    if (!Array.isArray(item) || item.length !== 2) return false;
+    if (typeof item[0] !== 'string' || !isFiniteNumber(item[1])) return false;
+  }
+  if (!isFiniteNumber(value.nextSerial) || !isFiniteNumber(value.currentDay)) return false;
+  return true;
+}
+
+function isRuntimeSnapshot(value: unknown): value is MemoryRuntimeSnapshot {
+  if (!isRecord(value)) return false;
+  if (value.memorySchemaVersion !== MEMORY_SCHEMA_VERSION) return false;
+  const lastClosedDay = value.lastClosedDay;
+  const now = value.now;
+  if (!isFiniteNumber(lastClosedDay) || lastClosedDay < 0) return false;
+  if (!isFiniteNumber(now) || now < 0) return false;
+  if (typeof value.started !== 'boolean') return false;
+  if (!Array.isArray(value.positions)) return false;
+  for (const item of value.positions as unknown[]) {
+    if (!isRecord(item) || typeof item.holderId !== 'string' || !isPoint(item.at)) return false;
+  }
+  return isWorldSnapshot(value.world);
+}
 
 /** 一个单位此刻的处境。位置是格坐标，与 `Simulation` 的 `Vec2` 同一套。 */
 export interface RuntimeHolder {
@@ -115,6 +224,57 @@ export class MemoryRuntime {
       worldId: deps.worldId ?? 'world',
       ...(deps.onEvent === undefined ? {} : { emit: deps.onEvent }),
     });
+  }
+
+  // ---------------------------------------------------------------- 存档
+
+  /** 适配器自己的状态（关账日、时钟、位置）+ 记忆世界的完整快照。 */
+  toSnapshot(): MemoryRuntimeSnapshot {
+    return {
+      memorySchemaVersion: MEMORY_SCHEMA_VERSION,
+      lastClosedDay: this.lastClosedDay,
+      started: this.started,
+      now: this.now,
+      positions: [...this.positions.entries()].map(([holderId, at]) => ({
+        holderId,
+        at: { x: at.x, y: at.y },
+      })),
+      world: this.world.toSnapshot(),
+    };
+  }
+
+  /** 存档 `world.memory` 的实际内容：一段带 `memorySchemaVersion` 的 JSON 字符串。 */
+  toJSON(): string {
+    return JSON.stringify(this.toSnapshot());
+  }
+
+  /**
+   * 从存档字符串复原。返回 `false` 表示「没有记忆 / 版本不认识 / 损坏」，
+   * 调用方保持空库即可。
+   *
+   * **刻意不抛异常**：记忆是世界的第二层，坏一段记忆不该让整个世界读不出来。
+   * 校验只到「结构能安全喂给 `restoreSnapshot`」这一层；元素内部字段由
+   * `memorySchemaVersion` 与本项目自己写出的形状保证。
+   */
+  fromJSON(text: string): boolean {
+    // 空串是 v4→v5 迁移给老档的默认值：明确的「没有记忆」，不是坏档。
+    if (text === '') return false;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return false;
+    }
+    if (!isRuntimeSnapshot(parsed)) return false;
+    this.lastClosedDay = parsed.lastClosedDay;
+    this.started = parsed.started;
+    this.now = parsed.now;
+    this.positions.clear();
+    for (const item of parsed.positions) {
+      this.positions.set(item.holderId, { x: item.at.x, y: item.at.y });
+    }
+    this.world.restoreSnapshot(parsed.world);
+    return true;
   }
 
   /**

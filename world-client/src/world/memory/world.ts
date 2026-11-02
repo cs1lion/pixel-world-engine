@@ -183,6 +183,50 @@ export interface MemoryWorldDeps {
 }
 
 /**
+ * 记忆世界的完整运行期状态（可 JSON 化）。
+ *
+ * 这是 `MemoryRuntime.toJSON()` 的载荷。形状与 `MemoryWorld` 的私有字段一一对应，
+ * 但不含五个**依赖**：`config` / `relations` / `grid` / `emit` / `worldId`
+ * ——那些由构造方给，读档时重建，不属于「发生过的事」。
+ *
+ * 为什么 Map 全部摊平成 `[key, value]` 数组：JSON 没有 Map；摊平后键序仍然显式，
+ * 复原时按数组顺序重建，顺序稳定。
+ */
+export interface MemoryWorldSnapshot {
+  readonly holders: readonly Holder[];
+  readonly facts: readonly WorldFact[];
+  readonly entries: readonly MemoryEntry[];
+  readonly claims: readonly Claim[];
+  readonly beliefs: readonly Belief[];
+  readonly traces: readonly {
+    readonly placeId: string;
+    readonly entries: readonly Trace[];
+  }[];
+  readonly legends: readonly Legend[];
+  readonly placeNames: readonly {
+    readonly placeId: string;
+    readonly name: string;
+    readonly history: readonly ToponymEntry[];
+  }[];
+  readonly announcements: readonly Announcement[];
+  readonly tells: readonly TellRecord[];
+  readonly written: readonly WrittenRecord[];
+  readonly cooldowns: readonly CooldownState[];
+  readonly fanout: {
+    readonly day: number;
+    readonly counts: readonly (readonly [string, number])[];
+  };
+  readonly verifyPlans: readonly {
+    readonly holderId: string;
+    readonly plans: readonly VerifyPlan[];
+  }[];
+  readonly credibility: readonly (readonly [string, number])[];
+  readonly nextSerial: number;
+  readonly currentDay: number;
+  readonly metToday: readonly (readonly [string, number])[];
+}
+
+/**
  * 一台记忆世界。
  *
  * 所有随机都从 `worldId + day + holder + op` 派生，所有集合的迭代顺序都
@@ -1975,6 +2019,95 @@ export class MemoryWorld {
 
   private nextEventId(prefix: string): string {
     return `${prefix}_${String(this.nextSerial).padStart(4, '0')}`;
+  }
+
+  // ---------------------------------------------------------------- 存档
+
+  /**
+   * 把全部可变状态摊成一份可 JSON 化的快照。
+   *
+   * 只读、不改变任何东西；返回的数组元素是内部对象的引用，调用方应当立刻
+   * `JSON.stringify` 掉（`MemoryRuntime.toJSON()` 就是这么做的）。
+   */
+  toSnapshot(): MemoryWorldSnapshot {
+    return {
+      holders: [...this.holders.values()],
+      facts: [...this.facts.values()],
+      entries: [...this.entries],
+      claims: [...this.claims.values()],
+      beliefs: [...this.beliefs],
+      traces: [...this.traces.entries()].map(([placeId, entries]) => ({
+        placeId,
+        entries: [...entries],
+      })),
+      legends: [...this.legends],
+      placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
+        placeId,
+        name: toponym.name,
+        history: [...toponym.history],
+      })),
+      announcements: [...this.announcements],
+      tells: [...this.tells],
+      written: [...this.written],
+      cooldowns: [...this.cooldowns],
+      fanout: { day: this.fanout.day, counts: [...this.fanout.counts.entries()] },
+      verifyPlans: [...this.verifyPlans.entries()].map(([holderId, plans]) => ({
+        holderId,
+        plans: [...plans],
+      })),
+      credibility: [...this.credibility.scores.entries()],
+      nextSerial: this.nextSerial,
+      currentDay: this.currentDay,
+      metToday: [...this.metToday.entries()],
+    };
+  }
+
+  /**
+   * 用一份快照覆盖当前状态。**不是合并**：先清空再填，读档后的库与存档时一致。
+   *
+   * 不做校验——形状校验在 `MemoryRuntime.fromJSON()` 那一层；到这里已经是
+   * 通过校验的数据。dep 字段（config / relations / grid / emit / worldId）不动。
+   */
+  restoreSnapshot(snapshot: MemoryWorldSnapshot): void {
+    this.holders.clear();
+    for (const holder of snapshot.holders) this.holders.set(holder.holderId, holder);
+
+    this.facts.clear();
+    for (const fact of snapshot.facts) this.facts.set(fact.eventId, fact);
+
+    this.entries = [...snapshot.entries];
+
+    this.claims.clear();
+    for (const claim of snapshot.claims) this.claims.set(claim.claimId, claim);
+
+    this.beliefs = [...snapshot.beliefs];
+
+    this.traces.clear();
+    for (const entry of snapshot.traces) this.traces.set(entry.placeId, [...entry.entries]);
+
+    this.legends = [...snapshot.legends];
+
+    this.placeNames.clear();
+    for (const entry of snapshot.placeNames) {
+      this.placeNames.set(entry.placeId, { name: entry.name, history: [...entry.history] });
+    }
+
+    this.announcements = [...snapshot.announcements];
+    // `tells` 是 readonly 引用，只能原地替换内容。
+    this.tells.splice(0, this.tells.length, ...snapshot.tells);
+    this.written = [...snapshot.written];
+    this.cooldowns = [...snapshot.cooldowns];
+    this.fanout = { day: snapshot.fanout.day, counts: new Map(snapshot.fanout.counts) };
+
+    this.verifyPlans.clear();
+    for (const entry of snapshot.verifyPlans) {
+      this.verifyPlans.set(entry.holderId, [...entry.plans]);
+    }
+
+    this.credibility = { scores: new Map(snapshot.credibility) };
+    this.nextSerial = snapshot.nextSerial;
+    this.currentDay = snapshot.currentDay;
+    this.metToday = new Map(snapshot.metToday);
   }
 
   private emit(kind: MemoryEvent['kind'], at: number, payload: Readonly<Record<string, unknown>>): void {

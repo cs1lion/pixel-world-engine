@@ -1,4 +1,4 @@
-/** 存档 v1：只序列化世界自有事实（ADR_SAVE §1，final / frozen）。
+/** 存档 v5：只序列化世界自有事实（ADR_SAVE §1，final / frozen）。
  *
  * 这里刻意不 import Simulation：存档形状与运行时类解耦，测试可离线校验。
  * 字段冻结规则：WorldSaveV1 与 docs/save-v1.sample.json 必须一致；
@@ -33,7 +33,7 @@ import { CARRY_ITEMS } from './gate.ts';
 import type { WeatherState } from './weather.ts';
 import type { TideOverride } from './tide.ts';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 /** 槽位键沿用 v1：升 schema 不改存储键，老档才读得到、才谈得上迁移。 */
 export const SAVE_STORAGE_KEY = 'xiaoxi.pixel-world.save.v1';
 /** 已结算记录超过这个数就告警一次（每会话一次）。 */
@@ -58,6 +58,16 @@ export const SCHEMA_V3_FINGERPRINT = '7b6a0058c54ba3e4';
  * 谁来写、写成什么由各自的票决定（SPEC_V2 §4.6）。
  */
 export const SCHEMA_V4_FINGERPRINT = 'aea397c23b23cda4';
+/**
+ * v5 冻结指纹。由 docs/save-v5.sample.json 算出，单测核对。
+ *
+ * v5 只加一个**位置**：`world.memory`。它存的是一段带版本的 JSON 字符串
+ * （`MemoryRuntime.toJSON()` 的产物），不是结构化对象——记忆层内部有动态键
+ * （`WorldFact.outcome` 是 `Record<string, unknown>`），静态路径集合穷举不了。
+ * 所以存档这一层只认「这里有一个字符串」，字符串内部由记忆层自己的
+ * `memorySchemaVersion` 校验。字段集合与指纹机制不变。
+ */
+export const SCHEMA_V5_FINGERPRINT = '3ca5663faee59423';
 
 /** v1 冻结路径全集（99 条，来自 docs/save-v1.sample.json；指纹见上，单测核对）。
  * `assertSaveV1` 做**集合包含**校验：存档出现的每条叶子路径都必须在这个集合里；
@@ -240,6 +250,15 @@ export const SAVE_V4_ADDED_PATHS: readonly string[] = [
 ];
 
 /**
+ * v5 在 v4 之上新增的叶子路径：**只有一条**。
+ *
+ * `world.memory` 是一个字符串（空串 = 没有记忆），不是对象。原因见
+ * `SCHEMA_V5_FINGERPRINT` 的注释：记忆层的 `outcome` 有动态键，路径集合
+ * 无法穷举。字符串内部的形状归记忆层自己的版本号管，不归存档白名单管。
+ */
+export const SAVE_V5_ADDED_PATHS: readonly string[] = ['world.memory'];
+
+/**
  * v1 冻结的 `world.tasks[]` 键集合（必须与 docs/save-v1.sample.json 逐键一致）。
  * 运行时字段（如 ledgerCompletedAt）不得落盘；字段漂移必须升版本，不能裸加。
  */
@@ -348,7 +367,8 @@ export interface SavedConstruction {
   readonly totalMs: number;
 }
 
-export interface SaveWorld {
+/** v1–v4 的世界形状（不含 v5 新增的 memory 位置）。 */
+export interface SaveWorldLegacy {
   readonly now: number;
   readonly villagers: readonly SavedVillager[];
   readonly buildings: readonly PlacedBuilding[];
@@ -383,6 +403,25 @@ export interface SaveWorld {
   readonly worldChangeVersion: number;
 }
 
+/**
+ * 记忆段：一段带版本的 JSON 字符串，空串表示没有记忆。
+ *
+ * 类型单独起名，是为了让 `Simulation.toSave(memoryState?: MemorySave)` 的签名
+ * 一眼看出这里交接的是**字符串**而不是结构体；记忆层自己的形状由
+ * `MemoryRuntime` 的 `memorySchemaVersion` 管。
+ */
+export type MemorySave = string;
+
+/**
+ * 当前版本的世界形状 = v1–v4 的全部字段 + `world.memory`。
+ *
+ * `memory` 是一个字符串：`MemoryRuntime.toJSON()` 的产物，空串表示没有记忆。
+ * 它不展开成对象，理由见 `SCHEMA_V5_FINGERPRINT` 的注释。
+ */
+export interface SaveWorld extends SaveWorldLegacy {
+  readonly memory: MemorySave;
+}
+
 export interface SaveMeta {
   /** 仅诊断，永不喂逻辑（ADR_SAVE §5）。 */
   readonly savedAtWallClock: number;
@@ -394,30 +433,36 @@ export interface SaveMeta {
 
 export interface WorldSaveV1 {
   readonly schemaVersion: 1;
-  readonly world: SaveWorld;
+  readonly world: SaveWorldLegacy;
   readonly meta: SaveMeta;
 }
 
 export interface WorldSaveV2 {
   readonly schemaVersion: 2;
-  readonly world: SaveWorld;
+  readonly world: SaveWorldLegacy;
   readonly meta: SaveMeta;
 }
 
 export interface WorldSaveV3 {
   readonly schemaVersion: 3;
-  readonly world: SaveWorld;
+  readonly world: SaveWorldLegacy;
   readonly meta: SaveMeta;
 }
 
 export interface WorldSaveV4 {
   readonly schemaVersion: 4;
+  readonly world: SaveWorldLegacy;
+  readonly meta: SaveMeta;
+}
+
+export interface WorldSaveV5 {
+  readonly schemaVersion: 5;
   readonly world: SaveWorld;
   readonly meta: SaveMeta;
 }
 
-/** 运行期只认当前版本。v1/v2/v3 只在迁移入口出现，不流进 Simulation。 */
-export type WorldSave = WorldSaveV4;
+/** 运行期只认当前版本。v1–v4 只在迁移入口出现，不流进 Simulation。 */
+export type WorldSave = WorldSaveV5;
 
 export type RawSave = Record<string, unknown>;
 
@@ -509,7 +554,14 @@ export const SAVE_V4_ALLOWED_PATHS: readonly string[] = [
 const SAVE_V1_PATH_SET = new Set(SAVE_V1_ALLOWED_PATHS);
 const SAVE_V2_PATH_SET = new Set(SAVE_V2_ALLOWED_PATHS);
 const SAVE_V3_PATH_SET = new Set(SAVE_V3_ALLOWED_PATHS);
+/** v5 允许全集 = v4 全集 + 唯一新增的 `world.memory`。 */
+export const SAVE_V5_ALLOWED_PATHS: readonly string[] = [
+  ...SAVE_V4_ALLOWED_PATHS,
+  ...SAVE_V5_ADDED_PATHS,
+];
+
 const SAVE_V4_PATH_SET = new Set(SAVE_V4_ALLOWED_PATHS);
+const SAVE_V5_PATH_SET = new Set(SAVE_V5_ALLOWED_PATHS);
 
 /** 对任意存档对象取指纹（跳过 meta.schemaFingerprint）。 */
 export function saveFingerprint(save: unknown): string {
@@ -694,7 +746,7 @@ function checkPointList(value: unknown, path: string): void {
  * `version` 决定查到哪一版为止：旧档在迁移前必须能过这一层，
  * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`，v2 不查 v3 的三个字段。
  */
-function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4): void {
+function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5): void {
   const world = asRecord(raw.world, 'world');
 
   checkNumber(requireKey(world, 'now', 'world'), 'world.now', { min: 0 });
@@ -950,6 +1002,13 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 
     });
   }
 
+  if (version >= 5) {
+    // ---- 记忆（v5）：存档这一层只认「有一个字符串」，空串 = 没有记忆。
+    // 字符串内部（含 memorySchemaVersion 与全部记忆状态）由 MemoryRuntime.fromJSON
+    // 自行解析与校验；存档白名单不展开它，因为 outcome 有动态键。
+    checkString(requireKey(world, 'memory', 'world'), 'world.memory', { allowEmpty: true });
+  }
+
   // ---- 天气
   const weather = asRecord(requireKey(world, 'weather', 'world'), 'world.weather');
   checkEnum(requireKey(weather, 'kind', 'world.weather'), WEATHER_KINDS, 'world.weather.kind');
@@ -1012,8 +1071,8 @@ function validateMetaFields(raw: Record<string, unknown>): void {
  */
 export function validateSaveFields(
   raw: unknown,
-  version: 1 | 2 | 3 | 4 = CURRENT_SCHEMA_VERSION,
-): asserts raw is WorldSaveV1 | WorldSaveV2 | WorldSaveV3 | WorldSaveV4 {
+  version: 1 | 2 | 3 | 4 | 5 = CURRENT_SCHEMA_VERSION,
+): asserts raw is WorldSaveV1 | WorldSaveV2 | WorldSaveV3 | WorldSaveV4 | WorldSaveV5 {
   if (!isObject(raw)) fail('存档', '不是对象');
   validateMetaFields(raw);
   validateWorldFields(raw, version);
@@ -1032,14 +1091,10 @@ export function validateSaveFields(
  *
  * 三层各管一段，合起来才等价于"形状完全没变"；任何一层失败都按坏档处理。
  *
- * v1 仍被接受，是因为迁移前的旧档要先按 v1 形状自证一次（`MIGRATIONS[1]`）。
- * 迁移完成后到这里的存档是 **v4**——`CURRENT_SCHEMA_VERSION = 4`，而 `assertSave`
- * 第一件事就是拿它比（下面那个 `schemaVersion 不是 4` 的抛错）。
- *
- * 这里原来写「一律是 v3」——v4 落地时漏改的旧话，而它挂在整个存档校验唯一入口的
- * 文档上。同一段上面那句枚举也停在 v3，没提 v4 全集，一并补上。
+ * 迁移完成后到这里的存档是 **v5**——`CURRENT_SCHEMA_VERSION = 5`，而 `assertSave`
+ * 第一件事就是拿它比（下面那个 `schemaVersion 不是 5` 的抛错）。
  */
-export function assertSave(raw: unknown): asserts raw is WorldSaveV4 {
+export function assertSave(raw: unknown): asserts raw is WorldSaveV5 {
   if (!isObject(raw)) throw new Error('存档不是对象');
   if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`schemaVersion 不是 ${CURRENT_SCHEMA_VERSION}（迁移没跑？）`);
@@ -1053,7 +1108,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV4 {
   if (typeof meta.schemaFingerprint !== 'string') {
     throw new Error('存档缺 meta.schemaFingerprint（当前版本要求该字段存在）');
   }
-  if (meta.schemaFingerprint !== SCHEMA_V4_FINGERPRINT) {
+  if (meta.schemaFingerprint !== SCHEMA_V5_FINGERPRINT) {
     throw new Error('存档指纹不符（字段变了但版本没升，或存档损坏）');
   }
   // 第 1 层：字段级类型/范围/存在性（含 weather/faith、各数组元素、done⊆settled）。
@@ -1066,7 +1121,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV4 {
     assertKeys(task as Record<string, unknown>, SAVE_TASK_KEYS, 'world.tasks[]');
   }
   // 第 3 层：路径集合包含校验——只防「新增路径」（顶层/world/meta/数组元素里多字段）。
-  const outside = collectSavePaths(raw).filter((path) => !SAVE_V4_PATH_SET.has(path));
+  const outside = collectSavePaths(raw).filter((path) => !SAVE_V5_PATH_SET.has(path));
   if (outside.length > 0) {
     throw new Error(
       `存档字段漂移：出现 v${CURRENT_SCHEMA_VERSION} 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
@@ -1206,7 +1261,7 @@ export function findOutOfWorldCoordinates(
  */
 function assertLegacySave(
   raw: unknown,
-  version: 1 | 2 | 3,
+  version: 1 | 2 | 3 | 4,
   fingerprint: string,
   pathSet: ReadonlySet<string>,
 ): void {
@@ -1259,6 +1314,15 @@ export function assertSaveV2(raw: unknown): asserts raw is WorldSaveV2 {
  */
 export function assertSaveV3(raw: unknown): asserts raw is WorldSaveV3 {
   assertLegacySave(raw, 3, SCHEMA_V3_FINGERPRINT, SAVE_V3_PATH_SET);
+}
+
+/**
+ * 只认 v4 形状的自证校验。v4→v5 迁移前用它，理由同 v1/v3：
+ * v4 曾经是当前版本，不需要自证；降级为旧版之后，迁移链必须先证明
+ * 「它确实是 v4」，否则被改过的 v4 档会被安静地迁成 v5。
+ */
+export function assertSaveV4(raw: unknown): asserts raw is WorldSaveV4 {
+  assertLegacySave(raw, 4, SCHEMA_V4_FINGERPRINT, SAVE_V4_PATH_SET);
 }
 
 /** 逐级迁移链入口；任一步抛错都拒绝加载（ADR_SAVE §3）。 */
@@ -1386,6 +1450,24 @@ export const MIGRATIONS: Record<number, Migration> = {
       meta: { ...meta, schemaFingerprint: SCHEMA_V4_FINGERPRINT },
     };
   },
+
+  /**
+   * v4 → v5：只补一个位置 `world.memory`（见 SCHEMA_V5_FINGERPRINT 的注释）。
+   *
+   * 缺省值是空串，不是 `{}`：空串读作「这个存档没有记忆」，与「有记忆但内容是空对象」
+   * 区分开；`MemoryRuntime.fromJSON('')` 明确返回 false（无记忆），不会尝试解析。
+   * 老档里的世界从没写过记忆，不能凭空安一段上去。
+   */
+  4: (raw) => {
+    const world = isObject(raw.world) ? raw.world : {};
+    const meta = isObject(raw.meta) ? raw.meta : {};
+    return {
+      ...raw,
+      schemaVersion: 5,
+      world: { ...world, memory: typeof world.memory === 'string' ? world.memory : '' },
+      meta: { ...meta, schemaFingerprint: SCHEMA_V5_FINGERPRINT },
+    };
+  },
 };
 
 export function migrateSave(raw: RawSave): RawSave {
@@ -1394,6 +1476,7 @@ export function migrateSave(raw: RawSave): RawSave {
   if (version === 1) assertSaveV1(raw);
   if (version === 2) assertSaveV2(raw);
   if (version === 3) assertSaveV3(raw);
+  if (version === 4) assertSaveV4(raw);
   let current = raw;
   let cursor = version;
   while (cursor < CURRENT_SCHEMA_VERSION) {

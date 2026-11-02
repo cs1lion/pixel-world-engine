@@ -1,6 +1,7 @@
 # 记忆索引
 
-派生物，不要手改。真正的事实在 `entries/`、`characters/`、`events/` 三个目录的文件里。
+派生物，不要手改。由 `server/memory/writer.py` 在写成功后同步维护；
+真正的事实在 `entries/`、`characters/`、`events/` 三个目录的文件里。
 
 字段：
 

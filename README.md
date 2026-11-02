@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                183 个测试文件
+└── test/                184 个测试文件
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -172,9 +172,9 @@ cd server && python -m pytest
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1824 通过 / 9 跳过 / 0 失败
+2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1838 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
-0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 493 通过 / 1 跳过。
+0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
 
 **受查处数不写在这儿**：它随文档增长，而这份 README 自己就是增长源——上面那些数字写下
 的同一次编辑，就把受查处数从 1885 改成了 1904。要数就现跑，输出第一行就是它。
@@ -212,23 +212,23 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 
 > 状态核对日期：2026-11-02（本段以代码为准；测试与审计数字现跑得出）。
 
-**跑着的**：世界内核与渲染、两套设定集与各自的存档槽、v1→v4 迁移链、七条命令的服务端
+**跑着的**：世界内核与渲染、两套设定集与各自的存档槽、v1→v5 迁移链、七条命令的服务端
 白名单与十种客户端意图、编年史面板（读 `/api/memory/list`）、`memory/` 的三条铁律。
 
-**半接的**：
-
-- 记忆的**写面**只到服务端 `POST /api/memory/write`。浏览器端没有调用方——记忆客户端
-  只有 `list()` 与 `read()`，那是有意的：写收的是「已经观测到的事」，不该由界面按钮发起。
-  所以 `memory/` 里那四份文件是手工收进库的，不是跑一遍自动落盘的。
-- 记忆在**内存里**是活的：`MemoryRuntime` 接在 `SandboxScene` 上，每拍喂位置、跨日关账、
-  抛心电图。但它不进存档，刷新就重来。
-
-**没接的**：外环五个子模块（只有测试与未接线的 `src/creator/engine.ts` 引用它们），
+**半接的**：外环五个子模块（只有测试与未接线的 `src/creator/engine.ts` 引用它们），
 以及外环整合层 `CreatorEngine`——`src/creator/engine.ts` 已入库且过 check，但没有生产
 调用方，内部仍有 TODO 与写死的达标指标。
 
-**没写入方的**：`memory/index.yaml`。`INDEX_NAME` 只在 `paths.py` 里定义了路径，
-没有任何地方写它，所以目前的 `last_event_seq: 0` 是初始值，不是被维护出来的。
+**记忆的写面（第二阶段已接）**：浏览器端不再只有 `list()` / `read()`。
+世界回写日志成功、拿到事件 id 之后，`SandboxScene` 把它排进 `memoryOutbox`，
+在自动存档那一刻（`maybeAutoSave`，与存档共用同一条 30s / 状态变化节流）交一条
+到 `POST /api/memory/write`。写不是每拍发一次：空队不请求、同一时刻只有一条在途、
+成功才出队。服务端写成功后同步推进 `memory/index.yaml` 的 `last_event_seq`
+（`server/memory/writer.py` 的 `_touch_index`）——那句「由谁维护」现在有实现撑着。
+
+**记忆也在存档里**：`world.memory` 是一段自带 `memorySchemaVersion` 的 JSON 字符串
+（空串 = 没有记忆）。`Simulation.toSave()` 只负责把它原样写进 v5 存档；读档时由
+`SandboxScene` 在 `Simulation.fromSave()` 之后调 `this.memory.fromJSON()` 复原。
 
 ## 与旧仓的关系
 
