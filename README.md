@@ -185,7 +185,7 @@ cd server && python -m pytest
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-11-02 在干净工作区上量到的（feat 分支快照 `4d4e309`；同日后又有 docs 提交，数字未随之变化）：`check` 0 错、`test` 1870 通过 / 9 跳过 / 0 失败
+2026-11-02 在干净工作区上量到的（`feat/creator-engine-wire` 合入 `main` 之后）：`check` 0 错、`test` 1870 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
 0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
 
