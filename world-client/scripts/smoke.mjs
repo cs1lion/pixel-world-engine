@@ -28,6 +28,9 @@ const URL_BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = process.env.EVAL_OUT ?? 'eval/screens';
 // 事件流模式：先起服务端（8000），再 `FEED=1 node scripts/smoke.mjs`。
 const FEED = process.env.FEED === '1';
+// 显式注入的昼夜阶段。默认正午；要验「换一个本地时刻也成立」时
+// `SMOKE_TIME=dawn|dusk|night` 各跑一次，脚本不再读 `Date.now()`。
+const SMOKE_TIME = process.env.SMOKE_TIME ?? 'noon';
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
@@ -363,13 +366,16 @@ async function runSandboxSuite() {
   // 一句代码活：行礼 → 赶路 → 开工。派活只叫一个人。
   await page.fill('#utterance', '帮我写个爬虫脚本');
   await page.click('button[type="submit"]');
+  // 先等行礼、再等回执：回执与行礼在同一拍出现，先等回执会把等待时间
+  // 叠在 700ms 的窗口前面，窗口一过就只剩 toWork。顺序反过来，窗口由
+  // 世界时间自己撑住，回执随后再核对（它不会因为晚读而消失）。
+  const saluting = await waitFor((s) => s.villager.mode === 'saluting', '她停下手里的事行礼');
   await page.waitForFunction(
     () => (document.querySelector('#reply')?.textContent ?? '').includes('神谕已送达'),
     null,
     { timeout: 5000 },
   );
   check(true, '界面回了世界结算后的神谕回执');
-  const saluting = await waitFor((s) => s.villager.mode === 'saluting', '她停下手里的事行礼');
   check(saluting.villager.bubble !== null, '行礼时头上有字');
   const overlayBubble = await page.evaluate(() => {
     const bubbles = [...document.querySelectorAll('#world-overlay .overlay-bubble')];
@@ -889,7 +895,15 @@ try {
   await page.goto(
     // ?debug=1：维护条（派活按钮、造物、神迹、存档、调试面板）只在调试层出现，
     // 产品页默认没有它们。回归脚本要驱动它们，就必须显式打开这一层。
-    FEED ? `${URL_BASE}?feed=on&debug=1` : `${URL_BASE}?feed=off&debug=1`,
+    // 时间必须由脚本注入，不读墙钟：
+    // - `time=noon` 固定昼夜阶段，画面与光照不再随本机时刻变化；
+    // - `speed=1` 让世界按 1:1 走。行礼窗口是 700ms **世界时间**，默认 6× 下
+    //   只剩约 117ms 实时——而这里断言的是「于是一个瞬时状态」，等待本身
+    //   （DOM 回执 + 轮询）就可能跨过它，于是同一份代码会在快机器上绿、
+    //   在慢机器/夜里红。1:1 让窗口回到 700ms 实时，由世界时间决定，不靠运气。
+    FEED
+      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&speed=1`
+      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&speed=1`,
     { waitUntil: 'load' },
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });
