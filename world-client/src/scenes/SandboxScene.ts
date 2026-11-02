@@ -66,7 +66,7 @@ import { paceFrame, shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '..
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
-import { parseCreationPlan } from '../world/creator-schema.ts';
+import { CreatorEngine, type CreatorWorldView } from '../creator/engine.ts';
 import {
   biomeRingAllows,
   checkPlacement,
@@ -96,7 +96,7 @@ import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
 import type { SettingPack } from '../settings/types.ts';
 import { createSettingScenery, type SettingSceneryView } from '../render/setting-scenery.ts';
-import { routineProfiles } from '../settings/index.ts';
+import { routineProfiles, selectSetting } from '../settings/index.ts';
 
 export interface ScenePayload {
   readonly world: BuiltWorld;
@@ -220,6 +220,16 @@ export class SandboxScene extends Phaser.Scene {
    */
   private memoryClient: MemoryClient | null = null;
   private memoryOutbox: MemoryOutbox | null = null;
+  /**
+   * 外环：造物主引擎。**这次它真的在生产路径上**。
+   *
+   * 场景把世界现状喂给它（`creatorWorldView()`），它产出的计划经
+   * `Simulation.enqueue` 落地——与玩家在造物模式里点出来的走同一条通道，
+   * 没有第二套写世界的入口。世界日结束时它也在这里结算（`closeWorldDay`）。
+   *
+   * 没有设定集（莞尔镇）时用默认包：`selectSetting('')` 返回的就是它。
+   */
+  private creator: CreatorEngine | null = null;
   /**
    * 内环：记忆与传播。世界每拍交一份处境给它，跨日时它关账。
    *
@@ -688,6 +698,10 @@ export class SandboxScene extends Phaser.Scene {
         );
       },
       onVitals: (vitals) => {
+        // 世界日结束：外环在这里按**真实天数**结算一次，并把心电图喂给导演。
+        // 这一步原先没有调用方——`CreatorEngine.processDayClosed` 与
+        // `closeWorldDay` 只存在于测试里。现在跨日是它们唯一的事实来源。
+        this.stepCreatorDayClosed(vitals);
         // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
         // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。
         void this.eventsClient?.record(
@@ -731,6 +745,14 @@ export class SandboxScene extends Phaser.Scene {
       },
     });
     this.snapshot = this.sim.snapshot();
+    // 造物引擎进生产路径：世界是场景这一份（不再另建第二份），种子取设定集 id，
+    // 时钟取世界时间。三者都由场景给，引擎不自己造兜底。
+    const creatorPack = this.pack ?? selectSetting('');
+    this.creator = new CreatorEngine(creatorPack, {
+      worldSeed: creatorPack.id,
+      worldTime: () => this.snapshot.now,
+      world: this.world,
+    });
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
     if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);
     this.lastSaveKey = this.saveStateKey();
@@ -796,6 +818,7 @@ export class SandboxScene extends Phaser.Scene {
     this.eventsClient = null;
     this.memoryClient = null;
     this.memoryOutbox = null;
+    this.creator = null;
     this.overlay?.dispose();
     this.overlay = null;
     if (this.nightKeyListener !== null) {
@@ -980,6 +1003,81 @@ export class SandboxScene extends Phaser.Scene {
     );
     this.sightsee();
     this.memory.tick(this.snapshot.now);
+  }
+
+  /**
+   * 一个世界日结束时的外环动作：结算天数、喂心电图、在允许时提议一次造物。
+   *
+   * **不替人点头。** L0–L2 的自治规则是「需要人工确认」，所以这里先问
+   * `evaluateFuseDecision`；只有它说 `allow`（L3 抽检未抽中 / 已达 L4）才把
+   * 计划放进队列。其余等级只结算、只提议，不改世界。
+   */
+  private stepCreatorDayClosed(vitals: {
+    readonly meanValence: number;
+    readonly meanArousal: number;
+    readonly infoEntropy: number;
+    readonly isolatedHoldersCount: number;
+  }): void {
+    const creator = this.creator;
+    if (creator === null) return;
+
+    creator.closeWorldDay();
+    creator.processDayClosed({
+      meanValence: vitals.meanValence,
+      meanArousal: vitals.meanArousal,
+      infoEntropy: vitals.infoEntropy,
+      isolatedHoldersCount: vitals.isolatedHoldersCount,
+    });
+
+    if (creator.getFuseDecision('mapper').action !== 'allow') return;
+    const proposal = creator.planCreation(this.creatorWorldView());
+    if (proposal === null) return;
+    this.sim.enqueue({
+      kind: 'build',
+      prefabId: proposal.templateId,
+      instanceId: this.sim.nextInstanceId(proposal.templateId),
+      at: proposal.at,
+      source: { taskId: `creator-${proposal.templateId}`, summary: proposal.reason },
+    });
+  }
+
+  /**
+   * 喂给造物引擎的世界现状。
+   *
+   * `canPlace` 用**与手动造物同一套**判据（迷雾 / `checkPlacement` / 群落环），
+   * 不另写一条更松的。引擎据此挑落点，落地时再由 `Simulation.build` 走
+   * `placeBlueprint` 的同一套校验——两边都过，才不会「提议说行、落地被拒」。
+   */
+  private creatorWorldView(): CreatorWorldView {
+    return {
+      day: Math.floor(this.snapshot.now / DAY_MS),
+      builtPrefabIds: new Set(this.snapshot.buildings.map((building) => building.prefabId)),
+      width: this.world.grid.width,
+      height: this.world.grid.height,
+      canPlace: (prefabId, at) => {
+        const blueprint = this.blueprints.get(prefabId);
+        if (blueprint === undefined) return false;
+        if (fogAt(at, this.snapshot.fog)) return false;
+        if (!checkPlacement(this.world.grid, blueprint, at).ok) return false;
+        return biomeRingAllows(prefabId, at, this.world.altar);
+      },
+    };
+  }
+
+  /**
+   * 要素覆盖率：**已落地模板数 / 设定集模板总数**。
+   *
+   * 这是当前数据能算的唯一口径：`pack.blueprints` 列出了这套世界允许的
+   * 全部模板，`snapshot.buildings` 是此刻真的立着的（加上刚确认的这一次）。
+   * 不拿「打算建几栋」当分母——没有那样一份清单；也不四舍五入成 1，
+   * 差一栋就是差一栋。
+   */
+  private blueprintCoverage(extraPrefabId?: string): number {
+    const total = this.blueprints.size;
+    if (total === 0) return 0;
+    const built = new Set(this.snapshot.buildings.map((building) => building.prefabId));
+    if (extraPrefabId !== undefined) built.add(extraPrefabId);
+    return Math.min(1, built.size / total);
   }
 
   /**
@@ -1518,26 +1616,26 @@ export class SandboxScene extends Phaser.Scene {
       return { ok: false, message: check.message };
     }
     const instanceId = this.sim.nextInstanceId(session.prefabId);
+    const creator = this.creator;
+    if (creator === null) return { ok: false, message: '造物引擎没有起来。' };
 
-    // 玩家的选择先拼成一份**造物意图**，过 schema 再落位。
-    // 这样手动造物与将来的 LLM 输出走同一条校验，schema 不是死代码。
-    const intent = {
-      templateId: session.prefabId,
-      at: session.ghostAt,
-      palette: {
-        body: tokenNameOf(blueprint.palette.body, this.worldPalette()),
-        roof: tokenNameOf(blueprint.palette.roof, this.worldPalette()),
-        trim: tokenNameOf(blueprint.palette.trim, this.worldPalette()),
-        window: tokenNameOf(blueprint.palette.window, this.worldPalette()),
-      },
+    // 玩家的选择先拼成一份**造物意图**，交给造物引擎过白名单形状校验，
+    // 再由 `Simulation.enqueue` 落位。手动造物与外环产出的计划共用这一条通道，
+    // 没有第二套写世界的入口。色板是**这套设定集**的，不是全局 24 色表。
+    const intentPalette = {
+      body: tokenNameOf(blueprint.palette.body, this.worldPalette()),
+      roof: tokenNameOf(blueprint.palette.roof, this.worldPalette()),
+      trim: tokenNameOf(blueprint.palette.trim, this.worldPalette()),
+      window: tokenNameOf(blueprint.palette.window, this.worldPalette()),
     };
+    let plan;
     try {
-      parseCreationPlan(
-        intent,
-        this.blueprints,
-        { width: this.world.grid.width, height: this.world.grid.height },
-        this.worldPalette(),
-      );
+      plan = creator.proposeCreation({
+        templateId: session.prefabId,
+        at: session.ghostAt,
+        palette: intentPalette,
+        worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+      });
     } catch (error) {
       // schema 不过就是玩家的选择有问题：留在模式里，说清哪里不对。
       return {
@@ -1548,14 +1646,24 @@ export class SandboxScene extends Phaser.Scene {
 
     this.sim.enqueue({
       kind: 'build',
-      prefabId: session.prefabId,
+      prefabId: plan.templateId,
       instanceId,
-      at: session.ghostAt,
+      at: plan.at,
       // 记下来由：这栋楼是你在造物模式里点出来的。纸面据此说得出它的来历。
       source: {
         taskId: `creation-${instanceId}`,
-        summary: `在 (${session.ghostAt.x},${session.ghostAt.y}) 建了${blueprint.displayName}`,
+        summary: `在 (${plan.at.x},${plan.at.y}) 建了${blueprint.displayName}`,
       },
+    });
+    // 人点了头，就是一次真实的人工确认。递进去的六项里**只有已经查过的**：
+    // 落位三道（迷雾/空间/群落）刚在上面跑过，覆盖率能数，来由刚写了；
+    // 门口到不到得了镇心在落位前判不准（`placeBlueprint` 落地才占格），
+    // 回放也没跑——这两项不填，让门禁读成 `null`。
+    creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+      coverageRate: this.blueprintCoverage(plan.templateId),
+      hasCollision: false,
+      spatialConstraintSatisfied: true,
+      traceable: true,
     });
     this.endCreation();
     return { ok: true, message: '动工了。' };

@@ -41,6 +41,8 @@ import {
   type CreatorRoleState,
 } from '../world/creator/fuse.ts';
 import type { BuiltWorld } from '../world/setup.ts';
+import type { GridPoint } from '../world/types.ts';
+import { parseCreationPlan, type CreationPlan } from '../world/creator-schema.ts';
 import { seedOf, unitFromSeed } from '../world/memory/seed.ts';
 import type { MemoryConfig } from '../world/memory/config.ts';
 import { DEFAULT_MEMORY_CONFIG } from '../world/memory/config.ts';
@@ -109,6 +111,29 @@ type InjectableEventKind =
   | 'oracle_message'
   | 'resource_discovery'
   | 'conflict_resolution';
+
+/**
+ * 造物引擎看到的世界现状。
+ *
+ * **不传网格、不传快照对象**：引擎只需要「已经有哪些模板」「哪里能放」这两件事。
+ * 落点合法性由场景用同一套 `checkPlacement` / `biomeRingAllows` / 迷雾判定回答，
+ * 这样引擎不必知道渲染层的迷雾，也不会自己另写一遍建造规则。
+ */
+export interface CreatorWorldView {
+  /** 第几个 world_day。同一天内多次提议必须得到同一个结果。 */
+  readonly day: number;
+  /** 已经落地的模板 id 集合。引擎只补缺，不重复建同一种铺子。 */
+  readonly builtPrefabIds: ReadonlySet<string>;
+  readonly width: number;
+  readonly height: number;
+  /** 这个位置能不能落这份模板。场景用与手动造物同一套判据。 */
+  readonly canPlace: (prefabId: string, at: GridPoint) => boolean;
+}
+
+/** 引擎提议的一次造物：计划本身 + 一句话说明为什么是它。 */
+export interface CreationProposal extends CreationPlan {
+  readonly reason: string;
+}
 
 /** 建造结果 */
 export interface BuildResult {
@@ -386,6 +411,84 @@ export class CreatorEngine {
    */
   deterministicRandom(seedPart: string): number {
     return unitFromSeed(seedOf(this.worldSeed, 1, 'creator', seedPart));
+  }
+
+  /**
+   * 按世界现状提议一次造物：挑一个**还没有**的模板，再按世界种子挑一个合规落点。
+   *
+   * 确定性来自三处：模板候选先 `sort()`、模板下标与扫描起点都从
+   * `seedOf(worldSeed, day, 'creator', …)` 取、扫描方向固定为行优先。
+   * 没有 `Math.random`，也没有墙钟——同一世界 + 同一 snapshot + 同一 seed
+   * 两次调用得到同一个 `templateId` 与同一个 `at`。
+   *
+   * 返回的计划**带着当前世界的色板**（模板配色由设定集装载时解析好），
+   * 不是全局 24 色表。
+   *
+   * 找不到合规落点就返回 `null`（这一天不提议），不硬塞一个非法位置。
+   */
+  planCreation(view: CreatorWorldView): CreationProposal | null {
+    const missing = [...this.pack.blueprints.keys()]
+      .filter((id) => !view.builtPrefabIds.has(id))
+      .sort();
+    if (missing.length === 0) return null;
+
+    const pick = missing[
+      Math.floor(
+        unitFromSeed(seedOf(this.worldSeed, view.day, 'creator', 'template', missing.join(',')))
+          * missing.length,
+      )
+    ];
+    if (pick === undefined) return null;
+    const blueprint = this.pack.blueprints.get(pick);
+    if (blueprint === undefined) return null;
+
+    const total = view.width * view.height;
+    if (total <= 0) return null;
+    const start = Math.floor(
+      unitFromSeed(seedOf(this.worldSeed, view.day, 'creator', 'spot', pick)) * total,
+    );
+    for (let step = 0; step < total; step += 1) {
+      const index = (start + step) % total;
+      const at = { x: index % view.width, y: Math.floor(index / view.width) };
+      if (!view.canPlace(pick, at)) continue;
+      return {
+        templateId: pick,
+        at,
+        palette: { ...blueprint.palette },
+        reason: `第 ${view.day} 天还缺「${blueprint.displayName}」，在 (${at.x},${at.y}) 找到了合规落点`,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * 人已经点头的一次造物：过同一份白名单形状校验，返回可入队的计划。
+   *
+   * 与 `planCreation` 的差别只在「谁选的」：这里模板与位置都是调用方给的
+   * （玩家在造物模式里点出来的），引擎负责校验与配色解析。
+   *
+   * **校验实现只有一份**：`parseCreationPlan` 再往下就是
+   * `world/creator/schema.ts` 的 `parsePlaceBuildingIntent`。色板是
+   * 这套设定集的 `pack.palette`，不是全局 `WORLD`。
+   */
+  proposeCreation(request: {
+    readonly templateId: string;
+    readonly at: GridPoint;
+    readonly worldSize: { readonly width: number; readonly height: number };
+    /** 槽位 → token 名。省略就整份用模板自带配色。 */
+    readonly palette?: Readonly<Record<string, string>>;
+  }): CreationPlan {
+    return parseCreationPlan(
+      {
+        templateId: request.templateId,
+        at: request.at,
+        ...(request.palette === undefined ? {} : { palette: request.palette }),
+      },
+      this.pack.blueprints,
+      request.worldSize,
+      this.pack.palette,
+    );
   }
 
   /**
