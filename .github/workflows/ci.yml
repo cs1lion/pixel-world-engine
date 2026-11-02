@@ -42,8 +42,6 @@ jobs:
     defaults:
       run:
         working-directory: world-client
-    env:
-      EVAL_OUT: ${{ runner.temp }}/eval-screens
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,9 +56,16 @@ jobs:
             curl -sf http://127.0.0.1:5188/ && break
             sleep 1
           done
+      # runner 上下文在 job 级 env 不可用，只能放在 step 级，否则工作流整体不编译。
       - run: npm run test:persistence
+        env:
+          EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: npm run test:render-budget
+        env:
+          EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: npm run test:phases
+        env:
+          EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: |
           if [ -n "$(git status --porcelain)" ]; then
             git status
