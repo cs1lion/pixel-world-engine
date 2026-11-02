@@ -2,7 +2,7 @@
 
 一个可换设定集的像素世界引擎：世界自己跑，LLM 只能输出白名单内的结构化命令去改变它。
 
-- 规范：`docs/SPEC.md`（v1 定稿）。取舍理由见 `docs/SPEC_DRAFT_20261025.md`。
+- 规范：`docs/SPEC.md` 是**唯一权威**（含 2026-10-25 v2 增补，见 §8–§15）。`docs/SPEC_V2.md` 已冻结为历史归档；`docs/SPEC_DRAFT_20261025.md` 只是草案。**禁止新增 `SPEC_*` 文件**；新决策写进 `docs/SPEC.md` 或 `docs/adr/`，历史草案只归档不删除。
 - 迁移盘点：`docs/MIGRATION_FROM_XIAOXI.md`。
 - 迭代目标暂存：`docs/iterations/`（目前：1027 迭代任务 1 · 内环、1027 迭代任务 2 · 外环）。
 - 美术设定（初版视觉基准）：《千与千寻视觉设定集》，见 `docs/art/`。

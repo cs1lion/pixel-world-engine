@@ -62,7 +62,9 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
   「做成什么样」，ADR 说的是「为什么不是另一种做法，以及另一种会坏在哪里」。
   命名跟随仓库现有约定（`ADR_<主题>.md`，全大写下划线），不编号。
   SPEC 与 ADR 冲突时，先看日期——晚的那个通常是在补前一个没考虑到的情况。
-  仍然以 `docs/SPEC.md` 为权威来源，ADR 只解释它没解释的那一半。
+  仍然以 `docs/SPEC.md` 为**唯一权威来源**，ADR 只解释它没解释的那一半。
+  自 2026-11-02 起，`docs/SPEC_V2.md` 冻结为历史归档（内容已收入 `SPEC.md` §8–§15），
+  保留路径与旧节号供引用解析；**禁止新增 `SPEC_*` 文件**，新决策只进 `SPEC.md` 或 `docs/adr/`。
 - monorepo 信号（`pnpm-workspace.yaml` / 根 `package.json` 的 `workspaces` / `packages/*`）— 全无。
   `world-client/` 有自己的 `package.json`，但根目录没有 workspace 声明，仍是单上下文。
 

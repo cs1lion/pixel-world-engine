@@ -35,7 +35,7 @@ server/                  FastAPI：规则校验、事件日志、LLM 造物主�
 ├── memory/              记忆写入：形状、证据、路径三道关
 └── oracle/              LLM 造物主接口
 docs/                    设计与决策
-├── SPEC.md              v1 规范定稿
+├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
 ├── iterations/          迭代资料（1027-task-1 内环 / 1027-task-2 外环）
 ├── adr/                 架构决策记录
 └── art/                 美术基准（《千与千寻视觉设定集》）
@@ -257,7 +257,7 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 
 ## Quick Links
 
-- **规范**：[`docs/SPEC.md`](docs/SPEC.md)（v1 定稿）
+- **规范**：[`docs/SPEC.md`](docs/SPEC.md)（**唯一权威**；v2 增补见 §8–§15）
 - **取舍理由**：[`docs/SPEC_DRAFT_20261025.md`](docs/SPEC_DRAFT_20261025.md)
 - **术语表**：[`GLOSSARY.md`](GLOSSARY.md)
 - **灯潮界实现范围**：[`docs/SETTING_DENGCHAO.md`](docs/SETTING_DENGCHAO.md)
