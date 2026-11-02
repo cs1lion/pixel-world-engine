@@ -1,5 +1,9 @@
 # ADR：编译后的设定集不跑 assertWorldInvariants——包这条路漏掉的世界校验
 
+- status: pending-review
+- verified_at: 2026-11-02
+- evidence: `world-client/src/world/setup.ts`, `world-client/src/settings/load.ts`, `docs/SPEC.md`
+
 - 状态：已接受（补记代码里既有的分叉；附两处待办）
 - 日期：2026-10-27
 - 关联票据：#9 #13
