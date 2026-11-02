@@ -54,7 +54,7 @@ jobs:
       # 拆成两步会让第二条命令拿到 ERR_CONNECTION_REFUSED。
       # runner 上下文在 job 级 env 不可用，只能放在 step 级，否则工作流整体不编译。
       - run: |
-          npm run preview -- --port 5188 &
+          npm run preview -- --port 5188 --strictPort --host 127.0.0.1 &
           for i in $(seq 1 60); do
             curl -sf http://127.0.0.1:5188/ && break
             sleep 1
