@@ -191,11 +191,11 @@ ffa3681 merge(feat): 外环造物接线并入 main（记忆持久化 v5 / 外环
 - 已删除：`fix/memory-persistence-docs`（已完整合入 `main`，`git branch -d` 成功）。
 - 保留：`feat/creator-engine-wire`（指向 `5f65980`，已完整合入 `main`；`git branch -d feat/creator-engine-wire` 可以安全执行，本步未删，留给用户决定是否保留这个指针）。
 - 保留：`cindy/zealous-jang`（在独立 worktree，属另一会话，不动）。
-- `main`：合并后领先 `origin/main` 32 笔（合并提交时 31 笔，再加本报告的对齐提交），差异 149 个文件 +13315/−759，其中含合入前就未推的 6 笔。**未 push、未删任何远端分支。**
+- `main`：相对 `origin/main` 的领先笔数 = 合入前就未推的 6 笔 + 本次 feat 的 24 笔 + 合入后的文档对齐提交（笔数以 `git rev-list --count origin/main..main` 现查为准，不在此写死）。本次合入本身为 68 个文件 +5980/−463。**未 push、未删任何远端分支。**
 
 ### 7.6 风险与合入后仍需复核
 
-1. **远端仍是旧世界**：`origin/main` 没有这 32 笔中的任何一笔。未 push 前，GitHub 上的 CI 不会跑新增的 `audit-claims` 与 `world-client-browser` job；这两个 job 目前只在本地按同样步骤人工跑过。
+1. **远端仍是旧世界**：`origin/main` 没有任何一笔合入的提交。未 push 前，GitHub 上的 CI 不会跑新增的 `audit-claims` 与 `world-client-browser` job；这两个 job 目前只在本地按同样步骤人工跑过。
 2. **机器接住的只有这五条**：测试文件数（187）、ADR 数（8）、存档版本（5）、SPEC 权威、iterations 入库数。README 里的 `1870 通过 / 9 跳过 / 496 pytest` 仍是快照数字，没有 claim 标记；下一次跑数变化时它们会再漂，是否给通过数也加探针需要你定（通过数依赖运行环境，探针要设计成“跑一次测试”而不是数文件）。
 3. **`main` 上此前没人碰过的过期引用**：`docs/MIGRATION_FROM_XIAOXI.md:93` 的“升存档 v3”是历史迁移步骤，不是现状断言，未改；`world-client/src/world/simulation.ts:640` 的注释“存档 v3 已冻结”是旧版本号标签，“水位不落档”这个事实仍成立，但标签已过期，属代码注释，未在本轮改。
 4. **合入后已失效的行为**：`feat` 分支不再是“未合入”状态，任何仍写“仅 feat / main 未合入”的文档都变成假话；本轮已改迭代索引与任务 2 两处，报告内 P2 段的历史描述保留原文并以此节为准。
