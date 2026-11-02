@@ -1,0 +1,51 @@
+{
+  "task": "diagnose intent endpoint 400",
+  "repo_head": "4d4e309",
+  "env": {
+    "server/.env": "exists",
+    "LLM_API_KEY": "set (non-empty, value never printed)",
+    "LLM_BASE_URL": "host=api.stepfun.com path=/step_plan/v1",
+    "LLM_MODEL": "step-5-preview",
+    "LLM_TIMEOUT_SECONDS": "30"
+  },
+  "appEndpoint": {
+    "request": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8123/api/world/intent",
+      "body": {
+        "utterance": "把候车亭拆了吧",
+        "templates": [{ "id": "waiting_shelter", "displayName": "候车亭", "boundTask": null }],
+        "worldSize": { "width": 64, "height": 48 }
+      }
+    },
+    "response": {
+      "status": 200,
+      "elapsedMs": 1372,
+      "body": {
+        "intent": {
+          "kind": "unknown",
+          "reason": "模型返回 400：{\"error\":{\"message\":\"you have no active step plan subscription\",\"type\":\"request_params_invalid\"}}"
+        },
+        "model": "step-5-preview",
+        "source": "none"
+      }
+    }
+  },
+  "upstream": {
+    "request": {
+      "method": "POST",
+      "url": "https://api.stepfun.com/step_plan/v1/chat/completions",
+      "model": "step-5-preview",
+      "authorization": "Bearer <redacted>"
+    },
+    "response": {
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"you have no active step plan subscription\",\"type\":\"request_params_invalid\"}}"
+    }
+  },
+  "serverAccessLog": "INFO: 127.0.0.1:40983 - \"POST /api/world/intent HTTP/1.1\" 200 OK",
+  "stringSearch": {
+    "repoMatchesForExactPhrase": 0,
+    "meaning": "this is an upstream provider response, not a local validation message"
+  }
+}

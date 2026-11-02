@@ -1,0 +1,51 @@
+{
+  "before": 6,
+  "reject": {
+    "begun": {
+      "ok": true,
+      "message": "选个位置：移动指针，回车确认，Esc 取消。"
+    },
+    "occupied": {
+      "x": 28,
+      "y": 20
+    },
+    "result": {
+      "ok": false,
+      "message": "这里已经有东西了。"
+    }
+  },
+  "afterReject": 6,
+  "build": {
+    "scan": {
+      "begun": {
+        "ok": true,
+        "message": "选个位置：移动指针，回车确认，Esc 取消。"
+      },
+      "cell": {
+        "x": 32,
+        "y": 8
+      }
+    },
+    "confirmed": {
+      "ok": true,
+      "message": "动工了。"
+    }
+  },
+  "afterBuild": 7,
+  "checks": {
+    "conflictChecks": 1,
+    "invariantChecks": 1,
+    "pathfindingChecks": 1,
+    "replayHashChecks": 1,
+    "coverageChecks": 1
+  },
+  "eventsLocal": [
+    "造物主动工：候车亭。",
+    "候车亭 落成了。"
+  ],
+  "delta": {
+    "reject": 0,
+    "build": 1
+  },
+  "pageErrors": []
+}

@@ -1,0 +1,92 @@
+[
+  {
+    "zoom": 1,
+    "scroll": {
+      "x": 400,
+      "y": 320
+    },
+    "probe": {
+      "x": 44,
+      "y": 30
+    },
+    "oldPoint": {
+      "x": 649.5,
+      "y": 404.796875
+    },
+    "newPoint": {
+      "x": 649.5,
+      "y": 404.796875
+    },
+    "oldGhost": {
+      "x": 44,
+      "y": 30
+    },
+    "newGhost": {
+      "x": 44,
+      "y": 30
+    },
+    "oldCellError": 0,
+    "newCellError": 0,
+    "oldPixelOffset": 0
+  },
+  {
+    "zoom": 2,
+    "scroll": {
+      "x": 400,
+      "y": 320
+    },
+    "probe": {
+      "x": 44,
+      "y": 30
+    },
+    "oldPoint": {
+      "x": 649.5,
+      "y": 404.796875
+    },
+    "newPoint": {
+      "x": 793.5,
+      "y": 420.796875
+    },
+    "oldGhost": {
+      "x": 42,
+      "y": 30
+    },
+    "newGhost": {
+      "x": 44,
+      "y": 30
+    },
+    "oldCellError": 2,
+    "newCellError": 0,
+    "oldPixelOffset": 144.88616221019868
+  },
+  {
+    "zoom": 3,
+    "scroll": {
+      "x": 400,
+      "y": 320
+    },
+    "probe": {
+      "x": 44,
+      "y": 30
+    },
+    "oldPoint": {
+      "x": 649.5,
+      "y": 404.796875
+    },
+    "newPoint": {
+      "x": 937.5,
+      "y": 436.7968749999999
+    },
+    "oldGhost": {
+      "x": 41,
+      "y": 30
+    },
+    "newGhost": {
+      "x": 44,
+      "y": 30
+    },
+    "oldCellError": 3,
+    "newCellError": 0,
+    "oldPixelOffset": 289.77232442039735
+  }
+]

@@ -146,7 +146,7 @@
 | `node scripts/check-creation.mjs`（需 `PIXEL_WORLD_URL`） | 17 项通过 |
 | 浏览器外环语义窄查 | 基线 0、单次 +1、被拒不变、刷新归 0、日结算后计数保留；服务端 `building.built` 增量 0（被拒）/ 1（成功） |
 
-浏览器证据（不入库）：`tmp/live-check-20261102/`（`counter-semantics.json`、`server-event-delta.json`、`intent-400-evidence.json`、`oracle-checks.json`、`coords-before.json` 与截图）。
+浏览器证据（JSON 已入库，原始截图未入库）：`docs/evidence/20261102-live-check/`（`counter-semantics.json`、`server-event-delta.json`、`intent-400-evidence.json`、`oracle-checks.json`、`coords-before.json`）。
 
 ## 六、给合入者的判断
 

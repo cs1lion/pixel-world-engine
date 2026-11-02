@@ -109,7 +109,7 @@
 ### C3. 上游 Step Plan 订阅导致非句首说法失败
 
 - **问题**：意图模型上游 `api.stepfun.com/step_plan/v1` 返回 400 `you have no active step plan subscription`；非本地解析器覆盖的口语说法（例如“把候车亭拆了吧”）会落到模型分支并失败。**[事实]**
-- **证据**：上游调用与 400 映射（[orchestrator.py](file:///D:/project/pixel-world-engine/server/oracle/orchestrator.py#L222-L244)）；HTTP 面按契约回 200+unknown（[api.py](file:///D:/project/pixel-world-engine/server/oracle/api.py#L59-L79)）；句首式拆除有本地路径（[oracle-build.ts](file:///D:/project/pixel-world-engine/world-client/src/world/oracle-build.ts#L23-L87)）。证据 JSON 在 `tmp/live-check-20261102/intent-400-evidence.json`（不入库）。
+- **证据**：上游调用与 400 映射（[orchestrator.py](file:///D:/project/pixel-world-engine/server/oracle/orchestrator.py#L222-L244)）；HTTP 面按契约回 200+unknown（[api.py](file:///D:/project/pixel-world-engine/server/oracle/api.py#L59-L79)）；句首式拆除有本地路径（[oracle-build.ts](file:///D:/project/pixel-world-engine/world-client/src/world/oracle-build.ts#L23-L87)）。证据 JSON 在 `docs/evidence/20261102-live-check/intent-400-evidence.json`。
 - **影响**：不是“拆楼功能坏了”，而是“部分措辞依赖模型”；玩家换句首说法可绕过，但体验不一致。**[事实+推断]**
 - **建议时机**：合入/演示前解决环境（开通订阅或换可用端点）。
 - **是否需要用户决策**：**是**（提供可用凭据 / 改部署配置 / 接受只支持本地短语）。
