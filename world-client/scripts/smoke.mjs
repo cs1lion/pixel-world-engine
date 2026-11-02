@@ -22,6 +22,7 @@
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { projectWorldToCanvas, TILE_PX } from './lib/camera-projection.mjs';
 
 const URL_BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = 'eval/screens';
@@ -59,15 +60,13 @@ const state = () => page.evaluate(() => window.Oracle.view());
 /**
  * DOM overlay 与 canvas 的对齐读数。
  *
- * 期望坐标必须走生产同一条换算：`scroll` 是**镜头中心**，overlay 摆的是
- * **视野原点**（`viewOriginOf`），且投影要乘相机 `zoom`。早先这里用
- * `(worldX - scrollX) * scale`，zoom=2 时整层文字偏了半个视野（240 逻辑像素）。
- *
- * 本文件是 `.mjs`，不能 import `src/render/camera-math.ts`；公式只有三行，
- * 生产那三行改了，这里必须跟着改（`viewOriginOf` / `projectWorldToOverlay`）。
+ * 期望坐标走脚本层共享的 `projectWorldToCanvas`（与生产 `viewOriginOf` /
+ * `projectWorldToOverlay` 同式）：`scroll` 是**镜头中心**，overlay 摆的是
+ * **视野原点**，且投影要乘相机 `zoom`。早先这里用 `(worldX - scrollX) * scale`，
+ * zoom=2 时整层文字偏了半个视野。
  */
-const measureOverlayFit = () =>
-  page.evaluate(() => {
+const measureOverlayFit = async () => {
+  const raw = await page.evaluate(() => {
     const canvas = document.querySelector('#app canvas');
     const overlay = document.querySelector('#world-overlay');
     const names = [...document.querySelectorAll('#world-overlay .overlay-name')];
@@ -75,23 +74,19 @@ const measureOverlayFit = () =>
     const canvasRect = canvas.getBoundingClientRect();
     const villager = snapshot.villagers[0];
     const nameEl = names[0];
-    const cam = window.Oracle.camera();
-    const viewOrigin = (scroll, size, zoom) => scroll + size / 2 - size / (2 * zoom);
-    const cameraWorldX = viewOrigin(cam.scrollX, cam.width, cam.zoom);
-    const cameraWorldY = viewOrigin(cam.scrollY, cam.height, cam.zoom);
-    const scale = canvasRect.width / canvas.width;
-    const expectedX = ((villager.pos.x + 0.5) * 16 - cameraWorldX) * cam.zoom * scale;
-    const expectedY = ((villager.pos.y + 1) * 16 - 30 - cameraWorldY) * cam.zoom * scale;
-    const actualX = Number.parseFloat(nameEl?.style.left ?? 'NaN');
-    const actualY = Number.parseFloat(nameEl?.style.top ?? 'NaN');
     return {
-      zoom: cam.zoom,
+      camera: window.Oracle.camera(),
+      rect: { width: canvasRect.width, height: canvasRect.height },
+      gameSize: { width: canvas.width, height: canvas.height },
+      villagerPos: { x: villager.pos.x, y: villager.pos.y },
+      actual: {
+        x: Number.parseFloat(nameEl?.style.left ?? 'NaN'),
+        y: Number.parseFloat(nameEl?.style.top ?? 'NaN'),
+      },
       names: names.length,
       villagers: snapshot.villagers.length,
       text: nameEl?.textContent ?? '',
       expectedName: villager.name,
-      error: Math.hypot(actualX - expectedX, actualY - expectedY),
-      tolerance: Math.max(1, scale),
       overlayWidth: overlay?.getBoundingClientRect().width ?? 0,
       canvasWidth: canvasRect.width,
       bubblesVisible: [...document.querySelectorAll('#world-overlay .overlay-bubble')].filter(
@@ -99,6 +94,20 @@ const measureOverlayFit = () =>
       ).length,
     };
   });
+  const expected = projectWorldToCanvas(
+    (raw.villagerPos.x + 0.5) * TILE_PX,
+    (raw.villagerPos.y + 1) * TILE_PX - 30,
+    raw.camera,
+    raw.rect,
+    raw.gameSize,
+  );
+  return {
+    ...raw,
+    zoom: raw.camera.zoom,
+    error: Math.hypot(raw.actual.x - expected.x, raw.actual.y - expected.y),
+    tolerance: Math.max(1, raw.rect.width / raw.gameSize.width),
+  };
+};
 
 const waitFor = async (predicate, label, timeout = 25000) => {
   const started = Date.now();

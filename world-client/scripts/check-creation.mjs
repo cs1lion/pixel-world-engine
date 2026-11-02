@@ -10,6 +10,7 @@
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { cellToCanvasPoint } from './lib/camera-projection.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = 'eval/screens';
@@ -34,13 +35,30 @@ await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 2
 await page.waitForTimeout(600);
 
 const box = await page.locator('canvas').first().boundingBox();
-const tile = box.width / 30;
+const canvasSize = await page.evaluate(() => {
+  const canvas = document.querySelector('canvas');
+  return { width: canvas.width, height: canvas.height };
+});
+
+const currentCamera = () => page.evaluate(() => window.Oracle.camera());
+
+/** 世界格中心 → 页面坐标。换算走脚本层共享的 `cellToCanvasPoint`。 */
+const pointForCell = (cell, cam) => {
+  const point = cellToCanvasPoint(
+    cell,
+    cam,
+    { width: box.width, height: box.height },
+    canvasSize,
+  );
+  return { x: box.x + point.x, y: box.y + point.y };
+};
 
 /**
  * 把**世界格坐标**换成页面坐标，移动真实鼠标。
  *
  * 大世界里画布只是世界的一小块，必须减掉相机偏移；否则点的是屏幕上那个位置，
- * 世界坐标却完全在别处（实测建成判定全部失败）。
+ * 世界坐标却完全在别处。`scroll` 是镜头中心，换到屏幕要先用视野原点
+ * （`cellToCanvasPoint`），否则 zoom≠1 时会偏半个视野。
  */
 const hover = async (x, y) => {
   // 先把镜头对准目标格：目标可能在视野之外（工业区离祭坛有十几格）。
@@ -50,10 +68,9 @@ const hover = async (x, y) => {
     { x, y },
   );
   await page.waitForTimeout(120);
-  const cam = await page.evaluate(() => window.Oracle.camera());
-  const worldX = (x + 0.5) * 16 - cam.scrollX;
-  const worldY = (y + 0.5) * 16 - cam.scrollY;
-  await page.mouse.move(box.x + worldX * (box.width / 480), box.y + worldY * (box.height / 320));
+  const cam = await currentCamera();
+  const point = pointForCell({ x, y }, cam);
+  await page.mouse.move(point.x, point.y);
   await page.waitForTimeout(180);
 };
 
@@ -139,6 +156,60 @@ check(
   (await page.evaluate(() => window.Oracle.view().now)) > afterEsc.now,
   '取消后世界恢复推进',
 );
+
+// ------------------------------------------------------------------ 倍率下的落点换算
+// 旧写法 (world - scroll) * cssScale 在 zoom≠1 时差半个视野：zoom=2 偏 2 格、
+// zoom=3 偏 3 格（实测见 tmp/live-check-20261102/coords-before.json）。
+//
+// 造物模式里滚轮被禁用（SandboxScene 的 wheel handler 在 creation 时直接 return），
+// 所以每一档都先退出、切倍率、再进模式。探测格故意**不放在镜头正中**——
+// `centerCameraOn` 居中会把半视野偏移抵消掉，那是这个 bug 藏到今天的原因。
+const ZOOM_STEPS = [1, 1.5, 2, 3];
+const ZOOM_PROBE = { x: ALTAR.x + 4, y: ALTAR.y };
+const currentZoom = () => page.evaluate(() => window.Oracle.camera().zoom);
+const setZoom = async (target) => {
+  for (let guard = 0; guard < 8; guard += 1) {
+    const current = await currentZoom();
+    if (current === target) return;
+    const ci = ZOOM_STEPS.indexOf(current);
+    const ti = ZOOM_STEPS.indexOf(target);
+    if (ci < 0 || ti < 0) throw new Error(`不认识的 zoom：${current} → ${target}`);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    // dy>0 = 缩小，dy<0 = 放大。
+    await page.mouse.wheel(0, ci < ti ? -100 : 100);
+    await page.waitForTimeout(350);
+  }
+  throw new Error(`切不到 zoom=${target}（停在 ${await currentZoom()}）`);
+};
+
+const zoomHits = [];
+for (const target of [1, 2, 3]) {
+  await setZoom(target);
+  await page.click(`button[data-create="${PREFAB}"]`);
+  await page.waitForTimeout(250);
+  await page.evaluate((cell) => window.Oracle.centerCameraOn(cell.x * 16, cell.y * 16), ALTAR);
+  await page.waitForTimeout(180);
+  const cam = await currentCamera();
+  const point = pointForCell(ZOOM_PROBE, cam);
+  await page.mouse.move(point.x, point.y);
+  await page.waitForTimeout(200);
+  const ghost = await page.evaluate(() => window.Oracle.creation()?.ghostAt ?? null);
+  zoomHits.push({ zoom: cam.zoom, point, ghost });
+  check(
+    ghost !== null && ghost.x === ZOOM_PROBE.x && ghost.y === ZOOM_PROBE.y,
+    `zoom=${cam.zoom} 下鼠标命中探测格`,
+    JSON.stringify(ghost),
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+}
+check(
+  zoomHits.length >= 2 &&
+    new Set(zoomHits.map((row) => `${row.ghost?.x},${row.ghost?.y}`)).size === 1,
+  'zoom=1/2/3 点击同一格的结果一致',
+  JSON.stringify(zoomHits.map((row) => ({ zoom: row.zoom, ghost: row.ghost }))),
+);
+await setZoom(2);
 
 // ------------------------------------------------------------------ 回车建成
 await page.click(`button[data-create="${PREFAB}"]`);
