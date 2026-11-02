@@ -62,7 +62,19 @@ import {
 import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
-import { paceFrame, shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '../render/eco-mode.ts';
+import {
+  FRAME_CLAMP_MS,
+  paceFrame,
+  shouldAnimateAt,
+  shouldAdvanceFrame,
+  targetFpsFor,
+} from '../render/eco-mode.ts';
+import {
+  DEFAULT_UTC_OFFSET_MINUTES,
+  OFFLINE_SETTLE_MAX_DAYS,
+  RealClock,
+  msSinceLocalMidnight,
+} from '../world/real-clock.ts';
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
@@ -175,6 +187,16 @@ export class SandboxScene extends Phaser.Scene {
   private snapshot!: WorldSnapshot;
   /** 世界时钟相对墙钟的倍率。?speed=0.5 放慢，?speed=12 加速，?speed=1 回到实时。 */
   private timeScale = 6;
+  /**
+   * 时钟模式。默认加速（`timeScale` 生效，服务演示与回归）；`?clock=real`
+   * 切到真实时钟：一步固定 `LOGIC_STEP_MS`，`timeScale` 不再作为倍率，
+   * 日界按本地 00:00（见 `world/real-clock.ts`）。
+   */
+  private clockMode: 'accelerated' | 'real' = 'accelerated';
+  private realClock: RealClock | null = null;
+  private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
+  /** 真实时钟的可见提示：回拨暂停、离线合并补算。进状态行，不写控制台了事。 */
+  private clockNotice: string | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
@@ -499,6 +521,22 @@ export class SandboxScene extends Phaser.Scene {
     // 截图与回归要精确复现时用 ?speed=1，让世界按实时推进。
     const speed = Number(params.get('speed'));
     if (Number.isFinite(speed) && speed > 0 && speed <= 60) this.timeScale = speed;
+    // 真实时钟模式：显式 `?clock=real` 才切。`?speed=` 在这种模式下不再生效——
+    // 1:1 是它的定义，留一个能偷偷加速的入口就没人能说它还是真实时钟。
+    // 锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，但只影响日界落在几点，不改日长。
+    if (params.get('clock') === 'real') {
+      const offsetRaw = Number(params.get('utcOffsetMinutes'));
+      this.realClockOffsetMinutes =
+        Number.isInteger(offsetRaw) && offsetRaw >= -720 && offsetRaw <= 840
+          ? offsetRaw
+          : DEFAULT_UTC_OFFSET_MINUTES;
+      this.clockMode = 'real';
+      this.realClock = new RealClock({
+        utcOffsetMinutes: this.realClockOffsetMinutes,
+        offlineMaxDays: OFFLINE_SETTLE_MAX_DAYS,
+      });
+      this.timeScale = 1;
+    }
     const forced = parsePhaseParam(params.get('time'));
     const legacyNight = params.get('night') === '1';
     const initialPhase: PhaseId = forced ?? (legacyNight ? 'night' : phaseAt(Date.now()));
@@ -748,10 +786,17 @@ export class SandboxScene extends Phaser.Scene {
       },
     });
     // 有档就重建世界；读档后标未对账，等首个成功读取从头折一遍。
+    // 真实时钟模式把新世界的零点锚在本地时间的「今天已过了多久」，这样跨日
+    // 恰在本地 00:00，而不是「开局满 24 小时」。读档不重锚：档里的 `now` 是
+    // 世界自己的事实，换时钟模式不改写它（`Simulation.fromSave` 会覆盖）。
+    const initialNow =
+      this.clockMode === 'real'
+        ? msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes)
+        : undefined;
     this.sim =
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
-        : new Simulation(simDeps);
+        : new Simulation(initialNow === undefined ? simDeps : { ...simDeps, initialNow });
     // 记忆段是 v5 新增的位置：世界重建完再喂给记忆适配器，顺序不能反
     // （它要用 `this.world.grid` 算遮挡，而网格已经按存档重放过）。
     // 空串（v4 老档迁移的默认值）读作「没有记忆」，不报警。
@@ -988,15 +1033,40 @@ export class SandboxScene extends Phaser.Scene {
       this.renderSnapshot(delta);
       return;
     }
+    // 真实时钟：先看墙钟与单调时钟。暂停（回拨）时这一拍一步不走；离线跨了
+    // 一大段（超过 `FRAME_CLAMP_MS`）时只推世界时钟，逐日关账交给记忆层，
+    // 不把几天压进一帧去补跑行为。
+    let paused = false;
+    let catchUpCap = 0;
+    if (this.clockMode === 'real' && this.realClock !== null) {
+      const observed = this.realClock.observe(Date.now(), performance.now());
+      if (observed.paused) {
+        paused = true;
+        this.accumulator = 0;
+        this.clockNotice = '真实时钟已暂停：系统墙钟回拨超过 5 分钟';
+      } else if (observed.deltaMs > FRAME_CLAMP_MS) {
+        this.sim.fastForwardNow(observed.deltaMs);
+        this.accumulator = 0;
+        this.clockNotice =
+          observed.dayGap > 0 ? `真实时钟：离线补算 ${observed.dayGap} 天` : null;
+        catchUpCap = observed.dayGap > 0 ? OFFLINE_SETTLE_MAX_DAYS : 0;
+      } else {
+        this.clockNotice = null;
+      }
+    }
     // 收池子、跑几步，都在 `paceFrame` 里——纯函数，node 下能单测。
-    const pace = paceFrame(this.accumulator, elapsed, LOGIC_STEP_MS, MAX_STEPS_PER_FRAME);
+    const pace = paused
+      ? { steps: 0, leftover: 0 }
+      : paceFrame(this.accumulator, elapsed, LOGIC_STEP_MS, MAX_STEPS_PER_FRAME);
     this.accumulator = pace.leftover;
     let steps = 0;
     while (steps < pace.steps) {
-      // 时间倍率：世界时钟走得比墙钟快，潮汐才在几分钟里看得见涨落。
-      // 倍率只放大「喂给 Simulation 的步长」，不引入第二个时钟——
+      // 加速模式：倍率只放大「喂给 Simulation 的步长」，不引入第二个时钟——
       // 世界的可回放性仍然只取决于它收到的那串步长。
-      const results = this.sim.update(LOGIC_STEP_MS * this.timeScale);
+      // 真实时钟模式：步长恒为 `LOGIC_STEP_MS`，`timeScale` 不参与，
+      // 于是墙钟走 1 秒、世界也走 1 秒。
+      const stepMs = this.clockMode === 'real' ? LOGIC_STEP_MS : LOGIC_STEP_MS * this.timeScale;
+      const results = this.sim.update(stepMs);
       for (const result of results) {
         this.speak(result);
       }
@@ -1004,7 +1074,11 @@ export class SandboxScene extends Phaser.Scene {
       steps += 1;
     }
     this.snapshot = this.sim.snapshot();
-    this.stepMemory();
+    const skippedDays = this.stepMemory(catchUpCap > 0 ? catchUpCap : undefined);
+    if (skippedDays > 0) {
+      // 合并结算要让人看得见：状态行说清「跳过」多少天，而不是假装逐日都关了账。
+      this.clockNotice = `真实时钟：离线合并结算，跳过 ${skippedDays} 天`;
+    }
     this.renderSnapshot(delta);
     this.cameraCtl.update(delta);
     this.publishCameraMode();
@@ -1023,8 +1097,8 @@ export class SandboxScene extends Phaser.Scene {
    * `spreadCandidates` 会把所有人当成不知道在哪，于是**谁都不会说话**——
    * 那比传错位置更糟，因为它是静默的。
    */
-  private stepMemory(): void {
-    if (this.memory === undefined) return;
+  private stepMemory(maxDays?: number): number {
+    if (this.memory === undefined) return 0;
     this.memory.syncHolders(
       this.snapshot.villagers.map((villager) => ({
         holderId: villager.id,
@@ -1033,7 +1107,12 @@ export class SandboxScene extends Phaser.Scene {
       })),
     );
     this.sightsee();
-    this.memory.tick(this.snapshot.now);
+    // 真实时钟离线跨得太多天时只关一次账，并把这笔跳过的天数交回状态行。
+    if (maxDays === undefined) {
+      this.memory.tick(this.snapshot.now);
+      return 0;
+    }
+    return this.memory.tickCapped(this.snapshot.now, maxDays).skippedDays;
   }
 
   /**
@@ -2499,8 +2578,10 @@ export class SandboxScene extends Phaser.Scene {
       .join('　/　');
     const weather = WEATHER_LABEL[this.snapshot.weather];
     const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
+    // 真实时钟的异常与离线补算必须看得见：静默暂停会让人以为世界卡死了。
+    const clockNote = this.clockNotice === null ? '' : `　　${this.clockNotice}`;
     if (this.pack?.authored === true) {
-      return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${saveNote}`;
+      return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
     }
     const faith = this.snapshot.faith;
     const { feed: feedDelivered, local: localDelivered } = this.snapshot.deliveries;
@@ -2530,7 +2611,7 @@ export class SandboxScene extends Phaser.Scene {
     // 最近落下的那件摆件写清来路：这是"被记住"在纸面上唯一的具体落点。
     const latestProp = this.snapshot.props[this.snapshot.props.length - 1];
     const memory = latestProp === undefined ? '' : `　　${describePropSource(latestProp)}`;
-    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${saveNote}`;
+    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${clockNote}${saveNote}`;
   }
 
   /**
