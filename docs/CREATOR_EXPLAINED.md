@@ -70,7 +70,7 @@
 **为什么需要**：`canPlace` 通常闭包在**活网格**上。楼一落地，原点那格就变成占用；
 不冻结的话，「重跑」会跳过它、挑下一个位置——那是新算一次，不是回放。**在哪**：
 [landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L96-L133)，
-场景在跨日自动提议时构造冻结视图（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1063-L1080)）。
+场景在跨日自动提议时构造冻结视图（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1061-L1081)）。
 
 ### `CreationProposal` / `CreationPlan`：一次提议包含什么
 
@@ -126,7 +126,7 @@ flowchart LR
 
 触发点是记忆层关账：`MemoryRuntime` 在跨日时回调 `onVitals`
 （[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L730-L734)），
-场景先把日子交给外环（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1046-L1063)）。
+场景先把日子交给外环（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1047-L1063)）。
 `closeWorldDay` 对六个角色各调一次 `endOfDay`（[engine.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/engine.ts#L355-L359)），
 后者只做两件事：`metrics.days++`，然后 `tryClimbUp`（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L307-L327)）。
 
@@ -188,15 +188,15 @@ sequenceDiagram
 按顺序：
 
 1. **玩家选模板与位置**。场景先用与幽灵预览同一套的 `canPlaceBlueprintHere` 拦迷雾、
-   空间与群落（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1713-L1717)）。
+   空间与群落（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1730-L1734)）。
 2. **拼造物意图**。模板自带的配色是**色值**，而 schema 只接受 token 名，所以先用当前世界的
-   色板反查成 token（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1725-L1736)）。
+   色板反查成 token（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1742-L1753)）。
    这一步在灯潮界尤其重要：同名 token 在不同设定集里是不同颜色。
 3. **校验**。`proposeCreation` 调 `parseCreationPlan`，后者再调 `parsePlaceBuildingIntent`，
    形状规则只有一份实现（[engine.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/engine.ts#L475-L492)、
    [creator-schema.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator-schema.ts#L41-L70)）。
 4. **入队，而不是直接写世界**。`instanceId` 在这里才由 `sim.nextInstanceId` 领；位置用计划里的
-   `at`，`source` 写清来由（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1748-L1758)）。
+   `at`，`source` 写清来由（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1765-L1775)）。
 5. **落地**。下一拍 `Simulation.update` 结算，`build` 先查「同模板已有一栋」，再调
    `spawnBuilding`；后者最终走 `placeBlueprint`：`checkPlacement` → `grid.place` 把占地写成
    不可走、门口写成可走（[simulation.ts](file:///D:/project/pixel-world-engine/world-client/src/world/simulation.ts#L2134-L2153)、
@@ -204,10 +204,11 @@ sequenceDiagram
    [grid.ts](file:///D:/project/pixel-world-engine/world-client/src/world/grid.ts#L292-L309)）。
 6. **回写事件**。楼进了 `buildings` 之后才 `announce('building.built')`（[simulation.ts](file:///D:/project/pixel-world-engine/world-client/src/world/simulation.ts#L2154-L2170)）。
 7. **事后结算**。场景的 `onChange` 收到这条事件，调 `settleCreationObservation`
-   （[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L611-L624)、
-   [SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1100-L1130)）。
-   它从 `sim.snapshot()` 里取真实落点（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1133-L1142)），
-   再用落地后的网格判可达、用落地前冻住的输入跑回放。
+   （[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L611-L625)、
+   [SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1100-L1147)）。
+   它从 `sim.snapshot()` 里取真实落点（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1149-L1158)），
+   再用落地后的网格判可达、用落地前冻住的输入跑回放，最后把快照与网格交给
+   `checkLandedBuilding` 跑第二重业务规则（冲突 + 不变式）。
 8. **记指标**。只有到这一步才调 `submitHumanApproval`，把真实观测交进去。
 
 **逐字段**：`templateId` = 玩家选的模板；`at` = 幽灵格；`palette` = 模板配色换成的四个 token 名；
@@ -255,16 +256,22 @@ flowchart LR
 把 `null` 当 `0` 会把「没检查」记成「检查失败」；把 `null` 当 `1` 就是「白送免审」。
 门禁对 `null` 的处置是**拒绝升级**，不是判失败（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L620-L639)）。
 
-**「白送」问题的根源**：`conflictCount` 与 `invariantViolationCount` 是**只有分子、没有分母**
+**「白送」问题的根源**：`conflictCount` 与 `invariantViolationCount` 曾经是**只有分子、没有分母**
 的计数器。没人观测过冲突，它照样是 0；而 L2 的门禁写的是「冲突数 > 0 才拒」
 （[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L621-L625)）。
 于是 50 次造物一次冲突都没查过，门禁仍然认为「冲突 0，达标」。这和 `replayHashConsistencyRate: 1.0`
 是同一类错误，只是形状不同：一个是把要求写成读数，一个是把「没查」写成「零」。
 
-同类缺口还有一个（推断自代码路径）：生产里只有**落地成功**才会调 `submitHumanApproval`，
+现在这两项有了分母：`conflictChecks` / `invariantChecks`。落地后 `checkLandedBuilding`
+真跑一遍业务规则，把 `hasConflict` / `invariantViolated` 的布尔值交回计数器；
+`undefined` 不碰分母，`false` 才让分母 +1。门禁改成「分母为 0 就拒绝」
+（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L646-L654)）。
+落地检查的实现见 [business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L49-L73)。
+
+仍然存在的一处同类缺口：生产里只有**落地成功**才会调 `submitHumanApproval`，
 被 schema 或落位拒绝的尝试根本不进 `recordCommandResult`。所以 `totalCommands` 只数成功，
 `schemaPassRate` 恒为 1，`manualModificationRate` 恒为 0——L1→L2 的「通过率 ≥98%」
-这一条目前也没有失败侧的证据。
+这一条依旧没有失败侧的证据。这一项没有在本轮改动，可选做法见第六节。
 
 ## 四、逐函数表
 
@@ -280,10 +287,11 @@ flowchart LR
 | `landingReachable`（[landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L30-L38)） | 落地后判门口到镇心 | `BuiltWorld` + 落地结果 → 布尔 | `settleCreationObservation` 里调 |
 | `creationFingerprint`（[landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L72-L94)） | 计划内容 + 落地点的指纹 | 计划 + 落地 + 天 → 8 位十六进制 | 只由 `verifyCreationReplay` 调 |
 | `verifyCreationReplay`（[landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L40-L71)） | 比「实际」与「重跑计划推出的应当」 | 计划/重跑计划/落地/蓝图 → 布尔或 `null` | `settleCreationObservation` 里调 |
-| `settleCreationObservation`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1084-L1130)） | 楼落地后补齐两项观测并记账 | `instanceId` → `void` | `onChange` 收到 `building.built` 时调 |
-| `blueprintCoverage`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1167-L1181)） | 已落地模板数 / 模板总数 | 可选的「刚确认的那栋」 → 0–1 | 登记 pending 时算一次 |
+| `settleCreationObservation`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1100-L1147)） | 落地后补可达/回放/业务规则三项观测并记账 | `instanceId` → `void` | `onChange` 收到 `building.built` 时调 |
+| `checkLandedBuilding`（[business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L42-L73)） | 把落地结果包成一条指令，跑第二重门禁 | 世界投影 + 落地 → `{hasConflict, invariantViolated}` | `settleCreationObservation` 里调 |
+| `blueprintCoverage`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1190-L1196)） | 已落地模板数 / 模板总数 | 可选的「刚确认的那栋」 → 0–1 | 登记 pending 时算一次 |
 | `freezeCreatorView`（[landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L96-L133)） | 把落位许可冻成位图 | 视图 + 候选模板 → 冻结视图 | 场景跨日自动提议时调 |
-| `landedCreationOf`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1132-L1142)） | 从 `Simulation` 快照找那一栋 | `instanceId` → `LandedCreation \| null` | `settleCreationObservation` 里调 |
+| `landedCreationOf`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1149-L1158)） | 从 `Simulation` 快照找那一栋 | `instanceId` → `LandedCreation \| null` | `settleCreationObservation` 里调 |
 
 ## 五、五个最容易卡住的点
 
@@ -315,13 +323,16 @@ flowchart LR
 而且全失败」；当 1 就是免审白送。门禁对它的判定是拒绝，但拒绝的理由是「没证据」，
 不是「证据说它坏」（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L620-L639)）。
 
-### 4. `conflictCount <= 0` 为什么会白送
+### 4. `conflictCount <= 0` 为什么曾经会白送
 
 **错误理解**：「冲突数是 0，说明没有冲突，可以升 L2。」
-**正确理解**：它没有「检查次数」这个分母。没人传 `hasConflict` 时，计数器保持 0
-（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L237-L263)），
-而门禁只看「> 0 才拒」（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L621-L625)）。
-这等于「没查 = 零冲突」。同样的坑还有一个：生产里拒绝的尝试根本不记账，`schemaPassRate` 恒为 1。
+**曾经的白送**：它只有分子、没有分母。没人传 `hasConflict` 时计数器保持 0，
+而门禁只看「> 0 才拒」——「没查」被读成「零冲突」。
+**现在的处理**：`conflictChecks` / `invariantChecks` 是分母；没传就是 0，门禁直接拒绝
+（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L646-L654)）。
+`false` 才让分母 +1，于是「查了且零」与「没查」被分开。落地时真跑检查的入口是
+`checkLandedBuilding`（[business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L42-L73)）。
+同样的坑还剩一个：生产里拒绝的尝试根本不记账，`schemaPassRate` 恒为 1。
 
 ### 5. 外环状态不存档，玩家会经历什么
 
@@ -334,19 +345,45 @@ flowchart LR
 对玩家来说，这看起来像「自治功能时灵时不灵」；对实现者来说，这是一条明确的边界：
 要跨会话保持，就得扩存档契约，而那是另一个决定。
 
-## 六、如果你要往下做：L2 那两道门禁的 A/B
+## 六、往下做：B 已实现，还剩两件事
 
-**方案 A：给「没查」补分母。** 在 `MetricWindow` 里加 `conflictChecks` / `invariantChecks`，
-`ratesOf` 在分母为 0 时给 `null`，`qualityGatesFor` 按「`null` 不通过」处理。
-代价：L2 在补上真实检查之前**会真的升不上去**——这次不是 bug，是把门禁的含义修对了；
-同时要补测试，确认「没查」和「查了且 0」分开。
-**方案 B：在落地时真跑一遍业务规则。** 复用 `runBusinessRulesCheck`，把一栋楼的落位包成
-一条 `PlaceBuilding` 指令，接一个基于 `WorldGrid` / `Simulation` 的 `WorldStateView`。
-代价：它要异步接口（`checkSpatialConstraints` / `checkInvariants` 都是 `Promise`），
-而落地回调是同步的；还要真的写出「世界圣经不变式」的实现——今天 `src/` 里只有
-`checkInvariants` 的接口声明，没有生产实现（[schema.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/schema.ts#L721-L727)）。
-好处是冲突与不变式从此有真实来源，L2 的门禁才名副其实。
+**B（已实现）：落地时真跑业务规则。** `checkLandedBuilding`（[business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L42-L73)）
+把一栋楼的落位包成一条 `PlaceBuilding` 指令，交给既有的 `runBusinessRulesCheck`；
+`WorldStateView` 的数据只有两处：`Simulation.snapshot()`（楼与摆件）与 `WorldGrid`（可走性）。
+`getOccupiedCells` 是**别的楼**的占地投影，自己会被排除。
+「检查器接口是 `Promise`」这件事只差一个 microtask：所有读都是同步的，场景用 `.then` 结算，
+不跨帧、不跨日（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1124-L1146)）。
 
-两个方案都不替读者拍板。另有两条已知但**不影响当前 fuse 链路**的事项：
-`metrics.ts` 里的 `relationSymmetryRate` 只有 `null` 路径（没有关系图数据源），
-而 `metrics.ts` 本身还没有生产调用方；L4 的「报警」也还没有接到界面。
+实现的不变式与各自的违反条件：
+
+1. **占地越界**：原点或 `w×h` 超出世界。正常落位过不了 `checkPlacement`，但检查器面对的是
+   快照/导入数据，所以这一条仍要查。
+2. **门口落在占地内**：蓝图门口偏移指进自家占地——那会让楼里的门永远走不出去。
+3. **占地覆盖镇心**：占地包含 `world.altar`。装载期只查「门口到得了镇心」，没查「镇心能不能被盖」，
+   所以这条是**收紧**：它不撤楼，只把这次落地记成一次不变式违反。
+4. **占地覆盖既有摆件**：占地包含一盏灯/一棵树/一幅幌布。摆件不占格，`checkPlacement` 拦不住，
+   这是最容易被真实落位踩到的一条。
+5. **门口到不了镇心**：用落地后的网格判 `doorReaches`。楼自己可能把唯一通路堵死。
+
+冲突只有一条：**占地与既有建筑重叠**。正常落位不会产生，测试用一个「两栋楼压在同一块地」的快照
+来构造它（[creator-business-rules.test.ts](file:///D:/project/pixel-world-engine/world-client/test/creator-business-rules.test.ts#L206-L249)）。
+
+**A（没有采用）：只加分母，不真跑检查。** 那样 L2 在生产里会永远升不上去——分母有了，
+但没有检查来源。加分母是必要的，但它必须和 B 一起落地才有意义；只做 A 等于把门禁锁死。
+
+**仍然存在的两件事**：
+
+- **`schemaPassRate` 的失败侧缺失。** 生产里只有落地成功才记账，被 schema/落位拒绝的尝试不进
+  `recordCommandResult`，所以通过率恒为 1，人工修改率恒为 0。可选做法：把被拒尝试也记成
+  `schemaPassed: false`（但玩家点错位置会不会连累外环，是个产品判断）；或只记外环自动提议的失败；
+  或正式把这条门禁改成「落地成功率」并接受这个口径。三种都要先定语义，不宜顺手改。
+- **覆盖率的结构性卡死仍在。** 升级清零窗口后 `coverageRate` 变 `null`；在灯潮界这种
+  「模板已全部落地、`planCreation` 只能返回 `null`」的世界，没有下一次造物可观测，
+  L1→L2 在结构上过不去（[creator-business-rules.test.ts](file:///D:/project/pixel-world-engine/world-client/test/creator-business-rules.test.ts#L395-L417)）。
+  可选解法：把「已全覆盖」当作合法终态（但要想清「窗口清零」对它意味着什么——是沿用上一级的
+  覆盖率事实，还是要求新的观测）；或引入新的可观测维度（例如每次造物都观测一次，而不是只在
+  有新模板时才有观测机会）。两条都不替读者拍板。
+
+另有两条已知但**不影响当前 fuse 链路**的事项：`metrics.ts` 里的 `relationSymmetryRate`
+只有 `null` 路径（没有关系图数据源），而 `metrics.ts` 本身还没有生产调用方；
+L4 的「报警」也还没有接到界面。

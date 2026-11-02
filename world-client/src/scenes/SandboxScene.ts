@@ -73,6 +73,7 @@ import {
   verifyCreationReplay,
   type LandedCreation,
 } from '../creator/landing.ts';
+import { checkLandedBuilding } from '../creator/business-rules.ts';
 import type { CreationPlan } from '../world/creator-schema.ts';
 import {
   biomeRingAllows,
@@ -1118,14 +1119,30 @@ export class SandboxScene extends Phaser.Scene {
             day: pending.day,
             blueprints: this.blueprints,
           });
+    const pathfindingConnected = landingReachable(this.world, landed);
 
-    creator.submitHumanApproval('mapper', instanceId, true, undefined, {
-      coverageRate: pending.coverageRate,
-      pathfindingConnected: landingReachable(this.world, landed),
-      hasCollision: false,
-      spatialConstraintSatisfied: true,
-      traceable: pending.traceable,
-      ...(replay === null ? {} : { replayHashConsistent: replay }),
+    // 第二重门禁在这里跑：快照与网格都是落地后的那一份。检查器接口是 Promise，
+    // 但我们喂进去的每一项都是同步读，所以只差一个 microtask，不跨帧、不跨日。
+    const businessWorld = {
+      snapshot: this.sim.snapshot(),
+      grid: this.world.grid,
+      altar: this.world.altar,
+      blueprints: this.blueprints,
+    };
+    void checkLandedBuilding(businessWorld, landed).then((business) => {
+      // 场景已经换了一个世界（热重载/退出），这次结果不再属于任何引擎。
+      if (this.creator !== creator) return;
+      creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+        coverageRate: pending.coverageRate,
+        pathfindingConnected,
+        hasCollision: false,
+        spatialConstraintSatisfied: true,
+        traceable: pending.traceable,
+        // 这两项是**落地后**真跑业务规则得到的；`false` 是「查过且没有」。
+        hasConflict: business.hasConflict,
+        invariantViolated: business.invariantViolated,
+        ...(replay === null ? {} : { replayHashConsistent: replay }),
+      });
     });
   }
 

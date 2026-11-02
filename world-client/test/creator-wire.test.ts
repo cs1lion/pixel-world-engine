@@ -184,7 +184,13 @@ test('两项观测拿到真值后，门禁能从 L2 推到 L3，并走 allow →
   const role = 'mapper';
 
   const observe = (extra: Record<string, unknown>): void => {
-    engine.submitHumanApproval(role, 'obs', true, undefined, { coverageRate: 1, ...extra });
+    engine.submitHumanApproval(role, 'obs', true, undefined, {
+      coverageRate: 1,
+      // 落地后业务规则检查的真实结果；`false` 是「查过且没有」，与「没查」不同。
+      hasConflict: false,
+      invariantViolated: false,
+      ...extra,
+    });
   };
   /** 一个世界日 = 一次观测 + 一次按真实天的结算。 */
   const days = (count: number, extra: Record<string, unknown>): void => {

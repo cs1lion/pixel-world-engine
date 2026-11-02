@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                186 个测试文件
+└── test/                187 个测试文件
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -182,7 +182,7 @@ cd server && python -m pytest
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1862 通过 / 9 跳过 / 0 失败
+2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1868 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
 0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
 
@@ -232,8 +232,9 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 这一份 `BuiltWorld`（不再另建第二份权威状态）。种子取设定集 id，时钟取
 `snapshot.now`。玩家确认造物时，场景把配色 token 交给 `proposeCreation` 校验，
 拿回计划后经 `Simulation.enqueue` 落位；`submitHumanApproval` 只记真的查过的项
-（落位三道、覆盖率、来由），门口连通与回放一致由 `building.built` 触发的事后判定补上。
-外环的自动提议可复现：候选模板先排序，模板下标与扫描起点都从
+（落位三道、覆盖率、来由），门口连通、回放一致与冲突/不变式由 `building.built` 触发的事后判定补上。
+冲突与不变式现在有检查次数分母（`conflictChecks` / `invariantChecks`）：没跑过业务规则的窗口
+升不了 L2，`false` 才是「查过且没有」。外环的自动提议可复现：候选模板先排序，模板下标与扫描起点都从
 `seedOf(worldSeed, day, 'creator', …)` 取，不用 `Math.random`、不读墙钟。
 
 **记忆的写面（第二阶段已接）**：浏览器端不再只有 `list()` / `read()`。

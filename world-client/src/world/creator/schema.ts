@@ -761,6 +761,17 @@ export async function runBusinessRulesCheck(
           message: spatial,
         });
       }
+      // 楼也要过不变式：占地越界、盖住镇心/摆件、门口连不出去，都不是「形状」问题，
+      // 而是「落在这张图上成不成立」的问题。原来这一支 `continue` 掉了，于是
+      // `checkInvariants` 对建筑永远没被调用——第二重门禁只做了一半。
+      const invariant = await worldState.checkInvariants(command);
+      if (invariant !== null) {
+        violations.push({
+          commandIndex: index,
+          commandKind: 'PlaceBuilding',
+          message: invariant,
+        });
+      }
       continue;
     }
 

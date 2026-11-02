@@ -162,6 +162,19 @@ export interface HumanApprovalObservation {
   readonly traceable?: boolean;
   /** 同种子回放是否一致。没跑过就别填——这一项最不该有默认值。 */
   readonly replayHashConsistent?: boolean;
+  /**
+   * 落地后业务规则有没有查出冲突（占地与他楼重叠、原点被占）。
+   *
+   * 必须是**落地后**真跑过 `runBusinessRulesCheck` 的结果；没跑就别填。
+   * 不填与 `false` 是两件事：前者是「没查」，后者是「查过且没有」。
+   */
+  readonly hasConflict?: boolean;
+  /**
+   * 落地后业务规则有没有查出不变式违反。
+   *
+   * 同样：没跑就别填。填 `false` 会让门禁把「查过且 0 次违反」当成 L2 的证据。
+   */
+  readonly invariantViolated?: boolean;
 }
 
 /**
