@@ -594,7 +594,7 @@ v2 不推翻 v1 的引擎决策，补四件事：
 > `industry` / `scholarly` / `agriculture` / `living`（`world-client/src/world/types.ts`），
 > 默认世界六个全用（`world-client/src/world/setup.ts` 里六个 `id:` 都有）。
 > 漏掉的 `street` 与 `altar` 不是边角：祭坛那一分区在 `GLOSSARY.md` 的
-> 「连得出去（`reaches`）」一条里还专门被引过（「路全在祭坛那片分区里时 `paveFrom` 一格不铺」）。
+> 「连得出去（`reaches`）」那部分的说明里还专门被引过（「路全在祭坛那片分区里时 `paveFrom` 一格不铺」）。
 > SPEC_V2 落笔那天（`1cb27a9`，2026-10-25）就是这样，不是后来长的。
 >
 > **二「现有 646 个测试」从来没有对得上过，现在差 2.2 倍。** 同一个命令
