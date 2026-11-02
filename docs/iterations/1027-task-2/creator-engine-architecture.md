@@ -195,9 +195,15 @@ this.sim.enqueue({
   at: plan.at,
   source: { taskId: `creation-${instanceId}`, summary },
 });
-// 只递真的查过的观测；没查的（门口连通、回放一致）留 null。
+// 门口连通与回放一致**要等楼真的落地**：这里只登记，由 `building.built`
+// 回写触发结算。落位前算这两项会偏乐观（楼还没占格、世界已经变了）。
+this.pendingCreationObservations.set(instanceId, { plan, day, recompute });
+
+// 落地之后（`settleCreationObservation`）：
 this.creator.submitHumanApproval('mapper', instanceId, true, undefined, {
   coverageRate,
+  pathfindingConnected: landingReachable(this.world, landed), // 落地后的真实网格
+  replayHashConsistent: verifyCreationReplay({ plan, replayed, landed, day, blueprints }),
   hasCollision: false,
   spatialConstraintSatisfied: true,
   traceable: true,
@@ -242,7 +248,8 @@ L0–L2 的门禁是「要人点头」，所以自动提议只在 `allow` 时发
 | 设定集常量 | `test/creator-config.test.ts` | 29 |
 | 逆向审校合成器 | `test/creator-synthesizer.test.ts` | 14 |
 | 造物指令 schema | `test/creator-schema.test.ts` | 21 |
-| 引擎接线 | `test/creator-wire.test.ts` | 8 |
+| 引擎接线 | `test/creator-wire.test.ts` | 9 |
+| 落地后观测 | `test/creator-landing.test.ts` | 8 |
 
 **`CreatorEngine` 已经入库并接线。** 它住在 `src/creator/engine.ts`，由
 `SandboxScene` 在 `create()` 里构造，吃场景这一份 `BuiltWorld`；计划经
@@ -269,6 +276,12 @@ L0–L2 的门禁是「要人点头」，所以自动提议只在 `allow` 时发
 - [x] 连接世界变更入口：计划经 `Simulation.enqueue({ kind: 'build' })` 落地
 - [ ] 内存持久化：熔断等级、导演历史目前不进存档，重进世界从 L0 重来
 - [ ] 补充可视化监控界面（展示各角色的当前等级和指标）
+- [ ] `conflictCount` / `invariantViolationCount` 仍把「没观测」当 0：
+      L2 的两道门禁因此是白送的。要么加检查分母把未观测记为不通过，
+      要么在造物落地时真跑一遍 `runBusinessRulesCheck`——两条都还没做。
+- [ ] `metrics.ts` 的 `relationSymmetryRate` 只有 `null` 路径（没有关系图数据源）。
+      它不在 `fuse.ts` 的生产门禁里（那里 L4 只查溯源与回放），所以今天不挡人，
+      但 `metrics.ts` 一旦接线就会挡。
 
 ---
 

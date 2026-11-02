@@ -68,6 +68,13 @@ import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
 import { CreatorEngine, type CreatorWorldView } from '../creator/engine.ts';
 import {
+  freezeCreatorView,
+  landingReachable,
+  verifyCreationReplay,
+  type LandedCreation,
+} from '../creator/landing.ts';
+import type { CreationPlan } from '../world/creator-schema.ts';
+import {
   biomeRingAllows,
   checkPlacement,
   hintFor,
@@ -133,6 +140,21 @@ interface BuildingEntry {
   readonly building: BuiltWorld['buildings'][number];
   readonly view: BuildingView;
   readonly emitter: AccentEmitter;
+}
+
+/**
+ * 一次已经入队、但还没落地的造物。**观测要等到 `building.built` 之后再做**。
+ *
+ * `recompute` 是落地前捕获的输入：手动造物重跑同一次 `proposeCreation(request)`，
+ * 外环提议重跑 `planCreation(落地前的 view)`。落地后再重算，「已有哪些模板」
+ * 已经变了，比出来的不是同一件事。
+ */
+interface PendingCreationObservation {
+  readonly plan: CreationPlan;
+  readonly day: number;
+  readonly coverageRate: number;
+  readonly traceable: boolean;
+  readonly recompute: () => CreationPlan | null;
 }
 
 export class SandboxScene extends Phaser.Scene {
@@ -230,6 +252,11 @@ export class SandboxScene extends Phaser.Scene {
    * 没有设定集（莞尔镇）时用默认包：`selectSetting('')` 返回的就是它。
    */
   private creator: CreatorEngine | null = null;
+  /**
+   * 等落地之后再结算的造物观测。键是 `instanceId`，由既有的
+   * `building.built` 回写（`onChange`）触发结算——不另开定时器或轮询。
+   */
+  private readonly pendingCreationObservations = new Map<string, PendingCreationObservation>();
   /**
    * 内环：记忆与传播。世界每拍交一份处境给它，跨日时它关账。
    *
@@ -592,6 +619,9 @@ export class SandboxScene extends Phaser.Scene {
         }
         this.remember(change, at);
         this.focusCameraOn(change);
+        // 落地之后的观测接在这一条既有的回写之后：楼已经进了 `Simulation`
+        // 的账本、网格也已经占格，可达性与回放才判得准。不另开一条通道。
+        if (change.change === 'building.built') this.settleCreationObservation(change.instanceId);
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
@@ -819,6 +849,7 @@ export class SandboxScene extends Phaser.Scene {
     this.memoryClient = null;
     this.memoryOutbox = null;
     this.creator = null;
+    this.pendingCreationObservations.clear();
     this.overlay?.dispose();
     this.overlay = null;
     if (this.nightKeyListener !== null) {
@@ -1030,15 +1061,84 @@ export class SandboxScene extends Phaser.Scene {
     });
 
     if (creator.getFuseDecision('mapper').action !== 'allow') return;
-    const proposal = creator.planCreation(this.creatorWorldView());
+    // 落地前把 view 捕获下来，并把落位许可冻成位图：重跑时不能看见新楼占的格，
+    // 否则算出来的是「落地后的下一个位置」，不再是同一份输入。
+    const view = this.creatorWorldView();
+    const proposal = creator.planCreation(view);
     if (proposal === null) return;
+    const frozen = freezeCreatorView(
+      view,
+      [...this.blueprints.keys()].filter((id) => !view.builtPrefabIds.has(id)),
+    );
+    const instanceId = this.sim.nextInstanceId(proposal.templateId);
+    this.pendingCreationObservations.set(instanceId, {
+      plan: proposal,
+      day: view.day,
+      coverageRate: this.blueprintCoverage(proposal.templateId),
+      traceable: true,
+      recompute: () => creator.planCreation(frozen),
+    });
     this.sim.enqueue({
       kind: 'build',
       prefabId: proposal.templateId,
-      instanceId: this.sim.nextInstanceId(proposal.templateId),
+      instanceId,
       at: proposal.at,
       source: { taskId: `creator-${proposal.templateId}`, summary: proposal.reason },
     });
+  }
+
+  /**
+   * 楼真的落地之后，把两项「落位前算不准」的观测补进计数器。
+   *
+   * - `pathfindingConnected`：拿**落地后的**网格判门口到镇心。
+   * - `replayHashConsistent`：用落地前捕获的输入重跑计划，与「计划内容 +
+   *   实际落点」比指纹。跑不了（返回 `null`）就不记，留 `null`。
+   *
+   * 只有 `building.built` 会触发它；被拒的建造没有可取的真实落地结果，
+   * 因此什么也不记——不拿预检结论冒充事后判定。
+   */
+  private settleCreationObservation(instanceId: string): void {
+    const pending = this.pendingCreationObservations.get(instanceId);
+    if (pending === undefined) return;
+    this.pendingCreationObservations.delete(instanceId);
+
+    const creator = this.creator;
+    if (creator === null) return;
+    const landed = this.landedCreationOf(instanceId);
+    if (landed === null) return;
+
+    const replayed = pending.recompute();
+    const replay =
+      replayed === null
+        ? null
+        : verifyCreationReplay({
+            plan: pending.plan,
+            replayed,
+            landed,
+            day: pending.day,
+            blueprints: this.blueprints,
+          });
+
+    creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+      coverageRate: pending.coverageRate,
+      pathfindingConnected: landingReachable(this.world, landed),
+      hasCollision: false,
+      spatialConstraintSatisfied: true,
+      traceable: pending.traceable,
+      ...(replay === null ? {} : { replayHashConsistent: replay }),
+    });
+  }
+
+  /** 从 `Simulation` 的当前快照里取那一栋；还没落地就返回 null。 */
+  private landedCreationOf(instanceId: string): LandedCreation | null {
+    const building = this.sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
+    if (building === undefined) return null;
+    return {
+      instanceId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+    };
   }
 
   /**
@@ -1628,14 +1728,15 @@ export class SandboxScene extends Phaser.Scene {
       trim: tokenNameOf(blueprint.palette.trim, this.worldPalette()),
       window: tokenNameOf(blueprint.palette.window, this.worldPalette()),
     };
-    let plan;
+    const request = {
+      templateId: session.prefabId,
+      at: session.ghostAt,
+      palette: intentPalette,
+      worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+    };
+    let plan: CreationPlan;
     try {
-      plan = creator.proposeCreation({
-        templateId: session.prefabId,
-        at: session.ghostAt,
-        palette: intentPalette,
-        worldSize: { width: this.world.grid.width, height: this.world.grid.height },
-      });
+      plan = creator.proposeCreation(request);
     } catch (error) {
       // schema 不过就是玩家的选择有问题：留在模式里，说清哪里不对。
       return {
@@ -1655,15 +1756,15 @@ export class SandboxScene extends Phaser.Scene {
         summary: `在 (${plan.at.x},${plan.at.y}) 建了${blueprint.displayName}`,
       },
     });
-    // 人点了头，就是一次真实的人工确认。递进去的六项里**只有已经查过的**：
-    // 落位三道（迷雾/空间/群落）刚在上面跑过，覆盖率能数，来由刚写了；
-    // 门口到不到得了镇心在落位前判不准（`placeBlueprint` 落地才占格），
-    // 回放也没跑——这两项不填，让门禁读成 `null`。
-    creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+    // 人点了头，就是一次真实的人工确认。但**门口连通与回放一致要等落地**：
+    // 这里只登记，由 `building.built` 回写触发 `settleCreationObservation`。
+    // 落位前那两项算不准（楼还没占格），拿预检结论冒充事后判定就是假观测。
+    this.pendingCreationObservations.set(instanceId, {
+      plan,
+      day: Math.floor(this.snapshot.now / DAY_MS),
       coverageRate: this.blueprintCoverage(plan.templateId),
-      hasCollision: false,
-      spatialConstraintSatisfied: true,
       traceable: true,
+      recompute: () => creator.proposeCreation(request),
     });
     this.endCreation();
     return { ok: true, message: '动工了。' };

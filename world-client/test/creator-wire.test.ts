@@ -177,6 +177,80 @@ test('L0 的提议只是提议：角色还没拿到自动放行的资格', () =>
   assert.equal(engine.getFuseDecision('mapper').action, 'requireReview');
 });
 
+test('两项观测拿到真值后，门禁能从 L2 推到 L3，并走 allow → enqueue', () => {
+  const { pack, world } = freshWorld();
+  // 目标等级 L3：这条测的正是「L2 → L3 之前卡住的那一格」。
+  const engine = engineOf(pack, world);
+  const role = 'mapper';
+
+  const observe = (extra: Record<string, unknown>): void => {
+    engine.submitHumanApproval(role, 'obs', true, undefined, { coverageRate: 1, ...extra });
+  };
+  /** 一个世界日 = 一次观测 + 一次按真实天的结算。 */
+  const days = (count: number, extra: Record<string, unknown>): void => {
+    for (let i = 0; i < count; i += 1) {
+      observe(extra);
+      engine.closeWorldDay();
+    }
+  };
+
+  // L0 → L1：只要证据够（14 天）且通过率、人工修改率达标。
+  days(14, {});
+  assert.equal(engine.getRoleState(role)?.currentLevel, 1, '14 天后应到 L1');
+
+  // L1 → L2：要素覆盖 ≥95%、冲突 0、不变式 0。
+  days(14, {});
+  assert.equal(engine.getRoleState(role)?.currentLevel, 2, '第二个 14 天应到 L2');
+
+  // L2 → L3 的门禁是寻路 100% / 碰撞 0 / 空间约束 100%。
+  // 先跑 14 天**不报寻路**的观测——这正是之前卡住的那种状态。
+  days(14, {
+    hasCollision: false,
+    spatialConstraintSatisfied: true,
+    traceable: true,
+    replayHashConsistent: true,
+  });
+  assert.equal(
+    engine.getRoleState(role)?.currentLevel,
+    2,
+    '寻路仍然只有 null 时，不该升到 L3——门禁真的在看这一项',
+  );
+
+  // 把落地后拿到的两个真值补进来。
+  days(14, {
+    pathfindingConnected: true,
+    hasCollision: false,
+    spatialConstraintSatisfied: true,
+    traceable: true,
+    replayHashConsistent: true,
+  });
+  assert.equal(engine.getRoleState(role)?.currentLevel, 3, '真值补上后应升到 L3');
+
+  // 走既有链路：L3 抽检放行之后，计划才入队，由 Simulation 真正落地。
+  let decision = engine.getFuseDecision(role);
+  for (let i = 0; i < 200 && decision.action !== 'allow'; i += 1) {
+    decision = engine.getFuseDecision(role);
+  }
+  assert.equal(decision.action, 'allow', 'L3 抽检应当最终放行');
+
+  const sim = simOf(pack, world);
+  const plan = engine.planCreation(viewOf(pack, world, 1));
+  assert.ok(plan !== null);
+  const instanceId = sim.nextInstanceId(plan.templateId);
+  sim.enqueue({
+    kind: 'build',
+    prefabId: plan.templateId,
+    instanceId,
+    at: plan.at,
+    source: { taskId: 'gate', summary: '门禁放行之后' },
+  });
+  assert.equal(sim.update(16)[0]?.ok, true);
+  assert.ok(
+    sim.snapshot().buildings.some((building) => building.instanceId === instanceId),
+    '放行之后必须真的落进世界',
+  );
+});
+
 test('人工确认走引擎：确认一次就记下真实的落位观测', () => {
   const { pack, world } = freshWorld();
   const engine = engineOf(pack, world);
