@@ -152,6 +152,16 @@ export interface DerivedFrom {
   readonly claimIds: readonly string[];
 }
 
+/**
+ * 记忆偏差的类型（见 `distort.ts`）。只有个人记忆条目会带它；
+ * `eventRefs` 仍指向真实事件，所以「记错了」查得回原文。
+ */
+export type MemoryBias =
+  | 'detail-substitution'
+  | 'causal-mismatch'
+  | 'time-shift'
+  | 'wrong-person';
+
 export interface MemoryEntry {
   readonly memoryId: string;
   readonly holderId: string;
@@ -190,6 +200,8 @@ export interface MemoryEntry {
   readonly redacted: boolean;
   readonly derivedFrom: DerivedFrom;
   readonly generatedBy: GeneratedBy;
+  /** 这条记忆带哪种偏差；没有记错时省略（老档案没有这个字段，读作没有偏差）。 */
+  readonly bias?: MemoryBias;
   /** 归档后不再参与默认检索，但仍可被强线索唤醒。 */
   readonly archived: boolean;
 }

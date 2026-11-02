@@ -20,6 +20,7 @@ import { DEFAULT_MEMORY_CONFIG, type MemoryConfig } from './config.ts';
 import { placeHints, type NarrativeHint } from './hints.ts';
 import type { OcclusionGrid, Perceiver } from './perception.ts';
 import { witnessesOf } from './perception.ts';
+import { heardBy, soundKindOf } from './hearing.ts';
 import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import type { HolderType, Legend, MemoryEvent, Toponym, WorldFact, WorldVitals } from './types.ts';
@@ -169,6 +170,25 @@ export interface RuntimeObservation {
   readonly importanceHint: number | null;
   readonly valence?: number;
   readonly arousal?: number;
+  /**
+   * 这件事是不是发生在室内空间里。
+   *
+   * **不是按 placeId 猜**：`building.built` 的 placeId 是楼，但事情发生在门口，
+   * 是室外；`task_done` 才是屋里。由翻译层（`observe.ts`）按改变类型给出，
+   * 省略按室外算。
+   */
+  readonly indoor?: boolean;
+}
+
+/** 个人时间线上的一格。`eventId` 与事件日志同一个 id。 */
+export interface TimelineEntry {
+  readonly memoryId: string;
+  readonly eventId: string;
+  readonly kind: string;
+  readonly day: number;
+  readonly when: number;
+  readonly sourceMode: string;
+  readonly bias?: string;
 }
 
 export interface MemoryRuntimeDeps {
@@ -186,6 +206,18 @@ export interface MemoryRuntimeDeps {
    * 于是退回归 `actors`——那是最保守的一档，宁可少记。
    */
   readonly occlusion?: OcclusionGrid;
+  /**
+   * 某个落点在哪栋楼里；室外返回 null。
+   *
+   * 给了，「观察者自己在室内」才有真实值——否则 `Perceiver.inside` 只能写死
+   * null，而室内事件与室内观察者这两条感知规则等于没接。省略时按室外算。
+   */
+  readonly insideAt?: (point: { readonly x: number; readonly y: number }) => string | null;
+  /**
+   * 上游事件的地点是不是室内。`PlaceAnchor` 自带上游给的 `indoor` 时优先用它；
+   * 这个回调只补本地事件翻译层答不出的那一半。
+   */
+  readonly placeIndoor?: (placeId: string) => boolean;
 }
 
 export class MemoryRuntime {
@@ -328,6 +360,7 @@ export class MemoryRuntime {
     witnesses?: readonly string[],
     at = this.now,
   ): readonly string[] {
+    const resolved = witnesses ?? this.witnessesFor(observation);
     const result = this.world.ingest({
       eventId: observation.eventId,
       at,
@@ -335,11 +368,9 @@ export class MemoryRuntime {
       place: {
         placeId: observation.placeId,
         at: observation.at,
-        // `indoor` 恒为 false：世界模型还答不上「这栋楼是不是室内空间」
-        // （`PlaceAnchor.indoor` 至今没有生产方）。按室外算是**多记**的方向——
-        // 屋里屋外八格内的人都算在场。反过来一律按「室内同房间」会让每件事
-        // 只剩 actors 一个人记得，而那正是 `witnessesFor` 要修的那个静默失效。
-        indoor: false,
+        // 由翻译层按改变类型给出（`task_done` 在屋里、`building.built` 在门口）；
+        // 没给就按室外算。按室外是「多记」的方向：屋里屋外八格内的人都算在场。
+        indoor: observation.indoor ?? false,
       },
       actors: observation.actors,
       outcome: observation.outcome,
@@ -347,11 +378,54 @@ export class MemoryRuntime {
       source: 'world',
       importanceHint: observation.importanceHint,
       parentEventId: null,
-      witnesses: witnesses ?? this.witnessesFor(observation),
+      witnesses: resolved,
+      hearers: this.hearersFor(observation, resolved),
       ...(observation.valence === undefined ? {} : { valence: observation.valence }),
       ...(observation.arousal === undefined ? {} : { arousal: observation.arousal }),
     });
+
+    // 印象的生产者：目击者看见别人交活，写一条关于那个人的印象。
+    // 方向性靠持有者本身，A 看见 B 只写 A 对 B 的印象。
+    const actor = observation.actors[0];
+    if (observation.kind === 'task_done' && actor !== undefined) {
+      for (const holderId of resolved) {
+        if (holderId === actor) continue;
+        this.world.addImpression({
+          holderId,
+          aboutHolderId: actor,
+          at,
+          placeId: observation.placeId,
+          eventRef: observation.eventId,
+          valence: observation.valence ?? 0.3,
+        });
+      }
+    }
     return result.written;
+  }
+
+  /**
+   * 听见这件事的人（不含已经看见的人）。
+   *
+   * 没有遮挡网格就不算：判断不了墙，就不能假装听见了。声音类型按事件 kind
+   * 映射（见 `hearing.ts`），室内事件只传同房间。
+   */
+  private hearersFor(observation: RuntimeObservation, witnesses: readonly string[]): readonly string[] {
+    const grid = this.deps.occlusion;
+    if (grid === undefined) return [];
+    const perceivers = this.perceivers();
+    if (perceivers.length === 0) return [];
+    const seen = new Set(witnesses);
+    return heardBy({
+      sound: {
+        placeId: observation.placeId,
+        at: observation.at,
+        indoor: observation.indoor ?? false,
+        kind: soundKindOf(observation.kind),
+      },
+      perceivers,
+      grid,
+      config: this.config,
+    }).filter((holderId) => !seen.has(holderId));
   }
 
   /**
@@ -380,7 +454,11 @@ export class MemoryRuntime {
 
     const seen = new Set(witnesses);
     for (const holderId of witnessesOf({
-      place: { placeId: observation.placeId, at: observation.at, indoor: false },
+      place: {
+        placeId: observation.placeId,
+        at: observation.at,
+        indoor: observation.indoor ?? this.deps.placeIndoor?.(observation.placeId) ?? false,
+      },
       perceivers,
       grid,
       config: this.config,
@@ -404,7 +482,8 @@ export class MemoryRuntime {
     for (const holderId of [...this.positions.keys()].sort()) {
       const at = this.positions.get(holderId);
       if (at === undefined) continue;
-      perceivers.push({ holderId, at, inside: null });
+      // `inside` 每拍现算：人是走动的，进屋/出屋不需要额外的同步调用。
+      perceivers.push({ holderId, at, inside: this.deps.insideAt?.(at) ?? null });
     }
     return perceivers;
   }
@@ -419,7 +498,11 @@ export class MemoryRuntime {
   ingestUpstream(
     action: UpstreamAction,
     at: number,
-    place: { readonly placeId: string; readonly at: { readonly x: number; readonly y: number } },
+    place: {
+      readonly placeId: string;
+      readonly at: { readonly x: number; readonly y: number };
+      readonly indoor?: boolean;
+    },
     actors: readonly string[],
     sight?: { readonly perceivers: readonly Perceiver[]; readonly grid: OcclusionGrid },
   ): WorldFact | null {
@@ -434,7 +517,13 @@ export class MemoryRuntime {
       (this.deps.occlusion === undefined
         ? undefined
         : { perceivers: this.perceivers(), grid: this.deps.occlusion });
-    return this.world.ingestUpstream(action, at, { ...place, indoor: false }, actors, scene);
+    return this.world.ingestUpstream(
+      action,
+      at,
+      { ...place, indoor: place.indoor || (this.deps.placeIndoor?.(place.placeId) ?? false) },
+      actors,
+      scene,
+    );
   }
 
   /** 一条上游动作会变成什么事件。不写世界，只回答「会不会发生」。 */
@@ -508,6 +597,30 @@ export class MemoryRuntime {
   /** 世界走到第几天。检索算近因要用它；与 `observe` 定时刻是同一个 `now`。 */
   get day(): number {
     return Math.floor(this.now / this.config.dayMs);
+  }
+
+  /**
+   * 按角色聚合的时间线：他自己记得的事，按发生时间排序。
+   *
+   * 每条都带 `eventId`（`eventRefs[0]`），与事件日志对得上——这是「记忆能
+   * 追溯到事件」在个人视角下的读法。老存档里的条目本来就带 `eventRefs`
+   * （类型上是非空数组），不需要迁移；新加的 `bias` 是可选字段，老条目没有
+   * 就表示「没有记错」。
+   */
+  timelineFor(holderId: string): readonly TimelineEntry[] {
+    const view = this.world.viewOf(holderId);
+    if (view === null) return [];
+    return view.memories
+      .map((entry) => ({
+        memoryId: entry.memoryId,
+        eventId: entry.eventRefs[0],
+        kind: entry.kind,
+        day: entry.createdDay,
+        when: entry.content.when,
+        sourceMode: entry.sourceMode,
+        ...(entry.bias === undefined ? {} : { bias: entry.bias }),
+      }))
+      .sort((a, b) => a.day - b.day || a.when - b.when || a.memoryId.localeCompare(b.memoryId));
   }
 
   /**
