@@ -19,7 +19,7 @@ import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
-import type { CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
+import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
@@ -76,9 +76,11 @@ import {
   msSinceLocalMidnight,
 } from '../world/real-clock.ts';
 import {
+  formatClockCatchUp,
   readClockBaseline,
   writeClockBaseline,
   type BaselineStorage,
+  type ClockCatchUp,
 } from '../world/real-clock-baseline.ts';
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
@@ -200,8 +202,13 @@ export class SandboxScene extends Phaser.Scene {
   private clockMode: 'accelerated' | 'real' = 'accelerated';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
-  /** 真实时钟的可见提示：回拨暂停、离线合并补算。进状态行，不写控制台了事。 */
+  /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
   private clockNotice: string | null = null;
+  /**
+   * 上一次补算的结果。**常驻**到下一次补算或下一次造物，不再只活一帧。
+   * `null` = 这个会话没有补算过。
+   */
+  private clockReport: ClockCatchUp | null = null;
   /** 跨会话基线最近一次写入的墙钟时刻；5 秒节流，避免每帧写 localStorage。 */
   private lastClockBaselineWriteAt = 0;
   private readonly villagerViews = new Map<string, VillagerView>();
@@ -666,7 +673,11 @@ export class SandboxScene extends Phaser.Scene {
         this.focusCameraOn(change);
         // 落地之后的观测接在这一条既有的回写之后：楼已经进了 `Simulation`
         // 的账本、网格也已经占格，可达性与回放才判得准。不另开一条通道。
-        if (change.change === 'building.built') this.settleCreationObservation(change.instanceId);
+        if (change.change === 'building.built') {
+          // 下一次造物就把补算提示收掉：它是「上次离线发生了什么」，不是常驻广告。
+          this.clockReport = null;
+          this.settleCreationObservation(change.instanceId);
+        }
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
@@ -1168,8 +1179,17 @@ export class SandboxScene extends Phaser.Scene {
     if (delta > 0) this.sim.fastForwardNow(delta);
     this.snapshot = this.sim.snapshot();
 
-    // 结算走既有记忆关账；可读结果在下一笔提交里落成常驻状态。
-    this.stepMemory(observed.dayGap > OFFLINE_SETTLE_MAX_DAYS ? OFFLINE_SETTLE_MAX_DAYS : undefined);
+    // 结算走既有记忆关账；结果落成常驻状态，不再只活一帧。
+    const skipped = this.stepMemory(
+      observed.dayGap > OFFLINE_SETTLE_MAX_DAYS ? OFFLINE_SETTLE_MAX_DAYS : undefined,
+    );
+    if (observed.dayGap > 0) {
+      this.clockReport = {
+        kind: skipped > 0 ? 'merged' : 'day-by-day',
+        days: observed.dayGap,
+        skippedDays: skipped,
+      };
+    }
     this.persistClockBaseline(true);
   }
 
@@ -2460,6 +2480,16 @@ export class SandboxScene extends Phaser.Scene {
       events: (limit = 50) => this.recentEvents(limit),
       saveStatus: () => this.saveStatus(),
       /**
+       * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
+       * `catchUp` 不再只活在状态行的一帧里；没有 setter。
+       */
+      clockStatus: (): ClockStatusView => ({
+        mode: this.clockMode,
+        paused: this.realClock?.isPaused ?? false,
+        notice: this.clockNotice,
+        catchUp: this.clockReport,
+      }),
+      /**
        * 外环指标窗口的只读计数。**只读**：每次现取一份新对象，不写回外环，
        * 也不提供任何 setter。
        *
@@ -2665,7 +2695,12 @@ export class SandboxScene extends Phaser.Scene {
     const weather = WEATHER_LABEL[this.snapshot.weather];
     const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
     // 真实时钟的异常与离线补算必须看得见：静默暂停会让人以为世界卡死了。
-    const clockNote = this.clockNotice === null ? '' : `　　${this.clockNotice}`;
+    // 补算结果常驻到下一次补算/下一次造物；暂停提示每帧刷新。
+    const catchUpNote = this.clockReport === null ? '' : formatClockCatchUp(this.clockReport);
+    const clockNotes = [this.clockNotice, catchUpNote].filter(
+      (line): line is string => line !== null && line !== '',
+    );
+    const clockNote = clockNotes.length === 0 ? '' : `　　${clockNotes.join('　　')}`;
     if (this.pack?.authored === true) {
       return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
     }
