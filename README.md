@@ -171,12 +171,15 @@ cd world-client && node scripts/audit-palette.mjs --strict
 ```
 
 ```bash
-cd world-client && node scripts/audit-references.ts --strict && node scripts/audit-citations.ts --strict && node scripts/audit-sections.ts --strict
+cd world-client && node scripts/audit-references.ts --strict && node scripts/audit-citations.ts --strict && node scripts/audit-sections.ts --strict && node scripts/audit-claims.ts --strict
 ```
 
 ```bash
 cd server && python -m pytest
 ```
+
+服务端依赖的上下界锁在 `server/requirements.txt`；CI 只有 `pip install -r` 这一层安装，
+没有额外 lock。要完全复现时再引 constraints。
 
 **这几条要一起跑。** 后四条的输出有个共同性质：引用对不上、节号不存在、色板超预算，
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
