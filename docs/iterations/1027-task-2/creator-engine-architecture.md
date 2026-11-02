@@ -169,54 +169,64 @@ if (rates.replayHashConsistencyRate === null || rates.replayHashConsistencyRate 
 
 ## 五、集成接口
 
-> **这一节是拟议接口，不是今天的代码。** 下面两段都引用 `CreatorEngine`，
-> 而它今天编译不过（见第六节末）。本节说的是「接上之后长什么样」。
+> **这一节现在是代码里的接口**（第三阶段已接）。`CreatorEngine` 住在
+> `src/creator/engine.ts`——不是 `world/creator/`：它要把设定集喂给世界，
+> 必然同时看得见两边，理由写在该文件头。它由 `SandboxScene` 拥有，
+> 世界、种子与时钟都由场景给。
 
 ### 从 `SandboxScene` 调用
 
 ```typescript
-import { CreatorEngine } from './world/creator/engine.ts';
+import { CreatorEngine } from '../creator/engine.ts';
 
-class SandboxScene extends Phaser.Scene {
-  private engine: CreatorEngine;
+// 不另建第二份世界：吃的是场景这一份。种子与时钟也不自造。
+this.creator = new CreatorEngine(pack, {
+  worldSeed: pack.id,
+  worldTime: () => this.snapshot.now,
+  world: this.world,
+});
 
-  async preload() {
-    const rawPack = loadLocalSettingPack(); // 读取本地 JSON
-    this.engine = new CreatorEngine(rawPack);
-  }
-
-  async onUserUtterance(utterance: string) {
-    // 1. 解析为意图（外部 oracle）
-    const intent = await parseIntent(utterance);
-
-    // 2. 请求造物引擎决策
-    const decision = await this.engine.executeCommand('interpreter', intent);
-
-    if (!decision.allowed) {
-      // 3. 显示审批面板
-      await showApprovalPanel(intent, decision.reason);
-    } else {
-      // 4. 直接执行
-      applyIntentToWorld(this.world, intent);
-    }
-  }
-}
+// 玩家在造物模式里确认：引擎校验形状与配色，场景负责入队。
+const plan = this.creator.proposeCreation({ templateId, at, palette, worldSize });
+this.sim.enqueue({
+  kind: 'build',
+  prefabId: plan.templateId,
+  instanceId,
+  at: plan.at,
+  source: { taskId: `creation-${instanceId}`, summary },
+});
+// 只递真的查过的观测；没查的（门口连通、回放一致）留 null。
+this.creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+  coverageRate,
+  hasCollision: false,
+  spatialConstraintSatisfied: true,
+  traceable: true,
+});
 ```
 
 ### 从记忆系统调用
 
 ```typescript
-// 日终广播心电图快照
-function broadcastVitalsSnapshot(vitals: WorldVitalsSnapshot) {
-  const engine = getGlobalCreatorEngine();
-  const decision = engine.processDayClosed(vitals);
+// 记忆层关账（跨日）时，场景先结算外环，再决定要不要让引擎自己提议。
+this.creator.closeWorldDay();
+this.creator.processDayClosed(vitals);
 
-  if (decision.shouldInject) {
-    // 注入事件到世界
-    world.injectEvent(decision.eventKind);
+if (this.creator.getFuseDecision('mapper').action === 'allow') {
+  const plan = this.creator.planCreation(this.creatorWorldView());
+  if (plan !== null) {
+    this.sim.enqueue({
+      kind: 'build',
+      prefabId: plan.templateId,
+      instanceId: this.sim.nextInstanceId(plan.templateId),
+      at: plan.at,
+      source: { taskId: `creator-${plan.templateId}`, summary: plan.reason },
+    });
   }
 }
 ```
+
+L0–L2 的门禁是「要人点头」，所以自动提议只在 `allow` 时发生；
+`planCreation` 本身不写世界，它只返回一份可复现的计划。
 
 ---
 
@@ -232,33 +242,32 @@ function broadcastVitalsSnapshot(vitals: WorldVitalsSnapshot) {
 | 设定集常量 | `test/creator-config.test.ts` | 29 |
 | 逆向审校合成器 | `test/creator-synthesizer.test.ts` | 14 |
 | 造物指令 schema | `test/creator-schema.test.ts` | 21 |
+| 引擎接线 | `test/creator-wire.test.ts` | 8 |
 
-**`CreatorEngine`（本文第一节那个入口）还没有落地。** 它**不在这个仓库里**——只有一份
-未入库的草稿，停在某个开发者的工作区。那份草稿今天过不了 `npm run check`（8 处语义错：
-`MemoryConfig` / `computeMemoryConfig` / `DirectorEngine` / `RawSettingPack` 四个名字
-没导入），它对应的测试文件另有 40 处。它还有两处越界：
-`creator-boundary.test.ts` 拦的是它 `import` 了 `memory/types.ts`，
-`purity.test.ts` 拦的是它从 `world/` 往上层 `settings/` 里 import。
+**`CreatorEngine` 已经入库并接线。** 它住在 `src/creator/engine.ts`，由
+`SandboxScene` 在 `create()` 里构造，吃场景这一份 `BuiltWorld`；计划经
+`Simulation.enqueue` 落地；世界日由 `closeWorldDay()` 结算。`src/` 下现在
+`grep "creator/engine"` 有生产命中——「零命中」是它入库前的读数。
 
-（这里原来写的是「它的草稿在 `<那个路径>`」——路径写成反引号里的仓内形状，于是
-`audit-citations.ts` 会去磁盘上找它。磁盘上确实有一份，**而 git 里没有**：闸门按磁盘
-解析，CI 按 clone 解析，两边对同一句话给出相反的答案。这个仓库的引用审计只保证
-「文件在」，不保证「你 clone 下来能拿到」——所以这种引用不该被写成路径。）
+（本文早先写过「它不在这个仓库里，草稿在某个开发者的工作区」。那是当时的
+真实状态，不是今天的：草稿最终以 `src/creator/engine.ts` 入库，位置从
+`world/creator/` 挪到 `src/creator/`，理由是它必须同时看见世界与设定集。
+上面那张表也曾经故意不列它——把一份编译不过的草稿写成「新增」正是本文档
+要避免的假话。第一节的组件图是目标形态，第三阶段之后它才真的连起来。）
 
-所以上面那张表里**没有它**——把一份编译不过的草稿列成「新增」，就是本文档最该
-避免的那种假话。第一节的组件图是**目标形态**，不是今天的形态：Fuse、Director、
-Metrics、Synthesizer、Schema 五个模块各自跑着、各自有测试，但它们之间今天还没有
-那个把它们串起来的东西，也还没有任何生产代码 import 它们
-（`grep -rn "world/creator/" src --include=*.ts` 在 `src/` 下零命中）。
+另外，原来的草稿链路里有两处越界：`creator-boundary.test.ts` 拦的是
+`import` 了 `memory/types.ts`；`purity.test.ts` 拦的是从 `world/` 往上层
+`settings/` 里 import。入库版本把这两处都避开了——它位于 `src/creator/`，
+世界内核一格不越界。
 
 ---
 
 ## 七、待办事项
 
-- [ ] 添加 `BuilderContext` 参数传递到各个子系统
-- [ ] 完善 `executeCommand` 的实际执行逻辑（目前仅返回决策建议）
-- [ ] 连接实际的世界变更 API（`world.applyCommand()`）
-- [ ] 添加内存持久化机制（保存角色状态到本地存储）
+- [x] 把世界现状传给引擎（`CreatorWorldView`：已落地模板 + 与手动造物同一套落点判据）
+- [ ] `executeCommand` 仍只返回决策建议，没有把「允许」变成一次实际执行
+- [x] 连接世界变更入口：计划经 `Simulation.enqueue({ kind: 'build' })` 落地
+- [ ] 内存持久化：熔断等级、导演历史目前不进存档，重进世界从 L0 重来
 - [ ] 补充可视化监控界面（展示各角色的当前等级和指标）
 
 ---
