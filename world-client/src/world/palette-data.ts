@@ -151,10 +151,15 @@ export const TERRAIN_SPECK = {
  *
  * 用途：把已有的色值（比如模板自带的配色）反查回 token 名，
  * 好喂给造物主 schema——它只接受 token 名，不接受色值。
+ *
+ * **`palette` 必填，且必须是当前世界的色板。** 这一步原先默认查全局 `WORLD`，
+ * 而灯潮界的 24 个槽同名不同色：拿莞尔镇的表去反查灯潮界的楼，一个都查不到，
+ * 直接抛「色值不在 24 色表里」。调用方（`SandboxScene`）现在递
+ * `pack.palette`，两套世界各自查各自的表。
  */
-export function tokenNameOf(color: number): string {
-  for (const [name, value] of Object.entries(WORLD)) {
+export function tokenNameOf(color: number, palette: Readonly<Record<string, number>>): string {
+  for (const [name, value] of Object.entries(palette)) {
     if (value === color) return name;
   }
-  throw new Error(`色值 ${color} 不在 24 色表里，无法反查 token 名`);
+  throw new Error(`色值 ${color} 不在当前世界的 24 色表里，无法反查 token 名`);
 }

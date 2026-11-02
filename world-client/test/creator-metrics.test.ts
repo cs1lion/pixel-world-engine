@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { isGatePassed, runAllGateChecks, type AggregateGateMetrics, type CheckContext } from '../src/world/creator/metrics.ts';
 import { parseGenesisCommandBatch, type GenesisCommandBatch } from '../src/world/creator/schema.ts';
 import type { PrefabBlueprint } from '../src/world/types.ts';
+import { WORLD } from '../src/world/palette-data.ts';
 
 /**
  * 门禁指标的算法本身。
@@ -38,7 +39,7 @@ const worldSize = { width: 64, height: 64 };
 function batchOf(commands: unknown[]): GenesisCommandBatch {
   return parseGenesisCommandBatch(
     { version: 1, commands },
-    { templates, worldSize, existingChars: new Set(['Alice']) },
+    { templates, worldSize, existingChars: new Set(['Alice']), palette: WORLD },
   );
 }
 

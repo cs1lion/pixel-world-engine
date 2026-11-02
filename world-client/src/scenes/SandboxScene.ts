@@ -1525,17 +1525,19 @@ export class SandboxScene extends Phaser.Scene {
       templateId: session.prefabId,
       at: session.ghostAt,
       palette: {
-        body: tokenNameOf(blueprint.palette.body),
-        roof: tokenNameOf(blueprint.palette.roof),
-        trim: tokenNameOf(blueprint.palette.trim),
-        window: tokenNameOf(blueprint.palette.window),
+        body: tokenNameOf(blueprint.palette.body, this.worldPalette()),
+        roof: tokenNameOf(blueprint.palette.roof, this.worldPalette()),
+        trim: tokenNameOf(blueprint.palette.trim, this.worldPalette()),
+        window: tokenNameOf(blueprint.palette.window, this.worldPalette()),
       },
     };
     try {
-      parseCreationPlan(intent, this.blueprints, {
-        width: this.world.grid.width,
-        height: this.world.grid.height,
-      });
+      parseCreationPlan(
+        intent,
+        this.blueprints,
+        { width: this.world.grid.width, height: this.world.grid.height },
+        this.worldPalette(),
+      );
     } catch (error) {
       // schema 不过就是玩家的选择有问题：留在模式里，说清哪里不对。
       return {
@@ -1629,6 +1631,17 @@ export class SandboxScene extends Phaser.Scene {
 
   creating(): { readonly prefabId: string; readonly ghostAt: GridPoint | null } | null {
     return this.creation;
+  }
+
+  /**
+   * 当前世界的 24 色。
+   *
+   * 色板值归设定集：灯潮界的 `timber` 与莞尔镇的 `timber` 同名不同色。
+   * 没有 pack（莞尔镇）时回落 `WORLD`——`LEGACY_PACK.palette` 本来就是它，
+   * 这条回落与「默认世界用默认色板」是同一件事。
+   */
+  private worldPalette(): WorldPalette {
+    return this.pack?.palette ?? WORLD;
   }
 
   private endCreation(): void {
