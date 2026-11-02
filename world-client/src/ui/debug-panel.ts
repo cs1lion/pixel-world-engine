@@ -214,10 +214,26 @@ export interface CreatorChecksView {
  * 里那三行 `const xxx: Xxx = api`。`OracleApi` 那一处已经这么接了（`6ac7a6b`），
  * 这两处是同一个洞，一起堵上。
  */
+/**
+ * 一个人的时间线上的一格（只读）。`eventId` 与事件日志同一个 id；
+ * `bias` 只在「记错了」的条目上出现。
+ */
+export interface MemoryTimelineEntry {
+  readonly memoryId: string;
+  readonly eventId: string;
+  readonly kind: string;
+  readonly day: number;
+  readonly when: number;
+  readonly sourceMode: string;
+  readonly bias?: string;
+}
+
 export interface DebugOracle {
   view(): WorldSnapshot;
   events(limit: number): readonly WorldEvent[];
   saveStatus(): SaveStatusView;
+  /** 某个角色记得的事，按天/时刻排序。省略表示这一面没挂。 */
+  memoryTimeline?(holderId: string): readonly MemoryTimelineEntry[];
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

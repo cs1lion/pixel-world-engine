@@ -2277,6 +2277,15 @@ export class SandboxScene extends Phaser.Scene {
           }),
         };
       },
+      /**
+       * 只读时间线：某个角色记得的事，按天/时刻排序，每条带事件 id。
+       * 与 `memory()` 同一扇门（`MemoryRuntime.timelineFor` → `viewOf`），
+       * 不额外读全局库。
+       */
+      memoryTimeline: (holderId: string) => {
+        if (this.memory === undefined) return [];
+        return this.memory.timelineFor(holderId);
+      },
       /** 只查询某处能不能建，不改变任何状态。造物模式与测试都用它。 */
       canPlaceAt: (cell: GridPoint): boolean => {
         const session = this.creation;
