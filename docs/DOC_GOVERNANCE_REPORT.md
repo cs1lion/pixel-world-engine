@@ -48,7 +48,7 @@
 
 实现 [audit-claims.ts](../world-client/scripts/audit-claims.ts)：
 
-- 标记语法 `<!-- claim: name=value -->`；探针是闭集（测试文件数、`CURRENT_SCHEMA_VERSION`、ADR 数、SPEC 唯一性、iterations 入库数），**不接受任意 shell**。
+- 标记语法是 HTML 注释里的 `claim: name=value`（两侧分别是 `<!--` 与 `-->`，此处故意不写成完整注释，避免本报告自身被当成一条真标记）；探针是闭集（测试文件数、`CURRENT_SCHEMA_VERSION`、ADR 数、SPEC 唯一性、iterations 入库数），**不接受任意 shell**。
 - 输出 `claims: markers / passed / failed`；0 标记也会提示“不是全绿”。
 - 同时校验 8 份 ADR 的三字段与 evidence 路径存在性。
 - 接上 5 个标记：README 测试文件数、SETTING 存档版本、SPEC 唯一权威、ADR 总数、iterations 入库数。
