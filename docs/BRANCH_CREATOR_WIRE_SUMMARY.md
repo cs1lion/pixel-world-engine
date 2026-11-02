@@ -3,7 +3,7 @@
 面向要审阅/合入这条分支的人。目标是让没跟过这轮对话的人能判断：**这批改动解决了什么、哪些预期被改过、还有什么没验到。**
 
 - 分支：`feat/creator-engine-wire`
-- 当前 HEAD：`4d4e309`
+- 写作快照：`4d4e309`（之后仅追加 docs 提交，代码未变；最终 HEAD 见报告）
 - 与 `main` 的起点（merge-base）：`ef4d6ff`
 - 规模：**13 笔提交**，`git diff --stat main...HEAD` 为 **41 个文件，+4663 / -429**
 - 完整问题清单见 [OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md)；本文只讲“这批改了什么、能不能看懂”。
@@ -135,7 +135,7 @@
 3. **四项计数以外的门禁项。** `collisionChecks` / `constraintChecks` / `traceabilityChecks` / `schemaPassRate` / `manualModificationRate` 没有通过 Oracle 暴露，浏览器只验证了 `creatorChecks()` 的四项与 coverage。其余由单元测试覆盖。
 4. **原 9 条 KNOWN_FAILING** 仍按原样跳过，没有新增通过，也没有移除。
 
-## 五、当前验证快照（HEAD `4d4e309`）
+## 五、写作时验证快照（代码快照 `4d4e309`）
 
 | 命令 | 结果 |
 | --- | --- |

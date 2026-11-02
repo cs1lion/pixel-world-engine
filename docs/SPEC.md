@@ -1,6 +1,6 @@
 # Spec：pixel-world-engine v1
 
-**状态**：定稿，可拆票。自 2026-11-02 起**唯一权威**；v2 增补已收入 §8–§15。
+**状态**：定稿，可拆票。自 2026-11-02 起**唯一权威**；v2 增补已收入 §8–§15。<!-- claim: spec-authority=SPEC.md -->
 **日期锚**：2026-10-25。
 **上游**：`SPEC_DRAFT_20261025.md`（2026-10-25 的草案）、`MIGRATION_FROM_XIAOXI.md`（实测盘点）。
 
@@ -342,7 +342,7 @@ v2 存档自动升级（默认 `tide=0.5`、`lampOil=full`），指纹重算。
 >   `SPEC_V2.md` 里 `tideOverride`、`lampOil`、`worldChangeVersion` 三个真名
 >   一个都没出现（只有一个函数名 `tideOverrideRejection`，那不是字段）。所以它
 >   没有「换成真名字」，它一个真名都没起过。原来那句还把蛇形名的源头只指到
->   `SPEC_DRAFT_20261025.md:55`，漏了 `SPEC_V2.md:189` 这个更晚的第二处。
+>   `SPEC_DRAFT_20261025.md:55`，漏了 `SPEC_V2.md:253` 这个更晚的第二处。
 >
 > 这两条是同一种病：**证据是一次的 grep，而 grep 的范围由写字的人随手定。**
 > 上一段的两处括号都老老实实写了范围（`src/` `test/` `server/`），加粗的标题却

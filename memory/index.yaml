@@ -9,8 +9,10 @@
   序号分配扫的是文件名，拿索引当凭据会在索引变旧时重号，而重号会让两条记忆
   互相覆盖。
 - `days`：已经生成过快照的世界日序号。
-- `characters`：已经有档案的角色名。
+  目前**没有自动写入方**；下列值是 2026-11-02 按 `entries/` 实际文件核对的快照，
+  新增每日快照后需人工核对或补写入方。
+- `characters`：已经有档案的角色名。同样没有自动写入方，按 `characters/` 目录核对。
 
-last_event_seq: 0
-days: []
-characters: []
+last_event_seq: 1
+days: [0, 1]
+characters: [莞尔]
