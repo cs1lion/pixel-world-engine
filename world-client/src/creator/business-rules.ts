@@ -42,6 +42,29 @@ export const CONFLICT_PREFIX = '空间：';
 export const INVARIANT_PREFIX = '不变式：';
 
 /**
+ * 要素覆盖率 = **已落地模板数 / 设定集模板总数**。
+ *
+ * 按 `prefabId` 去重：同一种铺子建第二栋不会把覆盖率抬高。分母是设定集里
+ * 允许的全部模板（`blueprints.size`），不是「打算建几栋」——没有那样一份清单。
+ *
+ * 每次造物结算时都用**当时的** `Simulation.snapshot()` 现算，不缓存、不沿用
+ * 上一个窗口的读数。这样「同一模板拆掉再建」也会产生一次新观测：覆盖率仍是
+ * 10/10 = 1.0，但 `coverageChecks` +1，这个事实是新的。
+ */
+export function creationCoverage(
+  snapshot: Pick<WorldSnapshot, 'buildings'>,
+  blueprints: ReadonlyMap<string, PrefabBlueprint>,
+): number {
+  const total = blueprints.size;
+  if (total === 0) return 0;
+  const seen = new Set<string>();
+  for (const building of snapshot.buildings) {
+    if (blueprints.has(building.prefabId)) seen.add(building.prefabId);
+  }
+  return Math.min(1, seen.size / total);
+}
+
+/**
  * 对一个**已经落地**的造物跑第二重门禁。
  *
  * 返回 `hasConflict` / `invariantViolated` 两个布尔，供 `submitHumanApproval`

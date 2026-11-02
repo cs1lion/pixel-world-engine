@@ -182,7 +182,7 @@ cd server && python -m pytest
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1868 通过 / 9 跳过 / 0 失败
+2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1870 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
 0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
 
@@ -234,8 +234,10 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 拿回计划后经 `Simulation.enqueue` 落位；`submitHumanApproval` 只记真的查过的项
 （落位三道、覆盖率、来由），门口连通、回放一致与冲突/不变式由 `building.built` 触发的事后判定补上。
 冲突与不变式现在有检查次数分母（`conflictChecks` / `invariantChecks`）：没跑过业务规则的窗口
-升不了 L2，`false` 才是「查过且没有」。外环的自动提议可复现：候选模板先排序，模板下标与扫描起点都从
-`seedOf(worldSeed, day, 'creator', …)` 取，不用 `Math.random`、不读墙钟。
+升不了 L2，`false` 才是「查过且没有」。覆盖率改成**每次造物结算都现算一次**（按 `prefabId` 去重），
+所以「拆掉一栋、再把同一模板建回来」也会记一次新观测——升级清零窗口之后 L1→L2 不再结构卡死；
+没有造物的窗口覆盖率仍是 `null`，不会被默认放行。外环的自动提议可复现：候选模板先排序，
+模板下标与扫描起点都从 `seedOf(worldSeed, day, 'creator', …)` 取，不用 `Math.random`、不读墙钟。
 
 **记忆的写面（第二阶段已接）**：浏览器端不再只有 `list()` / `read()`。
 世界回写日志成功、拿到事件 id 之后，`SandboxScene` 把它排进 `memoryOutbox`，

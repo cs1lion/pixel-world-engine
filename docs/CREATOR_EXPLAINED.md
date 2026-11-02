@@ -151,11 +151,14 @@ flowchart LR
 如果中途有 3 次造物、其中 2 次门口连不出去，寻路率就是 2/3 ≈ 0.67；L3 门禁要求正好 1，
 于是卡在 L2（[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L627-L631)）。
 
-**这里有一处结构性限制**（推断自代码路径，值得记住）：升级会清零窗口，覆盖率也变回
-`null`。所以进 L2 还要在**新窗口**里再有一次真实造物，把覆盖率重新写成 ≥0.95，再攒 14 天。
-但灯潮界在补上第 10 栋之后已经没有可提议的模板（`planCreation` 会返回 `null`），
-`confirmCreation` 也拒绝重复建同一种铺子——也就是说，**这张图在 L1 之后缺少下一个可观测的
-造物**。门禁本身没算错，是「覆盖率」这个指标在「已经建满」的世界里没有再观测的机会。
+**覆盖率现在每次造物都重新观测。** 升级仍然清零窗口、覆盖率仍然变回 `null`，但每个落地结算
+都会用**当时的快照**现算「已落地模板数 / 模板总数」并记一次。于是清零之后只要发生一次造物——
+包括「拆掉一栋、再把同一模板建回来」——`coverageChecks` 就会 >0、`coverageRate` 恢复成真实值，
+L1→L2 随之可过（[creator-business-rules.test.ts](file:///D:/project/pixel-world-engine/world-client/test/creator-business-rules.test.ts#L401-L467)）。
+
+**但零造物的世界仍然过不去**：没有新观测时覆盖率还是 `null`，门禁不会默认放行
+（[creator-business-rules.test.ts](file:///D:/project/pixel-world-engine/world-client/test/creator-business-rules.test.ts#L469-L484)）。
+也就是说，解除死锁靠的是「发生了一次造物、并真的数了一遍」，不是「清零后自动通过」。
 
 注意：生产路径里**只走了「14 天」这条腿**。`endOfBatch` 没有任何生产调用方
 （[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L298-L304)，
@@ -214,7 +217,8 @@ sequenceDiagram
 **逐字段**：`templateId` = 玩家选的模板；`at` = 幽灵格；`palette` = 模板配色换成的四个 token 名；
 `worldSize` = 网格宽高；`day` = 确认那一刻的 `snapshot.now / DAY_MS`；
 `instanceId` 在入队时才分配；`source` 只是来由，不参与落位；
-`coverageRate` 是「已落地模板数 / 模板总数」（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1175-L1181)）。
+`coverageRate` 是**落地结算那一刻**用快照现算的「已落地模板数 / 模板总数」，不是登记时的缓存
+（[business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L44-L65)）。
 
 **失败会怎样**：落位被拒时不会有 `building.built`，于是 `settleCreationObservation` 什么也不记。
 这是刻意的——没有真实落地结果，就没有「事后观测」可记。
@@ -289,7 +293,7 @@ flowchart LR
 | `verifyCreationReplay`（[landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L40-L71)） | 比「实际」与「重跑计划推出的应当」 | 计划/重跑计划/落地/蓝图 → 布尔或 `null` | `settleCreationObservation` 里调 |
 | `settleCreationObservation`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1100-L1147)） | 落地后补可达/回放/业务规则三项观测并记账 | `instanceId` → `void` | `onChange` 收到 `building.built` 时调 |
 | `checkLandedBuilding`（[business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L42-L73)） | 把落地结果包成一条指令，跑第二重门禁 | 世界投影 + 落地 → `{hasConflict, invariantViolated}` | `settleCreationObservation` 里调 |
-| `blueprintCoverage`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1190-L1196)） | 已落地模板数 / 模板总数 | 可选的「刚确认的那栋」 → 0–1 | 登记 pending 时算一次 |
+| `creationCoverage`（[business-rules.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/business-rules.ts#L44-L65)） | 已落地模板数 / 模板总数（按 `prefabId` 去重） | 落地后的快照 → 0–1 | `settleCreationObservation` 里现算 |
 | `freezeCreatorView`（[landing.ts](file:///D:/project/pixel-world-engine/world-client/src/creator/landing.ts#L96-L133)） | 把落位许可冻成位图 | 视图 + 候选模板 → 冻结视图 | 场景跨日自动提议时调 |
 | `landedCreationOf`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L1149-L1158)） | 从 `Simulation` 快照找那一栋 | `instanceId` → `LandedCreation \| null` | `settleCreationObservation` 里调 |
 
@@ -377,12 +381,11 @@ flowchart LR
   `recordCommandResult`，所以通过率恒为 1，人工修改率恒为 0。可选做法：把被拒尝试也记成
   `schemaPassed: false`（但玩家点错位置会不会连累外环，是个产品判断）；或只记外环自动提议的失败；
   或正式把这条门禁改成「落地成功率」并接受这个口径。三种都要先定语义，不宜顺手改。
-- **覆盖率的结构性卡死仍在。** 升级清零窗口后 `coverageRate` 变 `null`；在灯潮界这种
-  「模板已全部落地、`planCreation` 只能返回 `null`」的世界，没有下一次造物可观测，
-  L1→L2 在结构上过不去（[creator-business-rules.test.ts](file:///D:/project/pixel-world-engine/world-client/test/creator-business-rules.test.ts#L395-L417)）。
-  可选解法：把「已全覆盖」当作合法终态（但要想清「窗口清零」对它意味着什么——是沿用上一级的
-  覆盖率事实，还是要求新的观测）；或引入新的可观测维度（例如每次造物都观测一次，而不是只在
-  有新模板时才有观测机会）。两条都不替读者拍板。
+- **覆盖率的卡死已按拍板解除。** 每次造物结算都现算覆盖率并记一次，所以「拆掉一栋、再把同一
+  模板建回来」也会让 `coverageChecks > 0`、`coverageRate = 1.0`，L1→L2 可过
+  （[creator-business-rules.test.ts](file:///D:/project/pixel-world-engine/world-client/test/creator-business-rules.test.ts#L401-L467)）。
+  前提是**确实发生了一次造物**：零造物的世界仍停在 L1（同文件的 L469-L484），
+  那是「不白送」的另一半，不是遗漏。
 
 另有两条已知但**不影响当前 fuse 链路**的事项：`metrics.ts` 里的 `relationSymmetryRate`
 只有 `null` 路径（没有关系图数据源），而 `metrics.ts` 本身还没有生产调用方；

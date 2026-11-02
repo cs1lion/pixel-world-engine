@@ -73,7 +73,7 @@ import {
   verifyCreationReplay,
   type LandedCreation,
 } from '../creator/landing.ts';
-import { checkLandedBuilding } from '../creator/business-rules.ts';
+import { checkLandedBuilding, creationCoverage } from '../creator/business-rules.ts';
 import type { CreationPlan } from '../world/creator-schema.ts';
 import {
   biomeRingAllows,
@@ -153,7 +153,6 @@ interface BuildingEntry {
 interface PendingCreationObservation {
   readonly plan: CreationPlan;
   readonly day: number;
-  readonly coverageRate: number;
   readonly traceable: boolean;
   readonly recompute: () => CreationPlan | null;
 }
@@ -1075,7 +1074,6 @@ export class SandboxScene extends Phaser.Scene {
     this.pendingCreationObservations.set(instanceId, {
       plan: proposal,
       day: view.day,
-      coverageRate: this.blueprintCoverage(proposal.templateId),
       traceable: true,
       recompute: () => creator.planCreation(frozen),
     });
@@ -1129,11 +1127,14 @@ export class SandboxScene extends Phaser.Scene {
       altar: this.world.altar,
       blueprints: this.blueprints,
     };
+    // 覆盖率**在这一刻现算**，不读登记时的缓存：楼已经落地，快照就是落地后的世界。
+    // 同一模板拆掉再建也算一次新观测——值可能仍是 1.0，但检查次数会 +1。
+    const coverageRate = creationCoverage(businessWorld.snapshot, this.blueprints);
     void checkLandedBuilding(businessWorld, landed).then((business) => {
       // 场景已经换了一个世界（热重载/退出），这次结果不再属于任何引擎。
       if (this.creator !== creator) return;
       creator.submitHumanApproval('mapper', instanceId, true, undefined, {
-        coverageRate: pending.coverageRate,
+        coverageRate,
         pathfindingConnected,
         hasCollision: false,
         spatialConstraintSatisfied: true,
@@ -1179,22 +1180,6 @@ export class SandboxScene extends Phaser.Scene {
         return biomeRingAllows(prefabId, at, this.world.altar);
       },
     };
-  }
-
-  /**
-   * 要素覆盖率：**已落地模板数 / 设定集模板总数**。
-   *
-   * 这是当前数据能算的唯一口径：`pack.blueprints` 列出了这套世界允许的
-   * 全部模板，`snapshot.buildings` 是此刻真的立着的（加上刚确认的这一次）。
-   * 不拿「打算建几栋」当分母——没有那样一份清单；也不四舍五入成 1，
-   * 差一栋就是差一栋。
-   */
-  private blueprintCoverage(extraPrefabId?: string): number {
-    const total = this.blueprints.size;
-    if (total === 0) return 0;
-    const built = new Set(this.snapshot.buildings.map((building) => building.prefabId));
-    if (extraPrefabId !== undefined) built.add(extraPrefabId);
-    return Math.min(1, built.size / total);
   }
 
   /**
@@ -1779,7 +1764,6 @@ export class SandboxScene extends Phaser.Scene {
     this.pendingCreationObservations.set(instanceId, {
       plan,
       day: Math.floor(this.snapshot.now / DAY_MS),
-      coverageRate: this.blueprintCoverage(plan.templateId),
       traceable: true,
       recompute: () => creator.proposeCreation(request),
     });

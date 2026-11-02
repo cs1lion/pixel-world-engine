@@ -21,6 +21,7 @@ import {
 } from '../src/creator/engine.ts';
 import {
   checkLandedBuilding,
+  creationCoverage,
   type BusinessWorld,
 } from '../src/creator/business-rules.ts';
 import { landingReachable, type LandedCreation } from '../src/creator/landing.ts';
@@ -56,6 +57,27 @@ function viewOf(pack: SettingPack, world: BuiltWorld, day: number): CreatorWorld
   return {
     day,
     builtPrefabIds: new Set(world.buildings.map((building) => building.prefabId)),
+    width: world.grid.width,
+    height: world.grid.height,
+    canPlace: (prefabId, at) => {
+      const blueprint = pack.blueprints.get(prefabId);
+      if (blueprint === undefined) return false;
+      return checkPlacement(world.grid, blueprint, at).ok
+        && biomeRingAllows(prefabId, at, world.altar);
+    },
+  };
+}
+
+/** 用 `Simulation` 的快照当「已有哪些模板」；`viewOf` 读的是开局世界，落地后不会变。 */
+function viewOfSnapshot(
+  pack: SettingPack,
+  world: BuiltWorld,
+  snapshot: ReturnType<Simulation['snapshot']>,
+  day: number,
+): CreatorWorldView {
+  return {
+    day,
+    builtPrefabIds: new Set(snapshot.buildings.map((building) => building.prefabId)),
     width: world.grid.width,
     height: world.grid.height,
     canPlace: (prefabId, at) => {
@@ -159,10 +181,15 @@ test('正常落地：检查次数 +1、冲突是真实 0，L2 门禁放行', asy
   assert.equal(check.invariantViolated, false);
 
   const controller = (engine as any).fuseController as AutonomousFuseController;
+  const coverage = creationCoverage(sim.snapshot(), pack.blueprints);
+  assert.equal(coverage, 1, '灯潮界 10 个模板都立着：10/10');
   engine.submitHumanApproval('mapper', landed.instanceId, true, undefined, {
+    coverageRate: coverage,
     hasConflict: check.hasConflict,
     invariantViolated: check.invariantViolated,
   });
+  assert.equal(controller.getRoleState('mapper')?.metrics.coverageChecks, 1);
+  assert.equal(controller.getRates('mapper')?.coverageRate, 1);
   assert.equal(controller.getRoleState('mapper')?.metrics.conflictChecks, 1);
   assert.equal(controller.getRoleState('mapper')?.metrics.conflictCount, 0);
   assert.equal(controller.getRates('mapper')?.conflictChecks, 1);
@@ -390,28 +417,116 @@ test('五条不变式逐条都能报出来（含越界、门在占地内、覆�
   assert.ok(enclosed.violations.some((m) => m.includes('门口到不了镇心')), enclosed.violations.join(' / '));
 });
 
-// ---------------------------------------------------------------- 结构性卡死
+// ---------------------------------------------------------------- 覆盖率：每次造物都观测
 
-test('升级清零窗口后没有下一次造物 → 覆盖率回 null，L1 结构上过不去', () => {
+test('死锁解除：窗口清零后重建同一模板 → 新观测，14 天后真的升到 L2', () => {
+  // 这条原先断言「卡在 L1」。按用户拍板把覆盖率改成「每次造物结算都观测」之后，
+  // 预期从「卡死」改成「解除」——这是**行为改变导致的预期改变**，不是为了让测试变绿。
+  const { pack, world } = freshWorld();
+  const ladder = engineOf(pack, world, 2);
+  const sim = simOf(pack, world);
+
+  // 先把灯潮界补满 10/10。
+  const first = ladder.planCreation(viewOf(pack, world, 1));
+  assert.ok(first !== null);
+  const firstId = sim.nextInstanceId(first.templateId);
+  sim.enqueue({
+    kind: 'build',
+    prefabId: first.templateId,
+    instanceId: firstId,
+    at: first.at,
+    source: { taskId: 'coverage', summary: '补满' },
+  });
+  assert.equal(sim.update(16)[0]?.ok, true);
+  assert.equal(creationCoverage(sim.snapshot(), pack.blueprints), 1);
+
+  // 第一个窗口：升到 L1，然后窗口清零。
+  days(ladder, 14, GOOD_OBSERVATION);
+  assert.equal(ladder.getRoleState('mapper')?.currentLevel, 1);
+  const controller = (ladder as any).fuseController as AutonomousFuseController;
+  assert.equal(controller.getRates('mapper')?.coverageRate, null, '升级即清零，不跨窗口继承');
+  assert.equal(controller.getRoleState('mapper')?.metrics.coverageChecks, 0);
+
+  // 拆掉一栋既有楼，再把**同一模板**建回来。这是世界规则允许的「重复造同一模板」
+  // 形态（`Simulation.build` 拒绝同模板并存，所以必须先拆）。
+  const victim = sim.snapshot().buildings.find((building) => building.prefabId === 'soot_forge');
+  assert.ok(victim !== undefined);
+  sim.enqueue({ kind: 'demolish', instanceId: victim.instanceId });
+  assert.equal(sim.update(16)[0]?.ok, true);
+  assert.ok(!sim.snapshot().buildings.some((building) => building.prefabId === 'soot_forge'));
+
+  const view = viewOfSnapshot(pack, world, sim.snapshot(), 1);
+  const rebuild = ladder.planCreation(view);
+  assert.ok(rebuild !== null);
+  assert.equal(rebuild.templateId, 'soot_forge', '缺的正是刚拆掉的那一个模板');
+  const rebuildId = sim.nextInstanceId(rebuild.templateId);
+  sim.enqueue({
+    kind: 'build',
+    prefabId: rebuild.templateId,
+    instanceId: rebuildId,
+    at: rebuild.at,
+    source: { taskId: 'coverage', summary: '重建' },
+  });
+  assert.equal(sim.update(16)[0]?.ok, true);
+
+  const coverage = creationCoverage(sim.snapshot(), pack.blueprints);
+  assert.equal(coverage, 1, '重建后仍是 10/10——覆盖率不变，但这次是真查过');
+  ladder.submitHumanApproval('mapper', rebuildId, true, undefined, {
+    ...GOOD_OBSERVATION,
+    coverageRate: coverage,
+  });
+  assert.equal(controller.getRoleState('mapper')?.metrics.coverageChecks, 1);
+  assert.equal(controller.getRates('mapper')?.coverageRate, 1);
+
+  // 新窗口里凑够 14 天：L1 → L2 不再卡死。
+  for (let i = 0; i < 14; i += 1) ladder.closeWorldDay();
+  assert.equal(
+    ladder.getRoleState('mapper')?.currentLevel,
+    2,
+    '有了一次新观测之后，L1 → L2 应当过得去',
+  );
+});
+
+test('不能白送：窗口清零后没有任何造物 → 覆盖率仍 null，L2 依旧不通过', () => {
   const { pack, world } = freshWorld();
   const ladder = engineOf(pack, world, 2);
 
-  // 第一个窗口：有造物可观测，覆盖率 1.0，14 天后升到 L1。
   days(ladder, 14, GOOD_OBSERVATION);
   assert.equal(ladder.getRoleState('mapper')?.currentLevel, 1);
 
-  // 升级即清零：覆盖率不再是上次那个 1.0，而是「这一级还没观察过」。
   const controller = (ladder as any).fuseController as AutonomousFuseController;
   assert.equal(controller.getRates('mapper')?.coverageRate, null);
   assert.equal(controller.getRoleState('mapper')?.metrics.coverageChecks, 0);
 
-  // 灯潮界模板已全部落地：没有下一次可观测的造物，只能继续关账。
+  // 没有造物，就没有新观测。清零后的 `null` 不是「默认通过」。
   for (let i = 0; i < 14; i += 1) ladder.closeWorldDay();
+  assert.equal(ladder.getRoleState('mapper')?.currentLevel, 1, '没有新观测就不许升 L2');
+  assert.equal(controller.getRates('mapper')?.coverageRate, null);
+});
 
-  assert.equal(
-    ladder.getRoleState('mapper')?.currentLevel,
-    1,
-    '没有新观测时，L1 → L2 会一直卡住（这是结构限制，不是门禁算错）',
+test('观测真实性：只落地 3/10 → 0.3；同模板重复观测不会虚高', () => {
+  const { pack, world } = freshWorld();
+  const sim = simOf(pack, world);
+  const snapshot = sim.snapshot();
+
+  const three = snapshot.buildings.filter((building) =>
+    ['wave_house', 'lamp_lodge', 'tea_stall'].includes(building.prefabId),
   );
-  assert.equal(controller.getRates('mapper')?.coverageRate, null, '覆盖率始终没有再被观测');
+  assert.equal(creationCoverage({ buildings: three }, pack.blueprints), 0.3);
+
+  // 同一模板再来一次（不计入新模板）：仍然是 3/10 = 0.3。
+  const repeated = [...three, { ...three[0]!, instanceId: 'repeat#wave' }];
+  assert.equal(
+    creationCoverage({ buildings: repeated }, pack.blueprints),
+    0.3,
+    '重复造同一模板不能把覆盖率抬高',
+  );
+
+  // 但「重复观测」这件事本身必须记一次：同样的 1.0 交两回，检查次数 +2。
+  const engine = engineOf(pack, world);
+  const controller = (engine as any).fuseController as AutonomousFuseController;
+  engine.submitHumanApproval('mapper', 'a', true, undefined, { coverageRate: 1 });
+  engine.submitHumanApproval('mapper', 'b', true, undefined, { coverageRate: 1 });
+  assert.equal(controller.getRoleState('mapper')?.metrics.coverageChecks, 2);
+  assert.equal(controller.getRates('mapper')?.coverageRate, 1);
 });
