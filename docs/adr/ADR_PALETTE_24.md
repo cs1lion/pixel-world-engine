@@ -1,7 +1,8 @@
 # ADR：世界 24 色预算——补记一份从未写下的决定
 
-- status: pending-review
+- status: aligned
 - verified_at: 2026-11-02
+- verified_by: agent，按证据核实，用户授权，2026-11-02
 - evidence: `world-client/src/world/palette-data.ts`, `world-client/scripts/audit-palette.mjs`, `world-client/test/palette-budget.test.ts`
 
 - 状态：已接受（**补记**；被补记的那份文档从未存在）

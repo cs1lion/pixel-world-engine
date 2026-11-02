@@ -1,7 +1,8 @@
 # ADR_WORLD_ALIVE：世界变活
 
-- status: pending-review
+- status: aligned
 - verified_at: 2026-11-02
+- verified_by: agent，按证据核实，用户授权，2026-11-02
 - evidence: `world-client/src/world/save.ts`, `world-client/src/render/day-phase.ts`, `world-client/scripts/check-phases.mjs`
 
 > **这份记录的来历（先说清楚）**：代码里从 2026 年起就有 4 处引用

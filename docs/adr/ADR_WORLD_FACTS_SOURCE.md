@@ -1,7 +1,8 @@
 # ADR：世界上有哪些楼——客户端报现状，日志投影只做兜底
 
-- status: pending-review
+- status: aligned
 - verified_at: 2026-11-02
+- verified_by: agent，按证据核实，用户授权，2026-11-02
 - evidence: `server/rules/schema.py`, `server/events/projection.py`, `docs/SPEC.md`
 
 - 状态：已接受

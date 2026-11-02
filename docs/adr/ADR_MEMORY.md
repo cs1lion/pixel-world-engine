@@ -1,7 +1,8 @@
 # ADR：记忆按世界日序号命名，不按日历日期
 
-- status: pending-review
+- status: aligned
 - verified_at: 2026-11-02
+- verified_by: agent，按证据核实，用户授权，2026-11-02
 - evidence: `world-client/src/world/memory/runtime.ts`, `server/memory/paths.py`, `docs/SPEC.md`
 
 - 状态：已接受

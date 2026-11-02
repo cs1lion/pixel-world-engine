@@ -185,9 +185,12 @@ cd server && python -m pytest
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-11-02 在干净工作区上量到的（`feat/creator-engine-wire` 合入 `main` 之后）：`check` 0 错、`test` 1870 通过 / 9 跳过 / 0 失败
+2026-11-02 的 CI 快照（[run 41469636154](https://github.com/cs1lion/pixel-world-engine/actions/runs/41469636154)，commit `408da3c`）：`check` 0 错、`test` 1870 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
 0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
+
+**通过数只作快照，不设 claim 探针**：它们依赖运行环境，机器只钉能秒算的值（测试文件数、
+ADR 数、存档版本、SPEC 权威、iterations 入库数）。数字变了就重跑 CI 并更新这一行与链接。
 
 **受查处数不写在这儿**：它随文档增长，而这份 README 自己就是增长源——上面那些数字写下
 的同一次编辑，就把受查处数从 1885 改成了 1904。要数就现跑，输出第一行就是它。

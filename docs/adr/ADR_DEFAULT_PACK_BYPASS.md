@@ -1,7 +1,8 @@
 # ADR：默认设定集绕开配置包编译器，以 authored:false 的 stub 复用 buildLargeWorld
 
-- status: pending-review
+- status: aligned
 - verified_at: 2026-11-02
+- verified_by: agent，按证据核实，用户授权，2026-11-02
 - evidence: `world-client/src/settings/load.ts`, `world-client/src/settings/index.ts`, `docs/SPEC.md`
 
 - 状态：已接受

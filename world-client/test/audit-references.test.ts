@@ -437,10 +437,11 @@ test('盲区是数得出来的：CALL_REF 看不见的那批，今天冻在这�
   // 那处只是坐标被删掉。**剩的三处今天核过，附近都找得到那个名字。**
   // 2026-11-02：同一份 ADR 的头部加了 status/verified_at/evidence 三行（共 4 行），
   // 三处盲区坐标整体 +4；条目、名字与附近可找到性都没变，不是放宽。
+  // 同日 T1 给 8 份 ADR 加 verified_by 一行，坐标再整体 +1（19/31/47 → 20/32/48）。
   const FROZEN: readonly (readonly [string, number, string])[] = [
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 19, 'buildSettingWorld'],
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 31, 'WORKSHOP_TASKS'],
-    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 47, 'validateCoverage'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 20, 'buildSettingWorld'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 32, 'WORKSHOP_TASKS'],
+    ['docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md', 48, 'validateCoverage'],
   ];
   const seen = invisibleNameRefs().map((entry) => {
     const [file, line, ...rest] = entry.where.split(':');

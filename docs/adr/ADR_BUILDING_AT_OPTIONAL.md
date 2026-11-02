@@ -1,7 +1,8 @@
 # ADR：`building.add` 的 `at` 可以省略——服务端比它要对齐的那份协议更严
 
-- status: pending-review
+- status: aligned
 - verified_at: 2026-11-02
+- verified_by: agent，按证据核实，用户授权，2026-11-02
 - evidence: `world-client/src/world/creator/schema.ts`, `server/rules/schema.py`, `docs/SPEC.md`
 
 - 状态：已接受
