@@ -32,7 +32,7 @@ import { chromium } from '@playwright/test';
 const CLIENT_DIR = resolve(import.meta.dirname, '..');
 const ROOT = resolve(CLIENT_DIR, '..');
 const SERVER_DIR = join(ROOT, 'server');
-const OUT = join(CLIENT_DIR, 'eval', 'live');
+const OUT = process.env.EVAL_LIVE_OUT ?? join(CLIENT_DIR, 'eval', 'live');
 
 const API_PORT = Number(process.env.LIVE_API_PORT ?? 8011);
 const CLIENT_PORT = Number(process.env.LIVE_CLIENT_PORT ?? 5191);

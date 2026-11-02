@@ -69,6 +69,8 @@ const before = await page.evaluate(() => {
     props: snapshot.props.length,
     radius: snapshot.fog.revealedRadius,
     schemaVersion: raw === '' ? 0 : JSON.parse(raw).schemaVersion,
+    // 版本不写死：写档侧就是 saveStatus() 透出的 schemaVersion。
+    runtimeVersion: window.Oracle.saveStatus().schemaVersion,
   };
 });
 
@@ -78,7 +80,11 @@ check(
   `存档体积低于 ${MAX_SAVE_BYTES / 1024}KB`,
   `${(before.bytes / 1024).toFixed(1)}KB`,
 );
-check(before.schemaVersion === 3, '存档是当前版本 v3', String(before.schemaVersion));
+check(
+  before.schemaVersion === before.runtimeVersion,
+  `存档是当前版本 v${before.runtimeVersion}`,
+  String(before.schemaVersion),
+);
 check(before.props >= 2, '造出的摆件进了存档', String(before.props));
 
 // 刷新：不清 localStorage，验证真实恢复。
