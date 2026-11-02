@@ -21,14 +21,14 @@
 ```text
 world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/world/           模拟内核（不 import Phaser）
-│   ├── memory/          内环：记忆、感知、传播、传说（18 个模块）
+│   ├── memory/          内环：记忆、感知、传播、传说（22 个模块）
 │   └── creator/         外环：创世指令白名单、熔断、指标、审校合成器
 ├── src/render/          渲染层（只读快照）
 ├── src/settings/        设定集加载器（莞尔镇 / 灯潮界）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                160 个测试文件
+└── test/                183 个测试文件
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -122,9 +122,11 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 
 ## 外环：造物主与自治爬梯
 
-> **这五个模块今天没有任何生产代码 import**（`grep -rn "world/creator/" src --include=*.ts`
-> 零命中）。它们各自有测试、各自是绿的，但还没有那个把它们串起来的东西。别把下面这张表
-> 读成「已经在跑」。
+> **整合层 `src/creator/engine.ts` 已入库、`npm run check` 通过、有 `test/creator-engine.test.ts`，
+> 但它自己没有任何生产代码 import**——只有测试引用它。它引入的 `world/creator/fuse.ts`
+> 因此也挂在这条未接线的路径上；其余子模块仍只被测试引用。别把下面这张表读成「已经在跑」。
+> `engine.ts` 内部还有 3 处 TODO、硬编码 seed，`submitHumanApproval` 的达标指标是写死的，
+> 接线前必须先换成真实来源。
 
 | 模块 | 干什么 | 测试 |
 | --- | --- | --- |
@@ -170,9 +172,9 @@ cd server && python -m pytest
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-10-28 在干净 worktree 上量到的：`check` 0 错、`test` 1635 通过 / 9 跳过 / 0 失败
+2026-11-02 在干净工作区上量到的：`check` 0 错、`test` 1824 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
-0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 481 通过 / 1 跳过。
+0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 493 通过 / 1 跳过。
 
 **受查处数不写在这儿**：它随文档增长，而这份 README 自己就是增长源——上面那些数字写下
 的同一次编辑，就把受查处数从 1885 改成了 1904。要数就现跑，输出第一行就是它。
@@ -187,9 +189,9 @@ cd world-client && npm run test:live
 一栋楼；一句办不到的话 → 具体原因回到回执上；停掉服务端 → 世界照常过日子，顶栏改说
 「上游离线」。**两个世界各跑一遍**——换设定集不只是换皮。
 
-> 上面那几张截图是 2026-10-26 跑出来的。这台机器今天没装 `@playwright/test`
-> （`package-lock.json` 里有，`node_modules` 里没有，`npm ci` 之后才有），所以
-> `test:live` 这次没跑过。**别把它们当今天的证据读。**
+> 上面那几张截图是 2026-10-26 跑出来的。这台机器现在装了 `@playwright/test`（`node_modules`
+> 与浏览器缓存都在），但 2026-11-02 这次核对没有重跑 `test:live`——它会改写 `eval/live/`
+> 里已入库的截图。**别把它们当今天的证据读。**
 
 另有一条只验画面的灯潮界验收，不需要服务端（世界用 `?feed=off` 离线自转），
 但需要一个跑着的 Vite：
@@ -208,6 +210,8 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 
 ## 状态
 
+> 状态核对日期：2026-11-02（本段以代码为准；测试与审计数字现跑得出）。
+
 **跑着的**：世界内核与渲染、两套设定集与各自的存档槽、v1→v4 迁移链、七条命令的服务端
 白名单与十种客户端意图、编年史面板（读 `/api/memory/list`）、`memory/` 的三条铁律。
 
@@ -219,11 +223,12 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 - 记忆在**内存里**是活的：`MemoryRuntime` 接在 `SandboxScene` 上，每拍喂位置、跨日关账、
   抛心电图。但它不进存档，刷新就重来。
 
-**没接的**：外环五个模块（见上一节）、`CreatorEngine`（只有一份未入库的草稿，
-不在这个仓库里，今天过不了 `npm run check`）。
+**没接的**：外环五个子模块（只有测试与未接线的 `src/creator/engine.ts` 引用它们），
+以及外环整合层 `CreatorEngine`——`src/creator/engine.ts` 已入库且过 check，但没有生产
+调用方，内部仍有 TODO 与写死的达标指标。
 
-**没写入方的**：`memory/index.yaml`。它的文件头写着「由 `server/memory/` 在写入时维护」，
-而 `INDEX_NAME` 只在 `paths.py` 里定义了路径，没有任何地方写它。那句话是假的。
+**没写入方的**：`memory/index.yaml`。`INDEX_NAME` 只在 `paths.py` 里定义了路径，
+没有任何地方写它，所以目前的 `last_event_seq: 0` 是初始值，不是被维护出来的。
 
 ## 与旧仓的关系
 

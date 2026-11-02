@@ -169,7 +169,8 @@
 
 每套设定集一个 `localStorage` 槽（灯潮界是 `dengchao.pixel-world.save.v1`）。
 清档、坏档备份、导入导出都绑定同一个槽，在灯潮界清档不会碰掉旧世界的存档。
-存档 schema 仍是冻结的 v3，世界 id 不写进 JSON。
+存档 schema 是当前的 v4（以 `world-client/src/world/save.ts` 的 `CURRENT_SCHEMA_VERSION` 为准），
+世界 id 不写进 JSON。
 
 ## 还没有做的
 

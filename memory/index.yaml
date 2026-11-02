@@ -1,7 +1,6 @@
 # 记忆索引
 
-派生物，不要手改。由 `server/memory/` 在写入时维护；
-真正的事实在 `entries/`、`characters/`、`events/` 三个目录的文件里。
+派生物，不要手改。真正的事实在 `entries/`、`characters/`、`events/` 三个目录的文件里。
 
 字段：
 
