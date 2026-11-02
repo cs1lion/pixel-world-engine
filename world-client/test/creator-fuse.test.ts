@@ -23,8 +23,15 @@ import { FUSE_THRESHOLD_CONFIG } from '../src/world/creator/config.ts';
  * `targetLevel`，那道回归闸门根本不存在。
  */
 
+/**
+ * 熔断器现在**必须注入世界时间**（`fuse.ts` 不再读 `Date.now()`）。
+ * 测试给一个固定读数；要验时间戳的用例自己换一个可变读数。
+ */
+const FUSE_TEST_NOW = 1000;
+const worldClock = (): number => FUSE_TEST_NOW;
+
 function freshController(): AutonomousFuseController {
-  const c = new AutonomousFuseController();
+  const c = new AutonomousFuseController(worldClock);
   c.initRole('mapper', '地图师', AutonomyLevel.L1, AutonomyLevel.L3);
   return c;
 }
@@ -64,7 +71,7 @@ test('角色起步就在它的定稿起点', () => {
 });
 
 test('多个角色各自独立，互不串味', () => {
-  const c = new AutonomousFuseController();
+  const c = new AutonomousFuseController(worldClock);
   c.initRole('mapper', '地图师', AutonomyLevel.L1, AutonomyLevel.L3);
   c.initRole('director', '导演', AutonomyLevel.L1, AutonomyLevel.L2);
 
@@ -332,7 +339,7 @@ test('L1 要求逐项确认，L4 放行，熔断中要求隔离', () => {
   const c = freshController();
   assert.equal(evaluateFuseDecision(c, 'mapper').action, 'requireReview');
 
-  const c4 = new AutonomousFuseController();
+  const c4 = new AutonomousFuseController(worldClock);
   c4.initRole('auditor', '审校', AutonomyLevel.L4, AutonomyLevel.L4);
   assert.equal(evaluateFuseDecision(c4, 'auditor').action, 'allow');
 
@@ -342,7 +349,7 @@ test('L1 要求逐项确认，L4 放行，熔断中要求隔离', () => {
 
 test('L3 抽检是确定性的：同一串 tick 两次跑出同样的结论', () => {
   const runOnce = (): string[] => {
-    const c = new AutonomousFuseController();
+    const c = new AutonomousFuseController(worldClock);
     c.initRole('mapper', '地图师', AutonomyLevel.L3, AutonomyLevel.L3);
     const out: string[] = [];
     for (let i = 0; i < 20; i++) out.push(evaluateFuseDecision(c, 'mapper').action);
@@ -353,13 +360,36 @@ test('L3 抽检是确定性的：同一串 tick 两次跑出同样的结论', ()
 });
 
 test('L3 抽检率大致是 10%', () => {
-  const c = new AutonomousFuseController();
+  const c = new AutonomousFuseController(worldClock);
   c.initRole('mapper', '地图师', AutonomyLevel.L3, AutonomyLevel.L3);
   let reviewed = 0;
   for (let i = 0; i < 1000; i++) {
     if (evaluateFuseDecision(c, 'mapper').action === 'requireReview') reviewed++;
   }
   assert.ok(reviewed > 50 && reviewed < 200, `抽到 ${reviewed} 次，偏离 10% 太远`);
+});
+
+// ---------------------------------------------------------------- 时间戳来自世界
+
+test('熔断日志的时间戳取自注入的世界时钟，不读墙钟', () => {
+  // 一个手动推进的读数：如果实现里还有 `Date.now()`，这两个断言会差出几十年。
+  let worldNow = 4242;
+  const c = new AutonomousFuseController(() => worldNow);
+  c.initRole('mapper', '地图师', AutonomyLevel.L1, AutonomyLevel.L3);
+
+  // 证据还不够（0 批），只留下一条 climb_attempt。
+  c.endOfDay('mapper');
+  const before = c.getEventLog('mapper');
+  assert.ok(before.length > 0);
+  for (const event of before) {
+    assert.equal(event.timestamp, 4242, `事件 ${event.eventType} 的时间戳应来自世界时钟`);
+  }
+
+  // 换一个世界时间，再凑够三批真正升一级。
+  worldNow = 9000;
+  for (let i = 0; i < FUSE_CONFIG.climbRequiredBatches; i++) goodBatch(c);
+  const state = c.getRoleState('mapper');
+  assert.equal(state?.lastClimbAttemptAt, 9000, '升级时间戳也要取世界时钟');
 });
 
 // ---------------------------------------------------------------- 定稿值一致

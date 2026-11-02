@@ -24,61 +24,61 @@ test('设定理解：L1 → L2，门禁三项', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.SETTING_UNDERSTANDING;
   assert.equal(cfg.startLevel, 1);
   assert.equal(cfg.targetLevel, 2);
-  assert.equal(cfg.metrics.schemaPassRate, 1);
-  assert.equal(cfg.metrics.conflictCount, 0);
-  assert.equal(cfg.metrics.coverageRate, 0.95);
+  assert.equal(cfg.gateRequirements.schemaPassRate, 1);
+  assert.equal(cfg.gateRequirements.conflictCount, 0);
+  assert.equal(cfg.gateRequirements.coverageRate, 0.95);
 });
 
 test('布局与建筑：L2 → L3，门禁三项', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.LAYOUT_AND_BUILDING;
   assert.equal(cfg.startLevel, 2);
   assert.equal(cfg.targetLevel, 3);
-  assert.equal(cfg.metrics.pathfindingConnectedRate, 1);
-  assert.equal(cfg.metrics.collisionRate, 0);
-  assert.equal(cfg.metrics.constraintSatisfactionRate, 1);
+  assert.equal(cfg.gateRequirements.pathfindingConnectedRate, 1);
+  assert.equal(cfg.gateRequirements.collisionRate, 0);
+  assert.equal(cfg.gateRequirements.constraintSatisfactionRate, 1);
 });
 
 test('历史 / 关系 / 记忆：L2 → L4，门禁含溯源与回放', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.HISTORY_RELATIONS_MEMORY;
   assert.equal(cfg.startLevel, 2);
   assert.equal(cfg.targetLevel, 4);
-  assert.equal(cfg.metrics.traceabilityRate, 1);
-  assert.equal(cfg.metrics.relationSymmetryRate, 1);
-  assert.equal(cfg.metrics.replayHashConsistencyRate, 1);
+  assert.equal(cfg.gateRequirements.traceabilityRate, 1);
+  assert.equal(cfg.gateRequirements.relationSymmetryRate, 1);
+  assert.equal(cfg.gateRequirements.replayHashConsistencyRate, 1);
 });
 
 test('静态美术：L1 → L2，剪影 IoU 上限 0.75', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.STATIC_ART;
   assert.equal(cfg.startLevel, 1);
   assert.equal(cfg.targetLevel, 2);
-  assert.equal(cfg.metrics.gridAlignmentRate, 1);
-  assert.equal(cfg.metrics.colorPaletteBleedRate, 0);
-  assert.ok(cfg.metrics.silhouetteIoUCap <= 0.75);
+  assert.equal(cfg.gateRequirements.gridAlignmentRate, 1);
+  assert.equal(cfg.gateRequirements.colorPaletteBleedRate, 0);
+  assert.ok(cfg.gateRequirements.silhouetteIoUCap <= 0.75);
 });
 
 test('动画：L0 → L1，走模块化骨架而不是序列帧', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.ANIMATION;
   assert.equal(cfg.startLevel, 0);
   assert.equal(cfg.targetLevel, 1);
-  assert.equal(cfg.metrics.usesModularSkeleton, true);
-  assert.ok(cfg.metrics.frameToFrameCentroidShiftCap <= 1);
+  assert.equal(cfg.gateRequirements.usesModularSkeleton, true);
+  assert.ok(cfg.gateRequirements.frameToFrameCentroidShiftCap <= 1);
 });
 
 test('导演运行：L1 → L2，情绪健康区间 [-0.3, +0.6] 且要连续 7 天', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.DIRECTOR_RUNNING;
   assert.equal(cfg.startLevel, 1);
   assert.equal(cfg.targetLevel, 2);
-  assert.equal(cfg.metrics.invariantViolationCount, 0);
-  assert.equal(cfg.metrics.valenceHealthyRange.min, -0.3);
-  assert.equal(cfg.metrics.valenceHealthyRange.max, 0.6);
-  assert.equal(cfg.metrics.consecutiveDaysRequired, 7);
+  assert.equal(cfg.gateRequirements.invariantViolationCount, 0);
+  assert.equal(cfg.gateRequirements.valenceHealthyRange.min, -0.3);
+  assert.equal(cfg.gateRequirements.valenceHealthyRange.max, 0.6);
+  assert.equal(cfg.gateRequirements.consecutiveDaysRequired, 7);
 });
 
 test('通用性：L0 → L2，换设定包时内核改行数必须是 0', () => {
   const cfg = AUTONOMY_CLIMB_CONFIG.GENERALIZATION;
   assert.equal(cfg.startLevel, 0);
   assert.equal(cfg.targetLevel, 2);
-  assert.equal(cfg.metrics.codeModificationLinesOnSwitch, 0);
+  assert.equal(cfg.gateRequirements.codeModificationLinesOnSwitch, 0);
 });
 
 test('七项能力，一项不少', () => {
@@ -127,7 +127,7 @@ test('健康判定要连续 7 天，与 §3.3 一致', () => {
 });
 
 test('情绪健康区间与爬梯表里导演那一行是同一个区间', () => {
-  const climb = AUTONOMY_CLIMB_CONFIG.DIRECTOR_RUNNING.metrics.valenceHealthyRange;
+  const climb = AUTONOMY_CLIMB_CONFIG.DIRECTOR_RUNNING.gateRequirements.valenceHealthyRange;
   assert.equal(DIRECTOR_PID_CONFIG.valenceHealthyMin, climb.min);
   assert.equal(DIRECTOR_PID_CONFIG.valenceHealthyMax, climb.max);
 });
@@ -135,7 +135,7 @@ test('情绪健康区间与爬梯表里导演那一行是同一个区间', () =>
 test('连续天数也与爬梯表一致', () => {
   assert.equal(
     DIRECTOR_PID_CONFIG.healthyConsecutiveDays,
-    AUTONOMY_CLIMB_CONFIG.DIRECTOR_RUNNING.metrics.consecutiveDaysRequired,
+    AUTONOMY_CLIMB_CONFIG.DIRECTOR_RUNNING.gateRequirements.consecutiveDaysRequired,
   );
 });
 

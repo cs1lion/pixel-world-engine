@@ -54,10 +54,28 @@ export const CREATOR_ENGINE_CONFIG = {
   directorWindowDays: 7,
 } as const;
 
-/** 引擎启动参数 */
+/**
+ * 引擎启动参数。
+ *
+ * `worldSeed` 与 `worldTime` **都是必填**。原来两者各有一个自造的兜底
+ * （`'default-seed'`、`Date.now()`），于是同一份输入在两台机器上跑出两份
+ * 不同的日志，而 L4 的门禁正是「同种子回放哈希一致」。种子由调用方给
+ * （场景用设定集 id），时间也由调用方给（场景用 `Simulation` 的世界时间）。
+ */
 export interface CreatorEngineOptions {
-  readonly worldSeed?: string;
+  /** 世界种子。同一世界 + 同一输入序列必须得到同一份产出。 */
+  readonly worldSeed: string;
+  /** 世界时间（毫秒）。引擎内部任何时间戳都从这里取，不读墙钟。 */
+  readonly worldTime: () => number;
   readonly targetLevel?: AutonomyLevel;
+  /**
+   * 场景已经建好的世界。给了就直接用它，不再按设定集另建一份。
+   *
+   * 造物引擎的职责是**往既有世界里提议**，不是拥有第二份权威状态；
+   * 两份 `BuiltWorld` 一旦分岔，引擎算出来的落点和场景看到的网格就不再是
+   * 同一张图。省略时才回退到 `buildSettingWorld(pack)`（测试与离线工具用）。
+   */
+  readonly world?: BuiltWorld;
 }
 
 /** 造物引擎输出 */
@@ -100,6 +118,28 @@ export interface BuildResult {
 }
 
 /**
+ * 一次人工确认**真的看到**了什么。
+ *
+ * 每一项都是可选的：没检查就不填，让门禁把它读成 `null`（没测）。
+ * 调用方（`SandboxScene`）在造物模式里已经逐项查过落点（占地、留白、
+ * 门口、群落），所以它填得出来；没有那些检查的调用方就只填 `schemaPassed`。
+ */
+export interface HumanApprovalObservation {
+  /** 要素覆盖率：已落地模板数 / 设定集模板总数。当前数据能算的就这一个口径。 */
+  readonly coverageRate?: number;
+  /** 门口到镇心是否真的连通（`doorReaches` 的结果）。 */
+  readonly pathfindingConnected?: boolean;
+  /** 是否与既有建筑重叠。落位检查通过就是 `false`，这是查过的，不是猜的。 */
+  readonly hasCollision?: boolean;
+  /** 分区与留白约束是否满足。落位检查通过就是 `true`。 */
+  readonly spatialConstraintSatisfied?: boolean;
+  /** 这次建造有没有写下来由（`source`）。没有来由就不是可溯源的一次造物。 */
+  readonly traceable?: boolean;
+  /** 同种子回放是否一致。没跑过就别填——这一项最不该有默认值。 */
+  readonly replayHashConsistent?: boolean;
+}
+
+/**
  * 主类：造物引擎
  *
  * **单一职责原则**：
@@ -114,19 +154,23 @@ export class CreatorEngine {
   private readonly pack: SettingPack;
   private readonly world: BuiltWorld;
   private readonly memoryConfig: MemoryConfig;
+  /** 见 `CreatorEngineOptions.worldSeed`。 */
+  private readonly worldSeed: string;
 
   constructor(
     rawPack: SettingPack | RawSettingPack,
-    options: CreatorEngineOptions = {},
+    options: CreatorEngineOptions,
   ) {
     // 1. 加载并校验设定集（编译色板、验证布局可达性）
     this.pack = typeof rawPack === 'object' && !('authored' in rawPack)
       ? loadSettingPack(rawPack as RawSettingPack)
       : (rawPack as SettingPack);
 
-    // 2. 构建初始世界状态
-    const { grid, buildings, altar } = buildSettingWorld(this.pack);
+    // 2. 世界状态：优先用场景递进来的那一份，避免两套权威状态分岔。
+    const { grid, buildings, altar } = options.world ?? buildSettingWorld(this.pack);
     this.world = { grid, buildings, altar };
+
+    this.worldSeed = options.worldSeed;
 
     // 3. 初始化记忆配置（基于默认配置，覆盖关键参数）
     this.memoryConfig = {
@@ -135,18 +179,22 @@ export class CreatorEngine {
       isolatedDays: 3,
     };
 
-    // 4. 初始化熔断器（所有造物主角色从 L0 开始）
-    this.fuseController = new AutonomousFuseController();
+    // 4. 初始化熔断器（所有造物主角色从 L0 开始）。时钟是世界的，不是墙钟。
+    this.fuseController = new AutonomousFuseController(options.worldTime);
     this.initializeAllRoles(options.targetLevel ?? CREATOR_ENGINE_CONFIG.defaultTargetLevel);
 
     // 5. 初始化导演引擎
     this.directorEngine = new DirectorEngine();
-    const worldSeed = options.worldSeed ?? 'default-seed';
-    this.directorEngine.initialize(worldSeed, 1);
+    this.directorEngine.initialize(this.worldSeed, 1);
 
-    // 6. 广播世界诞生事件（记忆系统会读取）
-    // TODO: 这里应该调用记忆系统的 broadcastDayBorn()
-    //   暂时留作接口说明
+    // 6. 世界诞生**不在这里广播**。
+    //
+    // 这里原来挂着一句 `TODO: 应该调用记忆系统的 broadcastDayBorn()`。
+    // 但那个 API 从来不存在，而且方向也是反的：引擎的边界是不碰记忆表
+    // （文件头与 `creator-boundary.test.ts` 都写着），世界诞生这件事属于
+    // 运行时——`SandboxScene` 在 `MemoryRuntime` 起来之后自己对齐 Holder。
+    // 留一个永远不调用的「挂起点」比没有更糟：它会让下一个读者去找一个
+    // 并不存在的函数。所以直接删掉。
   }
 
   /** 初始化所有造物主角色的状态 */
@@ -240,32 +288,49 @@ export class CreatorEngine {
   }
 
   /**
-   * 提交人类确认结果
+   * 提交人类确认结果。
+   *
+   * **只记下这次真的观察到的两件事**：人点没点头（`schemaPassed`）、
+   * 有没有改过内容（`wasManuallyModified`）。其余门禁项（要素覆盖、
+   * 寻路连通、碰撞、空间约束、溯源、回放一致）在这个调用点上**根本
+   * 没有数据**——它们该由真正检查过的人递进来，没检查就不记。
+   *
+   * 这里原来写死 `coverageRate: 1.0`、`pathfindingConnected: true`、
+   * `replayHashConsistent: true` 等七个「达标」值。后果不是少记了几个数，
+   * 而是：任何一次人工确认都给角色记了满分证据，爬梯门禁因此永远「达标」，
+   * 而 `null`（没测）与 `1.0`（测了满分）这两件事被悄悄合成了一件。
+   *
+   * **世界日结算也不在这里做。** 原来每确认一条就 `endOfDay` 一次，等于
+   * 把「14 个 world_day」折算成「14 次人工点击」。世界的日由场景的跨日
+   * 那一刻结算（`closeWorldDay()`）。
    */
   submitHumanApproval(
     roleId: string,
     _commandId: string,
     approved: boolean,
     modifications?: Record<string, unknown>,
+    observation?: HumanApprovalObservation,
   ): void {
     const state = this.fuseController.getRoleState(roleId);
     if (!state) return;
 
-    // 记录 Schema 通过率等指标
     this.fuseController.recordCommandResult(roleId, {
       schemaPassed: approved,
-      hasConflict: false,
-      coverageRate: 1.0,
-      pathfindingConnected: true,
-      hasCollision: false,
-      spatialConstraintSatisfied: true,
-      wasManuallyModified: !!modifications,
-      invariantViolated: false,
-      traceable: true,
-      replayHashConsistent: true,
+      wasManuallyModified: modifications !== undefined,
+      ...observation,
     });
+  }
 
-    this.fuseController.endOfDay(roleId);
+  /**
+   * 一个 world_day 结束。所有角色按真实天数结算一次。
+   *
+   * 由场景在跨日那一刻调用（`SandboxScene` 的 `onVitals` 回调）——
+   * 与 `submitHumanApproval` 里原来那次「每点一次就是一天」完全不同。
+   */
+  closeWorldDay(): void {
+    for (const roleId of this.fuseController.getAllRoleIds()) {
+      this.fuseController.endOfDay(roleId);
+    }
   }
 
   /**
@@ -281,8 +346,7 @@ export class CreatorEngine {
     eventKind?: InjectableEventKind;
     reasoning: string;
   } {
-    const worldSeed = 'default-seed'; // TODO: 从 world.state 读取
-    const decision = this.directorEngine.processDayClosed(worldSeed, {
+    const decision = this.directorEngine.processDayClosed(this.worldSeed, {
       meanValence: vitals.meanValence,
       meanArousal: vitals.meanArousal,
       infoEntropy: vitals.infoEntropy,
@@ -321,8 +385,7 @@ export class CreatorEngine {
    * 生成确定性随机数（用于事件选择）
    */
   deterministicRandom(seedPart: string): number {
-    const worldSeed = 'default-seed'; // TODO: 从 world.state 读取
-    return unitFromSeed(seedOf(worldSeed, 1, 'creator', seedPart));
+    return unitFromSeed(seedOf(this.worldSeed, 1, 'creator', seedPart));
   }
 
   /**

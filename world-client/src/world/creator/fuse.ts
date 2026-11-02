@@ -188,11 +188,21 @@ export class AutonomousFuseController {
   private readonly roleStates: Map<string, CreatorRoleState>;
   private readonly eventLog: FuseEvent[];
   private readonly dayCounter: Map<string, number>; // 每个角色的绝对 world_day 计数
+  /**
+   * 世界时间（毫秒）。**必须由调用方注入，这里不读 `Date.now()`。**
+   *
+   * 熔断日志里的 `timestamp` 与 `lastClimbAttemptAt` 原先都取墙钟。那让同一份
+   * 输入序列回放两次得到两份不同的审计日志——「同种子回放哈希一致」是 L4 的
+   * 硬门禁，而记录它的东西自己就不可复现。世界时间由 `Simulation` 持有，
+   * 场景把它递进来。
+   */
+  private readonly clock: () => number;
 
-  constructor() {
+  constructor(clock: () => number) {
     this.roleStates = new Map();
     this.eventLog = [];
     this.dayCounter = new Map();
+    this.clock = clock;
   }
 
   /** 初始化某个造物主角色。
@@ -228,7 +238,12 @@ export class AutonomousFuseController {
     roleId: string,
     result: {
       schemaPassed: boolean;
-      hasConflict: boolean;
+      /**
+       * 冲突与不变式违反**也可以不填**：`undefined` 表示「这次没查」，
+       * `false` 表示「查了，没有」。两者在计数上都只是不加一，但调用方
+       * 不该为了填满字段而随手写一个 `false`——那会让「没查」看起来像「查过」。
+       */
+      hasConflict?: boolean;
       coverageRate?: number;
       pathfindingConnected?: boolean;
       hasCollision?: boolean;
@@ -450,7 +465,7 @@ export class AutonomousFuseController {
 
     const oldLevel = state.currentLevel;
     state.currentLevel = Math.min(oldLevel + 1, state.targetLevel) as AutonomyLevel;
-    state.lastClimbAttemptAt = Date.now();
+    state.lastClimbAttemptAt = this.clock();
 
     this.logEvent(
       roleId,
@@ -534,7 +549,7 @@ export class AutonomousFuseController {
     toLevel: AutonomyLevel = fromLevel,
   ): void {
     this.eventLog.push({
-      timestamp: Date.now(),
+      timestamp: this.clock(),
       roleId,
       eventType,
       details,
