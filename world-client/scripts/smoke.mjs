@@ -22,9 +22,10 @@
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { projectWorldToCanvas, TILE_PX } from './lib/camera-projection.mjs';
 
 const URL_BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
-const OUT = 'eval/screens';
+const OUT = process.env.EVAL_OUT ?? 'eval/screens';
 // 事件流模式：先起服务端（8000），再 `FEED=1 node scripts/smoke.mjs`。
 const FEED = process.env.FEED === '1';
 
@@ -55,6 +56,59 @@ const check = (ok, label) => {
 };
 
 const state = () => page.evaluate(() => window.Oracle.view());
+
+/**
+ * DOM overlay 与 canvas 的对齐读数。
+ *
+ * 期望坐标走脚本层共享的 `projectWorldToCanvas`（与生产 `viewOriginOf` /
+ * `projectWorldToOverlay` 同式）：`scroll` 是**镜头中心**，overlay 摆的是
+ * **视野原点**，且投影要乘相机 `zoom`。早先这里用 `(worldX - scrollX) * scale`，
+ * zoom=2 时整层文字偏了半个视野。
+ */
+const measureOverlayFit = async () => {
+  const raw = await page.evaluate(() => {
+    const canvas = document.querySelector('#app canvas');
+    const overlay = document.querySelector('#world-overlay');
+    const names = [...document.querySelectorAll('#world-overlay .overlay-name')];
+    const snapshot = window.Oracle.view();
+    const canvasRect = canvas.getBoundingClientRect();
+    const villager = snapshot.villagers[0];
+    const nameEl = names[0];
+    return {
+      camera: window.Oracle.camera(),
+      rect: { width: canvasRect.width, height: canvasRect.height },
+      gameSize: { width: canvas.width, height: canvas.height },
+      villagerPos: { x: villager.pos.x, y: villager.pos.y },
+      actual: {
+        x: Number.parseFloat(nameEl?.style.left ?? 'NaN'),
+        y: Number.parseFloat(nameEl?.style.top ?? 'NaN'),
+      },
+      names: names.length,
+      villagers: snapshot.villagers.length,
+      text: nameEl?.textContent ?? '',
+      expectedName: villager.name,
+      overlayWidth: overlay?.getBoundingClientRect().width ?? 0,
+      canvasWidth: canvasRect.width,
+      bubblesVisible: [...document.querySelectorAll('#world-overlay .overlay-bubble')].filter(
+        (node) => node.style.display !== 'none',
+      ).length,
+    };
+  });
+  const expected = projectWorldToCanvas(
+    (raw.villagerPos.x + 0.5) * TILE_PX,
+    (raw.villagerPos.y + 1) * TILE_PX - 30,
+    raw.camera,
+    raw.rect,
+    raw.gameSize,
+  );
+  return {
+    ...raw,
+    zoom: raw.camera.zoom,
+    error: Math.hypot(raw.actual.x - expected.x, raw.actual.y - expected.y),
+    tolerance: Math.max(1, raw.rect.width / raw.gameSize.width),
+  };
+};
+
 const waitFor = async (predicate, label, timeout = 25000) => {
   const started = Date.now();
   for (;;) {
@@ -255,48 +309,39 @@ async function runSandboxSuite() {
   );
 
   // D5-A：动态中文走 DOM overlay，按 canvas 实际位置换算（≤1 逻辑像素）。
-  const overlayFit = await page.evaluate(() => {
-    const canvas = document.querySelector('#app canvas');
-    const overlay = document.querySelector('#world-overlay');
-    const names = [...document.querySelectorAll('#world-overlay .overlay-name')];
-    const snapshot = window.Oracle.view();
-    const canvasRect = canvas.getBoundingClientRect();
-    const villager = snapshot.villagers[0];
-    const nameEl = names[0];
-    const scale = canvasRect.width / 480;
-    // 大世界里画布只是世界的一小块：必须减掉相机偏移，否则期望值会差一整个屏幕。
-    const cam = window.Oracle.camera();
-    const expectedX = ((villager.pos.x + 0.5) * 16 - cam.scrollX) * scale;
-    const expectedY = ((villager.pos.y + 1) * 16 - 30 - cam.scrollY) * scale;
-    const actualX = Number.parseFloat(nameEl?.style.left ?? 'NaN');
-    const actualY = Number.parseFloat(nameEl?.style.top ?? 'NaN');
-    return {
-      names: names.length,
-      villagers: snapshot.villagers.length,
-      text: nameEl?.textContent ?? '',
-      expectedName: villager.name,
-      error: Math.hypot(actualX - expectedX, actualY - expectedY),
-      tolerance: Math.max(1, scale),
-      overlayWidth: overlay?.getBoundingClientRect().width ?? 0,
-      canvasWidth: canvasRect.width,
-      bubblesVisible: [...document.querySelectorAll('#world-overlay .overlay-bubble')].filter(
-        (node) => node.style.display !== 'none',
-      ).length,
-    };
-  });
+  const overlayFit = await measureOverlayFit();
   check(
     overlayFit.names === overlayFit.villagers && overlayFit.text === overlayFit.expectedName,
     'overlay 名字节点数与快照角色一致、文案正确',
   );
   check(
     overlayFit.error <= overlayFit.tolerance,
-    `overlay 与 canvas 对齐误差 ${overlayFit.error.toFixed(2)}px ≤ ${overlayFit.tolerance}px`,
+    `zoom=${overlayFit.zoom} 下 overlay 与 canvas 对齐误差 ${overlayFit.error.toFixed(2)}px ≤ ${overlayFit.tolerance}px`,
   );
   check(
     Math.abs(overlayFit.overlayWidth - overlayFit.canvasWidth) < 2,
     'overlay 与 canvas 同宽',
   );
   check(overlayFit.bubblesVisible <= overlayFit.villagers, '气泡节点不超过角色数');
+
+  // 相机 zoom=1：滚轮下滚两档（默认 2 → 1.5 → 1），同一条对齐断言要成立。
+  // 下面那组 100%/200%/400% 是**页面 CSS 缩放**，覆盖不到相机 zoom——偏的是后者。
+  const canvasBox = await page.locator('#app canvas').boundingBox();
+  await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
+  await page.mouse.wheel(0, 100);
+  await page.mouse.wheel(0, 100);
+  await page.waitForTimeout(400);
+  const fitZoom1 = await measureOverlayFit();
+  check(
+    fitZoom1.zoom === 1 && fitZoom1.error <= fitZoom1.tolerance,
+    `zoom=1 下 overlay 与 canvas 对齐误差 ${fitZoom1.error.toFixed(2)}px ≤ ${fitZoom1.tolerance}px`,
+  );
+  // 滚回原倍率，后面的流程沿用原先的镜头。
+  await page.mouse.wheel(0, -100);
+  await page.mouse.wheel(0, -100);
+  await page.waitForTimeout(400);
+  const restoredZoom = await page.evaluate(() => window.Oracle.camera().zoom);
+  check(restoredZoom === overlayFit.zoom, `镜头滚轮后恢复原倍率（${restoredZoom}）`);
 
 
   // 认不出的句子不让世界动。
@@ -755,9 +800,13 @@ async function runSandboxSuite() {
     localStorage.getItem('xiaoxi.pixel-world.save.v1'),
   );
   const savedParsed = typeof savedRaw === 'string' ? JSON.parse(savedRaw) : null;
+  // 版本号不写死：写档侧就是 `saveStore.lastSavedMeta().schemaVersion`
+  // （`saveStatus()` 透出来的那个）。早先写死 `=== 3`，v5 之后这条必然红，
+  // 而它想钉的是「单槽里是当前的 vN JSON」，不是某个历史版本号。
+  const saveStatus = await page.evaluate(() => window.Oracle.saveStatus());
   check(
-    savedParsed !== null && savedParsed.schemaVersion === 3,
-    '单槽里是 v3 JSON',
+    savedParsed !== null && savedParsed.schemaVersion === saveStatus.schemaVersion,
+    `单槽里是 v${savedParsed?.schemaVersion} JSON`,
   );
   // 石板与摆件来源是 v2 新增字段，写档必须带上；缺了就是字段漂移。
   check(

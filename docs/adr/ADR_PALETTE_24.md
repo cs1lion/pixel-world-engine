@@ -1,5 +1,9 @@
 # ADR：世界 24 色预算——补记一份从未写下的决定
 
+- status: pending-review
+- verified_at: 2026-11-02
+- evidence: `world-client/src/world/palette-data.ts`, `world-client/scripts/audit-palette.mjs`, `world-client/test/palette-budget.test.ts`
+
 - 状态：已接受（**补记**；被补记的那份文档从未存在）
 - 日期：2026-10-27（补记日。决定日据称是 2026-10-21，出处见「不可考」一节）
 - 关联票据：**无可考**。本仓其他 ADR 都带票号（`ADR_MEMORY` 的 #7、`ADR_WORLD_FACTS_SOURCE` 的 #16、`ADR_DEFAULT_PACK_BYPASS` 的 #13 #9、`ADR_PACK_SKIPS_WORLD_BUDGET` 的 #9 #13）。这一条查不到对应票据，不编一个填上。

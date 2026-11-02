@@ -85,8 +85,8 @@ import type {
   WorldSnapshot,
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
-import type { SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_V4_FINGERPRINT } from './save.ts';
+import type { MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V5_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -3176,8 +3176,14 @@ export class Simulation {
 
   // ---------------------------------------------------------------- save
 
-  /** 序列化世界自有事实；上游链接态与派生计数不入档（ADR_SAVE §1）。 */
-  toSave(): WorldSave {
+  /**
+   * 序列化世界自有事实；上游链接态与派生计数不入档（ADR_SAVE §1）。
+   *
+   * `memoryState` 是记忆层交来的**字符串**（`MemoryRuntime.toJSON()`），缺省空串。
+   * 世界内核不认识记忆层：适配发生在场景（`SandboxScene`），这里只负责把它放进
+   * `world.memory` 这个位置，好让存档是「世界 + 关于世界的记忆」一份文件。
+   */
+  toSave(memoryState: MemorySave = ''): WorldSave {
     const villagers: SavedVillager[] = this.villagers.map((villager) => ({
       id: villager.id,
       name: villager.name,
@@ -3235,11 +3241,13 @@ export class Simulation {
         // v3 的三个位置：#14 写覆盖、#8 写折返计数，这一版原样存取。
         tideOverride: this.tideOverride === null ? null : { ...this.tideOverride },
         worldChangeVersion: this.worldChangeVersion,
+        // v5：记忆层整段交回来，空串 = 没有记忆。
+        memory: memoryState,
       },
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.feedReconciled,
-        schemaFingerprint: SCHEMA_V4_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V5_FINGERPRINT,
       },
     };
   }

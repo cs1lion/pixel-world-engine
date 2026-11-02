@@ -15,7 +15,7 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
-const OUT = 'eval/screens';
+const OUT = process.env.EVAL_OUT ?? 'eval/screens';
 const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 
 /**

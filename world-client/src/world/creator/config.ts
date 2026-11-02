@@ -9,6 +9,14 @@
 // 自治等级爬梯目标表（造物主引擎核心指标）
 // ============================================================================
 
+/**
+ * 爬梯表：每项的 `gateRequirements` 是**升到目标等级所需的下限**。
+ *
+ * 这一块原来叫 `metrics`，而 `metrics` 这个词在本仓指的是「从真实计数算出的
+ * 观测值」（`creator/metrics.ts` 的 `AggregateGateMetrics`）。名字混用让
+ * 「要求 100%」读成「实测 100%」——那正是 `engine.ts` 曾经写死一组达标值的
+ * 心态。观测与要求分成两个名字：这里只写要求，观测值由调用方算。
+ */
 export const AUTONOMY_CLIMB_CONFIG = {
   /**
    * 能力模块 1: 设定理解 (文字 + 图 → 世界圣经)
@@ -19,7 +27,7 @@ export const AUTONOMY_CLIMB_CONFIG = {
   SETTING_UNDERSTANDING: {
     startLevel: 1 as const,
     targetLevel: 2 as const,
-    metrics: {
+    gateRequirements: {
       schemaPassRate: 1.0, // 100%
       conflictCount: 0,
       coverageRate: 0.95, // 95%
@@ -35,7 +43,7 @@ export const AUTONOMY_CLIMB_CONFIG = {
   LAYOUT_AND_BUILDING: {
     startLevel: 2 as const,
     targetLevel: 3 as const,
-    metrics: {
+    gateRequirements: {
       pathfindingConnectedRate: 1.0, // 100%
       collisionRate: 0.0, // 0%
       constraintSatisfactionRate: 1.0, // 100%
@@ -51,10 +59,19 @@ export const AUTONOMY_CLIMB_CONFIG = {
   HISTORY_RELATIONS_MEMORY: {
     startLevel: 2 as const,
     targetLevel: 4 as const,
-    metrics: {
-      traceabilityRate: 1.0, // 100%
-      relationSymmetryRate: 1.0, // 100%
-      replayHashConsistencyRate: 1.0, // 100%
+    /**
+     * **这是门禁要求，不是观测值。**
+     *
+     * 这三个 `1.0` 原先挂在 `metrics` 名下，读起来像「本模块的回放一致率
+     * 实测 100%」——而真正算这一项的是 `creator/metrics.ts` 的
+     * `replayConsistencyOf`（没跑过就报 `null`）与 `creator/fuse.ts` 的计数器
+     * （没观测就不加分母）。这张表只回答「升到 L4 需要什么数」，
+     * 不提供任何一个「已经达标」的读数。
+     */
+    gateRequirements: {
+      traceabilityRate: 1.0, // 要求 100%
+      relationSymmetryRate: 1.0, // 要求 100%
+      replayHashConsistencyRate: 1.0, // 要求 100%（不是实测值）
     },
   } as const,
 
@@ -67,7 +84,7 @@ export const AUTONOMY_CLIMB_CONFIG = {
   STATIC_ART: {
     startLevel: 1 as const,
     targetLevel: 2 as const,
-    metrics: {
+    gateRequirements: {
       gridAlignmentRate: 1.0, // 100%
       colorPaletteBleedRate: 0.0, // 0%
       silhouetteIoUCap: 0.75, // ≤0.75
@@ -83,7 +100,7 @@ export const AUTONOMY_CLIMB_CONFIG = {
   ANIMATION: {
     startLevel: 0 as const,
     targetLevel: 1 as const,
-    metrics: {
+    gateRequirements: {
       usesModularSkeleton: true,
       frameToFrameCentroidShiftCap: 1.0, // ≤1px
     },
@@ -98,7 +115,7 @@ export const AUTONOMY_CLIMB_CONFIG = {
   DIRECTOR_RUNNING: {
     startLevel: 1 as const,
     targetLevel: 2 as const,
-    metrics: {
+    gateRequirements: {
       invariantViolationCount: 0,
       valenceHealthyRange: {
         min: -0.3,
@@ -117,7 +134,7 @@ export const AUTONOMY_CLIMB_CONFIG = {
   GENERALIZATION: {
     startLevel: 0 as const,
     targetLevel: 2 as const,
-    metrics: {
+    gateRequirements: {
       codeModificationLinesOnSwitch: 0, // 必须是 0
     },
   } as const,

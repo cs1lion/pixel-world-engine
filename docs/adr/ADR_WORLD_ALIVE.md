@@ -1,5 +1,9 @@
 # ADR_WORLD_ALIVE：世界变活
 
+- status: pending-review
+- verified_at: 2026-11-02
+- evidence: `world-client/src/world/save.ts`, `world-client/src/render/day-phase.ts`, `world-client/scripts/check-phases.mjs`
+
 > **这份记录的来历（先说清楚）**：代码里从 2026 年起就有 4 处引用
 > `ADR_WORLD_ALIVE §2` 与 `§8`——`src/render/day-phase.ts` 文件头、
 > `src/world/save.ts` 的 `SCHEMA_V2_FINGERPRINT` 注释与 `MIGRATIONS[1]` 注释、

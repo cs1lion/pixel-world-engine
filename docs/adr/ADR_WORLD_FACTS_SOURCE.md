@@ -1,5 +1,9 @@
 # ADR：世界上有哪些楼——客户端报现状，日志投影只做兜底
 
+- status: pending-review
+- verified_at: 2026-11-02
+- evidence: `server/rules/schema.py`, `server/events/projection.py`, `docs/SPEC.md`
+
 - 状态：已接受
 - 日期：2026-10-27
 - 关联票据：#16

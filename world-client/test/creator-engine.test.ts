@@ -113,9 +113,18 @@ const TEST_PACK: RawSettingPack = {
   scenery: [],
 };
 
+/**
+ * 引擎现在要求显式种子与世界时钟。测试给固定值：同一份输入必须得到
+ * 同一份产出，测试自己也不该读墙钟。
+ */
+const ENGINE_OPTIONS = {
+  worldSeed: 'test-seed',
+  worldTime: (): number => 0,
+} as const;
+
 describe('CreatorEngine 集成测试', () => {
   test('能够加载并编译最小化设定集', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const pack = engine.getPackInfo();
 
     assert.strictEqual(pack.id, 'test-pack');
@@ -126,7 +135,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('构建的世界包含正确的网格和建筑', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const world = engine.getWorldSnapshot();
 
     assert.strictEqual(world.grid.width, 30);
@@ -136,7 +145,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('初始化所有造物主角色到 L0', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const controller = (engine as any).fuseController as fuseModule.AutonomousFuseController;
     const roleIds = controller.getAllRoleIds();
 
@@ -153,7 +162,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('执行命令时 L0 需要人工确认', async () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const result = await engine.executeCommand('interpreter', {
       kind: 'setWeather',
       parameters: { weather: 'rain' },
@@ -164,7 +173,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('L2 通过门禁后自动放行', () => {
-    const engine = new CreatorEngine(TEST_PACK, { targetLevel: 2 });
+    const engine = new CreatorEngine(TEST_PACK, { ...ENGINE_OPTIONS, targetLevel: 2 });
     const roleId = 'interpreter';
     const controller = (engine as any).fuseController as fuseModule.AutonomousFuseController;
 
@@ -227,7 +236,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('Director 根据心电图注入事件', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
 
     // 低唤醒度 → 应该注入
     const lowArousalResult = engine.processDayClosed({
@@ -251,7 +260,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('回归集测试通过后才能恢复熔断', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const controller = (engine as any).fuseController as fuseModule.AutonomousFuseController;
 
     // 强制降级到 L1 并熔断
@@ -271,7 +280,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('确定性随机数生成器', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
 
     const seed = 'test-seed';
     const r1 = engine.deterministicRandom(seed);
@@ -286,7 +295,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('内存配置正确计算', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const config = engine.getMemoryConfig();
 
     assert.strictEqual(config.vitalsWindowDays, 3);
@@ -294,7 +303,7 @@ describe('CreatorEngine 集成测试', () => {
   });
 
   test('获取所有角色状态', () => {
-    const engine = new CreatorEngine(TEST_PACK);
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
     const allStates = engine.getAllRoleStates();
 
     assert.strictEqual(allStates.size, 6);
@@ -302,5 +311,56 @@ describe('CreatorEngine 集成测试', () => {
       assert.strictEqual(state.currentLevel, 0);
       assert.strictEqual(state.isFused, false);
     }
+  });
+
+  // -------------------------------------------------------------- 真实/空值指标
+
+  test('人工确认只记真正观察到的事：没测的门禁项报 null，不报满分', () => {
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
+    const controller = (engine as any).fuseController as fuseModule.AutonomousFuseController;
+
+    engine.submitHumanApproval('mapper', 'cmd#1', true);
+
+    const rates = controller.getRates('mapper');
+    assert.ok(rates !== undefined);
+    assert.equal(rates.totalCommands, 1, '确认过一次，指令数就是 1');
+    assert.equal(rates.schemaPassRate, 1, '人点头是真实观测到的');
+    assert.equal(rates.coverageRate, null, '没算覆盖率就该是 null，不是 1');
+    assert.equal(rates.pathfindingConnectedRate, null, '没查寻路就该是 null');
+    assert.equal(rates.collisionRate, null, '没查碰撞就该是 null');
+    assert.equal(rates.traceabilityRate, null, '没溯源就该是 null');
+    assert.equal(rates.replayHashConsistencyRate, null, '没跑回放就该是 null');
+    assert.equal(engine.getRoleState('mapper')?.metrics.days, 0, '人工确认不再冒充一个 world_day');
+  });
+
+  test('调用方真的量了什么，就记什么——观测值原样进计数器', () => {
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
+    const controller = (engine as any).fuseController as fuseModule.AutonomousFuseController;
+
+    engine.submitHumanApproval('mapper', 'cmd#2', true, undefined, {
+      coverageRate: 0.5,
+      pathfindingConnected: true,
+      hasCollision: false,
+      spatialConstraintSatisfied: true,
+      traceable: true,
+    });
+
+    const rates = controller.getRates('mapper');
+    assert.ok(rates !== undefined);
+    assert.equal(rates.coverageRate, 0.5);
+    assert.equal(rates.pathfindingConnectedRate, 1);
+    assert.equal(rates.collisionRate, 0);
+    assert.equal(rates.constraintSatisfactionRate, 1);
+    assert.equal(rates.traceabilityRate, 1);
+    assert.equal(rates.replayHashConsistencyRate, null, '没递回放结果，仍然是 null');
+  });
+
+  test('世界日结算按真实天数走，不按人工点击次数走', () => {
+    const engine = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
+    engine.submitHumanApproval('mapper', 'cmd#3', true);
+    assert.equal(engine.getRoleState('mapper')?.metrics.days, 0);
+
+    engine.closeWorldDay();
+    assert.equal(engine.getRoleState('mapper')?.metrics.days, 1, '一个世界日只结算一次');
   });
 });

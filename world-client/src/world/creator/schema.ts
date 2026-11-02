@@ -13,11 +13,17 @@
  *    静默丢掉会让它一直以为自己写对了。
  *
  * 与 `creator-schema.ts` 的分工：那一份只认「放一栋楼」的单一造物意图，
- * 是本文件的子集，历史数据仍在用。这里是五条指令的完整白名单。
+ * 是本文件的子集。**但它不再自己解析**：`creator-schema.ts` 现在调用本文件的
+ * `parsePlaceBuildingIntent`，形状校验只有这一份实现，两处入口的差别只在
+ * 「允不允许 `kind` / `id` / `reason` 这些指令信封字段」。
+ *
+ * 色板同理：token 名是闭集（24 个），**值是设定集给的**。所以校验器接受一个
+ * `WorldPalette`，不 import 全局 `WORLD`——灯潮界的 `timber` 与莞尔镇的
+ * `timber` 同名不同色，拿 `WORLD` 查等于把两套世界当成同一套。
  */
 
-import { WORLD } from '../palette-data.ts';
 import type { GridPoint, PrefabBlueprint } from '../types.ts';
+import type { WorldPalette } from '../theme.ts';
 
 // ========== 错误类型 ==========
 
@@ -243,14 +249,14 @@ function readStringArray(value: unknown, field: string): string[] {
   });
 }
 
-function validatePaletteToken(token: string, field: string): void {
+function validatePaletteToken(token: string, field: string, palette: WorldPalette): void {
   if (token.startsWith('#')) {
     invalid(
       `${field} 不接受十六进制 "${token}"：只能用 24 色表的 token 名，否则会绕开调色板预算`,
     );
   }
-  if (!Object.prototype.hasOwnProperty.call(WORLD, token)) {
-    invalid(`${field} 的 "${token}" 不在 24 色表里：可选 ${Object.keys(WORLD).join(' / ')}`);
+  if (!Object.prototype.hasOwnProperty.call(palette, token)) {
+    invalid(`${field} 的 "${token}" 不在 24 色表里：可选 ${Object.keys(palette).join(' / ')}`);
   }
 }
 
@@ -258,6 +264,7 @@ function readPalette(
   value: unknown,
   template: PrefabBlueprint,
   field: string,
+  palette: WorldPalette,
 ): Record<string, string> {
   if (!isRecord(value)) invalid(`${field} 必须是对象`);
   const slots = Object.keys(template.palette);
@@ -269,7 +276,7 @@ function readPalette(
   const resolved: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value)) {
     if (typeof raw !== 'string') invalid(`${field}.${key} 必须是色名 token`);
-    validatePaletteToken(raw.trim(), `${field}.${key}`);
+    validatePaletteToken(raw.trim(), `${field}.${key}`, palette);
     resolved[key] = raw.trim();
   }
   return resolved;
@@ -326,6 +333,7 @@ export function parsePlaceBuildingCommand(
   raw: Record<string, unknown>,
   templates: ReadonlyMap<string, PrefabBlueprint>,
   worldSize: { readonly width: number; readonly height: number },
+  palette: WorldPalette,
 ): PlaceBuildingCommand {
   checkAllowedFields(raw, [
     'kind',
@@ -337,7 +345,34 @@ export function parsePlaceBuildingCommand(
     'orientation',
     'purpose',
   ]);
+  return readPlaceBuilding(raw, templates, worldSize, palette);
+}
 
+/**
+ * 单一造物意图（`templateId` / `at` / `palette`，没有指令信封字段）。
+ *
+ * 这是 `creator-schema.ts` 的唯一入口。与 `parsePlaceBuildingCommand` 共用
+ * 同一段校验代码：两个入口只差**允许哪些顶层键**，形状规则一模一样。
+ * 原先 `creator-schema.ts` 自己写了一遍读点/读槽位/查 token，于是同一份
+ * 「24 色闭集」在两个文件里各维护一次——现在只有这一份。
+ */
+export function parsePlaceBuildingIntent(
+  raw: Record<string, unknown>,
+  templates: ReadonlyMap<string, PrefabBlueprint>,
+  worldSize: { readonly width: number; readonly height: number },
+  palette: WorldPalette,
+): PlaceBuildingCommand {
+  checkAllowedFields(raw, ['templateId', 'at', 'palette']);
+  return readPlaceBuilding(raw, templates, worldSize, palette);
+}
+
+/** 两种入口的共享正文。不在里面查顶层键——那件事故意留给调用入口。 */
+function readPlaceBuilding(
+  raw: Record<string, unknown>,
+  templates: ReadonlyMap<string, PrefabBlueprint>,
+  worldSize: { readonly width: number; readonly height: number },
+  palette: WorldPalette,
+): PlaceBuildingCommand {
   const templateId = raw.templateId;
   if (!isNonEmptyString(templateId)) invalid('PlaceBuilding.templateId 必须是非空字符串');
   const template = templates.get(templateId);
@@ -349,8 +384,10 @@ export function parsePlaceBuildingCommand(
 
   // 只判"在不在世界范围里"。能不能建（迷雾、占地、留白、门口）由 runBusinessRulesCheck 判。
   const paletteRaw = raw.palette;
-  const palette =
-    paletteRaw === undefined ? undefined : readPalette(paletteRaw, template, 'PlaceBuilding.palette');
+  const paletteOverride =
+    paletteRaw === undefined
+      ? undefined
+      : readPalette(paletteRaw, template, 'PlaceBuilding.palette', palette);
 
   const orientationRaw = raw.orientation;
   const orientation =
@@ -364,7 +401,7 @@ export function parsePlaceBuildingCommand(
     reason: readOptionalString(raw, 'reason'),
     templateId,
     at,
-    palette,
+    palette: paletteOverride,
     orientation,
     purpose: readOptionalString(raw, 'purpose'),
   };
@@ -604,6 +641,8 @@ export function parseGenesisCommandBatch(
     templates: ReadonlyMap<string, PrefabBlueprint>;
     worldSize: { readonly width: number; readonly height: number };
     existingChars: ReadonlySet<string>;
+    /** 当前世界的 24 色。**必填**：不同设定集同名不同色，没有全局默认值可退。 */
+    palette: WorldPalette;
   },
 ): GenesisCommandBatch {
   if (!isRecord(raw)) invalid('创世指令包必须是对象');
@@ -626,7 +665,12 @@ export function parseGenesisCommandBatch(
         case 'CreateRegion':
           return parseCreateRegionCommand(cmdRaw, options.worldSize);
         case 'PlaceBuilding':
-          return parsePlaceBuildingCommand(cmdRaw, options.templates, options.worldSize);
+          return parsePlaceBuildingCommand(
+            cmdRaw,
+            options.templates,
+            options.worldSize,
+            options.palette,
+          );
         case 'SpawnCharacter':
           return parseSpawnCharacterCommand(cmdRaw, options.existingChars, options.worldSize);
         case 'SeedHistory':
@@ -715,6 +759,17 @@ export async function runBusinessRulesCheck(
           commandIndex: index,
           commandKind: 'PlaceBuilding',
           message: spatial,
+        });
+      }
+      // 楼也要过不变式：占地越界、盖住镇心/摆件、门口连不出去，都不是「形状」问题，
+      // 而是「落在这张图上成不成立」的问题。原来这一支 `continue` 掉了，于是
+      // `checkInvariants` 对建筑永远没被调用——第二重门禁只做了一半。
+      const invariant = await worldState.checkInvariants(command);
+      if (invariant !== null) {
+        violations.push({
+          commandIndex: index,
+          commandKind: 'PlaceBuilding',
+          message: invariant,
         });
       }
       continue;

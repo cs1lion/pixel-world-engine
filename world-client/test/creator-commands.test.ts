@@ -12,6 +12,7 @@ import {
   type SeedHistoryCommand,
 } from '../src/world/creator/schema.ts';
 import type { PrefabBlueprint } from '../src/world/types.ts';
+import { WORLD } from '../src/world/palette-data.ts';
 
 /**
  * 外环的第一道门禁：五条创世指令的白名单。
@@ -46,7 +47,7 @@ const existingChars = new Set(['Alice', 'Bob']);
 const parse = (commands: unknown[]) =>
   parseGenesisCommandBatch(
     { version: 1, commands },
-    { templates, worldSize, existingChars },
+    { templates, worldSize, existingChars, palette: WORLD },
   );
 
 // ---------------------------------------------------------------- 白名单本身
@@ -381,7 +382,7 @@ test('批处理带上设定包上下文', () => {
       commands: [{ kind: 'PlaceBuilding', templateId: 'iron_workshop', at: { x: 5, y: 5 } }],
       context: { settingPackId: 'shangyou-v1', promptHash: 'abc123', llmModel: 'claude' },
     },
-    { templates, worldSize, existingChars },
+    { templates, worldSize, existingChars, palette: WORLD },
   );
 
   assert.equal(batch.context?.settingPackId, 'shangyou-v1');
@@ -393,7 +394,7 @@ test('上下文里的未知字段也被拒', () => {
     () =>
       parseGenesisCommandBatch(
         { version: 1, commands: [{ kind: 'PlaceBuilding', templateId: 'tavern', at: { x: 1, y: 1 } }], context: { settingPackId: 'x', secret: 'y' } },
-        { templates, worldSize, existingChars },
+        { templates, worldSize, existingChars, palette: WORLD },
       ),
     /未知字段 "secret"/,
   );

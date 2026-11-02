@@ -1,5 +1,9 @@
 # ADR：记忆按世界日序号命名，不按日历日期
 
+- status: pending-review
+- verified_at: 2026-11-02
+- evidence: `world-client/src/world/memory/runtime.ts`, `server/memory/paths.py`, `docs/SPEC.md`
+
 - 状态：已接受
 - 日期：2026-10-26
 - 关联票据：#7

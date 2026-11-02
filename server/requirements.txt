@@ -1,5 +1,14 @@
-fastapi>=0.110
-uvicorn>=0.27
-pytest>=7.4
-httpx>=0.27
-pyyaml>=6.0
+# 服务端运行/测试依赖。
+#
+# 上界与下界都写在这里：CI 的 `pip install -r requirements.txt` 是唯一的
+# 安装层，没有另加 lock 文件。需要完全可复现时再引入 constraints/lock；
+# 在那之前，这里的上界就是“别把下一次大版本悄悄装进来”的闸门。
+#
+# starlette 由 fastapi 间接依赖，但它的 1.x 与 0.x 行为差异会影响本项目
+# 的 TestClient 用法，所以显式列出并给上界，避免只由 fastapi 的传递依赖决定。
+fastapi>=0.110,<1.0
+uvicorn>=0.27,<1.0
+starlette>=0.40,<2.0
+pytest>=7.4,<9.0
+httpx>=0.27,<1.0
+pyyaml>=6.0,<7.0

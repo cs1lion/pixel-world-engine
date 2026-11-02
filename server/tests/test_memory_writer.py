@@ -232,3 +232,44 @@ def test_at_的形状被校验(writer):
 def test_check_draft_原样返回(writer):
     item = draft()
     assert check_draft(item) is item
+
+
+# ------------------------------------------------------------------ 索引维护
+
+
+def test_写事件之后_index_yaml_的_last_event_seq_被推进(layout, writer):
+    """索引原先没有写入方，`last_event_seq` 一直是初始值。
+
+    现在是「谁维护」的已实现事实：每写成一个事件，就把这一行推到它的序号。
+    """
+    writer.write(draft())
+    text = layout.index_path().read_text(encoding="utf-8")
+    assert text.strip() == "last_event_seq: 1"
+
+    writer.write(draft(title="潮水退了", evidence=(2,)))
+    assert "last_event_seq: 2" in layout.index_path().read_text(encoding="utf-8")
+
+
+def test_索引只改那一行_其它内容与倒退都不动(layout, writer):
+    """索引是派生物，不是一份可以重写的配置：
+
+    - 头部说明与 `days` / `characters` 原样保留（`yaml.dump` 会连注释一起洗掉）；
+    - 值取 `max(旧值, seq)`——索引落后是旧，回退是错。
+    """
+    layout.index_path().write_text(
+        "# 一行说明\nlast_event_seq: 7\ndays: [0]\ncharacters: []\n",
+        encoding="utf-8",
+    )
+    writer.write(draft())
+    text = layout.index_path().read_text(encoding="utf-8")
+    assert "# 一行说明" in text
+    assert "days: [0]" in text
+    assert "characters: []" in text
+    assert "last_event_seq: 7" in text
+    assert "last_event_seq: 1" not in text
+
+
+def test_角色记忆不动_index_yaml(writer, layout):
+    """只有事件才分配序号；角色档案追加不改变 `last_event_seq`。"""
+    writer.write(draft(kind=CHARACTER_ENTRY, title="她记得我点了灯", subject="莞尔"))
+    assert layout.index_path().is_file() is False

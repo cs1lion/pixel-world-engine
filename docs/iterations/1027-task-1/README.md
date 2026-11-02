@@ -1,6 +1,32 @@
 # 1027 迭代任务 1 · 内环：世界记忆 × 感知与信息传播
 
-> 暂存于 2026-10-27。本目录只做「收资料」：把外部设计文档原样收进项目，作为一组迭代目标。**没有任何实现已开始，也不含排期。**
+> 暂存于 2026-10-27。本目录最初只做「收资料」，截至 2026-11-02 **协议已实现**：22 个 `src/world/memory/` 模块、36 个相关测试文件（核对快照 `251a7ca`）。实现状态见下表；仍未排期的是后续调参与新功能。
+>
+> **2026-11-02 修正**：本行原来声称本目录没有实现、也不含排期——那句话在代码落地后已经变成假话，现按实情改写。
+
+## 实现状态（18 节 → 模块 / 测试）
+
+| 节 | 代码落点 | 代表测试 | 状态 |
+| --- | --- | --- | --- |
+| §0 原则与术语 | `world-client/src/world/memory/types.ts` | `memory-protocol.test.ts` | 已实现 |
+| §1 世界时钟与天 | `world-client/src/world/memory/config.ts` | `memory-day.test.ts` | 已实现 |
+| §2 事件契约 | `world-client/src/world/memory/types.ts`、`perception.ts` | `memory-perception-wiring.test.ts` | 已实现 |
+| §3 Holder | `world-client/src/world/memory/world.ts`、`types.ts` | `memory-runtime.test.ts` | 已实现 |
+| §4 MemoryEntry | `world-client/src/world/memory/types.ts`、`world.ts` | `memory-claim-birth.test.ts` | 已实现 |
+| §5 层级与晋升 | `world-client/src/world/memory/consolidate.ts`、`config.ts` | `memory-day.test.ts` | 已实现 |
+| §6 写入路径 | `world-client/src/world/memory/salience.ts` | `memory-flashbulb.test.ts` | 已实现 |
+| §7 日终整理 | `world-client/src/world/memory/consolidate.ts`、`world.ts` | `memory-diary.test.ts` | 已实现 |
+| §8 遗忘/强化/重构 | `world-client/src/world/memory/salience.ts`、`recall.ts` | `memory-trace-weathering.test.ts` | 已实现 |
+| §9 检索协议 | `world-client/src/world/memory/recall.ts` | `memory-reach-ceiling.test.ts` | 已实现 |
+| §10 使用点与表现 | `world-client/src/world/memory/hints.ts`、`voice.ts`、`stele.ts` | `stele.test.ts`、`villager-voice.test.ts` | 已实现 |
+| §11 建筑与地标沉积 | `world-client/src/world/memory/traces.ts`、`toponym.ts`、`types.ts`、`world.ts` | `memory-trace-wiring.test.ts`、`toponym.test.ts` | 已实现（含补充设计 §1.2） |
+| §12 集体记忆传说 | `world-client/src/world/memory/legend.ts` | `memory-legend-life.test.ts`、`legend-merge.test.ts` | 已实现 |
+| §13 事件类型 | `world-client/src/world/memory/types.ts` | `memory-protocol.test.ts` | 已实现 |
+| §14 边界 | `world-client/src/world/memory/sanitize.ts`、`types.ts` | `memory-no-model-calls.test.ts` | 部分（“是否允许撒谎”仍是开放问题） |
+| §15 隐私/删除/级联 | `world-client/src/world/memory/privacy.ts` | `memory-delete-cascade.test.ts` | 已实现 |
+| §16 确定性/回放/成本 | `world-client/src/world/memory/seed.ts`、`world.ts` | `replay-property.test.ts` | 已实现 |
+| §17 验收测试 | `world-client/test/memory-protocol.test.ts` | `memory-protocol.test.ts` | 已实现 |
+| §18 落地顺序与待定问题 | 无代码；开放问题见 `types.ts` | — | 不适用（计划节） |
 
 ## 这组资料讲什么
 

@@ -72,6 +72,13 @@ export interface MetricWindow {
   totalCommands: number;
   schemaPassCount: number;
   conflictCount: number;
+  /**
+   * 冲突被检查过的次数。
+   *
+   * 只有分母没有分子的计数器会「白送」：没查过冲突时 `conflictCount` 仍是 0，
+   * 而门禁写的是「> 0 才拒」。这一项把「没查」和「查了且 0」分开。
+   */
+  conflictChecks: number;
 
   /** 要素覆盖率：最近一次观察值。 */
   coverageRate: number;
@@ -96,6 +103,8 @@ export interface MetricWindow {
   manualModificationCount: number;
   rollbackCount: number;
   invariantViolationCount: number;
+  /** 不变式被检查过的次数。理由同 `conflictChecks`。 */
+  invariantChecks: number;
 }
 
 /** 由计数器派生出的比率。未观察过的项为 `null`。 */
@@ -106,6 +115,8 @@ export interface MetricRates {
 
   schemaPassRate: number | null;
   conflictCount: number;
+  /** 冲突检查次数。0 表示「没查过」，L2 门禁据此拒绝放行。 */
+  conflictChecks: number;
   coverageRate: number | null;
 
   pathfindingConnectedRate: number | null;
@@ -118,6 +129,8 @@ export interface MetricRates {
 
   rollbackCount: number;
   invariantViolationCount: number;
+  /** 不变式检查次数。0 表示「没查过」。 */
+  invariantChecks: number;
 }
 
 /** 造物主角色的配置状态 */
@@ -188,11 +201,21 @@ export class AutonomousFuseController {
   private readonly roleStates: Map<string, CreatorRoleState>;
   private readonly eventLog: FuseEvent[];
   private readonly dayCounter: Map<string, number>; // 每个角色的绝对 world_day 计数
+  /**
+   * 世界时间（毫秒）。**必须由调用方注入，这里不读 `Date.now()`。**
+   *
+   * 熔断日志里的 `timestamp` 与 `lastClimbAttemptAt` 原先都取墙钟。那让同一份
+   * 输入序列回放两次得到两份不同的审计日志——「同种子回放哈希一致」是 L4 的
+   * 硬门禁，而记录它的东西自己就不可复现。世界时间由 `Simulation` 持有，
+   * 场景把它递进来。
+   */
+  private readonly clock: () => number;
 
-  constructor() {
+  constructor(clock: () => number) {
     this.roleStates = new Map();
     this.eventLog = [];
     this.dayCounter = new Map();
+    this.clock = clock;
   }
 
   /** 初始化某个造物主角色。
@@ -228,7 +251,12 @@ export class AutonomousFuseController {
     roleId: string,
     result: {
       schemaPassed: boolean;
-      hasConflict: boolean;
+      /**
+       * 冲突与不变式违反**也可以不填**：`undefined` 表示「这次没查」，
+       * `false` 表示「查了，没有」。两者在计数上都只是不加一，但调用方
+       * 不该为了填满字段而随手写一个 `false`——那会让「没查」看起来像「查过」。
+       */
+      hasConflict?: boolean;
       coverageRate?: number;
       pathfindingConnected?: boolean;
       hasCollision?: boolean;
@@ -245,7 +273,12 @@ export class AutonomousFuseController {
     const m = state.metrics;
     m.totalCommands++;
     if (result.schemaPassed) m.schemaPassCount++;
-    if (result.hasConflict) m.conflictCount++;
+    // 冲突与不变式都是「有分母」的计数：`undefined` = 没查，不碰分母；
+    // `false` = 查过且没有，分母 +1、分子不变。门禁据此区分「没测」与「测了为 0」。
+    if (result.hasConflict !== undefined) {
+      m.conflictChecks++;
+      if (result.hasConflict) m.conflictCount++;
+    }
     if (result.coverageRate !== undefined) {
       m.coverageRate = result.coverageRate;
       m.coverageChecks++;
@@ -274,7 +307,10 @@ export class AutonomousFuseController {
     if (result.wasManuallyModified !== undefined && result.wasManuallyModified) {
       m.manualModificationCount++;
     }
-    if (result.invariantViolated) m.invariantViolationCount++;
+    if (result.invariantViolated !== undefined) {
+      m.invariantChecks++;
+      if (result.invariantViolated) m.invariantViolationCount++;
+    }
 
     // 实时检查降级条件
     this.checkDowngradeTriggers(roleId);
@@ -400,6 +436,7 @@ export class AutonomousFuseController {
       totalCommands: 0,
       schemaPassCount: 0,
       conflictCount: 0,
+      conflictChecks: 0,
       coverageRate: 0,
       coverageChecks: 0,
       pathfindingChecks: 0,
@@ -415,6 +452,7 @@ export class AutonomousFuseController {
       manualModificationCount: 0,
       rollbackCount: 0,
       invariantViolationCount: 0,
+      invariantChecks: 0,
     };
   }
 
@@ -450,7 +488,7 @@ export class AutonomousFuseController {
 
     const oldLevel = state.currentLevel;
     state.currentLevel = Math.min(oldLevel + 1, state.targetLevel) as AutonomyLevel;
-    state.lastClimbAttemptAt = Date.now();
+    state.lastClimbAttemptAt = this.clock();
 
     this.logEvent(
       roleId,
@@ -534,7 +572,7 @@ export class AutonomousFuseController {
     toLevel: AutonomyLevel = fromLevel,
   ): void {
     this.eventLog.push({
-      timestamp: Date.now(),
+      timestamp: this.clock(),
       roleId,
       eventType,
       details,
@@ -579,6 +617,7 @@ export function ratesOf(m: MetricWindow): MetricRates {
     days: m.days,
     schemaPassRate: divide(m.schemaPassCount, m.totalCommands),
     conflictCount: m.conflictCount,
+    conflictChecks: m.conflictChecks,
     coverageRate: m.coverageChecks === 0 ? null : m.coverageRate,
     pathfindingConnectedRate: divide(m.pathfindingConnectedCount, m.pathfindingChecks),
     collisionRate: divide(m.collisionChecks - m.collisionFreeCount, m.collisionChecks),
@@ -588,6 +627,7 @@ export function ratesOf(m: MetricWindow): MetricRates {
     manualModificationRate: divide(m.manualModificationCount, m.totalCommands),
     rollbackCount: m.rollbackCount,
     invariantViolationCount: m.invariantViolationCount,
+    invariantChecks: m.invariantChecks,
   };
 }
 
@@ -604,7 +644,11 @@ export function ratesOf(m: MetricWindow): MetricRates {
  */
 function qualityGatesFor(targetLevel: AutonomyLevel, rates: MetricRates): boolean {
   if (targetLevel >= AutonomyLevel.L2) {
+    // 分母为 0 就是没查过。没查过不等于「冲突 0 / 不变式违反 0」——
+    // 这一条原来只看「> 0 才拒」，于是没人检查的世界照样拿到 L2 资格。
+    if (rates.invariantChecks === 0) return false;
     if (rates.invariantViolationCount > 0) return false;
+    if (rates.conflictChecks === 0) return false;
     if (rates.conflictCount > 0) return false;
     if (rates.coverageRate === null || rates.coverageRate < 0.95) return false;
   }

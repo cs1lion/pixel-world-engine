@@ -2,10 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createMemoryClient,
+  createMemoryOutbox,
   parseEntry,
   parseList,
+  parseWritten,
   MEMORY_ENTRY_URL,
   MEMORY_LIST_URL,
+  MEMORY_SOURCE,
+  MEMORY_WRITE_URL,
+  type MemoryDraft,
   type MemoryResult,
 } from '../src/world/memory-client.ts';
 
@@ -242,4 +247,134 @@ test('服务端该同时给 at 与 day：少一个就整页作废', () => {
   assert.equal(parseList(listPage([{ ...base, at: 1500, day: null }])), null);
   assert.notEqual(parseList(listPage([{ ...base, at: 1500, day: 0 }])), null);
   assert.notEqual(parseList(listPage([{ ...base, at: null, day: null }])), null);
+});
+
+// ---------------------------------------------------------------- 写：一次一条
+
+const draft = (extra: Partial<MemoryDraft> = {}): MemoryDraft => ({
+  kind: 'event',
+  title: '渡口的第一夜',
+  body: '我在旧站牌下点了一盏灯。',
+  at: 1500,
+  evidence: [7],
+  ...extra,
+});
+
+const writtenBody = (extra: Record<string, unknown> = {}) => ({
+  kind: 'event',
+  title: '渡口的第一夜',
+  path: 'events/E0007-渡口的第一夜.md',
+  evidence: [7],
+  appended: false,
+  ...extra,
+});
+
+test('写一条记忆打到 /api/memory/write，且一次调用只发一次请求', async () => {
+  const { impl, calls } = fakeFetch(() => jsonResponse(writtenBody()));
+  const client = createMemoryClient({ fetchImpl: impl });
+  const result = await client.write(draft());
+
+  assert.equal(calls.length, 1, '一次 write 只能有一次往返');
+  const url = new URL(calls[0]!.url, 'http://x');
+  assert.equal(url.pathname, MEMORY_WRITE_URL);
+  assert.equal(calls[0]!.init?.method, 'POST');
+  const sent = JSON.parse(String(calls[0]!.init?.body)) as Record<string, unknown>;
+  // 来源不给调用方选：世界观测到的每一句都只有这一种来源。
+  assert.equal(sent.source, MEMORY_SOURCE);
+  assert.deepEqual(sent.evidence, [7]);
+  assert.equal(sent.at, 1500);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.path, 'events/E0007-渡口的第一夜.md');
+});
+
+test('本地挡掉写不进去的草稿：零请求', async () => {
+  const { impl, calls } = fakeFetch(() => jsonResponse(writtenBody()));
+  const client = createMemoryClient({ fetchImpl: impl });
+  const bad: [string, MemoryDraft][] = [
+    ['没有依据', draft({ evidence: [] })],
+    ['依据不是事件 id', draft({ evidence: [0] })],
+    ['缺标题', draft({ title: ' ' })],
+    ['缺正文', draft({ body: '' })],
+    ['世界时间为负', draft({ at: -1 })],
+    ['人物记忆缺 subject', draft({ kind: 'character' })],
+  ];
+  for (const [label, item] of bad) {
+    const result = await client.write(item);
+    assert.equal(result.ok, false, `${label} 该被本地挡掉`);
+    if (!result.ok) assert.ok(result.reason.length > 0, `${label} 拒绝时要带可读理由`);
+  }
+  assert.equal(calls.length, 0, '明显写不进去的草稿不该浪费一次往返');
+});
+
+test('写响应形状不对就整条作废；形状对才算出队依据', () => {
+  for (const body of [
+    null,
+    {},
+    writtenBody({ path: '' }),
+    writtenBody({ evidence: [] }),
+    writtenBody({ evidence: ['x'] }),
+    writtenBody({ appended: 'no' }),
+  ]) {
+    assert.equal(parseWritten(body), null, `本该作废：${JSON.stringify(body)}`);
+  }
+  assert.notEqual(parseWritten(writtenBody()), null);
+});
+
+// ---------------------------------------------------------------- 出队器：节流
+
+test('空队 flush 不请求，返回 null', async () => {
+  const { impl, calls } = fakeFetch(() => jsonResponse(writtenBody()));
+  const outbox = createMemoryOutbox(createMemoryClient({ fetchImpl: impl }));
+  assert.equal(outbox.size, 0);
+  assert.equal(await outbox.flush(), null, '空队没有东西可交');
+  assert.equal(calls.length, 0, '空队不该发请求——每帧调也没有副作用');
+});
+
+test('flush 成功才出队：一次只交一条', async () => {
+  const { impl, calls } = fakeFetch(() => jsonResponse(writtenBody()));
+  const outbox = createMemoryOutbox(createMemoryClient({ fetchImpl: impl }));
+  outbox.enqueue(draft({ title: '第一件' }));
+  outbox.enqueue(draft({ title: '第二件' }));
+  assert.equal(outbox.size, 2);
+
+  const first = await outbox.flush();
+  assert.equal(first?.ok, true);
+  assert.equal(calls.length, 1, '一次 flush 只交一条');
+  assert.equal(outbox.size, 1, '成功才出队');
+
+  await outbox.flush();
+  assert.equal(calls.length, 2);
+  assert.equal(outbox.size, 0);
+});
+
+test('上一条还在途：第二次 flush 直接返回 null，不叠请求', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const { impl, calls } = fakeFetch(async () => {
+    await gate;
+    return jsonResponse(writtenBody());
+  });
+  const outbox = createMemoryOutbox(createMemoryClient({ fetchImpl: impl }));
+  outbox.enqueue(draft());
+
+  const inFlight = outbox.flush();
+  assert.equal(await outbox.flush(), null, '同一时刻只允许一条在途');
+  assert.equal(calls.length, 1);
+  release();
+  assert.equal((await inFlight)?.ok, true);
+  assert.equal(outbox.size, 0);
+});
+
+test('写失败留在队里：不丢历史，但也不在原地重试', async () => {
+  const { impl, calls } = fakeFetch(() => jsonResponse({ detail: '证据不在日志里' }, 422));
+  const outbox = createMemoryOutbox(createMemoryClient({ fetchImpl: impl }));
+  outbox.enqueue(draft());
+
+  const failed = outbox.flush();
+  assert.equal((await failed)?.ok, false);
+  assert.equal(outbox.size, 1, '失败不能出队——记忆只增，丢了就是历史缺一段');
+  assert.equal(calls.length, 1, '失败不自动重试，等下一拍再交');
 });

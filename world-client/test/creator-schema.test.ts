@@ -7,8 +7,10 @@ import {
   parseCreationPlan,
   type CreationPlan,
 } from '../src/world/creator-schema.ts';
-import { WORLD } from '../src/world/palette-data.ts';
+import { WORLD, tokenNameOf } from '../src/world/palette-data.ts';
 import { ALTAR, buildWorld, placeFromPlan } from '../src/world/setup.ts';
+import { loadSettingPack } from '../src/settings/load.ts';
+import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 
 const blueprints = parseBlueprintTable(
   JSON.parse(
@@ -23,8 +25,9 @@ const valid = (over: Record<string, unknown> = {}): Record<string, unknown> => (
   ...over,
 });
 
+// 莞尔镇的色板：这份文件验的是「形状 + 默认世界」，色板显式传入。
 const parse = (raw: unknown): CreationPlan =>
-  parseCreationPlan(raw, blueprints, { width: 80, height: 60 });
+  parseCreationPlan(raw, blueprints, { width: 80, height: 60 }, WORLD);
 
 // ------------------------------------------------------------------ 合法输入
 
@@ -173,6 +176,7 @@ test('现有 7 个模板都能被 schema 接受：模板 id 与配色合规', ()
         },
         blueprints,
         { width: 80, height: 60 },
+        WORLD,
       ),
     );
   }
@@ -185,6 +189,59 @@ function tokenOf(value: number): string {
   }
   throw new Error(`色值 ${value} 没有对应的 token 名`);
 }
+
+// ------------------------------------------------------------------ 灯潮界：同名不同色
+
+/**
+ * 灯潮界与莞尔镇共用 24 个 token 名，但色值不同。这份 schema 原来拿全局
+ * `WORLD` 解析 token，于是灯潮界的 `timber` 会被解成莞尔镇的木色——
+ * 解析结果长期被调用方丢掉，所以没露过面。下面三条钉住「按世界传色板」。
+ */
+test('灯潮界下 token 按灯潮界的色板解析，不是莞尔镇的', () => {
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const template = pack.blueprints.get('waiting_shelter');
+  assert.ok(template !== undefined);
+
+  const plan = parseCreationPlan(
+    {
+      templateId: 'waiting_shelter',
+      at: { x: 40, y: 30 },
+      palette: { body: 'timber', roof: 'terracotta' },
+    },
+    pack.blueprints,
+    { width: pack.grid.width, height: pack.grid.height },
+    pack.palette,
+  );
+
+  assert.equal(plan.palette.body, pack.palette.timber);
+  assert.notEqual(plan.palette.body, WORLD.timber, '两套世界的 timber 本来就不同色');
+  assert.equal(plan.palette.roof, pack.palette.terracotta);
+  assert.equal(plan.palette.trim, template.palette.trim, '没给的槽回落模板');
+});
+
+test('灯潮界的模板配色能反查回 token 名——手动造物不会在反查处抛', () => {
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const template = pack.blueprints.get('waiting_shelter');
+  assert.ok(template !== undefined);
+
+  assert.equal(tokenNameOf(template.palette.body, pack.palette), 'timber');
+  assert.equal(tokenNameOf(template.palette.roof, pack.palette), 'copper');
+  // 拿莞尔镇的表反查灯潮界的色值确实查不到——这正是原来那条会抛的路径。
+  assert.throws(() => tokenNameOf(template.palette.body, WORLD));
+});
+
+test('灯潮界的 schema 与指令白名单是同一份实现：同一个 token 两边都判合法', () => {
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  // `timber` 在两套世界都叫这个名字，合法性只取决于 token 名，与色值无关。
+  assert.doesNotThrow(() =>
+    parseCreationPlan(
+      { templateId: 'waiting_shelter', at: { x: 40, y: 30 }, palette: { body: 'timber' } },
+      pack.blueprints,
+      { width: pack.grid.width, height: pack.grid.height },
+      pack.palette,
+    ),
+  );
+});
 
 // ------------------------------------------------------------------ 完整链路
 

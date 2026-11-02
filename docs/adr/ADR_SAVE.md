@@ -1,5 +1,9 @@
 # ADR_SAVE：存档这一层自己定的事
 
+- status: pending-review
+- verified_at: 2026-11-02
+- evidence: `world-client/src/world/save.ts`, `world-client/src/ui/save-store.ts`, `world-client/test/save-fingerprint.test.ts`
+
 > **这份记录的来历（先说清楚）**：代码里从 2026 年起就有 17 处引用
 > `ADR_SAVE §1 / §1.2 / §1.3 / §2.1 / §2.2 / §3 / §4 / §5`，而 `docs/adr/` 下
 > **从来没有这个文件**——`docs/MIGRATION_FROM_XIAOXI.md` 的搬迁清单里也没有它。

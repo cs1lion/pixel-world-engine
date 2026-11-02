@@ -21,23 +21,23 @@
 ```text
 world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/world/           模拟内核（不 import Phaser）
-│   ├── memory/          内环：记忆、感知、传播、传说（18 个模块）
+│   ├── memory/          内环：记忆、感知、传播、传说（22 个模块）
 │   └── creator/         外环：创世指令白名单、熔断、指标、审校合成器
 ├── src/render/          渲染层（只读快照）
 ├── src/settings/        设定集加载器（莞尔镇 / 灯潮界）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                160 个测试文件
+└── test/                187 个测试文件 <!-- claim: test-file-count=187 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
 ├── memory/              记忆写入：形状、证据、路径三道关
 └── oracle/              LLM 造物主接口
 docs/                    设计与决策
-├── SPEC.md              v1 规范定稿
+├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
 ├── iterations/          迭代资料（1027-task-1 内环 / 1027-task-2 外环）
-├── adr/                 架构决策记录
+├── adr/                 架构决策记录 <!-- claim: adr-count=8 -->
 └── art/                 美术基准（《千与千寻视觉设定集》）
 memory/                  时间线记忆：entries / characters / events / rules
 ```
@@ -122,9 +122,21 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 
 ## 外环：造物主与自治爬梯
 
-> **这五个模块今天没有任何生产代码 import**（`grep -rn "world/creator/" src --include=*.ts`
-> 零命中）。它们各自有测试、各自是绿的，但还没有那个把它们串起来的东西。别把下面这张表
-> 读成「已经在跑」。
+> **整合层 `src/creator/engine.ts` 已经在生产路径上。** `SandboxScene` 在 `create()`
+> 里建它，世界、种子与时钟都由场景给（引擎不再自造 `'default-seed'` 或读 `Date.now()`）。
+> 玩家在造物模式里确认一次，就是一次真实的人工确认；引擎校验后把计划交回场景，
+> 由 `Simulation.enqueue({ kind: 'build' })` 落地——与手动造物同一条通道。
+> 世界日结束时场景调 `closeWorldDay()` 与 `processDayClosed(vitals)`，只有
+> `evaluateFuseDecision` 说 `allow` 时才让引擎自己提议一次。
+>
+> **两项观测在落地之后才算**（`src/creator/landing.ts`）：`pathfindingConnected`
+> 用落地后的真实网格判门口到不到得了镇心（围死就是 `false`）；`replayHashConsistent`
+> 用落地前冻住的 world view 重跑计划，拿「计划内容 + 落地点」的指纹比对。
+> 落位前算的这两项都会偏乐观，所以只在 `building.built` 回写之后结算。
+>
+> **还没有生产数据源的只剩两个**：`metrics.ts`（门禁指标要等真实校验批次）与
+> `synthesizer.ts`（逆向审校没有调用方）。`fuse.ts`、`schema.ts`、`config.ts`
+> 已经挂在这条路径上。
 
 | 模块 | 干什么 | 测试 |
 | --- | --- | --- |
@@ -159,20 +171,23 @@ cd world-client && node scripts/audit-palette.mjs --strict
 ```
 
 ```bash
-cd world-client && node scripts/audit-references.ts --strict && node scripts/audit-citations.ts --strict && node scripts/audit-sections.ts --strict
+cd world-client && node scripts/audit-references.ts --strict && node scripts/audit-citations.ts --strict && node scripts/audit-sections.ts --strict && node scripts/audit-claims.ts --strict
 ```
 
 ```bash
 cd server && python -m pytest
 ```
 
+服务端依赖的上下界锁在 `server/requirements.txt`；CI 只有 `pip install -r` 这一层安装，
+没有额外 lock。要完全复现时再引 constraints。
+
 **这几条要一起跑。** 后四条的输出有个共同性质：引用对不上、节号不存在、色板超预算，
 **全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
 而四个闸门一个都没过。
 
-2026-10-28 在干净 worktree 上量到的：`check` 0 错、`test` 1635 通过 / 9 跳过 / 0 失败
+2026-11-02 在干净工作区上量到的（feat 分支快照 `4d4e309`；同日后又有 docs 提交，数字未随之变化）：`check` 0 错、`test` 1870 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
-0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 481 通过 / 1 跳过。
+0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
 
 **受查处数不写在这儿**：它随文档增长，而这份 README 自己就是增长源——上面那些数字写下
 的同一次编辑，就把受查处数从 1885 改成了 1904。要数就现跑，输出第一行就是它。
@@ -187,9 +202,9 @@ cd world-client && npm run test:live
 一栋楼；一句办不到的话 → 具体原因回到回执上；停掉服务端 → 世界照常过日子，顶栏改说
 「上游离线」。**两个世界各跑一遍**——换设定集不只是换皮。
 
-> 上面那几张截图是 2026-10-26 跑出来的。这台机器今天没装 `@playwright/test`
-> （`package-lock.json` 里有，`node_modules` 里没有，`npm ci` 之后才有），所以
-> `test:live` 这次没跑过。**别把它们当今天的证据读。**
+> 上面那几张截图是 2026-10-26 跑出来的。这台机器现在装了 `@playwright/test`（`node_modules`
+> 与浏览器缓存都在），但 2026-11-02 这次核对没有重跑 `test:live`——它会改写 `eval/live/`
+> 里已入库的截图。**别把它们当今天的证据读。**
 
 另有一条只验画面的灯潮界验收，不需要服务端（世界用 `?feed=off` 离线自转），
 但需要一个跑着的 Vite：
@@ -208,22 +223,35 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 
 ## 状态
 
-**跑着的**：世界内核与渲染、两套设定集与各自的存档槽、v1→v4 迁移链、七条命令的服务端
+> 状态核对日期：2026-11-02（本段以代码为准；测试与审计数字现跑得出）。
+
+**跑着的**：世界内核与渲染、两套设定集与各自的存档槽、v1→v5 迁移链、七条命令的服务端
 白名单与十种客户端意图、编年史面板（读 `/api/memory/list`）、`memory/` 的三条铁律。
 
-**半接的**：
+**半接的**：外环的 `metrics.ts` 与 `synthesizer.ts`——只有测试引用它们，
+门禁指标要等真实校验批次接进来；其余外环模块已经进了生产路径（见上一节）。
 
-- 记忆的**写面**只到服务端 `POST /api/memory/write`。浏览器端没有调用方——记忆客户端
-  只有 `list()` 与 `read()`，那是有意的：写收的是「已经观测到的事」，不该由界面按钮发起。
-  所以 `memory/` 里那四份文件是手工收进库的，不是跑一遍自动落盘的。
-- 记忆在**内存里**是活的：`MemoryRuntime` 接在 `SandboxScene` 上，每拍喂位置、跨日关账、
-  抛心电图。但它不进存档，刷新就重来。
+**造物引擎（第三阶段已接）**：`CreatorEngine` 由 `SandboxScene` 拥有，吃的是场景
+这一份 `BuiltWorld`（不再另建第二份权威状态）。种子取设定集 id，时钟取
+`snapshot.now`。玩家确认造物时，场景把配色 token 交给 `proposeCreation` 校验，
+拿回计划后经 `Simulation.enqueue` 落位；`submitHumanApproval` 只记真的查过的项
+（落位三道、覆盖率、来由），门口连通、回放一致与冲突/不变式由 `building.built` 触发的事后判定补上。
+冲突与不变式现在有检查次数分母（`conflictChecks` / `invariantChecks`）：没跑过业务规则的窗口
+升不了 L2，`false` 才是「查过且没有」。覆盖率改成**每次造物结算都现算一次**（按 `prefabId` 去重），
+所以「拆掉一栋、再把同一模板建回来」也会记一次新观测——升级清零窗口之后 L1→L2 不再结构卡死；
+没有造物的窗口覆盖率仍是 `null`，不会被默认放行。外环的自动提议可复现：候选模板先排序，
+模板下标与扫描起点都从 `seedOf(worldSeed, day, 'creator', …)` 取，不用 `Math.random`、不读墙钟。
 
-**没接的**：外环五个模块（见上一节）、`CreatorEngine`（只有一份未入库的草稿，
-不在这个仓库里，今天过不了 `npm run check`）。
+**记忆的写面（第二阶段已接）**：浏览器端不再只有 `list()` / `read()`。
+世界回写日志成功、拿到事件 id 之后，`SandboxScene` 把它排进 `memoryOutbox`，
+在自动存档那一刻（`maybeAutoSave`，与存档共用同一条 30s / 状态变化节流）交一条
+到 `POST /api/memory/write`。写不是每拍发一次：空队不请求、同一时刻只有一条在途、
+成功才出队。服务端写成功后同步推进 `memory/index.yaml` 的 `last_event_seq`
+（`server/memory/writer.py` 的 `_touch_index`）——那句「由谁维护」现在有实现撑着。
 
-**没写入方的**：`memory/index.yaml`。它的文件头写着「由 `server/memory/` 在写入时维护」，
-而 `INDEX_NAME` 只在 `paths.py` 里定义了路径，没有任何地方写它。那句话是假的。
+**记忆也在存档里**：`world.memory` 是一段自带 `memorySchemaVersion` 的 JSON 字符串
+（空串 = 没有记忆）。`Simulation.toSave()` 只负责把它原样写进 v5 存档；读档时由
+`SandboxScene` 在 `Simulation.fromSave()` 之后调 `this.memory.fromJSON()` 复原。
 
 ## 与旧仓的关系
 
@@ -232,7 +260,7 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 
 ## Quick Links
 
-- **规范**：[`docs/SPEC.md`](docs/SPEC.md)（v1 定稿）
+- **规范**：[`docs/SPEC.md`](docs/SPEC.md)（**唯一权威**；v2 增补见 §8–§15）
 - **取舍理由**：[`docs/SPEC_DRAFT_20261025.md`](docs/SPEC_DRAFT_20261025.md)
 - **术语表**：[`GLOSSARY.md`](GLOSSARY.md)
 - **灯潮界实现范围**：[`docs/SETTING_DENGCHAO.md`](docs/SETTING_DENGCHAO.md)

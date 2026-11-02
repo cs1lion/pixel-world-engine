@@ -19,7 +19,7 @@ import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
-import type { DebugOracle } from '../ui/debug-panel.ts';
+import type { CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
@@ -66,7 +66,15 @@ import { paceFrame, shouldAnimateAt, shouldAdvanceFrame, targetFpsFor } from '..
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
-import { parseCreationPlan } from '../world/creator-schema.ts';
+import { CreatorEngine, type CreatorWorldView } from '../creator/engine.ts';
+import {
+  freezeCreatorView,
+  landingReachable,
+  verifyCreationReplay,
+  type LandedCreation,
+} from '../creator/landing.ts';
+import { checkLandedBuilding, creationCoverage } from '../creator/business-rules.ts';
+import type { CreationPlan } from '../world/creator-schema.ts';
 import {
   biomeRingAllows,
   checkPlacement,
@@ -82,6 +90,13 @@ import { createLazyAnimalese, type Animalese } from '../audio/animalese.ts';
 import { toWorldCommand, type AgentToWorld } from '../world/bridge.ts';
 import { FeedClient } from '../world/feed.ts';
 import { createEventsClient, type EventsClient } from '../world/events-client.ts';
+import {
+  createMemoryClient,
+  createMemoryOutbox,
+  type MemoryClient,
+  type MemoryDraft,
+  type MemoryOutbox,
+} from '../world/memory-client.ts';
 import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
@@ -89,7 +104,7 @@ import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
 import type { SettingPack } from '../settings/types.ts';
 import { createSettingScenery, type SettingSceneryView } from '../render/setting-scenery.ts';
-import { routineProfiles } from '../settings/index.ts';
+import { routineProfiles, selectSetting } from '../settings/index.ts';
 
 export interface ScenePayload {
   readonly world: BuiltWorld;
@@ -126,6 +141,20 @@ interface BuildingEntry {
   readonly building: BuiltWorld['buildings'][number];
   readonly view: BuildingView;
   readonly emitter: AccentEmitter;
+}
+
+/**
+ * 一次已经入队、但还没落地的造物。**观测要等到 `building.built` 之后再做**。
+ *
+ * `recompute` 是落地前捕获的输入：手动造物重跑同一次 `proposeCreation(request)`，
+ * 外环提议重跑 `planCreation(落地前的 view)`。落地后再重算，「已有哪些模板」
+ * 已经变了，比出来的不是同一件事。
+ */
+interface PendingCreationObservation {
+  readonly plan: CreationPlan;
+  readonly day: number;
+  readonly traceable: boolean;
+  readonly recompute: () => CreationPlan | null;
 }
 
 export class SandboxScene extends Phaser.Scene {
@@ -204,6 +233,30 @@ export class SandboxScene extends Phaser.Scene {
   private feedClient: FeedClient | null = null;
   /** 回写用。与 feed 共用一个 client（同一个服务端），但方向相反。 */
   private eventsClient: EventsClient | null = null;
+  /**
+   * 把世界观测到的事写回服务端 `memory/`。
+   *
+   * 只在 `connectFeed()` 里建：`?feed=off` 时没有服务端，也就没有可写的编年史。
+   * 出队器攒着，**跟着自动存档那条节流走**（`maybeAutoSave` 成功之后才交一条），
+   * 不是每拍一次——写记忆是落文件，拿磁盘当日志没有意义。
+   */
+  private memoryClient: MemoryClient | null = null;
+  private memoryOutbox: MemoryOutbox | null = null;
+  /**
+   * 外环：造物主引擎。**这次它真的在生产路径上**。
+   *
+   * 场景把世界现状喂给它（`creatorWorldView()`），它产出的计划经
+   * `Simulation.enqueue` 落地——与玩家在造物模式里点出来的走同一条通道，
+   * 没有第二套写世界的入口。世界日结束时它也在这里结算（`closeWorldDay`）。
+   *
+   * 没有设定集（莞尔镇）时用默认包：`selectSetting('')` 返回的就是它。
+   */
+  private creator: CreatorEngine | null = null;
+  /**
+   * 等落地之后再结算的造物观测。键是 `instanceId`，由既有的
+   * `building.built` 回写（`onChange`）触发结算——不另开定时器或轮询。
+   */
+  private readonly pendingCreationObservations = new Map<string, PendingCreationObservation>();
   /**
    * 内环：记忆与传播。世界每拍交一份处境给它，跨日时它关账。
    *
@@ -556,9 +609,19 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack?.authored === true ? { authored: true } : {}),
       // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
       onChange: (change: WorldChange, at: number): void => {
-        void this.eventsClient?.record(change, at);
+        const client = this.eventsClient;
+        if (client !== null) {
+          // 日志先写，拿到 id 才谈记忆：`POST /api/memory/write` 要的 `evidence`
+          // 是日志里的事件 id，没有那一条就没有依据可引。
+          void client.record(change, at).then((result) => {
+            if (result.ok) this.queueMemory(change, at, result.id);
+          });
+        }
         this.remember(change, at);
         this.focusCameraOn(change);
+        // 落地之后的观测接在这一条既有的回写之后：楼已经进了 `Simulation`
+        // 的账本、网格也已经占格，可达性与回放才判得准。不另开一条通道。
+        if (change.change === 'building.built') this.settleCreationObservation(change.instanceId);
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
@@ -665,6 +728,10 @@ export class SandboxScene extends Phaser.Scene {
         );
       },
       onVitals: (vitals) => {
+        // 世界日结束：外环在这里按**真实天数**结算一次，并把心电图喂给导演。
+        // 这一步原先没有调用方——`CreatorEngine.processDayClosed` 与
+        // `closeWorldDay` 只存在于测试里。现在跨日是它们唯一的事实来源。
+        this.stepCreatorDayClosed(vitals);
         // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
         // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。
         void this.eventsClient?.record(
@@ -685,6 +752,16 @@ export class SandboxScene extends Phaser.Scene {
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
         : new Simulation(simDeps);
+    // 记忆段是 v5 新增的位置：世界重建完再喂给记忆适配器，顺序不能反
+    // （它要用 `this.world.grid` 算遮挡，而网格已经按存档重放过）。
+    // 空串（v4 老档迁移的默认值）读作「没有记忆」，不报警。
+    if (this.loadedSave !== null) {
+      const memoryText = this.loadedSave.world.memory;
+      const restored = this.memory.fromJSON(memoryText);
+      if (!restored && memoryText !== '') {
+        console.warn('[memory] 存档里的记忆段无法复原，按空记忆继续。');
+      }
+    }
     // 求证闭环：心里存疑的人会自己出门去现场。世界不问记忆层长什么样，
     // 只问「这个人该去哪」与「他到了，判一下」。
     this.sim.connectVerification({
@@ -698,6 +775,14 @@ export class SandboxScene extends Phaser.Scene {
       },
     });
     this.snapshot = this.sim.snapshot();
+    // 造物引擎进生产路径：世界是场景这一份（不再另建第二份），种子取设定集 id，
+    // 时钟取世界时间。三者都由场景给，引擎不自己造兜底。
+    const creatorPack = this.pack ?? selectSetting('');
+    this.creator = new CreatorEngine(creatorPack, {
+      worldSeed: creatorPack.id,
+      worldTime: () => this.snapshot.now,
+      world: this.world,
+    });
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
     if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);
     this.lastSaveKey = this.saveStateKey();
@@ -722,7 +807,7 @@ export class SandboxScene extends Phaser.Scene {
     this.focusListener();
 
     this.onPageHide = () => {
-      this.saveStore.write(this.sim.toSave());
+      this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
@@ -738,6 +823,8 @@ export class SandboxScene extends Phaser.Scene {
     if (params.get('feed') === 'off' || params.get('ledger') === 'off') return;
     const events = createEventsClient();
     this.eventsClient = events;
+    this.memoryClient = createMemoryClient();
+    this.memoryOutbox = createMemoryOutbox(this.memoryClient);
     const client = new FeedClient({
       client: events,
       onUpdate: ({ fold, connected }) => {
@@ -759,6 +846,10 @@ export class SandboxScene extends Phaser.Scene {
     this.feedClient?.stop();
     this.feedClient = null;
     this.eventsClient = null;
+    this.memoryClient = null;
+    this.memoryOutbox = null;
+    this.creator = null;
+    this.pendingCreationObservations.clear();
     this.overlay?.dispose();
     this.overlay = null;
     if (this.nightKeyListener !== null) {
@@ -943,6 +1034,152 @@ export class SandboxScene extends Phaser.Scene {
     );
     this.sightsee();
     this.memory.tick(this.snapshot.now);
+  }
+
+  /**
+   * 一个世界日结束时的外环动作：结算天数、喂心电图、在允许时提议一次造物。
+   *
+   * **不替人点头。** L0–L2 的自治规则是「需要人工确认」，所以这里先问
+   * `evaluateFuseDecision`；只有它说 `allow`（L3 抽检未抽中 / 已达 L4）才把
+   * 计划放进队列。其余等级只结算、只提议，不改世界。
+   */
+  private stepCreatorDayClosed(vitals: {
+    readonly meanValence: number;
+    readonly meanArousal: number;
+    readonly infoEntropy: number;
+    readonly isolatedHoldersCount: number;
+  }): void {
+    const creator = this.creator;
+    if (creator === null) return;
+
+    creator.closeWorldDay();
+    creator.processDayClosed({
+      meanValence: vitals.meanValence,
+      meanArousal: vitals.meanArousal,
+      infoEntropy: vitals.infoEntropy,
+      isolatedHoldersCount: vitals.isolatedHoldersCount,
+    });
+
+    if (creator.getFuseDecision('mapper').action !== 'allow') return;
+    // 落地前把 view 捕获下来，并把落位许可冻成位图：重跑时不能看见新楼占的格，
+    // 否则算出来的是「落地后的下一个位置」，不再是同一份输入。
+    const view = this.creatorWorldView();
+    const proposal = creator.planCreation(view);
+    if (proposal === null) return;
+    const frozen = freezeCreatorView(
+      view,
+      [...this.blueprints.keys()].filter((id) => !view.builtPrefabIds.has(id)),
+    );
+    const instanceId = this.sim.nextInstanceId(proposal.templateId);
+    this.pendingCreationObservations.set(instanceId, {
+      plan: proposal,
+      day: view.day,
+      traceable: true,
+      recompute: () => creator.planCreation(frozen),
+    });
+    this.sim.enqueue({
+      kind: 'build',
+      prefabId: proposal.templateId,
+      instanceId,
+      at: proposal.at,
+      source: { taskId: `creator-${proposal.templateId}`, summary: proposal.reason },
+    });
+  }
+
+  /**
+   * 楼真的落地之后，把两项「落位前算不准」的观测补进计数器。
+   *
+   * - `pathfindingConnected`：拿**落地后的**网格判门口到镇心。
+   * - `replayHashConsistent`：用落地前捕获的输入重跑计划，与「计划内容 +
+   *   实际落点」比指纹。跑不了（返回 `null`）就不记，留 `null`。
+   *
+   * 只有 `building.built` 会触发它；被拒的建造没有可取的真实落地结果，
+   * 因此什么也不记——不拿预检结论冒充事后判定。
+   */
+  private settleCreationObservation(instanceId: string): void {
+    const pending = this.pendingCreationObservations.get(instanceId);
+    if (pending === undefined) return;
+    this.pendingCreationObservations.delete(instanceId);
+
+    const creator = this.creator;
+    if (creator === null) return;
+    const landed = this.landedCreationOf(instanceId);
+    if (landed === null) return;
+
+    const replayed = pending.recompute();
+    const replay =
+      replayed === null
+        ? null
+        : verifyCreationReplay({
+            plan: pending.plan,
+            replayed,
+            landed,
+            day: pending.day,
+            blueprints: this.blueprints,
+          });
+    const pathfindingConnected = landingReachable(this.world, landed);
+
+    // 第二重门禁在这里跑：快照与网格都是落地后的那一份。检查器接口是 Promise，
+    // 但我们喂进去的每一项都是同步读，所以只差一个 microtask，不跨帧、不跨日。
+    const businessWorld = {
+      snapshot: this.sim.snapshot(),
+      grid: this.world.grid,
+      altar: this.world.altar,
+      blueprints: this.blueprints,
+    };
+    // 覆盖率**在这一刻现算**，不读登记时的缓存：楼已经落地，快照就是落地后的世界。
+    // 同一模板拆掉再建也算一次新观测——值可能仍是 1.0，但检查次数会 +1。
+    const coverageRate = creationCoverage(businessWorld.snapshot, this.blueprints);
+    void checkLandedBuilding(businessWorld, landed).then((business) => {
+      // 场景已经换了一个世界（热重载/退出），这次结果不再属于任何引擎。
+      if (this.creator !== creator) return;
+      creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+        coverageRate,
+        pathfindingConnected,
+        hasCollision: false,
+        spatialConstraintSatisfied: true,
+        traceable: pending.traceable,
+        // 这两项是**落地后**真跑业务规则得到的；`false` 是「查过且没有」。
+        hasConflict: business.hasConflict,
+        invariantViolated: business.invariantViolated,
+        ...(replay === null ? {} : { replayHashConsistent: replay }),
+      });
+    });
+  }
+
+  /** 从 `Simulation` 的当前快照里取那一栋；还没落地就返回 null。 */
+  private landedCreationOf(instanceId: string): LandedCreation | null {
+    const building = this.sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
+    if (building === undefined) return null;
+    return {
+      instanceId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+    };
+  }
+
+  /**
+   * 喂给造物引擎的世界现状。
+   *
+   * `canPlace` 用**与手动造物同一套**判据（迷雾 / `checkPlacement` / 群落环），
+   * 不另写一条更松的。引擎据此挑落点，落地时再由 `Simulation.build` 走
+   * `placeBlueprint` 的同一套校验——两边都过，才不会「提议说行、落地被拒」。
+   */
+  private creatorWorldView(): CreatorWorldView {
+    return {
+      day: Math.floor(this.snapshot.now / DAY_MS),
+      builtPrefabIds: new Set(this.snapshot.buildings.map((building) => building.prefabId)),
+      width: this.world.grid.width,
+      height: this.world.grid.height,
+      canPlace: (prefabId, at) => {
+        const blueprint = this.blueprints.get(prefabId);
+        if (blueprint === undefined) return false;
+        if (fogAt(at, this.snapshot.fog)) return false;
+        if (!checkPlacement(this.world.grid, blueprint, at).ok) return false;
+        return biomeRingAllows(prefabId, at, this.world.altar);
+      },
+    };
   }
 
   /**
@@ -1481,24 +1718,27 @@ export class SandboxScene extends Phaser.Scene {
       return { ok: false, message: check.message };
     }
     const instanceId = this.sim.nextInstanceId(session.prefabId);
+    const creator = this.creator;
+    if (creator === null) return { ok: false, message: '造物引擎没有起来。' };
 
-    // 玩家的选择先拼成一份**造物意图**，过 schema 再落位。
-    // 这样手动造物与将来的 LLM 输出走同一条校验，schema 不是死代码。
-    const intent = {
+    // 玩家的选择先拼成一份**造物意图**，交给造物引擎过白名单形状校验，
+    // 再由 `Simulation.enqueue` 落位。手动造物与外环产出的计划共用这一条通道，
+    // 没有第二套写世界的入口。色板是**这套设定集**的，不是全局 24 色表。
+    const intentPalette = {
+      body: tokenNameOf(blueprint.palette.body, this.worldPalette()),
+      roof: tokenNameOf(blueprint.palette.roof, this.worldPalette()),
+      trim: tokenNameOf(blueprint.palette.trim, this.worldPalette()),
+      window: tokenNameOf(blueprint.palette.window, this.worldPalette()),
+    };
+    const request = {
       templateId: session.prefabId,
       at: session.ghostAt,
-      palette: {
-        body: tokenNameOf(blueprint.palette.body),
-        roof: tokenNameOf(blueprint.palette.roof),
-        trim: tokenNameOf(blueprint.palette.trim),
-        window: tokenNameOf(blueprint.palette.window),
-      },
+      palette: intentPalette,
+      worldSize: { width: this.world.grid.width, height: this.world.grid.height },
     };
+    let plan: CreationPlan;
     try {
-      parseCreationPlan(intent, this.blueprints, {
-        width: this.world.grid.width,
-        height: this.world.grid.height,
-      });
+      plan = creator.proposeCreation(request);
     } catch (error) {
       // schema 不过就是玩家的选择有问题：留在模式里，说清哪里不对。
       return {
@@ -1509,14 +1749,23 @@ export class SandboxScene extends Phaser.Scene {
 
     this.sim.enqueue({
       kind: 'build',
-      prefabId: session.prefabId,
+      prefabId: plan.templateId,
       instanceId,
-      at: session.ghostAt,
+      at: plan.at,
       // 记下来由：这栋楼是你在造物模式里点出来的。纸面据此说得出它的来历。
       source: {
         taskId: `creation-${instanceId}`,
-        summary: `在 (${session.ghostAt.x},${session.ghostAt.y}) 建了${blueprint.displayName}`,
+        summary: `在 (${plan.at.x},${plan.at.y}) 建了${blueprint.displayName}`,
       },
+    });
+    // 人点了头，就是一次真实的人工确认。但**门口连通与回放一致要等落地**：
+    // 这里只登记，由 `building.built` 回写触发 `settleCreationObservation`。
+    // 落位前那两项算不准（楼还没占格），拿预检结论冒充事后判定就是假观测。
+    this.pendingCreationObservations.set(instanceId, {
+      plan,
+      day: Math.floor(this.snapshot.now / DAY_MS),
+      traceable: true,
+      recompute: () => creator.proposeCreation(request),
     });
     this.endCreation();
     return { ok: true, message: '动工了。' };
@@ -1594,6 +1843,17 @@ export class SandboxScene extends Phaser.Scene {
     return this.creation;
   }
 
+  /**
+   * 当前世界的 24 色。
+   *
+   * 色板值归设定集：灯潮界的 `timber` 与莞尔镇的 `timber` 同名不同色。
+   * 没有 pack（莞尔镇）时回落 `WORLD`——`LEGACY_PACK.palette` 本来就是它，
+   * 这条回落与「默认世界用默认色板」是同一件事。
+   */
+  private worldPalette(): WorldPalette {
+    return this.pack?.palette ?? WORLD;
+  }
+
   private endCreation(): void {
     this.creation = null;
     this.ghost.hide();
@@ -1663,7 +1923,7 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
-    const result = this.saveStore.write(this.sim.toSave());
+    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
     if (result.ok) {
       this.lastSaveKey = this.saveStateKey();
       this.lastSaveAt = this.snapshot.now;
@@ -1697,13 +1957,16 @@ export class SandboxScene extends Phaser.Scene {
     const changed = this.saveStateKey() !== this.lastSaveKey;
     const due = this.snapshot.now - this.lastSaveAt >= 30_000;
     if (!changed && !due) return;
-    const result = this.saveStore.write(this.sim.toSave());
+    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
     if (!result.ok) {
       this.saveNotice = result.message;
       return;
     }
     this.lastSaveKey = this.saveStateKey();
     this.lastSaveAt = this.snapshot.now;
+    // 记忆写回跟着存档那一条节流走：这一拍既然已过「变了 / 满 30s」两道闸，
+    // 才轮到交一条。出队器自己还有在途互斥，失败留在队里下一拍再试。
+    void this.memoryOutbox?.flush();
   }
 
   /** 外部 Agent 的入口。它和打字、按钮走同一条队列。 */
@@ -1721,13 +1984,36 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
-   * 世界做成了一件事 → 记忆层记下它。
+   * 把一条世界改变排进写回队列（`POST /api/memory/write`）。
    *
-   * 这一步在 `onChange` 里，与世界回写日志同一个入口：**日志记一份，记忆记一份**，
-   * 而两份说的是同一件事。日志给未来的规则引擎与编年史看，记忆给村里的人看。
+   * 只有 `world.event` 进来：它是世界自己发生、带一句话与落点的那一类，
+   * 标题与正文都现成；其余改变要么没有话说（潮位、心电图），要么是记忆层的
+   * 输出（传说），再记一遍等于自己吃自己。
    *
-   * 没有落点的事件（潮位、心电图）由 `observationOf` 返回 `null`，这里直接跳过。
-   * 位置查不到也跳过——世界不能假装知道一个人站在哪。
+   * 服务端记忆是**一事一文件**，`title` 上限 60 字且不能跨行——在这里先截，
+   * 别指望那边替我们猜。
+   */
+  private queueMemory(change: WorldChange, at: number, eventId: number): void {
+    const outbox = this.memoryOutbox;
+    if (outbox === null) return;
+    if (change.change !== 'world.event') return;
+    const text = change.text.trim();
+    if (text === '') return;
+    const draft: MemoryDraft = {
+      kind: 'event',
+      title: text.slice(0, 60),
+      body: text,
+      at,
+      evidence: [eventId],
+    };
+    outbox.enqueue(draft);
+  }
+
+  /**
+   * 世界做成了一件事，记忆层记下它。
+   *
+   * 与世界回写日志同一个入口：日志记一份，记忆记一份，两份说的是同一件事。
+   * 没有落点的事件（潮位、心电图）由 `observationOf` 返回 null，这里跳过。
    */
   private remember(change: WorldChange, at: number): void {
     if (this.memory === undefined) return;
@@ -2008,6 +2294,28 @@ export class SandboxScene extends Phaser.Scene {
       nightEnabled: (): boolean => this.nightEnabled(),
       events: (limit = 50) => this.recentEvents(limit),
       saveStatus: () => this.saveStatus(),
+      /**
+       * 外环指标窗口的只读计数。**只读**：每次现取一份新对象，不写回外环，
+       * 也不提供任何 setter。
+       *
+       * 计数全来自 `mapper` 这一条角色窗口——日结算与造物结算都记在它上面
+       * （`submitHumanApproval('mapper', …)`）。`replayHashChecks` 对应的
+       * 底层计数器叫 `replayChecks`，这里换成名门禁比率同一个名字。
+       *
+       * 外环没起来（世界还没醒来 / 没有设定集）返回 `null`：全 0 会被读成
+       * 「外环在、只是还没查过」，而事实是它不存在。
+       */
+      creatorChecks: (): CreatorChecksView | null => {
+        const metrics = this.creator?.getRoleState('mapper')?.metrics;
+        if (metrics === undefined) return null;
+        return {
+          conflictChecks: metrics.conflictChecks,
+          invariantChecks: metrics.invariantChecks,
+          pathfindingChecks: metrics.pathfindingChecks,
+          replayHashChecks: metrics.replayChecks,
+          coverageChecks: metrics.coverageChecks,
+        };
+      },
       saveNow: (): CommandResult => this.saveNow(),
       clearSave: (): CommandResult => this.clearSave(),
       loadSave: (): CommandResult => {

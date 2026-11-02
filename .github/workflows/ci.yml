@@ -31,6 +31,41 @@ jobs:
       # 而那份文档里没有这一节的。`villager.ts` 的「审计 §6.2」与 `day-phase.ts` 的
       # 「§6 缺口 2」都是这一类，两处都靠人 review 才发现，没有任何机关会红。
       - run: node scripts/audit-sections.ts --strict
+      # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
+      # 这里按固定探针复算；同时校验 8 份 ADR 的 status/evidence。
+      - run: node scripts/audit-claims.ts --strict
+
+  # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
+  # 三道都只读；EVAL_OUT 指到 runner 临时目录，保证仓库 eval/ 不被写脏。
+  world-client-browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: world-client
+    env:
+      EVAL_OUT: ${{ runner.temp }}/eval-screens
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: |
+          npm run preview -- --port 5188 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:5188/ && break
+            sleep 1
+          done
+      - run: npm run test:persistence
+      - run: npm run test:render-budget
+      - run: npm run test:phases
+      - run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status
+            exit 1
+          fi
 
   server:
     runs-on: ubuntu-latest
