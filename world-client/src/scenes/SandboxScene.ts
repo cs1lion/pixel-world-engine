@@ -12,7 +12,8 @@ import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp
 import { villagerAtCell } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
-import { WORLD, tokenNameOf } from '../world/palette-data.ts';
+import { TERRAIN_COLORS, WORLD, tokenNameOf } from '../world/palette-data.ts';
+import type { WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
@@ -263,6 +264,32 @@ export class SandboxScene extends Phaser.Scene {
   /** 每块地标上一次画出去的痕迹单子的指纹，与 `decalSignatures` 同一个理由。 */
   private groundSignatures = new Map<string, string>();
   private groundLayer?: Phaser.GameObjects.Graphics;
+  /**
+   * 这一局画面上该用的 24 色：设定集给了就整套换成它的，没给就是莞尔镇的。
+   *
+   * 痕迹、地形、楼、人都得读同一份。`tilemap.ts` 早就这么做了
+   * （`theme?.palette ?? WORLD`）；痕迹那一层 2026-11-02 才跟上——
+   * 在那之前灯潮界的地上和墙上一直画着莞尔镇的石头色。
+   */
+  private get palette(): WorldPalette {
+    return this.pack?.palette ?? WORLD;
+  }
+
+  /**
+   * 这一格地形铺的底色——痕迹带靠它避开「和自己脚下同色」。
+   *
+   * 口径与 `tilemap.ts` 的 `drawTerrain` 那一行**必须一样**：
+   * `theme?.terrainColors[terrain] ?? TERRAIN_COLORS[terrain]`。两处各写一遍
+   * 就是本仓记过的那个病，所以这里照抄同一句、并在注释里指回去。
+   */
+  private terrainBaseOf(cell: { readonly x: number; readonly y: number }): number {
+    const tile = this.world.grid.at(cell);
+    // 格外的坐标：`drawTerrain` 那边也是 `if (cell === undefined) continue`，
+    // 不画。这里给草地色，只为了让「同色」这条判据有个落点——画不画得出东西
+    // 由 `landmarkCells` 决定，那些格子一定在图里。
+    const terrain = tile === undefined ? 'grass' : tile.terrain;
+    return this.pack?.terrainColors[terrain] ?? TERRAIN_COLORS[terrain];
+  }
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
   private saveNotice: string | null = null;
@@ -1057,7 +1084,14 @@ export class SandboxScene extends Phaser.Scene {
     // 每风化一天就深一格，而风化该让它**变浅**。
     this.groundLayer.clear();
     for (const cell of this.landmarkCells) {
-      drawGroundDecals(this.groundLayer, this.memory.placeHints(cellPlaceId(cell)), cell, TILE_PX);
+      drawGroundDecals(
+        this.groundLayer,
+        this.memory.placeHints(cellPlaceId(cell)),
+        cell,
+        TILE_PX,
+        this.palette,
+        this.terrainBaseOf(cell),
+      );
     }
   }
 
@@ -1079,7 +1113,7 @@ export class SandboxScene extends Phaser.Scene {
       .join('|');
     if (this.decalSignatures.get(entry.building.instanceId) === signature) return;
     this.decalSignatures.set(entry.building.instanceId, signature);
-    drawBuildingDecals(entry.view, hints, entry.building);
+    drawBuildingDecals(entry.view, hints, entry.building, this.palette);
   }
 
   // ------------------------------------------------------------------ input

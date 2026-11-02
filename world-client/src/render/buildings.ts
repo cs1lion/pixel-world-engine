@@ -19,6 +19,7 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { PlacedBuilding, WorkstationSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
+import type { WorldPalette } from '../world/theme.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
 import { drawDecal, roofHeight } from './decal.ts';
 import type { NarrativeHint } from '../world/memory/hints.ts';
@@ -144,17 +145,22 @@ export function createBuilding(
  *
  * 调用方（`SandboxScene`）只在单子变了的时候调它：痕迹一天才风化一次，
  * 每拍重画是白烧。`clear()` 在画之前，所以传空单子就是擦干净。
+ *
+ * `palette` 是**这一次**这套设定集的 24 色（楼体自己那几笔读的是
+ * `building.palette`，痕迹读这个）。必填，不给缺省值：上一版漏了这一步，
+ * 灯潮界的墙上就一直画着莞尔镇的石头色。
  */
 export function drawBuildingDecals(
   view: BuildingView,
   hints: readonly NarrativeHint[],
   building: PlacedBuilding,
+  palette: WorldPalette,
 ): void {
   const w = building.footprint.w * TILE_PX;
   const h = building.footprint.h * TILE_PX;
   const roofH = roofHeight(h);
   view.decal.clear();
-  for (const hint of hints) drawDecal(view.decal, hint, w, h, roofH);
+  for (const hint of hints) drawDecal(view.decal, hint, w, h, roofH, palette);
 }
 
 /**

@@ -8,6 +8,8 @@
  * 三条纪律：
  *
  * 1. **只用现有 24 色 token**，不造新色——`audit-palette --strict` 管着预算。
+ *    色值从**入参**的 `WorldPalette` 来，不从全局 `WORLD` 读：换设定集时痕迹跟着换
+ *    色板，和地形、楼的墙一样。
  * 2. **alpha 就是 `visibility`**。风化在画面上只降可见度（协议 §11），这是那句话
  *    唯一的像素证据。浓淡另由 `intensity` 决定（画几笔、画多大），不参与 alpha：
  *    两道同样旧的痕迹，重的那道该更浓，不该更清楚。
@@ -16,7 +18,7 @@
  */
 
 import type { NarrativeHint } from '../world/memory/hints.ts';
-import { WORLD } from '../world/palette-data.ts';
+import type { WorldPalette } from '../world/theme.ts';
 
 /** 画痕迹需要的最小画布。Phaser 的 `Graphics` 结构上满足它。 */
 export interface DecalCanvas {
@@ -65,6 +67,31 @@ export function decalSpot(hint: NarrativeHint, w: number, h: number, roofH: numb
 }
 
 /**
+ * 这条带子用哪个石材槽。
+ *
+ * **不许和脚下那一格的底色同值。** 灯潮界的 `terrainColors.stone` 与
+ * `palette.stone` 是同一个色值（`#52666a`），`drawFlagstones` 又正是拿
+ * `palette.stone` 铺石头地面的——于是「带子用 stone 槽」这条在石头格上
+ * 对比度是 1.00，一格都看不见。修之前它看得见，是因为它画的是**另一座镇子**
+ * 的石头色；把色板修对之后，这个毛病才露出来（2026-11-02）。
+ *
+ * 所以退一档到 `plaza`（石材里更亮的一档）。再撞就退到 `trim`（最亮）。
+ * 判据是**同值**而不是「对比度够不够」：像素画里 1.67:1 就足够读出一条带子，
+ * 而 1.00 是一格都看不见。写成一个不等式，换设定集时不用重新量。
+ */
+function bandFace(palette: WorldPalette, base: number): number {
+  if (palette.stone !== base) return palette.stone;
+  if (palette.plaza !== base) return palette.plaza;
+  return palette.trim;
+}
+
+/** 带子上那几笔 jitter 用哪个色：与带子本身也得拉开，否则等于没画。 */
+function bandSpeck(palette: WorldPalette, face: number): number {
+  if (palette.plaza !== face) return palette.plaza;
+  return palette.trim;
+}
+
+/**
  * 画某一格**地面上**的痕迹。
  *
  * 楼上的痕迹画在墙上（`drawDecal`），地标上的画在地上——同一张单子
@@ -82,10 +109,14 @@ export function drawGroundDecals(
   hints: readonly NarrativeHint[],
   cell: { readonly x: number; readonly y: number },
   tile: number,
+  palette: WorldPalette,
+  base: number,
 ): void {
   const left = cell.x * tile;
   const top = cell.y * tile;
   const bandTop = top + Math.floor(tile * 0.45);
+  const face = bandFace(palette, base);
+  const speck = bandSpeck(palette, face);
   for (const hint of hints) {
     const alpha = Math.max(0, Math.min(1, hint.visibility));
     if (alpha === 0) continue;
@@ -96,34 +127,34 @@ export function drawGroundDecals(
     switch (hint.layer) {
       case 'worn_path': {
         // 走出来的路：一条横贯这一格的石面，越走越宽。
-        g.fillStyle(WORLD.stone, alpha);
+        g.fillStyle(face, alpha);
         g.fillRect(left, bandTop, tile, 1 + Math.round(strength * tile * 0.25));
-        g.fillStyle(WORLD.plaza, alpha);
+        g.fillStyle(speck, alpha);
         for (let i = 0; i < 3; i += 1) g.fillRect(jitter(i * 5), bandTop + 1, 1, 1);
         break;
       }
       case 'scorch': {
-        g.fillStyle(WORLD.ink, alpha);
+        g.fillStyle(palette.ink, alpha);
         g.fillRect(jitter(0), top + Math.floor(tile * 0.5), 4, 3);
         break;
       }
       case 'damage': {
-        g.fillStyle(WORLD.timberDark, alpha);
+        g.fillStyle(palette.timberDark, alpha);
         for (let i = 0; i < 3; i += 1) g.fillRect(jitter(0) + i, bandTop + i, 1, 1);
         break;
       }
       case 'patch': {
-        g.fillStyle(WORLD.timber, alpha);
+        g.fillStyle(palette.timber, alpha);
         g.fillRect(jitter(0), bandTop, 4, 3);
         break;
       }
       case 'garland': {
-        g.fillStyle(WORLD.amber, alpha);
+        g.fillStyle(palette.amber, alpha);
         for (let i = 0; i < 3; i += 1) g.fillRect(jitter(i * 4), bandTop, 1, 1);
         break;
       }
       case 'inscription': {
-        g.fillStyle(WORLD.trim, alpha);
+        g.fillStyle(palette.trim, alpha);
         for (let i = 0; i < 3; i += 1) g.fillRect(jitter(0) + i * 2, bandTop, 1, 1);
         break;
       }
@@ -143,6 +174,7 @@ export function drawDecal(
   w: number,
   h: number,
   roofH: number,
+  palette: WorldPalette,
 ): void {
   const alpha = Math.max(0, Math.min(1, hint.visibility));
   if (alpha === 0) return;
@@ -152,48 +184,48 @@ export function drawDecal(
   switch (hint.layer) {
     case 'scorch': {
       // 焦痕：一块暗斑 + 一粒余烬。余烬只在烧得狠时露头。
-      g.fillStyle(WORLD.ink, alpha);
+      g.fillStyle(palette.ink, alpha);
       g.fillRect(x, y, 5, 4);
       g.fillRect(x + 1, y - 1, 3, 1);
       if (strength >= 0.5) {
-        g.fillStyle(WORLD.ember, alpha * 0.8);
+        g.fillStyle(palette.ember, alpha * 0.8);
         g.fillRect(x + 2, y + 1, 1, 1);
       }
       break;
     }
     case 'damage': {
       // 裂口：一道斜着往下断的缝。
-      g.fillStyle(WORLD.timberDark, alpha);
+      g.fillStyle(palette.timberDark, alpha);
       for (let i = 0; i < 4; i += 1) g.fillRect(x + i, y + i, 1, 2);
       break;
     }
     case 'patch': {
       // 补板：一块新木头压在旧墙上，上缘一条压边。
-      g.fillStyle(WORLD.timber, alpha);
+      g.fillStyle(palette.timber, alpha);
       g.fillRect(x, y, 6, 4);
-      g.fillStyle(WORLD.timberDark, alpha);
+      g.fillStyle(palette.timberDark, alpha);
       g.fillRect(x, y, 6, 1);
       break;
     }
     case 'garland': {
       // 花环：檐下一串琥珀点，隔一个点一粒浅色。
-      g.fillStyle(WORLD.amber, alpha);
+      g.fillStyle(palette.amber, alpha);
       for (let i = 0; i < 4; i += 1) g.fillRect(x + i * 2, y, 1, 1);
-      g.fillStyle(WORLD.pale, alpha * 0.6);
+      g.fillStyle(palette.pale, alpha * 0.6);
       g.fillRect(x + 1, y + 1, 1, 1);
       break;
     }
     case 'worn_path': {
       // 磨损的小径：墙脚两行石头，越走越亮。
-      g.fillStyle(WORLD.stone, alpha);
+      g.fillStyle(palette.stone, alpha);
       g.fillRect(x, y, 6, 1);
-      g.fillStyle(WORLD.plaza, alpha * 0.7);
+      g.fillStyle(palette.plaza, alpha * 0.7);
       g.fillRect(x + 1, y + 1, 4, 1);
       break;
     }
     case 'inscription': {
       // 刻痕：一列短记号，像有人在这里记过数。
-      g.fillStyle(WORLD.trim, alpha);
+      g.fillStyle(palette.trim, alpha);
       for (let i = 0; i < 3; i += 1) g.fillRect(x, y + i * 2, 1, 1);
       break;
     }

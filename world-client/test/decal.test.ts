@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { decalSpot, drawDecal, roofHeight, type DecalCanvas } from '../src/render/decal.ts';
+import { WORLD } from '../src/world/palette-data.ts';
 import type { NarrativeHint } from '../src/world/memory/hints.ts';
 import type { TraceLayer } from '../src/world/memory/types.ts';
 
@@ -77,7 +78,7 @@ test('屋面高度与楼体那边同一个算式', () => {
 test('每一种痕迹都画得出东西，且都落在墙上', () => {
   for (const layer of LAYERS) {
     const { canvas, calls } = recorder();
-    drawDecal(canvas, hint(layer), W, H, ROOF);
+    drawDecal(canvas, hint(layer), W, H, ROOF, WORLD);
     assert.ok(calls.length > 0, `${layer} 一笔都没画`);
     for (const call of calls) {
       assert.ok(
@@ -92,8 +93,8 @@ test('每一种痕迹都画得出东西，且都落在墙上', () => {
 test('alpha 就是可见度：风化的那道更淡，不是更小', () => {
   const fresh = recorder();
   const faded = recorder();
-  drawDecal(fresh.canvas, hint('scorch', 1, 0.9), W, H, ROOF);
-  drawDecal(faded.canvas, hint('scorch', 0.25, 0.9), W, H, ROOF);
+  drawDecal(fresh.canvas, hint('scorch', 1, 0.9), W, H, ROOF, WORLD);
+  drawDecal(faded.canvas, hint('scorch', 0.25, 0.9), W, H, ROOF, WORLD);
 
   assert.equal(fresh.styles[0], 1);
   assert.equal(faded.styles[0], 0.25, '第一笔的 alpha 必须等于 visibility');
@@ -106,7 +107,7 @@ test('alpha 就是可见度：风化的那道更淡，不是更小', () => {
 
 test('可见度为 0 的痕迹一笔都不画——它在库里，但不在画面上', () => {
   const { canvas, calls } = recorder();
-  drawDecal(canvas, hint('scorch', 0), W, H, ROOF);
+  drawDecal(canvas, hint('scorch', 0), W, H, ROOF, WORLD);
   assert.deepEqual(calls, []);
 });
 
@@ -122,4 +123,23 @@ test('花环贴檐、磨损贴墙脚：两者的纵向带子不重叠', () => {
   const garland = decalSpot(hint('garland', 1, 0.8, 'x'), W, H, ROOF);
   const worn = decalSpot(hint('worn_path', 1, 0.8, 'x'), W, H, ROOF);
   assert.ok(garland.y < worn.y, `花环该在檐下（${garland.y}），磨损该在墙脚（${worn.y}）`);
+});
+
+test('墙上的痕迹也用这一次的色板', () => {
+  // 与 `ground-decal.test.ts` 那条同病同修：`drawDecal` 也写死 `WORLD.stone`。
+  // `drawBuildingDecals` 转调它，于是灯潮界九栋楼墙上的磨损也是莞尔镇的石头色。
+  const dengchao = { ...WORLD, stone: 0x52666a, plaza: 0x7d8984, timberDark: 0x412d32, trim: 0xdfbd7a };
+  const { canvas, calls } = recorder();
+  drawDecal(canvas, hint('worn_path'), W, H, ROOF, dengchao);
+  assert.equal(calls[0]?.color, dengchao.stone, '磨损那两行的上缘是 stone 槽');
+  assert.equal(calls[1]?.color, dengchao.plaza, '下缘是 plaza 槽');
+  assert.notEqual(WORLD.stone, dengchao.stone, '两份色板得真的不同，否则这条测不出东西');
+});
+
+test('色板是必填的：漏传是编译错，不是悄悄退回莞尔镇', () => {
+  // 同 `ground-decal.test.ts` 那条的理由：缺省值正是上一版把错色板画上屏的原因。
+  const other = { ...WORLD, ink: 0x112233 };
+  const { canvas, calls } = recorder();
+  drawDecal(canvas, hint('scorch'), W, H, ROOF, other);
+  assert.equal(calls[0]?.color, 0x112233);
 });
