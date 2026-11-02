@@ -19,7 +19,7 @@ import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
-import type { DebugOracle } from '../ui/debug-panel.ts';
+import type { CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
@@ -2294,6 +2294,28 @@ export class SandboxScene extends Phaser.Scene {
       nightEnabled: (): boolean => this.nightEnabled(),
       events: (limit = 50) => this.recentEvents(limit),
       saveStatus: () => this.saveStatus(),
+      /**
+       * 外环指标窗口的只读计数。**只读**：每次现取一份新对象，不写回外环，
+       * 也不提供任何 setter。
+       *
+       * 计数全来自 `mapper` 这一条角色窗口——日结算与造物结算都记在它上面
+       * （`submitHumanApproval('mapper', …)`）。`replayHashChecks` 对应的
+       * 底层计数器叫 `replayChecks`，这里换成名门禁比率同一个名字。
+       *
+       * 外环没起来（世界还没醒来 / 没有设定集）返回 `null`：全 0 会被读成
+       * 「外环在、只是还没查过」，而事实是它不存在。
+       */
+      creatorChecks: (): CreatorChecksView | null => {
+        const metrics = this.creator?.getRoleState('mapper')?.metrics;
+        if (metrics === undefined) return null;
+        return {
+          conflictChecks: metrics.conflictChecks,
+          invariantChecks: metrics.invariantChecks,
+          pathfindingChecks: metrics.pathfindingChecks,
+          replayHashChecks: metrics.replayChecks,
+          coverageChecks: metrics.coverageChecks,
+        };
+      },
       saveNow: (): CommandResult => this.saveNow(),
       clearSave: (): CommandResult => this.clearSave(),
       loadSave: (): CommandResult => {

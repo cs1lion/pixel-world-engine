@@ -185,6 +185,24 @@ export interface DebugPanelSources {
 }
 
 /**
+ * 外环（creator）当前指标窗口里的只读计数。
+ *
+ * 这些数只回答「查过几次」，不回答「查出了什么」：冲突/不变式违反的结论仍在
+ * `MetricWindow` 的 `conflictCount` / `invariantViolationCount`，走门禁判定。
+ * 字段名与门禁用的比率对齐（`replayHashChecks` 对应 `replayHashConsistencyRate`
+ * 的观测次数），底层计数器叫 `replayChecks`。
+ *
+ * **只读快照**：每次调用现取一份新对象，拿到之后改它不会影响外环。
+ */
+export interface CreatorChecksView {
+  readonly conflictChecks: number;
+  readonly invariantChecks: number;
+  readonly pathfindingChecks: number;
+  readonly replayHashChecks: number;
+  readonly coverageChecks: number;
+}
+
+/**
  * 场景挂在 `window.Oracle` 上的那一面里，调试面板要用的那几样。
  *
  * 它原来声明在 `main.ts` 里——而 `main.ts` 是接线的地方，不是契约待的地方。更麻
@@ -202,6 +220,11 @@ export interface DebugOracle {
   saveStatus(): SaveStatusView;
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
+  /**
+   * 外环指标窗口的只读计数。世界还没醒来 / 外环没起来时返回 `null`——
+   * 不用全 0 顶替，因为 0 的意思是「外环在，只是还没查过」。
+   */
+  creatorChecks(): CreatorChecksView | null;
 }
 
 export interface DebugPanelHandle {

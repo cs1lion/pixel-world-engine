@@ -164,6 +164,15 @@ L1→L2 随之可过（[creator-business-rules.test.ts](file:///D:/project/pixel
 （[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L298-L304)，
 `src/` 下除定义外零命中），所以「连续 3 批」只在测试里用到。
 
+**验证边界：14 天晋级无法在浏览器按真实时间验证。** 默认 `timeScale=6` 下一个世界日约
+4 小时真实时间，`?speed=` 上限 60 也只是 24 分钟/日：一个 14 天窗口约 5.6 小时，
+而 L0→L1→L2 要两次。改写单槽存档把 `world.now` 推到日界之后，确实能让
+`MemoryRuntime.tick` 为跨过的每一天各调一次 `onVitals`
+（[runtime.ts](file:///D:/project/pixel-world-engine/world-client/src/world/memory/runtime.ts#L445-L465)），
+从而连续触发 `stepCreatorDayClosed`。但这只证明**链路能连续触发**，不等于世界真的
+运行了 14 天，**不构成晋级证据**。浏览器里能诚实验证的上限是「触发一次日结算」；
+14 天与门禁的晋级判定由 `fuse` 的单测/集成测试覆盖，不靠浏览器截图背书。
+
 ### 3.2 一次造物的完整路径（手动）
 
 ```mermaid
