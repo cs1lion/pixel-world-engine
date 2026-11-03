@@ -53,16 +53,29 @@ function makeSim(initialNow = 0): { sim: Simulation; changes: WorldChange[] } {
 /** 模拟默认倍率 60 下的一拍：100ms 逻辑步 × 60 = 6 世界秒。 */
 const STEP_MS = 6000;
 
-test('时刻表覆盖 06:00–22:00 的九个节点，顺序单调', () => {
+test('时刻表覆盖 05:00–22:00 的十一个节点，顺序单调', () => {
   assert.deepEqual(
     TIMETABLE.map((beat) => beat.id),
     [
-      'wash_bridge', 'market_open', 'tea_talk', 'quiet_start', 'quiet_end',
+      'lamps_out', 'wash_bridge', 'market_open', 'tea_talk', 'quiet_start', 'quiet_end',
       'work_end', 'light_lamps', 'night_market', 'pack_up', 'market_close',
     ],
   );
   const minutes = TIMETABLE.map((beat) => beat.minuteOfDay);
   assert.deepEqual(minutes, [...minutes].sort((a, b) => a - b), '时刻表必须按一天里的先后排');
+});
+
+test('05:00 收灯与 18:00 点灯各一条，语义对称', () => {
+  const out = TIMETABLE.filter((beat) => beat.id === 'lamps_out');
+  const lit = TIMETABLE.filter((beat) => beat.id === 'light_lamps');
+  assert.equal(out.length, 1, '05:00 收灯只能有一条');
+  assert.equal(lit.length, 1, '18:00 点灯只能有一条');
+  assert.equal(out[0]!.minuteOfDay, 300, '05:00 = 第 300 分钟');
+  assert.equal(lit[0]!.minuteOfDay, 1080, '18:00 = 第 1080 分钟');
+  assert.match(out[0]!.text, /收/, '文案必须真的是「收灯」');
+  assert.doesNotMatch(out[0]!.text, /亮起来/, '不能把收灯写成点灯');
+  // 收灯只切渲染谓词，不是每日小事——不开新的 world.event 白名单。
+  assert.equal(out[0]!.chore, null, '收灯不落世界事件');
 });
 
 test('分钟口径：06:00 是第 360 分钟，安静段是 [720, 840)', () => {
@@ -80,17 +93,19 @@ test('跨过的节拍：左开右闭，跨日也照付', () => {
   assert.deepEqual(at6.map((beat) => beat.id), ['wash_bridge']);
   // 不跨就不报。
   assert.deepEqual(beatsBetween(worldMinutes(6 * 60), worldMinutes(6 * 60) + 1), []);
-  // 跨日：前一天 22:00 之后到第二天。前一天最后的 22:00 已过，不再报；
-  // 第二天 06:00 之前也没有节拍，所以这一段是空的。
+  // 跨日：前一天 22:00 之后到第二天 05:00。第二天 05:00 是新加的收灯节拍。
   assert.deepEqual(
-    beatsBetween(worldMinutes(23 * 60), DAY_MS + worldMinutes(5 * 60)),
-    [],
+    beatsBetween(worldMinutes(23 * 60), DAY_MS + worldMinutes(5 * 60)).map((beat) => beat.id),
+    ['lamps_out'],
   );
   // 大步长跨日时，第二天已经越过的节拍要补上。
   assert.deepEqual(
     beatsBetween(worldMinutes(23 * 60), DAY_MS + worldMinutes(9 * 60)).map((beat) => beat.id),
-    ['wash_bridge', 'market_open'],
+    ['lamps_out', 'wash_bridge', 'market_open'],
   );
+  // 05:00 这一拍本身也拿得到（左开右闭）。
+  const at5 = beatsBetween(DAY_MS + worldMinutes(5 * 60) - STEP_MS, DAY_MS + worldMinutes(5 * 60));
+  assert.deepEqual(at5.map((beat) => beat.id), ['lamps_out']);
 });
 
 test('安静段：作息回锚点坐着，停满 40 世界分钟', () => {

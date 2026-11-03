@@ -17,6 +17,7 @@ import { DAY_MS } from './memory/config.ts';
 import { worldMinutes } from './pace.ts';
 
 export type TimetableId =
+  | 'lamps_out'
   | 'wash_bridge'
   | 'market_open'
   | 'tea_talk'
@@ -51,6 +52,12 @@ export interface TimetableBeat {
 
 /** 固定时刻表。顺序即一天里的顺序。 */
 export const TIMETABLE: readonly TimetableBeat[] = [
+  {
+    id: 'lamps_out', minuteOfDay: 5 * 60, text: '天还没亮，值夜的人把街灯一盏盏收起来。',
+    // 收灯是「灯亮着」这个渲染谓词回到关：它不是每日小事，也不该凭空多开一种
+    // `world.event`。灯街切片读这一拍的时刻与 id，自己决定怎么关灯。
+    chore: null, choreText: null,
+  },
   {
     id: 'wash_bridge', minuteOfDay: 6 * 60, text: '天亮了，有人去桥边打水，顺手冲了冲桥面。',
     chore: 'water', choreText: '去桥边打水，顺手冲了冲桥面',
