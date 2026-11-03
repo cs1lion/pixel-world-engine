@@ -73,6 +73,27 @@ export interface SettingScenery {
     /** 灯街的竖招牌：木柱 + 竖板 + 三个自造字块。 */
     | 'signpost'
     /**
+     * 设定集场景补绘（2026-11-03）：清单、页码与形制见
+     * `settings/dengchao/scene-artbook.ts`。这些都是装饰构件，不占地、不接活。
+     * - `boiler`：炉底入口旁的砖砌炉膛、烟道与烟囱；
+     * - `coal_heap`：炉前煤堆与木桶；
+     * - `quay`：渡口石砌突堤与下水踏步；
+     * - `steps`：街面石阶；
+     * - `drain`：街面石沟与铁格栅；
+     * - `shopfront_gable`：带弧形山墙与圆窗的店铺立面；
+     * - `ridge`：水对岸的屋脊线与山影；
+     * - `far_tower`：对岸的钟塔剪影。
+     */
+    | 'boiler'
+    | 'coal_heap'
+    | 'quay'
+    | 'steps'
+    | 'drain'
+    | 'street_paving'
+    | 'shopfront_gable'
+    | 'ridge'
+    | 'far_tower'
+    /**
      * 碑：镇心旁边的一块矮石板，世界共识刻在上面。
      *
      * 它是一件**摆件而不是楼**，因为它不占地、不可建、不接活——世界对它做的事

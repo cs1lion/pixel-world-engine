@@ -7,6 +7,7 @@
 import type { AgentToWorld } from '../world/bridge.ts';
 import type { RewindResult } from '../world/history/scene-history.ts';
 import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
+import type { SettingSceneryMetrics } from '../render/setting-scale.ts';
 import { summarizeWorld } from '../world/world-state.ts';
 
 export const DEBUG_EVENT_LIMIT = 50;
@@ -284,6 +285,18 @@ export interface DebugOracle {
   memoryInner?(holderId: string): { readonly templateId: string; readonly text: string } | null;
   /** 调试/浏览器验收：打开某个角色的只读状态菜单，不写世界。 */
   openUnitStatusForDebug?(holderId: string): boolean;
+  /**
+   * 调试灯态：`true`/`false` 强制街灯亮/灭，`null` 交回世界时钟。
+   * 只压过渲染层，不改 `lampStreetLitAt` 的时刻判据。
+   */
+  debugForceLamps?(on: boolean | null): boolean | null;
+  /**
+   * 立面与街灯的实际像素尺寸（店面墙 48 / 灯柱 58 / 灯体下沿 43）。
+   * 证据脚本拿它画标尺：尺子读渲染常量，不另抄一份数字。
+   */
+  debugSettingScale?(): SettingSceneryMetrics | null;
+  /** 地面光池这一层的指令数：灯灭时应为 0（残留亮斑会让它不为 0）。 */
+  debugLampPool?(): number;
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

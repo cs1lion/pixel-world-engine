@@ -45,8 +45,7 @@
 
 import type Phaser from 'phaser';
 import type { TerrainId } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
-import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import { paletteFor, type WorldColor, type WorldPalette } from '../world/theme.ts';
 import { TILE_PX } from '../world/setup.ts';
 
 /** 材质高度序：边只画在高度**更大**的一侧。 */
@@ -66,7 +65,7 @@ export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
  *
  * 存 **token 名**而不是解析后的色值：设定集换掉 `plaza` 时，边要跟着换，
  * 存色值就等于把莞尔镇的颜色冻在第二座镇子的岸边上。色值到 `drawTileEdge`
- * 里按当次色板解析，默认仍是 `WORLD`。
+ * 里按当次色板解析，默认仍是当前世界的色板。
  */
 export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
   tree: 'grassLit',
@@ -93,8 +92,8 @@ export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
 /**
  * 暗边 token 名：按材质查表，**不能**全场统一用一个色。
  *
- * 原来全场统一用 soil（W02）。但 `tree` 的底色本身就是 soil
- * （`TERRAIN_COLORS.tree = WORLD.soil`），于是 tree 格朝下/朝右的暗边画出来
+ * 原来全场统一用 soil（W02）。但 `tree` 的底色本身就是 soil（地形表里
+ * `tree` 直接指向 `soil`），于是 tree 格朝下/朝右的暗边画出来
  * 与底色完全相同 —— 亮度落差 **0.0**，等于白画。
  *
  * 那批像素有多少：默认世界（`buildLargeWorld`，96×72）实测 2597 个 tree 格里有
@@ -301,7 +300,7 @@ export function drawTileEdge(
   around: EdgeNeighbors,
   px: number,
   py: number,
-  palette: WorldPalette = WORLD,
+  palette: WorldPalette = paletteFor(),
 ): void {
   const side = sideMask(self, around);
   const corner = cornerMask(self, around);

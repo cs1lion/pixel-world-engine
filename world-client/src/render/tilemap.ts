@@ -13,14 +13,13 @@ import Phaser from 'phaser';
 import type { WorldGrid } from '../world/grid.ts';
 import type { GridPoint, TerrainId } from '../world/types.ts';
 import { TILE_PX } from '../world/setup.ts';
-import { TERRAIN_COLORS, WORLD } from '../world/palette-data.ts';
+import { paletteFor, terrainFor, type WorldPalette } from '../world/theme.ts';
 import { biomeAt } from '../world/biomes.ts';
 import { DRESSING } from '../world/dressing.ts';
 import { drawTileEdge, type EdgeNeighbors } from './terrain-edges.ts';
 import { drawRegionGrounding, type RegionSlots } from './region-paint.ts';
-import type { WorldPalette } from '../world/theme.ts';
 
-type Terrain = keyof typeof TERRAIN_COLORS;
+type Terrain = TerrainId;
 
 export function drawTerrain(
   scene: Phaser.Scene,
@@ -52,14 +51,14 @@ export function drawTerrain(
    * 两块色板同时出现在一张画面上。传参而不是让辅助函数自己读全局，
    * 是为了「画成什么样完全由入参决定」这件事在测试里可证。
    */
-  const palette = theme?.palette ?? WORLD;
+  const palette = theme?.palette ?? paletteFor();
 
   // pass 1：底色。先全部铺满，后面的纹理才不会被邻格底色覆盖。
   for (let y = 0; y < grid.height; y += 1) {
     for (let x = 0; x < grid.width; x += 1) {
       const cell = grid.at({ x, y });
       if (cell === undefined) continue;
-      g.fillStyle(theme?.terrainColors[cell.terrain] ?? TERRAIN_COLORS[cell.terrain], 1);
+      g.fillStyle(theme?.terrainColors[cell.terrain] ?? terrainFor()[cell.terrain], 1);
       g.fillRect(originX + x * TILE_PX, originY + y * TILE_PX, TILE_PX, TILE_PX);
     }
   }

@@ -18,7 +18,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { WorldSnapshot } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { propFootY } from './prop-depth.ts';
 import { firefliesVisible, PHASES, type PhaseId, type PhaseRecipe } from './day-phase.ts';
 import { isWildLanternOn } from '../world/wilderness-signal.ts';
@@ -80,7 +80,7 @@ export function createPhaseView(
   scene: Phaser.Scene,
   worldWidth: number,
   worldHeight: number,
-  dimColor: number = WORLD.deepShade,
+  dimColor: number = paletteFor().deepShade,
 ): PhaseView {
   const WIDTH = worldWidth;
   const HEIGHT = worldHeight;
@@ -109,16 +109,16 @@ export function createPhaseView(
     if (view.glow <= 0.001) return;
     const addGlow = (cx: number, cy: number, w: number, h: number, alpha: number): void => {
       const a = alpha * view.glow;
-      glows.fillStyle(WORLD.amber, a);
+      glows.fillStyle(paletteFor().amber, a);
       glows.fillRect(Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h));
-      glows.fillStyle(WORLD.amber, a * 0.55);
+      glows.fillStyle(paletteFor().amber, a * 0.55);
       glows.fillRect(
         Math.round(cx - w / 2) + 1,
         Math.round(cy - h / 2) + 1,
         Math.max(1, Math.round(w) - 2),
         Math.max(1, Math.round(h) - 2),
       );
-      glows.fillStyle(WORLD.warmLight, a * 1.15);
+      glows.fillStyle(paletteFor().warmLight, a * 1.15);
       glows.fillRect(
         Math.round(cx - w / 4),
         Math.round(cy - h / 4),
@@ -164,9 +164,9 @@ export function createPhaseView(
       // 屋脊受光：黄昏独有，把黄昏和正午分开的主要线索。
       if (view.ridge > 0.001) {
         const alpha = view.ridge * 0.5;
-        glows.fillStyle(WORLD.warmLight, alpha);
+        glows.fillStyle(paletteFor().warmLight, alpha);
         glows.fillRect(Math.round(px - 6), Math.round(py + roofH - 12), Math.round(w + 12), 2);
-        glows.fillStyle(WORLD.amber, alpha * 0.6);
+        glows.fillStyle(paletteFor().amber, alpha * 0.6);
         glows.fillRect(Math.round(px - 4), Math.round(py + roofH - 9), Math.round(w + 8), 4);
       }
     }
@@ -193,10 +193,10 @@ export function createPhaseView(
       const phase = Math.sin(snapshot.now / 700 + i * 1.9);
       if (phase < -0.15) continue;
       const alpha = 0.22 + 0.5 * ((phase + 1) / 2);
-      fireflies.fillStyle(WORLD.warmLight, alpha);
+      fireflies.fillStyle(paletteFor().warmLight, alpha);
       fireflies.fillRect(point.x, point.y, 1, 1);
       if (i % 3 === 0) {
-        fireflies.fillStyle(WORLD.amber, alpha * 0.55);
+        fireflies.fillStyle(paletteFor().amber, alpha * 0.55);
         fireflies.fillRect(point.x + 1, point.y, 1, 1);
       }
     }
@@ -225,7 +225,7 @@ export function createPhaseView(
       // 中间最浓，两端趋零，避免出现硬边。
       const t = (y - top) / span;
       const weight = Math.sin(Math.PI * t);
-      mist.fillStyle(WORLD.pale, view.mist * weight * 0.5);
+      mist.fillStyle(paletteFor().pale, view.mist * weight * 0.5);
       mist.fillRect(0, y, WIDTH, 1);
     }
   };
