@@ -50,6 +50,11 @@
  *   用例全过、只有这条红，实测 54.62ms / 100.28ms，本机 p50 56.6ms，量到的是
  *   机器有多忙，不是传播有多贵。CPU 时间不含调度等待：空载时与墙钟一致，
  *   负载下只有它稳。墙钟数字保留在 diagnostic 里当附注，不参与判定。
+ * - **方向那条仍用墙钟。** Windows 上进程 CPU 记账跟着调度时钟走（粒度约
+ *   15.6ms），第 6 天这种不到 1ms 的一天会读成 `0.00`；`0 < 0 * 2` 恒假，
+ *   量到的是「量不出来」而不是「变贵了」。绝对预算闸用 CPU（真退化成全库
+ *   扫描是几十毫秒，跨得过粒度），「稳态不比第 1 天贵」这种比值留在墙钟：
+ *   第 1 天里含首日全部的 JIT 与建库开销，2 倍余量够厚。
  * - **不主张这是典型值。** 我把全部 holder 一字排开、间距 `talkDistance`，
  *   又让五个大事同一天出生——这是**最利于传播的摆法**，量到的是上界。
  *   真实作息的 holder 散在各处，配不成对的更多，一天更便宜。
@@ -93,7 +98,7 @@ function defaultWorldBuildingIds(): readonly string[] {
  * 出生——最利于传播的摆法，量到的是上界。`day` 传第几天。
  *
  * 主指标取 `process.cpuUsage()` 前后差（user + system），排除调度等待；
- * 墙钟同时取，只作附注。
+ * 墙钟同时取：既是附注，也供「稳态不比第 1 天贵」那条方向判断用（理由见文件头）。
  */
 function oneDayTiming(
   buildingIds: readonly string[],
@@ -196,10 +201,11 @@ test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5
       + `（墙钟 ${steady.wallMs.toFixed(2)}ms，仅附注）`,
   );
   assert.ok(
-    steady.cpuMs < day1.cpuMs * 2,
-    `第 6 天 CPU ${steady.cpuMs.toFixed(2)}ms（墙钟 ${steady.wallMs.toFixed(2)}ms 附注）`
-      + `比第 1 天 CPU ${day1.cpuMs.toFixed(2)}ms（墙钟 ${day1.wallMs.toFixed(2)}ms 附注）贵了一倍以上——`
-      + '库里的东西只会被遗忘不会新增，稳态不该比开局贵。这条红说明传播的代价不再由存量决定。',
+    steady.wallMs < day1.wallMs * 2,
+    `第 6 天墙钟 ${steady.wallMs.toFixed(2)}ms（CPU ${steady.cpuMs.toFixed(2)}ms 附注）`
+      + `比第 1 天墙钟 ${day1.wallMs.toFixed(2)}ms（CPU ${day1.cpuMs.toFixed(2)}ms 附注）贵了一倍以上——`
+      + '库里的东西只会被遗忘不会新增，稳态不该比开局贵。这条红说明传播的代价不再由存量决定。'
+      + '（这条只量方向，读数用墙钟：不足一个调度刻度的 CPU 差值在 Windows 上读成 0）',
   );
 });
 
