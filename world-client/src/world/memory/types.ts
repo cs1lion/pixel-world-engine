@@ -93,6 +93,37 @@ export interface Holder {
   readonly at?: { readonly x: number; readonly y: number };
 }
 
+/**
+ * 方向性关系账本：A 对 B 与 B 对 A 是两条独立记录。
+ *
+ * `trust` / `warmth` / `debt` 都按 **from 的视角**写：正 debt = 我欠他。
+ * `evidence` 只存事件 id，查得到原事；`updatedDay` 是世界日。
+ */
+export interface Bond {
+  readonly from: string;
+  readonly to: string;
+  readonly trust: number;      // -1..1
+  readonly warmth: number;     // -1..1
+  readonly debt: number;       // -1..1
+  readonly familiarity: number; // 0..1
+  readonly strength: number;    // 0..1
+  readonly confidence: number;  // 0..1
+  readonly evidence: readonly string[];
+  readonly updatedDay: number;
+}
+
+/** 情绪残留：日终更新，按 `halfLifeDays` 衰减；`because` 是支撑它的记忆 id。 */
+export interface Mood {
+  readonly holderId: string;
+  readonly valence: number; // -1..1
+  readonly arousal: number; // 0..1
+  readonly label: string;
+  readonly because: readonly string[];
+  /** 上一次日终更新的世界毫秒。 */
+  readonly updatedAt: number;
+  readonly halfLifeDays: number;
+}
+
 export type MemoryKind = 'episodic' | 'summary' | 'impression' | 'habit' | 'trace';
 export type MemoryTier = 'day' | 'long' | 'legend';
 

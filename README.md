@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                209 个测试文件 <!-- claim: test-file-count=209 -->
+└── test/                212 个测试文件 <!-- claim: test-file-count=212 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -196,9 +196,16 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
   `constraint` / `traceability` / `invariant` / `replay` / `fuse`）。
 - **没测就是 `null`**：拒绝原因因此分成 `below_requirement`（真不达标）与
   `not_measured`（分母为 0 / 样本不足）。
+- **世界日口径**：`DAY_MS` 仍是 24 世界小时；节奏 60 只把现实时长压到 24 分钟。
+  `day` / `at` / `dueDay` 全用同一把世界时钟尺子，`dueDay = 落地日 + 7 个世界日`
+  （`OBSERVATION_WINDOW_DAYS`），不按现实日算。
+- **持久化队列**：写失败时记录落 `localStorage`（键
+  `pwe-creation-ledger-queue:v1:<worldId>`），页面关掉再开由新出队器读回补发。
+  队列上限 **200 条 / 256 KiB**，超限丢最旧的未发送记录并把 `dropped` 计数
+  一起持久化；去重键是 `recordId`，同一条重试只入队一次。
 - **证据脚本**：`cd world-client && node --import ./test/phaser-hooks.mjs scripts/ledger-evidence.ts`。
-  它跑 20 个真实世界日、构造一条覆盖率拒绝、并量出 30 / 100 天的账本字节数；
-  产物落在 `world-client/tmp/creation-ledger/`。
+  它跑 20 个真实世界日、一条「落地 → 第 7 个世界日」观测、构造一条覆盖率拒绝，
+  并量出 30 / 100 天的账本字节数；产物落在 `world-client/tmp/creation-ledger/`。
 
 ## 24 色预算
 

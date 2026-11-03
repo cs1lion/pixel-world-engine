@@ -5,6 +5,7 @@ import { LARGE_ALTAR, LARGE_WORLD_SPEC } from '../world/setup.ts';
 import type { SettingPack } from './types.ts';
 import { loadSettingPack, buildSettingWorld } from './load.ts';
 import { DENGCHAO_RAW } from './dengchao/pack.ts';
+import { PACE, dwellMsForSetting } from '../world/pace.ts';
 
 const LEGACY_PACK: SettingPack = {
   id: 'default', name: '莞尔镇', saveKey: 'xiaoxi.pixel-world.save.v1',
@@ -39,7 +40,10 @@ export function routineProfiles(pack: SettingPack) {
       // 「去浅滩」的设定集自己在 `going` 里写，写了就说它写的。
       going: stop.going ?? '赶路',
       target: { x: stop.x, y: stop.y },
-      dwellMs: stop.dwellMs ?? 5200, ...(stop.tide === undefined ? {} : { tide: stop.tide }),
+      // 设定集给的是相对长短（4600–6500 的旧毫秒值），世界负责把它折进
+      // 20–40 世界分钟的节奏（见 `pace.ts`）。省略就是默认停留。
+      dwellMs: stop.dwellMs === undefined ? PACE.dwellDefaultMs : dwellMsForSetting(stop.dwellMs),
+      ...(stop.tide === undefined ? {} : { tide: stop.tide }),
     })),
   }));
 }

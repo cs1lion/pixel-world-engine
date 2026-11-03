@@ -61,8 +61,8 @@ function untilOneProp(sim: Simulation): void {
     sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary });
   }
   while (!delivered()) {
-    sim.update(100);
-    if ((guard += 1) > 800) throw new Error('三单走完也没落下摆件');
+    sim.update(1000);
+    if ((guard += 1) > 2000) throw new Error('三单走完也没落下摆件');
   }
 }
 

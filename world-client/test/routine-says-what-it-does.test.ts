@@ -54,7 +54,8 @@ function makeSim(
 }
 
 function runFor(sim: Simulation, ticks: number): void {
-  for (let i = 0; i < ticks; i += 1) sim.update(16);
+  // 一格一世界分钟：一步 1 世界秒。
+  for (let i = 0; i < ticks; i += 1) sim.update(1000);
 }
 
 test('走不到的那一拍，话不许先说出去', () => {

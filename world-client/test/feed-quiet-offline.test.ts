@@ -179,7 +179,7 @@ test('离线不影响世界自己过日子：本地单照常派照常交', () =>
   s.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (s.snapshot().deliveries.local < 1) {
-    s.update(100);
+    s.update(1000);
     if ((guard += 1) > 400) throw new Error('离线时短活也该结束');
   }
   assert.ok(s.snapshot().deliveries.local >= 1, '离不离线都要把活干完');

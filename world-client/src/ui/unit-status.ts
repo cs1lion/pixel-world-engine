@@ -39,8 +39,32 @@ export interface UnitMemoryLine {
   readonly redacted: boolean;
 }
 
+export interface UnitBondLine {
+  readonly to: string;
+  readonly trust: number;
+  readonly warmth: number;
+  readonly debt: number;
+}
+
+export interface UnitMoodLine {
+  readonly label: string;
+  readonly valence: number;
+  readonly arousal: number;
+}
+
+export interface UnitInnerLine {
+  readonly templateId: string;
+  readonly text: string;
+}
+
 export interface UnitMemoryReader {
   viewOf(holderId: string): { readonly memories: readonly UnitMemoryLine[] } | null;
+  /** 方向性关系；省略时退回「印象 N 条」的旧显示。 */
+  bondsOf?(holderId: string): readonly UnitBondLine[];
+  /** 持久情绪；省略时显示「还没有可读的情绪状态」，不再现算近 3 天。 */
+  moodOf?(holderId: string): UnitMoodLine | null;
+  /** 面板内心话；只读，不写公开 bubble。 */
+  innerVoiceOf?(holderId: string): UnitInnerLine | null;
 }
 
 /** 构造器只需要快照里的这几块，便于测试直接喂最小数据。 */
@@ -103,17 +127,19 @@ function avg(values: readonly number[]): number | null {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function moodLines(villagerId: string, world: UnitStatusWorld, memory: UnitMemoryReader | null): UnitStatusLine[] {
-  const day = Math.floor(world.now / DAY_MS);
-  const lines = memory?.viewOf(villagerId)?.memories ?? [];
-  const recent = lines.filter((line) => !line.redacted && line.createdDay >= day - 2);
-  const valence = avg(recent.map((line) => line.valence));
-  const arousal = avg(recent.map((line) => line.arousal));
-  const mood =
-    valence === null || arousal === null
-      ? '近 3 日没有可读的记忆样本'
-      : `效价 ${valence.toFixed(2)} · 唤醒 ${arousal.toFixed(2)}（${recent.length} 条）`;
-  return [{ key: '情绪', value: mood }];
+function moodLines(villagerId: string, _world: UnitStatusWorld, memory: UnitMemoryReader | null): UnitStatusLine[] {
+  const mood = memory?.moodOf?.(villagerId) ?? null;
+  if (mood === null) return [{ key: '情绪', value: '还没有可读的情绪状态' }];
+  return [{
+    key: '情绪',
+    value: `${mood.label} · 效价 ${mood.valence.toFixed(2)} · 唤醒 ${mood.arousal.toFixed(2)}`,
+  }];
+}
+
+function debtLabel(debt: number): string {
+  if (debt > 0.01) return `我欠他 ${debt.toFixed(2)}`;
+  if (debt < -0.01) return `他欠我 ${Math.abs(debt).toFixed(2)}`;
+  return '两不相欠';
 }
 
 function attitudeLines(
@@ -123,6 +149,22 @@ function attitudeLines(
 ): UnitStatusLine[] {
   const others = world.villagers.filter((item) => item.id !== villager.id && item.visible);
   if (others.length === 0) return [{ key: '在场者', value: '只有她自己' }];
+  const bonds = memory?.bondsOf?.(villager.id);
+  if (bonds !== undefined) {
+    return others.map((other) => {
+      const bond = bonds.find((item) => item.to === other.id);
+      if (bond === undefined) {
+        return {
+          key: `对 ${other.name}`,
+          value: '还没有印象 · 信任 0.00 · 亲疏 0.00 · 两不相欠',
+        };
+      }
+      return {
+        key: `对 ${other.name}`,
+        value: `信任 ${bond.trust.toFixed(2)} · 亲疏 ${bond.warmth.toFixed(2)} · ${debtLabel(bond.debt)}`,
+      };
+    });
+  }
   const lines = memory?.viewOf(villager.id)?.memories ?? [];
   return others.map((other) => {
     const impressions = lines.filter(
@@ -135,6 +177,11 @@ function attitudeLines(
     const label = valence >= 0.2 ? '印象不错' : valence <= -0.2 ? '印象不佳' : '印象中性';
     return { key: `对 ${other.name}`, value: `${label}（${impressions.length} 条印象）` };
   });
+}
+
+function innerLines(villagerId: string, memory: UnitMemoryReader | null): UnitStatusLine[] {
+  const inner = memory?.innerVoiceOf?.(villagerId) ?? null;
+  return inner === null ? [] : [{ key: '心里', value: inner.text }];
 }
 
 function villagerContent(
@@ -174,6 +221,7 @@ function villagerContent(
     { key: '预计', value: eta },
     { key: '位置', value: where },
     ...moodLines(villager.id, world, memory),
+    ...innerLines(villager.id, memory),
     { key: '灯油', value: `${villager.lampOil.toFixed(2)}（渲染读数，不是世界状态）` },
     { key: '携带', value: `${carrying} · ${credentials}` },
     ...attitudeLines(villager, world, memory),

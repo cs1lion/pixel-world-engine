@@ -51,6 +51,8 @@ import {
 } from './perception.ts';
 import { soundKindOf } from './hearing.ts';
 import { biasFor, misremember } from './distort.ts';
+import { nextMood, decayedMood, moodLabel, MOOD_HALF_LIFE_DAYS } from './mood.ts';
+import { innerVoiceOf as composeInnerVoice } from './inner-voice.ts';
 import {
   cascadeBeliefs,
   cascadeClaims,
@@ -79,6 +81,7 @@ import {
   type CredibilityScores,
   type FanoutState,
   type ListenerBelief,
+  type Relationship,
   type RelationshipMap,
   type SpreadCandidate,
   type Verdict,
@@ -92,6 +95,7 @@ import { epithetFor, renamed } from './toponym.ts';
 import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './written.ts';
 import type {
   Belief,
+  Bond,
   Claim,
   EpicEntry,
   Era,
@@ -104,6 +108,7 @@ import type {
   MemoryEntry,
   MemoryEvent,
   MemoryTier,
+  Mood,
   Toponym,
   ToponymEntry,
   Trace,
@@ -257,6 +262,13 @@ export interface MemoryWorldSnapshot {
   readonly epics: readonly EpicEntry[];
   /** 成长记录（`memorySchemaVersion >= 3`）。只增不删，不衰减。 */
   readonly turningPoints: readonly TurningPoint[];
+  /**
+   * 方向性关系账本（`memorySchemaVersion >= 4`）。
+   * 只有当前值，不存每日快照；`evidence` 是事件 id，追溯得到原事。
+   */
+  readonly bonds: readonly Bond[];
+  /** 情绪残留（`memorySchemaVersion >= 4`）。每个角色一条当前值。 */
+  readonly moods: readonly Mood[];
   readonly legends: readonly Legend[];
   readonly placeNames: readonly {
     readonly placeId: string;
@@ -289,7 +301,7 @@ export interface MemoryWorldSnapshot {
  */
 export class MemoryWorld {
   readonly config: MemoryConfig;
-  private readonly relations: RelationshipMap;
+  private readonly relations: Map<string, Relationship>;
   private readonly grid: OcclusionGrid | undefined;
   private readonly emitFn: ((event: MemoryEvent) => void) | undefined;
   private readonly worldId: string;
@@ -298,6 +310,10 @@ export class MemoryWorld {
   private readonly facts = new Map<string, WorldFact>();
   private entries: MemoryEntry[] = [];
   private readonly claims = new Map<string, Claim>();
+  /** 方向性关系账本；键是 `${from}\u0000${to}`，A→B 与 B→A 是两条。 */
+  private readonly bonds = new Map<string, Bond>();
+  /** 每个角色的当前情绪；日终更新，读时衰减。 */
+  private readonly moods = new Map<string, Mood>();
   private beliefs: Belief[] = [];
   /**
    * 信念的三个索引：按人、按断言、按 `(人, 断言)` 定到数组位置。
@@ -402,7 +418,7 @@ export class MemoryWorld {
 
   constructor(deps: MemoryWorldDeps = {}) {
     this.config = deps.config ?? DEFAULT_MEMORY_CONFIG;
-    this.relations = deps.relations ?? new Map();
+    this.relations = new Map(deps.relations ?? []);
     this.grid = deps.grid;
     this.emitFn = deps.emit;
     this.worldId = deps.worldId ?? 'world';
@@ -515,6 +531,9 @@ export class MemoryWorld {
     // 事件落在哪儿，那个地方就「在哪」——哪怕它没有 Holder（`place:12,7` 这类
     // 合成地点只有坐标）。痕迹的准入（`traceRadius`）与废墟的渲染都读这张表。
     this.placeAnchors.set(input.place.placeId, input.place.at);
+    // 方向性关系账本：**见证人 → 当事人**，不是在场的所有人两两互写。
+    // A 看见 B 做了什么，只改 A 对 B；B 对 A 要 B 自己看见才算。
+    this.updateBondsFromFact(fact, valence, day);
 
     for (const holderId of witnesses) {
       const holder = this.holders.get(holderId);
@@ -641,7 +660,11 @@ export class MemoryWorld {
    */
   recallFor(holderId: string, request: Omit<RecallRequest, 'holderId'>): RecallOutcome {
     const mine = this.entries.filter((entry) => entry.holderId === holderId);
-    const outcome = recall(mine, { ...request, holderId }, this.config, rollBelow);
+    const outcome = recall(mine, {
+      ...request,
+      holderId,
+      relationshipOf: request.relationshipOf ?? ((entry) => this.relationshipFor(holderId, entry)),
+    }, this.config, rollBelow);
     if (request.commit && outcome.updated.length > 0) {
       const byId = new Map(outcome.updated.map((entry) => [entry.memoryId, entry]));
       this.entries = this.entries.map((entry) => byId.get(entry.memoryId) ?? entry);
@@ -1348,6 +1371,8 @@ export class MemoryWorld {
     // 就一条都收不到了——日记收的正是「今天的片段」。这一句放错过位置，
     // 表现是日记从来不存在，而 `diary.written` 这个事件类型一直躺在类型表里。
     this.writeDailies(closedDay, at);
+    // 情绪在整理之前更新：它读的是「今天的片段」。整理之后片段会被压成摘要。
+    this.updateMoods(closedDay, at);
 
     const ids = this.holderIds();
     for (const holderId of ids) {
@@ -1645,6 +1670,163 @@ export class MemoryWorld {
       salience: entry.salience,
     });
     return entry.memoryId;
+  }
+
+  /**
+   * 关系账本：A 看见 B 做了什么，只改 A→B。B→A 要 B 自己看见才算。
+   * 负向事件同样走这条路，所以「变差」与「变好」是同一套阈值。
+   */
+  private updateBondsFromFact(fact: WorldFact, valence: number, day: number): void {
+    // 只有够显著的事件才改关系账本。日常闲话（0.35）不写：
+    // 否则三句闲话就能把两个人的信任抬起来，关系反而不值钱了。
+    if ((fact.importanceHint ?? 0) < BOND_IMPORTANCE_FLOOR) return;
+    const actors = new Set(fact.actors);
+    for (const witness of fact.witnesses) {
+      if (actors.has(witness)) continue;
+      for (const actor of fact.actors) {
+        this.bumpBond(witness, actor, valence, fact.eventId, day);
+      }
+    }
+    // 谁受益，谁就欠当事人一次。没有这个字段就不编。
+    const beneficiary = fact.outcome['beneficiaryId'];
+    if (typeof beneficiary === 'string') {
+      for (const actor of fact.actors) {
+        if (actor === beneficiary) continue;
+        this.bumpDebt(beneficiary, actor, 0.4, fact.eventId, day);
+      }
+    }
+  }
+
+  private bumpBond(from: string, to: string, valence: number, eventId: string, day: number): void {
+    if (from === to) return;
+    const a = this.holders.get(from);
+    const b = this.holders.get(to);
+    if (a === undefined || b === undefined || a.type !== 'character' || b.type !== 'character') return;
+    const current = this.bonds.get(this.bondKey(from, to));
+    const trust = clampBond((current?.trust ?? 0) + valence * 0.12);
+    const warmth = clampBond((current?.warmth ?? 0) + valence * 0.28);
+    const familiarity = clamp01((current?.familiarity ?? 0) + 0.04);
+    const strength = clamp01((current?.strength ?? 0) + 0.03);
+    const evidence = current === undefined
+      ? [eventId]
+      : [eventId, ...current.evidence.filter((id) => id !== eventId)].slice(0, 8);
+    this.bonds.set(this.bondKey(from, to), {
+      from,
+      to,
+      trust,
+      warmth,
+      debt: current?.debt ?? 0,
+      familiarity,
+      strength,
+      confidence: 0.8,
+      evidence,
+      updatedDay: day,
+    });
+    this.refreshRelation(from, to);
+  }
+
+  private bumpDebt(from: string, to: string, delta: number, eventId: string, day: number): void {
+    if (from === to) return;
+    const current = this.bonds.get(this.bondKey(from, to));
+    this.bonds.set(this.bondKey(from, to), {
+      from,
+      to,
+      trust: current?.trust ?? 0,
+      warmth: current?.warmth ?? 0,
+      debt: clampBond((current?.debt ?? 0) + delta),
+      familiarity: clamp01((current?.familiarity ?? 0) + 0.04),
+      strength: clamp01((current?.strength ?? 0) + 0.03),
+      confidence: current?.confidence ?? 0.8,
+      evidence: current === undefined
+        ? [eventId]
+        : [eventId, ...current.evidence.filter((id) => id !== eventId)].slice(0, 8),
+      updatedDay: day,
+    });
+    this.refreshRelation(from, to);
+  }
+
+  /** 传播层要的是无向的信任与强度；这里只做一层适配，不另存一份关系。 */
+  private refreshRelation(a: string, b: string): void {
+    const ab = this.bonds.get(this.bondKey(a, b));
+    const ba = this.bonds.get(this.bondKey(b, a));
+    if (ab === undefined && ba === undefined) return;
+    const trust = ab === undefined
+      ? (ba?.trust ?? 0)
+      : ba === undefined ? ab.trust : (ab.trust + ba.trust) / 2;
+    const strength = Math.max(ab?.strength ?? 0, ba?.strength ?? 0);
+    this.relations.set(pairKey(a, b), { from: a, to: b, trust, strength });
+  }
+
+  private bondKey(from: string, to: string): string {
+    return `${from}\u0000${to}`;
+  }
+
+  bondOf(from: string, to: string): Bond | null {
+    return this.bonds.get(this.bondKey(from, to)) ?? null;
+  }
+
+  /** 这个人的方向性关系（只含 from=他自己）。只读副本，按 to 排序。 */
+  bondsOf(holderId: string): readonly Bond[] {
+    return [...this.bonds.values()]
+      .filter((bond) => bond.from === holderId)
+      .sort((a, b) => a.to.localeCompare(b.to))
+      .map((bond) => ({ ...bond, evidence: [...bond.evidence] }));
+  }
+
+  /** 读取时的情绪：从最近一次日终衰减到 `at`，不写下任何东西。 */
+  moodOf(holderId: string, at: number): Mood | null {
+    const mood = this.moods.get(holderId);
+    if (mood === undefined) return null;
+    return decayedMood(mood, at, this.config.dayMs);
+  }
+
+  /** 面板只读：规则模板拼出的内心话，不写公开 bubble。 */
+  innerVoiceOf(holderId: string, at: number): { readonly templateId: string; readonly text: string } | null {
+    const holder = this.holders.get(holderId);
+    if (holder === undefined || holder.type !== 'character') return null;
+    const mood = this.moodOf(holderId, at) ?? {
+      holderId,
+      valence: 0,
+      arousal: 0.2,
+      label: moodLabel(0, 0.2),
+      because: [],
+      updatedAt: at,
+      halfLifeDays: MOOD_HALF_LIFE_DAYS,
+    };
+    return composeInnerVoice(
+      holderId,
+      mood,
+      this.entries.filter((entry) => entry.holderId === holderId),
+      this.bondsOf(holderId),
+    );
+  }
+
+  /** 日终更新：当天记忆合成目标值，旧情绪先按半衰期衰减。 */
+  updateMoods(day: number, at: number): void {
+    for (const holderId of this.holderIds()) {
+      const holder = this.holders.get(holderId);
+      if (holder === undefined || holder.type !== 'character') continue;
+      this.moods.set(holderId, nextMood(
+        this.moods.get(holderId),
+        this.entries,
+        holderId,
+        day,
+        at,
+        this.config.dayMs,
+      ));
+    }
+  }
+
+  /** 检索关系项：这条记忆提到的人里，我有多在意他们。 */
+  relationshipFor(holderId: string, entry: MemoryEntry): number {
+    const who = entry.content.who.filter((id) => id !== holderId);
+    if (who.length === 0) return 0;
+    let sum = 0;
+    for (const id of who) {
+      const bond = this.bonds.get(this.bondKey(holderId, id));
+      if (bond !== undefined) sum += (bond.warmth + bond.trust) / 2;
+    }
+    return Math.max(0, sum / who.length);
   }
 
   private depositTraces(fact: WorldFact, at: number, placeType: string, valence: number): void {
@@ -2723,6 +2905,8 @@ export class MemoryWorld {
       eras: [...this.eras],
       epics: [...this.epics],
       turningPoints: [...this.turningPoints],
+      bonds: [...this.bonds.values()],
+      moods: [...this.moods.values()],
       legends: [...this.legends],
       placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
         placeId,
@@ -2793,6 +2977,14 @@ export class MemoryWorld {
     this.epics = [...(snapshot.epics ?? [])];
     this.turningPoints = [...(snapshot.turningPoints ?? [])];
 
+    this.bonds.clear();
+    for (const bond of snapshot.bonds ?? []) {
+      this.bonds.set(this.bondKey(bond.from, bond.to), { ...bond, evidence: [...bond.evidence] });
+      this.refreshRelation(bond.from, bond.to);
+    }
+    this.moods.clear();
+    for (const mood of snapshot.moods ?? []) this.moods.set(mood.holderId, { ...mood, because: [...mood.because] });
+
     this.legends = [...snapshot.legends];
 
     this.placeNames.clear();
@@ -2825,6 +3017,8 @@ export class MemoryWorld {
 }
 
 const RULESET_VERSION = 'memory-r1';
+/** 低于这个显著度的事件不改关系账本；日常闲话不算“关系事件”。 */
+const BOND_IMPORTANCE_FLOOR = 0.4;
 /** 「这一对没有冷却」的共享空数组：日终会给每个候选问一次，不每次都分配。 */
 const EMPTY_COOLDOWNS: readonly CooldownState[] = [];
 /** 「这个人关于这件事什么也不知道」的共享空数组，同上。 */
@@ -2839,6 +3033,14 @@ function removeFrom<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const index = list.indexOf(value);
   if (index >= 0) list.splice(index, 1);
   if (list.length === 0) map.delete(key);
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function clampBond(value: number): number {
+  return Math.max(-1, Math.min(1, value));
 }
 
 /** 往 `Map<K, V[]>` 的一个桶里追加。桶不存在时建一个。 */

@@ -144,6 +144,10 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   // 前者意外度高、情绪低，后者两样都低——它本来就该是村子里最寻常的话。
   tide_turn: { emotion: 0.2, surprise: 0.5, goalRelevance: 0.25, involvement: 0.1 },
   routine_done: { emotion: 0.2, surprise: 0.15, goalRelevance: 0.2, involvement: 0.15 },
+  // 每日小事（打水/点灯）：当事人自己会记得，旁人只有先验的卷入度——
+  // 给 0.15 与 `routine_done` 同档，不因为它天天发生就忽然变重。
+  daily_water: { emotion: 0.25, surprise: 0.15, goalRelevance: 0.25, involvement: 0.15 },
+  daily_lamp: { emotion: 0.3, surprise: 0.15, goalRelevance: 0.25, involvement: 0.15 },
   tavern_feast: { emotion: 0.85, surprise: 0.4, goalRelevance: 0.4, involvement: 0.35 },
   unknown: { emotion: 0.3, surprise: 0.3, goalRelevance: 0.3, involvement: 0.2 },
 };
