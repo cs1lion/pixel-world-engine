@@ -316,8 +316,9 @@ ${partRows.join('\n')}
 | --- | --- | --- | --- | --- | --- | --- | --- |
 ${perfRows.join('\n')}
 
-- **没有「越跑越慢」的函数级证据。** \`sim p50\` ${f2(A.days[0].perf.simP50)} → ${f2(A.days[29].perf.simP50)} ms、\`p95\` ${f2(A.days[0].perf.simP95)} → ${f2(A.days[29].perf.simP95)} ms，基本持平；种子 B 同样平（p50 ${f2(B.days[0].perf.simP50)} → ${f2(B.days[29].perf.simP50)}）。
-- **确有随天数增长的两项**：\`dayClose\` ${f1(A.days[0].perf.dayCloseMs)} → ${f1(A.days[29].perf.dayCloseMs)} ms（记忆关账要扫全库 + 序列化，随存量线性）；\`dayWall\` ${f1(A.days[0].perf.dayWallMs)} → ${f1(A.days[29].perf.dayWallMs)} ms（每步快照与 \`syncHolders\` 的分配压力）。
+- **整步在涨，但不是算法级的涨。** 种子 A 的 \`sim p50\` ${A.days[0].perf.simP50.toFixed(4)} → ${A.days[29].perf.simP50.toFixed(4)} ms（+57%）、\`p95\` ${A.days[0].perf.simP95.toFixed(4)} → ${A.days[29].perf.simP95.toFixed(4)} ms；种子 B 只从 ${B.days[0].perf.simP50.toFixed(4)} → ${B.days[29].perf.simP50.toFixed(4)} ms（+7%）。绝对值仍在 6 秒步长预算的 0.3% 以内，不是「世界越大越卡」的复杂度问题。
+- **函数级定位（\`profile.json\`）**：随天数涨的是 \`stepDecrees\`（p50 7.6 → 11.6 µs、p95 14.9 → 25.9 µs）——它每步调用 \`snapshot()\` 做全量对象分配，堆从 0 涨到 88 MB 后分配/GC 变贵；\`stepTide\` 修复后恒定（p50 0.2 → 0.3 µs）。
+- **确定随存量线性增长的两项**：\`dayClose\` ${A.days[0].perf.dayCloseMs.toFixed(1)} → ${A.days[29].perf.dayCloseMs.toFixed(1)} ms（记忆关账要扫全库 + 序列化）；\`dayWall\` ${A.days[0].perf.dayWallMs.toFixed(1)} → ${A.days[29].perf.dayWallMs.toFixed(1)} ms（每步快照与 \`syncHolders\` 的分配压力）。这两项是「跑久了」真正要盯的读数。
 - 修复前实测的「越跑越慢」在 \`tideLevelAt\`：\`stepTide\` p50 从 0.3 µs 涨到 17.9 µs（60×），30 日耗时 73.6 s。改成 64 周期检查点 + 二分后，\`stepTide\` 恒定 ~1 µs，30 日 50.3 s。详见「修了什么」。
 
 ### 浏览器端（第 30 日末）
@@ -405,6 +406,7 @@ ${marketRow}
 
 ### 还剩什么
 
+- **\`stepDecrees\` 每步 \`snapshot()\` 的全量分配**：堆 0 → 88 MB 后 p50/p95 都涨，下一轮可以改成按需字段或复用缓冲（本轮只定位，没动它）。
 - 上述五条缺陷的 \`todo\` 用例与 \`docs/BUGS_FOUND.md\` 本节；
 - 九道闸门。
 `;
