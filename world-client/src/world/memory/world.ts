@@ -299,6 +299,38 @@ export class MemoryWorld {
   private entries: MemoryEntry[] = [];
   private readonly claims = new Map<string, Claim>();
   private beliefs: Belief[] = [];
+  /**
+   * 信念的三个索引：按人、按断言、按 `(人, 断言)` 定到数组位置。
+   *
+   * **这不是微优化，是关账能不能活到第二年的问题。** 日终扩散原先三处
+   * 都扫全表：`diffuseDay` 按断言挑同跳持有者（每条断言扫一遍全部信念）、
+   * `spreadStep` 判「这个听众是否已经知道」（每个候选扫一遍那个人的信念）、
+   * `deliver` 判重（每次交谈扫一遍全部信念）。三条叠起来是
+   * `O(断言 × 信念)`，实测 400 天 `dayClosed` 从 1.8ms 涨到 2.6s（1469 倍）。
+   *
+   * 索引只改变**查找方式**，不改变任何一条规则：写谁、写什么、什么顺序，
+   * 全都还是原来那套。回放一致靠的是规则不变，不是靠每次重扫一遍。
+   *
+   * `positions` 只在 `addBelief` 追加/替换时维护；整表被换掉的几处
+   * （读档、隐私级联、求证改状态）各自走 `reindexBeliefs` / `replaceBelief`。
+   */
+  private readonly beliefsByHolder = new Map<string, Belief[]>();
+  private readonly beliefsByClaim = new Map<string, Belief[]>();
+  private readonly beliefPositions = new Map<string, number>();
+  /**
+   * 「这个人关于这件事知道些什么」：`holderId → eventRef → 信念`。
+   *
+   * 日终判「他是不是已经知道了」与 `judge` 的「有没有相反的记忆」原先都要
+   * 遍历**这个人的全部信念**，而一个人的信念数随断言数线性增长——于是每个
+   * 候选一次全扫，又是一项平方。按事件分桶之后，这两问只看相关的那几条。
+   */
+  private readonly beliefsByHolderEvent = new Map<string, Map<string, Belief[]>>();
+  /**
+   * 冷却按「单位对」建索引。`diffuseDay` 原先给每个候选都扫一遍全部冷却，
+   * 只为了跳过别人的那一对；冷却条数随断言数线性长，于是每天多出一个
+   * 「断言 × 冷却」的平方项。索引之后每次只读一个桶。
+   */
+  private readonly cooldownsByPair = new Map<string, CooldownState[]>();
   private readonly traces = new Map<string, Trace[]>();
   /**
    * 每个地点**最后一次**被人知道在哪。楼拆了、名称还在、痕迹也还在时，它是
@@ -592,7 +624,7 @@ export class MemoryWorld {
       holderId,
       type: holder.type,
       memories: this.entries.filter((entry) => entry.holderId === holderId).map(cloneEntry),
-      beliefs: this.beliefs.filter((belief) => belief.holderId === holderId).map((belief) => ({ ...belief })),
+      beliefs: this.beliefsOf(holderId).map((belief) => ({ ...belief })),
       verifyPlans: [...(this.verifyPlans.get(holderId) ?? [])],
       credibility: credibilityOf(this.credibility, holderId),
       traces: holder.type === 'place' ? [...(this.traces.get(holderId) ?? [])] : [],
@@ -762,23 +794,85 @@ export class MemoryWorld {
     const topicsByPair = new Map<string, number>();
     const chatCooldowns: CooldownState[] = [];
 
+    // 「今天还能开几次口」的可达上限：每个够得着的单位对每天最多
+    // `talkTopicsPerChat` 个话题，而这是**跨断言共享**的一份额度。
+    //
+    // 少了这道闸，日终会为每一句历史断言都跑一遍「找候选 → 判采信 →
+    // retell」，最后被 `talkTopicsPerChat` 在同一对单位那里挡掉。实测 400 天、
+    // 3 人 4 楼：1800 条断言里 1398 条一个听众都没有，而它们天天被重跑。
+    // 等所有够得着的对都用完额度，剩下的断言今天不可能改变任何人——
+    // 这是 `diffuseDay` 的一半开销。
+    const speakPairs: string[] = [];
+    for (const key of this.metToday.keys()) {
+      const split = key.indexOf('\u0000');
+      const a = key.slice(0, split);
+      const b = key.slice(split + 1);
+      if (this.holders.get(a)?.type === 'character' || this.holders.get(b)?.type === 'character') {
+        speakPairs.push(key);
+      }
+    }
+    const speakPairSet = new Set(speakPairs);
+    let saturatedPairs = 0;
+
+    // 冷却按「单位对」建索引：原先每个候选都要扫一遍全部冷却（只为了跳过
+    // 别人的那一对），而冷却条数随断言数线性增长，于是又乘出一个平方项。
+    const cooldownsOfPair = (a: string, b: string): readonly CooldownState[] =>
+      this.cooldowsFor(pairKey(a, b));
+    // 听众「关于这件事知道什么」走事件索引，不再把他的全部信念铺一遍。
+    // `spreadStep` 缺省仍读 `beliefs` 那张全表——测试与别的调用方行为不变。
+    const existingOf = (listener: string, claim: Claim): readonly ListenerBelief[] =>
+      this.listenerViewsFor(listener, claim.eventRefs);
+    // 性格表一天建一次：原先每个说话者都重建一遍（每句断言 × 每个人）。
+    const talkativeness = this.talkativeness();
+
     // 按 claimId 排序处理：同一天里多条断言的先后必须确定。
     const claimIds = [...this.claims.keys()].sort();
+    const holderIds = this.holderIds();
+    // 今天**够得着的**那些人：出现在 `metToday` 里的单位。楼在村子另一头就
+    // 够不着，哪怕它还没听说过这件事——它今天没跟任何人碰上，谁也讲不进
+    // 它的耳朵。这一格是「今天可能改变什么」的全部范围。
+    const reachable = new Set<string>();
+    for (const key of this.metToday.keys()) {
+      const split = key.indexOf('\u0000');
+      reachable.add(key.slice(0, split));
+      reachable.add(key.slice(split + 1));
+    }
     for (const claimId of claimIds) {
+      // 每一对够得着的单位今天的额度都用完了：剩下的断言今天谁也讲不进。
+      // 这不是「提前收工」的优化，是同一件事的另一次表述——额度是共享的。
+      if (saturatedPairs >= speakPairs.length) break;
       const origin = this.claims.get(claimId);
       if (origin === undefined) continue;
+
+      // **今天不可能改变任何人的断言，直接跳过。** 这是这一版最大的一笔省：
+      // 没有它，每条断言每天都要把 `hops × 说话者 × 候选` 走一遍，
+      // 而走出来的结果永远是「没人可讲」——400 天时九成开销花在这里。
+      //
+      // 判据是「够得着的人里还有没有不知道的」，不是「全员都知道」：
+      // 楼常年站在村子另一头，永远够不着，把它算进分母会让这道闸永不关闭
+      // （实测 3 人 4 楼的合成基线，`dayClosed` 因此一点没降）。
+      // 也不是「跳数用完」：跳数管深度，不回答「今天还有没有人能听」。
+      const knownHolders = new Set(this.beliefsOfClaim(claimId).map((belief) => belief.holderId));
+      let useful = false;
+      for (const holderId of reachable) {
+        if (!knownHolders.has(holderId)) {
+          useful = true;
+          break;
+        }
+      }
+      if (!useful) continue;
 
       for (let hop = 0; hop < this.config.maxHops; hop += 1) {
         const version = claimAtHop(origin, hop, this.config);
         if (!canSpread(version, this.config)) break;
-        const holdersAtHop = this.beliefs
-          .filter((belief) => belief.claimId === claimId && belief.hop === hop)
+        const holdersAtHop = this.beliefsOfClaim(claimId)
           // **今天才听说的人，今天不往下传。**
           //
           // 一跳 ≈ 一天的闲话。少了这一条，`diffuseDay` 会在一次日终里把
           // 0→1→2→3 跳全部跑完，等于一夜之间把三天的流言都传遍——覆盖率曲线
           // 第 1 天就冲到 60%，而护栏要的是第 1 天 ≤35%、第 3 天才到 60~80%。
           // 第 0 跳不受限：目击者当天就能开口。
+          .filter((belief) => belief.hop === hop)
           .filter((belief) => belief.learnedDay < day || hop === 0)
           .map((belief) => belief.holderId);
         // 断言诞生者本人就是第 0 跳的持有者。
@@ -789,16 +883,18 @@ export class MemoryWorld {
 
         for (const speaker of [...holdersAtHop].sort()) {
           if (!canFanout(this.fanout, speaker, claimId, day, this.config)) continue;
-          const candidates = this.spreadCandidates(speaker);
+          const candidates = this.spreadCandidates(speaker, holderIds);
           const steps = spreadStep({
             day,
             claim: version,
             candidates,
             relations: this.relations,
             credibility: this.credibility,
-            beliefs: this.beliefViews(),
-            talkativeness: this.talkativeness(),
+            beliefs: EMPTY_BELIEF_VIEWS,
+            existingOf,
+            talkativeness,
             cooldowns: this.cooldowns,
+            cooldownsOf: cooldownsOfPair,
             nowMs: at,
             config: this.config,
           });
@@ -815,6 +911,9 @@ export class MemoryWorld {
               chatCooldowns.push({ pairKey: pair, claimId: null, atMs: at });
             }
             topicsByPair.set(pair, used + 1);
+            if (used + 1 >= this.config.talkTopicsPerChat && speakPairSet.has(pair)) {
+              saturatedPairs += 1;
+            }
             told += 1;
             if (step.verdict === 'accept') accepted += 1;
             if (step.verdict === 'verify') suspicious += 1;
@@ -826,7 +925,7 @@ export class MemoryWorld {
 
     // 交谈结束了才记冷却。中途记的话，本次交谈的第二个话题会被自己刚写的
     // 冷却拦住——「一次交谈 2 条」就变成了一句空话。
-    this.cooldowns = [...this.cooldowns, ...chatCooldowns];
+    for (const item of chatCooldowns) this.appendCooldown(item);
 
     // 这一天的账到此为止。不清的话，「昨天见过」会一直算数，几天之后村里
     // 就成了全连接图——那正是 `talkDistance` 想拦的东西。
@@ -1142,12 +1241,9 @@ export class MemoryWorld {
     const outcome = verdict.outcome;
 
     const state = outcome === 'confirmed' ? 'confirmed' : outcome === 'debunked' ? 'debunked' : 'suspicious';
-    const before = this.beliefs.find(
-      (belief) => belief.holderId === holderId && belief.claimId === claimId,
-    )?.state;
-    this.beliefs = this.beliefs.map((belief) =>
-      belief.holderId === holderId && belief.claimId === claimId ? { ...belief, state } : belief,
-    );
+    const held = this.beliefOf(holderId, claimId);
+    const before = held?.state;
+    if (held !== undefined) this.setBelief({ ...held, state });
     // 成长记录：**看法真的翻过来**的那一次才记。
     //
     // 只记 `held/suspicious → confirmed/debunked` 这两类落地结算：求证没成
@@ -1180,8 +1276,7 @@ export class MemoryWorld {
 
     let debunkedSpeaker: string | null = null;
     if (outcome === 'debunked') {
-      const belief = this.beliefs.find((item) => item.holderId === holderId && item.claimId === claimId);
-      debunkedSpeaker = belief?.sourceHolderId ?? claim.originHolderId;
+      debunkedSpeaker = this.beliefOf(holderId, claimId)?.sourceHolderId ?? claim.originHolderId;
       this.credibility = penalize(this.credibility, debunkedSpeaker, this.config);
       this.emit('rumor.debunked', at, {
         claimId,
@@ -1317,6 +1412,8 @@ export class MemoryWorld {
 
     const beliefs = cascadeBeliefs(this.beliefs, root);
     this.beliefs = [...beliefs.beliefs] as Belief[];
+    // 整表换过：索引重建。级联不常发生，重建一次 O(信念) 与它自己的成本同量级。
+    this.reindexBeliefs();
 
     // 痕迹按地点分库存。删一个事件只动它落过的那些地方，别处的 stack 不动。
     let tracesRemoved = 0;
@@ -1784,19 +1881,14 @@ export class MemoryWorld {
     verdict: Verdict,
     at: number,
   ): boolean {
-    if (this.beliefs.some((belief) => belief.holderId === to && belief.claimId === claim.claimId)) {
-      return false;
-    }
+    if (this.beliefOf(to, claim.claimId) !== undefined) return false;
     const state = verdict === 'verify' ? 'suspicious' : 'held';
     this.addBelief(to, claim, from, state, at);
     this.rememberTold(to, claim, from, at);
     this.tells.push({ day: this.currentDay, from, to, claimId: claim.claimId });
     // 逐话题冷却（同一对单位、同一条断言）在这里记。闲聊冷却由
     // `diffuseDay` 在整场交谈结束时记——它记的是「聊过」这件事，不是某一条。
-    this.cooldowns = [
-      ...this.cooldowns,
-      { pairKey: pairKey(from, to), claimId: claim.claimId, atMs: at },
-    ];
+    this.appendCooldown({ pairKey: pairKey(from, to), claimId: claim.claimId, atMs: at });
     this.emit('claim.told', at, {
       claimId: claim.claimId,
       from,
@@ -1821,9 +1913,130 @@ export class MemoryWorld {
     // 的区别只在 state 与日程上，形状是同一个」——那句话只有真的共用同一个
     // 构造器才作数；两边各写一份字面量的话，「同一个形状」只是个愿望。
     const belief = beliefFrom(holderId, claim, sourceHolderId, Math.floor(at / this.config.dayMs), state);
-    this.beliefs = [...this.beliefs.filter((item) => !(item.holderId === holderId && item.claimId === claim.claimId)), belief];
+    this.setBelief(belief);
     this.emit('belief.updated', at, { holderId, claimId: claim.claimId, state });
     return belief;
+  }
+
+  /** `holderId + claimId` 的组合键。索引、判重、定位全用它。 */
+  private beliefKey(holderId: string, claimId: string): string {
+    return `${holderId}\u0000${claimId}`;
+  }
+
+  /** 记一条冷却：数组是真相，索引跟着走。 */
+  private appendCooldown(item: CooldownState): void {
+    this.cooldowns.push(item);
+    appendTo(this.cooldownsByPair, item.pairKey, item);
+  }
+
+  /** 这一对单位自己的冷却。没有就返回空数组（不还一个新数组，免得每次分配）。 */
+  private cooldowsFor(pair: string): readonly CooldownState[] {
+    return this.cooldownsByPair.get(pair) ?? EMPTY_COOLDOWNS;
+  }
+
+  private reindexCooldowns(): void {
+    this.cooldownsByPair.clear();
+    for (const item of this.cooldowns) appendTo(this.cooldownsByPair, item.pairKey, item);
+  }
+
+  /**
+   * 写一条信念。**同键替换，不同键追加**——与原来「先滤掉同键再拼一条」
+   * 的结果逐字节相同，但只动一个位置，不再重排整张表。
+   */
+  private setBelief(belief: Belief): void {
+    const key = this.beliefKey(belief.holderId, belief.claimId);
+    const position = this.beliefPositions.get(key);
+    if (position === undefined) {
+      this.beliefPositions.set(key, this.beliefs.length);
+      this.beliefs.push(belief);
+      appendTo(this.beliefsByHolder, belief.holderId, belief);
+      appendTo(this.beliefsByClaim, belief.claimId, belief);
+      this.indexBeliefEvents(belief);
+      return;
+    }
+    const previous = this.beliefs[position]!;
+    this.beliefs[position] = belief;
+    replaceIn(this.beliefsByHolder, belief.holderId, previous, belief);
+    replaceIn(this.beliefsByClaim, belief.claimId, previous, belief);
+    this.deindexBeliefEvents(previous);
+    this.indexBeliefEvents(belief);
+  }
+
+  private indexBeliefEvents(belief: Belief): void {
+    let byEvent = this.beliefsByHolderEvent.get(belief.holderId);
+    if (byEvent === undefined) {
+      byEvent = new Map();
+      this.beliefsByHolderEvent.set(belief.holderId, byEvent);
+    }
+    for (const eventRef of belief.eventRefs) appendTo(byEvent, eventRef, belief);
+  }
+
+  private deindexBeliefEvents(belief: Belief): void {
+    const byEvent = this.beliefsByHolderEvent.get(belief.holderId);
+    if (byEvent === undefined) return;
+    for (const eventRef of belief.eventRefs) removeFrom(byEvent, eventRef, belief);
+  }
+
+  /**
+   * 这个人关于这几件事知道些什么（给 `spreadStep` 的 `existingOf`）。
+   *
+   * **只返回相关的那些**，不是他的全部信念：`judge` 要找的是「同事件的相反
+   * 记忆」，同事件之外的信念它一条都不看。返回的是 `ListenerBelief`，
+   * 与 `judge` 的入参同一个形状——两处不各建一份。
+   */
+  private listenerViewsFor(holderId: string, eventRefs: readonly string[]): readonly ListenerBelief[] {
+    const byEvent = this.beliefsByHolderEvent.get(holderId);
+    if (byEvent === undefined) return EMPTY_VIEWS;
+    const seen = new Set<string>();
+    const out: ListenerBelief[] = [];
+    for (const eventRef of eventRefs) {
+      const list = byEvent.get(eventRef);
+      if (list === undefined) continue;
+      for (const belief of list) {
+        if (seen.has(belief.claimId)) continue;
+        seen.add(belief.claimId);
+        const view = asListenerBelief(belief, this.claims.get(belief.claimId));
+        if (view !== null) out.push(view);
+      }
+    }
+    return out;
+  }
+
+  /** 一个单位手上有哪些信念。**只读视图**，调用方别改元素。 */
+  private beliefsOf(holderId: string): readonly Belief[] {
+    return this.beliefsByHolder.get(holderId) ?? [];
+  }
+
+  /** 一条断言此刻被哪些人持有着。 */
+  private beliefsOfClaim(claimId: string): readonly Belief[] {
+    return this.beliefsByClaim.get(claimId) ?? [];
+  }
+
+  /** 这个人是不是已经有这条信念了。`deliver` 的判重走这里，不再扫全表。 */
+  private beliefOf(holderId: string, claimId: string): Belief | undefined {
+    const position = this.beliefPositions.get(this.beliefKey(holderId, claimId));
+    return position === undefined ? undefined : this.beliefs[position];
+  }
+
+  /**
+   * 整张信念表被换掉之后重建索引（读档、隐私级联、求证之外的整体替换）。
+   *
+   * **不做增量修补**：那几处本来就整表重写，重建一次 O(信念) 与它们自己
+   * 的成本同一量级；而增量修补一旦漏一处，索引就会和真相漂移，
+   * 而漂移的表现是「同一个人听了两遍同一句话」——静默的。
+   */
+  private reindexBeliefs(): void {
+    this.beliefsByHolder.clear();
+    this.beliefsByClaim.clear();
+    this.beliefPositions.clear();
+    this.beliefsByHolderEvent.clear();
+    for (let index = 0; index < this.beliefs.length; index += 1) {
+      const belief = this.beliefs[index]!;
+      this.beliefPositions.set(this.beliefKey(belief.holderId, belief.claimId), index);
+      appendTo(this.beliefsByHolder, belief.holderId, belief);
+      appendTo(this.beliefsByClaim, belief.claimId, belief);
+      this.indexBeliefEvents(belief);
+    }
   }
 
   /**
@@ -2384,7 +2597,7 @@ export class MemoryWorld {
    * 而世界不能假装他们说过话。位置缺失的单位自然也不在表里，调用方接上
    * 位置之后它们自然回来。
    */
-  private spreadCandidates(speaker: string): SpreadCandidate[] {
+  private spreadCandidates(speaker: string, ids: readonly string[] = this.holderIds()): SpreadCandidate[] {
     // **楼不说话。** 协议 §3 把两种 Holder 记的东西分得很清：人记「亲历与听说
     // 的事」，地点记「在此发生过的事，按空间沉积」（痕迹）。一栋楼把听来的话
     // 再讲给路过的人，不是这个世界该有的样子。
@@ -2400,28 +2613,13 @@ export class MemoryWorld {
     const speakerHolder = this.holders.get(speaker);
     if (speakerHolder === undefined || speakerHolder.type !== 'character') return [];
     const out: SpreadCandidate[] = [];
-    for (const listener of this.holderIds()) {
+    for (const listener of ids) {
       if (listener === speaker) continue;
       const distance = this.metToday.get(pairKey(speaker, listener));
       if (distance === undefined) continue;
       out.push({ speaker, listener, distance });
     }
     return out;
-  }
-
-  private beliefViews(): ReadonlyMap<string, readonly ListenerBelief[]> {
-    const map = new Map<string, ListenerBelief[]>();
-    for (const belief of this.beliefs) {
-      // 走 `asListenerBelief`，不在这儿另写一遍字面量。那个函数早就写好了，
-      // 注释也说它是给 `judge` 用的——而这里手抄了一份。两份抄在同一处文件里
-      // 意味着改一处忘一处：哪天 `judge` 多看一个字段，传播会静默地不喂它。
-      const view = asListenerBelief(belief, this.claims.get(belief.claimId));
-      if (view === null) continue;
-      const list = map.get(belief.holderId) ?? [];
-      list.push(view);
-      map.set(belief.holderId, list);
-    }
-    return map;
   }
 
   private talkativeness(): ReadonlyMap<string, number> {
@@ -2566,6 +2764,7 @@ export class MemoryWorld {
     for (const claim of snapshot.claims) this.claims.set(claim.claimId, claim);
 
     this.beliefs = [...snapshot.beliefs];
+    this.reindexBeliefs();
 
     this.traces.clear();
     for (const entry of snapshot.traces) this.traces.set(entry.placeId, [...entry.entries]);
@@ -2606,6 +2805,7 @@ export class MemoryWorld {
     this.tells.splice(0, this.tells.length, ...snapshot.tells);
     this.written = [...snapshot.written];
     this.cooldowns = [...snapshot.cooldowns];
+    this.reindexCooldowns();
     this.fanout = { day: snapshot.fanout.day, counts: new Map(snapshot.fanout.counts) };
 
     this.verifyPlans.clear();
@@ -2625,6 +2825,43 @@ export class MemoryWorld {
 }
 
 const RULESET_VERSION = 'memory-r1';
+/** 「这一对没有冷却」的共享空数组：日终会给每个候选问一次，不每次都分配。 */
+const EMPTY_COOLDOWNS: readonly CooldownState[] = [];
+/** 「这个人关于这件事什么也不知道」的共享空数组，同上。 */
+const EMPTY_VIEWS: readonly ListenerBelief[] = [];
+/** 日终不再铺全表之后，`spreadStep` 的 `beliefs` 参数拿到的空表。 */
+const EMPTY_BELIEF_VIEWS: ReadonlyMap<string, readonly ListenerBelief[]> = new Map();
+
+/** 从桶里按引用删掉一条。桶空了就整个摘掉，免得日复一日堆空桶。 */
+function removeFrom<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list === undefined) return;
+  const index = list.indexOf(value);
+  if (index >= 0) list.splice(index, 1);
+  if (list.length === 0) map.delete(key);
+}
+
+/** 往 `Map<K, V[]>` 的一个桶里追加。桶不存在时建一个。 */
+function appendTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list === undefined) {
+    map.set(key, [value]);
+    return;
+  }
+  list.push(value);
+}
+
+/** 桶里替换一个旧对象（按引用找位置）。找不到就追加，宁多不少。 */
+function replaceIn<K, V>(map: Map<K, V[]>, key: K, previous: V, next: V): void {
+  const list = map.get(key);
+  if (list === undefined) {
+    map.set(key, [next]);
+    return;
+  }
+  const index = list.indexOf(previous);
+  if (index >= 0) list[index] = next;
+  else list.push(next);
+}
 
 /** 深拷贝一份地标：对外只给副本，读的人改不动世界里的那一份。 */
 function cloneLandmark(landmark: Landmark): Landmark {

@@ -372,8 +372,21 @@ export interface SpreadInput {
   /** 每个人的信息源可靠度。`judge` 拿它给采信打折——被辟谣过的人说话不好使。 */
   readonly credibility: CredibilityScores;
   readonly beliefs: ReadonlyMap<string, readonly ListenerBelief[]>;
+  /**
+   * 某个听众关于这条断言已知的那些（可选）。调用方有事件索引时用它：
+   * 「他是不是已经知道」与 `judge` 的「有没有相反记忆」都只关心同事件的
+   * 信念，而铺开一个人的全部信念会随断言数长成平方。
+   * 省略时退回 `beliefs` 全表，结果完全相同。
+   */
+  readonly existingOf?: (listener: string, claim: Claim) => readonly ListenerBelief[];
   readonly talkativeness: ReadonlyMap<string, number>;
   readonly cooldowns: readonly CooldownState[];
+  /**
+   * 只给这一对单位的冷却（可选）。调用方有索引时用它，省掉「每个候选都扫
+   * 一遍全部冷却」那一项——冷却是全会话累积的，那一项会随断言数长成平方。
+   * 省略时退回扫 `cooldowns`，结果完全相同。
+   */
+  readonly cooldownsOf?: (a: string, b: string) => readonly CooldownState[];
   readonly nowMs: number;
   readonly config: MemoryConfig;
 }
@@ -395,7 +408,11 @@ export function spreadStep(input: SpreadInput): SpreadStep[] {
   const { claim, config } = input;
   if (!canSpread(claim, config)) return [];
   const steps: SpreadStep[] = [];
-  const eligible: { candidate: SpreadCandidate; want: number }[] = [];
+  const eligible: {
+    candidate: SpreadCandidate;
+    want: number;
+    existing: readonly ListenerBelief[];
+  }[] = [];
 
   for (const candidate of input.candidates) {
     if (candidate.speaker === candidate.listener) continue;
@@ -407,15 +424,20 @@ export function spreadStep(input: SpreadInput): SpreadStep[] {
       speakerTalkativeness: input.talkativeness.get(candidate.speaker) ?? 0.5,
     };
     if (!canTell(claim, context, config)) continue;
-    if (coolingDown(input.cooldowns, candidate.speaker, candidate.listener, claim.claimId, input.nowMs, config)) {
+    const cooldowns = input.cooldownsOf === undefined
+      ? input.cooldowns
+      : input.cooldownsOf(candidate.speaker, candidate.listener);
+    if (coolingDown(cooldowns, candidate.speaker, candidate.listener, claim.claimId, input.nowMs, config)) {
       continue;
     }
     // 已经知道的人不必再听一遍：重复讲述不产生新信念，只浪费扇出配额。
-    const known = input.beliefs.get(candidate.listener) ?? [];
-    if (known.some((belief) => belief.eventRefs.some((ref) => claim.eventRefs.includes(ref)))) {
+    const existing = input.existingOf === undefined
+      ? (input.beliefs.get(candidate.listener) ?? [])
+      : input.existingOf(candidate.listener, claim);
+    if (existing.some((belief) => belief.eventRefs.some((ref) => claim.eventRefs.includes(ref)))) {
       continue;
     }
-    eligible.push({ candidate, want: wantsToTell(claim, context, input.relations) });
+    eligible.push({ candidate, want: wantsToTell(claim, context, input.relations), existing });
   }
 
   // 排序确定：意愿降序，同分按单位对名字。种子只用来打散同分，
@@ -427,14 +449,14 @@ export function spreadStep(input: SpreadInput): SpreadStep[] {
     return seedOf(input.day, keyA, claim.claimId) - seedOf(input.day, keyB, claim.claimId);
   });
 
-  for (const { candidate } of eligible) {
+  for (const { candidate, existing } of eligible) {
     const retold = retell(claim, config);
     const trust = trustBetween(input.relations, candidate.speaker, candidate.listener);
     const verdict = judge(
       retold,
       trust,
       credibilityOf(input.credibility, candidate.speaker),
-      input.beliefs.get(candidate.listener) ?? [],
+      existing,
       config,
     );
     steps.push({ from: candidate.speaker, to: candidate.listener, claim: retold, verdict });
