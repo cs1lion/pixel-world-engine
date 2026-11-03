@@ -1666,14 +1666,15 @@ export class SandboxScene extends Phaser.Scene {
       isolatedHoldersCount: vitals.isolatedHoldersCount,
     });
 
-    // 提案先算出来，再问熔断。以前是反的：熔断不放行就不算计划，于是
-    // **被拒的提议一条都进不了账**，账本只剩下放行的那些——那正是最需要
-    // 审计的拒绝原因被丢掉了。
+    // 先问熔断（保留 L3 抽检的既有节拍），再算提案；**但被拒不再提前返回**。
+    // 以前熔断不放行就不算计划，于是被拒的提议一条都进不了账——那正是最
+    // 需要审计的拒绝原因被丢掉了。现在无论允不允许都记一条，世界改不改由
+    // 判决决定。
+    const decision = creator.getFuseDecision('mapper');
     const view = this.creatorWorldView();
     const proposal = creator.planCreation(view);
     if (proposal === null) return;
 
-    const decision = creator.getFuseDecision('mapper');
     const state = creator.getRoleState('mapper');
     const blueprint = this.blueprints.get(proposal.templateId);
     if (state === undefined || blueprint === undefined) return;
