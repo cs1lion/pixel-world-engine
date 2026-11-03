@@ -100,8 +100,10 @@ export type WorldChange =
        *
        * `tide_turn` / `routine_done` 来自 `ambient.ts` 的 `AmbientKind`；
        * `daily_water` / `daily_lamp` 是固定时刻表里已经接通的两件每日小事
-       * （`timetable.ts`）。四个值都是闭集，服务端 `WORLD_EVENT_KINDS` 与
-       * 这里逐字一致——加一个只改一边，回写会被自己的服务端拒掉。
+       * （`timetable.ts`）；`market_open` / `work_end` / `night_market` /
+       * `market_close` 是市面的四个节点（镇子级事实，`actorId` 为 `null`）。
+       * 八个值都是闭集，服务端 `WORLD_EVENT_KINDS` 与这里逐字一致——加一个
+       * 只改一边，回写会被自己的服务端拒掉。
        */
       readonly kind: WorldEventKind;
       /** 一句话，玩家在事件流里读到的就是它。 */
@@ -164,7 +166,15 @@ export type WorldChange =
     };
 
 /** `world.event` 的种类闭集。服务端白名单的客户端一半。 */
-export type WorldEventKind = 'tide_turn' | 'routine_done' | 'daily_water' | 'daily_lamp';
+export type WorldEventKind =
+  | 'tide_turn'
+  | 'routine_done'
+  | 'daily_water'
+  | 'daily_lamp'
+  | 'market_open'
+  | 'work_end'
+  | 'night_market'
+  | 'market_close';
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
 export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [

@@ -6,6 +6,7 @@ import { ALTAR, buildLargeWorld, buildWorld, placeBlueprint } from '../src/world
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { composeReport } from '../src/world/report.ts';
 import { syllablePlan } from '../src/audio/animalese.ts';
 import { Bridge, toWorldCommand } from '../src/world/bridge.ts';
@@ -23,6 +24,9 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：作息那半会睡，午夜开局时日报收尾会如实写「睡下了」，
+    // 而这两条测的是「闲人在祭坛边坐着」那句退路。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       return blueprint === undefined

@@ -28,6 +28,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { routineBeats } from '../src/world/routines.ts';
 import { syncCommand } from './feed-helpers.ts';
 
@@ -44,6 +45,12 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上七点开局，不是零点。作息那半现在**真的会睡**（22:00–05:00 歇在
+    // 祭坛，见 `func-daily-l1.test.ts` 的起卧那条），而这条测试要观察的正是
+    // 作息那半：从午夜起算的五十世界分钟只够看见一个人睡着不动，`moved`
+    // 会数成 0——那不是世界坏了，是观察窗口落在了她的床上。窗口本身与判据
+    // 一个字没改，只把起点挪到天亮之后。
+    initialNow: worldHours(7),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;

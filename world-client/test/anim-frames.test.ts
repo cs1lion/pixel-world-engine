@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { LAMP_DRY } from '../src/world/lampoil.ts';
 import { syncCommand } from './feed-helpers.ts';
 import {
@@ -172,6 +173,9 @@ test('活体：走作息环线的人放的是四帧，不是站着的那两帧',
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：作息那半真的会睡，午夜开局这一小段观察窗里她只会
+    // 站在祭坛边不动（`func-daily-l1.test.ts`），数不到「四帧在走」。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;
@@ -293,6 +297,9 @@ test('活体：举急件的那位放的是四帧，不是站着的那两帧', ()
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：作息那半真的会睡，午夜开局这一小段观察窗里她只会
+    // 站在祭坛边不动（`func-daily-l1.test.ts`），数不到「四帧在走」。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;
