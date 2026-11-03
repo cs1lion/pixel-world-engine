@@ -40,6 +40,22 @@ export const DEFAULT_FAST_TIME_SCALE = 60;
 /** 加速模式的倍率上限。真实时钟不走这条闸；默认值就用这个上限。 */
 export const MAX_TIME_SCALE = 60;
 
+/**
+ * 加速模式的倍率下限。**低于它的 `?speed=` 不是「更慢」，是坏掉**。
+ *
+ * 倍率是「1 秒真实时间 = 多少世界秒」的反比：日长 = `REAL_DAY_MS / (1000 × speed)`
+ * 秒。取 5e-324（双精度最小正数）时日长是 `Infinity`，界面上的钟直接不动，
+ * 而入口当初只拦了「> 0」——于是这个值一路混进世界（BUG-004）。下限取
+ * 0.01：一天 100 个真实日，慢得离谱但仍是有限、可表示的时长；比它更小的
+ * 一律按非法参数回落到默认倍率，和 0 / 负数 / 61 / NaN 同一条路。
+ */
+export const MIN_TIME_SCALE = 0.01;
+
+/** 某个倍率下，一世界日要过多少真实秒。 */
+export function worldDayRealSeconds(timeScale: number): number {
+  return REAL_DAY_MS / (1000 * timeScale);
+}
+
 export type ClockMode = 'real' | 'accelerated';
 
 export interface ClockSelection {
@@ -74,7 +90,10 @@ export function resolveClockSelection(
   const speedRaw = params.get('speed');
   const speed = speedRaw === null ? null : Number(speedRaw);
   const hasSpeed =
-    speed !== null && Number.isFinite(speed) && speed > 0 && speed <= MAX_TIME_SCALE;
+    speed !== null &&
+    Number.isFinite(speed) &&
+    speed >= MIN_TIME_SCALE &&
+    speed <= MAX_TIME_SCALE;
 
   if (clock === 'real') {
     return { mode: 'real', timeScale: 1, utcOffsetMinutes };

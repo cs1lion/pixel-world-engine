@@ -21,6 +21,7 @@ import {
   createCreationLedgerOutbox,
 } from '../src/creator/ledger-client.ts';
 import {
+  LEDGER_QUEUE_MAX_BYTES,
   LEDGER_QUEUE_MAX_ITEMS,
   LEDGER_QUEUE_KEY_PREFIX,
   MemoryLedgerQueueStorage,
@@ -29,7 +30,7 @@ import {
 } from '../src/creator/ledger-queue.ts';
 import { AutonomousFuseController } from '../src/world/creator/fuse.ts';
 
-function record(id: string): CreationRecord {
+function record(id: string, intentText: string | null = null): CreationRecord {
   const controller = new AutonomousFuseController(() => 0);
   controller.initRole('mapper', '地图师', 3, 3);
   const state = controller.getRoleState('mapper');
@@ -48,7 +49,7 @@ function record(id: string): CreationRecord {
     templateId: 'waiting_shelter',
     templateName: '候车亭',
     templateKind: 'industry',
-    intentText: null,
+    intentText,
     target: plan.at,
     origin: 'auto',
     gates: evaluateProposalGates({
@@ -148,6 +149,107 @@ test('容量上限：超过字节数也会裁，`pendingBytes` 与容量判定�
   assert.ok(outbox.size <= 2);
   assert.ok(outbox.pendingBytes <= cap);
   assert.ok(outbox.dropped >= 1);
+});
+
+test('容量上限：默认 200 条压到边界，第 201 条丢最旧并记 dropped', () => {
+  const storage = new MemoryLedgerQueueStorage();
+  const outbox = createCreationLedgerOutbox(
+    createCreationLedgerClient({ fetchImpl: (async () => new Response('', { status: 500 })) as typeof fetch }),
+    { storage, maxBytes: Number.POSITIVE_INFINITY },
+  );
+  for (let index = 1; index <= LEDGER_QUEUE_MAX_ITEMS; index += 1) {
+    outbox.enqueue(record(`item-${String(index).padStart(3, '0')}`));
+  }
+  assert.equal(outbox.size, 200, '第 200 条应在队列里');
+  assert.equal(outbox.dropped, 0, '压到边界还没该丢');
+
+  outbox.enqueue(record('item-201'));
+  assert.equal(outbox.size, 200, '超一条后仍只能留 200');
+  assert.equal(outbox.dropped, 1);
+  const ids = storage.load()?.records.map((item) => item.recordId) ?? [];
+  assert.equal(ids.length, 200);
+  assert.equal(ids[0], 'item-002', '丢的是最旧的 item-001');
+  assert.equal(ids[ids.length - 1], 'item-201', '最新的一条必须留下');
+  assert.equal(ids.includes('item-001'), false);
+});
+
+test('容量上限：256 KiB 压到边界，超一条丢最旧而不是丢最新', () => {
+  const storage = new MemoryLedgerQueueStorage();
+  const outbox = createCreationLedgerOutbox(
+    createCreationLedgerClient({ fetchImpl: (async () => new Response('', { status: 500 })) as typeof fetch }),
+    { storage, maxBytes: LEDGER_QUEUE_MAX_BYTES },
+  );
+  const intent = 'x'.repeat(4000);
+  let added = 0;
+  // 一直加到真的越线；越线那一刻队列自己裁，dropped 从 0 变正。
+  while (outbox.dropped === 0) {
+    added += 1;
+    outbox.enqueue(record(`byte-${String(added).padStart(3, '0')}`, intent));
+    assert.ok(added < 200, '256 KiB 不该到不了边界');
+  }
+  assert.ok(added > 30, `应当装了足量记录才越线，实际 ${added}`);
+  assert.ok(outbox.pendingBytes <= LEDGER_QUEUE_MAX_BYTES, '压完必须回到上限内');
+  assert.ok(outbox.size < added, '至少丢了一条');
+  const ids = storage.load()?.records.map((item) => item.recordId) ?? [];
+  assert.equal(ids.includes('byte-001'), false, '最旧的 byte-001 被丢');
+  assert.equal(ids[ids.length - 1], `byte-${String(added).padStart(3, '0')}`, '最新一条留下');
+  assert.equal(ids.length, outbox.size);
+  assert.equal(storage.load()?.dropped, outbox.dropped);
+});
+
+test('有在途请求时 trim(1)：只从第二位开始裁，在途那条不被拿走', async () => {
+  const storage = new MemoryLedgerQueueStorage();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const wireIds: string[] = [];
+  const client = createCreationLedgerClient({
+    fetchImpl: (async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as CreationRecord;
+      wireIds.push(body.recordId);
+      await gate;
+      return new Response(
+        JSON.stringify({
+          duplicate: false,
+          record: { ...body, seq: 1, recordedAt: '2026-11-03T00:00:00.000Z' },
+        }),
+        { status: 201 },
+      );
+    }) as typeof fetch,
+  });
+  const outbox = createCreationLedgerOutbox(client, {
+    storage,
+    maxItems: 2,
+    maxBytes: Number.POSITIVE_INFINITY,
+  });
+
+  outbox.enqueue(record('inflight-a'));
+  const pending = outbox.flush();
+  // 在途请求已经发出；此后入队只能从第二位开始裁。
+  assert.deepEqual(wireIds, ['inflight-a']);
+
+  outbox.enqueue(record('other-b'));
+  outbox.enqueue(record('other-c'));
+  outbox.enqueue(record('other-d'));
+  assert.equal(outbox.size, 2);
+  assert.equal(outbox.dropped, 2);
+  assert.deepEqual(
+    storage.load()?.records.map((item) => item.recordId),
+    ['inflight-a', 'other-d'],
+    '在途的 inflight-a 必须留在队首',
+  );
+
+  release();
+  const result = await pending;
+  assert.equal(result?.ok, true);
+  if (result === null || !result.ok) throw new Error('在途请求应成功');
+  assert.equal(result.record.recordId, 'inflight-a', '出队的就是那条在途记录');
+  assert.equal(outbox.size, 1);
+  assert.deepEqual(
+    storage.load()?.records.map((item) => item.recordId),
+    ['other-d'],
+  );
 });
 
 // ---------------------------------------------------------------- localStorage

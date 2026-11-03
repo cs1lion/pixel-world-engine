@@ -1,6 +1,7 @@
 import prefabs from '../world/prefabs.json' with { type: 'json' };
 import { parseBlueprintTable } from '../world/blueprints.ts';
 import { WORLD, TERRAIN_COLORS } from '../world/palette-data.ts';
+import { activateWorld, registerWorldPalette } from '../world/theme.ts';
 import { LARGE_ALTAR, LARGE_WORLD_SPEC } from '../world/setup.ts';
 import type { SettingPack } from './types.ts';
 import { loadSettingPack, buildSettingWorld } from './load.ts';
@@ -15,10 +16,21 @@ const LEGACY_PACK: SettingPack = {
   villagers: [], scenery: [], authored: false,
 };
 
+/** 选了哪套设定集，就把它的 24 色挂到渲染层的当前世界指针上。
+ *
+ * 这条链只有这一个入口：渲染代码不认 `pack`，只问 `paletteFor()`；
+ * 所以「激活」必须和「选包」绑在一起，不能另开一条路。
+ */
+function useSetting(pack: SettingPack): SettingPack {
+  registerWorldPalette(pack.id, pack.palette, pack.terrainColors);
+  activateWorld(pack.id);
+  return pack;
+}
+
 export function selectSetting(search: string): SettingPack {
   const id = new URLSearchParams(search).get('world');
-  if (id === null || id === '' || id === 'default') return LEGACY_PACK;
-  if (id === 'dengchao') return loadSettingPack(DENGCHAO_RAW);
+  if (id === null || id === '' || id === 'default') return useSetting(LEGACY_PACK);
+  if (id === 'dengchao') return useSetting(loadSettingPack(DENGCHAO_RAW));
   throw new Error(`没有这个设定集：${id}。可试 ?world=dengchao，或省略参数进入莞尔镇。`);
 }
 

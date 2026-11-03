@@ -8,7 +8,7 @@
  * （亮窗数量、屋脊受光、贴地雾带、萤火）。依据见 proto/day-phase.html 与 ADR 附录 A。
  */
 
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import type { Weather } from '../world/types.ts';
 
 export type PhaseId = 'dawn' | 'noon' | 'dusk' | 'night';
@@ -44,7 +44,10 @@ export interface PhaseRecipe {
 export const PHASES: Readonly<Record<PhaseId, PhaseRecipe>> = {
   dawn: {
     label: '晨雾',
-    dimColor: WORLD.cloakDark,
+    // 四个相位都在 `PHASES` 里，而它是模块加载时求值的常量：直接写
+    // `paletteFor().xxx` 会把「那一刻激活的世界」冻死——换到灯潮界之后，
+    // 压暗色仍是莞尔镇的那一个。用 getter 让每次读都按当前世界解析。
+    get dimColor() { return paletteFor().cloakDark; },
     // 晨光比正午暗一档，但要留住「天亮着」的读感，所以不超过 0.2。
     dim: 0.2,
     glow: 0.25,
@@ -56,7 +59,7 @@ export const PHASES: Readonly<Record<PhaseId, PhaseRecipe>> = {
   },
   noon: {
     label: '正午',
-    dimColor: WORLD.deepShade,
+    get dimColor() { return paletteFor().deepShade; },
     dim: 0,
     glow: 0,
     litWindows: 0,
@@ -67,7 +70,7 @@ export const PHASES: Readonly<Record<PhaseId, PhaseRecipe>> = {
   },
   dusk: {
     label: '黄昏',
-    dimColor: WORLD.ink,
+    get dimColor() { return paletteFor().ink; },
     // 0.08 太轻：视野里没有建筑时，黄昏与正午几乎一样（实测 0.6%）。
     // 提到 0.16 仍明显轻于夜（0.46），但足够让两刻分开。
     dim: 0.16,
@@ -80,7 +83,7 @@ export const PHASES: Readonly<Record<PhaseId, PhaseRecipe>> = {
   },
   night: {
     label: '夜',
-    dimColor: WORLD.deepShade,
+    get dimColor() { return paletteFor().deepShade; },
     dim: 0.46,
     glow: 1,
     litWindows: 2,

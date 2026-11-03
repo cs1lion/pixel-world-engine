@@ -8,6 +8,7 @@ import {
   stepZoomIndex,
   clampScroll,
   scrollForOrigin,
+  scrollForZoomAnchor,
   viewOriginOf,
 } from '../src/render/camera-math.ts';
 
@@ -99,6 +100,48 @@ test('2 倍下夹到右下角，换回的 scrollX 落在 Phaser 自己的夹取�
   assert.equal(scrollX, 920, 'Phaser 的 scrollX 上限是 worldW - W/2 - W/(2z)');
   // 原来直接拿 scrollX 去夹，会停在 1040——比 Phaser 允许的多 120，放大时露白边。
   assert.notEqual(scrollX, 1040);
+});
+
+// ------------------------------------------------------------------ 捏合锚点
+
+/** 屏幕 `screen` 处看到的世界坐标（与生产读取相机四件套的口径相同）。 */
+function worldAtScreen(scroll: number, size: number, zoom: number, screen: number): number {
+  return viewOriginOf(scroll, size, zoom) + screen / zoom;
+}
+
+test('以两指中点为锚：中点正好是画布中心时，scroll 不变', () => {
+  // 中心锚 = 现有 `zoomStep` 的效果；捏合到画面正中时不该额外位移。
+  const scroll = 300;
+  assert.equal(scrollForZoomAnchor(scroll, 480, 2, 3, 240), scroll);
+  assert.equal(scrollForZoomAnchor(scroll, 320, 2, 3, 160), scroll);
+});
+
+test('以左边缘为锚：边缘下的世界坐标在换档前后不动', () => {
+  const before = worldAtScreen(0, 480, 2, 0);
+  const after = worldAtScreen(scrollForZoomAnchor(0, 480, 2, 3, 0), 480, 3, 0);
+  assert.ok(Math.abs(before - after) < 1e-9, `${before} → ${after}`);
+});
+
+test('任意屏幕点、任意档位对：锚点下的世界坐标都不漂', () => {
+  for (let i = 0; i + 1 < ZOOM_STEPS.length; i += 1) {
+    const from = ZOOM_STEPS[i]!;
+    const to = ZOOM_STEPS[i + 1]!;
+    for (const screen of [0, 120, 240, 480]) {
+      const scroll = 200;
+      const before = worldAtScreen(scroll, 480, from, screen);
+      const after = worldAtScreen(scrollForZoomAnchor(scroll, 480, from, to, screen), 480, to, screen);
+      assert.ok(
+        Math.abs(before - after) < 1e-9,
+        `${from}→${to} 屏幕 ${screen} 处：${before} → ${after}`,
+      );
+    }
+  }
+});
+
+test('锚点不是中心时，scroll 必须真的挪，否则放大就变成「画面被拽走」', () => {
+  // 屏幕 0 处为锚、2→3 倍：scroll 要减 40，才能让左边那一点留在原处。
+  // 差值形式会有 1e-14 的尾巴，所以比容差而不是比字符串。
+  assert.ok(Math.abs(scrollForZoomAnchor(0, 480, 2, 3, 0) + 40) < 1e-9);
 });
 
 // ------------------------------------------------------------------ 导播节奏

@@ -10,7 +10,7 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { shouldAnimateAt } from './eco-mode.ts';
 import { ambienceAt, type AmbienceActor } from './ambience.ts';
 import type { PhaseId } from './day-phase.ts';
@@ -64,7 +64,7 @@ function drawBird(g: Phaser.GameObjects.Graphics, actor: AmbienceActor): void {
   const dir = actor.facing;
 
   // 翅膀：pale 主体 + ink 描边一格，保证在亮草地与暗林地上都能读出来。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   if (wingsUp) {
     // 向上：两段斜挑，外段高一格。
     g.fillRect(px - 4, py - 3, 3, 2);
@@ -74,7 +74,7 @@ function drawBird(g: Phaser.GameObjects.Graphics, actor: AmbienceActor): void {
     g.fillRect(px - 5, py + 1, 4, 2);
     g.fillRect(px + 2, py + 1, 4, 2);
   }
-  g.fillStyle(WORLD.pale, 1);
+  g.fillStyle(paletteFor().pale, 1);
   if (wingsUp) {
     g.fillRect(px - 3, py - 3, 2, 1);
     g.fillRect(px + 3, py - 3, 2, 1);
@@ -84,12 +84,12 @@ function drawBird(g: Phaser.GameObjects.Graphics, actor: AmbienceActor): void {
   }
 
   // 身子：3px 横条，头朝飞行方向。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(px - 1, py - 1, 4, 3);
-  g.fillStyle(WORLD.pale, 1);
+  g.fillStyle(paletteFor().pale, 1);
   g.fillRect(px, py, 2, 1);
   // 头：往朝向那边凸一格。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(px + dir * 3 - (dir < 0 ? 1 : 0), py - 1, 2, 2);
 }
 
@@ -108,7 +108,7 @@ function drawBat(g: Phaser.GameObjects.Graphics, actor: AmbienceActor): void {
   const wingsUp = actor.flap < 0.5;
 
   // 翅膀：折线，先外后内两段，形成蝙蝠特有的弯钩。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   if (wingsUp) {
     g.fillRect(px - 5, py - 2, 2, 1);
     g.fillRect(px - 3, py - 1, 2, 1);
@@ -126,11 +126,11 @@ function drawBat(g: Phaser.GameObjects.Graphics, actor: AmbienceActor): void {
   }
 
   // 身子在翅膀之后画，压住内侧的接缝：1×3 的小黑块 + 两只耳朵。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(px, py - 1, 2, 3);
   g.fillRect(px - 1, py - 2, 1, 1);
   g.fillRect(px + 2, py - 2, 1, 1);
   // 一点冷高光：纯黑剪影在夜里会糊进背景，一格 pale 让它有边界。
-  g.fillStyle(WORLD.water, 0.7);
+  g.fillStyle(paletteFor().water, 0.7);
   g.fillRect(px, py, 1, 1);
 }

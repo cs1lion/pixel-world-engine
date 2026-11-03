@@ -30,7 +30,7 @@ import {
 import type { WorldSave } from './world/save.ts';
 import type { BuiltWorld } from './world/setup.ts';
 import type { SettingPack } from './settings/types.ts';
-import { WORLD } from './world/palette-data.ts';
+import { paletteFor } from './world/theme.ts';
 import { selectSetting, worldForSetting } from './settings/index.ts';
 
 /**
@@ -125,7 +125,7 @@ const game = new Phaser.Game({
   parent: 'app',
   width: VIEW_WIDTH,
   height: VIEW_HEIGHT,
-  backgroundColor: WORLD.ink,
+  backgroundColor: paletteFor().ink,
   pixelArt: true,
   roundPixels: true,
   // 逻辑分辨率保持 480×320（30×20 格 ×16px），只放大画布显示尺寸。非整数缩放会让像素边缘渗色，

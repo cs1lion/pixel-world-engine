@@ -8,12 +8,21 @@ import { TILE_PX } from '../world/setup.ts';
 import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.ts';
 import { drawGroundDecals } from '../render/decal.ts';
 import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
-import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp, WorldSnapshot } from '../world/types.ts';
+import type {
+  CommandResult,
+  GridPoint,
+  OracleRecord,
+  PrefabBlueprint,
+  Vec2,
+  WorldProp,
+  WorldSnapshot,
+} from '../world/types.ts';
+import { beginPinchZoom, pinchZoomStep, type PinchZoomState } from '../render/pinch-zoom.ts';
 import { villagerAtCell } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
-import { TERRAIN_COLORS, WORLD, tokenNameOf } from '../world/palette-data.ts';
-import type { WorldPalette } from '../world/theme.ts';
+import { tokenNameOf } from '../world/palette-data.ts';
+import { paletteFor, terrainFor, type WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
@@ -66,7 +75,16 @@ type OracleSurfaces = OracleApi &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
-import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
+import {
+  createVillager,
+  updateVillager,
+  VILLAGER_H,
+  VILLAGER_W,
+  villagerDepthAt,
+  villagerFootAt,
+  type VillagerView,
+} from '../render/villager.ts';
+import { pinVillagers } from '../render/villager-pin.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -295,6 +313,11 @@ export class SandboxScene extends Phaser.Scene {
   private clockMode: ClockMode = 'accelerated';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
+  /**
+   * `?now=` 调试开局时刻（世界分钟，00:00 起算）。只认 `?debug=1` 那一层，
+   * 只对新世界生效；`undefined` = 照旧从 0 点开局（或真实时钟按本地时刻锚）。
+   */
+  private debugInitialNow: number | undefined;
   /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
   private clockNotice: string | null = null;
   /**
@@ -315,10 +338,22 @@ export class SandboxScene extends Phaser.Scene {
   /** 右键/长按开的是记忆/楼志面板；左键开的仍是状态菜单。 */
   private longPressTimer: number | null = null;
   private longPressRef: UnitRef | null = null;
+  /** 按下时指针所在的格：500ms 后要按同一格重查，世界会自己动。 */
+  private longPressCell: { readonly x: number; readonly y: number } | null = null;
   /** 右键或长按已经处理过这次按下，抬手时不要再开状态菜单。 */
   private suppressClickUp = false;
   private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
+  /**
+   * 调试摆位：id → 固定格。只影响这一帧的画，不写世界。
+   * 见 `render/villager-pin.ts` 与 `debugPinVillager`。
+   */
+  private readonly pinnedVillagers = new Map<string, Vec2>();
+  /**
+   * 调试灯态：`debugForceLamps` 写这里，`null` = 交回世界时钟判。
+   * 只改画面，不改 `lampStreetLitAt` 的判据本身。
+   */
+  private forcedLamps: boolean | null = null;
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
@@ -370,6 +405,17 @@ export class SandboxScene extends Phaser.Scene {
   private dragFrom: { x: number; y: number } | null = null;
   /** 这一回按下之后指针挪过没有。挪过了就是拖镜头，没挪过才算点一下。 */
   private pressMoved = false;
+  /**
+   * 屏幕上的触屏手指，按 Phaser 的 `pointer.id` 记。
+   *
+   * 捏合要的是「两根手指同时在哪」，而 `pointermove` 是**逐指**派发的——只看
+   * 一根手指的位移，分不清它是拖图还是在缩放。
+   */
+  private readonly touches = new Map<number, { x: number; y: number }>();
+  /** 捏合会话；`null` = 没有两指手势在进行（两指都抬起后才清）。 */
+  private pinch: PinchZoomState | null = null;
+  /** 这一帧有捏合位移待结算（见 `settlePinch`）。 */
+  private pinchPending = false;
   private lastConstructionKey = '';
   private readonly lastBubbles = new Map<string, string | null>();
   private readonly animalese: Animalese = createLazyAnimalese();
@@ -498,11 +544,11 @@ export class SandboxScene extends Phaser.Scene {
    * 这一局画面上该用的 24 色：设定集给了就整套换成它的，没给就是莞尔镇的。
    *
    * 痕迹、地形、楼、人都得读同一份。`tilemap.ts` 早就这么做了
-   * （`theme?.palette ?? WORLD`）；痕迹那一层 2026-11-02 才跟上——
+   * （`theme?.palette ?? paletteFor()`）；痕迹那一层 2026-11-02 才跟上——
    * 在那之前灯潮界的地上和墙上一直画着莞尔镇的石头色。
    */
   private get palette(): WorldPalette {
-    return this.pack?.palette ?? WORLD;
+    return this.pack?.palette ?? paletteFor();
   }
 
   /**
@@ -518,7 +564,7 @@ export class SandboxScene extends Phaser.Scene {
     // 不画。这里给草地色，只为了让「同色」这条判据有个落点——画不画得出东西
     // 由 `landmarkCells` 决定，那些格子一定在图里。
     const terrain = tile === undefined ? 'grass' : tile.terrain;
-    return this.pack?.terrainColors[terrain] ?? TERRAIN_COLORS[terrain];
+    return this.pack?.terrainColors[terrain] ?? terrainFor()[terrain];
   }
   private saveStore!: SaveStore;
   private loadedSave: WorldSave | null = null;
@@ -558,7 +604,7 @@ export class SandboxScene extends Phaser.Scene {
   create(): void {
     const originX = 0;
     const originY = 0;
-    this.cameras.main.setBackgroundColor(this.pack?.palette.ink ?? WORLD.ink);
+    this.cameras.main.setBackgroundColor(this.pack?.palette.ink ?? paletteFor().ink);
 
     // 地形烘焙成一张纹理：Graphics 每帧都要重算整条 commandBuffer，而地形画完
     // 就不再变。只在开局画一次，之后每帧只贴一个 quad。
@@ -638,21 +684,41 @@ export class SandboxScene extends Phaser.Scene {
     };
     this.game.canvas.addEventListener('contextmenu', this.contextMenuListener);
 
+    // Phaser 默认只分一个触屏 pointer，第二根手指落下根本没有对象接。
+    // 捏合要两根，所以在这里补一个（`InputManager.addPointer` 的上限是 10，够用）。
+    this.input.addPointer(1);
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
+      if (pointer.wasTouch) this.touches.set(pointer.id, { x: pointer.x, y: pointer.y });
       // 右键 = 上下文面板，不参与拖镜头，也不在抬手时开状态菜单。
       if (pointer.rightButtonDown()) {
         this.suppressClickUp = true;
         this.openContextPanelAt(pointer);
         return;
       }
+      // 第二根手指落下 = 捏合：这一下既不是长按，也不是拖图或单击。
+      if (this.beginPinchIfTwo()) return;
       this.suppressClickUp = false;
       this.dragFrom = { x: pointer.x, y: pointer.y };
       this.pressMoved = false;
       this.beginLongPress(pointer);
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      const suppress = this.suppressClickUp;
+      // 捏合结束时两根手指的抬手都必须被吃掉：否则先抬的那根会被当成一次单击，
+      // 在「缩放完」的瞬间开出一个面板。
+      const pinching = this.pinch !== null;
+      // 抬起前先把最后一拍位移结算掉：一次快速的「拉开即松手」可能整段落在
+      // 一帧之内，等 update 就来不及了（那时手指已经不在册）。
+      if (pinching) this.settlePinch();
+      if (pointer.wasTouch) {
+        this.touches.delete(pointer.id);
+        if (this.touches.size === 0) {
+          this.pinch = null;
+          this.pinchPending = false;
+        }
+      }
+      const suppress = this.suppressClickUp || pinching;
       this.suppressClickUp = false;
       this.cancelLongPress();
       this.dragFrom = null;
@@ -680,7 +746,13 @@ export class SandboxScene extends Phaser.Scene {
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.creation !== null || this.dragFrom === null) return;
+      if (this.creation !== null) return;
+      if (pointer.wasTouch && this.touches.has(pointer.id)) {
+        this.touches.set(pointer.id, { x: pointer.x, y: pointer.y });
+        // 两指手势期间不走单指路径：捏合已经在改镜头，再叠加一次平移就成双份位移。
+        if (this.applyPinch()) return;
+      }
+      if (this.dragFrom === null) return;
       if (!pointer.isDown) {
         this.dragFrom = null;
         return;
@@ -717,6 +789,14 @@ export class SandboxScene extends Phaser.Scene {
     // `?clock=real` 压过 `?speed=`——1:1 是真实时钟的定义，留一个能偷偷加速的
     // 入口就没人能说它还是真实时钟。锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，
     // 但只影响日界落在几点，不改日长。
+    // 调试开局时刻：`?now=<0..1439>` 世界分钟（00:00 起算）。只在 `?debug=1`
+    // 那一层生效，且只对新世界有效——读档的 `world.now` 是它自己的事实，不重锚。
+    // 存在的理由：默认 00:00 属于夜间休息，居民那时本来就不该走动；回归脚本
+    // 要验「没人管的时候她会自己走动」，就得把场景显式放到白天，而不是放宽断言。
+    this.debugInitialNow =
+      params.get('debug') === '1' || params.get('debug') === ''
+        ? parseMinuteOfDay(params.get('now'))
+        : undefined;
     const selection = resolveClockSelection(params);
     this.clockMode = selection.mode;
     this.realClockOffsetMinutes = selection.utcOffsetMinutes;
@@ -810,14 +890,14 @@ export class SandboxScene extends Phaser.Scene {
     // 捕获阶段先拦：按钮的默认点击发生在冒泡之后，冒泡阶段拦住也晚了。
     window.addEventListener('keydown', this.creationKeyListener, true);
 
-    if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack);
+    if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack, ALTITUDE);
     else this.drawAltar(originX, originY);
 
     const simDeps = {
       grid: this.world.grid,
       buildings: this.world.buildings,
       altar: this.world.altar,
-      villagerName: this.villagerName,
+      villagerName: this.villagerName, worldSeed: this.pack?.id ?? 'wandong',
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
         villagerProfiles: routineProfiles(this.pack),
@@ -999,10 +1079,12 @@ export class SandboxScene extends Phaser.Scene {
     // 世界自己的事实，换时钟模式不改写它（`Simulation.fromSave` 会覆盖）。
     // 默认的游玩时间驱动从 0 起算；关页面即冻结，重开从档里的 `now` 继续，
     // 不做任何离线补算。
-    const initialNow =
-      this.clockMode === 'real'
-        ? msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes)
-        : undefined;
+    let initialNow: number | undefined;
+    if (this.debugInitialNow !== undefined) {
+      initialNow = this.debugInitialNow * 60_000;
+    } else if (this.clockMode === 'real') {
+      initialNow = msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes);
+    }
     this.sim =
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
@@ -1190,11 +1272,11 @@ export class SandboxScene extends Phaser.Scene {
     // 地面光池：先画、depth 压在所有人之下。用 1px 抖动环，不用大半径 alpha 圆。
     const pool = this.add.graphics();
     pool.setDepth(ALTITUDE + ay - 8);
-    pool.fillStyle(WORLD.amber, 0.06);
+    pool.fillStyle(paletteFor().amber, 0.06);
     pool.fillRect(cx - 24, ay + 12, 48, 10);
-    pool.fillStyle(WORLD.amber, 0.1);
+    pool.fillStyle(paletteFor().amber, 0.1);
     pool.fillRect(cx - 18, ay + 14, 36, 6);
-    pool.fillStyle(WORLD.warmLight, 0.14);
+    pool.fillStyle(paletteFor().warmLight, 0.14);
     pool.fillRect(cx - 12, ay + 16, 24, 3);
 
     // 石龛：26×26，比旧的 44×44 小一半；底座两级、四柱、小屋顶、蜡烛与供品。
@@ -1202,39 +1284,39 @@ export class SandboxScene extends Phaser.Scene {
     const sx = cx + 12;
     const altar = this.add.graphics();
     // 底座第一步（最宽）
-    altar.fillStyle(WORLD.stone, 1);
+    altar.fillStyle(paletteFor().stone, 1);
     altar.fillRect(sx - 14, ay + 18, 28, 5);
-    altar.fillStyle(WORLD.plaza, 1);
+    altar.fillStyle(paletteFor().plaza, 1);
     altar.fillRect(sx - 14, ay + 18, 28, 1);
-    altar.fillStyle(WORLD.soil, 1);
+    altar.fillStyle(paletteFor().soil, 1);
     altar.fillRect(sx - 14, ay + 22, 28, 1);
     // 底座第二步
-    altar.fillStyle(WORLD.plaza, 1);
+    altar.fillStyle(paletteFor().plaza, 1);
     altar.fillRect(sx - 10, ay + 14, 20, 5);
-    altar.fillStyle(WORLD.stone, 1);
+    altar.fillStyle(paletteFor().stone, 1);
     altar.fillRect(sx - 10, ay + 18, 20, 1);
     // 四柱：左右各两根，柱头用 trim。
     for (const px of [sx - 12, sx + 9] as const) {
-      altar.fillStyle(WORLD.stone, 1);
+      altar.fillStyle(paletteFor().stone, 1);
       altar.fillRect(px, ay + 2, 3, 13);
-      altar.fillStyle(WORLD.plaza, 1);
+      altar.fillStyle(paletteFor().plaza, 1);
       altar.fillRect(px, ay + 2, 1, 13);
-      altar.fillStyle(WORLD.trim, 1);
+      altar.fillStyle(paletteFor().trim, 1);
       altar.fillRect(px - 1, ay + 1, 5, 1);
     }
     // 小屋顶：两坡 + 屋脊，压在柱子上。
-    altar.fillStyle(WORLD.timberDark, 1);
+    altar.fillStyle(paletteFor().timberDark, 1);
     altar.fillRect(sx - 15, ay - 2, 30, 3);
     altar.fillRect(sx - 12, ay - 5, 24, 3);
-    altar.fillStyle(WORLD.trim, 1);
+    altar.fillStyle(paletteFor().trim, 1);
     altar.fillRect(sx - 13, ay - 5, 26, 1);
-    altar.fillStyle(WORLD.timberDark, 1);
+    altar.fillStyle(paletteFor().timberDark, 1);
     altar.fillRect(sx - 1, ay - 8, 2, 4);
     // 龛内暗部 + 符文
-    altar.fillStyle(WORLD.ink, 1);
+    altar.fillStyle(paletteFor().ink, 1);
     altar.fillRect(sx - 7, ay + 3, 14, 12);
     // 4 角星：竖/横 + 两条斜线，中央 pale 高光。不是“T”。
-    altar.fillStyle(WORLD.amber, 0.95);
+    altar.fillStyle(paletteFor().amber, 0.95);
     altar.fillRect(sx - 1, ay + 5, 2, 8);
     altar.fillRect(sx - 4, ay + 8, 8, 2);
     for (let step = 0; step < 3; step += 1) {
@@ -1243,23 +1325,23 @@ export class SandboxScene extends Phaser.Scene {
       altar.fillRect(sx - 3 + step, ay + 11 - step, 1, 1);
       altar.fillRect(sx + 2 - step, ay + 11 - step, 1, 1);
     }
-    altar.fillStyle(WORLD.warmLight, 1);
+    altar.fillStyle(paletteFor().warmLight, 1);
     altar.fillRect(sx, ay + 8, 1, 1);
     // 两支蜡烛：pale 烛身 + amber 火焰。
     for (const px of [sx - 12, sx + 11] as const) {
-      altar.fillStyle(WORLD.pale, 1);
+      altar.fillStyle(paletteFor().pale, 1);
       altar.fillRect(px, ay + 12, 1, 3);
-      altar.fillStyle(WORLD.warmLight, 1);
+      altar.fillStyle(paletteFor().warmLight, 1);
       altar.fillRect(px, ay + 10, 1, 1);
-      altar.fillStyle(WORLD.ember, 1);
+      altar.fillStyle(paletteFor().ember, 1);
       altar.fillRect(px, ay + 11, 1, 1);
     }
     // 供品：两块 trim/ember 小布包 + 苔。
-    altar.fillStyle(WORLD.trim, 1);
+    altar.fillStyle(paletteFor().trim, 1);
     altar.fillRect(sx - 6, ay + 18, 3, 2);
-    altar.fillStyle(WORLD.ember, 1);
+    altar.fillStyle(paletteFor().ember, 1);
     altar.fillRect(sx + 3, ay + 18, 3, 2);
-    altar.fillStyle(WORLD.moss, 1);
+    altar.fillStyle(paletteFor().moss, 1);
     for (let i = 0; i < 6; i += 1) {
       altar.fillRect(sx - 12 + i * 5, ay + 22, 2, 1);
     }
@@ -1268,6 +1350,10 @@ export class SandboxScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     this.updateCount += 1;
+
+    // 捏合排在省电跳帧之前：镜头是输入，不该被后台降频拖住。
+    // 这里看到的才是两根手指同一时刻的位置（见 `settlePinch` 的注释）。
+    this.settlePinch();
 
     // 省电：后台时按最小间隔跳帧。**跳过的是这一帧的渲染与逻辑推进**。
     // 少的是帧数，不是世界时间——累加器按真实经过的时间补，所以推得粗一些
@@ -1326,6 +1412,7 @@ export class SandboxScene extends Phaser.Scene {
       // 真实时钟模式：步长恒为 `LOGIC_STEP_MS`，`timeScale` 不参与，
       // 于是墙钟走 1 秒、世界也走 1 秒。
       const stepMs = this.clockMode === 'real' ? LOGIC_STEP_MS : LOGIC_STEP_MS * this.timeScale;
+      this.sim.setSocialContext(this.socialContextFromMemory());
       const results = this.sim.update(stepMs);
       for (const result of results) {
         this.speak(result);
@@ -2457,24 +2544,100 @@ export class SandboxScene extends Phaser.Scene {
     else this.openBuilding(ref.id);
   }
 
+  /**
+   * 第二根触屏手指落下：进入捏合。
+   *
+   * 返回 `true` 表示这次按下已被捏合吃掉，调用方不要再走长按 / 拖图 / 单击。
+   * 单指路径的判据都建立在「一根手指」上；两指时它们全不成立。
+   */
+  private beginPinchIfTwo(): boolean {
+    const pair = this.pinchPair();
+    if (pair === null) return false;
+    const [a, b] = pair;
+    this.cancelLongPress();
+    this.suppressClickUp = true;
+    this.dragFrom = null;
+    this.pressMoved = true;
+    // 每次都按当前间距重新起算：第一下是手势开始，中途再落一根也不在旧基准上续。
+    this.pinch = beginPinchZoom(Math.hypot(b.x - a.x, b.y - a.y));
+    return true;
+  }
+
+  /**
+   * 捏合中一次指针移动：**只记账，不立刻换档**。
+   *
+   * Phaser 的 `pointermove` 是**逐指**派发的：一次两指 `touchmove` 会来两拍，
+   * 第一拍里只有一根手指到了新位置，另一根还是上一拍的值。拿这种半新半旧
+   * 的间距去算中点，锚点就会偏（实测两指 80→200 时中点被算成 228 而不是 240，
+   * 画面因此漂 2 世界px）。等这一帧的 `update()` 再看，两指位置才是同一时刻的。
+   */
+  private applyPinch(): boolean {
+    if (this.pinch === null) return false;
+    this.pinchPending = true;
+    // 手指在画面里动也算用户输入：捏合刚结束，镜头不该被闲置导播接走。
+    this.cameraCtl.notifyInput();
+    return true;
+  }
+
+  /** 每帧开头结算一次捏合：这时两根手指的位置都属于这一拍。 */
+  private settlePinch(): void {
+    if (!this.pinchPending) return;
+    this.pinchPending = false;
+    const state = this.pinch;
+    if (state === null) return;
+    const pair = this.pinchPair();
+    // 已经不足两指：手势还没结束（要等全部抬起），这一帧不换档。
+    if (pair === null) return;
+    const [a, b] = pair;
+    const distance = Math.hypot(b.x - a.x, b.y - a.y);
+    const step = pinchZoomStep(state, distance);
+    this.pinch = step.state;
+    if (step.direction !== 0) {
+      this.cameraCtl.zoomStepAt(step.direction, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    }
+  }
+
+  /** 前两根触屏手指的位置；不足两根返回 null。 */
+  private pinchPair(): [
+    { readonly x: number; readonly y: number },
+    { readonly x: number; readonly y: number },
+  ] | null {
+    if (this.touches.size < 2) return null;
+    const [a, b] = [...this.touches.values()];
+    if (a === undefined || b === undefined) return null;
+    return [a, b];
+  }
+
   /** 触屏长按：500ms 后开上下文面板；桌面鼠标不走这条。 */
   private beginLongPress(pointer: Phaser.Input.Pointer): void {
     if (!pointer.wasTouch) return;
     this.cancelLongPress();
-    const ref = this.unitRefAt(pointer);
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const cell = {
+      x: Math.floor(world.x / TILE_PX),
+      y: Math.floor(world.y / TILE_PX),
+    };
+    const ref = unitAtCell(this.unitStatusWorld(), cell.x, cell.y);
     if (ref === null) return;
     this.longPressRef = ref;
+    this.longPressCell = cell;
     this.longPressTimer = window.setTimeout(() => {
       this.longPressTimer = null;
-      const still = this.longPressRef;
-      if (!longPressShouldFire(LONG_PRESS_MS, still !== null) || still === null) {
-        this.longPressRef = null;
-        return;
-      }
+      const target = this.longPressRef;
+      const origin = this.longPressCell;
       this.longPressRef = null;
+      this.longPressCell = null;
+      if (target === null || origin === null) return;
+      // 指针没动（动了 pointermove 会 cancel），但世界在动：触发前按同一格再查一次。
+      // 人走开、换人、离场都不算长按——按下的那一刻已经不能代表此刻。
+      const underPointer = unitAtCell(this.unitStatusWorld(), origin.x, origin.y);
+      const stillOnTarget = underPointer !== null
+        && underPointer.kind === target.kind
+        && underPointer.id === target.id;
+      if (!longPressShouldFire(LONG_PRESS_MS, stillOnTarget)) return;
       // 长按已处理这次按下：抬手时不再叠开状态菜单。
       this.suppressClickUp = true;
-      this.openContextPanelForRef(still);
+      this.openContextPanelForRef(target);
     }, LONG_PRESS_MS);
   }
 
@@ -2484,6 +2647,7 @@ export class SandboxScene extends Phaser.Scene {
       this.longPressTimer = null;
     }
     this.longPressRef = null;
+    this.longPressCell = null;
   }
 
   /** 点到人：开只读状态菜单。命中判据仍是 `villagerAt`。 */
@@ -2585,6 +2749,7 @@ export class SandboxScene extends Phaser.Scene {
         };
       },
       bondsOf: (holderId) => this.memory?.bondsOf(holderId) ?? [],
+      dayTimelineOf: (holderId, day) => this.dayTimelineWithWhy(holderId, day),
       moodOf: (holderId) => this.memory?.moodOf(holderId) ?? null,
       innerVoiceOf: (holderId) => this.memory?.innerVoiceOf(holderId) ?? null,
     };
@@ -3116,11 +3281,11 @@ export class SandboxScene extends Phaser.Scene {
    * 当前世界的 24 色。
    *
    * 色板值归设定集：灯潮界的 `timber` 与莞尔镇的 `timber` 同名不同色。
-   * 没有 pack（莞尔镇）时回落 `WORLD`——`LEGACY_PACK.palette` 本来就是它，
+   * 没有 pack（莞尔镇）时回落 `paletteFor()`——当前激活世界就是莞尔镇，
    * 这条回落与「默认世界用默认色板」是同一件事。
    */
   private worldPalette(): WorldPalette {
-    return this.pack?.palette ?? WORLD;
+    return this.pack?.palette ?? paletteFor();
   }
 
   private endCreation(): void {
@@ -3598,6 +3763,50 @@ export class SandboxScene extends Phaser.Scene {
         return () => this.cameraModeListeners.delete(listener);
       },
       lookAtVillager: (villagerId: string): void => this.lookAtVillager(villagerId),
+      /**
+       * 调试摆位：把某个村民的**画面**钉在固定格上（名字与气泡跟着走），
+       * 只改这一帧要画的那份快照，不写世界、不进存档。`cell` 为 null 时解除。
+       *
+       * 为什么需要它：冻结帧里没有人的路线正好停在「摊位后一格」，而
+       * 「站在摊位后应被挡住」这条判据必须有可复现的实拍，不能只有断言。
+       * 返回脚底像素与 depth，脚本把读数写在图旁边。
+       */
+      debugPinVillager: (villagerId: string, cell: GridPoint | null) => {
+        if (cell === null) {
+          this.pinnedVillagers.delete(villagerId);
+          return null;
+        }
+        const known = this.snapshot.villagers.some((villager) => villager.id === villagerId);
+        if (!known) return null;
+        this.pinnedVillagers.set(villagerId, { x: cell.x, y: cell.y });
+        const foot = villagerFootAt(cell);
+        return {
+          x: foot.x,
+          y: foot.y,
+          depth: villagerDepthAt(foot.y, ALTITUDE),
+          w: VILLAGER_W,
+          h: VILLAGER_H,
+        };
+      },
+      /**
+       * 调试灯态：`true` 强制亮、`false` 强制灭、`null` 交回世界时钟。
+       * 只压过渲染层的灯态，不改 `lampStreetLitAt` 的时刻判据——证据脚本
+       * 要在同一冻结帧里取「灯亮 / 灯灭」两态的同一块地面，靠的就是这个口子。
+       */
+      debugForceLamps: (on: boolean | null): boolean | null => {
+        this.forcedLamps = on;
+        return on;
+      },
+      /**
+       * 立面与街灯的像素尺寸。尺子读的就是渲染用的常量（`SettingSceneryMetrics`），
+       * 证据脚本拿它画覆盖线与比例，不另抄一份数字；场景未起来时为 `null`。
+       */
+      debugSettingScale: () => this.settingScenery?.metrics ?? null,
+      /**
+       * 地面光池这一层此刻的指令数：灯灭时必须为 0，用来证明光池没有残留
+       * （截图只能看出「没有暖斑」，看不出「上一帧的椭圆有没有被擦掉」）。
+       */
+      debugLampPool: (): number => this.settingScenery?.poolCommands() ?? 0,
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
@@ -3753,7 +3962,8 @@ export class SandboxScene extends Phaser.Scene {
   // ----------------------------------------------------------------- render
 
   private renderSnapshot(delta: number): void {
-    const { snapshot } = this;
+    // 调试摆位只换这一帧要画的那份快照：身体、名字、气泡一起搬，世界不动。
+    const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
     this.syncBuildings();
     this.refreshGroundDecals();
 
@@ -3805,13 +4015,14 @@ export class SandboxScene extends Phaser.Scene {
       const look = style === undefined ? legacyLookFor(villager.id) : resolveLook(style);
       const appearance = { look, lamp: style?.lamp === true };
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
-      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? WORLD);
+      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.tideView.update(this.snapshot.tide.level);
     this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
+      litOverride: this.forcedLamps ?? undefined,
     });
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
@@ -3923,22 +4134,22 @@ export class SandboxScene extends Phaser.Scene {
       const h = building.footprint.h * TILE_PX;
       const g = this.add.graphics();
       const progress = 1 - construction.remainingMs / construction.totalMs;
-      g.lineStyle(1, WORLD.trim, 0.85);
+      g.lineStyle(1, paletteFor().trim, 0.85);
       g.strokeRect(x + 1, y + 1, w - 2, h - 2);
       for (let px = x + 4; px < x + w; px += 8) {
         g.lineBetween(px, y + 2, px, y + h - 2);
       }
-      g.lineStyle(1, WORLD.trim, 0.6);
+      g.lineStyle(1, paletteFor().trim, 0.6);
       g.lineBetween(x + 1, y + h * progress, x + w - 1, y + h * progress);
-      g.fillStyle(WORLD.ink, 0.55);
+      g.fillStyle(paletteFor().ink, 0.55);
       g.fillRect(x + 1, y + 1, w - 2, h - 2);
       container.add(g);
       // 施工标签改图标（D5-A）：进度用线，不再画「施工中 xx%」中文。
       const icon = this.add.graphics();
-      icon.fillStyle(WORLD.trim, 0.95);
+      icon.fillStyle(paletteFor().trim, 0.95);
       icon.fillRect(x + w / 2 - 4, y - 10, 9, 3);
       icon.fillRect(x + w / 2 - 1, y - 7, 2, 5);
-      icon.fillStyle(WORLD.trim, 0.9);
+      icon.fillStyle(paletteFor().trim, 0.9);
       icon.fillRect(x + w / 2 - 4, y - 10, 1, 3);
       container.add(icon);
     }
@@ -4036,4 +4247,68 @@ export class SandboxScene extends Phaser.Scene {
     if (id === null) return null;
     return this.snapshot.buildings.find((item) => item.instanceId === id)?.displayName ?? null;
   }
+
+  /**
+   * 今日时间线加上一句因果：那件事之后，这个人今天真的因为记着它绕开了
+   * 对方几拍。数字取自 `Simulation.avoidanceStats()`（运行时读数），
+   * 不是从 trust 反推的「可能避开」——没跳过就不写这句。
+   */
+  private dayTimelineWithWhy(holderId: string, day: number) {
+    const entries = this.memory?.dayTimelineFor(holderId, day) ?? [];
+    if (day !== Math.floor(this.snapshot.now / DAY_MS)) return entries;
+    const avoid = this.sim.avoidanceStats();
+    const names = new Map(this.snapshot.villagers.map((villager) => [villager.id, villager.name]));
+    return entries.map((entry) => {
+      const other = entry.actors.find((id) => id !== holderId);
+      const beats = other === undefined ? 0 : avoid.byPair[`${holderId}|${other}`] ?? 0;
+      if (other === undefined || beats === 0) return entry;
+      return {
+        ...entry,
+        why: `所以今天避开${names.get(other) ?? other}（${beats} 拍）`,
+      };
+    });
+  }
+
+  /**
+   * 每帧从关系账本算一遍交下去的社会读数。
+   *
+   * 这是「记忆反过来影响行为」的唯一接线处：世界不读记忆，读的是这里交下去
+   * 的 `trust` / `warmth` 与「躲开谁」。阈值在 `liveliness.ts`，不在这里——
+   * 同一个数被两处写死过一次，改一处忘另一处，屏幕上的行为与记忆里的账
+   * 就会说两套话。
+   *
+   * 无记忆（`memory` 尚未构造）时返回空账：世界照旧运行，与从前逐字节相同。
+   */
+  private socialContextFromMemory(): {
+    relations: { from: string; to: string; trust: number; warmth: number }[];
+    avoid: { villagerId: string; otherId: string }[];
+  } {
+    const villagers = this.snapshot?.villagers ?? [];
+    const ids = new Set(villagers.map((villager) => villager.id));
+    const relations: { from: string; to: string; trust: number; warmth: number }[] = [];
+    const avoid: { villagerId: string; otherId: string }[] = [];
+    if (this.memory === undefined) return { relations, avoid };
+    for (const villager of villagers) {
+      for (const bond of this.memory.bondsOf(villager.id)) {
+        if (!ids.has(bond.to)) continue;
+        relations.push({ from: villager.id, to: bond.to, trust: bond.trust, warmth: bond.warmth });
+        if (bond.trust < -0.15) avoid.push({ villagerId: villager.id, otherId: bond.to });
+      }
+    }
+    return { relations, avoid };
+  }
+}
+
+/**
+ * `?now=` 的解析：0..1439 的整数世界分钟。
+ *
+ * 非法值（非数字、负数、超过一天、小数）当作没给——一个坏参数不该把世界
+ * 悄悄挪到别的时刻，也不该白屏；回归脚本写错了会看到「还是 00:00」，比
+ * 看到一个看似合理的错时刻更容易发现。
+ */
+function parseMinuteOfDay(raw: string | null): number | undefined {
+  if (raw === null || raw.trim() === '') return undefined;
+  const minutes = Number(raw);
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1439) return undefined;
+  return minutes;
 }

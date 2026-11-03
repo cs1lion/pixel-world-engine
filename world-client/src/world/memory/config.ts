@@ -131,8 +131,8 @@ export interface MemoryConfig {
    * 「大事」的门槛，判在 `world.ts` 的 `formable()`，**不判在 `qualifies()`**：
    * 门槛只分栏，不闸嘴，够不着它的事照旧在信念与传闻里流动。
    *
-   * 0.4 落在 `routine_done`（0.35，`observe.ts:143`）与 `task_done`（0.45，
-   * `observe.ts:57`）之间：交付能单独立碑，闲话不能。
+   * 0.4 落在 `routine_done`（0.35，`observe.ts:50`）与 `task_done`（0.45，
+   * `observe.ts:170`）之间：交付能单独立碑，闲话不能。
    *
    * **它单独用会把传说清到零。** 实测（`.tmp-audit/legend-census.ts`，2026-11-01，
    * 真设定集、1000ms 拍、8 个世界日）：35 条传说的 `max(importanceHint)`

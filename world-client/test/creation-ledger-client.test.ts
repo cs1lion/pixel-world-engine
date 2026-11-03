@@ -96,6 +96,23 @@ test('append 遇到 500 返回 ok:false，不抛', async () => {
   assert.match(result.reason, /500/);
 });
 
+test('非法 payload 被服务端 422 拒：客户端返回 ok:false，出队器保留该条不吞错', async () => {
+  const client = createCreationLedgerClient({
+    fetchImpl: (async () => new Response(
+      JSON.stringify({ detail: 'record.recordId 缺字段' }),
+      { status: 422, headers: { 'content-type': 'application/json' } },
+    )) as typeof fetch,
+  });
+  const outbox = createCreationLedgerOutbox(client);
+  outbox.enqueue(record('invalid-payload'));
+  const result = await outbox.flush();
+  assert.equal(result?.ok, false);
+  if (result === null || result.ok) throw new Error('422 不该被当成成功');
+  assert.equal(result.status, 422);
+  assert.match(result.reason, /422/);
+  assert.equal(outbox.size, 1, '被拒的记录不能出队，错误也不能被吞掉');
+});
+
 test('出队器：失败留在队里，下一次成功才出队', async () => {
   let attempt = 0;
   const client = createCreationLedgerClient({

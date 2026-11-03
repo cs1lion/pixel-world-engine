@@ -31,6 +31,11 @@ const FEED = process.env.FEED === '1';
 // 显式注入的昼夜阶段。默认正午；要验「换一个本地时刻也成立」时
 // `SMOKE_TIME=dawn|dusk|night` 各跑一次，脚本不再读 `Date.now()`。
 const SMOKE_TIME = process.env.SMOKE_TIME ?? 'noon';
+// 场景的世界时刻由脚本显式给定（`?now=` 世界分钟，00:00 起算）：**默认 00:00
+// 属夜间休息**，居民回锚点睡下，本脚本那条「没人管的时候她会自己走动」在
+// 00:00 语境下本来就不该成立。所以场景显式置为白天 08:15，断言保持原样。
+// `time=noon` 只管画面光照相位，不改世界时钟；世界时钟只由 `now` 给。
+const SMOKE_NOW_MINUTES = 495;
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
@@ -302,6 +307,9 @@ async function runSandboxSuite() {
     '状态行显示多角色摘要',
   );
   // 她自己会动，不是屏保。
+  //
+  // 场景开局时刻是 08:15（`?now=495`），不是默认的 00:00——默认 00:00 属夜间
+  // 休息，她该回锚点睡下。这一条验的是白天无人时她仍按作息走动，断言不改。
   //
   // 节奏 60 之后不能再用「等 3.2 秒再取一次位置」：她走完一趟只要十来秒，
   // 之后会在落脚点待机到下一段行程（dwell 最长 40 世界分钟 = 40 现实秒），
@@ -972,8 +980,8 @@ try {
     //   快照里活一拍。按默认 60× 跑时步长 6000，施工会在同一拍内走完，
     //   「新楼处于施工中」这条根本采不到样；按 1:1 跑则长活变成几十分钟。
     FEED
-      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&speed=30`
-      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&speed=30`,
+      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&now=${SMOKE_NOW_MINUTES}&speed=30`
+      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&now=${SMOKE_NOW_MINUTES}&speed=30`,
     { waitUntil: 'load' },
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });

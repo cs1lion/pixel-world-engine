@@ -20,6 +20,7 @@ import {
   clampScroll,
   createDirectorClock,
   scrollForOrigin,
+  scrollForZoomAnchor,
   stepZoomIndex,
   viewOriginOf,
 } from './camera-math.ts';
@@ -34,6 +35,14 @@ export interface CameraController {
   panTo(x: number, y: number, durationMs?: number): void;
   /** 阶梯缩放：direction 为正放大，为负缩小。 */
   zoomStep(direction: 1 | -1): number;
+  /**
+   * 阶梯缩放，但以屏幕点 `(screenX, screenY)` 为锚。
+   *
+   * 捏合缩放走这条：两指中点下的世界坐标在换档前后不动，玩家才觉得是
+   * 「放大了手指之间那块」，而不是「画面被拽走」。档位与范围仍是
+   * `ZOOM_STEPS` 那一套，与滚轮共用，不另造连续倍率。
+   */
+  zoomStepAt(direction: 1 | -1, screenX: number, screenY: number): number;
   readonly zoom: () => number;
   /** 跟随某个对象（通常是角色）。传 null 回到自由模式。 */
   follow(target: Phaser.GameObjects.GameObject | null): void;
@@ -153,6 +162,33 @@ export function createCameraController(
       const clamped = clampScroll(originX, originY, worldWidth, worldHeight, cam.width, cam.height, next);
       cam.scrollX = scrollForOrigin(clamped.x, cam.width, next);
       cam.scrollY = scrollForOrigin(clamped.y, cam.height, next);
+      return next;
+    },
+
+    zoomStepAt(direction, screenX, screenY) {
+      this.notifyInput();
+      const from = cam.zoom;
+      zoomIndex = stepZoomIndex(zoomIndex, direction);
+      const next = ZOOM_STEPS[zoomIndex]!;
+      // 已经在顶 / 底：不动 scroll。否则每次到顶后继续捏合都会把画面往锚点推一点。
+      if (next === from) return from;
+      const scrollX = scrollForZoomAnchor(cam.scrollX, cam.width, from, next, screenX);
+      const scrollY = scrollForZoomAnchor(cam.scrollY, cam.height, from, next, screenY);
+      cam.setZoom(next);
+      // 与 `zoomStep` 同一套边界口径：夹的是**视野原点**，再按新倍率换回 scroll。
+      const clamped = clampScroll(
+        viewOriginOf(scrollX, cam.width, next),
+        viewOriginOf(scrollY, cam.height, next),
+        worldWidth,
+        worldHeight,
+        cam.width,
+        cam.height,
+        next,
+      );
+      // 取整再落：`roundPixels` 的相机会把 scroll 往下取地板，1e-13 的负数尾巴
+      // 会被压掉整整 1 世界px（实测 423.99999999999994 → 423）。
+      cam.scrollX = Math.round(scrollForOrigin(clamped.x, cam.width, next));
+      cam.scrollY = Math.round(scrollForOrigin(clamped.y, cam.height, next));
       return next;
     },
 

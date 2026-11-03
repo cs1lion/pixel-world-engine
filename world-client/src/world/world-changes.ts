@@ -100,8 +100,11 @@ export type WorldChange =
        *
        * `tide_turn` / `routine_done` 来自 `ambient.ts` 的 `AmbientKind`；
        * `daily_water` / `daily_lamp` 是固定时刻表里已经接通的两件每日小事
-       * （`timetable.ts`）。四个值都是闭集，服务端 `WORLD_EVENT_KINDS` 与
-       * 这里逐字一致——加一个只改一边，回写会被自己的服务端拒掉。
+       * （`timetable.ts`）；`street_*` 是 `liveliness.ts` 里两位居民在街上
+       * 撞见后由确定性规则选出的互动与街头小事；`market_open` / `work_end` /
+       * `night_market` / `market_close` 是市面的四个节点（镇子级事实，
+       * `actorId` 为 `null`）。全部是闭集，服务端 `WORLD_EVENT_KINDS`
+       * 与这里逐字一致——加一个只改一边，回写会被自己的服务端拒掉。
        */
       readonly kind: WorldEventKind;
       /** 一句话，玩家在事件流里读到的就是它。 */
@@ -117,6 +120,15 @@ export type WorldChange =
        * 环境事件的显著度够不着写入线，一条闲话也生不出来。
        */
       readonly actorId: string | null;
+      /**
+       * 这件事里的另一位居民；没有就是缺省。
+       *
+       * 街头互动与街头小事都是两个人的事：`actorId` 是动手的那一位，
+       * `otherId` 是被撞 / 被抢 / 被帮的那一位。方向性关系账本要靠这一对
+       * id 才能各记一笔——只给一个 id 的话，记忆层只能记「谁做了」，
+       * 记不下「对谁做的」。
+       */
+      readonly otherId?: string | null;
     }
   | {
       /**
@@ -164,7 +176,22 @@ export type WorldChange =
     };
 
 /** `world.event` 的种类闭集。服务端白名单的客户端一半。 */
-export type WorldEventKind = 'tide_turn' | 'routine_done' | 'daily_water' | 'daily_lamp';
+export type WorldEventKind =
+  | 'tide_turn'
+  | 'routine_done'
+  | 'daily_water'
+  | 'daily_lamp'
+  | 'street_greet'
+  | 'street_yield'
+  | 'street_quarrel'
+  | 'street_together'
+  | 'street_tumble'
+  | 'street_water'
+  | 'street_help'
+  | 'market_open'
+  | 'work_end'
+  | 'night_market'
+  | 'market_close';
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
 export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [

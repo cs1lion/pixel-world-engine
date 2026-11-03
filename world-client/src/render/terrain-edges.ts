@@ -45,8 +45,7 @@
 
 import type Phaser from 'phaser';
 import type { TerrainId } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
-import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import { paletteFor, type WorldColor, type WorldPalette } from '../world/theme.ts';
 import { TILE_PX } from '../world/setup.ts';
 
 /** 材质高度序：边只画在高度**更大**的一侧。 */
@@ -66,7 +65,7 @@ export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
  *
  * 存 **token 名**而不是解析后的色值：设定集换掉 `plaza` 时，边要跟着换，
  * 存色值就等于把莞尔镇的颜色冻在第二座镇子的岸边上。色值到 `drawTileEdge`
- * 里按当次色板解析，默认仍是 `WORLD`。
+ * 里按当次色板解析，默认仍是当前世界的色板。
  */
 export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
   tree: 'grassLit',
@@ -93,16 +92,16 @@ export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
 /**
  * 暗边 token 名：按材质查表，**不能**全场统一用一个色。
  *
- * 原来全场统一用 soil（W02）。但 `tree` 的底色本身就是 soil
- * （`TERRAIN_COLORS.tree = WORLD.soil`），于是 tree 格朝下/朝右的暗边画出来
+ * 原来全场统一用 soil（W02）。但 `tree` 的底色本身就是 soil（地形表里
+ * `tree` 直接指向 `soil`），于是 tree 格朝下/朝右的暗边画出来
  * 与底色完全相同 —— 亮度落差 **0.0**，等于白画。
  *
  * 那批像素有多少：默认世界（`buildLargeWorld`，96×72）实测 2597 个 tree 格里有
  * 630 格画朝下/朝右的暗边（其中 82 格两边都画，合 712 条边），边是 11392 px；
  * 这 630 格还顺带补了 176 个暗内凹角，整批 11568 px。分母取**边写入总量**
- * 29387 px——那是 `fillRect` 的面积和，邻边共用的角像素被数了不止一次，去重后
- * 只有 29003 px，所以 29387 不是「有多少个像素」，是「写了多少像素次」。
- * 整批占 39.4%（11568/29387）；两边都按去重像素算是 11274/29003 = 38.9%。
+ * 29580 px——那是 `fillRect` 的面积和，邻边共用的角像素被数了不止一次，去重后
+ * 只有 29195 px，所以 29580 不是「有多少个像素」，是「写了多少像素次」。
+ * 整批占 39.1%（11568/29580）；两边都按去重像素算是 11274/29195 = 38.6%。
  * 分母是边，不是「总写入像素」——连底色那趟一起算是 0.65%（11568/1769472，
  * 96×72 格 × 256 px），那个数没有信息量，所以原来选的分母本身就是含糊的。
  *
@@ -134,7 +133,7 @@ export const BRIGHT: Readonly<Record<TerrainId, WorldColor>> = {
  *   - `9.98–20.80`（其他材质对 soil 的区间）—— 同文件的「区间」那条
  *   - `6`（可辨下限）—— 就是本文件导出的 `EDGE_VISIBLE_MIN_DL`，两处测试都 import 它
  *   - `24`（色预算）—— 不在这儿锁，归 `palette-budget.test.ts`
- *   - 上一段的 `2597 / 630 / 712 / 11392 / 176 / 11568 / 29387 / 29003 / 39.4%`
+ *   - 上一段的 `2597 / 630 / 712 / 11392 / 176 / 11568 / 29580 / 29195 / 39.1%`
  *     是**像素计数**，不是落差。它们由 `terrain-edge-pixels.test.ts` 钉住——那是
  *     本文件自己的守卫，会跟着世界改，红的意思是来改这段注释，不是去改测试。
  *     它们是默认世界（96×72）的数；小世界（30×20）是 96 个 tree 格 / 46 格画暗边
@@ -301,7 +300,7 @@ export function drawTileEdge(
   around: EdgeNeighbors,
   px: number,
   py: number,
-  palette: WorldPalette = WORLD,
+  palette: WorldPalette = paletteFor(),
 ): void {
   const side = sideMask(self, around);
   const corner = cornerMask(self, around);

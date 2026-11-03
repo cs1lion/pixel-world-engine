@@ -128,6 +128,17 @@ import {
 } from './verify.ts';
 import { computeVitals, type TellRecord } from './vitals.ts';
 
+/** 一条**已经由世界判好方向**的关系增量。 */
+export interface BondDelta {
+  /** 谁的关系被改。 */
+  readonly from: string;
+  /** 对着谁。 */
+  readonly to: string;
+  readonly trust: number;
+  readonly warmth: number;
+  readonly debt?: number;
+}
+
 /** 交进来的一条事件：世界侧已经知道谁在场，或由这里按感知模型算。 */
 export interface IngestInput {
   readonly eventId: string;
@@ -190,6 +201,12 @@ export interface IngestInput {
    * 省略 = 普通地点，不产生地标阶段。
    */
   readonly landmark?: LandmarkEvent;
+  /**
+   * 方向性关系增量。少数事件在感知规则之外**已经知道方向**——街头小事
+   * 里谁撞了谁、谁帮了谁，世界那一侧就定下来了。这里收的是那些数的落账，
+   * 不是另一套关系推断：不传时行为与从前逐字节相同。
+   */
+  readonly bondDeltas?: readonly BondDelta[];
 }
 
 /**
@@ -549,6 +566,10 @@ export class MemoryWorld {
     // 方向性关系账本：**见证人 → 当事人**，不是在场的所有人两两互写。
     // A 看见 B 做了什么，只改 A 对 B；B 对 A 要 B 自己看见才算。
     this.updateBondsFromFact(fact, valence, day);
+    // 街头小事的方向世界已经判好了：谁撞谁、谁帮谁。这一笔只落账，
+    // 不再按见证人推——两个人都在场时，上面那条规则会把当事人跳过，
+    // 于是「被撞的那一位恨撞人的」这一半永远记不下。
+    if (input.bondDeltas !== undefined) this.applyBondDeltas(input.bondDeltas, fact.eventId, day);
 
     for (const holderId of witnesses) {
       const holder = this.holders.get(holderId);
@@ -1453,6 +1474,10 @@ export class MemoryWorld {
     const closedDay = day;
     this.currentDay = closedDay;
 
+    // 关系账本先衰减，再整理记忆：第二天读到的 trust 是衰减后的绝对值，
+    // 而证据链仍指着原事件。当天刚写过的那条不衰减——否则「今天结下的
+    // -0.22」在当天关账时就变成 -0.187，日读数会把两天的变化混成一天。
+    this.decayBonds(closedDay);
     this.diffuseDay(at);
     this.weatherTraces(closedDay);
 
@@ -1786,6 +1811,64 @@ export class MemoryWorld {
     }
   }
 
+  /**
+   * 落一笔方向性关系增量。与 `bumpBond` 的区别只有一处：数由调用方给，
+   * 不再按 valence 折算。`from` 是「谁对谁的关系」，所以 A→B 与 B→A
+   * 是两条独立的账——街头小事要的正是这种不对称。
+   *
+   * 证据保留 `eventId`：面板上点开某一条时间线，能顺着它回到这条关系
+   * 是被哪件事改的。
+   */
+  private applyBondDeltas(
+    deltas: readonly BondDelta[],
+    eventId: string,
+    day: number,
+  ): void {
+    for (const delta of deltas) {
+      const { from, to } = delta;
+      if (from === to) continue;
+      const a = this.holders.get(from);
+      const b = this.holders.get(to);
+      if (a === undefined || b === undefined || a.type !== 'character' || b.type !== 'character') continue;
+      const current = this.bonds.get(this.bondKey(from, to));
+      const evidence = current === undefined
+        ? [eventId]
+        : [eventId, ...current.evidence.filter((id) => id !== eventId)].slice(0, 8);
+      this.bonds.set(this.bondKey(from, to), {
+        from,
+        to,
+        trust: clampBond((current?.trust ?? 0) + delta.trust),
+        warmth: clampBond((current?.warmth ?? 0) + delta.warmth),
+        debt: clampBond((current?.debt ?? 0) + (delta.debt ?? 0)),
+        familiarity: clamp01((current?.familiarity ?? 0) + 0.07),
+        strength: clamp01((current?.strength ?? 0) + 0.05),
+        confidence: Math.max(current?.confidence ?? 0, 0.9),
+        evidence,
+        updatedDay: day,
+      });
+      this.refreshRelation(from, to);
+    }
+  }
+
+  /**
+   * 日终把关系读数往 0 收：与记忆强度同一条 `decayRate`（0.15/天），
+   * 所以 `-0.22` 的 trust 会按 -0.187、-0.159、-0.135… 一路回到阈值内。
+   *
+   * 只衰减 `trust` 与 `warmth`：`debt` 是「欠了一次」的事实，不该被忘掉；
+   * `evidence` 与 `updatedDay` 原样保留，面板仍能顺着它回到那件事。
+   * 当天写过的不衰减，见 `dayClosed`。
+   */
+  private decayBonds(closedDay: number): void {
+    const factor = 1 - this.config.decayRate;
+    for (const [key, bond] of this.bonds) {
+      if (bond.updatedDay >= closedDay) continue;
+      const trust = Math.abs(bond.trust) < 0.01 ? 0 : bond.trust * factor;
+      const warmth = Math.abs(bond.warmth) < 0.01 ? 0 : bond.warmth * factor;
+      this.bonds.set(key, { ...bond, trust, warmth });
+      this.refreshRelation(bond.from, bond.to);
+    }
+  }
+
   private bumpBond(from: string, to: string, valence: number, eventId: string, day: number): void {
     if (from === to) return;
     const a = this.holders.get(from);
@@ -1852,6 +1935,23 @@ export class MemoryWorld {
 
   bondOf(from: string, to: string): Bond | null {
     return this.bonds.get(this.bondKey(from, to)) ?? null;
+  }
+
+  /**
+   * 一条事实的**公共三件套**：落点、当事人、当时那句话。
+   *
+   * 只给这三样，不给 `witnesses`——那是「谁也看见了」，属于别人。
+   * 个人时间线要用它把「我记住的那条」补上「在哪、和谁」，但单位没有
+   * 权利知道镇上谁还旁听了同一件事。
+   */
+  factDigest(eventId: string): { readonly placeId: string; readonly actors: readonly string[]; readonly what: string } | null {
+    const fact = this.facts.get(eventId);
+    if (fact === undefined) return null;
+    return {
+      placeId: fact.placeId,
+      actors: [...fact.actors],
+      what: this.whatOf(fact),
+    };
   }
 
   /** 这个人的方向性关系（只含 from=他自己）。只读副本，按 to 排序。 */

@@ -20,7 +20,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { GridPoint, PrefabBlueprint } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 
 export interface GhostView {
   /** 显示幽灵；`ok` 决定颜色。 */
@@ -46,10 +46,10 @@ export function createGhostView(scene: Phaser.Scene): GhostView {
       const h = blueprint.footprint.h * TILE_PX;
       // 冷暖对立，比「两种暖色」好认：可行是冷色水蓝，不可行是暖色故障橙。
       // 也避开了「橙色=可点」的习惯读法——这里橙色恰恰是「不行」。
-      const color = ok ? WORLD.water : WORLD.ember;
+      const color = ok ? paletteFor().water : paletteFor().ember;
 
       // 淡填充 + 实轮廓 + 门口标记。
-      g.fillStyle(WORLD.ink, 0.22);
+      g.fillStyle(paletteFor().ink, 0.22);
       g.fillRect(x, y, w, h);
       g.lineStyle(1, color, 0.9);
       g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
@@ -63,7 +63,7 @@ export function createGhostView(scene: Phaser.Scene): GhostView {
       const dy = y + blueprint.door.y * TILE_PX + TILE_PX / 2;
       g.fillStyle(color, 1);
       g.fillRect(dx - 2, dy - 2, 4, 4);
-      g.fillStyle(WORLD.ink, 1);
+      g.fillStyle(paletteFor().ink, 1);
       g.fillRect(dx - 1, dy - 1, 2, 2);
 
       g.setVisible(true);

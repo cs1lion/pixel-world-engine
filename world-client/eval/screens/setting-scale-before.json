@@ -1,0 +1,82 @@
+{
+  "label": "before",
+  "file": "eval/screens/setting-scale-before.png",
+  "cam": {
+    "scrollX": 360,
+    "scrollY": 265,
+    "zoom": 2,
+    "width": 480,
+    "height": 320,
+    "worldViewX": 480,
+    "worldViewY": 345,
+    "mode": "free"
+  },
+  "zoom": 2,
+  "clip": {
+    "x": 265.5,
+    "y": 228.796875,
+    "width": 480,
+    "height": 320
+  },
+  "stats": {
+    "graphicsObjects": 46,
+    "totalCommands": 12363,
+    "largest": [
+      1584,
+      1513,
+      1338,
+      1304,
+      1290
+    ]
+  },
+  "metrics": null,
+  "metricsSource": "HEAD 基线常量（无 debugSettingScale）",
+  "pins": {
+    "hero": {
+      "x": 600,
+      "y": 464,
+      "depth": 1472,
+      "w": 24,
+      "h": 30
+    },
+    "underLamp": {
+      "x": 616,
+      "y": 448,
+      "depth": 1456,
+      "w": 24,
+      "h": 30
+    },
+    "second": "迷路人"
+  },
+  "scanned": {
+    "frameH": 32,
+    "stoneH": 4,
+    "bodyBottomH": 24,
+    "refs": {
+      "frame": [
+        65,
+        45,
+        50
+      ],
+      "stone": [
+        82,
+        102,
+        106
+      ],
+      "post": [
+        65,
+        45,
+        50
+      ]
+    },
+    "metricsDriven": false
+  },
+  "errors": [],
+  "ancient": {
+    "personH": 30,
+    "shopfrontH": 32,
+    "shopfrontTop": 0,
+    "lampPostH": 37,
+    "lampBodyBottom": 24
+  }
+}

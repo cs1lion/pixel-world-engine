@@ -30,7 +30,23 @@ from rules.schema import Command, CommandRejected, validate_commands
 MAX_COMMANDS = 1
 
 #: 一句话最多多长。再长的输入不是神谕，是一篇文章。
-MAX_UTTERANCE_CHARS = 500
+#:
+#: **这个数与客户端 `UTTERANCE_MAX_LENGTH`（`world-client/src/ui/oracle-panel.ts`）
+#: 必须是同一个值。** 两边各写一份是必要的（前端不 import Python），但值不能
+#: 各挑各的：客户端 200、服务端 500 的话，一个 250 字的句子在 UI 里被拒、
+#: 绕过 UI 却过得去，于是「服务端也挡」那道闸形同虚设。改这里时同步改那边。
+MAX_UTTERANCE_CHARS = 200
+
+
+def utterance_length(text: str) -> int:
+    """按**客户端 `String.length` 的算法**数字数：UTF-16 码元。
+
+    CJK 的常用字在两边都是 1，但 emoji 在 JS 里是 2（代理对），Python 的
+    `len()` 只算 1。按 `len()` 数的话，100 个 emoji（客户端眼里 200 字）
+    在服务端只算 100 字，旁路请求就成了那个「绕过」。差得不多，但正是
+    「客户端挡住了、上游没挡」那类漏洞的形状。
+    """
+    return len(text.encode("utf-16-le")) // 2
 
 
 class ModelUnavailable(RuntimeError):
@@ -93,10 +109,11 @@ def interpret(
     text = utterance.strip()
     if text == "":
         return _failure("empty-utterance", "空句子")
-    if len(text) > MAX_UTTERANCE_CHARS:
+    length = utterance_length(text)
+    if length > MAX_UTTERANCE_CHARS:
         return _failure(
             "utterance-too-long",
-            f"这句话太长了（{len(text)} 字），最多 {MAX_UTTERANCE_CHARS} 字",
+            f"这句话太长了（{length} 字），最多 {MAX_UTTERANCE_CHARS} 字",
         )
     if not isinstance(templates, list) or not templates:
         return _failure("no-templates", "没有模板表，模型不知道该能建什么")

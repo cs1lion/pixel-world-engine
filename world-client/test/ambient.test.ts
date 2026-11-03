@@ -8,6 +8,23 @@ import {
   type AmbientDweller,
   type AmbientInput,
 } from '../src/world/ambient.ts';
+import {
+  EMPTY_LIVELY_HISTORY,
+  LIVELY_AVOID_TRUST,
+  LIVELY_CLOSE_CELLS,
+  LIVELY_DAILY_CAP,
+  LIVELY_GAP_MS,
+  LIVELY_INCIDENT_SLOT_MS,
+  LIVELY_QUARREL_COOLDOWN_DAYS,
+  LIVELY_SLOT_MS,
+  livelyBetween,
+  livelyPairKey,
+  livelySettledKey,
+  type LivelyEvent,
+  type LivelyHistory,
+  type LivelyInput,
+  type LivelyVillager,
+} from '../src/world/liveliness.ts';
 
 /**
  * 世界自己生事：没有谁下命令，镇子自己走到这一刻。
@@ -151,5 +168,315 @@ test('槽边界：正好落在边界上算新槽，差一毫秒不算', () => {
     ambientBetween(input({ prevNow: SLOT - 1, now: SLOT, tideAt: flat(0.62), dwellers: [dweller] }))
       .length,
     1,
+  );
+});
+
+// ------------------------------------------------------------ 街头活气
+//
+// 这一组钉三件事：三个以上的互动确实能被位置 + 关系选出来；同一输入逐字可复现；
+// 街头小事三种都能在合适的位置/时辰被触发。位置与关系都是输入的，判据不碰外部状态。
+
+const WATER = { x: 12, y: 9 };
+const STANDING: LivelyVillager = {
+  id: 'v0',
+  name: '甲',
+  cell: { x: 10, y: 9 },
+  walking: false,
+  standing: true,
+  carrying: false,
+  free: true,
+};
+const STANDING_NEAR: LivelyVillager = {
+  ...STANDING,
+  id: 'v1',
+  name: '乙',
+  cell: { x: 11, y: 9 },
+};
+const WALKING_NEAR: LivelyVillager = {
+  ...STANDING_NEAR,
+  walking: true,
+  standing: false,
+};
+
+function livelyInput(over: Partial<LivelyInput> = {}): LivelyInput {
+  return {
+    prevNow: 6 * 3_600_000,
+    now: 6 * 3_600_000,
+    seed: 'street-test',
+    villagers: [STANDING, STANDING_NEAR],
+    relations: [],
+    waterPlace: WATER,
+    ...over,
+  };
+}
+
+/** 在一个 10 分钟槽的边界上走一拍。 */
+const livelyAt = (slot: number, over: Partial<LivelyInput> = {}): LivelyInput => ({
+  ...livelyInput(over),
+  prevNow: slot * LIVELY_SLOT_MS - 1,
+  now: slot * LIVELY_SLOT_MS,
+});
+
+test('同样输入两次，逐字相同（种子是唯一的随机来源）', () => {
+  for (let slot = 37; slot < 120; slot += 1) {
+    const given = livelyAt(slot);
+    assert.deepEqual(livelyBetween(given), livelyBetween(given));
+    if (livelyBetween(given).length > 0) return;
+  }
+  assert.fail('120 个槽里一件街头互动都没有——这条测试自己就没在验复现');
+});
+
+test('位置 + 关系能选出三种以上的互动：招呼 / 一起做事 / 让路', () => {
+  const kinds = new Set<string>();
+  for (let slot = 37; slot < 220; slot += 1) {
+    for (const event of livelyBetween(livelyAt(slot))) kinds.add(event.kind);
+    for (const event of livelyBetween(livelyAt(slot, { villagers: [STANDING, WALKING_NEAR] }))) {
+      kinds.add(event.kind);
+    }
+  }
+  assert.ok(kinds.has('street_greet'), '站着的两个人碰面从来没招呼过');
+  assert.ok(kinds.has('street_together'), '白天挨着的两个人从来没一起搭手');
+  assert.ok(kinds.has('street_yield'), '走路的人从来没让过路');
+});
+
+test('关系读数够冷时，站着碰面一定变成争执而不是招呼', () => {
+  const cold = [
+    { from: 'v0', to: 'v1', trust: LIVELY_AVOID_TRUST - 0.05, warmth: -0.2 },
+    { from: 'v1', to: 'v0', trust: LIVELY_AVOID_TRUST - 0.05, warmth: -0.2 },
+  ];
+  for (let slot = 37; slot < 400; slot += 1) {
+    const events = livelyBetween(livelyAt(slot, { relations: cold }));
+    if (events.length === 0) continue;
+    assert.equal(events[0]!.kind, 'street_quarrel', '冷到阈值以下还在笑着打招呼，关系读数等于没接上');
+    return;
+  }
+  assert.fail('400 个槽里没有一次跨槽——这条测试的前提没成立');
+});
+
+test('让路只挪站着的那位，走路的那位路线不动', () => {
+  for (let slot = 37; slot < 220; slot += 1) {
+    const events = livelyBetween(livelyAt(slot, { villagers: [STANDING, WALKING_NEAR] }));
+    const yieldEvent = events.find((event) => event.kind === 'street_yield');
+    if (yieldEvent === undefined) continue;
+    assert.equal(yieldEvent.shift?.villagerId, 'v0', '被让路的那位反而挪了');
+    assert.equal(yieldEvent.shift?.awayFromId, 'v1');
+    return;
+  }
+  assert.fail('200 个槽里没有一次让路');
+});
+
+test('街头小事三种都能被触发：撞担 / 抢水 / 帮抬', () => {
+  const kinds = new Set<string>();
+  const carrier: LivelyVillager = {
+    ...STANDING,
+    id: 'v0',
+    name: '甲',
+    carrying: true,
+  };
+  const helper: LivelyVillager = {
+    ...STANDING_NEAR,
+    id: 'v1',
+    name: '乙',
+  };
+  for (let day = 0; day < 60; day += 1) {
+    const base = day * 12 * LIVELY_INCIDENT_SLOT_MS;
+    for (const hourOffset of [3, 4]) {
+      // 槽首是 6:00 / 8:00——抢水那两拍。
+      const now = base + hourOffset * LIVELY_INCIDENT_SLOT_MS;
+      const incidentInput = (villagers: LivelyVillager[], relations: LivelyInput['relations'] = []) => ({
+        ...livelyInput({ villagers, relations }),
+        prevNow: now - 1,
+        now,
+      });
+      for (const event of livelyBetween(incidentInput([carrier, helper]))) kinds.add(event.kind);
+      for (const event of livelyBetween(incidentInput([STANDING, WALKING_NEAR]))) kinds.add(event.kind);
+      for (const event of livelyBetween(incidentInput(
+        [{ ...STANDING, cell: WATER }, { ...STANDING_NEAR, cell: { x: WATER.x + 1, y: WATER.y } }],
+      ))) kinds.add(event.kind);
+    }
+  }
+  assert.ok(kinds.has('street_help'), '肩上有货却从没人搭手');
+  assert.ok(kinds.has('street_water'), '清晨井边从来没抢过水');
+  assert.ok(kinds.has('street_tumble'), '路上从来没撞翻过担子');
+  assert.ok(kinds.size >= 3);
+  // 位置判据必须真的在起作用：把两人拉到 4 格外，什么都不会出。
+  const far = { ...STANDING_NEAR, cell: { x: STANDING.cell.x + LIVELY_CLOSE_CELLS + 2, y: STANDING.cell.y } };
+  for (let slot = 37; slot < 60; slot += 1) {
+    assert.deepEqual(livelyBetween(livelyAt(slot, { villagers: [STANDING, far] })), []);
+  }
+});
+
+const DAY_SLOTS = 24 * 60 / 10;
+
+/**
+ * 按 `Simulation` 的同一本日账逐槽走一天：去重、上限、冷却、最近互动都要吃账。
+ * 返回每一件落地的时刻，供「不堆在同一分钟」的断言用。
+ */
+function runLivelyDay(options: {
+  seed: string;
+  villagers: LivelyVillager[];
+  relations?: LivelyInput['relations'];
+  day?: number;
+  history?: LivelyHistory;
+}): { events: { event: LivelyEvent; at: number }[]; history: LivelyHistory } {
+  let totalToday = options.history?.totalToday ?? 0;
+  const settledToday = [...(options.history?.settledToday ?? [])];
+  const quarrelDays = { ...(options.history?.quarrelDays ?? {}) };
+  const lastAt = { ...(options.history?.lastAt ?? {}) };
+  const todayByVillager = { ...(options.history?.todayByVillager ?? {}) };
+  const events: { event: LivelyEvent; at: number }[] = [];
+  const day = options.day ?? 0;
+  for (let slot = day * DAY_SLOTS + 36; slot < day * DAY_SLOTS + 138; slot += 1) {
+    const at = slot * LIVELY_SLOT_MS;
+    const found = livelyBetween({
+      prevNow: at - 1,
+      now: at,
+      seed: options.seed,
+      villagers: options.villagers,
+      relations: options.relations ?? [],
+      waterPlace: WATER,
+      history: { totalToday, settledToday, quarrelDays, lastAt, todayByVillager },
+    });
+    for (const event of found) {
+      events.push({ event, at });
+      totalToday += 1;
+      const pairKey = livelyPairKey(event.actorId, event.otherId);
+      settledToday.push(livelySettledKey(pairKey, event.kind));
+      lastAt[event.actorId] = at;
+      lastAt[event.otherId] = at;
+      todayByVillager[event.actorId] = (todayByVillager[event.actorId] ?? 0) + 1;
+      todayByVillager[event.otherId] = (todayByVillager[event.otherId] ?? 0) + 1;
+      if (event.kind === 'street_quarrel') quarrelDays[pairKey] = day;
+    }
+  }
+  return {
+    events,
+    history: { totalToday, settledToday, quarrelDays, lastAt, todayByVillager },
+  };
+}
+
+test('一天上限 12 件、同一对同类只落一次，时间不堆在同一分钟', () => {
+  const run = runLivelyDay({ seed: 'street-test', villagers: [STANDING, STANDING_NEAR] });
+  assert.ok(run.events.length >= 3, '一天下来一件互动都没有，这条测试自己就没在验限流');
+  assert.ok(
+    run.events.length <= LIVELY_DAILY_CAP,
+    `一天落了 ${run.events.length} 件，超过上限 ${LIVELY_DAILY_CAP}`,
+  );
+  const keys = run.events.map(
+    ({ event }) => livelySettledKey(livelyPairKey(event.actorId, event.otherId), event.kind),
+  );
+  assert.equal(new Set(keys).size, keys.length, '同一对同一类在同一天落了两次');
+  assert.equal(
+    new Set(run.events.map(({ at }) => at)).size,
+    run.events.length,
+    '两件互动落在同一拍，街上还是叠在一起',
+  );
+  const hourSpread = new Set(run.events.map(({ at }) => Math.floor(at / 3_600_000)));
+  assert.ok(hourSpread.size > 1, '所有互动都挤在同一个小时里');
+  for (let index = 1; index < run.events.length; index += 1) {
+    const gap = run.events[index]!.at - run.events[index - 1]!.at;
+    assert.ok(
+      gap >= LIVELY_GAP_MS,
+      `第 ${index} 与第 ${index + 1} 件只隔 ${gap / 60_000} 分钟，短于 ${LIVELY_GAP_MS / 60_000} 分钟的护栏`,
+    );
+  }
+});
+
+test('任意两件之间至少隔 30 世界分钟：20 分钟后那一槽直接跳过', () => {
+  const at = 6 * 60 * 60_000 + 20 * 60_000;
+  const recent: LivelyHistory = { ...EMPTY_LIVELY_HISTORY, lastAt: { v0: at - 20 * 60_000, v1: at - 20 * 60_000 } };
+  assert.deepEqual(livelyBetween(livelyAt(0, { now: at, history: recent })), []);
+});
+
+test('账本满了：第 13 件直接跳过，不再开口', () => {
+  const full: LivelyHistory = { ...EMPTY_LIVELY_HISTORY, totalToday: LIVELY_DAILY_CAP };
+  for (let slot = 37; slot < 80; slot += 1) {
+    assert.deepEqual(livelyBetween(livelyAt(slot, { history: full })), []);
+  }
+});
+
+test('争执按 3 个世界日冷却：第二、三天不再吵，第四天才可能再吵', () => {
+  const cold = [
+    { from: 'v0', to: 'v1', trust: LIVELY_AVOID_TRUST - 0.05, warmth: -0.2 },
+    { from: 'v1', to: 'v0', trust: LIVELY_AVOID_TRUST - 0.05, warmth: -0.2 },
+  ];
+  const first = runLivelyDay({ seed: 'quarrel-cool', villagers: [STANDING, STANDING_NEAR], relations: cold });
+  assert.ok(
+    first.events.some(({ event }) => event.kind === 'street_quarrel'),
+    '第一天没有吵起来，冷却测试的前提没成立',
+  );
+  const carry = (): LivelyHistory => ({
+    totalToday: 0,
+    settledToday: [],
+    quarrelDays: first.history.quarrelDays,
+    lastAt: first.history.lastAt,
+    todayByVillager: {},
+  });
+  for (const day of [1, 2]) {
+    const next = runLivelyDay({
+      seed: 'quarrel-cool', villagers: [STANDING, STANDING_NEAR], relations: cold, day, history: carry(),
+    });
+    assert.ok(
+      !next.events.some(({ event }) => event.kind === 'street_quarrel'),
+      `第 ${day} 天又吵了——${LIVELY_QUARREL_COOLDOWN_DAYS} 日冷却没生效`,
+    );
+  }
+  const later = runLivelyDay({
+    seed: 'quarrel-cool',
+    villagers: [STANDING, STANDING_NEAR],
+    relations: cold,
+    day: LIVELY_QUARREL_COOLDOWN_DAYS,
+    history: carry(),
+  });
+  assert.ok(
+    later.events.some(({ event }) => event.kind === 'street_quarrel'),
+    '冷却期满后一天都没再吵，冷却把争执永久关掉了',
+  );
+});
+
+test('五个人同场：轮转按最近互动，没人整天零互动', () => {
+  const five = ['v0', 'v1', 'v2', 'v3', 'v4'].map((id) => ({
+    ...STANDING,
+    id,
+    name: id,
+    cell: { x: 10, y: 10 },
+  }));
+  const run = runLivelyDay({ seed: 'five-way', villagers: five });
+  const counts: Record<string, number> = {};
+  for (const { event } of run.events) {
+    counts[event.actorId] = (counts[event.actorId] ?? 0) + 1;
+    counts[event.otherId] = (counts[event.otherId] ?? 0) + 1;
+  }
+  assert.equal(Object.keys(counts).length, five.length, '五个人里有人一整天没进过任何互动');
+  const values = Object.values(counts);
+  assert.ok(
+    Math.max(...values) - Math.min(...values) <= 4,
+    `互动分布差得太多：${JSON.stringify(counts)}`,
+  );
+});
+
+test('五个人排成一排：只有邻对够得着时，也没人整天零互动', () => {
+  // 同一格那条会显不出「距离」：十对全在 2 格以内。这里把人铺开成一条
+  // 间距 2 格的街，能互动的只剩四对邻对，谁都不该被挤掉。
+  const five = ['v0', 'v1', 'v2', 'v3', 'v4'].map((id, index) => ({
+    ...STANDING,
+    id,
+    name: id,
+    cell: { x: 10 + index * 2, y: 10 },
+  }));
+  const run = runLivelyDay({ seed: 'five-way', villagers: five });
+  const counts: Record<string, number> = {};
+  const adjacent = new Set(['v0|v1', 'v1|v2', 'v2|v3', 'v3|v4']);
+  for (const { event } of run.events) {
+    counts[event.actorId] = (counts[event.actorId] ?? 0) + 1;
+    counts[event.otherId] = (counts[event.otherId] ?? 0) + 1;
+    const pairKey = livelyPairKey(event.actorId, event.otherId);
+    assert.ok(adjacent.has(pairKey), `隔着一格以上的 ${pairKey} 也互动了，距离判据没生效`);
+  }
+  assert.equal(Object.keys(counts).length, five.length, '排成一排时有人一整天零互动');
+  const values = Object.values(counts);
+  assert.ok(
+    Math.max(...values) - Math.min(...values) <= 4,
+    `一排站位的互动分布差得太多：${JSON.stringify(counts)}`,
   );
 });
