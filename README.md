@@ -296,14 +296,14 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-pool
 ```
 
 夜街全景另有一支：zoom 1 扫过 5 根灯柱，逐列量「灯亮 - 灯灭」的亮度差，
-直接量出暗带位置与宽度，并对比改前/改后的像素差（`eval/screens/lamp-band.png`）：
+直接量出暗带位置与宽度，并对比改前/改后的像素差（`eval/screens/lamp-band-after.png`）：
 
 ```bash
 cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-band
 ```
 
-拍「改前」先 `BAND_LABEL=before`（在外圈半径改动之前跑），改后再跑一次
-`BAND_LABEL=after`，合成页会多出「改前 → 改后」那一行。
+改前基线是一次性的：在外圈半径改动之前用 `BAND_LABEL=before` 拍一张；
+之后重跑默认拍「改后」，不会覆盖基线，合成页会多出「改前 → 改后」那一行。
 
 立面尺度也留了对照证据：同一机位、同一冻结帧拍「改前 / 改后」，把墙、人、灯柱三把标尺
 画在图上，并从截图里逐像素量墙高、石脚与灯体下沿的净空（`eval/screens/setting-scale.png`）：

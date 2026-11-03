@@ -13,8 +13,9 @@
  *
  * 跑法：
  *   cd world-client && npm run dev
+ *   # 默认拍「改后」；只有在半径改动之前才需要先拍改前基线
  *   PIXEL_WORLD_URL=http://127.0.0.1:5200/ BAND_LABEL=before node scripts/check-lamp-band.mjs
- *   # 若确认有暗带并放宽了半径，再拍一次 BAND_LABEL=after
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5200/ node scripts/check-lamp-band.mjs
  *   # 两次都在时，合成页会多一行「before / after 差异」
  */
 
@@ -24,7 +25,8 @@ import { chromium } from '@playwright/test';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
-const LABEL = process.env.BAND_LABEL ?? 'before';
+// 默认拍「改后」：`before` 是半径改动之前拍的一次性基线，重跑不该覆盖它。
+const LABEL = process.env.BAND_LABEL ?? 'after';
 mkdirSync(OUT, { recursive: true });
 
 const SETUP_AT = 80;
