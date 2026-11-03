@@ -1,0 +1,16 @@
+# 默认让唯一维护者看到所有 PR；以后加人只改下面这几行。
+* @cs1lion
+
+# 渲染层：改画面输出的约定由渲染负责人看。
+/world-client/src/render/ @cs1lion
+
+# 存档契约：schema/迁移一改，老档就可能读不进来。
+/world-client/src/world/save.ts @cs1lion
+
+# 服务端：命令白名单、记忆写入、事件日志的边界。
+/server/ @cs1lion
+
+# 仓库手续本身也要被看见：钩子、CI、PR 模板、登记表与断点约定。
+/.githooks/ @cs1lion
+/.github/ @cs1lion
+/docs/ @cs1lion

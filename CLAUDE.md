@@ -31,12 +31,49 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 服务端在 `server/`，CI 有第二个 job：`pip install -r requirements.txt` 然后
 `python -m pytest`。
 
-**这几条要一起跑，别只跑前两条。** 这里原来只列了 `check / test / build`，还写着
-「CI 跑的就是这几条」——那句话是假的：前端 job 实际跑八条，后四条是三个审引用的
-脚本加一个查色板的。它们的输出有个共同性质：**引用对不上、节号不存在、色板超预算
-，全都只让输出变长，不会让 `check`/`test` 变红。** 所以只跑前两条的人会以为自己是
-绿的，而四个闸门一个都没过。完整清单以 `.github/workflows/ci.yml` 为准——那一份
-加了新步骤时，这里要跟着改。
+**这几条要一起跑，别只跑前两条。** CI 现在跑**九道闸门**：前端 job 八道，
+服务端 job 一道。后五道（色板 + 三份审引用 + `audit-claims`）的输出有个共同性质：
+**断言对不上、节号不存在、色板超预算，全都只让输出变长，不会让 `check`/`test`
+变红。** 所以只跑前三条的人会以为自己是绿的，而五道闸门一个都没过。完整清单以
+`.github/workflows/ci.yml` 为准——那一份加了新步骤时，这里要跟着改。
+
+| # | 闸门 | 命令（`world-client/` 下执行） | 在 CI 里 |
+| --- | --- | --- | --- |
+| 1 | 类型检查 | `npm run check` | 前端 job |
+| 2 | 单元测试 | `npm test` | 前端 job |
+| 3 | 构建 | `npm run build` | 前端 job |
+| 4 | 色板预算 | `node scripts/audit-palette.mjs --strict` | 前端 job |
+| 5 | 行号引用 | `node scripts/audit-references.ts --strict` | 前端 job |
+| 6 | 文件引用 | `node scripts/audit-citations.ts --strict` | 前端 job |
+| 7 | 节号引用 | `node scripts/audit-sections.ts --strict` | 前端 job |
+| 8 | 标注断言 + ADR 字段 | `node scripts/audit-claims.ts --strict` | 前端 job |
+| 9 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
+
+CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
+`test:phases`，只读、写到 runner 临时目录）。它是验收，不在这九道计数里。
+
+## 权限边界（本地强制）
+
+远端分支保护 API 在本仓当前凭据下返回 404，暂时上不了；所以 main 的直推边界放在本地：
+
+- `.githooks/pre-push` 拒绝任何以 `refs/heads/main` 为目标的 push（含删除远端 main）。
+- 安装：`git config core.hooksPath .githooks`；自检：`npm run check:hooks`
+  （仓库根目录）。**没装时 push 不会报错，保护会安静消失**，所以这是一条必跑读数。
+- 豁免：`PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main`。只给灾难恢复用；
+  日常走分支 + PR。`--no-verify` 会跳过整条 pre-push，不只跳过 main 这一条。
+- review 责任落在 `.github/CODEOWNERS`；变更入口用
+  `.github/pull_request_template.md`，必填「改了什么 / 为什么 / 验证命令与读数」。
+
+## Worktree 登记
+
+`docs/WORKTREES.md` 是登记表（路径 / 分支 / owner / 创建时间 / 预计回收时间 / 状态）。
+`npm run worktrees:audit` 列出未登记、过期未回收、已合入但仍在的 worktree；
+**只列不删**，回收由 owner 手动作业。
+
+## 断点续跑
+
+中断前按 `docs/RESUME.md` 覆盖写五项：最后 HEAD、未提交改动、已跑/未跑闸门、下一步命令。
+恢复时先 `git status --short --branch` 与 `git log -1` 核对，再补跑记录之后改动过的闸门。
 
 ## Agent skills
 
