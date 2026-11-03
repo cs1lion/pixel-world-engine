@@ -66,6 +66,12 @@ import {
 } from './weather.ts';
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
+import {
+  habitApplies,
+  PRE_COVER_MS,
+  PRE_COVER_TEXT,
+  type WeatherHabitEntry,
+} from './weather-witness.ts';
 import type {
   CommandResult,
   ConstructionSnapshot,
@@ -382,6 +388,16 @@ export interface SimulationDeps {
    * `(worldSeed, 槽号)` 决定，与墙钟、帧率都无关。
    */
   readonly weatherCycle?: boolean;
+  /**
+   * 灯街的摊位格。给了就允许「提前收摊」这一拍：昨天淋过雨的摊主今天
+   * 到 13:00 先把布盖上。摊子在哪是设定集的事实，引擎不自己编坐标。
+   */
+  readonly stallsAt?: readonly GridPoint[];
+  /**
+   * 记忆影响次日行为。**默认关**，只有设定集场景打开：
+   * 关着时村民照旧只按天气/潮位选拍，纯逻辑测试与旧回放不受影响。
+   */
+  readonly weatherHabit?: boolean;
 }
 
 /** 一个角色的完整本地状态。渲染层只读快照，不碰这里。 */
@@ -533,6 +549,16 @@ export class Simulation {
   private readonly weatherCycle: boolean;
   /** 雾天因为「太远」被跳过的作息落点次数；运行时读数，不写档。 */
   private fogHeldTrips = 0;
+  /** 灯街摊位（设定集给的格）；没有 = 这张图没有「提前收摊」这一拍。 */
+  private readonly stallsAt: readonly GridPoint[] = [];
+  /** 记忆进行为层：场景开，纯逻辑测试默认关。 */
+  private readonly weatherHabit: boolean;
+  /** 昨天淋过雨的人账，由场景从 `MemoryRuntime` 读出来喂进来；运行时读数。 */
+  private weatherHabitLedger: readonly WeatherHabitEntry[] = [];
+  /** 今天已经提前盖过布的人 → 第几天。运行时读数，不写档。 */
+  private readonly preCoveredDay = new Map<string, number>();
+  /** 累计「提前收摊」次数（每次触发 +1），只读、不写档。 */
+  private preCovers = 0;
   /**
    * 上一拍的潮位，只用来判断"在涨还是在退"。
    *
@@ -686,6 +712,8 @@ export class Simulation {
   constructor(deps: SimulationDeps) {
     this.now = deps.initialNow ?? 0; this.worldSeed = deps.worldSeed ?? 'wandong';
     this.weatherCycle = deps.weatherCycle === true;
+    this.weatherHabit = deps.weatherHabit === true;
+    this.stallsAt = deps.stallsAt ?? [];
     // 开局就落在当前槽的天气上：同一份种子在同一个时刻开机，看到的天空是同一片。
     if (this.weatherCycle) this.weather = scheduledWeatherAt(this.worldSeed, this.now, this.weather);
     this.grid = deps.grid;
@@ -994,6 +1022,77 @@ export class Simulation {
       umbrellas: this.isRaining() ? this.villagers.filter((villager) => villager.mode !== 'working').length : 0,
       fogHeldTrips: this.fogHeldTrips,
       stallsPacked: stallsPackedFor(this.weather.kind),
+    };
+  }
+
+  /**
+   * 场景从记忆层读出「昨天淋过雨、还够劲」的账，每帧喂进来。
+   *
+   * 只收当前强度与记下的第几天。强度已经由记忆层在日终衰减过，世界不重算
+   * ——门槛判定只认这一份现值。世界不读 `MemoryRuntime`：它只需要一句
+   * 「这个人今天该不该提前收摊」。
+   */
+  setWeatherHabitLedger(entries: readonly WeatherHabitEntry[]): void {
+    this.weatherHabitLedger = entries;
+  }
+
+  /**
+   * 记忆进行为的读数（只读、不写档）：谁还够劲、今天谁提前盖了布。
+   *
+   * `strength` 是衰减之后的数，证据里逐日表读它；`applies` 是门槛判定。
+   */
+  weatherHabitStats(): {
+    readonly enabled: boolean;
+    readonly preCovers: number;
+    readonly preCoveredToday: number;
+    readonly today: number;
+    readonly people: readonly {
+      readonly villagerId: string;
+      readonly strength: number;
+      readonly applies: boolean;
+      readonly preCoveredDay: number | null;
+    }[];
+  } {
+    const today = Math.floor(this.now / DAY_MS);
+    return {
+      enabled: this.weatherHabit && this.stallsAt.length > 0,
+      preCovers: this.preCovers,
+      preCoveredToday: [...this.preCoveredDay.values()].filter((day) => day === today).length,
+      today,
+      people: this.villagers.map((villager) => {
+        const entry = this.weatherHabitLedger.find((item) => item.villagerId === villager.id);
+        return {
+          villagerId: villager.id,
+          strength: entry === undefined ? 0 : entry.strength,
+          applies: entry !== undefined && habitApplies(entry),
+          preCoveredDay: this.preCoveredDay.get(villager.id) ?? null,
+        };
+      }),
+    };
+  }
+
+  /** 今天有没有人已经提前盖过布。摊子视图据此提前落下盖布。只读。 */
+  preCoveredToday(): boolean {
+    const today = Math.floor(this.now / DAY_MS);
+    for (const day of this.preCoveredDay.values()) {
+      if (day === today) return true;
+    }
+    return false;
+  }
+
+  /** 某个人今天有没有提前盖布；面板拼「因为…所以…」用。只读。 */
+  weatherHabitFor(villagerId: string): {
+    readonly strength: number;
+    readonly applies: boolean;
+    readonly day: number | null;
+    readonly preCoveredDay: number | null;
+  } {
+    const entry = this.weatherHabitLedger.find((item) => item.villagerId === villagerId);
+    return {
+      strength: entry === undefined ? 0 : entry.strength,
+      applies: entry !== undefined && habitApplies(entry),
+      day: entry?.day ?? null,
+      preCoveredDay: this.preCoveredDay.get(villagerId) ?? null,
     };
   }
 
@@ -2798,6 +2897,62 @@ export class Simulation {
     this.log('done', `${task.summary} 办完了（${villager.name}）。`);
   }
 
+  /**
+   * 「昨天淋过雨，今天提前收摊」这一拍。
+   *
+   * 判据全在纯函数里（`habitApplies`）：记忆强度按日衰减，过 0.75 才生效；
+   * 时钟按世界时间，过了 13:00 才动手。今天已经盖过的人不再做第二次，
+   * `preCoveredDay` 里记的是**第几天**，跨天自然失效，不需要清理。
+   *
+   * 雨天不动手（人已经在躲雨，这一拍是「预防」不是「补救」）；晴、雾都可以：
+   * 雾里摊位就在 8 格内，盖上布照样看得见。
+   */
+  private preCoverHabit(villager: Villager): boolean {
+    if (!this.weatherHabit || this.stallsAt.length === 0) return false;
+    if (this.weather.kind === 'rain' || this.weather.kind === 'storm') return false;
+    const today = Math.floor(this.now / DAY_MS);
+    if (this.preCoveredDay.get(villager.id) === today) return false;
+    if (this.now % DAY_MS < PRE_COVER_MS) return false;
+    const entry = this.weatherHabitLedger.find((item) => item.villagerId === villager.id);
+    if (entry === undefined || !habitApplies(entry)) return false;
+    const here = this.cellOf(villager.pos);
+    const stall = this.nearestStallCell(here);
+    if (stall === null) return false;
+    const route = this.routeTo(villager, stall);
+    // 空路径有两种意思：已经站在摊子上，和这条路走不过去。后者不记账。
+    if (route.path.length === 0 && (stall.x !== here.x || stall.y !== here.y)) return false;
+    villager.path = route.path;
+    villager.routineLabel = PRE_COVER_TEXT;
+    villager.routineGoing = '去摊子把布盖上';
+    villager.nextRoutineAt = this.now + route.path.length * PACE.walkCellMs;
+    this.preCoveredDay.set(villager.id, today);
+    this.preCovers += 1;
+    this.log('info', `${villager.name}${PRE_COVER_TEXT}。`);
+    this.announce({
+      change: 'world.event',
+      kind: 'routine_done',
+      text: `${villager.name}${PRE_COVER_TEXT}。`,
+      placeId: cellPlaceId(stall),
+      where: stall,
+      actorId: villager.id,
+    });
+    return true;
+  }
+
+  /** 最近的一张摊子。摊主从街心走回来，不设 6 格上限——那是「谁淋到雨」的尺子。 */
+  private nearestStallCell(cell: GridPoint): GridPoint | null {
+    let best: GridPoint | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const stall of this.stallsAt) {
+      const distance = Math.hypot(stall.x - cell.x, stall.y - cell.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = stall;
+      }
+    }
+    return best;
+  }
+
   private stepIdle(villager: Villager, deltaMs: number): void {
     if (villager.path.length > 0) {
       this.walk(villager, deltaMs);
@@ -2815,6 +2970,9 @@ export class Simulation {
     // 心里存着疑的人先去求证。这一步在作息之前：作息是「没别的事时做什么」，
     // 求证不是没别的事——它是此刻最要紧的一件事。
     if (this.chaseVerification(villager)) return;
+    // 昨天淋过雨、这条记忆还没淡的人，今天 13:00 先把摊布盖上。
+    // 同样排在作息之前：这是「因为记得，所以提前」的那一拍。
+    if (this.preCoverHabit(villager)) return;
 
     // 已经站在这一拍的落点上就跳过它，否则开局会在祭坛上干坐一轮。
     const here = this.cellOf(villager.pos);
@@ -3306,14 +3464,21 @@ export class Simulation {
    *
    * 与 `stepTimetable` 同一条判据——两头一夹，不存游标。槽号是整数，
    * 读档后 `now` 接着走，槽号自然对上；60fps 与离线补算走同一串边界。
-   * 这里**不 announce**：天气变化不是「人做了事」，不进记忆；面板与状态行直接读快照。
+   *
+   * 天气换档要 announce：**镇级事件落一条 `actorId: null`**（事件日志与面板
+   * 时间线可见）。个人记忆只发给灯街上「在场」的人，由场景那边按 6 格半径
+   * 挑目击者；这条 change 本身没有落点，不发目击名单就按感知模型走——
+   * 那会把整条街以外的住户也写进「淋了雨」的账里，正是这条路要去掉的。
    */
   private stepWeatherCycle(prevNow: number): void {
     if (!this.weatherCycle) return;
     for (const slot of weatherSlotsBetween(this.worldSeed, prevNow, this.now)) {
       const before = this.weather.kind;
       this.weather = scheduledWeatherState(this.weather, slot, this.now);
-      if (slot.kind !== before) this.log('info', `${WEATHER_LABEL[slot.kind]}天。`);
+      if (slot.kind !== before) {
+        this.log('info', `${WEATHER_LABEL[slot.kind]}天。`);
+        this.announce({ change: 'weather', weather: slot.kind });
+      }
     }
   }
 

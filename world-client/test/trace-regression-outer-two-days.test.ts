@@ -43,7 +43,7 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, '77ad2ab030988ad4bcb7a81e3e3b7a5e58700590ed35cc7ae2f8b5cecdd9eec1');
+  assert.equal(memory.fingerprint, 'fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7');
   assert.equal(memory.business.lastClosedDay, 3);
   assert.equal(memory.business.entries, 45);
   assert.equal(memory.business.facts, 47);

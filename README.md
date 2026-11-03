@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                220 个测试文件 <!-- claim: test-file-count=220 -->
+└── test/                221 个测试文件 <!-- claim: test-file-count=221 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -110,6 +110,16 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 搁下并计数。天气雾是**图内**的 18 团（`weatherFogPuffs`，圆心夹在界内、按世界
 时间正弦漂移），与探索迷雾那套「沿揭示半径绕圈」的雾团互不相干；设定集整图已
 揭示，不再创建探索迷雾视图。运行时读数与潮汐一样不进存档。
+
+**天气事件进记忆，只记目击**：镇级天气本身仍是一条 `actorId: null` 的事件；个人
+记忆只落在灯街摊位 `WEATHER_WITNESS_CELLS = 6` 格内、在场的人（按最近摊位分组，
+东头摊主离街心再远也能入账）。「听说下过雨」不算——次日习惯只认
+`sourceMode: 'witnessed'` 的条目，传闻再传也不让没淋到的人跟着改行为。
+**次日行为**：`WEATHER_HABIT_MIN_STRENGTH = 0.75` 的门槛与 `PRE_COVER_MS = 13:00`
+一起决定「今天提前把摊布盖上」；强度由记忆层日终衰减（`decayRate = 0.15`），
+所以一条雨记忆在次日是 1.00、第 2 天 0.85（还够）、第 3 天 0.72（停）。
+面板「今日」展开那条会写「因为昨天淋了雨，今天提前收摊」；第 2 天写「前天」。
+`stallsAt` / `weatherHabit` 只对 `pack.authored` 打开。
 
 ### 时钟：默认是游玩时长
 
