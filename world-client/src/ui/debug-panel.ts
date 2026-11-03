@@ -215,6 +215,20 @@ export interface CreatorChecksView {
  * 这两处是同一个洞，一起堵上。
  */
 /**
+ * 一个人的时间线上的一格（只读）。`eventId` 与事件日志同一个 id；
+ * `bias` 只在「记错了」的条目上出现。
+ */
+export interface MemoryTimelineEntry {
+  readonly memoryId: string;
+  readonly eventId: string;
+  readonly kind: string;
+  readonly day: number;
+  readonly when: number;
+  readonly sourceMode: string;
+  readonly bias?: string;
+}
+
+/**
  * 真实时钟的只读状态。`catchUp` 是最近一次补算的结果——常驻到下一次补算/造物，
  * 不随帧消失；没有 setter。
  */
@@ -233,6 +247,8 @@ export interface DebugOracle {
   view(): WorldSnapshot;
   events(limit: number): readonly WorldEvent[];
   saveStatus(): SaveStatusView;
+  /** 某个角色记得的事，按天/时刻排序。省略表示这一面没挂。 */
+  memoryTimeline?(holderId: string): readonly MemoryTimelineEntry[];
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

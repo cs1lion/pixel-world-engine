@@ -35,6 +35,8 @@ import {
   type Perceiver,
   type PlaceAnchor,
 } from './perception.ts';
+import { soundKindOf } from './hearing.ts';
+import { biasFor, misremember } from './distort.ts';
 import {
   cascadeBeliefs,
   cascadeClaims,
@@ -123,6 +125,11 @@ export interface IngestInput {
   /** 事件的情绪。没给时按 kind 的先验推。 */
   readonly valence?: number;
   readonly arousal?: number;
+  /**
+   * 听见但没有看见的人。由调用方按 `hearing.ts` 算好，这里只负责写条目。
+   * 与 `witnesses` 去重：看见的人不再补一条「听来的」。
+   */
+  readonly hearers?: readonly string[];
   /**
    * 这件事被怎么说。**`source = agent / genesis` 的事件必须给**——那是
    * 脱敏编译器自己那张表，比世界侧按 kind 的先验推更具体。
@@ -411,6 +418,9 @@ export class MemoryWorld {
         salience: entry.salience,
       });
     }
+
+    // 听见的人：比目击更弱的记忆（细节 2、置信 0.6），并留一种可能的偏差。
+    this.writeHeard(input, fact, witnesses, valence, arousal, written);
 
     // place Holder：后果规则，不走显著度。
     this.depositTraces(fact, input.at, input.place.placeType ?? 'generic', valence);
@@ -1263,6 +1273,129 @@ export class MemoryWorld {
       generatedBy: this.ruleMeta(holderId, fact.eventId, fact.day),
       archived: false,
     };
+  }
+
+  /**
+   * 听见的人写一条「听来的」记忆。
+   *
+   * 与目击者的差别是**算出来的，不是写死的**：细节 2（不是 3）、置信 0.6
+   * （不是 1）、显著度固定 0.4——它不参与 `T_write` 那张表，因为听见本身就是
+   * 一条比看见更弱的通道。约七分之一的条目会带一种偏差（`biasFor` 确定性选）。
+   */
+  private writeHeard(
+    input: IngestInput,
+    fact: WorldFact,
+    witnesses: readonly string[],
+    valence: number,
+    arousal: number,
+    written: string[],
+  ): void {
+    const seen = new Set(witnesses);
+    for (const holderId of input.hearers ?? []) {
+      if (seen.has(holderId)) continue;
+      const holder = this.holders.get(holderId);
+      if (holder === undefined || holder.type !== 'character') continue;
+      seen.add(holderId);
+      let content = {
+        ...this.contentForFact(fact),
+        detailLevel: 2,
+        valence,
+        arousal,
+      };
+      const bias = biasFor(fact.eventId, holderId);
+      if (bias !== null) {
+        const distorted = misremember(content, bias);
+        content = distorted.content;
+      }
+      const entry: MemoryEntry = {
+        memoryId: this.nextId('m'),
+        holderId,
+        kind: 'episodic',
+        tier: 'day',
+        eventRefs: [fact.eventId],
+        sourceMode: 'heard',
+        sourceChain: [`sound:${soundKindOf(fact.kind)}`],
+        content,
+        salience: 0.4,
+        confidence: 0.6,
+        strength: 1,
+        createdDay: fact.day,
+        lastRecalledDay: fact.day,
+        recallCount: 0,
+        flashbulb: false,
+        pinned: false,
+        redacted: false,
+        derivedFrom: { memoryIds: [], claimIds: [] },
+        generatedBy: this.ruleMeta(holderId, fact.eventId, fact.day),
+        ...(bias === null ? {} : { bias }),
+        archived: false,
+      };
+      this.entries.push(entry);
+      written.push(entry.memoryId);
+      this.emit('memory.written', input.at, {
+        memoryId: entry.memoryId,
+        holderId,
+        eventRefs: entry.eventRefs,
+        salience: entry.salience,
+      });
+    }
+  }
+
+  /**
+   * 印象的生产者：目击者看别人干完一件事，写一条**关于那个人**的印象。
+   *
+   * 方向性靠 `holderId` 自己：`holderId` 是持有者，`aboutHolderId` 是他看的人。
+   * A 看见 B 干活，只写 A 对 B 的印象；B 对 A 的印象要 B 自己看见才算。
+   */
+  addImpression(input: {
+    readonly holderId: string;
+    readonly aboutHolderId: string;
+    readonly at: number;
+    readonly placeId: string;
+    readonly eventRef: string;
+    readonly valence: number;
+  }): string | null {
+    const holder = this.holders.get(input.holderId);
+    if (holder === undefined || holder.type !== 'character') return null;
+    const day = Math.floor(input.at / this.config.dayMs);
+    const entry: MemoryEntry = {
+      memoryId: this.nextId('m'),
+      holderId: input.holderId,
+      kind: 'impression',
+      tier: 'long',
+      eventRefs: [input.eventRef],
+      sourceMode: 'witnessed',
+      sourceChain: [],
+      content: {
+        what: `我看见${input.aboutHolderId}把活干完了`,
+        who: [input.aboutHolderId],
+        where: input.placeId,
+        when: input.at,
+        detailLevel: 3,
+        valence: input.valence,
+        arousal: 0.3,
+      },
+      salience: 0.5,
+      confidence: 1,
+      strength: 1,
+      createdDay: day,
+      lastRecalledDay: day,
+      recallCount: 0,
+      flashbulb: false,
+      pinned: false,
+      redacted: false,
+      derivedFrom: { memoryIds: [], claimIds: [] },
+      generatedBy: this.ruleMeta(input.holderId, input.eventRef, day),
+      archived: false,
+    };
+    this.entries.push(entry);
+    this.emit('memory.written', input.at, {
+      memoryId: entry.memoryId,
+      holderId: input.holderId,
+      eventRefs: entry.eventRefs,
+      salience: entry.salience,
+    });
+    return entry.memoryId;
   }
 
   private depositTraces(fact: WorldFact, at: number, placeType: string, valence: number): void {

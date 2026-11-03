@@ -57,6 +57,8 @@ export function observationOf(
         importanceHint: 0.45,
         valence: 0.3,
         arousal: 0.4,
+        // 交付发生在铺子里——室内。屋外八格的人看不见，这是痕迹通道存在的理由。
+        indoor: true,
       };
     }
 

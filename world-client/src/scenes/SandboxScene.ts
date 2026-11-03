@@ -714,6 +714,12 @@ export class SandboxScene extends Phaser.Scene {
       // 神迹、新楼、拆楼、天气这几种改变的 actors 是空的——那就没人记得。
       // `WorldGrid` 只要 `isWalkable` 就满足 `OcclusionGrid`，直接递。
       occlusion: this.world.grid,
+      // 真实室内判定：人在楼体占地里就是「在屋里」。感知层因此能分清
+      // 屋里交活（同房间才看见）与门口起楼（室外八格可见）。每拍现算，
+      // 人走动不需要额外同步。
+      insideAt: (point) => this.buildingIdAt(point),
+      placeIndoor: (placeId) =>
+        this.snapshot?.buildings.some((building) => building.instanceId === placeId) ?? false,
       // 记忆层的事件出口（写日志用）。**只开 `legend.formed` 一种**：
       // `MemoryEventKind` 那 17 个里 16 个有发出方，一次全开就是 16 种新载荷、
       // 16 个服务端校验函数——那是另一笔工作。这里开的这一条，是「传说变成
@@ -2377,6 +2383,15 @@ export class SandboxScene extends Phaser.Scene {
           }),
         };
       },
+      /**
+       * 只读时间线：某个角色记得的事，按天/时刻排序，每条带事件 id。
+       * 与 `memory()` 同一扇门（`MemoryRuntime.timelineFor` → `viewOf`），
+       * 不额外读全局库。
+       */
+      memoryTimeline: (holderId: string) => {
+        if (this.memory === undefined) return [];
+        return this.memory.timelineFor(holderId);
+      },
       /** 只查询某处能不能建，不改变任何状态。造物模式与测试都用它。 */
       canPlaceAt: (cell: GridPoint): boolean => {
         const session = this.creation;
@@ -2733,6 +2748,23 @@ export class SandboxScene extends Phaser.Scene {
     const latestProp = this.snapshot.props[this.snapshot.props.length - 1];
     const memory = latestProp === undefined ? '' : `　　${describePropSource(latestProp)}`;
     return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${clockNote}${saveNote}`;
+  }
+
+  /** 点在谁的占地里。用于 `Perceiver.inside`：进屋/出屋按格算，不靠调用方维护。 */
+  private buildingIdAt(point: { readonly x: number; readonly y: number }): string | null {
+    const buildings = this.snapshot?.buildings ?? [];
+    for (const building of buildings) {
+      const { origin, footprint } = building;
+      if (
+        point.x >= origin.x &&
+        point.y >= origin.y &&
+        point.x < origin.x + footprint.w &&
+        point.y < origin.y + footprint.h
+      ) {
+        return building.instanceId;
+      }
+    }
+    return null;
   }
 
   /**
