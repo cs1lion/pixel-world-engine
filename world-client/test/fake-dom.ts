@@ -55,6 +55,9 @@ export class FakeElement {
     set.add(run);
     this.listeners.set(type, set);
   }
+  removeEventListener(type: string, run: (event?: unknown) => void): void {
+    this.listeners.get(type)?.delete(run);
+  }
   click(): void {
     for (const run of this.listeners.get('click') ?? []) run();
   }

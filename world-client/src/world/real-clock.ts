@@ -1,13 +1,18 @@
 /**
- * 真实时钟模式的时间内核：1 世界日 = 24 真实小时，日界在本地 00:00。
+ * 时间入口解析与真实时钟模式的内核。**默认是游玩时长驱动（加速模式）**：
+ * 页面开着按倍率推进，关页面即冻结，重开从存档断点继续，永不补算。
  *
- * **与加速模式的分别**（`SandboxScene` 的默认真实时钟与 `?clock=fast`）：
- * - 真实时钟（默认）：`timeScale` **不作为倍率**，步长永远是 `LOGIC_STEP_MS`；
- *   墙钟走多久，世界走多久。日界按本地（默认 UTC+8）的 00:00，不是「开局
- *   满 24 小时」。
- * - 加速模式（显式 `?clock=fast`，或只给 `?speed=`）：`timeScale` 放大喂给
- *   `Simulation` 的步长，一世界日约 `DAY_MS / (1000 × timeScale)` 真实秒。
- *   它服务演示与回归，不承诺 1:1。
+ * **两种模式**（`resolveClockSelection` 决定）：
+ * - 游玩时间驱动（默认）：`timeScale` 放大喂给 `Simulation` 的步长，一世界日
+ *   约 `DAY_MS / (1000 × timeScale)` 真实秒（默认倍率 6，约 4 小时）。关页面
+ *   后世界不积累任何时间，也不产生任何事件。
+ * - 真实时钟（显式 `?clock=real`）：`timeScale` **不作为倍率**，步长永远是
+ *   `LOGIC_STEP_MS`；墙钟走多久，世界走多久。日界按本地（默认 UTC+8）的
+ *   00:00。跨会话基线、离线逐日/合并补算与老档日界对齐只属于这条模式。
+ *
+ * **为什么真实时钟不再是默认**：离线期间世界没有运行，也就没有事件发生；
+ * 按墙钟补算只能把日历翻过去，等于凭空伪造那几天的历史。游玩时间驱动下
+ * 关页面就是关页面，世界停在存档那一刻。
  *
  * 这里只做纯计算与判定，不读 `Date.now()`、不碰 Phaser。调用方把墙钟与单调
  * 时钟递进来，于是「日界恰在 00:00」「离线 3 天补 3 次」「回拨 10 分钟暂停」
@@ -23,7 +28,7 @@ export const REAL_DAY_MS = 24 * 60 * 60 * 1000;
 /** 默认时区：UTC+8。写死默认值，避免跨机器/跨时区漂移；要改由调用方显式传入。 */
 export const DEFAULT_UTC_OFFSET_MINUTES = 480;
 
-/** 加速模式的默认倍率：一世界日约 4 小时真实时间（见 `test/day-pace.test.ts`）。 */
+/** 默认入口（游玩时间驱动）的倍率：一世界日约 4 小时真实时间（见 `test/day-pace.test.ts`）。 */
 export const DEFAULT_FAST_TIME_SCALE = 6;
 
 /** 加速模式的倍率上限。真实时钟不走这条闸。 */
@@ -41,10 +46,11 @@ export interface ClockSelection {
 /**
  * 从 URL 查询串解析时钟入口。
  *
- * **默认真实时钟**：不写参数就是 1:1。要加速必须显式说出口——
- * `?clock=fast`（`accelerated` 也认），或只给 `?speed=`（历史入口，截图与
- * 回归一直这么用）。`?clock=real` 永远压过 `?speed=`：留一个能偷偷加速的
- * 真实时钟，就没有人能说它还是真实时钟。
+ * **默认是游玩时间驱动**：不写参数就是加速模式、默认倍率 6。真实时钟必须
+ * 显式说出口——`?clock=real`（1:1，日界本地 00:00，跨会话补算与日界对齐
+ * 只属于它）。`?clock=fast`（`accelerated` 也认）与只给 `?speed=` 继续
+ * 表示加速模式（历史入口，截图与回归一直这么用）。`?clock=real` 永远压过
+ * `?speed=`：留一个能偷偷加速的真实时钟，就没有人能说它还是真实时钟。
  */
 export function resolveClockSelection(
   search: string | URLSearchParams,
@@ -64,8 +70,7 @@ export function resolveClockSelection(
   const hasSpeed =
     speed !== null && Number.isFinite(speed) && speed > 0 && speed <= MAX_TIME_SCALE;
 
-  const accelerated = clock === 'fast' || clock === 'accelerated' || (clock === null && hasSpeed);
-  if (!accelerated) {
+  if (clock === 'real') {
     return { mode: 'real', timeScale: 1, utcOffsetMinutes };
   }
   return {

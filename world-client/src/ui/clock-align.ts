@@ -7,6 +7,8 @@
  */
 
 export interface ClockAlignmentView {
+  /** 日界对齐是否属于当前时钟模式。默认的游玩时间驱动下为 false。 */
+  readonly available: boolean;
   /** 现在是否该展示提示。 */
   readonly pending: boolean;
   /** 偏移是否真的超过阈值；与 `pending` 分开，因为「暂不」会让 pending=false。 */
@@ -52,7 +54,7 @@ export function bindClockAlignPanel(oracle: () => ClockAlignOracle | undefined):
   const render = (): void => {
     const view = oracle()?.clockAlignment();
     if (view === undefined) return;
-    if (view.pending) {
+    if (view.pending && view.available) {
       prompt.hidden = false;
       text.textContent =
         `你的档日界在 ${view.boundaryLabel}，不是 00:00，要不要对齐到今天零点？`
@@ -60,11 +62,20 @@ export function bindClockAlignPanel(oracle: () => ClockAlignOracle | undefined):
     } else {
       prompt.hidden = true;
     }
-    if (readout !== null) {
-      const state = view.aligned
-        ? `已对齐（可撤销，前跳 ${view.jumpLabel}）`
-        : `日界 ${view.boundaryLabel}${view.required ? '，未对齐' : '，已对齐'}`;
-      readout.textContent = `${state}${view.notice === null ? '' : ` · ${view.notice}`}`;
+    // 默认的游玩时间驱动没有墙钟日界：维护入口置灰并说清只在 real 模式可用。
+    if (view.available) {
+      if (check !== null) check.disabled = false;
+      if (readout !== null) {
+        const state = view.aligned
+          ? `已对齐（可撤销，前跳 ${view.jumpLabel}）`
+          : `日界 ${view.boundaryLabel}${view.required ? '，未对齐' : '，已对齐'}`;
+        readout.textContent = `${state}${view.notice === null ? '' : ` · ${view.notice}`}`;
+      }
+    } else {
+      if (check !== null) check.disabled = true;
+      if (readout !== null) {
+        readout.textContent = '日界对齐只在真实时钟模式（?clock=real）下可用';
+      }
     }
     if (undo !== null) undo.hidden = !view.undoAvailable;
   };

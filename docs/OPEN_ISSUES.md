@@ -19,7 +19,7 @@
 
 - **问题**：v5 存档只有 `world.memory`，没有外环等级、指标窗口、导演历史。刷新/重进会新建 `CreatorEngine`，等级回到 L0。**[事实]**
 - **证据**：`SaveWorld` 只有 `world.memory` 这一处新增（[save.ts](file:///D:/project/pixel-world-engine/world-client/src/world/save.ts#L413-L423)）；场景每次 `create()` 都 `new CreatorEngine(...)`（[SandboxScene.ts](file:///D:/project/pixel-world-engine/world-client/src/scenes/SandboxScene.ts#L780-L785)）。
-- **影响**：玩家刷新后自治进度清零，镇子会突然不再自己造东西；在“真实时钟 1:1、14 天窗口”的新需求下，这条会变成主要体验断点。**[事实+推断]**
+- **影响**：玩家刷新后自治进度清零，镇子会突然不再自己造东西；在“14 天窗口”的晋级需求下，这条会变成主要体验断点。**[事实+推断]**
 - **建议时机**：合入前拍板“会话级自治”还是“跨会话持久”；若选后者，需要扩存档契约。
 - **是否需要用户决策**：**是**。选项：(a) 接受外环只活在单次会话；(b) 扩存档，持久化等级/窗口/导演历史（要定迁移与体积上限）。
 
@@ -100,7 +100,7 @@
 
 ### C2. 14 天晋级无法按真实时间验证
 
-- **问题**：默认真实时钟一日 24 小时，按真实时间要熬满 14 天；加速模式默认 `timeScale=6` 一日约 4 小时，`?speed=60` 也要 24 分钟/日，一个 14 天窗口约 5.6 小时。修改存档 `world.now` 可让日结算连续触发，但那只是链路证据，不是“真的熬了 14 天”。**[事实]**
+- **问题**：默认的游玩时间驱动下 `timeScale=6`，一日约 4 小时，`?speed=60` 也要 24 分钟/日，一个 14 天窗口约 5.6 小时；显式 `?clock=real` 则要按真实时间熬满 14 天。修改存档 `world.now` 可让日结算连续触发，但那只是链路证据，不是“真的熬了 14 天”。**[事实]**
 - **证据**：`DAY_MS` 与倍率换算（[config.ts](file:///D:/project/pixel-world-engine/world-client/src/world/memory/config.ts#L39-L47)）；逐日关账（[runtime.ts](file:///D:/project/pixel-world-engine/world-client/src/world/memory/runtime.ts#L445-L465)）；已写明的验证边界（[CREATOR_EXPLAINED.md](file:///D:/project/pixel-world-engine/docs/CREATOR_EXPLAINED.md#L167-L174)）。
 - **影响**：浏览器无法给出“晋级成功”的诚实证据；只能靠单元测试或可控时钟。**[事实]**
 - **建议时机**：合入后补“可控时钟/加速测试入口”，再做端到端晋级验证。
