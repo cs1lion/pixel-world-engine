@@ -2083,6 +2083,9 @@ export class SandboxScene extends Phaser.Scene {
           })),
         };
       },
+      bondsOf: (holderId) => this.memory?.bondsOf(holderId) ?? [],
+      moodOf: (holderId) => this.memory?.moodOf(holderId) ?? null,
+      innerVoiceOf: (holderId) => this.memory?.innerVoiceOf(holderId) ?? null,
     };
   }
 
@@ -2948,6 +2951,30 @@ export class SandboxScene extends Phaser.Scene {
       memoryTimeline: (holderId: string) => {
         if (this.memory === undefined) return [];
         return this.memory.timelineFor(holderId);
+      },
+      memoryBonds: (holderId: string) => (this.memory?.bondsOf(holderId) ?? []).map((bond) => ({
+        to: bond.to,
+        trust: bond.trust,
+        warmth: bond.warmth,
+        debt: bond.debt,
+      })),
+      memoryMood: (holderId: string) => {
+        const mood = this.memory?.moodOf(holderId);
+        return mood === null || mood === undefined
+          ? null
+          : { label: mood.label, valence: mood.valence, arousal: mood.arousal };
+      },
+      memoryInner: (holderId: string) => {
+        const inner = this.memory?.innerVoiceOf(holderId);
+        return inner === null || inner === undefined
+          ? null
+          : { templateId: inner.templateId, text: inner.text };
+      },
+      openUnitStatusForDebug: (holderId: string) => {
+        const villager = this.snapshot.villagers.find((item) => item.id === holderId);
+        if (villager === undefined) return false;
+        this.openUnitStatus({ kind: 'villager', id: villager.id });
+        return true;
       },
       /** 只查询某处能不能建，不改变任何状态。造物模式与测试都用它。 */
       canPlaceAt: (cell: GridPoint): boolean => {

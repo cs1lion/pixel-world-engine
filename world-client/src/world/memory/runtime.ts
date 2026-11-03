@@ -25,12 +25,14 @@ import { heardBy, soundKindOf } from './hearing.ts';
 import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
 import type {
+  Bond,
   EpicEntry,
   Era,
   HolderType,
   Landmark,
   Legend,
   MemoryEvent,
+  Mood,
   Toponym,
   TurningPoint,
   WorldFact,
@@ -50,6 +52,7 @@ import { MemoryWorld, type HolderView, type MemoryWorldSnapshot } from './world.
  * | 1 | 内环原本的全部状态 | — |
  * | 2 | `world.placeAnchors`（地点坐标与 Holder 分库存） | 从名册里的地点 Holder 补回坐标 |
  * | 3 | `world.landmarks` / `eras` / `epics` / `turningPoints`（场景记忆与成长记录） | 补空数组：v2 的档没记过这些，空 = 那一段历史还没开始 |
+ * | 4 | `world.bonds` / `world.moods`（方向性关系与情绪残留） | 补空数组：老档没有这两本账，空 = 还没开始记 |
  *
  * 每一次迁移都必须**无损**：新增的段要么从既有数据推得出来（v2 的坐标），
  * 要么明确是空的（v3）。旧档里已有的字段一个都不动、一条都不删。
@@ -57,7 +60,7 @@ import { MemoryWorld, type HolderView, type MemoryWorldSnapshot } from './world.
  * **不含任何存档侧的改动**：`world.memory` 这一段字符串以外的位置、
  * 路径白名单、指纹都不动。导出带历史这类需求留到以后（那时才谈 v6）。
  */
-export const MEMORY_SCHEMA_VERSION = 3;
+export const MEMORY_SCHEMA_VERSION = 4;
 
 /** `MemoryRuntime.toJSON()` 的完整载荷。 */
 export interface MemoryRuntimeSnapshot {
@@ -176,6 +179,24 @@ function isWorldSnapshot(value: unknown, version: number): value is MemoryWorldS
       }
     }
   }
+  // 关系与情绪（v4）：都只存当前值，形状查「是数组、元素有身份字段」。
+  if (version >= 4) {
+    for (const key of ['bonds', 'moods'] as const) {
+      if (!Array.isArray(value[key])) return false;
+    }
+    for (const item of value.bonds as unknown[]) {
+      if (!isRecord(item) || typeof item.from !== 'string' || typeof item.to !== 'string'
+        || !isFiniteNumber(item.trust) || !isFiniteNumber(item.warmth) || !isFiniteNumber(item.debt)) {
+        return false;
+      }
+    }
+    for (const item of value.moods as unknown[]) {
+      if (!isRecord(item) || typeof item.holderId !== 'string'
+        || !isFiniteNumber(item.valence) || !isFiniteNumber(item.arousal)) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -188,6 +209,9 @@ function isWorldSnapshot(value: unknown, version: number): value is MemoryWorldS
  *
  * v2 → v3：补四个空数组。v2 的档没有场景记忆可补——**空就是事实**
  * （「那段历史没记过」），不拿今天的楼去倒推一份假历史。
+ *
+ * v3 → v4：补关系与情绪两个空数组。老档没有这两本账，空就是事实；
+ * 不拿已有印象倒推关系，也不拿旧记忆现算情绪。
  */
 function migrateSnapshot(value: Record<string, unknown>, version: number): Record<string, unknown> {
   let current = version;
@@ -217,6 +241,16 @@ function migrateSnapshot(value: Record<string, unknown>, version: number): Recor
       };
     }
     current = 3;
+  }
+  if (current < 4) {
+    if (isRecord(world)) {
+      world = {
+        ...world,
+        bonds: Array.isArray(world.bonds) ? world.bonds : [],
+        moods: Array.isArray(world.moods) ? world.moods : [],
+      };
+    }
+    current = 4;
   }
   return { ...value, memorySchemaVersion: current, world };
 }
@@ -730,6 +764,25 @@ export class MemoryRuntime {
    */
   viewOf(holderId: string): HolderView | null {
     return this.world.viewOf(holderId);
+  }
+
+  /** 这个人的方向性关系（只含 from=他自己）。只读副本。 */
+  bondsOf(holderId: string): readonly Bond[] {
+    return this.world.bondsOf(holderId);
+  }
+
+  bondOf(from: string, to: string): Bond | null {
+    return this.world.bondOf(from, to);
+  }
+
+  /** 当前情绪：从最近一次日终衰减到 `now`；没有记录时为 null。 */
+  moodOf(holderId: string): Mood | null {
+    return this.world.moodOf(holderId, this.now);
+  }
+
+  /** 面板用的内心话：纯规则模板，不写公开 bubble。 */
+  innerVoiceOf(holderId: string): { readonly templateId: string; readonly text: string } | null {
+    return this.world.innerVoiceOf(holderId, this.now);
   }
 
   /** 世界走到第几天。检索算近因要用它；与 `observe` 定时刻是同一个 `now`。 */
