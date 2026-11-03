@@ -152,7 +152,7 @@ function oneDayTiming(
 }
 
 /**
- * 第 1 天的 CPU 读数：采 `CPU_ATTEMPTS` 次，**取最小值**。
+ * 某一天的 CPU / 墙钟读数：采 `CPU_ATTEMPTS` 次，各**取最小值**。
  *
  * 历史口径：`feat/gate-warmup` 是「读成 0.00 就重采、取最大值」，理由是
  * 「平均会把唯一一次真读数和两个 0 摊成 20ms，恰好把回归糊掉」。
@@ -168,6 +168,7 @@ function oneDayTiming(
  */
 function fastestDayCpu(
   buildingIds: readonly string[],
+  day = 1,
   attempts = CPU_ATTEMPTS,
 ): {
   cpuMs: number;
@@ -175,7 +176,7 @@ function fastestDayCpu(
   samples: readonly { cpuMs: number; wallMs: number }[];
 } {
   const samples = [];
-  for (let i = 0; i < attempts; i += 1) samples.push(oneDayTiming(buildingIds, 1));
+  for (let i = 0; i < attempts; i += 1) samples.push(oneDayTiming(buildingIds, day));
   return {
     cpuMs: Math.min(...samples.map((sample) => sample.cpuMs)),
     wallMs: Math.min(...samples.map((sample) => sample.wallMs)),
@@ -256,7 +257,7 @@ test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5
   // 不足一个调度刻度的 CPU 差值在 Windows 上会读成 0，两边都是 0 就没法比。
   // 两边都用 `fastestDayCpu`（各采三次取最小），否则比的是「谁的样本撞上停顿」，
   // 不是两天的真实开销。
-  const steady = fastestDayCpu(buildings);
+  const steady = fastestDayCpu(buildings, 6);
   t.diagnostic(
     `默认世界第 6 天：CPU 三次取最小 ${steady.cpuMs.toFixed(2)}ms`
       + `（墙钟三次最小 ${steady.wallMs.toFixed(2)}ms，仅附注）`,
