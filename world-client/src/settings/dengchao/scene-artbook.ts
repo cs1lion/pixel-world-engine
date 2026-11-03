@@ -111,7 +111,8 @@ export const SCENE_ARTBOOK_ASSETS: readonly ArtbookAsset[] = [
       '堤边两根系船石柱，绳绕两道；柱头不做雕饰，只留一道浅檐',
       '堤面留一块较亮的候船石，石缝里长苔',
     ],
-    placement: { kind: 'quay', at: { x: 11, y: 5 }, length: 4 },
+    // 横向口径：`length` 是**沿岸的横向格数**，不伸进湾里（伸进去会读成石柱）。
+    placement: { kind: 'quay', at: { x: 5, y: 7 }, length: 5 },
   },
   {
     id: 'street_gable_west',
@@ -134,7 +135,9 @@ export const SCENE_ARTBOOK_ASSETS: readonly ArtbookAsset[] = [
       '弧形山墙改为单级收分，圆窗偏左；右侧挂一块横招牌',
       '墙面有补过的深色木板与一条纵向雨痕；檐下三盏红灯',
     ],
-    placement: { kind: 'shopfront_gable', at: { x: 33, y: 23 }, length: 4 },
+    // 必须落在主楼占地（x28..34）以东：早先写在 (33,23)，与主楼东翼重叠，
+    // 补绘层把那段墙读成了红砖噪声。
+    placement: { kind: 'shopfront_gable', at: { x: 36, y: 23 }, length: 4 },
   },
   {
     id: 'street_steps',
@@ -211,7 +214,7 @@ export const SCENE_ARTBOOK_ASSETS: readonly ArtbookAsset[] = [
       '方塔身，三层收分；二层四面一块钟盘，夜里钟盘发暖光',
       '塔顶攒尖小顶，塔下缘一圈红灯；塔身比两侧屋脊高出一倍',
     ],
-    placement: { kind: 'far_tower', at: { x: 20, y: 15 } },
+    placement: { kind: 'far_tower', at: { x: 18, y: 15 } },
   },
   {
     id: 'bay_mist',

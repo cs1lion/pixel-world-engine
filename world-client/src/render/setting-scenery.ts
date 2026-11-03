@@ -406,8 +406,9 @@ function drawShopfront(
   g.fillRect(x - 4, y - 8, width + 8, 7);
   g.fillStyle(c.trim, 0.8);
   g.fillRect(x - 4, y - 8, width + 8, 1);
-  // 檐下布幔：橙红分条，幔脚压一道深线（p37/p40 的店檐）。
-  for (let i = 0; i < width + 8; i += 4) {
+  // 檐下布幔：橙红分条，幔脚压一道深线（p37/p40 的店檐）。每 6px 一条，
+  // 48px 窄立面也不挤成一条实线，同时把三面店面的指令数压下来。
+  for (let i = 0; i < width + 8; i += 6) {
     g.fillStyle(i % 8 === 0 ? c.warmLight : c.terracotta, 0.9);
     g.fillRect(x - 4 + i, y - 4, 3, 3);
   }

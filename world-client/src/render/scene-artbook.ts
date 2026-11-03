@@ -327,10 +327,10 @@ function drawFarRidge(
   // 后层山影：更浅、更高、只在几段露出。
   for (let i = 0; i < 5; i += 1) {
     const cx = x + 110 + i * 190;
-    for (let row = 0; row < 3; row += 1) {
-      const rw = 130 - row * 34;
+    for (let row = 0; row < 2; row += 1) {
+      const rw = 130 - row * 40;
       g.fillStyle(c.charcoal, 0.42);
-      g.fillRect(cx - rw / 2, y - 12 + row * 3, rw, 3);
+      g.fillRect(cx - rw / 2, y - 9 + row * 4, rw, 3);
     }
   }
   // 近层岸线：一条连续的暗带 + 两层低山。
@@ -338,16 +338,16 @@ function drawFarRidge(
   g.fillRect(x, y, span, 12);
   g.fillStyle(c.charcoal, 1);
   g.fillRect(x, y, span, 6);
-  for (let i = 0; i < 8; i += 1) {
-    const cx = x + 64 + i * 124;
+  for (let i = 0; i < 6; i += 1) {
+    const cx = x + 84 + i * 168;
     for (let row = 0; row < 2; row += 1) {
       const rw = 96 - row * 30;
       g.fillStyle(c.deepShade, 1);
       g.fillRect(cx - rw / 2, y - 6 + row * 3, rw, 3);
     }
   }
-  // 屋脊：横脊为主，每隔 48px 一栋；窗只点在三栋里的一栋。
-  for (let i = 0; i < length; i += 3) {
+  // 屋脊：横脊为主，每 4 格一栋；窗只点在三栋里的一栋。
+  for (let i = 0; i < length; i += 4) {
     const hx = x + i * TILE_PX;
     g.fillStyle(c.timberDark, 1);
     g.fillRect(hx + 2, y + 1, 30, 4);
@@ -355,9 +355,7 @@ function drawFarRidge(
     g.fillRect(hx + 6, y - 2, 22, 3);
     g.fillStyle(c.plaster, 0.5);
     g.fillRect(hx + 3, y + 5, 28, 2);
-    g.fillStyle(c.ink, 0.4);
-    g.fillRect(hx + 3, y + 7, 28, 1);
-    if (i % 9 === 3) {
+    if (i % 12 === 4) {
       g.fillStyle(c.amber, 0.45);
       g.fillRect(hx + 12, y + 2, 2, 2);
       farWindows.push({ x: hx + 13, y: y + 3 });
@@ -420,10 +418,12 @@ function drawFarWindows(
   c: Palette,
 ): void {
   for (const p of points) {
-    g.fillStyle(c.amber, 0.2);
-    g.fillRect(p.x - 3, p.y - 2, 6, 5);
+    // 芯一亮一暖两点：白天的窗格已经画死，夜里只补"亮着"的那一点，
+    // 光晕由既有灯层负责，不在这里叠第二层方块（那一层很贵）。
     g.fillStyle(c.warmLight, 0.95);
-    g.fillRect(p.x - 1, p.y - 1, 2, 2);
+    g.fillRect(p.x - 1, p.y - 1, 3, 3);
+    g.fillStyle(c.amber, 0.55);
+    g.fillRect(p.x - 2, p.y + 1, 5, 2);
   }
 }
 
@@ -440,10 +440,8 @@ function drawWaterLight(
     const lean = (i % 3) - 1;
     g.fillStyle(c.warmLight, 0.22);
     g.fillRect(p.x - 2 + lean, p.y, 4, 4);
-    g.fillStyle(c.amber, 0.14);
-    g.fillRect(p.x - 1 + lean, p.y + 4, 3, 7);
-    g.fillStyle(c.amber, 0.07);
-    g.fillRect(p.x + lean, p.y + 11, 2, 5);
+    g.fillStyle(c.amber, 0.12);
+    g.fillRect(p.x - 1 + lean, p.y + 4, 3, 8);
   }
 }
 
@@ -475,7 +473,8 @@ function drawMist(
  * 渡口石砌突堤（PDF p41）：条石错缝、堤头三级踏步下水、两根系船石柱。
  *
  * 画在 depth 6：人在堤上走时，人物层（1400+）仍在他前面；水（3）在堤下。
- * `length` 是**纵向**格数（堤从岸边伸进湾里），和 track/bridge 的横向口径不同。
+ * `length` 是**沿岸的横向格数**（和 track/bridge 同口径）。早先按纵向口径画成
+ * 2 格宽、4 格高，在渡口机位里读成一根石柱——堤是低而长的一条，不是塔。
  */
 function drawQuay(
   g: Phaser.GameObjects.Graphics,
@@ -484,49 +483,51 @@ function drawQuay(
   length: number,
   c: Palette,
 ): void {
-  const w = 32;
-  const h = length * TILE_PX;
+  const w = length * TILE_PX;
+  const h = 18;
+  // 落影：堤脚压在水面上，不是浮着。
   g.fillStyle(c.ink, 0.35);
-  g.fillRect(x + 2, y + 4, w + 3, h + 2);
+  g.fillRect(x + 3, y + 4, w, h);
+  // 堤身：条石错缝，横缝每 6px，竖缝错开。
   g.fillStyle(c.stone, 1);
   g.fillRect(x, y, w, h);
-  // 条石：横缝每 8px，竖缝错开；错缝比工字缝更像石作。
-  for (let row = 0; row < h / 8; row += 1) {
-    const yy = y + row * 8;
-    g.fillStyle(c.ink, 0.28);
+  for (let row = 0; row < h / 6; row += 1) {
+    const yy = y + row * 6;
+    g.fillStyle(c.ink, 0.24);
     g.fillRect(x, yy, w, 1);
-    const joint = row % 2 === 0 ? 10 : 20;
-    g.fillStyle(c.ink, 0.28);
-    g.fillRect(x + joint, yy, 1, 8);
+    for (let col = row % 2 === 0 ? 8 : 16; col < w; col += 24) {
+      g.fillStyle(c.ink, 0.24);
+      g.fillRect(x + col, yy, 1, 6);
+    }
   }
+  // 堤沿：上沿压亮边，下沿压深影，读成"比水面高一级"。
   g.fillStyle(c.plaza, 1);
-  g.fillRect(x, y, 2, h);
-  g.fillRect(x + w - 2, y, 2, h);
-  g.fillStyle(c.deepShade, 0.45);
-  g.fillRect(x + w - 1, y, 1, h);
-  // 堤头三级踏步：越靠外越亮，读成"往下走到水面"。
+  g.fillRect(x, y, w, 2);
+  g.fillStyle(c.deepShade, 0.5);
+  g.fillRect(x, y + h - 1, w, 1);
+  // 堤头三级踏步：在东端往下走到水面，越靠外越亮。
   for (let step = 0; step < 3; step += 1) {
     g.fillStyle(step === 0 ? c.plaza : c.stone, 1);
-    g.fillRect(x + 3, y + step * 4, w - 6, 4);
-    g.fillStyle(c.ink, 0.35);
-    g.fillRect(x + 3, y + step * 4 + 4, w - 6, 1);
+    g.fillRect(x + w - 20 + step * 3, y + 2 + step * 4, 20 - step * 3, 4);
+    g.fillStyle(c.ink, 0.3);
+    g.fillRect(x + w - 20 + step * 3, y + 6 + step * 4, 20 - step * 3, 1);
   }
   // 系船石柱 + 绳：柱头只留一道浅檐，不做雕饰。
-  for (const bx of [x + 2, x + w - 6]) {
+  for (const bx of [x + w / 4, x + (w * 3) / 4 - 4]) {
     g.fillStyle(c.charcoal, 1);
-    g.fillRect(bx, y + 14, 4, 7);
+    g.fillRect(bx, y - 5, 4, 7);
     g.fillStyle(c.trim, 0.8);
-    g.fillRect(bx - 1, y + 14, 6, 1);
+    g.fillRect(bx - 1, y - 5, 6, 1);
     g.fillStyle(c.trim, 1);
-    g.fillRect(bx + 4, y + 18, 5, 1);
-    g.fillRect(bx + 8, y + 21, 1, 3);
+    g.fillRect(bx + 4, y - 1, 5, 1);
+    g.fillRect(bx + 8, y + 2, 1, 3);
   }
   // 候船石：一块更亮的石面，缝里长苔。
   g.fillStyle(c.plaza, 0.85);
-  g.fillRect(x + 8, y + h - 22, 16, 9);
+  g.fillRect(x + 10, y + 4, 16, 9);
   g.fillStyle(c.moss, 0.35);
-  g.fillRect(x + 9, y + h - 14, 6, 1);
-  g.fillRect(x + 6, y + h - 5, 10, 1);
+  g.fillRect(x + 11, y + 12, 6, 1);
+  g.fillRect(x + 8, y + 16, 10, 1);
 }
 
 /** 街面南段铺装（PDF p40）：湿石错缝，靠摊位一侧更暗。 */
@@ -540,16 +541,16 @@ function drawStreetPaving(
   const w = length * TILE_PX;
   g.fillStyle(c.plaza, 1);
   g.fillRect(x, y, w, 16);
-  for (let i = 0; i < length; i += 1) {
-    const px = x + i * TILE_PX;
+  // 每两块（32px）一组的错缝石板：竖缝一深一亮，比逐格画省一半指令，
+  // 16px 的瓦片尺度仍是按石板对的，不是大色块。
+  for (let px = x; px < x + w; px += 32) {
     g.fillStyle(c.stone, 0.55);
     g.fillRect(px, y, 1, 16);
-    g.fillRect(px + 8, y + 8, 1, 8);
-    if (i % 3 === 0) {
+    if ((px - x) % 96 === 0) {
       g.fillStyle(c.deepShade, 0.18);
-      g.fillRect(px + 2, y + 2, 12, 6);
+      g.fillRect(px + 2, y + 2, 28, 6);
       g.fillStyle(c.moss, 0.25);
-      g.fillRect(px + 2, y + 14, 5, 1);
+      g.fillRect(px + 2, y + 14, 9, 1);
     }
   }
   g.fillStyle(c.ink, 0.22);
@@ -609,8 +610,8 @@ function drawDrain(
     g.fillStyle(c.stone, 1);
     g.fillRect(gx + 2, y, 12, 5);
     g.fillStyle(c.charcoal, 1);
-    g.fillRect(gx + 4, y + 1, 1, 3);
-    g.fillRect(gx + 8, y + 1, 1, 3);
+    g.fillRect(gx + 5, y + 1, 1, 3);
+    g.fillRect(gx + 9, y + 1, 1, 3);
     g.fillStyle(c.moss, 0.3);
     g.fillRect(gx + 12, y + 5, 3, 1);
   }
@@ -643,15 +644,22 @@ function drawGableShopfront(
   g.fillRect(x + w - 2, y - 30, 2, 30);
   g.fillRect(x, y - 18, w, 1);
   g.fillRect(x, y - 6, w, 1);
-  // 弧形山墙：三级收分，像半个拱。
-  for (let row = 0; row < 5; row += 1) {
-    const rw = w - row * 12;
+  // 弧形山墙：宽度按 w、w-6、w-16、w-28、w-40 收，前三行收得慢、后两行收得快，
+  // 读成半个拱而不是阶梯金字塔；每行上沿压一道亮边（p35 的灰泥山墙）。
+  const archWidths = [w, w - 6, w - 16, w - 28, w - 40];
+  for (let row = 0; row < archWidths.length; row += 1) {
+    const rw = archWidths[row];
     if (rw <= 0) continue;
     g.fillStyle(c.plaster, 1);
     g.fillRect(x + (w - rw) / 2, y - 34 - row * 4, rw, 4);
-    g.fillStyle(row === 4 ? c.trim : c.stone, 0.5);
+    g.fillStyle(row === archWidths.length - 1 ? c.trim : c.plaster, 0.5);
     g.fillRect(x + (w - rw) / 2, y - 34 - row * 4, rw, 1);
+    g.fillStyle(c.stone, 0.45);
+    g.fillRect(x + (w - rw) / 2, y - 31 - row * 4, rw, 1);
   }
+  // 拱心石：一块竖压的浅色石，把拱顶的顶点钉住。
+  g.fillStyle(c.trim, 0.8);
+  g.fillRect(x + w / 2 - 1, y - 52, 3, 6);
   // 圆窗：方形切角，像素里读成圆形。
   const cx = x + w / 2 - 7;
   g.fillStyle(c.trim, 1);
@@ -682,8 +690,8 @@ function drawGableShopfront(
   g.fillRect(x + w / 2 - 12, y - 14, 24, 13);
   g.fillStyle(c.timberDark, 1);
   for (let i = 0; i < 24; i += 6) g.fillRect(x + w / 2 - 12 + i, y - 14, 1, 13);
-  // 檐下布幔：分条，幔脚掀一角。
-  for (let i = 0; i < w; i += 4) {
+  // 檐下布幔：分条，幔脚掀一角（每 6px 一条，16px 瓦片尺度下仍读得出分条）。
+  for (let i = 0; i < w; i += 6) {
     g.fillStyle(i % 8 === 0 ? c.warmLight : c.terracotta, 0.9);
     g.fillRect(x + i, y - 12, 3, 4);
   }
