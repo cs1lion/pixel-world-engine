@@ -14,7 +14,7 @@
  */
 import type { VillagerSnapshot } from '../world/types.ts';
 import type { VillagerLook } from '../world/villager-look.ts';
-import { VILLAGER_H, VILLAGER_W, villagerLayout } from './villager-layout.ts';
+import { VILLAGER_H, VILLAGER_W, villagerLayout, type PixelRect } from './villager-layout.ts';
 
 export const SILHOUETTE_FACINGS = ['down', 'right', 'up'] as const;
 export type SilhouetteFacing = (typeof SILHOUETTE_FACINGS)[number];
@@ -34,8 +34,13 @@ export interface SilhouetteMask {
 
 /** 把某一朝向的一帧画进 24×30 的固定画布，只留占/不占。 */
 export function silhouetteMask(look: VillagerLook, facing: SilhouetteFacing): SilhouetteMask {
-  const cells = new Uint8Array(VILLAGER_W * VILLAGER_H);
   const rects = villagerLayout(look, facing as VillagerSnapshot['facing'], POSE, false, 'idle', 0);
+  return maskFromRects(rects);
+}
+
+/** 任意一帧的矩形序列 → 剪影。动画帧的复测走这里，静止帧的判据走上面那条。 */
+export function maskFromRects(rects: readonly PixelRect[]): SilhouetteMask {
+  const cells = new Uint8Array(VILLAGER_W * VILLAGER_H);
   for (const item of rects) {
     for (let y = item.y; y < item.y + item.h; y += 1) {
       const gy = y + VILLAGER_H;
