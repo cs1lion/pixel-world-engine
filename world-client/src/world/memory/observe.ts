@@ -41,14 +41,16 @@ export function worldEventImportance(kind: WorldEventKind): number {
     case 'street_greet':
     case 'street_yield':
     case 'street_together':
-      return 0.45;
+      // 见过一面不是「大事」：压在传说门槛（0.4）下面，让同地点的闲话还能
+      // 并成一块碑；但它仍然写进个人记忆（闲话本来就写得下）。
+      return 0.38;
     case 'daily_water':
     case 'daily_lamp':
       return 0.35;
     case 'routine_done':
-      return 0.3;
+      return 0.35;
     case 'tide_turn':
-      return 0.28;
+      return 0.35;
   }
 }
 

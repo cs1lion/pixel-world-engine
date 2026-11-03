@@ -15,7 +15,7 @@
  */
 
 import { DAY_MS } from './memory/config.ts';
-import { hash32, seedOf } from './memory/seed.ts';
+import { seedOf } from './memory/seed.ts';
 import { worldHours, worldMinutes } from './pace.ts';
 import type { GridPoint } from './types.ts';
 
@@ -166,7 +166,7 @@ export function livelyBetween(input: LivelyInput): readonly LivelyEvent[] {
       if (chebyshev(a.cell, b.cell) > LIVELY_CLOSE_CELLS) continue;
 
       const pairKey = `${a.id}|${b.id}`;
-      const gate = hash32(seedOf(input.seed, 'lively-gate', slot, pairKey));
+      const gate = seedOf(input.seed, 'lively-gate', slot, pairKey);
       // 半个槽会出手：再密就变成每十分钟一次，街上像在演同一段戏。
       if (gate % 2 !== 0) continue;
 
@@ -179,7 +179,7 @@ export function livelyBetween(input: LivelyInput): readonly LivelyEvent[] {
         if (incident !== undefined) return [incident];
       }
 
-      const pick = hash32(seedOf(input.seed, 'lively-kind', slot, pairKey)) % 3;
+      const pick = seedOf(input.seed, 'lively-kind', slot, pairKey) % 3;
       const where = { x: a.cell.x, y: a.cell.y };
 
       if (a.standing && b.standing && trustLow <= LIVELY_AVOID_TRUST) {
@@ -199,13 +199,13 @@ export function livelyBetween(input: LivelyInput): readonly LivelyEvent[] {
         const stander = a.walking ? b : a;
         return [{
           kind: 'street_yield',
-          text: `${walker.name}给${stander.name}让了让路。`,
-          where: { x: walker.cell.x, y: walker.cell.y },
+          text: `${stander.name}侧身让${walker.name}先过。`,
+          where: { x: stander.cell.x, y: stander.cell.y },
           actorId: walker.id,
           otherId: stander.id,
-          bubbles: pairBubbles(walker, stander, '您先走。', '多谢。'),
+          bubbles: pairBubbles(walker, stander, '多谢。', '您先走。'),
           durationMs: YIELD_DURATION_MS,
-          shift: { villagerId: walker.id, awayFromId: stander.id },
+          shift: { villagerId: stander.id, awayFromId: walker.id },
         }];
       }
 
@@ -252,7 +252,7 @@ function incidentBetween(
   incidentSlot: number,
   pairKey: string,
 ): LivelyEvent | undefined {
-  const gate = hash32(seedOf(input.seed, 'lively-incident', incidentSlot, pairKey)) % 3;
+  const gate = seedOf(input.seed, 'lively-incident', incidentSlot, pairKey) % 3;
   const close = chebyshev(a.cell, b.cell) <= 1;
   const nearWater =
     chebyshev(a.cell, input.waterPlace) <= 2 || chebyshev(b.cell, input.waterPlace) <= 2;

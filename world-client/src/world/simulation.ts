@@ -2749,7 +2749,7 @@ export class Simulation {
       );
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat);
-      if (target === null || this.avoidsAnchor(villager, target)) continue;
+      if (target === null || this.avoiding(villager, target)) continue;
       if (target.x === here.x && target.y === here.y) {
         // 安静段里所有拍都回锚点。她已经坐在锚点上时不能只走「1600ms 兜底」——
         // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
@@ -3755,6 +3755,13 @@ export class Simulation {
    */
   private stepLiveliness(prevNow: number): void {
     if (this.villagers.length < 2) return;
+    // 槽没跨就什么也不判。平时这一拍只花一次整除——不然每个逻辑步都要
+    // 摊一份居民快照、扫一遍水面，5 倍预算就是这么被吃掉的。
+    if (
+      Math.floor(prevNow / lively.LIVELY_SLOT_MS) === Math.floor(this.now / lively.LIVELY_SLOT_MS)
+    ) {
+      return;
+    }
     const villagers: lively.LivelyVillager[] = this.villagers.map((villager) => {
       const cell = this.cellOf(villager.pos);
       const walking = villager.path.length > 0;
@@ -3803,10 +3810,9 @@ export class Simulation {
         villager.facing = facingFor(dx, dy);
       }
     }
-    for (const villager of [actor, other]) {
-      if (villager === undefined) continue;
-      villager.nextRoutineAt = Math.max(villager.nextRoutineAt, this.now + event.durationMs);
-    }
+    // 气泡之外**不动作息**：街头互动不是任务，不能让居民为此迟到，否则
+    // 一天里本来该撞在同一个地点的两件小事会被推成两处（传说就并不起来，
+    // 碑也会散成一地）。停留只在气泡上，站位只由让路那一下改。
     if (event.shift !== undefined) this.stepAside(event.shift.villagerId, event.shift.awayFromId);
     this.announce({
       change: 'world.event',
@@ -3849,6 +3855,16 @@ export class Simulation {
   }
 
   /** 这个落点会不会撞上「我不想见到的人」。命中一次就记一笔对照读数。 */
+  private avoiding(villager: Villager, target: GridPoint): boolean {
+    if (!this.avoidsAnchor(villager, target)) return false;
+    // 避开不是发呆：这一拍不去，下一拍还会重挑。给一个 20 世界秒的重试间隔，
+    // 否则一拍的 `for` 走完就回到 `stepIdle`，同一个落点会被每 100ms 重算一次，
+    // 对照读数会变成「逻辑步数」而不是「跳过几拍」。
+    villager.nextRoutineAt = Math.max(villager.nextRoutineAt, this.now + 20_000);
+    return true;
+  }
+
+  /** 纯判据：落点离「不想见的人」有多近。计数留给 `avoiding`。 */
   private avoidsAnchor(villager: Villager, target: GridPoint): boolean {
     for (const rule of this.socialContext.avoid) {
       if (rule.villagerId !== villager.id) continue;

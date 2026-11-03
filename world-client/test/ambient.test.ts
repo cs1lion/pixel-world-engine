@@ -8,6 +8,15 @@ import {
   type AmbientDweller,
   type AmbientInput,
 } from '../src/world/ambient.ts';
+import {
+  LIVELY_AVOID_TRUST,
+  LIVELY_CLOSE_CELLS,
+  LIVELY_INCIDENT_SLOT_MS,
+  LIVELY_SLOT_MS,
+  livelyBetween,
+  type LivelyInput,
+  type LivelyVillager,
+} from '../src/world/liveliness.ts';
 
 /**
  * 世界自己生事：没有谁下命令，镇子自己走到这一刻。
@@ -152,4 +161,139 @@ test('槽边界：正好落在边界上算新槽，差一毫秒不算', () => {
       .length,
     1,
   );
+});
+
+// ------------------------------------------------------------ 街头活气
+//
+// 这一组钉三件事：三个以上的互动确实能被位置 + 关系选出来；同一输入逐字可复现；
+// 街头小事三种都能在合适的位置/时辰被触发。位置与关系都是输入的，判据不碰外部状态。
+
+const WATER = { x: 12, y: 9 };
+const STANDING: LivelyVillager = {
+  id: 'v0',
+  name: '甲',
+  cell: { x: 10, y: 9 },
+  walking: false,
+  standing: true,
+  carrying: false,
+  free: true,
+};
+const STANDING_NEAR: LivelyVillager = {
+  ...STANDING,
+  id: 'v1',
+  name: '乙',
+  cell: { x: 11, y: 9 },
+};
+const WALKING_NEAR: LivelyVillager = {
+  ...STANDING_NEAR,
+  walking: true,
+  standing: false,
+};
+
+function livelyInput(over: Partial<LivelyInput> = {}): LivelyInput {
+  return {
+    prevNow: 6 * 3_600_000,
+    now: 6 * 3_600_000,
+    seed: 'street-test',
+    villagers: [STANDING, STANDING_NEAR],
+    relations: [],
+    waterPlace: WATER,
+    ...over,
+  };
+}
+
+/** 在一个 10 分钟槽的边界上走一拍。 */
+const livelyAt = (slot: number, over: Partial<LivelyInput> = {}): LivelyInput => ({
+  ...livelyInput(over),
+  prevNow: slot * LIVELY_SLOT_MS - 1,
+  now: slot * LIVELY_SLOT_MS,
+});
+
+test('同样输入两次，逐字相同（种子是唯一的随机来源）', () => {
+  for (let slot = 37; slot < 120; slot += 1) {
+    const given = livelyAt(slot);
+    assert.deepEqual(livelyBetween(given), livelyBetween(given));
+    if (livelyBetween(given).length > 0) return;
+  }
+  assert.fail('120 个槽里一件街头互动都没有——这条测试自己就没在验复现');
+});
+
+test('位置 + 关系能选出三种以上的互动：招呼 / 一起做事 / 让路', () => {
+  const kinds = new Set<string>();
+  for (let slot = 37; slot < 220; slot += 1) {
+    for (const event of livelyBetween(livelyAt(slot))) kinds.add(event.kind);
+    for (const event of livelyBetween(livelyAt(slot, { villagers: [STANDING, WALKING_NEAR] }))) {
+      kinds.add(event.kind);
+    }
+  }
+  assert.ok(kinds.has('street_greet'), '站着的两个人碰面从来没招呼过');
+  assert.ok(kinds.has('street_together'), '白天挨着的两个人从来没一起搭手');
+  assert.ok(kinds.has('street_yield'), '走路的人从来没让过路');
+});
+
+test('关系读数够冷时，站着碰面一定变成争执而不是招呼', () => {
+  const cold = [
+    { from: 'v0', to: 'v1', trust: LIVELY_AVOID_TRUST - 0.05, warmth: -0.2 },
+    { from: 'v1', to: 'v0', trust: LIVELY_AVOID_TRUST - 0.05, warmth: -0.2 },
+  ];
+  for (let slot = 37; slot < 400; slot += 1) {
+    const events = livelyBetween(livelyAt(slot, { relations: cold }));
+    if (events.length === 0) continue;
+    assert.equal(events[0]!.kind, 'street_quarrel', '冷到阈值以下还在笑着打招呼，关系读数等于没接上');
+    return;
+  }
+  assert.fail('400 个槽里没有一次跨槽——这条测试的前提没成立');
+});
+
+test('让路只挪站着的那位，走路的那位路线不动', () => {
+  for (let slot = 37; slot < 220; slot += 1) {
+    const events = livelyBetween(livelyAt(slot, { villagers: [STANDING, WALKING_NEAR] }));
+    const yieldEvent = events.find((event) => event.kind === 'street_yield');
+    if (yieldEvent === undefined) continue;
+    assert.equal(yieldEvent.shift?.villagerId, 'v0', '被让路的那位反而挪了');
+    assert.equal(yieldEvent.shift?.awayFromId, 'v1');
+    return;
+  }
+  assert.fail('200 个槽里没有一次让路');
+});
+
+test('街头小事三种都能被触发：撞担 / 抢水 / 帮抬', () => {
+  const kinds = new Set<string>();
+  const carrier: LivelyVillager = {
+    ...STANDING,
+    id: 'v0',
+    name: '甲',
+    carrying: true,
+  };
+  const helper: LivelyVillager = {
+    ...STANDING_NEAR,
+    id: 'v1',
+    name: '乙',
+  };
+  for (let day = 0; day < 60; day += 1) {
+    const base = day * 12 * LIVELY_INCIDENT_SLOT_MS;
+    for (const hourOffset of [3, 4]) {
+      // 槽首是 6:00 / 8:00——抢水那两拍。
+      const now = base + hourOffset * LIVELY_INCIDENT_SLOT_MS;
+      const incidentInput = (villagers: LivelyVillager[], relations: LivelyInput['relations'] = []) => ({
+        ...livelyInput({ villagers, relations }),
+        prevNow: now - 1,
+        now,
+      });
+      for (const event of livelyBetween(incidentInput([carrier, helper]))) kinds.add(event.kind);
+      for (const event of livelyBetween(incidentInput([STANDING, WALKING_NEAR]))) kinds.add(event.kind);
+      for (const event of livelyBetween(incidentInput(
+        [{ ...STANDING, cell: WATER }, { ...STANDING_NEAR, cell: { x: WATER.x + 1, y: WATER.y } }],
+      ))) kinds.add(event.kind);
+    }
+  }
+  assert.ok(kinds.has('street_help'), '肩上有货却从没人搭手');
+  assert.ok(kinds.has('street_water'), '清晨井边从来没抢过水');
+  assert.ok(kinds.has('street_tumble'), '路上从来没撞翻过担子');
+  assert.ok(kinds.size >= 3);
+  // 位置判据必须真的在起作用：把两人拉到 4 格外，什么都不会出。
+  const far = { ...STANDING_NEAR, cell: { x: STANDING.cell.x + LIVELY_CLOSE_CELLS + 2, y: STANDING.cell.y } };
+  for (let slot = 37; slot < 60; slot += 1) {
+    assert.deepEqual(livelyBetween(livelyAt(slot, { villagers: [STANDING, far] })), []);
+  }
 });

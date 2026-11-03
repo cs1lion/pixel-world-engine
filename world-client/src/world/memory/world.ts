@@ -1838,7 +1838,7 @@ export class MemoryWorld {
     return {
       placeId: fact.placeId,
       actors: [...fact.actors],
-      what: fact.voice.what,
+      what: this.whatOf(fact),
     };
   }
 

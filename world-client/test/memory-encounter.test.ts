@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { DAY_MS } from '../src/world/memory/config.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { MemoryWorld } from '../src/world/memory/world.ts';
+import { observationOf } from '../src/world/memory/observe.ts';
+import { WorldGrid } from '../src/world/grid.ts';
+import { Simulation } from '../src/world/simulation.ts';
+import type { WorldChange } from '../src/world/world-changes.ts';
 
 /**
  * 日终那一格坐标不是一天。
@@ -124,5 +128,112 @@ test('行为层只要喂位置就够了：`syncHolders` 自己会记照面', () 
   assert.ok(
     believeCount(runtime.world, 'v1') > 0,
     '`syncHolders` 喂进来的位置没有变成照面记录——生产里没人会额外调 `sampleEncounters`',
+  );
+});
+
+test('街头小事落成方向性账：被撞的人掉信任，撞人的人只多一点愧疚', () => {
+  const memory = new MemoryRuntime({ worldId: 'street-bond' });
+  memory.syncHolders([
+    { holderId: 'v0', type: 'character', at: { x: 0, y: 0 } },
+    { holderId: 'v1', type: 'character', at: { x: 1, y: 0 } },
+  ]);
+  const change: WorldChange = {
+    change: 'world.event',
+    kind: 'street_tumble',
+    text: '甲撞翻了乙的担子。',
+    placeId: 'place:0,0',
+    where: { x: 0, y: 0 },
+    actorId: 'v0',
+    otherId: 'v1',
+  };
+  const observation = observationOf(change, 'ev-street', {
+    atOfHolder: (holderId) => (holderId === 'v1' ? { x: 1, y: 0 } : { x: 0, y: 0 }),
+    atOfBuilding: () => undefined,
+    buildingOfTask: () => undefined,
+  });
+  assert.ok(observation !== null, '有落点、有两位当事人的街头小事不该被翻译漏掉');
+  assert.equal(observation.importanceHint, 0.65);
+  memory.observe(observation, ['v0', 'v1'], 1000);
+
+  const victim = memory.bondsOf('v1').find((bond) => bond.to === 'v0');
+  assert.ok(victim !== undefined, '被撞的那一位没有对撞人者形成关系账');
+  assert.equal(victim.trust, -0.22, '被撞的人对撞人者的 trust 读数不对');
+  assert.equal(victim.warmth, -0.16);
+  assert.ok(victim.evidence.includes('ev-street'), '关系改了，却指不回是那件事改的');
+
+  const bump = memory.bondsOf('v0').find((bond) => bond.to === 'v1');
+  assert.ok(bump !== undefined, '撞人者对被撞者那一头也应该有一笔（愧疚）');
+  assert.equal(bump.trust, 0.04, '两个方向写成了同一个数——方向性账本就退化成了一条');
+  assert.equal(bump.warmth, 0.03);
+
+  const today = memory.dayTimelineFor('v1', 0);
+  assert.equal(today.length, 1, '街头小事没有进被撞者的今日时间线');
+  assert.equal(today[0]!.eventId, 'ev-street');
+});
+
+test('有记忆 vs 无记忆：低信任的人会主动避开同一个锚点', () => {
+  const memory = new MemoryRuntime({ worldId: 'avoid-compare' });
+  memory.syncHolders([
+    { holderId: 'v0', type: 'character', at: { x: 0, y: 0 } },
+    { holderId: 'v1', type: 'character', at: { x: 1, y: 0 } },
+  ]);
+  const change: WorldChange = {
+    change: 'world.event',
+    kind: 'street_tumble',
+    text: '甲撞翻了乙的担子。',
+    placeId: 'place:0,0',
+    where: { x: 0, y: 0 },
+    actorId: 'v0',
+    otherId: 'v1',
+  };
+  const observation = observationOf(change, 'ev-avoid', {
+    atOfHolder: (holderId) => (holderId === 'v1' ? { x: 1, y: 0 } : { x: 0, y: 0 }),
+    atOfBuilding: () => undefined,
+    buildingOfTask: () => undefined,
+  });
+  assert.ok(observation !== null);
+  memory.observe(observation, ['v0', 'v1'], 1000);
+  const cold = memory.bondsOf('v1').find((bond) => bond.to === 'v0');
+  assert.ok(cold !== undefined && cold.trust < -0.15, '前置条件：被撞者的信任必须已经压到阈值下');
+
+  const target = { x: 12, y: 9 };
+  const makeSim = (): Simulation => {
+    const grid = new WorldGrid({ width: 24, height: 18, border: 1, zones: [], regions: [] });
+    return new Simulation({
+      grid,
+      buildings: [],
+      altar: { x: 20, y: 9 },
+      villagerName: '甲',
+      initialNow: 6 * 3_600_000,
+      worldSeed: 'avoid-test',
+      wallClock: () => 1000,
+      villagerProfiles: [
+        { at: target, routine: [{ id: 'altar', label: '在祭坛边', going: '去祭坛边', target, dwellMs: 5000 }] },
+        { at: target, routine: [{ id: 'altar', label: '在祭坛边', going: '去祭坛边', target, dwellMs: 5000 }] },
+      ],
+    });
+  };
+
+  const plain = makeSim();
+  plain.setSocialContext({ relations: [], avoid: [] });
+  for (let i = 0; i < 120; i += 1) plain.update(60_000);
+
+  const remembered = makeSim();
+  remembered.setSocialContext({
+    relations: [],
+    avoid: [{ villagerId: 'v1', otherId: 'v0' }],
+  });
+  for (let i = 0; i < 120; i += 1) remembered.update(60_000);
+
+  const without = plain.livelinessStats().avoidedBeats;
+  const withMemory = remembered.livelinessStats().avoidedBeats;
+  assert.equal(without, 0, '没有记忆的那一遍不该跳过任何一拍');
+  assert.ok(
+    withMemory > 0,
+    '记忆里已经压到阈值以下，行为层却一拍也没让开——闭环没接上',
+  );
+  assert.ok(
+    withMemory >= without + 10,
+    `有/无记忆的读数差太小：无 ${without}，有 ${withMemory}`,
   );
 });
