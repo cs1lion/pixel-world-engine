@@ -53,6 +53,7 @@ import { createWeatherView, type WeatherView } from '../render/weather.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
+import { createLightPoolView, type LightPoolView } from '../render/light-pools-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
 import {
@@ -217,6 +218,8 @@ export class SandboxScene extends Phaser.Scene {
   private weatherView!: WeatherView;
   private tideView!: TideView;
   private phaseView!: PhaseView;
+  /** 环境光斑：远近景不同密度，跟着时相层的 glow 走。 */
+  private lightPools!: LightPoolView;
   /** 白天的鸟、黄昏的蝙蝠。纯画面，不占快照、不进存档。 */
   private ambienceView!: AmbienceView;
   private nightKeyListener: ((event: KeyboardEvent) => void) | null = null;
@@ -450,6 +453,7 @@ export class SandboxScene extends Phaser.Scene {
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
     this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette);
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
+    this.lightPools = createLightPoolView(this);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
     this.fogView = createFogView(this, this.world.grid.width, this.world.grid.height);
@@ -2610,6 +2614,13 @@ export class SandboxScene extends Phaser.Scene {
     this.tideView.update(this.snapshot.tide.level);
     this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now);
     this.phaseView.update(this.snapshot, delta);
+    // 光斑的密度按**镜头视野**算：远景稀疏、近景密。glow 由时相层给同一份插值。
+    const visible = this.cameraCtl.viewportRect();
+    this.lightPools.update(
+      { x: visible.x, y: visible.y, w: visible.width, h: visible.height },
+      this.phaseView.ambient().glow,
+      this.snapshot.now,
+    );
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。
     this.ambienceView.update(

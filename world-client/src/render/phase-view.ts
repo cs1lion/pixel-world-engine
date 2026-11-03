@@ -52,6 +52,18 @@ export interface PhaseView {
   setAutoAdvance(enabled: boolean): void;
   isAutoAdvancing(): boolean;
   update(snapshot: WorldSnapshot, delta: number): void;
+  /**
+   * 这一帧插值后的观感，给同屏的其它覆盖层用（光斑、粒子）。
+   * 它们不该各自再读一遍配方：两份「现在多亮」迟早对不上。
+   */
+  ambient(): {
+    readonly dim: number;
+    readonly glow: number;
+    readonly ridge: number;
+    readonly litWindows: number;
+    readonly mist: number;
+    readonly fireflies: boolean;
+  };
 }
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -103,6 +115,8 @@ export function createPhaseView(
   let t = 1;
   let autoAdvance = true;
   let glowKey = '';
+  /** 最近一帧插值后的观感；`ambient()` 读它，不重算。 */
+  let currentView: Blend = blend(PHASES.noon, PHASES.noon, 1);
 
   const drawGlows = (snapshot: WorldSnapshot, view: Blend): void => {
     glows.clear();
@@ -248,9 +262,27 @@ export function createPhaseView(
     isAutoAdvancing(): boolean {
       return autoAdvance;
     },
+    ambient(): {
+      dim: number;
+      glow: number;
+      ridge: number;
+      litWindows: number;
+      mist: number;
+      fireflies: boolean;
+    } {
+      return {
+        dim: currentView.dim,
+        glow: currentView.glow,
+        ridge: currentView.ridge,
+        litWindows: currentView.litWindows,
+        mist: currentView.mist,
+        fireflies: currentView.fireflies,
+      };
+    },
     update(snapshot: WorldSnapshot, delta: number): void {
       if (t < 1) t = Math.min(1, t + delta / FADE_MS);
       const view = blend(PHASES[fromPhase], PHASES[targetPhase], t);
+      currentView = view;
 
       dim.setVisible(true);
       dim.setFillStyle(view.dimColor, view.dim);
