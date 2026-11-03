@@ -100,6 +100,8 @@ export interface DailyRunOptions {
   readonly worldId?: string;
   readonly world?: World;
   readonly villagerNames?: readonly string[];
+  /** 从存档重开（模拟「关掉页面再打开」）；与 `world` 互斥。 */
+  readonly save?: WorldSave;
 }
 
 /**
@@ -132,7 +134,21 @@ export class DailyRun {
   private serial = 0;
 
   constructor(options: DailyRunOptions = {}) {
-    this.world = options.world ?? buildDailyWorld();
+    if (options.save === undefined) {
+      this.world = options.world ?? buildDailyWorld();
+      this.sim = new Simulation({
+        grid: this.world.grid,
+        buildings: this.world.buildings,
+        altar: this.world.altar,
+        villagerName: ONE_RESIDENT,
+        villagerNames: options.villagerNames ?? [ONE_RESIDENT],
+        onChange: (change, at) => this.recordChange(change, at),
+      });
+    } else {
+      const rebuilt = rebuildFromSave(options.save, (change, at) => this.recordChange(change, at));
+      this.world = rebuilt.world;
+      this.sim = rebuilt.sim;
+    }
     this.memory = options.withMemory === true
       ? new MemoryRuntime({
           worldId: options.worldId ?? 'func-daily',
@@ -140,14 +156,10 @@ export class DailyRun {
           onVitals: (vitals) => this.vitals.push(vitals),
         })
       : null;
-    this.sim = new Simulation({
-      grid: this.world.grid,
-      buildings: this.world.buildings,
-      altar: this.world.altar,
-      villagerName: ONE_RESIDENT,
-      villagerNames: options.villagerNames ?? [ONE_RESIDENT],
-      onChange: (change, at) => this.recordChange(change, at),
-    });
+    if (options.save !== undefined && this.memory !== null) {
+      const restored = this.memory.fromJSON(options.save.world.memory);
+      if (!restored) throw new Error('从存档重开时记忆层没能复原（world.memory 为空或版本不认识）');
+    }
     this.nowValue = this.sim.snapshot().now;
     this.lastWalking = this.sim.snapshot().villagers[0]!.walking;
   }
@@ -212,6 +224,19 @@ export class DailyRun {
   memoryJson(): string {
     if (this.memory === null) throw new Error('DailyRun 未接记忆层，不能取记忆快照');
     return this.memory.toJSON();
+  }
+
+  /** 世界 + 记忆的一份存档；重开走 `new DailyRun({ save, withMemory: true })`。 */
+  save(): WorldSave {
+    return this.sim.toSave(this.memory === null ? '' : this.memory.toJSON());
+  }
+
+  /**
+   * 重开一致性用的逐字摘要：世界快照 + 记忆快照一起序列化。
+   * 不含存档 `meta`（`savedAtWallClock` 是墙钟，本来就会变）。
+   */
+  digest(): string {
+    return JSON.stringify({ snapshot: this.sim.snapshot(), memory: this.memoryJson() });
   }
 
   private stepOnce(): void {
@@ -422,6 +447,7 @@ export function rebuildFromSave(
     grid: world.grid,
     buildings: world.buildings,
     altar: world.altar,
+    villagerName: save.world.villagers[0]?.name ?? ONE_RESIDENT,
     onChange,
   });
   return { sim, world };

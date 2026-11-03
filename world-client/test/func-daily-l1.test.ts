@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { litLampCountAt } from '../src/world/lamp-street.ts';
 import { worldMinutes } from '../src/world/pace.ts';
 import type { TimetableId } from '../src/world/timetable.ts';
+import type { WorldEventKind } from '../src/world/world-changes.ts';
 import {
   DailyRun,
   DAY_MS,
@@ -86,7 +87,7 @@ test('L1 日常环线：真的动了、真的停了、停 20–40 分、最后�
   assert.ok(later !== undefined, '一天里应至少换过一个落点（真的动了），实测始终停在同一个坐标');
 });
 
-test('L1 起卧：22:00–05:00 居民应当歇下来，不应继续巡镇', { todo: 'BUG-001：22:00 闭市后仍按环线走动，没有起卧；实测一夜走动约 1713 步、夜间离场 3 次。' }, () => {
+test('L1 起卧：22:00–05:00 居民应当歇下来，不应继续巡镇', { todo: 'BUG-001：22:00 闭市后仍按环线走动，没有起卧；实测 22:00–05:00 走动 1771 步、离场 11 次。' }, () => {
   const run = dayRun();
   const nightDepartures = run.departures.filter(
     (departure) => departure.minute >= 22 * 60 || departure.minute < 5 * 60,
@@ -233,13 +234,24 @@ test('L1 22:00 闭市：应落成闭市改变并让镇子歇下来，不只是�
   );
 });
 
+/**
+ * 期望的拍事件种类：已接通的四类来自 world-changes 的闭集，另外四拍是
+ * BUG-003 里「应当有、实际没有」的种类，故意写在这里而不是放宽成 string。
+ */
+type ExpectedBeatKind =
+  | WorldEventKind
+  | 'market_open'
+  | 'work_end'
+  | 'night_market'
+  | 'market_close';
+
 /** 拍窗口里应出现指定种类的 world.event；没有就是「只写了日志」。 */
-function expectBeatEvent(beat: TimetableId, expectedKind: string): void {
+function expectBeatEvent(beat: TimetableId, expectedKind: ExpectedBeatKind): void {
   const run = dayRun();
   const hit = run.beat(beat);
   assert.ok(hit !== undefined, `${beat} 这一拍没有被时刻表命中`);
   if (hit === undefined) return;
-  const actualKinds = hit.changes
+  const actualKinds: string[] = hit.changes
     .filter((record) => record.change.change === 'world.event')
     .map((record) => (record.change.change === 'world.event' ? record.change.kind : ''));
   assert.ok(
