@@ -101,6 +101,15 @@ export class TraceRuntime {
   private seenDay = -1;
   private readonly seenToday = new Set<string>();
   private placeHolders: ReadonlySet<string> = new Set();
+  /**
+   * 上一拍结束时还在场的建筑（按实例 id 记一份副本）。
+   *
+   * `onChange` 发生在 `sim.update()` 内部：拆楼那一笔已经出了 `sim.buildings`，
+   * 但这一拍的快照还没生成。只查实时世界的话，拆楼永远找不到门坐标，地标
+   * 与「冲突」都落不了账。场景里用的是上一帧快照，这里存副本而不是引用，
+   * 免得 `snapshot()` 返回的数组被同一个 update 改掉。
+   */
+  private lastBuildings: ReadonlyMap<string, PlacedBuilding> = new Map();
   private readonly pendingCreations = new Map<string, PendingCreation>();
   private settlementPromises: Promise<void>[] = [];
   private readonly isLegacyWorld: boolean;
@@ -149,6 +158,7 @@ export class TraceRuntime {
       : null;
 
     this.sim = this.createSimulation(baseline?.save);
+    this.cacheBuildings();
     if (this.memory !== null) {
       this.sim.connectVerification({
         probe: (holderId) =>
@@ -201,6 +211,7 @@ export class TraceRuntime {
 
   /** 跑一拍：世界先走，落地观测结算，然后记忆层对齐与关账。 */
   async step(deltaMs: number): Promise<void> {
+    this.cacheBuildings();
     this.sim.update(deltaMs);
     this.collectEvents();
     await this.settlePendingLandings();
@@ -330,7 +341,9 @@ export class TraceRuntime {
         atOfBuilding: (instanceId) => {
           const live = this.sim.buildingById(instanceId);
           const building =
-            live ?? this.sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
+            live
+            ?? this.lastBuildings.get(instanceId)
+            ?? this.sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
           return building === undefined ? undefined : { x: building.door.x, y: building.door.y };
         },
         buildingOfTask: (taskId) =>
@@ -348,10 +361,28 @@ export class TraceRuntime {
     }
   }
 
+  /**
+   * 每拍开头把在场建筑记一份浅副本。拆楼发生在 `update()` 内部，实时世界
+   * 已经查不到那栋楼，只能靠这一份。
+   */
+  private cacheBuildings(): void {
+    const map = new Map<string, PlacedBuilding>();
+    for (const building of this.sim.snapshot().buildings) {
+      map.set(building.instanceId, {
+        ...building,
+        origin: { ...building.origin },
+        door: { ...building.door },
+        footprint: { ...building.footprint },
+      });
+    }
+    this.lastBuildings = map;
+  }
+
   private landmarkEventOf(change: WorldChange): LandmarkEvent | undefined {
     if (change.change !== 'building.built' && change.change !== 'building.removed') return undefined;
     const building =
       this.sim.buildingById(change.instanceId)
+      ?? this.lastBuildings.get(change.instanceId)
       ?? this.sim.snapshot().buildings.find((item) => item.instanceId === change.instanceId);
     if (building === undefined) return undefined;
     return {
