@@ -350,6 +350,21 @@ export interface DayTimelineEntry extends TimelineEntry {
   readonly placeId: string | null;
   readonly actors: readonly string[];
   readonly what: string | null;
+  /**
+   * 事实发生的那一天。**不是 `createdDay`**：听说来的条目可能今天才落账，
+   * 说的却是昨天的事，天序要跟时刻（`tick`）同源。
+   *
+   * 事实被裁掉（老档只剩记忆条目）时给 `null`，面板退回 `createdDay`。
+   */
+  readonly atDay: number | null;
+  /**
+   * 那件事发生时**当天已经走过的毫秒数**。`when` 只承载第几天，
+   * 面板拿它当时刻会一律显示 `00:00`；这一格是真正的时刻。
+   *
+   * 事实被裁掉（老档只剩记忆条目）时给 `null`——宁可写「时刻不明」，
+   * 也不编一个午夜。
+   */
+  readonly tick: number | null;
 }
 
 export interface MemoryRuntimeDeps {
@@ -845,6 +860,8 @@ export class MemoryRuntime {
           placeId: digest?.placeId ?? null,
           actors: digest?.actors ?? [],
           what: digest?.what ?? null,
+          atDay: digest?.day ?? null,
+          tick: digest?.tick ?? null,
         };
       });
   }

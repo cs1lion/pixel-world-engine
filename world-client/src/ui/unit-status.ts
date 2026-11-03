@@ -77,7 +77,21 @@ export interface UnitDayTimelineEntry {
   readonly eventId: string;
   readonly kind: string;
   readonly day: number;
+  /**
+   * 记忆条目的 `when` 是**第几天**，不是时刻——别拿它当时钟。
+   * 显示用的时刻在 `tick`。
+   */
   readonly when: number;
+  /**
+   * 事件实际发生在第几天。省略时退回 `day`（`createdDay`）——听说来的条目
+   * 今天才落账，天序会和时刻（`tick`）对不上。
+   */
+  readonly atDay?: number | null;
+  /**
+   * 那天已经走过的毫秒数（事件真实发生的时刻）。查不到事实时省略或给 `null`，
+   * 面板写「时刻不明」，不编一个 `00:00`。
+   */
+  readonly tick?: number | null;
   readonly placeId: string | null;
   readonly actors: readonly string[];
   readonly what: string | null;
@@ -85,8 +99,9 @@ export interface UnitDayTimelineEntry {
   readonly why?: string | null;
 }
 
-/** 面板里的一格「今日」：事件 + 地点 + 对象，点开对应记忆条目。 */
+/** 面板里的一格「今日」：天序 + 时刻 + 事件 + 地点 + 对象，点开对应记忆条目。 */
 export interface UnitTimelineLine {
+  /** `第 3 天 13:20`；查不到时刻就写 `第 3 天 时刻不明`。 */
   readonly clock: string;
   readonly what: string;
   readonly place: string;
@@ -216,11 +231,25 @@ function innerLines(villagerId: string, memory: UnitMemoryReader | null): UnitSt
   return inner === null ? [] : [{ key: '心里', value: inner.text }];
 }
 
-function clockOf(when: number): string {
-  const rest = when - Math.floor(when / DAY_MS) * DAY_MS;
+/** 当天时刻写法：`13:20`。`tick` 是当天已走过的毫秒数，不是第几天。 */
+function clockOf(tick: number): string {
+  const rest = tick - Math.floor(tick / DAY_MS) * DAY_MS;
   const minutes = Math.floor(rest / 60_000);
   const hours = Math.floor(minutes / 60);
   return `${String(hours).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/**
+ * 时间线条目的一格开头：**天序与时刻都写**。
+ *
+ * 记忆里只存了「第几天」（`content.when`），拿它当时刻会把所有格子都写成
+ * `00:00`——那是在骗人。时刻从事实的 `tick` 来；查不到事实就直说「时刻不明」，
+ * 不拿午夜顶替。
+ */
+function dayClockLabel(day: number, tick: number | null | undefined): string {
+  return tick === null || tick === undefined
+    ? `第 ${day} 天 时刻不明`
+    : `第 ${day} 天 ${clockOf(tick)}`;
 }
 
 function placeLabel(placeId: string | null, world: UnitStatusWorld): string {
@@ -252,7 +281,7 @@ function timelineLines(
       .filter((id) => id !== villager.id)
       .map((id) => names.get(id) ?? id);
     return {
-      clock: clockOf(entry.when),
+      clock: dayClockLabel(entry.atDay ?? entry.day, entry.tick),
       what: entry.what ?? `${entry.kind}（没有留下说法）`,
       place: placeLabel(entry.placeId, world),
       who: others.length === 0 ? '独自' : `与 ${others.join('、')}`,
