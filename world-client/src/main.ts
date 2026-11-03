@@ -163,6 +163,13 @@ bindDebugPanel({
   getSaveStatus: () => debugOracle()?.saveStatus() ?? null,
   feed: (message) => debugOracle()?.feed(message) ?? { ok: false, message: '世界还没醒来。' },
   pushEvent: (event) => debugOracle()?.pushEvent(event),
+  // 只读回溯：时间轴与详情都来自场景那一面；面板不自己开库。
+  historyDays: () => debugOracle()?.historyDays?.() ?? [],
+  historyRewind: async (day) => {
+    const oracle = debugOracle();
+    if (oracle?.historyRewind === undefined) return null;
+    return oracle.historyRewind(day);
+  },
 });
 
 // 镇志抽屉：票据 #7 的「像读一本编年史」。只读 memory/，不改变仿真。
