@@ -106,6 +106,22 @@ async function camera(page) {
   });
 }
 
+/**
+ * canvas 内 CSS 像素 → 世界像素。
+ *
+ * 捏合锚点要量的正是这件事：「同一个屏幕点下，看到的还是不是同一块地」。
+ * 与生产 `camera-math.ts` 的 `viewOriginOf` 同一套公式，不另写一份。
+ */
+function canvasCssToWorld(cssX, cssY, snapshot) {
+  const scale = snapshot.rect.width / snapshot.game.width;
+  const originX = viewOriginOf(snapshot.cam.scrollX, snapshot.cam.width, snapshot.cam.zoom);
+  const originY = viewOriginOf(snapshot.cam.scrollY, snapshot.cam.height, snapshot.cam.zoom);
+  return {
+    x: originX + (cssX / scale) / snapshot.cam.zoom,
+    y: originY + (cssY / scale) / snapshot.cam.zoom,
+  };
+}
+
 async function focusCell(page, cell) {
   await page.evaluate(
     ([x, y]) => {
@@ -988,12 +1004,9 @@ async function l1(browser) {
       throw new Error('4 次都没造出「触屏单击时村民还在场」的样本');
     });
 
-    await checkAsync('L1-11c', '两指捏合（40px→160px）后点人：命中误差与缩放读数', async () => {
-      // 现状：客户端只给滚轮装了缩放入口（`SandboxScene` 的 `wheel`），
-      // 没有两指捏合的实现。这条不假定捏合会缩放，只如实记录 zoom 前后，
-      // 再把「手势之后点人还准不准」测出来——放宽的只是「捏合必须缩放」
-      // 这一条现状不成立的主张，命中判据本身一点没松。
-      let zoomed = 0;
+    await checkAsync('L1-11c', '两指 80→200 放大、200→80 缩回：以中点为锚，命中偏移 ≤1 世界px', async () => {
+      // 手指数与锚点都按玩家的真实手势：两指从 80px 拉开到 200px（翻倍多），
+      // 锚点是两指中点。缩放档位与滚轮共用 `ZOOM_STEPS`（2→3→2），不另造倍率。
       let noSample = 0;
       for (let attempt = 0; attempt < 4; attempt += 1) {
         await resetPanels(page);
@@ -1005,79 +1018,170 @@ async function l1(browser) {
           await page.waitForTimeout(400);
           continue;
         }
-        await focusCell(page, cellOf(target.pos));
+        const cell = cellOf(target.pos);
+        // 3 倍时半视野约 80×53 世界像素（5×3.3 格）。离边界不足 7 格时相机会夹取，
+        // 锚点漂移是世界边界本身的性质，不是捏合算错——换一个离边界远的样本。
+        if (cell.x < 7 || cell.y < 7 || cell.x > 96 - 8 || cell.y > 72 - 8) {
+          noSample += 1;
+          await page.waitForTimeout(400);
+          continue;
+        }
+        await focusCell(page, cell);
         const current = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
         assert(current !== undefined, '捏合前村民不见了');
         const anchor = await pointOfCell(page, cellOf(current.pos));
         const zoomBefore = anchor.snapshot.cam.zoom;
         const left = { x: anchor.x - 40, y: anchor.y };
         const right = { x: anchor.x + 40, y: anchor.y };
+        // 两指中点（也是格心）下看到的那块地：捏合前后必须还是同一块。
+        const worldBefore = canvasCssToWorld(anchor.point.x, anchor.point.y, anchor.snapshot);
+
         await clearPointerLog(page);
         const cdp = await context.newCDPSession(page);
         try {
-          // 两指同时落下，再分两次向外拉开到 140px / 160px 间距。
           await cdp.send('Input.dispatchTouchEvent', {
             type: 'touchStart',
             touchPoints: touchPoints([left, right]),
           });
-          await page.waitForTimeout(60);
-          await cdp.send('Input.dispatchTouchEvent', {
-            type: 'touchMove',
-            touchPoints: touchPoints([
-              { x: left.x - 30, y: left.y },
-              { x: right.x + 30, y: right.y },
-            ]),
-          });
-          await page.waitForTimeout(60);
-          await cdp.send('Input.dispatchTouchEvent', {
-            type: 'touchMove',
-            touchPoints: touchPoints([
-              { x: left.x - 60, y: left.y },
-              { x: right.x + 60, y: right.y },
-            ]),
-          });
-          await page.waitForTimeout(60);
+          // 两指按住 650ms：单指长按 500ms 就会开面板，两指时它必须被捏合取消。
+          await page.waitForTimeout(650);
+          const held = await panelState(page);
+          assert(!held.unit && !held.villager && !held.building,
+            `两指按住 650ms 却开了面板（unit=${held.unit} villager=${held.villager} building=${held.building}）`
+            + '——长按没被第二根手指取消');
+          // 80 → 140 → 200：中途不跨档，翻到两倍才进一档（与 pinch-zoom.test.ts 同一串）。
+          for (const extra of [30, 60]) {
+            await cdp.send('Input.dispatchTouchEvent', {
+              type: 'touchMove',
+              touchPoints: touchPoints([
+                { x: left.x - extra, y: left.y },
+                { x: right.x + extra, y: right.y },
+              ]),
+            });
+            await page.waitForTimeout(60);
+          }
           await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         } finally {
           await cdp.detach();
         }
-        if (zoomBefore !== (await page.evaluate(() => window.Oracle.camera().zoom))) zoomed += 1;
-
+        await page.waitForTimeout(100);
         const types = await pointerTypes(page);
         assert(types.includes('touch'), `捏合手势不是触屏来源：${types.join(',') || '无事件'}`);
-        const zoomAfter = await page.evaluate(() => window.Oracle.camera().zoom);
+        const zoomIn = await page.evaluate(() => window.Oracle.camera().zoom);
+        assert(zoomIn > zoomBefore, `两指 80→200 后 zoom 没变大：${zoomBefore}→${zoomIn}`);
+        const afterIn = await panelState(page);
+        assert(!afterIn.unit && !afterIn.villager && !afterIn.building,
+          '捏合抬手被当成了单击，开出了面板');
+        const snapshotIn = await camera(page);
+        const worldIn = canvasCssToWorld(anchor.point.x, anchor.point.y, snapshotIn);
+        const driftIn = Math.hypot(worldIn.x - worldBefore.x, worldIn.y - worldBefore.y);
+        assert(driftIn <= 1, `放大后两指中点下的世界坐标漂了 ${driftIn.toFixed(2)} 世界px > 1`);
+
+        // 200 → 80：收拢到一半退一档，回到捏合前的那一档。
+        const wideLeft = { x: anchor.x - 100, y: anchor.y };
+        const wideRight = { x: anchor.x + 100, y: anchor.y };
+        const cdpOut = await context.newCDPSession(page);
+        try {
+          await cdpOut.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: touchPoints([wideLeft, wideRight]),
+          });
+          for (const extra of [30, 60]) {
+            await cdpOut.send('Input.dispatchTouchEvent', {
+              type: 'touchMove',
+              touchPoints: touchPoints([
+                { x: wideLeft.x + extra, y: wideLeft.y },
+                { x: wideRight.x - extra, y: wideRight.y },
+              ]),
+            });
+            await page.waitForTimeout(60);
+          }
+          await cdpOut.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await cdpOut.detach();
+        }
+        await page.waitForTimeout(100);
+        const zoomOut = await page.evaluate(() => window.Oracle.camera().zoom);
+        assert(zoomOut < zoomIn, `两指 200→80 后 zoom 没缩回：${zoomIn}→${zoomOut}`);
+        eq(zoomOut, zoomBefore, '缩回后应回到捏合前那一档（与滚轮同一套档位）');
+        const afterOut = await panelState(page);
+        assert(!afterOut.unit && !afterOut.villager && !afterOut.building, '缩回手势抬手时开了面板');
+        const snapshotOut = await camera(page);
+        const worldOut = canvasCssToWorld(anchor.point.x, anchor.point.y, snapshotOut);
+        const driftOut = Math.hypot(worldOut.x - worldBefore.x, worldOut.y - worldBefore.y);
+        assert(driftOut <= 1, `缩回后两指中点下的世界坐标漂了 ${driftOut.toFixed(2)} 世界px > 1`);
+
         const live = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), current.id);
         if (live === undefined) continue;
-        const cell = cellOf(live.pos);
-        const point = await pointOfCell(page, cell);
-        const snapshot = point.snapshot;
-        const inside = point.x > snapshot.rect.left + 8
-          && point.y > snapshot.rect.top + 8
-          && point.x < snapshot.rect.left + snapshot.rect.width - 8
-          && point.y < snapshot.rect.top + snapshot.rect.height - 8;
-        if (!inside) continue;
-        // 手势之后用触屏在格心再点一下：命中要落在同一个人身上。
-        const cdp2 = await context.newCDPSession(page);
+        const liveCell = cellOf(live.pos);
+        if (liveCell.x !== cell.x || liveCell.y !== cell.y) continue; // 她自己走了，样本不成立。
+
+        // 用**原来的两指中点**点一下：若锚点真的钉住，这一下仍应落在同一个人身上。
+        const cdpTap = await context.newCDPSession(page);
         try {
-          await cdp2.send('Input.dispatchTouchEvent', {
+          await cdpTap.send('Input.dispatchTouchEvent', {
             type: 'touchStart',
-            touchPoints: touchPoints([point]),
+            touchPoints: touchPoints([{ x: anchor.x, y: anchor.y }]),
           });
           await page.waitForTimeout(100);
-          await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          await cdpTap.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         } finally {
-          await cdp2.detach();
+          await cdpTap.detach();
         }
         await page.waitForTimeout(150);
         const state = await panelState(page);
-        assert(state.unit, `捏合后点格心 (${cell.x},${cell.y}) 没有打开状态菜单`);
-        eq(state.title, live.name ?? current.name, '捏合后点到的不是那个人');
-        const spread = Math.round(right.x - left.x);
-        return `两指 ${spread}px→${spread + 120}px，zoom ${zoomBefore}→${zoomAfter}`
-          + `（${zoomed === 0 ? '本次世代捏合不缩放，见 docs/BUGS_FOUND.md BUG-3' : '捏合改了 zoom'}）；`
-          + `随后触屏点格心 (${cell.x},${cell.y})，命中「${state.title}」，偏移 0.00px`;
+        assert(state.unit, `捏合后点原两指中点 (${anchor.x.toFixed(0)},${anchor.y.toFixed(0)}) 没有打开状态菜单`);
+        eq(state.title, live.name ?? current.name, '捏合后点两指中点，命中的不是原来那个人');
+        return `两指 80→200：zoom ${zoomBefore}→${zoomIn}，锚点漂移 ${driftIn.toFixed(2)} 世界px；`
+          + `200→80：zoom ${zoomIn}→${zoomOut}，锚点漂移 ${driftOut.toFixed(2)} 世界px；`
+          + `按住 650ms 与两次抬手都 0 个面板；随后触屏点同一中点命中「${state.title}」`
+          + `，命中偏移 ${driftOut.toFixed(2)} 世界px`;
       }
-      throw new Error(`4 次都没造出「捏合后可点中的可见村民」的样本（无样本 ${noSample} 次）`);
+      throw new Error(`4 次都没造出「离边界 ≥7 格、捏合后仍在原格的村民」样本（无样本 ${noSample} 次）`);
+    });
+
+    await checkAsync('L1-11d', '单指拖图：镜头平移、zoom 不变（不误判成捏合）', async () => {
+      await resetPanels(page);
+      await focusCell(page, { x: 48, y: 36 });
+      const before = await camera(page);
+      const start = {
+        x: before.rect.left + before.rect.width / 2,
+        y: before.rect.top + before.rect.height / 2,
+      };
+      await clearPointerLog(page);
+      const cdp = await context.newCDPSession(page);
+      try {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touchPoints([start]) });
+        for (const [dx, dy] of [[20, 15], [40, 30], [60, 45]]) {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: touchPoints([{ x: start.x + dx, y: start.y + dy }]),
+          });
+          await page.waitForTimeout(50);
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      } finally {
+        await cdp.detach();
+      }
+      await page.waitForTimeout(100);
+      const after = await camera(page);
+      const types = await pointerTypes(page);
+      assert(types.includes('touch'), `单指拖动不是触屏来源：${types.join(',') || '无事件'}`);
+      eq(after.cam.zoom, before.cam.zoom, '单指拖图把 zoom 改了——拖图被误判成捏合');
+      // 屏幕 CSS 位移 → 游戏像素（除以 canvas 缩放）→ 世界像素（再除以 zoom）。
+      const scale = before.rect.width / before.game.width;
+      const expectX = (60 / scale) / before.cam.zoom;
+      const expectY = (45 / scale) / before.cam.zoom;
+      const movedX = before.cam.scrollX - after.cam.scrollX;
+      const movedY = before.cam.scrollY - after.cam.scrollY;
+      assert(Math.abs(movedX - expectX) <= 1,
+        `X 平移 ${movedX.toFixed(2)} 世界px，按位移应为 ${expectX.toFixed(2)}`);
+      assert(Math.abs(movedY - expectY) <= 1,
+        `Y 平移 ${movedY.toFixed(2)} 世界px，按位移应为 ${expectY.toFixed(2)}`);
+      const state = await panelState(page);
+      assert(!state.unit && !state.villager && !state.building, '单指拖图抬手成了单击，开了面板');
+      return `pointerType=${types.join('/')}，单指拖 (60,45)px → 镜头 (-${movedX.toFixed(2)}, -${movedY.toFixed(2)}) 世界px`
+        + `（按位移应为 -${expectX.toFixed(2)}, -${expectY.toFixed(2)}），zoom ${before.cam.zoom} 不变；0 个面板`;
     });
 
     // L1-7 点空白收起。
