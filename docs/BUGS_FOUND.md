@@ -2,43 +2,37 @@
 
 测试分支：`feat/func-creator`（worktree `D:\project\pwe-funccreator`，基线 `54139dd`）。
 测试入口：`world-client/test/creator-functional-l1.test.ts`、`creator-functional-l2.test.ts`、`creator-functional-l3.test.ts`。
-下列两条在测试里用 `test(..., { todo: 'BUG-x' }, ...)` 标注，不跳过、不放宽断言；失败读数即为证据。
+下列两条原先用 `test(..., { todo: 'BUG-x' }, ...)` 保留失败读数；已在提交 `f58179d` 修复，对应用例翻成正常断言并通过。下面同时记录修复前后读数。
 
 ---
 
 ## BUG-1 覆盖率分母为 0 时，`creationCoverage` 返回 0 而不是「没测」
 
 - **编号**：BUG-1
-- **现象**：账本门禁 `coverageAfterBuild()` 对 0 分母返回 `null`，并正确记成 `not_measured`；但生产落地路径用的 `creationCoverage()`（`src/creator/business-rules.ts:54-65`）在 `blueprints.size === 0` 时直接 `return 0`。`SandboxScene` 把这个 0 喂给 `evaluateLandingGates` 的 `actualCoverageRate`，于是「没测」被记成「覆盖率 0，低于 95%」。
-- **最小复现**：
-  1. 取真实 `DENGCHAO_RAW` 设定集，把 `blueprints` 置空（不写任何世界状态）；
-  2. 用 `buildSettingWorld` + 真实 `Simulation` 起一个空世界；
-  3. 调 `creationCoverage(emptySim.snapshot(), emptyPack.blueprints)`。
-- **期望**：`null`（与 `coverageAfterBuild` 的 0 分母契约一致，调用方才能记 `not_measured`）。
-- **实际**：`0`。
+- **状态**：**已修**，提交 `f58179d`。
+- **依据**：账本侧既定契约 `coverageAfterBuild()` 在 `blueprintCount <= 0` 时返回 `null`，并由 `reading()` 统一落成 `passed=null` / `reason=not_measured`（`src/creator/ledger.ts:172-214`）。业务规则侧必须同口径，「没测」不能写成 0 分。
+- **修复**：`creationCoverage()` 返回类型改为 `number | null`，0 分母直接 `return null`；引擎 `submitHumanApproval` 只在 `typeof coverageRate === 'number'` 时记观测；`SandboxScene` / `trace/runtime.ts` 把 `null` 原样交给 `evaluateLandingGates`（该处已按 `null → passed=null` 处理）。`checkLandedBuilding` 只跑空间/不变式业务规则，不消费覆盖率，无需 null 分支。
+- **修复前读数**：`creationCoverage(...) = 0`；落地门禁 `passed=false`、`reason=below_requirement`；计数器 `coverageChecks=1`（把没测算成一次 0 分观测）。
+- **修复后读数**：`creationCoverage(...) = null`；落地门禁 `passed=null`、`reason=not_measured`；计数器 `coverageChecks=0`。
 - **证据**：
-  - 测试 `[L3] creationCoverage 在 0 分母时也应给 not_measured（已知缺陷）`，`creator-functional-l3.test.ts:129`；
-  - 断言失败读数：`Expected values to be strictly equal: 0 !== null`；
-  - 对照：同文件 `[L3] 覆盖率分母为 0：账本记 not_measured，不是 0/1` 通过，证明账本侧契约本身是对的，缺口在业务规则 feeder。
-- **影响范围**：当前莞尔镇设定集 `blueprints.size = 10`，正常路径不会触发；属于 0 模板设定集/边界输入的口径不一致，但一旦触发会把「没测」误报成「不达标」。
+  - 测试 `[L3] creationCoverage 在 0 分母时给 null，落地门禁与计数器都记 not_measured`，`creator-functional-l3.test.ts:130`，已通过；
+  - 同文件 `[L3] 覆盖率分母为 0：账本记 not_measured，不是 0/1` 仍通过。
+- **影响范围**：修复前，0 模板设定集/空世界会把「没测」误报成「覆盖率 0，低于 95%」，并给角色记一次假的 0 分覆盖率证据；修复后不再产生该错误读数。
 
 ---
 
 ## BUG-2 L0 熔断「降级」会把角色升到 L1
 
 - **编号**：BUG-2
-- **现象**：`AutonomousFuseController.triggerDowngrade()`（`src/world/creator/fuse.ts:540-559`）不区分当前等级，`immediate` 时无条件 `state.currentLevel = AutonomyLevel.L1`。在 L0 记录一次被拒命令后，拒绝率 `1/1 = 100% > 10%` 触发降级，结果把 L0 **升**到 L1 并熔断；随后 `isFused` 让后续 `recordCommandResult` 直接返回，L0 的窗口证据不再更新。
-- **最小复现**：
-  1. 真实 `CreatorEngine`，`targetLevel = L1`，`mapper` 初始 `currentLevel = 0`、`isFused = false`；
-  2. 调公开接口 `submitHumanApproval('mapper', 'reject-1', false)`；
-  3. 读 `getRoleState('mapper')`。
-- **期望**：`currentLevel = 0`（降级不能越级向上），`isFused = true`（100% 拒绝率仍应熔断）。
-- **实际**：`currentLevel = 1`，`isFused = true`；`downgrade_trigger` / `fuse_triggered` 事件把 `fromLevel=0`、`toLevel=1` 记成一次「降级」。
+- **状态**：**已修**，提交 `f58179d`。
+- **依据**：《补充架构设计与全量待定参数规格书 v1.0》§2.2「自治爬梯（L0–L4）的『双向熔断与自动降级机制』」明写熔断对象是「**处于 L2/L3 的模块**」，动作是「立即将该模块实时降级回 **L1**」（`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md:80-85`）；v0.2 §2.2 同样表述为「从 L3/L2 降级回 L1」（`architecture-supplement-v0.2.md:101-105`）。文档没有「从 L0 升到 L1」的规则，且「降级」只能向下。因此无条件写 L1 是行为写反，不是有意设计。
+- **修复**：`triggerDowngrade()` 取 `Math.min(oldLevel, AutonomyLevel.L1)`：L0 留 L0、L1 留 L1、L2/L3 才落到 L1；`isFused` 与窗口清零逻辑保持不变。
+- **修复前读数**：`currentLevel = 1`（被「降级」抬高），`isFused = true`，事件 `fromLevel=0 → toLevel=1`。
+- **修复后读数**：`currentLevel = 0`，`isFused = true`，事件 `fromLevel=0 → toLevel=0`。
 - **证据**：
-  - 测试 `[L3] 熔断降级不能把 L0 升成 L1（已知缺陷）`，`creator-functional-l3.test.ts:289`；
-  - 断言失败读数：`降级不能把 L0 升成 L1: 1 !== 0`；
-  - 代码位置：`fuse.ts:546-553`。
-- **影响范围**：L0 人工拒绝一次就会「升层 + 熔断」，与「L0→L1 是升级爬梯、拒绝是降级」的语义相反。
+  - 测试 `[L3] 熔断降级不能把 L0 升成 L1`，`creator-functional-l3.test.ts:315`，已通过；
+  - 原有 `creator-fuse.test.ts` 的「不变式被违反一次就当场熔断回 L1」「人类回滚一次就降级」「等级变化如实记下 from 与 to」全部通过，证明 L1/L2 路径未回退。
+- **影响范围**：修复前 L0 人工拒绝一次就会「升层 + 熔断」，与「L0→L1 是升级爬梯、拒绝是降级」的语义相反；修复后各等级只降不升。
 
 ---
 
