@@ -71,6 +71,27 @@ jobs:
             exit 1
           fi
 
+  # 仓库级手续：钩子自检与 worktree 登记巡检。只用 node 内置模块，不需要 npm ci。
+  repo-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # 新 clone / 新机器不会继承 core.hooksPath，钩子会安静地失效。这一步故意先跑一次：
+      # 未安装时把 `hooks: FAIL core.hooksPath=(unset)` 原样打进日志，不让它无声无息。
+      - name: 钩子自检（安装前读数）
+        run: npm run check:hooks || echo "::notice title=check:hooks::新 clone 未继承 core.hooksPath（预期）；下一步安装后必须 OK"
+      # 安装后必须 OK，否则 pre-push 的 main 保护形同不存在，这里直接红。
+      - name: 安装钩子并复核
+        run: |
+          git config core.hooksPath .githooks
+          npm run check:hooks
+      # 非 --strict：CI 里 main worktree 的绝对路径与登记表不同，严格模式会误红。
+      - name: worktree 登记巡检
+        run: npm run worktrees:audit
+
   server:
     runs-on: ubuntu-latest
     defaults:

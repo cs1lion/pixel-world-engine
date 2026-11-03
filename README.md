@@ -215,8 +215,8 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 
 ## 验证
 
-CI 跑九道闸门，前端 job 八条 + 服务端 job 一条（另有一个只读浏览器 job，不在这九道
-计数里；以 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
+CI 跑九道闸门，前端 job 八条 + 服务端 job 一条（另有只读的浏览器 job 与仓库手续 job，
+不在这九道计数里；以 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
 
 ```bash
 cd world-client && npm run check && npm test && npm run build
