@@ -755,6 +755,42 @@ export class Simulation {
     this.now += deltaMs;
   }
 
+  /**
+   * 撤销日界对齐时把世界时钟移回去。
+   *
+   * **只有对齐撤销会用它**；离线补算仍然只向前（`fastForwardNow`）。不允许把
+   * `now` 移到负数，那是没有存档能表达的时刻。
+   */
+  rewindNow(deltaMs: number): void {
+    if (deltaMs < 0) throw new Error('deltaMs 不能为负');
+    if (this.now - deltaMs < 0) throw new Error('不能把 now 移到负数');
+    this.now -= deltaMs;
+  }
+
+  /**
+   * 日界对齐把 `now` 前跳之后，把**相对定时器**统一平移同一量。
+   *
+   * 不平移的话，`nextRoutineAt` 与 `activity.startedAt` 会被跳变瞬间甩到过去：
+   * 村民集体立刻闲逛、进行中的活立刻到期。这是「对齐」带来的副作用，不是
+   * 世界真的过了那么久。平移保持它们的剩余时长不变；撤销时传负值即可原样回去。
+   *
+   * 历史时间戳（`completedAt`、外环 `lastClimbAttemptAt`）**不动**——它们记录
+   * 事情发生在世界时间的哪一刻，不是未来定时器。
+   */
+  realignAfterClockJump(deltaMs: number): void {
+    if (!Number.isFinite(deltaMs)) throw new Error('deltaMs 必须是有限数');
+    for (const villager of this.villagers) villager.nextRoutineAt += deltaMs;
+    for (const [buildingId, activity] of this.activities) {
+      if (activity.kind === 'operating') {
+        this.activities.set(buildingId, { ...activity, startedAt: activity.startedAt + deltaMs });
+      } else if (activity.kind === 'cooling') {
+        this.activities.set(buildingId, { ...activity, until: activity.until + deltaMs });
+      } else if (activity.kind === 'overheating') {
+        this.activities.set(buildingId, { ...activity, since: activity.since + deltaMs });
+      }
+    }
+  }
+
   /** 返回本次 update 结算的命令结果，供调用方展示。 */
   update(deltaMs: number): readonly CommandResult[] {
     if (deltaMs < 0) throw new Error('deltaMs 不能为负');
