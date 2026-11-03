@@ -50,10 +50,12 @@
  *   用例全过、只有这条红，实测 54.62ms / 100.28ms，本机 p50 56.6ms，量到的是
  *   机器有多忙，不是传播有多贵。CPU 时间不含调度等待：空载时与墙钟同量级，
  *   负载下墙钟炸到 340–540ms 而 CPU 仍在 0–31ms。墙钟数字保留在 diagnostic 里当附注。
- * - **0.00 会重采。** 同一条 15.6ms 刻度也意味着「一天不到一格」时 CPU 读成
- *   `0.00`——那一跑等于没量。所以第 1 天读成 0 就再采，最多三次，**取最大值**
- *   判定。取最大而不是平均：真退化成 60ms 的那次若和两个 0 平均成 20ms，
- *   回归就被糊掉了。预算仍是 50ms，语义仍是「最快那天不许超预算」。
+ * - **0.00 时采三次取最小。** 同一条 15.6ms 刻度也意味着「一天不到一格」时 CPU 读成
+ *   `0.00`——那一跑等于没量。第 1 天采三次、取最小值判定：噪声只会把读数往上加，
+ *   真退化成 50ms 以上时三次都会跨过三个刻度（≥46.8ms），最小值漏不掉。原口径是
+ *   「读成 0 就重采、取最大」；2026-11-04 合并后 8 路并行 64 次抓到一次
+ *   `CPU 62.00ms / 墙钟 16.64ms`——CPU 比墙钟大 3.7 倍，是并发 GC 线程的 CPU，
+ *   被「取最大」放大成了红。预算仍是 50ms，语义仍是「最快那天不许超预算」。
  * - **方向那条仍用墙钟。** Windows 上进程 CPU 记账跟着调度时钟走（粒度约
  *   15.6ms），第 6 天这种不到 1ms 的一天会读成 `0.00`；`0 < 0 * 2` 恒假，
  *   量到的是「量不出来」而不是「变贵了」。绝对预算闸用 CPU（真退化成全库
@@ -80,7 +82,7 @@ import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
 const BUDGET_MS = 10;
 /** 这道闸自己的阈值：预算的 5 倍。理由见文件头——它抓量级，不抓 10ms 那条线。 */
 const CEILING_MS = 50;
-/** CPU 读成 0.00 时的重采上限：最多采三次，取最大值。理由见文件头。 */
+/** 第 1 天 CPU / 墙钟的采样次数：采三次取最小值。理由见文件头。 */
 const CPU_ATTEMPTS = 3;
 
 const DAY_MS = DEFAULT_MEMORY_CONFIG.dayMs;
@@ -150,30 +152,49 @@ function oneDayTiming(
 }
 
 /**
- * 第 1 天的 CPU 读数：读成 `0.00` 就再采，最多 `CPU_ATTEMPTS` 次，**取最大值**。
+ * 某一天的 CPU / 墙钟读数：采 `CPU_ATTEMPTS` 次，各**取最小值**。
  *
- * Windows 上进程 CPU 记账跟着调度时钟走（约 15.6ms 一格），一天传播不到一格时
- * 两次 `process.cpuUsage()` 的差就是 0.00，**那次等于没量到**。重采是为了不让
- * 这一跑白跑；取最大而不是取平均，是因为平均会把唯一一次真读数（比如真退化到
- * 60ms 的那次）和两个 0 摊成 20ms，恰好把回归糊掉——闸要抓的是「最慢的那次」。
+ * 历史口径：`feat/gate-warmup` 是「读成 0.00 就重采、取最大值」，理由是
+ * 「平均会把唯一一次真读数和两个 0 摊成 20ms，恰好把回归糊掉」。
+ *
+ * **2026-11-04 合并后 8 路并行 64 次抓到一次红，读数 CPU 62.00ms / 墙钟 16.64ms。**
+ * CPU 比墙钟还大 3.7 倍，说明那 62ms 里大部分是并发 GC 线程的 CPU，不是这一拍的
+ * 传播——「取最大」把一次 GC 停顿直接变成了红。
+ *
+ * 改取最小值：噪声（GC、JIT、重采时的并发编译）只会把读数往上加；而代码退化是
+ * 确定性的——真退化到 50ms 以上时，每次采样都会跨过三个记账刻度（≥46.8ms），
+ * 不会出现 0.00，最小值照样抓得住（反向验证：人为注入 400ms 立刻红）。
+ * 0.00 保留原义：真低于一格，也就没到这道闸要抓的量级。
  */
-function slowestDayCpu(buildingIds: readonly string[]): {
+function fastestDayCpu(
+  buildingIds: readonly string[],
+  day: number,
+  attempts = CPU_ATTEMPTS,
+): {
+  /** 这批样本实际量的是第几天。调用方用它守住「比的不是自己」。 */
+  day: number;
   cpuMs: number;
   wallMs: number;
-  attempts: number[];
+  samples: readonly { cpuMs: number; wallMs: number }[];
 } {
-  const attempts: number[] = [];
-  let picked = oneDayTiming(buildingIds, 1);
-  attempts.push(picked.cpuMs);
-  while (picked.cpuMs === 0 && attempts.length < CPU_ATTEMPTS) {
-    picked = oneDayTiming(buildingIds, 1);
-    attempts.push(picked.cpuMs);
-  }
-  return { cpuMs: picked.cpuMs, wallMs: picked.wallMs, attempts };
+  const samples = [];
+  for (let i = 0; i < attempts; i += 1) samples.push(oneDayTiming(buildingIds, day));
+  return {
+    day,
+    cpuMs: Math.min(...samples.map((sample) => sample.cpuMs)),
+    wallMs: Math.min(...samples.map((sample) => sample.wallMs)),
+    samples,
+  };
 }
 
+/** 规模对照量的是第几天：第 1 天是所有断言出生的那天，最贵也最有信号。 */
+const SCALE_COMPARE_DAY = 1;
+
+/** 交错采样轮数。原先 3 轮；并行压测里 3 轮不够，见下面的注释。 */
+const INTERLEAVED_ROUNDS = 5;
+
 /**
- * 两个配置各跑三次、**交错**采样，取各自最小值。
+ * 两个配置各跑 `INTERLEAVED_ROUNDS` 轮、**交错**采样，取各自最小值。
  *
  * 原来是一个配置跑完三次再跑另一个、取中位。2026-11-01 这套测试在整套套件
  * 并行跑时红过一次（`half` 比 `all` 的两倍还贵，隔离单跑三次全绿）：`node --test`
@@ -182,19 +203,34 @@ function slowestDayCpu(buildingIds: readonly string[]): {
  * 交错是为了让两组看到同一段机器状态；取最小值是因为噪声只会把读数往上加，
  * 最小值是这组里最接近「没有噪声时该花多少」的那个数。首跑含 JIT 预热，
  * 最小值顺带把它剔掉了。
+ *
+ * **2026-11-04 把轮数从 3 提到 5，并加了一轮不计时的预热。** 8 路并行压测
+ * 64 次仍然抓到过 `half 10.63ms / all 4.09ms`：一天的量只有 0.4~1.0ms，而
+ * 机器忙时一次调度停顿就有 5~20ms，三轮里三轮都撞上车别的进程就把最小值
+ * 抬到 10ms 以上。预热是因为首次 `dayClosed` 要付 JIT 与首次分配的钱，
+ * 这笔钱与规模无关，落在哪个配置头上哪个就显得更贵。多采几轮不改变判据
+ * （`half < all * 2` 一个字没动），只是把「一次停顿」从 1/3 稀释到 1/5。
  */
 function interleavedMinMilliseconds(
   a: readonly string[],
   b: readonly string[],
   day: number,
-): [number, number] {
+): {
+  halfMs: number;
+  allMs: number;
+  /** 两组各自实际量的是第几天，由调用方断言「同一天、且是想要的那一天」。 */
+  days: readonly [number, number];
+} {
+  // 不计时的预热：把 `dayClosed` 的 JIT 与首次分配挡在采样之外。
+  oneDayTiming(a, day);
+  oneDayTiming(b, day);
   const as: number[] = [];
   const bs: number[] = [];
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < INTERLEAVED_ROUNDS; i += 1) {
     as.push(oneDayTiming(a, day).wallMs);
     bs.push(oneDayTiming(b, day).wallMs);
   }
-  return [Math.min(...as), Math.min(...bs)];
+  return { halfMs: Math.min(...as), allMs: Math.min(...bs), days: [day, day] };
 }
 
 test('两个出货世界的 holder 数：设定集十六个，默认世界十三个', () => {
@@ -209,33 +245,45 @@ test('两个出货世界的 holder 数：设定集十六个，默认世界十三
 
 test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5 倍之内', (t) => {
   // 第 1 天是永远最慢的那天（所有断言都在那天出生），所以只量它。
+  //
+  // **绝对闸用进程 CPU 时间**（`feat/gate-warmup` 的口径）：墙钟在并行负载下
+  // 量到的是「这一拍有没有被别的进程挤开」，不是传播的代价——2026-11-03 的压测里
+  // 10 轮红 2 轮、读数 54.62/100.28ms。CPU 时间不把被换出去的时间算进来；
+  // `CEILING_MS` 一个字没动。
   const buildings = defaultWorldBuildingIds();
-  const day1 = slowestDayCpu(buildings);
+  const day1 = fastestDayCpu(buildings, 1);
   t.diagnostic(
-    `默认世界第 1 天：CPU ${day1.cpuMs.toFixed(2)}ms`
-      + `（墙钟 ${day1.wallMs.toFixed(2)}ms，仅附注，不参与判定）`
-      + (day1.attempts.length > 1
-        ? `；0.00 后重采 ${day1.attempts.length} 次：${day1.attempts.map((ms) => ms.toFixed(2)).join(' / ')}`
-        : ''),
+    `默认世界第 1 天：CPU 三次取最小 ${day1.cpuMs.toFixed(2)}ms`
+      + `（三次 ${day1.samples.map((sample) => sample.cpuMs.toFixed(2)).join(' / ')}；`
+      + `墙钟三次最小 ${day1.wallMs.toFixed(2)}ms）`,
   );
   assert.ok(
     day1.cpuMs < CEILING_MS,
-    `默认世界第 1 天的进程 CPU 时间 ${day1.cpuMs.toFixed(2)}ms`
-      + `（墙钟 ${day1.wallMs.toFixed(2)}ms 仅附注）超过这道闸的 ${CEILING_MS}ms——`
+    `默认世界第 1 天的进程 CPU 时间 ${day1.cpuMs.toFixed(2)}ms（三次取最小）`
+      + `超过这道闸的 ${CEILING_MS}ms——`
       + `§3.2 B 的预算本身是 ${BUDGET_MS}ms/天，这一条放到 ${CEILING_MS / BUDGET_MS} 倍是为了不跟机器噪声红。`
       + '真超了的话先看是不是传播改成了每步全库扫描，再回来把文件头那张表改对。',
   );
-  // 顺带把「稳态比第 1 天便宜」这个形状钉住。这条不量快慢，只量方向：
-  // 库里只有遗忘没有新增，所以后面几天不该更贵。
-  const steady = oneDayTiming(buildings, 6);
+  // 顺带把「稳态比第 1 天便宜」这个形状钉住。这条只量方向，读数用墙钟：
+  // 不足一个调度刻度的 CPU 差值在 Windows 上会读成 0，两边都是 0 就没法比。
+  // 两边都用 `fastestDayCpu`（各采三次取最小），否则比的是「谁的样本撞上停顿」，
+  // 不是两天的真实开销。
+  const steady = fastestDayCpu(buildings, 6);
   t.diagnostic(
-    `默认世界第 6 天：CPU ${steady.cpuMs.toFixed(2)}ms`
-      + `（墙钟 ${steady.wallMs.toFixed(2)}ms，仅附注）`,
+    `默认世界第 6 天：CPU 三次取最小 ${steady.cpuMs.toFixed(2)}ms`
+      + `（墙钟三次最小 ${steady.wallMs.toFixed(2)}ms，仅附注）`,
+  );
+  // 守卫：两组样本必须来自**不同**的一天。曾经 `fastestDayCpu` 把 day 写成常量
+  // 1，于是下面那条方向断言在原地比第 1 天自己、恒真——永远不红，却看着像有闸。
+  assert.ok(
+    day1.day === 1 && steady.day === 6,
+    `方向闸的两组样本必须来自不同的一天：这次读到第 ${day1.day} 天与第 ${steady.day} 天——`
+      + '若两者相同，下面的比较就是拿它和自己比，永远为真。',
   );
   assert.ok(
     steady.wallMs < day1.wallMs * 2,
-    `第 6 天墙钟 ${steady.wallMs.toFixed(2)}ms（CPU ${steady.cpuMs.toFixed(2)}ms 附注）`
-      + `比第 1 天墙钟 ${day1.wallMs.toFixed(2)}ms（CPU ${day1.cpuMs.toFixed(2)}ms 附注）贵了一倍以上——`
+    `第 6 天墙钟 ${steady.wallMs.toFixed(2)}ms（三次取最小）比第 1 天墙钟`
+      + ` ${day1.wallMs.toFixed(2)}ms（三次取最小）贵了一倍以上——`
       + '库里的东西只会被遗忘不会新增，稳态不该比开局贵。这条红说明传播的代价不再由存量决定。'
       + '（这条只量方向，读数用墙钟：不足一个调度刻度的 CPU 差值在 Windows 上读成 0）',
   );
@@ -259,7 +307,16 @@ test('传播的代价随规模走：holder 少一半的那次不该更贵', () =
   // 抓它的是上面那道 50ms 的绝对闸，不是这一条。
   const half = Array.from({ length: 80 }, (_, i) => `b${i}`);
   const all = Array.from({ length: 144 }, (_, i) => `b${i}`);
-  const [halfMs, allMs] = interleavedMinMilliseconds(half, all, 1);
+  const scale = interleavedMinMilliseconds(half, all, SCALE_COMPARE_DAY);
+  // 守卫：两侧必须量的是同一天，且是想要的那一天。原先这里是字面量 1，
+  // 两处抄错会一起错、闸照样绿——一条比不出错的对照，等于没有对照。
+  assert.deepEqual(
+    scale.days,
+    [SCALE_COMPARE_DAY, SCALE_COMPARE_DAY],
+    `规模对照的两侧必须量同一天：这次读到第 ${scale.days[0]} 天与第 ${scale.days[1]} 天`
+      + `（期望都是第 ${SCALE_COMPARE_DAY} 天）`,
+  );
+  const { halfMs, allMs } = scale;
   assert.ok(
     halfMs < allMs * 2,
     `${half.length + VILLAGERS.length} 个 holder 的世界（${halfMs.toFixed(2)}ms）比 `
