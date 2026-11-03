@@ -51,6 +51,16 @@ await page.addInitScript(() => localStorage.clear());
 await page.goto(`${BASE}?ledger=off&time=noon&debug=1`, { waitUntil: 'load' });
 await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 30000 });
 await page.waitForTimeout(1200);
+// 地形烘焙是异步的：冷启动（CI 每次都是干净的 profile）第一帧还在用未烘焙的
+// 大 Graphics，指令数会短暂停在高位（实测 119074），约一两秒后才落到 16130。
+// 这不是渲染预算变坏，是**读得太早**。等到它落到预算内再量；等不到就照常红。
+await page
+  .waitForFunction(
+    (limit) => window.Oracle.renderStats().totalCommands < limit,
+    MAX_COMMANDS,
+    { timeout: 5000, polling: 100 },
+  )
+  .catch(() => {});
 
 const stats = await page.evaluate(() => window.Oracle.renderStats());
 check(
