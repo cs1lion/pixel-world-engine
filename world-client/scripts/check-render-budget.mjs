@@ -10,6 +10,8 @@
  *   1. npm run dev
  *   2. node scripts/check-render-budget.mjs
  */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { chromium } from '@playwright/test';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
@@ -49,6 +51,16 @@ await page.addInitScript(() => localStorage.clear());
 await page.goto(`${BASE}?ledger=off&time=noon&debug=1`, { waitUntil: 'load' });
 await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 30000 });
 await page.waitForTimeout(1200);
+// 地形烘焙是异步的：冷启动（CI 每次都是干净的 profile）第一帧还在用未烘焙的
+// 大 Graphics，指令数会短暂停在高位（实测 119074），约一两秒后才落到 16130。
+// 这不是渲染预算变坏，是**读得太早**。等到它落到预算内再量；等不到就照常红。
+await page
+  .waitForFunction(
+    (limit) => window.Oracle.renderStats().totalCommands < limit,
+    MAX_COMMANDS,
+    { timeout: 5000, polling: 100 },
+  )
+  .catch(() => {});
 
 const stats = await page.evaluate(() => window.Oracle.renderStats());
 check(
@@ -62,39 +74,82 @@ check(
   `实际 ${stats.graphicsObjects}`,
 );
 
+/**
+ * 测量口径：每条指标采样 4 次，**丢掉第 1 次当预热，取后 3 次中位**。
+ *
+ * 2026-11-03 合并时同一道闸门两次红在不同指标（拖动 35.2 / 静止 43.6、
+ * 前台恢复 37.3 / 46.7），重跑即绿、阈值未动。单次 1.5 秒采样把 runner 的
+ * 瞬时争用直接当成代码回归。阈值语义一个字没改（拖动 >= 静止 × 0.9、
+ * 后台 <= 前台 / 3、恢复 >= 前台 × 0.9），改的只是测量方式。
+ *
+ * 失败时原始采样会跟着读数一起打出来，并在 EVAL_OUT 存在时把同一个采样
+ * 对象写成 JSON——让看红的人当场分清「机器慢」还是「代码慢」。
+ */
+const SAMPLE_COUNT = 4;
+/** 单次采样时长；4 次 × 1s，丢弃首样本后取中位。 */
+const SAMPLE_MS = 1000;
+
+const median = (values) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+const fmtSamples = (values) => values.map((value) => value.toFixed(1)).join('/');
+
 const measureFps = async () =>
   page.evaluate(
-    () =>
+    (durationMs) =>
       new Promise((resolve) => {
         let frames = 0;
         const start = performance.now();
         const tick = () => {
           frames += 1;
           const elapsed = performance.now() - start;
-          if (elapsed > 1500) resolve((frames / elapsed) * 1000);
+          if (elapsed > durationMs) resolve((frames / elapsed) * 1000);
           else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       }),
+    SAMPLE_MS,
   );
 
-const idleFps = await measureFps();
+/** 同一指标多采几次；首样本丢掉当预热，其余取中位。 */
+const sampleFps = async () => {
+  const samples = [];
+  for (let index = 0; index < SAMPLE_COUNT; index += 1) samples.push(await measureFps());
+  return { value: median(samples.slice(1)), samples };
+};
+
+const idle = await sampleFps();
 
 const box = await page.locator('canvas').first().boundingBox();
 await page.mouse.move(box.x + 400, box.y + 300);
 await page.mouse.down();
-const dragPromise = measureFps();
-for (let i = 0; i < 25; i += 1) {
-  await page.mouse.move(box.x + 400 - i * 4, box.y + 300 - i * 3);
-  await page.waitForTimeout(50);
-}
-const dragFps = await dragPromise;
+/** 一次采样期间持续拖动，避免「按下不动」被当成静止。 */
+const sampleDrag = async () => {
+  const motion = (async () => {
+    for (let step = 0; step < 25; step += 1) {
+      await page.mouse.move(
+        box.x + 400 + Math.sin(step * 0.5) * 60,
+        box.y + 300 + Math.cos(step * 0.5) * 40,
+      );
+      await page.waitForTimeout(40);
+    }
+  })();
+  const fps = await measureFps();
+  await motion;
+  return fps;
+};
+const drag = { value: 0, samples: [] };
+for (let index = 0; index < SAMPLE_COUNT; index += 1) drag.samples.push(await sampleDrag());
+drag.value = median(drag.samples.slice(1));
 await page.mouse.up();
 
 check(
-  dragFps >= idleFps * MIN_DRAG_RATIO,
+  drag.value >= idle.value * MIN_DRAG_RATIO,
   '拖动时帧率不明显低于静止',
-  `静止 ${idleFps.toFixed(1)} / 拖动 ${dragFps.toFixed(1)}`,
+  `静止 ${idle.value.toFixed(1)}（采样 ${fmtSamples(idle.samples)}）/ `
+    + `拖动 ${drag.value.toFixed(1)}（采样 ${fmtSamples(drag.samples)}）`,
 );
 // 省电模式：切到后台必须真的降频。用 advanceCount（真正推进世界的帧数），
 // 不能用 Phaser 的 update 调用次数——跳帧时它仍然每帧加一，看不出差别。
@@ -104,34 +159,63 @@ const countAdvances = async (ms) => {
   const after = await page.evaluate(() => window.Oracle.ecoState().advanceCount);
   return ((after - before) / ms) * 1000;
 };
+const sampleAdvances = async () => {
+  const samples = [];
+  for (let index = 0; index < SAMPLE_COUNT; index += 1) samples.push(await countAdvances(SAMPLE_MS));
+  return { value: median(samples.slice(1)), samples };
+};
 
-const foregroundRate = await countAdvances(1500);
+const foreground = await sampleAdvances();
 await page.evaluate(() => {
   Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
   document.dispatchEvent(new Event('visibilitychange'));
 });
 await page.waitForTimeout(400);
-const backgroundRate = await countAdvances(1500);
+const background = await sampleAdvances();
 
 await page.evaluate(() => {
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   document.dispatchEvent(new Event('visibilitychange'));
 });
 await page.waitForTimeout(400);
-const restoredRate = await countAdvances(1500);
+const restored = await sampleAdvances();
 
 check(
-  backgroundRate <= foregroundRate / 3,
+  background.value <= foreground.value / 3,
   '切到后台真的降频',
-  `前台 ${foregroundRate.toFixed(1)} / 后台 ${backgroundRate.toFixed(1)}`,
+  `前台 ${foreground.value.toFixed(1)}（采样 ${fmtSamples(foreground.samples)}）/ `
+    + `后台 ${background.value.toFixed(1)}（采样 ${fmtSamples(background.samples)}）`,
 );
 check(
-  restoredRate >= foregroundRate * 0.9,
+  restored.value >= foreground.value * 0.9,
   '回到前台恢复满帧',
-  `恢复 ${restoredRate.toFixed(1)}`,
+  `恢复 ${restored.value.toFixed(1)}（采样 ${fmtSamples(restored.samples)}；`
+    + `前台 ${foreground.value.toFixed(1)}）`,
 );
 
 check(errors.length === 0, '全程无 JS 报错', errors.join('; '));
+
+// 原始采样落盘：只在 EVAL_OUT 存在时写（CI 指向 runner 临时目录，不弄脏仓库）。
+if (process.env.EVAL_OUT) {
+  const out = join(process.env.EVAL_OUT, 'render-budget-samples.json');
+  mkdirSync(process.env.EVAL_OUT, { recursive: true });
+  writeFileSync(
+    out,
+    `${JSON.stringify(
+      {
+        measuredAt: new Date().toISOString(),
+        sampleCount: SAMPLE_COUNT,
+        sampleMs: SAMPLE_MS,
+        thresholds: { minDragRatio: MIN_DRAG_RATIO, minRestoreRatio: 0.9, maxBackgroundDivisor: 3 },
+        fps: { idle, drag },
+        advances: { foreground, background, restored },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  console.log(`采样读数已落盘：${out}`);
+}
 
 await browser.close();
 

@@ -100,7 +100,7 @@
 
 ### C2. 14 天晋级无法按真实时间验证
 
-- **问题**：默认 `timeScale=6` 一世界日约 4 小时真实时间；`?speed=60` 也要 24 分钟/日，一个 14 天窗口约 5.6 小时。修改存档 `world.now` 可让日结算连续触发，但那只是链路证据，不是“真的熬了 14 天”。**[事实]**
+- **问题**：默认真实时钟一日 24 小时，按真实时间要熬满 14 天；加速模式默认 `timeScale=6` 一日约 4 小时，`?speed=60` 也要 24 分钟/日，一个 14 天窗口约 5.6 小时。修改存档 `world.now` 可让日结算连续触发，但那只是链路证据，不是“真的熬了 14 天”。**[事实]**
 - **证据**：`DAY_MS` 与倍率换算（[config.ts](file:///D:/project/pixel-world-engine/world-client/src/world/memory/config.ts#L39-L47)）；逐日关账（[runtime.ts](file:///D:/project/pixel-world-engine/world-client/src/world/memory/runtime.ts#L445-L465)）；已写明的验证边界（[CREATOR_EXPLAINED.md](file:///D:/project/pixel-world-engine/docs/CREATOR_EXPLAINED.md#L167-L174)）。
 - **影响**：浏览器无法给出“晋级成功”的诚实证据；只能靠单元测试或可控时钟。**[事实]**
 - **建议时机**：合入后补“可控时钟/加速测试入口”，再做端到端晋级验证。

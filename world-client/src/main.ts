@@ -13,6 +13,8 @@ import { bindOraclePanel, utterancePlaceholder, type OracleApi } from './ui/orac
 import { bindHud } from './ui/hud.ts';
 import { bindShell } from './ui/shell.ts';
 import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
+import { bindClockAlignPanel, type ClockAlignOracle } from './ui/clock-align.ts';
+import { bindUnitStatusPanel, type UnitStatusOracle } from './ui/unit-status.ts';
 import { bindChronicle } from './ui/chronicle-panel.ts';
 import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
 import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
@@ -164,6 +166,16 @@ bindDebugPanel({
   feed: (message) => debugOracle()?.feed(message) ?? { ok: false, message: '世界还没醒来。' },
   pushEvent: (event) => debugOracle()?.pushEvent(event),
 });
+
+// 老档日界提示与对齐入口。提示本身要产品可见，不只活在调试面板里。
+const clockAlignOracle = (): ClockAlignOracle | undefined =>
+  (window as unknown as { Oracle?: ClockAlignOracle }).Oracle;
+bindClockAlignPanel(clockAlignOracle);
+
+// 单位状态菜单：点人/点楼时场景推过来的一帧只读状态。不暂停时间。
+const unitStatusOracle = (): UnitStatusOracle | undefined =>
+  (window as unknown as { Oracle?: UnitStatusOracle }).Oracle;
+bindUnitStatusPanel(unitStatusOracle);
 
 // 镇志抽屉：票据 #7 的「像读一本编年史」。只读 memory/，不改变仿真。
 // 客户端在这里才装配：它要知道 fetch 走哪（开发时是 vite 代理的 /api）。

@@ -10,7 +10,7 @@
  * 编的就是假话，而这个仓库最不容那一件（`docs/SPEC.md`）。
  */
 
-import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
+import type { GridPoint, TaskRecord, VillagerSnapshot } from './types.ts';
 
 /**
  * 说不准她在哪儿时的说法。**不许拿一句地点顶替。**
@@ -47,7 +47,10 @@ import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
 export const NOT_SOMEWHERE = '这会儿没个准地方';
 
 /** 她这一刻是不是正踩在祭坛那一格上。只有这一处坐标是世界真有的。 */
-export function atAltar(villager: VillagerSnapshot, snapshot: WorldSnapshot): boolean {
+export function atAltar(
+  villager: VillagerSnapshot,
+  snapshot: { readonly altar: GridPoint },
+): boolean {
   return (
     Math.floor(villager.pos.x) === snapshot.altar.x &&
     Math.floor(villager.pos.y) === snapshot.altar.y
@@ -55,7 +58,10 @@ export function atAltar(villager: VillagerSnapshot, snapshot: WorldSnapshot): bo
 }
 
 /** 没牌子时怎么说她在哪儿：人在祭坛才说祭坛，不在就说不准。 */
-export function idleLabel(villager: VillagerSnapshot, snapshot: WorldSnapshot): string {
+export function idleLabel(
+  villager: VillagerSnapshot,
+  snapshot: { readonly altar: GridPoint },
+): string {
   return villager.routine ?? (atAltar(villager, snapshot) ? '在祭坛边闲逛' : NOT_SOMEWHERE);
 }
 
@@ -79,7 +85,7 @@ export function idleLabel(villager: VillagerSnapshot, snapshot: WorldSnapshot): 
  */
 export function villagerModeLabel(
   villager: VillagerSnapshot,
-  snapshot: WorldSnapshot,
+  snapshot: { readonly altar: GridPoint },
   task: TaskRecord | undefined,
   venue: string | null,
 ): string {
@@ -92,15 +98,15 @@ export function villagerModeLabel(
       return venue === null ? '赶路' : `赶往 ${venue}`;
     case 'working': {
       // **没有铺子时不提地点。** 这一支曾经说「在祭坛边办「xxx」」——编的：
-      // 原地办的那种活（`startInPlace`，`simulation.ts:1677`）只把 mode 翻成
+      // 原地办的那种活（`startInPlace`，`simulation.ts:1735`）只把 mode 翻成
       // 'working'、`path = []`，**根本不挪人**。她站在接到活那一刻的位置，
       // 而那一刻她可以在世界任何一格。实测她绝大多数时候不在祭坛格上。
       //
       // 而这条路比「铺子挑不到」常见得多：`tasks.ts:13` 的 quick 活
       // `venue: 'in_place'`，**每一条 quick 都走它**。两条来路都通到
-      // `startInPlace`：神谕派活（`simulation.ts:1907`——「顺手看一眼」那个
+      // `startInPlace`：神谕派活（`simulation.ts:1943`——「顺手看一眼」那个
       // 按钮 `index.html:628` 发的就是这条命令）与上游事件流
-      // （`simulation.ts:1647`）。
+      // （`simulation.ts:1683`）。
       //
       // 世界这一刻只知道她在办这件事，不知道她在哪儿——那就只说这件事。
       // 空summary 也别说成「」：那是两个引号夹一片空白，不是一句话。
