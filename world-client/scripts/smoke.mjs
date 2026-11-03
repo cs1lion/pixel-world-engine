@@ -99,7 +99,7 @@ const measureOverlayFit = async () => {
   });
   const expected = projectWorldToCanvas(
     (raw.villagerPos.x + 0.5) * TILE_PX,
-    (raw.villagerPos.y + 1) * TILE_PX - 30,
+    (raw.villagerPos.y + 1) * TILE_PX - 40,
     raw.camera,
     raw.rect,
     raw.gameSize,

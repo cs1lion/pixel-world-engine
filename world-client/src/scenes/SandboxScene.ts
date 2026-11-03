@@ -46,6 +46,7 @@ type OracleSurfaces = OracleApi &
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
+import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
 import { createWeatherView, type WeatherView } from '../render/weather.ts';
@@ -2598,13 +2599,12 @@ export class SandboxScene extends Phaser.Scene {
         this.villagerViews.set(villager.id, view);
       }
       const style = this.pack?.villagers.find((item) => item.name === villager.name)?.style;
-      const colors = style === undefined ? undefined : {
-        cloak: this.pack!.palette[style.cloak] ?? WORLD.cloak,
-        scarf: this.pack!.palette[style.scarf] ?? WORLD.trim,
-        lamp: style.lamp,
-      };
+      // 外观四维与颜色槽由设定集给；莞尔镇没有设定集时按 `v0`/`v1` 取两套旧外观
+      // （按 id 不按名字：重名不串外观）。提灯是凭证，不是外观，单独递。
+      const look = style === undefined ? legacyLookFor(villager.id) : resolveLook(style);
+      const appearance = { look, lamp: style?.lamp === true };
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
-      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, colors, this.pack?.palette ?? WORLD);
+      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? WORLD);
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.tideView.update(this.snapshot.tide.level);
