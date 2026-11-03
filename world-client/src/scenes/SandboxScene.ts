@@ -314,6 +314,8 @@ export class SandboxScene extends Phaser.Scene {
   /** 右键/长按开的是记忆/楼志面板；左键开的仍是状态菜单。 */
   private longPressTimer: number | null = null;
   private longPressRef: UnitRef | null = null;
+  /** 按下时指针所在的格：500ms 后要按同一格重查，世界会自己动。 */
+  private longPressCell: { readonly x: number; readonly y: number } | null = null;
   /** 右键或长按已经处理过这次按下，抬手时不要再开状态菜单。 */
   private suppressClickUp = false;
   private contextMenuListener: ((event: Event) => void) | null = null;
@@ -2457,20 +2459,32 @@ export class SandboxScene extends Phaser.Scene {
   private beginLongPress(pointer: Phaser.Input.Pointer): void {
     if (!pointer.wasTouch) return;
     this.cancelLongPress();
-    const ref = this.unitRefAt(pointer);
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const cell = {
+      x: Math.floor(world.x / TILE_PX),
+      y: Math.floor(world.y / TILE_PX),
+    };
+    const ref = unitAtCell(this.unitStatusWorld(), cell.x, cell.y);
     if (ref === null) return;
     this.longPressRef = ref;
+    this.longPressCell = cell;
     this.longPressTimer = window.setTimeout(() => {
       this.longPressTimer = null;
-      const still = this.longPressRef;
-      if (!longPressShouldFire(LONG_PRESS_MS, still !== null) || still === null) {
-        this.longPressRef = null;
-        return;
-      }
+      const target = this.longPressRef;
+      const origin = this.longPressCell;
       this.longPressRef = null;
+      this.longPressCell = null;
+      if (target === null || origin === null) return;
+      // 指针没动（动了 pointermove 会 cancel），但世界在动：触发前按同一格再查一次。
+      // 人走开、换人、离场都不算长按——按下的那一刻已经不能代表此刻。
+      const underPointer = unitAtCell(this.unitStatusWorld(), origin.x, origin.y);
+      const stillOnTarget = underPointer !== null
+        && underPointer.kind === target.kind
+        && underPointer.id === target.id;
+      if (!longPressShouldFire(LONG_PRESS_MS, stillOnTarget)) return;
       // 长按已处理这次按下：抬手时不再叠开状态菜单。
       this.suppressClickUp = true;
-      this.openContextPanelForRef(still);
+      this.openContextPanelForRef(target);
     }, LONG_PRESS_MS);
   }
 
@@ -2480,6 +2494,7 @@ export class SandboxScene extends Phaser.Scene {
       this.longPressTimer = null;
     }
     this.longPressRef = null;
+    this.longPressCell = null;
   }
 
   /** 点到人：开只读状态菜单。命中判据仍是 `villagerAt`。 */

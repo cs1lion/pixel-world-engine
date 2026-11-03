@@ -19,13 +19,16 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import type { VillagerSnapshot, WorldSnapshot } from '../src/world/types.ts';
 import { installFakeDom } from './fake-dom.ts';
 import {
   LONG_PRESS_MS,
   bindUnitStatusPanel,
   buildUnitStatus,
   longPressShouldFire,
+  unitAtCell,
   type UnitMemoryReader,
+  type UnitRef,
   type UnitStatusContent,
   type UnitStatusOracle,
   type UnitStatusView,
@@ -237,4 +240,56 @@ test('L1-4 右键 / 长按的入口契约：500ms 才开，指针移出单位就
   assert.equal(longPressShouldFire(500, true), true, '到 500ms 才算长按');
   assert.equal(longPressShouldFire(10_000, true), true);
   assert.equal(longPressShouldFire(500, false), false, '指针已经移出单位，长按取消');
+});
+
+/** 场景在定时器里重查同一格后，用这个判据决定开不开；这里把那段拆成纯函数组合。 */
+function sameUnit(found: UnitRef | null, target: UnitRef): boolean {
+  return found !== null && found.kind === target.kind && found.id === target.id;
+}
+
+test('L1-5 长按触发前复核同一格：人走开 / 离场 / 换人都取消，按住不动才开', () => {
+  const sim = makeSim();
+  const snapshot = sim.snapshot();
+  const villager = snapshot.villagers.find((item) => item.visible);
+  assert.ok(villager !== undefined, '开局应当有一个在场的村民');
+  const cell = { x: Math.floor(villager.pos.x), y: Math.floor(villager.pos.y) };
+  const target: UnitRef = { kind: 'villager', id: villager.id };
+  const still = unitAtCell(snapshot, cell.x, cell.y);
+  assert.deepEqual(still, target, '按下时命中这个人');
+  assert.equal(longPressShouldFire(LONG_PRESS_MS, sameUnit(still, target)), true, '按住不动 → 开');
+
+  const withVillagers = (villagers: readonly VillagerSnapshot[]): WorldSnapshot => ({ ...snapshot, villagers });
+  const walkOut = (villagers: readonly VillagerSnapshot[]): WorldSnapshot => withVillagers(
+    villagers.map((item) => (
+      item.id === villager.id
+        ? { ...item, pos: { x: item.pos.x + 1, y: item.pos.y } }
+        : item
+    )),
+  );
+
+  // 人走出按下那一格：画面里只剩她时，这一格就空了。
+  const walkedOut = walkOut([villager]);
+  assert.equal(unitAtCell(walkedOut, cell.x, cell.y), null, '人已经走出按下那一格');
+  assert.equal(
+    longPressShouldFire(LONG_PRESS_MS, sameUnit(unitAtCell(walkedOut, cell.x, cell.y), target)),
+    false,
+    '换格 → 取消',
+  );
+
+  // 开局两人同格：她走开后，留在原格的另一个人也不是按下时那位。
+  const replaced = walkOut(snapshot.villagers);
+  assert.equal(
+    sameUnit(unitAtCell(replaced, cell.x, cell.y), target),
+    false,
+    '同格换了人 → 取消',
+  );
+
+  // 离场：快照里已经没有这个人。
+  const left = withVillagers([]);
+  assert.equal(unitAtCell(left, cell.x, cell.y), null, '这个人已经不在快照里');
+  assert.equal(
+    longPressShouldFire(LONG_PRESS_MS, sameUnit(unitAtCell(left, cell.x, cell.y), target)),
+    false,
+    '离场 → 取消',
+  );
 });

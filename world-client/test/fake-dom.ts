@@ -14,6 +14,7 @@ export class FakeElement {
   className = '';
   type = '';
   value = '';
+  maxLength = 524288;
   disabled = false;
   title = '';
   readonly style: Record<string, string> = {};
@@ -71,6 +72,10 @@ export class FakeElement {
   }
   click(): void {
     for (const run of this.listeners.get('click') ?? []) run();
+  }
+  /** 假 DOM 不真的移动焦点；用到它的只有「超长时把焦点放回输入框」。 */
+  focus(): void {
+    /* no-op */
   }
   submit(): void {
     for (const run of this.listeners.get('submit') ?? []) run({ preventDefault() {} });

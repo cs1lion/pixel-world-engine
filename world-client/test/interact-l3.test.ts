@@ -2,8 +2,8 @@
  * L3：边界。
  *
  * 四件事：
- * 1. 神谕输入面板是这页唯一可写的文字面板：空 / 全空白不投递；超长与控制字符
- *    必须在面板层被挡住（现在没有，见 `docs/BUGS_FOUND.md` 的 BUG-1，断言标 todo）；
+ * 1. 神谕输入面板是这页唯一可写的文字面板：空 / 全空白不投递；控制字符被剥离；
+ *    恰好 200 字收下，201 字与 10000 字整句拒收；上游在线时拒收的回执照抄；
  * 2. 回溯时间线是只读的：拖到第 N 天再点单位，读的是**当前**这一份，不是那一天的；
  * 3. 存档读写后重开，面板读数逐行复原；
  * 4. 两个单位同时点开时只有一个面板——这条由 `scripts/check-interact.mjs` 用真实
@@ -22,8 +22,13 @@ import { DAY_MS } from '../src/world/memory/config.ts';
 import { SceneHistory } from '../src/world/history/scene-history.ts';
 import { MemoryHistoryStore } from '../src/world/history/store.ts';
 import { fnv1a64Hex } from '../src/world/save.ts';
-import { installFakeDom } from './fake-dom.ts';
-import { bindOraclePanel, type OracleApi } from '../src/ui/oracle-panel.ts';
+import { installFakeDom, type FakeElement } from './fake-dom.ts';
+import {
+  UTTERANCE_MAX_LENGTH,
+  bindOraclePanel,
+  prepareUtterance,
+  type OracleApi,
+} from '../src/ui/oracle-panel.ts';
 import { buildUnitStatus, type UnitStatusContent, type UnitMemoryReader } from '../src/ui/unit-status.ts';
 
 const blueprints = parseBlueprintTable(
@@ -78,14 +83,16 @@ function readerOf(memory: MemoryRuntime): UnitMemoryReader {
   };
 }
 
-/** 神谕面板的假 API：只记录 `say` 收到了什么。 */
-function fakeOracleApi(): { api: OracleApi; said: string[] } {
+/** 神谕面板的假 API：记录 `say` 收到了什么；可注入「上游在线但拒收」的回执。 */
+function fakeOracleApi(
+  say?: (text: string) => { readonly ok: boolean; readonly message: string },
+): { api: OracleApi; said: string[] } {
   const said: string[] = [];
   const api: OracleApi = {
     view: () => ({}) as never,
     say: (text: string) => {
       said.push(text);
-      return { ok: true, message: '' };
+      return say === undefined ? { ok: true, message: '' } : say(text);
     },
     dispatch: () => {},
     finish: () => {},
@@ -139,19 +146,23 @@ const ORACLE_IDS = [
   'build-row',
 ] as const;
 
-function bindWritingPanel(): {
+function bindWritingPanel(
+  say?: (text: string) => { readonly ok: boolean; readonly message: string },
+): {
   readonly said: string[];
-  readonly input: { value: string };
+  readonly input: FakeElement;
+  readonly reply: FakeElement;
   submit(value: string): void;
   restore(): void;
 } {
   const dom = installFakeDom(ORACLE_IDS);
-  const world = fakeOracleApi();
+  const world = fakeOracleApi(say);
   const input = dom.byId('utterance');
   bindOraclePanel(() => world.api);
   return {
     said: world.said,
     input,
+    reply: dom.byId('reply'),
     submit(value: string) {
       input.value = value;
       dom.byId('oracle').submit();
@@ -173,24 +184,81 @@ test('L3-1a 输入校验：空输入与全空白都不投递', () => {
   }
 });
 
-test('L3-1b 输入校验：控制字符必须被挡住（todo：现在是原样投递）', { todo: true }, () => {
+test('L3-1b 输入校验：控制字符被剥离，纯控制字符按空句处理', () => {
+  assert.deepEqual(
+    prepareUtterance('\u0000\u0001\u0007拆掉祭坛\u007f'),
+    { ok: true, text: '拆掉祭坛' },
+    '\\u0000–\\u001f 与 \\u007f 全部剥掉，剩下的字照常投递',
+  );
+  assert.deepEqual(prepareUtterance('\u0000\u0001\u0007\u007f'), { ok: false, reason: 'empty' });
+  assert.deepEqual(prepareUtterance('  \n\t  '), { ok: false, reason: 'empty' }, '空白（含换行/制表符）算空句');
+
   const panel = bindWritingPanel();
   try {
-    const raw = '\u0000\u0001\u0007<script>alert(1)</script>';
-    panel.submit(raw);
-    assert.equal(panel.said.length, 0, '含控制字符的输入不该进世界队列');
+    panel.submit('\u0000\u0001\u0007<script>alert(1)</script>\u007f');
+    assert.equal(panel.said.length, 1, '剥掉控制字符后不是空句，应当投递');
+    const sent = panel.said[0]!;
+    assert.equal(sent, '<script>alert(1)</script>', '世界队列里只剩可读文字');
+    assert.ok(!/[\u0000-\u001f\u007f]/.test(sent), `投递文本仍含控制字符：${JSON.stringify(sent)}`);
+
+    panel.submit('\u0000\u0001\u0007\u007f');
+    assert.equal(panel.said.length, 1, '全是控制字符 = 空句，不投递');
+    assert.equal(panel.input.value, '\u0000\u0001\u0007\u007f', '没投递的输入原样留着');
   } finally {
     panel.restore();
   }
 });
 
-test('L3-1c 输入校验：超长文本必须被挡住（todo：现在 10k 字符原样投递）', { todo: true }, () => {
+test('L3-1c 输入校验：恰好 200 字收下，201 与 10000 字整句拒收', () => {
   const panel = bindWritingPanel();
+  const max = UTTERANCE_MAX_LENGTH;
   try {
-    const raw = '生长'.repeat(5_000);
-    panel.submit(raw);
-    const longest = panel.said.reduce((max, line) => Math.max(max, line.length), 0);
-    assert.ok(longest <= 2_000, `面板层应有长度上限，实际投递了 ${longest} 字`);
+    assert.equal(max, 200, '上限是常量里的 200，不散落在代码里');
+    assert.equal(panel.input.maxLength, max, '输入框 maxlength 与常量一致');
+
+    panel.submit('字'.repeat(max));
+    assert.equal(panel.said.length, 1, '恰好 200 字要收下');
+    assert.equal(panel.said[0]!.length, max);
+    assert.equal(panel.input.value, '', '收下后清空输入框');
+    assert.equal(panel.reply.className.includes('bad'), false, '收下时不报错');
+
+    // 两端留白先 trim 再判长度：夹着 200 个字仍然算恰好上限。
+    panel.submit(`   ${'字'.repeat(max)}   `);
+    assert.equal(panel.said[1], '字'.repeat(max), 'trim 后恰好 200 字，照收');
+
+    panel.submit('字'.repeat(max + 1));
+    assert.equal(panel.said.length, 2, '201 字不投递');
+    assert.match(panel.reply.textContent, /201 字/, '回执写清实际字数');
+    assert.match(panel.reply.textContent, /上限 200 字/, '回执写清上限');
+    assert.equal(panel.reply.className.includes('bad'), true, '超长回执要走错误样式');
+    assert.equal(panel.input.value, '字'.repeat(max + 1), '超长的原文留着让人删短，不悄悄截断');
+
+    // 粘贴 / 脚本绕过 maxlength：直接写 value 再提交，提交入口仍拦得住。
+    panel.submit('生长'.repeat(5_000));
+    assert.equal(panel.said.length, 2, '10000 字绕得过 maxlength，绕不过 prepareUtterance');
+    assert.match(panel.reply.textContent, /10000 字/, '回执报出真实长度');
+    assert.equal(panel.input.value, '生长'.repeat(5_000), '10000 字原样留在输入框');
+
+    // 控制字符先剥掉再数长度：201 字里混一个 \\u0001，剥完正好 200。
+    assert.deepEqual(
+      prepareUtterance(`\u0001${'字'.repeat(max)}`),
+      { ok: true, text: '字'.repeat(max) },
+      '控制字符不占上限',
+    );
+    assert.equal(prepareUtterance('字'.repeat(max + 1)).ok, false);
+  } finally {
+    panel.restore();
+  }
+});
+
+test('L3-1d 服务端在线但拒收：回执照抄、输入保留、不重试', () => {
+  const panel = bindWritingPanel(() => ({ ok: false, message: '上游拒绝：这句话认不出。' }));
+  try {
+    panel.submit('拆掉祭坛');
+    assert.equal(panel.said.length, 1, '认得出的句子会送到上游一次');
+    assert.equal(panel.reply.textContent, '上游拒绝：这句话认不出。', '上游的回执原样显示');
+    assert.equal(panel.reply.className.includes('bad'), true, '拒收回执是错误样式');
+    assert.equal(panel.input.value, '拆掉祭坛', '被拒收时不清空，句子还在手上');
   } finally {
     panel.restore();
   }

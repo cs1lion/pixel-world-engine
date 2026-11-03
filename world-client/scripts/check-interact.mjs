@@ -17,7 +17,6 @@ const BASE = process.env.PWE_URL ?? 'http://127.0.0.1:5188/';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const results = [];
-const todos = [];
 let failures = 0;
 
 function check(level, name, run) {
@@ -41,22 +40,6 @@ async function checkAsync(level, name, run) {
     failures += 1;
     results.push({ level, name, ok: false, detail: String(error?.message ?? error) });
     console.log(`  FAIL ${level} ${name} — ${error?.message ?? error}`);
-  }
-}
-
-/**
- * 已知缺口：期望值照写，不符合就记为 todo，不把整轮当失败、也不改期望迁就现状。
- */
-async function checkTodo(level, name, run) {
-  try {
-    const detail = await run();
-    results.push({ level, name, ok: true, detail, todo: true });
-    console.log(`  ok   ${level}（todo 已满足）${name} — ${detail}`);
-  } catch (error) {
-    const detail = String(error?.message ?? error);
-    todos.push({ level, name, detail });
-    results.push({ level, name, ok: false, todo: true, detail });
-    console.log(`  todo ${level} ${name} — ${detail}`);
   }
 }
 
@@ -214,6 +197,27 @@ function visibleVillager(view) {
   const villager = view.villagers.find((item) => item.visible);
   if (villager === undefined) throw new Error('画面上没有可见的村民');
   return villager;
+}
+
+/**
+ * 找一个「独占一格」的可见村民。
+ *
+ * 开局可能两人同格（见 L3-9），这时点这一格命中的是快照顺序里的第一个，
+ * 不是「点谁开谁」——验单点命中要避开这种样本。
+ */
+async function soloVillager(page, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const view = await page.evaluate(() => window.Oracle.view());
+    const visible = view.villagers.filter((item) => item.visible);
+    const solo = visible.find((item) => visible.filter((other) => (
+      Math.floor(other.pos.x) === Math.floor(item.pos.x)
+      && Math.floor(other.pos.y) === Math.floor(item.pos.y)
+    )).length === 1);
+    if (solo !== undefined) return solo;
+    await page.waitForTimeout(200);
+  }
+  throw new Error('8 秒内没有独占一格的可见村民');
 }
 
 function footprintOf(building) {
@@ -378,6 +382,78 @@ async function zoomOutSteps(page, steps) {
   }
 }
 
+/** L3 写作段用的 `say` 探针：记录投递内容，并能注入「上游在线但拒收」的回执。 */
+async function spySay(page) {
+  await page.evaluate(() => {
+    window.__said = [];
+    window.__sayResult = null;
+    window.__restoreSay = window.Oracle.say;
+    window.Oracle.say = (text) => {
+      window.__said.push(text);
+      return window.__sayResult ?? { ok: true, message: '' };
+    };
+  });
+  return {
+    said: () => page.evaluate(() => window.__said.slice()),
+    setResult: (result) => page.evaluate((value) => { window.__sayResult = value; }, result),
+    restore: () => page.evaluate(() => {
+      window.Oracle.say = window.__restoreSay;
+      delete window.__restoreSay;
+      delete window.__said;
+      delete window.__sayResult;
+    }),
+  };
+}
+
+/** 拖地图（真实鼠标按下—移动—抬起），起点必须是真正落在画布上的点。 */
+async function dragCanvas(page, dx, dy) {
+  const origin = await page.evaluate(() => {
+    const canvas = document.querySelector('#app canvas');
+    const rect = canvas.getBoundingClientRect();
+    for (let fy = 0.2; fy <= 0.8; fy += 0.05) {
+      for (let fx = 0.2; fx <= 0.8; fx += 0.05) {
+        const x = rect.left + rect.width * fx;
+        const y = rect.top + rect.height * fy;
+        if (document.elementFromPoint(x, y) === canvas) return { x, y };
+      }
+    }
+    return null;
+  });
+  assert(origin !== null, '画布上没有可用作拖拽起点的位置（被 HTML 面板盖住了？）');
+  await page.mouse.move(origin.x, origin.y);
+  await page.mouse.down();
+  // 分几次一小步一小步地移动：一步跨完时 Phaser 在缩放 3 档会把整段位移丢掉。
+  for (const fraction of [0.25, 0.5, 0.75, 1]) {
+    await page.mouse.move(origin.x + dx * fraction, origin.y + dy * fraction);
+    await page.waitForTimeout(40);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+}
+
+/** 状态菜单当前的 CSS 定位（`left/top` 就是锚点，场景每帧重算）。 */
+async function unitPanelBox(page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector('#unit-status');
+    return {
+      hidden: panel.hidden,
+      left: Number.parseFloat(panel.style.left),
+      top: Number.parseFloat(panel.style.top),
+    };
+  });
+}
+
+/** 状态菜单锚点的期望屏幕坐标：与场景 `screenAnchorForCell` 同一条公式。 */
+function expectedAnchor(cell, snapshot) {
+  const originX = viewOriginOf(snapshot.cam.scrollX, snapshot.cam.width, snapshot.cam.zoom);
+  const originY = viewOriginOf(snapshot.cam.scrollY, snapshot.cam.height, snapshot.cam.zoom);
+  const pixelsPerWorldPx = snapshot.cam.zoom * (snapshot.rect.width / snapshot.game.width);
+  return {
+    left: snapshot.rect.left + ((cell.x + 0.5) * TILE_PX - originX) * pixelsPerWorldPx,
+    top: snapshot.rect.top + (cell.y * TILE_PX - originY) * pixelsPerWorldPx,
+  };
+}
+
 async function main() {
   const browser = await chromium.launch();
   try {
@@ -389,8 +465,7 @@ async function main() {
   }
 
   console.log('');
-  console.log(`合计 ${results.length} 项，失败 ${failures} 项，todo ${todos.length} 项`);
-  for (const item of todos) console.log(`  todo ${item.level} ${item.name} — ${item.detail}`);
+  console.log(`合计 ${results.length} 项，失败 ${failures} 项，todo 0 项`);
   if (failures > 0) process.exitCode = 1;
 }
 
@@ -399,8 +474,7 @@ async function l1(browser) {
   console.log('L1 单点');
   const { context, page, errors } = await openPage(browser, 'time=noon&feed=off&speed=1');
   try {
-    const view = await page.evaluate(() => window.Oracle.view());
-    const villager = visibleVillager(view);
+    const villager = await soloVillager(page);
 
     // L1-1 左键点村民。
     let opened;
@@ -449,7 +523,15 @@ async function l1(browser) {
       }
 
       // DOM 与 Oracle 的同一份内容一致（不是只信内存）。
-      eq(opened.state.rows, content.lines, 'DOM 行与 Oracle.unitStatus 内容');
+      // 面板每帧跟着世界重发（行为/位置会变），所以两边必须在同一个 JS 任务里读。
+      const sameFrame = await page.evaluate(() => ({
+        status: window.Oracle.unitStatus(),
+        rows: [...document.querySelectorAll('#unit-status-body .unit-status-row')].map((row) => ({
+          key: row.querySelector('.unit-status-key')?.textContent ?? '',
+          value: row.querySelector('.unit-status-value')?.textContent ?? '',
+        })),
+      }));
+      eq(sameFrame.rows, sameFrame.status.lines, 'DOM 行与 Oracle.unitStatus 内容（同一帧）');
       return `情绪=${moodText(data.mood)}；心里=${data.inner?.text ?? '（无）'}；对${others[0].name}=${bondText(data.bonds.find((item) => item.to === others[0].id))}`;
     });
 
@@ -562,48 +644,223 @@ async function l1(browser) {
       return `标题=${state.buildingTitle}，按住 650ms`;
     });
 
-    // L1-10（todo，BUG-2）长按期间单位自己走开：应当取消，现状仍会开面板。
-    await checkTodo('L1-10', '长按 650ms 期间单位走开 → 应取消（BUG-2）', async () => {
+    // L1-10 长按判据：按住不动照常开；500ms 内目标走开 / 手指移出 1 格都取消。
+    const touchAndHold = async (page, context, point, holdMs) => {
+      const cdp = await context.newCDPSession(page);
+      try {
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [{ x: point.x, y: point.y, id: 1, radiusX: 2, radiusY: 2, force: 1 }],
+        });
+        if (holdMs !== null) await page.waitForTimeout(holdMs);
+      } finally {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }).catch(() => {});
+        await cdp.detach();
+      }
+      await page.waitForTimeout(150);
+      return panelState(page);
+    };
+
+    await checkAsync('L1-10a', '按住不动 650ms → 记忆面板照常打开（正控制）', async () => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await resetPanels(page);
+        const fresh = await page.evaluate(() => window.Oracle.view());
+        const target = fresh.villagers.find((item) => item.visible && !item.walking) ?? visibleVillager(fresh);
+        await focusCell(page, cellOf(target.pos));
+        const current = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
+        assert(current !== undefined, '按住前村民不见了');
+        const point = await pointOfCell(page, cellOf(current.pos));
+        const state = await touchAndHold(page, context, point, 650);
+        const live = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), current.id);
+        const stayed = Math.floor(live.pos.x) === Math.floor(current.pos.x)
+          && Math.floor(live.pos.y) === Math.floor(current.pos.y);
+        if (!stayed) continue; // 650ms 里她自己换了格，样本不成立。
+        assert(state.villager, `按住 ${current.name} 不动却没有打开记忆面板`);
+        assert(!state.unit, '长按后又叠开了状态菜单');
+        eq(state.villagerTitle, current.name, '长按打开的是按住的人');
+        return `按住 ${current.name} 650ms 不动 → 面板「${state.villagerTitle}」`;
+      }
+      throw new Error('4 次都没造出「按住的人原地不动」的样本');
+    });
+
+    await checkAsync('L1-10b', '500ms 内目标自己走出该格 → 取消，不开面板（BUG-2 修复）', async () => {
       const walker = await openPage(browser, 'time=noon&feed=off&speed=60');
       try {
-        for (let attempt = 0; attempt < 3; attempt += 1) {
+        let blanks = 0;
+        let stayed = 0;
+        let offscreen = 0;
+        let noSample = 0;
+        for (let attempt = 0; attempt < 6; attempt += 1) {
           await resetPanels(walker.page);
-          const view = await walker.page.evaluate(() => window.Oracle.view());
-          const target = view.villagers.find((item) => item.visible && item.walking);
-          if (target === undefined) {
+          const seed = await walker.page.evaluate(() => window.Oracle.view());
+          const seedTarget = seed.villagers.find((item) => item.visible && item.walking);
+          if (seedTarget === undefined) {
             await walker.page.waitForTimeout(500);
+            noSample += 1;
             continue;
           }
-          const before = cellOf(target.pos);
+          // 60 倍速下村民约 1 格/秒（view 的 pos 单位就是格），随机按住只有约
+          // 一半概率在 500ms 内换格——撞运气不算样本。这里的做法是等她**走到
+          // 格边**：按前两次采样估出速度，算「到下一格线还要多久」，只在 200–380ms
+          // 之间按下去。低于 200ms 会在我派发 touchStart 之前就换格（按到空格），
+          // 高于 380ms 又可能过了 500ms 定时器；这个窗口正好夹在投影/派发的
+          // ~150ms 延迟与定时器之间。隔壁格中心是按压点，所以还要独占一格。
+          await focusCell(walker.page, cellOf(seedTarget.pos));
+          let prev = null;
+          let target = null;
+          let before = null;
+          const huntUntil = Date.now() + 5000;
+          while (Date.now() < huntUntil && target === null) {
+            const now = Date.now();
+            const view = await walker.page.evaluate(() => window.Oracle.view());
+            const visible = view.villagers.filter((item) => item.visible);
+            if (prev !== null) {
+              for (const item of visible) {
+                const last = prev.get(item.id);
+                if (last === undefined) continue;
+                const dx = item.pos.x - last.x;
+                const dy = item.pos.y - last.y;
+                if (Math.abs(dx) < 0.005 && Math.abs(dy) < 0.005) continue;
+                const alongX = Math.abs(dx) >= Math.abs(dy);
+                const delta = alongX ? dx : dy;
+                const value = alongX ? item.pos.x : item.pos.y;
+                const gap = delta > 0
+                  ? Math.floor(value) + 1 - value
+                  : value - Math.floor(value);
+                const speed = Math.abs(delta) / Math.max(now - last.at, 1);
+                const eta = gap / Math.max(speed, 0.0001);
+                if (eta < 200 || eta > 380) continue;
+                const cell = cellOf(item.pos);
+                const co = visible.filter((other) => (
+                  Math.floor(other.pos.x) === cell.x && Math.floor(other.pos.y) === cell.y
+                ));
+                if (co.length !== 1) continue;
+                target = { id: item.id, name: item.name, eta: Math.round(eta) };
+                before = { x: cell.x, y: cell.y };
+                break;
+              }
+            }
+            prev = new Map(visible.map((item) => [item.id, { x: item.pos.x, y: item.pos.y, at: now }]));
+            if (target === null) await walker.page.waitForTimeout(60);
+          }
+          if (target === null) {
+            noSample += 1;
+            continue; // 5 秒内没等到贴格边的行走样本。
+          }
           const point = await pointOfCell(walker.page, before);
+          if (
+            point.point.x < 0 || point.point.y < 0
+            || point.point.x > point.snapshot.rect.width || point.point.y > point.snapshot.rect.height
+          ) {
+            offscreen += 1;
+            continue; // 这一格在视野外，点不到。
+          }
           const cdp = await walker.context.newCDPSession(walker.page);
+          let startedOnTarget = false;
+          let leftAt = null;
+          const pressAt = Date.now();
           try {
             await cdp.send('Input.dispatchTouchEvent', {
               type: 'touchStart',
               touchPoints: [{ x: point.x, y: point.y, id: 1, radiusX: 2, radiusY: 2, force: 1 }],
             });
-            await walker.page.waitForTimeout(650);
+            // 按下的一刻她还在这一格且独占，这次按压才算「按在她身上」。
+            const atPress = await walker.page.evaluate(({ id, cell }) => {
+              const view = window.Oracle.view();
+              const own = view.villagers.find((i) => i.id === id);
+              const same = view.villagers.filter((i) => i.visible
+                && Math.floor(i.pos.x) === cell.x && Math.floor(i.pos.y) === cell.y).length;
+              return { pos: own?.pos ?? null, same };
+            }, { id: target.id, cell: before });
+            startedOnTarget = atPress.pos !== null
+              && Math.floor(atPress.pos.x) === before.x
+              && Math.floor(atPress.pos.y) === before.y
+              && atPress.same === 1;
+            // 500ms 定时器触发前她必须已经换格，否则弹面板是合理的，不能拿来判 bug。
+            while (Date.now() - pressAt < 450) {
+              await walker.page.waitForTimeout(30);
+              const during = await walker.page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
+              if (during === undefined) {
+                leftAt = Date.now() - pressAt;
+                break;
+              }
+              const at = cellOf(during.pos);
+              if (at.x !== before.x || at.y !== before.y) {
+                leftAt = Date.now() - pressAt;
+                break;
+              }
+            }
+            const remaining = 700 - (Date.now() - pressAt);
+            if (remaining > 0) await walker.page.waitForTimeout(remaining);
           } finally {
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }).catch(() => {});
             await cdp.detach();
           }
+          if (!startedOnTarget) {
+            blanks += 1;
+            continue; // 按空了，不算样本。
+          }
+          if (leftAt === null) {
+            stayed += 1;
+            continue; // 500ms 时她还在原格，弹面板是合理结果。
+          }
           await walker.page.waitForTimeout(150);
-          const live = await walker.page.evaluate((id) => window.Oracle.view().villagers.find((item) => item.id === id), target.id);
+          const live = await walker.page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
           const state = await panelState(walker.page);
-          const after = cellOf(live.pos);
-          const left = after.x !== before.x || after.y !== before.y;
-          if (!left) continue; // 650ms 里没换格，样本不成立，换一次再按。
-          if (!state.villager) continue; // 这次按空了（长按没起），不算修好。
-          assert(
-            false,
-            `${target.name} 从格 (${before.x},${before.y}) 走到 (${after.x},${after.y})，`
-            + `手指没动、也没有 pointermove，500ms 定时器照样开了记忆面板「${state.villagerTitle}」`,
-          );
+          const after = live === undefined ? null : cellOf(live.pos);
+          assert(!state.villager, `${target.name} 在 ${leftAt}ms 走出格 (${before.x},${before.y})`
+            + `${after === null ? '并离场' : `到 (${after.x},${after.y})`}，手指没动，`
+            + `却照样开了记忆面板「${state.villagerTitle}」`);
+          assert(!state.unit, '走开后还弹了状态菜单');
+          return `${target.name} 在 ${leftAt}ms 走出格 (${before.x},${before.y})`
+            + `${after === null ? '并离场' : `到 (${after.x},${after.y})`}，按住到 700ms 手指未动 → 0 个面板`;
         }
-        throw new Error('3 次都没造出「按住的人自己在走」的样本');
+        throw new Error('6 次都没造出「按住的人在 500ms 内自己走出该格」的样本'
+          + `（按空 ${blanks} 次，按下后没换格 ${stayed} 次，贴格边样本没等到 ${noSample} 次，格在视野外 ${offscreen} 次）`);
       } finally {
         await walker.context.close();
       }
+    });
+
+    await checkAsync('L1-10c', '按住 200ms 时手指移到隔壁格 → 取消，不开面板', async () => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await resetPanels(page);
+        const fresh = await page.evaluate(() => window.Oracle.view());
+        const target = fresh.villagers.find((item) => item.visible && !item.walking) ?? visibleVillager(fresh);
+        await focusCell(page, cellOf(target.pos));
+        const current = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
+        assert(current !== undefined, '按住前村民不见了');
+        const cell = cellOf(current.pos);
+        const start = await pointOfCell(page, cell);
+        const next = await pointOfCell(page, { x: cell.x + 1, y: cell.y });
+        const cdp = await context.newCDPSession(page);
+        try {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [{ x: start.x, y: start.y, id: 1, radiusX: 2, radiusY: 2, force: 1 }],
+          });
+          await page.waitForTimeout(200);
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: next.x, y: next.y, id: 1, radiusX: 2, radiusY: 2, force: 1 }],
+          });
+          await page.waitForTimeout(450);
+        } finally {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }).catch(() => {});
+          await cdp.detach();
+        }
+        await page.waitForTimeout(150);
+        const state = await panelState(page);
+        const live = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), current.id);
+        const stayed = Math.floor(live.pos.x) === cell.x && Math.floor(live.pos.y) === cell.y;
+        if (!stayed) continue; // 她自己走了，这不是「手指移出」的样本。
+        assert(!state.villager, `${current.name} 没动，手指从格 (${cell.x},${cell.y}) 移到 (${cell.x + 1},${cell.y})，`
+          + `500ms 后仍开了记忆面板「${state.villagerTitle}」`);
+        assert(!state.unit, '移出后还弹了状态菜单');
+        const shift = Math.round((next.x - start.x) * 100) / 100;
+        return `手指移出 1 格（${shift}px）→ 0 个面板；${current.name} 原位未动`;
+      }
+      throw new Error('4 次都没造出「目标原地不动、手指移出 1 格」的样本');
     });
 
     // L1-7 点空白收起。
@@ -893,6 +1150,96 @@ async function l2(browser) {
         return `zoom=${zoom}×CSS${scale}，偏移 ${offset.toFixed(2)}px，边界余量 ${(half - offset).toFixed(1)}px，投影漂移 ${driftCss.toFixed(2)}px（${driftWorld.toFixed(2)} 世界px，取整容差 ≤1）`;
       });
 
+      // L2-7 面板与镜头的关系（本轮定下的规则，钉在这里）：
+      //  1. 状态菜单锚在格子上、每帧按当前镜头重算 → 拖图/缩放都跟着格子走；
+      //  2. 记忆面板绑「镜头正看着她」，镜头离开跟随（拖拽、滚轮、切自由）就收起；
+      //  3. 楼志是打开那一刻的快照，固定在屏幕一侧，不随镜头走，也不因拖图关闭；
+      //  4. 本作没有键盘平移入口：方向键不动镜头，面板也不动。
+      await checkAsync('L2-7', '面板 + 镜头：状态菜单跟随拖图、记忆面板随离开跟随关闭、楼志静态、方向键不平移', async () => {
+        await resetPanels(p2.page);
+        const fresh = await p2.page.evaluate(() => window.Oracle.view());
+        const villager = visibleVillager(fresh);
+        await openStatusByClick(p2.page, villager);
+        const selected = await p2.page.evaluate(() => window.Oracle.unitStatus());
+        assert(selected !== null, '状态菜单没有选中对象');
+        const before = await unitPanelBox(p2.page);
+        assert(!before.hidden, '状态菜单没开');
+        const camBeforeDrag = await camera(p2.page);
+
+        await dragCanvas(p2.page, -40, -30);
+        const snapshot = await camera(p2.page);
+        const live = await p2.page.evaluate((id) => window.Oracle.view().villagers.find((v) => v.id === id), selected.id);
+        assert(live !== undefined, '拖图后选中的人不见了');
+        const after = await unitPanelBox(p2.page);
+        assert(!after.hidden, '拖图把状态菜单关掉了');
+        const expected = expectedAnchor(cellOf(live.pos), snapshot);
+        const drift = Math.hypot(after.left - expected.left, after.top - expected.top);
+        assert(
+          drift <= 2,
+          `状态菜单没有跟着镜头：实际 (${after.left},${after.top})，投影 (${expected.left.toFixed(2)},${expected.top.toFixed(2)})，偏 ${drift.toFixed(2)}px`,
+        );
+        const moved = Math.hypot(after.left - before.left, after.top - before.top);
+        assert(
+          moved >= 20,
+          `拖图后状态菜单只挪了 ${moved.toFixed(2)}px（scroll ${camBeforeDrag.cam.scrollX},${camBeforeDrag.cam.scrollY}`
+            + ` → ${snapshot.cam.scrollX},${snapshot.cam.scrollY}，zoom ${camBeforeDrag.cam.zoom}→${snapshot.cam.zoom}）`,
+        );
+
+        // 键盘：本作没有键盘平移入口，镜头与面板都该原地不动。
+        const camBefore = (await camera(p2.page)).cam;
+        await p2.page.keyboard.press('ArrowRight');
+        await p2.page.keyboard.press('ArrowDown');
+        await p2.page.waitForTimeout(200);
+        const camAfter = (await camera(p2.page)).cam;
+        eq([camAfter.scrollX, camAfter.scrollY], [camBefore.scrollX, camBefore.scrollY], '方向键不该平移镜头');
+        const kbSnapshot = await camera(p2.page);
+        const kbLive = await p2.page.evaluate((id) => window.Oracle.view().villagers.find((v) => v.id === id), selected.id);
+        const kbBox = await unitPanelBox(p2.page);
+        const kbExpected = expectedAnchor(cellOf(kbLive.pos), kbSnapshot);
+        const kbDrift = Math.hypot(kbBox.left - kbExpected.left, kbBox.top - kbExpected.top);
+        assert(kbDrift <= 2, `方向键后状态菜单脱开了格子：偏 ${kbDrift.toFixed(2)}px`);
+
+        // 记忆面板：右键把人「跟」上，再拖图 → 镜头离开跟随，面板收起。
+        await resetPanels(p2.page);
+        const memoryVillager = await rightClickVillager(p2.page, villager.id);
+        const memory = await panelState(p2.page);
+        assert(memory.villager, '右键没有打开记忆面板');
+        eq(memory.villagerTitle, memoryVillager.name, '记忆面板标题');
+        await dragCanvas(p2.page, -30, -20);
+        const memoryAfter = await panelState(p2.page);
+        assert(!memoryAfter.villager, '拖图后记忆面板还开着（规则：镜头离开跟随就收起）');
+
+        // 楼志：静态快照，拖图后仍开着、标题不变。
+        await resetPanels(p2.page);
+        let buildingHit = null;
+        const buildings = (await p2.page.evaluate(() => window.Oracle.view())).buildings;
+        for (const item of buildings) {
+          const cell = {
+            x: item.origin.x + Math.floor(footprintOf(item).w / 2),
+            y: item.origin.y + Math.floor(footprintOf(item).h / 2),
+          };
+          await focusCell(p2.page, cell);
+          const view = await p2.page.evaluate(() => window.Oracle.view());
+          if (villagerAtCell(view, cell) !== undefined) continue;
+          await clickCell(p2.page, cell, { button: 'right' });
+          const state = await panelState(p2.page);
+          if (state.building) {
+            buildingHit = { state, cell, scroll: (await camera(p2.page)).cam.scrollX };
+            break;
+          }
+        }
+        assert(buildingHit !== null, '没有中心格空着、能右键打开的楼');
+        await dragCanvas(p2.page, -60, -45);
+        const buildingAfter = await panelState(p2.page);
+        assert(buildingAfter.building, '拖图把楼志关掉了（规则：楼志是静态快照）');
+        eq(buildingAfter.buildingTitle, buildingHit.state.buildingTitle, '楼志标题不变');
+        const scrollAfter = (await camera(p2.page)).cam.scrollX;
+        assert(Math.abs(scrollAfter - buildingHit.scroll) > 3, `拖图没动镜头（scroll ${buildingHit.scroll}→${scrollAfter}）`);
+
+        return `状态菜单锚点误差 ${drift.toFixed(2)}px、随拖图挪 ${moved.toFixed(2)}px；方向键后镜头 scroll 不变；`
+          + `记忆面板拖图收起；楼志拖图保留（${buildingHit.state.buildingTitle}）`;
+      });
+
       check('L2-6', '页面没有未捕获异常', () => {
         assert(errors.length === 0 && p2.errors.length === 0, `pageerror: ${[...errors, ...p2.errors].join(' | ')}`);
         return `${errors.length + p2.errors.length} 个 pageerror`;
@@ -911,8 +1258,10 @@ async function l3(browser) {
   console.log('L3 边界');
   const { context, page, errors } = await openPage(browser, 'time=noon&feed=off&speed=1');
   try {
-    // L3-1 空 / 空白输入。
-    await checkAsync('L3-1', '空输入与全空白不投递，输入框不被清空', async () => {
+    // L3-1 输入框上限与空白。
+    await checkAsync('L3-1', '输入框 maxlength=200；空输入与全空白不投递，输入框不被清空', async () => {
+      const maxlength = await page.evaluate(() => document.querySelector('#utterance').maxLength);
+      eq(maxlength, 200, '#utterance 的 maxlength');
       await page.fill('#utterance', '   ');
       await page.press('#utterance', 'Enter');
       await page.waitForTimeout(120);
@@ -920,31 +1269,114 @@ async function l3(browser) {
       eq(state.reply, '', '空白输入不该有回执');
       const value = await page.inputValue('#utterance');
       eq(value, '   ', '没投递的输入不该被清空');
-      return '空白输入 0 条回执，输入框保留 3 个空格';
+      return `maxlength=${maxlength}；空白输入 0 条回执，输入框保留 3 个空格`;
     });
 
-    // L3-2 非法字符：至少不崩、不进石板。
-    await checkAsync('L3-2', '非法字符（控制符 + 标签）不崩页、不改石板', async () => {
-      const slabBefore = await page.evaluate(() => window.Oracle.slab().length);
-      await page.fill('#utterance', '\u0000\u0001<script>alert(1)</script>');
-      await page.press('#utterance', 'Enter');
-      await page.waitForTimeout(600);
-      const slabAfter = await page.evaluate(() => window.Oracle.slab().length);
-      eq(slabAfter, slabBefore, '非法输入不该进石板');
-      const state = await panelState(page);
-      assert(!state.reply.includes('<script>'), '回执里回显了原始标签');
-      return `石板 ${slabBefore}→${slabAfter}，回执=${state.reply || '（空）'}`;
+    // L3-2 控制字符：剥离后投递；纯控制字符按空句。
+    await checkAsync('L3-2', '控制字符被剥离后投递；纯控制字符按空句，不投递', async () => {
+      const spy = await spySay(page);
+      try {
+        // 直接写 value（等同脚本 / 调试注入，绕过键盘与 maxlength）。
+        await page.evaluate(() => {
+          document.querySelector('#utterance').value = '\u0000\u0001\u0007拆掉祭坛\u007f';
+        });
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(120);
+        eq(await spy.said(), ['拆掉祭坛'], '世界队列里只剩可读文字');
+        eq((await panelState(page)).reply, '', '剥离后不是空句，不该报错');
+        eq(await page.inputValue('#utterance'), '', '收下后清空输入框');
+
+        await page.evaluate(() => {
+          document.querySelector('#utterance').value = '\u0000\u0001\u0007\u007f';
+        });
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(120);
+        eq((await spy.said()).length, 1, '纯控制字符按空句，不投递');
+        eq(await page.inputValue('#utterance'), '\u0000\u0001\u0007\u007f', '不投递时原文留着');
+        return '4 个控制字符被剥离，投递「拆掉祭坛」；纯控制字符 0 次投递';
+      } finally {
+        await spy.restore();
+      }
     });
 
-    // L3-3 超长文本：记录实际行为（已知没有上限，见 BUG-1）。
-    await checkAsync('L3-3', '超长文本：记录实际投递长度与回执（已知缺口）', async () => {
-      const raw = '生长'.repeat(5_000);
-      await page.fill('#utterance', raw);
-      await page.press('#utterance', 'Enter');
-      await page.waitForTimeout(600);
-      const state = await panelState(page);
-      const maxlength = await page.evaluate(() => document.querySelector('#utterance').getAttribute('maxlength'));
-      return `输入 10000 字，maxlength=${maxlength ?? '未设'}，回执=${state.reply || '（空）'}（期望：面板层拒绝/截断，见 BUG-1）`;
+    // L3-3 长度：恰好 200 收下；201 与 10000 整句拒收；粘贴超长被 maxlength 截到 200。
+    await checkAsync('L3-3', '恰好 200 字收下；201 / 10000 字整句拒收、输入保留；粘贴 201 字截到 200', async () => {
+      const spy = await spySay(page);
+      const max = 200;
+      try {
+        // 先清空：Playwright 的 fill 在非空输入上会按 maxlength 逐字插入，
+        // 上一段留下的控制符会让恰好 200 变成 199，干扰这一条。
+        await page.evaluate(() => {
+          document.querySelector('#utterance').value = '';
+        });
+        await page.fill('#utterance', '字'.repeat(max));
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(150);
+        eq(await spy.said(), ['字'.repeat(max)], '恰好 200 字要收下');
+        eq(await page.inputValue('#utterance'), '', '收下后清空输入框');
+        const acceptReply = (await panelState(page)).reply;
+
+        // 201：脚本直接写 value（绕过 maxlength），提交入口必须再拦一次。
+        await page.evaluate((value) => {
+          document.querySelector('#utterance').value = value;
+        }, '字'.repeat(max + 1));
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(150);
+        const state201 = await panelState(page);
+        eq((await spy.said()).length, 1, '201 字不投递');
+        assert(state201.reply.includes('201 字'), `超长回执要写清实际字数，实际「${state201.reply}」`);
+        assert(state201.reply.includes('上限 200 字'), `超长回执要写清上限，实际「${state201.reply}」`);
+        eq(await page.inputValue('#utterance'), '字'.repeat(max + 1), '超长的原文留着让人删短');
+
+        // 10000：同上，绕得过 maxlength，绕不过提交入口。
+        await page.evaluate((value) => {
+          document.querySelector('#utterance').value = value;
+        }, '生长'.repeat(5_000));
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(150);
+        const state10k = await panelState(page);
+        eq((await spy.said()).length, 1, '10000 字不投递');
+        assert(state10k.reply.includes('10000 字'), `10000 字回执要写实际长度，实际「${state10k.reply}」`);
+        eq(await page.inputValue('#utterance'), '生长'.repeat(5_000), '10000 字原样留着');
+
+        // 粘贴（真实的键盘插入，受 maxlength 约束）：201 字被截到 200，提交就收下。
+        await page.evaluate(() => {
+          document.querySelector('#utterance').value = '';
+        });
+        await page.click('#utterance');
+        await page.keyboard.insertText('字'.repeat(max + 1));
+        eq(await page.inputValue('#utterance'), '字'.repeat(max), '粘贴 201 字被 maxlength 截到 200');
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(150);
+        const saidAfterPaste = await spy.said();
+        eq(saidAfterPaste.length, 2, '截到 200 后提交应当收下');
+        eq(saidAfterPaste[1], '字'.repeat(max), '被截断的 200 字进了世界队列');
+
+        return `200 收下（回执「${acceptReply || '无'}」）；201 拒收「${state201.reply}」；`
+          + `10000 拒收「${state10k.reply}」；粘贴 201→200 收下`;
+      } finally {
+        await spy.restore();
+      }
+    });
+
+    // L3-3b 上游在线但拒收：回执照抄、输入保留、只送一次。
+    await checkAsync('L3-3b', '上游在线但拒收：回执照抄、输入保留、只送一次', async () => {
+      const spy = await spySay(page);
+      try {
+        await spy.setResult({ ok: false, message: '上游拒绝：这句话认不出。' });
+        await page.evaluate(() => {
+          document.querySelector('#utterance').value = '拆掉祭坛';
+        });
+        await page.press('#utterance', 'Enter');
+        await page.waitForTimeout(150);
+        const state = await panelState(page);
+        eq(state.reply, '上游拒绝：这句话认不出。', '上游回执原样显示');
+        eq(await page.inputValue('#utterance'), '拆掉祭坛', '被拒收时不清空，句子还在手上');
+        eq((await spy.said()).length, 1, '只送一次，不重试');
+        return `回执「${state.reply}」，输入保留`;
+      } finally {
+        await spy.restore();
+      }
     });
 
     // L3-4 状态面板本身没有写作入口。
@@ -1035,6 +1467,77 @@ async function l3(browser) {
           + `记忆→${mixedHit.pick.villager.name} 收起；状态→楼只留楼志 ${buildingHit.name}（格 ${buildingHit.cell.x},${buildingHit.cell.y}）`;
       } finally {
         await mutex.context.close();
+      }
+    });
+
+    // L3-9 两人同格：只有后选中的那个人出内容。
+    // 同格是瞬态（两人常在交叉时重叠），所以用 debug 选择入口在**同一帧**
+    // 先选 A 再选 B：命中的先后不靠鼠标时序，内容互斥才是这条要钉的东西。
+    await checkAsync('L3-9', '两人同格：先选后选只留一个，后选中的那个独占内容', async () => {
+      const same = await openPage(browser, 'time=noon&feed=off&speed=1');
+      try {
+        let sample = null;
+        const deadline = Date.now() + 20_000;
+        while (Date.now() < deadline && sample === null) {
+          sample = await same.page.evaluate(() => {
+            const visible = window.Oracle.view().villagers.filter((v) => v.visible);
+            const byCell = new Map();
+            for (const item of visible) {
+              const key = `${Math.floor(item.pos.x)},${Math.floor(item.pos.y)}`;
+              const list = byCell.get(key) ?? [];
+              list.push(item);
+              byCell.set(key, list);
+            }
+            const hit = [...byCell.entries()].find(([, list]) => list.length >= 2);
+            if (hit === undefined) return null;
+            const [key, list] = hit;
+            const [x, y] = key.split(',').map(Number);
+            return { cell: { x, y }, pair: list.map(({ id, name }) => ({ id, name })) };
+          });
+          if (sample === null) await same.page.waitForTimeout(100);
+        }
+        assert(sample !== null, '20 秒内没有两人同格的样本');
+        assert(sample.pair.length >= 2, '同格样本不足两人');
+        const [a, b] = sample.pair;
+
+        await resetPanels(same.page);
+        const result = await same.page.evaluate(([x, y, ids]) => {
+          const here = window.Oracle.view().villagers.filter(
+            (v) => v.visible && Math.floor(v.pos.x) === x && Math.floor(v.pos.y) === y,
+          );
+          const coLocated = here.filter((v) => ids.includes(v.id)).length;
+          window.Oracle.openUnitStatusForDebug(ids[0]);
+          const afterFirst = {
+            content: window.Oracle.unitStatus(),
+            title: document.querySelector('#unit-status-title').textContent,
+          };
+          window.Oracle.openUnitStatusForDebug(ids[1]);
+          const afterSecond = {
+            content: window.Oracle.unitStatus(),
+            title: document.querySelector('#unit-status-title').textContent,
+          };
+          return {
+            coLocated,
+            afterFirst,
+            afterSecond,
+            unit: !document.querySelector('#unit-status').hidden,
+            villager: !document.querySelector('#villager-panel').hidden,
+            building: !document.querySelector('#building-panel').hidden,
+          };
+        }, [sample.cell.x, sample.cell.y, [a.id, b.id]]);
+
+        assert(result.coLocated >= 2, '选择时两人已经不在同一格');
+        assert(result.afterFirst.content !== null && result.afterSecond.content !== null, '选择后没有内容');
+        eq(result.afterFirst.content.id, a.id, '先选中 A：内容就是 A');
+        eq(result.afterFirst.title, a.name, '先选中 A：标题是 A');
+        eq(result.afterSecond.content.id, b.id, '后选中 B：内容只剩 B');
+        eq(result.afterSecond.title, b.name, '后选中 B：标题只剩 B');
+        assert(result.unit && !result.villager && !result.building, '同格选择时开了别的面板');
+        assert(same.errors.length === 0, `同格页 pageerror: ${same.errors.join(' | ')}`);
+        return `格 (${sample.cell.x},${sample.cell.y}) 同格 ${sample.pair.length} 人：先选 ${a.name}，`
+          + `再选 ${b.name} → 内容只剩 ${result.afterSecond.title}；只 1 个面板`;
+      } finally {
+        await same.context.close();
       }
     });
 

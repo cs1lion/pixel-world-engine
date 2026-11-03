@@ -10,6 +10,34 @@ import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import { whenApi } from './when-api.ts';
 import type { PrefabBlueprint, TaskKind, WorldSnapshot } from '../world/types.ts';
 
+/**
+ * 一句话的上限：200 字。
+ * 定这个值不是随手挑：祭坛写作入口是「一句祈使」，200 字足够放下
+ * 一个地点、一个动作、一句限定；再长就超出这个世界能解析的句式。
+ * 超长选「整句拒收」而不是截断：截断会悄悄改掉命令的意思（比如把
+ * 「不要拆」截成「不要」），玩家却以为后半句已经生效；拒收并保留
+ * 原文，才看得见问题。上限同时写到输入框 `maxlength` 上，但提交入口
+ * 仍会再校验一次，粘贴与脚本绕得过 UI、绕不过 `prepareUtterance`。
+ */
+export const UTTERANCE_MAX_LENGTH = 200;
+
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
+export type UtteranceCheck =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly reason: 'empty' }
+  | { readonly ok: false; readonly reason: 'too-long'; readonly length: number };
+
+/** 写作面板的唯一入口校验：去掉控制字符、trim、判空、判上限。 */
+export function prepareUtterance(raw: string): UtteranceCheck {
+  const text = raw.replace(CONTROL_CHARS, '').trim();
+  if (text.length === 0) return { ok: false, reason: 'empty' };
+  if (text.length > UTTERANCE_MAX_LENGTH) {
+    return { ok: false, reason: 'too-long', length: text.length };
+  }
+  return { ok: true, text };
+}
+
 export interface OracleApi {
   /** 世界快照只读视图。HUD 与浏览器回归都从这里读，不另开接口。 */
   readonly view: () => WorldSnapshot;
@@ -299,12 +327,21 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     onGiveUp: () => show(false, '世界没有醒来。刷新页面再试。'),
   });
 
+  // UI 先拦一道；粘贴、脚本、调试写入都能绕过 maxlength，submit 里仍要再校验一次。
+  input.maxLength = UTTERANCE_MAX_LENGTH;
+
   const submit = (text: string): boolean => {
     const api = getApi();
     if (api === undefined) return false;
-    const trimmed = text.trim();
-    if (trimmed.length === 0) return false;
-    const parsed = api.say(trimmed);
+    const prepared = prepareUtterance(text);
+    if (!prepared.ok) {
+      if (prepared.reason === 'too-long') {
+        show(false, `这句话 ${prepared.length} 字，超过上限 ${UTTERANCE_MAX_LENGTH} 字；删短再发。`);
+        input.focus();
+      }
+      return false;
+    }
+    const parsed = api.say(prepared.text);
     if (!parsed.ok) show(false, parsed.message);
     return parsed.ok;
   };
