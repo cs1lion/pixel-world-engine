@@ -10,7 +10,7 @@
  * 编的就是假话，而这个仓库最不容那一件（`docs/SPEC.md`）。
  */
 
-import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
+import type { GridPoint, TaskRecord, VillagerSnapshot } from './types.ts';
 
 /**
  * 说不准她在哪儿时的说法。**不许拿一句地点顶替。**
@@ -47,7 +47,10 @@ import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
 export const NOT_SOMEWHERE = '这会儿没个准地方';
 
 /** 她这一刻是不是正踩在祭坛那一格上。只有这一处坐标是世界真有的。 */
-export function atAltar(villager: VillagerSnapshot, snapshot: WorldSnapshot): boolean {
+export function atAltar(
+  villager: VillagerSnapshot,
+  snapshot: { readonly altar: GridPoint },
+): boolean {
   return (
     Math.floor(villager.pos.x) === snapshot.altar.x &&
     Math.floor(villager.pos.y) === snapshot.altar.y
@@ -55,7 +58,10 @@ export function atAltar(villager: VillagerSnapshot, snapshot: WorldSnapshot): bo
 }
 
 /** 没牌子时怎么说她在哪儿：人在祭坛才说祭坛，不在就说不准。 */
-export function idleLabel(villager: VillagerSnapshot, snapshot: WorldSnapshot): string {
+export function idleLabel(
+  villager: VillagerSnapshot,
+  snapshot: { readonly altar: GridPoint },
+): string {
   return villager.routine ?? (atAltar(villager, snapshot) ? '在祭坛边闲逛' : NOT_SOMEWHERE);
 }
 
@@ -79,7 +85,7 @@ export function idleLabel(villager: VillagerSnapshot, snapshot: WorldSnapshot): 
  */
 export function villagerModeLabel(
   villager: VillagerSnapshot,
-  snapshot: WorldSnapshot,
+  snapshot: { readonly altar: GridPoint },
   task: TaskRecord | undefined,
   venue: string | null,
 ): string {

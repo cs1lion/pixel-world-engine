@@ -1,0 +1,455 @@
+/**
+ * 单位状态菜单：点一个村民或一栋楼，只读地摆出**状态类**信息。
+ *
+ * 三条硬边界：
+ * 1. **只读、不改世界。** 数据全部来自 `Simulation.snapshot()` 与记忆层的
+ *    只读 `viewOf`；面板不持有可变世界状态，也不提供任何写入口。
+ * 2. **不暂停时间。** 面板是 DOM 覆盖层，打开它不碰 `Simulation.update`。
+ *    默认真实时钟下暂停会打乱日界关账。
+ * 3. **不让角色意识到被观测。** 这里不统计「被看了几次」，也不改行为。
+ *
+ * 「体况」用已有的情绪读数：近 3 日未被删除记忆的 valence / arousal 均值。
+ * 世界没有个体体力字段，就不编一个；灯油明确标成渲染读数。
+ */
+
+import type {
+  ConstructionSnapshot,
+  PlacedBuilding,
+  TaskRecord,
+  VillagerSnapshot,
+  WorkstationSnapshot,
+} from '../world/types.ts';
+import { TASK_PROFILES } from '../world/tasks.ts';
+import { TILE_PX } from '../world/setup.ts';
+import { villagerAtCell } from '../world/types.ts';
+import { villagerModeLabel } from '../world/villager-words.ts';
+
+export type UnitRef =
+  | { readonly kind: 'villager'; readonly id: string }
+  | { readonly kind: 'building'; readonly id: string };
+
+/** 只读记忆视图里这一层需要的字段。多给的字段不影响结构赋值。 */
+export interface UnitMemoryLine {
+  readonly kind: string;
+  readonly who: readonly string[];
+  readonly valence: number;
+  readonly arousal: number;
+  readonly createdDay: number;
+  readonly redacted: boolean;
+}
+
+export interface UnitMemoryReader {
+  viewOf(holderId: string): { readonly memories: readonly UnitMemoryLine[] } | null;
+}
+
+/** 构造器只需要快照里的这几块，便于测试直接喂最小数据。 */
+export interface UnitStatusWorld {
+  readonly now: number;
+  readonly altar: { readonly x: number; readonly y: number };
+  readonly villagers: readonly VillagerSnapshot[];
+  readonly buildings: readonly PlacedBuilding[];
+  readonly tasks: readonly TaskRecord[];
+  readonly workstations: readonly WorkstationSnapshot[];
+  readonly constructions: readonly ConstructionSnapshot[];
+}
+
+export interface UnitStatusLine {
+  readonly key: string;
+  readonly value: string;
+}
+
+export interface UnitStatusContent {
+  readonly kind: UnitRef['kind'];
+  readonly id: string;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly lines: readonly UnitStatusLine[];
+}
+
+const CARRY_LABELS: Readonly<Record<string, string>> = {
+  scroll: '卷轴',
+  stone: '石子',
+  paper: '纸片',
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** 世界时间写法：`第 3 天 17:42`。只读快照里的 `now`。 */
+export function worldClockLabel(now: number): string {
+  const day = Math.floor(now / DAY_MS);
+  const rest = now - day * DAY_MS;
+  const minutes = Math.floor(rest / 60_000);
+  const hours = Math.floor(minutes / 60);
+  return `第 ${day} 天 ${String(hours).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+function annexOf(villager: VillagerSnapshot, world: UnitStatusWorld): PlacedBuilding | null {
+  const x = Math.floor(villager.pos.x);
+  const y = Math.floor(villager.pos.y);
+  return (
+    world.buildings.find(
+      (building) =>
+        x >= building.origin.x
+        && x < building.origin.x + building.footprint.w
+        && y >= building.origin.y
+        && y < building.origin.y + building.footprint.h,
+    ) ?? null
+  );
+}
+
+function avg(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function moodLines(villagerId: string, world: UnitStatusWorld, memory: UnitMemoryReader | null): UnitStatusLine[] {
+  const day = Math.floor(world.now / DAY_MS);
+  const lines = memory?.viewOf(villagerId)?.memories ?? [];
+  const recent = lines.filter((line) => !line.redacted && line.createdDay >= day - 2);
+  const valence = avg(recent.map((line) => line.valence));
+  const arousal = avg(recent.map((line) => line.arousal));
+  const mood =
+    valence === null || arousal === null
+      ? '近 3 日没有可读的记忆样本'
+      : `效价 ${valence.toFixed(2)} · 唤醒 ${arousal.toFixed(2)}（${recent.length} 条）`;
+  return [{ key: '情绪', value: mood }];
+}
+
+function attitudeLines(
+  villager: VillagerSnapshot,
+  world: UnitStatusWorld,
+  memory: UnitMemoryReader | null,
+): UnitStatusLine[] {
+  const others = world.villagers.filter((item) => item.id !== villager.id && item.visible);
+  if (others.length === 0) return [{ key: '在场者', value: '只有她自己' }];
+  const lines = memory?.viewOf(villager.id)?.memories ?? [];
+  return others.map((other) => {
+    const impressions = lines.filter(
+      (line) => line.kind === 'impression' && line.who.includes(other.id),
+    );
+    if (impressions.length === 0) {
+      return { key: `对 ${other.name}`, value: '还没有印象' };
+    }
+    const valence = avg(impressions.map((line) => line.valence)) ?? 0;
+    const label = valence >= 0.2 ? '印象不错' : valence <= -0.2 ? '印象不佳' : '印象中性';
+    return { key: `对 ${other.name}`, value: `${label}（${impressions.length} 条印象）` };
+  });
+}
+
+function villagerContent(
+  villager: VillagerSnapshot,
+  world: UnitStatusWorld,
+  memory: UnitMemoryReader | null,
+): UnitStatusContent {
+  const task = world.tasks.find((item) => item.id === villager.taskId);
+  const annex = annexOf(villager, world);
+  const venue = annex?.displayName ?? null;
+  const modeText = villagerModeLabel(villager, world, task, venue);
+  const workstation = task?.buildingId === null || task?.buildingId === undefined
+    ? undefined
+    : world.workstations.find((item) => item.buildingId === task.buildingId);
+
+  let eta = '—';
+  if (task !== undefined && workstation?.activity.kind === 'operating') {
+    eta = workstation.activity.determinate
+      ? `${Math.max(0, Math.round(workstation.activity.estimateMs - workstation.elapsedMs))} 毫秒`
+      : '由上游决定，世界不知道';
+  } else if (task !== undefined) {
+    eta = '不在计时';
+  }
+
+  const carrying = villager.carrying === null ? '空手' : CARRY_LABELS[villager.carrying] ?? villager.carrying;
+  const credentials = villager.carries.length === 0 ? '无凭证' : villager.carries.join('、');
+
+  const cell = { x: Math.floor(villager.pos.x), y: Math.floor(villager.pos.y) };
+  const where = annex === null ? `格子 (${cell.x}, ${cell.y})` : `格子 (${cell.x}, ${cell.y}) · ${annex.displayName}`;
+
+  const lines: UnitStatusLine[] = [
+    { key: '行为', value: modeText },
+    {
+      key: '目标',
+      value: task === undefined ? (villager.routine ?? '没有接活') : `${task.summary}（${task.status}）`,
+    },
+    { key: '预计', value: eta },
+    { key: '位置', value: where },
+    ...moodLines(villager.id, world, memory),
+    { key: '灯油', value: `${villager.lampOil.toFixed(2)}（渲染读数，不是世界状态）` },
+    { key: '携带', value: `${carrying} · ${credentials}` },
+    ...attitudeLines(villager, world, memory),
+  ];
+
+  return {
+    kind: 'villager',
+    id: villager.id,
+    title: villager.name,
+    subtitle: `村民 ${villager.id}`,
+    lines,
+  };
+}
+
+function buildingStatus(
+  building: PlacedBuilding,
+  world: UnitStatusWorld,
+): { readonly status: string; readonly task: TaskRecord | null; readonly workstation: WorkstationSnapshot | undefined } {
+  const construction = world.constructions.find((item) => item.buildingId === building.instanceId);
+  if (construction !== undefined) {
+    return { status: `在建 · 剩余 ${Math.round(construction.remainingMs / 1000)} 秒`, task: null, workstation: undefined };
+  }
+  const workstation = world.workstations.find((item) => item.buildingId === building.instanceId);
+  if (workstation === undefined) return { status: '空置', task: null, workstation };
+  const activity = workstation.activity;
+  switch (activity.kind) {
+    case 'operating': {
+      const task = world.tasks.find((item) => item.id === activity.taskId) ?? null;
+      return { status: `营业${task === null ? '' : `：${task.summary}`}`, task, workstation };
+    }
+    case 'cooling':
+      return { status: '冷却中', task: null, workstation };
+    case 'overheating':
+      return { status: '过热', task: null, workstation };
+    case 'idle':
+      return { status: '空置', task: null, workstation };
+  }
+}
+
+function buildingLastChange(
+  building: PlacedBuilding,
+  world: UnitStatusWorld,
+  info: { readonly task: TaskRecord | null; readonly workstation: WorkstationSnapshot | undefined },
+): UnitStatusLine {
+  const completed = world.tasks
+    .filter((task) => task.buildingId === building.instanceId && task.completedAt !== null)
+    .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))[0];
+  if (completed !== undefined && completed.completedAt !== null) {
+    return {
+      key: '最近变化',
+      value: `交付「${completed.summary}」 · ${worldClockLabel(completed.completedAt)}`,
+    };
+  }
+  if (info.workstation?.activity.kind === 'operating') {
+    return {
+      key: '最近变化',
+      value: `开工「${info.task?.summary ?? info.workstation.activity.taskId}」 · ${worldClockLabel(info.workstation.activity.startedAt)}`,
+    };
+  }
+  const construction = world.constructions.find((item) => item.buildingId === building.instanceId);
+  if (construction !== undefined) {
+    const startedAt = world.now - (construction.totalMs - construction.remainingMs);
+    return {
+      key: '最近变化',
+      value: `开工建造 · ${worldClockLabel(startedAt)}`,
+    };
+  }
+  return { key: '最近变化', value: '没有可读的变化记录' };
+}
+
+function buildingContent(building: PlacedBuilding, world: UnitStatusWorld): UnitStatusContent {
+  const info = buildingStatus(building, world);
+  const occupants = world.villagers.filter(
+    (villager) =>
+      Math.floor(villager.pos.x) >= building.origin.x
+      && Math.floor(villager.pos.x) < building.origin.x + building.footprint.w
+      && Math.floor(villager.pos.y) >= building.origin.y
+      && Math.floor(villager.pos.y) < building.origin.y + building.footprint.h,
+  );
+  const taskLabel =
+    building.boundTask === null
+      ? '不接活'
+      : TASK_PROFILES[building.boundTask]?.label ?? building.boundTask;
+  const lines: UnitStatusLine[] = [
+    { key: '状态', value: info.status },
+    { key: '当前的活', value: taskLabel },
+    { key: '在内的人', value: occupants.length === 0 ? '没有人' : occupants.map((item) => item.name).join('、') },
+    buildingLastChange(building, world, info),
+    { key: '占地', value: `${building.footprint.w}×${building.footprint.h} · 门 (${building.door.x}, ${building.door.y})` },
+  ];
+  return {
+    kind: 'building',
+    id: building.instanceId,
+    title: building.displayName,
+    subtitle: `${building.zone} · ${building.prefabId}`,
+    lines,
+  };
+}
+
+/**
+ * 构造面板内容。找不到单位返回 `null`——面板收起，不编一行占位。
+ * 空数据同理：没有村民就返回 `null`。
+ */
+export function buildUnitStatus(
+  world: UnitStatusWorld,
+  selection: UnitRef,
+  memory: UnitMemoryReader | null = null,
+): UnitStatusContent | null {
+  if (selection.kind === 'villager') {
+    const villager = world.villagers.find((item) => item.id === selection.id);
+    return villager === undefined ? null : villagerContent(villager, world, memory);
+  }
+  const building = world.buildings.find((item) => item.instanceId === selection.id);
+  return building === undefined ? null : buildingContent(building, world);
+}
+
+/**
+ * 屏幕点下的那一格。视野原点由 `CameraController.viewportRect()` 给，不碰 scrollX。
+ *
+ * `zoom` 是**每世界像素对应多少屏幕像素**：相机 zoom × 画布 CSS 缩放。
+ * 画布内部 480px 显示成 960px 再加相机 2 倍时，这个数是 4，不是 2。
+ */
+export function cellAtScreenPoint(
+  screen: { readonly x: number; readonly y: number },
+  viewport: { readonly x: number; readonly y: number },
+  zoom: number,
+  canvas: { readonly left: number; readonly top: number },
+): { readonly x: number; readonly y: number } {
+  const worldX = viewport.x + (screen.x - canvas.left) / zoom;
+  const worldY = viewport.y + (screen.y - canvas.top) / zoom;
+  return { x: Math.floor(worldX / TILE_PX), y: Math.floor(worldY / TILE_PX) };
+}
+
+/** 一格中心的屏幕坐标。命中测试用这个，避开格子边界上的浮点误差。 */
+export function screenHitPointForCell(
+  cell: { readonly x: number; readonly y: number },
+  viewport: { readonly x: number; readonly y: number },
+  zoom: number,
+  canvas: { readonly left: number; readonly top: number },
+): { readonly x: number; readonly y: number } {
+  return {
+    x: canvas.left + ((cell.x + 0.5) * TILE_PX - viewport.x) * zoom,
+    y: canvas.top + ((cell.y + 0.5) * TILE_PX - viewport.y) * zoom,
+  };
+}
+
+/** 一格在屏幕上的锚点：格子的上边中点。面板挂在它上方。 */
+export function screenAnchorForCell(
+  cell: { readonly x: number; readonly y: number },
+  viewport: { readonly x: number; readonly y: number },
+  zoom: number,
+  canvas: { readonly left: number; readonly top: number },
+): { readonly x: number; readonly y: number } {
+  return {
+    x: canvas.left + ((cell.x + 0.5) * TILE_PX - viewport.x) * zoom,
+    y: canvas.top + (cell.y * TILE_PX - viewport.y) * zoom,
+  };
+}
+
+/** 面板锚点用哪一格：村民取脚下，楼取屋顶中点。 */
+export function anchorCellOf(world: UnitStatusWorld, selection: UnitRef): { readonly x: number; readonly y: number } | null {
+  if (selection.kind === 'villager') {
+    const villager = world.villagers.find((item) => item.id === selection.id);
+    if (villager === undefined) return null;
+    return { x: Math.floor(villager.pos.x), y: Math.floor(villager.pos.y) };
+  }
+  const building = world.buildings.find((item) => item.instanceId === selection.id);
+  if (building === undefined) return null;
+  return {
+    x: building.origin.x + Math.floor(building.footprint.w / 2),
+    y: building.origin.y,
+  };
+}
+
+export interface UnitStatusView {
+  readonly content: UnitStatusContent;
+  /** 面板锚点的屏幕坐标（fixed 定位）。跟随镜头缩放/平移。 */
+  readonly anchor: { readonly x: number; readonly y: number };
+}
+
+export interface UnitStatusOracle {
+  /** 订阅当前菜单；晚订阅的人会先拿到现状（与村民/楼面板同一条）。 */
+  onUnitStatus(listener: (view: UnitStatusView | null) => void): () => void;
+  /** Esc / 点空白。只收起面板，不改世界，也不暂停。 */
+  dismissUnitStatus(): void;
+  /** 只读视图，给浏览器验收与脚本读同一份数据。 */
+  unitStatus(): UnitStatusContent | null;
+}
+
+/** 绑定 DOM：菜单只读渲染，锚点每帧由场景通过 `onUnitStatus` 推过来。 */
+export function bindUnitStatusPanel(oracle: () => UnitStatusOracle | undefined): {
+  readonly dispose: () => void;
+} {
+  const panel = document.querySelector<HTMLElement>('#unit-status');
+  const title = document.querySelector<HTMLElement>('#unit-status-title');
+  const subtitle = document.querySelector<HTMLElement>('#unit-status-subtitle');
+  const body = document.querySelector<HTMLElement>('#unit-status-body');
+  const close = document.querySelector<HTMLButtonElement>('#unit-status-close');
+  if (!panel || !title || !subtitle || !body) return { dispose: () => {} };
+
+  let unsubscribe: (() => void) | null = null;
+  let api: UnitStatusOracle | null = null;
+
+  const render = (view: UnitStatusView | null): void => {
+    if (view === null) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    title.textContent = view.content.title;
+    subtitle.textContent = view.content.subtitle;
+    body.replaceChildren(
+      ...view.content.lines.map((line) => {
+        const row = document.createElement('div');
+        row.className = 'unit-status-row';
+        const key = document.createElement('span');
+        key.className = 'unit-status-key';
+        key.textContent = line.key;
+        const value = document.createElement('span');
+        value.className = 'unit-status-value';
+        value.textContent = line.value;
+        row.append(key, value);
+        return row;
+      }),
+    );
+    panel.style.left = `${Math.round(view.anchor.x)}px`;
+    panel.style.top = `${Math.round(view.anchor.y)}px`;
+  };
+
+  const attach = (): void => {
+    const next = oracle();
+    if (next === undefined || next === api) return;
+    unsubscribe?.();
+    api = next;
+    unsubscribe = next.onUnitStatus(render);
+  };
+
+  attach();
+  const timer = setInterval(attach, 500);
+
+  const onKeydown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || panel.hidden) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target !== null
+      && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
+      return;
+    }
+    oracle()?.dismissUnitStatus();
+  };
+  document.addEventListener('keydown', onKeydown);
+  const onClose = (): void => {
+    oracle()?.dismissUnitStatus();
+  };
+  close?.addEventListener('click', onClose);
+
+  return {
+    dispose: () => {
+      clearInterval(timer);
+      unsubscribe?.();
+      document.removeEventListener('keydown', onKeydown);
+      close?.removeEventListener('click', onClose);
+    },
+  };
+}
+
+/** 指针格子先比人再比楼；上到碑的优先级仍由调用方决定。 */
+export function unitAtCell(world: UnitStatusWorld, x: number, y: number): UnitRef | null {
+  const villager = villagerAtCell(world.villagers, x, y);
+  if (villager !== null) return { kind: 'villager', id: villager.id };
+  const building = world.buildings.find(
+    (item) =>
+      x >= item.origin.x
+      && x < item.origin.x + item.footprint.w
+      && y >= item.origin.y
+      && y < item.origin.y + item.footprint.h,
+  );
+  return building === undefined ? null : { kind: 'building', id: building.instanceId };
+}

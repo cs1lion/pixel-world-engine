@@ -21,6 +21,17 @@ import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
 import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { ClockAlignOracle, ClockAlignmentView } from '../ui/clock-align.ts';
+import {
+  anchorCellOf,
+  buildUnitStatus,
+  screenAnchorForCell,
+  type UnitMemoryReader,
+  type UnitRef,
+  type UnitStatusContent,
+  type UnitStatusOracle,
+  type UnitStatusView,
+  type UnitStatusWorld,
+} from '../ui/unit-status.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
@@ -44,7 +55,8 @@ type OracleSurfaces = OracleApi &
   VillagerOracle &
   SteleOracle &
   BuildingOracle &
-  ClockAlignOracle;
+  ClockAlignOracle &
+  UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -235,6 +247,10 @@ export class SandboxScene extends Phaser.Scene {
   private clockAlignRecord: ClockAlignmentRecord | null = null;
   private clockAlignGate = new ClockAlignmentGate();
   private clockAlignNotice: string | null = null;
+  /** 单位状态菜单：同一时间只有一个选择；只读，不暂停时间。 */
+  private unitStatusSelection: UnitRef | null = null;
+  private lastUnitStatus: UnitStatusView | null = null;
+  private readonly unitStatusListeners = new Set<(view: UnitStatusView | null) => void>();
   private readonly villagerViews = new Map<string, VillagerView>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
@@ -530,9 +546,15 @@ export class SandboxScene extends Phaser.Scene {
       // 再其次点楼：它叫什么、接过什么活、墙上留着什么。
       // 都不中才退回洗地——四种动作共用一次点击，靠落点上有什么分开。
       // 先比人再比碑：人在碑上站着时，点她应该还是看她。
-      if (this.lookAtVillagerAt(pointer)) return;
-      if (this.openSteleAt(pointer)) return;
-      if (this.lookAtBuildingAt(pointer)) return;
+      // 单位状态菜单：点人 / 点楼各开一次，只读、不暂停世界。
+      // 碑仍排在「人」之后、「楼」之前（原来那条优先级不动）。
+      if (this.openVillagerStatusAt(pointer)) return;
+      if (this.openSteleAt(pointer)) {
+        this.dismissUnitStatus();
+        return;
+      }
+      if (this.openBuildingStatusAt(pointer)) return;
+      this.dismissUnitStatus();
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -1813,12 +1835,110 @@ export class SandboxScene extends Phaser.Scene {
     );
   }
 
-  /** 点到人就看她，返回 true；没点到返回 false，让调用方退回洗地。 */
-  private lookAtVillagerAt(pointer: Phaser.Input.Pointer): boolean {
+  /** 点到人：开只读状态菜单。命中判据仍是 `villagerAt`。 */
+  private openVillagerStatusAt(pointer: Phaser.Input.Pointer): boolean {
     const villager = this.villagerAt(pointer);
     if (villager === null) return false;
-    this.lookAtVillager(villager.id);
+    this.openUnitStatus({ kind: 'villager', id: villager.id });
     return true;
+  }
+
+  /** 点到楼（整块占地）：开只读状态菜单。 */
+  private openBuildingStatusAt(pointer: Phaser.Input.Pointer): boolean {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const x = Math.floor(world.x / TILE_PX);
+    const y = Math.floor(world.y / TILE_PX);
+    const building = this.snapshot.buildings.find(
+      (item) =>
+        x >= item.origin.x
+        && x < item.origin.x + item.footprint.w
+        && y >= item.origin.y
+        && y < item.origin.y + item.footprint.h,
+    );
+    if (building === undefined) return false;
+    this.openUnitStatus({ kind: 'building', id: building.instanceId });
+    return true;
+  }
+
+  private unitStatusWorld(): UnitStatusWorld {
+    return {
+      now: this.snapshot.now,
+      altar: this.snapshot.altar,
+      villagers: this.snapshot.villagers,
+      buildings: this.snapshot.buildings,
+      tasks: this.snapshot.tasks,
+      workstations: this.snapshot.workstations,
+      constructions: this.snapshot.constructions,
+    };
+  }
+
+  /** 只读记忆适配：只把面板要的字段拿出去，不把可变世界交给 DOM。 */
+  private unitMemoryReader(): UnitMemoryReader {
+    return {
+      viewOf: (holderId) => {
+        const view = this.memory?.viewOf(holderId);
+        if (view === null || view === undefined) return null;
+        return {
+          memories: view.memories.map((entry) => ({
+            kind: entry.kind,
+            who: entry.content.who,
+            valence: entry.content.valence,
+            arousal: entry.content.arousal,
+            createdDay: entry.createdDay,
+            redacted: entry.redacted,
+          })),
+        };
+      },
+    };
+  }
+
+  private unitStatusView(): UnitStatusView | null {
+    if (this.unitStatusSelection === null) return null;
+    const world = this.unitStatusWorld();
+    const content = buildUnitStatus(world, this.unitStatusSelection, this.unitMemoryReader());
+    if (content === null) return null;
+    const cell = anchorCellOf(world, this.unitStatusSelection);
+    if (cell === null) return null;
+    const viewport = this.cameraCtl.viewportRect();
+    const canvasRect = this.game.canvas.getBoundingClientRect();
+    // 相机 zoom 只把游戏像素放大；画布内部 480px 还会被 CSS 拉成两倍。
+    // 面板锚点必须用「每世界像素 = 多少屏幕像素」的有效倍率，否则偏移半屏。
+    const cssScale = canvasRect.width / this.cameras.main.width;
+    const pixelsPerWorldPx = this.cameras.main.zoom * cssScale;
+    return {
+      content,
+      anchor: screenAnchorForCell(cell, viewport, pixelsPerWorldPx, canvasRect),
+    };
+  }
+
+  private openUnitStatus(selection: UnitRef): void {
+    this.unitStatusSelection = selection;
+    this.publishUnitStatus();
+  }
+
+  private publishUnitStatus(): void {
+    if (this.unitStatusSelection === null) {
+      this.lastUnitStatus = null;
+      for (const listener of this.unitStatusListeners) listener(null);
+      return;
+    }
+    const view = this.unitStatusView();
+    if (view === null) {
+      // 单位不在了（楼拆了/人没了）：收起，不摆一份旧数据。
+      this.unitStatusSelection = null;
+      this.lastUnitStatus = null;
+      for (const listener of this.unitStatusListeners) listener(null);
+      return;
+    }
+    this.lastUnitStatus = view;
+    for (const listener of this.unitStatusListeners) listener(view);
+  }
+
+  /** 收起状态菜单。只改界面选择，不碰世界，也不暂停。 */
+  dismissUnitStatus(): void {
+    if (this.unitStatusSelection === null) return;
+    this.unitStatusSelection = null;
+    this.publishUnitStatus();
   }
 
   /**
@@ -1959,28 +2079,7 @@ export class SandboxScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ 楼
 
-  /**
-   * 指针底下那一格上有没有楼。有就开面板，返回 true。
-   *
-   * 命中的是**整块占地**，不只是门：一栋 4×4 的铺子，点它屋顶和点它门口
-   * 应该是同一件事。与 `villagerAt` / `openSteleAt` 同一套「世界就是格」的
-   * 模型——不给精灵加交互区，那会拦掉拖镜头。
-   */
-  private lookAtBuildingAt(pointer: Phaser.Input.Pointer): boolean {
-    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const x = Math.floor(world.x / TILE_PX);
-    const y = Math.floor(world.y / TILE_PX);
-    const building = this.snapshot.buildings.find(
-      (item) =>
-        x >= item.origin.x
-        && x < item.origin.x + item.footprint.w
-        && y >= item.origin.y
-        && y < item.origin.y + item.footprint.h,
-    );
-    if (building === undefined) return false;
-    this.openBuilding(building.instanceId);
-    return true;
-  }
+
 
   /**
    * 打开一栋楼的面板：名字、接什么活、此刻在干什么、墙上留着什么。
@@ -2588,6 +2687,7 @@ export class SandboxScene extends Phaser.Scene {
         width: this.cameras.main.width,
         height: this.cameras.main.height,
         worldViewX: this.cameras.main.worldView.x,
+        worldViewY: this.cameras.main.worldView.y,
         mode: this.cameraCtl.mode(),
       }),
       cameraMode: (): CameraMode => this.cameraCtl.mode(),
@@ -2685,6 +2785,16 @@ export class SandboxScene extends Phaser.Scene {
         notice: this.clockNotice,
         catchUp: this.clockReport,
       }),
+      /**
+       * 单位状态菜单：只读视图与订阅。不提供写入口，也不暂停世界。
+       */
+      unitStatus: (): UnitStatusContent | null => this.lastUnitStatus?.content ?? null,
+      onUnitStatus: (listener: (view: UnitStatusView | null) => void): (() => void) => {
+        if (this.lastUnitStatus !== null) listener(this.lastUnitStatus);
+        this.unitStatusListeners.add(listener);
+        return () => this.unitStatusListeners.delete(listener);
+      },
+      dismissUnitStatus: (): void => this.dismissUnitStatus(),
       /**
        * 老档日界对齐：提示、暂不、执行、撤销。读 `clockAlignment()` 是只读；
        * 其余四个是玩家动作，只有界面按钮会调，加载与自动存档都不会碰。
@@ -2828,6 +2938,8 @@ export class SandboxScene extends Phaser.Scene {
 
     // 动态中文（名字/气泡）走 DOM overlay：按 canvas 实际位置每帧同步（D5-A）。
     this.overlay?.sync(snapshot);
+    // 状态菜单开着时每帧重算锚点：镜头缩放/平移后不能错位。内容由 DOM 去重。
+    if (this.unitStatusSelection !== null) this.publishUnitStatus();
 
     const line = this.statusLine();
     if (line !== this.lastStatus) {
