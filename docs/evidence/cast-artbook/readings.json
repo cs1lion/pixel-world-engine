@@ -38,15 +38,15 @@
       "deltaEToNearest": 30.1,
       "nearest": "炉匠",
       "silhouetteSignature": "122222@30",
-      "bboxW": 19,
+      "bboxW": 21,
       "bboxH": 30,
       "profile": [
         14,
-        16,
-        16,
+        15,
+        15,
         15,
         17,
-        17
+        16
       ]
     },
     {
@@ -69,21 +69,21 @@
       },
       "deltaEToNearest": 54.9,
       "nearest": "炉匠",
-      "silhouetteSignature": "111222@28",
-      "bboxW": 16,
+      "silhouetteSignature": "000022@28",
+      "bboxW": 22,
       "bboxH": 28,
       "profile": [
         12,
         12,
-        13,
         14,
-        16,
-        16
+        14,
+        22,
+        22
       ]
     },
     {
       "name": "炉匠",
-      "design": "stout/beard/robe/none",
+      "design": "stoutShort/beard/robe/none",
       "artbook": {
         "pdfPages": [
           48
@@ -99,16 +99,16 @@
       },
       "deltaEToNearest": 30.1,
       "nearest": "迷路人",
-      "silhouetteSignature": "002220@28",
+      "silhouetteSignature": "012220@25",
       "bboxW": 23,
-      "bboxH": 28,
+      "bboxH": 25,
       "profile": [
         15,
-        15,
+        17,
         23,
         23,
         22,
-        13
+        0
       ]
     },
     {
@@ -129,16 +129,16 @@
       },
       "deltaEToNearest": 15.5,
       "nearest": "灯笼头",
-      "silhouetteSignature": "222221@30",
-      "bboxW": 21,
+      "silhouetteSignature": "222222@30",
+      "bboxW": 23,
       "bboxH": 30,
       "profile": [
-        19,
-        19,
-        19,
-        21,
-        21,
-        16
+        23,
+        23,
+        23,
+        23,
+        23,
+        20
       ]
     },
     {
@@ -159,14 +159,14 @@
       },
       "deltaEToNearest": 15.5,
       "nearest": "沉灯夫人",
-      "silhouetteSignature": "102210@30",
-      "bboxW": 17,
+      "silhouetteSignature": "002200@30",
+      "bboxW": 21,
       "bboxH": 30,
       "profile": [
         12,
         11,
-        17,
-        17,
+        21,
+        21,
         12,
         10
       ]
@@ -177,194 +177,464 @@
       "a": "迷路人",
       "b": "汐",
       "facing": "down",
-      "similarity": 0.805
+      "similarity": 0.775,
+      "before": 0.805,
+      "delta": -0.03
     },
     {
       "a": "迷路人",
       "b": "炉匠",
       "facing": "down",
-      "similarity": 0.767
+      "similarity": 0.694,
+      "before": 0.767,
+      "delta": -0.073
     },
     {
       "a": "迷路人",
       "b": "沉灯夫人",
       "facing": "down",
-      "similarity": 0.818
+      "similarity": 0.775,
+      "before": 0.818,
+      "delta": -0.043
     },
     {
       "a": "迷路人",
       "b": "灯笼头",
       "facing": "down",
-      "similarity": 0.812
+      "similarity": 0.759,
+      "before": 0.812,
+      "delta": -0.053
     },
     {
       "a": "汐",
       "b": "炉匠",
       "facing": "down",
-      "similarity": 0.798
+      "similarity": 0.764,
+      "before": 0.798,
+      "delta": -0.034
     },
     {
       "a": "汐",
       "b": "沉灯夫人",
       "facing": "down",
-      "similarity": 0.782
+      "similarity": 0.717,
+      "before": 0.782,
+      "delta": -0.065
     },
     {
       "a": "汐",
       "b": "灯笼头",
       "facing": "down",
-      "similarity": 0.807
+      "similarity": 0.752,
+      "before": 0.807,
+      "delta": -0.055
     },
     {
       "a": "炉匠",
       "b": "沉灯夫人",
       "facing": "down",
-      "similarity": 0.82
+      "similarity": 0.719,
+      "before": 0.82,
+      "delta": -0.101
     },
     {
       "a": "炉匠",
       "b": "灯笼头",
       "facing": "down",
-      "similarity": 0.784
+      "similarity": 0.704,
+      "before": 0.784,
+      "delta": -0.08
     },
     {
       "a": "沉灯夫人",
       "b": "灯笼头",
       "facing": "down",
-      "similarity": 0.772
+      "similarity": 0.691,
+      "before": 0.772,
+      "delta": -0.081
     },
     {
       "a": "迷路人",
       "b": "汐",
       "facing": "right",
-      "similarity": 0.805
+      "similarity": 0.693,
+      "before": 0.805,
+      "delta": -0.112
     },
     {
       "a": "迷路人",
       "b": "炉匠",
       "facing": "right",
-      "similarity": 0.767
+      "similarity": 0.652,
+      "before": 0.767,
+      "delta": -0.115
     },
     {
       "a": "迷路人",
       "b": "沉灯夫人",
       "facing": "right",
-      "similarity": 0.818
+      "similarity": 0.746,
+      "before": 0.818,
+      "delta": -0.072
     },
     {
       "a": "迷路人",
       "b": "灯笼头",
       "facing": "right",
-      "similarity": 0.812
+      "similarity": 0.774,
+      "before": 0.812,
+      "delta": -0.038
     },
     {
       "a": "汐",
       "b": "炉匠",
       "facing": "right",
-      "similarity": 0.798
+      "similarity": 0.677,
+      "before": 0.798,
+      "delta": -0.121
     },
     {
       "a": "汐",
       "b": "沉灯夫人",
       "facing": "right",
-      "similarity": 0.782
+      "similarity": 0.739,
+      "before": 0.782,
+      "delta": -0.043
     },
     {
       "a": "汐",
       "b": "灯笼头",
       "facing": "right",
-      "similarity": 0.807
+      "similarity": 0.768,
+      "before": 0.807,
+      "delta": -0.039
     },
     {
       "a": "炉匠",
       "b": "沉灯夫人",
       "facing": "right",
-      "similarity": 0.82
+      "similarity": 0.698,
+      "before": 0.82,
+      "delta": -0.122
     },
     {
       "a": "炉匠",
       "b": "灯笼头",
       "facing": "right",
-      "similarity": 0.784
+      "similarity": 0.684,
+      "before": 0.784,
+      "delta": -0.1
     },
     {
       "a": "沉灯夫人",
       "b": "灯笼头",
       "facing": "right",
-      "similarity": 0.772
+      "similarity": 0.771,
+      "before": 0.772,
+      "delta": -0.001
     },
     {
       "a": "迷路人",
       "b": "汐",
       "facing": "up",
-      "similarity": 0.805
+      "similarity": 0.754,
+      "before": 0.805,
+      "delta": -0.051
     },
     {
       "a": "迷路人",
       "b": "炉匠",
       "facing": "up",
-      "similarity": 0.767
+      "similarity": 0.731,
+      "before": 0.767,
+      "delta": -0.036
     },
     {
       "a": "迷路人",
       "b": "沉灯夫人",
       "facing": "up",
-      "similarity": 0.818
+      "similarity": 0.754,
+      "before": 0.818,
+      "delta": -0.064
     },
     {
       "a": "迷路人",
       "b": "灯笼头",
       "facing": "up",
-      "similarity": 0.812
+      "similarity": 0.731,
+      "before": 0.812,
+      "delta": -0.081
     },
     {
       "a": "汐",
       "b": "炉匠",
       "facing": "up",
-      "similarity": 0.798
+      "similarity": 0.702,
+      "before": 0.798,
+      "delta": -0.096
     },
     {
       "a": "汐",
       "b": "沉灯夫人",
       "facing": "up",
-      "similarity": 0.782
+      "similarity": 0.693,
+      "before": 0.782,
+      "delta": -0.089
     },
     {
       "a": "汐",
       "b": "灯笼头",
       "facing": "up",
-      "similarity": 0.807
+      "similarity": 0.67,
+      "before": 0.807,
+      "delta": -0.137
     },
     {
       "a": "炉匠",
       "b": "沉灯夫人",
       "facing": "up",
-      "similarity": 0.82
+      "similarity": 0.704,
+      "before": 0.82,
+      "delta": -0.116
     },
     {
       "a": "炉匠",
       "b": "灯笼头",
       "facing": "up",
-      "similarity": 0.784
+      "similarity": 0.649,
+      "before": 0.784,
+      "delta": -0.135
     },
     {
       "a": "沉灯夫人",
       "b": "灯笼头",
       "facing": "up",
-      "similarity": 0.772
+      "similarity": 0.656,
+      "before": 0.772,
+      "delta": -0.116
     }
   ],
-  "maxSameFacing": {
+  "worstBefore": {
     "a": "炉匠",
     "b": "沉灯夫人",
     "facing": "down",
-    "similarity": 0.82,
+    "similarity": 0.82
+  },
+  "samePersonBefore": [
+    {
+      "name": "迷路人",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "汐",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "炉匠",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "沉灯夫人",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "灯笼头",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    }
+  ],
+  "samePersonFacings": [
+    {
+      "name": "迷路人",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 0.777
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 0.821
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 0.809
+        }
+      ]
+    },
+    {
+      "name": "汐",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 0.862
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 0.884
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 0.814
+        }
+      ]
+    },
+    {
+      "name": "炉匠",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 0.772
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 0.789
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 0.828
+        }
+      ]
+    },
+    {
+      "name": "沉灯夫人",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 0.781
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 0.865
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 0.829
+        }
+      ]
+    },
+    {
+      "name": "灯笼头",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 0.801
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 0.805
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 0.855
+        }
+      ]
+    }
+  ],
+  "maxSameFacing": {
+    "a": "迷路人",
+    "b": "汐",
+    "facing": "down",
+    "similarity": 0.775,
     "breakdown": {
-      "iou": 0.7210884353741497,
-      "rowCos": 0.9506744662341645,
-      "colCos": 0.9672435692054725,
-      "ratioGap": 0.17105263157894737,
-      "similarity": 0.8201077515778865
+      "iou": 0.6386554621848739,
+      "rowCos": 0.8971152378954181,
+      "colCos": 0.9826093709564877,
+      "ratioGap": 0.1428571428571429,
+      "similarity": 0.7747136128864223
     }
   },
   "blindKey": {
