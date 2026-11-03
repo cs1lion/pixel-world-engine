@@ -2827,6 +2827,12 @@ export class Simulation {
         // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
         if (isQuietAt(this.now) && this.weather.kind === 'clear') {
           villager.nextRoutineAt = this.now + PACE.quietDwellMs;
+          // 坐满这一站也要给一句可读的话。原来只记了停留时长、牌子留空，
+          // 于是午后坐在祭坛上的人对外是「没有日常」——状态行那句
+          // 「日常作息给出了一句可读的状态」在中午就断掉。她现在确实是
+          // 坐在锚点歇晌，这句话就是事实，不是补丁。
+          villager.routineLabel = beat.label;
+          villager.routineGoing = beat.label;
           return;
         }
         continue;

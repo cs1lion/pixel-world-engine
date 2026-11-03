@@ -33,7 +33,7 @@ test('轨迹回归：outer-two-days', async () => {
   assert.equal(check.status, 'replayable');
   assert.equal(check.fingerprint, 'e962f0dc42acc3d4248ce2cd1551970c3fb11650d9d9e84531747910ebbb13ed');
   assert.equal(check.eventCount, 52);
-  assert.equal(check.eventDigest, '8df20f9098c976773deb75ba8ad2658f78f52b465434be5a14e5f772722254b7');
+  assert.equal(check.eventDigest, 'baad0768ec9772570480c6435c6c2937a01bc0cc1507dc6cde6768844c1940e2');
   assert.equal(check.business.buildings, 2);
   assert.equal(check.business.day, 3);
   assert.equal(check.business.weather, 'clear');
@@ -43,7 +43,7 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, '4934fd4b5d2f52a12fc0a266ea8b13ce9a5f0eaab27b81d46f9cbbe395baaa50');
+  assert.equal(memory.fingerprint, '463a7f5f3fa7c12aaddb99519dd664f3a75a18d75b1d07f109537fddc70974ad');
   assert.equal(memory.business.lastClosedDay, 3);
   assert.equal(memory.business.entries, 39);
   assert.equal(memory.business.facts, 52);

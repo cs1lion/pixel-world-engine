@@ -294,6 +294,11 @@ export class SandboxScene extends Phaser.Scene {
   private clockMode: ClockMode = 'accelerated';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
+  /**
+   * `?now=` 调试开局时刻（世界分钟，00:00 起算）。只认 `?debug=1` 那一层，
+   * 只对新世界生效；`undefined` = 照旧从 0 点开局（或真实时钟按本地时刻锚）。
+   */
+  private debugInitialNow: number | undefined;
   /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
   private clockNotice: string | null = null;
   /**
@@ -716,6 +721,14 @@ export class SandboxScene extends Phaser.Scene {
     // `?clock=real` 压过 `?speed=`——1:1 是真实时钟的定义，留一个能偷偷加速的
     // 入口就没人能说它还是真实时钟。锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，
     // 但只影响日界落在几点，不改日长。
+    // 调试开局时刻：`?now=<0..1439>` 世界分钟（00:00 起算）。只在 `?debug=1`
+    // 那一层生效，且只对新世界有效——读档的 `world.now` 是它自己的事实，不重锚。
+    // 存在的理由：默认 00:00 属于夜间休息，居民那时本来就不该走动；回归脚本
+    // 要验「没人管的时候她会自己走动」，就得把场景显式放到白天，而不是放宽断言。
+    this.debugInitialNow =
+      params.get('debug') === '1' || params.get('debug') === ''
+        ? parseMinuteOfDay(params.get('now'))
+        : undefined;
     const selection = resolveClockSelection(params);
     this.clockMode = selection.mode;
     this.realClockOffsetMinutes = selection.utcOffsetMinutes;
@@ -998,10 +1011,12 @@ export class SandboxScene extends Phaser.Scene {
     // 世界自己的事实，换时钟模式不改写它（`Simulation.fromSave` 会覆盖）。
     // 默认的游玩时间驱动从 0 起算；关页面即冻结，重开从档里的 `now` 继续，
     // 不做任何离线补算。
-    const initialNow =
-      this.clockMode === 'real'
-        ? msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes)
-        : undefined;
+    let initialNow: number | undefined;
+    if (this.debugInitialNow !== undefined) {
+      initialNow = this.debugInitialNow * 60_000;
+    } else if (this.clockMode === 'real') {
+      initialNow = msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes);
+    }
     this.sim =
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
@@ -3988,4 +4003,18 @@ export class SandboxScene extends Phaser.Scene {
     if (id === null) return null;
     return this.snapshot.buildings.find((item) => item.instanceId === id)?.displayName ?? null;
   }
+}
+
+/**
+ * `?now=` 的解析：0..1439 的整数世界分钟。
+ *
+ * 非法值（非数字、负数、超过一天、小数）当作没给——一个坏参数不该把世界
+ * 悄悄挪到别的时刻，也不该白屏；回归脚本写错了会看到「还是 00:00」，比
+ * 看到一个看似合理的错时刻更容易发现。
+ */
+function parseMinuteOfDay(raw: string | null): number | undefined {
+  if (raw === null || raw.trim() === '') return undefined;
+  const minutes = Number(raw);
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1439) return undefined;
+  return minutes;
 }

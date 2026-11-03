@@ -400,7 +400,7 @@
     "inputDigest": "ed702dc746e55e477a6e747d19c4a7526569c6ab8b69eca2878be48aaa866bca",
     "fingerprint": "e962f0dc42acc3d4248ce2cd1551970c3fb11650d9d9e84531747910ebbb13ed",
     "eventCount": 52,
-    "eventDigest": "8df20f9098c976773deb75ba8ad2658f78f52b465434be5a14e5f772722254b7",
+    "eventDigest": "baad0768ec9772570480c6435c6c2937a01bc0cc1507dc6cde6768844c1940e2",
     "business": {
       "day": 3,
       "now": 270000000,
@@ -440,7 +440,7 @@
       {
         "step": 750,
         "atWorldMs": 135000000,
-        "fingerprint": "fcece18798319f2423a6c7dd64c0231b8779440f0a60ae9bea3d4c17f99e4da6",
+        "fingerprint": "468045740cbdeeb2d989fc8a292e177b42f248d68bf01936a41043c359091846",
         "memoryFingerprint": "c257fa4eb6bf48d3ae50dc0c73285518e3f9df53b58356e0a6fd2dfe1b452d4a",
         "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
@@ -448,68 +448,68 @@
         "step": 1000,
         "atWorldMs": 150000000,
         "fingerprint": "10e7591e329f0dbcea0064e3f1433cf6daa821a09413965e3c223da9b737a09e",
-        "memoryFingerprint": "09b72f3f4fb8007d48cd070af0039835313f4a984e0023866a7f46605fa5e15f",
+        "memoryFingerprint": "76ade1eb4605f97ce00cc8f881234d2eddd90729d79ec501de398760b4b19b3f",
         "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 1250,
         "atWorldMs": 165000000,
         "fingerprint": "8e3b0c6956459ea9c9fd7e6c6f86748969079d12ae32df678c2e5cf6595117d9",
-        "memoryFingerprint": "ea484b9b68215362187398e99a88fbcf518c522ff4eb286eecca9d10f440dc47",
+        "memoryFingerprint": "ac364d9fdb85ac841e829da45fdeec4d0b40c7a2d8254211bddf0c3d3e137005",
         "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 1500,
         "atWorldMs": 180000000,
         "fingerprint": "908544321e8712abf1643599d62367cd3f862ad035470dbc9ebbc8e1a4d418c5",
-        "memoryFingerprint": "fefdc3875cb54608a46eff521321b59078c575ebd1a0078169165390487b2cb2",
+        "memoryFingerprint": "5e1870ba4a2c65c77940d907a356742e2b96196f5f7437168725c1fd8d05a9fa",
         "creatorFingerprint": "be19d84d9fcd01760033ea5562bbbe6152a1ce324d5700c7a77997c56e1119fc"
       },
       {
         "step": 1750,
         "atWorldMs": 195000000,
         "fingerprint": "66f1302a61cdc1216f45d2408cc8298f6f0ae243b4e9194833ac6922598aad81",
-        "memoryFingerprint": "5588e916a946536854d726795be6c512a5180addae5171bd94045f1c61fbe0bf",
+        "memoryFingerprint": "e40afc96ed7cb2d47615f73dde194a0c63174f54fec9a517e2532f1272f16140",
         "creatorFingerprint": "be19d84d9fcd01760033ea5562bbbe6152a1ce324d5700c7a77997c56e1119fc"
       },
       {
         "step": 2000,
         "atWorldMs": 210000000,
         "fingerprint": "38d30321229b8b67b03d56da828394eb9669a14d029c943a581588f23dde9a80",
-        "memoryFingerprint": "7066158bfe119fb52e3acf52fb715218cad7fe17751cc364cf1c20c784a5af47",
+        "memoryFingerprint": "727c4b5e5870a91f6bc58b07e8682d1540ecc3ebf364b2272d83c029ac9d3da1",
         "creatorFingerprint": "be19d84d9fcd01760033ea5562bbbe6152a1ce324d5700c7a77997c56e1119fc"
       },
       {
         "step": 2250,
         "atWorldMs": 225000000,
         "fingerprint": "132b5988721da60c0a9fce9173277c1f090cb73a225a08134f345e6b1c5695db",
-        "memoryFingerprint": "50840795a73e34acbc42d4851e5aa51127b05d77a0736f90a9643c378bc00cb6",
+        "memoryFingerprint": "64c5f6d57b4950d464ea43a716824c9276f506f50500e5831d726d803744dc1b",
         "creatorFingerprint": "be19d84d9fcd01760033ea5562bbbe6152a1ce324d5700c7a77997c56e1119fc"
       },
       {
         "step": 2500,
         "atWorldMs": 240000000,
         "fingerprint": "e8186df3e8eef2e34b0ac78963d789afc5d4d2d81432e0d11f0e7341df360646",
-        "memoryFingerprint": "73e6ec9f3f547ce9ba6e17305706adadc94996c13e841b1385691d3b3c596ab2",
+        "memoryFingerprint": "28d1cf5a72be88436647c0ed15b69077153ac4e2bf647afd140d37d5072d6043",
         "creatorFingerprint": "be19d84d9fcd01760033ea5562bbbe6152a1ce324d5700c7a77997c56e1119fc"
       },
       {
         "step": 2750,
         "atWorldMs": 255000000,
         "fingerprint": "8b32a31aba10dac09df88a9b2a7db78c617822654f0ca46f5de940196253757f",
-        "memoryFingerprint": "0116c8dabf1071f81ff2b426ab394cac1a382e25f860c493cb360e138edd3a5e",
+        "memoryFingerprint": "9bc60af463f25379e3d5590ddb24a0b0f3dbfbeb30f3fbfa8672a57fc89ba1a2",
         "creatorFingerprint": "be19d84d9fcd01760033ea5562bbbe6152a1ce324d5700c7a77997c56e1119fc"
       },
       {
         "step": 3000,
         "atWorldMs": 270000000,
         "fingerprint": "e962f0dc42acc3d4248ce2cd1551970c3fb11650d9d9e84531747910ebbb13ed",
-        "memoryFingerprint": "4934fd4b5d2f52a12fc0a266ea8b13ce9a5f0eaab27b81d46f9cbbe395baaa50",
+        "memoryFingerprint": "463a7f5f3fa7c12aaddb99519dd664f3a75a18d75b1d07f109537fddc70974ad",
         "creatorFingerprint": "ee5e4ed2f6f2fb2a93d8791d70370e8f218167cc9c61618f32bd2056d4400d56"
       }
     ],
     "memory": {
-      "fingerprint": "4934fd4b5d2f52a12fc0a266ea8b13ce9a5f0eaab27b81d46f9cbbe395baaa50",
+      "fingerprint": "463a7f5f3fa7c12aaddb99519dd664f3a75a18d75b1d07f109537fddc70974ad",
       "business": {
         "lastClosedDay": 3,
         "currentDay": 3,
