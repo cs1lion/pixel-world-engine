@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                219 个测试文件 <!-- claim: test-file-count=219 -->
+└── test/                220 个测试文件 <!-- claim: test-file-count=220 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -286,6 +286,13 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 
 ```bash
 cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:scene-depth
+```
+
+街面光池也有一支证据脚本：同一冻结帧里只换灯态/潮位，量同一块地面的亮度与色温，
+并给出距灯 0.5–6 格的衰减（`eval/screens/lamp-pool.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-pool
 ```
 
 ## 状态

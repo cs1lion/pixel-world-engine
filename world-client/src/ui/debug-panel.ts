@@ -284,6 +284,11 @@ export interface DebugOracle {
   memoryInner?(holderId: string): { readonly templateId: string; readonly text: string } | null;
   /** 调试/浏览器验收：打开某个角色的只读状态菜单，不写世界。 */
   openUnitStatusForDebug?(holderId: string): boolean;
+  /**
+   * 调试灯态：`true`/`false` 强制街灯亮/灭，`null` 交回世界时钟。
+   * 只压过渲染层，不改 `lampStreetLitAt` 的时刻判据。
+   */
+  debugForceLamps?(on: boolean | null): boolean | null;
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

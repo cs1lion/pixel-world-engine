@@ -340,6 +340,11 @@ export class SandboxScene extends Phaser.Scene {
    * 见 `render/villager-pin.ts` 与 `debugPinVillager`。
    */
   private readonly pinnedVillagers = new Map<string, Vec2>();
+  /**
+   * 调试灯态：`debugForceLamps` 写这里，`null` = 交回世界时钟判。
+   * 只改画面，不改 `lampStreetLitAt` 的判据本身。
+   */
+  private forcedLamps: boolean | null = null;
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
@@ -3597,6 +3602,15 @@ export class SandboxScene extends Phaser.Scene {
           h: VILLAGER_H,
         };
       },
+      /**
+       * 调试灯态：`true` 强制亮、`false` 强制灭、`null` 交回世界时钟。
+       * 只压过渲染层的灯态，不改 `lampStreetLitAt` 的时刻判据——证据脚本
+       * 要在同一冻结帧里取「灯亮 / 灯灭」两态的同一块地面，靠的就是这个口子。
+       */
+      debugForceLamps: (on: boolean | null): boolean | null => {
+        this.forcedLamps = on;
+        return on;
+      },
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
@@ -3812,6 +3826,7 @@ export class SandboxScene extends Phaser.Scene {
     this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
+      litOverride: this.forcedLamps ?? undefined,
     });
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现

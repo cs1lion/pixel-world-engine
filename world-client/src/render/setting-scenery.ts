@@ -3,7 +3,11 @@
  * 分层是这一层的契约，不是随手调的数值：
  * - 轨道/铺装 depth 1：铺在地上，潮水（depth 3）要能盖住它；退潮只让水退开，不删轨道。
  * - 桥 depth 4：桥面在水面之上，人走桥上。
- * - 灯池/灯光 depth 700：在地面之上、建筑与人物之下——光是地面上的亮，不遮挡人。
+ * - 街面光池 depth 3.2：落在**地面**上的椭圆暖光，压在铺装（1/1.5）与潮水
+ *   （3）之上、桥与构件（4 起）之下——涨潮时灯影落在水面，退潮时落在砖上，
+ *   两种情况都读得出来（满潮时若被水盖掉，「潮位越高灯越亮」这条就成了空话）。
+ *   半径与强度由 `lamp-pool.ts` 的纯函数按潮位算，见 `lampPoolBands`。
+ * - 灯体光芯 depth 700：灯罩周围那一圈亮，在地面之上、建筑与人物之下。
  * - 立着的街面构件（灯柱、灯串、店面、摊位、幌布、竖招牌、碑、像）按**落地行**排：
  *   `sceneryDepth(item.at.y, altitude)`。人物 depth 是 `altitude + (row+1)*16 + 8`，
  *   所以同一行的人在构件前、上一行的人在构件后——「站在摊位前应盖住、站在摊位后
@@ -27,6 +31,7 @@ import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
 import { sceneryDepth } from './scenery-depth.ts';
+import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
 
 export interface SettingSceneryView {
   update(level: number, now: number, clock: SettingSceneryClock): void;
@@ -37,12 +42,27 @@ export interface SettingSceneryView {
 export interface SettingSceneryClock {
   readonly phase: LampPhase;
   readonly autoAdvancing: boolean;
+  /** 调试灯态：给了就压过时钟判据（`debugForceLamps` 写这个口子）。 */
+  readonly litOverride?: boolean;
 }
 
 interface LightPoint {
   readonly x: number;
   readonly y: number;
 }
+
+/** 光池落点：`halfWidth` 为 0 表示点光源，否则是长条光源的半跨度。 */
+interface PoolAnchor {
+  readonly x: number;
+  readonly y: number;
+  readonly halfWidth: number;
+}
+
+/** 店面的墙基高度：灰泥墙 28 + 石脚 4。光池落在墙脚外沿的地面上。 */
+const SHOPFRONT_BASE_H = 32;
+
+/** 光池椭圆的平滑档位：16px 瓦片下 12 段已够圆，多一段都是白烧的指令。 */
+const POOL_SMOOTHNESS = 12;
 
 /** 灯串每 2 格挂一盏；与 `settings/dengchao/lamp-street.ts` 的计数同一口径。 */
 const LANTERNS_PER_STRING = 6;
@@ -55,6 +75,8 @@ export function createSettingScenery(
   const track = scene.add.graphics().setDepth(1);
   const street = scene.add.graphics().setDepth(1);
   const bridge = scene.add.graphics().setDepth(4);
+  // 街面光池：压在铺装与潮水之上、桥与构件之下，见头部那条分层契约。
+  const lampPool = scene.add.graphics().setDepth(3.2);
   const lampLight = scene.add.graphics().setDepth(700);
   // 地上的杂物：不进遮挡排序，始终压在人物与立着的东西下面。
   const flat = scene.add.graphics().setDepth(1050);
@@ -73,6 +95,7 @@ export function createSettingScenery(
   const c = pack.palette;
   const lights: LightPoint[] = [];
   const windows: LightPoint[] = [];
+  const pools: PoolAnchor[] = [];
   // 水面倒影锚点：只在对岸窗火处追加，补绘层在 `scene-artbook.ts` 里画。
   const reflectors: ArtbookPoint[] = [];
 
@@ -99,6 +122,8 @@ export function createSettingScenery(
     } else if (item.kind === 'lantern') {
       drawLantern(propLayer(item.at.y), x, y, c);
       lights.push({ x: x + 8, y: y - 14 });
+      // 池心在灯柱脚下的地面（本格中心偏下 2px），不是灯体高度。
+      pools.push({ x: x + 8, y: y + 10, halfWidth: 0 });
     } else if (item.kind === 'lamp_string') {
       const g = propLayer(item.at.y);
       const length = item.length ?? 0;
@@ -115,6 +140,9 @@ export function createSettingScenery(
         drawHangingLantern(g, lx, y, c, i);
         lights.push({ x: lx + 4, y: y - 12 });
       }
+      // 一串只落一片长光带：六盏灯各画一圈会把同一条街叠成六层，
+      // 亮度没多出来，指令却翻六倍。
+      pools.push({ x: x + span / 2, y: y + 10, halfWidth: span / 2 });
     } else if (item.kind === 'shopfront') {
       const width = (item.length ?? 5) * TILE_PX;
       const lanterns = drawShopfront(propLayer(item.at.y), x, y, width, c);
@@ -122,6 +150,8 @@ export function createSettingScenery(
       windows.push({ x: x + (width >= 64 ? width / 4 : 18), y: y + 19 });
       // 檐下红灯比街灯小一档，用 `windows` 的 14x10 光芯就够，不再开大灯池。
       for (const lx of lanterns) windows.push({ x: lx + 2, y: y - 1 });
+      // 檐下那一排灯只落一片贴墙的池子：池心在墙脚外沿（石脚底边再下 8px）。
+      pools.push({ x: x + width / 2, y: y + SHOPFRONT_BASE_H + 8, halfWidth: width / 2 });
     } else if (item.kind === 'signpost') {
       drawSignpost(propLayer(item.at.y), x, y, c);
     } else if (item.kind === 'bridge') {
@@ -239,13 +269,27 @@ export function createSettingScenery(
   return {
     update(level, now, clock) {
       lampLight.clear();
+      lampPool.clear();
       steam.clear();
-      const lit = lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
+      const lit = clock.litOverride ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
+      // 地面光池：潮位同时定半径与强度（`lamp-pool.ts` 的纯函数），
+      // 这里只负责按椭圆铺几圈、由内到外压淡。
+      if (lit) {
+        for (const pool of pools) {
+          const bands = pool.halfWidth > 0
+            ? wideLampPoolBands(level, pool.halfWidth)
+            : lampPoolBands(level);
+          // 由外到内：外圈宽而淡，内圈窄而亮，中心才是叠起来的暖核。
+          for (let i = 0; i < bands.length; i += 1) {
+            const band = bands[i]!;
+            lampPool.fillStyle(i === bands.length - 1 ? c.warmLight : c.amber, band.alpha);
+            lampPool.fillEllipse(pool.x, pool.y, band.rx * 2, band.ry * 2, POOL_SMOOTHNESS);
+          }
+        }
+      }
       for (const point of lights) {
         if (lit) {
-          // 亮：三层离散光池 + 灯芯。灯芯最亮的一档在灯体中心。
-          lampLight.fillStyle(c.amber, 0.08 + level * 0.02);
-          lampLight.fillRect(point.x - 15, point.y - 6, 30, 13);
+          // 亮：灯体周围一圈光晕 + 灯芯；落地的那一圈在 lampPool 里，不在这里。
           lampLight.fillStyle(c.amber, 0.13 + level * 0.02);
           lampLight.fillRect(point.x - 7, point.y - 4, 14, 9);
           lampLight.fillStyle(c.warmLight, 0.95);
@@ -284,6 +328,7 @@ export function createSettingScenery(
         track,
         street,
         bridge,
+        lampPool,
         lampLight,
         flat,
         ...propRows.values(),

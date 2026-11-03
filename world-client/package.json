@@ -20,6 +20,7 @@
     "test:render-budget": "node scripts/check-render-budget.mjs",
     "test:setting": "node scripts/check-dengchao.mjs",
     "test:scene-depth": "node scripts/check-scene-depth.mjs",
+    "test:lamp-pool": "node scripts/check-lamp-pool.mjs",
     "test:buttons": "node scripts/check-buttons.mjs",
     "trace:record": "node scripts/trace-record.ts",
     "trace:replay": "node scripts/trace-replay.ts",

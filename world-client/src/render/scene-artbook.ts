@@ -16,6 +16,8 @@ import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
 export interface SceneArtbookClock {
   readonly phase: LampPhase;
   readonly autoAdvancing: boolean;
+  /** 调试灯态：给了就压过时钟判据（与 `SettingSceneryClock` 同一个口子）。 */
+  readonly litOverride?: boolean;
 }
 
 export interface ArtbookPoint {
@@ -87,7 +89,7 @@ export function createSceneArtbook(
 
   return {
     update(_level, now, clock) {
-      const lit = lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
+      const lit = clock.litOverride ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
       water.clear();
       fog.clear();
       farLight.clear();
