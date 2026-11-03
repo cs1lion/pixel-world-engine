@@ -25,7 +25,18 @@ import {
   pairwiseSilhouettes,
   silhouetteBreakdown,
   silhouetteMask,
+  silhouetteSimilarity,
 } from '../src/render/silhouette-match.ts';
+import {
+  CAST_MOTION_FRAMES,
+  CAST_MOTION_VIEWS,
+  castFrameMask,
+  castFramePixels,
+  castFrameRects,
+  framePixelDiff,
+  maxRowWidthDelta,
+} from '../src/render/cast-motion.ts';
+import { ANIM_FPS, FRAME_MS } from '../src/render/villager-frames.ts';
 
 const MAIN = ['迷路人', '汐', '炉匠', '沉灯夫人', '灯笼头'];
 const OUT = resolve(import.meta.dirname, '..', '..', 'docs', 'evidence', 'cast-artbook');
@@ -67,14 +78,18 @@ function pixelColor(item, look) {
   return `#${value.toString(16).padStart(6, '0')}`;
 }
 
-function drawSpriteRects(look, facing) {
-  return villagerLayout(look, facing, POSE, false, 'idle', 0).map((item) => ({
+function blocksOf(look, rects) {
+  return rects.map((item) => ({
     x: item.x + VILLAGER_W / 2,
     y: item.y + VILLAGER_H,
     w: item.w,
     h: item.h,
     color: pixelColor(item, look),
   }));
+}
+
+function drawSpriteRects(look, facing) {
+  return blocksOf(look, villagerLayout(look, facing, POSE, false, 'idle', 0));
 }
 
 const looks = MAIN.map((name) => {
@@ -143,6 +158,84 @@ const worstBefore = baseline.pairs.reduce(
   { similarity: -1 },
 );
 
+// ── 第四轮「动起来」：逐帧帧差、行宽变化、动画帧剪影复测 ────────────────────
+const FRAME_TAGS = [
+  { tag: 'idle0', walking: false, index: 0 },
+  { tag: 'idle1', walking: false, index: 1 },
+  { tag: 'walk0', walking: true, index: 0 },
+  { tag: 'walk1', walking: true, index: 1 },
+  { tag: 'walk2', walking: true, index: 2 },
+  { tag: 'walk3', walking: true, index: 3 },
+];
+const motionFrameDiff = looks.map(({ name, look }) => ({
+  name,
+  views: CAST_MOTION_VIEWS.map((facing) => {
+    const pics = (walking, index) => castFramePixels(look, facing, walking, index);
+    const base = castFrameMask(look, facing, false, 0);
+    let worstRow = { row: -1, delta: 0 };
+    for (const { walking, index } of FRAME_TAGS) {
+      const delta = maxRowWidthDelta(base, castFrameMask(look, facing, walking, index));
+      if (delta.delta > worstRow.delta) worstRow = delta;
+    }
+    return {
+      facing,
+      idle: framePixelDiff(pics(false, 0), pics(false, 1)),
+      walk: [0, 1, 2].map((index) => framePixelDiff(pics(true, index), pics(true, index + 1))),
+      walkFar: framePixelDiff(pics(true, 0), pics(true, 2)),
+      maxRowWidthDelta: worstRow.delta,
+      row: worstRow.row,
+    };
+  }),
+}));
+
+const motionPairs = [];
+for (const { tag, walking, index } of FRAME_TAGS) {
+  for (const facing of CAST_MOTION_VIEWS) {
+    for (let i = 0; i < looks.length; i += 1) {
+      for (let j = i + 1; j < looks.length; j += 1) {
+        motionPairs.push({
+          tag,
+          a: looks[i].name,
+          b: looks[j].name,
+          facing,
+          similarity: Number(silhouetteSimilarity(
+            castFrameMask(looks[i].look, facing, walking, index),
+            castFrameMask(looks[j].look, facing, walking, index),
+          ).toFixed(4)),
+        });
+      }
+    }
+  }
+}
+const motionWorstPair = motionPairs.reduce((max, item) => (item.similarity > max.similarity ? item : max));
+const motionSamePerson = looks.map(({ name, look }) => {
+  let min = { similarity: 2, tag: '', a: '', b: '' };
+  let max = { similarity: -1, tag: '', a: '', b: '' };
+  for (const { tag, walking, index } of FRAME_TAGS) {
+    const masks = new Map(CAST_MOTION_VIEWS.map((view) => [view, castFrameMask(look, view, walking, index)]));
+    for (const [a, b] of [['down', 'right'], ['down', 'up'], ['right', 'up']]) {
+      const item = { similarity: Number(silhouetteSimilarity(masks.get(a), masks.get(b)).toFixed(4)), tag, a, b };
+      if (item.similarity < min.similarity) min = item;
+      if (item.similarity > max.similarity) max = item;
+    }
+  }
+  return { name, min, max };
+});
+const motionSprites = {};
+for (const { name, look } of looks) {
+  motionSprites[name] = {};
+  for (const facing of CAST_MOTION_VIEWS) {
+    motionSprites[name][facing] = {
+      walk: [0, 1, 2, 3].map((index) => blocksOf(look, castFrameRects(look, facing, true, index))),
+      idle: [0, 1].map((index) => blocksOf(look, castFrameRects(look, facing, false, index))),
+    };
+  }
+}
+const motionSheets = [
+  ...CAST_MOTION_VIEWS.map((facing) => ({ id: `motion-walk-${facing}`, kind: 'walk', facing, title: `行走 4 帧 · ${({ down: '正面', right: '侧面', up: '背面' })[facing]}`, count: 4 })),
+  { id: 'motion-idle-down', kind: 'idle', facing: 'down', title: '待机 2 帧 · 正面', count: 2 },
+];
+
 const html = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <style>
@@ -159,6 +252,9 @@ const html = `<!doctype html>
   .contact h2 { margin: 0 0 4px; font-size: 15px; }
   .contact small { color: #6c665a; }
   .contact .sprites { display: flex; gap: 12px; }
+  .frameRow { display: flex; align-items: flex-end; gap: 10px; margin: 0 0 10px; }
+  .frameRow .who { width: 64px; color: #6c665a; }
+  .sheet h2 { margin: 0 0 10px; font-size: 15px; }
 </style></head>
 <body>
 <div class="sheet" id="nameless">
@@ -178,20 +274,31 @@ const html = `<!doctype html>
   }).join('')}
   </tbody></table>
 </div>
+${motionSheets.map((sheet) => `<div class="sheet" id="${sheet.id}">
+  <h2>${sheet.title}（3× 放大，每人一行 ${sheet.count} 列）</h2>
+  ${looks.map(({ name }) => `<div class="frameRow"><span class="who">${name}</span>${Array.from({ length: sheet.count }, (_, index) => `<div class="cell"><canvas data-motion="${name}" data-facing="${sheet.facing}" data-kind="${sheet.kind}" data-index="${index}"></canvas><div class="dir">${index + 1}/${sheet.count}</div></div>`).join('')}</div>`).join('')}
+</div>`).join('')}
 <script>
   window.__draw = () => {
-    for (const canvas of document.querySelectorAll('canvas')) {
-      const name = canvas.dataset.look;
-      const facing = canvas.dataset.facing;
+    const paint = (canvas, blocks) => {
       canvas.width = ${VILLAGER_W};
       canvas.height = ${VILLAGER_H};
       canvas.style.width = '${VILLAGER_W * 3}px';
       canvas.style.height = '${VILLAGER_H * 3}px';
       const ctx = canvas.getContext('2d');
-      for (const block of window.__SPRITES__[name][facing]) {
+      for (const block of blocks) {
         ctx.fillStyle = block.color;
         ctx.fillRect(block.x, block.y, block.w, block.h);
       }
+    };
+    for (const canvas of document.querySelectorAll('canvas[data-look]')) {
+      paint(canvas, window.__SPRITES__[canvas.dataset.look][canvas.dataset.facing]);
+    }
+    for (const canvas of document.querySelectorAll('canvas[data-motion]')) {
+      paint(
+        canvas,
+        window.__FRAMES__[canvas.dataset.motion][canvas.dataset.facing][canvas.dataset.kind][Number(canvas.dataset.index)],
+      );
     }
   };
 </script>
@@ -211,6 +318,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 900, height: 1200 }, deviceScaleFactor: 1 });
   await page.setContent(html);
   await page.evaluate((payload) => { window.__SPRITES__ = payload; }, sprites);
+  await page.evaluate((payload) => { window.__FRAMES__ = payload; }, motionSprites);
   await page.evaluate(() => window.__draw());
   await page.waitForTimeout(100);
   for (let i = 0; i < looks.length; i += 1) {
@@ -222,6 +330,9 @@ try {
     path: join(OUT, 'cast-contact-sheet-x3.png'),
     fullPage: false,
   });
+  for (const sheet of motionSheets) {
+    await page.locator(`#${sheet.id}`).screenshot({ path: join(OUT, `${sheet.id}-x3.png`) });
+  }
 } finally {
   await browser.close();
 }
@@ -244,6 +355,38 @@ writeFileSync(join(OUT, 'readings.json'), JSON.stringify({
     MAIN.map((name, index) => [`main-${String(index + 1).padStart(2, '0')}`, name]),
   ),
   namelessEvidence: MAIN.map((_, index) => `main-${String(index + 1).padStart(2, '0')}-front-side-back-x3.png`),
+  // 第四轮「动起来」：帧数、逐帧像素差、行宽变化、动画帧复测表。
+  motion: {
+    animFps: ANIM_FPS,
+    frameMs: Number(FRAME_MS.toFixed(3)),
+    idleFrames: CAST_MOTION_FRAMES.idle,
+    walkFrames: CAST_MOTION_FRAMES.walk,
+    views: [...CAST_MOTION_VIEWS],
+    frameDiffMetric: 'structural（减掉姿态里的 1px 整体上下浮，只数帧内动作变动的格子）',
+    frameDiff: motionFrameDiff,
+    // 30 组跨人复测：同一 world step（同帧号）下 3 向 × 6 帧 × 10 对。
+    retest: {
+      tags: FRAME_TAGS.map((item) => item.tag),
+      maxPairSimilarity: 0.78,
+      samePersonRange: [0.6, 0.9],
+      worstPair: motionWorstPair,
+      pairs: motionPairs,
+      samePerson: motionSamePerson,
+      staticPairsUnchanged: beforeAfter.map((pair) => ({
+        a: pair.a,
+        b: pair.b,
+        facing: pair.facing,
+        similarity: pair.similarity,
+      })),
+    },
+    sheets: motionSheets.map((sheet) => ({
+      id: sheet.id,
+      facing: sheet.facing,
+      kind: sheet.kind,
+      columns: sheet.count,
+      file: `${sheet.id}-x3.png`,
+    })),
+  },
 }, null, 2), 'utf8');
 
 console.log(JSON.stringify({ out: OUT, minPair, maxSameFacing, characters }, null, 2));

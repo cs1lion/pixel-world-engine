@@ -341,8 +341,58 @@ function eyeRects(
   return out;
 }
 
+/**
+ * 设定集人物的帧内小动作：全部是整数像素，只看 `pose.frame` 与 `walking`。
+ * 走路帧让脚（姿态里的 footLeft/footRight）交替、身体 1px 上下浮，长摆随步伐甩摆；
+ * 待机两帧做小幅摆动（下摆、围巾尾、肩背、手持物），幅度小但逐帧可测。
+ */
+interface CastMotion {
+  /** 袍摆/裙摆左右摆：-1/0/+1。整条下摆平移，行宽不变。 */
+  readonly hemX: number;
+  /** 披风肩背处的呼吸起伏：0/+1。只平移上身那两档。 */
+  readonly chestX: number;
+  /** 手持物摆动：水桶、灯杖；各 2 帧一个周期。 */
+  readonly propX: number;
+}
+
+function castMotion(
+  look: VillagerLook,
+  facing: VillagerSnapshot['facing'],
+  pose: VillagerPose,
+  walking: boolean,
+): CastMotion {
+  if (!isCastLook(look)) return { hemX: 0, chestX: 0, propX: 0 };
+  const frame = pose.frame;
+  // 走路：长摆（长袍/披风/裙摆）1/0/-1/0 甩摆，与脚的交替错开半拍；短工装贴身，
+  // 正面/背面走动时下摆不横移（只有侧视才甩 1px：侧视只露一条腿，脚的动作太薄）。
+  const hemPattern = look.head === 'mask' ? [-1, 0, 1, 0] : [1, 0, -1, 0];
+  const sideView = facing === 'right' || facing === 'left';
+  const walkHem = look.outfit === 'tunic' && !sideView ? 0 : hemPattern[frame % 4] ?? 0;
+  const hemX = walking ? walkHem : 0;
+  // 待机：斗篷的肩背比下摆先起（往持物反侧让 1px）；其余人的下摆第 2 帧轻摆 1px，
+  // 灯笼头提着灯杖，下摆往持物反侧让，避免和下摆/灯杖同帧同向把某一行顶宽 2px。
+  const chestX = !walking && look.outfit === 'cloak' && frame % 2 === 1 ? -1 : 0;
+  const idleHem = !walking && look.outfit !== 'cloak' && frame % 2 === 1
+    ? look.head === 'mask' ? -1 : 1
+    : 0;
+  const hem = hemX + idleHem;
+  // 道具按 2 帧周期摆：水桶/灯杖每 2 帧往怀里收 1px（桶已在画布右缘，外摆会被裁）。
+  // 只在待机摆动：走动帧里多人同时收桶会把最像的一对（迷路人/汐）推到 0.78 以上；
+  // 摆向与围巾尾反相（否则左右两头同一帧各凸 1px，行宽一次变 2px）。
+  const propX = walking
+    ? 0
+    : look.accent === 'bucket'
+      ? facing === 'down' ? -(frame % 2) : frame % 2
+      : look.accent === 'staff' ? -(frame % 2) : 0;
+  return { hemX: hem, chestX, propX };
+}
+
 /** 外套/斗篷/围裙/长袍：肩宽、下摆、暗部与开衩。 */
-function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): PixelRect[] {
+function outfitRects(
+  look: VillagerLook,
+  facing: VillagerSnapshot['facing'],
+  motion: CastMotion,
+): PixelRect[] {
   const b = BUILD[look.build];
   const top = b.torsoTop;
   const out: PixelRect[] = [];
@@ -368,17 +418,23 @@ function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
       // 侧面整身收 4px（披风的纵深）。三种朝向的行宽因此不重叠。
       const side = sideView ? 4 : 0;
       const spread = backView ? 1 : 0;
-      band(top, 4, sLeft - 2 + side - spread, sRight + 2 - side + spread);
-      band(top + 4, 5, sLeft - 3 + side - spread, sRight + 3 - side + spread);
+      band(top, 4, sLeft - 2 + side - spread + motion.chestX, sRight + 2 - side + spread + motion.chestX);
+      band(top + 4, 5, sLeft - 3 + side - spread + motion.chestX, sRight + 3 - side + spread + motion.chestX);
       const lower = backView ? 5 : sideView ? 3 : 0;
       // 正面裙摆铺到接近脚踝宽度（矮而宽的深蓝长裙，PDF p.53）：
       // 侧视是薄薄一片、背视收成窄摆，三种朝向的下摆行宽因此差 4px 以上。
-      band(top + 9, 4, sideView || backView ? hLeft + 2 + lower : hLeft, sideView || backView ? hRight - 2 - lower : hRight);
+      // 裙摆随帧轻摆：整条下摆平移 hemX，行宽一格不变。
+      band(
+        top + 9,
+        4,
+        (sideView || backView ? hLeft + 2 + lower : hLeft) + motion.hemX,
+        (sideView || backView ? hRight - 2 - lower : hRight) + motion.hemX,
+      );
       band(
         top + 13,
         2,
-        sideView || backView ? hLeft + 4 + (backView ? 4 : lower) : hLeft + 2,
-        sideView || backView ? hRight - 4 - (backView ? 4 : lower) : hRight - 2,
+        (sideView || backView ? hLeft + 4 + (backView ? 4 : lower) : hLeft + 2) + motion.hemX,
+        (sideView || backView ? hRight - 4 - (backView ? 4 : lower) : hRight - 2) + motion.hemX,
       );
       if (backView) {
         // 背视：披风褶拖到脚踝一侧，补上正面看不到的宽度（PDF p.53）。
@@ -420,7 +476,9 @@ function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
     // 侧视收 4px、背视收 3px——三种朝向的躯干行宽因此是三档。
     const inset = sideView ? 4 : backView ? 3 : 1;
     band(top, 5, sLeft + inset, sRight - inset);
-    band(top + 5, 3, sLeft - 1 + inset, sRight + 1 - inset);
+    // 短工装没有长下摆：腰下这一档就是衣摆，随帧平移 1px（行宽不变，
+    // 待机的第 2 帧因此除了围巾尾还有一处可测的衣摆位移）。
+    band(top + 5, 3, sLeft - 1 + inset + motion.hemX, sRight + 1 - inset + motion.hemX);
     out.push(rect(sLeft + 2 + (sideView ? 1 : 0), top + 1, b.shoulder - 4 - (sideView ? 2 : 0), 6, 'scarfLit') as PixelRect);
     out.push(rect(sLeft + inset, top + 5, b.shoulder - inset * 2, 1, 'scarf') as PixelRect);
     const shortsY = b.legTop - 3;
@@ -439,8 +497,8 @@ function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
       band(top + 4, 4, sLeft - 1 + inset, sRight + 1 - inset);
       band(top + 8, 3, sLeft - 2 + inset, sRight + 2 - inset);
       band(top + 11, 5,
-        sideView ? sLeft - 3 + inset : backView ? sLeft - 5 : sLeft - 6,
-        sideView ? sRight + 3 - inset : backView ? sRight + 5 : sRight + 6);
+        (sideView ? sLeft - 3 + inset : backView ? sLeft - 5 : sLeft - 6) + motion.hemX,
+        (sideView ? sRight + 3 - inset : backView ? sRight + 5 : sRight + 6) + motion.hemX);
       if (!sideView && !backView) {
         // 广袖：正面两袖各外撑 2px（书页 84–85 的长袍是宽袖）；
         // 背面看不到袖口，下摆也收 1px——正/背的行宽与列分布因此不重合。
@@ -474,7 +532,8 @@ function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
       const collar = sideView ? 3 : backView ? 2 : -2;
       const body = sideView ? 2 : backView ? 2 : 0;
       band(top, 5, sLeft - 3 + collar, sRight + 3 - collar);
-      band(top + 5, 14, sLeft + 1 + body, sRight - 1 - body);
+      // 黑袍下摆随帧轻摆（整段平移，行宽不变）。
+      band(top + 5, 14, sLeft + 1 + body + motion.hemX, sRight - 1 - body + motion.hemX);
       const mid = Math.floor((sLeft + sRight) / 2);
       out.push(rect(mid, top + 7, 1, 12, 'shade') as PixelRect);
       return out;
@@ -486,8 +545,8 @@ function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
       const inset = sideView ? 3 : backView ? 2 : 0;
       band(top, 5, sLeft + 3 + inset, sRight - 3 - inset);
       band(top + 5, 5, sLeft + 3 + inset, sRight - 3 - inset);
-      band(top + 10, 4, sLeft + 2 + inset, sRight - 2 - inset);
-      band(top + 14, 3, sLeft + 2 + inset, sRight - 2 - inset);
+      band(top + 10, 4, sLeft + 2 + inset + motion.hemX, sRight - 2 - inset + motion.hemX);
+      band(top + 14, 3, sLeft + 2 + inset + motion.hemX, sRight - 2 - inset + motion.hemX);
       const mid = Math.floor((sLeft + sRight) / 2);
       out.push(rect(mid, top + 6, 1, 9, 'shade') as PixelRect);
       return out;
@@ -502,7 +561,7 @@ function outfitRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
 
   // 下摆底边压一档：脚才不会浮在下摆上。短工作服没有长下摆，跳过。
   if (look.outfit !== 'tunic') {
-    out.push(rect(hLeft - 1, top + 15, b.hem + 2, 1, 'shade') as PixelRect);
+    out.push(rect(hLeft - 1 + motion.hemX, top + 15, b.hem + 2, 1, 'shade') as PixelRect);
   }
   return out;
 }
@@ -610,18 +669,25 @@ function scarfRects(
   const width = isCastLook(look) && sideView ? Math.max(4, b.shoulder - 1) : b.shoulder + 2;
   const y = b.torsoTop - 1;
   const { left } = span(width);
-  const lift = walking ? frame % 2 : 0;
+  // 设定集人物：飘尾水平摆 1px，待机两帧因此不是整体平移；走路四帧也不与脚步同相位。
+  const cast = isCastLook(look);
+  const lift = !cast && walking ? frame % 2 : 0;
+  const sway = cast ? frame % 2 : 0;
   return [
     rect(left, y, width, 2, 'scarf'),
     rect(left, y, Math.max(3, width - 2), 1, 'scarfLit'),
-    rect(left - 1, y + 2 + lift, 3, 1, 'scarf'),
-    rect(left - 2, y + 3 + lift, 3, 1, 'scarf'),
-    rect(left - 1, y + 4 + lift, 2, 1, 'shade'),
+    rect(left - 1 - sway, y + 2 + lift, 3, 1, 'scarf'),
+    rect(left - 2 - sway, y + 3 + lift, 3, 1, 'scarf'),
+    rect(left - 1 - sway, y + 4 + lift, 2, 1, 'shade'),
   ].filter((item): item is PixelRect => item !== null);
 }
 
 /** 手持物/配饰：四种，各自打破不同的方向（侧、下、上、无）。 */
-function accentRects(look: VillagerLook, facing: VillagerSnapshot['facing']): PixelRect[] {
+function accentRects(
+  look: VillagerLook,
+  facing: VillagerSnapshot['facing'],
+  motion: CastMotion,
+): PixelRect[] {
   const b = BUILD[look.build];
   const side = facing === 'left' ? -1 : 1;
   const { left: sLeft, right: sRight } = span(b.shoulder);
@@ -651,7 +717,8 @@ function accentRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
     // 灯杆贴着袍边竖着（PDF p.58 的高窄剪影）；侧视时在朝向镜头的一侧。
     // 背视时杖在身前被袍子挡住，不画，背面因此更窄。
     if (look.head === 'mask' && facing === 'up') return out;
-    const x = look.head === 'mask' ? sRight : side < 0 ? sLeft - 3 : sRight + 1;
+    // 灯杖 2 帧一个周期左右轻摆 1px。
+    const x = (look.head === 'mask' ? sRight : side < 0 ? sLeft - 3 : sRight + 1) + motion.propX;
     push(out, [
       rect(x, -28, 2, 28, 'ink'),
       rect(x + 1, -27, 1, 26, 'timberDark'),
@@ -662,7 +729,10 @@ function accentRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
     // 提水桶：桶身、桶沿、提手，都在 24px 内。
     // 背视桶在身前被身体挡住；侧视把桶收到腰侧，中段行宽随之变化。
     if (facing === 'up') return out;
-    const x = facing === 'right' || facing === 'left' ? sRight : side < 0 ? sLeft - 5 : sRight + 2;
+    // 水桶 2 帧一个周期轻晃 1px（只向内，桶沿不贴画布右缘）。
+    const x =
+      (facing === 'right' || facing === 'left' ? sRight : side < 0 ? sLeft - 5 : sRight + 2) +
+      motion.propX;
     push(out, [
       rect(x, b.torsoTop + 9, 6, 5, 'ink'),
       rect(x + 1, b.torsoTop + 10, 4, 3, 'plaster'),
@@ -684,9 +754,10 @@ function actionRects(
 ): PixelRect[] {
   const b = BUILD[look.build];
   const { left: sLeft, right: sRight } = span(b.shoulder);
-  const swing = walking ? pose.frame % 2 : 0;
-  const sideView = facing === 'right' || facing === 'left';
   const cast = isCastLook(look);
+  // 设定集人物摆臂不上下抖（那会让单行宽度一次变 2px）；走路的动作由脚、下摆、道具承担。
+  const swing = walking && !cast ? pose.frame % 2 : 0;
+  const sideView = facing === 'right' || facing === 'left';
   // 设定集人物侧视只露朝向镜头的一条手臂，另一条被身体挡住——行宽随之不同。
   const drawLeft = !(cast && sideView) || facing === 'left';
   const drawRight = !(cast && sideView) || facing === 'right';
@@ -774,12 +845,13 @@ export function villagerLayout(
 ): readonly PixelRect[] {
   const blink = nowMs > 0 && !walking && Math.floor(nowMs / 100) % 43 === 0;
   const lift = pose.offsetY;
+  const motion = castMotion(look, facing, pose, walking);
   const joints = [
-    ...outfitRects(look, facing),
+    ...outfitRects(look, facing, motion),
     ...legRects(look, pose, walking, facing),
     ...headRects(look, facing, blink),
     ...scarfRects(look, walking, pose.frame, facing),
-    ...accentRects(look, facing),
+    ...accentRects(look, facing, motion),
     ...actionRects(look, pose, facing, mode, walking),
   ];
   return joints.map((item) => ({ ...item, y: item.y + lift }));
