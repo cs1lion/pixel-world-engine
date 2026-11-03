@@ -85,6 +85,7 @@ import {
   type VillagerView,
 } from '../render/villager.ts';
 import { pinVillagers } from '../render/villager-pin.ts';
+import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp-motion.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -354,6 +355,19 @@ export class SandboxScene extends Phaser.Scene {
    * 只改画面，不改 `lampStreetLitAt` 的判据本身。
    */
   private forcedLamps: boolean | null = null;
+  /** 灯柱/灯串的三支动态开关；缺省全开，证据脚本逐支关掉取对照。 */
+  private lampMotion: LampMotion = LAMP_MOTION_ON;
+  /**
+   * 世界时间冻住：不推进模拟，渲染循环照跑。
+   * 用来证明「世界时间不推进 → 动画不推进」，而不是把 rAF 一起停掉。
+   */
+  private holdWorld = false;
+  /**
+   * 调试用：把**渲染**用的潮位钉死（`null` = 交回快照）。
+   * 只压过画面，不改世界里的潮汐；证据脚本要在同一片地面上量 t / t+1s，
+   * 不能让它被「这一秒潮水又涨了一点」搅进来。
+   */
+  private pinnedTide: number | null = null;
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
@@ -1377,6 +1391,15 @@ export class SandboxScene extends Phaser.Scene {
       this.accumulator = 0;
       this.snapshot = this.sim.snapshot();
       this.renderSnapshot(delta);
+      return;
+    }
+    // 世界时间冻住（调试口子）：不推进模拟，但照常渲染。
+    // 证明「世界时间不推进 → 动画不推进」时，不能靠停 rAF——那样连渲染都停了，
+    // 证明不了任何东西；这里让每一帧都真画一遍，只是不给它新的世界时刻。
+    if (this.holdWorld) {
+      this.accumulator = 0;
+      this.renderSnapshot(delta);
+      this.cameraCtl.update(delta);
       return;
     }
     // 真实时钟：先看墙钟与单调时钟。暂停（回拨）时这一拍一步不走；离线跨了
@@ -3798,6 +3821,53 @@ export class SandboxScene extends Phaser.Scene {
         return on;
       },
       /**
+       * 灯柱/灯串的三支动态开关（渐次点亮、呼吸、风摆）。缺省全开；
+       * 关掉哪一支，那一支的 t / t+1s 帧差必须归零，其余两支不受影响。
+       */
+      debugLampMotion: (patch: Partial<LampMotion>): LampMotion => {
+        this.lampMotion = { ...this.lampMotion, ...patch };
+        return this.lampMotion;
+      },
+      /** 世界时间冻住：不推进模拟，渲染循环照跑。验「暂停世界后画面静止」。 */
+      debugHoldWorld: (on: boolean): boolean => {
+        this.holdWorld = on;
+        return on;
+      },
+      /**
+       * 冻住世界时手动推进一格（世界毫秒），下一帧照常渲染。
+       * 证据脚本用它把「世界时刻序列」钉死：同一串步长 → 同一串帧。
+       */
+      debugStepWorld: (ms: number): number => {
+        if (!this.holdWorld || !Number.isFinite(ms) || ms <= 0) return this.snapshot.now;
+        this.sim.setSocialContext(this.socialContextFromMemory());
+        for (const result of this.sim.update(ms)) this.speak(result);
+        this.snapshot = this.sim.snapshot();
+        return this.snapshot.now;
+      },
+      /** 逐盏点亮的排期：第一盏/最后一盏的世界时刻，以及此刻亮满了几盏。 */
+      debugLampIgnition: () => ignitionSchedule(
+        this.snapshot.now,
+        this.settingScenery?.lampCount() ?? 0,
+        this.phaseView.currentPhase(),
+        this.phaseView.isAutoAdvancing(),
+      ),
+      /** 全街 28 盏的渐次顺序与坐标（按世界 x 从西往东）。 */
+      debugLampUnits: () => this.settingScenery?.lampUnits() ?? [],
+      /** 把渲染用的潮位钉死（0..1）；`null` 交回快照。只压画面，不改世界。 */
+      debugPinTide: (level: number | null): number | null => {
+        this.pinnedTide = level === null ? null : Math.min(1, Math.max(0, level));
+        return this.pinnedTide;
+      },
+      /**
+       * 藏掉天上的鸟/蝙蝠。只为证据隔离：鸟也由世界时刻驱动，
+       * 会在灯街 ROI 上留下像素差；量「灯的三支动态」时要先把它们摘出去，
+       * 报告里会注明这一条。
+       */
+      debugHideAmbience: (hidden: boolean): boolean => {
+        this.ambienceView.setHidden(hidden);
+        return hidden;
+      },
+      /**
        * 立面与街灯的像素尺寸。尺子读的就是渲染用的常量（`SettingSceneryMetrics`），
        * 证据脚本拿它画覆盖线与比例，不另抄一份数字；场景未起来时为 `null`。
        */
@@ -4018,11 +4088,13 @@ export class SandboxScene extends Phaser.Scene {
       updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
-    this.tideView.update(this.snapshot.tide.level);
-    this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
+    const tideLevel = this.pinnedTide ?? this.snapshot.tide.level;
+    this.tideView.update(tideLevel);
+    this.settingScenery?.update(tideLevel, this.snapshot.now, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
       litOverride: this.forcedLamps ?? undefined,
+      motion: this.lampMotion,
     });
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现

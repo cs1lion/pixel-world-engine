@@ -291,6 +291,33 @@ export interface DebugOracle {
    */
   debugForceLamps?(on: boolean | null): boolean | null;
   /**
+   * 灯柱/灯串的三支动态开关。缺省全开；证据脚本逐支关掉取「关掉时帧差为 0」的对照。
+   */
+  debugLampMotion?(patch: { ignite?: boolean; breathe?: boolean; sway?: boolean }): {
+    ignite: boolean;
+    breathe: boolean;
+    sway: boolean;
+  };
+  /** 世界时间冻住：不推进模拟、渲染照跑。验「暂停世界后画面静止」。 */
+  debugHoldWorld?(on: boolean): boolean;
+  /** 冻住时手动推进一格（世界毫秒），返回推进后的世界时刻。 */
+  debugStepWorld?(ms: number): number;
+  /** 渐次点亮的排期：第一盏/最后一盏的世界时刻，与此刻亮满了几盏。 */
+  debugLampIgnition?(): {
+    total: number;
+    spanMs: number;
+    rampMs: number;
+    firstAtMs: number | null;
+    lastAtMs: number | null;
+    litAt: number;
+  };
+  /** 全街 28 盏的渐次顺序与坐标。 */
+  debugLampUnits?(): readonly { order: number; x: number; y: number; hanging: boolean }[];
+  /** 钉死渲染用的潮位（0..1）；`null` 交回快照。只压画面，不改世界。 */
+  debugPinTide?(level: number | null): number | null;
+  /** 藏掉天上的鸟/蝙蝠（证据隔离用）。 */
+  debugHideAmbience?(hidden: boolean): boolean;
+  /**
    * 立面与街灯的实际像素尺寸（店面墙 48 / 灯柱 58 / 灯体下沿 43）。
    * 证据脚本拿它画标尺：尺子读渲染常量，不另抄一份数字。
    */

@@ -29,6 +29,14 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import {
+  LAMP_MOTION_ON,
+  lampBreathAt,
+  lampBrightnessAt,
+  lampIgnitionProgress,
+  lampSwayAt,
+  type LampMotion,
+} from '../world/lamp-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
 import { sceneryDepth } from './scenery-depth.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
@@ -57,6 +65,10 @@ export interface SettingSceneryView {
    * 所以灯灭时必须为 0——有残留就说明上一帧的暖斑没被擦掉。
    */
   readonly poolCommands: () => number;
+  /** 街灯总盏数（灯柱 10 + 灯串 3×6）。证据脚本报「第几盏」时不用另数一遍。 */
+  readonly lampCount: () => number;
+  /** 全街 28 盏的渐次顺序与坐标：证据脚本据此报「第几盏、在哪个世界位置」。 */
+  readonly lampUnits: () => readonly { order: number; x: number; y: number; hanging: boolean }[];
 }
 
 /** 灯态时钟：相位与「是不是自动推进」。强制相位（`?time=`）下两者都要用上。 */
@@ -65,6 +77,11 @@ export interface SettingSceneryClock {
   readonly autoAdvancing: boolean;
   /** 调试灯态：给了就压过时钟判据（`debugForceLamps` 写这个口子）。 */
   readonly litOverride?: boolean;
+  /**
+   * 三支动态的开关（`debugLampMotion` 写这个口子）。缺省全开——夜街本来就该是活的；
+   * 关掉哪一支，那一支就变成常量，证据脚本靠这个取「关掉时帧差为 0」的对照。
+   */
+  readonly motion?: LampMotion;
 }
 
 interface LightPoint {
@@ -72,11 +89,40 @@ interface LightPoint {
   readonly y: number;
 }
 
+/**
+ * 一盏可动的灯：灯柱上一盏，或灯串上挂着的一盏。
+ *
+ * `order` 是全街 28 盏的**渐次点亮顺序**（按世界 x 从西往东排）；每帧只按
+ * 这个序号算亮度与摆幅，不在渲染层存「上一帧亮没亮」。
+ */
+interface LampUnit {
+  /** 灯芯中心（世界像素）：光晕画在这里。 */
+  readonly x: number;
+  readonly y: number;
+  /** 灯体左上角：摆动时整个纸灯平移。 */
+  readonly bodyX: number;
+  readonly bodyY: number;
+  readonly row: number;
+  readonly hanging: boolean;
+  /** 由落地后按 x 排序写入；0 = 第一盏亮。 */
+  order: number;
+}
+
+/** 一串灯：六盏共用一个点亮进度（同一串一起亮，不把一串拆成六拍）。 */
+interface LampGroup {
+  readonly units: LampUnit[];
+  /** 长条光池的下标；建池时回填。 */
+  pool: number;
+}
+
 /** 光池落点：`halfWidth` 为 0 表示点光源，否则是长条光源的半跨度。 */
 interface PoolAnchor {
   readonly x: number;
   readonly y: number;
   readonly halfWidth: number;
+  /** 点光源只吃自己那一盏的亮度；长条光源吃整组的平均亮度。 */
+  readonly unit: LampUnit | null;
+  readonly group: LampGroup | null;
 }
 
 /** 光池椭圆的平滑档位：16px 瓦片下 12 段已够圆，多一段都是白烧的指令。 */
@@ -114,6 +160,10 @@ export function createSettingScenery(
   const lights: LightPoint[] = [];
   const windows: LightPoint[] = [];
   const pools: PoolAnchor[] = [];
+  const lampUnits: LampUnit[] = [];
+  const lampGroups: LampGroup[] = [];
+  /** 灯绳跨度：一串一条，摆动时按组里中间那盏的相位走。 */
+  const stringSpans: { x: number; y: number; row: number; span: number; group: LampGroup }[] = [];
   // 水面倒影锚点：只在对岸窗火处追加，补绘层在 `scene-artbook.ts` 里画。
   const reflectors: ArtbookPoint[] = [];
 
@@ -138,30 +188,49 @@ export function createSettingScenery(
     } else if (item.kind === 'paving') {
       drawPaving(street, x, y, item.length ?? 0, c);
     } else if (item.kind === 'lantern') {
-      drawLantern(propLayer(item.at.y), x, y, c);
-      // 光点落在灯体中心（离地 43-6px），不再贴着旧 37px 灯柱的腰。
-      lights.push({ x: x + 8, y: y - LAMP_BODY_BOTTOM - LAMP_BODY_H / 2 });
+      // 柱与横臂是死的（钉在地上）；灯体交给动态层，风摆时整只纸灯平移 1px。
+      drawLanternPole(propLayer(item.at.y), x, y, c);
+      const unit: LampUnit = {
+        x: x + 8,
+        y: y - LAMP_BODY_BOTTOM - LAMP_BODY_H / 2,
+        bodyX: x + 4,
+        bodyY: y - LAMP_BODY_BOTTOM - LAMP_BODY_H,
+        row: item.at.y,
+        hanging: false,
+        order: 0,
+      };
+      lampUnits.push(unit);
       // 池心在灯柱脚下的地面（本格中心偏下 2px），不是灯体高度。
-      pools.push({ x: x + 8, y: y + 10, halfWidth: 0 });
+      pools.push({ x: x + 8, y: y + 10, halfWidth: 0, unit, group: null });
     } else if (item.kind === 'lamp_string') {
+      // 两端短桩是死的；灯绳与六盏纸灯都进动态层，跟着风一起摆。
       const g = propLayer(item.at.y);
       const length = item.length ?? 0;
       const span = length * TILE_PX;
-      // 灯绳：一根带高光的横线 + 两端短桩，挂在街面上方。
-      g.fillStyle(c.trim, 0.55);
-      g.fillRect(x, y - 23, span, 1);
       g.fillStyle(c.timberDark, 1);
-      g.fillRect(x, y - 22, span, 1);
       g.fillRect(x, y - 22, 1, 22);
       g.fillRect(x + span - 1, y - 22, 1, 22);
+      const group: LampGroup = { units: [], pool: -1 };
       for (let i = 0; i < LANTERNS_PER_STRING; i += 1) {
         const lx = x + TILE_PX / 2 + i * (span / LANTERNS_PER_STRING);
-        drawHangingLantern(g, lx, y, c, i);
-        lights.push({ x: lx + 4, y: y - 12 });
+        const unit: LampUnit = {
+          x: lx + 4,
+          y: y - 12,
+          bodyX: lx + 1,
+          bodyY: y - 17,
+          row: item.at.y,
+          hanging: true,
+          order: 0,
+        };
+        lampUnits.push(unit);
+        group.units.push(unit);
       }
       // 一串只落一片长光带：六盏灯各画一圈会把同一条街叠成六层，
       // 亮度没多出来，指令却翻六倍。
-      pools.push({ x: x + span / 2, y: y + 10, halfWidth: span / 2 });
+      group.pool = pools.length;
+      pools.push({ x: x + span / 2, y: y + 10, halfWidth: span / 2, unit: null, group });
+      lampGroups.push(group);
+      stringSpans.push({ x, y, row: item.at.y, span, group });
     } else if (item.kind === 'shopfront') {
       const width = (item.length ?? 5) * TILE_PX;
       const lanterns = drawShopfront(propLayer(item.at.y), x, y, width, c);
@@ -170,7 +239,14 @@ export function createSettingScenery(
       // 檐下红灯比街灯小一档，用 `windows` 的 14x10 光芯就够，不再开大灯池。
       for (const lx of lanterns) windows.push({ x: lx + 2, y: y - SHOPFRONT_TOP + 5 });
       // 檐下那一排灯只落一片贴墙的池子：池心在墙脚外沿（石脚底边再下 8px）。
-      pools.push({ x: x + width / 2, y: y + SHOPFRONT_BASE_H + 8, halfWidth: width / 2 });
+      // 店面的池子不跟街灯渐次：它属于立面，立面没有「逐盏点着」这回事。
+      pools.push({
+        x: x + width / 2,
+        y: y + SHOPFRONT_BASE_H + 8,
+        halfWidth: width / 2,
+        unit: null,
+        group: null,
+      });
     } else if (item.kind === 'signpost') {
       drawSignpost(propLayer(item.at.y), x, y, c);
     } else if (item.kind === 'bridge') {
@@ -263,6 +339,20 @@ export function createSettingScenery(
     }
   }
 
+  // 渐次点亮的顺序：全街按世界 x 从西往东（同一 x 走北侧先）。顺序只由坐标算，
+  // 不写死在清单里——灯柱挪一格，顺序跟着挪，不用改第二份表。
+  lampUnits.sort((a, b) => a.x - b.x || a.y - b.y || a.bodyY - b.bodyY);
+  lampUnits.forEach((unit, index) => { unit.order = index; });
+
+  // 可动的灯体按落地行分层，depth 与同行的静态构件**同一个式子**（`sceneryDepth`）：
+  // 摆动只改几个像素，不能把「站在摊位后应被挡住」那条判据改了。
+  const lampRows = new Map<number, Phaser.GameObjects.Graphics>();
+  for (const unit of lampUnits) {
+    if (lampRows.has(unit.row)) continue;
+    lampRows.set(unit.row, scene.add.graphics().setDepth(sceneryDepth(unit.row, altitude)));
+  }
+  // 灯绳也在动态层：一串一段，摆动时按组里中间那盏的相位走（跨度在构建时已记下）。
+
   // 主楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
   const hall = pack.placements.find((p) => p.prefabId === 'wave_house');
   if (hall !== undefined) {
@@ -288,29 +378,108 @@ export function createSettingScenery(
   return {
     metrics: settingSceneryMetrics(),
     poolCommands: () => lampPool.commandBuffer?.length ?? 0,
+    lampCount: () => lampUnits.length,
+    lampUnits: () => lampUnits.map((unit) => ({
+      order: unit.order,
+      x: unit.x,
+      y: unit.y,
+      hanging: unit.hanging,
+    })),
     update(level, now, clock) {
       lampLight.clear();
       lampPool.clear();
       steam.clear();
-      const lit = clock.litOverride ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
+      for (const layer of lampRows.values()) layer.clear();
+      const override = clock.litOverride;
+      const lit = override ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
+      // 三支动态的开关：缺省全开；关掉哪一支，那一支就退化成常量。
+      const motion = clock.motion ?? LAMP_MOTION_ON;
+      const phase = clock.phase;
+      const total = lampUnits.length;
+      // 亮度只按世界时刻算一遍：**同一世界时刻必然同一帧**。
+      // 强制灯态（证据脚本）也走同一套渐次/呼吸，只是绕过相位总闸——
+      // 「强制亮」说的是灯该亮，不是「把动画冻住」。
+      const brightnessOf = (unit: LampUnit): number => {
+        if (override === false) return 0;
+        if (override === true) {
+          const ignite = motion.ignite ? lampIgnitionProgress(now, unit.order, total) : 1;
+          return ignite * (motion.breathe ? lampBreathAt(now, unit.order) : 1);
+        }
+        return lampBrightnessAt(now, unit.order, total, phase, clock.autoAdvancing, motion);
+      };
+      const swayOf = (unit: LampUnit): { dx: number; dy: number } => (
+        motion.sway ? lampSwayAt(now, unit.order, unit.hanging) : { dx: 0, dy: 0 }
+      );
+      const brightness = new Map<LampUnit, number>();
+      for (const unit of lampUnits) brightness.set(unit, brightnessOf(unit));
+
       // 地面光池：潮位同时定半径与强度（`lamp-pool.ts` 的纯函数），
-      // 这里只负责按椭圆铺几圈、由内到外压淡。
+      // 这里只负责按椭圆铺几圈、由内到外压淡。渐次与呼吸按灯/组各自的亮度
+      // 压在 alpha 上——没点亮的那一盏，脚下不许先亮起来。
       if (lit) {
         for (const pool of pools) {
+          const factor = pool.unit !== null
+            ? brightness.get(pool.unit) ?? 0
+            : pool.group !== null
+              ? pool.group.units.reduce((sum, unit) => sum + (brightness.get(unit) ?? 0), 0)
+                / Math.max(1, pool.group.units.length)
+              : 1;
+          if (factor <= 0) continue;
+          const gain = Math.min(1.1, factor);
           const bands = pool.halfWidth > 0
             ? wideLampPoolBands(level, pool.halfWidth)
             : lampPoolBands(level);
           // 由外到内：外圈宽而淡，内圈窄而亮，中心才是叠起来的暖核。
           for (let i = 0; i < bands.length; i += 1) {
             const band = bands[i]!;
-            lampPool.fillStyle(i === bands.length - 1 ? c.warmLight : c.amber, band.alpha);
+            lampPool.fillStyle(i === bands.length - 1 ? c.warmLight : c.amber, band.alpha * gain);
             lampPool.fillEllipse(pool.x, pool.y, band.rx * 2, band.ry * 2, POOL_SMOOTHNESS);
           }
         }
       }
+      // 街灯的灯体画在自己的动态层（风摆时 1px 平移）；桥灯没有摆动，
+      // 仍在 `lights` 里按亮/灭两态走。
+      for (const unit of lampUnits) {
+        const amount = brightness.get(unit) ?? 0;
+        const sway = swayOf(unit);
+        const layer = lampRows.get(unit.row);
+        if (layer === undefined) continue;
+        if (unit.hanging) {
+          drawHangingLanternAt(layer, unit.bodyX + sway.dx, unit.bodyY + sway.dy, c, unit.order, lit, amount);
+        } else {
+          drawLampBodyAt(layer, unit.bodyX + sway.dx, unit.bodyY + sway.dy, c, lit, amount);
+        }
+      }
+      // 灯绳：中间那段跟着摆，两端仍钉在短桩上。
+      for (const rope of stringSpans) {
+        const middle = rope.group.units[Math.floor(rope.group.units.length / 2)];
+        const dx = middle === undefined ? 0 : swayOf(middle).dx;
+        const layer = lampRows.get(rope.row);
+        if (layer === undefined) continue;
+        const segment = rope.span / 3;
+        for (let i = 0; i < 3; i += 1) {
+          const shift = i === 1 ? dx : 0;
+          const sag = i === 1 ? 1 : 0;
+          layer.fillStyle(c.trim, 0.55);
+          layer.fillRect(rope.x + i * segment + shift, rope.y - 23 + sag, segment, 1);
+          layer.fillStyle(c.timberDark, 1);
+          layer.fillRect(rope.x + i * segment + shift, rope.y - 22 + sag, segment, 1);
+        }
+      }
+      // 灯体周围一圈光晕 + 灯芯；落地的那一圈在 lampPool 里，不在这里。
+      if (lit) {
+        for (const unit of lampUnits) {
+          const amount = brightness.get(unit) ?? 0;
+          if (amount <= 0.02) continue;
+          const sway = swayOf(unit);
+          lampLight.fillStyle(c.amber, (0.13 + level * 0.02) * Math.min(1, amount));
+          lampLight.fillRect(unit.x - 7 + sway.dx, unit.y - 4 + sway.dy, 14, 9);
+          lampLight.fillStyle(c.warmLight, 0.95 * Math.min(1, amount));
+          lampLight.fillRect(unit.x - 2 + sway.dx, unit.y - 3 + sway.dy, 4, 6);
+        }
+      }
       for (const point of lights) {
         if (lit) {
-          // 亮：灯体周围一圈光晕 + 灯芯；落地的那一圈在 lampPool 里，不在这里。
           lampLight.fillStyle(c.amber, 0.13 + level * 0.02);
           lampLight.fillRect(point.x - 7, point.y - 4, 14, 9);
           lampLight.fillStyle(c.warmLight, 0.95);
@@ -353,10 +522,12 @@ export function createSettingScenery(
         lampLight,
         flat,
         ...propRows.values(),
+        ...lampRows.values(),
         architecture,
         steam,
       ]) layer.destroy();
       propRows.clear();
+      lampRows.clear();
     },
   };
 }
@@ -456,12 +627,13 @@ function drawPaving(
 }
 
 /**
- * 街灯柱：杆 + 横臂 + 纸灯体。亮芯由动态层加，不在静态层画。
+ * 街灯柱的**死件**：杆 + 横臂。柱脚落在瓦片下沿（`y + TILE_PX`），柱顶离地 58px。
  *
- * 柱脚落在瓦片下沿（`y + TILE_PX`），柱顶离地 58px；灯体下沿离地 43px，
- * 比人高 30px 再高 13px——人从灯下走过不会被灯体压住头（设定集 p16/p39）。
+ * 纸灯体不在这里画了——它进了按行分层的动态层，风摆时整只灯平移 1px，
+ * 柱子本身钉在地上不动。灯体下沿离地 43px，比人高 30px 再高 13px，
+ * 人从灯下走过不会被灯体压住头（设定集 p16/p39）。
  */
-function drawLantern(
+function drawLanternPole(
   g: Phaser.GameObjects.Graphics,
   x: number,
   y: number,
@@ -470,35 +642,69 @@ function drawLantern(
   g.fillStyle(c.timberDark, 1);
   g.fillRect(x + 7, y - LAMP_POST_TOP, 2, LAMP_POST_TOP + TILE_PX);
   g.fillRect(x + 4, y - LAMP_POST_TOP, 10, 2);
-  g.fillStyle(c.ember, 1);
-  g.fillRect(x + 4, y - LAMP_BODY_BOTTOM - LAMP_BODY_H, 8, LAMP_BODY_H);
-  g.fillStyle(c.trim, 1);
-  g.fillRect(x + 4, y - LAMP_BODY_BOTTOM - LAMP_BODY_H, 8, 1);
-  g.fillStyle(c.ink, 1);
-  g.fillRect(x + 4, y - LAMP_BODY_BOTTOM - 1, 8, 1);
 }
 
-/** 灯串上的一盏：更小，挂在绳下。 */
-function drawHangingLantern(
+/**
+ * 灯柱灯体的动态一帧。`(x, y)` 是灯体左上角（已含风摆位移）。
+ *
+ * 白天（`lit === false`）就是一只纸灯，与旧静态画法一致；
+ * 夜里没点亮时压成暗块，起亮时按 `amount` 从暗纸升到满亮，呼吸再叠 5% 上下。
+ */
+function drawLampBodyAt(
   g: Phaser.GameObjects.Graphics,
   x: number,
   y: number,
   c: SettingPack['palette'],
+  lit: boolean,
+  amount: number,
+): void {
+  if (!lit) {
+    g.fillStyle(c.ember, 1);
+    g.fillRect(x, y, 8, LAMP_BODY_H);
+    g.fillStyle(c.ink, 0.28);
+    g.fillRect(x + 1, y + 1, 6, 8);
+  } else if (amount <= 0.02) {
+    g.fillStyle(c.ink, 0.28);
+    g.fillRect(x + 1, y + 1, 6, 8);
+  } else {
+    g.fillStyle(c.ember, 0.32 + 0.68 * Math.min(1, amount));
+    g.fillRect(x, y, 8, LAMP_BODY_H);
+  }
+  g.fillStyle(c.trim, 1);
+  g.fillRect(x, y, 8, 1);
+  g.fillStyle(c.ink, 1);
+  g.fillRect(x, y + LAMP_BODY_H - 1, 8, 1);
+}
+
+/** 灯串上的一盏的动态一帧：`(bx, by)` 是纸灯左上角（已含风摆位移）。 */
+function drawHangingLanternAt(
+  g: Phaser.GameObjects.Graphics,
+  bx: number,
+  by: number,
+  c: SettingPack['palette'],
   index: number,
+  lit: boolean,
+  amount: number,
 ): void {
   const paper = index % 2 === 0 ? c.ember : c.terracotta;
   g.fillStyle(c.pale, 0.5);
-  g.fillRect(x + 3, y - 22, 1, 4);
+  g.fillRect(bx + 2, by - 5, 1, 4);
   g.fillStyle(c.timberDark, 1);
-  g.fillRect(x + 1, y - 18, 7, 1);
-  g.fillStyle(paper, 1);
-  g.fillRect(x + 1, y - 17, 7, 9);
+  g.fillRect(bx, by - 1, 7, 1);
+  if (!lit) {
+    g.fillStyle(paper, 1);
+  } else if (amount <= 0.02) {
+    g.fillStyle(c.ink, 0.5);
+  } else {
+    g.fillStyle(paper, 0.35 + 0.65 * Math.min(1, amount));
+  }
+  g.fillRect(bx, by, 7, 9);
   g.fillStyle(c.trim, 1);
-  g.fillRect(x + 1, y - 17, 7, 1);
-  g.fillStyle(c.pale, 0.75);
-  g.fillRect(x + 2, y - 9, 5, 1);
+  g.fillRect(bx, by, 7, 1);
+  g.fillStyle(c.pale, lit && amount <= 0.02 ? 0.35 : 0.75);
+  g.fillRect(bx + 1, by + 8, 5, 1);
   g.fillStyle(c.ink, 1);
-  g.fillRect(x + 1, y - 8, 7, 1);
+  g.fillRect(bx, by + 9, 7, 1);
 }
 
 /** 店铺立面：灰泥墙 + 木框 + 两扇格窗 + 暖帘 + 竖招牌。 */

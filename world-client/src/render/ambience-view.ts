@@ -20,15 +20,19 @@ const AMBIENCE_DEPTH = 7990;
 
 export interface AmbienceView {
   update(now: number, phase: PhaseId, view: { x: number; y: number; width: number; height: number }): void;
+  /** 证据脚本隔离用：藏起来时清空并停画，不占像素也不改 `now` 的判据。 */
+  setHidden(hidden: boolean): void;
 }
 
 export function createAmbienceView(scene: Phaser.Scene): AmbienceView {
   const g = scene.add.graphics();
   g.setDepth(AMBIENCE_DEPTH);
+  let hidden = false;
 
   return {
     update(now, phase, view) {
       g.clear();
+      if (hidden) return;
       const actors = ambienceAt(now, phase);
       // 相机世界坐标换算成格：shouldAnimateAt 收的是格坐标。
       const cellView = {
@@ -42,6 +46,10 @@ export function createAmbienceView(scene: Phaser.Scene): AmbienceView {
         if (actor.kind === 'bird') drawBird(g, actor);
         else drawBat(g, actor);
       }
+    },
+    setHidden(value) {
+      hidden = value;
+      if (value) g.clear();
     },
   };
 }
