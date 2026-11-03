@@ -49,6 +49,7 @@ import Phaser from 'phaser';
 import type { WorldGrid } from '../world/grid.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { WORLD } from '../world/palette-data.ts';
+import { bakeLayer } from './bake.ts';
 
 /**
  * 水面最高处的浓度。
@@ -76,59 +77,72 @@ export function createTideView(
 ): TideView {
   // 水在地面层之上、建筑与角色之下：depth 3 与天气水洼（2）分开，
   // 免得两者叠在一起互相压暗。
-  const water = scene.add.graphics();
-  water.setDepth(3);
-  water.setVisible(false);
+  //
+  // **必须烘成纹理。** 原先是一张每拍 `clear()` 再按淹没格重画的 Graphics：
+  // 低潮 16k 条指令没问题，满潮时 96×72 的淹没格把整帧推到 119k，超出 30k
+  // 的渲染预算。默认改真实时钟后页面常在满潮开局，这条闸门才第一次照出来。
+  // 纹理只在潮位变化 >=0.002 时重烘，和旧逻辑同一条节流；水面本身是静态贴图。
+  const key = `tide-water-${grid.width}x${grid.height}`;
+  let levelNow = 0;
+  const layer = bakeLayer(
+    scene,
+    key,
+    originX + grid.width * TILE_PX,
+    originY + grid.height * TILE_PX,
+    3,
+    (g) => {
+      if (levelNow <= 0.01) return;
+      const alpha = Math.min(MAX_WATER_ALPHA, levelNow * MAX_WATER_ALPHA);
+      // 潮位越高，水色越深一档：退潮时是浅滩，满潮时是深水。
+      const body = levelNow > 0.66 ? colors.deepShade : colors.water;
+
+      for (let y = 0; y < grid.height; y += 1) {
+        for (let x = 0; x < grid.width; x += 1) {
+          const p = { x, y };
+          if (!grid.isFloodedAt(p)) continue;
+          const px = originX + x * TILE_PX;
+          const py = originY + y * TILE_PX;
+
+          // 水下压暗：让被淹的地形读起来是"在下面"，而不是"换了个颜色"。
+          g.fillStyle(colors.ink, SUBMERGE_DIM * Math.min(1, levelNow * 1.4));
+          g.fillRect(px, py, TILE_PX, TILE_PX);
+
+          g.fillStyle(body, alpha);
+          g.fillRect(px, py, TILE_PX, TILE_PX);
+
+          // 水边泡沫：只在没被淹的邻居那一侧画 1px，水线才有形。
+          if (!grid.isFloodedAt({ x, y: y - 1 })) {
+            g.fillStyle(colors.pale, Math.min(0.85, alpha + 0.2));
+            g.fillRect(px, py, TILE_PX, 1);
+          }
+          if (!grid.isFloodedAt({ x: x - 1, y })) {
+            g.fillStyle(colors.pale, Math.min(0.85, alpha + 0.2));
+            g.fillRect(px, py, 1, TILE_PX);
+          }
+        }
+      }
+    },
+  );
+  layer.image.setVisible(false);
 
   let lastLevel = -1;
 
-  const paint = (level: number): void => {
-    water.clear();
-    if (level <= 0.01) {
-      water.setVisible(false);
-      return;
-    }
-    water.setVisible(true);
-    const alpha = Math.min(MAX_WATER_ALPHA, level * MAX_WATER_ALPHA);
-    // 潮位越高，水色越深一档：退潮时是浅滩，满潮时是深水。
-    const body = level > 0.66 ? colors.deepShade : colors.water;
-
-    for (let y = 0; y < grid.height; y += 1) {
-      for (let x = 0; x < grid.width; x += 1) {
-        const p = { x, y };
-        if (!grid.isFloodedAt(p)) continue;
-        const px = originX + x * TILE_PX;
-        const py = originY + y * TILE_PX;
-
-        // 水下压暗：让被淹的地形读起来是"在下面"，而不是"换了个颜色"。
-        water.fillStyle(colors.ink, SUBMERGE_DIM * Math.min(1, level * 1.4));
-        water.fillRect(px, py, TILE_PX, TILE_PX);
-
-        water.fillStyle(body, alpha);
-        water.fillRect(px, py, TILE_PX, TILE_PX);
-
-        // 水边泡沫：只在没被淹的邻居那一侧画 1px，水线才有形。
-        if (!grid.isFloodedAt({ x, y: y - 1 })) {
-          water.fillStyle(colors.pale, Math.min(0.85, alpha + 0.2));
-          water.fillRect(px, py, TILE_PX, 1);
-        }
-        if (!grid.isFloodedAt({ x: x - 1, y })) {
-          water.fillStyle(colors.pale, Math.min(0.85, alpha + 0.2));
-          water.fillRect(px, py, 1, TILE_PX);
-        }
-      }
-    }
-  };
-
   return {
     update: (level: number): void => {
-      // 潮位变化小于 0.002 时不必重画：每帧重建整张水面在 96×72 上太贵。
+      // 潮位变化小于 0.002 时不必重烘：整张水面纹理重建在 96×72 上仍不便宜。
       if (Math.abs(level - lastLevel) < 0.002) return;
       lastLevel = level;
-      paint(level);
+      levelNow = level;
+      if (level <= 0.01) {
+        layer.image.setVisible(false);
+        return;
+      }
+      layer.image.setVisible(true);
+      layer.rebake();
     },
     destroy: (): void => {
-      water.destroy();
+      layer.destroy();
+      if (scene.textures.exists(key)) scene.textures.remove(key);
     },
   };
 }
