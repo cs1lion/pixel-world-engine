@@ -168,9 +168,11 @@ function oneDayTiming(
  */
 function fastestDayCpu(
   buildingIds: readonly string[],
-  day = 1,
+  day: number,
   attempts = CPU_ATTEMPTS,
 ): {
+  /** 这批样本实际量的是第几天。调用方用它守住「比的不是自己」。 */
+  day: number;
   cpuMs: number;
   wallMs: number;
   samples: readonly { cpuMs: number; wallMs: number }[];
@@ -178,11 +180,15 @@ function fastestDayCpu(
   const samples = [];
   for (let i = 0; i < attempts; i += 1) samples.push(oneDayTiming(buildingIds, day));
   return {
+    day,
     cpuMs: Math.min(...samples.map((sample) => sample.cpuMs)),
     wallMs: Math.min(...samples.map((sample) => sample.wallMs)),
     samples,
   };
 }
+
+/** 规模对照量的是第几天：第 1 天是所有断言出生的那天，最贵也最有信号。 */
+const SCALE_COMPARE_DAY = 1;
 
 /** 交错采样轮数。原先 3 轮；并行压测里 3 轮不够，见下面的注释。 */
 const INTERLEAVED_ROUNDS = 5;
@@ -209,7 +215,12 @@ function interleavedMinMilliseconds(
   a: readonly string[],
   b: readonly string[],
   day: number,
-): [number, number] {
+): {
+  halfMs: number;
+  allMs: number;
+  /** 两组各自实际量的是第几天，由调用方断言「同一天、且是想要的那一天」。 */
+  days: readonly [number, number];
+} {
   // 不计时的预热：把 `dayClosed` 的 JIT 与首次分配挡在采样之外。
   oneDayTiming(a, day);
   oneDayTiming(b, day);
@@ -219,7 +230,7 @@ function interleavedMinMilliseconds(
     as.push(oneDayTiming(a, day).wallMs);
     bs.push(oneDayTiming(b, day).wallMs);
   }
-  return [Math.min(...as), Math.min(...bs)];
+  return { halfMs: Math.min(...as), allMs: Math.min(...bs), days: [day, day] };
 }
 
 test('两个出货世界的 holder 数：设定集十六个，默认世界十三个', () => {
@@ -240,7 +251,7 @@ test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5
   // 10 轮红 2 轮、读数 54.62/100.28ms。CPU 时间不把被换出去的时间算进来；
   // `CEILING_MS` 一个字没动。
   const buildings = defaultWorldBuildingIds();
-  const day1 = fastestDayCpu(buildings);
+  const day1 = fastestDayCpu(buildings, 1);
   t.diagnostic(
     `默认世界第 1 天：CPU 三次取最小 ${day1.cpuMs.toFixed(2)}ms`
       + `（三次 ${day1.samples.map((sample) => sample.cpuMs.toFixed(2)).join(' / ')}；`
@@ -261,6 +272,13 @@ test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5
   t.diagnostic(
     `默认世界第 6 天：CPU 三次取最小 ${steady.cpuMs.toFixed(2)}ms`
       + `（墙钟三次最小 ${steady.wallMs.toFixed(2)}ms，仅附注）`,
+  );
+  // 守卫：两组样本必须来自**不同**的一天。曾经 `fastestDayCpu` 把 day 写成常量
+  // 1，于是下面那条方向断言在原地比第 1 天自己、恒真——永远不红，却看着像有闸。
+  assert.ok(
+    day1.day === 1 && steady.day === 6,
+    `方向闸的两组样本必须来自不同的一天：这次读到第 ${day1.day} 天与第 ${steady.day} 天——`
+      + '若两者相同，下面的比较就是拿它和自己比，永远为真。',
   );
   assert.ok(
     steady.wallMs < day1.wallMs * 2,
@@ -289,7 +307,16 @@ test('传播的代价随规模走：holder 少一半的那次不该更贵', () =
   // 抓它的是上面那道 50ms 的绝对闸，不是这一条。
   const half = Array.from({ length: 80 }, (_, i) => `b${i}`);
   const all = Array.from({ length: 144 }, (_, i) => `b${i}`);
-  const [halfMs, allMs] = interleavedMinMilliseconds(half, all, 1);
+  const scale = interleavedMinMilliseconds(half, all, SCALE_COMPARE_DAY);
+  // 守卫：两侧必须量的是同一天，且是想要的那一天。原先这里是字面量 1，
+  // 两处抄错会一起错、闸照样绿——一条比不出错的对照，等于没有对照。
+  assert.deepEqual(
+    scale.days,
+    [SCALE_COMPARE_DAY, SCALE_COMPARE_DAY],
+    `规模对照的两侧必须量同一天：这次读到第 ${scale.days[0]} 天与第 ${scale.days[1]} 天`
+      + `（期望都是第 ${SCALE_COMPARE_DAY} 天）`,
+  );
+  const { halfMs, allMs } = scale;
   assert.ok(
     halfMs < allMs * 2,
     `${half.length + VILLAGERS.length} 个 holder 的世界（${halfMs.toFixed(2)}ms）比 `
