@@ -327,6 +327,16 @@
       .unit-status-row { display: flex; gap: 8px; align-items: baseline; }
       .unit-status-key { color: var(--dim); white-space: nowrap; }
       .unit-status-value { flex: 1 1 auto; }
+      .unit-status-today {
+        margin-top: 6px;
+        padding-top: 4px;
+        border-top: 1px solid var(--line);
+        color: var(--dim);
+      }
+      .unit-status-today > summary { cursor: pointer; color: var(--amber); }
+      .unit-status-today-item { margin-top: 3px; padding-left: 8px; }
+      .unit-status-today-item > summary { cursor: pointer; }
+      .unit-status-today-detail { padding-left: 8px; color: var(--dim); font-size: 11px; }
       #unit-status .unit-status-placeholder {
         margin-top: 6px;
         padding-top: 4px;

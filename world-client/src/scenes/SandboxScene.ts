@@ -816,7 +816,7 @@ export class SandboxScene extends Phaser.Scene {
       grid: this.world.grid,
       buildings: this.world.buildings,
       altar: this.world.altar,
-      villagerName: this.villagerName,
+      villagerName: this.villagerName, worldSeed: this.pack?.id ?? 'wandong',
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
         villagerProfiles: routineProfiles(this.pack),
@@ -1322,6 +1322,7 @@ export class SandboxScene extends Phaser.Scene {
       // 真实时钟模式：步长恒为 `LOGIC_STEP_MS`，`timeScale` 不参与，
       // 于是墙钟走 1 秒、世界也走 1 秒。
       const stepMs = this.clockMode === 'real' ? LOGIC_STEP_MS : LOGIC_STEP_MS * this.timeScale;
+      this.sim.setSocialContext(this.socialContextFromMemory());
       const results = this.sim.update(stepMs);
       for (const result of results) {
         this.speak(result);
@@ -2537,6 +2538,7 @@ export class SandboxScene extends Phaser.Scene {
         };
       },
       bondsOf: (holderId) => this.memory?.bondsOf(holderId) ?? [],
+      dayTimelineOf: (holderId, day) => this.memory?.dayTimelineFor(holderId, day) ?? [],
       moodOf: (holderId) => this.memory?.moodOf(holderId) ?? null,
       innerVoiceOf: (holderId) => this.memory?.innerVoiceOf(holderId) ?? null,
     };
@@ -3987,5 +3989,34 @@ export class SandboxScene extends Phaser.Scene {
   private buildingName(id: string | null): string | null {
     if (id === null) return null;
     return this.snapshot.buildings.find((item) => item.instanceId === id)?.displayName ?? null;
+  }
+
+  /**
+   * 每帧从关系账本算一遍交下去的社会读数。
+   *
+   * 这是「记忆反过来影响行为」的唯一接线处：世界不读记忆，读的是这里交下去
+   * 的 `trust` / `warmth` 与「躲开谁」。阈值在 `liveliness.ts`，不在这里——
+   * 同一个数被两处写死过一次，改一处忘另一处，屏幕上的行为与记忆里的账
+   * 就会说两套话。
+   *
+   * 无记忆（`memory` 尚未构造）时返回空账：世界照旧运行，与从前逐字节相同。
+   */
+  private socialContextFromMemory(): {
+    relations: { from: string; to: string; trust: number; warmth: number }[];
+    avoid: { villagerId: string; otherId: string }[];
+  } {
+    const villagers = this.snapshot?.villagers ?? [];
+    const ids = new Set(villagers.map((villager) => villager.id));
+    const relations: { from: string; to: string; trust: number; warmth: number }[] = [];
+    const avoid: { villagerId: string; otherId: string }[] = [];
+    if (this.memory === undefined) return { relations, avoid };
+    for (const villager of villagers) {
+      for (const bond of this.memory.bondsOf(villager.id)) {
+        if (!ids.has(bond.to)) continue;
+        relations.push({ from: villager.id, to: bond.to, trust: bond.trust, warmth: bond.warmth });
+        if (bond.trust < -0.15) avoid.push({ villagerId: villager.id, otherId: bond.to });
+      }
+    }
+    return { relations, avoid };
   }
 }

@@ -13,8 +13,9 @@
  * 「谁是 v0、他在哪」，也不该知道。
  */
 
-import type { WorldChange } from '../world-changes.ts';
+import type { WorldChange, WorldEventKind } from '../world-changes.ts';
 import type { RuntimeObservation } from './runtime.ts';
+import type { BondDelta } from './world.ts';
 
 /** 调用方要能回答的三个问题。答不上来的就返回 `undefined`，事件会被跳过。 */
 export interface ObservationLookups {
@@ -26,6 +27,116 @@ export interface ObservationLookups {
   ) => { readonly x: number; readonly y: number } | undefined;
   /** 某个任务是在哪栋楼里做的。 */
   readonly buildingOfTask: (taskId: string) => string | undefined;
+}
+
+/** 世界事件的分量：街头小事比「今天做过活」重，互动只是见过一面。 */
+export function worldEventImportance(kind: WorldEventKind): number {
+  switch (kind) {
+    case 'street_tumble':
+    case 'street_water':
+    case 'street_help':
+      return 0.65;
+    case 'street_quarrel':
+      return 0.55;
+    case 'street_greet':
+    case 'street_yield':
+    case 'street_together':
+      return 0.45;
+    case 'daily_water':
+    case 'daily_lamp':
+      return 0.35;
+    case 'routine_done':
+      return 0.3;
+    case 'tide_turn':
+      return 0.28;
+  }
+}
+
+export function worldEventValence(kind: WorldEventKind): number {
+  switch (kind) {
+    case 'street_help':
+      return 0.6;
+    case 'street_together':
+      return 0.3;
+    case 'street_greet':
+      return 0.2;
+    case 'street_yield':
+      return 0.1;
+    case 'street_quarrel':
+      return -0.35;
+    case 'street_tumble':
+      return -0.5;
+    case 'street_water':
+      return -0.55;
+    case 'daily_water':
+    case 'daily_lamp':
+      return 0.15;
+    case 'routine_done':
+      return 0.1;
+    case 'tide_turn':
+      return 0;
+  }
+}
+
+export function worldEventArousal(kind: WorldEventKind): number {
+  switch (kind) {
+    case 'street_tumble':
+    case 'street_water':
+    case 'street_help':
+      return 0.55;
+    case 'street_quarrel':
+      return 0.45;
+    case 'street_greet':
+    case 'street_yield':
+    case 'street_together':
+      return 0.3;
+    case 'tide_turn':
+      return 0.35;
+    default:
+      return 0.25;
+  }
+}
+
+/**
+ * 街头小事的方向性账本。
+ *
+ * `actor` 是动手的那一位，`other` 是被撞 / 被抢 / 被帮的那一位。每一对
+ * 记**两条**，因为 A 对 B 与 B 对 A 是两条独立的账：
+ *
+ * - 撞翻担子：被撞的人对撞人者掉信任；撞人者对被撞者**略微**升温
+ *   （愧疚不是好感，只是往后会留神）。
+ * - 抢水：两边都掉，但被抢的那一边掉得更多——发起的那一边只是不讲理，
+ *   被抢的那一边是实打实没喝上。
+ * - 帮忙抬货：被帮的人涨得更多，并欠下一笔 `debt`；帮忙的人自己也有
+ *   「做了件好事」的正向读数，但不把对方的回礼提前记成好感。
+ *
+ * 数值是**直接落账**，不经过 `bumpBond` 的 valence 折算——街头小事要的
+ * 就是「同一件事在两个人账上不一样」。
+ */
+export function incidentBondDeltas(
+  kind: WorldEventKind,
+  actor: string,
+  other: string,
+): readonly BondDelta[] | undefined {
+  switch (kind) {
+    case 'street_tumble':
+      return [
+        { from: other, to: actor, trust: -0.22, warmth: -0.16 },
+        { from: actor, to: other, trust: 0.04, warmth: 0.03 },
+      ];
+    case 'street_water':
+      return [
+        { from: other, to: actor, trust: -0.16, warmth: -0.1 },
+        { from: actor, to: other, trust: -0.1, warmth: -0.07 },
+      ];
+    case 'street_help':
+      return [
+        { from: other, to: actor, trust: 0.2, warmth: 0.18, debt: 0.18 },
+        { from: actor, to: other, trust: 0.1, warmth: 0.1 },
+      ];
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -139,20 +250,30 @@ export function observationOf(
       // `actors` 是**当事人**，不是目击者：日常落点就是那个村民。少了它，
       // 她对这件事的卷入度只有先验的 0.15，显著度 0.4375 掉到 0.225，
       // 够不着 `T_write`——她自己的一天她一件也记不住。
+      //
+      // `street_*` 是两个人之间的事：`actorId` 是动手的那一位，`otherId`
+      // 是被撞 / 被抢 / 被帮的那一位。两个人都是当事人——只记动手的那一位，
+      // 被撞的人那一天就等于没发生过这件事，而关系账本该改的正是她。
+      const actor = change.actorId;
+      const other = change.otherId ?? null;
+      const actors = actor === null
+        ? []
+        : other === null || other === actor ? [actor] : [actor, other];
       return {
         eventId,
         kind: change.kind,
         placeId: change.placeId,
         at: change.where,
-        actors: change.actorId === null ? [] : [change.actorId],
+        actors,
         outcome: { what: change.text },
-        importanceHint: 0.35,
+        importanceHint: worldEventImportance(change.kind),
         // 每日小事是她自己的一天里做得成的事：比潮水多一点温度，比交付轻。
-        valence:
-          change.kind === 'routine_done' ? 0.1
-            : change.kind === 'daily_water' || change.kind === 'daily_lamp' ? 0.15
-              : 0,
-        arousal: change.kind === 'tide_turn' ? 0.35 : 0.25,
+        // 街头小事有真正的情绪方向；互动只是「今天见过」。
+        valence: worldEventValence(change.kind),
+        arousal: worldEventArousal(change.kind),
+        ...(other === null || actor === null || other === actor
+          ? {}
+          : { bondDeltas: incidentBondDeltas(change.kind, actor, other) }),
       };
     }
 

@@ -65,6 +65,32 @@ export interface UnitMemoryReader {
   moodOf?(holderId: string): UnitMoodLine | null;
   /** 面板内心话；只读，不写公开 bubble。 */
   innerVoiceOf?(holderId: string): UnitInnerLine | null;
+  /**
+   * 某一天的个人时间线。省略时面板不显示「今日」一段——老适配器不需要改。
+   * 每格带 `memoryId` / `eventId`，点开能回到记忆条目。
+   */
+  dayTimelineOf?(holderId: string, day: number): readonly UnitDayTimelineEntry[];
+}
+
+export interface UnitDayTimelineEntry {
+  readonly memoryId: string;
+  readonly eventId: string;
+  readonly kind: string;
+  readonly day: number;
+  readonly when: number;
+  readonly placeId: string | null;
+  readonly actors: readonly string[];
+  readonly what: string | null;
+}
+
+/** 面板里的一格「今日」：事件 + 地点 + 对象，点开对应记忆条目。 */
+export interface UnitTimelineLine {
+  readonly clock: string;
+  readonly what: string;
+  readonly place: string;
+  readonly who: string;
+  readonly memoryId: string;
+  readonly eventId: string;
 }
 
 /** 构造器只需要快照里的这几块，便于测试直接喂最小数据。 */
@@ -89,6 +115,8 @@ export interface UnitStatusContent {
   readonly title: string;
   readonly subtitle: string;
   readonly lines: readonly UnitStatusLine[];
+  /** 「今天经历过什么」。只对村民有；没有记忆适配器时整段缺席。 */
+  readonly today?: readonly UnitTimelineLine[];
 }
 
 const CARRY_LABELS: Readonly<Record<string, string>> = {
@@ -184,6 +212,52 @@ function innerLines(villagerId: string, memory: UnitMemoryReader | null): UnitSt
   return inner === null ? [] : [{ key: '心里', value: inner.text }];
 }
 
+function clockOf(when: number): string {
+  const rest = when - Math.floor(when / DAY_MS) * DAY_MS;
+  const minutes = Math.floor(rest / 60_000);
+  const hours = Math.floor(minutes / 60);
+  return `${String(hours).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+function placeLabel(placeId: string | null, world: UnitStatusWorld): string {
+  if (placeId === null) return '地点不明';
+  if (placeId.startsWith('place:')) {
+    const [x, y] = placeId.slice('place:'.length).split(',');
+    return `街上 (${x}, ${y})`;
+  }
+  return world.buildings.find((item) => item.instanceId === placeId)?.displayName ?? placeId;
+}
+
+/**
+ * 「今天经历过什么」：一条按时间排的个人时间线，每格带事件、地点、对象，
+ * 以及它对应的记忆条目 id。
+ *
+ * 只读 `dayTimelineOf`；适配器没给就整段缺席，不去猜别人的今天。
+ */
+function timelineLines(
+  villager: VillagerSnapshot,
+  world: UnitStatusWorld,
+  memory: UnitMemoryReader | null,
+): UnitTimelineLine[] {
+  const reader = memory?.dayTimelineOf;
+  if (reader === undefined) return [];
+  const day = Math.floor(world.now / DAY_MS);
+  const names = new Map(world.villagers.map((item) => [item.id, item.name]));
+  return reader(villager.id, day).map((entry) => {
+    const others = entry.actors
+      .filter((id) => id !== villager.id)
+      .map((id) => names.get(id) ?? id);
+    return {
+      clock: clockOf(entry.when),
+      what: entry.what ?? `${entry.kind}（没有留下说法）`,
+      place: placeLabel(entry.placeId, world),
+      who: others.length === 0 ? '独自' : `与 ${others.join('、')}`,
+      memoryId: entry.memoryId,
+      eventId: entry.eventId,
+    };
+  });
+}
+
 function villagerContent(
   villager: VillagerSnapshot,
   world: UnitStatusWorld,
@@ -227,12 +301,14 @@ function villagerContent(
     ...attitudeLines(villager, world, memory),
   ];
 
+  const today = timelineLines(villager, world, memory);
   return {
     kind: 'villager',
     id: villager.id,
     title: villager.name,
     subtitle: `村民 ${villager.id}`,
     lines,
+    ...(today.length === 0 ? {} : { today }),
   };
 }
 
@@ -433,20 +509,40 @@ export function bindUnitStatusPanel(oracle: () => UnitStatusOracle | undefined):
     panel.hidden = false;
     title.textContent = view.content.title;
     subtitle.textContent = view.content.subtitle;
-    body.replaceChildren(
-      ...view.content.lines.map((line) => {
-        const row = document.createElement('div');
-        row.className = 'unit-status-row';
-        const key = document.createElement('span');
-        key.className = 'unit-status-key';
-        key.textContent = line.key;
-        const value = document.createElement('span');
-        value.className = 'unit-status-value';
-        value.textContent = line.value;
-        row.append(key, value);
-        return row;
-      }),
-    );
+    const rows: HTMLElement[] = view.content.lines.map((line) => {
+      const row = document.createElement('div');
+      row.className = 'unit-status-row';
+      const key = document.createElement('span');
+      key.className = 'unit-status-key';
+      key.textContent = line.key;
+      const value = document.createElement('span');
+      value.className = 'unit-status-value';
+      value.textContent = line.value;
+      row.append(key, value);
+      return row;
+    });
+    const today = view.content.today ?? [];
+    if (today.length > 0) {
+      const section = document.createElement('details');
+      section.className = 'unit-status-today';
+      section.open = true;
+      const summary = document.createElement('summary');
+      summary.textContent = `今日 ${today.length} 件`;
+      section.append(summary);
+      for (const entry of today) {
+        const item = document.createElement('details');
+        item.className = 'unit-status-today-item';
+        const head = document.createElement('summary');
+        head.textContent = `${entry.clock} · ${entry.what}`;
+        const detail = document.createElement('div');
+        detail.className = 'unit-status-today-detail';
+        detail.textContent = `${entry.place} · ${entry.who} · 记忆 ${entry.memoryId} · 事件 ${entry.eventId}`;
+        item.append(head, detail);
+        section.append(item);
+      }
+      rows.push(section);
+    }
+    body.replaceChildren(...rows);
     panel.style.left = `${Math.round(view.anchor.x)}px`;
     panel.style.top = `${Math.round(view.anchor.y)}px`;
   };
