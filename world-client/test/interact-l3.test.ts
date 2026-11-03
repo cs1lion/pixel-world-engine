@@ -24,7 +24,7 @@ import { MemoryHistoryStore } from '../src/world/history/store.ts';
 import { fnv1a64Hex } from '../src/world/save.ts';
 import { installFakeDom } from './fake-dom.ts';
 import { bindOraclePanel, type OracleApi } from '../src/ui/oracle-panel.ts';
-import { buildUnitStatus, type UnitStatusContent } from '../src/ui/unit-status.ts';
+import { buildUnitStatus, type UnitStatusContent, type UnitMemoryReader } from '../src/ui/unit-status.ts';
 
 const blueprints = parseBlueprintTable(
   JSON.parse(
@@ -50,6 +50,32 @@ function makeRig(): { sim: Simulation; deps: SimulationDeps } {
 
 function labelOf(content: UnitStatusContent, name: string): string {
   return content.lines.find((line) => line.key === name)?.value ?? '';
+}
+
+/**
+ * 场景里 `unitMemoryReader()` 的同一份只读适配：`MemoryRuntime` 的 `viewOf`
+ * 返回的是整个 HolderView，面板只拿它认识的字段。
+ */
+function readerOf(memory: MemoryRuntime): UnitMemoryReader {
+  return {
+    viewOf: (holderId) => {
+      const view = memory.viewOf(holderId);
+      if (view === null) return null;
+      return {
+        memories: view.memories.map((entry) => ({
+          kind: entry.kind,
+          who: entry.content.who,
+          valence: entry.content.valence,
+          arousal: entry.content.arousal,
+          createdDay: entry.createdDay,
+          redacted: entry.redacted,
+        })),
+      };
+    },
+    bondsOf: (holderId) => memory.bondsOf(holderId),
+    moodOf: (holderId) => memory.moodOf(holderId),
+    innerVoiceOf: (holderId) => memory.innerVoiceOf(holderId),
+  };
 }
 
 /** 神谕面板的假 API：只记录 `say` 收到了什么。 */
@@ -222,8 +248,8 @@ test('L3-2 回溯只读：拖到第 N 天再点单位，读数仍是当前这一
   const historical = Simulation.fromSave(rewind.save, deps).snapshot();
   assert.equal(historical.now, dayOneNow, '回溯出来的存档就是那一天');
   const ref = { kind: 'villager' as const, id: villagerId };
-  const panelNow = buildUnitStatus(current, ref, memory);
-  const panelThen = buildUnitStatus(historical, ref, memory);
+  const panelNow = buildUnitStatus(current, ref, readerOf(memory));
+  const panelThen = buildUnitStatus(historical, ref, readerOf(memory));
   assert.ok(panelNow !== null && panelThen !== null);
 
   const currentPos = current.villagers.find((item) => item.id === villagerId)!.pos;
@@ -232,6 +258,11 @@ test('L3-2 回溯只读：拖到第 N 天再点单位，读数仍是当前这一
     labelOf(panelNow, '位置'),
     `格子 (${Math.floor(currentPos.x)}, ${Math.floor(currentPos.y)})`,
     '点单位读的是当前这一份',
+  );
+  assert.equal(
+    labelOf(panelThen, '位置'),
+    `格子 (${Math.floor(thenPos.x)}, ${Math.floor(thenPos.y)})`,
+    '同一份历史快照能读出那一天的位置',
   );
   assert.notEqual(
     labelOf(panelThen, '位置'),
@@ -278,7 +309,7 @@ test('L3-3 存档读写后重开：面板读数逐行复原', () => {
   memory.tick(DAY_MS);
 
   const ref = { kind: 'villager' as const, id: villager.id };
-  const before = buildUnitStatus(sim.snapshot(), ref, memory);
+  const before = buildUnitStatus(sim.snapshot(), ref, readerOf(memory));
   assert.ok(before !== null);
   assert.match(labelOf(before, '情绪'), /效价/, '存档前就有一行可读的情绪');
 
@@ -291,7 +322,7 @@ test('L3-3 存档读写后重开：面板读数逐行复原', () => {
     `记忆段能读回来（${String(saved.world.memory).slice(0, 120)}）`,
   );
 
-  const after = buildUnitStatus(restored.snapshot(), ref, restoredMemory);
+  const after = buildUnitStatus(restored.snapshot(), ref, readerOf(restoredMemory));
   assert.ok(after !== null);
   assert.deepEqual(after, before, '标题、副标题与每一行读数都逐字复原');
 });
