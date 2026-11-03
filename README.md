@@ -28,11 +28,12 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                206 个测试文件 <!-- claim: test-file-count=206 -->
+└── test/                209 个测试文件 <!-- claim: test-file-count=209 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
 ├── memory/              记忆写入：形状、证据、路径三道关
+├── creation_ledger/     造物账本：只增 JSONL（`data/creation-ledger/`）与查询端点
 └── oracle/              LLM 造物主接口
 docs/                    设计与决策
 ├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
@@ -150,8 +151,8 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 > 里建它，世界、种子与时钟都由场景给（引擎不再自造 `'default-seed'` 或读 `Date.now()`）。
 > 玩家在造物模式里确认一次，就是一次真实的人工确认；引擎校验后把计划交回场景，
 > 由 `Simulation.enqueue({ kind: 'build' })` 落地——与手动造物同一条通道。
-> 世界日结束时场景调 `closeWorldDay()` 与 `processDayClosed(vitals)`，只有
-> `evaluateFuseDecision` 说 `allow` 时才让引擎自己提议一次。
+> 世界日结束时场景调 `closeWorldDay()` 与 `processDayClosed(vitals)`，并先算一次提案、
+> 把门禁读数记进账本；只有 `evaluateFuseDecision` 说 `allow` 时才把计划入队。
 >
 > **两项观测在落地之后才算**（`src/creator/landing.ts`）：`pathfindingConnected`
 > 用落地后的真实网格判门口到不到得了镇心（围死就是 `false`）；`replayHashConsistent`
@@ -174,6 +175,30 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 自治爬梯 L0–L4 的目标形态与今天的形态差在哪，
 见 [`docs/iterations/1027-task-2/creator-engine-architecture.md`](docs/iterations/1027-task-2/creator-engine-architecture.md)
 ——那份文档第一节的组件图是**目标**，第六节末写明了哪个入口还没落地。
+
+### 造物账本（外挂日志，不进存档）
+
+每次造物留三条只增记录，用 `proposalId` 挂在一起：
+
+| 记录 | 何时写 | 记什么 |
+| --- | --- | --- |
+| `creation` | 提案那一刻（过不过都写） | id、世界日、模板/类型、意图文本、目标格位、**逐项门禁读数**（观测值 / 阈值 / 通过与否）、L0–L4 爬梯快照、拒绝原因、回放指纹（种子 + 事件区间） |
+| `landing` | `building.built` 之后（或确认没落地） | 是否真的落地、建筑 id、原点/门口、落地后补测的覆盖率 / 寻路 / 碰撞 / 约束 / 不变式 / 回放 |
+| `observation` | 落地后第 7 个世界日 | 仍在 / 被拆 / 被改 / 不见了；被改只认占地或门口真的变了、或记忆层改了名 |
+
+- **位置**：`data/creation-ledger/<worldId>.jsonl`（`PIXEL_WORLD_CREATION_LEDGER_DIR`
+  可改）。每个世界一本，一行一条 JSON，只追加；`data/` 已在 `.gitignore` 里。
+- **不进 v5**：`world.memory` 与存档契约一个字没动；也没有新增 intent 白名单、
+  没有改 24 色与瓦片尺寸。
+- **写**：`POST /api/creation-ledger/entries`（`recordId` 重复时返回旧记录，
+  `duplicate=true`）。**读**：`GET /api/creation-ledger/entries?worldId=&day=&template=&reject=`；
+  `reject` 取门禁名（`schema` / `placement` / `coverage` / `pathfinding` / `collision` /
+  `constraint` / `traceability` / `invariant` / `replay` / `fuse`）。
+- **没测就是 `null`**：拒绝原因因此分成 `below_requirement`（真不达标）与
+  `not_measured`（分母为 0 / 样本不足）。
+- **证据脚本**：`cd world-client && node --import ./test/phaser-hooks.mjs scripts/ledger-evidence.ts`。
+  它跑 20 个真实世界日、构造一条覆盖率拒绝、并量出 30 / 100 天的账本字节数；
+  产物落在 `world-client/tmp/creation-ledger/`。
 
 ## 24 色预算
 

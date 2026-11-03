@@ -35,6 +35,7 @@ from pathlib import Path
 from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 
+from creation_ledger.api import register_routes as register_creation_ledger_routes
 from events.log import DEFAULT_LIMIT, MAX_LIMIT, EventLog, EventValidationError
 from events.world_changes import router as world_changes_router
 from events.world_changes import register_error_handler as register_world_change_errors
@@ -89,9 +90,11 @@ def read_events(
 
 
 def create_app(
-    log: EventLog | None = None, memory_root: Path | None = None
+    log: EventLog | None = None,
+    memory_root: Path | None = None,
+    creation_ledger_root: Path | None = None,
 ) -> FastAPI:
-    """装配一个 app。测试传内存库与临时记忆目录，生产传文件库。"""
+    """装配一个 app。测试传内存库、临时记忆目录与临时账本目录，生产传文件库。"""
     app = FastAPI(title="pixel-world-server", version="0.1.0")
     event_log = log if log is not None else EventLog()
     app.state.event_log = event_log
@@ -102,6 +105,9 @@ def create_app(
     # 意图解析与事件日志互不依赖：解析失败不该影响世界读日志，反之亦然。
     register_oracle_routes(app)
     register_memory_routes(app)
+    # 造物账本也是只增文件，但它与事件日志是两本账：不进 v5 存档，
+    # 也不占 SQLite。路径与查询见 `creation_ledger/api.py`。
+    register_creation_ledger_routes(app, creation_ledger_root)
 
     @app.exception_handler(EventValidationError)
     async def _validation_error(_request: Request, exc: EventValidationError) -> JSONResponse:

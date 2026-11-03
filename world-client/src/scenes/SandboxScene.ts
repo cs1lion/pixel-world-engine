@@ -130,6 +130,28 @@ import {
   type LandedCreation,
 } from '../creator/landing.ts';
 import { checkLandedBuilding, creationCoverage } from '../creator/business-rules.ts';
+import {
+  buildCreationRecord,
+  buildLandingRecord,
+  buildObservationRecord,
+  creationVerdict,
+  evaluateLandingGates,
+  evaluateProposalGates,
+  ladderSnapshot,
+  landingFingerprint,
+  newRecordId,
+  observationOf as ledgerObservationOf,
+  passiveLadderSnapshot,
+  proposalFingerprint,
+  type CreationOrigin,
+  type LedgerRecord,
+  type RejectionReason,
+} from '../creator/ledger.ts';
+import {
+  createCreationLedgerClient,
+  createCreationLedgerOutbox,
+  type CreationLedgerOutbox,
+} from '../creator/ledger-client.ts';
 import type { CreationPlan } from '../world/creator-schema.ts';
 import {
   biomeRingAllows,
@@ -214,6 +236,29 @@ interface PendingCreationObservation {
   readonly day: number;
   readonly traceable: boolean;
   readonly recompute: () => CreationPlan | null;
+  /** 账本里的那条 creation 记录 id；落地记录与观测记录都挂回它。 */
+  readonly proposalId: string;
+  readonly displayName: string;
+  readonly origin: CreationOrigin;
+  /** 提案那一刻的上游事件游标，写进回放指纹的事件区间。 */
+  readonly eventFrom: number;
+}
+
+/**
+ * 等第 7 个世界日再结算的观测。
+ *
+ * 只记**已经落地**的造物：没落地的东西没有「被拆」可言。
+ */
+interface PendingLedgerObservation {
+  readonly proposalId: string;
+  readonly buildingId: string;
+  readonly dueDay: number;
+  readonly expected: {
+    readonly prefabId: string;
+    readonly origin: GridPoint;
+    readonly door: GridPoint;
+  };
+  readonly displayName: string;
 }
 
 export class SandboxScene extends Phaser.Scene {
@@ -352,6 +397,19 @@ export class SandboxScene extends Phaser.Scene {
    * `building.built` 回写（`onChange`）触发结算——不另开定时器或轮询。
    */
   private readonly pendingCreationObservations = new Map<string, PendingCreationObservation>();
+  /**
+   * 造物账本的外挂日志（提案 B）。**不进 v5 存档**：写面是服务端
+   * `data/creation-ledger/<worldId>.jsonl`，只追加；读面见 `ledger-client.ts`。
+   *
+   * 出队器与记忆同形：入队立刻试一次，失败留在队里，下一次自动存档再试。
+   */
+  private creationLedger: CreationLedgerOutbox | null = null;
+  private ledgerWorldId = 'default';
+  private ledgerSeed = 'default';
+  /** 等第 7 个世界日结算的观测。键是建筑 instanceId。 */
+  private readonly pendingLedgerObservations = new Map<string, PendingLedgerObservation>();
+  /** 世界发过 `building.removed` 的实例。观测据此区分「被拆」与「下落不明」。 */
+  private readonly removedBuildingIds = new Set<string>();
   /**
    * 内环：记忆与传播。世界每拍交一份处境给它，跨日时它关账。
    *
@@ -791,7 +849,15 @@ export class SandboxScene extends Phaser.Scene {
         if (change.change === 'building.built') {
           // 下一次造物就把补算提示收掉：它是「上次离线发生了什么」，不是常驻广告。
           this.clockReport = null;
+          // 造物引擎的提议在入队时就登记了；神谕/调试入口没有登记，
+          // 落地这一刻补记一条来源为 oracle/world 的账。
+          const wasPending = this.pendingCreationObservations.has(change.instanceId);
           this.settleCreationObservation(change.instanceId);
+          if (!wasPending) this.recordUnplannedLanding(change.instanceId);
+        }
+        if (change.change === 'building.removed') {
+          // 7 日观测要区分「被拆」与「下落不明」：只有真发过拆除事件才算前者。
+          this.removedBuildingIds.add(change.instanceId);
         }
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
@@ -994,6 +1060,11 @@ export class SandboxScene extends Phaser.Scene {
       worldTime: () => this.snapshot.now,
       world: this.world,
     });
+    // 造物账本：只增外挂日志。世界 id 与种子都取设定集 id；文件在服务端。
+    // 出队器不阻塞世界——服务端不在时，记录留在队里等下一次自动存档。
+    this.ledgerWorldId = creatorPack.id;
+    this.ledgerSeed = creatorPack.id;
+    this.creationLedger = createCreationLedgerOutbox(createCreationLedgerClient());
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
     if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);
     this.lastSaveKey = this.saveStateKey();
@@ -1022,6 +1093,8 @@ export class SandboxScene extends Phaser.Scene {
       // 关页面前把「这一刻」也写进时钟基线；否则下一下开会把最后几秒
       // （或整整一个被节流的 5 秒窗）重复算进离线间隔。
       this.persistClockBaseline(true);
+      // 账本队列也交一次。失败的发不出去，但至少不是「页面关了才想起来」。
+      void this.creationLedger?.flush();
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
@@ -1068,6 +1141,7 @@ export class SandboxScene extends Phaser.Scene {
     this.memoryClient = null;
     this.memoryOutbox = null;
     this.creator = null;
+    this.creationLedger = null;
     this.pendingCreationObservations.clear();
     this.overlay?.dispose();
     this.overlay = null;
@@ -1570,6 +1644,7 @@ export class SandboxScene extends Phaser.Scene {
    * 计划放进队列。其余等级只结算、只提议，不改世界。
    */
   private stepCreatorDayClosed(vitals: {
+    readonly day: number;
     readonly meanValence: number;
     readonly meanArousal: number;
     readonly infoEntropy: number;
@@ -1577,6 +1652,11 @@ export class SandboxScene extends Phaser.Scene {
   }): void {
     const creator = this.creator;
     if (creator === null) return;
+
+    // 先结算观测与「还没落地」的账：这两件事只看已经发生的事实，
+    // 与今天提不提议无关。
+    this.settleDueLedgerObservations(vitals.day);
+    this.settleStalePendingCreations(vitals.day);
 
     creator.closeWorldDay();
     creator.processDayClosed({
@@ -1586,22 +1666,86 @@ export class SandboxScene extends Phaser.Scene {
       isolatedHoldersCount: vitals.isolatedHoldersCount,
     });
 
-    if (creator.getFuseDecision('mapper').action !== 'allow') return;
-    // 落地前把 view 捕获下来，并把落位许可冻成位图：重跑时不能看见新楼占的格，
-    // 否则算出来的是「落地后的下一个位置」，不再是同一份输入。
+    // 提案先算出来，再问熔断。以前是反的：熔断不放行就不算计划，于是
+    // **被拒的提议一条都进不了账**，账本只剩下放行的那些——那正是最需要
+    // 审计的拒绝原因被丢掉了。
     const view = this.creatorWorldView();
     const proposal = creator.planCreation(view);
     if (proposal === null) return;
+
+    const decision = creator.getFuseDecision('mapper');
+    const state = creator.getRoleState('mapper');
+    const blueprint = this.blueprints.get(proposal.templateId);
+    if (state === undefined || blueprint === undefined) return;
+
+    const gates = evaluateProposalGates({
+      origin: 'auto',
+      schemaPassed: true,
+      placementPassed: true,
+      builtPrefabIds: view.builtPrefabIds,
+      blueprintCount: this.blueprints.size,
+      templateId: proposal.templateId,
+      fuseAction: decision.action,
+      fuseReason: decision.reason,
+      traceable: true,
+      schemaDetail: 'planCreation 产出的计划已过白名单形状',
+      placementDetail: 'planCreation 只用 canPlace 判过合规的格子',
+    });
+    const verdict = creationVerdict('auto', gates);
+    // 只有真会被放行的提案才领实例号：被拒的提议不该消耗世界的编号水位。
+    const instanceId = verdict.verdict === 'accepted'
+      ? this.sim.nextInstanceId(proposal.templateId)
+      : null;
+    // 记录 id 不直接等于 instanceId：读档重开后世界会重发同一串实例号，
+    // 而账本的去重键是 recordId——那样会把两条真提案合成一条。落地记录里
+    // 仍有 `buildingId`，所以「账本与建筑实例对得上」不靠 id 相等。
+    const recordId = instanceId !== null
+      ? newRecordId(`${this.ledgerWorldId}:${instanceId}`)
+      : newRecordId(`${this.ledgerWorldId}:d${view.day}:${proposal.templateId}`);
+    const now = this.sim.snapshot().now;
+    const eventFrom = this.sim.snapshot().feed.cursor;
+    const creation = buildCreationRecord({
+      recordId,
+      worldId: this.ledgerWorldId,
+      seed: this.ledgerSeed,
+      day: view.day,
+      at: now,
+      templateId: proposal.templateId,
+      templateName: blueprint.displayName,
+      templateKind: blueprint.zone,
+      intentText: null,
+      target: proposal.at,
+      origin: 'auto',
+      gates,
+      ladder: ladderSnapshot(state, decision),
+      replay: {
+        seed: this.ledgerSeed,
+        eventFrom,
+        eventTo: eventFrom,
+        dayFrom: view.day,
+        dayTo: view.day,
+        fingerprint: proposalFingerprint(this.ledgerSeed, view.day, proposal),
+      },
+    });
+    this.recordLedger(creation);
+
+    if (creation.verdict === 'rejected' || instanceId === null) return;
+
+    // 落地前把 view 捕获下来，并把落位许可冻成位图：重跑时不能看见新楼占的格，
+    // 否则算出来的是「落地后的下一个位置」，不再是同一份输入。
     const frozen = freezeCreatorView(
       view,
       [...this.blueprints.keys()].filter((id) => !view.builtPrefabIds.has(id)),
     );
-    const instanceId = this.sim.nextInstanceId(proposal.templateId);
     this.pendingCreationObservations.set(instanceId, {
       plan: proposal,
       day: view.day,
       traceable: true,
       recompute: () => creator.planCreation(frozen),
+      proposalId: creation.recordId,
+      displayName: blueprint.displayName,
+      origin: 'auto',
+      eventFrom,
     });
     this.sim.enqueue({
       kind: 'build',
@@ -1670,7 +1814,307 @@ export class SandboxScene extends Phaser.Scene {
         invariantViolated: business.invariantViolated,
         ...(replay === null ? {} : { replayHashConsistent: replay }),
       });
+
+      const now = this.sim.snapshot().now;
+      const currentDay = Math.floor(now / DAY_MS);
+      const landing = buildLandingRecord({
+        proposalId: pending.proposalId,
+        worldId: this.ledgerWorldId,
+        seed: this.ledgerSeed,
+        day: currentDay,
+        at: now,
+        templateId: pending.plan.templateId,
+        landed: true,
+        buildingId: landed.instanceId,
+        origin: landed.origin,
+        door: landed.door,
+        gates: evaluateLandingGates({
+          origin: pending.origin,
+          schemaPassed: true,
+          placementPassed: true,
+          builtPrefabIds: new Set(
+            this.sim.snapshot().buildings.map((building) => building.prefabId),
+          ),
+          blueprintCount: this.blueprints.size,
+          templateId: pending.plan.templateId,
+          fuseAction: 'allow',
+          fuseReason: '落地后补测，不再问自动放行',
+          traceable: pending.traceable,
+          actualCoverageRate: coverageRate,
+          pathfindingConnected,
+          hasCollision: business.hasConflict,
+          spatialConstraintSatisfied: true,
+          invariantViolated: business.invariantViolated,
+          replayHashConsistent: replay,
+        }),
+        replay: {
+          seed: this.ledgerSeed,
+          eventFrom: pending.eventFrom,
+          eventTo: this.sim.snapshot().feed.cursor,
+          dayFrom: pending.day,
+          dayTo: currentDay,
+          fingerprint: landingFingerprint(
+            this.ledgerSeed,
+            pending.day,
+            pending.plan,
+            landed,
+          ),
+        },
+        failure: null,
+      });
+      this.recordLedger(landing);
+      // 第 7 个世界日再回来看它还在不在。只登记真落地的东西。
+      this.pendingLedgerObservations.set(landed.instanceId, {
+        proposalId: pending.proposalId,
+        buildingId: landed.instanceId,
+        dueDay: pending.day + 7,
+        expected: {
+          prefabId: landed.prefabId,
+          origin: landed.origin,
+          door: landed.door,
+        },
+        displayName: pending.displayName,
+      });
     });
+  }
+
+  /**
+   * 神谕/调试入口造出来的楼：落地时补记一条账。
+   *
+   * 这些入口不经过 `CreatorEngine`，所以提案阶段的门禁没跑过。账本如实写成
+   * `origin: 'oracle' | 'world'`，把 schema/placement 标成「落地后倒推」，
+   * 不伪造一份提案读数。
+   */
+  private recordUnplannedLanding(instanceId: string): void {
+    const creator = this.creator;
+    if (creator === null) return;
+    const state = creator.getRoleState('mapper');
+    if (state === undefined) return;
+    const snapshot = this.sim.snapshot();
+    const building = snapshot.buildings.find((item) => item.instanceId === instanceId);
+    if (building === undefined) return;
+    const blueprint = this.blueprints.get(building.prefabId);
+    if (blueprint === undefined) return;
+
+    const currentDay = Math.floor(snapshot.now / DAY_MS);
+    const proposalId = newRecordId(`${this.ledgerWorldId}:${instanceId}`);
+    const builtPrefabIds = new Set(snapshot.buildings.map((item) => item.prefabId));
+    const plan: CreationPlan = {
+      templateId: building.prefabId,
+      at: building.origin,
+      palette: building.palette,
+    };
+    // 来由：世界回写时 `source.taskId` 以 oracle-build- 开头就是神谕入口。
+    const origin: CreationOrigin = (building.sourceTaskId ?? '').startsWith('oracle-build-')
+      ? 'oracle'
+      : 'world';
+    const intentText = this.oracleTextFor(building.displayName);
+    const creation = buildCreationRecord({
+      recordId: proposalId,
+      worldId: this.ledgerWorldId,
+      seed: this.ledgerSeed,
+      day: currentDay,
+      at: snapshot.now,
+      templateId: building.prefabId,
+      templateName: building.displayName,
+      templateKind: building.zone,
+      intentText,
+      target: building.origin,
+      origin,
+      gates: evaluateProposalGates({
+        origin,
+        schemaPassed: true,
+        placementPassed: true,
+        builtPrefabIds,
+        blueprintCount: this.blueprints.size,
+        templateId: building.prefabId,
+        fuseAction: 'not_applicable',
+        fuseReason: '这个入口不经过自动放行门禁',
+        traceable: true,
+        schemaDetail: '落地后倒推：这条指令被解析并建成了',
+        placementDetail: '落地后倒推：楼已经在快照里',
+      }),
+      ladder: passiveLadderSnapshot(state),
+      replay: {
+        seed: this.ledgerSeed,
+        eventFrom: snapshot.feed.cursor,
+        eventTo: snapshot.feed.cursor,
+        dayFrom: currentDay,
+        dayTo: currentDay,
+        fingerprint: proposalFingerprint(this.ledgerSeed, currentDay, plan),
+      },
+    });
+    this.recordLedger(creation);
+
+    const landed: LandedCreation = {
+      instanceId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+    };
+    const pathfindingConnected = landingReachable(this.world, landed);
+    const businessWorld = {
+      snapshot,
+      grid: this.world.grid,
+      altar: this.world.altar,
+      blueprints: this.blueprints,
+    };
+    const coverageRate = creationCoverage(snapshot, this.blueprints);
+    void checkLandedBuilding(businessWorld, landed).then((business) => {
+      if (this.creator !== creator) return;
+      const landing = buildLandingRecord({
+        proposalId,
+        worldId: this.ledgerWorldId,
+        seed: this.ledgerSeed,
+        day: currentDay,
+        at: this.sim.snapshot().now,
+        templateId: building.prefabId,
+        landed: true,
+        buildingId: instanceId,
+        origin: building.origin,
+        door: building.door,
+        gates: evaluateLandingGates({
+          origin,
+          schemaPassed: true,
+          placementPassed: true,
+          builtPrefabIds,
+          blueprintCount: this.blueprints.size,
+          templateId: building.prefabId,
+          fuseAction: 'not_applicable',
+          fuseReason: '这个入口不经过自动放行门禁',
+          traceable: true,
+          actualCoverageRate: coverageRate,
+          pathfindingConnected,
+          hasCollision: business.hasConflict,
+          spatialConstraintSatisfied: true,
+          invariantViolated: business.invariantViolated,
+          // 神谕入口没有冻住落地前的 view，回放这一项**没跑**，记 null。
+          replayHashConsistent: null,
+        }),
+        replay: {
+          seed: this.ledgerSeed,
+          eventFrom: snapshot.feed.cursor,
+          eventTo: this.sim.snapshot().feed.cursor,
+          dayFrom: currentDay,
+          dayTo: currentDay,
+          fingerprint: landingFingerprint(this.ledgerSeed, currentDay, plan, landed),
+        },
+        failure: null,
+      });
+      this.recordLedger(landing);
+      this.pendingLedgerObservations.set(instanceId, {
+        proposalId,
+        buildingId: instanceId,
+        dueDay: currentDay + 7,
+        expected: {
+          prefabId: building.prefabId,
+          origin: building.origin,
+          door: building.door,
+        },
+        displayName: building.displayName,
+      });
+    });
+  }
+
+  /** 账本入队后立刻试一次；失败留在队里，下一次自动存档再试。 */
+  private recordLedger(record: LedgerRecord): void {
+    const outbox = this.creationLedger;
+    if (outbox === null) return;
+    outbox.enqueue(record);
+    void outbox.flush();
+  }
+
+  /**
+   * 第 7 个世界日到了：仍在 / 被拆 / 被改 / 不见了。
+   *
+   * 观测只读快照与记忆层的读法，不改世界。
+   */
+  private settleDueLedgerObservations(closedDay: number): void {
+    if (this.creationLedger === null) return;
+    const snapshot = this.sim.snapshot();
+    for (const [instanceId, item] of [...this.pendingLedgerObservations]) {
+      if (closedDay < item.dueDay) continue;
+      const current = snapshot.buildings.find((building) => building.instanceId === instanceId);
+      const toponym = this.memory === undefined ? null : this.memory.placeNamesOf(instanceId);
+      const outcome = ledgerObservationOf({
+        expected: item.expected,
+        current: current === undefined
+          ? null
+          : {
+              prefabId: current.prefabId,
+              origin: current.origin,
+              door: current.door,
+              displayName: current.displayName,
+            },
+        removed: this.removedBuildingIds.has(instanceId),
+        renamedTo: toponym?.name ?? null,
+      });
+      this.recordLedger(buildObservationRecord({
+        proposalId: item.proposalId,
+        worldId: this.ledgerWorldId,
+        day: closedDay,
+        at: snapshot.now,
+        dueDay: item.dueDay,
+        buildingId: item.buildingId,
+        status: outcome.status,
+        detail: outcome.detail,
+      }));
+      this.pendingLedgerObservations.delete(instanceId);
+    }
+  }
+
+  /**
+   * 入队后一个世界日仍未落地的提议：记一条 `landed: false`。
+   *
+   * 不把它永远留在 `pendingCreationObservations` 里假装还在等——那会让账本
+   * 少一条落地结论，而「等」与「没落地」是两件事。
+   */
+  private settleStalePendingCreations(closedDay: number): void {
+    for (const [instanceId, pending] of [...this.pendingCreationObservations]) {
+      if (closedDay < pending.day + 1) continue;
+      if (this.landedCreationOf(instanceId) !== null) continue;
+      this.pendingCreationObservations.delete(instanceId);
+      const failure: RejectionReason = {
+        gate: 'placement',
+        observed: false,
+        threshold: '= true',
+        kind: 'below_requirement',
+        detail: `入队后一个世界日仍未落地（${instanceId}）`,
+      };
+      const now = this.sim.snapshot().now;
+      this.recordLedger(buildLandingRecord({
+        proposalId: pending.proposalId,
+        worldId: this.ledgerWorldId,
+        seed: this.ledgerSeed,
+        day: closedDay,
+        at: now,
+        templateId: pending.plan.templateId,
+        landed: false,
+        buildingId: null,
+        origin: null,
+        door: null,
+        gates: [],
+        replay: {
+          seed: this.ledgerSeed,
+          eventFrom: pending.eventFrom,
+          eventTo: this.sim.snapshot().feed.cursor,
+          dayFrom: pending.day,
+          dayTo: closedDay,
+          fingerprint: proposalFingerprint(this.ledgerSeed, pending.day, pending.plan),
+        },
+        failure,
+      }));
+    }
+  }
+
+  /** 神谕石板上与这栋楼对得上的原话；对不上就不编一句。 */
+  private oracleTextFor(displayName: string): string | null {
+    const stone = this.sim.snapshot().oracle;
+    for (let index = stone.length - 1; index >= 0; index -= 1) {
+      const record = stone[index];
+      if (record !== undefined && record.receipt.includes(displayName)) return record.raw;
+    }
+    return null;
   }
 
   /** 从 `Simulation` 的当前快照里取那一栋；还没落地就返回 null。 */
@@ -2410,15 +2854,102 @@ export class SandboxScene extends Phaser.Scene {
       palette: intentPalette,
       worldSize: { width: this.world.grid.width, height: this.world.grid.height },
     };
+    const state = creator.getRoleState('mapper');
+    const currentDay = Math.floor(this.snapshot.now / DAY_MS);
+    const eventFrom = this.sim.snapshot().feed.cursor;
+    const builtPrefabIds = new Set(this.snapshot.buildings.map((item) => item.prefabId));
     let plan: CreationPlan;
     try {
       plan = creator.proposeCreation(request);
     } catch (error) {
       // schema 不过就是玩家的选择有问题：留在模式里，说清哪里不对。
+      // 这也是一条**被拒的提案**，账本要记下是哪一项、为什么。
+      if (state !== undefined) {
+        const synthetic: CreationPlan = {
+          templateId: session.prefabId,
+          at: session.ghostAt,
+          palette: { body: 0, roof: 0, trim: 0, window: 0 },
+        };
+        this.recordLedger(buildCreationRecord({
+          recordId: newRecordId(`${this.ledgerWorldId}:d${currentDay}:manual-schema`),
+          worldId: this.ledgerWorldId,
+          seed: this.ledgerSeed,
+          day: currentDay,
+          at: this.sim.snapshot().now,
+          templateId: session.prefabId,
+          templateName: blueprint.displayName,
+          templateKind: blueprint.zone,
+          intentText: null,
+          target: session.ghostAt,
+          origin: 'manual',
+          gates: evaluateProposalGates({
+            origin: 'manual',
+            schemaPassed: false,
+            // 落位预检在 schema 之前已经过了；schema 是另一道关，别把它记成落位失败。
+            placementPassed: true,
+            builtPrefabIds,
+            blueprintCount: this.blueprints.size,
+            templateId: session.prefabId,
+            fuseAction: 'not_applicable',
+            fuseReason: '人工确认不走自动放行门禁',
+            traceable: false,
+            schemaDetail: error instanceof Error ? error.message : '造物意图不合法',
+          }),
+          ladder: passiveLadderSnapshot(state),
+          replay: {
+            seed: this.ledgerSeed,
+            eventFrom,
+            eventTo: eventFrom,
+            dayFrom: currentDay,
+            dayTo: currentDay,
+            fingerprint: proposalFingerprint(this.ledgerSeed, currentDay, synthetic),
+          },
+        }));
+      }
       return {
         ok: false,
         message: error instanceof Error ? error.message : '造物意图不合法。',
       };
+    }
+
+    const creationRecordId = newRecordId(`${this.ledgerWorldId}:${instanceId}`);
+    if (state !== undefined) {
+      const creation = buildCreationRecord({
+        recordId: creationRecordId,
+        worldId: this.ledgerWorldId,
+        seed: this.ledgerSeed,
+        day: currentDay,
+        at: this.sim.snapshot().now,
+        templateId: plan.templateId,
+        templateName: blueprint.displayName,
+        templateKind: blueprint.zone,
+        intentText: null,
+        target: plan.at,
+        origin: 'manual',
+        gates: evaluateProposalGates({
+          origin: 'manual',
+          schemaPassed: true,
+          placementPassed: true,
+          builtPrefabIds,
+          blueprintCount: this.blueprints.size,
+          templateId: plan.templateId,
+          fuseAction: 'not_applicable',
+          fuseReason: '人工确认不走自动放行门禁',
+          traceable: true,
+          schemaDetail: '玩家点出来的计划已过白名单形状',
+          placementDetail: '迷雾 / 空间 / 群落三道都过了',
+        }),
+        ladder: passiveLadderSnapshot(state),
+        replay: {
+          seed: this.ledgerSeed,
+          eventFrom,
+          eventTo: eventFrom,
+          dayFrom: currentDay,
+          dayTo: currentDay,
+          fingerprint: proposalFingerprint(this.ledgerSeed, currentDay, plan),
+        },
+      });
+      this.recordLedger(creation);
     }
 
     this.sim.enqueue({
@@ -2437,9 +2968,13 @@ export class SandboxScene extends Phaser.Scene {
     // 落位前那两项算不准（楼还没占格），拿预检结论冒充事后判定就是假观测。
     this.pendingCreationObservations.set(instanceId, {
       plan,
-      day: Math.floor(this.snapshot.now / DAY_MS),
+      day: currentDay,
       traceable: true,
       recompute: () => creator.proposeCreation(request),
+      proposalId: creationRecordId,
+      displayName: blueprint.displayName,
+      origin: 'manual',
+      eventFrom,
     });
     this.endCreation();
     return { ok: true, message: '动工了。' };
@@ -2686,6 +3221,8 @@ export class SandboxScene extends Phaser.Scene {
     // 记忆写回跟着存档那一条节流走：这一拍既然已过「变了 / 满 30s」两道闸，
     // 才轮到交一条。出队器自己还有在途互斥，失败留在队里下一拍再试。
     void this.memoryOutbox?.flush();
+    // 账本也搭同一条节流；失败留在队里，下一次造物或自动存档再试。
+    void this.creationLedger?.flush();
   }
 
   /** 外部 Agent 的入口。它和打字、按钮走同一条队列。 */

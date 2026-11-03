@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["events", "oracle", "rules", "memory"]
+packages = ["creation_ledger", "events", "oracle", "rules", "memory"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
