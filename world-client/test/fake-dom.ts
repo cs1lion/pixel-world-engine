@@ -16,6 +16,7 @@ export class FakeElement {
   value = '';
   disabled = false;
   title = '';
+  readonly style: Record<string, string> = {};
   readonly children: FakeElement[] = [];
   readonly dataset: Record<string, string> = {};
   readonly attributes: Record<string, string> = {};
@@ -58,8 +59,21 @@ export class FakeElement {
   removeEventListener(type: string, run: (event?: unknown) => void): void {
     this.listeners.get(type)?.delete(run);
   }
+  get classList(): { toggle(name: string, on: boolean): void } {
+    const self = this;
+    return {
+      toggle(name: string, on: boolean): void {
+        const parts = self.className.split(' ').filter((part) => part !== '' && part !== name);
+        if (on) parts.push(name);
+        self.className = parts.join(' ');
+      },
+    };
+  }
   click(): void {
     for (const run of this.listeners.get('click') ?? []) run();
+  }
+  submit(): void {
+    for (const run of this.listeners.get('submit') ?? []) run({ preventDefault() {} });
   }
   /** 触发某个键盘事件（Escape 之类）。 */
   key(key: string): void {
@@ -89,6 +103,9 @@ export function installFakeDom(ids: readonly string[]): {
     createElement: (tag: string): FakeElement => new FakeElement(tag),
     addEventListener: (type: string, run: (event?: unknown) => void): void => {
       doc.addEventListener(type, run);
+    },
+    removeEventListener: (type: string, run: (event?: unknown) => void): void => {
+      doc.removeEventListener(type, run);
     },
   };
   const previous = (globalThis as { document?: unknown }).document;
