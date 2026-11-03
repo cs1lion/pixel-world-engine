@@ -53,11 +53,17 @@ const say = (text) =>
   page.evaluate(
     (line) =>
       new Promise((done) => {
-        const stop = window.Oracle.onResult((result) => {
+        // `onResult` 订阅时会先把**上一句**回执同步补发一次（见 `lastReply`）。
+        // 那不是这一句话的结果，所以注册期间先关着闸；注册返回后再开。
+        let armed = false;
+        let stop = () => {};
+        stop = window.Oracle.onResult((result) => {
+          if (!armed) return;
           if (result.message.includes('投递')) return;
           stop();
           done(result);
         });
+        armed = true;
         window.Oracle.say(line);
         setTimeout(() => {
           stop();
