@@ -39,11 +39,13 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pixel-world-engine/.cindy-worktrees/zealous-jang | cindy/zealous-jang | cs1lion | 2026-11-02 | 2026-11-16 | 待回收（已合入 main） |
 | D:/project/pwe-bonds | feat/bonds-and-mood | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
+| D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（尚无独有提交） |
 | D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（无独有提交） |
 | D:/project/pwe-lampstreet | feat/lamp-street | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-ledger | feat/creation-ledger | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-rhythm | feat/pace-60 | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
+| D:/project/pwe-scene | feat/scene-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（尚无独有提交） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-trace | feat/trace-to-test | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-visual | feat/visual-b1 | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
