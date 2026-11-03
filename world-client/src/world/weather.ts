@@ -4,13 +4,14 @@
  * 否则雨幕会像开关灯一样跳。
  *
  * **`storm` 不是新机制。** 它和 `rain` 走同一条路，目标浓淡一样拉满到 1
- * （见下面 `TARGET_INTENSITY`），差别落在别处两样：下得更久（90 秒对 45 秒），
+ * （见下面 `TARGET_INTENSITY`），差别落在别处两样：下得更久（3 世界小时对 2 世界小时），
  * 以及 `renderIntensity` 给渲染层多加的那 0.25。
  * 所以这里多一档不需要渲染层加分支——这正是 v2 spec §4.4 说的
  * 「`storm` 是 `rain` 的强度档」。
  */
 
 import type { Weather } from './types.ts';
+import { PACE, worldMinutes } from './pace.ts';
 
 /** 0..1 的浓淡，渲染层拿它插值雨幕。 */
 export interface WeatherState {
@@ -20,10 +21,10 @@ export interface WeatherState {
   readonly remainingMs: number | null;
 }
 
-export const WEATHER_FADE_MS = 1800;
-export const RAIN_DURATION_MS = 45_000;
+export const WEATHER_FADE_MS = worldMinutes(PACE.weatherFadeMinutes);
+export const RAIN_DURATION_MS = worldMinutes(PACE.rainMinutes);
 /** 暴雨下得更久：它是一次天气事件，不是一阵过云雨。 */
-export const STORM_DURATION_MS = 90_000;
+export const STORM_DURATION_MS = worldMinutes(PACE.stormMinutes);
 
 /**
  * 每一档的目标浓淡。

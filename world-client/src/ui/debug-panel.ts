@@ -271,6 +271,19 @@ export interface DebugOracle {
   saveStatus(): SaveStatusView;
   /** 某个角色记得的事，按天/时刻排序。省略表示这一面没挂。 */
   memoryTimeline?(holderId: string): readonly MemoryTimelineEntry[];
+  /** 只读关系账本，供浏览器验收对照面板读数。 */
+  memoryBonds?(holderId: string): readonly {
+    readonly to: string;
+    readonly trust: number;
+    readonly warmth: number;
+    readonly debt: number;
+  }[];
+  /** 只读持久情绪，供浏览器验收对照面板读数。 */
+  memoryMood?(holderId: string): { readonly label: string; readonly valence: number; readonly arousal: number } | null;
+  /** 只读内心话，供浏览器验收对照模板 id。 */
+  memoryInner?(holderId: string): { readonly templateId: string; readonly text: string } | null;
+  /** 调试/浏览器验收：打开某个角色的只读状态菜单，不写世界。 */
+  openUnitStatusForDebug?(holderId: string): boolean;
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

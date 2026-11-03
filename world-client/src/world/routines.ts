@@ -6,6 +6,7 @@
 
 import type { GridPoint, PlacedBuilding, Weather } from './types.ts';
 import { TIDE_HIGH_MIN, TIDE_LOW_MAX } from './tide.ts';
+import { PACE } from './pace.ts';
 
 export type RoutineId = 'altar' | 'garden' | 'promenade' | 'shelter';
 
@@ -33,34 +34,38 @@ export interface RoutineBeat {
   readonly tide?: 'low' | 'high';
 }
 
-const DWELL_MS = 5200;
-
-/** 一圈日常：祭坛 → 农田边 → 街角 → 回祭坛。不涉及铺子，铺子只在干活时进。 */
+/**
+ * 一圈日常：祭坛 → 农田边 → 街角 → 回祭坛。不涉及铺子，铺子只在干活时进。
+ *
+ * 停留时长从 `pace.ts` 的 `PACE.dwellMinMs` 起算：一站 20–40 世界分钟
+ * （倍率 60 下是现实里的 20–40 秒）。农田那一拍乘以 1.4，仍落在区间内。
+ */
 export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly RoutineBeat[] {
   const garden = grid.nearestWalkable({ x: altar.x - 8, y: altar.y + 4 });
   const promenade = grid.nearestWalkable({ x: altar.x + 8, y: altar.y - 3 });
+  const dwellMs = PACE.dwellMinMs;
   return [
-    { id: 'altar', label: '在祭坛边坐着', going: '去祭坛', target: altar, dwellMs: DWELL_MS },
+    { id: 'altar', label: '在祭坛边坐着', going: '去祭坛', target: altar, dwellMs: dwellMs },
     {
       id: 'garden',
       label: '去看了一眼农田',
       going: '去农田边',
       target: garden ?? altar,
-      dwellMs: DWELL_MS * 1.4,
+      dwellMs: Math.min(PACE.dwellMaxMs, dwellMs * 1.4),
     },
     {
       id: 'promenade',
       label: '在街口站着看了一会儿',
       going: '去街口',
       target: promenade ?? altar,
-      dwellMs: DWELL_MS,
+      dwellMs: dwellMs,
     },
     {
       id: 'altar',
       label: '回到祭坛等神谕',
       going: '回祭坛',
       target: altar,
-      dwellMs: DWELL_MS,
+      dwellMs: dwellMs,
     },
   ];
 }
@@ -93,6 +98,9 @@ export function shelterTarget(
  * 自己编一个落点就是让牌子说一套、脚走一套。调用方给不出（一栋楼都没有）
  * 时退回锚点，牌子也照锚点说——世界可以在做不到时说「现在不行」，
  * 不能一边说屋檐一边把人放在露天里。
+ *
+ * `quiet` 是 12:00–14:00 的安静段：不下雨时大家都回锚点坐着，停到
+ * `PACE.quietDwellMs`。雨天优先——躲雨是比「正午歇着」更硬的事。
  */
 export function routineFor(
   weather: Weather,
@@ -100,6 +108,7 @@ export function routineFor(
   index: number,
   tideLevel = 0,
   shelterAt: GridPoint | null = null,
+  quiet = false,
 ): RoutineBeat {
   // 暴雨一样躲，只是说法不同——这一档是雨的强度，不是新行为。
   if (weather === 'rain' || weather === 'storm') {
@@ -110,7 +119,7 @@ export function routineFor(
         label: weather === 'storm' ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
         going: weather === 'storm' ? '跑向屋檐下躲暴雨' : '跑向屋檐下躲雨',
         target: shelterAt,
-        dwellMs: DWELL_MS,
+        dwellMs: PACE.dwellDefaultMs,
       };
     }
     const anchor = beats[0]!;
@@ -121,7 +130,19 @@ export function routineFor(
       // 往祭坛送、一边告诉外面她去了屋檐。
       going: '去祭坛边',
       target: anchor.target,
-      dwellMs: DWELL_MS,
+      dwellMs: PACE.dwellDefaultMs,
+    };
+  }
+  // 安静段：不下雨就回锚点坐着。落点与说法都借锚点那一拍——这不是新玩法，
+  // 只是「正午不赶路」；多出来的只有停留时长。
+  if (quiet) {
+    const anchor = beats[0]!;
+    return {
+      id: anchor.id,
+      label: anchor.label,
+      going: anchor.going,
+      target: anchor.target,
+      dwellMs: PACE.quietDwellMs,
     };
   }
   const beat = beats[index % beats.length]!;

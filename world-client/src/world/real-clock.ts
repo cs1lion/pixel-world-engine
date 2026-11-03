@@ -4,7 +4,7 @@
  *
  * **两种模式**（`resolveClockSelection` 决定）：
  * - 游玩时间驱动（默认）：`timeScale` 放大喂给 `Simulation` 的步长，一世界日
- *   约 `DAY_MS / (1000 × timeScale)` 真实秒（默认倍率 6，约 4 小时）。关页面
+ *   约 `DAY_MS / (1000 × timeScale)` 真实秒（默认倍率 60，约 24 分钟）。关页面
  *   后世界不积累任何时间，也不产生任何事件。
  * - 真实时钟（显式 `?clock=real`）：`timeScale` **不作为倍率**，步长永远是
  *   `LOGIC_STEP_MS`；墙钟走多久，世界走多久。日界按本地（默认 UTC+8）的
@@ -28,10 +28,16 @@ export const REAL_DAY_MS = 24 * 60 * 60 * 1000;
 /** 默认时区：UTC+8。写死默认值，避免跨机器/跨时区漂移；要改由调用方显式传入。 */
 export const DEFAULT_UTC_OFFSET_MINUTES = 480;
 
-/** 默认入口（游玩时间驱动）的倍率：一世界日约 4 小时真实时间（见 `test/day-pace.test.ts`）。 */
-export const DEFAULT_FAST_TIME_SCALE = 6;
+/**
+ * 默认入口（游玩时间驱动）的倍率：一世界日约 24 分钟真实时间。
+ *
+ * 60 就是上限本身：1 世界分钟 = 1 现实秒，玩家白天 06:00–22:00 正好 16 分钟。
+ * 原来这里是 6（一天 4 小时），节奏慢到看不见镇子一天的起落；改到 60 之后
+ * 固定时刻表与作息才在现实尺度上读得出来（见 `test/day-pace.test.ts`）。
+ */
+export const DEFAULT_FAST_TIME_SCALE = 60;
 
-/** 加速模式的倍率上限。真实时钟不走这条闸。 */
+/** 加速模式的倍率上限。真实时钟不走这条闸；默认值就用这个上限。 */
 export const MAX_TIME_SCALE = 60;
 
 export type ClockMode = 'real' | 'accelerated';

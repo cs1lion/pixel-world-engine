@@ -110,12 +110,13 @@ test('记忆段覆盖全部状态：名册/事实/亲历/断言/痕迹/地名/�
     memorySchemaVersion: number;
     world: Record<string, unknown>;
   };
-  assert.equal(snapshot.memorySchemaVersion, 3, '记忆层自带版本线，与存档 schemaVersion 无关');
+  assert.equal(snapshot.memorySchemaVersion, 4, '记忆层自带版本线，与存档 schemaVersion 无关');
 
   const keys = Object.keys(snapshot.world).sort();
   assert.deepEqual(keys, [
     'announcements',
     'beliefs',
+    'bonds',
     'claims',
     'cooldowns',
     'credibility',
@@ -129,6 +130,7 @@ test('记忆段覆盖全部状态：名册/事实/亲历/断言/痕迹/地名/�
     'landmarks',
     'legends',
     'metToday',
+    'moods',
     'nextSerial',
     'placeAnchors',
     'placeNames',

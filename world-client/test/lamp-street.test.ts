@@ -7,19 +7,24 @@ import {
 } from '../src/settings/dengchao/lamp-street.ts';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { loadSettingPack } from '../src/settings/load.ts';
-import {
-  LAMP_DOWN_MINUTE,
-  LAMP_ON_MINUTE,
-  lampStreetLitAt,
-  litLampCountAt,
-  minuteOfDay,
-} from '../src/world/lamp-street.ts';
-
-const HOUR = 60 * 60 * 1000;
+import { lampStreetLitAt, litLampCountAt } from '../src/world/lamp-street.ts';
+import { minuteOfDay, TIMETABLE, type TimetableId } from '../src/world/timetable.ts';
 
 /** 世界日的第 h 小时 m 分钟（第 0 天）。 */
 function at(h: number, m = 0): number {
-  return h * HOUR + m * 60_000;
+  return h * 60 * 60 * 1000 + m * 60_000;
+}
+
+/** 时刻表里某一拍的分钟数。测试不写死 1080 / 300，只认 id。 */
+function beatMinute(id: TimetableId): number {
+  const beat = TIMETABLE.find((item) => item.id === id);
+  assert.ok(beat !== undefined, `时刻表应有 ${id}`);
+  return beat.minuteOfDay;
+}
+
+/** 世界日的第 minute 分钟（第 0 天）。 */
+function atMinute(minute: number): number {
+  return minute * 60_000;
 }
 
 // ------------------------------------------------------------ 资产清单
@@ -68,25 +73,29 @@ test('灯街资产能过装载期校验（未知 kind 会被拒）', () => {
   assert.equal(fromScenery.length, lampStreetScenery().length, 'pack 里的灯街件数应等于清单');
 });
 
-// ------------------------------------------------------------ 18:00 灯态
+// ------------------------------------------------------------ 点灯时刻（从 TIMETABLE 取）
 
-test('世界日分钟：17:59 与 18:00 是两个世界', () => {
-  assert.equal(minuteOfDay(at(17, 59)), 17 * 60 + 59);
-  assert.equal(minuteOfDay(at(18, 0)), 18 * 60);
-  assert.equal(minuteOfDay(at(5, 0)), 5 * 60);
+test('世界日分钟：点灯前一分钟与点灯分钟是两个世界', () => {
+  const on = beatMinute('light_lamps');
+  const out = beatMinute('lamps_out');
+  assert.ok(on > out, '点灯时刻在收灯时刻之后（同一天内的两个边界）');
+  assert.equal(minuteOfDay(atMinute(on - 1)), on - 1);
+  assert.equal(minuteOfDay(atMinute(on)), on);
+  assert.equal(minuteOfDay(atMinute(out)), out);
   assert.equal(minuteOfDay(-1), 1439, '负数时刻稳定回绕');
 });
 
-test('18:00 前 0 盏、18:00 起 28 盏', () => {
-  assert.equal(litLampCountAt(at(17, 59), 'dusk', LAMP_STREET_LAMP_COUNT), 0);
-  assert.equal(litLampCountAt(at(18, 0), 'dusk', LAMP_STREET_LAMP_COUNT), 28);
-  assert.equal(litLampCountAt(at(18, 1), 'dusk', LAMP_STREET_LAMP_COUNT), 28);
+test('点灯前一分钟 0 盏、点灯分钟起 28 盏', () => {
+  const on = beatMinute('light_lamps');
+  assert.equal(litLampCountAt(atMinute(on - 1), 'dusk', LAMP_STREET_LAMP_COUNT), 0);
+  assert.equal(litLampCountAt(atMinute(on), 'dusk', LAMP_STREET_LAMP_COUNT), 28);
+  assert.equal(litLampCountAt(atMinute(on + 1), 'dusk', LAMP_STREET_LAMP_COUNT), 28);
 });
 
-test('天亮收灯：05:00 起 0 盏，04:59 仍是 28 盏', () => {
-  assert.equal(litLampCountAt(at(4, 59), 'night', LAMP_STREET_LAMP_COUNT), 28);
-  assert.equal(litLampCountAt(at(5, 0), 'night', LAMP_STREET_LAMP_COUNT), 0);
-  assert.equal(LAMP_DOWN_MINUTE, 5 * 60);
+test('收灯分钟起 0 盏，收灯前一分钟仍是 28 盏', () => {
+  const out = beatMinute('lamps_out');
+  assert.equal(litLampCountAt(atMinute(out - 1), 'night', LAMP_STREET_LAMP_COUNT), 28);
+  assert.equal(litLampCountAt(atMinute(out), 'night', LAMP_STREET_LAMP_COUNT), 0);
 });
 
 test('灯态看相位：正午强制不亮，夜里亮；强制相位按代表时刻判', () => {
@@ -98,5 +107,4 @@ test('灯态看相位：正午强制不亮，夜里亮；强制相位按代表�
   assert.equal(lampStreetLitAt(at(3, 0), 'dusk', false), true);
   assert.equal(lampStreetLitAt(at(3, 0), 'night', false), true);
   assert.equal(lampStreetLitAt(at(3, 0), 'dawn', false), false);
-  assert.equal(LAMP_ON_MINUTE, 18 * 60);
 });

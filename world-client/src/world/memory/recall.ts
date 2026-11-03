@@ -72,6 +72,11 @@ export interface RecallRequest {
   readonly strongCue?: boolean;
   readonly nowDay: number;
   readonly seedKey: string;
+  /**
+   * 这条记忆的关系相关度 0..1。省略时按 0 算（旧调用方保持原行为）。
+   * 由持有者的关系账本给，不从全局关系表读。
+   */
+  readonly relationshipOf?: (entry: MemoryEntry) => number;
 }
 
 export interface RecallHit {
@@ -123,12 +128,13 @@ export function scoreEntry(
   weights: RecallWeights,
   nowDay: number,
   strongCue: boolean,
+  relationshipOf?: (entry: MemoryEntry) => number,
 ): number {
   const age = Math.max(0, nowDay - entry.createdDay);
   const recency = 1 / (1 + age);
   const relevance = relevanceOf(entry, cues);
   const cueMatch = strongCue ? 1 : cueHit(entry, cues) ? 1 : 0;
-  const relationship = 0;
+  const relationship = relationshipOf === undefined ? 0 : Math.max(0, Math.min(1, relationshipOf(entry)));
   return (
     weights.recency * recency +
     weights.salience * entry.salience +
@@ -190,7 +196,7 @@ export function recall(
   const candidates = filterCandidates(entries, request.cues, strongCue);
   const scored: RecallHit[] = candidates.map((entry) => ({
     entry,
-    score: scoreEntry(entry, request.cues, config.recallWeights, request.nowDay, strongCue),
+    score: scoreEntry(entry, request.cues, config.recallWeights, request.nowDay, strongCue, request.relationshipOf),
   }));
   // 同分按 memoryId 排：顺序必须确定，否则回放时 top-k 的边界会抖。
   scored.sort((a, b) => {
