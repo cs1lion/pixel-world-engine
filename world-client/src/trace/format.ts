@@ -227,7 +227,8 @@ export interface TraceLanding {
   readonly prefabId: string;
   readonly origin: { readonly x: number; readonly y: number };
   readonly door: { readonly x: number; readonly y: number };
-  readonly coverageRate: number;
+  /** 分母为 0 时为 `null`：这一项没测到，不是 0 分。 */
+  readonly coverageRate: number | null;
   readonly pathfindingConnected: boolean;
   readonly hasCollision: boolean;
   readonly spatialConstraintSatisfied: boolean;

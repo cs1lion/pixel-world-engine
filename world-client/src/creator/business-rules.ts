@@ -50,13 +50,17 @@ export const INVARIANT_PREFIX = '不变式：';
  * 每次造物结算时都用**当时的** `Simulation.snapshot()` 现算，不缓存、不沿用
  * 上一个窗口的读数。这样「同一模板拆掉再建」也会产生一次新观测：覆盖率仍是
  * 10/10 = 1.0，但 `coverageChecks` +1，这个事实是新的。
+ *
+ * 分母为 0 时返回 `null`，与账本侧的 `coverageAfterBuild()` 保持同一口径：
+ * 「没测」不是「测了得 0 分」。调用方必须把 `null` 记成 `not_measured`，
+ * 不能拿 `?? 0` 或真假判断把它压成一次不达标。
  */
 export function creationCoverage(
   snapshot: Pick<WorldSnapshot, 'buildings'>,
   blueprints: ReadonlyMap<string, PrefabBlueprint>,
-): number {
+): number | null {
   const total = blueprints.size;
-  if (total === 0) return 0;
+  if (total === 0) return null;
   const seen = new Set<string>();
   for (const building of snapshot.buildings) {
     if (blueprints.has(building.prefabId)) seen.add(building.prefabId);
