@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                220 个测试文件 <!-- claim: test-file-count=220 -->
+└── test/                221 个测试文件 <!-- claim: test-file-count=221 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -294,6 +294,16 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:scene-dep
 ```bash
 cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-pool
 ```
+
+立面尺度也留了对照证据：同一机位、同一冻结帧拍「改前 / 改后」，把墙、人、灯柱三把标尺
+画在图上，并从截图里逐像素量墙高、石脚与灯体下沿的净空（`eval/screens/setting-scale.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting-scale
+```
+
+拍「改前」要先 `git stash` 掉 `src/` 的改动（`SCALE_LABEL=before`），恢复后再拍 `after`；
+改后那一跑会顺手合成并排图。
 
 ## 状态
 

@@ -32,10 +32,26 @@ import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
 import { sceneryDepth } from './scenery-depth.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
+import {
+  LAMP_BODY_BOTTOM,
+  LAMP_BODY_H,
+  LAMP_POST_TOP,
+  SHOPFRONT_BASE_H,
+  SHOPFRONT_STONE_H,
+  SHOPFRONT_TOP,
+  SHOPFRONT_WALL_H,
+  settingSceneryMetrics,
+  type SettingSceneryMetrics,
+} from './setting-scale.ts';
 
 export interface SettingSceneryView {
   update(level: number, now: number, clock: SettingSceneryClock): void;
   destroy(): void;
+  /**
+   * 立面与街灯的实际像素尺寸。证据脚本拿它画标尺：尺子读的就是渲染用的
+   * 那几个常量，不另抄一份数字。
+   */
+  readonly metrics: SettingSceneryMetrics;
 }
 
 /** 灯态时钟：相位与「是不是自动推进」。强制相位（`?time=`）下两者都要用上。 */
@@ -57,9 +73,6 @@ interface PoolAnchor {
   readonly y: number;
   readonly halfWidth: number;
 }
-
-/** 店面的墙基高度：灰泥墙 28 + 石脚 4。光池落在墙脚外沿的地面上。 */
-const SHOPFRONT_BASE_H = 32;
 
 /** 光池椭圆的平滑档位：16px 瓦片下 12 段已够圆，多一段都是白烧的指令。 */
 const POOL_SMOOTHNESS = 12;
@@ -121,7 +134,8 @@ export function createSettingScenery(
       drawPaving(street, x, y, item.length ?? 0, c);
     } else if (item.kind === 'lantern') {
       drawLantern(propLayer(item.at.y), x, y, c);
-      lights.push({ x: x + 8, y: y - 14 });
+      // 光点落在灯体中心（离地 43-6px），不再贴着旧 37px 灯柱的腰。
+      lights.push({ x: x + 8, y: y - LAMP_BODY_BOTTOM - LAMP_BODY_H / 2 });
       // 池心在灯柱脚下的地面（本格中心偏下 2px），不是灯体高度。
       pools.push({ x: x + 8, y: y + 10, halfWidth: 0 });
     } else if (item.kind === 'lamp_string') {
@@ -147,9 +161,9 @@ export function createSettingScenery(
       const width = (item.length ?? 5) * TILE_PX;
       const lanterns = drawShopfront(propLayer(item.at.y), x, y, width, c);
       // 店面那扇格窗也吃灯态：白天是暗琥珀，点灯后透出暖光。
-      windows.push({ x: x + (width >= 64 ? width / 4 : 18), y: y + 19 });
+      windows.push({ x: x + (width >= 64 ? width / 4 : 18), y: y - SHOPFRONT_TOP + 12 });
       // 檐下红灯比街灯小一档，用 `windows` 的 14x10 光芯就够，不再开大灯池。
-      for (const lx of lanterns) windows.push({ x: lx + 2, y: y - 1 });
+      for (const lx of lanterns) windows.push({ x: lx + 2, y: y - SHOPFRONT_TOP + 5 });
       // 檐下那一排灯只落一片贴墙的池子：池心在墙脚外沿（石脚底边再下 8px）。
       pools.push({ x: x + width / 2, y: y + SHOPFRONT_BASE_H + 8, halfWidth: width / 2 });
     } else if (item.kind === 'signpost') {
@@ -267,6 +281,7 @@ export function createSettingScenery(
   );
 
   return {
+    metrics: settingSceneryMetrics(),
     update(level, now, clock) {
       lampLight.clear();
       lampPool.clear();
@@ -434,7 +449,12 @@ function drawPaving(
   }
 }
 
-/** 街灯柱：杆 + 横臂 + 纸灯体。亮芯由动态层加，不在静态层画。 */
+/**
+ * 街灯柱：杆 + 横臂 + 纸灯体。亮芯由动态层加，不在静态层画。
+ *
+ * 柱脚落在瓦片下沿（`y + TILE_PX`），柱顶离地 58px；灯体下沿离地 43px，
+ * 比人高 30px 再高 13px——人从灯下走过不会被灯体压住头（设定集 p16/p39）。
+ */
 function drawLantern(
   g: Phaser.GameObjects.Graphics,
   x: number,
@@ -442,14 +462,14 @@ function drawLantern(
   c: SettingPack['palette'],
 ): void {
   g.fillStyle(c.timberDark, 1);
-  g.fillRect(x + 7, y - 21, 2, 37);
-  g.fillRect(x + 4, y - 22, 10, 2);
+  g.fillRect(x + 7, y - LAMP_POST_TOP, 2, LAMP_POST_TOP + TILE_PX);
+  g.fillRect(x + 4, y - LAMP_POST_TOP, 10, 2);
   g.fillStyle(c.ember, 1);
-  g.fillRect(x + 5, y - 19, 7, 10);
+  g.fillRect(x + 4, y - LAMP_BODY_BOTTOM - LAMP_BODY_H, 8, LAMP_BODY_H);
   g.fillStyle(c.trim, 1);
-  g.fillRect(x + 5, y - 19, 7, 1);
+  g.fillRect(x + 4, y - LAMP_BODY_BOTTOM - LAMP_BODY_H, 8, 1);
   g.fillStyle(c.ink, 1);
-  g.fillRect(x + 5, y - 9, 7, 1);
+  g.fillRect(x + 4, y - LAMP_BODY_BOTTOM - 1, 8, 1);
 }
 
 /** 灯串上的一盏：更小，挂在绳下。 */
@@ -483,84 +503,88 @@ function drawShopfront(
   width: number,
   c: SettingPack['palette'],
 ): number[] {
+  // 墙顶往上抬 16px：立面长高，落地线（石脚底边 y+32）一格不动。
+  const top = y - SHOPFRONT_TOP;
+  const baseY = top + SHOPFRONT_WALL_H;
   // 檐
   g.fillStyle(c.ink, 0.22);
-  g.fillRect(x - 3, y - 2, width + 6, 3);
+  g.fillRect(x - 3, top - 1, width + 6, 1);
   g.fillStyle(c.terracotta, 1);
-  g.fillRect(x - 4, y - 8, width + 8, 7);
+  g.fillRect(x - 4, top - 8, width + 8, 7);
   g.fillStyle(c.trim, 0.8);
-  g.fillRect(x - 4, y - 8, width + 8, 1);
+  g.fillRect(x - 4, top - 8, width + 8, 1);
   // 檐下布幔：橙红分条，幔脚压一道深线（p37/p40 的店檐）。每 6px 一条，
   // 48px 窄立面也不挤成一条实线，同时把三面店面的指令数压下来。
   for (let i = 0; i < width + 8; i += 6) {
     g.fillStyle(i % 8 === 0 ? c.warmLight : c.terracotta, 0.9);
-    g.fillRect(x - 4 + i, y - 4, 3, 3);
+    g.fillRect(x - 4 + i, top - 4, 3, 3);
   }
   g.fillStyle(c.ink, 0.5);
-  g.fillRect(x - 4, y - 1, width + 8, 1);
+  g.fillRect(x - 4, top - 1, width + 8, 1);
   // 墙
   g.fillStyle(c.plaster, 1);
-  g.fillRect(x, y, width, 28);
+  g.fillRect(x, top, width, SHOPFRONT_WALL_H);
   // 斑驳：雨痕从檐口垂到窗上沿，露石与补板压在旧缝上（p40）。
-  g.fillStyle(c.deepShade, 0.20);
-  g.fillRect(x + 9, y + 2, 1, 10);
-  g.fillRect(x + width - 19, y + 3, 1, 8);
+  g.fillStyle(c.deepShade, 0.2);
+  g.fillRect(x + 9, top + 2, 1, 10);
+  g.fillRect(x + width - 19, top + 3, 1, 8);
   g.fillStyle(c.stone, 0.55);
-  g.fillRect(x + 16, y + 4, 6, 4);
+  g.fillRect(x + 16, top + 4, 6, 4);
   g.fillStyle(c.timberDark, 0.55);
-  g.fillRect(x + 3, y + 20, 8, 1);
+  g.fillRect(x + 3, top + 20, 8, 1);
   g.fillStyle(c.stone, 1);
-  g.fillRect(x, y + 28, width, 4);
+  g.fillRect(x, baseY, width, SHOPFRONT_STONE_H);
   // 贴地影：窄立面也要有落地的接触面，否则像一块浮着的板
   g.fillStyle(c.ink, 0.28);
-  g.fillRect(x + 2, y + 32, width - 4, 2);
+  g.fillRect(x + 2, y + SHOPFRONT_BASE_H, width - 4, 2);
   // 木框：外框 + 内柱，让灰泥墙读成「木骨灰泥」而不是一块白板
   g.fillStyle(c.timberDark, 1);
-  g.fillRect(x, y, 2, 32);
-  g.fillRect(x + width - 2, y, 2, 32);
-  g.fillRect(x, y + 9, width, 1);
-  g.fillRect(x, y + 24, width, 1);
+  g.fillRect(x, top, 2, SHOPFRONT_WALL_H + SHOPFRONT_STONE_H);
+  g.fillRect(x + width - 2, top, 2, SHOPFRONT_WALL_H + SHOPFRONT_STONE_H);
+  g.fillRect(x, top + 20, width, 1);
+  g.fillRect(x, top + 40, width, 1);
   g.fillStyle(c.timberDark, 0.55);
-  for (let i = 12; i < width - 2; i += 12) g.fillRect(x + i, y, 1, 24);
+  for (let i = 12; i < width - 2; i += 12) g.fillRect(x + i, top, 1, 40);
+  // 格窗开在墙的上半：窗底与门楣之间留一道横枋，立面才不会读成一块板。
   if (width >= 64) {
     // 宽立面：两扇格窗
     const pane = Math.max(10, Math.floor((width - 18) / 2));
-    drawLattice(g, x + 5, y + 13, pane, 12, c);
-    drawLattice(g, x + width - pane - 5, y + 13, pane, 12, c);
+    drawLattice(g, x + 5, top + 6, pane, 12, c);
+    drawLattice(g, x + width - pane - 5, top + 6, pane, 12, c);
   } else {
     // 窄立面：一扇窗 + 门，别把 48px 塞成四格
-    drawLattice(g, x + 5, y + 13, width - 22, 12, c);
+    drawLattice(g, x + 5, top + 6, width - 22, 12, c);
   }
   // 暖帘与门
   const doorX = width >= 64 ? x + Math.floor(width / 2) - 7 : x + width - 18;
   g.fillStyle(c.timberDark, 1);
-  g.fillRect(doorX, y + 18, 14, 14);
+  g.fillRect(doorX, top + 26, 14, 14);
   g.fillStyle(c.pale, 1);
-  g.fillRect(doorX, y + 18, 14, 4);
+  g.fillRect(doorX, top + 26, 14, 4);
   g.fillStyle(c.ember, 1);
-  for (let i = 0; i < 3; i += 1) g.fillRect(doorX + 2 + i * 4, y + 22, 1, 9);
+  for (let i = 0; i < 3; i += 1) g.fillRect(doorX + 2 + i * 4, top + 30, 1, 9);
   // 竖招牌
   g.fillStyle(c.trim, 1);
-  g.fillRect(x + width - 7, y + 12, 5, 16);
+  g.fillRect(x + width - 7, top + 10, 5, 16);
   g.fillStyle(c.ink, 1);
-  g.fillRect(x + width - 5, y + 14, 2, 2);
-  g.fillRect(x + width - 5, y + 18, 2, 2);
-  g.fillRect(x + width - 5, y + 22, 2, 1);
+  g.fillRect(x + width - 5, top + 12, 2, 2);
+  g.fillRect(x + width - 5, top + 16, 2, 2);
+  g.fillRect(x + width - 5, top + 20, 2, 1);
   // 檐下红灯：一排挂在檐口下面，是 p37/p40 店街最显眼的一层。
   const lanterns: number[] = [];
   const count = width >= 64 ? 4 : 2;
   for (let i = 0; i < count; i += 1) {
     const lx = x + 7 + i * (width - 18) / (count - 1);
     g.fillStyle(c.timberDark, 1);
-    g.fillRect(lx + 2, y - 1, 1, 3);
+    g.fillRect(lx + 2, top - 2, 1, 3);
     g.fillStyle(c.ember, 1);
-    g.fillRect(lx, y + 2, 5, 7);
+    g.fillRect(lx, top + 2, 5, 7);
     g.fillStyle(c.trim, 1);
-    g.fillRect(lx, y + 2, 5, 1);
+    g.fillRect(lx, top + 2, 5, 1);
     g.fillStyle(c.amber, 0.7);
-    g.fillRect(lx + 2, y + 4, 1, 3);
+    g.fillRect(lx + 2, top + 4, 1, 3);
     g.fillStyle(c.ink, 1);
-    g.fillRect(lx, y + 8, 5, 1);
+    g.fillRect(lx, top + 8, 5, 1);
     lanterns.push(lx + 2);
   }
   return lanterns;

@@ -3611,6 +3611,11 @@ export class SandboxScene extends Phaser.Scene {
         this.forcedLamps = on;
         return on;
       },
+      /**
+       * 立面与街灯的像素尺寸。尺子读的就是渲染用的常量（`SettingSceneryMetrics`），
+       * 证据脚本拿它画覆盖线与比例，不另抄一份数字；场景未起来时为 `null`。
+       */
+      debugSettingScale: () => this.settingScenery?.metrics ?? null,
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
