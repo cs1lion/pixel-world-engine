@@ -87,8 +87,10 @@ export interface OracleApi {
     readonly taskKind: 'code' | 'research' | 'writing' | 'quick';
     readonly summary: string;
   }) => { readonly ok: boolean; readonly message: string };
-  /** 命令结算结果。返回取消订阅函数。 */
-  readonly onResult: (listener: (result: { ok: boolean; message: string }) => void) => () => void;
+  /** 命令结算结果。返回取消订阅函数。`raw` 是神谕那条路的原句，见 `CommandResult`。 */
+  readonly onResult: (
+    listener: (result: { ok: boolean; message: string; raw?: string }) => void,
+  ) => () => void;
   /** 世界状态一行字。像素画面不画中文，这行归纸面。 */
   readonly onStatus: (listener: (line: string) => void) => () => void;
   /** 时相：显式指定某一刻（截图/调试），会停止自动推进。 */
@@ -300,6 +302,10 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     reply.classList.toggle('bad', !ok);
   };
 
+  // 投递时清空输入框，回执却要等模型才回来。记下刚发出去的那句，
+  // 被上游拒收时把它放回输入框——否则玩家对着空框重打一遍。
+  let pendingText: string | null = null;
+
   // 场景在 create() 里才挂上 window.Oracle。等它出现再订阅一次结果流。
   // 等它用的是 setTimeout 不是 requestAnimationFrame：见 `when-api.ts`。
   whenApi(getApi, (api) => {
@@ -308,6 +314,20 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
       // 而它绝大多数时候无话可说（见 `simulation.ts` 的 syncEvents）——
       // 从前景说话它一开口，用户那句「雨落下来了。」就没了。
       if (result.message !== '') show(result.ok, result.message);
+      // 被上游拒收（4xx / 模型没答）时把原句还给输入框。
+      // 认 `raw` 而不是「最后一条」：回执是异步的，中途可能先到别的结果。
+      // 只在输入框空着时放回——用户已经重新敲了字，就别覆盖人家。
+      // 成功回执不动输入框；`pendingText` 留到下一次提交覆盖为止，
+      // 因为「正在问模型……」也是成功回执，此时清掉会让随后的拒收无处可还。
+      if (
+        pendingText !== null &&
+        result.raw === pendingText &&
+        !result.ok &&
+        input.value === ''
+      ) {
+        input.value = pendingText;
+        input.focus();
+      }
       paintPaper(api);
     });
     api.onStatus((line) => {
@@ -343,6 +363,7 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     }
     const parsed = api.say(prepared.text);
     if (!parsed.ok) show(false, parsed.message);
+    else pendingText = prepared.text;
     return parsed.ok;
   };
 

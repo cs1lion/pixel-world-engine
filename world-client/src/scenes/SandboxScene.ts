@@ -9,6 +9,7 @@ import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.
 import { drawGroundDecals } from '../render/decal.ts';
 import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
 import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp, WorldSnapshot } from '../world/types.ts';
+import { beginPinchZoom, pinchZoomStep, type PinchZoomState } from '../render/pinch-zoom.ts';
 import { villagerAtCell } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
@@ -377,6 +378,17 @@ export class SandboxScene extends Phaser.Scene {
   private dragFrom: { x: number; y: number } | null = null;
   /** 这一回按下之后指针挪过没有。挪过了就是拖镜头，没挪过才算点一下。 */
   private pressMoved = false;
+  /**
+   * 屏幕上的触屏手指，按 Phaser 的 `pointer.id` 记。
+   *
+   * 捏合要的是「两根手指同时在哪」，而 `pointermove` 是**逐指**派发的——只看
+   * 一根手指的位移，分不清它是拖图还是在缩放。
+   */
+  private readonly touches = new Map<number, { x: number; y: number }>();
+  /** 捏合会话；`null` = 没有两指手势在进行（两指都抬起后才清）。 */
+  private pinch: PinchZoomState | null = null;
+  /** 这一帧有捏合位移待结算（见 `settlePinch`）。 */
+  private pinchPending = false;
   private lastConstructionKey = '';
   private readonly lastBubbles = new Map<string, string | null>();
   private readonly animalese: Animalese = createLazyAnimalese();
@@ -645,21 +657,41 @@ export class SandboxScene extends Phaser.Scene {
     };
     this.game.canvas.addEventListener('contextmenu', this.contextMenuListener);
 
+    // Phaser 默认只分一个触屏 pointer，第二根手指落下根本没有对象接。
+    // 捏合要两根，所以在这里补一个（`InputManager.addPointer` 的上限是 10，够用）。
+    this.input.addPointer(1);
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
+      if (pointer.wasTouch) this.touches.set(pointer.id, { x: pointer.x, y: pointer.y });
       // 右键 = 上下文面板，不参与拖镜头，也不在抬手时开状态菜单。
       if (pointer.rightButtonDown()) {
         this.suppressClickUp = true;
         this.openContextPanelAt(pointer);
         return;
       }
+      // 第二根手指落下 = 捏合：这一下既不是长按，也不是拖图或单击。
+      if (this.beginPinchIfTwo()) return;
       this.suppressClickUp = false;
       this.dragFrom = { x: pointer.x, y: pointer.y };
       this.pressMoved = false;
       this.beginLongPress(pointer);
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      const suppress = this.suppressClickUp;
+      // 捏合结束时两根手指的抬手都必须被吃掉：否则先抬的那根会被当成一次单击，
+      // 在「缩放完」的瞬间开出一个面板。
+      const pinching = this.pinch !== null;
+      // 抬起前先把最后一拍位移结算掉：一次快速的「拉开即松手」可能整段落在
+      // 一帧之内，等 update 就来不及了（那时手指已经不在册）。
+      if (pinching) this.settlePinch();
+      if (pointer.wasTouch) {
+        this.touches.delete(pointer.id);
+        if (this.touches.size === 0) {
+          this.pinch = null;
+          this.pinchPending = false;
+        }
+      }
+      const suppress = this.suppressClickUp || pinching;
       this.suppressClickUp = false;
       this.cancelLongPress();
       this.dragFrom = null;
@@ -687,7 +719,13 @@ export class SandboxScene extends Phaser.Scene {
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.creation !== null || this.dragFrom === null) return;
+      if (this.creation !== null) return;
+      if (pointer.wasTouch && this.touches.has(pointer.id)) {
+        this.touches.set(pointer.id, { x: pointer.x, y: pointer.y });
+        // 两指手势期间不走单指路径：捏合已经在改镜头，再叠加一次平移就成双份位移。
+        if (this.applyPinch()) return;
+      }
+      if (this.dragFrom === null) return;
       if (!pointer.isDown) {
         this.dragFrom = null;
         return;
@@ -1285,6 +1323,10 @@ export class SandboxScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     this.updateCount += 1;
+
+    // 捏合排在省电跳帧之前：镜头是输入，不该被后台降频拖住。
+    // 这里看到的才是两根手指同一时刻的位置（见 `settlePinch` 的注释）。
+    this.settlePinch();
 
     // 省电：后台时按最小间隔跳帧。**跳过的是这一帧的渲染与逻辑推进**。
     // 少的是帧数，不是世界时间——累加器按真实经过的时间补，所以推得粗一些
@@ -2473,6 +2515,70 @@ export class SandboxScene extends Phaser.Scene {
   private openContextPanelForRef(ref: UnitRef): void {
     if (ref.kind === 'villager') this.lookAtVillager(ref.id);
     else this.openBuilding(ref.id);
+  }
+
+  /**
+   * 第二根触屏手指落下：进入捏合。
+   *
+   * 返回 `true` 表示这次按下已被捏合吃掉，调用方不要再走长按 / 拖图 / 单击。
+   * 单指路径的判据都建立在「一根手指」上；两指时它们全不成立。
+   */
+  private beginPinchIfTwo(): boolean {
+    const pair = this.pinchPair();
+    if (pair === null) return false;
+    const [a, b] = pair;
+    this.cancelLongPress();
+    this.suppressClickUp = true;
+    this.dragFrom = null;
+    this.pressMoved = true;
+    // 每次都按当前间距重新起算：第一下是手势开始，中途再落一根也不在旧基准上续。
+    this.pinch = beginPinchZoom(Math.hypot(b.x - a.x, b.y - a.y));
+    return true;
+  }
+
+  /**
+   * 捏合中一次指针移动：**只记账，不立刻换档**。
+   *
+   * Phaser 的 `pointermove` 是**逐指**派发的：一次两指 `touchmove` 会来两拍，
+   * 第一拍里只有一根手指到了新位置，另一根还是上一拍的值。拿这种半新半旧
+   * 的间距去算中点，锚点就会偏（实测两指 80→200 时中点被算成 228 而不是 240，
+   * 画面因此漂 2 世界px）。等这一帧的 `update()` 再看，两指位置才是同一时刻的。
+   */
+  private applyPinch(): boolean {
+    if (this.pinch === null) return false;
+    this.pinchPending = true;
+    // 手指在画面里动也算用户输入：捏合刚结束，镜头不该被闲置导播接走。
+    this.cameraCtl.notifyInput();
+    return true;
+  }
+
+  /** 每帧开头结算一次捏合：这时两根手指的位置都属于这一拍。 */
+  private settlePinch(): void {
+    if (!this.pinchPending) return;
+    this.pinchPending = false;
+    const state = this.pinch;
+    if (state === null) return;
+    const pair = this.pinchPair();
+    // 已经不足两指：手势还没结束（要等全部抬起），这一帧不换档。
+    if (pair === null) return;
+    const [a, b] = pair;
+    const distance = Math.hypot(b.x - a.x, b.y - a.y);
+    const step = pinchZoomStep(state, distance);
+    this.pinch = step.state;
+    if (step.direction !== 0) {
+      this.cameraCtl.zoomStepAt(step.direction, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    }
+  }
+
+  /** 前两根触屏手指的位置；不足两根返回 null。 */
+  private pinchPair(): [
+    { readonly x: number; readonly y: number },
+    { readonly x: number; readonly y: number },
+  ] | null {
+    if (this.touches.size < 2) return null;
+    const [a, b] = [...this.touches.values()];
+    if (a === undefined || b === undefined) return null;
+    return [a, b];
   }
 
   /** 触屏长按：500ms 后开上下文面板；桌面鼠标不走这条。 */

@@ -970,7 +970,14 @@ export class Simulation {
     if (command.kind === 'oracle') {
       // 序号要一路带到 `speak()`：它发问时得记住「这一行归哪一条」，
       // 模型的答复回来时才有个可比的数。见 `receiptOwnerSeq`。
-      return this.arbitrate(entry.seq, this.speak(command.raw, entry.seq));
+      //
+      // 原句随回执带回面板：投递时输入框已经清空，被上游拒收时面板靠这个
+      // 把句子放回去。空结果（被别的命令挤掉的那条）不认领原句。
+      const said = this.speak(command.raw, entry.seq);
+      return this.arbitrate(
+        entry.seq,
+        said.message === '' ? said : { ...said, raw: command.raw },
+      );
     }
     if (command.kind === 'intentFromModel') {
       // 迟到的答复：**按发问那一条的序号仲裁**，不按本条入队的序号。
@@ -978,7 +985,11 @@ export class Simulation {
       // 本条是网络回来后才入队的，序号最新——拿它比，它永远赢，那道闸就白设了。
       // 该比的是「我问出这句话的时候，那一行归谁」：那之后只要有别的命令写了
       // 字，序号就更大，这话该闭嘴。
-      return this.arbitrate(command.askedAtSeq, this.applyIntent(command.intent, command.raw));
+      const said = this.applyIntent(command.intent, command.raw);
+      return this.arbitrate(
+        command.askedAtSeq,
+        said.message === '' ? said : { ...said, raw: command.raw },
+      );
     }
     return this.arbitrate(entry.seq, this.applyCommand(command));
   }
