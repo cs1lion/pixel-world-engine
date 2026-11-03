@@ -440,6 +440,17 @@ export function bindUnitStatusPanel(oracle: () => UnitStatusOracle | undefined):
   };
 }
 
+/** 触屏长按的阈值：约 500ms。 */
+export const LONG_PRESS_MS = 500;
+
+/**
+ * 长按是否该开上下文面板。指针已经移出单位（`stillOnUnit=false`）就不算。
+ * 单拆成函数是为了让 500ms 与「移出即取消」两条都有单测。
+ */
+export function longPressShouldFire(elapsedMs: number, stillOnUnit: boolean): boolean {
+  return stillOnUnit && elapsedMs >= LONG_PRESS_MS;
+}
+
 /** 指针格子先比人再比楼；上到碑的优先级仍由调用方决定。 */
 export function unitAtCell(world: UnitStatusWorld, x: number, y: number): UnitRef | null {
   const villager = villagerAtCell(world.villagers, x, y);

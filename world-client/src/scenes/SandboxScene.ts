@@ -22,9 +22,12 @@ import type { OracleApi } from '../ui/oracle-panel.ts';
 import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { ClockAlignOracle, ClockAlignmentView } from '../ui/clock-align.ts';
 import {
+  LONG_PRESS_MS,
   anchorCellOf,
   buildUnitStatus,
+  longPressShouldFire,
   screenAnchorForCell,
+  unitAtCell,
   type UnitMemoryReader,
   type UnitRef,
   type UnitStatusContent,
@@ -251,6 +254,12 @@ export class SandboxScene extends Phaser.Scene {
   private unitStatusSelection: UnitRef | null = null;
   private lastUnitStatus: UnitStatusView | null = null;
   private readonly unitStatusListeners = new Set<(view: UnitStatusView | null) => void>();
+  /** 右键/长按开的是记忆/楼志面板；左键开的仍是状态菜单。 */
+  private longPressTimer: number | null = null;
+  private longPressRef: UnitRef | null = null;
+  /** 右键或长按已经处理过这次按下，抬手时不要再开状态菜单。 */
+  private suppressClickUp = false;
+  private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
@@ -531,13 +540,31 @@ export class SandboxScene extends Phaser.Scene {
     }
 
     // 拖拽平移与滚轮缩放。造物模式优先：那时拖拽不移动镜头。
+    // 桌面右键直接开记忆/楼志；浏览器菜单必须压掉，否则右键先弹系统菜单。
+    this.contextMenuListener = (event: Event): void => {
+      event.preventDefault();
+    };
+    this.game.canvas.addEventListener('contextmenu', this.contextMenuListener);
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
+      // 右键 = 上下文面板，不参与拖镜头，也不在抬手时开状态菜单。
+      if (pointer.rightButtonDown()) {
+        this.suppressClickUp = true;
+        this.openContextPanelAt(pointer);
+        return;
+      }
+      this.suppressClickUp = false;
       this.dragFrom = { x: pointer.x, y: pointer.y };
       this.pressMoved = false;
+      this.beginLongPress(pointer);
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const suppress = this.suppressClickUp;
+      this.suppressClickUp = false;
+      this.cancelLongPress();
       this.dragFrom = null;
+      if (suppress) return;
       // 抬手时没怎么动，才算「点了一下」而不是拖镜头。没有这个区分的话，
       // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
       if (this.pressMoved) return;
@@ -554,7 +581,10 @@ export class SandboxScene extends Phaser.Scene {
         return;
       }
       if (this.openBuildingStatusAt(pointer)) return;
+      // 点空白：三种单位面板一起收，行为与 Esc / 关闭按钮一致。
       this.dismissUnitStatus();
+      this.closeVillagerPanel();
+      this.closeBuildingPanel();
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -562,6 +592,17 @@ export class SandboxScene extends Phaser.Scene {
       if (!pointer.isDown) {
         this.dragFrom = null;
         return;
+      }
+      // 长按期间指针移出原来的单位就取消；仍在他身上则继续等 500ms。
+      if (this.longPressRef !== null) {
+        const current = this.unitRefAt(pointer);
+        if (
+          current === null
+          || current.kind !== this.longPressRef.kind
+          || current.id !== this.longPressRef.id
+        ) {
+          this.cancelLongPress();
+        }
       }
       const dx = pointer.x - this.dragFrom.x;
       const dy = pointer.y - this.dragFrom.y;
@@ -960,6 +1001,11 @@ export class SandboxScene extends Phaser.Scene {
     this.settingScenery = null;
     this.tideView?.destroy();
     this.fogView?.destroy();
+    this.cancelLongPress();
+    if (this.contextMenuListener !== null) {
+      this.game.canvas.removeEventListener('contextmenu', this.contextMenuListener);
+      this.contextMenuListener = null;
+    }
     this.feedClient?.stop();
     this.feedClient = null;
     this.eventsClient = null;
@@ -1835,6 +1881,61 @@ export class SandboxScene extends Phaser.Scene {
     );
   }
 
+  /** 指针下的单位（先人后楼），给右键与长按共用。 */
+  private unitRefAt(pointer: Phaser.Input.Pointer): UnitRef | null {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    return unitAtCell(
+      this.unitStatusWorld(),
+      Math.floor(world.x / TILE_PX),
+      Math.floor(world.y / TILE_PX),
+    );
+  }
+
+  /**
+   * 右键：直接开这个单位的上下文面板（人→记忆，楼→楼志）。
+   * 空白处返回 false，什么也不做——右键空白不该报错，也不该洗地。
+   */
+  private openContextPanelAt(pointer: Phaser.Input.Pointer): boolean {
+    const ref = this.unitRefAt(pointer);
+    if (ref === null) return false;
+    this.openContextPanelForRef(ref);
+    return true;
+  }
+
+  private openContextPanelForRef(ref: UnitRef): void {
+    if (ref.kind === 'villager') this.lookAtVillager(ref.id);
+    else this.openBuilding(ref.id);
+  }
+
+  /** 触屏长按：500ms 后开上下文面板；桌面鼠标不走这条。 */
+  private beginLongPress(pointer: Phaser.Input.Pointer): void {
+    if (!pointer.wasTouch) return;
+    this.cancelLongPress();
+    const ref = this.unitRefAt(pointer);
+    if (ref === null) return;
+    this.longPressRef = ref;
+    this.longPressTimer = window.setTimeout(() => {
+      this.longPressTimer = null;
+      const still = this.longPressRef;
+      if (!longPressShouldFire(LONG_PRESS_MS, still !== null) || still === null) {
+        this.longPressRef = null;
+        return;
+      }
+      this.longPressRef = null;
+      // 长按已处理这次按下：抬手时不再叠开状态菜单。
+      this.suppressClickUp = true;
+      this.openContextPanelForRef(still);
+    }, LONG_PRESS_MS);
+  }
+
+  private cancelLongPress(): void {
+    if (this.longPressTimer !== null) {
+      window.clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+    this.longPressRef = null;
+  }
+
   /** 点到人：开只读状态菜单。命中判据仍是 `villagerAt`。 */
   private openVillagerStatusAt(pointer: Phaser.Input.Pointer): boolean {
     const villager = this.villagerAt(pointer);
@@ -1912,6 +2013,9 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private openUnitStatus(selection: UnitRef): void {
+    // 左键状态菜单与右键/长按的记忆、楼志互斥。
+    this.closeVillagerPanel();
+    this.closeBuildingPanel();
     this.unitStatusSelection = selection;
     this.publishUnitStatus();
   }
@@ -1956,6 +2060,9 @@ export class SandboxScene extends Phaser.Scene {
   lookAtVillager(villagerId: string): void {
     const villager = this.snapshot.villagers.find((item) => item.id === villagerId);
     if (villager === undefined) return;
+    // 同一时间只开一个单位面板：记忆面板打开时收掉楼志与状态菜单。
+    this.closeBuildingPanel();
+    this.dismissUnitStatus();
 
     const view = this.villagerViews.get(villagerId);
     if (view !== undefined) this.cameraCtl.follow(view.container);
@@ -2095,6 +2202,9 @@ export class SandboxScene extends Phaser.Scene {
   openBuilding(placeId: string): void {
     const view = this.buildingViewOf(placeId);
     if (view === null) return;
+    // 同一时间只开一个单位面板：楼志打开时收掉记忆与状态菜单。
+    this.closeVillagerPanel();
+    this.dismissUnitStatus();
     this.lastBuildingView = view;
     for (const listener of this.buildingListeners) listener(view);
   }

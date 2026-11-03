@@ -15,8 +15,10 @@ import { Simulation } from '../src/world/simulation.ts';
 import { viewOriginOf } from '../src/render/camera-math.ts';
 import {
   anchorCellOf,
+  LONG_PRESS_MS,
   buildUnitStatus,
   cellAtScreenPoint,
+  longPressShouldFire,
   screenHitPointForCell,
   unitAtCell,
   type UnitMemoryReader,
@@ -114,6 +116,14 @@ test('空单位 / 空数据：返回 null，不编占位', () => {
   };
   assert.equal(buildUnitStatus(empty, { kind: 'villager', id: 'v0' }), null);
   assert.equal(buildUnitStatus(empty, { kind: 'building', id: 'b0' }), null);
+});
+
+test('长按约 500ms 才触发；移出单位立刻取消', () => {
+  assert.equal(LONG_PRESS_MS, 500);
+  assert.equal(longPressShouldFire(499, true), false);
+  assert.equal(longPressShouldFire(500, true), true);
+  assert.equal(longPressShouldFire(800, true), true);
+  assert.equal(longPressShouldFire(800, false), false, '指针移出单位就不算长按');
 });
 
 test('zoom=1/2/3：屏幕坐标经视野原点公式回算，仍命中同一个人/同一栋楼', () => {
