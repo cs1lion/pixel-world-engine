@@ -16,6 +16,7 @@ import { TERRAIN_COLORS, WORLD, tokenNameOf } from '../world/palette-data.ts';
 import type { WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
+import type { LandmarkEvent } from '../world/memory/landmark.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
@@ -2243,7 +2244,31 @@ export class SandboxScene extends Phaser.Scene {
         this.snapshot?.tasks.find((item) => item.id === taskId)?.buildingId ?? undefined,
     });
     if (observation === null) return;
-    this.memory.observe(observation, undefined, at);
+    // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
+    // （重建换了实例 id，地块没换）。别的改变没有这一段，照旧。
+    const landmark = this.landmarkEventOf(change);
+    this.memory.observe(landmark === undefined ? observation : { ...observation, landmark }, undefined, at);
+  }
+
+  /**
+   * 一条楼相关的改变 → 地标的输入。查不到位置就不产生地标阶段——
+   * 「一块地不知道在哪」比「没有这段历史」更糟：废墟会画到空气里。
+   *
+   * 两个来源都要问：动工那一笔在 `sim.buildingById` 里（新楼还没进快照），
+   * 拆楼那一笔在上一帧快照里（楼已经从 `buildings` 里摘掉了）。
+   */
+  private landmarkEventOf(change: WorldChange): LandmarkEvent | undefined {
+    if (change.change !== 'building.built' && change.change !== 'building.removed') return undefined;
+    const building =
+      this.sim.buildingById(change.instanceId)
+      ?? this.snapshot?.buildings.find((item) => item.instanceId === change.instanceId);
+    if (building === undefined) return undefined;
+    return {
+      change: change.change === 'building.built' ? 'built' : 'removed',
+      displayName: change.displayName,
+      origin: { x: building.origin.x, y: building.origin.y },
+      footprint: { w: building.footprint.w, h: building.footprint.h },
+    };
   }
 
   view(): WorldSnapshot {

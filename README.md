@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                197 个测试文件 <!-- claim: test-file-count=197 -->
+└── test/                198 个测试文件 <!-- claim: test-file-count=198 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -37,7 +37,7 @@ server/                  FastAPI：规则校验、事件日志、LLM 造物主�
 docs/                    设计与决策
 ├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
 ├── iterations/          迭代资料（1027-task-1 内环 / 1027-task-2 外环）
-├── adr/                 架构决策记录 <!-- claim: adr-count=8 -->
+├── adr/                 架构决策记录 <!-- claim: adr-count=9 -->
 └── art/                 美术基准（《千与千寻视觉设定集》）
 memory/                  时间线记忆：entries / characters / events / rules
 ```

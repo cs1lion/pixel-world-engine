@@ -18,12 +18,24 @@
 
 import { DEFAULT_MEMORY_CONFIG, type MemoryConfig } from './config.ts';
 import { placeHints, type NarrativeHint } from './hints.ts';
+import type { LandmarkEvent } from './landmark.ts';
 import type { OcclusionGrid, Perceiver } from './perception.ts';
 import { witnessesOf } from './perception.ts';
 import { heardBy, soundKindOf } from './hearing.ts';
 import type { RecallOutcome, RecallRequest } from './recall.ts';
 import { compile, type UpstreamAction } from './sanitize.ts';
-import type { HolderType, Legend, MemoryEvent, Toponym, WorldFact, WorldVitals } from './types.ts';
+import type {
+  EpicEntry,
+  Era,
+  HolderType,
+  Landmark,
+  Legend,
+  MemoryEvent,
+  Toponym,
+  TurningPoint,
+  WorldFact,
+  WorldVitals,
+} from './types.ts';
 import { MemoryWorld, type HolderView, type MemoryWorldSnapshot } from './world.ts';
 
 /**
@@ -37,10 +49,15 @@ import { MemoryWorld, type HolderView, type MemoryWorldSnapshot } from './world.
  * | --- | --- | --- |
  * | 1 | 内环原本的全部状态 | — |
  * | 2 | `world.placeAnchors`（地点坐标与 Holder 分库存） | 从名册里的地点 Holder 补回坐标 |
+ * | 3 | `world.landmarks` / `eras` / `epics` / `turningPoints`（场景记忆与成长记录） | 补空数组：v2 的档没记过这些，空 = 那一段历史还没开始 |
  *
- * 老档（v1）迁移必须**无损**：v2 只多一段从既有数据推得出来的坐标，别的一字不动。
+ * 每一次迁移都必须**无损**：新增的段要么从既有数据推得出来（v2 的坐标），
+ * 要么明确是空的（v3）。旧档里已有的字段一个都不动、一条都不删。
+ *
+ * **不含任何存档侧的改动**：`world.memory` 这一段字符串以外的位置、
+ * 路径白名单、指纹都不动。导出带历史这类需求留到以后（那时才谈 v6）。
  */
-export const MEMORY_SCHEMA_VERSION = 2;
+export const MEMORY_SCHEMA_VERSION = 3;
 
 /** `MemoryRuntime.toJSON()` 的完整载荷。 */
 export interface MemoryRuntimeSnapshot {
@@ -132,6 +149,33 @@ function isWorldSnapshot(value: unknown, version: number): value is MemoryWorldS
       if (!isRecord(item) || typeof item.placeId !== 'string' || !isPoint(item.at)) return false;
     }
   }
+  // 场景记忆那四段是 v3 才有的，形状只查「是数组、地标元素查得到身份字段」。
+  // 元素内部由记忆层自己的类型负责——这些全是本项目自己写出去的。
+  if (version >= 3) {
+    for (const key of ['landmarks', 'eras', 'epics', 'turningPoints'] as const) {
+      if (!Array.isArray(value[key])) return false;
+    }
+    for (const item of value.landmarks as unknown[]) {
+      if (!isRecord(item) || typeof item.plotKey !== 'string' || !Array.isArray(item.phases)) {
+        return false;
+      }
+    }
+    for (const item of value.eras as unknown[]) {
+      if (!isRecord(item) || typeof item.eraId !== 'string' || !isFiniteNumber(item.fromDay)) {
+        return false;
+      }
+    }
+    for (const item of value.epics as unknown[]) {
+      if (!isRecord(item) || typeof item.epicId !== 'string' || !Array.isArray(item.eventRefs)) {
+        return false;
+      }
+    }
+    for (const item of value.turningPoints as unknown[]) {
+      if (!isRecord(item) || typeof item.holderId !== 'string' || !Array.isArray(item.eventRefs)) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -141,6 +185,9 @@ function isWorldSnapshot(value: unknown, version: number): value is MemoryWorldS
  * v1 → v2：补 `world.placeAnchors`。坐标不是新事实，是既有地点 Holder 上
  * 已经写着的那一个，所以这一步无损：别的字段一个都不动，缺坐标的地点
  * （本来就没有位置）照旧没有。
+ *
+ * v2 → v3：补四个空数组。v2 的档没有场景记忆可补——**空就是事实**
+ * （「那段历史没记过」），不拿今天的楼去倒推一份假历史。
  */
 function migrateSnapshot(value: Record<string, unknown>, version: number): Record<string, unknown> {
   let current = version;
@@ -158,6 +205,18 @@ function migrateSnapshot(value: Record<string, unknown>, version: number): Recor
       world = { ...world, placeAnchors: anchors };
     }
     current = 2;
+  }
+  if (current < 3) {
+    if (isRecord(world)) {
+      world = {
+        ...world,
+        landmarks: Array.isArray(world.landmarks) ? world.landmarks : [],
+        eras: Array.isArray(world.eras) ? world.eras : [],
+        epics: Array.isArray(world.epics) ? world.epics : [],
+        turningPoints: Array.isArray(world.turningPoints) ? world.turningPoints : [],
+      };
+    }
+    current = 3;
   }
   return { ...value, memorySchemaVersion: current, world };
 }
@@ -229,6 +288,11 @@ export interface RuntimeObservation {
    * 省略按 `'generic'` 算，与从前逐字节相同。
    */
   readonly placeType?: string;
+  /**
+   * 这件事是楼的落成 / 拆除，位置与名字在这儿。省略 = 普通地点。
+   * 地标生命周期（`landmark.ts`）只认这一条输入。
+   */
+  readonly landmark?: LandmarkEvent;
 }
 
 /** 个人时间线上的一格。`eventId` 与事件日志同一个 id。 */
@@ -440,6 +504,7 @@ export class MemoryRuntime {
       source: 'world',
       importanceHint: observation.importanceHint,
       parentEventId: null,
+      ...(observation.landmark === undefined ? {} : { landmark: observation.landmark }),
       witnesses: resolved,
       hearers: this.hearersFor(observation, resolved),
       ...(observation.valence === undefined ? {} : { valence: observation.valence }),
@@ -736,6 +801,59 @@ export class MemoryRuntime {
     return this.world.placeAnchorOf(placeId);
   }
 
+  /** 全部地标（只读副本）。一块地一生的阶段、落点、占地都在里面。 */
+  landmarks(): readonly Landmark[] {
+    return this.world.landmarksOf();
+  }
+
+  /** 时代分期（只读副本）；最后一条是当前时代（`toDay === null`）。 */
+  eras(): readonly Era[] {
+    return this.world.erasOf();
+  }
+
+  /** 够格的史诗条目（只读副本）。不够格的仍留在传说是，不在这里。 */
+  epics(): readonly EpicEntry[] {
+    return this.world.epicsOf();
+  }
+
+  /** 他自己翻过的那几次。读的是同一个 `viewOf` 门后的那一份。 */
+  turningPointsOf(holderId: string): readonly TurningPoint[] {
+    return this.world.viewOf(holderId)?.turningPoints ?? [];
+  }
+
+  /**
+   * 看一块地时读到的全部：名字、阶段、此刻的痕迹、当前时代、缺了什么。
+   *
+   * 这是**纯投影**：O(阶段数 + 痕迹数)，不扫全库。面板只消费它，
+   * 不自己去翻 `landmarks` / `traces` 两张表——与 `placeHints` 同一条纪律。
+   */
+  placeChronicle(placeId: string): PlaceChronicle | null {
+    const landmark = this.world.landmarkOf(placeId);
+    if (landmark === null) return null;
+    const eras = this.world.erasOf();
+    const current = eras[eras.length - 1];
+    const standing = landmark.current === 'built'
+      || landmark.current === 'altered'
+      || landmark.current === 'rebuilt';
+    const lastDemolished = [...landmark.phases]
+      .reverse()
+      .find((item) => item.state === 'demolished' || item.state === 'ruined');
+    return {
+      placeId: landmark.placeId,
+      aliases: landmark.aliases,
+      name: landmark.displayName,
+      state: landmark.current,
+      phases: landmark.phases.map((item) => ({ ...item })),
+      footprint: landmark.footprint === null ? null : { ...landmark.footprint },
+      anchor: { ...landmark.anchor },
+      hints: placeHints(this.world.tracesAt(placeId), this.config.traceExposedLayers),
+      eraLabel: current === undefined ? null : current.label,
+      absent: standing || lastDemolished === undefined
+        ? null
+        : { text: '这里曾经有一栋楼', day: lastDemolished.day },
+    };
+  }
+
   /**
    * 一个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
    *
@@ -824,4 +942,26 @@ export class MemoryRuntime {
     return this.started;
   }
 
+}
+
+/**
+ * 一块地的只读投影（面板与回溯共用）。
+ *
+ * 只给出面板要读的那几样：名字、阶段、此刻的痕迹单子、当前时代、以及
+ * 「楼不在了」的那一句话。**不给 `facts` / `entries`**——面板没有理由
+ * 从一块地读到全库。
+ */
+export interface PlaceChronicle {
+  readonly placeId: string;
+  readonly aliases: readonly string[];
+  readonly name: string;
+  readonly state: Landmark['current'];
+  readonly phases: readonly Landmark['phases'][number][];
+  readonly footprint: Landmark['footprint'];
+  readonly anchor: { readonly x: number; readonly y: number };
+  readonly hints: readonly NarrativeHint[];
+  /** 当前时代的名字；还没有任何时代时是 `null`。 */
+  readonly eraLabel: string | null;
+  /** 楼已经不在时的那一句话；站着的楼是 `null`。 */
+  readonly absent: { readonly text: string; readonly day: number } | null;
 }

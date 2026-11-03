@@ -17,6 +17,20 @@
 
 import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
 import { consolidateHolder } from './consolidate.ts';
+import { advanceEra, openEra, signatureOf } from './era.ts';
+import { makeEpic } from './epic.ts';
+import {
+  isStanding,
+  landmarkAltered,
+  landmarkBuilt,
+  landmarkDemolished,
+  landmarkRebuilt,
+  landmarkRuined,
+  landmarkWithoutHistory,
+  plotKeyOf,
+  shouldRuine,
+  type LandmarkEvent,
+} from './landmark.ts';
 import {
   candidatesFrom,
   decayLegend,
@@ -79,9 +93,12 @@ import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './writt
 import type {
   Belief,
   Claim,
+  EpicEntry,
+  Era,
   EventVoice,
   Holder,
   HolderType,
+  Landmark,
   Legend,
   MemoryContent,
   MemoryEntry,
@@ -90,6 +107,7 @@ import type {
   Toponym,
   ToponymEntry,
   Trace,
+  TurningPoint,
   Visibility,
   WorldFact,
   WorldVitals,
@@ -159,6 +177,14 @@ export interface IngestInput {
    * 「世界侧哪天真要发一条训诫，这里会静悄悄地给它 0.3」这个记号。
    */
   readonly voice?: EventVoice;
+  /**
+   * 这件事是一栋楼的落成 / 拆除，位置信息在这儿。
+   *
+   * 记忆层不认识「origin / footprint」这些词，它只拿它们当地标的躯体：
+   * 拆掉之后要在原地画废墟，就得知道那块地原来占多大、在哪儿。
+   * 省略 = 普通地点，不产生地标阶段。
+   */
+  readonly landmark?: LandmarkEvent;
 }
 
 /**
@@ -177,6 +203,11 @@ export interface HolderView {
   /** 自己的可靠度（别人怎么看他，他自己不知道；这里是他自己的账）。 */
   readonly credibility: number;
   readonly traces: readonly Trace[];
+  /**
+   * 他自己翻过的那几次：求证之后看法变了。只读、不衰减。
+   * 这一轮只有 `belief-reversed`；关系与习惯的记录还没有生产者。
+   */
+  readonly turningPoints: readonly TurningPoint[];
 }
 
 export interface MemoryWorldDeps {
@@ -217,6 +248,15 @@ export interface MemoryWorldSnapshot {
     readonly placeId: string;
     readonly at: { readonly x: number; readonly y: number };
   }[];
+  /**
+   * 场景记忆（`memorySchemaVersion >= 3`）：地标一生、时代分段、史诗条目。
+   * v2 及更早的档没有这三段，迁移补空数组（空 = 这一段历史还没开始记）。
+   */
+  readonly landmarks: readonly Landmark[];
+  readonly eras: readonly Era[];
+  readonly epics: readonly EpicEntry[];
+  /** 成长记录（`memorySchemaVersion >= 3`）。只增不删，不衰减。 */
+  readonly turningPoints: readonly TurningPoint[];
   readonly legends: readonly Legend[];
   readonly placeNames: readonly {
     readonly placeId: string;
@@ -275,6 +315,26 @@ export class MemoryWorld {
    * 也画不出——这正是「那儿原来有间铺子」没有落点的原因。
    */
   private readonly placeAnchors = new Map<string, { readonly x: number; readonly y: number }>();
+  /**
+   * 地标：一块地的一生。键是**地块**（`plotKey`），不是实例 id——
+   * 拆掉再建会换 id，但那还是同一块地（见 `landmark.ts` 文件头）。
+   */
+  private readonly landmarks = new Map<string, Landmark>();
+  /** `placeId → plotKey`。重建换了 id 之后，旧 id 也要查得到同一块地。 */
+  private readonly landmarkByPlace = new Map<string, string>();
+  /** 时代：按世界日区间分段。最后一条永远 `toDay: null`（当前时代）。 */
+  private eras: Era[] = [];
+  /** 史诗条目：传说里够格的那几条。按形成顺序。 */
+  private epics: EpicEntry[] = [];
+  /**
+   * 成长记录：一个人对一件事的看法**翻过来**了（求证证实/证伪）。
+   *
+   * 这一轮只做这一种（`TurningPoint`）——`BondPhase` 与 `HabitRecord`
+   * 留到关系/习惯真的有生产者的那一版，现在不摆空壳。
+   *
+   * 它**不衰减**：这是「他变了」的锚点，不是一条会模糊的记忆。
+   */
+  private turningPoints: TurningPoint[] = [];
   private legends: Legend[] = [];
   /**
    * 每个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
@@ -411,6 +471,7 @@ export class MemoryWorld {
       visibility: input.visibility,
       importanceHint: input.importanceHint,
       source: input.source,
+      ...(input.place.placeType === undefined ? {} : { placeType: input.place.placeType }),
       voice: {
         what: input.voice?.what ?? DEFAULT_WHAT[input.kind] ?? input.kind,
         valence,
@@ -458,6 +519,9 @@ export class MemoryWorld {
 
     // place Holder：后果规则，不走显著度。
     this.depositTraces(fact, input.at, input.place.placeType ?? 'generic', valence);
+
+    // 楼的一生：建 / 改 / 拆 / 废墟 / 重建。与痕迹同源（都挂在 `placeId` 上）。
+    if (input.landmark !== undefined) this.applyLandmark(fact, input.landmark, input.at, input.place.at);
 
     this.birthClaim(fact, written, input.at);
 
@@ -532,6 +596,7 @@ export class MemoryWorld {
       verifyPlans: [...(this.verifyPlans.get(holderId) ?? [])],
       credibility: credibilityOf(this.credibility, holderId),
       traces: holder.type === 'place' ? [...(this.traces.get(holderId) ?? [])] : [],
+      turningPoints: this.turningPointsOf(holderId),
     };
   }
 
@@ -1077,9 +1142,30 @@ export class MemoryWorld {
     const outcome = verdict.outcome;
 
     const state = outcome === 'confirmed' ? 'confirmed' : outcome === 'debunked' ? 'debunked' : 'suspicious';
+    const before = this.beliefs.find(
+      (belief) => belief.holderId === holderId && belief.claimId === claimId,
+    )?.state;
     this.beliefs = this.beliefs.map((belief) =>
       belief.holderId === holderId && belief.claimId === claimId ? { ...belief, state } : belief,
     );
+    // 成长记录：**看法真的翻过来**的那一次才记。
+    //
+    // 只记 `held/suspicious → confirmed/debunked` 这两类落地结算：求证没成
+    // （`suspicious`）不是「他变了」，是他还没想明白——那不是转折点。
+    // `inconclusive` 因此一条也不写。
+    const settled = state === 'confirmed' || state === 'debunked';
+    if (before !== undefined && before !== state && settled) {
+      this.turningPoints.push({
+        holderId,
+        day: Math.floor(at / this.config.dayMs),
+        atMs: at,
+        kind: 'belief-reversed',
+        claimId,
+        eventRefs: claim.eventRefs,
+        from: before,
+        to: state,
+      });
+    }
 
     // 求证成功还有后半句，见 `upgradeOnVerify`。**先升级再报事件**：一条
     // `belief.updated` 把「信念变了」和「记忆也变了」一起说清。反过来先报，
@@ -1194,6 +1280,11 @@ export class MemoryWorld {
       characterIds: ids.filter((holderId) => this.holders.get(holderId)?.type === 'character'),
       config: this.config,
     });
+    // 场景记忆的日终两笔：先把拆掉很久的地标记成废墟，再把今天记进时代。
+    // 两者都是 O(块/条) 的加法，不扫事实库、不序列化——关账路径上不许出现
+    // 「把整个库 JSON 一次」这种事（checkpoint 那一层同理）。
+    this.advanceLandmarks(closedDay, at);
+    this.recordEra(closedDay, vitals);
     // 心电图向外广播。本组不读它做任何决定——那是导演的事。
     this.emit('day.closed', at, { ...vitals });
     return vitals;
@@ -1510,6 +1601,180 @@ export class MemoryWorld {
       this.emit('trace.added', at, { traceId: trace.traceId, placeId: trace.placeId, layerType: trace.layerType });
     }
     this.traces.set(fact.placeId, fitTraceLayers(next, this.config.placeTraceLayers));
+  }
+
+  // -------------------------------------------------------------- 地标
+
+  /**
+   * 一块地的阶段推进。**规则全在 `landmark.ts`**，这里只管查找与落库。
+   *
+   * 查找顺序：先按实例 id 找（同一个 id 的记录），再按地块找（重建换了 id）。
+   * 两者都没有就是第一次听说这块地。
+   */
+  private applyLandmark(
+    fact: WorldFact,
+    event: LandmarkEvent,
+    at: number,
+    anchor: { readonly x: number; readonly y: number },
+  ): void {
+    const byPlace = this.landmarkByPlace.get(fact.placeId);
+    const claimed = byPlace === undefined ? undefined : this.landmarks.get(byPlace);
+    const byPlot = this.landmarks.get(plotKeyOf(event));
+    const existing = claimed ?? byPlot;
+    // 落点用事件给的坐标（门口），不是 origin：废墟画在人看得见的那一格。
+
+    if (event.change === 'built') {
+      if (existing === undefined) {
+        this.storeLandmark(landmarkBuilt(fact.placeId, event, fact.day, at, fact.eventId));
+        return;
+      }
+      // 已经站着的同一块地再报一次「落成」，不是第二次建——忽略，不往历史里塞重复项。
+      if (isStanding(existing.current)) return;
+      this.storeLandmark(landmarkRebuilt(existing, fact.placeId, event, fact.day, at, fact.eventId));
+      return;
+    }
+
+    if (existing === undefined) {
+      this.storeLandmark(
+        landmarkWithoutHistory(
+          fact.placeId,
+          event,
+          event.displayName,
+          fact.day,
+          at,
+          fact.eventId,
+          anchor,
+        ),
+      );
+      return;
+    }
+    this.storeLandmark(landmarkDemolished(existing, fact.day, at, fact.eventId, anchor));
+  }
+
+  /** 落库：两个索引一起写。键取地块（重建前后不变）。 */
+  private storeLandmark(landmark: Landmark): void {
+    this.landmarks.set(landmark.plotKey, landmark);
+    for (const placeId of landmark.aliases) this.landmarkByPlace.set(placeId, landmark.plotKey);
+    this.landmarkByPlace.set(landmark.placeId, landmark.plotKey);
+  }
+
+  /** 一个地点属于哪块地（按任一历史 id 都查得到）。 */
+  landmarkOf(placeId: string): Landmark | null {
+    const plotKey = this.landmarkByPlace.get(placeId);
+    if (plotKey === undefined) return null;
+    const landmark = this.landmarks.get(plotKey);
+    return landmark === undefined ? null : cloneLandmark(landmark);
+  }
+
+  landmarksOf(): readonly Landmark[] {
+    return [...this.landmarks.values()].map(cloneLandmark).sort((a, b) => a.plotKey.localeCompare(b.plotKey));
+  }
+
+  /**
+   * 日终：拆掉很久仍没有重建的地，变成废墟。
+   *
+   * 每条地标只看 O(1)；地标以「块」计，不随天数增长到成千上万——一座镇子
+   * 几十栋到头，这一趟在关账里可以忽略。**不扫事实库。**
+   */
+  private advanceLandmarks(day: number, at: number): void {
+    for (const [plotKey, landmark] of this.landmarks) {
+      if (!shouldRuine(landmark, day, this.config.ruinAfterDays)) continue;
+      const last = landmark.phases[landmark.phases.length - 1]!;
+      this.landmarks.set(plotKey, landmarkRuined(landmark, day, at, last.causeEventRef));
+    }
+  }
+
+  // -------------------------------------------------------------- 时代
+
+  /**
+   * 把今天记进当前时代，必要时切段。
+   *
+   * 成本：数一遍楼、加一遍传说 reach、数一遍人物。都是「块/条」级，不是
+   * 「天」级；400 天时它们不会变成几千条扫描（传说会，但那是加法，
+   * 一条 30B 的循环，不是深比较）。**这一趟不序列化任何东西。**
+   */
+  private recordEra(day: number, vitals: WorldVitals): void {
+    let buildingCount = 0;
+    let ruinCount = 0;
+    for (const landmark of this.landmarks.values()) {
+      if (isStanding(landmark.current)) buildingCount += 1;
+      else ruinCount += 1;
+    }
+    let legendReachSum = 0;
+    for (const legend of this.legends) legendReachSum += legend.reach;
+    const signature = signatureOf({
+      day,
+      vitals,
+      buildingCount,
+      ruinCount,
+      legendReachSum,
+      population: this.characterCount(),
+    });
+
+    if (this.eras.length === 0) {
+      this.eras.push(openEra(this.nextId('era'), signature));
+      return;
+    }
+    const current = this.eras[this.eras.length - 1]!;
+    if (current.toDay !== null) {
+      // 当前段已经关了（读到一份中间态存档时才会出现）：开一段新的，不回头改历史。
+      this.eras.push(openEra(this.nextId('era'), signature));
+      return;
+    }
+    const { closed, open } = advanceEra(
+      current,
+      signature,
+      this.config,
+      () => this.nextId('era'),
+      (fromDay, toDay) => this.definingEvents(fromDay, toDay),
+    );
+    if (closed === null) {
+      this.eras[this.eras.length - 1] = open;
+      return;
+    }
+    this.eras[this.eras.length - 1] = closed;
+    this.eras.push(open);
+  }
+
+  /** 一段时代里最重的几件事：够重 + 至少三个人看见，取前 3。 */
+  private definingEvents(fromDay: number, toDay: number): readonly string[] {
+    const picked: { readonly eventId: string; readonly weight: number; readonly day: number }[] = [];
+    for (const fact of this.facts.values()) {
+      if (fact.day < fromDay || fact.day > toDay) continue;
+      if ((fact.importanceHint ?? 0) < this.config.epicImportanceFloor) continue;
+      if (fact.witnesses.length < 3) continue;
+      picked.push({ eventId: fact.eventId, weight: fact.importanceHint ?? 0, day: fact.day });
+    }
+    picked.sort((a, b) => b.weight - a.weight || a.day - b.day || (a.eventId < b.eventId ? -1 : 1));
+    return picked.slice(0, 3).map((item) => item.eventId);
+  }
+
+  erasOf(): readonly Era[] {
+    return this.eras.map((era) => ({
+      ...era,
+      startSignature: { ...era.startSignature },
+      lastSignature: { ...era.lastSignature },
+      definingEventRefs: [...era.definingEventRefs],
+    }));
+  }
+
+  epicsOf(): readonly EpicEntry[] {
+    return this.epics.map(cloneEpic);
+  }
+
+  /** 会说话的那几个（人物）——时代与史诗的「人口」口径。 */
+  characterCount(): number {
+    let count = 0;
+    for (const holder of this.holders.values()) {
+      if (holder.type === 'character') count += 1;
+    }
+    return count;
+  }
+
+  turningPointsOf(holderId: string): readonly TurningPoint[] {
+    return this.turningPoints
+      .filter((point) => point.holderId === holderId)
+      .map((point) => ({ ...point, eventRefs: [...point.eventRefs] as unknown as [string, ...string[]] }));
   }
 
   private deliver(
@@ -1872,6 +2137,14 @@ export class MemoryWorld {
       });
       this.inscribe(legend, candidate, at);
       this.maybeRename(legend, candidate, at);
+      // 史诗分级：同一条传说再加一层可计算的度量。判档不碰任何随机数，
+      // 也不看「今天讲了多少」——同一份存档跑两遍得到同一批条目。
+      const epic = makeEpic(this.nextId('epic'), legend, {
+        factOf: (eventRef) => this.facts.get(eventRef),
+        population: this.characterCount(),
+        formedDay: day,
+      }, this.config);
+      if (epic !== null) this.epics.push(epic);
     }
   }
 
@@ -1912,6 +2185,13 @@ export class MemoryWorld {
     const next = renamed(old, epithet);
     entry.history.push({ name: next, fromEventRef: heaviest.ref, day: legend.formedDay });
     entry.name = next;
+    // 「改」这一阶段：改名是今天唯一能观察到的地标改动。楼还是那栋楼，
+    // 名字变了——这段历史要落在同一块地上，不是另起一条。
+    const landmark = this.landmarkByPlace.get(legend.homePlaceId);
+    const current = landmark === undefined ? undefined : this.landmarks.get(landmark);
+    if (current !== undefined) {
+      this.storeLandmark(landmarkAltered(current, next, legend.formedDay, at, heaviest.ref));
+    }
     this.emit('toponym.changed', at, {
       placeId: legend.homePlaceId,
       old,
@@ -2241,6 +2521,10 @@ export class MemoryWorld {
         placeId,
         at: { x: at.x, y: at.y },
       })),
+      landmarks: [...this.landmarks.values()],
+      eras: [...this.eras],
+      epics: [...this.epics],
+      turningPoints: [...this.turningPoints],
       legends: [...this.legends],
       placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
         placeId,
@@ -2299,6 +2583,17 @@ export class MemoryWorld {
       }
     }
 
+    this.landmarks.clear();
+    this.landmarkByPlace.clear();
+    for (const landmark of snapshot.landmarks ?? []) {
+      this.landmarks.set(landmark.plotKey, landmark);
+      for (const placeId of landmark.aliases) this.landmarkByPlace.set(placeId, landmark.plotKey);
+      this.landmarkByPlace.set(landmark.placeId, landmark.plotKey);
+    }
+    this.eras = [...(snapshot.eras ?? [])];
+    this.epics = [...(snapshot.epics ?? [])];
+    this.turningPoints = [...(snapshot.turningPoints ?? [])];
+
     this.legends = [...snapshot.legends];
 
     this.placeNames.clear();
@@ -2330,6 +2625,26 @@ export class MemoryWorld {
 }
 
 const RULESET_VERSION = 'memory-r1';
+
+/** 深拷贝一份地标：对外只给副本，读的人改不动世界里的那一份。 */
+function cloneLandmark(landmark: Landmark): Landmark {
+  return {
+    ...landmark,
+    aliases: [...landmark.aliases],
+    anchor: { x: landmark.anchor.x, y: landmark.anchor.y },
+    footprint: landmark.footprint === null ? null : { ...landmark.footprint },
+    phases: landmark.phases.map((item) => ({ ...item })),
+  };
+}
+
+function cloneEpic(epic: EpicEntry): EpicEntry {
+  return {
+    ...epic,
+    eventRefs: [...epic.eventRefs] as unknown as [string, ...string[]],
+    variants: [...epic.variants],
+    criteria: { ...epic.criteria },
+  };
+}
 
 /** 事实里没有 `what` 时，按 kind 给一句。只用于世界侧自己发的事件。 */
 const DEFAULT_WHAT: Readonly<Record<string, string>> = {
