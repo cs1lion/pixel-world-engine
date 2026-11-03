@@ -57,8 +57,10 @@ export function observationOf(
         importanceHint: 0.45,
         valence: 0.3,
         arousal: 0.4,
-        // 交付发生在铺子里——室内。屋外八格的人看不见，这是痕迹通道存在的理由。
-        indoor: true,
+        // 交付发生在铺子里就按室内算——屋外八格的人看不见，这是痕迹通道存在的理由。
+        // 但原地办的活（`in_place`）本来就在露天：地点是那个人脚下，不能一并算成室内，
+        // 否则站在旁边的人永远看不见，自然目击也就永远形不成关系。
+        indoor: buildingId !== undefined,
       };
     }
 
