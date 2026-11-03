@@ -8,7 +8,15 @@ import { TILE_PX } from '../world/setup.ts';
 import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.ts';
 import { drawGroundDecals } from '../render/decal.ts';
 import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
-import type { CommandResult, GridPoint, OracleRecord, PrefabBlueprint, WorldProp, WorldSnapshot } from '../world/types.ts';
+import type {
+  CommandResult,
+  GridPoint,
+  OracleRecord,
+  PrefabBlueprint,
+  Vec2,
+  WorldProp,
+  WorldSnapshot,
+} from '../world/types.ts';
 import { villagerAtCell } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
 import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
@@ -65,7 +73,16 @@ type OracleSurfaces = OracleApi &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
-import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
+import {
+  createVillager,
+  updateVillager,
+  VILLAGER_H,
+  VILLAGER_W,
+  villagerDepthAt,
+  villagerFootAt,
+  type VillagerView,
+} from '../render/villager.ts';
+import { pinVillagers } from '../render/villager-pin.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -318,6 +335,11 @@ export class SandboxScene extends Phaser.Scene {
   private suppressClickUp = false;
   private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
+  /**
+   * 调试摆位：id → 固定格。只影响这一帧的画，不写世界。
+   * 见 `render/villager-pin.ts` 与 `debugPinVillager`。
+   */
+  private readonly pinnedVillagers = new Map<string, Vec2>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
@@ -3550,6 +3572,31 @@ export class SandboxScene extends Phaser.Scene {
         return () => this.cameraModeListeners.delete(listener);
       },
       lookAtVillager: (villagerId: string): void => this.lookAtVillager(villagerId),
+      /**
+       * 调试摆位：把某个村民的**画面**钉在固定格上（名字与气泡跟着走），
+       * 只改这一帧要画的那份快照，不写世界、不进存档。`cell` 为 null 时解除。
+       *
+       * 为什么需要它：冻结帧里没有人的路线正好停在「摊位后一格」，而
+       * 「站在摊位后应被挡住」这条判据必须有可复现的实拍，不能只有断言。
+       * 返回脚底像素与 depth，脚本把读数写在图旁边。
+       */
+      debugPinVillager: (villagerId: string, cell: GridPoint | null) => {
+        if (cell === null) {
+          this.pinnedVillagers.delete(villagerId);
+          return null;
+        }
+        const known = this.snapshot.villagers.some((villager) => villager.id === villagerId);
+        if (!known) return null;
+        this.pinnedVillagers.set(villagerId, { x: cell.x, y: cell.y });
+        const foot = villagerFootAt(cell);
+        return {
+          x: foot.x,
+          y: foot.y,
+          depth: villagerDepthAt(foot.y, ALTITUDE),
+          w: VILLAGER_W,
+          h: VILLAGER_H,
+        };
+      },
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
@@ -3705,7 +3752,8 @@ export class SandboxScene extends Phaser.Scene {
   // ----------------------------------------------------------------- render
 
   private renderSnapshot(delta: number): void {
-    const { snapshot } = this;
+    // 调试摆位只换这一帧要画的那份快照：身体、名字、气泡一起搬，世界不动。
+    const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
     this.syncBuildings();
     this.refreshGroundDecals();
 

@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                218 个测试文件 <!-- claim: test-file-count=218 -->
+└── test/                219 个测试文件 <!-- claim: test-file-count=219 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -280,6 +280,13 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 ```
 
 不设 `PIXEL_WORLD_URL` 时默认找 `http://127.0.0.1:5188/`（`npm run dev:live` 的前端端口）。
+
+遮挡层还有一支可复现的摆位验收：把「沉灯夫人」按固定格钉在摊位后一格 / 前一格，
+冻结帧各截一张，两张并排写出 depth 读数（`eval/screens/placement-stall.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:scene-depth
+```
 
 ## 状态
 

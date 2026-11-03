@@ -16,7 +16,7 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
-import type { VillagerSnapshot } from '../world/types.ts';
+import type { Vec2, VillagerSnapshot } from '../world/types.ts';
 import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
@@ -74,6 +74,23 @@ export function createVillager(
   return { container, body, shadow, lamp: newLamp() };
 }
 
+/** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
+export function villagerFootAt(
+  cell: Vec2,
+  originX = 0,
+  originY = 0,
+): { readonly x: number; readonly y: number } {
+  return {
+    x: pixelAt(originX + (cell.x + 0.5) * TILE_PX),
+    y: pixelAt(originY + (cell.y + 1) * TILE_PX),
+  };
+}
+
+/** 人物 depth：脚底 + 8。上一行的人（脚底小 16px）因此比构件低 4。 */
+export function villagerDepthAt(footY: number, altitude: number): number {
+  return altitude + footY + 8;
+}
+
 /** 每帧把快照画出来；坐标换算只在这里做一次，且结果取整到整数像素。 */
 export function updateVillager(
   view: VillagerView,
@@ -85,11 +102,12 @@ export function updateVillager(
   appearance?: VillagerAppearance,
   palette: WorldPalette = paletteFor(),
 ): void {
-  const px = pixelAt(originX + (villager.pos.x + 0.5) * TILE_PX);
-  const py = pixelAt(originY + (villager.pos.y + 1) * TILE_PX);
+  const foot = villagerFootAt(villager.pos, originX, originY);
+  const px = foot.x;
+  const py = foot.y;
   view.container.setPosition(px, py);
   view.container.setVisible(villager.visible);
-  view.container.setDepth(altitude + py + 8);
+  view.container.setDepth(villagerDepthAt(py, altitude));
 
   // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
   // 推进发生在更新路径上，用的是 simulation 时间：世界暂停时灯也停，
