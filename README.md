@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                187 个测试文件 <!-- claim: test-file-count=187 -->
+└── test/                190 个测试文件 <!-- claim: test-file-count=190 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -191,6 +191,8 @@ cd server && python -m pytest
 
 **通过数只作快照，不设 claim 探针**：它们依赖运行环境，机器只钉能秒算的值（测试文件数、
 ADR 数、存档版本、SPEC 权威、iterations 入库数）。数字变了就重跑 CI 并更新这一行与链接。
+本地 `feat/real-clock` 另加了 9 项真实时钟测试与 8 项跨会话基线测试（1896 项 / 1887 通过），
+尚未合并，所以上面的链接仍指 `408da3c` 那次 run；合并后更新本节。
 
 **受查处数不写在这儿**：它随文档增长，而这份 README 自己就是增长源——上面那些数字写下
 的同一次编辑，就把受查处数从 1885 改成了 1904。要数就现跑，输出第一行就是它。

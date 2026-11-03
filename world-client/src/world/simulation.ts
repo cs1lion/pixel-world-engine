@@ -349,6 +349,14 @@ export interface SimulationDeps {
    * 调用方负责把失败吞掉——写不进去是世界之外的遗憾，不是世界该停下的理由。
    */
   readonly onChange?: (change: WorldChange, at: number) => void;
+  /**
+   * 开局的世界时刻。真实时钟模式用它把世界锚在本地时间上（见
+   * `world/real-clock.ts`）；省略为 0，即旧的「开局零点」语义。
+   *
+   * 读档时被存档里的 `world.now` 覆盖——已有档的时钟是它自己的事实，不因为
+   * 换了一种时钟模式就改写。
+   */
+  readonly initialNow?: number;
 }
 
 /** 一个角色的完整本地状态。渲染层只读快照，不碰这里。 */
@@ -646,6 +654,7 @@ export class Simulation {
   private readonly usedInstanceIds = new Set<string>();
 
   constructor(deps: SimulationDeps) {
+    this.now = deps.initialNow ?? 0;
     this.grid = deps.grid;
     this.altar = deps.altar;
     this.spawnBuilding = deps.spawnBuilding;
@@ -731,6 +740,19 @@ export class Simulation {
       const serial = instanceSerialOf(building.instanceId);
       if (serial !== null && serial > this.buildingSerial) this.buildingSerial = serial;
     }
+  }
+
+  /**
+   * 只推进世界时钟，不跑逐拍行为。
+   *
+   * 真实时钟模式在离线跨日时用它：把 `now` 一次性推到当前真实时刻，日界结算
+   * 交给既有的记忆关账路径（`MemoryRuntime.tick` → `onVitals` →
+   * `stepCreatorDayClosed`），不在这里另开一条结算。逐拍的天气、潮汐、走动
+   * 不补——那会把几天的行为压进一帧，补出来的不是「中间发生了什么」，是假的。
+   */
+  fastForwardNow(deltaMs: number): void {
+    if (deltaMs < 0) throw new Error('deltaMs 不能为负');
+    this.now += deltaMs;
   }
 
   /** 返回本次 update 结算的命令结果，供调用方展示。 */

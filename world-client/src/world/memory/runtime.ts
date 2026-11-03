@@ -450,9 +450,32 @@ export class MemoryRuntime {
    * 否则三天的记忆会全挤在同一个时刻，编年史就乱了。
    */
   tick(now: number): readonly WorldVitals[] {
+    return this.tickCapped(now, Number.POSITIVE_INFINITY).closed;
+  }
+
+  /**
+   * 与 `tick` 同一条关账路径，但一次跨太多天时只关一次。
+   *
+   * 真实时钟离线补算用这个：跨 3 天就逐日关 3 次（每一天用各自的天界时刻），
+   * 跨 10 天则合并成一次，并返回 `skippedDays`——中间那些天没有各自关账，
+   * 编年史上要能看出这是「一段时间过去了」，而不是十次完整结算。
+   *
+   * 合并那一笔仍走 `world.dayClosed` 与 `onVitals`，与逐日结算同一个出口；
+   * 只是 `closing` 取目标日的前一天、`at` 取当前时刻。
+   */
+  tickCapped(now: number, maxDays: number): { closed: readonly WorldVitals[]; skippedDays: number } {
     this.now = now;
     const day = Math.floor(now / this.config.dayMs);
     const closed: WorldVitals[] = [];
+    const gap = day - this.lastClosedDay;
+    if (gap > maxDays) {
+      const closing = day - 1;
+      const vitals = this.world.dayClosed(closing, now);
+      this.lastClosedDay = day;
+      this.deps.onVitals?.(vitals);
+      closed.push(vitals);
+      return { closed, skippedDays: Math.max(0, gap - 1) };
+    }
     while (this.lastClosedDay < day) {
       const closing = this.lastClosedDay;
       const at = (closing + 1) * this.config.dayMs;
@@ -461,7 +484,7 @@ export class MemoryRuntime {
       this.deps.onVitals?.(vitals);
       closed.push(vitals);
     }
-    return closed;
+    return { closed, skippedDays: 0 };
   }
 
   /**
