@@ -132,8 +132,9 @@ flowchart LR
 
 **「熬 14 个世界日」具体指什么**：在**当前这一级**的窗口里，累计 14 次 `endOfDay`
 （`climbRequiredDays: 14`，[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L167-L170)）。
-一个世界日 86,400 秒，默认 `timeScale = 6` 时现实里约 **4 小时**
-（沙盒里的换算，属于推断，因为倍率只作用于喂给 `Simulation` 的步长）。
+一个世界日 86,400 秒。默认真实时钟下现实里就是 **24 小时**；加速模式
+（`?clock=fast`）默认 `timeScale = 6` 时约 **4 小时**（沙盒里的换算，属于推断，
+因为倍率只作用于喂给 `Simulation` 的步长）。
 
 **为什么按天而不是按次**：玩家可以一分钟内连点十次造物；如果「十次点击」等于「十天」，
 那么一个下午就能把 L0 刷到 L4，而这十次全是在同一个世界状态下做的同一种操作。
@@ -164,9 +165,9 @@ L1→L2 随之可过（[creator-business-rules.test.ts](file:///D:/project/pixel
 （[fuse.ts](file:///D:/project/pixel-world-engine/world-client/src/world/creator/fuse.ts#L298-L304)，
 `src/` 下除定义外零命中），所以「连续 3 批」只在测试里用到。
 
-**验证边界：14 天晋级无法在浏览器按真实时间验证。** 默认 `timeScale=6` 下一个世界日约
-4 小时真实时间，`?speed=` 上限 60 也只是 24 分钟/日：一个 14 天窗口约 5.6 小时，
-而 L0→L1→L2 要两次。改写单槽存档把 `world.now` 推到日界之后，确实能让
+**验证边界：14 天晋级无法在浏览器按真实时间验证。** 默认真实时钟下 14 天就是
+14 天真实时间；加速模式 `timeScale=6` 下一个世界日约 4 小时，`?speed=` 上限 60
+也只是 24 分钟/日：一个 14 天窗口约 5.6 小时，而 L0→L1→L2 要两次。改写单槽存档把 `world.now` 推到日界之后，确实能让
 `MemoryRuntime.tick` 为跨过的每一天各调一次 `onVitals`
 （[runtime.ts](file:///D:/project/pixel-world-engine/world-client/src/world/memory/runtime.ts#L445-L465)），
 从而连续触发 `stepCreatorDayClosed`。但这只证明**链路能连续触发**，不等于世界真的

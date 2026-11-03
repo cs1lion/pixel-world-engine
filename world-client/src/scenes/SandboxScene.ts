@@ -23,6 +23,21 @@ import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
 import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
+import type { ClockAlignOracle, ClockAlignmentView } from '../ui/clock-align.ts';
+import {
+  LONG_PRESS_MS,
+  anchorCellOf,
+  buildUnitStatus,
+  longPressShouldFire,
+  screenAnchorForCell,
+  unitAtCell,
+  type UnitMemoryReader,
+  type UnitRef,
+  type UnitStatusContent,
+  type UnitStatusOracle,
+  type UnitStatusView,
+  type UnitStatusWorld,
+} from '../ui/unit-status.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
@@ -45,7 +60,9 @@ type OracleSurfaces = OracleApi &
   CameraOracle &
   VillagerOracle &
   SteleOracle &
-  BuildingOracle;
+  BuildingOracle &
+  ClockAlignOracle &
+  UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
@@ -77,6 +94,8 @@ import {
   OFFLINE_SETTLE_MAX_DAYS,
   RealClock,
   msSinceLocalMidnight,
+  resolveClockSelection,
+  type ClockMode,
 } from '../world/real-clock.ts';
 import {
   formatClockCatchUp,
@@ -85,6 +104,18 @@ import {
   type BaselineStorage,
   type ClockCatchUp,
 } from '../world/real-clock-baseline.ts';
+import {
+  clearClockAlignment,
+  formatBoundaryClock,
+  formatDuration,
+  inspectClockAlignment,
+  mayAlignClock,
+  readClockAlignment,
+  writeClockAlignment,
+  ClockAlignmentGate,
+  type ClockAlignmentProbe,
+  type ClockAlignmentRecord,
+} from '../world/clock-alignment.ts';
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
@@ -195,14 +226,18 @@ export class SandboxScene extends Phaser.Scene {
    * 三个数合成一个，这类分家就没有地方可发生了。
    */
   private snapshot!: WorldSnapshot;
-  /** 世界时钟相对墙钟的倍率。?speed=0.5 放慢，?speed=12 加速，?speed=1 回到实时。 */
+  /**
+   * **加速模式**的倍率。`?speed=0.5` 放慢，`?speed=12` 加速，`?speed=1` 1:1；
+   * 只有显式 `?clock=fast`（或只给 `?speed=`）才用得上。默认倍率 6，
+   * 一世界日约 4 小时真实时间。
+   */
   private timeScale = 6;
   /**
-   * 时钟模式。默认加速（`timeScale` 生效，服务演示与回归）；`?clock=real`
-   * 切到真实时钟：一步固定 `LOGIC_STEP_MS`，`timeScale` 不再作为倍率，
-   * 日界按本地 00:00（见 `world/real-clock.ts`）。
+   * 时钟模式。**默认真实时钟**：一步固定 `LOGIC_STEP_MS`，`timeScale` 不作
+   * 倍率，墙钟走多久世界走多久，日界按本地 00:00（见 `world/real-clock.ts`）。
+   * 显式 `?clock=fast`（或只给 `?speed=`）才切回加速模式。
    */
-  private clockMode: 'accelerated' | 'real' = 'accelerated';
+  private clockMode: ClockMode = 'real';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
   /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
@@ -214,6 +249,20 @@ export class SandboxScene extends Phaser.Scene {
   private clockReport: ClockCatchUp | null = null;
   /** 跨会话基线最近一次写入的墙钟时刻；5 秒节流，避免每帧写 localStorage。 */
   private lastClockBaselineWriteAt = 0;
+  /** 老档日界对齐：玩家的「暂不 / 已对齐」决定，独立键，不进存档。 */
+  private clockAlignRecord: ClockAlignmentRecord | null = null;
+  private clockAlignGate = new ClockAlignmentGate();
+  private clockAlignNotice: string | null = null;
+  /** 单位状态菜单：同一时间只有一个选择；只读，不暂停时间。 */
+  private unitStatusSelection: UnitRef | null = null;
+  private lastUnitStatus: UnitStatusView | null = null;
+  private readonly unitStatusListeners = new Set<(view: UnitStatusView | null) => void>();
+  /** 右键/长按开的是记忆/楼志面板；左键开的仍是状态菜单。 */
+  private longPressTimer: number | null = null;
+  private longPressRef: UnitRef | null = null;
+  /** 右键或长按已经处理过这次按下，抬手时不要再开状态菜单。 */
+  private suppressClickUp = false;
+  private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
@@ -515,13 +564,31 @@ export class SandboxScene extends Phaser.Scene {
     }
 
     // 拖拽平移与滚轮缩放。造物模式优先：那时拖拽不移动镜头。
+    // 桌面右键直接开记忆/楼志；浏览器菜单必须压掉，否则右键先弹系统菜单。
+    this.contextMenuListener = (event: Event): void => {
+      event.preventDefault();
+    };
+    this.game.canvas.addEventListener('contextmenu', this.contextMenuListener);
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
+      // 右键 = 上下文面板，不参与拖镜头，也不在抬手时开状态菜单。
+      if (pointer.rightButtonDown()) {
+        this.suppressClickUp = true;
+        this.openContextPanelAt(pointer);
+        return;
+      }
+      this.suppressClickUp = false;
       this.dragFrom = { x: pointer.x, y: pointer.y };
       this.pressMoved = false;
+      this.beginLongPress(pointer);
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const suppress = this.suppressClickUp;
+      this.suppressClickUp = false;
+      this.cancelLongPress();
       this.dragFrom = null;
+      if (suppress) return;
       // 抬手时没怎么动，才算「点了一下」而不是拖镜头。没有这个区分的话，
       // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
       if (this.pressMoved) return;
@@ -530,9 +597,18 @@ export class SandboxScene extends Phaser.Scene {
       // 再其次点楼：它叫什么、接过什么活、墙上留着什么。
       // 都不中才退回洗地——四种动作共用一次点击，靠落点上有什么分开。
       // 先比人再比碑：人在碑上站着时，点她应该还是看她。
-      if (this.lookAtVillagerAt(pointer)) return;
-      if (this.openSteleAt(pointer)) return;
-      if (this.lookAtBuildingAt(pointer)) return;
+      // 单位状态菜单：点人 / 点楼各开一次，只读、不暂停世界。
+      // 碑仍排在「人」之后、「楼」之前（原来那条优先级不动）。
+      if (this.openVillagerStatusAt(pointer)) return;
+      if (this.openSteleAt(pointer)) {
+        this.dismissUnitStatus();
+        return;
+      }
+      if (this.openBuildingStatusAt(pointer)) return;
+      // 点空白：三种单位面板一起收，行为与 Esc / 关闭按钮一致。
+      this.dismissUnitStatus();
+      this.closeVillagerPanel();
+      this.closeBuildingPanel();
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -540,6 +616,17 @@ export class SandboxScene extends Phaser.Scene {
       if (!pointer.isDown) {
         this.dragFrom = null;
         return;
+      }
+      // 长按期间指针移出原来的单位就取消；仍在他身上则继续等 500ms。
+      if (this.longPressRef !== null) {
+        const current = this.unitRefAt(pointer);
+        if (
+          current === null
+          || current.kind !== this.longPressRef.kind
+          || current.id !== this.longPressRef.id
+        ) {
+          this.cancelLongPress();
+        }
       }
       const dx = pointer.x - this.dragFrom.x;
       const dy = pointer.y - this.dragFrom.y;
@@ -555,25 +642,20 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
-    // 时间倍率：默认 6 倍，潮汐在 2 分钟内走完一轮，肉眼能看见涨落。
-    // 截图与回归要精确复现时用 ?speed=1，让世界按实时推进。
-    const speed = Number(params.get('speed'));
-    if (Number.isFinite(speed) && speed > 0 && speed <= 60) this.timeScale = speed;
-    // 真实时钟模式：显式 `?clock=real` 才切。`?speed=` 在这种模式下不再生效——
-    // 1:1 是它的定义，留一个能偷偷加速的入口就没人能说它还是真实时钟。
+    // 时钟入口：**默认真实时钟**，墙钟与世界 1:1，日界落在本地 00:00。
+    // 加速必须显式说出口：`?clock=fast`（或 accelerated），或只给 `?speed=`
+    // （历史入口，截图与回归一直这么用）。`?clock=real` 压过 `?speed=`——
+    // 1:1 是真实时钟的定义，留一个能偷偷加速的入口就没人能说它还是真实时钟。
     // 锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，但只影响日界落在几点，不改日长。
-    if (params.get('clock') === 'real') {
-      const offsetRaw = Number(params.get('utcOffsetMinutes'));
-      this.realClockOffsetMinutes =
-        Number.isInteger(offsetRaw) && offsetRaw >= -720 && offsetRaw <= 840
-          ? offsetRaw
-          : DEFAULT_UTC_OFFSET_MINUTES;
-      this.clockMode = 'real';
+    const selection = resolveClockSelection(params);
+    this.clockMode = selection.mode;
+    this.realClockOffsetMinutes = selection.utcOffsetMinutes;
+    this.timeScale = selection.timeScale;
+    if (selection.mode === 'real') {
       this.realClock = new RealClock({
         utcOffsetMinutes: this.realClockOffsetMinutes,
         offlineMaxDays: OFFLINE_SETTLE_MAX_DAYS,
       });
-      this.timeScale = 1;
     }
     const forced = parsePhaseParam(params.get('time'));
     const legacyNight = params.get('night') === '1';
@@ -890,6 +972,9 @@ export class SandboxScene extends Phaser.Scene {
       });
       this.lastHistoryDay = this.memory.closedThroughDay;
     }
+    // 老档日界对齐（main 的单位状态菜单/真实时钟那一支）：入口挂在这儿，
+    // 与历史记录器互不相干——一个对齐日界，一个只读回看。
+    this.initClockAlignment();
     // 造物引擎进生产路径：世界是场景这一份（不再另建第二份），种子取设定集 id，
     // 时钟取世界时间。三者都由场景给，引擎不自己造兜底。
     const creatorPack = this.pack ?? selectSetting('');
@@ -961,6 +1046,11 @@ export class SandboxScene extends Phaser.Scene {
     this.settingScenery = null;
     this.tideView?.destroy();
     this.fogView?.destroy();
+    this.cancelLongPress();
+    if (this.contextMenuListener !== null) {
+      this.game.canvas.removeEventListener('contextmenu', this.contextMenuListener);
+      this.contextMenuListener = null;
+    }
     this.feedClient?.stop();
     this.feedClient = null;
     this.eventsClient = null;
@@ -1243,6 +1333,167 @@ export class SandboxScene extends Phaser.Scene {
       };
     }
     this.persistClockBaseline(true);
+  }
+
+  /** 读档后初始化日界对齐：恢复「暂不 / 已对齐」决定，并按当前偏移决定要不要提示。 */
+  private initClockAlignment(): void {
+    const storage = this.clockStorage();
+    const worldId = this.pack?.id ?? 'world';
+    const stored = storage === null ? null : readClockAlignment(storage, worldId);
+    this.clockAlignRecord = stored?.kind === 'applied' ? stored : null;
+    this.clockAlignGate = new ClockAlignmentGate(
+      stored?.kind === 'declined' ? stored.boundaryMs : null,
+    );
+    const probe = this.inspectAlignment();
+    if (this.clockMode === 'real') this.clockAlignGate.open(probe);
+    else this.clockAlignGate.hide();
+  }
+
+  private inspectAlignment(): ClockAlignmentProbe {
+    return inspectClockAlignment(
+      this.sim.snapshot().now,
+      Date.now(),
+      this.realClockOffsetMinutes,
+    );
+  }
+
+  /** 对齐当天常驻状态行的一句话；过了这天就不再显示。 */
+  private clockAlignmentDayNote(): string | null {
+    const record = this.clockAlignRecord;
+    if (record === null || record.kind !== 'applied') return null;
+    if (this.clockMode !== 'real') return null;
+    const currentDay = Math.floor(this.sim.snapshot().now / DAY_MS);
+    if (currentDay !== record.dayBefore) return null;
+    return `对齐日界，跳过 ${formatDuration(record.deltaMs)}；本日缩短为 ${formatDuration(
+      DAY_MS - record.deltaMs,
+    )}`;
+  }
+
+  private clockAlignmentView(): ClockAlignmentView {
+    const probe = this.inspectAlignment();
+    const applied = this.clockAlignRecord?.kind === 'applied' ? this.clockAlignRecord : null;
+    // 已对齐后当前偏移是 0；读数仍要显示**这次对齐做了多少**，否则撤销入口
+    // 会写成「前跳 0 小时 0 分」。
+    const deltaMs = applied?.deltaMs ?? probe.deltaMs;
+    return {
+      pending: this.clockAlignGate.isVisible,
+      required: probe.required,
+      boundaryLabel: applied === null ? probe.boundaryLabel : formatBoundaryClock(applied.boundaryMs),
+      offsetMs: applied === null ? probe.offsetFromMidnightMs : 0,
+      deltaMs,
+      jumpLabel: formatDuration(deltaMs),
+      dayLengthAfterLabel: formatDuration(DAY_MS - deltaMs),
+      aligned: applied !== null,
+      undoAvailable: applied !== null,
+      notice: this.clockAlignNotice,
+      dayNote: this.clockAlignmentDayNote(),
+    };
+  }
+
+  /** 设置/调试面板的「再次检查」：绕过「暂不」，但仍需要偏移超阈值才弹。 */
+  private requestClockAlignmentCheck(): ClockAlignmentView {
+    if (this.clockMode !== 'real') {
+      this.clockAlignGate.hide();
+      this.clockAlignNotice = '加速模式下不做日界对齐';
+      return this.clockAlignmentView();
+    }
+    const probe = this.inspectAlignment();
+    this.clockAlignNotice = this.clockAlignGate.reopen(probe)
+      ? null
+      : '日界已对齐，不需要迁移';
+    return this.clockAlignmentView();
+  }
+
+  private declineClockAlignment(): ClockAlignmentView {
+    const probe = this.inspectAlignment();
+    if (this.clockMode === 'real' && probe.required) {
+      this.clockAlignGate.decline(probe);
+      const storage = this.clockStorage();
+      if (storage !== null) {
+        writeClockAlignment(storage, this.pack?.id ?? 'world', {
+          kind: 'declined',
+          boundaryMs: probe.boundaryMs,
+          wallMs: Date.now(),
+        });
+      }
+      this.clockAlignNotice = '已暂不：日界保持不动';
+    }
+    return this.clockAlignmentView();
+  }
+
+  /**
+   * 玩家点「对齐」才执行：世界时钟前跳 `deltaMs`，让下一个日界落在本地 00:00。
+   *
+   * 不点不动。对齐跳过的这段世界时间不逐拍重放；若跳变跨过日界，仍走既有
+   * `stepMemory → dayClosed → onVitals → stepCreatorDayClosed` 结算。
+   */
+  private applyClockAlignment(): ClockAlignmentView {
+    if (this.clockMode !== 'real' || this.realClock === null) {
+      this.clockAlignNotice = '加速模式下不做日界对齐';
+      return this.clockAlignmentView();
+    }
+    const probe = this.inspectAlignment();
+    if (!mayAlignClock(probe, this.realClock.isPaused)) {
+      this.clockAlignGate.hide();
+      this.clockAlignNotice = this.realClock.isPaused
+        ? '墙钟回拨暂停中，先恢复时钟再对齐'
+        : '日界已对齐，不需要迁移';
+      return this.clockAlignmentView();
+    }
+
+    const fromNow = this.sim.snapshot().now;
+    const record: ClockAlignmentRecord = {
+      kind: 'applied',
+      boundaryMs: probe.boundaryMs,
+      deltaMs: probe.deltaMs,
+      fromNow,
+      toNow: fromNow + probe.deltaMs,
+      dayBefore: Math.floor(fromNow / DAY_MS),
+      wallMs: Date.now(),
+    };
+    this.sim.fastForwardNow(probe.deltaMs);
+    this.snapshot = this.sim.snapshot();
+    // 既有日界结算：跳变若跨过世界日界，不在这里另造一套关账。
+    this.stepMemory();
+    this.sim.realignAfterClockJump(probe.deltaMs);
+    this.snapshot = this.sim.snapshot();
+    this.clockAlignRecord = record;
+    const storage = this.clockStorage();
+    if (storage !== null) writeClockAlignment(storage, this.pack?.id ?? 'world', record);
+    this.persistClockBaseline(true);
+    this.clockAlignGate.hide();
+    this.clockAlignNotice = null;
+    return this.clockAlignmentView();
+  }
+
+  /**
+   * 撤销对齐：把 `now` 放回**对齐前的原值**，相对定时器只回退对齐那一次跳量。
+   *
+   * 对齐之后世界可能已经正常走了几秒/几分钟；那些时间一并放回原值，才算
+   * 「撤销」而不是「把 δ 减掉、留下一个中间值」。定时器只扣 `deltaMs`：
+   * 它们从未被正常走的时长改写过。
+   */
+  private undoClockAlignment(): ClockAlignmentView {
+    const record = this.clockAlignRecord;
+    if (record === null || record.kind !== 'applied') {
+      this.clockAlignNotice = '没有可撤销的对齐';
+      return this.clockAlignmentView();
+    }
+    const rewind = this.sim.snapshot().now - record.fromNow;
+    try {
+      this.sim.rewindNow(rewind);
+    } catch {
+      this.clockAlignNotice = '撤销会让世界时钟回到负数，已拒绝';
+      return this.clockAlignmentView();
+    }
+    this.sim.realignAfterClockJump(-record.deltaMs);
+    this.snapshot = this.sim.snapshot();
+    this.clockAlignRecord = null;
+    const storage = this.clockStorage();
+    if (storage !== null) clearClockAlignment(storage, this.pack?.id ?? 'world');
+    this.persistClockBaseline(true);
+    this.clockAlignNotice = '已撤销对齐：世界时钟回到原值';
+    return this.clockAlignmentView();
   }
 
   /**
@@ -1685,12 +1936,168 @@ export class SandboxScene extends Phaser.Scene {
     );
   }
 
-  /** 点到人就看她，返回 true；没点到返回 false，让调用方退回洗地。 */
-  private lookAtVillagerAt(pointer: Phaser.Input.Pointer): boolean {
+  /** 指针下的单位（先人后楼），给右键与长按共用。 */
+  private unitRefAt(pointer: Phaser.Input.Pointer): UnitRef | null {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    return unitAtCell(
+      this.unitStatusWorld(),
+      Math.floor(world.x / TILE_PX),
+      Math.floor(world.y / TILE_PX),
+    );
+  }
+
+  /**
+   * 右键：直接开这个单位的上下文面板（人→记忆，楼→楼志）。
+   * 空白处返回 false，什么也不做——右键空白不该报错，也不该洗地。
+   */
+  private openContextPanelAt(pointer: Phaser.Input.Pointer): boolean {
+    const ref = this.unitRefAt(pointer);
+    if (ref === null) return false;
+    this.openContextPanelForRef(ref);
+    return true;
+  }
+
+  private openContextPanelForRef(ref: UnitRef): void {
+    if (ref.kind === 'villager') this.lookAtVillager(ref.id);
+    else this.openBuilding(ref.id);
+  }
+
+  /** 触屏长按：500ms 后开上下文面板；桌面鼠标不走这条。 */
+  private beginLongPress(pointer: Phaser.Input.Pointer): void {
+    if (!pointer.wasTouch) return;
+    this.cancelLongPress();
+    const ref = this.unitRefAt(pointer);
+    if (ref === null) return;
+    this.longPressRef = ref;
+    this.longPressTimer = window.setTimeout(() => {
+      this.longPressTimer = null;
+      const still = this.longPressRef;
+      if (!longPressShouldFire(LONG_PRESS_MS, still !== null) || still === null) {
+        this.longPressRef = null;
+        return;
+      }
+      this.longPressRef = null;
+      // 长按已处理这次按下：抬手时不再叠开状态菜单。
+      this.suppressClickUp = true;
+      this.openContextPanelForRef(still);
+    }, LONG_PRESS_MS);
+  }
+
+  private cancelLongPress(): void {
+    if (this.longPressTimer !== null) {
+      window.clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+    this.longPressRef = null;
+  }
+
+  /** 点到人：开只读状态菜单。命中判据仍是 `villagerAt`。 */
+  private openVillagerStatusAt(pointer: Phaser.Input.Pointer): boolean {
     const villager = this.villagerAt(pointer);
     if (villager === null) return false;
-    this.lookAtVillager(villager.id);
+    this.openUnitStatus({ kind: 'villager', id: villager.id });
     return true;
+  }
+
+  /** 点到楼（整块占地）：开只读状态菜单。 */
+  private openBuildingStatusAt(pointer: Phaser.Input.Pointer): boolean {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const x = Math.floor(world.x / TILE_PX);
+    const y = Math.floor(world.y / TILE_PX);
+    const building = this.snapshot.buildings.find(
+      (item) =>
+        x >= item.origin.x
+        && x < item.origin.x + item.footprint.w
+        && y >= item.origin.y
+        && y < item.origin.y + item.footprint.h,
+    );
+    if (building === undefined) return false;
+    this.openUnitStatus({ kind: 'building', id: building.instanceId });
+    return true;
+  }
+
+  private unitStatusWorld(): UnitStatusWorld {
+    return {
+      now: this.snapshot.now,
+      altar: this.snapshot.altar,
+      villagers: this.snapshot.villagers,
+      buildings: this.snapshot.buildings,
+      tasks: this.snapshot.tasks,
+      workstations: this.snapshot.workstations,
+      constructions: this.snapshot.constructions,
+    };
+  }
+
+  /** 只读记忆适配：只把面板要的字段拿出去，不把可变世界交给 DOM。 */
+  private unitMemoryReader(): UnitMemoryReader {
+    return {
+      viewOf: (holderId) => {
+        const view = this.memory?.viewOf(holderId);
+        if (view === null || view === undefined) return null;
+        return {
+          memories: view.memories.map((entry) => ({
+            kind: entry.kind,
+            who: entry.content.who,
+            valence: entry.content.valence,
+            arousal: entry.content.arousal,
+            createdDay: entry.createdDay,
+            redacted: entry.redacted,
+          })),
+        };
+      },
+    };
+  }
+
+  private unitStatusView(): UnitStatusView | null {
+    if (this.unitStatusSelection === null) return null;
+    const world = this.unitStatusWorld();
+    const content = buildUnitStatus(world, this.unitStatusSelection, this.unitMemoryReader());
+    if (content === null) return null;
+    const cell = anchorCellOf(world, this.unitStatusSelection);
+    if (cell === null) return null;
+    const viewport = this.cameraCtl.viewportRect();
+    const canvasRect = this.game.canvas.getBoundingClientRect();
+    // 相机 zoom 只把游戏像素放大；画布内部 480px 还会被 CSS 拉成两倍。
+    // 面板锚点必须用「每世界像素 = 多少屏幕像素」的有效倍率，否则偏移半屏。
+    const cssScale = canvasRect.width / this.cameras.main.width;
+    const pixelsPerWorldPx = this.cameras.main.zoom * cssScale;
+    return {
+      content,
+      anchor: screenAnchorForCell(cell, viewport, pixelsPerWorldPx, canvasRect),
+    };
+  }
+
+  private openUnitStatus(selection: UnitRef): void {
+    // 左键状态菜单与右键/长按的记忆、楼志互斥。
+    this.closeVillagerPanel();
+    this.closeBuildingPanel();
+    this.unitStatusSelection = selection;
+    this.publishUnitStatus();
+  }
+
+  private publishUnitStatus(): void {
+    if (this.unitStatusSelection === null) {
+      this.lastUnitStatus = null;
+      for (const listener of this.unitStatusListeners) listener(null);
+      return;
+    }
+    const view = this.unitStatusView();
+    if (view === null) {
+      // 单位不在了（楼拆了/人没了）：收起，不摆一份旧数据。
+      this.unitStatusSelection = null;
+      this.lastUnitStatus = null;
+      for (const listener of this.unitStatusListeners) listener(null);
+      return;
+    }
+    this.lastUnitStatus = view;
+    for (const listener of this.unitStatusListeners) listener(view);
+  }
+
+  /** 收起状态菜单。只改界面选择，不碰世界，也不暂停。 */
+  dismissUnitStatus(): void {
+    if (this.unitStatusSelection === null) return;
+    this.unitStatusSelection = null;
+    this.publishUnitStatus();
   }
 
   /**
@@ -1708,6 +2115,9 @@ export class SandboxScene extends Phaser.Scene {
   lookAtVillager(villagerId: string): void {
     const villager = this.snapshot.villagers.find((item) => item.id === villagerId);
     if (villager === undefined) return;
+    // 同一时间只开一个单位面板：记忆面板打开时收掉楼志与状态菜单。
+    this.closeBuildingPanel();
+    this.dismissUnitStatus();
 
     const view = this.villagerViews.get(villagerId);
     if (view !== undefined) this.cameraCtl.follow(view.container);
@@ -1831,28 +2241,7 @@ export class SandboxScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ 楼
 
-  /**
-   * 指针底下那一格上有没有楼。有就开面板，返回 true。
-   *
-   * 命中的是**整块占地**，不只是门：一栋 4×4 的铺子，点它屋顶和点它门口
-   * 应该是同一件事。与 `villagerAt` / `openSteleAt` 同一套「世界就是格」的
-   * 模型——不给精灵加交互区，那会拦掉拖镜头。
-   */
-  private lookAtBuildingAt(pointer: Phaser.Input.Pointer): boolean {
-    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const x = Math.floor(world.x / TILE_PX);
-    const y = Math.floor(world.y / TILE_PX);
-    const building = this.snapshot.buildings.find(
-      (item) =>
-        x >= item.origin.x
-        && x < item.origin.x + item.footprint.w
-        && y >= item.origin.y
-        && y < item.origin.y + item.footprint.h,
-    );
-    if (building === undefined) return false;
-    this.openBuilding(building.instanceId);
-    return true;
-  }
+
 
   /**
    * 打开一栋楼的面板：名字、接什么活、此刻在干什么、墙上留着什么。
@@ -1868,6 +2257,9 @@ export class SandboxScene extends Phaser.Scene {
   openBuilding(placeId: string): void {
     const view = this.buildingViewOf(placeId);
     if (view === null) return;
+    // 同一时间只开一个单位面板：楼志打开时收掉记忆与状态菜单。
+    this.closeVillagerPanel();
+    this.dismissUnitStatus();
     this.lastBuildingView = view;
     for (const listener of this.buildingListeners) listener(view);
   }
@@ -2534,6 +2926,7 @@ export class SandboxScene extends Phaser.Scene {
         width: this.cameras.main.width,
         height: this.cameras.main.height,
         worldViewX: this.cameras.main.worldView.x,
+        worldViewY: this.cameras.main.worldView.y,
         mode: this.cameraCtl.mode(),
       }),
       cameraMode: (): CameraMode => this.cameraCtl.mode(),
@@ -2635,6 +3028,25 @@ export class SandboxScene extends Phaser.Scene {
         notice: this.clockNotice,
         catchUp: this.clockReport,
       }),
+      /**
+       * 单位状态菜单：只读视图与订阅。不提供写入口，也不暂停世界。
+       */
+      unitStatus: (): UnitStatusContent | null => this.lastUnitStatus?.content ?? null,
+      onUnitStatus: (listener: (view: UnitStatusView | null) => void): (() => void) => {
+        if (this.lastUnitStatus !== null) listener(this.lastUnitStatus);
+        this.unitStatusListeners.add(listener);
+        return () => this.unitStatusListeners.delete(listener);
+      },
+      dismissUnitStatus: (): void => this.dismissUnitStatus(),
+      /**
+       * 老档日界对齐：提示、暂不、执行、撤销。读 `clockAlignment()` 是只读；
+       * 其余四个是玩家动作，只有界面按钮会调，加载与自动存档都不会碰。
+       */
+      clockAlignment: (): ClockAlignmentView => this.clockAlignmentView(),
+      requestClockAlignmentCheck: (): ClockAlignmentView => this.requestClockAlignmentCheck(),
+      applyClockAlignment: (): ClockAlignmentView => this.applyClockAlignment(),
+      declineClockAlignment: (): ClockAlignmentView => this.declineClockAlignment(),
+      undoClockAlignment: (): ClockAlignmentView => this.undoClockAlignment(),
       /**
        * 外环指标窗口的只读计数。**只读**：每次现取一份新对象，不写回外环，
        * 也不提供任何 setter。
@@ -2769,6 +3181,8 @@ export class SandboxScene extends Phaser.Scene {
 
     // 动态中文（名字/气泡）走 DOM overlay：按 canvas 实际位置每帧同步（D5-A）。
     this.overlay?.sync(snapshot);
+    // 状态菜单开着时每帧重算锚点：镜头缩放/平移后不能错位。内容由 DOM 去重。
+    if (this.unitStatusSelection !== null) this.publishUnitStatus();
 
     const line = this.statusLine();
     if (line !== this.lastStatus) {
@@ -2887,9 +3301,15 @@ export class SandboxScene extends Phaser.Scene {
     // 真实时钟的异常与离线补算必须看得见：静默暂停会让人以为世界卡死了。
     // 补算结果常驻到下一次补算/下一次造物；暂停提示每帧刷新。
     const catchUpNote = this.clockReport === null ? '' : formatClockCatchUp(this.clockReport);
-    const clockNotes = [this.clockNotice, catchUpNote].filter(
-      (line): line is string => line !== null && line !== '',
-    );
+    // 对齐当天必须明说「不是卡住了」：跳过多少小时、这一天缩成多长。
+    const alignNote = this.clockAlignmentDayNote();
+    const clockNotes = [
+      this.clockNotice,
+      catchUpNote,
+      alignNote,
+      this.clockAlignNotice,
+    ].filter((line): line is string => line !== null && line !== '');
+
     const clockNote = clockNotes.length === 0 ? '' : `　　${clockNotes.join('　　')}`;
     if (this.pack?.authored === true) {
       return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;

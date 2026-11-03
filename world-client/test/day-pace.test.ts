@@ -25,13 +25,15 @@
  *
  * | `timeScale` | 一世界日 | 相对 900 秒目标 |
  * | --- | --- | --- |
- * | 6（默认） | 14400 秒（4 小时） | 16 倍 |
+ * | 6（加速模式默认） | 14400 秒（4 小时） | 16 倍 |
  * | 60（`?speed=` 上限） | 1440 秒（24 分钟） | 1.6 倍 |
  * | 96（要达标需要） | 900 秒（15 分钟） | 达标 |
  *
- * 而 `SandboxScene` 那道闸是 `speed > 0 && speed <= 60`——**900 秒这个目标在
- * 许可范围内永远达不到**。§3.1 给这个数的理由（「1 小时现实工作刚好经历 4 个
- * 游戏日」）同理不成立：默认倍率下 1 小时只看得到四分之一个世界日。
+ * 这张表只适用于**加速模式**（`?clock=fast` 或 `?speed=`）；默认真实时钟是
+ * 1:1，一世界日就是 24 小时。加速模式的门槛是 `MAX_TIME_SCALE = 60`——
+ * **900 秒这个目标在许可范围内永远达不到**。§3.1 给这个数的理由（「1 小时
+ * 现实工作刚好经历 4 个游戏日」）同理不成立：加速模式默认倍率下 1 小时只看
+ * 得到四分之一个世界日。
  *
  * ## 这一条**不**查什么
  *
@@ -49,6 +51,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { paceFrame } from '../src/render/eco-mode.ts';
 import { DAY_MS } from '../src/world/memory/config.ts';
+import { DEFAULT_FAST_TIME_SCALE, MAX_TIME_SCALE } from '../src/world/real-clock.ts';
 
 const LOGIC_STEP_MS = 100;
 
@@ -56,17 +59,18 @@ const LOGIC_STEP_MS = 100;
 const TARGET_SECONDS = 900;
 
 /**
- * 从 `SandboxScene` 把两个数读出来，不在这里重抄。
+ * 两个数从 `real-clock.ts` 读，不在这里重抄。
  *
  * 抄一份就多一处会漂的地方，而这两个数正是本条要盯的对象——抄了就成了
- * 「测试里写 60，代码里已经改成 120，测试照旧绿」。
+ * 「测试里写 60，代码里已经改成 120，测试照旧绿」。`SandboxScene` 的加速入口
+ * 现在走 `resolveClockSelection`，这两个常量就是它的默认与上限。
  */
-function readFromScene(): { readonly defaultScale: number; readonly maxScale: number } {
-  const text = readFileSync(new URL('../src/scenes/SandboxScene.ts', import.meta.url), 'utf8');
-  const def = text.match(/private timeScale = (\d+)/);
-  const max = text.match(/speed > 0 && speed <= (\d+)/);
-  assert.ok(def !== null, 'SandboxScene 里找不到 `private timeScale = N`——倍率的默认值换了写法，回来改这条判据');
-  assert.ok(max !== null, 'SandboxScene 里找不到 `speed <= N` 那道闸——上限换了写法，回来改这条判据');
+function readClockConstants(): { readonly defaultScale: number; readonly maxScale: number } {
+  const text = readFileSync(new URL('../src/world/real-clock.ts', import.meta.url), 'utf8');
+  const def = text.match(/DEFAULT_FAST_TIME_SCALE = (\d+)/);
+  const max = text.match(/MAX_TIME_SCALE = (\d+)/);
+  assert.ok(def !== null, 'real-clock.ts 里找不到 `DEFAULT_FAST_TIME_SCALE = N`——默认倍率换了写法，回来改这条判据');
+  assert.ok(max !== null, 'real-clock.ts 里找不到 `MAX_TIME_SCALE = N`——上限换了写法，回来改这条判据');
   return { defaultScale: Number(def[1]), maxScale: Number(max[1]) };
 }
 
@@ -97,16 +101,22 @@ test('paceFrame 给的步数与帧率无关：10 步/真实秒', () => {
   }
 });
 
-test('一世界日的真实秒数：默认 4 小时，上限 24 分钟', () => {
+test('加速模式下的一世界日：默认 4 小时，上限 24 分钟', () => {
   const steps = stepsPerRealSecond(60);
-  const { defaultScale, maxScale } = readFromScene();
-  assert.equal(realSecondsPerDay(defaultScale, steps), 14400, `默认倍率 ${defaultScale} 下一世界日该是 4 小时`);
+  const { defaultScale, maxScale } = readClockConstants();
+  assert.equal(
+    realSecondsPerDay(defaultScale, steps),
+    14400,
+    `加速模式默认倍率 ${defaultScale} 下一世界日该是 4 小时`,
+  );
   assert.equal(realSecondsPerDay(maxScale, steps), 1440, `上限倍率 ${maxScale} 下一世界日该是 24 分钟`);
+  assert.equal(defaultScale, DEFAULT_FAST_TIME_SCALE, '源码里的默认倍率与导出的常量一致');
+  assert.equal(maxScale, MAX_TIME_SCALE, '源码里的上限与导出的常量一致');
 });
 
-test('§3.1 那个 900 秒，在许可的倍率范围内达不到', () => {
+test('§3.1 那个 900 秒，在加速模式的倍率范围内达不到', () => {  // 加速模式，不含默认真实时钟
   const steps = stepsPerRealSecond(60);
-  const { maxScale } = readFromScene();
+  const { maxScale } = readClockConstants();
   // 要 900 秒一日，需要把倍率抬到多少。
   const needed = DAY_MS / TARGET_SECONDS / (steps * LOGIC_STEP_MS);
   assert.ok(

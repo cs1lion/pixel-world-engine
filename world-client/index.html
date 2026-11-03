@@ -279,6 +279,61 @@
         font-size: 12px;
         white-space: pre-wrap;
       }
+      /* 老档日界提示：一次、可见、必须点了才动。关掉后本次/重启都不再弹，
+         但维护条里始终留「再次检查」入口。 */
+      #clock-align {
+        width: 720px;
+        max-width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: baseline;
+        padding: 8px 12px;
+        background: var(--panel);
+        border: 1px solid var(--amber);
+        color: var(--ink);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      #clock-align[hidden] { display: none; }
+      #clock-align-text { flex: 1 1 420px; white-space: pre-wrap; }
+      /* 单位状态菜单：fixed 定位，锚点由场景按视野原点公式算好再推过来。
+         只读浮层，不盖住输入框；同一时间只有一个。 */
+      #unit-status {
+        position: fixed;
+        z-index: 40;
+        width: 260px;
+        max-width: calc(100vw - 24px);
+        transform: translate(-50%, calc(-100% - 10px));
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        color: var(--ink);
+        font-size: 12px;
+        line-height: 1.5;
+        pointer-events: auto;
+      }
+      #unit-status[hidden] { display: none; }
+      #unit-status .unit-status-head {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 4px;
+        margin-bottom: 4px;
+      }
+      #unit-status-title { font-family: var(--font-pixel); color: var(--amber); }
+      #unit-status-subtitle { color: var(--dim); font-size: 11px; flex: 1 1 auto; }
+      .unit-status-row { display: flex; gap: 8px; align-items: baseline; }
+      .unit-status-key { color: var(--dim); white-space: nowrap; }
+      .unit-status-value { flex: 1 1 auto; }
+      #unit-status .unit-status-placeholder {
+        margin-top: 6px;
+        padding-top: 4px;
+        border-top: 1px solid var(--line);
+        color: var(--dim);
+        cursor: not-allowed;
+      }
       /* 键盘用户：跳转链接，平时不可见。 */
       .skip-link {
         position: absolute;
@@ -788,6 +843,12 @@
 
     <div id="status" role="status">世界正在醒来…</div>
 
+    <div id="clock-align" hidden role="status" aria-live="polite">
+      <span id="clock-align-text"></span>
+      <button type="button" id="clock-align-yes">对齐到今天零点</button>
+      <button type="button" id="clock-align-no">暂不</button>
+    </div>
+
     <form class="oracle" id="oracle">
       <div class="row">
         <input id="utterance" autocomplete="off" placeholder="对世界说一句话：建一间工坊 / 下雨 / 查一下资料" />
@@ -832,9 +893,25 @@
         <button type="button" id="save-import">存档：导入 JSON</button>
         <input type="file" id="save-import-file" accept="application/json,.json" hidden />
       </div>
+      <div class="row" id="clock-align-row">
+        <span id="clock-align-readout">钟表：—</span>
+        <button type="button" id="clock-align-check">时钟：检查日界对齐</button>
+        <button type="button" id="clock-align-undo" hidden>时钟：撤销对齐</button>
+      </div>
       <div id="save-io-reply" role="status" aria-live="polite"></div>
       <button type="button" id="debug-toggle" title="调试面板（快捷键 D）" aria-expanded="false" aria-controls="debug-panel">⚙ 调试</button>
     </div>
+
+    <aside id="unit-status" hidden aria-label="单位状态">
+      <div class="unit-status-head">
+        <strong id="unit-status-title"></strong>
+        <span id="unit-status-subtitle"></span>
+        <button type="button" id="unit-status-close">关闭</button>
+      </div>
+      <div id="unit-status-body"></div>
+      <!-- 留给未来：干涉世界。现在只有占位，不接任何写通道。 -->
+      <div class="unit-status-placeholder" aria-disabled="true">干涉世界（未开放）</div>
+    </aside>
 
     <aside id="debug-panel" hidden aria-label="上帝调试面板">
       <div class="dbg-head">
