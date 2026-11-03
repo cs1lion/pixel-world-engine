@@ -89,7 +89,7 @@ test('门就开在镇心上：也算连得出去', () => {
  * `clearMargin: 0` 是合法的（`blueprints.ts:45`），所以这不是一份假包。
  *
  * 四栋都声明 `zone: 'industry'`：灯潮界的 `grid.zones` 拿 industry 盖住整张图
- * （`pack.ts:41`，x 1–62、y 1–46），只有 x 30–34 一条窄巷是 street。
+ * （`pack.ts:182`，x 1–62、y 1–46），只有 x 30–34 一条窄巷是 street。
  * `checkPlacement` 要求整块占地都在蓝图声明的分区里，所以别去挤那条巷子。
  */
 function walledInPack(): ReturnType<typeof loadSettingPack> {

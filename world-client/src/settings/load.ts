@@ -323,6 +323,30 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
         throw new SettingPackError(`${villager.name} 的外观 lamp 只能是 true 或 false`);
       }
     }
+    const archive = villager.archive;
+    if (archive !== undefined) {
+      // 档案要在面板上读，也要在开局落进记忆；缺字段就是「面板空白、记忆没根」。
+      const filled = [
+        archive.aliases.length > 0,
+        archive.identity.trim() !== '',
+        archive.generation.trim() !== '',
+        archive.origin.trim() !== '',
+        archive.cares.length > 0,
+        archive.taboos.length > 0,
+        archive.routine.trim() !== '',
+        archive.voice.trim() !== '',
+      ];
+      if (filled.some((ok) => !ok)) throw new SettingPackError(`${villager.name} 的档案有空字段`);
+      if (archive.bonds.length !== 2) throw new SettingPackError(`${villager.name} 的档案必须写正好 2 段关系`);
+      const names = new Set(raw.villagers.map((item) => item.name));
+      for (const bond of archive.bonds) {
+        if (!names.has(bond.to)) throw new SettingPackError(`${villager.name} 的档案关系指向不存在的 ${bond.to}`);
+        if (bond.to === villager.name) throw new SettingPackError(`${villager.name} 的档案关系不能指向自己`);
+        for (const key of ['trust', 'warmth', 'debt', 'familiarity'] as const) {
+          if (!Number.isFinite(bond[key])) throw new SettingPackError(`${villager.name} 的档案关系 ${key} 不是有限数`);
+        }
+      }
+    }
     return {
       ...villager,
       // 开局带着什么，从设定集写定的那一句派生：`style.lamp` 是「她提着一盏灯」，

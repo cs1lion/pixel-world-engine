@@ -10,10 +10,10 @@
 
 import type { WorldColor } from './palette-data.ts';
 
-export const VILLAGER_BUILDS = ['slim', 'adult', 'stout'] as const;
-export const VILLAGER_HEADS = ['bob', 'ponytail', 'bun', 'hood'] as const;
-export const VILLAGER_OUTFITS = ['cloak', 'coat', 'apron', 'robe'] as const;
-export const VILLAGER_ACCENTS = ['satchel', 'lantern', 'staff', 'none'] as const;
+export const VILLAGER_BUILDS = ['slim', 'adult', 'stout', 'tall'] as const;
+export const VILLAGER_HEADS = ['bob', 'ponytail', 'bun', 'hood', 'beard', 'yubaba', 'mask'] as const;
+export const VILLAGER_OUTFITS = ['cloak', 'coat', 'apron', 'robe', 'tunic'] as const;
+export const VILLAGER_ACCENTS = ['satchel', 'lantern', 'staff', 'bucket', 'none'] as const;
 
 export type VillagerBuild = (typeof VILLAGER_BUILDS)[number];
 export type VillagerHead = (typeof VILLAGER_HEADS)[number];

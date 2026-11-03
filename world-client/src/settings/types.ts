@@ -1,6 +1,7 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import type { VillagerArchive } from '../world/villager-archive.ts';
 import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
 
@@ -29,6 +30,8 @@ export interface SettingVillager {
   readonly at: GridPoint;
   readonly routine: readonly SettingRoutineStop[];
   readonly style?: SettingVillagerStyle;
+  /** 主要人物才有：面板可读、开局注入记忆的设定档案。 */
+  readonly archive?: VillagerArchive;
 }
 
 /**
@@ -45,6 +48,7 @@ export interface CompiledVillager {
   readonly routine: readonly SettingRoutineStop[];
   readonly style?: SettingVillagerStyle;
   readonly carries: readonly CarryItem[];
+  readonly archive?: VillagerArchive;
 }
 
 export interface SettingScenery {

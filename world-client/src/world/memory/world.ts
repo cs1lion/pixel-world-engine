@@ -293,6 +293,21 @@ export interface MemoryWorldSnapshot {
   readonly metToday: readonly (readonly [string, number])[];
 }
 
+/** 开局设定档案的注入输入：只写一条「读到档案」的记忆，不生成目击、断言或痕迹。 */
+export interface GenesisSeedInput {
+  readonly holderId: string;
+  readonly atMs: number;
+  readonly text: string;
+  readonly placeAt: { readonly x: number; readonly y: number };
+  readonly bonds: readonly {
+    readonly to: string;
+    readonly trust: number;
+    readonly warmth: number;
+    readonly debt: number;
+    readonly familiarity: number;
+  }[];
+}
+
 /**
  * 一台记忆世界。
  *
@@ -577,6 +592,80 @@ export class MemoryWorld {
     this.birthClaim(fact, written, input.at);
 
     return { witnesses, written };
+  }
+
+  /**
+   * 开局把人物设定档案写进记忆。
+   *
+   * 这条**不是世界事件**：`source = genesis`、`kind = genesis_profile`，
+   * 只有当事人自己「读到」档案，`sourceMode = read`；不生成目击者、
+   * 不生成断言、不落痕迹，也不参与传言。重复调用按事件 id 幂等。
+   *
+   * 关系初值随同一条档案落账，证据指向同一条 genesis 事件，避免面板里
+   * "档案写了关系、关系账本却是空"的两套说法。
+   */
+  seedGenesis(input: GenesisSeedInput): boolean {
+    const eventId = `genesis:${input.holderId}`;
+    if (this.facts.has(eventId)) return false;
+    const day = Math.floor(input.atMs / this.config.dayMs);
+    const tick = input.atMs - day * this.config.dayMs;
+    const placeId = `genesis:${input.holderId}`;
+    const fact: WorldFact = {
+      eventId,
+      day,
+      tick,
+      kind: 'genesis_profile',
+      placeId,
+      actors: [input.holderId],
+      witnesses: [input.holderId],
+      outcome: { what: input.text, genesis: true },
+      visibility: 'world',
+      importanceHint: 0,
+      source: 'genesis',
+      parentEventId: null,
+      voice: { what: input.text, valence: 0, arousal: 0.15, detailLevel: 3 },
+    };
+    this.facts.set(eventId, fact);
+    this.placeAnchors.set(placeId, input.placeAt);
+
+    const base = this.makeEpisodic(input.holderId, fact, {
+      valence: 0,
+      arousal: 0.15,
+      salience: 0.55,
+      detailLevel: 3,
+    });
+    const entry: MemoryEntry = {
+      ...base,
+      tier: 'long',
+      sourceMode: 'read',
+      sourceChain: [],
+      strength: 1,
+      confidence: 1,
+    };
+    this.entries.push(entry);
+    for (const bond of input.bonds) {
+      if (bond.to === input.holderId) continue;
+      this.bonds.set(this.bondKey(input.holderId, bond.to), {
+        from: input.holderId,
+        to: bond.to,
+        trust: clampBond(bond.trust),
+        warmth: clampBond(bond.warmth),
+        debt: clampBond(bond.debt),
+        familiarity: clamp01(bond.familiarity),
+        strength: clamp01(Math.max(bond.familiarity, Math.abs(bond.trust), Math.abs(bond.warmth))),
+        confidence: 1,
+        evidence: [eventId],
+        updatedDay: day,
+      });
+      this.refreshRelation(input.holderId, bond.to);
+    }
+    this.emit('memory.written', input.atMs, {
+      memoryId: entry.memoryId,
+      holderId: input.holderId,
+      eventRefs: entry.eventRefs,
+      salience: entry.salience,
+    });
+    return true;
   }
 
   /**

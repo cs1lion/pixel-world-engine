@@ -1,0 +1,182 @@
+{
+  "canvas": "24x30",
+  "zoom": 3,
+  "main": [
+    "迷路人",
+    "汐",
+    "炉匠",
+    "沉灯夫人",
+    "灯笼头"
+  ],
+  "minPair": {
+    "a": "沉灯夫人",
+    "b": "灯笼头",
+    "deltaE": 15.5
+  },
+  "silhouetteClasses": 3,
+  "characters": [
+    {
+      "name": "迷路人",
+      "design": "slim/ponytail/tunic/bucket",
+      "artbook": {
+        "pdfPages": [
+          42,
+          44,
+          59
+        ],
+        "bookPages": [
+          "82–83",
+          "86–87",
+          "116–117"
+        ],
+        "notes": [
+          "棕色马尾与齐刘海",
+          "朱红工作和服 + 白色前襟/束带",
+          "深蓝短裤、赤脚、提水桶"
+        ]
+      },
+      "deltaEToNearest": 30.1,
+      "nearest": "炉匠",
+      "silhouetteSignature": "122222@30",
+      "bboxW": 19,
+      "bboxH": 30,
+      "profile": [
+        14,
+        16,
+        16,
+        15,
+        17,
+        17
+      ]
+    },
+    {
+      "name": "汐",
+      "design": "slim/bob/robe/none",
+      "artbook": {
+        "pdfPages": [
+          42,
+          43
+        ],
+        "bookPages": [
+          "82–83",
+          "84–85"
+        ],
+        "notes": [
+          "深色齐颌短发、平直刘海",
+          "白/浅青长袍，腰间一道蓝色束带",
+          "赤脚，身形少年"
+        ]
+      },
+      "deltaEToNearest": 54.9,
+      "nearest": "炉匠",
+      "silhouetteSignature": "222222@30",
+      "bboxW": 14,
+      "bboxH": 30,
+      "profile": [
+        12,
+        12,
+        14,
+        13,
+        12,
+        13
+      ]
+    },
+    {
+      "name": "炉匠",
+      "design": "stout/beard/robe/none",
+      "artbook": {
+        "pdfPages": [
+          48
+        ],
+        "bookPages": [
+          "94–95"
+        ],
+        "notes": [
+          "秃顶、两鬓白毛、长白须",
+          "圆框眼镜",
+          "深紫/灰紫长袍，六条手臂，矮壮"
+        ]
+      },
+      "deltaEToNearest": 30.1,
+      "nearest": "迷路人",
+      "silhouetteSignature": "002222@28",
+      "bboxW": 23,
+      "bboxH": 28,
+      "profile": [
+        15,
+        15,
+        23,
+        23,
+        22,
+        20
+      ]
+    },
+    {
+      "name": "沉灯夫人",
+      "design": "stout/yubaba/cloak/none",
+      "artbook": {
+        "pdfPages": [
+          53
+        ],
+        "bookPages": [
+          "104–105"
+        ],
+        "notes": [
+          "极高的白发髻、大鼻、深眼窝",
+          "深蓝长裙、宽肩",
+          "金耳饰/金色束带，矮而宽"
+        ]
+      },
+      "deltaEToNearest": 15.5,
+      "nearest": "灯笼头",
+      "silhouetteSignature": "222222@30",
+      "bboxW": 20,
+      "bboxH": 30,
+      "profile": [
+        19,
+        19,
+        19,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "name": "灯笼头",
+      "design": "tall/mask/robe/staff",
+      "artbook": {
+        "pdfPages": [
+          58
+        ],
+        "bookPages": [
+          "114–115"
+        ],
+        "notes": [
+          "高而窄的黑色/半透明长袍",
+          "白色面具、紫黑眼口",
+          "细手臂，无脸"
+        ]
+      },
+      "deltaEToNearest": 15.5,
+      "nearest": "沉灯夫人",
+      "silhouetteSignature": "222222@30",
+      "bboxW": 15,
+      "bboxH": 30,
+      "profile": [
+        13,
+        12,
+        14,
+        12,
+        12,
+        14
+      ]
+    }
+  ],
+  "namelessEvidence": [
+    "迷路人-front-side-back-x3.png",
+    "汐-front-side-back-x3.png",
+    "炉匠-front-side-back-x3.png",
+    "沉灯夫人-front-side-back-x3.png",
+    "灯笼头-front-side-back-x3.png"
+  ]
+}
