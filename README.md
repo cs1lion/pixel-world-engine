@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             九道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                233 个测试文件 <!-- claim: test-file-count=233 -->
+└── test/                238 个测试文件 <!-- claim: test-file-count=238 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -38,7 +38,7 @@ server/                  FastAPI：规则校验、事件日志、LLM 造物主�
 docs/                    设计与决策
 ├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
 ├── iterations/          迭代资料（1027-task-1 内环 / 1027-task-2 外环）
-├── adr/                 架构决策记录 <!-- claim: adr-count=9 -->
+├── adr/                 架构决策记录 <!-- claim: adr-count=10 -->
 └── art/                 美术基准（《千与千寻视觉设定集》）
 memory/                  时间线记忆：entries / characters / events / rules
 ```
@@ -280,6 +280,40 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 ```
 
 不设 `PIXEL_WORLD_URL` 时默认找 `http://127.0.0.1:5188/`（`npm run dev:live` 的前端端口）。
+
+遮挡层还有一支可复现的摆位验收：把「沉灯夫人」按固定格钉在摊位后一格 / 前一格，
+冻结帧各截一张，两张并排写出 depth 读数（`eval/screens/placement-stall.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:scene-depth
+```
+
+街面光池也有一支证据脚本：同一冻结帧里只换灯态/潮位，量同一块地面的亮度与色温，
+并给出距灯 0.5–6 格的衰减（`eval/screens/lamp-pool.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-pool
+```
+
+夜街全景另有一支：zoom 1 扫过 5 根灯柱，逐列量「灯亮 - 灯灭」的亮度差，
+直接量出暗带位置与宽度，并对比改前/改后的像素差（`eval/screens/lamp-band-after.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-band
+```
+
+改前基线是一次性的：在外圈半径改动之前用 `BAND_LABEL=before` 拍一张；
+之后重跑默认拍「改后」，不会覆盖基线，合成页会多出「改前 → 改后」那一行。
+
+立面尺度也留了对照证据：同一机位、同一冻结帧拍「改前 / 改后」，把墙、人、灯柱三把标尺
+画在图上，并从截图里逐像素量墙高、石脚与灯体下沿的净空（`eval/screens/setting-scale.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting-scale
+```
+
+拍「改前」要先 `git stash` 掉 `src/` 的改动（`SCALE_LABEL=before`），恢复后再拍 `after`；
+改后那一跑会顺手合成并排图。
 
 ## 状态
 
