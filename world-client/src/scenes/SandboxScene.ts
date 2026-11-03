@@ -16,6 +16,9 @@ import { TERRAIN_COLORS, WORLD, tokenNameOf } from '../world/palette-data.ts';
 import type { WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
+import type { LandmarkEvent } from '../world/memory/landmark.ts';
+import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
+import { createIdbHistoryStore } from '../world/history/store.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
@@ -405,6 +408,27 @@ export class SandboxScene extends Phaser.Scene {
    * 地标不是谁盖的，是人走出来的。
    */
   private landmarkCells: { readonly x: number; readonly y: number }[] = [];
+  /**
+   * 已经没有楼、但原地还留着痕迹的地方（拆掉的那几块地）。
+   *
+   * **楼拆了不是「什么都没有了」**：记忆层还留着它的痕迹与坐标，这里把它们
+   * 当废墟画在地上。这个表由 `syncBuildings` 每拍按「还站着的楼」与
+   * `memory.placeWithTraces()` 求差得出，渲染路径与地标共用 `placeHints`
+   * 那一张单子、同一道闸（`traceExposedLayers`）。
+   */
+  private ruinPlaces: { readonly placeId: string; readonly at: { readonly x: number; readonly y: number } }[] = [];
+  /**
+   * 只读回溯的记录器。`null` = 这个浏览器没有 IndexedDB，或还没接上。
+   *
+   * **它不在关账主路径上**：`capture()` 只拿住当天的快照对象并把差分排进队列；
+   * 序列化与写库在队列里跑。关一天账时多出来的开销是一份 `toSnapshot()`
+   * 与一份 `toSave()`，没有整档 `JSON.stringify`。
+   */
+  private history: SceneHistory | null = null;
+  /** 已经记到哪一天（`-1` = 还没记过）。用来判「连续」还是「断了几天」。 */
+  private lastHistoryDay = -1;
+  /** 历史层降级的原因；进状态行，不吞掉。 */
+  private historyNotice: string | null = null;
   /** 每块地标上一次画出去的痕迹单子的指纹，与 `decalSignatures` 同一个理由。 */
   private groundSignatures = new Map<string, string>();
   private groundLayer?: Phaser.GameObjects.Graphics;
@@ -939,6 +963,27 @@ export class SandboxScene extends Phaser.Scene {
     // 真实时钟的跨会话补算必须在这里做：记忆已复原、快照已就位，补算走的是
     // 与常规跨日完全同一条 `stepMemory → tickCapped → onVitals` 路径。
     this.restoreRealClockBaseline();
+    // 只读回溯的记录器：每天一份字段级补丁，每 30 天一份全量。
+    //
+    // **从这里开始记，不往前补。** 读档接过来的世界已经走过若干天，
+    // 那些天的状态不在这一份进程里——补一份就是编一份。`lastHistoryDay`
+    // 从「已经关到的最后一天」起步，之后只记真正在这一局里关掉的天。
+    const worldId = this.pack?.id ?? 'world';
+    const historyStore = createIdbHistoryStore(worldId);
+    if (historyStore === null) {
+      this.historyNotice = '回溯不可用：这个浏览器没有 IndexedDB。';
+    } else {
+      this.history = new SceneHistory({
+        worldId,
+        store: historyStore,
+        onError: (message) => {
+          this.historyNotice = `历史写入失败：${message}`;
+        },
+      });
+      this.lastHistoryDay = this.memory.closedThroughDay;
+    }
+    // 老档日界对齐（main 的单位状态菜单/真实时钟那一支）：入口挂在这儿，
+    // 与历史记录器互不相干——一个对齐日界，一个只读回看。
     this.initClockAlignment();
     // 造物引擎进生产路径：世界是场景这一份（不再另建第二份），种子取设定集 id，
     // 时钟取世界时间。三者都由场景给，引擎不自己造兜底。
@@ -1203,6 +1248,9 @@ export class SandboxScene extends Phaser.Scene {
     }
     this.snapshot = this.sim.snapshot();
     const skippedDays = this.stepMemory(catchUpCap > 0 ? catchUpCap : undefined);
+    // 关过账才记历史。**在 `stepMemory` 之后**：那一拍的记忆整理已经做完，
+    // 拿到的才是「这一天结束时的样子」。
+    this.captureHistory();
     if (skippedDays > 0) {
       // 合并结算要让人看得见：状态行说清「跳过」多少天，而不是假装逐日都关了账。
       this.clockNotice = `真实时钟：离线合并结算，跳过 ${skippedDays} 天`;
@@ -1767,24 +1815,31 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
-   * 地标上的痕迹。
+   * 地上的痕迹：作息落点（地标）与**拆掉的楼留下的废墟**。
    *
    * 与 `refreshDecals` 同一个入口（`placeHints`）、同一道闸，只是画在地上而不是
    * 墙上。签名没变就不重画——理由与楼那边一样：痕迹一天才风化一次。
+   *
+   * 废墟与地标共用这一层，不是省事：它们都是「地上还留着的东西」，画法也共用
+   * `drawGroundDecals`。分成两层的话，同一块地上先有地标、后来立楼、再拆掉，
+   * 它的痕迹会在两层之间搬一次家，而画面上不该看得出这次搬家。
    */
   private refreshGroundDecals(): void {
     if (this.memory === undefined) return;
-    if (this.landmarkCells.length === 0) return;
+    const places = [
+      ...this.landmarkCells.map((cell) => ({ placeId: cellPlaceId(cell), at: cell })),
+      ...this.ruinPlaces,
+    ];
+    if (places.length === 0) return;
     // 先看有没有变。签名里带 `visibility`，所以「今天风化了一格」也算变了。
     let changed = false;
-    for (const cell of this.landmarkCells) {
-      const placeId = cellPlaceId(cell);
+    for (const place of places) {
       const signature = this.memory
-        .placeHints(placeId)
+        .placeHints(place.placeId)
         .map((hint) => `${hint.traceId}:${hint.visibility.toFixed(3)}`)
         .join('|');
-      if (this.groundSignatures.get(placeId) === signature) continue;
-      this.groundSignatures.set(placeId, signature);
+      if (this.groundSignatures.get(place.placeId) === signature) continue;
+      this.groundSignatures.set(place.placeId, signature);
       changed = true;
     }
     if (!changed) return;
@@ -1797,14 +1852,14 @@ export class SandboxScene extends Phaser.Scene {
     // **整层重画，不是在旧的上面再叠一遍。** alpha 叠 alpha 会让同一块地
     // 每风化一天就深一格，而风化该让它**变浅**。
     this.groundLayer.clear();
-    for (const cell of this.landmarkCells) {
+    for (const place of places) {
       drawGroundDecals(
         this.groundLayer,
-        this.memory.placeHints(cellPlaceId(cell)),
-        cell,
+        this.memory.placeHints(place.placeId),
+        place.at,
         TILE_PX,
         this.palette,
-        this.terrainBaseOf(cell),
+        this.terrainBaseOf(place.at),
       );
     }
   }
@@ -2539,6 +2594,51 @@ export class SandboxScene extends Phaser.Scene {
     this.speak({ ok: true, message: line });
   }
 
+  /**
+   * 关过账就记一份历史。**连续的一天才记补丁，断了就记全量 + 标缺。**
+   *
+   * 判据分两半：
+   * - 天数连续（`closed - lastHistoryDay === 1`）：上一份快照就是昨天，补丁接得上；
+   * - 世界此刻正停在这一天的边界之后（`nowDay - closed <= 1`）：否则这一份
+   *   「快照」其实已经是好几天之后的世界了，记下来就是假的。
+   * 任一不成立，剩下的天全部标 `missing`——**不近似重建**。
+   */
+  private captureHistory(): void {
+    if (this.history === null || this.memory === undefined) return;
+    const closed = this.memory.closedThroughDay;
+    if (closed < 0 || closed <= this.lastHistoryDay) return;
+    const nowDay = Math.floor(this.snapshot.now / DAY_MS);
+    const consecutive = closed - this.lastHistoryDay === 1 && nowDay - closed <= 1;
+    if (!consecutive) {
+      for (let day = this.lastHistoryDay + 1; day <= closed; day += 1) this.history.markMissing(day);
+      this.lastHistoryDay = closed;
+      return;
+    }
+    this.history.capture(closed, {
+      day: closed,
+      // 世界那段不带记忆字符串：记忆视图由快照单独给（见 `HistoryDoc`）。
+      save: this.sim.toSave(''),
+      memory: this.memory.toSnapshot(),
+    });
+    this.lastHistoryDay = closed;
+  }
+
+  /** 调试面板的时间轴：这一局里记过的日子（含「没有记录」）。 */
+  historyDays(): ReturnType<SceneHistory['days']> {
+    return this.history?.days() ?? [];
+  }
+
+  /**
+   * 点一天，读那一天的只读视图。**不写任何东西**。
+   *
+   * 返回的是历史层自己的投影（`RewindResult`），不在这里再翻译一遍：
+   * 面板要的摘要与回溯 API 要的是同一份东西，少一层映射就少一处漂移。
+   */
+  async historyRewind(day: number): Promise<RewindResult | null> {
+    if (this.history === null) return null;
+    return this.history.rewind(day);
+  }
+
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
     const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
@@ -2642,14 +2742,43 @@ export class SandboxScene extends Phaser.Scene {
         return villager === undefined ? undefined : { x: villager.pos.x, y: villager.pos.y };
       },
       atOfBuilding: (instanceId) => {
-        const building = this.snapshot?.buildings.find((item) => item.instanceId === instanceId);
+        // **先问世界的账本，再问上一帧的快照。** `onChange` 在 `update()` 里面
+        // 触发：新楼那一笔已经进了 `buildings`、还没进 `snapshot`；拆楼那一笔
+        // 正好相反，已经出了 `buildings`、还在 `snapshot` 里。只查一边的话，
+        // 「立楼」或「拆楼」必有一头落空——落空的那一头什么都不记。
+        const live = this.sim.buildingById(instanceId);
+        const building = live ?? this.snapshot?.buildings.find((item) => item.instanceId === instanceId);
         return building === undefined ? undefined : { x: building.door.x, y: building.door.y };
       },
       buildingOfTask: (taskId) =>
         this.snapshot?.tasks.find((item) => item.id === taskId)?.buildingId ?? undefined,
     });
     if (observation === null) return;
-    this.memory.observe(observation, undefined, at);
+    // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
+    // （重建换了实例 id，地块没换）。别的改变没有这一段，照旧。
+    const landmark = this.landmarkEventOf(change);
+    this.memory.observe(landmark === undefined ? observation : { ...observation, landmark }, undefined, at);
+  }
+
+  /**
+   * 一条楼相关的改变 → 地标的输入。查不到位置就不产生地标阶段——
+   * 「一块地不知道在哪」比「没有这段历史」更糟：废墟会画到空气里。
+   *
+   * 两个来源都要问：动工那一笔在 `sim.buildingById` 里（新楼还没进快照），
+   * 拆楼那一笔在上一帧快照里（楼已经从 `buildings` 里摘掉了）。
+   */
+  private landmarkEventOf(change: WorldChange): LandmarkEvent | undefined {
+    if (change.change !== 'building.built' && change.change !== 'building.removed') return undefined;
+    const building =
+      this.sim.buildingById(change.instanceId)
+      ?? this.snapshot?.buildings.find((item) => item.instanceId === change.instanceId);
+    if (building === undefined) return undefined;
+    return {
+      change: change.change === 'building.built' ? 'built' : 'removed',
+      displayName: change.displayName,
+      origin: { x: building.origin.x, y: building.origin.y },
+      footprint: { w: building.footprint.w, h: building.footprint.h },
+    };
   }
 
   view(): WorldSnapshot {
@@ -2922,6 +3051,10 @@ export class SandboxScene extends Phaser.Scene {
       nightEnabled: (): boolean => this.nightEnabled(),
       events: (limit = 50) => this.recentEvents(limit),
       saveStatus: () => this.saveStatus(),
+      /** 只读回溯的时间轴：这一局里记过的日子。 */
+      historyDays: () => this.historyDays(),
+      /** 点某一天，读那一天的场景/角色/时代。只读，不写主档。 */
+      historyRewind: (day: number) => this.historyRewind(day),
       /**
        * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
        * `catchUp` 不再只活在状态行的一帧里；没有 setter。
@@ -3095,8 +3228,23 @@ export class SandboxScene extends Phaser.Scene {
     }
   }
 
-  /** 新落成的楼要补一套视图；按 instanceId 对齐，不假设顺序。 */
+  /**
+   * 楼与画面按 instanceId 对齐，不假设顺序。
+   *
+   * 三件事：新落成的补一套视图；**拆掉的把视图销毁**（以前只加不删，楼拆了
+   * 画面还留着它）；再把「已经没有楼、但原地还有痕迹」的地方认出来当废墟。
+   *
+   * 销毁视图不是清理癖：不销毁的话，一栋楼从世界里消失之后，它的墙、它的
+   * 招牌、它的痕迹层会一直在屏幕上，而且 `refreshDecals` 还会继续往上面画。
+   * 世界的账本说它没了，画面说它还在——两套真相。
+   */
   private syncBuildings(): void {
+    const standing = new Set(this.snapshot.buildings.map((building) => building.instanceId));
+    const gone = this.entries.filter((entry) => !standing.has(entry.building.instanceId));
+    if (gone.length > 0) {
+      this.entries = this.entries.filter((entry) => standing.has(entry.building.instanceId));
+      for (const entry of gone) this.disposeBuilding(entry);
+    }
     for (const building of this.snapshot.buildings) {
       if (this.entries.some((entry) => entry.building.instanceId === building.instanceId)) continue;
       this.entries.push({
@@ -3105,6 +3253,35 @@ export class SandboxScene extends Phaser.Scene {
         emitter: createAccentEmitter(this, building.accent),
       });
     }
+    this.refreshRuins(standing);
+  }
+
+  /** 拆掉一栋楼留下的画面。三层容器 + 容器外那一层痕迹，一件都不留给 GC 之外的运气。 */
+  private disposeBuilding(entry: BuildingEntry): void {
+    entry.view.back.destroy(true);
+    entry.view.container.destroy(true);
+    entry.view.front.destroy(true);
+    entry.view.decal.destroy();
+    entry.emitter.destroy?.();
+    this.decalSignatures.delete(entry.building.instanceId);
+  }
+
+  /**
+   * 废墟：已经没有楼、但记忆层还留着痕迹的地方。
+   *
+   * 判据只看「不在还站着的楼里」+「有痕迹」。**不按 Holder 判**：拆楼之后
+   * 地点 Holder 已经被摘，正是这一版要修的那个洞。
+   */
+  private refreshRuins(standing: ReadonlySet<string>): void {
+    if (this.memory === undefined) {
+      this.ruinPlaces = [];
+      return;
+    }
+    const landmarkIds = new Set(this.landmarkCells.map((cell) => cellPlaceId(cell)));
+    this.ruinPlaces = this.memory
+      .placeWithTraces()
+      .filter((place) => !standing.has(place.placeId) && !landmarkIds.has(place.placeId))
+      .map((place) => ({ placeId: place.placeId, at: { x: place.at.x, y: place.at.y } }));
   }
 
   private drawScaffolds(snapshot: WorldSnapshot): void {
@@ -3202,7 +3379,8 @@ export class SandboxScene extends Phaser.Scene {
     // 最近落下的那件摆件写清来路：这是"被记住"在纸面上唯一的具体落点。
     const latestProp = this.snapshot.props[this.snapshot.props.length - 1];
     const memory = latestProp === undefined ? '' : `　　${describePropSource(latestProp)}`;
-    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${clockNote}${saveNote}`;
+    const historyNote = this.historyNotice === null ? '' : `　　${this.historyNotice}`;
+    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${clockNote}${saveNote}${historyNote}`;
   }
 
   /** 点在谁的占地里。用于 `Perceiver.inside`：进屋/出屋按格算，不靠调用方维护。 */

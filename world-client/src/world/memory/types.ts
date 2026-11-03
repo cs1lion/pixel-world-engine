@@ -35,6 +35,14 @@ export interface WorldFact {
   readonly importanceHint: number | null;
   readonly source: EventSource;
   /**
+   * 这件事发生在哪一类地点（`'building'` / `'workshop'` / `'altar'`…）。
+   *
+   * 后果规则（`traces.ts`）与史诗判档（`epic.ts`）都要用它：「一栋楼被拆」
+   * 与「两个人在街上吵了一架」在记忆层是同一个 `conflict`，靠这一列才分得开。
+   * 老档没有它——读作「不知道是哪类地点」，按普通地点处理，不猜。
+   */
+  readonly placeType?: string;
+  /**
    * 这件事在世界里被怎么说。**只在事件出生时给定**，之后不可改。
    *
    * 存在的理由是记忆条目与断言必须同源：它们是同一次感知的两种读法，
@@ -265,6 +273,29 @@ export interface Belief {
 
 export type BeliefState = 'held' | 'suspicious' | 'confirmed' | 'debunked';
 
+/**
+ * 成长记录：一个人对某件事的看法翻过来了。
+ *
+ * 这一轮只实现这一种（`belief-reversed`）。它记的是**变化**，不是流水账：
+ * 「第 12 天，他不再相信账房着火这件事」比二十条「他今天还是相信」有用。
+ *
+ * 三条硬约束：
+ * 1. 只在信念状态真的变了的那一次写（`verify` 的求证闭环里）；
+ * 2. `eventRefs` 指向原来的事件——成长可以查回事实，不是另一份说法；
+ * 3. **不衰减、不删除**：`BondPhase` / `HabitRecord` 还留着位置，等它们
+ *    有生产者时再一起谈保留策略。
+ */
+export interface TurningPoint {
+  readonly holderId: string;
+  readonly day: number;
+  readonly atMs: number;
+  readonly kind: 'belief-reversed';
+  readonly claimId: string;
+  readonly eventRefs: readonly [string, ...string[]];
+  readonly from: BeliefState;
+  readonly to: BeliefState;
+}
+
 /** 痕迹：地点的物质化记忆。 */
 export interface Trace {
   readonly traceId: string;
@@ -283,7 +314,16 @@ export type TraceLayer =
   | 'patch'
   | 'garland'
   | 'worn_path'
-  | 'inscription';
+  | 'inscription'
+  /**
+   * 废墟：一栋楼被拆掉之后留在地上的那一层。
+   *
+   * 它与 `scorch` 分开，是因为「这里烧过」与「这里曾经有一栋楼」是两件事：
+   * 前者会随时间淡到无，后者是一个地点被抹掉之后**唯一还留在原地的东西**。
+   * 拆楼这件事原先只在原地留一道焦痕，于是「那儿原来有间铺子」这条记忆
+   * 既没有落点、也没有专属的读法。废墟是那条记忆的物证。
+   */
+  | 'ruin';
 
 /** 一次改名的记录。协议 §11 的「历史链」就是这几条串起来。 */
 export interface ToponymEntry {
@@ -317,6 +357,151 @@ export interface WorldVitals {
   readonly meanArousal: number;
   readonly infoEntropy: number;
   readonly isolatedHoldersCount: number;
+}
+
+/**
+ * 一块地经历过的阶段。**建 / 改 / 拆 / 废墟 / 重建**，每一次都带世界日与世界时间。
+ *
+ * 这是「场景记忆」的第一层：人物记得「那天发生了什么」，地标记得
+ * 「**这块地**经历过什么」。两者共享同一个事件锚点（`causeEventRef`），
+ * 不复制事实内容——一条事件只有一份真相，地标与人物各自引用它。
+ */
+export type LandmarkState =
+  /** 第一次立起来。 */
+  | 'built'
+  /** 改了——今天唯一的来源是改名（协议 §11）；修缮留到有修缮命令时接在同一个状态上。 */
+  | 'altered'
+  /** 拆了，楼已不在，痕迹还在。 */
+  | 'demolished'
+  /** 拆掉之后过了一定时日仍没有重建：从「刚拆」变成「废墟」。 */
+  | 'ruined'
+  /** 同一块地上又立起了一栋。 */
+  | 'rebuilt';
+
+export interface LandmarkPhase {
+  readonly state: LandmarkState;
+  /** 世界日：`floor(at / dayMs)`。 */
+  readonly day: number;
+  /** 世界时间毫秒。留精确时刻，日只是它的一个投影。 */
+  readonly atMs: number;
+  /** 因为哪件事。查得到那件事，这一段历程才算数。 */
+  readonly causeEventRef: string;
+  /** 这一阶段它叫什么。改名之后的名字在这里更新。 */
+  readonly name: string;
+  /** 一句话，读给人看：落成 / 改名 / 拆除 / 荒废。 */
+  readonly note: string;
+}
+
+/** 一块地占的格。拆掉之后**留位**，等废墟态美术来接。 */
+export interface LandmarkFootprint {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/**
+ * 一个地标（一块地）的一生。
+ *
+ * 身份是**地块**，不是建筑的实例 id：拆掉再建会拿到新的 `instanceId`
+ * （`Simulation.nextInstanceId` 不回收旧号），但那还是同一块地。所以
+ * `plotKey` 是主键，`placeId` 是「最近一次」的实例 id，`aliases` 是这块地
+ * 用过的全部 id——旧痕迹还在旧 id 名下，查这块地的历史要看 aliases 里的每一个。
+ */
+export interface Landmark {
+  readonly placeId: string;
+  readonly aliases: readonly string[];
+  readonly displayName: string;
+  readonly plotKey: string;
+  /** 落点（门口）。废墟画在这里。 */
+  readonly anchor: { readonly x: number; readonly y: number };
+  readonly footprint: LandmarkFootprint | null;
+  readonly bornDay: number;
+  readonly phases: readonly LandmarkPhase[];
+  readonly current: LandmarkState;
+}
+
+/**
+ * 一天的世界体征。时代分期的原料：不是「另一套记忆」，是每日状态的**分段摘要**。
+ *
+ * `meanValence` / `meanArousal` / `infoEntropy` / `isolatedHolders` 直接取
+ * 当日心电图（`WorldVitals`）；另外四个数是场景侧才有的（楼、废墟、传说、
+ * 人口）。只存两端的签名（段首与段末），不存逐日曲线——切段只问
+ * 「今天与段首差多少」，不问昨天。
+ */
+export interface EraSignature {
+  readonly day: number;
+  readonly meanValence: number;
+  readonly meanArousal: number;
+  readonly infoEntropy: number;
+  readonly isolatedHolders: number;
+  readonly buildingCount: number;
+  readonly ruinCount: number;
+  readonly legendReachSum: number;
+  readonly population: number;
+}
+
+/** 一个时代：一段世界日区间，加上规则生成的名字与它里面的大事。 */
+export interface Era {
+  readonly eraId: string;
+  readonly fromDay: number;
+  /** `null` = 还没结束（当前时代）。 */
+  readonly toDay: number | null;
+  readonly label: string;
+  readonly startSignature: EraSignature;
+  /** 最近一天的签名。段没结束时它就是「此刻的样子」。 */
+  readonly lastSignature: EraSignature;
+  /** 段内最重的几件事（按 `importanceHint`，同分按事件 id）。 */
+  readonly definingEventRefs: readonly string[];
+  /** 0..1：段有多长（`spanDays / 90`，封顶 1）。短段不该和长段一样可信。 */
+  readonly confidence: number;
+}
+
+/**
+ * 史诗的档位。判据全部可计算（见 `epic.ts`），**不交给模型**：
+ * 同一份存档跑两遍，档位必须一样，否则「回放一致」就没了。
+ */
+export type EpicGrade =
+  /** 连传说都没到：只是某个人记得的事。 */
+  | 'local'
+  /** 够格立碑，但规模只在局部：够得着重要性门槛，覆盖不到一半人。 */
+  | 'legend'
+  /** 世界级：重要、覆盖过半、且多半不可逆。 */
+  | 'epic'
+  /** 开天辟地：极重 + 不可逆 + 覆盖七成以上。 */
+  | 'founding';
+
+/** 判档时算出来的五条度量。存下来是为了让「为什么是史诗」可复核，不是让读的人再猜一次。 */
+export interface EpicCriteria {
+  readonly importance: number;
+  /** 0..1：拆楼/废墟 = 1，改名 = 0.8，立楼 = 0.4，其余 0。 */
+  readonly irreversibility: number;
+  /** 讲这件事的人占人口的比例。 */
+  readonly reachShare: number;
+  /** 事件被多少人知道（形成传说时的持有者）占人口的比例。 */
+  readonly populationShare: number;
+  /** 从最早那条事件到传说成立，过了几天。 */
+  readonly spanDays: number;
+}
+
+/**
+ * 史诗条目：从传说升上来的那一层。
+ *
+ * 只存引用与判定，不复制传说的讲法（`variants` 是引用过来的同一份字符串，
+ * 方便碑上直接读）。一条传说最多升一条史诗，`eventRefs` 是它的身份。
+ */
+export interface EpicEntry {
+  readonly epicId: string;
+  readonly eventRefs: readonly [string, ...string[]];
+  /** 规则模板给的一句话，不是模型起的名字。 */
+  readonly title: string;
+  readonly variants: readonly string[];
+  readonly homePlaceId: string;
+  readonly formedDay: number;
+  readonly grade: EpicGrade;
+  readonly criteria: EpicCriteria;
+  /** 今天只有规则；玩家「封为史诗」留到有那个开关时。 */
+  readonly promotedBy: 'rule' | 'player';
 }
 
 /**

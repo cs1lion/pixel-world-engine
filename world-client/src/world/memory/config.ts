@@ -189,6 +189,35 @@ export interface MemoryConfig {
   readonly vitalsWindowDays: number;
   /** 孤立单位判定：连续几天没有任何 ClaimTold。 */
   readonly isolatedDays: number;
+
+  // ---------------------------------------------- 场景记忆（地标 / 时代 / 史诗）
+  /** 拆掉之后多少天没有重建，就从「刚拆」变成「废墟」。 */
+  readonly ruinAfterDays: number;
+  /** 一个时代至少多少天。短于它的波动不切段。 */
+  readonly eraMinDays: number;
+  /** 时代切段：效价相对段首偏移多少算一次转折。 */
+  readonly eraValenceShift: number;
+  /** 时代切段：孤立人数相对段首变化占人口多少算一次转折。 */
+  readonly eraIsolationShare: number;
+  /** 时代切段：楼的数量相对段首增减多少比例算一次转折。 */
+  readonly eraBuildingShare: number;
+  /**
+   * 史诗的「重要」门槛。
+   *
+   * 0.55 = `building.removed` 的 hint，也是 `conflict` 的 hint。门槛压在
+   * 0.55 上，是为了让**拆楼**够得着——它是日常事件里唯一不可逆到 1 的
+   * （`epic.ts` 的 `irreversibilityOf`）。一次口角的 hint 也是 0.55，
+   * 但它不可逆性 0，最高只到 `legend` 档，不会因为门槛低就混进史诗。
+   */
+  readonly epicImportanceFloor: number;
+  /** 开天辟地档的重要度门槛：与 `celebration`（0.8）对齐。 */
+  readonly epicFoundingImportance: number;
+  /** 世界级（epic）要求覆盖多少人（占人口比例）。 */
+  readonly epicReachShare: number;
+  /** 开天辟地档（founding）要求覆盖多少人。 */
+  readonly epicFoundingReachShare: number;
+  /** 够格「legend」档要求事件被多少人知道（占人口比例）。 */
+  readonly epicPopulationShare: number;
 }
 
 /** v1.0 §3.1 / §3.2 的定稿初值。改任何一项都该顺手改它上面那行的出处注释。 */
@@ -266,6 +295,24 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   // §2.3 心电图。
   vitalsWindowDays: 3,
   isolatedDays: 3,
+
+  // 场景记忆。取值理由见每一项的接口注释；这里只列数。
+  //
+  // 3 天：拆楼当天与第二天都还是「刚拆」，第三天开始「荒废」——比花环的
+  // 3 天风化短得多，比「当天就成废墟」留出足够长的一段「刚拆」可读。
+  ruinAfterDays: 3,
+  // 30 天：短于一个月的起伏不该长成一个时代。设计文档 §2.3 定的最短段长。
+  eraMinDays: 30,
+  eraValenceShift: 0.25,
+  eraIsolationShare: 0.3,
+  eraBuildingShare: 0.2,
+  // 0.55 = `building.removed` / `conflict` 的 hint；与 `legendImportanceFloor`
+  // （0.4）分工不同：那个数判「配不配立碑」，这个数判「配不配叫史诗」。
+  epicImportanceFloor: 0.55,
+  epicFoundingImportance: 0.8,
+  epicReachShare: 0.5,
+  epicFoundingReachShare: 0.7,
+  epicPopulationShare: 0.5,
 };
 
 /** 按 Holder 性格微调显著度权重，四项重新归一化到 1。

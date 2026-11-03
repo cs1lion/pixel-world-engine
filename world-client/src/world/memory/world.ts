@@ -17,6 +17,20 @@
 
 import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
 import { consolidateHolder } from './consolidate.ts';
+import { advanceEra, openEra, signatureOf } from './era.ts';
+import { makeEpic } from './epic.ts';
+import {
+  isStanding,
+  landmarkAltered,
+  landmarkBuilt,
+  landmarkDemolished,
+  landmarkRebuilt,
+  landmarkRuined,
+  landmarkWithoutHistory,
+  plotKeyOf,
+  shouldRuine,
+  type LandmarkEvent,
+} from './landmark.ts';
 import {
   candidatesFrom,
   decayLegend,
@@ -79,9 +93,12 @@ import { readRecord, writeDiary, writeLetter, type WrittenRecord } from './writt
 import type {
   Belief,
   Claim,
+  EpicEntry,
+  Era,
   EventVoice,
   Holder,
   HolderType,
+  Landmark,
   Legend,
   MemoryContent,
   MemoryEntry,
@@ -90,6 +107,7 @@ import type {
   Toponym,
   ToponymEntry,
   Trace,
+  TurningPoint,
   Visibility,
   WorldFact,
   WorldVitals,
@@ -159,6 +177,14 @@ export interface IngestInput {
    * 「世界侧哪天真要发一条训诫，这里会静悄悄地给它 0.3」这个记号。
    */
   readonly voice?: EventVoice;
+  /**
+   * 这件事是一栋楼的落成 / 拆除，位置信息在这儿。
+   *
+   * 记忆层不认识「origin / footprint」这些词，它只拿它们当地标的躯体：
+   * 拆掉之后要在原地画废墟，就得知道那块地原来占多大、在哪儿。
+   * 省略 = 普通地点，不产生地标阶段。
+   */
+  readonly landmark?: LandmarkEvent;
 }
 
 /**
@@ -177,6 +203,11 @@ export interface HolderView {
   /** 自己的可靠度（别人怎么看他，他自己不知道；这里是他自己的账）。 */
   readonly credibility: number;
   readonly traces: readonly Trace[];
+  /**
+   * 他自己翻过的那几次：求证之后看法变了。只读、不衰减。
+   * 这一轮只有 `belief-reversed`；关系与习惯的记录还没有生产者。
+   */
+  readonly turningPoints: readonly TurningPoint[];
 }
 
 export interface MemoryWorldDeps {
@@ -209,6 +240,23 @@ export interface MemoryWorldSnapshot {
     readonly placeId: string;
     readonly entries: readonly Trace[];
   }[];
+  /**
+   * 地点坐标（`memorySchemaVersion >= 2`）。**与 Holder 分库存**：拆掉的楼
+   * 名册里没有了，但它的痕迹还在这里，够不够得着要靠这个坐标。
+   */
+  readonly placeAnchors: readonly {
+    readonly placeId: string;
+    readonly at: { readonly x: number; readonly y: number };
+  }[];
+  /**
+   * 场景记忆（`memorySchemaVersion >= 3`）：地标一生、时代分段、史诗条目。
+   * v2 及更早的档没有这三段，迁移补空数组（空 = 这一段历史还没开始记）。
+   */
+  readonly landmarks: readonly Landmark[];
+  readonly eras: readonly Era[];
+  readonly epics: readonly EpicEntry[];
+  /** 成长记录（`memorySchemaVersion >= 3`）。只增不删，不衰减。 */
+  readonly turningPoints: readonly TurningPoint[];
   readonly legends: readonly Legend[];
   readonly placeNames: readonly {
     readonly placeId: string;
@@ -251,7 +299,74 @@ export class MemoryWorld {
   private entries: MemoryEntry[] = [];
   private readonly claims = new Map<string, Claim>();
   private beliefs: Belief[] = [];
+  /**
+   * 信念的三个索引：按人、按断言、按 `(人, 断言)` 定到数组位置。
+   *
+   * **这不是微优化，是关账能不能活到第二年的问题。** 日终扩散原先三处
+   * 都扫全表：`diffuseDay` 按断言挑同跳持有者（每条断言扫一遍全部信念）、
+   * `spreadStep` 判「这个听众是否已经知道」（每个候选扫一遍那个人的信念）、
+   * `deliver` 判重（每次交谈扫一遍全部信念）。三条叠起来是
+   * `O(断言 × 信念)`，实测 400 天 `dayClosed` 从 1.8ms 涨到 2.6s（1469 倍）。
+   *
+   * 索引只改变**查找方式**，不改变任何一条规则：写谁、写什么、什么顺序，
+   * 全都还是原来那套。回放一致靠的是规则不变，不是靠每次重扫一遍。
+   *
+   * `positions` 只在 `addBelief` 追加/替换时维护；整表被换掉的几处
+   * （读档、隐私级联、求证改状态）各自走 `reindexBeliefs` / `replaceBelief`。
+   */
+  private readonly beliefsByHolder = new Map<string, Belief[]>();
+  private readonly beliefsByClaim = new Map<string, Belief[]>();
+  private readonly beliefPositions = new Map<string, number>();
+  /**
+   * 「这个人关于这件事知道些什么」：`holderId → eventRef → 信念`。
+   *
+   * 日终判「他是不是已经知道了」与 `judge` 的「有没有相反的记忆」原先都要
+   * 遍历**这个人的全部信念**，而一个人的信念数随断言数线性增长——于是每个
+   * 候选一次全扫，又是一项平方。按事件分桶之后，这两问只看相关的那几条。
+   */
+  private readonly beliefsByHolderEvent = new Map<string, Map<string, Belief[]>>();
+  /**
+   * 冷却按「单位对」建索引。`diffuseDay` 原先给每个候选都扫一遍全部冷却，
+   * 只为了跳过别人的那一对；冷却条数随断言数线性长，于是每天多出一个
+   * 「断言 × 冷却」的平方项。索引之后每次只读一个桶。
+   */
+  private readonly cooldownsByPair = new Map<string, CooldownState[]>();
   private readonly traces = new Map<string, Trace[]>();
+  /**
+   * 每个地点**最后一次**被人知道在哪。楼拆了、名称还在、痕迹也还在时，它是
+   * 那堆痕迹唯一还站得住的坐标。
+   *
+   * 与 `holders` 分开，是因为 Holder 名册管的是「谁还活着、谁能传话」：
+   * 一栋不存在的楼不能继续当听众（`removePlace` 会把它摘掉）。但它的位置
+   * 不是「谁」的一部分，是「哪儿」的一部分——摘掉 Holder 之后，`lookAtTraces`
+   * 还要靠这个坐标判「他站在三格内看得见那道废墟吗」。
+   *
+   * 早先没有这张表，坐标只能从 Holder 上读。于是拆楼那一刻，痕迹的可读路径
+   * 与 Holder 一起断了：`withinTraceReach` 拿不到地点坐标，返回 false；
+   * `placeHints` 走 `viewOf`，Holder 不在就返回 null。楼拆了，痕迹既读不到
+   * 也画不出——这正是「那儿原来有间铺子」没有落点的原因。
+   */
+  private readonly placeAnchors = new Map<string, { readonly x: number; readonly y: number }>();
+  /**
+   * 地标：一块地的一生。键是**地块**（`plotKey`），不是实例 id——
+   * 拆掉再建会换 id，但那还是同一块地（见 `landmark.ts` 文件头）。
+   */
+  private readonly landmarks = new Map<string, Landmark>();
+  /** `placeId → plotKey`。重建换了 id 之后，旧 id 也要查得到同一块地。 */
+  private readonly landmarkByPlace = new Map<string, string>();
+  /** 时代：按世界日区间分段。最后一条永远 `toDay: null`（当前时代）。 */
+  private eras: Era[] = [];
+  /** 史诗条目：传说里够格的那几条。按形成顺序。 */
+  private epics: EpicEntry[] = [];
+  /**
+   * 成长记录：一个人对一件事的看法**翻过来**了（求证证实/证伪）。
+   *
+   * 这一轮只做这一种（`TurningPoint`）——`BondPhase` 与 `HabitRecord`
+   * 留到关系/习惯真的有生产者的那一版，现在不摆空壳。
+   *
+   * 它**不衰减**：这是「他变了」的锚点，不是一条会模糊的记忆。
+   */
+  private turningPoints: TurningPoint[] = [];
   private legends: Legend[] = [];
   /**
    * 每个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
@@ -297,6 +412,10 @@ export class MemoryWorld {
 
   addHolder(holder: Holder): void {
     this.holders.set(holder.holderId, holder);
+    // 地点的坐标是「哪儿」的一部分，不是「谁」的一部分：它要比 Holder 活得久。
+    if (holder.type === 'place' && holder.at !== undefined) {
+      this.placeAnchors.set(holder.holderId, holder.at);
+    }
   }
 
   /** 有人走动了。行为层每拍调一次，记忆层据此算谁跟谁挨得够近。 */
@@ -304,6 +423,7 @@ export class MemoryWorld {
     const holder = this.holders.get(holderId);
     if (holder === undefined) return;
     this.holders.set(holderId, { ...holder, at });
+    if (holder.type === 'place') this.placeAnchors.set(holderId, at);
   }
 
   hasHolder(holderId: string): boolean {
@@ -319,6 +439,9 @@ export class MemoryWorld {
    *
    * 不删的话，`spreadCandidates` 会把一栋不存在的楼当成听众，
    * 而它永远「听得见」任何发生在原地的传言。
+   *
+   * **摘 Holder，不摘坐标。** `placeAnchors` 是「那儿在哪」，痕迹要读它；
+   * 把它一起删掉，就是这一版修的那个洞（痕迹读不到也画不出）。
    */
   removePlace(holderId: string): void {
     const holder = this.holders.get(holderId);
@@ -380,6 +503,7 @@ export class MemoryWorld {
       visibility: input.visibility,
       importanceHint: input.importanceHint,
       source: input.source,
+      ...(input.place.placeType === undefined ? {} : { placeType: input.place.placeType }),
       voice: {
         what: input.voice?.what ?? DEFAULT_WHAT[input.kind] ?? input.kind,
         valence,
@@ -388,6 +512,9 @@ export class MemoryWorld {
       },
     };
     this.facts.set(fact.eventId, fact);
+    // 事件落在哪儿，那个地方就「在哪」——哪怕它没有 Holder（`place:12,7` 这类
+    // 合成地点只有坐标）。痕迹的准入（`traceRadius`）与废墟的渲染都读这张表。
+    this.placeAnchors.set(input.place.placeId, input.place.at);
 
     for (const holderId of witnesses) {
       const holder = this.holders.get(holderId);
@@ -424,6 +551,9 @@ export class MemoryWorld {
 
     // place Holder：后果规则，不走显著度。
     this.depositTraces(fact, input.at, input.place.placeType ?? 'generic', valence);
+
+    // 楼的一生：建 / 改 / 拆 / 废墟 / 重建。与痕迹同源（都挂在 `placeId` 上）。
+    if (input.landmark !== undefined) this.applyLandmark(fact, input.landmark, input.at, input.place.at);
 
     this.birthClaim(fact, written, input.at);
 
@@ -494,10 +624,11 @@ export class MemoryWorld {
       holderId,
       type: holder.type,
       memories: this.entries.filter((entry) => entry.holderId === holderId).map(cloneEntry),
-      beliefs: this.beliefs.filter((belief) => belief.holderId === holderId).map((belief) => ({ ...belief })),
+      beliefs: this.beliefsOf(holderId).map((belief) => ({ ...belief })),
       verifyPlans: [...(this.verifyPlans.get(holderId) ?? [])],
       credibility: credibilityOf(this.credibility, holderId),
       traces: holder.type === 'place' ? [...(this.traces.get(holderId) ?? [])] : [],
+      turningPoints: this.turningPointsOf(holderId),
     };
   }
 
@@ -663,23 +794,85 @@ export class MemoryWorld {
     const topicsByPair = new Map<string, number>();
     const chatCooldowns: CooldownState[] = [];
 
+    // 「今天还能开几次口」的可达上限：每个够得着的单位对每天最多
+    // `talkTopicsPerChat` 个话题，而这是**跨断言共享**的一份额度。
+    //
+    // 少了这道闸，日终会为每一句历史断言都跑一遍「找候选 → 判采信 →
+    // retell」，最后被 `talkTopicsPerChat` 在同一对单位那里挡掉。实测 400 天、
+    // 3 人 4 楼：1800 条断言里 1398 条一个听众都没有，而它们天天被重跑。
+    // 等所有够得着的对都用完额度，剩下的断言今天不可能改变任何人——
+    // 这是 `diffuseDay` 的一半开销。
+    const speakPairs: string[] = [];
+    for (const key of this.metToday.keys()) {
+      const split = key.indexOf('\u0000');
+      const a = key.slice(0, split);
+      const b = key.slice(split + 1);
+      if (this.holders.get(a)?.type === 'character' || this.holders.get(b)?.type === 'character') {
+        speakPairs.push(key);
+      }
+    }
+    const speakPairSet = new Set(speakPairs);
+    let saturatedPairs = 0;
+
+    // 冷却按「单位对」建索引：原先每个候选都要扫一遍全部冷却（只为了跳过
+    // 别人的那一对），而冷却条数随断言数线性增长，于是又乘出一个平方项。
+    const cooldownsOfPair = (a: string, b: string): readonly CooldownState[] =>
+      this.cooldowsFor(pairKey(a, b));
+    // 听众「关于这件事知道什么」走事件索引，不再把他的全部信念铺一遍。
+    // `spreadStep` 缺省仍读 `beliefs` 那张全表——测试与别的调用方行为不变。
+    const existingOf = (listener: string, claim: Claim): readonly ListenerBelief[] =>
+      this.listenerViewsFor(listener, claim.eventRefs);
+    // 性格表一天建一次：原先每个说话者都重建一遍（每句断言 × 每个人）。
+    const talkativeness = this.talkativeness();
+
     // 按 claimId 排序处理：同一天里多条断言的先后必须确定。
     const claimIds = [...this.claims.keys()].sort();
+    const holderIds = this.holderIds();
+    // 今天**够得着的**那些人：出现在 `metToday` 里的单位。楼在村子另一头就
+    // 够不着，哪怕它还没听说过这件事——它今天没跟任何人碰上，谁也讲不进
+    // 它的耳朵。这一格是「今天可能改变什么」的全部范围。
+    const reachable = new Set<string>();
+    for (const key of this.metToday.keys()) {
+      const split = key.indexOf('\u0000');
+      reachable.add(key.slice(0, split));
+      reachable.add(key.slice(split + 1));
+    }
     for (const claimId of claimIds) {
+      // 每一对够得着的单位今天的额度都用完了：剩下的断言今天谁也讲不进。
+      // 这不是「提前收工」的优化，是同一件事的另一次表述——额度是共享的。
+      if (saturatedPairs >= speakPairs.length) break;
       const origin = this.claims.get(claimId);
       if (origin === undefined) continue;
+
+      // **今天不可能改变任何人的断言，直接跳过。** 这是这一版最大的一笔省：
+      // 没有它，每条断言每天都要把 `hops × 说话者 × 候选` 走一遍，
+      // 而走出来的结果永远是「没人可讲」——400 天时九成开销花在这里。
+      //
+      // 判据是「够得着的人里还有没有不知道的」，不是「全员都知道」：
+      // 楼常年站在村子另一头，永远够不着，把它算进分母会让这道闸永不关闭
+      // （实测 3 人 4 楼的合成基线，`dayClosed` 因此一点没降）。
+      // 也不是「跳数用完」：跳数管深度，不回答「今天还有没有人能听」。
+      const knownHolders = new Set(this.beliefsOfClaim(claimId).map((belief) => belief.holderId));
+      let useful = false;
+      for (const holderId of reachable) {
+        if (!knownHolders.has(holderId)) {
+          useful = true;
+          break;
+        }
+      }
+      if (!useful) continue;
 
       for (let hop = 0; hop < this.config.maxHops; hop += 1) {
         const version = claimAtHop(origin, hop, this.config);
         if (!canSpread(version, this.config)) break;
-        const holdersAtHop = this.beliefs
-          .filter((belief) => belief.claimId === claimId && belief.hop === hop)
+        const holdersAtHop = this.beliefsOfClaim(claimId)
           // **今天才听说的人，今天不往下传。**
           //
           // 一跳 ≈ 一天的闲话。少了这一条，`diffuseDay` 会在一次日终里把
           // 0→1→2→3 跳全部跑完，等于一夜之间把三天的流言都传遍——覆盖率曲线
           // 第 1 天就冲到 60%，而护栏要的是第 1 天 ≤35%、第 3 天才到 60~80%。
           // 第 0 跳不受限：目击者当天就能开口。
+          .filter((belief) => belief.hop === hop)
           .filter((belief) => belief.learnedDay < day || hop === 0)
           .map((belief) => belief.holderId);
         // 断言诞生者本人就是第 0 跳的持有者。
@@ -690,16 +883,18 @@ export class MemoryWorld {
 
         for (const speaker of [...holdersAtHop].sort()) {
           if (!canFanout(this.fanout, speaker, claimId, day, this.config)) continue;
-          const candidates = this.spreadCandidates(speaker);
+          const candidates = this.spreadCandidates(speaker, holderIds);
           const steps = spreadStep({
             day,
             claim: version,
             candidates,
             relations: this.relations,
             credibility: this.credibility,
-            beliefs: this.beliefViews(),
-            talkativeness: this.talkativeness(),
+            beliefs: EMPTY_BELIEF_VIEWS,
+            existingOf,
+            talkativeness,
             cooldowns: this.cooldowns,
+            cooldownsOf: cooldownsOfPair,
             nowMs: at,
             config: this.config,
           });
@@ -716,6 +911,9 @@ export class MemoryWorld {
               chatCooldowns.push({ pairKey: pair, claimId: null, atMs: at });
             }
             topicsByPair.set(pair, used + 1);
+            if (used + 1 >= this.config.talkTopicsPerChat && speakPairSet.has(pair)) {
+              saturatedPairs += 1;
+            }
             told += 1;
             if (step.verdict === 'accept') accepted += 1;
             if (step.verdict === 'verify') suspicious += 1;
@@ -727,7 +925,7 @@ export class MemoryWorld {
 
     // 交谈结束了才记冷却。中途记的话，本次交谈的第二个话题会被自己刚写的
     // 冷却拦住——「一次交谈 2 条」就变成了一句空话。
-    this.cooldowns = [...this.cooldowns, ...chatCooldowns];
+    for (const item of chatCooldowns) this.appendCooldown(item);
 
     // 这一天的账到此为止。不清的话，「昨天见过」会一直算数，几天之后村里
     // 就成了全连接图——那正是 `talkDistance` 想拦的东西。
@@ -912,6 +1110,33 @@ export class MemoryWorld {
   }
 
   /**
+   * 一个地点此刻留下的全部痕迹。**不问 Holder 还在不在。**
+   *
+   * `viewOf` 的那一扇门要求单位在名册里，而楼拆掉之后名册里就没有它了——
+   * 于是痕迹明明还在库里，读的人却拿不到。这一扇门只读痕迹那一张表，
+   * 楼拆了、地标还在、痕迹照旧在原处。
+   */
+  tracesAt(placeId: string): readonly Trace[] {
+    return [...(this.traces.get(placeId) ?? [])];
+  }
+
+  /** 一个地点最后一次被人知道在哪。拆掉的楼也有——那是废墟的位置。 */
+  placeAnchorOf(placeId: string): { readonly x: number; readonly y: number } | null {
+    const at = this.placeAnchors.get(placeId);
+    return at === undefined ? null : { x: at.x, y: at.y };
+  }
+
+  /** 还留着痕迹的地点的 id，按字典序。渲染层据此找出「已经没有楼、但还有痕迹」的废墟。 */
+  tracedPlaceIds(): readonly string[] {
+    const ids: string[] = [];
+    for (const [placeId, traces] of this.traces) {
+      if (traces.length === 0) continue;
+      ids.push(placeId);
+    }
+    return ids.sort();
+  }
+
+  /**
    * 一个单位路过某地，看见痕迹，推断出点什么。
    *
    * 这是「痕迹」通道的落点：低保真、需推断、0 次模型调用。
@@ -1016,9 +1241,27 @@ export class MemoryWorld {
     const outcome = verdict.outcome;
 
     const state = outcome === 'confirmed' ? 'confirmed' : outcome === 'debunked' ? 'debunked' : 'suspicious';
-    this.beliefs = this.beliefs.map((belief) =>
-      belief.holderId === holderId && belief.claimId === claimId ? { ...belief, state } : belief,
-    );
+    const held = this.beliefOf(holderId, claimId);
+    const before = held?.state;
+    if (held !== undefined) this.setBelief({ ...held, state });
+    // 成长记录：**看法真的翻过来**的那一次才记。
+    //
+    // 只记 `held/suspicious → confirmed/debunked` 这两类落地结算：求证没成
+    // （`suspicious`）不是「他变了」，是他还没想明白——那不是转折点。
+    // `inconclusive` 因此一条也不写。
+    const settled = state === 'confirmed' || state === 'debunked';
+    if (before !== undefined && before !== state && settled) {
+      this.turningPoints.push({
+        holderId,
+        day: Math.floor(at / this.config.dayMs),
+        atMs: at,
+        kind: 'belief-reversed',
+        claimId,
+        eventRefs: claim.eventRefs,
+        from: before,
+        to: state,
+      });
+    }
 
     // 求证成功还有后半句，见 `upgradeOnVerify`。**先升级再报事件**：一条
     // `belief.updated` 把「信念变了」和「记忆也变了」一起说清。反过来先报，
@@ -1033,8 +1276,7 @@ export class MemoryWorld {
 
     let debunkedSpeaker: string | null = null;
     if (outcome === 'debunked') {
-      const belief = this.beliefs.find((item) => item.holderId === holderId && item.claimId === claimId);
-      debunkedSpeaker = belief?.sourceHolderId ?? claim.originHolderId;
+      debunkedSpeaker = this.beliefOf(holderId, claimId)?.sourceHolderId ?? claim.originHolderId;
       this.credibility = penalize(this.credibility, debunkedSpeaker, this.config);
       this.emit('rumor.debunked', at, {
         claimId,
@@ -1133,6 +1375,11 @@ export class MemoryWorld {
       characterIds: ids.filter((holderId) => this.holders.get(holderId)?.type === 'character'),
       config: this.config,
     });
+    // 场景记忆的日终两笔：先把拆掉很久的地标记成废墟，再把今天记进时代。
+    // 两者都是 O(块/条) 的加法，不扫事实库、不序列化——关账路径上不许出现
+    // 「把整个库 JSON 一次」这种事（checkpoint 那一层同理）。
+    this.advanceLandmarks(closedDay, at);
+    this.recordEra(closedDay, vitals);
     // 心电图向外广播。本组不读它做任何决定——那是导演的事。
     this.emit('day.closed', at, { ...vitals });
     return vitals;
@@ -1165,6 +1412,8 @@ export class MemoryWorld {
 
     const beliefs = cascadeBeliefs(this.beliefs, root);
     this.beliefs = [...beliefs.beliefs] as Belief[];
+    // 整表换过：索引重建。级联不常发生，重建一次 O(信念) 与它自己的成本同量级。
+    this.reindexBeliefs();
 
     // 痕迹按地点分库存。删一个事件只动它落过的那些地方，别处的 stack 不动。
     let tracesRemoved = 0;
@@ -1451,6 +1700,180 @@ export class MemoryWorld {
     this.traces.set(fact.placeId, fitTraceLayers(next, this.config.placeTraceLayers));
   }
 
+  // -------------------------------------------------------------- 地标
+
+  /**
+   * 一块地的阶段推进。**规则全在 `landmark.ts`**，这里只管查找与落库。
+   *
+   * 查找顺序：先按实例 id 找（同一个 id 的记录），再按地块找（重建换了 id）。
+   * 两者都没有就是第一次听说这块地。
+   */
+  private applyLandmark(
+    fact: WorldFact,
+    event: LandmarkEvent,
+    at: number,
+    anchor: { readonly x: number; readonly y: number },
+  ): void {
+    const byPlace = this.landmarkByPlace.get(fact.placeId);
+    const claimed = byPlace === undefined ? undefined : this.landmarks.get(byPlace);
+    const byPlot = this.landmarks.get(plotKeyOf(event));
+    const existing = claimed ?? byPlot;
+    // 落点用事件给的坐标（门口），不是 origin：废墟画在人看得见的那一格。
+
+    if (event.change === 'built') {
+      if (existing === undefined) {
+        this.storeLandmark(landmarkBuilt(fact.placeId, event, fact.day, at, fact.eventId));
+        return;
+      }
+      // 已经站着的同一块地再报一次「落成」，不是第二次建——忽略，不往历史里塞重复项。
+      if (isStanding(existing.current)) return;
+      this.storeLandmark(landmarkRebuilt(existing, fact.placeId, event, fact.day, at, fact.eventId));
+      return;
+    }
+
+    if (existing === undefined) {
+      this.storeLandmark(
+        landmarkWithoutHistory(
+          fact.placeId,
+          event,
+          event.displayName,
+          fact.day,
+          at,
+          fact.eventId,
+          anchor,
+        ),
+      );
+      return;
+    }
+    this.storeLandmark(landmarkDemolished(existing, fact.day, at, fact.eventId, anchor));
+  }
+
+  /** 落库：两个索引一起写。键取地块（重建前后不变）。 */
+  private storeLandmark(landmark: Landmark): void {
+    this.landmarks.set(landmark.plotKey, landmark);
+    for (const placeId of landmark.aliases) this.landmarkByPlace.set(placeId, landmark.plotKey);
+    this.landmarkByPlace.set(landmark.placeId, landmark.plotKey);
+  }
+
+  /** 一个地点属于哪块地（按任一历史 id 都查得到）。 */
+  landmarkOf(placeId: string): Landmark | null {
+    const plotKey = this.landmarkByPlace.get(placeId);
+    if (plotKey === undefined) return null;
+    const landmark = this.landmarks.get(plotKey);
+    return landmark === undefined ? null : cloneLandmark(landmark);
+  }
+
+  landmarksOf(): readonly Landmark[] {
+    return [...this.landmarks.values()].map(cloneLandmark).sort((a, b) => a.plotKey.localeCompare(b.plotKey));
+  }
+
+  /**
+   * 日终：拆掉很久仍没有重建的地，变成废墟。
+   *
+   * 每条地标只看 O(1)；地标以「块」计，不随天数增长到成千上万——一座镇子
+   * 几十栋到头，这一趟在关账里可以忽略。**不扫事实库。**
+   */
+  private advanceLandmarks(day: number, at: number): void {
+    for (const [plotKey, landmark] of this.landmarks) {
+      if (!shouldRuine(landmark, day, this.config.ruinAfterDays)) continue;
+      const last = landmark.phases[landmark.phases.length - 1]!;
+      this.landmarks.set(plotKey, landmarkRuined(landmark, day, at, last.causeEventRef));
+    }
+  }
+
+  // -------------------------------------------------------------- 时代
+
+  /**
+   * 把今天记进当前时代，必要时切段。
+   *
+   * 成本：数一遍楼、加一遍传说 reach、数一遍人物。都是「块/条」级，不是
+   * 「天」级；400 天时它们不会变成几千条扫描（传说会，但那是加法，
+   * 一条 30B 的循环，不是深比较）。**这一趟不序列化任何东西。**
+   */
+  private recordEra(day: number, vitals: WorldVitals): void {
+    let buildingCount = 0;
+    let ruinCount = 0;
+    for (const landmark of this.landmarks.values()) {
+      if (isStanding(landmark.current)) buildingCount += 1;
+      else ruinCount += 1;
+    }
+    let legendReachSum = 0;
+    for (const legend of this.legends) legendReachSum += legend.reach;
+    const signature = signatureOf({
+      day,
+      vitals,
+      buildingCount,
+      ruinCount,
+      legendReachSum,
+      population: this.characterCount(),
+    });
+
+    if (this.eras.length === 0) {
+      this.eras.push(openEra(this.nextId('era'), signature));
+      return;
+    }
+    const current = this.eras[this.eras.length - 1]!;
+    if (current.toDay !== null) {
+      // 当前段已经关了（读到一份中间态存档时才会出现）：开一段新的，不回头改历史。
+      this.eras.push(openEra(this.nextId('era'), signature));
+      return;
+    }
+    const { closed, open } = advanceEra(
+      current,
+      signature,
+      this.config,
+      () => this.nextId('era'),
+      (fromDay, toDay) => this.definingEvents(fromDay, toDay),
+    );
+    if (closed === null) {
+      this.eras[this.eras.length - 1] = open;
+      return;
+    }
+    this.eras[this.eras.length - 1] = closed;
+    this.eras.push(open);
+  }
+
+  /** 一段时代里最重的几件事：够重 + 至少三个人看见，取前 3。 */
+  private definingEvents(fromDay: number, toDay: number): readonly string[] {
+    const picked: { readonly eventId: string; readonly weight: number; readonly day: number }[] = [];
+    for (const fact of this.facts.values()) {
+      if (fact.day < fromDay || fact.day > toDay) continue;
+      if ((fact.importanceHint ?? 0) < this.config.epicImportanceFloor) continue;
+      if (fact.witnesses.length < 3) continue;
+      picked.push({ eventId: fact.eventId, weight: fact.importanceHint ?? 0, day: fact.day });
+    }
+    picked.sort((a, b) => b.weight - a.weight || a.day - b.day || (a.eventId < b.eventId ? -1 : 1));
+    return picked.slice(0, 3).map((item) => item.eventId);
+  }
+
+  erasOf(): readonly Era[] {
+    return this.eras.map((era) => ({
+      ...era,
+      startSignature: { ...era.startSignature },
+      lastSignature: { ...era.lastSignature },
+      definingEventRefs: [...era.definingEventRefs],
+    }));
+  }
+
+  epicsOf(): readonly EpicEntry[] {
+    return this.epics.map(cloneEpic);
+  }
+
+  /** 会说话的那几个（人物）——时代与史诗的「人口」口径。 */
+  characterCount(): number {
+    let count = 0;
+    for (const holder of this.holders.values()) {
+      if (holder.type === 'character') count += 1;
+    }
+    return count;
+  }
+
+  turningPointsOf(holderId: string): readonly TurningPoint[] {
+    return this.turningPoints
+      .filter((point) => point.holderId === holderId)
+      .map((point) => ({ ...point, eventRefs: [...point.eventRefs] as unknown as [string, ...string[]] }));
+  }
+
   private deliver(
     from: string,
     to: string,
@@ -1458,19 +1881,14 @@ export class MemoryWorld {
     verdict: Verdict,
     at: number,
   ): boolean {
-    if (this.beliefs.some((belief) => belief.holderId === to && belief.claimId === claim.claimId)) {
-      return false;
-    }
+    if (this.beliefOf(to, claim.claimId) !== undefined) return false;
     const state = verdict === 'verify' ? 'suspicious' : 'held';
     this.addBelief(to, claim, from, state, at);
     this.rememberTold(to, claim, from, at);
     this.tells.push({ day: this.currentDay, from, to, claimId: claim.claimId });
     // 逐话题冷却（同一对单位、同一条断言）在这里记。闲聊冷却由
     // `diffuseDay` 在整场交谈结束时记——它记的是「聊过」这件事，不是某一条。
-    this.cooldowns = [
-      ...this.cooldowns,
-      { pairKey: pairKey(from, to), claimId: claim.claimId, atMs: at },
-    ];
+    this.appendCooldown({ pairKey: pairKey(from, to), claimId: claim.claimId, atMs: at });
     this.emit('claim.told', at, {
       claimId: claim.claimId,
       from,
@@ -1495,9 +1913,130 @@ export class MemoryWorld {
     // 的区别只在 state 与日程上，形状是同一个」——那句话只有真的共用同一个
     // 构造器才作数；两边各写一份字面量的话，「同一个形状」只是个愿望。
     const belief = beliefFrom(holderId, claim, sourceHolderId, Math.floor(at / this.config.dayMs), state);
-    this.beliefs = [...this.beliefs.filter((item) => !(item.holderId === holderId && item.claimId === claim.claimId)), belief];
+    this.setBelief(belief);
     this.emit('belief.updated', at, { holderId, claimId: claim.claimId, state });
     return belief;
+  }
+
+  /** `holderId + claimId` 的组合键。索引、判重、定位全用它。 */
+  private beliefKey(holderId: string, claimId: string): string {
+    return `${holderId}\u0000${claimId}`;
+  }
+
+  /** 记一条冷却：数组是真相，索引跟着走。 */
+  private appendCooldown(item: CooldownState): void {
+    this.cooldowns.push(item);
+    appendTo(this.cooldownsByPair, item.pairKey, item);
+  }
+
+  /** 这一对单位自己的冷却。没有就返回空数组（不还一个新数组，免得每次分配）。 */
+  private cooldowsFor(pair: string): readonly CooldownState[] {
+    return this.cooldownsByPair.get(pair) ?? EMPTY_COOLDOWNS;
+  }
+
+  private reindexCooldowns(): void {
+    this.cooldownsByPair.clear();
+    for (const item of this.cooldowns) appendTo(this.cooldownsByPair, item.pairKey, item);
+  }
+
+  /**
+   * 写一条信念。**同键替换，不同键追加**——与原来「先滤掉同键再拼一条」
+   * 的结果逐字节相同，但只动一个位置，不再重排整张表。
+   */
+  private setBelief(belief: Belief): void {
+    const key = this.beliefKey(belief.holderId, belief.claimId);
+    const position = this.beliefPositions.get(key);
+    if (position === undefined) {
+      this.beliefPositions.set(key, this.beliefs.length);
+      this.beliefs.push(belief);
+      appendTo(this.beliefsByHolder, belief.holderId, belief);
+      appendTo(this.beliefsByClaim, belief.claimId, belief);
+      this.indexBeliefEvents(belief);
+      return;
+    }
+    const previous = this.beliefs[position]!;
+    this.beliefs[position] = belief;
+    replaceIn(this.beliefsByHolder, belief.holderId, previous, belief);
+    replaceIn(this.beliefsByClaim, belief.claimId, previous, belief);
+    this.deindexBeliefEvents(previous);
+    this.indexBeliefEvents(belief);
+  }
+
+  private indexBeliefEvents(belief: Belief): void {
+    let byEvent = this.beliefsByHolderEvent.get(belief.holderId);
+    if (byEvent === undefined) {
+      byEvent = new Map();
+      this.beliefsByHolderEvent.set(belief.holderId, byEvent);
+    }
+    for (const eventRef of belief.eventRefs) appendTo(byEvent, eventRef, belief);
+  }
+
+  private deindexBeliefEvents(belief: Belief): void {
+    const byEvent = this.beliefsByHolderEvent.get(belief.holderId);
+    if (byEvent === undefined) return;
+    for (const eventRef of belief.eventRefs) removeFrom(byEvent, eventRef, belief);
+  }
+
+  /**
+   * 这个人关于这几件事知道些什么（给 `spreadStep` 的 `existingOf`）。
+   *
+   * **只返回相关的那些**，不是他的全部信念：`judge` 要找的是「同事件的相反
+   * 记忆」，同事件之外的信念它一条都不看。返回的是 `ListenerBelief`，
+   * 与 `judge` 的入参同一个形状——两处不各建一份。
+   */
+  private listenerViewsFor(holderId: string, eventRefs: readonly string[]): readonly ListenerBelief[] {
+    const byEvent = this.beliefsByHolderEvent.get(holderId);
+    if (byEvent === undefined) return EMPTY_VIEWS;
+    const seen = new Set<string>();
+    const out: ListenerBelief[] = [];
+    for (const eventRef of eventRefs) {
+      const list = byEvent.get(eventRef);
+      if (list === undefined) continue;
+      for (const belief of list) {
+        if (seen.has(belief.claimId)) continue;
+        seen.add(belief.claimId);
+        const view = asListenerBelief(belief, this.claims.get(belief.claimId));
+        if (view !== null) out.push(view);
+      }
+    }
+    return out;
+  }
+
+  /** 一个单位手上有哪些信念。**只读视图**，调用方别改元素。 */
+  private beliefsOf(holderId: string): readonly Belief[] {
+    return this.beliefsByHolder.get(holderId) ?? [];
+  }
+
+  /** 一条断言此刻被哪些人持有着。 */
+  private beliefsOfClaim(claimId: string): readonly Belief[] {
+    return this.beliefsByClaim.get(claimId) ?? [];
+  }
+
+  /** 这个人是不是已经有这条信念了。`deliver` 的判重走这里，不再扫全表。 */
+  private beliefOf(holderId: string, claimId: string): Belief | undefined {
+    const position = this.beliefPositions.get(this.beliefKey(holderId, claimId));
+    return position === undefined ? undefined : this.beliefs[position];
+  }
+
+  /**
+   * 整张信念表被换掉之后重建索引（读档、隐私级联、求证之外的整体替换）。
+   *
+   * **不做增量修补**：那几处本来就整表重写，重建一次 O(信念) 与它们自己
+   * 的成本同一量级；而增量修补一旦漏一处，索引就会和真相漂移，
+   * 而漂移的表现是「同一个人听了两遍同一句话」——静默的。
+   */
+  private reindexBeliefs(): void {
+    this.beliefsByHolder.clear();
+    this.beliefsByClaim.clear();
+    this.beliefPositions.clear();
+    this.beliefsByHolderEvent.clear();
+    for (let index = 0; index < this.beliefs.length; index += 1) {
+      const belief = this.beliefs[index]!;
+      this.beliefPositions.set(this.beliefKey(belief.holderId, belief.claimId), index);
+      appendTo(this.beliefsByHolder, belief.holderId, belief);
+      appendTo(this.beliefsByClaim, belief.claimId, belief);
+      this.indexBeliefEvents(belief);
+    }
   }
 
   /**
@@ -1811,6 +2350,14 @@ export class MemoryWorld {
       });
       this.inscribe(legend, candidate, at);
       this.maybeRename(legend, candidate, at);
+      // 史诗分级：同一条传说再加一层可计算的度量。判档不碰任何随机数，
+      // 也不看「今天讲了多少」——同一份存档跑两遍得到同一批条目。
+      const epic = makeEpic(this.nextId('epic'), legend, {
+        factOf: (eventRef) => this.facts.get(eventRef),
+        population: this.characterCount(),
+        formedDay: day,
+      }, this.config);
+      if (epic !== null) this.epics.push(epic);
     }
   }
 
@@ -1851,6 +2398,13 @@ export class MemoryWorld {
     const next = renamed(old, epithet);
     entry.history.push({ name: next, fromEventRef: heaviest.ref, day: legend.formedDay });
     entry.name = next;
+    // 「改」这一阶段：改名是今天唯一能观察到的地标改动。楼还是那栋楼，
+    // 名字变了——这段历史要落在同一块地上，不是另起一条。
+    const landmark = this.landmarkByPlace.get(legend.homePlaceId);
+    const current = landmark === undefined ? undefined : this.landmarks.get(landmark);
+    if (current !== undefined) {
+      this.storeLandmark(landmarkAltered(current, next, legend.formedDay, at, heaviest.ref));
+    }
     this.emit('toponym.changed', at, {
       placeId: legend.homePlaceId,
       old,
@@ -1989,13 +2543,16 @@ export class MemoryWorld {
    * 地点 Holder 永远够得着自己（它就是那个地点）。人物要走到 `traceRadius` 以内。
    * 位置缺失的单位**够不着**——不是禁足，是「不知道他在哪」，而世界不能
    * 假装他从那儿路过。
+   *
+   * **地点那一侧读 `placeAnchors`，不读 Holder。** 楼拆掉之后 Holder 被摘，
+   * 痕迹还在原地；从 Holder 上读坐标的话，那一刻起再没有人够得着那道废墟。
    */
   private withinTraceReach(holderId: string, placeId: string): boolean {
     const holder = this.holders.get(holderId);
     if (holder === undefined) return false;
     if (holder.type === 'place') return holder.holderId === placeId;
     const from = holder.at;
-    const to = this.holders.get(placeId)?.at;
+    const to = this.placeAnchors.get(placeId);
     if (from === undefined || to === undefined) return false;
     return Math.hypot(from.x - to.x, from.y - to.y) <= this.config.traceRadius;
   }
@@ -2040,7 +2597,7 @@ export class MemoryWorld {
    * 而世界不能假装他们说过话。位置缺失的单位自然也不在表里，调用方接上
    * 位置之后它们自然回来。
    */
-  private spreadCandidates(speaker: string): SpreadCandidate[] {
+  private spreadCandidates(speaker: string, ids: readonly string[] = this.holderIds()): SpreadCandidate[] {
     // **楼不说话。** 协议 §3 把两种 Holder 记的东西分得很清：人记「亲历与听说
     // 的事」，地点记「在此发生过的事，按空间沉积」（痕迹）。一栋楼把听来的话
     // 再讲给路过的人，不是这个世界该有的样子。
@@ -2056,28 +2613,13 @@ export class MemoryWorld {
     const speakerHolder = this.holders.get(speaker);
     if (speakerHolder === undefined || speakerHolder.type !== 'character') return [];
     const out: SpreadCandidate[] = [];
-    for (const listener of this.holderIds()) {
+    for (const listener of ids) {
       if (listener === speaker) continue;
       const distance = this.metToday.get(pairKey(speaker, listener));
       if (distance === undefined) continue;
       out.push({ speaker, listener, distance });
     }
     return out;
-  }
-
-  private beliefViews(): ReadonlyMap<string, readonly ListenerBelief[]> {
-    const map = new Map<string, ListenerBelief[]>();
-    for (const belief of this.beliefs) {
-      // 走 `asListenerBelief`，不在这儿另写一遍字面量。那个函数早就写好了，
-      // 注释也说它是给 `judge` 用的——而这里手抄了一份。两份抄在同一处文件里
-      // 意味着改一处忘一处：哪天 `judge` 多看一个字段，传播会静默地不喂它。
-      const view = asListenerBelief(belief, this.claims.get(belief.claimId));
-      if (view === null) continue;
-      const list = map.get(belief.holderId) ?? [];
-      list.push(view);
-      map.set(belief.holderId, list);
-    }
-    return map;
   }
 
   private talkativeness(): ReadonlyMap<string, number> {
@@ -2173,6 +2715,14 @@ export class MemoryWorld {
         placeId,
         entries: [...entries],
       })),
+      placeAnchors: [...this.placeAnchors.entries()].map(([placeId, at]) => ({
+        placeId,
+        at: { x: at.x, y: at.y },
+      })),
+      landmarks: [...this.landmarks.values()],
+      eras: [...this.eras],
+      epics: [...this.epics],
+      turningPoints: [...this.turningPoints],
       legends: [...this.legends],
       placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
         placeId,
@@ -2214,9 +2764,34 @@ export class MemoryWorld {
     for (const claim of snapshot.claims) this.claims.set(claim.claimId, claim);
 
     this.beliefs = [...snapshot.beliefs];
+    this.reindexBeliefs();
 
     this.traces.clear();
     for (const entry of snapshot.traces) this.traces.set(entry.placeId, [...entry.entries]);
+
+    this.placeAnchors.clear();
+    for (const entry of snapshot.placeAnchors ?? []) {
+      this.placeAnchors.set(entry.placeId, { x: entry.at.x, y: entry.at.y });
+    }
+    // 老档（v1）没有这一段：地点坐标只能从名册里的地点 Holder 补回来。
+    // 补回来的东西就是那一刻真实存在的坐标，不是编的。
+    if (this.placeAnchors.size === 0) {
+      for (const holder of snapshot.holders) {
+        if (holder.type !== 'place' || holder.at === undefined) continue;
+        this.placeAnchors.set(holder.holderId, { x: holder.at.x, y: holder.at.y });
+      }
+    }
+
+    this.landmarks.clear();
+    this.landmarkByPlace.clear();
+    for (const landmark of snapshot.landmarks ?? []) {
+      this.landmarks.set(landmark.plotKey, landmark);
+      for (const placeId of landmark.aliases) this.landmarkByPlace.set(placeId, landmark.plotKey);
+      this.landmarkByPlace.set(landmark.placeId, landmark.plotKey);
+    }
+    this.eras = [...(snapshot.eras ?? [])];
+    this.epics = [...(snapshot.epics ?? [])];
+    this.turningPoints = [...(snapshot.turningPoints ?? [])];
 
     this.legends = [...snapshot.legends];
 
@@ -2230,6 +2805,7 @@ export class MemoryWorld {
     this.tells.splice(0, this.tells.length, ...snapshot.tells);
     this.written = [...snapshot.written];
     this.cooldowns = [...snapshot.cooldowns];
+    this.reindexCooldowns();
     this.fanout = { day: snapshot.fanout.day, counts: new Map(snapshot.fanout.counts) };
 
     this.verifyPlans.clear();
@@ -2249,6 +2825,63 @@ export class MemoryWorld {
 }
 
 const RULESET_VERSION = 'memory-r1';
+/** 「这一对没有冷却」的共享空数组：日终会给每个候选问一次，不每次都分配。 */
+const EMPTY_COOLDOWNS: readonly CooldownState[] = [];
+/** 「这个人关于这件事什么也不知道」的共享空数组，同上。 */
+const EMPTY_VIEWS: readonly ListenerBelief[] = [];
+/** 日终不再铺全表之后，`spreadStep` 的 `beliefs` 参数拿到的空表。 */
+const EMPTY_BELIEF_VIEWS: ReadonlyMap<string, readonly ListenerBelief[]> = new Map();
+
+/** 从桶里按引用删掉一条。桶空了就整个摘掉，免得日复一日堆空桶。 */
+function removeFrom<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list === undefined) return;
+  const index = list.indexOf(value);
+  if (index >= 0) list.splice(index, 1);
+  if (list.length === 0) map.delete(key);
+}
+
+/** 往 `Map<K, V[]>` 的一个桶里追加。桶不存在时建一个。 */
+function appendTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list === undefined) {
+    map.set(key, [value]);
+    return;
+  }
+  list.push(value);
+}
+
+/** 桶里替换一个旧对象（按引用找位置）。找不到就追加，宁多不少。 */
+function replaceIn<K, V>(map: Map<K, V[]>, key: K, previous: V, next: V): void {
+  const list = map.get(key);
+  if (list === undefined) {
+    map.set(key, [next]);
+    return;
+  }
+  const index = list.indexOf(previous);
+  if (index >= 0) list[index] = next;
+  else list.push(next);
+}
+
+/** 深拷贝一份地标：对外只给副本，读的人改不动世界里的那一份。 */
+function cloneLandmark(landmark: Landmark): Landmark {
+  return {
+    ...landmark,
+    aliases: [...landmark.aliases],
+    anchor: { x: landmark.anchor.x, y: landmark.anchor.y },
+    footprint: landmark.footprint === null ? null : { ...landmark.footprint },
+    phases: landmark.phases.map((item) => ({ ...item })),
+  };
+}
+
+function cloneEpic(epic: EpicEntry): EpicEntry {
+  return {
+    ...epic,
+    eventRefs: [...epic.eventRefs] as unknown as [string, ...string[]],
+    variants: [...epic.variants],
+    criteria: { ...epic.criteria },
+  };
+}
 
 /** 事实里没有 `what` 时，按 kind 给一句。只用于世界侧自己发的事件。 */
 const DEFAULT_WHAT: Readonly<Record<string, string>> = {
