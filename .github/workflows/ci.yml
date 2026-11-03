@@ -16,7 +16,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm ci
+      # `npm test` 里有真实服务联调用例（creation-ledger-server.integration）：
+      # 自己在测试里起 `python -m uvicorn`，缺 uvicorn 会「服务进程提前退出」红。
+      - run: pip install -r ../server/requirements.txt
       - run: npm run check
       - run: npm test
       - run: npm run build
