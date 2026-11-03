@@ -54,6 +54,7 @@ import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createLightPoolView, type LightPoolView } from '../render/light-pools-view.ts';
+import { createParticleView, type ParticleView } from '../render/particles-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
 import {
@@ -220,6 +221,8 @@ export class SandboxScene extends Phaser.Scene {
   private phaseView!: PhaseView;
   /** 环境光斑：远近景不同密度，跟着时相层的 glow 走。 */
   private lightPools!: LightPoolView;
+  /** 晴天尘埃 / 夜里萤火；下雨时由天气层接管。 */
+  private particleView!: ParticleView;
   /** 白天的鸟、黄昏的蝙蝠。纯画面，不占快照、不进存档。 */
   private ambienceView!: AmbienceView;
   private nightKeyListener: ((event: KeyboardEvent) => void) | null = null;
@@ -454,6 +457,7 @@ export class SandboxScene extends Phaser.Scene {
     this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette);
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.lightPools = createLightPoolView(this);
+    this.particleView = createParticleView(this, (point) => this.world.grid.isWalkable(point));
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
     this.fogView = createFogView(this, this.world.grid.width, this.world.grid.height);
@@ -2619,6 +2623,12 @@ export class SandboxScene extends Phaser.Scene {
     this.lightPools.update(
       { x: visible.x, y: visible.y, w: visible.width, h: visible.height },
       this.phaseView.ambient().glow,
+      this.snapshot.now,
+    );
+    this.particleView.update(
+      { x: visible.x, y: visible.y, w: visible.width, h: visible.height },
+      this.phaseView.ambient(),
+      this.snapshot.weather,
       this.snapshot.now,
     );
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现

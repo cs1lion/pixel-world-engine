@@ -20,14 +20,12 @@ import { TILE_PX } from '../world/setup.ts';
 import type { WorldSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import { propFootY } from './prop-depth.ts';
-import { firefliesVisible, PHASES, type PhaseId, type PhaseRecipe } from './day-phase.ts';
+import { PHASES, type PhaseId, type PhaseRecipe } from './day-phase.ts';
 import { isWildLanternOn } from '../world/wilderness-signal.ts';
 import { litWindowCount } from '../world/bustle.ts';
-import { FIREFLIES } from './fireflies.ts';
 
 const DIM_DEPTH = 8009;
 const GLOW_DEPTH = 8010;
-const FIREFLY_DEPTH = 8011;
 const MIST_DEPTH = 7998;
 const FADE_MS = 900;
 
@@ -102,10 +100,6 @@ export function createPhaseView(
   const glows = scene.add.graphics();
   glows.setDepth(GLOW_DEPTH);
   glows.setBlendMode(Phaser.BlendModes.ADD);
-
-  const fireflies = scene.add.graphics();
-  fireflies.setDepth(FIREFLY_DEPTH);
-  fireflies.setBlendMode(Phaser.BlendModes.ADD);
 
   const mist = scene.add.graphics();
   mist.setDepth(MIST_DEPTH);
@@ -196,23 +190,6 @@ export function createPhaseView(
       const lx = (prop.at.x + 0.5) * TILE_PX;
       const ly = propFootY(prop, 0) - 14;
       addGlow(lx, ly, 12, 9, 0.11);
-    }
-  };
-
-  const drawFireflies = (snapshot: WorldSnapshot, view: Blend): void => {
-    fireflies.clear();
-    if (!firefliesVisible(view, snapshot.weather)) return;
-    for (let i = 0; i < FIREFLIES.length; i += 1) {
-      const point = FIREFLIES[i]!;
-      const phase = Math.sin(snapshot.now / 700 + i * 1.9);
-      if (phase < -0.15) continue;
-      const alpha = 0.22 + 0.5 * ((phase + 1) / 2);
-      fireflies.fillStyle(WORLD.warmLight, alpha);
-      fireflies.fillRect(point.x, point.y, 1, 1);
-      if (i % 3 === 0) {
-        fireflies.fillStyle(WORLD.amber, alpha * 0.55);
-        fireflies.fillRect(point.x + 1, point.y, 1, 1);
-      }
     }
   };
 
@@ -316,7 +293,7 @@ export function createPhaseView(
         glowKey = key;
         drawGlows(snapshot, view);
       }
-      drawFireflies(snapshot, view);
+      // 萤火已挪到 `particles-view`：它与尘埃共用「昼夜 + 天气」同一道门。
       drawMist(view, scene.cameras.main.scrollY, scene.cameras.main.height / scene.cameras.main.zoom);
     },
   };
