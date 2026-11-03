@@ -3761,7 +3761,10 @@ export class SandboxScene extends Phaser.Scene {
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.tideView.update(this.snapshot.tide.level);
-    this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now);
+    this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
+      phase: this.phaseView.currentPhase(),
+      autoAdvancing: this.phaseView.isAutoAdvancing(),
+    });
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。
