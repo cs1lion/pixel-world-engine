@@ -48,6 +48,7 @@ import {
   type LandedCreation,
 } from '../src/creator/landing.ts';
 import { JsonlLedgerFile } from '../src/creator/ledger-file.ts';
+import type { CreationPlan } from '../src/world/creator-schema.ts';
 
 const WORLD_SEED = 'dengchao';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -91,6 +92,42 @@ function viewOf(
       if (blueprint === undefined) return false;
       return checkPlacement(world.grid, blueprint, at).ok
         && biomeRingAllows(prefabId, at, world.altar);
+    },
+  };
+}
+
+function engineOf(pack: SettingPack, world: BuiltWorld): CreatorEngine {
+  return new CreatorEngine(pack, {
+    worldSeed: WORLD_SEED,
+    worldTime: () => 0,
+    world,
+  });
+}
+
+/** 把一份计划真的落进世界，返回落地结果与落地后的快照。 */
+function landPlan(
+  sim: Simulation,
+  plan: CreationPlan,
+): { readonly landed: LandedCreation; readonly snapshot: ReturnType<Simulation['snapshot']> } {
+  const instanceId = sim.nextInstanceId(plan.templateId);
+  sim.enqueue({
+    kind: 'build',
+    prefabId: plan.templateId,
+    instanceId,
+    at: plan.at,
+    source: { taskId: 'lamp-street-check', summary: '灯街对账' },
+  });
+  sim.update(16);
+  const snapshot = sim.snapshot();
+  const building = snapshot.buildings.find((item) => item.instanceId === instanceId);
+  assert.ok(building !== undefined, '计划应当真的落地');
+  return {
+    snapshot,
+    landed: {
+      instanceId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
     },
   };
 }
@@ -434,6 +471,91 @@ test('跑 20 个世界日：账本条数 = 提案条数，不丢不重复', asyn
 });
 
 
+
+test('灯街渲染拆分不进入世界：landing / observation 读数与去掉灯街构件时一致', async () => {
+  const full = freshWorld();
+  // 只留 `stele`，把灯街新增的铺装/店面/竖招牌/灯串全部拿掉。
+  // 若这些构件真的进了世界，下面任何一项读数就会分岔。
+  const barePack = loadSettingPack({
+    ...DENGCHAO_RAW,
+    scenery: DENGCHAO_RAW.scenery.filter((item) => item.kind === 'stele'),
+  });
+  const bareWorld = buildSettingWorld(barePack);
+
+  const stamp = (world: BuiltWorld): string[] =>
+    world.buildings.map((building) => `${building.instanceId}@${building.origin.x},${building.origin.y}`).sort();
+  assert.deepEqual(stamp(bareWorld), stamp(full.world), '构件不进世界：开局楼与落点逐栋一致');
+
+  const simFull = simOf(full.pack, full.world);
+  const simBare = simOf(barePack, bareWorld);
+  assert.equal(simFull.snapshot().props.length, 0, '灯街构件不是 WorldProp，不进快照 props');
+  assert.equal(simBare.snapshot().props.length, 0);
+
+  const planFull = engineOf(full.pack, full.world).planCreation(
+    viewOf(simFull, full.world, full.pack, 0),
+  );
+  const planBare = engineOf(barePack, bareWorld).planCreation(
+    viewOf(simBare, bareWorld, barePack, 0),
+  );
+  assert.ok(planFull !== null && planBare !== null);
+  assert.deepEqual(planBare, planFull, '提议与灯街构件无关：模板/落点/配色逐字段相同');
+
+  const fullLanding = landPlan(simFull, planFull);
+  const bareLanding = landPlan(simBare, planBare);
+  assert.equal(
+    landingReachable(full.world, fullLanding.landed),
+    landingReachable(bareWorld, bareLanding.landed),
+    'landing 的门口可达判定不受构件影响',
+  );
+
+  const fullBusiness = await checkLandedBuilding(
+    { snapshot: fullLanding.snapshot, grid: full.world.grid, altar: full.world.altar, blueprints: full.pack.blueprints },
+    fullLanding.landed,
+  );
+  const bareBusiness = await checkLandedBuilding(
+    { snapshot: bareLanding.snapshot, grid: bareWorld.grid, altar: bareWorld.altar, blueprints: barePack.blueprints },
+    bareLanding.landed,
+  );
+  assert.deepEqual(fullBusiness.violations, bareBusiness.violations);
+  assert.equal(fullBusiness.passed, bareBusiness.passed);
+  assert.equal(fullBusiness.hasConflict, bareBusiness.hasConflict);
+  assert.equal(fullBusiness.invariantViolated, bareBusiness.invariantViolated);
+
+  assert.equal(
+    creationCoverage(fullLanding.snapshot, full.pack.blueprints),
+    creationCoverage(bareLanding.snapshot, barePack.blueprints),
+    '覆盖率只数建筑，不数场景构件',
+  );
+
+  const currentOf = (snapshot: ReturnType<Simulation['snapshot']>, id: string) => {
+    const building = snapshot.buildings.find((item) => item.instanceId === id);
+    assert.ok(building !== undefined);
+    return {
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+      displayName: building.displayName,
+    };
+  };
+  const expectedOf = (landed: LandedCreation) => ({
+    prefabId: landed.prefabId,
+    origin: landed.origin,
+    door: landed.door,
+  });
+  const obsFull = observationOf({
+    expected: expectedOf(fullLanding.landed),
+    current: currentOf(fullLanding.snapshot, fullLanding.landed.instanceId),
+    removed: false,
+    renamedTo: null,
+  });
+  const obsBare = observationOf({
+    expected: expectedOf(bareLanding.landed),
+    current: currentOf(bareLanding.snapshot, bareLanding.landed.instanceId),
+    removed: false,
+    renamedTo: null,
+  });
+  assert.deepEqual(obsFull, obsBare, 'observationOf 的三态读数一致');
+});
 
 test('L0 的自动提议被熔断拒绝，账本写下是哪一项没过', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pwe-ledger-l0-'));
