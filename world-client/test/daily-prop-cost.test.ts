@@ -40,10 +40,16 @@
  *
  * ## 这一条**不**主张什么
  *
- * - **不主张表里那些毫秒数就是真的。** 这是**墙钟**，跟机器有关，CI 上会不一样。
- *   能被机器搬动的是绝对值，不是形状——所以下面那道闸的阈值放到 50ms，
+ * - **不主张表里那些毫秒数就是真的。** 表是历史**墙钟**读数，跟机器有关，CI 上会
+ *   不一样。能被机器搬动的是绝对值，不是形状——所以下面那道闸的阈值放到 50ms，
  *   是预算的 5 倍、实测最慢的约 10 倍。它抓的是**量级退化**（哪天谁把传播改成
  *   每步全库扫描），不是抓 10ms 那条线。真要守 10ms，得先有一台固定的基准机。
+ * - **闸的读数不是墙钟。** 2026-11-03 起，绝对预算闸的主指标是
+ *   `process.cpuUsage()` 的**进程 CPU 时间**（user + system，起止两次调用取差），
+ *   阈值仍是 50ms。单次墙钟在 `node --test` 并行跑时夹着排队时间——同文件相邻
+ *   用例全过、只有这条红，实测 54.62ms / 100.28ms，本机 p50 56.6ms，量到的是
+ *   机器有多忙，不是传播有多贵。CPU 时间不含调度等待：空载时与墙钟一致，
+ *   负载下只有它稳。墙钟数字保留在 diagnostic 里当附注，不参与判定。
  * - **不主张这是典型值。** 我把全部 holder 一字排开、间距 `talkDistance`，
  *   又让五个大事同一天出生——这是**最利于传播的摆法**，量到的是上界。
  *   真实作息的 holder 散在各处，配不成对的更多，一天更便宜。
@@ -81,12 +87,18 @@ function defaultWorldBuildingIds(): readonly string[] {
 }
 
 /**
- * 一天的世界时间要跑多少毫秒。
+ * 一天的世界时间要跑多少**进程 CPU 时间**与墙钟。
  *
  * holder 一字排开、间距 `talkDistance`，五个 `importanceHint = 0.9` 的大事同一天
  * 出生——最利于传播的摆法，量到的是上界。`day` 传第几天。
+ *
+ * 主指标取 `process.cpuUsage()` 前后差（user + system），排除调度等待；
+ * 墙钟同时取，只作附注。
  */
-function oneDayMilliseconds(buildingIds: readonly string[], day: number): number {
+function oneDayTiming(
+  buildingIds: readonly string[],
+  day: number,
+): { cpuMs: number; wallMs: number } {
   const rt = new MemoryRuntime({ worldId: 'prop-cost', occlusion: { isWalkable: () => true } });
   rt.syncHolders([
     ...VILLAGERS.map((holderId, index) => ({
@@ -118,9 +130,12 @@ function oneDayMilliseconds(buildingIds: readonly string[], day: number): number
     );
   }
   for (let d = 1; d < day; d += 1) rt.tick(d * DAY_MS);
+  const cpuBefore = process.cpuUsage();
   const started = performance.now();
   rt.tick(day * DAY_MS);
-  return performance.now() - started;
+  const wallMs = performance.now() - started;
+  const cpuUsed = process.cpuUsage(cpuBefore);
+  return { cpuMs: (cpuUsed.user + cpuUsed.system) / 1000, wallMs };
 }
 
 /**
@@ -142,8 +157,8 @@ function interleavedMinMilliseconds(
   const as: number[] = [];
   const bs: number[] = [];
   for (let i = 0; i < 3; i += 1) {
-    as.push(oneDayMilliseconds(a, day));
-    bs.push(oneDayMilliseconds(b, day));
+    as.push(oneDayTiming(a, day).wallMs);
+    bs.push(oneDayTiming(b, day).wallMs);
   }
   return [Math.min(...as), Math.min(...bs)];
 }
@@ -158,22 +173,32 @@ test('两个出货世界的 holder 数：设定集十六个，默认世界十三
   assert.equal(VILLAGERS.length + defaultWorldBuildingIds().length, 13, '默认世界的 holder 总数不再是十三个');
 });
 
-test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5 倍之内', () => {
+test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5 倍之内', (t) => {
   // 第 1 天是永远最慢的那天（所有断言都在那天出生），所以只量它。
   const buildings = defaultWorldBuildingIds();
-  const day1 = oneDayMilliseconds(buildings, 1);
+  const day1 = oneDayTiming(buildings, 1);
+  t.diagnostic(
+    `默认世界第 1 天：CPU ${day1.cpuMs.toFixed(2)}ms`
+      + `（墙钟 ${day1.wallMs.toFixed(2)}ms，仅附注，不参与判定）`,
+  );
   assert.ok(
-    day1 < CEILING_MS,
-    `默认世界第 1 天花了 ${day1.toFixed(2)}ms，超过这道闸的 ${CEILING_MS}ms——`
+    day1.cpuMs < CEILING_MS,
+    `默认世界第 1 天的进程 CPU 时间 ${day1.cpuMs.toFixed(2)}ms`
+      + `（墙钟 ${day1.wallMs.toFixed(2)}ms 仅附注）超过这道闸的 ${CEILING_MS}ms——`
       + `§3.2 B 的预算本身是 ${BUDGET_MS}ms/天，这一条放到 ${CEILING_MS / BUDGET_MS} 倍是为了不跟机器噪声红。`
       + '真超了的话先看是不是传播改成了每步全库扫描，再回来把文件头那张表改对。',
   );
   // 顺带把「稳态比第 1 天便宜」这个形状钉住。这条不量快慢，只量方向：
   // 库里只有遗忘没有新增，所以后面几天不该更贵。
-  const steady = oneDayMilliseconds(buildings, 6);
+  const steady = oneDayTiming(buildings, 6);
+  t.diagnostic(
+    `默认世界第 6 天：CPU ${steady.cpuMs.toFixed(2)}ms`
+      + `（墙钟 ${steady.wallMs.toFixed(2)}ms，仅附注）`,
+  );
   assert.ok(
-    steady < day1 * 2,
-    `第 6 天 ${steady.toFixed(2)}ms 比第 1 天 ${day1.toFixed(2)}ms 贵了一倍以上——`
+    steady.cpuMs < day1.cpuMs * 2,
+    `第 6 天 CPU ${steady.cpuMs.toFixed(2)}ms（墙钟 ${steady.wallMs.toFixed(2)}ms 附注）`
+      + `比第 1 天 CPU ${day1.cpuMs.toFixed(2)}ms（墙钟 ${day1.wallMs.toFixed(2)}ms 附注）贵了一倍以上——`
       + '库里的东西只会被遗忘不会新增，稳态不该比开局贵。这条红说明传播的代价不再由存量决定。',
   );
 });
