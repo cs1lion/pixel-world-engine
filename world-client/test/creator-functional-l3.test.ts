@@ -10,6 +10,7 @@ import { CreatorHarness, gateOf } from './fixtures/creator-functional.ts';
 import {
   buildCreationRecord,
   coverageAfterBuild,
+  evaluateLandingGates,
   evaluateProposalGates,
   ladderSnapshot,
   type LedgerRecord,
@@ -126,7 +127,7 @@ test('[L3] 覆盖率分母为 0：账本记 not_measured，不是 0/1', (t) => {
   assert.equal(measured.observed, 1 / 10);
 });
 
-test('[L3] creationCoverage 在 0 分母时也应给 not_measured（已知缺陷）', { todo: 'BUG-1：creationCoverage 返回 0，落地门禁会把「没测」记成「不达标」' }, () => {
+test('[L3] creationCoverage 在 0 分母时给 null，落地门禁与计数器都记 not_measured', () => {
   const h = new CreatorHarness();
   const emptyPack: SettingPack = {
     ...h.pack,
@@ -144,7 +145,32 @@ test('[L3] creationCoverage 在 0 分母时也应给 not_measured（已知缺陷
     spawnBuilding: () => null,
   });
   try {
+    // 业务规则侧：分母为 0 是「没测」，不是「0 分」。
     assert.equal(creationCoverage(emptySim.snapshot(), emptyPack.blueprints), null);
+
+    // 生产落地门禁：null 必须落成 passed=null / reason=not_measured，
+    // 不能走 `coverage >= 0.95` 的 false 分支。
+    const landingCoverage = evaluateLandingGates({
+      origin: 'manual',
+      schemaPassed: true,
+      placementPassed: true,
+      builtPrefabIds: new Set(),
+      blueprintCount: 0,
+      templateId: 'waiting_shelter',
+      fuseAction: 'not_applicable',
+      fuseReason: '人工入口不走自动放行门禁',
+      traceable: true,
+      actualCoverageRate: null,
+    }).find((gate) => gate.name === 'coverage');
+    assert.ok(landingCoverage !== undefined);
+    assert.equal(landingCoverage.passed, null);
+    assert.equal(landingCoverage.reason, 'not_measured');
+
+    // 引擎计数器：null 不碰 coverageChecks，否则会把「没测」当 0 分记一次观测。
+    h.engine.submitHumanApproval('mapper', 'empty-coverage', true, undefined, {
+      coverageRate: null,
+    });
+    assert.equal(h.engine.getRoleState('mapper')?.metrics.coverageChecks, 0);
   } finally {
     h.dispose();
   }
@@ -286,7 +312,7 @@ test('[L3] 重启：seq 从文件续号，recordedAt 不因时钟回拨而倒退
   }
 });
 
-test('[L3] 熔断降级不能把 L0 升成 L1（已知缺陷）', { todo: 'BUG-2：L0 被拒时 triggerDowngrade 把 currentLevel 抬到 L1 并熔断' }, (t) => {
+test('[L3] 熔断降级不能把 L0 升成 L1', (t) => {
   const h = new CreatorHarness({ targetLevel: AutonomyLevel.L1 });
   t.after(() => h.dispose());
 
