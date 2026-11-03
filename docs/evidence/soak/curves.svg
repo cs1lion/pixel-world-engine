@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="440" viewBox="0 0 1120 440" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="100%" height="100%" fill="#fff"/>
+<g>
+  <text x="20" y="32" font-size="12" font-weight="600" fill="#222">世界事件条数</text>
+  <rect x="70" y="34" width="276" height="144" fill="#fafafa" stroke="#e5e5e5"/>
+  <text x="70" y="189" font-size="8" fill="#777">1</text>
+  <text x="346" y="189" font-size="8" text-anchor="end" fill="#777">30 天</text>
+  <text x="66" y="181" font-size="8" text-anchor="end" fill="#777">0</text><text x="66" y="109" font-size="8" text-anchor="end" fill="#777">449</text><text x="66" y="37" font-size="8" text-anchor="end" fill="#777">898</text>
+  <polyline points="0.0,139.2 9.5,134.4 19.0,129.6 28.6,124.9 38.1,120.1 47.6,115.5 57.1,110.6 66.6,105.8 76.1,101.0 85.7,96.2 95.2,91.4 104.7,86.6 114.2,81.8 123.7,77.0 133.2,72.2 142.8,67.3 152.3,62.5 161.8,57.7 171.3,52.9 180.8,48.1 190.3,43.3 199.9,38.5 209.4,33.7 218.9,28.9 228.4,24.1 237.9,19.2 247.4,14.4 257.0,9.6 266.5,4.8 276.0,0.0" fill="none" stroke="#2f6fed" stroke-width="2"/>
+  <rect x="80" y="194" width="8" height="8" fill="#2f6fed"/><text x="92" y="202" font-size="9" fill="#555">seed A</text>
+  <text x="70" y="31" font-size="8" text-anchor="end" fill="#999"></text>
+</g>
+<g>
+  <text x="370" y="32" font-size="12" font-weight="600" fill="#222">记忆条目数（5 人）</text>
+  <rect x="420" y="34" width="276" height="144" fill="#fafafa" stroke="#e5e5e5"/>
+  <text x="420" y="189" font-size="8" fill="#777">1</text>
+  <text x="696" y="189" font-size="8" text-anchor="end" fill="#777">30 天</text>
+  <text x="416" y="181" font-size="8" text-anchor="end" fill="#777">0</text><text x="416" y="109" font-size="8" text-anchor="end" fill="#777">204</text><text x="416" y="37" font-size="8" text-anchor="end" fill="#777">408</text>
+  <polyline points="0.0,131.6 9.5,121.8 19.0,115.8 28.6,115.8 38.1,105.2 47.6,102.7 57.1,96.4 66.6,88.9 76.1,83.3 85.7,80.1 95.2,74.1 104.7,69.2 114.2,64.9 123.7,61.8 133.2,58.2 142.8,55.1 152.3,50.8 161.8,47.3 171.3,43.8 180.8,38.1 190.3,34.2 199.9,31.1 209.4,27.2 218.9,21.9 228.4,19.4 237.9,16.2 247.4,12.0 257.0,7.8 266.5,2.8 276.0,0.0" fill="none" stroke="#1f9d6b" stroke-width="2"/>
+  <rect x="430" y="194" width="8" height="8" fill="#1f9d6b"/><text x="442" y="202" font-size="9" fill="#555">seed A</text>
+  <text x="420" y="31" font-size="8" text-anchor="end" fill="#999"></text>
+</g>
+<g>
+  <text x="720" y="32" font-size="12" font-weight="600" fill="#222">关系账本条数（30 日恒 0）</text>
+  <rect x="770" y="34" width="276" height="144" fill="#fafafa" stroke="#e5e5e5"/>
+  <text x="770" y="189" font-size="8" fill="#777">1</text>
+  <text x="1046" y="189" font-size="8" text-anchor="end" fill="#777">30 天</text>
+  <text x="766" y="181" font-size="8" text-anchor="end" fill="#777">0</text><text x="766" y="109" font-size="8" text-anchor="end" fill="#777">1</text><text x="766" y="37" font-size="8" text-anchor="end" fill="#777">1</text>
+  <polyline points="0.0,144.0 9.5,144.0 19.0,144.0 28.6,144.0 38.1,144.0 47.6,144.0 57.1,144.0 66.6,144.0 76.1,144.0 85.7,144.0 95.2,144.0 104.7,144.0 114.2,144.0 123.7,144.0 133.2,144.0 142.8,144.0 152.3,144.0 161.8,144.0 171.3,144.0 180.8,144.0 190.3,144.0 199.9,144.0 209.4,144.0 218.9,144.0 228.4,144.0 237.9,144.0 247.4,144.0 257.0,144.0 266.5,144.0 276.0,144.0" fill="none" stroke="#b3392f" stroke-width="2"/>
+  <rect x="780" y="194" width="8" height="8" fill="#b3392f"/><text x="792" y="202" font-size="9" fill="#555">seed A</text>
+  <text x="770" y="31" font-size="8" text-anchor="end" fill="#999"></text>
+</g>
+<g>
+  <text x="20" y="242" font-size="12" font-weight="600" fill="#222">造物账本行数</text>
+  <rect x="70" y="244" width="276" height="144" fill="#fafafa" stroke="#e5e5e5"/>
+  <text x="70" y="399" font-size="8" fill="#777">1</text>
+  <text x="346" y="399" font-size="8" text-anchor="end" fill="#777">30 天</text>
+  <text x="66" y="391" font-size="8" text-anchor="end" fill="#777">0</text><text x="66" y="319" font-size="8" text-anchor="end" fill="#777">12</text><text x="66" y="247" font-size="8" text-anchor="end" fill="#777">24</text>
+  <polyline points="0.0,138.0 9.5,138.0 19.0,138.0 28.6,132.0 38.1,132.0 47.6,132.0 57.1,120.0 66.6,120.0 76.1,120.0 85.7,108.0 95.2,108.0 104.7,108.0 114.2,96.0 123.7,90.0 133.2,90.0 142.8,78.0 152.3,72.0 161.8,72.0 171.3,60.0 180.8,54.0 190.3,54.0 199.9,42.0 209.4,36.0 218.9,36.0 228.4,24.0 237.9,18.0 247.4,18.0 257.0,6.0 266.5,0.0 276.0,0.0" fill="none" stroke="#8a5cd6" stroke-width="2"/>
+  <rect x="80" y="404" width="8" height="8" fill="#8a5cd6"/><text x="92" y="412" font-size="9" fill="#555">seed A</text>
+  <text x="70" y="241" font-size="8" text-anchor="end" fill="#999"></text>
+</g>
+<g>
+  <text x="370" y="242" font-size="12" font-weight="600" fill="#222">存档大小（KB）</text>
+  <rect x="420" y="244" width="276" height="144" fill="#fafafa" stroke="#e5e5e5"/>
+  <text x="420" y="399" font-size="8" fill="#777">1</text>
+  <text x="696" y="399" font-size="8" text-anchor="end" fill="#777">30 天</text>
+  <text x="416" y="391" font-size="8" text-anchor="end" fill="#777">0</text><text x="416" y="319" font-size="8" text-anchor="end" fill="#777">844</text><text x="416" y="247" font-size="8" text-anchor="end" fill="#777">1.7k</text>
+  <polyline points="0.0,137.5 9.5,132.3 19.0,127.8 28.6,124.4 38.1,117.9 47.6,113.9 57.1,108.7 66.6,103.4 76.1,98.4 85.7,93.8 95.2,88.8 104.7,83.9 114.2,79.3 123.7,74.9 133.2,70.3 142.8,65.8 152.3,61.2 161.8,56.7 171.3,52.2 180.8,47.1 190.3,42.7 199.9,38.4 209.4,33.9 218.9,29.0 228.4,24.4 237.9,19.8 247.4,14.8 257.0,10.0 266.5,4.7 276.0,0.0" fill="none" stroke="#c77b1e" stroke-width="2"/>
+  <rect x="430" y="404" width="8" height="8" fill="#c77b1e"/><text x="442" y="412" font-size="9" fill="#555">seed A</text>
+  <text x="420" y="241" font-size="8" text-anchor="end" fill="#999">KB</text>
+</g>
+<g>
+  <text x="720" y="32" font-size="12" font-weight="600" fill="#222">每日结算耗时（ms，p50 + p95 叠加）</text>
+  <rect x="770" y="34" width="276" height="144" fill="#fafafa" stroke="#e5e5e5"/>
+  <text x="770" y="189" font-size="8" fill="#777">1</text>
+  <text x="1046" y="189" font-size="8" text-anchor="end" fill="#777">30 天</text>
+  <text x="766" y="181" font-size="8" text-anchor="end" fill="#777">0</text><text x="766" y="109" font-size="8" text-anchor="end" fill="#777">1</text><text x="766" y="37" font-size="8" text-anchor="end" fill="#777">1</text>
+  <polyline points="0.0,138.2 9.5,141.0 19.0,140.7 28.6,139.5 38.1,136.6 47.6,137.6 57.1,139.9 66.6,139.6 76.1,139.7 85.7,138.0 95.2,136.5 104.7,136.2 114.2,136.5 123.7,139.4 133.2,136.1 142.8,136.4 152.3,136.6 161.8,136.4 171.3,136.6 180.8,136.1 190.3,139.4 199.9,137.1 209.4,136.4 218.9,136.4 228.4,135.2 237.9,135.1 247.4,136.9 257.0,135.8 266.5,136.3 276.0,135.0" fill="none" stroke="#0f7f8f" stroke-width="2"/><polyline points="0.0,142.4 9.5,142.5 19.0,142.6 28.6,142.1 38.1,141.9 47.6,142.0 57.1,141.8 66.6,141.7 76.1,141.9 85.7,141.8 95.2,141.9 104.7,141.9 114.2,141.8 123.7,141.8 133.2,141.8 142.8,141.8 152.3,141.9 161.8,141.8 171.3,141.8 180.8,141.8 190.3,141.8 199.9,141.8 209.4,142.0 218.9,141.8 228.4,141.6 237.9,141.4 247.4,141.5 257.0,141.6 266.5,141.7 276.0,141.5" fill="none" stroke="#e08a00" stroke-width="2"/>
+  <rect x="780" y="194" width="8" height="8" fill="#0f7f8f"/><text x="792" y="202" font-size="9" fill="#555">p95</text><rect x="858" y="194" width="8" height="8" fill="#e08a00"/><text x="870" y="202" font-size="9" fill="#555">p50</text>
+  <text x="770" y="31" font-size="8" text-anchor="end" fill="#999">ms</text>
+</g>
+</svg>

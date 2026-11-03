@@ -170,3 +170,51 @@
   - pytest 正反例：201 / 10000 → 422（含实际字数与上限）；恰好 200 → 200 + `setWeather`；`100 个 emoji`（200 码元）→ 200，`101 个`（202 码元）→ 422；7 组控制字符各自 422 并报个数；空句仍是 `200 + unknown`（契约不变）；`test_超长先于模型调用被拦` 证明 201 字那次调用者为 0 次。
   - 端到端 `check-oracle-e2e.mjs`：绕过 UI 直接 POST 250 字 → 422「这句话 250 字，超过上限 200 字；删短再发」；10000 字 → 422 且不带 intent；控制字符 → 422「…2 个控制字符…」；恰好 200 字 → 200 + `setWeather`。
   - 客户端在真服务上收到 4xx 的回执：`E2E-2a` 页面里直接 `Oracle.say(250 字)`，屏上是服务端的原话且带错误样式（不吞错）。
+
+---
+
+## 长周期浸泡（feat/soak-30d）
+
+测试分支：`feat/soak-30d`（worktree `D:\project\pwe-soak`，基线 `origin/main` `eab9e36`）。
+夹具：`world-client/test/soak-support.ts`；跑数：`node scripts/soak-30d.ts`；读数与曲线：`docs/evidence/soak/REPORT.md`。
+未修缺陷用 `test/soak-30d.todo.test.ts` 的 4 条 `todo` 钉住（8 世界日即可复现，不拖长 `npm test`）。编号按本小节从 1 起，不与造物/交互混用。
+
+### BUG-1 纯日常世界的 30 日关系账本恒为 0
+
+- **编号**：BUG-1
+- **状态**：**未修**，`test/soak-30d.todo.test.ts` 的 `[SOAK-BUG-1]`。
+- **读数**：30 天 ×2 种子，`relations.count = 0`、`incidents = 0`；街头互动 12 次/天（30 天 360 次）全是 `greet` / `yield` / `together`，没有一次 `street_tumble` / `street_water` / `street_help`，所以 `bondsOf()` 从第一天到第三十天都是空数组。
+- **依据**：关系账本只由「会改关系的小事」写入；这几类事件在纯日常 + 无模型场景里没有任何触发路径（天气与潮汐不会把人撞翻，打水也不产生冲突）。
+- **影响**：第 6 项读数「关系是越处越亲还是震荡」在本场景**无法回答**——不是震荡，是账本根本没开张。长期用户看到的世界里，5 个居民一起过 30 天，彼此信任值不会发生任何变化。
+
+### BUG-2 记忆压缩层空转：摘要 / 晋升 / 归档全为 0
+
+- **编号**：BUG-2
+- **状态**：**未修**，`[SOAK-BUG-2]`。
+- **读数**：30 天 `summaries = 0`、`promoted = 0`、`archived = 0`，只有 `dropped` 在涨（累计 1117）。日层条目实测显著度最高 **0.5029**，低于 `T_promote = 0.6`；日层预算 16 条/人，条目 1–2 天内就被裁掉，活不到 12 天后跌破 `T_forget = 0.15` 的归档线。
+- **依据**：`src/world/memory/consolidate.ts` 的晋升条件是 `salience >= T_promote`，归档条件是 `tier === 'long' && strength < T_forget`。没有晋升 → 没有 `long` 条目 → 归档分支不可达。`mergeWeekly` 同理无事可做。
+- **影响**：「压缩」这一整层在纯日常长期世界里是空转的，记忆只剩「观测 → 追加 → 预算裁剪」；省下的只有条数，省不下字节（见 BUG-4）。
+
+### BUG-3 传说碑文（legend 层）没有预算上限
+
+- **编号**：BUG-3
+- **状态**：**未修**，`[SOAK-BUG-3]`。
+- **读数**：8 天 95 条，30 天 **500 条 / 311.8 KB**，占全库条目字节的 86.6%；单个 holder 最多 85 条（含 `ledger_house#1`、`tea_stall#1` 两个地点 holder）。`day` 层则正好停在 5 × 16 = 80 条。
+- **依据**：`src/world/memory/world.ts` 的 `limitFor()` 对 `legend` 返回 `Infinity`；碑文按「每件事 × 每个涉及 holder」刻，且 legend 每天只衰 `0.15 × 0.05 = 0.75%`，30 天仍有 0.79，既裁不到也归档不到。
+- **影响**：这是条目层唯一的无上限增长项。按 30 天 500 条 / 0.62 KB 每条外推，一世界年约 6,100 条 / 3.7 MB，只增不减。
+
+### BUG-4 存档随事件线性膨胀，30 天撞上导入上限
+
+- **编号**：BUG-4
+- **状态**：**未修**，`[SOAK-BUG-4]`。
+- **读数**：存档 76.5 KB（第 1 天）→ **1687.5 KB**（第 30 天），日均 **+55.6 KB**；边际 **≈4055 KB/角色年**，对照此前记录的 1.7 KB/角色年基线差约 2,400×（存量口径 4,106 KB 差约 2,400×）。记忆 JSON 分项：`facts` 321.7 KB、`claims` 211.4 KB、`written` 184.1 KB、`beliefs` 167.4 KB、`cooldowns` 113.7 KB、`tells` 67.3 KB——全部无预算，且 `facts` 条数与世界事件数一一对应（30 天 898 条）。
+- **依据**：`entries` 有预算（日/长/印象三层 + 无限的 legend），但 `facts` / `claims` / `written` / `beliefs` / `cooldowns` / `tells` 没有任何裁剪或归档路径；删除条目时也没有级联清理这些表（`archived = 0`，级联从未跑过）。
+- **影响**：按直线外推，**第 31.5 天** 就会超过 `src/ui/save-store.ts:88` 的 `IMPORT_MAX_BYTES = 2 MB`，玩家无法再导出/导入自己的世界；一世界年约 20 MB，localStorage 5 MB 配额约 90 天见底。
+
+### 未记为缺陷的缺口（口径没被覆盖，不算通过）
+
+- **「被裁掉的事实写时刻不明」没有样本**：30 天里 `summaries = 0`、`trimmedTimelineEntries = 0`、`unknownPlaceEntries = 0`、`dayIndexWhenEntries = 0`——没有任何事实被摘要/裁剪过，所以「裁掉时写时刻不明而不是编造」这条口径**一次也没被触发**。要验证它，得先造一个能产生摘要（显著度 ≥ 0.6）的场景，那是下一轮的事，不能拿 0 当绿。
+
+### 已修：`tideLevelAt` 随世界时间线性变慢（提交在本分支）
+
+- 见 `docs/evidence/soak/REPORT.md` 第 2 节与 `test/tide-checkpoint.test.ts`：`stepTide` p50 0.3 µs → 17.9 µs（60×），30 日整轮 73.6 s → 50.3 s；曲线逐点与原实现一致。

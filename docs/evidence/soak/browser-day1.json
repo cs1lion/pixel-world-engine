@@ -1,0 +1,143 @@
+{
+  "mode": "fresh",
+  "url": "http://127.0.0.1:5311/?world=dengchao&feed=off&debug=1&time=noon&speed=60",
+  "saveKey": "dengchao.pixel-world.save.v1",
+  "port": 5311,
+  "restored": {
+    "now": 6000,
+    "dayIndex": 0,
+    "villagers": [
+      {
+        "name": "迷路人",
+        "walking": true,
+        "routine": "赶路",
+        "pos": {
+          "x": 23,
+          "y": 29
+        }
+      },
+      {
+        "name": "汐",
+        "walking": true,
+        "routine": "赶路",
+        "pos": {
+          "x": 36,
+          "y": 29
+        }
+      },
+      {
+        "name": "灯笼头",
+        "walking": true,
+        "routine": "赶路",
+        "pos": {
+          "x": 33,
+          "y": 30
+        }
+      },
+      {
+        "name": "炉匠",
+        "walking": true,
+        "routine": "赶路",
+        "pos": {
+          "x": 38,
+          "y": 30
+        }
+      },
+      {
+        "name": "沉灯夫人",
+        "walking": false,
+        "routine": null,
+        "pos": {
+          "x": 35,
+          "y": 31
+        }
+      },
+      {
+        "name": "账房先生",
+        "walking": false,
+        "routine": null,
+        "pos": {
+          "x": 34,
+          "y": 28
+        }
+      },
+      {
+        "name": "洗衣妇",
+        "walking": false,
+        "routine": null,
+        "pos": {
+          "x": 37,
+          "y": 31
+        }
+      }
+    ],
+    "buildings": 9,
+    "weather": "clear",
+    "memory": {
+      "ready": true,
+      "closedThroughDay": -1,
+      "holders": [
+        {
+          "holderId": "v0",
+          "memories": 1,
+          "beliefs": 0
+        },
+        {
+          "holderId": "v1",
+          "memories": 1,
+          "beliefs": 0
+        },
+        {
+          "holderId": "v2",
+          "memories": 1,
+          "beliefs": 0
+        },
+        {
+          "holderId": "v3",
+          "memories": 1,
+          "beliefs": 0
+        },
+        {
+          "holderId": "v4",
+          "memories": 1,
+          "beliefs": 0
+        },
+        {
+          "holderId": "v5",
+          "memories": 0,
+          "beliefs": 0
+        },
+        {
+          "holderId": "v6",
+          "memories": 0,
+          "beliefs": 0
+        }
+      ]
+    }
+  },
+  "saveBytesInStorage": 26819,
+  "fps": {
+    "actualFps": 60.43672860551305,
+    "fpsLimit": 0,
+    "updateCount": 1208,
+    "advanceCount": 1208,
+    "sampleSeconds": 20
+  },
+  "render": {
+    "graphicsObjects": 46,
+    "totalCommands": 12371,
+    "largest": [
+      1584,
+      1513,
+      1338,
+      1304,
+      1290
+    ]
+  },
+  "after": {
+    "now": 1206000,
+    "walking": 1
+  },
+  "pageErrors": [],
+  "serverLogTail": "\n  \u001b[32m\u001b[1mVITE\u001b[22m v8.3.4\u001b[39m  \u001b[2mready in \u001b[0m\u001b[1m206\u001b[22m\u001b[2m\u001b[0m ms\u001b[22m\n\n  \u001b[32m➜\u001b[39m  \u001b[1mLocal\u001b[22m:   \u001b[36mhttp://localhost:\u001b[1m5311\u001b[22m/\u001b[39m\n\u001b[2m  \u001b[32m➜\u001b[39m  \u001b[1mNetwork\u001b[22m\u001b[2m: use \u001b[22m\u001b[1m--host\u001b[22m\u001b[2m to expose\u001b[22m\n"
+}
