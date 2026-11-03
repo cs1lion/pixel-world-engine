@@ -53,14 +53,16 @@ interface BuildSpec {
 }
 
 /**
- * 四档体型：肩宽/下摆/腿长一起变，差距要大到「剪影」能分开，而不只是胖一圈。
+ * 五档体型：肩宽/下摆/腿长一起变，差距要大到「剪影」能分开，而不只是胖一圈。
  *   slim  肩 9 / 摆 11 —— 窄，摆几乎不张；
+ *   young 头 10×9 / 肩 8 —— 比 slim 再矮 2px、肩窄 1px，给少年；
  *   adult 肩 12 / 摆 15 —— 标准 A 字；
  *   stout 肩 15 / 摆 18 —— 宽，摆张得最开（含 1px 轮廓刚好 20，仍在 24 内）；
  *   tall  头 9×11 / 肩 9 / 摆 12 —— 头更长、腿更长，给无面者那种窄高轮廓。
  */
 const BUILD: Readonly<Record<VillagerLook['build'], BuildSpec>> = {
   slim: { headW: 10, headH: 10, headTop: -29, torsoTop: -18, shoulder: 9, hem: 11, legTop: -6 },
+  young: { headW: 10, headH: 9, headTop: -27, torsoTop: -17, shoulder: 8, hem: 11, legTop: -6 },
   adult: { headW: 12, headH: 10, headTop: -29, torsoTop: -18, shoulder: 12, hem: 15, legTop: -6 },
   stout: { headW: 13, headH: 10, headTop: -27, torsoTop: -17, shoulder: 15, hem: 18, legTop: -5 },
   tall: { headW: 9, headH: 11, headTop: -29, torsoTop: -19, shoulder: 9, hem: 12, legTop: -7 },
@@ -321,6 +323,16 @@ function outfitRects(look: VillagerLook): PixelRect[] {
   };
 
   if (look.outfit === 'cloak') {
+    if (look.head === 'yubaba') {
+      // 掌柜：披风在肩背处最宽，向下收成窄裙摆；褶子只在轮廓上收，不另造符号。
+      // 设定集 PDF p.53 / 书页 104–105：深蓝长裙、宽肩、矮而宽。
+      band(top, 4, sLeft - 1, sRight + 1);
+      band(top + 4, 5, sLeft - 2, sRight + 2);
+      band(top + 9, 4, hLeft + 2, hRight - 2);
+      band(top + 13, 2, hLeft + 3, hRight - 3);
+      out.push(rect(sLeft, top + 4, b.shoulder, 1, 'shade') as PixelRect);
+      return out;
+    }
     // A 字：肩 10–14 → 下摆 12–16，四段阶梯；下摆止于 -4，脚露 4px。
     band(top, 4, sLeft, sRight);
     band(top + 4, 5, sLeft - 1, sRight + 1);
@@ -358,6 +370,37 @@ function outfitRects(look: VillagerLook): PixelRect[] {
     out.push(rect(sLeft + 1, shortsY, b.shoulder - 2, 1, 'shade') as PixelRect);
   } else {
     // 长袍：窄直身、到底再收一档，两侧开衩。
+    if (look.head === 'bob' && look.build === 'young') {
+      // 汐：白/浅青长袍从腰下逐级外扩，下摆盖住赤脚；
+      // 设定集 PDF p.43 / 书页 84–85 的垂坠下摆。
+      band(top, 4, sLeft, sRight);
+      band(top + 4, 4, sLeft - 1, sRight + 1);
+      band(top + 8, 3, sLeft - 2, sRight + 2);
+      band(top + 11, 5, sLeft - 3, sRight + 3);
+      const mid = Math.floor((sLeft + sRight) / 2);
+      out.push(rect(mid, top + 3, 1, 12, 'shade') as PixelRect);
+      return out;
+    }
+    if (look.head === 'mask') {
+      // 灯笼头：高领/兜帽下极窄的及地黑袍，不画脚；
+      // 设定集 PDF p.58 / 书页 114–115：高而窄、无脸。
+      band(top, 5, sLeft - 3, sRight + 3);
+      band(top + 5, 14, sLeft + 1, sRight - 1);
+      const mid = Math.floor((sLeft + sRight) / 2);
+      out.push(rect(mid, top + 7, 1, 12, 'shade') as PixelRect);
+      return out;
+    }
+    if (look.head === 'beard') {
+      // 炉匠：上半身被六条手臂撑宽，下半身收成直筒围裙/袍摆；
+      // 设定集 PDF p.48 / 书页 94–95：矮壮、六臂，袍摆不向外张。
+      band(top, 5, sLeft + 3, sRight - 3);
+      band(top + 5, 5, sLeft + 3, sRight - 3);
+      band(top + 10, 4, sLeft + 2, sRight - 2);
+      band(top + 14, 3, sLeft + 2, sRight - 2);
+      const mid = Math.floor((sLeft + sRight) / 2);
+      out.push(rect(mid, top + 6, 1, 9, 'shade') as PixelRect);
+      return out;
+    }
     band(top, 12, sLeft, sRight);
     band(top + 12, 4, sLeft, sRight);
     const mid = Math.floor((sLeft + sRight) / 2);
@@ -378,6 +421,10 @@ function legRects(look: VillagerLook, pose: VillagerPose, walking: boolean): Pix
   const b = BUILD[look.build];
   const y = b.legTop;
   const h = -y;
+  if (look.head === 'mask') {
+    // 黑袍及地：不画脚，让下摆一条直线收窄到底（PDF p.58 的高窄轮廓）。
+    return [];
+  }
   const leftX = -4 + (walking ? pose.footLeft : 0);
   const rightX = 1 + (walking ? pose.footRight : 0);
   if (look.outfit === 'tunic') {
@@ -444,7 +491,8 @@ function accentRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
       rect(x, b.torsoTop + 12, 6, 1, 'trim'),
     ]);
   } else if (look.accent === 'staff') {
-    const x = side < 0 ? sLeft - 3 : sRight + 1;
+    // 灯笼头的提灯杖贴着袍边竖着，不把轮廓撑宽（PDF p.58 的高窄剪影）。
+    const x = look.head === 'mask' ? sRight : side < 0 ? sLeft - 3 : sRight + 1;
     push(out, [
       rect(x, -28, 2, 28, 'ink'),
       rect(x + 1, -27, 1, 26, 'timberDark'),

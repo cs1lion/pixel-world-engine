@@ -20,6 +20,7 @@ import {
   silhouetteSignature,
   villagerLayout,
 } from '../src/render/villager-layout.ts';
+import { pairwiseSilhouettes, silhouetteBreakdown, silhouetteMask } from '../src/render/silhouette-match.ts';
 
 const MAIN = ['迷路人', '汐', '炉匠', '沉灯夫人', '灯笼头'];
 const OUT = resolve(import.meta.dirname, '..', '..', 'docs', 'evidence', 'cast-artbook');
@@ -88,6 +89,16 @@ for (let i = 0; i < looks.length; i += 1) {
   }
 }
 const minPair = pairReadings.reduce((min, item) => (item.deltaE < min.deltaE ? item : min));
+const silhouettePairs = pairwiseSilhouettes(looks);
+const maxSameFacing = silhouettePairs.reduce((max, item) => (item.similarity > max.similarity ? item : max));
+const maxPairLooks = {
+  a: looks.find((item) => item.name === maxSameFacing.a).look,
+  b: looks.find((item) => item.name === maxSameFacing.b).look,
+};
+const maxPairBreakdown = silhouetteBreakdown(
+  silhouetteMask(maxPairLooks.a, maxSameFacing.facing),
+  silhouetteMask(maxPairLooks.b, maxSameFacing.facing),
+);
 const characters = looks.map(({ name, look }) => {
   const silhouette = silhouetteOf(look);
   const nearest = pairReadings
@@ -196,6 +207,8 @@ writeFileSync(join(OUT, 'readings.json'), JSON.stringify({
   minPair: { ...minPair, deltaE: Number(minPair.deltaE.toFixed(1)) },
   silhouetteClasses: new Set(characters.map((item) => item.silhouetteSignature)).size,
   characters,
+  silhouettePairs,
+  maxSameFacing: { ...maxSameFacing, breakdown: maxPairBreakdown },
   // 遮名测试的盲号：图里不写名字，文件名也只有编号；对照表另存这张 key。
   blindKey: Object.fromEntries(
     MAIN.map((name, index) => [`main-${String(index + 1).padStart(2, '0')}`, name]),
@@ -203,4 +216,4 @@ writeFileSync(join(OUT, 'readings.json'), JSON.stringify({
   namelessEvidence: MAIN.map((_, index) => `main-${String(index + 1).padStart(2, '0')}-front-side-back-x3.png`),
 }, null, 2), 'utf8');
 
-console.log(JSON.stringify({ out: OUT, minPair, characters }, null, 2));
+console.log(JSON.stringify({ out: OUT, minPair, maxSameFacing, characters }, null, 2));

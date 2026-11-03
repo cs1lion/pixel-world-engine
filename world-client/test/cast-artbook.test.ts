@@ -4,8 +4,8 @@
  *   - 每人有一份完整档案，且档案只走 `genesis` / `read` 的记忆边界；
  *   - 开局注入是幂等的，不生成目击、断言或痕迹。
  *
- * 「1 秒遮名」仍是人工判据：证据图在 `docs/evidence/cast-artbook/`，
- * 只拍 canvas、不拍名字；结论写在交付报告里。
+ * 「1 秒遮名」是自动判据：五人三向剪影两两比 IoU + 行/列投影 + 头肩比，
+ * 同向任意两人相似度必须低于 `MAX_SILHOUETTE_SIMILARITY`。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,8 +16,11 @@ import { buildUnitStatus } from '../src/ui/unit-status.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { resolveLook, type VillagerLook } from '../src/world/villager-look.ts';
 import { silhouetteSignature } from '../src/render/villager-layout.ts';
+import { pairwiseSilhouettes } from '../src/render/silhouette-match.ts';
 
 const MAIN = ['迷路人', '汐', '炉匠', '沉灯夫人', '灯笼头'] as const;
+/** 合成相似度上限：≥此值视为「同一剪影」。实测最坏 0.820（炉匠/沉灯夫人，同向）。 */
+const MAX_SILHOUETTE_SIMILARITY = 0.85;
 const pack = loadSettingPack(DENGCHAO_RAW);
 
 function rgbToLab(value: number): { L: number; a: number; b: number } {
@@ -82,6 +85,18 @@ test('五个主要人物的剪影至少 3 类，且四维不重', () => {
   assert.ok(signatures.size >= 3, `五个主要人物的剪影只有 ${signatures.size} 类`);
   const seen = new Set(mainLooks.map(({ look }) => `${look.build}/${look.head}/${look.outfit}/${look.accent}`));
   assert.equal(seen.size, mainLooks.length, '主要人物有四维全同的');
+});
+
+test('五个主要人物是五类不同剪影，且同向两两相似度 < 0.85', () => {
+  const signatures = new Set(mainLooks.map(({ look }) => silhouetteSignature(look)));
+  assert.equal(signatures.size, mainLooks.length, `剪影只有 ${signatures.size} 类：${[...signatures].join(' / ')}`);
+  const pairs = pairwiseSilhouettes(mainLooks);
+  assert.equal(pairs.length, 30, '五人 × 三向应得 30 组读数');
+  const closest = pairs.reduce((max, item) => (item.similarity > max.similarity ? item : max));
+  assert.ok(
+    closest.similarity < MAX_SILHOUETTE_SIMILARITY,
+    `最像的一对是 ${closest.a}/${closest.b}（${closest.facing}），相似度 ${closest.similarity} ≥ ${MAX_SILHOUETTE_SIMILARITY}`,
+  );
 });
 
 test('档案落到单位面板：主要人物面板读得到来历、忌讳、动线与关系初值', () => {

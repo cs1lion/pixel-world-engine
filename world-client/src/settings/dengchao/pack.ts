@@ -21,22 +21,22 @@ export const DENGCHAO_CAST_ARTBOOK: Readonly<Record<string, CastArtbookRef>> = {
   汐: {
     pdfPages: [42, 43],
     bookPages: ['82–83', '84–85'],
-    notes: ['深色齐颌短发、平直刘海', '白/浅青长袍，腰间一道蓝色束带', '赤脚，身形少年'],
+    notes: ['深色齐颌短发、平直刘海', '白/浅青长袍，腰间一道蓝色束带', '长袍下摆逐级外扩、盖住赤脚（书页 84–85 的垂坠）'],
   },
   炉匠: {
     pdfPages: [48],
     bookPages: ['94–95'],
-    notes: ['秃顶、两鬓白毛、长白须', '圆框眼镜', '深紫/灰紫长袍，六条手臂，矮壮'],
+    notes: ['秃顶、两鬓白毛、长白须', '圆框眼镜', '深紫/灰紫长袍，六条手臂撑宽上身，袍摆直下收成围裙'],
   },
   沉灯夫人: {
     pdfPages: [53],
     bookPages: ['104–105'],
-    notes: ['极高的白发髻、大鼻、深眼窝', '深蓝长裙、宽肩', '金耳饰/金色束带，矮而宽'],
+    notes: ['极高的白发髻、大鼻、深眼窝', '深蓝长裙，披风在肩背最宽、向下收到脚踝', '金耳饰/金色束带，矮而宽'],
   },
   灯笼头: {
     pdfPages: [58],
     bookPages: ['114–115'],
-    notes: ['高而窄的黑色/半透明长袍', '白色面具、紫黑眼口', '细手臂，无脸'],
+    notes: ['高领/兜帽在上，黑色/半透明长袍窄到及地（不画脚）', '白色面具、紫黑眼口', '细手臂，无脸'],
   },
 };
 
@@ -330,7 +330,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 深色齐颌短发、白/浅青长袍、蓝色束带、赤脚。
     { name: '汐', at: { x: 36, y: 29 }, archive: DENGCHAO_CAST_ARCHIVES['汐'], style: {
       cloak: 'pale', cloakDark: 'water', scarf: 'water', scarfLit: 'pale', hair: 'timberDark',
-      build: 'slim', head: 'bob', outfit: 'robe', accent: 'none', lamp: true,
+      build: 'young', head: 'bob', outfit: 'robe', accent: 'none', lamp: true,
     }, routine: [
       { x: 32, y: 27, label: '点亮楼前的长灯', dwellMs: 5800 },
       { x: 19, y: 29, label: '在迎灯舍前照看来客', dwellMs: 5200 },

@@ -13,7 +13,7 @@
     "b": "灯笼头",
     "deltaE": 15.5
   },
-  "silhouetteClasses": 3,
+  "silhouetteClasses": 5,
   "characters": [
     {
       "name": "迷路人",
@@ -51,7 +51,7 @@
     },
     {
       "name": "汐",
-      "design": "slim/bob/robe/none",
+      "design": "young/bob/robe/none",
       "artbook": {
         "pdfPages": [
           42,
@@ -64,21 +64,21 @@
         "notes": [
           "深色齐颌短发、平直刘海",
           "白/浅青长袍，腰间一道蓝色束带",
-          "赤脚，身形少年"
+          "长袍下摆逐级外扩、盖住赤脚（书页 84–85 的垂坠）"
         ]
       },
       "deltaEToNearest": 54.9,
       "nearest": "炉匠",
-      "silhouetteSignature": "222222@30",
-      "bboxW": 14,
-      "bboxH": 30,
+      "silhouetteSignature": "111222@28",
+      "bboxW": 16,
+      "bboxH": 28,
       "profile": [
         12,
         12,
-        14,
         13,
-        12,
-        13
+        14,
+        16,
+        16
       ]
     },
     {
@@ -94,12 +94,12 @@
         "notes": [
           "秃顶、两鬓白毛、长白须",
           "圆框眼镜",
-          "深紫/灰紫长袍，六条手臂，矮壮"
+          "深紫/灰紫长袍，六条手臂撑宽上身，袍摆直下收成围裙"
         ]
       },
       "deltaEToNearest": 30.1,
       "nearest": "迷路人",
-      "silhouetteSignature": "002222@28",
+      "silhouetteSignature": "002220@28",
       "bboxW": 23,
       "bboxH": 28,
       "profile": [
@@ -108,7 +108,7 @@
         23,
         23,
         22,
-        20
+        13
       ]
     },
     {
@@ -123,22 +123,22 @@
         ],
         "notes": [
           "极高的白发髻、大鼻、深眼窝",
-          "深蓝长裙、宽肩",
+          "深蓝长裙，披风在肩背最宽、向下收到脚踝",
           "金耳饰/金色束带，矮而宽"
         ]
       },
       "deltaEToNearest": 15.5,
       "nearest": "灯笼头",
-      "silhouetteSignature": "222222@30",
-      "bboxW": 20,
+      "silhouetteSignature": "222221@30",
+      "bboxW": 21,
       "bboxH": 30,
       "profile": [
         19,
         19,
         19,
-        20,
-        20,
-        20
+        21,
+        21,
+        16
       ]
     },
     {
@@ -152,26 +152,221 @@
           "114–115"
         ],
         "notes": [
-          "高而窄的黑色/半透明长袍",
+          "高领/兜帽在上，黑色/半透明长袍窄到及地（不画脚）",
           "白色面具、紫黑眼口",
           "细手臂，无脸"
         ]
       },
       "deltaEToNearest": 15.5,
       "nearest": "沉灯夫人",
-      "silhouetteSignature": "222222@30",
-      "bboxW": 15,
+      "silhouetteSignature": "102210@30",
+      "bboxW": 17,
       "bboxH": 30,
       "profile": [
-        13,
         12,
-        14,
+        11,
+        17,
+        17,
         12,
-        12,
-        14
+        10
       ]
     }
   ],
+  "silhouettePairs": [
+    {
+      "a": "迷路人",
+      "b": "汐",
+      "facing": "down",
+      "similarity": 0.805
+    },
+    {
+      "a": "迷路人",
+      "b": "炉匠",
+      "facing": "down",
+      "similarity": 0.767
+    },
+    {
+      "a": "迷路人",
+      "b": "沉灯夫人",
+      "facing": "down",
+      "similarity": 0.818
+    },
+    {
+      "a": "迷路人",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.812
+    },
+    {
+      "a": "汐",
+      "b": "炉匠",
+      "facing": "down",
+      "similarity": 0.798
+    },
+    {
+      "a": "汐",
+      "b": "沉灯夫人",
+      "facing": "down",
+      "similarity": 0.782
+    },
+    {
+      "a": "汐",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.807
+    },
+    {
+      "a": "炉匠",
+      "b": "沉灯夫人",
+      "facing": "down",
+      "similarity": 0.82
+    },
+    {
+      "a": "炉匠",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.784
+    },
+    {
+      "a": "沉灯夫人",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.772
+    },
+    {
+      "a": "迷路人",
+      "b": "汐",
+      "facing": "right",
+      "similarity": 0.805
+    },
+    {
+      "a": "迷路人",
+      "b": "炉匠",
+      "facing": "right",
+      "similarity": 0.767
+    },
+    {
+      "a": "迷路人",
+      "b": "沉灯夫人",
+      "facing": "right",
+      "similarity": 0.818
+    },
+    {
+      "a": "迷路人",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.812
+    },
+    {
+      "a": "汐",
+      "b": "炉匠",
+      "facing": "right",
+      "similarity": 0.798
+    },
+    {
+      "a": "汐",
+      "b": "沉灯夫人",
+      "facing": "right",
+      "similarity": 0.782
+    },
+    {
+      "a": "汐",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.807
+    },
+    {
+      "a": "炉匠",
+      "b": "沉灯夫人",
+      "facing": "right",
+      "similarity": 0.82
+    },
+    {
+      "a": "炉匠",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.784
+    },
+    {
+      "a": "沉灯夫人",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.772
+    },
+    {
+      "a": "迷路人",
+      "b": "汐",
+      "facing": "up",
+      "similarity": 0.805
+    },
+    {
+      "a": "迷路人",
+      "b": "炉匠",
+      "facing": "up",
+      "similarity": 0.767
+    },
+    {
+      "a": "迷路人",
+      "b": "沉灯夫人",
+      "facing": "up",
+      "similarity": 0.818
+    },
+    {
+      "a": "迷路人",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.812
+    },
+    {
+      "a": "汐",
+      "b": "炉匠",
+      "facing": "up",
+      "similarity": 0.798
+    },
+    {
+      "a": "汐",
+      "b": "沉灯夫人",
+      "facing": "up",
+      "similarity": 0.782
+    },
+    {
+      "a": "汐",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.807
+    },
+    {
+      "a": "炉匠",
+      "b": "沉灯夫人",
+      "facing": "up",
+      "similarity": 0.82
+    },
+    {
+      "a": "炉匠",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.784
+    },
+    {
+      "a": "沉灯夫人",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.772
+    }
+  ],
+  "maxSameFacing": {
+    "a": "炉匠",
+    "b": "沉灯夫人",
+    "facing": "down",
+    "similarity": 0.82,
+    "breakdown": {
+      "iou": 0.7210884353741497,
+      "rowCos": 0.9506744662341645,
+      "colCos": 0.9672435692054725,
+      "ratioGap": 0.17105263157894737,
+      "similarity": 0.8201077515778865
+    }
+  },
   "blindKey": {
     "main-01": "迷路人",
     "main-02": "汐",
