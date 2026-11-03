@@ -48,7 +48,7 @@
 import Phaser from 'phaser';
 import type { WorldGrid } from '../world/grid.ts';
 import { TILE_PX } from '../world/setup.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { bakeLayer } from './bake.ts';
 
 /**
@@ -73,7 +73,7 @@ export function createTideView(
   grid: WorldGrid,
   originX: number,
   originY: number,
-  colors: { readonly water: number; readonly deepShade: number; readonly ink: number; readonly pale: number } = WORLD,
+  colors: { readonly water: number; readonly deepShade: number; readonly ink: number; readonly pale: number } = paletteFor(),
 ): TideView {
   // 水在地面层之上、建筑与角色之下：depth 3 与天气水洼（2）分开，
   // 免得两者叠在一起互相压暗。

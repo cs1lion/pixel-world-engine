@@ -14,7 +14,7 @@
 
 import type { WorldSnapshot } from '../world/types.ts';
 import type { WorldGrid } from '../world/grid.ts';
-import { TERRAIN_COLORS, WORLD } from '../world/palette-data.ts';
+import { paletteFor, terrainFor } from '../world/theme.ts';
 
 export interface MinimapPoint {
   readonly x: number;
@@ -71,7 +71,7 @@ export function createMinimapView(
 
     paintTerrain(grid, colors) {
       if (terrainCtx === null) return;
-      terrainCtx.fillStyle = hex(WORLD.ink);
+      terrainCtx.fillStyle = hex(paletteFor().ink);
       terrainCtx.fillRect(0, 0, width, height);
       // 一格在缩略图上可能不到 1px；按格填会糊成一片，所以按「每格至少 1px」放大画。
       const cellW = Math.max(1, width / grid.width);
@@ -80,7 +80,7 @@ export function createMinimapView(
         for (let x = 0; x < grid.width; x += 1) {
           const cell = grid.at({ x, y });
           if (cell === undefined) continue;
-          terrainCtx.fillStyle = hex(colors?.[cell.terrain] ?? TERRAIN_COLORS[cell.terrain]);
+          terrainCtx.fillStyle = hex(colors?.[cell.terrain] ?? terrainFor()[cell.terrain]);
           terrainCtx.fillRect(x * cellW, y * cellH, Math.ceil(cellW), Math.ceil(cellH));
         }
       }
@@ -90,7 +90,7 @@ export function createMinimapView(
       ctx.drawImage(terrain, 0, 0);
 
       // 建筑：亮蓝块，一眼能看出镇子在哪。
-      ctx.fillStyle = hex(WORLD.water);
+      ctx.fillStyle = hex(paletteFor().water);
       for (const building of snapshot.buildings) {
         ctx.fillRect(
           building.origin.x * scaleX,
@@ -101,19 +101,19 @@ export function createMinimapView(
       }
 
       // 摆件：暖色小点，读成「这里有点什么」。
-      ctx.fillStyle = hex(WORLD.amber);
+      ctx.fillStyle = hex(paletteFor().amber);
       for (const prop of snapshot.props) {
         ctx.fillRect(prop.at.x * scaleX, prop.at.y * scaleY, 2, 2);
       }
 
       // 角色：亮黄点，比摆件更亮更实。
-      ctx.fillStyle = hex(WORLD.warmLight);
+      ctx.fillStyle = hex(paletteFor().warmLight);
       for (const villager of snapshot.villagers) {
         ctx.fillRect(villager.pos.x * scaleX - 1, villager.pos.y * scaleY - 1, 3, 3);
       }
 
       // 视野白框：让玩家知道主画面在看哪。
-      ctx.strokeStyle = hex(WORLD.pale);
+      ctx.strokeStyle = hex(paletteFor().pale);
       ctx.lineWidth = 1;
       ctx.strokeRect(
         viewport.x * scaleX + 0.5,

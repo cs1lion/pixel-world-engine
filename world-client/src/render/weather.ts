@@ -7,7 +7,7 @@
  */
 
 import Phaser from 'phaser';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { TILE_PX } from '../world/setup.ts';
 
 const DROPS = 150;
@@ -78,15 +78,15 @@ export function createWeatherView(
   mist.setDepth(7999);
   mist.setVisible(false);
   for (let y = HEIGHT - 30; y < HEIGHT; y += 3) {
-    mist.fillStyle(WORLD.water, 0.09);
+    mist.fillStyle(paletteFor().water, 0.09);
     mist.fillRect(0, y, WIDTH, 1);
   }
   for (let y = HEIGHT - 18; y < HEIGHT; y += 4) {
-    mist.fillStyle(WORLD.pale, 0.025);
+    mist.fillStyle(paletteFor().pale, 0.025);
     mist.fillRect(0, y + 1, WIDTH, 1);
   }
 
-  const dim = scene.add.rectangle(0, 0, WIDTH, HEIGHT, WORLD.cloakDark, 0).setOrigin(0, 0);
+  const dim = scene.add.rectangle(0, 0, WIDTH, HEIGHT, paletteFor().cloakDark, 0).setOrigin(0, 0);
   dim.setDepth(8000);
 
   const drops = scene.add.graphics();
@@ -113,7 +113,7 @@ export function createWeatherView(
       splash.setVisible(visible);
       puddles.setVisible(visible);
       mist.setVisible(visible);
-      dim.setFillStyle(WORLD.cloakDark, intensity * 0.28);
+      dim.setFillStyle(paletteFor().cloakDark, intensity * 0.28);
       if (!visible) {
         drops.clear();
         splash.clear();
@@ -137,15 +137,15 @@ export function createWeatherView(
         const y = ys[i] ?? 0;
         if (i % 4 === 0) {
           // 远层：3px，低对比。
-          drops.lineStyle(1, WORLD.pale, 0.14 + intensity * 0.12);
+          drops.lineStyle(1, paletteFor().pale, 0.14 + intensity * 0.12);
           drops.lineBetween(x, y, x, y + 3);
         } else if (i % 5 === 0) {
           // 近层：7px，亮；画 1px 宽，避免整屏白线。
-          drops.lineStyle(1, WORLD.pale, 0.42 + intensity * 0.38);
+          drops.lineStyle(1, paletteFor().pale, 0.42 + intensity * 0.38);
           drops.lineBetween(x, y, x - 1, y + 7);
         } else {
           // 中层：5px，部分斜落。
-          drops.lineStyle(1, WORLD.pale, 0.28 + intensity * 0.3);
+          drops.lineStyle(1, paletteFor().pale, 0.28 + intensity * 0.3);
           drops.lineBetween(x, y, x - (i % 3 === 0 ? 1 : 0), y + 5);
         }
       }
@@ -154,20 +154,20 @@ export function createWeatherView(
       puddles.clear();
       for (let i = 0; i < PUDDLES.length; i += 1) {
         const p = PUDDLES[i]!;
-        puddles.fillStyle(WORLD.water, 1);
+        puddles.fillStyle(paletteFor().water, 1);
         puddles.fillRect(p.x, p.y, p.w, 2);
-        puddles.fillStyle(WORLD.deepShade, 1);
+        puddles.fillStyle(paletteFor().deepShade, 1);
         puddles.fillRect(p.x + 1, p.y + 2, p.w - 2, 1);
-        puddles.fillStyle(WORLD.pale, 0.5 + intensity * 0.3);
+        puddles.fillStyle(paletteFor().pale, 0.5 + intensity * 0.3);
         puddles.fillRect(p.x + 2, p.y, Math.max(2, p.w - 5), 1);
         // 涟漪：宽度按 elapsed 缓慢变化，确定性。
         const phase = Math.floor(elapsed / 500 + i * 2) % 6;
         if (phase < 3) {
-          puddles.fillStyle(WORLD.pale, 0.35);
+          puddles.fillStyle(paletteFor().pale, 0.35);
           puddles.fillRect(p.x + 3 + phase, p.y + 1, Math.max(1, 3 - phase), 1);
         }
         if (i % 2 === 0) {
-          puddles.fillStyle(WORLD.warmLight, 0.4);
+          puddles.fillStyle(paletteFor().warmLight, 0.4);
           puddles.fillRect(p.x + p.w - 4, p.y, 2, 1);
         }
       }
@@ -179,7 +179,7 @@ export function createWeatherView(
         const px = Math.abs(x) * WIDTH;
         const py = ((i * 97) % (HEIGHT / TILE_PX)) * TILE_PX + TILE_PX;
         const wobble = i % 3;
-        splash.fillStyle(WORLD.pale, 0.22 * intensity);
+        splash.fillStyle(paletteFor().pale, 0.22 * intensity);
         splash.fillRect(px, py, 3 + wobble, 1);
         splash.fillRect(px + 1, py - 1, 1, 1);
       }

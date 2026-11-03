@@ -17,8 +17,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
-import type { WorldPalette } from '../world/theme.ts';
+import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
 import {
@@ -61,14 +60,14 @@ export function createVillager(
   // alpha 两档：外层 `deepShade` 0.3，接触线 `ink` 0.55。影子仍按 16px 格宽画，
   // 不做 24px 加宽——宽过一格会读成「两个人挨着」。
   const shadow = scene.add.graphics();
-  shadow.fillStyle(WORLD.deepShade, 0.3);
+  shadow.fillStyle(paletteFor().deepShade, 0.3);
   shadow.fillRect(-6, 0, 12, 2);
   shadow.fillRect(-4, 2, 8, 1);
-  shadow.fillStyle(WORLD.ink, 0.55);
+  shadow.fillStyle(paletteFor().ink, 0.55);
   shadow.fillRect(-4, 0, 8, 1);
 
   const body = scene.add.graphics();
-  drawVillager(body, DEFAULT_LOOK, WORLD, 'down', villagerPose('idle', false, 0), 'idle', false, 0);
+  drawVillager(body, DEFAULT_LOOK, paletteFor(), 'down', villagerPose('idle', false, 0), 'idle', false, 0);
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
@@ -84,7 +83,7 @@ export function updateVillager(
   originY: number,
   altitude: number,
   appearance?: VillagerAppearance,
-  palette: WorldPalette = WORLD,
+  palette: WorldPalette = paletteFor(),
 ): void {
   const px = pixelAt(originX + (villager.pos.x + 0.5) * TILE_PX);
   const py = pixelAt(originY + (villager.pos.y + 1) * TILE_PX);
@@ -181,36 +180,36 @@ function drawCarried(
   const top = offsetY - 13;
   if (kind === 'scroll') {
     // 卷轴：浅色横卷 + 两端暗轴头 + 中间一条暗纹（读成"卷起来的纸"）。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-7, top, 15, 7);
-    g.fillStyle(WORLD.plaster, 1);
+    g.fillStyle(paletteFor().plaster, 1);
     g.fillRect(-6, top + 1, 13, 5);
-    g.fillStyle(WORLD.trim, 1);
+    g.fillStyle(paletteFor().trim, 1);
     g.fillRect(-6, top + 1, 13, 1);
-    g.fillStyle(WORLD.timberDark, 1);
+    g.fillStyle(paletteFor().timberDark, 1);
     g.fillRect(-7, top + 1, 2, 5);
     g.fillRect(6, top + 1, 2, 5);
     // 纸面暗纹：两条横线，读成"写过的纸"。
-    g.fillStyle(WORLD.charcoal, 1);
+    g.fillStyle(paletteFor().charcoal, 1);
     g.fillRect(-3, top + 3, 6, 1);
     g.fillRect(-3, top + 4, 4, 1);
   } else if (kind === 'stone') {
     // 石料：带亮面的方石，轮廓更清楚。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-6, top, 13, 8);
-    g.fillStyle(WORLD.stone, 1);
+    g.fillStyle(paletteFor().stone, 1);
     g.fillRect(-5, top + 1, 11, 6);
-    g.fillStyle(WORLD.plaza, 1);
+    g.fillStyle(paletteFor().plaza, 1);
     g.fillRect(-5, top + 1, 11, 2);
-    g.fillStyle(WORLD.charcoal, 1);
+    g.fillStyle(paletteFor().charcoal, 1);
     g.fillRect(-5, top + 6, 11, 1);
   } else {
     // 纸：一叠薄纸，边缘有齿。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-7, top, 15, 7);
-    g.fillStyle(WORLD.pale, 1);
+    g.fillStyle(paletteFor().pale, 1);
     g.fillRect(-6, top + 1, 13, 5);
-    g.fillStyle(WORLD.plaster, 1);
+    g.fillStyle(paletteFor().plaster, 1);
     g.fillRect(-3, top + 1, 1, 5);
     g.fillRect(1, top + 1, 1, 5);
     g.fillRect(4, top + 1, 1, 5);
@@ -221,18 +220,18 @@ function drawCarried(
 function drawUmbrella(g: Phaser.GameObjects.Graphics, offsetY: number): void {
   const y = offsetY;
   // 伞面比旧版抬高 10px（头从 20 长到 30）：中间高、两侧低，右缘留一个缺口。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-7, -41 + y, 14, 3);
-  g.fillStyle(WORLD.ember, 1);
+  g.fillStyle(paletteFor().ember, 1);
   g.fillRect(-6, -41 + y, 12, 2);
   g.fillRect(-4, -42 + y, 8, 1);
-  g.fillStyle(WORLD.trim, 1);
+  g.fillStyle(paletteFor().trim, 1);
   g.fillRect(-5, -42 + y, 4, 1);
-  g.fillStyle(WORLD.timberDark, 1);
+  g.fillStyle(paletteFor().timberDark, 1);
   g.fillRect(-5, -40 + y, 1, 2);
   g.fillRect(0, -40 + y, 1, 2);
   g.fillRect(4, -40 + y, 1, 2);
   g.fillRect(0, -38 + y, 1, 9);
-  g.fillStyle(WORLD.plaza, 1);
+  g.fillStyle(paletteFor().plaza, 1);
   g.fillRect(-1, -30 + y, 3, 1);
 }

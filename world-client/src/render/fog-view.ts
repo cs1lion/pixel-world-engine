@@ -14,7 +14,7 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { bakeLayer, type BakedLayer } from './bake.ts';
 import { driftPuffs } from '../world/fog-drift.ts';
 
@@ -74,7 +74,7 @@ export function createFogView(
         const alpha = 0.44 * (into * into * (3 - 2 * into));
         // 用冷色 water 而不是夜里的 deepShade：两者都压暗，但迷雾要读成
         // "这里还没去过"，不是"天黑了"。冷色带一点蓝，与夜晚的暖窗对比明显。
-        g.fillStyle(WORLD.water, alpha);
+        g.fillStyle(paletteFor().water, alpha);
         g.fillRect(px, py, BLOCK, BLOCK);
       }
     }
@@ -143,7 +143,7 @@ export function createFogView(
             if (d > 1) continue;
             // 中心浓、边缘趋零，平方衰减让过渡更柔。
             const falloff = (1 - d) * (1 - d);
-            puffs.fillStyle(WORLD.water, puff.alpha * 0.24 * falloff);
+            puffs.fillStyle(paletteFor().water, puff.alpha * 0.24 * falloff);
             puffs.fillRect(Math.round(cx + dx), Math.round(cy + dy), PUFF_CELL_PX, PUFF_CELL_PX);
           }
         }

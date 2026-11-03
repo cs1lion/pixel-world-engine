@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { ConstructionSnapshot, Critter, GridPoint, TaskKind, WorldProp } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { ACTOR_DEPTH_OFFSET, propDepth, propFootY } from './prop-depth.ts';
 import { grimeSpecks } from './prop-grime.ts';
 import { GRIME_CLEAN } from '../world/grime.ts';
@@ -56,9 +56,9 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
         const py = originY + cell.y * TILE_PX;
         // 小径：1px soil 软边 + plaza 面 + 不规则石板。描边按「这一侧有没有相邻的径」
         // 逐边判定，多格小径才会连成一条路，而不是一串各自带框的方块。
-        roads.fillStyle(WORLD.plaza, 1);
+        roads.fillStyle(paletteFor().plaza, 1);
         roads.fillRect(px + 1, py + 1, TILE_PX - 2, TILE_PX - 2);
-        roads.fillStyle(WORLD.soil, 0.85);
+        roads.fillStyle(paletteFor().soil, 0.85);
         if (!isRoad(cell.x, cell.y - 1)) roads.fillRect(px + 1, py + 1, TILE_PX - 2, 1);
         if (!isRoad(cell.x, cell.y + 1)) roads.fillRect(px + 1, py + TILE_PX - 2, TILE_PX - 2, 1);
         if (!isRoad(cell.x - 1, cell.y)) roads.fillRect(px + 1, py + 1, 1, TILE_PX - 2);
@@ -86,13 +86,13 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
         for (let i = 0; i < slabs.length; i += 1) {
           if ((seed + i * 5) % 7 === 0) continue;
           const [sx, sy, sw, sh] = slabs[i]!;
-          roads.fillStyle(WORLD.plaza, 1);
+          roads.fillStyle(paletteFor().plaza, 1);
           roads.fillRect(px + sx, py + sy, sw, sh);
-          roads.fillStyle(WORLD.stone, 1);
+          roads.fillStyle(paletteFor().stone, 1);
           roads.fillRect(px + sx, py + sy + sh - 1, sw, 1);
           roads.fillRect(px + sx + sw - 1, py + sy, 1, sh);
           if ((seed + i) % 4 === 0) {
-            roads.fillStyle(WORLD.grass, 1);
+            roads.fillStyle(paletteFor().grass, 1);
             roads.fillRect(px + sx + 1, py + sy + sh - 2, 2, 1);
           }
         }
@@ -109,10 +109,10 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
         const py = originY + trail.at.y * TILE_PX;
         // 强度 2：草被踩倒一条；强度 3：露出土色。
         // 用 soil（W02）而不是新增色——它是现成的"草下的土"。
-        trails.fillStyle(WORLD.soil, trail.strength >= 3 ? 0.5 : 0.28);
+        trails.fillStyle(paletteFor().soil, trail.strength >= 3 ? 0.5 : 0.28);
         trails.fillRect(px + 3, py + 11, TILE_PX - 6, 2);
         if (trail.strength >= 3) {
-          trails.fillStyle(WORLD.soil, 0.32);
+          trails.fillStyle(paletteFor().soil, 0.32);
           trails.fillRect(px + 5, py + 8, TILE_PX - 10, 2);
         }
       }
@@ -226,7 +226,7 @@ function drawProp(
   // 与剪影同一个原点，所以那些坐标可以直接用。
   const noise = scene.add.graphics();
   for (const speck of grimeSpecks(seed)) {
-    noise.fillStyle(speck.size === 2 ? WORLD.ink : WORLD.charcoal, 1);
+    noise.fillStyle(speck.size === 2 ? paletteFor().ink : paletteFor().charcoal, 1);
     noise.fillRect(speck.x, speck.y, speck.size, speck.size);
   }
   noise.setPosition(px, py);
@@ -269,37 +269,37 @@ function accentFor(kind: TaskKind | null): PropAccent {
 function drawCat(g: Phaser.GameObjects.Graphics): void {
   // 9×11 的小剪影。早先的 6×7 在祭坛旁读不出来，所以放大一档并加黑轮廓：
   // 24 色里没有专门的"深色描边"，用 ink 就是它。
-  g.fillStyle(WORLD.deepShade, 0.3);
+  g.fillStyle(paletteFor().deepShade, 0.3);
   g.fillRect(-5, 0, 11, 2);
 
   // 轮廓层：先铺一层 ink，再把主体画进去，边缘就有了 1px 黑边。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-5, -8, 9, 8); // 身子（含轮廓）
   g.fillRect(3, -11, 5, 6); // 头
 
-  g.fillStyle(WORLD.charcoal, 1);
+  g.fillStyle(paletteFor().charcoal, 1);
   g.fillRect(-4, -7, 7, 6); // 身子内芯
   g.fillRect(4, -10, 3, 4); // 头内芯
 
   // 耳朵：两个清楚的三角尖。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(3, -12, 1, 2);
   g.fillRect(7, -12, 1, 2);
-  g.fillStyle(WORLD.charcoal, 1);
+  g.fillStyle(paletteFor().charcoal, 1);
   g.fillRect(4, -12, 1, 1);
   g.fillRect(6, -12, 1, 1);
 
   // 尾巴：向上翘两格，末端加深。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-6, -9, 2, 6);
   g.fillRect(-7, -11, 2, 3);
-  g.fillStyle(WORLD.charcoal, 1);
+  g.fillStyle(paletteFor().charcoal, 1);
   g.fillRect(-6, -8, 1, 4);
-  g.fillStyle(WORLD.amber, 1);
+  g.fillStyle(paletteFor().amber, 1);
   g.fillRect(-7, -11, 1, 1);
 
   // 眼睛：两只，比一只更好认成"脸"。
-  g.fillStyle(WORLD.warmLight, 1);
+  g.fillStyle(paletteFor().warmLight, 1);
   g.fillRect(4, -9, 1, 1);
   g.fillRect(6, -9, 1, 1);
 }
@@ -317,37 +317,37 @@ function propHash(id: string): number {
 /** 路灯：柱 + 灯笼 + 1px 硬光池。不用 fillCircle，避免矢量圆和像素块混用。 */
 export function drawLamp(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
   // 接触阴影：两级实心块，读成“灯柱踩在地上”。
-  g.fillStyle(WORLD.deepShade, 0.28);
+  g.fillStyle(paletteFor().deepShade, 0.28);
   g.fillRect(-4, -1, 9, 2);
-  g.fillStyle(WORLD.deepShade, 0.16);
+  g.fillStyle(paletteFor().deepShade, 0.16);
   g.fillRect(-6, 1, 13, 1);
 
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-1, -14, 2, 14);
   g.fillRect(-3, -1, 6, 1);
-  g.fillStyle(WORLD.charcoal, 1);
+  g.fillStyle(paletteFor().charcoal, 1);
   g.fillRect(0, -13, 1, 12);
 
   // 灯笼：黑框 + 暗木芯 + amber 光；pale 高光在左上。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-4, -21, 9, 8);
-  g.fillStyle(WORLD.timberDark, 1);
+  g.fillStyle(paletteFor().timberDark, 1);
   g.fillRect(-3, -20, 7, 6);
-  g.fillStyle(WORLD.amber, 0.95);
+  g.fillStyle(paletteFor().amber, 0.95);
   g.fillRect(-2, -19, 5, 4);
-  g.fillStyle(WORLD.warmLight, 1);
+  g.fillStyle(paletteFor().warmLight, 1);
   g.fillRect(-1, -18, 3, 2);
-  g.fillStyle(WORLD.pale, 1);
+  g.fillStyle(paletteFor().pale, 1);
   g.fillRect(-2, -19, 1, 1);
-  g.fillStyle(WORLD.trim, 1);
+  g.fillStyle(paletteFor().trim, 1);
   g.fillRect(-5, -22, 11, 1);
   g.fillRect(-1, -23, 3, 1);
 
   if (accent === 'gear') {
     // 齿轮：灯罩下沿一枚 7×7 的记号。5×5 在 2 倍显示下只有 10px，读不出来。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-4, -17, 9, 9);
-    g.fillStyle(WORLD.trim, 1);
+    g.fillStyle(paletteFor().trim, 1);
     g.fillRect(-3, -16, 7, 7);
     // 四个齿：四边各凸出一格。
     g.fillRect(-1, -18, 3, 1);
@@ -355,20 +355,20 @@ export function drawLamp(g: Phaser.GameObjects.Graphics, seed: number, accent: P
     g.fillRect(-5, -14, 1, 3);
     g.fillRect(3, -14, 1, 3);
     // 轴心留空，读成轮子而不是方块。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-1, -14, 3, 3);
-    g.fillStyle(WORLD.timberDark, 1);
+    g.fillStyle(paletteFor().timberDark, 1);
     g.fillRect(0, -13, 1, 1);
   }
 
   // 灯下光池：两层硬边矩形 + 抖动缺口，不用大 alpha 圆。
   const flicker = seed % 3;
-  g.fillStyle(WORLD.amber, 0.1);
+  g.fillStyle(paletteFor().amber, 0.1);
   g.fillRect(-9, -2, 19, 4);
   g.fillRect(-7, 2, 15, 2);
-  g.fillStyle(WORLD.amber, 0.16);
+  g.fillStyle(paletteFor().amber, 0.16);
   g.fillRect(-6, -1, 13, 2);
-  g.fillStyle(WORLD.warmLight, 0.24);
+  g.fillStyle(paletteFor().warmLight, 0.24);
   g.fillRect(-4 + flicker, -1, 8, 1);
 }
 
@@ -380,31 +380,31 @@ export function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: P
   const ch = 11 + size * 2;
 
   // 地面阴影：向右下错开的硬边块。
-  g.fillStyle(WORLD.deepShade, 0.24);
+  g.fillStyle(paletteFor().deepShade, 0.24);
   g.fillRect(-5, -1, 12, 2);
   g.fillRect(-3, 1, 8, 1);
 
   // 树干与根。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-1, -trunkH, 3, trunkH);
-  g.fillStyle(WORLD.timberDark, 1);
+  g.fillStyle(paletteFor().timberDark, 1);
   g.fillRect(0, -trunkH + 1, 2, trunkH - 1);
-  g.fillStyle(WORLD.timber, 1);
+  g.fillStyle(paletteFor().timber, 1);
   g.fillRect(1, -trunkH + 2, 1, Math.max(2, trunkH - 3));
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-2, -1, 3, 1);
   g.fillRect(1, -1, 3, 1);
 
   // 树冠：先黑轮廓，再暗底，再两档亮部；团块错开，避免圆球感。
   const top = -trunkH - ch;
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-Math.floor(cw / 2) - 1, top - 1, cw + 2, ch + 2);
   g.fillRect(-Math.floor(cw / 2) + 2, top - 4, cw - 3, 4);
-  g.fillStyle(WORLD.soil, 1);
+  g.fillStyle(paletteFor().soil, 1);
   g.fillRect(-Math.floor(cw / 2), top, cw, ch);
-  g.fillStyle(WORLD.grass, 1);
+  g.fillStyle(paletteFor().grass, 1);
   g.fillRect(-Math.floor(cw / 2) + 1, top + 1, cw - 2, ch - 2);
-  g.fillStyle(WORLD.moss, 1);
+  g.fillStyle(paletteFor().moss, 1);
   g.fillRect(-Math.floor(cw / 2) + 2, top + 1, Math.floor(cw / 2), 2);
   g.fillRect(-Math.floor(cw / 2) + 2, top + 3, 2, ch - 4);
   g.fillRect(-Math.floor(cw / 2) + 2, top - 2, Math.floor(cw / 2), 2);
@@ -412,7 +412,7 @@ export function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: P
   // 树冠孔隙：2–3 个土壤色缺口。小树（size 0）两个，中/大多一个。
   // 三笔的尺寸不一样——一个 1×2、一个 2×1、一个 1×2，别读成「都是 1×2」：
   // 中间那笔是横的（`fillRect(…, 2, 1)`），原注释写成「1×2」是看串行了。
-  g.fillStyle(WORLD.soil, 1);
+  g.fillStyle(paletteFor().soil, 1);
   g.fillRect(-2 + (seed % 3), top + 4, 1, 2);
   g.fillRect(3 - (seed % 2), top + 7, 2, 1);
   if (size > 0) g.fillRect(-Math.floor(cw / 2) + 3, top + 8, 1, 2);
@@ -420,14 +420,14 @@ export function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: P
   if (accent === 'book') {
     // 书放在树干**左侧**：右侧是角色站立与走动的热点，放那边会被小人挡掉。
     // 8×6：一块斜靠的石板 + 摊开的书页，读成「这里查过资料」。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-13, -8, 10, 8);
-    g.fillStyle(WORLD.stone, 1);
+    g.fillStyle(paletteFor().stone, 1);
     g.fillRect(-12, -7, 8, 6);
-    g.fillStyle(WORLD.plaster, 1);
+    g.fillStyle(paletteFor().plaster, 1);
     g.fillRect(-11, -6, 3, 4);
     g.fillRect(-7, -6, 2, 4);
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-8, -6, 1, 4);
     g.fillRect(-12, -1, 8, 1);
   }
@@ -435,34 +435,34 @@ export function drawTree(g: Phaser.GameObjects.Graphics, seed: number, accent: P
 
 /** 旗帜：木杆 + 布面 + 顶部亮边；布面有一个像素缺口，读成被风吹起。 */
 export function drawBanner(g: Phaser.GameObjects.Graphics, seed: number, accent: PropAccent = null): void {
-  g.fillStyle(WORLD.ink, 0.2);
+  g.fillStyle(paletteFor().ink, 0.2);
   g.fillRect(-3, -1, 8, 2);
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-1, -19, 2, 19);
   g.fillRect(-2, -1, 4, 1);
-  g.fillStyle(WORLD.charcoal, 1);
+  g.fillStyle(paletteFor().charcoal, 1);
   g.fillRect(0, -18, 1, 17);
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(1, -18, 9, 8);
-  g.fillStyle(WORLD.ember, 1);
+  g.fillStyle(paletteFor().ember, 1);
   g.fillRect(2, -17, 7, 6);
-  g.fillStyle(WORLD.trim, 1);
+  g.fillStyle(paletteFor().trim, 1);
   g.fillRect(2, -17, 7, 1);
   // 风吹缺口：固定在右侧，不逐帧抖动。
-  g.fillStyle(WORLD.soil, 1);
+  g.fillStyle(paletteFor().soil, 1);
   g.fillRect(8, -15 + (seed % 2), 1, 2);
 
   if (accent === 'inkstone') {
     // 砚台：旗杆底一方浅石台，中央一点墨。放大到 11×5 才看得出来。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-6, -5, 11, 5);
-    g.fillStyle(WORLD.plaster, 1);
+    g.fillStyle(paletteFor().plaster, 1);
     g.fillRect(-5, -4, 9, 3);
-    g.fillStyle(WORLD.stone, 1);
+    g.fillStyle(paletteFor().stone, 1);
     g.fillRect(-5, -1, 9, 1);
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-2, -4, 4, 2);
-    g.fillStyle(WORLD.pale, 1);
+    g.fillStyle(paletteFor().pale, 1);
     g.fillRect(-1, -4, 1, 1);
   }
 }

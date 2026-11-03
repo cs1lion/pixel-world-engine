@@ -436,9 +436,9 @@ test('代码里声明的作息落点必须与 KNOWN_STOPS 一模一样', () => {
  */
 const KNOWN_OTHER_LABELS: Readonly<Record<string, { readonly why: string }>> = {
   'render/day-phase.ts:46': { why: '一天四个时辰的名字。#13 没点这一样，时辰归世界的钟，不归设定集。' },
-  'render/day-phase.ts:58': { why: '同上，四个时辰之一（正午）。' },
-  'render/day-phase.ts:69': { why: '同上，四个时辰之一（黄昏）。' },
-  'render/day-phase.ts:82': { why: '同上，四个时辰之一（夜）。' },
+  'render/day-phase.ts:61': { why: '同上，四个时辰之一（正午）。' },
+  'render/day-phase.ts:72': { why: '同上，四个时辰之一（黄昏）。' },
+  'render/day-phase.ts:85': { why: '同上，四个时辰之一（夜）。' },
   'world/tasks.ts:11': { why: '四类活计的名字与估时。#13 没点这一样；估时是世界机制，不是设定集的选择。' },
   'world/tasks.ts:12': { why: '同上，四类活计之一。' },
   'world/tasks.ts:13': { why: '同上，四类活计之一。' },
