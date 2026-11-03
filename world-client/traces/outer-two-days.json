@@ -1,0 +1,698 @@
+{
+  "format": "pwe-trace/2",
+  "traceVersion": 2,
+  "description": "从真实 v5 存档起步，再跨两天（两次日终关账）：一次人工造物（炼码工坊）、一次暴雨、两次神谕。世界、记忆、造物三层都参与指纹。",
+  "worldId": "default",
+  "worldSeed": "default",
+  "initialNow": 180000000,
+  "stepMs": 30000,
+  "steps": 6000,
+  "eventRange": {
+    "from": 0,
+    "to": 20
+  },
+  "injections": [
+    {
+      "seq": 1,
+      "atWorldMs": 200000000,
+      "kind": "creatorBuild",
+      "payload": {
+        "templateId": "code_forge",
+        "at": {
+          "x": 35,
+          "y": 20
+        },
+        "summary": "从存档起步后：人工立起炼码工坊"
+      }
+    },
+    {
+      "seq": 2,
+      "atWorldMs": 260000000,
+      "kind": "weather",
+      "payload": {
+        "weather": "storm"
+      }
+    },
+    {
+      "seq": 3,
+      "atWorldMs": 300000000,
+      "kind": "intent",
+      "payload": {
+        "raw": "涨潮"
+      }
+    },
+    {
+      "seq": 4,
+      "atWorldMs": 340000000,
+      "kind": "intent",
+      "payload": {
+        "raw": "点灯"
+      }
+    }
+  ],
+  "baseline": {
+    "source": "traces/outer-baseline-v5.json",
+    "save": {
+      "schemaVersion": 5,
+      "world": {
+        "now": 180000000,
+        "villagers": [
+          {
+            "id": "v0",
+            "name": "莞尔",
+            "mode": "idle",
+            "pos": {
+              "x": 56,
+              "y": 33
+            },
+            "facing": "down",
+            "visible": true,
+            "path": [],
+            "taskId": null,
+            "bubble": null,
+            "bubbleUntil": 90002200,
+            "saluteUntil": 0,
+            "deliverUntil": 0,
+            "nextRoutineAt": 180005200,
+            "routineIndex": 3999,
+            "routineLabel": "在街口站着看了一会儿",
+            "inPlaceUntil": 0,
+            "pendingRoute": [],
+            "pendingBuildingId": null,
+            "lampOil": 1,
+            "nameState": "held",
+            "carries": []
+          },
+          {
+            "id": "v1",
+            "name": "阿雾",
+            "mode": "idle",
+            "pos": {
+              "x": 40,
+              "y": 40
+            },
+            "facing": "down",
+            "visible": true,
+            "path": [],
+            "taskId": null,
+            "bubble": null,
+            "bubbleUntil": 90002200,
+            "saluteUntil": 0,
+            "deliverUntil": 0,
+            "nextRoutineAt": 180007280,
+            "routineIndex": 4002,
+            "routineLabel": "去看了一眼农田",
+            "inPlaceUntil": 0,
+            "pendingRoute": [],
+            "pendingBuildingId": null,
+            "lampOil": 1,
+            "nameState": "held",
+            "carries": []
+          }
+        ],
+        "buildings": [
+          {
+            "instanceId": "star_archive#1",
+            "prefabId": "star_archive",
+            "displayName": "星图书阁",
+            "zone": "scholarly",
+            "origin": {
+              "x": 51,
+              "y": 20
+            },
+            "footprint": {
+              "w": 4,
+              "h": 4
+            },
+            "door": {
+              "x": 52,
+              "y": 24
+            },
+            "workSpot": {
+              "x": 52,
+              "y": 22
+            },
+            "chimney": {
+              "x": 54.2,
+              "y": 20.5
+            },
+            "accent": "pages",
+            "silhouette": "tower",
+            "boundTask": "research",
+            "palette": {
+              "body": 12759962,
+              "roof": 6261364,
+              "trim": 14211795,
+              "window": 14917948
+            },
+            "sourceTaskId": "creator-star_archive",
+            "sourceSummary": "第 0 天：人工立起星图书阁"
+          }
+        ],
+        "roads": [
+          {
+            "x": 51,
+            "y": 24
+          },
+          {
+            "x": 50,
+            "y": 24
+          },
+          {
+            "x": 49,
+            "y": 24
+          },
+          {
+            "x": 49,
+            "y": 25
+          },
+          {
+            "x": 49,
+            "y": 26
+          },
+          {
+            "x": 49,
+            "y": 27
+          },
+          {
+            "x": 49,
+            "y": 28
+          },
+          {
+            "x": 49,
+            "y": 29
+          },
+          {
+            "x": 49,
+            "y": 30
+          },
+          {
+            "x": 49,
+            "y": 31
+          },
+          {
+            "x": 49,
+            "y": 32
+          }
+        ],
+        "props": [
+          {
+            "id": "miracle-1",
+            "kind": "lamp",
+            "at": {
+              "x": 45,
+              "y": 39
+            },
+            "label": "一盏神迹点的灯",
+            "sourceTaskKind": null,
+            "sourceTaskId": null,
+            "sourceSummary": "神迹：点灯",
+            "grime": 0,
+            "reveal": null
+          }
+        ],
+        "oracle": [
+          {
+            "raw": "涨潮",
+            "receipt": "潮水停在 100%，60 秒后自己回去。",
+            "at": 40020000
+          },
+          {
+            "raw": "点灯",
+            "receipt": "一盏神迹点的灯落下了。",
+            "at": 140010000
+          }
+        ],
+        "critters": [],
+        "tasks": [],
+        "pending": [],
+        "activities": [
+          {
+            "buildingId": "star_archive#1",
+            "activity": {
+              "kind": "idle"
+            }
+          }
+        ],
+        "constructions": [],
+        "weather": {
+          "kind": "clear",
+          "intensity": 0,
+          "remainingMs": null
+        },
+        "faith": {
+          "points": 0,
+          "milestones": 0
+        },
+        "settled": [],
+        "nextTaskNumber": 1,
+        "nextPendingNumber": 1,
+        "tideOverride": {
+          "level": 1,
+          "until": 40080000
+        },
+        "worldChangeVersion": 0,
+        "memory": "{\"memorySchemaVersion\":3,\"lastClosedDay\":2,\"started\":true,\"now\":180000000,\"positions\":[{\"holderId\":\"v0\",\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"at\":{\"x\":40,\"y\":40}}],\"world\":{\"holders\":[{\"holderId\":\"v0\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":40,\"y\":40}},{\"holderId\":\"star_archive#1\",\"type\":\"place\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":52,\"y\":24}}],\"facts\":[{\"eventId\":\"mem_1\",\"day\":0,\"tick\":10020000,\"kind\":\"milestone\",\"placeId\":\"star_archive#1\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"有人立起了一栋新楼\",\"name\":\"星图书阁\"},\"visibility\":\"world\",\"importanceHint\":0.6,\"source\":\"world\",\"placeType\":\"building\",\"voice\":{\"what\":\"达成了一个里程碑\",\"valence\":0.5,\"arousal\":0.4,\"detailLevel\":3}},{\"eventId\":\"mem_2\",\"day\":0,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_3\",\"day\":0,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_5\",\"day\":0,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_6\",\"day\":0,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_7\",\"day\":0,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_8\",\"day\":1,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_9\",\"day\":1,\"tick\":3600000,\"kind\":\"weather_anomaly\",\"placeId\":\"place:sky\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"天气反常\",\"weather\":\"rain\"},\"visibility\":\"world\",\"importanceHint\":0.5,\"source\":\"world\",\"voice\":{\"what\":\"天气反常\",\"valence\":0,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_10\",\"day\":1,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_11\",\"day\":1,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_12\",\"day\":1,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_13\",\"day\":1,\"tick\":53610000,\"kind\":\"celebration\",\"placeId\":\"place:45,39\",\"actors\":[],\"witnesses\":[\"v0\",\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"神明显了一次灵\"},\"visibility\":\"world\",\"importanceHint\":0.8,\"source\":\"world\",\"voice\":{\"what\":\"有人庆祝了一件事\",\"valence\":0.8,\"arousal\":0.7,\"detailLevel\":3}},{\"eventId\":\"mem_14\",\"day\":1,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_15\",\"day\":1,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_16\",\"day\":2,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}}],\"entries\":[{\"memoryId\":\"m_sum_v0_1\",\"holderId\":\"v0\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\",\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）；神明显了一次灵（place:45,39）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":1,\"detailLevel\":3,\"valence\":0.65,\"arousal\":0.55},\"salience\":0.74,\"confidence\":1,\"strength\":1,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0005\",\"m_0007\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2950705160\",\"seed\":2950705160},\"archived\":false},{\"memoryId\":\"m_0011\",\"holderId\":\"v1\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_13\"],\"sourceMode\":\"heard\",\"sourceChain\":[\"claim_0010\",\"v0\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":2,\"valence\":0.8800000000000001,\"arousal\":0.7},\"salience\":0.6,\"confidence\":0.8,\"strength\":0.85,\"createdDay\":2,\"lastRecalledDay\":2,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[\"claim_0010\"]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2568381237\",\"seed\":2568381237},\"archived\":false},{\"memoryId\":\"m_sum_v1_1\",\"holderId\":\"v1\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\",\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）；神明显了一次灵（place:45,39）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":1,\"detailLevel\":3,\"valence\":0.65,\"arousal\":0.55},\"salience\":0.74,\"confidence\":1,\"strength\":1,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0006\",\"m_0008\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2046146767\",\"seed\":2046146767},\"archived\":false}],\"claims\":[{\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0010\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"beliefs\":[{\"holderId\":\"v1\",\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":2,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"star_archive#1\",\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":2,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"}],\"traces\":[{\"placeId\":\"star_archive#1\",\"entries\":[{\"traceId\":\"trace_0001\",\"placeId\":\"star_archive#1\",\"eventRef\":\"mem_1\",\"layerType\":\"inscription\",\"intensity\":0.7,\"createdDay\":0,\"visibility\":0.99}]},{\"placeId\":\"place:45,39\",\"entries\":[{\"traceId\":\"trace_0009\",\"placeId\":\"place:45,39\",\"eventRef\":\"mem_13\",\"layerType\":\"garland\",\"intensity\":1,\"createdDay\":1,\"visibility\":1}]}],\"placeAnchors\":[{\"placeId\":\"star_archive#1\",\"at\":{\"x\":52,\"y\":24}},{\"placeId\":\"place:48,36\",\"at\":{\"x\":48,\"y\":36}},{\"placeId\":\"place:sky\",\"at\":{\"x\":0,\"y\":0}},{\"placeId\":\"place:45,39\",\"at\":{\"x\":45,\"y\":39}}],\"landmarks\":[{\"placeId\":\"star_archive#1\",\"aliases\":[\"star_archive#1\"],\"displayName\":\"星图书阁\",\"plotKey\":\"51,20,4,4\",\"anchor\":{\"x\":51,\"y\":20},\"footprint\":{\"x\":51,\"y\":20,\"w\":4,\"h\":4},\"bornDay\":0,\"phases\":[{\"state\":\"built\",\"day\":0,\"atMs\":10020000,\"causeEventRef\":\"mem_1\",\"name\":\"星图书阁\",\"note\":\"动工\"}],\"current\":\"built\"}],\"eras\":[{\"eraId\":\"era_0004\",\"fromDay\":0,\"toDay\":null,\"label\":\"寂静年代\",\"startSignature\":{\"day\":0,\"meanValence\":0,\"meanArousal\":0,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"lastSignature\":{\"day\":1,\"meanValence\":0.65,\"meanArousal\":0.55,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"definingEventRefs\":[],\"confidence\":0.022222222222222223}],\"epics\":[],\"turningPoints\":[],\"legends\":[],\"placeNames\":[{\"placeId\":\"star_archive#1\",\"name\":\"星图书阁\",\"history\":[]}],\"announcements\":[],\"tells\":[{\"day\":2,\"from\":\"v0\",\"to\":\"v1\",\"claimId\":\"claim_0010\"},{\"day\":2,\"from\":\"v0\",\"to\":\"star_archive#1\",\"claimId\":\"claim_0010\"}],\"written\":[{\"recordId\":\"diary_0012\",\"kind\":\"diary\",\"authorId\":\"v0\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0007\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"written_m_0007\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":1,\"placeId\":\"at_56_33\"},{\"recordId\":\"diary_0013\",\"kind\":\"diary\",\"authorId\":\"v1\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0008\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v1\",\"claimId\":\"written_m_0008\",\"hop\":0}],\"originHolderId\":\"v1\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":1,\"placeId\":\"at_40_40\"}],\"cooldowns\":[{\"pairKey\":\"v0\\u0000v1\",\"claimId\":\"claim_0010\",\"atMs\":172800000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":\"claim_0010\",\"atMs\":172800000},{\"pairKey\":\"v0\\u0000v1\",\"claimId\":null,\"atMs\":172800000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":null,\"atMs\":172800000}],\"fanout\":{\"day\":2,\"counts\":[[\"v0\\u0000claim_0010\",2]]},\"verifyPlans\":[],\"credibility\":[],\"nextSerial\":14,\"currentDay\":2,\"metToday\":[]}}"
+      },
+      "meta": {
+        "savedAtWallClock": 0,
+        "savedReconciled": true,
+        "schemaFingerprint": "3ca5663faee59423"
+      }
+    }
+  },
+  "outer": {
+    "memory": true,
+    "creator": true
+  },
+  "recorded": {
+    "inputDigest": "029539bfc23bc43100f7ae5d8a4c9a2d6512db2be632d59db1a0e20612dcded7",
+    "fingerprint": "e25d22b5ee944d0c91e5517bd7f07b73af16b7a689477758a526ba46b3b304df",
+    "eventCount": 20,
+    "eventDigest": "8adb051144c1a4f78b8512275f54130e9c5c6518462ea58254231c222158f07d",
+    "business": {
+      "day": 4,
+      "now": 360000000,
+      "buildings": 2,
+      "tasksTotal": 0,
+      "tasksCompleted": 0,
+      "weather": "clear",
+      "faithPoints": 0,
+      "deliveries": {
+        "feed": 0,
+        "local": 0
+      },
+      "eventCount": 20
+    },
+    "checkpoints": [
+      {
+        "step": 0,
+        "atWorldMs": 180000000,
+        "fingerprint": "803c75c7ca718e2b25050f468cc52b28c6089d554929c3a707d2cf26e26462f6",
+        "memoryFingerprint": "19ba9cb88156564b2a59d5761f477ba119a3fdbfcc2f3793dc481c9417e69d8d",
+        "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+      },
+      {
+        "step": 250,
+        "atWorldMs": 187500000,
+        "fingerprint": "a26a27497598114b2fe6fb94ed8c5d4ff5652de6a2da2c8243953cf6fc2c8e95",
+        "memoryFingerprint": "b61d109ffde15f2bca9b3202c4873f5720e67da58b35f465a6fc3dd468dee574",
+        "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+      },
+      {
+        "step": 500,
+        "atWorldMs": 195000000,
+        "fingerprint": "3330709f4666848c4eb10d7a9b7391f57d65242bc2ce0da8de1e8ef4377153b2",
+        "memoryFingerprint": "a381064fdbbd04f1f3b8b4e6dd97eb0f54a7b818a4df120156e63ecfac585fbb",
+        "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+      },
+      {
+        "step": 750,
+        "atWorldMs": 202500000,
+        "fingerprint": "84aac7c9b8ace33906e03f013decb711a2bad087388be455a4b58685beb425a5",
+        "memoryFingerprint": "326f0bc586302f6bfcd55de1eb3bbb2ded9dd320054248a25020b719e50965e4",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 1000,
+        "atWorldMs": 210000000,
+        "fingerprint": "d21c342d01d9d366d564a0da45d059e0d3a224c181f0bda1b09e6cedc643cab9",
+        "memoryFingerprint": "f7ef9e05ae6bcf4b4705c0cd081cb90ae234a828c0a92504cc6f83e8567afa17",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 1250,
+        "atWorldMs": 217500000,
+        "fingerprint": "8150a51907e1c25e2ee7c589e30b0dd299a421a62814f881996a4d601041fa19",
+        "memoryFingerprint": "1046fc12e1d74026fe2bc4cb1df472c08dd3d63cd1646838eb1fa8157f737bbf",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 1500,
+        "atWorldMs": 225000000,
+        "fingerprint": "edc7c90bba6e6faca738a139363cc50558c6cc1be308c61c8af56d3b876b4757",
+        "memoryFingerprint": "1c01deceb3cf8a6338e5203d369d72bef8756cecbf6cfc25a64866271713f46a",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 1750,
+        "atWorldMs": 232500000,
+        "fingerprint": "95ddefaecdea4c3eb53658f7401627300884f87ec55292575f681e34db6e3fb6",
+        "memoryFingerprint": "50f43098c4fe8a21bfb5b22ed8e689b374175197069085bbdc368e0cb8ce6628",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 2000,
+        "atWorldMs": 240000000,
+        "fingerprint": "75595a18e6a231b827a80248b38f31804ec584935e9b8bd097f6209feb9c2075",
+        "memoryFingerprint": "e71fba409be21b986a38cc8a0833bf6630d3ec831f8a4e2238b3dd85279548c0",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 2250,
+        "atWorldMs": 247500000,
+        "fingerprint": "e27736301fd7638bfabe7c3f5e6dda22b581d1039fb1fb1aa378d083746c9372",
+        "memoryFingerprint": "338cddbf66b74a209cb9168f83acedf00f39fdee507a1cffe555d747e2496129",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 2500,
+        "atWorldMs": 255000000,
+        "fingerprint": "ccd515d951344087ac0b04b55997534930b293e830786858399bb57577abc468",
+        "memoryFingerprint": "ccc84d557438bcccc80a7419fbe214acf1640e53b3a9a973b09d20fbff38cfc8",
+        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+      },
+      {
+        "step": 2750,
+        "atWorldMs": 262500000,
+        "fingerprint": "81bf99a0303b16e3e9def2f08538fce2b8618cc76bc9c8b5409805d06ab47083",
+        "memoryFingerprint": "f833fec017736aa1965929e8a7783991fe7b6941d82c295470a8319b652b0da6",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 3000,
+        "atWorldMs": 270000000,
+        "fingerprint": "1afbc893599d8fa8cf417f270ca884ba5b6cc0ebcf18a4e1a058aa4f2bc8557c",
+        "memoryFingerprint": "ebfb4afa230e14a47fd7f948e5085072461a6da137b836e236e6f6adf4233a8d",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 3250,
+        "atWorldMs": 277500000,
+        "fingerprint": "eee278cae3d798b70efb3aa96158108c173ea446fa5a1866433424306e140501",
+        "memoryFingerprint": "ce4183acf8f1e6253dbd2ca7e89d685ba2f3184ec7a97d308f92c14c7fb4331e",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 3500,
+        "atWorldMs": 285000000,
+        "fingerprint": "73287bb1e78bc8cac6edc76e10ab1e86865ef35856cc3bb9b3b510c7cdb16287",
+        "memoryFingerprint": "eb6ed805d533ab47c3c42520346ac99e0282421b28b4898ce37bd2a49f1de4ba",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 3750,
+        "atWorldMs": 292500000,
+        "fingerprint": "ad52452399474fd02e4b5a065d696098185cf10539922d924901c2ae24c98219",
+        "memoryFingerprint": "34f1ea4346a3600b7aa48f954a5973310c1c7f5d10a7d8c4c4f171a3440432e1",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 4000,
+        "atWorldMs": 300000000,
+        "fingerprint": "ea78959b7f2f6d5f9459f96ee6cda91cad87aadcadfd3ad66b5d84ff95e5bb5f",
+        "memoryFingerprint": "0f61963420a125b4a6a6007a60cc77a59e6da29f94fe3efc40ef8edebe62ebff",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 4250,
+        "atWorldMs": 307500000,
+        "fingerprint": "3ab06c95cff029c277191857b79b296960d4692d1a3819ad9bc34f2c70347d5f",
+        "memoryFingerprint": "c6d75bfbe9d05781fe4df154a4627262dbc65a93e61d6d9e0caed26fc0a262a9",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 4500,
+        "atWorldMs": 315000000,
+        "fingerprint": "01b97cba795e1511bcb07b4656408f0ed5aa2bb74a461e5ba82c77b2a3d8f072",
+        "memoryFingerprint": "214c653842e026a56a44f4d3236e6193d8046d36ab8ae3c14d44d4d7ed3fb197",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 4750,
+        "atWorldMs": 322500000,
+        "fingerprint": "32e1af49b9533418b0ff8826ea4903384fb5adfbb96dc3ad10e58d96c4665970",
+        "memoryFingerprint": "46cf9e5b43eda43aece7a36ceed5ab035bd9caf58954446e55a835c618cf24ea",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 5000,
+        "atWorldMs": 330000000,
+        "fingerprint": "2e48769abee700798a36d722720fdaa581419a4d6e68fd3e3513a41f2155fec5",
+        "memoryFingerprint": "f7ce138aa97adf79ebd660328f89031eef515a1739a87291a9f789ea85c53690",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 5250,
+        "atWorldMs": 337500000,
+        "fingerprint": "e8cb02afe4354758d439a11dbda47792f373acb8fee70a0d0d6efd7c3d57b3d7",
+        "memoryFingerprint": "faf230c7b7412f5a38e18fa30fa16a5c4bcac50ae598ba0afcb9d2ee05018f6d",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 5500,
+        "atWorldMs": 345000000,
+        "fingerprint": "edba6378b757d698b63693ff963dc84badf0f47076f4c69ff29793788429e114",
+        "memoryFingerprint": "de5386766c98675e8f81c5df42e44f087400b8a88b5d40b5940c7e11aa6ce8e9",
+        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+      },
+      {
+        "step": 5750,
+        "atWorldMs": 352500000,
+        "fingerprint": "9a218bc6518aeb6e169abdcc832de4cf344d8396e73dc31cd0917e8b5572775c",
+        "memoryFingerprint": "3d7991f47c56f434bc81c7f2a60d48a1b666ab4a6a37051f939ecdd3c1ff3338",
+        "creatorFingerprint": "3060abe318a563126f7b561fde39dca56c4254bf75146083811657ac9476e0e5"
+      },
+      {
+        "step": 6000,
+        "atWorldMs": 360000000,
+        "fingerprint": "e25d22b5ee944d0c91e5517bd7f07b73af16b7a689477758a526ba46b3b304df",
+        "memoryFingerprint": "cd9c1cb912cd3ce844b2d125a021ef9a919be341778ca24cca2d04bbb927cc46",
+        "creatorFingerprint": "3060abe318a563126f7b561fde39dca56c4254bf75146083811657ac9476e0e5"
+      }
+    ],
+    "memory": {
+      "fingerprint": "cd9c1cb912cd3ce844b2d125a021ef9a919be341778ca24cca2d04bbb927cc46",
+      "business": {
+        "lastClosedDay": 4,
+        "currentDay": 4,
+        "holders": 4,
+        "facts": 17,
+        "entries": 9,
+        "claims": 2,
+        "beliefs": 5,
+        "traces": 4,
+        "landmarks": 2,
+        "turningPoints": 0,
+        "legends": 0,
+        "placeNames": 2,
+        "announcements": 0,
+        "written": 2,
+        "credibility": 0,
+        "metToday": 1
+      }
+    },
+    "creator": {
+      "fingerprint": "3060abe318a563126f7b561fde39dca56c4254bf75146083811657ac9476e0e5",
+      "business": {
+        "dayCloses": [
+          {
+            "day": 3,
+            "vitals": {
+              "meanValence": 0.7267,
+              "meanArousal": 0.6,
+              "infoEntropy": 0.3,
+              "isolatedHoldersCount": 0
+            },
+            "shouldInject": false,
+            "eventKind": null,
+            "reasoning": "世界状态健康，无需干预",
+            "fuse": {
+              "action": "requireReview",
+              "reason": "L0 阶段所有生成都要人工逐项确认",
+              "suggestedLevel": null
+            },
+            "proposal": {
+              "templateId": "ink_mill",
+              "at": {
+                "x": 18,
+                "y": 46
+              },
+              "reason": "第 3 天还缺「文档磨坊」，在 (18,46) 找到了合规落点"
+            },
+            "autoEnqueued": false
+          },
+          {
+            "day": 4,
+            "vitals": {
+              "meanValence": 0.54,
+              "meanArousal": 0.5714,
+              "infoEntropy": 0,
+              "isolatedHoldersCount": 0
+            },
+            "shouldInject": false,
+            "eventKind": null,
+            "reasoning": "世界状态健康，无需干预",
+            "fuse": {
+              "action": "requireReview",
+              "reason": "L0 阶段所有生成都要人工逐项确认",
+              "suggestedLevel": null
+            },
+            "proposal": {
+              "templateId": "ink_house",
+              "at": {
+                "x": 35,
+                "y": 42
+              },
+              "reason": "第 4 天还缺「抄书斋」，在 (35,42) 找到了合规落点"
+            },
+            "autoEnqueued": false
+          }
+        ],
+        "proposals": [
+          {
+            "day": 2,
+            "atWorldMs": 199980000,
+            "source": "creatorBuild",
+            "templateId": "code_forge",
+            "at": {
+              "x": 35,
+              "y": 20
+            },
+            "reason": "从存档起步后：人工立起炼码工坊",
+            "accepted": true,
+            "instanceId": "code_forge#2",
+            "fuseAction": "requireReview"
+          },
+          {
+            "day": 3,
+            "atWorldMs": 259200000,
+            "source": "dayClose",
+            "templateId": "ink_mill",
+            "at": {
+              "x": 18,
+              "y": 46
+            },
+            "reason": "第 3 天还缺「文档磨坊」，在 (18,46) 找到了合规落点",
+            "accepted": false,
+            "instanceId": null,
+            "fuseAction": "requireReview"
+          },
+          {
+            "day": 4,
+            "atWorldMs": 345600000,
+            "source": "dayClose",
+            "templateId": "ink_house",
+            "at": {
+              "x": 35,
+              "y": 42
+            },
+            "reason": "第 4 天还缺「抄书斋」，在 (35,42) 找到了合规落点",
+            "accepted": false,
+            "instanceId": null,
+            "fuseAction": "requireReview"
+          }
+        ],
+        "landings": [
+          {
+            "instanceId": "code_forge#2",
+            "templateId": "code_forge",
+            "prefabId": "code_forge",
+            "origin": {
+              "x": 35,
+              "y": 20
+            },
+            "door": {
+              "x": 37,
+              "y": 24
+            },
+            "coverageRate": 0.16666666666666666,
+            "pathfindingConnected": true,
+            "hasCollision": false,
+            "spatialConstraintSatisfied": true,
+            "traceable": true,
+            "replayHashConsistent": false,
+            "hasConflict": false,
+            "invariantViolated": false
+          }
+        ],
+        "roles": [
+          {
+            "roleId": "art_supervisor",
+            "currentLevel": 0,
+            "targetLevel": 3,
+            "isFused": false,
+            "lastRegressionPassed": null,
+            "batches": 0,
+            "days": 2,
+            "totalCommands": 0,
+            "schemaPassCount": 0,
+            "conflictCount": 0,
+            "conflictChecks": 0,
+            "invariantChecks": 0
+          },
+          {
+            "roleId": "auditor",
+            "currentLevel": 0,
+            "targetLevel": 3,
+            "isFused": false,
+            "lastRegressionPassed": null,
+            "batches": 0,
+            "days": 2,
+            "totalCommands": 0,
+            "schemaPassCount": 0,
+            "conflictCount": 0,
+            "conflictChecks": 0,
+            "invariantChecks": 0
+          },
+          {
+            "roleId": "director",
+            "currentLevel": 0,
+            "targetLevel": 3,
+            "isFused": false,
+            "lastRegressionPassed": null,
+            "batches": 0,
+            "days": 2,
+            "totalCommands": 0,
+            "schemaPassCount": 0,
+            "conflictCount": 0,
+            "conflictChecks": 0,
+            "invariantChecks": 0
+          },
+          {
+            "roleId": "historian",
+            "currentLevel": 0,
+            "targetLevel": 3,
+            "isFused": false,
+            "lastRegressionPassed": null,
+            "batches": 0,
+            "days": 2,
+            "totalCommands": 0,
+            "schemaPassCount": 0,
+            "conflictCount": 0,
+            "conflictChecks": 0,
+            "invariantChecks": 0
+          },
+          {
+            "roleId": "interpreter",
+            "currentLevel": 0,
+            "targetLevel": 3,
+            "isFused": false,
+            "lastRegressionPassed": null,
+            "batches": 0,
+            "days": 2,
+            "totalCommands": 0,
+            "schemaPassCount": 0,
+            "conflictCount": 0,
+            "conflictChecks": 0,
+            "invariantChecks": 0
+          },
+          {
+            "roleId": "mapper",
+            "currentLevel": 0,
+            "targetLevel": 3,
+            "isFused": false,
+            "lastRegressionPassed": null,
+            "batches": 0,
+            "days": 2,
+            "totalCommands": 1,
+            "schemaPassCount": 1,
+            "conflictCount": 0,
+            "conflictChecks": 1,
+            "invariantChecks": 1
+          }
+        ]
+      }
+    }
+  }
+}

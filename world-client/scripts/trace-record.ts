@@ -1,103 +1,161 @@
 #!/usr/bin/env node
 /**
- * 轨迹记录器：把一次世界运行冻结成 JSON。
+ * 轨迹记录器（pwe-trace/2）：世界 + 记忆 + 造物三层一起冻结。
  *
  * 用法：
- *   node scripts/trace-record.ts [--out traces/night-rain-build.json]
+ *   node scripts/trace-record.ts
  *
- * 场景是固定的，不读墙钟、不读环境变量：
- *   开局在世界日第 0 天的最后两分钟，跑 7 分 12 秒，跨过日界；
- *   期间注入一条造物神谕、一条拨潮神谕、一次天气变化。
+ * 产出三份东西：
+ *   1. `traces/outer-baseline-v5.json`：一次真实运行导出的 v5 存档（只读证据）；
+ *   2. `traces/outer-two-days.json`：以那份存档为基线、再跨两天的 v2 轨迹；
+ *   3. 控制台读数：三枚指纹、事件、记忆条数、造物账、耗时。
  *
- * 为什么把轨迹落在仓内 `traces/` 而不是仓外：生成出来的回归用例要在 CI 里
- * 单独跑，轨迹必须跟着代码走、能被 review、能被 diff。文件很小（见实测），
- * 放仓外等于让回归用例依赖一台机器的临时目录。
+ * 旧轨迹 `traces/night-rain-build.json` 不动——它是 v1 兼容性的活样本。
+ *
+ * 为什么轨迹落在仓内 `traces/`：生成的回归用例要在 CI 里单独跑，轨迹必须
+ * 跟着代码走、能被 review、能被 diff。
  */
 
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordTrace, runTrace, verifyTrace } from '../src/trace/replay.ts';
-import type { TraceInput, TraceInjection } from '../src/trace/format.ts';
+import type { TraceBaseline, TraceInjection, TraceInput } from '../src/trace/format.ts';
 import { DAY_MS } from '../src/world/memory/config.ts';
 
 const CLIENT_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const DEFAULT_OUT = resolve(CLIENT_ROOT, 'traces/night-rain-build.json');
+const TRACES = resolve(CLIENT_ROOT, 'traces');
+const BASELINE_OUT = resolve(TRACES, 'outer-baseline-v5.json');
+const TRACE_OUT = resolve(TRACES, 'outer-two-days.json');
+const HUGE = Number.MAX_SAFE_INTEGER;
 
-/** 开局：世界日 0 的最后两分钟。 */
-export const INITIAL_NOW = DAY_MS - 120_000;
-const STEP_MS = 120;
-const STEPS = 3_600;
+const STEP_MS = 30_000;
+const STEPS = 6_000;
 
-const BEGIN_MS = INITIAL_NOW + 60_000;
-
-const injections: readonly TraceInjection[] = [
-  {
-    seq: 1,
-    atWorldMs: BEGIN_MS,
-    kind: 'intent',
-    payload: { raw: '建一间书阁' },
-  },
-  {
-    seq: 2,
-    atWorldMs: INITIAL_NOW + 250_000,
-    kind: 'intent',
-    payload: { raw: '涨潮' },
-  },
-  {
-    seq: 3,
-    atWorldMs: INITIAL_NOW + 400_000,
-    kind: 'weather',
-    payload: { weather: 'rain' },
-  },
-];
-
-function scenario(eventRange: { readonly from: number; readonly to: number }): TraceInput {
+function seedInput(eventRange: { readonly from: number; readonly to: number }): TraceInput {
+  const injections: readonly TraceInjection[] = [
+    {
+      seq: 1,
+      atWorldMs: 10_000_000,
+      kind: 'creatorBuild',
+      payload: {
+        templateId: 'star_archive',
+        at: { x: 51, y: 20 },
+        summary: '第 0 天：人工立起星图书阁',
+      },
+    },
+    { seq: 2, atWorldMs: 40_000_000, kind: 'intent', payload: { raw: '涨潮' } },
+    { seq: 3, atWorldMs: 90_000_000, kind: 'weather', payload: { weather: 'rain' } },
+    { seq: 4, atWorldMs: 140_000_000, kind: 'intent', payload: { raw: '点灯' } },
+  ];
   return {
-    format: 'pwe-trace/1',
-    traceVersion: 1,
+    format: 'pwe-trace/2',
+    traceVersion: 2,
     description:
-      '从世界日 0 的最后两分钟起跑 7 分 12 秒：跨日一次，注入造物（建一间书阁）、拨潮（涨潮）、天气（下雨）。时钟只有 initialNow + steps×stepMs，注入按 atWorldMs 进队、同刻按 seq 定先后。',
+      '基线生成跑：从空世界起两天，人工造一栋书阁、拨潮、下雨、点灯；结束时导出 v5 存档当下一段的起点。',
     worldId: 'default',
-    worldSeed: 'pwe-trace-night-rain-build-0001',
-    initialNow: INITIAL_NOW,
+    worldSeed: 'default',
+    initialNow: 0,
     stepMs: STEP_MS,
     steps: STEPS,
     eventRange,
     injections,
+    outer: { memory: true, creator: true },
   };
 }
 
-function main(): void {
-  const at = process.argv.indexOf('--out');
-  const out = at === -1 ? DEFAULT_OUT : resolve(process.argv[at + 1] ?? DEFAULT_OUT);
+function mainInput(
+  baseline: TraceBaseline,
+  eventRange: { readonly from: number; readonly to: number },
+): TraceInput {
+  const injections: readonly TraceInjection[] = [
+    {
+      seq: 1,
+      atWorldMs: baseline.save.world.now + 20_000_000,
+      kind: 'creatorBuild',
+      payload: {
+        templateId: 'code_forge',
+        at: { x: 35, y: 20 },
+        summary: '从存档起步后：人工立起炼码工坊',
+      },
+    },
+    {
+      seq: 2,
+      atWorldMs: baseline.save.world.now + 80_000_000,
+      kind: 'weather',
+      payload: { weather: 'storm' },
+    },
+    {
+      seq: 3,
+      atWorldMs: baseline.save.world.now + 120_000_000,
+      kind: 'intent',
+      payload: { raw: '涨潮' },
+    },
+    {
+      seq: 4,
+      atWorldMs: baseline.save.world.now + 160_000_000,
+      kind: 'intent',
+      payload: { raw: '点灯' },
+    },
+  ];
+  return {
+    format: 'pwe-trace/2',
+    traceVersion: 2,
+    description:
+      '从真实 v5 存档起步，再跨两天（两次日终关账）：一次人工造物（炼码工坊）、一次暴雨、两次神谕。世界、记忆、造物三层都参与指纹。',
+    worldId: 'default',
+    worldSeed: 'default',
+    initialNow: baseline.save.world.now,
+    stepMs: STEP_MS,
+    steps: STEPS,
+    eventRange,
+    injections,
+    outer: { memory: true, creator: true },
+    baseline,
+  };
+}
 
-  // 先把事件区间探出来：录制文件里的 eventRange 必须覆盖这次运行真正发出的世界事件。
-  // 这里用一个大上界跑一次，只为数条数；真正的录制会在 eventRange 定稿后再跑一次。
-  const probe = runTrace(scenario({ from: 0, to: Number.MAX_SAFE_INTEGER }));
-  const input = scenario({ from: 0, to: probe.events.length });
+function sizeOf(path: string): number {
+  return statSync(path).size;
+}
 
-  const trace = recordTrace(input);
-  mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, `${JSON.stringify(trace, null, 2)}\n`, 'utf8');
+async function main(): Promise<void> {
+  mkdirSync(TRACES, { recursive: true });
 
-  const bytes = statSync(out).size;
-  const check = verifyTrace(trace);
-  const firstEvent = trace.recorded.business;
+  const seedProbe = await runTrace(seedInput({ from: 0, to: HUGE }));
+  const seedRange = { from: 0, to: seedProbe.events.length };
+  const seed = await recordTrace(seedInput(seedRange), { captureSave: true });
+  const save = seed.artifacts?.save;
+  if (save === undefined) throw new Error('基线生成没有拿到存档');
+  writeFileSync(BASELINE_OUT, `${JSON.stringify(save, null, 2)}\n`, 'utf8');
+  const baseline: TraceBaseline = {
+    source: 'traces/outer-baseline-v5.json',
+    save,
+  };
+
+  const probe = await runTrace(mainInput(baseline, { from: 0, to: HUGE }));
+  const range = { from: 0, to: probe.events.length };
+  const trace = await recordTrace(mainInput(baseline, range));
+  writeFileSync(TRACE_OUT, `${JSON.stringify(trace, null, 2)}\n`, 'utf8');
+
+  const check = await verifyTrace(trace);
   const startDay = Math.floor(trace.initialNow / DAY_MS);
   const endDay = Math.floor(trace.recorded.business.now / DAY_MS);
+  const memory = trace.recorded.memory?.business;
+  const creator = trace.recorded.creator?.business;
 
   process.stdout.write(
     [
-      `轨迹：${out}`,
-      `大小：${bytes} 字节`,
+      `基线存档：${BASELINE_OUT}（${sizeOf(BASELINE_OUT)} 字节，schemaVersion=${save.schemaVersion}）`,
+      `新轨迹：${TRACE_OUT}（${sizeOf(TRACE_OUT)} 字节）`,
       `世界：${trace.worldId} / seed=${trace.worldSeed}`,
-      `时钟：initialNow=${trace.initialNow}，stepMs=${trace.stepMs}，steps=${trace.steps}，终点=${trace.initialNow + trace.stepMs * trace.steps}`,
+      `时钟：${trace.initialNow} + ${trace.steps} × ${trace.stepMs} = ${trace.initialNow + trace.steps * trace.stepMs}`,
       `跨日：day ${startDay} → ${endDay}`,
-      `事件：${trace.recorded.eventCount} 条（区间 [${trace.eventRange.from}, ${trace.eventRange.to})，摘要 ${trace.recorded.eventDigest}）`,
-      `业务读数：楼 ${firstEvent.buildings} 栋 / 任务 ${firstEvent.tasksTotal}（完成 ${firstEvent.tasksCompleted}）/ 天气 ${firstEvent.weather} / 信仰 ${firstEvent.faithPoints}`,
-      `指纹：${trace.recorded.fingerprint}`,
-      `回放：${check.status}；两次指纹 ${check.fingerprint === check.secondFingerprint ? '逐字相同' : '不同'}；单次 ${check.firstRunMs.toFixed(1)}ms / ${check.secondRunMs.toFixed(1)}ms`,
+      `世界事件：${trace.recorded.eventCount} 条（[${trace.eventRange.from}, ${trace.eventRange.to})，摘要 ${trace.recorded.eventDigest}）`,
+      `世界指纹：${trace.recorded.fingerprint}`,
+      `记忆指纹：${trace.recorded.memory?.fingerprint ?? '(无)'}；关账到 day ${memory?.lastClosedDay ?? '?'}，条目 ${memory?.entries ?? 0}，事实 ${memory?.facts ?? 0}，断言 ${memory?.claims ?? 0}，信念 ${memory?.beliefs ?? 0}`,
+      `造物指纹：${trace.recorded.creator?.fingerprint ?? '(无)'}；日终 ${creator?.dayCloses.length ?? 0} 次，提议 ${creator?.proposals.length ?? 0} 条，落地 ${creator?.landings.length ?? 0} 栋`,
+      `回放结论：${check.status}；三枚指纹两次${check.deterministic ? '逐字相同' : '不同'}；单次 ${check.firstRunMs.toFixed(1)}ms / ${check.secondRunMs.toFixed(1)}ms`,
     ].join('\n') + '\n',
   );
 
@@ -107,6 +165,4 @@ function main(): void {
   }
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main();
-}
+await main();

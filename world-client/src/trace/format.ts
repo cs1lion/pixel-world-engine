@@ -1,30 +1,37 @@
 /** 轨迹文件格式：只描述「跑世界需要哪些输入」，不含任何渲染/浏览器状态。
  *
- * 为什么要一份显式的格式而不是直接把命令数组存下来：
- * 回放要在**无头 Node** 里跑，输入必须能脱离 Phaser、脱离墙钟、
- * 脱离服务端与模型独立重建世界。所以这里只有六样东西：
+ * 版本策略（`pwe-trace/2`，2026-11-03）：
  *
+ *   - **v1（`pwe-trace/1`）**：只覆盖世界层——`worldSeed` / 时钟 / 白名单注入。
+ *     老轨迹继续可读，回放器只校验世界指纹，并明确报「不支持外环字段」。
+ *   - **v2（`pwe-trace/2`）**：在 v1 之上加两样东西：
+ *       `baseline`：一份只读的 v5 存档副本，回放从真实存档起步；
+ *       `outer`：打开 `MemoryRuntime` 与 `CreatorEngine`，并把它们的指纹写进
+ *       `recorded`。旧字段一个没改，所以 v1 读起来不需要迁移。
+ *
+ * 字段自解释：
  *   1. `worldId`：选哪套设定集（`default` / `dengchao`）。
- *   2. `worldSeed`：世界身份的种子。裸 `Simulation` 不消费它
- *      （`ce92d97` 上创世/记忆层没有接进回放器），它由 `inputDigest` 保护；
- *      接入外环后会成为 `seedOf(worldSeed, …)` 的第一段。
+ *   2. `worldSeed`：世界身份种子。v2 起它真的喂给 `CreatorEngine` 的
+ *      `seedOf(worldSeed, day, 'creator', …)`，不再只是元数据。
  *   3. `initialNow`：开局世界时刻（毫秒，从世界零点算，不是日历时间）。
- *   4. `stepMs` / `steps`：固定步长的时钟。`initialNow + steps × stepMs`
- *      就是这次轨迹的终点，**没有一次 `Date.now()`**。
- *   5. `injections`：外部注入的天气 / 意图 / 命令，每条带世界时刻与先后序号。
+ *      给了 `baseline` 时必须等于存档里的 `world.now`。
+ *   4. `stepMs` / `steps`：固定步长的时钟。`Date.now()` 一次都不读。
+ *   5. `injections`：外部注入，每条带世界时刻与先后序号。
  *   6. `eventRange`：这条轨迹覆盖的世界事件序号区间 `[from, to)`。
+ *   7. `baseline`：v5 存档副本（只读，不写回）。有它就从存档中途起步。
+ *   8. `outer`：记忆 / 造物两层是否参与回放。v2 两条都为 true。
  *
- * `recorded` 是录制时算出来的期望值（指纹、事件摘要、业务读数、检查点），
- * 回放器拿它判断「这次重放还是不是那一次世界」。它不是输入，不参与 `inputDigest`。
- *
- * 字段名本身说明语义，`description` 再把上面这段写成一句人话。
+ * `recorded` 是录制时算出来的期望值。它不是输入，不参与 `inputDigest`。
  */
 
 import { createHash } from 'node:crypto';
 import type { Weather } from '../world/types.ts';
+import type { WorldSave } from '../world/save.ts';
 
-export const TRACE_FORMAT = 'pwe-trace/1';
-export const TRACE_VERSION = 1;
+export const TRACE_FORMAT_V1 = 'pwe-trace/1';
+export const TRACE_FORMAT = 'pwe-trace/2';
+export const TRACE_VERSION_V1 = 1;
+export const TRACE_VERSION = 2;
 /** 防御性上限：一条轨迹最多这么多拍，避免读入一个把内存吃光的文件。 */
 export const MAX_TRACE_STEPS = 5_000_000;
 
@@ -46,6 +53,21 @@ export type TraceInjection =
       readonly atWorldMs: number;
       readonly kind: 'command';
       readonly payload: { readonly command: TraceCommand };
+    }
+  | {
+      /**
+       * 一次走造物引擎的人类造物：先 `proposeCreation` 过白名单，再落成
+       * `build` 命令。落地后按场景同一条事后判定回填门禁读数。
+       */
+      readonly seq: number;
+      readonly atWorldMs: number;
+      readonly kind: 'creatorBuild';
+      readonly payload: {
+        readonly templateId: string;
+        readonly at: { readonly x: number; readonly y: number };
+        /** 人给的来由。省略时用计划里的模板名。 */
+        readonly summary?: string;
+      };
     };
 
 /**
@@ -78,6 +100,18 @@ export interface TraceEventRange {
   readonly to: number;
 }
 
+/** v2：一份只读的 v5 存档副本。`source` 只用来告诉人它是哪来的。 */
+export interface TraceBaseline {
+  readonly source: string;
+  readonly save: WorldSave;
+}
+
+/** v2：外环开关。两条都写着 true，表示摘要里必须有这两层的指纹。 */
+export interface TraceOuterConfig {
+  readonly memory: boolean;
+  readonly creator: boolean;
+}
+
 export interface TraceInput {
   readonly format: string;
   readonly traceVersion: number;
@@ -89,6 +123,106 @@ export interface TraceInput {
   readonly steps: number;
   readonly eventRange: TraceEventRange;
   readonly injections: readonly TraceInjection[];
+  /** v2 才有。 */
+  readonly baseline?: TraceBaseline;
+  /** v2 才有。 */
+  readonly outer?: TraceOuterConfig;
+}
+
+/** 记忆层的业务读数。指纹覆盖完整快照，这里只放一眼能读的计数。 */
+export interface TraceMemoryBusiness {
+  readonly lastClosedDay: number;
+  readonly currentDay: number;
+  readonly holders: number;
+  readonly facts: number;
+  readonly entries: number;
+  readonly claims: number;
+  readonly beliefs: number;
+  readonly traces: number;
+  readonly landmarks: number;
+  readonly turningPoints: number;
+  readonly legends: number;
+  readonly placeNames: number;
+  readonly announcements: number;
+  readonly written: number;
+  readonly credibility: number;
+  readonly metToday: number;
+}
+
+/** 一次日终关账：心电图 + 导演决策 + 熔断读数 + 当天的造物提议。 */
+export interface TraceDayClose {
+  readonly day: number;
+  readonly vitals: {
+    readonly meanValence: number;
+    readonly meanArousal: number;
+    readonly infoEntropy: number;
+    readonly isolatedHoldersCount: number;
+  };
+  readonly shouldInject: boolean;
+  readonly eventKind: string | null;
+  readonly reasoning: string;
+  readonly fuse: {
+    readonly action: string;
+    readonly reason: string;
+    readonly suggestedLevel: number | null;
+  };
+  readonly proposal: {
+    readonly templateId: string;
+    readonly at: { readonly x: number; readonly y: number };
+    readonly reason: string;
+  } | null;
+  readonly autoEnqueued: boolean;
+}
+
+/** 一次造物提议（人工或日终自动）。 */
+export interface TraceProposal {
+  readonly day: number;
+  readonly atWorldMs: number;
+  readonly source: 'creatorBuild' | 'dayClose';
+  readonly templateId: string;
+  readonly at: { readonly x: number; readonly y: number };
+  readonly reason: string;
+  readonly accepted: boolean;
+  readonly instanceId: string | null;
+  readonly fuseAction: string;
+}
+
+/** 一次造物落地后的真实读数。 */
+export interface TraceLanding {
+  readonly instanceId: string;
+  readonly templateId: string;
+  readonly prefabId: string;
+  readonly origin: { readonly x: number; readonly y: number };
+  readonly door: { readonly x: number; readonly y: number };
+  readonly coverageRate: number;
+  readonly pathfindingConnected: boolean;
+  readonly hasCollision: boolean;
+  readonly spatialConstraintSatisfied: boolean;
+  readonly traceable: boolean;
+  readonly replayHashConsistent: boolean | null;
+  readonly hasConflict: boolean;
+  readonly invariantViolated: boolean;
+}
+
+/** 造物账摘要。指纹是它的 sha256；数组顺序由回放顺序决定。 */
+export interface TraceCreatorBusiness {
+  readonly dayCloses: readonly TraceDayClose[];
+  readonly proposals: readonly TraceProposal[];
+  readonly landings: readonly TraceLanding[];
+  readonly roles: readonly {
+    readonly roleId: string;
+    readonly currentLevel: number;
+    readonly targetLevel: number;
+    readonly isFused: boolean;
+    readonly lastRegressionPassed: boolean | null;
+    readonly batches: number;
+    readonly days: number;
+    readonly totalCommands: number;
+    readonly schemaPassCount: number;
+    readonly conflictCount: number;
+    readonly conflictChecks: number;
+    readonly invariantChecks: number;
+  }[];
 }
 
 /** 录制时留下的期望值。回放器逐项核对，不是「跑完就算过」。 */
@@ -105,14 +239,28 @@ export interface TraceRecorded {
   readonly business: TraceBusiness;
   /** 每 `checkpointEvery` 拍记一次指纹，用来定位第一处分歧。 */
   readonly checkpoints: readonly TraceCheckpoint[];
+  /** v2：记忆层终局指纹与计数。 */
+  readonly memory?: {
+    readonly fingerprint: string;
+    readonly business: TraceMemoryBusiness;
+  };
+  /** v2：造物账终局指纹与摘要。 */
+  readonly creator?: {
+    readonly fingerprint: string;
+    readonly business: TraceCreatorBusiness;
+  };
 }
 
 export interface TraceCheckpoint {
-  /** 跑完第几拍（1 起）。 */
+  /** 跑完第几拍（0 = 开局、还没推进世界）。 */
   readonly step: number;
   /** 那一拍的世界时刻。 */
   readonly atWorldMs: number;
   readonly fingerprint: string;
+  /** v2：那一拍的记忆指纹。 */
+  readonly memoryFingerprint?: string;
+  /** v2：那一拍的造物账指纹。 */
+  readonly creatorFingerprint?: string;
 }
 
 export interface TraceBusiness {
@@ -130,6 +278,13 @@ export interface TraceBusiness {
 
 export interface TraceFile extends TraceInput {
   readonly recorded: TraceRecorded;
+}
+
+/** 旧格式能读到哪一层、缺了什么。CLI 与生成器都照这一句说人话。 */
+export interface TraceCompatibility {
+  readonly version: number;
+  readonly outerSupported: boolean;
+  readonly message: string;
 }
 
 export class TraceFormatError extends Error {}
@@ -168,7 +323,7 @@ export function sha256Hex(text: string): string {
 
 /** 只取输入字段，丢掉 `recorded`。顺序固定，所以摘要可复算。 */
 export function inputOf(trace: TraceInput): TraceInput {
-  return {
+  const base: TraceInput = {
     format: trace.format,
     traceVersion: trace.traceVersion,
     description: trace.description,
@@ -180,10 +335,35 @@ export function inputOf(trace: TraceInput): TraceInput {
     eventRange: trace.eventRange,
     injections: trace.injections,
   };
+  return {
+    ...base,
+    ...(trace.baseline === undefined ? {} : { baseline: trace.baseline }),
+    ...(trace.outer === undefined ? {} : { outer: trace.outer }),
+  };
 }
 
 export function digestOfInput(trace: TraceInput): string {
   return sha256Hex(canonicalJson(inputOf(trace)));
+}
+
+export function compatibilityOf(input: TraceInput): TraceCompatibility {
+  if (input.traceVersion === TRACE_VERSION_V1) {
+    return {
+      version: 1,
+      outerSupported: false,
+      message: '旧格式轨迹（pwe-trace/1）：不支持外环字段，只校验世界指纹与事件区间。',
+    };
+  }
+  return {
+    version: 2,
+    outerSupported: true,
+    message: '外环字段：记忆指纹 + 造物账摘要都参与校验。',
+  };
+}
+
+export function outerOf(input: TraceInput): TraceOuterConfig | null {
+  if (input.traceVersion === TRACE_VERSION_V1) return null;
+  return input.outer ?? { memory: true, creator: true };
 }
 
 /** 读入一份轨迹后先过这一关：形状不对就别开始跑世界。 */
@@ -199,8 +379,17 @@ export function traceProblems(input: unknown): string[] {
   if (typeof input !== 'object' || input === null) return ['顶层不是对象'];
   const raw = input as Record<string, unknown>;
 
-  if (raw.format !== TRACE_FORMAT) problems.push(`format 必须是 ${TRACE_FORMAT}`);
-  if (raw.traceVersion !== TRACE_VERSION) problems.push(`traceVersion 必须是 ${TRACE_VERSION}`);
+  const version =
+    raw.format === TRACE_FORMAT_V1 && raw.traceVersion === TRACE_VERSION_V1
+      ? 1
+      : raw.format === TRACE_FORMAT && raw.traceVersion === TRACE_VERSION
+        ? 2
+        : null;
+  if (version === null) {
+    problems.push(
+      `format/traceVersion 必须成对出现：${TRACE_FORMAT_V1}/${TRACE_VERSION_V1} 或 ${TRACE_FORMAT}/${TRACE_VERSION}`,
+    );
+  }
   if (typeof raw.description !== 'string' || raw.description.trim() === '') {
     problems.push('description 必须是非空字符串');
   }
@@ -230,8 +419,20 @@ export function traceProblems(input: unknown): string[] {
   const injections = raw.injections;
   if (!Array.isArray(injections)) {
     problems.push('injections 必须是数组');
-    return problems;
+  } else {
+    problems.push(...injectionProblems(injections, raw));
   }
+
+  if (version === 2) {
+    problems.push(...baselineProblems(raw.baseline, raw.initialNow));
+    problems.push(...outerProblems(raw.outer));
+  }
+
+  return problems;
+}
+
+function injectionProblems(injections: readonly unknown[], raw: Record<string, unknown>): string[] {
+  const problems: string[] = [];
   const seen = new Set<number>();
   const end = isInteger(raw.initialNow) && isInteger(raw.stepMs) && isInteger(raw.steps)
     ? raw.initialNow + raw.stepMs * raw.steps
@@ -255,8 +456,13 @@ export function traceProblems(input: unknown): string[] {
         problems.push(`${label}.atWorldMs 超出轨迹终点 ${end}`);
       }
     }
-    if (injection.kind !== 'weather' && injection.kind !== 'intent' && injection.kind !== 'command') {
-      problems.push(`${label}.kind 只能是 weather / intent / command`);
+    if (
+      injection.kind !== 'weather'
+      && injection.kind !== 'intent'
+      && injection.kind !== 'command'
+      && injection.kind !== 'creatorBuild'
+    ) {
+      problems.push(`${label}.kind 只能是 weather / intent / command / creatorBuild`);
       continue;
     }
     const payload = injection.payload;
@@ -272,6 +478,14 @@ export function traceProblems(input: unknown): string[] {
     } else if (injection.kind === 'intent') {
       if (typeof body.raw !== 'string' || body.raw.trim() === '') {
         problems.push(`${label}.payload.raw 必须是非空字符串`);
+      }
+    } else if (injection.kind === 'creatorBuild') {
+      if (typeof body.templateId !== 'string' || body.templateId.trim() === '') {
+        problems.push(`${label}.payload.templateId 必须是非空字符串`);
+      }
+      if (!isPoint(body.at)) problems.push(`${label}.payload.at 必须是 { x, y }`);
+      if (body.summary !== undefined && typeof body.summary !== 'string') {
+        problems.push(`${label}.payload.summary 必须是字符串`);
       }
     } else {
       const command = body.command;
@@ -292,6 +506,52 @@ export function traceProblems(input: unknown): string[] {
     }
   }
   return problems;
+}
+
+function baselineProblems(value: unknown, initialNow: unknown): string[] {
+  if (value === undefined) return [];
+  if (typeof value !== 'object' || value === null) return ['baseline 必须是 { source, save }'];
+  const baseline = value as Record<string, unknown>;
+  const problems: string[] = [];
+  if (typeof baseline.source !== 'string' || baseline.source.trim() === '') {
+    problems.push('baseline.source 必须是非空字符串');
+  }
+  const save = baseline.save;
+  if (typeof save !== 'object' || save === null) {
+    problems.push('baseline.save 必须是 WorldSave');
+    return problems;
+  }
+  const record = save as Record<string, unknown>;
+  if (record.schemaVersion !== 5) problems.push('baseline.save.schemaVersion 必须是 5');
+  const world = record.world;
+  if (typeof world !== 'object' || world === null) {
+    problems.push('baseline.save.world 必须是对象');
+  } else {
+    const body = world as Record<string, unknown>;
+    if (!isInteger(body.now) || body.now < 0) problems.push('baseline.save.world.now 必须是非负整数');
+    if (isInteger(initialNow) && isInteger(body.now) && body.now !== initialNow) {
+      problems.push(`initialNow=${initialNow} 与存档 world.now=${body.now} 不一致`);
+    }
+    if (typeof body.memory !== 'string') problems.push('baseline.save.world.memory 必须是字符串');
+    if (!Array.isArray(body.buildings)) problems.push('baseline.save.world.buildings 必须是数组');
+    if (!Array.isArray(body.villagers)) problems.push('baseline.save.world.villagers 必须是数组');
+  }
+  return problems;
+}
+
+function outerProblems(value: unknown): string[] {
+  if (value === undefined) return ['pwe-trace/2 必须带 outer：{ memory, creator }'];
+  if (typeof value !== 'object' || value === null) return ['outer 必须是 { memory, creator }'];
+  const outer = value as Record<string, unknown>;
+  if (typeof outer.memory !== 'boolean') return ['outer.memory 必须是布尔值'];
+  if (typeof outer.creator !== 'boolean') return ['outer.creator 必须是布尔值'];
+  return [];
+}
+
+function isPoint(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const point = value as Record<string, unknown>;
+  return isInteger(point.x) && isInteger(point.y);
 }
 
 function isInteger(value: unknown): value is number {

@@ -1,0 +1,814 @@
+/** 回放运行时：把世界、记忆、造物三层的接线从 `SandboxScene` 搬进无头 Node。
+ *
+ * 这里只搬运**场景已经做过的事**，不新写规则：
+ *   - `Simulation.onChange` → `MemoryRuntime.observe`（`observationOf` 同一张翻译表）；
+ *   - 每拍 `syncHolders` + 建筑地点 + `lookAtTraces`，再 `memory.tick(now)`；
+ *   - 跨日 `onVitals` → `CreatorEngine.closeWorldDay` / `processDayClosed`，
+ *     按熔断读数决定要不要自动提议，落地方走 `Simulation.enqueue({kind:'build'})`；
+ *   - 之后按场景同一条事后判定回填 `submitHumanApproval` 的门禁读数。
+ *
+ * **只读 `creator/fuse.ts` 的公开输出**：`getFuseDecision`、`getAllRoleStates`、
+ * `closeWorldDay`、`processDayClosed`、`planCreation`、`submitHumanApproval`。
+ * 一条记账逻辑都没有改。
+ */
+
+import { selectSetting, worldForSetting, routineProfiles } from '../settings/index.ts';
+import type { SettingPack } from '../settings/types.ts';
+import type { BuiltWorld } from '../world/setup.ts';
+import { biomeRingAllows, checkPlacement, placeBlueprint } from '../world/setup.ts';
+import { Simulation } from '../world/simulation.ts';
+import type { NewBuilding, SimulationDeps } from '../world/simulation.ts';
+import { fogAt } from '../world/fog.ts';
+import { footfallPlace, cellPlaceId } from '../world/ambient.ts';
+import { DAY_MS } from '../world/memory/config.ts';
+import { MemoryRuntime } from '../world/memory/runtime.ts';
+import type { MemoryRuntimeSnapshot, RuntimeObservation } from '../world/memory/runtime.ts';
+import type { MemoryEvent } from '../world/memory/types.ts';
+import { observationOf } from '../world/memory/observe.ts';
+import type { LandmarkEvent } from '../world/memory/landmark.ts';
+import { CreatorEngine } from '../creator/engine.ts';
+import type { CreatorWorldView } from '../creator/engine.ts';
+import { checkLandedBuilding, creationCoverage } from '../creator/business-rules.ts';
+import type { LandedCreation } from '../creator/landing.ts';
+import { freezeCreatorView, landingReachable, verifyCreationReplay } from '../creator/landing.ts';
+import type { CreationPlan } from '../world/creator-schema.ts';
+import type { WorldChange } from '../world/world-changes.ts';
+import type {
+  GridPoint,
+  PlacedBuilding,
+  WorldEvent,
+  WorldSnapshot,
+} from '../world/types.ts';
+import type { WorldSave } from '../world/save.ts';
+import {
+  canonicalJson,
+  sha256Hex,
+  TraceFormatError,
+} from './format.ts';
+import type {
+  TraceCommand,
+  TraceCreatorBusiness,
+  TraceDayClose,
+  TraceInjection,
+  TraceInput,
+  TraceLanding,
+  TraceMemoryBusiness,
+  TraceProposal,
+} from './format.ts';
+
+export interface CapturedEvent {
+  readonly seq: number;
+  readonly at: number;
+  readonly tone: WorldEvent['tone'];
+  readonly text: string;
+}
+
+interface PendingCreation {
+  readonly plan: CreationPlan;
+  readonly day: number;
+  readonly traceable: boolean;
+  readonly recompute: () => CreationPlan | null;
+  readonly summary: string;
+}
+
+export interface RuntimeFingerprints {
+  readonly world: string;
+  readonly memory: string | null;
+  readonly creator: string | null;
+}
+
+export interface StepCheckpoint extends RuntimeFingerprints {
+  readonly step: number;
+  readonly atWorldMs: number;
+}
+
+export class TraceRuntime {
+  readonly input: TraceInput;
+  readonly pack: SettingPack;
+  readonly world: BuiltWorld;
+  readonly sim: Simulation;
+  readonly memory: MemoryRuntime | null;
+  readonly creator: CreatorEngine | null;
+  readonly events: CapturedEvent[] = [];
+  readonly memoryEvents: MemoryEvent[] = [];
+  readonly proposals: TraceProposal[] = [];
+  readonly landings: TraceLanding[] = [];
+  readonly dayCloses: TraceDayClose[] = [];
+  readonly checkpoints: StepCheckpoint[] = [];
+
+  private capturedSeq = 0;
+  private memoryEventSerial = 0;
+  private seenDay = -1;
+  private readonly seenToday = new Set<string>();
+  private placeHolders: ReadonlySet<string> = new Set();
+  private readonly pendingCreations = new Map<string, PendingCreation>();
+  private settlementPromises: Promise<void>[] = [];
+  private readonly isLegacyWorld: boolean;
+
+  constructor(input: TraceInput) {
+    this.input = input;
+    this.isLegacyWorld = input.worldId === 'default';
+    const search = input.worldId === 'default' ? '' : `?world=${encodeURIComponent(input.worldId)}`;
+    try {
+      this.pack = selectSetting(search);
+    } catch (error) {
+      throw new TraceFormatError(
+        `worldId=${input.worldId} 没有对应的设定集：${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const baseline = input.baseline;
+    this.world = baseline === undefined
+      ? worldForSetting(this.pack)
+      : worldForSetting(this.pack, baseline.save.world.buildings);
+
+    const outer = input.outer;
+    this.memory = outer?.memory === true
+      ? new MemoryRuntime({
+          worldId: input.worldId,
+          occlusion: this.world.grid,
+          insideAt: (point) => this.buildingIdAt(point),
+          placeIndoor: (placeId) =>
+            this.sim.snapshot().buildings.some((building) => building.instanceId === placeId),
+          onVitals: (vitals) => this.handleVitals(vitals),
+          onEvent: (event) => this.memoryEvents.push(event),
+        })
+      : null;
+    if (this.memory !== null && baseline !== undefined) {
+      const text = baseline.save.world.memory;
+      const restored = this.memory.fromJSON(text);
+      if (!restored && text !== '') {
+        throw new TraceFormatError('baseline 里的记忆段无法复原：形状不认识或版本高于当前');
+      }
+    }
+    this.creator = outer?.creator === true
+      ? new CreatorEngine(this.pack, {
+          worldSeed: input.worldSeed,
+          worldTime: () => this.sim.snapshot().now,
+          world: this.world,
+        })
+      : null;
+
+    this.sim = this.createSimulation(baseline?.save);
+    if (this.memory !== null) {
+      this.sim.connectVerification({
+        probe: (holderId) =>
+          this.memory!.pendingVerifications(holderId).map((plan) => ({
+            placeId: plan.placeId,
+            claimId: plan.claimId,
+          })),
+        settle: (holderId, claimId) => this.memory!.settleVerification(holderId, claimId),
+      });
+    }
+  }
+
+  private createSimulation(baseline: WorldSave | undefined): Simulation {
+    const blueprints = this.pack.blueprints;
+    const deps: SimulationDeps = {
+      grid: this.world.grid,
+      buildings: this.world.buildings,
+      altar: this.world.altar,
+      villagerName: this.pack.villagers[0]?.name ?? '莞尔',
+      wallClock: () => 0,
+      blueprints,
+      worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+      spawnBuilding: (
+        prefabId: string,
+        instanceId: string,
+        at?: GridPoint,
+        source?: { readonly taskId: string; readonly summary: string },
+      ): NewBuilding | null => {
+        const blueprint = blueprints.get(prefabId);
+        if (blueprint === undefined) return null;
+        return placeBlueprint(this.world.grid, blueprint, instanceId, this.world.altar, at, source);
+      },
+      onChange: (change, at) => this.handleChange(change, at),
+      ...(this.pack.villagers.length > 0
+        ? {
+            villagerNames: this.pack.villagers.map((villager) => villager.name),
+            villagerProfiles: routineProfiles(this.pack),
+          }
+        : {}),
+      ...(this.pack.regions.length > 0
+        ? { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }
+        : {}),
+      ...(this.pack.propReveals !== undefined ? { propReveals: this.pack.propReveals } : {}),
+      ...(this.pack.authored === true ? { authored: true } : {}),
+    };
+    return baseline === undefined
+      ? new Simulation({ ...deps, initialNow: this.input.initialNow })
+      : Simulation.fromSave(baseline, deps);
+  }
+
+  /** 跑一拍：世界先走，落地观测结算，然后记忆层对齐与关账。 */
+  async step(deltaMs: number): Promise<void> {
+    this.sim.update(deltaMs);
+    this.collectEvents();
+    await this.settlePendingLandings();
+    this.stepMemory();
+  }
+
+  /** 一条轨迹注入。世界命令走同一个 `enqueue`；造物走引擎校验后的 build。 */
+  applyInjection(injection: TraceInjection): void {
+    if (injection.kind === 'weather') {
+      this.sim.enqueue({ kind: 'setWeather', weather: injection.payload.weather });
+      return;
+    }
+    if (injection.kind === 'intent') {
+      this.sim.enqueue({ kind: 'oracle', raw: injection.payload.raw });
+      return;
+    }
+    if (injection.kind === 'command') {
+      this.sim.enqueue(toWorldCommand(injection.payload.command));
+      return;
+    }
+    this.applyCreatorBuild(injection.payload);
+  }
+
+  private applyCreatorBuild(payload: {
+    readonly templateId: string;
+    readonly at: GridPoint;
+    readonly summary?: string;
+  }): void {
+    const creator = this.creator;
+    if (creator === null) {
+      throw new TraceFormatError('轨迹里有 creatorBuild，但 outer.creator 不是 true');
+    }
+    const snapshot = this.sim.snapshot();
+    const day = Math.floor(snapshot.now / DAY_MS);
+    const view = this.creatorWorldView(snapshot);
+    const frozen = freezeCreatorView(
+      view,
+      [...this.pack.blueprints.keys()].filter((id) => !view.builtPrefabIds.has(id)),
+    );
+    const plan = creator.proposeCreation({
+      templateId: payload.templateId,
+      at: payload.at,
+      worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+    });
+    const reason = payload.summary ?? `第 ${day} 天人工造物：${plan.templateId}`;
+    const instanceId = this.sim.nextInstanceId(plan.templateId);
+    this.pendingCreations.set(instanceId, {
+      plan,
+      day,
+      traceable: true,
+      recompute: () => creator.planCreation(frozen),
+      summary: reason,
+    });
+    this.proposals.push({
+      day,
+      atWorldMs: snapshot.now,
+      source: 'creatorBuild',
+      templateId: plan.templateId,
+      at: plan.at,
+      reason,
+      accepted: true,
+      instanceId,
+      fuseAction: creator.getFuseDecision('mapper').action,
+    });
+    this.sim.enqueue({
+      kind: 'build',
+      prefabId: plan.templateId,
+      instanceId,
+      at: plan.at,
+      source: { taskId: `creator-${plan.templateId}`, summary: reason },
+    });
+  }
+
+  /** 场景同款的 `onChange`：记忆记一条，造物落地后补事后判定。 */
+  private handleChange(change: WorldChange, at: number): void {
+    const memory = this.memory;
+    if (memory !== null) {
+      this.memoryEventSerial += 1;
+      const observation = observationOf(change, `mem_${this.memoryEventSerial}`, {
+        atOfHolder: (holderId) => {
+          const villager = this.sim.snapshot().villagers.find((item) => item.id === holderId);
+          return villager === undefined ? undefined : { x: villager.pos.x, y: villager.pos.y };
+        },
+        atOfBuilding: (instanceId) => {
+          const live = this.sim.buildingById(instanceId);
+          const building =
+            live ?? this.sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
+          return building === undefined ? undefined : { x: building.door.x, y: building.door.y };
+        },
+        buildingOfTask: (taskId) =>
+          this.sim.snapshot().tasks.find((item) => item.id === taskId)?.buildingId ?? undefined,
+      });
+      if (observation !== null) {
+        const landmark = this.landmarkEventOf(change);
+        const withLandmark: RuntimeObservation =
+          landmark === undefined ? observation : { ...observation, landmark };
+        memory.observe(withLandmark, undefined, at);
+      }
+    }
+    if (change.change === 'building.built' && this.creator !== null) {
+      this.settlementPromises.push(this.settleLanding(change.instanceId));
+    }
+  }
+
+  private landmarkEventOf(change: WorldChange): LandmarkEvent | undefined {
+    if (change.change !== 'building.built' && change.change !== 'building.removed') return undefined;
+    const building =
+      this.sim.buildingById(change.instanceId)
+      ?? this.sim.snapshot().buildings.find((item) => item.instanceId === change.instanceId);
+    if (building === undefined) return undefined;
+    return {
+      change: change.change === 'building.built' ? 'built' : 'removed',
+      displayName: change.displayName,
+      origin: { x: building.origin.x, y: building.origin.y },
+      footprint: { w: building.footprint.w, h: building.footprint.h },
+    };
+  }
+
+  /** 落地之后的门禁读数，与 `SandboxScene.settleCreationObservation` 同一套。 */
+  private async settleLanding(instanceId: string): Promise<void> {
+    const pending = this.pendingCreations.get(instanceId);
+    if (pending === undefined) return;
+    this.pendingCreations.delete(instanceId);
+    const creator = this.creator;
+    if (creator === null) return;
+    const snapshot = this.sim.snapshot();
+    const building = snapshot.buildings.find((item) => item.instanceId === instanceId);
+    if (building === undefined) return;
+    const landed: LandedCreation = {
+      instanceId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+    };
+    const replayed = pending.recompute();
+    const replay =
+      replayed === null
+        ? null
+        : verifyCreationReplay({
+            plan: pending.plan,
+            replayed,
+            landed,
+            day: pending.day,
+            blueprints: this.pack.blueprints,
+          });
+    const pathfindingConnected = landingReachable(this.world, landed);
+    const coverageRate = creationCoverage(snapshot, this.pack.blueprints);
+    const business = await checkLandedBuilding(
+      {
+        snapshot,
+        grid: this.world.grid,
+        altar: this.world.altar,
+        blueprints: this.pack.blueprints,
+      },
+      landed,
+    );
+    creator.submitHumanApproval('mapper', instanceId, true, undefined, {
+      coverageRate,
+      pathfindingConnected,
+      hasCollision: false,
+      spatialConstraintSatisfied: true,
+      traceable: pending.traceable,
+      hasConflict: business.hasConflict,
+      invariantViolated: business.invariantViolated,
+      ...(replay === null ? {} : { replayHashConsistent: replay }),
+    });
+    this.landings.push({
+      instanceId,
+      templateId: pending.plan.templateId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+      coverageRate,
+      pathfindingConnected,
+      hasCollision: false,
+      spatialConstraintSatisfied: true,
+      traceable: pending.traceable,
+      replayHashConsistent: replay,
+      hasConflict: business.hasConflict,
+      invariantViolated: business.invariantViolated,
+    });
+  }
+
+  private async settlePendingLandings(): Promise<void> {
+    if (this.settlementPromises.length === 0) return;
+    const pending = this.settlementPromises;
+    this.settlementPromises = [];
+    await Promise.all(pending);
+  }
+
+  /** 世界日关账：心电图 → 熔断结算 → 导演决策 → 当天的造物提议。 */
+  private handleVitals(vitals: {
+    readonly day: number;
+    readonly meanValence: number;
+    readonly meanArousal: number;
+    readonly infoEntropy: number;
+    readonly isolatedHoldersCount: number;
+  }): void {
+    const creator = this.creator;
+    if (creator === null) return;
+    creator.closeWorldDay();
+    const decision = creator.processDayClosed({
+      meanValence: vitals.meanValence,
+      meanArousal: vitals.meanArousal,
+      infoEntropy: vitals.infoEntropy,
+      isolatedHoldersCount: vitals.isolatedHoldersCount,
+    });
+    const fuse = creator.getFuseDecision('mapper');
+    const snapshot = this.sim.snapshot();
+    const view = this.creatorWorldView(snapshot);
+    const proposal = creator.planCreation(view);
+    let autoEnqueued = false;
+    if (fuse.action === 'allow' && proposal !== null) {
+      const frozen = freezeCreatorView(
+        view,
+        [...this.pack.blueprints.keys()].filter((id) => !view.builtPrefabIds.has(id)),
+      );
+      const instanceId = this.sim.nextInstanceId(proposal.templateId);
+      this.pendingCreations.set(instanceId, {
+        plan: proposal,
+        day: view.day,
+        traceable: true,
+        recompute: () => creator.planCreation(frozen),
+        summary: proposal.reason,
+      });
+      this.proposals.push({
+        day: view.day,
+        atWorldMs: snapshot.now,
+        source: 'dayClose',
+        templateId: proposal.templateId,
+        at: proposal.at,
+        reason: proposal.reason,
+        accepted: true,
+        instanceId,
+        fuseAction: fuse.action,
+      });
+      this.sim.enqueue({
+        kind: 'build',
+        prefabId: proposal.templateId,
+        instanceId,
+        at: proposal.at,
+        source: { taskId: `creator-${proposal.templateId}`, summary: proposal.reason },
+      });
+      autoEnqueued = true;
+    } else if (proposal !== null) {
+      this.proposals.push({
+        day: view.day,
+        atWorldMs: snapshot.now,
+        source: 'dayClose',
+        templateId: proposal.templateId,
+        at: proposal.at,
+        reason: proposal.reason,
+        accepted: false,
+        instanceId: null,
+        fuseAction: fuse.action,
+      });
+    }
+    this.dayCloses.push({
+      day: view.day,
+      vitals: {
+        meanValence: vitals.meanValence,
+        meanArousal: vitals.meanArousal,
+        infoEntropy: vitals.infoEntropy,
+        isolatedHoldersCount: vitals.isolatedHoldersCount,
+      },
+      shouldInject: decision.shouldInject,
+      eventKind: decision.eventKind ?? null,
+      reasoning: decision.reasoning,
+      fuse: {
+        action: fuse.action,
+        reason: fuse.reason,
+        suggestedLevel: fuse.suggestedLevel ?? null,
+      },
+      proposal: proposal === null
+        ? null
+        : { templateId: proposal.templateId, at: proposal.at, reason: proposal.reason },
+      autoEnqueued,
+    });
+  }
+
+  /** 喂给造物引擎的世界现状。与 `SandboxScene.creatorWorldView` 同一套判据。 */
+  private creatorWorldView(snapshot: WorldSnapshot): CreatorWorldView {
+    return {
+      day: Math.floor(snapshot.now / DAY_MS),
+      builtPrefabIds: new Set(snapshot.buildings.map((building) => building.prefabId)),
+      width: this.world.grid.width,
+      height: this.world.grid.height,
+      canPlace: (prefabId: string, at: GridPoint) => {
+        const blueprint = this.pack.blueprints.get(prefabId);
+        if (blueprint === undefined) return false;
+        if (fogAt(at, snapshot.fog)) return false;
+        if (!checkPlacement(this.world.grid, blueprint, at).ok) return false;
+        return biomeRingAllows(prefabId, at, this.world.altar);
+      },
+    };
+  }
+
+  /** 记忆层跟上世界：位置、地点名册、痕迹、跨日关账。 */
+  private stepMemory(): void {
+    const memory = this.memory;
+    if (memory === null) return;
+    const snapshot = this.sim.snapshot();
+    memory.syncHolders(
+      snapshot.villagers.map((villager) => ({
+        holderId: villager.id,
+        type: 'character' as const,
+        at: { x: villager.pos.x, y: villager.pos.y },
+      })),
+    );
+    this.sightsee(snapshot);
+    memory.tick(snapshot.now);
+  }
+
+  private sightsee(snapshot: WorldSnapshot): void {
+    const memory = this.memory;
+    if (memory === null) return;
+    const day = Math.floor(snapshot.now / DAY_MS);
+    if (this.seenDay !== day) {
+      this.seenDay = day;
+      this.seenToday.clear();
+    }
+    const landmarkCells = this.landmarkCellsOf(snapshot);
+    memory.syncHolders([
+      ...snapshot.buildings.map((building) => ({
+        holderId: building.instanceId,
+        type: 'place' as const,
+        at: { x: building.door.x, y: building.door.y },
+        name: building.displayName,
+      })),
+      ...landmarkCells.map((cell) => ({
+        holderId: cellPlaceId(cell),
+        type: 'place' as const,
+        at: { x: cell.x, y: cell.y },
+      })),
+    ]);
+    const standing = new Set(snapshot.buildings.map((building) => building.instanceId));
+    for (const placeId of this.placeHolders) {
+      if (standing.has(placeId)) continue;
+      memory.removePlace(placeId);
+    }
+    this.placeHolders = standing;
+    const places = [...standing, ...landmarkCells.map((cell) => cellPlaceId(cell))];
+    for (const villager of snapshot.villagers) {
+      for (const placeId of places) {
+        const key = `${villager.id}\u0000${placeId}`;
+        if (this.seenToday.has(key)) continue;
+        const inferred = memory.lookAtTraces(villager.id, placeId);
+        if (inferred.length === 0) continue;
+        this.seenToday.add(key);
+      }
+    }
+  }
+
+  /** 设定集作息落点里不归楼的那些；老世界（莞尔镇）一个都不登记。 */
+  private landmarkCellsOf(snapshot: WorldSnapshot): readonly GridPoint[] {
+    if (this.isLegacyWorld) return [];
+    const doorways = snapshot.buildings.map((building) => ({
+      instanceId: building.instanceId,
+      x: building.door.x,
+      y: building.door.y,
+    }));
+    const cells: GridPoint[] = [];
+    const seen = new Set<string>();
+    for (const villager of this.pack.villagers) {
+      for (const stop of villager.routine) {
+        const key = `${stop.x},${stop.y}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (footfallPlace(stop, doorways) !== cellPlaceId(stop)) continue;
+        cells.push({ x: stop.x, y: stop.y });
+      }
+    }
+    cells.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    return cells;
+  }
+
+  private buildingIdAt(point: GridPoint): string | null {
+    for (const building of this.sim.snapshot().buildings) {
+      const { origin, footprint } = building;
+      if (
+        point.x >= origin.x
+        && point.y >= origin.y
+        && point.x < origin.x + footprint.w
+        && point.y < origin.y + footprint.h
+      ) {
+        return building.instanceId;
+      }
+    }
+    return null;
+  }
+
+  private collectEvents(): void {
+    const total = this.sim.eventCount();
+    for (let seq = this.capturedSeq; seq < total; seq += 1) {
+      const event = this.sim.eventAt(seq);
+      if (event === null) {
+        throw new TraceFormatError(
+          `世界事件 #${seq} 已被 60 条窗口挤掉；这一拍的事件太密，回放会漏。`,
+        );
+      }
+      this.events.push({ seq, at: event.at, tone: event.tone, text: event.text });
+    }
+    this.capturedSeq = total;
+  }
+
+  snapshot(): WorldSnapshot {
+    return this.sim.snapshot();
+  }
+
+  memorySnapshot(): MemoryRuntimeSnapshot | null {
+    return this.memory === null ? null : this.memory.toSnapshot();
+  }
+
+  memoryBusiness(): TraceMemoryBusiness | null {
+    const snapshot = this.memorySnapshot();
+    if (snapshot === null) return null;
+    return {
+      lastClosedDay: snapshot.lastClosedDay,
+      currentDay: snapshot.world.currentDay,
+      holders: snapshot.world.holders.length,
+      facts: snapshot.world.facts.length,
+      entries: snapshot.world.entries.length,
+      claims: snapshot.world.claims.length,
+      beliefs: snapshot.world.beliefs.length,
+      traces: snapshot.world.traces.reduce((sum, item) => sum + item.entries.length, 0),
+      landmarks: snapshot.world.landmarks.length,
+      turningPoints: snapshot.world.turningPoints.length,
+      legends: snapshot.world.legends.length,
+      placeNames: snapshot.world.placeNames.length,
+      announcements: snapshot.world.announcements.length,
+      written: snapshot.world.written.length,
+      credibility: snapshot.world.credibility.length,
+      metToday: snapshot.world.metToday.length,
+    };
+  }
+
+  memoryFingerprint(): string | null {
+    const snapshot = this.memorySnapshot();
+    return snapshot === null ? null : sha256Hex(canonicalJson(snapshot));
+  }
+
+  creatorBusiness(): TraceCreatorBusiness | null {
+    const creator = this.creator;
+    if (creator === null) return null;
+    const roles = [...creator.getAllRoleStates().values()]
+      .sort((a, b) => a.roleId.localeCompare(b.roleId))
+      .map((role) => ({
+        roleId: role.roleId,
+        currentLevel: role.currentLevel,
+        targetLevel: role.targetLevel,
+        isFused: role.isFused,
+        lastRegressionPassed:
+          role.lastRegressionPassed === undefined ? null : role.lastRegressionPassed,
+        batches: role.metrics.batches,
+        days: role.metrics.days,
+        totalCommands: role.metrics.totalCommands,
+        schemaPassCount: role.metrics.schemaPassCount,
+        conflictCount: role.metrics.conflictCount,
+        conflictChecks: role.metrics.conflictChecks,
+        invariantChecks: role.metrics.invariantChecks,
+      }));
+    return {
+      dayCloses: this.dayCloses,
+      proposals: this.proposals,
+      landings: this.landings,
+      roles,
+    };
+  }
+
+  creatorFingerprint(): string | null {
+    const business = this.creatorBusiness();
+    return business === null ? null : sha256Hex(canonicalJson(business));
+  }
+
+  fingerprints(): RuntimeFingerprints {
+    return {
+      world: sha256Hex(canonicalJson(projectWorld(this.sim.snapshot()))),
+      memory: this.memoryFingerprint(),
+      creator: this.creatorFingerprint(),
+    };
+  }
+
+  /** 只读导出：回放器要拿它当下一段轨迹的基线，不写回任何真实存档。 */
+  save(): WorldSave {
+    return this.sim.toSave(this.memory === null ? '' : this.memory.toJSON());
+  }
+}
+
+/** 世界状态投影：只收可复算的事实，数组按稳定键排序。 */
+export function projectWorld(snapshot: WorldSnapshot): Record<string, unknown> {
+  return {
+    now: snapshot.now,
+    weather: snapshot.weather,
+    tide: {
+      level: snapshot.tide.level,
+      rising: snapshot.tide.rising,
+      overridden: snapshot.tide.overridden,
+    },
+    faith: snapshot.faith,
+    deliveries: snapshot.deliveries,
+    deliveriesByVillager: [...snapshot.deliveriesByVillager].sort((a, b) =>
+      a.villagerId.localeCompare(b.villagerId),
+    ),
+    buildings: [...snapshot.buildings]
+      .sort((a, b) => a.instanceId.localeCompare(b.instanceId))
+      .map(projectBuilding),
+    villagers: [...snapshot.villagers]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((villager) => ({
+        id: villager.id,
+        name: villager.name,
+        mode: villager.mode,
+        pos: villager.pos,
+        facing: villager.facing,
+        visible: villager.visible,
+        taskId: villager.taskId,
+        bubble: villager.bubble,
+        routine: villager.routine,
+        walking: villager.walking,
+        carrying: villager.carrying,
+        lampOil: villager.lampOil,
+        nameState: villager.nameState,
+        carries: [...villager.carries].sort(),
+      })),
+    tasks: [...snapshot.tasks]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((task) => ({
+        id: task.id,
+        kind: task.kind,
+        summary: task.summary,
+        buildingId: task.buildingId,
+        source: task.source,
+        status: task.status,
+        createdAt: task.createdAt,
+        completedAt: task.completedAt,
+        workerId: task.workerId,
+        blockedQuestion: task.blockedQuestion,
+      })),
+    pending: [...snapshot.pending]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        requestedAt: item.requestedAt,
+        source: item.source,
+        summary: item.summary,
+        villagerId: item.villagerId,
+      })),
+    props: [...snapshot.props]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((prop) => ({
+        id: prop.id,
+        kind: prop.kind,
+        at: prop.at,
+        label: prop.label,
+        sourceTaskKind: prop.sourceTaskKind,
+        sourceTaskId: prop.sourceTaskId,
+        sourceSummary: prop.sourceSummary,
+        grime: prop.grime,
+        reveal: prop.reveal,
+      })),
+    constructions: [...snapshot.constructions].sort((a, b) =>
+      a.buildingId.localeCompare(b.buildingId),
+    ),
+    oracle: snapshot.oracle,
+    critters: snapshot.critters,
+    fog: snapshot.fog,
+    roads: snapshot.roads,
+    trails: snapshot.trails,
+  };
+}
+
+function projectBuilding(building: PlacedBuilding): Record<string, unknown> {
+  return {
+    instanceId: building.instanceId,
+    prefabId: building.prefabId,
+    displayName: building.displayName,
+    zone: building.zone,
+    origin: building.origin,
+    footprint: building.footprint,
+    door: building.door,
+    workSpot: building.workSpot,
+    boundTask: building.boundTask,
+    sourceTaskId: building.sourceTaskId ?? null,
+    sourceSummary: building.sourceSummary ?? null,
+  };
+}
+
+function toWorldCommand(command: TraceCommand): Parameters<Simulation['enqueue']>[0] {
+  switch (command.kind) {
+    case 'setWeather':
+      return { kind: 'setWeather', weather: command.weather };
+    case 'setTideLevel':
+      return { kind: 'setTideLevel', level: command.level, durationMs: command.durationMs };
+    case 'miracle':
+      return {
+        kind: 'miracle',
+        miracle: command.miracle,
+        ...(command.at === undefined ? {} : { at: command.at }),
+      };
+    case 'demolish':
+      return { kind: 'demolish', instanceId: command.instanceId };
+    case 'build':
+      return {
+        kind: 'build',
+        prefabId: command.prefabId,
+        instanceId: command.instanceId,
+        ...(command.at === undefined ? {} : { at: command.at }),
+      };
+  }
+}

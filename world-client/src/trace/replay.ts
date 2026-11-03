@@ -1,23 +1,22 @@
-/** 无头回放：把一份轨迹在 Node 里重建一遍，产出世界指纹与事件区间摘要。
+/** 无头回放：世界、记忆、造物三层一起重建，产出三枚指纹与事件区间摘要。
  *
  * 这里**不认识浏览器**：不 import Phaser、不碰 DOM、不读 `Date.now()`。
  * 世界时钟只有 `initialNow + stepMs × 拍数`，外部注入按世界时刻进队，
  * 和被玩家亲眼看着跑时走的是同一个 `Simulation.enqueue()`。
  *
- * 指纹是「世界状态投影」的 sha256。投影只收世界自有事实（人、楼、任务、
- * 摆件、天气、潮位、信仰、交付），按键排序后序列化——两次回放逐字节相同，
- * 才算可重放。
+ * 指纹 = 状态投影的 sha256：
+ *   - 世界：人、楼、任务、摆件、天气、潮位、信仰、交付；
+ *   - 记忆：`MemoryRuntime.toSnapshot()` 的完整快照（facts / entries / claims /
+ *     beliefs / holders / turningPoints …，情绪字段在条目里）；
+ *   - 造物：日终关账、提议、落地读数、角色门禁计数。
+ *
+ * 两次独立回放**三枚指纹逐字相同**才算可重放。
  */
 
 import { performance } from 'node:perf_hooks';
-import { selectSetting, worldForSetting, routineProfiles } from '../settings/index.ts';
-import { placeBlueprint } from '../world/setup.ts';
-import { Simulation } from '../world/simulation.ts';
-import type { NewBuilding, SimulationDeps } from '../world/simulation.ts';
-import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
-import { DAY_MS } from '../world/memory/config.ts';
 import {
   canonicalJson,
+  compatibilityOf,
   digestOfInput,
   inputOf,
   orderedInjections,
@@ -28,25 +27,19 @@ import {
 import type {
   TraceBusiness,
   TraceCheckpoint,
-  TraceCommand,
+  TraceCreatorBusiness,
   TraceFile,
-  TraceInjection,
   TraceInput,
   TraceRecorded,
   TraceEventRange,
+  TraceMemoryBusiness,
 } from './format.ts';
+import { TraceRuntime, projectWorld } from './runtime.ts';
+import type { CapturedEvent, StepCheckpoint } from './runtime.ts';
+import { DAY_MS } from '../world/memory/config.ts';
 
 /** 每多少拍留一个检查点。用于「第一处分歧」的定位，不参与终局指纹。 */
 export const CHECKPOINT_EVERY = 250;
-/** `Simulation` 的事件环窗口。一拍里超过这么多条，增量取事件会漏，明确报错。 */
-const EVENT_WINDOW_FOR_TRACE = 60;
-
-interface CollectedEvent {
-  readonly seq: number;
-  readonly at: number;
-  readonly tone: WorldEvent['tone'];
-  readonly text: string;
-}
 
 export interface ReplayBusiness extends TraceBusiness {}
 
@@ -54,13 +47,25 @@ export interface ReplayRun {
   /** 终局投影的规范字节串。比较「逐字相同」时用它，不只用哈希。 */
   readonly finalProjection: string;
   readonly fingerprint: string;
-  /** 每一天的哈希，用来找第一处分歧。 */
+  /** 每一拍的世界指纹哈希，用来找第一处分歧。 */
   readonly stepFingerprints: readonly string[];
-  readonly events: readonly CollectedEvent[];
+  readonly events: readonly CapturedEvent[];
   readonly eventCount: number;
   readonly eventDigest: string;
   readonly business: ReplayBusiness;
   readonly now: number;
+  readonly memory: {
+    readonly fingerprint: string;
+    readonly business: TraceMemoryBusiness;
+  } | null;
+  readonly creator: {
+    readonly fingerprint: string;
+    readonly business: TraceCreatorBusiness;
+  } | null;
+  /** 开局（第 0 拍）的三枚指纹。 */
+  readonly initial: StepCheckpoint;
+  /** 检查点：开局 + 每 250 拍 + 终局。 */
+  readonly checkpoints: readonly StepCheckpoint[];
 }
 
 export interface Divergence {
@@ -69,6 +74,8 @@ export interface Divergence {
   readonly path: string;
   readonly left: string;
   readonly right: string;
+  /** 分叉发生在哪一层。 */
+  readonly kind: 'world' | 'memory' | 'creator';
 }
 
 export type ReplayStatus = 'replayable' | 'unreplayable' | 'recorded-mismatch' | 'tampered';
@@ -76,15 +83,28 @@ export type ReplayStatus = 'replayable' | 'unreplayable' | 'recorded-mismatch' |
 export interface TraceVerification {
   readonly status: ReplayStatus;
   readonly inputDigest: string;
-  /** 两次独立回放是否逐字节相同。 */
+  /** 两次独立回放是否逐字相同（世界 + 外环）。 */
   readonly deterministic: boolean;
-  /** 第一次回放的终局指纹。 */
   readonly fingerprint: string;
-  /** 第二次回放的终局指纹。两次相同才叫可重放。 */
   readonly secondFingerprint: string;
   readonly eventCount: number;
   readonly eventDigest: string;
   readonly business: ReplayBusiness;
+  readonly memory: {
+    readonly fingerprint: string;
+    readonly secondFingerprint: string;
+    readonly deterministic: boolean;
+    readonly matchesRecorded: boolean;
+    readonly business: TraceMemoryBusiness;
+  } | null;
+  readonly creator: {
+    readonly fingerprint: string;
+    readonly secondFingerprint: string;
+    readonly deterministic: boolean;
+    readonly matchesRecorded: boolean;
+    readonly business: TraceCreatorBusiness;
+  } | null;
+  readonly compatibility: ReturnType<typeof compatibilityOf>;
   readonly checks: {
     readonly integrity: boolean;
     readonly deterministic: boolean;
@@ -92,226 +112,13 @@ export interface TraceVerification {
     readonly eventCount: boolean;
     readonly eventDigest: boolean;
     readonly business: boolean;
+    readonly memory: boolean;
+    readonly creator: boolean;
   };
-  /** 第一处分歧；没有分叉时为 null。 */
   readonly divergence: Divergence | null;
   readonly message: string;
   readonly firstRunMs: number;
   readonly secondRunMs: number;
-}
-
-/**
- * 按 `worldId` 重建一个空世界。
- *
- * 与 `SandboxScene` 的 `simDeps` 逐项对齐：同一个 `buildSettingWorld`、同一张
- * 蓝图注册表、同一个 `placeBlueprint`。区别只有三处，都是为了脱离浏览器：
- * 不给 `intentModel`（离线）、`wallClock` 固定 0（不读墙钟）、`onChange` 不接
- * 日志客户端（回放不该往服务端写东西）。
- */
-export function buildHeadlessSimulation(input: TraceInput): Simulation {
-  const search = input.worldId === 'default' ? '' : `?world=${encodeURIComponent(input.worldId)}`;
-  let pack;
-  try {
-    pack = selectSetting(search);
-  } catch (error) {
-    throw new TraceFormatError(
-      `worldId=${input.worldId} 没有对应的设定集：${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  const world = worldForSetting(pack);
-  const blueprints = pack.blueprints;
-  const deps: SimulationDeps = {
-    grid: world.grid,
-    buildings: world.buildings,
-    altar: world.altar,
-    villagerName: pack.villagers[0]?.name ?? '莞尔',
-    wallClock: () => 0,
-    blueprints,
-    worldSize: { width: world.grid.width, height: world.grid.height },
-    spawnBuilding: (
-      prefabId: string,
-      instanceId: string,
-      at?: { readonly x: number; readonly y: number },
-      source?: { readonly taskId: string; readonly summary: string },
-    ): NewBuilding | null => {
-      const blueprint = blueprints.get(prefabId);
-      if (blueprint === undefined) return null;
-      return placeBlueprint(world.grid, blueprint, instanceId, world.altar, at, source);
-    },
-    ...(pack.villagers.length > 0
-      ? {
-          villagerNames: pack.villagers.map((villager) => villager.name),
-          villagerProfiles: routineProfiles(pack),
-        }
-      : {}),
-    ...(pack.regions.length > 0
-      ? { regionNames: new Map(pack.regions.map((region) => [region.id, region.name])) }
-      : {}),
-    ...(pack.propReveals !== undefined ? { propReveals: pack.propReveals } : {}),
-    ...(pack.authored === true ? { authored: true } : {}),
-  };
-  return new Simulation({ ...deps, initialNow: input.initialNow });
-}
-
-/** 轨迹里的一条注入 → 世界命令。没有第二条入口。 */
-function commandOf(injection: TraceInjection): { readonly kind: 'enqueue'; readonly command: WorldCommandLike } {
-  if (injection.kind === 'weather') {
-    return { kind: 'enqueue', command: { kind: 'setWeather', weather: injection.payload.weather } };
-  }
-  if (injection.kind === 'intent') {
-    return { kind: 'enqueue', command: { kind: 'oracle', raw: injection.payload.raw } };
-  }
-  return { kind: 'enqueue', command: toWorldCommand(injection.payload.command) };
-}
-
-type WorldCommandLike = Parameters<Simulation['enqueue']>[0];
-
-function toWorldCommand(command: TraceCommand): WorldCommandLike {
-  switch (command.kind) {
-    case 'setWeather':
-      return { kind: 'setWeather', weather: command.weather };
-    case 'setTideLevel':
-      return { kind: 'setTideLevel', level: command.level, durationMs: command.durationMs };
-    case 'build':
-      return {
-        kind: 'build',
-        prefabId: command.prefabId,
-        instanceId: command.instanceId,
-        ...(command.at === undefined ? {} : { at: command.at }),
-      };
-    case 'miracle':
-      return {
-        kind: 'miracle',
-        miracle: command.miracle,
-        ...(command.at === undefined ? {} : { at: command.at }),
-      };
-    case 'demolish':
-      return { kind: 'demolish', instanceId: command.instanceId };
-  }
-}
-
-/**
- * 世界状态投影。
- *
- * 只收能复算的事实，数组按稳定键排序：楼按实例 id、任务按任务 id、
- * 摆件按 id、角色按 id。排序不是为了好看，是为了让「同一状态」在两次回放里
- * 序列化成同一串字节——插入顺序来自运行路径，排序把它从哈希里拿掉。
- */
-export function projectWorld(snapshot: WorldSnapshot): Record<string, unknown> {
-  return {
-    now: snapshot.now,
-    weather: snapshot.weather,
-    tide: {
-      level: snapshot.tide.level,
-      rising: snapshot.tide.rising,
-      overridden: snapshot.tide.overridden,
-    },
-    faith: snapshot.faith,
-    deliveries: snapshot.deliveries,
-    deliveriesByVillager: [...snapshot.deliveriesByVillager].sort((a, b) =>
-      a.villagerId.localeCompare(b.villagerId),
-    ),
-    buildings: [...snapshot.buildings]
-      .sort((a, b) => a.instanceId.localeCompare(b.instanceId))
-      .map((building) => ({
-        instanceId: building.instanceId,
-        prefabId: building.prefabId,
-        displayName: building.displayName,
-        zone: building.zone,
-        origin: building.origin,
-        footprint: building.footprint,
-        door: building.door,
-        workSpot: building.workSpot,
-        boundTask: building.boundTask,
-        sourceTaskId: building.sourceTaskId ?? null,
-        sourceSummary: building.sourceSummary ?? null,
-      })),
-    villagers: [...snapshot.villagers]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((villager) => ({
-        id: villager.id,
-        name: villager.name,
-        mode: villager.mode,
-        pos: villager.pos,
-        facing: villager.facing,
-        visible: villager.visible,
-        taskId: villager.taskId,
-        bubble: villager.bubble,
-        routine: villager.routine,
-        walking: villager.walking,
-        carrying: villager.carrying,
-        lampOil: villager.lampOil,
-        nameState: villager.nameState,
-        carries: [...villager.carries].sort(),
-      })),
-    tasks: [...snapshot.tasks]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((task) => ({
-        id: task.id,
-        kind: task.kind,
-        summary: task.summary,
-        buildingId: task.buildingId,
-        source: task.source,
-        status: task.status,
-        createdAt: task.createdAt,
-        completedAt: task.completedAt,
-        workerId: task.workerId,
-        blockedQuestion: task.blockedQuestion,
-      })),
-    pending: [...snapshot.pending]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((item) => ({
-        id: item.id,
-        kind: item.kind,
-        requestedAt: item.requestedAt,
-        source: item.source,
-        summary: item.summary,
-        villagerId: item.villagerId,
-      })),
-    props: [...snapshot.props]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((prop) => ({
-        id: prop.id,
-        kind: prop.kind,
-        at: prop.at,
-        label: prop.label,
-        sourceTaskKind: prop.sourceTaskKind,
-        sourceTaskId: prop.sourceTaskId,
-        sourceSummary: prop.sourceSummary,
-        grime: prop.grime,
-        reveal: prop.reveal,
-      })),
-    constructions: [...snapshot.constructions].sort((a, b) =>
-      a.buildingId.localeCompare(b.buildingId),
-    ),
-    oracle: snapshot.oracle,
-    critters: snapshot.critters,
-    fog: snapshot.fog,
-    roads: snapshot.roads,
-    trails: snapshot.trails,
-  };
-}
-
-function eventsInRange(events: readonly CollectedEvent[], range: TraceEventRange): readonly CollectedEvent[] {
-  return events.filter((event) => event.seq >= range.from && event.seq < range.to);
-}
-
-function digestOfEvents(events: readonly CollectedEvent[]): string {
-  return sha256Hex(events.map((event) => `${event.seq}|${event.at}|${event.tone}|${event.text}`).join('\n'));
-}
-
-function businessOf(snapshot: WorldSnapshot, eventCount: number): ReplayBusiness {
-  return {
-    day: Math.floor(snapshot.now / DAY_MS),
-    now: snapshot.now,
-    buildings: snapshot.buildings.length,
-    tasksTotal: snapshot.tasks.length,
-    tasksCompleted: snapshot.tasks.filter((task) => task.status === 'done').length,
-    weather: snapshot.weather,
-    faithPoints: snapshot.faith.points,
-    deliveries: snapshot.deliveries,
-    eventCount,
-  };
 }
 
 export interface RunOptions {
@@ -323,58 +130,59 @@ export interface RunWithCapture extends ReplayRun {
   readonly capturedProjection: string | null;
 }
 
-/** 跑一次轨迹。纯函数式：每次调用都从空世界重新开始，不共享任何状态。 */
-export function runTrace(input: TraceInput, options: RunOptions = {}): RunWithCapture {
+export interface RecordOptions {
+  /** 额外把终局 v5 存档交回来（造基线用）。 */
+  readonly captureSave?: boolean;
+}
+
+export interface RecordedTrace extends TraceFile {
+  /** 只有 `captureSave` 为 true 时才有。 */
+  readonly artifacts?: { readonly save?: ReturnType<TraceRuntime['save']> };
+}
+
+/** 跑一次轨迹。每次调用都从空世界/存档基线重新开始，不共享任何状态。 */
+export async function runTrace(input: TraceInput, options: RunOptions = {}): Promise<RunWithCapture> {
   validateTrace(input);
-  const events: CollectedEvent[] = [];
-  const sim = buildHeadlessSimulation(input);
-  let capturedSeq = 0;
-  /** 按序号增量取事件。取不到说明一拍里超过 60 条，明确报错而不是补零。 */
-  const collect = (): void => {
-    const total = sim.eventCount();
-    for (let seq = capturedSeq; seq < total; seq += 1) {
-      const event = sim.eventAt(seq);
-      if (event === null) {
-        throw new TraceFormatError(
-          `世界事件 #${seq} 已被 ${EVENT_WINDOW_FOR_TRACE} 条窗口挤掉；这一拍的事件太密，回放会漏。`,
-        );
-      }
-      events.push({ seq, at: event.at, tone: event.tone, text: event.text });
-    }
-    capturedSeq = total;
-  };
+  const runtime = new TraceRuntime(input);
+  const initial = fingerprintsAt(runtime, 0, runtime.snapshot().now);
   const injections = orderedInjections(input);
   let nextInjection = 0;
   const stepFingerprints: string[] = [];
+  const checkpoints: StepCheckpoint[] = [initial];
   let capturedProjection: string | null = null;
   let finalProjection = '';
 
   for (let step = 1; step <= input.steps; step += 1) {
     const worldNow = input.initialNow + step * input.stepMs;
     while (nextInjection < injections.length && injections[nextInjection]!.atWorldMs <= worldNow) {
-      const { command } = commandOf(injections[nextInjection]!);
-      sim.enqueue(command);
+      runtime.applyInjection(injections[nextInjection]!);
       nextInjection += 1;
     }
-    sim.update(input.stepMs);
-    const snapshot = sim.snapshot();
-    collect();
+    await runtime.step(input.stepMs);
+    const snapshot = runtime.snapshot();
     const projection = canonicalJson(projectWorld(snapshot));
     stepFingerprints.push(sha256Hex(projection));
     if (step === input.steps) finalProjection = projection;
     if (options.captureStep === step) capturedProjection = projection;
+    if (step % CHECKPOINT_EVERY === 0 || step === input.steps) {
+      checkpoints.push(fingerprintsAt(runtime, step, snapshot.now));
+    }
   }
 
   if (nextInjection < injections.length) {
     throw new TraceFormatError(
       `有 ${injections.length - nextInjection} 条注入没赶上轨迹终点：` +
-        `最后一条在 ${injections[nextInjection]!.atWorldMs}，世界只走到 ${sim.snapshot().now}`,
+        `最后一条在 ${injections[nextInjection]!.atWorldMs}，世界只走到 ${runtime.sim.snapshot().now}`,
     );
   }
 
-  collect();
-  const snapshot = sim.snapshot();
-  const ranged = eventsInRange(events, input.eventRange);
+  const snapshot = runtime.snapshot();
+  const ranged = eventsInRange(runtime.events, input.eventRange);
+  const memoryFingerprint = runtime.memoryFingerprint();
+  const memoryBusiness = runtime.memoryBusiness();
+  const creatorFingerprint = runtime.creatorFingerprint();
+  const creatorBusiness = runtime.creatorBusiness();
+
   return {
     finalProjection,
     fingerprint: sha256Hex(finalProjection),
@@ -384,39 +192,139 @@ export function runTrace(input: TraceInput, options: RunOptions = {}): RunWithCa
     eventDigest: digestOfEvents(ranged),
     business: businessOf(snapshot, ranged.length),
     now: snapshot.now,
+    memory:
+      memoryFingerprint === null || memoryBusiness === null
+        ? null
+        : { fingerprint: memoryFingerprint, business: memoryBusiness },
+    creator:
+      creatorFingerprint === null || creatorBusiness === null
+        ? null
+        : { fingerprint: creatorFingerprint, business: creatorBusiness },
+    initial,
+    checkpoints,
     capturedProjection,
   };
 }
 
+function fingerprintsAt(runtime: TraceRuntime, step: number, atWorldMs: number): StepCheckpoint {
+  const world = sha256Hex(canonicalJson(projectWorld(runtime.snapshot())));
+  return {
+    step,
+    atWorldMs,
+    world,
+    memory: runtime.memoryFingerprint(),
+    creator: runtime.creatorFingerprint(),
+  };
+}
+
 /** 录制：把一次真实运行冻结成轨迹文件。期望值全部来自同一次运行。 */
-export function recordTrace(input: TraceInput): TraceFile {
+export async function recordTrace(input: TraceInput, options: RecordOptions = {}): Promise<RecordedTrace> {
   validateTrace(input);
   if (input.eventRange.from !== 0) {
-    throw new TraceFormatError('录制必须从事件序号 0 开始（空世界构造的那一条「世界醒来」）');
+    throw new TraceFormatError('录制必须从事件序号 0 开始（世界构造的那一条「世界醒来」）');
   }
-  const run = runTrace(input);
-  if (run.events.length !== input.eventRange.to - input.eventRange.from) {
+  const runtime = new TraceRuntime(input);
+  const captured = await runTraceWithRuntime(input, runtime);
+  if (captured.events.length !== input.eventRange.to - input.eventRange.from) {
     throw new TraceFormatError(
-      `eventRange 应覆盖 ${input.eventRange.to - input.eventRange.from} 条，实际 ${run.events.length} 条`,
+      `eventRange 应覆盖 ${input.eventRange.to - input.eventRange.from} 条，实际 ${captured.events.length} 条`,
     );
-  }
-  const checkpoints: TraceCheckpoint[] = [];
-  for (let step = CHECKPOINT_EVERY; step <= input.steps; step += CHECKPOINT_EVERY) {
-    checkpoints.push({
-      step,
-      atWorldMs: input.initialNow + step * input.stepMs,
-      fingerprint: run.stepFingerprints[step - 1]!,
-    });
   }
   const recorded: TraceRecorded = {
     inputDigest: digestOfInput(input),
-    fingerprint: run.fingerprint,
-    eventCount: run.eventCount,
-    eventDigest: run.eventDigest,
-    business: run.business,
-    checkpoints,
+    fingerprint: captured.fingerprint,
+    eventCount: captured.eventCount,
+    eventDigest: captured.eventDigest,
+    business: captured.business,
+    checkpoints: captured.checkpoints.map((checkpoint) => ({
+      step: checkpoint.step,
+      atWorldMs: checkpoint.atWorldMs,
+      fingerprint: checkpoint.world,
+      ...(checkpoint.memory === null ? {} : { memoryFingerprint: checkpoint.memory }),
+      ...(checkpoint.creator === null ? {} : { creatorFingerprint: checkpoint.creator }),
+    })),
+    ...(captured.memory === null
+      ? {}
+      : { memory: { fingerprint: captured.memory.fingerprint, business: captured.memory.business } }),
+    ...(captured.creator === null
+      ? {}
+      : { creator: { fingerprint: captured.creator.fingerprint, business: captured.creator.business } }),
   };
-  return { ...inputOf(input), recorded };
+  const file: TraceFile = { ...inputOf(input), recorded };
+  return options.captureSave === true
+    ? { ...file, artifacts: { save: runtime.save() } }
+    : file;
+}
+
+/**
+ * 内部入口：复用已经构造好的运行时跑一遍。
+ *
+ * `recordTrace` 要拿同一份运行时导出存档，所以不能重新构造第二个世界——
+ * 那会让「录下来的存档」和「算出来的指纹」属于两个不同的运行。
+ */
+async function runTraceWithRuntime(
+  input: TraceInput,
+  runtime: TraceRuntime,
+  options: RunOptions = {},
+): Promise<RunWithCapture> {
+  const snapshot = runtime.snapshot();
+  const initial = fingerprintsAt(runtime, 0, snapshot.now);
+  const injections = orderedInjections(input);
+  let nextInjection = 0;
+  const stepFingerprints: string[] = [];
+  const checkpoints: StepCheckpoint[] = [initial];
+  let capturedProjection: string | null = null;
+  let finalProjection = '';
+
+  for (let step = 1; step <= input.steps; step += 1) {
+    const worldNow = input.initialNow + step * input.stepMs;
+    while (nextInjection < injections.length && injections[nextInjection]!.atWorldMs <= worldNow) {
+      runtime.applyInjection(injections[nextInjection]!);
+      nextInjection += 1;
+    }
+    await runtime.step(input.stepMs);
+    const after = runtime.snapshot();
+    const projection = canonicalJson(projectWorld(after));
+    stepFingerprints.push(sha256Hex(projection));
+    if (step === input.steps) finalProjection = projection;
+    if (options.captureStep === step) capturedProjection = projection;
+    if (step % CHECKPOINT_EVERY === 0 || step === input.steps) {
+      checkpoints.push(fingerprintsAt(runtime, step, after.now));
+    }
+  }
+  if (nextInjection < injections.length) {
+    throw new TraceFormatError(
+      `有 ${injections.length - nextInjection} 条注入没赶上轨迹终点：` +
+        `最后一条在 ${injections[nextInjection]!.atWorldMs}，世界只走到 ${runtime.sim.snapshot().now}`,
+    );
+  }
+  const after = runtime.snapshot();
+  const ranged = eventsInRange(runtime.events, input.eventRange);
+  const memoryFingerprint = runtime.memoryFingerprint();
+  const memoryBusiness = runtime.memoryBusiness();
+  const creatorFingerprint = runtime.creatorFingerprint();
+  const creatorBusiness = runtime.creatorBusiness();
+  return {
+    finalProjection,
+    fingerprint: sha256Hex(finalProjection),
+    stepFingerprints,
+    events: ranged,
+    eventCount: ranged.length,
+    eventDigest: digestOfEvents(ranged),
+    business: businessOf(after, ranged.length),
+    now: after.now,
+    memory:
+      memoryFingerprint === null || memoryBusiness === null
+        ? null
+        : { fingerprint: memoryFingerprint, business: memoryBusiness },
+    creator:
+      creatorFingerprint === null || creatorBusiness === null
+        ? null
+        : { fingerprint: creatorFingerprint, business: creatorBusiness },
+    initial,
+    checkpoints,
+    capturedProjection,
+  };
 }
 
 /**
@@ -424,29 +332,36 @@ export function recordTrace(input: TraceInput): TraceFile {
  *
  * 三种失败分开报，因为它们说的是三件不同的事：
  *   - `tampered`：输入被改过（连 `inputDigest` 都对不上），世界还没跑就已经不是同一条轨迹。
- *   - `unreplayable`：两次回放的指纹不是逐字相同。这不是「和记录不符」，是**这次跑出来的
- *     两个世界自己就不一致**——回放器不能把这种状态当成通过。
+ *   - `unreplayable`：两次回放的指纹不是逐字相同。世界、记忆、造物任一层不一致都算。
  *   - `recorded-mismatch`：两次一致，但和录制时不一致。轨迹本身是确定的，是代码/数据变了。
  */
-export function verifyTrace(trace: TraceFile): TraceVerification {
+export async function verifyTrace(trace: TraceFile): Promise<TraceVerification> {
   validateTrace(trace);
   assertRecorded(trace);
   const integrity = digestOfInput(trace) === trace.recorded.inputDigest;
+  const compatibility = compatibilityOf(trace);
 
   const startedAt = performance.now();
-  const first = runTrace(trace);
+  const first = await runTrace(trace);
   const firstRunMs = performance.now() - startedAt;
   const startedSecond = performance.now();
-  const second = runTrace(trace);
+  const second = await runTrace(trace);
   const secondRunMs = performance.now() - startedSecond;
 
-  const deterministic = first.finalProjection === second.finalProjection
+  const worldDeterministic = first.finalProjection === second.finalProjection
     && first.stepFingerprints.join('\n') === second.stepFingerprints.join('\n');
+  const memoryDeterministic = sameOuter(first.memory, second.memory);
+  const creatorDeterministic = sameOuter(first.creator, second.creator);
+  const deterministic = worldDeterministic && memoryDeterministic && creatorDeterministic;
 
   let divergence: Divergence | null = null;
   if (!deterministic) {
-    const step = firstDivergentStep(first.stepFingerprints, second.stepFingerprints);
-    divergence = locateDivergence(step, inputOf(trace));
+    if (!worldDeterministic) {
+      const step = firstDivergentStep(first.stepFingerprints, second.stepFingerprints);
+      divergence = await locateWorldDivergence(trace, step);
+    } else {
+      divergence = firstOuterDivergence(first.checkpoints, second.checkpoints);
+    }
   }
 
   const checks = {
@@ -456,7 +371,36 @@ export function verifyTrace(trace: TraceFile): TraceVerification {
     eventCount: first.eventCount === trace.recorded.eventCount,
     eventDigest: first.eventDigest === trace.recorded.eventDigest,
     business: canonicalJson(first.business) === canonicalJson(trace.recorded.business),
+    memory: first.memory === null
+      ? true
+      : trace.recorded.memory !== undefined
+        && first.memory.fingerprint === trace.recorded.memory.fingerprint
+        && canonicalJson(first.memory.business) === canonicalJson(trace.recorded.memory.business),
+    creator: first.creator === null
+      ? true
+      : trace.recorded.creator !== undefined
+        && first.creator.fingerprint === trace.recorded.creator.fingerprint
+        && canonicalJson(first.creator.business) === canonicalJson(trace.recorded.creator.business),
   };
+
+  const memoryCheck = first.memory === null || second.memory === null
+    ? null
+    : {
+        fingerprint: first.memory.fingerprint,
+        secondFingerprint: second.memory.fingerprint,
+        deterministic: memoryDeterministic,
+        matchesRecorded: checks.memory,
+        business: first.memory.business,
+      };
+  const creatorCheck = first.creator === null || second.creator === null
+    ? null
+    : {
+        fingerprint: first.creator.fingerprint,
+        secondFingerprint: second.creator.fingerprint,
+        deterministic: creatorDeterministic,
+        matchesRecorded: checks.creator,
+        business: first.creator.business,
+      };
 
   if (!deterministic) {
     return {
@@ -468,12 +412,16 @@ export function verifyTrace(trace: TraceFile): TraceVerification {
       eventCount: first.eventCount,
       eventDigest: first.eventDigest,
       business: first.business,
+      memory: memoryCheck,
+      creator: creatorCheck,
+      compatibility,
       checks,
       divergence,
       message: divergence === null
         ? '不可重放：两次回放的指纹不是逐字相同。'
-        : `不可重放：两次回放在第 ${divergence.step} 拍（世界 ${divergence.atWorldMs}）第一次分叉，` +
-          `字段 ${divergence.path}：${divergence.left} / ${divergence.right}`,
+        : `不可重放：两次回放在第 ${divergence.step} 拍（世界 ${divergence.atWorldMs}）` +
+          `第一次分叉（${divergence.kind}），字段 ${divergence.path}：` +
+          `${divergence.left} / ${divergence.right}`,
       firstRunMs,
       secondRunMs,
     };
@@ -489,21 +437,33 @@ export function verifyTrace(trace: TraceFile): TraceVerification {
       eventCount: first.eventCount,
       eventDigest: first.eventDigest,
       business: first.business,
+      memory: memoryCheck,
+      creator: creatorCheck,
+      compatibility,
       checks,
       divergence,
-      message: '轨迹被改动过：inputDigest 与录制时对不上（先查 worldSeed / 注入序列 / 时钟参数）。',
+      message: '轨迹被改动过：inputDigest 与录制时对不上（先查 worldSeed / 注入序列 / 基线存档 / 时钟参数）。',
       firstRunMs,
       secondRunMs,
     };
   }
 
-  if (!checks.fingerprint || !checks.eventCount || !checks.eventDigest || !checks.business) {
-    const checkpoint = firstCheckpointDivergence(first.stepFingerprints, trace.recorded.checkpoints);
+  if (
+    !checks.fingerprint
+    || !checks.eventCount
+    || !checks.eventDigest
+    || !checks.business
+    || !checks.memory
+    || !checks.creator
+  ) {
+    const checkpoint = firstRecordedDivergence(trace, first.checkpoints);
     const fields = [
-      ...(checks.fingerprint ? [] : ['终局指纹']),
+      ...(checks.fingerprint ? [] : ['世界终局指纹']),
       ...(checks.eventCount ? [] : ['事件条数']),
       ...(checks.eventDigest ? [] : ['事件摘要']),
-      ...(checks.business ? [] : ['业务读数']),
+      ...(checks.business ? [] : ['世界业务读数']),
+      ...(checks.memory ? [] : ['记忆指纹/读数']),
+      ...(checks.creator ? [] : ['造物账指纹/摘要']),
     ].join('、');
     return {
       status: 'recorded-mismatch',
@@ -514,13 +474,16 @@ export function verifyTrace(trace: TraceFile): TraceVerification {
       eventCount: first.eventCount,
       eventDigest: first.eventDigest,
       business: first.business,
+      memory: memoryCheck,
+      creator: creatorCheck,
+      compatibility,
       checks,
       divergence: checkpoint,
       message:
         `重放结果与记录不符：${fields}。` +
         (checkpoint === null
           ? '检查点全部一致，分歧只出现在终局之后。'
-          : `第一处检查点分歧在第 ${checkpoint.step} 拍（世界 ${checkpoint.atWorldMs}）。`),
+          : `第一处检查点分歧在第 ${checkpoint.step} 拍（世界 ${checkpoint.atWorldMs}，${checkpoint.kind}）。`),
       firstRunMs,
       secondRunMs,
     };
@@ -535,41 +498,25 @@ export function verifyTrace(trace: TraceFile): TraceVerification {
     eventCount: first.eventCount,
     eventDigest: first.eventDigest,
     business: first.business,
+    memory: memoryCheck,
+    creator: creatorCheck,
+    compatibility,
     checks,
     divergence: null,
-    message: '可重放：两次回放逐字相同，且与录制值逐项一致。',
+    message: compatibility.outerSupported
+      ? '可重放：世界、记忆、造物三枚指纹两次逐字相同，且与录制值逐项一致。'
+      : '可重放（仅世界层）：旧格式轨迹不支持外环字段，外环未参与校验。',
     firstRunMs,
     secondRunMs,
   };
 }
 
-/** `recorded` 是后来加的块：老轨迹文件可能没有，先判形状再读。 */
-function assertRecorded(trace: TraceFile): void {
-  const recorded = (trace as unknown as { recorded?: unknown }).recorded;
-  if (typeof recorded !== 'object' || recorded === null) {
-    throw new TraceFormatError('轨迹缺少 recorded 块——没有期望值就没有「回归」可言');
-  }
-  const value = recorded as Record<string, unknown>;
-  for (const key of ['inputDigest', 'fingerprint', 'eventDigest'] as const) {
-    if (typeof value[key] !== 'string' || value[key] === '') {
-      throw new TraceFormatError(`recorded.${key} 必须是非空字符串`);
-    }
-  }
-  if (!Number.isInteger(value.eventCount)) throw new TraceFormatError('recorded.eventCount 必须是整数');
-  if (typeof value.business !== 'object' || value.business === null) {
-    throw new TraceFormatError('recorded.business 必须是对象');
-  }
-  if (!Array.isArray(value.checkpoints)) throw new TraceFormatError('recorded.checkpoints 必须是数组');
-  for (const [index, item] of value.checkpoints.entries()) {
-    if (
-      typeof item !== 'object'
-      || item === null
-      || !Number.isInteger((item as Record<string, unknown>).step)
-      || typeof (item as Record<string, unknown>).fingerprint !== 'string'
-    ) {
-      throw new TraceFormatError(`recorded.checkpoints[${index}] 形状不对`);
-    }
-  }
+function sameOuter(
+  left: { readonly fingerprint: string } | null,
+  right: { readonly fingerprint: string } | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return left.fingerprint === right.fingerprint;
 }
 
 function firstDivergentStep(left: readonly string[], right: readonly string[]): number {
@@ -580,38 +527,95 @@ function firstDivergentStep(left: readonly string[], right: readonly string[]): 
   return size + 1;
 }
 
-/** 在第 `step` 拍重跑两次并只留那一拍的投影，逐字段找出第一处分歧。 */
-function locateDivergence(step: number, input: TraceInput): Divergence {
-  const left = runTrace(input, { captureStep: step });
-  const right = runTrace(input, { captureStep: step });
+async function locateWorldDivergence(trace: TraceFile, step: number): Promise<Divergence> {
+  const input = inputOf(trace);
+  const left = await runTrace(input, { captureStep: step });
+  const right = await runTrace(input, { captureStep: step });
   const atWorldMs = input.initialNow + step * input.stepMs;
   if (left.capturedProjection === null || right.capturedProjection === null) {
-    return { step, atWorldMs, path: '(整段)', left: 'captured-missing', right: 'captured-missing' };
+    return {
+      step,
+      atWorldMs,
+      path: '(整段)',
+      left: 'captured-missing',
+      right: 'captured-missing',
+      kind: 'world',
+    };
   }
   const diff = firstDifference(JSON.parse(left.capturedProjection), JSON.parse(right.capturedProjection));
+  return { step, atWorldMs, path: diff.path, left: diff.left, right: diff.right, kind: 'world' };
+}
+
+function firstOuterDivergence(
+  left: readonly StepCheckpoint[],
+  right: readonly StepCheckpoint[],
+): Divergence | null {
+  const size = Math.min(left.length, right.length);
+  for (let index = 0; index < size; index += 1) {
+    const a = left[index]!;
+    const b = right[index]!;
+    if (a.memory !== b.memory) {
+      return outerDivergence(b, 'memory', a.memory, b.memory);
+    }
+    if (a.creator !== b.creator) {
+      return outerDivergence(b, 'creator', a.creator, b.creator);
+    }
+  }
+  return null;
+}
+
+function outerDivergence(
+  b: StepCheckpoint,
+  kind: 'memory' | 'creator',
+  left: string | null,
+  right: string | null,
+): Divergence {
   return {
-    step,
-    atWorldMs,
-    path: diff.path,
-    left: diff.left,
-    right: diff.right,
+    step: b.step,
+    atWorldMs: b.atWorldMs,
+    path: kind === 'memory' ? '(记忆指纹)' : '(造物账指纹)',
+    left: left ?? '(null)',
+    right: right ?? '(null)',
+    kind,
   };
 }
 
-function firstCheckpointDivergence(
-  stepFingerprints: readonly string[],
-  checkpoints: readonly TraceCheckpoint[],
-): Divergence | null {
-  for (const checkpoint of checkpoints) {
-    const actual = stepFingerprints[checkpoint.step - 1];
-    if (actual === checkpoint.fingerprint) continue;
-    return {
-      step: checkpoint.step,
-      atWorldMs: checkpoint.atWorldMs,
-      path: '(指纹)',
-      left: checkpoint.fingerprint,
-      right: actual ?? '(缺少这一拍)',
-    };
+/** 与录制值的第一处检查点分歧：世界 → 记忆 → 造物，按层报。 */
+function firstRecordedDivergence(trace: TraceFile, actual: readonly StepCheckpoint[]): Divergence | null {
+  const byStep = new Map(actual.map((item) => [item.step, item]));
+  for (const expected of trace.recorded.checkpoints) {
+    const got = byStep.get(expected.step);
+    if (got === undefined) continue;
+    if (got.world !== expected.fingerprint) {
+      return {
+        step: expected.step,
+        atWorldMs: expected.atWorldMs,
+        path: '(世界指纹)',
+        left: expected.fingerprint,
+        right: got.world,
+        kind: 'world',
+      };
+    }
+    if (expected.memoryFingerprint !== undefined && got.memory !== expected.memoryFingerprint) {
+      return {
+        step: expected.step,
+        atWorldMs: expected.atWorldMs,
+        path: '(记忆指纹)',
+        left: expected.memoryFingerprint,
+        right: got.memory ?? '(null)',
+        kind: 'memory',
+      };
+    }
+    if (expected.creatorFingerprint !== undefined && got.creator !== expected.creatorFingerprint) {
+      return {
+        step: expected.step,
+        atWorldMs: expected.atWorldMs,
+        path: '(造物账指纹)',
+        left: expected.creatorFingerprint,
+        right: got.creator ?? '(null)',
+        kind: 'creator',
+      };
+    }
   }
   return null;
 }
@@ -626,8 +630,9 @@ export function firstDifference(
   if (Array.isArray(left) && Array.isArray(right)) {
     const size = Math.min(left.length, right.length);
     for (let index = 0; index < size; index += 1) {
-      const diff = firstDifference(left[index], right[index], `${path}[${index}]`);
-      if (!sameLeaf(left[index], right[index])) return diff;
+      if (!sameLeaf(left[index], right[index])) {
+        return firstDifference(left[index], right[index], `${path}[${index}]`);
+      }
     }
     if (left.length !== right.length) {
       return {
@@ -661,4 +666,71 @@ function sameLeaf(left: unknown, right: unknown): boolean {
   return canonicalJson(left) === canonicalJson(right);
 }
 
+function eventsInRange(events: readonly CapturedEvent[], range: TraceEventRange): readonly CapturedEvent[] {
+  return events.filter((event) => event.seq >= range.from && event.seq < range.to);
+}
 
+function digestOfEvents(events: readonly CapturedEvent[]): string {
+  return sha256Hex(events.map((event) => `${event.seq}|${event.at}|${event.tone}|${event.text}`).join('\n'));
+}
+
+function businessOf(
+  snapshot: ReturnType<TraceRuntime['snapshot']>,
+  eventCount: number,
+): ReplayBusiness {
+  return {
+    day: Math.floor(snapshot.now / DAY_MS),
+    now: snapshot.now,
+    buildings: snapshot.buildings.length,
+    tasksTotal: snapshot.tasks.length,
+    tasksCompleted: snapshot.tasks.filter((task) => task.status === 'done').length,
+    weather: snapshot.weather,
+    faithPoints: snapshot.faith.points,
+    deliveries: snapshot.deliveries,
+    eventCount,
+  };
+}
+
+/** `recorded` 是后来加的块：老轨迹文件可能没有，先判形状再读。 */
+function assertRecorded(trace: TraceFile): void {
+  const recorded = (trace as unknown as { recorded?: unknown }).recorded;
+  if (typeof recorded !== 'object' || recorded === null) {
+    throw new TraceFormatError('轨迹缺少 recorded 块——没有期望值就没有「回归」可言');
+  }
+  const value = recorded as Record<string, unknown>;
+  for (const key of ['inputDigest', 'fingerprint', 'eventDigest'] as const) {
+    if (typeof value[key] !== 'string' || value[key] === '') {
+      throw new TraceFormatError(`recorded.${key} 必须是非空字符串`);
+    }
+  }
+  if (!Number.isInteger(value.eventCount)) throw new TraceFormatError('recorded.eventCount 必须是整数');
+  if (typeof value.business !== 'object' || value.business === null) {
+    throw new TraceFormatError('recorded.business 必须是对象');
+  }
+  if (!Array.isArray(value.checkpoints)) throw new TraceFormatError('recorded.checkpoints 必须是数组');
+  for (const [index, item] of value.checkpoints.entries()) {
+    if (
+      typeof item !== 'object'
+      || item === null
+      || !Number.isInteger((item as Record<string, unknown>).step)
+      || typeof (item as Record<string, unknown>).fingerprint !== 'string'
+    ) {
+      throw new TraceFormatError(`recorded.checkpoints[${index}] 形状不对`);
+    }
+  }
+  if (trace.traceVersion === 2 && trace.outer?.memory === true) {
+    const memory = value.memory;
+    if (typeof memory !== 'object' || memory === null || typeof (memory as Record<string, unknown>).fingerprint !== 'string') {
+      throw new TraceFormatError('pwe-trace/2 + outer.memory 必须带 recorded.memory');
+    }
+  }
+  if (trace.traceVersion === 2 && trace.outer?.creator === true) {
+    const creator = value.creator;
+    if (typeof creator !== 'object' || creator === null || typeof (creator as Record<string, unknown>).fingerprint !== 'string') {
+      throw new TraceFormatError('pwe-trace/2 + outer.creator 必须带 recorded.creator');
+    }
+  }
+}
+
+/** 兼容 old import：旧的 v1 单测用这个常量对拍。 */
+export type { TraceCheckpoint };

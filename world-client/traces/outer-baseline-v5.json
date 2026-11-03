@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 5,
+  "world": {
+    "now": 180000000,
+    "villagers": [
+      {
+        "id": "v0",
+        "name": "莞尔",
+        "mode": "idle",
+        "pos": {
+          "x": 56,
+          "y": 33
+        },
+        "facing": "down",
+        "visible": true,
+        "path": [],
+        "taskId": null,
+        "bubble": null,
+        "bubbleUntil": 90002200,
+        "saluteUntil": 0,
+        "deliverUntil": 0,
+        "nextRoutineAt": 180005200,
+        "routineIndex": 3999,
+        "routineLabel": "在街口站着看了一会儿",
+        "inPlaceUntil": 0,
+        "pendingRoute": [],
+        "pendingBuildingId": null,
+        "lampOil": 1,
+        "nameState": "held",
+        "carries": []
+      },
+      {
+        "id": "v1",
+        "name": "阿雾",
+        "mode": "idle",
+        "pos": {
+          "x": 40,
+          "y": 40
+        },
+        "facing": "down",
+        "visible": true,
+        "path": [],
+        "taskId": null,
+        "bubble": null,
+        "bubbleUntil": 90002200,
+        "saluteUntil": 0,
+        "deliverUntil": 0,
+        "nextRoutineAt": 180007280,
+        "routineIndex": 4002,
+        "routineLabel": "去看了一眼农田",
+        "inPlaceUntil": 0,
+        "pendingRoute": [],
+        "pendingBuildingId": null,
+        "lampOil": 1,
+        "nameState": "held",
+        "carries": []
+      }
+    ],
+    "buildings": [
+      {
+        "instanceId": "star_archive#1",
+        "prefabId": "star_archive",
+        "displayName": "星图书阁",
+        "zone": "scholarly",
+        "origin": {
+          "x": 51,
+          "y": 20
+        },
+        "footprint": {
+          "w": 4,
+          "h": 4
+        },
+        "door": {
+          "x": 52,
+          "y": 24
+        },
+        "workSpot": {
+          "x": 52,
+          "y": 22
+        },
+        "chimney": {
+          "x": 54.2,
+          "y": 20.5
+        },
+        "accent": "pages",
+        "silhouette": "tower",
+        "boundTask": "research",
+        "palette": {
+          "body": 12759962,
+          "roof": 6261364,
+          "trim": 14211795,
+          "window": 14917948
+        },
+        "sourceTaskId": "creator-star_archive",
+        "sourceSummary": "第 0 天：人工立起星图书阁"
+      }
+    ],
+    "roads": [
+      {
+        "x": 51,
+        "y": 24
+      },
+      {
+        "x": 50,
+        "y": 24
+      },
+      {
+        "x": 49,
+        "y": 24
+      },
+      {
+        "x": 49,
+        "y": 25
+      },
+      {
+        "x": 49,
+        "y": 26
+      },
+      {
+        "x": 49,
+        "y": 27
+      },
+      {
+        "x": 49,
+        "y": 28
+      },
+      {
+        "x": 49,
+        "y": 29
+      },
+      {
+        "x": 49,
+        "y": 30
+      },
+      {
+        "x": 49,
+        "y": 31
+      },
+      {
+        "x": 49,
+        "y": 32
+      }
+    ],
+    "props": [
+      {
+        "id": "miracle-1",
+        "kind": "lamp",
+        "at": {
+          "x": 45,
+          "y": 39
+        },
+        "label": "一盏神迹点的灯",
+        "sourceTaskKind": null,
+        "sourceTaskId": null,
+        "sourceSummary": "神迹：点灯",
+        "grime": 0,
+        "reveal": null
+      }
+    ],
+    "oracle": [
+      {
+        "raw": "涨潮",
+        "receipt": "潮水停在 100%，60 秒后自己回去。",
+        "at": 40020000
+      },
+      {
+        "raw": "点灯",
+        "receipt": "一盏神迹点的灯落下了。",
+        "at": 140010000
+      }
+    ],
+    "critters": [],
+    "tasks": [],
+    "pending": [],
+    "activities": [
+      {
+        "buildingId": "star_archive#1",
+        "activity": {
+          "kind": "idle"
+        }
+      }
+    ],
+    "constructions": [],
+    "weather": {
+      "kind": "clear",
+      "intensity": 0,
+      "remainingMs": null
+    },
+    "faith": {
+      "points": 0,
+      "milestones": 0
+    },
+    "settled": [],
+    "nextTaskNumber": 1,
+    "nextPendingNumber": 1,
+    "tideOverride": {
+      "level": 1,
+      "until": 40080000
+    },
+    "worldChangeVersion": 0,
+    "memory": "{\"memorySchemaVersion\":3,\"lastClosedDay\":2,\"started\":true,\"now\":180000000,\"positions\":[{\"holderId\":\"v0\",\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"at\":{\"x\":40,\"y\":40}}],\"world\":{\"holders\":[{\"holderId\":\"v0\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":40,\"y\":40}},{\"holderId\":\"star_archive#1\",\"type\":\"place\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":52,\"y\":24}}],\"facts\":[{\"eventId\":\"mem_1\",\"day\":0,\"tick\":10020000,\"kind\":\"milestone\",\"placeId\":\"star_archive#1\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"有人立起了一栋新楼\",\"name\":\"星图书阁\"},\"visibility\":\"world\",\"importanceHint\":0.6,\"source\":\"world\",\"placeType\":\"building\",\"voice\":{\"what\":\"达成了一个里程碑\",\"valence\":0.5,\"arousal\":0.4,\"detailLevel\":3}},{\"eventId\":\"mem_2\",\"day\":0,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_3\",\"day\":0,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_5\",\"day\":0,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_6\",\"day\":0,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_7\",\"day\":0,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_8\",\"day\":1,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_9\",\"day\":1,\"tick\":3600000,\"kind\":\"weather_anomaly\",\"placeId\":\"place:sky\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"天气反常\",\"weather\":\"rain\"},\"visibility\":\"world\",\"importanceHint\":0.5,\"source\":\"world\",\"voice\":{\"what\":\"天气反常\",\"valence\":0,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_10\",\"day\":1,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_11\",\"day\":1,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_12\",\"day\":1,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_13\",\"day\":1,\"tick\":53610000,\"kind\":\"celebration\",\"placeId\":\"place:45,39\",\"actors\":[],\"witnesses\":[\"v0\",\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"神明显了一次灵\"},\"visibility\":\"world\",\"importanceHint\":0.8,\"source\":\"world\",\"voice\":{\"what\":\"有人庆祝了一件事\",\"valence\":0.8,\"arousal\":0.7,\"detailLevel\":3}},{\"eventId\":\"mem_14\",\"day\":1,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_15\",\"day\":1,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_16\",\"day\":2,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}}],\"entries\":[{\"memoryId\":\"m_sum_v0_1\",\"holderId\":\"v0\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\",\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）；神明显了一次灵（place:45,39）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":1,\"detailLevel\":3,\"valence\":0.65,\"arousal\":0.55},\"salience\":0.74,\"confidence\":1,\"strength\":1,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0005\",\"m_0007\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2950705160\",\"seed\":2950705160},\"archived\":false},{\"memoryId\":\"m_0011\",\"holderId\":\"v1\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_13\"],\"sourceMode\":\"heard\",\"sourceChain\":[\"claim_0010\",\"v0\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":2,\"valence\":0.8800000000000001,\"arousal\":0.7},\"salience\":0.6,\"confidence\":0.8,\"strength\":0.85,\"createdDay\":2,\"lastRecalledDay\":2,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[\"claim_0010\"]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2568381237\",\"seed\":2568381237},\"archived\":false},{\"memoryId\":\"m_sum_v1_1\",\"holderId\":\"v1\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\",\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）；神明显了一次灵（place:45,39）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":1,\"detailLevel\":3,\"valence\":0.65,\"arousal\":0.55},\"salience\":0.74,\"confidence\":1,\"strength\":1,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0006\",\"m_0008\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2046146767\",\"seed\":2046146767},\"archived\":false}],\"claims\":[{\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0010\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"beliefs\":[{\"holderId\":\"v1\",\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":2,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"star_archive#1\",\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":2,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"}],\"traces\":[{\"placeId\":\"star_archive#1\",\"entries\":[{\"traceId\":\"trace_0001\",\"placeId\":\"star_archive#1\",\"eventRef\":\"mem_1\",\"layerType\":\"inscription\",\"intensity\":0.7,\"createdDay\":0,\"visibility\":0.99}]},{\"placeId\":\"place:45,39\",\"entries\":[{\"traceId\":\"trace_0009\",\"placeId\":\"place:45,39\",\"eventRef\":\"mem_13\",\"layerType\":\"garland\",\"intensity\":1,\"createdDay\":1,\"visibility\":1}]}],\"placeAnchors\":[{\"placeId\":\"star_archive#1\",\"at\":{\"x\":52,\"y\":24}},{\"placeId\":\"place:48,36\",\"at\":{\"x\":48,\"y\":36}},{\"placeId\":\"place:sky\",\"at\":{\"x\":0,\"y\":0}},{\"placeId\":\"place:45,39\",\"at\":{\"x\":45,\"y\":39}}],\"landmarks\":[{\"placeId\":\"star_archive#1\",\"aliases\":[\"star_archive#1\"],\"displayName\":\"星图书阁\",\"plotKey\":\"51,20,4,4\",\"anchor\":{\"x\":51,\"y\":20},\"footprint\":{\"x\":51,\"y\":20,\"w\":4,\"h\":4},\"bornDay\":0,\"phases\":[{\"state\":\"built\",\"day\":0,\"atMs\":10020000,\"causeEventRef\":\"mem_1\",\"name\":\"星图书阁\",\"note\":\"动工\"}],\"current\":\"built\"}],\"eras\":[{\"eraId\":\"era_0004\",\"fromDay\":0,\"toDay\":null,\"label\":\"寂静年代\",\"startSignature\":{\"day\":0,\"meanValence\":0,\"meanArousal\":0,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"lastSignature\":{\"day\":1,\"meanValence\":0.65,\"meanArousal\":0.55,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"definingEventRefs\":[],\"confidence\":0.022222222222222223}],\"epics\":[],\"turningPoints\":[],\"legends\":[],\"placeNames\":[{\"placeId\":\"star_archive#1\",\"name\":\"星图书阁\",\"history\":[]}],\"announcements\":[],\"tells\":[{\"day\":2,\"from\":\"v0\",\"to\":\"v1\",\"claimId\":\"claim_0010\"},{\"day\":2,\"from\":\"v0\",\"to\":\"star_archive#1\",\"claimId\":\"claim_0010\"}],\"written\":[{\"recordId\":\"diary_0012\",\"kind\":\"diary\",\"authorId\":\"v0\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0007\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"written_m_0007\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":1,\"placeId\":\"at_56_33\"},{\"recordId\":\"diary_0013\",\"kind\":\"diary\",\"authorId\":\"v1\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0008\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v1\",\"claimId\":\"written_m_0008\",\"hop\":0}],\"originHolderId\":\"v1\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":1,\"placeId\":\"at_40_40\"}],\"cooldowns\":[{\"pairKey\":\"v0\\u0000v1\",\"claimId\":\"claim_0010\",\"atMs\":172800000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":\"claim_0010\",\"atMs\":172800000},{\"pairKey\":\"v0\\u0000v1\",\"claimId\":null,\"atMs\":172800000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":null,\"atMs\":172800000}],\"fanout\":{\"day\":2,\"counts\":[[\"v0\\u0000claim_0010\",2]]},\"verifyPlans\":[],\"credibility\":[],\"nextSerial\":14,\"currentDay\":2,\"metToday\":[]}}"
+  },
+  "meta": {
+    "savedAtWallClock": 0,
+    "savedReconciled": true,
+    "schemaFingerprint": "3ca5663faee59423"
+  }
+}
