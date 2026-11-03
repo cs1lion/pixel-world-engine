@@ -41,6 +41,36 @@ Holder 被摘掉，而痕迹的两条读路径（`lookAtTraces` 的准入与 `pl
    `confirmed / debunked` 的那一次写。`BondPhase` / `HabitRecord` 留结构位，
    等它们有生产者时再谈保留策略。转折点**不衰减**。
 
+## 决策记录：史诗门槛为什么是 0.55，不是 0.6
+
+- status: accepted
+- decided_at: 2026-11-03
+- decided_by: user（明确接受 0.55），agent 实现与核实
+- evidence: `world-client/src/world/memory/config.ts`, `world-client/src/world/memory/epic.ts`, `world-client/test/scene-memory.test.ts`
+
+**决策**：`epicImportanceFloor = 0.55`，不改。
+
+**理由（两条判据分工）**：
+
+- 一条事件够不够格叫「史诗」，看两件事：**够重**（`importanceHint`）与
+  **回不去**（`irreversibility`）。门槛 0.55 是给前者定的数，后者另判：
+  `building.removed` 的 hint 是 0.55、不可逆性是 1；一次口角的 hint 也是
+  0.55、不可逆性是 0。于是拆楼能进 `epic` / `founding`，口角最高只到
+  `legend`——分层不是靠门槛一刀切，是两条判据各拦一头。
+- **为什么不是 0.6**：0.6 是 `milestone`（立楼）的 hint。若门槛取 0.6，
+   `building.removed`（0.55）就永远够不着——而拆楼是这个世界里**唯一不可逆**
+  的日常事件：楼没了，痕迹会风化，但「这块地曾经有一栋楼」永远回不去。
+  让最不可逆的事件因为比「立楼」低 0.05 而被挡在史诗之外，是判据与语义
+   打架。取 0.55 的代价（口角也能过重要性这一关）已经由不可逆性那一关
+   挡住，实际不会混进 `epic`。
+- **为什么不用「拆楼 +0.1 加权」之类的补丁**：那会把重要性从「事件自带的
+  重量」变成「按 kind 加权的分数」，同一件事在两张表里两个值。把门槛压在
+   事件本来就会出现的那个数上，规则的输入仍然只有 `importanceHint` 一个。
+
+**若将来要改**：只改 `config.epicImportanceFloor` 一个常量；`epic.ts` 的
+判据与测试会一起指出哪些档位动了。不要改 `observe.ts` 里事件的 hint——
+那是世界对「这件事有多重」的读数，不该为了一个展示分级而调。
+
 ## 理由
 
 - **为什么复用字符串而不是升 v6**：`world.memory` 本来就是「记忆层的自留地」，
