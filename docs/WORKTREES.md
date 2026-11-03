@@ -35,15 +35,21 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | 路径 | 分支 | owner | 创建时间 | 预计回收时间 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | D:/project/pixel-world-engine | main | cs1lion | 2026-10-25 | — | 主工作树（不回收） |
+| D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-06 | 基线快照（`54139dd`） |
 | D:/project/pwe-hardness | feat/repo-hardness | cs1lion | 2026-11-03 | 2026-11-17 | 本次任务（活跃） |
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pixel-world-engine/.cindy-worktrees/zealous-jang | cindy/zealous-jang | cs1lion | 2026-11-02 | 2026-11-16 | 待回收（已合入 main） |
 | D:/project/pwe-bonds | feat/bonds-and-mood | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（尚无独有提交） |
-| D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（无独有提交） |
+| D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
+| D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
+| D:/project/pwe-funcdaily | feat/func-daily | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
+| D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-lampstreet | feat/lamp-street | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-ledger | feat/creation-ledger | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
+| D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-rhythm | feat/pace-60 | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
+| D:/project/pwe-routine | feat/routine-real | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
 | D:/project/pwe-scene | feat/scene-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（尚无独有提交） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main） |
