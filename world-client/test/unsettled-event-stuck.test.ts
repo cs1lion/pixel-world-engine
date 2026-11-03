@@ -47,6 +47,7 @@ function runUntilWorking(sim: Simulation): TaskFoldState {
   const command = syncCommand({ tasks: [{ id: 'c_rr', kind: 'writing', title: '整理便笺' }] });
   sim.enqueue(command);
   for (let i = 0; i < 3000; i += 1) {
+
     if (sim.snapshot().villager.mode === 'working') return command.fold;
     sim.update(STEP);
   }
@@ -123,7 +124,7 @@ test('认得出的事件才改世界：settled 到达时角色正常收手，不
   sim.update(STEP);
   assert.equal(sim.snapshot().deliveries.feed, 1, '认得出的收工事件才算交付');
 
-  for (let i = 0; i < 400; i += 1) sim.update(STEP);
+  for (let i = 0; i < 2000; i += 1) sim.update(STEP);
   const after = sim.snapshot();
   assert.equal(after.villager.mode, 'idle', '交付完回到空闲');
   assert.equal(after.villager.visible, true, '必须恢复可见，否则人看不见也动不了');

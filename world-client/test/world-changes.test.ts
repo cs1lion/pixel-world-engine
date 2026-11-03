@@ -84,7 +84,7 @@ test('上游单交付记成 source=feed，本地单记成 local——与交付�
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
     sim.update(1000);
-    if ((guard += 1) > 600) throw new Error('没走到铺子');
+    if ((guard += 1) > 3000) throw new Error('没走到铺子');
   }
   sim.enqueue(syncCommand({ finished: ['c_1'] }));
   sim.update(16);

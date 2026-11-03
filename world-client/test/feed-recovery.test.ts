@@ -140,7 +140,7 @@ test('有内容的日志：世界把折出来的活派下去', async () => {
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
     sim.update(1000);
-    if ((guard += 1) > 600) throw new Error('没把活派下去');
+    if ((guard += 1) > 3000) throw new Error('没把活派下去');
   }
   assert.equal(sim.snapshot().villager.taskId, 'c_1');
 });
@@ -176,7 +176,7 @@ test('读档后从空日志恢复：存档里的活保留，不被"没事件"判
   let guard = 0;
   while (a.snapshot().villager.mode !== 'working') {
     a.update(1000);
-    if ((guard += 1) > 600) throw new Error('没进工位');
+    if ((guard += 1) > 3000) throw new Error('没进工位');
   }
   const save = a.toSave();
   assert.ok(save.world.tasks.length > 0, '存档里应有这条活');
@@ -306,7 +306,7 @@ test('读档后第一轮撤单：她没活了，嘴上那句也得收', async ()
   let guard = 0;
   while (a.snapshot().villager.mode !== 'working') {
     a.update(1000);
-    if ((guard += 1) > 600) throw new Error('没能把角色送进工位');
+    if ((guard += 1) > 3000) throw new Error('没能把角色送进工位');
   }
   const before = a.snapshot().villager;
   assert.equal(before.routine, '顺手查一件小事', '前置：随手活把牌子写上了');

@@ -106,7 +106,7 @@ test('settled 时钟不混用：本地=wall clock，上游=事件带来的时间
   guard = 0;
   while (ledgerSim.snapshot().villager.mode !== 'working') {
     ledgerSim.update(1000);
-    if ((guard += 1) > 200) throw new Error('没走到铺子');
+    if ((guard += 1) > 3000) throw new Error('没走到铺子');
   }
   ledgerSim.enqueue(syncCommand({ finished: ['c_1'] }));
   ledgerSim.update(16);
@@ -132,7 +132,7 @@ test('事件带的时间：秒与毫秒都认，缺失或非法记 null——绝
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
     sim.update(1000);
-    if ((guard += 1) > 200) throw new Error('没走到铺子');
+    if ((guard += 1) > 3000) throw new Error('没走到铺子');
   }
   sim.enqueue(syncCommand({ finished: [{ id: 'c_1', completedAt: 1_792_377_786 }] }));
   sim.update(16);

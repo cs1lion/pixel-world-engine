@@ -75,7 +75,7 @@ test('quick 原地办完：牌子没了，人站在原地，那 1800 拍里她�
   const name = away[0]!.name;
 
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
-  for (let guard = 0; guard < 200 && snapshot.deliveries.local < 1; guard += 1) {
+  for (let guard = 0; guard < 4000 && snapshot.deliveries.local < 1; guard += 1) {
     sim.update(STEP);
     snapshot = sim.snapshot();
   }

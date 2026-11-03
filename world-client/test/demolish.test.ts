@@ -123,7 +123,7 @@ test('有角色在里面干活的楼不能拆', () => {
   sim.update(16);
   // 大世界里神谕活会派到郊野（20+ 格），走过去要时间。
   // 要抓「正在运转」的那一刻，不能一口气跑完——跑完就进冷却了。
-  for (let i = 0; i < 400; i += 1) {
+  for (let i = 0; i < 3000; i += 1) {
     sim.update(1000);
     if (sim.snapshot().workstations.some((w) => w.activity.kind === 'operating')) break;
   }

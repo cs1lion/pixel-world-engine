@@ -314,7 +314,7 @@ test('活体：举急件的那位放的是四帧，不是站着的那两帧', ()
   let before = new Map(
     sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos }, walking: v.walking }]),
   );
-  for (let t = 0; t < 400; t += 1) {
+  for (let t = 0; t < 2000; t += 1) {
     sim.update(1000);
     const snapshot = sim.snapshot();
     for (const villager of snapshot.villagers) {

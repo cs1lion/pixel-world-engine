@@ -324,7 +324,7 @@ test('举急件跑向祭坛的路上，牌子不留在上一拍的那一处', ()
 
   let bearing = 0;
   const said: string[] = [];
-  for (let i = 0; i < 400; i += 1) {
+  for (let i = 0; i < 2000; i += 1) {
     sim.update(1000);
     for (const villager of sim.snapshot().villagers) {
       if (villager.mode !== 'bearingDecree') continue;
@@ -418,8 +418,8 @@ test('站着带牌子的时候，她真站在牌子说的那一处', () => {
     let stoodAtAltar = 0;
     let before = new Map(sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos } }]));
     for (let t = 0; t < TICKS; t += 1) {
-      // 100ms 一拍：TICKS × 100ms = 五十世界分钟（与上面的观察窗口同量）。
-      sim.update(100);
+      // 雨现在下 2 世界小时；观察窗口要长过一场雨，才轮得到日常的牌子。
+      sim.update(1000);
       for (const villager of sim.snapshot().villagers) {
         const was = before.get(villager.id)!;
         const moved = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;

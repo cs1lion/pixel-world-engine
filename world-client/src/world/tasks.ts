@@ -5,12 +5,13 @@
  */
 
 import type { TaskKind, TaskProfile, WorkshopTask } from './types.ts';
+import { PACE, worldMinutes } from './pace.ts';
 
 export const TASK_PROFILES: Readonly<Record<TaskKind, TaskProfile>> = {
-  code: { estimateMs: 6000, venue: 'workshop', label: '写代码' },
-  research: { estimateMs: 4200, venue: 'workshop', label: '查资料' },
-  writing: { estimateMs: 3200, venue: 'workshop', label: '整理便笺' },
-  quick: { estimateMs: 1200, venue: 'in_place', label: '顺手查一件小事' },
+  code: { estimateMs: worldMinutes(PACE.workMinutes.code), venue: 'workshop', label: '写代码' },
+  research: { estimateMs: worldMinutes(PACE.workMinutes.research), venue: 'workshop', label: '查资料' },
+  writing: { estimateMs: worldMinutes(PACE.workMinutes.writing), venue: 'workshop', label: '整理便笺' },
+  quick: { estimateMs: worldMinutes(PACE.workMinutes.quick), venue: 'in_place', label: '顺手查一件小事' },
 };
 
 /** 铺子只接这三种。`quick` 不进铺子，所以这里不能收它。 */
@@ -27,8 +28,8 @@ export function isLongTask(kind: TaskKind): boolean {
 /**
  * 郊野的活更重：走那么远，做的活也该更久。
  *
- * 1.8 是实测定出来的：郊野单程 25 格约 8 秒，镇内约 3 秒，
- * 多走的 5 秒如果活还是一样长，「跑远路」就没有重量感。
+ * 1.8 是实测定出来的：郊野单程 25 格约 25 世界分钟，镇内约 5 世界分钟，
+ * 多走的 20 分钟如果活还是一样长，「跑远路」就没有重量感。
  * 倍率再高会让等待变得烦人——1.8 让"去了一趟"有分量，又不至于等到忘了。
  */
 const WILD_DURATION_FACTOR = 1.8;

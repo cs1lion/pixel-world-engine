@@ -45,7 +45,7 @@ export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly Routi
   const promenade = grid.nearestWalkable({ x: altar.x + 8, y: altar.y - 3 });
   const dwellMs = PACE.dwellMinMs;
   return [
-    { id: 'altar', label: '在祭坛边坐着', going: '去祭坛', target: altar, dwellMs },
+    { id: 'altar', label: '在祭坛边坐着', going: '去祭坛', target: altar, dwellMs: dwellMs },
     {
       id: 'garden',
       label: '去看了一眼农田',
@@ -58,14 +58,14 @@ export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly Routi
       label: '在街口站着看了一会儿',
       going: '去街口',
       target: promenade ?? altar,
-      dwellMs,
+      dwellMs: dwellMs,
     },
     {
       id: 'altar',
       label: '回到祭坛等神谕',
       going: '回祭坛',
       target: altar,
-      dwellMs,
+      dwellMs: dwellMs,
     },
   ];
 }

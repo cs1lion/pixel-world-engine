@@ -13,6 +13,7 @@ import {
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, buildWorldFromSave, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { STORM_DURATION_MS, WEATHER_FADE_MS } from '../src/world/weather.ts';
 import type { WorldSave } from '../src/world/save.ts';
 
 /** #14：潮位覆盖与三档天气。
@@ -229,8 +230,8 @@ test('暴雨也是一场有期限的天气，自己会停', () => {
   sim.update(16);
   assert.equal(sim.snapshot().weather, 'storm');
 
-  // 暴雨 90 秒，雨 45 秒——比雨久，但仍然会停。
-  for (let i = 0; i < 100; i += 1) sim.update(1000);
+  // 暴雨 3 世界小时、雨 2 世界小时——比雨久，但仍然会停。
+  sim.update(STORM_DURATION_MS + WEATHER_FADE_MS + 1000);
   assert.equal(sim.snapshot().weather, 'clear');
 });
 
@@ -252,7 +253,7 @@ test('转晴是渐变，不是当场关掉雨', () => {
   // 这条以前是漏的：`setWeather('clear')` 直接把 intensity 归零，雨幕一帧消失。
   const sim = makeSim();
   sim.enqueue({ kind: 'setWeather', weather: 'rain' });
-  for (let i = 0; i < 30; i += 1) sim.update(100);
+  sim.update(WEATHER_FADE_MS + 1000);
   const wet = sim.weatherIntensity();
   assert.ok(wet > 0.9);
 
@@ -265,7 +266,7 @@ test('转晴是渐变，不是当场关掉雨', () => {
   );
 
   // 而它确实会退干净。
-  for (let i = 0; i < 30; i += 1) sim.update(100);
+  sim.update(WEATHER_FADE_MS + 1000);
   assert.equal(sim.weatherIntensity(), 0);
 });
 

@@ -51,6 +51,15 @@ export const PACE = {
   walkCellMs: worldMinutes(1),
   /** 氛围事件的时间槽。一个槽里最多出一件事。 */
   ambientSlotMs: worldHours(2),
+  /**
+   * 一类活占多久。活的时长也得跟着世界分钟走：走路一格一分钟之后，
+   * 原来 6 世界秒的「写代码」只够现实里眨一下眼，玩家看不见铺子运转。
+   */
+  workMinutes: { code: 30, research: 20, writing: 15, quick: 5 } as const,
+  /** 天气：一场雨 2 世界小时，暴雨 3 世界小时；淡入淡出 5 世界分钟。 */
+  rainMinutes: 120,
+  stormMinutes: 180,
+  weatherFadeMinutes: 5,
 } as const;
 
 /**
