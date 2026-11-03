@@ -26,7 +26,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/render/          渲染层（只读快照）
 ├── src/settings/        设定集加载器（莞尔镇 / 灯潮界）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
-├── scripts/             八道闸门里的六个 + 开发/验收脚本
+├── scripts/             九道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
 └── test/                216 个测试文件 <!-- claim: test-file-count=216 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
@@ -215,8 +215,8 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 
 ## 验证
 
-CI 跑八条，前端 job 六条 + 服务端 job 两条（以
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
+CI 跑九道闸门，前端 job 八条 + 服务端 job 一条（另有一个只读浏览器 job，不在这九道
+计数里；以 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
 
 ```bash
 cd world-client && npm run check && npm test && npm run build
@@ -237,9 +237,9 @@ cd server && python -m pytest
 服务端依赖的上下界锁在 `server/requirements.txt`；CI 只有 `pip install -r` 这一层安装，
 没有额外 lock。要完全复现时再引 constraints。
 
-**这几条要一起跑。** 后四条的输出有个共同性质：引用对不上、节号不存在、色板超预算，
-**全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
-而四个闸门一个都没过。
+**这几条要一起跑。** 后五条（色板 + 三份审引用 + `audit-claims`）的输出有个共同性质：
+引用对不上、节号不存在、色板超预算，**全都只让输出变长，不会让 `check`/`test` 变红**。
+只跑前两条的人会以为自己是绿的，而五个闸门一个都没过。
 
 2026-11-03 的 CI 快照（[run 41553639144](https://github.com/cs1lion/pixel-world-engine/actions/runs/41553639144)，commit `85a0611`）：`check` 0 错、`test` 1901 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
@@ -323,6 +323,8 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 - **规范**：[`docs/SPEC.md`](docs/SPEC.md)（**唯一权威**；v2 增补见 §8–§15）
 - **取舍理由**：[`docs/SPEC_DRAFT_20261025.md`](docs/SPEC_DRAFT_20261025.md)
 - **术语表**：[`GLOSSARY.md`](GLOSSARY.md)
+- **断点续跑**：[`docs/RESUME.md`](docs/RESUME.md)
+- **worktree 登记**：[`docs/WORKTREES.md`](docs/WORKTREES.md)
 - **灯潮界实现范围**：[`docs/SETTING_DENGCHAO.md`](docs/SETTING_DENGCHAO.md)
 - **架构补充 v1.0**：[`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md`](docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md)
 - **造物引擎架构**：[`docs/iterations/1027-task-2/creator-engine-architecture.md`](docs/iterations/1027-task-2/creator-engine-architecture.md)
