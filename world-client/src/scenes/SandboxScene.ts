@@ -87,6 +87,7 @@ import {
   targetFpsFor,
 } from '../render/eco-mode.ts';
 import {
+  DEFAULT_FAST_TIME_SCALE,
   DEFAULT_UTC_OFFSET_MINUTES,
   OFFLINE_SETTLE_MAX_DAYS,
   RealClock,
@@ -103,6 +104,7 @@ import {
 } from '../world/real-clock-baseline.ts';
 import {
   clearClockAlignment,
+  clockAlignmentAvailable,
   formatBoundaryClock,
   formatDuration,
   inspectClockAlignment,
@@ -187,6 +189,9 @@ const ALTITUDE = 1000;
  */
 const GROUND_DECAL_DEPTH = -5;
 
+/** 默认的游玩时间驱动里点对齐入口时的说明：这回事只属于真实时钟模式。 */
+const CLOCK_ALIGN_REAL_ONLY = '日界对齐只在真实时钟模式（?clock=real）下可用';
+
 interface BuildingEntry {
   readonly building: BuiltWorld['buildings'][number];
   readonly view: BuildingView;
@@ -224,17 +229,18 @@ export class SandboxScene extends Phaser.Scene {
    */
   private snapshot!: WorldSnapshot;
   /**
-   * **加速模式**的倍率。`?speed=0.5` 放慢，`?speed=12` 加速，`?speed=1` 1:1；
-   * 只有显式 `?clock=fast`（或只给 `?speed=`）才用得上。默认倍率 6，
-   * 一世界日约 4 小时真实时间。
+   * **游玩时间驱动（默认）**的倍率。`?speed=0.5` 放慢，`?speed=12` 加速，
+   * `?speed=1` 1:1。默认倍率 6，一世界日约 4 小时真实时间；关页面即冻结，
+   * 重开从存档断点继续，永不补算。
    */
-  private timeScale = 6;
+  private timeScale = DEFAULT_FAST_TIME_SCALE;
   /**
-   * 时钟模式。**默认真实时钟**：一步固定 `LOGIC_STEP_MS`，`timeScale` 不作
-   * 倍率，墙钟走多久世界走多久，日界按本地 00:00（见 `world/real-clock.ts`）。
-   * 显式 `?clock=fast`（或只给 `?speed=`）才切回加速模式。
+   * 时钟模式。**默认是游玩时间驱动**：`timeScale` 放大喂给 `Simulation`
+   * 的步长，页面开着才走，关页面不积累任何世界时间。显式 `?clock=real`
+   * 才切到真实时钟（1:1、日界本地 00:00、跨会话补算与日界对齐只属于它，
+   * 见 `world/real-clock.ts`）。
    */
-  private clockMode: ClockMode = 'real';
+  private clockMode: ClockMode = 'accelerated';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
   /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
@@ -618,11 +624,13 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
-    // 时钟入口：**默认真实时钟**，墙钟与世界 1:1，日界落在本地 00:00。
-    // 加速必须显式说出口：`?clock=fast`（或 accelerated），或只给 `?speed=`
-    // （历史入口，截图与回归一直这么用）。`?clock=real` 压过 `?speed=`——
-    // 1:1 是真实时钟的定义，留一个能偷偷加速的入口就没人能说它还是真实时钟。
-    // 锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，但只影响日界落在几点，不改日长。
+    // 时钟入口：**默认是游玩时间驱动**，页面开着按倍率推进，关页面即冻结，
+    // 重开从存档断点继续，永不补算。真实时钟必须显式 `?clock=real`——它保留
+    // 1:1 步长、本地日界、跨会话补算与老档日界对齐；`?clock=fast`（或只给
+    // `?speed=`）继续表示加速模式（历史入口，截图与回归一直这么用）。
+    // `?clock=real` 压过 `?speed=`——1:1 是真实时钟的定义，留一个能偷偷加速的
+    // 入口就没人能说它还是真实时钟。锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，
+    // 但只影响日界落在几点，不改日长。
     const selection = resolveClockSelection(params);
     this.clockMode = selection.mode;
     this.realClockOffsetMinutes = selection.utcOffsetMinutes;
@@ -895,6 +903,8 @@ export class SandboxScene extends Phaser.Scene {
     // 真实时钟模式把新世界的零点锚在本地时间的「今天已过了多久」，这样跨日
     // 恰在本地 00:00，而不是「开局满 24 小时」。读档不重锚：档里的 `now` 是
     // 世界自己的事实，换时钟模式不改写它（`Simulation.fromSave` 会覆盖）。
+    // 默认的游玩时间驱动从 0 起算；关页面即冻结，重开从档里的 `now` 继续，
+    // 不做任何离线补算。
     const initialNow =
       this.clockMode === 'real'
         ? msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes)
@@ -1289,6 +1299,13 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 读档后初始化日界对齐：恢复「暂不 / 已对齐」决定，并按当前偏移决定要不要提示。 */
   private initClockAlignment(): void {
+    // 默认的游玩时间驱动没有墙钟日界：**不检测、不提示、不读记录**。
+    // 只有显式 `?clock=real` 才走下面这条路径。
+    if (!clockAlignmentAvailable(this.clockMode)) {
+      this.clockAlignRecord = null;
+      this.clockAlignGate.hide();
+      return;
+    }
     const storage = this.clockStorage();
     const worldId = this.pack?.id ?? 'world';
     const stored = storage === null ? null : readClockAlignment(storage, worldId);
@@ -1296,9 +1313,7 @@ export class SandboxScene extends Phaser.Scene {
     this.clockAlignGate = new ClockAlignmentGate(
       stored?.kind === 'declined' ? stored.boundaryMs : null,
     );
-    const probe = this.inspectAlignment();
-    if (this.clockMode === 'real') this.clockAlignGate.open(probe);
-    else this.clockAlignGate.hide();
+    this.clockAlignGate.open(this.inspectAlignment());
   }
 
   private inspectAlignment(): ClockAlignmentProbe {
@@ -1322,12 +1337,30 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private clockAlignmentView(): ClockAlignmentView {
+    // 默认模式：连检测都不做。面板据此把维护入口置灰并说明。
+    if (!clockAlignmentAvailable(this.clockMode)) {
+      return {
+        available: false,
+        pending: false,
+        required: false,
+        boundaryLabel: '—',
+        offsetMs: 0,
+        deltaMs: 0,
+        jumpLabel: '—',
+        dayLengthAfterLabel: '—',
+        aligned: false,
+        undoAvailable: false,
+        notice: null,
+        dayNote: null,
+      };
+    }
     const probe = this.inspectAlignment();
     const applied = this.clockAlignRecord?.kind === 'applied' ? this.clockAlignRecord : null;
     // 已对齐后当前偏移是 0；读数仍要显示**这次对齐做了多少**，否则撤销入口
     // 会写成「前跳 0 小时 0 分」。
     const deltaMs = applied?.deltaMs ?? probe.deltaMs;
     return {
+      available: true,
       pending: this.clockAlignGate.isVisible,
       required: probe.required,
       boundaryLabel: applied === null ? probe.boundaryLabel : formatBoundaryClock(applied.boundaryMs),
@@ -1344,9 +1377,9 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 设置/调试面板的「再次检查」：绕过「暂不」，但仍需要偏移超阈值才弹。 */
   private requestClockAlignmentCheck(): ClockAlignmentView {
-    if (this.clockMode !== 'real') {
+    if (!clockAlignmentAvailable(this.clockMode)) {
       this.clockAlignGate.hide();
-      this.clockAlignNotice = '加速模式下不做日界对齐';
+      this.clockAlignNotice = CLOCK_ALIGN_REAL_ONLY;
       return this.clockAlignmentView();
     }
     const probe = this.inspectAlignment();
@@ -1357,8 +1390,12 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private declineClockAlignment(): ClockAlignmentView {
+    if (!clockAlignmentAvailable(this.clockMode)) {
+      this.clockAlignNotice = CLOCK_ALIGN_REAL_ONLY;
+      return this.clockAlignmentView();
+    }
     const probe = this.inspectAlignment();
-    if (this.clockMode === 'real' && probe.required) {
+    if (probe.required) {
       this.clockAlignGate.decline(probe);
       const storage = this.clockStorage();
       if (storage !== null) {
@@ -1380,8 +1417,8 @@ export class SandboxScene extends Phaser.Scene {
    * `stepMemory → dayClosed → onVitals → stepCreatorDayClosed` 结算。
    */
   private applyClockAlignment(): ClockAlignmentView {
-    if (this.clockMode !== 'real' || this.realClock === null) {
-      this.clockAlignNotice = '加速模式下不做日界对齐';
+    if (!clockAlignmentAvailable(this.clockMode) || this.realClock === null) {
+      this.clockAlignNotice = CLOCK_ALIGN_REAL_ONLY;
       return this.clockAlignmentView();
     }
     const probe = this.inspectAlignment();
