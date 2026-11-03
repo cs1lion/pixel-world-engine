@@ -86,8 +86,13 @@ function readerOf(memory: MemoryRuntime): UnitMemoryReader {
 /** 神谕面板的假 API：记录 `say` 收到了什么；可注入「上游在线但拒收」的回执。 */
 function fakeOracleApi(
   say?: (text: string) => { readonly ok: boolean; readonly message: string },
-): { api: OracleApi; said: string[] } {
+): {
+  api: OracleApi;
+  said: string[];
+  emit(result: { readonly ok: boolean; readonly message: string; readonly raw?: string }): void;
+} {
   const said: string[] = [];
+  const listeners = new Set<(result: { ok: boolean; message: string; raw?: string }) => void>();
   const api: OracleApi = {
     view: () => ({}) as never,
     say: (text: string) => {
@@ -112,7 +117,10 @@ function fakeOracleApi(
     centerCameraOn: () => {},
     canPlaceAt: () => true,
     feed: () => ({ ok: true, message: '' }),
-    onResult: () => () => {},
+    onResult: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     onStatus: () => () => {},
     setPhase: () => {},
     currentPhase: () => 'noon',
@@ -125,7 +133,13 @@ function fakeOracleApi(
     report: () => ({ headline: '天下太平', lines: [], clock: '今天' }),
     slab: () => [],
   };
-  return { api, said };
+  return {
+    api,
+    said,
+    emit(result) {
+      for (const listener of listeners) listener(result);
+    },
+  };
 }
 
 const ORACLE_IDS = [
@@ -153,6 +167,7 @@ function bindWritingPanel(
   readonly input: FakeElement;
   readonly reply: FakeElement;
   submit(value: string): void;
+  emit(result: { readonly ok: boolean; readonly message: string; readonly raw?: string }): void;
   restore(): void;
 } {
   const dom = installFakeDom(ORACLE_IDS);
@@ -167,6 +182,7 @@ function bindWritingPanel(
       input.value = value;
       dom.byId('oracle').submit();
     },
+    emit: world.emit,
     restore: dom.restore,
   };
 }
@@ -259,6 +275,53 @@ test('L3-1d 服务端在线但拒收：回执照抄、输入保留、不重试',
     assert.equal(panel.reply.textContent, '上游拒绝：这句话认不出。', '上游的回执原样显示');
     assert.equal(panel.reply.className.includes('bad'), true, '拒收回执是错误样式');
     assert.equal(panel.input.value, '拆掉祭坛', '被拒收时不清空，句子还在手上');
+  } finally {
+    panel.restore();
+  }
+});
+
+test('L3-1e 上游异步 4xx：回执不吞，原句回到输入框', () => {
+  // 真实路径是异步的：`say()` 同步回「已投递」，输入框当场清空；
+  // 服务端的 422 要等模型那一趟回来才到。这条钉的就是那个时间差。
+  const panel = bindWritingPanel();
+  try {
+    panel.submit('让云把水倒下来');
+    assert.equal(panel.said.length, 1, '句子投递一次');
+    assert.equal(panel.input.value, '', '投递成功先把输入框清空（旧行为不变）');
+
+    // 先到「正在问模型……」：那是成功回执，不该让随后的拒收无处可还。
+    panel.emit({ ok: true, message: '这句话规则认不出，正在问模型……', raw: '让云把水倒下来' });
+    assert.equal(panel.input.value, '', '问模型期间不把句子塞回去');
+
+    panel.emit({
+      ok: false,
+      message: '这句话 250 字，超过上限 200 字；删短再发',
+      raw: '让云把水倒下来',
+    });
+    assert.equal(panel.reply.textContent, '这句话 250 字，超过上限 200 字；删短再发');
+    assert.equal(panel.reply.className.includes('bad'), true, '4xx 回执是错误样式，没被吞');
+    assert.equal(panel.input.value, '让云把水倒下来', '被服务端拒收后原句回到输入框');
+  } finally {
+    panel.restore();
+  }
+});
+
+test('L3-1e2 异步回执认原句：别的句子的失败不往输入框里塞', () => {
+  const panel = bindWritingPanel();
+  try {
+    panel.submit('涨潮');
+    panel.emit({ ok: false, message: '没有海，涨不了潮。', raw: '让云把水倒下来' });
+    assert.equal(panel.input.value, '', '不是自己那句的失败，不动输入框');
+    assert.equal(panel.reply.textContent, '没有海，涨不了潮。', '回执照常显示');
+
+    panel.submit('涨潮');
+    panel.emit({ ok: true, message: '潮涨上来了。', raw: '涨潮' });
+    assert.equal(panel.input.value, '', '成功回执不把句子塞回去');
+
+    panel.submit('放晴吧');
+    panel.input.value = '我自己写的新句';
+    panel.emit({ ok: false, message: '上游拒绝。', raw: '放晴吧' });
+    assert.equal(panel.input.value, '我自己写的新句', '用户已经重新敲字，不覆盖');
   } finally {
     panel.restore();
   }

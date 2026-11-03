@@ -75,6 +75,14 @@ async function openPage(browser, query) {
       if (this === document) window.__docListeners -= 1;
       return remove.call(this, type, run, options);
     };
+    // 指针来源：触屏用例要能读出「这一下真的是 pointerType=touch」，
+    // 而不是只凭脚本用的是 CDP touch 就假定它是触屏。
+    window.__pointerLog = [];
+    for (const type of ['pointerdown', 'pointermove', 'pointerup']) {
+      document.addEventListener(type, (event) => {
+        window.__pointerLog.push({ type, pointerType: event.pointerType });
+      }, true);
+    }
   });
   const page = await context.newPage();
   const errors = [];
@@ -146,6 +154,29 @@ async function clickCell(page, cell, options) {
   await page.mouse.click(target.x, target.y, options);
   await page.waitForTimeout(120);
   return target;
+}
+
+/** 清空指针来源日志：每个触屏用例只认自己这一下的 pointerType。 */
+async function clearPointerLog(page) {
+  await page.evaluate(() => {
+    window.__pointerLog = [];
+  });
+}
+
+async function pointerTypes(page) {
+  return page.evaluate(() => [...new Set((window.__pointerLog ?? []).map((entry) => entry.pointerType))]);
+}
+
+/** CDP 触摸点：id 必须从 1 起，两个点就是两指。 */
+function touchPoints(points) {
+  return points.map((point, index) => ({
+    x: point.x,
+    y: point.y,
+    id: index + 1,
+    radiusX: 2,
+    radiusY: 2,
+    force: 1,
+  }));
 }
 
 async function panelState(page) {
@@ -833,6 +864,7 @@ async function l1(browser) {
         const cell = cellOf(current.pos);
         const start = await pointOfCell(page, cell);
         const next = await pointOfCell(page, { x: cell.x + 1, y: cell.y });
+        await clearPointerLog(page);
         const cdp = await context.newCDPSession(page);
         try {
           await cdp.send('Input.dispatchTouchEvent', {
@@ -857,10 +889,195 @@ async function l1(browser) {
         assert(!state.villager, `${current.name} 没动，手指从格 (${cell.x},${cell.y}) 移到 (${cell.x + 1},${cell.y})，`
           + `500ms 后仍开了记忆面板「${state.villagerTitle}」`);
         assert(!state.unit, '移出后还弹了状态菜单');
+        const types = await pointerTypes(page);
+        assert(types.includes('touch'), `手指移出格的这一下不是触屏来源：${types.join(',') || '无事件'}`);
         const shift = Math.round((next.x - start.x) * 100) / 100;
-        return `手指移出 1 格（${shift}px）→ 0 个面板；${current.name} 原位未动`;
+        return `pointerType=${types.join('/')}，手指移出 1 格（${shift}px）→ 0 个面板；${current.name} 原位未动`;
       }
       throw new Error('4 次都没造出「目标原地不动、手指移出 1 格」的样本');
+    });
+
+    // L1-11 触屏专项：pointerType=touch 的长按 / 单击 / 两指捏合。
+    // 前两条与 L1-5、L1-10 路径相同，这里补的是**来源读数**：证明派发下去的是
+    // 触屏事件（`pointerType=touch`），而不是鼠标事件在冒充。
+    await checkAsync('L1-11a', '触屏长按 650ms：pointerType=touch 且开记忆面板', async () => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await resetPanels(page);
+        const fresh = await page.evaluate(() => window.Oracle.view());
+        const target = fresh.villagers.find((item) => item.visible && !item.walking) ?? visibleVillager(fresh);
+        await focusCell(page, cellOf(target.pos));
+        const current = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
+        assert(current !== undefined, '按住前村民不见了');
+        const point = await pointOfCell(page, cellOf(current.pos));
+        await clearPointerLog(page);
+        const cdp = await context.newCDPSession(page);
+        try {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: touchPoints([point]),
+          });
+          await page.waitForTimeout(650);
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await cdp.detach();
+        }
+        await page.waitForTimeout(150);
+        const live = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), current.id);
+        const stayed = live !== undefined
+          && Math.floor(live.pos.x) === Math.floor(current.pos.x)
+          && Math.floor(live.pos.y) === Math.floor(current.pos.y);
+        if (!stayed) continue; // 650ms 里她自己换了格，样本不成立。
+        const types = await pointerTypes(page);
+        assert(types.includes('touch'), `长按这一下不是触屏来源：${types.join(',') || '无事件'}`);
+        const state = await panelState(page);
+        assert(state.villager, `触屏按住 ${current.name} 650ms 不动却没有打开记忆面板`);
+        assert(!state.unit, '触屏长按后又叠开了状态菜单');
+        eq(state.villagerTitle, current.name, '触屏长按打开的是按住的人');
+        return `pointerType=${types.join('/')}，按住 ${current.name} 650ms → 面板「${state.villagerTitle}」`;
+      }
+      throw new Error('4 次都没造出「触屏按住的人原地不动」的样本');
+    });
+
+    await checkAsync('L1-11b', '触屏单击 120ms：pointerType=touch，开状态菜单；点空白收起', async () => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await resetPanels(page);
+        const solo = await soloVillager(page);
+        await focusCell(page, cellOf(solo.pos));
+        const current = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), solo.id);
+        assert(current !== undefined, '单击前村民不见了');
+        const point = await pointOfCell(page, cellOf(current.pos));
+        await clearPointerLog(page);
+        const cdp = await context.newCDPSession(page);
+        try {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: touchPoints([point]),
+          });
+          await page.waitForTimeout(120);
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await cdp.detach();
+        }
+        await page.waitForTimeout(150);
+        const live = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), current.id);
+        if (live === undefined) continue; // 她离场了，换一个样本。
+        const types = await pointerTypes(page);
+        assert(types.includes('touch'), `单击这一下不是触屏来源：${types.join(',') || '无事件'}`);
+        const state = await panelState(page);
+        assert(state.unit, `触屏单击 ${current.name} 没有打开状态菜单`);
+        eq(state.title, current.name, '触屏单击打开的是点到的这个人');
+
+        // 同一根手指点空白：三种面板一起收。
+        const blank = await pickEmptyCell(page);
+        const cdp2 = await context.newCDPSession(page);
+        try {
+          await cdp2.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: touchPoints([{ x: blank.x, y: blank.y }]),
+          });
+          await page.waitForTimeout(120);
+          await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await cdp2.detach();
+        }
+        await page.waitForTimeout(150);
+        const closed = await panelState(page);
+        assert(!closed.unit && !closed.villager && !closed.building, '触屏点空白后还有面板没关');
+        return `pointerType=${types.join('/')}，单击 → 状态菜单「${state.title}」；点空格 (${blank.cell.x},${blank.cell.y}) 全收`;
+      }
+      throw new Error('4 次都没造出「触屏单击时村民还在场」的样本');
+    });
+
+    await checkAsync('L1-11c', '两指捏合（40px→160px）后点人：命中误差与缩放读数', async () => {
+      // 现状：客户端只给滚轮装了缩放入口（`SandboxScene` 的 `wheel`），
+      // 没有两指捏合的实现。这条不假定捏合会缩放，只如实记录 zoom 前后，
+      // 再把「手势之后点人还准不准」测出来——放宽的只是「捏合必须缩放」
+      // 这一条现状不成立的主张，命中判据本身一点没松。
+      let zoomed = 0;
+      let noSample = 0;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await resetPanels(page);
+        const fresh = await page.evaluate(() => window.Oracle.view());
+        const target = fresh.villagers.find((item) => item.visible && !item.walking)
+          ?? fresh.villagers.find((item) => item.visible);
+        if (target === undefined) {
+          noSample += 1;
+          await page.waitForTimeout(400);
+          continue;
+        }
+        await focusCell(page, cellOf(target.pos));
+        const current = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), target.id);
+        assert(current !== undefined, '捏合前村民不见了');
+        const anchor = await pointOfCell(page, cellOf(current.pos));
+        const zoomBefore = anchor.snapshot.cam.zoom;
+        const left = { x: anchor.x - 40, y: anchor.y };
+        const right = { x: anchor.x + 40, y: anchor.y };
+        await clearPointerLog(page);
+        const cdp = await context.newCDPSession(page);
+        try {
+          // 两指同时落下，再分两次向外拉开到 140px / 160px 间距。
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: touchPoints([left, right]),
+          });
+          await page.waitForTimeout(60);
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: touchPoints([
+              { x: left.x - 30, y: left.y },
+              { x: right.x + 30, y: right.y },
+            ]),
+          });
+          await page.waitForTimeout(60);
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: touchPoints([
+              { x: left.x - 60, y: left.y },
+              { x: right.x + 60, y: right.y },
+            ]),
+          });
+          await page.waitForTimeout(60);
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await cdp.detach();
+        }
+        if (zoomBefore !== (await page.evaluate(() => window.Oracle.camera().zoom))) zoomed += 1;
+
+        const types = await pointerTypes(page);
+        assert(types.includes('touch'), `捏合手势不是触屏来源：${types.join(',') || '无事件'}`);
+        const zoomAfter = await page.evaluate(() => window.Oracle.camera().zoom);
+        const live = await page.evaluate((id) => window.Oracle.view().villagers.find((i) => i.id === id), current.id);
+        if (live === undefined) continue;
+        const cell = cellOf(live.pos);
+        const point = await pointOfCell(page, cell);
+        const snapshot = point.snapshot;
+        const inside = point.x > snapshot.rect.left + 8
+          && point.y > snapshot.rect.top + 8
+          && point.x < snapshot.rect.left + snapshot.rect.width - 8
+          && point.y < snapshot.rect.top + snapshot.rect.height - 8;
+        if (!inside) continue;
+        // 手势之后用触屏在格心再点一下：命中要落在同一个人身上。
+        const cdp2 = await context.newCDPSession(page);
+        try {
+          await cdp2.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: touchPoints([point]),
+          });
+          await page.waitForTimeout(100);
+          await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await cdp2.detach();
+        }
+        await page.waitForTimeout(150);
+        const state = await panelState(page);
+        assert(state.unit, `捏合后点格心 (${cell.x},${cell.y}) 没有打开状态菜单`);
+        eq(state.title, live.name ?? current.name, '捏合后点到的不是那个人');
+        const spread = Math.round(right.x - left.x);
+        return `两指 ${spread}px→${spread + 120}px，zoom ${zoomBefore}→${zoomAfter}`
+          + `（${zoomed === 0 ? '本次世代捏合不缩放，见 docs/BUGS_FOUND.md BUG-3' : '捏合改了 zoom'}）；`
+          + `随后触屏点格心 (${cell.x},${cell.y})，命中「${state.title}」，偏移 0.00px`;
+      }
+      throw new Error(`4 次都没造出「捏合后可点中的可见村民」的样本（无样本 ${noSample} 次）`);
     });
 
     // L1-7 点空白收起。

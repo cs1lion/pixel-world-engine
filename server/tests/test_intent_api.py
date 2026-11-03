@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -24,10 +25,17 @@ from events.api import create_app
 from events.log import EventLog
 from oracle import wire
 from oracle.api import command_to_intent
-from oracle.orchestrator import ModelUnavailable, env_caller
+from oracle.orchestrator import MAX_UTTERANCE_CHARS, ModelUnavailable, env_caller, utterance_length
 from rules.schema import validate_command
 
 SAMPLE = Path(__file__).resolve().parents[2] / "docs" / "intent.sample.json"
+CLIENT_PANEL = (
+    Path(__file__).resolve().parents[2]
+    / "world-client"
+    / "src"
+    / "ui"
+    / "oracle-panel.ts"
+)
 
 TEMPLATES = [
     {"id": "code_forge", "displayName": "炼码工坊", "boundTask": "code"},
@@ -669,3 +677,162 @@ def test_意图端点不写事件日志() -> None:
     client = client_with(commands({"command": "weather.set", "args": {"value": "rain"}}))
     post(client)
     assert client.get("/api/events").json()["events"] == []
+
+
+# ---------------------------------------------------------------- 服务端同步校验
+#
+# 客户端（`world-client/src/ui/oracle-panel.ts`）已经把 200 字上限与控制字符
+# 拦在提交入口上。但那只能防手滑：粘贴、脚本、调接口、旧缓存里的旧前端，
+# 都能绕过 UI 直接到这里。这一组钉的是「上游也挡」，而且挡在**调模型之前**。
+
+
+def client_that_must_not_call_model() -> TestClient:
+    """一被调就炸的调用者：证明拒绝发生在模型调用之前。"""
+
+    def caller(_messages):
+        raise AssertionError("这句话不该到模型面前")
+
+    app = create_app(EventLog(":memory:"))
+    app.state.model_caller = caller
+    app.state.model_name = "fake-model"
+    return TestClient(app, raise_server_exceptions=True)
+
+
+def test_上限与客户端常量是同一个数() -> None:
+    """两边各写一份常量是必要的（前端不 import Python），但值不能各挑各的。
+
+    客户端 200、服务端 500 的话，250 字的句子在 UI 里被拒、绕过 UI 却过得去。
+    `intent-contract.test.ts` 反向钉住的也是这类「两边对同一句话说法不同」。
+    """
+    source = CLIENT_PANEL.read_text(encoding="utf-8")
+    match = re.search(r"export const UTTERANCE_MAX_LENGTH = (\d+)", source)
+    assert match is not None, f"客户端常量没找到：{CLIENT_PANEL}"
+    assert MAX_UTTERANCE_CHARS == 200, "服务端上限应当是 200"
+    assert int(match.group(1)) == MAX_UTTERANCE_CHARS, (
+        f"客户端上限 {match.group(1)} 与服务端 {MAX_UTTERANCE_CHARS} 不一致"
+    )
+
+
+def test_每个_utf16_码元算一字() -> None:
+    """按 `String.length` 的算法数：emoji 在 JS 里占 2。"""
+    assert utterance_length("字") == 1
+    assert utterance_length("🐈") == 2, "Python 的 len 只算 1，那样会漏掉一倍的量"
+    assert utterance_length("字🐈") == 3
+
+
+@pytest.mark.parametrize("length", [MAX_UTTERANCE_CHARS + 1, 10_000])
+def test_绕过_UI_直接_POST_超长被拒且不调模型(length: int) -> None:
+    """「客户端挡住了、上游没挡」的正面反例。
+
+    直接 POST 就是把 UI 绕过去的那条路。回执必须是明确的 4xx 与一句人话，
+    不是 200 + unknown——后者会被用户读成「世界没听懂」。
+    """
+    response = post(client_that_must_not_call_model(), utterance="字" * length)
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert isinstance(detail, str)
+    assert f"{length} 字" in detail, f"回执要说清实际长度，实际「{detail}」"
+    assert f"上限 {MAX_UTTERANCE_CHARS} 字" in detail, f"回执要说清上限，实际「{detail}」"
+
+
+def test_恰好上限收下_多一字拒收() -> None:
+    """正反两面都要：只钉拒收的话，一个什么都拒的实现也能全绿。"""
+    length = MAX_UTTERANCE_CHARS
+    accepted = post(
+        client_with(commands({"command": "weather.set", "args": {"value": "rain"}})),
+        utterance="字" * length,
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["intent"] == {"kind": "setWeather", "weather": "rain"}
+
+    rejected = post(client_that_must_not_call_model(), utterance="字" * (length + 1))
+    assert rejected.status_code == 422
+
+
+def test_两端空白不占上限() -> None:
+    """客户端先 trim 再数长度；服务端照同一条来，否则同一句话两边结论不同。"""
+    padded = "  " + "字" * MAX_UTTERANCE_CHARS + "  "
+    response = post(
+        client_with(commands({"command": "weather.set", "args": {"value": "rain"}})),
+        utterance=padded,
+    )
+    assert response.status_code == 200
+    assert response.json()["intent"]["kind"] == "setWeather"
+
+    over = "  " + "字" * (MAX_UTTERANCE_CHARS + 1) + "  "
+    assert post(client_that_must_not_call_model(), utterance=over).status_code == 422
+
+
+def test_emoji_按客户端口径数_过上限被拒() -> None:
+    """100 个 emoji 在客户端正好 200 字，101 个是 202 字。
+    `len()` 会把它数成 101 并放行——那是漏。"""
+    ok = "🐈" * (MAX_UTTERANCE_CHARS // 2)
+    assert post(
+        client_with(commands({"command": "weather.set", "args": {"value": "rain"}})),
+        utterance=ok,
+    ).status_code == 200
+
+    over = post(client_that_must_not_call_model(), utterance="🐈" * (MAX_UTTERANCE_CHARS // 2 + 1))
+    assert over.status_code == 422
+    assert "202 字" in over.json()["detail"], over.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "text, count",
+    [
+        ("拆\u0000掉祭坛", 1),
+        ("\u0001下雨吧", 1),
+        ("\u001f", 1),
+        ("\u007f", 1),
+        ("\u0000\u0001\u0007拆\u007f", 4),
+        ("下\n雨", 1),
+        ("下\t雨", 1),
+    ],
+)
+def test_控制字符被明确拒收(text: str, count: int) -> None:
+    """客户端会把它们剥掉再发，所以正常路径到不了这里。能到的只有旁路——
+    一条带控制字符的请求本来就说明它不是那面板发出来的。422 要说清有几个。"""
+    response = post(client_that_must_not_call_model(), utterance=text)
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "控制字符" in detail
+    assert f"{count} 个" in detail, f"回执要说清个数，实际「{detail}」"
+
+
+def test_剥掉控制字符后剩下的句子_服务端不替它洗() -> None:
+    """与客户端「剥除」不同：服务端拒收整条。理由写在 `oracle/api.py` 顶部——
+    服务端不该替旁路调用方洗数据，而 UI 那条路已经洗过了。"""
+    response = post(client_that_must_not_call_model(), utterance="\u0000下雨吧")
+    assert response.status_code == 422
+    assert "控制字符" in response.json()["detail"]
+
+
+def test_空句子仍然是_200_unknown() -> None:
+    """空句不是「请求不对」：它是一条说得出口的、但世界不听的话。
+    客户端也按空句处理（不投递）；绕过 UI 直接送空串，契约仍然不变成 4xx。"""
+    response = post(client_with(), utterance="   ")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intent"]["kind"] == "unknown"
+    assert body["source"] == "none"
+
+
+def test_超长先于模型调用被拦_回执不落在_unknown() -> None:
+    """同一个长度，200 字会调模型、201 字不会。这条把「挡在模型之前」分开钉：
+    只看 422 的话，一个先调模型再判长度、最后回 422 的实现也能过。"""
+    calls: list[list[dict[str, str]]] = []
+
+    def caller(messages):
+        calls.append(messages)
+        return commands({"command": "weather.set", "args": {"value": "rain"}})
+
+    app = create_app(EventLog(":memory:"))
+    app.state.model_caller = caller
+    app.state.model_name = "fake-model"
+    client = TestClient(app)
+
+    assert post(client, utterance="字" * MAX_UTTERANCE_CHARS).status_code == 200
+    assert len(calls) == 1
+    assert post(client, utterance="字" * (MAX_UTTERANCE_CHARS + 1)).status_code == 422
+    assert len(calls) == 1, "超长那句仍然调了模型"
+

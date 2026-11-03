@@ -16,6 +16,7 @@
     "test:live": "node scripts/accept-live.mjs",
     "test:browser": "node scripts/smoke.mjs",
     "test:interact": "node scripts/check-interact.mjs",
+    "test:oracle-e2e": "node scripts/check-oracle-e2e.mjs",
     "test:phases": "node scripts/check-phases.mjs",
     "test:persistence": "node scripts/check-persistence.mjs",
     "test:render-budget": "node scripts/check-render-budget.mjs",
