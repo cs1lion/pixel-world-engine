@@ -3508,6 +3508,7 @@ export class Simulation {
   private log(tone: WorldEvent['tone'], text: string): void {
     this.events.push({ at: this.now, tone, text });
     if (this.events.length > EVENT_LIMIT) this.events.splice(0, this.events.length - EVENT_LIMIT);
+    this.eventSeq += 1;
   }
 
   /**
@@ -3606,6 +3607,31 @@ export class Simulation {
    */
   buildingById(instanceId: string): PlacedBuilding | undefined {
     return this.buildings.find((item) => item.instanceId === instanceId);
+  }
+
+  /**
+   * 世界事件序号：从 0 起，构造那条「世界醒来」就是 0。
+   *
+   * 放在类尾的理由同上一条：不推移上面被文档按行号引用的段落。
+   */
+  private eventSeq = 0;
+
+  /**
+   * 只读：世界事件总条数。
+   *
+   * 回放器按序号增量取事件，而不是从快照的最近 12 条里猜——猜在重复事件上
+   * 会漏，而漏掉一条事件就不是同一条时间线了。窗口 60 条之外取不到的会返回
+   * null，调用方据此明确报「窗口溢出」，不静默补零。
+   */
+  eventCount(): number {
+    return this.eventSeq;
+  }
+
+  /** 只读：按序号取世界事件；已被 60 条窗口挤掉的返回 null。 */
+  eventAt(seq: number): WorldEvent | null {
+    const first = this.eventSeq - this.events.length;
+    if (seq < first || seq >= this.eventSeq) return null;
+    return this.events[seq - first] ?? null;
   }
 }
 
