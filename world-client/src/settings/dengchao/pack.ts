@@ -1,5 +1,6 @@
 import type { RawSettingPack } from '../types.ts';
 import { lampStreetScenery } from './lamp-street.ts';
+import { sceneArtbookScenery } from './scene-artbook.ts';
 
 /**
  * 一栋楼的模板。`accent` 与 `boundTask` **必须成对**，这是 `blueprints.ts`
@@ -280,12 +281,16 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 灯街的专属资产：十根街灯、三串纸灯、一条街面铺装、三面店铺立面、
     // 六个夜市摊位、三幅幌布、三根竖招牌。清单与来源页码在 `lamp-street.ts`。
     ...lampStreetScenery(),
+    // 设定集场景补绘：炉底、渡口石堤、街面分段、对岸屋脊与钟塔。
+    // 每件资产的页码与形制在 `scene-artbook.ts`。
+    ...sceneArtbookScenery(),
     // 积尘滩的废弃物堆只出现在滩上，不越到灯街。
     ...Array.from({ length: 7 }, (_, i) => ({
       kind: 'debris' as const,
       at: { x: 40 + i * 2, y: 41 + (i % 3) },
     })),
-    { kind: 'steam', at: { x: 34, y: 18 } },
+    // 主楼烟囱的烟挪到新烟囱顶（p15 的独立砖烟囱），旧坐标在屋顶上。
+    { kind: 'steam', at: { x: 36, y: 11 } },
     { kind: 'steam', at: { x: 45, y: 37 } },
   ],
 };

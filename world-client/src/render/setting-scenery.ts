@@ -18,6 +18,7 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
 
 export interface SettingSceneryView {
   update(level: number, now: number, clock: SettingSceneryClock): void;
@@ -49,6 +50,8 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
   const c = pack.palette;
   const lights: LightPoint[] = [];
   const windows: LightPoint[] = [];
+  // 水面倒影锚点：只在对岸窗火处追加，补绘层在 `scene-artbook.ts` 里画。
+  const reflectors: ArtbookPoint[] = [];
 
   for (const item of pack.scenery) {
     if (item.kind === 'steam') continue;
@@ -90,20 +93,17 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
       }
     } else if (item.kind === 'shopfront') {
       const width = (item.length ?? 5) * TILE_PX;
-      drawShopfront(props, x, y, width, c);
+      const lanterns = drawShopfront(props, x, y, width, c);
       // 店面那扇格窗也吃灯态：白天是暗琥珀，点灯后透出暖光。
       windows.push({ x: x + (width >= 64 ? width / 4 : 18), y: y + 19 });
+      // 檐下红灯比街灯小一档，用 `windows` 的 14x10 光芯就够，不再开大灯池。
+      for (const lx of lanterns) windows.push({ x: lx + 2, y: y - 1 });
     } else if (item.kind === 'signpost') {
       drawSignpost(props, x, y, c);
     } else if (item.kind === 'bridge') {
-      bridge.fillStyle(c.terracotta, 1);
-      bridge.fillRect(x, y, item.length! * TILE_PX, 18);
-      bridge.fillStyle(c.timberDark, 1);
-      for (let i = 0; i < item.length!; i += 1) bridge.fillRect(x + i * TILE_PX + 2, y, 2, 18);
-      bridge.fillStyle(c.ember, 1);
-      bridge.fillRect(x, y - 7, item.length! * TILE_PX, 3);
-      bridge.fillRect(x, y + 14, item.length! * TILE_PX, 3);
-      for (let i = 0; i < item.length!; i += 2) bridge.fillRect(x + i * TILE_PX, y - 8, 3, 26);
+      for (const lx of drawBridge(bridge, x, y, item.length ?? 0, c)) {
+        lights.push({ x: lx, y: y - 16 });
+      }
     } else if (item.kind === 'sign') {
       props.fillStyle(c.timberDark, 1);
       props.fillRect(x + 3, y - 15, 3, 31);
@@ -185,7 +185,7 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
     }
   }
 
-  // 叠浪楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
+  // 主楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
   const hall = pack.placements.find((p) => p.prefabId === 'wave_house');
   if (hall !== undefined) {
     const x = hall.at.x * TILE_PX;
@@ -196,6 +196,16 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
       for (let i = 0; i < 8; i += 1) architecture.fillRect(x + i * 15, y + dy, 2, 10);
     }
   }
+
+  // 设定集补绘：主楼正立面、炉底、渡口、街面分段、对岸屋脊。
+  // 锚点从这里传进去，场景补绘文件里不再写一份主楼坐标。
+  const artbook = createSceneArtbook(
+    scene,
+    pack,
+    windows,
+    reflectors,
+    hall === undefined ? undefined : { x: hall.at.x * TILE_PX, y: hall.at.y * TILE_PX },
+  );
 
   return {
     update(level, now, clock) {
@@ -236,11 +246,83 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
         steam.fillStyle(c.deepShade, 0.15);
         steam.fillRect(x + 1 + drift, y - 15, 10, 6);
       }
+      // 设定集补绘的动态层：水面灯影、对岸窗火、湾面低雾。
+      artbook.update(level, now, clock);
     },
     destroy() {
+      artbook.destroy();
       for (const layer of [track, street, bridge, lampLight, props, architecture, steam]) layer.destroy();
     },
   };
+}
+
+/**
+ * 叠浪楼门桥（PDF p16/p39/p46）：朱红桥面、方眼格子栏板、两端方灯。
+ *
+ * 桥同占水口（x28..37,y27），桥面把水面整段盖住，所以桥下不画倒影；
+ * 这里的灯只进 `lights`，不往 `reflectors` 里塞。
+ */
+function drawBridge(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  length: number,
+  c: SettingPack['palette'],
+): number[] {
+  const span = length * TILE_PX;
+  // 桥台：浅色条石，比桥面宽一档（p16 的入口石阶）。
+  g.fillStyle(c.ink, 0.35);
+  g.fillRect(x - 8, y + 18, span + 16, 4);
+  g.fillStyle(c.plaza, 1);
+  g.fillRect(x - 8, y + 2, 10, 18);
+  g.fillRect(x + span - 2, y + 2, 10, 18);
+  g.fillStyle(c.stone, 1);
+  g.fillRect(x - 8, y + 18, 10, 2);
+  g.fillRect(x + span - 2, y + 18, 10, 2);
+  // 桥面：朱红横板，板缝每 8px。
+  g.fillStyle(c.terracotta, 1);
+  g.fillRect(x, y + 2, span, 16);
+  g.fillStyle(c.timberDark, 1);
+  for (let i = 0; i < span; i += 8) g.fillRect(x + i, y + 2, 1, 16);
+  g.fillStyle(c.trim, 0.55);
+  g.fillRect(x, y + 2, span, 1);
+  // 上下两道横枋
+  g.fillStyle(c.ember, 1);
+  g.fillRect(x, y - 6, span, 3);
+  g.fillRect(x, y + 16, span, 3);
+  // 立柱：每 8px 一根，柱头压金。
+  for (let i = 0; i <= span; i += 8) {
+    g.fillStyle(c.ember, 1);
+    g.fillRect(x + i, y - 8, 2, 26);
+    g.fillStyle(c.trim, 1);
+    g.fillRect(x + i - 1, y - 9, 4, 2);
+  }
+  // 方眼格：两道斜线，每格 8px。
+  for (let i = 0; i <= span; i += 8) {
+    for (let k = 0; k < 12; k += 4) {
+      g.fillStyle(c.terracotta, 0.9);
+      g.fillRect(x + i + k, y - 3 + k, 2, 1);
+      g.fillRect(x + i + k, y + 15 - k, 2, 1);
+    }
+  }
+  // 两端望柱 + 方形纸灯。
+  const lanterns: number[] = [];
+  for (const px of [x - 6, x + span - 2]) {
+    g.fillStyle(c.timberDark, 1);
+    g.fillRect(px, y - 20, 4, 40);
+    g.fillStyle(c.trim, 1);
+    g.fillRect(px - 1, y - 22, 6, 2);
+    g.fillStyle(c.ember, 1);
+    g.fillRect(px - 3, y - 32, 10, 12);
+    g.fillStyle(c.trim, 1);
+    g.fillRect(px - 3, y - 32, 10, 1);
+    g.fillStyle(c.warmLight, 1);
+    g.fillRect(px, y - 26, 4, 4);
+    g.fillStyle(c.ink, 1);
+    g.fillRect(px - 3, y + 2, 10, 1);
+    lanterns.push(px + 2);
+  }
+  return lanterns;
 }
 
 /** 街面铺装：石板缝 + 少量苔，不整块盖掉地形。 */
@@ -316,7 +398,7 @@ function drawShopfront(
   y: number,
   width: number,
   c: SettingPack['palette'],
-): void {
+): number[] {
   // 檐
   g.fillStyle(c.ink, 0.22);
   g.fillRect(x - 3, y - 2, width + 6, 3);
@@ -324,9 +406,24 @@ function drawShopfront(
   g.fillRect(x - 4, y - 8, width + 8, 7);
   g.fillStyle(c.trim, 0.8);
   g.fillRect(x - 4, y - 8, width + 8, 1);
+  // 檐下布幔：橙红分条，幔脚压一道深线（p37/p40 的店檐）。
+  for (let i = 0; i < width + 8; i += 4) {
+    g.fillStyle(i % 8 === 0 ? c.warmLight : c.terracotta, 0.9);
+    g.fillRect(x - 4 + i, y - 4, 3, 3);
+  }
+  g.fillStyle(c.ink, 0.5);
+  g.fillRect(x - 4, y - 1, width + 8, 1);
   // 墙
   g.fillStyle(c.plaster, 1);
   g.fillRect(x, y, width, 28);
+  // 斑驳：雨痕从檐口垂到窗上沿，露石与补板压在旧缝上（p40）。
+  g.fillStyle(c.deepShade, 0.20);
+  g.fillRect(x + 9, y + 2, 1, 10);
+  g.fillRect(x + width - 19, y + 3, 1, 8);
+  g.fillStyle(c.stone, 0.55);
+  g.fillRect(x + 16, y + 4, 6, 4);
+  g.fillStyle(c.timberDark, 0.55);
+  g.fillRect(x + 3, y + 20, 8, 1);
   g.fillStyle(c.stone, 1);
   g.fillRect(x, y + 28, width, 4);
   // 贴地影：窄立面也要有落地的接触面，否则像一块浮着的板
@@ -364,6 +461,24 @@ function drawShopfront(
   g.fillRect(x + width - 5, y + 14, 2, 2);
   g.fillRect(x + width - 5, y + 18, 2, 2);
   g.fillRect(x + width - 5, y + 22, 2, 1);
+  // 檐下红灯：一排挂在檐口下面，是 p37/p40 店街最显眼的一层。
+  const lanterns: number[] = [];
+  const count = width >= 64 ? 4 : 2;
+  for (let i = 0; i < count; i += 1) {
+    const lx = x + 7 + i * (width - 18) / (count - 1);
+    g.fillStyle(c.timberDark, 1);
+    g.fillRect(lx + 2, y - 1, 1, 3);
+    g.fillStyle(c.ember, 1);
+    g.fillRect(lx, y + 2, 5, 7);
+    g.fillStyle(c.trim, 1);
+    g.fillRect(lx, y + 2, 5, 1);
+    g.fillStyle(c.amber, 0.7);
+    g.fillRect(lx + 2, y + 4, 1, 3);
+    g.fillStyle(c.ink, 1);
+    g.fillRect(lx, y + 8, 5, 1);
+    lanterns.push(lx + 2);
+  }
+  return lanterns;
 }
 
 function drawLattice(
