@@ -341,8 +341,13 @@ def test_消息是_system_加_user_两条_user_就是原话() -> None:
     assert messages[1] == {"role": "user", "content": "帮我写个爬虫"}, "不许改写用户原话"
 
 
-def test_世界现状进了提示词_且三档天气各说各的() -> None:
-    for weather, fragment in (("clear", "天晴"), ("rain", "在下雨"), ("storm", "暴雨")):
+def test_世界现状进了提示词_且四档天气各说各的() -> None:
+    for weather, fragment in (
+        ("clear", "天晴"),
+        ("rain", "在下雨"),
+        ("storm", "暴雨"),
+        ("fog", "起雾"),
+    ):
         prompt = build_system_prompt(TEMPLATES, {"weather": weather})
         assert fragment in prompt, f"{weather} 没说出来"
 

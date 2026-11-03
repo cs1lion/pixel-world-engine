@@ -1,7 +1,10 @@
-/** 天气：三档，切换要渐变，不能秒切。
+/** 天气：四档，切换要渐变，不能秒切。
  *
- * 世界法则（神谕说下雨/暴雨）和自动退场都走这里。退场用时长而不是"下一拍就停"，
+ * 世界法则（神谕说下雨/暴雨/起雾）和自动退场都走这里。退场用时长而不是"下一拍就停"，
  * 否则雨幕会像开关灯一样跳。
+ *
+ * `fog` 与雨走同一个状态机，但浓淡的去处不同：雨的浓淡画雨丝，雾的浓淡画能见度。
+ * 所以 `renderIntensity` 对雾返回 0、`weatherFogDensity` 对雨返回 0，两条通道分开。
  *
  * **`storm` 不是新机制。** 它和 `rain` 走同一条路，目标浓淡一样拉满到 1
  * （见下面 `TARGET_INTENSITY`），差别落在别处两样：下得更久（3 世界小时对 2 世界小时），
@@ -25,6 +28,8 @@ export const WEATHER_FADE_MS = worldMinutes(PACE.weatherFadeMinutes);
 export const RAIN_DURATION_MS = worldMinutes(PACE.rainMinutes);
 /** 暴雨下得更久：它是一次天气事件，不是一阵过云雨。 */
 export const STORM_DURATION_MS = worldMinutes(PACE.stormMinutes);
+/** 雾与雨同长；能见度退得慢，居民才有时间“改走近路”。 */
+export const FOG_DURATION_MS = worldMinutes(PACE.fogMinutes);
 
 /**
  * 每一档的目标浓淡。
@@ -38,12 +43,15 @@ const TARGET_INTENSITY: Readonly<Record<Weather, number>> = {
   clear: 0,
   rain: 1,
   storm: 1,
+  /** 雾的目标也是 1：能见度压到最大。渲染层按 kind 决定这 1 用在哪儿。 */
+  fog: 1,
 };
 
 const DURATION_MS: Readonly<Record<Weather, number | null>> = {
   clear: null,
   rain: RAIN_DURATION_MS,
   storm: STORM_DURATION_MS,
+  fog: FOG_DURATION_MS,
 };
 
 /** 立刻放晴，浓淡归零。只用于初始化——运行中要转晴请用 `fadingToClear`。 */
@@ -94,6 +102,8 @@ export function stepWeather(
 
 /** 渲染层判断"此刻还在下雨"用浓淡，不用 kind，避免刚转晴就立刻停雨。 */
 export function isVisiblyRaining(state: WeatherState): boolean {
+  // 雾也有浓淡，但不落雨点：它走 `weatherFogDensity` 那条通道。
+  if (state.kind === 'fog') return false;
   return state.intensity > 0.05;
 }
 
@@ -120,6 +130,7 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
   clear: '晴',
   rain: '雨',
   storm: '暴雨',
+  fog: '雾',
 };
 
 /**
@@ -154,8 +165,21 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
  * 上限仍然是 1，因为插值的那几个量都是 0..1 语义。
  */
 export function renderIntensity(state: WeatherState): number {
+  // 雾的浓淡不进雨幕：同一份 intensity 在雾那里是能见度，见 `weatherFogDensity`。
+  if (state.kind === 'fog') return 0;
   if (state.kind !== 'storm') return state.intensity;
   // 加 0.25 而不是乘以系数：浓淡正在渐入时（比如 0.2）暴雨也该比雨重，
   // 乘法在低值时几乎看不出差别。
   return Math.min(1, state.intensity + 0.25);
+}
+
+/**
+ * 给雾视图的强度（0..1）。
+ *
+ * 与 `renderIntensity` 是**两条互斥的通道**：雨的浓淡画雨丝，雾的浓淡画能见度。
+ * 两处都从同一个 `intensity` 取值，但各给各的渲染层——这样 `render/weather.ts`
+ * 不必知道雾存在，雾视图也不必知道雨有几档。
+ */
+export function weatherFogDensity(state: WeatherState): number {
+  return state.kind === 'fog' ? state.intensity : 0;
 }

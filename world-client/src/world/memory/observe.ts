@@ -58,6 +58,11 @@ export function worldEventImportance(kind: WorldEventKind): number {
     case 'night_market':
     case 'market_close':
       return 0.35;
+    case 'harbor_report':
+      // 船班播报是镇子级事件，但个人记忆只记码头边在场的人。门槛要略高：
+      // 它值得记住（决定今天过不过得了河），但不是传说级；0.55 让
+      // 「看见的人」过 T_write，而不是把广播塞给全镇。
+      return 0.55;
   }
 }
 
@@ -90,6 +95,9 @@ export function worldEventValence(kind: WorldEventKind): number {
     case 'night_market':
     case 'market_close':
       return 0;
+    case 'harbor_report':
+      // 停航是坏消息，开航只是寻常；同一句话里已经说了船开没开。
+      return 0;
   }
 }
 
@@ -107,6 +115,8 @@ export function worldEventArousal(kind: WorldEventKind): number {
       return 0.3;
     case 'tide_turn':
       return 0.35;
+    case 'harbor_report':
+      return 0.3;
     default:
       return 0.25;
   }
@@ -165,6 +175,7 @@ export function observationOf(
   change: WorldChange,
   eventId: string,
   lookups: ObservationLookups,
+  anchor?: { readonly x: number; readonly y: number },
 ): RuntimeObservation | null {
   switch (change.change) {
     case 'task.delivered': {
@@ -242,17 +253,30 @@ export function observationOf(
     }
 
     case 'weather': {
-      // 天气没有落点：它同时发生在所有地方。用祭坛当锚——那是村子中心，
-      // 而「天气反常」这件事本来就该被全村看见。
+      // 天气没有落点：它同时发生在所有地方。落到记忆里的 `what` 写清楚是哪一档——
+      // 面板的「因为昨天淋了雨，今天提前收摊」要靠这句话认出「淋雨」那一条。
+      // 落点仍由调用方给（灯街的摊位；纯逻辑测试给 {0,0}）。
+      const what = change.weather === 'rain'
+        ? '雨落下来了'
+        : change.weather === 'storm'
+          ? '暴雨落下来了'
+          : change.weather === 'fog'
+            ? '雾漫上来了'
+            : '天放晴了';
+      const valence = change.weather === 'rain' || change.weather === 'storm'
+        ? -0.3
+        : change.weather === 'fog'
+          ? -0.2
+          : 0;
       return {
         eventId,
         kind: 'weather_anomaly',
         placeId: 'place:sky',
-        at: { x: 0, y: 0 },
+        at: anchor ?? { x: 0, y: 0 },
         actors: [],
-        outcome: { what: '天气反常', weather: change.weather },
+        outcome: { what, weather: change.weather },
         importanceHint: 0.5,
-        valence: change.weather === 'storm' ? -0.3 : 0,
+        valence,
         arousal: 0.6,
       };
     }

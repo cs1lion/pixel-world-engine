@@ -36,8 +36,8 @@ test('交付与撤销没有载荷', () => {
   assert.deepEqual(ok({ kind: 'cancelPending' }), { kind: 'cancelPending' });
 });
 
-test('天气三档：晴、雨、暴雨', () => {
-  for (const weather of ['clear', 'rain', 'storm'] as const) {
+test('天气四档：晴、雨、暴雨、雾', () => {
+  for (const weather of ['clear', 'rain', 'storm', 'fog'] as const) {
     assert.deepEqual(ok({ kind: 'setWeather', weather }), { kind: 'setWeather', weather });
   }
   assert.throws(() => ok({ kind: 'setWeather', weather: 'snow' }), /不在取值域里/);

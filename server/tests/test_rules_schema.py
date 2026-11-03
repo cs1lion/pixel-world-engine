@@ -73,15 +73,15 @@ def test_命令必须是对象(raw: object) -> None:
 
 # ---------------------------------------------------------------- weather.set
 
-@pytest.mark.parametrize("weather", ["clear", "rain", "storm"])
-def test_天气三档都收(weather: str) -> None:
+@pytest.mark.parametrize("weather", ["clear", "rain", "storm", "fog"])
+def test_天气四档都收(weather: str) -> None:
     command = validate_command({"command": "weather.set", "args": {"value": weather}})
     assert command.args == {"value": weather}
 
 
 def test_天气不认识的值被拒() -> None:
     error = reject({"command": "weather.set", "args": {"value": "snow"}}, "out-of-domain")
-    assert "clear" in error.message and "storm" in error.message
+    assert "clear" in error.message and "storm" in error.message and "fog" in error.message
 
 
 def test_天气多带字段被拒() -> None:

@@ -72,5 +72,6 @@ test('今日时间线带上地点、对象与那句话，点开能对回记忆�
   assert.equal(today[0]!.placeId, 'place:10,10');
   assert.deepEqual(today[0]!.actors, ['v0', 'v1']);
   assert.equal(today[0]!.what, '甲撞翻了乙的担子。');
+  assert.equal(today[0]!.tick, 10 * 60_000, '时间线没带上事件真实发生的时刻');
   assert.ok(today[0]!.memoryId.startsWith('m'), '这一格没有记忆条目，面板点开无处可去');
 });

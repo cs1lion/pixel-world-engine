@@ -59,6 +59,8 @@ export const PACE = {
   /** 天气：一场雨 2 世界小时，暴雨 3 世界小时；淡入淡出 5 世界分钟。 */
   rainMinutes: 120,
   stormMinutes: 180,
+  /** 一场雾与一场雨同长：能见度恢复得慢，才看得出「雾天不走远路」。 */
+  fogMinutes: 120,
   weatherFadeMinutes: 5,
 } as const;
 

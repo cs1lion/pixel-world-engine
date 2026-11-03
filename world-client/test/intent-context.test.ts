@@ -112,16 +112,18 @@ test('上下文里的实例 id 与世界里的建筑一一对应', () => {
   assert.deepEqual(fromContext, fromWorld, '模型看到的 id 必须是世界真的认的那些');
 });
 
-test('三档天气在给模型的现状里各说各的，暴雨不会被说成「下雨」', () => {
-  // 说成「在下雨」时，模型会把用户说的「雨太大了」当成已经在办的事而答 unknown。
+test('四档天气在给模型的现状里各说各的，暴雨与雾不会被说成「下雨」', () => {
+  // 说成「在下雨」时，模型会把用户说的「雨太大了」「看不清」当成已经在办的事而答 unknown。
   const base = summarizeForIntent(makeSim().snapshot());
-  const textFor = (weather: 'clear' | 'rain' | 'storm'): string =>
+  const textFor = (weather: 'clear' | 'rain' | 'storm' | 'fog'): string =>
     renderIntentContext({ ...base, weather });
 
   assert.match(textFor('clear'), /天晴/);
   assert.match(textFor('rain'), /在下雨/);
   assert.match(textFor('storm'), /暴雨/);
+  assert.match(textFor('fog'), /起雾/);
   assert.notEqual(textFor('storm'), textFor('rain'), '暴雨不能和雨说成同一句');
+  assert.notEqual(textFor('fog'), textFor('rain'), '雾不能和雨说成同一句');
 });
 
 // ------------------------------------------------------------ 提示词

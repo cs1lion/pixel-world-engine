@@ -33,7 +33,7 @@ const blueprints = parseBlueprintTable(
   ) as Record<string, Record<string, unknown>>,
 );
 
-const KINDS = ['clear', 'rain', 'storm'] as const;
+const KINDS = ['clear', 'rain', 'storm', 'fog'] as const;
 
 /** 每一档天气在三处各是怎么说的。 */
 function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
@@ -85,7 +85,7 @@ function saidAt(kind: (typeof KINDS)[number]): readonly string[] {
   return [statusLine, paper, forModel];
 }
 
-test('三档天气，三处说法都认成同一种天气', () => {
+test('四档天气，三处说法都认成同一种天气', () => {
   for (const kind of KINDS) {
     const [statusLine, paper, forModel] = saidAt(kind);
     assert.notEqual(statusLine, '', `${kind}：状态行没说法`);
@@ -98,6 +98,7 @@ test('三档天气，三处说法都认成同一种天气', () => {
     clear: /晴/,
     rain: /雨/,
     storm: /暴雨/,
+    fog: /雾/,
   };
   for (const kind of KINDS) {
     for (const said of saidAt(kind)) {
@@ -124,7 +125,7 @@ test('暴雨在哪一处都不许被说成普通的雨', () => {
   }
 });
 
-test('天气的档位表就是这三个，没有第四档漏在外面', () => {
+test('天气的档位表就是这四个，没有第五档漏在外面', () => {
   // 这条守的是"加档"：`Weather` 多加一档而三处都没跟上时，上面两条会红，
   // 可要是连 KINDS 都忘了加，那就一条都不红了。所以把 `Weather` 的取值
   // 与这里枚举的对上——编译期 `Record<Weather, ...>` 已经挡住了 `WEATHER_LABEL`，
@@ -133,6 +134,7 @@ test('天气的档位表就是这三个，没有第四档漏在外面', () => {
     { kind: 'clear', intensity: 0, remainingMs: null },
     { kind: 'rain', intensity: 1, remainingMs: 45_000 },
     { kind: 'storm', intensity: 1, remainingMs: 90_000 },
+    { kind: 'fog', intensity: 1, remainingMs: 90_000 },
   ];
   const fromType = states.map((state) => state.kind).sort();
   assert.deepEqual([...fromType], [...KINDS].sort(), 'Weather 的档位变了，这条测试要跟着改');

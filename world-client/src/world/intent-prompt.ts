@@ -88,11 +88,11 @@ ${renderIntentContext(context)}
 - \`{"kind":"dispatch","taskKind":"<类>","summary":"<要做的事>"}\` 派一件活给镇上的铺子
 - \`{"kind":"complete"}\` 交付，收下正在干的那单
 - \`{"kind":"cancelPending"}\` 撤销还在排队的神谕（不动正在干的）
-- \`{"kind":"setWeather","weather":"clear"|"rain"|"storm"}\` 改天气；\`storm\` 是暴雨，比 \`rain\` 重。
-  只有这三档。用户嘴里那三个档位的别称，照这张表翻，别因此答 unknown：
-  晴 / 放晴 / 雨停 / 天好了 → clear；阴 / 多云 / 下雨 / 落雨 / 变天 → rain；暴雨 / 大雨 / 刮风下雨 → storm。
-  但**表里没有的现象不许往邻居身上靠**：雪、雾、风、彩虹这个世界都没有。用户说「把天气改成下雪」，
-  要么照实输出 "snow" 让世界拒给你看（它只收三档），要么答 unknown 说清这个世界只有晴雨暴雨。
+- \`{"kind":"setWeather","weather":"clear"|"rain"|"storm"|"fog"}\` 改天气；\`storm\` 是暴雨，比 \`rain\` 重；\`fog\` 是雾，不落雨点。
+  只有这四档。用户嘴里那四个档位的别称，照这张表翻，别因此答 unknown：
+  晴 / 放晴 / 雨停 / 天好了 → clear；阴 / 多云 / 下雨 / 落雨 / 变天 → rain；暴雨 / 大雨 / 刮风下雨 → storm；起雾 / 大雾 / 雾 / 看不清了 → fog。
+  但**表里没有的现象不许往邻居身上靠**：雪、风、彩虹这个世界都没有。用户说「把天气改成下雪」，
+  要么照实输出 "snow" 让世界拒给你看（它只收四档），要么答 unknown 说清这个世界只有晴雨暴雨雾。
   把雪悄悄改成雨，用户以为他要的办成了。
 - \`{"kind":"setTide","level":0到1,"durationMs":毫秒}\` 把潮位拨住一会儿；到期自己回到潮汐节律。
   \`durationMs\` 是**毫秒**：一分钟 = 60000，十分钟 = 600000，一小时 = 3600000。说几分钟就乘 60000。
@@ -161,6 +161,7 @@ ${contextSection}
 | 在 (40,45) 种棵树 | miracle / tree / at 40,45 |
 | 那栋抄书斋拆了吧 | demolish / instanceId（抄现状里的那个） |
 | 下雨吧 | setWeather / rain |
+| 起雾了 | setWeather / fog |
 | 涨潮 | setTide / level 1 |
 | 收工 | complete |
 | 外面在下雨吗 | unknown（在提问，不是在改天气） |

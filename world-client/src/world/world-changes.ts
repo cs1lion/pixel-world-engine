@@ -181,6 +181,7 @@ export type WorldEventKind =
   | 'routine_done'
   | 'daily_water'
   | 'daily_lamp'
+  | 'harbor_report'
   | 'street_greet'
   | 'street_yield'
   | 'street_quarrel'
