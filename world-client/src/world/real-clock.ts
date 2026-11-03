@@ -1,12 +1,13 @@
 /**
  * 真实时钟模式的时间内核：1 世界日 = 24 真实小时，日界在本地 00:00。
  *
- * **与加速模式的分别**（`SandboxScene` 的 `?clock=real` 与默认模式）：
- * - 加速模式（默认）：`timeScale` 放大喂给 `Simulation` 的步长，一世界日约
- *   `DAY_MS / (1000 × timeScale)` 真实秒。它服务演示与回归，不承诺 1:1。
- * - 真实时钟模式：`timeScale` **不作为倍率**，步长永远是 `LOGIC_STEP_MS`；
+ * **与加速模式的分别**（`SandboxScene` 的默认真实时钟与 `?clock=fast`）：
+ * - 真实时钟（默认）：`timeScale` **不作为倍率**，步长永远是 `LOGIC_STEP_MS`；
  *   墙钟走多久，世界走多久。日界按本地（默认 UTC+8）的 00:00，不是「开局
  *   满 24 小时」。
+ * - 加速模式（显式 `?clock=fast`，或只给 `?speed=`）：`timeScale` 放大喂给
+ *   `Simulation` 的步长，一世界日约 `DAY_MS / (1000 × timeScale)` 真实秒。
+ *   它服务演示与回归，不承诺 1:1。
  *
  * 这里只做纯计算与判定，不读 `Date.now()`、不碰 Phaser。调用方把墙钟与单调
  * 时钟递进来，于是「日界恰在 00:00」「离线 3 天补 3 次」「回拨 10 分钟暂停」
@@ -21,6 +22,58 @@ export const REAL_DAY_MS = 24 * 60 * 60 * 1000;
 
 /** 默认时区：UTC+8。写死默认值，避免跨机器/跨时区漂移；要改由调用方显式传入。 */
 export const DEFAULT_UTC_OFFSET_MINUTES = 480;
+
+/** 加速模式的默认倍率：一世界日约 4 小时真实时间（见 `test/day-pace.test.ts`）。 */
+export const DEFAULT_FAST_TIME_SCALE = 6;
+
+/** 加速模式的倍率上限。真实时钟不走这条闸。 */
+export const MAX_TIME_SCALE = 60;
+
+export type ClockMode = 'real' | 'accelerated';
+
+export interface ClockSelection {
+  readonly mode: ClockMode;
+  /** 真实时钟下恒为 1；加速模式下是 `?speed=` 或默认倍率。 */
+  readonly timeScale: number;
+  readonly utcOffsetMinutes: number;
+}
+
+/**
+ * 从 URL 查询串解析时钟入口。
+ *
+ * **默认真实时钟**：不写参数就是 1:1。要加速必须显式说出口——
+ * `?clock=fast`（`accelerated` 也认），或只给 `?speed=`（历史入口，截图与
+ * 回归一直这么用）。`?clock=real` 永远压过 `?speed=`：留一个能偷偷加速的
+ * 真实时钟，就没有人能说它还是真实时钟。
+ */
+export function resolveClockSelection(
+  search: string | URLSearchParams,
+  defaultFastScale = DEFAULT_FAST_TIME_SCALE,
+): ClockSelection {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search;
+  const offsetParam = params.get('utcOffsetMinutes');
+  const offsetRaw = offsetParam === null ? null : Number(offsetParam);
+  const utcOffsetMinutes =
+    offsetRaw !== null && Number.isInteger(offsetRaw) && offsetRaw >= -720 && offsetRaw <= 840
+      ? offsetRaw
+      : DEFAULT_UTC_OFFSET_MINUTES;
+
+  const clock = params.get('clock');
+  const speedRaw = params.get('speed');
+  const speed = speedRaw === null ? null : Number(speedRaw);
+  const hasSpeed =
+    speed !== null && Number.isFinite(speed) && speed > 0 && speed <= MAX_TIME_SCALE;
+
+  const accelerated = clock === 'fast' || clock === 'accelerated' || (clock === null && hasSpeed);
+  if (!accelerated) {
+    return { mode: 'real', timeScale: 1, utcOffsetMinutes };
+  }
+  return {
+    mode: 'accelerated',
+    timeScale: hasSpeed ? speed : defaultFastScale,
+    utcOffsetMinutes,
+  };
+}
 
 /** 墙钟回拨超过这个幅度就暂停推进。5 分钟以内按抖动处理。 */
 export const CLOCK_BACKWARD_LIMIT_MS = 5 * 60 * 1000;

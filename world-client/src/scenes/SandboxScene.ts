@@ -74,6 +74,8 @@ import {
   OFFLINE_SETTLE_MAX_DAYS,
   RealClock,
   msSinceLocalMidnight,
+  resolveClockSelection,
+  type ClockMode,
 } from '../world/real-clock.ts';
 import {
   formatClockCatchUp,
@@ -192,14 +194,18 @@ export class SandboxScene extends Phaser.Scene {
    * 三个数合成一个，这类分家就没有地方可发生了。
    */
   private snapshot!: WorldSnapshot;
-  /** 世界时钟相对墙钟的倍率。?speed=0.5 放慢，?speed=12 加速，?speed=1 回到实时。 */
+  /**
+   * **加速模式**的倍率。`?speed=0.5` 放慢，`?speed=12` 加速，`?speed=1` 1:1；
+   * 只有显式 `?clock=fast`（或只给 `?speed=`）才用得上。默认倍率 6，
+   * 一世界日约 4 小时真实时间。
+   */
   private timeScale = 6;
   /**
-   * 时钟模式。默认加速（`timeScale` 生效，服务演示与回归）；`?clock=real`
-   * 切到真实时钟：一步固定 `LOGIC_STEP_MS`，`timeScale` 不再作为倍率，
-   * 日界按本地 00:00（见 `world/real-clock.ts`）。
+   * 时钟模式。**默认真实时钟**：一步固定 `LOGIC_STEP_MS`，`timeScale` 不作
+   * 倍率，墙钟走多久世界走多久，日界按本地 00:00（见 `world/real-clock.ts`）。
+   * 显式 `?clock=fast`（或只给 `?speed=`）才切回加速模式。
    */
-  private clockMode: 'accelerated' | 'real' = 'accelerated';
+  private clockMode: ClockMode = 'real';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
   /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
@@ -531,25 +537,20 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
-    // 时间倍率：默认 6 倍，潮汐在 2 分钟内走完一轮，肉眼能看见涨落。
-    // 截图与回归要精确复现时用 ?speed=1，让世界按实时推进。
-    const speed = Number(params.get('speed'));
-    if (Number.isFinite(speed) && speed > 0 && speed <= 60) this.timeScale = speed;
-    // 真实时钟模式：显式 `?clock=real` 才切。`?speed=` 在这种模式下不再生效——
-    // 1:1 是它的定义，留一个能偷偷加速的入口就没人能说它还是真实时钟。
+    // 时钟入口：**默认真实时钟**，墙钟与世界 1:1，日界落在本地 00:00。
+    // 加速必须显式说出口：`?clock=fast`（或 accelerated），或只给 `?speed=`
+    // （历史入口，截图与回归一直这么用）。`?clock=real` 压过 `?speed=`——
+    // 1:1 是真实时钟的定义，留一个能偷偷加速的入口就没人能说它还是真实时钟。
     // 锚点默认 UTC+8；`?utcOffsetMinutes=` 可配，但只影响日界落在几点，不改日长。
-    if (params.get('clock') === 'real') {
-      const offsetRaw = Number(params.get('utcOffsetMinutes'));
-      this.realClockOffsetMinutes =
-        Number.isInteger(offsetRaw) && offsetRaw >= -720 && offsetRaw <= 840
-          ? offsetRaw
-          : DEFAULT_UTC_OFFSET_MINUTES;
-      this.clockMode = 'real';
+    const selection = resolveClockSelection(params);
+    this.clockMode = selection.mode;
+    this.realClockOffsetMinutes = selection.utcOffsetMinutes;
+    this.timeScale = selection.timeScale;
+    if (selection.mode === 'real') {
       this.realClock = new RealClock({
         utcOffsetMinutes: this.realClockOffsetMinutes,
         offlineMaxDays: OFFLINE_SETTLE_MAX_DAYS,
       });
-      this.timeScale = 1;
     }
     const forced = parsePhaseParam(params.get('time'));
     const legacyNight = params.get('night') === '1';
