@@ -17,6 +17,8 @@ import type { WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
+import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
+import { createIdbHistoryStore } from '../world/history/store.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
@@ -360,6 +362,18 @@ export class SandboxScene extends Phaser.Scene {
    * 那一张单子、同一道闸（`traceExposedLayers`）。
    */
   private ruinPlaces: { readonly placeId: string; readonly at: { readonly x: number; readonly y: number } }[] = [];
+  /**
+   * 只读回溯的记录器。`null` = 这个浏览器没有 IndexedDB，或还没接上。
+   *
+   * **它不在关账主路径上**：`capture()` 只拿住当天的快照对象并把差分排进队列；
+   * 序列化与写库在队列里跑。关一天账时多出来的开销是一份 `toSnapshot()`
+   * 与一份 `toSave()`，没有整档 `JSON.stringify`。
+   */
+  private history: SceneHistory | null = null;
+  /** 已经记到哪一天（`-1` = 还没记过）。用来判「连续」还是「断了几天」。 */
+  private lastHistoryDay = -1;
+  /** 历史层降级的原因；进状态行，不吞掉。 */
+  private historyNotice: string | null = null;
   /** 每块地标上一次画出去的痕迹单子的指纹，与 `decalSignatures` 同一个理由。 */
   private groundSignatures = new Map<string, string>();
   private groundLayer?: Phaser.GameObjects.Graphics;
@@ -857,6 +871,25 @@ export class SandboxScene extends Phaser.Scene {
     // 真实时钟的跨会话补算必须在这里做：记忆已复原、快照已就位，补算走的是
     // 与常规跨日完全同一条 `stepMemory → tickCapped → onVitals` 路径。
     this.restoreRealClockBaseline();
+    // 只读回溯的记录器：每天一份字段级补丁，每 30 天一份全量。
+    //
+    // **从这里开始记，不往前补。** 读档接过来的世界已经走过若干天，
+    // 那些天的状态不在这一份进程里——补一份就是编一份。`lastHistoryDay`
+    // 从「已经关到的最后一天」起步，之后只记真正在这一局里关掉的天。
+    const worldId = this.pack?.id ?? 'world';
+    const historyStore = createIdbHistoryStore(worldId);
+    if (historyStore === null) {
+      this.historyNotice = '回溯不可用：这个浏览器没有 IndexedDB。';
+    } else {
+      this.history = new SceneHistory({
+        worldId,
+        store: historyStore,
+        onError: (message) => {
+          this.historyNotice = `历史写入失败：${message}`;
+        },
+      });
+      this.lastHistoryDay = this.memory.closedThroughDay;
+    }
     // 造物引擎进生产路径：世界是场景这一份（不再另建第二份），种子取设定集 id，
     // 时钟取世界时间。三者都由场景给，引擎不自己造兜底。
     const creatorPack = this.pack ?? selectSetting('');
@@ -1115,6 +1148,9 @@ export class SandboxScene extends Phaser.Scene {
     }
     this.snapshot = this.sim.snapshot();
     const skippedDays = this.stepMemory(catchUpCap > 0 ? catchUpCap : undefined);
+    // 关过账才记历史。**在 `stepMemory` 之后**：那一拍的记忆整理已经做完，
+    // 拿到的才是「这一天结束时的样子」。
+    this.captureHistory();
     if (skippedDays > 0) {
       // 合并结算要让人看得见：状态行说清「跳过」多少天，而不是假装逐日都关了账。
       this.clockNotice = `真实时钟：离线合并结算，跳过 ${skippedDays} 天`;
@@ -2129,6 +2165,51 @@ export class SandboxScene extends Phaser.Scene {
     this.speak({ ok: true, message: line });
   }
 
+  /**
+   * 关过账就记一份历史。**连续的一天才记补丁，断了就记全量 + 标缺。**
+   *
+   * 判据分两半：
+   * - 天数连续（`closed - lastHistoryDay === 1`）：上一份快照就是昨天，补丁接得上；
+   * - 世界此刻正停在这一天的边界之后（`nowDay - closed <= 1`）：否则这一份
+   *   「快照」其实已经是好几天之后的世界了，记下来就是假的。
+   * 任一不成立，剩下的天全部标 `missing`——**不近似重建**。
+   */
+  private captureHistory(): void {
+    if (this.history === null || this.memory === undefined) return;
+    const closed = this.memory.closedThroughDay;
+    if (closed < 0 || closed <= this.lastHistoryDay) return;
+    const nowDay = Math.floor(this.snapshot.now / DAY_MS);
+    const consecutive = closed - this.lastHistoryDay === 1 && nowDay - closed <= 1;
+    if (!consecutive) {
+      for (let day = this.lastHistoryDay + 1; day <= closed; day += 1) this.history.markMissing(day);
+      this.lastHistoryDay = closed;
+      return;
+    }
+    this.history.capture(closed, {
+      day: closed,
+      // 世界那段不带记忆字符串：记忆视图由快照单独给（见 `HistoryDoc`）。
+      save: this.sim.toSave(''),
+      memory: this.memory.toSnapshot(),
+    });
+    this.lastHistoryDay = closed;
+  }
+
+  /** 调试面板的时间轴：这一局里记过的日子（含「没有记录」）。 */
+  historyDays(): ReturnType<SceneHistory['days']> {
+    return this.history?.days() ?? [];
+  }
+
+  /**
+   * 点一天，读那一天的只读视图。**不写任何东西**。
+   *
+   * 返回的是历史层自己的投影（`RewindResult`），不在这里再翻译一遍：
+   * 面板要的摘要与回溯 API 要的是同一份东西，少一层映射就少一处漂移。
+   */
+  async historyRewind(day: number): Promise<RewindResult | null> {
+    if (this.history === null) return null;
+    return this.history.rewind(day);
+  }
+
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
     const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
@@ -2540,6 +2621,10 @@ export class SandboxScene extends Phaser.Scene {
       nightEnabled: (): boolean => this.nightEnabled(),
       events: (limit = 50) => this.recentEvents(limit),
       saveStatus: () => this.saveStatus(),
+      /** 只读回溯的时间轴：这一局里记过的日子。 */
+      historyDays: () => this.historyDays(),
+      /** 点某一天，读那一天的场景/角色/时代。只读，不写主档。 */
+      historyRewind: (day: number) => this.historyRewind(day),
       /**
        * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
        * `catchUp` 不再只活在状态行的一帧里；没有 setter。
@@ -2837,7 +2922,8 @@ export class SandboxScene extends Phaser.Scene {
     // 最近落下的那件摆件写清来路：这是"被记住"在纸面上唯一的具体落点。
     const latestProp = this.snapshot.props[this.snapshot.props.length - 1];
     const memory = latestProp === undefined ? '' : `　　${describePropSource(latestProp)}`;
-    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${clockNote}${saveNote}`;
+    const historyNote = this.historyNotice === null ? '' : `　　${this.historyNotice}`;
+    return `${summary}　　${weather}　　${feedLabel}　　上游交付 ${feedDelivered} 单 · 本地交付 ${localDelivered} 单　　神恩 ${faith.points}/${3}${memory}${waiting}${queue}${finishHint}${clockNote}${saveNote}${historyNote}`;
   }
 
   /** 点在谁的占地里。用于 `Perceiver.inside`：进屋/出屋按格算，不靠调用方维护。 */

@@ -423,14 +423,25 @@ export class MemoryRuntime {
         ? parsed
         : migrateSnapshot(parsed as unknown as Record<string, unknown>, parsed.memorySchemaVersion);
     if (!isRuntimeSnapshot(migrated)) return false;
-    this.lastClosedDay = migrated.lastClosedDay;
-    this.started = migrated.started;
-    this.now = migrated.now;
+    return this.fromSnapshot(migrated);
+  }
+
+  /**
+   * 从**已经解析过**的快照复原。回溯（只读）走这条路：历史里存的是快照对象，
+   * 不必再拼成字符串、解析一遍。
+   *
+   * 校验与 `fromJSON` 同一道闸；返回 `false` 表示形状不认识，调用方保持空库。
+   */
+  fromSnapshot(snapshot: MemoryRuntimeSnapshot): boolean {
+    if (!isRuntimeSnapshot(snapshot)) return false;
+    this.lastClosedDay = snapshot.lastClosedDay;
+    this.started = snapshot.started;
+    this.now = snapshot.now;
     this.positions.clear();
-    for (const item of migrated.positions) {
+    for (const item of snapshot.positions) {
       this.positions.set(item.holderId, { x: item.at.x, y: item.at.y });
     }
-    this.world.restoreSnapshot(migrated.world);
+    this.world.restoreSnapshot(snapshot.world);
     return true;
   }
 
