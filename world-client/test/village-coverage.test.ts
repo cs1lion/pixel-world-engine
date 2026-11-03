@@ -11,9 +11,9 @@
  * - **断言**：`test/creator-config.test.ts:222` 断言这三个数在配置里就是这三个数。
  *   它**一条都没量世界**——配置写着 0.35 与这个世界跑不跑得到 0.35 是两件事。
  * - **测量**：**没有。** 没有任何测试、探针或 eval 跑过世界再算这个比例。
- *   它另外只作为一句话出现在 `src/world/memory/world.ts:599`（「同一件事在村里
+ *   它另外只作为一句话出现在 `src/world/memory/world.ts:729`（「同一件事在村里
  *   有两个版本同时流传，正是协议想避免的那种重复」）与
- *   `src/world/memory/propagate.ts:450` 的注释里，两处都是拿它当论据。
+ *   `src/world/memory/propagate.ts:444` 的注释里，两处都是拿它当论据。
  *
  * 它要的三个数是这样的（`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md:150`）：
  *

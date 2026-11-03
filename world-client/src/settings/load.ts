@@ -5,6 +5,12 @@ import type { BuiltWorld } from '../world/setup.ts';
 import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
+import {
+  VILLAGER_ACCENTS,
+  VILLAGER_BUILDS,
+  VILLAGER_HEADS,
+  VILLAGER_OUTFITS,
+} from '../world/villager-look.ts';
 import type { PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
 import type {
@@ -282,9 +288,32 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     // 迷路人穿着一件莞尔镇的斗篷，而没有任何地方说过这件事。
     const style = villager.style;
     if (style !== undefined) {
-      for (const slot of ['cloak', 'scarf'] as const) {
-        if (!TOKENS.includes(style[slot])) {
-          throw new SettingPackError(`${villager.name} 的外观色 ${String(style[slot])} 不在 24 色里`);
+      // 颜色槽：cloak/scarf 必填，其余（cloakDark/scarfLit/hair）可省。
+      // 写错一个 token 名的后果不是「画不出」，是「穿着别人的颜色」，
+      // 所以和地形/区域三色槽一样在装载期查。
+      for (const slot of ['cloak', 'scarf', 'cloakDark', 'scarfLit', 'hair'] as const) {
+        const value = style[slot];
+        if (value === undefined && (slot === 'cloak' || slot === 'scarf')) {
+          throw new SettingPackError(`${villager.name} 的外观缺少 ${slot}`);
+        }
+        if (value !== undefined && !TOKENS.includes(value)) {
+          throw new SettingPackError(`${villager.name} 的外观色 ${String(value)} 不在 24 色里`);
+        }
+      }
+      // 四个形状维度是闭集。写错（`hooded`）在类型上能绕过（`as never`），
+      // 在渲染层就会退回默认值——那时「设定集写了、画面上不是」最难查。
+      const dims = [
+        ['build', VILLAGER_BUILDS],
+        ['head', VILLAGER_HEADS],
+        ['outfit', VILLAGER_OUTFITS],
+        ['accent', VILLAGER_ACCENTS],
+      ] as const;
+      for (const [key, allowed] of dims) {
+        const value = style[key];
+        if (value !== undefined && !(allowed as readonly string[]).includes(value)) {
+          throw new SettingPackError(
+            `${villager.name} 的外观 ${key} ${String(value)} 不是 ${allowed.join('/')} 之一`,
+          );
         }
       }
       // `lamp` 决定开局带不带灯（下面那句 `carries`）。写成字符串时

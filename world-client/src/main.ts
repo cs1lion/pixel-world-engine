@@ -165,6 +165,13 @@ bindDebugPanel({
   getSaveStatus: () => debugOracle()?.saveStatus() ?? null,
   feed: (message) => debugOracle()?.feed(message) ?? { ok: false, message: '世界还没醒来。' },
   pushEvent: (event) => debugOracle()?.pushEvent(event),
+  // 只读回溯：时间轴与详情都来自场景那一面；面板不自己开库。
+  historyDays: () => debugOracle()?.historyDays?.() ?? [],
+  historyRewind: async (day) => {
+    const oracle = debugOracle();
+    if (oracle?.historyRewind === undefined) return null;
+    return oracle.historyRewind(day);
+  },
 });
 
 // 老档日界提示与对齐入口。提示本身要产品可见，不只活在调试面板里。

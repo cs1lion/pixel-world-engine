@@ -94,9 +94,15 @@ export interface LabelAnchors {
 }
 
 /**
- * 角色名字/气泡的锚点：与旧 canvas 文本相对容器的偏移一致
- * （名字 -30、气泡 -36，单位世界像素）；隐藏规则也沿用旧实现。
+ * 角色名字/气泡的锚点：名字在头顶上方 10px，气泡再高一档。
+ *
+ * 角色从 16×20 长到 24×30（`VILLAGER_H`）之后，旧的 -30/-36 会压到脸上；
+ * 现在 -40/-46。这两个数是**世界像素**，投影由 `projectWorldToOverlay` 负责；
+ * 高度变化只需要改这两个数，不碰相机与画布。
  */
+export const VILLAGER_NAME_LIFT = 40;
+export const VILLAGER_BUBBLE_LIFT = 46;
+
 export function villagerLabelAnchors(
   villager: VillagerSnapshot,
   viewport: OverlayViewport,
@@ -104,11 +110,11 @@ export function villagerLabelAnchors(
   if (!villager.visible) return { name: null, bubble: null };
   const worldX = (villager.pos.x + 0.5) * TILE_PX;
   const worldY = (villager.pos.y + 1) * TILE_PX;
-  const bubble = projectWorldToOverlay(worldX, worldY - 36, viewport);
+  const bubble = projectWorldToOverlay(worldX, worldY - VILLAGER_BUBBLE_LIFT, viewport);
   if (villager.bubble !== null) {
     return { name: null, bubble };
   }
-  return { name: projectWorldToOverlay(worldX, worldY - 30, viewport), bubble: null };
+  return { name: projectWorldToOverlay(worldX, worldY - VILLAGER_NAME_LIFT, viewport), bubble: null };
 }
 
 /** 屏幕像素下的对齐误差（逻辑像素），供 smoke/QA 断言用。 */

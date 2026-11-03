@@ -21,6 +21,7 @@ import type { PlacedBuilding, WorkstationSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { WorldPalette } from '../world/theme.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
+import { DOOR, doorRect, type DoorMetrics } from './building-proportions.ts';
 import { drawDecal, roofHeight } from './decal.ts';
 import type { NarrativeHint } from '../world/memory/hints.ts';
 
@@ -69,6 +70,10 @@ export function createBuilding(
   const { roof, trim, window: windowColor } = building.palette;
   const roofH = roofHeight(h);
   const doorX = building.door.x * TILE_PX - px;
+  // 门洞：所有楼统一用 `DOOR`（22×27）。样板阶段只对 `lamp_lodge` 生效的那一版
+  // 已经用截图验证过锚点（门底贴墙底、门框不穿模、门口台阶不被 front 层横穿），
+  // 这里才批量。尺寸依据见 `building-proportions.ts`。
+  const doorMetrics = DOOR;
 
   drawGroundShadow(scene, back, building, w, h, px, py);
   drawWall(g, building, w, h, roofH, doorX);
@@ -91,7 +96,7 @@ export function createBuilding(
 
   const windowG = scene.add.graphics();
   drawWindows(windowG, building, w, h, roofH, windowColor);
-  drawDoor(windowG, doorX, h, windowColor);
+  drawDoor(windowG, doorX, h, windowColor, doorMetrics);
 
   const progress = scene.add.graphics();
   progress.setVisible(false);
@@ -113,12 +118,12 @@ export function createBuilding(
   // 角色站门口时脚在门口格底边（baseY+16），台阶在 baseY..baseY+2，物理上角色离
   // 观察者更近，台阶必须在他之后；放进 front（depth 比角色高）会盖住他的胸口。
   const stepG = scene.add.graphics();
-  drawDoorStep(stepG, doorX, h);
+  drawDoorStep(stepG, doorX, h, doorMetrics);
   container.add([stepG]);
 
   // 前檐层：前檐 3px + 门框外侧 1px —— 这两样才该压在角色身上。
   const frontG = scene.add.graphics();
-  drawFrontLayer(frontG, w, h, doorX, roof, trim);
+  drawFrontLayer(frontG, w, h, doorX, roof, trim, doorMetrics);
   front.add([frontG]);
 
   return {
@@ -567,17 +572,21 @@ function drawWindows(
   void h;
 }
 
-/** 门：14px 宽，比角色剪影宽；门内暖光、门框、门槛。 */
+/**
+ * 门：默认 22×27（`building-proportions.ts` 的 `DOOR`），底边与墙底对齐。
+ *
+ * 尺寸跟着 24×30 的角色走：门高 = 角色高的 90%（27/30），门宽 ≈ 0.9 角色宽。
+ * 碰撞与可走性完全不看这里——那两样读的是 `building.door` 那个格。
+ */
 function drawDoor(
   g: Phaser.GameObjects.Graphics,
   doorX: number,
   h: number,
   windowColor: number,
+  metrics: DoorMetrics,
 ): void {
-  const dw = 14;
-  const dh = 18;
-  const x = doorX - Math.floor(dw / 2);
-  const y = h - dh;
+  const { w: dw, h: dh } = metrics;
+  const { x, y } = doorRect(doorX, h, metrics);
   g.fillStyle(WORLD.ink, 1);
   g.fillRect(x - 1, y - 1, dw + 2, dh + 1);
   g.fillStyle(WORLD.charcoal, 1);
@@ -586,16 +595,17 @@ function drawDoor(
   g.fillRect(x, y, 1, dh);
   g.fillRect(x + dw - 1, y, 1, dh);
   g.fillRect(x, y, dw, 1);
-  // 门内暖光：2×4 + 门缝 1px，读成“里面有人”。
+  // 门内暖光：3×4 + 门缝 1px，读成“里面有人”。按门宽等比例放在右侧。
+  const lightX = x + dw - Math.max(5, Math.round(dw * 0.4));
   g.fillStyle(windowColor, 1);
-  g.fillRect(x + dw - 5, y + 3, 3, 4);
+  g.fillRect(lightX, y + 4, 4, 5);
   g.fillStyle(WORLD.warmLight, 1);
-  g.fillRect(x + dw - 5, y + 3, 1, 1);
+  g.fillRect(lightX, y + 4, 1, 1);
   g.fillStyle(WORLD.amber, 1);
   g.fillRect(x + 1, h - 1, dw - 1, 1);
-  // 门把手。
+  // 门把手：靠右，随门高下移。
   g.fillStyle(WORLD.trim, 1);
-  g.fillRect(x + dw - 4, y + 9, 1, 1);
+  g.fillRect(x + dw - 5, y + Math.round(dh * 0.52), 1, 1);
 }
 
 /**
@@ -612,6 +622,7 @@ function drawFrontLayer(
   doorX: number,
   roof: number,
   trim: number,
+  metrics: DoorMetrics,
 ): void {
   // 前檐：楼体底边最后 3px，左右各出 3px（出檐），读成压在墙前的一道檐。
   g.fillStyle(roof, 1);
@@ -621,12 +632,12 @@ function drawFrontLayer(
   g.fillStyle(WORLD.timberDark, 1);
   g.fillRect(-3, h - 1, w + 6, 1);
 
-  // 门框外侧 1px：贴着门洞再往外一列，加厚门框。
-  const half = 7;
+  // 门框外侧 1px：贴着门洞再往外一列，加厚门框。门洞变大，框跟着变高变宽。
+  const half = metrics.frameHalf;
   g.fillStyle(trim, 1);
-  g.fillRect(doorX - half - 1, h - 18, 1, 18);
-  g.fillRect(doorX + half + 1, h - 18, 1, 18);
-  g.fillRect(doorX - half - 1, h - 19, half * 2 + 3, 1);
+  g.fillRect(doorX - half - 1, h - metrics.h, 1, metrics.h);
+  g.fillRect(doorX + half + 1, h - metrics.h, 1, metrics.h);
+  g.fillRect(doorX - half - 1, h - metrics.h - 1, half * 2 + 3, 1);
 }
 
 /**
@@ -636,11 +647,17 @@ function drawFrontLayer(
  * baseY-4..baseY+16，台阶在 baseY..baseY+2 正落在她腰部高度。若放 front 层
  * （depth 比角色高）会横穿她的身体；放 body 层则她站在台阶「前面」，物理正确。
  */
-function drawDoorStep(g: Phaser.GameObjects.Graphics, doorX: number, h: number): void {
+function drawDoorStep(
+  g: Phaser.GameObjects.Graphics,
+  doorX: number,
+  h: number,
+  metrics: DoorMetrics,
+): void {
+  const half = Math.floor(metrics.stepW / 2);
   g.fillStyle(WORLD.plaza, 1);
-  g.fillRect(doorX - 8, h, 16, 1);
+  g.fillRect(doorX - half, h, metrics.stepW, 1);
   g.fillStyle(WORLD.stone, 1);
-  g.fillRect(doorX - 7, h + 1, 14, 1);
+  g.fillRect(doorX - half + 1, h + 1, metrics.stepW - 2, 1);
 }
 
 /** 招牌图标：<>（代码）/ 书（研究）/ 笔（写作）/ 锤（空工坊）。只用现有色。 */

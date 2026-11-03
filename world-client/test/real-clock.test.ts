@@ -101,14 +101,24 @@ test('锚点可配：同一个绝对时刻在不同时区落在不同的本地�
   assert.equal(msSinceLocalMidnight(LOCAL_MIDNIGHT + 12 * 3_600_000, OFFSET), 12 * 3_600_000);
 });
 
-test('时钟入口默认即真实时钟：不写参数就是 1:1', () => {
+test('默认入口是游玩时间驱动：不写参数就是倍率 6，不是 1:1', () => {
   const selection = resolveClockSelection('');
-  assert.equal(selection.mode, 'real');
-  assert.equal(selection.timeScale, 1, '真实时钟不带任何倍率');
+  assert.equal(selection.mode, 'accelerated');
+  assert.equal(selection.timeScale, DEFAULT_FAST_TIME_SCALE, '默认倍率 6，一世界日约 4 小时');
   assert.equal(selection.utcOffsetMinutes, DEFAULT_UTC_OFFSET_MINUTES);
 });
 
-test('加速必须显式：?clock=fast / accelerated / 只给 ?speed=', () => {
+test('真实时钟必须显式：?clock=real 才 1:1，且压过 ?speed=', () => {
+  const selection = resolveClockSelection('?clock=real');
+  assert.equal(selection.mode, 'real');
+  assert.equal(selection.timeScale, 1, '真实时钟不带任何倍率');
+
+  const withSpeed = resolveClockSelection('?clock=real&speed=12');
+  assert.equal(withSpeed.mode, 'real', '真实时钟不能被偷偷加速');
+  assert.equal(withSpeed.timeScale, 1);
+});
+
+test('加速入口：?clock=fast / accelerated / 只给 ?speed=', () => {
   assert.equal(resolveClockSelection('?clock=fast').mode, 'accelerated');
   assert.equal(resolveClockSelection('?clock=fast').timeScale, DEFAULT_FAST_TIME_SCALE);
   assert.equal(resolveClockSelection('?clock=accelerated&speed=12').timeScale, 12);
@@ -117,19 +127,15 @@ test('加速必须显式：?clock=fast / accelerated / 只给 ?speed=', () => {
   assert.equal(bySpeed.timeScale, 1);
 });
 
-test('?clock=real 压过 ?speed=：真实时钟不能被偷偷加速', () => {
-  const selection = resolveClockSelection('?clock=real&speed=12');
-  assert.equal(selection.mode, 'real');
-  assert.equal(selection.timeScale, 1);
-});
-
-test('非法 ?speed= 单独出现不切模式；显式 clock=fast 时回落默认倍率', () => {
+test('非法 ?speed= 回落到默认倍率；显式 clock=fast 时同样回落', () => {
   for (const text of ['?speed=0', '?speed=61', '?speed=abc']) {
-    assert.equal(resolveClockSelection(text).mode, 'real', `${text} 不算加速意图`);
+    const selection = resolveClockSelection(text);
+    assert.equal(selection.mode, 'accelerated', `${text} 仍是默认的游玩时间驱动`);
+    assert.equal(selection.timeScale, DEFAULT_FAST_TIME_SCALE, `${text} 的非法倍率不算数`);
   }
   const byFast = resolveClockSelection('?clock=fast&speed=61');
   assert.equal(byFast.mode, 'accelerated');
-  assert.equal(byFast.timeScale, DEFAULT_FAST_TIME_SCALE, '非法倍率回落到加速模式默认值');
+  assert.equal(byFast.timeScale, DEFAULT_FAST_TIME_SCALE, '非法倍率回落到默认倍率');
   assert.equal(MAX_TIME_SCALE, 60);
 });
 

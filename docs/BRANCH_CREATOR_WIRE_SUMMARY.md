@@ -130,7 +130,7 @@
 
 ## 四、没有验证到的部分
 
-1. **浏览器里的 14 天晋级。** 默认真实时钟下 14 天就是 14 天；加速模式默认 `timeScale=6` 一世界日约 4 小时真实时间，`?speed=60` 也只是 24 分钟/日；一个 14 天窗口约 5.6 小时，L0→L1→L2 要两次。改写存档 `world.now` 可以让 `stepCreatorDayClosed` 连续触发，但这只证明链路能触发，**不构成晋级证据**。详见 [CREATOR_EXPLAINED.md](file:///D:/project/pixel-world-engine/docs/CREATOR_EXPLAINED.md#L167-L174)。
+1. **浏览器里的 14 天晋级。** 默认的游玩时间驱动下 `timeScale=6` 一世界日约 4 小时真实时间，`?speed=60` 也只是 24 分钟/日；一个 14 天窗口约 5.6 小时，L0→L1→L2 要两次（显式 `?clock=real` 则是 14 个真实日）。改写存档 `world.now` 可以让 `stepCreatorDayClosed` 连续触发，但这只证明链路能触发，**不构成晋级证据**。详见 [CREATOR_EXPLAINED.md](file:///D:/project/pixel-world-engine/docs/CREATOR_EXPLAINED.md#L167-L174)。
 2. **连续两次造物线性到 2。** 单次造物实测四项各 +1；第二栋没有完成浏览器验证：两个设定集都只有一个未落位模板，同模板第二栋被 `Simulation.build` 拒绝；一次拆除尝试用了“把候车亭拆了吧”，被路由到意图模型并撞上上游 Step Plan 400。后来确认句首式“拆掉候车亭”其实有本地路径，但本轮没有重跑，因此仍算未验证。
 3. **四项计数以外的门禁项。** `collisionChecks` / `constraintChecks` / `traceabilityChecks` / `schemaPassRate` / `manualModificationRate` 没有通过 Oracle 暴露，浏览器只验证了 `creatorChecks()` 的四项与 coverage。其余由单元测试覆盖。
 4. **原 9 条 KNOWN_FAILING** 仍按原样跳过，没有新增通过，也没有移除。

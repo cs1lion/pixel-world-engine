@@ -3660,6 +3660,21 @@ export class Simulation {
       // 有意吞掉：回写是尽力而为的旁路，不是世界的一部分。
     }
   }
+
+  /**
+   * 按实例 id 取一栋楼。**世界此刻的账本**，不是上一帧的快照。
+   *
+   * 回写回调（`onChange`）在 `update()` 里面触发，那时 `SandboxScene` 手上的
+   * `snapshot` 还是上一帧的：新落的楼还不在里面，拆掉的楼还在里面。记忆层
+   * 要判「这栋楼在哪、什么名字」时，两帧之间的这一格只有这里答得准。
+   *
+   * **放在类尾**：这个仓库的文档与脚本里有不少「文件:行号」引用指着上面那些
+   * 函数。往中间插一个方法会把它们全部推后一行，而引用审计只查「那一行附近
+   * 有没有那个名字」，查不出「它只是被挤下去了」——于是四篇文档一起变红。
+   */
+  buildingById(instanceId: string): PlacedBuilding | undefined {
+    return this.buildings.find((item) => item.instanceId === instanceId);
+  }
 }
 
 function facingFor(dx: number, dy: number): Facing {

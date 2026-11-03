@@ -72,13 +72,13 @@ test('设备像素取整：非整数 DPR 下不产生 1px 抖动', () => {
 
 test('角色名字/气泡锚点：跟随 pos，且沿用旧的隐藏规则', () => {
   const idle = villagerLabelAnchors(villager(), viewport());
-  // pos(7,9) → worldX=7.5*16=120, worldY=10*16=160；名字 -30、气泡 -36。
-  assert.deepEqual(idle.name, { x: 240, y: 260 });
+  // pos(7,9) → worldX=7.5*16=120, worldY=10*16=160；名字 -40、气泡 -46（30px 身高）。
+  assert.deepEqual(idle.name, { x: 240, y: 240 });
   assert.equal(idle.bubble, null);
 
   const talking = villagerLabelAnchors(villager({ bubble: '！吾神降旨！' }), viewport());
   assert.equal(talking.name, null, '有气泡时名字让位');
-  assert.deepEqual(talking.bubble, { x: 240, y: 248 });
+  assert.deepEqual(talking.bubble, { x: 240, y: 228 });
 
   const hidden = villagerLabelAnchors(villager({ visible: false, bubble: 'x' }), viewport());
   assert.equal(hidden.name, null);

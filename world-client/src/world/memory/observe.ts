@@ -75,6 +75,8 @@ export function observationOf(
         importanceHint: 0.6,
         valence: 0.5,
         arousal: 0.4,
+        // 后果规则要分得清「一栋楼」与「一个普通地点」：拆楼留下的是废墟。
+        placeType: 'building',
       };
     }
 
@@ -91,6 +93,8 @@ export function observationOf(
         importanceHint: 0.55,
         valence: -0.5,
         arousal: 0.5,
+        // 同上：这一次「冲突」是一个地点被抹掉，不是一次口角。
+        placeType: 'building',
       };
     }
 

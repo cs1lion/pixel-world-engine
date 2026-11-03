@@ -199,43 +199,67 @@ export const DENGCHAO_RAW: RawSettingPack = {
   // 只有人真的凑到两格内才算照面。**挪开这批落点，信念就涨不动、传说立不起来
   // ——而那时所有单元测试还是绿的。** `test/legend-forms.test.ts` 量的正是这件事。
   villagers: [
-    { name: '迷路人', at: { x: 23, y: 29 }, style: { cloak: 'cloak', scarf: 'pale', lamp: false }, routine: [
+    // 外观四维：这七个人靠「体型 / 头型 / 衣型 / 配饰」分开，不再挤两个色槽。
+    // 衣色仍是 24 源色里的 token；七个底色两两 ΔE76 ≥ 10（灯潮界实测最小 15.5，
+    // 见 `test/villager-identity.test.ts`）。灯是凭证（`lamp`），不是外观。
+    { name: '迷路人', at: { x: 23, y: 29 }, style: {
+      cloak: 'timber', cloakDark: 'timberDark', scarf: 'pale', scarfLit: 'plaster', hair: 'timberDark',
+      build: 'slim', head: 'hood', outfit: 'cloak', accent: 'lantern', lamp: false,
+    }, routine: [
       { x: 19, y: 15, label: '在旧站牌下认路', dwellMs: 6500 },
       { x: 24, y: 29, label: '沿着灯街找一盏认识的灯', dwellMs: 4800 },
       { x: 21, y: 7, label: '趁退潮看浅滩上的旧轨道', dwellMs: 6500, tide: 'low' },
       { x: 36, y: 29, label: '在叠浪楼外等潮水退去', dwellMs: 5000 },
     ] },
-    { name: '汐', at: { x: 36, y: 29 }, style: { cloak: 'terracotta', scarf: 'trim', lamp: true }, routine: [
+    { name: '汐', at: { x: 36, y: 29 }, style: {
+      cloak: 'water', cloakDark: 'cloakDark', scarf: 'trim', scarfLit: 'warmLight', hair: 'timberDark',
+      build: 'adult', head: 'ponytail', outfit: 'coat', accent: 'satchel', lamp: true,
+    }, routine: [
       { x: 32, y: 27, label: '点亮楼前的长灯', dwellMs: 5800 },
       { x: 19, y: 29, label: '在迎灯舍前照看来客', dwellMs: 5200 },
       { x: 39, y: 29, label: '满潮时收起滩边的灯', dwellMs: 4800, tide: 'high' },
       { x: 50, y: 42, label: '趁退潮拾回还能用的灯芯', dwellMs: 6000, tide: 'low' },
     ] },
-    { name: '灯笼头', at: { x: 33, y: 30 }, style: { cloak: 'ember', scarf: 'warmLight', lamp: true }, routine: [
+    { name: '灯笼头', at: { x: 33, y: 30 }, style: {
+      cloak: 'ember', cloakDark: 'charcoal', scarf: 'warmLight', scarfLit: 'pale', hair: 'charcoal',
+      build: 'stout', head: 'bun', outfit: 'apron', accent: 'staff', lamp: true,
+    }, routine: [
       { x: 33, y: 29, label: '在镇心把街灯一盏盏点亮', dwellMs: 5200 },
       { x: 19, y: 26, label: '在迎灯舍前数新到的灯罩', dwellMs: 5000 },
       { x: 30, y: 12, label: '趁退潮去浅滩点数旧灯桩', dwellMs: 6200, tide: 'low' },
       { x: 48, y: 40, label: '在滩边挑还能补的灯壳', dwellMs: 5400 },
     ] },
-    { name: '炉匠', at: { x: 38, y: 30 }, style: { cloak: 'charcoal', scarf: 'ember', lamp: false }, routine: [
+    { name: '炉匠', at: { x: 38, y: 30 }, style: {
+      cloak: 'charcoal', cloakDark: 'ink', scarf: 'ember', scarfLit: 'terracotta', hair: 'timberDark',
+      build: 'stout', head: 'bob', outfit: 'coat', accent: 'none', lamp: false,
+    }, routine: [
       { x: 39, y: 38, label: '在炉匠铺门口抖灰', dwellMs: 5600 },
       { x: 35, y: 30, label: '在镇心石边上歇脚', dwellMs: 5000 },
       { x: 33, y: 15, label: '到炉底入口边上搬炭', dwellMs: 6000 },
       { x: 24, y: 24, label: '在街边喝一碗热的', dwellMs: 4800 },
     ] },
-    { name: '沉灯夫人', at: { x: 35, y: 31 }, style: { cloak: 'cloakDark', scarf: 'trim', lamp: true }, routine: [
+    { name: '沉灯夫人', at: { x: 35, y: 31 }, style: {
+      cloak: 'pale', cloakDark: 'charcoal', scarf: 'trim', scarfLit: 'warmLight', hair: 'stone',
+      build: 'slim', head: 'bun', outfit: 'robe', accent: 'satchel', lamp: true,
+    }, routine: [
       { x: 34, y: 29, label: '在镇心石边沉灯', dwellMs: 6000 },
       { x: 36, y: 29, label: '在镇心石边讲那年的潮', dwellMs: 5200 },
       { x: 27, y: 29, label: '沿街巡一遍还没灭的灯', dwellMs: 5000 },
       { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
     ] },
-    { name: '账房先生', at: { x: 34, y: 28 }, style: { cloak: 'plaster', scarf: 'copper', lamp: true }, routine: [
+    { name: '账房先生', at: { x: 34, y: 28 }, style: {
+      cloak: 'trim', cloakDark: 'charcoal', scarf: 'copper', scarfLit: 'pale', hair: 'timberDark',
+      build: 'adult', head: 'bob', outfit: 'coat', accent: 'satchel', lamp: true,
+    }, routine: [
       { x: 34, y: 30, label: '在镇心听人报今日的账', dwellMs: 4600 },
       { x: 30, y: 32, label: '在账房门口核今天的账', dwellMs: 5600 },
       { x: 23, y: 29, label: '去街口找人说一笔旧账', dwellMs: 5000 },
       { x: 17, y: 26, label: '在摊位间对一遍零钱', dwellMs: 4800 },
     ] },
-    { name: '洗衣妇', at: { x: 37, y: 31 }, style: { cloak: 'moss', scarf: 'pale', lamp: true }, routine: [
+    { name: '洗衣妇', at: { x: 37, y: 31 }, style: {
+      cloak: 'copper', cloakDark: 'deepShade', scarf: 'pale', scarfLit: 'plaster', hair: 'soil',
+      build: 'adult', head: 'ponytail', outfit: 'apron', accent: 'none', lamp: true,
+    }, routine: [
       { x: 36, y: 30, label: '在镇心石边拧干最后一件', dwellMs: 5000 },
       { x: 33, y: 26, label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
       { x: 52, y: 42, label: '把洗好的布晾在滩边', dwellMs: 6000, tide: 'low' },

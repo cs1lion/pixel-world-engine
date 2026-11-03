@@ -12,7 +12,19 @@
  */
 
 import { REAL_DAY_MS } from './real-clock.ts';
+import type { ClockMode } from './real-clock.ts';
 import type { BaselineStorage } from './real-clock-baseline.ts';
+
+/**
+ * 日界对齐只在真实时钟模式（`?clock=real`）可用。
+ *
+ * 默认的游玩时间驱动里没有「墙钟日界」：世界只在页面开着时前进，关页面即
+ * 冻结，「对齐到今天零点」既没有可对齐的对象，也会凭空改写玩家没玩过的
+ * 时间。所以默认模式**不检测、不提示**，维护入口置灰。
+ */
+export function clockAlignmentAvailable(mode: ClockMode): boolean {
+  return mode === 'real';
+}
 
 /** 偏移超过这个幅度才提示。5 分钟以内按墙钟抖动处理，不打扰玩家。 */
 export const CLOCK_ALIGN_THRESHOLD_MS = 5 * 60 * 1000;

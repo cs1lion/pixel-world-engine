@@ -79,6 +79,7 @@ const TRACE_NAMES: Readonly<Record<TraceLayer, string>> = {
   garland: '花环',
   worn_path: '磨损的小径',
   inscription: '刻字',
+  ruin: '废墟',
 };
 
 export function traceName(layer: TraceLayer): string {

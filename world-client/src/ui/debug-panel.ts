@@ -5,6 +5,7 @@
  */
 
 import type { AgentToWorld } from '../world/bridge.ts';
+import type { RewindResult } from '../world/history/scene-history.ts';
 import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
 import { summarizeWorld } from '../world/world-state.ts';
 
@@ -182,6 +183,10 @@ export interface DebugPanelSources {
   }) => { readonly ok: boolean; readonly message: string };
   /** 注入一条上游事件，验证「事件流 → 世界」这条链路通着。 */
   readonly pushEvent?: (event: { kind: string; payload: Record<string, unknown> }) => void;
+  /** 只读回溯的时间轴。省略 = 这一版没有历史层。 */
+  readonly historyDays?: () => readonly HistoryDayView[];
+  /** 读某一天的视图。**只读**：面板不会拿它写任何东西。 */
+  readonly historyRewind?: (day: number) => Promise<HistoryRewindView | null>;
 }
 
 /**
@@ -228,6 +233,23 @@ export interface MemoryTimelineEntry {
   readonly bias?: string;
 }
 
+/** 时间轴上一格：哪一天、有没有记录。 */
+export interface HistoryDayView {
+  readonly day: number;
+  readonly kind: 'base' | 'patch' | 'missing';
+}
+
+/**
+ * 某一天的只读回溯视图。**只给摘要**：时代、角色记得的几条、场景的阶段。
+ *
+ * 它不是「那天的世界」本身——真正的世界存档与记忆快照在 `SceneHistory` 里，
+ * 面板只消费这份投影（与 `PlaceChronicle` 同一条纪律）。
+ *
+ * 类型直接复用历史层的 `RewindResult`：面板要的与回溯 API 给的是同一份东西，
+ * 少一层再抄一遍的映射，就少一处「面板说 A、接口说 B」的漂移。
+ */
+export type HistoryRewindView = RewindResult;
+
 /**
  * 真实时钟的只读状态。`catchUp` 是最近一次补算的结果——常驻到下一次补算/造物，
  * 不随帧消失；没有 setter。
@@ -258,6 +280,10 @@ export interface DebugOracle {
   creatorChecks(): CreatorChecksView | null;
   /** 真实时钟的只读状态。省略表示这一面没挂。 */
   clockStatus?(): ClockStatusView;
+  /** 只读回溯的时间轴。省略表示这一面没挂（例如浏览器没有 IndexedDB）。 */
+  historyDays?(): readonly HistoryDayView[];
+  /** 读某一天的只读视图。省略 = 没有历史层。 */
+  historyRewind?(day: number): Promise<HistoryRewindView | null>;
 }
 
 export interface DebugPanelHandle {
@@ -310,6 +336,9 @@ export function bindDebugPanel(sources: DebugPanelSources): DebugPanelHandle {
   let open = false;
   let paused = false;
   let timer: ReturnType<typeof setInterval> | null = null;
+  /** 回溯详情常驻在这里：面板每 250ms 重绘，详情不能被那次重绘擦掉。 */
+  let historyView: HistoryRewindView | null = null;
+  let historyPending = false;
 
   // 注入区随面板创建一次，放在 #debug-content 之外：repaint 只清 content，
   // details 的 open 状态与按钮事件绑定都不会丢（task-19 P2 修复）。
@@ -457,6 +486,73 @@ export function bindDebugPanel(sources: DebugPanelSources): DebugPanelHandle {
     status.append(heading, row('连接', feedSummary(model.feed), 'feed'));
     status.append(row('存档', saveStatusLine(model.save), 'save'));
     content.append(status);
+
+    // 只读回溯：点一天，看那天的时代、场景阶段与角色记得的几条。
+    // 详情存在 `historyView` 里而不是 DOM 里——面板每 250ms 重绘一次，
+    // 写进 DOM 的那份会被下一次 replaceChildren 擦掉。
+    const days = sources.historyDays?.() ?? [];
+    const history = section('回溯（只读）', days.length);
+    if (sources.historyDays === undefined || sources.historyRewind === undefined) {
+      history.append(row('时间轴', '这个环境没有历史层', 'history'));
+    } else if (days.length === 0) {
+      history.append(row('时间轴', '还没有可回看的日子（关一天账才有）', 'history'));
+    } else {
+      for (const item of days.slice(-12)) {
+        const line = row(
+          `第 ${item.day} 天`,
+          item.kind === 'missing' ? '没有记录' : item.kind === 'base' ? '全量快照' : '当日补丁',
+          'history',
+        );
+        if (item.kind !== 'missing') {
+          const button = element('button');
+          button.type = 'button';
+          button.dataset.debugAction = 'history';
+          button.textContent = '看';
+          button.addEventListener('click', () => {
+            historyPending = true;
+            historyView = null;
+            paint();
+            void sources.historyRewind?.(item.day)
+              .then((view) => {
+                historyView = view;
+                historyPending = false;
+                paint();
+              })
+              .catch(() => {
+                historyPending = false;
+                paint();
+              });
+          });
+          line.append(button);
+        }
+        history.append(line);
+      }
+    }
+    if (historyPending) history.append(row('读取中', '正在还原那一天的补丁…', 'history-detail'));
+    if (historyView !== null) {
+      if (historyView.missing) {
+        history.append(row(`第 ${historyView.day} 天`, '这一天没有记录（不近似重建）', 'history-detail'));
+      } else {
+        history.append(
+          row(`第 ${historyView.day} 天`, `时代：${historyView.eraLabel ?? '尚未分期'}`, 'history-detail'),
+        );
+        for (const character of historyView.characters) {
+          const name = character.name ?? character.holderId;
+          const lines = character.memories.map((line) => `第${line.day}天 ${line.what}`);
+          history.append(
+            row(name, lines.length === 0 ? '这一天没有留下条目' : lines.join('；'), 'history-detail'),
+          );
+        }
+        for (const place of historyView.places) {
+          const absent = place.absent === null ? '' : ` · ${place.absent}`;
+          const phases = place.phases.map((phase) => `第${phase.day}天 ${phase.note}`).join(' / ');
+          history.append(
+            row(place.name, `${place.state} · ${phases}${absent}`, 'history-detail'),
+          );
+        }
+      }
+    }
+    content.append(history);
 
     const events = section('事件流', model.events.length);
     for (const event of model.events) {
