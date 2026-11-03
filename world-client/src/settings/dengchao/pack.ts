@@ -1,4 +1,5 @@
 import type { RawSettingPack } from '../types.ts';
+import { lampStreetScenery } from './lamp-street.ts';
 
 /**
  * 一栋楼的模板。`accent` 与 `boundTask` **必须成对**，这是 `blueprints.ts`
@@ -276,18 +277,9 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 碑立在镇心 (32,29) 旁边：世界共识刻在这儿，而不是刻在某栋楼的外墙上。
     // 碑上不写字（中文不进 canvas），字在 `#stele-panel` 里。
     { kind: 'stele', at: { x: 34, y: 28 } },
-    // 灯街的灯沿街两侧排，站在街边而不是草地深处：灯是街的，不是野地的。
-    ...Array.from({ length: 10 }, (_, i) => ({
-      kind: 'lantern' as const,
-      at: { x: 15 + i * 4, y: i % 2 === 0 ? 27 : 32 },
-    })),
-    // 摊位与幌布补上设定集里「有人做买卖」的街面，不做成通栏招牌墙。
-    { kind: 'stall', at: { x: 17, y: 26 } },
-    { kind: 'stall', at: { x: 24, y: 33 } },
-    { kind: 'stall', at: { x: 34, y: 26 } },
-    { kind: 'banner', at: { x: 21, y: 27 } },
-    { kind: 'banner', at: { x: 30, y: 33 } },
-    { kind: 'banner', at: { x: 46, y: 27 } },
+    // 灯街的专属资产：十根街灯、三串纸灯、一条街面铺装、三面店铺立面、
+    // 六个夜市摊位、三幅幌布、三根竖招牌。清单与来源页码在 `lamp-street.ts`。
+    ...lampStreetScenery(),
     // 积尘滩的废弃物堆只出现在滩上，不越到灯街。
     ...Array.from({ length: 7 }, (_, i) => ({
       kind: 'debris' as const,

@@ -38,6 +38,7 @@ const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree
  */
 const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
   'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall', 'stele',
+  'lamp_string', 'paving', 'shopfront', 'signpost',
 ];
 
 /** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */
