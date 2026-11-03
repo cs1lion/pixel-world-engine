@@ -445,9 +445,9 @@ export function silhouetteOf(look: VillagerLook): Silhouette {
  * 三档阈值 0.85 / 0.66 是经验值：小于 2/3 宽读作「收」，超过 0.85 读作「满」。
  */
 export function silhouetteSignature(look: VillagerLook): string {
-  const { profile } = silhouetteOf(look);
+  const { profile, bboxH } = silhouetteOf(look);
   const widest = Math.max(...profile, 1);
-  return profile
+  const contour = profile
     .map((width) => {
       const ratio = width / widest;
       if (ratio >= 0.85) return '2';
@@ -455,4 +455,7 @@ export function silhouetteSignature(look: VillagerLook): string {
       return '0';
     })
     .join('');
+  // 高度只作为**后缀**：轮廓相同、身高差 2px 以上（如矮壮型 28 vs 标准 30）
+  // 也算不同类，但分类的主依据仍是上面的纵向轮廓，不是「谁更高」。
+  return `${contour}@${bboxH}`;
 }
