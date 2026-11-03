@@ -61,6 +61,24 @@ cd server && python -m pytest
 并行 worktree 造成的「改了但不是我这棵树」问题，用 `npm run worktrees:audit`
 和 `docs/WORKTREES.md` 核对归属；不要靠猜分支。
 
+### 浏览器闸门必须显式指定本 worktree 的端口
+
+四道默认读 `PIXEL_WORLD_URL` 的闸门（`test:browser` smoke / `test:phases` /
+`test:render-budget` / `test:persistence`）与只读 `PWE_URL` 的 `test:interact`，
+不指定端口时都打 `5188`——而 `5188` 常常是另一个 worktree 的实例在跑。
+2026-11-04 已因此产生两次假红：一次 8 项假红（读数来自别人的世界），
+一次 `preCoverHabit is not a function`（对面构建比本树旧）。合并验收时：
+
+```powershell
+cd world-client; npm run build   # preview 服务的是 dist，先构建
+$env:PIXEL_WORLD_URL="http://127.0.0.1:5190/"
+$env:PWE_URL="http://127.0.0.1:5190/"
+# preview 必须与闸门在同一次 shell 调用里起，调用结束就杀；换一棵树就换一个端口
+```
+
+回执里写清用的是哪个 URL——否则「红」到底是代码还是串台说不清。
+`EVAL_OUT` 指向 `world-client/tmp/eval-*`，跑完 `git restore world-client/eval/screens`。
+
 ## 与提交的关系
 
 - 断点记录本身可以提交（它就是仓库手续的一部分），但**不要求在每次中断都提交**；
