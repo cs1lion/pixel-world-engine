@@ -100,6 +100,19 @@ export class RealClock {
     this.paused = false;
   }
 
+  /**
+   * 用**上一次会话**的墙钟时刻做基线，再 `observe` 当前时刻。
+   *
+   * 这是跨会话补算的入口：`observe` 复用同一条日界/回拨/合并逻辑，不另写
+   * 一套；单调时钟给当前值即可（跨会话比较的是墙钟，不是 `performance.now()`）。
+   */
+  prime(lastWallMs: number, monotonicMs: number): void {
+    this.lastWallMs = lastWallMs;
+    this.lastMonoMs = monotonicMs;
+    this.lastDayIndex = this.dayIndexOf(lastWallMs);
+    this.paused = false;
+  }
+
   /** 异常解除后重新对表：不补回暂停期间的时间，只从当前这一刻继续。 */
   resume(wallMs: number, monotonicMs: number): void {
     this.start(wallMs, monotonicMs);

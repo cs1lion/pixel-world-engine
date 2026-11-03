@@ -19,7 +19,7 @@ import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
-import type { CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
+import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
@@ -75,6 +75,13 @@ import {
   RealClock,
   msSinceLocalMidnight,
 } from '../world/real-clock.ts';
+import {
+  formatClockCatchUp,
+  readClockBaseline,
+  writeClockBaseline,
+  type BaselineStorage,
+  type ClockCatchUp,
+} from '../world/real-clock-baseline.ts';
 import { fogAt } from '../world/fog.ts';
 import { awaitingDecree } from '../world/decree.ts';
 import { describeWorldState, summarizeWorld } from '../world/world-state.ts';
@@ -195,8 +202,15 @@ export class SandboxScene extends Phaser.Scene {
   private clockMode: 'accelerated' | 'real' = 'accelerated';
   private realClock: RealClock | null = null;
   private realClockOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
-  /** 真实时钟的可见提示：回拨暂停、离线合并补算。进状态行，不写控制台了事。 */
+  /** 真实时钟的可见提示：回拨暂停。进状态行，不写控制台了事。 */
   private clockNotice: string | null = null;
+  /**
+   * 上一次补算的结果。**常驻**到下一次补算或下一次造物，不再只活一帧。
+   * `null` = 这个会话没有补算过。
+   */
+  private clockReport: ClockCatchUp | null = null;
+  /** 跨会话基线最近一次写入的墙钟时刻；5 秒节流，避免每帧写 localStorage。 */
+  private lastClockBaselineWriteAt = 0;
   private readonly villagerViews = new Map<string, VillagerView>();
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
@@ -659,7 +673,11 @@ export class SandboxScene extends Phaser.Scene {
         this.focusCameraOn(change);
         // 落地之后的观测接在这一条既有的回写之后：楼已经进了 `Simulation`
         // 的账本、网格也已经占格，可达性与回放才判得准。不另开一条通道。
-        if (change.change === 'building.built') this.settleCreationObservation(change.instanceId);
+        if (change.change === 'building.built') {
+          // 下一次造物就把补算提示收掉：它是「上次离线发生了什么」，不是常驻广告。
+          this.clockReport = null;
+          this.settleCreationObservation(change.instanceId);
+        }
       },
       // 造物神谕（「建一间书阁」）要靠它把词换成模板。
       blueprints: this.blueprints,
@@ -826,6 +844,9 @@ export class SandboxScene extends Phaser.Scene {
       },
     });
     this.snapshot = this.sim.snapshot();
+    // 真实时钟的跨会话补算必须在这里做：记忆已复原、快照已就位，补算走的是
+    // 与常规跨日完全同一条 `stepMemory → tickCapped → onVitals` 路径。
+    this.restoreRealClockBaseline();
     // 造物引擎进生产路径：世界是场景这一份（不再另建第二份），种子取设定集 id，
     // 时钟取世界时间。三者都由场景给，引擎不自己造兜底。
     const creatorPack = this.pack ?? selectSetting('');
@@ -859,6 +880,9 @@ export class SandboxScene extends Phaser.Scene {
 
     this.onPageHide = () => {
       this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+      // 关页面前把「这一刻」也写进时钟基线；否则下一下开会把最后几秒
+      // （或整整一个被节流的 5 秒窗）重复算进离线间隔。
+      this.persistClockBaseline(true);
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
@@ -1091,6 +1115,88 @@ export class SandboxScene extends Phaser.Scene {
     this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
     this.maybeAutoSave();
+    this.persistClockBaseline();
+  }
+
+  /**
+   * 把「上次活跃的真实时刻 + 当时的世界时间」写进独立键。
+   *
+   * 不放进存档：锚点是这台设备的运行环境信息，不是世界的自有事实（见
+   * `real-clock-baseline.ts` 文件头）。5 秒节流；`pagehide` 时强制写一次。
+   */
+  private persistClockBaseline(force = false): void {
+    if (this.clockMode !== 'real' || this.realClock === null) return;
+    if (this.realClock.isPaused) return;
+    const wall = Date.now();
+    if (!force && wall - this.lastClockBaselineWriteAt < 5_000) return;
+    const storage = this.clockStorage();
+    if (storage === null) return;
+    const worldId = this.pack?.id ?? 'world';
+    const ok = writeClockBaseline(storage, worldId, {
+      lastWallMs: wall,
+      lastWorldNow: this.sim.snapshot().now,
+    });
+    if (ok) this.lastClockBaselineWriteAt = wall;
+  }
+
+  private clockStorage(): BaselineStorage | null {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 重开页面时按上一次会话的基线补齐离线天数。
+   *
+   * 复用 `RealClock` 的三条分支：`prime` 旧墙钟 → `observe` 当前墙钟，日界、
+   * 回拨、>7 天合并都由同一个 `observe` 判定；世界时间只推给
+   * `fastForwardNow`，日界结算仍走 `stepMemory → tickCapped → onVitals`。
+   *
+   * 没有基线（v1/v4 老档第一次用真实时钟）就 `start` 到现在：不凭空补历史。
+   */
+  private restoreRealClockBaseline(): void {
+    if (this.clockMode !== 'real' || this.realClock === null) return;
+    const storage = this.clockStorage();
+    const worldId = this.pack?.id ?? 'world';
+    const baseline = storage === null ? null : readClockBaseline(storage, worldId);
+    const wall = Date.now();
+    const mono = performance.now();
+
+    if (baseline === null) {
+      this.realClock.start(wall, mono);
+      this.persistClockBaseline(true);
+      return;
+    }
+
+    this.realClock.prime(baseline.lastWallMs, mono);
+    const observed = this.realClock.observe(wall, mono);
+    if (observed.paused) {
+      // 系统时钟回拨 / 基线晚于当前时刻：按既有策略暂停，不静默把世界往前推。
+      this.clockNotice = '真实时钟已暂停：系统墙钟回拨超过 5 分钟';
+      return;
+    }
+
+    // 世界时间的目标值 = 基线世界时间 + 墙钟经过的时间。用目标值减当前存档
+    // 的 now，既补上「上一次自动存档到关页面」的差，也不会倒退。
+    const targetWorldNow = baseline.lastWorldNow + observed.deltaMs;
+    const delta = Math.max(0, targetWorldNow - this.sim.snapshot().now);
+    if (delta > 0) this.sim.fastForwardNow(delta);
+    this.snapshot = this.sim.snapshot();
+
+    // 结算走既有记忆关账；结果落成常驻状态，不再只活一帧。
+    const skipped = this.stepMemory(
+      observed.dayGap > OFFLINE_SETTLE_MAX_DAYS ? OFFLINE_SETTLE_MAX_DAYS : undefined,
+    );
+    if (observed.dayGap > 0) {
+      this.clockReport = {
+        kind: skipped > 0 ? 'merged' : 'day-by-day',
+        days: observed.dayGap,
+        skippedDays: skipped,
+      };
+    }
+    this.persistClockBaseline(true);
   }
 
   /**
@@ -2389,6 +2495,16 @@ export class SandboxScene extends Phaser.Scene {
       events: (limit = 50) => this.recentEvents(limit),
       saveStatus: () => this.saveStatus(),
       /**
+       * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
+       * `catchUp` 不再只活在状态行的一帧里；没有 setter。
+       */
+      clockStatus: (): ClockStatusView => ({
+        mode: this.clockMode,
+        paused: this.realClock?.isPaused ?? false,
+        notice: this.clockNotice,
+        catchUp: this.clockReport,
+      }),
+      /**
        * 外环指标窗口的只读计数。**只读**：每次现取一份新对象，不写回外环，
        * 也不提供任何 setter。
        *
@@ -2594,7 +2710,12 @@ export class SandboxScene extends Phaser.Scene {
     const weather = WEATHER_LABEL[this.snapshot.weather];
     const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
     // 真实时钟的异常与离线补算必须看得见：静默暂停会让人以为世界卡死了。
-    const clockNote = this.clockNotice === null ? '' : `　　${this.clockNotice}`;
+    // 补算结果常驻到下一次补算/下一次造物；暂停提示每帧刷新。
+    const catchUpNote = this.clockReport === null ? '' : formatClockCatchUp(this.clockReport);
+    const clockNotes = [this.clockNotice, catchUpNote].filter(
+      (line): line is string => line !== null && line !== '',
+    );
+    const clockNote = clockNotes.length === 0 ? '' : `　　${clockNotes.join('　　')}`;
     if (this.pack?.authored === true) {
       return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
     }

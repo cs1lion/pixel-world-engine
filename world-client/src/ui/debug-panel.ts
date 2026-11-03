@@ -228,6 +228,21 @@ export interface MemoryTimelineEntry {
   readonly bias?: string;
 }
 
+/**
+ * 真实时钟的只读状态。`catchUp` 是最近一次补算的结果——常驻到下一次补算/造物，
+ * 不随帧消失；没有 setter。
+ */
+export interface ClockStatusView {
+  readonly mode: 'accelerated' | 'real';
+  readonly paused: boolean;
+  readonly notice: string | null;
+  readonly catchUp: {
+    readonly kind: 'day-by-day' | 'merged';
+    readonly days: number;
+    readonly skippedDays: number;
+  } | null;
+}
+
 export interface DebugOracle {
   view(): WorldSnapshot;
   events(limit: number): readonly WorldEvent[];
@@ -241,6 +256,8 @@ export interface DebugOracle {
    * 不用全 0 顶替，因为 0 的意思是「外环在，只是还没查过」。
    */
   creatorChecks(): CreatorChecksView | null;
+  /** 真实时钟的只读状态。省略表示这一面没挂。 */
+  clockStatus?(): ClockStatusView;
 }
 
 export interface DebugPanelHandle {
