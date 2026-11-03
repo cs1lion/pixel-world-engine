@@ -47,8 +47,9 @@ function makeTwins(): Simulation {
  */
 function putFirstToWork(sim: Simulation): void {
   sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写个脚本' });
-  for (let i = 0; i < 60 && sim.snapshot().villagers[0]!.mode !== 'working'; i += 1) {
-    sim.update(100);
+  // 一格一世界分钟：一步 1 世界秒，600 步够走十格。
+  for (let i = 0; i < 600 && sim.snapshot().villagers[0]!.mode !== 'working'; i += 1) {
+    sim.update(1000);
   }
   assert.equal(sim.snapshot().villagers[0]!.mode, 'working', '前提：她人在工坊里');
 }

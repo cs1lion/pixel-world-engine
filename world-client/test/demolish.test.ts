@@ -72,7 +72,7 @@ test('拆一栋楼：它从世界消失，格子空出来', () => {
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: target });
   sim.update(16);
   // 等施工走完（3200ms），否则拆不了。
-  for (let i = 0; i < 40; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
   assert.ok(sim.snapshot().buildings.some((b) => b.instanceId === target));
 
   const before = sim.snapshot().buildings.length;
@@ -94,7 +94,7 @@ test('拆完能重新建在同一位置', () => {
   const sim = makeSim();
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'plot#a' });
   sim.update(16);
-  for (let i = 0; i < 40; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
   const at = sim.snapshot().buildings.find((b) => b.instanceId === 'plot#a')?.origin;
   assert.ok(at !== undefined);
 
@@ -124,7 +124,7 @@ test('有角色在里面干活的楼不能拆', () => {
   // 大世界里神谕活会派到郊野（20+ 格），走过去要时间。
   // 要抓「正在运转」的那一刻，不能一口气跑完——跑完就进冷却了。
   for (let i = 0; i < 400; i += 1) {
-    sim.update(100);
+    sim.update(1000);
     if (sim.snapshot().workstations.some((w) => w.activity.kind === 'operating')) break;
   }
 
@@ -152,7 +152,7 @@ test('她还在赶路时那栋楼不能拆——`task.buildingId` 不许指向�
   // 抓到「活已派下去、人还没到」的那一刻：有活指着铺子，而铺子还没运转。
   let target: string | null = null;
   for (let i = 0; i < 400 && target === null; i += 1) {
-    sim.update(100);
+    sim.update(1000);
     const snap = sim.snapshot();
     const walking = snap.villager.mode === 'toWork';
     const claimed = snap.tasks.find(
@@ -217,7 +217,7 @@ test('拆掉再建：新楼拿到的是没用过的编号，不是回收的旧�
   const first = sim.nextInstanceId('workshop_plot');
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: first });
   sim.update(16);
-  for (let i = 0; i < 40; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
   assert.ok(demolish(sim, first)?.ok);
 
   const second = sim.nextInstanceId('workshop_plot');
@@ -267,7 +267,7 @@ test('只给模板且恰好一栋：照拆，不把正常说法也拦下', () =>
   const sim = makeSim();
   sim.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: sim.nextInstanceId('workshop_plot') });
   sim.update(16);
-  for (let i = 0; i < 40; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
 
   sim.enqueue({
     kind: 'intent',

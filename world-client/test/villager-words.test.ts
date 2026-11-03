@@ -30,7 +30,7 @@ const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(raw);
-const STEP = 100;
+const STEP = 1000;
 
 function makeSim(): { sim: Simulation; grid: BuiltWorld['grid'] } {
   const world = buildWorld(blueprints);
@@ -54,7 +54,7 @@ function dispatchAndWork(sim: Simulation, taskId: string): void {
     syncCommand({ tasks: [{ id: taskId, kind: 'writing', title: '上游来的活' }] }),
   );
   sim.update(STEP);
-  for (let i = 0; i < 600; i += 1) {
+  for (let i = 0; i < 3000; i += 1) {
     if (sim.snapshot().villager.mode === 'working') return;
     sim.update(STEP);
   }

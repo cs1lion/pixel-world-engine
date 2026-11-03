@@ -89,8 +89,8 @@ test('交付一单之后，日报写的是这单本身', () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().tasks[0]?.status !== 'done') {
-    sim.update(100);
-    if ((guard += 1) > 400) throw new Error('短活没结束');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('短活没结束');
   }
   const report = composeReport(sim.snapshot());
   assert.ok(report.lines.some((line) => line.includes('交付 1 单')));
@@ -106,24 +106,24 @@ test('日报按角色与来源分账：上游与本地分开，不合并计数',
   );
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
-    sim.update(100);
-    if ((guard += 1) > 200) throw new Error('没走到铺子');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('没走到铺子');
   }
   sim.enqueue(syncCommand({ finished: ['c_1'] }));
   sim.update(16);
   assert.equal(sim.snapshot().deliveries.feed, 1);
   guard = 0;
   while (sim.snapshot().villager.mode !== 'idle') {
-    sim.update(100);
-    if ((guard += 1) > 200) throw new Error('上游单没走完交付');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('上游单没走完交付');
   }
 
   // 沙盒单：短活自己结束，计入本地。
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   guard = 0;
   while (sim.snapshot().deliveries.local !== 1) {
-    sim.update(100);
-    if ((guard += 1) > 400) throw new Error('短活没结束');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('短活没结束');
   }
 
   // 断线后本地交付必须显式标成「离线本地」，日报据此分开写。
@@ -157,7 +157,7 @@ test('日报写清每个角色交付了几单', () => {
   sim.update(16);
   let guard = 0;
   while (!sim.snapshot().villagers.every((item) => item.mode === 'working')) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 300) throw new Error('两个人没同时开工');
   }
   sim.enqueue({ kind: 'complete', target: 'v0' });
@@ -195,7 +195,7 @@ test('上游单按实际接单的角色分账', () => {
   sim.update(16);
   let guard = 0;
   while (!sim.snapshot().villagers.every((item) => item.mode === 'working')) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 300) throw new Error('两个人没各接一单');
   }
   sim.enqueue(syncCommand({ finished: ['c_a', 'c_b'] }));
@@ -267,8 +267,8 @@ test('闲人不在祭坛时，收尾照她本当在做的事说，不按祭坛�
         villager.routine !== null &&
         (Math.floor(villager.pos.x) !== s.altar.x || Math.floor(villager.pos.y) !== s.altar.y),
     );
-  for (let guard = 0; guard < 600 && !away(snapshot); guard += 1) {
-    sim.update(100);
+  for (let guard = 0; guard < 6000 && !away(snapshot); guard += 1) {
+    sim.update(1000);
     snapshot = sim.snapshot();
   }
   const idle = snapshot.villagers.filter((villager) => villager.taskId === null);
@@ -305,8 +305,8 @@ test('攒满里程碑后，标题写的是已经落地的那次神恩', () => {
     sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: `小事 ${i}` });
     let guard = 0;
     while (sim.snapshot().tasks[i]?.status !== 'done') {
-      sim.update(100);
-      if ((guard += 1) > 400) throw new Error('短活没结束');
+      sim.update(1000);
+      if ((guard += 1) > 3000) throw new Error('短活没结束');
     }
   }
   const report = composeReport(sim.snapshot());
@@ -327,7 +327,7 @@ test('神迹落了地而一单未交，头条不许说「世界还没动静」',
   // 已经落在祭坛边」——头条说没动静，纸上别处写着它动过。说错了比不说更糟。
   const sim = makeSim();
   sim.enqueue({ kind: 'miracle', miracle: 'tree' });
-  for (let i = 0; i < 40; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
 
   const snapshot = sim.snapshot();
   assert.equal(snapshot.props.length, 1, '夹具：树落下来了');
@@ -521,8 +521,8 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
   played.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (played.snapshot().tasks[0]?.status !== 'done') {
-    played.update(100);
-    if ((guard += 1) > 400) throw new Error('短活没结束');
+    played.update(1000);
+    if ((guard += 1) > 3000) throw new Error('短活没结束');
   }
   assert.equal(composeReport(played.snapshot()).headline, '已有交付', '夹具：这一场确实交过');
 
@@ -571,13 +571,13 @@ test('「最近一单」数的是最晚交付的，不是数组末尾那一单',
   sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '甲长活' });
   let guard = 0;
   while (sim.snapshot().tasks[0]?.status !== 'in_progress') {
-    sim.update(100);
-    if ((guard += 1) > 400) throw new Error('长活没开工');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('长活没开工');
   }
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '乙短活' });
   guard = 0;
   while (sim.snapshot().tasks.some((task) => task.status !== 'done')) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 800) throw new Error('活没交完');
   }
 
@@ -631,10 +631,10 @@ test('两单同一拍落成时不说「最近一单」：那会儿没有更近�
 
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '甲' });
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '乙' });
-  sim.update(100);
+  sim.update(1000);
   let guard = 0;
   while (sim.snapshot().tasks.some((task) => task.status !== 'done')) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 600) throw new Error('两单没交完');
   }
 

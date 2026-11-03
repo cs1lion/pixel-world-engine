@@ -130,7 +130,7 @@ test('事件流里这条活被撤了，急件也收回', () => {
 test('世界不会自己回答：带问题的活在快照里问题一直挂着', () => {
   const sim = makeSim();
   const id = blockOne(sim);
-  for (let i = 0; i < 50; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
 
   const task = sim.snapshot().tasks.find((item) => item.id === id);
   assert.ok(task !== undefined);
@@ -146,8 +146,8 @@ test('有带问题的活时，有人会跑去祭坛举急件', () => {
 
   // 跑几拍让传令官出发并走到。
   let sawBearing = false;
-  for (let i = 0; i < 200; i += 1) {
-    sim.update(100);
+  for (let i = 0; i < 600; i += 1) {
+    sim.update(1000);
     if (sim.snapshot().villagers.some((v) => v.mode === 'bearingDecree')) {
       sawBearing = true;
       break;
@@ -159,7 +159,7 @@ test('有带问题的活时，有人会跑去祭坛举急件', () => {
 test('走到祭坛后停下举牌，不自己回去', () => {
   const sim = makeSim();
   blockOne(sim);
-  for (let i = 0; i < 200; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
 
   // 判据是「有人站在祭坛旁」，不是 bubble：气泡 4 秒后就过期，那是正常的。
   const atAltar = (v: { pos: { x: number; y: number } }): boolean =>
@@ -168,7 +168,7 @@ test('走到祭坛后停下举牌，不自己回去', () => {
   assert.ok(bearer !== undefined, '应当有人已经走到祭坛');
 
   // 再跑一阵，仍站在那儿——问题没答就不收。
-  for (let i = 0; i < 100; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
   const still = sim.snapshot().villagers.find((v) => v.id === bearer.id);
   assert.ok(still !== undefined && atAltar(still), '问题没答之前传令官一直守在祭坛');
   assert.notEqual(still.mode, 'bearingDecree', '到了就不该继续"跑"的状态');
@@ -177,14 +177,14 @@ test('走到祭坛后停下举牌，不自己回去', () => {
 test('问题被回答后，传令官不再举牌', () => {
   const sim = makeSim();
   blockOne(sim);
-  for (let i = 0; i < 200; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
 
   sim.enqueue(
     syncCommand({
       tasks: [{ id: 'c_block', kind: 'code', title: '清理临时目录' }],
     }),
   );
-  for (let i = 0; i < 60; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
 
   // 答案给了之后，不该再有人被派去送件。
   assert.equal(

@@ -57,13 +57,14 @@ test('续跑等价：toSave → fromSave → 再跑 50 拍，快照一致', () =
   const a = makeSim(() => (wall += 1));
   a.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写脚本' });
   a.update(16);
-  for (let index = 0; index < 30; index += 1) a.update(100);
+  // 一格一世界分钟：先跑够她走到工位（路径十格上下），存档时她已在工位。
+  for (let index = 0; index < 20; index += 1) a.update(60_000);
   const save = a.toSave();
 
   const b = fromSave(save);
   for (let index = 0; index < 50; index += 1) {
-    a.update(100);
-    b.update(100);
+    a.update(1000);
+    b.update(1000);
   }
   const pick = (sim: Simulation): string => {
     const snapshot = sim.snapshot();
@@ -92,7 +93,7 @@ test('settled 时钟不混用：本地=wall clock，上游=事件带来的时间
   mockSim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (mockSim.snapshot().deliveries.local !== 1) {
-    mockSim.update(100);
+    mockSim.update(1000);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
   const mockSettled = mockSim.toSave().world.settled[0];
@@ -104,7 +105,7 @@ test('settled 时钟不混用：本地=wall clock，上游=事件带来的时间
   ledgerSim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
   guard = 0;
   while (ledgerSim.snapshot().villager.mode !== 'working') {
-    ledgerSim.update(100);
+    ledgerSim.update(1000);
     if ((guard += 1) > 200) throw new Error('没走到铺子');
   }
   ledgerSim.enqueue(syncCommand({ finished: ['c_1'] }));
@@ -130,7 +131,7 @@ test('事件带的时间：秒与毫秒都认，缺失或非法记 null——绝
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }] }));
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 200) throw new Error('没走到铺子');
   }
   sim.enqueue(syncCommand({ finished: [{ id: 'c_1', completedAt: 1_792_377_786 }] }));
@@ -324,7 +325,7 @@ test('toSave 剥离运行时字段：tasks[] 键集合=样例、done⊆settled�
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_led', kind: 'code', title: '写爬虫' }] }));
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('没走到铺子');
   }
   // 关键点：先在中途存档——此时这条活还没收尾，落盘的键集合必须与冻结样例一致。
@@ -341,13 +342,13 @@ test('toSave 剥离运行时字段：tasks[] 键集合=样例、done⊆settled�
   sim.enqueue(syncCommand({ finished: [{ id: 'c_led', completedAt: 1_792_377_786 }] }));
   sim.update(16);
   while (sim.snapshot().villager.mode !== 'idle') {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 800) throw new Error('没回到 idle');
   }
   // 再交一单沙盒活，保证存档里既有 done 任务又有对应 settled。
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 1200) throw new Error('短活没结束');
   }
 
@@ -423,7 +424,7 @@ test('P2 契约：小人走路中（villagers[].path 非空）的存档仍通过
   sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写脚本' });
   let guard = 0;
   while (!sim.toSave().world.villagers.some((villager) => villager.path.length > 0)) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('没进入走路态');
   }
   const save = sim.toSave();
@@ -436,7 +437,7 @@ test('P2 契约：满数据存档（settled / constructions / 队列非空）通
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
   // 再开一栋，制造非空 constructions（施工中存档）。
@@ -506,8 +507,8 @@ test('v3：灯油不进世界的读路径（Simulation 不因它改变行为）'
   const full = makeSim();
   const dry = makeSim();
   for (let index = 0; index < 30; index += 1) {
-    full.update(100);
-    dry.update(100);
+    full.update(1000);
+    dry.update(1000);
   }
   const drySave = dry.toSave() as unknown as {
     world: { villagers: { lampOil: number }[] };
@@ -517,8 +518,8 @@ test('v3：灯油不进世界的读路径（Simulation 不因它改变行为）'
   const a = fromSave(drySave as unknown as WorldSave);
   const b = fromSave(full.toSave());
   for (let index = 0; index < 20; index += 1) {
-    a.update(100);
-    b.update(100);
+    a.update(1000);
+    b.update(1000);
   }
   const strip = (sim: Simulation): unknown => {
     const snapshot = sim.snapshot() as unknown as Record<string, unknown>;

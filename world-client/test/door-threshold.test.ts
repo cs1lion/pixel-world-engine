@@ -42,7 +42,7 @@ test('她站在门槛上：新神谕办得下，不说「门口走不过去」',
   const sim = makeSim();
   // 一单上游的活，让她进屋干活。
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写个脚本' }] }));
-  for (let i = 0; i < 40; i += 1) sim.update(100);
+  for (let i = 0; i < 600; i += 1) sim.update(1000);
   assert.equal(sim.snapshot().villagers[0]!.mode, 'working', '前提：她人在工坊里');
 
   // 上游撤了它——她被放回门口格，idle。

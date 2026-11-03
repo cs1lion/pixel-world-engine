@@ -64,7 +64,7 @@ test('交付一单就写回一条 task.delivered', () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
   const delivered = changes.filter((item) => item.change === 'task.delivered');
@@ -83,7 +83,7 @@ test('上游单交付记成 source=feed，本地单记成 local——与交付�
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'writing', title: '整理便笺' }] }));
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 600) throw new Error('没走到铺子');
   }
   sim.enqueue(syncCommand({ finished: ['c_1'] }));
@@ -101,7 +101,7 @@ test('同一条活只写回一次：重复的收工事件不重复记', () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
   // 再跑很久：交付已经发生过了，不该再写。
@@ -366,7 +366,7 @@ test('回写回调抛异常也不能让世界停摆', () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
   assert.equal(sim.snapshot().deliveries.local, 1, '写日志失败不该影响世界');

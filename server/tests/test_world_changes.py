@@ -15,9 +15,33 @@ from fastapi.testclient import TestClient
 
 from events.api import create_app
 from events.log import EventLog
-from events.world_changes import WORLD_CHANGE_CHECKS, WorldChangeError, validate_world_change
+from events.world_changes import (
+    WORLD_CHANGE_CHECKS,
+    WORLD_EVENT_KINDS,
+    WorldChangeError,
+    validate_world_change,
+)
 
 SAMPLE = Path(__file__).resolve().parents[2] / "docs" / "world-changes.sample.json"
+
+#: 固定时刻表接通的每日小事。它们走 `world.event` 同一条通道，只是 kind
+#: 多两个值；单独列在这里，不混进 `VALID_PAYLOADS`（那张表的键就是 change 名）。
+DAILY_CHORES = {
+    "daily_water": {
+        "kind": "daily_water",
+        "text": "汐去桥边打水，顺手冲了冲桥面",
+        "placeId": "place:28,26",
+        "where": {"x": 28, "y": 26},
+        "actorId": "v1",
+    },
+    "daily_lamp": {
+        "kind": "daily_lamp",
+        "text": "灯笼头把祭坛边的街灯一盏盏点亮",
+        "placeId": "place:32,29",
+        "where": {"x": 32, "y": 29},
+        "actorId": "v0",
+    },
+}
 
 VALID_PAYLOADS = {
     "task.delivered": {
@@ -121,6 +145,21 @@ def test_冻结样例里的每一条都收得下(client: TestClient) -> None:
     assert [event["payload"]["change"] for event in stored] == [
         body["change"] for body in sample["changes"]
     ]
+
+
+def test_每日小事走同一扇窄门(client: TestClient) -> None:
+    """打水 / 点灯是 `world.event` 的白名单值，不是绕过校验的第二条通道。"""
+    for kind, payload in DAILY_CHORES.items():
+        assert kind in WORLD_EVENT_KINDS
+        response = post(client, "world.event", payload)
+        assert response.status_code == 201, (kind, response.text)
+
+
+def test_每日小事的_kind_不能自己编(client: TestClient) -> None:
+    bad = dict(DAILY_CHORES["daily_water"], kind="daily_fish")
+    response = post(client, "world.event", bad)
+    assert response.status_code == 422
+    assert "daily_fish" in response.json()["detail"]
 
 
 def test_每种合法的世界改变都能写进去(client: TestClient) -> None:

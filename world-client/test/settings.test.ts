@@ -224,7 +224,7 @@ test('门落下之后两个人的路真的不一样：汐进得去叠浪楼，�
     p.x >= 27 && p.x <= 38 && p.y >= 17 && p.y <= 27;
   const entered = new Set<string>();
   for (let i = 0; i < 900; i += 1) {
-    sim.update(100);
+    sim.update(1000);
     for (const villager of sim.snapshot().villagers) {
       if (inBathhouse(villager.pos)) entered.add(villager.name);
     }

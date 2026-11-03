@@ -61,7 +61,9 @@ test('quick 原地办完：牌子没了，人站在原地，那 1800 拍里她�
   // 先等她离开祭坛再派：开局两个人都立在祭坛格上，那一刻派活，
   // 办完她还在祭坛，退路恰好是真的，那就证不反任何东西。
   let snapshot = sim.snapshot();
-  for (let guard = 0; guard < 400 && snapshot.villagers.every((v) => atAltar(v, snapshot)); guard += 1) {
+  // 一格一世界分钟；100ms 一步要 600 拍才走一格，所以把观察窗口拉长，
+  // 但**不改 STEP**：下面「1800 拍」那条数的是 100ms 的拍。
+  for (let guard = 0; guard < 4000 && snapshot.villagers.every((v) => atAltar(v, snapshot)); guard += 1) {
     sim.update(STEP);
     snapshot = sim.snapshot();
   }
@@ -97,7 +99,7 @@ test('上游撤单：牌子没了，人被挪到铺子门口，同样不在祭�
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }], connected: true }));
   let snapshot = sim.snapshot();
   // 先让她真的进屋干活：`abandonActiveTask` 只在 `isOnTask(owner)` 时调。
-  for (let guard = 0; guard < 400; guard += 1) {
+  for (let guard = 0; guard < 6000; guard += 1) {
     sim.update(STEP);
     snapshot = sim.snapshot();
     if (snapshot.villagers.some((villager) => villager.taskId === 'c_1' && villager.mode === 'working')) {
