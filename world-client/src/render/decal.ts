@@ -158,6 +158,15 @@ export function drawGroundDecals(
         for (let i = 0; i < 3; i += 1) g.fillRect(jitter(0) + i * 2, bandTop, 1, 1);
         break;
       }
+      case 'ruin': {
+        // 地上的废墟：一条断墙基 + 一粒塌下来的石头。与墙上的那一笔同一套 token，
+        // 只是落在格子的石面上——「楼没了，地基还在」。
+        g.fillStyle(palette.stone, alpha);
+        g.fillRect(left + 1, bandTop, tile - 2, 2);
+        g.fillStyle(palette.timberDark, alpha);
+        g.fillRect(left + Math.floor(tile * 0.6), bandTop - 1, 3, 2);
+        break;
+      }
     }
   }
 }
@@ -227,6 +236,17 @@ export function drawDecal(
       // 刻痕：一列短记号，像有人在这里记过数。
       g.fillStyle(palette.trim, alpha);
       for (let i = 0; i < 3; i += 1) g.fillRect(x, y + i * 2, 1, 1);
+      break;
+    }
+    case 'ruin': {
+      // 废墟：断墙的基座 + 两块塌下来的石头。**美术留到后面**——这一版只要求
+      // 「拆掉的楼在原地看得出残留」，所以这里画的是最小可辨认的一笔，
+      // 真正的废墟态（轮廓、残梁、野草）等专门一版再替换这一处。
+      g.fillStyle(palette.stone, alpha);
+      g.fillRect(x, y + 2, 7, 2);
+      g.fillStyle(palette.timberDark, alpha);
+      g.fillRect(x + 1, y, 2, 3);
+      g.fillRect(x + 4, y + 1, 3, 1);
       break;
     }
   }

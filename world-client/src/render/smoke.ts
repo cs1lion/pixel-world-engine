@@ -16,6 +16,11 @@ const TEXTURE_KEYS: Record<WorkAccent, string> = {
 
 export interface AccentEmitter {
   readonly emitAt: (x: number, y: number, intensity: number) => void;
+  /**
+   * 拆楼时把发射器一起收掉。省略不算错——测试里的假发射器没有可销毁的东西；
+   * 真实那一个必须实现，否则楼拆了粒子管理器还挂在场景上。
+   */
+  readonly destroy?: () => void;
 }
 
 export function ensureAccentTextures(scene: Phaser.Scene): void {
@@ -43,6 +48,9 @@ export function createAccentEmitter(
     emitAt(x: number, y: number, intensity: number): void {
       const count = Math.max(1, Math.round(intensity));
       emitter.emitParticleAt(x, y, count);
+    },
+    destroy(): void {
+      emitter.destroy();
     },
   };
 }

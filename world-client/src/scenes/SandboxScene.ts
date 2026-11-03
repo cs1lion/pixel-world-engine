@@ -350,6 +350,15 @@ export class SandboxScene extends Phaser.Scene {
    * 地标不是谁盖的，是人走出来的。
    */
   private landmarkCells: { readonly x: number; readonly y: number }[] = [];
+  /**
+   * 已经没有楼、但原地还留着痕迹的地方（拆掉的那几块地）。
+   *
+   * **楼拆了不是「什么都没有了」**：记忆层还留着它的痕迹与坐标，这里把它们
+   * 当废墟画在地上。这个表由 `syncBuildings` 每拍按「还站着的楼」与
+   * `memory.placeWithTraces()` 求差得出，渲染路径与地标共用 `placeHints`
+   * 那一张单子、同一道闸（`traceExposedLayers`）。
+   */
+  private ruinPlaces: { readonly placeId: string; readonly at: { readonly x: number; readonly y: number } }[] = [];
   /** 每块地标上一次画出去的痕迹单子的指纹，与 `decalSignatures` 同一个理由。 */
   private groundSignatures = new Map<string, string>();
   private groundLayer?: Phaser.GameObjects.Graphics;
@@ -1481,24 +1490,31 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
-   * 地标上的痕迹。
+   * 地上的痕迹：作息落点（地标）与**拆掉的楼留下的废墟**。
    *
    * 与 `refreshDecals` 同一个入口（`placeHints`）、同一道闸，只是画在地上而不是
    * 墙上。签名没变就不重画——理由与楼那边一样：痕迹一天才风化一次。
+   *
+   * 废墟与地标共用这一层，不是省事：它们都是「地上还留着的东西」，画法也共用
+   * `drawGroundDecals`。分成两层的话，同一块地上先有地标、后来立楼、再拆掉，
+   * 它的痕迹会在两层之间搬一次家，而画面上不该看得出这次搬家。
    */
   private refreshGroundDecals(): void {
     if (this.memory === undefined) return;
-    if (this.landmarkCells.length === 0) return;
+    const places = [
+      ...this.landmarkCells.map((cell) => ({ placeId: cellPlaceId(cell), at: cell })),
+      ...this.ruinPlaces,
+    ];
+    if (places.length === 0) return;
     // 先看有没有变。签名里带 `visibility`，所以「今天风化了一格」也算变了。
     let changed = false;
-    for (const cell of this.landmarkCells) {
-      const placeId = cellPlaceId(cell);
+    for (const place of places) {
       const signature = this.memory
-        .placeHints(placeId)
+        .placeHints(place.placeId)
         .map((hint) => `${hint.traceId}:${hint.visibility.toFixed(3)}`)
         .join('|');
-      if (this.groundSignatures.get(placeId) === signature) continue;
-      this.groundSignatures.set(placeId, signature);
+      if (this.groundSignatures.get(place.placeId) === signature) continue;
+      this.groundSignatures.set(place.placeId, signature);
       changed = true;
     }
     if (!changed) return;
@@ -1511,14 +1527,14 @@ export class SandboxScene extends Phaser.Scene {
     // **整层重画，不是在旧的上面再叠一遍。** alpha 叠 alpha 会让同一块地
     // 每风化一天就深一格，而风化该让它**变浅**。
     this.groundLayer.clear();
-    for (const cell of this.landmarkCells) {
+    for (const place of places) {
       drawGroundDecals(
         this.groundLayer,
-        this.memory.placeHints(cellPlaceId(cell)),
-        cell,
+        this.memory.placeHints(place.placeId),
+        place.at,
         TILE_PX,
         this.palette,
-        this.terrainBaseOf(cell),
+        this.terrainBaseOf(place.at),
       );
     }
   }
@@ -2215,7 +2231,12 @@ export class SandboxScene extends Phaser.Scene {
         return villager === undefined ? undefined : { x: villager.pos.x, y: villager.pos.y };
       },
       atOfBuilding: (instanceId) => {
-        const building = this.snapshot?.buildings.find((item) => item.instanceId === instanceId);
+        // **先问世界的账本，再问上一帧的快照。** `onChange` 在 `update()` 里面
+        // 触发：新楼那一笔已经进了 `buildings`、还没进 `snapshot`；拆楼那一笔
+        // 正好相反，已经出了 `buildings`、还在 `snapshot` 里。只查一边的话，
+        // 「立楼」或「拆楼」必有一头落空——落空的那一头什么都不记。
+        const live = this.sim.buildingById(instanceId);
+        const building = live ?? this.snapshot?.buildings.find((item) => item.instanceId === instanceId);
         return building === undefined ? undefined : { x: building.door.x, y: building.door.y };
       },
       buildingOfTask: (taskId) =>
@@ -2646,8 +2667,23 @@ export class SandboxScene extends Phaser.Scene {
     }
   }
 
-  /** 新落成的楼要补一套视图；按 instanceId 对齐，不假设顺序。 */
+  /**
+   * 楼与画面按 instanceId 对齐，不假设顺序。
+   *
+   * 三件事：新落成的补一套视图；**拆掉的把视图销毁**（以前只加不删，楼拆了
+   * 画面还留着它）；再把「已经没有楼、但原地还有痕迹」的地方认出来当废墟。
+   *
+   * 销毁视图不是清理癖：不销毁的话，一栋楼从世界里消失之后，它的墙、它的
+   * 招牌、它的痕迹层会一直在屏幕上，而且 `refreshDecals` 还会继续往上面画。
+   * 世界的账本说它没了，画面说它还在——两套真相。
+   */
   private syncBuildings(): void {
+    const standing = new Set(this.snapshot.buildings.map((building) => building.instanceId));
+    const gone = this.entries.filter((entry) => !standing.has(entry.building.instanceId));
+    if (gone.length > 0) {
+      this.entries = this.entries.filter((entry) => standing.has(entry.building.instanceId));
+      for (const entry of gone) this.disposeBuilding(entry);
+    }
     for (const building of this.snapshot.buildings) {
       if (this.entries.some((entry) => entry.building.instanceId === building.instanceId)) continue;
       this.entries.push({
@@ -2656,6 +2692,35 @@ export class SandboxScene extends Phaser.Scene {
         emitter: createAccentEmitter(this, building.accent),
       });
     }
+    this.refreshRuins(standing);
+  }
+
+  /** 拆掉一栋楼留下的画面。三层容器 + 容器外那一层痕迹，一件都不留给 GC 之外的运气。 */
+  private disposeBuilding(entry: BuildingEntry): void {
+    entry.view.back.destroy(true);
+    entry.view.container.destroy(true);
+    entry.view.front.destroy(true);
+    entry.view.decal.destroy();
+    entry.emitter.destroy?.();
+    this.decalSignatures.delete(entry.building.instanceId);
+  }
+
+  /**
+   * 废墟：已经没有楼、但记忆层还留着痕迹的地方。
+   *
+   * 判据只看「不在还站着的楼里」+「有痕迹」。**不按 Holder 判**：拆楼之后
+   * 地点 Holder 已经被摘，正是这一版要修的那个洞。
+   */
+  private refreshRuins(standing: ReadonlySet<string>): void {
+    if (this.memory === undefined) {
+      this.ruinPlaces = [];
+      return;
+    }
+    const landmarkIds = new Set(this.landmarkCells.map((cell) => cellPlaceId(cell)));
+    this.ruinPlaces = this.memory
+      .placeWithTraces()
+      .filter((place) => !standing.has(place.placeId) && !landmarkIds.has(place.placeId))
+      .map((place) => ({ placeId: place.placeId, at: { x: place.at.x, y: place.at.y } }));
   }
 
   private drawScaffolds(snapshot: WorldSnapshot): void {

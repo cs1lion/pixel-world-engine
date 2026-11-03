@@ -28,6 +28,7 @@ const ALL_LAYERS: readonly TraceLayer[] = [
   'garland',
   'worn_path',
   'inscription',
+  'ruin',
 ];
 
 function world(events: MemoryEvent[] = []): MemoryWorld {

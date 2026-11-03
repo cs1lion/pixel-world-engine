@@ -209,6 +209,14 @@ export interface MemoryWorldSnapshot {
     readonly placeId: string;
     readonly entries: readonly Trace[];
   }[];
+  /**
+   * 地点坐标（`memorySchemaVersion >= 2`）。**与 Holder 分库存**：拆掉的楼
+   * 名册里没有了，但它的痕迹还在这里，够不够得着要靠这个坐标。
+   */
+  readonly placeAnchors: readonly {
+    readonly placeId: string;
+    readonly at: { readonly x: number; readonly y: number };
+  }[];
   readonly legends: readonly Legend[];
   readonly placeNames: readonly {
     readonly placeId: string;
@@ -252,6 +260,21 @@ export class MemoryWorld {
   private readonly claims = new Map<string, Claim>();
   private beliefs: Belief[] = [];
   private readonly traces = new Map<string, Trace[]>();
+  /**
+   * 每个地点**最后一次**被人知道在哪。楼拆了、名称还在、痕迹也还在时，它是
+   * 那堆痕迹唯一还站得住的坐标。
+   *
+   * 与 `holders` 分开，是因为 Holder 名册管的是「谁还活着、谁能传话」：
+   * 一栋不存在的楼不能继续当听众（`removePlace` 会把它摘掉）。但它的位置
+   * 不是「谁」的一部分，是「哪儿」的一部分——摘掉 Holder 之后，`lookAtTraces`
+   * 还要靠这个坐标判「他站在三格内看得见那道废墟吗」。
+   *
+   * 早先没有这张表，坐标只能从 Holder 上读。于是拆楼那一刻，痕迹的可读路径
+   * 与 Holder 一起断了：`withinTraceReach` 拿不到地点坐标，返回 false；
+   * `placeHints` 走 `viewOf`，Holder 不在就返回 null。楼拆了，痕迹既读不到
+   * 也画不出——这正是「那儿原来有间铺子」没有落点的原因。
+   */
+  private readonly placeAnchors = new Map<string, { readonly x: number; readonly y: number }>();
   private legends: Legend[] = [];
   /**
    * 每个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
@@ -297,6 +320,10 @@ export class MemoryWorld {
 
   addHolder(holder: Holder): void {
     this.holders.set(holder.holderId, holder);
+    // 地点的坐标是「哪儿」的一部分，不是「谁」的一部分：它要比 Holder 活得久。
+    if (holder.type === 'place' && holder.at !== undefined) {
+      this.placeAnchors.set(holder.holderId, holder.at);
+    }
   }
 
   /** 有人走动了。行为层每拍调一次，记忆层据此算谁跟谁挨得够近。 */
@@ -304,6 +331,7 @@ export class MemoryWorld {
     const holder = this.holders.get(holderId);
     if (holder === undefined) return;
     this.holders.set(holderId, { ...holder, at });
+    if (holder.type === 'place') this.placeAnchors.set(holderId, at);
   }
 
   hasHolder(holderId: string): boolean {
@@ -319,6 +347,9 @@ export class MemoryWorld {
    *
    * 不删的话，`spreadCandidates` 会把一栋不存在的楼当成听众，
    * 而它永远「听得见」任何发生在原地的传言。
+   *
+   * **摘 Holder，不摘坐标。** `placeAnchors` 是「那儿在哪」，痕迹要读它；
+   * 把它一起删掉，就是这一版修的那个洞（痕迹读不到也画不出）。
    */
   removePlace(holderId: string): void {
     const holder = this.holders.get(holderId);
@@ -388,6 +419,9 @@ export class MemoryWorld {
       },
     };
     this.facts.set(fact.eventId, fact);
+    // 事件落在哪儿，那个地方就「在哪」——哪怕它没有 Holder（`place:12,7` 这类
+    // 合成地点只有坐标）。痕迹的准入（`traceRadius`）与废墟的渲染都读这张表。
+    this.placeAnchors.set(input.place.placeId, input.place.at);
 
     for (const holderId of witnesses) {
       const holder = this.holders.get(holderId);
@@ -909,6 +943,33 @@ export class MemoryWorld {
     const entry = this.placeNames.get(placeId);
     if (entry === undefined) return null;
     return { name: entry.name, history: entry.history.map((item) => ({ ...item })) };
+  }
+
+  /**
+   * 一个地点此刻留下的全部痕迹。**不问 Holder 还在不在。**
+   *
+   * `viewOf` 的那一扇门要求单位在名册里，而楼拆掉之后名册里就没有它了——
+   * 于是痕迹明明还在库里，读的人却拿不到。这一扇门只读痕迹那一张表，
+   * 楼拆了、地标还在、痕迹照旧在原处。
+   */
+  tracesAt(placeId: string): readonly Trace[] {
+    return [...(this.traces.get(placeId) ?? [])];
+  }
+
+  /** 一个地点最后一次被人知道在哪。拆掉的楼也有——那是废墟的位置。 */
+  placeAnchorOf(placeId: string): { readonly x: number; readonly y: number } | null {
+    const at = this.placeAnchors.get(placeId);
+    return at === undefined ? null : { x: at.x, y: at.y };
+  }
+
+  /** 还留着痕迹的地点的 id，按字典序。渲染层据此找出「已经没有楼、但还有痕迹」的废墟。 */
+  tracedPlaceIds(): readonly string[] {
+    const ids: string[] = [];
+    for (const [placeId, traces] of this.traces) {
+      if (traces.length === 0) continue;
+      ids.push(placeId);
+    }
+    return ids.sort();
   }
 
   /**
@@ -1989,13 +2050,16 @@ export class MemoryWorld {
    * 地点 Holder 永远够得着自己（它就是那个地点）。人物要走到 `traceRadius` 以内。
    * 位置缺失的单位**够不着**——不是禁足，是「不知道他在哪」，而世界不能
    * 假装他从那儿路过。
+   *
+   * **地点那一侧读 `placeAnchors`，不读 Holder。** 楼拆掉之后 Holder 被摘，
+   * 痕迹还在原地；从 Holder 上读坐标的话，那一刻起再没有人够得着那道废墟。
    */
   private withinTraceReach(holderId: string, placeId: string): boolean {
     const holder = this.holders.get(holderId);
     if (holder === undefined) return false;
     if (holder.type === 'place') return holder.holderId === placeId;
     const from = holder.at;
-    const to = this.holders.get(placeId)?.at;
+    const to = this.placeAnchors.get(placeId);
     if (from === undefined || to === undefined) return false;
     return Math.hypot(from.x - to.x, from.y - to.y) <= this.config.traceRadius;
   }
@@ -2173,6 +2237,10 @@ export class MemoryWorld {
         placeId,
         entries: [...entries],
       })),
+      placeAnchors: [...this.placeAnchors.entries()].map(([placeId, at]) => ({
+        placeId,
+        at: { x: at.x, y: at.y },
+      })),
       legends: [...this.legends],
       placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
         placeId,
@@ -2217,6 +2285,19 @@ export class MemoryWorld {
 
     this.traces.clear();
     for (const entry of snapshot.traces) this.traces.set(entry.placeId, [...entry.entries]);
+
+    this.placeAnchors.clear();
+    for (const entry of snapshot.placeAnchors ?? []) {
+      this.placeAnchors.set(entry.placeId, { x: entry.at.x, y: entry.at.y });
+    }
+    // 老档（v1）没有这一段：地点坐标只能从名册里的地点 Holder 补回来。
+    // 补回来的东西就是那一刻真实存在的坐标，不是编的。
+    if (this.placeAnchors.size === 0) {
+      for (const holder of snapshot.holders) {
+        if (holder.type !== 'place' || holder.at === undefined) continue;
+        this.placeAnchors.set(holder.holderId, { x: holder.at.x, y: holder.at.y });
+      }
+    }
 
     this.legends = [...snapshot.legends];
 

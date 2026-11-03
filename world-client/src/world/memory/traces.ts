@@ -57,8 +57,17 @@ export function consequenceOf(input: ConsequenceInput): TraceSpec[] {
   const strong = input.intensity >= 0.5;
 
   if (input.kind === 'workshop_accident' || input.kind === 'conflict') {
-    // 事故与冲突：焦痕，或者结构损伤。反复发生转成紧急修补。
-    if (input.recurrence >= 2) {
+    // **楼被拆掉**留的是废墟，不是焦痕。
+    //
+    // `building.removed` 在 `observe.ts` 那里被翻译成 `conflict`（日志里的一次
+    // 冲突），与「两个人在街上吵了一架」同一个 kind。只按 kind 判的话，拆楼
+    // 在原地留下的那道痕迹与一次口角留下的那道**分不开**，而它们是两件事：
+    // 口角会被人忘掉，一栋楼没了不会。`placeType === 'building'` 是调用方
+    // （`observe.ts`）给出的唯一区分，也是这一层的准入条件。
+    if (input.kind === 'conflict' && input.placeType === 'building') {
+      specs.push({ layerType: 'ruin', intensity: Math.max(0.8, input.intensity), mergeKey: 'ruin' });
+    } else if (input.recurrence >= 2) {
+      // 事故与冲突：焦痕，或者结构损伤。反复发生转成紧急修补。
       specs.push({ layerType: 'patch', intensity: input.intensity, mergeKey: 'repair' });
     } else if (strong) {
       specs.push({ layerType: 'scorch', intensity: input.intensity, mergeKey: 'scorch' });
@@ -144,6 +153,7 @@ export function makeTrace(
  * | `patch` | 0.06 | 17 天 | 补丁比伤痕耐看——修好了就少有人再提。 |
  * | `worn_path` | 0.03 | 33 天 | 路是走出来的，也靠走维持；没人走了才慢慢长草。 |
  * | `inscription` | 0.01 | 100 天 | 碑文是石头上的字。它几乎不风化。 |
+ * | `ruin` | 0.015 | 67 天 | 地基与断墙比碑文烂得快（风雨会埋，野草会盖），但比焦痕慢一个量级。 |
  *
  * 这张表与 `INFERENCE_TABLE` 一样是「材料的事」，所以放在 `traces.ts` 而不是
  * `config.ts`：加一种痕迹要同时回答「它说明什么」与「它能撑多久」，两件事
@@ -156,6 +166,7 @@ const VISIBILITY_DECAY: Readonly<Record<TraceLayer, number>> = {
   patch: 0.06,
   worn_path: 0.03,
   inscription: 0.01,
+  ruin: 0.015,
 };
 
 /**
@@ -293,6 +304,17 @@ const INFERENCE_TABLE: Readonly<Record<TraceLayer, InferenceSpec>> = {
     // 事实不是某一天发生的事，是一次又一次。用 `episodic` 记它，等于把
     // 「这里一直有人来」当成「那天我看见了一道痕」。
     kind: 'habit',
+  },
+  ruin: {
+    what: '这里曾经有一栋楼，如今只剩地基与断墙',
+    detailLevel: 1,
+    // 比焦痕可信：一栋楼不在了是看得见的事实，不是「好像出过事」的猜测。
+    confidence: 0.55,
+    valence: -0.3,
+    arousal: 0.35,
+    spread: 'background',
+    sourceMode: 'inferred',
+    kind: 'episodic',
   },
   inscription: {
     what: '碑文上记着一件事',

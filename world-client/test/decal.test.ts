@@ -68,6 +68,7 @@ const LAYERS: readonly TraceLayer[] = [
   'garland',
   'worn_path',
   'inscription',
+  'ruin',
 ];
 
 test('屋面高度与楼体那边同一个算式', () => {
