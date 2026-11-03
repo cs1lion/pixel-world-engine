@@ -10,7 +10,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DENGCHAO_CAST_ARTBOOK, DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
-import { loadSettingPack } from '../src/settings/load.ts';
+import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
+import { Simulation } from '../src/world/simulation.ts';
+import { buildUnitStatus } from '../src/ui/unit-status.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { resolveLook, type VillagerLook } from '../src/world/villager-look.ts';
 import { silhouetteSignature } from '../src/render/villager-layout.ts';
@@ -80,6 +82,34 @@ test('五个主要人物的剪影至少 3 类，且四维不重', () => {
   assert.ok(signatures.size >= 3, `五个主要人物的剪影只有 ${signatures.size} 类`);
   const seen = new Set(mainLooks.map(({ look }) => `${look.build}/${look.head}/${look.outfit}/${look.accent}`));
   assert.equal(seen.size, mainLooks.length, '主要人物有四维全同的');
+});
+
+test('档案落到单位面板：主要人物面板读得到来历、忌讳、动线与关系初值', () => {
+  const world = buildSettingWorld(pack);
+  const sim = new Simulation({
+    grid: world.grid,
+    buildings: world.buildings,
+    altar: world.altar,
+    villagerName: '迷路人',
+    villagerNames: pack.villagers.map((villager) => villager.name),
+  });
+  const snapshot = sim.snapshot();
+  const byName = new Map(snapshot.villagers.map((villager) => [villager.name, villager.id]));
+  const archives: Record<string, NonNullable<(typeof pack.villagers)[number]['archive']>> = {};
+  for (const villager of pack.villagers) {
+    if (villager.archive === undefined) continue;
+    const id = byName.get(villager.name);
+    assert.ok(id !== undefined, `${villager.name} 不在开局快照里`);
+    archives[id] = villager.archive;
+  }
+  const id = byName.get('迷路人');
+  assert.ok(id !== undefined);
+  const content = buildUnitStatus({ ...snapshot, archives }, { kind: 'villager', id });
+  assert.ok(content !== null);
+  const keys = content.lines.map((line) => line.key);
+  for (const key of ['档案', '辈分', '来历', '牵挂', '忌讳', '动线', '口吻', '关系初值']) {
+    assert.ok(keys.includes(key), `面板缺少「${key}」`);
+  }
 });
 
 test('开局档案以 genesis/read 注入：一条记忆、两段关系、无目击断言痕迹', () => {
