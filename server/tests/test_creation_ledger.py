@@ -10,13 +10,14 @@
 
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from creation_ledger.store import CreationLedgerError, CreationLedgerStore
+from creation_ledger.store import AppendOutcome, CreationLedgerError, CreationLedgerStore
 from events.api import create_app
 from events.log import EventLog
 
@@ -173,6 +174,33 @@ def test_同一个_recordId_重试不写第二条(store: CreationLedgerStore) ->
     assert second.record["seq"] == first.record["seq"]
     assert store.count("dengchao") == 1
     assert store.bytes("dengchao") > 0
+
+
+def test_两个页面同时补发同一_recordId_只落一行(store: CreationLedgerStore) -> None:
+    """两条请求真正并发到达同一服务进程：锁内先到者写，后到者拿到 duplicate。"""
+    barrier = threading.Barrier(2)
+    outcomes: list[AppendOutcome] = []
+    errors: list[BaseException] = []
+
+    def send() -> None:
+        barrier.wait()
+        try:
+            outcomes.append(store.append(_creation(record_id="two-pages-same")))
+        except BaseException as error:  # noqa: BLE001 - 线程里失败要带回主线程
+            errors.append(error)
+
+    threads = [threading.Thread(target=send) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(outcomes) == 2
+    assert sum(1 for item in outcomes if item.duplicate) == 1
+    assert store.count("dengchao") == 1
+    path = store.path_for("dengchao")
+    assert len([line for line in path.read_text(encoding="utf-8").splitlines() if line]) == 1
 
 
 def test_三类记录按_seq_升序返回(store: CreationLedgerStore) -> None:
