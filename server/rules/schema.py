@@ -51,7 +51,7 @@ TIDE_OVERRIDE_MAX_MS = 2 * 60_000
 #: 它跑在一份 6 栋楼的世界上，永远撞不到 `building-limit`。
 MAX_BUILDINGS = 40
 
-WEATHERS = ("clear", "rain", "storm")
+WEATHERS = ("clear", "rain", "storm", "fog")
 MIRACLES = ("light", "tree", "cat")
 #: 作息名。世界侧目前只有这一套日常，别的名字世界不认识。
 SCHEDULES = ("altar", "garden", "promenade", "shelter")

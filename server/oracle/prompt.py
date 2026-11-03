@@ -27,11 +27,11 @@ from typing import Any
 #: 只列世界真能执行的六条。`npc.setSchedule` 还在规则层白名单里（它是一条
 #: 合法的世界命令），但客户端与世界都还没有对应的意图，写进提示词就是让模型
 #: 去说一件世界办不到的事——用户会看到「听懂了」然后什么也没发生。
-COMMAND_LINES = """- {"command":"weather.set","args":{"value":"clear"|"rain"|"storm"}} 改天气；storm 是暴雨，比 rain 重。
-  只有这三档。用户嘴里那三个档位的别称，照这张表翻，别因此答 unknown：
-  晴 / 放晴 / 雨停 / 天好了 → clear；阴 / 多云 / 下雨 / 落雨 / 变天 → rain；暴雨 / 大雨 / 刮风下雨 → storm
-  但**表里没有的现象不许往邻居身上靠**：雪、雾、风、彩虹这个世界都没有。用户说「把天气改成下雪」，
-  要么照实输出 "snow" 让世界拒给你看（它只收三档），要么答 unknown 说清这个世界只有晴雨暴雨。
+COMMAND_LINES = """- {"command":"weather.set","args":{"value":"clear"|"rain"|"storm"|"fog"}} 改天气；storm 是暴雨，比 rain 重；fog 是雾，不落雨点。
+  只有这四档。用户嘴里那四个档位的别称，照这张表翻，别因此答 unknown：
+  晴 / 放晴 / 雨停 / 天好了 → clear；阴 / 多云 / 下雨 / 落雨 / 变天 → rain；暴雨 / 大雨 / 刮风下雨 → storm；起雾 / 大雾 / 雾 / 看不清了 → fog
+  但**表里没有的现象不许往邻居身上靠**：雪、风、彩虹这个世界都没有。用户说「把天气改成下雪」，
+  要么照实输出 "snow" 让世界拒给你看（它只收四档），要么答 unknown 说清这个世界只有晴雨暴雨雾。
   把雪悄悄改成雨，用户以为他要的办成了。
 - {"command":"tide.setLevel","args":{"value":0..1,"durationMs":毫秒}} 把潮位拨住一会儿；到期自己回到潮汐节律。
   durationMs 是**毫秒**：一分钟 = 60000，十分钟 = 600000，一小时 = 3600000。说几分钟就乘 60000。
@@ -151,6 +151,8 @@ def render_context(context: dict[str, Any]) -> str:
         lines.append("天晴。")
     elif weather == "storm":
         lines.append("外面在刮暴雨。")
+    elif weather == "fog":
+        lines.append("外面起雾了，能见度不到半条街。")
     elif weather == "rain":
         lines.append("外面在下雨。")
 

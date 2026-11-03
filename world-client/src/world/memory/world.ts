@@ -1938,19 +1938,31 @@ export class MemoryWorld {
   }
 
   /**
-   * 一条事实的**公共三件套**：落点、当事人、当时那句话。
+   * 一条事实的**公共三件套**：落点、当事人、当时那句话；外加当天的时刻。
    *
-   * 只给这三样，不给 `witnesses`——那是「谁也看见了」，属于别人。
+   * 只给这几样，不给 `witnesses`——那是「谁也看见了」，属于别人。
    * 个人时间线要用它把「我记住的那条」补上「在哪、和谁」，但单位没有
    * 权利知道镇上谁还旁听了同一件事。
+   *
+   * `tick` 是**当天已经走过的毫秒数**（`at - day * dayMs`）。记忆条目的
+   * `content.when` 存的是第几天，拿它当时刻会一律显示成 `00:00`；面板要
+   * 「第几天 + 几点」两样都真，时刻只能回到事实本身来取。
    */
-  factDigest(eventId: string): { readonly placeId: string; readonly actors: readonly string[]; readonly what: string } | null {
+  factDigest(eventId: string): {
+    readonly placeId: string;
+    readonly actors: readonly string[];
+    readonly what: string;
+    readonly day: number;
+    readonly tick: number;
+  } | null {
     const fact = this.facts.get(eventId);
     if (fact === undefined) return null;
     return {
       placeId: fact.placeId,
       actors: [...fact.actors],
       what: this.whatOf(fact),
+      day: fact.day,
+      tick: fact.tick,
     };
   }
 
@@ -3292,6 +3304,7 @@ const DEFAULT_WHAT: Readonly<Record<string, string>> = {
   // 也有话说，而不是把 kind 本身当句子印出来。
   tide_turn: '潮水掉头了',
   routine_done: '有人在镇子上停了一会儿',
+  harbor_report: '渡口报了船班',
 };
 
 function defaultValence(kind: string): number {

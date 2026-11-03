@@ -618,8 +618,8 @@ export const ZONES: readonly ZoneId[] = [
 export const PROP_KINDS: readonly PropKind[] = ['lamp', 'tree', 'banner'];
 export const WORK_ACCENTS: readonly WorkAccent[] = ['smoke', 'pages', 'ink'];
 export const SILHOUETTES: readonly Silhouette[] = ['gable', 'tower', 'flat'];
-/** 三档。旧档只会出现前两档，读进来照常合法。 */
-export const WEATHER_KINDS: readonly Weather[] = ['clear', 'rain', 'storm'];
+/** 四档。v5 不升版：旧档只会出现前三档，读进来照常合法；`fog` 只出现在新档里。 */
+export const WEATHER_KINDS: readonly Weather[] = ['clear', 'rain', 'storm', 'fog'];
 export const ACTIVITY_KINDS: readonly WorkstationActivity['kind'][] = [
   'idle', 'operating', 'overheating', 'cooling',
 ];

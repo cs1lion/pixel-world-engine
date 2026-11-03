@@ -179,14 +179,16 @@ export function renderIntentContext(context: IntentContext): string {
   }
 
   if (context.queued > 0) lines.push(`还有 ${context.queued} 条神谕在排队。`);
-  // 三档都要说出来：告诉模型「天在下雨」而实际是暴雨，它就会把用户说的
-  // 「雨太大了」当成已经在办的事，答 unknown。
+  // 四档都要说出来：告诉模型「天在下雨」而实际是暴雨或雾，它就会把用户说的
+  // 「雨太大了」「看不清」当成已经在办的事，答 unknown。
   lines.push(
     context.weather === 'clear'
       ? '天晴。'
       : context.weather === 'storm'
         ? '外面在刮暴雨。'
-        : '外面在下雨。',
+        : context.weather === 'fog'
+          ? '外面起雾了，能见度不到半条街。'
+          : '外面在下雨。',
   );
 
   if (context.exhausted.length > 0) {

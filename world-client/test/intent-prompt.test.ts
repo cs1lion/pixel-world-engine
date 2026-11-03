@@ -20,11 +20,12 @@ test('提示词里的模板表与注册表一致，不多不少', () => {
   assert.equal(listed.length, templates.size, '提示词列出的模板数与注册表不符');
 });
 
-test('提示词把三档天气都讲了，模型才知道有暴雨', () => {
+test('提示词把四档天气都讲了，模型才知道有暴雨与雾', () => {
   // 只写 clear|rain 的话，模型会把「下暴雨」折叠成 rain——用户说了更大的雨，
-  // 世界给了同一场雨。这条钉住取值域在提示词里也是三档。
-  assert.match(prompt, /"clear"\|"rain"\|"storm"/);
+  // 世界给了同一场雨。这条钉住取值域在提示词里也是四档。
+  assert.match(prompt, /"clear"\|"rain"\|"storm"\|"fog"/);
   assert.match(prompt, /暴雨/);
+  assert.match(prompt, /起雾/);
 });
 
 test('提示词覆盖每一种意图——从联合类型问，不手写清单', () => {

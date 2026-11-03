@@ -103,7 +103,7 @@ export type ParsedIntent =
   | { readonly kind: 'unknown'; readonly reason: string };
 
 const TASK_KINDS: readonly TaskKind[] = ['code', 'research', 'writing', 'quick'];
-const WEATHERS: readonly Weather[] = ['clear', 'rain', 'storm'];
+const WEATHERS: readonly Weather[] = ['clear', 'rain', 'storm', 'fog'];
 const MIRACLES: readonly MiracleKind[] = ['light', 'tree', 'cat'];
 
 /**

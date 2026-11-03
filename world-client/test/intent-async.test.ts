@@ -68,16 +68,25 @@ function tick(sim: Simulation): readonly { ok: boolean; message: string }[] {
 
 test('接了模型之后，投递仍然同步返回，不等网络', () => {
   let released: (() => void) | undefined;
+  // `settled` 由「模型真的给出答复」那一刻翻真；tick 返回时它必须还是 false。
+  let settled = false;
   const model: IntentModel = {
-    classify: () => new Promise((resolve) => { released = () => resolve({ kind: 'complete' }); }),
+    classify: () => new Promise((resolve) => {
+      released = () => { settled = true; resolve({ kind: 'complete' }); };
+    }),
   };
   const sim = makeSim(model);
 
   // 关键：模型永远不回来，投递与结算也照常发生。
   say(sim, '把那份报告弄一下');
-  const started = Date.now();
   tick(sim);
-  assert.ok(Date.now() - started < 100, '一拍不得等网络');
+  // **判据是「tick 返回时模型的答复还没落地」，不是「tick 花了多少毫秒」。**
+  // 原先卡 `Date.now() - started < 100`：这个 tick 只有几十微秒，机器一忙
+  // （2026-11-04 四路并行 5 轮里红 1 次，读数 177ms；16 个忙等进程压测里
+  // 32 次红 1 次，读数 372ms）量的就成了「这一拍有没有被别的进程挤开」。
+  // 而「不等网络」是个结构性质：tick 里根本没 await 过模型 promise。
+  // 断言「答复仍未落地」比任何毫秒阈值都严——真等过网络，它不可能是 false。
+  assert.equal(settled, false, '一拍不得等网络');
   assert.ok(released !== undefined, '模型已经在后台被问了一次');
 });
 
@@ -263,11 +272,21 @@ test('问模型的路上出了岔子，不会变成一次未捕获的 Promise �
 });
 
 test('同一句话连着说三遍，只问模型一次', async () => {
+  // **模型这段不能是真实定时器。** 原先是 `setTimeout(5)`，而第三遍只入队、
+  // 要等下面第一拍 `setImmediate` 之后才结算。机器一忙，一轮 `setImmediate`
+  // 就超过 5ms：模型在第三遍结算之前就回来了，`pendingClassify` 随之清空，
+  // 第三遍于是真的又问了一次——读数 `2 !== 1`。8 路并行压测里 24 次红 5 次
+  // （20.8%），隔离单跑 0/30。这是测试自己的实时竞态，不是去重坏了
+  // （去重本来就是「同一句还在问的路上只问一次」）。
+  //
+  // 改成手动放行的闸：三遍确实都落在「还在问」的窗口里，量到的才是去重本身。
   let calls = 0;
+  let release: (() => void) | undefined;
+  const answered = new Promise<void>((resolve) => { release = resolve; });
   const model: IntentModel = {
     classify: async () => {
       calls += 1;
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await answered;
       return { kind: 'unknown', reason: '闲聊' };
     },
   };
@@ -277,19 +296,13 @@ test('同一句话连着说三遍，只问模型一次', async () => {
   say(sim, '今天好累啊');
   tick(sim);
   say(sim, '今天好累啊');
-  // **等到模型真的被问过，再数它被问了几次。**
-  //
-  // 原先固定推六拍。模型那段是 `setTimeout(5)`，六轮 `setImmediate` 排完它
-  // 还没回来——`calls` 还是 0，这条就假红。实测挂过一次（全套跑到一半时），
-  // 单跑不挂。轮数等到的是"大概问过了"，这里要的是"确实问过了"。
-  for (let i = 0; i < 50 && calls === 0; i += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
-    sim.update(16);
-  }
   assert.equal(calls, 1, '去重是按原话，不是按时间窗');
-  // 再跑一会儿：去重是持久的，不是"这一阵只问一次"。
+  // 再推六拍（世界时间走了 96ms）：去重还在。它绑的是「这句话还在问」，
+  // 不是「这一阵只问一次」。
   await settle(sim, 6);
   assert.equal(calls, 1, '去重是持久的，不是时间窗');
+  release?.();
+  await settle(sim);
 });
 
 test('模型还没回来，原句又说了一遍——答复照常说，那一行不停在「正在问模型……」', async () => {

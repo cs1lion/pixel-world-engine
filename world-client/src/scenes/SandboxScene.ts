@@ -90,8 +90,14 @@ import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
 import { createWeatherView, type WeatherView } from '../render/weather.ts';
+import { createWeatherFogView, type WeatherFogView } from '../render/weather-fog-view.ts';
+import { createWeatherStallsView, type WeatherStallsView } from '../render/weather-stalls.ts';
+import { FOG_VISIT_CELLS, stallsPackedFor } from '../world/weather-effects.ts';
+import { weatherWitnessGroups, type WeatherHabitEntry } from '../world/weather-witness.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
+import { createHarborView, harborSiteOf, type HarborView } from '../render/harbor-view.ts';
+import { withinHarborWitnessRange } from '../world/harbor.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
@@ -371,6 +377,14 @@ export class SandboxScene extends Phaser.Scene {
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
+  /** 渡口的木栈/灯影/船。没有 `ferry` 地域的图不创建，保持 null。 */
+  private harborView: HarborView | null = null;
+  /** 天气雾：图内雾团 + 压暗。只在有雾时显示，由世界层的密度开关量驱动。 */
+  private weatherFogView: WeatherFogView | null = null;
+  /** 雨天的摊子盖布。没有摊子的图不创建，保持 null。 */
+  private weatherStallsView: WeatherStallsView | null = null;
+  /** 灯街摊位的格子（设定集给的）。天气目击按它分组，记忆习惯按它找摊子。 */
+  private stallCells: readonly GridPoint[] = [];
   private phaseView!: PhaseView;
   /** 白天的鸟、黄昏的蝙蝠。纯画面，不占快照、不进存档。 */
   private ambienceView!: AmbienceView;
@@ -402,7 +416,7 @@ export class SandboxScene extends Phaser.Scene {
   private ghost!: GhostView;
   private cameraCtl!: CameraController;
   private minimap: MinimapView | null = null;
-  private fogView!: FogView;
+  private fogView: FogView | null = null;
   private focusListener: (() => void) | null = null;
   /** 诊断用：场景 update 被调用过多少次。降频是否生效看它。 */
   private updateCount = 0;
@@ -649,10 +663,30 @@ export class SandboxScene extends Phaser.Scene {
     };
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
     this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette);
+    const harborSite = harborSiteOf(this.pack);
+    if (this.pack !== undefined && this.pack !== null && harborSite !== null) {
+      this.harborView = createHarborView(this, this.pack, harborSite, originX, originY);
+    }
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
-    this.fogView = createFogView(this, this.world.grid.width, this.world.grid.height);
+    // 设定集（authored）的整张图都是「已经到过的地方」：`visibleFog()` 的揭示半径
+    // 已经盖满全图，雾体本身一格都不画；而边缘雾团仍沿那个半径绕圈，圆心天然落在
+    // 图外——屏幕上什么也看不到，审计却数得出「14 团全在图外」。
+    // 既然这张图没有「没去过」的暗角，就不建探索迷雾视图。旧镇照旧。
+    this.fogView =
+      this.pack?.authored === true
+        ? null
+        : createFogView(this, this.world.grid.width, this.world.grid.height);
+    // 天气雾与探索迷雾是两套：前者的团全部在图内，后者负责「没去过」的暗角。
+    this.weatherFogView = createWeatherFogView(this, this.world.grid, this.pack?.id ?? 'wandong');
+    if (this.pack !== undefined && this.pack !== null) {
+      this.weatherStallsView = createWeatherStallsView(this, this.pack);
+      // 摊子格由设定集给：天气目击按最近的摊子分 6 格一组，记忆习惯也回这张摊子。
+      this.stallCells = this.pack.scenery
+        .filter((item) => item.kind === 'stall')
+        .map((item) => item.at);
+    }
 
     // 相机：锁在世界边界内，初始对准祭坛。
     //
@@ -912,6 +946,15 @@ export class SandboxScene extends Phaser.Scene {
       buildings: this.world.buildings,
       altar: this.world.altar,
       villagerName: this.villagerName, worldSeed: this.pack?.id ?? 'wandong',
+      // 按种子排天：晴/雨/雾每 4 世界小时一槽。槽号与种子决定序列，
+      // 与帧率、墙钟无关；纯逻辑测试不传这一项，行为保持旧样。
+      // 只给设定集（灯潮界）开：旧镇的开场是晴，居民从街面起手；
+      // 让种子在开局就压一场雨会把那条基线整个改写（冒烟闸钉着「开场晴」）。
+      weatherCycle: this.pack?.authored === true,
+      // 记忆进行为也只给设定集开：昨天淋过雨的人今天 13:00 提前盖布。
+      // 摊子格是设定集的事实，引擎不自己编坐标。
+      weatherHabit: this.pack?.authored === true,
+      stallsAt: this.stallCells,
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
         villagerProfiles: routineProfiles(this.pack),
@@ -921,6 +964,16 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack === undefined || this.pack === null
         ? {}
         : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
+      // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
+      ...(harborSite === null
+        ? {}
+        : {
+            harborAt: {
+              x: harborSite.x + Math.floor(harborSite.w / 2),
+              y: harborSite.y + Math.floor(harborSite.h / 2),
+            },
+          }),
       // 露话池（SPEC_V2 §4.6）。设定集一份都没给时这项整个不出现——
       // 于是那本世界里没有一件摆件会脏，也没有一句编出来的话。
       ...(this.pack?.propReveals !== undefined
@@ -1237,7 +1290,13 @@ export class SandboxScene extends Phaser.Scene {
     this.settingScenery?.destroy();
     this.settingScenery = null;
     this.tideView?.destroy();
+    this.harborView?.destroy();
+    this.harborView = null;
     this.fogView?.destroy();
+    this.weatherFogView?.destroy();
+    this.weatherFogView = null;
+    this.weatherStallsView?.destroy();
+    this.weatherStallsView = null;
     this.cancelLongPress();
     if (this.contextMenuListener !== null) {
       this.game.canvas.removeEventListener('contextmenu', this.contextMenuListener);
@@ -1436,6 +1495,7 @@ export class SandboxScene extends Phaser.Scene {
       // 于是墙钟走 1 秒、世界也走 1 秒。
       const stepMs = this.clockMode === 'real' ? LOGIC_STEP_MS : LOGIC_STEP_MS * this.timeScale;
       this.sim.setSocialContext(this.socialContextFromMemory());
+      this.sim.setWeatherHabitLedger(this.weatherHabitFromMemory());
       const results = this.sim.update(stepMs);
       for (const result of results) {
         this.speak(result);
@@ -3522,12 +3582,12 @@ export class SandboxScene extends Phaser.Scene {
   private remember(change: WorldChange, at: number): void {
     if (this.memory === undefined) return;
     this.memoryEventSerial += 1;
-    const observation = observationOf(change, `mem_${this.memoryEventSerial}`, {
-      atOfHolder: (holderId) => {
+    const lookups = {
+      atOfHolder: (holderId: string) => {
         const villager = this.snapshot?.villagers.find((item) => item.id === holderId);
         return villager === undefined ? undefined : { x: villager.pos.x, y: villager.pos.y };
       },
-      atOfBuilding: (instanceId) => {
+      atOfBuilding: (instanceId: string) => {
         // **先问世界的账本，再问上一帧的快照。** `onChange` 在 `update()` 里面
         // 触发：新楼那一笔已经进了 `buildings`、还没进 `snapshot`；拆楼那一笔
         // 正好相反，已经出了 `buildings`、还在 `snapshot` 里。只查一边的话，
@@ -3536,14 +3596,54 @@ export class SandboxScene extends Phaser.Scene {
         const building = live ?? this.snapshot?.buildings.find((item) => item.instanceId === instanceId);
         return building === undefined ? undefined : { x: building.door.x, y: building.door.y };
       },
-      buildingOfTask: (taskId) =>
+      buildingOfTask: (taskId: string) =>
         this.snapshot?.tasks.find((item) => item.id === taskId)?.buildingId ?? undefined,
-    });
+    };
+    const observation = observationOf(change, `mem_${this.memoryEventSerial}`, lookups);
     if (observation === null) return;
+    // 天气是「落下来」的事，不是广播：只记灯街上 6 格内、还没进屋的人。
+    // 镇级那条（actorId: null）已经在 `Simulation.announce` + `log` 里落了；
+    // 这里按最近的摊子分组，一组一条，同一个人只入一次账。
+    if (change.change === 'weather' && this.stallCells.length > 0) {
+      const people = (this.snapshot?.villagers ?? []).map((villager) => ({
+        id: villager.id,
+        // 快照里的 `pos` 已经是格坐标（`Simulation.cellOf` 用 Math.round），
+        // 不是像素；这里别再除 TILE_PX。
+        cell: { x: Math.round(villager.pos.x), y: Math.round(villager.pos.y) },
+        visible: villager.visible,
+      }));
+      const groups = weatherWitnessGroups(people, this.stallCells);
+      for (const [index, group] of groups.entries()) {
+        const item = index === 0
+          ? observation
+          : observationOf(change, `mem_${(this.memoryEventSerial += 1)}`, lookups, group.at);
+        if (item === null) continue;
+        this.memory.observe({ ...item, at: group.at }, group.witnesses, at);
+      }
+      return;
+    }
     // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
     // （重建换了实例 id，地块没换）。别的改变没有这一段，照旧。
     const landmark = this.landmarkEventOf(change);
-    this.memory.observe(landmark === undefined ? observation : { ...observation, landmark }, undefined, at);
+    // 船班播报是镇子级事件：它会进事件日志（`this.events`），也会通过
+    // `announce` 落到世界改变里。但**个人记忆只记「看见/在场」的人**——
+    // 汽笛不是他们经历的事。码头 12 格内且没躲进屋的人算目击，其余人不入。
+    const harborReport = change.change === 'world.event' && change.kind === 'harbor_report';
+    const harborSite = harborSiteOf(this.pack);
+    const witnesses = harborReport && harborSite !== null
+      ? this.snapshot?.villagers
+          .filter((villager) => villager.visible && villager.mode !== 'sheltering')
+          .filter((villager) => withinHarborWitnessRange(villager.pos, {
+            x: harborSite.x + Math.floor(harborSite.w / 2),
+            y: harborSite.y + Math.floor(harborSite.h / 2),
+          }))
+          .map((villager) => villager.id)
+      : undefined;
+    this.memory.observe(
+      landmark === undefined ? observation : { ...observation, landmark },
+      witnesses,
+      at,
+    );
   }
 
   /**
@@ -4088,8 +4188,15 @@ export class SandboxScene extends Phaser.Scene {
       updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
+    this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
+    // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
+    // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。
+    this.weatherStallsView?.update(
+      stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday(),
+    );
     const tideLevel = this.pinnedTide ?? this.snapshot.tide.level;
     this.tideView.update(tideLevel);
+    if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
     this.settingScenery?.update(tideLevel, this.snapshot.now, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
@@ -4107,8 +4214,8 @@ export class SandboxScene extends Phaser.Scene {
     // 设定集地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是一口气铺开的，
     // 留一片迷雾在中间会读成「这里还没长出来」。半径由世界给到盖住整张图，
     // 旧镇的迷雾照旧由世界自己收敛。判据在 `Simulation.visibleFog`，视图与两道闸
-    // 读快照里同一个数，这里不再另算。
-    this.fogView.update(this.snapshot.fog, this.snapshot.now);
+    // 读快照里同一个数，这里不再另算。设定集图没有探索迷雾视图（见 `create` 那段）。
+    this.fogView?.update(this.snapshot.fog, this.snapshot.now);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {
@@ -4240,7 +4347,10 @@ export class SandboxScene extends Phaser.Scene {
         return `${villager.name}：${villagerModeLabel(villager, this.snapshot, task, where)}`;
       })
       .join('　/　');
-    const weather = WEATHER_LABEL[this.snapshot.weather];
+    // 雾把「能见几格」写进状态行：阈值是同一个常量，居民选择与读数不分家。
+    const weather = this.snapshot.weather === 'fog'
+      ? `${WEATHER_LABEL[this.snapshot.weather]}（能见 ${FOG_VISIT_CELLS} 格）`
+      : WEATHER_LABEL[this.snapshot.weather];
     const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
     // 真实时钟的异常与离线补算必须看得见：静默暂停会让人以为世界卡死了。
     // 补算结果常驻到下一次补算/下一次造物；暂停提示每帧刷新。
@@ -4256,7 +4366,13 @@ export class SandboxScene extends Phaser.Scene {
 
     const clockNote = clockNotes.length === 0 ? '' : `　　${clockNotes.join('　　')}`;
     if (this.pack?.authored === true) {
-      return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
+      const tide = this.snapshot.tide;
+      // 渡口的读数必须跟潮位一起出现在状态行：只报「满潮」不够，
+      // 要能一眼读到「今天潮位多少、船开没开」。
+      const harbor = this.snapshot.harbor === null
+        ? ''
+        : `　船班${this.snapshot.harbor.boatLabel}（潮位 ${this.snapshot.harbor.level.toFixed(2)}，突堤 ${this.snapshot.harbor.jettyCells} 格）`;
+      return `${this.pack.name}　${summary}　　${tide.label} ${tide.level.toFixed(2)}${harbor}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
     }
     const faith = this.snapshot.faith;
     const { feed: feedDelivered, local: localDelivered } = this.snapshot.deliveries;
@@ -4330,7 +4446,22 @@ export class SandboxScene extends Phaser.Scene {
     if (day !== Math.floor(this.snapshot.now / DAY_MS)) return entries;
     const avoid = this.sim.avoidanceStats();
     const names = new Map(this.snapshot.villagers.map((villager) => [villager.id, villager.name]));
+    const habit = this.sim.weatherHabitFor(holderId);
     return entries.map((entry) => {
+      // 记忆真的改了今天的一拍：提前盖布那条，why 指向昨天那场雨。
+      // 只有今天真的做了（`preCoveredDay === day`）才写，没做就不编因果。
+      // 这里不能按 `entry.kind` 认：时间线上的 `kind` 是记忆种类（`episodic` /
+      // `summary`），不是世界事件种类；认那句话就够了。
+      if (
+        String(entry.what ?? '').includes('提前把摊布盖上') &&
+        habit.preCoveredDay === day
+      ) {
+        // 说清是几天前那场雨：门槛 0.75 让这条习惯最多活两天，
+        // 第二天就得说「前天」，不能说成「昨天」。
+        const ago = habit.day === null ? 1 : day - habit.day;
+        const when = ago === 1 ? '昨天' : ago === 2 ? '前天' : `${ago} 天前`;
+        return { ...entry, why: `因为${when}淋了雨，今天提前收摊` };
+      }
       const other = entry.actors.find((id) => id !== holderId);
       const beats = other === undefined ? 0 : avoid.byPair[`${holderId}|${other}`] ?? 0;
       if (other === undefined || beats === 0) return entry;
@@ -4368,6 +4499,43 @@ export class SandboxScene extends Phaser.Scene {
       }
     }
     return { relations, avoid };
+  }
+
+  /**
+   * 把记忆层里「昨天淋过雨」的账译成世界能用的那一句：谁、当前强度、第几天。
+   *
+   * 只看**亲眼淋到**、在今天以前、`what` 里带「雨」、且是负价的那几条——雾也是
+   * 负价，但「雾里改道」不是收摊的理由，别混进来。一个人有多条时取衰减后最强
+   * 的那条。记忆层负责衰减；这里只挑，不改。
+   *
+   * **`heard` 不算。** 传闻也会在第二天把「雨落下来了」传进没在场的人的记忆里，
+   * 但「听说下过雨」不是「自己淋过」——让听说的人也跟着提前盖布，等于把这条
+   * 近场规矩又改回广播。所以只认 `sourceMode === 'witnessed'`。
+   */
+  private weatherHabitFromMemory(): WeatherHabitEntry[] {
+    const runtime = this.memory;
+    if (runtime === undefined) return [];
+    const today = runtime.day;
+    const ledger: WeatherHabitEntry[] = [];
+    for (const villager of this.snapshot?.villagers ?? []) {
+      let best: WeatherHabitEntry | null = null;
+      for (const memory of runtime.viewOf(villager.id)?.memories ?? []) {
+        if (memory.createdDay >= today) continue;
+        if (memory.sourceMode !== 'witnessed') continue;
+        // 天气异常在记忆里落的是 `episodic`，靠 `what` 那句话说清是哪一档：
+        // 只有「雨落下来了 / 暴雨落下来了」算淋雨，雾不算。
+        if (!memory.content.what.includes('雨')) continue;
+        if (memory.content.valence >= 0) continue;
+        const candidate: WeatherHabitEntry = {
+          villagerId: villager.id,
+          strength: memory.strength,
+          day: memory.createdDay,
+        };
+        if (best === null || candidate.strength > best.strength) best = candidate;
+      }
+      if (best !== null) ledger.push(best);
+    }
+    return ledger;
   }
 }
 

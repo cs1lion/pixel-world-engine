@@ -1,5 +1,7 @@
 /** 世界数据模型。这一层不依赖 Phaser，可被 node --test 直接加载。 */
 
+import type { HarborState } from './harbor.ts';
+
 export interface GridPoint {
   readonly x: number;
   readonly y: number;
@@ -81,8 +83,12 @@ export interface PrefabBlueprint {
  * 结论作证。测试把分支钉着：同浓淡 0.5 下 rain 得 0.5、storm 得 0.75。
  *
  * 旧存档只有两档；`storm` 是新增值，读进来只会出现在新档里。#14。
+ *
+ * `fog` 是第四档，也是唯一**不画雨幕**的一档：它的 `intensity` 驱动能见度，
+ * 而不是雨丝。`renderIntensity` 对 `fog` 返回 0（见 `weather.ts`），
+ * 所以 `render/weather.ts` 照旧只收浓淡、不必知道雾的存在。
  */
-export type Weather = 'clear' | 'rain' | 'storm';
+export type Weather = 'clear' | 'rain' | 'storm' | 'fog';
 
 export type VillagerMode =
   | 'idle'
@@ -505,6 +511,13 @@ export interface WorldSnapshot {
      */
     readonly overridden: boolean;
   };
+  /**
+   * 渡口的四件事：突堤露出几格、灯影多长、船班开没开。
+   *
+   * 与 `tide` 同源（同一个 `level`），没有渡口的图是 `null`。运行时读数，
+   * 不进存档。
+   */
+  readonly harbor: HarborState | null;
   /** 交付积累的信仰点数与已达成的世界记忆数。 */
   readonly faith: { readonly points: number; readonly milestones: number };
   /** 交付统计：上游交付与离线本地交付分开计，禁止合并成一个数。 */

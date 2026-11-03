@@ -133,7 +133,8 @@ test('今日时间线展开条目写出「所以今天避开他」，并把拍�
       eventId: 'ev-street',
       kind: 'street_tumble',
       day,
-      when: day * 86_400_000 + 10 * 60_000,
+      when: day,
+      tick: 10 * 60_000,
       placeId: 'place:0,0',
       actors: [other.id, villager.id],
       what: '甲撞翻了乙的担子。',
@@ -150,6 +151,97 @@ test('今日时间线展开条目写出「所以今天避开他」，并把拍�
     '记忆改了行为，展开条目里却没有那句因果',
   );
   assert.match(content.today[0]!.place, /街上/);
+});
+
+/**
+ * 时间线开头的两样必须都真：天序来自 `entry.day`，时刻来自事实的 `tick`。
+ *
+ * 记忆条目的 `content.when` 只存第几天，早先拿它当时钟格式化，于是每一格
+ * 都显示 `00:00`——把下午的事说成午夜。这两条断言钉住「不是 00:00」与
+ * 「真午夜仍是 00:00」两头。
+ */
+function timelineEntry(
+  villagerId: string,
+  otherId: string,
+  day: number,
+  tick: number,
+  what: string,
+): UnitMemoryReader {
+  return {
+    viewOf: () => null,
+    dayTimelineOf: (holderId) => (holderId !== villagerId ? [] : [{
+      memoryId: 'm_timeline',
+      eventId: 'ev-timeline',
+      kind: 'episodic',
+      day,
+      when: day,
+      tick,
+      placeId: 'place:0,0',
+      actors: [villagerId, otherId],
+      what,
+    }]),
+  };
+}
+
+test('时间线同时写出天序与时刻：13:20 的事件不会被显示成 00:00', () => {
+  const sim = makeSim();
+  const snapshot = sim.snapshot();
+  const villager = snapshot.villagers[0]!;
+  const other = snapshot.villagers[1]!;
+  const day = Math.floor(snapshot.now / 86_400_000);
+  const tick = (13 * 60 + 20) * 60_000;
+  const content = buildUnitStatus(
+    worldOf(sim),
+    { kind: 'villager', id: villager.id },
+    timelineEntry(villager.id, other.id, day, tick, '下午的事。'),
+  );
+  assert.ok(content !== null);
+  const clock = content.today?.[0]?.clock ?? '';
+  assert.ok(clock.includes('13:20'), `时间线没有写出真实时刻：${clock}`);
+  assert.ok(clock.startsWith(`第 ${day} 天`), `时间线没有写出天序：${clock}`);
+  assert.ok(!clock.includes('00:00'), `下午的事被写成了午夜：${clock}`);
+});
+
+test('真正的午夜仍然显示 00:00，不因为修上一个 bug 就改掉', () => {
+  const sim = makeSim();
+  const snapshot = sim.snapshot();
+  const villager = snapshot.villagers[0]!;
+  const other = snapshot.villagers[1]!;
+  const day = Math.floor(snapshot.now / 86_400_000);
+  const content = buildUnitStatus(
+    worldOf(sim),
+    { kind: 'villager', id: villager.id },
+    timelineEntry(villager.id, other.id, day, 0, '半夜的事。'),
+  );
+  assert.ok(content !== null);
+  const clock = content.today?.[0]?.clock ?? '';
+  assert.ok(clock.includes('00:00'), `真午夜反而没有显示 00:00：${clock}`);
+  assert.ok(clock.startsWith(`第 ${day} 天`), `时间线没有写出天序：${clock}`);
+});
+
+test('查不到事实时写「时刻不明」，不拿午夜顶替', () => {
+  const sim = makeSim();
+  const snapshot = sim.snapshot();
+  const villager = snapshot.villagers[0]!;
+  const day = Math.floor(snapshot.now / 86_400_000);
+  // 显式给 null：老档里事实被裁掉的那一格。
+  const reader: UnitMemoryReader = {
+    viewOf: () => null,
+    dayTimelineOf: (holderId) => (holderId !== villager.id ? [] : [{
+      memoryId: 'm_timeline',
+      eventId: 'ev-timeline',
+      kind: 'episodic',
+      day,
+      when: day,
+      tick: null,
+      placeId: null,
+      actors: [],
+      what: '查不到的事。',
+    }]),
+  };
+  const contentNull = buildUnitStatus(worldOf(sim), { kind: 'villager', id: villager.id }, reader);
+  assert.ok(contentNull !== null);
+  assert.equal(contentNull.today?.[0]?.clock, `第 ${day} 天 时刻不明`);
 });
 
 test('长按约 500ms 才触发；移出单位立刻取消', () => {
