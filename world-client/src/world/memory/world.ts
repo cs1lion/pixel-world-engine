@@ -51,7 +51,7 @@ import {
 } from './perception.ts';
 import { soundKindOf } from './hearing.ts';
 import { biasFor, misremember } from './distort.ts';
-import { nextMood, decayedMood, MOOD_HALF_LIFE_DAYS } from './mood.ts';
+import { nextMood, decayedMood, moodLabel, MOOD_HALF_LIFE_DAYS } from './mood.ts';
 import { innerVoiceOf as composeInnerVoice } from './inner-voice.ts';
 import {
   cascadeBeliefs,
@@ -1677,6 +1677,9 @@ export class MemoryWorld {
    * 负向事件同样走这条路，所以「变差」与「变好」是同一套阈值。
    */
   private updateBondsFromFact(fact: WorldFact, valence: number, day: number): void {
+    // 只有够显著的事件才改关系账本。日常闲话（0.35）不写：
+    // 否则三句闲话就能把两个人的信任抬起来，关系反而不值钱了。
+    if ((fact.importanceHint ?? 0) < BOND_IMPORTANCE_FLOOR) return;
     const actors = new Set(fact.actors);
     for (const witness of fact.witnesses) {
       if (actors.has(witness)) continue;
@@ -1785,7 +1788,7 @@ export class MemoryWorld {
       holderId,
       valence: 0,
       arousal: 0.2,
-      label: '平静',
+      label: moodLabel(0, 0.2),
       because: [],
       updatedAt: at,
       halfLifeDays: MOOD_HALF_LIFE_DAYS,
@@ -3014,6 +3017,8 @@ export class MemoryWorld {
 }
 
 const RULESET_VERSION = 'memory-r1';
+/** 低于这个显著度的事件不改关系账本；日常闲话不算“关系事件”。 */
+const BOND_IMPORTANCE_FLOOR = 0.4;
 /** 「这一对没有冷却」的共享空数组：日终会给每个候选问一次，不每次都分配。 */
 const EMPTY_COOLDOWNS: readonly CooldownState[] = [];
 /** 「这个人关于这件事什么也不知道」的共享空数组，同上。 */

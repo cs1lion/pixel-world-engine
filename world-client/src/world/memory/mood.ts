@@ -3,6 +3,8 @@
 import type { MemoryEntry, Mood } from './types.ts';
 
 export const MOOD_HALF_LIFE_DAYS = 1;
+/** 情绪标签「紧绷」的唤醒阈值；单独命名，避免与潮汐的 0.6 字面量混淆。 */
+export const MOOD_TENSE_AROUSAL = 0.6;
 
 function clamp(value: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, value));
@@ -18,7 +20,7 @@ export function moodLabel(valence: number, arousal: number): string {
             : valence < 0.2 ? '平稳'
               : valence < 0.4 ? '轻快'
                 : '雀跃';
-  return arousal >= 0.6 && valence <= -0.2 ? `${base} · 紧绷` : base;
+  return arousal >= MOOD_TENSE_AROUSAL && valence <= -0.2 ? `${base} · 紧绷` : base;
 }
 
 /** 把一条 Mood 从它的 `updatedAt` 衰减到 `at`。 */
@@ -61,7 +63,7 @@ export function nextMood(
       && !entry.archived)
     .sort((a, b) => b.salience - a.salience || a.memoryId.localeCompare(b.memoryId));
   const base = previous === undefined
-    ? { holderId, valence: 0, arousal: 0.2, label: '平静', because: [], updatedAt: at, halfLifeDays: MOOD_HALF_LIFE_DAYS }
+    ? { holderId, valence: 0, arousal: 0.2, label: moodLabel(0, 0.2), because: [], updatedAt: at, halfLifeDays: MOOD_HALF_LIFE_DAYS }
     : decayedMood(previous, at, dayMs);
   if (todays.length === 0) return base;
 

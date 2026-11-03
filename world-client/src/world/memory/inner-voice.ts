@@ -1,6 +1,7 @@
 /** 内心独白：规则模板，只读；绝不写公开 `bubble`。 */
 
 import type { Bond, MemoryEntry, Mood } from './types.ts';
+import { MOOD_TENSE_AROUSAL } from './mood.ts';
 
 export interface InnerVoice {
   /** 模板 id。同一事件在两种 mood 下必须不同——验收断言看的是这个。 */
@@ -22,7 +23,7 @@ export function innerVoiceOf(
   bonds: readonly Bond[],
 ): InnerVoice {
   const tone = toneOf(mood);
-  const energy = mood.arousal >= 0.6 ? 'tense' : 'calm';
+  const energy = mood.arousal >= MOOD_TENSE_AROUSAL ? 'tense' : 'calm';
   const recent = memories
     .filter((entry) => entry.holderId === holderId && !entry.redacted && !entry.archived)
     .sort((a, b) => b.salience - a.salience || b.createdDay - a.createdDay || a.memoryId.localeCompare(b.memoryId));
