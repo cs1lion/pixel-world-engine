@@ -1,0 +1,142 @@
+{
+  "format": "pwe-trace/1",
+  "traceVersion": 1,
+  "description": "旧格式兼容样本：从世界日 0 的最后两分钟起跑 7 分 12 秒，跨日一次，注入造物、拨潮、下雨。只校验世界层。",
+  "worldId": "default",
+  "worldSeed": "pwe-trace-night-rain-build-0001",
+  "initialNow": 86280000,
+  "stepMs": 120,
+  "steps": 3600,
+  "eventRange": {
+    "from": 0,
+    "to": 6
+  },
+  "injections": [
+    {
+      "seq": 1,
+      "atWorldMs": 86340000,
+      "kind": "intent",
+      "payload": {
+        "raw": "建一间书阁"
+      }
+    },
+    {
+      "seq": 2,
+      "atWorldMs": 86530000,
+      "kind": "intent",
+      "payload": {
+        "raw": "涨潮"
+      }
+    },
+    {
+      "seq": 3,
+      "atWorldMs": 86680000,
+      "kind": "weather",
+      "payload": {
+        "weather": "rain"
+      }
+    }
+  ],
+  "recorded": {
+    "inputDigest": "ed7319b96c6b7a8f88c750ba3ca5dfb3cd710e7964a1030987c98caec1d486e5",
+    "fingerprint": "146ec52aa19b1b079810a93d4db9b6ce92159fcb0cb375ad5e10a435d2968b0f",
+    "eventCount": 6,
+    "eventDigest": "50d72a6f58c50b2cccfea3c8cf3bcf31270f18e5b3f66f018274601294369fce",
+    "business": {
+      "day": 1,
+      "now": 86712000,
+      "buildings": 1,
+      "tasksTotal": 0,
+      "tasksCompleted": 0,
+      "weather": "rain",
+      "faithPoints": 0,
+      "deliveries": {
+        "feed": 0,
+        "local": 0
+      },
+      "eventCount": 6
+    },
+    "checkpoints": [
+      {
+        "step": 0,
+        "atWorldMs": 86280000,
+        "fingerprint": "10c4761032ba90a67d65c51ef077664cc9f9cb5c1e184f6fb0bab797529d4ba7"
+      },
+      {
+        "step": 250,
+        "atWorldMs": 86310000,
+        "fingerprint": "1cbda209310be78f36a4e2812cdf1199baa4666199fab6b74c60248c7c6fc8bb"
+      },
+      {
+        "step": 500,
+        "atWorldMs": 86340000,
+        "fingerprint": "78204fefcbd87e349b21409571a99107a674301da58704407c23920d7c0357da"
+      },
+      {
+        "step": 750,
+        "atWorldMs": 86370000,
+        "fingerprint": "d94474cda752a18a7dac539be61004aa7096c7496be54e25da31c8398330f857"
+      },
+      {
+        "step": 1000,
+        "atWorldMs": 86400000,
+        "fingerprint": "2aca71b77ed9e65fa5b944a25c31a80fae8b7c41d4445314c1ff8e88aaebb8cc"
+      },
+      {
+        "step": 1250,
+        "atWorldMs": 86430000,
+        "fingerprint": "28b452c1ace1411f95edb2f4539729988063b148a200f1b852c174d7f65d2f2a"
+      },
+      {
+        "step": 1500,
+        "atWorldMs": 86460000,
+        "fingerprint": "1727235d82fb4b8d33e12130379c5b4d3d74e9b213cba025ef78b691d1e60be1"
+      },
+      {
+        "step": 1750,
+        "atWorldMs": 86490000,
+        "fingerprint": "6b9b508e74656ec90e053a2feb97c38eea8f92044c703fa91b55c82f82218cb2"
+      },
+      {
+        "step": 2000,
+        "atWorldMs": 86520000,
+        "fingerprint": "b7c289859c45eefd92e34cf4fa0edc1e21efffd763f79e2d8a6cf61071310146"
+      },
+      {
+        "step": 2250,
+        "atWorldMs": 86550000,
+        "fingerprint": "2e17b59f2fd89ebb2c6d7f43378d85ae2a9ee7cf95877270d06ec581861e9ab0"
+      },
+      {
+        "step": 2500,
+        "atWorldMs": 86580000,
+        "fingerprint": "a3c69959e5c00bc6164c5356e7ee03c05f2c7f5578ad9b2dc56d89f35acba32c"
+      },
+      {
+        "step": 2750,
+        "atWorldMs": 86610000,
+        "fingerprint": "d2bfbe95f4af4b086ec3aab26de1da497f2ab34d4c7e547a709fb7fcefd563cd"
+      },
+      {
+        "step": 3000,
+        "atWorldMs": 86640000,
+        "fingerprint": "58cfe026499e44ea9455cdbb5cabdca9398174a2fd2f316ca3fef48382cf5593"
+      },
+      {
+        "step": 3250,
+        "atWorldMs": 86670000,
+        "fingerprint": "2898aecfd259da04ca782725747d117d87cb7c3e37ee44db092293b89303a89a"
+      },
+      {
+        "step": 3500,
+        "atWorldMs": 86700000,
+        "fingerprint": "e07b871c5a3ae8d993a98f14de7bab092d96a903b27415649ec48a42d7f9590f"
+      },
+      {
+        "step": 3600,
+        "atWorldMs": 86712000,
+        "fingerprint": "146ec52aa19b1b079810a93d4db9b6ce92159fcb0cb375ad5e10a435d2968b0f"
+      }
+    ]
+  }
+}

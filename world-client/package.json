@@ -19,7 +19,10 @@
     "test:persistence": "node scripts/check-persistence.mjs",
     "test:render-budget": "node scripts/check-render-budget.mjs",
     "test:setting": "node scripts/check-dengchao.mjs",
-    "test:buttons": "node scripts/check-buttons.mjs"
+    "test:buttons": "node scripts/check-buttons.mjs",
+    "trace:record": "node scripts/trace-record.ts",
+    "trace:replay": "node scripts/trace-replay.ts",
+    "trace:test": "node scripts/trace-to-test.ts"
   },
   "dependencies": {
     "phaser": "3.90.0"
