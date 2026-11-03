@@ -262,7 +262,7 @@ export async function recordTrace(input: TraceInput, options: RecordOptions = {}
  * `recordTrace` 要拿同一份运行时导出存档，所以不能重新构造第二个世界——
  * 那会让「录下来的存档」和「算出来的指纹」属于两个不同的运行。
  */
-async function runTraceWithRuntime(
+export async function runTraceWithRuntime(
   input: TraceInput,
   runtime: TraceRuntime,
   options: RunOptions = {},

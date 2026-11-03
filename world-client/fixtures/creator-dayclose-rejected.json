@@ -1,0 +1,298 @@
+{
+  "format": "pwe-fixture/1",
+  "fixtureVersion": 1,
+  "name": "creator-dayclose-rejected",
+  "purpose": "莞尔镇第 0 天 23:50 起跑 12 分钟跨日：造物主等级 L0，日终提议被熔断要求复核，账本留下 accepted:false。",
+  "expectedMs": 8,
+  "covers": [
+    "造物失败路径：日终提议 accepted=false，fuseAction=requireReview",
+    "熔断读数（dayCloses[0].fuse）可读回",
+    "被拒提案不落地：landings 为空"
+  ],
+  "doesNotCover": [
+    "人工 creatorBuild 被覆盖率/冲突拒绝：轨迹运行器没有拒绝人工提案的落账入口，人工提案一律 accepted=true",
+    "造物账本 JSONL 的 rejected 行：回放不写 server 侧账本文件，只能审计 recorded.creator.business.proposals",
+    "L1 以上的门禁升级与回滚"
+  ],
+  "trace": {
+    "format": "pwe-trace/2",
+    "traceVersion": 2,
+    "description": "夹具 creator-dayclose-rejected：莞尔镇第 0 天 23:50 起跑 12 分钟跨日：造物主等级 L0，日终提议被熔断要求复核，账本留下 accepted:false。",
+    "worldId": "default",
+    "worldSeed": "fixture-rejected",
+    "initialNow": 85800000,
+    "stepMs": 60000,
+    "steps": 12,
+    "eventRange": {
+      "from": 0,
+      "to": 2
+    },
+    "injections": [],
+    "outer": {
+      "memory": true,
+      "creator": true
+    },
+    "recorded": {
+      "inputDigest": "eb47f00fd48cb01cb14c2e61b2f26ee8c80030d76914c13f0314a61a6a3d3567",
+      "fingerprint": "0aa9e332528f91c94ff957f6c433af928c829b89ed15bac4743eb1b2ede33aaf",
+      "eventCount": 2,
+      "eventDigest": "5dc55a765d578b4199223f84f549ab228436eefff01b562b23412aded61377af",
+      "business": {
+        "day": 1,
+        "now": 86520000,
+        "buildings": 0,
+        "tasksTotal": 0,
+        "tasksCompleted": 0,
+        "weather": "clear",
+        "faithPoints": 0,
+        "deliveries": {
+          "feed": 0,
+          "local": 0
+        },
+        "eventCount": 2
+      },
+      "checkpoints": [
+        {
+          "step": 0,
+          "atWorldMs": 85800000,
+          "fingerprint": "3a16c347aa4d4a0be49e840fc98df3d3213ebdc03a0969b615e24497d7257642",
+          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 12,
+          "atWorldMs": 86520000,
+          "fingerprint": "0aa9e332528f91c94ff957f6c433af928c829b89ed15bac4743eb1b2ede33aaf",
+          "memoryFingerprint": "9d4efcd7d48836ac08276546cc8cbd55857c37d98783ef47cd20601f3e679276",
+          "creatorFingerprint": "e75d227384f2a18e6578c3413f309f51d5cd227cfb9a8abf6535923b4b77c04d"
+        }
+      ],
+      "memory": {
+        "fingerprint": "9d4efcd7d48836ac08276546cc8cbd55857c37d98783ef47cd20601f3e679276",
+        "business": {
+          "lastClosedDay": 1,
+          "currentDay": 1,
+          "holders": 2,
+          "facts": 1,
+          "entries": 0,
+          "claims": 0,
+          "beliefs": 0,
+          "traces": 0,
+          "landmarks": 0,
+          "turningPoints": 0,
+          "bonds": 0,
+          "moods": 2,
+          "bondTrustSum": 0,
+          "moodValenceSum": 0,
+          "legends": 0,
+          "placeNames": 0,
+          "announcements": 0,
+          "written": 0,
+          "credibility": 0,
+          "metToday": 0
+        }
+      },
+      "creator": {
+        "fingerprint": "e75d227384f2a18e6578c3413f309f51d5cd227cfb9a8abf6535923b4b77c04d",
+        "business": {
+          "dayCloses": [
+            {
+              "day": 1,
+              "vitals": {
+                "meanValence": 0,
+                "meanArousal": 0,
+                "infoEntropy": 0,
+                "isolatedHoldersCount": 2
+              },
+              "shouldInject": true,
+              "eventKind": "visitor_arrival",
+              "reasoning": "世界唤醒度过低 (0.000 < 0.25)，需要打破机械重复（信息熵 0.000、孤立单位 2）",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "gear_tower",
+                "at": {
+                  "x": 18,
+                  "y": 20
+                },
+                "reason": "第 1 天还缺「齿轮塔」，在 (18,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            }
+          ],
+          "proposals": [
+            {
+              "day": 1,
+              "atWorldMs": 86400000,
+              "source": "dayClose",
+              "templateId": "gear_tower",
+              "at": {
+                "x": 18,
+                "y": 20
+              },
+              "reason": "第 1 天还缺「齿轮塔」，在 (18,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            }
+          ],
+          "landings": [],
+          "roles": [
+            {
+              "roleId": "art_supervisor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "auditor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "director",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "historian",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "interpreter",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "mapper",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assertions": [
+    {
+      "note": "跨日关账",
+      "source": "world.business",
+      "path": "day",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "当天只提出一条造物提议",
+      "source": "creator.business",
+      "path": "proposals.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "提议来自日终关账",
+      "source": "creator.business",
+      "path": "proposals[0].source",
+      "op": "eq",
+      "value": "dayClose"
+    },
+    {
+      "note": "L0 熔断要求人工复核",
+      "source": "creator.business",
+      "path": "proposals[0].fuseAction",
+      "op": "eq",
+      "value": "requireReview"
+    },
+    {
+      "note": "提案被拒，账本留下 accepted:false",
+      "source": "creator.business",
+      "path": "proposals[0].accepted",
+      "op": "eq",
+      "value": false
+    },
+    {
+      "note": "被拒提案没有实例 id",
+      "source": "creator.business",
+      "path": "proposals[0].instanceId",
+      "op": "eq",
+      "value": null
+    },
+    {
+      "note": "被拒提案没有落地",
+      "source": "creator.business",
+      "path": "landings.length",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "关账熔断读数",
+      "source": "creator.business",
+      "path": "dayCloses[0].fuse.action",
+      "op": "eq",
+      "value": "requireReview"
+    },
+    {
+      "note": "没有自动入队",
+      "source": "creator.business",
+      "path": "dayCloses[0].autoEnqueued",
+      "op": "eq",
+      "value": false
+    }
+  ]
+}

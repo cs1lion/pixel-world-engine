@@ -22,7 +22,8 @@
     "test:buttons": "node scripts/check-buttons.mjs",
     "trace:record": "node scripts/trace-record.ts",
     "trace:replay": "node scripts/trace-replay.ts",
-    "trace:test": "node scripts/trace-to-test.ts"
+    "trace:test": "node scripts/trace-to-test.ts",
+    "fixture:check": "node scripts/fixture-check.ts"
   },
   "dependencies": {
     "phaser": "3.90.0"

@@ -1,0 +1,1051 @@
+{
+  "format": "pwe-fixture/1",
+  "fixtureVersion": 1,
+  "name": "memory-decay-20d",
+  "purpose": "莞尔镇从第 0 天起跑 20 个世界日（1 小时一拍），让日预算淘汰与归档真的发生，统计事件累计值。",
+  "expectedMs": 461,
+  "covers": [
+    "日预算淘汰：memory.consolidated 事件里的 archived / dropped 累计计数",
+    "终局快照里的归档条目已被裁掉（archived entries = 0）",
+    "20 次日终关账（consolidated events = 20）"
+  ],
+  "doesNotCover": [
+    "分钟级衰减曲线：1 小时一拍是粗粒度快进，拍内细节不可见",
+    "传说形成 / 史诗 / 地名改写：20 天里没有足够多的人重复讲述",
+    "跨世界日的具体条目内容（只断言计数，不断言某一条记忆）"
+  ],
+  "trace": {
+    "format": "pwe-trace/2",
+    "traceVersion": 2,
+    "description": "夹具 memory-decay-20d：莞尔镇从第 0 天起跑 20 个世界日（1 小时一拍），让日预算淘汰与归档真的发生，统计事件累计值。",
+    "worldId": "default",
+    "worldSeed": "fixture-decay",
+    "initialNow": 0,
+    "stepMs": 3600000,
+    "steps": 480,
+    "eventRange": {
+      "from": 0,
+      "to": 458
+    },
+    "injections": [],
+    "outer": {
+      "memory": true,
+      "creator": true
+    },
+    "recorded": {
+      "inputDigest": "54a053606a16e2419b1b28ef3cd40cd2474309854749a03f3ba9d88ae6cbdcb5",
+      "fingerprint": "f55f988e11c17bd377d4273ed521471185171d46266de7fb6ec8ee28dcdd7fb4",
+      "eventCount": 458,
+      "eventDigest": "4cc60e24f59eca0c69fbfec95264bd6b799af94d3d9dc759bc0d1ebdbbb3b671",
+      "business": {
+        "day": 20,
+        "now": 1728000000,
+        "buildings": 0,
+        "tasksTotal": 0,
+        "tasksCompleted": 0,
+        "weather": "clear",
+        "faithPoints": 0,
+        "deliveries": {
+          "feed": 0,
+          "local": 0
+        },
+        "eventCount": 458
+      },
+      "checkpoints": [
+        {
+          "step": 0,
+          "atWorldMs": 0,
+          "fingerprint": "c6bda0d833ed49bd5cab36928234233f2b57a4f44b61d9406395be5e80fecf46",
+          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 250,
+          "atWorldMs": 900000000,
+          "fingerprint": "26e281e829db47b5e0a1759843c461a5d7e3160ffd5de49817a1ae96c48b300b",
+          "memoryFingerprint": "10a2268dd1240037d1a35bcbaed67d0843fabc17ca9011c17240b3d426cb645f",
+          "creatorFingerprint": "0a8c704c3910d66c521f03f64c626ca48af9048d61353f6327981fcde33a7a3a"
+        },
+        {
+          "step": 480,
+          "atWorldMs": 1728000000,
+          "fingerprint": "f55f988e11c17bd377d4273ed521471185171d46266de7fb6ec8ee28dcdd7fb4",
+          "memoryFingerprint": "f09e4dd9d98c490b638b1136204fc3af2fdf7cfb4a2b17c927de6008200e7d82",
+          "creatorFingerprint": "7314ccc61026932b44c56acb5a6ba1c3b2c6a613c86256b0a77f29657a1f151e"
+        }
+      ],
+      "memory": {
+        "fingerprint": "f09e4dd9d98c490b638b1136204fc3af2fdf7cfb4a2b17c927de6008200e7d82",
+        "business": {
+          "lastClosedDay": 20,
+          "currentDay": 20,
+          "holders": 2,
+          "facts": 277,
+          "entries": 32,
+          "claims": 157,
+          "beliefs": 40,
+          "traces": 3,
+          "landmarks": 0,
+          "turningPoints": 0,
+          "bonds": 0,
+          "moods": 2,
+          "bondTrustSum": 0,
+          "moodValenceSum": 0.142091,
+          "legends": 0,
+          "placeNames": 0,
+          "announcements": 0,
+          "written": 30,
+          "credibility": 0,
+          "metToday": 0
+        }
+      },
+      "creator": {
+        "fingerprint": "7314ccc61026932b44c56acb5a6ba1c3b2c6a613c86256b0a77f29657a1f151e",
+        "business": {
+          "dayCloses": [
+            {
+              "day": 1,
+              "vitals": {
+                "meanValence": 0.12,
+                "meanArousal": 0.25,
+                "infoEntropy": 0,
+                "isolatedHoldersCount": 2
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "cottage_oak",
+                "at": {
+                  "x": 42,
+                  "y": 16
+                },
+                "reason": "第 1 天还缺「橡木小屋」，在 (42,16) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 2,
+              "vitals": {
+                "meanValence": 0.1154,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "gear_tower",
+                "at": {
+                  "x": 18,
+                  "y": 18
+                },
+                "reason": "第 2 天还缺「齿轮塔」，在 (18,18) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 3,
+              "vitals": {
+                "meanValence": 0.1168,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "homestead_ridge",
+                "at": {
+                  "x": 67,
+                  "y": 46
+                },
+                "reason": "第 3 天还缺「山脊农舍」，在 (67,46) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 4,
+              "vitals": {
+                "meanValence": 0.1167,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "cottage_oak",
+                "at": {
+                  "x": 57,
+                  "y": 38
+                },
+                "reason": "第 4 天还缺「橡木小屋」，在 (57,38) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 5,
+              "vitals": {
+                "meanValence": 0.1168,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "cottage_stone",
+                "at": {
+                  "x": 28,
+                  "y": 38
+                },
+                "reason": "第 5 天还缺「石砌小屋」，在 (28,38) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 6,
+              "vitals": {
+                "meanValence": 0.1167,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "gear_tower",
+                "at": {
+                  "x": 18,
+                  "y": 18
+                },
+                "reason": "第 6 天还缺「齿轮塔」，在 (18,18) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 7,
+              "vitals": {
+                "meanValence": 0.1134,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "gear_tower",
+                "at": {
+                  "x": 18,
+                  "y": 18
+                },
+                "reason": "第 7 天还缺「齿轮塔」，在 (18,18) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 8,
+              "vitals": {
+                "meanValence": 0.1158,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "star_archive",
+                "at": {
+                  "x": 51,
+                  "y": 20
+                },
+                "reason": "第 8 天还缺「星图书阁」，在 (51,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 9,
+              "vitals": {
+                "meanValence": 0.1159,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "workshop_plot",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 9 天还缺「新工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 10,
+              "vitals": {
+                "meanValence": 0.1201,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "workshop_plot",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 10 天还缺「新工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 11,
+              "vitals": {
+                "meanValence": 0.117,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "ink_mill",
+                "at": {
+                  "x": 18,
+                  "y": 46
+                },
+                "reason": "第 11 天还缺「文档磨坊」，在 (18,46) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 12,
+              "vitals": {
+                "meanValence": 0.1158,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "star_archive",
+                "at": {
+                  "x": 51,
+                  "y": 20
+                },
+                "reason": "第 12 天还缺「星图书阁」，在 (51,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 13,
+              "vitals": {
+                "meanValence": 0.1159,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "crawler_mine",
+                "at": {
+                  "x": 69,
+                  "y": 18
+                },
+                "reason": "第 13 天还缺「爬虫矿洞」，在 (69,18) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 14,
+              "vitals": {
+                "meanValence": 0.1201,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "homestead_ridge",
+                "at": {
+                  "x": 66,
+                  "y": 47
+                },
+                "reason": "第 14 天还缺「山脊农舍」，在 (66,47) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 15,
+              "vitals": {
+                "meanValence": 0.117,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "cottage_oak",
+                "at": {
+                  "x": 61,
+                  "y": 29
+                },
+                "reason": "第 15 天还缺「橡木小屋」，在 (61,29) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 16,
+              "vitals": {
+                "meanValence": 0.1167,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "code_forge",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 16 天还缺「炼码工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 17,
+              "vitals": {
+                "meanValence": 0.1168,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "code_forge",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 17 天还缺「炼码工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 18,
+              "vitals": {
+                "meanValence": 0.1167,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "code_forge",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 18 天还缺「炼码工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 19,
+              "vitals": {
+                "meanValence": 0.1134,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "ink_mill",
+                "at": {
+                  "x": 18,
+                  "y": 46
+                },
+                "reason": "第 19 天还缺「文档磨坊」，在 (18,46) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 20,
+              "vitals": {
+                "meanValence": 0.1167,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "code_forge",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 20 天还缺「炼码工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            }
+          ],
+          "proposals": [
+            {
+              "day": 1,
+              "atWorldMs": 86400000,
+              "source": "dayClose",
+              "templateId": "cottage_oak",
+              "at": {
+                "x": 42,
+                "y": 16
+              },
+              "reason": "第 1 天还缺「橡木小屋」，在 (42,16) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 2,
+              "atWorldMs": 172800000,
+              "source": "dayClose",
+              "templateId": "gear_tower",
+              "at": {
+                "x": 18,
+                "y": 18
+              },
+              "reason": "第 2 天还缺「齿轮塔」，在 (18,18) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 3,
+              "atWorldMs": 259200000,
+              "source": "dayClose",
+              "templateId": "homestead_ridge",
+              "at": {
+                "x": 67,
+                "y": 46
+              },
+              "reason": "第 3 天还缺「山脊农舍」，在 (67,46) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 4,
+              "atWorldMs": 345600000,
+              "source": "dayClose",
+              "templateId": "cottage_oak",
+              "at": {
+                "x": 57,
+                "y": 38
+              },
+              "reason": "第 4 天还缺「橡木小屋」，在 (57,38) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 5,
+              "atWorldMs": 432000000,
+              "source": "dayClose",
+              "templateId": "cottage_stone",
+              "at": {
+                "x": 28,
+                "y": 38
+              },
+              "reason": "第 5 天还缺「石砌小屋」，在 (28,38) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 6,
+              "atWorldMs": 518400000,
+              "source": "dayClose",
+              "templateId": "gear_tower",
+              "at": {
+                "x": 18,
+                "y": 18
+              },
+              "reason": "第 6 天还缺「齿轮塔」，在 (18,18) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 7,
+              "atWorldMs": 604800000,
+              "source": "dayClose",
+              "templateId": "gear_tower",
+              "at": {
+                "x": 18,
+                "y": 18
+              },
+              "reason": "第 7 天还缺「齿轮塔」，在 (18,18) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 8,
+              "atWorldMs": 691200000,
+              "source": "dayClose",
+              "templateId": "star_archive",
+              "at": {
+                "x": 51,
+                "y": 20
+              },
+              "reason": "第 8 天还缺「星图书阁」，在 (51,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 9,
+              "atWorldMs": 777600000,
+              "source": "dayClose",
+              "templateId": "workshop_plot",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 9 天还缺「新工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 10,
+              "atWorldMs": 864000000,
+              "source": "dayClose",
+              "templateId": "workshop_plot",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 10 天还缺「新工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 11,
+              "atWorldMs": 950400000,
+              "source": "dayClose",
+              "templateId": "ink_mill",
+              "at": {
+                "x": 18,
+                "y": 46
+              },
+              "reason": "第 11 天还缺「文档磨坊」，在 (18,46) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 12,
+              "atWorldMs": 1036800000,
+              "source": "dayClose",
+              "templateId": "star_archive",
+              "at": {
+                "x": 51,
+                "y": 20
+              },
+              "reason": "第 12 天还缺「星图书阁」，在 (51,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 13,
+              "atWorldMs": 1123200000,
+              "source": "dayClose",
+              "templateId": "crawler_mine",
+              "at": {
+                "x": 69,
+                "y": 18
+              },
+              "reason": "第 13 天还缺「爬虫矿洞」，在 (69,18) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 14,
+              "atWorldMs": 1209600000,
+              "source": "dayClose",
+              "templateId": "homestead_ridge",
+              "at": {
+                "x": 66,
+                "y": 47
+              },
+              "reason": "第 14 天还缺「山脊农舍」，在 (66,47) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 15,
+              "atWorldMs": 1296000000,
+              "source": "dayClose",
+              "templateId": "cottage_oak",
+              "at": {
+                "x": 61,
+                "y": 29
+              },
+              "reason": "第 15 天还缺「橡木小屋」，在 (61,29) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 16,
+              "atWorldMs": 1382400000,
+              "source": "dayClose",
+              "templateId": "code_forge",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 16 天还缺「炼码工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 17,
+              "atWorldMs": 1468800000,
+              "source": "dayClose",
+              "templateId": "code_forge",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 17 天还缺「炼码工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 18,
+              "atWorldMs": 1555200000,
+              "source": "dayClose",
+              "templateId": "code_forge",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 18 天还缺「炼码工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 19,
+              "atWorldMs": 1641600000,
+              "source": "dayClose",
+              "templateId": "ink_mill",
+              "at": {
+                "x": 18,
+                "y": 46
+              },
+              "reason": "第 19 天还缺「文档磨坊」，在 (18,46) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 20,
+              "atWorldMs": 1728000000,
+              "source": "dayClose",
+              "templateId": "code_forge",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 20 天还缺「炼码工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            }
+          ],
+          "landings": [],
+          "roles": [
+            {
+              "roleId": "art_supervisor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 20,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "auditor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 20,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "director",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 20,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "historian",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 20,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "interpreter",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 20,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "mapper",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 20,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assertions": [
+    {
+      "note": "世界日走满 20 天",
+      "source": "world.business",
+      "path": "day",
+      "op": "eq",
+      "value": 20
+    },
+    {
+      "note": "20 次世界日关账",
+      "source": "memory.business",
+      "path": "lastClosedDay",
+      "op": "eq",
+      "value": 20
+    },
+    {
+      "note": "日终关账事件 20 条，consolidated 事件合计 40 次",
+      "source": "memory.consolidated",
+      "path": "events",
+      "op": "eq",
+      "value": 40
+    },
+    {
+      "note": "归档累计（事件口径，不是终局快照）",
+      "source": "memory.consolidated",
+      "path": "archived",
+      "op": "eq",
+      "value": 9
+    },
+    {
+      "note": "预算淘汰累计（事件口径）",
+      "source": "memory.consolidated",
+      "path": "dropped",
+      "op": "eq",
+      "value": 145
+    },
+    {
+      "note": "终局仍有条目",
+      "source": "memory.business",
+      "path": "entries",
+      "op": "eq",
+      "value": 32
+    },
+    {
+      "note": "终局事实条数",
+      "source": "memory.business",
+      "path": "facts",
+      "op": "eq",
+      "value": 277
+    }
+  ]
+}
