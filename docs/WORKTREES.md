@@ -37,17 +37,19 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pixel-world-engine | main | cs1lion | 2026-10-25 | — | 主工作树（不回收） |
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-06 | 基线快照（`54139dd`） |
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
-| D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（第三轮迭代中，未合入 main） |
+| D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`fe11a7f` 已合入 main；worktree 仍有未提交改动，待 owner 收尾） |
 | D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：仍在活跃使用） |
-| D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
+| D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`699f54b` 已合入 main；分支保留） |
+| D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main；分支保留） |
 | D:/project/pwe-funcdaily | feat/func-daily | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
-| D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
-| D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
+| D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`ae4cc61` 已合入 main；`7319ee4` 未合入） |
+| D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`d725b7e` 已合入 main；`93da6d9` 未合入） |
+| D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-routine | feat/routine-real | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：待第二轮合并） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢） |
 | D:/project/pwe-scene | feat/scene-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：仍在活跃使用） |
-| D:/project/pwe-warmup | feat/gate-warmup | cs1lion | 2026-11-03 | 2026-11-10 | 活跃（待合入，等待放行）；帧率/相位闸门校准，收尾中 |
+| D:/project/pwe-warmup | feat/gate-warmup | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`a098721` 已合入 main）；帧率/相位闸门校准，收尾完成 |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（基线快照） |
 
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
