@@ -1,47 +1,24 @@
-/** 小人层：画出来 16×20 的色块精灵（文件里 `VILLAGER_W = 12` 没人用），
- * 动作由状态机给，渲染层不猜。
+/** 小人层：24×30 的分层像素精灵。排版在 `villager-layout.ts`（纯数据、可单测），
+ * 这里只负责「把矩形变成 Graphics」与灯/伞/怀抱物的少量叠加。
  *
- * 这一行原来写「16×32」——文件诞生那天（`996cbd3`）就是假的，同一笔里
- * `VILLAGER_W = 12; VILLAGER_H = 20` 已经是对的，而标题从没人改过。
- * 后来改成「12×20」，**那也只是把标题对齐了那个没人用的常量**：12 不是画出来
- * 的宽度（见下面「画出来的实际极值」那一段，画出来是 16px）。所以标题现在写画出来
- * 的极值，并当场注明 `VILLAGER_W` 没有读者。
+ * **为什么是 24×30、格径仍是 16**：24×30 的像素面积是旧 16×20 的 2.25 倍，
+ * 头从 8×6 变成 12×10，脸从约 32px² 变成约 60px²——这是「一眼分得开」的最低
+ * 成本；世界、地形、建筑、烘焙与截图口径全部不动。代价是角色会跨到上一格
+ * 14px（悬垂），深度仍按**脚底**算（`altitude + py + 8`），所以站在楼前/楼后、
+ * 树前/树后仍按脚下那一格排序，碰撞与命中仍按整格（`villagerAtCell`）。
  *
- * **但「已经是对的」这句话没有代码替它作证。** `VILLAGER_W = 12` 全仓零个读者——
- * `src/`、`test/`、`scripts/`、`eval/` 里除了声明处与这两行注释，再没有第三个
- * `VILLAGER_W`。`VILLAGER_H = 20` 倒真被 `drawBody` 用（`const y = -VILLAGER_H + …`）。
- * 所以准确的说法是：**高 20 是画出来的，宽 12 只是个写在文件里的数**，
- * 谁也没照它排过版。别照 12 去改任何绘制坐标。
+ * 外观的四个维度（体型/头型/衣型/配饰）住在 `world/villager-look.ts`；
+ * 颜色槽仍只取世界 24 色的 token。**24 色是源色闭集，不是屏幕色闭集**：
+ * 审计不单独计 alpha，八方那种光感不需要先放宽色数。
  *
- * 画出来的实际极值（都在 `drawBody` 里）：左 x = −8（围巾飘尾
- * `fillRect(-8, …)`），右 x = 7（书包 `fillRect(4, …, 4, …)`，占到第 8 列），
- * 所以横向是 **16px**，不是 14，也不是标题那个 12。
- * （这里原来写「`fillRect(-8, …)` 到 `fillRect(6, …)`，14px」——两处都错：
- * 全文件唯一的 `fillRect(6, …)` 在 `drawCarried` 里，那是她身前**抱着**的神谕卷轴，
- * 不属于身子；而身子的右极值是 7。我数错了，而且数错的方向是往小了说。
- * 顺带改一处自相矛盾：这里原文写「举着」，而 `drawCarried` 自己的注释写着
- * 「抱着的姿态，不是举着」——以 `drawCarried` 为准，手里是抱着不是举着。）
- * 高就是 `VILLAGER_H`（`drawBody` 里 `const y = -VILLAGER_H + pose.offsetY`）。
- *
- * （这里原来还写着「`:25-26`」「`:260`」两个行号——是我自己加错了：那几句
- * 注释就排在它们上面，一加进去行号当场全错，而行号引用审计查不出来，
- * 因为那两行仍然"有代码"，只是不再是这两个常量。所以改成指名不叫行。）
- *
- * 动画采样在 `villager-frames.ts`（纯函数、可单测）：帧号由 simulation 时间决定，
- * 这里只按帧号画，并且所有坐标取整到整数像素。
- *
- * 24 色收敛后不再有“斗篷亮部”这种单独色：亮部靠 1px 暗轮廓 + 围巾/皮肤的面积撑起来。
- * 轮廓与草地的对比只有 1.59:1（WCAG 口径，精确到两位），所以先补轮廓，再谈换色。
- * （这里原来写「审计 §6.2」——**没有那个小节**：`docs/adr/ADR_WORLD_ALIVE.md` 只有
- * §1–§8 加一个附录，没有 §6.2。数倒是真的，`test/terrain-edges.test.ts` 记着
- * 「WCAG 1.59：精确到两位」。所以删出处、留数字，改指那个测试。）
+ * 动画采样仍在 `villager-frames.ts`（12fps、纯函数、整数像素）；这里只按帧号画。
  */
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 import { WORLD } from '../world/palette-data.ts';
-import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import type { WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
 import {
@@ -50,71 +27,15 @@ import {
   villagerPose,
   type VillagerPose,
 } from './villager-frames.ts';
+import {
+  VILLAGER_H,
+  VILLAGER_W,
+  villagerLayout,
+  type PaintRole,
+} from './villager-layout.ts';
+import { DEFAULT_LOOK, resolveLook, type VillagerLook } from '../world/villager-look.ts';
 
-export const VILLAGER_W = 12;
-export const VILLAGER_H = 20;
-
-interface VillagerStyle {
-  readonly hair: number;
-  readonly cloak: number;
-  readonly cloakDark: number;
-  readonly scarf: number;
-  readonly scarfLit: number;
-  readonly satchel: number;
-  readonly satchelLit: number;
-}
-
-/**
- * 外观的 token 槽。存 token 名而不是解析好的色值：第二座镇子换掉 `cloak` 时，
- * 小人要跟着换——存色值就等于把莞尔镇的衣服冻在灯潮界的人身上。
- * 色值到 `resolveStyle` 里按当次色板取，默认仍是 `WORLD`。
- */
-interface VillagerStyleTokens {
-  readonly hair: WorldColor;
-  readonly cloak: WorldColor;
-  readonly cloakDark: WorldColor;
-  readonly scarf: WorldColor;
-  readonly scarfLit: WorldColor;
-  readonly satchel: WorldColor;
-  readonly satchelLit: WorldColor;
-}
-
-const MAIN_STYLE: VillagerStyleTokens = {
-  hair: 'timberDark',
-  cloak: 'cloak',
-  cloakDark: 'cloakDark',
-  scarf: 'ember',
-  scarfLit: 'trim',
-  satchel: 'timberDark',
-  satchelLit: 'trim',
-};
-
-/** 阿雾：暖木斗篷 + 浅金围巾，和莞尔的蓝斗篷/橙围巾分开；仍在 24 色内。 */
-const ALT_STYLE: VillagerStyleTokens = {
-  hair: 'timberDark',
-  cloak: 'timber',
-  cloakDark: 'timberDark',
-  scarf: 'trim',
-  scarfLit: 'pale',
-  satchel: 'terracotta',
-  satchelLit: 'trim',
-};
-
-function resolveStyle(tokens: VillagerStyleTokens, palette: WorldPalette): VillagerStyle {
-  return {
-    hair: palette[tokens.hair],
-    cloak: palette[tokens.cloak],
-    cloakDark: palette[tokens.cloakDark],
-    scarf: palette[tokens.scarf],
-    scarfLit: palette[tokens.scarfLit],
-    satchel: palette[tokens.satchel],
-    satchelLit: palette[tokens.satchelLit],
-  };
-}
-
-function villagerStyle(villager: VillagerSnapshot, palette: WorldPalette): VillagerStyle {
-  return resolveStyle(villager.name === '莞尔' ? MAIN_STYLE : ALT_STYLE, palette);
-}
+export { VILLAGER_H, VILLAGER_W };
 
 export interface VillagerView {
   readonly container: Phaser.GameObjects.Container;
@@ -124,20 +45,21 @@ export interface VillagerView {
   lamp: LampState;
 }
 
+/** 世界递下来的外观：设定集给的四个维度 + 颜色槽，以及「她提没提灯」。 */
+export interface VillagerAppearance {
+  readonly look: VillagerLook;
+  readonly lamp: boolean;
+}
+
 export function createVillager(
   scene: Phaser.Scene,
   originX: number,
   originY: number,
 ): VillagerView {
-  // D6：接地不能只有一枚椭圆。椭圆说明「这里有团暗」，但脚和地面没有接触点，
+  // 接地不能只有一枚椭圆：椭圆说明「这里有团暗」，但脚和地面没有接触点，
   // 走起来会像浮着。这里用阶梯像素块代替矢量椭圆，再加一条 1px 接触线压在脚底。
-  // alpha 用两色两档：外层两块走 `deepShade` 0.3，脚底接触线走 `ink` 0.55。
-  // 原来这里写「alpha 纪律（ART_SPEC §2.4）：阴影只允许 ink，且不超过既有档位
-  // （0.55 是现值上限）」——三半里两半不成立：**仓库里从来没有 `ART_SPEC` 这个
-  // 文档**（`git log --all --diff-filter=A -- '*ART_SPEC*'` 全史为空），那条
-  // 「纪律」没有出处；而「只允许 ink」也不成立——往下第三条绘制语句那条
-  // `fillStyle` 就是 `deepShade` 0.3（`ink` 0.55 排在它后面）。
-  // 「0.55 是现值上限」这半是对的（两档取大）。已按代码改成现状，不引不存在的文档。
+  // alpha 两档：外层 `deepShade` 0.3，接触线 `ink` 0.55。影子仍按 16px 格宽画，
+  // 不做 24px 加宽——宽过一格会读成「两个人挨着」。
   const shadow = scene.add.graphics();
   shadow.fillStyle(WORLD.deepShade, 0.3);
   shadow.fillRect(-6, 0, 12, 2);
@@ -146,7 +68,7 @@ export function createVillager(
   shadow.fillRect(-4, 0, 8, 1);
 
   const body = scene.add.graphics();
-  drawBody(body, 'down', villagerPose('idle', false, 0), 'idle', false, resolveStyle(MAIN_STYLE, WORLD), 0);
+  drawVillager(body, DEFAULT_LOOK, WORLD, 'down', villagerPose('idle', false, 0), 'idle', false, 0);
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
@@ -161,7 +83,7 @@ export function updateVillager(
   originX: number,
   originY: number,
   altitude: number,
-  colors?: { readonly cloak: number; readonly scarf: number; readonly lamp: boolean },
+  appearance?: VillagerAppearance,
   palette: WorldPalette = WORLD,
 ): void {
   const px = pixelAt(originX + (villager.pos.x + 0.5) * TILE_PX);
@@ -180,44 +102,75 @@ export function updateVillager(
     lampActivityOf(villager.mode, villager.walking),
     lampDayOf(nowMs),
   );
-  const oil = colors?.lamp === true ? view.lamp.oil : 1;
+  const withLamp = appearance?.lamp === true;
+  const oil = withLamp ? view.lamp.oil : 1;
   // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
   const pose = villagerPose(villager.mode, villager.walking, lampAnimationTime(oil, nowMs));
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
   view.body.setAlpha(lampBodyAlpha(oil));
   view.body.clear();
-  drawBody(
+  drawVillager(
     view.body,
+    appearance?.look ?? resolveLook(undefined),
+    palette,
     villager.facing,
     pose,
     villager.mode,
     villager.walking,
-    colors === undefined
-      ? villagerStyle(villager, palette)
-      : { ...villagerStyle(villager, palette), cloak: colors.cloak, scarf: colors.scarf },
     nowMs,
   );
-  if (colors?.lamp === true) {
+  if (withLamp) {
     // 快照里的灯油只在这里影响画面；燃料不会变成任务或路径的隐藏条件。
     drawLamp(view.body, oil, palette);
   }
   if (villager.umbrella) drawUmbrella(view.body, pose.offsetY);
   if (villager.carrying !== null) drawCarried(view.body, villager.carrying, pose.offsetY);
 
-  // 走路时整条阴影（椭圆 + 接触线）一起变淡：抬脚时接触减弱，落地时才压深。
-  // 用容器级 alpha 而不是改每个 fillStyle，保证椭圆与接触线的相对深浅不变。
-  //
-  // 判据与步态同一个（`villager.walking`，即 `path.length > 0`）。曾经这儿另列
-  // 了一张只有 `toWork|toAltar` 的表，于是走作息环线的人——她 mode 是 `'idle'`
-  // ——阴影一路压着 0.35，像脚一直踩在地上。**两处判据分家，就会一处修一处漏。**
+  // 走路时整条阴影一起变淡：抬脚时接触减弱，落地时才压深。
+  // 判据与步态同一个（`villager.walking`，即 `path.length > 0`），别另列 mode 表：
+  // 走作息环线的人 mode 是 `'idle'`，表会漏、路不会。
   view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
+}
+
+/** 一个调色角色 → 当次色板的实色。只有颜色解析在这一处，排版不认识色值。 */
+function paintColor(paint: PaintRole, look: VillagerLook, palette: WorldPalette): number {
+  switch (paint) {
+    case 'base':
+      return palette[look.cloak];
+    case 'shade':
+      return palette[look.cloakDark];
+    case 'hair':
+      return palette[look.hair];
+    case 'scarf':
+      return palette[look.scarf];
+    case 'scarfLit':
+      return palette[look.scarfLit];
+    default:
+      return palette[paint];
+  }
+}
+
+function drawVillager(
+  g: Phaser.GameObjects.Graphics,
+  look: VillagerLook,
+  palette: WorldPalette,
+  facing: VillagerSnapshot['facing'],
+  pose: VillagerPose,
+  mode: VillagerSnapshot['mode'],
+  walking: boolean,
+  nowMs: number,
+): void {
+  for (const item of villagerLayout(look, facing, pose, walking, mode, nowMs)) {
+    g.fillStyle(paintColor(item.paint, look, palette), 1);
+    g.fillRect(item.x, item.y, item.w, item.h);
+  }
 }
 
 /**
  * 从郊野带回来的东西：抱在身前。
  *
- * 只画三种，对应三种活。位置在身前偏下——抱着的姿态，不是举着。
+ * 只画三种，对应三种活。位置在胸前偏下——抱着的姿态，不是举着。
  * 全用现有 24 色：卷轴 parchment 用 plaster、石料用 stone、纸用 pale。
  */
 function drawCarried(
@@ -225,210 +178,61 @@ function drawCarried(
   kind: 'scroll' | 'stone' | 'paper',
   offsetY: number,
 ): void {
-  const y = offsetY;
-  // 尺寸都放大过一档：第一版 11×5 在 2 倍显示下只有 22×10 像素，
-  // 与围巾同色，贴着身子完全读不出来。现在 15×7 并加黑轮廓。
+  const top = offsetY - 13;
   if (kind === 'scroll') {
     // 卷轴：浅色横卷 + 两端暗轴头 + 中间一条暗纹（读成"卷起来的纸"）。
     g.fillStyle(WORLD.ink, 1);
-    g.fillRect(-7, y + 12, 15, 7);
+    g.fillRect(-7, top, 15, 7);
     g.fillStyle(WORLD.plaster, 1);
-    g.fillRect(-6, y + 13, 13, 5);
+    g.fillRect(-6, top + 1, 13, 5);
     g.fillStyle(WORLD.trim, 1);
-    g.fillRect(-6, y + 13, 13, 1);
+    g.fillRect(-6, top + 1, 13, 1);
     g.fillStyle(WORLD.timberDark, 1);
-    g.fillRect(-7, y + 13, 2, 5);
-    g.fillRect(6, y + 13, 2, 5);
+    g.fillRect(-7, top + 1, 2, 5);
+    g.fillRect(6, top + 1, 2, 5);
     // 纸面暗纹：两条横线，读成"写过的纸"。
     g.fillStyle(WORLD.charcoal, 1);
-    g.fillRect(-3, y + 15, 6, 1);
-    g.fillRect(-3, y + 16, 4, 1);
+    g.fillRect(-3, top + 3, 6, 1);
+    g.fillRect(-3, top + 4, 4, 1);
   } else if (kind === 'stone') {
     // 石料：带亮面的方石，轮廓更清楚。
     g.fillStyle(WORLD.ink, 1);
-    g.fillRect(-6, y + 12, 13, 8);
+    g.fillRect(-6, top, 13, 8);
     g.fillStyle(WORLD.stone, 1);
-    g.fillRect(-5, y + 13, 11, 6);
+    g.fillRect(-5, top + 1, 11, 6);
     g.fillStyle(WORLD.plaza, 1);
-    g.fillRect(-5, y + 13, 11, 2);
+    g.fillRect(-5, top + 1, 11, 2);
     g.fillStyle(WORLD.charcoal, 1);
-    g.fillRect(-5, y + 18, 11, 1);
+    g.fillRect(-5, top + 6, 11, 1);
   } else {
     // 纸：一叠薄纸，边缘有齿。
     g.fillStyle(WORLD.ink, 1);
-    g.fillRect(-7, y + 12, 15, 7);
+    g.fillRect(-7, top, 15, 7);
     g.fillStyle(WORLD.pale, 1);
-    g.fillRect(-6, y + 13, 13, 5);
+    g.fillRect(-6, top + 1, 13, 5);
     g.fillStyle(WORLD.plaster, 1);
-    g.fillRect(-3, y + 13, 1, 5);
-    g.fillRect(1, y + 13, 1, 5);
-    g.fillRect(4, y + 13, 1, 5);
+    g.fillRect(-3, top + 1, 1, 5);
+    g.fillRect(1, top + 1, 1, 5);
+    g.fillRect(4, top + 1, 1, 5);
   }
 }
 
 /** 伞只在下雨且她在户外时出现；世界给的事实，渲染层不自己判断天气。 */
 function drawUmbrella(g: Phaser.GameObjects.Graphics, offsetY: number): void {
   const y = offsetY;
-  // 伞面：中间高、两侧低，右缘留一个缺口；伞骨用暗木色。
+  // 伞面比旧版抬高 10px（头从 20 长到 30）：中间高、两侧低，右缘留一个缺口。
   g.fillStyle(WORLD.ink, 1);
-  g.fillRect(-7, -31 + y, 14, 3);
+  g.fillRect(-7, -41 + y, 14, 3);
   g.fillStyle(WORLD.ember, 1);
-  g.fillRect(-6, -31 + y, 12, 2);
-  g.fillRect(-4, -32 + y, 8, 1);
+  g.fillRect(-6, -41 + y, 12, 2);
+  g.fillRect(-4, -42 + y, 8, 1);
   g.fillStyle(WORLD.trim, 1);
-  g.fillRect(-5, -32 + y, 4, 1);
+  g.fillRect(-5, -42 + y, 4, 1);
   g.fillStyle(WORLD.timberDark, 1);
-  g.fillRect(-5, -30 + y, 1, 2);
-  g.fillRect(0, -30 + y, 1, 2);
-  g.fillRect(4, -30 + y, 1, 2);
-  g.fillRect(0, -28 + y, 1, 9);
+  g.fillRect(-5, -40 + y, 1, 2);
+  g.fillRect(0, -40 + y, 1, 2);
+  g.fillRect(4, -40 + y, 1, 2);
+  g.fillRect(0, -38 + y, 1, 9);
   g.fillStyle(WORLD.plaza, 1);
-  g.fillRect(-1, -20 + y, 3, 1);
-}
-
-function drawBody(
-  g: Phaser.GameObjects.Graphics,
-  facing: VillagerSnapshot['facing'],
-  pose: VillagerPose,
-  mode: VillagerSnapshot['mode'],
-  walking: boolean,
-  style: VillagerStyle,
-  nowMs: number,
-): void {
-  const y = -VILLAGER_H + pose.offsetY;
-  const scarfLift = walking ? pose.frame % 2 : 0;
-  const blink = nowMs > 0 && !walking && Math.floor(nowMs / 100) % 43 === 0;
-
-  // 轮廓：头/肩/斗篷各一圈 1px 最暗色。斗篷下摆比肩宽 2px，形成 A 字剪影。
-  g.fillStyle(WORLD.ink, 1);
-  g.fillRect(-5, y, 10, 10);
-  g.fillRect(-6, y + 7, 12, 11);
-
-  // 头
-  g.fillStyle(WORLD.skin, 1);
-  g.fillRect(-4, y + 3, 8, 6);
-
-  // 发：顶 2px + 两侧，另加马尾/后发。发色与靴子同源，保持 24 色。
-  g.fillStyle(style.hair, 1);
-  g.fillRect(-4, y + 1, 8, 2);
-  g.fillRect(-5, y + 1, 1, 6);
-  g.fillRect(4, y + 1, 1, 6);
-  if (facing === 'left') {
-    g.fillRect(5, y + 4, 1, 4);
-  } else if (facing === 'right') {
-    g.fillRect(-6, y + 4, 1, 4);
-  } else {
-    g.fillRect(4, y + 7, 2, 4);
-  }
-
-  // 发丝高光：只给 2px，避免头变成亮块。
-  g.fillStyle(WORLD.trim, 1);
-  g.fillRect(-3, y + 1, 3, 1);
-  g.fillStyle(WORLD.pale, 1);
-  g.fillRect(-4, y, 1, 1);
-
-  // 眼：平时 1px；每 4.3 秒闭一次，只闭 100ms，不拖慢动作。
-  g.fillStyle(WORLD.ink, 1);
-  if (facing === 'down') {
-    if (blink) {
-      g.fillRect(-2, y + 5, 2, 1);
-      g.fillRect(2, y + 5, 2, 1);
-    } else {
-      g.fillRect(-2, y + 5, 1, 1);
-      g.fillRect(2, y + 5, 1, 1);
-    }
-  } else if (facing === 'left') {
-    g.fillRect(-3, y + 5, blink ? 2 : 1, 1);
-  } else if (facing === 'right') {
-    g.fillRect(2, y + 5, blink ? 2 : 1, 1);
-  }
-  // 嘴：1px，朝下时可见。
-  if (facing === 'down') {
-    g.fillStyle(WORLD.ember, 1);
-    g.fillRect(0, y + 7, 1, 1);
-  }
-
-  // 斗篷：肩 8px、下摆 12px；右侧暗部，底边再压一档。
-  g.fillStyle(style.cloak, 1);
-  g.fillRect(-4, y + 8, 8, 4);
-  g.fillRect(-5, y + 12, 10, 4);
-  g.fillRect(-6, y + 16, 12, 2);
-  g.fillStyle(style.cloakDark, 1);
-  g.fillRect(3, y + 8, 1, 10);
-  g.fillRect(-6, y + 16, 12, 2);
-  g.fillRect(0, y + 9, 1, 7);
-
-  // 手臂：走路时前后摆 1px；静止时垂在斗篷两侧。
-  const swing = walking ? (pose.frame % 2 === 0 ? 1 : 0) : 0;
-  g.fillStyle(style.cloakDark, 1);
-  g.fillRect(-5, y + 10 + swing, 1, 3);
-  g.fillRect(4, y + 10 - swing, 1, 3);
-  g.fillStyle(WORLD.skin, 1);
-  g.fillRect(-5, y + 13 + swing, 1, 1);
-  g.fillRect(4, y + 13 - swing, 1, 1);
-
-  // 围巾：2px 横贯 + 左侧飘尾；走路时尾端 1px 上下。
-  g.fillStyle(style.scarf, 1);
-  g.fillRect(-6, y + 7, 12, 2);
-  g.fillRect(-8, y + 8 + scarfLift, 3, 1);
-  g.fillRect(-7, y + 9 + scarfLift, 2, 1);
-  g.fillStyle(style.scarfLit, 1);
-  g.fillRect(-5, y + 7, 4, 1);
-
-  // 侧包：打破矩形，给“出门办事”的读法。
-  g.fillStyle(WORLD.ink, 1);
-  g.fillRect(4, y + 12, 4, 5);
-  g.fillStyle(style.satchel, 1);
-  g.fillRect(4, y + 13, 3, 3);
-  g.fillStyle(style.satchelLit, 1);
-  g.fillRect(4, y + 13, 3, 1);
-
-  // 靴子：走路的 4 帧就是这两只脚的前伸组合（整数像素）。
-  g.fillStyle(WORLD.timberDark, 1);
-  g.fillRect(-4 + pose.footLeft, y + 18, 3, 2);
-  g.fillRect(1 + pose.footRight, y + 18, 3, 2);
-  g.fillStyle(WORLD.ink, 1);
-  g.fillRect(-4 + pose.footLeft, y + 19, 3, 1);
-  g.fillRect(1 + pose.footRight, y + 19, 3, 1);
-
-  // 轮廓光：固定左上，1px；主角色暖金，阿雾浅金，保持两套识别。
-  g.fillStyle(style.scarfLit, 1);
-  g.fillRect(-6, y + 8, 1, 5);
-  g.fillRect(-5, y + 2, 1, 3);
-  g.fillStyle(WORLD.pale, 1);
-  g.fillRect(-4, y + 1, 1, 1);
-
-  drawHeldItem(g, y, facing, mode, pose.frame);
-}
-
-/** 手里拿的东西：工作=锤，交付=纸，行礼=抬手。都只占 2–4px。 */
-function drawHeldItem(
-  g: Phaser.GameObjects.Graphics,
-  y: number,
-  facing: VillagerSnapshot['facing'],
-  mode: VillagerSnapshot['mode'],
-  frame: number,
-): void {
-  const side = facing === 'left' ? -1 : 1;
-  const bob = mode === 'working' || mode === 'delivering' ? frame % 2 : 0;
-  if (mode === 'working') {
-    g.fillStyle(WORLD.ink, 1);
-    g.fillRect(side * 5 - 1, y + 11 - bob, 2, 6);
-    g.fillStyle(WORLD.plaza, 1);
-    g.fillRect(side * 5 - 2, y + 10 - bob, 4, 2);
-    g.fillStyle(WORLD.pale, 1);
-    g.fillRect(side * 5 - 2, y + 10 - bob, 4, 1);
-  } else if (mode === 'delivering') {
-    g.fillStyle(WORLD.ink, 1);
-    g.fillRect(3 * side - (side < 0 ? 3 : 0), y + 12 - bob, 5, 5);
-    g.fillStyle(WORLD.pale, 1);
-    g.fillRect(4 * side - (side < 0 ? 3 : 0), y + 12 - bob, 3, 4);
-    g.fillStyle(WORLD.soil, 1);
-    g.fillRect(4 * side - (side < 0 ? 3 : 0), y + 14 - bob, 3, 1);
-  } else if (mode === 'saluting') {
-    g.fillStyle(WORLD.skin, 1);
-    g.fillRect(4 * side - (side < 0 ? 2 : 0), y + 3, 2, 4);
-    g.fillStyle(WORLD.ink, 1);
-    g.fillRect(5 * side - (side < 0 ? 2 : 0), y + 2, 1, 1);
-  }
+  g.fillRect(-1, -30 + y, 3, 1);
 }

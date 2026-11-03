@@ -1,6 +1,7 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
 
 export interface SettingPlacement {
@@ -71,8 +72,15 @@ export interface SettingScenery {
   readonly length?: number;
 }
 
-/** 居民外观。斗篷与围巾只能是世界 24 色的 token 名，写错当场编译失败。 */
-export interface SettingVillagerStyle {
+/**
+ * 居民外观。四个形状维度（体型/头型/衣型/配饰）与五个颜色槽都可写；
+ * 颜色只能是世界 24 色的 token 名，写错当场编译失败、装载期再查一遍。
+ *
+ * 四个维度是**可选**的：省略就走 `world/villager-look.ts` 的默认外观。
+ * 但 7 位现有居民全部显式写满四个维度——「省略」是给外部/旧设定集的退路，
+ * 不是给这 7 个人的写法。
+ */
+export interface SettingVillagerStyle extends VillagerLookInput {
   readonly cloak: WorldColor;
   readonly scarf: WorldColor;
   readonly lamp: boolean;
