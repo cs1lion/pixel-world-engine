@@ -37,6 +37,12 @@ import {
   lampSwayAt,
   type LampMotion,
 } from '../world/lamp-motion.ts';
+import {
+  STALL_MOTION_ON,
+  stallClothSwayAt,
+  stallFireAt,
+  type StallMotion,
+} from '../world/stall-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
 import { sceneryDepth } from './scenery-depth.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
@@ -69,6 +75,19 @@ export interface SettingSceneryView {
   readonly lampCount: () => number;
   /** 全街 28 盏的渐次顺序与坐标：证据脚本据此报「第几盏、在哪个世界位置」。 */
   readonly lampUnits: () => readonly { order: number; x: number; y: number; hanging: boolean }[];
+  /**
+   * 摊位的动态读数（本帧）：棚布摆了几像素、火盆亮到几成、焰有多高。
+   * 雨天 `awningSway` 必须为 0——摆动交给盖布（`weather-stalls`），
+   * 两件不能同时摆，否则就是「盖布落下但棚布还在飘」。
+   */
+  readonly stallUnits: () => readonly {
+    order: number;
+    x: number;
+    y: number;
+    awningSway: number;
+    fireLevel: number;
+    fireHeight: number;
+  }[];
 }
 
 /** 灯态时钟：相位与「是不是自动推进」。强制相位（`?time=`）下两者都要用上。 */
@@ -82,6 +101,16 @@ export interface SettingSceneryClock {
    * 关掉哪一支，那一支就变成常量，证据脚本靠这个取「关掉时帧差为 0」的对照。
    */
   readonly motion?: LampMotion;
+  /**
+   * 摊位两支动态的开关（`debugStallMotion` 写这个口子）：棚布/盖布摆动、火光跳动。
+   * 缺省全开；关掉哪一支，那一支就退化成常量。
+   */
+  readonly stalls?: StallMotion;
+  /**
+   * 摊子是否已经盖上（雨 / 暴雨，或记得昨天淋过雨今天提前盖）。
+   * 为真时棚布**不摆**，摆的是 `weather-stalls` 那块盖布——两件交替，不同时动。
+   */
+  readonly packed?: boolean;
 }
 
 interface LightPoint {
@@ -125,6 +154,25 @@ interface PoolAnchor {
   readonly group: LampGroup | null;
 }
 
+/** 一个摊位：棚布与火盆都画在按落地行分层的动态层里。 */
+interface StallUnit {
+  readonly x: number;
+  readonly y: number;
+  readonly row: number;
+  /** 在设定集里的次序（雨天的盖布用同一序号取摆相位）。 */
+  readonly order: number;
+}
+
+/** 摊位的本帧读数：证据脚本据此报「棚布摆了几像素 / 火盆亮到几成」。 */
+interface StallReadout {
+  order: number;
+  x: number;
+  y: number;
+  awningSway: number;
+  fireLevel: number;
+  fireHeight: number;
+}
+
 /** 光池椭圆的平滑档位：16px 瓦片下 12 段已够圆，多一段都是白烧的指令。 */
 const POOL_SMOOTHNESS = 12;
 
@@ -162,6 +210,8 @@ export function createSettingScenery(
   const pools: PoolAnchor[] = [];
   const lampUnits: LampUnit[] = [];
   const lampGroups: LampGroup[] = [];
+  const stallUnits: StallUnit[] = [];
+  const stallReadout: StallReadout[] = [];
   /** 灯绳跨度：一串一条，摆动时按组里中间那盏的相位走。 */
   const stringSpans: { x: number; y: number; row: number; span: number; group: LampGroup }[] = [];
   // 水面倒影锚点：只在对岸窗火处追加，补绘层在 `scene-artbook.ts` 里画。
@@ -280,16 +330,19 @@ export function createSettingScenery(
       g.fillRect(x + 1, y + 6, 22, 3);
       g.fillStyle(c.trim, 1);
       g.fillRect(x + 2, y + 7, 20, 1);
-      // 棚：两根细杆撑起一条布，布边留 1px 缺口，读成被风掀着。
+      // 棚：两根细杆撑起一条布。布在动态层里画（风摆时整条平移 1px），
+      // 这里只留杆子；雨天棚布不摆，改由盖布接管（见 `weather-stalls.ts`）。
       g.fillStyle(c.timberDark, 1);
       g.fillRect(x + 2, y - 12, 1, 19);
       g.fillRect(x + 21, y - 12, 1, 19);
-      g.fillStyle(c.copper, 1);
-      g.fillRect(x - 2, y - 14, 29, 4);
-      g.fillStyle(c.pale, 0.85);
-      g.fillRect(x - 1, y - 13, 27, 1);
-      g.fillStyle(c.ember, 1);
-      g.fillRect(x - 2, y - 11, 29, 1);
+      // 火盆：摆在柜台面上（不落地）。火盆的墨块落在柜台影里，
+      // 不给地面添新的暗像素——夜街光带的逐列读数才不会被这只盆改写。
+      g.fillStyle(c.ink, 1);
+      g.fillRect(x + 18, y + 13, 7, 3);
+      g.fillStyle(c.trim, 1);
+      g.fillRect(x + 18, y + 13, 7, 1);
+      g.fillStyle(c.copper, 0.7);
+      g.fillRect(x + 20, y + 12, 3, 1);
       // 夜市摊上的小货堆：三个色块，读成「有东西在卖」。
       g.fillStyle(c.plaster, 1);
       g.fillRect(x + 3, y + 3, 5, 3);
@@ -297,6 +350,7 @@ export function createSettingScenery(
       g.fillRect(x + 10, y + 2, 4, 4);
       g.fillStyle(c.moss, 1);
       g.fillRect(x + 17, y + 3, 5, 3);
+      stallUnits.push({ x, y, row: item.at.y, order: stallUnits.length });
     } else if (item.kind === 'banner') {
       // 幌布：斜挑一根杆，两幅布长短不一，避免整条街变成同一种竖线。
       const g = propLayer(item.at.y);
@@ -352,6 +406,12 @@ export function createSettingScenery(
     lampRows.set(unit.row, scene.add.graphics().setDepth(sceneryDepth(unit.row, altitude)));
   }
   // 灯绳也在动态层：一串一段，摆动时按组里中间那盏的相位走（跨度在构建时已记下）。
+  // 摊位的棚布与火焰同样按落地行分层，depth 与同行的静态构件同式。
+  const stallRows = new Map<number, Phaser.GameObjects.Graphics>();
+  for (const unit of stallUnits) {
+    if (stallRows.has(unit.row)) continue;
+    stallRows.set(unit.row, scene.add.graphics().setDepth(sceneryDepth(unit.row, altitude)));
+  }
 
   // 主楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
   const hall = pack.placements.find((p) => p.prefabId === 'wave_house');
@@ -385,11 +445,13 @@ export function createSettingScenery(
       y: unit.y,
       hanging: unit.hanging,
     })),
+    stallUnits: () => stallReadout.map((unit) => ({ ...unit })),
     update(level, now, clock) {
       lampLight.clear();
       lampPool.clear();
       steam.clear();
       for (const layer of lampRows.values()) layer.clear();
+      for (const layer of stallRows.values()) layer.clear();
       const override = clock.litOverride;
       const lit = override ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
       // 三支动态的开关：缺省全开；关掉哪一支，那一支就退化成常量。
@@ -509,6 +571,30 @@ export function createSettingScenery(
         steam.fillStyle(c.deepShade, 0.15);
         steam.fillRect(x + 1 + drift, y - 15, 10, 6);
       }
+      // 摊位：干天摆棚布；雨天棚布定住、由盖布接管（`weather-stalls` 那块布在同层之上）。
+      // 火盆的焰与暖晕按世界时刻跳动；火不投地面光池，夜街光带读数不受影响。
+      const stallMotion = clock.stalls ?? STALL_MOTION_ON;
+      const packed = clock.packed ?? false;
+      stallReadout.length = 0;
+      for (const unit of stallUnits) {
+        const layer = stallRows.get(unit.row);
+        const cloth = stallMotion.cloth && !packed
+          ? stallClothSwayAt(now, unit.order)
+          : { dx: 0, lift: 0 };
+        const fire = stallMotion.fire ? stallFireAt(now, unit.order) : { level: 0, height: 0 };
+        if (layer !== undefined) {
+          drawStallAwningAt(layer, unit.x, unit.y, c, cloth.dx, cloth.lift);
+          drawStallFireAt(layer, unit.x, unit.y, c, fire.level, fire.height);
+        }
+        stallReadout.push({
+          order: unit.order,
+          x: unit.x,
+          y: unit.y,
+          awningSway: cloth.dx,
+          fireLevel: fire.level,
+          fireHeight: fire.height,
+        });
+      }
       // 设定集补绘的动态层：水面灯影、对岸窗火、湾面低雾。
       artbook.update(level, now, clock);
     },
@@ -523,11 +609,13 @@ export function createSettingScenery(
         flat,
         ...propRows.values(),
         ...lampRows.values(),
+        ...stallRows.values(),
         architecture,
         steam,
       ]) layer.destroy();
       propRows.clear();
       lampRows.clear();
+      stallRows.clear();
     },
   };
 }
@@ -705,6 +793,49 @@ function drawHangingLanternAt(
   g.fillRect(bx + 1, by + 8, 5, 1);
   g.fillStyle(c.ink, 1);
   g.fillRect(bx, by + 9, 7, 1);
+}
+
+/**
+ * 摊位棚布的动态一帧。`(x, y)` 是摊位的落地格原点；`dx`/`lift` 是风摆的横移与
+ * 上抬像素。布边与杆之间留 1px，读成被风掀着，而不是一整块贴在杆上。
+ */
+function drawStallAwningAt(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  c: SettingPack['palette'],
+  dx: number,
+  lift: number,
+): void {
+  const top = y - 14 - lift;
+  g.fillStyle(c.copper, 1);
+  g.fillRect(x - 2 + dx, top, 29, 4);
+  g.fillStyle(c.pale, 0.85);
+  g.fillRect(x - 1 + dx, top + 1, 27, 1);
+  g.fillStyle(c.ember, 1);
+  g.fillRect(x - 2 + dx, top + 3, 29, 1);
+}
+
+/**
+ * 火盆的动态一帧：一圈暖晕 + 焰心。焰高与亮度只吃 `stallFireAt` 的档位，
+ * **不画地面光池**——火光不落在地上，夜街光带读数就不会被这条动画改写。
+ */
+function drawStallFireAt(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  c: SettingPack['palette'],
+  level: number,
+  height: number,
+): void {
+  if (level <= 0 || height <= 0) return;
+  const base = y + 13;
+  g.fillStyle(c.ember, 0.30 * level);
+  g.fillRect(x + 17, base - height - 2, 9, height + 3);
+  g.fillStyle(c.ember, 0.9);
+  g.fillRect(x + 20, base - height, 3, height);
+  g.fillStyle(c.warmLight, 0.9 * level);
+  g.fillRect(x + 21, base - height, 1, height);
 }
 
 /** 店铺立面：灰泥墙 + 木框 + 两扇格窗 + 暖帘 + 竖招牌。 */

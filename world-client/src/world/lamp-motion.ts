@@ -96,7 +96,11 @@ export function lampIgnitionProgress(
     // 今天还没到点灯时刻：凌晨那段（收灯之前）是从昨天亮过来的，给 1；
     // 傍晚点灯之前（比如 17:59）必须还是暗的——强制相位下 `lit` 已经说「亮」，
     // 但「几点亮的」仍归世界时刻管，不能把下午也当成「昨天点着的」。
-    return minuteOfDay(worldNow) < lightsOutMinute() ? 1 : 0;
+    if (minuteOfDay(worldNow) < lightsOutMinute()) return 1;
+    // 离点灯时刻还远（回归截图把相位钉成夜、世界钟却停在下午）：按「早就亮过」给 1。
+    // 只有窗口宽度之内（点灯前的几分钟）才算「还没点」，否则整条街会被判成暗，
+    // 夜街光带读数跟着掉。
+    return -elapsed <= IGNITION_SPAN_MS ? 0 : 1;
   }
   const start = ignitionStartOffsetMs(order, total);
   if (elapsed >= start + IGNITION_RAMP_MS) return 1;

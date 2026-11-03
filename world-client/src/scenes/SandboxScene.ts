@@ -14,6 +14,7 @@ import type {
   OracleRecord,
   PrefabBlueprint,
   Vec2,
+  Weather,
   WorldProp,
   WorldSnapshot,
 } from '../world/types.ts';
@@ -86,6 +87,7 @@ import {
 } from '../render/villager.ts';
 import { pinVillagers } from '../render/villager-pin.ts';
 import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp-motion.ts';
+import { STALL_MOTION_ON, type StallMotion } from '../world/stall-motion.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -363,6 +365,14 @@ export class SandboxScene extends Phaser.Scene {
   private forcedLamps: boolean | null = null;
   /** 灯柱/灯串的三支动态开关；缺省全开，证据脚本逐支关掉取对照。 */
   private lampMotion: LampMotion = LAMP_MOTION_ON;
+  /** 摊位两支动态开关（棚布/盖布摆动、火光跳动）；缺省全开。 */
+  private stallMotion: StallMotion = STALL_MOTION_ON;
+  /**
+   * 调试用：把「摊子已盖」这一态钉死（`null` = 交回天气与记忆）。
+   * 雨幕由帧间隔驱动，世界冻住时它仍会动；要量盖布的像素差，
+   * 就把天气留在晴天、只钉「已盖」这一态，画面里才只有布在动。
+   */
+  private forcedPacked: boolean | null = null;
   /**
    * 世界时间冻住：不推进模拟，渲染循环照跑。
    * 用来证明「世界时间不推进 → 动画不推进」，而不是把 rAF 一起停掉。
@@ -3928,6 +3938,39 @@ export class SandboxScene extends Phaser.Scene {
         this.lampMotion = { ...this.lampMotion, ...patch };
         return this.lampMotion;
       },
+      /**
+       * 摊位两支动态的开关（棚布/盖布摆动、火光跳动）。缺省全开；
+       * 关掉哪一支，那一支的 t / t+1s 帧差必须归零，另一支不受影响。
+       */
+      debugStallMotion: (patch: Partial<StallMotion>): StallMotion => {
+        this.stallMotion = { ...this.stallMotion, ...patch };
+        return this.stallMotion;
+      },
+      /** 本帧摊位读数：棚布摆幅、火盆亮度与焰高、盖布摆幅，以及当前是否已盖。 */
+      debugStallUnits: () => ({
+        weather: this.snapshot.weather,
+        packed: this.forcedPacked
+          ?? (stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday()),
+        stalls: this.settingScenery?.stallUnits() ?? [],
+        covers: this.weatherStallsView?.coverUnits() ?? [],
+      }),
+      /** 钉死「摊子已盖」这一渲染态（`null` 交回天气）；只压画面，不改世界。 */
+      debugForcePacked: (on: boolean | null): boolean | null => {
+        this.forcedPacked = on;
+        return on;
+      },
+      /**
+       * 证据脚本需要一份确定的雨天：直接下一条 `setWeather`，世界照常走一步。
+       * 与玩家说「下雨吧」走的是同一条命令，不另开捷径。
+       */
+      debugSetWeather: (weather: Weather): Weather => {
+        this.sim.enqueue({ kind: 'setWeather', weather });
+        if (this.holdWorld) {
+          for (const result of this.sim.update(100)) this.speak(result);
+          this.snapshot = this.sim.snapshot();
+        }
+        return this.snapshot.weather;
+      },
       /** 世界时间冻住：不推进模拟，渲染循环照跑。验「暂停世界后画面静止」。 */
       debugHoldWorld: (on: boolean): boolean => {
         this.holdWorld = on;
@@ -4191,9 +4234,9 @@ export class SandboxScene extends Phaser.Scene {
     this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
     // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。
-    this.weatherStallsView?.update(
-      stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday(),
-    );
+    const stallsPacked = this.forcedPacked
+      ?? (stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday());
+    this.weatherStallsView?.update(stallsPacked, this.snapshot.now, this.stallMotion);
     const tideLevel = this.pinnedTide ?? this.snapshot.tide.level;
     this.tideView.update(tideLevel);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
@@ -4202,6 +4245,8 @@ export class SandboxScene extends Phaser.Scene {
       autoAdvancing: this.phaseView.isAutoAdvancing(),
       litOverride: this.forcedLamps ?? undefined,
       motion: this.lampMotion,
+      stalls: this.stallMotion,
+      packed: stallsPacked,
     });
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现

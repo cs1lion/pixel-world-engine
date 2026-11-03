@@ -313,6 +313,32 @@ export interface DebugOracle {
   };
   /** 全街 28 盏的渐次顺序与坐标。 */
   debugLampUnits?(): readonly { order: number; x: number; y: number; hanging: boolean }[];
+  /**
+   * 摊位两支动态的开关（棚布/盖布摆动、火光跳动）。缺省全开；
+   * 证据脚本逐支关掉取「关掉时帧差为 0」的对照。
+   */
+  debugStallMotion?(patch: { cloth?: boolean; fire?: boolean }): {
+    cloth: boolean;
+    fire: boolean;
+  };
+  /** 本帧摊位读数：棚布摆幅、火光亮度/焰高、盖布摆幅，以及当前是否已盖。 */
+  debugStallUnits?(): {
+    weather: string;
+    packed: boolean;
+    stalls: readonly {
+      order: number;
+      x: number;
+      y: number;
+      awningSway: number;
+      fireLevel: number;
+      fireHeight: number;
+    }[];
+    covers: readonly { order: number; dx: number; droop: number }[];
+  };
+  /** 证据脚本要一份确定的雨天：下一条 `setWeather`，世界照常走一步。 */
+  debugSetWeather?(weather: 'clear' | 'rain' | 'storm' | 'fog'): string;
+  /** 钉死「摊子已盖」这一渲染态（`null` 交回天气）；只压画面，不改世界。 */
+  debugForcePacked?(on: boolean | null): boolean | null;
   /** 钉死渲染用的潮位（0..1）；`null` 交回快照。只压画面，不改世界。 */
   debugPinTide?(level: number | null): number | null;
   /** 藏掉天上的鸟/蝙蝠（证据隔离用）。 */

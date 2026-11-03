@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T22:44:50.970Z",
+  "generatedAt": "2026-11-03T23:30:57.499Z",
   "ignition": {
     "atOn": {
       "total": 28,
@@ -248,8 +248,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 39776,
-      "ratio": 0.11770833333333333,
+      "changed": 39648,
+      "ratio": 0.11732954545454545,
       "maxDelta": 158,
       "bbox": {
         "x0": 0,
@@ -257,8 +257,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 39872,
-      "fullRatio": 0.06582144743792921
+      "fullChanged": 39744,
+      "fullRatio": 0.06561014263074486
     },
     "all-off": {
       "roi": {
@@ -283,8 +283,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 4336,
-      "ratio": 0.012831439393939393,
+      "changed": 4304,
+      "ratio": 0.012736742424242425,
       "maxDelta": 158,
       "bbox": {
         "x0": 0,
@@ -292,8 +292,8 @@
         "x1": 959,
         "y1": 357
       },
-      "fullChanged": 4432,
-      "fullRatio": 0.0073164289487585845
+      "fullChanged": 4400,
+      "fullRatio": 0.007263602746962494
     },
     "breathe-only": {
       "roi": {
@@ -303,8 +303,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 35876,
-      "ratio": 0.10616714015151515,
+      "changed": 35764,
+      "ratio": 0.10583570075757576,
       "maxDelta": 5,
       "bbox": {
         "x0": 0,
@@ -312,8 +312,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 35972,
-      "fullRatio": 0.05938325409403064
+      "fullChanged": 35860,
+      "fullRatio": 0.05919836238774432
     },
     "ignite-only": {
       "roi": {
@@ -394,8 +394,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 65916,
-      "ratio": 0.19506392045454546,
+      "changed": 65804,
+      "ratio": 0.19473248106060606,
       "maxDelta": 155,
       "bbox": {
         "x0": 0,
@@ -403,8 +403,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 66972,
-      "fullRatio": 0.11055863708399366
+      "fullChanged": 66860,
+      "fullRatio": 0.11037374537770735
     },
     "afterLitPoolCommands": 0,
     "neverPoolCommands": 0,
@@ -433,85 +433,85 @@
   "determinism": [
     {
       "id": "1759",
-      "a": "e534abd61d1975b897368bcaf7020758d3f753399df52d91bf153652191687ea",
-      "b": "e534abd61d1975b897368bcaf7020758d3f753399df52d91bf153652191687ea",
+      "a": "2155dc409d45b6c34be18cabbbc61bab4815a860a293117fc3338090de4207ae",
+      "b": "2155dc409d45b6c34be18cabbbc61bab4815a860a293117fc3338090de4207ae",
       "same": true
     },
     {
       "id": "1800",
-      "a": "2c65e1b4e21b84047f87f160e5a59b1ee46f63035b08c5bb5594ddca886e8f98",
-      "b": "2c65e1b4e21b84047f87f160e5a59b1ee46f63035b08c5bb5594ddca886e8f98",
+      "a": "b8da6efc17fcbf7221ebb113cd2e373becf9280936b98f7eec4ce60f17f405ce",
+      "b": "b8da6efc17fcbf7221ebb113cd2e373becf9280936b98f7eec4ce60f17f405ce",
       "same": true
     },
     {
       "id": "1800-10",
-      "a": "e732dd2bae7f49ee340d016995a6152efb235851fb4104346d9b2149e720bd18",
-      "b": "e732dd2bae7f49ee340d016995a6152efb235851fb4104346d9b2149e720bd18",
+      "a": "461008b7f4781e2c848f50334f69735dd6c9f69b09ac754a907fd1a7d300f70c",
+      "b": "461008b7f4781e2c848f50334f69735dd6c9f69b09ac754a907fd1a7d300f70c",
       "same": true
     },
     {
       "id": "1800-30",
-      "a": "badd451320db8943ac8cf8ca49e522f90b6717f89a7ef9fd8cb094f6d59a9bfb",
-      "b": "badd451320db8943ac8cf8ca49e522f90b6717f89a7ef9fd8cb094f6d59a9bfb",
+      "a": "2ce91f865db2054fde9d81b6005d82146956a31426ac286e541f9b82c54f757a",
+      "b": "2ce91f865db2054fde9d81b6005d82146956a31426ac286e541f9b82c54f757a",
       "same": true
     },
     {
       "id": "1801",
-      "a": "5ac5c4652ba4a9d6a4ec488b81dcab63dcae85585d11d8f64ce8a58dcc490194",
-      "b": "5ac5c4652ba4a9d6a4ec488b81dcab63dcae85585d11d8f64ce8a58dcc490194",
+      "a": "e8068044dbe42a4fd31503453b9580344656d5aaa8a25b6159dc11727e8505aa",
+      "b": "e8068044dbe42a4fd31503453b9580344656d5aaa8a25b6159dc11727e8505aa",
       "same": true
     },
     {
       "id": "1802",
-      "a": "8110d6c74d0df3dad3f4d62e270274561483b07c40e811a6c82eac6578c80616",
-      "b": "8110d6c74d0df3dad3f4d62e270274561483b07c40e811a6c82eac6578c80616",
+      "a": "69e9aab86d5c863a4607054f408f91e1ae9692f7546115f68cf724c295fa7689",
+      "b": "69e9aab86d5c863a4607054f408f91e1ae9692f7546115f68cf724c295fa7689",
       "same": true
     },
     {
       "id": "1803",
-      "a": "e726f47f0848c029726b6b67eaeb6a8725f425921d5ee651f3c40fd607cae5f9",
-      "b": "e726f47f0848c029726b6b67eaeb6a8725f425921d5ee651f3c40fd607cae5f9",
+      "a": "ccca08e7e20a909d68bfb2e221d1c73ce58500e4591b44d7b737a9a62c08aaa1",
+      "b": "ccca08e7e20a909d68bfb2e221d1c73ce58500e4591b44d7b737a9a62c08aaa1",
       "same": true
     },
     {
       "id": "1804",
-      "a": "9f4c73b4a582c32620af601bab0714e3268b46f67ff831d1b9375e623475ab1b",
-      "b": "9f4c73b4a582c32620af601bab0714e3268b46f67ff831d1b9375e623475ab1b",
+      "a": "61ba14fc2a5c47b85b0451e75efbf6b88c00d481dc7698e7d51ddd6123dcc931",
+      "b": "61ba14fc2a5c47b85b0451e75efbf6b88c00d481dc7698e7d51ddd6123dcc931",
       "same": true
     },
     {
       "id": "1805",
-      "a": "840900107d564676fbfa6f2a05e735ef76fb9b2cb291c5590f46556a60dcb5fb",
-      "b": "840900107d564676fbfa6f2a05e735ef76fb9b2cb291c5590f46556a60dcb5fb",
+      "a": "b96951cd1bcef13ea39f79ea35e4dd9fc9ee36187700e294c3110bf2e7ce1495",
+      "b": "b96951cd1bcef13ea39f79ea35e4dd9fc9ee36187700e294c3110bf2e7ce1495",
       "same": true
     },
     {
       "id": "1806",
-      "a": "68491293fb899832b091fa1b0422a4d07d498a6629f0e296f43ce97df5056845",
-      "b": "68491293fb899832b091fa1b0422a4d07d498a6629f0e296f43ce97df5056845",
+      "a": "8ef0e560233d11d54bffa7b00ddc28c7cbbcc6cfc9a46fcf803c664891e5c151",
+      "b": "8ef0e560233d11d54bffa7b00ddc28c7cbbcc6cfc9a46fcf803c664891e5c151",
       "same": true
     },
     {
       "id": "1806-20",
-      "a": "827c0590266b9bec6e5ba90db176c2895be3e0917a26686dccb533973011b2c4",
-      "b": "827c0590266b9bec6e5ba90db176c2895be3e0917a26686dccb533973011b2c4",
+      "a": "a6dd9a0158a0156275ddad41b7c0467bc355e2af2d4ba4b13a258802b7c309d8",
+      "b": "a6dd9a0158a0156275ddad41b7c0467bc355e2af2d4ba4b13a258802b7c309d8",
       "same": true
     },
     {
       "id": "1810",
-      "a": "303a2d1b89306560e81a8408f6596d8d9ad454d465795a9a53204ae2dc96311d",
-      "b": "303a2d1b89306560e81a8408f6596d8d9ad454d465795a9a53204ae2dc96311d",
+      "a": "b41b25fe30caa631998246a2a3bf61e41fa610cf37b67fa9d666c2c82cc5676e",
+      "b": "b41b25fe30caa631998246a2a3bf61e41fa610cf37b67fa9d666c2c82cc5676e",
       "same": true
     },
     {
       "id": "1811",
-      "a": "333a1fa90adcc949683108e015b45579626f83f90450947d57d690f34a7ee675",
-      "b": "333a1fa90adcc949683108e015b45579626f83f90450947d57d690f34a7ee675",
+      "a": "abc464f56267ad3192adfb5495d9c4b2a084ee6fda709984f460caf65859aaf0",
+      "b": "abc464f56267ad3192adfb5495d9c4b2a084ee6fda709984f460caf65859aaf0",
       "same": true
     }
   ],
   "determinismProbe": null,
-  "peakCommands": 16644,
+  "peakCommands": 17224,
   "camera": {
     "scrollX": 244,
     "scrollY": 306,

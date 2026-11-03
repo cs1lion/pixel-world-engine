@@ -86,6 +86,16 @@ test('渐次点亮：凌晨那段按「昨天已亮」给 1，不做假渐次', 
   assert.equal(lampIgnitionAt(atMinute(60), TOTAL - 1, TOTAL, 'night'), 1);
 });
 
+test('强制相位：世界钟离点灯窗口很远时，整条街按「早就亮过」给 1', () => {
+  // `?time=night` 的回归截图里世界钟停在下午：不能因为「今天还没到 18:00」
+  // 把整条街判成暗，否则夜街光带读数会跟着掉。
+  assert.equal(lampIgnitionAt(atMinute(15 * 60), 0, TOTAL, 'dusk', false), 1);
+  assert.equal(lampIgnitionAt(atMinute(15 * 60), TOTAL - 1, TOTAL, 'night', false), 1);
+  // 但点灯窗口本身仍走渐次（证据脚本正是靠它按世界时刻钉帧）。
+  assert.equal(lampIgnitionAt(atMinute(ON - 5), 0, TOTAL, 'dusk', false), 0, '窗口内第一盏还没点');
+  assert.equal(lampIgnitionAt(atMinute(ON + 5), TOTAL - 1, TOTAL, 'dusk', false), 0, '窗口内最后一盏还没亮满');
+});
+
 // ------------------------------------------------------------ 呼吸 / 风摆
 
 test('呼吸：四秒内会变，且始终落在 0.95–1.08 之间', () => {

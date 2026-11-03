@@ -14,6 +14,8 @@
  *   免得「这一秒潮水又涨了一点」混进 t / t+1s 的帧差。
  * - 帧差只量灯街 ROI（世界 x 228..735、y 372..548）：ROI 里的每个像素都属于
  *   灯柱、灯串、灯体光晕或它们脚下的池子；关掉三支动态时 ROI 必须一点不动。
+ *   摊位的棚布/火光也吃同一只世界钟，会在 ROI 上留差，所以这一支先把 stall 动效关掉，
+ *   保证读数只属于灯。
  *
  * 跑法：
  *   cd world-client && npm run dev -- --port 5202
@@ -116,6 +118,25 @@ async function openScene(browser, { motion = null, force = null } = {}) {
   const box = await canvas.boundingBox();
   if (box === null) throw new Error('找不到 canvas');
 
+  // `screenshot({clip})` 截的是页面区域，DOM 叠层也在里面：顶栏的在线状态/帧计数
+  // 每页会差一个字符，混进哈希就误判"场景不确定"。先把叠层藏起来。
+  await page.evaluate(() => {
+    for (const selector of [
+      '#topbar',
+      '#status',
+      '#minimap',
+      '#queue',
+      '#oracle',
+      '#maintenance',
+      '#debug-panel',
+      '#world-overlay',
+      '#chronicle',
+    ]) {
+      const element = document.querySelector(selector);
+      if (element instanceof HTMLElement) element.style.visibility = 'hidden';
+    }
+  });
+
   await waitFrames(page, 24);
   await page.evaluate(([camera, motion, force]) => {
     for (const villager of window.Oracle.view().villagers) {
@@ -125,6 +146,9 @@ async function openScene(browser, { motion = null, force = null } = {}) {
     window.Oracle.debugPinTide(1);
     // 鸟/蝙蝠也由世界时刻驱动，会在灯街 ROI 上留下像素差；量灯的三支动态时摘出去。
     window.Oracle.debugHideAmbience(true);
+    // 摊位动画同样由世界时刻驱动：这一支只量灯，先把棚布与火光关掉，
+    // 否则"三支全关 = 0.00%"会被摊位的摆动污染。
+    window.Oracle.debugStallMotion({ cloth: false, fire: false });
     if (motion !== null) window.Oracle.debugLampMotion(motion);
     if (force !== null) window.Oracle.debugForceLamps(force);
     window.Oracle.centerCameraOn(camera.x, camera.y);
