@@ -172,11 +172,18 @@
       ]
     }
   ],
+  "blindKey": {
+    "main-01": "迷路人",
+    "main-02": "汐",
+    "main-03": "炉匠",
+    "main-04": "沉灯夫人",
+    "main-05": "灯笼头"
+  },
   "namelessEvidence": [
-    "迷路人-front-side-back-x3.png",
-    "汐-front-side-back-x3.png",
-    "炉匠-front-side-back-x3.png",
-    "沉灯夫人-front-side-back-x3.png",
-    "灯笼头-front-side-back-x3.png"
+    "main-01-front-side-back-x3.png",
+    "main-02-front-side-back-x3.png",
+    "main-03-front-side-back-x3.png",
+    "main-04-front-side-back-x3.png",
+    "main-05-front-side-back-x3.png"
   ]
 }

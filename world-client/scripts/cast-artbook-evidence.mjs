@@ -178,7 +178,7 @@ try {
   await page.waitForTimeout(100);
   for (let i = 0; i < looks.length; i += 1) {
     await page.locator(`#char-${i}`).screenshot({
-      path: join(OUT, `${looks[i].name}-front-side-back-x3.png`),
+      path: join(OUT, `main-${String(i + 1).padStart(2, '0')}-front-side-back-x3.png`),
     });
   }
   await page.locator('#contact').screenshot({
@@ -196,7 +196,11 @@ writeFileSync(join(OUT, 'readings.json'), JSON.stringify({
   minPair: { ...minPair, deltaE: Number(minPair.deltaE.toFixed(1)) },
   silhouetteClasses: new Set(characters.map((item) => item.silhouetteSignature)).size,
   characters,
-  namelessEvidence: MAIN.map((name) => `${name}-front-side-back-x3.png`),
+  // 遮名测试的盲号：图里不写名字，文件名也只有编号；对照表另存这张 key。
+  blindKey: Object.fromEntries(
+    MAIN.map((name, index) => [`main-${String(index + 1).padStart(2, '0')}`, name]),
+  ),
+  namelessEvidence: MAIN.map((_, index) => `main-${String(index + 1).padStart(2, '0')}-front-side-back-x3.png`),
 }, null, 2), 'utf8');
 
 console.log(JSON.stringify({ out: OUT, minPair, characters }, null, 2));
