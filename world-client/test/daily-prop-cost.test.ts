@@ -48,8 +48,12 @@
  *   `process.cpuUsage()` 的**进程 CPU 时间**（user + system，起止两次调用取差），
  *   阈值仍是 50ms。单次墙钟在 `node --test` 并行跑时夹着排队时间——同文件相邻
  *   用例全过、只有这条红，实测 54.62ms / 100.28ms，本机 p50 56.6ms，量到的是
- *   机器有多忙，不是传播有多贵。CPU 时间不含调度等待：空载时与墙钟一致，
- *   负载下只有它稳。墙钟数字保留在 diagnostic 里当附注，不参与判定。
+ *   机器有多忙，不是传播有多贵。CPU 时间不含调度等待：空载时与墙钟同量级，
+ *   负载下墙钟炸到 340–540ms 而 CPU 仍在 0–31ms。墙钟数字保留在 diagnostic 里当附注。
+ * - **0.00 会重采。** 同一条 15.6ms 刻度也意味着「一天不到一格」时 CPU 读成
+ *   `0.00`——那一跑等于没量。所以第 1 天读成 0 就再采，最多三次，**取最大值**
+ *   判定。取最大而不是平均：真退化成 60ms 的那次若和两个 0 平均成 20ms，
+ *   回归就被糊掉了。预算仍是 50ms，语义仍是「最快那天不许超预算」。
  * - **方向那条仍用墙钟。** Windows 上进程 CPU 记账跟着调度时钟走（粒度约
  *   15.6ms），第 6 天这种不到 1ms 的一天会读成 `0.00`；`0 < 0 * 2` 恒假，
  *   量到的是「量不出来」而不是「变贵了」。绝对预算闸用 CPU（真退化成全库
@@ -76,6 +80,8 @@ import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
 const BUDGET_MS = 10;
 /** 这道闸自己的阈值：预算的 5 倍。理由见文件头——它抓量级，不抓 10ms 那条线。 */
 const CEILING_MS = 50;
+/** CPU 读成 0.00 时的重采上限：最多采三次，取最大值。理由见文件头。 */
+const CPU_ATTEMPTS = 3;
 
 const DAY_MS = DEFAULT_MEMORY_CONFIG.dayMs;
 const TALK_DISTANCE = DEFAULT_MEMORY_CONFIG.talkDistance;
@@ -144,6 +150,29 @@ function oneDayTiming(
 }
 
 /**
+ * 第 1 天的 CPU 读数：读成 `0.00` 就再采，最多 `CPU_ATTEMPTS` 次，**取最大值**。
+ *
+ * Windows 上进程 CPU 记账跟着调度时钟走（约 15.6ms 一格），一天传播不到一格时
+ * 两次 `process.cpuUsage()` 的差就是 0.00，**那次等于没量到**。重采是为了不让
+ * 这一跑白跑；取最大而不是取平均，是因为平均会把唯一一次真读数（比如真退化到
+ * 60ms 的那次）和两个 0 摊成 20ms，恰好把回归糊掉——闸要抓的是「最慢的那次」。
+ */
+function slowestDayCpu(buildingIds: readonly string[]): {
+  cpuMs: number;
+  wallMs: number;
+  attempts: number[];
+} {
+  const attempts: number[] = [];
+  let picked = oneDayTiming(buildingIds, 1);
+  attempts.push(picked.cpuMs);
+  while (picked.cpuMs === 0 && attempts.length < CPU_ATTEMPTS) {
+    picked = oneDayTiming(buildingIds, 1);
+    attempts.push(picked.cpuMs);
+  }
+  return { cpuMs: picked.cpuMs, wallMs: picked.wallMs, attempts };
+}
+
+/**
  * 两个配置各跑三次、**交错**采样，取各自最小值。
  *
  * 原来是一个配置跑完三次再跑另一个、取中位。2026-11-01 这套测试在整套套件
@@ -181,10 +210,13 @@ test('两个出货世界的 holder 数：设定集十六个，默认世界十三
 test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5 倍之内', (t) => {
   // 第 1 天是永远最慢的那天（所有断言都在那天出生），所以只量它。
   const buildings = defaultWorldBuildingIds();
-  const day1 = oneDayTiming(buildings, 1);
+  const day1 = slowestDayCpu(buildings);
   t.diagnostic(
     `默认世界第 1 天：CPU ${day1.cpuMs.toFixed(2)}ms`
-      + `（墙钟 ${day1.wallMs.toFixed(2)}ms，仅附注，不参与判定）`,
+      + `（墙钟 ${day1.wallMs.toFixed(2)}ms，仅附注，不参与判定）`
+      + (day1.attempts.length > 1
+        ? `；0.00 后重采 ${day1.attempts.length} 次：${day1.attempts.map((ms) => ms.toFixed(2)).join(' / ')}`
+        : ''),
   );
   assert.ok(
     day1.cpuMs < CEILING_MS,

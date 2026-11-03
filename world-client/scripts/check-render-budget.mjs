@@ -34,6 +34,21 @@ const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const MAX_COMMANDS = 30_000;
 /** 拖动帧率相对静止帧率的比例下限。 */
 const MIN_DRAG_RATIO = 0.9;
+/**
+ * 「回到前台恢复满帧」的比例下限（阈值一字未动）。
+ *
+ * 2026-11-03 起判据从「恢复段 3 样本中位（按 advanceCount）」换成
+ * 「恢复段**最后 1 秒**的 rAF 间隔中位」：恢复段天生带一段爬升尾巴
+ * （隐藏期间 rAF 被掐掉，回前台后 Phaser 步进与浏览器合成器都要重新起转），
+ * 拿整段中位判它等于把「爬升慢」当「没恢复」。末尾 1 秒才是稳态。
+ *
+ * 另外加一条硬底线 `RESTORE_FLOOR_RATIO`：恢复段**任何一个 1 秒窗口**的
+ * 帧率都不许低于前台的 0.5 倍，防止「先崩到 20 帧、末尾爬回 55 帧」
+ * 被尾巴判据判过。这条只会更严，不放宽。
+ */
+const RESTORE_RATIO = 0.9;
+/** 恢复段逐秒窗口的硬底线：不得低于前台帧率的这个比例。 */
+const RESTORE_FLOOR_RATIO = 0.5;
 
 const reports = [];
 const failures = [];
@@ -119,6 +134,56 @@ const sampleFps = async (page) => {
   return { value: median(samples.slice(1)), samples };
 };
 
+/**
+ * 在页面上收一段 rAF 时间戳。
+ *
+ * 和 `sampleFps`（数帧数 / 墙钟）不同，这里留下**每一帧的时刻**，
+ * 好让调用方按 1 秒切窗、算间隔中位——恢复段的「爬升慢」与「真崩」
+ * 只有看逐秒轨迹才分得清。
+ */
+const collectRafStamps = async (page, durationMs) =>
+  page.evaluate(
+    (duration) =>
+      new Promise((resolve) => {
+        const stamps = [];
+        const start = performance.now();
+        const tick = (now) => {
+          stamps.push(now);
+          if (now - start >= duration) resolve(stamps);
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    durationMs,
+  );
+
+/**
+ * 时间戳 → 整段间隔中位 + 逐秒窗口（每窗的帧数与间隔中位）。
+ *
+ * 窗口数写死成采样秒数（`windowCount`，默认 4），落在 4.000s 边界上的那一帧
+ * 归进最后一窗——否则会多出个只有 1 帧的第 5 窗，读数表也不对齐。
+ */
+const rafSummary = (stamps, windowMs = SAMPLE_MS, windowCount = SAMPLE_COUNT) => {
+  const intervals = [];
+  const buckets = [];
+  for (let i = 1; i < stamps.length; i += 1) {
+    const interval = stamps[i] - stamps[i - 1];
+    intervals.push(interval);
+    const bucket = Math.min(Math.floor((stamps[i] - stamps[0]) / windowMs), windowCount - 1);
+    (buckets[bucket] ??= []).push(interval);
+  }
+  for (let i = 0; i < windowCount; i += 1) buckets[i] ??= [];
+  return {
+    medianInterval: median(intervals),
+    windows: buckets.map((slice) => ({
+      frames: slice.length,
+      medianInterval: median(slice),
+    })),
+  };
+};
+
+const fpsOf = (intervalMs) => (intervalMs > 0 ? 1000 / intervalMs : 0);
+
 /** 一轮完整测量：绘制指令、静止/拖动帧率、后台降频与回前台恢复。不含任何判定。 */
 const measurePass = async (page) => {
   const stats = await page.evaluate(() => window.Oracle.renderStats());
@@ -162,7 +227,11 @@ const measurePass = async (page) => {
     return { value: median(samples.slice(1)), samples };
   };
 
+  // 推进数与 rAF 间隔同时采：前台段既是「后台降频」的分母，也是「恢复末秒」的分母。
+  const rafForegroundPromise = collectRafStamps(page, SAMPLE_COUNT * SAMPLE_MS);
   const foreground = await sampleAdvances();
+  const rafForeground = rafSummary(await rafForegroundPromise);
+
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
@@ -175,9 +244,19 @@ const measurePass = async (page) => {
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await page.waitForTimeout(400);
+  const rafRestoredPromise = collectRafStamps(page, SAMPLE_COUNT * SAMPLE_MS);
   const restored = await sampleAdvances();
+  const rafRestored = rafSummary(await rafRestoredPromise);
 
-  return { stats, idle, drag, foreground, background, restored };
+  return {
+    stats,
+    idle,
+    drag,
+    foreground,
+    background,
+    restored,
+    raf: { foreground: rafForeground, restored: rafRestored },
+  };
 };
 
 /**
@@ -200,7 +279,9 @@ try {
     `[预热轮] 不计分：绘制指令 ${warm.stats.totalCommands} / `
       + `静止 ${warm.idle.value.toFixed(1)} / 拖动 ${warm.drag.value.toFixed(1)} / `
       + `前台 ${warm.foreground.value.toFixed(1)} / 后台 ${warm.background.value.toFixed(1)} / `
-      + `恢复 ${warm.restored.value.toFixed(1)}（本轮读数全部丢弃）`,
+      + `恢复 ${warm.restored.value.toFixed(1)} / `
+      + `恢复末秒 rAF ${fpsOf(warm.raf.restored.windows.at(-1)?.medianInterval ?? 0).toFixed(1)}`
+      + `（本轮读数全部丢弃）`,
   );
 } catch (error) {
   console.log(`[预热轮] 不计分：预热失败（${error.message}），继续正式采样`);
@@ -235,11 +316,32 @@ check(
   `前台 ${foreground.value.toFixed(1)}（采样 ${fmtSamples(foreground.samples)}）/ `
     + `后台 ${background.value.toFixed(1)}（采样 ${fmtSamples(background.samples)}）`,
 );
+/**
+ * 恢复满帧的判据（阈值未动，量法变了）。
+ *
+ * 1. **末秒**：恢复段最后 1 秒的 rAF 间隔中位 ≤ 前台间隔中位 / 0.9。
+ *    换回帧率说就是「末秒帧率 ≥ 前台 × 0.9」。间隔越小越快，方向反过来写
+ *    （间隔 ≥ 前台 × 0.9）会变成「恢复不许比前台快」，与 0.9 的原意相反。
+ * 2. **逐秒底线**：恢复段每个 1 秒窗口的帧率 ≥ 前台 × 0.5。
+ *    防「先崩后爬」被末秒判过。
+ */
+const frontRafFps = fpsOf(measured.raf.foreground.medianInterval);
+const restoreRaf = measured.raf.restored;
+const restoreWindowFps = restoreRaf.windows.map((window) => fpsOf(window.medianInterval));
+const tailWindow = restoreRaf.windows.at(-1);
+const tailFps = tailWindow ? fpsOf(tailWindow.medianInterval) : 0;
+const tailOk = tailWindow ? tailWindow.medianInterval <= measured.raf.foreground.medianInterval / RESTORE_RATIO : false;
+const floorOk = restoreWindowFps.length > 0
+  && restoreWindowFps.every((fps) => fps >= frontRafFps * RESTORE_FLOOR_RATIO);
+
 check(
-  restored.value >= foreground.value * 0.9,
+  tailOk && floorOk,
   '回到前台恢复满帧',
-  `恢复 ${restored.value.toFixed(1)}（采样 ${fmtSamples(restored.samples)}；`
-    + `前台 ${foreground.value.toFixed(1)}）`,
+  `恢复整段 ${fpsOf(restoreRaf.medianInterval).toFixed(1)} / 末秒 ${tailFps.toFixed(1)} / `
+    + `逐秒 ${restoreWindowFps.map((fps) => fps.toFixed(1)).join('/')} / `
+    + `前台 ${frontRafFps.toFixed(1)}（逐秒底线 ${(frontRafFps * RESTORE_FLOOR_RATIO).toFixed(1)}）；`
+    + `推进口径 恢复 ${restored.value.toFixed(1)}（采样 ${fmtSamples(restored.samples)}）`
+    + ` / 前台 ${foreground.value.toFixed(1)}`,
 );
 
 check(session.errors.length === 0, '全程无 JS 报错', session.errors.join('; '));
@@ -255,9 +357,21 @@ if (process.env.EVAL_OUT) {
         measuredAt: new Date().toISOString(),
         sampleCount: SAMPLE_COUNT,
         sampleMs: SAMPLE_MS,
-        thresholds: { minDragRatio: MIN_DRAG_RATIO, minRestoreRatio: 0.9, maxBackgroundDivisor: 3 },
+        thresholds: {
+          minDragRatio: MIN_DRAG_RATIO,
+          minRestoreRatio: RESTORE_RATIO,
+          restoreFloorRatio: RESTORE_FLOOR_RATIO,
+          maxBackgroundDivisor: 3,
+        },
         fps: { idle, drag },
         advances: { foreground, background, restored },
+        raf: {
+          foreground: { medianInterval: measured.raf.foreground.medianInterval },
+          restored: {
+            medianInterval: restoreRaf.medianInterval,
+            windows: restoreRaf.windows,
+          },
+        },
       },
       null,
       2,
