@@ -1,20 +1,164 @@
 {
   "format": "pwe-trace/2",
   "traceVersion": 2,
-  "description": "从真实 v5 存档起步，再跨两天（两次日终关账）：一次人工造物（炼码工坊）、一次暴雨、两次神谕。世界、记忆、造物三层都参与指纹。",
+  "description": "从真实 v5 存档（带 bonds / moods）起步，再跨两天（两次日终关账）：同一目击者 v0 三次正面、四次负面目击 v1，一次人工造物（炼码工坊）、一次暴雨、一次点灯。世界、记忆（含关系账本与情绪）、造物三层都参与指纹。",
   "worldId": "default",
   "worldSeed": "default",
-  "initialNow": 180000000,
-  "stepMs": 30000,
-  "steps": 6000,
+  "initialNow": 90000000,
+  "stepMs": 60000,
+  "steps": 3000,
   "eventRange": {
     "from": 0,
-    "to": 20
+    "to": 53
   },
   "injections": [
     {
       "seq": 1,
-      "atWorldMs": 200000000,
+      "atWorldMs": 100000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-pos-1",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 帮 v0 修好了屋顶",
+        "valence": 0.5,
+        "arousal": 0.5,
+        "importanceHint": 0.7
+      }
+    },
+    {
+      "seq": 2,
+      "atWorldMs": 110000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-pos-2",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 又帮 v0 修好了屋顶",
+        "valence": 0.5,
+        "arousal": 0.5,
+        "importanceHint": 0.7
+      }
+    },
+    {
+      "seq": 3,
+      "atWorldMs": 120000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-pos-3",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 第三次帮 v0 修屋顶",
+        "valence": 0.5,
+        "arousal": 0.5,
+        "importanceHint": 0.7
+      }
+    },
+    {
+      "seq": 4,
+      "atWorldMs": 140000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-neg-1",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 把 v0 的工具弄丢了",
+        "valence": -0.7,
+        "arousal": 0.7,
+        "importanceHint": 0.7
+      }
+    },
+    {
+      "seq": 5,
+      "atWorldMs": 150000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-neg-2",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 又弄丢了 v0 的工具",
+        "valence": -0.7,
+        "arousal": 0.7,
+        "importanceHint": 0.7
+      }
+    },
+    {
+      "seq": 6,
+      "atWorldMs": 160000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-neg-3",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 第三次弄丢工具",
+        "valence": -0.7,
+        "arousal": 0.7,
+        "importanceHint": 0.7
+      }
+    },
+    {
+      "seq": 7,
+      "atWorldMs": 180000000,
       "kind": "creatorBuild",
       "payload": {
         "templateId": "code_forge",
@@ -26,27 +170,43 @@
       }
     },
     {
-      "seq": 2,
-      "atWorldMs": 260000000,
+      "seq": 8,
+      "atWorldMs": 200000000,
       "kind": "weather",
       "payload": {
         "weather": "storm"
       }
     },
     {
-      "seq": 3,
-      "atWorldMs": 300000000,
-      "kind": "intent",
-      "payload": {
-        "raw": "涨潮"
-      }
-    },
-    {
-      "seq": 4,
-      "atWorldMs": 340000000,
+      "seq": 9,
+      "atWorldMs": 220000000,
       "kind": "intent",
       "payload": {
         "raw": "点灯"
+      }
+    },
+    {
+      "seq": 10,
+      "atWorldMs": 240000000,
+      "kind": "memory",
+      "payload": {
+        "eventId": "main-neg-4",
+        "memoryKind": "task_done",
+        "placeId": "place:workshop",
+        "at": {
+          "x": 35,
+          "y": 24
+        },
+        "actors": [
+          "v1"
+        ],
+        "witnesses": [
+          "v0"
+        ],
+        "what": "v1 在暴雨里弄丢了工具",
+        "valence": -0.8,
+        "arousal": 0.8,
+        "importanceHint": 0.7
       }
     }
   ],
@@ -55,7 +215,7 @@
     "save": {
       "schemaVersion": 5,
       "world": {
-        "now": 180000000,
+        "now": 90000000,
         "villagers": [
           {
             "id": "v0",
@@ -70,11 +230,11 @@
             "path": [],
             "taskId": null,
             "bubble": null,
-            "bubbleUntil": 90002200,
+            "bubbleUntil": 50042200,
             "saluteUntil": 0,
             "deliverUntil": 0,
-            "nextRoutineAt": 180005200,
-            "routineIndex": 3999,
+            "nextRoutineAt": 90480000,
+            "routineIndex": 459,
             "routineLabel": "在街口站着看了一会儿",
             "inPlaceUntil": 0,
             "pendingRoute": [],
@@ -96,11 +256,11 @@
             "path": [],
             "taskId": null,
             "bubble": null,
-            "bubbleUntil": 90002200,
+            "bubbleUntil": 50042200,
             "saluteUntil": 0,
             "deliverUntil": 0,
-            "nextRoutineAt": 180007280,
-            "routineIndex": 4002,
+            "nextRoutineAt": 91260000,
+            "routineIndex": 462,
             "routineLabel": "去看了一眼农田",
             "inPlaceUntil": 0,
             "pendingRoute": [],
@@ -195,34 +355,8 @@
             "y": 32
           }
         ],
-        "props": [
-          {
-            "id": "miracle-1",
-            "kind": "lamp",
-            "at": {
-              "x": 45,
-              "y": 39
-            },
-            "label": "一盏神迹点的灯",
-            "sourceTaskKind": null,
-            "sourceTaskId": null,
-            "sourceSummary": "神迹：点灯",
-            "grime": 0,
-            "reveal": null
-          }
-        ],
-        "oracle": [
-          {
-            "raw": "涨潮",
-            "receipt": "潮水停在 100%，60 秒后自己回去。",
-            "at": 40020000
-          },
-          {
-            "raw": "点灯",
-            "receipt": "一盏神迹点的灯落下了。",
-            "at": 140010000
-          }
-        ],
+        "props": [],
+        "oracle": [],
         "critters": [],
         "tasks": [],
         "pending": [],
@@ -247,12 +381,9 @@
         "settled": [],
         "nextTaskNumber": 1,
         "nextPendingNumber": 1,
-        "tideOverride": {
-          "level": 1,
-          "until": 40080000
-        },
+        "tideOverride": null,
         "worldChangeVersion": 0,
-        "memory": "{\"memorySchemaVersion\":3,\"lastClosedDay\":2,\"started\":true,\"now\":180000000,\"positions\":[{\"holderId\":\"v0\",\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"at\":{\"x\":40,\"y\":40}}],\"world\":{\"holders\":[{\"holderId\":\"v0\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":40,\"y\":40}},{\"holderId\":\"star_archive#1\",\"type\":\"place\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":52,\"y\":24}}],\"facts\":[{\"eventId\":\"mem_1\",\"day\":0,\"tick\":10020000,\"kind\":\"milestone\",\"placeId\":\"star_archive#1\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"有人立起了一栋新楼\",\"name\":\"星图书阁\"},\"visibility\":\"world\",\"importanceHint\":0.6,\"source\":\"world\",\"placeType\":\"building\",\"voice\":{\"what\":\"达成了一个里程碑\",\"valence\":0.5,\"arousal\":0.4,\"detailLevel\":3}},{\"eventId\":\"mem_2\",\"day\":0,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_3\",\"day\":0,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_5\",\"day\":0,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_6\",\"day\":0,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_7\",\"day\":0,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_8\",\"day\":1,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_9\",\"day\":1,\"tick\":3600000,\"kind\":\"weather_anomaly\",\"placeId\":\"place:sky\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"天气反常\",\"weather\":\"rain\"},\"visibility\":\"world\",\"importanceHint\":0.5,\"source\":\"world\",\"voice\":{\"what\":\"天气反常\",\"valence\":0,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_10\",\"day\":1,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_11\",\"day\":1,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_12\",\"day\":1,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_13\",\"day\":1,\"tick\":53610000,\"kind\":\"celebration\",\"placeId\":\"place:45,39\",\"actors\":[],\"witnesses\":[\"v0\",\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"神明显了一次灵\"},\"visibility\":\"world\",\"importanceHint\":0.8,\"source\":\"world\",\"voice\":{\"what\":\"有人庆祝了一件事\",\"valence\":0.8,\"arousal\":0.7,\"detailLevel\":3}},{\"eventId\":\"mem_14\",\"day\":1,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_15\",\"day\":1,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_16\",\"day\":2,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}}],\"entries\":[{\"memoryId\":\"m_sum_v0_1\",\"holderId\":\"v0\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\",\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）；神明显了一次灵（place:45,39）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":1,\"detailLevel\":3,\"valence\":0.65,\"arousal\":0.55},\"salience\":0.74,\"confidence\":1,\"strength\":1,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0005\",\"m_0007\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2950705160\",\"seed\":2950705160},\"archived\":false},{\"memoryId\":\"m_0011\",\"holderId\":\"v1\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_13\"],\"sourceMode\":\"heard\",\"sourceChain\":[\"claim_0010\",\"v0\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":2,\"valence\":0.8800000000000001,\"arousal\":0.7},\"salience\":0.6,\"confidence\":0.8,\"strength\":0.85,\"createdDay\":2,\"lastRecalledDay\":2,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[\"claim_0010\"]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2568381237\",\"seed\":2568381237},\"archived\":false},{\"memoryId\":\"m_sum_v1_1\",\"holderId\":\"v1\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\",\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）；神明显了一次灵（place:45,39）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":1,\"detailLevel\":3,\"valence\":0.65,\"arousal\":0.55},\"salience\":0.74,\"confidence\":1,\"strength\":1,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0006\",\"m_0008\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2046146767\",\"seed\":2046146767},\"archived\":false}],\"claims\":[{\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0010\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"beliefs\":[{\"holderId\":\"v1\",\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":2,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"star_archive#1\",\"claimId\":\"claim_0010\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":2,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"}],\"traces\":[{\"placeId\":\"star_archive#1\",\"entries\":[{\"traceId\":\"trace_0001\",\"placeId\":\"star_archive#1\",\"eventRef\":\"mem_1\",\"layerType\":\"inscription\",\"intensity\":0.7,\"createdDay\":0,\"visibility\":0.99}]},{\"placeId\":\"place:45,39\",\"entries\":[{\"traceId\":\"trace_0009\",\"placeId\":\"place:45,39\",\"eventRef\":\"mem_13\",\"layerType\":\"garland\",\"intensity\":1,\"createdDay\":1,\"visibility\":1}]}],\"placeAnchors\":[{\"placeId\":\"star_archive#1\",\"at\":{\"x\":52,\"y\":24}},{\"placeId\":\"place:48,36\",\"at\":{\"x\":48,\"y\":36}},{\"placeId\":\"place:sky\",\"at\":{\"x\":0,\"y\":0}},{\"placeId\":\"place:45,39\",\"at\":{\"x\":45,\"y\":39}}],\"landmarks\":[{\"placeId\":\"star_archive#1\",\"aliases\":[\"star_archive#1\"],\"displayName\":\"星图书阁\",\"plotKey\":\"51,20,4,4\",\"anchor\":{\"x\":51,\"y\":20},\"footprint\":{\"x\":51,\"y\":20,\"w\":4,\"h\":4},\"bornDay\":0,\"phases\":[{\"state\":\"built\",\"day\":0,\"atMs\":10020000,\"causeEventRef\":\"mem_1\",\"name\":\"星图书阁\",\"note\":\"动工\"}],\"current\":\"built\"}],\"eras\":[{\"eraId\":\"era_0004\",\"fromDay\":0,\"toDay\":null,\"label\":\"寂静年代\",\"startSignature\":{\"day\":0,\"meanValence\":0,\"meanArousal\":0,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"lastSignature\":{\"day\":1,\"meanValence\":0.65,\"meanArousal\":0.55,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"definingEventRefs\":[],\"confidence\":0.022222222222222223}],\"epics\":[],\"turningPoints\":[],\"legends\":[],\"placeNames\":[{\"placeId\":\"star_archive#1\",\"name\":\"星图书阁\",\"history\":[]}],\"announcements\":[],\"tells\":[{\"day\":2,\"from\":\"v0\",\"to\":\"v1\",\"claimId\":\"claim_0010\"},{\"day\":2,\"from\":\"v0\",\"to\":\"star_archive#1\",\"claimId\":\"claim_0010\"}],\"written\":[{\"recordId\":\"diary_0012\",\"kind\":\"diary\",\"authorId\":\"v0\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0007\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"written_m_0007\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":1,\"placeId\":\"at_56_33\"},{\"recordId\":\"diary_0013\",\"kind\":\"diary\",\"authorId\":\"v1\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0008\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"神明显了一次灵\",\"who\":[],\"where\":\"place:45,39\",\"when\":1,\"detailLevel\":3,\"valence\":0.8,\"arousal\":0.7},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v1\",\"claimId\":\"written_m_0008\",\"hop\":0}],\"originHolderId\":\"v1\",\"createdDay\":1,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":1,\"placeId\":\"at_40_40\"}],\"cooldowns\":[{\"pairKey\":\"v0\\u0000v1\",\"claimId\":\"claim_0010\",\"atMs\":172800000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":\"claim_0010\",\"atMs\":172800000},{\"pairKey\":\"v0\\u0000v1\",\"claimId\":null,\"atMs\":172800000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":null,\"atMs\":172800000}],\"fanout\":{\"day\":2,\"counts\":[[\"v0\\u0000claim_0010\",2]]},\"verifyPlans\":[],\"credibility\":[],\"nextSerial\":14,\"currentDay\":2,\"metToday\":[]}}"
+        "memory": "{\"memorySchemaVersion\":4,\"lastClosedDay\":1,\"started\":true,\"now\":90000000,\"positions\":[{\"holderId\":\"v0\",\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"at\":{\"x\":40,\"y\":40}}],\"world\":{\"holders\":[{\"holderId\":\"v0\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":56,\"y\":33}},{\"holderId\":\"v1\",\"type\":\"character\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":40,\"y\":40}},{\"holderId\":\"star_archive#1\",\"type\":\"place\",\"profile\":{\"talkativeness\":0.5},\"at\":{\"x\":52,\"y\":24}}],\"facts\":[{\"eventId\":\"mem_1\",\"day\":0,\"tick\":10020000,\"kind\":\"milestone\",\"placeId\":\"star_archive#1\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"有人立起了一栋新楼\",\"name\":\"星图书阁\"},\"visibility\":\"world\",\"importanceHint\":0.6,\"source\":\"world\",\"placeType\":\"building\",\"voice\":{\"what\":\"达成了一个里程碑\",\"valence\":0.5,\"arousal\":0.4,\"detailLevel\":3}},{\"eventId\":\"mem_2\",\"day\":0,\"tick\":14400000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"bond-pos-1\",\"day\":0,\"tick\":19980000,\"kind\":\"task_done\",\"placeId\":\"place:workshop\",\"actors\":[\"v1\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"v1 修好了一盏灯\"},\"visibility\":\"world\",\"importanceHint\":0.7,\"source\":\"world\",\"voice\":{\"what\":\"有人交了一单活\",\"valence\":0.4,\"arousal\":0.5,\"detailLevel\":3}},{\"eventId\":\"mem_3\",\"day\":0,\"tick\":21600000,\"kind\":\"routine_done\",\"placeId\":\"place:40,40\",\"actors\":[\"v0\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"莞尔去看了一眼农田\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"有人在镇子上停了一会儿\",\"valence\":0.1,\"arousal\":0.25,\"detailLevel\":3}},{\"eventId\":\"mem_4\",\"day\":0,\"tick\":21600000,\"kind\":\"daily_water\",\"placeId\":\"place:48,36\",\"actors\":[\"v0\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"莞尔去桥边打水，顺手冲了冲桥面\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"daily_water\",\"valence\":0.15,\"arousal\":0.25,\"detailLevel\":3}},{\"eventId\":\"mem_5\",\"day\":0,\"tick\":28800000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"bond-pos-2\",\"day\":0,\"tick\":29940000,\"kind\":\"task_done\",\"placeId\":\"place:workshop\",\"actors\":[\"v1\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"v1 又修好了一盏灯\"},\"visibility\":\"world\",\"importanceHint\":0.7,\"source\":\"world\",\"voice\":{\"what\":\"有人交了一单活\",\"valence\":0.4,\"arousal\":0.5,\"detailLevel\":3}},{\"eventId\":\"mem_6\",\"day\":0,\"tick\":36000000,\"kind\":\"routine_done\",\"placeId\":\"place:40,40\",\"actors\":[\"v0\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"莞尔去看了一眼农田\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"有人在镇子上停了一会儿\",\"valence\":0.1,\"arousal\":0.25,\"detailLevel\":3}},{\"eventId\":\"bond-pos-3\",\"day\":0,\"tick\":39960000,\"kind\":\"task_done\",\"placeId\":\"place:workshop\",\"actors\":[\"v1\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"v1 第三次修好灯\"},\"visibility\":\"world\",\"importanceHint\":0.7,\"source\":\"world\",\"voice\":{\"what\":\"有人交了一单活\",\"valence\":0.4,\"arousal\":0.5,\"detailLevel\":3}},{\"eventId\":\"mem_7\",\"day\":0,\"tick\":43200000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_8\",\"day\":0,\"tick\":50040000,\"kind\":\"weather_anomaly\",\"placeId\":\"place:sky\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"天气反常\",\"weather\":\"rain\"},\"visibility\":\"world\",\"importanceHint\":0.5,\"source\":\"world\",\"voice\":{\"what\":\"天气反常\",\"valence\":0,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_9\",\"day\":0,\"tick\":57600000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"bond-neg-1\",\"day\":0,\"tick\":59940000,\"kind\":\"task_done\",\"placeId\":\"place:workshop\",\"actors\":[\"v1\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"v1 弄坏了灯架\"},\"visibility\":\"world\",\"importanceHint\":0.7,\"source\":\"world\",\"voice\":{\"what\":\"有人交了一单活\",\"valence\":-0.6,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_10\",\"day\":0,\"tick\":64800000,\"kind\":\"routine_done\",\"placeId\":\"place:48,36\",\"actors\":[\"v0\"],\"witnesses\":[\"v0\",\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"莞尔回到祭坛等神谕\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"有人在镇子上停了一会儿\",\"valence\":0.1,\"arousal\":0.25,\"detailLevel\":3}},{\"eventId\":\"mem_11\",\"day\":0,\"tick\":64800000,\"kind\":\"daily_lamp\",\"placeId\":\"place:48,36\",\"actors\":[\"v0\"],\"witnesses\":[\"v0\",\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"莞尔把祭坛边的街灯一盏盏点亮\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"daily_lamp\",\"valence\":0.15,\"arousal\":0.25,\"detailLevel\":3}},{\"eventId\":\"bond-neg-2\",\"day\":0,\"tick\":69960000,\"kind\":\"task_done\",\"placeId\":\"place:workshop\",\"actors\":[\"v1\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"v1 又弄坏了灯架\"},\"visibility\":\"world\",\"importanceHint\":0.7,\"source\":\"world\",\"voice\":{\"what\":\"有人交了一单活\",\"valence\":-0.6,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_12\",\"day\":0,\"tick\":72000000,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[\"v0\",\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水涨过一半，滩涂开始没进水里\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}},{\"eventId\":\"mem_13\",\"day\":0,\"tick\":79200000,\"kind\":\"routine_done\",\"placeId\":\"place:56,33\",\"actors\":[\"v1\"],\"witnesses\":[\"v1\"],\"parentEventId\":null,\"outcome\":{\"what\":\"阿雾在街口站着看了一会儿\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"有人在镇子上停了一会儿\",\"valence\":0.1,\"arousal\":0.25,\"detailLevel\":3}},{\"eventId\":\"bond-neg-3\",\"day\":0,\"tick\":79980000,\"kind\":\"task_done\",\"placeId\":\"place:workshop\",\"actors\":[\"v1\"],\"witnesses\":[\"v0\"],\"parentEventId\":null,\"outcome\":{\"what\":\"v1 第三次弄坏灯架\"},\"visibility\":\"world\",\"importanceHint\":0.7,\"source\":\"world\",\"voice\":{\"what\":\"有人交了一单活\",\"valence\":-0.6,\"arousal\":0.6,\"detailLevel\":3}},{\"eventId\":\"mem_14\",\"day\":1,\"tick\":0,\"kind\":\"tide_turn\",\"placeId\":\"place:48,36\",\"actors\":[],\"witnesses\":[],\"parentEventId\":null,\"outcome\":{\"what\":\"潮水退过一半，滩涂露出来了\"},\"visibility\":\"world\",\"importanceHint\":0.35,\"source\":\"world\",\"voice\":{\"what\":\"潮水掉头了\",\"valence\":0,\"arousal\":0.35,\"detailLevel\":3}}],\"entries\":[{\"memoryId\":\"m_0004\",\"holderId\":\"v0\",\"kind\":\"impression\",\"tier\":\"long\",\"eventRefs\":[\"bond-pos-1\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"我看见v1把活干完了\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":19980000,\"detailLevel\":3,\"valence\":0.4,\"arousal\":0.3},\"salience\":0.5,\"confidence\":1,\"strength\":0.955,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"3770436972\",\"seed\":3770436972},\"archived\":false},{\"memoryId\":\"m_0011\",\"holderId\":\"v0\",\"kind\":\"impression\",\"tier\":\"long\",\"eventRefs\":[\"bond-pos-2\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"我看见v1把活干完了\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":29940000,\"detailLevel\":3,\"valence\":0.4,\"arousal\":0.3},\"salience\":0.5,\"confidence\":1,\"strength\":0.955,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"3820769829\",\"seed\":3820769829},\"archived\":false},{\"memoryId\":\"m_0016\",\"holderId\":\"v0\",\"kind\":\"impression\",\"tier\":\"long\",\"eventRefs\":[\"bond-pos-3\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"我看见v1把活干完了\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":39960000,\"detailLevel\":3,\"valence\":0.4,\"arousal\":0.3},\"salience\":0.5,\"confidence\":1,\"strength\":0.955,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"3803992210\",\"seed\":3803992210},\"archived\":false},{\"memoryId\":\"m_0022\",\"holderId\":\"v0\",\"kind\":\"impression\",\"tier\":\"long\",\"eventRefs\":[\"bond-neg-1\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"我看见v1把活干完了\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":59940000,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.3},\"salience\":0.5,\"confidence\":1,\"strength\":0.955,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2824692888\",\"seed\":2824692888},\"archived\":false},{\"memoryId\":\"m_0030\",\"holderId\":\"v0\",\"kind\":\"impression\",\"tier\":\"long\",\"eventRefs\":[\"bond-neg-2\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"我看见v1把活干完了\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":69960000,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.3},\"salience\":0.5,\"confidence\":1,\"strength\":0.955,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2875025745\",\"seed\":2875025745},\"archived\":false},{\"memoryId\":\"m_0036\",\"holderId\":\"v0\",\"kind\":\"impression\",\"tier\":\"long\",\"eventRefs\":[\"bond-neg-3\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"我看见v1把活干完了\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":79980000,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.3},\"salience\":0.5,\"confidence\":1,\"strength\":0.955,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2858248126\",\"seed\":2858248126},\"archived\":false},{\"memoryId\":\"m_0002\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-pos-1\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"v1 修好了一盏灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":0.4,\"arousal\":0.5},\"salience\":0.4875,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"3770436972\",\"seed\":3770436972},\"archived\":false},{\"memoryId\":\"m_0005\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_3\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"莞尔去看了一眼农田\",\"who\":[\"v0\"],\"where\":\"place:40,40\",\"when\":0,\"detailLevel\":2,\"valence\":0.1,\"arousal\":0.25},\"salience\":0.4375,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"304474583\",\"seed\":304474583},\"archived\":false},{\"memoryId\":\"m_0007\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_4\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"莞尔去桥边打水，顺手冲了冲桥面\",\"who\":[\"v0\"],\"where\":\"place:48,36\",\"when\":0,\"detailLevel\":2,\"valence\":0.15,\"arousal\":0.25},\"salience\":0.4625,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"254141726\",\"seed\":254141726},\"archived\":false},{\"memoryId\":\"m_0009\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-pos-2\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"v1 又修好了一盏灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":0.4,\"arousal\":0.5},\"salience\":0.4875,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"3820769829\",\"seed\":3820769829},\"archived\":false},{\"memoryId\":\"m_0012\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_6\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"莞尔去看了一眼农田\",\"who\":[\"v0\"],\"where\":\"place:40,40\",\"when\":0,\"detailLevel\":2,\"valence\":0.1,\"arousal\":0.25},\"salience\":0.4375,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"220586488\",\"seed\":220586488},\"archived\":false},{\"memoryId\":\"m_0014\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-pos-3\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"v1 第三次修好灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":0.4,\"arousal\":0.5},\"salience\":0.4875,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"3803992210\",\"seed\":3803992210},\"archived\":false},{\"memoryId\":\"m_0019\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-neg-1\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"v1 弄坏了灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":-0.6,\"arousal\":0.6},\"salience\":0.5249999999999999,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2824692888\",\"seed\":2824692888},\"archived\":false},{\"memoryId\":\"m_0023\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_10\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"莞尔回到祭坛等神谕\",\"who\":[\"v0\"],\"where\":\"place:48,36\",\"when\":0,\"detailLevel\":2,\"valence\":0.1,\"arousal\":0.25},\"salience\":0.4375,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2226374327\",\"seed\":2226374327},\"archived\":false},{\"memoryId\":\"m_0025\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_11\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"莞尔把祭坛边的街灯一盏盏点亮\",\"who\":[\"v0\"],\"where\":\"place:48,36\",\"when\":0,\"detailLevel\":2,\"valence\":0.15,\"arousal\":0.25},\"salience\":0.475,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2209596708\",\"seed\":2209596708},\"archived\":false},{\"memoryId\":\"m_0027\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-neg-2\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"v1 又弄坏了灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":-0.6,\"arousal\":0.6},\"salience\":0.5249999999999999,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2875025745\",\"seed\":2875025745},\"archived\":false},{\"memoryId\":\"m_0033\",\"holderId\":\"v0\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-neg-3\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"v1 第三次弄坏灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":-0.6,\"arousal\":0.6},\"salience\":0.5249999999999999,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2858248126\",\"seed\":2858248126},\"archived\":false},{\"memoryId\":\"m_sum_v0_0\",\"holderId\":\"v0\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":0,\"detailLevel\":2,\"valence\":0.5,\"arousal\":0.4},\"salience\":0.74,\"confidence\":0.9,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0017\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"844459063\",\"seed\":844459063},\"archived\":false},{\"memoryId\":\"m_0037\",\"holderId\":\"v1\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"bond-pos-1\"],\"sourceMode\":\"heard\",\"sourceChain\":[\"claim_0003\",\"v0\"],\"content\":{\"what\":\"v1 修好了一盏灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":2,\"valence\":0.44000000000000006,\"arousal\":0.5},\"salience\":0.6675,\"confidence\":0.8,\"strength\":0.85,\"createdDay\":1,\"lastRecalledDay\":1,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[\"claim_0003\"]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"27005866\",\"seed\":27005866},\"archived\":false},{\"memoryId\":\"m_0031\",\"holderId\":\"v1\",\"kind\":\"episodic\",\"tier\":\"day\",\"eventRefs\":[\"mem_13\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"阿雾在街口站着看了一会儿\",\"who\":[\"v1\"],\"where\":\"place:56,33\",\"when\":0,\"detailLevel\":2,\"valence\":0.1,\"arousal\":0.25},\"salience\":0.4375,\"confidence\":1,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"1561725015\",\"seed\":1561725015},\"archived\":false},{\"memoryId\":\"m_sum_v1_0\",\"holderId\":\"v1\",\"kind\":\"summary\",\"tier\":\"long\",\"eventRefs\":[\"mem_1\"],\"sourceMode\":\"witnessed\",\"sourceChain\":[],\"content\":{\"what\":\"碑文上记着一件事（star_archive#1）\",\"who\":[],\"where\":\"star_archive#1\",\"when\":0,\"detailLevel\":2,\"valence\":0.5,\"arousal\":0.4},\"salience\":0.74,\"confidence\":0.9,\"strength\":1,\"createdDay\":0,\"lastRecalledDay\":0,\"recallCount\":0,\"flashbulb\":false,\"pinned\":false,\"redacted\":false,\"derivedFrom\":{\"memoryIds\":[\"m_0018\"],\"claimIds\":[]},\"generatedBy\":{\"by\":\"rule\",\"rulesetVersion\":\"memory-r1\",\"inputHash\":\"2422808224\",\"seed\":2422808224},\"archived\":false}],\"claims\":[{\"claimId\":\"claim_0003\",\"eventRefs\":[\"bond-pos-1\"],\"content\":{\"what\":\"v1 修好了一盏灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":0.4,\"arousal\":0.5},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0003\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0006\",\"eventRefs\":[\"mem_3\"],\"content\":{\"what\":\"莞尔去看了一眼农田\",\"who\":[\"v0\"],\"where\":\"place:40,40\",\"when\":0,\"detailLevel\":3,\"valence\":0.1,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0006\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0008\",\"eventRefs\":[\"mem_4\"],\"content\":{\"what\":\"莞尔去桥边打水，顺手冲了冲桥面\",\"who\":[\"v0\"],\"where\":\"place:48,36\",\"when\":0,\"detailLevel\":3,\"valence\":0.15,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0008\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0010\",\"eventRefs\":[\"bond-pos-2\"],\"content\":{\"what\":\"v1 又修好了一盏灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":0.4,\"arousal\":0.5},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0010\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0013\",\"eventRefs\":[\"mem_6\"],\"content\":{\"what\":\"莞尔去看了一眼农田\",\"who\":[\"v0\"],\"where\":\"place:40,40\",\"when\":0,\"detailLevel\":3,\"valence\":0.1,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0013\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0015\",\"eventRefs\":[\"bond-pos-3\"],\"content\":{\"what\":\"v1 第三次修好灯\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":0.4,\"arousal\":0.5},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0015\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0021\",\"eventRefs\":[\"bond-neg-1\"],\"content\":{\"what\":\"v1 弄坏了灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.6},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0021\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0024\",\"eventRefs\":[\"mem_10\"],\"content\":{\"what\":\"莞尔回到祭坛等神谕\",\"who\":[\"v0\"],\"where\":\"place:48,36\",\"when\":0,\"detailLevel\":3,\"valence\":0.1,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0024\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0026\",\"eventRefs\":[\"mem_11\"],\"content\":{\"what\":\"莞尔把祭坛边的街灯一盏盏点亮\",\"who\":[\"v0\"],\"where\":\"place:48,36\",\"when\":0,\"detailLevel\":3,\"valence\":0.15,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0026\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0029\",\"eventRefs\":[\"bond-neg-2\"],\"content\":{\"what\":\"v1 又弄坏了灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.6},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0029\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0032\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"阿雾在街口站着看了一会儿\",\"who\":[\"v1\"],\"where\":\"place:56,33\",\"when\":0,\"detailLevel\":3,\"valence\":0.1,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v1\",\"claimId\":\"claim_0032\",\"hop\":0}],\"originHolderId\":\"v1\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"claim_0035\",\"eventRefs\":[\"bond-neg-3\"],\"content\":{\"what\":\"v1 第三次弄坏灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.6},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"claim_0035\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]}],\"beliefs\":[{\"holderId\":\"v1\",\"claimId\":\"claim_0003\",\"eventRefs\":[\"bond-pos-1\"],\"confidence\":0.8,\"learnedDay\":1,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"star_archive#1\",\"claimId\":\"claim_0003\",\"eventRefs\":[\"bond-pos-1\"],\"confidence\":0.8,\"learnedDay\":1,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"v1\",\"claimId\":\"claim_0006\",\"eventRefs\":[\"mem_3\"],\"confidence\":0.8,\"learnedDay\":1,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"star_archive#1\",\"claimId\":\"claim_0006\",\"eventRefs\":[\"mem_3\"],\"confidence\":0.8,\"learnedDay\":1,\"sourceHolderId\":\"v0\",\"hop\":1,\"state\":\"held\"},{\"holderId\":\"star_archive#1\",\"claimId\":\"claim_0032\",\"eventRefs\":[\"mem_13\"],\"confidence\":0.8,\"learnedDay\":1,\"sourceHolderId\":\"v1\",\"hop\":1,\"state\":\"held\"}],\"traces\":[{\"placeId\":\"star_archive#1\",\"entries\":[{\"traceId\":\"trace_0001\",\"placeId\":\"star_archive#1\",\"eventRef\":\"mem_1\",\"layerType\":\"inscription\",\"intensity\":0.7,\"createdDay\":0,\"visibility\":1}]},{\"placeId\":\"place:workshop\",\"entries\":[{\"traceId\":\"trace_0034\",\"placeId\":\"place:workshop\",\"eventRef\":\"bond-neg-3\",\"layerType\":\"worn_path\",\"intensity\":0.5,\"createdDay\":0,\"visibility\":1}]}],\"placeAnchors\":[{\"placeId\":\"star_archive#1\",\"at\":{\"x\":52,\"y\":24}},{\"placeId\":\"place:48,36\",\"at\":{\"x\":48,\"y\":36}},{\"placeId\":\"place:workshop\",\"at\":{\"x\":35,\"y\":24}},{\"placeId\":\"place:40,40\",\"at\":{\"x\":40,\"y\":40}},{\"placeId\":\"place:sky\",\"at\":{\"x\":0,\"y\":0}},{\"placeId\":\"place:56,33\",\"at\":{\"x\":56,\"y\":33}}],\"landmarks\":[{\"placeId\":\"star_archive#1\",\"aliases\":[\"star_archive#1\"],\"displayName\":\"星图书阁\",\"plotKey\":\"51,20,4,4\",\"anchor\":{\"x\":51,\"y\":20},\"footprint\":{\"x\":51,\"y\":20,\"w\":4,\"h\":4},\"bornDay\":0,\"phases\":[{\"state\":\"built\",\"day\":0,\"atMs\":10020000,\"causeEventRef\":\"mem_1\",\"name\":\"星图书阁\",\"note\":\"动工\"}],\"current\":\"built\"}],\"eras\":[{\"eraId\":\"era_0040\",\"fromDay\":0,\"toDay\":null,\"label\":\"寂静年代\",\"startSignature\":{\"day\":0,\"meanValence\":0.025,\"meanArousal\":0.37,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"lastSignature\":{\"day\":0,\"meanValence\":0.025,\"meanArousal\":0.37,\"infoEntropy\":0,\"isolatedHolders\":2,\"buildingCount\":1,\"ruinCount\":0,\"legendReachSum\":0,\"population\":2},\"definingEventRefs\":[],\"confidence\":0.011111111111111112}],\"epics\":[],\"turningPoints\":[],\"bonds\":[{\"from\":\"v0\",\"to\":\"v1\",\"trust\":-0.07199999999999997,\"warmth\":-0.16799999999999995,\"debt\":0,\"familiarity\":0.24000000000000002,\"strength\":0.18,\"confidence\":0.8,\"evidence\":[\"bond-neg-3\",\"bond-neg-2\",\"bond-neg-1\",\"bond-pos-3\",\"bond-pos-2\",\"bond-pos-1\"],\"updatedDay\":0}],\"moods\":[{\"holderId\":\"v0\",\"valence\":-0.007499999999999974,\"arousal\":0.300531914893617,\"label\":\"平静\",\"because\":[\"m_0019\",\"m_0027\"],\"updatedAt\":86400000,\"halfLifeDays\":1},{\"holderId\":\"v1\",\"valence\":0.045000000000000005,\"arousal\":0.22250000000000003,\"label\":\"平静\",\"because\":[\"m_0031\"],\"updatedAt\":86400000,\"halfLifeDays\":1}],\"legends\":[],\"placeNames\":[{\"placeId\":\"star_archive#1\",\"name\":\"星图书阁\",\"history\":[]}],\"announcements\":[],\"tells\":[{\"day\":1,\"from\":\"v0\",\"to\":\"v1\",\"claimId\":\"claim_0003\"},{\"day\":1,\"from\":\"v0\",\"to\":\"star_archive#1\",\"claimId\":\"claim_0003\"},{\"day\":1,\"from\":\"v0\",\"to\":\"v1\",\"claimId\":\"claim_0006\"},{\"day\":1,\"from\":\"v0\",\"to\":\"star_archive#1\",\"claimId\":\"claim_0006\"},{\"day\":1,\"from\":\"v1\",\"to\":\"star_archive#1\",\"claimId\":\"claim_0032\"}],\"written\":[{\"recordId\":\"diary_0038\",\"kind\":\"diary\",\"authorId\":\"v0\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0019\",\"eventRefs\":[\"bond-neg-1\"],\"content\":{\"what\":\"v1 弄坏了灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.6},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"written_m_0019\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"written_m_0027\",\"eventRefs\":[\"bond-neg-2\"],\"content\":{\"what\":\"v1 又弄坏了灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.6},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"written_m_0027\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]},{\"claimId\":\"written_m_0033\",\"eventRefs\":[\"bond-neg-3\"],\"content\":{\"what\":\"v1 第三次弄坏灯架\",\"who\":[\"v1\"],\"where\":\"place:workshop\",\"when\":0,\"detailLevel\":3,\"valence\":-0.6,\"arousal\":0.6},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v0\",\"claimId\":\"written_m_0033\",\"hop\":0}],\"originHolderId\":\"v0\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":0,\"placeId\":\"at_40_40\"},{\"recordId\":\"diary_0039\",\"kind\":\"diary\",\"authorId\":\"v1\",\"recipientId\":null,\"claims\":[{\"claimId\":\"written_m_0031\",\"eventRefs\":[\"mem_13\"],\"content\":{\"what\":\"阿雾在街口站着看了一会儿\",\"who\":[\"v1\"],\"where\":\"place:56,33\",\"when\":0,\"detailLevel\":3,\"valence\":0.1,\"arousal\":0.25},\"confidence\":1,\"hop\":0,\"sourceChain\":[{\"holderId\":\"v1\",\"claimId\":\"written_m_0031\",\"hop\":0}],\"originHolderId\":\"v1\",\"createdDay\":0,\"secret\":false,\"distortedBy\":[]}],\"writtenDay\":0,\"placeId\":\"at_56_33\"}],\"cooldowns\":[{\"pairKey\":\"v0\\u0000v1\",\"claimId\":\"claim_0003\",\"atMs\":86400000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":\"claim_0003\",\"atMs\":86400000},{\"pairKey\":\"v0\\u0000v1\",\"claimId\":\"claim_0006\",\"atMs\":86400000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":\"claim_0006\",\"atMs\":86400000},{\"pairKey\":\"star_archive#1\\u0000v1\",\"claimId\":\"claim_0032\",\"atMs\":86400000},{\"pairKey\":\"v0\\u0000v1\",\"claimId\":null,\"atMs\":86400000},{\"pairKey\":\"star_archive#1\\u0000v0\",\"claimId\":null,\"atMs\":86400000},{\"pairKey\":\"star_archive#1\\u0000v1\",\"claimId\":null,\"atMs\":86400000}],\"fanout\":{\"day\":1,\"counts\":[[\"v0\\u0000claim_0003\",2],[\"v0\\u0000claim_0006\",2],[\"v1\\u0000claim_0032\",1]]},\"verifyPlans\":[],\"credibility\":[],\"nextSerial\":41,\"currentDay\":1,\"metToday\":[[\"v0\\u0000v1\",2]]}}"
       },
       "meta": {
         "savedAtWallClock": 0,
@@ -266,13 +397,13 @@
     "creator": true
   },
   "recorded": {
-    "inputDigest": "029539bfc23bc43100f7ae5d8a4c9a2d6512db2be632d59db1a0e20612dcded7",
-    "fingerprint": "e25d22b5ee944d0c91e5517bd7f07b73af16b7a689477758a526ba46b3b304df",
-    "eventCount": 20,
-    "eventDigest": "8adb051144c1a4f78b8512275f54130e9c5c6518462ea58254231c222158f07d",
+    "inputDigest": "ec8d848a1bc115d01a5256e3a4826ee221efcbe8339668484c0d4d6d27c11b17",
+    "fingerprint": "11e033befb6a7deaa90c5e324a3cbb778a398173ccb9206598184944a3ccc541",
+    "eventCount": 53,
+    "eventDigest": "6adc99239b478a12162d4aeda8752a697d25f4dc92d046d8227b8c3e467f7a72",
     "business": {
-      "day": 4,
-      "now": 360000000,
+      "day": 3,
+      "now": 270000000,
       "buildings": 2,
       "tasksTotal": 0,
       "tasksCompleted": 0,
@@ -282,216 +413,162 @@
         "feed": 0,
         "local": 0
       },
-      "eventCount": 20
+      "eventCount": 53
     },
     "checkpoints": [
       {
         "step": 0,
-        "atWorldMs": 180000000,
-        "fingerprint": "803c75c7ca718e2b25050f468cc52b28c6089d554929c3a707d2cf26e26462f6",
-        "memoryFingerprint": "19ba9cb88156564b2a59d5761f477ba119a3fdbfcc2f3793dc481c9417e69d8d",
+        "atWorldMs": 90000000,
+        "fingerprint": "734182b80383377c7165f72c1c04e750683207b4939da02fd48a3535d83d4432",
+        "memoryFingerprint": "e9e4691d6cfcd235279d8ea3da672043e3afe15a70caf6d4d24f4f18ce944e85",
         "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 250,
-        "atWorldMs": 187500000,
-        "fingerprint": "a26a27497598114b2fe6fb94ed8c5d4ff5652de6a2da2c8243953cf6fc2c8e95",
-        "memoryFingerprint": "b61d109ffde15f2bca9b3202c4873f5720e67da58b35f465a6fc3dd468dee574",
+        "atWorldMs": 105000000,
+        "fingerprint": "5a8310cfb7d21095b6a7e51b08cd93b8158c4b8c3267b51e301f7cd7d388320a",
+        "memoryFingerprint": "992e9182d569d3f548e8ee4b286261c390cdb8385f1cad7c8eca568548607795",
         "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 500,
-        "atWorldMs": 195000000,
-        "fingerprint": "3330709f4666848c4eb10d7a9b7391f57d65242bc2ce0da8de1e8ef4377153b2",
-        "memoryFingerprint": "a381064fdbbd04f1f3b8b4e6dd97eb0f54a7b818a4df120156e63ecfac585fbb",
+        "atWorldMs": 120000000,
+        "fingerprint": "1da5f888134dec0ccbbc84db8e8a87630a263c5e5cfff3c4cce2931152db2293",
+        "memoryFingerprint": "0042988e4ecabd480b3290d2c9b62faf741dca184f4dc6a77b8648838adbf94c",
         "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 750,
-        "atWorldMs": 202500000,
-        "fingerprint": "84aac7c9b8ace33906e03f013decb711a2bad087388be455a4b58685beb425a5",
-        "memoryFingerprint": "326f0bc586302f6bfcd55de1eb3bbb2ded9dd320054248a25020b719e50965e4",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 135000000,
+        "fingerprint": "7642ab21a3c3681eda3758130f443a59e3461b4f169bb9d0fc67c9edf59d17ee",
+        "memoryFingerprint": "d36e54e7e806969a7aa639f80dfc9232a87b252f5ac7f1ad93c1c14bc3a01a67",
+        "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 1000,
-        "atWorldMs": 210000000,
-        "fingerprint": "d21c342d01d9d366d564a0da45d059e0d3a224c181f0bda1b09e6cedc643cab9",
-        "memoryFingerprint": "f7ef9e05ae6bcf4b4705c0cd081cb90ae234a828c0a92504cc6f83e8567afa17",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 150000000,
+        "fingerprint": "47771d93692f5a968f852e5186c16fe28b7d874c0f3301e730ead62780210423",
+        "memoryFingerprint": "b598b0466f4c72f87f4c12be0a276a9d14a6211ab89cdc094328bbf81d82a21d",
+        "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 1250,
-        "atWorldMs": 217500000,
-        "fingerprint": "8150a51907e1c25e2ee7c589e30b0dd299a421a62814f881996a4d601041fa19",
-        "memoryFingerprint": "1046fc12e1d74026fe2bc4cb1df472c08dd3d63cd1646838eb1fa8157f737bbf",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 165000000,
+        "fingerprint": "1e8aeb62345933ebdc0ed379148f3a6f398bcd543dc11799a156336bf6765c97",
+        "memoryFingerprint": "b4ca7cc21baed72091ca54e454fa2debd17ce42e4d6302a7ac7e771e66ad5e69",
+        "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
       },
       {
         "step": 1500,
-        "atWorldMs": 225000000,
-        "fingerprint": "edc7c90bba6e6faca738a139363cc50558c6cc1be308c61c8af56d3b876b4757",
-        "memoryFingerprint": "1c01deceb3cf8a6338e5203d369d72bef8756cecbf6cfc25a64866271713f46a",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 180000000,
+        "fingerprint": "f52dff75aaec1c58582408a904d8ddb5dd5535e4ccfc7221891657b5d1939f4a",
+        "memoryFingerprint": "eea92424faff3eab4d54392b4ef3c745da0ba28b78d642e0db4605b9514a621f",
+        "creatorFingerprint": "02d687e85f5aeb6ac9c648c5718081ec165e5c1ab92a92c9db343fe9865a6e41"
       },
       {
         "step": 1750,
-        "atWorldMs": 232500000,
-        "fingerprint": "95ddefaecdea4c3eb53658f7401627300884f87ec55292575f681e34db6e3fb6",
-        "memoryFingerprint": "50f43098c4fe8a21bfb5b22ed8e689b374175197069085bbdc368e0cb8ce6628",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 195000000,
+        "fingerprint": "c91bddd8b4b80a96dc3dbd55cd6c6c028d28ca0a6e871ed4717de4c955aa07c1",
+        "memoryFingerprint": "64e3ca4dc984af15e25188c5485a139c5696f4f1f550af3ac216ad534f0673c2",
+        "creatorFingerprint": "02d687e85f5aeb6ac9c648c5718081ec165e5c1ab92a92c9db343fe9865a6e41"
       },
       {
         "step": 2000,
-        "atWorldMs": 240000000,
-        "fingerprint": "75595a18e6a231b827a80248b38f31804ec584935e9b8bd097f6209feb9c2075",
-        "memoryFingerprint": "e71fba409be21b986a38cc8a0833bf6630d3ec831f8a4e2238b3dd85279548c0",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 210000000,
+        "fingerprint": "d6981dc08b5d9a3724c4131c99c3b3ae017cb3a6f99573e5c2a241bcfd34e653",
+        "memoryFingerprint": "af12e2fecc047d6b858e30753488bfc83663ff0921d7676fc6780548c760161a",
+        "creatorFingerprint": "02d687e85f5aeb6ac9c648c5718081ec165e5c1ab92a92c9db343fe9865a6e41"
       },
       {
         "step": 2250,
-        "atWorldMs": 247500000,
-        "fingerprint": "e27736301fd7638bfabe7c3f5e6dda22b581d1039fb1fb1aa378d083746c9372",
-        "memoryFingerprint": "338cddbf66b74a209cb9168f83acedf00f39fdee507a1cffe555d747e2496129",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 225000000,
+        "fingerprint": "acbd5b67462088f331a8443b21e14261b0f1804da5261bd0b1847eee30a6f3dc",
+        "memoryFingerprint": "ba68cdae44164bcc7ce4d4d3e7209b50c88a2a5fc6dfbc6e16c71ab2f14928c9",
+        "creatorFingerprint": "02d687e85f5aeb6ac9c648c5718081ec165e5c1ab92a92c9db343fe9865a6e41"
       },
       {
         "step": 2500,
-        "atWorldMs": 255000000,
-        "fingerprint": "ccd515d951344087ac0b04b55997534930b293e830786858399bb57577abc468",
-        "memoryFingerprint": "ccc84d557438bcccc80a7419fbe214acf1640e53b3a9a973b09d20fbff38cfc8",
-        "creatorFingerprint": "353ca0ca6fe7ff53be4937ba8779e113251f140e98d01d2f146455402e634918"
+        "atWorldMs": 240000000,
+        "fingerprint": "33b11010f95d34bbd15818a401d5b8580dbc80da25426a7edd847ea92306f396",
+        "memoryFingerprint": "de430939cd1ba58dd01bb25d1d1e3fe5dc4b2ce739f5dbef5952d5ba7c50996a",
+        "creatorFingerprint": "02d687e85f5aeb6ac9c648c5718081ec165e5c1ab92a92c9db343fe9865a6e41"
       },
       {
         "step": 2750,
-        "atWorldMs": 262500000,
-        "fingerprint": "81bf99a0303b16e3e9def2f08538fce2b8618cc76bc9c8b5409805d06ab47083",
-        "memoryFingerprint": "f833fec017736aa1965929e8a7783991fe7b6941d82c295470a8319b652b0da6",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
+        "atWorldMs": 255000000,
+        "fingerprint": "b64af4af6e49855422c256d44a8b3b381efb4ee36d3137f4fd4bfcce8fc036c1",
+        "memoryFingerprint": "1e7946d1e46d188e1fadd4d7531ca6d558b42d7c606fd937db32f6b199fc8667",
+        "creatorFingerprint": "02d687e85f5aeb6ac9c648c5718081ec165e5c1ab92a92c9db343fe9865a6e41"
       },
       {
         "step": 3000,
         "atWorldMs": 270000000,
-        "fingerprint": "1afbc893599d8fa8cf417f270ca884ba5b6cc0ebcf18a4e1a058aa4f2bc8557c",
-        "memoryFingerprint": "ebfb4afa230e14a47fd7f948e5085072461a6da137b836e236e6f6adf4233a8d",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 3250,
-        "atWorldMs": 277500000,
-        "fingerprint": "eee278cae3d798b70efb3aa96158108c173ea446fa5a1866433424306e140501",
-        "memoryFingerprint": "ce4183acf8f1e6253dbd2ca7e89d685ba2f3184ec7a97d308f92c14c7fb4331e",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 3500,
-        "atWorldMs": 285000000,
-        "fingerprint": "73287bb1e78bc8cac6edc76e10ab1e86865ef35856cc3bb9b3b510c7cdb16287",
-        "memoryFingerprint": "eb6ed805d533ab47c3c42520346ac99e0282421b28b4898ce37bd2a49f1de4ba",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 3750,
-        "atWorldMs": 292500000,
-        "fingerprint": "ad52452399474fd02e4b5a065d696098185cf10539922d924901c2ae24c98219",
-        "memoryFingerprint": "34f1ea4346a3600b7aa48f954a5973310c1c7f5d10a7d8c4c4f171a3440432e1",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 4000,
-        "atWorldMs": 300000000,
-        "fingerprint": "ea78959b7f2f6d5f9459f96ee6cda91cad87aadcadfd3ad66b5d84ff95e5bb5f",
-        "memoryFingerprint": "0f61963420a125b4a6a6007a60cc77a59e6da29f94fe3efc40ef8edebe62ebff",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 4250,
-        "atWorldMs": 307500000,
-        "fingerprint": "3ab06c95cff029c277191857b79b296960d4692d1a3819ad9bc34f2c70347d5f",
-        "memoryFingerprint": "c6d75bfbe9d05781fe4df154a4627262dbc65a93e61d6d9e0caed26fc0a262a9",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 4500,
-        "atWorldMs": 315000000,
-        "fingerprint": "01b97cba795e1511bcb07b4656408f0ed5aa2bb74a461e5ba82c77b2a3d8f072",
-        "memoryFingerprint": "214c653842e026a56a44f4d3236e6193d8046d36ab8ae3c14d44d4d7ed3fb197",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 4750,
-        "atWorldMs": 322500000,
-        "fingerprint": "32e1af49b9533418b0ff8826ea4903384fb5adfbb96dc3ad10e58d96c4665970",
-        "memoryFingerprint": "46cf9e5b43eda43aece7a36ceed5ab035bd9caf58954446e55a835c618cf24ea",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 5000,
-        "atWorldMs": 330000000,
-        "fingerprint": "2e48769abee700798a36d722720fdaa581419a4d6e68fd3e3513a41f2155fec5",
-        "memoryFingerprint": "f7ce138aa97adf79ebd660328f89031eef515a1739a87291a9f789ea85c53690",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 5250,
-        "atWorldMs": 337500000,
-        "fingerprint": "e8cb02afe4354758d439a11dbda47792f373acb8fee70a0d0d6efd7c3d57b3d7",
-        "memoryFingerprint": "faf230c7b7412f5a38e18fa30fa16a5c4bcac50ae598ba0afcb9d2ee05018f6d",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 5500,
-        "atWorldMs": 345000000,
-        "fingerprint": "edba6378b757d698b63693ff963dc84badf0f47076f4c69ff29793788429e114",
-        "memoryFingerprint": "de5386766c98675e8f81c5df42e44f087400b8a88b5d40b5940c7e11aa6ce8e9",
-        "creatorFingerprint": "6edff7ffe92f95651c529f4183abb97960a690da665ff18cd3a9b892fc236bb6"
-      },
-      {
-        "step": 5750,
-        "atWorldMs": 352500000,
-        "fingerprint": "9a218bc6518aeb6e169abdcc832de4cf344d8396e73dc31cd0917e8b5572775c",
-        "memoryFingerprint": "3d7991f47c56f434bc81c7f2a60d48a1b666ab4a6a37051f939ecdd3c1ff3338",
-        "creatorFingerprint": "3060abe318a563126f7b561fde39dca56c4254bf75146083811657ac9476e0e5"
-      },
-      {
-        "step": 6000,
-        "atWorldMs": 360000000,
-        "fingerprint": "e25d22b5ee944d0c91e5517bd7f07b73af16b7a689477758a526ba46b3b304df",
-        "memoryFingerprint": "cd9c1cb912cd3ce844b2d125a021ef9a919be341778ca24cca2d04bbb927cc46",
-        "creatorFingerprint": "3060abe318a563126f7b561fde39dca56c4254bf75146083811657ac9476e0e5"
+        "fingerprint": "11e033befb6a7deaa90c5e324a3cbb778a398173ccb9206598184944a3ccc541",
+        "memoryFingerprint": "a3728a32fccd3bb5e41f9ea9a49fbcf0fdc065c562c817ce4b89e397f374a295",
+        "creatorFingerprint": "bc213ee4343631a5f714bbbd70246e1c4a381ca74c2141634a723610d0ec1f7b"
       }
     ],
     "memory": {
-      "fingerprint": "cd9c1cb912cd3ce844b2d125a021ef9a919be341778ca24cca2d04bbb927cc46",
+      "fingerprint": "a3728a32fccd3bb5e41f9ea9a49fbcf0fdc065c562c817ce4b89e397f374a295",
       "business": {
-        "lastClosedDay": 4,
-        "currentDay": 4,
+        "lastClosedDay": 3,
+        "currentDay": 3,
         "holders": 4,
-        "facts": 17,
-        "entries": 9,
-        "claims": 2,
-        "beliefs": 5,
-        "traces": 4,
+        "facts": 45,
+        "entries": 41,
+        "claims": 31,
+        "beliefs": 11,
+        "traces": 6,
         "landmarks": 2,
         "turningPoints": 0,
+        "bonds": 1,
+        "moods": 2,
+        "bondTrustSum": -0.24,
+        "moodValenceSum": 0.279473,
         "legends": 0,
         "placeNames": 2,
         "announcements": 0,
-        "written": 2,
+        "written": 6,
         "credibility": 0,
         "metToday": 1
       }
     },
     "creator": {
-      "fingerprint": "3060abe318a563126f7b561fde39dca56c4254bf75146083811657ac9476e0e5",
+      "fingerprint": "bc213ee4343631a5f714bbbd70246e1c4a381ca74c2141634a723610d0ec1f7b",
       "business": {
         "dayCloses": [
           {
+            "day": 2,
+            "vitals": {
+              "meanValence": 0.0608,
+              "meanArousal": 0.3611,
+              "infoEntropy": 0.4895,
+              "isolatedHoldersCount": 0
+            },
+            "shouldInject": false,
+            "eventKind": null,
+            "reasoning": "世界状态健康，无需干预",
+            "fuse": {
+              "action": "requireReview",
+              "reason": "L0 阶段所有生成都要人工逐项确认",
+              "suggestedLevel": null
+            },
+            "proposal": {
+              "templateId": "homestead_far",
+              "at": {
+                "x": 68,
+                "y": 44
+              },
+              "reason": "第 2 天还缺「远郊农舍」，在 (68,44) 找到了合规落点"
+            },
+            "autoEnqueued": false
+          },
+          {
             "day": 3,
             "vitals": {
-              "meanValence": 0.7267,
-              "meanArousal": 0.6,
-              "infoEntropy": 0.3,
+              "meanValence": 0.0698,
+              "meanArousal": 0.3462,
+              "infoEntropy": 0.4,
               "isolatedHoldersCount": 0
             },
             "shouldInject": false,
@@ -511,38 +588,26 @@
               "reason": "第 3 天还缺「文档磨坊」，在 (18,46) 找到了合规落点"
             },
             "autoEnqueued": false
-          },
-          {
-            "day": 4,
-            "vitals": {
-              "meanValence": 0.54,
-              "meanArousal": 0.5714,
-              "infoEntropy": 0,
-              "isolatedHoldersCount": 0
-            },
-            "shouldInject": false,
-            "eventKind": null,
-            "reasoning": "世界状态健康，无需干预",
-            "fuse": {
-              "action": "requireReview",
-              "reason": "L0 阶段所有生成都要人工逐项确认",
-              "suggestedLevel": null
-            },
-            "proposal": {
-              "templateId": "ink_house",
-              "at": {
-                "x": 35,
-                "y": 42
-              },
-              "reason": "第 4 天还缺「抄书斋」，在 (35,42) 找到了合规落点"
-            },
-            "autoEnqueued": false
           }
         ],
         "proposals": [
           {
             "day": 2,
-            "atWorldMs": 199980000,
+            "atWorldMs": 172800000,
+            "source": "dayClose",
+            "templateId": "homestead_far",
+            "at": {
+              "x": 68,
+              "y": 44
+            },
+            "reason": "第 2 天还缺「远郊农舍」，在 (68,44) 找到了合规落点",
+            "accepted": false,
+            "instanceId": null,
+            "fuseAction": "requireReview"
+          },
+          {
+            "day": 2,
+            "atWorldMs": 179940000,
             "source": "creatorBuild",
             "templateId": "code_forge",
             "at": {
@@ -564,20 +629,6 @@
               "y": 46
             },
             "reason": "第 3 天还缺「文档磨坊」，在 (18,46) 找到了合规落点",
-            "accepted": false,
-            "instanceId": null,
-            "fuseAction": "requireReview"
-          },
-          {
-            "day": 4,
-            "atWorldMs": 345600000,
-            "source": "dayClose",
-            "templateId": "ink_house",
-            "at": {
-              "x": 35,
-              "y": 42
-            },
-            "reason": "第 4 天还缺「抄书斋」，在 (35,42) 找到了合规落点",
             "accepted": false,
             "instanceId": null,
             "fuseAction": "requireReview"

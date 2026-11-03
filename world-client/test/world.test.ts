@@ -25,7 +25,11 @@ const raw = JSON.parse(
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(raw);
 
-const STEP = 100;
+/**
+ * 跑世界的步长。节奏改到「一格一世界分钟」之后，一步 1 世界秒（1000ms）才够
+ * 让走路在有限拍数里完成；100ms 一步要 600 拍才走一格。
+ */
+const STEP = 1000;
 
 interface Rig {
   readonly sim: Simulation;
@@ -54,7 +58,7 @@ function makeRig(): Rig {
     tick(ms: number) {
       sim.update(ms);
     },
-    runUntil(predicate, limitMs = 60_000) {
+    runUntil(predicate, limitMs = 5_000_000) {
       let elapsed = 0;
       while (!predicate()) {
         if (elapsed >= limitMs) throw new Error(`超时：状态 ${JSON.stringify(sim.snapshot().villager)}`);
@@ -429,7 +433,7 @@ function makeBothBusy(rig: Rig): void {
   rig.sim.update(16);
   rig.sim.enqueue({ kind: 'dispatch', taskKind: 'research', summary: '查一下' });
   rig.sim.update(16);
-  rig.runUntil(() => rig.state().villagers.every((item) => item.mode === 'working'), 20_000);
+  rig.runUntil(() => rig.state().villagers.every((item) => item.mode === 'working'), 5_000_000);
 }
 
 test('两个角色各有一条独立作息，派活只叫一个', () => {
@@ -475,7 +479,7 @@ test('角色数量可配置：传 3 个名字就是 3 个人', () => {
 test('一人在工坊、一人在祭坛；第二单交给另一个空闲角色', () => {
   const rig = makeRig();
   rig.sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写一个脚本' });
-  rig.runUntil(() => rig.state().villager.mode === 'working', 20_000);
+  rig.runUntil(() => rig.state().villager.mode === 'working', 5_000_000);
   let state = rig.state();
   assert.equal(state.villagers[0]?.mode, 'working');
   assert.equal(state.villagers[1]?.mode, 'idle', '另一个人还在祭坛');
@@ -485,7 +489,7 @@ test('一人在工坊、一人在祭坛；第二单交给另一个空闲角色',
   rig.sim.update(16);
   rig.runUntil(
     () => rig.state().villagers.every((item) => item.mode === 'working'),
-    20_000,
+    5_000_000,
   );
   state = rig.state();
   const workers = state.villagers.map((item) => item.taskId);
@@ -513,7 +517,7 @@ test('两个角色都忙时新神谕进队列，交付后自动开工', () => {
   rig.sim.update(16);
   rig.runUntil(
     () => rig.state().tasks[2]?.status === 'in_progress',
-    20_000,
+    5_000_000,
   );
   const state = rig.state();
   assert.equal(state.pending.length, 0, '出队后队列清空');
@@ -630,7 +634,7 @@ test('上游优先：空闲时先派上游单，oracle 排队单继续等', () =
     () =>
       rig.state().villagers[0]?.taskId === 'c_up' &&
       (rig.state().villagers[0]?.mode === 'saluting' || rig.state().villagers[0]?.mode === 'toWork'),
-    20_000,
+    5_000_000,
   );
   const state = rig.state();
   assert.equal(state.villagers[0]?.taskId, 'c_up', '上游单先派给空出来的人');
@@ -651,10 +655,10 @@ test('行礼还没出发时上游收工：取消行礼、清路线，不残留�
   assert.equal(state.villager.bubble, '任务交付！');
 
   // 交付完回祭坛；再派一单走新路线，不残留上一单的 pendingRoute。
-  rig.runUntil(() => rig.state().villager.mode === 'idle', 20_000);
+  rig.runUntil(() => rig.state().villager.mode === 'idle', 5_000_000);
   rig.sim.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '新活' });
   rig.sim.update(16);
-  rig.runUntil(() => rig.state().villager.mode === 'working', 20_000);
+  rig.runUntil(() => rig.state().villager.mode === 'working', 5_000_000);
   assert.equal(rig.state().tasks.at(-1)?.summary, '新活');
 });
 
@@ -826,7 +830,7 @@ test('下雨：户外的人当场改主意去躲雨，天晴后恢复日常', ()
   assert.equal(rig.state().villager.mode, 'sheltering');
   assert.equal(rig.state().villager.umbrella, true);
 
-  rig.runUntil(() => rig.state().villager.mode === 'idle', 20_000);
+  rig.runUntil(() => rig.state().villager.mode === 'idle', 5_000_000);
   assert.equal(rig.state().villager.routine, '在屋檐下看雨');
 
   rig.sim.enqueue({ kind: 'setWeather', weather: 'clear' });
@@ -856,8 +860,8 @@ test('交付攒够里程碑，世界里多一件东西，且不重复', () => {
   const tasks = Math.ceil(MILESTONE_POINTS / POINTS_PER_TASK);
   for (let i = 0; i < tasks; i += 1) {
     rig.sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: `小事 ${i}` });
-    rig.runUntil(() => rig.state().villager.mode === 'working', 5000);
-    rig.runUntil(() => rig.state().villager.mode === 'idle', 10_000);
+    rig.runUntil(() => rig.state().villager.mode === 'working', 5_000_000);
+    rig.runUntil(() => rig.state().villager.mode === 'idle', 5_000_000);
   }
   const state = rig.state();
   assert.equal(state.faith.milestones, 1);

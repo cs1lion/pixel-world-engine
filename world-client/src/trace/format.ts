@@ -68,6 +68,31 @@ export type TraceInjection =
         /** 人给的来由。省略时用计划里的模板名。 */
         readonly summary?: string;
       };
+    }
+  | {
+      /**
+       * 记忆层注入：直接走 `MemoryRuntime.observe` 的公开边界。
+       *
+       * 为什么需要它：关系账本（`bonds`）只由「目击者看见某个角色做了高显著度
+       * 的事」推动，而纯世界事件里的造物/天气 `actors` 是空的——不构造一条
+       * 带 actor 与 witnesses 的观察，就没办法在轨迹里把正/负关系与情绪真的
+       * 走一遍。这不是绕开世界：`observe` 本来就是世界把事交给记忆层的那扇门。
+       */
+      readonly seq: number;
+      readonly atWorldMs: number;
+      readonly kind: 'memory';
+      readonly payload: {
+        readonly eventId: string;
+        readonly memoryKind: string;
+        readonly placeId: string;
+        readonly at: { readonly x: number; readonly y: number };
+        readonly actors: readonly string[];
+        readonly witnesses?: readonly string[];
+        readonly what?: string;
+        readonly valence?: number;
+        readonly arousal?: number;
+        readonly importanceHint?: number;
+      };
     };
 
 /**
@@ -141,6 +166,14 @@ export interface TraceMemoryBusiness {
   readonly traces: number;
   readonly landmarks: number;
   readonly turningPoints: number;
+  /** 方向性关系账本条数（`memorySchemaVersion >= 4`）。 */
+  readonly bonds: number;
+  /** 当前情绪条数（每个角色一条）。 */
+  readonly moods: number;
+  /** 所有 bond 的 trust 之和。只是读数，精确值由记忆指纹覆盖。 */
+  readonly bondTrustSum: number;
+  /** 所有 mood 的 valence 之和。只是读数，精确值由记忆指纹覆盖。 */
+  readonly moodValenceSum: number;
   readonly legends: number;
   readonly placeNames: number;
   readonly announcements: number;
@@ -461,8 +494,9 @@ function injectionProblems(injections: readonly unknown[], raw: Record<string, u
       && injection.kind !== 'intent'
       && injection.kind !== 'command'
       && injection.kind !== 'creatorBuild'
+      && injection.kind !== 'memory'
     ) {
-      problems.push(`${label}.kind 只能是 weather / intent / command / creatorBuild`);
+      problems.push(`${label}.kind 只能是 weather / intent / command / creatorBuild / memory`);
       continue;
     }
     const payload = injection.payload;
@@ -486,6 +520,34 @@ function injectionProblems(injections: readonly unknown[], raw: Record<string, u
       if (!isPoint(body.at)) problems.push(`${label}.payload.at 必须是 { x, y }`);
       if (body.summary !== undefined && typeof body.summary !== 'string') {
         problems.push(`${label}.payload.summary 必须是字符串`);
+      }
+    } else if (injection.kind === 'memory') {
+      if (typeof body.eventId !== 'string' || body.eventId.trim() === '') {
+        problems.push(`${label}.payload.eventId 必须是非空字符串`);
+      }
+      if (typeof body.memoryKind !== 'string' || body.memoryKind.trim() === '') {
+        problems.push(`${label}.payload.memoryKind 必须是非空字符串`);
+      }
+      if (typeof body.placeId !== 'string' || body.placeId.trim() === '') {
+        problems.push(`${label}.payload.placeId 必须是非空字符串`);
+      }
+      if (!isPoint(body.at)) problems.push(`${label}.payload.at 必须是 { x, y }`);
+      if (!Array.isArray(body.actors) || body.actors.some((item) => typeof item !== 'string')) {
+        problems.push(`${label}.payload.actors 必须是字符串数组`);
+      }
+      if (
+        body.witnesses !== undefined
+        && (!Array.isArray(body.witnesses) || body.witnesses.some((item) => typeof item !== 'string'))
+      ) {
+        problems.push(`${label}.payload.witnesses 必须是字符串数组`);
+      }
+      for (const key of ['valence', 'arousal', 'importanceHint'] as const) {
+        if (body[key] !== undefined && typeof body[key] !== 'number') {
+          problems.push(`${label}.payload.${key} 必须是数字`);
+        }
+      }
+      if (body.what !== undefined && typeof body.what !== 'string') {
+        problems.push(`${label}.payload.what 必须是字符串`);
       }
     } else {
       const command = body.command;

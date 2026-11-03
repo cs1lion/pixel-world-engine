@@ -93,7 +93,7 @@ test('只剩呼吸段里的人：神谕排给她，等她走出留白才开工',
   // 而用户看到的是「已经排上了」。
   let started = false;
   for (let i = 0; i < 600 && !started; i += 1) {
-    sim.update(16);
+    sim.update(1000);
     if (sim.snapshot().villagers[0]!.taskId !== null) started = true;
   }
   assert.ok(started, '走出留白后排着的活要开工');
@@ -136,7 +136,7 @@ test('呼吸段里的人不去举急件：留白里不弹提示', () => {
 
   let sawBearer = false;
   for (let i = 0; i < 200; i += 1) {
-    sim.update(100);
+    sim.update(1000);
     if (sim.snapshot().villagers.some((v) => v.mode === 'bearingDecree')) sawBearer = true;
   }
   assert.equal(sawBearer, false, '所有人都站在一片留白里，不该有人跑去举急件');
@@ -157,7 +157,7 @@ test('没有呼吸段时照旧有人举急件：这道门不是凭空多出来�
 
   let sawBearer = false;
   for (let i = 0; i < 200; i += 1) {
-    sim.update(100);
+    sim.update(1000);
     if (sim.snapshot().villagers.some((v) => v.mode === 'bearingDecree')) sawBearer = true;
   }
   assert.ok(sawBearer, '没声明 breathing 的老区域照旧弹提示');
@@ -185,7 +185,7 @@ test('呼吸段里的猫和外头的猫同一时刻走：留白不赶氛围', ()
   /** 数到猫不见的那一拍。400 拍 × 100ms 够它走完整个 dwell。 */
   const ticksUntilGone = (sim: Simulation): number => {
     for (let i = 1; i <= 400; i += 1) {
-      sim.update(100);
+      sim.update(1000);
       if (sim.snapshot().critters.length === 0) return i;
     }
     return -1;

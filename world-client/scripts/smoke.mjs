@@ -112,7 +112,11 @@ const measureOverlayFit = async () => {
   };
 };
 
-const waitFor = async (predicate, label, timeout = 25000) => {
+// 节奏 60 的观察窗口：步行一格 1 世界分钟 = 1 现实秒，镇内单程约 5 秒、
+// 郊野单程约 25–30 秒；长活本身 code 30 分钟、research 20、writing 15。
+// 「赶路 + 干活 + 回程」一轮可以到 80 秒以上，原来的 25 秒默认窗口是按
+// 6 倍速定的。条件一个字不改，只把等待上限放宽到 120 秒。
+const waitFor = async (predicate, label, timeout = 120000) => {
   const started = Date.now();
   for (;;) {
     const snapshot = await state();
@@ -298,14 +302,27 @@ async function runSandboxSuite() {
     '状态行显示多角色摘要',
   );
   // 她自己会动，不是屏保。
+  //
+  // 节奏 60 之后不能再用「等 3.2 秒再取一次位置」：她走完一趟只要十来秒，
+  // 之后会在落脚点待机到下一段行程（dwell 最长 40 世界分钟 = 40 现实秒），
+  // 固定窗口正好落在待机段就会误判成屏保。改成从当前位置起等一次真实位移，
+  // 判定条件（位移 > 0.2 格或离开 idle）不变，只把观察窗口放宽到 60 秒。
   const before = opening.villager.pos;
-  await page.waitForTimeout(3200);
+  const moved = await page
+    .waitForFunction(
+      ({ x, y }) => {
+        const view = window.Oracle.view();
+        const dx = view.villager.pos.x - x;
+        const dy = view.villager.pos.y - y;
+        return Math.hypot(dx, dy) > 0.2 || view.villager.mode !== 'idle';
+      },
+      { x: before.x, y: before.y },
+      { timeout: 120000 },
+    )
+    .then(() => true)
+    .catch(() => false);
   const wandering = await state();
-  const moved = Math.hypot(
-    wandering.villager.pos.x - before.x,
-    wandering.villager.pos.y - before.y,
-  );
-  check(moved > 0.2 || wandering.villager.mode !== 'idle', '没人管的时候她会自己走动');
+  check(moved, '没人管的时候她会自己走动');
   check(
     wandering.villagers.every((item) => typeof item.routine === 'string'),
     '两个角色各自有独立作息',
@@ -364,35 +381,48 @@ async function runSandboxSuite() {
   );
 
   // 一句代码活：行礼 → 赶路 → 开工。派活只叫一个人。
+  //
+  // 行礼与气泡在 60× 下只活一个逻辑步（约 60–100ms 实时）。**先把 rAF 采样
+  // 装上、再点提交**：等 click 返回后才装，安装本身的 IPC 就可能跨过那一拍。
+  // 采样把快照与 DOM overlay 一起取回来，回执随后再核对（它不会因晚读消失）。
+  const salutePromise = page.waitForFunction(
+    () => {
+      const snapshot = window.Oracle.view();
+      if (snapshot.villager.mode !== 'saluting') return false;
+      const bubbles = [...document.querySelectorAll('#world-overlay .overlay-bubble')];
+      const shown = bubbles.filter((node) => node.style.display !== 'none');
+      const names = [...document.querySelectorAll('#world-overlay .overlay-name')];
+      return {
+        snapshot,
+        overlay: {
+          texts: shown.map((node) => node.textContent),
+          shown: shown.length,
+          hiddenNames: names.filter((node) => node.style.display === 'none').length,
+        },
+      };
+    },
+    null,
+    { timeout: 120000 },
+  );
   await page.fill('#utterance', '帮我写个爬虫脚本');
   await page.click('button[type="submit"]');
-  // 先等行礼、再等回执：回执与行礼在同一拍出现，先等回执会把等待时间
-  // 叠在 700ms 的窗口前面，窗口一过就只剩 toWork。顺序反过来，窗口由
-  // 世界时间自己撑住，回执随后再核对（它不会因为晚读而消失）。
-  const saluting = await waitFor((s) => s.villager.mode === 'saluting', '她停下手里的事行礼');
-  await page.waitForFunction(
-    () => (document.querySelector('#reply')?.textContent ?? '').includes('神谕已送达'),
-    null,
-    { timeout: 5000 },
-  );
-  check(true, '界面回了世界结算后的神谕回执');
+  const salute = await salutePromise.then((handle) => handle.jsonValue());
+  checks.push('她停下手里的事行礼');
+  const saluting = salute.snapshot;
+  const overlayBubble = salute.overlay;
   check(saluting.villager.bubble !== null, '行礼时头上有字');
-  const overlayBubble = await page.evaluate(() => {
-    const bubbles = [...document.querySelectorAll('#world-overlay .overlay-bubble')];
-    const shown = bubbles.filter((node) => node.style.display !== 'none');
-    const names = [...document.querySelectorAll('#world-overlay .overlay-name')];
-    return {
-      texts: shown.map((node) => node.textContent),
-      shown: shown.length,
-      hiddenNames: names.filter((node) => node.style.display === 'none').length,
-    };
-  });
   check(
     overlayBubble.shown >= 1 &&
       overlayBubble.texts.some((text) => (text ?? '').includes('吾神降旨')),
     '气泡在 DOM overlay 里显示（canvas 无中文）',
   );
   check(overlayBubble.hiddenNames >= 1, '有气泡时对应名字让位');
+  await page.waitForFunction(
+    () => (document.querySelector('#reply')?.textContent ?? '').includes('神谕已送达'),
+    null,
+    { timeout: 5000 },
+  );
+  check(true, '界面回了世界结算后的神谕回执');
   await page.screenshot({ path: `${OUT}/01-salute.png` });
 
   const working = await waitFor((s) => s.villager.mode === 'working', '她走进铺子开始干活');
@@ -412,7 +442,19 @@ async function runSandboxSuite() {
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/02-working.png` });
 
-  const delivering = await waitFor((s) => s.villager.mode === 'delivering', '活干完，她出门交付');
+  // 交付与冷却也在 60× 下只活一个逻辑步；抓「第一次进入 delivering」那一拍，
+  // 否则冷却已经过期，后面的断言会读到空。
+  const delivering = await page
+    .waitForFunction(
+      () => {
+        const snapshot = window.Oracle.view();
+        return snapshot.villager.mode === 'delivering' ? snapshot : false;
+      },
+      null,
+      { timeout: 120000 },
+    )
+    .then((handle) => handle.jsonValue());
+  checks.push('活干完，她出门交付');
   check(delivering.villager.visible === true, '交付时人重新出现在画面里');
   check(delivering.tasks[0]?.status === 'done', '世界的单列表里这单已完成');
   check(
@@ -454,8 +496,18 @@ async function runSandboxSuite() {
   check(true, '状态行显示排队数');
 
   // 「现实完成」可指定角色（id 或名字）且只对沙盒单生效。
+  // 人工交付的 delivering 同样只活一个逻辑步：先装 rAF 采样再 finish。
+  const manualPromise = page.waitForFunction(
+    () => {
+      const snapshot = window.Oracle.view();
+      return snapshot.villager.mode === 'delivering' ? snapshot : false;
+    },
+    null,
+    { timeout: 120000 },
+  );
   await page.evaluate(() => window.Oracle.finish('v0'));
-  const manual = await waitFor((s) => s.villager.mode === 'delivering', '人工交付也能结束这单');
+  const manual = await manualPromise.then((handle) => handle.jsonValue());
+  checks.push('人工交付也能结束这单');
   check(manual.tasks[1]?.status === 'done', '人工交付对沙盒单生效');
   const manualReply = await page.textContent('#reply');
   check(
@@ -470,7 +522,7 @@ async function runSandboxSuite() {
   check(manual.deliveriesByVillager[0]?.local >= 1, '交付归属到指定角色');
 
   // 按名字指定另一个人：只收阿雾那单。
-  await waitFor((s) => s.villagers[1]?.mode === 'working', '助手也在干活', 20000);
+  await waitFor((s) => s.villagers[1]?.mode === 'working', '助手也在干活');
   await page.evaluate(() => window.Oracle.finish('阿雾'));
   await page.waitForFunction(
     () => (document.querySelector('#reply')?.textContent ?? '').includes('阿雾'),
@@ -488,7 +540,6 @@ async function runSandboxSuite() {
   const queuedStarted = await waitFor(
     (s) => s.tasks.length === 4 && s.tasks[3]?.status === 'in_progress',
     '排队的神谕在上一单交付后自动开工',
-    20000,
   );
   check(queuedStarted.tasks[3]?.summary === '再整理一份便笺', '自动开工的是排队的那条神谕');
   check(queuedStarted.pending.length === 0, '出队后 pending 清空');
@@ -530,7 +581,6 @@ async function runSandboxSuite() {
   const routine = await waitFor(
     (s) => typeof s.villager.routine === 'string' && s.villager.routine.length > 0,
     '日常作息给出了一句可读的状态',
-    15000,
   );
   check(routine.villager.mode === 'idle', '日常状态不是被神谕打断的');
 
@@ -554,12 +604,23 @@ async function runSandboxSuite() {
   await waitFor((s) => s.weather === 'clear', '神谕让天放晴');
 
   // 造物主：扩建一栋，施工期间不接活，落成后进世界。
+  //
+  // 施工 3200 世界毫秒在 60× 下不足一个逻辑步（6000ms），快照只剩一拍；
+  // 同样先装 rAF 采样再点建造，抓「新楼已出现且仍在施工」的同一拍。
   const beforeBuild = await state();
-  await page.click('button[data-build="workshop_plot"]');
-  const building = await waitFor(
-    (s) => s.buildings.length === beforeBuild.buildings.length + 1,
-    '造物主落下一栋新楼',
+  const buildingPromise = page.waitForFunction(
+    ({ count }) => {
+      const snapshot = window.Oracle.view();
+      return snapshot.buildings.length === count + 1 && snapshot.constructions.length === 1
+        ? snapshot
+        : false;
+    },
+    { count: beforeBuild.buildings.length },
+    { timeout: 120000 },
   );
+  await page.click('button[data-build="workshop_plot"]');
+  const building = await buildingPromise.then((handle) => handle.jsonValue());
+  checks.push('造物主落下一栋新楼');
   check(building.constructions.length === 1, '新楼处于施工中');
   check(building.roads.length > beforeBuild.roads.length, '新楼自动铺出了一条路');
   await page.screenshot({ path: `${OUT}/05-build.png` });
@@ -730,12 +791,21 @@ async function runSandboxSuite() {
   await page.screenshot({ path: `${OUT}/07-debug-panel-1s.png` });
 
   // 暂停后不再重绘：先冻结，再派一单，面板内容不动。
+  // 30× 下前一段注入的活可能还没做完；先等两个人都回到空闲，否则新单一进
+  // 等待队列（pending），任务区不会多出行，断言会被误判。
+  await waitFor(
+    (s) => s.villagers.every((item) => item.mode === 'idle'),
+    '调试面板暂停前两个人都空闲',
+  );
   await page.click('#debug-pause');
   const frozen = await page.evaluate(() => ({
     tasks: document.querySelectorAll('#debug-panel [data-debug-row="task"]').length,
     stats: document.querySelector('#debug-stats')?.textContent ?? '',
   }));
-  await page.click('button[data-kind="quick"]');
+  // 暂停期间派一单，面板内容不动。用 research（40 秒）而不是 quick（10 秒）：
+  // 30× 下「暂停 700ms + 恢复 500ms」已经是 36 世界秒，quick 会在恢复前就做完，
+  // 面板里看不到新增的行。这里验的是「恢复后继续刷新」，不是活的长短。
+  await page.click('button[data-kind="research"]');
   await page.waitForTimeout(700);
   const stillFrozen = await page.evaluate(() => ({
     tasks: document.querySelectorAll('#debug-panel [data-debug-row="task"]').length,
@@ -897,13 +967,13 @@ try {
     // 产品页默认没有它们。回归脚本要驱动它们，就必须显式打开这一层。
     // 时间必须由脚本注入，不读墙钟：
     // - `time=noon` 固定昼夜阶段，画面与光照不再随本机时刻变化；
-    // - `speed=1` 让世界按 1:1 走。行礼窗口是 700ms **世界时间**，默认 6× 下
-    //   只剩约 117ms 实时——而这里断言的是「于是一个瞬时状态」，等待本身
-    //   （DOM 回执 + 轮询）就可能跨过它，于是同一份代码会在快机器上绿、
-    //   在慢机器/夜里红。1:1 让窗口回到 700ms 实时，由世界时间决定，不靠运气。
+    // - `speed=30` 是回归专用折中：1 世界分钟 = 2 现实秒，走路一格 2 秒、
+    //   code 活 60 秒；同时一个逻辑步是 3000 世界毫秒，施工（3200）还能在
+    //   快照里活一拍。按默认 60× 跑时步长 6000，施工会在同一拍内走完，
+    //   「新楼处于施工中」这条根本采不到样；按 1:1 跑则长活变成几十分钟。
     FEED
-      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&speed=1`
-      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&speed=1`,
+      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&speed=30`
+      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&speed=30`,
     { waitUntil: 'load' },
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });

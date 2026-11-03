@@ -95,8 +95,15 @@ export type WorldChange =
        * 这件事）。坐标叫 `where`。
        */
       readonly change: 'world.event';
-      /** 世界自己报的事的种类。与 `ambient.ts` 的 `AmbientKind` 同一套字面量。 */
-      readonly kind: 'tide_turn' | 'routine_done';
+      /**
+       * 世界自己报的事的种类。
+       *
+       * `tide_turn` / `routine_done` 来自 `ambient.ts` 的 `AmbientKind`；
+       * `daily_water` / `daily_lamp` 是固定时刻表里已经接通的两件每日小事
+       * （`timetable.ts`）。四个值都是闭集，服务端 `WORLD_EVENT_KINDS` 与
+       * 这里逐字一致——加一个只改一边，回写会被自己的服务端拒掉。
+       */
+      readonly kind: WorldEventKind;
       /** 一句话，玩家在事件流里读到的就是它。 */
       readonly text: string;
       /** 落点。合成地点用 `place:x,y`，楼用它的 `instanceId`。 */
@@ -155,6 +162,9 @@ export type WorldChange =
       /** 立碑那天。 */
       readonly day: number;
     };
+
+/** `world.event` 的种类闭集。服务端白名单的客户端一半。 */
+export type WorldEventKind = 'tide_turn' | 'routine_done' | 'daily_water' | 'daily_lamp';
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
 export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [

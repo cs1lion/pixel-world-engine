@@ -50,6 +50,9 @@ import {
   type FootfallDoor,
 } from './ambient.ts';
 import { routineBeats, routineFor, shelterTarget, tideBeatApplies, type RoutineBeat } from './routines.ts';
+import { PACE } from './pace.ts';
+import { DAY_MS } from './memory/config.ts';
+import { beatsBetween, isQuietAt } from './timetable.ts';
 import {
   clearWeather,
   fadingToClear,
@@ -412,7 +415,6 @@ interface WorkstationState {
   readonly totalMs: number;
 }
 
-const SPEED_CELLS_PER_SECOND = 3;
 const SALUTE_MS = 700;
 const DELIVER_MS = 1400;
 const COOLING_MS = 900;
@@ -806,14 +808,21 @@ export class Simulation {
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
-    this.stepAmbient(prevNow);
+    this.stepAmbient(prevNow); this.stepTimetable(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
       const level = effectiveTideLevel(this.now, this.tideOverride);
       for (const villager of this.villagers) {
         if (villager.mode !== 'idle' || villager.path.length > 0) continue;
         const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
-        const beat = routineFor(this.weather.kind, beats, villager.routineIndex, level);
+        const beat = routineFor(
+          this.weather.kind,
+          beats,
+          villager.routineIndex,
+          level,
+          null,
+          isQuietAt(this.now),
+        );
         // 这一拍去不了（潮位不成立）就把下一拍提前到现在：她已经到了该出发的
         // 时刻，只是世界说「现在不行」。判定走 `tideBeatApplies`，与 `routineFor`
         // 里退回锚点用的是同一个——两处各写一份字面量的话，改一处忘另一处，
@@ -2736,11 +2745,20 @@ export class Simulation {
         villager.routineIndex,
         effectiveTideLevel(this.now, this.tideOverride),
         shelterTarget(this.buildings, here),
+        isQuietAt(this.now),
       );
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat);
       if (target === null) continue;
-      if (target.x === here.x && target.y === here.y) continue;
+      if (target.x === here.x && target.y === here.y) {
+        // 安静段里所有拍都回锚点。她已经坐在锚点上时不能只走「1600ms 兜底」——
+        // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
+        if (isQuietAt(this.now) && this.weather.kind === 'clear') {
+          villager.nextRoutineAt = this.now + PACE.quietDwellMs;
+          return;
+        }
+        continue;
+      }
       // 路先问，话后说。
       //
       // `routeTo` 的空路径有两种意思：她人已经在那儿，和根本走不到。
@@ -2786,6 +2804,7 @@ export class Simulation {
       Math.max(0, villager.routineIndex - 1),
       effectiveTideLevel(this.now, this.tideOverride),
       shelterTarget(this.buildings, here),
+      isQuietAt(this.now),
     );
     return beat.dwellMs;
   }
@@ -2851,7 +2870,8 @@ export class Simulation {
   }
 
   private walk(villager: Villager, deltaMs: number): void {
-    let budget = (SPEED_CELLS_PER_SECOND * deltaMs) / 1000;
+    // 一格一世界分钟（`pace.ts`）。`deltaMs` 是世界毫秒，所以预算是一个分数格。
+    let budget = deltaMs / PACE.walkCellMs;
     while (budget > 0 && villager.path.length > 0) {
       const next = villager.path[0] as GridPoint;
       const dx = next.x - villager.pos.x;
@@ -3574,6 +3594,54 @@ export class Simulation {
         actorId: event.actorId,
       });
     }
+  }
+
+  /**
+   * 固定时刻表：`(prevNow, now]` 里跨过的每一拍。
+   *
+   * 判据全在 `timetable.ts`（纯函数），这里只负责落地：
+   * - 每一拍先写进玩家的事件流（`log`）；
+   * - 只有 `chore` 非空的拍再 `announce` 成 `world.event`，于是它同时进
+   *   世界改变日志与记忆条目。其余拍只是旁白，**不假装做了六件还没做的小事**。
+   *
+   * 两件已接通的小事都用世界已有的位置与人物，不新增玩法：
+   * - 打水：挑一格挨着浅滩/泥地的可走格（找不到就退回祭坛）；
+   * - 点灯：祭坛边（镇子的中心，18:00 的灯本来就点在这里）。
+   */
+  private stepTimetable(prevNow: number): void {
+    for (const beat of beatsBetween(prevNow, this.now)) {
+      this.log('info', beat.text);
+      if (beat.chore === null || beat.choreText === null) continue;
+      const actor = this.villagers[Math.floor(this.now / DAY_MS) % this.villagers.length];
+      if (actor === undefined) continue;
+      const spot = beat.chore === 'water' ? this.waterSpot() : this.altar;
+      this.announce({
+        change: 'world.event',
+        kind: beat.chore === 'water' ? 'daily_water' : 'daily_lamp',
+        text: `${actor.name}${beat.choreText}`,
+        placeId: cellPlaceId(spot),
+        where: spot,
+        actorId: actor.id,
+      });
+    }
+  }
+
+  /** 挨着水边的可走格。按 y、x 顺序扫，同一份地图永远给同一格。 */
+  private waterSpot(): GridPoint {
+    for (let y = 0; y < this.grid.height; y += 1) {
+      for (let x = 0; x < this.grid.width; x += 1) {
+        const here = { x, y };
+        if (!this.grid.isWalkable(here)) continue;
+        const wet = (
+          [[1, 0], [-1, 0], [0, 1], [0, -1]] as const
+        ).some(([dx, dy]) => {
+          const neighbor = this.grid.at({ x: x + dx, y: y + dy });
+          return neighbor !== undefined && (neighbor.terrain === 'shallow' || neighbor.terrain === 'mud');
+        });
+        if (wet) return here;
+      }
+    }
+    return this.altar;
   }
 
   /**

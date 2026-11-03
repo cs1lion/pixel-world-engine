@@ -102,19 +102,21 @@ const GOING = new Set<string>([
 ]);
 
 /**
- * 三世界分钟。够她把一圈作息（祭坛→农田→街口→祭坛，`DWELL_MS` 5200 起）
- * 走完好几轮，也够天气合成那条支路轮到；再长只是让这条测试跑得更久，
- * 不增加它验得到的东西。
+ * 五十世界分钟。够她走完一段路（一格一世界分钟）并坐满一站（20–40 世界分钟），
+ * 也够天气合成那条支路轮到；再长只是让这条测试跑得更久，不增加它验得到的东西。
+ *
+ * 节奏改到「1 世界分钟 = 1 现实秒」之后，原来那 180 秒的窗口连一次最短停留都
+ * 装不下——不是放宽判据，是观察窗口必须跟着世界变慢。
  */
-const TICKS = 60 * 180;
+const TICKS = 50 * 60 * 10;
 
 /** 一次 `update` 走多久。停留的连续拍数要乘回毫秒，才跟作息表比得了。 */
-const TICK_MS = 16;
+const TICK_MS = 100;
 
 /**
  * 作息表里最短的一次停留。停留跑没跑成，拿它当尺子。
  *
- * 读数据不读字面量：`DWELL_MS` 在 `routines.ts` 里是私有常量，而这把尺子要
+ * 读数据不读字面量：`routineBeats` 的停留由 `pace.ts` 给，而这把尺子要
  * 量的正是「节拍表说要站多久」。哪天有人把某一拍调短，这里跟着动。
  */
 const MIN_DWELL_MS = Math.min(...routineBeats(ALTAR, world.grid).map((beat) => beat.dwellMs));
@@ -322,8 +324,8 @@ test('举急件跑向祭坛的路上，牌子不留在上一拍的那一处', ()
 
   let bearing = 0;
   const said: string[] = [];
-  for (let i = 0; i < 400; i += 1) {
-    sim.update(100);
+  for (let i = 0; i < 2000; i += 1) {
+    sim.update(1000);
     for (const villager of sim.snapshot().villagers) {
       if (villager.mode !== 'bearingDecree') continue;
       bearing += 1;
@@ -416,7 +418,8 @@ test('站着带牌子的时候，她真站在牌子说的那一处', () => {
     let stoodAtAltar = 0;
     let before = new Map(sim.snapshot().villagers.map((v) => [v.id, { pos: { ...v.pos } }]));
     for (let t = 0; t < TICKS; t += 1) {
-      sim.update(16);
+      // 雨现在下 2 世界小时；观察窗口要长过一场雨，才轮得到日常的牌子。
+      sim.update(1000);
       for (const villager of sim.snapshot().villagers) {
         const was = before.get(villager.id)!;
         const moved = villager.pos.x !== was.pos.x || villager.pos.y !== was.pos.y;

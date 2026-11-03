@@ -56,17 +56,18 @@ function sim(): Simulation {
 }
 
 /** 跑到她真的动起来（或超时）。返回是否等到。 */
-function tickUntilWorking(s: Simulation, done: () => boolean = () => s.snapshot().villager.mode === 'working', limitMs = 20000): boolean {
-  for (let t = 0; t < limitMs; t += 100) {
+function tickUntilWorking(s: Simulation, done: () => boolean = () => s.snapshot().villager.mode === 'working', limitMs = 400000): boolean {
+  // 一格一世界分钟；quick 现在 5 世界分钟（300 秒）。
+  for (let t = 0; t < limitMs; t += 1000) {
     if (done()) return true;
-    s.update(100);
+    s.update(1000);
   }
   return done();
 }
 
 /** 把工期过去：一拍 100ms，拍到真值过去再补几拍，宁可多等不可少等。 */
 function tickPastEstimate(s: Simulation, estimateMs: number): void {
-  for (let t = 0; t <= estimateMs + 500; t += 100) s.update(100);
+  for (let t = 0; t <= estimateMs + 500; t += 1000) s.update(1000);
 }
 
 test('上游的 quick 工期过了也不自己交付：上游没说成，就不算成', () => {

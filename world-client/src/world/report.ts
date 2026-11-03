@@ -71,9 +71,9 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     // 铺回去，全程没有 sort、没有重排），`done` 过滤一遍还是那个顺序。两个人同时
     // 干活时这两个顺序会分叉：先派下去的长活后交、后派下去的短活先交。照数组末尾
     // 取，报纸就把**先**交的那单叫「最近」——一句话说着当下，指的却是过去。
-    // 实测：长活 8500 交付、短活 3800 交付，纸上写「最近一单：短活」。
-    // 那两个数由 `test/surface.test.ts` 的「最近一单」那条按同一个夹具钉住
-    // （长活 created 100 / completed 8500，短活 created 2600 / completed 3800）。
+    // 实测：长活后交、短活先交，纸上写「最近一单：短活」。相对关系由
+    // `test/surface.test.ts` 的「最近一单」那条按同一个夹具钉住——绝对时刻随
+    // 节奏变（长活 30 世界分钟、短活 5 世界分钟），钉的是先后，不是那两个数。
     //
     // `TaskRecord` 上两个时刻戳都留着，各是各的用处：`createdAt` 是派活那一刻，
     // `completedAt` 是落成那一刻。三个收尾处写的都是 `this.now`——

@@ -172,6 +172,64 @@ test('v2 改一个记忆条目的来源并重算摘要：记忆指纹先分叉',
   assert.equal(check.divergence?.step, 0);
 });
 
+test('v2 只改一个 bond 的 trust：记忆指纹抓到，世界/造物不变', async () => {
+  const trace = readTrace(OUTER_TRACE);
+  assert.ok(trace.baseline !== undefined);
+  const save = structuredClone(trace.baseline.save) as unknown as {
+    world: { memory: string };
+  };
+  const memory = JSON.parse(save.world.memory) as {
+    world: { bonds: { trust: number }[] };
+  };
+  assert.ok(memory.world.bonds.length > 0, '基线必须已经有一本关系账');
+  memory.world.bonds[0]!.trust += 0.5;
+  save.world.memory = JSON.stringify(memory);
+  const input: TraceInput = {
+    ...trace,
+    baseline: { ...trace.baseline!, save: save as unknown as typeof trace.baseline.save },
+  };
+  const tampered: TraceFile = {
+    ...input,
+    recorded: { ...trace.recorded, inputDigest: digestOfInput(input) },
+  };
+  const check = await verifyTrace(tampered);
+  assert.equal(check.status, 'recorded-mismatch');
+  assert.equal(check.checks.memory, false);
+  assert.equal(check.checks.fingerprint, true);
+  assert.equal(check.checks.creator, true);
+  assert.equal(check.divergence?.kind, 'memory');
+  assert.equal(check.divergence?.step, 0);
+});
+
+test('v2 只改一个 mood 的 valence：记忆指纹抓到，世界/造物不变', async () => {
+  const trace = readTrace(OUTER_TRACE);
+  assert.ok(trace.baseline !== undefined);
+  const save = structuredClone(trace.baseline.save) as unknown as {
+    world: { memory: string };
+  };
+  const memory = JSON.parse(save.world.memory) as {
+    world: { moods: { valence: number }[] };
+  };
+  assert.ok(memory.world.moods.length > 0, '基线必须已经有情绪账');
+  memory.world.moods[0]!.valence -= 0.5;
+  save.world.memory = JSON.stringify(memory);
+  const input: TraceInput = {
+    ...trace,
+    baseline: { ...trace.baseline!, save: save as unknown as typeof trace.baseline.save },
+  };
+  const tampered: TraceFile = {
+    ...input,
+    recorded: { ...trace.recorded, inputDigest: digestOfInput(input) },
+  };
+  const check = await verifyTrace(tampered);
+  assert.equal(check.status, 'recorded-mismatch');
+  assert.equal(check.checks.memory, false);
+  assert.equal(check.checks.fingerprint, true);
+  assert.equal(check.checks.creator, true);
+  assert.equal(check.divergence?.kind, 'memory');
+  assert.equal(check.divergence?.step, 0);
+});
+
 test('格式不全：跑世界之前就拒', () => {
   assert.throws(
     () => validateTrace({ format: 'pwe-trace/2', traceVersion: 2 }),

@@ -70,6 +70,7 @@ test('村民：行为、目标、位置、情绪、携带、在场者态度都�
         ],
       };
     },
+    moodOf: () => ({ label: '轻快', valence: 0.45, arousal: 0.3 }),
   };
 
   const content = buildUnitStatus(worldOf(sim), { kind: 'villager', id: villager.id }, memory);
@@ -79,6 +80,7 @@ test('村民：行为、目标、位置、情绪、携带、在场者态度都�
     content.lines.find((line) => line.key === name)?.value ?? '';
   assert.ok(label('行为').length > 0, '行为必须有一句人话');
   assert.equal(label('位置'), `格子 (${Math.floor(villager.pos.x)}, ${Math.floor(villager.pos.y)})`);
+  assert.match(label('情绪'), /轻快/);
   assert.match(label('情绪'), /效价 0\.45/);
   assert.equal(label('携带'), '空手 · 无凭证');
   assert.equal(label(`对 ${other.name}`), '印象不错（1 条印象）');

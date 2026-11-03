@@ -69,6 +69,10 @@ async function main(): Promise<void> {
   assert.equal(memory.business.facts, ${check.memory.business.facts});
   assert.equal(memory.business.claims, ${check.memory.business.claims});
   assert.equal(memory.business.beliefs, ${check.memory.business.beliefs});
+  assert.equal(memory.business.bonds, ${check.memory.business.bonds});
+  assert.equal(memory.business.moods, ${check.memory.business.moods});
+  assert.equal(memory.business.bondTrustSum, ${check.memory.business.bondTrustSum});
+  assert.equal(memory.business.moodValenceSum, ${check.memory.business.moodValenceSum});
 
   // 4. 造物账：日终关账、提议、落地读数与角色门禁计数。
   const creator = check.creator;

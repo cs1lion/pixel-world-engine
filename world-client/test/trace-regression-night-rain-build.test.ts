@@ -31,9 +31,9 @@ test('轨迹回归：night-rain-build', async () => {
 
   // 2. 世界指纹 + 事件条数/摘要 + 世界业务读数。
   assert.equal(check.status, 'replayable');
-  assert.equal(check.fingerprint, '13b7dce6f9da1dec57bc47b99b3a46a0dedade0ec9b38f4e030996257a99a224');
+  assert.equal(check.fingerprint, '146ec52aa19b1b079810a93d4db9b6ce92159fcb0cb375ad5e10a435d2968b0f');
   assert.equal(check.eventCount, 6);
-  assert.equal(check.eventDigest, '115dd08dcc46d6524fa305d47c3bcd09ade07c5aea9cfab89212aa61cf379764');
+  assert.equal(check.eventDigest, '50d72a6f58c50b2cccfea3c8cf3bcf31270f18e5b3f66f018274601294369fce');
   assert.equal(check.business.buildings, 1);
   assert.equal(check.business.day, 1);
   assert.equal(check.business.weather, 'rain');

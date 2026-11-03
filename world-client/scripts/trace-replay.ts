@@ -50,6 +50,8 @@ async function main(): Promise<void> {
       `记忆指纹（第二次）：${check.memory.secondFingerprint}`,
       `记忆逐字相同：${check.memory.deterministic ? '是' : '否'}；与录制一致：${check.memory.matchesRecorded ? '是' : '否'}`,
       `记忆读数：${JSON.stringify(check.memory.business)}`,
+      `关系账本：${check.memory.business.bonds} 条，trust 合计 ${check.memory.business.bondTrustSum}；` +
+        `情绪 ${check.memory.business.moods} 条，valence 合计 ${check.memory.business.moodValenceSum}`,
     );
   }
   if (check.creator === null) {

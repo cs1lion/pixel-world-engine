@@ -221,7 +221,50 @@ export class TraceRuntime {
       this.sim.enqueue(toWorldCommand(injection.payload.command));
       return;
     }
+    if (injection.kind === 'memory') {
+      this.applyMemoryObservation(injection.payload);
+      return;
+    }
     this.applyCreatorBuild(injection.payload);
+  }
+
+  /**
+   * 一条记忆层注入：走 `MemoryRuntime.observe`，与场景 `remember()` 同一扇门。
+   *
+   * 显式给 `witnesses` 而不是靠感知模型：轨迹要能被单独复算，目击者名单
+   * 必须是输入的一部分。没给时才退回感知模型。
+   */
+  private applyMemoryObservation(payload: {
+    readonly eventId: string;
+    readonly memoryKind: string;
+    readonly placeId: string;
+    readonly at: GridPoint;
+    readonly actors: readonly string[];
+    readonly witnesses?: readonly string[];
+    readonly what?: string;
+    readonly valence?: number;
+    readonly arousal?: number;
+    readonly importanceHint?: number;
+  }): void {
+    const memory = this.memory;
+    if (memory === null) {
+      throw new TraceFormatError('轨迹里有 memory 注入，但 outer.memory 不是 true');
+    }
+    memory.observe(
+      {
+        eventId: payload.eventId,
+        kind: payload.memoryKind,
+        placeId: payload.placeId,
+        at: payload.at,
+        actors: [...payload.actors],
+        outcome: { what: payload.what ?? payload.eventId },
+        importanceHint: payload.importanceHint ?? 0.6,
+        ...(payload.valence === undefined ? {} : { valence: payload.valence }),
+        ...(payload.arousal === undefined ? {} : { arousal: payload.arousal }),
+      },
+      payload.witnesses === undefined ? undefined : [...payload.witnesses],
+      this.sim.snapshot().now,
+    );
   }
 
   private applyCreatorBuild(payload: {
@@ -628,6 +671,10 @@ export class TraceRuntime {
       traces: snapshot.world.traces.reduce((sum, item) => sum + item.entries.length, 0),
       landmarks: snapshot.world.landmarks.length,
       turningPoints: snapshot.world.turningPoints.length,
+      bonds: snapshot.world.bonds.length,
+      moods: snapshot.world.moods.length,
+      bondTrustSum: round6(snapshot.world.bonds.reduce((sum, bond) => sum + bond.trust, 0)),
+      moodValenceSum: round6(snapshot.world.moods.reduce((sum, mood) => sum + mood.valence, 0)),
       legends: snapshot.world.legends.length,
       placeNames: snapshot.world.placeNames.length,
       announcements: snapshot.world.announcements.length,
@@ -771,6 +818,10 @@ export function projectWorld(snapshot: WorldSnapshot): Record<string, unknown> {
     roads: snapshot.roads,
     trails: snapshot.trails,
   };
+}
+
+function round6(value: number): number {
+  return Number(value.toFixed(6));
 }
 
 function projectBuilding(building: PlacedBuilding): Record<string, unknown> {
