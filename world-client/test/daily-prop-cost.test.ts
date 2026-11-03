@@ -123,8 +123,11 @@ function oneDayMilliseconds(buildingIds: readonly string[], day: number): number
   return performance.now() - started;
 }
 
+/** 交错采样轮数。原先 3 轮；并行压测里 3 轮不够，见下面的注释。 */
+const INTERLEAVED_ROUNDS = 5;
+
 /**
- * 两个配置各跑三次、**交错**采样，取各自最小值。
+ * 两个配置各跑 `INTERLEAVED_ROUNDS` 轮、**交错**采样，取各自最小值。
  *
  * 原来是一个配置跑完三次再跑另一个、取中位。2026-11-01 这套测试在整套套件
  * 并行跑时红过一次（`half` 比 `all` 的两倍还贵，隔离单跑三次全绿）：`node --test`
@@ -133,19 +136,40 @@ function oneDayMilliseconds(buildingIds: readonly string[], day: number): number
  * 交错是为了让两组看到同一段机器状态；取最小值是因为噪声只会把读数往上加，
  * 最小值是这组里最接近「没有噪声时该花多少」的那个数。首跑含 JIT 预热，
  * 最小值顺带把它剔掉了。
+ *
+ * **2026-11-04 把轮数从 3 提到 5，并加了一轮不计时的预热。** 8 路并行压测
+ * 64 次仍然抓到过 `half 10.63ms / all 4.09ms`：一天的量只有 0.4~1.0ms，而
+ * 机器忙时一次调度停顿就有 5~20ms，三轮里三轮都撞上车别的进程就把最小值
+ * 抬到 10ms 以上。预热是因为首次 `dayClosed` 要付 JIT 与首次分配的钱，
+ * 这笔钱与规模无关，落在哪个配置头上哪个就显得更贵。多采几轮不改变判据
+ * （`half < all * 2` 一个字没动），只是把「一次停顿」从 1/3 稀释到 1/5。
  */
 function interleavedMinMilliseconds(
   a: readonly string[],
   b: readonly string[],
   day: number,
 ): [number, number] {
+  // 不计时的预热：把 `dayClosed` 的 JIT 与首次分配挡在采样之外。
+  oneDayMilliseconds(a, day);
+  oneDayMilliseconds(b, day);
   const as: number[] = [];
   const bs: number[] = [];
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < INTERLEAVED_ROUNDS; i += 1) {
     as.push(oneDayMilliseconds(a, day));
     bs.push(oneDayMilliseconds(b, day));
   }
   return [Math.min(...as), Math.min(...bs)];
+}
+
+/** 同一摆法采 `samples` 次取最小值；理由与 `interleavedMinMilliseconds` 相同。 */
+function minOfMilliseconds(
+  buildingIds: readonly string[],
+  day: number,
+  samples: number,
+): number {
+  const values: number[] = [];
+  for (let i = 0; i < samples; i += 1) values.push(oneDayMilliseconds(buildingIds, day));
+  return Math.min(...values);
 }
 
 test('两个出货世界的 holder 数：设定集十六个，默认世界十三个', () => {
@@ -160,8 +184,14 @@ test('两个出货世界的 holder 数：设定集十六个，默认世界十三
 
 test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5 倍之内', () => {
   // 第 1 天是永远最慢的那天（所有断言都在那天出生），所以只量它。
+  //
+  // **采三次取最小值，不是采一次。** 原先一次 `performance.now()`：一天的量
+  // 只有 0.3~0.6ms，机器忙时一次调度停顿就是 5~100ms，于是这条闸在四路并行
+  // 负载下量到的是「这一拍有没有被别的进程挤开」，不是传播的代价——2026-11-03
+  // 的压测里 10 轮红 2 轮、读数 54.62/100.28ms。噪声只会把读数往上加，
+  // 最小值才接近真实开销；`CEILING_MS` 一个字没动。
   const buildings = defaultWorldBuildingIds();
-  const day1 = oneDayMilliseconds(buildings, 1);
+  const day1 = minOfMilliseconds(buildings, 1, 3);
   assert.ok(
     day1 < CEILING_MS,
     `默认世界第 1 天花了 ${day1.toFixed(2)}ms，超过这道闸的 ${CEILING_MS}ms——`
@@ -169,8 +199,9 @@ test('一天的世界时间跑得完：默认世界最慢那天也在预算的 5
       + '真超了的话先看是不是传播改成了每步全库扫描，再回来把文件头那张表改对。',
   );
   // 顺带把「稳态比第 1 天便宜」这个形状钉住。这条不量快慢，只量方向：
-  // 库里只有遗忘没有新增，所以后面几天不该更贵。
-  const steady = oneDayMilliseconds(buildings, 6);
+  // 库里只有遗忘没有新增，所以后面几天不该更贵。两边用同一个估计量（各采三次
+  // 取最小），否则比的是「谁的样本撞上停顿」，不是两天的真实开销。
+  const steady = minOfMilliseconds(buildings, 6, 3);
   assert.ok(
     steady < day1 * 2,
     `第 6 天 ${steady.toFixed(2)}ms 比第 1 天 ${day1.toFixed(2)}ms 贵了一倍以上——`
