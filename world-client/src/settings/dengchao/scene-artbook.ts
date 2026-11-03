@@ -91,7 +91,9 @@ export const SCENE_ARTBOOK_ASSETS: readonly ArtbookAsset[] = [
     group: 'main',
     pdfPage: 'PDF p48、p23',
     features: ['煤堆分三层收顶，边缘留一线暖高光；旁边一只浅木桶，桶箍两道'],
-    placement: { kind: 'coal_heap', at: { x: 27, y: 17 } },
+    // 放在炉膛右前方的夯土上；早先写在 (27,17)，离炉口太远，进了主楼正视的
+    // 左上角，读成一团悬在竖幌上的黑影。
+    placement: { kind: 'coal_heap', at: { x: 34, y: 16 } },
   },
   {
     id: 'boiler_smoke',
