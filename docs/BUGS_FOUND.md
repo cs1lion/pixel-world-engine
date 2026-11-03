@@ -16,7 +16,7 @@
   - 期望：超过上限（建议 2000 字）拒绝并保留输入；控制字符（C0/C1、零宽方向符）拒绝或剥除。
   - 实际：10000 字照单全收；控制字符原样投递；`#utterance` 的 `maxlength` 未设。
 - **证据**：
-  - 代码：[oracle-panel.ts](../../world-client/src/ui/oracle-panel.ts#L302-L307) 只做 `text.trim()` 与空串判断，之后直接 `api.say(trimmed)`。
+  - 代码：[oracle-panel.ts](../world-client/src/ui/oracle-panel.ts#L302-L307) 只做 `text.trim()` 与空串判断，之后直接 `api.say(trimmed)`。
   - 单元：`interact-l3.test.ts` 的 `L3-1b`、`L3-1c`（`todo`）——控制字符与 10000 字均被原样投递。
   - 浏览器：`check-interact.mjs` 的 `L3-2`（空白不投递）通过；`L3-3` 记录 `10000 字 → 神谕原样收到；#utterance maxlength=未设`。
 
@@ -33,6 +33,6 @@
   - 期望：定时器触发时重新命中，指针下已经换人/空地就取消长按（与「移出即取消」同一语义）。
   - 实际：面板照开，且是对着已经离开格子的那个人开的。
 - **证据**：
-  - 代码：[SandboxScene.ts](../../world-client/src/scenes/SandboxScene.ts#L2463-L2474)，关键是 2466 行 `longPressShouldFire(LONG_PRESS_MS, still !== null)`；`still` 是按下时的引用，不是此刻指针下的单位。
+  - 代码：[SandboxScene.ts](../world-client/src/scenes/SandboxScene.ts#L2463-L2474)，关键是 2466 行 `longPressShouldFire(LONG_PRESS_MS, still !== null)`；`still` 是按下时的引用，不是此刻指针下的单位。
   - 浏览器：`check-interact.mjs` 的 `L1-10`（`todo`）：`莞尔 从格 (47,36) 走到 (46,36)，手指没动、也没有 pointermove，500ms 定时器照样开了记忆面板「莞尔」`。
   - 已有反向守卫：`interact-l1.test.ts` 的 `L1-4` 覆盖了「指针移出 → 取消」，所以缺的只是「单位移动、指针不动」这一支。
