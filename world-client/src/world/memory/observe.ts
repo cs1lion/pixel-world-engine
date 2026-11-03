@@ -52,9 +52,10 @@ export function worldEventImportance(kind: WorldEventKind): number {
     case 'tide_turn':
       return 0.35;
     case 'harbor_report':
-      // 船班播报是全镇听得见的钟，不是哪一个人的大事：比潮水重一点，
-      // 因为它带着「今天能不能过河」这句可用的信息；但仍在传说门槛之下。
-      return 0.4;
+      // 船班播报是镇子级事件，但个人记忆只记码头边在场的人。门槛要略高：
+      // 它值得记住（决定今天过不过得了河），但不是传说级；0.55 让
+      // 「看见的人」过 T_write，而不是把广播塞给全镇。
+      return 0.55;
   }
 }
 

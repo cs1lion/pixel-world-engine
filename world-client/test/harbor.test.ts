@@ -10,8 +10,10 @@ import {
   harborStateAt,
   jettyExposedCells,
   lampReflectionCells,
+  withinHarborWitnessRange,
 } from '../src/world/harbor.ts';
 import { DAY_MS } from '../src/world/memory/config.ts';
+import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { TIDE_HIGH_MIN, TIDE_LOW_MAX, tideLevelAt } from '../src/world/tide.ts';
 import { WorldGrid } from '../src/world/grid.ts';
 import { Simulation } from '../src/world/simulation.ts';
@@ -98,6 +100,49 @@ test('同一条基线跑两次，四件事与播报逐项相同', () => {
     reports: harborReportsBetween(0, DAY_MS * 2, tideAt),
   });
   assert.deepEqual(run(), run());
+});
+
+test('船班播报只进码头边在场的人：同一次靠岸 +1 / +0', () => {
+  const harborAt = { x: 15, y: 13 };
+  const dock = { id: 'dock', pos: { x: 15, y: 12 }, visible: true, mode: 'idle' as const };
+  const center = { id: 'center', pos: { x: 35, y: 30 }, visible: true, mode: 'idle' as const };
+  const sheltering = { id: 'sheltering', pos: { x: 14, y: 13 }, visible: true, mode: 'sheltering' as const };
+
+  assert.equal(withinHarborWitnessRange(dock.pos, harborAt), true);
+  assert.equal(withinHarborWitnessRange(center.pos, harborAt), false);
+  // 12 格的依据：渡口中心到镇中心 20 多格，到栈头约 8 格。
+  assert.ok(Math.hypot(center.pos.x - harborAt.x, center.pos.y - harborAt.y) > 20);
+
+  const witnesses = [dock, center, sheltering]
+    .filter((villager) => villager.visible && villager.mode !== 'sheltering')
+    .filter((villager) => withinHarborWitnessRange(villager.pos, harborAt))
+    .map((villager) => villager.id);
+  assert.deepEqual(witnesses, ['dock']);
+
+  const runtime = new MemoryRuntime({ worldId: 'harbor-witness' });
+  runtime.syncHolders([
+    { holderId: 'dock', type: 'character', at: dock.pos },
+    { holderId: 'center', type: 'character', at: center.pos },
+  ]);
+  const at = DAY_MS + 60_000;
+  const state = harborStateAt(1);
+  runtime.observe(
+    {
+      eventId: 'mem_harbor_1',
+      kind: 'harbor_report',
+      placeId: 'ferry',
+      at: harborAt,
+      actors: [],
+      outcome: { what: state.text },
+      importanceHint: 0.55,
+      valence: 0,
+      arousal: 0.4,
+    },
+    witnesses,
+    at,
+  );
+  assert.equal(runtime.dayTimelineFor('dock', 1).length, 1, '码头边的人记一条');
+  assert.equal(runtime.dayTimelineFor('center', 1).length, 0, '镇中心的人不记广播');
 });
 
 test('没有渡口的图不凭空长码头；有渡口就按世界时间播报并进快照', () => {

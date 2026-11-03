@@ -29,6 +29,24 @@ export const JETTY_CELLS = 7;
 export const MAX_REFLECTION_CELLS = 5;
 
 /**
+ * 船班播报算「看见/在场」的半径，单位格。
+ *
+ * 12 格不是拍脑袋：渡口地域是 20×10，中心到栈头约 8 格；12 格覆盖码头、
+ * 栈台与临水的半条街（x3..27、y1..25），但不覆盖镇中心（二十多格外）。
+ * 依据是「汽笛是镇子级事件，但船到底开没开，只有看得到水的人才知道」——
+ * 广播进镇子事件流，个人记忆只进码头边在场的人。
+ */
+export const HARBOR_WITNESS_CELLS = 12;
+
+/** 这个人站的位置，在不在码头的目击半径内。 */
+export function withinHarborWitnessRange(
+  pos: { readonly x: number; readonly y: number },
+  harborAt: { readonly x: number; readonly y: number },
+): boolean {
+  return Math.hypot(pos.x - harborAt.x, pos.y - harborAt.y) <= HARBOR_WITNESS_CELLS;
+}
+
+/**
  * 每天报三次船班：早、中、晚。
  *
  * 世界时间里的分钟数（从日界起算）。固定在时刻上，不跟着潮汐周期跑——

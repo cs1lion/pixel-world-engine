@@ -73,6 +73,7 @@ import { createWeatherView, type WeatherView } from '../render/weather.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createHarborView, harborSiteOf, type HarborView } from '../render/harbor-view.ts';
+import { withinHarborWitnessRange } from '../world/harbor.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
@@ -3328,11 +3329,19 @@ export class SandboxScene extends Phaser.Scene {
     // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
     // （重建换了实例 id，地块没换）。别的改变没有这一段，照旧。
     const landmark = this.landmarkEventOf(change);
-    // 船班播报是渡口的汽笛：全镇都听得见，不按距离筛目击者。
-    // 否则「今天潮位多少、船开没开」只会落进恰好站在码头那一个人的时间线，
-    // 面板上就答不了这一问。别的世界事件仍按 `where` 的落点筛。
-    const witnesses = change.change === 'world.event' && change.kind === 'harbor_report'
-      ? this.snapshot?.villagers.map((villager) => villager.id)
+    // 船班播报是镇子级事件：它会进事件日志（`this.events`），也会通过
+    // `announce` 落到世界改变里。但**个人记忆只记「看见/在场」的人**——
+    // 汽笛不是他们经历的事。码头 12 格内且没躲进屋的人算目击，其余人不入。
+    const harborReport = change.change === 'world.event' && change.kind === 'harbor_report';
+    const harborSite = harborSiteOf(this.pack);
+    const witnesses = harborReport && harborSite !== null
+      ? this.snapshot?.villagers
+          .filter((villager) => villager.visible && villager.mode !== 'sheltering')
+          .filter((villager) => withinHarborWitnessRange(villager.pos, {
+            x: harborSite.x + Math.floor(harborSite.w / 2),
+            y: harborSite.y + Math.floor(harborSite.h / 2),
+          }))
+          .map((villager) => villager.id)
       : undefined;
     this.memory.observe(
       landmark === undefined ? observation : { ...observation, landmark },
