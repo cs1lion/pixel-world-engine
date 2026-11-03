@@ -1,0 +1,288 @@
+{
+  "note": "改前读数（feat/cast-artbook 8942032，正/侧/背只换脸发道具，外轮廓逐像素相同）。",
+  "commit": "8942032",
+  "pairs": [
+    {
+      "a": "沉灯夫人",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.772
+    },
+    {
+      "a": "沉灯夫人",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.772
+    },
+    {
+      "a": "沉灯夫人",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.772
+    },
+    {
+      "a": "炉匠",
+      "b": "沉灯夫人",
+      "facing": "down",
+      "similarity": 0.82
+    },
+    {
+      "a": "炉匠",
+      "b": "沉灯夫人",
+      "facing": "right",
+      "similarity": 0.82
+    },
+    {
+      "a": "炉匠",
+      "b": "沉灯夫人",
+      "facing": "up",
+      "similarity": 0.82
+    },
+    {
+      "a": "炉匠",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.784
+    },
+    {
+      "a": "炉匠",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.784
+    },
+    {
+      "a": "炉匠",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.784
+    },
+    {
+      "a": "迷路人",
+      "b": "沉灯夫人",
+      "facing": "down",
+      "similarity": 0.818
+    },
+    {
+      "a": "迷路人",
+      "b": "沉灯夫人",
+      "facing": "right",
+      "similarity": 0.818
+    },
+    {
+      "a": "迷路人",
+      "b": "沉灯夫人",
+      "facing": "up",
+      "similarity": 0.818
+    },
+    {
+      "a": "迷路人",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.812
+    },
+    {
+      "a": "迷路人",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.812
+    },
+    {
+      "a": "迷路人",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.812
+    },
+    {
+      "a": "迷路人",
+      "b": "炉匠",
+      "facing": "down",
+      "similarity": 0.767
+    },
+    {
+      "a": "迷路人",
+      "b": "炉匠",
+      "facing": "right",
+      "similarity": 0.767
+    },
+    {
+      "a": "迷路人",
+      "b": "炉匠",
+      "facing": "up",
+      "similarity": 0.767
+    },
+    {
+      "a": "迷路人",
+      "b": "汐",
+      "facing": "down",
+      "similarity": 0.805
+    },
+    {
+      "a": "迷路人",
+      "b": "汐",
+      "facing": "right",
+      "similarity": 0.805
+    },
+    {
+      "a": "迷路人",
+      "b": "汐",
+      "facing": "up",
+      "similarity": 0.805
+    },
+    {
+      "a": "汐",
+      "b": "沉灯夫人",
+      "facing": "down",
+      "similarity": 0.782
+    },
+    {
+      "a": "汐",
+      "b": "沉灯夫人",
+      "facing": "right",
+      "similarity": 0.782
+    },
+    {
+      "a": "汐",
+      "b": "沉灯夫人",
+      "facing": "up",
+      "similarity": 0.782
+    },
+    {
+      "a": "汐",
+      "b": "灯笼头",
+      "facing": "down",
+      "similarity": 0.807
+    },
+    {
+      "a": "汐",
+      "b": "灯笼头",
+      "facing": "right",
+      "similarity": 0.807
+    },
+    {
+      "a": "汐",
+      "b": "灯笼头",
+      "facing": "up",
+      "similarity": 0.807
+    },
+    {
+      "a": "汐",
+      "b": "炉匠",
+      "facing": "down",
+      "similarity": 0.798
+    },
+    {
+      "a": "汐",
+      "b": "炉匠",
+      "facing": "right",
+      "similarity": 0.798
+    },
+    {
+      "a": "汐",
+      "b": "炉匠",
+      "facing": "up",
+      "similarity": 0.798
+    }
+  ],
+  "samePerson": [
+    {
+      "name": "迷路人",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "汐",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "炉匠",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "沉灯夫人",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    },
+    {
+      "name": "灯笼头",
+      "readings": [
+        {
+          "facing": "down",
+          "against": "right",
+          "similarity": 1
+        },
+        {
+          "facing": "down",
+          "against": "up",
+          "similarity": 1
+        },
+        {
+          "facing": "right",
+          "against": "up",
+          "similarity": 1
+        }
+      ]
+    }
+  ]
+}

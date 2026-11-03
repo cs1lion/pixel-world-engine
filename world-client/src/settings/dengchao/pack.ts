@@ -352,7 +352,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 秃顶白须、圆框眼镜、深紫灰长袍、六条手臂、矮壮。
     { name: '炉匠', at: { x: 38, y: 30 }, archive: DENGCHAO_CAST_ARCHIVES['炉匠'], style: {
       cloak: 'timber', cloakDark: 'timberDark', scarf: 'trim', scarfLit: 'warmLight', hair: 'pale',
-      build: 'stout', head: 'beard', outfit: 'robe', accent: 'none', lamp: false,
+      build: 'stoutShort', head: 'beard', outfit: 'robe', accent: 'none', lamp: false,
     }, routine: [
       { x: 39, y: 38, label: '在炉匠铺门口抖灰', dwellMs: 5600 },
       { x: 35, y: 30, label: '在镇心石边上歇脚', dwellMs: 5000 },

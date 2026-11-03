@@ -16,11 +16,18 @@ import { buildUnitStatus } from '../src/ui/unit-status.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { resolveLook, type VillagerLook } from '../src/world/villager-look.ts';
 import { silhouetteSignature } from '../src/render/villager-layout.ts';
-import { pairwiseSilhouettes } from '../src/render/silhouette-match.ts';
+import { facingSilhouettes, pairwiseSilhouettes } from '../src/render/silhouette-match.ts';
 
 const MAIN = ['迷路人', '汐', '炉匠', '沉灯夫人', '灯笼头'] as const;
-/** 合成相似度上限：≥此值视为「同一剪影」。实测最坏 0.820（炉匠/沉灯夫人，同向）。 */
+/** 合成相似度上限：≥此值视为「同一剪影」。实测最坏 0.775（迷路人/汐、迷路人/沉灯夫人，同向）。 */
 const MAX_SILHOUETTE_SIMILARITY = 0.85;
+/**
+ * 同一人正/侧/背的区间：下限证明「三向还是同一个人」（不能全像换了个人），
+ * 上限证明「三向确实不同」（不能只换脸换发、外轮廓一模一样）。
+ * 实测最像的一对是同人：汐 正/背 0.884；最低是炉匠 正/侧 0.772。
+ */
+const SAME_PERSON_MIN = 0.6;
+const SAME_PERSON_MAX = 0.9;
 const pack = loadSettingPack(DENGCHAO_RAW);
 
 function rgbToLab(value: number): { L: number; a: number; b: number } {
@@ -97,6 +104,22 @@ test('五个主要人物是五类不同剪影，且同向两两相似度 < 0.85'
     closest.similarity < MAX_SILHOUETTE_SIMILARITY,
     `最像的一对是 ${closest.a}/${closest.b}（${closest.facing}），相似度 ${closest.similarity} ≥ ${MAX_SILHOUETTE_SIMILARITY}`,
   );
+});
+
+test('同一个人正/侧/背的相似度落在 [0.60, 0.90]：既认得出是同一人，又确实是三个朝向', () => {
+  for (const { name, look } of mainLooks) {
+    for (const reading of facingSilhouettes(look)) {
+      const label = `${name} ${reading.facing}/${reading.against}`;
+      assert.ok(
+        reading.similarity >= SAME_PERSON_MIN,
+        `${label} 只有 ${reading.similarity}，三向已经不像同一个人`,
+      );
+      assert.ok(
+        reading.similarity <= SAME_PERSON_MAX,
+        `${label} 高达 ${reading.similarity}，三向只是换了脸和发，外轮廓没变`,
+      );
+    }
+  }
 });
 
 test('档案落到单位面板：主要人物面板读得到来历、忌讳、动线与关系初值', () => {

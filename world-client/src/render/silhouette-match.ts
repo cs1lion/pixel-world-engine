@@ -165,3 +165,24 @@ export function pairwiseSilhouettes(
   }
   return out;
 }
+
+/** 同一个人正/侧/背之间的相似度：要证明「是同一人」又「三向确实不同」。 */
+export function facingSilhouettes(look: VillagerLook): readonly {
+  readonly facing: SilhouetteFacing;
+  readonly against: SilhouetteFacing;
+  readonly similarity: number;
+}[] {
+  const masks = Object.fromEntries(
+    SILHOUETTE_FACINGS.map((facing) => [facing, silhouetteMask(look, facing)]),
+  ) as Record<SilhouetteFacing, SilhouetteMask>;
+  const pairs: [SilhouetteFacing, SilhouetteFacing][] = [
+    ['down', 'right'],
+    ['down', 'up'],
+    ['right', 'up'],
+  ];
+  return pairs.map(([facing, against]) => ({
+    facing,
+    against,
+    similarity: Number(silhouetteSimilarity(masks[facing], masks[against]).toFixed(3)),
+  }));
+}

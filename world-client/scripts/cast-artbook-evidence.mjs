@@ -8,7 +8,7 @@
  * 只是把它们按 24×30 画到 canvas，再用 CSS 放大 3 倍（最近邻）。
  */
 import { chromium } from '@playwright/test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DENGCHAO_CAST_ARTBOOK, DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { loadSettingPack } from '../src/settings/load.ts';
@@ -20,7 +20,12 @@ import {
   silhouetteSignature,
   villagerLayout,
 } from '../src/render/villager-layout.ts';
-import { pairwiseSilhouettes, silhouetteBreakdown, silhouetteMask } from '../src/render/silhouette-match.ts';
+import {
+  facingSilhouettes,
+  pairwiseSilhouettes,
+  silhouetteBreakdown,
+  silhouetteMask,
+} from '../src/render/silhouette-match.ts';
 
 const MAIN = ['迷路人', '汐', '炉匠', '沉灯夫人', '灯笼头'];
 const OUT = resolve(import.meta.dirname, '..', '..', 'docs', 'evidence', 'cast-artbook');
@@ -90,6 +95,7 @@ for (let i = 0; i < looks.length; i += 1) {
 }
 const minPair = pairReadings.reduce((min, item) => (item.deltaE < min.deltaE ? item : min));
 const silhouettePairs = pairwiseSilhouettes(looks);
+const samePersonFacings = looks.map(({ name, look }) => ({ name, readings: facingSilhouettes(look) }));
 const maxSameFacing = silhouettePairs.reduce((max, item) => (item.similarity > max.similarity ? item : max));
 const maxPairLooks = {
   a: looks.find((item) => item.name === maxSameFacing.a).look,
@@ -116,6 +122,26 @@ const characters = looks.map(({ name, look }) => {
     profile: silhouette.profile,
   };
 });
+
+// 改前读数（8942032）单独存成 baseline，脚本只读不写；这里拼成 30 组的逐对前后表。
+const baselinePath = join(OUT, 'silhouette-baseline.json');
+const baseline = existsSync(baselinePath)
+  ? JSON.parse(readFileSync(baselinePath, 'utf8'))
+  : { pairs: [], samePerson: [] };
+const beforeMap = new Map(
+  baseline.pairs.map((pair) => [`${pair.a}|${pair.b}|${pair.facing}`, pair.similarity]),
+);
+const beforeAfter = silhouettePairs.map((pair) => ({
+  ...pair,
+  before: beforeMap.get(`${pair.a}|${pair.b}|${pair.facing}`) ?? null,
+  delta: beforeMap.has(`${pair.a}|${pair.b}|${pair.facing}`)
+    ? Number((pair.similarity - beforeMap.get(`${pair.a}|${pair.b}|${pair.facing}`)).toFixed(3))
+    : null,
+}));
+const worstBefore = baseline.pairs.reduce(
+  (max, pair) => (pair.similarity > max.similarity ? pair : max),
+  { similarity: -1 },
+);
 
 const html = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
@@ -207,7 +233,11 @@ writeFileSync(join(OUT, 'readings.json'), JSON.stringify({
   minPair: { ...minPair, deltaE: Number(minPair.deltaE.toFixed(1)) },
   silhouetteClasses: new Set(characters.map((item) => item.silhouetteSignature)).size,
   characters,
-  silhouettePairs,
+  // 30 组同向两两读数：before 来自 8942032 的 baseline，after 是本次重画后的实测。
+  silhouettePairs: beforeAfter,
+  worstBefore,
+  samePersonBefore: baseline.samePerson,
+  samePersonFacings,
   maxSameFacing: { ...maxSameFacing, breakdown: maxPairBreakdown },
   // 遮名测试的盲号：图里不写名字，文件名也只有编号；对照表另存这张 key。
   blindKey: Object.fromEntries(
