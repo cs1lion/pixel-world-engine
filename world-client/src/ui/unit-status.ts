@@ -23,6 +23,7 @@ import type {
 import { TASK_PROFILES } from '../world/tasks.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { villagerAtCell } from '../world/types.ts';
+import type { VillagerArchive } from '../world/villager-archive.ts';
 import { villagerModeLabel } from '../world/villager-words.ts';
 
 export type UnitRef =
@@ -76,6 +77,8 @@ export interface UnitStatusWorld {
   readonly tasks: readonly TaskRecord[];
   readonly workstations: readonly WorkstationSnapshot[];
   readonly constructions: readonly ConstructionSnapshot[];
+  /** 主要人物档案；按村民 id 索引。省略时面板不显示档案段。 */
+  readonly archives?: Readonly<Record<string, VillagerArchive>>;
 }
 
 export interface UnitStatusLine {
@@ -184,6 +187,27 @@ function innerLines(villagerId: string, memory: UnitMemoryReader | null): UnitSt
   return inner === null ? [] : [{ key: '心里', value: inner.text }];
 }
 
+function archiveLines(id: string, world: UnitStatusWorld): UnitStatusLine[] {
+  const archive = world.archives?.[id];
+  if (archive === undefined) return [];
+  return [
+    { key: '档案', value: `${archive.aliases.join('、')} · ${archive.identity}` },
+    { key: '辈分', value: archive.generation },
+    { key: '来历', value: archive.origin },
+    { key: '牵挂', value: archive.cares.join('；') },
+    { key: '忌讳', value: archive.taboos.join('；') },
+    { key: '动线', value: archive.routine },
+    { key: '口吻', value: archive.voice },
+    {
+      key: '关系初值',
+      value: archive.bonds
+        .map((bond) =>
+          `${bond.to} 信任 ${bond.trust.toFixed(2)} · 亲疏 ${bond.warmth.toFixed(2)} · ${debtLabel(bond.debt)}`)
+        .join('；'),
+    },
+  ];
+}
+
 function villagerContent(
   villager: VillagerSnapshot,
   world: UnitStatusWorld,
@@ -213,6 +237,7 @@ function villagerContent(
   const where = annex === null ? `格子 (${cell.x}, ${cell.y})` : `格子 (${cell.x}, ${cell.y}) · ${annex.displayName}`;
 
   const lines: UnitStatusLine[] = [
+    ...archiveLines(villager.id, world),
     { key: '行为', value: modeText },
     {
       key: '目标',

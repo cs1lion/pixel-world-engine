@@ -520,6 +520,42 @@ export class MemoryRuntime {
   }
 
   /**
+   * 开局设定档案：写一条「读到档案」的记忆，并落两人的关系初值。
+   *
+   * 走的是 `MemoryWorld.seedGenesis()` 这个公开边界：不会伪造目击、
+   * 断言、痕迹或传言；同一人物重复调用只写第一次。
+   */
+  seedGenesis(input: {
+    readonly holderId: string;
+    readonly at: { readonly x: number; readonly y: number };
+    readonly text: string;
+    readonly bonds: readonly {
+      readonly to: string;
+      readonly trust: number;
+      readonly warmth: number;
+      readonly debt: number;
+      readonly familiarity: number;
+    }[];
+    readonly atMs?: number;
+  }): boolean {
+    if (!this.world.hasHolder(input.holderId)) {
+      this.world.addHolder({
+        holderId: input.holderId,
+        type: 'character',
+        profile: { talkativeness: 0.5 },
+        at: input.at,
+      });
+    }
+    return this.world.seedGenesis({
+      holderId: input.holderId,
+      atMs: input.atMs ?? this.now,
+      text: input.text,
+      placeAt: input.at,
+      bonds: input.bonds,
+    });
+  }
+
+  /**
    * 世界做成了一件事。返回写下的记忆 id。
    *
    * `witnesses` 不传时**按感知模型算**（见 `witnessesFor`）。调用方手上

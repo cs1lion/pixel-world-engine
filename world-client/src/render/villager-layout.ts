@@ -53,15 +53,19 @@ interface BuildSpec {
 }
 
 /**
- * 三档体型：肩宽/下摆/腿长一起变，差距要大到「剪影」能分开，而不只是胖一圈。
+ * 五档体型：肩宽/下摆/腿长一起变，差距要大到「剪影」能分开，而不只是胖一圈。
  *   slim  肩 9 / 摆 11 —— 窄，摆几乎不张；
+ *   young 头 10×9 / 肩 8 —— 比 slim 再矮 2px、肩窄 1px，给少年；
  *   adult 肩 12 / 摆 15 —— 标准 A 字；
- *   stout 肩 15 / 摆 18 —— 宽，摆张得最开（含 1px 轮廓刚好 20，仍在 24 内）。
+ *   stout 肩 15 / 摆 18 —— 宽，摆张得最开（含 1px 轮廓刚好 20，仍在 24 内）；
+ *   tall  头 9×11 / 肩 9 / 摆 12 —— 头更长、腿更长，给无面者那种窄高轮廓。
  */
 const BUILD: Readonly<Record<VillagerLook['build'], BuildSpec>> = {
   slim: { headW: 10, headH: 10, headTop: -29, torsoTop: -18, shoulder: 9, hem: 11, legTop: -6 },
+  young: { headW: 10, headH: 9, headTop: -27, torsoTop: -17, shoulder: 8, hem: 11, legTop: -6 },
   adult: { headW: 12, headH: 10, headTop: -29, torsoTop: -18, shoulder: 12, hem: 15, legTop: -6 },
   stout: { headW: 13, headH: 10, headTop: -27, torsoTop: -17, shoulder: 15, hem: 18, legTop: -5 },
+  tall: { headW: 9, headH: 11, headTop: -29, torsoTop: -19, shoulder: 9, hem: 12, legTop: -7 },
 };
 
 /** 一格的左右极值（格宽是奇数时左多一像素，和旧的 A 字下摆同一习惯）。 */
@@ -110,6 +114,125 @@ function headRects(look: VillagerLook, facing: VillagerSnapshot['facing'], blink
       // 眼在窗口内；两侧各收 1px，兜帽下的脸更窄。
       const eyeY = top + 6;
       out.push(...eyeRects(hx + 2, hw - 4, eyeY, facing, blink));
+    }
+    return out;
+  }
+
+  if (look.head === 'mask') {
+    // 无面者：黑/半透明长袍兜住整个头，正面只留一张白面具；背面就是一块黑。
+    push(out, [
+      rect(hx - 1, top - 1, hw + 2, hh + 2, 'ink'),
+      rect(hx, top, hw, hh, 'shade'),
+      rect(hx, top, 1, hh, 'base'),
+    ]);
+    if (facing === 'up') return out;
+    const maskW = facing === 'down' ? hw - 2 : Math.max(5, hw - 3);
+    const maskH = hh - 4;
+    const mx = facing === 'down'
+      ? hx + 1
+      : facing === 'right' ? hx + hw - maskW - 1 : hx + 1;
+    const my = top + 2;
+    push(out, [
+      rect(mx - 1, my - 1, maskW + 2, maskH + 2, 'ink'),
+      rect(mx, my, maskW, maskH, 'pale'),
+    ]);
+    const eyeY = my + 2;
+    if (facing === 'down') {
+      push(out, [
+        rect(mx + 1, eyeY, 1, 2, 'ink'),
+        rect(mx + maskW - 2, eyeY, 1, 2, 'ink'),
+        rect(mx + 1, eyeY + 2, 1, 1, 'deepShade'),
+        rect(mx + maskW - 2, eyeY + 2, 1, 1, 'deepShade'),
+        rect(mx + Math.floor(maskW / 2) - 1, my + maskH - 2, 2, 1, 'ink'),
+      ]);
+    } else {
+      const ex = facing === 'right' ? mx + maskW - 3 : mx + 2;
+      push(out, [
+        rect(ex, eyeY, 1, 2, 'ink'),
+        rect(ex, eyeY + 2, 1, 1, 'deepShade'),
+        rect(ex + (facing === 'right' ? -1 : 1), my + maskH - 2, 1, 1, 'ink'),
+      ]);
+    }
+    return out;
+  }
+
+  if (look.head === 'beard') {
+    // 锅炉房老人：秃顶、两鬓白毛、长须、圆框眼镜；正面/侧面都要读到「白胡子」。
+    push(out, [rect(hx - 1, top - 1, hw + 2, hh + 2, 'ink')]);
+    if (facing === 'up') {
+      push(out, [
+        rect(hx, top, hw, hh, 'skin'),
+        rect(hx + 1, top, hw - 2, 2, 'skin'),
+        rect(hx, top + 3, 2, hh - 4, 'hair'),
+        rect(hx + hw - 2, top + 3, 2, hh - 4, 'hair'),
+        rect(hx + 1, top + hh - 2, hw - 2, 4, 'hair'),
+      ]);
+      return out;
+    }
+    const side = facing === 'left' ? -1 : 1;
+    const faceW = facing === 'down' ? hw - 2 : hw - 4;
+    const faceX = facing === 'down' ? hx + 1 : side < 0 ? hx + 1 : hx + 3;
+    push(out, [
+      rect(hx, top, hw, hh, 'skin'),
+      rect(faceX, top + 2, faceW, hh - 2, 'skin'),
+      // 秃顶只留两侧白毛。
+      rect(hx, top + 3, 2, hh - 4, 'hair'),
+      rect(hx + hw - 2, top + 3, 2, hh - 4, 'hair'),
+      // 八字须与长须；须尖压到胸口，形成倒三角。
+      rect(faceX + 1, top + hh - 3, faceW - 2, 1, 'hair'),
+      rect(hx + 1, top + hh - 2, hw - 2, 2, 'ink'),
+      rect(hx + 2, top + hh - 1, hw - 4, 7, 'hair'),
+    ]);
+    const eyeY = top + 5;
+    if (facing === 'down') {
+      push(out, [
+        rect(hx + 2, eyeY, 3, 2, 'ink'),
+        rect(hx + hw - 5, eyeY, 3, 2, 'ink'),
+        rect(hx + 3, eyeY + 1, 1, 1, 'pale'),
+        rect(hx + hw - 4, eyeY + 1, 1, 1, 'pale'),
+        rect(hx + 5, eyeY, hw - 10, 1, 'trim'),
+      ]);
+    } else {
+      const lx = facing === 'right' ? hx + hw - 6 : hx + 2;
+      push(out, [
+        rect(lx, eyeY, 3, 2, 'ink'),
+        rect(lx + 1, eyeY + 1, 1, 1, 'pale'),
+      ]);
+    }
+    return out;
+  }
+
+  if (look.head === 'yubaba') {
+    // 掌柜：极高的白发髻、大鼻、深眼窝、金耳饰；靠一圈外扩白发把轮廓撑大。
+    push(out, [
+      rect(hx - 3, top - 3, hw + 6, hh + 5, 'ink'),
+      rect(hx - 2, top - 2, hw + 4, hh + 3, 'hair'),
+      rect(hx - 1, top - 2, hw + 2, 1, 'pale'),
+    ]);
+    const cx = hx + Math.floor(hw / 2);
+    push(out, [
+      rect(cx - 3, top - 3, 7, 4, 'ink'),
+      rect(cx - 2, top - 2, 5, 2, 'hair'),
+      rect(cx - 1, top - 2, 1, 1, 'pale'),
+      rect(cx - 2, top, 5, 1, 'ink'),
+    ]);
+    if (facing === 'up') return out;
+    const faceX = facing === 'down' ? hx + 1 : facing === 'right' ? hx + 2 : hx + 1;
+    const faceW = facing === 'down' ? hw - 2 : hw - 4;
+    push(out, [
+      rect(faceX, top + 2, faceW, hh - 2, 'skin'),
+      rect(faceX, top + 2, faceW, 1, 'hair'),
+      // 大鼻：2px 深色阴影，正面才压。
+      rect(cx - 1, top + 5, 2, 2, 'skin'),
+      rect(cx - 1, top + 7, 2, 1, 'ink'),
+      rect(hx - 1, top + hh - 3, 1, 2, 'trim'),
+      rect(hx + hw, top + hh - 3, 1, 2, 'trim'),
+    ]);
+    const eyeY = top + 5;
+    out.push(...eyeRects(faceX + 2, faceW - 3, eyeY, facing, blink));
+    if (facing === 'down') {
+      out.push({ x: cx - 2, y: eyeY, w: 1, h: 1, paint: 'shade' });
+      out.push({ x: cx + 2, y: eyeY, w: 1, h: 1, paint: 'shade' });
     }
     return out;
   }
@@ -200,6 +323,16 @@ function outfitRects(look: VillagerLook): PixelRect[] {
   };
 
   if (look.outfit === 'cloak') {
+    if (look.head === 'yubaba') {
+      // 掌柜：披风在肩背处最宽，向下收成窄裙摆；褶子只在轮廓上收，不另造符号。
+      // 设定集 PDF p.53 / 书页 104–105：深蓝长裙、宽肩、矮而宽。
+      band(top, 4, sLeft - 1, sRight + 1);
+      band(top + 4, 5, sLeft - 2, sRight + 2);
+      band(top + 9, 4, hLeft + 2, hRight - 2);
+      band(top + 13, 2, hLeft + 3, hRight - 3);
+      out.push(rect(sLeft, top + 4, b.shoulder, 1, 'shade') as PixelRect);
+      return out;
+    }
     // A 字：肩 10–14 → 下摆 12–16，四段阶梯；下摆止于 -4，脚露 4px。
     band(top, 4, sLeft, sRight);
     band(top + 4, 5, sLeft - 1, sRight + 1);
@@ -226,8 +359,48 @@ function outfitRects(look: VillagerLook): PixelRect[] {
     out.push(rect(panelX, top + 2, panelW, 11, 'shade') as PixelRect);
     out.push(rect(panelX, top + 2, panelW, 1, 'scarfLit') as PixelRect);
     out.push(rect(sLeft, top + 8, b.shoulder, 1, 'ink') as PixelRect);
+  } else if (look.outfit === 'tunic') {
+    // 短工作服：只到腰下，露出短裤和赤脚；白色前襟 + 蓝色短裤来自设定集。
+    band(top, 5, sLeft, sRight);
+    band(top + 5, 3, sLeft - 1, sRight + 1);
+    out.push(rect(sLeft + 2, top + 1, b.shoulder - 4, 6, 'scarfLit') as PixelRect);
+    out.push(rect(sLeft, top + 5, b.shoulder, 1, 'scarf') as PixelRect);
+    const shortsY = b.legTop - 3;
+    out.push(rect(sLeft + 1, shortsY, b.shoulder - 2, 3, 'water') as PixelRect);
+    out.push(rect(sLeft + 1, shortsY, b.shoulder - 2, 1, 'shade') as PixelRect);
   } else {
     // 长袍：窄直身、到底再收一档，两侧开衩。
+    if (look.head === 'bob' && look.build === 'young') {
+      // 汐：白/浅青长袍从腰下逐级外扩，下摆盖住赤脚；
+      // 设定集 PDF p.43 / 书页 84–85 的垂坠下摆。
+      band(top, 4, sLeft, sRight);
+      band(top + 4, 4, sLeft - 1, sRight + 1);
+      band(top + 8, 3, sLeft - 2, sRight + 2);
+      band(top + 11, 5, sLeft - 3, sRight + 3);
+      const mid = Math.floor((sLeft + sRight) / 2);
+      out.push(rect(mid, top + 3, 1, 12, 'shade') as PixelRect);
+      return out;
+    }
+    if (look.head === 'mask') {
+      // 灯笼头：高领/兜帽下极窄的及地黑袍，不画脚；
+      // 设定集 PDF p.58 / 书页 114–115：高而窄、无脸。
+      band(top, 5, sLeft - 3, sRight + 3);
+      band(top + 5, 14, sLeft + 1, sRight - 1);
+      const mid = Math.floor((sLeft + sRight) / 2);
+      out.push(rect(mid, top + 7, 1, 12, 'shade') as PixelRect);
+      return out;
+    }
+    if (look.head === 'beard') {
+      // 炉匠：上半身被六条手臂撑宽，下半身收成直筒围裙/袍摆；
+      // 设定集 PDF p.48 / 书页 94–95：矮壮、六臂，袍摆不向外张。
+      band(top, 5, sLeft + 3, sRight - 3);
+      band(top + 5, 5, sLeft + 3, sRight - 3);
+      band(top + 10, 4, sLeft + 2, sRight - 2);
+      band(top + 14, 3, sLeft + 2, sRight - 2);
+      const mid = Math.floor((sLeft + sRight) / 2);
+      out.push(rect(mid, top + 6, 1, 9, 'shade') as PixelRect);
+      return out;
+    }
     band(top, 12, sLeft, sRight);
     band(top + 12, 4, sLeft, sRight);
     const mid = Math.floor((sLeft + sRight) / 2);
@@ -236,8 +409,10 @@ function outfitRects(look: VillagerLook): PixelRect[] {
     out.push(rect(sRight, top + 13, 1, 3, 'ink') as PixelRect);
   }
 
-  // 下摆底边压一档：脚才不会浮在下摆上。
-  out.push(rect(hLeft - 1, top + 15, b.hem + 2, 1, 'shade') as PixelRect);
+  // 下摆底边压一档：脚才不会浮在下摆上。短工作服没有长下摆，跳过。
+  if (look.outfit !== 'tunic') {
+    out.push(rect(hLeft - 1, top + 15, b.hem + 2, 1, 'shade') as PixelRect);
+  }
   return out;
 }
 
@@ -246,8 +421,23 @@ function legRects(look: VillagerLook, pose: VillagerPose, walking: boolean): Pix
   const b = BUILD[look.build];
   const y = b.legTop;
   const h = -y;
+  if (look.head === 'mask') {
+    // 黑袍及地：不画脚，让下摆一条直线收窄到底（PDF p.58 的高窄轮廓）。
+    return [];
+  }
   const leftX = -4 + (walking ? pose.footLeft : 0);
   const rightX = 1 + (walking ? pose.footRight : 0);
+  if (look.outfit === 'tunic') {
+    // 赤脚：短裤下直接是肤色，脚背 1px，脚底不另加靴。
+    return [
+      rect(leftX - 1, y, 5, h, 'ink'),
+      rect(leftX, y, 3, h, 'skin'),
+      rect(rightX - 1, y, 5, h, 'ink'),
+      rect(rightX, y, 3, h, 'skin'),
+      rect(leftX, -1, 3, 1, 'skin'),
+      rect(rightX, -1, 3, 1, 'skin'),
+    ].filter((item): item is PixelRect => item !== null);
+  }
   return [
     rect(leftX - 1, y, 5, h, 'ink'),
     rect(leftX, y, 3, h - 1, 'timberDark'),
@@ -301,12 +491,23 @@ function accentRects(look: VillagerLook, facing: VillagerSnapshot['facing']): Pi
       rect(x, b.torsoTop + 12, 6, 1, 'trim'),
     ]);
   } else if (look.accent === 'staff') {
-    const x = side < 0 ? sLeft - 3 : sRight + 1;
+    // 灯笼头的提灯杖贴着袍边竖着，不把轮廓撑宽（PDF p.58 的高窄剪影）。
+    const x = look.head === 'mask' ? sRight : side < 0 ? sLeft - 3 : sRight + 1;
     push(out, [
       rect(x, -28, 2, 28, 'ink'),
       rect(x + 1, -27, 1, 26, 'timberDark'),
       rect(x - 1, -30, 4, 3, 'ink'),
       rect(x, -29, 2, 1, 'trim'),
+    ]);
+  } else if (look.accent === 'bucket') {
+    // 提水桶：桶身、桶沿、提手，都在 24px 内。
+    const x = side < 0 ? sLeft - 5 : sRight + 2;
+    push(out, [
+      rect(x, b.torsoTop + 9, 6, 5, 'ink'),
+      rect(x + 1, b.torsoTop + 10, 4, 3, 'plaster'),
+      rect(x + 1, b.torsoTop + 10, 4, 1, 'trim'),
+      rect(x + 2, b.torsoTop + 7, 1, 2, 'ink'),
+      rect(x + 4, b.torsoTop + 8, 1, 2, 'ink'),
     ]);
   }
   return out;
@@ -329,6 +530,20 @@ function actionRects(
     rect(sLeft - 1, b.torsoTop + 9 + swing, 2, 1, 'skin'),
     rect(sRight + 1, b.torsoTop + 9 - swing, 2, 1, 'skin'),
   ].filter((item): item is PixelRect => item !== null);
+
+  if (look.head === 'beard') {
+    // 六臂：默认两条之外，左右各再挂两对短臂，肩线以下逐级错开。
+    push(out, [
+      rect(sLeft - 4, b.torsoTop + 3 + swing, 3, 6, 'shade'),
+      rect(sRight + 2, b.torsoTop + 3 - swing, 3, 6, 'shade'),
+      rect(sLeft - 4, b.torsoTop + 8 + swing, 2, 1, 'skin'),
+      rect(sRight + 2, b.torsoTop + 8 - swing, 2, 1, 'skin'),
+      rect(sLeft - 3, b.torsoTop + 9 + swing, 3, 5, 'shade'),
+      rect(sRight + 2, b.torsoTop + 9 - swing, 3, 5, 'shade'),
+      rect(sLeft - 3, b.torsoTop + 13 + swing, 2, 1, 'skin'),
+      rect(sRight + 2, b.torsoTop + 13 - swing, 2, 1, 'skin'),
+    ]);
+  }
 
   const side = facing === 'left' ? -1 : 1;
   const bob = mode === 'working' || mode === 'delivering' ? pose.frame % 2 : 0;

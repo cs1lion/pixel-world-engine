@@ -16,6 +16,7 @@ import { TERRAIN_COLORS, WORLD, tokenNameOf } from '../world/palette-data.ts';
 import type { WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
+import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
 import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
 import { createIdbHistoryStore } from '../world/history/store.ts';
@@ -1029,6 +1030,9 @@ export class SandboxScene extends Phaser.Scene {
       },
     });
     this.snapshot = this.sim.snapshot();
+    // 开局档案：五个主要人物先「读到」自己的档案，关系初值一并落账。
+    // 读档后重复调用是幂等的；老档里没有档案的，会在这里补一次。
+    this.seedCastGenesis();
     // 真实时钟的跨会话补算必须在这里做：记忆已复原、快照已就位，补算走的是
     // 与常规跨日完全同一条 `stepMemory → tickCapped → onVitals` 路径。
     this.restoreRealClockBaseline();
@@ -2507,6 +2511,49 @@ export class SandboxScene extends Phaser.Scene {
     return true;
   }
 
+  private seedCastGenesis(): void {
+    const pack = this.pack;
+    if (pack === null) return;
+    const byName = new Map(this.snapshot.villagers.map((villager) => [villager.name, villager.id]));
+    for (const villager of pack.villagers) {
+      const archive = villager.archive;
+      if (archive === undefined) continue;
+      const holderId = byName.get(villager.name);
+      if (holderId === undefined) continue;
+      const bonds = archive.bonds.flatMap((bond) => {
+        const to = byName.get(bond.to);
+        if (to === undefined) return [];
+        return [{
+          to,
+          trust: bond.trust,
+          warmth: bond.warmth,
+          debt: bond.debt,
+          familiarity: bond.familiarity,
+        }];
+      });
+      this.memory.seedGenesis({
+        holderId,
+        at: villager.at,
+        atMs: this.snapshot.now,
+        text: archiveMemoryText(villager.name, archive),
+        bonds,
+      });
+    }
+  }
+
+  private castArchiveMap(): Readonly<Record<string, VillagerArchive>> {
+    const out: Record<string, VillagerArchive> = {};
+    const pack = this.pack;
+    if (pack === null) return out;
+    const byName = new Map(this.snapshot.villagers.map((villager) => [villager.name, villager.id]));
+    for (const villager of pack.villagers) {
+      if (villager.archive === undefined) continue;
+      const id = byName.get(villager.name);
+      if (id !== undefined) out[id] = villager.archive;
+    }
+    return out;
+  }
+
   private unitStatusWorld(): UnitStatusWorld {
     return {
       now: this.snapshot.now,
@@ -2516,6 +2563,7 @@ export class SandboxScene extends Phaser.Scene {
       tasks: this.snapshot.tasks,
       workstations: this.snapshot.workstations,
       constructions: this.snapshot.constructions,
+      archives: this.castArchiveMap(),
     };
   }
 

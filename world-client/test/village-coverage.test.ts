@@ -203,7 +203,7 @@ function awarenessAtDayEnd(days: number): Awareness {
 
 test('出货的村子今天十六个 holder：七个居民 + 九栋楼', () => {
   assert.equal(VILLAGERS.length, 7, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
-  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:142 的 placements 是九条）`);
+  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:254 的 placements 是九条）`);
   assert.equal(defaultWorldVillagerCount(), 2, '默认世界的村民兜底不再是两个');
   // 两组数合起来才是分母：设定集 16。
   assert.equal(ALL_HOLDERS.length, 16, '设定集的 holder 总数现在是十六个');

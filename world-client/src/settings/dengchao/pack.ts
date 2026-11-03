@@ -1,5 +1,117 @@
 import type { RawSettingPack } from '../types.ts';
+import type { VillagerArchive } from '../../world/villager-archive.ts';
 import { lampStreetScenery } from './lamp-street.ts';
+
+/** 设定集页码与造型事实：只在这份包数据里引用原片角色名。 */
+export interface CastArtbookRef {
+  /** PDF 扫描件页码（从 1 起）。 */
+  readonly pdfPages: readonly number[];
+  /** 书页页脚印的页码。 */
+  readonly bookPages: readonly string[];
+  /** 设定集里确认过的造型事实。 */
+  readonly notes: readonly string[];
+}
+
+export const DENGCHAO_CAST_ARTBOOK: Readonly<Record<string, CastArtbookRef>> = {
+  迷路人: {
+    pdfPages: [42, 44, 59],
+    bookPages: ['82–83', '86–87', '116–117'],
+    notes: ['棕色马尾与齐刘海', '朱红工作和服 + 白色前襟/束带', '深蓝短裤、赤脚、提水桶'],
+  },
+  汐: {
+    pdfPages: [42, 43],
+    bookPages: ['82–83', '84–85'],
+    notes: ['深色齐颌短发、平直刘海', '白/浅青长袍，腰间一道蓝色束带', '长袍下摆逐级外扩、盖住赤脚（书页 84–85 的垂坠）'],
+  },
+  炉匠: {
+    pdfPages: [48],
+    bookPages: ['94–95'],
+    notes: ['秃顶、两鬓白毛、长白须', '圆框眼镜', '深紫/灰紫长袍，六条手臂撑宽上身，袍摆直下收成围裙'],
+  },
+  沉灯夫人: {
+    pdfPages: [53],
+    bookPages: ['104–105'],
+    notes: ['极高的白发髻、大鼻、深眼窝', '深蓝长裙，披风在肩背最宽、向下收到脚踝', '金耳饰/金色束带，矮而宽'],
+  },
+  灯笼头: {
+    pdfPages: [58],
+    bookPages: ['114–115'],
+    notes: ['高领/兜帽在上，黑色/半透明长袍窄到及地（不画脚）', '白色面具、紫黑眼口', '细手臂，无脸'],
+  },
+};
+
+export const DENGCHAO_CAST_ARCHIVES = {
+  迷路人: {
+    aliases: ['找路的女孩', '少女'],
+    identity: '外来者，不隶属灯潮界任何一铺',
+    generation: '约十岁，初来者',
+    origin: '从海那边搭末班渡船，在浅滩旧轨道尽头搁浅；攥着写有自己名字的名牌走进灯街，回程船已经走了。',
+    cares: ['找回自己的名字', '赶上回渡口的末班船'],
+    taboos: ['别人替她答名', '别人替她点灯'],
+    routine: '06:30 旧站牌下认潮痕；09:00 沿灯街找一盏认识的灯；退潮时 14:00 去浅滩看旧轨道；17:30 回叠浪楼外等潮。',
+    voice: '短句，先问“这条路通到哪儿”。',
+    bonds: [
+      { to: '汐', trust: 0.35, warmth: 0.4, debt: 0, familiarity: 0.45 },
+      { to: '炉匠', trust: 0.2, warmth: 0.3, debt: 0.1, familiarity: 0.3 },
+    ],
+  },
+  汐: {
+    aliases: ['白衣渡守', '白衣少年'],
+    identity: '渡守，隶属渡口站台与迎灯舍',
+    generation: '少年，约十二岁',
+    origin: '在浅滩轨道尽头的雾里被渡口老人拾起；名牌被潮水泡烂，只记得醒来时手里有一盏没点的灯。',
+    cares: ['灯芯够不够', '来客手里有没有灯'],
+    taboos: ['满潮时提他醒来前的雾', '问他真名'],
+    routine: '05:30 点亮楼前长灯；08:00 迎灯舍前照看来客；满潮时 11:00 收滩边灯；退潮时 15:00 拾还能用的灯芯。',
+    voice: '轻声，先报潮位再说话。',
+    bonds: [
+      { to: '迷路人', trust: 0.3, warmth: 0.35, debt: 0, familiarity: 0.45 },
+      { to: '沉灯夫人', trust: 0.25, warmth: 0.1, debt: 0.15, familiarity: 0.5 },
+    ],
+  },
+  炉匠: {
+    aliases: ['锅炉房老人', '炉边老人'],
+    identity: '炉匠铺炉工，隶属叠浪楼炉底入口',
+    generation: '老年，炉边辈分最高',
+    origin: '年轻时是积尘滩废船上的烧炭工；船拆了以后被沉灯夫人收进炉底，从此没离开过炉火。',
+    cares: ['炉火不能断', '六只手仍不够用'],
+    taboos: ['碰他的饭盒', '说他老'],
+    routine: '06:00 炉匠铺门口抖灰；09:30 镇心石边歇脚；13:00 炉底入口搬炭；18:00 街边喝一碗热的。',
+    voice: '粗声，三句不离火和灰。',
+    bonds: [
+      { to: '迷路人', trust: 0.25, warmth: 0.35, debt: -0.1, familiarity: 0.3 },
+      { to: '灯笼头', trust: 0.15, warmth: -0.1, debt: 0, familiarity: 0.4 },
+    ],
+  },
+  沉灯夫人: {
+    aliases: ['掌柜', '沉灯的人'],
+    identity: '叠浪楼掌柜，掌灯潮旧例',
+    generation: '老年，镇上辈分最长者之一',
+    origin: '灯潮界第一次涨潮那年，她从叠浪楼顶层下来，用一盏沉灯镇住倒灌的潮水；此后守着镇心石。',
+    cares: ['沉灯仪式不能断', '旧潮的故事有人听'],
+    taboos: ['问她欠了谁', '提她的真名'],
+    routine: '07:00 镇心石边沉灯；10:00 镇心石边讲那年的潮；14:00 沿街巡灯；17:00 茶摊前坐一会儿。',
+    voice: '慢，先讲旧例，再给结论。',
+    bonds: [
+      { to: '汐', trust: 0.4, warmth: 0.2, debt: 0, familiarity: 0.55 },
+      { to: '灯笼头', trust: 0.2, warmth: -0.05, debt: -0.1, familiarity: 0.5 },
+    ],
+  },
+  灯笼头: {
+    aliases: ['无面者', '点灯人'],
+    identity: '点灯人，隶属灯街与迎灯舍',
+    generation: '中年，无名辈',
+    origin: '灯街第一盏灯亮起时他就在灯下；脸上没有五官，只有一张借来的白面具，没人记得他何时来。',
+    cares: ['灯桩数目对不上', '有人替他数灯'],
+    taboos: ['叫他“无面”', '拿灯照他的脸'],
+    routine: '05:00 镇心把街灯一盏盏点亮；08:30 迎灯舍前数新到的灯罩；退潮时 13:30 去浅滩点数旧灯桩；18:30 滩边挑还能补的灯壳。',
+    voice: '不答话，只敲三下灯杆。',
+    bonds: [
+      { to: '炉匠', trust: 0.2, warmth: 0.2, debt: 0, familiarity: 0.4 },
+      { to: '沉灯夫人', trust: 0.3, warmth: 0, debt: 0.1, familiarity: 0.5 },
+    ],
+  },
+} satisfies Readonly<Record<string, VillagerArchive>>;
 
 /**
  * 一栋楼的模板。`accent` 与 `boundTask` **必须成对**，这是 `blueprints.ts`
@@ -203,45 +315,55 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 外观四维：这七个人靠「体型 / 头型 / 衣型 / 配饰」分开，不再挤两个色槽。
     // 衣色仍是 24 源色里的 token；七个底色两两 ΔE76 ≥ 10（灯潮界实测最小 15.5，
     // 见 `test/villager-identity.test.ts`）。灯是凭证（`lamp`），不是外观。
-    { name: '迷路人', at: { x: 23, y: 29 }, style: {
-      cloak: 'timber', cloakDark: 'timberDark', scarf: 'pale', scarfLit: 'plaster', hair: 'timberDark',
-      build: 'slim', head: 'hood', outfit: 'cloak', accent: 'lantern', lamp: false,
+    // 设定集：少女（PDF p.42/44/59；书页 82–83/86–87/116–117）。
+    // 朱红工作服、白前襟、深蓝短裤、棕色马尾、提水桶。
+    { name: '迷路人', at: { x: 23, y: 29 }, archive: DENGCHAO_CAST_ARCHIVES['迷路人'], style: {
+      cloak: 'ember', cloakDark: 'terracotta', scarf: 'pale', scarfLit: 'plaster', hair: 'timberDark',
+      build: 'slim', head: 'ponytail', outfit: 'tunic', accent: 'bucket', lamp: false,
     }, routine: [
       { x: 19, y: 15, label: '在旧站牌下认路', dwellMs: 6500 },
       { x: 24, y: 29, label: '沿着灯街找一盏认识的灯', dwellMs: 4800 },
       { x: 21, y: 7, label: '趁退潮看浅滩上的旧轨道', dwellMs: 6500, tide: 'low' },
       { x: 36, y: 29, label: '在叠浪楼外等潮水退去', dwellMs: 5000 },
     ] },
-    { name: '汐', at: { x: 36, y: 29 }, style: {
-      cloak: 'water', cloakDark: 'cloakDark', scarf: 'trim', scarfLit: 'warmLight', hair: 'timberDark',
-      build: 'adult', head: 'ponytail', outfit: 'coat', accent: 'satchel', lamp: true,
+    // 设定集：白衣少年（PDF p.42/43；书页 82–83/84–85）。
+    // 深色齐颌短发、白/浅青长袍、蓝色束带、赤脚。
+    { name: '汐', at: { x: 36, y: 29 }, archive: DENGCHAO_CAST_ARCHIVES['汐'], style: {
+      cloak: 'pale', cloakDark: 'water', scarf: 'water', scarfLit: 'pale', hair: 'timberDark',
+      build: 'young', head: 'bob', outfit: 'robe', accent: 'none', lamp: true,
     }, routine: [
       { x: 32, y: 27, label: '点亮楼前的长灯', dwellMs: 5800 },
       { x: 19, y: 29, label: '在迎灯舍前照看来客', dwellMs: 5200 },
       { x: 39, y: 29, label: '满潮时收起滩边的灯', dwellMs: 4800, tide: 'high' },
       { x: 50, y: 42, label: '趁退潮拾回还能用的灯芯', dwellMs: 6000, tide: 'low' },
     ] },
-    { name: '灯笼头', at: { x: 33, y: 30 }, style: {
-      cloak: 'ember', cloakDark: 'charcoal', scarf: 'warmLight', scarfLit: 'pale', hair: 'charcoal',
-      build: 'stout', head: 'bun', outfit: 'apron', accent: 'staff', lamp: true,
+    // 设定集：无面者（PDF p.58；书页 114–115）。
+    // 高而窄的黑袍、白面具、紫黑眼口、细手臂。灯杆是灯潮界的点灯凭证。
+    { name: '灯笼头', at: { x: 33, y: 30 }, archive: DENGCHAO_CAST_ARCHIVES['灯笼头'], style: {
+      cloak: 'charcoal', cloakDark: 'ink', scarf: 'charcoal', scarfLit: 'ink', hair: 'charcoal',
+      build: 'tall', head: 'mask', outfit: 'robe', accent: 'staff', lamp: true,
     }, routine: [
       { x: 33, y: 29, label: '在镇心把街灯一盏盏点亮', dwellMs: 5200 },
       { x: 19, y: 26, label: '在迎灯舍前数新到的灯罩', dwellMs: 5000 },
       { x: 30, y: 12, label: '趁退潮去浅滩点数旧灯桩', dwellMs: 6200, tide: 'low' },
       { x: 48, y: 40, label: '在滩边挑还能补的灯壳', dwellMs: 5400 },
     ] },
-    { name: '炉匠', at: { x: 38, y: 30 }, style: {
-      cloak: 'charcoal', cloakDark: 'ink', scarf: 'ember', scarfLit: 'terracotta', hair: 'timberDark',
-      build: 'stout', head: 'bob', outfit: 'coat', accent: 'none', lamp: false,
+    // 设定集：锅炉房老人（PDF p.48；书页 94–95）。
+    // 秃顶白须、圆框眼镜、深紫灰长袍、六条手臂、矮壮。
+    { name: '炉匠', at: { x: 38, y: 30 }, archive: DENGCHAO_CAST_ARCHIVES['炉匠'], style: {
+      cloak: 'timber', cloakDark: 'timberDark', scarf: 'trim', scarfLit: 'warmLight', hair: 'pale',
+      build: 'stout', head: 'beard', outfit: 'robe', accent: 'none', lamp: false,
     }, routine: [
       { x: 39, y: 38, label: '在炉匠铺门口抖灰', dwellMs: 5600 },
       { x: 35, y: 30, label: '在镇心石边上歇脚', dwellMs: 5000 },
       { x: 33, y: 15, label: '到炉底入口边上搬炭', dwellMs: 6000 },
       { x: 24, y: 24, label: '在街边喝一碗热的', dwellMs: 4800 },
     ] },
-    { name: '沉灯夫人', at: { x: 35, y: 31 }, style: {
-      cloak: 'pale', cloakDark: 'charcoal', scarf: 'trim', scarfLit: 'warmLight', hair: 'stone',
-      build: 'slim', head: 'bun', outfit: 'robe', accent: 'satchel', lamp: true,
+    // 设定集：掌柜（PDF p.53；书页 104–105 的掌柜造型）。
+    // 白发大髻、大鼻、深蓝长裙、金色束带，矮而宽。
+    { name: '沉灯夫人', at: { x: 35, y: 31 }, archive: DENGCHAO_CAST_ARCHIVES['沉灯夫人'], style: {
+      cloak: 'water', cloakDark: 'deepShade', scarf: 'trim', scarfLit: 'warmLight', hair: 'pale',
+      build: 'stout', head: 'yubaba', outfit: 'cloak', accent: 'none', lamp: true,
     }, routine: [
       { x: 34, y: 29, label: '在镇心石边沉灯', dwellMs: 6000 },
       { x: 36, y: 29, label: '在镇心石边讲那年的潮', dwellMs: 5200 },
