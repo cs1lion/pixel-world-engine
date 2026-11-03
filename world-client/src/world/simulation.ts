@@ -3726,17 +3726,51 @@ export class Simulation {
     readonly total: number;
     readonly incidents: number;
     readonly avoidedBeats: number;
+    /** 每个居民落过几次互动（含两个方向各记一次）。 */
+    readonly byVillager: Readonly<Record<string, number>>;
   } {
     const byKind = { ...this.livelyCounts };
     const total = Object.values(byKind).reduce((sum, value) => sum + value, 0);
     const incidents = byKind.street_tumble + byKind.street_water + byKind.street_help;
-    return { beganAt: this.livelyBeganAt, byKind, total, incidents, avoidedBeats: this.avoidedBeats };
+    return {
+      beganAt: this.livelyBeganAt,
+      byKind,
+      total,
+      incidents,
+      avoidedBeats: this.avoidedBeats,
+      byVillager: Object.fromEntries(this.livelyByVillager),
+    };
+  }
+
+  /**
+   * 今天的避让读数，按人和按对分。面板要把「所以今天避开他」说清楚，
+   * 就得知道是哪一对、跳过了几拍；累计的 `avoidedBeats` 分不出这两层。
+   *
+   * 只在内存里活：与 `avoidedBeats` 一样是运行时读数，不进存档 v5。
+   */
+  avoidanceStats(): {
+    readonly byVillager: Readonly<Record<string, number>>;
+    readonly byPair: Readonly<Record<string, number>>;
+  } {
+    return {
+      byVillager: Object.fromEntries(this.avoidedByVillagerToday),
+      byPair: Object.fromEntries(this.avoidedByPairToday),
+    };
   }
 
   private livelyBeganAt = 0;
   private worldSeed = '';
   private socialContext: lively.SocialContext = lively.EMPTY_SOCIAL_CONTEXT;
   private avoidedBeats = 0;
+  private livelyDay = -1;
+  private livelyToday = 0;
+  private readonly livelySettled = new Set<string>();
+  private readonly livelyQuarrelDay = new Map<string, number>();
+  private readonly livelyLastAt = new Map<string, number>();
+  private readonly livelyTodayByVillager = new Map<string, number>();
+  private readonly livelyByVillager = new Map<string, number>();
+  private readonly avoidedByVillagerToday = new Map<string, number>();
+  private readonly avoidedByPairToday = new Map<string, number>();
   private readonly livelyCounts: Record<lively.LivelyKind, number> = {
     street_greet: 0,
     street_yield: 0,
@@ -3755,6 +3789,17 @@ export class Simulation {
    */
   private stepLiveliness(prevNow: number): void {
     if (this.villagers.length < 2) return;
+    // 日账先翻页：同类去重与全天上限只按当前世界日算，争执冷却跨日保留。
+    // 避让读数也按日记，否则面板上的「今天」会掺进昨天的账。
+    const day = Math.floor(this.now / DAY_MS);
+    if (day !== this.livelyDay) {
+      this.livelyDay = day;
+      this.livelyToday = 0;
+      this.livelySettled.clear();
+      this.livelyTodayByVillager.clear();
+      this.avoidedByVillagerToday.clear();
+      this.avoidedByPairToday.clear();
+    }
     // 槽没跨就什么也不判。平时这一拍只花一次整除——不然每个逻辑步都要
     // 摊一份居民快照、扫一遍水面，5 倍预算就是这么被吃掉的。
     if (
@@ -3786,6 +3831,13 @@ export class Simulation {
       villagers,
       relations: this.socialContext.relations,
       waterPlace: this.waterSpot(),
+      history: {
+        totalToday: this.livelyToday,
+        settledToday: [...this.livelySettled],
+        quarrelDays: Object.fromEntries(this.livelyQuarrelDay),
+        lastAt: Object.fromEntries(this.livelyLastAt),
+        todayByVillager: Object.fromEntries(this.livelyTodayByVillager),
+      },
     });
     for (const event of events) this.performLively(event);
   }
@@ -3796,6 +3848,19 @@ export class Simulation {
       this.livelyBeganAt = this.now;
     }
     this.livelyCounts[event.kind] += 1;
+    // 日账：同类只落一次、全天有上限；最近互动时刻供下一槽排先后。
+    this.livelyToday += 1;
+    const pairKey = lively.livelyPairKey(event.actorId, event.otherId);
+    this.livelySettled.add(lively.livelySettledKey(pairKey, event.kind));
+    this.livelyLastAt.set(event.actorId, this.now);
+    this.livelyLastAt.set(event.otherId, this.now);
+    this.livelyTodayByVillager.set(event.actorId, (this.livelyTodayByVillager.get(event.actorId) ?? 0) + 1);
+    this.livelyTodayByVillager.set(event.otherId, (this.livelyTodayByVillager.get(event.otherId) ?? 0) + 1);
+    this.livelyByVillager.set(event.actorId, (this.livelyByVillager.get(event.actorId) ?? 0) + 1);
+    this.livelyByVillager.set(event.otherId, (this.livelyByVillager.get(event.otherId) ?? 0) + 1);
+    if (event.kind === 'street_quarrel') {
+      this.livelyQuarrelDay.set(pairKey, Math.floor(this.now / DAY_MS));
+    }
     const actor = this.villagers.find((villager) => villager.id === event.actorId);
     const other = this.villagers.find((villager) => villager.id === event.otherId);
     for (const bubble of event.bubbles) {
@@ -3874,6 +3939,9 @@ export class Simulation {
       const distance = Math.max(Math.abs(target.x - otherCell.x), Math.abs(target.y - otherCell.y));
       if (distance <= lively.LIVELY_CLOSE_CELLS) {
         this.avoidedBeats += 1;
+        this.avoidedByVillagerToday.set(villager.id, (this.avoidedByVillagerToday.get(villager.id) ?? 0) + 1);
+        const pair = `${villager.id}|${rule.otherId}`;
+        this.avoidedByPairToday.set(pair, (this.avoidedByPairToday.get(pair) ?? 0) + 1);
         return true;
       }
     }

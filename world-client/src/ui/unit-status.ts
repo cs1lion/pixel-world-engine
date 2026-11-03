@@ -81,6 +81,8 @@ export interface UnitDayTimelineEntry {
   readonly placeId: string | null;
   readonly actors: readonly string[];
   readonly what: string | null;
+  /** 记忆真的改了这一天的行为时，那句因果；没有就省略。 */
+  readonly why?: string | null;
 }
 
 /** 面板里的一格「今日」：事件 + 地点 + 对象，点开对应记忆条目。 */
@@ -91,6 +93,8 @@ export interface UnitTimelineLine {
   readonly who: string;
   readonly memoryId: string;
   readonly eventId: string;
+  /** 「所以今天避开他」——只在真的因此跳过拍子时出现。 */
+  readonly why?: string | null;
 }
 
 /** 构造器只需要快照里的这几块，便于测试直接喂最小数据。 */
@@ -254,6 +258,7 @@ function timelineLines(
       who: others.length === 0 ? '独自' : `与 ${others.join('、')}`,
       memoryId: entry.memoryId,
       eventId: entry.eventId,
+      why: entry.why ?? null,
     };
   });
 }
@@ -536,7 +541,9 @@ export function bindUnitStatusPanel(oracle: () => UnitStatusOracle | undefined):
         head.textContent = `${entry.clock} · ${entry.what}`;
         const detail = document.createElement('div');
         detail.className = 'unit-status-today-detail';
-        detail.textContent = `${entry.place} · ${entry.who} · 记忆 ${entry.memoryId} · 事件 ${entry.eventId}`;
+        detail.textContent = `${entry.place} · ${entry.who}`
+          + `${entry.why === null || entry.why === undefined ? '' : ` · ${entry.why}`}`
+          + ` · 记忆 ${entry.memoryId} · 事件 ${entry.eventId}`;
         item.append(head, detail);
         section.append(item);
       }

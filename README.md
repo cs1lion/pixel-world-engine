@@ -313,6 +313,15 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 （空串 = 没有记忆）。`Simulation.toSave()` 只负责把它原样写进 v5 存档；读档时由
 `SandboxScene` 在 `Simulation.fromSave()` 之后调 `this.memory.fromJSON()` 复原。
 
+**街头互动的限流（第二轮）**：日账只活在运行时，不写进存档。常量在
+`world-client/src/world/liveliness.ts`：同一对角色同一世界日同一类事件只落一次；
+整日上限 `LIVELY_DAILY_CAP = 12`；任意两件之间至少隔 `LIVELY_GAP_MS = 30` 世界分钟；
+争执对同一对角色按 `LIVELY_QUARREL_COOLDOWN_DAYS = 3` 个世界日冷却；候选对先按
+「今天谁更闲」再按「最近一次互动距今」轮转。`avoidedBeats` 与 `socialContext`
+同样只活在运行时；面板时间线的展开条目会在事件后补一句「所以今天避开谁（几拍）」，
+把避让的因果说在看得见的地方。关系账本的 `trust` / `warmth` 按现有半衰期
+（`decayRate = 0.15`/天）在日终衰减，证据链原样保留。
+
 ## 与旧仓的关系
 
 渲染与模拟内核来自 `cs1lion/xiaoxi` 的 `pixel-world/`。旧仓保留为参考，不再演进。

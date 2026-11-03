@@ -1385,6 +1385,10 @@ export class MemoryWorld {
     const closedDay = day;
     this.currentDay = closedDay;
 
+    // 关系账本先衰减，再整理记忆：第二天读到的 trust 是衰减后的绝对值，
+    // 而证据链仍指着原事件。当天刚写过的那条不衰减——否则「今天结下的
+    // -0.22」在当天关账时就变成 -0.187，日读数会把两天的变化混成一天。
+    this.decayBonds(closedDay);
     this.diffuseDay(at);
     this.weatherTraces(closedDay);
 
@@ -1754,6 +1758,25 @@ export class MemoryWorld {
         updatedDay: day,
       });
       this.refreshRelation(from, to);
+    }
+  }
+
+  /**
+   * 日终把关系读数往 0 收：与记忆强度同一条 `decayRate`（0.15/天），
+   * 所以 `-0.22` 的 trust 会按 -0.187、-0.159、-0.135… 一路回到阈值内。
+   *
+   * 只衰减 `trust` 与 `warmth`：`debt` 是「欠了一次」的事实，不该被忘掉；
+   * `evidence` 与 `updatedDay` 原样保留，面板仍能顺着它回到那件事。
+   * 当天写过的不衰减，见 `dayClosed`。
+   */
+  private decayBonds(closedDay: number): void {
+    const factor = 1 - this.config.decayRate;
+    for (const [key, bond] of this.bonds) {
+      if (bond.updatedDay >= closedDay) continue;
+      const trust = Math.abs(bond.trust) < 0.01 ? 0 : bond.trust * factor;
+      const warmth = Math.abs(bond.warmth) < 0.01 ? 0 : bond.warmth * factor;
+      this.bonds.set(key, { ...bond, trust, warmth });
+      this.refreshRelation(bond.from, bond.to);
     }
   }
 

@@ -7,11 +7,15 @@
  *    同一个种子、同一串步长，走到同一刻就出同一件事。
  * 2. **由位置与关系触发**：距离决定「撞见」，关系读数决定「这一回是哪种」。
  *    没有关系账本的两个人不会当街争执。
- * 3. **限流靠时间槽**：一个 10 世界分钟的槽里最多出一件。跨槽那一拍才判，
+ * 3. **限流靠时间槽 + 日账**：一个 10 世界分钟的槽里最多出一件；任意两件之间
+ *    至少隔 {@link LIVELY_GAP_MS}；同一对同一个世界日、同一种互动只落一次；
+ *    全天最多 {@link LIVELY_DAILY_CAP} 件；同一对的争执按
+ *    {@link LIVELY_QUARREL_COOLDOWN_DAYS} 个世界日冷却。跨槽那一拍才判，
  *    与 `ambient.ts` 同一条理由——不是靠计数器。
  *
  * 街头小事（撞翻担子 / 抢水 / 帮忙抬货）另有一个 2 小时的时间槽，且只在
- * 跨槽那一拍判。它们与普通互动共用同一条位置判据，但不共用种类选择。
+ * 跨槽那一拍判。它们与普通互动共用同一条位置判据，但不共用种类选择；同样
+ * 受日上限与同类去重约束。
  */
 
 import { DAY_MS } from './memory/config.ts';
@@ -59,6 +63,29 @@ export interface LivelyVillager {
   readonly free: boolean;
 }
 
+/** 调用方（`Simulation`）手里的日账，纯函数只读不写。 */
+export interface LivelyHistory {
+  /** 这个世界日已经落地几件。 */
+  readonly totalToday: number;
+  /** 这个世界日已经落地的「pairKey|kind」。 */
+  readonly settledToday: readonly string[];
+  /** 每对最后一次争执的世界日。 */
+  readonly quarrelDays: Readonly<Record<string, number>>;
+  /** 每个居民最后一次互动的世界时刻（毫秒）。 */
+  readonly lastAt: Readonly<Record<string, number>>;
+  /** 这个世界日每个居民已经参与过几次互动。 */
+  readonly todayByVillager: Readonly<Record<string, number>>;
+}
+
+/** 没有历史时的空账：第一天、第一对。 */
+export const EMPTY_LIVELY_HISTORY: LivelyHistory = {
+  totalToday: 0,
+  settledToday: [],
+  quarrelDays: {},
+  lastAt: {},
+  todayByVillager: {},
+};
+
 export interface LivelyInput {
   readonly prevNow: number;
   readonly now: number;
@@ -66,6 +93,8 @@ export interface LivelyInput {
   readonly villagers: readonly LivelyVillager[];
   readonly relations: readonly SocialRelation[];
   readonly waterPlace: GridPoint;
+  /** 日账；省略时当作世界的第一天，只适合单测与预览。 */
+  readonly history?: LivelyHistory;
 }
 
 export interface LivelyBubble {
@@ -99,6 +128,39 @@ export const LIVELY_INCIDENT_SLOT_MS = worldHours(2);
 export const LIVELY_CLOSE_CELLS = 2;
 /** 低于这个信任读数就主动避开同一个锚点，也够得上当街争执。 */
 export const LIVELY_AVOID_TRUST = -0.15;
+/**
+ * 一个世界日最多落下几件街头互动（普通互动与街头小事合计）。
+ *
+ * 12 件的理由：6:00–23:00 有 102 个 10 分钟槽，旧行为下约有一半槽会出手，
+ * 一天能堆五十来件；12 件再叠上 30 分钟的间隔，至少铺开 5.5 小时，既看得见，
+ * 又不会让同一对在同一分钟里连出三条。五个人同场时也只到 12 件，面板不会刷屏。
+ */
+export const LIVELY_DAILY_CAP = 12;
+/**
+ * 任意两件街头互动之间最少隔 30 世界分钟。
+ *
+ * 只靠日上限，五个人同场时十二件会在早晨两小时内连着放完，屏幕上就是一阵
+ * 刷屏。30 分钟的世界间隔在 60 倍速下约合 30 秒，十二件铺到上午半天，
+ * 既看得见又不会连珠炮。判据取所有居民里最近一次互动的时刻，跨日保留。
+ */
+export const LIVELY_GAP_MS = worldMinutes(30);
+/**
+ * 争执冷却：同一对最少隔 3 个世界日才可能再吵一次。
+ *
+ * 与 `-0.15` 的信任阈值配套：一天两吵会让关系账本一天内被同方向砸两次，
+ * 记忆里只剩「又吵了」，看不出第一次为什么结怨。
+ */
+export const LIVELY_QUARREL_COOLDOWN_DAYS = 3;
+
+/** 一对角色的稳定键：顺序无关，供日账与冷却共用。 */
+export function livelyPairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/** 同类去重键：同一对、同一世界日、同一种互动只落一次。 */
+export function livelySettledKey(pairKey: string, kind: LivelyKind): string {
+  return `${pairKey}|${kind}`;
+}
 
 const GREET_DURATION_MS = worldMinutes(2);
 const YIELD_DURATION_MS = worldMinutes(2);
@@ -158,80 +220,120 @@ export function livelyBetween(input: LivelyInput): readonly LivelyEvent[] {
     slotOf(input.prevNow, LIVELY_INCIDENT_SLOT_MS) !== slotOf(input.now, LIVELY_INCIDENT_SLOT_MS);
   const incidentSlot = slotOf(input.now, LIVELY_INCIDENT_SLOT_MS);
 
+  const history = input.history ?? EMPTY_LIVELY_HISTORY;
+  if (history.totalToday >= LIVELY_DAILY_CAP) return [];
+  const latest = Object.values(history.lastAt).reduce((max, value) => Math.max(max, value), -Infinity);
+  if (input.now - latest < LIVELY_GAP_MS) return [];
+  const settled = new Set(history.settledToday);
+  const day = Math.floor(input.now / DAY_MS);
+
+  // 候选对先按两个人今天各参与过几次来排（次数少的先来），再看谁最久没
+  // 互动，最后按稳定键定序。只按 id 排会让前两个人把一天的额度吃光，
+  // 五个人同场时总有人整天零互动。
+  const pairs: { a: LivelyVillager; b: LivelyVillager; pairKey: string }[] = [];
   const ordered = [...input.villagers].sort((a, b) => a.id.localeCompare(b.id));
   for (const a of ordered) {
     for (const b of ordered) {
       if (a.id >= b.id) continue;
       if (!a.free || !b.free) continue;
       if (chebyshev(a.cell, b.cell) > LIVELY_CLOSE_CELLS) continue;
+      pairs.push({ a, b, pairKey: livelyPairKey(a.id, b.id) });
+    }
+  }
+  pairs.sort((left, right) => {
+    const busyLeft = (history.todayByVillager[left.a.id] ?? 0)
+      + (history.todayByVillager[left.b.id] ?? 0);
+    const busyRight = (history.todayByVillager[right.a.id] ?? 0)
+      + (history.todayByVillager[right.b.id] ?? 0);
+    const lastLeft = Math.max(
+      history.lastAt[left.a.id] ?? -1,
+      history.lastAt[left.b.id] ?? -1,
+    );
+    const lastRight = Math.max(
+      history.lastAt[right.a.id] ?? -1,
+      history.lastAt[right.b.id] ?? -1,
+    );
+    return busyLeft - busyRight || lastLeft - lastRight || left.pairKey.localeCompare(right.pairKey);
+  });
 
-      const pairKey = `${a.id}|${b.id}`;
-      const gate = seedOf(input.seed, 'lively-gate', slot, pairKey);
-      // 半个槽会出手：再密就变成每十分钟一次，街上像在演同一段戏。
-      if (gate % 2 !== 0) continue;
+  for (const { a, b, pairKey } of pairs) {
+    const gate = seedOf(input.seed, 'lively-gate', slot, pairKey);
+    // 半个槽会出手：再密就变成每十分钟一次，街上像在演同一段戏。
+    if (gate % 2 !== 0) continue;
 
-      const ab = relationOf(input.relations, a.id, b.id);
-      const ba = relationOf(input.relations, b.id, a.id);
-      const trustLow = Math.min(ab?.trust ?? 0, ba?.trust ?? 0);
+    const ab = relationOf(input.relations, a.id, b.id);
+    const ba = relationOf(input.relations, b.id, a.id);
+    const trustLow = Math.min(ab?.trust ?? 0, ba?.trust ?? 0);
 
-      if (incidentCrossed) {
-        const incident = incidentBetween(input, a, b, minute, incidentSlot, pairKey);
-        if (incident !== undefined) return [incident];
+    if (incidentCrossed) {
+      const incident = incidentBetween(input, a, b, minute, incidentSlot, pairKey);
+      // 同类只落一次：昨天/今天已经撞过担子，这一槽就不再撞第二次。
+      if (incident !== undefined && !settled.has(livelySettledKey(pairKey, incident.kind))) {
+        return [incident];
       }
+    }
 
-      const pick = seedOf(input.seed, 'lively-kind', slot, pairKey) % 3;
-      const where = { x: a.cell.x, y: a.cell.y };
+    const pick = seedOf(input.seed, 'lively-kind', slot, pairKey) % 3;
+    const where = { x: a.cell.x, y: a.cell.y };
 
-      if (a.standing && b.standing && trustLow <= LIVELY_AVOID_TRUST) {
-        return [{
-          kind: 'street_quarrel',
-          text: `${a.name}和${b.name}当街争执了两句。`,
-          where,
-          actorId: a.id,
-          otherId: b.id,
-          bubbles: pairBubbles(a, b, '你走路看着点。', '我走得好好的。'),
-          durationMs: QUARREL_DURATION_MS,
-        }];
-      }
+    const quarrelDay = history.quarrelDays[pairKey];
+    const quarrelCooled =
+      quarrelDay === undefined || day - quarrelDay >= LIVELY_QUARREL_COOLDOWN_DAYS;
+    if (
+      a.standing && b.standing && trustLow <= LIVELY_AVOID_TRUST
+      && quarrelCooled && !settled.has(livelySettledKey(pairKey, 'street_quarrel'))
+    ) {
+      return [{
+        kind: 'street_quarrel',
+        text: `${a.name}和${b.name}当街争执了两句。`,
+        where,
+        actorId: a.id,
+        otherId: b.id,
+        bubbles: pairBubbles(a, b, '你走路看着点。', '我走得好好的。'),
+        durationMs: QUARREL_DURATION_MS,
+      }];
+    }
 
-      if (a.walking !== b.walking) {
-        const walker = a.walking ? a : b;
-        const stander = a.walking ? b : a;
-        return [{
-          kind: 'street_yield',
-          text: `${stander.name}侧身让${walker.name}先过。`,
-          where: { x: stander.cell.x, y: stander.cell.y },
-          actorId: walker.id,
-          otherId: stander.id,
-          bubbles: pairBubbles(walker, stander, '多谢。', '您先走。'),
-          durationMs: YIELD_DURATION_MS,
-          shift: { villagerId: stander.id, awayFromId: walker.id },
-        }];
-      }
+    if (a.walking !== b.walking && !settled.has(livelySettledKey(pairKey, 'street_yield'))) {
+      const walker = a.walking ? a : b;
+      const stander = a.walking ? b : a;
+      return [{
+        kind: 'street_yield',
+        text: `${stander.name}侧身让${walker.name}先过。`,
+        where: { x: stander.cell.x, y: stander.cell.y },
+        actorId: walker.id,
+        otherId: stander.id,
+        bubbles: pairBubbles(walker, stander, '多谢。', '您先走。'),
+        durationMs: YIELD_DURATION_MS,
+        shift: { villagerId: stander.id, awayFromId: walker.id },
+      }];
+    }
 
-      if (a.standing && b.standing && minute >= 8 * 60 && minute < 18 * 60 && pick === 0) {
-        return [{
-          kind: 'street_together',
-          text: `${a.name}和${b.name}一起搭手做事。`,
-          where,
-          actorId: a.id,
-          otherId: b.id,
-          bubbles: pairBubbles(a, b, '搭把手？', '一起抬。'),
-          durationMs: TOGETHER_DURATION_MS,
-        }];
-      }
+    if (
+      a.standing && b.standing && minute >= 8 * 60 && minute < 18 * 60 && pick === 0
+      && !settled.has(livelySettledKey(pairKey, 'street_together'))
+    ) {
+      return [{
+        kind: 'street_together',
+        text: `${a.name}和${b.name}一起搭手做事。`,
+        where,
+        actorId: a.id,
+        otherId: b.id,
+        bubbles: pairBubbles(a, b, '搭把手？', '一起抬。'),
+        durationMs: TOGETHER_DURATION_MS,
+      }];
+    }
 
-      if (a.standing && b.standing) {
-        return [{
-          kind: 'street_greet',
-          text: `${a.name}与${b.name}碰面，互相问了个好。`,
-          where,
-          actorId: a.id,
-          otherId: b.id,
-          bubbles: pairBubbles(a, b, '早啊。', '你也早。'),
-          durationMs: GREET_DURATION_MS,
-        }];
-      }
+    if (a.standing && b.standing && !settled.has(livelySettledKey(pairKey, 'street_greet'))) {
+      return [{
+        kind: 'street_greet',
+        text: `${a.name}与${b.name}碰面，互相问了个好。`,
+        where,
+        actorId: a.id,
+        otherId: b.id,
+        bubbles: pairBubbles(a, b, '早啊。', '你也早。'),
+        durationMs: GREET_DURATION_MS,
+      }];
     }
   }
   return [];

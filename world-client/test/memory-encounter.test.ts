@@ -237,3 +237,94 @@ test('有记忆 vs 无记忆：低信任的人会主动避开同一个锚点', (
     `有/无记忆的读数差太小：无 ${without}，有 ${withMemory}`,
   );
 });
+
+test('跨天记忆：-0.22 的 trust 按 0.15/天衰减，跌回阈值后避让停止', () => {
+  const memory = new MemoryRuntime({ worldId: 'five-days' });
+  memory.syncHolders([
+    { holderId: 'v0', type: 'character', at: { x: 0, y: 0 } },
+    { holderId: 'v1', type: 'character', at: { x: 1, y: 0 } },
+  ]);
+  const change: WorldChange = {
+    change: 'world.event',
+    kind: 'street_tumble',
+    text: '甲撞翻了乙的担子。',
+    placeId: 'place:0,0',
+    where: { x: 0, y: 0 },
+    actorId: 'v0',
+    otherId: 'v1',
+  };
+  const observation = observationOf(change, 'ev-five-days', {
+    atOfHolder: (holderId) => (holderId === 'v1' ? { x: 1, y: 0 } : { x: 0, y: 0 }),
+    atOfBuilding: () => undefined,
+    buildingOfTask: () => undefined,
+  });
+  assert.ok(observation !== null);
+  memory.observe(observation, ['v0', 'v1'], 1000);
+  const initial = memory.bondsOf('v1').find((bond) => bond.to === 'v0');
+  assert.ok(initial !== undefined);
+  assert.equal(initial.trust, -0.22);
+
+  const target = { x: 12, y: 9 };
+  const sim = new Simulation({
+    grid: new WorldGrid({ width: 24, height: 18, border: 1, zones: [], regions: [] }),
+    buildings: [],
+    altar: { x: 20, y: 9 },
+    villagerName: '甲',
+    initialNow: 0,
+    worldSeed: 'five-days',
+    wallClock: () => 1000,
+    villagerProfiles: [
+      { at: target, routine: [{ id: 'altar', label: '在祭坛边', going: '去祭坛边', target, dwellMs: 5000 }] },
+      { at: target, routine: [{ id: 'altar', label: '在祭坛边', going: '去祭坛边', target, dwellMs: 5000 }] },
+    ],
+  });
+  const coldTrust = (): number => memory.bondsOf('v1').find((bond) => bond.to === 'v0')?.trust ?? 0;
+  const context = () => {
+    const bonds = memory.bondsOf('v1');
+    return {
+      relations: bonds.map((bond) => ({ from: 'v1', to: bond.to, trust: bond.trust, warmth: bond.warmth })),
+      avoid: coldTrust() < -0.15 ? [{ villagerId: 'v1', otherId: 'v0' }] : [],
+    };
+  };
+
+  const readings: { day: number; trust: number; avoided: number }[] = [];
+  let day = 0;
+  let avoidedAtStart = 0;
+  const minutesPerDay = DAY_MS / 60_000;
+  const snapshotDay = (closedDay: number): void => {
+    readings.push({
+      day: closedDay,
+      trust: coldTrust(),
+      avoided: sim.livelinessStats().avoidedBeats - avoidedAtStart,
+    });
+    avoidedAtStart = sim.livelinessStats().avoidedBeats;
+  };
+  for (let minute = 0; minute < 5 * minutesPerDay; minute += 1) {
+    const nowDay = Math.floor(sim.snapshot().now / DAY_MS);
+    if (nowDay !== day) {
+      memory.tick(sim.snapshot().now);
+      snapshotDay(day);
+      day = nowDay;
+    }
+    sim.setSocialContext(context());
+    sim.update(60_000);
+  }
+  memory.tick(sim.snapshot().now);
+  snapshotDay(day);
+
+  assert.equal(readings.length, 5, '五日读数没有逐日落下来');
+  assert.equal(readings[0]!.trust, -0.22, '第一天关账就把刚结下的账衰减了');
+  for (let index = 1; index < readings.length; index += 1) {
+    const expected = readings[index - 1]!.trust * 0.85;
+    assert.ok(
+      Math.abs(readings[index]!.trust - expected) < 0.002,
+      `第 ${index} 天 trust 没有按 0.15/天衰减：${readings[index]!.trust} vs ${expected}`,
+    );
+  }
+  assert.ok(readings[3]!.avoided > 0, '跌破阈值前一天就不躲了，记忆影响行为断在第二天');
+  assert.ok(
+    Math.abs(readings[3]!.trust) < 0.15,
+    `第三天读数 ${readings[3]!.trust} 还没跌回阈值内，恢复断言不成立`,
+  );
+  assert.equal(readings[4]!.avoided, 0, 'trust 已回到阈值内，行为却没有恢复（还在机械地躲）');
+});

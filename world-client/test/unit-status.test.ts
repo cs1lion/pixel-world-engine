@@ -120,6 +120,38 @@ test('空单位 / 空数据：返回 null，不编占位', () => {
   assert.equal(buildUnitStatus(empty, { kind: 'building', id: 'b0' }), null);
 });
 
+test('今日时间线展开条目写出「所以今天避开他」，并把拍数说清楚', () => {
+  const sim = makeSim();
+  const snapshot = sim.snapshot();
+  const villager = snapshot.villagers[0]!;
+  const other = snapshot.villagers[1]!;
+  const day = Math.floor(snapshot.now / 86_400_000);
+  const memory: UnitMemoryReader = {
+    viewOf: () => null,
+    dayTimelineOf: (holderId) => (holderId !== villager.id ? [] : [{
+      memoryId: 'm_0002',
+      eventId: 'ev-street',
+      kind: 'street_tumble',
+      day,
+      when: day * 86_400_000 + 10 * 60_000,
+      placeId: 'place:0,0',
+      actors: [other.id, villager.id],
+      what: '甲撞翻了乙的担子。',
+      why: `所以今天避开${other.name}（12 拍）`,
+    }]),
+  };
+  const content = buildUnitStatus(worldOf(sim), { kind: 'villager', id: villager.id }, memory);
+  assert.ok(content !== null);
+  assert.equal(content.today?.length, 1, '今日这一段没接上适配器');
+  assert.equal(content.today[0]!.what, '甲撞翻了乙的担子。');
+  assert.equal(
+    content.today[0]!.why,
+    `所以今天避开${other.name}（12 拍）`,
+    '记忆改了行为，展开条目里却没有那句因果',
+  );
+  assert.match(content.today[0]!.place, /街上/);
+});
+
 test('长按约 500ms 才触发；移出单位立刻取消', () => {
   assert.equal(LONG_PRESS_MS, 500);
   assert.equal(longPressShouldFire(499, true), false);

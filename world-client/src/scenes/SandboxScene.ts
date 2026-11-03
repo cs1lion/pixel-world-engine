@@ -2538,7 +2538,7 @@ export class SandboxScene extends Phaser.Scene {
         };
       },
       bondsOf: (holderId) => this.memory?.bondsOf(holderId) ?? [],
-      dayTimelineOf: (holderId, day) => this.memory?.dayTimelineFor(holderId, day) ?? [],
+      dayTimelineOf: (holderId, day) => this.dayTimelineWithWhy(holderId, day),
       moodOf: (holderId) => this.memory?.moodOf(holderId) ?? null,
       innerVoiceOf: (holderId) => this.memory?.innerVoiceOf(holderId) ?? null,
     };
@@ -3989,6 +3989,27 @@ export class SandboxScene extends Phaser.Scene {
   private buildingName(id: string | null): string | null {
     if (id === null) return null;
     return this.snapshot.buildings.find((item) => item.instanceId === id)?.displayName ?? null;
+  }
+
+  /**
+   * 今日时间线加上一句因果：那件事之后，这个人今天真的因为记着它绕开了
+   * 对方几拍。数字取自 `Simulation.avoidanceStats()`（运行时读数），
+   * 不是从 trust 反推的「可能避开」——没跳过就不写这句。
+   */
+  private dayTimelineWithWhy(holderId: string, day: number) {
+    const entries = this.memory?.dayTimelineFor(holderId, day) ?? [];
+    if (day !== Math.floor(this.snapshot.now / DAY_MS)) return entries;
+    const avoid = this.sim.avoidanceStats();
+    const names = new Map(this.snapshot.villagers.map((villager) => [villager.id, villager.name]));
+    return entries.map((entry) => {
+      const other = entry.actors.find((id) => id !== holderId);
+      const beats = other === undefined ? 0 : avoid.byPair[`${holderId}|${other}`] ?? 0;
+      if (other === undefined || beats === 0) return entry;
+      return {
+        ...entry,
+        why: `所以今天避开${names.get(other) ?? other}（${beats} 拍）`,
+      };
+    });
   }
 
   /**
