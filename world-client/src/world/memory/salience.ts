@@ -143,6 +143,9 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   // 世界自己的节律（`world/ambient.ts`）。潮水掉头是环境，日常落点是闲话：
   // 前者意外度高、情绪低，后者两样都低——它本来就该是村子里最寻常的话。
   tide_turn: { emotion: 0.2, surprise: 0.5, goalRelevance: 0.25, involvement: 0.1 },
+  // 船班播报：全镇都听得见，但它是可用的信息而不是意外——比潮水多一点
+  // 目标相关（今天过不过得了河），情绪仍然低。
+  harbor_report: { emotion: 0.2, surprise: 0.25, goalRelevance: 0.45, involvement: 0.1 },
   routine_done: { emotion: 0.2, surprise: 0.15, goalRelevance: 0.2, involvement: 0.15 },
   // 每日小事（打水/点灯）：当事人自己会记得，旁人只有先验的卷入度——
   // 给 0.15 与 `routine_done` 同档，不因为它天天发生就忽然变重。

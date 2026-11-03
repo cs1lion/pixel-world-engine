@@ -51,6 +51,10 @@ export function worldEventImportance(kind: WorldEventKind): number {
       return 0.35;
     case 'tide_turn':
       return 0.35;
+    case 'harbor_report':
+      // 船班播报是全镇听得见的钟，不是哪一个人的大事：比潮水重一点，
+      // 因为它带着「今天能不能过河」这句可用的信息；但仍在传说门槛之下。
+      return 0.4;
   }
 }
 
@@ -77,6 +81,9 @@ export function worldEventValence(kind: WorldEventKind): number {
       return 0.1;
     case 'tide_turn':
       return 0;
+    case 'harbor_report':
+      // 停航是坏消息，开航只是寻常；同一句话里已经说了船开没开。
+      return 0;
   }
 }
 
@@ -94,6 +101,8 @@ export function worldEventArousal(kind: WorldEventKind): number {
       return 0.3;
     case 'tide_turn':
       return 0.35;
+    case 'harbor_report':
+      return 0.3;
     default:
       return 0.25;
   }

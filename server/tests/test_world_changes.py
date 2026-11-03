@@ -162,6 +162,14 @@ def test_每日小事的_kind_不能自己编(client: TestClient) -> None:
     assert "daily_fish" in response.json()["detail"]
 
 
+def test_船班播报也是同一扇窄门(client: TestClient) -> None:
+    """渡口按世界时间每天报三次；它必须走白名单，不能自造一个 kind。"""
+    assert "harbor_report" in WORLD_EVENT_KINDS
+    payload = {**VALID_PAYLOADS["world.event"], "kind": "harbor_report"}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 201, response.text
+
+
 STREET_KINDS = (
     "street_greet",
     "street_yield",

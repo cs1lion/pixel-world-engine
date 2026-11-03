@@ -72,6 +72,7 @@ import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '.
 import { createWeatherView, type WeatherView } from '../render/weather.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
+import { createHarborView, harborSiteOf, type HarborView } from '../render/harbor-view.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
 import { createAmbienceView, type AmbienceView } from '../render/ambience-view.ts';
 import { createGhostView, type GhostView } from '../render/ghost.ts';
@@ -321,6 +322,8 @@ export class SandboxScene extends Phaser.Scene {
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
+  /** 渡口的木栈/灯影/船。没有 `ferry` 地域的图不创建，保持 null。 */
+  private harborView: HarborView | null = null;
   private phaseView!: PhaseView;
   /** 白天的鸟、黄昏的蝙蝠。纯画面，不占快照、不进存档。 */
   private ambienceView!: AmbienceView;
@@ -588,6 +591,10 @@ export class SandboxScene extends Phaser.Scene {
     };
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
     this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette);
+    const harborSite = harborSiteOf(this.pack);
+    if (this.pack !== undefined && this.pack !== null && harborSite !== null) {
+      this.harborView = createHarborView(this, this.pack, harborSite, originX, originY);
+    }
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
@@ -826,6 +833,16 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack === undefined || this.pack === null
         ? {}
         : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
+      // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
+      ...(harborSite === null
+        ? {}
+        : {
+            harborAt: {
+              x: harborSite.x + Math.floor(harborSite.w / 2),
+              y: harborSite.y + Math.floor(harborSite.h / 2),
+            },
+          }),
       // 露话池（SPEC_V2 §4.6）。设定集一份都没给时这项整个不出现——
       // 于是那本世界里没有一件摆件会脏，也没有一句编出来的话。
       ...(this.pack?.propReveals !== undefined
@@ -1137,6 +1154,8 @@ export class SandboxScene extends Phaser.Scene {
     this.settingScenery?.destroy();
     this.settingScenery = null;
     this.tideView?.destroy();
+    this.harborView?.destroy();
+    this.harborView = null;
     this.fogView?.destroy();
     this.cancelLongPress();
     if (this.contextMenuListener !== null) {
@@ -3309,7 +3328,17 @@ export class SandboxScene extends Phaser.Scene {
     // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
     // （重建换了实例 id，地块没换）。别的改变没有这一段，照旧。
     const landmark = this.landmarkEventOf(change);
-    this.memory.observe(landmark === undefined ? observation : { ...observation, landmark }, undefined, at);
+    // 船班播报是渡口的汽笛：全镇都听得见，不按距离筛目击者。
+    // 否则「今天潮位多少、船开没开」只会落进恰好站在码头那一个人的时间线，
+    // 面板上就答不了这一问。别的世界事件仍按 `where` 的落点筛。
+    const witnesses = change.change === 'world.event' && change.kind === 'harbor_report'
+      ? this.snapshot?.villagers.map((villager) => villager.id)
+      : undefined;
+    this.memory.observe(
+      landmark === undefined ? observation : { ...observation, landmark },
+      witnesses,
+      at,
+    );
   }
 
   /**
@@ -3763,6 +3792,7 @@ export class SandboxScene extends Phaser.Scene {
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.tideView.update(this.snapshot.tide.level);
+    if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
     this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
@@ -3927,7 +3957,13 @@ export class SandboxScene extends Phaser.Scene {
 
     const clockNote = clockNotes.length === 0 ? '' : `　　${clockNotes.join('　　')}`;
     if (this.pack?.authored === true) {
-      return `${this.pack.name}　${summary}　　${this.snapshot.tide.label}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
+      const tide = this.snapshot.tide;
+      // 渡口的读数必须跟潮位一起出现在状态行：只报「满潮」不够，
+      // 要能一眼读到「今天潮位多少、船开没开」。
+      const harbor = this.snapshot.harbor === null
+        ? ''
+        : `　船班${this.snapshot.harbor.boatLabel}（潮位 ${this.snapshot.harbor.level.toFixed(2)}，突堤 ${this.snapshot.harbor.jettyCells} 格）`;
+      return `${this.pack.name}　${summary}　　${tide.label} ${tide.level.toFixed(2)}${harbor}　${weather}　${this.snapshot.feed.connected ? '事件流在线' : '离线生活'}${clockNote}${saveNote}`;
     }
     const faith = this.snapshot.faith;
     const { feed: feedDelivered, local: localDelivered } = this.snapshot.deliveries;

@@ -1,5 +1,7 @@
 /** 世界数据模型。这一层不依赖 Phaser，可被 node --test 直接加载。 */
 
+import type { HarborState } from './harbor.ts';
+
 export interface GridPoint {
   readonly x: number;
   readonly y: number;
@@ -505,6 +507,13 @@ export interface WorldSnapshot {
      */
     readonly overridden: boolean;
   };
+  /**
+   * 渡口的四件事：突堤露出几格、灯影多长、船班开没开。
+   *
+   * 与 `tide` 同源（同一个 `level`），没有渡口的图是 `null`。运行时读数，
+   * 不进存档。
+   */
+  readonly harbor: HarborState | null;
   /** 交付积累的信仰点数与已达成的世界记忆数。 */
   readonly faith: { readonly points: number; readonly milestones: number };
   /** 交付统计：上游交付与离线本地交付分开计，禁止合并成一个数。 */

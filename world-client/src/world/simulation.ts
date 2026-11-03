@@ -20,6 +20,7 @@ import {
   type TideOverrideRejection,
 } from './tide.ts';
 import { awaitingDecree } from './decree.ts';
+import { harborReportsBetween, harborStateAt } from './harbor.ts';
 import type { TaskFoldState } from './task-events.ts';
 import type { WorldChange } from './world-changes.ts';
 
@@ -293,6 +294,14 @@ export interface SimulationDeps {
    */
   readonly regionNames?: ReadonlyMap<string, string>;
   /**
+   * 渡口在哪儿。给了就表示这张图有渡口：潮汐会驱动船班，并按世界时间
+   * 每天报三次「潮位多少、船开没开」。
+   *
+   * 不给就是没有渡口（莞尔镇与所有测试夹具）：快照里的 `harbor` 是 null，
+   * 世界照旧过日子，不凭空长出一座码头。
+   */
+  readonly harborAt?: GridPoint;
+  /**
    * 摆件种类 → 它底下的那几句露话（清洗即还原，SPEC_V2 §4.6）。
    *
    * 与 `regionNames` 同一条规矩：**话是谁的就说谁拿着**。引擎不编设定集的
@@ -539,6 +548,8 @@ export class Simulation {
   private readonly blueprints: ReadonlyMap<string, PrefabBlueprint> | undefined;
   /** 地域 id → 给人看的叫法。现状里说「叠浪楼」不说 `bathhouse`。 */
   private readonly regionNames: ReadonlyMap<string, string> | undefined;
+  /** 渡口落点；undefined = 这张图没有渡口。 */
+  private readonly harborAt: GridPoint | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
   private readonly propReveals: ReadonlyMap<PropKind, readonly string[]> | undefined;
   /** 设定集铺开的地图：迷雾整张掀掉。旧镇是 false，迷雾自己收敛。 */
@@ -663,6 +674,7 @@ export class Simulation {
     this.wallClock = deps.wallClock ?? (() => Date.now());
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
+    this.harborAt = deps.harborAt;
     this.propReveals = deps.propReveals;
     this.authored = deps.authored === true;
     this.intentModel = deps.intentModel;
@@ -808,6 +820,7 @@ export class Simulation {
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
+    this.stepHarbor(prevNow);
     this.stepAmbient(prevNow); this.stepTimetable(prevNow); this.stepLiveliness(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
@@ -893,6 +906,11 @@ export class Simulation {
       events: this.events.slice(-12),
       weather: this.weather.kind,
       tide: tideView(this.now, this.tideOverride, this.lastTideLevel),
+      // 渡口四件事与潮位同源：同一个 level，同一个 `harborStateAt`。
+      // 没有渡口的图给 null——世界不凭空长出一座码头。
+      harbor: this.harborAt === undefined
+        ? null
+        : harborStateAt(effectiveTideLevel(this.now, this.tideOverride)),
       faith: { points: this.faithPoints, milestones: this.milestones },
       /** 上游交付与本地交付分开计，不合并成一个数。 */
       deliveries: { feed: this.feedDeliveries, local: this.localDeliveries },
@@ -3221,6 +3239,33 @@ export class Simulation {
     const level = effectiveTideLevel(this.now, this.tideOverride);
     this.grid.setTideLevel(level);
     this.lastTideLevel = level;
+  }
+
+  /**
+   * 渡口的船班播报：按世界时间跨过每天三个固定时刻。
+   *
+   * 与 `stepTimetable` 同一条判据——`(prevNow, now]` 两头一夹，不存游标，
+   * 60fps 与离线补算都按世界时钟走。潮位按**播报那一刻**问，不按这一拍前后
+   * 两个读数问：跨槽那一拍里潮汐可能已经涨落了一大截。
+   */
+  private stepHarbor(prevNow: number): void {
+    if (this.harborAt === undefined) return;
+    const reports = harborReportsBetween(
+      prevNow,
+      this.now,
+      (at) => effectiveTideLevel(at, this.tideOverride),
+    );
+    for (const report of reports) {
+      this.log('info', report.text);
+      this.announce({
+        change: 'world.event',
+        kind: 'harbor_report',
+        text: report.text,
+        placeId: cellPlaceId(this.harborAt),
+        where: this.harborAt,
+        actorId: null,
+      });
+    }
   }
 
   private stepConstructions(deltaMs: number): void {

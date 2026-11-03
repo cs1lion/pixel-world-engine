@@ -3203,6 +3203,7 @@ const DEFAULT_WHAT: Readonly<Record<string, string>> = {
   // 也有话说，而不是把 kind 本身当句子印出来。
   tide_turn: '潮水掉头了',
   routine_done: '有人在镇子上停了一会儿',
+  harbor_report: '渡口报了船班',
 };
 
 function defaultValence(kind: string): number {
