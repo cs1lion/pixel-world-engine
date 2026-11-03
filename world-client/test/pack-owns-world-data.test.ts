@@ -319,16 +319,16 @@ test('除包数据那一份之外，不引用设定集的名字与说法', () =>
  * 但每一行都写出来——复制一句「同上」的清单，读的人不会真去核上面那句。
  */
 const KNOWN_STOPS: Readonly<Record<string, { readonly why: string }>> = {
-  'world/routines.ts:43': {
+  'world/routines.ts:48': {
     why: '莞尔镇没有配置包。这一拍是「在祭坛边坐着」，锚点就是祭坛本身，目标由参数传进来。',
   },
-  'world/routines.ts:46': {
+  'world/routines.ts:51': {
     why: '莞尔镇没有配置包。这一拍去农田边，落点是 `altar` 偏移 (-8,+4) 后找的最近可走格。',
   },
-  'world/routines.ts:53': {
+  'world/routines.ts:58': {
     why: '莞尔镇没有配置包。这一拍在街口站着，落点是 `altar` 偏移 (+8,-3) 后找的最近可走格。',
   },
-  'world/routines.ts:60': {
+  'world/routines.ts:65': {
     why: '莞尔镇没有配置包。这一拍回到祭坛等神谕，与第一拍同一个 target，一圈的收尾。',
   },
 };
@@ -439,10 +439,10 @@ const KNOWN_OTHER_LABELS: Readonly<Record<string, { readonly why: string }>> = {
   'render/day-phase.ts:58': { why: '同上，四个时辰之一（正午）。' },
   'render/day-phase.ts:69': { why: '同上，四个时辰之一（黄昏）。' },
   'render/day-phase.ts:82': { why: '同上，四个时辰之一（夜）。' },
-  'world/tasks.ts:10': { why: '四类活计的名字与估时。#13 没点这一样；估时是世界机制，不是设定集的选择。' },
-  'world/tasks.ts:11': { why: '同上，四类活计之一。' },
+  'world/tasks.ts:11': { why: '四类活计的名字与估时。#13 没点这一样；估时是世界机制，不是设定集的选择。' },
   'world/tasks.ts:12': { why: '同上，四类活计之一。' },
   'world/tasks.ts:13': { why: '同上，四类活计之一。' },
+  'world/tasks.ts:14': { why: '同上，四类活计之一。' },
   // 取景的三个按钮名。**这不是世界数据**：它们说的是镜头怎么摆，不是这个世界里
   // 有什么——换一套设定集，三个字一个不改，也没有哪份设定集能给出别的叫法。
   // 写在代码里正是对的，搬进设定集反而会让同一组控件在不同世界叫不同名字。

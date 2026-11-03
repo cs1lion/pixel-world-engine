@@ -99,7 +99,7 @@ test('空日志上世界照常过日子：本地单能派能交', async () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('短活没结束');
   }
   assert.equal(sim.snapshot().deliveries.local, 1);
@@ -139,8 +139,8 @@ test('有内容的日志：世界把折出来的活派下去', async () => {
 
   let guard = 0;
   while (sim.snapshot().villager.mode !== 'working') {
-    sim.update(100);
-    if ((guard += 1) > 600) throw new Error('没把活派下去');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('没把活派下去');
   }
   assert.equal(sim.snapshot().villager.taskId, 'c_1');
 });
@@ -175,8 +175,8 @@ test('读档后从空日志恢复：存档里的活保留，不被"没事件"判
   a.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写脚本' });
   let guard = 0;
   while (a.snapshot().villager.mode !== 'working') {
-    a.update(100);
-    if ((guard += 1) > 600) throw new Error('没进工位');
+    a.update(1000);
+    if ((guard += 1) > 3000) throw new Error('没进工位');
   }
   const save = a.toSave();
   assert.ok(save.world.tasks.length > 0, '存档里应有这条活');
@@ -260,7 +260,7 @@ test('读失败时世界照常过日子，只是标成离线', async () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   let guard = 0;
   while (sim.snapshot().deliveries.local < 1) {
-    sim.update(100);
+    sim.update(1000);
     if ((guard += 1) > 400) throw new Error('离线时短活也该结束');
   }
 });
@@ -305,8 +305,8 @@ test('读档后第一轮撤单：她没活了，嘴上那句也得收', async ()
 
   let guard = 0;
   while (a.snapshot().villager.mode !== 'working') {
-    a.update(100);
-    if ((guard += 1) > 600) throw new Error('没能把角色送进工位');
+    a.update(1000);
+    if ((guard += 1) > 3000) throw new Error('没能把角色送进工位');
   }
   const before = a.snapshot().villager;
   assert.equal(before.routine, '顺手查一件小事', '前置：随手活把牌子写上了');

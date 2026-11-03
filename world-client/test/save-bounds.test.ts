@@ -75,7 +75,7 @@ function loadInto(save: WorldSave, ticks: number, large = false): Simulation {
     altar: large ? LARGE_ALTAR : ALTAR,
     villagerName: save.world.villagers[0]?.name ?? '莞尔',
   });
-  for (let i = 0; i < ticks; i += 1) sim.update(16);
+  for (let i = 0; i < ticks; i += 1) sim.update(1000);
   return sim;
 }
 
@@ -373,7 +373,8 @@ test('界外 pos：她从此接不到任何活，而另一个村民照常', () =
   });
   const sim = loadInto(save, 0);
   sim.enqueue(syncCommand({ tasks: [{ id: 'c_1', kind: 'code', title: '写爬虫' }], connected: true }));
-  for (let i = 0; i < 30_000; i += 1) sim.update(16);
+  // 一步一世界分钟：界外 path 要走 999 格，30_000 步足够把她拖出世界。
+  for (let i = 0; i < 30_000; i += 1) sim.update(60_000);
 
   const snap = sim.snapshot();
   const stranded = snap.villagers[0];
@@ -400,7 +401,8 @@ test('界外 path 格子会把她一路拖出世界，而且不回来', () => {
     before.x < 30 && before.y < 20,
     `起点必须在界内，否则这条断言跟拖不拖出去无关：${before.x},${before.y}`,
   );
-  for (let i = 0; i < 30_000; i += 1) sim.update(16);
+  // 一步一世界分钟：界外 path 要走 999 格，30_000 步足够把她拖出世界。
+  for (let i = 0; i < 30_000; i += 1) sim.update(60_000);
   const after = sim.snapshot().villagers[0].pos;
   assert.ok(after !== undefined);
   assert.ok(

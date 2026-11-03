@@ -55,7 +55,7 @@ test('去郊野干活时，角色有一段"在路上"的状态', () => {
   // 大世界里从祭坛到郊野 25 格，走路 8 秒以上。
   let sawTravel = false;
   for (let i = 0; i < 100; i += 1) {
-    sim.update(100);
+    sim.update(2000);
     const villager = sim.snapshot().villagers.find((v) => v.taskId !== null);
     if (villager !== undefined && villager.mode === 'toWork') sawTravel = true;
     if (villager?.mode === 'working') break;
@@ -69,8 +69,8 @@ test('郊野干完活会带着东西回来：交付时不在铺子门口', () =>
   sim.update(16);
 
   let sawDelivering = false;
-  for (let i = 0; i < 600; i += 1) {
-    sim.update(100);
+  for (let i = 0; i < 3000; i += 1) {
+    sim.update(2000);
     if (sim.snapshot().villagers.some((v) => v.mode === 'delivering')) {
       sawDelivering = true;
       break;
@@ -142,8 +142,8 @@ test('从郊野干完活回来时，角色带着东西', () => {
   sim.update(16);
 
   let sawCarrying = false;
-  for (let i = 0; i < 600; i += 1) {
-    sim.update(100);
+  for (let i = 0; i < 3000; i += 1) {
+    sim.update(2000);
     if (sim.snapshot().villagers.some((v) => v.carrying !== null)) {
       sawCarrying = true;
       break;
@@ -157,8 +157,8 @@ test('带的东西与活类型对应', () => {
   sim.enqueue({ kind: 'dispatch', taskKind: 'research', summary: '查一下' });
   sim.update(16);
 
-  for (let i = 0; i < 600; i += 1) {
-    sim.update(100);
+  for (let i = 0; i < 3000; i += 1) {
+    sim.update(2000);
     const carrier = sim.snapshot().villagers.find((v) => v.carrying !== null);
     if (carrier !== undefined) {
       assert.equal(carrier.carrying, 'scroll', '查资料带回来的是卷轴');
@@ -175,7 +175,7 @@ test('镇内干活不背东西：只有去了远处才值得带回来', () => {
   sim.update(16);
 
   for (let i = 0; i < 100; i += 1) {
-    sim.update(100);
+    sim.update(2000);
     assert.ok(
       sim.snapshot().villagers.every((v) => v.carrying === null),
       '短活不该让人背东西',
