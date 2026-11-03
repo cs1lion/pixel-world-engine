@@ -141,7 +141,7 @@ test('喂一条真实上游的 code 活：有人走进炉匠铺、做完、交�
   let guard = 0;
   let taskBuildingId: string | null | undefined;
   for (;;) {
-    sim.update(100);
+    sim.update(1000);
     const snap = sim.snapshot();
     const inForge = snap.workstations.find(
       (station) =>
@@ -162,7 +162,7 @@ test('喂一条真实上游的 code 活：有人走进炉匠铺、做完、交�
   sim.enqueue(syncCommand({ finished: [{ id: 'c_venue', completedAt: 2000 }] }));
   guard = 0;
   for (;;) {
-    sim.update(100);
+    sim.update(1000);
     if (sim.snapshot().deliveries.feed >= 1) break;
     if ((guard += 1) > 600) throw new Error('上游说成了，交付却没记上');
   }

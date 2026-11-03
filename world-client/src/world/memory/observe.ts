@@ -147,7 +147,11 @@ export function observationOf(
         actors: change.actorId === null ? [] : [change.actorId],
         outcome: { what: change.text },
         importanceHint: 0.35,
-        valence: change.kind === 'routine_done' ? 0.1 : 0,
+        // 每日小事是她自己的一天里做得成的事：比潮水多一点温度，比交付轻。
+        valence:
+          change.kind === 'routine_done' ? 0.1
+            : change.kind === 'daily_water' || change.kind === 'daily_lamp' ? 0.15
+              : 0,
         arousal: change.kind === 'tide_turn' ? 0.35 : 0.25,
       };
     }

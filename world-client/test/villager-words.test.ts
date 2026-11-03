@@ -30,7 +30,7 @@ const raw = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(raw);
-const STEP = 100;
+const STEP = 1000;
 
 function makeSim(): { sim: Simulation; grid: BuiltWorld['grid'] } {
   const world = buildWorld(blueprints);
@@ -54,7 +54,7 @@ function dispatchAndWork(sim: Simulation, taskId: string): void {
     syncCommand({ tasks: [{ id: taskId, kind: 'writing', title: '上游来的活' }] }),
   );
   sim.update(STEP);
-  for (let i = 0; i < 600; i += 1) {
+  for (let i = 0; i < 3000; i += 1) {
     if (sim.snapshot().villager.mode === 'working') return;
     sim.update(STEP);
   }
@@ -164,13 +164,13 @@ test('其余各 mode 都带着世界自己的状态，没有可编的空档', ()
 
 test('working 而没有铺子时，不许说她在祭坛边——她人不在那儿', () => {
   // 一条真事的回归。这一支曾经说「在祭坛边办「xxx」」，而**她不在祭坛**：
-  // 原地办的那种活（`startInPlace`，`simulation.ts:1735`）`path = []`，
+  // 原地办的那种活（`startInPlace`，`simulation.ts:1744`）`path = []`，
   // 根本不挪人——她站在接到活那一刻的位置，那一刻她可以在世界任何一格。
   //
   // 而这条路常见得很：`tasks.ts:13` 的 quick 活 `venue: 'in_place'`，
   // **每一条 quick 都走它**。两条来路都通到 `startInPlace`：神谕派活
-  // （`simulation.ts:1943`——「顺手看一眼」那个按钮 `index.html:628` 发的
-  // 就是这条命令）与上游事件流（`simulation.ts:1683`）。不是罕见状态，是常态。
+  // （`simulation.ts:1952`——「顺手看一眼」那个按钮 `index.html:628` 发的
+  // 就是这条命令）与上游事件流（`simulation.ts:1692`）。不是罕见状态，是常态。
   //
   // 上一版还把「在祭坛边办「」」写成了 `assert.equal` 的期望值——那句话本身
   // 是假的，而它是一条会红的测试。谁想修这句假话，得先改测试。锁错了方向

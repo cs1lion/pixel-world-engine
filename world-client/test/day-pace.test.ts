@@ -25,15 +25,14 @@
  *
  * | `timeScale` | 一世界日 | 相对 900 秒目标 |
  * | --- | --- | --- |
- * | 6（默认入口） | 14400 秒（4 小时） | 16 倍 |
- * | 60（`?speed=` 上限） | 1440 秒（24 分钟） | 1.6 倍 |
+ * | 60（默认，也是上限） | 1440 秒（24 分钟） | 1.6 倍 |
  * | 96（要达标需要） | 900 秒（15 分钟） | 达标 |
  *
- * 这张表只适用于**默认的游玩时间驱动**（页面开着按倍率走、关页面即冻结）；
- * 显式 `?clock=real` 是 1:1，一世界日就是 24 小时。游玩时间驱动的门槛是
- * `MAX_TIME_SCALE = 60`——**900 秒这个目标在许可范围内永远达不到**。§3.1
- * 给这个数的理由（「1 小时现实工作刚好经历 4 个游戏日」）同理不成立：默认
- * 倍率下 1 小时只看得到四分之一个世界日。
+ * 这张表只适用于**默认的游玩时间驱动**（页面开着按倍率走、关页面即冻结），
+ * 也适用于显式 `?clock=fast` / `?speed=`；显式 `?clock=real` 是 1:1，
+ * 一世界日就是 24 小时。门槛写死 `MAX_TIME_SCALE = 60`——**900 秒这个目标
+ * 在许可范围内永远达不到**。§3.1 给这个数的理由（「1 小时现实工作刚好经历
+ * 4 个游戏日」）同样不成立：默认 60 下一小时经历 2.5 个世界日。
  *
  * ## 这一条**不**查什么
  *
@@ -101,20 +100,20 @@ test('paceFrame 给的步数与帧率无关：10 步/真实秒', () => {
   }
 });
 
-test('加速模式下的一世界日：默认 4 小时，上限 24 分钟', () => {
+test('倍率模式下的一世界日：默认 24 分钟，默认就在上限', () => {
   const steps = stepsPerRealSecond(60);
   const { defaultScale, maxScale } = readClockConstants();
   assert.equal(
     realSecondsPerDay(defaultScale, steps),
-    14400,
-    `加速模式默认倍率 ${defaultScale} 下一世界日该是 4 小时`,
+    1440,
+    `默认倍率 ${defaultScale} 下一世界日该是 24 分钟`,
   );
-  assert.equal(realSecondsPerDay(maxScale, steps), 1440, `上限倍率 ${maxScale} 下一世界日该是 24 分钟`);
+  assert.equal(realSecondsPerDay(maxScale, steps), 1440, `上限倍率 ${maxScale} 下一世界日也是 24 分钟`);
   assert.equal(defaultScale, DEFAULT_FAST_TIME_SCALE, '源码里的默认倍率与导出的常量一致');
   assert.equal(maxScale, MAX_TIME_SCALE, '源码里的上限与导出的常量一致');
 });
 
-test('§3.1 那个 900 秒，在加速模式的倍率范围内达不到', () => {  // 加速模式，不含默认真实时钟
+test('§3.1 那个 900 秒，在倍率模式的范围内达不到', () => {  // 倍率模式，不含显式真实时钟
   const steps = stepsPerRealSecond(60);
   const { maxScale } = readClockConstants();
   // 要 900 秒一日，需要把倍率抬到多少。

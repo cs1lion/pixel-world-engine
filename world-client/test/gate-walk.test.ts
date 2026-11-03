@@ -56,7 +56,8 @@ function makeSim(requires: CarryItem | null | undefined): Simulation {
 
 /** 跑到她该动的时候。作息第一拍在 1200ms，之后每 300ms 一拍。 */
 function runFor(sim: Simulation, ticks: number): void {
-  for (let i = 0; i < ticks; i += 1) sim.update(16);
+  // 一格一世界分钟：一步 2 世界秒，400 步够走十三格。
+  for (let i = 0; i < ticks; i += 1) sim.update(2000);
 }
 
 test('对岸要灯而她没带：世界如实让她留在原处，不给她一条穿门的路', () => {
@@ -143,7 +144,7 @@ function makeDeliverySim(): Simulation {
 function runUntil(sim: Simulation, mode: VillagerMode, ticks = 6000): boolean {
   for (let i = 0; i < ticks; i += 1) {
     if (sim.snapshot().villagers[0]!.mode === mode) return true;
-    sim.update(16);
+    sim.update(1000);
   }
   return false;
 }

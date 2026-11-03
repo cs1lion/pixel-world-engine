@@ -96,16 +96,16 @@ function legalSaves(): { label: string; save: WorldSave }[] {
   walking.enqueue({ kind: 'dispatch', taskKind: 'code', summary: '写脚本' });
   let guard = 0;
   while (!walking.toSave().world.villagers.some((villager) => villager.path.length > 0)) {
-    walking.update(100);
-    if ((guard += 1) > 400) throw new Error('没进入走路态');
+    walking.update(1000);
+    if ((guard += 1) > 3000) throw new Error('没进入走路态');
   }
 
   const full = makeSim();
   full.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '顺手看一眼' });
   guard = 0;
   while (full.snapshot().deliveries.local < 1) {
-    full.update(100);
-    if ((guard += 1) > 400) throw new Error('短活没结束');
+    full.update(1000);
+    if ((guard += 1) > 3000) throw new Error('短活没结束');
   }
   full.enqueue({ kind: 'build', prefabId: 'workshop_plot', instanceId: 'workshop_plot#4' });
   full.update(100);

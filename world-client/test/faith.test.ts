@@ -36,8 +36,8 @@ function makeSim(): Simulation {
 function runUntil(sim: Simulation, predicate: () => boolean, limitMs: number): void {
   let elapsed = 0;
   while (!predicate()) {
-    sim.update(100);
-    elapsed += 100;
+    sim.update(1000);
+    elapsed += 1000;
     if (elapsed > limitMs) throw new Error(`等了 ${limitMs}ms 条件仍未成立`);
   }
 }
@@ -124,8 +124,8 @@ test('落不下时点数真的留着：一个里程碑不会因为没空地被�
     sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary });
     let guard = 0;
     while (statusOf(summary) !== 'done') {
-      sim.update(100);
-      if ((guard += 1) > 400) throw new Error(`${summary} 没交完`);
+      sim.update(1000);
+      if ((guard += 1) > 3000) throw new Error(`${summary} 没交完`);
     }
   }
   assert.equal(sim.snapshot().faith.points, 2, '夹具：前两单各攒 1 点');
@@ -135,15 +135,15 @@ test('落不下时点数真的留着：一个里程碑不会因为没空地被�
   sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: '第三单' });
   let guard = 0;
   while (statusOf('第三单') !== 'in_progress') {
-    sim.update(100);
-    if ((guard += 1) > 400) throw new Error('第三单没开工');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('第三单没开工');
   }
   grid.isWalkable = (p) =>
     Math.max(Math.abs(p.x - ALTAR.x), Math.abs(p.y - ALTAR.y)) < 2;
   guard = 0;
   while (statusOf('第三单') !== 'done') {
-    sim.update(100);
-    if ((guard += 1) > 400) throw new Error('第三单没交完');
+    sim.update(1000);
+    if ((guard += 1) > 3000) throw new Error('第三单没交完');
   }
 
   const after = sim.snapshot();
@@ -238,8 +238,8 @@ test('真实交付攒满三点：摆件带上那一单的来源，日报写得�
 
   for (let i = 0; i < rounds; i += 1) {
     sim.enqueue({ kind: 'dispatch', taskKind: 'quick', summary: `顺手记一笔 ${i}` });
-    runUntil(sim, () => sim.snapshot().villager.mode === 'working', 5000);
-    runUntil(sim, () => sim.snapshot().villager.mode === 'idle', 10_000);
+    runUntil(sim, () => sim.snapshot().villager.mode === 'working', 400_000);
+    runUntil(sim, () => sim.snapshot().villager.mode === 'idle', 400_000);
   }
 
   const snapshot = sim.snapshot();
