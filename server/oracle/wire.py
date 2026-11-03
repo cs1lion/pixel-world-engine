@@ -176,7 +176,7 @@ def validate_intent(raw: Any, world: dict[str, Any] | None = None) -> tuple[dict
         _one_of(raw, "taskKind", TASK_KINDS, "taskKind")
         _non_empty(raw, "summary", "summary")
     elif kind == "setWeather":
-        _one_of(raw, "weather", ("clear", "rain", "storm"), "weather")
+        _one_of(raw, "weather", ("clear", "rain", "storm", "fog"), "weather")
     elif kind == "setTide":
         _tide(raw)
     elif kind == "build":

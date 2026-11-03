@@ -39,7 +39,7 @@
   ],
   "recorded": {
     "inputDigest": "ed7319b96c6b7a8f88c750ba3ca5dfb3cd710e7964a1030987c98caec1d486e5",
-    "fingerprint": "146ec52aa19b1b079810a93d4db9b6ce92159fcb0cb375ad5e10a435d2968b0f",
+    "fingerprint": "576259f53fd55af2f96f617d755c319b44f207e96afbe787299f2a4784b12ca7",
     "eventCount": 6,
     "eventDigest": "50d72a6f58c50b2cccfea3c8cf3bcf31270f18e5b3f66f018274601294369fce",
     "business": {
@@ -130,12 +130,12 @@
       {
         "step": 3500,
         "atWorldMs": 86700000,
-        "fingerprint": "e07b871c5a3ae8d993a98f14de7bab092d96a903b27415649ec48a42d7f9590f"
+        "fingerprint": "dec2b2e629450ef64f553b7e1bc4cfb8ffdf788cfe1a1f022f399d0492685183"
       },
       {
         "step": 3600,
         "atWorldMs": 86712000,
-        "fingerprint": "146ec52aa19b1b079810a93d4db9b6ce92159fcb0cb375ad5e10a435d2968b0f"
+        "fingerprint": "576259f53fd55af2f96f617d755c319b44f207e96afbe787299f2a4784b12ca7"
       }
     ]
   }

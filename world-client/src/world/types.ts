@@ -83,8 +83,12 @@ export interface PrefabBlueprint {
  * 结论作证。测试把分支钉着：同浓淡 0.5 下 rain 得 0.5、storm 得 0.75。
  *
  * 旧存档只有两档；`storm` 是新增值，读进来只会出现在新档里。#14。
+ *
+ * `fog` 是第四档，也是唯一**不画雨幕**的一档：它的 `intensity` 驱动能见度，
+ * 而不是雨丝。`renderIntensity` 对 `fog` 返回 0（见 `weather.ts`），
+ * 所以 `render/weather.ts` 照旧只收浓淡、不必知道雾的存在。
  */
-export type Weather = 'clear' | 'rain' | 'storm';
+export type Weather = 'clear' | 'rain' | 'storm' | 'fog';
 
 export type VillagerMode =
   | 'idle'

@@ -170,7 +170,9 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
       ? '外头晴着'
       : snapshot.weather === 'storm'
         ? '外头刮着暴雨'
-        : '外头下着雨';
+        : snapshot.weather === 'fog'
+          ? '外头起雾着，看不清街尾'
+          : '外头下着雨';
   lines.push(`${weather}。${villagerTail(snapshot)}`);
 
   // 天气那一句不带时间词，理由是同一条：`snapshot.weather` 是**这一拍**的读数。

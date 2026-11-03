@@ -59,8 +59,8 @@ VALID_PAYLOADS = {
     },
     "building.removed": {"instanceId": "bookshop#1", "displayName": "书斋"},
     "miracle": {"miracle": "lamp", "at": {"x": 3, "y": 4}},
-    # 三档都收；storm 是 #14 加的强度档，不是新机制。
-    "weather": {"weather": "storm"},
+    # 四档都收；storm 是 #14 加的强度档，fog 是第 3 轮加的能见度档，都不是新机制。
+    "weather": {"weather": "fog"},
     # 记的是覆盖，不是当时的潮位：潮位是 now 的纯函数，记它等于记时钟。
     "tide": {"level": 0.25, "until": 120_000},
     # 世界自己发生的一件事。有落点（where），所以能进记忆——这是它与

@@ -96,7 +96,7 @@ MIRACLES = ("lamp", "tree", "cat")
 #: `weather` 事件里记的天气。与 `rules/schema.py` 的 `WEATHERS` 是同一个域：
 #: 意图侧说「下雨」改的是世界的天气，事件侧记的就是那场雨。同一天气两套词的话，
 #: 模型下一场服务端不认识的雨，世界收了、改了，然后回写被拒。
-WEATHERS = ("clear", "rain", "storm")
+WEATHERS = ("clear", "rain", "storm", "fog")
 
 
 class WorldChangeError(ValueError):

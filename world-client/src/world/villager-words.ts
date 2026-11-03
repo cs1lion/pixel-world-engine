@@ -98,15 +98,15 @@ export function villagerModeLabel(
       return venue === null ? '赶路' : `赶往 ${venue}`;
     case 'working': {
       // **没有铺子时不提地点。** 这一支曾经说「在祭坛边办「xxx」」——编的：
-      // 原地办的那种活（`startInPlace`，`simulation.ts:1744`）只把 mode 翻成
+      // 原地办的那种活（`startInPlace`，`simulation.ts:1815`）只把 mode 翻成
       // 'working'、`path = []`，**根本不挪人**。她站在接到活那一刻的位置，
       // 而那一刻她可以在世界任何一格。实测她绝大多数时候不在祭坛格上。
       //
       // 而这条路比「铺子挑不到」常见得多：`tasks.ts:13` 的 quick 活
       // `venue: 'in_place'`，**每一条 quick 都走它**。两条来路都通到
-      // `startInPlace`：神谕派活（`simulation.ts:1970`——「顺手看一眼」那个
+      // `startInPlace`：神谕派活（`simulation.ts:2035`——「顺手看一眼」那个
       // 按钮 `index.html:628` 发的就是这条命令）与上游事件流
-      // （`simulation.ts:1710`）。
+      // （`simulation.ts:1763`）。
       //
       // 世界这一刻只知道她在办这件事，不知道她在哪儿——那就只说这件事。
       // 空summary 也别说成「」：那是两个引号夹一片空白，不是一句话。

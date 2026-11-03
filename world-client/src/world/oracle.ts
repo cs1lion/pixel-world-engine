@@ -34,6 +34,8 @@ const RAIN_WORDS = ['下雨', '降雨', '落雨', 'rain'];
 const CLEAR_WORDS = ['放晴', '雨停', '天晴', '出太阳', 'clear'];
 /** 暴雨要先于「下雨」判：`暴` 打头的句子不会命中 RAIN_WORDS，但顺序仍要摆对。 */
 const STORM_WORDS = ['暴雨', '大雨', '雷雨', '刮风下雨', 'storm'];
+/** 起雾。单独一档，不与雨词混：雾不落雨点，行为与雨不同（见 `weather-effects.ts`）。 */
+const FOG_WORDS = ['起雾', '大雾', '雾', 'fog'];
 /** 撤销排队中的神谕；只撤等待队列，不动正在干的活。 */
 const CANCEL_WORDS = ['撤销', '取消', 'cancel', 'undo'];
 /**
@@ -87,8 +89,8 @@ export function parseOracle(raw: string): OracleAction {
   //
   // 可打头判定挡不住「打头的否定句」：「撤销别撤错单」确实以「撤销」打头，
   // 但它是在说别做错，不是在下命令。所以 `commandLeads` 比 `leads` 多查一道
-  // 否定词——天气三档、撤销、潮汐两端这**六处**，加上 `parseTideLevel` 那道
-  // 共七处，实测漏的后果：「撤销别撤错单」「取消别取消错了」都会真的撤掉
+  // 否定词——天气四档、撤销、潮汐两端这**七处**，加上 `parseTideLevel` 那道
+  // 共八处，实测漏的后果：「撤销别撤错单」「取消别取消错了」都会真的撤掉
   // 等待队列。上面「先别取消排队」那条说的就是这一类误判，而打头规则只修好了
   // 它句首的那半句，没修好句中是否定。
   //
@@ -127,6 +129,9 @@ export function parseOracle(raw: string): OracleAction {
   }
   if (commandLeads(RAIN_WORDS)) {
     return { kind: 'weather', weather: 'rain' };
+  }
+  if (commandLeads(FOG_WORDS)) {
+    return { kind: 'weather', weather: 'fog' };
   }
   if (commandLeads(CANCEL_WORDS)) {
     return { kind: 'cancelPending' };

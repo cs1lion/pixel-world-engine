@@ -59,9 +59,13 @@ import {
   fadingToClear,
   renderIntensity,
   stepWeather,
+  weatherFogDensity as fogDensityOf,
   weatherFor,
+  WEATHER_LABEL,
   type WeatherState,
 } from './weather.ts';
+import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
+import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
 import type {
   CommandResult,
   ConstructionSnapshot,
@@ -115,6 +119,7 @@ const WEATHER_ALREADY: Readonly<Record<Weather, string>> = {
   clear: '天本来就是晴的。',
   rain: '天已经在下雨了。',
   storm: '已经在刮暴雨了。',
+  fog: '雾还没散。',
 };
 
 /** 三种拒绝各自的说法。分开写是因为用户能改的是不同的东西。 */
@@ -369,6 +374,14 @@ export interface SimulationDeps {
    * 换了一种时钟模式就改写。
    */
   readonly initialNow?: number; readonly worldSeed?: string;
+  /**
+   * 按种子排天：每 4 世界小时抽一槽晴/雨/雾。
+   *
+   * **默认关**，只有场景打开。关着时天气仍只由神谕改（旧行为），
+   * 现有回放与夹具不会因为这一条多出一串自动天气；开着时序列只由
+   * `(worldSeed, 槽号)` 决定，与墙钟、帧率都无关。
+   */
+  readonly weatherCycle?: boolean;
 }
 
 /** 一个角色的完整本地状态。渲染层只读快照，不碰这里。 */
@@ -516,6 +529,10 @@ export class Simulation {
     | null = null;
   private verificationSettle: ((holderId: string, claimId: string) => void) | null = null;
   private weather: WeatherState = clearWeather();
+  /** 是否按种子排天（场景开，纯逻辑测试默认关）。 */
+  private readonly weatherCycle: boolean;
+  /** 雾天因为「太远」被跳过的作息落点次数；运行时读数，不写档。 */
+  private fogHeldTrips = 0;
   /**
    * 上一拍的潮位，只用来判断"在涨还是在退"。
    *
@@ -668,6 +685,9 @@ export class Simulation {
 
   constructor(deps: SimulationDeps) {
     this.now = deps.initialNow ?? 0; this.worldSeed = deps.worldSeed ?? 'wandong';
+    this.weatherCycle = deps.weatherCycle === true;
+    // 开局就落在当前槽的天气上：同一份种子在同一个时刻开机，看到的天空是同一片。
+    if (this.weatherCycle) this.weather = scheduledWeatherAt(this.worldSeed, this.now, this.weather);
     this.grid = deps.grid;
     this.altar = deps.altar;
     this.spawnBuilding = deps.spawnBuilding;
@@ -819,6 +839,7 @@ export class Simulation {
       this.lastResults.push(this.apply(entry));
     }
     this.weather = stepWeather(this.weather, deltaMs);
+    this.stepWeatherCycle(prevNow);
     this.stepTide();
     this.stepHarbor(prevNow);
     this.stepAmbient(prevNow); this.stepTimetable(prevNow); this.stepLiveliness(prevNow);
@@ -942,6 +963,38 @@ export class Simulation {
    */
   weatherIntensity(): number {
     return renderIntensity(this.weather);
+  }
+
+  /**
+   * 雾视图的强度（0..1）。雨、晴为 0；雾天跟着浓淡走。
+   *
+   * 与 `weatherIntensity` 互斥：雨幕只用前者，雾幕只用后者。渲染层各拿各的开关，
+   * 不必在画雨丝的地方判 `kind === 'fog'`。
+   */
+  weatherFogDensity(): number {
+    return fogDensityOf(this.weather);
+  }
+
+  /**
+   * 天气此刻的行为后果，给证据与面板读。
+   *
+   * 只读、不写档：`fogHeldTrips` 是进程内计数，读档后从 0 起。
+   * `umbrellas` 与快照里 `umbrella` 同一判据（在下雨且不是做事的人）。
+   */
+  weatherBehavior(): {
+    readonly kind: string;
+    readonly walkFactor: number;
+    readonly umbrellas: number;
+    readonly fogHeldTrips: number;
+    readonly stallsPacked: boolean;
+  } {
+    return {
+      kind: this.weather.kind,
+      walkFactor: walkSpeedFactor(this.weather.kind),
+      umbrellas: this.isRaining() ? this.villagers.filter((villager) => villager.mode !== 'working').length : 0,
+      fogHeldTrips: this.fogHeldTrips,
+      stallsPacked: stallsPackedFor(this.weather.kind),
+    };
   }
 
   /** 调试面板用：取最近 N 条事件（快照只带 12 条，面板要 50 条）。只读。 */
@@ -1873,7 +1926,8 @@ export class Simulation {
   }
 
   /**
-   * 改天气。三档都走这一条路：`storm` 只是目标浓淡与时长更大的一档雨。
+   * 改天气。四档都走这一条路：`storm` 只是目标浓淡与时长更大的一档雨，
+   * `fog` 是唯一不落雨点、只压能见度的一档。
    *
    * 判"世界没变"用 `kind`，不用 `intensity`：浓淡是渐变过程，几乎每拍都在变；
    * 拿它判会让同一条命令时而被当成"变了"、时而不是。
@@ -1898,10 +1952,21 @@ export class Simulation {
     // 停了再下大，中间那一截空白看起来像两条不相干的消息。
     const from = this.weather.kind === 'clear' ? 0 : this.weather.intensity;
     this.weather = weatherFor(weather, from);
-    this.log('info', heavier ? '神谕说：暴雨。天黑下来了。' : '神谕说：下雨。天暗下来了。');
-    this.scatterToShelter();
+    this.log(
+      'info',
+      weather === 'fog'
+        ? '神谕说：起雾。街口看不见了。'
+        : heavier
+          ? '神谕说：暴雨。天黑下来了。'
+          : '神谕说：下雨。天暗下来了。',
+    );
+    // 雾不落雨点：人不会为了避雨散开，只会改走近路（`fogKeepsClose`）。
+    if (weather !== 'fog') this.scatterToShelter();
     this.announce({ change: 'weather', weather });
-    return { ok: true, message: heavier ? '暴雨砸下来了。' : '雨落下来了。' };
+    return {
+      ok: true,
+      message: weather === 'fog' ? '雾漫上来了。' : heavier ? '暴雨砸下来了。' : '雨落下来了。',
+    };
   }
 
   /**
@@ -2754,6 +2819,9 @@ export class Simulation {
     // 已经站在这一拍的落点上就跳过它，否则开局会在祭坛上干坐一轮。
     const here = this.cellOf(villager.pos);
     const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    // 雾天只走近路：远拍跳过，整轮都没找到近处落点就原地等下一轮。
+    // 计数是「一次没去成的远行」，不是「每跳一拍 +1」——证据里读的是后者才不虚。
+    let fogHeld = false;
     for (let attempt = 0; attempt < beats.length; attempt += 1) {
       // 躲雨那一拍的落点是道门，这里现算现给：`routineFor` 不认识建筑，
       // 它自己编的那个落点会让牌子说屋檐、脚往祭坛走。
@@ -2768,6 +2836,10 @@ export class Simulation {
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat);
       if (target === null || this.avoiding(villager, target)) continue;
+      if (!fogKeepsClose(this.weather.kind, here, target)) {
+        fogHeld = true;
+        continue;
+      }
       if (target.x === here.x && target.y === here.y) {
         // 安静段里所有拍都回锚点。她已经坐在锚点上时不能只走「1600ms 兜底」——
         // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
@@ -2797,6 +2869,7 @@ export class Simulation {
       // 不在这里扣表：钟在走到的那一刻才起（见本函数开头那截）。
       return;
     }
+    if (fogHeld) this.fogHeldTrips += 1;
     villager.nextRoutineAt = this.now + 1600;
   }
 
@@ -2889,7 +2962,8 @@ export class Simulation {
 
   private walk(villager: Villager, deltaMs: number): void {
     // 一格一世界分钟（`pace.ts`）。`deltaMs` 是世界毫秒，所以预算是一个分数格。
-    let budget = deltaMs / PACE.walkCellMs;
+    // 雨里乘 `RAIN_WALK_FACTOR`：同一条路少走三成时间，屏上是「快走」而不是瞬移。
+    let budget = (deltaMs / PACE.walkCellMs) * walkSpeedFactor(this.weather.kind);
     while (budget > 0 && villager.path.length > 0) {
       const next = villager.path[0] as GridPoint;
       const dx = next.x - villager.pos.x;
@@ -3225,6 +3299,22 @@ export class Simulation {
       displayName: building.displayName,
     });
     return { ok: true, message };
+  }
+
+  /**
+   * 按种子排天：`(prevNow, now]` 跨过几槽就落几次，最后一槽覆盖前面的。
+   *
+   * 与 `stepTimetable` 同一条判据——两头一夹，不存游标。槽号是整数，
+   * 读档后 `now` 接着走，槽号自然对上；60fps 与离线补算走同一串边界。
+   * 这里**不 announce**：天气变化不是「人做了事」，不进记忆；面板与状态行直接读快照。
+   */
+  private stepWeatherCycle(prevNow: number): void {
+    if (!this.weatherCycle) return;
+    for (const slot of weatherSlotsBetween(this.worldSeed, prevNow, this.now)) {
+      const before = this.weather.kind;
+      this.weather = scheduledWeatherState(this.weather, slot, this.now);
+      if (slot.kind !== before) this.log('info', `${WEATHER_LABEL[slot.kind]}天。`);
+    }
   }
 
   /**

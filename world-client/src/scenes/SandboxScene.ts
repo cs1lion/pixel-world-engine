@@ -70,6 +70,9 @@ import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
 import { createWeatherView, type WeatherView } from '../render/weather.ts';
+import { createWeatherFogView, type WeatherFogView } from '../render/weather-fog-view.ts';
+import { createWeatherStallsView, type WeatherStallsView } from '../render/weather-stalls.ts';
+import { FOG_VISIT_CELLS, stallsPackedFor } from '../world/weather-effects.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createHarborView, harborSiteOf, type HarborView } from '../render/harbor-view.ts';
@@ -325,6 +328,10 @@ export class SandboxScene extends Phaser.Scene {
   private tideView!: TideView;
   /** 渡口的木栈/灯影/船。没有 `ferry` 地域的图不创建，保持 null。 */
   private harborView: HarborView | null = null;
+  /** 天气雾：图内雾团 + 压暗。只在有雾时显示，由世界层的密度开关量驱动。 */
+  private weatherFogView: WeatherFogView | null = null;
+  /** 雨天的摊子盖布。没有摊子的图不创建，保持 null。 */
+  private weatherStallsView: WeatherStallsView | null = null;
   private phaseView!: PhaseView;
   /** 白天的鸟、黄昏的蝙蝠。纯画面，不占快照、不进存档。 */
   private ambienceView!: AmbienceView;
@@ -356,7 +363,7 @@ export class SandboxScene extends Phaser.Scene {
   private ghost!: GhostView;
   private cameraCtl!: CameraController;
   private minimap: MinimapView | null = null;
-  private fogView!: FogView;
+  private fogView: FogView | null = null;
   private focusListener: (() => void) | null = null;
   /** 诊断用：场景 update 被调用过多少次。降频是否生效看它。 */
   private updateCount = 0;
@@ -599,7 +606,19 @@ export class SandboxScene extends Phaser.Scene {
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
-    this.fogView = createFogView(this, this.world.grid.width, this.world.grid.height);
+    // 设定集（authored）的整张图都是「已经到过的地方」：`visibleFog()` 的揭示半径
+    // 已经盖满全图，雾体本身一格都不画；而边缘雾团仍沿那个半径绕圈，圆心天然落在
+    // 图外——屏幕上什么也看不到，审计却数得出「14 团全在图外」。
+    // 既然这张图没有「没去过」的暗角，就不建探索迷雾视图。旧镇照旧。
+    this.fogView =
+      this.pack?.authored === true
+        ? null
+        : createFogView(this, this.world.grid.width, this.world.grid.height);
+    // 天气雾与探索迷雾是两套：前者的团全部在图内，后者负责「没去过」的暗角。
+    this.weatherFogView = createWeatherFogView(this, this.world.grid, this.pack?.id ?? 'wandong');
+    if (this.pack !== undefined && this.pack !== null) {
+      this.weatherStallsView = createWeatherStallsView(this, this.pack);
+    }
 
     // 相机：锁在世界边界内，初始对准祭坛。
     //
@@ -825,6 +844,11 @@ export class SandboxScene extends Phaser.Scene {
       buildings: this.world.buildings,
       altar: this.world.altar,
       villagerName: this.villagerName, worldSeed: this.pack?.id ?? 'wandong',
+      // 按种子排天：晴/雨/雾每 4 世界小时一槽。槽号与种子决定序列，
+      // 与帧率、墙钟无关；纯逻辑测试不传这一项，行为保持旧样。
+      // 只给设定集（灯潮界）开：旧镇的开场是晴，居民从街面起手；
+      // 让种子在开局就压一场雨会把那条基线整个改写（冒烟闸钉着「开场晴」）。
+      weatherCycle: this.pack?.authored === true,
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
         villagerProfiles: routineProfiles(this.pack),
@@ -1158,6 +1182,10 @@ export class SandboxScene extends Phaser.Scene {
     this.harborView?.destroy();
     this.harborView = null;
     this.fogView?.destroy();
+    this.weatherFogView?.destroy();
+    this.weatherFogView = null;
+    this.weatherStallsView?.destroy();
+    this.weatherStallsView = null;
     this.cancelLongPress();
     if (this.contextMenuListener !== null) {
       this.game.canvas.removeEventListener('contextmenu', this.contextMenuListener);
@@ -3800,6 +3828,8 @@ export class SandboxScene extends Phaser.Scene {
       updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? WORLD);
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
+    this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
+    this.weatherStallsView?.update(stallsPackedFor(this.snapshot.weather));
     this.tideView.update(this.snapshot.tide.level);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
     this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
@@ -3817,8 +3847,8 @@ export class SandboxScene extends Phaser.Scene {
     // 设定集地图整张都是「已经到过的地方」：渡口、灯街、积尘滩是一口气铺开的，
     // 留一片迷雾在中间会读成「这里还没长出来」。半径由世界给到盖住整张图，
     // 旧镇的迷雾照旧由世界自己收敛。判据在 `Simulation.visibleFog`，视图与两道闸
-    // 读快照里同一个数，这里不再另算。
-    this.fogView.update(this.snapshot.fog, this.snapshot.now);
+    // 读快照里同一个数，这里不再另算。设定集图没有探索迷雾视图（见 `create` 那段）。
+    this.fogView?.update(this.snapshot.fog, this.snapshot.now);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {
@@ -3950,7 +3980,10 @@ export class SandboxScene extends Phaser.Scene {
         return `${villager.name}：${villagerModeLabel(villager, this.snapshot, task, where)}`;
       })
       .join('　/　');
-    const weather = WEATHER_LABEL[this.snapshot.weather];
+    // 雾把「能见几格」写进状态行：阈值是同一个常量，居民选择与读数不分家。
+    const weather = this.snapshot.weather === 'fog'
+      ? `${WEATHER_LABEL[this.snapshot.weather]}（能见 ${FOG_VISIT_CELLS} 格）`
+      : WEATHER_LABEL[this.snapshot.weather];
     const saveNote = this.saveNotice === null ? '' : `　　${this.saveNotice}`;
     // 真实时钟的异常与离线补算必须看得见：静默暂停会让人以为世界卡死了。
     // 补算结果常驻到下一次补算/下一次造物；暂停提示每帧刷新。

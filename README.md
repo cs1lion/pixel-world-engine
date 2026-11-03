@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             八道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                217 个测试文件 <!-- claim: test-file-count=217 -->
+└── test/                220 个测试文件 <!-- claim: test-file-count=220 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -101,6 +101,15 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 都由 `world-client/src/world/harbor.ts` 的 `harborStateAt` 算出；快照里的
 `harbor` 是运行时读数，不进存档。没有 `ferry` 地域的图（如莞尔镇）不创建渡口层，
 快照给 `null`。
+
+**天气四档（晴 / 雨 / 暴雨 / 雾）由种子排天**：每 4 世界小时一个槽
+（`WEATHER_SLOT_MS`），槽号与 `worldSeed` 一起过 `seedOf`，权重晴 45% / 雨 30% /
+雾 25%；同种子复跑逐项相同，换种子序列就换。三档天气都有行为后果，不只是滤镜：
+雨天摊主收摊（盖布）、行人撑伞且步速 ×`RAIN_WALK_FACTOR = 1.5`、地面水洼反光；
+雾天能见 `FOG_VISIT_CELLS = 8` 格（灯街到渡口约 12 格），超出这个距离的远行会被
+搁下并计数。天气雾是**图内**的 18 团（`weatherFogPuffs`，圆心夹在界内、按世界
+时间正弦漂移），与探索迷雾那套「沿揭示半径绕圈」的雾团互不相干；设定集整图已
+揭示，不再创建探索迷雾视图。运行时读数与潮汐一样不进存档。
 
 ### 时钟：默认是游玩时长
 

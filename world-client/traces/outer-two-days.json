@@ -271,7 +271,7 @@
             "saluteUntil": 0,
             "deliverUntil": 0,
             "nextRoutineAt": 89160000,
-            "routineIndex": 459,
+            "routineIndex": 479,
             "routineLabel": "在街口站着看了一会儿",
             "inPlaceUntil": 0,
             "pendingRoute": [],
@@ -297,7 +297,7 @@
             "saluteUntil": 0,
             "deliverUntil": 0,
             "nextRoutineAt": 91260000,
-            "routineIndex": 462,
+            "routineIndex": 482,
             "routineLabel": "去看了一眼农田",
             "inPlaceUntil": 0,
             "pendingRoute": [],
@@ -434,7 +434,7 @@
     "creator": true
   },
   "recorded": {
-    "inputDigest": "607551c99cae0f70f7eb2095bcfdf35d035452e0f5531274830a06a0e859deb8",
+    "inputDigest": "738eeca0198b843949f7cccca6cffe7f6e239acca8a105d80d3e36a62c45832e",
     "fingerprint": "95ee830c948bb5b8c0e07964d7b8d6700a2470fc79a2f1adcf179d5ddfb08131",
     "eventCount": 50,
     "eventDigest": "5b59c5a747514a1b85cab86a2bfd14be947992125db5694e3a59824818e916a1",
@@ -512,7 +512,7 @@
       {
         "step": 2000,
         "atWorldMs": 210000000,
-        "fingerprint": "83a9e1f9c29c7b6d05300bd668511badac3d6fcb0686102209481b7791bb4e4e",
+        "fingerprint": "035501862c909f86593bac3db0284b5f3f08ccd14666d23e633b2b2f2f16692f",
         "memoryFingerprint": "75d98dac582035006650aee0ac2b8520e455c7a2552241d66126cb8792728d71",
         "creatorFingerprint": "52f01e607745140b7a8f144c36d5d9aa8667b49752c67a160c8d148853a27b59"
       },
