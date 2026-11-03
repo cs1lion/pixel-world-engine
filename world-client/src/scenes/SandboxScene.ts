@@ -809,7 +809,7 @@ export class SandboxScene extends Phaser.Scene {
     // 捕获阶段先拦：按钮的默认点击发生在冒泡之后，冒泡阶段拦住也晚了。
     window.addEventListener('keydown', this.creationKeyListener, true);
 
-    if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack);
+    if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack, ALTITUDE);
     else this.drawAltar(originX, originY);
 
     const simDeps = {

@@ -16,7 +16,7 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { paletteFor } from '../world/theme.ts';
 import { bakeLayer, type BakedLayer } from './bake.ts';
-import { driftPuffs } from '../world/fog-drift.ts';
+import { driftPuffs, puffReachesWorld } from '../world/fog-drift.ts';
 
 export interface FogState {
   readonly center: { readonly x: number; readonly y: number };
@@ -134,6 +134,9 @@ export function createFogView(
       // 上面这一串数由 `test/fog-puff-budget.test.ts` 按 `PUFF_CELL_PX` 与
       // `PUFF_RADII_TILES` 重算，改任一个它都会红。
       for (const puff of driftPuffs(fog.center, fog.revealedRadius, timeMs)) {
+        // 整团在图外的先剔掉：相机夹在世界矩形里，它们一像素也到不了屏幕。
+        // 灯潮界半径 112、图 64×48，14 团全在这一档——这一层实测占整帧一半指令。
+        if (!puffReachesWorld(puff, gridWidth, gridHeight)) continue;
         const cx = puff.at.x * TILE_PX;
         const cy = puff.at.y * TILE_PX;
         const r = puff.radius * TILE_PX;

@@ -4,11 +4,18 @@
  * - 轨道/铺装 depth 1：铺在地上，潮水（depth 3）要能盖住它；退潮只让水退开，不删轨道。
  * - 桥 depth 4：桥面在水面之上，人走桥上。
  * - 灯池/灯光 depth 700：在地面之上、建筑与人物之下——光是地面上的亮，不遮挡人。
+ * - 立着的街面构件（灯柱、灯串、店面、摊位、幌布、竖招牌、碑、像）按**落地行**排：
+ *   `sceneryDepth(item.at.y, altitude)`。人物 depth 是 `altitude + (row+1)*16 + 8`，
+ *   所以同一行的人在构件前、上一行的人在构件后——「站在摊位前应盖住、站在摊位后
+ *   应被挡住」由 `scenery-depth.ts` 的纯函数钉住，不靠截图猜。
+ * - 落地碎堆走 depth 1050：它是地上的杂物，不进遮挡排序。
  * - 建筑构件 depth 1400：叠浪楼的红栏要压在街面人流之前。
  * - 蒸汽 depth 8010：飘在屋顶上方的空气，必须在最前。
  *
- * 一个 Graphics 只有一个 depth，所以不同层的构件不能用同一个对象：
+ * 一个 Graphics 只有一个 depth，所以不同深度段的构件不能用同一个对象：
  * 早先共享一张 `statics` 时，最后设置的 depth 会把轨道一起抬到人物前面。
+ * 现在街面构件**按落地行合并**：同一行的灯柱、摊位、店面共用一张 Graphics——
+ * 行内本来就不需要再分先后，行与行之间才需要。
  *
  * 灯态不在这里判断「几点该亮」：`world/lamp-street.ts` 是那条纯函数，
  * 本层只拿它的结果画亮或暗。这样 18:00 的判据能在 node 下被单测钉住，
@@ -19,6 +26,7 @@ import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
+import { sceneryDepth } from './scenery-depth.ts';
 
 export interface SettingSceneryView {
   update(level: number, now: number, clock: SettingSceneryClock): void;
@@ -39,12 +47,27 @@ interface LightPoint {
 /** 灯串每 2 格挂一盏；与 `settings/dengchao/lamp-street.ts` 的计数同一口径。 */
 const LANTERNS_PER_STRING = 6;
 
-export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): SettingSceneryView {
+export function createSettingScenery(
+  scene: Phaser.Scene,
+  pack: SettingPack,
+  altitude: number,
+): SettingSceneryView {
   const track = scene.add.graphics().setDepth(1);
   const street = scene.add.graphics().setDepth(1);
   const bridge = scene.add.graphics().setDepth(4);
   const lampLight = scene.add.graphics().setDepth(700);
-  const props = scene.add.graphics().setDepth(1050);
+  // 地上的杂物：不进遮挡排序，始终压在人物与立着的东西下面。
+  const flat = scene.add.graphics().setDepth(1050);
+  // 立着的构件按落地行分对象：同一行共用一张，行与行之间才需要 depth 差。
+  const propRows = new Map<number, Phaser.GameObjects.Graphics>();
+  const propLayer = (row: number): Phaser.GameObjects.Graphics => {
+    let g = propRows.get(row);
+    if (g === undefined) {
+      g = scene.add.graphics().setDepth(sceneryDepth(row, altitude));
+      propRows.set(row, g);
+    }
+    return g;
+  };
   const architecture = scene.add.graphics().setDepth(1400);
   const steam = scene.add.graphics().setDepth(8010);
   const c = pack.palette;
@@ -74,114 +97,120 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
     } else if (item.kind === 'paving') {
       drawPaving(street, x, y, item.length ?? 0, c);
     } else if (item.kind === 'lantern') {
-      drawLantern(props, x, y, c);
+      drawLantern(propLayer(item.at.y), x, y, c);
       lights.push({ x: x + 8, y: y - 14 });
     } else if (item.kind === 'lamp_string') {
+      const g = propLayer(item.at.y);
       const length = item.length ?? 0;
       const span = length * TILE_PX;
       // 灯绳：一根带高光的横线 + 两端短桩，挂在街面上方。
-      props.fillStyle(c.trim, 0.55);
-      props.fillRect(x, y - 23, span, 1);
-      props.fillStyle(c.timberDark, 1);
-      props.fillRect(x, y - 22, span, 1);
-      props.fillRect(x, y - 22, 1, 22);
-      props.fillRect(x + span - 1, y - 22, 1, 22);
+      g.fillStyle(c.trim, 0.55);
+      g.fillRect(x, y - 23, span, 1);
+      g.fillStyle(c.timberDark, 1);
+      g.fillRect(x, y - 22, span, 1);
+      g.fillRect(x, y - 22, 1, 22);
+      g.fillRect(x + span - 1, y - 22, 1, 22);
       for (let i = 0; i < LANTERNS_PER_STRING; i += 1) {
         const lx = x + TILE_PX / 2 + i * (span / LANTERNS_PER_STRING);
-        drawHangingLantern(props, lx, y, c, i);
+        drawHangingLantern(g, lx, y, c, i);
         lights.push({ x: lx + 4, y: y - 12 });
       }
     } else if (item.kind === 'shopfront') {
       const width = (item.length ?? 5) * TILE_PX;
-      const lanterns = drawShopfront(props, x, y, width, c);
+      const lanterns = drawShopfront(propLayer(item.at.y), x, y, width, c);
       // 店面那扇格窗也吃灯态：白天是暗琥珀，点灯后透出暖光。
       windows.push({ x: x + (width >= 64 ? width / 4 : 18), y: y + 19 });
       // 檐下红灯比街灯小一档，用 `windows` 的 14x10 光芯就够，不再开大灯池。
       for (const lx of lanterns) windows.push({ x: lx + 2, y: y - 1 });
     } else if (item.kind === 'signpost') {
-      drawSignpost(props, x, y, c);
+      drawSignpost(propLayer(item.at.y), x, y, c);
     } else if (item.kind === 'bridge') {
       for (const lx of drawBridge(bridge, x, y, item.length ?? 0, c)) {
         lights.push({ x: lx, y: y - 16 });
       }
     } else if (item.kind === 'sign') {
-      props.fillStyle(c.timberDark, 1);
-      props.fillRect(x + 3, y - 15, 3, 31);
-      props.fillStyle(c.copper, 1);
-      props.fillRect(x - 8, y - 17, 25, 13);
-      props.fillStyle(c.trim, 1);
-      props.fillRect(x - 3, y - 12, 13, 2);
-      props.fillRect(x + 7, y - 14, 2, 6);
+      const g = propLayer(item.at.y);
+      g.fillStyle(c.timberDark, 1);
+      g.fillRect(x + 3, y - 15, 3, 31);
+      g.fillStyle(c.copper, 1);
+      g.fillRect(x - 8, y - 17, 25, 13);
+      g.fillStyle(c.trim, 1);
+      g.fillRect(x - 3, y - 12, 13, 2);
+      g.fillRect(x + 7, y - 14, 2, 6);
     } else if (item.kind === 'debris') {
-      props.fillStyle(c.ink, 1);
-      props.fillRect(x + 2, y + 5, 13, 7);
-      props.fillStyle(c.charcoal, 1);
-      props.fillRect(x + 4, y + 3, 8, 7);
-      props.fillStyle(c.copper, 0.8);
-      props.fillRect(x + 6, y + 4, 2, 5);
+      flat.fillStyle(c.ink, 1);
+      flat.fillRect(x + 2, y + 5, 13, 7);
+      flat.fillStyle(c.charcoal, 1);
+      flat.fillRect(x + 4, y + 3, 8, 7);
+      flat.fillStyle(c.copper, 0.8);
+      flat.fillRect(x + 6, y + 4, 2, 5);
     } else if (item.kind === 'stall') {
       // 摊位：矮柜台 + 布棚。柜台压在人腰以下，棚顶高过人头，街面才有前后层次。
-      props.fillStyle(c.ink, 1);
-      props.fillRect(x - 1, y + 5, 26, 11);
-      props.fillStyle(c.timberDark, 1);
-      props.fillRect(x, y + 6, 24, 8);
-      props.fillStyle(c.terracotta, 1);
-      props.fillRect(x + 1, y + 6, 22, 3);
-      props.fillStyle(c.trim, 1);
-      props.fillRect(x + 2, y + 7, 20, 1);
+      const g = propLayer(item.at.y);
+      g.fillStyle(c.ink, 1);
+      g.fillRect(x - 1, y + 5, 26, 11);
+      g.fillStyle(c.timberDark, 1);
+      g.fillRect(x, y + 6, 24, 8);
+      g.fillStyle(c.terracotta, 1);
+      g.fillRect(x + 1, y + 6, 22, 3);
+      g.fillStyle(c.trim, 1);
+      g.fillRect(x + 2, y + 7, 20, 1);
       // 棚：两根细杆撑起一条布，布边留 1px 缺口，读成被风掀着。
-      props.fillStyle(c.timberDark, 1);
-      props.fillRect(x + 2, y - 12, 1, 19);
-      props.fillRect(x + 21, y - 12, 1, 19);
-      props.fillStyle(c.copper, 1);
-      props.fillRect(x - 2, y - 14, 29, 4);
-      props.fillStyle(c.pale, 0.85);
-      props.fillRect(x - 1, y - 13, 27, 1);
-      props.fillStyle(c.ember, 1);
-      props.fillRect(x - 2, y - 11, 29, 1);
+      g.fillStyle(c.timberDark, 1);
+      g.fillRect(x + 2, y - 12, 1, 19);
+      g.fillRect(x + 21, y - 12, 1, 19);
+      g.fillStyle(c.copper, 1);
+      g.fillRect(x - 2, y - 14, 29, 4);
+      g.fillStyle(c.pale, 0.85);
+      g.fillRect(x - 1, y - 13, 27, 1);
+      g.fillStyle(c.ember, 1);
+      g.fillRect(x - 2, y - 11, 29, 1);
       // 夜市摊上的小货堆：三个色块，读成「有东西在卖」。
-      props.fillStyle(c.plaster, 1);
-      props.fillRect(x + 3, y + 3, 5, 3);
-      props.fillStyle(c.amber, 1);
-      props.fillRect(x + 10, y + 2, 4, 4);
-      props.fillStyle(c.moss, 1);
-      props.fillRect(x + 17, y + 3, 5, 3);
+      g.fillStyle(c.plaster, 1);
+      g.fillRect(x + 3, y + 3, 5, 3);
+      g.fillStyle(c.amber, 1);
+      g.fillRect(x + 10, y + 2, 4, 4);
+      g.fillStyle(c.moss, 1);
+      g.fillRect(x + 17, y + 3, 5, 3);
     } else if (item.kind === 'banner') {
       // 幌布：斜挑一根杆，两幅布长短不一，避免整条街变成同一种竖线。
-      props.fillStyle(c.timberDark, 1);
-      props.fillRect(x + 6, y - 26, 1, 28);
-      props.fillRect(x + 6, y - 26, 9, 1);
-      props.fillStyle(c.ember, 1);
-      props.fillRect(x + 8, y - 25, 6, 11);
-      props.fillStyle(c.trim, 1);
-      props.fillRect(x + 8, y - 25, 6, 1);
-      props.fillStyle(c.pale, 1);
-      props.fillRect(x + 9, y - 21, 3, 1);
-      props.fillStyle(c.terracotta, 1);
-      props.fillRect(x + 15, y - 25, 4, 8);
+      const g = propLayer(item.at.y);
+      g.fillStyle(c.timberDark, 1);
+      g.fillRect(x + 6, y - 26, 1, 28);
+      g.fillRect(x + 6, y - 26, 9, 1);
+      g.fillStyle(c.ember, 1);
+      g.fillRect(x + 8, y - 25, 6, 11);
+      g.fillStyle(c.trim, 1);
+      g.fillRect(x + 8, y - 25, 6, 1);
+      g.fillStyle(c.pale, 1);
+      g.fillRect(x + 9, y - 21, 3, 1);
+      g.fillStyle(c.terracotta, 1);
+      g.fillRect(x + 15, y - 25, 4, 8);
     } else if (item.kind === 'stele') {
-      // 碑压在 props 层（1050），与 statue 同层：它是一块立在广场上的石头，
-      // 不该像楼那样压在人身上。碑面刻痕是三条横线——**不是字**：中文不进
+      // 碑按落地行排（与 statue 同规矩）：它是一块立在广场上的石头，
+      // 站在它后面的人该被它挡住。碑面刻痕是三条横线——**不是字**：中文不进
       // canvas（D5-A），碑文由确认面板渲染，这里只画"这块石头上有东西"。
-      props.fillStyle(c.ink, 1);
-      props.fillRect(x - 1, y + 12, 18, 4);
-      props.fillStyle(c.stone, 1);
-      props.fillRect(x + 1, y, 14, 13);
-      props.fillStyle(c.plaza, 1);
-      props.fillRect(x + 2, y + 1, 12, 3);
-      props.fillStyle(c.copper, 1);
-      props.fillRect(x + 3, y + 6, 10, 1);
-      props.fillRect(x + 3, y + 9, 10, 1);
-      props.fillStyle(c.trim, 0.8);
-      props.fillRect(x + 6, y + 1, 1, 3);
+      const g = propLayer(item.at.y);
+      g.fillStyle(c.ink, 1);
+      g.fillRect(x - 1, y + 12, 18, 4);
+      g.fillStyle(c.stone, 1);
+      g.fillRect(x + 1, y, 14, 13);
+      g.fillStyle(c.plaza, 1);
+      g.fillRect(x + 2, y + 1, 12, 3);
+      g.fillStyle(c.copper, 1);
+      g.fillRect(x + 3, y + 6, 10, 1);
+      g.fillRect(x + 3, y + 9, 10, 1);
+      g.fillStyle(c.trim, 0.8);
+      g.fillRect(x + 6, y + 1, 1, 3);
     } else if (item.kind === 'statue') {
-      props.fillStyle(c.stone, 1);
-      props.fillRect(x, y + 8, 16, 8);
-      props.fillRect(x + 4, y - 3, 8, 12);
-      props.fillStyle(c.plaza, 1);
-      props.fillRect(x + 5, y - 2, 3, 8);
-      props.fillStyle(c.water, 1);
-      props.fillRect(x + 2, y + 4, 12, 2);
+      const g = propLayer(item.at.y);
+      g.fillStyle(c.stone, 1);
+      g.fillRect(x, y + 8, 16, 8);
+      g.fillRect(x + 4, y - 3, 8, 12);
+      g.fillStyle(c.plaza, 1);
+      g.fillRect(x + 5, y - 2, 3, 8);
+      g.fillStyle(c.water, 1);
+      g.fillRect(x + 2, y + 4, 12, 2);
     }
   }
 
@@ -251,7 +280,17 @@ export function createSettingScenery(scene: Phaser.Scene, pack: SettingPack): Se
     },
     destroy() {
       artbook.destroy();
-      for (const layer of [track, street, bridge, lampLight, props, architecture, steam]) layer.destroy();
+      for (const layer of [
+        track,
+        street,
+        bridge,
+        lampLight,
+        flat,
+        ...propRows.values(),
+        architecture,
+        steam,
+      ]) layer.destroy();
+      propRows.clear();
     },
   };
 }
