@@ -279,6 +279,24 @@
         font-size: 12px;
         white-space: pre-wrap;
       }
+      /* 老档日界提示：一次、可见、必须点了才动。关掉后本次/重启都不再弹，
+         但维护条里始终留「再次检查」入口。 */
+      #clock-align {
+        width: 720px;
+        max-width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: baseline;
+        padding: 8px 12px;
+        background: var(--panel);
+        border: 1px solid var(--amber);
+        color: var(--ink);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      #clock-align[hidden] { display: none; }
+      #clock-align-text { flex: 1 1 420px; white-space: pre-wrap; }
       /* 键盘用户：跳转链接，平时不可见。 */
       .skip-link {
         position: absolute;
@@ -788,6 +806,12 @@
 
     <div id="status" role="status">世界正在醒来…</div>
 
+    <div id="clock-align" hidden role="status" aria-live="polite">
+      <span id="clock-align-text"></span>
+      <button type="button" id="clock-align-yes">对齐到今天零点</button>
+      <button type="button" id="clock-align-no">暂不</button>
+    </div>
+
     <form class="oracle" id="oracle">
       <div class="row">
         <input id="utterance" autocomplete="off" placeholder="对世界说一句话：建一间工坊 / 下雨 / 查一下资料" />
@@ -831,6 +855,11 @@
         <button type="button" id="save-export">存档：导出 JSON</button>
         <button type="button" id="save-import">存档：导入 JSON</button>
         <input type="file" id="save-import-file" accept="application/json,.json" hidden />
+      </div>
+      <div class="row" id="clock-align-row">
+        <span id="clock-align-readout">钟表：—</span>
+        <button type="button" id="clock-align-check">时钟：检查日界对齐</button>
+        <button type="button" id="clock-align-undo" hidden>时钟：撤销对齐</button>
       </div>
       <div id="save-io-reply" role="status" aria-live="polite"></div>
       <button type="button" id="debug-toggle" title="调试面板（快捷键 D）" aria-expanded="false" aria-controls="debug-panel">⚙ 调试</button>
