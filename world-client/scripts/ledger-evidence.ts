@@ -27,7 +27,9 @@ import {
   evaluateProposalGates,
   ladderSnapshot,
   landingFingerprint,
+  observationDueDay,
   observationOf,
+  passiveLadderSnapshot,
   proposalFingerprint,
   queryLedger,
   type CreationRecord,
@@ -40,6 +42,7 @@ import {
   type LandedCreation,
 } from '../src/creator/landing.ts';
 import { checkLandedBuilding, creationCoverage } from '../src/creator/business-rules.ts';
+import { DEFAULT_FAST_TIME_SCALE } from '../src/world/real-clock.ts';
 import { JsonlLedgerFile } from '../src/creator/ledger-file.ts';
 
 const WORLD_SEED = 'dengchao';
@@ -301,7 +304,7 @@ async function runRealDays(totalDays: number): Promise<RunSummary> {
         landings += 1;
         firstAcceptedLandingId ??= instanceId;
         lastAcceptedLandingId = instanceId;
-        pending.push({ proposalId: creation.recordId, buildingId: instanceId, dueDay: currentDay + 7, landed });
+        pending.push({ proposalId: creation.recordId, buildingId: instanceId, dueDay: observationDueDay(currentDay), landed });
       }
     }
 
@@ -372,6 +375,225 @@ async function runRealDays(totalDays: number): Promise<RunSummary> {
     finalBuildingIds,
     seqMonotonic: seqs.every((value, index) => index === 0 || value > (seqs[index - 1] ?? 0)),
     recordedAtMonotonic: stamps.every((value, index) => index === 0 || value >= (stamps[index - 1] ?? '')),
+  };
+}
+
+/**
+ * 一条完整的「落地 → 第 7 个世界日观测」。用真实 `Simulation` 跑，不是算术演示。
+ *
+ * 新节奏下 `DAY_MS` 没变，变的是现实倍率；这里同时给出世界毫秒、世界日与
+ * 默认倍率 60 下的现实分钟，证明 `dueDay` 用的是世界日而不是现实日。
+ */
+async function sevenDayObservation(): Promise<{
+  readonly landing: {
+    readonly day: number;
+    readonly at: number;
+    readonly seq: number;
+    readonly ledgerRecords: number;
+  };
+  readonly daySixClose: {
+    readonly day: number;
+    readonly ledgerRecords: number;
+    readonly observations: number;
+  };
+  readonly observation: {
+    readonly day: number;
+    readonly at: number;
+    readonly dueDay: number;
+    readonly seq: number;
+    readonly ledgerRecords: number;
+    readonly status: string;
+  };
+  readonly sevenWorldDaysMs: number;
+  readonly sevenWorldDaysRealMinutes: number;
+  readonly bytes: number;
+}> {
+  const path = join(OUT_DIR, 'seven-day-observation.jsonl');
+  rmSync(path, { force: true });
+  const ledger = new JsonlLedgerFile(path);
+  const { pack, world } = freshWorld();
+  const sim = simOf(pack, world);
+  const engine = new CreatorEngine(pack, {
+    worldSeed: WORLD_SEED,
+    worldTime: () => sim.snapshot().now,
+    world,
+  });
+  const view = viewOf(sim, world, pack, 0);
+  const proposal = engine.planCreation(view);
+  if (proposal === null) throw new Error('开局应当缺一栋可提议的模板');
+  const blueprint = pack.blueprints.get(proposal.templateId);
+  if (blueprint === undefined) throw new Error(`没有蓝图 ${proposal.templateId}`);
+
+  const creation = buildCreationRecord({
+    recordId: `${WORLD_SEED}:seven-day-creation`,
+    worldId: WORLD_SEED,
+    seed: WORLD_SEED,
+    day: 0,
+    at: 0,
+    templateId: proposal.templateId,
+    templateName: blueprint.displayName,
+    templateKind: blueprint.zone,
+    intentText: null,
+    target: proposal.at,
+    origin: 'manual',
+    gates: evaluateProposalGates({
+      origin: 'manual',
+      schemaPassed: true,
+      placementPassed: true,
+      builtPrefabIds: view.builtPrefabIds,
+      blueprintCount: pack.blueprints.size,
+      templateId: proposal.templateId,
+      fuseAction: 'not_applicable',
+      fuseReason: '人工确认',
+      traceable: true,
+    }),
+    ladder: (() => {
+      const state = engine.getRoleState('mapper');
+      if (state === undefined) throw new Error('mapper 没起来');
+      return passiveLadderSnapshot(state);
+    })(),
+    replay: {
+      seed: WORLD_SEED, eventFrom: 0, eventTo: 0, dayFrom: 0, dayTo: 0,
+      fingerprint: proposalFingerprint(WORLD_SEED, 0, proposal),
+    },
+  });
+  ledger.append(creation);
+
+  const frozen = freezeCreatorView(
+    view,
+    [...pack.blueprints.keys()].filter((id) => !view.builtPrefabIds.has(id)),
+  );
+  const instanceId = sim.nextInstanceId(proposal.templateId);
+  sim.enqueue({
+    kind: 'build',
+    prefabId: proposal.templateId,
+    instanceId,
+    at: proposal.at,
+    source: { taskId: `seven-day-${instanceId}`, summary: '七日观测证据' },
+  });
+  sim.update(16);
+  const building = sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
+  if (building === undefined) throw new Error('落地失败');
+  const landed: LandedCreation = {
+    instanceId,
+    prefabId: building.prefabId,
+    origin: building.origin,
+    door: building.door,
+  };
+  const replayed = engine.planCreation(frozen);
+  const replayConsistent = replayed === null
+    ? null
+    : verifyCreationReplay({ plan: proposal, replayed, landed, day: 0, blueprints: pack.blueprints });
+  const pathfindingConnected = landingReachable(world, landed);
+  const business = await checkLandedBuilding(
+    { snapshot: sim.snapshot(), grid: world.grid, altar: world.altar, blueprints: pack.blueprints },
+    landed,
+  );
+  const coverageRate = creationCoverage(sim.snapshot(), pack.blueprints);
+  const landing = buildLandingRecord({
+    proposalId: creation.recordId,
+    worldId: WORLD_SEED,
+    seed: WORLD_SEED,
+    day: 0,
+    at: sim.snapshot().now,
+    templateId: proposal.templateId,
+    landed: true,
+    buildingId: instanceId,
+    origin: building.origin,
+    door: building.door,
+    gates: evaluateLandingGates({
+      origin: 'manual',
+      schemaPassed: true,
+      placementPassed: true,
+      builtPrefabIds: new Set(sim.snapshot().buildings.map((item) => item.prefabId)),
+      blueprintCount: pack.blueprints.size,
+      templateId: proposal.templateId,
+      fuseAction: 'not_applicable',
+      fuseReason: '人工确认',
+      traceable: true,
+      actualCoverageRate: coverageRate,
+      pathfindingConnected,
+      hasCollision: business.hasConflict,
+      spatialConstraintSatisfied: true,
+      invariantViolated: business.invariantViolated,
+      replayHashConsistent: replayConsistent,
+    }),
+    replay: {
+      seed: WORLD_SEED, eventFrom: 0, eventTo: 0, dayFrom: 0, dayTo: 0,
+      fingerprint: landingFingerprint(WORLD_SEED, 0, proposal, landed),
+    },
+    failure: null,
+  });
+  ledger.append(landing);
+  const landingRecords = ledger.readAll();
+  const landingEnd = {
+    day: 0,
+    at: sim.snapshot().now,
+    seq: landingRecords[landingRecords.length - 1]!.seq,
+    ledgerRecords: landingRecords.length,
+  };
+
+  let daySixClose: { day: number; ledgerRecords: number; observations: number } | null = null;
+  let observationEnd: {
+    day: number; at: number; dueDay: number; seq: number; ledgerRecords: number; status: string;
+  } | null = null;
+  const dueDay = observationDueDay(0);
+  for (let day = 1; day <= dueDay; day += 1) {
+    sim.update(DAY_MS);
+    engine.closeWorldDay();
+    engine.processDayClosed({ meanValence: 0, meanArousal: 0.5, infoEntropy: 0.5, isolatedHoldersCount: 0 });
+    const closedDay = Math.floor(sim.snapshot().now / DAY_MS);
+    if (closedDay < dueDay) {
+      if (closedDay === 6) {
+        const records = ledger.readAll();
+        daySixClose = {
+          day: closedDay,
+          ledgerRecords: records.length,
+          observations: records.filter((item) => item.kind === 'observation').length,
+        };
+      }
+      continue;
+    }
+    const current = sim.snapshot().buildings.find((item) => item.instanceId === instanceId);
+    const outcome = observationOf({
+      expected: { prefabId: landed.prefabId, origin: landed.origin, door: landed.door },
+      current: current === undefined
+        ? null
+        : { prefabId: current.prefabId, origin: current.origin, door: current.door, displayName: current.displayName },
+      removed: false,
+      renamedTo: null,
+    });
+    const record = buildObservationRecord({
+      proposalId: creation.recordId,
+      worldId: WORLD_SEED,
+      day: closedDay,
+      at: sim.snapshot().now,
+      dueDay,
+      buildingId: instanceId,
+      status: outcome.status,
+      detail: outcome.detail,
+    });
+    const appended = ledger.append(record);
+    const records = ledger.readAll();
+    observationEnd = {
+      day: closedDay,
+      at: sim.snapshot().now,
+      dueDay,
+      seq: appended.record.seq,
+      ledgerRecords: records.length,
+      status: outcome.status,
+    };
+    break;
+  }
+  if (daySixClose === null || observationEnd === null) throw new Error('7 日观测没有跑完');
+
+  return {
+    landing: landingEnd,
+    daySixClose,
+    observation: observationEnd,
+    sevenWorldDaysMs: 7 * DAY_MS,
+    sevenWorldDaysRealMinutes: (7 * DAY_MS) / (DEFAULT_FAST_TIME_SCALE * 1000) / 60,
+    bytes: statSync(path).size,
   };
 }
 
@@ -530,6 +752,7 @@ function coverageRejectionSample(): CreationRecord {
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
   const real = await runRealDays(20);
+  const seven = await sevenDayObservation();
   const v30 = volumeForDays(30);
   const v100 = volumeForDays(100);
   const coverageRejected = coverageRejectionSample();
@@ -542,10 +765,12 @@ async function main(): Promise<void> {
   const output = {
     ok: true,
     real,
+    sevenDayObservation: seven,
     coverageRejected,
     volume: { perDayCreations: 3, thirtyDays: v30, hundredDays: v100 },
     files: {
       real: join(OUT_DIR, 'dayrun-20d.jsonl'),
+      sevenDayObservation: join(OUT_DIR, 'seven-day-observation.jsonl'),
       constructedRejections: rejectedPath,
       volume30: join(OUT_DIR, 'volume-30d.jsonl'),
       volume100: join(OUT_DIR, 'volume-100d.jsonl'),

@@ -19,6 +19,8 @@ import {
   creationVerdict,
   evaluateLandingGates,
   evaluateProposalGates,
+  observationDueDay,
+  OBSERVATION_WINDOW_DAYS,
   foldLedger,
   ledgerByteLength,
   ladderSnapshot,
@@ -35,6 +37,8 @@ import {
 } from '../src/creator/ledger.ts';
 import { JsonlLedgerFile } from '../src/creator/ledger-file.ts';
 import { AutonomousFuseController } from '../src/world/creator/fuse.ts';
+import { DEFAULT_FAST_TIME_SCALE } from '../src/world/real-clock.ts';
+import { DAY_MS } from '../src/world/memory/config.ts';
 import type { CreationPlan } from '../src/world/creator-schema.ts';
 import type { LandedCreation } from '../src/creator/landing.ts';
 
@@ -302,6 +306,17 @@ test('7 日观测三态：仍在 / 被拆 / 被改 / 下落不明', () => {
     observationOf({ expected, current, removed: false, renamedTo: '雨亭' }).status,
     'modified',
   );
+});
+
+test('dueDay 按世界日加 7：节奏 60 只改现实时长，不改世界日', () => {
+  assert.equal(OBSERVATION_WINDOW_DAYS, 7);
+  assert.equal(observationDueDay(0), 7);
+  assert.equal(observationDueDay(12), 19);
+  // 一世界日 = 24 世界小时 = DAY_MS；默认倍率 60 下现实 24 分钟。
+  assert.equal(DAY_MS, 24 * 60 * 60 * 1000);
+  assert.equal(DEFAULT_FAST_TIME_SCALE, 60);
+  assert.equal(DAY_MS / DEFAULT_FAST_TIME_SCALE / 60000, 24);
+  assert.equal(7 * 24, 168, '7 个世界日 = 168 分钟现实；账本仍按 7 个世界日算');
 });
 
 test('观测记录按 dueDay 定 recordId，重复追加不产生第二条', () => {

@@ -523,6 +523,20 @@ export type StoredLedgerRecord = LedgerRecord & {
 // 7 日观测
 // ============================================================================
 
+/**
+ * 落地后第几个**世界日**观测。
+ *
+ * 节奏 60 只改「一世界日现实里多长」（24 分钟），不改 `DAY_MS`：
+ * `DAY_MS` 仍是 24 × 60 × 60 × 1000 世界毫秒，所以这个 7 是**世界日**，
+ * 不是现实日。`at` / `dueDay` / `day` 全部用同一把世界时钟尺子。
+ */
+export const OBSERVATION_WINDOW_DAYS = 7;
+
+/** 观测到期日 = 落地日 + 7 个世界日。纯整数世界日加法，不碰现实时钟。 */
+export function observationDueDay(landingDay: number): number {
+  return landingDay + OBSERVATION_WINDOW_DAYS;
+}
+
 export interface ObservationInput {
   /** 落地时记下的那一栋。 */
   readonly expected: {

@@ -33,6 +33,7 @@ import {
   ladderSnapshot,
   landingFingerprint,
   newRecordId,
+  observationDueDay,
   observationOf,
   proposalFingerprint,
   queryLedger,
@@ -322,7 +323,7 @@ async function runDays(
           proposalId: creation.recordId,
           buildingId: instanceId,
           landed,
-          dueDay: currentDay + 7,
+          dueDay: observationDueDay(currentDay),
           displayName: blueprint.displayName,
         });
       } else {

@@ -140,6 +140,7 @@ import {
   ladderSnapshot,
   landingFingerprint,
   newRecordId,
+  observationDueDay,
   observationOf as ledgerObservationOf,
   passiveLadderSnapshot,
   proposalFingerprint,
@@ -152,6 +153,7 @@ import {
   createCreationLedgerOutbox,
   type CreationLedgerOutbox,
 } from '../creator/ledger-client.ts';
+import { createLocalStorageLedgerQueue } from '../creator/ledger-queue.ts';
 import type { CreationPlan } from '../world/creator-schema.ts';
 import {
   biomeRingAllows,
@@ -1064,7 +1066,13 @@ export class SandboxScene extends Phaser.Scene {
     // 出队器不阻塞世界——服务端不在时，记录留在队里等下一次自动存档。
     this.ledgerWorldId = creatorPack.id;
     this.ledgerSeed = creatorPack.id;
-    this.creationLedger = createCreationLedgerOutbox(createCreationLedgerClient());
+    // 队列落 localStorage（按世界分键）：POST 失败时页面关掉，重开还能补发。
+    // 没有 localStorage（隐私模式/配额满）就只剩内存队列，`create…` 会返回 null。
+    this.creationLedger = createCreationLedgerOutbox(createCreationLedgerClient(), {
+      storage: createLocalStorageLedgerQueue(this.ledgerWorldId),
+    });
+    // 上次会话没发出去的记录，起来先交一次；失败留着，自动存档再试。
+    void this.creationLedger.flush();
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
     if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);
     this.lastSaveKey = this.saveStateKey();
@@ -1868,7 +1876,7 @@ export class SandboxScene extends Phaser.Scene {
       this.pendingLedgerObservations.set(landed.instanceId, {
         proposalId: pending.proposalId,
         buildingId: landed.instanceId,
-        dueDay: pending.day + 7,
+        dueDay: observationDueDay(pending.day),
         expected: {
           prefabId: landed.prefabId,
           origin: landed.origin,
@@ -2006,7 +2014,7 @@ export class SandboxScene extends Phaser.Scene {
       this.pendingLedgerObservations.set(instanceId, {
         proposalId,
         buildingId: instanceId,
-        dueDay: currentDay + 7,
+        dueDay: observationDueDay(currentDay),
         expected: {
           prefabId: building.prefabId,
           origin: building.origin,

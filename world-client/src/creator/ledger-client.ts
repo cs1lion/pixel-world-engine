@@ -19,6 +19,13 @@ import type {
   FoldedCreationEntry,
 } from './ledger.ts';
 import { foldLedger } from './ledger.ts';
+import {
+  LEDGER_QUEUE_MAX_BYTES,
+  LEDGER_QUEUE_MAX_ITEMS,
+  LEDGER_QUEUE_VERSION,
+  ledgerQueueBytes,
+  type LedgerQueueStorage,
+} from './ledger-queue.ts';
 
 export const CREATION_LEDGER_APPEND_URL = '/api/creation-ledger/entries';
 export const CREATION_LEDGER_LIST_URL = '/api/creation-ledger/entries';
@@ -152,30 +159,101 @@ export function createCreationLedgerClient(
 }
 
 /**
- * 出队器：一次只交一条，成功才出队。
+ * 出队器：一次只交一条，成功才出队；队列本身**落盘**。
  *
- * 入队立刻 `flush()` 是场景的事——造物一天最多几次，不像记忆那样每拍都有。
- * 失败留在队里，下一次自动存档或下一次造物再试。
+ * 三条规矩：
+ *   - 入队立刻 `flush()` 是场景的事——造物一天最多几次，不像记忆那样每拍都有；
+ *   - 失败留在队里，并**马上写进 storage**；页面关掉再开，新出队器会把它们
+ *     读回来接着发；
+ *   - 容量有上限：超过 `maxItems` / `maxBytes` 时丢**最旧**的未发送记录，
+ *     `dropped` 计数一起持久化，不把丢失藏起来。
+ *
+ * 去重键是 `recordId`：同一条记录重复入队只留一条。服务端还会再按同一个
+ * id 去重，所以「重试」与「重复事件」都不会变成两条。
  */
 export interface CreationLedgerOutbox {
   enqueue(record: LedgerRecord): void;
   readonly size: number;
+  /** 因容量上限被丢掉的记录数。跨会话保留。 */
+  readonly dropped: number;
+  /** 队列当前占用的 UTF-8 字节数（与容量判定同一个口径）。 */
+  readonly pendingBytes: number;
   /** 交一条。空队或上一条还没回来时返回 `null`。 */
   flush(): Promise<LedgerAppendResult | null>;
 }
 
+export interface CreationLedgerOutboxOptions {
+  readonly storage?: LedgerQueueStorage | null;
+  readonly maxItems?: number;
+  readonly maxBytes?: number;
+}
+
 export function createCreationLedgerOutbox(
   client: CreationLedgerClient,
+  options: CreationLedgerOutboxOptions = {},
 ): CreationLedgerOutbox {
+  const storage = options.storage ?? null;
+  const maxItems = options.maxItems ?? LEDGER_QUEUE_MAX_ITEMS;
+  const maxBytes = options.maxBytes ?? LEDGER_QUEUE_MAX_BYTES;
   const queue: LedgerRecord[] = [];
+  const seen = new Set<string>();
+  let dropped = 0;
   let inFlight = false;
+
+  /** 从存储恢复；重复 recordId 只留第一条，坏条目跳过。 */
+  const restored = storage?.load() ?? null;
+  if (restored !== null) {
+    for (const record of restored.records) {
+      if (seen.has(record.recordId)) continue;
+      seen.add(record.recordId);
+      queue.push(record);
+    }
+    dropped = restored.dropped;
+  }
+
+  /** 整份快照写回存储。写失败只影响持久化，不影响内存队列。 */
+  const persist = (): void => {
+    storage?.save({
+      version: LEDGER_QUEUE_VERSION,
+      records: [...queue],
+      dropped,
+    });
+  };
+
+  /**
+   * 按上限裁剪。`start` 是「允许删的第一条」：有在途请求时传 1，
+   * 别把正在 POST 的那条从脚下抽走。
+   */
+  const trim = (start: number): void => {
+    while (queue.length > maxItems || ledgerQueueBytes(queue, dropped) > maxBytes) {
+      if (queue.length <= start) break;
+      const removed = queue.splice(start, 1)[0];
+      if (removed === undefined) break;
+      seen.delete(removed.recordId);
+      dropped += 1;
+    }
+  };
+
+  // 恢复出来的队列也可能超限（旧版本上限更小/写坏了），先裁一次再落盘。
+  trim(0);
+  persist();
 
   return {
     enqueue(record: LedgerRecord): void {
+      if (seen.has(record.recordId)) return;
+      seen.add(record.recordId);
       queue.push(record);
+      trim(inFlight ? 1 : 0);
+      persist();
     },
     get size(): number {
       return queue.length;
+    },
+    get dropped(): number {
+      return dropped;
+    },
+    get pendingBytes(): number {
+      return ledgerQueueBytes(queue, dropped);
     },
     async flush(): Promise<LedgerAppendResult | null> {
       if (inFlight) return null;
@@ -184,7 +262,11 @@ export function createCreationLedgerOutbox(
       inFlight = true;
       try {
         const result = await client.append(record);
-        if (result.ok) queue.shift();
+        if (result.ok && queue[0]?.recordId === record.recordId) {
+          queue.shift();
+          seen.delete(record.recordId);
+          persist();
+        }
         return result;
       } catch (error) {
         // 传输层不该抛；真抛了也当失败，留在队里。
@@ -195,6 +277,8 @@ export function createCreationLedgerOutbox(
         };
       } finally {
         inFlight = false;
+        trim(0);
+        persist();
       }
     },
   };
