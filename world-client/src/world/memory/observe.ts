@@ -51,6 +51,13 @@ export function worldEventImportance(kind: WorldEventKind): number {
       return 0.35;
     case 'tide_turn':
       return 0.35;
+    // 市面四拍是镇子级事实（`actorId` 为 null）：分量与固定时刻表的每日小事
+    // 同档——镇子每天都会走过，但谁也没做成一件事。
+    case 'market_open':
+    case 'work_end':
+    case 'night_market':
+    case 'market_close':
+      return 0.35;
   }
 }
 
@@ -76,6 +83,12 @@ export function worldEventValence(kind: WorldEventKind): number {
     case 'routine_done':
       return 0.1;
     case 'tide_turn':
+      return 0;
+    // 市面四拍没有情绪方向：开市闭市都是钟点到了，不是谁做成了什么。
+    case 'market_open':
+    case 'work_end':
+    case 'night_market':
+    case 'market_close':
       return 0;
   }
 }

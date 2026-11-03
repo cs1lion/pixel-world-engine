@@ -31,9 +31,9 @@ test('轨迹回归：outer-two-days', async () => {
 
   // 2. 世界指纹 + 事件条数/摘要 + 世界业务读数。
   assert.equal(check.status, 'replayable');
-  assert.equal(check.fingerprint, '95ee830c948bb5b8c0e07964d7b8d6700a2470fc79a2f1adcf179d5ddfb08131');
-  assert.equal(check.eventCount, 50);
-  assert.equal(check.eventDigest, '5b59c5a747514a1b85cab86a2bfd14be947992125db5694e3a59824818e916a1');
+  assert.equal(check.fingerprint, '32ba01e786168f8534bbe8a288b891f433a037253df0958468b934d469f96f17');
+  assert.equal(check.eventCount, 52);
+  assert.equal(check.eventDigest, 'baad0768ec9772570480c6435c6c2937a01bc0cc1507dc6cde6768844c1940e2');
   assert.equal(check.business.buildings, 2);
   assert.equal(check.business.day, 3);
   assert.equal(check.business.weather, 'clear');
@@ -43,22 +43,22 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, '77ad2ab030988ad4bcb7a81e3e3b7a5e58700590ed35cc7ae2f8b5cecdd9eec1');
+  assert.equal(memory.fingerprint, '803a26d4917311ffb9ff188f880ba0a4100beb35b261ea5ca89d3ebc74ac0cdd');
   assert.equal(memory.business.lastClosedDay, 3);
   assert.equal(memory.business.entries, 45);
-  assert.equal(memory.business.facts, 47);
-  assert.equal(memory.business.claims, 38);
-  assert.equal(memory.business.beliefs, 11);
+  assert.equal(memory.business.facts, 56);
+  assert.equal(memory.business.claims, 37);
+  assert.equal(memory.business.beliefs, 8);
   assert.equal(memory.business.bonds, 1);
   assert.equal(memory.business.moods, 2);
   assert.equal(memory.business.bondTrustSum, -0.24);
-  assert.equal(memory.business.moodValenceSum, 0.246757);
+  assert.equal(memory.business.moodValenceSum, 0.295744);
 
   // 4. 造物账：日终关账、提议、落地读数与角色门禁计数。
   const creator = check.creator;
   assert.ok(creator !== null);
   assert.equal(creator.deterministic, true);
-  assert.equal(creator.fingerprint, 'c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d');
+  assert.equal(creator.fingerprint, 'cea6171db1e41388dfbec1d312507693c581a60f43e6bad235c816bdaba496a3');
   assert.equal(creator.business.dayCloses.length, 2);
   assert.equal(creator.business.proposals.length, 3);
   assert.equal(creator.business.landings.length, 1);

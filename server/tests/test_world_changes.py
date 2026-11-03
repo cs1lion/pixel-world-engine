@@ -29,7 +29,7 @@ SAMPLE = Path(__file__).resolve().parents[2] / "docs" / "world-changes.sample.js
 DAILY_CHORES = {
     "daily_water": {
         "kind": "daily_water",
-        "text": "汐去桥边打水，顺手冲了冲桥面",
+        "text": "汐去河湾打水，顺手冲了冲河岸",
         "placeId": "place:28,26",
         "where": {"x": 28, "y": 26},
         "actorId": "v1",
@@ -40,6 +40,39 @@ DAILY_CHORES = {
         "placeId": "place:32,29",
         "where": {"x": 32, "y": 29},
         "actorId": "v0",
+    },
+}
+
+#: 市面四个节点。它们是镇子级事实（`actorId` 为 null），和第 08:00 的早市、
+#: 17:00 的收工、19:00 的夜市、22:00 的闭市一一对应。
+MARKET_BEATS = {
+    "market_open": {
+        "kind": "market_open",
+        "text": "早市开了，摊子一处处支起来。",
+        "placeId": "place:56,33",
+        "where": {"x": 56, "y": 33},
+        "actorId": None,
+    },
+    "work_end": {
+        "kind": "work_end",
+        "text": "收工的钟敲了，街上的活停下来。",
+        "placeId": "place:56,33",
+        "where": {"x": 56, "y": 33},
+        "actorId": None,
+    },
+    "night_market": {
+        "kind": "night_market",
+        "text": "夜市支起来了，灯下有人走动。",
+        "placeId": "place:56,33",
+        "where": {"x": 56, "y": 33},
+        "actorId": None,
+    },
+    "market_close": {
+        "kind": "market_close",
+        "text": "市面闭了，镇子回到安静。",
+        "placeId": "place:48,36",
+        "where": {"x": 48, "y": 36},
+        "actorId": None,
     },
 }
 
@@ -182,6 +215,14 @@ def test_街头互动的每一种_kind_都进白名单(client: TestClient) -> No
         assert response.status_code == 201, (kind, response.text)
 
 
+def test_市面四拍也走同一扇窄门(client: TestClient) -> None:
+    """开市 / 收工 / 夜市 / 闭市是 `world.event` 的合法种类，不是第四套机制。"""
+    for kind, payload in MARKET_BEATS.items():
+        assert kind in WORLD_EVENT_KINDS
+        response = post(client, "world.event", payload)
+        assert response.status_code == 201, (kind, response.text)
+
+
 def test_街头互动的_kind_不能自己编(client: TestClient) -> None:
     payload = {
         **VALID_PAYLOADS["world.event"],
@@ -206,6 +247,13 @@ def test_街头事件的_otherId_有值时必须给当事人(client: TestClient)
     response = post(client, "world.event", payload)
     assert response.status_code == 422
     assert "otherId" in response.json()["detail"]
+
+
+def test_市面四拍的_kind_不能自己编(client: TestClient) -> None:
+    bad = dict(MARKET_BEATS["market_open"], kind="market_opens")
+    response = post(client, "world.event", bad)
+    assert response.status_code == 422
+    assert "market_opens" in response.json()["detail"]
 
 
 def test_每种合法的世界改变都能写进去(client: TestClient) -> None:

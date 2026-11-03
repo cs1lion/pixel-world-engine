@@ -64,8 +64,10 @@ TASK_KINDS = ("code", "research", "writing", "quick")
 #: `world.event.kind`：世界自己报的事的种类。
 #:
 #: 与 `world-client/src/world/world-changes.ts` 的 `WorldEventKind` 是同一个域，
-#: 两边各写一遍。前两个来自 `ambient.ts` 的 `AmbientKind`；后两个是固定时刻表里
-#: 已经接通的两件每日小事（`timetable.ts`）。漂开的表现是：世界自己走到那件
+#: 两边各写一遍。前两个来自 `ambient.ts` 的 `AmbientKind`；`daily_water` /
+#: `daily_lamp` 是固定时刻表里已经接通的两件每日小事（`timetable.ts`）；
+#: `market_open` / `work_end` / `night_market` / `market_close` 是市面的四个
+#: 节点，镇子级事实，`actorId` 为 null。漂开的表现是：世界自己走到那件
 #: 小事，回写时被自己的服务端拒掉——那一刻于是什么也没留下，而事件流里连一句
 #: 抱怨都不会有（`announce` 吞异常）。
 #: 客户端那条读本文件的测试盯着 `WORLD_CHANGE_CHECKS`，这一条的值域靠
@@ -82,6 +84,10 @@ WORLD_EVENT_KINDS = (
     "street_tumble",
     "street_water",
     "street_help",
+    "market_open",
+    "work_end",
+    "night_market",
+    "market_close",
 )
 
 #: `miracle` 事件里记的神迹名。**与 `rules/schema.py` 的 `MIRACLES` 不是同一个域**，

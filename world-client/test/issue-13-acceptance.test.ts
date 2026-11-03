@@ -74,8 +74,8 @@ const KNOWN_UNMET: Readonly<Record<string, { readonly why: string }>> = {
       + '那 11 个里的一个子集，一句话里两个数。已按实测改写。）',
   },
   'A|作息落点': {
-    why: 'LEGACY_PACK.villagers 是空数组，莞尔镇四个落点在 routines.ts 的 routineBeats() 里'
-      + '（KNOWN_STOPS 全部 4 行）。',
+    why: 'LEGACY_PACK.villagers 是空数组，莞尔镇六个落点在 routines.ts 的 routineBeats() 里'
+      + '（KNOWN_STOPS 全部 6 行）。',
   },
   'A|三色槽位': {
     why: 'regions 为空，一个槽位都没有，谈不上填。设定集 B 的五道区域三槽齐全'
@@ -315,9 +315,9 @@ test('KNOWN_UNMET 的 why 引用的那两张表，行数与写下的相符', () 
   const stops = keysOf('KNOWN_STOPS');
   const prefabs = keysOf('KNOWN_PREFABS');
 
-  // 「KNOWN_STOPS 全部 4 行」——全在 routines.ts，一行不多。
-  assert.equal(stops.length, 4);
-  assert.equal(stops.filter((k) => k.startsWith('world/routines.ts:')).length, 4);
+  // 「KNOWN_STOPS 全部 6 行」——全在 routines.ts，一行不多。
+  assert.equal(stops.length, 6);
+  assert.equal(stops.filter((k) => k.startsWith('world/routines.ts:')).length, 6);
 
   // 「KNOWN_PREFABS 里 19 对中的 11 对」
   assert.equal(prefabs.length, 19);

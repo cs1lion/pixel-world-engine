@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { atAltar } from '../src/world/villager-words.ts';
 
 const raw = JSON.parse(
@@ -33,6 +34,9 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：作息那半会睡，午夜开局时「还没挂牌子」的空窗会被
+    // 「睡下了」那块牌子直接盖住，错峰 1200 + index × 1400 根本数不出来。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;

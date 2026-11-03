@@ -92,7 +92,11 @@ export interface LivelyInput {
   readonly seed: string;
   readonly villagers: readonly LivelyVillager[];
   readonly relations: readonly SocialRelation[];
-  readonly waterPlace: GridPoint;
+  /**
+   * 镇子的水边。没有水边的世界给 `null`：井边那一桩小事就不该发生，
+   * 也不能编一个「井」出来（见 `simulation.ts` 的 `waterSpotNear`）。
+   */
+  readonly waterPlace: GridPoint | null;
   /** 日账；省略时当作世界的第一天，只适合单测与预览。 */
   readonly history?: LivelyHistory;
 }
@@ -356,8 +360,9 @@ function incidentBetween(
 ): LivelyEvent | undefined {
   const gate = seedOf(input.seed, 'lively-incident', incidentSlot, pairKey) % 3;
   const close = chebyshev(a.cell, b.cell) <= 1;
-  const nearWater =
-    chebyshev(a.cell, input.waterPlace) <= 2 || chebyshev(b.cell, input.waterPlace) <= 2;
+  const water = input.waterPlace;
+  const nearWater = water !== null
+    && (chebyshev(a.cell, water) <= 2 || chebyshev(b.cell, water) <= 2);
 
   // 帮忙抬货：有一方手上带着东西，另一方空着手。先判这一条，因为它是唯一
   // 一条好事——被其余两条盖掉的话，镇子上就只剩坏事可记。
@@ -376,11 +381,11 @@ function incidentBetween(
   }
 
   // 抢水：清晨的井边。水里那件事只在这两个小时里有。
-  if (gate === 1 && minute >= 5 * 60 && minute < 9 * 60 && nearWater) {
+  if (gate === 1 && minute >= 5 * 60 && minute < 9 * 60 && nearWater && water !== null) {
     return {
       kind: 'street_water',
       text: `${a.name}和${b.name}在井边抢水。`,
-      where: { ...input.waterPlace },
+      where: { ...water },
       actorId: a.id,
       otherId: b.id,
       bubbles: pairBubbles(a, b, '这水是我先到的。', '桶都让你碰倒了。'),

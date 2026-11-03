@@ -79,7 +79,11 @@ async function openPage(browser, query) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
-  await page.goto(`${BASE}?${query}`);
+  // 世界时钟显式置为 09:00：`?time=noon` 只管画面光照相位，不改世界时钟，而
+  // 默认开局 00:00 落在 22:00–05:00 的睡眠段——那时居民回锚点睡下，这组用例
+  // 要找的「独占一格的可见村民」根本不会出现。`?now` 只在 `?debug=1` 那一层
+  // 生效，且只对新世界有效（见 `SandboxScene.ts` 的说明）。
+  await page.goto(`${BASE}?${query}&debug=1&now=540`);
   await page.waitForFunction(() => window.Oracle !== undefined && window.Oracle.view !== undefined);
   await page.waitForTimeout(400);
   return { context, page, errors };

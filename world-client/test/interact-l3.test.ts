@@ -45,6 +45,9 @@ function makeRig(): { sim: Simulation; deps: SimulationDeps } {
     altar: ALTAR,
     villagerName: '莞尔',
     wallClock: () => 1000,
+    // 开局定在 09:00，不是 00:00：22:00–05:00 是作息里的睡眠段，居民本来
+    // 就该回锚点睡下。这条用例验的是「回溯只读」，需要一段真在走动的世界。
+    initialNow: 9 * 60 * 60 * 1000,
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       return blueprint === undefined ? null : placeBlueprint(world.grid, blueprint, instanceId, ALTAR);
