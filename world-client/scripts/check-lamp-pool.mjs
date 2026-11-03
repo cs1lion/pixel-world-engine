@@ -36,8 +36,9 @@ const FREEZE_AT = 180;
 const SAMPLE = { x: 832, y: 522 };
 /** 衰减测量：同一条灯柱，沿池心那条地平线 y=522 向右取 0.5..6 格。 */
 const CURVE = { lampX: 51, lampY: 32, y: 522 };
-/** 取样距离（格）：0.5 起是为了避开灯柱，末端 4/6 格用来证明光真的衰减到零。 */
-const DISTANCES = [0.5, 1, 1.5, 2, 3, 4, 6];
+/** 取样距离（格）：0.5 起是为了避开灯柱，末端 4/6 格用来证明光真的衰减到零。
+ *  2.5 格是外圈半径（40px）落点，用它证明「2 格不再是 0」的接缝已经被填上。 */
+const DISTANCES = [0.5, 1, 1.5, 2, 2.5, 3, 4, 6];
 /** 潮位对照机位：贴着取样点看同一片池子在退潮/满潮两态的大小与亮度。 */
 const STREET = SAMPLE;
 
@@ -250,12 +251,12 @@ try {
     </figure>`;
 
   const curveMax = Math.max(...out.curve.map((row) => row.delta), 0.0001);
-  const barWidth = 38;
+  const barWidth = 30;
   const curveSvg = `
     <svg width="380" height="150" viewBox="0 0 380 150" role="img" aria-label="光池衰减曲线">
       ${out.curve.map((row, i) => {
         const hgt = Math.max(1, Math.round((row.delta / curveMax) * 110));
-        const x = 26 + i * 49;
+        const x = 26 + i * 43;
         return `<rect x="${x}" y="${130 - hgt}" width="${barWidth}" height="${hgt}" fill="#f0a44b" />
                 <text x="${x + barWidth / 2}" y="146" fill="#8b9691" font-size="11" text-anchor="middle">${row.d} 格</text>
                 <text x="${x + barWidth / 2}" y="${124 - hgt}" fill="#d8dad3" font-size="10" text-anchor="middle">${(row.delta * 100).toFixed(1)}</text>`;
@@ -281,7 +282,7 @@ try {
        b { color: #f4d596; font-weight: 600; }
        .panel { border: 1px solid #2a3138; padding: 8px 10px; }
      </style>
-     <h1>街面光池：灯亮/灯灭的地面读数与 2/4/6 格衰减</h1>
+     <h1>街面光池：灯亮/灯灭的地面读数与 0.5–6 格衰减（含 2.5 格）</h1>
      <p class="note">
        同一冻结帧（第 ${FREEZE_AT} 帧，锁种子 20261019）、同一机位；只换灯态或潮位。
        取样点 A = 世界 (${SAMPLE.x}, ${SAMPLE.y})，在 lamp_post_10 的池芯里、灯柱本体右边半格。

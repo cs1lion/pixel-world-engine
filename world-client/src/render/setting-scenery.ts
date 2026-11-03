@@ -52,6 +52,11 @@ export interface SettingSceneryView {
    * 那几个常量，不另抄一份数字。
    */
   readonly metrics: SettingSceneryMetrics;
+  /**
+   * 这一帧画下的地面光池指令数。光池每帧先 `clear`、只在亮灯分支里重画，
+   * 所以灯灭时必须为 0——有残留就说明上一帧的暖斑没被擦掉。
+   */
+  readonly poolCommands: () => number;
 }
 
 /** 灯态时钟：相位与「是不是自动推进」。强制相位（`?time=`）下两者都要用上。 */
@@ -282,6 +287,7 @@ export function createSettingScenery(
 
   return {
     metrics: settingSceneryMetrics(),
+    poolCommands: () => lampPool.commandBuffer?.length ?? 0,
     update(level, now, clock) {
       lampLight.clear();
       lampPool.clear();

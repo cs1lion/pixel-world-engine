@@ -295,6 +295,8 @@ export interface DebugOracle {
    * 证据脚本拿它画标尺：尺子读渲染常量，不另抄一份数字。
    */
   debugSettingScale?(): SettingSceneryMetrics | null;
+  /** 地面光池这一层的指令数：灯灭时应为 0（残留亮斑会让它不为 0）。 */
+  debugLampPool?(): number;
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

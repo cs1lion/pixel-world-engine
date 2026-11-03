@@ -3616,6 +3616,11 @@ export class SandboxScene extends Phaser.Scene {
        * 证据脚本拿它画覆盖线与比例，不另抄一份数字；场景未起来时为 `null`。
        */
       debugSettingScale: () => this.settingScenery?.metrics ?? null,
+      /**
+       * 地面光池这一层此刻的指令数：灯灭时必须为 0，用来证明光池没有残留
+       * （截图只能看出「没有暖斑」，看不出「上一帧的椭圆有没有被擦掉」）。
+       */
+      debugLampPool: (): number => this.settingScenery?.poolCommands() ?? 0,
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
