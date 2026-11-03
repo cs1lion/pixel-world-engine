@@ -45,74 +45,147 @@ await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
 
-const shots = {};
-const pageErrors = [];
-for (const phase of PHASES) {
-  const page = await context.newPage();
-  page.on('pageerror', (error) => pageErrors.push(`${phase}: ${error.message}`));
-  await page.addInitScript(() => localStorage.clear());
-  await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
-  // 渐变 FADE_MS = 900，等两倍确保拍到终态。
-  await page.waitForTimeout(2200);
-
-  const actual = await page.evaluate(() => window.Oracle.currentPhase());
-  check(actual === phase, `?time=${phase} 真的停在${phase}`, `实际 ${actual}`);
-
-  const buffer = await page.locator('canvas').first().screenshot();
-  await writeFile(`${OUT}/phase-${phase}.png`, buffer);
-  shots[phase] = buffer;
-  await page.close();
-}
-check(pageErrors.length === 0, '四刻页面无 JS 报错', pageErrors.join('; '));
-
 /** 用浏览器解码 PNG 取像素，避免在 Node 里引额外依赖。 */
-const decoder = await context.newPage();
-const stats = {};
-for (const phase of PHASES) {
-  const url = `data:image/png;base64,${shots[phase].toString('base64')}`;
-  stats[phase] = await decoder.evaluate(async (src) => {
-    const img = new Image();
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-      img.src = src;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const g = canvas.getContext('2d');
-    g.drawImage(img, 0, 0);
-    const px = g.getImageData(0, 0, img.width, img.height).data;
-    const lum = (r, gg, b) => 0.2126 * r + 0.7152 * gg + 0.0722 * b;
-    const values = new Float64Array(px.length / 4);
-    let sum = 0;
-    let r = 0;
-    let gg = 0;
-    let b = 0;
-    for (let k = 0, i = 0; k < px.length; k += 4, i += 1) {
-      values[i] = lum(px[k], px[k + 1], px[k + 2]);
-      sum += values[i];
-      r += px[k];
-      gg += px[k + 1];
-      b += px[k + 2];
+const decodeStats = async (shots) => {
+  const decoder = await context.newPage();
+  const stats = {};
+  try {
+    for (const phase of PHASES) {
+      const url = `data:image/png;base64,${shots[phase].buffer.toString('base64')}`;
+      stats[phase] = await decoder.evaluate(async (src) => {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const g = canvas.getContext('2d');
+        g.drawImage(img, 0, 0);
+        const px = g.getImageData(0, 0, img.width, img.height).data;
+        const lum = (r, gg, b) => 0.2126 * r + 0.7152 * gg + 0.0722 * b;
+        const values = new Float64Array(px.length / 4);
+        let sum = 0;
+        let r = 0;
+        let gg = 0;
+        let b = 0;
+        for (let k = 0, i = 0; k < px.length; k += 4, i += 1) {
+          values[i] = lum(px[k], px[k + 1], px[k + 2]);
+          sum += values[i];
+          r += px[k];
+          gg += px[k + 1];
+          b += px[k + 2];
+        }
+        const n = values.length;
+        return {
+          width: img.width,
+          height: img.height,
+          values: Array.from(values),
+          mean: sum / n,
+          warmth: (r - b) / n,
+        };
+      }, url);
     }
-    const n = values.length;
-    return {
-      width: img.width,
-      height: img.height,
-      values: Array.from(values),
-      mean: sum / n,
-      warmth: (r - b) / n,
-    };
-  }, url);
+  } finally {
+    await decoder.close();
+  }
+  return stats;
+};
+
+/**
+ * 一轮完整采样：四刻页 + 夜雨页 + PNG 解码。
+ *
+ * `scored=false` 是预热轮：不写截图、不做任何判定，读数由调用方丢弃。
+ * 采样路径必须与正式轮逐字相同，否则预热就只是「随便开个页面」。
+ */
+const capturePass = async (scored) => {
+  const shots = {};
+  const errors = [];
+
+  for (const phase of PHASES) {
+    const page = await context.newPage();
+    try {
+      page.on('pageerror', (error) => errors.push(`${phase}: ${error.message}`));
+      await page.addInitScript(() => localStorage.clear());
+      await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
+      await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
+      // 渐变 FADE_MS = 900，等两倍确保拍到终态。
+      await page.waitForTimeout(2200);
+
+      const actual = await page.evaluate(() => window.Oracle.currentPhase());
+      const buffer = await page.locator('canvas').first().screenshot();
+      if (scored) await writeFile(`${OUT}/phase-${phase}.png`, buffer);
+      shots[phase] = { buffer, actual };
+    } finally {
+      await page.close();
+    }
+  }
+
+  // 夜雨必须隐藏萤火。产品没有 `?rain=` 入口——天气只能由神谕或台账改，
+  // 所以这里走真实操作路径：说一句「下雨吧」，等雨上屏再拍。
+  const nightRain = await (async () => {
+    const page = await context.newPage();
+    try {
+      page.on('pageerror', (error) => errors.push(`night+rain: ${error.message}`));
+      await page.addInitScript(() => localStorage.clear());
+      await page.goto(`${BASE}?ledger=off&time=night&debug=1`, { waitUntil: 'load' });
+      await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
+      await page.waitForTimeout(400);
+
+      const said = await page.evaluate(() => window.Oracle.say('下雨吧'));
+
+      // 雨渐变 1.8 秒；等足 3 秒确保 intensity 拉满。
+      await page.waitForTimeout(3000);
+      const weather = await page.evaluate(() => window.Oracle.view().weather);
+
+      const buffer = await page.locator('canvas').first().screenshot();
+      if (scored) await writeFile(`${OUT}/phase-night-rain.png`, buffer);
+      return { buffer, weather, said };
+    } finally {
+      await page.close();
+    }
+  })();
+
+  const stats = await decodeStats(shots);
+  return { shots, nightRain, stats, errors };
+};
+
+/**
+ * 预热轮（不计分）。
+ *
+ * 冷启动的第一个页面要付 WebGL 管线/着色器首次编译、生成纹理首次上传、
+ * 1.6MB bundle 的解码与 JIT 的钱；这段时间 rAF 的帧间隔被拉长，而相位渐变
+ * 按**累计 delta** 推进（`FADE_MS = 900`，见 `src/render/phase-view.ts`）。
+ * 所以「等 2200ms 墙钟」在冷启动里可能只积累了不到 900ms 的游戏时间，
+ * 晨刻的渐变没走完就被截屏——首跑那次 `dawn 65.42 vs noon 66.10` 就是这么来的。
+ *
+ * 这里先按**完全相同的路径**跑一遍（四刻页 + 夜雨页 + PNG 解码），读数全部丢弃，
+ * 把一次性的首次成本消化在正式采样之前。阈值、断言条件、用例数量一个未动：
+ * 正式轮仍是原来那 17 项，预热轮不产出任何 pass/fail。
+ */
+const warm = await capturePass(false).catch((error) => {
+  console.log(`[预热轮] 不计分：预热失败（${error.message}），继续正式采样`);
+  return null;
+});
+if (warm !== null) {
+  const means = PHASES.map((phase) => `${phase} ${warm.stats[phase].mean.toFixed(2)}`).join(' / ');
+  console.log(`[预热轮] 不计分：四刻亮度均值 ${means}（本轮读数全部丢弃）`);
 }
-await decoder.close();
+
+const pass = await capturePass(true);
+const shots = pass.shots;
+
+for (const phase of PHASES) {
+  check(pass.shots[phase].actual === phase, `?time=${phase} 真的停在${phase}`, `实际 ${pass.shots[phase].actual}`);
+}
+check(pass.errors.length === 0, '四刻页面无 JS 报错', pass.errors.join('; '));
 
 // 亮度严格递减
 for (let i = 0; i < PHASES.length - 1; i += 1) {
-  const a = stats[PHASES[i]];
-  const b = stats[PHASES[i + 1]];
+  const a = pass.stats[PHASES[i]];
+  const b = pass.stats[PHASES[i + 1]];
   check(
     a.mean - b.mean >= MIN_LUMA_STEP,
     `${PHASES[i]} 必须明显亮于 ${PHASES[i + 1]}`,
@@ -123,8 +196,8 @@ for (let i = 0; i < PHASES.length - 1; i += 1) {
 // 两两建筑区差异
 for (let i = 0; i < PHASES.length; i += 1) {
   for (let j = i + 1; j < PHASES.length; j += 1) {
-    const a = stats[PHASES[i]];
-    const b = stats[PHASES[j]];
+    const a = pass.stats[PHASES[i]];
+    const b = pass.stats[PHASES[j]];
     const w = a.width;
     let changed = 0;
     let total = 0;
@@ -144,31 +217,10 @@ for (let i = 0; i < PHASES.length; i += 1) {
   }
 }
 
-// 夜雨必须隐藏萤火。产品没有 `?rain=` 入口——天气只能由神谕或台账改，
-// 所以这里走真实操作路径：说一句「下雨吧」，等雨上屏再拍。
-const nightRain = await (async () => {
-  const page = await context.newPage();
-  page.on('pageerror', (error) => pageErrors.push(`night+rain: ${error.message}`));
-  await page.addInitScript(() => localStorage.clear());
-  await page.goto(`${BASE}?ledger=off&time=night&debug=1`, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
-  await page.waitForTimeout(400);
-
-  const said = await page.evaluate(() => window.Oracle.say('下雨吧'));
-  check(said.ok === true, '神谕「下雨吧」被认出来了', said.message);
-
-  // 雨渐变 1.8 秒；等足 3 秒确保 intensity 拉满。
-  await page.waitForTimeout(3000);
-  const weather = await page.evaluate(() => window.Oracle.view().weather);
-  check(weather === 'rain', '夜里真的下起了雨', `weather=${weather}`);
-
-  const buffer = await page.locator('canvas').first().screenshot();
-  await writeFile(`${OUT}/phase-night-rain.png`, buffer);
-  await page.close();
-  return { buffer, weather };
-})();
+check(pass.nightRain.said.ok === true, '神谕「下雨吧」被认出来了', pass.nightRain.said.message);
+check(pass.nightRain.weather === 'rain', '夜里真的下起了雨', `weather=${pass.nightRain.weather}`);
 check(
-  nightRain.weather === 'rain' && !nightRain.buffer.equals(shots.night),
+  pass.nightRain.weather === 'rain' && !pass.nightRain.buffer.equals(shots.night.buffer),
   '夜雨与晴夜画面不同（雨幕生效）',
   '两张截图完全相同说明雨没上屏',
 );
