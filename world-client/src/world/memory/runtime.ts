@@ -38,7 +38,7 @@ import type {
   WorldFact,
   WorldVitals,
 } from './types.ts';
-import { MemoryWorld, type HolderView, type MemoryWorldSnapshot } from './world.ts';
+import { MemoryWorld, type BondDelta, type HolderView, type MemoryWorldSnapshot } from './world.ts';
 
 /**
  * 记忆段的版本号。存档里 `world.memory` 是一段 JSON 字符串，开头就带这个数。
@@ -327,6 +327,11 @@ export interface RuntimeObservation {
    * 地标生命周期（`landmark.ts`）只认这一条输入。
    */
   readonly landmark?: LandmarkEvent;
+  /**
+   * 方向性关系增量。世界已经判好「谁对谁」的那几种事（街头小事）从这里
+   * 落账；省略时与从前逐字节相同。
+   */
+  readonly bondDeltas?: readonly BondDelta[];
 }
 
 /** 个人时间线上的一格。`eventId` 与事件日志同一个 id。 */
@@ -338,6 +343,13 @@ export interface TimelineEntry {
   readonly when: number;
   readonly sourceMode: string;
   readonly bias?: string;
+}
+
+/** 个人时间线上的一格，补上面板要的「在哪、和谁、当时那句话」。 */
+export interface DayTimelineEntry extends TimelineEntry {
+  readonly placeId: string | null;
+  readonly actors: readonly string[];
+  readonly what: string | null;
 }
 
 export interface MemoryRuntimeDeps {
@@ -586,6 +598,7 @@ export class MemoryRuntime {
       importanceHint: observation.importanceHint,
       parentEventId: null,
       ...(observation.landmark === undefined ? {} : { landmark: observation.landmark }),
+      ...(observation.bondDeltas === undefined ? {} : { bondDeltas: observation.bondDeltas }),
       witnesses: resolved,
       hearers: this.hearersFor(observation, resolved),
       ...(observation.valence === undefined ? {} : { valence: observation.valence }),
@@ -848,6 +861,28 @@ export class MemoryRuntime {
         ...(entry.bias === undefined ? {} : { bias: entry.bias }),
       }))
       .sort((a, b) => a.day - b.day || a.when - b.when || a.memoryId.localeCompare(b.memoryId));
+  }
+
+  /**
+   * 某个人**某一天**的时间线。面板只用这一条。
+   *
+   * 在 `timelineFor` 的结果上加三样：地点、当事人、当时那句话。三样都从
+   * `factDigest(eventId)` 取，不读别人的记忆，也不漏出见证人名单。
+   * 查不到事实（事件被裁掉、老档只剩条目）时三样为 null / 空，条目本身
+   * 仍然在——「她今天经历过什么」不该因为补不上地点就整条消失。
+   */
+  dayTimelineFor(holderId: string, day: number): readonly DayTimelineEntry[] {
+    return this.timelineFor(holderId)
+      .filter((entry) => entry.day === day)
+      .map((entry) => {
+        const digest = this.world.factDigest(entry.eventId);
+        return {
+          ...entry,
+          placeId: digest?.placeId ?? null,
+          actors: digest?.actors ?? [],
+          what: digest?.what ?? null,
+        };
+      });
   }
 
   /**

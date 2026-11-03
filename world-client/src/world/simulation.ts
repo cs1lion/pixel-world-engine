@@ -359,7 +359,7 @@ export interface SimulationDeps {
    * 读档时被存档里的 `world.now` 覆盖——已有档的时钟是它自己的事实，不因为
    * 换了一种时钟模式就改写。
    */
-  readonly initialNow?: number;
+  readonly initialNow?: number; readonly worldSeed?: string;
 }
 
 /** 一个角色的完整本地状态。渲染层只读快照，不碰这里。 */
@@ -656,7 +656,7 @@ export class Simulation {
   private readonly usedInstanceIds = new Set<string>();
 
   constructor(deps: SimulationDeps) {
-    this.now = deps.initialNow ?? 0;
+    this.now = deps.initialNow ?? 0; this.worldSeed = deps.worldSeed ?? 'wandong';
     this.grid = deps.grid;
     this.altar = deps.altar;
     this.spawnBuilding = deps.spawnBuilding;
@@ -808,7 +808,7 @@ export class Simulation {
     }
     this.weather = stepWeather(this.weather, deltaMs);
     this.stepTide();
-    this.stepAmbient(prevNow); this.stepTimetable(prevNow);
+    this.stepAmbient(prevNow); this.stepTimetable(prevNow); this.stepLiveliness(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
       const level = effectiveTideLevel(this.now, this.tideOverride);
@@ -2749,7 +2749,7 @@ export class Simulation {
       );
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat);
-      if (target === null) continue;
+      if (target === null || this.avoiding(villager, target)) continue;
       if (target.x === here.x && target.y === here.y) {
         // 安静段里所有拍都回锚点。她已经坐在锚点上时不能只走「1600ms 兜底」——
         // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
@@ -3701,7 +3701,255 @@ export class Simulation {
     if (seq < first || seq >= this.eventSeq) return null;
     return this.events[seq - first] ?? null;
   }
+
+  /**
+   * 记忆层交下来的社会读数：谁对谁的信任 / 温度，以及「见到谁就别去同一个
+   * 锚点」。
+   *
+   * 世界本身不读记忆——这一道门是**调用方**（`SandboxScene`）每帧从关系账本
+   * 算出来再交进来的。世界只把它当输入：同一份输入、同一个种子，走到同一刻
+   * 还是同一件事。记忆层缺席时传 `EMPTY_SOCIAL_CONTEXT`，行为与从前一致。
+   */
+  setSocialContext(context: lively.SocialContext): void {
+    this.socialContext = context;
+  }
+
+  /**
+   * 街头活气的读数。给面板/验收用，不是世界逻辑的一部分。
+   *
+   * `avoidedBeats` 是方向 3 的对照读数：同一段作息里，有记忆的人因为
+   * 「不想撞见某人」跳过了几拍；无记忆时这个数恒为 0。
+   */
+  livelinessStats(): {
+    readonly beganAt: number;
+    readonly byKind: Readonly<Record<lively.LivelyKind, number>>;
+    readonly total: number;
+    readonly incidents: number;
+    readonly avoidedBeats: number;
+    /** 每个居民落过几次互动（含两个方向各记一次）。 */
+    readonly byVillager: Readonly<Record<string, number>>;
+  } {
+    const byKind = { ...this.livelyCounts };
+    const total = Object.values(byKind).reduce((sum, value) => sum + value, 0);
+    const incidents = byKind.street_tumble + byKind.street_water + byKind.street_help;
+    return {
+      beganAt: this.livelyBeganAt,
+      byKind,
+      total,
+      incidents,
+      avoidedBeats: this.avoidedBeats,
+      byVillager: Object.fromEntries(this.livelyByVillager),
+    };
+  }
+
+  /**
+   * 今天的避让读数，按人和按对分。面板要把「所以今天避开他」说清楚，
+   * 就得知道是哪一对、跳过了几拍；累计的 `avoidedBeats` 分不出这两层。
+   *
+   * 只在内存里活：与 `avoidedBeats` 一样是运行时读数，不进存档 v5。
+   */
+  avoidanceStats(): {
+    readonly byVillager: Readonly<Record<string, number>>;
+    readonly byPair: Readonly<Record<string, number>>;
+  } {
+    return {
+      byVillager: Object.fromEntries(this.avoidedByVillagerToday),
+      byPair: Object.fromEntries(this.avoidedByPairToday),
+    };
+  }
+
+  private livelyBeganAt = 0;
+  private worldSeed = '';
+  private socialContext: lively.SocialContext = lively.EMPTY_SOCIAL_CONTEXT;
+  private avoidedBeats = 0;
+  private livelyDay = -1;
+  private livelyToday = 0;
+  private readonly livelySettled = new Set<string>();
+  private readonly livelyQuarrelDay = new Map<string, number>();
+  private readonly livelyLastAt = new Map<string, number>();
+  private readonly livelyTodayByVillager = new Map<string, number>();
+  private readonly livelyByVillager = new Map<string, number>();
+  private readonly avoidedByVillagerToday = new Map<string, number>();
+  private readonly avoidedByPairToday = new Map<string, number>();
+  private readonly livelyCounts: Record<lively.LivelyKind, number> = {
+    street_greet: 0,
+    street_yield: 0,
+    street_quarrel: 0,
+    street_together: 0,
+    street_tumble: 0,
+    street_water: 0,
+    street_help: 0,
+  };
+
+  /**
+   * 跨槽那一拍判有没有人撞见。与 `stepAmbient` / `stepTimetable` 同一拍、
+   * 同一套「不存游标」判据，见 `liveliness.ts` 开头三条约束。
+   *
+   * 顺序上放在居民步进之前：这里设下的气泡与停留时间，`stepVillager` 会照办。
+   */
+  private stepLiveliness(prevNow: number): void {
+    if (this.villagers.length < 2) return;
+    // 日账先翻页：同类去重与全天上限只按当前世界日算，争执冷却跨日保留。
+    // 避让读数也按日记，否则面板上的「今天」会掺进昨天的账。
+    const day = Math.floor(this.now / DAY_MS);
+    if (day !== this.livelyDay) {
+      this.livelyDay = day;
+      this.livelyToday = 0;
+      this.livelySettled.clear();
+      this.livelyTodayByVillager.clear();
+      this.avoidedByVillagerToday.clear();
+      this.avoidedByPairToday.clear();
+    }
+    // 槽没跨就什么也不判。平时这一拍只花一次整除——不然每个逻辑步都要
+    // 摊一份居民快照、扫一遍水面，5 倍预算就是这么被吃掉的。
+    if (
+      Math.floor(prevNow / lively.LIVELY_SLOT_MS) === Math.floor(this.now / lively.LIVELY_SLOT_MS)
+    ) {
+      return;
+    }
+    const villagers: lively.LivelyVillager[] = this.villagers.map((villager) => {
+      const cell = this.cellOf(villager.pos);
+      const walking = villager.path.length > 0;
+      const busyWithDecree = this.decreeBearer === villager.id && this.hasDecree();
+      return {
+        id: villager.id,
+        name: villager.name,
+        cell,
+        walking,
+        standing: !walking && villager.mode === 'idle',
+        carrying: villager.carrying !== null,
+        free:
+          villager.mode === 'idle'
+          && this.now >= villager.saluteUntil
+          && !busyWithDecree,
+      };
+    });
+    const events = lively.livelyBetween({
+      prevNow,
+      now: this.now,
+      seed: this.worldSeed,
+      villagers,
+      relations: this.socialContext.relations,
+      waterPlace: this.waterSpot(),
+      history: {
+        totalToday: this.livelyToday,
+        settledToday: [...this.livelySettled],
+        quarrelDays: Object.fromEntries(this.livelyQuarrelDay),
+        lastAt: Object.fromEntries(this.livelyLastAt),
+        todayByVillager: Object.fromEntries(this.livelyTodayByVillager),
+      },
+    });
+    for (const event of events) this.performLively(event);
+  }
+
+  /** 把一件街头互动落成：气泡、朝向、停留、站位，再交出去记进日志。 */
+  private performLively(event: lively.LivelyEvent): void {
+    if (this.livelyBeganAt === 0 && this.livelyCounts[event.kind] === 0) {
+      this.livelyBeganAt = this.now;
+    }
+    this.livelyCounts[event.kind] += 1;
+    // 日账：同类只落一次、全天有上限；最近互动时刻供下一槽排先后。
+    this.livelyToday += 1;
+    const pairKey = lively.livelyPairKey(event.actorId, event.otherId);
+    this.livelySettled.add(lively.livelySettledKey(pairKey, event.kind));
+    this.livelyLastAt.set(event.actorId, this.now);
+    this.livelyLastAt.set(event.otherId, this.now);
+    this.livelyTodayByVillager.set(event.actorId, (this.livelyTodayByVillager.get(event.actorId) ?? 0) + 1);
+    this.livelyTodayByVillager.set(event.otherId, (this.livelyTodayByVillager.get(event.otherId) ?? 0) + 1);
+    this.livelyByVillager.set(event.actorId, (this.livelyByVillager.get(event.actorId) ?? 0) + 1);
+    this.livelyByVillager.set(event.otherId, (this.livelyByVillager.get(event.otherId) ?? 0) + 1);
+    if (event.kind === 'street_quarrel') {
+      this.livelyQuarrelDay.set(pairKey, Math.floor(this.now / DAY_MS));
+    }
+    const actor = this.villagers.find((villager) => villager.id === event.actorId);
+    const other = this.villagers.find((villager) => villager.id === event.otherId);
+    for (const bubble of event.bubbles) {
+      const villager = this.villagers.find((item) => item.id === bubble.villagerId);
+      if (villager === undefined) continue;
+      villager.bubble = bubble.text;
+      villager.bubbleUntil = this.now + event.durationMs;
+      const toward = villager.id === event.actorId ? other : actor;
+      if (toward !== undefined) {
+        const dx = toward.pos.x - villager.pos.x;
+        const dy = toward.pos.y - villager.pos.y;
+        villager.facing = facingFor(dx, dy);
+      }
+    }
+    // 气泡之外**不动作息**：街头互动不是任务，不能让居民为此迟到，否则
+    // 一天里本来该撞在同一个地点的两件小事会被推成两处（传说就并不起来，
+    // 碑也会散成一地）。停留只在气泡上，站位只由让路那一下改。
+    if (event.shift !== undefined) this.stepAside(event.shift.villagerId, event.shift.awayFromId);
+    this.announce({
+      change: 'world.event',
+      kind: event.kind,
+      text: event.text,
+      placeId: cellPlaceId(event.where),
+      where: event.where,
+      actorId: event.actorId,
+      otherId: event.otherId,
+    });
+  }
+
+  /**
+   * 让路：从原地挪一格。候选是四邻，按「离对方更远」优先，再按扫描顺序定序——
+   * 同一份地图、同一对位置永远挪到同一格。挪不动（四面都堵/都有人）就不挪，
+   * 气泡仍然在，只是那一下没有站位变化。
+   */
+  private stepAside(villagerId: string, awayFromId: string): void {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    const other = this.villagers.find((item) => item.id === awayFromId);
+    if (villager === undefined || other === undefined) return;
+    const here = this.cellOf(villager.pos);
+    const away = this.cellOf(other.pos);
+    const candidates = ([
+      [1, 0], [-1, 0], [0, 1], [0, -1],
+    ] as const)
+      .map(([dx, dy]) => ({ x: here.x + dx, y: here.y + dy }))
+      .filter((cell) => this.grid.isWalkable(cell))
+      .filter((cell) => !this.villagers.some((item) => item.id !== villagerId && this.cellOf(item.pos).x === cell.x && this.cellOf(item.pos).y === cell.y))
+      .sort((a, b) => {
+        const da = Math.abs(a.x - away.x) + Math.abs(a.y - away.y);
+        const db = Math.abs(b.x - away.x) + Math.abs(b.y - away.y);
+        return db - da || a.y - b.y || a.x - b.x;
+      });
+    const cell = candidates[0];
+    if (cell === undefined) return;
+    villager.pos = { x: cell.x + 0.5, y: cell.y + 0.5 };
+    villager.path = [];
+    villager.facing = facingFor(away.x - cell.x, away.y - cell.y);
+  }
+
+  /** 这个落点会不会撞上「我不想见到的人」。命中一次就记一笔对照读数。 */
+  private avoiding(villager: Villager, target: GridPoint): boolean {
+    if (!this.avoidsAnchor(villager, target)) return false;
+    // 避开不是发呆：这一拍不去，下一拍还会重挑。给一个 20 世界秒的重试间隔，
+    // 否则一拍的 `for` 走完就回到 `stepIdle`，同一个落点会被每 100ms 重算一次，
+    // 对照读数会变成「逻辑步数」而不是「跳过几拍」。
+    villager.nextRoutineAt = Math.max(villager.nextRoutineAt, this.now + 20_000);
+    return true;
+  }
+
+  /** 纯判据：落点离「不想见的人」有多近。计数留给 `avoiding`。 */
+  private avoidsAnchor(villager: Villager, target: GridPoint): boolean {
+    for (const rule of this.socialContext.avoid) {
+      if (rule.villagerId !== villager.id) continue;
+      const other = this.villagers.find((item) => item.id === rule.otherId);
+      if (other === undefined) continue;
+      const otherCell = this.cellOf(other.pos);
+      const distance = Math.max(Math.abs(target.x - otherCell.x), Math.abs(target.y - otherCell.y));
+      if (distance <= lively.LIVELY_CLOSE_CELLS) {
+        this.avoidedBeats += 1;
+        this.avoidedByVillagerToday.set(villager.id, (this.avoidedByVillagerToday.get(villager.id) ?? 0) + 1);
+        const pair = `${villager.id}|${rule.otherId}`;
+        this.avoidedByPairToday.set(pair, (this.avoidedByPairToday.get(pair) ?? 0) + 1);
+        return true;
+      }
+    }
+    return false;
+  }
 }
+
+import * as lively from './liveliness.ts';
 
 function facingFor(dx: number, dy: number): Facing {
   if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';

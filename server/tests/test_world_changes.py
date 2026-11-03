@@ -162,6 +162,52 @@ def test_每日小事的_kind_不能自己编(client: TestClient) -> None:
     assert "daily_fish" in response.json()["detail"]
 
 
+STREET_KINDS = (
+    "street_greet",
+    "street_yield",
+    "street_quarrel",
+    "street_together",
+    "street_tumble",
+    "street_water",
+    "street_help",
+)
+
+
+def test_街头互动的每一种_kind_都进白名单(client: TestClient) -> None:
+    """互动与街头小事也要走同一扇窄门，不能绕过 `WORLD_EVENT_KINDS` 自造。"""
+    for kind in STREET_KINDS:
+        assert kind in WORLD_EVENT_KINDS
+        payload = {**VALID_PAYLOADS["world.event"], "kind": kind, "actorId": "v0", "otherId": "v1"}
+        response = post(client, "world.event", payload)
+        assert response.status_code == 201, (kind, response.text)
+
+
+def test_街头互动的_kind_不能自己编(client: TestClient) -> None:
+    payload = {
+        **VALID_PAYLOADS["world.event"],
+        "kind": "street_borrow",
+        "actorId": "v0",
+        "otherId": "v1",
+    }
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "street_borrow" in response.json()["detail"]
+
+
+def test_街头事件的_otherId_不能和自己相同(client: TestClient) -> None:
+    payload = {**VALID_PAYLOADS["world.event"], "kind": "street_water", "actorId": "v0", "otherId": "v0"}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "otherId" in response.json()["detail"]
+
+
+def test_街头事件的_otherId_有值时必须给当事人(client: TestClient) -> None:
+    payload = {**VALID_PAYLOADS["world.event"], "kind": "street_help", "actorId": None, "otherId": "v1"}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "otherId" in response.json()["detail"]
+
+
 def test_每种合法的世界改变都能写进去(client: TestClient) -> None:
     for change, payload in VALID_PAYLOADS.items():
         response = post(client, change, payload)

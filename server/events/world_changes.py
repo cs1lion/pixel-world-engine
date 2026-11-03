@@ -70,7 +70,19 @@ TASK_KINDS = ("code", "research", "writing", "quick")
 #: 抱怨都不会有（`announce` 吞异常）。
 #: 客户端那条读本文件的测试盯着 `WORLD_CHANGE_CHECKS`，这一条的值域靠
 #: `test_world_changes.py` 的参数化收着。
-WORLD_EVENT_KINDS = ("tide_turn", "routine_done", "daily_water", "daily_lamp")
+WORLD_EVENT_KINDS = (
+    "tide_turn",
+    "routine_done",
+    "daily_water",
+    "daily_lamp",
+    "street_greet",
+    "street_yield",
+    "street_quarrel",
+    "street_together",
+    "street_tumble",
+    "street_water",
+    "street_help",
+)
 
 #: `miracle` 事件里记的神迹名。**与 `rules/schema.py` 的 `MIRACLES` 不是同一个域**，
 #: 别看错了：意图侧叫 `light`（点灯），这里叫 `lamp`——摆件就叫 lamp，
@@ -193,7 +205,7 @@ def _check_world_event(payload: dict[str, Any], path: str) -> None:
     与 `world.vitals` 的区别是它**有落点**：能算「谁看得见」，所以能进记忆。
     坐标叫 `where` 不叫 `at`——信封的 `at` 是世界时间，撞名的后果见模块头。
     """
-    _only(payload, {"kind", "text", "placeId", "where", "actorId"}, path)
+    _only(payload, {"kind", "text", "placeId", "where", "actorId", "otherId"}, path)
     kind = _require_str(payload, "kind", path)
     if kind not in WORLD_EVENT_KINDS:
         raise WorldChangeError(
@@ -207,6 +219,14 @@ def _check_world_event(payload: dict[str, Any], path: str) -> None:
     actor = _require(payload, "actorId", (str, type(None)), path)
     if actor == "":
         raise WorldChangeError(f"{path}.actorId 不能为空串；没有当事人请写 null")
+    # 第二位当事人：街头互动与街头小事是两个人的事。`actorId` 是动手的那一位，
+    # `otherId` 是被撞 / 被抢 / 被帮的那一位。它只允许缺省或非空串，且不能与
+    # `actorId` 相同——同一个人和自己抢水会让方向性账本记两笔自己对自己的账。
+    other = _optional_str(payload, "otherId", path)
+    if other is not None and actor is None:
+        raise WorldChangeError(f"{path}.otherId 有值时必须同时给 actorId")
+    if other is not None and other == actor:
+        raise WorldChangeError(f"{path}.otherId 不能与 actorId 相同")
     where = _require(payload, "where", dict, path)
     extra = set(where) - {"x", "y"}
     if extra:
