@@ -113,6 +113,17 @@ const capturePass = async (scored) => {
       await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
       // 渐变 FADE_MS = 900，等两倍确保拍到终态。
       await page.waitForTimeout(2200);
+      // 但墙钟不等于画面进度：冷启动的首帧可能卡 2s 以上，2200ms 到了，
+      // 这一页却连一次 update 都没跑过——实测 noon 均值 59.02（正常 66.10），
+      // 压暗与雾带根本没上屏。所以再等这一页**真的推进 60 帧**（60 帧 ≈ 1s，
+      // 覆盖 FADE_MS = 900 的渐变）才取图。这是把采样窗口对齐到「页面已渲染」，
+      // 不改任何亮度阈值或断言。
+      const advanced = await page.evaluate(() => window.Oracle.ecoState().advanceCount);
+      await page.waitForFunction(
+        (target) => window.Oracle.ecoState().advanceCount >= target,
+        advanced + 60,
+        { timeout: 20000, polling: 50 },
+      );
 
       const actual = await page.evaluate(() => window.Oracle.currentPhase());
       const buffer = await page.locator('canvas').first().screenshot();
