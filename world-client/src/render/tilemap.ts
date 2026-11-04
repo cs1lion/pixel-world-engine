@@ -175,13 +175,81 @@ function drawTexture(
 ): void {
   if (terrain === 'shallow' || terrain === 'mud' || terrain === 'coal') {
     const h = hash2(x, y);
-    g.fillStyle(terrain === 'coal' ? palette.soil : palette.plaza, 0.42);
+    // 浅滩/泥地/煤渣原先只有一道半透明横条，整片读成「刷了层色」。
+    // 这里按材质给三件东西：一道水/湿痕、一层颗粒、一点踩踏或积灰。
     if (terrain === 'shallow') {
+      g.fillStyle(palette.plaza, 0.42);
       g.fillRect(px + h % 7, py + 5 + (h % 4), 7, 1);
       g.fillRect(px + 4, py + 12, 5, 1);
-    } else {
-      g.fillRect(px + 3 + h % 7, py + 4 + (h % 7), terrain === 'coal' ? 3 : 5, 1);
-      if (terrain === 'coal') g.fillRect(px + 5, py + 10, 2, 2);
+      // 水面的第二道：更冷一档，贴着上一道错开 1px，读成浅水的波纹。
+      g.fillStyle(palette.water, 0.3);
+      g.fillRect(px + 2 + (h % 5), py + 7 + (h % 3), 6, 1);
+      // 卵石与岸边苔。
+      g.fillStyle(palette.stone, 0.5);
+      const peb = hash2(x * 5 + 1, y * 3 + 2);
+      g.fillRect(px + 1 + (peb % 13), py + 1 + ((peb >>> 6) % 13), 2, 1);
+      if (peb % 3 === 0) {
+        g.fillStyle(palette.moss, 0.35);
+        g.fillRect(px + 1 + (peb % 12), py + 13 + (peb % 2), 2, 1);
+      }
+      return;
+    }
+    if (terrain === 'coal') {
+      // 煤渣：灰白积灰 + 深色渣块 + 偶发一点未冷的余烬（1px，不发光）。
+      g.fillStyle(palette.soil, 0.42);
+      g.fillRect(px + 3 + h % 7, py + 4 + (h % 7), 3, 1);
+      g.fillRect(px + 5, py + 10, 2, 2);
+      g.fillStyle(palette.plaster, 0.25);
+      const ash = hash2(x * 7 + 3, y * 5 + 1);
+      g.fillRect(px + 1 + (ash % 13), py + 2 + ((ash >>> 5) % 12), 2 + (ash % 2), 1);
+      if (ash % 5 === 0) g.fillRect(px + 2 + ((ash >>> 9) % 10), py + 4 + (ash % 8), 1, 1);
+      g.fillStyle(palette.deepShade, 0.45);
+      g.fillRect(px + 2 + (h % 9), py + 9 + (h % 5), 2, 1);
+      if (h % 11 === 0) {
+        g.fillStyle(palette.ember, 0.5);
+        g.fillRect(px + 4 + (h % 8), py + 6 + ((h >>> 4) % 7), 1, 1);
+      }
+      return;
+    }
+    // 泥地：湿斑 + 卵石 + 踩踏的两道浅辙。
+    // 第一版把湿痕压在 0.4 alpha 上，远看整片还是平涂（读数 textureEnergy 0.5）；
+    // 改成**实色一档**：深两档 ink 的湿泥洼、亮两档 farm 的干壳、深一档 deepShade 的辙。
+    // 每格 1–2 块，块宽 4–11px 且长短不齐：读成被踩过的土，不是花纹。
+    if (h % 2 === 0) {
+      g.fillStyle(palette.farm, 1);
+      g.fillRect(px + 1 + ((h >>> 11) % 7), py + 8 + ((h >>> 6) % 4), 6 + ((h >>> 4) % 5), 4);
+    }
+    if (h % 3 === 0) {
+      g.fillStyle(palette.deepShade, 1);
+      g.fillRect(px + 2 + ((h >>> 3) % 8), py + 2 + ((h >>> 7) % 7), 7 + (h % 4), 4);
+    }
+    if (h % 4 === 0) {
+      g.fillStyle(palette.ink, 1);
+      g.fillRect(px + 3 + ((h >>> 13) % 9), py + 1 + ((h >>> 8) % 11), 2, 2);
+    }
+    // 颗粒：干土上散落的碎渣，1px，按格给 3–5 颗，密度不高但铺满整片。
+    {
+      const grain = hash2(x * 11 + 7, y * 13 + 3);
+      const gx = px + 1 + (grain % 13);
+      const gy = py + 1 + ((grain >>> 5) % 13);
+      g.fillStyle(palette.charcoal, 1);
+      g.fillRect(gx, gy, 1, 1);
+      g.fillStyle(palette.stone, 0.7);
+      g.fillRect(px + 1 + ((grain >>> 9) % 14), py + 2 + ((grain >>> 12) % 12), 2, 1);
+      g.fillRect(px + 2 + ((grain >>> 15) % 11), py + 12 + ((grain >>> 18) % 3), 1, 1);
+    }
+    g.fillStyle(palette.stone, 1);
+    const peb = hash2(x * 3 + 5, y * 7 + 2);
+    g.fillRect(px + 1 + (peb % 13), py + 1 + ((peb >>> 6) % 12), 1 + (peb % 2), 1);
+    // 踩踏痕：两道平行的暗辙，只给少数格，读成有人走过而不是花纹。
+    if (h % 5 === 0) {
+      g.fillStyle(palette.deepShade, 1);
+      g.fillRect(px + 2, py + 11 + (h % 3), 11, 1);
+      g.fillRect(px + 4, py + 13 + (h % 2), 8, 1);
+    }
+    if (h % 13 === 0) {
+      g.fillStyle(palette.moss, 0.6);
+      g.fillRect(px + 1 + (h % 10), py + 14, 2, 1);
     }
     return;
   }
