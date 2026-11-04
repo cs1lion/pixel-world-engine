@@ -472,6 +472,23 @@ export const MAX_PENDING_DISPATCHES = 3;
 /** 交付攒到里程碑时，世界多一件东西。 */
 const FAITH_MILESTONE = MILESTONE_POINTS;
 
+/**
+ * 一拍行为决策的只读记录。
+ *
+ * 取证用：`rule` 是「谁下的这个决定」，`goal` 是「决定了做什么」。
+ * 生产运行默认关闭（`setDecisionLogEnabled`），不进存档，也不参与任何判定。
+ */
+export interface DecisionRecord {
+  readonly now: number;
+  readonly villagerId: string;
+  readonly rule: string;
+  readonly goal: string;
+  readonly targetX: number | null;
+  readonly targetY: number | null;
+  readonly beatId: string | null;
+  readonly routineIndex: number | null;
+}
+
 export class Simulation {
   private readonly grid: WorldGrid;
   private readonly altar: GridPoint;
@@ -493,6 +510,9 @@ export class Simulation {
    */
   private startupBuildingIds: ReadonlySet<string>;
   private readonly villagers: Villager[];
+  /** 逐拍决策探针：只在 `setDecisionLogEnabled(true)` 时写入，默认零开销。 */
+  private decisions: DecisionRecord[] = [];
+  private decisionLogOn = false;
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
@@ -1018,6 +1038,42 @@ export class Simulation {
       effectiveTideLevel(this.now, this.tideOverride),
       lighting,
     );
+  }
+
+  /**
+   * 打开逐拍决策探针。取证脚本用；默认关，关着时不记录也不占内存。
+   * 探针只读：写进去的是「已经做了的决定」，不参与任何判定。
+   */
+  setDecisionLogEnabled(on: boolean): void {
+    this.decisionLogOn = on;
+  }
+
+  /** 取走探针攒下的记录（取走即清空），供证据脚本逐行落盘。 */
+  drainDecisions(): readonly DecisionRecord[] {
+    const list = this.decisions;
+    this.decisions = [];
+    return list;
+  }
+
+  private recordDecision(
+    villager: Villager,
+    rule: string,
+    goal: string,
+    target: GridPoint | null,
+    beatId: string | null = null,
+    routineIndex: number | null = null,
+  ): void {
+    if (!this.decisionLogOn) return;
+    this.decisions.push({
+      now: this.now,
+      villagerId: villager.id,
+      rule,
+      goal,
+      targetX: target === null ? null : target.x,
+      targetY: target === null ? null : target.y,
+      beatId,
+      routineIndex,
+    });
   }
 
   /**
@@ -2954,6 +3010,7 @@ export class Simulation {
       where: stall,
       actorId: villager.id,
     });
+    this.recordDecision(villager, 'pre-cover', 'pre-cover', stall);
     return true;
   }
 
@@ -3037,11 +3094,13 @@ export class Simulation {
       villager.path = route.path;
       villager.routineLabel = beat.label;
       villager.routineGoing = beat.going;
+      this.recordDecision(villager, 'routine', beat.id, target, beat.id, villager.routineIndex);
       // 不在这里扣表：钟在走到的那一刻才起（见本函数开头那截）。
       return;
     }
     if (fogHeld) this.fogHeldTrips += 1;
     villager.nextRoutineAt = this.now + 1600;
+    this.recordDecision(villager, 'none', 'rest', null);
   }
 
   /**
@@ -3109,6 +3168,7 @@ export class Simulation {
       // 到了。看一眼，结掉这条日程。
       this.verificationSettle?.(villager.id, plan.claimId);
       villager.nextRoutineAt = this.now + 1200;
+      this.recordDecision(villager, 'verification', 'verify', target);
       return true;
     }
     const route = this.routeTo(villager, target);
@@ -3120,6 +3180,7 @@ export class Simulation {
     // 这里不写 `nextRoutineAt`：停留的钟在到达那刻才起（`stepIdle` 走完那截），
     // 写了也会被那一下盖掉。求证不占作息的下标，所以她到现场停的是上一拍
     // 作息的时长——够她站一会儿，不是原地打个转就走。
+    this.recordDecision(villager, 'verification', 'verify', target);
     return true;
   }
 
