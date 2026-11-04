@@ -97,6 +97,13 @@ async function capture(browser, { id, force, tide, camera, zoom }) {
     await page.waitForTimeout(160);
   }
   await page.evaluate(([x, y]) => window.Oracle.centerCameraOn(x, y), [camera.x, camera.y]);
+  // 天气必须钉：新世界的天气按当日种子排，雨天雨点逐帧乱飘，单个地面取样点也会被雨点盖住。
+  // 口子不在（拿 39cff04 基线对着同一份脚本跑时）就跳过，并把这个事实记进读数。
+  const pinned = await page.evaluate(() => {
+    const weather = typeof window.Oracle.debugSetWeather === 'function';
+    if (weather) window.Oracle.debugSetWeather('clear');
+    return weather;
+  });
 
   await page.waitForFunction((n) => window.__CAPTURE_STATE__.frame >= n, ACTION_AT, { timeout: 30000 });
   const applied = await page.evaluate(({ force, tide }) => {
@@ -118,6 +125,7 @@ async function capture(browser, { id, force, tide, camera, zoom }) {
   const stats = await page.evaluate(() => window.Oracle.renderStats());
   const tideLevel = await page.evaluate(() => window.Oracle.view().tide.level);
   const villagers = await page.evaluate(() => window.Oracle.view().villagers.length);
+  const weather = await page.evaluate(() => window.Oracle.view().weather);
 
   const clip = zoom >= 2
     ? { x: box.x + box.width / 2 - 240, y: box.y + box.height / 2 - 160, width: 480, height: 320 }
@@ -126,7 +134,7 @@ async function capture(browser, { id, force, tide, camera, zoom }) {
   await page.screenshot({ path: file, clip });
   const buf = readFileSync(file);
 
-  const shots = { id, file, buf, cam, stats, tideLevel, zoom, clip, clipOffsetX: zoom >= 2 ? 240 : 0, clipOffsetY: zoom >= 2 ? 160 : 0, errors, applied, villagers };
+  const shots = { id, file, buf, cam, stats, tideLevel, zoom, clip, clipOffsetX: zoom >= 2 ? 240 : 0, clipOffsetY: zoom >= 2 ? 160 : 0, errors, applied, villagers, weather, pinned };
   await page.close();
   return shots;
 }
@@ -285,6 +293,7 @@ try {
      <h1>街面光池：灯亮/灯灭的地面读数与 0.5–6 格衰减（含 2.5 格）</h1>
      <p class="note">
        同一冻结帧（第 ${FREEZE_AT} 帧，锁种子 20261019）、同一机位；只换灯态或潮位。
+       天气 ${out.lit.weather}（钉天气 ${out.lit.pinned ? '是' : '否'}）；取样机位 zoom ${out.lit.cam.zoom}。
        取样点 A = 世界 (${SAMPLE.x}, ${SAMPLE.y})，在 lamp_post_10 的池芯里、灯柱本体右边半格。
        村民已钉到画面外，读的是地面，不是人。
      </p>

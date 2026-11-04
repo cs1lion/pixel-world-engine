@@ -14,6 +14,7 @@ import type {
   OracleRecord,
   PrefabBlueprint,
   Vec2,
+  Weather,
   WorldProp,
   WorldSnapshot,
 } from '../world/types.ts';
@@ -77,6 +78,7 @@ import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import {
   createVillager,
+  drawVillagerGroundShadow,
   updateVillager,
   VILLAGER_H,
   VILLAGER_W,
@@ -84,7 +86,17 @@ import {
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
+import {
+  GROUND_SHADOW_DEPTH,
+  GROUND_SHADOW_MOTION_ON,
+  groundShadowAt,
+  type GroundShadowMotion,
+} from '../world/ground-shadow.ts';
 import { pinVillagers } from '../render/villager-pin.ts';
+import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp-motion.ts';
+import { STALL_MOTION_ON, type StallMotion } from '../world/stall-motion.ts';
+import { BANNER_MOTION_ON, type BannerMotion } from '../world/banner-motion.ts';
+import { SMOKE_MOTION_ON, type SmokeMotion } from '../world/smoke-motion.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -350,6 +362,10 @@ export class SandboxScene extends Phaser.Scene {
   private suppressClickUp = false;
   private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
+  /** 人物脚下的日照投影层（depth 3.1，见 `world/ground-shadow.ts`）。 */
+  private groundShadowLayer!: Phaser.GameObjects.Graphics;
+  /** 人物/摊位落地投影开关；`debugGroundShadows` 写这个口子。 */
+  private groundShadowMotion: GroundShadowMotion = GROUND_SHADOW_MOTION_ON;
   /**
    * 调试摆位：id → 固定格。只影响这一帧的画，不写世界。
    * 见 `render/villager-pin.ts` 与 `debugPinVillager`。
@@ -360,6 +376,36 @@ export class SandboxScene extends Phaser.Scene {
    * 只改画面，不改 `lampStreetLitAt` 的判据本身。
    */
   private forcedLamps: boolean | null = null;
+  /** 灯柱/灯串的三支动态开关；缺省全开，证据脚本逐支关掉取对照。 */
+  private lampMotion: LampMotion = LAMP_MOTION_ON;
+  /** 摊位两支动态开关（棚布/盖布摆动、火光跳动）；缺省全开。 */
+  private stallMotion: StallMotion = STALL_MOTION_ON;
+  /** 幌布两支动态开关（布身摆动、沿墙投影）；缺省全开。 */
+  private bannerMotion: BannerMotion = BANNER_MOTION_ON;
+  /** 烟的分段漂移开关；缺省全开。 */
+  private smokeMotion: SmokeMotion = SMOKE_MOTION_ON;
+  /**
+   * 藏掉湾面低雾（缺省不藏）。只为证据隔离：那三条雾按世界时刻横移，
+   * 会在「烟关掉、世界走 2 秒」的对照里留下一条 420×5 的像素差——不是烟。
+   */
+  private hideBayMist = false;
+  /**
+   * 调试用：把「摊子已盖」这一态钉死（`null` = 交回天气与记忆）。
+   * 雨幕由帧间隔驱动，世界冻住时它仍会动；要量盖布的像素差，
+   * 就把天气留在晴天、只钉「已盖」这一态，画面里才只有布在动。
+   */
+  private forcedPacked: boolean | null = null;
+  /**
+   * 世界时间冻住：不推进模拟，渲染循环照跑。
+   * 用来证明「世界时间不推进 → 动画不推进」，而不是把 rAF 一起停掉。
+   */
+  private holdWorld = false;
+  /**
+   * 调试用：把**渲染**用的潮位钉死（`null` = 交回快照）。
+   * 只压过画面，不改世界里的潮汐；证据脚本要在同一片地面上量 t / t+1s，
+   * 不能让它被「这一秒潮水又涨了一点」搅进来。
+   */
+  private pinnedTide: number | null = null;
   private overlay: WorldOverlay | null = null;
   private weatherView!: WeatherView;
   private tideView!: TideView;
@@ -926,6 +972,7 @@ export class SandboxScene extends Phaser.Scene {
 
     if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack, ALTITUDE);
     else this.drawAltar(originX, originY);
+    this.groundShadowLayer = this.add.graphics().setDepth(GROUND_SHADOW_DEPTH);
 
     const simDeps = {
       grid: this.world.grid,
@@ -1436,6 +1483,15 @@ export class SandboxScene extends Phaser.Scene {
       this.accumulator = 0;
       this.snapshot = this.sim.snapshot();
       this.renderSnapshot(delta);
+      return;
+    }
+    // 世界时间冻住（调试口子）：不推进模拟，但照常渲染。
+    // 证明「世界时间不推进 → 动画不推进」时，不能靠停 rAF——那样连渲染都停了，
+    // 证明不了任何东西；这里让每一帧都真画一遍，只是不给它新的世界时刻。
+    if (this.holdWorld) {
+      this.accumulator = 0;
+      this.renderSnapshot(delta);
+      this.cameraCtl.update(delta);
       return;
     }
     // 真实时钟：先看墙钟与单调时钟。暂停（回拨）时这一拍一步不走；离线跨了
@@ -3898,6 +3954,147 @@ export class SandboxScene extends Phaser.Scene {
         return on;
       },
       /**
+       * 灯柱/灯串的三支动态开关（渐次点亮、呼吸、风摆）。缺省全开；
+       * 关掉哪一支，那一支的 t / t+1s 帧差必须归零，其余两支不受影响。
+       */
+      debugLampMotion: (patch: Partial<LampMotion>): LampMotion => {
+        this.lampMotion = { ...this.lampMotion, ...patch };
+        return this.lampMotion;
+      },
+      /**
+       * 摊位两支动态的开关（棚布/盖布摆动、火光跳动）。缺省全开；
+       * 关掉哪一支，那一支的 t / t+1s 帧差必须归零，另一支不受影响。
+       */
+      debugStallMotion: (patch: Partial<StallMotion>): StallMotion => {
+        this.stallMotion = { ...this.stallMotion, ...patch };
+        return this.stallMotion;
+      },
+      /** 本帧摊位读数：棚布摆幅、火盆亮度与焰高、盖布摆幅，以及当前是否已盖。 */
+      debugStallUnits: () => ({
+        weather: this.snapshot.weather,
+        packed: this.forcedPacked
+          ?? (stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday()),
+        stalls: this.settingScenery?.stallUnits() ?? [],
+        covers: this.weatherStallsView?.coverUnits() ?? [],
+      }),
+      /** 钉死「摊子已盖」这一渲染态（`null` 交回天气）；只压画面，不改世界。 */
+      debugForcePacked: (on: boolean | null): boolean | null => {
+        this.forcedPacked = on;
+        return on;
+      },
+      /**
+       * 幌布两支动态的开关（布身摆动、沿墙投影）。缺省全开；
+       * 关掉投影那一支，同一对时刻的帧差必须归零，布身照摆。
+       */
+      debugBannerMotion: (patch: Partial<BannerMotion>): BannerMotion => {
+        this.bannerMotion = { ...this.bannerMotion, ...patch };
+        return this.bannerMotion;
+      },
+      /** 本帧幌布读数：布身摆幅、抬边、沿墙投影的横移/影长/浓淡。 */
+      debugBannerUnits: () => this.settingScenery?.bannerUnits() ?? [],
+      /** 烟的分段漂移开关。关掉后烟仍画在原地，但每一帧都是同一姿态。 */
+      debugSmokeMotion: (patch: Partial<SmokeMotion>): SmokeMotion => {
+        this.smokeMotion = { ...this.smokeMotion, ...patch };
+        return this.smokeMotion;
+      },
+      /** 本帧烟囱读数：起飘高度、每段烟团的位移/宽高/浓度。 */
+      debugSmokeUnits: () => this.settingScenery?.smokeUnits() ?? [],
+      /**
+       * 藏掉湾面低雾。只为证据隔离：低雾也随世界时刻横移，
+       * 量「烟关掉后帧差为 0」时先把这条既有环境位移摘出去。
+       */
+      debugHideBayMist: (hidden: boolean): boolean => {
+        this.hideBayMist = hidden;
+        return hidden;
+      },
+      /** 人物 / 摊位落地投影开关。关掉后这一层不画像素，对照帧差必须为 0。 */
+      debugGroundShadows: (patch: Partial<GroundShadowMotion>): GroundShadowMotion => {
+        this.groundShadowMotion = { ...this.groundShadowMotion, ...patch };
+        return this.groundShadowMotion;
+      },
+      /** 本帧落地投影读数：人物按脚底、摊位按柜台底；长度/浓淡由相位给。 */
+      debugGroundShadowUnits: () => {
+        const shape = groundShadowAt(this.phaseView.currentPhase());
+        const on = this.groundShadowMotion.on;
+        // 读数必须和画面对齐：renderSnapshot 用的是 `pinVillagers` 后的快照，
+        // 这里若读未钉的 `this.snapshot`，影子画在钉住的位置、读数却是世界位置。
+        const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
+        return {
+          on,
+          phase: this.phaseView.currentPhase(),
+          villagers: snapshot.villagers
+            .filter((villager) => villager.visible)
+            .map((villager) => {
+              const foot = villagerFootAt(villager.pos, 0, 0);
+              return {
+                id: villager.id,
+                x: foot.x,
+                y: foot.y,
+                dx: on ? shape.dx : 0,
+                span: on ? shape.span : 0,
+                alpha: on ? shape.alpha : 0,
+              };
+            }),
+          stalls: this.settingScenery?.groundShadowUnits() ?? [],
+        };
+      },
+      /**
+       * 证据脚本需要一份确定的雨天：直接下一条 `setWeather`，世界照常走一步。
+       * 与玩家说「下雨吧」走的是同一条命令，不另开捷径。
+       */
+      debugSetWeather: (weather: Weather): Weather => {
+        this.sim.enqueue({ kind: 'setWeather', weather });
+        if (this.holdWorld) {
+          for (const result of this.sim.update(100)) this.speak(result);
+          this.snapshot = this.sim.snapshot();
+        }
+        return this.snapshot.weather;
+      },
+      /**
+       * 雨幕/雾幕的真实强度（0..1）。只给证据脚本判「真晴」用：
+       * `kind` 已经是 `clear` 时强度还可能停在 0.97，单看 kind 会把雨天记成晴天。
+       */
+      debugWeatherIntensity: (): number => this.sim.weatherIntensity(),
+      /** 世界时间冻住：不推进模拟，渲染循环照跑。验「暂停世界后画面静止」。 */
+      debugHoldWorld: (on: boolean): boolean => {
+        this.holdWorld = on;
+        return on;
+      },
+      /**
+       * 冻住世界时手动推进一格（世界毫秒），下一帧照常渲染。
+       * 证据脚本用它把「世界时刻序列」钉死：同一串步长 → 同一串帧。
+       */
+      debugStepWorld: (ms: number): number => {
+        if (!this.holdWorld || !Number.isFinite(ms) || ms <= 0) return this.snapshot.now;
+        this.sim.setSocialContext(this.socialContextFromMemory());
+        for (const result of this.sim.update(ms)) this.speak(result);
+        this.snapshot = this.sim.snapshot();
+        return this.snapshot.now;
+      },
+      /** 逐盏点亮的排期：第一盏/最后一盏的世界时刻，以及此刻亮满了几盏。 */
+      debugLampIgnition: () => ignitionSchedule(
+        this.snapshot.now,
+        this.settingScenery?.lampCount() ?? 0,
+        this.phaseView.currentPhase(),
+        this.phaseView.isAutoAdvancing(),
+      ),
+      /** 全街 28 盏的渐次顺序与坐标（按世界 x 从西往东）。 */
+      debugLampUnits: () => this.settingScenery?.lampUnits() ?? [],
+      /** 把渲染用的潮位钉死（0..1）；`null` 交回快照。只压画面，不改世界。 */
+      debugPinTide: (level: number | null): number | null => {
+        this.pinnedTide = level === null ? null : Math.min(1, Math.max(0, level));
+        return this.pinnedTide;
+      },
+      /**
+       * 藏掉天上的鸟/蝙蝠。只为证据隔离：鸟也由世界时刻驱动，
+       * 会在灯街 ROI 上留下像素差；量「灯的三支动态」时要先把它们摘出去，
+       * 报告里会注明这一条。
+       */
+      debugHideAmbience: (hidden: boolean): boolean => {
+        this.ambienceView.setHidden(hidden);
+        return hidden;
+      },
+      /**
        * 立面与街灯的像素尺寸。尺子读的就是渲染用的常量（`SettingSceneryMetrics`），
        * 证据脚本拿它画覆盖线与比例，不另抄一份数字；场景未起来时为 `null`。
        */
@@ -4117,19 +4314,44 @@ export class SandboxScene extends Phaser.Scene {
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
       updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
     }
+    // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
+    // 只画可见的人；世界暂停时相位不动，影子也不动。
+    this.groundShadowLayer.clear();
+    if (this.groundShadowMotion.on) {
+      const shape = groundShadowAt(this.phaseView.currentPhase());
+      for (const villager of snapshot.villagers) {
+        if (!villager.visible) continue;
+        const foot = villagerFootAt(villager.pos, 0, 0);
+        drawVillagerGroundShadow(
+          this.groundShadowLayer,
+          foot.x,
+          foot.y,
+          shape,
+          this.pack?.palette ?? paletteFor(),
+        );
+      }
+    }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
     // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。
-    this.weatherStallsView?.update(
-      stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday(),
-    );
-    this.tideView.update(this.snapshot.tide.level);
+    const stallsPacked = this.forcedPacked
+      ?? (stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday());
+    this.weatherStallsView?.update(stallsPacked, this.snapshot.now, this.stallMotion);
+    const tideLevel = this.pinnedTide ?? this.snapshot.tide.level;
+    this.tideView.update(tideLevel);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
-    this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
+    this.settingScenery?.update(tideLevel, this.snapshot.now, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
       litOverride: this.forcedLamps ?? undefined,
+      motion: this.lampMotion,
+      stalls: this.stallMotion,
+      banners: this.bannerMotion,
+      smoke: this.smokeMotion,
+      groundShadows: this.groundShadowMotion,
+      hideBayMist: this.hideBayMist,
+      packed: stallsPacked,
     });
     this.phaseView.update(this.snapshot, delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现

@@ -18,6 +18,11 @@ export interface SceneArtbookClock {
   readonly autoAdvancing: boolean;
   /** 调试灯态：给了就压过时钟判据（与 `SettingSceneryClock` 同一个口子）。 */
   readonly litOverride?: boolean;
+  /**
+   * 藏掉湾面低雾（`debugHideBayMist` 写这个口子）。雾条按世界时刻横移，
+   * 会在「烟关掉」的对照里留下一条 420×5 的像素差；只为证据隔离，与藏鸟同一类。
+   */
+  readonly hideBayMist?: boolean;
 }
 
 export interface ArtbookPoint {
@@ -95,7 +100,7 @@ export function createSceneArtbook(
       farLight.clear();
       drawWaterLight(water, reflectors, lit, c);
       if (lit) drawFarWindows(farLight, farWindows, c);
-      drawMist(fog, now, clock.phase, c);
+      if (clock.hideBayMist !== true) drawMist(fog, now, clock.phase, c);
     },
     destroy() {
       for (const layer of [ground, water, backdrop, farLight, quay, facade, architecture, fog]) {

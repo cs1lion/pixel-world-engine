@@ -291,6 +291,100 @@ export interface DebugOracle {
    */
   debugForceLamps?(on: boolean | null): boolean | null;
   /**
+   * 灯柱/灯串的三支动态开关。缺省全开；证据脚本逐支关掉取「关掉时帧差为 0」的对照。
+   */
+  debugLampMotion?(patch: { ignite?: boolean; breathe?: boolean; sway?: boolean }): {
+    ignite: boolean;
+    breathe: boolean;
+    sway: boolean;
+  };
+  /** 世界时间冻住：不推进模拟、渲染照跑。验「暂停世界后画面静止」。 */
+  debugHoldWorld?(on: boolean): boolean;
+  /** 冻住时手动推进一格（世界毫秒），返回推进后的世界时刻。 */
+  debugStepWorld?(ms: number): number;
+  /** 渐次点亮的排期：第一盏/最后一盏的世界时刻，与此刻亮满了几盏。 */
+  debugLampIgnition?(): {
+    total: number;
+    spanMs: number;
+    rampMs: number;
+    firstAtMs: number | null;
+    lastAtMs: number | null;
+    litAt: number;
+  };
+  /** 全街 28 盏的渐次顺序与坐标。 */
+  debugLampUnits?(): readonly { order: number; x: number; y: number; hanging: boolean }[];
+  /**
+   * 摊位两支动态的开关（棚布/盖布摆动、火光跳动）。缺省全开；
+   * 证据脚本逐支关掉取「关掉时帧差为 0」的对照。
+   */
+  debugStallMotion?(patch: { cloth?: boolean; fire?: boolean }): {
+    cloth: boolean;
+    fire: boolean;
+  };
+  /** 本帧摊位读数：棚布摆幅、火光亮度/焰高、盖布摆幅，以及当前是否已盖。 */
+  debugStallUnits?(): {
+    weather: string;
+    packed: boolean;
+    stalls: readonly {
+      order: number;
+      x: number;
+      y: number;
+      awningSway: number;
+      fireLevel: number;
+      fireHeight: number;
+    }[];
+    covers: readonly { order: number; dx: number; droop: number }[];
+  };
+  /** 证据脚本要一份确定的雨天：下一条 `setWeather`，世界照常走一步。 */
+  debugSetWeather?(weather: 'clear' | 'rain' | 'storm' | 'fog'): string;
+  /** 雨幕/雾幕真实强度（0..1）；判「真晴」不能只看 kind。 */
+  debugWeatherIntensity?(): number;
+  /** 钉死「摊子已盖」这一渲染态（`null` 交回天气）；只压画面，不改世界。 */
+  debugForcePacked?(on: boolean | null): boolean | null;
+  /**
+   * 幌布两支动态的开关（布身摆动、沿墙投影）。缺省全开；
+   * 证据脚本逐支关掉取「关掉时帧差为 0」的对照。
+   */
+  debugBannerMotion?(patch: { sway?: boolean; shadow?: boolean }): {
+    sway: boolean;
+    shadow: boolean;
+  };
+  /** 本帧幌布读数：布身摆幅/抬边、沿墙投影的横移/影长/浓淡。 */
+  debugBannerUnits?(): readonly {
+    order: number;
+    x: number;
+    y: number;
+    swayDx: number;
+    tilt: number;
+    shadowDx: number;
+    shadowSpan: number;
+    shadowAlpha: number;
+  }[];
+  /** 烟的分段漂移开关。关掉后烟仍画在原地，但每一帧都是同一姿态。 */
+  debugSmokeMotion?(patch: { drift?: boolean }): { drift: boolean };
+  /** 本帧烟囱读数：起飘高度、每段烟团的位移/宽高/浓度。 */
+  debugSmokeUnits?(): readonly {
+    order: number;
+    x: number;
+    anchorY: number;
+    puffs: readonly { dx: number; dy: number; width: number; height: number; alpha: number }[];
+  }[];
+  /** 钉死渲染用的潮位（0..1）；`null` 交回快照。只压画面，不改世界。 */
+  debugPinTide?(level: number | null): number | null;
+  /** 藏掉天上的鸟/蝙蝠（证据隔离用）。 */
+  debugHideAmbience?(hidden: boolean): boolean;
+  /** 藏掉湾面低雾（证据隔离用：低雾随世界时刻横移，不是烟）。 */
+  debugHideBayMist?(hidden: boolean): boolean;
+  /** 人物 / 摊位落地投影开关（关掉后这一层不画像素，对照帧差为 0）。 */
+  debugGroundShadows?(patch: { on?: boolean }): { on: boolean };
+  /** 本帧落地投影读数：人物按脚底、摊位按柜台底。 */
+  debugGroundShadowUnits?(): {
+    on: boolean;
+    phase: string;
+    villagers: readonly { id: string; x: number; y: number; dx: number; span: number; alpha: number }[];
+    stalls: readonly { order: number; x: number; y: number; dx: number; span: number; alpha: number }[];
+  };
+  /**
    * 立面与街灯的实际像素尺寸（店面墙 48 / 灯柱 58 / 灯体下沿 43）。
    * 证据脚本拿它画标尺：尺子读渲染常量，不另抄一份数字。
    */

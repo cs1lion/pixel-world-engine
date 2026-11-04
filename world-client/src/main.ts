@@ -34,6 +34,36 @@ import { paletteFor } from './world/theme.ts';
 import { selectSetting, worldForSetting } from './settings/index.ts';
 
 /**
+ * 调试种子口子：`?debug=1&debugPinSeed=<n>` 把全局 `Math.random` 换成以 n 为初值的 LCG。
+ *
+ * 存在的理由：截图/回归里「场景载入期」的随机若取真实时间，同一构建同参数两次跑也会落到
+ * 不同态（75.6/4.6、75.9/3.9、76.9/1.8 是同一分布的三组读数）。钉住种子后，载入期随机不再取墙钟。
+ *
+ * 只影响 debug 那一层：不打存档、不进回放指纹、不改正常运行时行为；常数与截图脚本
+ * `initScript` 里的 LCG 相同，两处给同一个 n 得到同一串数。
+ */
+function installDebugSeed(): void {
+  const params = new URLSearchParams(window.location.search);
+  const debug = params.get('debug') === '1' || params.get('debug') === '';
+  if (!debug) return;
+  const raw = params.get('debugPinSeed');
+  if (raw === null) return;
+  const seed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(seed)) return;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  // 雨滴已有自己的注入口（`render/weather.ts`）；同一种子一并传下去，避免两套 RNG 分叉。
+  // 这里必须写**初始种子**而不是 LCG 的当前状态：`installDebugSeed` 之后若有人先抽了数，
+  // 状态会前进，雨滴种子就会和 URL 里的 `debugPinSeed` 悄悄分叉。
+  (globalThis as { __RAIN_SEED__?: number }).__RAIN_SEED__ = seed >>> 0;
+}
+
+installDebugSeed();
+
+/**
  * 按这份存档建世界；`save` 为 null 表示没有存档，建一套默认世界。
  *
  * **读档的校验与开工的建造必须走这同一个函数。** 落位放不放得进网格，只有真建一次
