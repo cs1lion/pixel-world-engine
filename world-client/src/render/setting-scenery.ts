@@ -14,7 +14,9 @@
  *   应被挡住」由 `scenery-depth.ts` 的纯函数钉住，不靠截图猜。
  * - 落地碎堆走 depth 1050：它是地上的杂物，不进遮挡排序。
  * - 建筑构件 depth 1400：叠浪楼的红栏要压在街面人流之前。
- * - 蒸汽 depth 8010：飘在屋顶上方的空气，必须在最前。
+ * - 蒸汽 depth 1399：**压在建筑层之下**。烟只从烟囱口往上飘，锚点已抬到楼顶之上；
+ *   万一与楼体像素重叠，楼体先画、把烟盖住——烟因此不可能盖住楼体轮廓，
+ *   也不可能"穿过"一面墙跑到墙前面。原来它在 8010（最前），会糊住楼体轮廓。
  *
  * 一个 Graphics 只有一个 depth，所以不同深度段的构件不能用同一个对象：
  * 早先共享一张 `statics` 时，最后设置的 depth 会把轨道一起抬到人物前面。
@@ -43,6 +45,18 @@ import {
   stallFireAt,
   type StallMotion,
 } from '../world/stall-motion.ts';
+import {
+  BANNER_MOTION_ON,
+  bannerShadowAt,
+  bannerSwayAt,
+  type BannerMotion,
+} from '../world/banner-motion.ts';
+import {
+  SMOKE_MOTION_ON,
+  smokePuffsAt,
+  smokePuffsStill,
+  type SmokeMotion,
+} from '../world/smoke-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
 import { sceneryDepth } from './scenery-depth.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
@@ -88,6 +102,30 @@ export interface SettingSceneryView {
     fireLevel: number;
     fireHeight: number;
   }[];
+  /**
+   * 幌布的本帧读数：布身摆了几像素、沿墙投影有多长多浓。
+   * 正午短、黄昏长、夜里几乎无——影子长度是相位给的，不是随机数。
+   */
+  readonly bannerUnits: () => readonly {
+    order: number;
+    x: number;
+    y: number;
+    swayDx: number;
+    tilt: number;
+    shadowDx: number;
+    shadowSpan: number;
+    shadowAlpha: number;
+  }[];
+  /**
+   * 烟囱的本帧读数：每段烟团的位移与浓度，以及烟从哪个高度起飘。
+   * `anchorY` 是**楼顶之上**的起飘高度，烟不会压在楼体轮廓上。
+   */
+  readonly smokeUnits: () => readonly {
+    order: number;
+    x: number;
+    anchorY: number;
+    puffs: readonly { dx: number; dy: number; width: number; height: number; alpha: number }[];
+  }[];
 }
 
 /** 灯态时钟：相位与「是不是自动推进」。强制相位（`?time=`）下两者都要用上。 */
@@ -111,6 +149,21 @@ export interface SettingSceneryClock {
    * 为真时棚布**不摆**，摆的是 `weather-stalls` 那块盖布——两件交替，不同时动。
    */
   readonly packed?: boolean;
+  /**
+   * 幌布两支动态的开关（`debugBannerMotion` 写这个口子）：布身摆动、沿墙投影。
+   * 缺省全开；关掉哪一支，那一支就退化成常量。
+   */
+  readonly banners?: BannerMotion;
+  /**
+   * 烟的分段漂移开关（`debugSmokeMotion` 写这个口子）。关掉后烟仍画在原地，
+   * 但每一帧都是同一姿态——t 与 t+Ns 的帧差必须是 0。
+   */
+  readonly smoke?: SmokeMotion;
+  /**
+   * 藏掉设定集补绘的湾面低雾（`debugHideBayMist` 写这个口子）。
+   * 低雾按世界时刻横移，会在「烟关掉」的对照里留下像素差；只为证据隔离，不关时不藏。
+   */
+  readonly hideBayMist?: boolean;
 }
 
 interface LightPoint {
@@ -173,6 +226,44 @@ interface StallReadout {
   fireHeight: number;
 }
 
+/** 一面幌布：杆子钉在静态层，布身与沿墙投影画在按落地行分层的动态层里。 */
+interface BannerUnit {
+  readonly x: number;
+  readonly y: number;
+  readonly row: number;
+  readonly order: number;
+}
+
+interface BannerReadout {
+  order: number;
+  x: number;
+  y: number;
+  swayDx: number;
+  tilt: number;
+  shadowDx: number;
+  shadowSpan: number;
+  shadowAlpha: number;
+}
+
+/**
+ * 一柱烟：`anchorY` 是**起飘高度**。
+ *
+ * 烟囱口可能落在楼体占地之内（炉底那根砖烟囱就是），直接按 `at` 画会糊在墙面上。
+ * 建场景时把起飘高度抬到所在楼的楼顶之上（见 `smokeAnchorY`），烟就只画在屋顶以上。
+ */
+interface SmokeUnit {
+  readonly x: number;
+  readonly anchorY: number;
+  readonly order: number;
+}
+
+interface SmokeReadout {
+  order: number;
+  x: number;
+  anchorY: number;
+  puffs: readonly { dx: number; dy: number; width: number; height: number; alpha: number }[];
+}
+
 /** 光池椭圆的平滑档位：16px 瓦片下 12 段已够圆，多一段都是白烧的指令。 */
 const POOL_SMOOTHNESS = 12;
 
@@ -203,7 +294,9 @@ export function createSettingScenery(
     return g;
   };
   const architecture = scene.add.graphics().setDepth(1400);
-  const steam = scene.add.graphics().setDepth(8010);
+  // 烟压在建筑层之下：楼体不透明的像素会把烟盖住，烟因此盖不到楼体轮廓，
+  // 也不会"穿过"墙面跑到墙前。原来在 8010（最前）会糊住楼体。
+  const steam = scene.add.graphics().setDepth(1399);
   const c = pack.palette;
   const lights: LightPoint[] = [];
   const windows: LightPoint[] = [];
@@ -212,13 +305,39 @@ export function createSettingScenery(
   const lampGroups: LampGroup[] = [];
   const stallUnits: StallUnit[] = [];
   const stallReadout: StallReadout[] = [];
+  const bannerUnits: BannerUnit[] = [];
+  const bannerReadout: BannerReadout[] = [];
+  const smokeUnits: SmokeUnit[] = [];
+  const smokeReadout: SmokeReadout[] = [];
   /** 灯绳跨度：一串一条，摆动时按组里中间那盏的相位走。 */
   const stringSpans: { x: number; y: number; row: number; span: number; group: LampGroup }[] = [];
   // 水面倒影锚点：只在对岸窗火处追加，补绘层在 `scene-artbook.ts` 里画。
   const reflectors: ArtbookPoint[] = [];
 
+  // 烟囱口 → 起飘高度。烟囱口落在楼体占地之内时（炉底那根砖烟囱就在墙里），
+  // 直接按 `at` 画会糊在墙面上；抬到那栋楼的楼顶之上（楼顶 = 原点 y，烟囱高出屋顶 10px）。
+  const smokeAnchorY = (atX: number, atY: number): number => {
+    let top = atY * TILE_PX - 12;
+    for (const placement of pack.placements) {
+      const blueprint = pack.blueprints.get(placement.prefabId);
+      if (blueprint === undefined) continue;
+      const insideX = atX >= placement.at.x && atX < placement.at.x + blueprint.footprint.w;
+      const insideY = atY >= placement.at.y && atY < placement.at.y + blueprint.footprint.h;
+      if (!insideX || !insideY) continue;
+      top = Math.min(top, placement.at.y * TILE_PX - 12);
+    }
+    return top;
+  };
+
   for (const item of pack.scenery) {
-    if (item.kind === 'steam') continue;
+    if (item.kind === 'steam') {
+      smokeUnits.push({
+        x: item.at.x * TILE_PX,
+        anchorY: smokeAnchorY(item.at.x, item.at.y),
+        order: smokeUnits.length,
+      });
+      continue;
+    }
     const x = item.at.x * TILE_PX;
     const y = item.at.y * TILE_PX;
     if (item.kind === 'track') {
@@ -353,18 +472,12 @@ export function createSettingScenery(
       stallUnits.push({ x, y, row: item.at.y, order: stallUnits.length });
     } else if (item.kind === 'banner') {
       // 幌布：斜挑一根杆，两幅布长短不一，避免整条街变成同一种竖线。
+      // 杆子钉死在静态层；布身与沿墙投影画在动态层（`bannerRows`），跟着世界时刻摆。
       const g = propLayer(item.at.y);
       g.fillStyle(c.timberDark, 1);
       g.fillRect(x + 6, y - 26, 1, 28);
       g.fillRect(x + 6, y - 26, 9, 1);
-      g.fillStyle(c.ember, 1);
-      g.fillRect(x + 8, y - 25, 6, 11);
-      g.fillStyle(c.trim, 1);
-      g.fillRect(x + 8, y - 25, 6, 1);
-      g.fillStyle(c.pale, 1);
-      g.fillRect(x + 9, y - 21, 3, 1);
-      g.fillStyle(c.terracotta, 1);
-      g.fillRect(x + 15, y - 25, 4, 8);
+      bannerUnits.push({ x, y, row: item.at.y, order: bannerUnits.length });
     } else if (item.kind === 'stele') {
       // 碑按落地行排（与 statue 同规矩）：它是一块立在广场上的石头，
       // 站在它后面的人该被它挡住。碑面刻痕是三条横线——**不是字**：中文不进
@@ -412,6 +525,12 @@ export function createSettingScenery(
     if (stallRows.has(unit.row)) continue;
     stallRows.set(unit.row, scene.add.graphics().setDepth(sceneryDepth(unit.row, altitude)));
   }
+  // 幌布的布身与沿墙投影同样按落地行分层，depth 与同行的静态构件同式。
+  const bannerRows = new Map<number, Phaser.GameObjects.Graphics>();
+  for (const unit of bannerUnits) {
+    if (bannerRows.has(unit.row)) continue;
+    bannerRows.set(unit.row, scene.add.graphics().setDepth(sceneryDepth(unit.row, altitude)));
+  }
 
   // 主楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
   const hall = pack.placements.find((p) => p.prefabId === 'wave_house');
@@ -446,6 +565,8 @@ export function createSettingScenery(
       hanging: unit.hanging,
     })),
     stallUnits: () => stallReadout.map((unit) => ({ ...unit })),
+    bannerUnits: () => bannerReadout.map((unit) => ({ ...unit })),
+    smokeUnits: () => smokeReadout.map((unit) => ({ ...unit })),
     update(level, now, clock) {
       lampLight.clear();
       lampPool.clear();
@@ -560,16 +681,44 @@ export function createSettingScenery(
         lampLight.fillStyle(c.amber, 0.10);
         lampLight.fillRect(point.x - 11, point.y - 8, 22, 16);
       }
-      for (const item of pack.scenery) {
-        if (item.kind !== 'steam') continue;
-        const x = item.at.x * TILE_PX;
-        const y = item.at.y * TILE_PX;
-        const drift = Math.floor(now / 300 + item.at.x) % 9;
-        steam.fillStyle(c.pale, 0.14);
-        steam.fillRect(x + drift, y - 24, 7, 9);
-        steam.fillRect(x + 6 + drift, y - 36, 10, 8);
-        steam.fillStyle(c.deepShade, 0.15);
-        steam.fillRect(x + 1 + drift, y - 15, 10, 6);
+      // 烟：分段漂移 + 消散。关掉时画固定姿态（同一帧不变），差分才是 0。
+      const smokeMotion = clock.smoke ?? SMOKE_MOTION_ON;
+      const smokeStill = smokePuffsStill();
+      smokeReadout.length = 0;
+      for (const unit of smokeUnits) {
+        const puffs = smokeMotion.drift ? smokePuffsAt(now, unit.order) : smokeStill;
+        for (const puff of puffs) {
+          steam.fillStyle(c.pale, puff.alpha);
+          steam.fillRect(unit.x + puff.dx, unit.anchorY + puff.dy - puff.height, puff.width, puff.height);
+        }
+        smokeReadout.push({ order: unit.order, x: unit.x, anchorY: unit.anchorY, puffs });
+      }
+      // 幌布：布身横摆 1px；沿墙投影的长度/浓淡由相位给（正午短、黄昏长、夜里几乎无）。
+      const bannerMotion = clock.banners ?? BANNER_MOTION_ON;
+      bannerReadout.length = 0;
+      for (const layer of bannerRows.values()) layer.clear();
+      for (const unit of bannerUnits) {
+        const sway = bannerMotion.sway
+          ? bannerSwayAt(now, unit.order)
+          : { dx: 0, tilt: 0 };
+        const shadow = bannerMotion.shadow
+          ? bannerShadowAt(now, unit.order, phase)
+          : { dx: 0, span: 0, alpha: 0 };
+        const layer = bannerRows.get(unit.row);
+        if (layer !== undefined) {
+          drawBannerShadowAt(layer, unit.x, unit.y, c, shadow.dx, shadow.span, shadow.alpha);
+          drawBannerClothAt(layer, unit.x, unit.y, c, sway.dx, sway.tilt);
+        }
+        bannerReadout.push({
+          order: unit.order,
+          x: unit.x,
+          y: unit.y,
+          swayDx: sway.dx,
+          tilt: sway.tilt,
+          shadowDx: shadow.dx,
+          shadowSpan: shadow.span,
+          shadowAlpha: shadow.alpha,
+        });
       }
       // 摊位：干天摆棚布；雨天棚布定住、由盖布接管（`weather-stalls` 那块布在同层之上）。
       // 火盆的焰与暖晕按世界时刻跳动；火不投地面光池，夜街光带读数不受影响。
@@ -610,12 +759,14 @@ export function createSettingScenery(
         ...propRows.values(),
         ...lampRows.values(),
         ...stallRows.values(),
+        ...bannerRows.values(),
         architecture,
         steam,
       ]) layer.destroy();
       propRows.clear();
       lampRows.clear();
       stallRows.clear();
+      bannerRows.clear();
     },
   };
 }
@@ -836,6 +987,55 @@ function drawStallFireAt(
   g.fillRect(x + 20, base - height, 3, height);
   g.fillStyle(c.warmLight, 0.9 * level);
   g.fillRect(x + 21, base - height, 1, height);
+}
+
+/**
+ * 幌布贴墙的投影：一道沿墙向上斜出的暗块。`span` 是影长、`alpha` 是浓淡，
+ * 两者都由光照相位给（正午短、黄昏长、夜里为 0）；`dx` 跟着布身横移，
+ * 影子比布多走 1px，才像同一块布投下来的。
+ *
+ * 夜里 `span`/`alpha` 为 0 时直接 return：南侧幌布的落影会落进夜街扫描带
+ * （世界 y 435..535），灯下本来就没有这条影子，也不能让动画改写既有读数。
+ */
+function drawBannerShadowAt(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  c: SettingPack['palette'],
+  dx: number,
+  span: number,
+  alpha: number,
+): void {
+  if (span <= 0 || alpha <= 0) return;
+  // 影根在布脚（y-14），影梢往上斜出 span；越到梢上越淡，读成贴墙的一道斜影。
+  const rows = 6;
+  for (let i = 0; i < rows; i += 1) {
+    const shift = dx + Math.round((span * i) / rows);
+    g.fillStyle(c.ink, alpha * (1 - i / (rows * 2)));
+    g.fillRect(x + 8 + shift, y - 14 - (rows - i) * 2, 11, 2);
+  }
+}
+
+/**
+ * 幌布布身的动态一帧。两幅布长短不一（与旧静态画法同一套像素），
+ * `dx` 横摆 1px、`tilt` 把短的那幅上沿抬 1px——只平移会读成"整块布在滑"。
+ */
+function drawBannerClothAt(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  c: SettingPack['palette'],
+  dx: number,
+  tilt: number,
+): void {
+  g.fillStyle(c.ember, 1);
+  g.fillRect(x + 8 + dx, y - 25, 6, 11);
+  g.fillStyle(c.trim, 1);
+  g.fillRect(x + 8 + dx, y - 25, 6, 1);
+  g.fillStyle(c.pale, 1);
+  g.fillRect(x + 9 + dx, y - 21, 3, 1);
+  g.fillStyle(c.terracotta, 1);
+  g.fillRect(x + 15 + dx, y - 25 + tilt, 4, 8 - tilt);
 }
 
 /** 店铺立面：灰泥墙 + 木框 + 两扇格窗 + 暖帘 + 竖招牌。 */

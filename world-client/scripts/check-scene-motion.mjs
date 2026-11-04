@@ -15,7 +15,7 @@
  * - 帧差只量灯街 ROI（世界 x 228..735、y 372..548）：ROI 里的每个像素都属于
  *   灯柱、灯串、灯体光晕或它们脚下的池子；关掉三支动态时 ROI 必须一点不动。
  *   摊位的棚布/火光也吃同一只世界钟，会在 ROI 上留差，所以这一支先把 stall 动效关掉，
- *   保证读数只属于灯。
+ *   保证读数只属于灯；幌布与烟同理。
  *
  * 跑法：
  *   cd world-client && npm run dev -- --port 5202
@@ -149,6 +149,9 @@ async function openScene(browser, { motion = null, force = null } = {}) {
     // 摊位动画同样由世界时刻驱动：这一支只量灯，先把棚布与火光关掉，
     // 否则"三支全关 = 0.00%"会被摊位的摆动污染。
     window.Oracle.debugStallMotion({ cloth: false, fire: false });
+    // 幌布（南侧那面落在 ROI 里）与烟（炉底那柱的起飘高度也在 ROI 里）同理。
+    window.Oracle.debugBannerMotion({ sway: false, shadow: false });
+    window.Oracle.debugSmokeMotion({ drift: false });
     if (motion !== null) window.Oracle.debugLampMotion(motion);
     if (force !== null) window.Oracle.debugForceLamps(force);
     window.Oracle.centerCameraOn(camera.x, camera.y);

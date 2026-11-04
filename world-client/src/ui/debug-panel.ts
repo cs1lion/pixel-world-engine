@@ -339,10 +339,40 @@ export interface DebugOracle {
   debugSetWeather?(weather: 'clear' | 'rain' | 'storm' | 'fog'): string;
   /** 钉死「摊子已盖」这一渲染态（`null` 交回天气）；只压画面，不改世界。 */
   debugForcePacked?(on: boolean | null): boolean | null;
+  /**
+   * 幌布两支动态的开关（布身摆动、沿墙投影）。缺省全开；
+   * 证据脚本逐支关掉取「关掉时帧差为 0」的对照。
+   */
+  debugBannerMotion?(patch: { sway?: boolean; shadow?: boolean }): {
+    sway: boolean;
+    shadow: boolean;
+  };
+  /** 本帧幌布读数：布身摆幅/抬边、沿墙投影的横移/影长/浓淡。 */
+  debugBannerUnits?(): readonly {
+    order: number;
+    x: number;
+    y: number;
+    swayDx: number;
+    tilt: number;
+    shadowDx: number;
+    shadowSpan: number;
+    shadowAlpha: number;
+  }[];
+  /** 烟的分段漂移开关。关掉后烟仍画在原地，但每一帧都是同一姿态。 */
+  debugSmokeMotion?(patch: { drift?: boolean }): { drift: boolean };
+  /** 本帧烟囱读数：起飘高度、每段烟团的位移/宽高/浓度。 */
+  debugSmokeUnits?(): readonly {
+    order: number;
+    x: number;
+    anchorY: number;
+    puffs: readonly { dx: number; dy: number; width: number; height: number; alpha: number }[];
+  }[];
   /** 钉死渲染用的潮位（0..1）；`null` 交回快照。只压画面，不改世界。 */
   debugPinTide?(level: number | null): number | null;
   /** 藏掉天上的鸟/蝙蝠（证据隔离用）。 */
   debugHideAmbience?(hidden: boolean): boolean;
+  /** 藏掉湾面低雾（证据隔离用：低雾随世界时刻横移，不是烟）。 */
+  debugHideBayMist?(hidden: boolean): boolean;
   /**
    * 立面与街灯的实际像素尺寸（店面墙 48 / 灯柱 58 / 灯体下沿 43）。
    * 证据脚本拿它画标尺：尺子读渲染常量，不另抄一份数字。

@@ -88,6 +88,8 @@ import {
 import { pinVillagers } from '../render/villager-pin.ts';
 import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp-motion.ts';
 import { STALL_MOTION_ON, type StallMotion } from '../world/stall-motion.ts';
+import { BANNER_MOTION_ON, type BannerMotion } from '../world/banner-motion.ts';
+import { SMOKE_MOTION_ON, type SmokeMotion } from '../world/smoke-motion.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -367,6 +369,15 @@ export class SandboxScene extends Phaser.Scene {
   private lampMotion: LampMotion = LAMP_MOTION_ON;
   /** 摊位两支动态开关（棚布/盖布摆动、火光跳动）；缺省全开。 */
   private stallMotion: StallMotion = STALL_MOTION_ON;
+  /** 幌布两支动态开关（布身摆动、沿墙投影）；缺省全开。 */
+  private bannerMotion: BannerMotion = BANNER_MOTION_ON;
+  /** 烟的分段漂移开关；缺省全开。 */
+  private smokeMotion: SmokeMotion = SMOKE_MOTION_ON;
+  /**
+   * 藏掉湾面低雾（缺省不藏）。只为证据隔离：那三条雾按世界时刻横移，
+   * 会在「烟关掉、世界走 2 秒」的对照里留下一条 420×5 的像素差——不是烟。
+   */
+  private hideBayMist = false;
   /**
    * 调试用：把「摊子已盖」这一态钉死（`null` = 交回天气与记忆）。
    * 雨幕由帧间隔驱动，世界冻住时它仍会动；要量盖布的像素差，
@@ -3960,6 +3971,31 @@ export class SandboxScene extends Phaser.Scene {
         return on;
       },
       /**
+       * 幌布两支动态的开关（布身摆动、沿墙投影）。缺省全开；
+       * 关掉投影那一支，同一对时刻的帧差必须归零，布身照摆。
+       */
+      debugBannerMotion: (patch: Partial<BannerMotion>): BannerMotion => {
+        this.bannerMotion = { ...this.bannerMotion, ...patch };
+        return this.bannerMotion;
+      },
+      /** 本帧幌布读数：布身摆幅、抬边、沿墙投影的横移/影长/浓淡。 */
+      debugBannerUnits: () => this.settingScenery?.bannerUnits() ?? [],
+      /** 烟的分段漂移开关。关掉后烟仍画在原地，但每一帧都是同一姿态。 */
+      debugSmokeMotion: (patch: Partial<SmokeMotion>): SmokeMotion => {
+        this.smokeMotion = { ...this.smokeMotion, ...patch };
+        return this.smokeMotion;
+      },
+      /** 本帧烟囱读数：起飘高度、每段烟团的位移/宽高/浓度。 */
+      debugSmokeUnits: () => this.settingScenery?.smokeUnits() ?? [],
+      /**
+       * 藏掉湾面低雾。只为证据隔离：低雾也随世界时刻横移，
+       * 量「烟关掉后帧差为 0」时先把这条既有环境位移摘出去。
+       */
+      debugHideBayMist: (hidden: boolean): boolean => {
+        this.hideBayMist = hidden;
+        return hidden;
+      },
+      /**
        * 证据脚本需要一份确定的雨天：直接下一条 `setWeather`，世界照常走一步。
        * 与玩家说「下雨吧」走的是同一条命令，不另开捷径。
        */
@@ -4246,6 +4282,9 @@ export class SandboxScene extends Phaser.Scene {
       litOverride: this.forcedLamps ?? undefined,
       motion: this.lampMotion,
       stalls: this.stallMotion,
+      banners: this.bannerMotion,
+      smoke: this.smokeMotion,
+      hideBayMist: this.hideBayMist,
       packed: stallsPacked,
     });
     this.phaseView.update(this.snapshot, delta);
