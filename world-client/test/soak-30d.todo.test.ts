@@ -1,10 +1,10 @@
 /**
- * 30 日浸泡暴露的四条口径缺口。**这些是 `todo` 用例**：用例写的是「应该成立」
- * 的断言，当前实现不满足；Node test 会把它标成 todo 而不是失败，读数留在
- * `docs/evidence/soak/REPORT.md` 与 `docs/BUGS_FOUND.md` 的「长周期浸泡」小节。
+ * 30 日浸泡暴露的口径缺口。SOAK-BUG-1（关系账本恒空）已修，用例转正；
+ * SOAK-BUG-3/4 也早已是普通断言。读数留在 `docs/evidence/soak/REPORT.md`
+ * 与 `docs/BUGS_FOUND.md` 的「长周期浸泡」小节。
  *
- * 为什么只跑 8 天而不是 30 天：这四条在 8 天内已经稳定复现（关系 0、摘要 0、
- * legend 无预算、存档日均增长远超基线），跑 30 天只会把同一结论拖长到 40 秒。
+ * 为什么只跑 8 天而不是 30 天：预算边界与 legend 上限在 8 天内已经稳定复现，
+ * 跑 30 天只会把同一结论拖长到 40 秒。
  * 30 天的完整读数由 `scripts/soak-30d.ts` 采，不在 `npm test` 里跑。
  *
  * 不允许放宽断言来「变绿」：修实现，然后删掉 todo。
@@ -43,14 +43,10 @@ function last() {
   return sample;
 }
 
-test(
-  '[SOAK-BUG-1] 纯日常世界的 8 日也应结下关系账本条目',
-  { todo: 'SOAK-BUG-1：30 日浸泡 incidents=0，bondsOf() 恒空；关系账本从未写入' },
-  () => {
-    const sample = last();
-    assert.ok(sample.relations.count > 0, `关系账本 ${sample.relations.count} 条`);
-  },
-);
+test('[SOAK-BUG-1] 纯日常世界的 8 日也应结下关系账本条目', () => {
+  const sample = last();
+  assert.ok(sample.relations.count > 0, `关系账本 ${sample.relations.count} 条`);
+});
 
 // SOAK-BUG-2 不在这里翻正：日常世界跑 8 天确实不该有摘要。实测日层显著度
 // p99 = max = 0.5029，0.60 在整条分布之上；而降阈值会让「听来的」(0.575)

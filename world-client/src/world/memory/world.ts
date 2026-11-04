@@ -326,6 +326,31 @@ export interface GenesisSeedInput {
 }
 
 /**
+ * 日常照面：不靠「重要事件」也长关系的那条通道。
+ *
+ * 0.4 的门槛量的是**这件事重不重要**，不是**这两个人熟不熟**。打招呼、
+ * 让路、一起走一段都是 0.38，永远跨不过去——于是两个人天天见面，账本上
+ * 却永远是 0（30 天 360 次街头互动，`bondsOf()` 全空）。
+ *
+ * 这里给日常互动一条独立的、**按天结算**的小额累积：同一对一天里见几次
+ * 都只积一次，所以不会「聊一次就生死之交」；累积的目标是一个「熟识」
+ * 上限而不是满格，所以也不会「全员满格」。信任不动——见过面不等于信得过。
+ */
+const ACQUAINTANCE_KINDS = new Set(['street_greet', 'street_yield', 'street_together']);
+const ACQUAINTANCE_FAMILIARITY_CEIL = 0.75;
+const ACQUAINTANCE_WARMTH_CEIL = 0.4;
+/**
+ * 熟悉度不走日衰减（`decayBonds` 只收 trust/warmth），每天走近上限 4%：
+ * 30 天约 55%，90 天约 73%，永远到不了 1。
+ */
+const ACQUAINTANCE_FAMILIARITY_STEP = 0.04;
+/**
+ * warmth 会被 `decayBonds` 每天收 15%，所以入账的步子要大一些才能留下痕迹：
+ * 每天走近上限 20%，稳态约 0.23，30 天到约 0.22——有账，但离满格很远。
+ */
+const ACQUAINTANCE_WARMTH_STEP = 0.2;
+
+/**
  * 一台记忆世界。
  *
  * 所有随机都从 `worldId + day + holder + op` 派生，所有集合的迭代顺序都
@@ -1478,6 +1503,8 @@ export class MemoryWorld {
     // 而证据链仍指着原事件。当天刚写过的那条不衰减——否则「今天结下的
     // -0.22」在当天关账时就变成 -0.187，日读数会把两天的变化混成一天。
     this.decayBonds(closedDay);
+    // 衰减之后再记今天的日常照面：当天见过的那一对，`updatedDay` 落在今天。
+    this.accrueDailyAcquaintance(closedDay);
     this.diffuseDay(at);
     this.weatherTraces(closedDay);
 
@@ -1637,9 +1664,13 @@ export class MemoryWorld {
       this.emitPruned(day, at, 'written', written.byCount, written.byBytes, this.written.length);
     }
 
+    // 传说先按「传得多远」留，同 reach 时**留更早立起来的**。
+    // 原来是 `formedDay` 倒序（留最新），结果同一 reach 下世界最早的那批
+    // 碑文先被裁掉——90 天里早期传说整批消失，"岁月感"就是从这里漏的。
+    // 同 reach 意味着同样重要；同样重要时，越早的事越该留下。
     const legends = this.trimRecords(this.legends, this.config.libraryBudget.legends, (a, b) => {
       if (a.reach !== b.reach) return b.reach - a.reach;
-      if (a.formedDay !== b.formedDay) return b.formedDay - a.formedDay;
+      if (a.formedDay !== b.formedDay) return a.formedDay - b.formedDay;
       return a.legendId.localeCompare(b.legendId);
     });
     if (legends.byCount + legends.byBytes > 0) {
@@ -2042,6 +2073,63 @@ export class MemoryWorld {
       });
       this.refreshRelation(from, to);
     }
+  }
+
+  /**
+   * 结算当天的日常照面。每对每天至多一次，证据指向当天那一条街头事件。
+   *
+   * 只认 `street_greet / street_yield / street_together`——它们是「见过」
+   * 这一档，不是「出过事」那一档。已经有积怨（warmth < 0）的一对不靠
+   * 天天见面自动和好：那得靠 0.4 以上的事件。
+   */
+  private accrueDailyAcquaintance(closedDay: number): void {
+    const seen = new Set<string>();
+    for (const fact of this.facts.values()) {
+      if (fact.day !== closedDay || !ACQUAINTANCE_KINDS.has(fact.kind)) continue;
+      const pair = this.characterPair(fact.actors);
+      if (pair === null) continue;
+      const key = pairKey(pair[0], pair[1]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      this.touchAcquaintance(pair[0], pair[1], closedDay, fact.eventId);
+      this.touchAcquaintance(pair[1], pair[0], closedDay, fact.eventId);
+    }
+  }
+
+  private characterPair(actors: readonly string[]): readonly [string, string] | null {
+    const characters = actors.filter((id) => this.holders.get(id)?.type === 'character');
+    if (characters.length < 2) return null;
+    return [characters[0]!, characters[1]!];
+  }
+
+  private touchAcquaintance(from: string, to: string, day: number, eventId: string): void {
+    if (from === to) return;
+    const key = this.bondKey(from, to);
+    const current = this.bonds.get(key);
+    // 负 warmth 是「有过节」，不是「不熟」；日常照面不能把它抹平。
+    if (current !== undefined && current.warmth < 0) return;
+    const familiarity = clamp01(
+      (current?.familiarity ?? 0) +
+        (ACQUAINTANCE_FAMILIARITY_CEIL - (current?.familiarity ?? 0)) * ACQUAINTANCE_FAMILIARITY_STEP,
+    );
+    const warmth = clampBond(
+      (current?.warmth ?? 0) +
+        (ACQUAINTANCE_WARMTH_CEIL - (current?.warmth ?? 0)) * ACQUAINTANCE_WARMTH_STEP,
+    );
+    const evidence = [eventId, ...(current?.evidence ?? []).filter((id) => id !== eventId)].slice(0, 8);
+    this.bonds.set(key, {
+      from,
+      to,
+      trust: current?.trust ?? 0,
+      warmth,
+      debt: current?.debt ?? 0,
+      familiarity,
+      strength: clamp01(Math.max(familiarity, Math.abs(current?.trust ?? 0), Math.abs(warmth))),
+      confidence: current?.confidence ?? 0.6,
+      evidence,
+      updatedDay: day,
+    });
+    this.refreshRelation(from, to);
   }
 
   /**

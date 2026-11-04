@@ -43,13 +43,13 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, '59db174d6c219cf60b857747a010578e2f7b822bfb82f21ad87456b283a08a16');
+  assert.equal(memory.fingerprint, '85beb253561509319bed151b2ead185222e1801769e90064af76b6fd2347de25');
   assert.equal(memory.business.lastClosedDay, 3);
-  assert.equal(memory.business.entries, 45);
+  assert.equal(memory.business.entries, 47);
   assert.equal(memory.business.facts, 56);
   assert.equal(memory.business.claims, 37);
-  assert.equal(memory.business.beliefs, 8);
-  assert.equal(memory.business.bonds, 1);
+  assert.equal(memory.business.beliefs, 10);
+  assert.equal(memory.business.bonds, 2);
   assert.equal(memory.business.moods, 2);
   assert.equal(memory.business.bondTrustSum, -0.24);
   assert.equal(memory.business.moodValenceSum, 0.295744);
