@@ -249,15 +249,44 @@ function drawFlagstones(
   for (let i = 0; i < stones.length; i += 1) {
     const stone = stones[i]!;
     const [sx, sy, sw, sh] = stone;
-    g.fillStyle(face, 1);
+    // 每块石头自己的脸：底色档位、抖动位置、缺角都从它派生，
+    // 同一格永远同一副面孔（不读时钟、不读随机）。
+    const sh2 = hash2(x * 4 + i, y * 4 + i);
+
+    // 三档色调：stone 地形里少数石块换成 plaza——晒白/磨亮的一档。
+    // 只抬一档，且不是每格都有，读成「同一种石材的不同板」而不是马赛克。
+    const pale = terrain === 'stone' && sh2 % 11 === 0;
+    g.fillStyle(pale ? palette.plaza : face, 1);
     g.fillRect(px + sx, py + sy, sw, sh);
+
+    // 内侧倒角：右下各压 1px 缝色，让板读成有厚度，而不是贴在土上的色块。
+    g.fillStyle(seam, 1);
+    g.fillRect(px + sx, py + sy + sh - 1, sw, 1);
+    g.fillRect(px + sx + sw - 1, py + sy, 1, sh);
 
     // 光从左上打：石块上/左各 1px 受光。只有 stone 有更亮一档的 plaza 可用；
     // plaza 自身已是最亮石材，不再加高光，避免出现白线。
-    if (terrain === 'stone') {
-      g.fillStyle(palette.plaza, 1);
+    // 受光线用 0.45 而不是实色：`lamp-band` 的石板路采样带正好压在灯池上，
+    // 整片石板提亮会把「灯亮 - 灯灭」的列 ΔY 摊薄（实色版实测 10.95 → 5.6pp）。
+    if (terrain === 'stone' && !pale) {
+      g.fillStyle(palette.plaza, 0.45);
       g.fillRect(px + sx, py + sy, sw, 1);
       g.fillRect(px + sx, py + sy, 1, sh);
+      // 交界抖动：受光线下面隔列点两颗，把 1px 硬边散成石材颗粒。
+      const dot = sh2 % 11;
+      const d1 = (dot % 4 + 1) * 2;
+      const d2 = d1 + 3;
+      if (d1 < sw - 1) g.fillRect(px + sx + d1, py + sy + 1, 1, 1);
+      if (d2 < sw - 1) g.fillRect(px + sx + d2, py + sy + 2, 1, 1);
+    }
+
+    // 广场最亮，不再往上抬；改用稀疏石粒把平涂打散（每几块才一颗）。
+    if (terrain === 'plaza' && sh2 % 3 === 0) {
+      const gx2 = px + sx + 1 + (sh2 % Math.max(1, sw - 3));
+      const gy2 = py + sy + 2 + ((sh2 >>> 8) % Math.max(1, sh - 4));
+      g.fillStyle(palette.stone, 1);
+      g.fillRect(gx2, gy2, 1, 1);
+      if (sh2 % 4 === 0) g.fillRect(gx2 + 1, gy2, 1, 1);
     }
 
     // 缺角：每块石头最多一个 1px 缺口，读成磨损而不是图案。
@@ -273,7 +302,8 @@ function drawFlagstones(
     }
   }
 
-  // 石板裂纹：一条 3–5px 的折线，只在少数石格出现。
+  // 石板裂纹：一条 2–5px 的折线，只在少数石格出现；裂口右侧带一颗受光唇，
+  // 让缝不是一条纯黑的直线。
   if (h % 4 === 0) {
     const cx = px + 3 + (h % 8);
     const cy = py + 2 + ((h >>> 8) % 9);
@@ -281,6 +311,11 @@ function drawFlagstones(
     g.fillRect(cx, cy, 1, 2);
     g.fillRect(cx + 1, cy + 2, 1, 1);
     g.fillRect(cx + 2, cy + 3, 1, 1);
+    if (h % 3 === 0) {
+      g.fillStyle(palette.plaza, 1);
+      g.fillRect(cx + 1, cy - 1, 1, 1);
+      g.fillRect(cx + 3, cy + 3, 1, 1);
+    }
   }
 }
 

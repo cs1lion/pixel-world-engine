@@ -430,7 +430,21 @@ function drawBridge(
   return lanterns;
 }
 
-/** 街面铺装：石板缝 + 少量苔，不整块盖掉地形。 */
+/** 稳定整数哈希：铺装的错缝位置只由格序派生，同一条街永远是同一张脸。 */
+function hash2(a: number, b: number): number {
+  let h = Math.imul(a, 374761393) + Math.imul(b, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * 街面铺装：沿街走向的横向石缝 + 错缝竖缝 + 缝下受光唇。
+ *
+ * 旧版在每格画一条通栏横缝加一条通栏竖缝，一条街读成一张方格纸。
+ * 这里只保留「沿街的横缝」（石材本来就该顺着路走），竖缝改成上下两排错开，
+ * 且每格的错位由哈希派生，接缝不再落在格边上对齐。缝下压一档 plaza，
+ * 让板有厚度；苔和磨损只给少数格。
+ */
 function drawPaving(
   g: Phaser.GameObjects.Graphics,
   x: number,
@@ -440,13 +454,27 @@ function drawPaving(
 ): void {
   for (let i = 0; i < length; i += 1) {
     const px = x + i * TILE_PX;
-    g.fillStyle(c.ink, 0.18);
-    g.fillRect(px, y, TILE_PX, 1);
-    g.fillRect(px, y, 1, TILE_PX);
+    const h = hash2(i, length);
+    // 横缝：两道，顺着街。起止各收 1px，缝在格与格之间不断成一条通栏。
     g.fillStyle(c.stone, 0.55);
-    g.fillRect(px + 1, y + 5, TILE_PX - 1, 1);
-    g.fillRect(px + 1, y + 11, TILE_PX - 1, 1);
-    g.fillRect(px + 7, y + 1, 1, TILE_PX - 1);
+    g.fillRect(px + 1, y + 6, TILE_PX - 2, 1);
+    g.fillRect(px, y + 12, TILE_PX - 1, 1);
+    // 缝下受光唇：一档亮色贴着缝下沿，读成切过的板边。
+    // 亮度停在 0.28：实测再压暗（0.18）会让 `lamp-band` 的列 ΔY 掉到 5.6pp、
+    // 暗带拉到 4.6 格；0.28 与基线读数一致，不要再往下调。
+    g.fillStyle(c.plaza, 0.28);
+    g.fillRect(px + 1, y + 7, TILE_PX - 2, 1);
+    g.fillRect(px, y + 13, TILE_PX - 1, 1);
+    // 竖缝错缝：上中下三排各断在不同列，整条街不会出现一张网。
+    g.fillStyle(c.ink, 0.16);
+    g.fillRect(px + 7 + (h % 2), y + 1, 1, 5);
+    g.fillRect(px + 4 + (h % 3), y + 7, 1, 5);
+    g.fillRect(px + 10 + (h % 2), y + 13, 1, 3);
+    // 磨损：少数格上带一块磨亮的斑，把平铺的板面打散。
+    if (i % 9 === 0) {
+      g.fillStyle(c.plaza, 0.22);
+      g.fillRect(px + 2 + (h % 8), y + 3 + (h % 6), 3, 2);
+    }
     if (i % 6 === 0) {
       g.fillStyle(c.moss, 0.35);
       g.fillRect(px + 3, y + 2, 2, 1);
