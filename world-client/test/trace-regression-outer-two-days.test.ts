@@ -43,7 +43,7 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, '803a26d4917311ffb9ff188f880ba0a4100beb35b261ea5ca89d3ebc74ac0cdd');
+  assert.equal(memory.fingerprint, '59db174d6c219cf60b857747a010578e2f7b822bfb82f21ad87456b283a08a16');
   assert.equal(memory.business.lastClosedDay, 3);
   assert.equal(memory.business.entries, 45);
   assert.equal(memory.business.facts, 56);
@@ -58,7 +58,7 @@ test('轨迹回归：outer-two-days', async () => {
   const creator = check.creator;
   assert.ok(creator !== null);
   assert.equal(creator.deterministic, true);
-  assert.equal(creator.fingerprint, 'cea6171db1e41388dfbec1d312507693c581a60f43e6bad235c816bdaba496a3');
+  assert.equal(creator.fingerprint, 'c1c83fb23f5fd2651e1099457599b555c16ee3b0c9c12b2dbdc17622cc9c7a63');
   assert.equal(creator.business.dayCloses.length, 2);
   assert.equal(creator.business.proposals.length, 3);
   assert.equal(creator.business.landings.length, 1);

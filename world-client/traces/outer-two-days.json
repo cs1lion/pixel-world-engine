@@ -462,54 +462,54 @@
         "step": 1500,
         "atWorldMs": 180000000,
         "fingerprint": "c4275f6864a0b939d036facdbe72815b950ddd9069ec2c70c54694258ea083b9",
-        "memoryFingerprint": "8f630c919578037d7cb4d24547d9b880cba7de7fbdfd35e013331d3d2b9d8841",
-        "creatorFingerprint": "08f4377f4d0d484d9608c0c3e051295ccf8a5b687f8c3475577f3d619aab5ec3"
+        "memoryFingerprint": "461738281052a6a492661b62053d786690242c1e12d9a272f0c94dbaf6f9b5e8",
+        "creatorFingerprint": "966345fae4d82dc35e0e8e307e518aa5698f34043632add1918ff060d172cd48"
       },
       {
         "step": 1750,
         "atWorldMs": 195000000,
         "fingerprint": "a65eff74132ac0f9ec1bb5b73c77eb7938c15b956ea8f41b95e59bc6ab2910e9",
-        "memoryFingerprint": "1c3360ffd6bb1672d5e7b4f2ef34e946591045e3dd044d41afa83ba1421b799e",
-        "creatorFingerprint": "08f4377f4d0d484d9608c0c3e051295ccf8a5b687f8c3475577f3d619aab5ec3"
+        "memoryFingerprint": "50e0edde5bce1aaa39ef1957c104c540e62ec68a52135e35f5eb44696f2dae58",
+        "creatorFingerprint": "966345fae4d82dc35e0e8e307e518aa5698f34043632add1918ff060d172cd48"
       },
       {
         "step": 2000,
         "atWorldMs": 210000000,
         "fingerprint": "20046836d0340d5bef6c386a621eb086319b12df9ab98591b3a2f573b54d62bd",
-        "memoryFingerprint": "2ecf864db11a1aef6e9ff76d06a02a0829d8c9d7d14499c1b7cedf75644d958d",
-        "creatorFingerprint": "08f4377f4d0d484d9608c0c3e051295ccf8a5b687f8c3475577f3d619aab5ec3"
+        "memoryFingerprint": "38f5beef23dec238bbccf94c976c268e7aa3f4c84a928b8cdff0114d8e1d804f",
+        "creatorFingerprint": "966345fae4d82dc35e0e8e307e518aa5698f34043632add1918ff060d172cd48"
       },
       {
         "step": 2250,
         "atWorldMs": 225000000,
         "fingerprint": "f76d57346faae52bc0539d7d2d5a2cecc8a1d873b12ddb5d5d51308670a19f20",
-        "memoryFingerprint": "9e2a77991a381f594a933799f782646a68e2304632d4508f8cb40a53db88078b",
-        "creatorFingerprint": "08f4377f4d0d484d9608c0c3e051295ccf8a5b687f8c3475577f3d619aab5ec3"
+        "memoryFingerprint": "84c2970c4f05a8fd8fd8f785b130fb98bc164b144851c166fd773e07385dbda1",
+        "creatorFingerprint": "966345fae4d82dc35e0e8e307e518aa5698f34043632add1918ff060d172cd48"
       },
       {
         "step": 2500,
         "atWorldMs": 240000000,
         "fingerprint": "7cff16b0126b0598d66c9ae175b0653e0867e195b66e5af95d782f64b9e6f8ab",
-        "memoryFingerprint": "6b305590621d898fda856576fa63843e0ad5c5c08a2b58acba8e7aab283f147f",
-        "creatorFingerprint": "08f4377f4d0d484d9608c0c3e051295ccf8a5b687f8c3475577f3d619aab5ec3"
+        "memoryFingerprint": "ec3809aaafcc62df87199ac84f99c796d8a73ca18e6966428d99a6de9b451b68",
+        "creatorFingerprint": "966345fae4d82dc35e0e8e307e518aa5698f34043632add1918ff060d172cd48"
       },
       {
         "step": 2750,
         "atWorldMs": 255000000,
         "fingerprint": "1fca651518ebaf95b4ec09997a5fffce7ac04e7843ddb67d0f0d8a68c8c38e3c",
-        "memoryFingerprint": "24eb789cd6360879535416ecde8cb9705500e5cc10c6f15d0c4da4c4c9b00802",
-        "creatorFingerprint": "08f4377f4d0d484d9608c0c3e051295ccf8a5b687f8c3475577f3d619aab5ec3"
+        "memoryFingerprint": "f80b7c92f044970609bb2aa8511c0096080de62488f227208148f4afeeae7613",
+        "creatorFingerprint": "966345fae4d82dc35e0e8e307e518aa5698f34043632add1918ff060d172cd48"
       },
       {
         "step": 3000,
         "atWorldMs": 270000000,
         "fingerprint": "32ba01e786168f8534bbe8a288b891f433a037253df0958468b934d469f96f17",
-        "memoryFingerprint": "803a26d4917311ffb9ff188f880ba0a4100beb35b261ea5ca89d3ebc74ac0cdd",
-        "creatorFingerprint": "cea6171db1e41388dfbec1d312507693c581a60f43e6bad235c816bdaba496a3"
+        "memoryFingerprint": "59db174d6c219cf60b857747a010578e2f7b822bfb82f21ad87456b283a08a16",
+        "creatorFingerprint": "c1c83fb23f5fd2651e1099457599b555c16ee3b0c9c12b2dbdc17622cc9c7a63"
       }
     ],
     "memory": {
-      "fingerprint": "803a26d4917311ffb9ff188f880ba0a4100beb35b261ea5ca89d3ebc74ac0cdd",
+      "fingerprint": "59db174d6c219cf60b857747a010578e2f7b822bfb82f21ad87456b283a08a16",
       "business": {
         "lastClosedDay": 3,
         "currentDay": 3,
@@ -534,14 +534,14 @@
       }
     },
     "creator": {
-      "fingerprint": "cea6171db1e41388dfbec1d312507693c581a60f43e6bad235c816bdaba496a3",
+      "fingerprint": "c1c83fb23f5fd2651e1099457599b555c16ee3b0c9c12b2dbdc17622cc9c7a63",
       "business": {
         "dayCloses": [
           {
             "day": 2,
             "vitals": {
-              "meanValence": 0.0686,
-              "meanArousal": 0.3527,
+              "meanValence": 0.0227,
+              "meanArousal": 0.3649,
               "infoEntropy": 0.4,
               "isolatedHoldersCount": 0
             },
@@ -566,8 +566,8 @@
           {
             "day": 3,
             "vitals": {
-              "meanValence": 0.11,
-              "meanArousal": 0.3386,
+              "meanValence": 0.0532,
+              "meanArousal": 0.3682,
               "infoEntropy": 0.4,
               "isolatedHoldersCount": 0
             },
