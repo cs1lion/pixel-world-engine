@@ -4050,6 +4050,11 @@ export class SandboxScene extends Phaser.Scene {
         }
         return this.snapshot.weather;
       },
+      /**
+       * 雨幕/雾幕的真实强度（0..1）。只给证据脚本判「真晴」用：
+       * `kind` 已经是 `clear` 时强度还可能停在 0.97，单看 kind 会把雨天记成晴天。
+       */
+      debugWeatherIntensity: (): number => this.sim.weatherIntensity(),
       /** 世界时间冻住：不推进模拟，渲染循环照跑。验「暂停世界后画面静止」。 */
       debugHoldWorld: (on: boolean): boolean => {
         this.holdWorld = on;

@@ -1,0 +1,93 @@
+{
+  "issue": "check-lamp-band 在材质线复现出 75.6/4.6、75.9/3.9、76.9/1.8 三种读数；查明抖动源是载入期雨滴种子 window.__RAIN_SEED__，不是天气/潮位。",
+  "mechanism": {
+    "source": "world-client/src/render/weather.ts 读取 window.__RAIN_SEED__，页面每次载入不同；脚本 initScript 在任何模块执行前写入同值。",
+    "entry": "world-client/src/main.ts installDebugSeed()：?debug=1&debugPinSeed=<n> 替换 Math.random 为同常数 LCG，只影响 debug 层，不落存档、不进回放指纹。",
+    "trueClear": "debugSetWeather('clear') 只改 kind；雨幕按 WEATHER_FADE_MS = 5 世界分钟淡出，170→180 帧只走 10 世界秒，强度仍 ≈0.97。判真晴必须 rainStrength < 0.05。",
+    "unpinnedRain": {
+      "coverage": [0.7594, 0.7563, 0.7688],
+      "gapCells": [3.94, 4.63, 1.81],
+      "note": "同一分布的三个采样；三组均未记录种子，属历史不可追溯采样。"
+    }
+  },
+  "protocol": {
+    "url": "http://127.0.0.1:5202/",
+    "query": "?world=dengchao&time=night&feed=off&ledger=off&debug=1&debugPinSeed=<seed>&now=720",
+    "camera": { "x": 368, "y": 470 },
+    "zoom": 1,
+    "viewport": { "width": 1010, "height": 700 },
+    "street": { "x0": 240, "x1": 560 },
+    "band": { "y0": 435, "y1": 535 },
+    "threshold": 0.01,
+    "tide": 1,
+    "weather": "clear",
+    "rainStrength": 0,
+    "trueClear": true,
+    "nowWorldMs": 43380000,
+    "freezeAt": 180,
+    "cameraPinned": { "weather": true, "tide": true }
+  },
+  "readings": {
+    "coverage": 0.765625,
+    "gapCells": 4.4375,
+    "gapAt": 471,
+    "min": 0,
+    "avg": 0.03330366644488807,
+    "max": 0.07392391389350657,
+    "commands": 17377,
+    "graphics": 61,
+    "poolCommands": { "lit": 2552, "dark": 0 }
+  },
+  "sameSeed": {
+    "seed": 20261019,
+    "runs": [
+      { "run": 1, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "run": 2, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "run": 3, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true }
+    ],
+    "identical": true,
+    "fieldsCompared": ["coverage", "gapCells", "gapAt", "min", "avg", "max", "commands", "graphics", "rainStrength", "trueClear"]
+  },
+  "crossSeed": {
+    "seeds": [1, 7, 42],
+    "runs": [
+      { "seed": 1, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "seed": 7, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "seed": 42, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true }
+    ],
+    "identical": true,
+    "conclusion": "真晴 + 满潮下种子不敏感（四项与指令 0 差）；种子仍写入每条读数口径，因为雨态下雨点由它决定。"
+  },
+  "baseline": {
+    "tree": "39cff04",
+    "url": "http://127.0.0.1:5203/",
+    "seed": 20261019,
+    "now": 720,
+    "coverage": 0.765625,
+    "gapCells": 4.4375,
+    "gapAt": 471,
+    "min": 0,
+    "avg": 0.033260969096404,
+    "max": 0.0688312821811544,
+    "commands": 16972,
+    "graphics": 49,
+    "rainStrength": null,
+    "pinned": { "weather": false, "tide": false },
+    "note": "基线无 debugSetWeather/debugPinTide/debugStepWorld/debugWeatherIntensity；?now=720 落在其自然 clear 槽（720–900 clear）。"
+  },
+  "baselineVsCurrent": {
+    "coverageDiffPp": 0,
+    "gapCellsDiff": 0,
+    "gapAtDiffPx": 0,
+    "avgDiffPp": 0.00426973,
+    "maxDiffPp": 0.5092632,
+    "verdict": "覆盖/暗带/位置 0 差（≤判据带，未检出差异）；ΔY avg +0.0043pp ≤0.01pp（未检出）；ΔY max +0.509pp >0.01pp（检出，方向为峰值变亮，非覆盖退化）。结论：无可检出的退化。"
+  },
+  "band": {
+    "coveragePp": 0.08,
+    "gapCells": 1,
+    "deltaYAvgPp": 0.01,
+    "gapAtPx": 1,
+    "scope": "仅在「种子钉住 + 真晴（rainStrength<0.05）+ 满潮」下成立；任一口径未钉即回到「不可比」，不是带宽变大。"
+  }
+}

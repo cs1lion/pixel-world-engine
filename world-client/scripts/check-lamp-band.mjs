@@ -33,6 +33,12 @@ const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', '
 const LABEL = process.env.BAND_LABEL ?? 'after';
 mkdirSync(OUT, { recursive: true });
 
+/** 截图/回归的载入种子：同一种子下，载入期随机不取墙钟。 */
+const SEED = Number.parseInt(process.env.BAND_SEED ?? '20261019', 10);
+if (!Number.isFinite(SEED)) throw new Error(`BAND_SEED 不是整数：${process.env.BAND_SEED}`);
+/** 可选的世界分钟入口（`?now=<0..1439>`）：回基线时用来对齐到同一天气槽。 */
+const NOW = process.env.BAND_NOW ?? null;
+const NOW_PARAM = NOW === null ? '' : `&now=${Number.parseInt(NOW, 10)}`;
 const SETUP_AT = 80;
 const ACTION_AT = 170;
 const FREEZE_AT = 180;
@@ -47,17 +53,20 @@ const BAND_Y1 = 535;
 /** 判定「有光」的阈值：灯亮比灯灭高 1 个百分点。 */
 const LIGHT_DY = 0.01;
 
-function initScript({ freezeAt }) {
+function initScript({ freezeAt, seed }) {
   try {
     localStorage.clear();
   } catch {
     /* 忽略 */
   }
-  let rng = 20261019;
+  let rng = seed >>> 0;
   Math.random = () => {
     rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
     return rng / 4294967296;
   };
+  // 雨滴种子（`render/weather.ts` 的 `__RAIN_SEED__`）必须在任何模块执行前钉住，
+  // 否则每次载入的雨态像素都不同——75.94 / 75.63 / 76.88 三组就是它的三个采样。
+  window.__RAIN_SEED__ = seed;
   const state = { frame: 0, frozen: false };
   window.__CAPTURE_STATE__ = state;
   const realRaf = window.requestAnimationFrame.bind(window);
@@ -81,8 +90,8 @@ async function capture(browser, { id, force }) {
   const page = await browser.newPage({ viewport: { width: 1010, height: 700 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(initScript, { freezeAt: FREEZE_AT });
-  await page.goto(`${BASE}?world=dengchao&time=night&feed=off&ledger=off`, { waitUntil: 'load' });
+  await page.addInitScript(initScript, { freezeAt: FREEZE_AT, seed: SEED });
+  await page.goto(`${BASE}?world=dengchao&time=night&feed=off&ledger=off&debug=1&debugPinSeed=${SEED}${NOW_PARAM}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.Oracle?.view !== undefined, null, { timeout: 30000 });
 
   const canvas = page.locator('canvas').first();
@@ -121,11 +130,15 @@ async function capture(browser, { id, force }) {
     now: typeof window.Oracle.debugStepWorld === 'function' ? window.Oracle.debugStepWorld(0) : null,
     weather: window.Oracle.view().weather,
   }));
+  // 「真晴」不能只看 kind：雨幕强度 `rainStrength` 还可能是 0.97。阈值 0.05 写死。
+  const rainStrength = await page.evaluate(() =>
+    typeof window.Oracle.debugWeatherIntensity === 'function' ? window.Oracle.debugWeatherIntensity() : null,
+  );
   const file = join(OUT, `lamp-band-${LABEL}-${id}.png`);
   await page.screenshot({ path: file, clip: box });
   const buf = readFileSync(file);
   await page.close();
-  return { id, file, buf, cam, stats, poolCommands, tideLevel, worldState, pinned, errors };
+  return { id, file, buf, cam, stats, poolCommands, tideLevel, worldState, rainStrength, pinned, errors };
 }
 
 const toLinear = (v) => {
@@ -290,10 +303,16 @@ async function pixelDiff(page, beforeBuf, afterBuf) {
 }
 
 // 改前 / 改后的像素差：灯亮图应只在池子附近变，灯灭图应一个像素都不变。
+// 只有 `before` 与本次同种子、同为真晴时才比；否则是跨协议比较，按读数纪律不作数。
+const beforeJsonFile = join(OUT, 'lamp-band-before.json');
 const beforeLitFile = join(OUT, 'lamp-band-before-lit.png');
 const beforeDarkFile = join(OUT, 'lamp-band-before-dark.png');
+const beforeParams = existsSync(beforeJsonFile)
+  ? (JSON.parse(readFileSync(beforeJsonFile, 'utf8')).params ?? null)
+  : null;
+const sameProtocol = beforeParams !== null && beforeParams.seed === SEED && beforeParams.trueClear === true;
 let diff = null;
-if (LABEL !== 'before' && existsSync(beforeLitFile) && existsSync(beforeDarkFile)) {
+if (LABEL !== 'before' && sameProtocol && existsSync(beforeLitFile) && existsSync(beforeDarkFile)) {
   diff = {
     lit: await pixelDiff(reader, readFileSync(beforeLitFile), lit.buf),
     dark: await pixelDiff(reader, readFileSync(beforeDarkFile), dark.buf),
@@ -302,6 +321,8 @@ if (LABEL !== 'before' && existsSync(beforeLitFile) && existsSync(beforeDarkFile
 await reader.close();
 
 const pct = (v) => `${(v * 100).toFixed(1)}%`;
+/** 真晴判据：kind=clear 不算，雨幕强度必须 < 0.05（写死）。基线无可读强度时记 null。 */
+const TRUE_CLEAR = lit.rainStrength !== null && lit.rainStrength < 0.05;
 const result = {
   label: LABEL,
   /** 读数口径（与 README 的「每条读数带全口径」要求一一对应）。 */
@@ -318,6 +339,11 @@ const result = {
     phase: 'night',
     now: lit.worldState.now,
     freezeAt: FREEZE_AT,
+    /** 载入种子：`?debug=1&debugPinSeed=` 与 initScript 的 LCG / `__RAIN_SEED__` 同值；跨种子比较必须先钉种子。 */
+    seed: SEED,
+    /** 雨幕强度（0..1）。只记 kind 不算钉晴；真晴要求 < 0.05。 */
+    rainStrength: lit.rainStrength,
+    trueClear: lit.rainStrength === null ? null : TRUE_CLEAR,
     /** 天气/潮位是否真钉上了（39cff04 没有这两个口子，基线读数只能记实际天气）。 */
     pinned: lit.pinned,
   },
@@ -341,7 +367,7 @@ writeFileSync(join(OUT, `lamp-band-${LABEL}.json`), `${JSON.stringify(result, nu
 
 console.log(`[${LABEL}] 街段 x ${STREET_X0}..${STREET_X1}，覆盖 ${pct(prof.coverage)}，最长暗带 ${prof.gapCells.toFixed(1)} 格（起点 x ${prof.gapAt}）`);
 console.log(`  ΔY min ${(prof.min * 100).toFixed(2)} / avg ${(prof.avg * 100).toFixed(2)} / max ${(prof.max * 100).toFixed(2)} pp`);
-console.log(`  口径 机位 x${CAMERA.x}/y${CAMERA.y}、zoom ${lit.cam.zoom}、x${STREET_X0}..${STREET_X1}×y${BAND_Y0}..${BAND_Y1}、${LIGHT_DY * 100}pp、潮位 ${lit.tideLevel}、相位 night（?time=night 强制）、${lit.worldState.weather}（钉天气 ${lit.pinned.weather ? '是' : '否'}）、视口 1010×700`);
+console.log(`  口径 机位 x${CAMERA.x}/y${CAMERA.y}、zoom ${lit.cam.zoom}、x${STREET_X0}..${STREET_X1}×y${BAND_Y0}..${BAND_Y1}、${LIGHT_DY * 100}pp、潮位 ${lit.tideLevel}、相位 night（?time=night 强制）、${lit.worldState.weather}（雨幕 ${lit.rainStrength === null ? '不可读' : lit.rainStrength.toFixed(3)}，${TRUE_CLEAR ? '真晴' : '未达晴阈'}）、种子 ${SEED}（钉住）、天气口子 ${lit.pinned.weather ? '有' : '无'} / 潮位口子 ${lit.pinned.tide ? '有' : '无'}、视口 1010×700`);
 console.log(`  指令 ${lit.stats.totalCommands} / Graphics ${lit.stats.graphicsObjects}；潮位 ${lit.tideLevel}`);
 console.log(`  光池指令：灯亮 ${lit.poolCommands} / 灯灭 ${dark.poolCommands}`);
 if (diff !== null) {

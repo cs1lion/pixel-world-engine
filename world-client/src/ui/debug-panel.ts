@@ -337,6 +337,8 @@ export interface DebugOracle {
   };
   /** 证据脚本要一份确定的雨天：下一条 `setWeather`，世界照常走一步。 */
   debugSetWeather?(weather: 'clear' | 'rain' | 'storm' | 'fog'): string;
+  /** 雨幕/雾幕真实强度（0..1）；判「真晴」不能只看 kind。 */
+  debugWeatherIntensity?(): number;
   /** 钉死「摊子已盖」这一渲染态（`null` 交回天气）；只压画面，不改世界。 */
   debugForcePacked?(on: boolean | null): boolean | null;
   /**
