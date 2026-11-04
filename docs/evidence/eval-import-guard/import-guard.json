@@ -1,0 +1,141 @@
+{
+  "schema": "eval-import-guard/1",
+  "contract": {
+    "fabricatedDowngraded": true,
+    "prunedLegitPreserved": true,
+    "uncorroboratedDowngraded": true,
+    "realSamplePreserved": true,
+    "soakPreserved": true
+  },
+  "passed": 5,
+  "total": 5,
+  "elapsedMs": 43.61,
+  "scenarios": {
+    "fabricated": {
+      "name": "fabricated",
+      "witnessedBefore": 3,
+      "witnessedAfter": 2,
+      "refused": 0,
+      "downgraded": 1,
+      "prunedUnverifiable": 0,
+      "probedMode": "heard",
+      "probedRecalled": true,
+      "importReport": {
+        "schema": "memory-import-report/1",
+        "witnessedBefore": 3,
+        "witnessedAfter": 2,
+        "refusedEntries": 0,
+        "downgradedEntries": 1,
+        "prunedUnverifiable": 0,
+        "refusedMemoryIds": [],
+        "downgradedMemoryIds": [
+          "m_fake_ghost"
+        ],
+        "prunedUnverifiableMemoryIds": []
+      }
+    },
+    "prunedLegit": {
+      "name": "prunedLegit",
+      "witnessedBefore": 2,
+      "witnessedAfter": 2,
+      "refused": 0,
+      "downgraded": 0,
+      "prunedUnverifiable": 2,
+      "probedMode": "witnessed",
+      "probedRecalled": true,
+      "importReport": {
+        "schema": "memory-import-report/1",
+        "witnessedBefore": 2,
+        "witnessedAfter": 2,
+        "refusedEntries": 0,
+        "downgradedEntries": 0,
+        "prunedUnverifiable": 2,
+        "refusedMemoryIds": [],
+        "downgradedMemoryIds": [],
+        "prunedUnverifiableMemoryIds": [
+          "m_sum_a_0",
+          "m_0002"
+        ]
+      }
+    },
+    "uncorroborated": {
+      "name": "prunedWithoutCorroboration",
+      "witnessedBefore": 2,
+      "witnessedAfter": 0,
+      "refused": 0,
+      "downgraded": 2,
+      "prunedUnverifiable": 0,
+      "probedMode": "heard",
+      "probedRecalled": true,
+      "importReport": {
+        "schema": "memory-import-report/1",
+        "witnessedBefore": 2,
+        "witnessedAfter": 0,
+        "refusedEntries": 0,
+        "downgradedEntries": 2,
+        "prunedUnverifiable": 0,
+        "refusedMemoryIds": [],
+        "downgradedMemoryIds": [
+          "m_sum_a_0",
+          "m_0002"
+        ],
+        "prunedUnverifiableMemoryIds": []
+      }
+    },
+    "realSample": {
+      "name": "realSample",
+      "witnessedBefore": 25,
+      "witnessedAfter": 25,
+      "refused": 0,
+      "downgraded": 0,
+      "prunedUnverifiable": 0,
+      "probedMode": null,
+      "probedRecalled": false,
+      "importReport": {
+        "schema": "memory-import-report/1",
+        "witnessedBefore": 25,
+        "witnessedAfter": 25,
+        "refusedEntries": 0,
+        "downgradedEntries": 0,
+        "prunedUnverifiable": 0,
+        "refusedMemoryIds": [],
+        "downgradedMemoryIds": [],
+        "prunedUnverifiableMemoryIds": []
+      }
+    },
+    "soak": {
+      "name": "soakArchive",
+      "witnessedBefore": 71,
+      "witnessedAfter": 71,
+      "refused": 0,
+      "downgraded": 0,
+      "prunedUnverifiable": 12,
+      "probedMode": null,
+      "probedRecalled": false,
+      "importReport": {
+        "schema": "memory-import-report/1",
+        "witnessedBefore": 71,
+        "witnessedAfter": 71,
+        "refusedEntries": 0,
+        "downgradedEntries": 0,
+        "prunedUnverifiable": 12,
+        "refusedMemoryIds": [],
+        "downgradedMemoryIds": [],
+        "prunedUnverifiableMemoryIds": [
+          "m_7953",
+          "m_7955",
+          "m_7977",
+          "m_7997",
+          "m_7999",
+          "m_8003",
+          "m_7817",
+          "m_7773",
+          "m_7912",
+          "m_7868",
+          "m_8001",
+          "m_7957"
+        ]
+      }
+    }
+  }
+}
