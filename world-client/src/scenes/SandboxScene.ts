@@ -96,6 +96,8 @@ import {
   type GroundShadowMotion,
 } from '../world/ground-shadow.ts';
 import { pinVillagers } from '../render/villager-pin.ts';
+import { animStep } from '../render/villager-frames.ts';
+import { animationTransitionsOn, setAnimationTransitions } from '../render/villager-transition.ts';
 import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp-motion.ts';
 import { STALL_MOTION_ON, type StallMotion } from '../world/stall-motion.ts';
 import { BANNER_MOTION_ON, type BannerMotion } from '../world/banner-motion.ts';
@@ -3888,6 +3890,33 @@ export class SandboxScene extends Phaser.Scene {
       },
       /** 立刻把镜头中心对准世界坐标（不带动画）。小地图跳转与测试都用它。 */
       centerCameraOn: (x: number, y: number): void => this.cameraCtl.panTo(x, y, 0),
+      /**
+       * 动画验收开关：关掉第二步的转身/进出过渡（立即落终态），
+       * 第一步的预备/收招与 hold 不受影响。
+       */
+      setAnimationTransitions: (on: boolean): boolean => {
+        setAnimationTransitions(on);
+        return animationTransitionsOn();
+      },
+      /** 当前每个村民的动画读数：帧号、动作、hold、关键姿势、过渡 alpha。 */
+      animationState: () =>
+        this.snapshot.villagers.map((villager) => {
+          const view = this.villagerViews.get(villager.id);
+          const frame = view?.motion.current() ?? null;
+          return {
+            id: villager.id,
+            name: villager.name,
+            beat: animStep(this.snapshot.now),
+            walking: villager.walking,
+            facing: villager.facing,
+            frame: frame?.frame ?? null,
+            kind: frame?.kind ?? null,
+            hold: frame?.hold ?? false,
+            keyPose: frame?.keyPose ?? false,
+            visible: view?.container.visible ?? false,
+            alpha: view?.container.alpha ?? 1,
+          };
+        }),
       /**
        * 诊断：某个单位此刻记得什么。
        *

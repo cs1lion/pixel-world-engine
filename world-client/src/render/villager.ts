@@ -21,17 +21,24 @@ import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
 import {
+  animStep,
   lampAnimationTime,
+  MotionTracker,
   pixelAt,
+  villagerMotionPose,
   villagerPose,
   type VillagerPose,
 } from './villager-frames.ts';
 import {
   VILLAGER_H,
   VILLAGER_W,
+  villagerLayeredLayout,
   villagerLayout,
   type PaintRole,
+  type PixelRect,
 } from './villager-layout.ts';
+import { emotionOf, expressionRects, isTalking } from './villager-face.ts';
+import { VillagerTransition } from './villager-transition.ts';
 import { DEFAULT_LOOK, resolveLook, type VillagerLook } from '../world/villager-look.ts';
 
 export { VILLAGER_H, VILLAGER_W };
@@ -39,9 +46,20 @@ export { VILLAGER_H, VILLAGER_W };
 export interface VillagerView {
   readonly container: Phaser.GameObjects.Container;
   readonly body: Phaser.GameObjects.Graphics;
+  /** 表情覆盖层：眉眼口的 1–2px cell，独立于身体，身体区域因此可逐字节比对。 */
+  readonly face: Phaser.GameObjects.Graphics;
   readonly shadow: Phaser.GameObjects.Graphics;
   /** 这盏灯的余量。跟着人走，不跟着帧——掉帧不该让油少烧。 */
   lamp: LampState;
+  /**
+   * 动作序列播放器（关键姿势/hold/预备/收招）。只活在渲染层，
+   * 按世界拍推进；世界与存档不知道它存在。
+   */
+  readonly motion: MotionTracker;
+  /** 上半身的独立序列：走路时腿走 `motion`，上身走这一条。 */
+  readonly upper: MotionTracker;
+  /** 转身/进出的过渡状态；同样只活在渲染层。 */
+  readonly transition: VillagerTransition;
 }
 
 /** 世界递下来的外观：设定集给的四个维度 + 颜色槽，以及「她提没提灯」。 */
@@ -70,8 +88,18 @@ export function createVillager(
   drawVillager(body, DEFAULT_LOOK, paletteFor(), 'down', villagerPose('idle', false, 0), 'idle', false, 0);
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
-  const container = scene.add.container(originX, originY, [shadow, body]);
-  return { container, body, shadow, lamp: newLamp() };
+  const face = scene.add.graphics();
+  const container = scene.add.container(originX, originY, [shadow, body, face]);
+  return {
+    container,
+    body,
+    face,
+    shadow,
+    lamp: newLamp(),
+    motion: new MotionTracker(),
+    upper: new MotionTracker(),
+    transition: new VillagerTransition(),
+  };
 }
 
 /** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
@@ -131,10 +159,15 @@ export function updateVillager(
   palette: WorldPalette = paletteFor(),
 ): void {
   const foot = villagerFootAt(villager.pos, originX, originY);
-  const px = foot.x;
+  const beat = animStep(nowMs);
+  // 过渡只改画面：转身固定 2 拍、进出固定 3 拍；关掉开关立即落终态。
+  const turn = view.transition.sampleFacing(villager.facing, beat);
+  const fade = view.transition.sampleVisible(villager.visible, beat);
+  const px = foot.x + turn.offsetX;
   const py = foot.y;
   view.container.setPosition(px, py);
-  view.container.setVisible(villager.visible);
+  view.container.setVisible(fade.visible);
+  view.container.setAlpha(fade.alpha);
   view.container.setDepth(villagerDepthAt(py, altitude));
 
   // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
@@ -151,19 +184,38 @@ export function updateVillager(
   const oil = withLamp ? view.lamp.oil : 1;
   // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
-  const pose = villagerPose(villager.mode, villager.walking, lampAnimationTime(oil, nowMs));
+  const pose = villagerMotionPose(
+    villager.mode,
+    villager.walking,
+    lampAnimationTime(oil, nowMs),
+    view.motion,
+  );
+  // 上半身走自己的序列：站着/走着/干活时都放待机两帧的呼吸；腿按
+  // `view.motion` 走走路/干活序列。两条序列因此天然不同步，`animationState`
+  // 里能逐拍读出上下半身的帧号差。
+  const upperPose = villagerMotionPose(
+    'idle',
+    false,
+    lampAnimationTime(oil, nowMs),
+    view.upper,
+  );
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
   view.body.setAlpha(lampBodyAlpha(oil));
+  view.face.setAlpha(lampBodyAlpha(oil));
   view.body.clear();
-  drawVillager(
+  view.face.clear();
+  drawVillagerLayered(
     view.body,
+    view.face,
     appearance?.look ?? resolveLook(undefined),
     palette,
-    villager.facing,
+    turn.facing,
+    upperPose,
     pose,
     villager.mode,
     villager.walking,
     nowMs,
+    villager.bubble,
   );
   if (withLamp) {
     // 快照里的灯油只在这里影响画面；燃料不会变成任务或路径的隐藏条件。
@@ -216,6 +268,53 @@ function drawVillager(
   for (const item of villagerLayout(look, facing, pose, walking, mode, nowMs)) {
     g.fillStyle(paintColor(item.paint, look, palette), PAINT_ALPHA[item.paint] ?? 1);
     g.fillRect(item.x, item.y, item.w, item.h);
+  }
+}
+
+/**
+ * 分层绘制：外套（上身姿态）→ 腿（下身姿态）→ 头/围巾/配饰/手持物（上身姿态），
+ * 画序与整帧版逐项相同；表情只画在独立的 `face` 层上。
+ */
+function drawVillagerLayered(
+  body: Phaser.GameObjects.Graphics,
+  face: Phaser.GameObjects.Graphics,
+  look: VillagerLook,
+  palette: WorldPalette,
+  facing: VillagerSnapshot['facing'],
+  upperPose: VillagerPose,
+  lowerPose: VillagerPose,
+  mode: VillagerSnapshot['mode'],
+  walking: boolean,
+  nowMs: number,
+  bubble: string | null,
+): void {
+  const layers = villagerLayeredLayout(
+    look,
+    facing,
+    upperPose,
+    lowerPose,
+    walking,
+    mode,
+    nowMs,
+  );
+  const fill = (g: Phaser.GameObjects.Graphics, item: PixelRect): void => {
+    g.fillStyle(paintColor(item.paint, look, palette), PAINT_ALPHA[item.paint] ?? 1);
+    g.fillRect(item.x, item.y, item.w, item.h);
+  };
+  for (const item of layers.cloth) fill(body, item);
+  for (const item of layers.legs) fill(body, item);
+  for (const item of layers.detail) fill(body, item);
+
+  // 表情覆盖层：1–2px 的眉眼口 cell；只换情绪时，上面的身体矩形一字不动。
+  for (const item of expressionRects(
+    look,
+    facing,
+    emotionOf(mode, bubble),
+    animStep(nowMs),
+    isTalking(bubble),
+  )) {
+    face.fillStyle(paintColor(item.paint, look, palette), 1);
+    face.fillRect(item.x, item.y + upperPose.offsetY, item.w, item.h);
   }
 }
 

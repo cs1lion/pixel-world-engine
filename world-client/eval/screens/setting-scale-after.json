@@ -19,14 +19,14 @@
     "height": 320
   },
   "stats": {
-    "graphicsObjects": 46,
-    "totalCommands": 12363,
+    "graphicsObjects": 61,
+    "totalCommands": 17550,
     "largest": [
-      1584,
+      2399,
+      2010,
+      1800,
       1513,
-      1338,
-      1304,
-      1290
+      1304
     ]
   },
   "metrics": {
@@ -55,24 +55,24 @@
     "second": "迷路人"
   },
   "scanned": {
-    "frameH": 48,
-    "stoneH": 4,
+    "frameH": 13,
+    "stoneH": 3,
     "bodyBottomH": 43,
     "refs": {
       "frame": [
-        65,
-        45,
-        50
+        61,
+        48,
+        55
       ],
       "stone": [
-        82,
-        102,
-        106
+        75,
+        96,
+        102
       ],
       "post": [
-        65,
-        45,
-        50
+        61,
+        48,
+        55
       ]
     },
     "metricsDriven": true

@@ -233,22 +233,22 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 12778,
+            "totalCommands": 14449,
             "largest": [
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304,
               1290
             ]
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 12540,
+            "totalCommands": 14211,
             "largest": [
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304,
               1290
             ]
@@ -452,22 +452,22 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 12778,
+            "totalCommands": 14449,
             "largest": [
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304,
               1290
             ]
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 12540,
+            "totalCommands": 14211,
             "largest": [
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304,
               1290
             ]
@@ -675,23 +675,23 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 17282,
+            "totalCommands": 18953,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 17044,
+            "totalCommands": 18715,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           }
@@ -894,23 +894,23 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 17282,
+            "totalCommands": 18953,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 17044,
+            "totalCommands": 18715,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           }
@@ -923,8 +923,8 @@
           "x1": 398,
           "y1": 518
         },
-        "on3x": "fac20d4b083ed023061fff1e0ee39f133e64cca75768e541d196f78644b704f2",
-        "off3x": "2eeb96fb21035836bef68e7209b4e52b109889223ada88325711d7bc10474300"
+        "on3x": "6e97da5e3af8902a436ce5afe6aa3937c63b4d71f11e7ccbe83ebb6b58c09864",
+        "off3x": "b5c5bdf88e081552bd144e0764d00ac21bc95ed1aa70a0e2e3565fe33e62dbd1"
       }
     },
     {
@@ -1121,23 +1121,23 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 16932,
+            "totalCommands": 18603,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 16932,
+            "totalCommands": 18603,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           }
@@ -1335,23 +1335,23 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 16932,
+            "totalCommands": 18603,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 16932,
+            "totalCommands": 18603,
             "largest": [
               2552,
+              2399,
+              2010,
               1513,
-              1400,
-              1338,
               1304
             ]
           }
@@ -1402,42 +1402,42 @@
       "maxDelta": 0,
       "bbox": null
     },
-    "framesAdvanced": 73,
+    "framesAdvanced": 67,
     "nowA": 65400100,
     "nowB": 65400100
   },
   "determinism": 13,
   "determinismProbe": {
     "pass1": [
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee"
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893"
     ],
     "pass2": [
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
-      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee"
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893",
+      "a48e8c13057b249c456c7e940d91772ab1d178f6a7552ad15a433ecba12e3893"
     ]
   },
-  "peakCommands": 17282
+  "peakCommands": 18953
 }

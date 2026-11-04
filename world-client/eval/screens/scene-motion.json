@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T02:02:25.786Z",
+  "generatedAt": "2026-11-04T15:24:51.196Z",
   "ignition": {
     "atOn": {
       "total": 28,
@@ -248,8 +248,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 39848,
-      "ratio": 0.11792140151515151,
+      "changed": 39872,
+      "ratio": 0.11799242424242425,
       "maxDelta": 158,
       "bbox": {
         "x0": 0,
@@ -257,8 +257,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 39848,
-      "fullRatio": 0.06578182778658215
+      "fullChanged": 39872,
+      "fullRatio": 0.06582144743792921
     },
     "all-off": {
       "roi": {
@@ -303,8 +303,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 35964,
-      "ratio": 0.10642755681818182,
+      "changed": 36004,
+      "ratio": 0.10654592803030304,
       "maxDelta": 5,
       "bbox": {
         "x0": 0,
@@ -312,8 +312,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 35964,
-      "fullRatio": 0.05937004754358162
+      "fullChanged": 36004,
+      "fullRatio": 0.05943608029582673
     },
     "ignite-only": {
       "roi": {
@@ -433,85 +433,107 @@
   "determinism": [
     {
       "id": "1759",
-      "a": "49631abfed5a0e98db5a3ffe67e9a4a9a095cb209d88533994754c3ece4e3660",
-      "b": "49631abfed5a0e98db5a3ffe67e9a4a9a095cb209d88533994754c3ece4e3660",
-      "same": true
+      "a": "11580bf1898c120b004bbba40c59ff77984d574f9d7c81979040ee7c71c895a6",
+      "b": "8d055b8b92eddf52d952fcd7ea5fb27dd8f0871972c30933a8fc08c5dd326887",
+      "same": false
     },
     {
       "id": "1800",
-      "a": "8b4eb89cf28bb318a47c1cd24312b2529b5dc16e4600ce77c959c8de44e41aac",
-      "b": "8b4eb89cf28bb318a47c1cd24312b2529b5dc16e4600ce77c959c8de44e41aac",
-      "same": true
+      "a": "ccfdd88135d8874d60d6bed8e05b2d8ad364c357ab9bc8062cb2c67d7edc0a3c",
+      "b": "ad07efc5501a7be254e16c54c8e51c36888556019687d238a650d6e8f97f38d1",
+      "same": false
     },
     {
       "id": "1800-10",
-      "a": "d60a2425cfc55f386e0f13d0f0653e10981d118998eb4e4e2420ab91b59b69c6",
-      "b": "d60a2425cfc55f386e0f13d0f0653e10981d118998eb4e4e2420ab91b59b69c6",
-      "same": true
+      "a": "422d864d66150a665ba5f862ea22230319ac85cc69ffaac44c9657f75c470123",
+      "b": "0b5d3378f20972f20d1fddc1f2e958bb880188a7d4728f71059e509382896e1b",
+      "same": false
     },
     {
       "id": "1800-30",
-      "a": "78c40d74d18e9f66b5dd4bf078e8acd86e338d08b9957fd3fbe3309f7715b0c0",
-      "b": "78c40d74d18e9f66b5dd4bf078e8acd86e338d08b9957fd3fbe3309f7715b0c0",
-      "same": true
+      "a": "565afba41a6026bf656b95317ee6f7e36dc2a3496c7a8308ff31adf2a44d27fe",
+      "b": "a21b6dd2b5135bdc1354a78d3cc2311698cd136543887e77d7e7c57a08bfff5a",
+      "same": false
     },
     {
       "id": "1801",
-      "a": "b273647b1e765a3262dacf682d0af2795da7b6abd3ae8c70815ee78fab406522",
-      "b": "b273647b1e765a3262dacf682d0af2795da7b6abd3ae8c70815ee78fab406522",
-      "same": true
+      "a": "1e321ebf242f227163919204cab0325b2601fca9401c4eac5f31b9d3d6c0643a",
+      "b": "8d329e3e514f126f7233cbfe252b8532a4c9ee5f955386ba7da9184fd4f96a3f",
+      "same": false
     },
     {
       "id": "1802",
-      "a": "41d9673f6366f95f90caf99ea9304a2ec44835d6efa77af5336481fbce4d07cc",
-      "b": "41d9673f6366f95f90caf99ea9304a2ec44835d6efa77af5336481fbce4d07cc",
-      "same": true
+      "a": "8804de925c0ec9b0f996322c5a6e952d6d68b245a10ce6b57a2e3a49bb038951",
+      "b": "bc8966dc183e480b6ca23ca4c7fb4309b9eb5daf56f664657abb0be1093c8242",
+      "same": false
     },
     {
       "id": "1803",
-      "a": "781c9a2febbb531d7cc80274cac9a67e2b2d9596962e276abafca155076ccdbc",
-      "b": "781c9a2febbb531d7cc80274cac9a67e2b2d9596962e276abafca155076ccdbc",
-      "same": true
+      "a": "72505bffb33af46990adf21120f85814f6061581177015d71ad0f937273839a5",
+      "b": "fc6bbd7fb7d257cbf4c467e893e2ddd5becfbdf479f82b1e6bd880e2f89fc03e",
+      "same": false
     },
     {
       "id": "1804",
-      "a": "885e5333189b12986a51e6b6e1924099fac5a7610550e21fd69c4eb15dad5ad2",
-      "b": "885e5333189b12986a51e6b6e1924099fac5a7610550e21fd69c4eb15dad5ad2",
-      "same": true
+      "a": "e4f00863686da089313ec74d92cc70033c6a5ee3c912a47eebfb8f83f00cb62c",
+      "b": "5ed297737bc1b4721be3f5fd1a310567d539ef59ca54ab6967d4b07ae6aa5d6f",
+      "same": false
     },
     {
       "id": "1805",
-      "a": "b538903957f23901b1bc14553864e9d822b76869adb14029e5f99b8dffb568dc",
-      "b": "b538903957f23901b1bc14553864e9d822b76869adb14029e5f99b8dffb568dc",
-      "same": true
+      "a": "fda7a8098dd23b7b68590b8869fd93211e47f95e16a082608962cc9b1252a0b2",
+      "b": "ed70447de3295cf5e2bb1f4b72ff434d0347fe7c54476835c05ef3617c58a8b0",
+      "same": false
     },
     {
       "id": "1806",
-      "a": "8a35e8f03fe9cafc6e0828f65b6dbedd22f18189cca486dbeb9af60708d78ddc",
-      "b": "8a35e8f03fe9cafc6e0828f65b6dbedd22f18189cca486dbeb9af60708d78ddc",
-      "same": true
+      "a": "13917270a1baf42b96d416ef63dc5490f1746d437d4c54c8253d22643e5089fc",
+      "b": "4be52dccaebeb099de97c751072d74544f3d1475f12db413a6a6b8534f277605",
+      "same": false
     },
     {
       "id": "1806-20",
-      "a": "a1b39ed97fcbbd940e8aab2b934af116ea841fcab887c78d5f3b805c0d6d27d6",
-      "b": "a1b39ed97fcbbd940e8aab2b934af116ea841fcab887c78d5f3b805c0d6d27d6",
-      "same": true
+      "a": "7dd6dfa2007f35be7ba1089696f8f694c0107d197306b33ccec01f0fc5246268",
+      "b": "231342b3461e4ee4df22459bcc4cb9094f2cb622d68fe87468ee1d26ab5e331b",
+      "same": false
     },
     {
       "id": "1810",
-      "a": "3649a54c42e6ef33b82fe2208a1b039f929161f204a4a609fa5c85a5ac6fff3d",
-      "b": "3649a54c42e6ef33b82fe2208a1b039f929161f204a4a609fa5c85a5ac6fff3d",
-      "same": true
+      "a": "5b95419dce67d529be30a9b68081323ed018b8f2f525d0ca048fce18e71e287d",
+      "b": "289d41ae1d602e95f17440ce9224d09461a970802a54f0cd216c732b0b570bce",
+      "same": false
     },
     {
       "id": "1811",
-      "a": "f4f968d032551726c5b7cfc08a128e73f873b690ca29b17a89d07748adff8b1a",
-      "b": "f4f968d032551726c5b7cfc08a128e73f873b690ca29b17a89d07748adff8b1a",
-      "same": true
+      "a": "4f5ca7addd05ed9d9924157dd16e9aa18777d62a4645abef3bb26b14017fa316",
+      "b": "091f28fea51aec73f6af6339a3c255350f15d37887dbab5543aeca659bbf2d39",
+      "same": false
     }
   ],
-  "determinismProbe": null,
-  "peakCommands": 17474,
+  "determinismProbe": {
+    "id": "1759",
+    "diff": {
+      "roi": {
+        "x0": 0,
+        "y0": 132,
+        "x1": 960,
+        "y1": 484,
+        "pixels": 337920
+      },
+      "changed": 324356,
+      "ratio": 0.959860321969697,
+      "maxDelta": 23,
+      "bbox": {
+        "x0": 0,
+        "y0": 132,
+        "x1": 959,
+        "y1": 483
+      },
+      "fullChanged": 565584,
+      "fullRatio": 0.9336767036450079
+    }
+  },
+  "peakCommands": 19145,
   "camera": {
     "scrollX": 244,
     "scrollY": 306,

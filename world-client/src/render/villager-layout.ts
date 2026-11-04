@@ -326,6 +326,67 @@ function headRects(look: VillagerLook, facing: VillagerSnapshot['facing'], blink
   return out;
 }
 
+/**
+ * 脸的可用矩形：表情覆盖层只许画在这里面。
+ *
+ * 这一步只给出锚点（脸框 + 眼线），不重排五官——五官还在 `headRects` 里，
+ * 覆盖层画的是眉眼口的 1–2px cell。背面（`up`）没有脸，返回 null。
+ */
+export interface FaceBox {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  /** 眼睛所在的行。 */
+  readonly eyeY: number;
+}
+
+export function faceBox(look: VillagerLook, facing: VillagerSnapshot['facing']): FaceBox | null {
+  if (facing === 'up') return null;
+  const b = BUILD[look.build];
+  const top = look.head === 'bun' ? b.headTop + 2 : look.head === 'hood' ? b.headTop + 1 : b.headTop;
+  const hw = b.headW;
+  const hh = b.headH;
+  const hx = -Math.floor(hw / 2);
+  const sideView = facing === 'right' || facing === 'left';
+
+  if (look.head === 'hood') {
+    return { x: hx + 1, y: top + 3, w: hw - 2, h: 6, eyeY: top + 6 };
+  }
+  if (look.head === 'mask') {
+    const pad = sideView ? 1 : 0;
+    const fx = hx + pad;
+    const fw = hw - pad * 2;
+    const maskW = facing === 'down' ? fw - 2 : Math.max(5, fw - 3);
+    const maskH = hh - 4;
+    const mx = facing === 'down' ? fx + 1 : facing === 'right' ? fx + fw - maskW - 1 : fx + 1;
+    const my = top + 2;
+    return { x: mx, y: my, w: maskW, h: maskH, eyeY: my + 2 };
+  }
+  if (look.head === 'beard') {
+    const pad = sideView ? 1 : 0;
+    const fx = hx + pad;
+    const fw = hw - pad * 2;
+    const side = facing === 'left' ? -1 : 1;
+    const faceW = facing === 'down' ? fw - 2 : fw - 4;
+    const faceX = facing === 'down' ? fx + 1 : side < 0 ? fx + 1 : fx + 3;
+    return { x: faceX, y: top + 2, w: faceW, h: hh - 2, eyeY: top + 5 };
+  }
+  if (look.head === 'yubaba') {
+    const pad = sideView ? 2 : 0;
+    const fx = hx + pad;
+    const fw = hw - pad * 2;
+    const faceX = facing === 'down' ? fx + 1 : facing === 'right' ? fx + 2 : fx + 1;
+    const faceW = facing === 'down' ? fw - 2 : fw - 4;
+    return { x: faceX, y: top + 2, w: faceW, h: hh - 2, eyeY: top + 5 };
+  }
+  const cast = isCastLook(look);
+  const pad = cast && sideView ? -1 : 0;
+  const gx = hx - pad;
+  const gw = hw + pad * 2;
+  return { x: gx + 1, y: top + 2, w: gw - 2, h: hh - 3, eyeY: top + hh - 5 };
+}
+
 /** 眼睛：朝下两只、朝侧一只；眨眼只闭 1 帧的时长。 */
 function eyeRects(
   x: number,
@@ -864,6 +925,43 @@ export function villagerLayout(
     ...actionRects(look, pose, facing, mode, walking),
   ];
   return joints.map((item) => ({ ...item, y: item.y + lift }));
+}
+
+/**
+ * 分层版：上半身与下半身各按自己的姿态播放，画序与整帧版**逐项相同**。
+ *
+ * 画序 = 外套（上半身姿态）→ 腿（下半身姿态）→ 头/围巾/配饰/手持物（上半身姿态）。
+ * 两套姿态相同时，三段拼起来必须与 `villagerLayout` 一字不差——这条由
+ * `test/anim-express-layers.test.ts` 守着，防止分层把像素顺序偷偷改了。
+ */
+export interface VillagerLayers {
+  readonly cloth: readonly PixelRect[];
+  readonly legs: readonly PixelRect[];
+  readonly detail: readonly PixelRect[];
+}
+
+export function villagerLayeredLayout(
+  look: VillagerLook,
+  facing: VillagerSnapshot['facing'],
+  upperPose: VillagerPose,
+  lowerPose: VillagerPose,
+  walking: boolean,
+  mode: VillagerMode,
+  nowMs: number,
+): VillagerLayers {
+  const blink = nowMs > 0 && !walking && Math.floor(nowMs / 100) % 43 === 0;
+  const upperLift = upperPose.offsetY;
+  const lowerLift = lowerPose.offsetY;
+  const upperMotion = castMotion(look, facing, upperPose, walking);
+  const cloth = outfitRects(look, facing, upperMotion).map((item) => ({ ...item, y: item.y + upperLift }));
+  const legs = legRects(look, lowerPose, walking, facing).map((item) => ({ ...item, y: item.y + lowerLift }));
+  const detail = [
+    ...headRects(look, facing, blink),
+    ...scarfRects(look, walking, upperPose.frame, facing),
+    ...accentRects(look, facing, upperMotion),
+    ...actionRects(look, upperPose, facing, mode, walking),
+  ].map((item) => ({ ...item, y: item.y + upperLift }));
+  return { cloth, legs, detail };
 }
 
 // ---------------------------------------------------------------- 可判别性
