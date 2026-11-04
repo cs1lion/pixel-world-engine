@@ -365,6 +365,16 @@ export interface DayTimelineEntry extends TimelineEntry {
    * 也不编一个午夜。
    */
   readonly tick: number | null;
+  /**
+   * 这一格的时刻是否还站得住。
+   *
+   * 两件事会让它变 false：**事实被预算裁掉了**（`digest` 查不到，`when` 只剩
+   * 条目自己记的补丁），以及**这一格本身是摘要**（摘要的 `when` 是「第几天」，
+   * 不是一个时刻，`clockOf` 会把它算成 00:00，那是编的）。
+   *
+   * 面板据此写「时刻不明」而不是给一个看起来很像真的时间。
+   */
+  readonly whenKnown: boolean;
 }
 
 export interface MemoryRuntimeDeps {
@@ -887,7 +897,7 @@ export class MemoryRuntime {
    * 仍然在——「她今天经历过什么」不该因为补不上地点就整条消失。
    */
   dayTimelineFor(holderId: string, day: number): readonly DayTimelineEntry[] {
-    return this.timelineFor(holderId)
+    const rows: DayTimelineEntry[] = this.timelineFor(holderId)
       .filter((entry) => entry.day === day)
       .map((entry) => {
         const digest = this.world.factDigest(entry.eventId);
@@ -898,8 +908,48 @@ export class MemoryRuntime {
           what: digest?.what ?? null,
           atDay: digest?.day ?? null,
           tick: digest?.tick ?? null,
+          whenKnown: digest !== null && entry.kind !== 'summary',
         };
       });
+
+    // **条目被裁掉的那一天，从日摘要补回拍子**（SOAK-BUG-5）。
+    // 口径是「补缺」不是「并集」：条目层留下几格就算几格，摘要只把当天
+    // 少掉的那几格补回来——同一条事件被同一个人记下两次时，两次都该在。
+    const missing = new Map<string, number>();
+    for (const row of rows) missing.set(row.eventId, (missing.get(row.eventId) ?? 0) + 1);
+    const fromDigest = this.world.digestTimelineFor(holderId, day);
+    if (fromDigest.length === 0) return rows;
+    const digestBeats = new Map<string, number>();
+    for (const beat of fromDigest) {
+      digestBeats.set(beat.eventId, (digestBeats.get(beat.eventId) ?? 0) + 1);
+    }
+    const needed = new Map<string, number>();
+    for (const [eventId, count] of digestBeats) {
+      needed.set(eventId, Math.max(0, count - (missing.get(eventId) ?? 0)));
+    }
+    let serial = 0;
+    for (const beat of fromDigest) {
+      const left = needed.get(beat.eventId) ?? 0;
+      if (left <= 0) continue;
+      needed.set(beat.eventId, left - 1);
+      serial += 1;
+      const fact = this.world.factDigest(beat.eventId);
+      rows.push({
+        memoryId: `d_${day}_${beat.eventId}_${serial}`,
+        eventId: beat.eventId,
+        kind: beat.kind,
+        day,
+        when: fact?.tick ?? 0,
+        sourceMode: 'recalled',
+        placeId: fact?.placeId ?? beat.placeId,
+        actors: fact?.actors ?? [],
+        what: fact?.what ?? null,
+        atDay: fact?.day ?? day,
+        tick: fact?.tick ?? null,
+        whenKnown: fact !== null && beat.kind !== 'summary',
+      });
+    }
+    return rows;
   }
 
   /**

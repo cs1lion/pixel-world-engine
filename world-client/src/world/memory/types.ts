@@ -580,6 +580,8 @@ export type MemoryEventKind =
   | 'memory.consolidated'
   | 'memory.recalled'
   | 'memory.archived'
+  /** 预算淘汰。每层每天至多一条，带 `layer` / `evicted` / `byCount` / `byBytes`。 */
+  | 'memory.pruned'
   | 'memory.deleted'
   | 'cue.fired'
   | 'trace.added'
@@ -607,4 +609,72 @@ export interface MemoryEvent {
   readonly kind: MemoryEventKind;
   readonly at: number;
   readonly payload: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * 日摘要里那一天的「定性标签」。**是枚举，不是散文**：读的人要能一眼扫出
+ * 「这天有没有争执」，而不是读一段形容词。
+ *
+ * - `quiet`：那天没有任何事件，只有（或连）摘要。
+ * - `social`：有照面/交谈/同行一类的事件。
+ * - `work`：有干活、开市、建造一类的事件。
+ * - `dispute`：有冲突、争吵、斥责。
+ * - `anomaly`：有事故、失火、坍塌、失窃。
+ * - `major`：有 `importanceHint ≥ 0.6` 的大事。
+ * - `other`：有事件，但没落进上面任何一类。
+ */
+export type DayFlag = 'quiet' | 'social' | 'work' | 'dispute' | 'anomaly' | 'major' | 'other';
+
+/**
+ * 一天结束时的**压后时间轴**：日历证明「那天发生过事」，它证明「那天怎么过的」。
+ *
+ * 存在理由（SOAK-BUG-5）：90 天实跑里，条目层的 `day` 桶只有 16 格/人，
+ * 旧日片段被强度排序挤掉，回溯第 20/45/60 天时居民时间轴缺失 100%/98.4%/96.5%。
+ * 按天压成一条摘要，是「逐日降浓度」而不是「少删一点」：压掉的是句子与细节，
+ * 留下的是人、地点、拍序与事件指针。
+ *
+ * **每天至多一条**（键是 `day`），异常原句至多 3 条。字段全部是枚举或 id 列表，
+ * 不收自由文本摘要。
+ *
+ * 三档浓度见 `digest.ts` 的 `DIGEST_FULL_DAYS`：
+ * 近档（≤7 天）照旧逐条条目；中档（8–30 天）用本结构全量；
+ * 远档（>30 天）`compact = true`：地点表、异常原句清空，事件表只留 id + kind。
+ */
+export interface DayDigest {
+  readonly day: number;
+  /** 那天有活动的角色 id（升序）。回答「几个人在」。 */
+  readonly people: readonly string[];
+  /** 最先 / 最后的活动拍（事件 id）。回答「那天从什么开始、到什么结束」。 */
+  readonly firstEvent: string | null;
+  readonly lastEvent: string | null;
+  /** 当天活动涉及的地点 id（去重升序）。远档清空。 */
+  readonly places: readonly string[];
+  readonly flags: readonly DayFlag[];
+  /**
+   * 事件表：`[事件 id, kind, places 下标]`。远档地点下标一律 `-1`。
+   *
+   * kind 原样存事件自己的枚举名（`street_greet` / `conflict` …），不做二次归类：
+   * 归类表的版本会漂，而事件 kind 是事件出生时就定死的。
+   */
+  readonly events: readonly (readonly [string, string, number])[];
+  /**
+   * 与 `events` 对齐的拍子表：每个事件各被 `people` 里的哪些人记下（下标）。
+   *
+   * 允许同一个人重复出现：同一个事件可能给他留下两条不同来源的片段，
+   * 而回溯的分母数的是**条目**，不是「人×事件」的去重对。
+   */
+  readonly beats: readonly (readonly number[])[];
+  /**
+   * 与 `people` 对齐的非片段条目数（摘要 / 印象 / 习惯）。
+   *
+   * 这些条目没有事件可指，但它们在当天时间轴上占格；不记这一列，回溯会把
+   * 「有摘要的那天」算成缺失。
+   */
+  readonly extras: readonly number[];
+  /** 异常条目原句（≤3 条，仅中档）。远档清空：浓度降到「有没有事」。 */
+  readonly anomalies: readonly string[];
+  /** 指向当天重要事件（`importanceHint ≥ 0.6`）的指针，至多 3 条。 */
+  readonly pointers: readonly string[];
+  /** `true` = 远档的浓缩形态。 */
+  readonly compact: boolean;
 }

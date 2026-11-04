@@ -3524,7 +3524,7 @@ export class Simulation {
    * 送件的人挑第一个空闲的；都忙就等下一拍——不打断正在干的活。
    */
   private stepDecrees(): void {
-    const decree = awaitingDecree(this.snapshotForDecree());
+    const decree = awaitingDecree(this.decreeView());
     if (decree === null) {
       this.decreeBearer = null;
       return;
@@ -3588,12 +3588,22 @@ export class Simulation {
 
   /** 当前是否有待答复的急件。 */
   private hasDecree(): boolean {
-    return awaitingDecree(this.snapshotForDecree()) !== null;
+    return awaitingDecree(this.decreeView()) !== null;
   }
 
-  /** 造一个只含上游单的视图给 `awaitingDecree` 用。 */
-  private snapshotForDecree(): WorldSnapshot {
-    return { ...this.snapshot(), tasks: this.tasks };
+  /**
+   * 只给 `awaitingDecree` 用的最小视图。
+   *
+   * 它原来叫 `snapshotForDecree()`，里面是一次**完整的 `snapshot()`**：建筑、
+   * 施工、村民、道路、警戒线全部重新分配一遍，只为了读 `tasks` 里的一个字段。
+   * `stepDecrees` 每拍调一次、`stepLiveliness` 里每换班还按人调一次，堆涨到
+   * 几十 MB 之后这笔分配就变成了可测的卡顿（p95 14.9→25.9 µs）。
+   *
+   * `awaitingDecree` 只碰 `tasks`，所以给它一个只含 `tasks` 的对象就够——
+   * 零拷贝，还是同一个数组的引用。
+   */
+  private decreeView(): Pick<WorldSnapshot, 'tasks'> {
+    return { tasks: this.tasks };
   }
 
   /** 到点的猫自己走开。猫不参与任何结算，这里只做退场。 */

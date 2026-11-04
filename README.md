@@ -28,7 +28,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
 ├── scripts/             九道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                248 个测试文件 <!-- claim: test-file-count=248 -->
+└── test/                253 个测试文件 <!-- claim: test-file-count=253 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -270,7 +270,7 @@ cd server && python -m pytest
 引用对不上、节号不存在、色板超预算，**全都只让输出变长，不会让 `check`/`test` 变红**。
 只跑前两条的人会以为自己是绿的，而五个闸门一个都没过。
 
-2026-11-04 合并 `feat/scene-motion` 后实测：`check` 0 错、`test` 2245 通过 / 9 跳过 / 0 失败
+2026-11-04 合并 `feat/soak-30d` 后实测：`check` 0 错、`test` 2262 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
 0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 544 通过 / 1 跳过。CI 跑同一批闸门；
 要最新的 run 链接就打开 Actions 里这条 commit 的那一次。

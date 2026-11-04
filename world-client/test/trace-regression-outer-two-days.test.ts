@@ -43,13 +43,13 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, 'a37feedeac6fb4ebb81b50804ed8c69d4d40cb67554d4d387d00eb2bc055701f');
+  assert.equal(memory.fingerprint, '0604c712364d192f2b784297a69e3c692d899e8dc339886d89c00b6e30481605');
   assert.equal(memory.business.lastClosedDay, 3);
-  assert.equal(memory.business.entries, 45);
+  assert.equal(memory.business.entries, 47);
   assert.equal(memory.business.facts, 56);
   assert.equal(memory.business.claims, 37);
-  assert.equal(memory.business.beliefs, 8);
-  assert.equal(memory.business.bonds, 1);
+  assert.equal(memory.business.beliefs, 10);
+  assert.equal(memory.business.bonds, 2);
   assert.equal(memory.business.moods, 2);
   assert.equal(memory.business.bondTrustSum, -0.24);
   assert.equal(memory.business.moodValenceSum, 0.295744);
@@ -58,7 +58,7 @@ test('轨迹回归：outer-two-days', async () => {
   const creator = check.creator;
   assert.ok(creator !== null);
   assert.equal(creator.deterministic, true);
-  assert.equal(creator.fingerprint, 'cea6171db1e41388dfbec1d312507693c581a60f43e6bad235c816bdaba496a3');
+  assert.equal(creator.fingerprint, 'c1c83fb23f5fd2651e1099457599b555c16ee3b0c9c12b2dbdc17622cc9c7a63');
   assert.equal(creator.business.dayCloses.length, 2);
   assert.equal(creator.business.proposals.length, 3);
   assert.equal(creator.business.landings.length, 1);

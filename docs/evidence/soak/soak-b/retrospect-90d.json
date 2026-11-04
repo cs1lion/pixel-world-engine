@@ -1,0 +1,393 @@
+{
+  "seed": "soak-b",
+  "days": 90,
+  "elapsedSeconds": 118.6558274,
+  "saveKB": 1572.4912109375,
+  "savePercent": 0.7678179740905762,
+  "last30KbPerDay": 1.75048828125,
+  "facts": {
+    "alive": 920,
+    "events": 2692,
+    "ratio": 0.34175334323922735,
+    "evicted": 1772,
+    "evictedRecoverable": 872,
+    "evictedPointerOnly": 374,
+    "byDay": {
+      "0": 29,
+      "1": 30,
+      "2": 30,
+      "3": 29,
+      "4": 30,
+      "5": 29,
+      "6": 30,
+      "7": 30,
+      "8": 30,
+      "9": 30,
+      "10": 30,
+      "11": 30,
+      "12": 30,
+      "13": 22,
+      "14": 18,
+      "15": 18,
+      "16": 18,
+      "17": 18,
+      "18": 18,
+      "19": 18,
+      "20": 18,
+      "21": 18,
+      "22": 18,
+      "23": 18,
+      "24": 18,
+      "25": 18,
+      "26": 18,
+      "27": 18,
+      "28": 18,
+      "29": 18,
+      "30": 18,
+      "31": 18,
+      "32": 18,
+      "33": 18,
+      "34": 18,
+      "35": 18,
+      "36": 18,
+      "37": 18,
+      "38": 18,
+      "39": 18,
+      "40": 18,
+      "41": 18,
+      "42": 18,
+      "43": 18,
+      "44": 18,
+      "45": 18,
+      "46": 18,
+      "47": 18,
+      "48": 18,
+      "49": 17,
+      "50": 18,
+      "51": 18,
+      "52": 18,
+      "53": 18,
+      "54": 18,
+      "55": 18,
+      "56": 17,
+      "57": 18,
+      "58": 18,
+      "59": 18,
+      "60": 18,
+      "61": 18,
+      "62": 18,
+      "63": 18,
+      "64": 18,
+      "65": 18,
+      "66": 18,
+      "67": 18,
+      "68": 17,
+      "69": 18,
+      "70": 18,
+      "71": 18,
+      "72": 18,
+      "73": 18,
+      "74": 18,
+      "75": 18,
+      "76": 18,
+      "77": 18,
+      "78": 17,
+      "79": 18,
+      "80": 18,
+      "81": 17,
+      "82": 17,
+      "83": 18,
+      "84": 18,
+      "85": 18,
+      "86": 18,
+      "87": 18,
+      "88": 18,
+      "89": 18,
+      "90": 1
+    }
+  },
+  "prunedByLayer": {
+    "entries": {
+      "evicted": 879,
+      "byCount": 879,
+      "byBytes": 0
+    },
+    "cooldowns": {
+      "evicted": 4141,
+      "byCount": 0,
+      "byBytes": 4141
+    },
+    "tells": {
+      "evicted": 2415,
+      "byCount": 0,
+      "byBytes": 2415
+    },
+    "facts": {
+      "evicted": 1772,
+      "byCount": 0,
+      "byBytes": 1772
+    },
+    "claims": {
+      "evicted": 1159,
+      "byCount": 0,
+      "byBytes": 1159
+    },
+    "beliefs": {
+      "evicted": 2215,
+      "byCount": 0,
+      "byBytes": 2215
+    },
+    "written": {
+      "evicted": 292,
+      "byCount": 0,
+      "byBytes": 292
+    },
+    "legends": {
+      "evicted": 69,
+      "byCount": 69,
+      "byBytes": 0
+    }
+  },
+  "digest": {
+    "count": 90,
+    "bytes": 115184,
+    "countBudget": 120,
+    "bytesBudget": 160000,
+    "countPercent": 0.75,
+    "bytesPercent": 0.7199,
+    "compactCount": 59,
+    "fullCount": 31,
+    "maxPerDay": 1,
+    "maxAnomalies": 0,
+    "coveredDays": 90,
+    "firstDay": 0,
+    "lastDay": 89
+  },
+  "legend": {
+    "count": 120,
+    "bytes": 22267,
+    "countBudget": 120,
+    "countPercent": 1,
+    "bytesBudget": 28000,
+    "bytesPercent": 0.79525,
+    "formedDay": {
+      "min": 4,
+      "max": 89
+    },
+    "reach": {
+      "0": 105,
+      "2": 3,
+      "3": 2,
+      "4": 2,
+      "5": 3,
+      "6": 2,
+      "7": 3
+    },
+    "evicted": 69,
+    "evictedFormedDay": {
+      "min": 37,
+      "max": 82
+    },
+    "evictedReach": {
+      "0": 69
+    },
+    "evictedSample": [
+      {
+        "legendId": "legend_3948",
+        "formedDay": 43,
+        "reach": 0,
+        "eventRefs": [
+          "soak-332",
+          "soak-333"
+        ]
+      },
+      {
+        "legendId": "legend_4173",
+        "formedDay": 46,
+        "reach": 0,
+        "eventRefs": [
+          "soak-429"
+        ]
+      },
+      {
+        "legendId": "legend_3794",
+        "formedDay": 41,
+        "reach": 0,
+        "eventRefs": [
+          "soak-274"
+        ]
+      },
+      {
+        "legendId": "legend_3871",
+        "formedDay": 42,
+        "reach": 0,
+        "eventRefs": [
+          "soak-305"
+        ]
+      },
+      {
+        "legendId": "legend_4166",
+        "formedDay": 46,
+        "reach": 0,
+        "eventRefs": [
+          "soak-424"
+        ]
+      }
+    ]
+  },
+  "backfill": [
+    {
+      "day": 20,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 0,
+      "timelineAlive": 49,
+      "timelineAtClose": 49,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    },
+    {
+      "day": 45,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 0,
+      "timelineAlive": 39,
+      "timelineAtClose": 39,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    },
+    {
+      "day": 60,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 0,
+      "timelineAlive": 42,
+      "timelineAtClose": 42,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    },
+    {
+      "day": 89,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 38,
+      "timelineAlive": 47,
+      "timelineAtClose": 47,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    }
+  ],
+  "evictedFactSample": [
+    {
+      "eventId": "soak-8",
+      "factDay": 0,
+      "evictedDay": 31,
+      "kind": "tide_turn",
+      "importanceHint": 0.35,
+      "what": "潮水退过一半，滩涂露出来了",
+      "recoverable": false,
+      "reachableFrom": []
+    },
+    {
+      "eventId": "soak-5",
+      "factDay": 0,
+      "evictedDay": 76,
+      "kind": "street_greet",
+      "importanceHint": 0.38,
+      "what": "迷路人与灯笼头碰面，互相问了个好。",
+      "recoverable": true,
+      "reachableFrom": [
+        {
+          "path": "world.legends[16].eventRefs[2]",
+          "layer": "legends",
+          "legendId": "legend_0354",
+          "formedDay": 4,
+          "reach": 0,
+          "eventRefs": [
+            "soak-3",
+            "soak-4",
+            "soak-5"
+          ]
+        },
+        {
+          "path": "world.digests[0].events[3][0]",
+          "layer": "digests",
+          "day": 0,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[2].events[1][0]",
+          "layer": "digests",
+          "day": 2,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[3].events[1][0]",
+          "layer": "digests",
+          "day": 3,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[33].events[1][0]",
+          "layer": "digests",
+          "day": 33,
+          "compact": true,
+          "pointerOnly": true
+        }
+      ]
+    },
+    {
+      "eventId": "soak-2663",
+      "factDay": 89,
+      "evictedDay": 89,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边睡下了",
+      "recoverable": true,
+      "reachableFrom": [
+        {
+          "path": "world.entries[53].eventRefs[0]",
+          "layer": "entries",
+          "holderId": "v0",
+          "tier": "day",
+          "createdDay": 89,
+          "archived": false
+        },
+        {
+          "path": "world.claims[613].eventRefs[0]",
+          "layer": "claims"
+        },
+        {
+          "path": "world.digests[89].events[1][0]",
+          "layer": "digests",
+          "day": 89,
+          "compact": false,
+          "pointerOnly": true
+        }
+      ]
+    }
+  ]
+}

@@ -110,14 +110,60 @@ export function periodLength(n: number): number {
  *
  * 一个周期里：前半段涨，后半段退。用余弦而不是线性，涨落两端会自然变慢，
  * 看起来像真的潮水而不是电梯。
+ *
+ * **不要从 0 开始一个个周期减。** 30 日浸泡测出来：`now` 越大，
+ * 这个循环扫过的周期越多，`Simulation.stepTide` 每 6 秒一次，单个世界日
+ * 就多出几千次哈希；第 30 天这一步的 p50 从 0.3µs 涨到 17.9µs（60 倍），
+ * 是「越跑越慢」的直接来源。这里改成按 64 个周期一个检查点累加，
+ * 查询时二分定位检查点、再在检查点内最多扫 64 个周期——**O(log n + 64)**，
+ * 且 `periodLength` 序列与旧实现完全一致，返回值逐点相同。
+ * 超过 100_000 个周期（约 2 年世界时间）仍返回 0，保留原来的护栏。
  */
+const TIDE_CHECKPOINT_PERIODS = 64;
+const TIDE_PERIOD_CAP = 100_000;
+const TIDE_CHECKPOINTS_MAX = Math.ceil(TIDE_PERIOD_CAP / TIDE_CHECKPOINT_PERIODS);
+/** 第 k 个检查点的累计毫秒数（k * 64 个周期之后）。 */
+const tideCheckpoints: number[] = [0];
+
+/** 把检查点补到至少 `count` 个（下标 0..count）。 */
+function ensureCheckpoints(count: number): void {
+  while (tideCheckpoints.length <= count) {
+    const baseIndex = (tideCheckpoints.length - 1) * TIDE_CHECKPOINT_PERIODS;
+    let sum = tideCheckpoints[tideCheckpoints.length - 1]!;
+    for (let index = 0; index < TIDE_CHECKPOINT_PERIODS; index += 1) {
+      sum += periodLength(baseIndex + index);
+    }
+    tideCheckpoints.push(sum);
+  }
+}
+
 export function tideLevelAt(now: number): number {
   if (!Number.isFinite(now) || now <= 0) return 0;
-  let remaining = now;
-  let index = 0;
-  // 周期长度在 10–14 分钟，一天（以世界时间算）也不过几十个周期，
-  // 这个循环不会成为热点；写死上限只是防 `now` 被喂进一个离谱的数。
-  while (index < 100_000) {
+  // 先保证检查点覆盖到 now；到上限就停（超出部分按 0 处理）。
+  while (
+    tideCheckpoints.length <= TIDE_CHECKPOINTS_MAX
+    && tideCheckpoints[tideCheckpoints.length - 1]! <= now
+  ) {
+    ensureCheckpoints(tideCheckpoints.length);
+  }
+
+  // 二分：最大的「累计长度 ≤ now」的检查点。
+  let low = 0;
+  let high = tideCheckpoints.length - 1;
+  let checkpoint = 0;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (tideCheckpoints[middle]! <= now) {
+      checkpoint = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  let remaining = now - tideCheckpoints[checkpoint]!;
+  let index = checkpoint * TIDE_CHECKPOINT_PERIODS;
+  while (index < TIDE_PERIOD_CAP) {
     const length = periodLength(index);
     if (remaining < length) {
       const progress = remaining / length;
