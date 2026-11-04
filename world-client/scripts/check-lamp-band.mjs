@@ -6,10 +6,14 @@
  * 证明不了「灯与灯之间的地面」；这一支把镜头拉到 zoom 1，横向扫过 5 根灯柱，
  * 逐列量「灯亮 vs 灯灭」的亮度差，直接量出暗带的位置与宽度。
  *
- * 口径：
- * - 夜间、满潮、同一冻结帧；村民钉到画面外（只改画面，不挡地面）；
- * - 逐列取 y 435..535 这一带（两排池子都在这段地面里）灯亮与灯灭的最大 ΔY；
- * - 覆盖 = ΔY ≥ 1 个百分点的列占比；暗带 = 连续 < 1pp 的最长一段（按格算）。
+ * 口径（**每条读数都必须带这一整行**，见 docs/evidence/scene-motion/README.md 开头）：
+ * - 机位 x368/y470、zoom 1、视口 1010×700、带段 x240..560 × y435..535、1pp 阈值；
+ * - 夜间（`?time=night` 强制相位）、满潮（`debugPinTide(1)`）、晴（`debugSetWeather('clear')`）、
+ *   同一冻结帧（frame 180）；村民钉到画面外（只改画面，不挡地面）。
+ * - 天气与潮位为什么必须钉：新世界固定从 00:00 开局，但 00:00 这一槽的天气随**当日种子**变
+ *   （雨天还会逐帧乱飘：同配置两跑相差 0.3pp 覆盖 / 1.3 格暗带）。不钉天气，这条读数就
+ *   只在同一天同一跑里成立，跨天无法复现——上一版报的 76.9% / 1.8 格就是这么来的。
+ * - 覆盖 = ΔY ≥ 1pp 的列占比；暗带 = 连续 < 1pp 的最长一段（按格算）。
  *
  * 跑法：
  *   cd world-client && npm run dev
@@ -88,6 +92,16 @@ async function capture(browser, { id, force }) {
 
   await page.waitForFunction((n) => window.__CAPTURE_STATE__.frame >= n, SETUP_AT, { timeout: 30000 });
   await page.evaluate(([x, y]) => window.Oracle.centerCameraOn(x, y), [CAMERA.x, CAMERA.y]);
+  // 天气与潮位在这条读数里必须钉住：新世界的天气按当日种子排，雨天雨点又逐帧乱飘，
+  // 不钉就得不到同一条街的同一次测量（跨天、跨跑都对不上）。
+  // 口子不在（拿 39cff04 基线对着同一份脚本跑时）就跳过，并把这个事实记进 params.pinned。
+  const pinned = await page.evaluate(() => {
+    const weather = typeof window.Oracle.debugSetWeather === 'function';
+    const tide = typeof window.Oracle.debugPinTide === 'function';
+    if (weather) window.Oracle.debugSetWeather('clear');
+    if (tide) window.Oracle.debugPinTide(1);
+    return { weather, tide };
+  });
   await page.waitForFunction((n) => window.__CAPTURE_STATE__.frame >= n, ACTION_AT, { timeout: 30000 });
   await page.evaluate((force) => {
     for (const villager of window.Oracle.view().villagers) {
@@ -103,11 +117,15 @@ async function capture(browser, { id, force }) {
   const stats = await page.evaluate(() => window.Oracle.renderStats());
   const poolCommands = await page.evaluate(() => window.Oracle.debugLampPool());
   const tideLevel = await page.evaluate(() => window.Oracle.view().tide.level);
+  const worldState = await page.evaluate(() => ({
+    now: typeof window.Oracle.debugStepWorld === 'function' ? window.Oracle.debugStepWorld(0) : null,
+    weather: window.Oracle.view().weather,
+  }));
   const file = join(OUT, `lamp-band-${LABEL}-${id}.png`);
   await page.screenshot({ path: file, clip: box });
   const buf = readFileSync(file);
   await page.close();
-  return { id, file, buf, cam, stats, poolCommands, tideLevel, errors };
+  return { id, file, buf, cam, stats, poolCommands, tideLevel, worldState, pinned, errors };
 }
 
 const toLinear = (v) => {
@@ -286,6 +304,23 @@ await reader.close();
 const pct = (v) => `${(v * 100).toFixed(1)}%`;
 const result = {
   label: LABEL,
+  /** 读数口径（与 README 的「每条读数带全口径」要求一一对应）。 */
+  params: {
+    camera: { x: CAMERA.x, y: CAMERA.y },
+    zoom: lit.cam.zoom,
+    viewport: { width: 1010, height: 700 },
+    street: { x0: STREET_X0, x1: STREET_X1 },
+    band: { y0: BAND_Y0, y1: BAND_Y1 },
+    threshold: LIGHT_DY,
+    tide: lit.tideLevel,
+    weather: lit.worldState.weather,
+    /** 相位由 `?time=night` 强制（世界钟仍从 00:00 起算，不在夜晚窗口也不影响灯态）。 */
+    phase: 'night',
+    now: lit.worldState.now,
+    freezeAt: FREEZE_AT,
+    /** 天气/潮位是否真钉上了（39cff04 没有这两个口子，基线读数只能记实际天气）。 */
+    pinned: lit.pinned,
+  },
   shots: { lit: lit.file.replace(/^.*eval[\\/]/, 'eval/'), dark: dark.file.replace(/^.*eval[\\/]/, 'eval/') },
   cam: lit.cam,
   stats: lit.stats,
@@ -306,6 +341,7 @@ writeFileSync(join(OUT, `lamp-band-${LABEL}.json`), `${JSON.stringify(result, nu
 
 console.log(`[${LABEL}] 街段 x ${STREET_X0}..${STREET_X1}，覆盖 ${pct(prof.coverage)}，最长暗带 ${prof.gapCells.toFixed(1)} 格（起点 x ${prof.gapAt}）`);
 console.log(`  ΔY min ${(prof.min * 100).toFixed(2)} / avg ${(prof.avg * 100).toFixed(2)} / max ${(prof.max * 100).toFixed(2)} pp`);
+console.log(`  口径 机位 x${CAMERA.x}/y${CAMERA.y}、zoom ${lit.cam.zoom}、x${STREET_X0}..${STREET_X1}×y${BAND_Y0}..${BAND_Y1}、${LIGHT_DY * 100}pp、潮位 ${lit.tideLevel}、相位 night（?time=night 强制）、${lit.worldState.weather}（钉天气 ${lit.pinned.weather ? '是' : '否'}）、视口 1010×700`);
 console.log(`  指令 ${lit.stats.totalCommands} / Graphics ${lit.stats.graphicsObjects}；潮位 ${lit.tideLevel}`);
 console.log(`  光池指令：灯亮 ${lit.poolCommands} / 灯灭 ${dark.poolCommands}`);
 if (diff !== null) {
