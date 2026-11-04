@@ -115,3 +115,103 @@
   - 直接删掉计数断言或改成 `>= 7`：否，等于把守门断言改绿；按真实数量更新并写清理由。
 - 阻塞：无（`test:buttons` 仍属环境限制）。
 - 证据：`docs/evidence/needs/`（`baseline.txt` 沿用块 3 的冻结基线；新增 `after-failure.txt` / `failure-scenario.txt` / `decisions-failure-after.txt` / `decisions-failure-diff.txt` / 五道浏览器输出 / `render-budget-failure.txt`）。
+
+---
+
+## 块 5 · 交付失败进正式事件流（新增 `delivery_failed`）
+
+- 开始 / 结束：2026-11-05
+- 分支：`feat/behavior-queue`，提交 `8f9e0cc`（未 push、未动 main）
+- 提案：`docs/DELIVERY_FAILURE_EVENT_PROPOSAL.md`（先写提案再实现）
+  - 种类与载荷：`world.event` 新成员 `delivery_failed`；`actorId`（谁）、
+    `failure.taskId`（哪单）、`placeId` + `where`（在哪）、`failure.reason`（原因闭集
+    `hunger`）、`failure.repeat`（是否重复失败）。
+  - 三张权重表：重要度 0.70（`task_done` 0.45 / `street_help` 0.65 /
+    `workshop_accident` 0.80 之间）、效价 -0.60（`street_water` -0.55 /
+    `discipline` -0.60 / `workshop_accident` -0.70 之间）、唤醒 0.60
+    （`street_tumble` 0.55 / `weather_anomaly` 0.70 之间）；每条都写了对照锚点，
+    不是填空。`KIND_PRIORS` 四轴 0.65 / 0.70 / 0.60 / 0.20。
+    默认四等权落点：当事人 0.7375（≥摘要线 0.6、<闪光 0.85）、
+    旁观目击者 0.5375（≥写入线 0.3、<摘要线 0.6）。
+  - 目击：复用 `perception.ts`（室内同房间、室外 8 格 + 遮挡）与 `hearing.ts`
+    （缺省半径 6；6–8 格「看得见听不见」；屋内心者对外部事件「只听到、看不见」）。
+  - report：失败数 = `snapshot.deliveryFailures.length`，不再数 `task.status`。
+  - 存档：v5 不动（失败事实的持久副本在记忆段；`deliveryFailures` 是运行时投影）。
+  - 指纹：只有世界指纹变（`projectWorld` 增列），记忆/造物不变。
+  - 「不记这条会怎样」：基线 facts=47 / entries=45，`delivery_failed` 事实 0、
+    目击者记忆 0、`outcome` fail/deny 0/47 = 0.0%；失败只留 `task.status='failed'`
+    与 12 条窗口日志，读档后原因与目击者永久丢失。
+- 改了什么结构
+  - 客户端：`world-changes.ts` 闭集加 `delivery_failed`（`failure` 载荷类型放
+    独立 `delivery-failure.ts`，避免服务端「`readonly taskKind:` 恰好一次」的
+    值域锚点变成两处）；`types.ts` 加 `DeliveryFailure` 与 `WorldSnapshot.deliveryFailures`；
+    `simulation.ts` 在 `failDeliveryFromHunger` 末尾组事件并 `announce`；
+    `observe.ts` 三张表 + `status:'fail'` 的 outcome；`salience.ts` KIND_PRIORS；
+    `trace/runtime.ts` 的 `projectWorld` 增列；`report.ts` 改数据源。
+  - 服务端：`WORLD_EVENT_KINDS` 加项、`FAILURE_REASONS` 闭集、
+    `_check_world_event` 对 `failure` 五个字段做单选校验（`failure` 只许
+    `delivery_failed` 带）。
+- 读数（`docs/evidence/failure-event/`）
+  - 冻结轨迹 outer：事件 50（失败 0）、失败账 0、日报没办成 0 行（0 = 0）、
+    事实 47（`delivery_failed` 0）、条目 45、fail/deny 0/47 = 0.0%。
+  - 专项场景：失败事件 1、失败账 1、日报 1 行（1 = 1）、事实 1（fail/deny 1/1 = 100%，
+    从基线 0/47 = 0.0% 到可见）、目击条目 2（v0 当事人 + v1 同在八格内）；
+    吃一口后第二单 done，失败事件仍 1、失败账仍 1（第一单没有二次失败）。
+  - 同种子两跑：失败账与世界指纹逐字相同（`test/needs-failure.test.ts` 第 3 条；
+    场景指纹 `0717c031…` 两跑相同）。
+- 指纹旧 → 新 → 为什么变 → 对应提交
+  - 世界 outer `95ee830c…` → `a41f4e2e…`；世界 night `576259f5…` → `6efda574…`；
+    原因：**新增事件种类**（`projectWorld` 增列 `deliveryFailures`，规范化 JSON 变）。
+  - 记忆 `fb0847b3…` 不变；造物 `c5198f0f…` 不变：冻结轨迹最高饥饿 0.694 < 1.0，
+    没有失败事件；造物不读事件流。
+  - 输入摘要不变（`47412864…` / `ed7319b9…`）——输入没动，只重录投影。
+  - 存档基线 `outer-baseline-v5.json` hash 不变（`6451bb8b…`）。
+  - 两条轨迹的回归断言由 `trace:record` / `trace:to-test` 重生成，未手改期望值。
+- 新增测试
+  - `test/delivery-failure-event.test.ts`（5 条）：载荷五件事；`status:'fail'` 与
+    三张权重；显著度落点（0.7375 / 0.5375，摘要/写入/闪光线）；
+    室内失败只有同房间记得（worker+mate，1 事实 / 2 条目）；
+    室外失败（两格看见、屋内只听到、远处看不见）。
+  - `test/needs-failure.test.ts` 扩展：事件载荷与事件账逐项一致、日报 1 行；
+    吃一口后仍只有 1 条失败事件；同种子两跑指纹逐字相同。
+  - 服务端 `test_world_changes.py` 新增 7 条：白名单 201、缺 `failure` 422、
+    非 `delivery_failed` 带 `failure` 422、`actorId` null 422、
+    `reason/taskKind/repeat/taskId` 非法 422、`failure` 多字段 422。
+- 闸门：`check`（语法 0 / 语义 0）/ `npm test`（2108 通过 0 失败 9 跳过）/
+  `build` 通过 / `palette --strict` 0 / `references`（146 处行号 0 存疑，
+  2433 处引用 0 未解析）/ `citations` / `sections`（158 处）/ `claims`
+  （markers=5 passed=5，adr-schema files=9 valid=9）/ `pytest`（533 通过 1 跳过）。
+- 浏览器：`browser` 125 / `phases` 17 / `persistence` 8 / `render-budget` 6
+  （绘制指令 16130 / Graphics 27）/ `setting` 29，均在本块实现后跑过。
+- 未验证 / 阻塞
+  - `test:buttons`：`/api/memory/list` 回 HTTP 404，脚本退出码 2（既有缺口，未改代码）。
+  - `worktrees:audit --strict`：本工作树没有该脚本（MODULE_NOT_FOUND），无法执行；
+    此前记录的外部红（`pwe-anim` 未登记）本块未修。
+  - 读档后报纸只数本会话新失败事件（提案 §6 已写明；事件本身在记忆段，不丢）。
+- 真问题
+  1. 服务端 `test_value_domains.py` 要求 `readonly taskKind:` 在 `world-changes.ts`
+     中恰好一次；把 payload 嵌进事件类型时命中两处、闸门变红。修法是把
+     `DeliveryFailurePayload` 移到 `delivery-failure.ts`，`world-changes.ts` 只剩
+     一处引用 —— 没有改那条值域断言。
+  2. `simulation.ts` 插入约 20 行导致 7 处文档行号引用漂移（`pickVenue` /
+     `isRaining` / `scatterToShelter` / `startInPlace` / `WEATHER_ALREADY` /
+     `tasks.push` 等），`audit-references` 变红；逐项更新为当前行号。
+  3. `phase-purity` 的快照键清单少了 `deliveryFailures`：字段是真新增，
+     清单加一项、注释 24 → 25；没有放宽断言。
+  4. `audit-adr-schema` 不是独立脚本（`audit-claims` 内含 `adr-schema`），
+     单独调用会 MODULE_NOT_FOUND —— 不是闸门失败。
+- 被否掉的写法及原因
+  - 新增独立的 `task.failed` change 种类：否。那样得再配一套权重与观测规则，
+    离既有三张表更远；失败本来就该是「世界发生的事」。
+  - 把「哪单/原因/重复」塞进 `text`：否，机器读不了；用 `failure` 子对象承载。
+  - 为存档加字段或升 v6：否。事件持久副本在记忆段，运行时投影不必落档。
+  - 为了让旧轨迹不红而去掉这条事件、或放宽任何既有断言：否。指纹变化按
+    「新增事件种类」显式重录，旧的期望值没有一条被改小/改松。
+  - 把探针脚本留在仓库：否。读数进 `docs/evidence/failure-event/probe.txt`，
+    脚本跑完即删（未进提交）。
+- 多线冲突收敛
+  - payload 拼装与文案集中在独立 `delivery-failure.ts`；`simulation.ts` 只碰
+    三处（运行时字段、失败漏斗末尾、`snapshot()` 一行），减少与另一条线
+    「回家判成在室内」的冲突面积。
+- 证据：`docs/evidence/failure-event/`（`baseline.txt` / `after.txt` / `probe.txt`）。
+- 待办：无（浏览器失败场景仍未验证，见上）。
