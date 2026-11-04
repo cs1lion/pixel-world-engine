@@ -16,11 +16,18 @@ import type { PlacedBuilding } from '../world/types.ts';
 export const INTERIOR_ROOM_W = 232;
 export const INTERIOR_ROOM_H = 152;
 
-/** 第一版只有一层。楼层是视图概念，不进世界状态。 */
+/** 楼层是视图概念，不进世界状态；第一层恒为 1。 */
 export const INTERIOR_FIRST_FLOOR = 1;
 
-/** 进门 / 退出的固定帧数。每帧固定推进 1/N，不读墙钟。 */
+/** 进门 / 退出 / 切层的固定帧数。每帧固定推进 1/N，不读墙钟。 */
 export const INTERIOR_TRANSITION_FRAMES = 18;
+
+/**
+ * 切层时**换贴图的那一帧**：正好落在过渡中点（画面全黑）。
+ *
+ * 提前或推后换都会让旧层的家具在新层的暗场里闪一下；中点换是唯一看不见接缝的位置。
+ */
+export const INTERIOR_SWITCH_SWAP_FRAME = INTERIOR_TRANSITION_FRAMES / 2;
 
 export interface PixelRect {
   readonly x: number;
@@ -30,20 +37,50 @@ export interface PixelRect {
 }
 
 export interface InteriorLayout {
-  /** 层号。第一版恒为 1。 */
+  /** 层号。夹在 `1..floors`，越界的入参在这里被收回。 */
   readonly floor: number;
+  /** 这栋楼剖面上有几层（由剪影派生，见 `interiorFloorsFor`）。 */
+  readonly floors: number;
   /** 烘焙纹理名：一栋楼一层一张。 */
   readonly key: string;
-  /** 楼梯格：登记了坐标、画了图元，第一版点了只给反馈，不切层。 */
+  /** 楼梯整块：登记坐标、画图元、给命中判定。 */
   readonly stairs: PixelRect;
-  /** 出口：点它退回街景。 */
+  /** 楼梯上半：点它就是上楼。顶层没有这一段。 */
+  readonly stairUp: PixelRect;
+  /** 楼梯下半：点它就是下楼。底层没有这一段。 */
+  readonly stairDown: PixelRect;
+  /** 还能不能往上 / 往下（边界夹取在布局里就先算好，点击时不必再想）。 */
+  readonly canUp: boolean;
+  readonly canDown: boolean;
+  /** 出口：点它退回街景。每一层都留着同一个门框——它是这栋房子的出口。 */
   readonly door: PixelRect;
-  /** 炉口 / 灶台。民居没有。 */
+  /** 炉口 / 灶台。民居没有，楼上也没有（灶在底层）。 */
   readonly hearth: PixelRect | null;
   /** 室内站位：按居民 id 排序依次分配，**没人就不摆人**。 */
   readonly seats: readonly { readonly x: number; readonly y: number }[];
   /** 派生种子，画墙缝与家具抖动用。 */
   readonly seed: number;
+}
+
+export type StairDirection = 'up' | 'down';
+
+/**
+ * 这栋楼剖面上有几层。
+ *
+ * 世界状态里没有层数（`PlacedBuilding` 不带这个字段），这里按**立面剪影**读：
+ * `flat` 单层、`gable` 带阁楼两层、`tower` 带塔楼三层。这是视图读法，不是世界事实——
+ * 它不参与寻路、不参与目击判定、不落档。真要做「居民分层生活」时，层数必须搬进
+ * 世界状态（那才会改 v6），这一版刻意不开那个口子。
+ */
+export function interiorFloorsFor(building: PlacedBuilding): number {
+  switch (building.silhouette) {
+    case 'tower':
+      return 3;
+    case 'gable':
+      return 2;
+    default:
+      return 1;
+  }
 }
 
 /**
@@ -74,16 +111,33 @@ export function interiorLayoutFor(
   building: PlacedBuilding,
   floor: number = INTERIOR_FIRST_FLOOR,
 ): InteriorLayout {
-  const seed = seedAt(wallSeed(building), floor);
+  const floors = interiorFloorsFor(building);
+  const actualFloor = Math.max(INTERIOR_FIRST_FLOOR, Math.min(Math.floor(floor), floors));
+  const seed = seedAt(wallSeed(building), actualFloor);
   const stairs: PixelRect = { x: 12, y: 26, w: 34, h: 54 };
+  // 楼梯一竖两段：上半上楼、下半下楼。两段互不重叠，点哪段就往哪边走。
+  const stairHalf = Math.floor(stairs.h / 2);
+  const stairUp: PixelRect = {
+    x: stairs.x,
+    y: stairs.y,
+    w: stairs.w,
+    h: stairHalf,
+  };
+  const stairDown: PixelRect = {
+    x: stairs.x,
+    y: stairs.y + stairHalf,
+    w: stairs.w,
+    h: stairs.h - stairHalf,
+  };
   const door: PixelRect = {
     x: Math.floor(INTERIOR_ROOM_W / 2) - 14,
     y: INTERIOR_ROOM_H - 30,
     w: 28,
     h: 30,
   };
+  // 灶只在底层：楼上没有炉口，这条同时是「这一层是不是楼上」的可见线索。
   const hearth: PixelRect | null =
-    building.zone === 'living' ? null : { x: 150, y: 34, w: 42, h: 26 };
+    building.zone === 'living' || actualFloor > 1 ? null : { x: 150, y: 34, w: 42, h: 26 };
 
   // 三个座位：贴着桌面，横向各错 0–4px，别排成一条尺子。
   const seatBase = 70 + ((seed >>> 5) % 5);
@@ -94,14 +148,39 @@ export function interiorLayoutFor(
   ];
 
   return {
-    floor,
-    key: `interior:${building.instanceId}:f${floor}`,
+    floor: actualFloor,
+    floors,
+    key: `interior:${building.instanceId}:f${actualFloor}`,
     stairs,
+    stairUp,
+    stairDown,
+    canUp: actualFloor < floors,
+    canDown: actualFloor > INTERIOR_FIRST_FLOOR,
     door,
     hearth,
     seats,
     seed,
   };
+}
+
+/**
+ * 点楼梯的哪一段。入参是**房间局部像素**，越界给 null。
+ *
+ * 上半上楼、下半下楼——不做「点一下循环切层」：上下两块本来就在图上分得开，
+ * 点哪块走哪块才不会让人猜。顶层点了上半、底层点了下半，就该什么都不发生
+ * （并由视图闪一下提示），而不是绕回另一头。
+ */
+export function stairDirectionAt(
+  layout: InteriorLayout,
+  localX: number,
+  localY: number,
+): StairDirection | null {
+  const inside = (rect: PixelRect): boolean =>
+    localX >= rect.x && localX < rect.x + rect.w
+    && localY >= rect.y && localY < rect.y + rect.h;
+  if (inside(layout.stairUp)) return 'up';
+  if (inside(layout.stairDown)) return 'down';
+  return null;
 }
 
 /**
@@ -124,6 +203,19 @@ export function smoothStep(progress: number): number {
 
 export function lerp(from: number, to: number, progress: number): number {
   return from + (to - from) * progress;
+}
+
+/**
+ * 切层的画面不透明度：**两端 1、中点 0**，走完一整段暗场再亮回来。
+ *
+ * 与进场不同：进场是街景→室内的一次交叉淡入，切层是室内→室内，中间必须
+ * 真的黑到底，换贴图才看不见接缝。帧号仍是唯一输入，不读墙钟。
+ */
+export function interiorSwitchOpacity(frames: number): number {
+  const progress = smoothStep(interiorTransitionProgress(frames));
+  // |2p-1|：p=0 亮、p=0.5 全黑、p=1 又亮。写 `1-|2p-1|` 会得到相反的曲线
+  // （中点全亮、两头全黑），第一次就写反了——单测把它钉在这里。
+  return Math.abs(progress * 2 - 1);
 }
 
 /**

@@ -16,7 +16,8 @@
       "footprint": {
         "w": 5,
         "h": 4
-      }
+      },
+      "floors": 2
     },
     "street": {
       "pose": {
@@ -38,9 +39,11 @@
         "height": 320
       },
       "graphicsObjects": 30,
-      "totalCommands": 16152,
+      "totalCommands": 16145,
       "mode": "inside",
       "floor": 1,
+      "floors": 2,
+      "occupants": [],
       "room": {
         "width": 232,
         "height": 152
@@ -57,8 +60,25 @@
         "w": 34,
         "h": 54
       },
+      "stairUp": {
+        "x": 12,
+        "y": 26,
+        "w": 34,
+        "h": 27
+      },
+      "stairDown": {
+        "x": 12,
+        "y": 53,
+        "w": 34,
+        "h": 27
+      },
       "view": {
+        "floor": 1,
+        "floors": 2,
+        "canUp": true,
+        "canDown": false,
         "scale": 1,
+        "roomOpacity": 1,
         "image": {
           "x": 124,
           "y": 84,
@@ -75,7 +95,7 @@
     },
     "delta": {
       "graphicsObjects": 3,
-      "totalCommands": 22
+      "totalCommands": 15
     },
     "afterTenCycles": {
       "pose": {
@@ -182,12 +202,12 @@
     },
     "transition": {
       "framesToInside": 18,
-      "elapsedMs": 307,
+      "elapsedMs": 351,
       "midFrames": 9,
       "midMode": "entering",
       "cameraMid": {
-        "scrollX": 484,
-        "scrollY": 352,
+        "scrollX": 440,
+        "scrollY": 288,
         "zoom": 2
       }
     },
@@ -200,17 +220,103 @@
       "buildingId": "code_forge#1",
       "frames": 0
     },
+    "floorSwitch": {
+      "from": {
+        "floor": 1,
+        "frames": 18,
+        "pose": {
+          "scrollX": 440,
+          "scrollY": 288,
+          "zoom": 2
+        },
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "mid": {
+        "frames": 9,
+        "mode": "switching",
+        "floor": 2,
+        "imageAlpha": 0,
+        "imageVisible": false
+      },
+      "to": {
+        "floor": 2,
+        "frames": 18,
+        "pose": {
+          "scrollX": 440,
+          "scrollY": 288,
+          "zoom": 2
+        },
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "poseIdentical": true,
+      "statsIdentical": true,
+      "deltaCommands": 0
+    },
+    "groundReturn": {
+      "firstFloor": {
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "afterDown": {
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "sameAsFirstFloor": true,
+      "samePageFloorDelta": {
+        "graphicsObjects": 0,
+        "totalCommands": 0
+      }
+    },
     "clicks": {
-      "stairsPoint": {
+      "stairsUpPoint": {
         "x": 132.5,
-        "y": 296.796875
+        "y": 242.796875
+      },
+      "switchUp": {
+        "frames": 18,
+        "timeout": false,
+        "floor": 2,
+        "mode": "inside",
+        "pose": {
+          "scrollX": 440,
+          "scrollY": 288,
+          "zoom": 2
+        }
+      },
+      "topUpPoint": {
+        "x": 131.5,
+        "y": 173.796875
+      },
+      "topUpAttempt": {
+        "floor": 2,
+        "hintFrames": 59,
+        "mode": "inside"
+      },
+      "stairsDownPoint": {
+        "x": 131.5,
+        "y": 281.796875
+      },
+      "switchDown": {
+        "frames": 18,
+        "timeout": false,
+        "floor": 1,
+        "mode": "inside"
+      },
+      "bottomDownPoint": {
+        "x": 131.5,
+        "y": 281.796875
+      },
+      "bottomDownAttempt": {
+        "floor": 1,
+        "hintFrames": 34,
+        "mode": "inside"
       },
       "doorPoint": {
         "x": 479.5,
         "y": 563.796875
       },
-      "stairsHintFramesAfterClick": 29,
-      "stairsMode": "inside",
       "modeAfterDoor": "street",
       "poseAfterDoor": {
         "scrollX": 528,
@@ -231,6 +337,8 @@
     "poseRoundTrip": "PASS",
     "allTenCyclesSame": true,
     "transitionFrames": 18,
+    "floorSwitchFrames": 18,
+    "floorSwitchPoseIdentical": true,
     "commandsWithinBudget": true
   }
 }

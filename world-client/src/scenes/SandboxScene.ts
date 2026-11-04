@@ -71,7 +71,10 @@ import {
   INTERIOR_FIRST_FLOOR,
   INTERIOR_ROOM_H,
   INTERIOR_ROOM_W,
+  INTERIOR_SWITCH_SWAP_FRAME,
   INTERIOR_TRANSITION_FRAMES,
+  interiorFloorsFor,
+  interiorSwitchOpacity,
   interiorTransitionProgress,
   lerp,
   smoothStep,
@@ -247,8 +250,8 @@ interface BuildingEntry {
   readonly emitter: AccentEmitter;
 }
 
-/** 街景 / 进场中 / 室内 / 出场中。过渡的每一帧都落在这四态里。 */
-type InteriorMode = 'street' | 'entering' | 'inside' | 'exiting';
+/** 街景 / 进场中 / 室内 / 出场中 / 切层中。过渡的每一帧都落在这五态里。 */
+type InteriorMode = 'street' | 'entering' | 'inside' | 'exiting' | 'switching';
 
 /**
  * 进门前的相机位姿。**退出时逐字还原**——这是验收判据，不是「差不多」。
@@ -393,6 +396,10 @@ export class SandboxScene extends Phaser.Scene {
   /** `?interior=step`：过渡不自走，由 `Oracle.stepInterior()` 一帧一帧推。 */
   private interiorStepMode = false;
   private interiorSavedPose: InteriorPose | null = null;
+  /** 当前站在第几层。**视图状态**：只在内存与本机独立键里，不进 v5。 */
+  private interiorFloor = INTERIOR_FIRST_FLOOR;
+  /** 切层过渡要去的层号。中点换图，末帧才认账。 */
+  private interiorSwitchTo = INTERIOR_FIRST_FLOOR;
   private accumulator = 0;
   private tick = 0;
   private villagerName = '莞尔';
@@ -3726,13 +3733,20 @@ export class SandboxScene extends Phaser.Scene {
       interior: () => ({
         mode: this.interiorMode,
         buildingId: this.interiorBuildingId,
-        floor: INTERIOR_FIRST_FLOOR,
+        floor: this.interiorFloor,
+        switchTo: this.interiorMode === 'switching' ? this.interiorSwitchTo : this.interiorFloor,
+        floors: this.interiorView?.layout?.floors ?? null,
+        canUp: this.interiorView?.layout?.canUp ?? false,
+        canDown: this.interiorView?.layout?.canDown ?? false,
         frames: this.interiorFrames,
         transition: this.interiorTransitionEnabled,
         room: { width: INTERIOR_ROOM_W, height: INTERIOR_ROOM_H },
         door: this.interiorView?.layout?.door ?? null,
         stairs: this.interiorView?.layout?.stairs ?? null,
+        stairUp: this.interiorView?.layout?.stairUp ?? null,
+        stairDown: this.interiorView?.layout?.stairDown ?? null,
         hintFrames: this.interiorView?.hintFrames ?? 0,
+        occupants: this.interiorOccupantsOf(this.interiorBuildingId),
         view: this.interiorView?.debug ?? null,
         buildings: this.snapshot.buildings.map((building) => ({
           id: building.instanceId,
@@ -3741,10 +3755,13 @@ export class SandboxScene extends Phaser.Scene {
           origin: { x: building.origin.x, y: building.origin.y },
           footprint: { w: building.footprint.w, h: building.footprint.h },
           center: this.interiorCenter(building),
+          floors: interiorFloorsFor(building),
         })),
       }),
       enterInterior: (buildingId: string): boolean => this.enterInterior(buildingId),
       exitInterior: (): boolean => this.exitInterior(),
+      /** 切层：`delta=+1` 上楼、`-1` 下楼。越界返回 false（并闪一下楼梯提示）。 */
+      switchInteriorFloor: (delta: number): boolean => this.switchInteriorFloor(delta),
       /** `?interior=step` 下逐帧推过渡：验收拿「第 9 帧」这张图。 */
       stepInterior: (frames?: number): boolean => this.stepInterior(frames),
       setInteriorTransition: (enabled: boolean): void => {
@@ -4288,6 +4305,8 @@ export class SandboxScene extends Phaser.Scene {
     };
 
     this.interiorBuildingId = building.instanceId;
+    this.interiorFloor = INTERIOR_FIRST_FLOOR;
+    this.interiorSwitchTo = INTERIOR_FIRST_FLOOR;
     this.interiorFrames = 0;
     this.interiorMode = 'entering';
     // 靠边的楼在世界边界内对不到屏幕正中：临时放开边界，退出时原样写回。
@@ -4298,7 +4317,7 @@ export class SandboxScene extends Phaser.Scene {
       width: cam.width,
       height: cam.height,
       zoom: cam.zoom,
-    });
+    }, INTERIOR_FIRST_FLOOR);
     this.refreshInteriorOccupants();
     // 屋顶与烟囱收起来：进场的那几帧能看见剖面，而不是屋顶盖着内景。
     this.setBuildingShellVisible(building.instanceId, false);
@@ -4313,13 +4332,16 @@ export class SandboxScene extends Phaser.Scene {
       this.interiorMode = 'inside';
     }
 
-    writeInteriorViewState({ buildingId: building.instanceId, floor: INTERIOR_FIRST_FLOOR });
+    writeInteriorViewState({ buildingId: building.instanceId, floor: this.interiorFloor });
     return true;
   }
 
   /** 点门退出：反向过渡，末帧把相机位姿逐字写回。 */
   exitInterior(): boolean {
     if (this.interiorMode === 'street' || this.interiorMode === 'exiting') return false;
+    // 切层走到一半被叫退出：先把楼层落地，再从那一层往街景退。
+    // 不这样的话会从 `interiorFloor`（旧层）开始插值，出去再进来看到的层号是错的。
+    if (this.interiorMode === 'switching') this.settleInteriorFloor();
     this.interiorFrames = 0;
     if (!this.interiorTransitionEnabled) {
       this.finishInteriorExit();
@@ -4329,9 +4351,13 @@ export class SandboxScene extends Phaser.Scene {
     return true;
   }
 
-  /** 每推进一帧调一次：进场 / 室内 / 退场的唯一驱动。固定帧数，不读墙钟。 */
+  /** 每推进一帧调一次：进场 / 切层 / 室内 / 退场的唯一驱动。固定帧数，不读墙钟。 */
   private updateInterior(): void {
-    if (this.interiorMode === 'entering' || this.interiorMode === 'exiting') {
+    if (
+      this.interiorMode === 'entering'
+      || this.interiorMode === 'exiting'
+      || this.interiorMode === 'switching'
+    ) {
       // 验收机位可以钉住帧号（`?interior=step`）：不然截图那几百毫秒足够走完 18 帧，
       // 「过渡中点帧」永远拍成室内帧。
       if (!this.interiorStepMode) this.interiorFrames += 1;
@@ -4375,6 +4401,28 @@ export class SandboxScene extends Phaser.Scene {
       return;
     }
 
+    if (this.interiorMode === 'switching') {
+      // 切层：相机不动，画面在中点黑到底，黑的那一帧才换贴图。
+      // 这里只淡**房间**、不淡暗场：`setReveal` 连暗场一起收，中点就会露出街景，
+      // 那是「走出门」的效果，不是「在屋里上楼」。
+      const opacity = interiorSwitchOpacity(this.interiorFrames);
+      view.setReveal(1);
+      view.setRoomOpacity(opacity);
+      if (
+        this.interiorFloor !== this.interiorSwitchTo
+        && this.interiorFrames >= INTERIOR_SWITCH_SWAP_FRAME
+      ) {
+        this.interiorFloor = this.interiorSwitchTo;
+        view.setFloor(this.interiorFloor);
+      }
+      view.tick();
+      if (this.interiorFrames >= INTERIOR_TRANSITION_FRAMES) {
+        this.settleInteriorFloor();
+        view.setRoomOpacity(1);
+      }
+      return;
+    }
+
     if (this.interiorMode === 'exiting') {
       this.centerCameraAt(
         lerp(center.x, pose.centerX, progress),
@@ -4393,9 +4441,13 @@ export class SandboxScene extends Phaser.Scene {
    */
   stepInterior(frames = 1): boolean {
     if (!this.interiorStepMode) return false;
-    if (this.interiorMode !== 'entering' && this.interiorMode !== 'exiting') return false;
+    const inTransition = (): boolean =>
+      this.interiorMode === 'entering'
+      || this.interiorMode === 'exiting'
+      || this.interiorMode === 'switching';
+    if (!inTransition()) return false;
     for (let index = 0; index < frames; index += 1) {
-      if (this.interiorMode !== 'entering' && this.interiorMode !== 'exiting') break;
+      if (!inTransition()) break;
       this.interiorFrames += 1;
       this.applyInteriorFrame();
     }
@@ -4423,10 +4475,63 @@ export class SandboxScene extends Phaser.Scene {
     this.interiorBuildingId = null;
     this.interiorSavedPose = null;
     this.interiorFrames = 0;
+    this.interiorFloor = INTERIOR_FIRST_FLOOR;
+    this.interiorSwitchTo = INTERIOR_FIRST_FLOOR;
     writeInteriorViewState(null);
   }
 
-  /** 室内点击：门=退出，楼梯=只给反馈（切层留给下一块）。 */
+  /**
+   * 切层：`delta=+1` 上楼、`-1` 下楼。**楼层只在视图里**，不动世界状态、不发事件。
+   *
+   * 越界（在顶层再往上、底层再往下）不绕回另一头，只闪一下被点的那一段：
+   * 上楼键在上半、下楼键在下半，点哪儿反馈就落哪儿，不让人猜为什么没动。
+   */
+  switchInteriorFloor(delta: number): boolean {
+    if (this.interiorMode !== 'inside') return false;
+    const buildingId = this.interiorBuildingId;
+    if (buildingId === null) return false;
+    const building = this.snapshot.buildings.find((item) => item.instanceId === buildingId);
+    if (building === undefined) return false;
+    const floors = interiorFloorsFor(building);
+    const target = this.interiorFloor + Math.sign(delta);
+    if (target < INTERIOR_FIRST_FLOOR || target > floors) {
+      this.interiorView?.flashStairs(delta > 0 ? 'up' : 'down');
+      return false;
+    }
+
+    this.interiorSwitchTo = target;
+    this.interiorFrames = 0;
+    // 过渡开关关掉时直接换图：验收冻结帧不能被切层动画搅动。
+    if (!this.interiorTransitionEnabled) {
+      this.interiorFloor = target;
+      this.interiorView?.setFloor(target);
+      this.interiorView?.setRoomOpacity(1);
+      this.interiorView?.setReveal(1);
+      this.writeInteriorView();
+      return true;
+    }
+    this.interiorMode = 'switching';
+    return true;
+  }
+
+  /** 切层过渡走完（或半途被退出打断）：把目标层认账，回到室内态。 */
+  private settleInteriorFloor(): void {
+    if (this.interiorFloor !== this.interiorSwitchTo) {
+      this.interiorFloor = this.interiorSwitchTo;
+      this.interiorView?.setFloor(this.interiorFloor);
+    }
+    this.interiorMode = 'inside';
+    this.writeInteriorView();
+  }
+
+  /** 楼层变化后只写**本机独立键**：读档不还原，回街景。 */
+  private writeInteriorView(): void {
+    const buildingId = this.interiorBuildingId;
+    if (buildingId === null) return;
+    writeInteriorViewState({ buildingId, floor: this.interiorFloor });
+  }
+
+  /** 室内点击：门=退出，楼梯上半=上楼、下半=下楼（越界只闪提示）。 */
   private interiorClick(pointer: Phaser.Input.Pointer): void {
     if (this.interiorMode !== 'inside') return;
     const view = this.interiorView;
@@ -4437,22 +4542,30 @@ export class SandboxScene extends Phaser.Scene {
       this.exitInterior();
       return;
     }
-    if (hit === 'stairs') view.flashStairs();
+    if (hit === 'stairs') {
+      const direction = view.stairDirectionAt(pointer.x, pointer.y);
+      if (direction === null) return;
+      // 越界时 `switchInteriorFloor` 自己已经闪了对应那一段，这里不重复闪。
+      this.switchInteriorFloor(direction === 'up' ? 1 : -1);
+    }
   }
 
   /**
    * 屋里此刻有谁：`visible === false` 且占地判到本楼的人——就是上工那批。
-   * **没人就传空数组**，房间照空着画，不摆假人。
+   * **没人就是空数组**，房间照空着画，不摆假人。
    */
-  private refreshInteriorOccupants(): void {
-    const view = this.interiorView;
-    const buildingId = this.interiorBuildingId;
-    if (view === null || buildingId === null) return;
-    const ids = this.snapshot.villagers
+  private interiorOccupantsOf(buildingId: string | null): string[] {
+    if (buildingId === null) return [];
+    return this.snapshot.villagers
       .filter((villager) => !villager.visible && this.buildingIdAt(villager.pos) === buildingId)
       .map((villager) => villager.id)
       .sort();
-    view.setOccupants(ids);
+  }
+
+  private refreshInteriorOccupants(): void {
+    const view = this.interiorView;
+    if (view === null) return;
+    view.setOccupants(this.interiorOccupantsOf(this.interiorBuildingId));
   }
 
   private setBuildingShellVisible(buildingId: string, visible: boolean): void {

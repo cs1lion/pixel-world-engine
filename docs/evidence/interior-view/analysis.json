@@ -26,7 +26,7 @@
     "total": 573476
   },
   "streetVsAfter": {
-    "changedPixels": 259716,
+    "changedPixels": 259428,
     "bbox": [
       1,
       1,
@@ -56,7 +56,7 @@
     "total": 616001
   },
   "streetVsInterior": {
-    "changedPixels": 582174,
+    "changedPixels": 582222,
     "bbox": [
       1,
       1,
@@ -64,5 +64,30 @@
       641
     ],
     "total": 616001
+  },
+  "floorSwitch": {
+    "floorTwoBBox": {
+      "x": 17,
+      "y": 11,
+      "w": 934,
+      "h": 614
+    },
+    "floorTwoUniqueColors": 12,
+    "floorTwoOutsidePalette": [],
+    "floorOneVsFloorTwo": {
+      "changedPixels": 38944,
+      "bbox": [
+        40,
+        42,
+        864,
+        566
+      ],
+      "total": 573476
+    },
+    "switchMidUniqueColors": 1,
+    "switchMidColors": [
+      "#14110d"
+    ],
+    "switchMidOnlyInk": true
   }
 }

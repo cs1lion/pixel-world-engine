@@ -54,10 +54,12 @@ const report = {
 
 // --- 1. 街景基线 -----------------------------------------------------------
 const street = await openPage(browser, 'time=noon&debug=1&interior=instant');
-const first = await street.evaluate(() => {
-  const state = window.Oracle.interior();
-  return state.buildings[0];
-});
+// 选一栋**至少两层**的楼：块 2 要验楼梯切层，单层楼切不出东西来。
+// `interior()` 里每栋楼都带 `floors`（由剪影派生，视图读法），这里只读不猜。
+const first =
+  (await street.evaluate(() => window.Oracle.interior().buildings)).find(
+    (building) => building.floors >= 2,
+  ) ?? (await street.evaluate(() => window.Oracle.interior().buildings[0]));
 const streetPose = poseOf(await street.evaluate(() => window.Oracle.camera()));
 const streetStats = await street.evaluate(() => window.Oracle.renderStats());
 await shot(street, 'street');
@@ -92,6 +94,51 @@ const finalPose = poseOf(await street.evaluate(() => window.Oracle.camera()));
 const finalStats = await street.evaluate(() => window.Oracle.renderStats());
 await shot(street, 'street-after');
 
+/** 盯着切层：数到目标层落地为止，返回走过的最大帧号。只数帧、不看毫秒。 */
+async function watchFloor(page, target) {
+  return page.evaluate((floor) => new Promise((resolve) => {
+    let frames = 0;
+    let iterations = 0;
+    const tick = () => {
+      const state = window.Oracle.interior();
+      frames = Math.max(frames, state.frames);
+      if (state.mode === 'inside' && state.floor === floor) {
+        resolve({ frames, state, timeout: false });
+        return;
+      }
+      iterations += 1;
+      if (iterations > 240) {
+        resolve({ frames, state, timeout: true });
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }), target);
+}
+
+// 内景画在屏幕坐标上，坐标换算写死在这里：内景 1 texel = 2 内部像素，
+// 画布 480×320、CSS 2 倍；房间左上 = (240 - 232, 160 - 152) = (8, 8) 内部像素。
+const roomLeft = 240 - 232;
+const roomTop = 160 - 152;
+/**
+ * 点房间里的某个图元。
+ *
+ * **每次都要重新读 canvas 的位置**：`locator.screenshot()` 会把元素滚进视口，
+ * 页面纵向位置跟着变；拿截图前的 box 去点门，落点会偏到门外的地面上
+ * （取证时就是这样：楼梯点到了，门点空了）。
+ */
+async function roomClick(page, rect) {
+  const box = await page.locator('#app canvas').boundingBox();
+  const k = box.width / 480;
+  const point = {
+    x: box.x + (roomLeft + (rect.x + rect.w / 2) * 2) * k,
+    y: box.y + (roomTop + (rect.y + rect.h / 2) * 2) * k,
+  };
+  await page.mouse.click(point.x, point.y);
+  return point;
+}
+
 // --- 5. 过渡：固定帧数与中点帧 ---------------------------------------------
 const transition = await openPage(browser, 'time=noon&debug=1');
 const transitionPose = poseOf(await transition.evaluate(() => window.Oracle.camera()));
@@ -122,6 +169,28 @@ await stepPage.waitForTimeout(250);
 await shot(stepPage, 'transition-mid');
 const midState = await stepPage.evaluate(() => window.Oracle.interior());
 
+// 再推 9 帧进第 1 层：室内基准帧。
+await stepPage.evaluate(() => window.Oracle.stepInterior(9));
+await stepPage.waitForFunction(() => window.Oracle.interior().mode === 'inside', null, { timeout: 20000 });
+await stepPage.waitForTimeout(150);
+await shot(stepPage, 'interior');
+const floorOneState = await stepPage.evaluate(() => window.Oracle.interior());
+const floorOneStats = await stepPage.evaluate(() => window.Oracle.renderStats());
+const floorOnePose = poseOf(await stepPage.evaluate(() => window.Oracle.camera()));
+
+// 切层中点：暗场全黑，换图看不见接缝。
+await roomClick(stepPage, floorOneState.stairUp);
+await stepPage.evaluate(() => window.Oracle.stepInterior(9));
+await stepPage.waitForTimeout(200);
+await shot(stepPage, 'switch-mid');
+const switchMid = await stepPage.evaluate(() => window.Oracle.interior());
+await stepPage.evaluate(() => window.Oracle.stepInterior(9));
+await stepPage.waitForTimeout(150);
+await shot(stepPage, 'interior-f2');
+const floorTwoState = await stepPage.evaluate(() => window.Oracle.interior());
+const floorTwoStats = await stepPage.evaluate(() => window.Oracle.renderStats());
+const floorTwoPose = poseOf(await stepPage.evaluate(() => window.Oracle.camera()));
+
 // --- 6. 真点：街景点门进屋 ------------------------------------------------
 // 门格是世界坐标里的一格，换算回屏幕要经过相机的 zoom，所以先把镜头摆到楼中心，
 // 再从 `Oracle.camera()` 读回**实际的** scroll，别用公式现算现信。
@@ -143,33 +212,34 @@ await clickPage.mouse.click(doorPointStreet.x, doorPointStreet.y);
 await clickPage.waitForFunction(() => window.Oracle.interior().mode === 'inside', null, { timeout: 20000 });
 const enterByClick = await clickPage.evaluate(() => window.Oracle.interior());
 
-// --- 7. 真点：楼梯要有反馈，门要能退出 -------------------------------------
-// 内景画在屏幕坐标上，坐标换算写死在这里：内景 1 texel = 2 内部像素，
-// 画布 480×320、CSS 2 倍；房间左上 = (240 - 232, 160 - 152) = (8, 8) 内部像素。
-const roomLeft = 240 - 232;
-const roomTop = 160 - 152;
-/**
- * 点房间里的某个图元。
- *
- * **每次都要重新读 canvas 的位置**：`locator.screenshot()` 会把元素滚进视口，
- * 页面纵向位置跟着变；拿截图前的 box 去点门，落点会偏到门外的地面上
- * （取证时就是这样：楼梯点到了，门点空了）。
- */
-async function roomClick(page, rect) {
-  const box = await page.locator('#app canvas').boundingBox();
-  const k = box.width / 480;
-  const point = {
-    x: box.x + (roomLeft + (rect.x + rect.w / 2) * 2) * k,
-    y: box.y + (roomTop + (rect.y + rect.h / 2) * 2) * k,
-  };
-  await page.mouse.click(point.x, point.y);
-  return point;
-}
-const layoutInfo = await transition.evaluate(() => window.Oracle.interior());
-const stairsPoint = await roomClick(transition, layoutInfo.stairs);
+// --- 7. 真点：楼梯上下两段、边界反馈、门退出 -------------------------------
+const layoutOne = await transition.evaluate(() => window.Oracle.interior());
+// 同一页、同一层的基准读数：跨页比会被环境（行人、光照）带偏 ±几帧。
+const transitionGroundStats = await transition.evaluate(() => window.Oracle.renderStats());
+const stairsUpPoint = await roomClick(transition, layoutOne.stairUp);
+const switchUp = await watchFloor(transition, 2);
+await shot(transition, 'interior-f2-live');
+const floorTwoLive = await transition.evaluate(() => window.Oracle.interior());
+const floorTwoLiveStats = await transition.evaluate(() => window.Oracle.renderStats());
+const floorTwoLivePose = poseOf(await transition.evaluate(() => window.Oracle.camera()));
+
+// 顶层再点上半：楼层不变，只闪提示（不绕回底层）。
+const topUpPoint = await roomClick(transition, floorTwoLive.stairUp);
+const topAttempt = await transition.evaluate(() => window.Oracle.interior());
+
+// 点下半下楼：回到第 1 层。
+const stairsDownPoint = await roomClick(transition, floorTwoLive.stairDown);
+const switchDown = await watchFloor(transition, 1);
+const groundAgainStats = await transition.evaluate(() => window.Oracle.renderStats());
+
+// 底层再点下半：同样不动，只闪提示。
+const layoutGround = await transition.evaluate(() => window.Oracle.interior());
+const bottomDownPoint = await roomClick(transition, layoutGround.stairDown);
 await shot(transition, 'stairs-hint');
-const stairsClick = await transition.evaluate(() => window.Oracle.interior());
-const doorPoint = await roomClick(transition, layoutInfo.door);
+const bottomAttempt = await transition.evaluate(() => window.Oracle.interior());
+
+// 门：从第 1 层退出，位姿必须逐字回到进门之前。
+const doorPoint = await roomClick(transition, layoutGround.door);
 await transition.waitForFunction(() => window.Oracle.interior().mode === 'street', null, { timeout: 20000 });
 const poseAfterDoor = poseOf(await transition.evaluate(() => window.Oracle.camera()));
 
@@ -192,6 +262,7 @@ report.results = {
     door: first.door,
     origin: first.origin,
     footprint: first.footprint,
+    floors: first.floors,
   },
   street: {
     pose: streetPose,
@@ -205,9 +276,13 @@ report.results = {
     totalCommands: insideStats.totalCommands,
     mode: insideState.mode,
     floor: insideState.floor,
+    floors: insideState.floors,
+    occupants: insideState.occupants,
     room: insideState.room,
     door: insideState.door,
     stairs: insideState.stairs,
+    stairUp: insideState.stairUp,
+    stairDown: insideState.stairDown,
     view: insideState.view,
   },
   delta: {
@@ -235,11 +310,53 @@ report.results = {
     buildingId: enterByClick.buildingId,
     frames: enterByClick.frames,
   },
+  /** 逐帧推出来的切层：第 1 层 → 中点暗场 → 第 2 层。 */
+  floorSwitch: {
+    from: { floor: floorOneState.floor, frames: floorOneState.frames, pose: floorOnePose,
+      graphicsObjects: floorOneStats.graphicsObjects, totalCommands: floorOneStats.totalCommands },
+    mid: { frames: switchMid.frames, mode: switchMid.mode, floor: switchMid.floor,
+      imageAlpha: switchMid.view?.image?.alpha ?? null, imageVisible: switchMid.view?.image?.visible ?? null },
+    to: { floor: floorTwoState.floor, frames: floorTwoState.frames, pose: floorTwoPose,
+      graphicsObjects: floorTwoStats.graphicsObjects, totalCommands: floorTwoStats.totalCommands },
+    // 相机在切层前后必须一个数字都不动：切层是同一间屋里的上下移动。
+    poseIdentical: JSON.stringify(floorOnePose) === JSON.stringify(floorTwoPose),
+    statsIdentical:
+      floorOneStats.graphicsObjects === floorTwoStats.graphicsObjects
+      && floorOneStats.totalCommands === floorTwoStats.totalCommands,
+    deltaCommands: floorTwoStats.totalCommands - floorOneStats.totalCommands,
+  },
+  /** 同页对照：第 1 层读数在下楼前再取一次，分清「换层带来的差」与「环境在变」。 */
+  groundReturn: {
+    firstFloor: {
+      graphicsObjects: transitionGroundStats.graphicsObjects,
+      totalCommands: transitionGroundStats.totalCommands,
+    },
+    afterDown: {
+      graphicsObjects: groundAgainStats.graphicsObjects,
+      totalCommands: groundAgainStats.totalCommands,
+    },
+    sameAsFirstFloor:
+      groundAgainStats.graphicsObjects === transitionGroundStats.graphicsObjects
+      && groundAgainStats.totalCommands === transitionGroundStats.totalCommands,
+    samePageFloorDelta: {
+      graphicsObjects: floorTwoLiveStats.graphicsObjects - transitionGroundStats.graphicsObjects,
+      totalCommands: floorTwoLiveStats.totalCommands - transitionGroundStats.totalCommands,
+    },
+  },
+  /** 真点楼梯：上楼 18 帧、下楼 18 帧；顶层再上 / 底层再下只闪提示。 */
   clicks: {
-    stairsPoint,
+    stairsUpPoint,
+    switchUp: { frames: switchUp.frames, timeout: switchUp.timeout,
+      floor: switchUp.state.floor, mode: switchUp.state.mode, pose: floorTwoLivePose },
+    topUpPoint,
+    topUpAttempt: { floor: topAttempt.floor, hintFrames: topAttempt.hintFrames, mode: topAttempt.mode },
+    stairsDownPoint,
+    switchDown: { frames: switchDown.frames, timeout: switchDown.timeout,
+      floor: switchDown.state.floor, mode: switchDown.state.mode },
+    bottomDownPoint,
+    bottomDownAttempt: { floor: bottomAttempt.floor, hintFrames: bottomAttempt.hintFrames,
+      mode: bottomAttempt.mode },
     doorPoint,
-    stairsHintFramesAfterClick: stairsClick.hintFrames,
-    stairsMode: stairsClick.mode,
     modeAfterDoor: 'street',
     poseAfterDoor,
     poseAfterDoorMatches: samePose(poseAfterDoor, transitionPose),
@@ -251,6 +368,8 @@ report.summary = {
   poseRoundTrip: samePose(finalPose, streetPose) ? 'PASS' : 'FAIL',
   allTenCyclesSame: report.results.afterTenCycles.cycles.every((item) => item.matches),
   transitionFrames: timing.maxFrames,
+  floorSwitchFrames: switchUp.frames,
+  floorSwitchPoseIdentical: report.results.floorSwitch.poseIdentical,
   commandsWithinBudget: insideStats.totalCommands < 30000,
 };
 

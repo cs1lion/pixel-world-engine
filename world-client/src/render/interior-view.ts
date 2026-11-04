@@ -22,11 +22,14 @@ import { bakeLayer, type BakedLayer } from './bake.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { PlacedBuilding } from '../world/types.ts';
 import {
+  INTERIOR_FIRST_FLOOR,
   INTERIOR_ROOM_H,
   INTERIOR_ROOM_W,
   interiorLayoutFor,
   seatFor,
+  stairDirectionAt,
   type InteriorLayout,
+  type StairDirection,
 } from './interior-layout.ts';
 
 /** 内景的深度基座。整块画面压在一切街景之上，内部再分三层。 */
@@ -55,11 +58,18 @@ export interface InteriorCamera {
 export interface InteriorView {
   /** 当前摆的是哪栋楼；没进过就是 null。 */
   readonly buildingId: string | null;
+  /** 当前这一层（视图状态，不进世界状态）。 */
+  readonly floor: number;
   /** 楼梯提示还剩几帧（0 = 没闪）。点击反馈的验收读数。 */
   readonly hintFrames: number;
   /** 验收读数：贴图的实际显示尺寸，以及它相对画布左上的偏移。 */
   readonly debug: {
+    readonly floor: number;
+    readonly floors: number | null;
+    readonly canUp: boolean;
+    readonly canDown: boolean;
     readonly scale: number;
+    readonly roomOpacity: number;
     readonly image: {
       readonly x: number;
       readonly y: number;
@@ -73,14 +83,24 @@ export interface InteriorView {
       readonly visible: boolean;
     };
   };
-  show(building: PlacedBuilding, camera: InteriorCamera): void;
+  show(building: PlacedBuilding, camera: InteriorCamera, floor?: number): void;
+  /** 换一层：同一栋楼另一层的烘焙图，画面位置不动（相机不动）。 */
+  setFloor(floor: number): void;
   hide(): void;
   /** 交叉淡入：0 = 街景，1 = 室内。 */
   setReveal(alpha: number): void;
+  /**
+   * 只淡房间、不淡暗场（0..1）。
+   *
+   * 切层用这一支：进屋的 `setReveal` 把暗场一起收掉，中途会露出街景；
+   * 可切层是在屋里上下走，中点必须是**屋里的黑**，不是透过地板看见大街。
+   */
+  setRoomOpacity(alpha: number): void;
   /** 传**已经按 id 排序**的在场居民；空数组就是空房间，不造假人。 */
   setOccupants(ids: readonly string[]): void;
   tick(): void;
-  flashStairs(): void;
+  /** 楼梯反馈：`direction` 给定时只闪那一段（点顶层上半 / 底层下半用）。 */
+  flashStairs(direction?: StairDirection | null): void;
   /**
    * 点到的是门、楼梯还是别处。
    *
@@ -88,6 +108,8 @@ export interface InteriorView {
    * 内景是屏幕坐标画的，换算回世界坐标只会把 zoom 又绕回来。
    */
   hitTest(pointerX: number, pointerY: number): 'door' | 'stairs' | null;
+  /** 楼梯上半 = up、下半 = down；不在楼梯上给 null。 */
+  stairDirectionAt(pointerX: number, pointerY: number): StairDirection | null;
   readonly layout: InteriorLayout | null;
   destroy(): void;
 }
@@ -140,6 +162,25 @@ function drawHearth(g: Phaser.GameObjects.Graphics, rect: NonNullable<InteriorLa
 }
 
 /**
+ * 层标：左上角一排小方块，亮起几块 = 当前在第几层。
+ *
+ * 为什么画这个：上下两层共用同一套墙与窗，只看家具没法在截图里一眼分出
+ * 「切层成功了」还是「压根没换」。方块只读 `layout.floor/floors`，不读墙钟。
+ * 放左上而不是右上：右上角压着调试面板的 DOM 按钮，截图里会被盖掉。
+ */
+function drawFloorMarks(g: Phaser.GameObjects.Graphics, floor: number, floors: number): void {
+  const size = 4;
+  const gap = 2;
+  for (let index = 0; index < floors; index += 1) {
+    const x = 8 + index * (size + gap);
+    g.fillStyle(index < floor ? WORLD.amber : WORLD.charcoal, 1);
+    g.fillRect(x, 8, size, size);
+    g.fillStyle(WORLD.ink, 1);
+    g.fillRect(x, 8, size, 1);
+  }
+}
+
+/**
  * 静态房间画一遍，烘成一张贴图。
  *
  * **一律不透明**：这里不用 alpha。叠色会混出调色板外的 RGB
@@ -166,6 +207,8 @@ function drawRoom(g: Phaser.GameObjects.Graphics, layout: InteriorLayout): void 
   // 窗
   drawWindow(g, 44, 10, 34, 22);
   drawWindow(g, 154, 10, 34, 22);
+  // 层标（右上角）：切层是否真的换了图，这一排方块给的是可截图的读数。
+  drawFloorMarks(g, layout.floor, layout.floors);
 
   // 地面板缝
   g.fillStyle(WORLD.stone, 1);
@@ -276,8 +319,13 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
   let anchorX = 0;
   let anchorY = 0;
   let displayScale = 1;
+  /** 房间（贴图+人+提示）的不透明度；暗场另算。切层时它走到 0 再回来。 */
+  let roomOpacity = 1;
   let occupantSignature = '';
+  /** 最近一次传进来的人：换层要按同一批人重画，不能把屋里的人弄丢。 */
+  let occupantIds: readonly string[] = [];
   let stairsHint = 0;
+  let hintDirection: StairDirection | null = null;
 
   /** 暗场 + 房间贴图 + 人 + 提示：淡入淡出与显隐都一起动，别漏掉贴图。 */
   const scenery = (): (Phaser.GameObjects.Graphics | Phaser.GameObjects.Image)[] =>
@@ -292,6 +340,26 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
     baked?.image.setScale(displayScale).setPosition(anchorX, anchorY);
   };
 
+  /** 换一层就再烘一张：key 带层号，旧层贴图逐字留着不动。 */
+  const bake = (target: InteriorLayout): void => {
+    if (bakedKey === target.key) return;
+    baked?.destroy();
+    baked = bakeLayer(
+      scene,
+      target.key,
+      INTERIOR_ROOM_W,
+      INTERIOR_ROOM_H,
+      INTERIOR_ROOM_DEPTH,
+      (g) => drawRoom(g, target),
+    );
+    bakedKey = target.key;
+    // 新键的贴图不会继承旧对象的 scrollFactor：漏了这一步，图会跟着相机 scroll 跑出屏外
+    // （取证时第 2 层整张截图全黑，就是这里漏了一行）。
+    baked.image.setScrollFactor(0);
+    baked.image.setAlpha(roomOpacity).setVisible(roomOpacity > 0);
+    placeRoom();
+  };
+
   const drawHint = (): void => {
     hintG.clear();
     if (stairsHint <= 0 || layout === null) return;
@@ -302,6 +370,16 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
     hintG.fillRect(rect.x - 2, rect.y + rect.h + 1, rect.w + 4, 1);
     hintG.fillRect(rect.x - 2, rect.y - 2, 1, rect.h + 4);
     hintG.fillRect(rect.x + rect.w + 1, rect.y - 2, 1, rect.h + 4);
+    // 有方向就在那一段里画一个箭头：上楼的箭头朝上、下楼朝下。
+    // 「点了但上不去 / 下不去」也走这一支——反馈照样落在被点的那一段上。
+    if (hintDirection === null) return;
+    const target = hintDirection === 'up' ? layout.stairUp : layout.stairDown;
+    const cx = target.x + Math.floor(target.w / 2);
+    const top = target.y + Math.floor(target.h / 2) - 4;
+    for (let index = 0; index < 4; index += 1) {
+      const width = hintDirection === 'up' ? 2 + index * 2 : 8 - index * 2;
+      hintG.fillRect(cx - Math.floor(width / 2), top + index * 2, width, 2);
+    }
   };
 
   const drawActors = (ids: readonly string[]): void => {
@@ -318,13 +396,21 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
     get buildingId(): string | null {
       return current?.instanceId ?? null;
     },
+    get floor(): number {
+      return layout?.floor ?? INTERIOR_FIRST_FLOOR;
+    },
     get hintFrames(): number {
       return stairsHint;
     },
     get debug(): InteriorView['debug'] {
       const image = baked?.image ?? null;
       return {
+        floor: layout?.floor ?? INTERIOR_FIRST_FLOOR,
+        floors: layout?.floors ?? null,
+        canUp: layout?.canUp ?? false,
+        canDown: layout?.canDown ?? false,
         scale: displayScale,
+        roomOpacity,
         image: image === null ? null : {
           x: image.x,
           y: image.y,
@@ -339,9 +425,10 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
     get layout(): InteriorLayout | null {
       return layout;
     },
-    show(building: PlacedBuilding, camera: InteriorCamera): void {
+    show(building: PlacedBuilding, camera: InteriorCamera, floor = INTERIOR_FIRST_FLOOR): void {
       current = building;
-      layout = interiorLayoutFor(building);
+      layout = interiorLayoutFor(building, floor);
+      roomOpacity = 1;
       // 恒定的屏幕尺寸：texel × 2 × zoom / zoom = 2 内部像素。
       displayScale = INTERIOR_PIXEL / camera.zoom;
       const halfW = (INTERIOR_ROOM_W * INTERIOR_PIXEL) / 2;
@@ -356,27 +443,33 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
       backdrop.setScale(1 / camera.zoom);
       backdrop.setPosition(camera.width / 2, camera.height / 2);
       placeRoom();
-
-      if (bakedKey !== layout.key) {
-        baked?.destroy();
-        baked = bakeLayer(
-          scene,
-          layout.key,
-          INTERIOR_ROOM_W,
-          INTERIOR_ROOM_H,
-          INTERIOR_ROOM_DEPTH,
-          (g) => drawRoom(g, layout!),
-        );
-        bakedKey = layout.key;
-        placeRoom();
-      }
+      bake(layout);
+      // 新人进屋先清人：上一次离开时留下的图元不该借这一趟「复活」。
+      actorG.clear();
       occupantSignature = '';
+      occupantIds = [];
       stairsHint = 0;
+      hintDirection = null;
       drawHint();
       for (const layer of scenery()) {
         layer.setScrollFactor(0);
         layer.setVisible(true);
       }
+    },
+    setFloor(floor: number): void {
+      if (current === null) return;
+      layout = interiorLayoutFor(current, floor);
+      bake(layout);
+      // 同一批人按新层的座位重画；换层不等于换房间的人。
+      drawActors(occupantIds);
+      occupantSignature = occupantIds.join('|');
+      for (const layer of scenery()) {
+        if (layer === backdrop) continue;
+        layer.setAlpha(roomOpacity).setVisible(roomOpacity > 0);
+      }
+      stairsHint = 0;
+      hintDirection = null;
+      drawHint();
     },
     hide(): void {
       for (const layer of scenery()) {
@@ -386,6 +479,7 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
       actorG.clear();
       hintG.clear();
       stairsHint = 0;
+      hintDirection = null;
     },
     setReveal(alpha: number): void {
       const value = Math.max(0, Math.min(1, alpha));
@@ -393,8 +487,18 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
         layer.setAlpha(value);
         layer.setVisible(value > 0);
       }
+      roomOpacity = value;
+    },
+    setRoomOpacity(alpha: number): void {
+      roomOpacity = Math.max(0, Math.min(1, alpha));
+      for (const layer of scenery()) {
+        if (layer === backdrop) continue;
+        layer.setAlpha(roomOpacity);
+        layer.setVisible(roomOpacity > 0);
+      }
     },
     setOccupants(ids: readonly string[]): void {
+      occupantIds = [...ids];
       const signature = ids.join('|');
       if (signature === occupantSignature) return;
       occupantSignature = signature;
@@ -405,8 +509,9 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
       stairsHint -= 1;
       drawHint();
     },
-    flashStairs(): void {
+    flashStairs(direction: StairDirection | null = null): void {
       stairsHint = STAIRS_HINT_FRAMES;
+      hintDirection = direction;
       drawHint();
     },
     hitTest(pointerX: number, pointerY: number): 'door' | 'stairs' | null {
@@ -428,6 +533,14 @@ export function createInteriorView(scene: Phaser.Scene): InteriorView {
         return 'stairs';
       }
       return null;
+    },
+    stairDirectionAt(pointerX: number, pointerY: number): StairDirection | null {
+      if (layout === null) return null;
+      return stairDirectionAt(
+        layout,
+        (pointerX - screenLeft) / INTERIOR_PIXEL,
+        (pointerY - screenTop) / INTERIOR_PIXEL,
+      );
     },
     destroy(): void {
       baked?.destroy();

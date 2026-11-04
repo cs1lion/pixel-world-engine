@@ -64,3 +64,100 @@
 无阻塞。块 2 的入口：楼梯坐标已登记在 `interiorLayoutFor`（`stairs` 矩形），
 点击已经在 `InteriorView.hitTest` 里分流；切层只要把 `floor` 变成状态、用
 `interior:<instanceId>:f<floor>` 再烘一张即可——不需要动世界状态与 v5。
+
+---
+
+## 块 2 · 楼梯切层（仍只给看）
+
+- 证据目录：`docs/evidence/interior-view-block2/`（`shots/`、`readings.json`、`analysis.json`）。
+  注意：块 1 的 `interior-view/shots` 被这一轮的取证脚本**覆盖过**，块 1 的读数以本文件与
+  `interior-view/INDEX.md` 里记的数值为准；这是本块的流程失误，后续块不再复用同一目录。
+- 改动：
+  - `src/render/interior-layout.ts`：`interiorFloorsFor(building)`（按剪影派生层数）、
+    `InteriorLayout.floor/floors/stairUp/stairDown/canUp/canDown`、`stairDirectionAt()`、
+    `INTERIOR_SWITCH_SWAP_FRAME = 9`、`interiorSwitchOpacity(frames)`（两端 1、中点 0）
+  - `src/render/interior-view.ts`：`show(..., floor)`、`setFloor(floor)`（换 key 重烘）、
+    `stairDirectionAt()`、`flashStairs(direction)`（上/下箭头落在被点的那一段）、
+    `setRoomOpacity(alpha)`（只淡房间、不淡暗场）、层标（左上角 4px 方块，亮起几块 = 第几层）
+  - `src/scenes/SandboxScene.ts`：新增 `'switching'` 态、`switchInteriorFloor(delta)`、
+    `settleInteriorFloor()`、`interiorFloor/interiorSwitchTo`；`interior()` 增读
+    `floor/switchTo/floors/canUp/canDown/stairUp/stairDown/occupants`
+  - `scripts/interior-capture.mjs`：逐帧推进的切层取证、真点两次上下楼、顶层/底层越界反馈
+  - `scripts/interior-analyze.py`：第 2 层色数、切层中点黑场、两层像素差
+  - `test/interior-view.test.ts`：新增 6 条（层数派生、越界夹取、上下两段、边界可上可下、
+    中点不透明度、楼上无灶）
+
+### 验收读数
+
+| 项 | 读数 |
+| --- | --- |
+| 层数来源 | `code_forge#1` 剪影 `gable` → **2 层**（flat=1 / gable=2 / tower=3，纯视图读法） |
+| 真点上楼 | 楼梯上半 → 第 2 层，过渡 **18 帧**（`switchUp.frames=18`，无超时） |
+| 真点下楼 | 楼梯下半 → 第 1 层，**18 帧**（`switchDown.frames=18`） |
+| 顶层再点上半 | 楼层仍为 2，只闪提示（`hintFrames=58`），**不绕回底层** |
+| 底层再点下半 | 楼层仍为 1，只闪提示（`hintFrames=25`） |
+| 切层中点 | `frames=9`、`mode=switching`、贴图 `alpha=0 / visible=false`；截图室内区 **1 色**（`#14110d`，只有 ink 暗场） |
+| 第 1 层色数 | **13**（≤24），调色板外 **0** |
+| 第 2 层色数 | **12**（≤24），调色板外 **0**；包围盒与第 1 层逐字相同 `934×614 @ (17,11)` |
+| 两层画面差 | **38 944 px** 变化（包围盒 `40,42 → 864,566`）：灶台消失、家具重摆、层标多亮一格 |
+| 切层相机 | 前后 `440/288/zoom 2` **逐字相同** |
+| 屋里此刻有谁 | `occupants = []`（`insideAt` 现取），内景按**空房间**画，不摆假人 |
+| Graphics / 指令 | 街景 30 / 16130 → 第 1 层 30 / 16145 → 第 2 层 30 / 16145；同页切层增量 **0 / 0** |
+| 往返位姿 | 1 次与 10 次往返都回到 `528/416/zoom 2`（`poseRoundTrip = PASS`） |
+| 冻结 1 秒 | **0 像素差**（573 476 px，`?interior=instant`） |
+| 三枚指纹 | `trace:record` / `trace:replay` 两次逐字相同、与录制一致（世界 `95ee83…`、记忆 `fb0847…`、造物 `c5198f…`） |
+
+> 块 1 的「+22 指令」有一处旧读数偏差：那时室内 `actorG` 里残留了一个 7 指令的人形图元
+> （`show()` 只重置了签名、没有清缓冲区）。本块把 `actorG.clear()` 补进 `show()` 后，
+> 室内指令稳定在 **16145**，相对街景的真实增量是 **+15**（+3 Graphics + 15 指令）。
+
+### 做到的
+
+1. 楼梯一竖两段：上半 = 上楼、下半 = 下楼；两段不重叠，点哪段走哪段。
+2. 切层是视图状态：`interiorFloor` 只在内存与 `pwe.interior.view` 独立键里，**不进 v5**；
+   读档仍回街景。
+3. 每层一张烘焙图（key = `interior:<instanceId>:f<floor>`），家具按 `seedAt(wallSeed, floor)` 派生；
+   楼上不画灶，层标亮起格数 = 层号。
+4. 切层过渡与进出场同一套：固定 18 帧、第 9 帧换图；只淡房间、保留暗场，
+   中点截图是纯 ink，换图看不见接缝。
+5. 边界不循环：顶层再上 / 底层再下只闪对应那一段 60 帧，楼层不动。
+6. 切层后相机与指令数不动（同页增量 0 / 0），退回底层的读数与上楼前逐字相同。
+
+### 没做到的
+
+- 楼上仍然共用同一个门框作为出口（`door` 每层都在原位）。这是**视图层的出口约定**，
+  不是「楼上真有一扇门」；要做得更真，得让出口从楼梯走回底层，属于交互范畴，本块没改。
+- 只有 `code_forge`（gable，2 层）拍了图。tower 的第 3 层只有单测覆盖，**没拍图**。
+- 层标是 4px 方块，不写数字/文字——够截图判读，但不是玩家能读懂的 UI。
+- 楼层只影响「看」，不影响世界：屋里的人不按层分、楼上没有独立居民。
+
+### 未验证的
+
+- `npm run test:browser`（smoke）：与块 1 同一处「等交付」超时风险；本块重跑结果见下方闸门。
+- `npm run test:buttons`：服务端活着但 `/api/memory/list` 回 **404**，数据源缺，按纪律标未验证。
+
+### 真问题（都修了）
+
+1. **第 2 层整张截图全黑**：`setFloor` 新烘的 `Image` 没有继承 `scrollFactor 0`，跟着相机 scroll
+   跑出屏外。补在 `bake()` 里（新贴图创建时立刻设 `scrollFactor 0`）。
+2. **中点露出街景**：沿用进场的 `setReveal` 会把暗场一起收掉，切层中点变成「透过地板看大街」。
+   新增 `setRoomOpacity`：只淡房间（贴图/人/提示），暗场留在 ink 上。
+3. **指令数一次性 −7**：`show()` 只重置 `occupantSignature`/`occupantIds`，没清 `actorG`；
+   一个旧人形图元会跨进屋留到第一次换层才被 `setFloor` 清掉。补 `actorG.clear()`。
+4. **层标被调试按钮盖住**：层标原放右上角，正好压在 `#debug-toggle` 的 DOM 矩形里；
+   移到左上角（`x=8,y=8`）。
+
+### 被否掉的写法
+
+- **切层复用 `entering/exiting` 两个态**：进场要从街景淡出，切层必须留在屋里；
+  共用一套 `setReveal` 会把街景翻出来。最终保留 `switching` 独立态 + `setRoomOpacity`。
+- **点楼梯循环切层**：顶层再点就往底层绕——用户会以为「点坏了」。改成越界只闪提示。
+- **把层数写进 `PlacedBuilding` / 存档**：本块不需要世界知道楼层；一旦写进去，
+  寻路、目击判定、v6 与夹具全要跟着改，超出「只给看」的范围。
+- **切层换图放在帧 0 或末帧**：帧 0 换会看到旧图熄灭、新图亮起前的空档；末帧换会闪一帧旧图。
+  中点是唯一看不见接缝的位置。
+
+### 阻塞
+
+无阻塞。块 3 的入口：`Oracle.interior()` 已带 `occupants`（`insideAt` 现取），
+连续往返与冻结帧的取证脚本沿用 `interior-capture.mjs` 的第 8 段。

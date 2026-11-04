@@ -89,10 +89,16 @@ def main():
     frozen_b = load("frozen-b.png")
     mid = load("transition-mid.png")
     after = load("street-after.png")
+    floor_two = load("interior-f2.png")
+    switch_mid = load("switch-mid.png")
 
     box = content_bbox(interior)
     colors = colors_inside(interior, box, DEBUG_TOGGLE_BOX)
     outside = [f"#{r:02x}{g:02x}{b:02x}" for (r, g, b) in colors if (r, g, b) not in WORLD_PALETTE]
+    # 第 2 层用**第 1 层量出来的同一个房间包围盒**：切层不该改画面位置，
+    # 用自己那份包围盒就绕过了「位置没动」这条判据。
+    colors_f2 = colors_inside(floor_two, box, DEBUG_TOGGLE_BOX)
+    outside_f2 = [f"#{r:02x}{g:02x}{b:02x}" for (r, g, b) in colors_f2 if (r, g, b) not in WORLD_PALETTE]
 
     report["size"] = {"width": interior.size[0], "height": interior.size[1]}
     report["interior"] = {
@@ -108,6 +114,18 @@ def main():
     report["midVsInterior"] = diff_stats(mid, interior)
     report["midVsStreet"] = diff_stats(mid, street)
     report["streetVsInterior"] = diff_stats(street, interior)
+    # 切层：第 2 层换了图，但位置、尺寸、调色板都还在同一条线上；
+    # 中点帧必须黑到只剩 ink（暗场本身），这样换图才看不见接缝。
+    mid_colors = colors_inside(switch_mid, box, DEBUG_TOGGLE_BOX)
+    report["floorSwitch"] = {
+        "floorTwoBBox": content_bbox(floor_two),
+        "floorTwoUniqueColors": len(colors_f2),
+        "floorTwoOutsidePalette": outside_f2,
+        "floorOneVsFloorTwo": diff_stats(interior, floor_two, box),
+        "switchMidUniqueColors": len(mid_colors),
+        "switchMidColors": [f"#{r:02x}{g:02x}{b:02x}" for (r, g, b) in mid_colors],
+        "switchMidOnlyInk": all((r, g, b) == INK for (r, g, b) in mid_colors),
+    }
 
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)
