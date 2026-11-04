@@ -120,6 +120,12 @@ export interface LibraryBudget {
   readonly written: LayerBudget;
   /** 镇志里的传说条目（`legends`），与碑文层的记忆条目不是一张表。 */
   readonly legends: LayerBudget;
+  /**
+   * 日摘要（SOAK-BUG-5，`digest.ts`）。**每天至多一条**，90 天 ≈ 30 条全量 +
+   * 60 条浓缩，实测 1.0–1.6 KB/天。条数取 120 = 90 天再留一个月的余量；
+   * 字节取 160 KB = 90 天实测的约 1.4 倍。两个上限都是硬上限。
+   */
+  readonly digests: LayerBudget;
 }
 
 export interface RecallWeights {
@@ -342,7 +348,12 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
     cooldowns: { count: 1_000, bytes: 60_000 },
     tells: { count: 1_000, bytes: 55_000 },
     written: { count: 200, bytes: 200_000 },
-    legends: { count: 120, bytes: 20_000 },
+    // SOAK-BUG-5 的余量处理：20 KB 时 90 天实测 19.6 KB（100.5%），再刻一条就
+    // 连锁淘汰。提到 28 KB 的代价实测：末存档 +4.21 KB（seed A）/ +2.49 KB（seed B），
+    // 尾段日增 +0.05 / +0.00 KB/天（条数上限 120 先卡住）。离 1800 KB 尚有
+    // 174.5 / 227.5 KB，不逼近，因此动上限，不加第三条排序项。
+    legends: { count: 120, bytes: 28_000 },
+    digests: { count: 120, bytes: 160_000 },
   },
   placeTraceLayers: 5,
 

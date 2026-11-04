@@ -17,6 +17,13 @@
 
 import { DEFAULT_MEMORY_CONFIG, weightsFor, type LayerBudget, type MemoryConfig } from './config.ts';
 import { byteSizeOf, consolidateHolder, trimEntriesToBudget } from './consolidate.ts';
+import {
+  buildDayDigest,
+  compactDayDigest,
+  digestTimelineOf,
+  shouldCompact,
+  stripDigestEvent,
+} from './digest.ts';
 import { advanceEra, openEra, signatureOf } from './era.ts';
 import { makeEpic } from './epic.ts';
 import {
@@ -97,6 +104,7 @@ import type {
   Belief,
   Bond,
   Claim,
+  DayDigest,
   EpicEntry,
   Era,
   EventVoice,
@@ -287,6 +295,11 @@ export interface MemoryWorldSnapshot {
   /** 情绪残留（`memorySchemaVersion >= 4`）。每个角色一条当前值。 */
   readonly moods: readonly Mood[];
   readonly legends: readonly Legend[];
+  /**
+   * 逐日压后的时间轴（SOAK-BUG-5）。**可选**：v4 及更早的档没有这一段，
+   * 读档按空数组处理——空就是事实，不拿条目倒推一份假摘要。
+   */
+  readonly digests?: readonly DayDigest[];
   readonly placeNames: readonly {
     readonly placeId: string;
     readonly name: string;
@@ -441,6 +454,14 @@ export class MemoryWorld {
    */
   private turningPoints: TurningPoint[] = [];
   private legends: Legend[] = [];
+  /**
+   * 逐日的压后时间轴（SOAK-BUG-5，`digest.ts`）。**每天至多一条**，按 `day` 升序。
+   *
+   * 它独立于 `entries`：条目层的 `day` 桶每人只有 16 格，旧日片段会被挤掉，
+   * 而摘要是一天一条、不随人增长。它也不替代条目——近档仍读条目，摘要接的是
+   * 「条目被裁掉之后，那一天还能读出什么」。
+   */
+  private digests: DayDigest[] = [];
   /**
    * 每个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
    *
@@ -1536,6 +1557,12 @@ export class MemoryWorld {
     // 也不该分他是从公告栏知道的还是从邻居那儿听来的。
     this.postDailyReport(closedDay, at);
     this.updateLegends(closedDay, at);
+
+    // **当天的时间轴要压在「今天最后一次写库」之后、预算之前。**
+    // 刻碑（`updateLegends`）也会给在场的人各记一条当天条目——它属于
+    // 「那天的时间轴」，但不在活动的片段里。压在刻碑之后，摘要的拍子数
+    // 才等于当天应有的条数；压在预算之前，才不会被旧日片段的裁剪带跑。
+    this.writeDayDigest(closedDay);
     // 预算在传说之后：刻碑是今天最后一件往库里写字的事，落在预算外面就
     // 要等明天才被裁，而读数取的是当天末。
     this.enforceBudgets(closedDay, at);
@@ -1677,6 +1704,17 @@ export class MemoryWorld {
       this.legends = legends.kept;
       this.emitPruned(day, at, 'legends', legends.byCount, legends.byBytes, this.legends.length);
     }
+
+    // 日摘要按「新的一天先留」裁。它和传说相反：摘要的价钱是**回溯**，
+    // 最近的日子被问到的次数最多，而传说要的是岁月感。两者排序不同是有意的。
+    const digests = this.trimRecords(this.digests, this.config.libraryBudget.digests, (a, b) => {
+      if (a.day !== b.day) return b.day - a.day;
+      return 0;
+    });
+    if (digests.byCount + digests.byBytes > 0) {
+      this.digests = digests.kept.sort((a, b) => a.day - b.day);
+      this.emitPruned(day, at, 'digests', digests.byCount, digests.byBytes, this.digests.length);
+    }
   }
 
   /**
@@ -1795,7 +1833,13 @@ export class MemoryWorld {
     for (const claimId of claims.removed) this.claims.delete(claimId);
 
     // 事件根才拿事实。记忆与断言被删时，别的事件还好好在那儿。
-    if (root.kind === 'event') this.facts.delete(root.id);
+    if (root.kind === 'event') {
+      this.facts.delete(root.id);
+      // 摘要里那条拍子也要摘掉：删掉的事件不该借着日摘要复活。
+      this.digests = this.digests
+        .map((digest) => stripDigestEvent(digest, root.id))
+        .filter((digest): digest is DayDigest => digest !== null);
+    }
 
     const counts = {
       memories: cascaded.report.removedMemoryIds.length,
@@ -2226,14 +2270,43 @@ export class MemoryWorld {
    * 个人时间线要用它把「我记住的那条」补上「在哪、和谁」，但单位没有
    * 权利知道镇上谁还旁听了同一件事。
    */
-  factDigest(eventId: string): { readonly placeId: string; readonly actors: readonly string[]; readonly what: string } | null {
+  factDigest(eventId: string): {
+    readonly placeId: string;
+    readonly actors: readonly string[];
+    readonly what: string;
+    /** 事件发生的时刻（ms）。日摘要只存拍序不存时刻，这一项给它兜底排序。 */
+    readonly tick: number;
+  } | null {
     const fact = this.facts.get(eventId);
     if (fact === undefined) return null;
     return {
       placeId: fact.placeId,
       actors: [...fact.actors],
       what: this.whatOf(fact),
+      tick: fact.tick,
     };
+  }
+
+  /** 某天的日摘要。那天没有被压过就返回 `null`——「没有记录」不是「无事发生」。 */
+  dayDigestOf(day: number): DayDigest | null {
+    return this.digests.find((digest) => digest.day === day) ?? null;
+  }
+
+  /** 全部日摘要（按天升序，只读给审计与面板）。 */
+  dayDigests(): readonly DayDigest[] {
+    return [...this.digests];
+  }
+
+  /**
+   * 某个人在某天的压后时间轴。**摘要只为「条目已被裁掉的那一天」兜底**：
+   * 近档仍以条目为准（调用方先读条目，空了再来这里）。
+   */
+  digestTimelineFor(
+    holderId: string,
+    day: number,
+  ): readonly { readonly eventId: string; readonly kind: string; readonly placeId: string | null }[] {
+    const digest = this.dayDigestOf(day);
+    return digest === null ? [] : digestTimelineOf(digest, holderId);
   }
 
   /** 这个人的方向性关系（只含 from=他自己）。只读副本，按 to 排序。 */
@@ -2825,6 +2898,28 @@ export class MemoryWorld {
   }
 
   /**
+   * 把刚关账的那一天压成一条日摘要（SOAK-BUG-5）。
+   *
+   * 位置在整理之后、预算之前：整理已经把当天的片段收拢，预算还没裁掉任何
+   * 旧日片段，此时压出来的 `beats` 才等于「当天应有条数」。
+   *
+   * 三档浓度：每天先按全量写；**天龄超 `DIGEST_FULL_DAYS` 的旧摘要当场压缩**
+   * （清地点表与异常原句，事件只留 id + kind）。压缩是幂等的，重复关账不会
+   * 把同一天压两遍。
+   */
+  private writeDayDigest(day: number): void {
+    const digest = buildDayDigest(day, this.entries, this.facts);
+    if (digest === null) return;
+    // 每天至多一条：同一天重写时替换，不追加。
+    this.digests = this.digests.filter((item) => item.day !== day);
+    this.digests.push(digest);
+    this.digests.sort((a, b) => a.day - b.day);
+    this.digests = this.digests.map((item) =>
+      shouldCompact(item, day) ? compactDayDigest(item) : item,
+    );
+  }
+
+  /**
    * 日终写日记。协议第 7 节把日记列为整理的**表现产物**之一——
    * 一个世界过了一天，该有人把今天的事记下来。
    *
@@ -3379,6 +3474,7 @@ export class MemoryWorld {
       bonds: [...this.bonds.values()],
       moods: [...this.moods.values()],
       legends: [...this.legends],
+      digests: [...this.digests],
       placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
         placeId,
         name: toponym.name,
@@ -3457,6 +3553,8 @@ export class MemoryWorld {
     for (const mood of snapshot.moods ?? []) this.moods.set(mood.holderId, { ...mood, because: [...mood.because] });
 
     this.legends = [...snapshot.legends];
+    // v4 及更早的档没有日摘要这一段。空就是事实：那段历史没压过，不拿条目倒推。
+    this.digests = [...(snapshot.digests ?? [])];
 
     this.placeNames.clear();
     for (const entry of snapshot.placeNames) {

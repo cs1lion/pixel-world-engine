@@ -253,6 +253,7 @@ const MEMORY_PART_KEYS = [
   'cooldowns',
   'tells',
   'legends',
+  'digests',
 ] as const;
 
 function memoryPartsOf(memoryJson: string): Record<string, MemoryPart> {
