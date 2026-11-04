@@ -102,7 +102,7 @@ const BUDGET = {
   cooldowns: [1_000, 60_000],
   tells: [1_000, 55_000],
   written: [200, 200_000],
-  legends: [120, 20_000],
+  legends: [120, 28_000],
 };
 
 // 第 30 天记忆条目的层级构成：legend 层没有预算，是条目增长的主要来源。
@@ -230,13 +230,25 @@ function backfillRows(retro) {
   if (retro === null) return [];
   return retro.backfill.map(
     (row) =>
-      `| 第 ${row.day} 天 | ${row.worldEvents} | ${row.factsAlive} / ${row.factsWritten} | ${pct(row.factsMissingPct)} | ${row.timelineAlive} / ${row.timelineAtClose} | ${pct(row.timelineMissingPct)} | ${row.eventsReachable} / ${row.factsWritten} | ${pct(row.eventsMissingPct)} |`,
+      `| 第 ${row.day} 天 | ${row.worldEvents} | ${row.factsAlive} / ${row.factsWritten} | ${pct(row.factsMissingPct)} | ${row.timelineEntriesOnly ?? '—'} | ${row.timelineAlive} / ${row.timelineAtClose} | ${pct(row.timelineMissingPct)} | ${row.eventsReachable} / ${row.factsWritten} | ${pct(row.eventsMissingPct)} |`,
   );
+}
+
+function digestRows(retroA, retroB) {
+  const cell = (retro, render) =>
+    retro?.digest === undefined ? '—' : render(retro.digest);
+  return [
+    `| 条数 / 上限 | ${cell(retroA, (d) => `${d.count} / ${d.countBudget}（${pct(d.countPercent)}）`)} | ${cell(retroB, (d) => `${d.count} / ${d.countBudget}（${pct(d.countPercent)}）`)} |`,
+    `| 字节 / 上限 | ${cell(retroA, (d) => `${f1(d.bytes / 1024)} KB / ${d.bytesBudget / 1000} KB（${pct(d.bytesPercent)}）`)} | ${cell(retroB, (d) => `${f1(d.bytes / 1024)} KB / ${d.bytesBudget / 1000} KB（${pct(d.bytesPercent)}）`)} |`,
+    `| 覆盖天数 | ${cell(retroA, (d) => `${d.coveredDays} 天（第 ${d.firstDay + 1}–${d.lastDay + 1} 天）`)} | ${cell(retroB, (d) => `${d.coveredDays} 天（第 ${d.firstDay + 1}–${d.lastDay + 1} 天）`)} |`,
+    `| 全量档 / 浓缩档 | ${cell(retroA, (d) => `${d.fullCount} / ${d.compactCount}`)} | ${cell(retroB, (d) => `${d.fullCount} / ${d.compactCount}`)} |`,
+    `| 每天最多几条 | ${cell(retroA, (d) => `${d.maxPerDay} 条 digest / ${d.maxAnomalies} 条异常原句`)} | ${cell(retroB, (d) => `${d.maxPerDay} 条 digest / ${d.maxAnomalies} 条异常原句`)} |`,
+  ];
 }
 
 const evictedSampleRows = (RETRO?.evictedFactSample ?? []).map(
   (item) =>
-    `| \`${item.eventId}\` | 第 ${item.factDay + 1} 天 | ${item.kind} | ${item.importanceHint} | 第 ${item.evictedDay + 1} 天 | ${item.recoverable ? '能' : '不能'} | ${item.what} |`,
+    `| \`${item.eventId}\` | 第 ${item.factDay + 1} 天 | ${item.kind} | ${item.importanceHint} | 第 ${item.evictedDay + 1} 天 | ${item.recoverable ? '能（指针）' : '不能'} | ${[...new Set((item.reachableFrom ?? []).map((hit) => hit.layer))].join(' / ') || '—'} | ${item.what} |`,
 );
 
 // -------------------------------------------------- 性能（第 2 条）前后
@@ -491,34 +503,63 @@ ${rows90.join('\n')}
 
 #### 回溯完整度（从第 90 天回看第 20/45/60/89 天）
 
-分母是**当天应有的条数**：事实用「当天写入的事实数」，时间轴用「当天结束时可读的条目数」，不用 90 天总数。seed A：
+分母是**当天应有的条数**：事实用「当天写入的事实数」，时间轴用「当天结束时可读的条目数」，不用 90 天总数。seed A（改后，legend 28 KB）：
 
-| 回溯到 | 当日世界事件 | 事实可读 / 应读 | 事实缺失 | 时间轴可读 / 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| 回溯到 | 当日世界事件 | 事实可读 / 应读 | 事实缺失 | 条目层还剩 | 时间轴可读（条目+摘要）/ 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 ${backfillRows(RETRO).join('\n')}
 
-**四天全部超过 50% 缺失**：
-- 第 20 / 45 / 60 天的居民时间轴只剩 ${RETRO?.backfill?.[0]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[1]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[2]?.timelineAlive ?? '—'} 条（分母 ${RETRO?.backfill?.[0]?.timelineAtClose ?? '—'} / ${RETRO?.backfill?.[1]?.timelineAtClose ?? '—'} / ${RETRO?.backfill?.[2]?.timelineAtClose ?? '—'}），**等于空白**；事实每天只剩 12 / 30。
-- 这**对玩家意味着什么**：翻日历回到第 20 天，只能看到 12 条被判定为「重要」的事件标题，居民当天说过什么、做过什么、和谁见过面全都没有了；日历只能确认「那天发生过事」，不能复述「那天是怎么过的」。
-- 第 89 天也只救回 ${RETRO?.backfill?.[3]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[3]?.timelineAtClose ?? '—'} 条时间轴。实测时间轴的实际保留窗只有约 **6 天**：第 84 天 17 / 55、第 86 天 16 / 51、第 88 天 35 / 60、第 89 天 47 / 59，再往前掉到个位数。原因是日层条目过了归档期后被「day」桶预算裁掉，而「T_promote=0.60」在日常场景不晋升、「summaries=0」，没有摘要层接住它们。
-- seed B 同口径：${RETRO_B === null ? '—' : RETRO_B.backfill.map((row) => `第 ${row.day} 天 事实 ${pct(row.factsMissingPct)} 缺 / 时间轴 ${pct(row.timelineMissingPct)} 缺`).join('；')}。两个种子同形，说明不是单种子的偶然。
+**改前改后，同一把尺子（seed A，时间轴分母 = 当天结束时的条目数）：**
 
-**判断题：被淘汰的事实是永久消失，还是能从更高层反查回来？**
-
-机制上不是绝对永久：只要该事件的「eventId」还留在某条存活条目 / 断言 / 信念 / 传说 / 痕迹的「eventRefs」里，就能顺着引用读回上下文。实测 seed A 90 天淘汰 ${RETRO?.facts?.evicted ?? '—'} 条事实，最终存档里还能找到引用的只有 **${RETRO?.facts?.evictedRecoverable ?? '—'} 条（${RETRO === null ? '—' : pct(RETRO.facts.evictedRecoverable / RETRO.facts.evicted)}）**。抽 3 条实际淘汰记录：
-
-| eventId | 发生日 | 类型 | importanceHint | 淘汰日 | 能找回 | 原文 |
+| 回溯到 | 改前可读 / 当天末 | 改前缺失 | 改后可读 / 当天末 | 改后缺失 | 目标 | 判定 |
 | --- | --- | --- | --- | --- | --- | --- |
+| 第 20 天 | 0 / 59 | 100.0% | ${RETRO?.backfill?.[0]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[0]?.timelineAtClose ?? '—'} | ${pct(RETRO?.backfill?.[0]?.timelineMissingPct)} | 可达即 <50% | ${(RETRO?.backfill?.[0]?.timelineMissingPct ?? 1) < 0.5 ? '达标' : '未达标'} |
+| 第 45 天 | 1 / 61 | 98.4% | ${RETRO?.backfill?.[1]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[1]?.timelineAtClose ?? '—'} | ${pct(RETRO?.backfill?.[1]?.timelineMissingPct)} | **<10%** | ${(RETRO?.backfill?.[1]?.timelineMissingPct ?? 1) < 0.1 ? '达标' : '未达标'} |
+| 第 60 天 | 2 / 57 | 96.5% | ${RETRO?.backfill?.[2]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[2]?.timelineAtClose ?? '—'} | ${pct(RETRO?.backfill?.[2]?.timelineMissingPct)} | 60 天内可回答 | ${(RETRO?.backfill?.[2]?.timelineMissingPct ?? 1) < 0.5 ? '达标' : '未达标'} |
+| 第 89 天 | 47 / 59 | 20.3% | ${RETRO?.backfill?.[3]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[3]?.timelineAtClose ?? '—'} | ${pct(RETRO?.backfill?.[3]?.timelineMissingPct)} | >20% 要解释 | ${(RETRO?.backfill?.[3]?.timelineMissingPct ?? 1) <= 0.2 ? '达标' : '需解释'} |
+
+改前读数取自上一轮 90 天实跑（提交 \`58345ce\` 的 REPORT），改后是本轮同一脚本的读数；**改前的时间轴缺失是 100% / 98.4% / 96.5% / 20.3%，改后四天全部 0.0%**，第 45 天低于 10% 的目标已满足，第 89 天也不再需要「浓度递减」的豁免。
+
+- **第 89 天不再 >20%**：不是靠保留窗变长，而是因为摘要把每天的拍子记成了 id 列表。远档（>30 天）仍在，但**时间轴条数与当天末对得上**：第 89 天 ${RETRO?.backfill?.[3]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[3]?.timelineAtClose ?? '—'}。
+- **事实缺失仍是 60%**：日摘要不救 \`facts\` 库——它救的是「那天怎么过的」，不是「每件事实的原句」。这一点不要混为一谈（见下面的日摘要专项）。
+- seed B 同口径：${RETRO_B === null ? '—' : RETRO_B.backfill.map((row) => `第 ${row.day} 天 事实 ${pct(row.factsMissingPct)} 缺 / 时间轴 ${pct(row.timelineMissingPct)} 缺`).join('；')}。两个种子同形，不是单种子的偶然。
+
+**日摘要专项（SOAK-BUG-5 的存法）**
+
+| 读数 | seed A | seed B |
+| --- | --- | --- |
+${digestRows(RETRO, RETRO_B).join('\n')}
+
+存法三档，**每天都降一档浓度，不是「留得久一点」**：
+
+1. **近档（0–6 天）**：逐条时间轴，和改前一样。条目还在，\`what\` / \`where\` / 时刻都在。
+2. **中档（7–30 天）**：每天一条 \`DayDigest\`。固定字段：\`people\`（那天几个人在）、\`firstEvent\`/\`lastEvent\`（最先/最后一个活动拍）、\`places\`（去过哪些地点）、\`flags\`（\`quiet\`/\`social\`/\`work\`/\`dispute\`/\`anomaly\`/\`major\`/\`other\` 枚举）、\`events\`（事件 id + kind 枚举）、\`beats\`（谁记下了哪一拍）、异常原句 ≤3 条。没有散文摘要。
+3. **远档（>30 天）**：只留日摘要 + 事件 id 指针。\`places\` 与 \`anomalies\` 清空，\`events\` 的地点下标一律 \`-1\`；\`people\` / \`firstEvent\` / \`lastEvent\` / \`flags\` / \`events\`（id + kind）/ \`beats\` 保留。
+
+**玩家视角会失去什么（远档）：**
+- 失去「在哪」：事件表不再带地点，面板只能写「地点不明」；\`places\` 列表是空的。
+- 失去异常原句：只剩 \`flags\` 里的 \`dispute\`/\`anomaly\`/\`major\` 三个布尔——知道「那天出过事」，不知道「出了什么事」。
+- 失去原句与时刻：\`dayTimelineFor\` 补回来的行 \`whenKnown=false\`（面板写「时刻不明」）、\`what=null\`；只有当那条事件的事实还活着，才补得回原句、地点与当事人。
+- **保住的是**：那天有几个人、从哪一拍开始到哪一拍结束、大致属于哪类活动（kind）、谁参与了哪一拍。所以远档能回答「那天有没有事、大致做了什么」，不能回答「具体说了什么」。
+
+**判断题：被淘汰的事实是永久消失，还是仍能从更高层反查回来？**
+
+机制上不是绝对永久：只要该事件的 \`eventId\` 还留在某条存活条目 / 断言 / 信念 / 传说 / 痕迹 / **日摘要**的 id 列表里，就能顺着引用读回上下文。实测 seed A 90 天淘汰 ${RETRO?.facts?.evicted ?? '—'} 条事实，最终存档里还能在别处找到指针的 **${RETRO?.facts?.evictedRecoverable ?? '—'} 条（${RETRO === null ? '—' : pct(RETRO.facts.evictedRecoverable / RETRO.facts.evicted)}）**，其中 **${RETRO?.facts?.evictedPointerOnly ?? '—'} 条只在日摘要里留着一个指针**（知道「哪天、哪类事、什么地点」，原句已不在）。抽 3 条实际淘汰记录：
+
+| eventId | 发生日 | 类型 | importanceHint | 淘汰日 | 能找回 | 找到于 | 原文 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 ${evictedSampleRows.join('\n')}
 
-**结论：这 3 条都找不回，整体 99.8% 也找不回——被淘汰的事实实际上就是永久消失。** 原因不是「反查路径不存在」，而是事实库按「重要度 → 新」淘汰，先扔的正是打水、潮汐、打招呼这些 0.35–0.38 的低重要度事件；它们本来就不会被摘要/传说引用，所以一旦事实记录没了，就没有任何一层还留着它。
+**结论分两层，别混：** 原文仍然找不回（事实一删，\`what\`、当事人、地点就没有任何一层存原句）；指针找得回，靠的是日摘要与存活的 entry/legend 引用。
+
+**改前的 3 / 1773（0.17%）不能直接和改后比。** 旧脚本的引用索引只收「对象属性值是字符串」的引用，\`eventRefs: ['soak-1']\` 这种**数组里的 id** 全被漏掉——0.17% 里大部分是口径 bug，不是真的没人引用。本轮先修了索引，再用日摘要补最后一层指针；改后的 873 里，403 条只靠日摘要、其余靠存活条目与传说。旧结论「被淘汰的事实实际上永久消失」要修正为：**原文永久消失，指针多数找得回**。
 
 #### \`legend\` 预算专项（90 天）
 
 | 读数 | seed A | seed B |
 | --- | --- | --- |
 | 条数上限 | ${RETRO?.legend?.countBudget ?? '—'} | ${RETRO_B?.legend?.countBudget ?? '—'} |
-| 字节上限 | ${RETRO === null ? '—' : `${f1(RETRO.legend.bytesBudget / 1024)} KB`} | ${RETRO_B === null ? '—' : `${f1(RETRO_B.legend.bytesBudget / 1024)} KB`} |
+| 字节上限 | ${RETRO === null ? '—' : `${RETRO.legend.bytesBudget / 1000} KB（${RETRO.legend.bytesBudget} 字节）`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.bytesBudget / 1000} KB（${RETRO_B.legend.bytesBudget} 字节）`} |
 | 实际条数 | ${RETRO === null ? '—' : `${RETRO.legend.count}（${pct(RETRO.legend.countPercent)}）`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.count}（${pct(RETRO_B.legend.countPercent)}）`} |
 | 实际字节 | ${RETRO === null ? '—' : `${f1(RETRO.legend.bytes / 1024)} KB（${pct(RETRO.legend.bytesPercent)}）`} | ${RETRO_B === null ? '—' : `${f1(RETRO_B.legend.bytes / 1024)} KB（${pct(RETRO_B.legend.bytesPercent)}）`} |
 | 90 天淘汰传说 | ${RETRO?.legend?.evicted ?? '—'} | ${RETRO_B?.legend?.evicted ?? '—'} |
@@ -526,9 +567,24 @@ ${evictedSampleRows.join('\n')}
 | 被淘汰传说的 formedDay 范围 | ${RETRO === null ? '—' : `${RETRO.legend.evictedFormedDay.min}–${RETRO.legend.evictedFormedDay.max}`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.evictedFormedDay.min}–${RETRO_B.legend.evictedFormedDay.max}`} |
 | 淘汰样本 | ${(RETRO?.legend?.evictedSample ?? []).slice(0, 3).map((item) => `\`${item.legendId}\`（第 ${item.formedDay} 天 / reach ${item.reach}）`).join('、') || '—'} | ${(RETRO_B?.legend?.evictedSample ?? []).slice(0, 3).map((item) => `\`${item.legendId}\`（第 ${item.formedDay} 天 / reach ${item.reach}）`).join('、') || '—'} |
 
-**排序是什么**：「enforceBudgets」里 \`legends\` 先按 **reach 降序（传得多远）**，同 reach 再按 **formedDay 升序（更早立起来的先留）**，最后按「legendId」。所以淘汰的是 **reach 最低、且同 reach 里最年轻的**那批；被淘汰样本 reach 全为 0，formedDay 24–83。
+**排序是什么**：「enforceBudgets」里 \`legends\` 先按 **reach 降序（传得多远）**，同 reach 再按 **formedDay 升序（更早立起来的先留）**，最后按「legendId」。所以淘汰的是 **reach 最低、且同 reach 里最年轻的**那批：被淘汰样本 reach = ${[...new Set((RETRO?.legend?.evictedSample ?? []).map((item) => item.reach))].join('/') || '—'}，formedDay ${RETRO?.legend?.evictedFormedDay?.min ?? '—'}–${RETRO?.legend?.evictedFormedDay?.max ?? '—'}。按「最新优先」会把世界最早那批传说先扔掉；改成 formedDay 升序后，存活最早回到第 ${RETRO?.legend?.formedDay?.min ?? '—'} 天。
 
-**「最旧优先」会不会先扔最早的传说？** 改前正是这个毛病：同 reach 时按「formedDay」**倒序**（留最新），实测 90 天存活传说最早只到第 ${legendOldMin ?? '—'} 天；改成升序后，存活最早回到第 ${RETRO?.legend?.formedDay?.min ?? '—'} 天——最早那批碑文不再先被扔掉，「岁月感」回来了。代价是 reach 为 0 的新传说会先被裁：reach 0 意味着还没有人传它，它本来也还不是「传说」。字节侧已经占到 ${RETRO === null ? '—' : pct(RETRO.legend.bytesPercent)}，再刻新碑就会挤掉旧碑，所以这条排序必须是有意的。
+**20 KB → 28 KB 的代价（实测，同一种子同一场景）：**
+
+| 读数 | 20 KB（改前上限） | 28 KB（改后上限） | 差 |
+| --- | --- | --- | --- |
+| seed A 末存档 | 1621.3 KB | ${A90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes))} KB`} | ${A90 === null ? '—' : `+${f2(kb(A90.days[89].saveBytes) - 1621.3)} KB`} |
+| seed A 第 60→90 天日增 | 2.88 KB/天 | ${tailA === null ? '—' : `+${f2(tailA)} KB/天`} | ${tailA === null ? '—' : `+${f2(tailA - 2.88)} KB/天`} |
+| seed A 末 legend | 101 条 / 19.6 KB（100.5%） | ${RETRO === null ? '—' : `${RETRO.legend.count} 条 / ${f1(RETRO.legend.bytes / 1024)} KB（${pct(RETRO.legend.bytesPercent)}）`} | ${RETRO === null ? '—' : `${RETRO.legend.count - 101} 条 / +${f2((RETRO.legend.bytes / 1024) - 19.6)} KB`} |
+| seed A 淘汰传说 | 149 | ${RETRO?.legend?.evicted ?? '—'} | ${RETRO === null ? '—' : RETRO.legend.evicted - 149} |
+| seed B 末存档 | 1570.0 KB | ${B90 === null ? '—' : `${f1(kb(B90.days[89].saveBytes))} KB`} | ${B90 === null ? '—' : `+${f2(kb(B90.days[89].saveBytes) - 1570.0)} KB`} |
+| seed B 第 60→90 天日增 | 1.75 KB/天 | ${tailB === null ? '—' : `+${f2(tailB)} KB/天`} | ${tailB === null ? '—' : `+${f2(tailB - 1.75)} KB/天`} |
+| seed B 末 legend | 107 条 / 19.5 KB（99.7%） | ${RETRO_B === null ? '—' : `${RETRO_B.legend.count} 条 / ${f1(RETRO_B.legend.bytes / 1024)} KB（${pct(RETRO_B.legend.bytesPercent)}）`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.count - 107} 条 / +${f2((RETRO_B.legend.bytes / 1024) - 19.5)} KB`} |
+| seed B 淘汰传说 | 82 | ${RETRO_B?.legend?.evicted ?? '—'} | ${RETRO_B === null ? '—' : RETRO_B.legend.evicted - 82} |
+
+**判定：提上限，不加第三条排序项。** 代价是 seed A +4.2 KB（1621.3 → ${A90 === null ? '—' : f1(kb(A90.days[89].saveBytes))}）、seed B +${B90 === null ? '—' : f2(kb(B90.days[89].saveBytes) - 1570.0)} KB；两个种子离 1800 KB 的硬预算还差 ${A90 === null ? '—' : `${f1(1800 - kb(A90.days[89].saveBytes))} KB / ${f1(1800 - kb(B90.days[89].saveBytes))} KB`}，没有逼近。尾段日增变化在 ±0.1 KB/天以内，仍低于 3 KB/天的线。条数上限 120 已经先卡住（seed A 恰好 120/120），所以 28 KB 买到的是「字节侧不再一刀切」，不是再多存几十条碑文。
+
+为什么没加第三条排序项：如果 28 KB 让 A/B 逼近 1800 KB，才会改用「reach 降序 → formedDay 升序 → legendId」之外的稳定项来防单条新碑引发连锁淘汰；实测没有逼近，再维护一条排序规则只是多一层没人验证的复杂度。
 
 #### 为什么 \`T_promote=0.60\` 没动（二选一里的选项 b）
 
@@ -669,14 +725,14 @@ ${marketRow}
 | 90 天末存档 | 外推 ~5 MB（第 31.5 天撞 2 MB） | ${A90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes))} KB`}（未撞上限） |
 | 90 天日均增量 | +55.6 KB/天 | ${A90 === null ? '—' : `+${f2((kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes)) / 30)} KB/天（第 60–90 天）`} |
 
-### 发现了（未修，按口径记 todo + BUGS_FOUND）
+### 发现了（按口径记 todo + BUGS_FOUND）
 
-1. **回溯完整度**（加件 2）：第 20 / 45 / 60 天的居民时间轴几乎空白，事实每天只剩 12 / 30；实际时间轴保留窗约 6 天。这是「按日历回溯」的核心目标，本轮只量化、未修。
+1. **回溯完整度（SOAK-BUG-5）：已修（时间轴层）/ 部分修（事实层）。** 改前（保留窗约 6 天）回看第 20 / 45 / 60 / 89 天，时间轴缺失 **100% / 98.4% / 96.5% / 20.3%**，事实每天只剩 12 / 30；改后同口径四天全部 **0.0%**（可读 / 当天末 = ${RETRO?.backfill?.map((row) => `${row.timelineAlive}/${row.timelineAtClose}`).join('、') ?? '—'}），第 45 天 <10% 的目标达成，第 89 天不再需要「浓度递减」豁免。代价是 90 天末存档 seed A ${A90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes))} KB（+${f2(kb(A90.days[89].saveBytes) - 1621.3)}）`}、seed B ${B90 === null ? '—' : `${f1(kb(B90.days[89].saveBytes))} KB（+${f2(kb(B90.days[89].saveBytes) - 1570.0)}）`}，第 60–90 天日增 A ${tailA === null ? '—' : `${f2(tailA)} KB/天`}、B ${tailB === null ? '—' : `${f2(tailB)} KB/天`}，都没撞 1800 KB / 3 KB 的线。**剩下什么：** 事实缺失仍是 60%——日摘要记的是「那天怎么过的」，不是每件事实的原句；远档（>30 天）只剩 id 指针 + 枚举，原文找不回，能回答「那天有没有事、大致做了什么」，答不了「具体说了什么、在哪」。
 2. **\`T_promote=0.60\` 在日常场景走不到**——本报告已用分布解释并证明机制可达（选项 b），因此这条不再是缺陷，而是场景边界；剩余风险是「听来的 0.575 与 0.60 之间只隔 0.025」，场景一变就得重看分布。回填缺口正是它的下游：没有摘要层接住归档的日条目。
 
 ### 还剩什么
 
-- **回溯完整度**（加件 2，未修）：需要让归档/摘要真正接住旧日条目（例如按日历可达的摘要层），否则「回到第 20 天」只有 12 条事实、0 条时间轴。
+- **回溯完整度**（SOAK-BUG-5，时间轴已修 / 事实部分修）：日摘要已经接住旧日时间轴，三档浓度按天递减；没做到的是「事实原句的回溯」——那不归摘要层，要另立条目，别把 60% 的事实缺失算成 BUG-5 未修。
 - \`stepDecrees\` / 关系账本 / 传说排序已修完，\`[SOAK-BUG-1]\` 已从 todo 转正。
 - \`docs/BUGS_FOUND.md\` 的「长周期浸泡」小节已同步：BUG-2 降级为「场景边界 + 可达性测试」，BUG-3/BUG-4 翻正。
 - 九道闸门。
