@@ -45,6 +45,14 @@ export interface BuildingView {
   readonly progress: Phaser.GameObjects.Graphics;
   /** 招牌图标（静态文字已改图标，D5-A）。 */
   readonly sign: Phaser.GameObjects.Graphics;
+  /**
+   * 屋面层：屋顶 + 屋脊 + 烟囱口，**单独一张 Graphics**。
+   *
+   * 原来它和墙画在同一张 `g` 里，于是「进屋」时想收起屋顶就只能连墙一起收。
+   * 拆开之后，剖面视图（屋顶可开 / 立面淡出 / 内景替换）才有地方下手——
+   * 三张 Graphics 的绘制顺序不变，画面逐像素相同。
+   */
+  readonly roof: Phaser.GameObjects.Graphics;
   /** 烟囱口的场景坐标，粒子发射器挂在这里。 */
   readonly chimneyWorld: Phaser.Math.Vector2;
   /** 屋顶上沿，Y-Sort 用。 */
@@ -67,6 +75,9 @@ export function createBuilding(
   const front = scene.add.container(px, py);
 
   const g = scene.add.graphics();
+  // 屋面单独一张：见 `BuildingView.roof` 的注释。绘制顺序（墙 → 屋面 → 烟囱）
+  // 与拆开之前一致，所以街景那一帧不该有任何像素变化。
+  const roofG = scene.add.graphics();
   const { roof, trim, window: windowColor } = building.palette;
   const roofH = roofHeight(h);
   const doorX = building.door.x * TILE_PX - px;
@@ -77,8 +88,8 @@ export function createBuilding(
 
   drawGroundShadow(scene, back, building, w, h, px, py);
   drawWall(g, building, w, h, roofH, doorX);
-  drawRoof(g, building.silhouette, w, roofH, roof, trim);
-  drawChimney(g, w, roof, trim);
+  drawRoof(roofG, building.silhouette, w, roofH, roof, trim);
+  drawChimney(roofG, w, roof, trim);
 
   const chimney = scene.add.graphics();
   chimney.fillStyle(WORLD.charcoal, 1);
@@ -112,7 +123,8 @@ export function createBuilding(
   const sign = scene.add.graphics();
   if (building.zone !== 'living') drawSignIcon(sign, building, w);
 
-  container.add([g, chimney, windowG, progress, sign]);
+  // roofG 紧跟 g：容器内按数组顺序绘制，屋面必须压在墙上。
+  container.add([g, roofG, chimney, windowG, progress, sign]);
 
   // 台阶：门洞口外侧 2px，落在门口格最上面 2px。**放在 body 层**而不是 front：
   // 角色站门口时脚在门口格底边（baseY+16），台阶在 baseY..baseY+2，物理上角色离
@@ -135,6 +147,7 @@ export function createBuilding(
     window: windowG,
     progress,
     sign,
+    roof: roofG,
     chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
     // baseY 用纯函数算，测试与实现共用同一个算式，不会各写一套而漂移。
     baseY: buildingBaseY(py, building.footprint.h),

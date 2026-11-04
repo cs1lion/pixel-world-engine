@@ -66,6 +66,21 @@ type OracleSurfaces = OracleApi &
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import { createVillager, updateVillager, type VillagerView } from '../render/villager.ts';
+import { createInteriorView, type InteriorView } from '../render/interior-view.ts';
+import {
+  INTERIOR_FIRST_FLOOR,
+  INTERIOR_ROOM_H,
+  INTERIOR_ROOM_W,
+  INTERIOR_TRANSITION_FRAMES,
+  interiorTransitionProgress,
+  lerp,
+  smoothStep,
+} from '../render/interior-layout.ts';
+import {
+  restoreInteriorViewState,
+  writeInteriorViewState,
+} from '../ui/interior-view-store.ts';
+import type { PlacedBuilding } from '../world/types.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -232,6 +247,29 @@ interface BuildingEntry {
   readonly emitter: AccentEmitter;
 }
 
+/** 街景 / 进场中 / 室内 / 出场中。过渡的每一帧都落在这四态里。 */
+type InteriorMode = 'street' | 'entering' | 'inside' | 'exiting';
+
+/**
+ * 进门前的相机位姿。**退出时逐字还原**——这是验收判据，不是「差不多」。
+ *
+ * `centerX/centerY` 是插值用的世界中心（`cam.midPoint`），而 `scrollX/scrollY/zoom`
+ * 是最后要写回去的那一份原值：`centerOn` 只是个方便入口，真正钉住画面的是这三个数。
+ */
+interface InteriorPose {
+  readonly scrollX: number;
+  readonly scrollY: number;
+  readonly zoom: number;
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly bounds: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+}
+
 /**
  * 一次已经入队、但还没落地的造物。**观测要等到 `building.built` 之后再做**。
  *
@@ -344,6 +382,17 @@ export class SandboxScene extends Phaser.Scene {
   private phaseTimer: number | null = null;
   private decor!: DecorView;
   private entries: BuildingEntry[] = [];
+  /** 内景视图。**懒创建**：没进过任何楼之前它不存在，街景的预算读数一个都不动。 */
+  private interiorView: InteriorView | null = null;
+  private interiorMode: InteriorMode = 'street';
+  private interiorBuildingId: string | null = null;
+  /** 过渡已经走过几帧。固定帧数推进，不读墙钟。 */
+  private interiorFrames = 0;
+  /** `?interior=instant` 或调试入口可关：验收机位要的是静止画面。 */
+  private interiorTransitionEnabled = true;
+  /** `?interior=step`：过渡不自走，由 `Oracle.stepInterior()` 一帧一帧推。 */
+  private interiorStepMode = false;
+  private interiorSavedPose: InteriorPose | null = null;
   private accumulator = 0;
   private tick = 0;
   private villagerName = '莞尔';
@@ -673,6 +722,15 @@ export class SandboxScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
+      // 室内视角下街景的拖拽 / 右键 / 洗地一律不接：点击只归门与楼梯。
+      // **但按下这一下仍要把两个点击状态清零**：否则上一次街景拖拽留下的
+      // `pressMoved = true` 会让室内每一次点击都在抬手时被当成拖拽吞掉
+      // （取证时就是这样：点楼梯没反馈、点门不出屋）。
+      if (this.interiorMode !== 'street') {
+        this.suppressClickUp = false;
+        this.pressMoved = false;
+        return;
+      }
       // 右键 = 上下文面板，不参与拖镜头，也不在抬手时开状态菜单。
       if (pointer.rightButtonDown()) {
         this.suppressClickUp = true;
@@ -693,6 +751,11 @@ export class SandboxScene extends Phaser.Scene {
       // 抬手时没怎么动，才算「点了一下」而不是拖镜头。没有这个区分的话，
       // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
       if (this.pressMoved) return;
+      // 室内：只认门与楼梯。门退出、楼梯给反馈（切层留给下一块）。
+      if (this.interiorMode !== 'street') {
+        this.interiorClick(pointer);
+        return;
+      }
       // 点到人就是「看她」：镜头跟过去，面板读出她记得的事。
       // 其次点碑：镇上认下的事都在那块石头上。
       // 再其次点楼：它叫什么、接过什么活、墙上留着什么。
@@ -705,6 +768,12 @@ export class SandboxScene extends Phaser.Scene {
         this.dismissUnitStatus();
         return;
       }
+      // 门排在楼之前：门格 / 门框那一格是「进去」，楼的其余部分是「看它」。
+      // 两者都在 footprint 边上，先判门才不会一进门就弹面板。
+      if (this.enterInteriorAt(pointer)) {
+        this.dismissUnitStatus();
+        return;
+      }
       if (this.openBuildingStatusAt(pointer)) return;
       // 点空白：三种单位面板一起收，行为与 Esc / 关闭按钮一致。
       this.dismissUnitStatus();
@@ -713,6 +782,7 @@ export class SandboxScene extends Phaser.Scene {
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.interiorMode !== 'street') return;
       if (this.creation !== null || this.dragFrom === null) return;
       if (!pointer.isDown) {
         this.dragFrom = null;
@@ -739,10 +809,18 @@ export class SandboxScene extends Phaser.Scene {
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       if (this.creation !== null) return;
+      // 内景的暗场按 1 倍镜铺满整屏：任人缩到 0.5 倍就会露边，索性屋内不给缩。
+      if (this.interiorMode !== 'street') return;
       this.cameraCtl.zoomStep(dy > 0 ? -1 : 1);
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
+    // 验收机位要能关掉过渡：`?interior=instant` 时进门/退出不做动画，
+    // 否则「冻结 1 秒画面 0 差异」这类对比会被过渡帧搅掉。
+    this.interiorTransitionEnabled = params.get('interior') !== 'instant';
+    this.interiorStepMode = params.get('interior') === 'step';
+    // 读档必须回街景：这里**只清不还原**，原因写在 `interior-view-store.ts` 文件头。
+    restoreInteriorViewState();
     // 时钟入口：**默认是游玩时间驱动**，页面开着按倍率推进，关页面即冻结，
     // 重开从存档断点继续，永不补算。真实时钟必须显式 `?clock=real`——它保留
     // 1:1 步长、本地日界、跨会话补算与老档日界对齐；`?clock=fast`（或只给
@@ -1400,7 +1478,10 @@ export class SandboxScene extends Phaser.Scene {
       this.clockNotice = `真实时钟：离线合并结算，跳过 ${skippedDays} 天`;
     }
     this.renderSnapshot(delta);
-    this.cameraCtl.update(delta);
+    // 内景期间相机归过渡管：导播 / 跟人 / 拖拽都在 `cameraCtl` 里，让它动一下
+    // 就会把刚算好的镜头插值推回去。
+    if (this.interiorMode === 'street') this.cameraCtl.update(delta);
+    else this.updateInterior();
     this.publishCameraMode();
     this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
@@ -3636,6 +3717,39 @@ export class SandboxScene extends Phaser.Scene {
         worldViewY: this.cameras.main.worldView.y,
         mode: this.cameraCtl.mode(),
       }),
+      /**
+       * 内景：只查询与切换视图，**不碰世界**。
+       *
+       * 验收脚本靠这一组读状态：进场 / 出场各 N 次后，`camera()` 的三个数
+       * 必须与进入之前逐字相同；`renderStats()` 的增量也按这里的前后对照记。
+       */
+      interior: () => ({
+        mode: this.interiorMode,
+        buildingId: this.interiorBuildingId,
+        floor: INTERIOR_FIRST_FLOOR,
+        frames: this.interiorFrames,
+        transition: this.interiorTransitionEnabled,
+        room: { width: INTERIOR_ROOM_W, height: INTERIOR_ROOM_H },
+        door: this.interiorView?.layout?.door ?? null,
+        stairs: this.interiorView?.layout?.stairs ?? null,
+        hintFrames: this.interiorView?.hintFrames ?? 0,
+        view: this.interiorView?.debug ?? null,
+        buildings: this.snapshot.buildings.map((building) => ({
+          id: building.instanceId,
+          name: building.displayName,
+          door: { x: building.door.x, y: building.door.y },
+          origin: { x: building.origin.x, y: building.origin.y },
+          footprint: { w: building.footprint.w, h: building.footprint.h },
+          center: this.interiorCenter(building),
+        })),
+      }),
+      enterInterior: (buildingId: string): boolean => this.enterInterior(buildingId),
+      exitInterior: (): boolean => this.exitInterior(),
+      /** `?interior=step` 下逐帧推过渡：验收拿「第 9 帧」这张图。 */
+      stepInterior: (frames?: number): boolean => this.stepInterior(frames),
+      setInteriorTransition: (enabled: boolean): void => {
+        this.interiorTransitionEnabled = enabled;
+      },
       cameraMode: (): CameraMode => this.cameraCtl.mode(),
       setCameraMode: (mode: CameraMode): void => this.cameraCtl.setMode(mode),
       canFollow: (): boolean => this.cameraCtl.canFollow(),
@@ -4089,6 +4203,278 @@ export class SandboxScene extends Phaser.Scene {
       }
     }
     return null;
+  }
+
+  // --- interior ---------------------------------------------------------
+  //
+  // 进门 / 内景 / 退出是**纯视图**的一段：不写世界、不动存档、不发事件。
+  // 世界上唯一的变化是「相机在看哪」，所以三枚指纹一枚都不该变。
+
+  /**
+   * 画面中心的世界坐标。
+   *
+   * Phaser 的镜头变换是「以 `scroll + width/2` 为中心、再乘 zoom」：屏幕中心对应的
+   * 世界点就是 `scroll + width/2`，**与 zoom 无关**（zoom 只改可视范围的大小）。
+   * 第一次取证按 `width/(2·zoom)` 算，2 倍镜下把镜头多推了 120/80 世界像素，
+   * 内景于是被裁成左上角那一块——那个「偏移」是我自己算出来的，不是引擎的。
+   */
+  private cameraCenter(): { readonly x: number; readonly y: number } {
+    const cam = this.cameras.main;
+    return {
+      x: cam.scrollX + cam.width / 2,
+      y: cam.scrollY + cam.height / 2,
+    };
+  }
+
+  /** 中心点 → 滚动值。与 Phaser `centerOn` 同一套语义，自己写只是为了留注释。 */
+  private centerCameraAt(x: number, y: number): void {
+    const cam = this.cameras.main;
+    cam.scrollX = x - cam.width / 2;
+    cam.scrollY = y - cam.height / 2;
+  }
+
+  /** 楼心的世界坐标。进场与退场都往它插值。 */
+  private interiorCenter(building: PlacedBuilding): { readonly x: number; readonly y: number } {
+    return {
+      x: (building.origin.x + building.footprint.w / 2) * TILE_PX,
+      y: (building.origin.y + building.footprint.h / 2) * TILE_PX,
+    };
+  }
+
+  /**
+   * 点在门上？门槛格（footprint 外那一格）与门框格（footprint 最下排的同一 x）
+   * 都算门。判在 `openBuildingStatusAt` 之前：否则点门框会先弹楼的菜单。
+   */
+  private enterInteriorAt(pointer: Phaser.Input.Pointer): boolean {
+    if (this.interiorMode !== 'street') return false;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const cellX = Math.floor(world.x / TILE_PX);
+    const cellY = Math.floor(world.y / TILE_PX);
+    for (const building of this.snapshot.buildings) {
+      if (cellX !== building.door.x) continue;
+      const frameY = building.origin.y + building.footprint.h - 1;
+      if (cellY === building.door.y || cellY === frameY) {
+        return this.enterInterior(building.instanceId);
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 进屋：记住相机位姿 → 把楼心对到屏幕中心 → 内景交叉淡入。
+   *
+   * 位姿是**照抄**下来的（`scrollX/scrollY/zoom` 三个原值），不是重算的；
+   * 退出时照抄回去，所以「回到原点」是逐字相同，不是看起来差不多。
+   */
+  enterInterior(buildingId: string): boolean {
+    if (this.interiorMode !== 'street') return false;
+    const building = this.snapshot.buildings.find((item) => item.instanceId === buildingId);
+    if (building === undefined) return false;
+
+    const cam = this.cameras.main;
+    const bounds = cam.getBounds();
+    this.interiorSavedPose = {
+      scrollX: cam.scrollX,
+      scrollY: cam.scrollY,
+      zoom: cam.zoom,
+      centerX: this.cameraCenter().x,
+      centerY: this.cameraCenter().y,
+      bounds: {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+      },
+    };
+
+    this.interiorBuildingId = building.instanceId;
+    this.interiorFrames = 0;
+    this.interiorMode = 'entering';
+    // 靠边的楼在世界边界内对不到屏幕正中：临时放开边界，退出时原样写回。
+    cam.setBounds(-40_000, -40_000, 80_000, 80_000);
+
+    this.interiorView = this.interiorView ?? createInteriorView(this);
+    this.interiorView.show(building, {
+      width: cam.width,
+      height: cam.height,
+      zoom: cam.zoom,
+    });
+    this.refreshInteriorOccupants();
+    // 屋顶与烟囱收起来：进场的那几帧能看见剖面，而不是屋顶盖着内景。
+    this.setBuildingShellVisible(building.instanceId, false);
+    this.setStreetOverlaysVisible(false);
+
+    if (this.interiorTransitionEnabled) {
+      this.interiorView.setReveal(0);
+    } else {
+      const center = this.interiorCenter(building);
+      this.centerCameraAt(center.x, center.y);
+      this.interiorView.setReveal(1);
+      this.interiorMode = 'inside';
+    }
+
+    writeInteriorViewState({ buildingId: building.instanceId, floor: INTERIOR_FIRST_FLOOR });
+    return true;
+  }
+
+  /** 点门退出：反向过渡，末帧把相机位姿逐字写回。 */
+  exitInterior(): boolean {
+    if (this.interiorMode === 'street' || this.interiorMode === 'exiting') return false;
+    this.interiorFrames = 0;
+    if (!this.interiorTransitionEnabled) {
+      this.finishInteriorExit();
+      return true;
+    }
+    this.interiorMode = 'exiting';
+    return true;
+  }
+
+  /** 每推进一帧调一次：进场 / 室内 / 退场的唯一驱动。固定帧数，不读墙钟。 */
+  private updateInterior(): void {
+    if (this.interiorMode === 'entering' || this.interiorMode === 'exiting') {
+      // 验收机位可以钉住帧号（`?interior=step`）：不然截图那几百毫秒足够走完 18 帧，
+      // 「过渡中点帧」永远拍成室内帧。
+      if (!this.interiorStepMode) this.interiorFrames += 1;
+      this.applyInteriorFrame();
+      return;
+    }
+    // 室内：画面已经稳了，只把在场的人与楼梯提示刷新一下。
+    this.refreshInteriorOccupants();
+    this.interiorView?.tick();
+  }
+
+  /** 按当前帧号重算这一帧的画面：进场插值 / 退场插值 / 完成判定。 */
+  private applyInteriorFrame(): void {
+    const pose = this.interiorSavedPose;
+    const view = this.interiorView;
+    const buildingId = this.interiorBuildingId;
+    if (pose === null || view === null || buildingId === null) {
+      this.finishInteriorExit();
+      return;
+    }
+    const building = this.snapshot.buildings.find((item) => item.instanceId === buildingId);
+    if (building === undefined) {
+      this.finishInteriorExit();
+      return;
+    }
+    const center = this.interiorCenter(building);
+    const progress = smoothStep(interiorTransitionProgress(this.interiorFrames));
+
+    if (this.interiorMode === 'entering') {
+      this.centerCameraAt(
+        lerp(pose.centerX, center.x, progress),
+        lerp(pose.centerY, center.y, progress),
+      );
+      view.setReveal(progress);
+      this.refreshInteriorOccupants();
+      if (this.interiorFrames >= INTERIOR_TRANSITION_FRAMES) {
+        // 不清零：验收要读到的就是「走满了几帧」。室内态不再自增，留着无妨。
+        this.interiorMode = 'inside';
+        view.setReveal(1);
+      }
+      return;
+    }
+
+    if (this.interiorMode === 'exiting') {
+      this.centerCameraAt(
+        lerp(center.x, pose.centerX, progress),
+        lerp(center.y, pose.centerY, progress),
+      );
+      view.setReveal(1 - progress);
+      view.tick();
+      if (this.interiorFrames >= INTERIOR_TRANSITION_FRAMES) this.finishInteriorExit();
+    }
+  }
+
+  /**
+   * 验收专用：把过渡一帧一帧推。只在 `?interior=step` 下有意义。
+   *
+   * 不读墙钟、不看 delta——帧号是唯一的输入，所以同一帧号在任何机器上都画同一张图。
+   */
+  stepInterior(frames = 1): boolean {
+    if (!this.interiorStepMode) return false;
+    if (this.interiorMode !== 'entering' && this.interiorMode !== 'exiting') return false;
+    for (let index = 0; index < frames; index += 1) {
+      if (this.interiorMode !== 'entering' && this.interiorMode !== 'exiting') break;
+      this.interiorFrames += 1;
+      this.applyInteriorFrame();
+    }
+    return true;
+  }
+
+  private finishInteriorExit(): void {
+    const pose = this.interiorSavedPose;
+    const buildingId = this.interiorBuildingId;
+    const cam = this.cameras.main;
+
+    if (pose !== null) {
+      // 顺序有讲究：先还原边界，再还原倍率，最后写回滚动值。
+      // 反过来写的话，最后一次夹取会按临时的大边界把画面留在楼里。
+      cam.setBounds(pose.bounds.x, pose.bounds.y, pose.bounds.width, pose.bounds.height);
+      cam.setZoom(pose.zoom);
+      cam.scrollX = pose.scrollX;
+      cam.scrollY = pose.scrollY;
+    }
+    if (buildingId !== null) this.setBuildingShellVisible(buildingId, true);
+    this.setStreetOverlaysVisible(true);
+
+    this.interiorView?.hide();
+    this.interiorMode = 'street';
+    this.interiorBuildingId = null;
+    this.interiorSavedPose = null;
+    this.interiorFrames = 0;
+    writeInteriorViewState(null);
+  }
+
+  /** 室内点击：门=退出，楼梯=只给反馈（切层留给下一块）。 */
+  private interiorClick(pointer: Phaser.Input.Pointer): void {
+    if (this.interiorMode !== 'inside') return;
+    const view = this.interiorView;
+    if (view === null) return;
+    // 内景画在屏幕坐标上，命中判定也直接用画布内部坐标，不再绕世界坐标。
+    const hit = view.hitTest(pointer.x, pointer.y);
+    if (hit === 'door') {
+      this.exitInterior();
+      return;
+    }
+    if (hit === 'stairs') view.flashStairs();
+  }
+
+  /**
+   * 屋里此刻有谁：`visible === false` 且占地判到本楼的人——就是上工那批。
+   * **没人就传空数组**，房间照空着画，不摆假人。
+   */
+  private refreshInteriorOccupants(): void {
+    const view = this.interiorView;
+    const buildingId = this.interiorBuildingId;
+    if (view === null || buildingId === null) return;
+    const ids = this.snapshot.villagers
+      .filter((villager) => !villager.visible && this.buildingIdAt(villager.pos) === buildingId)
+      .map((villager) => villager.id)
+      .sort();
+    view.setOccupants(ids);
+  }
+
+  private setBuildingShellVisible(buildingId: string, visible: boolean): void {
+    for (const entry of this.entries) {
+      if (entry.building.instanceId !== buildingId) continue;
+      entry.view.roof.setVisible(visible);
+      entry.view.chimney.setVisible(visible);
+    }
+  }
+
+  /**
+   * 街景的 DOM 浮层（人名/气泡投影与小地图）在屋里没有意义：
+   * 它们画在 canvas 之上，压过内景，而且会跟着自己那份世界继续动——
+   * 「冻结 1 秒画面 0 差异」里那 1032 个变化像素就是它们。
+   * 用 `visibility` 而不是 `display`：`#stage` 的尺寸不能跳。
+   */
+  private setStreetOverlaysVisible(visible: boolean): void {
+    for (const selector of ['#world-overlay', '#minimap']) {
+      const node = document.querySelector<HTMLElement>(selector);
+      if (node === null) continue;
+      node.style.visibility = visible ? '' : 'hidden';
+    }
   }
 
   /**

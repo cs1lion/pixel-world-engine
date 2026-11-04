@@ -1,0 +1,68 @@
+{
+  "size": {
+    "width": 961,
+    "height": 641
+  },
+  "interior": {
+    "roomBBox": {
+      "x": 17,
+      "y": 11,
+      "w": 934,
+      "h": 614
+    },
+    "excludedDomBox": [
+      866,
+      0,
+      961,
+      60
+    ],
+    "uniqueColors": 13,
+    "paletteColors": 24,
+    "outsidePalette": []
+  },
+  "freeze": {
+    "changedPixels": 0,
+    "bbox": null,
+    "total": 573476
+  },
+  "streetVsAfter": {
+    "changedPixels": 259716,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "midVsInterior": {
+    "changedPixels": 610846,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "midVsStreet": {
+    "changedPixels": 612222,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "streetVsInterior": {
+    "changedPixels": 582174,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  }
+}

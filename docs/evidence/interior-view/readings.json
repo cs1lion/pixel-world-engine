@@ -1,0 +1,236 @@
+{
+  "capturedAt": "2026-11-04",
+  "baseUrl": "http://127.0.0.1:5191/",
+  "results": {
+    "building": {
+      "id": "code_forge#1",
+      "name": "炼码工坊",
+      "door": {
+        "x": 42,
+        "y": 30
+      },
+      "origin": {
+        "x": 40,
+        "y": 26
+      },
+      "footprint": {
+        "w": 5,
+        "h": 4
+      }
+    },
+    "street": {
+      "pose": {
+        "scrollX": 528,
+        "scrollY": 416,
+        "zoom": 2
+      },
+      "graphicsObjects": 27,
+      "totalCommands": 16130
+    },
+    "interior": {
+      "pose": {
+        "scrollX": 440,
+        "scrollY": 288,
+        "zoom": 2
+      },
+      "canvas": {
+        "width": 480,
+        "height": 320
+      },
+      "graphicsObjects": 30,
+      "totalCommands": 16152,
+      "mode": "inside",
+      "floor": 1,
+      "room": {
+        "width": 232,
+        "height": 152
+      },
+      "door": {
+        "x": 102,
+        "y": 122,
+        "w": 28,
+        "h": 30
+      },
+      "stairs": {
+        "x": 12,
+        "y": 26,
+        "w": 34,
+        "h": 54
+      },
+      "view": {
+        "scale": 1,
+        "image": {
+          "x": 124,
+          "y": 84,
+          "displayWidth": 232,
+          "displayHeight": 152,
+          "alpha": 1,
+          "visible": true
+        },
+        "backdrop": {
+          "alpha": 1,
+          "visible": true
+        }
+      }
+    },
+    "delta": {
+      "graphicsObjects": 3,
+      "totalCommands": 22
+    },
+    "afterTenCycles": {
+      "pose": {
+        "scrollX": 528,
+        "scrollY": 416,
+        "zoom": 2
+      },
+      "matches": true,
+      "poseIdentical": true,
+      "graphicsObjects": 30,
+      "totalCommands": 16145,
+      "cycles": [
+        {
+          "cycle": 1,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 2,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 3,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 4,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 5,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 6,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 7,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 8,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 9,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 10,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        }
+      ]
+    },
+    "transition": {
+      "framesToInside": 18,
+      "elapsedMs": 307,
+      "midFrames": 9,
+      "midMode": "entering",
+      "cameraMid": {
+        "scrollX": 484,
+        "scrollY": 352,
+        "zoom": 2
+      }
+    },
+    "enterByDoorClick": {
+      "doorPoint": {
+        "x": 480.5,
+        "y": 548.796875
+      },
+      "mode": "inside",
+      "buildingId": "code_forge#1",
+      "frames": 0
+    },
+    "clicks": {
+      "stairsPoint": {
+        "x": 132.5,
+        "y": 296.796875
+      },
+      "doorPoint": {
+        "x": 479.5,
+        "y": 563.796875
+      },
+      "stairsHintFramesAfterClick": 29,
+      "stairsMode": "inside",
+      "modeAfterDoor": "street",
+      "poseAfterDoor": {
+        "scrollX": 528,
+        "scrollY": 416,
+        "zoom": 2
+      },
+      "poseAfterDoorMatches": true
+    },
+    "world": {
+      "villagers": 2,
+      "buildings": 11,
+      "memoryLength": 2994,
+      "schemaVersion": 5,
+      "schemaFingerprint": "3ca5663faee59423"
+    }
+  },
+  "summary": {
+    "poseRoundTrip": "PASS",
+    "allTenCyclesSame": true,
+    "transitionFrames": 18,
+    "commandsWithinBudget": true
+  }
+}
