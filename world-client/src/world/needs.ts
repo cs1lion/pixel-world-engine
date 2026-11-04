@@ -21,6 +21,12 @@ export const NEEDS_HUNGER_PER_DAY = 1 / 3;
 /** 跨过它才会产生「去吃点东西」的目标。 */
 export const NEEDS_HUNGER_EAT_THRESHOLD = 0.9;
 
+/**
+ * 失败原型的阈值：饿到顶（1.0）的人干完活，这一趟送不回去。
+ * 它比吃饭阈值更高：先去吃（0.9 就会产生目标），吃不上才会一路饿到顶。
+ */
+export const NEEDS_HUNGER_FAIL_THRESHOLD = 1;
+
 /** 吃一顿之后回到多少。第一版是「清零」，不做饱腹衰减。 */
 export const NEEDS_HUNGER_AFTER_MEAL = 0;
 

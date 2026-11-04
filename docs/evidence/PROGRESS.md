@@ -81,3 +81,37 @@
   - 为吃饭新增 `announce` 种类（如 `ate`）：否，属于新增世界事实种类；只走 `routineLabel` / 决策日志，不 announce。
 - 阻塞：无。
 - 证据：`docs/evidence/needs/`（baseline / after / hunger-scenario / decisions-needs / manifest / 四道浏览器输出）。
+
+---
+
+## 块 4 · 失败原型：饿到顶 → 交付失败一次
+
+- 开始 / 结束：2026-11-04 21:45 / 2026-11-04 22:12
+- 分支：`feat/behavior-queue`，未 push、未动 main
+- 改了什么结构
+  - `needs.ts`：新增 `NEEDS_HUNGER_FAIL_THRESHOLD = 1`（与 0.9 的吃阈值分开枚举，跨阈行为都能单测）。
+  - `Simulation` 新增运行时集合 `hungerFailedTasks: Set<string>`（同一单只失败一次；不落档、不进快照）。
+  - 两个交付漏斗（`finishInPlace` 原地单、`finishActiveTask` 上游结算）在结算前各问一次 `deliveryFailsFromHunger`；命中即 `failDeliveryFromHunger`，复用 `finishInPlace` 的收尾形状：任务写**已有的** `failed`、`completedAt`、清 `blockedQuestion`、回 idle、清牌子、`nextRoutineAt +1600`、气泡 1400ms（「饿得手抖，没送到。」）。
+  - 有楼的单把人挪回门口；原地单（`buildingId === null`）不动位置。不记交付、不加信仰、不发 `world.event`。
+- 读数（`docs/evidence/needs/after-failure.txt`）
+  - 三条指纹、事件数 50、记忆读数、绘制指令 16130 / Graphics 27 **全部与 baseline 相同**。
+  - 冻结轨迹逐拍决策 480 条，sha256 `39aa269d…`，逐行 diff 0（`decisions-failure-diff.txt`）。原因：50 小时轨迹最高读数 0.694，两条新分支都够不着。
+  - 专项场景（`failure-scenario.txt`）：饿到顶的那一单 `failed`、`deliveries.local = 0`、气泡含「没送到」；吃一口后再派一单 `done`、`deliveries.local = 1`，第一单仍是 `failed`。
+- 新增测试（`test/needs-failure.test.ts`，2 条）
+  1. 饿到顶 → 交付失败一次：走已有 `failed` 状态，交付数不涨，气泡说清原因；
+  2. 吃一口之后再派一单能正常交付，同一单不会失败第二次。
+- 闸门：`check` / `build` / `palette --strict` / `references --strict` / `citations --strict` / `sections --strict` / `claims --strict`（含 adr-schema）/ `pytest`（524 通过 1 跳过）/ `npm test`（2102 通过 0 失败 9 跳过）/ `worktrees:audit --strict` 全绿；浏览器 `browser` / `phases` / `persistence` / `render-budget` / `setting` 通过。
+- 未验证：`test:buttons`（同上：`/api/memory/list` 404，脚本退出码 2，属环境限制）。
+- **做到 / 没做到 / 没验证**
+  - 做到：失败一次、走已有 `failed` 状态、交付数不涨、气泡、清牌子回 idle、同一单不重复失败、吃过后恢复、冻结读数逐字不变、不动存档契约。
+  - 没做到：没有让「失败」进入正式事件流（`report.ts` 的失败数只从任务状态里算，`world.event` 不发）——按块 3 的约束，新增事件种类要先提案，本块没做。
+  - 没验证：浏览器里的失败气泡在真实画面上的呈现（`test:buttons` 跑不起来，且没有专门的失败场景脚本）。
+- 真问题
+  1. quick 单的 `estimateMs` 是 300 秒，而测试窗口先写成 30 秒，导致「等了 30000ms 仍未落终态」。这是**测试窗口**的问题，不是交付漏斗的问题；窗口改成 400 秒后两条测试直接通过。没有放宽任何行为断言。
+  2. 新增了一条回 idle 且无牌子的路口，`test/labelless-idle.test.ts` 的**源码计数**断言（`routineLabel = null` 出现次数 7 → 8）因此变红。这条断言守的是「路口数量」，数量真的变了：把计数与名单更新为 8 处 / 五个 idle 路口（加 `failDeliveryFromHunger`），注释写清第五条从哪来。行为断言一条没改。
+- 被否掉的写法及原因
+  - 新增事件类型或落档字段来记「这单失败过」：否。`TaskStatus` 早有 `failed`，运行期集合足够；落档会碰 v5 冻结契约。
+  - 在 `stepIdle` 里统一「饿了就拒单」：否。失败要发生在**交付那一刻**，提前拒会让任务连 `working` 都进不去，行为和现在的链路对不上。
+  - 直接删掉计数断言或改成 `>= 7`：否，等于把守门断言改绿；按真实数量更新并写清理由。
+- 阻塞：无（`test:buttons` 仍属环境限制）。
+- 证据：`docs/evidence/needs/`（`baseline.txt` 沿用块 3 的冻结基线；新增 `after-failure.txt` / `failure-scenario.txt` / `decisions-failure-after.txt` / `decisions-failure-diff.txt` / 五道浏览器输出 / `render-budget-failure.txt`）。

@@ -1,0 +1,14 @@
+逐拍决策 diff：失败原型改动前 vs 改动后
+========================================
+
+左：docs/evidence/behavior-queue/decisions-before.txt（480 行，冻结轨迹的原始链）
+右：docs/evidence/needs/decisions-failure-after.txt（480 行，加入需求层 + 失败原型之后）
+比对方式：逐行 Compare-Object（顺序敏感）
+
+结果：0 行差异 / 480 行
+sha256（两侧）：
+  39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+
+说明：冻结轨迹里 `lastMealAt` 在读档时锚到 `world.now`，50 小时内最高饥饿
+读数 0.694 < 0.9 吃阈值 < 1.0 失败阈值，所以 `eat` 规则与失败分支一条都没
+进入决策；rule 取值仍只有 verification / pre-cover / routine / none。

@@ -67,7 +67,7 @@ import {
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
 import { BehaviorPlanner, GoalQueue, type BehaviorContext, type BehaviorGoal, type BehaviorRule } from './behavior.ts';
-import { needsAt, type NeedsReading } from './needs.ts';
+import { needsAt, NEEDS_HUNGER_FAIL_THRESHOLD, type NeedsReading } from './needs.ts';
 import {
   DEFAULT_BEHAVIOR_RULES,
   ROUTINE_GUARDS,
@@ -536,6 +536,11 @@ export class Simulation {
    * 饥饿读数由 `needsAt(now, lastMealAt)` 现算，这里只存这一个时间点。
    */
   private readonly lastMealAt = new Map<string, number>();
+  /**
+   * 失败原型：已经因饥饿失败过的任务。**运行时集合、不落档**——
+   * 读档后重置，任务是新的，最多再失败一次。保证「每单只失败一次」。
+   */
+  private readonly hungerFailedTasks = new Set<string>();
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
@@ -3045,6 +3050,10 @@ export class Simulation {
    */
   private finishInPlace(villager: Villager, task: TaskRecord): void {
     if (task.status === 'done') return;
+    if (this.deliveryFailsFromHunger(villager, task)) {
+      this.failDeliveryFromHunger(villager, task);
+      return;
+    }
     this.clearDeparture(villager);
     task.status = 'done';
     task.completedAt = this.now;
@@ -3471,6 +3480,10 @@ export class Simulation {
   private finishActiveTask(villager: Villager): void {
     const task = this.activeTaskOf(villager);
     if (task === null || task.status === 'done') return;
+    if (this.deliveryFailsFromHunger(villager, task)) {
+      this.failDeliveryFromHunger(villager, task);
+      return;
+    }
     this.clearDeparture(villager);
     task.status = 'done';
     task.completedAt = this.now;
@@ -3499,6 +3512,48 @@ export class Simulation {
     villager.path = [];
     this.accrueFaith(task);
     this.log('done', `${task.summary} 已交付（${villager.name}）。`);
+  }
+
+  /**
+   * 失败原型：饿到顶（`hunger >= NEEDS_HUNGER_FAIL_THRESHOLD`）的人干完活，
+   * 这一趟送不回去。每单只失败一次（`hungerFailedTasks` 是运行时集合，不落档）。
+   *
+   * 判据只在**交付那一刻**读，不提前改路线：干活途中饿起来是允许的，
+   * 饿了会先触发吃饭规则去吃点东西；吃不上才会一路饿到顶，这时才交付失败。
+   */
+  private deliveryFailsFromHunger(villager: Villager, task: TaskRecord): boolean {
+    if (this.hungerFailedTasks.has(task.id)) return false;
+    const reading = this.needsOf(villager.id);
+    return reading !== null && reading.hunger >= NEEDS_HUNGER_FAIL_THRESHOLD;
+  }
+
+  /**
+   * 交付失败一次。走**已有的** `failed` 状态与报纸里的失败行，
+   * 不新增事实种类、不新增落档字段；读数只在运行时集合里记一笔。
+   */
+  private failDeliveryFromHunger(villager: Villager, task: TaskRecord): void {
+    this.hungerFailedTasks.add(task.id);
+    this.clearDeparture(villager);
+    task.status = 'failed';
+    task.completedAt = this.now;
+    // 失败不是「请示」，blockedQuestion 必须为空（状态机要求非 blocked 时清空）。
+    task.blockedQuestion = null;
+    const building = this.buildingOf(task);
+    if (building !== undefined) {
+      this.activities.set(building.instanceId, { kind: 'idle' });
+      villager.pos = { x: building.door.x, y: building.door.y };
+    }
+    villager.mode = 'idle';
+    villager.visible = true;
+    villager.facing = 'down';
+    villager.carrying = null;
+    villager.taskId = null;
+    villager.path = [];
+    villager.routineLabel = null;
+    villager.bubble = '饿得手抖，没送到。';
+    villager.bubbleUntil = this.now + DELIVER_MS;
+    villager.nextRoutineAt = this.now + 1600;
+    this.log('warn', `${villager.name}饿得手抖，${task.summary}这一趟没送到。`);
   }
 
   /** 交付按人和来源分开记账：上游/沙盒各自分开，角色之间也不合并。 */
