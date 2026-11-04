@@ -30,6 +30,7 @@ import { archiveMemoryText, type VillagerArchive } from '../world/villager-archi
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
 import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
 import { createIdbHistoryStore } from '../world/history/store.ts';
+import { dayCardOf, groupIntoWeeks, weekViewOf } from '../world/memory/daycard.ts';
 import { observationOf } from '../world/memory/observe.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
@@ -54,6 +55,7 @@ import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
 import type { SteleOracle, SteleView } from '../ui/stele-panel.ts';
 import type { BuildingActivity, BuildingOracle, BuildingPanelView } from '../ui/building-panel.ts';
+import type { DayCardOracle, DayCardProof, DayCardRead } from '../ui/daycard-panel.ts';
 import { STELE_MAX_LINES, steleLines } from '../world/memory/stele.ts';
 
 /**
@@ -72,6 +74,7 @@ type OracleSurfaces = OracleApi &
   VillagerOracle &
   SteleOracle &
   BuildingOracle &
+  DayCardOracle &
   ClockAlignOracle &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
@@ -3516,6 +3519,56 @@ export class SandboxScene extends Phaser.Scene {
     return this.history.rewind(day);
   }
 
+  /**
+   * 日历屏：把 `world.memory` 的日摘要读成「每天一行」。
+   *
+   * **纯读**。只调 `dayDigests()` 与 `factDigest()`；不触发关账、不裁剪、
+   * 不写回任何东西。`readMs` 覆盖建卡与周视图守卫，不含 DOM 渲染。
+   */
+  dayCards(): DayCardRead | null {
+    if (this.memory === undefined) return null;
+    const memory = this.memory;
+    const started = performance.now();
+    const digests = memory.world.dayDigests();
+    const cards = digests.map((digest) =>
+      dayCardOf(digest, (eventId) => memory.world.factDigest(eventId)?.what ?? null),
+    );
+    // 周视图与面板走同一条路：守卫在 `weekViewOf` 里，谁合并旗子谁先抛。
+    for (const week of groupIntoWeeks(cards)) weekViewOf(week.cards);
+    return {
+      cards,
+      readMs: performance.now() - started,
+      days: digests.length,
+    };
+  }
+
+  /**
+   * 纯读证明：建卡前后，`world.memory` 与存档原文**逐字节**相同。
+   *
+   * 先把两段原文各取一份，再跑一次完整的 `dayCards()`，再取一份。中间没有
+   * 等待、没有重排：同一段同步代码里能插进来的只有我们自己。存档原文取自
+   * `saveStore.readRawText()`——不写盘，只读单槽。
+   */
+  dayCardProof(): DayCardProof | null {
+    if (this.memory === undefined) return null;
+    const encode = (text: string): number => new TextEncoder().encode(text).length;
+    const memoryBefore = this.memory.toJSON();
+    const saveBefore = this.saveStore.readRawText() ?? '';
+    const read = this.dayCards();
+    const memoryAfter = this.memory.toJSON();
+    const saveAfter = this.saveStore.readRawText() ?? '';
+    return {
+      readMs: read?.readMs ?? 0,
+      days: read?.days ?? 0,
+      memoryBytesBefore: encode(memoryBefore),
+      memoryBytesAfter: encode(memoryAfter),
+      memoryEqual: memoryBefore === memoryAfter,
+      saveBytesBefore: encode(saveBefore),
+      saveBytesAfter: encode(saveAfter),
+      saveEqual: saveBefore === saveAfter,
+    };
+  }
+
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
     const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
@@ -4183,6 +4236,10 @@ export class SandboxScene extends Phaser.Scene {
       historyDays: () => this.historyDays(),
       /** 点某一天，读那一天的场景/角色/时代。只读，不写主档。 */
       historyRewind: (day: number) => this.historyRewind(day),
+      /** 日历屏：日摘要读成每天一行。只读，不改存档。 */
+      dayCards: () => this.dayCards(),
+      /** 纯读证明：建卡前后记忆与存档原文逐字节比较。 */
+      dayCardProof: () => this.dayCardProof(),
       /**
        * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
        * `catchUp` 不再只活在状态行的一帧里；没有 setter。

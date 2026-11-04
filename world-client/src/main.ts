@@ -16,6 +16,7 @@ import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
 import { bindClockAlignPanel, type ClockAlignOracle } from './ui/clock-align.ts';
 import { bindUnitStatusPanel, type UnitStatusOracle } from './ui/unit-status.ts';
 import { bindChronicle } from './ui/chronicle-panel.ts';
+import { bindDayCardPanel, type DayCardOracle } from './ui/daycard-panel.ts';
 import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
 import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
 import { bindStelePanel, type SteleOracle } from './ui/stele-panel.ts';
@@ -217,6 +218,12 @@ bindUnitStatusPanel(unitStatusOracle);
 // 镇志抽屉：票据 #7 的「像读一本编年史」。只读 memory/，不改变仿真。
 // 客户端在这里才装配：它要知道 fetch 走哪（开发时是 vite 代理的 /api）。
 bindChronicle({ client: createMemoryClient() });
+
+// 日历抽屉：只读日摘要，每天一行。与镇志同一套 DOM 语言，但数据不来自
+// 文件服务——它走场景的 `dayCards()`，读的是当前世界刚载入的 `world.memory`。
+const dayCardOracle = (): DayCardOracle | undefined =>
+  (window as unknown as { Oracle?: DayCardOracle }).Oracle;
+bindDayCardPanel(dayCardOracle);
 
 // 取景三按钮与村民面板。两个都只读场景暴露的那一面：一个改镜头模式，
 // 一个把「她记得什么」摆出来——都不改仿真。
