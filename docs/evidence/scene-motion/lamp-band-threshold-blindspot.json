@@ -1,13 +1,22 @@
 {
   "question": "暗带阈从 1 格改成 0.0625 格，是否真的消除了 16 倍盲区",
-  "method": "临时脚本 scripts/_probe-blindspot.mjs（未提交）读取本轮真实截图 lamp-band-after-lit.png / -dark.png，用与 check-lamp-band 相同的逐列 ΔY 剖面。人为把主暗带（x471 起、71 列）向右加宽 15 列：把这些列的灯亮图像素替换成灯灭图像素。两轮：A 不做覆盖补偿；B 从其它暗列补亮 15 列，把覆盖固定回原值，只让最长暗带变化。",
+  "method": "脚本 scripts/check-lamp-blindspot.mjs 读取本轮真实截图 lamp-band-after-lit.png / -dark.png，用与 check-lamp-band 相同的逐列 ΔY 剖面。人为把主暗带（x471 起、71 列）向右加宽 15 列：把这些列的灯亮图像素替换成灯灭图像素。两轮：A 不做覆盖补偿；B 从其它暗列补亮 15 列（补亮像素取原图最亮一列的带段像素），把覆盖固定回原值，只让最长暗带变化。默认参数即复算本文件。",
+  "rerun": "cd world-client && node scripts/check-lamp-blindspot.mjs",
   "source": {
     "images": "world-client/eval/screens/lamp-band-after-{lit,dark}.png",
     "protocol": "seed 20261019、?now=720、真晴（rainStrength=0）、满潮、frame180"
   },
   "runA_rawWiden15Columns": {
-    "before": { "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471 },
-    "after": { "coverage": 0.71875, "gapCells": 5.375, "gapAt": 471 },
+    "before": {
+      "coverage": 0.765625,
+      "gapCells": 4.4375,
+      "gapAt": 471
+    },
+    "after": {
+      "coverage": 0.71875,
+      "gapCells": 5.375,
+      "gapAt": 471
+    },
     "gapDiffCells": 0.9375,
     "oldThresholdCells": 1,
     "oldVerdict": "未检出（0.9375 ≤ 1，旧阈值放过）",
@@ -16,8 +25,16 @@
     "note": "此轮覆盖率同时掉了 4.6875pp，按覆盖率会另报；这里只说明暗带指标本身的盲区。"
   },
   "runB_coverageCompensated": {
-    "before": { "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471 },
-    "after": { "coverage": 0.765625, "gapCells": 4.6875, "gapAt": 482 },
+    "before": {
+      "coverage": 0.765625,
+      "gapCells": 4.4375,
+      "gapAt": 471
+    },
+    "after": {
+      "coverage": 0.765625,
+      "gapCells": 4.6875,
+      "gapAt": 482
+    },
     "gapDiffCells": 0.25,
     "restoredColumns": 15,
     "oldThresholdCells": 1,

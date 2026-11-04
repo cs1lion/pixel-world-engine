@@ -39,7 +39,7 @@
    |---|---|---|
    | 夜街覆盖 | 76.56% ×3（seed 20261019）；跨种子 1/7/42 同样 76.56（0 差） | **0.3125pp**（1/320：街段 240..559 共 320 列，1 列跨阈 = 1/320） |
    | 最长暗带 | 4.4375 格 ×3；跨种子 0 差 | **0.0625 格**（1/16：`gapCells = bestGap/16`，`bestGap` 是列数） |
-   | ΔY avg | 3.330pp ×3；跨种子 0 差 | **0.001pp**（320 列原始 double 的均值；单列 1 个码值摊到 320 列约 0.001pp） |
+   | ΔY avg | 3.330pp ×3；跨种子 0 差 | **0.0001–0.001pp**（320 列原始 double 的均值；单列 1 个码值摊到 320 列：暗部端约 0.0001pp、中灰端约 0.001pp。判据取下端，真暗处差一码才不会落进「未检出」） |
    | ΔY max | 7.392pp ×3；跨种子 0 差 | **0.03–0.34pp**（单列 1 像素的 8 位码值：暗部约 0.03、中灰约 0.34） |
    | 暗带位置 x | 471 ×3；跨种子 0 差 | **1 世界像素**（=2 图像像素，`scale×zoom`） |
    上表是**仪器分辨极限**，不是「效果阈值」；差异小于它才写「未检出」。
@@ -47,7 +47,7 @@
    「不可比」，不是把带宽放大**——未钉种子的 sd（0.53pp / 1.20 格）**不是带宽**。
    **暗带 16 倍盲区已消除**：旧文档写「1 格」，等于把 16 列（=1 格）的变化当 0；改为 0.0625 格后，
    实测人为加宽 15 列（+0.9375 格）时旧阈「未检出」、新阈「检出」；覆盖固定时加宽 4 列（+0.25 格）
-   也同样旧漏新抓（见 `lamp-band-threshold-blindspot.json`）。
+   也同样旧漏新抓（见 `lamp-band-threshold-blindspot.json`，生成器 `world-client/scripts/check-lamp-blindspot.mjs`）。
    **任何 A/B 必须在同协议下做**：差异 **≤ 判据阈**写「**未检出差异**」；**> 判据阈**才可判「改好了 / 改坏了」。
    **协议灵敏度**（另立，只警告「不要混协议比较」）：
    | 协议变化 | 观测量偏移 |
@@ -84,6 +84,9 @@ cd world-client
 # 浏览器类证据读 PIXEL_WORLD_URL；端口必须指向**本 worktree** 的服务（本条用 5202，CI 用 preview 5188）
 PIXEL_WORLD_URL=http://127.0.0.1:5202/ node scripts/check-scene-motion.mjs
 BAND_SEED=20261019 BAND_NOW=720 PIXEL_WORLD_URL=http://127.0.0.1:5202/ npm run test:lamp-band
+node scripts/check-lamp-blindspot.mjs   # 读上面的 after 图，复算盲区两组（+0.9375 格 / +0.25 格）
+# 基线同协议 JSON（39cff04 的服务，端口 5203；默认裸跑仍会被真晴断言拒绝，必须显式放行）
+BAND_LABEL=before-seed-pinned BAND_SEED=20261019 BAND_NOW=720 BAND_ALLOW_UNMEASURED=1 PIXEL_WORLD_URL=http://127.0.0.1:5203/ node scripts/check-lamp-band.mjs
 PIXEL_WORLD_URL=http://127.0.0.1:5202/ npm run test:lamp-pool
 PIXEL_WORLD_URL=http://127.0.0.1:5202/ npm run test:render-budget
 npm test
@@ -113,7 +116,9 @@ node scripts/audit-palette.mjs --strict
 注意 `debugSetWeather` **不是**到 `e807759` 才有：`e807759` 已在 `debug-panel.ts`、`SandboxScene.ts`
 两处提供；真正缺这个口子的是 `39cff04`（它也没有 `debugPinTide` / `debugStepWorld` / `debugWeatherIntensity`）。
 拿 `39cff04` 基线裸跑现在会**被真晴断言拒绝**（`rainStrength=null`），这是预期的「不可比」；
-基线同种子那次读数是在断言加入前采集的，已写在第二节「四」并标明来源。
+显式给 `BAND_ALLOW_UNMEASURED=1` 才放行，并按**槽位间接确认**晴（`now=720` → 第 3 槽，基线无
+`debugSetWeather` 可调、frame180 `kind=clear`），原始 JSON 是
+`world-client/eval/screens/lamp-band-before-seed-pinned.json`，见第二节「四」。
 - **灯灭残留为什么用同一页比**：不同页面开局的存活帧数不同，会带进另一处既有的逐页差异
 （左下角雾 / 罩层，约 1%、max 10），混进来就分不清是不是灯池残留。同一页、同一世界时刻、
 同一摆相位下比，才是真的「没有上一帧的光池留在这一帧」。
@@ -213,12 +218,20 @@ PNG 字节带编码差异，不作判据。
 **怎么判**：
 
 - 覆盖差 **0.00pp ≤ 0.3125pp**、暗带差 **0 格 ≤ 0.0625 格**、x 差 **0 ≤ 1 世界像素** → **逐位相同**，写「未检出差异」；
-- ΔY avg **+0.0043pp > 0.001pp** → **检出**（原按 0.01pp 写的「未检出」作废，改判为检出）；
+- ΔY avg **+0.0043pp > 0.0001–0.001pp** → **检出**（原按 0.01pp 写的「未检出」作废，改判为检出）；
   ΔY max **+0.509pp > 0.03–0.34pp** → **检出**；两者方向都是**更亮**，不是光带变暗或覆盖退化，
   结论仍是「**无可检出的退化**」。
-- 基线 `rainStrength = null`（没有该 accessor），`?now=720` 是它的自然 clear 槽（此前实测 720–900 clear，
-  槽内初始强度 0）；这不是「未钉」，是**基线缺仪器**。该读数是在新断言加入前采集的；现在裸跑基线会被
-  真晴断言直接拒绝，属预期的「不可比」，不再产出新基线数。
+- 基线 `rainStrength = null`（没有该 accessor），晴是**槽位间接确认**：`?now=720` 落在第 3 槽
+  （`WEATHER_SLOT_MS = worldHours(4)`，`floor(720/240)=3`；`weatherForSlot('dengchao', 3)='clear'`，
+  `world/weather-cycle.ts:37-52`），基线又没有 `debugSetWeather` 可调，frame180 仍是 `kind=clear`——
+  只能是开局即排到 clear 槽，不是中途淡出。这不是「未钉」，是**基线缺强度仪器**；强度字段记 `null`，
+  属**间接确认**。
+- 基线原始 JSON 已入库：`world-client/eval/screens/lamp-band-before-seed-pinned.json`
+  （在 `39cff04` 上以 `BAND_LABEL=before-seed-pinned BAND_SEED=20261019 BAND_NOW=720
+  BAND_ALLOW_UNMEASURED=1`、端口 `http://127.0.0.1:5203/` 重跑；`protocol` 含 seed / now /
+  rainStrength / tide / frame / 视口 / weatherSlot / clearBasis，读数与上表逐项相同：
+  76.5625% / 4.4375 格 x471 / avg 3.326 / max 6.883 / 16972 指令 / 49 Graphics）。默认裸跑基线
+  仍被真晴断言拒绝（`rainStrength=null`）；这次是**显式放行**，不是把断言放宽。
 - 旧的未钉种子采样（75.6/4.6、75.9/3.9、76.9/1.8）属**历史不可追溯采样**，不进本表。
 - 判据带只在「种子钉住 + 真晴 + 满潮」下成立；未钉种子的 sd（0.53pp / 1.20 格）**不是带宽**。
 
@@ -367,7 +380,7 @@ npx tsx --test test/ground-shadow.test.ts
 
 - 夜街光带（seed 20261019 + 真晴 + 满潮，同种子 3 次 + 跨种子 1/7/42）：覆盖 **76.56%**、
   最长暗带 **4.4375 格（x471）**、ΔY **0.00 / 3.330 / 7.392pp**，逐项 0 差；光池指令 **2552 / 0**。
-  与第三条读数逐项相同，差异 **0 ≤ 判据阈**（0.3125pp / 0.0625 格 / 0.001pp / 1 世界像素），写「**未检出差异**」；
+  与第三条读数逐项相同，差异 **0 ≤ 判据阈**（0.3125pp / 0.0625 格 / 0.0001–0.001pp / 1 世界像素），写「**未检出差异**」；
   支持「没碰光带」的更强证据是夜里 `span=0 / alpha=0` 整层不画、且读数与指令数逐项相同。
 - 火光地面 10×5 px 取样 **0.00%**、`debugLampPool` 仍 **2552**（见第二条的证据行；本条未改火光与灯池）。
 - 第一条三支帧差 **11.79 / 0.00 / 1.27 / 10.64 / 8.89%**、暂停 **0.00%**、确定性 **13/13**、灯灭残留 **0.00%**。

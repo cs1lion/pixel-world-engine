@@ -3,7 +3,7 @@
   "mechanism": {
     "source": "world-client/src/render/weather.ts 读取 window.__RAIN_SEED__，页面每次载入不同；脚本 initScript 在任何模块执行前写入同值。",
     "entry": "world-client/src/main.ts installDebugSeed()：?debug=1&debugPinSeed=<n> 替换 Math.random 为同常数 LCG，只影响 debug 层，不落存档、不进回放指纹。",
-    "trueClear": "debugSetWeather('clear') 只改 kind；雨幕按 WEATHER_FADE_MS = 5 世界分钟淡出，170→180 帧只走 10 世界秒，强度仍 ≈0.97。判真晴必须 rainStrength < 0.05。",
+    "trueClear": "debugSetWeather('clear') 只改 kind；雨幕按 WEATHER_FADE_MS = 5 世界分钟淡出。6b6962f 那组实测 frame80 rainStrength=0.260、frame180=0.000（见 transitionProbe），属过渡协议。判真晴必须 rainStrength < 0.05。",
     "unpinnedRain": {
       "coverage": [0.7594, 0.7563, 0.7688],
       "gapCells": [3.94, 4.63, 1.81],
@@ -61,6 +61,7 @@
   "baseline": {
     "tree": "39cff04",
     "url": "http://127.0.0.1:5203/",
+    "json": "world-client/eval/screens/lamp-band-before-seed-pinned.json",
     "seed": 20261019,
     "now": 720,
     "coverage": 0.765625,
@@ -71,9 +72,11 @@
     "max": 0.0688312821811544,
     "commands": 16972,
     "graphics": 49,
+    "tide": 1,
     "rainStrength": null,
     "pinned": { "weather": false, "tide": false },
-    "note": "基线无 debugSetWeather/debugPinTide/debugStepWorld/debugWeatherIntensity；?now=720 落在其自然 clear 槽（720–900 clear）。"
+    "clearBasis": "slot-indirect: now=720 → 第 3 槽（240 世界分钟/槽）；weatherForSlot('dengchao',3)='clear'；基线无 debugSetWeather 可调，frame180 kind=clear；强度字段不可得",
+    "note": "基线无 debugSetWeather/debugPinTide/debugStepWorld/debugWeatherIntensity；?now=720 落在其自然 clear 槽（720–960 clear，槽内初始强度 0）。"
   },
   "baselineVsCurrent": {
     "coverageDiffPp": 0,
@@ -81,7 +84,7 @@
     "gapAtDiffPx": 0,
     "avgDiffPp": 0.00426973,
     "maxDiffPp": 0.5092632,
-    "verdict": "覆盖/暗带/位置 0 差（逐位相同）；ΔY avg +0.0043pp > 0.001pp → 检出；ΔY max +0.509pp > 0.03–0.34pp → 检出。两者方向均为峰值变亮，不是覆盖退化。结论：无可检出的退化。"
+    "verdict": "覆盖/暗带/位置 0 差（逐位相同）；ΔY avg +0.0043pp > 0.0001–0.001pp → 检出；ΔY max +0.509pp > 0.03–0.34pp → 检出。两者方向均为峰值变亮，不是覆盖退化。结论：无可检出的退化。"
   },
   "transitionProbe": {
     "protocol": "6b6962f 那组：无 ?now（00:00 开局）、SETUP_AT=80 调 debugSetWeather('clear')、frame180 冻结；本轮复跑 seed=20261019",
@@ -98,8 +101,8 @@
     "coverageHow": "1/320：街段 x240..559 共 320 列，1 列跨阈 = 1/320",
     "gapCells": 0.0625,
     "gapHow": "gapCells = bestGap/16；bestGap 是列数，1 列 = 1/16 格",
-    "deltaYAvgPp": 0.001,
-    "deltaYAvgHow": "320 列原始 double 的均值；单列 1 个码值摊到 320 列约 0.001pp",
+    "deltaYAvgPp": "0.0001–0.001",
+    "deltaYAvgHow": "320 列原始 double 的均值；单列 1 个码值摊到 320 列：暗部端约 0.0001pp、中灰端约 0.001pp；判据取下端",
     "deltaYMaxPp": "0.03–0.34",
     "deltaYMaxHow": "单列 1 像素的 8 位码值：暗部约 0.03pp、中灰约 0.34pp",
     "gapAtPx": "1 世界像素（=2 图像像素，scale×zoom）",
