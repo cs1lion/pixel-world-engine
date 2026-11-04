@@ -201,7 +201,16 @@ function drawGroundShadow(
   back.add([g]);
 }
 
-/** 墙体：平色 → 地基 + 檐影 + 木梁 + 立面套件。 */
+/** 墙体材质的种子：由门位派生，同栋楼恒定，跨读档不重摆。 */
+function wallSeed(building: PlacedBuilding): number {
+  let hsh =
+    Math.imul(building.door.x + 0x9e37, 0x85ebca6b) +
+    Math.imul(building.door.y + 0x1234, 0xc2b2ae35);
+  hsh ^= hsh >>> 13;
+  return hsh >>> 0;
+}
+
+/** 墙体：平色 → 板壁木纹 + 地基砌缝 → 檐影 + 木梁 + 立面套件。 */
 function drawWall(
   g: Phaser.GameObjects.Graphics,
   building: PlacedBuilding,
@@ -214,6 +223,27 @@ function drawWall(
   g.fillStyle(body, 1);
   g.fillRect(0, roofH, w, h - roofH);
 
+  // 板壁材质：横向板缝 + 短木纹刺。
+  // 位置全部由门位派生（同一栋楼每一帧、每次读档都是同一张脸，不读时钟）。
+  // 只在梁与柱之间画，避免和结构线叠成一张格子。
+  const seed = wallSeed(building);
+  const bodyTop = roofH + 3;
+  const bodyH = h - 8 - bodyTop;
+  if (bodyH > 8) {
+    g.fillStyle(paletteFor().timberDark, 0.3);
+    g.fillRect(1, bodyTop + 2 + (seed % Math.max(1, bodyH - 6)), w - 2, 1);
+    if (bodyH > 26) {
+      g.fillRect(1, bodyTop + 6 + ((seed >>> 8) % Math.max(1, bodyH - 12)), w - 2, 1);
+    }
+    g.fillStyle(paletteFor().timberDark, 0.26);
+    const specks = Math.max(2, Math.floor(w / 14));
+    for (let i = 0; i < specks; i += 1) {
+      const sxp = 2 + ((seed >>> (i % 16)) % Math.max(1, w - 7));
+      const syp = bodyTop + 1 + ((seed >>> ((i + 5) % 16)) % Math.max(1, bodyH - 2));
+      g.fillRect(sxp, syp, 2 + (i % 3), 1);
+    }
+  }
+
   // 地基：3px 石基 + 1px 压顶。楼不再直接插在草里。
   g.fillStyle(paletteFor().stone, 1);
   g.fillRect(0, h - 3, w, 3);
@@ -221,6 +251,17 @@ function drawWall(
   g.fillRect(0, h - 3, w, 1);
   g.fillStyle(paletteFor().soil, 1);
   g.fillRect(0, h - 1, w, 1);
+
+  // 石基砌缝：把压顶下的 3px 石带切成 8–13px 的石块。
+  // 缝只压 1px 高、ink 0.22：楼基是 `lamp-band` 逐列取 ΔY 的采样带之一，
+  // 缝再深就会和灯池的暖光抢对比度（0.35 那版读数虽然没掉，但基线本身已
+  // 由 76.9% 漂到 75.9%，不给自己多留暗像素）。
+  for (let bx = 2 + (seed % 6); bx < w - 2; bx += 8 + ((seed >>> (bx % 9)) % 5)) {
+    g.fillStyle(paletteFor().soil, 1);
+    g.fillRect(bx, h - 2, 1, 1);
+    g.fillStyle(paletteFor().ink, 0.22);
+    g.fillRect(bx + 1, h - 2, 1, 1);
+  }
 
   // 檐下阴影：2px 实心暗木色，不用 alpha 做材质。
   g.fillStyle(paletteFor().timberDark, 1);

@@ -552,12 +552,17 @@ function drawShopfront(
   for (let i = 0; i < width + 8; i += 6) {
     g.fillStyle(i % 8 === 0 ? c.warmLight : c.terracotta, 0.9);
     g.fillRect(x - 4 + i, top - 4, 3, 3);
+    // 布褶：每条幔的右侧压 1px ember，3px 宽的条子才读成布，不是色块。
+    g.fillStyle(c.ember, 0.55);
+    g.fillRect(x - 4 + i + 2, top - 4, 1, 3);
   }
   g.fillStyle(c.ink, 0.5);
   g.fillRect(x - 4, top - 1, width + 8, 1);
   // 墙
   g.fillStyle(c.plaster, 1);
   g.fillRect(x, top, width, SHOPFRONT_WALL_H);
+  // 立面材质种子：由立面的世界位置派生，同一面店墙每一帧同一张脸。
+  const seed = hash2(x, y + width);
   // 斑驳：雨痕从檐口垂到窗上沿，露石与补板压在旧缝上（p40）。
   g.fillStyle(c.deepShade, 0.2);
   g.fillRect(x + 9, top + 2, 1, 10);
@@ -568,6 +573,29 @@ function drawShopfront(
   g.fillRect(x + 3, top + 20, 8, 1);
   g.fillStyle(c.stone, 1);
   g.fillRect(x, baseY, width, SHOPFRONT_STONE_H);
+  // 石脚砌缝：4px 石带压一道受光顶边，再按 6–9px 切成一排条石。
+  // 旧的石脚是一条纯色灰边，读不出「砌起来的基座」。
+  g.fillStyle(c.plaza, 0.9);
+  g.fillRect(x, baseY, width, 1);
+  for (let i = 3 + ((seed >>> 3) % 4); i < width - 2; i += 6 + ((seed >>> (i % 7)) % 4)) {
+    g.fillStyle(c.deepShade, 0.5);
+    g.fillRect(x + i, baseY, 1, SHOPFRONT_STONE_H);
+    g.fillStyle(c.plaza, 0.3);
+    g.fillRect(x + i + 1, baseY, 1, 1);
+  }
+  // 灰泥颗粒：亮粉是晒白的灰、暗点是泥渍。只铺在墙上，窗与门后面会盖住。
+  g.fillStyle(c.pale, 0.5);
+  for (let i = 0; i < 12; i += 1) {
+    const gx = x + 3 + ((seed >>> (i % 16)) % Math.max(1, width - 6));
+    const gy = top + 3 + ((seed >>> ((i + 9) % 16)) % (SHOPFRONT_WALL_H - 7));
+    g.fillRect(gx, gy, 1 + (i % 2), 1);
+  }
+  g.fillStyle(c.stone, 0.3);
+  for (let i = 0; i < 6; i += 1) {
+    const gx = x + 3 + ((seed >>> ((i + 3) % 16)) % Math.max(1, width - 6));
+    const gy = top + 9 + ((seed >>> ((i + 12) % 16)) % (SHOPFRONT_WALL_H - 14));
+    g.fillRect(gx, gy, 1, 1);
+  }
   // 贴地影：窄立面也要有落地的接触面，否则像一块浮着的板
   g.fillStyle(c.ink, 0.28);
   g.fillRect(x + 2, y + SHOPFRONT_BASE_H, width - 4, 2);
@@ -579,6 +607,16 @@ function drawShopfront(
   g.fillRect(x, top + 40, width, 1);
   g.fillStyle(c.timberDark, 0.55);
   for (let i = 12; i < width - 2; i += 12) g.fillRect(x + i, top, 1, 40);
+  // 木纹：外框与竖柱上长短不一的 1px 木刺（一档更亮的 timber），
+  // 让木骨读成木头，不是一条深色带。
+  g.fillStyle(c.timber, 0.8);
+  for (let i = 0; i < 4; i += 1) {
+    g.fillRect(x + 1, top + 5 + i * 9 + ((seed >>> i) % 3), 1, 2);
+    g.fillRect(x + width - 2, top + 7 + i * 9 + ((seed >>> (i + 4)) % 3), 1, 2);
+  }
+  for (let i = 12; i < width - 2; i += 24) {
+    g.fillRect(x + i, top + 12 + ((seed >>> (i % 5)) % 14), 1, 2);
+  }
   // 格窗开在墙的上半：窗底与门楣之间留一道横枋，立面才不会读成一块板。
   if (width >= 64) {
     // 宽立面：两扇格窗
