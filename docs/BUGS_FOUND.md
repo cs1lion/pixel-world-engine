@@ -1,1 +1,642 @@
-# 功能测试发现的缺陷## 造物构建（feat/func-creator）测试分支：`feat/func-creator`（worktree `D:\project\pwe-funccreator`，基线 `54139dd`）。测试入口：`world-client/test/creator-functional-l1.test.ts`、`creator-functional-l2.test.ts`、`creator-functional-l3.test.ts`。下列两条原先用 `test(..., { todo: 'BUG-x' }, ...)` 保留失败读数；已在提交 `f58179d` 修复，对应用例翻成正常断言并通过。下面同时记录修复前后读数。---### BUG-1 覆盖率分母为 0 时，`creationCoverage` 返回 0 而不是「没测」- **编号**：BUG-1- **状态**：**已修**，提交 `f58179d`。- **依据**：账本侧既定契约 `coverageAfterBuild()` 在 `blueprintCount <= 0` 时返回 `null`，并由 `reading()` 统一落成 `passed=null` / `reason=not_measured`（`src/creator/ledger.ts:172-214`）。业务规则侧必须同口径，「没测」不能写成 0 分。- **修复**：`creationCoverage()` 返回类型改为 `number | null`，0 分母直接 `return null`；引擎 `submitHumanApproval` 只在 `typeof coverageRate === 'number'` 时记观测；`SandboxScene` / `trace/runtime.ts` 把 `null` 原样交给 `evaluateLandingGates`（该处已按 `null → passed=null` 处理）。`checkLandedBuilding` 只跑空间/不变式业务规则，不消费覆盖率，无需 null 分支。- **修复前读数**：`creationCoverage(...) = 0`；落地门禁 `passed=false`、`reason=below_requirement`；计数器 `coverageChecks=1`（把没测算成一次 0 分观测）。- **修复后读数**：`creationCoverage(...) = null`；落地门禁 `passed=null`、`reason=not_measured`；计数器 `coverageChecks=0`。- **证据**：  - 测试 `[L3] creationCoverage 在 0 分母时给 null，落地门禁与计数器都记 not_measured`，`creator-functional-l3.test.ts:130`，已通过；  - 同文件 `[L3] 覆盖率分母为 0：账本记 not_measured，不是 0/1` 仍通过。- **影响范围**：修复前，0 模板设定集/空世界会把「没测」误报成「覆盖率 0，低于 95%」，并给角色记一次假的 0 分覆盖率证据；修复后不再产生该错误读数。---### BUG-2 L0 熔断「降级」会把角色升到 L1- **编号**：BUG-2- **状态**：**已修**，提交 `f58179d`。- **依据**：《补充架构设计与全量待定参数规格书 v1.0》§2.2「自治爬梯（L0–L4）的『双向熔断与自动降级机制』」明写熔断对象是「**处于 L2/L3 的模块**」，动作是「立即将该模块实时降级回 **L1**」（`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md:80-85`）；v0.2 §2.2 同样表述为「从 L3/L2 降级回 L1」（`architecture-supplement-v0.2.md:101-105`）。文档没有「从 L0 升到 L1」的规则，且「降级」只能向下。因此无条件写 L1 是行为写反，不是有意设计。- **修复**：`triggerDowngrade()` 取 `Math.min(oldLevel, AutonomyLevel.L1)`：L0 留 L0、L1 留 L1、L2/L3 才落到 L1；`isFused` 与窗口清零逻辑保持不变。- **修复前读数**：`currentLevel = 1`（被「降级」抬高），`isFused = true`，事件 `fromLevel=0 → toLevel=1`。- **修复后读数**：`currentLevel = 0`，`isFused = true`，事件 `fromLevel=0 → toLevel=0`。- **证据**：  - 测试 `[L3] 熔断降级不能把 L0 升成 L1`，`creator-functional-l3.test.ts:315`，已通过；  - 原有 `creator-fuse.test.ts` 的「不变式被违反一次就当场熔断回 L1」「人类回滚一次就降级」「等级变化如实记下 from 与 to」全部通过，证明 L1/L2 路径未回退。- **影响范围**：修复前 L0 人工拒绝一次就会「升层 + 熔断」，与「L0→L1 是升级爬梯、拒绝是降级」的语义相反；修复后各等级只降不升。---### 已通过、未记为缺陷的边界读数以下边界在本轮测试中通过，说明实现是正确的；列出来避免后续误判：- 同 prefabId 第二栋：真实 `Simulation` 返回 `这种铺子已经有一栋了。`，建筑数不变（L3）。- 覆盖率 0 分母：`coverageAfterBuild` 返回 `null`，`evaluateProposalGates` 记 `passed=null`、`reason=not_measured`，`buildCreationRecord` 记 `rejectionGate=coverage`、`kind=not_measured`（L3）。- 账本去重：重复 `recordId` 返回旧记录 `duplicate=true`，`seq` 不变、文件字节数不变（L3）。- 队列上限：`maxItems=2` 时第三条入队丢第一条，`dropped=1`，持久化只剩最新两条；出队只发后两条（L3）。- 重启：`seq` 从文件续号 `1→2→3`，时钟回拨时 `recordedAt` 保持上一条时间，不倒退（L3）。- 7 日观测三态：`still_present` / `removed` / `modified` 均在第 7 世界日各出一条真实观测（L2）。- 爬梯：真实造物 + 真实覆盖率/冲突/不变量观测，L0→L1→L2；只补 schema、覆盖率/冲突分母为 0 时 13 天仍停在 L1（L2）。---## 交互（feat/func-interact）分支 `feat/func-interact` 的功能测试（`world-client/test` 下的 `interact-l1`、`interact-l2`、`interact-l3` 三个用例文件，加 `world-client/scripts/check-interact.mjs`）覆盖到的真实问题。**当前状态：BUG-1、BUG-2、BUG-3、BUG-4 均已修复。** 每一条都写清修复前后的实测结果；修复代码与断言在同一个提交里，测试不再用 `todo` 标注期望。---### BUG-1 神谕写作没有长度 / 控制字符校验（已修复）- **修复前的现象**：面板只把输入 `trim()` 一下，空串挡住、其余原样交给 `api.say`。超长文本和不可见控制字符都能直接写进世界，输入框也没有 `maxlength` 兜底。- **最小复现**：  1. 打开页面，点开神谕写作面板（`#utterance`）。  2. 粘贴 10000 个字符后提交；或输入 `"a\u0000b\u0007c"` 后提交。  3. 面板关闭、文本原样进入神谕，没有拒绝、没有截断、没有提示。- **修复前实测**（单元 `L3-1b` / `L3-1c` 当时的 `todo` 读数）：`10000 字 → 神谕原样收到`；`"<script>\u0000..." → 原样投递，控制字符仍在`；`#utterance` 没有 `maxlength`。- **修法**：  - 上限 200 字，写成常量 [`UTTERANCE_MAX_LENGTH`](../world-client/src/ui/oracle-panel.ts#L13-L22)，由 [`prepareUtterance`](../world-client/src/ui/oracle-panel.ts#L32-L39) 统一裁决（剥控制字符 → `trim` → 判空 → 判上限）。  - **超长选「整句拒收」而不是截断**：截断会悄悄改掉命令的意思（把「不要拆」截成「不要」），玩家却以为后半句已经生效；拒收并保留原文，问题才看得见。回执写明字数与上限：「这句话 10000 字，超过上限 200 字；删短再发。」  - **控制字符选「剥除」而不是拒收**（用户给的是「过滤或拒收」二选一）：`\u0000`–`\u001f`、`\u007f` 玩家在输入框里本来就看不见，为一个看不见的字符丢掉整句话没有道理；剥干净后如果什么都不剩，再按空句处理，不投递。  - 输入框加 `maxlength`（[`input.maxLength = UTTERANCE_MAX_LENGTH`](../world-client/src/ui/oracle-panel.ts#L351-L351)），提交入口（[`submit`](../world-client/src/ui/oracle-panel.ts#L353-L367)）再校验一次——粘贴、脚本、调试写入绕得过 `maxlength`，绕不过 `prepareUtterance`。- **修复后对比（同一组输入实测）**：  | 输入 | 修复前 | 修复后 |  | --- | --- | --- |  | 10000 字 | 原样投递 | 整句拒收，输入保留，回执「这句话 10000 字，超过上限 200 字；删短再发。」 |  | 201 字 | 原样投递 | 整句拒收，输入保留，回执「这句话 201 字，超过上限 200 字；删短再发。」 |  | 恰好 200 字 | 原样投递 | 收下并清空输入（`maxlength` 也是 200） |  | `"\u0000\u0001\u0007拆掉祭坛\u007f"` | 控制字符原样投递 | 剥离 4 个控制字符后投递「拆掉祭坛」 |  | 纯控制字符 / 全空白 | 纯控制字符原样投递 | 按空句处理：0 次投递，输入保留 |  | 粘贴 201 字 | 原样投递 | 被 `maxlength` 截到 200 后收下 |  | 上游在线但拒收 | 回执照抄（本来就这样） | 回执照抄、输入保留、只送一次（`L3-3b` 钉住，防止二次校验把它重试成两次） |- **断言**：单元 [`L3-1a`](../world-client/test/interact-l3.test.ts#L190)、[`L3-1b`](../world-client/test/interact-l3.test.ts#L203)、[`L3-1c`](../world-client/test/interact-l3.test.ts#L228)、[`L3-1d`](../world-client/test/interact-l3.test.ts#L270)；浏览器 `check-interact.mjs` 的 `L3-1`（空白）、`L3-2`（控制字符）、`L3-3`（恰好 200 / 201 / 10000 / 粘贴 201）、`L3-3b`（上游拒收回执）。---### BUG-2 长按期间单位自己走开，500ms 后仍会弹出面板（已修复）- **修复前的现象**：长按用 `pointerdown` 时的单位引用起 500ms 定时器。玩家手指不动时不会有 `pointermove`，定时器回调里只用 `still !== null` 判断（恒真），没有重新做一次「指针此刻是否还压在这个单位上」的命中测试。单位自己走开（或被人挤走）仍会开记忆 / 楼志面板。- **最小复现**：  1. 60 倍速打开页面（`?speed=60`）。  2. 在一个正在走路的村民格子上按住 650ms，手指全程不动。  3. 村民在按住期间换格（修复前实测 `莞尔 45,37 → 44,37`，0 个 `pointermove`），650ms 时仍弹出了这个村民的记忆面板。- **修复前实测**：`莞尔 从格 (47,36) 走到 (46,36)，手指没动、也没有 pointermove，500ms 定时器照样开了记忆面板「莞尔」`。- **修法**：按下时同时记下目标引用与格坐标（[`longPressRef` / `longPressCell`](../world-client/src/scenes/SandboxScene.ts#L2467-L2470)）；定时器触发前用**同一个格**重新查一次 [`unitAtCell`](../world-client/src/scenes/SandboxScene.ts#L2478-L2484)，命中为空、换人（kind 或 id 不同）、离场都取消。原来那条恒真判据换成 `stillOnTarget`。- **修复后实测**：  | 场景 | 修复前 | 修复后 |  | --- | --- | --- |  | 目标在 500ms 内自己走出该格（实测 `莞尔` 在 348ms 走出 `(40,39) → (40,40)`，手指不动） | 照开记忆面板 | 0 个面板 |  | 手指在 200ms 时移到隔壁格（实测移出 1 格 = 64px） | 0 个面板（原有守卫） | 0 个面板（保持） |  | 按住不动 650ms | 开面板 | 开面板（正控制，`L1-10a`） |  | 目标离场 | 开面板 | 取消（单元 `L1-5` 用 `withVillagers([])` 覆盖） |  浏览器里造不出「村民离场」（本作村民不会离开世界），所以「离场」这一支由单元 [`L1-5`](../world-client/test/interact-l1.test.ts#L250) 的「快照里没了」覆盖；`L1-10b` 保留 `during === undefined` 的分支，真出现离场时也会按取消断言。- **断言**：单元 [`L1-5`](../world-client/test/interact-l1.test.ts#L250)（原地不动 true；只留她时走出格 → `null`；两人同格走开 → 换人 false；清空快照 → `null`）；浏览器 `check-interact.mjs` 的 `L1-10a`（正控制）、`L1-10b`（500ms 内自己走出该格）、`L1-10c`（手指移出 1 格）。---### 补测的两条缺口（行为基线，不是缺陷）这一轮把之前只列在缺口清单里的两条补成了断言；先测现状，再把选定的规则写进注释钉住。- **面板打开时的拖图 / 键盘移动**（`check-interact.mjs` 的 `L2-7`，规则写在用例注释里）：  - 状态菜单锚在格子上，每帧重算，拖图 / 缩放后跟随（实测拖图后锚点误差 0.54px、位置挪 33.94px）。  - 记忆面板随「镜头离开跟随」收起：拖图即收起（不是跟随）。  - 楼志是打开瞬间的静态快照：拖图后仍开、标题不变。  - 本作没有键盘平移入口：方向键后 `camera.scrollX/scrollY` 不变，面板仍贴格（误差 ≤2px）。- **两人同格时只有后选中的那个出内容**（`check-interact.mjs` 的 `L3-9`）：同格是瞬态，用 debug 入口在同一帧先选 A 再选 B，断言只剩后选中的 B 的内容与标题、只有一个面板；人 / 楼 / 记忆的互斥仍由 `L3-5` 覆盖。---### BUG-3 两指捏合不缩放世界（已修复）- **修复前的现象**：世界只有滚轮缩放（[`SandboxScene`](../world-client/src/scenes/SandboxScene.ts) 的 `wheel`），没有任何双指手势；Phaser 默认也只分一个触屏 pointer。浏览器实测两指 80px→200px，`zoom 2→2`。- **最小复现**：`check-interact.mjs` 的 `L1-11c`。`hasTouch:true` 的上下文里用 CDP 两指从 80px 间距拉到 200px，读 `window.Oracle.camera().zoom` 前后都是 2。- **修法**：  - 输入层补第二根触屏 pointer（[`this.input.addPointer(1)`](../world-client/src/scenes/SandboxScene.ts#L656-L657)）。两指在册才进捏合；第二根落下的同一拍取消长按、拖图与单击（[`beginPinchIfTwo`](../world-client/src/scenes/SandboxScene.ts#L2503-L2516)），抬手时两根手指都被吃掉（`pointerup` 里 `suppressClickUp || pinching`）。  - 档位复用滚轮那一套 `ZOOM_STEPS` / `stepZoomIndex`，没有另造连续倍率；每一档都锚在两指中点：点住的世界坐标在换档前后不动（[`zoomStepAt`](../world-client/src/render/camera-controller.ts#L168-L193)、[`scrollForZoomAnchor`](../world-client/src/render/camera-math.ts#L45-L68)）。  - 阈值与迟滞放在纯逻辑里（[`PINCH_STEP_RATIO` / `PINCH_MIN_BASE_PX`](../world-client/src/render/pinch-zoom.ts#L16-L19)、[`pinchZoomStep`](../world-client/src/render/pinch-zoom.ts#L37-L53)）：张开到两倍进一档、收拢到一半退一档，跨档后基准重置；两指起手间距 <24px 不算捏合（双指点击不会顺手缩放）。  - 两指位置**每帧结算一次**（[`settlePinch`](../world-client/src/scenes/SandboxScene.ts#L2533-L2548)）：Phaser 的 `pointermove` 是逐指派发的，同一拍里另一根手指还停在上一格。拿这种半新半旧的间距算中点，实测中点会从 240 算成 228，画面漂 2 世界px。  - 锚点公式的浮点尾巴也修了：`scrollForZoomAnchor` 写成差值形式 `(1/to - 1/from) * (size/2 - screen)`，中点处严格为 0；换回的 scroll 取整再落，因为 `roundPixels` 会向下取地板（实测 `423.99999999999994` 被压成 423，凭空漂 1 世界px）。- **修复后实测**（`check-interact.mjs` 33 项全过）：  - `L1-11c`：两指 80→200，`zoom 2→3`，两指中点下的世界坐标漂移 **0.00 世界px**；200→80 缩回 `zoom 3→2`，漂移 **0.00 世界px**。两指按住 650ms（单指长按 500ms 就会开面板）与两次抬手都 **0 个面板**。随后用**原来的两指中点**触屏点一下，命中「莞尔」（同一人），**命中偏移 0.00 世界px**。  - `L1-11d`（新增）：单指触屏拖 (60,45)px，`zoom 2` 不变，镜头平移 (-15.00,-12.00) 世界px（按位移应为 -15.00,-11.25；差 0.75 是 `roundPixels` 逐帧地板吃掉的），抬手 0 个面板——单指拖图没被误判成捏合。  - 单测：[`pinch-zoom.test.ts`](../world-client/test/pinch-zoom.test.ts#L27-L75) 7 条（80→200 / 200→80、迟滞、一次最多一档、太近不起算、0 间距不会 Infinity）、[`camera-controller.test.ts`](../world-client/test/camera-controller.test.ts#L102-L135) 4 条（中点锚不动 scroll、左边缘锚不漂、到顶不动、与滚轮同档）、[`camera.test.ts`](../world-client/test/camera.test.ts#L110-L146) 4 条（任意屏幕点 / 任意档位对的锚点守恒）。- **剩下的边界**：相机夹到世界边界时锚点必然漂——这是边界本身的性质，不是捏合算错。`L1-11c` 挑离边界 ≥7 格的样本（3 倍半视野约 5×3.3 格），文档里也写明，不做「边缘同样不漂」的假承诺。---### BUG-4 上游异步拒收时，原句已经被清空（已修复）- **修复前的现象**：`submit` 投递成功就清空输入框；服务端的 4xx 要等模型那一趟回来才到。屏上出现一行「模型调用失败：这句话 250 字……」，输入框却是空的——玩家得把整句重打一遍。回执没有吞，但手里的话没了。- **最小复现**（浏览器 `E2E-4a`，用 route 注入真服务端会回的那种 422）：面板填一句合法长度的句子 → 提交 → 输入框清空 → 422 回执到 → 输入框仍是空的。- **修法**：  - 回执带上原句：[`CommandResult.raw`](../world-client/src/world/types.ts#L533-L543)，`simulation.ts` 在 `oracle` / `intentFromModel` 两条结算路径上把原句带回来（空回执不带，被挤掉的那条不认领）。  - 面板只认**自己那句**：[`pendingText` 与 `onResult`](../world-client/src/ui/oracle-panel.ts#L307-L330) 比对 `raw`；失败且输入框空着才放回，用户已经重新敲字就不覆盖。  - 「正在问模型……」是成功回执，不能在它到时清掉 `pendingText`，否则随后真正的拒收无处可还。- **修复后实测**：  - 单元 `L3-1e`：投递后输入框空 → 中间回执「正在问模型……」不动输入 → 422 回执原样上屏（错误样式）→ 输入框恢复「让云把水倒下来」。  - 单元 `L3-1e2`：别的句子的失败不往输入框里塞；成功回执不塞；用户已重新输入「我自己写的新句」时不被覆盖。  - 浏览器 `E2E-4a`：真服务进程在线，面板收到 422 后回执含「超过上限 200 字」且带错误样式，输入框恢复原句。- **为什么正常 UI 碰不到这个 4xx**：客户端 200 上限与控制字符剥除让面板发不出会被服务端拒收的句子。能撞上的是版本漂移——缓存里的旧前端（上限 500）配新服务端（上限 200）。`E2E-4a` 的 route 注入复现的就是这一幕。---## 服务端同步校验（新增闸，不是缺陷）客户端挡住了不等于上游挡住了。这一轮把同一套判据在服务端再执行一次，并且**挡在调模型之前**：- **200 字上限**：`oracle/api.py` 的 `_check_request` 在收到神谕时数长度，超长直接 **422** + 「这句话 N 字，超过上限 200 字；删短再发」，不是 `200 + unknown`——后者会被用户读成「世界没听懂」。上限与客户端 [`UTTERANCE_MAX_LENGTH`](../world-client/src/ui/oracle-panel.ts#L22) 同一个数（`orchestrator.MAX_UTTERANCE_CHARS`），`server/tests/test_intent_api.py` 的 `test_上限与客户端常量是同一个数` 直接读客户端源码里的数字钉住，防止两边各改各的。- **控制字符**（`\u0000`–`\u001f`、`\u007f`）：服务端 **422 拒收**，回执写明个数。与客户端「剥除」不同，是刻意的：客户端剥掉是为了不因一个看不见的字符丢掉整句话；服务端拒收是因为一条带控制字符的 HTTP 请求本来就说明它不是那面板发出来的，服务端不该替旁路调用方洗数据。理由写在 [`oracle/api.py`](../server/oracle/api.py) 顶部。- **长度口径对齐**：按 UTF-16 码元数（`utterance_length()`），与 JS 的 `String.length` 一致。用 `len()` 数会把 101 个 emoji 当成 101 字放行，而客户端眼里是 202 字——那正好又是一条「客户端挡住、上游没挡」。- **实测读数**：  - pytest 正反例：201 / 10000 → 422（含实际字数与上限）；恰好 200 → 200 + `setWeather`；`100 个 emoji`（200 码元）→ 200，`101 个`（202 码元）→ 422；7 组控制字符各自 422 并报个数；空句仍是 `200 + unknown`（契约不变）；`test_超长先于模型调用被拦` 证明 201 字那次调用者为 0 次。  - 端到端 `check-oracle-e2e.mjs`：绕过 UI 直接 POST 250 字 → 422「这句话 250 字，超过上限 200 字；删短再发」；10000 字 → 422 且不带 intent；控制字符 → 422「…2 个控制字符…」；恰好 200 字 → 200 + `setWeather`。  - 客户端在真服务上收到 4xx 的回执：`E2E-2a` 页面里直接 `Oracle.say(250 字)`，屏上是服务端的原话且带错误样式（不吞错）。---## 材质（feat/material-upgrade，2026-11-04）### 材质 BUG-1：`drawWall` 石脚配色（复核后**不成立**，同日收回）**原判**（上一份材质报告）：`drawWall` 用全局 `paletteFor()`，灯潮界预制楼石脚会取莞尔镇 `stone`，属跨世界配色串味；这一轮又给石脚加了砌缝与受光顶边，会更显眼。**症状**：若成立，灯潮界楼脚 3px 石带会偏绿灰（`0x3e433f`），与旁边的 `stone` 地形（`0x52666a`）不同色相。**复现路径**：1. 代码：`buildings.ts` 的 `drawWall` 确实不传 palette，走 `paletteFor()`。2. 运行时探针：打开 `http://127.0.0.1:5191/?world=dengchao&time=noon&now=495`，   页面内 `await import('/src/world/theme.ts')` 读：   - `paletteFor().stone = 0x52666a`（灯潮界）   - `paletteFor('default').stone = 0x3e433f`   缺省参数取的是**当前激活世界**，不是默认世界。3. 像素对照：`material-capture.mjs` 的 `boiler-base` 工作表（相机 504,276）把炉底入口   `(29,14)` 压在 stone 带 `x28..36 / y14..37` 上。取楼脚石基 3px（world y269..271）与   楼脚以南同列的 `stone` 地形（y276..291）：   | 区域 | 众数颜色 | 像素数 |   | --- | --- | --- |   | 楼脚石基（`drawWall` 的 h-3..h-1） | `#476565` | 600 |   | 紧邻的 stone 地形 | `#476565` | 2640 |**期望行为**：石基 = 该世界 `stone`（灯潮界 `#52666a`，经昼夜叠色后与地形同色）。**实测行为**：与期望一致。**结论**：不是缺陷，不建修复项，`theme.ts` 不动。上一份报告里这条作废。**以后什么情况会真串味**（留给合并后的维护者）：- 建楼发生在 `activateWorld` **之前**（例如预加载楼缓存）；- 世界切换后复用旧的楼 Graphics、没有重建。当前两条都不成立。若以后引入跨世界楼缓存，修法是把 palette 显式传进 `drawWall`（照 `drawBuildingDecals` 的写法）；那才会动配色归属，**须等 `feat/scene-motion`让 `theme.ts` 稳定后单独一笔**。**证据**：`docs/evidence/material-upgrade/bug1-stone-base-vs-terrain-8x.png`（8× 条带，上=石基、下=石地形）、`bug1-boiler-base-6x.png`（6× 上下文）、`after/wall-prefab-base.png`；取景与复现命令见`docs/evidence/material-upgrade/INDEX.md`。---## 附：并行负载下的假红（2026-11-04，分支 fix/flaky-gates）三处都只在机器被别的进程压满时红，隔离单跑全绿。取证结果：**都不是产品逻辑坏了**，两处是测试自己的时序/墙钟判据，一处是跟真实定时器赛跑。第三处（`接了模型之后……`）是四路并行验收时抓到的，不是最初点名的两条。记录**取证过**的缺陷：现象 → 复现命令与频率 → 机制 → 修复 → 改前/改后频率与读数。「看起来像抖动」不算结案。本节条目用「假红-N」编号，与上面各功能小节各自的 `BUG-1…` 是两套序号，不共享计数。### 假红-1. `test/intent-async.test.ts`「同一句话连着说三遍，只问模型一次」**现象**：整套/并行跑时偶发 `2 !== 1`，断言原文「去重是持久的，不是时间窗」，位置 `intent-async.test.ts:303`（修复后的行号）。隔离单跑连跑 5 次全绿。**复现命令**（压测工具在 `tmp/stress/`，已被 `.gitignore` 覆盖，不入库）：```bash# 8 路并行，每个进程各跑一遍该文件node tmp/stress/flake-repro.mjs --file world-client/test/intent-async.test.ts \  --runs 24 --concurrency 8 --tag intent-par8```**改前频率**：8 路并行 **5 / 24 = 20.8%**。失败 TAP 落在`tmp/stress/intent-par8/r1-j0.tap`（`expected: 1 / actual: 2`，`intent-async.test.ts:303`）。隔离单跑 0 红。**机制（不是猜的，是打出来的时序）**：测试里模型是 `classify: async () => { calls += 1; await setTimeout(5); ... }`——一个**真实 5ms 定时器**。而第三遍「今天好累啊」只 `enqueue`、没有紧跟一拍，它要等下面 `settle()` 的第一轮 `setImmediate` 才结算。去重表 `pendingClassify`在答复回来时（`finally`）就删掉；机器一忙，一轮 `setImmediate` 超过 5ms，于是**答复先落地、第三遍后结算**，第三遍真的又问了一次。探针（一次性脚本，跑在 `world-client` 的 `tmp` 工作目录里、未入仓）把同一条时序逐事件打出来：```bash# 在该目录下：world-client 的 tmp 工作目录（脚本是一次性的，未入仓）DELAY_MS=0 node probe-intent-dedup.ts     # 把 5ms 换 0ms：同一竞态 100% 触发1..8 | ForEach-Object -Parallel { $env:DELAY_MS=5; node probe-intent-dedup.ts } -ThrottleLimit 8```- `DELAY_MS=0` 读数：`16.748ms 模型答复落地（pending 即将清空）` →  `17.212ms settle 拍 1：update 前 calls=1 pending=0` → `17.426ms 模型被问，calls=2`  → `RESULT calls=2`。**同一竞态 8/8 = 100%**。- `DELAY_MS=5` 在 8 路并行下：3/8 次 `RESULT calls=2`；隔离单跑全部 `calls=1`。结论：竞态在**测试**里，不在 `Simulation` 里。`pendingClassify` 的语义本来是「同一句**还在问的路上**只问一次」，答复回来之后再说是新的一次提问，这是对的。**修复（只改测试，不动被测代码，不放宽断言、不加 sleep）**：模型改成**手动放行的闸**（`await answered`，由测试 `release()`），三遍确实都落在「还在问」的窗口里；于是 `calls === 1` 与「世界时间再走 96ms 仍只问一次」两条断言都变成确定性事件。判据（`calls === 1`）一个字没动，只是不再和真实时钟赛跑。**改后频率**：- 8 路并行 `--runs 32`：**0 / 32**；- 16 路并行 `--runs 32`：**0 / 32**；- 16 个纯忙等进程压满 CPU、8 路并行 `--runs 32`：**0 / 32**（改前同类加压 1/32）。**机制仍可复现**（合并后重跑）：`DELAY_MS=0 node tmp/stress/probe-intent-dedup.ts`仍 100% 打出 `RESULT calls=2`——修的是测试不再和真实时钟赛跑，不是竞态本身消失。**剩余风险**：其它用真实 `setTimeout` 假装网络延迟的用例有同类结构（例如本文件之外若有「等 N 毫秒再断言」的写法），本轮只修了这一条；模式是「用真实时钟推进异步结果」，应改用放行闸。---### 假红-2. `test/daily-prop-cost.test.ts`「传播的代价随规模走：holder 少一半的那次不该更贵」**现象**：约 1/30 偶发红，读数 `half 10.57ms vs all 1.38ms`（82 个 holder 反而比146 个贵 7.6 倍）；同一文件里「一天的世界时间跑得完」也在四路并行下偶发红（`54.62ms / 100.28ms > 50ms`）。**复现命令**：```bashnode tmp/stress/flake-repro.mjs --file world-client/test/daily-prop-cost.test.ts \  --runs 64 --concurrency 8 --tag cost-par8```**改前频率与读数**：| 场景 | 次数 | 红 | 读数 || --- | --- | --- | --- || 规模断言，8 路并行 | 32 | 1（3.1%） | half 10.63ms / all 4.09ms || 规模断言，历史现场 | — | 约 1/30 | half 10.57ms / all 1.38ms || 绝对预算闸（50ms），8 路并行 | 64 | 3（4.7%） | 51~99.98ms || 绝对预算闸，四路并行（2026-11-03） | 10 | 2（20%） | 54.62ms / 100.28ms |**机制（两条证据，都否掉了「只是抖动」这个说法）**：1. **一天的真实计算量只有 0.3~1.0ms，读数却能到 10ms 以上。** 探针（一次性脚本，   跑在 `world-client` 的 `tmp` 工作目录里、未入仓）把每次采样都打出来（隔离、原顺序）：   ```   #1 half wall=29.562ms   #1 all wall=2.458ms   #2 half wall=9.947ms    #2 all wall=1.467ms   #3 half wall=0.807ms    #3 all wall=0.895ms   ```   把顺序反过来（`ORDER=all-first`）：`#1 all wall=18.615ms / #1 half wall=1.983ms`。   **哪一组先采样，哪一组就贵一个量级**——那是首次 `dayClosed` 的 JIT/首次分配，   与规模无关。`min-of-3` 本该把它剔掉，可并行时一轮 `setImmediate`/一次调度停顿   就有 5~20ms，三次都撞上就把「最小值」抬到 10ms 以上。2. **CPU 时间不能用在这个量级（0.5ms 级）。** 在 Windows / Node 22.23   实测 `process.cpuUsage()` 粒度约一个系统时钟 tick：忙等 5ms 读数是 `0µs`，   忙等 2ms 读到 `31000µs`。用它对 0.5ms 的一天做判据只会得到 0 与 1 的抖动。   （合并 `origin/main` 后，CPU 口径只用在那道 50ms 的**绝对闸**上——那里要抓的   退化是几十毫秒，跨得过刻度；亚毫秒的方向判断仍在墙钟。）   同样，「把一天重复 20 次取总时长」（同目录的一次性探针）会把 GC   压进计时区，信号直接消失：`half 20.40ms / all 20.28ms`（每天约 1.0ms 对 1.0ms）。**修复（只改度量方式与采样数，判据一个字没动）**：- 绝对预算闸：`day1` 由**单次采样**改为**多采几次取最小**。`CEILING_MS = 50` 不变。  理由：这条闸自称抓的是「量级退化」（传播改成每步全库扫描），单次采样抓的是  「这一拍有没有被别的进程挤开」，两者差两个量级，只有前者是要守的东西。  合并 `origin/main` 的 CPU 口径后，采样数是**固定 3 次、CPU 与墙钟各取最小**  （`fastestDayCpu`）：`origin/main` 的「读成 0.00 就重采、取最大」在 CPU 口径上  方向错了——并发 GC/编译线程的 CPU 也算进本进程，8 路并行 64 次抓到  `CPU 62.00ms / 墙钟 16.64ms`，取最大把一次 GC 停顿放大成红。并存性分析见  `docs/GATE_CALIBRATION.md` 第七节 七.1。- 「稳态不比第 1 天贵」：两边改用同一个估计量（各 3 次取最小、读数都取墙钟），  否则比的是「谁的样本撞上停顿」。- 规模对照：`interleavedMinMilliseconds` 加**一轮不计时预热**、轮数 3 → 5。  判据 `halfMs < allMs * 2` 不变。噪声只会把读数往上加，最小值是最接近「没有噪声  时该花多少」的估计；5 轮把「三轮都撞上停顿」的概率从 1/3 级降到 1/5 级。**改后读数**（同目录的一次性探针，预热 + 交错采样）：```N=3 pass(0.71/0.69=1.02)  N=5 pass(0.36/0.69=0.53)  N=7 pass(0.32/0.52=0.62)N=3 pass(0.66/0.75=0.89)  N=5 pass(0.46/0.75=0.61)  N=7 pass(0.43/0.54=0.79)N=3 pass(0.49/0.59=0.83)  N=5 pass(0.36/0.59=0.61)  N=7 pass(0.35/0.59=0.59)```即 half/all 稳定在 0.5~0.8（`N=3` 偶有 0.89~1.02，正是「三轮不够」的现场写照）；`all/half` 的历史扫描值 2.04 也还在同一量级。**闸没有变成摆设（反向验证）**：把 `half` 换成 400 个 holder（真的让小的更大），同一估计量立刻红：```N=3 FAIL(2.29/0.71=3.24)  N=5 FAIL(2.29/0.71=3.24)N=7 FAIL(2.15/0.54=4.01)  N=9 FAIL(2.15/0.54=4.01)```**改后频率**：- 8 路并行 `--runs 64`：**0 / 64**（改前 3/64 绝对闸 + 规模断言另有 1/32）；- 16 路并行 `--runs 64`：**0 / 64**；- 16 个纯忙等进程压满 CPU、8 路并行 `--runs 32`：**0 / 32**（读数 CPU 三次  `16.00 / 0.00 / 0.00`、墙钟最小 0.53ms）。**反向验证（合并后最终代码，注入点在临时副本上，跑完即删）**：| 注入 | 结果 | 读数 || --- | --- | --- || 每次 tick 后忙等 400ms（绝对闸） | 立刻红 | CPU 三次 422.00 / 390.00 / 407.00，取最小 390.00ms > 50 || 只给 `half`（82 holder）注入 400ms（规模闸） | 立刻红 | 82 个 holder 400.49ms vs 146 个 holder 0.83ms || **只给第 6 天**注入 400ms | **方向闸立刻红** | 第 6 天 400.23ms vs 第 1 天 0.57ms（三次取最小） || **只给第 1 天**注入 400ms（闸值 50） | 绝对闸红 | CPU 391.00ms（三次 452.00 / 391.00 / 391.00） || **只给第 1 天**注入 400ms（临时把闸值抬到 1000） | **方向闸仍过** | 第 6 天 0.16ms vs 第 1 天 400.77ms || 守卫：把 `steady` 改成量第 1 天 | **守卫红** | `方向闸的两组样本必须来自不同的一天：这次读到第 1 天与第 1 天` || 守卫：让规模对照两侧漂到第 1 天 / 第 2 天 | **守卫红** | `规模对照的两侧必须量同一天：这次读到第 1 天与第 2 天` |后两行验的是新加的两条守卫本身能红——`day` 现在是必填参数（忘传是编译错误），`fastestDayCpu` 回传它实际量的是第几天，方向闸断言 `day1.day === 1 && steady.day === 6`；`interleavedMinMilliseconds` 回传两侧的天数，规模闸断言两侧都是 `SCALE_COMPARE_DAY`。中间两行是给方向闸做的「独立可证伪」：第 1 天变贵时，绝对闸先红；把绝对闸的阈值临时抬高后，方向闸自己算一遍仍然过（第 6 天确实没比第 1 天贵）——说明方向闸不是被绝对闸顺手带过的。修复前 `fastestDayCpu` 把 day 写成常量 1，`steady` 与`day1` 是同一组样本，`steady < day1 * 2` 恒真，给第 6 天注入那一条根本不会红。**剩余风险**：`npm test` 默认每个测试文件一个子进程，墙钟类判据在**极重**负载下仍可能被单次停顿推到阈值以上；本轮把噪声从「单次」改成「最小值」，但没有在CI 固定基准机上跑。真要守 §3.2 B 的 10ms 预算，仍需要固定机器 + 单独基准。---### 假红-3. `test/intent-async.test.ts`「接了模型之后，投递仍然同步返回，不等网络」**现象**：四路并行验收 5 轮里第 3 轮红 1 次：`not ok 725`、`error: '一拍不得等网络'`、位置 `intent-async.test.ts:89`（修复后的行号）、`duration_ms: 177.6`。**复现命令**：```bashnode tmp/stress/flake-repro.mjs --file world-client/test/intent-async.test.ts \  --runs 32 --concurrency 8 --burn 16 --tag intent-burn16```**改前频率**：16 个纯忙等进程压满 CPU 时 **1 / 32 = 3.1%**，失败那次`duration_ms: 372.66`；四路并行 5 轮里 1/5 轮红。8 路/16 路轻载下 0/32（复现不了）。**机制**：这条拿 `Date.now() - started < 100` 判「一拍不等网络」。这个同步 tick的真实耗时是几十微秒，读数是 177~372ms——**量的全是这一拍被操作系统挤开了多久**，不是代码有没有 await 模型。而「不等网络」是结构性质：`tick`/`update` 是同步函数，里面根本没有机会 await。墙钟判据既抓不到真回归（真 await 了会直接拿到 Promise而不是超时），又会被负载打成假红。**修复（判据换得更严，不是放宽）**：模型 promise 落地时把 `settled` 翻真；`tick(sim)` 返回后断言 `settled === false`——即「tick 已经返回，而网络答复还没到」。真等过网络的话它不可能是 false；毫秒阈值反而可能放过「等了 90ms」。**改后频率**：同样 16 个忙等进程 × 32 次：**0 / 32**（`tmp/stress/intent-burn16-after`）。## 长周期浸泡（feat/soak-30d）测试分支：`feat/soak-30d`（worktree `D:\project\pwe-soak`，基线 `origin/main` `eab9e36`）。夹具：`world-client/test/soak-support.ts`；跑数：`node scripts/soak-30d.ts`（30 天）、`node scripts/soak-retrospect.ts`（90 天回溯审计）；读数与曲线：`docs/evidence/soak/REPORT.md`。`test/soak-30d.todo.test.ts` 现在**没有 `todo` 用例**（BUG-1 修完后已转正）。编号按本小节从 1 起，不与造物/交互混用。状态：BUG-1 / BUG-3 / BUG-4 已修并翻正；BUG-2 改判为「场景边界 + 可达性测试」，不再是缺陷；BUG-5 的时间轴层**已修**（日摘要三档），事实原句层**部分修**（缺口仍在，见该条「剩下什么」）。### BUG-1 纯日常世界的 30 日关系账本恒为 0- **编号**：BUG-1- **状态**：**已修**，`[SOAK-BUG-1]` 已从 `todo` 转正为普通断言。- **改前读数**：30 天 ×2 种子，`relations.count = 0`、`incidents = 0`；街头互动 12 次/天（30 天 360 次）全是 `greet` / `yield` / `together`，没有一次 `street_tumble` / `street_water` / `street_help`，所以 `bondsOf()` 从第一天到第三十天都是空数组。- **分布**：360 次街头互动 `street_greet` 234 / `street_yield` 4 / `street_together` 122，`importanceHint` **全部 0.38**，`≥ 0.4` 的 **0 次**——门槛 0.4 永远跨不过去。- **选择 (b)，理由**：0.4 量的是「这件事重不重要」，不是「两个人熟不熟」。日常照面另走一条**按天结算**的通道：同一对一天见几次只积一次，familiarity 向 0.75 缓动、warmth 向 0.4 缓动并照常吃 15%/天衰减，trust 不动。这样既不会「聊一次就生死之交」，也不会「全员满格」。- **改后读数**：30 天 **20 条有向账（10 对 × 双向）**，warmth 0.209–0.250（均值 0.237），familiarity 0.468–0.530（均值 0.495），`|trust|` 最大 **0**。第 1 天只有 16 条（8 对见过），第 30 天 10 对全部有账。- **影响回填**：第 6 项读数「关系是越处越亲还是震荡」现在可读了——纯日常世界是「慢熟、不震荡」，30 天不会出现生死之交，也不会全员满格。### BUG-2 记忆压缩层空转：摘要 / 晋升 / 归档全为 0- **编号**：BUG-2- **状态**：**改判为场景边界，不是缺陷**（选项 b）。原 `[SOAK-BUG-2]` 的 `todo` 已撤下，可达性由 `test/memory-archive-reach.test.ts` 证明。- **读数**：30 天 `summaries = 0`、`promoted = 0`、`archived = 0`；日层条目实测显著度 **p50 = p90 = 0.495，p99 = max = 0.5029**（1156 条，分布表见 REPORT 第 1 节），`T_promote = 0.6` 在整条分布之上。- **为什么不能降阈值**：实测「听来的」（`sourceMode = 'heard'`）条目显著度 **0.575**，「亲历且重要」（`importanceHint = 0.9`）的 **0.775**。降到 0.50 会把传闻也晋升，而 `makeSummary` 写死 `sourceMode: 'witnessed'`、`sourceChain: []`——来源链当场断裂，冲突检测（「听说的和我看见的不一样」）失去输入。0.60 正好卡在两档之间。- **可达性证据**：`test/memory-archive-reach.test.ts`——每 7 天一件 `importanceHint = 0.95` 的亲历大事，跑 90 世界日，断言日摘要、周摘要、归档三者都非零，且归档的确实是 `long` 层摘要。实测读数：摘要 68 条（其中周摘要 60 条）、归档 30 条（全部是摘要）。- **剩余风险**：0.575 与 0.60 只隔 0.025；一旦世界事件的可信度/重要性分布变化，要重看这张分布表。### BUG-3 传说碑文（legend 层）没有预算上限- **编号**：BUG-3- **状态**：**已修**，`[SOAK-BUG-3]` 已翻正为普通测试。- **改前读数**：8 天 95 条，30 天 **500 条 / 311.8 KB**，占全库条目字节的 86.6%；单个 holder 最多 85 条。- **改法**：`budget.legend = 24` 条/持有者、`budget.bytes.legend = 16_000`；`limitFor()` 不再返回 `Infinity`。- **改后读数**：30 天 **170 条 / 106.5 KB**；5 位居民 + 3 个地点 holder 全部正好卡在 24 条。条目层总字节从 311.8 KB 级降到 155 KB。- **90 天预算读数（28 KB 上限，最终配置）**：seed A **120 / 120 条（100%）**、**23.4 KB / 28 KB（85.7%）**，淘汰 130 条；seed B **120 / 120（100%）**、**21.7 KB（79.5%）**，淘汰 69 条。条数侧先卡住，字节侧留有余量。- **排序修正**：原来 `legends` 同 `reach` 时按 `formedDay` **倒序**（留最新），90 天存活传说最早只到**第 56 天**——世界最早那批碑文先被扔掉，「岁月感」就是从这儿漏的。改成同 `reach` 按 `formedDay` **升序**（留更早）后，存活最早回到**第 4 天**；代价是 reach 为 0 的新传说先被裁，而 reach 0 意味着还没人传它。### BUG-4 存档随事件线性膨胀，30 天撞上导入上限- **编号**：BUG-4- **状态**：**已修**，`[SOAK-BUG-4]` 翻正为「每个库都必须落在预算内」的回归测试。- **改前读数**：存档 76.5 KB（第 1 天）→ **1687.5 KB**（第 30 天），日均 **+55.6 KB**；直线外推 **第 31.5 天**撞 `src/ui/save-store.ts:88` 的 `IMPORT_MAX_BYTES = 2 MB`。`facts` / `claims` / `written` / `beliefs` / `cooldowns` / `tells` 六库无任何预算。- **改法**：给六个库加条数 + 字节双预算（`config.ts` 的 `libraryBudget`），每层按自己的价值轴淘汰；新增 `memory.pruned` 事件留痕（层 / 条数 / 字节 / 原因 / 剩余）；修正 `memory.archived` 每天重发全部已归档条目的累计口径。- **改后读数**：30 天 **1374.8 KB**（−312.7 KB，−18.5%；比关系账本上线前多 5.7 KB）；**90 天 seed A 1625.5 KB = 2 MB 的 79.4%**、**seed B 1572.5 KB = 76.8%**，都未撞上限。第 60→90 天 seed A +2.93 KB/天、seed B +1.75 KB/天，改前是 +55.6 KB/天。2 MB 上限没有动，也没有用二进制压缩。- **facts / 世界事件比**：第 30 天 898 / 898 = 1.000；第 90 天 920 / 2693 = **0.342**。- **关于 1.7 KB/角色年**：这个基线仍然被打破（90 天存量口径约 1209 KB/角色年）。原因是**吞吐**——这个世界每天约 30 件事，而旧基线按的是稀疏世界；它不是本轮能达到的目标，本轮达到的是「增长有界」。别把这两件事混成一个数字。### BUG-5 回溯到早期日期时居民时间轴几乎空白（时间轴已修 / 事实部分修）- **编号**：BUG-5- **状态**：**已修（时间轴层）/ 部分修（事实原句层）**。改成「旧日压缩成日摘要、逐日降浓度」；没有调 `T_promote=0.60`，也没有动归档/摘要的触发阈值。- **改前读数（seed A 90 天，分母是当天应有条数）**：| 回溯到 | 当日世界事件 | 事实可读 / 应读 | 事实缺失 | 时间轴可读 / 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 || --- | --- | --- | --- | --- | --- | --- | --- || 第 20 天 | 30 | 12 / 30 | 60.0% | 0 / 59 | 100.0% | 12 / 30 | 60.0% || 第 45 天 | 30 | 12 / 30 | 60.0% | 1 / 61 | 98.4% | 12 / 30 | 60.0% || 第 60 天 | 30 | 12 / 30 | 60.0% | 2 / 57 | 96.5% | 12 / 30 | 60.0% || 第 89 天 | 30 | 12 / 30 | 60.0% | 47 / 59 | 20.3% | 12 / 30 | 60.0% |- **改前实际保留窗**：时间轴只有最近约 6 天（第 84 天 17/55、第 86 天 16/51、第 88 天 35/60、第 89 天 47/59），再往前掉到个位数。原因是日层条目过归档期后被 `day` 桶预算裁掉，而 `T_promote=0.60` 在日常场景不晋升、`summaries=0`，没有摘要层接住它们。- **改法**：世界级日摘要 [`digest.ts`](../world-client/src/world/memory/digest.ts)，每天一条，三档浓度——  1. **近档（0–6 天）**：逐条时间轴，现状不动；  2. **中档（7–30 天）**：`DayDigest` 固定字段 `people` / `firstEvent` / `lastEvent` / `places` / `flags`（`quiet`/`social`/`work`/`dispute`/`anomaly`/`major`/`other`）/ `events`（事件 id + kind 枚举）/ `beats`（谁记下哪一拍），异常原句 ≤3 条，无散文；  3. **远档（>30 天）**：清空 `places` 与 `anomalies`、事件地点下标置 `-1`，保留 `people` / 首末拍 / `flags` / `events`(id+kind) / `beats`，作为「那天有没有事、大致发生了什么」的指针层。  上限：每天 ≤1 条 digest + ≤3 条异常原句；`libraryBudget.digests = 120 条 / 160 KB`。- **改后读数（同脚本、同口径、最终 28 KB legend 配置）**：| 回溯到 | 事实可读 / 应读 | 事实缺失 | 时间轴可读 / 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 || --- | --- | --- | --- | --- | --- | --- || 第 20 天 | 12 / 30 | 60.0% | 59 / 59 | **0.0%** | 20 / 30 | 33.3% || 第 45 天 | 12 / 30 | 60.0% | 61 / 61 | **0.0%** | 20 / 30 | 33.3% || 第 60 天 | 12 / 30 | 60.0% | 57 / 57 | **0.0%** | 20 / 30 | 33.3% || 第 89 天 | 12 / 30 | 60.0% | 59 / 59 | **0.0%** | 20 / 30 | 33.3% |  seed B 同形：四天时间轴缺失均 0.0%（49/49、39/39、42/42、47/47），事实缺失均 60.0%。第 45 天 <10% 的目标达成；第 89 天不再需要「浓度递减」豁免。- **预算代价**：90 天末存档 seed A 1621.3 → **1625.5 KB**（79.4%）、seed B 1570.0 → **1572.5 KB**（76.8%）；第 60→90 天日增 A 2.88 → **2.93 KB/天**、B 1.75 → **1.75 KB/天**。日摘要 A 116.9 KB / 160 KB（74.8%）、B 112.5 KB（72.0%），90 条 / 112 条。都未撞 1800 KB / 3 KB 的线，2 MB 上限没动，也没用二进制压缩。- **剩下什么（部分修的那部分）**：事实原句仍缺 60%——日摘要存的是「那天怎么过的」，不是「每件事实的原句」。远档只留 id 指针与枚举：**玩家翻回第 20 天，能知道「5 个人、从晨市到黄昏、出过一次争执、去过磨坊与井边」，但不知道那句原话、具体时刻、争执的具体内容**。面板对补回的行写「时刻不明」，`what` 退化成按 kind 的一句人话（如「在镇上停了一会儿」），不再印内部枚举。- **淘汰事实是否永久消失（口径已修）**：旧脚本的引用索引只收「对象属性值是字符串」的引用，`eventRefs: ['soak-1']` 与摘要 `events` 里的数组 id 全被漏掉。修索引后实测 seed A 1773 条被淘汰事实里 **873 条（49.2%）** 仍能在存活条目 / 传说 / 日摘要找到指针（其中 **403 条仅摘要指针**）；seed B **872 条**（仅摘要 374）。结论修正为：**原文永久消失，指针多数找得回**。### BUG-5 收尾（1）：`digests` 的 120 条上限会不会重蹈 `legend` 的覆辙- **改前顺序**：`enforceBudgets` 里写的是 `(a, b) => b.day - a.day`，即**最旧优先淘汰**——与 `legend` 改前同一类错。90 天只用 90 条看不出问题，跑到第 120 天就会开始扔开天那几天。- **改后顺序**（`digestRank`，`digest.ts`）：**前 30 个世界日（day 0–29）保底，永不淘汰**；其余按权重「有争执/异常/大事（2）→ 有事（1）→ 空白（0）」排；同权重**留更近的日子**。理由：保底段正面回答「回望最早那几天」；同权重下近月被翻看的次数最多，先削的是中段普通日，即浓度递减该削的地方。- **压到 60 条的实测**（不是读代码断言）：把 seed A 的 90 天真实记忆快照读进 `MemoryWorld`，只把 `digests.count` 临时改成 60，跑一次第 90 天关账让 `enforceBudgets` 真裁，再读回存活日号——  - 保留：**day 0–29（30 条，全部）+ day 61–90（30 条，含当天新写的第 90 天）**，共 60 条；  - 淘汰：**day 30–60（31 条，中段连续区间）**；  - 被淘汰的日子里**有争执/异常/大事的：0 条**。  - 证据：`docs/evidence/soak/digest-order-60.json`；脚本 `world-client/scripts/soak-digest-order.ts`（只在测试里传参，提交里的常量仍是 120）。- **第 180 天外推**（线性，且计入摘要 120 条封顶；不是实测）：  - seed A：1625.5 KB + 非摘要层 90 天 × 1.60 KB/天 + 摘要再涨到 120 条约 +36 KB ≈ **1806 KB（2 MB 的 88.2%）**。会**超过 1800 KB 的软目标约 6 KB**，大约在第 **176 天**越过 1800；**不会撞 2 MB**，按 1.60 KB/天非摘要增量约在第 **330 天**到 2048 KB。  - seed B：≈ **1655 KB（80.8%）**；第 180 天仍在 1800 KB 以内，2 MB 约在第 **470 天**之后。  - 结论：180 天 A 会轻微越过 1800；这不是摘要超限，而是非摘要层照旧线性增长。到那时该处理的是条目/断言层，不是再抬摘要上限——抬了反而把「摘要先保底」的余量吃掉。### BUG-5 收尾（2）：玩家真正看到的字符串- 取 seed A 90 天真实快照，走 `buildUnitStatus` 同一条渲染路径（与面板绑定层同一份文本），把 `now` 拨回目标日。原样摘录（`时刻不明 · 在镇上停了一会儿` / 细节行）：  - **第 20 天（迷路人，当天全村 48 格，时刻不明 24 格 = 50.0%）**    - `时刻不明 · 在镇上停了一会儿` / `地点不明 · 独自 · 记忆 d_20_soak-599_1 · 事件 soak-599`    - `时刻不明 · 去河湾打了一趟水` / `地点不明 · 独自 · 记忆 d_20_soak-602_3 · 事件 soak-602`    - `06:40 · 迷路人与汐碰面，互相问了个好。` / `街上 (24, 33) · 与 汐 · 记忆 d_20_soak-604_4 · 事件 soak-604`    - `10:30 · 迷路人和沉灯夫人一起搭手做事。` / `街上 (40, 26) · 与 沉灯夫人 · 记忆 d_20_soak-613_8 · 事件 soak-613`  - **第 45 天（迷路人，42 格，时刻不明 15 格 = 35.7%）**    - `时刻不明 · 在镇上停了一会儿` / `地点不明 · 独自 · 记忆 d_45_soak-1349_1 · 事件 soak-1349`    - `06:40 · 迷路人与汐碰面，互相问了个好。` / `街上 (24, 33) · 与 汐 · 记忆 d_45_soak-1354_4 · 事件 soak-1354`    - `08:50 · 迷路人和炉匠一起搭手做事。` / `街上 (32, 29) · 与 炉匠 · 记忆 d_45_soak-1360_6 · 事件 soak-1360`  - **第 89 天（迷路人，43 格，时刻不明 8 格 = 18.6%）**    - `00:00 · 迷路人与灯笼头碰面，互相问了个好。` / `街上 (32, 28) · 与 灯笼头 · 记忆 m_7959 · 事件 soak-2668`    - `00:00 · 迷路人和炉匠一起搭手做事。` / `街上 (24, 33) · 与 炉匠 · 记忆 m_7988 · 事件 soak-2680`- **可读性**：没有 `null` / `undefined` / `[object Object]`；原句被裁的格子按 kind 给一句人话（`在镇上停了一会儿` / `去河湾打了一趟水`），不再把 `routine_done` 这种枚举印到面板上。- **「时刻不明」占比**：第 20 天 **50.0%**、第 45 天 **35.7%**、第 89 天 **18.6%**。最坏的一天 50.0%，**没有超过一半**，因此没有改成「整条不显示时刻行」；它的天花板由事实存活量（每天约 12/30）决定，不是写法问题。超过一半时会改成把无时刻的格子合并成一段「时刻不详的日常」，而不是逐行标。- 证据：`docs/evidence/soak/render-bug5.json`；脚本 `world-client/scripts/soak-bug5-render.ts`。### BUG-5 收尾（3）：事实原句 60% 缺口到底是什么（判定不变：部分修）- **抽样框架**：seed A 第 30 天仍存活、第 90 天已不在 `facts` 的事实共 **698 条**（原文可读）。这是「中期被淘汰」的样本；第 30 天后新写又当天被裁的事实没有留档，不在样本里。因此结论标为「样本支持」，不是对 1773 条的全量随机抽样。- **全量差的分布**：`importanceHint < 0.4` 的 **698 / 698 条（100%）**，`0.4–0.6` 与 `≥0.6` 均为 **0 条**。kind：`routine_done 178` / `tide_turn 180` / `street_greet 102` / `street_together 54` / `market_open 30` / `market_close 30` / `night_market 30` / `work_end 30` / `daily_lamp 30` / `daily_water 30` / `street_yield 4`。- **随机 20 条（固定种子）**：`street_together 0.38`「一起搭手做事」、`tide_turn 0.35`「潮水退过一半」、`street_greet 0.38`「碰面问好」、`routine_done 0.35`「在祭坛边睡下了」、`daily_water 0.35`「去河湾打水」、`daily_lamp 0.35`「把街灯点亮」、`market_open 0.35`「早市开了」、`work_end 0.35`「收工的钟敲了」、`night_market 0.35`「夜市支起来了」等（完整 20 条见 `docs/evidence/soak/evicted-sample-20.json`）。- **人工判读 5 条**：  1. 「潮水退过一半，滩涂露出来了」（0.35，`tide_turn`）——**不该永久保存**：每天两次的世界节律，记 90 天就是 180 条同义句。  2. 「去河湾打水，顺手冲了冲河岸」（0.35，`daily_water`）——**不该永久保存**：纯日常，摘要里有「去过河湾」的指针就够了。  3. 「与某人碰面，互相问了个好」（0.38，`street_greet`）——**不该永久保存**：关系变化已经进了关系账本，原句不必逐条留。  4. 「一起搭手做事」（0.38，`street_together`）——**边缘，可不留**：若当天没有别的重事，摘要里的「有事」就够；若同一天还有争执，摘要会优先保住那一天。  5. 「把祭坛边的街灯一盏盏点亮」（0.35，`daily_lamp`）——**不该永久保存**：固定时刻的日常，痕迹层已经有脚印。- **结论**：这 60% 的缺口**基本都是本该衰减的日常琐事**（样本 698/698 全部 <0.4，没有一条是「该留却没留」）。它是**设计**，不是负债：摘要层保证「那天怎么过的」可答，日层预算保证「不把同义句存 90 份」。判定仍写「部分修」只是因为原句确实不在了；若未来要留原句，正确做法是另立「值得留档的事件」筛选，而不是把日层预算拉高。### 已补覆盖：「被裁掉的事实写时刻不明」- 改前 30 天 `trimmedTimelineEntries = 0`、`unknownPlaceEntries = 0`，这条口径一次也没被触发——不能拿 0 当绿。- 现在 `dayTimelineFor` 给每一格 `whenKnown`：事实被预算裁掉、或这一格是摘要（`when` 是日号）时为 `false`；`unit-status` 把它渲染成 **`clock: '时刻不明'`**，不再用 `clockOf(day)` 编出一个 00:00。- 样本：`test/memory-budget.test.ts`（裁掉 `ev_low` 后 `whenKnown=false`、`what=null`、`placeId=null`，`ev_high` 仍为 `true`）；`test/unit-status.test.ts`（渲染出 `时刻不明`）。- 真跑样本：第 90 天事实库裁掉 1773 条后，面板上有 **8 格** `unknownWhenEntries`（第 30 天是 0，因为时间线只覆盖昨天、昨天的条目所指事实还在）。所以这条不只是测试断言。### 确定性基线随淘汰顺序重录（不是放宽断言）- **改动**：淘汰比较器补上用户要求的后两级，最终为 `固定/闪光灯 → 强度 → 显著度 → 新 → memoryId`。- **为什么轨迹会变**：这只在「日层溢出、且强度打平」时改变保留集合；一旦保留集合变了，后面的整理与造物读数就跟着变。`traces/outer-two-days.json` 的记忆指纹从 `803a26d4…` 变为 `59db174d…`；**世界指纹 `32ba01e7…` 与 52 条事件完全不变**，说明变化只在记忆/造物层。- **怎么处理**：用仓库自带的两步流程重录——`node scripts/trace-record.ts`（再录 3 条轨迹与基线存档）+ `node scripts/trace-to-test.ts`（重生成回归用例）。生成的用例仍断言**精确指纹与条数**，没有改成「只要求不报错」之类的弱断言；回放结论 `replayable`，三枚指纹三次运行逐字相同。### 已修：`tideLevelAt` 随世界时间线性变慢（提交在本分支）- 见 `docs/evidence/soak/REPORT.md` 第 2 节与 `test/tide-checkpoint.test.ts`：`stepTide` p50 0.3 µs → 17.9 µs（60×），30 日整轮 73.6 s → 50.3 s；曲线逐点与原实现一致。---## 评测（eval/ledger-facts-question）测试分支：`eval/ledger-facts-question`（worktree `D:\project\pwe-eval`，基线 `39cff04`）。本段只记录评测过程中撞见的问题；按任务纪律**只记录、不顺带修**（EVAL-BUG-1 经用户批准后单独修，见下）。### EVAL-BUG-1 存档读入只查「entries 是数组」，`witnessed` 的假记忆能整条复活- **编号**：EVAL-BUG-1- **状态**：**已修**（同一分支 `eval/ledger-facts-question`，基线 `39cff04`）。- **依据（原始记录，保留不动）**：`src/world/memory/runtime.ts` 的 `isWorldSnapshot` 对 `entries` 只做  `Array.isArray`，不校验每条 `eventRefs` 是否在事实库里；`fromJSON` 之后  `recallForDialogue` 按 `sourceMode` 原样返回。- **读数（原始记录，保留不动）**：构造一条 `sourceMode: "witnessed"`、`eventRefs: ["eval-ghost-never-happened"]`  的条目塞进快照；`ghostEventExists = false`，`recalled = true`，返回  `sourceMode = "witnessed"`。也就是说「亲眼所见」可以没有任何事件出处。- **复现**：`node world-client/scripts/eval-counterfactual.ts --guard-red` → 退出码 1；  输出与 JSON 在 `docs/evidence/eval-counterfactual/`。- **影响范围**：读档可把不存在的亲历带进世界；`Oracle` 解释与回溯问答会把它当第一手证据。- **未修原因（历史记录）**：本轮任务是评测与取证，修复需要动 `isWorldSnapshot` 与迁移逻辑，留给后续单独 PR。#### 修法（2026-11-04）- **落点**：[import-guard.ts](../world-client/src/world/memory/import-guard.ts)，在  `MemoryRuntime.fromSnapshot` 里、`world.restoreSnapshot` 之前执行；报告挂在  `MemoryRuntime.lastImport`（`memory-import-report/1`）。- **判据不是「eventRefs 非空」，而是「有没有旁证」**：事件被摄入的那一刻，记忆层  除了写条目，还会独立写下断言（`claims[].eventRefs`，一事一条）、信念、痕迹、  传说/史诗、成长记录、关系账本（`bonds[].evidence`）、地标相位、地名史。  事实库会被淘汰，这些不会——所以：  - 引用不在 `facts`、但在上述任一库里查得到 → **历史淘汰，放行**，计入    `prunedUnverifiable`（90 天存档里正是 12 条，71 条 witnessed 一条不少）；  - 引用在快照里一处旁证都没有 → **导入时编造**，降级为 `heard`，计入    `downgradedEntries`；  - 条目形状坏（无 id / 无 `eventRefs` / `sourceMode` 不认识）→ **拒绝**（丢弃），    计入 `refusedEntries`。没有第三条「静默通过」。- **为什么不能写「witnessed 的 eventRefs 必须都解析到事件」**：90 天存档里 12 条合法的  `witnessed` 正指着已淘汰的事件，那种写法会把合法旧档拒掉，比原缺陷更糟。- **读数（修后）**：90 天存档 71→71，拒绝 0、降级 0、淘汰旁证 12；真 v5 样品 25→25；  注入的 `witnessed` 假记忆降级为 `heard`（`downgradedEntries=1`）。- **造错守卫**：默认模式（闸开着）契约 5/5 绿、退出 0；`--guard-red` 关掉读档闸  （直连 `world.restoreSnapshot`）后同一假记忆仍以 `witnessed` 复活 → 退出 1。  两边都跑过，红的那次原始输出在 `guard-red.txt`。- **证据**：[docs/evidence/eval-import-guard/](../docs/evidence/eval-import-guard/)（`import-guard.json`、  `guard-red.txt`）；回归测试 `world-client/test/memory-import-guard.test.ts`。
+# 功能测试发现的缺陷
+
+## 造物构建（feat/func-creator）
+
+测试分支：`feat/func-creator`（worktree `D:\project\pwe-funccreator`，基线 `54139dd`）。
+测试入口：`world-client/test/creator-functional-l1.test.ts`、`creator-functional-l2.test.ts`、`creator-functional-l3.test.ts`。
+下列两条原先用 `test(..., { todo: 'BUG-x' }, ...)` 保留失败读数；已在提交 `f58179d` 修复，对应用例翻成正常断言并通过。下面同时记录修复前后读数。
+
+---
+
+### BUG-1 覆盖率分母为 0 时，`creationCoverage` 返回 0 而不是「没测」
+
+- **编号**：BUG-1
+- **状态**：**已修**，提交 `f58179d`。
+- **依据**：账本侧既定契约 `coverageAfterBuild()` 在 `blueprintCount <= 0` 时返回 `null`，并由 `reading()` 统一落成 `passed=null` / `reason=not_measured`（`src/creator/ledger.ts:172-214`）。业务规则侧必须同口径，「没测」不能写成 0 分。
+- **修复**：`creationCoverage()` 返回类型改为 `number | null`，0 分母直接 `return null`；引擎 `submitHumanApproval` 只在 `typeof coverageRate === 'number'` 时记观测；`SandboxScene` / `trace/runtime.ts` 把 `null` 原样交给 `evaluateLandingGates`（该处已按 `null → passed=null` 处理）。`checkLandedBuilding` 只跑空间/不变式业务规则，不消费覆盖率，无需 null 分支。
+- **修复前读数**：`creationCoverage(...) = 0`；落地门禁 `passed=false`、`reason=below_requirement`；计数器 `coverageChecks=1`（把没测算成一次 0 分观测）。
+- **修复后读数**：`creationCoverage(...) = null`；落地门禁 `passed=null`、`reason=not_measured`；计数器 `coverageChecks=0`。
+- **证据**：
+  - 测试 `[L3] creationCoverage 在 0 分母时给 null，落地门禁与计数器都记 not_measured`，`creator-functional-l3.test.ts:130`，已通过；
+  - 同文件 `[L3] 覆盖率分母为 0：账本记 not_measured，不是 0/1` 仍通过。
+- **影响范围**：修复前，0 模板设定集/空世界会把「没测」误报成「覆盖率 0，低于 95%」，并给角色记一次假的 0 分覆盖率证据；修复后不再产生该错误读数。
+
+---
+
+### BUG-2 L0 熔断「降级」会把角色升到 L1
+
+- **编号**：BUG-2
+- **状态**：**已修**，提交 `f58179d`。
+- **依据**：《补充架构设计与全量待定参数规格书 v1.0》§2.2「自治爬梯（L0–L4）的『双向熔断与自动降级机制』」明写熔断对象是「**处于 L2/L3 的模块**」，动作是「立即将该模块实时降级回 **L1**」（`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md:80-85`）；v0.2 §2.2 同样表述为「从 L3/L2 降级回 L1」（`architecture-supplement-v0.2.md:101-105`）。文档没有「从 L0 升到 L1」的规则，且「降级」只能向下。因此无条件写 L1 是行为写反，不是有意设计。
+- **修复**：`triggerDowngrade()` 取 `Math.min(oldLevel, AutonomyLevel.L1)`：L0 留 L0、L1 留 L1、L2/L3 才落到 L1；`isFused` 与窗口清零逻辑保持不变。
+- **修复前读数**：`currentLevel = 1`（被「降级」抬高），`isFused = true`，事件 `fromLevel=0 → toLevel=1`。
+- **修复后读数**：`currentLevel = 0`，`isFused = true`，事件 `fromLevel=0 → toLevel=0`。
+- **证据**：
+  - 测试 `[L3] 熔断降级不能把 L0 升成 L1`，`creator-functional-l3.test.ts:315`，已通过；
+  - 原有 `creator-fuse.test.ts` 的「不变式被违反一次就当场熔断回 L1」「人类回滚一次就降级」「等级变化如实记下 from 与 to」全部通过，证明 L1/L2 路径未回退。
+- **影响范围**：修复前 L0 人工拒绝一次就会「升层 + 熔断」，与「L0→L1 是升级爬梯、拒绝是降级」的语义相反；修复后各等级只降不升。
+
+---
+
+### 已通过、未记为缺陷的边界读数
+
+以下边界在本轮测试中通过，说明实现是正确的；列出来避免后续误判：
+
+- 同 prefabId 第二栋：真实 `Simulation` 返回 `这种铺子已经有一栋了。`，建筑数不变（L3）。
+- 覆盖率 0 分母：`coverageAfterBuild` 返回 `null`，`evaluateProposalGates` 记 `passed=null`、`reason=not_measured`，`buildCreationRecord` 记 `rejectionGate=coverage`、`kind=not_measured`（L3）。
+- 账本去重：重复 `recordId` 返回旧记录 `duplicate=true`，`seq` 不变、文件字节数不变（L3）。
+- 队列上限：`maxItems=2` 时第三条入队丢第一条，`dropped=1`，持久化只剩最新两条；出队只发后两条（L3）。
+- 重启：`seq` 从文件续号 `1→2→3`，时钟回拨时 `recordedAt` 保持上一条时间，不倒退（L3）。
+- 7 日观测三态：`still_present` / `removed` / `modified` 均在第 7 世界日各出一条真实观测（L2）。
+- 爬梯：真实造物 + 真实覆盖率/冲突/不变量观测，L0→L1→L2；只补 schema、覆盖率/冲突分母为 0 时 13 天仍停在 L1（L2）。
+
+---
+
+## 交互（feat/func-interact）
+
+分支 `feat/func-interact` 的功能测试（`world-client/test` 下的 `interact-l1`、`interact-l2`、`interact-l3` 三个用例文件，加 `world-client/scripts/check-interact.mjs`）覆盖到的真实问题。
+
+**当前状态：BUG-1、BUG-2、BUG-3、BUG-4 均已修复。** 每一条都写清修复前后的实测结果；修复代码与断言在同一个提交里，测试不再用 `todo` 标注期望。
+
+---
+
+### BUG-1 神谕写作没有长度 / 控制字符校验（已修复）
+
+- **修复前的现象**：面板只把输入 `trim()` 一下，空串挡住、其余原样交给 `api.say`。超长文本和不可见控制字符都能直接写进世界，输入框也没有 `maxlength` 兜底。
+- **最小复现**：
+  1. 打开页面，点开神谕写作面板（`#utterance`）。
+  2. 粘贴 10000 个字符后提交；或输入 `"a\u0000b\u0007c"` 后提交。
+  3. 面板关闭、文本原样进入神谕，没有拒绝、没有截断、没有提示。
+- **修复前实测**（单元 `L3-1b` / `L3-1c` 当时的 `todo` 读数）：`10000 字 → 神谕原样收到`；`"<script>\u0000..." → 原样投递，控制字符仍在`；`#utterance` 没有 `maxlength`。
+- **修法**：
+  - 上限 200 字，写成常量 [`UTTERANCE_MAX_LENGTH`](../world-client/src/ui/oracle-panel.ts#L13-L22)，由 [`prepareUtterance`](../world-client/src/ui/oracle-panel.ts#L32-L39) 统一裁决（剥控制字符 → `trim` → 判空 → 判上限）。
+  - **超长选「整句拒收」而不是截断**：截断会悄悄改掉命令的意思（把「不要拆」截成「不要」），玩家却以为后半句已经生效；拒收并保留原文，问题才看得见。回执写明字数与上限：「这句话 10000 字，超过上限 200 字；删短再发。」
+  - **控制字符选「剥除」而不是拒收**（用户给的是「过滤或拒收」二选一）：`\u0000`–`\u001f`、`\u007f` 玩家在输入框里本来就看不见，为一个看不见的字符丢掉整句话没有道理；剥干净后如果什么都不剩，再按空句处理，不投递。
+  - 输入框加 `maxlength`（[`input.maxLength = UTTERANCE_MAX_LENGTH`](../world-client/src/ui/oracle-panel.ts#L351-L351)），提交入口（[`submit`](../world-client/src/ui/oracle-panel.ts#L353-L367)）再校验一次——粘贴、脚本、调试写入绕得过 `maxlength`，绕不过 `prepareUtterance`。
+- **修复后对比（同一组输入实测）**：
+
+  | 输入 | 修复前 | 修复后 |
+  | --- | --- | --- |
+  | 10000 字 | 原样投递 | 整句拒收，输入保留，回执「这句话 10000 字，超过上限 200 字；删短再发。」 |
+  | 201 字 | 原样投递 | 整句拒收，输入保留，回执「这句话 201 字，超过上限 200 字；删短再发。」 |
+  | 恰好 200 字 | 原样投递 | 收下并清空输入（`maxlength` 也是 200） |
+  | `"\u0000\u0001\u0007拆掉祭坛\u007f"` | 控制字符原样投递 | 剥离 4 个控制字符后投递「拆掉祭坛」 |
+  | 纯控制字符 / 全空白 | 纯控制字符原样投递 | 按空句处理：0 次投递，输入保留 |
+  | 粘贴 201 字 | 原样投递 | 被 `maxlength` 截到 200 后收下 |
+  | 上游在线但拒收 | 回执照抄（本来就这样） | 回执照抄、输入保留、只送一次（`L3-3b` 钉住，防止二次校验把它重试成两次） |
+
+- **断言**：单元 [`L3-1a`](../world-client/test/interact-l3.test.ts#L190)、[`L3-1b`](../world-client/test/interact-l3.test.ts#L203)、[`L3-1c`](../world-client/test/interact-l3.test.ts#L228)、[`L3-1d`](../world-client/test/interact-l3.test.ts#L270)；浏览器 `check-interact.mjs` 的 `L3-1`（空白）、`L3-2`（控制字符）、`L3-3`（恰好 200 / 201 / 10000 / 粘贴 201）、`L3-3b`（上游拒收回执）。
+
+---
+
+### BUG-2 长按期间单位自己走开，500ms 后仍会弹出面板（已修复）
+
+- **修复前的现象**：长按用 `pointerdown` 时的单位引用起 500ms 定时器。玩家手指不动时不会有 `pointermove`，定时器回调里只用 `still !== null` 判断（恒真），没有重新做一次「指针此刻是否还压在这个单位上」的命中测试。单位自己走开（或被人挤走）仍会开记忆 / 楼志面板。
+- **最小复现**：
+  1. 60 倍速打开页面（`?speed=60`）。
+  2. 在一个正在走路的村民格子上按住 650ms，手指全程不动。
+  3. 村民在按住期间换格（修复前实测 `莞尔 45,37 → 44,37`，0 个 `pointermove`），650ms 时仍弹出了这个村民的记忆面板。
+- **修复前实测**：`莞尔 从格 (47,36) 走到 (46,36)，手指没动、也没有 pointermove，500ms 定时器照样开了记忆面板「莞尔」`。
+- **修法**：按下时同时记下目标引用与格坐标（[`longPressRef` / `longPressCell`](../world-client/src/scenes/SandboxScene.ts#L2467-L2470)）；定时器触发前用**同一个格**重新查一次 [`unitAtCell`](../world-client/src/scenes/SandboxScene.ts#L2478-L2484)，命中为空、换人（kind 或 id 不同）、离场都取消。原来那条恒真判据换成 `stillOnTarget`。
+- **修复后实测**：
+
+  | 场景 | 修复前 | 修复后 |
+  | --- | --- | --- |
+  | 目标在 500ms 内自己走出该格（实测 `莞尔` 在 348ms 走出 `(40,39) → (40,40)`，手指不动） | 照开记忆面板 | 0 个面板 |
+  | 手指在 200ms 时移到隔壁格（实测移出 1 格 = 64px） | 0 个面板（原有守卫） | 0 个面板（保持） |
+  | 按住不动 650ms | 开面板 | 开面板（正控制，`L1-10a`） |
+  | 目标离场 | 开面板 | 取消（单元 `L1-5` 用 `withVillagers([])` 覆盖） |
+
+  浏览器里造不出「村民离场」（本作村民不会离开世界），所以「离场」这一支由单元 [`L1-5`](../world-client/test/interact-l1.test.ts#L250) 的「快照里没了」覆盖；`L1-10b` 保留 `during === undefined` 的分支，真出现离场时也会按取消断言。
+- **断言**：单元 [`L1-5`](../world-client/test/interact-l1.test.ts#L250)（原地不动 true；只留她时走出格 → `null`；两人同格走开 → 换人 false；清空快照 → `null`）；浏览器 `check-interact.mjs` 的 `L1-10a`（正控制）、`L1-10b`（500ms 内自己走出该格）、`L1-10c`（手指移出 1 格）。
+
+---
+
+### 补测的两条缺口（行为基线，不是缺陷）
+
+这一轮把之前只列在缺口清单里的两条补成了断言；先测现状，再把选定的规则写进注释钉住。
+
+- **面板打开时的拖图 / 键盘移动**（`check-interact.mjs` 的 `L2-7`，规则写在用例注释里）：
+  - 状态菜单锚在格子上，每帧重算，拖图 / 缩放后跟随（实测拖图后锚点误差 0.54px、位置挪 33.94px）。
+  - 记忆面板随「镜头离开跟随」收起：拖图即收起（不是跟随）。
+  - 楼志是打开瞬间的静态快照：拖图后仍开、标题不变。
+  - 本作没有键盘平移入口：方向键后 `camera.scrollX/scrollY` 不变，面板仍贴格（误差 ≤2px）。
+- **两人同格时只有后选中的那个出内容**（`check-interact.mjs` 的 `L3-9`）：同格是瞬态，用 debug 入口在同一帧先选 A 再选 B，断言只剩后选中的 B 的内容与标题、只有一个面板；人 / 楼 / 记忆的互斥仍由 `L3-5` 覆盖。
+
+---
+
+### BUG-3 两指捏合不缩放世界（已修复）
+
+- **修复前的现象**：世界只有滚轮缩放（[`SandboxScene`](../world-client/src/scenes/SandboxScene.ts) 的 `wheel`），没有任何双指手势；Phaser 默认也只分一个触屏 pointer。浏览器实测两指 80px→200px，`zoom 2→2`。
+- **最小复现**：`check-interact.mjs` 的 `L1-11c`。`hasTouch:true` 的上下文里用 CDP 两指从 80px 间距拉到 200px，读 `window.Oracle.camera().zoom` 前后都是 2。
+- **修法**：
+  - 输入层补第二根触屏 pointer（[`this.input.addPointer(1)`](../world-client/src/scenes/SandboxScene.ts#L656-L657)）。两指在册才进捏合；第二根落下的同一拍取消长按、拖图与单击（[`beginPinchIfTwo`](../world-client/src/scenes/SandboxScene.ts#L2503-L2516)），抬手时两根手指都被吃掉（`pointerup` 里 `suppressClickUp || pinching`）。
+  - 档位复用滚轮那一套 `ZOOM_STEPS` / `stepZoomIndex`，没有另造连续倍率；每一档都锚在两指中点：点住的世界坐标在换档前后不动（[`zoomStepAt`](../world-client/src/render/camera-controller.ts#L168-L193)、[`scrollForZoomAnchor`](../world-client/src/render/camera-math.ts#L45-L68)）。
+  - 阈值与迟滞放在纯逻辑里（[`PINCH_STEP_RATIO` / `PINCH_MIN_BASE_PX`](../world-client/src/render/pinch-zoom.ts#L16-L19)、[`pinchZoomStep`](../world-client/src/render/pinch-zoom.ts#L37-L53)）：张开到两倍进一档、收拢到一半退一档，跨档后基准重置；两指起手间距 <24px 不算捏合（双指点击不会顺手缩放）。
+  - 两指位置**每帧结算一次**（[`settlePinch`](../world-client/src/scenes/SandboxScene.ts#L2533-L2548)）：Phaser 的 `pointermove` 是逐指派发的，同一拍里另一根手指还停在上一格。拿这种半新半旧的间距算中点，实测中点会从 240 算成 228，画面漂 2 世界px。
+  - 锚点公式的浮点尾巴也修了：`scrollForZoomAnchor` 写成差值形式 `(1/to - 1/from) * (size/2 - screen)`，中点处严格为 0；换回的 scroll 取整再落，因为 `roundPixels` 会向下取地板（实测 `423.99999999999994` 被压成 423，凭空漂 1 世界px）。
+- **修复后实测**（`check-interact.mjs` 33 项全过）：
+  - `L1-11c`：两指 80→200，`zoom 2→3`，两指中点下的世界坐标漂移 **0.00 世界px**；200→80 缩回 `zoom 3→2`，漂移 **0.00 世界px**。两指按住 650ms（单指长按 500ms 就会开面板）与两次抬手都 **0 个面板**。随后用**原来的两指中点**触屏点一下，命中「莞尔」（同一人），**命中偏移 0.00 世界px**。
+  - `L1-11d`（新增）：单指触屏拖 (60,45)px，`zoom 2` 不变，镜头平移 (-15.00,-12.00) 世界px（按位移应为 -15.00,-11.25；差 0.75 是 `roundPixels` 逐帧地板吃掉的），抬手 0 个面板——单指拖图没被误判成捏合。
+  - 单测：[`pinch-zoom.test.ts`](../world-client/test/pinch-zoom.test.ts#L27-L75) 7 条（80→200 / 200→80、迟滞、一次最多一档、太近不起算、0 间距不会 Infinity）、[`camera-controller.test.ts`](../world-client/test/camera-controller.test.ts#L102-L135) 4 条（中点锚不动 scroll、左边缘锚不漂、到顶不动、与滚轮同档）、[`camera.test.ts`](../world-client/test/camera.test.ts#L110-L146) 4 条（任意屏幕点 / 任意档位对的锚点守恒）。
+- **剩下的边界**：相机夹到世界边界时锚点必然漂——这是边界本身的性质，不是捏合算错。`L1-11c` 挑离边界 ≥7 格的样本（3 倍半视野约 5×3.3 格），文档里也写明，不做「边缘同样不漂」的假承诺。
+
+---
+
+### BUG-4 上游异步拒收时，原句已经被清空（已修复）
+
+- **修复前的现象**：`submit` 投递成功就清空输入框；服务端的 4xx 要等模型那一趟回来才到。屏上出现一行「模型调用失败：这句话 250 字……」，输入框却是空的——玩家得把整句重打一遍。回执没有吞，但手里的话没了。
+- **最小复现**（浏览器 `E2E-4a`，用 route 注入真服务端会回的那种 422）：面板填一句合法长度的句子 → 提交 → 输入框清空 → 422 回执到 → 输入框仍是空的。
+- **修法**：
+  - 回执带上原句：[`CommandResult.raw`](../world-client/src/world/types.ts#L533-L543)，`simulation.ts` 在 `oracle` / `intentFromModel` 两条结算路径上把原句带回来（空回执不带，被挤掉的那条不认领）。
+  - 面板只认**自己那句**：[`pendingText` 与 `onResult`](../world-client/src/ui/oracle-panel.ts#L307-L330) 比对 `raw`；失败且输入框空着才放回，用户已经重新敲字就不覆盖。
+  - 「正在问模型……」是成功回执，不能在它到时清掉 `pendingText`，否则随后真正的拒收无处可还。
+- **修复后实测**：
+  - 单元 `L3-1e`：投递后输入框空 → 中间回执「正在问模型……」不动输入 → 422 回执原样上屏（错误样式）→ 输入框恢复「让云把水倒下来」。
+  - 单元 `L3-1e2`：别的句子的失败不往输入框里塞；成功回执不塞；用户已重新输入「我自己写的新句」时不被覆盖。
+  - 浏览器 `E2E-4a`：真服务进程在线，面板收到 422 后回执含「超过上限 200 字」且带错误样式，输入框恢复原句。
+- **为什么正常 UI 碰不到这个 4xx**：客户端 200 上限与控制字符剥除让面板发不出会被服务端拒收的句子。能撞上的是版本漂移——缓存里的旧前端（上限 500）配新服务端（上限 200）。`E2E-4a` 的 route 注入复现的就是这一幕。
+
+---
+
+## 服务端同步校验（新增闸，不是缺陷）
+
+客户端挡住了不等于上游挡住了。这一轮把同一套判据在服务端再执行一次，并且**挡在调模型之前**：
+
+- **200 字上限**：`oracle/api.py` 的 `_check_request` 在收到神谕时数长度，超长直接 **422** + 「这句话 N 字，超过上限 200 字；删短再发」，不是 `200 + unknown`——后者会被用户读成「世界没听懂」。上限与客户端 [`UTTERANCE_MAX_LENGTH`](../world-client/src/ui/oracle-panel.ts#L22) 同一个数（`orchestrator.MAX_UTTERANCE_CHARS`），`server/tests/test_intent_api.py` 的 `test_上限与客户端常量是同一个数` 直接读客户端源码里的数字钉住，防止两边各改各的。
+- **控制字符**（`\u0000`–`\u001f`、`\u007f`）：服务端 **422 拒收**，回执写明个数。与客户端「剥除」不同，是刻意的：客户端剥掉是为了不因一个看不见的字符丢掉整句话；服务端拒收是因为一条带控制字符的 HTTP 请求本来就说明它不是那面板发出来的，服务端不该替旁路调用方洗数据。理由写在 [`oracle/api.py`](../server/oracle/api.py) 顶部。
+- **长度口径对齐**：按 UTF-16 码元数（`utterance_length()`），与 JS 的 `String.length` 一致。用 `len()` 数会把 101 个 emoji 当成 101 字放行，而客户端眼里是 202 字——那正好又是一条「客户端挡住、上游没挡」。
+- **实测读数**：
+  - pytest 正反例：201 / 10000 → 422（含实际字数与上限）；恰好 200 → 200 + `setWeather`；`100 个 emoji`（200 码元）→ 200，`101 个`（202 码元）→ 422；7 组控制字符各自 422 并报个数；空句仍是 `200 + unknown`（契约不变）；`test_超长先于模型调用被拦` 证明 201 字那次调用者为 0 次。
+  - 端到端 `check-oracle-e2e.mjs`：绕过 UI 直接 POST 250 字 → 422「这句话 250 字，超过上限 200 字；删短再发」；10000 字 → 422 且不带 intent；控制字符 → 422「…2 个控制字符…」；恰好 200 字 → 200 + `setWeather`。
+  - 客户端在真服务上收到 4xx 的回执：`E2E-2a` 页面里直接 `Oracle.say(250 字)`，屏上是服务端的原话且带错误样式（不吞错）。
+
+---
+
+## 材质（feat/material-upgrade，2026-11-04）
+
+### 材质 BUG-1：`drawWall` 石脚配色（复核后**不成立**，同日收回）
+
+**原判**（上一份材质报告）：`drawWall` 用全局 `paletteFor()`，灯潮界预制楼石脚会取
+莞尔镇 `stone`，属跨世界配色串味；这一轮又给石脚加了砌缝与受光顶边，会更显眼。
+
+**症状**：若成立，灯潮界楼脚 3px 石带会偏绿灰（`0x3e433f`），与旁边的 `stone` 地形
+（`0x52666a`）不同色相。
+
+**复现路径**：
+
+1. 代码：`buildings.ts` 的 `drawWall` 确实不传 palette，走 `paletteFor()`。
+2. 运行时探针：打开 `http://127.0.0.1:5191/?world=dengchao&time=noon&now=495`，
+   页面内 `await import('/src/world/theme.ts')` 读：
+   - `paletteFor().stone = 0x52666a`（灯潮界）
+   - `paletteFor('default').stone = 0x3e433f`
+   缺省参数取的是**当前激活世界**，不是默认世界。
+3. 像素对照：`material-capture.mjs` 的 `boiler-base` 工作表（相机 504,276）把炉底入口
+   `(29,14)` 压在 stone 带 `x28..36 / y14..37` 上。取楼脚石基 3px（world y269..271）与
+   楼脚以南同列的 `stone` 地形（y276..291）：
+
+   | 区域 | 众数颜色 | 像素数 |
+   | --- | --- | --- |
+   | 楼脚石基（`drawWall` 的 h-3..h-1） | `#476565` | 600 |
+   | 紧邻的 stone 地形 | `#476565` | 2640 |
+
+**期望行为**：石基 = 该世界 `stone`（灯潮界 `#52666a`，经昼夜叠色后与地形同色）。
+
+**实测行为**：与期望一致。**结论**：不是缺陷，不建修复项，`theme.ts` 不动。
+上一份报告里这条作废。
+
+**以后什么情况会真串味**（留给合并后的维护者）：
+
+- 建楼发生在 `activateWorld` **之前**（例如预加载楼缓存）；
+- 世界切换后复用旧的楼 Graphics、没有重建。
+
+当前两条都不成立。若以后引入跨世界楼缓存，修法是把 palette 显式传进 `drawWall`
+（照 `drawBuildingDecals` 的写法）；那才会动配色归属，**须等 `feat/scene-motion`
+让 `theme.ts` 稳定后单独一笔**。
+
+**证据**：`docs/evidence/material-upgrade/bug1-stone-base-vs-terrain-8x.png`（8× 条带，
+上=石基、下=石地形）、`bug1-boiler-base-6x.png`（6× 上下文）、
+`after/wall-prefab-base.png`；取景与复现命令见
+`docs/evidence/material-upgrade/INDEX.md`。
+
+---
+
+## 附：并行负载下的假红（2026-11-04，分支 fix/flaky-gates）
+
+三处都只在机器被别的进程压满时红，隔离单跑全绿。取证结果：**都不是产品逻辑坏了**，
+两处是测试自己的时序/墙钟判据，一处是跟真实定时器赛跑。
+第三处（`接了模型之后……`）是四路并行验收时抓到的，不是最初点名的两条。
+
+记录**取证过**的缺陷：现象 → 复现命令与频率 → 机制 → 修复 → 改前/改后频率与读数。
+「看起来像抖动」不算结案。
+
+本节条目用「假红-N」编号，与上面各功能小节各自的 `BUG-1…` 是两套序号，不共享计数。
+
+### 假红-1. `test/intent-async.test.ts`「同一句话连着说三遍，只问模型一次」
+
+**现象**：整套/并行跑时偶发 `2 !== 1`，断言原文「去重是持久的，不是时间窗」，
+位置 `intent-async.test.ts:303`（修复后的行号）。隔离单跑连跑 5 次全绿。
+
+**复现命令**（压测工具在 `tmp/stress/`，已被 `.gitignore` 覆盖，不入库）：
+
+```bash
+# 8 路并行，每个进程各跑一遍该文件
+node tmp/stress/flake-repro.mjs --file world-client/test/intent-async.test.ts \
+  --runs 24 --concurrency 8 --tag intent-par8
+```
+
+**改前频率**：8 路并行 **5 / 24 = 20.8%**。失败 TAP 落在
+`tmp/stress/intent-par8/r1-j0.tap`（`expected: 1 / actual: 2`，
+`intent-async.test.ts:303`）。隔离单跑 0 红。
+
+**机制（不是猜的，是打出来的时序）**：
+
+测试里模型是 `classify: async () => { calls += 1; await setTimeout(5); ... }`——
+一个**真实 5ms 定时器**。而第三遍「今天好累啊」只 `enqueue`、没有紧跟一拍，
+它要等下面 `settle()` 的第一轮 `setImmediate` 才结算。去重表 `pendingClassify`
+在答复回来时（`finally`）就删掉；机器一忙，一轮 `setImmediate` 超过 5ms，
+于是**答复先落地、第三遍后结算**，第三遍真的又问了一次。
+
+探针（一次性脚本，跑在 `world-client` 的 `tmp` 工作目录里、未入仓）把同一条时序逐事件打出来：
+
+```bash
+# 在该目录下：world-client 的 tmp 工作目录（脚本是一次性的，未入仓）
+DELAY_MS=0 node probe-intent-dedup.ts     # 把 5ms 换 0ms：同一竞态 100% 触发
+1..8 | ForEach-Object -Parallel { $env:DELAY_MS=5; node probe-intent-dedup.ts } -ThrottleLimit 8
+```
+
+- `DELAY_MS=0` 读数：`16.748ms 模型答复落地（pending 即将清空）` →
+  `17.212ms settle 拍 1：update 前 calls=1 pending=0` → `17.426ms 模型被问，calls=2`
+  → `RESULT calls=2`。**同一竞态 8/8 = 100%**。
+- `DELAY_MS=5` 在 8 路并行下：3/8 次 `RESULT calls=2`；隔离单跑全部 `calls=1`。
+
+结论：竞态在**测试**里，不在 `Simulation` 里。`pendingClassify` 的语义本来是
+「同一句**还在问的路上**只问一次」，答复回来之后再说是新的一次提问，这是对的。
+
+**修复（只改测试，不动被测代码，不放宽断言、不加 sleep）**：
+
+模型改成**手动放行的闸**（`await answered`，由测试 `release()`），三遍确实都落在
+「还在问」的窗口里；于是 `calls === 1` 与「世界时间再走 96ms 仍只问一次」两条断言
+都变成确定性事件。判据（`calls === 1`）一个字没动，只是不再和真实时钟赛跑。
+
+**改后频率**：
+
+- 8 路并行 `--runs 32`：**0 / 32**；
+- 16 路并行 `--runs 32`：**0 / 32**；
+- 16 个纯忙等进程压满 CPU、8 路并行 `--runs 32`：**0 / 32**（改前同类加压 1/32）。
+
+**机制仍可复现**（合并后重跑）：`DELAY_MS=0 node tmp/stress/probe-intent-dedup.ts`
+仍 100% 打出 `RESULT calls=2`——修的是测试不再和真实时钟赛跑，不是竞态本身消失。
+
+**剩余风险**：其它用真实 `setTimeout` 假装网络延迟的用例有同类结构（例如本文件
+之外若有「等 N 毫秒再断言」的写法），本轮只修了这一条；模式是「用真实时钟推进
+异步结果」，应改用放行闸。
+
+---
+
+### 假红-2. `test/daily-prop-cost.test.ts`「传播的代价随规模走：holder 少一半的那次不该更贵」
+
+**现象**：约 1/30 偶发红，读数 `half 10.57ms vs all 1.38ms`（82 个 holder 反而比
+146 个贵 7.6 倍）；同一文件里「一天的世界时间跑得完」也在四路并行下偶发红
+（`54.62ms / 100.28ms > 50ms`）。
+
+**复现命令**：
+
+```bash
+node tmp/stress/flake-repro.mjs --file world-client/test/daily-prop-cost.test.ts \
+  --runs 64 --concurrency 8 --tag cost-par8
+```
+
+**改前频率与读数**：
+
+| 场景 | 次数 | 红 | 读数 |
+| --- | --- | --- | --- |
+| 规模断言，8 路并行 | 32 | 1（3.1%） | half 10.63ms / all 4.09ms |
+| 规模断言，历史现场 | — | 约 1/30 | half 10.57ms / all 1.38ms |
+| 绝对预算闸（50ms），8 路并行 | 64 | 3（4.7%） | 51~99.98ms |
+| 绝对预算闸，四路并行（2026-11-03） | 10 | 2（20%） | 54.62ms / 100.28ms |
+
+**机制（两条证据，都否掉了「只是抖动」这个说法）**：
+
+1. **一天的真实计算量只有 0.3~1.0ms，读数却能到 10ms 以上。** 探针（一次性脚本，
+   跑在 `world-client` 的 `tmp` 工作目录里、未入仓）把每次采样都打出来（隔离、原顺序）：
+
+   ```
+   #1 half wall=29.562ms   #1 all wall=2.458ms
+   #2 half wall=9.947ms    #2 all wall=1.467ms
+   #3 half wall=0.807ms    #3 all wall=0.895ms
+   ```
+
+   把顺序反过来（`ORDER=all-first`）：`#1 all wall=18.615ms / #1 half wall=1.983ms`。
+   **哪一组先采样，哪一组就贵一个量级**——那是首次 `dayClosed` 的 JIT/首次分配，
+   与规模无关。`min-of-3` 本该把它剔掉，可并行时一轮 `setImmediate`/一次调度停顿
+   就有 5~20ms，三次都撞上就把「最小值」抬到 10ms 以上。
+2. **CPU 时间不能用在这个量级（0.5ms 级）。** 在 Windows / Node 22.23
+   实测 `process.cpuUsage()` 粒度约一个系统时钟 tick：忙等 5ms 读数是 `0µs`，
+   忙等 2ms 读到 `31000µs`。用它对 0.5ms 的一天做判据只会得到 0 与 1 的抖动。
+   （合并 `origin/main` 后，CPU 口径只用在那道 50ms 的**绝对闸**上——那里要抓的
+   退化是几十毫秒，跨得过刻度；亚毫秒的方向判断仍在墙钟。）
+   同样，「把一天重复 20 次取总时长」（同目录的一次性探针）会把 GC
+   压进计时区，信号直接消失：`half 20.40ms / all 20.28ms`（每天约 1.0ms 对 1.0ms）。
+
+**修复（只改度量方式与采样数，判据一个字没动）**：
+
+- 绝对预算闸：`day1` 由**单次采样**改为**多采几次取最小**。`CEILING_MS = 50` 不变。
+  理由：这条闸自称抓的是「量级退化」（传播改成每步全库扫描），单次采样抓的是
+  「这一拍有没有被别的进程挤开」，两者差两个量级，只有前者是要守的东西。
+  合并 `origin/main` 的 CPU 口径后，采样数是**固定 3 次、CPU 与墙钟各取最小**
+  （`fastestDayCpu`）：`origin/main` 的「读成 0.00 就重采、取最大」在 CPU 口径上
+  方向错了——并发 GC/编译线程的 CPU 也算进本进程，8 路并行 64 次抓到
+  `CPU 62.00ms / 墙钟 16.64ms`，取最大把一次 GC 停顿放大成红。并存性分析见
+  `docs/GATE_CALIBRATION.md` 第七节 七.1。
+- 「稳态不比第 1 天贵」：两边改用同一个估计量（各 3 次取最小、读数都取墙钟），
+  否则比的是「谁的样本撞上停顿」。
+- 规模对照：`interleavedMinMilliseconds` 加**一轮不计时预热**、轮数 3 → 5。
+  判据 `halfMs < allMs * 2` 不变。噪声只会把读数往上加，最小值是最接近「没有噪声
+  时该花多少」的估计；5 轮把「三轮都撞上停顿」的概率从 1/3 级降到 1/5 级。
+
+**改后读数**（同目录的一次性探针，预热 + 交错采样）：
+
+```
+N=3 pass(0.71/0.69=1.02)  N=5 pass(0.36/0.69=0.53)  N=7 pass(0.32/0.52=0.62)
+N=3 pass(0.66/0.75=0.89)  N=5 pass(0.46/0.75=0.61)  N=7 pass(0.43/0.54=0.79)
+N=3 pass(0.49/0.59=0.83)  N=5 pass(0.36/0.59=0.61)  N=7 pass(0.35/0.59=0.59)
+```
+
+即 half/all 稳定在 0.5~0.8（`N=3` 偶有 0.89~1.02，正是「三轮不够」的现场写照）；
+`all/half` 的历史扫描值 2.04 也还在同一量级。
+
+**闸没有变成摆设（反向验证）**：把 `half` 换成 400 个 holder（真的让小的更大），
+同一估计量立刻红：
+
+```
+N=3 FAIL(2.29/0.71=3.24)  N=5 FAIL(2.29/0.71=3.24)
+N=7 FAIL(2.15/0.54=4.01)  N=9 FAIL(2.15/0.54=4.01)
+```
+
+**改后频率**：
+
+- 8 路并行 `--runs 64`：**0 / 64**（改前 3/64 绝对闸 + 规模断言另有 1/32）；
+- 16 路并行 `--runs 64`：**0 / 64**；
+- 16 个纯忙等进程压满 CPU、8 路并行 `--runs 32`：**0 / 32**（读数 CPU 三次
+  `16.00 / 0.00 / 0.00`、墙钟最小 0.53ms）。
+
+**反向验证（合并后最终代码，注入点在临时副本上，跑完即删）**：
+
+| 注入 | 结果 | 读数 |
+| --- | --- | --- |
+| 每次 tick 后忙等 400ms（绝对闸） | 立刻红 | CPU 三次 422.00 / 390.00 / 407.00，取最小 390.00ms > 50 |
+| 只给 `half`（82 holder）注入 400ms（规模闸） | 立刻红 | 82 个 holder 400.49ms vs 146 个 holder 0.83ms |
+| **只给第 6 天**注入 400ms | **方向闸立刻红** | 第 6 天 400.23ms vs 第 1 天 0.57ms（三次取最小） |
+| **只给第 1 天**注入 400ms（闸值 50） | 绝对闸红 | CPU 391.00ms（三次 452.00 / 391.00 / 391.00） |
+| **只给第 1 天**注入 400ms（临时把闸值抬到 1000） | **方向闸仍过** | 第 6 天 0.16ms vs 第 1 天 400.77ms |
+| 守卫：把 `steady` 改成量第 1 天 | **守卫红** | `方向闸的两组样本必须来自不同的一天：这次读到第 1 天与第 1 天` |
+| 守卫：让规模对照两侧漂到第 1 天 / 第 2 天 | **守卫红** | `规模对照的两侧必须量同一天：这次读到第 1 天与第 2 天` |
+
+后两行验的是新加的两条守卫本身能红——`day` 现在是必填参数（忘传是编译错误），
+`fastestDayCpu` 回传它实际量的是第几天，方向闸断言 `day1.day === 1 && steady.day === 6`；
+`interleavedMinMilliseconds` 回传两侧的天数，规模闸断言两侧都是 `SCALE_COMPARE_DAY`。
+
+中间两行是给方向闸做的「独立可证伪」：第 1 天变贵时，绝对闸先红；把绝对闸的
+阈值临时抬高后，方向闸自己算一遍仍然过（第 6 天确实没比第 1 天贵）——说明方向闸
+不是被绝对闸顺手带过的。修复前 `fastestDayCpu` 把 day 写成常量 1，`steady` 与
+`day1` 是同一组样本，`steady < day1 * 2` 恒真，给第 6 天注入那一条根本不会红。
+
+**剩余风险**：`npm test` 默认每个测试文件一个子进程，墙钟类判据在**极重**负载下
+仍可能被单次停顿推到阈值以上；本轮把噪声从「单次」改成「最小值」，但没有在
+CI 固定基准机上跑。真要守 §3.2 B 的 10ms 预算，仍需要固定机器 + 单独基准。
+
+---
+
+### 假红-3. `test/intent-async.test.ts`「接了模型之后，投递仍然同步返回，不等网络」
+
+**现象**：四路并行验收 5 轮里第 3 轮红 1 次：`not ok 725`、
+`error: '一拍不得等网络'`、位置 `intent-async.test.ts:89`（修复后的行号）、`duration_ms: 177.6`。
+
+**复现命令**：
+
+```bash
+node tmp/stress/flake-repro.mjs --file world-client/test/intent-async.test.ts \
+  --runs 32 --concurrency 8 --burn 16 --tag intent-burn16
+```
+
+**改前频率**：16 个纯忙等进程压满 CPU 时 **1 / 32 = 3.1%**，失败那次
+`duration_ms: 372.66`；四路并行 5 轮里 1/5 轮红。8 路/16 路轻载下 0/32（复现不了）。
+
+**机制**：这条拿 `Date.now() - started < 100` 判「一拍不等网络」。这个同步 tick
+的真实耗时是几十微秒，读数是 177~372ms——**量的全是这一拍被操作系统挤开了多久**，
+不是代码有没有 await 模型。而「不等网络」是结构性质：`tick`/`update` 是同步函数，
+里面根本没有机会 await。墙钟判据既抓不到真回归（真 await 了会直接拿到 Promise
+而不是超时），又会被负载打成假红。
+
+**修复（判据换得更严，不是放宽）**：模型 promise 落地时把 `settled` 翻真；
+`tick(sim)` 返回后断言 `settled === false`——即「tick 已经返回，而网络答复还没到」。
+真等过网络的话它不可能是 false；毫秒阈值反而可能放过「等了 90ms」。
+
+**改后频率**：同样 16 个忙等进程 × 32 次：**0 / 32**（`tmp/stress/intent-burn16-after`）。
+
+## 长周期浸泡（feat/soak-30d）
+
+测试分支：`feat/soak-30d`（worktree `D:\project\pwe-soak`，基线 `origin/main` `eab9e36`）。
+夹具：`world-client/test/soak-support.ts`；跑数：`node scripts/soak-30d.ts`（30 天）、`node scripts/soak-retrospect.ts`（90 天回溯审计）；读数与曲线：`docs/evidence/soak/REPORT.md`。
+`test/soak-30d.todo.test.ts` 现在**没有 `todo` 用例**（BUG-1 修完后已转正）。编号按本小节从 1 起，不与造物/交互混用。
+
+状态：BUG-1 / BUG-3 / BUG-4 已修并翻正；BUG-2 改判为「场景边界 + 可达性测试」，不再是缺陷；BUG-5 的时间轴层**已修**（日摘要三档），事实原句层**部分修**（缺口仍在，见该条「剩下什么」）。
+
+### BUG-1 纯日常世界的 30 日关系账本恒为 0
+
+- **编号**：BUG-1
+- **状态**：**已修**，`[SOAK-BUG-1]` 已从 `todo` 转正为普通断言。
+- **改前读数**：30 天 ×2 种子，`relations.count = 0`、`incidents = 0`；街头互动 12 次/天（30 天 360 次）全是 `greet` / `yield` / `together`，没有一次 `street_tumble` / `street_water` / `street_help`，所以 `bondsOf()` 从第一天到第三十天都是空数组。
+- **分布**：360 次街头互动 `street_greet` 234 / `street_yield` 4 / `street_together` 122，`importanceHint` **全部 0.38**，`≥ 0.4` 的 **0 次**——门槛 0.4 永远跨不过去。
+- **选择 (b)，理由**：0.4 量的是「这件事重不重要」，不是「两个人熟不熟」。日常照面另走一条**按天结算**的通道：同一对一天见几次只积一次，familiarity 向 0.75 缓动、warmth 向 0.4 缓动并照常吃 15%/天衰减，trust 不动。这样既不会「聊一次就生死之交」，也不会「全员满格」。
+- **改后读数**：30 天 **20 条有向账（10 对 × 双向）**，warmth 0.209–0.250（均值 0.237），familiarity 0.468–0.530（均值 0.495），`|trust|` 最大 **0**。第 1 天只有 16 条（8 对见过），第 30 天 10 对全部有账。
+- **影响回填**：第 6 项读数「关系是越处越亲还是震荡」现在可读了——纯日常世界是「慢熟、不震荡」，30 天不会出现生死之交，也不会全员满格。
+
+### BUG-2 记忆压缩层空转：摘要 / 晋升 / 归档全为 0
+
+- **编号**：BUG-2
+- **状态**：**改判为场景边界，不是缺陷**（选项 b）。原 `[SOAK-BUG-2]` 的 `todo` 已撤下，可达性由 `test/memory-archive-reach.test.ts` 证明。
+- **读数**：30 天 `summaries = 0`、`promoted = 0`、`archived = 0`；日层条目实测显著度 **p50 = p90 = 0.495，p99 = max = 0.5029**（1156 条，分布表见 REPORT 第 1 节），`T_promote = 0.6` 在整条分布之上。
+- **为什么不能降阈值**：实测「听来的」（`sourceMode = 'heard'`）条目显著度 **0.575**，「亲历且重要」（`importanceHint = 0.9`）的 **0.775**。降到 0.50 会把传闻也晋升，而 `makeSummary` 写死 `sourceMode: 'witnessed'`、`sourceChain: []`——来源链当场断裂，冲突检测（「听说的和我看见的不一样」）失去输入。0.60 正好卡在两档之间。
+- **可达性证据**：`test/memory-archive-reach.test.ts`——每 7 天一件 `importanceHint = 0.95` 的亲历大事，跑 90 世界日，断言日摘要、周摘要、归档三者都非零，且归档的确实是 `long` 层摘要。实测读数：摘要 68 条（其中周摘要 60 条）、归档 30 条（全部是摘要）。
+- **剩余风险**：0.575 与 0.60 只隔 0.025；一旦世界事件的可信度/重要性分布变化，要重看这张分布表。
+
+### BUG-3 传说碑文（legend 层）没有预算上限
+
+- **编号**：BUG-3
+- **状态**：**已修**，`[SOAK-BUG-3]` 已翻正为普通测试。
+- **改前读数**：8 天 95 条，30 天 **500 条 / 311.8 KB**，占全库条目字节的 86.6%；单个 holder 最多 85 条。
+- **改法**：`budget.legend = 24` 条/持有者、`budget.bytes.legend = 16_000`；`limitFor()` 不再返回 `Infinity`。
+- **改后读数**：30 天 **170 条 / 106.5 KB**；5 位居民 + 3 个地点 holder 全部正好卡在 24 条。条目层总字节从 311.8 KB 级降到 155 KB。
+- **90 天预算读数（28 KB 上限，最终配置）**：seed A **120 / 120 条（100%）**、**23.4 KB / 28 KB（85.7%）**，淘汰 130 条；seed B **120 / 120（100%）**、**21.7 KB（79.5%）**，淘汰 69 条。条数侧先卡住，字节侧留有余量。
+- **排序修正**：原来 `legends` 同 `reach` 时按 `formedDay` **倒序**（留最新），90 天存活传说最早只到**第 56 天**——世界最早那批碑文先被扔掉，「岁月感」就是从这儿漏的。改成同 `reach` 按 `formedDay` **升序**（留更早）后，存活最早回到**第 4 天**；代价是 reach 为 0 的新传说先被裁，而 reach 0 意味着还没人传它。
+
+
+### BUG-4 存档随事件线性膨胀，30 天撞上导入上限
+
+- **编号**：BUG-4
+- **状态**：**已修**，`[SOAK-BUG-4]` 翻正为「每个库都必须落在预算内」的回归测试。
+- **改前读数**：存档 76.5 KB（第 1 天）→ **1687.5 KB**（第 30 天），日均 **+55.6 KB**；直线外推 **第 31.5 天**撞 `src/ui/save-store.ts:88` 的 `IMPORT_MAX_BYTES = 2 MB`。`facts` / `claims` / `written` / `beliefs` / `cooldowns` / `tells` 六库无任何预算。
+- **改法**：给六个库加条数 + 字节双预算（`config.ts` 的 `libraryBudget`），每层按自己的价值轴淘汰；新增 `memory.pruned` 事件留痕（层 / 条数 / 字节 / 原因 / 剩余）；修正 `memory.archived` 每天重发全部已归档条目的累计口径。
+- **改后读数**：30 天 **1374.8 KB**（−312.7 KB，−18.5%；比关系账本上线前多 5.7 KB）；**90 天 seed A 1625.5 KB = 2 MB 的 79.4%**、**seed B 1572.5 KB = 76.8%**，都未撞上限。第 60→90 天 seed A +2.93 KB/天、seed B +1.75 KB/天，改前是 +55.6 KB/天。2 MB 上限没有动，也没有用二进制压缩。
+- **facts / 世界事件比**：第 30 天 898 / 898 = 1.000；第 90 天 920 / 2693 = **0.342**。
+- **关于 1.7 KB/角色年**：这个基线仍然被打破（90 天存量口径约 1209 KB/角色年）。原因是**吞吐**——这个世界每天约 30 件事，而旧基线按的是稀疏世界；它不是本轮能达到的目标，本轮达到的是「增长有界」。别把这两件事混成一个数字。
+
+### BUG-5 回溯到早期日期时居民时间轴几乎空白（时间轴已修 / 事实部分修）
+
+- **编号**：BUG-5
+- **状态**：**已修（时间轴层）/ 部分修（事实原句层）**。改成「旧日压缩成日摘要、逐日降浓度」；没有调 `T_promote=0.60`，也没有动归档/摘要的触发阈值。
+- **改前读数（seed A 90 天，分母是当天应有条数）**：
+
+| 回溯到 | 当日世界事件 | 事实可读 / 应读 | 事实缺失 | 时间轴可读 / 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 第 20 天 | 30 | 12 / 30 | 60.0% | 0 / 59 | 100.0% | 12 / 30 | 60.0% |
+| 第 45 天 | 30 | 12 / 30 | 60.0% | 1 / 61 | 98.4% | 12 / 30 | 60.0% |
+| 第 60 天 | 30 | 12 / 30 | 60.0% | 2 / 57 | 96.5% | 12 / 30 | 60.0% |
+| 第 89 天 | 30 | 12 / 30 | 60.0% | 47 / 59 | 20.3% | 12 / 30 | 60.0% |
+
+- **改前实际保留窗**：时间轴只有最近约 6 天（第 84 天 17/55、第 86 天 16/51、第 88 天 35/60、第 89 天 47/59），再往前掉到个位数。原因是日层条目过归档期后被 `day` 桶预算裁掉，而 `T_promote=0.60` 在日常场景不晋升、`summaries=0`，没有摘要层接住它们。
+- **改法**：世界级日摘要 [`digest.ts`](../world-client/src/world/memory/digest.ts)，每天一条，三档浓度——
+  1. **近档（0–6 天）**：逐条时间轴，现状不动；
+  2. **中档（7–30 天）**：`DayDigest` 固定字段 `people` / `firstEvent` / `lastEvent` / `places` / `flags`（`quiet`/`social`/`work`/`dispute`/`anomaly`/`major`/`other`）/ `events`（事件 id + kind 枚举）/ `beats`（谁记下哪一拍），异常原句 ≤3 条，无散文；
+  3. **远档（>30 天）**：清空 `places` 与 `anomalies`、事件地点下标置 `-1`，保留 `people` / 首末拍 / `flags` / `events`(id+kind) / `beats`，作为「那天有没有事、大致发生了什么」的指针层。
+  上限：每天 ≤1 条 digest + ≤3 条异常原句；`libraryBudget.digests = 120 条 / 160 KB`。
+- **改后读数（同脚本、同口径、最终 28 KB legend 配置）**：
+
+| 回溯到 | 事实可读 / 应读 | 事实缺失 | 时间轴可读 / 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 第 20 天 | 12 / 30 | 60.0% | 59 / 59 | **0.0%** | 20 / 30 | 33.3% |
+| 第 45 天 | 12 / 30 | 60.0% | 61 / 61 | **0.0%** | 20 / 30 | 33.3% |
+| 第 60 天 | 12 / 30 | 60.0% | 57 / 57 | **0.0%** | 20 / 30 | 33.3% |
+| 第 89 天 | 12 / 30 | 60.0% | 59 / 59 | **0.0%** | 20 / 30 | 33.3% |
+
+  seed B 同形：四天时间轴缺失均 0.0%（49/49、39/39、42/42、47/47），事实缺失均 60.0%。第 45 天 <10% 的目标达成；第 89 天不再需要「浓度递减」豁免。
+- **预算代价**：90 天末存档 seed A 1621.3 → **1625.5 KB**（79.4%）、seed B 1570.0 → **1572.5 KB**（76.8%）；第 60→90 天日增 A 2.88 → **2.93 KB/天**、B 1.75 → **1.75 KB/天**。日摘要 A 116.9 KB / 160 KB（74.8%）、B 112.5 KB（72.0%），90 条 / 112 条。都未撞 1800 KB / 3 KB 的线，2 MB 上限没动，也没用二进制压缩。
+- **剩下什么（部分修的那部分）**：事实原句仍缺 60%——日摘要存的是「那天怎么过的」，不是「每件事实的原句」。远档只留 id 指针与枚举：**玩家翻回第 20 天，能知道「5 个人、从晨市到黄昏、出过一次争执、去过磨坊与井边」，但不知道那句原话、具体时刻、争执的具体内容**。面板对补回的行写「时刻不明」，`what` 退化成按 kind 的一句人话（如「在镇上停了一会儿」），不再印内部枚举。
+- **淘汰事实是否永久消失（口径已修）**：旧脚本的引用索引只收「对象属性值是字符串」的引用，`eventRefs: ['soak-1']` 与摘要 `events` 里的数组 id 全被漏掉。修索引后实测 seed A 1773 条被淘汰事实里 **873 条（49.2%）** 仍能在存活条目 / 传说 / 日摘要找到指针（其中 **403 条仅摘要指针**）；seed B **872 条**（仅摘要 374）。结论修正为：**原文永久消失，指针多数找得回**。
+
+### BUG-5 收尾（1）：`digests` 的 120 条上限会不会重蹈 `legend` 的覆辙
+
+- **改前顺序**：`enforceBudgets` 里写的是 `(a, b) => b.day - a.day`，即**最旧优先淘汰**——与 `legend` 改前同一类错。90 天只用 90 条看不出问题，跑到第 120 天就会开始扔开天那几天。
+- **改后顺序**（`digestRank`，`digest.ts`）：**前 30 个世界日（day 0–29）保底，永不淘汰**；其余按权重「有争执/异常/大事（2）→ 有事（1）→ 空白（0）」排；同权重**留更近的日子**。理由：保底段正面回答「回望最早那几天」；同权重下近月被翻看的次数最多，先削的是中段普通日，即浓度递减该削的地方。
+- **压到 60 条的实测**（不是读代码断言）：把 seed A 的 90 天真实记忆快照读进 `MemoryWorld`，只把 `digests.count` 临时改成 60，跑一次第 90 天关账让 `enforceBudgets` 真裁，再读回存活日号——
+  - 保留：**day 0–29（30 条，全部）+ day 61–90（30 条，含当天新写的第 90 天）**，共 60 条；
+  - 淘汰：**day 30–60（31 条，中段连续区间）**；
+  - 被淘汰的日子里**有争执/异常/大事的：0 条**。
+  - 证据：`docs/evidence/soak/digest-order-60.json`；脚本 `world-client/scripts/soak-digest-order.ts`（只在测试里传参，提交里的常量仍是 120）。
+- **第 180 天外推**（线性，且计入摘要 120 条封顶；不是实测）：
+  - seed A：1625.5 KB + 非摘要层 90 天 × 1.60 KB/天 + 摘要再涨到 120 条约 +36 KB ≈ **1806 KB（2 MB 的 88.2%）**。会**超过 1800 KB 的软目标约 6 KB**，大约在第 **176 天**越过 1800；**不会撞 2 MB**，按 1.60 KB/天非摘要增量约在第 **330 天**到 2048 KB。
+  - seed B：≈ **1655 KB（80.8%）**；第 180 天仍在 1800 KB 以内，2 MB 约在第 **470 天**之后。
+  - 结论：180 天 A 会轻微越过 1800；这不是摘要超限，而是非摘要层照旧线性增长。到那时该处理的是条目/断言层，不是再抬摘要上限——抬了反而把「摘要先保底」的余量吃掉。
+
+### BUG-5 收尾（2）：玩家真正看到的字符串
+
+- 取 seed A 90 天真实快照，走 `buildUnitStatus` 同一条渲染路径（与面板绑定层同一份文本），把 `now` 拨回目标日。原样摘录（`时刻不明 · 在镇上停了一会儿` / 细节行）：
+  - **第 20 天（迷路人，当天全村 48 格，时刻不明 24 格 = 50.0%）**
+    - `时刻不明 · 在镇上停了一会儿` / `地点不明 · 独自 · 记忆 d_20_soak-599_1 · 事件 soak-599`
+    - `时刻不明 · 去河湾打了一趟水` / `地点不明 · 独自 · 记忆 d_20_soak-602_3 · 事件 soak-602`
+    - `06:40 · 迷路人与汐碰面，互相问了个好。` / `街上 (24, 33) · 与 汐 · 记忆 d_20_soak-604_4 · 事件 soak-604`
+    - `10:30 · 迷路人和沉灯夫人一起搭手做事。` / `街上 (40, 26) · 与 沉灯夫人 · 记忆 d_20_soak-613_8 · 事件 soak-613`
+  - **第 45 天（迷路人，42 格，时刻不明 15 格 = 35.7%）**
+    - `时刻不明 · 在镇上停了一会儿` / `地点不明 · 独自 · 记忆 d_45_soak-1349_1 · 事件 soak-1349`
+    - `06:40 · 迷路人与汐碰面，互相问了个好。` / `街上 (24, 33) · 与 汐 · 记忆 d_45_soak-1354_4 · 事件 soak-1354`
+    - `08:50 · 迷路人和炉匠一起搭手做事。` / `街上 (32, 29) · 与 炉匠 · 记忆 d_45_soak-1360_6 · 事件 soak-1360`
+  - **第 89 天（迷路人，43 格，时刻不明 8 格 = 18.6%）**
+    - `00:00 · 迷路人与灯笼头碰面，互相问了个好。` / `街上 (32, 28) · 与 灯笼头 · 记忆 m_7959 · 事件 soak-2668`
+    - `00:00 · 迷路人和炉匠一起搭手做事。` / `街上 (24, 33) · 与 炉匠 · 记忆 m_7988 · 事件 soak-2680`
+- **可读性**：没有 `null` / `undefined` / `[object Object]`；原句被裁的格子按 kind 给一句人话（`在镇上停了一会儿` / `去河湾打了一趟水`），不再把 `routine_done` 这种枚举印到面板上。
+- **「时刻不明」占比**：第 20 天 **50.0%**、第 45 天 **35.7%**、第 89 天 **18.6%**。最坏的一天 50.0%，**没有超过一半**，因此没有改成「整条不显示时刻行」；它的天花板由事实存活量（每天约 12/30）决定，不是写法问题。超过一半时会改成把无时刻的格子合并成一段「时刻不详的日常」，而不是逐行标。
+- 证据：`docs/evidence/soak/render-bug5.json`；脚本 `world-client/scripts/soak-bug5-render.ts`。
+
+### BUG-5 收尾（3）：事实原句 60% 缺口到底是什么（判定不变：部分修）
+
+- **抽样框架**：seed A 第 30 天仍存活、第 90 天已不在 `facts` 的事实共 **698 条**（原文可读）。这是「中期被淘汰」的样本；第 30 天后新写又当天被裁的事实没有留档，不在样本里。因此结论标为「样本支持」，不是对 1773 条的全量随机抽样。
+- **全量差的分布**：`importanceHint < 0.4` 的 **698 / 698 条（100%）**，`0.4–0.6` 与 `≥0.6` 均为 **0 条**。kind：`routine_done 178` / `tide_turn 180` / `street_greet 102` / `street_together 54` / `market_open 30` / `market_close 30` / `night_market 30` / `work_end 30` / `daily_lamp 30` / `daily_water 30` / `street_yield 4`。
+- **随机 20 条（固定种子）**：`street_together 0.38`「一起搭手做事」、`tide_turn 0.35`「潮水退过一半」、`street_greet 0.38`「碰面问好」、`routine_done 0.35`「在祭坛边睡下了」、`daily_water 0.35`「去河湾打水」、`daily_lamp 0.35`「把街灯点亮」、`market_open 0.35`「早市开了」、`work_end 0.35`「收工的钟敲了」、`night_market 0.35`「夜市支起来了」等（完整 20 条见 `docs/evidence/soak/evicted-sample-20.json`）。
+- **人工判读 5 条**：
+  1. 「潮水退过一半，滩涂露出来了」（0.35，`tide_turn`）——**不该永久保存**：每天两次的世界节律，记 90 天就是 180 条同义句。
+  2. 「去河湾打水，顺手冲了冲河岸」（0.35，`daily_water`）——**不该永久保存**：纯日常，摘要里有「去过河湾」的指针就够了。
+  3. 「与某人碰面，互相问了个好」（0.38，`street_greet`）——**不该永久保存**：关系变化已经进了关系账本，原句不必逐条留。
+  4. 「一起搭手做事」（0.38，`street_together`）——**边缘，可不留**：若当天没有别的重事，摘要里的「有事」就够；若同一天还有争执，摘要会优先保住那一天。
+  5. 「把祭坛边的街灯一盏盏点亮」（0.35，`daily_lamp`）——**不该永久保存**：固定时刻的日常，痕迹层已经有脚印。
+- **结论**：这 60% 的缺口**基本都是本该衰减的日常琐事**（样本 698/698 全部 <0.4，没有一条是「该留却没留」）。它是**设计**，不是负债：摘要层保证「那天怎么过的」可答，日层预算保证「不把同义句存 90 份」。判定仍写「部分修」只是因为原句确实不在了；若未来要留原句，正确做法是另立「值得留档的事件」筛选，而不是把日层预算拉高。
+
+### 已补覆盖：「被裁掉的事实写时刻不明」
+
+- 改前 30 天 `trimmedTimelineEntries = 0`、`unknownPlaceEntries = 0`，这条口径一次也没被触发——不能拿 0 当绿。
+- 现在 `dayTimelineFor` 给每一格 `whenKnown`：事实被预算裁掉、或这一格是摘要（`when` 是日号）时为 `false`；`unit-status` 把它渲染成 **`clock: '时刻不明'`**，不再用 `clockOf(day)` 编出一个 00:00。
+- 样本：`test/memory-budget.test.ts`（裁掉 `ev_low` 后 `whenKnown=false`、`what=null`、`placeId=null`，`ev_high` 仍为 `true`）；`test/unit-status.test.ts`（渲染出 `时刻不明`）。
+- 真跑样本：第 90 天事实库裁掉 1773 条后，面板上有 **8 格** `unknownWhenEntries`（第 30 天是 0，因为时间线只覆盖昨天、昨天的条目所指事实还在）。所以这条不只是测试断言。
+
+### 确定性基线随淘汰顺序重录（不是放宽断言）
+
+- **改动**：淘汰比较器补上用户要求的后两级，最终为 `固定/闪光灯 → 强度 → 显著度 → 新 → memoryId`。
+- **为什么轨迹会变**：这只在「日层溢出、且强度打平」时改变保留集合；一旦保留集合变了，后面的整理与造物读数就跟着变。`traces/outer-two-days.json` 的记忆指纹从 `803a26d4…` 变为 `59db174d…`；**世界指纹 `32ba01e7…` 与 52 条事件完全不变**，说明变化只在记忆/造物层。
+- **怎么处理**：用仓库自带的两步流程重录——`node scripts/trace-record.ts`（再录 3 条轨迹与基线存档）+ `node scripts/trace-to-test.ts`（重生成回归用例）。生成的用例仍断言**精确指纹与条数**，没有改成「只要求不报错」之类的弱断言；回放结论 `replayable`，三枚指纹三次运行逐字相同。
+
+### 已修：`tideLevelAt` 随世界时间线性变慢（提交在本分支）
+
+- 见 `docs/evidence/soak/REPORT.md` 第 2 节与 `test/tide-checkpoint.test.ts`：`stepTide` p50 0.3 µs → 17.9 µs（60×），30 日整轮 73.6 s → 50.3 s；曲线逐点与原实现一致。
+
+## 评测（eval/ledger-facts-question）
+
+测试分支：`eval/ledger-facts-question`（worktree `D:\project\pwe-eval`，基线 `39cff04`）。
+本段只记录评测过程中撞见的问题；按任务纪律**只记录、不顺带修**（EVAL-BUG-1 经用户批准后单独修，见下）。
+
+### EVAL-BUG-1 存档读入只查「entries 是数组」，`witnessed` 的假记忆能整条复活
+
+- **编号**：EVAL-BUG-1
+- **状态**：**已修**（同一分支 `eval/ledger-facts-question`，基线 `39cff04`）。
+- **依据（原始记录，保留不动）**：`src/world/memory/runtime.ts` 的 `isWorldSnapshot` 对 `entries` 只做
+  `Array.isArray`，不校验每条 `eventRefs` 是否在事实库里；`fromJSON` 之后
+  `recallForDialogue` 按 `sourceMode` 原样返回。
+- **读数（原始记录，保留不动）**：构造一条 `sourceMode: "witnessed"`、`eventRefs: ["eval-ghost-never-happened"]`
+  的条目塞进快照；`ghostEventExists = false`，`recalled = true`，返回
+  `sourceMode = "witnessed"`。也就是说「亲眼所见」可以没有任何事件出处。
+- **复现**：`node world-client/scripts/eval-counterfactual.ts --guard-red` → 退出码 1；
+  输出与 JSON 在 `docs/evidence/eval-counterfactual/`。
+- **影响范围**：读档可把不存在的亲历带进世界；`Oracle` 解释与回溯问答会把它当第一手证据。
+- **未修原因（历史记录）**：本轮任务是评测与取证，修复需要动 `isWorldSnapshot` 与迁移逻辑，留给后续单独 PR。
+
+#### 修法（2026-11-04）
+
+- **落点**：[import-guard.ts](../world-client/src/world/memory/import-guard.ts)，在
+  `MemoryRuntime.fromSnapshot` 里、`world.restoreSnapshot` 之前执行；报告挂在
+  `MemoryRuntime.lastImport`（`memory-import-report/1`）。
+- **判据不是「eventRefs 非空」，而是「有没有旁证」**：事件被摄入的那一刻，记忆层
+  除了写条目，还会独立写下断言（`claims[].eventRefs`，一事一条）、信念、痕迹、
+  传说/史诗、成长记录、关系账本（`bonds[].evidence`）、地标相位、地名史。
+  事实库会被淘汰，这些不会——所以：
+  - 引用不在 `facts`、但在上述任一库里查得到 → **历史淘汰，放行**，计入
+    `prunedUnverifiable`（90 天存档里正是 12 条，71 条 witnessed 一条不少）；
+  - 引用在快照里一处旁证都没有 → **导入时编造**，降级为 `heard`，计入
+    `downgradedEntries`；
+  - 条目形状坏（无 id / 无 `eventRefs` / `sourceMode` 不认识）→ **拒绝**（丢弃），
+    计入 `refusedEntries`。没有第三条「静默通过」。
+- **为什么不能写「witnessed 的 eventRefs 必须都解析到事件」**：90 天存档里 12 条合法的
+  `witnessed` 正指着已淘汰的事件，那种写法会把合法旧档拒掉，比原缺陷更糟。
+- **读数（修后）**：90 天存档 71→71，拒绝 0、降级 0、淘汰旁证 12；真 v5 样品 25→25；
+  注入的 `witnessed` 假记忆降级为 `heard`（`downgradedEntries=1`）。
+- **造错守卫**：默认模式（闸开着）契约 5/5 绿、退出 0；`--guard-red` 关掉读档闸
+  （直连 `world.restoreSnapshot`）后同一假记忆仍以 `witnessed` 复活 → 退出 1。
+  两边都跑过，红的那次原始输出在 `guard-red.txt`。
+- **证据**：[docs/evidence/eval-import-guard/](../docs/evidence/eval-import-guard/)（`import-guard.json`、
+  `guard-red.txt`）；回归测试 `world-client/test/memory-import-guard.test.ts`。
+
+### EVAL-BUG-2 账本 `script_sha` 混记 CRLF/LF，且两条读数在 main 上过期
+
+- **表现**：`eval/ledger-facts-question` 合到 `10f61ac` 时，`world-client/test/eval-ledger.test.ts`
+  连红两次、5 条 `script_sha` 不符（合并方 `merge --abort` 回滚，未改哈希凑通过）。
+- **根因一（行尾）**：仓库 `core.autocrlf=true`，索引 LF、工作树 CRLF。旧校验直接对工作树
+  **字节**算 sha256，同一账本里混进了两套哈希：`audit-palette.mjs`、`cast-motion.test.ts` 记的是
+  CRLF 哈希，`eval-counterfactual.ts` / `eval-rewind-qa.ts` / `eval-import-guard.ts` 记的是 LF 哈希，
+  任何 checkout 都无法同时满足。
+- **根因二（读数过期）**：`check-render-budget.mjs` 在 main 上被材质升级/场景动效改过，账本里
+  的 16130 是更早的 CI 机位读数；脚本内容变了就该红，这正是活校验的价值。
+- **修法**：生成端与校验端共用 `sha256OfContent` / `sha256OfFile`（先 `\r\n → \n` 再算哈希），
+  生成端 `scripts/eval-ledger-sha.ts --write` 回写，不再手抄；新增一条 CRLF/LF 同哈希回归测试。
+  **未**用全仓 `.gitattributes` 强制重规范化，也**未**放宽 `script_sha` 断言。
+- **重测（在 `10f61ac` 上）**：render p50 16130 → 16162（5 次计分轮两档 15514/16162，极差 648，
+  均 < 30000）；palette 0/0；walk 帧差 17 → 18（阈值 16 未动）；idle 10（阈值 8 未动）。
+  证据：[docs/evidence/eval-ledger/](../docs/evidence/eval-ledger/)。

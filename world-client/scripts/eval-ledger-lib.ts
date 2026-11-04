@@ -10,6 +10,12 @@
  * `script` 字段可选；一旦填了，就按当前文件的 sha256 复核，脚本改了而读数没重测，
  * 账本会红。外部证据树（pwe-soak）的生成脚本未提交，`script_sha` 必须写
  * `not_measured`，不许填一个看起来像哈希的值。
+ *
+ * 哈希对**内容**算，先做行尾归一化（CRLF → LF）：仓库开了 `core.autocrlf=true`，
+ * 检出到 Windows 工作树是 CRLF、索引里是 LF，同一份脚本在不同 checkout 上字节数
+ * 不同。若直接对工作树字节算 sha256，同一账本里就会出现 CRLF 与 LF 两套哈希，
+ * 任何 checkout 都无法同时满足（曾经就是这样红掉的）。归一化只影响哈希口径，
+ * 不改仓库行尾策略，也不动 `.gitattributes`。
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -51,8 +57,13 @@ export interface LedgerValidation {
   readonly metrics: number;
 }
 
-function sha256Of(path: string): string {
-  return createHash('sha256').update(readFileSync(path)).digest('hex');
+/** 内容哈希：先 CRLF → LF 归一化，跨 checkout 稳定。生成端必须用同一个函数。 */
+export function sha256OfContent(content: string): string {
+  return createHash('sha256').update(content.replace(/\r\n/g, '\n')).digest('hex');
+}
+
+export function sha256OfFile(path: string): string {
+  return sha256OfContent(readFileSync(path, 'utf8'));
 }
 
 export function validateLedger(document: unknown, worldClientRoot: string): LedgerValidation {
@@ -128,7 +139,7 @@ export function validateLedger(document: unknown, worldClientRoot: string): Ledg
         ? metric.script
         : resolve(worldClientRoot, metric.script);
       try {
-        const actual = sha256Of(scriptPath);
+        const actual = sha256OfFile(scriptPath);
         if (scriptSha !== actual) {
           errors.push(`${where} script_sha 与 ${metric.script} 当前内容不一致（脚本改过，读数需重测）`);
         }

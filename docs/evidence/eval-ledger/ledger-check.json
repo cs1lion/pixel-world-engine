@@ -1,7 +1,7 @@
 {
   "schema": "eval-ledger-check/1",
-  "elapsedMs": 2.48,
+  "elapsedMs": 4.4,
   "ok": true,
   "errors": [],
-  "metrics": 20
+  "metrics": 25
 }
