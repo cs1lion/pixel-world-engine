@@ -44,6 +44,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-funcdaily | feat/func-daily | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`ae4cc61` 已合入 main；`7319ee4` 未合入） |
 | D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`d725b7e` 已合入 main；`93da6d9` 未合入） |
+| D:/project/pwe-material | feat/material-upgrade | material-agent（Trae 会话，未推送） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；材质层：路面/空地/外立面/人物，按类分四次提交） |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-routine | feat/routine-real | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：待第二轮合并） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢） |

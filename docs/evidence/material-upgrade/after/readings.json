@@ -1,0 +1,586 @@
+[
+  {
+    "name": "road-paving",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 280,
+      "y": 472
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 7.39,
+    "edgePct": 29.63,
+    "lumaStd": 20.5,
+    "uniqueRGB": 27,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#6a7878",
+        "token": "—",
+        "pct": 45.53
+      },
+      {
+        "rgb": "#495d64",
+        "token": "—",
+        "pct": 34.33
+      },
+      {
+        "rgb": "#694744",
+        "token": "—",
+        "pct": 6.94
+      },
+      {
+        "rgb": "#242e37",
+        "token": "—",
+        "pct": 2.43
+      },
+      {
+        "rgb": "#57696d",
+        "token": "—",
+        "pct": 1.82
+      },
+      {
+        "rgb": "#526569",
+        "token": "—",
+        "pct": 1.22
+      },
+      {
+        "rgb": "#273e4b",
+        "token": "—",
+        "pct": 1.22
+      },
+      {
+        "rgb": "#1e2a34",
+        "token": "—",
+        "pct": 0.87
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 99.31,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "plaza-ground",
+    "sheet": "west-plaza",
+    "worldCenter": {
+      "x": 120,
+      "y": 496
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 6.1,
+    "edgePct": 20.79,
+    "lumaStd": 21.63,
+    "uniqueRGB": 6,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#667476",
+        "token": "—",
+        "pct": 51.35
+      },
+      {
+        "rgb": "#475b63",
+        "token": "—",
+        "pct": 31.47
+      },
+      {
+        "rgb": "#253a45",
+        "token": "—",
+        "pct": 14.15
+      },
+      {
+        "rgb": "#808d87",
+        "token": "—",
+        "pct": 2.08
+      },
+      {
+        "rgb": "#3f5a59",
+        "token": "—",
+        "pct": 0.52
+      },
+      {
+        "rgb": "#20313e",
+        "token": "—",
+        "pct": 0.43
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 96.78,
+    "cells": {
+      "count": 9,
+      "distinct": 8
+    }
+  },
+  {
+    "name": "road-flagstone",
+    "sheet": "south-road",
+    "worldCenter": {
+      "x": 520,
+      "y": 584
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 8.93,
+    "edgePct": 26.99,
+    "lumaStd": 20.11,
+    "uniqueRGB": 9,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#485c63",
+        "token": "—",
+        "pct": 31.55
+      },
+      {
+        "rgb": "#2e434c",
+        "token": "—",
+        "pct": 28.73
+      },
+      {
+        "rgb": "#22303c",
+        "token": "—",
+        "pct": 22.7
+      },
+      {
+        "rgb": "#56686c",
+        "token": "—",
+        "pct": 11.89
+      },
+      {
+        "rgb": "#414f57",
+        "token": "—",
+        "pct": 2.0
+      },
+      {
+        "rgb": "#687677",
+        "token": "—",
+        "pct": 1.61
+      },
+      {
+        "rgb": "#5d6e71",
+        "token": "—",
+        "pct": 1.0
+      },
+      {
+        "rgb": "#3f5b59",
+        "token": "—",
+        "pct": 0.43
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 73.31,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "ground-mud",
+    "sheet": "mud-flat",
+    "worldCenter": {
+      "x": 792,
+      "y": 616
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 0.82,
+    "edgePct": 6.32,
+    "lumaStd": 3.42,
+    "uniqueRGB": 12,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#20313d",
+        "token": "—",
+        "pct": 84.64
+      },
+      {
+        "rgb": "#1e333f",
+        "token": "—",
+        "pct": 7.64
+      },
+      {
+        "rgb": "#2a3e48",
+        "token": "—",
+        "pct": 4.9
+      },
+      {
+        "rgb": "#2c3f4a",
+        "token": "—",
+        "pct": 0.74
+      },
+      {
+        "rgb": "#314550",
+        "token": "—",
+        "pct": 0.61
+      },
+      {
+        "rgb": "#1b2a37",
+        "token": "—",
+        "pct": 0.52
+      },
+      {
+        "rgb": "#24343f",
+        "token": "—",
+        "pct": 0.39
+      },
+      {
+        "rgb": "#2d454b",
+        "token": "—",
+        "pct": 0.17
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 47.22,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "ground-coal",
+    "sheet": "mud-flat",
+    "worldCenter": {
+      "x": 880,
+      "y": 700
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 1.42,
+    "edgePct": 10.68,
+    "lumaStd": 7.72,
+    "uniqueRGB": 14,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#24343f",
+        "token": "—",
+        "pct": 57.03
+      },
+      {
+        "rgb": "#20313d",
+        "token": "—",
+        "pct": 36.68
+      },
+      {
+        "rgb": "#22333e",
+        "token": "—",
+        "pct": 1.43
+      },
+      {
+        "rgb": "#2a3e48",
+        "token": "—",
+        "pct": 1.0
+      },
+      {
+        "rgb": "#18232e",
+        "token": "—",
+        "pct": 1.0
+      },
+      {
+        "rgb": "#1e333f",
+        "token": "—",
+        "pct": 0.69
+      },
+      {
+        "rgb": "#314550",
+        "token": "—",
+        "pct": 0.65
+      },
+      {
+        "rgb": "#303f47",
+        "token": "—",
+        "pct": 0.43
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 48.75,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "wall-shopfront",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 216,
+      "y": 424
+    },
+    "span": 64,
+    "width": 64,
+    "height": 64,
+    "textureEnergy": 10.74,
+    "edgePct": 16.8,
+    "lumaStd": 55.41,
+    "uniqueRGB": 34,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#000000",
+        "token": "—",
+        "pct": 25.0
+      },
+      {
+        "rgb": "#273a44",
+        "token": "—",
+        "pct": 19.29
+      },
+      {
+        "rgb": "#989784",
+        "token": "—",
+        "pct": 15.53
+      },
+      {
+        "rgb": "#3b3139",
+        "token": "—",
+        "pct": 11.94
+      },
+      {
+        "rgb": "#884641",
+        "token": "—",
+        "pct": 6.08
+      },
+      {
+        "rgb": "#b5a070",
+        "token": "—",
+        "pct": 3.91
+      },
+      {
+        "rgb": "#9c4f44",
+        "token": "—",
+        "pct": 3.83
+      },
+      {
+        "rgb": "#856344",
+        "token": "—",
+        "pct": 3.52
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 70.06,
+    "cells": {
+      "count": 16,
+      "distinct": 13
+    }
+  },
+  {
+    "name": "wall-prefab",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 496,
+      "y": 400
+    },
+    "span": 64,
+    "width": 64,
+    "height": 64,
+    "textureEnergy": 16.01,
+    "edgePct": 28.88,
+    "lumaStd": 43.46,
+    "uniqueRGB": 78,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#694744",
+        "token": "—",
+        "pct": 20.83
+      },
+      {
+        "rgb": "#3b3139",
+        "token": "—",
+        "pct": 17.29
+      },
+      {
+        "rgb": "#b5a070",
+        "token": "—",
+        "pct": 7.86
+      },
+      {
+        "rgb": "#9c4f44",
+        "token": "—",
+        "pct": 7.13
+      },
+      {
+        "rgb": "#aab4a4",
+        "token": "—",
+        "pct": 6.54
+      },
+      {
+        "rgb": "#17212c",
+        "token": "—",
+        "pct": 5.52
+      },
+      {
+        "rgb": "#924c43",
+        "token": "—",
+        "pct": 4.69
+      },
+      {
+        "rgb": "#989784",
+        "token": "—",
+        "pct": 3.27
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 92.36,
+    "cells": {
+      "count": 16,
+      "distinct": 16
+    }
+  },
+  {
+    "name": "villager",
+    "sheet": "villager",
+    "worldCenter": {
+      "x": 680,
+      "y": 499
+    },
+    "span": 40,
+    "width": 40,
+    "height": 40,
+    "textureEnergy": 13.34,
+    "edgePct": 28.01,
+    "lumaStd": 38.12,
+    "uniqueRGB": 51,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#253a45",
+        "token": "—",
+        "pct": 12.19
+      },
+      {
+        "rgb": "#2b373f",
+        "token": "—",
+        "pct": 11.12
+      },
+      {
+        "rgb": "#667476",
+        "token": "—",
+        "pct": 10.5
+      },
+      {
+        "rgb": "#3a323a",
+        "token": "—",
+        "pct": 9.19
+      },
+      {
+        "rgb": "#18232e",
+        "token": "—",
+        "pct": 5.81
+      },
+      {
+        "rgb": "#654744",
+        "token": "—",
+        "pct": 4.75
+      },
+      {
+        "rgb": "#1f3441",
+        "token": "—",
+        "pct": 4.12
+      },
+      {
+        "rgb": "#2e4047",
+        "token": "—",
+        "pct": 3.88
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 80.81,
+    "cells": {
+      "count": 0,
+      "distinct": 0
+    }
+  },
+  {
+    "name": "wall-default",
+    "sheet": "default-wall",
+    "worldCenter": {
+      "x": 680.0,
+      "y": 464
+    },
+    "span": 64,
+    "width": 64,
+    "height": 64,
+    "textureEnergy": 7.2,
+    "edgePct": 10.07,
+    "lumaStd": 37.18,
+    "uniqueRGB": 10,
+    "onToken": 95.9,
+    "offToken": 4.1,
+    "topColours": [
+      {
+        "rgb": "#5a463e",
+        "token": "charcoal",
+        "pct": 38.38
+      },
+      {
+        "rgb": "#8a5a44",
+        "token": "timber",
+        "pct": 28.32
+      },
+      {
+        "rgb": "#4a3f39",
+        "token": "timberDark",
+        "pct": 9.96
+      },
+      {
+        "rgb": "#c9a86a",
+        "token": "trim",
+        "pct": 8.89
+      },
+      {
+        "rgb": "#775241",
+        "token": "—",
+        "pct": 3.61
+      },
+      {
+        "rgb": "#f2c879",
+        "token": "warmLight",
+        "pct": 3.12
+      },
+      {
+        "rgb": "#9c4f3c",
+        "token": "terracotta",
+        "pct": 3.03
+      },
+      {
+        "rgb": "#14110d",
+        "token": "ink",
+        "pct": 2.34
+      }
+    ],
+    "tokens": {
+      "charcoal": 38.38,
+      "timber": 28.32,
+      "timberDark": 9.96,
+      "trim": 8.89,
+      "warmLight": 3.12,
+      "terracotta": 3.03,
+      "ink": 2.34,
+      "amber": 1.86
+    },
+    "meanLuma": 94.18,
+    "cells": {
+      "count": 16,
+      "distinct": 13
+    }
+  }
+]

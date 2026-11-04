@@ -1,0 +1,561 @@
+[
+  {
+    "name": "road-paving",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 280,
+      "y": 472
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 6.9,
+    "edgePct": 29.21,
+    "lumaStd": 19.97,
+    "uniqueRGB": 23,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#697777",
+        "token": "—",
+        "pct": 59.51
+      },
+      {
+        "rgb": "#485d64",
+        "token": "—",
+        "pct": 17.32
+      },
+      {
+        "rgb": "#684744",
+        "token": "—",
+        "pct": 7.34
+      },
+      {
+        "rgb": "#56696d",
+        "token": "—",
+        "pct": 4.04
+      },
+      {
+        "rgb": "#5a686a",
+        "token": "—",
+        "pct": 3.3
+      },
+      {
+        "rgb": "#242e38",
+        "token": "—",
+        "pct": 2.91
+      },
+      {
+        "rgb": "#273e4b",
+        "token": "—",
+        "pct": 1.52
+      },
+      {
+        "rgb": "#232830",
+        "token": "—",
+        "pct": 0.87
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 102.82,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "plaza-ground",
+    "sheet": "west-plaza",
+    "worldCenter": {
+      "x": 120,
+      "y": 496
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 4.45,
+    "edgePct": 14.76,
+    "lumaStd": 22.03,
+    "uniqueRGB": 8,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#667476",
+        "token": "—",
+        "pct": 70.7
+      },
+      {
+        "rgb": "#253a45",
+        "token": "—",
+        "pct": 14.15
+      },
+      {
+        "rgb": "#475b63",
+        "token": "—",
+        "pct": 11.89
+      },
+      {
+        "rgb": "#808d87",
+        "token": "—",
+        "pct": 2.08
+      },
+      {
+        "rgb": "#3f5a59",
+        "token": "—",
+        "pct": 0.52
+      },
+      {
+        "rgb": "#20313e",
+        "token": "—",
+        "pct": 0.43
+      },
+      {
+        "rgb": "#97a297",
+        "token": "—",
+        "pct": 0.13
+      },
+      {
+        "rgb": "#a4ad9f",
+        "token": "—",
+        "pct": 0.09
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 101.95,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "road-flagstone",
+    "sheet": "south-road",
+    "worldCenter": {
+      "x": 520,
+      "y": 584
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 8.25,
+    "edgePct": 21.39,
+    "lumaStd": 19.93,
+    "uniqueRGB": 6,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#475b63",
+        "token": "—",
+        "pct": 45.96
+      },
+      {
+        "rgb": "#2e434c",
+        "token": "—",
+        "pct": 28.73
+      },
+      {
+        "rgb": "#667576",
+        "token": "—",
+        "pct": 14.5
+      },
+      {
+        "rgb": "#22303c",
+        "token": "—",
+        "pct": 10.29
+      },
+      {
+        "rgb": "#3f5a59",
+        "token": "—",
+        "pct": 0.43
+      },
+      {
+        "rgb": "#ae9b6f",
+        "token": "—",
+        "pct": 0.09
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 80.02,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "ground-mud",
+    "sheet": "mud-flat",
+    "worldCenter": {
+      "x": 792,
+      "y": 616
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 0.36,
+    "edgePct": 2.57,
+    "lumaStd": 2.06,
+    "uniqueRGB": 3,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#20313d",
+        "token": "—",
+        "pct": 97.87
+      },
+      {
+        "rgb": "#2e3f49",
+        "token": "—",
+        "pct": 1.95
+      },
+      {
+        "rgb": "#2e454c",
+        "token": "—",
+        "pct": 0.17
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 46.55,
+    "cells": {
+      "count": 9,
+      "distinct": 6
+    }
+  },
+  {
+    "name": "ground-coal",
+    "sheet": "mud-flat",
+    "worldCenter": {
+      "x": 880,
+      "y": 700
+    },
+    "span": 48,
+    "width": 48,
+    "height": 48,
+    "textureEnergy": 1.1,
+    "edgePct": 9.0,
+    "lumaStd": 6.77,
+    "uniqueRGB": 8,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#24343f",
+        "token": "—",
+        "pct": 58.03
+      },
+      {
+        "rgb": "#20313d",
+        "token": "—",
+        "pct": 37.93
+      },
+      {
+        "rgb": "#22323e",
+        "token": "—",
+        "pct": 1.61
+      },
+      {
+        "rgb": "#18232e",
+        "token": "—",
+        "pct": 0.95
+      },
+      {
+        "rgb": "#324651",
+        "token": "—",
+        "pct": 0.61
+      },
+      {
+        "rgb": "#2e3f49",
+        "token": "—",
+        "pct": 0.43
+      },
+      {
+        "rgb": "#a2ad9f",
+        "token": "—",
+        "pct": 0.26
+      },
+      {
+        "rgb": "#2e454c",
+        "token": "—",
+        "pct": 0.17
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 48.51,
+    "cells": {
+      "count": 9,
+      "distinct": 9
+    }
+  },
+  {
+    "name": "wall-shopfront",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 216,
+      "y": 424
+    },
+    "span": 64,
+    "width": 64,
+    "height": 64,
+    "textureEnergy": 10.49,
+    "edgePct": 15.85,
+    "lumaStd": 54.99,
+    "uniqueRGB": 27,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#000000",
+        "token": "—",
+        "pct": 25.0
+      },
+      {
+        "rgb": "#263a44",
+        "token": "—",
+        "pct": 19.36
+      },
+      {
+        "rgb": "#969683",
+        "token": "—",
+        "pct": 15.7
+      },
+      {
+        "rgb": "#3b3139",
+        "token": "—",
+        "pct": 12.13
+      },
+      {
+        "rgb": "#864642",
+        "token": "—",
+        "pct": 6.45
+      },
+      {
+        "rgb": "#b39e70",
+        "token": "—",
+        "pct": 3.91
+      },
+      {
+        "rgb": "#9b4f45",
+        "token": "—",
+        "pct": 3.83
+      },
+      {
+        "rgb": "#846344",
+        "token": "—",
+        "pct": 3.52
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 69.66,
+    "cells": {
+      "count": 16,
+      "distinct": 13
+    }
+  },
+  {
+    "name": "wall-prefab",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 496,
+      "y": 400
+    },
+    "span": 64,
+    "width": 64,
+    "height": 64,
+    "textureEnergy": 15.79,
+    "edgePct": 28.7,
+    "lumaStd": 42.51,
+    "uniqueRGB": 67,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#684744",
+        "token": "—",
+        "pct": 20.68
+      },
+      {
+        "rgb": "#3b3139",
+        "token": "—",
+        "pct": 16.97
+      },
+      {
+        "rgb": "#b39e70",
+        "token": "—",
+        "pct": 7.91
+      },
+      {
+        "rgb": "#9b4f45",
+        "token": "—",
+        "pct": 7.08
+      },
+      {
+        "rgb": "#a8b2a2",
+        "token": "—",
+        "pct": 6.79
+      },
+      {
+        "rgb": "#17212c",
+        "token": "—",
+        "pct": 5.64
+      },
+      {
+        "rgb": "#914c43",
+        "token": "—",
+        "pct": 4.69
+      },
+      {
+        "rgb": "#969683",
+        "token": "—",
+        "pct": 3.27
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 92.25,
+    "cells": {
+      "count": 16,
+      "distinct": 16
+    }
+  },
+  {
+    "name": "villager",
+    "sheet": "villager",
+    "worldCenter": {
+      "x": 680,
+      "y": 499
+    },
+    "span": 40,
+    "width": 40,
+    "height": 40,
+    "textureEnergy": 13.11,
+    "edgePct": 27.66,
+    "lumaStd": 37.88,
+    "uniqueRGB": 49,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#263b44",
+        "token": "—",
+        "pct": 12.19
+      },
+      {
+        "rgb": "#2b373f",
+        "token": "—",
+        "pct": 11.12
+      },
+      {
+        "rgb": "#667476",
+        "token": "—",
+        "pct": 10.5
+      },
+      {
+        "rgb": "#3a323a",
+        "token": "—",
+        "pct": 9.19
+      },
+      {
+        "rgb": "#18232e",
+        "token": "—",
+        "pct": 5.81
+      },
+      {
+        "rgb": "#654744",
+        "token": "—",
+        "pct": 4.94
+      },
+      {
+        "rgb": "#1f3441",
+        "token": "—",
+        "pct": 4.12
+      },
+      {
+        "rgb": "#2d4047",
+        "token": "—",
+        "pct": 3.88
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 80.7,
+    "cells": {
+      "count": 0,
+      "distinct": 0
+    }
+  },
+  {
+    "name": "wall-default",
+    "sheet": "default-wall",
+    "worldCenter": {
+      "x": 680.0,
+      "y": 464
+    },
+    "span": 64,
+    "width": 64,
+    "height": 64,
+    "textureEnergy": 7.0,
+    "edgePct": 8.41,
+    "lumaStd": 37.17,
+    "uniqueRGB": 8,
+    "onToken": 100.0,
+    "offToken": 0.0,
+    "topColours": [
+      {
+        "rgb": "#5a463e",
+        "token": "charcoal",
+        "pct": 38.38
+      },
+      {
+        "rgb": "#8a5a44",
+        "token": "timber",
+        "pct": 32.42
+      },
+      {
+        "rgb": "#4a3f39",
+        "token": "timberDark",
+        "pct": 9.96
+      },
+      {
+        "rgb": "#c9a86a",
+        "token": "trim",
+        "pct": 8.89
+      },
+      {
+        "rgb": "#f2c879",
+        "token": "warmLight",
+        "pct": 3.12
+      },
+      {
+        "rgb": "#9c4f3c",
+        "token": "terracotta",
+        "pct": 3.03
+      },
+      {
+        "rgb": "#14110d",
+        "token": "ink",
+        "pct": 2.34
+      },
+      {
+        "rgb": "#e3a13c",
+        "token": "amber",
+        "pct": 1.86
+      }
+    ],
+    "tokens": {
+      "charcoal": 38.38,
+      "timber": 32.42,
+      "timberDark": 9.96,
+      "trim": 8.89,
+      "warmLight": 3.12,
+      "terracotta": 3.03,
+      "ink": 2.34,
+      "amber": 1.86
+    },
+    "meanLuma": 94.58,
+    "cells": {
+      "count": 16,
+      "distinct": 11
+    }
+  }
+]
