@@ -350,6 +350,16 @@ export interface DayTimelineEntry extends TimelineEntry {
   readonly placeId: string | null;
   readonly actors: readonly string[];
   readonly what: string | null;
+  /**
+   * 这一格的时刻是否还站得住。
+   *
+   * 两件事会让它变 false：**事实被预算裁掉了**（`digest` 查不到，`when` 只剩
+   * 条目自己记的补丁），以及**这一格本身是摘要**（摘要的 `when` 是「第几天」，
+   * 不是一个时刻，`clockOf` 会把它算成 00:00，那是编的）。
+   *
+   * 面板据此写「时刻不明」而不是给一个看起来很像真的时间。
+   */
+  readonly whenKnown: boolean;
 }
 
 export interface MemoryRuntimeDeps {
@@ -881,6 +891,7 @@ export class MemoryRuntime {
           placeId: digest?.placeId ?? null,
           actors: digest?.actors ?? [],
           what: digest?.what ?? null,
+          whenKnown: digest !== null && entry.kind !== 'summary',
         };
       });
   }

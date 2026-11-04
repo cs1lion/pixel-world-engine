@@ -15,8 +15,8 @@
  * `generatedBy.by = 'llm'`）留着，但本组不实现调用，也不占预算。
  */
 
-import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
-import { consolidateHolder } from './consolidate.ts';
+import { DEFAULT_MEMORY_CONFIG, weightsFor, type LayerBudget, type MemoryConfig } from './config.ts';
+import { byteSizeOf, consolidateHolder, trimEntriesToBudget } from './consolidate.ts';
 import { advanceEra, openEra, signatureOf } from './era.ts';
 import { makeEpic } from './epic.ts';
 import {
@@ -1489,20 +1489,29 @@ export class MemoryWorld {
     this.updateMoods(closedDay, at);
 
     const ids = this.holderIds();
+    const archivedBefore = new Set(
+      this.entries.filter((entry) => entry.archived).map((entry) => entry.memoryId),
+    );
     for (const holderId of ids) {
       const result = consolidateHolder(holderId, this.entries, closedDay, this.config, this.facts);
       this.entries = [...result.entries] as MemoryEntry[];
       this.emit('memory.consolidated', at, { holderId, day: closedDay, stats: result.stats });
-      const archived = this.entries.filter((entry) => entry.holderId === holderId && entry.archived);
-      for (const entry of archived) {
-        this.emit('memory.archived', at, { memoryId: entry.memoryId });
-      }
+    }
+    // **只报这一天才归档的。** 原先这里每天把全部已归档条目重发一遍：
+    // 一条第 40 天归档的碑文，到第 90 天会被报 50 次，累计计数于是变成
+    // 「归档过多少条 × 又过了多少天」，读数没法用来判断清理是否生效。
+    for (const entry of this.entries) {
+      if (!entry.archived || archivedBefore.has(entry.memoryId)) continue;
+      this.emit('memory.archived', at, { memoryId: entry.memoryId, holderId: entry.holderId });
     }
 
     // 日报先贴，传说后算：公告也是一条「有人知道了」的路，而传说分不出
     // 也不该分他是从公告栏知道的还是从邻居那儿听来的。
     this.postDailyReport(closedDay, at);
     this.updateLegends(closedDay, at);
+    // 预算在传说之后：刻碑是今天最后一件往库里写字的事，落在预算外面就
+    // 要等明天才被裁，而读数取的是当天末。
+    this.enforceBudgets(closedDay, at);
     const vitals = computeVitals({
       day: closedDay,
       memories: this.entries,
@@ -1522,6 +1531,191 @@ export class MemoryWorld {
     // 心电图向外广播。本组不读它做任何决定——那是导演的事。
     this.emit('day.closed', at, { ...vitals });
     return vitals;
+  }
+
+  // ---------------------------------------------------------------- 预算
+
+  /**
+   * 关账的最后一道闸：每一个库都按「条数 + 字节」裁到预算内，并留下可查的痕迹。
+   *
+   * **为什么要有这一层。** 整理（`consolidateHolder`）只裁条目层的四个桶；
+   * 事实、断言、信念、冷却、传话记录、日记这六个库原先一条预算都没有。30 日
+   * 实测它们合计 945 KB（占记忆 65%），日均 +38 KB，而条目层的增长只有 +12 KB。
+   * 也就是说「存档越来越大」的主体不在整理路径上，任何只在整理里加阈值的
+   * 修法都拦不住它。
+   *
+   * **裁的顺序不是随意的**，每一个库都按它自己的价值轴：
+   * - `facts`：重要度 → 新 → id。一条拆楼留得比一条打水久。
+   * - `claims`：置信度 → 新。说不清的事先忘。
+   * - `beliefs`：置信度 → 新。同一个人对同一件事只留他知道得最清楚的那几条。
+   * - `cooldowns`：纯新旧。它只管「这会儿能不能再说」，过期就是过期。
+   * - `tells`：纯新旧。心电图只看最近三天。
+   * - `written`：纯新旧。日记与书信是有日期的记录，裁得掉旧的，裁不掉的事实。
+   * - `legends`（镇志条目）：传播面 → 新。讲得最广的那条传说最后才淡。
+   *
+   * **裁掉事实会被看见。** 条目里的 `eventRefs` 指向一条已经不在的事实库的
+   * 事件，面板读到的地点/当事人/说法三样都变成「不知道」——`dayTimelineFor`
+   * 已经按 null 返回，`unit-status` 写成「地点不明」「时刻不明」。这条路径
+   * 在这之前一次都没被走过，因为事实从来不删。
+   */
+  private enforceBudgets(day: number, at: number): void {
+    const entryTrim = trimEntriesToBudget(this.entries, this.config);
+    if (entryTrim.byCount + entryTrim.byBytes > 0) {
+      this.entries = entryTrim.kept as MemoryEntry[];
+      this.emitPruned(day, at, 'entries', entryTrim.byCount, entryTrim.byBytes, this.entries.length);
+    }
+
+    const facts = this.trimRecords([...this.facts.values()], this.config.libraryBudget.facts, (a, b) => {
+      const ia = a.importanceHint ?? 0;
+      const ib = b.importanceHint ?? 0;
+      if (ia !== ib) return ib - ia;
+      if (a.day !== b.day) return b.day - a.day;
+      return a.eventId.localeCompare(b.eventId);
+    });
+    if (facts.byCount + facts.byBytes > 0) {
+      const keep = new Set(facts.kept.map((fact) => fact.eventId));
+      for (const eventId of [...this.facts.keys()]) {
+        if (!keep.has(eventId)) this.facts.delete(eventId);
+      }
+      this.emitPruned(day, at, 'facts', facts.byCount, facts.byBytes, this.facts.size);
+    }
+
+    const claims = this.trimRecords([...this.claims.values()], this.config.libraryBudget.claims, (a, b) => {
+      if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+      if (a.createdDay !== b.createdDay) return b.createdDay - a.createdDay;
+      return a.claimId.localeCompare(b.claimId);
+    });
+    if (claims.byCount + claims.byBytes > 0) {
+      const keep = new Set(claims.kept.map((claim) => claim.claimId));
+      for (const claimId of [...this.claims.keys()]) {
+        if (!keep.has(claimId)) this.claims.delete(claimId);
+      }
+      this.emitPruned(day, at, 'claims', claims.byCount, claims.byBytes, this.claims.size);
+    }
+
+    const beliefs = this.trimRecords(this.beliefs, this.config.libraryBudget.beliefs, (a, b) => {
+      if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+      if (a.learnedDay !== b.learnedDay) return b.learnedDay - a.learnedDay;
+      if (a.holderId !== b.holderId) return a.holderId.localeCompare(b.holderId);
+      return a.claimId.localeCompare(b.claimId);
+    });
+    if (beliefs.byCount + beliefs.byBytes > 0) {
+      this.beliefs = beliefs.kept;
+      this.reindexBeliefs();
+      this.emitPruned(day, at, 'beliefs', beliefs.byCount, beliefs.byBytes, this.beliefs.length);
+    }
+
+    const cooldowns = this.trimRecords(this.cooldowns, this.config.libraryBudget.cooldowns, (a, b) => {
+      if (a.atMs !== b.atMs) return b.atMs - a.atMs;
+      if (a.pairKey !== b.pairKey) return a.pairKey.localeCompare(b.pairKey);
+      return (a.claimId ?? '').localeCompare(b.claimId ?? '');
+    });
+    if (cooldowns.byCount + cooldowns.byBytes > 0) {
+      this.cooldowns = cooldowns.kept;
+      this.reindexCooldowns();
+      this.emitPruned(day, at, 'cooldowns', cooldowns.byCount, cooldowns.byBytes, this.cooldowns.length);
+    }
+
+    const tells = this.trimRecords(this.tells, this.config.libraryBudget.tells, (a, b) => {
+      if (a.day !== b.day) return b.day - a.day;
+      if (a.from !== b.from) return a.from.localeCompare(b.from);
+      return a.claimId.localeCompare(b.claimId);
+    });
+    if (tells.byCount + tells.byBytes > 0) {
+      // `tells` 是 readonly 字段：就地换内容，不换数组本身。
+      this.tells.length = 0;
+      this.tells.push(...tells.kept);
+      this.emitPruned(day, at, 'tells', tells.byCount, tells.byBytes, this.tells.length);
+    }
+
+    const written = this.trimRecords(this.written, this.config.libraryBudget.written, (a, b) => {
+      if (a.writtenDay !== b.writtenDay) return b.writtenDay - a.writtenDay;
+      return a.recordId.localeCompare(b.recordId);
+    });
+    if (written.byCount + written.byBytes > 0) {
+      this.written = written.kept;
+      this.emitPruned(day, at, 'written', written.byCount, written.byBytes, this.written.length);
+    }
+
+    const legends = this.trimRecords(this.legends, this.config.libraryBudget.legends, (a, b) => {
+      if (a.reach !== b.reach) return b.reach - a.reach;
+      if (a.formedDay !== b.formedDay) return b.formedDay - a.formedDay;
+      return a.legendId.localeCompare(b.legendId);
+    });
+    if (legends.byCount + legends.byBytes > 0) {
+      this.legends = legends.kept;
+      this.emitPruned(day, at, 'legends', legends.byCount, legends.byBytes, this.legends.length);
+    }
+  }
+
+  /**
+   * 一份记录按「条数 + 字节」裁到预算内。两个上限都先看，超了才排序——
+   * 没超的时候连一次排序都不做，稳态下这是每库一次长度判断。
+   */
+  private trimRecords<T extends object>(
+    items: readonly T[],
+    budget: LayerBudget,
+    rank: (a: T, b: T) => number,
+  ): { kept: T[]; byCount: number; byBytes: number } {
+    if (items.length === 0) return { kept: [], byCount: 0, byBytes: 0 };
+    let total = 0;
+    let overBytes = false;
+    for (const item of items) {
+      total += byteSizeOf(item);
+      if (total > budget.bytes) {
+        overBytes = true;
+        break;
+      }
+    }
+    if (items.length <= budget.count && !overBytes) {
+      return { kept: [...items], byCount: 0, byBytes: 0 };
+    }
+    const ranked = [...items].sort(rank);
+    const kept: T[] = [];
+    let bytes = 0;
+    let countHit = false;
+    for (const item of ranked) {
+      if (kept.length >= budget.count) {
+        countHit = true;
+        break;
+      }
+      const size = byteSizeOf(item);
+      if (bytes + size > budget.bytes) break;
+      bytes += size;
+      kept.push(item);
+    }
+    const evicted = items.length - kept.length;
+    return {
+      kept,
+      byCount: countHit ? evicted : 0,
+      byBytes: countHit ? 0 : evicted,
+    };
+  }
+
+  /**
+   * 「淘汰过什么」的可查痕迹。**每层每天至多一条**，带条数、字节、原因与剩余量。
+   *
+   * 为什么不只留一个计数：计数说「丢了 40 条」，但答不出「因为条数还是因为
+   * 字节」「丢完之后那一层还剩多少」。这两个数决定下一步该调哪个旋钮——
+   * 条数超了调 `count`，字节超了看条目为什么变大。
+   */
+  private emitPruned(
+    day: number,
+    at: number,
+    layer: string,
+    byCount: number,
+    byBytes: number,
+    remaining: number,
+  ): void {
+    this.emit('memory.pruned', at, {
+      day,
+      layer,
+      evicted: byCount + byBytes,
+      byCount,
+      byBytes,
+      reason: byCount > 0 ? 'count' : 'bytes',
+      remaining,
+    });
   }
 
   // ---------------------------------------------------------------- 删除

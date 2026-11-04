@@ -54,7 +54,9 @@ function dayLine(summary: SoakSummary, day: number): string {
 async function runOne(seed: string, args: Args): Promise<SoakSummary> {
   const dir = join(args.out, seed);
   mkdirSync(dir, { recursive: true });
-  const ledgerPath = join(dir, 'creator-ledger.jsonl');
+  // 账本按天数分文件：30 日与 90 日的证据并排放在同一个目录里，谁覆盖谁
+  // 都说不清。`--days=90` 写 `creator-ledger-90d.jsonl`，30 日那份原样不动。
+  const ledgerPath = join(dir, `creator-ledger-${args.days}d.jsonl`);
   // 每次全新一轮：账本从空开始，避免上一轮的追加混进这一轮的读数。
   writeFileSync(ledgerPath, '', 'utf8');
   const run = new SoakRun({ seed, totalDays: args.days, ledgerPath });
@@ -91,8 +93,8 @@ if (args.repeat && args.seed === null) {
   console.log(`[确定性] world ${same(first.fingerprints.world, again.fingerprints.world)} · memory ${same(first.fingerprints.memory, again.fingerprints.memory)} · creator ${same(first.fingerprints.creator, again.fingerprints.creator)} · events ${same(first.fingerprints.events, again.fingerprints.events)}`);
   const raw = (path: string): string =>
     createHash('sha256').update(readFileSync(path, 'utf8')).digest('hex');
-  const rawFirst = raw(join(args.out, first.seed, 'creator-ledger.jsonl'));
-  const rawAgain = raw(join(repeatDir, first.seed, 'creator-ledger.jsonl'));
+  const rawFirst = raw(join(args.out, first.seed, `creator-ledger-${args.days}d.jsonl`));
+  const rawAgain = raw(join(repeatDir, first.seed, `creator-ledger-${args.days}d.jsonl`));
   console.log(
     `[确定性] 账本原始字节 ${same(rawFirst, rawAgain)}（recordId 由 randomUUID 生成，属防撞键，不是行为）`,
   );

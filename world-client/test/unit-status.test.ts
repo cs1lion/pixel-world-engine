@@ -152,6 +152,44 @@ test('今日时间线展开条目写出「所以今天避开他」，并把拍�
   assert.match(content.today[0]!.place, /街上/);
 });
 
+test('时刻站不住的那一格写「时刻不明」，不拿日号当 00:00', () => {
+  const sim = makeSim();
+  const snapshot = sim.snapshot();
+  const villager = snapshot.villagers[0]!;
+  const day = Math.floor(snapshot.now / 86_400_000);
+  const memory: UnitMemoryReader = {
+    viewOf: () => null,
+    dayTimelineOf: (holderId) => (holderId !== villager.id ? [] : [
+      {
+        memoryId: 'm_known',
+        eventId: 'ev-known',
+        kind: 'street_tumble',
+        day,
+        when: day * 86_400_000 + 10 * 3_600_000,
+        placeId: null,
+        actors: [],
+        what: null,
+      },
+      {
+        memoryId: 'm_unknown',
+        eventId: 'ev-evicted',
+        kind: 'summary',
+        day,
+        when: day,
+        placeId: null,
+        actors: [],
+        what: null,
+        // 事实被预算裁掉（或这一格是摘要，`when` 是日号）：时刻不可知。
+        whenKnown: false,
+      },
+    ]),
+  };
+  const content = buildUnitStatus(worldOf(sim), { kind: 'villager', id: villager.id }, memory);
+  assert.ok(content !== null);
+  assert.equal(content.today?.[0]?.clock, '10:00', '事实还在的格子照常给时刻');
+  assert.equal(content.today?.[1]?.clock, '时刻不明', '事实没了就不能编一个 00:00 出来');
+});
+
 test('长按约 500ms 才触发；移出单位立刻取消', () => {
   assert.equal(LONG_PRESS_MS, 500);
   assert.equal(longPressShouldFire(499, true), false);

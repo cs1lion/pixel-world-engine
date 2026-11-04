@@ -82,6 +82,12 @@ export interface UnitDayTimelineEntry {
   readonly placeId: string | null;
   readonly actors: readonly string[];
   readonly what: string | null;
+  /**
+   * 这一格的时刻还站不站得住。省略按 true 处理（老适配器没有这个字段）。
+   * 事实被预算裁掉、或这一格是摘要（`when` 是「第几天」不是时刻）时为 false，
+   * 面板写「时刻不明」。
+   */
+  readonly whenKnown?: boolean;
   /** 记忆真的改了这一天的行为时，那句因果；没有就省略。 */
   readonly why?: string | null;
 }
@@ -276,7 +282,7 @@ function timelineLines(
       .filter((id) => id !== villager.id)
       .map((id) => names.get(id) ?? id);
     return {
-      clock: clockOf(entry.when),
+      clock: entry.whenKnown === false ? '时刻不明' : clockOf(entry.when),
       what: entry.what ?? `${entry.kind}（没有留下说法）`,
       place: placeLabel(entry.placeId, world),
       who: others.length === 0 ? '独自' : `与 ${others.join('、')}`,

@@ -144,7 +144,32 @@ export interface MemoryReading {
   readonly promoted: number;
   readonly trimmedTimelineEntries: number;
   readonly unknownPlaceEntries: number;
+  /** 面板会写「时刻不明」的格子数（事实被裁或摘要日号）。 */
+  readonly unknownWhenEntries: number;
   readonly dayIndexWhenEntries: number;
+  /** 预算淘汰总条数（`memory.pruned` 累计）。 */
+  readonly pruned: number;
+  /** 每一层被淘汰的条数与原因。 */
+  readonly prunedByLayer: Readonly<Record<string, PrunedLayer>>;
+  /** 日层显著度的**总体**分布（跨全部持有者、全部日期合并）。 */
+  readonly salience: {
+    readonly count: number;
+    readonly p50: number;
+    readonly p90: number;
+    readonly p99: number;
+    readonly max: number;
+    /** 取到三位小数的频次表。分位数看不出「分布有几个峰」，频次表看得出。 */
+    readonly byValue: Readonly<Record<string, number>>;
+    /** 几个候选门槛各自的越线次数。调 `T_promote` 时直接看这一行。 */
+    readonly above: Readonly<Record<string, number>>;
+  };
+}
+
+/** 某一层累计淘汰了多少、因为哪道约束。 */
+export interface PrunedLayer {
+  readonly evicted: number;
+  readonly byCount: number;
+  readonly byBytes: number;
 }
 
 export interface PerformanceReading {
@@ -252,6 +277,31 @@ function mean(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+/**
+ * 跨日合并后的显著度分布。**必须拿原值合，不能拿分位数合**——
+ * 把 30 个 `p90` 平均起来不是 30 天的 `p90`，它会被样本少的那几天拖走。
+ */
+function pooledCensus(values: readonly number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const byValue: Record<string, number> = {};
+  for (const value of sorted) {
+    const key = value.toFixed(3);
+    byValue[key] = (byValue[key] ?? 0) + 1;
+  }
+  const thresholds = [0.45, 0.48, 0.495, 0.5, 0.55, 0.6];
+  const above: Record<string, number> = {};
+  for (const t of thresholds) above[String(t)] = sorted.filter((value) => value >= t).length;
+  return {
+    count: sorted.length,
+    p50: percentile(sorted, 50),
+    p90: percentile(sorted, 90),
+    p99: percentile(sorted, 99),
+    max: sorted.length === 0 ? 0 : sorted[sorted.length - 1]!,
+    byValue,
+    above,
+  };
+}
+
 /** 设定集与地图。只读一次（测试之间共享）。 */
 let cachedPack: SettingPack | undefined;
 export function soakPack(): SettingPack {
@@ -300,6 +350,10 @@ export class SoakRun {
     dropped: 0,
     promoted: 0,
     events: 0,
+    pruned: 0,
+    prunedByLayer: {} as Record<string, { evicted: number; byCount: number; byBytes: number }>,
+    /** 全部持有者、全部日期的日层显著度，按时间顺序累积。 */
+    salienceValues: [] as number[],
   };
   private lastLedgerPrefix = '';
   private demolitions = 0;
@@ -339,14 +393,44 @@ export class SoakRun {
           this.memoryEventCounts.archived += 1;
           return;
         }
+        if (event.kind === 'memory.pruned') {
+          const payload = event.payload as {
+            layer?: string;
+            evicted?: number;
+            byCount?: number;
+            byBytes?: number;
+          };
+          const layer = payload.layer ?? 'unknown';
+          const bucket = (this.memoryEventCounts.prunedByLayer[layer] ??= {
+            evicted: 0,
+            byCount: 0,
+            byBytes: 0,
+          });
+          const evicted = payload.evicted ?? 0;
+          bucket.evicted += evicted;
+          bucket.byCount += payload.byCount ?? 0;
+          bucket.byBytes += payload.byBytes ?? 0;
+          this.memoryEventCounts.pruned += evicted;
+          return;
+        }
         if (event.kind !== 'memory.consolidated') return;
         this.memoryEventCounts.consolidated += 1;
         const stats = event.payload.stats as
-          | { archived?: number; dropped?: number; promoted?: number }
+          | {
+              archived?: number;
+              dropped?: number;
+              promoted?: number;
+              droppedByCount?: number;
+              droppedByBytes?: number;
+              salience?: { values?: readonly number[] };
+            }
           | undefined;
         this.memoryEventCounts.archived += stats?.archived ?? 0;
         this.memoryEventCounts.dropped += stats?.dropped ?? 0;
         this.memoryEventCounts.promoted += stats?.promoted ?? 0;
+        for (const value of stats?.salience?.values ?? []) {
+          this.memoryEventCounts.salienceValues.push(value);
+        }
       },
     });
 
@@ -822,6 +906,7 @@ export class SoakRun {
     let impressions = 0;
     let trimmedTimelineEntries = 0;
     let unknownPlaceEntries = 0;
+    let unknownWhenEntries = 0;
     let dayIndexWhenEntries = 0;
     for (const holderId of holders) {
       const timeline = this.memory.timelineFor(holderId);
@@ -839,6 +924,9 @@ export class SoakRun {
       for (const entry of dayTimeline) {
         if (entry.placeId === null && entry.what === null) trimmedTimelineEntries += 1;
         if (entry.placeId === null) unknownPlaceEntries += 1;
+        // 时刻站不住：事实被预算裁掉，或这一格是摘要（`when` 是日号）。
+        // 面板这两类都写「时刻不明」，不再把 00:00 当成真时刻。
+        if (!entry.whenKnown) unknownWhenEntries += 1;
       }
     }
     let bonds = 0;
@@ -856,7 +944,11 @@ export class SoakRun {
       promoted: this.memoryEventCounts.promoted,
       trimmedTimelineEntries,
       unknownPlaceEntries,
+      unknownWhenEntries,
       dayIndexWhenEntries,
+      pruned: this.memoryEventCounts.pruned,
+      prunedByLayer: { ...this.memoryEventCounts.prunedByLayer },
+      salience: pooledCensus(this.memoryEventCounts.salienceValues),
     };
   }
 

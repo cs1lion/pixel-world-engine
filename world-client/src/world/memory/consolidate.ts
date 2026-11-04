@@ -18,6 +18,29 @@ import { decayStrength } from './salience.ts';
 import { seedOf } from './seed.ts';
 import type { MemoryEntry, MemoryContent, WorldFact } from './types.ts';
 
+/**
+ * 当日片段的显著度分布。**调 `T_promote` 之前必须先看它。**
+ *
+ * 只给分位数不给均值：均值会把「一天二十条 0.2 的闲话 + 一条 0.5 的大事」
+ * 算成 0.21，读的人会以为「最高就 0.21」；而晋升判的是**每一条**过不过线，
+ * 决定它的是右尾。`max` 是「这一档门槛到底有没有被跨过」的唯一证据。
+ */
+export interface SalienceCensus {
+  readonly count: number;
+  readonly p50: number;
+  readonly p90: number;
+  readonly p99: number;
+  readonly max: number;
+  /**
+   * 这一天的原始显著度，按升序。
+   *
+   * 留着原值不是给运行时看的，是给**调参**看的：连续几天的分位数没法合并
+   * （`p90` 的平均不是总体的 `p90`），而原值可以——30 天要看的正是总体分布，
+   * 不是 30 个 `p90` 的均值。一天几十个浮点，代价可以忽略。
+   */
+  readonly values: readonly number[];
+}
+
 /** 一次整理的结果。`stats` 原样进 `MemoryConsolidated` 事件。 */
 export interface ConsolidationResult {
   readonly entries: readonly MemoryEntry[];
@@ -27,6 +50,10 @@ export interface ConsolidationResult {
     readonly promoted: number;
     readonly archived: number;
     readonly dropped: number;
+    /** 被哪一道约束裁掉的：条数 / 字节。两条都超时按条数记。 */
+    readonly droppedByCount: number;
+    readonly droppedByBytes: number;
+    readonly salience: SalienceCensus;
   };
 }
 
@@ -126,10 +153,10 @@ export function consolidateHolder(
 
   const candidates = [...archived, ...kept, ...(summary === null ? [] : [summary])];
   const withWeekly = mergeWeekly(candidates, holderId, day, config);
-  const merged = trimBudget(withWeekly, config);
+  const trimmed = trimEntriesToBudget(withWeekly, config);
 
   return {
-    entries: [...others, ...merged],
+    entries: [...others, ...trimmed.kept],
     stats: {
       collected: todays.length,
       summarized: promoted.length,
@@ -137,7 +164,10 @@ export function consolidateHolder(
       archived: archivedCount,
       // 被预算挤掉几条。「丢了多少」本身是一个信号：它天天很大，说明某一层
       // 的预算该调了；它恒为 0，说明预算给宽了，而宽出来的部分只是内存。
-      dropped: candidates.length - merged.length,
+      dropped: trimmed.byCount + trimmed.byBytes,
+      droppedByCount: trimmed.byCount,
+      droppedByBytes: trimmed.byBytes,
+      salience: censusOf(todays.map((entry) => entry.salience)),
     },
   };
 }
@@ -302,31 +332,54 @@ function average(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+/** 一次预算裁剪的结果。`byCount` / `byBytes` 分开记，是为了能回答「为什么丢」。 */
+export interface TrimResult {
+  readonly kept: MemoryEntry[];
+  /** 被条数上限裁掉的条数。 */
+  readonly byCount: number;
+  /** 被字节上限裁掉的条数（条数没超、字节超了）。 */
+  readonly byBytes: number;
+}
+
 /**
- * 预算裁剪：每层超限时淘汰强度最低且未被固定的条目。
+ * 预算裁剪：每层超限时按「固定 / 强度 / 显著度 / 新旧」淘汰。
+ *
+ * **两道约束同时生效**：条数超了按条数裁，字节超了按字节裁；两者都超时
+ * 按条数记，因为那一道先命中。为什么字节也要管——一个 `legend` 条目平均
+ * 636 B，一个 `day` 片段平均 640 B，而条数预算是按「格」给的：同样 16 格，
+ * 装满碑文和装满闲话差一个数量级。只数格子的预算拦不住字节。
+ *
+ * 排序是 `固定/闪光灯 → 强度 → 显著度 → 新 → id`：
+ * - **固定与闪光灯先保**，这是「永久」那句话的兑现处；
+ * - 强度与显著度合起来就是「这件事对这个人的分量」；
+ * - 新旧放在显著度之后而不是之前：一条旧而重的事该留下，一条新闲话不该
+ *   因为它新就挤掉它。只有同分时才让新的先留。
  *
  * **摘要在这里没有豁免**，别被旧说法误导。`makeSummary` 与 `mergeWeekly` 都给
  * 摘要 `tier: 'long'`，而桶键是 `kind === 'impression' ? 'impression' : tier`，
  * 所以它们进 `long` 桶（64 格），和别的一条规矩都没有。
- *
- * 实测 520 天、每天一件拉满显著性的大事：`long` 桶第 499 天到 63 条，随后
- * 掉回头，始终没碰 64。**归档比淘汰先到**——long 层日衰减 4.5%，42 天就掉到
- * `T_forget` 以下，而一周才添一条周摘要。所以「摘要淘汰不掉」这句话今天是
- * 真的，但真的原因是归档，不是豁免。哪天摘要的产出速率上去了，这里就会开
- * 始裁，而那一天从记忆里消失的就是它。
  */
-function trimBudget(entries: readonly MemoryEntry[], config: MemoryConfig): MemoryEntry[] {
+export function trimEntriesToBudget(
+  entries: readonly MemoryEntry[],
+  config: MemoryConfig,
+): TrimResult {
   const kept: MemoryEntry[] = [];
   const byTier = new Map<string, MemoryEntry[]>();
   for (const entry of entries) {
     const key = entry.kind === 'impression' ? 'impression' : entry.tier;
-    const bucket = byTier.get(key) ?? [];
+    // 桶键带上持有者：条数预算是「每人每层」，全库一起裁时不能把五个人的
+    // 日历合成一个桶。
+    const bucketKey = `${entry.holderId}\u0000${key}`;
+    const bucket = byTier.get(bucketKey) ?? [];
     bucket.push(entry);
-    byTier.set(key, bucket);
+    byTier.set(bucketKey, bucket);
   }
-  for (const [key, bucket] of byTier) {
-    const limit = limitFor(key, config);
-    if (bucket.length <= limit) {
+  let byCount = 0;
+  let byBytes = 0;
+  for (const [bucketKey, bucket] of byTier) {
+    const tierKey = bucketKey.slice(bucketKey.indexOf('\u0000') + 1);
+    const limit = limitFor(tierKey, config);
+    if (bucket.length <= limit.count && byteTotal(bucket) <= limit.bytes) {
       kept.push(...bucket);
       continue;
     }
@@ -336,17 +389,90 @@ function trimBudget(entries: readonly MemoryEntry[], config: MemoryConfig): Memo
       const pinB = b.pinned || b.flashbulb ? 1 : 0;
       if (pinA !== pinB) return pinB - pinA;
       if (a.strength !== b.strength) return b.strength - a.strength;
+      if (a.salience !== b.salience) return b.salience - a.salience;
+      if (a.createdDay !== b.createdDay) return b.createdDay - a.createdDay;
       return a.memoryId < b.memoryId ? -1 : 1;
     });
-    kept.push(...ranked.slice(0, limit));
+    let bytes = 0;
+    let accepted = 0;
+    let countHit = false;
+    for (const entry of ranked) {
+      if (accepted >= limit.count) {
+        countHit = true;
+        break;
+      }
+      const size = byteSizeOf(entry);
+      if (bytes + size > limit.bytes) {
+        // 字节满了。后面的条目再小也不收：排序是按重要度，跳过一条去收
+        // 一条更不重要的等于把顺序反过来。
+        break;
+      }
+      bytes += size;
+      accepted += 1;
+      kept.push(entry);
+    }
+    const evicted = bucket.length - accepted;
+    if (evicted > 0) {
+      if (countHit) byCount += evicted;
+      else byBytes += evicted;
+    }
   }
-  return kept;
+  return { kept, byCount, byBytes };
 }
 
-function limitFor(key: string, config: MemoryConfig): number {
-  if (key === 'day') return config.budget.day;
-  if (key === 'long') return config.budget.long;
-  if (key === 'legend') return Number.POSITIVE_INFINITY;
-  if (key === 'impression') return config.budget.impression;
-  return Number.POSITIVE_INFINITY;
+function limitFor(key: string, config: MemoryConfig): { count: number; bytes: number } {
+  if (key === 'day') return { count: config.budget.day, bytes: config.budget.bytes.day };
+  if (key === 'long') return { count: config.budget.long, bytes: config.budget.bytes.long };
+  if (key === 'legend') return { count: config.budget.legend, bytes: config.budget.bytes.legend };
+  if (key === 'impression') {
+    return { count: config.budget.impression, bytes: config.budget.bytes.impression };
+  }
+  return { count: Number.POSITIVE_INFINITY, bytes: Number.POSITIVE_INFINITY };
+}
+
+/**
+ * 一个对象的存档字节数（UTF-8，`JSON.stringify` 口径）。
+ *
+ * 用 `TextEncoder` 而不是 `Buffer`：这一层跑在浏览器里。**结果按对象缓存**——
+ * 条目与事实是不可变的，重建才换对象；稳态下每天只有当天新增的几十条要算，
+ * 而不是把全库重新序列化一遍。没有这层缓存，字节预算会让 `dayClosed` 从
+ * 30 ms 涨到上百毫秒。
+ */
+const sizeCache = new WeakMap<object, number>();
+const encoder = new TextEncoder();
+
+export function byteSizeOf(value: object): number {
+  const cached = sizeCache.get(value);
+  if (cached !== undefined) return cached;
+  const size = encoder.encode(JSON.stringify(value)).length;
+  sizeCache.set(value, size);
+  return size;
+}
+
+function byteTotal(entries: readonly MemoryEntry[]): number {
+  let total = 0;
+  for (const entry of entries) total += byteSizeOf(entry);
+  return total;
+}
+
+/**
+ * 当日片段显著度的分位数。空集给全 0——不是「0 分」，是「今天没有片段」，
+ * 读的人看 `count` 就知道该不该信这几个数。
+ *
+ * 分位数用最近秩（nearest-rank），不打插值：样本是几十条，插值会给出一个
+ * 不存在的「第 0.3 条」。`p99` 在少于 100 条时就是 `max`，这是对的。
+ */
+export function censusOf(values: readonly number[]): SalienceCensus {
+  if (values.length === 0) return { count: 0, p50: 0, p90: 0, p99: 0, max: 0, values: [] };
+  const sorted = [...values].sort((a, b) => a - b);
+  const pick = (p: number): number =>
+    sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))]!;
+  return {
+    count: sorted.length,
+    p50: pick(50),
+    p90: pick(90),
+    p99: pick(99),
+    max: sorted[sorted.length - 1]!,
+    values: sorted,
+  };
 }
