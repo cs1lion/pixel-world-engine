@@ -1,0 +1,1443 @@
+{
+  "params": {
+    "cameraStall": {
+      "x": 400,
+      "y": 470
+    },
+    "cameraVillager": {
+      "x": 400,
+      "y": 470
+    },
+    "villagerCell": {
+      "x": 23,
+      "y": 31
+    },
+    "roiStall": {
+      "x0": 225,
+      "y0": 390,
+      "x1": 575,
+      "y1": 555
+    },
+    "roiVillager": "脚底 ±48 / 上 70 / 下 16（跟着被钉的人走）",
+    "viewport": {
+      "width": 1010,
+      "height": 700
+    },
+    "tide": 1,
+    "weather": "clear",
+    "phase": [
+      "noon",
+      "dusk",
+      "night"
+    ],
+    "now": 65400000,
+    "depth": 3.1
+  },
+  "phases": [
+    {
+      "phase": "noon",
+      "stall": {
+        "on": {
+          "on": true,
+          "phase": "noon",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            }
+          ],
+          "stalls": [
+            {
+              "order": 0,
+              "x": 272,
+              "y": 416,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 1,
+              "x": 384,
+              "y": 528,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 2,
+              "x": 544,
+              "y": 416,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 3,
+              "x": 240,
+              "y": 512,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 4,
+              "x": 528,
+              "y": 512,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 5,
+              "x": 752,
+              "y": 496,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            }
+          ]
+        },
+        "off": {
+          "on": false,
+          "phase": "noon",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": []
+        },
+        "diff": {
+          "roi": {
+            "x0": 130,
+            "y0": 160,
+            "x1": 830,
+            "y1": 490,
+            "pixels": 231000
+          },
+          "changed": 1040,
+          "ratio": 0.004502164502164502,
+          "maxDelta": 32,
+          "bbox": {
+            "x0": 166,
+            "y0": 244,
+            "x1": 815,
+            "y1": 473
+          }
+        },
+        "stats": {
+          "on": {
+            "graphicsObjects": 61,
+            "totalCommands": 12778,
+            "largest": [
+              1513,
+              1400,
+              1338,
+              1304,
+              1290
+            ]
+          },
+          "off": {
+            "graphicsObjects": 61,
+            "totalCommands": 12540,
+            "largest": [
+              1513,
+              1400,
+              1338,
+              1304,
+              1290
+            ]
+          }
+        }
+      },
+      "villager": {
+        "on": {
+          "on": true,
+          "phase": "noon",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 376,
+              "y": 512,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            }
+          ],
+          "stalls": [
+            {
+              "order": 0,
+              "x": 272,
+              "y": 416,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 1,
+              "x": 384,
+              "y": 528,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 2,
+              "x": 544,
+              "y": 416,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 3,
+              "x": 240,
+              "y": 512,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 4,
+              "x": 528,
+              "y": 512,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            },
+            {
+              "order": 5,
+              "x": 752,
+              "y": 496,
+              "dx": 1,
+              "span": 1,
+              "alpha": 0.14
+            }
+          ]
+        },
+        "off": {
+          "on": false,
+          "phase": "noon",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 376,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": []
+        },
+        "diff": {
+          "roi": {
+            "x0": 336,
+            "y0": 264,
+            "x1": 528,
+            "y1": 436,
+            "pixels": 33024
+          },
+          "changed": 8,
+          "ratio": 0.00024224806201550387,
+          "maxDelta": 3,
+          "bbox": {
+            "x0": 438,
+            "y0": 410,
+            "x1": 439,
+            "y1": 413
+          }
+        },
+        "stats": {
+          "on": {
+            "graphicsObjects": 61,
+            "totalCommands": 12778,
+            "largest": [
+              1513,
+              1400,
+              1338,
+              1304,
+              1290
+            ]
+          },
+          "off": {
+            "graphicsObjects": 61,
+            "totalCommands": 12540,
+            "largest": [
+              1513,
+              1400,
+              1338,
+              1304,
+              1290
+            ]
+          }
+        }
+      },
+      "footCrop": null
+    },
+    {
+      "phase": "dusk",
+      "stall": {
+        "on": {
+          "on": true,
+          "phase": "dusk",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            }
+          ],
+          "stalls": [
+            {
+              "order": 0,
+              "x": 272,
+              "y": 416,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 1,
+              "x": 384,
+              "y": 528,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 2,
+              "x": 544,
+              "y": 416,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 3,
+              "x": 240,
+              "y": 512,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 4,
+              "x": 528,
+              "y": 512,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 5,
+              "x": 752,
+              "y": 496,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            }
+          ]
+        },
+        "off": {
+          "on": false,
+          "phase": "dusk",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": []
+        },
+        "diff": {
+          "roi": {
+            "x0": 130,
+            "y0": 160,
+            "x1": 830,
+            "y1": 490,
+            "pixels": 231000
+          },
+          "changed": 1260,
+          "ratio": 0.005454545454545455,
+          "maxDelta": 49,
+          "bbox": {
+            "x0": 138,
+            "y0": 244,
+            "x1": 799,
+            "y1": 473
+          }
+        },
+        "stats": {
+          "on": {
+            "graphicsObjects": 61,
+            "totalCommands": 17282,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          },
+          "off": {
+            "graphicsObjects": 61,
+            "totalCommands": 17044,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          }
+        }
+      },
+      "villager": {
+        "on": {
+          "on": true,
+          "phase": "dusk",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 376,
+              "y": 512,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            }
+          ],
+          "stalls": [
+            {
+              "order": 0,
+              "x": 272,
+              "y": 416,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 1,
+              "x": 384,
+              "y": 528,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 2,
+              "x": 544,
+              "y": 416,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 3,
+              "x": 240,
+              "y": 512,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 4,
+              "x": 528,
+              "y": 512,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            },
+            {
+              "order": 5,
+              "x": 752,
+              "y": 496,
+              "dx": -6,
+              "span": 7,
+              "alpha": 0.26
+            }
+          ]
+        },
+        "off": {
+          "on": false,
+          "phase": "dusk",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 376,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": []
+        },
+        "diff": {
+          "roi": {
+            "x0": 336,
+            "y0": 264,
+            "x1": 528,
+            "y1": 436,
+            "pixels": 33024
+          },
+          "changed": 56,
+          "ratio": 0.001695736434108527,
+          "maxDelta": 12,
+          "bbox": {
+            "x0": 412,
+            "y0": 410,
+            "x1": 425,
+            "y1": 413
+          }
+        },
+        "stats": {
+          "on": {
+            "graphicsObjects": 61,
+            "totalCommands": 17282,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          },
+          "off": {
+            "graphicsObjects": 61,
+            "totalCommands": 17044,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          }
+        }
+      },
+      "footCrop": {
+        "roi": {
+          "x0": 354,
+          "y0": 486,
+          "x1": 398,
+          "y1": 518
+        },
+        "on3x": "fac20d4b083ed023061fff1e0ee39f133e64cca75768e541d196f78644b704f2",
+        "off3x": "2eeb96fb21035836bef68e7209b4e52b109889223ada88325711d7bc10474300"
+      }
+    },
+    {
+      "phase": "night",
+      "stall": {
+        "on": {
+          "on": true,
+          "phase": "night",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": [
+            {
+              "order": 0,
+              "x": 272,
+              "y": 416,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 1,
+              "x": 384,
+              "y": 528,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 2,
+              "x": 544,
+              "y": 416,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 3,
+              "x": 240,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 4,
+              "x": 528,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 5,
+              "x": 752,
+              "y": 496,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ]
+        },
+        "off": {
+          "on": false,
+          "phase": "night",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": []
+        },
+        "diff": {
+          "roi": {
+            "x0": 130,
+            "y0": 160,
+            "x1": 830,
+            "y1": 490,
+            "pixels": 231000
+          },
+          "changed": 0,
+          "ratio": 0,
+          "maxDelta": 0,
+          "bbox": null
+        },
+        "stats": {
+          "on": {
+            "graphicsObjects": 61,
+            "totalCommands": 16932,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          },
+          "off": {
+            "graphicsObjects": 61,
+            "totalCommands": 16932,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          }
+        }
+      },
+      "villager": {
+        "on": {
+          "on": true,
+          "phase": "night",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 376,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": [
+            {
+              "order": 0,
+              "x": 272,
+              "y": 416,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 1,
+              "x": 384,
+              "y": 528,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 2,
+              "x": 544,
+              "y": 416,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 3,
+              "x": 240,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 4,
+              "x": 528,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "order": 5,
+              "x": 752,
+              "y": 496,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ]
+        },
+        "off": {
+          "on": false,
+          "phase": "night",
+          "villagers": [
+            {
+              "id": "v0",
+              "x": 376,
+              "y": 512,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v1",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v2",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v3",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v4",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v5",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            },
+            {
+              "id": "v6",
+              "x": 40,
+              "y": 48,
+              "dx": 0,
+              "span": 0,
+              "alpha": 0
+            }
+          ],
+          "stalls": []
+        },
+        "diff": {
+          "roi": {
+            "x0": 336,
+            "y0": 264,
+            "x1": 528,
+            "y1": 436,
+            "pixels": 33024
+          },
+          "changed": 0,
+          "ratio": 0,
+          "maxDelta": 0,
+          "bbox": null
+        },
+        "stats": {
+          "on": {
+            "graphicsObjects": 61,
+            "totalCommands": 16932,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          },
+          "off": {
+            "graphicsObjects": 61,
+            "totalCommands": 16932,
+            "largest": [
+              2552,
+              1513,
+              1400,
+              1338,
+              1304
+            ]
+          }
+        }
+      },
+      "footCrop": null
+    }
+  ],
+  "closed": {
+    "sameTime": {
+      "roi": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 960,
+        "y1": 631,
+        "pixels": 605760
+      },
+      "changed": 0,
+      "ratio": 0,
+      "maxDelta": 0,
+      "bbox": null
+    },
+    "step": {
+      "roi": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 960,
+        "y1": 631,
+        "pixels": 605760
+      },
+      "changed": 0,
+      "ratio": 0,
+      "maxDelta": 0,
+      "bbox": null
+    }
+  },
+  "pause": {
+    "diff": {
+      "roi": {
+        "x0": 130,
+        "y0": 160,
+        "x1": 830,
+        "y1": 490,
+        "pixels": 231000
+      },
+      "changed": 0,
+      "ratio": 0,
+      "maxDelta": 0,
+      "bbox": null
+    },
+    "framesAdvanced": 68,
+    "nowA": 65400100,
+    "nowB": 65400100
+  },
+  "determinism": 13,
+  "determinismProbe": {
+    "pass1": [
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee"
+    ],
+    "pass2": [
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee",
+      "a92958f26f0b1295226799d2ee98450ad6311deb52685d0360332155b2cbbeee"
+    ]
+  },
+  "peakCommands": 17282
+}

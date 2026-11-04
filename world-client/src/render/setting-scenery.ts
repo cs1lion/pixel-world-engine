@@ -58,6 +58,12 @@ import {
   type SmokeMotion,
 } from '../world/smoke-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
+import {
+  GROUND_SHADOW_DEPTH,
+  GROUND_SHADOW_MOTION_ON,
+  groundShadowAt,
+  type GroundShadowMotion,
+} from '../world/ground-shadow.ts';
 import { sceneryDepth } from './scenery-depth.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
 import {
@@ -126,6 +132,18 @@ export interface SettingSceneryView {
     anchorY: number;
     puffs: readonly { dx: number; dy: number; width: number; height: number; alpha: number }[];
   }[];
+  /**
+   * 摊位落地投影的本帧读数：影子的横移、长度、浓淡。
+   * 长度由相位给：正午短、黄昏长、夜里不做。
+   */
+  readonly groundShadowUnits: () => readonly {
+    order: number;
+    x: number;
+    y: number;
+    dx: number;
+    span: number;
+    alpha: number;
+  }[];
 }
 
 /** 灯态时钟：相位与「是不是自动推进」。强制相位（`?time=`）下两者都要用上。 */
@@ -164,6 +182,11 @@ export interface SettingSceneryClock {
    * 低雾按世界时刻横移，会在「烟关掉」的对照里留下像素差；只为证据隔离，不关时不藏。
    */
   readonly hideBayMist?: boolean;
+  /**
+   * 摊位落地投影的开关（`debugGroundShadows` 写这个口子）。缺省全开；
+   * 关掉后这一层不画任何像素，对照帧差必须为 0。
+   */
+  readonly groundShadows?: GroundShadowMotion;
 }
 
 interface LightPoint {
@@ -280,6 +303,8 @@ export function createSettingScenery(
   const bridge = scene.add.graphics().setDepth(4);
   // 街面光池：压在铺装与潮水之上、桥与构件之下，见头部那条分层契约。
   const lampPool = scene.add.graphics().setDepth(3.2);
+  // 人物与摊位的落地投影：比潮水高、比光池低（暖光仍压在影子上），见 `ground-shadow.ts`。
+  const groundShadow = scene.add.graphics().setDepth(GROUND_SHADOW_DEPTH);
   const lampLight = scene.add.graphics().setDepth(700);
   // 地上的杂物：不进遮挡排序，始终压在人物与立着的东西下面。
   const flat = scene.add.graphics().setDepth(1050);
@@ -305,6 +330,7 @@ export function createSettingScenery(
   const lampGroups: LampGroup[] = [];
   const stallUnits: StallUnit[] = [];
   const stallReadout: StallReadout[] = [];
+  const groundShadowReadout: { order: number; x: number; y: number; dx: number; span: number; alpha: number }[] = [];
   const bannerUnits: BannerUnit[] = [];
   const bannerReadout: BannerReadout[] = [];
   const smokeUnits: SmokeUnit[] = [];
@@ -567,6 +593,7 @@ export function createSettingScenery(
     stallUnits: () => stallReadout.map((unit) => ({ ...unit })),
     bannerUnits: () => bannerReadout.map((unit) => ({ ...unit })),
     smokeUnits: () => smokeReadout.map((unit) => ({ ...unit })),
+    groundShadowUnits: () => groundShadowReadout.map((unit) => ({ ...unit })),
     update(level, now, clock) {
       lampLight.clear();
       lampPool.clear();
@@ -578,6 +605,24 @@ export function createSettingScenery(
       // 三支动态的开关：缺省全开；关掉哪一支，那一支就退化成常量。
       const motion = clock.motion ?? LAMP_MOTION_ON;
       const phase = clock.phase;
+      // 摊位落地投影：一层独立 Graphics（depth 3.1），只按相位给形状，不随帧插值。
+      const groundShadows = clock.groundShadows ?? GROUND_SHADOW_MOTION_ON;
+      groundShadow.clear();
+      groundShadowReadout.length = 0;
+      if (groundShadows.on) {
+        const shape = groundShadowAt(phase);
+        for (const unit of stallUnits) {
+          drawStallGroundShadow(groundShadow, unit.x, unit.y, c, shape);
+          groundShadowReadout.push({
+            order: unit.order,
+            x: unit.x,
+            y: unit.y,
+            dx: shape.dx,
+            span: shape.span,
+            alpha: shape.alpha,
+          });
+        }
+      }
       const total = lampUnits.length;
       // 亮度只按世界时刻算一遍：**同一世界时刻必然同一帧**。
       // 强制灯态（证据脚本）也走同一套渐次/呼吸，只是绕过相位总闸——
@@ -1014,6 +1059,24 @@ function drawBannerShadowAt(
     g.fillStyle(c.ink, alpha * (1 - i / (rows * 2)));
     g.fillRect(x + 8 + shift, y - 14 - (rows - i) * 2, 11, 2);
   }
+}
+
+function drawStallGroundShadow(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  c: SettingPack['palette'],
+  shape: { readonly dx: number; readonly span: number; readonly alpha: number },
+): void {
+  if (shape.span <= 0 || shape.alpha <= 0) return;
+  // 柜台底是 y+16：影子从那一行往下铺两行，朝一侧随相位拉长（正午短、黄昏长）。
+  const dir = shape.dx >= 0 ? 1 : -1;
+  const start = x + 2 + shape.dx + (dir > 0 ? 0 : -shape.span);
+  g.fillStyle(c.deepShade, shape.alpha);
+  g.fillRect(start, y + 16, 20 + shape.span, 2);
+  g.fillRect(start + (dir > 0 ? 0 : 4), y + 18, 16, 1);
+  g.fillStyle(c.ink, shape.alpha * 0.9);
+  g.fillRect(start, y + 16, 16, 1);
 }
 
 /**

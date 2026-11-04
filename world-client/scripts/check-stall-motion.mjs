@@ -126,6 +126,10 @@ async function openScene(browser, { stalls = null, packed = null, weather = null
     window.Oracle.debugHideAmbience(true);
     // 灯的三支动态全关：量摊位时 ROI 里只允许摊位在动。
     window.Oracle.debugLampMotion({ ignite: false, breathe: false, sway: false });
+    // 幌布与烟也在 ROI 里（第三条加的），量摊位时必须一起关：
+    // 它们随世界时刻摆动/漂移，t 与 t+1s 不是同相，会把「全关」从 0.00% 抬到 0.08%。
+    window.Oracle.debugBannerMotion({ sway: false, shadow: false });
+    window.Oracle.debugSmokeMotion({ drift: false });
     if (stalls !== null) window.Oracle.debugStallMotion(stalls);
     window.Oracle.centerCameraOn(camera.x, camera.y);
   }, [CAMERA, stalls]);

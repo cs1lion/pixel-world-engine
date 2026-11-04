@@ -373,6 +373,15 @@ export interface DebugOracle {
   debugHideAmbience?(hidden: boolean): boolean;
   /** 藏掉湾面低雾（证据隔离用：低雾随世界时刻横移，不是烟）。 */
   debugHideBayMist?(hidden: boolean): boolean;
+  /** 人物 / 摊位落地投影开关（关掉后这一层不画像素，对照帧差为 0）。 */
+  debugGroundShadows?(patch: { on?: boolean }): { on: boolean };
+  /** 本帧落地投影读数：人物按脚底、摊位按柜台底。 */
+  debugGroundShadowUnits?(): {
+    on: boolean;
+    phase: string;
+    villagers: readonly { id: string; x: number; y: number; dx: number; span: number; alpha: number }[];
+    stalls: readonly { order: number; x: number; y: number; dx: number; span: number; alpha: number }[];
+  };
   /**
    * 立面与街灯的实际像素尺寸（店面墙 48 / 灯柱 58 / 灯体下沿 43）。
    * 证据脚本拿它画标尺：尺子读渲染常量，不另抄一份数字。

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T00:54:45.992Z",
+  "generatedAt": "2026-11-04T02:02:25.786Z",
   "ignition": {
     "atOn": {
       "total": 28,
@@ -248,8 +248,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 39680,
-      "ratio": 0.11742424242424243,
+      "changed": 39848,
+      "ratio": 0.11792140151515151,
       "maxDelta": 158,
       "bbox": {
         "x0": 0,
@@ -257,8 +257,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 39680,
-      "fullRatio": 0.06550449022715267
+      "fullChanged": 39848,
+      "fullRatio": 0.06578182778658215
     },
     "all-off": {
       "roi": {
@@ -303,8 +303,8 @@
         "y1": 484,
         "pixels": 337920
       },
-      "changed": 35796,
-      "ratio": 0.10593039772727272,
+      "changed": 35964,
+      "ratio": 0.10642755681818182,
       "maxDelta": 5,
       "bbox": {
         "x0": 0,
@@ -312,8 +312,8 @@
         "x1": 959,
         "y1": 457
       },
-      "fullChanged": 35796,
-      "fullRatio": 0.05909270998415214
+      "fullChanged": 35964,
+      "fullRatio": 0.05937004754358162
     },
     "ignite-only": {
       "roi": {
@@ -433,85 +433,85 @@
   "determinism": [
     {
       "id": "1759",
-      "a": "287d6cff73a83058d918d7f8225c74904dedc2e07050c82753aae35306a1fc1f",
-      "b": "287d6cff73a83058d918d7f8225c74904dedc2e07050c82753aae35306a1fc1f",
+      "a": "49631abfed5a0e98db5a3ffe67e9a4a9a095cb209d88533994754c3ece4e3660",
+      "b": "49631abfed5a0e98db5a3ffe67e9a4a9a095cb209d88533994754c3ece4e3660",
       "same": true
     },
     {
       "id": "1800",
-      "a": "557deb6313e256ae9da8a9e9d79ad19b4c9e01a1aa95e2736e8aedd416fd9c2d",
-      "b": "557deb6313e256ae9da8a9e9d79ad19b4c9e01a1aa95e2736e8aedd416fd9c2d",
+      "a": "8b4eb89cf28bb318a47c1cd24312b2529b5dc16e4600ce77c959c8de44e41aac",
+      "b": "8b4eb89cf28bb318a47c1cd24312b2529b5dc16e4600ce77c959c8de44e41aac",
       "same": true
     },
     {
       "id": "1800-10",
-      "a": "92a1ced5d95ca62db3ec85b9dd0c045de265eb45690f36fb04108dbf938682ee",
-      "b": "92a1ced5d95ca62db3ec85b9dd0c045de265eb45690f36fb04108dbf938682ee",
+      "a": "d60a2425cfc55f386e0f13d0f0653e10981d118998eb4e4e2420ab91b59b69c6",
+      "b": "d60a2425cfc55f386e0f13d0f0653e10981d118998eb4e4e2420ab91b59b69c6",
       "same": true
     },
     {
       "id": "1800-30",
-      "a": "7bf201c5272a49102545281b015c6d664bec200a0e64165b65bdadfb45152be3",
-      "b": "7bf201c5272a49102545281b015c6d664bec200a0e64165b65bdadfb45152be3",
+      "a": "78c40d74d18e9f66b5dd4bf078e8acd86e338d08b9957fd3fbe3309f7715b0c0",
+      "b": "78c40d74d18e9f66b5dd4bf078e8acd86e338d08b9957fd3fbe3309f7715b0c0",
       "same": true
     },
     {
       "id": "1801",
-      "a": "8463e15467a2a583d8a0592d82caff011614464e46d6f6bcc208b51ccf378470",
-      "b": "8463e15467a2a583d8a0592d82caff011614464e46d6f6bcc208b51ccf378470",
+      "a": "b273647b1e765a3262dacf682d0af2795da7b6abd3ae8c70815ee78fab406522",
+      "b": "b273647b1e765a3262dacf682d0af2795da7b6abd3ae8c70815ee78fab406522",
       "same": true
     },
     {
       "id": "1802",
-      "a": "e0fcb08666da31ac6c1cb12b23458b1d0a9e294553fcbfef9380c73497dd2063",
-      "b": "e0fcb08666da31ac6c1cb12b23458b1d0a9e294553fcbfef9380c73497dd2063",
+      "a": "41d9673f6366f95f90caf99ea9304a2ec44835d6efa77af5336481fbce4d07cc",
+      "b": "41d9673f6366f95f90caf99ea9304a2ec44835d6efa77af5336481fbce4d07cc",
       "same": true
     },
     {
       "id": "1803",
-      "a": "c212a30ef46876298b04b328fbc69fd14f9f0b3989fabb94d6f5229c929a97a7",
-      "b": "c212a30ef46876298b04b328fbc69fd14f9f0b3989fabb94d6f5229c929a97a7",
+      "a": "781c9a2febbb531d7cc80274cac9a67e2b2d9596962e276abafca155076ccdbc",
+      "b": "781c9a2febbb531d7cc80274cac9a67e2b2d9596962e276abafca155076ccdbc",
       "same": true
     },
     {
       "id": "1804",
-      "a": "cc0e68e1be0cbe9f701707fbdbab7c73e836dec8e93d03e3327ec869bb5f6b28",
-      "b": "cc0e68e1be0cbe9f701707fbdbab7c73e836dec8e93d03e3327ec869bb5f6b28",
+      "a": "885e5333189b12986a51e6b6e1924099fac5a7610550e21fd69c4eb15dad5ad2",
+      "b": "885e5333189b12986a51e6b6e1924099fac5a7610550e21fd69c4eb15dad5ad2",
       "same": true
     },
     {
       "id": "1805",
-      "a": "e9456d04b1fc38c0f75f805010b6c1338b8eba970fe3d028680bd8e6c030b53e",
-      "b": "e9456d04b1fc38c0f75f805010b6c1338b8eba970fe3d028680bd8e6c030b53e",
+      "a": "b538903957f23901b1bc14553864e9d822b76869adb14029e5f99b8dffb568dc",
+      "b": "b538903957f23901b1bc14553864e9d822b76869adb14029e5f99b8dffb568dc",
       "same": true
     },
     {
       "id": "1806",
-      "a": "65283b389b1760c8fbb5f8f1d1dd06e3322e279fad6f60bdfb5fadaf922b815c",
-      "b": "65283b389b1760c8fbb5f8f1d1dd06e3322e279fad6f60bdfb5fadaf922b815c",
+      "a": "8a35e8f03fe9cafc6e0828f65b6dbedd22f18189cca486dbeb9af60708d78ddc",
+      "b": "8a35e8f03fe9cafc6e0828f65b6dbedd22f18189cca486dbeb9af60708d78ddc",
       "same": true
     },
     {
       "id": "1806-20",
-      "a": "ddab0dde7e7f4370dc966763e9bc28d7731b46c81b59838119fa687956e89421",
-      "b": "ddab0dde7e7f4370dc966763e9bc28d7731b46c81b59838119fa687956e89421",
+      "a": "a1b39ed97fcbbd940e8aab2b934af116ea841fcab887c78d5f3b805c0d6d27d6",
+      "b": "a1b39ed97fcbbd940e8aab2b934af116ea841fcab887c78d5f3b805c0d6d27d6",
       "same": true
     },
     {
       "id": "1810",
-      "a": "339352a59957a514e9e5dc67feda236054f3ded327c48ea87c5e3a76641da9d7",
-      "b": "339352a59957a514e9e5dc67feda236054f3ded327c48ea87c5e3a76641da9d7",
+      "a": "3649a54c42e6ef33b82fe2208a1b039f929161f204a4a609fa5c85a5ac6fff3d",
+      "b": "3649a54c42e6ef33b82fe2208a1b039f929161f204a4a609fa5c85a5ac6fff3d",
       "same": true
     },
     {
       "id": "1811",
-      "a": "ad00feddd0d081328164556ed29086f75ce9d0e6045e69be23d42b2d8ed8abff",
-      "b": "ad00feddd0d081328164556ed29086f75ce9d0e6045e69be23d42b2d8ed8abff",
+      "a": "f4f968d032551726c5b7cfc08a128e73f873b690ca29b17a89d07748adff8b1a",
+      "b": "f4f968d032551726c5b7cfc08a128e73f873b690ca29b17a89d07748adff8b1a",
       "same": true
     }
   ],
   "determinismProbe": null,
-  "peakCommands": 17236,
+  "peakCommands": 17474,
   "camera": {
     "scrollX": 244,
     "scrollY": 306,

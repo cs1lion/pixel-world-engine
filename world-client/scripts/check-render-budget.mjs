@@ -75,10 +75,11 @@ const openSession = async () => {
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 30000 });
   await page.waitForTimeout(1200);
   // 地形烘焙是异步的：冷启动（CI 每次都是干净的 profile）第一帧还在用未烘焙的
-  // 大 Graphics，指令数会短暂停在高位（实测 119074），约一两秒后才落到 16130。
-  // 这个 16130 的机位/相位是：**默认世界、`time=noon`、默认机位（1010×1100 视口）、
-  // 27 个 Graphics**，且只取**计分轮**；预热轮那次 15482 不计分，不是另一个基线，
-  // 文档里认这一个数。
+  // 大 Graphics，指令数会短暂停在高位（实测 119074），约一两秒后才落到预算内。
+  // 这里**不写死某个数**：2026-11-04 在加入落地投影层（第 28 个 Graphics）后，
+  // 计分轮实测 15514 / 28；此前是 15482 / 27。两个轮次（预热/计分）在同一个
+  // 构建上会打印同一个数——真正决定是否计分的是下面的轮次判定，不是数值大小。
+  // 旧注释里的 16130 是更早的 CI 机位读数，本树复跑不出来，不再作为基线。
   // 这不是渲染预算变坏，是**读得太早**。等到它落到预算内再量；等不到就照常红。
   await page
     .waitForFunction(
@@ -298,8 +299,8 @@ const { stats, idle, drag, foreground, background, restored } = measured;
 
 check(
   stats.totalCommands < MAX_COMMANDS,
-  `绘制指令低于 ${MAX_COMMANDS}`,
-  `实际 ${stats.totalCommands}`,
+  `[计分轮] 绘制指令低于 ${MAX_COMMANDS}`,
+  `[计分轮] 实际 ${stats.totalCommands}`,
 );
 check(
   stats.graphicsObjects < 40,

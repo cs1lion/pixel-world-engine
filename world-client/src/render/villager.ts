@@ -91,6 +91,34 @@ export function villagerDepthAt(footY: number, altitude: number): number {
   return altitude + footY + 8;
 }
 
+/**
+ * 静态接触线在 `createVillager` 里占脚底三行（footY..footY+2），且随人物容器
+ * 在 depth ≥1000，永远盖在 3.1 层之上。动态影子必须让到它下面 3 行，
+ * 否则正午/清晨这种短影子会整条被接触线吃掉，看不出相位差。
+ *
+ * 边界：鞋面像素在 `footY` 之上（body 层），动态影子从 `footY+3` 起画，
+ * 所以既压不到鞋，也不会把脚下画脏；「投影关掉」时这一层整层不画，
+ * 画面回到加入本功能前的样子（帧差 0.00%）。
+ */
+export const VILLAGER_SHADOW_ROW_OFFSET = 3;
+
+export function drawVillagerGroundShadow(
+  g: Phaser.GameObjects.Graphics,
+  footX: number,
+  footY: number,
+  shape: { readonly dx: number; readonly span: number; readonly alpha: number },
+  palette: WorldPalette = paletteFor(),
+): void {
+  if (shape.span <= 0 || shape.alpha <= 0) return;
+  const dir = shape.dx >= 0 ? 1 : -1;
+  const x = footX + (dir > 0 ? 3 : -3 - shape.span);
+  const y = footY + VILLAGER_SHADOW_ROW_OFFSET;
+  g.fillStyle(palette.deepShade, shape.alpha);
+  g.fillRect(x, y, shape.span, 2);
+  g.fillStyle(palette.ink, shape.alpha * 0.9);
+  g.fillRect(x, y, shape.span, 1);
+}
+
 /** 每帧把快照画出来；坐标换算只在这里做一次，且结果取整到整数像素。 */
 export function updateVillager(
   view: VillagerView,

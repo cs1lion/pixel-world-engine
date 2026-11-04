@@ -78,6 +78,7 @@ import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
 import {
   createVillager,
+  drawVillagerGroundShadow,
   updateVillager,
   VILLAGER_H,
   VILLAGER_W,
@@ -85,6 +86,12 @@ import {
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
+import {
+  GROUND_SHADOW_DEPTH,
+  GROUND_SHADOW_MOTION_ON,
+  groundShadowAt,
+  type GroundShadowMotion,
+} from '../world/ground-shadow.ts';
 import { pinVillagers } from '../render/villager-pin.ts';
 import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp-motion.ts';
 import { STALL_MOTION_ON, type StallMotion } from '../world/stall-motion.ts';
@@ -355,6 +362,10 @@ export class SandboxScene extends Phaser.Scene {
   private suppressClickUp = false;
   private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
+  /** 人物脚下的日照投影层（depth 3.1，见 `world/ground-shadow.ts`）。 */
+  private groundShadowLayer!: Phaser.GameObjects.Graphics;
+  /** 人物/摊位落地投影开关；`debugGroundShadows` 写这个口子。 */
+  private groundShadowMotion: GroundShadowMotion = GROUND_SHADOW_MOTION_ON;
   /**
    * 调试摆位：id → 固定格。只影响这一帧的画，不写世界。
    * 见 `render/villager-pin.ts` 与 `debugPinVillager`。
@@ -961,6 +972,7 @@ export class SandboxScene extends Phaser.Scene {
 
     if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack, ALTITUDE);
     else this.drawAltar(originX, originY);
+    this.groundShadowLayer = this.add.graphics().setDepth(GROUND_SHADOW_DEPTH);
 
     const simDeps = {
       grid: this.world.grid,
@@ -3995,6 +4007,37 @@ export class SandboxScene extends Phaser.Scene {
         this.hideBayMist = hidden;
         return hidden;
       },
+      /** 人物 / 摊位落地投影开关。关掉后这一层不画像素，对照帧差必须为 0。 */
+      debugGroundShadows: (patch: Partial<GroundShadowMotion>): GroundShadowMotion => {
+        this.groundShadowMotion = { ...this.groundShadowMotion, ...patch };
+        return this.groundShadowMotion;
+      },
+      /** 本帧落地投影读数：人物按脚底、摊位按柜台底；长度/浓淡由相位给。 */
+      debugGroundShadowUnits: () => {
+        const shape = groundShadowAt(this.phaseView.currentPhase());
+        const on = this.groundShadowMotion.on;
+        // 读数必须和画面对齐：renderSnapshot 用的是 `pinVillagers` 后的快照，
+        // 这里若读未钉的 `this.snapshot`，影子画在钉住的位置、读数却是世界位置。
+        const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
+        return {
+          on,
+          phase: this.phaseView.currentPhase(),
+          villagers: snapshot.villagers
+            .filter((villager) => villager.visible)
+            .map((villager) => {
+              const foot = villagerFootAt(villager.pos, 0, 0);
+              return {
+                id: villager.id,
+                x: foot.x,
+                y: foot.y,
+                dx: on ? shape.dx : 0,
+                span: on ? shape.span : 0,
+                alpha: on ? shape.alpha : 0,
+              };
+            }),
+          stalls: this.settingScenery?.groundShadowUnits() ?? [],
+        };
+      },
       /**
        * 证据脚本需要一份确定的雨天：直接下一条 `setWeather`，世界照常走一步。
        * 与玩家说「下雨吧」走的是同一条命令，不另开捷径。
@@ -4266,6 +4309,23 @@ export class SandboxScene extends Phaser.Scene {
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
       updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
     }
+    // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
+    // 只画可见的人；世界暂停时相位不动，影子也不动。
+    this.groundShadowLayer.clear();
+    if (this.groundShadowMotion.on) {
+      const shape = groundShadowAt(this.phaseView.currentPhase());
+      for (const villager of snapshot.villagers) {
+        if (!villager.visible) continue;
+        const foot = villagerFootAt(villager.pos, 0, 0);
+        drawVillagerGroundShadow(
+          this.groundShadowLayer,
+          foot.x,
+          foot.y,
+          shape,
+          this.pack?.palette ?? paletteFor(),
+        );
+      }
+    }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
     this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
@@ -4284,6 +4344,7 @@ export class SandboxScene extends Phaser.Scene {
       stalls: this.stallMotion,
       banners: this.bannerMotion,
       smoke: this.smokeMotion,
+      groundShadows: this.groundShadowMotion,
       hideBayMist: this.hideBayMist,
       packed: stallsPacked,
     });
