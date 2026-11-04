@@ -357,6 +357,21 @@ function drawFlagstones(
       if (sh2 % 4 === 0) g.fillRect(gx2 + 1, gy2, 1, 1);
     }
 
+    // 广场石面的磨痕：一根 2px 的浅凹，位置换一根独立哈希轴。
+    // 为什么单开一档：广场带 x7/x8 两格的「下排石底边 + 上排石顶边」半格图案
+    // 曾经逐像素相同（48px 窗按 16px 切分读到 8/9）。撞脸发生在石面中部
+    // 而不是石粒所在的半格，所以调石粒的 salt 拆不开；这一道磨痕落在石面
+    // 里，把相邻格从「半格复制」拆开，同时给 1× 下的广场多一档可读的凹痕。
+    if (terrain === 'plaza') {
+      const wear = hash2(x * 19 + i * 7, y * 23 + i * 11);
+      if (wear % 2 === 0) {
+        const wx2 = px + sx + 1 + (wear % Math.max(1, sw - 3));
+        const wy2 = py + sy + 2 + ((wear >>> 9) % Math.max(1, sh - 4));
+        g.fillStyle(palette.stone, 1);
+        g.fillRect(wx2, wy2, 2, 1);
+      }
+    }
+
     // 缺角：每块石头最多一个 1px 缺口，读成磨损而不是图案。
     if ((h + i * 11) % 3 === 0) {
       g.fillStyle(seam, 1);

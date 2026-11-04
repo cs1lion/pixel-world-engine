@@ -84,6 +84,22 @@
       }
     },
     {
+      "name": "boiler-base",
+      "camera": {
+        "scrollX": 264,
+        "scrollY": 116,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
       "name": "villager",
       "camera": {
         "scrollX": 440,

@@ -455,16 +455,21 @@ function drawPaving(
   for (let i = 0; i < length; i += 1) {
     const px = x + i * TILE_PX;
     const h = hash2(i, length);
+    // 横缝的落位每格错 0–2px：缝仍是顺着街走的，但不再是一条逐格复位的水平线。
+    // 48px 窗（3 格）在 1× 下读不出差别，成片铺开也像机切；错开后，
+    // 相邻格的水平缝形成 1–2px 台阶，1× 就能看出「人工铺的」而不是印上去的。
+    // 只挪位置、不改 alpha 与缝的条数：采样带里暗像素的数量不变。
+    const j = h % 3;
     // 横缝：两道，顺着街。起止各收 1px，缝在格与格之间不断成一条通栏。
     g.fillStyle(c.stone, 0.55);
-    g.fillRect(px + 1, y + 6, TILE_PX - 2, 1);
-    g.fillRect(px, y + 12, TILE_PX - 1, 1);
+    g.fillRect(px + 1, y + 6 + j, TILE_PX - 2, 1);
+    g.fillRect(px, y + 12 + j, TILE_PX - 1, 1);
     // 缝下受光唇：一档亮色贴着缝下沿，读成切过的板边。
     // 亮度停在 0.28：实测再压暗（0.18）会让 `lamp-band` 的列 ΔY 掉到 5.6pp、
     // 暗带拉到 4.6 格；0.28 与基线读数一致，不要再往下调。
     g.fillStyle(c.plaza, 0.28);
-    g.fillRect(px + 1, y + 7, TILE_PX - 2, 1);
-    g.fillRect(px, y + 13, TILE_PX - 1, 1);
+    g.fillRect(px + 1, y + 7 + j, TILE_PX - 2, 1);
+    g.fillRect(px, y + 13 + j, TILE_PX - 1, 1);
     // 竖缝错缝：上中下三排各断在不同列，整条街不会出现一张网。
     g.fillStyle(c.ink, 0.16);
     g.fillRect(px + 7 + (h % 2), y + 1, 1, 5);
@@ -474,6 +479,17 @@ function drawPaving(
     if (i % 9 === 0) {
       g.fillStyle(c.plaza, 0.22);
       g.fillRect(px + 2 + (h % 8), y + 3 + (h % 6), 3, 2);
+    }
+    // 骨料：换一根哈希轴，每 3–4 格才落一枚 2px 的浅/深石子。
+    // 1× 下真正看得见的是这一档颗粒，不是缝的 alpha；密度压得很低，成片仍是石板。
+    const gr = hash2(i * 13 + 7, length * 17 + 5);
+    if (gr % 3 === 0) {
+      g.fillStyle(c.plaza, 0.6);
+      g.fillRect(px + 2 + (gr % 9), y + 2 + ((gr >>> 7) % 3), 2, 1);
+    }
+    if (gr % 7 === 0) {
+      g.fillStyle(c.stone, 0.7);
+      g.fillRect(px + 2 + ((gr >>> 11) % 9), y + 9 + ((gr >>> 3) % 2), 2, 1);
     }
     if (i % 6 === 0) {
       g.fillStyle(c.moss, 0.35);

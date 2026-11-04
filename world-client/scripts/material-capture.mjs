@@ -148,6 +148,9 @@ sheets.push(await sheet('east-plaza', 880, 480));
 sheets.push(await sheet('west-plaza', 200, 496));
 // 积尘滩：mud x39..56 / y35..42，避开补灯铺(43,34 4×4)。
 sheets.push(await sheet('mud-flat', 760, 616));
+// 炉底入口（29,14，4×3）：楼压在内层 stone 带 x28..36 / y14..37，
+// 石脚下面就是合法 stone 地形——BUG-1 跨世界配色的同框对照。
+sheets.push(await sheet('boiler-base', 504, 276));
 
 const villagers = await page.evaluate(() => window.Oracle.view().villagers ?? []);
 const standing = villagers.find((v) => v.pos.y >= 28 && v.pos.y <= 31 && v.pos.x >= 14 && v.pos.x <= 46) ?? villagers[0];

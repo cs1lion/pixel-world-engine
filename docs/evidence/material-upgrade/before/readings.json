@@ -228,28 +228,28 @@
     "name": "ground-coal",
     "sheet": "mud-flat",
     "worldCenter": {
-      "x": 880,
+      "x": 850,
       "y": 700
     },
     "span": 48,
     "width": 48,
     "height": 48,
-    "textureEnergy": 1.1,
-    "edgePct": 9.0,
-    "lumaStd": 6.77,
-    "uniqueRGB": 8,
+    "textureEnergy": 0.61,
+    "edgePct": 9.24,
+    "lumaStd": 2.74,
+    "uniqueRGB": 5,
     "onToken": 0.0,
     "offToken": 100.0,
     "topColours": [
       {
         "rgb": "#24343f",
         "token": "—",
-        "pct": 58.03
+        "pct": 57.25
       },
       {
         "rgb": "#20313d",
         "token": "—",
-        "pct": 37.93
+        "pct": 39.37
       },
       {
         "rgb": "#22323e",
@@ -257,33 +257,18 @@
         "pct": 1.61
       },
       {
-        "rgb": "#18232e",
-        "token": "—",
-        "pct": 0.95
-      },
-      {
         "rgb": "#324651",
         "token": "—",
-        "pct": 0.61
+        "pct": 1.39
       },
       {
         "rgb": "#2e3f49",
         "token": "—",
-        "pct": 0.43
-      },
-      {
-        "rgb": "#a2ad9f",
-        "token": "—",
-        "pct": 0.26
-      },
-      {
-        "rgb": "#2e454c",
-        "token": "—",
-        "pct": 0.17
+        "pct": 0.39
       }
     ],
     "tokens": {},
-    "meanLuma": 48.51,
+    "meanLuma": 48.41,
     "cells": {
       "count": 9,
       "distinct": 9
@@ -556,6 +541,210 @@
     "cells": {
       "count": 16,
       "distinct": 11
+    }
+  },
+  {
+    "name": "road-wide",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 280,
+      "y": 472
+    },
+    "span": [
+      160,
+      96
+    ],
+    "width": 160,
+    "height": 96,
+    "textureEnergy": 7.57,
+    "edgePct": 22.45,
+    "lumaStd": 33.12,
+    "uniqueRGB": 79,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#697777",
+        "token": "—",
+        "pct": 37.06
+      },
+      {
+        "rgb": "#263a44",
+        "token": "—",
+        "pct": 19.21
+      },
+      {
+        "rgb": "#485d64",
+        "token": "—",
+        "pct": 9.12
+      },
+      {
+        "rgb": "#3b3139",
+        "token": "—",
+        "pct": 5.43
+      },
+      {
+        "rgb": "#969683",
+        "token": "—",
+        "pct": 3.74
+      },
+      {
+        "rgb": "#56696d",
+        "token": "—",
+        "pct": 2.31
+      },
+      {
+        "rgb": "#b39e70",
+        "token": "—",
+        "pct": 1.95
+      },
+      {
+        "rgb": "#5c6b6e",
+        "token": "—",
+        "pct": 1.88
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 92.1,
+    "cells": {
+      "count": 60,
+      "distinct": 60
+    }
+  },
+  {
+    "name": "road-band-wide",
+    "sheet": "street",
+    "worldCenter": {
+      "x": 280,
+      "y": 472
+    },
+    "span": [
+      160,
+      32
+    ],
+    "width": 160,
+    "height": 32,
+    "textureEnergy": 9.51,
+    "edgePct": 33.93,
+    "lumaStd": 25.51,
+    "uniqueRGB": 43,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#697777",
+        "token": "—",
+        "pct": 45.31
+      },
+      {
+        "rgb": "#485d64",
+        "token": "—",
+        "pct": 20.0
+      },
+      {
+        "rgb": "#56696d",
+        "token": "—",
+        "pct": 5.74
+      },
+      {
+        "rgb": "#242e38",
+        "token": "—",
+        "pct": 4.39
+      },
+      {
+        "rgb": "#5a686a",
+        "token": "—",
+        "pct": 4.18
+      },
+      {
+        "rgb": "#3b3139",
+        "token": "—",
+        "pct": 3.07
+      },
+      {
+        "rgb": "#b39e70",
+        "token": "—",
+        "pct": 2.71
+      },
+      {
+        "rgb": "#9b4f45",
+        "token": "—",
+        "pct": 2.56
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 100.86,
+    "cells": {
+      "count": 20,
+      "distinct": 20
+    }
+  },
+  {
+    "name": "ground-wide",
+    "sheet": "west-plaza",
+    "worldCenter": {
+      "x": 120,
+      "y": 480
+    },
+    "span": [
+      160,
+      64
+    ],
+    "width": 160,
+    "height": 64,
+    "textureEnergy": 4.13,
+    "edgePct": 15.66,
+    "lumaStd": 11.11,
+    "uniqueRGB": 27,
+    "onToken": 0.0,
+    "offToken": 100.0,
+    "topColours": [
+      {
+        "rgb": "#667476",
+        "token": "—",
+        "pct": 81.53
+      },
+      {
+        "rgb": "#475b63",
+        "token": "—",
+        "pct": 14.85
+      },
+      {
+        "rgb": "#654744",
+        "token": "—",
+        "pct": 0.71
+      },
+      {
+        "rgb": "#919281",
+        "token": "—",
+        "pct": 0.64
+      },
+      {
+        "rgb": "#3f5a59",
+        "token": "—",
+        "pct": 0.61
+      },
+      {
+        "rgb": "#3a323a",
+        "token": "—",
+        "pct": 0.37
+      },
+      {
+        "rgb": "#59696c",
+        "token": "—",
+        "pct": 0.35
+      },
+      {
+        "rgb": "#54676b",
+        "token": "—",
+        "pct": 0.24
+      }
+    ],
+    "tokens": {},
+    "meanLuma": 108.63,
+    "cells": {
+      "count": 40,
+      "distinct": 35
     }
   }
 ]

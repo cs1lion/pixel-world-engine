@@ -46,8 +46,9 @@ CROPS = [
     ('road-flagstone', 'south-road', 520, 584, 48, 'dengchao'),
     # 积尘滩：mud x39..56 / y35..42，避开补灯铺(43,34)。
     ('ground-mud', 'mud-flat', 792, 616, 48, 'dengchao'),
-    # 煤渣地：coal y34..46，取 mud 以南 x≈55（这一片没有被泥地/石板路盖住）。
-    ('ground-coal', 'mud-flat', 880, 700, 48, 'dengchao'),
+    # 煤渣地：coal y34..46。取 mud 以南 x≈53（未被泥地/石板路盖住），
+    # 并避开摊位火光/蒸汽——它们按相位动，前后两遍会差几十像素。
+    ('ground-coal', 'mud-flat', 850, 700, 48, 'dengchao'),
     # 房屋外立面：西侧店面(x12,y27)，墙 48px 高。
     ('wall-shopfront', 'street', 216, 424, 64, 'dengchao'),
     # 叠浪楼下半截（墙 + 石脚）：prefab at (28,20) 7×6。
@@ -56,6 +57,17 @@ CROPS = [
     ('villager', 'villager', None, None, 40, 'dengchao'),
     # 莞尔镇默认世界的楼。
     ('wall-default', 'default-wall', None, None, 64, 'default'),
+    # 1× 宽度对照：验收看的是正常缩放，48px 的窗口看不出整片拼接是否成立。
+    # 窗口可以给 (宽, 高)；石块/广场格仍是 16px，所以这两个窗口都按 16 对齐。
+    # 路面：取铺装带 y=29 及两侧各一格，160×96（10 格宽 × 6 格高）。
+    ('road-wide', 'street', 280, 472, (160, 96), 'dengchao'),
+    # 只看铺装带本身：160×32 = 10 格 × 2 格，读数不被上方的店面/摊位摊薄。
+    ('road-band-wide', 'street', 280, 472, (160, 32), 'dengchao'),
+    # 广场：plaza 带 y28..31 正好 4 格高，窗口贴齐 160×64，不混入草地/煤渣。
+    ('ground-wide', 'west-plaza', 120, 480, (160, 64), 'dengchao'),
+    # BUG-1 对照：炉底入口的石脚（走全局 paletteFor）与紧挨着的合法 stone 地形。
+    # 只在改后证据里拍这个工作表（基线没有这张），`main` 会按缺失 sheet 跳过。
+    ('wall-prefab-base', 'boiler-base', 504, 276, (128, 96), 'dengchao'),
 ]
 
 
@@ -130,25 +142,35 @@ def analyze(img, palette, cell=16):
 
 
 def crop_window(sheet_img, sheet, world_x, world_y, span):
-    """世界坐标 → 工作表像素：只需 scroll 与 cssPerWorld 两个读数。"""
+    """世界坐标 → 工作表像素：只需 scroll 与 cssPerWorld 两个读数。
+
+    `span` 可以是单个数（正方形）或 (宽, 高)。
+    """
+    width, height = span if isinstance(span, tuple) else (span, span)
     scale = sheet['cssPerWorld']
     ox = (world_x - sheet['camera']['scrollX']) * scale
     oy = (world_y - sheet['camera']['scrollY']) * scale
-    half = span * scale / 2
+    half_w = width * scale / 2
+    half_h = height * scale / 2
     box = (
-        round(ox - half), round(oy - half),
-        round(ox + half), round(oy + half),
+        round(ox - half_w), round(oy - half_h),
+        round(ox + half_w), round(oy + half_h),
     )
     return box
 
 
 def compose_pairs(root, label, other_label, names):
-    """把 before / after 的 3× 放大图拼成一张对照图：左原样、右改后，标签在下方。"""
+    """把 before / after 的 3× 放大图拼成一张对照图：左原样、右改后，标签在下方。
+
+    名字以 `-wide` 结尾的是 1× 可见性对照，另出一张不放大的一左一右，
+    验收看的是正常缩放，不能被 3× 的放大图代替。
+    """
     out_dir = os.path.join(os.path.dirname(root), 'compare')
     os.makedirs(out_dir, exist_ok=True)
     for name in names:
-        left = os.path.join(os.path.dirname(root), other_label, f'{name}@3x.png')
-        right = os.path.join(root, f'{name}@3x.png')
+        suffix = '' if name.endswith('-wide') else '@3x'
+        left = os.path.join(os.path.dirname(root), other_label, f'{name}{suffix}.png')
+        right = os.path.join(root, f'{name}{suffix}.png')
         if not (os.path.exists(left) and os.path.exists(right)):
             continue
         a = Image.open(left).convert('RGB')
@@ -160,7 +182,8 @@ def compose_pairs(root, label, other_label, names):
         draw = ImageDraw.Draw(sheet)
         draw.text((2, 4), f'{other_label}', fill=(200, 200, 200))
         draw.text((a.width + 14, 4), f'{label}', fill=(255, 220, 150))
-        sheet.save(os.path.join(out_dir, f'{name}.png'))
+        out = f'{name}-1x.png' if name.endswith('-wide') else f'{name}.png'
+        sheet.save(os.path.join(out_dir, out))
 
 
 def main(label):

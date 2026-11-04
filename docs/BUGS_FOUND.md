@@ -173,6 +173,54 @@
 
 ---
 
+## 材质（feat/material-upgrade，2026-11-04）
+
+### 材质 BUG-1：`drawWall` 石脚配色（复核后**不成立**，同日收回）
+
+**原判**（上一份材质报告）：`drawWall` 用全局 `paletteFor()`，灯潮界预制楼石脚会取
+莞尔镇 `stone`，属跨世界配色串味；这一轮又给石脚加了砌缝与受光顶边，会更显眼。
+
+**症状**：若成立，灯潮界楼脚 3px 石带会偏绿灰（`0x3e433f`），与旁边的 `stone` 地形
+（`0x52666a`）不同色相。
+
+**复现路径**：
+
+1. 代码：`buildings.ts` 的 `drawWall` 确实不传 palette，走 `paletteFor()`。
+2. 运行时探针：打开 `http://127.0.0.1:5191/?world=dengchao&time=noon&now=495`，
+   页面内 `await import('/src/world/theme.ts')` 读：
+   - `paletteFor().stone = 0x52666a`（灯潮界）
+   - `paletteFor('default').stone = 0x3e433f`
+   缺省参数取的是**当前激活世界**，不是默认世界。
+3. 像素对照：`material-capture.mjs` 的 `boiler-base` 工作表（相机 504,276）把炉底入口
+   `(29,14)` 压在 stone 带 `x28..36 / y14..37` 上。取楼脚石基 3px（world y269..271）与
+   楼脚以南同列的 `stone` 地形（y276..291）：
+
+   | 区域 | 众数颜色 | 像素数 |
+   | --- | --- | --- |
+   | 楼脚石基（`drawWall` 的 h-3..h-1） | `#476565` | 600 |
+   | 紧邻的 stone 地形 | `#476565` | 2640 |
+
+**期望行为**：石基 = 该世界 `stone`（灯潮界 `#52666a`，经昼夜叠色后与地形同色）。
+
+**实测行为**：与期望一致。**结论**：不是缺陷，不建修复项，`theme.ts` 不动。
+上一份报告里这条作废。
+
+**以后什么情况会真串味**（留给合并后的维护者）：
+
+- 建楼发生在 `activateWorld` **之前**（例如预加载楼缓存）；
+- 世界切换后复用旧的楼 Graphics、没有重建。
+
+当前两条都不成立。若以后引入跨世界楼缓存，修法是把 palette 显式传进 `drawWall`
+（照 `drawBuildingDecals` 的写法）；那才会动配色归属，**须等 `feat/scene-motion`
+让 `theme.ts` 稳定后单独一笔**。
+
+**证据**：`docs/evidence/material-upgrade/bug1-stone-base-vs-terrain-8x.png`（8× 条带，
+上=石基、下=石地形）、`bug1-boiler-base-6x.png`（6× 上下文）、
+`after/wall-prefab-base.png`；取景与复现命令见
+`docs/evidence/material-upgrade/INDEX.md`。
+
+---
+
 ## 附：并行负载下的假红（2026-11-04，分支 fix/flaky-gates）
 
 三处都只在机器被别的进程压满时红，隔离单跑全绿。取证结果：**都不是产品逻辑坏了**，
