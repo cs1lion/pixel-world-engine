@@ -56,7 +56,9 @@ function installDebugSeed(): void {
     return state / 4294967296;
   };
   // 雨滴已有自己的注入口（`render/weather.ts`）；同一种子一并传下去，避免两套 RNG 分叉。
-  (globalThis as { __RAIN_SEED__?: number }).__RAIN_SEED__ = state;
+  // 这里必须写**初始种子**而不是 LCG 的当前状态：`installDebugSeed` 之后若有人先抽了数，
+  // 状态会前进，雨滴种子就会和 URL 里的 `debugPinSeed` 悄悄分叉。
+  (globalThis as { __RAIN_SEED__?: number }).__RAIN_SEED__ = seed >>> 0;
 }
 
 installDebugSeed();

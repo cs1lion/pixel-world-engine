@@ -50,6 +50,7 @@ import type { WorldGrid } from '../world/grid.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { paletteFor } from '../world/theme.ts';
 import { bakeLayer } from './bake.ts';
+import { TIDE_DEPTH } from './layer-depth.ts';
 
 /**
  * 水面最高处的浓度。
@@ -89,7 +90,7 @@ export function createTideView(
     key,
     originX + grid.width * TILE_PX,
     originY + grid.height * TILE_PX,
-    3,
+    TIDE_DEPTH,
     (g) => {
       if (levelNow <= 0.01) return;
       const alpha = Math.min(MAX_WATER_ALPHA, levelNow * MAX_WATER_ALPHA);

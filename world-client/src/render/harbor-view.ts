@@ -14,6 +14,7 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { JETTY_CELLS, MAX_REFLECTION_CELLS, type HarborState } from '../world/harbor.ts';
+import { LAMP_POOL_DEPTH } from './layer-depth.ts';
 
 export interface HarborSite {
   readonly x: number;
@@ -48,7 +49,7 @@ export function createHarborView(
   originY: number,
 ): HarborView {
   const c = pack.palette;
-  const reflections = scene.add.graphics().setDepth(3.2);
+  const reflections = scene.add.graphics().setDepth(LAMP_POOL_DEPTH);
   const fixtures = scene.add.graphics().setDepth(4);
 
   // 突堤从岸上伸进浅滩：shoreY 是岸线，tipY 是伸到水里的那一头。

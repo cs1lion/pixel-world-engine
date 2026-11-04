@@ -65,6 +65,7 @@ import {
   type GroundShadowMotion,
 } from '../world/ground-shadow.ts';
 import { sceneryDepth } from './scenery-depth.ts';
+import { LAMP_POOL_DEPTH } from './layer-depth.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
 import {
   LAMP_BODY_BOTTOM,
@@ -302,7 +303,7 @@ export function createSettingScenery(
   const street = scene.add.graphics().setDepth(1);
   const bridge = scene.add.graphics().setDepth(4);
   // 街面光池：压在铺装与潮水之上、桥与构件之下，见头部那条分层契约。
-  const lampPool = scene.add.graphics().setDepth(3.2);
+  const lampPool = scene.add.graphics().setDepth(LAMP_POOL_DEPTH);
   // 人物与摊位的落地投影：比潮水高、比光池低（暖光仍压在影子上），见 `ground-shadow.ts`。
   const groundShadow = scene.add.graphics().setDepth(GROUND_SHADOW_DEPTH);
   const lampLight = scene.add.graphics().setDepth(700);

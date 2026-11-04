@@ -8,18 +8,22 @@
  *
  * 口径（**每条读数都必须带这一整行**，见 docs/evidence/scene-motion/README.md 开头）：
  * - 机位 x368/y470、zoom 1、视口 1010×700、带段 x240..560 × y435..535、1pp 阈值；
- * - 夜间（`?time=night` 强制相位）、满潮（`debugPinTide(1)`）、晴（`debugSetWeather('clear')`）、
- *   同一冻结帧（frame 180）；村民钉到画面外（只改画面，不挡地面）。
- * - 天气与潮位为什么必须钉：新世界固定从 00:00 开局，但 00:00 这一槽的天气随**当日种子**变
- *   （雨天还会逐帧乱飘：同配置两跑相差 0.3pp 覆盖 / 1.3 格暗带）。不钉天气，这条读数就
- *   只在同一天同一跑里成立，跨天无法复现——上一版报的 76.9% / 1.8 格就是这么来的。
- * - 覆盖 = ΔY ≥ 1pp 的列占比；暗带 = 连续 < 1pp 的最长一段（按格算）。
+ * - 夜间（`?time=night` 强制相位）、满潮（`debugPinTide(1)`）、**真晴**
+ *   （`?now=720` 落自然 clear 槽，且断言 `rainStrength < 0.05`）、同一冻结帧（frame 180）；
+ *   村民钉到画面外（只改画面，不挡地面）。
+ * - 载入种子必须钉（`BAND_SEED`，写进 URL 的 `debugPinSeed` 与 `window.__RAIN_SEED__`）：
+ *   页面每次载入的雨滴种子不同，不钉的话同一构建同参数也会散（75.94 / 75.63 / 76.88）。
+ * - **默认 `BAND_NOW=720`、`BAND_SEED=20261019`**；照默认跑就是真晴。若 `rainStrength >= 0.05`
+ *   或读不到强度，脚本直接报错退出，不写读数——未钉真晴的量不进入判据。
+ *   注意：`SETUP_AT=80` 调 clear 的旧协议到 frame180 也会淡到 0，断言拦不住「中途下过雨」；
+ *   所以默认 `now=720` 才是口径，不能靠断言把过渡协议洗成真晴。
+ * - 覆盖 = ΔY ≥ 1pp 的列占比；暗带 = 连续 < 1pp 的最长一段（按格算，16 列 = 1 格）。
  *
  * 跑法：
  *   cd world-client && npm run dev
  *   # 默认拍「改后」；只有在半径改动之前才需要先拍改前基线
- *   PIXEL_WORLD_URL=http://127.0.0.1:5200/ BAND_LABEL=before node scripts/check-lamp-band.mjs
- *   PIXEL_WORLD_URL=http://127.0.0.1:5200/ node scripts/check-lamp-band.mjs
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5202/ BAND_SEED=20261019 BAND_NOW=720 BAND_LABEL=before node scripts/check-lamp-band.mjs
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5202/ BAND_SEED=20261019 BAND_NOW=720 node scripts/check-lamp-band.mjs
  *   # 两次都在时，合成页会多一行「before / after 差异」
  */
 
@@ -27,7 +31,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
 // 默认拍「改后」：`before` 是半径改动之前拍的一次性基线，重跑不该覆盖它。
 const LABEL = process.env.BAND_LABEL ?? 'after';
@@ -36,9 +40,19 @@ mkdirSync(OUT, { recursive: true });
 /** 截图/回归的载入种子：同一种子下，载入期随机不取墙钟。 */
 const SEED = Number.parseInt(process.env.BAND_SEED ?? '20261019', 10);
 if (!Number.isFinite(SEED)) throw new Error(`BAND_SEED 不是整数：${process.env.BAND_SEED}`);
-/** 可选的世界分钟入口（`?now=<0..1439>`）：回基线时用来对齐到同一天气槽。 */
-const NOW = process.env.BAND_NOW ?? null;
-const NOW_PARAM = NOW === null ? '' : `&now=${Number.parseInt(NOW, 10)}`;
+/** 默认的世界分钟入口（`?now=<0..1439>`）：720 = 12:00，自然 clear 槽，不靠淡出。
+ *
+ * 默认必须落在真晴：否则裸跑会从 00:00 雨槽开局、中途调 clear，冻结帧虽已淡到 0，
+ * 但这一组只是过渡协议（旧 JSON 也没有强度字段），不能当钉晴基线写进 `lamp-band-after.json`。
+ */
+const NOW = process.env.BAND_NOW ?? '720';
+const NOW_MIN = Number.parseInt(NOW, 10);
+if (!Number.isInteger(NOW_MIN) || NOW_MIN < 0 || NOW_MIN > 1439) {
+  throw new Error(`BAND_NOW 必须是 0..1439 的整数分钟：${process.env.BAND_NOW}`);
+}
+const NOW_PARAM = `&now=${NOW_MIN}`;
+/** 真晴阈值：`kind=clear` 不算，雨幕强度必须低于这个值（写死，与 README 一致）。 */
+const RAIN_CLEAR_MAX = 0.05;
 const SETUP_AT = 80;
 const ACTION_AT = 170;
 const FREEZE_AT = 180;
@@ -229,6 +243,17 @@ async function profile(page, litBuf, darkBuf, geometry) {
 
 const browser = await chromium.launch({ headless: true });
 const lit = await capture(browser, { id: 'lit', force: true });
+// 真晴断言：读不到强度（基线缺口子）或强度 ≥0.05，都不许继续量、不许写 JSON。
+const TRUE_CLEAR = lit.rainStrength !== null && lit.rainStrength < RAIN_CLEAR_MAX;
+if (lit.rainStrength === null) {
+  await browser.close();
+  throw new Error('无法验证真晴：页面没有 debugWeatherIntensity 口子（基线树常见）。该读数不进入判据。');
+}
+if (!TRUE_CLEAR) {
+  const nowText = lit.worldState.now === null ? 'unknown' : `${(lit.worldState.now / 60000).toFixed(2)} 世界分钟`;
+  await browser.close();
+  throw new Error(`真晴断言失败：now=${nowText}、kind=${lit.worldState.weather}、rainStrength=${lit.rainStrength.toFixed(3)}，需 < ${RAIN_CLEAR_MAX}。请检查 BAND_NOW 是否落在 clear 槽。`);
+}
 const dark = await capture(browser, { id: 'dark', force: false });
 const reader = await browser.newPage();
 const geometry = {
@@ -321,8 +346,6 @@ if (LABEL !== 'before' && sameProtocol && existsSync(beforeLitFile) && existsSyn
 await reader.close();
 
 const pct = (v) => `${(v * 100).toFixed(1)}%`;
-/** 真晴判据：kind=clear 不算，雨幕强度必须 < 0.05（写死）。基线无可读强度时记 null。 */
-const TRUE_CLEAR = lit.rainStrength !== null && lit.rainStrength < 0.05;
 const result = {
   label: LABEL,
   /** 读数口径（与 README 的「每条读数带全口径」要求一一对应）。 */
@@ -343,7 +366,7 @@ const result = {
     seed: SEED,
     /** 雨幕强度（0..1）。只记 kind 不算钉晴；真晴要求 < 0.05。 */
     rainStrength: lit.rainStrength,
-    trueClear: lit.rainStrength === null ? null : TRUE_CLEAR,
+    trueClear: TRUE_CLEAR,
     /** 天气/潮位是否真钉上了（39cff04 没有这两个口子，基线读数只能记实际天气）。 */
     pinned: lit.pinned,
   },
