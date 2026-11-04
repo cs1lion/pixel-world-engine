@@ -4,6 +4,10 @@
  * 走路预算（`walkSpeedFactor`）与作息落点（`fogKeepsClose`）。
  * 渲染层拿到的开关量（摊子收不收、雾多浓）也都是从这几个常量派生的。
  *
+ * 输入改成 `EnvironmentFrame`：天气只是那一帧里的一项读数，这里不再自己
+ * 比对 `'rain' | 'storm' | 'fog'`。同一刻的快进、作息与盖布因此读的是
+ * 同一帧，不会出现「步速按雨算、落点按晴算」。
+ *
  * 阈值为什么是这些数：
  *
  * - `RAIN_WALK_FACTOR = 1.5`：雨里行人快走，一格 1 世界分钟的步子缩到 40 秒。
@@ -13,7 +17,8 @@
  *   这个数写进常量，状态行与证据脚本都从它取，不在两处各写一份 8。
  */
 
-import type { GridPoint, Weather } from './types.ts';
+import type { GridPoint } from './types.ts';
+import { hasEnvironment, type EnvironmentFrame } from './environment.ts';
 
 /** 雨里走路的倍率。1 表示不加速。 */
 export const RAIN_WALK_FACTOR = 1.5;
@@ -21,18 +26,22 @@ export const RAIN_WALK_FACTOR = 1.5;
 /** 雾天允许走去的最远格数。超过它的作息落点会被跳过。 */
 export const FOG_VISIT_CELLS = 8;
 
-/** 这一档天气下，走路预算乘多少。 */
-export function walkSpeedFactor(weather: Weather): number {
-  return weather === 'rain' || weather === 'storm' ? RAIN_WALK_FACTOR : 1;
+/** 这一帧里，走路预算乘多少。 */
+export function walkSpeedFactor(frame: EnvironmentFrame): number {
+  return hasEnvironment(frame, 'wet') ? RAIN_WALK_FACTOR : 1;
 }
 
 /** 雾天只走近路；晴、雨不受这条限制（雨由 `RAIN_WALK_FACTOR` 管快走）。 */
-export function fogKeepsClose(weather: Weather, from: GridPoint, target: GridPoint): boolean {
-  if (weather !== 'fog') return true;
+export function fogKeepsClose(
+  frame: EnvironmentFrame,
+  from: GridPoint,
+  target: GridPoint,
+): boolean {
+  if (!hasEnvironment(frame, 'fog')) return true;
   return Math.hypot(target.x - from.x, target.y - from.y) <= FOG_VISIT_CELLS;
 }
 
 /** 摊子收不收。雨与暴雨收；雾不落雨点，摊子照摆。 */
-export function stallsPackedFor(weather: Weather): boolean {
-  return weather === 'rain' || weather === 'storm';
+export function stallsPackedFor(frame: EnvironmentFrame): boolean {
+  return hasEnvironment(frame, 'wet');
 }

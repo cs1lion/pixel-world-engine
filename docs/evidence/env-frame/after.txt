@@ -1,0 +1,60 @@
+环境帧 / 观察规则外置 —— 改动后读数
+=====================================
+
+分支：feat/env-frame（从 58c462c 切出；本块未改存档契约，v5 未动）
+采集时间：2026-11-04，改动后、提交前，工作树只剩本块改动
+端口：http://127.0.0.1:5307/（本 worktree 自己的 dev server，pid 46608）
+
+一、三条指纹与事件数（node scripts/trace-replay.ts traces/outer-two-days.json）
+--------------------------------------------------------------------------
+世界指纹   95ee830c948bb5b8c0e07964d7b8d6700a2470fc79a2f1adcf179d5ddfb08131
+记忆指纹   fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+造物指纹   c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+事件数     50 条（录制 50 条，摘要一致）
+确定性     三枚指纹两次逐字相同；与 recorded 逐项一致
+世界读数   {"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0},"eventCount":50}
+记忆读数   记忆条目 45 / 事实 47 / 声明 38 / 信念 11 / 痕迹 5 / 地标 2；
+           关系 1 条 trust -0.24；情绪 2 条 valence 合计 0.246757
+造物账     日终 2 次 / 提议 3 条 / 落地 1 栋
+
+二、调色板审计（node scripts/audit-palette.mjs --strict，退出码 0）
+------------------------------------------------------------------
+paper/ink: 12.41:1
+amber/panel: 7.82:1
+dim/panel: 5.71:1
+paper/panel: 13.46:1
+世界层 24 色 / 预算 24，超出 0；UI 层 8 色 / 预算 8，超出 0
+超预算项：0
+
+三、render-budget（PIXEL_WORLD_URL=http://127.0.0.1:5307/ npm run test:render-budget）
+------------------------------------------------------------------------------
+ok  绘制指令低于 30000      实际 16130
+ok  Graphics 对象数量正常   实际 27
+ok  拖动时帧率不明显低于静止  静止 60.4 / 拖动 61.5
+ok  切到后台真的降频        前台 62.0 / 后台 11.0
+ok  回到前台恢复满帧        恢复 61.0（前台 62.0）
+ok  全程无 JS 报错
+渲染预算：6 项通过
+
+注：绘制指令与 Graphics 数是结构量，与基线逐字相同（16130 / 27）；
+帧率四项每次采样有 ±数帧的浮动（基线那次 55.0 / 57.8 / 60.0 / 11.0 / 62.0），
+本块没有改渲染路径，读数仍在同一档。
+
+四、其余闸门
+------------
+check       语法 0 处 / 语义 0 处
+test        2099 项，2090 通过 / 0 失败 / 9 跳过
+build       vite 构建通过（163 modules，dist/index.html 26.73 kB）
+audit       调色板 0 超预算；引用 0 存疑；引用存在性 2375 处未解析 0；
+            节号 158 处全对；claims 5/5；adr-schema 9/9
+pytest      518 通过（server/ 目录下 python -m pytest）
+worktrees   23 个全部登记，unregistered=0 / overdue=0
+browser     神谕闭环 125 项通过
+phases      四刻可辨性 17 项通过
+persistence 持久化 8 项通过
+setting     灯潮界 29 项通过
+
+五、与基线的关系
+----------------
+本块是纯结构改动：环境读数收成一帧、观察规则外置成表。
+三枚指纹、事件数、世界/记忆/造物读数、绘制指令数与 Graphics 数逐项相同。

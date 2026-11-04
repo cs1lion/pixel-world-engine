@@ -19,7 +19,7 @@ import { MemoryRuntime } from '../world/memory/runtime.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
 import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
 import { createIdbHistoryStore } from '../world/history/store.ts';
-import { observationOf } from '../world/memory/observe.ts';
+import { observationsFor, type ObservationContext } from '../world/observation-rules.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
 import type { OracleApi } from '../ui/oracle-panel.ts';
 import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
@@ -73,7 +73,7 @@ import { createWeatherView, type WeatherView } from '../render/weather.ts';
 import { createWeatherFogView, type WeatherFogView } from '../render/weather-fog-view.ts';
 import { createWeatherStallsView, type WeatherStallsView } from '../render/weather-stalls.ts';
 import { FOG_VISIT_CELLS, stallsPackedFor } from '../world/weather-effects.ts';
-import { weatherWitnessGroups, type WeatherHabitEntry } from '../world/weather-witness.ts';
+import type { WeatherHabitEntry } from '../world/weather-witness.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
 import { createHarborView, harborSiteOf, type HarborView } from '../render/harbor-view.ts';
@@ -3365,51 +3365,45 @@ export class SandboxScene extends Phaser.Scene {
       buildingOfTask: (taskId: string) =>
         this.snapshot?.tasks.find((item) => item.id === taskId)?.buildingId ?? undefined,
     };
-    const observation = observationOf(change, `mem_${this.memoryEventSerial}`, lookups);
-    if (observation === null) return;
-    // 天气是「落下来」的事，不是广播：只记灯街上 6 格内、还没进屋的人。
-    // 镇级那条（actorId: null）已经在 `Simulation.announce` + `log` 里落了；
-    // 这里按最近的摊子分组，一组一条，同一个人只入一次账。
-    if (change.change === 'weather' && this.stallCells.length > 0) {
-      const people = (this.snapshot?.villagers ?? []).map((villager) => ({
+    // 翻译怎么拆、落哪个锚点、递谁当目击者，全在注册表里。这里只递上下文：
+    // 场景知道自己手上有谁、楼在哪、码头在哪，规则不必再向下伸手。
+    const context: ObservationContext = {
+      lookups,
+      eventId: `mem_${this.memoryEventSerial}`,
+      // 额外分组才消耗序号：与拆分前一样，第一条复用基础 id。
+      nextEventId: () => `mem_${(this.memoryEventSerial += 1)}`,
+      stallsAt: this.stallCells,
+      // 惰性求值：只有天气规则会真的问，别在每条改变上都遍历一遍村民。
+      peopleOf: () => (this.snapshot?.villagers ?? []).map((villager) => ({
         id: villager.id,
         // 快照里的 `pos` 已经是格坐标（`Simulation.cellOf` 用 Math.round），
         // 不是像素；这里别再除 TILE_PX。
         cell: { x: Math.round(villager.pos.x), y: Math.round(villager.pos.y) },
         visible: villager.visible,
-      }));
-      const groups = weatherWitnessGroups(people, this.stallCells);
-      for (const [index, group] of groups.entries()) {
-        const item = index === 0
-          ? observation
-          : observationOf(change, `mem_${(this.memoryEventSerial += 1)}`, lookups, group.at);
-        if (item === null) continue;
-        this.memory.observe({ ...item, at: group.at }, group.witnesses, at);
-      }
-      return;
-    }
-    // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
-    // （重建换了实例 id，地块没换）。别的改变没有这一段，照旧。
-    const landmark = this.landmarkEventOf(change);
-    // 船班播报是镇子级事件：它会进事件日志（`this.events`），也会通过
-    // `announce` 落到世界改变里。但**个人记忆只记「看见/在场」的人**——
-    // 汽笛不是他们经历的事。码头 12 格内且没躲进屋的人算目击，其余人不入。
-    const harborReport = change.change === 'world.event' && change.kind === 'harbor_report';
-    const harborSite = harborSiteOf(this.pack);
-    const witnesses = harborReport && harborSite !== null
-      ? this.snapshot?.villagers
+      })),
+      // 楼的落成/拆除额外带一份位置：地标的一生要靠它把新旧两条记录接上
+      // （重建换了实例 id，地块没换）。别的改变返回 undefined，照旧。
+      landmarkOf: (item) => this.landmarkEventOf(item),
+      // 船班播报是镇子级事件：它会进事件日志（`this.events`），也会通过
+      // `announce` 落到世界改变里。但**个人记忆只记「看见/在场」的人**——
+      // 汽笛不是他们经历的事。码头 12 格内且没躲进屋的人算目击，其余人不入。
+      witnessesOf: (item) => {
+        if (item.change !== 'world.event' || item.kind !== 'harbor_report') return undefined;
+        const harborSite = harborSiteOf(this.pack);
+        if (harborSite === null) return undefined;
+        return this.snapshot?.villagers
           .filter((villager) => villager.visible && villager.mode !== 'sheltering')
           .filter((villager) => withinHarborWitnessRange(villager.pos, {
             x: harborSite.x + Math.floor(harborSite.w / 2),
             y: harborSite.y + Math.floor(harborSite.h / 2),
           }))
-          .map((villager) => villager.id)
-      : undefined;
-    this.memory.observe(
-      landmark === undefined ? observation : { ...observation, landmark },
-      witnesses,
-      at,
-    );
+          .map((villager) => villager.id);
+      },
+    };
+    const memory = this.memory;
+    for (const pending of observationsFor(change, context)) {
+      memory.observe(pending.observation, pending.witnesses, at);
+    }
   }
 
   /**
@@ -3866,7 +3860,10 @@ export class SandboxScene extends Phaser.Scene {
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
     // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。
     this.weatherStallsView?.update(
-      stallsPackedFor(this.snapshot.weather) || this.sim.preCoveredToday(),
+      stallsPackedFor(this.sim.environment({
+        phase: this.phaseView.currentPhase(),
+        autoAdvancing: this.phaseView.isAutoAdvancing(),
+      })) || this.sim.preCoveredToday(),
     );
     this.tideView.update(this.snapshot.tide.level);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);

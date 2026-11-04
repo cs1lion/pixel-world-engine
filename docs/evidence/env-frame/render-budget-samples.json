@@ -1,0 +1,59 @@
+{
+  "measuredAt": "2026-11-04T12:36:51.979Z",
+  "sampleCount": 4,
+  "sampleMs": 1000,
+  "thresholds": {
+    "minDragRatio": 0.9,
+    "minRestoreRatio": 0.9,
+    "maxBackgroundDivisor": 3
+  },
+  "fps": {
+    "idle": {
+      "value": 60.40201999627648,
+      "samples": [
+        60.128141941843275,
+        59.93407251166353,
+        60.70859872899563,
+        60.40201999627648
+      ]
+    },
+    "drag": {
+      "value": 61.53235410003744,
+      "samples": [
+        60.75092121433075,
+        61.53235410003744,
+        60.38408235707846,
+        61.54457017483686
+      ]
+    }
+  },
+  "advances": {
+    "foreground": {
+      "value": 62,
+      "samples": [
+        62,
+        63,
+        61,
+        62
+      ]
+    },
+    "background": {
+      "value": 11,
+      "samples": [
+        11,
+        11,
+        10,
+        11
+      ]
+    },
+    "restored": {
+      "value": 61,
+      "samples": [
+        62,
+        63,
+        61,
+        61
+      ]
+    }
+  }
+}

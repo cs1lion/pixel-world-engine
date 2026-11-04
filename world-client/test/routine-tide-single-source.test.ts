@@ -26,6 +26,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TIDE_HIGH_MIN, TIDE_LOW_MAX } from '../src/world/tide.ts';
 import { routineFor, tideBeatApplies, type RoutineBeat } from '../src/world/routines.ts';
+import { environmentAt } from '../src/world/environment.ts';
 import { codeOf, sourceFiles, srcRelative } from './source-scan.ts';
 
 /**
@@ -71,14 +72,17 @@ test('压线那一格算过得去：low 是 <=，high 是 >=', () => {
   // 两份手抄的判据最容易在「压线那一格算不算」上分叉：一边 `> 0.34` 退回，
   // 一边 `>= 0.34` 退回。差的是潮位正好压在线上时她去不去得了。
   // 这一条把选择钉住——要改它的人得先改这儿，而不是两处各改一处。
-  assert.equal(tideBeatApplies('low', TIDE_LOW_MAX), true, '正好在低潮线上：过得去');
-  assert.equal(tideBeatApplies('low', TIDE_LOW_MAX + 1e-9), false, '高过一线：去不了');
-  assert.equal(tideBeatApplies('high', TIDE_HIGH_MIN), true, '正在高潮线上：过得去');
-  assert.equal(tideBeatApplies('high', TIDE_HIGH_MIN - 1e-9), false, '差一线：去不了');
+  // 判据现在读的是环境帧的 `lowTide` / `highTide` 两个 flag；压线那一格仍是
+  // `<=` / `>=`，由 `environmentAt` 在建帧时定下。
+  const at = (level: number) => environmentAt(0, 'clear', level);
+  assert.equal(tideBeatApplies('low', at(TIDE_LOW_MAX)), true, '正好在低潮线上：过得去');
+  assert.equal(tideBeatApplies('low', at(TIDE_LOW_MAX + 1e-9)), false, '高过一线：去不了');
+  assert.equal(tideBeatApplies('high', at(TIDE_HIGH_MIN)), true, '正在高潮线上：过得去');
+  assert.equal(tideBeatApplies('high', at(TIDE_HIGH_MIN - 1e-9)), false, '差一线：去不了');
 
   // 没写 `tide` 的落点不挑潮位：它不是「永远退潮」，是「与潮位无关」。
-  assert.equal(tideBeatApplies(undefined, 0), true);
-  assert.equal(tideBeatApplies(undefined, 1), true);
+  assert.equal(tideBeatApplies(undefined, at(0)), true);
+  assert.equal(tideBeatApplies(undefined, at(1)), true);
 });
 
 test('routineFor 放行原落点，当且仅当这道判据说去得了', () => {
@@ -96,8 +100,9 @@ test('routineFor 放行原落点，当且仅当这道判据说去得了', () => 
   for (const level of levels) {
     for (let index = 0; index < beats.length; index += 1) {
       const beat = beats[index]!;
-      const got = routineFor('clear', beats, index, level);
-      if (tideBeatApplies(beat.tide, level)) {
+      const frame = environmentAt(0, 'clear', level);
+      const got = routineFor(frame, beats, index);
+      if (tideBeatApplies(beat.tide, frame)) {
         assert.equal(
           got,
           beat,

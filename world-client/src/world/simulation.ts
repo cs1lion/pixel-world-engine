@@ -53,7 +53,7 @@ import {
 import { routineBeats, routineFor, shelterTarget, tideBeatApplies, type RoutineBeat } from './routines.ts';
 import { PACE } from './pace.ts';
 import { DAY_MS } from './memory/config.ts';
-import { beatsBetween, isQuietAt } from './timetable.ts';
+import { beatsBetween } from './timetable.ts';
 import {
   clearWeather,
   fadingToClear,
@@ -66,6 +66,12 @@ import {
 } from './weather.ts';
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
+import {
+  environmentAt,
+  hasEnvironment,
+  type EnvironmentFrame,
+  type EnvironmentLighting,
+} from './environment.ts';
 import {
   habitApplies,
   PRE_COVER_MS,
@@ -873,23 +879,16 @@ export class Simulation {
     this.stepAmbient(prevNow); this.stepTimetable(prevNow); this.stepLiveliness(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
-      const level = effectiveTideLevel(this.now, this.tideOverride);
+      const frame = this.environment();
       for (const villager of this.villagers) {
         if (villager.mode !== 'idle' || villager.path.length > 0) continue;
         const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
-        const beat = routineFor(
-          this.weather.kind,
-          beats,
-          villager.routineIndex,
-          level,
-          null,
-          isQuietAt(this.now),
-        );
+        const beat = routineFor(frame, beats, villager.routineIndex, null);
         // 这一拍去不了（潮位不成立）就把下一拍提前到现在：她已经到了该出发的
         // 时刻，只是世界说「现在不行」。判定走 `tideBeatApplies`，与 `routineFor`
         // 里退回锚点用的是同一个——两处各写一份字面量的话，改一处忘另一处，
         // 牌子会说锚点、人却照原落点走。
-        if (!tideBeatApplies(beat.tide, level)) {
+        if (!tideBeatApplies(beat.tide, frame)) {
           villager.nextRoutineAt = Math.min(villager.nextRoutineAt, this.now);
         }
       }
@@ -1004,6 +1003,24 @@ export class Simulation {
   }
 
   /**
+   * 此刻的环境帧：天气、潮位、时辰合成一份读数。
+   *
+   * 作息、步速、评估与渲染的盖布都从这里读同一帧——各自拿 `this.weather.kind`
+   * 再比对一次的话，同一刻可以读成两个世界。
+   *
+   * `lighting` 可选：世界层的昼夜跟墙钟，灯态只有渲染层知道，所以只有场景
+   * 调用时传相位。不传时这一帧不含灯的两项（「未知」不是「不亮」）。
+   */
+  environment(lighting?: EnvironmentLighting): EnvironmentFrame {
+    return environmentAt(
+      this.now,
+      this.weather.kind,
+      effectiveTideLevel(this.now, this.tideOverride),
+      lighting,
+    );
+  }
+
+  /**
    * 天气此刻的行为后果，给证据与面板读。
    *
    * 只读、不写档：`fogHeldTrips` 是进程内计数，读档后从 0 起。
@@ -1016,12 +1033,13 @@ export class Simulation {
     readonly fogHeldTrips: number;
     readonly stallsPacked: boolean;
   } {
+    const frame = this.environment();
     return {
       kind: this.weather.kind,
-      walkFactor: walkSpeedFactor(this.weather.kind),
+      walkFactor: walkSpeedFactor(frame),
       umbrellas: this.isRaining() ? this.villagers.filter((villager) => villager.mode !== 'working').length : 0,
       fogHeldTrips: this.fogHeldTrips,
-      stallsPacked: stallsPackedFor(this.weather.kind),
+      stallsPacked: stallsPackedFor(frame),
     };
   }
 
@@ -2977,31 +2995,26 @@ export class Simulation {
     // 已经站在这一拍的落点上就跳过它，否则开局会在祭坛上干坐一轮。
     const here = this.cellOf(villager.pos);
     const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    // 这一整轮挑拍读同一帧：中途不重算，免得「这一拍拍雨、下一拍拍晴」。
+    const frame = this.environment();
     // 雾天只走近路：远拍跳过，整轮都没找到近处落点就原地等下一轮。
     // 计数是「一次没去成的远行」，不是「每跳一拍 +1」——证据里读的是后者才不虚。
     let fogHeld = false;
     for (let attempt = 0; attempt < beats.length; attempt += 1) {
       // 躲雨那一拍的落点是道门，这里现算现给：`routineFor` 不认识建筑，
       // 它自己编的那个落点会让牌子说屋檐、脚往祭坛走。
-      const beat = routineFor(
-        this.weather.kind,
-        beats,
-        villager.routineIndex,
-        effectiveTideLevel(this.now, this.tideOverride),
-        shelterTarget(this.buildings, here),
-        isQuietAt(this.now),
-      );
+      const beat = routineFor(frame, beats, villager.routineIndex, shelterTarget(this.buildings, here));
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat);
       if (target === null || this.avoiding(villager, target)) continue;
-      if (!fogKeepsClose(this.weather.kind, here, target)) {
+      if (!fogKeepsClose(frame, here, target)) {
         fogHeld = true;
         continue;
       }
       if (target.x === here.x && target.y === here.y) {
         // 安静段里所有拍都回锚点。她已经坐在锚点上时不能只走「1600ms 兜底」——
         // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
-        if (isQuietAt(this.now) && this.weather.kind === 'clear') {
+        if (hasEnvironment(frame, 'quiet') && this.weather.kind === 'clear') {
           villager.nextRoutineAt = this.now + PACE.quietDwellMs;
           return;
         }
@@ -3048,12 +3061,10 @@ export class Simulation {
     const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
     const here = this.cellOf(villager.pos);
     const beat = routineFor(
-      this.weather.kind,
+      this.environment(),
       beats,
       Math.max(0, villager.routineIndex - 1),
-      effectiveTideLevel(this.now, this.tideOverride),
       shelterTarget(this.buildings, here),
-      isQuietAt(this.now),
     );
     return beat.dwellMs;
   }
@@ -3121,7 +3132,7 @@ export class Simulation {
   private walk(villager: Villager, deltaMs: number): void {
     // 一格一世界分钟（`pace.ts`）。`deltaMs` 是世界毫秒，所以预算是一个分数格。
     // 雨里乘 `RAIN_WALK_FACTOR`：同一条路少走三成时间，屏上是「快走」而不是瞬移。
-    let budget = (deltaMs / PACE.walkCellMs) * walkSpeedFactor(this.weather.kind);
+    let budget = (deltaMs / PACE.walkCellMs) * walkSpeedFactor(this.environment());
     while (budget > 0 && villager.path.length > 0) {
       const next = villager.path[0] as GridPoint;
       const dx = next.x - villager.pos.x;

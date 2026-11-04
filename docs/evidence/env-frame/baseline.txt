@@ -1,0 +1,36 @@
+环境帧 / 观察规则外置 —— 改动前基线
+=====================================
+
+分支：feat/env-frame（从 58c462c 切出）
+采集时间：2026-11-04，改动前，工作树干净
+端口：http://127.0.0.1:5307/（本 worktree 自己的 dev server）
+
+一、三条指纹与事件数（node scripts/trace-replay.ts traces/outer-two-days.json）
+--------------------------------------------------------------------------
+世界指纹   95ee830c948bb5b8c0e07964d7b8d6700a2470fc79a2f1adcf179d5ddfb08131
+记忆指纹   fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+造物指纹   c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+事件数     50 条（录制 50 条，摘要一致）
+确定性     三枚指纹两次逐字相同；与 recorded 逐项一致
+世界读数   {"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0},"eventCount":50}
+记忆读数   记忆条目 45 / 事实 47 / 声明 38 / 信念 11 / 痕迹 5 / 地标 2 / 债? 无；
+           关系 1 条 trust -0.24；情绪 2 条 valence 合计 0.246757
+造物账     日终 2 次 / 提议 3 条 / 落地 1 栋
+
+二、调色板审计（node scripts/audit-palette.mjs --strict，退出码 0）
+------------------------------------------------------------------
+paper/ink: 12.41:1
+amber/panel: 7.82:1
+dim/panel: 5.71:1
+paper/panel: 13.46:1
+超预算项：0
+
+三、render-budget（PIXEL_WORLD_URL=http://127.0.0.1:5307/ npm run test:render-budget）
+------------------------------------------------------------------------------
+ok  绘制指令低于 30000      实际 16130
+ok  Graphics 对象数量正常   实际 27
+ok  拖动时帧率不明显低于静止  静止 55.0 / 拖动 57.8
+ok  切到后台真的降频        前台 60.0 / 后台 11.0
+ok  回到前台恢复满帧        恢复 62.0（前台 60.0）
+ok  全程无 JS 报错
+渲染预算：6 项通过
