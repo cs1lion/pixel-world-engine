@@ -1,10 +1,11 @@
 /** 默认行为规则表：**登记顺序就是优先级**。
  *
- * 三条规则对应旧链的三段，顺序与旧链逐字相同：
+ * 四条规则，前三段与旧链逐字相同，第四条是需求层第一版：
  *
  *   1. `verification` —— 心里存着疑，先去现场看看；
  *   2. `pre-cover`    —— 昨天淋过雨（记忆未淡）、今天过了 13:00，先把摊布盖上；
- *   3. `routine`      —— 没别的事时按作息走，也是兜底。
+ *   3. `eat`          —— 饿了去吃一口（阈下不命中，所以冻结轨迹上等于不存在）；
+ *   4. `routine`      —— 没别的事时按作息走，也是兜底。
  *
  * 两条「路由」在这一层成为登记项：
  *   - `pre-cover` 是规则：条件全在旧 `preCoverHabit` 里，原样搬来；
@@ -32,10 +33,17 @@ export const ROUTINE_RULE: BehaviorRule = {
   match: (ctx) => ctx.routineGoal(),
 };
 
-/** 默认顺序 = 旧链顺序。交换数组元素即可换优先级。 */
+/** 饿了：跨过阈值才轮得到它。排在作息之前——饿着没法安心过日子。 */
+export const EAT_RULE: BehaviorRule = {
+  id: 'eat',
+  match: (ctx) => ctx.eatGoal(),
+};
+
+/** 默认顺序 = 旧链顺序，饿的插在作息前（它不命中时逐字等价）。 */
 export const DEFAULT_BEHAVIOR_RULES: readonly BehaviorRule[] = [
   VERIFICATION_RULE,
   PRE_COVER_RULE,
+  EAT_RULE,
   ROUTINE_RULE,
 ];
 

@@ -67,6 +67,7 @@ import {
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
 import { BehaviorPlanner, GoalQueue, type BehaviorContext, type BehaviorGoal, type BehaviorRule } from './behavior.ts';
+import { needsAt, type NeedsReading } from './needs.ts';
 import {
   DEFAULT_BEHAVIOR_RULES,
   ROUTINE_GUARDS,
@@ -530,6 +531,11 @@ export class Simulation {
    * 本块没有任何规则调用 `interrupt`，默认路径只 `setCurrent`。
    */
   private readonly goalQueues = new Map<string, GoalQueue>();
+  /**
+   * 需求层第一版：每人「上次吃饭的世界时刻」。**不落档**——读档后从「刚吃过」起。
+   * 饥饿读数由 `needsAt(now, lastMealAt)` 现算，这里只存这一个时间点。
+   */
+  private readonly lastMealAt = new Map<string, number>();
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
@@ -809,6 +815,8 @@ export class Simulation {
       carries: [...(deps.villagerProfiles?.[index]?.carries ?? [])],
     }));
     for (const villager of this.villagers) this.pending.set(villager.id, []);
+    // 开局（含读档）从「刚吃过」起：需求读数不进存档，读档不继承饥饿。
+    for (const villager of this.villagers) this.lastMealAt.set(villager.id, this.now);
     for (const villager of this.villagers) {
       this.deliveryTally.set(villager.id, { feed: 0, local: 0 });
     }
@@ -1115,6 +1123,25 @@ export class Simulation {
     let total = 0;
     for (const queue of this.goalQueues.values()) total += queue.interruptCount;
     return total;
+  }
+
+  /**
+   * 某人的需求读数。纯值对象，现算；从没走过作息的人返回 `null`。
+   * **不落档**：读档后这里从「刚吃过」重算。
+   */
+  needsOf(villagerId: string): NeedsReading | null {
+    const lastMealAt = this.lastMealAt.get(villagerId);
+    if (lastMealAt === undefined) return null;
+    return needsAt(this.now, lastMealAt);
+  }
+
+  /**
+   * 把某人的「上次吃饭时刻」拨到过去。只给证据脚本与单测用：让饥饿在几拍内
+   * 跨阈，而不是真的等两个多世界日。运行时读数，不落档。
+   */
+  setLastMealAt(villagerId: string, atWorldMs: number): void {
+    if (!this.lastMealAt.has(villagerId)) return;
+    this.lastMealAt.set(villagerId, atWorldMs);
   }
 
   private recordDecision(
@@ -3128,14 +3155,50 @@ export class Simulation {
     );
   }
 
-  /** 规则能问的入口：只有三个口子，规则不认识村民、楼、记忆。 */
+  /** 规则能问的入口：只有四个口子，规则不认识村民、楼、记忆。 */
   private behaviorContextOf(villager: Villager): BehaviorContext {
     return {
       villagerId: villager.id,
       verificationGoal: () => this.verificationGoal(villager),
       preCoverGoal: () => this.preCoverGoal(villager),
+      eatGoal: () => this.eatGoal(villager),
       routineGoal: () => this.routineGoal(villager),
     };
+  }
+
+  /**
+   * 需求层第一版唯一的目标生产者：饿了就去吃点东西。
+   *
+   * 落点只用**已有的**地点：先看摊子（`stallsAt`），没有摊子就回锚点。
+   * 不新造地点种类，也不新增世界事实；吃完只把 `lastMealAt` 拨到此刻，
+   * 读数自己回到 0（`NEEDS_HUNGER_AFTER_MEAL`）。
+   *
+   * 第一版的速率刻意慢，冻结的 50 小时轨迹里没人跨阈，所以这条规则
+   * 在那条轨迹上一条都不产出——指纹与逐拍决策因此逐字不变。
+   */
+  private eatGoal(villager: Villager): BehaviorGoal | null {
+    const reading = this.needsOf(villager.id);
+    if (reading === null || !reading.hungry) return null;
+    const here = this.cellOf(villager.pos);
+    const target = this.mealTarget(here);
+    if (target.x === here.x && target.y === here.y) {
+      // 到了就吃。只改运行时读数，不 announce：吃的这一下不是新的世界事实。
+      this.lastMealAt.set(villager.id, this.now);
+      return { kind: 'eat', target, beatId: null, routineIndex: null };
+    }
+    const route = this.routeTo(villager, target);
+    if (route.path.length === 0) return null;
+    villager.path = route.path;
+    villager.routineLabel = '饿了，去吃点东西';
+    villager.routineGoing = '饿了，去吃点东西';
+    return { kind: 'eat', target, beatId: null, routineIndex: null };
+  }
+
+  /** 吃饭的落点：现有摊子优先；没有摊子的世界回祭坛（也是作息锚点）。 */
+  private mealTarget(from: GridPoint): GridPoint {
+    const stall = this.nearestStallCell(from);
+    if (stall !== null) return stall;
+    return this.altar;
   }
 
   /** 作息那一拍：按旧 `stepIdle` 的循环逐字搬来，只把「命中」换成返回目标。 */
@@ -3825,6 +3888,9 @@ export class Simulation {
     });
     const world = save.world;
     sim.now = world.now;
+    // 需求读数是运行时读数：读档从「刚吃过」重算，不继承上一会话的饥饿。
+    // 构造时 `now` 还是 0，这里必须按存档时刻重锚一次，否则读档即饿。
+    for (const villager of sim.villagers) sim.lastMealAt.set(villager.id, world.now);
     sim.buildings.length = 0;
     sim.buildings.push(...world.buildings.map((building) => ({ ...building })));
     // 编号水位按幸存建筑重推：幸存的 id 一个不变，新建的号一定比它们大。

@@ -42,6 +42,8 @@ export interface BehaviorContext {
   readonly villagerId: string;
   verificationGoal(): BehaviorGoal | null;
   preCoverGoal(): BehaviorGoal | null;
+  /** 「饿了，去吃点东西」：需求层第一版只有这一个口子。 */
+  eatGoal(): BehaviorGoal | null;
   routineGoal(): BehaviorGoal | null;
 }
 

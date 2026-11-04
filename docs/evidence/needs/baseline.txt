@@ -1,0 +1,26 @@
+需求层（饥饿标量）—— 改动前基线
+==================================
+
+分支：feat/behavior-queue（块 2 提交 26ee672 之后）
+采集时间：2026-11-04 21:24
+端口：http://127.0.0.1:5307/
+
+一、三条指纹与事件数（traces/outer-two-days.json）
+------------------------------------------------
+世界指纹   95ee830c948bb5b8c0e07964d7b8d6700a2470fc79a2f1adcf179d5ddfb08131
+记忆指纹   fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+造物指纹   c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+事件数     50 条（录制 50 条）
+世界读数   {"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0},"eventCount":50}
+记忆读数   {"lastClosedDay":3,"currentDay":3,"holders":4,"facts":47,"entries":45,"claims":38,"beliefs":11,"traces":5,"landmarks":2,"turningPoints":0,"bonds":1,"moods":2,"bondTrustSum":-0.24,"moodValenceSum":0.246757,"legends":0,"placeNames":2,"announcements":0,"written":6,"credibility":0,"metToday":1}
+
+二、逐拍决策日志
+----------------
+文件   docs/evidence/behavior-queue/decisions-after.txt
+条数   480
+sha256 39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+（本块起点沿用块 2 的 after；需求层若不在冻结轨迹里跨阈，这份日志必须逐行不变。）
+
+三、渲染预算
+------------
+绘制指令 16130 / Graphics 27；帧率同档；全程无 JS 报错。

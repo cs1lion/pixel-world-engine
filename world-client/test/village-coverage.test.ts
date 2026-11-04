@@ -119,7 +119,7 @@ const ALL_HOLDERS: readonly string[] = [...VILLAGERS, ...BUILDING_IDS];
 /**
  * 默认世界（不走设定集）会有几个村民。
  *
- * 从 `simulation.ts:779` 那一行读，不重抄：那个兜底数组的字面量一改，
+ * 从 `simulation.ts:785` 那一行读，不重抄：那个兜底数组的字面量一改，
  * 这里必须跟着改，否则这条钉的是一个已经不属于代码的数。
  */
 function defaultWorldVillagerCount(): number {

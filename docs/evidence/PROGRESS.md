@@ -51,3 +51,33 @@
   - 为记「安静段坐回锚点」而改行为：否；只在探针里补一条记录，行为不动（基线由 474 条更正为 480 条）。
 - 阻塞：无（`test:buttons` 属于环境限制，非本块失败）。
 - 证据：`docs/evidence/behavior-queue/`（baseline / after / decisions-before / decisions-after / decisions-diff / manifest / render-budget / 四道浏览器输出）。
+
+---
+
+## 块 3 · 需求层第一版：饥饿一个标量
+
+- 开始 / 结束：2026-11-04 21:28 / 2026-11-04 21:45
+- 分支：`feat/behavior-queue`，未 push、未动 main
+- 改了什么结构
+  - 新增 `src/world/needs.ts`：纯值对象 `NeedsReading { hunger, hungry }`、纯函数 `hungerAt` / `needsAt`；常量 `NEEDS_HUNGER_PER_DAY = 1/3`、`NEEDS_HUNGER_EAT_THRESHOLD = 0.9`、`NEEDS_HUNGER_AFTER_MEAL = 0`。
+  - `Simulation` 只记一个运行时读数 `lastMealAt`（每人上次吃饭的世界时刻），**不落档、不进快照**；读档时按存档时刻重锚为「刚吃过」。
+  - 行为规则新增 `EAT_RULE`（id `eat`），默认顺序 `verification → pre-cover → eat → routine`；`eat` 阈下返回 `null`，逐字沿用旧链。
+  - 吃饭落点只用现有地点：`stallsAt` 有摊子取最近摊子，否则回祭坛；消费只把 `lastMealAt` 拨到此刻，不 `announce`、不新增世界事实种类。
+- 读数（`docs/evidence/needs/after.txt`）
+  - 三条指纹、事件数 50、记忆读数、绘制指令 16130 / Graphics 27 **全部与 baseline 相同**。
+  - 冻结轨迹逐拍决策 480 条，sha256 `39aa269d…`，逐行 diff 0（`eat` 未出现）。
+  - 专项场景（`hunger-scenario.txt`）：开局 `hunger=0.9333` 跨阈 → 第一拍 `rule=eat target=(6,6)`（现有摊子）→ 消费后 `hunger=0.0000`，`interrupts=0`，世界事件条数不增。
+- 新增测试（`test/needs.test.ts`，4 条）
+  1. 读数纯函数（单调、封顶、时钟回拨不出现负值）；
+  2. 速率 / 阈值可枚举，跨阈 = 2.7 个世界日，且 > 冻结轨迹 50 小时；
+  3. 跨阈 → 吃饭目标 → 摊子上消费，读数回 0、打断 0；
+  4. 存档里不出现 `hunger` / `lastMeal`。
+- 闸门：`check` / `build` / 五道 audit + adr-schema / `pytest`（524 通过 1 跳过）/ `worktrees:audit --strict` 全绿；浏览器 `browser` / `phases` / `persistence` / `render-budget` / `setting` 通过。
+- 未验证：`test:buttons`（同上：`/api/memory/list` 404，脚本退出码 2）。
+- 真问题：`fromSave` 构造时 `now` 还是 0，若只在构造里锚 `lastMealAt`，读档即全员饿（实测决策从 480 变 484）；修法是读档后按 `world.now` 重锚。
+- 被否掉的写法及原因
+  - **为了让饥饿在冻结轨迹里真的触发而重录 `outer-two-days.json` 并重生成回归断言的指纹**：否。那会改断言/夹具，违反「不许改断言凑绿」；改为「第一版速率刻意慢 + 专项场景证明」，冻结读数逐字不变。
+  - 把饥饿写进存档或快照：否，违反「不落档」；只保留运行时 `lastMealAt`。
+  - 为吃饭新增 `announce` 种类（如 `ate`）：否，属于新增世界事实种类；只走 `routineLabel` / 决策日志，不 announce。
+- 阻塞：无。
+- 证据：`docs/evidence/needs/`（baseline / after / hunger-scenario / decisions-needs / manifest / 四道浏览器输出）。

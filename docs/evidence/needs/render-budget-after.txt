@@ -1,0 +1,13 @@
+
+> pixel-world-client@0.1.0 test:render-budget
+> node scripts/check-render-budget.mjs
+
+采样读数已落盘：..\docs\evidence\needs\render-budget-samples.json
+ok   绘制指令低于 30000  实际 16130
+ok   Graphics 对象数量正常  实际 27
+ok   拖动时帧率不明显低于静止  静止 59.9（采样 60.7/59.9/60.9/59.5）/ 拖动 60.5（采样 59.8/60.5/61.0/60.5）
+ok   切到后台真的降频  前台 62.0（采样 64.0/62.0/61.0/62.0）/ 后台 11.0（采样 11.0/11.0/11.0/10.0）
+ok   回到前台恢复满帧  恢复 61.0（采样 62.0/63.0/61.0/61.0；前台 62.0）
+ok   全程无 JS 报错
+
+渲染预算：6 项通过

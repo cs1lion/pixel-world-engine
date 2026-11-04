@@ -1,0 +1,49 @@
+需求层（饥饿标量）—— 改动后读数
+==================================
+
+分支：feat/behavior-queue
+采集时间：2026-11-04 21:40
+端口：http://127.0.0.1:5307/
+
+一、结论
+--------
+冻结轨迹 **逐字未变**：需求层第一版只有一条规则 `eat`，速率与阈值刻意让
+50 小时轨迹里没人跨阈，所以它在冻结场景里一条都不产出。
+「跨阈 → 吃饭目标 → 在现有摊子消费」由专项短场景
+（`hunger-scenario.txt`）与 `test/needs.test.ts` 证明。
+
+二、三条指纹与事件数（无变化）
+------------------------------
+世界指纹   95ee830c…（与 recorded 一致）
+记忆指纹   fb0847b3…（与 recorded 一致）
+造物指纹   c5198f0f…（与 recorded 一致）
+输入摘要   47412864…（与 recorded 一致）
+两次逐字相同：是
+事件数     50（录制 50）
+世界读数   {"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0},"eventCount":50}
+记忆读数   同 baseline
+造物账     日终 2 次 / 提议 3 条 / 落地 1 栋
+
+三、逐拍决策（decisions-needs.txt）
+------------------------------------
+条数       480（与 baseline 相同）
+sha256     39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+逐行 diff  0（与 decisions-before / decisions-after 三方相同）
+rule 取值  仍只有 verification / pre-cover / routine / none；`eat` 未出现（未跨阈）
+
+四、专项场景（hunger-scenario.txt）
+-----------------------------------
+- 开局世界第 2.8 天、上次吃饭记在 0 天：`hunger=0.9333 >= 0.9`，开局即饿。
+- 第一拍产出 `rule=eat goal=eat target=(6, 6)`（现有摊子，不是新地点）。
+- 走到摊子后一拍消费：`hunger=0.0000`，`interrupts=0`，世界事件条数不增（吃不是新的世界事实）。
+
+五、渲染预算（render-budget-after.txt）
+--------------------------------------
+绘制指令 16130 / Graphics 27；6 项通过；无 JS 报错。
+
+六、闸门
+--------
+check / build / 五道 audit + adr-schema / pytest（524 通过 1 跳过）/
+worktrees:audit --strict 全绿；
+浏览器 browser / phases / persistence / render-budget / setting 通过；
+`test:buttons` 仍未验证：开发服务 `/api/memory/list` 回 404，脚本按设计退出码 2。
