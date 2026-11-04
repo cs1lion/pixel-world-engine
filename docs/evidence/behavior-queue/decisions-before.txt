@@ -32,7 +32,12 @@
 125940000|v0|routine|altar|48,36|altar|500
 127800000|v0|routine|garden|40,40|garden|502
 128040000|v1|routine|altar|48,36|altar|504
+129900000|v1|routine|quiet|48,36|altar|505
 130200000|v0|routine|altar|48,36|altar|503
+132300000|v1|routine|quiet|48,36|altar|506
+133320000|v0|routine|quiet|48,36|altar|504
+134700000|v1|routine|quiet|48,36|altar|507
+135720000|v0|routine|quiet|48,36|altar|505
 137100000|v1|routine|garden|40,40|garden|510
 138120000|v0|routine|garden|40,40|garden|506
 139500000|v1|routine|promenade|56,33|promenade|511
@@ -432,6 +437,7 @@
 218760000|v1|routine|altar|48,36|altar|1215
 219120000|v0|routine|altar|48,36|altar|1216
 221880000|v1|routine|altar|48,36|altar|1216
+222180000|v0|routine|quiet|48,36|altar|1217
 224340000|v1|routine|garden|40,40|garden|1218
 224580000|v0|routine|garden|40,40|garden|1218
 226740000|v1|routine|promenade|56,33|promenade|1219

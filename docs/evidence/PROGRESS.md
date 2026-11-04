@@ -1,0 +1,53 @@
+# 进度记录（按块追加）
+
+> 约定：每块独立证据目录；基线先落盘再改；「做到 / 没做到 / 没验证」三档分开写。
+> 分支纪律：不 push、不动 main；端口禁用 5188 / 5191 / 5202 / 5203；不接模型；禁 `Date.now` / `Math.random`。
+
+---
+
+## 块 1 · EnvironmentFrame + ObservationRule 注册表
+
+- 开始 / 结束：2026-11-04（具体时刻未记录，块结束时已汇报）
+- 分支：`feat/env-frame`（基于 main），提交 `d353c26`，未 push、未动 main
+- 改了什么结构
+  - 新增 `src/world/environment.ts`：`environmentAt()` 把天气 / 潮位 / 时辰 / 光照收成一帧，`hasEnvironment()` 做组合条件。
+  - `routines.ts` / `weather-effects.ts` / `timetable.ts` / `simulation.ts` 统一从同一帧读，潮汐压线判定只在建帧时定。
+  - 新增 `src/world/observation-rules.ts`：把 `SandboxScene.remember()` 的 switch 外置成 `OBSERVATION_RULES`，天气 6 格分组一并搬出。
+- 指纹对照：世界 / 记忆 / 造物三条 sha256 与事件数 50 **逐项一致**。
+- 闸门：九道全绿；浏览器五道能跑的均通过。
+- 真问题：references 审计因行号位移红 9 处，逐条改引用后复跑通过；`pytest` 需在 `server/` 目录跑。
+- 被否掉的写法：改存档契约以落决策日志 —— 否；改为运行时只读探针。
+- 阻塞：无。
+- 证据：`docs/evidence/env-frame/`。
+
+---
+
+## 块 2 · BehaviorRule + 目标队列（等价替换）
+
+- 开始 / 结束：2026-11-04 20:30 左右 / 2026-11-04 21:20
+- 分支：`feat/behavior-queue`（基于 `feat/env-frame` 的 `d353c26`），未 push、未动 main
+- 改了什么结构
+  - 新增 `src/world/behavior.ts`：`BehaviorGoal`、`BehaviorContext`、`BehaviorRule`、`BehaviorPlanner`（按登记顺序评估、首个命中即产出、可运行期换表）、`GoalQueue`（current / queued / suspended / `interrupt(reason)` / `resume()` / 打断计数）。
+  - 新增 `src/world/behavior-rules.ts`：`VERIFICATION_RULE`、`PRE_COVER_RULE`、`ROUTINE_RULE`、`DEFAULT_BEHAVIOR_RULES`；避让登记为 `AVOIDANCE_GUARD`（`ROUTINE_GUARDS`）。
+  - `Simulation.stepIdle` 不再写死调用链，改为「前置守卫 → 按表评估 → 记决策 → 入队」。
+  - 旧链判据与副作用逐字搬进 `verificationGoal` / `preCoverGoal` / `routineGoal`；避让拆成纯判据 `avoidedOther` + 记账 `noteAvoided` + guard 内 `retryLater(20_000)`。
+  - 目标队列是运行时读数（`Map<villagerId, GoalQueue>`），不落档；本块没有任何规则调用 `interrupt`。
+- 逐拍决策 diff
+  - 轨迹 3000 拍 × 60s；决策 480 条；`before` / `after` 两边 sha256 都是 `39aa269d…`。
+  - `Compare-Object` 差异 **0 条**，逐行相同（含 rule 来源、goal、target、beatId、routineIndex）。
+- 指纹对照：世界 `95ee830c…` / 记忆 `fb0847b3…` / 造物 `c5198f0f…`、事件数 50、记忆读数、绘制指令 16130、Graphics 27 全部一致。
+- 新增测试（`test/behavior-queue.test.ts`，6 条）
+  1. 逐拍决策与原链逐行相同（对 `decisions-before.txt`）；
+  2. 登记顺序即优先级（交换顺序改变结果）；
+  3. 运行期新增规则不需改 `Simulation` / Scene；
+  4. 默认路径跑两个世界日打断次数 = 0；
+  5. `GoalQueue` 的 interrupt / resume 接口本身可用；
+  6. 空规则集兜底等于原 `routine`。
+- 闸门：`npm run check` 绿；`npm test` 2096 通过 / 9 跳过；`npm run build` 绿；五道 audit + adr-schema 绿；`pytest` 518 通过；`worktrees:audit --strict` 绿；浏览器 `browser` / `phases` / `persistence` / `render-budget` / `setting` 通过。
+- 未验证：`test:buttons` —— 开发服务在，但 `/api/memory/list` 回 HTTP 404，脚本按设计退出码 2，**本块无法验证**。
+- 真问题：references 审计因行号位移红 8 处（`simulation.ts:118/675/688/1822/1884/2158/2784/2081`），逐条改到当前行；README 测试文件数 223 → 224。
+- 被否掉的写法及原因
+  - 把「避让」硬塞成 `Goal | null`：它必须在同一拍继续试下一拍，收益是「跳过这一拍」不是「产出目标」，塞进规则表会改行为；故记为 guard。
+  - 为记「安静段坐回锚点」而改行为：否；只在探针里补一条记录，行为不动（基线由 474 条更正为 480 条）。
+- 阻塞：无（`test:buttons` 属于环境限制，非本块失败）。
+- 证据：`docs/evidence/behavior-queue/`（baseline / after / decisions-before / decisions-after / decisions-diff / manifest / render-budget / 四道浏览器输出）。

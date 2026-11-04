@@ -66,6 +66,14 @@ import {
 } from './weather.ts';
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
+import { BehaviorPlanner, GoalQueue, type BehaviorContext, type BehaviorGoal, type BehaviorRule } from './behavior.ts';
+import {
+  DEFAULT_BEHAVIOR_RULES,
+  ROUTINE_GUARDS,
+  ROUTINE_RULE,
+  type RoutineGuard,
+  type RoutineGuardContext,
+} from './behavior-rules.ts';
 import {
   environmentAt,
   hasEnvironment,
@@ -513,6 +521,15 @@ export class Simulation {
   /** 逐拍决策探针：只在 `setDecisionLogEnabled(true)` 时写入，默认零开销。 */
   private decisions: DecisionRecord[] = [];
   private decisionLogOn = false;
+  /** 行为规则表：登记顺序即优先级；默认三条与旧链 `verification → pre-cover → routine` 同序。 */
+  private readonly behavior = new BehaviorPlanner(DEFAULT_BEHAVIOR_RULES, ROUTINE_RULE);
+  /** 候选过滤表（避让）：与旧 `avoiding` 同一判据、同一记账、同一重试间隔。 */
+  private readonly routineGuards: readonly RoutineGuard[] = ROUTINE_GUARDS;
+  /**
+   * 每人的目标队列（当前 + 后续）。**不落档**：运行时读数，读档后从空起。
+   * 本块没有任何规则调用 `interrupt`，默认路径只 `setCurrent`。
+   */
+  private readonly goalQueues = new Map<string, GoalQueue>();
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
@@ -1053,6 +1070,51 @@ export class Simulation {
     const list = this.decisions;
     this.decisions = [];
     return list;
+  }
+
+  /**
+   * 运行期换行为规则表：新增一条规则不必改 `Simulation` 的分支，也不必动 Scene，
+   * 把表递进来即可。默认表就是旧链的三段同序。
+   */
+  setBehaviorRules(rules: readonly BehaviorRule[]): void {
+    this.behavior.setRules(rules);
+  }
+
+  /** 当前规则表里登记的 id，按优先级顺序。 */
+  behaviorRuleIds(): readonly string[] {
+    return this.behavior.orderedIds();
+  }
+
+  /** 某人的目标队列。没有就现建一个——队列只是运行时读数，不进存档。 */
+  goalQueueOf(villagerId: string): GoalQueue {
+    let queue = this.goalQueues.get(villagerId);
+    if (queue === undefined) {
+      queue = new GoalQueue();
+      this.goalQueues.set(villagerId, queue);
+    }
+    return queue;
+  }
+
+  /** 某人的目标状态快照；从没走过作息的人返回 `null`。 */
+  goalStateOf(villagerId: string): {
+    readonly current: BehaviorGoal | null;
+    readonly queued: readonly BehaviorGoal[];
+    readonly interrupts: number;
+  } | null {
+    const queue = this.goalQueues.get(villagerId);
+    if (queue === undefined) return null;
+    return {
+      current: queue.currentGoal,
+      queued: queue.queuedGoals,
+      interrupts: queue.interruptCount,
+    };
+  }
+
+  /** 全世界的打断次数。默认路径应当恒为 0：本块没有任何规则触发打断。 */
+  goalInterruptCount(): number {
+    let total = 0;
+    for (const queue of this.goalQueues.values()) total += queue.interruptCount;
+    return total;
   }
 
   private recordDecision(
@@ -2828,7 +2890,7 @@ export class Simulation {
       // 不吐给她们。清与不清都不改变屏上与纸上，清了只是让存档里少存一句没人
       // 会读的旧话——急件那位不清可不行，她带的不是 null 是旧值，见上。
       //
-      // 剩下真在走作息路的只有 `stepIdle` 与 `chaseVerification` 两处派活，
+      // 剩下真在走作息路的只有 `stepIdle` 与 `verificationGoal` 两处派活，
       // 两处都同时写 `routineGoing`。**读档是唯一的例外**：`fromSave` 还原
       // mode 与 path，却把 `routineGoing` 留空（那句不进存档），于是刚读完档
       // 的那一刻她走着而牌子是空的。那不是假话，是清牌子那条公认的退路
@@ -2981,20 +3043,20 @@ export class Simulation {
    * 雨天不动手（人已经在躲雨，这一拍是「预防」不是「补救」）；晴、雾都可以：
    * 雾里摊位就在 8 格内，盖上布照样看得见。
    */
-  private preCoverHabit(villager: Villager): boolean {
-    if (!this.weatherHabit || this.stallsAt.length === 0) return false;
-    if (this.weather.kind === 'rain' || this.weather.kind === 'storm') return false;
+  private preCoverGoal(villager: Villager): BehaviorGoal | null {
+    if (!this.weatherHabit || this.stallsAt.length === 0) return null;
+    if (this.weather.kind === 'rain' || this.weather.kind === 'storm') return null;
     const today = Math.floor(this.now / DAY_MS);
-    if (this.preCoveredDay.get(villager.id) === today) return false;
-    if (this.now % DAY_MS < PRE_COVER_MS) return false;
+    if (this.preCoveredDay.get(villager.id) === today) return null;
+    if (this.now % DAY_MS < PRE_COVER_MS) return null;
     const entry = this.weatherHabitLedger.find((item) => item.villagerId === villager.id);
-    if (entry === undefined || !habitApplies(entry)) return false;
+    if (entry === undefined || !habitApplies(entry)) return null;
     const here = this.cellOf(villager.pos);
     const stall = this.nearestStallCell(here);
-    if (stall === null) return false;
+    if (stall === null) return null;
     const route = this.routeTo(villager, stall);
     // 空路径有两种意思：已经站在摊子上，和这条路走不过去。后者不记账。
-    if (route.path.length === 0 && (stall.x !== here.x || stall.y !== here.y)) return false;
+    if (route.path.length === 0 && (stall.x !== here.x || stall.y !== here.y)) return null;
     villager.path = route.path;
     villager.routineLabel = PRE_COVER_TEXT;
     villager.routineGoing = '去摊子把布盖上';
@@ -3010,8 +3072,7 @@ export class Simulation {
       where: stall,
       actorId: villager.id,
     });
-    this.recordDecision(villager, 'pre-cover', 'pre-cover', stall);
-    return true;
+    return { kind: 'pre-cover', target: stall, beatId: null, routineIndex: null };
   }
 
   /** 最近的一张摊子。摊主从街心走回来，不设 6 格上限——那是「谁淋到雨」的尺子。 */
@@ -3042,13 +3103,43 @@ export class Simulation {
     // 停一拍就溜去农田）。
     if (this.decreeBearer === villager.id && this.hasDecree()) return;
     if (this.now < villager.nextRoutineAt) return;
-    // 心里存着疑的人先去求证。这一步在作息之前：作息是「没别的事时做什么」，
-    // 求证不是没别的事——它是此刻最要紧的一件事。
-    if (this.chaseVerification(villager)) return;
+    // 一拍怎么选：按**登记顺序**问规则表，第一个命中的就是这一拍的目标。
+    // 默认表仍写着旧链的三段（求证 → 盖布 → 作息），所以这里只是把「谁先问」
+    // 从代码位置搬到了表里；判据与副作用都留在原来的那三个方法里。
+    // 心里存着疑的人先去求证：作息是「没别的事时做什么」，求证不是没别的事。
     // 昨天淋过雨、这条记忆还没淡的人，今天 13:00 先把摊布盖上。
-    // 同样排在作息之前：这是「因为记得，所以提前」的那一拍。
-    if (this.preCoverHabit(villager)) return;
+    const outcome = this.behavior.plan(this.behaviorContextOf(villager));
+    const queue = this.goalQueueOf(villager.id);
+    if (outcome === null) {
+      // 一条规则都没命中：与旧链同一个兜底——`routineGoal` 已把
+      // `nextRoutineAt` 推到 1600ms 后（需要时也给 `fogHeldTrips` 记了一笔）。
+      queue.clear();
+      this.recordDecision(villager, 'none', 'rest', null);
+      return;
+    }
+    queue.setCurrent(outcome.goal);
+    this.recordDecision(
+      villager,
+      outcome.rule,
+      outcome.goal.kind,
+      outcome.goal.target,
+      outcome.goal.beatId,
+      outcome.goal.routineIndex,
+    );
+  }
 
+  /** 规则能问的入口：只有三个口子，规则不认识村民、楼、记忆。 */
+  private behaviorContextOf(villager: Villager): BehaviorContext {
+    return {
+      villagerId: villager.id,
+      verificationGoal: () => this.verificationGoal(villager),
+      preCoverGoal: () => this.preCoverGoal(villager),
+      routineGoal: () => this.routineGoal(villager),
+    };
+  }
+
+  /** 作息那一拍：按旧 `stepIdle` 的循环逐字搬来，只把「命中」换成返回目标。 */
+  private routineGoal(villager: Villager): BehaviorGoal | null {
     // 已经站在这一拍的落点上就跳过它，否则开局会在祭坛上干坐一轮。
     const here = this.cellOf(villager.pos);
     const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
@@ -3063,7 +3154,7 @@ export class Simulation {
       const beat = routineFor(frame, beats, villager.routineIndex, shelterTarget(this.buildings, here));
       villager.routineIndex += 1;
       const target = this.resolvedTarget(beat);
-      if (target === null || this.avoiding(villager, target)) continue;
+      if (target === null || this.routineGuarded(villager, target)) continue;
       if (!fogKeepsClose(frame, here, target)) {
         fogHeld = true;
         continue;
@@ -3073,7 +3164,7 @@ export class Simulation {
         // 那会让她每 1.6 世界秒重新挑一次，屏上像在发呆。改成坐满一整个安静停留。
         if (hasEnvironment(frame, 'quiet') && this.weather.kind === 'clear') {
           villager.nextRoutineAt = this.now + PACE.quietDwellMs;
-          return;
+          return { kind: 'quiet', target, beatId: beat.id, routineIndex: villager.routineIndex };
         }
         continue;
       }
@@ -3094,13 +3185,33 @@ export class Simulation {
       villager.path = route.path;
       villager.routineLabel = beat.label;
       villager.routineGoing = beat.going;
-      this.recordDecision(villager, 'routine', beat.id, target, beat.id, villager.routineIndex);
-      // 不在这里扣表：钟在走到的那一刻才起（见本函数开头那截）。
-      return;
+      // 不在这里扣表：钟在走到的那一刻才起（见 `stepIdle` 开头那截）。
+      return { kind: beat.id, target, beatId: beat.id, routineIndex: villager.routineIndex };
     }
     if (fogHeld) this.fogHeldTrips += 1;
     villager.nextRoutineAt = this.now + 1600;
-    this.recordDecision(villager, 'none', 'rest', null);
+    return null;
+  }
+
+  /** 候选过滤：任一 guard 说跳过，这一拍就换下一拍。记账与重试间隔都写在 guard 里。 */
+  private routineGuarded(villager: Villager, target: GridPoint): boolean {
+    const ctx = this.guardContextOf(villager);
+    for (const guard of this.routineGuards) {
+      if (guard.skip(target, ctx)) return true;
+    }
+    return false;
+  }
+
+  private guardContextOf(villager: Villager): RoutineGuardContext {
+    return {
+      villagerId: villager.id,
+      avoidedOther: (target) => this.avoidedOther(villager, target),
+      noteAvoided: (otherId) => this.noteAvoided(villager, otherId),
+      retryLater: (delayMs) => {
+        // 避开不是发呆：这一拍不去，下一拍还会重挑。旧 `avoiding` 写死 20 世界秒。
+        villager.nextRoutineAt = Math.max(villager.nextRoutineAt, this.now + delayMs);
+      },
+    };
   }
 
   /**
@@ -3154,25 +3265,24 @@ export class Simulation {
    * **走的是普通的路，不是瞬移。** 他得真的走过去，路上会被人看见、会留下
    * 足迹——求证是这个世界的**行为**，不是一次查询。到了之后由记忆层判结果。
    *
-   * 返回 `true` 表示这一拍被求证占用了，调用方不该再派作息。
+   * 返回目标表示这一拍被求证占用了，调用方不该再派作息。
    */
-  private chaseVerification(villager: Villager): boolean {
+  private verificationGoal(villager: Villager): BehaviorGoal | null {
     const plans = this.verificationProbe?.(villager.id) ?? [];
     const plan = plans[0];
-    if (plan === undefined) return false;
+    if (plan === undefined) return null;
 
     const target = this.verificationTarget(plan.placeId);
-    if (target === null) return false;
+    if (target === null) return null;
     const here = this.cellOf(villager.pos);
     if (target.x === here.x && target.y === here.y) {
       // 到了。看一眼，结掉这条日程。
       this.verificationSettle?.(villager.id, plan.claimId);
       villager.nextRoutineAt = this.now + 1200;
-      this.recordDecision(villager, 'verification', 'verify', target);
-      return true;
+      return { kind: 'verify', target, beatId: null, routineIndex: null };
     }
     const route = this.routeTo(villager, target);
-    if (route.path.length === 0) return false;
+    if (route.path.length === 0) return null;
     villager.path = route.path;
     // 求证这一句本来就是赶路的形状，所以两半都填它自己：走到之后她照样在现场。
     villager.routineLabel = '心里存着疑，去现场看看';
@@ -3180,8 +3290,7 @@ export class Simulation {
     // 这里不写 `nextRoutineAt`：停留的钟在到达那刻才起（`stepIdle` 走完那截），
     // 写了也会被那一下盖掉。求证不占作息的下标，所以她到现场停的是上一拍
     // 作息的时长——够她站一会儿，不是原地打个转就走。
-    this.recordDecision(villager, 'verification', 'verify', target);
-    return true;
+    return { kind: 'verify', target, beatId: null, routineIndex: null };
   }
 
   /** 求证日程上的 `placeId` 落在哪一格。楼用门口，其余用它的落点。 */
@@ -4291,33 +4400,25 @@ export class Simulation {
     villager.facing = facingFor(away.x - cell.x, away.y - cell.y);
   }
 
-  /** 这个落点会不会撞上「我不想见到的人」。命中一次就记一笔对照读数。 */
-  private avoiding(villager: Villager, target: GridPoint): boolean {
-    if (!this.avoidsAnchor(villager, target)) return false;
-    // 避开不是发呆：这一拍不去，下一拍还会重挑。给一个 20 世界秒的重试间隔，
-    // 否则一拍的 `for` 走完就回到 `stepIdle`，同一个落点会被每 100ms 重算一次，
-    // 对照读数会变成「逻辑步数」而不是「跳过几拍」。
-    villager.nextRoutineAt = Math.max(villager.nextRoutineAt, this.now + 20_000);
-    return true;
-  }
-
-  /** 纯判据：落点离「不想见的人」有多近。计数留给 `avoiding`。 */
-  private avoidsAnchor(villager: Villager, target: GridPoint): boolean {
+  /** 纯判据：落点会不会撞上「我不想见到的人」。命中就返回那个人；不记账。 */
+  private avoidedOther(villager: Villager, target: GridPoint): string | null {
     for (const rule of this.socialContext.avoid) {
       if (rule.villagerId !== villager.id) continue;
       const other = this.villagers.find((item) => item.id === rule.otherId);
       if (other === undefined) continue;
       const otherCell = this.cellOf(other.pos);
       const distance = Math.max(Math.abs(target.x - otherCell.x), Math.abs(target.y - otherCell.y));
-      if (distance <= lively.LIVELY_CLOSE_CELLS) {
-        this.avoidedBeats += 1;
-        this.avoidedByVillagerToday.set(villager.id, (this.avoidedByVillagerToday.get(villager.id) ?? 0) + 1);
-        const pair = `${villager.id}|${rule.otherId}`;
-        this.avoidedByPairToday.set(pair, (this.avoidedByPairToday.get(pair) ?? 0) + 1);
-        return true;
-      }
+      if (distance <= lively.LIVELY_CLOSE_CELLS) return rule.otherId;
     }
-    return false;
+    return null;
+  }
+
+  /** 命中一次记一笔（累计、按人、按对），与旧 `avoidsAnchor` 逐字相同。 */
+  private noteAvoided(villager: Villager, otherId: string): void {
+    this.avoidedBeats += 1;
+    this.avoidedByVillagerToday.set(villager.id, (this.avoidedByVillagerToday.get(villager.id) ?? 0) + 1);
+    const pair = `${villager.id}|${otherId}`;
+    this.avoidedByPairToday.set(pair, (this.avoidedByPairToday.get(pair) ?? 0) + 1);
   }
 }
 

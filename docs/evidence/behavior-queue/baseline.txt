@@ -27,8 +27,8 @@
 二、逐拍决策日志（decisions-before.txt）
 ---------------------------------------
 轨迹       traces/outer-two-days.json（3000 拍 × 60s，90,000,000 → 270,000,000）
-决策条数   474
-文件 sha256 5472ccb8d628ef0c2ee8c6ea50408f4617a84891eee30ec9a5a4a0dcc12bb15b
+决策条数   480（含安静段「坐回锚点」那 6 条）
+文件 sha256 39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
 行格式     now|villagerId|rule|goal|target|beatId|routineIndex
 rule 取值  verification / pre-cover / routine / none
 
