@@ -37,8 +37,10 @@ const KEY = [0, 6, 14, 21, 29];
 const LABEL = ['第1天', '第7天', '第15天', '第22天', '第30天'];
 
 const kb = (bytes) => bytes / 1024;
+const f0 = (n) => n.toFixed(0);
 const f1 = (n) => n.toFixed(1);
 const f2 = (n) => n.toFixed(2);
+const f3 = (n) => n.toFixed(3);
 const pct = (n) => `${(n * 100).toFixed(1)}%`;
 
 function at(run, day, pick) {
@@ -80,8 +82,13 @@ function readJson(path, fallback = null) {
 
 /** 改前那一轮（未加预算）的读数，用来给「改前 vs 改后」这一栏。 */
 const BEFORE = readJson(join(dir, 'soak-a/summary-30d-before.json'));
-/** 90 日实跑（seed A）。没有就整段省略，不编外推。 */
+/** 90 日实跑（seed A / B）。没有就整段省略，不编外推。 */
 const A90 = readJson(join(dir, 'soak-a/summary-90d.json'));
+const B90 = readJson(join(dir, 'soak-b/summary-90d.json'));
+const RETRO = readJson(join(dir, 'soak-a/retrospect-90d.json'));
+const RETRO_B = readJson(join(dir, 'soak-b/retrospect-90d.json'));
+const PROFILE_BEFORE = readJson(join(dir, 'profile-before.json'));
+const PROFILE_AFTER = readJson(join(dir, 'profile.json'));
 
 /**
  * 预算表。**与 `src/world/memory/config.ts` 的默认值一一对应**：那边改了，
@@ -191,6 +198,62 @@ const aboveRows = Object.entries(salience.above ?? {})
 const factsRatio30 = day30After.memoryParts.facts.count / day30After.worldEvents;
 const factsRatio90 = A90 === null ? null : A90.days[89].memoryParts.facts.count / A90.days[89].worldEvents;
 
+// -------------------------------------------------- 关系账本（第 3 条）
+const memory30 = JSON.parse(readFileSync(join(dir, 'soak-a/memory-30d.json'), 'utf8'));
+const bonds30 = memory30.world.bonds;
+const warmth = bonds30.map((bond) => bond.warmth);
+const familiarity = bonds30.map((bond) => bond.familiarity);
+const trustAbs = bonds30.map((bond) => Math.abs(bond.trust));
+const warmthMean = warmth.reduce((sum, value) => sum + value, 0) / Math.max(1, warmth.length);
+const famMean = familiarity.reduce((sum, value) => sum + value, 0) / Math.max(1, familiarity.length);
+const streetKinds = new Map();
+for (const fact of memory30.world.facts) {
+  if (!String(fact.kind).startsWith('street_')) continue;
+  streetKinds.set(fact.kind, (streetKinds.get(fact.kind) ?? 0) + 1);
+}
+const streetTotal = [...streetKinds.values()].reduce((sum, value) => sum + value, 0);
+const streetHints = new Set(memory30.world.facts.filter((fact) => String(fact.kind).startsWith('street_')).map((fact) => fact.importanceHint));
+
+// -------------------------------------------------- 90 日 seed B 与回溯
+const lastA90 = A90 === null ? null : A90.days[89];
+const lastB90 = B90 === null ? null : B90.days[89];
+const tailA = A90 === null ? null : (kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes)) / 30;
+const tailB = B90 === null ? null : (kb(B90.days[89].saveBytes) - kb(B90.days[59].saveBytes)) / 30;
+const prunedByLayerText = lastA90 === null
+  ? '—'
+  : Object.entries(lastA90.memory.prunedByLayer)
+      .sort((x, y) => y[1].evicted - x[1].evicted)
+      .map(([layer, item]) => `\`${layer}\` ${item.evicted}（条数触发 ${item.byCount} / 字节触发 ${item.byBytes}）`)
+      .join('、');
+
+function backfillRows(retro) {
+  if (retro === null) return [];
+  return retro.backfill.map(
+    (row) =>
+      `| 第 ${row.day} 天 | ${row.worldEvents} | ${row.factsAlive} / ${row.factsWritten} | ${pct(row.factsMissingPct)} | ${row.timelineAlive} / ${row.timelineAtClose} | ${pct(row.timelineMissingPct)} | ${row.eventsReachable} / ${row.factsWritten} | ${pct(row.eventsMissingPct)} |`,
+  );
+}
+
+const evictedSampleRows = (RETRO?.evictedFactSample ?? []).map(
+  (item) =>
+    `| \`${item.eventId}\` | 第 ${item.factDay + 1} 天 | ${item.kind} | ${item.importanceHint} | 第 ${item.evictedDay + 1} 天 | ${item.recoverable ? '能' : '不能'} | ${item.what} |`,
+);
+
+// -------------------------------------------------- 性能（第 2 条）前后
+function sectionStat(profile, name) {
+  return profile?.sections?.[name] ?? { p50: 0, p95: 0, max: 0 };
+}
+const decreeBefore = sectionStat(PROFILE_BEFORE, 'stepDecrees');
+const decreeAfter = sectionStat(PROFILE_AFTER, 'stepDecrees');
+const simBefore = PROFILE_BEFORE === null ? null : PROFILE_BEFORE.perDay;
+const simAfter = PROFILE_AFTER === null ? null : PROFILE_AFTER.perDay;
+const day30Of = (perDay) => perDay?.find((item) => item.day === 29) ?? null;
+
+// legend 排序改前（同 reach 留最新）那一轮的存活年龄，用来证明「岁月感」曾经漏掉。
+const legendOld =
+  readJson(join(dir, 'soak-a/memory-90d-before-legend-order.json'))?.world?.legends ?? [];
+const legendOldMin = legendOld.length === 0 ? null : Math.min(...legendOld.map((item) => item.formedDay));
+
 // ---------------------------------------------------------------- 性能表
 
 const perfRows = A.days.map((d) => {
@@ -268,7 +331,7 @@ function panel({ title, x, y, w, h, picks, colors, unit, log }) {
 const panels = [
   { title: '世界事件条数', pick: (d) => d.worldEvents, color: '#2f6fed', unit: '' },
   { title: '记忆条目数（5 人）', pick: (d) => d.memory.entries, color: '#1f9d6b', unit: '' },
-  { title: '关系账本条数（30 日恒 0）', pick: (d) => d.relations.count, color: '#b3392f', unit: '' },
+  { title: `关系账本条数（第 30 天 ${A.days[29].relations.count}）`, pick: (d) => d.relations.count, color: '#b3392f', unit: '' },
   { title: '造物账本行数', pick: (d) => d.ledgerRows, color: '#8a5cd6', unit: '' },
   { title: '存档大小（KB）', pick: (d) => kb(d.saveBytes), color: '#c77b1e', unit: 'KB' },
   { title: '每日结算耗时（ms，p50/p95）', pick: (d) => d.perf.simP95, color: '#0f7f8f', unit: 'sim p95' },
@@ -339,10 +402,11 @@ ${browserDay1 === null ? '' : `第 1 天同口径对照（新世界、同一端�
 
 // ---------------------------------------------------------------- 报告
 
-const report = `# 30 日长周期联合浸泡读数
+const report = `# 30 / 90 日长周期联合浸泡读数
 
-> 夹具：\`world-client/test/soak-support.ts\`；跑数入口：\`node scripts/soak-30d.ts\`；
-> 本报告由 \`node scripts/soak-report.mjs\` 从 \`soak-30d.json\` / \`determinism.json\` 生成，不重跑世界。
+> 夹具：\`world-client/test/soak-support.ts\`；跑数入口：\`node scripts/soak-30d.ts\`（30 天）、
+> \`node scripts/soak-retrospect.ts\`（90 天回溯审计）；本报告由 \`node scripts/soak-report.mjs\`
+> 从 30/90 日 summary、\`retrospect-90d.json\`、\`profile*.json\`、\`determinism.json\` 生成，不重跑世界。
 > 分支 \`feat/soak-30d\`（基线 \`origin/main\` \`eab9e36\`）；证据目录 \`docs/evidence/soak/\`。
 
 ## 场景
@@ -408,8 +472,63 @@ ${rows90.join('\n')}
 **90 天末存档 ${f1(kb(A90.days[89].saveBytes))} KB，占 2 MB 的 ${pct(kb(A90.days[89].saveBytes) / 2048)}，没有撞上限。** 曲线在第 30–45 天之间由「线性长」转成「贴顶」：第 60 → 90 天只涨 ${f1(kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes))} KB（+${f2((kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes)) / 30)} KB/天），而改前是 **+55.6 KB/天**——按那条直线第 31.5 天就撞 2 MB。90 天实测的 \`sim p50\` ${A90.days[89].perf.simP50.toFixed(4)} ms 与第 1 天 ${A90.days[0].perf.simP50.toFixed(4)} ms 同量级，没有「越跑越慢」。
 
 - **facts / 世界事件比**：第 30 天 ${day30After.memoryParts.facts.count} / ${day30After.worldEvents} = **${factsRatio30.toFixed(3)}**；第 90 天 ${A90.days[89].memoryParts.facts.count} / ${A90.days[89].worldEvents} = **${factsRatio90.toFixed(3)}**。比值从 1 掉到 0.34，说明事实库在 90 天里裁掉了约三分之二的旧事实——留下的按「重要度 → 新」排序，不是按先进先出。
-- **淘汰原因**：90 天累计按层记在 \`memory.pruned\` 事件里；\`entries\` 是条数超限，其余六库都是**字节**超限（\`cooldowns\` 5537、\`tells\` 3375、\`beliefs\` 3155、\`facts\` 1773、\`claims\` 1160、\`written\` 292、\`legends\` 144）。这也解释了为什么只加条数上限没用：这些库的问题先出在字节。
+- **淘汰原因**：90 天累计按层记在 \`memory.pruned\` 事件里（seed A，按淘汰量降序）：${prunedByLayerText}。\`entries\` 以条数超限为主（少量由字节触发），其余六库全部由**字节**超限触发——这也解释了为什么只加条数上限没用：这些库的问题先出在字节。
 `}
+
+#### 90 日 seed B 复跑（不同种子、同场景、同 90 天）
+
+| 指标 | seed A | seed B |
+| --- | --- | --- |
+| 末存档 | ${A90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes))} KB`} | ${B90 === null ? '—' : `${f1(kb(B90.days[89].saveBytes))} KB`} |
+| 占 2 MB 上限 | ${A90 === null ? '—' : pct(kb(A90.days[89].saveBytes) / 2048)} | ${B90 === null ? '—' : pct(kb(B90.days[89].saveBytes) / 2048)} |
+| 第 60→90 天增速 | ${tailA === null ? '—' : `+${f2(tailA)} KB/天`} | ${tailB === null ? '—' : `+${f2(tailB)} KB/天`} |
+| facts / 世界事件 | ${lastA90 === null ? '—' : `${lastA90.memoryParts.facts.count} / ${lastA90.worldEvents} = ${(lastA90.memoryParts.facts.count / lastA90.worldEvents).toFixed(3)}`} | ${lastB90 === null ? '—' : `${lastB90.memoryParts.facts.count} / ${lastB90.worldEvents} = ${(lastB90.memoryParts.facts.count / lastB90.worldEvents).toFixed(3)}`} |
+| 预算淘汰累计 | ${lastA90 === null ? '—' : lastA90.memory.pruned} | ${lastB90 === null ? '—' : lastB90.memory.pruned} |
+| 其中 \`facts\` / \`legends\` / \`entries\` | ${lastA90 === null ? '—' : `${lastA90.memory.prunedByLayer.facts.evicted} / ${lastA90.memory.prunedByLayer.legends.evicted} / ${lastA90.memory.prunedByLayer.entries.evicted}`} | ${lastB90 === null ? '—' : `${lastB90.memory.prunedByLayer.facts.evicted} / ${lastB90.memory.prunedByLayer.legends.evicted} / ${lastB90.memory.prunedByLayer.entries.evicted}`} |
+| 末 legend 条数 / 字节 | ${RETRO === null ? '—' : `${RETRO.legend.count} / ${f1(RETRO.legend.bytes / 1024)} KB`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.count} / ${f1(RETRO_B.legend.bytes / 1024)} KB`} |
+
+**seed B 没有更贵**：${B90 === null ? '—' : `${pct(kb(B90.days[89].saveBytes) / 2048)}，低于 85% 警戒线，没有撞顶。`} 两个种子的末存档差 ${A90 === null || B90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes) - kb(B90.days[89].saveBytes))} KB`}，都在「预算贴顶后低斜率增长」的同一档；2 MB 上限没有动，也没有用二进制压缩。
+
+#### 回溯完整度（从第 90 天回看第 20/45/60/89 天）
+
+分母是**当天应有的条数**：事实用「当天写入的事实数」，时间轴用「当天结束时可读的条目数」，不用 90 天总数。seed A：
+
+| 回溯到 | 当日世界事件 | 事实可读 / 应读 | 事实缺失 | 时间轴可读 / 当天末 | 时间轴缺失 | 事件可追溯 / 应读 | 事件缺失 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+${backfillRows(RETRO).join('\n')}
+
+**四天全部超过 50% 缺失**：
+- 第 20 / 45 / 60 天的居民时间轴只剩 ${RETRO?.backfill?.[0]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[1]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[2]?.timelineAlive ?? '—'} 条（分母 ${RETRO?.backfill?.[0]?.timelineAtClose ?? '—'} / ${RETRO?.backfill?.[1]?.timelineAtClose ?? '—'} / ${RETRO?.backfill?.[2]?.timelineAtClose ?? '—'}），**等于空白**；事实每天只剩 12 / 30。
+- 这**对玩家意味着什么**：翻日历回到第 20 天，只能看到 12 条被判定为「重要」的事件标题，居民当天说过什么、做过什么、和谁见过面全都没有了；日历只能确认「那天发生过事」，不能复述「那天是怎么过的」。
+- 第 89 天也只救回 ${RETRO?.backfill?.[3]?.timelineAlive ?? '—'} / ${RETRO?.backfill?.[3]?.timelineAtClose ?? '—'} 条时间轴。实测时间轴的实际保留窗只有约 **6 天**：第 84 天 17 / 55、第 86 天 16 / 51、第 88 天 35 / 60、第 89 天 47 / 59，再往前掉到个位数。原因是日层条目过了归档期后被「day」桶预算裁掉，而「T_promote=0.60」在日常场景不晋升、「summaries=0」，没有摘要层接住它们。
+- seed B 同口径：${RETRO_B === null ? '—' : RETRO_B.backfill.map((row) => `第 ${row.day} 天 事实 ${pct(row.factsMissingPct)} 缺 / 时间轴 ${pct(row.timelineMissingPct)} 缺`).join('；')}。两个种子同形，说明不是单种子的偶然。
+
+**判断题：被淘汰的事实是永久消失，还是能从更高层反查回来？**
+
+机制上不是绝对永久：只要该事件的「eventId」还留在某条存活条目 / 断言 / 信念 / 传说 / 痕迹的「eventRefs」里，就能顺着引用读回上下文。实测 seed A 90 天淘汰 ${RETRO?.facts?.evicted ?? '—'} 条事实，最终存档里还能找到引用的只有 **${RETRO?.facts?.evictedRecoverable ?? '—'} 条（${RETRO === null ? '—' : pct(RETRO.facts.evictedRecoverable / RETRO.facts.evicted)}）**。抽 3 条实际淘汰记录：
+
+| eventId | 发生日 | 类型 | importanceHint | 淘汰日 | 能找回 | 原文 |
+| --- | --- | --- | --- | --- | --- | --- |
+${evictedSampleRows.join('\n')}
+
+**结论：这 3 条都找不回，整体 99.8% 也找不回——被淘汰的事实实际上就是永久消失。** 原因不是「反查路径不存在」，而是事实库按「重要度 → 新」淘汰，先扔的正是打水、潮汐、打招呼这些 0.35–0.38 的低重要度事件；它们本来就不会被摘要/传说引用，所以一旦事实记录没了，就没有任何一层还留着它。
+
+#### \`legend\` 预算专项（90 天）
+
+| 读数 | seed A | seed B |
+| --- | --- | --- |
+| 条数上限 | ${RETRO?.legend?.countBudget ?? '—'} | ${RETRO_B?.legend?.countBudget ?? '—'} |
+| 字节上限 | ${RETRO === null ? '—' : `${f1(RETRO.legend.bytesBudget / 1024)} KB`} | ${RETRO_B === null ? '—' : `${f1(RETRO_B.legend.bytesBudget / 1024)} KB`} |
+| 实际条数 | ${RETRO === null ? '—' : `${RETRO.legend.count}（${pct(RETRO.legend.countPercent)}）`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.count}（${pct(RETRO_B.legend.countPercent)}）`} |
+| 实际字节 | ${RETRO === null ? '—' : `${f1(RETRO.legend.bytes / 1024)} KB（${pct(RETRO.legend.bytesPercent)}）`} | ${RETRO_B === null ? '—' : `${f1(RETRO_B.legend.bytes / 1024)} KB（${pct(RETRO_B.legend.bytesPercent)}）`} |
+| 90 天淘汰传说 | ${RETRO?.legend?.evicted ?? '—'} | ${RETRO_B?.legend?.evicted ?? '—'} |
+| 存活传说的最早 formedDay | ${RETRO?.legend?.formedDay?.min ?? '—'} | ${RETRO_B?.legend?.formedDay?.min ?? '—'} |
+| 被淘汰传说的 formedDay 范围 | ${RETRO === null ? '—' : `${RETRO.legend.evictedFormedDay.min}–${RETRO.legend.evictedFormedDay.max}`} | ${RETRO_B === null ? '—' : `${RETRO_B.legend.evictedFormedDay.min}–${RETRO_B.legend.evictedFormedDay.max}`} |
+| 淘汰样本 | ${(RETRO?.legend?.evictedSample ?? []).slice(0, 3).map((item) => `\`${item.legendId}\`（第 ${item.formedDay} 天 / reach ${item.reach}）`).join('、') || '—'} | ${(RETRO_B?.legend?.evictedSample ?? []).slice(0, 3).map((item) => `\`${item.legendId}\`（第 ${item.formedDay} 天 / reach ${item.reach}）`).join('、') || '—'} |
+
+**排序是什么**：「enforceBudgets」里 \`legends\` 先按 **reach 降序（传得多远）**，同 reach 再按 **formedDay 升序（更早立起来的先留）**，最后按「legendId」。所以淘汰的是 **reach 最低、且同 reach 里最年轻的**那批；被淘汰样本 reach 全为 0，formedDay 24–83。
+
+**「最旧优先」会不会先扔最早的传说？** 改前正是这个毛病：同 reach 时按「formedDay」**倒序**（留最新），实测 90 天存活传说最早只到第 ${legendOldMin ?? '—'} 天；改成升序后，存活最早回到第 ${RETRO?.legend?.formedDay?.min ?? '—'} 天——最早那批碑文不再先被扔掉，「岁月感」回来了。代价是 reach 为 0 的新传说会先被裁：reach 0 意味着还没有人传它，它本来也还不是「传说」。字节侧已经占到 ${RETRO === null ? '—' : pct(RETRO.legend.bytesPercent)}，再刻新碑就会挤掉旧碑，所以这条排序必须是有意的。
 
 #### 为什么 \`T_promote=0.60\` 没动（二选一里的选项 b）
 
@@ -437,8 +556,8 @@ ${aboveRows}
 | --- | --- | --- | --- | --- | --- | --- | --- |
 ${perfRows.join('\n')}
 
-- **整步在涨，但不是算法级的涨。** 种子 A 的 \`sim p50\` ${A.days[0].perf.simP50.toFixed(4)} → ${A.days[29].perf.simP50.toFixed(4)} ms（+57%）、\`p95\` ${A.days[0].perf.simP95.toFixed(4)} → ${A.days[29].perf.simP95.toFixed(4)} ms；种子 B 只从 ${B.days[0].perf.simP50.toFixed(4)} → ${B.days[29].perf.simP50.toFixed(4)} ms（+7%）。绝对值仍在 6 秒步长预算的 0.3% 以内，不是「世界越大越卡」的复杂度问题。
-- **函数级定位（\`profile.json\`）**：随天数涨的是 \`stepDecrees\`（p50 7.6 → 11.6 µs、p95 14.9 → 25.9 µs）——它每步调用 \`snapshot()\` 做全量对象分配，堆从 0 涨到 88 MB 后分配/GC 变贵；\`stepTide\` 修复后恒定（p50 0.2 → 0.3 µs）。
+- **整步在涨，但不是算法级的涨。** 种子 A 的 \`sim p50\` ${A.days[0].perf.simP50.toFixed(4)} → ${A.days[29].perf.simP50.toFixed(4)} ms（+${((A.days[29].perf.simP50 / A.days[0].perf.simP50 - 1) * 100).toFixed(0)}%）、\`p95\` ${A.days[0].perf.simP95.toFixed(4)} → ${A.days[29].perf.simP95.toFixed(4)} ms；种子 B 从 ${B.days[0].perf.simP50.toFixed(4)} → ${B.days[29].perf.simP50.toFixed(4)} ms（+${((B.days[29].perf.simP50 / B.days[0].perf.simP50 - 1) * 100).toFixed(0)}%）。绝对值仍在 6 秒步长预算的 0.3% 以内，不是「世界越大越卡」的复杂度问题。
+- **函数级定位（\`profile.json\`）**：改前随天数涨的 \`stepDecrees\`（p50 7.6 → 11.6 µs、p95 14.9 → 25.9 µs）已经修掉——它原来每步调用 \`snapshot()\` 做全量对象分配。改后 p50 恒定 ${((decreeAfter.p50) * 1000).toFixed(1)} µs、p95 ${((decreeAfter.p95) * 1000).toFixed(1)} µs，堆峰值也从 ${PROFILE_BEFORE === null ? '—' : `${f0(PROFILE_BEFORE.perDay[29].heapMB)} MB`} 降到 ${PROFILE_AFTER === null ? '—' : `${f0(PROFILE_AFTER.perDay[29].heapMB)} MB`}。\`stepTide\` 修复后恒定（p50 0.2 → 0.3 µs）。
 - **确定随存量线性增长的两项**：\`dayClose\` ${A.days[0].perf.dayCloseMs.toFixed(1)} → ${A.days[29].perf.dayCloseMs.toFixed(1)} ms（记忆关账要扫全库 + 序列化）；\`dayWall\` ${A.days[0].perf.dayWallMs.toFixed(1)} → ${A.days[29].perf.dayWallMs.toFixed(1)} ms（每步快照与 \`syncHolders\` 的分配压力）。这两项是「跑久了」真正要盯的读数。
 - 修复前实测的「越跑越慢」在 \`tideLevelAt\`：\`stepTide\` p50 从 0.3 µs 涨到 17.9 µs（60×），30 日耗时 73.6 s。改成 64 周期检查点 + 二分后，\`stepTide\` 恒定 ~1 µs，30 日 50.3 s。详见「修了什么」。
 
@@ -510,7 +629,7 @@ ${marketRow}
 
 - 居民**没有塌成只剩巡逻**：走动、离场、出摊、夜行、睡下的量级都在；夜行从 0 到 95 步是天气/潮汐把个别行程推到了夜里，不是退化。
 - 打水每天 ${behaviorPick['打水事件'](A.days[0])} 次、全部「到达」，30 天 ${A.days[29].behaviors.waterReached - A.days[28].behaviors.waterReached} 次到达，没有落空。
-- **关系账本 30 天恒为 0 条**：街头互动每天 ${A.days[0].behaviors.interactions} 次，但 \`incidents\`（撞翻 / 抢水 / 帮忙）恒为 0，\`bondsOf()\` 永远是空的。所以「越处越亲还是震荡」这一问在本场景**无法回答**——没有任何一笔关系被记下。
+- **关系账本 30 天有 ${A.days[29].relations.count} 条（10 对 × 双向）**：\`incidents\` 仍然恒为 0，但日常照面走独立通道入了账；warmth 均值 ${f3(warmthMean)}、familiarity 均值 ${f3(famMean)}、|trust| 最大 ${f3(Math.max(...trustAbs))}。第 1 天只有 ${A.days[0].relations.count} 条（8 对当天见过面），第 30 天 10 对全部有账——「越处越亲」现在可读了。
 - 天气三档都出现过：计划第 2/5/8… 天各拨一次，\`weatherSeen\` 在对应日读到 \`rain\` / \`storm\`；当日采样点落在夜里，读数是「全天出现过的档位」并集。
 
 ## 7. 发现了什么 / 修了什么 / 还剩什么
@@ -531,6 +650,18 @@ ${marketRow}
 3. **淘汰留痕**：新增 \`memory.pruned\` 事件（层 / 淘汰数 / 条数超限数 / 字节超限数 / 原因 / 剩余），每层每天至多一条；同时修正\`memory.archived\` 原先「每天把全部已归档条目重发一遍」的累计口径。
 4. **归档/晋升不改阈值，补可达性证明**（选项 b）：\`test/memory-archive-reach.test.ts\`。
 5. **面板不再编造时刻**：\`whenKnown\` 从 \`dayTimelineFor\` 一路透到 \`unit-status\`，事实被裁或摘要日号都写「时刻不明」。
+6. **\`stepDecrees\` 不再每步全量 \`snapshot()\`**（第 2 条）：\`awaitingDecree\` 现在只收 \`Pick<WorldSnapshot,'tasks'>\`，\`decreeView()\` 直接返回 \`{ tasks: this.tasks }\`，同一个数组引用、零分配；\`hasDecree\` 与每换班一次的调用也走同一条路。改前/改后（同 seed \`soak-profile\`、30 天）：
+
+| 读数 | 改前 | 改后 |
+| --- | --- | --- |
+| \`stepDecrees\` p50（第 1 天 → 第 30 天） | ${((simBefore?.[0]?.sections?.stepDecrees?.p50 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simBefore)?.sections?.stepDecrees?.p50 ?? 0) * 1000).toFixed(1)} µs | ${((simAfter?.[0]?.sections?.stepDecrees?.p50 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simAfter)?.sections?.stepDecrees?.p50 ?? 0) * 1000).toFixed(1)} µs |
+| \`stepDecrees\` p95 | ${((simBefore?.[0]?.sections?.stepDecrees?.p95 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simBefore)?.sections?.stepDecrees?.p95 ?? 0) * 1000).toFixed(1)} µs | ${((simAfter?.[0]?.sections?.stepDecrees?.p95 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simAfter)?.sections?.stepDecrees?.p95 ?? 0) * 1000).toFixed(1)} µs |
+| \`sim\` p50 | ${((simBefore?.[0]?.simP50 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simBefore)?.simP50 ?? 0) * 1000).toFixed(1)} µs | ${((simAfter?.[0]?.simP50 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simAfter)?.simP50 ?? 0) * 1000).toFixed(1)} µs |
+| \`sim\` p95 | ${((simBefore?.[0]?.simP95 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simBefore)?.simP95 ?? 0) * 1000).toFixed(1)} µs | ${((simAfter?.[0]?.simP95 ?? 0) * 1000).toFixed(1)} → ${((day30Of(simAfter)?.simP95 ?? 0) * 1000).toFixed(1)} µs |
+| 堆峰值 | ${PROFILE_BEFORE === null ? '—' : `${f0(PROFILE_BEFORE.perDay[29].heapMB)} MB`} | ${PROFILE_AFTER === null ? '—' : `${f0(PROFILE_AFTER.perDay[29].heapMB)} MB`} |
+
+7. **日常照面独立小额通道（第 3 条选 b）**：门槛 0.4 保留，它量的是「事情重不重要」；「street_greet / street_yield / street_together」另走一条**按天结算**的通道，同一对一天见几次只积一次，familiarity 向 0.75 缓动、warmth 向 0.4 缓动且照常吃 15%/天衰减，trust 不动。30 天后 warmth ${f3(Math.min(...warmth))}–${f3(Math.max(...warmth))}（均值 ${f3(warmthMean)}），familiarity ${f3(Math.min(...familiarity))}–${f3(Math.max(...familiarity))}（均值 ${f3(famMean)}）——有账，但离满格远。
+8. **\`legend\` 同 reach 改为留更早**：改前同 reach 留最新，90 天存活传说最早只到第 ${legendOldMin ?? '—'} 天；改后最早回到第 ${RETRO?.legend?.formedDay?.min ?? '—'} 天。最早那批碑文不再先被扔掉。
 
 | 读数 | 改前 | 改后 |
 | --- | --- | --- |
@@ -540,13 +671,13 @@ ${marketRow}
 
 ### 发现了（未修，按口径记 todo + BUGS_FOUND）
 
-1. **关系账本在纯日常世界永远是 0**——没有 \`street_tumble\` / \`street_water\` / \`street_help\`，\`incidents=0\`，\`bondsOf()\` 空（第 3 条，未到）。
-2. **\`T_promote=0.60\` 在日常场景走不到**——本报告已用分布解释并证明机制可达（选项 b），因此这条不再是缺陷，而是场景边界；剩余风险是「听来的 0.575 与 0.60 之间只隔 0.025」，场景一变就得重看分布。
+1. **回溯完整度**（加件 2）：第 20 / 45 / 60 天的居民时间轴几乎空白，事实每天只剩 12 / 30；实际时间轴保留窗约 6 天。这是「按日历回溯」的核心目标，本轮只量化、未修。
+2. **\`T_promote=0.60\` 在日常场景走不到**——本报告已用分布解释并证明机制可达（选项 b），因此这条不再是缺陷，而是场景边界；剩余风险是「听来的 0.575 与 0.60 之间只隔 0.025」，场景一变就得重看分布。回填缺口正是它的下游：没有摘要层接住归档的日条目。
 
 ### 还剩什么
 
-- **\`stepDecrees\` 每步 \`snapshot()\` 的全量分配**（第 2 条，未到）：堆 0 → 88 MB 后 p50/p95 都涨。
-- **关系账本恒 0**（第 3 条，未到）：需要先给分布再选 (a)/(b)。
+- **回溯完整度**（加件 2，未修）：需要让归档/摘要真正接住旧日条目（例如按日历可达的摘要层），否则「回到第 20 天」只有 12 条事实、0 条时间轴。
+- \`stepDecrees\` / 关系账本 / 传说排序已修完，\`[SOAK-BUG-1]\` 已从 todo 转正。
 - \`docs/BUGS_FOUND.md\` 的「长周期浸泡」小节已同步：BUG-2 降级为「场景边界 + 可达性测试」，BUG-3/BUG-4 翻正。
 - 九道闸门。
 `;

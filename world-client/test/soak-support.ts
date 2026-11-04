@@ -213,6 +213,8 @@ export interface DaySample {
   readonly accepted: number;
   readonly rejected: number;
   readonly memory: MemoryReading;
+  /** 当天结束时，各居民时间轴上 `createdDay === day` 的条目总数（回溯分母）。 */
+  readonly timelineToday: number;
   readonly relations: RelationReading;
   readonly behaviors: BehaviorCounts;
   readonly perf: PerformanceReading;
@@ -264,6 +266,14 @@ function memoryPartsOf(memoryJson: string): Record<string, MemoryPart> {
     };
   }
   return parts;
+}
+
+/** 当天结束时可读的居民时间轴（按 `createdDay` 归日）。 */
+function timelineEntriesOf(memoryJson: string, day: number): number {
+  const parsed = JSON.parse(memoryJson) as {
+    world?: { entries?: { createdDay?: number }[] };
+  };
+  return (parsed.world?.entries ?? []).filter((entry) => entry.createdDay === day).length;
 }
 
 function percentile(sorted: readonly number[], p: number): number {
@@ -1033,6 +1043,7 @@ export class SoakRun {
       accepted,
       rejected,
       memory: this.memoryReading(),
+      timelineToday: timelineEntriesOf(memoryJson, day),
       relations: this.relationReading(),
       behaviors: behaviorsFinal,
       perf: {

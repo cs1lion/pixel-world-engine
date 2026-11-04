@@ -1,0 +1,312 @@
+{
+  "seed": "soak-a",
+  "days": 90,
+  "elapsedSeconds": 131.42360939999998,
+  "saveKB": 1490.294921875,
+  "savePercent": 0.7276830673217773,
+  "last30KbPerDay": 1.4173828125,
+  "facts": {
+    "alive": 920,
+    "events": 2693,
+    "ratio": 0.3416264389157074,
+    "evicted": 1773,
+    "evictedRecoverable": 3,
+    "byDay": {
+      "0": 29,
+      "1": 30,
+      "2": 30,
+      "3": 29,
+      "4": 30,
+      "5": 29,
+      "6": 30,
+      "7": 30,
+      "8": 30,
+      "9": 30,
+      "10": 30,
+      "11": 30,
+      "12": 30,
+      "13": 22,
+      "14": 18,
+      "15": 18,
+      "16": 18,
+      "17": 18,
+      "18": 18,
+      "19": 18,
+      "20": 18,
+      "21": 18,
+      "22": 18,
+      "23": 18,
+      "24": 18,
+      "25": 18,
+      "26": 18,
+      "27": 18,
+      "28": 18,
+      "29": 18,
+      "30": 18,
+      "31": 18,
+      "32": 18,
+      "33": 18,
+      "34": 18,
+      "35": 18,
+      "36": 18,
+      "37": 18,
+      "38": 18,
+      "39": 18,
+      "40": 18,
+      "41": 18,
+      "42": 18,
+      "43": 18,
+      "44": 18,
+      "45": 18,
+      "46": 18,
+      "47": 18,
+      "48": 18,
+      "49": 17,
+      "50": 18,
+      "51": 18,
+      "52": 18,
+      "53": 18,
+      "54": 18,
+      "55": 18,
+      "56": 17,
+      "57": 18,
+      "58": 18,
+      "59": 18,
+      "60": 18,
+      "61": 18,
+      "62": 18,
+      "63": 18,
+      "64": 18,
+      "65": 18,
+      "66": 18,
+      "67": 18,
+      "68": 18,
+      "69": 18,
+      "70": 18,
+      "71": 18,
+      "72": 18,
+      "73": 18,
+      "74": 18,
+      "75": 18,
+      "76": 18,
+      "77": 18,
+      "78": 17,
+      "79": 18,
+      "80": 18,
+      "81": 17,
+      "82": 17,
+      "83": 18,
+      "84": 18,
+      "85": 18,
+      "86": 18,
+      "87": 18,
+      "88": 18,
+      "89": 18,
+      "90": 1
+    }
+  },
+  "prunedByLayer": {
+    "entries": {
+      "evicted": 1180,
+      "byCount": 1138,
+      "byBytes": 42
+    },
+    "cooldowns": {
+      "evicted": 5538,
+      "byCount": 0,
+      "byBytes": 5538
+    },
+    "tells": {
+      "evicted": 3376,
+      "byCount": 0,
+      "byBytes": 3376
+    },
+    "beliefs": {
+      "evicted": 3156,
+      "byCount": 0,
+      "byBytes": 3156
+    },
+    "facts": {
+      "evicted": 1773,
+      "byCount": 0,
+      "byBytes": 1773
+    },
+    "claims": {
+      "evicted": 1160,
+      "byCount": 0,
+      "byBytes": 1160
+    },
+    "written": {
+      "evicted": 292,
+      "byCount": 0,
+      "byBytes": 292
+    },
+    "legends": {
+      "evicted": 149,
+      "byCount": 0,
+      "byBytes": 149
+    }
+  },
+  "legend": {
+    "count": 101,
+    "bytes": 20095,
+    "countBudget": 120,
+    "countPercent": 0.8416666666666667,
+    "bytesBudget": 20480,
+    "bytesPercent": 0.981201171875,
+    "formedDay": {
+      "min": 4,
+      "max": 89
+    },
+    "reach": {
+      "0": 70,
+      "1": 1,
+      "2": 1,
+      "3": 5,
+      "4": 5,
+      "5": 10,
+      "6": 1,
+      "8": 4,
+      "9": 1,
+      "10": 1,
+      "13": 1,
+      "16": 1
+    },
+    "evicted": 149,
+    "evictedFormedDay": {
+      "min": 24,
+      "max": 83
+    },
+    "evictedReach": {
+      "0": 149
+    },
+    "evictedSample": [
+      {
+        "legendId": "legend_3499",
+        "formedDay": 38,
+        "reach": 0,
+        "eventRefs": [
+          "soak-181"
+        ]
+      },
+      {
+        "legendId": "legend_3506",
+        "formedDay": 38,
+        "reach": 0,
+        "eventRefs": [
+          "soak-179"
+        ]
+      },
+      {
+        "legendId": "legend_2949",
+        "formedDay": 31,
+        "reach": 0,
+        "eventRefs": [
+          "soak-111"
+        ]
+      },
+      {
+        "legendId": "legend_3328",
+        "formedDay": 36,
+        "reach": 0,
+        "eventRefs": [
+          "soak-122"
+        ]
+      },
+      {
+        "legendId": "legend_3336",
+        "formedDay": 36,
+        "reach": 0,
+        "eventRefs": [
+          "soak-120"
+        ]
+      }
+    ]
+  },
+  "backfill": [
+    {
+      "day": 20,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineAlive": 0,
+      "timelineAtClose": 59,
+      "timelineMissingPct": 1,
+      "eventsReachable": 12,
+      "eventsMissingPct": 0.6
+    },
+    {
+      "day": 45,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineAlive": 1,
+      "timelineAtClose": 61,
+      "timelineMissingPct": 0.9836065573770492,
+      "eventsReachable": 12,
+      "eventsMissingPct": 0.6
+    },
+    {
+      "day": 60,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineAlive": 2,
+      "timelineAtClose": 57,
+      "timelineMissingPct": 0.9649122807017544,
+      "eventsReachable": 12,
+      "eventsMissingPct": 0.6
+    },
+    {
+      "day": 89,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineAlive": 47,
+      "timelineAtClose": 59,
+      "timelineMissingPct": 0.2033898305084746,
+      "eventsReachable": 12,
+      "eventsMissingPct": 0.6
+    }
+  ],
+  "evictedFactSample": [
+    {
+      "eventId": "soak-4",
+      "factDay": 0,
+      "evictedDay": 31,
+      "kind": "daily_water",
+      "importanceHint": 0.35,
+      "what": "迷路人去河湾打水，顺手冲了冲河岸",
+      "recoverable": false,
+      "reachableFrom": []
+    },
+    {
+      "eventId": "soak-6",
+      "factDay": 0,
+      "evictedDay": 76,
+      "kind": "street_greet",
+      "importanceHint": 0.38,
+      "what": "迷路人与灯笼头碰面，互相问了个好。",
+      "recoverable": false,
+      "reachableFrom": []
+    },
+    {
+      "eventId": "soak-2664",
+      "factDay": 89,
+      "evictedDay": 89,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边睡下了",
+      "recoverable": false,
+      "reachableFrom": []
+    }
+  ]
+}

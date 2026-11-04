@@ -10,11 +10,11 @@
       "worldEvents": 30,
       "buildingCount": 9,
       "demolitions": 0,
-      "memoryJsonBytes": 62667,
+      "memoryJsonBytes": 64227,
       "memoryParts": {
         "entries": {
-          "bytes": 22962,
-          "count": 38
+          "bytes": 21655,
+          "count": 36
         },
         "facts": {
           "bytes": 10840,
@@ -29,25 +29,25 @@
           "count": 5
         },
         "beliefs": {
-          "bytes": 5118,
-          "count": 35
+          "bytes": 4958,
+          "count": 34
         },
         "cooldowns": {
-          "bytes": 3563,
-          "count": 54
+          "bytes": 3484,
+          "count": 53
         },
         "tells": {
-          "bytes": 2091,
-          "count": 35
+          "bytes": 2018,
+          "count": 34
         },
         "legends": {
           "bytes": 2,
           "count": 0
         }
       },
-      "saveBytes": 79361,
-      "saveKBPerCharacterYear": 5657.5712890625,
-      "memoryKBPerCharacterYear": 4467.4716796875,
+      "saveBytes": 81142,
+      "saveKBPerCharacterYear": 5784.537109375,
+      "memoryKBPerCharacterYear": 4578.6826171875,
       "ledgerRows": 1,
       "ledgerBytes": 2615,
       "creationRecords": 1,
@@ -56,18 +56,18 @@
       "accepted": 0,
       "rejected": 1,
       "memory": {
-        "entries": 38,
+        "entries": 36,
         "byHolder": {
           "v0": 12,
           "v1": 6,
           "v2": 4,
-          "v3": 7,
-          "v4": 9
+          "v3": 6,
+          "v4": 8
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 148,
+        "bonds": 18,
+        "events": 144,
         "consolidated": 14,
         "archived": 0,
         "dropped": 0,
@@ -100,10 +100,11 @@
           }
         }
       },
+      "timelineToday": 32,
       "relations": {
-        "count": 0,
+        "count": 18,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.08000000000000004
       },
       "behaviors": {
         "walkSteps": 14004,
@@ -127,13 +128,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010400000002846355,
-        "simP95": 0.03169999999954598,
-        "memP50": 0.002599999999802094,
-        "memP95": 0.004999999997380655,
-        "dayCloseMs": 1.4366999999983818,
-        "creatorCloseMs": 0.12199999999938882,
-        "dayWallMs": 799.7674999999981
+        "simP50": 0.004600000000209548,
+        "simP95": 0.028200000000651926,
+        "memP50": 0.0037999999985913746,
+        "memP95": 0.007600000004458707,
+        "dayCloseMs": 2.2439999999987776,
+        "creatorCloseMs": 0.15929999999934807,
+        "dayWallMs": 1186.1238000000012
       }
     },
     {
@@ -145,11 +146,11 @@
       "worldEvents": 60,
       "buildingCount": 9,
       "demolitions": 0,
-      "memoryJsonBytes": 117163,
+      "memoryJsonBytes": 121929,
       "memoryParts": {
         "entries": {
-          "bytes": 42061,
-          "count": 69
+          "bytes": 42712,
+          "count": 70
         },
         "facts": {
           "bytes": 21808,
@@ -164,25 +165,25 @@
           "count": 10
         },
         "beliefs": {
-          "bytes": 10223,
-          "count": 69
+          "bytes": 10534,
+          "count": 71
         },
         "cooldowns": {
-          "bytes": 7030,
-          "count": 106
+          "bytes": 7242,
+          "count": 109
         },
         "tells": {
-          "bytes": 4108,
-          "count": 69
+          "bytes": 4230,
+          "count": 71
         },
         "legends": {
           "bytes": 2,
           "count": 0
         }
       },
-      "saveBytes": 142621,
-      "saveKBPerCharacterYear": 5083.65869140625,
-      "memoryKBPerCharacterYear": 4176.22021484375,
+      "saveBytes": 148105,
+      "saveKBPerCharacterYear": 5279.13330078125,
+      "memoryKBPerCharacterYear": 4346.10205078125,
       "ledgerRows": 1,
       "ledgerBytes": 2615,
       "creationRecords": 1,
@@ -191,18 +192,18 @@
       "accepted": 0,
       "rejected": 1,
       "memory": {
-        "entries": 69,
+        "entries": 70,
         "byHolder": {
           "v0": 16,
           "v1": 14,
           "v2": 12,
-          "v3": 13,
-          "v4": 14
+          "v3": 12,
+          "v4": 16
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 299,
+        "bonds": 18,
+        "events": 304,
         "consolidated": 28,
         "archived": 0,
         "dropped": 9,
@@ -214,7 +215,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 70,
+          "count": 68,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.49875,
@@ -223,23 +224,24 @@
             "0.438": 12,
             "0.463": 2,
             "0.475": 2,
-            "0.495": 53,
+            "0.495": 51,
             "0.499": 1
           },
           "above": {
-            "0.45": 58,
-            "0.48": 54,
-            "0.495": 54,
+            "0.45": 56,
+            "0.48": 52,
+            "0.495": 52,
             "0.5": 0,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 36,
       "relations": {
-        "count": 0,
+        "count": 18,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.13440000000000002
       },
       "behaviors": {
         "walkSteps": 14400,
@@ -263,13 +265,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.020099999997910345,
-        "memP50": 0.0026000000034400728,
-        "memP95": 0.005000000001018634,
-        "dayCloseMs": 2.0491000000001804,
-        "creatorCloseMs": 0.11990000000150758,
-        "dayWallMs": 846.3125
+        "simP50": 0.004300000000512227,
+        "simP95": 0.017400000004272442,
+        "memP50": 0.0039000000033411197,
+        "memP95": 0.008500000003550667,
+        "dayCloseMs": 3.352099999996426,
+        "creatorCloseMs": 0.11440000000584405,
+        "dayWallMs": 1211.2213000000047
       }
     },
     {
@@ -281,10 +283,10 @@
       "worldEvents": 90,
       "buildingCount": 9,
       "demolitions": 0,
-      "memoryJsonBytes": 158857,
+      "memoryJsonBytes": 163451,
       "memoryParts": {
         "entries": {
-          "bytes": 49275,
+          "bytes": 49298,
           "count": 80
         },
         "facts": {
@@ -300,25 +302,25 @@
           "count": 15
         },
         "beliefs": {
-          "bytes": 15009,
-          "count": 101
+          "bytes": 15305,
+          "count": 103
         },
         "cooldowns": {
-          "bytes": 10211,
-          "count": 154
+          "bytes": 10423,
+          "count": 157
         },
         "tells": {
-          "bytes": 5994,
-          "count": 101
+          "bytes": 6116,
+          "count": 103
         },
         "legends": {
           "bytes": 2,
           "count": 0
         }
       },
-      "saveBytes": 191082,
-      "saveKBPerCharacterYear": 4540.685546875,
-      "memoryKBPerCharacterYear": 3774.9222005208335,
+      "saveBytes": 196382,
+      "saveKBPerCharacterYear": 4666.629557291667,
+      "memoryKBPerCharacterYear": 3884.089518229167,
       "ledgerRows": 1,
       "ledgerBytes": 2615,
       "creationRecords": 1,
@@ -337,11 +339,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 448,
+        "bonds": 20,
+        "events": 454,
         "consolidated": 42,
         "archived": 0,
-        "dropped": 38,
+        "dropped": 40,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -350,7 +352,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 108,
+          "count": 109,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.49875,
@@ -360,24 +362,25 @@
             "0.438": 18,
             "0.463": 3,
             "0.475": 3,
-            "0.495": 81,
+            "0.495": 82,
             "0.499": 1,
             "0.503": 1
           },
           "above": {
-            "0.45": 89,
-            "0.48": 83,
-            "0.495": 83,
+            "0.45": 90,
+            "0.48": 84,
+            "0.495": 84,
             "0.5": 1,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 41,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.15082240000000002
       },
       "behaviors": {
         "walkSteps": 14795,
@@ -402,13 +405,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010300000001734588,
-        "simP95": 0.02019999999902211,
-        "memP50": 0.002599999999802094,
-        "memP95": 0.004899999999906868,
-        "dayCloseMs": 2.4359999999978754,
-        "creatorCloseMs": 0.08390000000144937,
-        "dayWallMs": 845.0969000000005
+        "simP50": 0.00420000000303844,
+        "simP95": 0.018799999998009298,
+        "memP50": 0.0037999999985913746,
+        "memP95": 0.008099999999103602,
+        "dayCloseMs": 3.8311000000030617,
+        "creatorCloseMs": 0.2239999999947031,
+        "dayWallMs": 1191.7406999999948
       }
     },
     {
@@ -420,10 +423,10 @@
       "worldEvents": 119,
       "buildingCount": 9,
       "demolitions": 0,
-      "memoryJsonBytes": 194122,
+      "memoryJsonBytes": 198914,
       "memoryParts": {
         "entries": {
-          "bytes": 49381,
+          "bytes": 49579,
           "count": 80
         },
         "facts": {
@@ -439,25 +442,25 @@
           "count": 20
         },
         "beliefs": {
-          "bytes": 20381,
-          "count": 137
+          "bytes": 20648,
+          "count": 139
         },
         "cooldowns": {
-          "bytes": 13829,
-          "count": 208
+          "bytes": 14041,
+          "count": 211
         },
         "tells": {
-          "bytes": 8142,
-          "count": 137
+          "bytes": 8264,
+          "count": 139
         },
         "legends": {
           "bytes": 2,
           "count": 0
         }
       },
-      "saveBytes": 232172,
-      "saveKBPerCharacterYear": 4137.8310546875,
-      "memoryKBPerCharacterYear": 3459.69384765625,
+      "saveBytes": 237715,
+      "saveKBPerCharacterYear": 4236.619873046875,
+      "memoryKBPerCharacterYear": 3545.09814453125,
       "ledgerRows": 2,
       "ledgerBytes": 5238,
       "creationRecords": 2,
@@ -476,11 +479,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 605,
+        "bonds": 20,
+        "events": 610,
         "consolidated": 56,
         "archived": 0,
-        "dropped": 79,
+        "dropped": 80,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -489,7 +492,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 145,
+          "count": 147,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.49875,
@@ -499,24 +502,25 @@
             "0.438": 23,
             "0.463": 4,
             "0.475": 4,
-            "0.495": 111,
-            "0.499": 1,
+            "0.495": 112,
+            "0.499": 2,
             "0.503": 1
           },
           "above": {
-            "0.45": 121,
-            "0.48": 113,
-            "0.495": 113,
+            "0.45": 123,
+            "0.48": 115,
+            "0.495": 115,
             "0.5": 1,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 38,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.18255923199999996
       },
       "behaviors": {
         "walkSteps": 14300,
@@ -540,13 +544,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010300000001734588,
-        "simP95": 0.020899999999528518,
-        "memP50": 0.0024999999986903276,
-        "memP95": 0.004700000001321314,
-        "dayCloseMs": 3.8473999999987427,
-        "creatorCloseMs": 0.09330000000045402,
-        "dayWallMs": 829.234199999999
+        "simP50": 0.004099999998288695,
+        "simP95": 0.015100000004167669,
+        "memP50": 0.0036000000036437996,
+        "memP95": 0.006900000000314321,
+        "dayCloseMs": 5.9637000000002445,
+        "creatorCloseMs": 0.14719999999942956,
+        "dayWallMs": 1153.905899999998
       }
     },
     {
@@ -558,10 +562,10 @@
       "worldEvents": 149,
       "buildingCount": 9,
       "demolitions": 0,
-      "memoryJsonBytes": 251873,
+      "memoryJsonBytes": 256765,
       "memoryParts": {
         "entries": {
-          "bytes": 69059,
+          "bytes": 69050,
           "count": 108
         },
         "facts": {
@@ -577,25 +581,25 @@
           "count": 25
         },
         "beliefs": {
-          "bytes": 26340,
-          "count": 177
+          "bytes": 26667,
+          "count": 179
         },
         "cooldowns": {
-          "bytes": 17884,
-          "count": 268
+          "bytes": 18096,
+          "count": 271
         },
         "tells": {
-          "bytes": 10552,
-          "count": 177
+          "bytes": 10674,
+          "count": 179
         },
         "legends": {
           "bytes": 1110,
           "count": 4
         }
       },
-      "saveBytes": 298764,
-      "saveKBPerCharacterYear": 4259.72109375,
-      "memoryKBPerCharacterYear": 3591.1580078125003,
+      "saveBytes": 304417,
+      "saveKBPerCharacterYear": 4340.3205078125,
+      "memoryKBPerCharacterYear": 3660.9072265625,
       "ledgerRows": 2,
       "ledgerBytes": 5238,
       "creationRecords": 2,
@@ -614,11 +618,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 802,
+        "bonds": 20,
+        "events": 808,
         "consolidated": 70,
         "archived": 0,
-        "dropped": 118,
+        "dropped": 120,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -627,7 +631,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 186,
+          "count": 188,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -637,24 +641,25 @@
             "0.438": 29,
             "0.463": 5,
             "0.475": 5,
-            "0.495": 137,
+            "0.495": 139,
             "0.499": 5,
             "0.503": 4
           },
           "above": {
-            "0.45": 156,
-            "0.48": 146,
-            "0.495": 146,
+            "0.45": 158,
+            "0.48": 148,
+            "0.495": 148,
             "0.5": 4,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 69,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.19482286080000005
       },
       "behaviors": {
         "walkSteps": 14500,
@@ -678,13 +683,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010300000001734588,
-        "simP95": 0.020999999997002305,
-        "memP50": 0.0024999999986903276,
-        "memP95": 0.004700000001321314,
-        "dayCloseMs": 3.648700000001554,
-        "creatorCloseMs": 0.08669999999983702,
-        "dayWallMs": 828.0540999999976
+        "simP50": 0.003899999996065162,
+        "simP95": 0.013000000006286427,
+        "memP50": 0.0034999999988940544,
+        "memP95": 0.006699999998090789,
+        "dayCloseMs": 4.672400000003108,
+        "creatorCloseMs": 0.11809999999968568,
+        "dayWallMs": 1076.7497999999978
       }
     },
     {
@@ -696,10 +701,10 @@
       "worldEvents": 178,
       "buildingCount": 9,
       "demolitions": 0,
-      "memoryJsonBytes": 295876,
+      "memoryJsonBytes": 300969,
       "memoryParts": {
         "entries": {
-          "bytes": 78354,
+          "bytes": 78294,
           "count": 123
         },
         "facts": {
@@ -715,25 +720,25 @@
           "count": 30
         },
         "beliefs": {
-          "bytes": 31381,
-          "count": 211
+          "bytes": 31679,
+          "count": 213
         },
         "cooldowns": {
-          "bytes": 21351,
-          "count": 320
+          "bytes": 21563,
+          "count": 323
         },
         "tells": {
-          "bytes": 12569,
-          "count": 211
+          "bytes": 12691,
+          "count": 213
         },
         "legends": {
           "bytes": 1602,
           "count": 7
         }
       },
-      "saveBytes": 349842,
-      "saveKBPerCharacterYear": 4156.6513671875,
-      "memoryKBPerCharacterYear": 3515.453776041667,
+      "saveBytes": 355724,
+      "saveKBPerCharacterYear": 4226.538411458334,
+      "memoryKBPerCharacterYear": 3575.96630859375,
       "ledgerRows": 2,
       "ledgerBytes": 5238,
       "creationRecords": 2,
@@ -752,11 +757,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 971,
+        "bonds": 20,
+        "events": 974,
         "consolidated": 84,
         "archived": 0,
-        "dropped": 157,
+        "dropped": 156,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -765,7 +770,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 223,
+          "count": 226,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -775,24 +780,25 @@
             "0.438": 34,
             "0.463": 8,
             "0.475": 6,
-            "0.495": 164,
+            "0.495": 167,
             "0.499": 5,
             "0.503": 5
           },
           "above": {
-            "0.45": 188,
-            "0.48": 174,
-            "0.495": 174,
+            "0.45": 191,
+            "0.48": 177,
+            "0.495": 177,
             "0.5": 5,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 53,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.21247954534400004
       },
       "behaviors": {
         "walkSteps": 14395,
@@ -817,13 +823,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.01029999999809661,
-        "simP95": 0.01959999999962747,
-        "memP50": 0.0024999999986903276,
-        "memP95": 0.00450000000273576,
-        "dayCloseMs": 3.486799999998766,
-        "creatorCloseMs": 0.08539999999993597,
-        "dayWallMs": 820.2842999999993
+        "simP50": 0.004300000000512227,
+        "simP95": 0.019800000001851004,
+        "memP50": 0.0037999999985913746,
+        "memP95": 0.00930000000516884,
+        "dayCloseMs": 4.0693000000028405,
+        "creatorCloseMs": 0.12979999999515712,
+        "dayWallMs": 1185.7284
       }
     },
     {
@@ -835,10 +841,10 @@
       "worldEvents": 208,
       "buildingCount": 10,
       "demolitions": 0,
-      "memoryJsonBytes": 350947,
+      "memoryJsonBytes": 356774,
       "memoryParts": {
         "entries": {
-          "bytes": 97195,
+          "bytes": 97556,
           "count": 154
         },
         "facts": {
@@ -854,25 +860,25 @@
           "count": 35
         },
         "beliefs": {
-          "bytes": 36514,
-          "count": 245
+          "bytes": 36812,
+          "count": 247
         },
         "cooldowns": {
-          "bytes": 24818,
-          "count": 372
+          "bytes": 25030,
+          "count": 375
         },
         "tells": {
-          "bytes": 14586,
-          "count": 245
+          "bytes": 14708,
+          "count": 247
         },
         "legends": {
-          "bytes": 2459,
+          "bytes": 2520,
           "count": 12
         }
       },
-      "saveBytes": 414505,
-      "saveKBPerCharacterYear": 4221.3818359375,
-      "memoryKBPerCharacterYear": 3574.097516741071,
+      "saveBytes": 421175,
+      "saveKBPerCharacterYear": 4289.310128348214,
+      "memoryKBPerCharacterYear": 3633.4405691964284,
       "ledgerRows": 4,
       "ledgerBytes": 8957,
       "creationRecords": 3,
@@ -891,11 +897,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 1165,
+        "bonds": 20,
+        "events": 1168,
         "consolidated": 99,
         "archived": 0,
-        "dropped": 200,
+        "dropped": 199,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -928,10 +934,11 @@
           }
         }
       },
+      "timelineToday": 68,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.21506862383104003
       },
       "behaviors": {
         "walkSteps": 14500,
@@ -955,13 +962,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01900000000023283,
-        "memP50": 0.002599999999802094,
-        "memP95": 0.004700000001321314,
-        "dayCloseMs": 3.748200000001816,
-        "creatorCloseMs": 0.07439999999769498,
-        "dayWallMs": 841.1873999999989
+        "simP50": 0.004600000000209548,
+        "simP95": 0.02079999999841675,
+        "memP50": 0.004099999998288695,
+        "memP95": 0.009700000002339948,
+        "dayCloseMs": 7.626799999998184,
+        "creatorCloseMs": 0.11869999999908032,
+        "dayWallMs": 1223.345100000006
       }
     },
     {
@@ -973,11 +980,11 @@
       "worldEvents": 238,
       "buildingCount": 10,
       "demolitions": 0,
-      "memoryJsonBytes": 402444,
+      "memoryJsonBytes": 406952,
       "memoryParts": {
         "entries": {
-          "bytes": 113035,
-          "count": 179
+          "bytes": 111843,
+          "count": 177
         },
         "facts": {
           "bytes": 87016,
@@ -992,25 +999,25 @@
           "count": 40
         },
         "beliefs": {
-          "bytes": 41544,
-          "count": 279
+          "bytes": 41857,
+          "count": 281
         },
         "cooldowns": {
-          "bytes": 28285,
-          "count": 424
+          "bytes": 28497,
+          "count": 427
         },
         "tells": {
-          "bytes": 16603,
-          "count": 279
+          "bytes": 16725,
+          "count": 281
         },
         "legends": {
           "bytes": 3219,
           "count": 16
         }
       },
-      "saveBytes": 474113,
-      "saveKBPerCharacterYear": 4224.8839111328125,
-      "memoryKBPerCharacterYear": 3586.23193359375,
+      "saveBytes": 479316,
+      "saveKBPerCharacterYear": 4271.24853515625,
+      "memoryKBPerCharacterYear": 3626.4033203125,
       "ledgerRows": 4,
       "ledgerBytes": 8957,
       "creationRecords": 3,
@@ -1019,18 +1026,18 @@
       "accepted": 1,
       "rejected": 2,
       "memory": {
-        "entries": 147,
+        "entries": 145,
         "byHolder": {
-          "v0": 24,
-          "v1": 27,
+          "v0": 23,
+          "v1": 26,
           "v2": 32,
           "v3": 32,
           "v4": 32
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 1346,
+        "bonds": 20,
+        "events": 1348,
         "consolidated": 114,
         "archived": 0,
         "dropped": 237,
@@ -1042,7 +1049,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 303,
+          "count": 304,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -1050,14 +1057,14 @@
           "byValue": {
             "0.303": 2,
             "0.438": 46,
-            "0.463": 11,
+            "0.463": 12,
             "0.475": 9,
             "0.495": 221,
             "0.499": 7,
             "0.503": 7
           },
           "above": {
-            "0.45": 255,
+            "0.45": 256,
             "0.48": 235,
             "0.495": 235,
             "0.5": 7,
@@ -1066,10 +1073,11 @@
           }
         }
       },
+      "timelineToday": 64,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2179674721273447
       },
       "behaviors": {
         "walkSteps": 14600,
@@ -1093,13 +1101,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01929999999993015,
-        "memP50": 0.002599999999802094,
-        "memP95": 0.004899999999906868,
-        "dayCloseMs": 4.532999999995809,
-        "creatorCloseMs": 0.08219999999710126,
-        "dayWallMs": 838.4766999999993
+        "simP50": 0.00450000000273576,
+        "simP95": 0.019400000004679896,
+        "memP50": 0.004000000000814907,
+        "memP95": 0.008600000001024455,
+        "dayCloseMs": 8.895199999999022,
+        "creatorCloseMs": 0.20270000000164146,
+        "dayWallMs": 1155.188000000002
       }
     },
     {
@@ -1111,11 +1119,11 @@
       "worldEvents": 268,
       "buildingCount": 10,
       "demolitions": 0,
-      "memoryJsonBytes": 451527,
+      "memoryJsonBytes": 456146,
       "memoryParts": {
         "entries": {
-          "bytes": 125761,
-          "count": 198
+          "bytes": 124582,
+          "count": 196
         },
         "facts": {
           "bytes": 97994,
@@ -1130,25 +1138,25 @@
           "count": 45
         },
         "beliefs": {
-          "bytes": 46944,
-          "count": 315
+          "bytes": 47242,
+          "count": 317
         },
         "cooldowns": {
-          "bytes": 31903,
-          "count": 478
+          "bytes": 32115,
+          "count": 481
         },
         "tells": {
-          "bytes": 18751,
-          "count": 315
+          "bytes": 18873,
+          "count": 317
         },
         "legends": {
           "bytes": 3873,
           "count": 19
         }
       },
-      "saveBytes": 530879,
-      "saveKBPerCharacterYear": 4205.096245659723,
-      "memoryKBPerCharacterYear": 3576.548502604167,
+      "saveBytes": 536217,
+      "saveKBPerCharacterYear": 4247.378580729167,
+      "memoryKBPerCharacterYear": 3613.1356336805557,
       "ledgerRows": 4,
       "ledgerBytes": 8957,
       "creationRecords": 3,
@@ -1157,18 +1165,18 @@
       "accepted": 1,
       "rejected": 2,
       "memory": {
-        "entries": 160,
+        "entries": 158,
         "byHolder": {
-          "v0": 26,
-          "v1": 29,
+          "v0": 25,
+          "v1": 28,
           "v2": 35,
           "v3": 35,
           "v4": 35
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 1527,
+        "bonds": 20,
+        "events": 1529,
         "consolidated": 129,
         "archived": 0,
         "dropped": 277,
@@ -1204,10 +1212,11 @@
           }
         }
       },
+      "timelineToday": 55,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.22821788104659438
       },
       "behaviors": {
         "walkSteps": 14800,
@@ -1231,13 +1240,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010300000001734588,
-        "simP95": 0.019200000002456363,
-        "memP50": 0.002599999999802094,
-        "memP95": 0.004699999997683335,
-        "dayCloseMs": 5.12329999999929,
-        "creatorCloseMs": 0.08150000000023283,
-        "dayWallMs": 824.0697
+        "simP50": 0.004199999995762482,
+        "simP95": 0.01600000000325963,
+        "memP50": 0.0037999999985913746,
+        "memP95": 0.006800000002840534,
+        "dayCloseMs": 6.652600000001257,
+        "creatorCloseMs": 0.10599999999976717,
+        "dayWallMs": 1100.5771999999997
       }
     },
     {
@@ -1249,11 +1258,11 @@
       "worldEvents": 298,
       "buildingCount": 10,
       "demolitions": 1,
-      "memoryJsonBytes": 507031,
+      "memoryJsonBytes": 512429,
       "memoryParts": {
         "entries": {
-          "bytes": 143113,
-          "count": 226
+          "bytes": 142523,
+          "count": 225
         },
         "facts": {
           "bytes": 108997,
@@ -1268,25 +1277,25 @@
           "count": 50
         },
         "beliefs": {
-          "bytes": 52999,
-          "count": 355
+          "bytes": 53327,
+          "count": 357
         },
         "cooldowns": {
-          "bytes": 35958,
-          "count": 538
+          "bytes": 36170,
+          "count": 541
         },
         "tells": {
-          "bytes": 21201,
-          "count": 355
+          "bytes": 21323,
+          "count": 357
         },
         "legends": {
           "bytes": 4731,
           "count": 24
         }
       },
-      "saveBytes": 595340,
-      "saveKBPerCharacterYear": 4244.123046875,
-      "memoryKBPerCharacterYear": 3614.5764648437503,
+      "saveBytes": 601570,
+      "saveKBPerCharacterYear": 4288.5361328125,
+      "memoryKBPerCharacterYear": 3653.05830078125,
       "ledgerRows": 6,
       "ledgerBytes": 12676,
       "creationRecords": 4,
@@ -1295,9 +1304,9 @@
       "accepted": 2,
       "rejected": 2,
       "memory": {
-        "entries": 178,
+        "entries": 177,
         "byHolder": {
-          "v0": 27,
+          "v0": 26,
           "v1": 31,
           "v2": 40,
           "v3": 40,
@@ -1305,8 +1314,8 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 1730,
+        "bonds": 20,
+        "events": 1733,
         "consolidated": 145,
         "archived": 0,
         "dropped": 319,
@@ -1318,7 +1327,7 @@
         "pruned": 0,
         "prunedByLayer": {},
         "salience": {
-          "count": 378,
+          "count": 380,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -1327,25 +1336,26 @@
             "0.303": 2,
             "0.438": 59,
             "0.463": 14,
-            "0.475": 13,
-            "0.495": 276,
+            "0.475": 14,
+            "0.495": 277,
             "0.499": 7,
             "0.503": 7
           },
           "above": {
-            "0.45": 317,
-            "0.48": 290,
-            "0.495": 290,
+            "0.45": 319,
+            "0.48": 291,
+            "0.495": 291,
             "0.5": 7,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 67,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23083950889135937
       },
       "behaviors": {
         "walkSteps": 14400,
@@ -1369,13 +1379,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01939999999740394,
-        "memP50": 0.0028000000020256266,
-        "memP95": 0.005500000006577466,
-        "dayCloseMs": 5.668699999994715,
-        "creatorCloseMs": 0.08410000000003492,
-        "dayWallMs": 880.626400000001
+        "simP50": 0.00450000000273576,
+        "simP95": 0.019099999997706618,
+        "memP50": 0.00420000000303844,
+        "memP95": 0.00930000000516884,
+        "dayCloseMs": 7.735000000000582,
+        "creatorCloseMs": 0.1172999999980675,
+        "dayWallMs": 1232.689099999996
       }
     },
     {
@@ -1387,11 +1397,11 @@
       "worldEvents": 328,
       "buildingCount": 10,
       "demolitions": 1,
-      "memoryJsonBytes": 543792,
+      "memoryJsonBytes": 549297,
       "memoryParts": {
         "entries": {
-          "bytes": 144159,
-          "count": 228
+          "bytes": 143684,
+          "count": 227
         },
         "facts": {
           "bytes": 120032,
@@ -1406,25 +1416,25 @@
           "count": 55
         },
         "beliefs": {
-          "bytes": 58114,
-          "count": 389
+          "bytes": 58412,
+          "count": 391
         },
         "cooldowns": {
-          "bytes": 39425,
-          "count": 590
+          "bytes": 39637,
+          "count": 593
         },
         "tells": {
-          "bytes": 23252,
-          "count": 389
+          "bytes": 23374,
+          "count": 391
         },
         "legends": {
-          "bytes": 5274,
+          "bytes": 5320,
           "count": 27
         }
       },
-      "saveBytes": 638142,
-      "saveKBPerCharacterYear": 4135.685901988637,
-      "memoryKBPerCharacterYear": 3524.2201704545455,
+      "saveBytes": 644465,
+      "saveKBPerCharacterYear": 4176.664151278409,
+      "memoryKBPerCharacterYear": 3559.897105823864,
       "ledgerRows": 6,
       "ledgerBytes": 12676,
       "creationRecords": 4,
@@ -1433,9 +1443,9 @@
       "accepted": 2,
       "rejected": 2,
       "memory": {
-        "entries": 180,
+        "entries": 179,
         "byHolder": {
-          "v0": 28,
+          "v0": 27,
           "v1": 32,
           "v2": 40,
           "v3": 40,
@@ -1443,11 +1453,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
+        "bonds": 20,
         "events": 1908,
         "consolidated": 161,
         "archived": 0,
-        "dropped": 360,
+        "dropped": 357,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -1456,13 +1466,13 @@
         "pruned": 15,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           }
         },
         "salience": {
-          "count": 419,
+          "count": 421,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -1472,24 +1482,25 @@
             "0.438": 65,
             "0.463": 15,
             "0.475": 15,
-            "0.495": 308,
+            "0.495": 310,
             "0.499": 7,
             "0.503": 7
           },
           "above": {
-            "0.45": 352,
-            "0.48": 322,
-            "0.495": 322,
+            "0.45": 354,
+            "0.48": 324,
+            "0.495": 324,
             "0.5": 7,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 58,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2369708660461244
       },
       "behaviors": {
         "walkSteps": 14500,
@@ -1513,13 +1524,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010499999996682163,
-        "simP95": 0.025500000003376044,
-        "memP50": 0.0028000000020256266,
-        "memP95": 0.005799999998998828,
-        "dayCloseMs": 6.094100000002072,
-        "creatorCloseMs": 0.09210000000166474,
-        "dayWallMs": 859.803700000004
+        "simP50": 0.00450000000273576,
+        "simP95": 0.017999999996391125,
+        "memP50": 0.00420000000303844,
+        "memP95": 0.008599999993748497,
+        "dayCloseMs": 7.678500000001804,
+        "creatorCloseMs": 0.1209000000017113,
+        "dayWallMs": 1231.3042999999961
       }
     },
     {
@@ -1531,11 +1542,11 @@
       "worldEvents": 358,
       "buildingCount": 10,
       "demolitions": 1,
-      "memoryJsonBytes": 582691,
+      "memoryJsonBytes": 587690,
       "memoryParts": {
         "entries": {
-          "bytes": 146912,
-          "count": 234
+          "bytes": 145996,
+          "count": 232
         },
         "facts": {
           "bytes": 131037,
@@ -1550,25 +1561,25 @@
           "count": 60
         },
         "beliefs": {
-          "bytes": 63244,
-          "count": 423
+          "bytes": 63572,
+          "count": 425
         },
         "cooldowns": {
-          "bytes": 42944,
-          "count": 642
+          "bytes": 43156,
+          "count": 645
         },
         "tells": {
-          "bytes": 25303,
-          "count": 423
+          "bytes": 25425,
+          "count": 425
         },
         "legends": {
-          "bytes": 6150,
-          "count": 32
+          "bytes": 6043,
+          "count": 31
         }
       },
-      "saveBytes": 683460,
-      "saveKBPerCharacterYear": 4060.2685546875,
-      "memoryKBPerCharacterYear": 3461.6245930989585,
+      "saveBytes": 689174,
+      "saveKBPerCharacterYear": 4094.214029947917,
+      "memoryKBPerCharacterYear": 3491.322428385417,
       "ledgerRows": 6,
       "ledgerBytes": 12676,
       "creationRecords": 4,
@@ -1577,36 +1588,36 @@
       "accepted": 2,
       "rejected": 2,
       "memory": {
-        "entries": 186,
+        "entries": 184,
         "byHolder": {
-          "v0": 30,
-          "v1": 36,
+          "v0": 29,
+          "v1": 35,
           "v2": 40,
           "v3": 40,
           "v4": 40
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 2102,
+        "bonds": 20,
+        "events": 2096,
         "consolidated": 177,
         "archived": 0,
-        "dropped": 401,
+        "dropped": 399,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 40,
+        "pruned": 35,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           }
         },
         "salience": {
-          "count": 460,
+          "count": 459,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -1616,24 +1627,25 @@
             "0.438": 71,
             "0.463": 16,
             "0.475": 16,
-            "0.495": 337,
+            "0.495": 336,
             "0.499": 11,
             "0.503": 7
           },
           "above": {
-            "0.45": 387,
-            "0.48": 355,
-            "0.495": 355,
+            "0.45": 386,
+            "0.48": 354,
+            "0.495": 354,
             "0.5": 7,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 63,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2411401889113646
       },
       "behaviors": {
         "walkSteps": 14695,
@@ -1658,13 +1670,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010499999996682163,
-        "simP95": 0.020699999993667006,
-        "memP50": 0.0028000000020256266,
-        "memP95": 0.0051000000021304,
-        "dayCloseMs": 6.568100000004051,
-        "creatorCloseMs": 0.08410000000003492,
-        "dayWallMs": 839.1577000000034
+        "simP50": 0.0044999999954598024,
+        "simP95": 0.019700000004377216,
+        "memP50": 0.00429999999323627,
+        "memP95": 0.008899999993445817,
+        "dayCloseMs": 7.300599999995029,
+        "creatorCloseMs": 0.0996000000013737,
+        "dayWallMs": 1179.1526999999987
       }
     },
     {
@@ -1676,11 +1688,11 @@
       "worldEvents": 388,
       "buildingCount": 10,
       "demolitions": 2,
-      "memoryJsonBytes": 621480,
+      "memoryJsonBytes": 625492,
       "memoryParts": {
         "entries": {
-          "bytes": 149289,
-          "count": 238
+          "bytes": 147498,
+          "count": 235
         },
         "facts": {
           "bytes": 142057,
@@ -1695,25 +1707,25 @@
           "count": 65
         },
         "beliefs": {
-          "bytes": 68375,
-          "count": 457
+          "bytes": 68658,
+          "count": 459
         },
         "cooldowns": {
-          "bytes": 46463,
-          "count": 694
+          "bytes": 46675,
+          "count": 697
         },
         "tells": {
-          "bytes": 27354,
-          "count": 457
+          "bytes": 27476,
+          "count": 459
         },
         "legends": {
-          "bytes": 7045,
-          "count": 37
+          "bytes": 6938,
+          "count": 36
         }
       },
-      "saveBytes": 728958,
-      "saveKBPerCharacterYear": 3997.440955528846,
-      "memoryKBPerCharacterYear": 3408.055889423077,
+      "saveBytes": 733585,
+      "saveKBPerCharacterYear": 4022.814378004808,
+      "memoryKBPerCharacterYear": 3430.0567908653848,
       "ledgerRows": 8,
       "ledgerBytes": 16408,
       "creationRecords": 5,
@@ -1722,36 +1734,36 @@
       "accepted": 3,
       "rejected": 2,
       "memory": {
-        "entries": 190,
+        "entries": 187,
         "byHolder": {
-          "v0": 32,
-          "v1": 38,
+          "v0": 30,
+          "v1": 37,
           "v2": 40,
           "v3": 40,
           "v4": 40
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 2292,
+        "bonds": 20,
+        "events": 2285,
         "consolidated": 194,
         "archived": 0,
-        "dropped": 439,
+        "dropped": 438,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 65,
+        "pruned": 59,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           }
         },
         "salience": {
-          "count": 500,
+          "count": 499,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -1761,24 +1773,25 @@
             "0.438": 77,
             "0.463": 17,
             "0.475": 17,
-            "0.495": 365,
+            "0.495": 364,
             "0.499": 11,
             "0.503": 11
           },
           "above": {
-            "0.45": 421,
-            "0.48": 387,
-            "0.495": 387,
+            "0.45": 420,
+            "0.48": 386,
+            "0.495": 386,
             "0.5": 11,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 67,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24397532845972797
       },
       "behaviors": {
         "walkSteps": 14600,
@@ -1802,13 +1815,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010500000003958121,
-        "simP95": 0.02020000000629807,
-        "memP50": 0.0028000000020256266,
-        "memP95": 0.005499999999301508,
-        "dayCloseMs": 6.555400000004738,
-        "creatorCloseMs": 0.09270000000105938,
-        "dayWallMs": 869.1143000000011
+        "simP50": 0.00450000000273576,
+        "simP95": 0.01750000000174623,
+        "memP50": 0.004300000000512227,
+        "memP95": 0.00879999999597203,
+        "dayCloseMs": 10.006200000003446,
+        "creatorCloseMs": 0.1540000000022701,
+        "dayWallMs": 1171.898500000003
       }
     },
     {
@@ -1820,11 +1833,11 @@
       "worldEvents": 418,
       "buildingCount": 10,
       "demolitions": 2,
-      "memoryJsonBytes": 660121,
+      "memoryJsonBytes": 663964,
       "memoryParts": {
         "entries": {
-          "bytes": 151655,
-          "count": 240
+          "bytes": 149608,
+          "count": 237
         },
         "facts": {
           "bytes": 153065,
@@ -1839,25 +1852,25 @@
           "count": 70
         },
         "beliefs": {
-          "bytes": 73774,
-          "count": 493
+          "bytes": 74057,
+          "count": 495
         },
         "cooldowns": {
-          "bytes": 50135,
-          "count": 748
+          "bytes": 50347,
+          "count": 751
         },
         "tells": {
-          "bytes": 29538,
-          "count": 493
+          "bytes": 29660,
+          "count": 495
         },
         "legends": {
-          "bytes": 7538,
-          "count": 39
+          "bytes": 7390,
+          "count": 38
         }
       },
-      "saveBytes": 773754,
-      "saveKBPerCharacterYear": 3940.0140904017853,
-      "memoryKBPerCharacterYear": 3361.3862304687495,
+      "saveBytes": 778224,
+      "saveKBPerCharacterYear": 3962.775669642857,
+      "memoryKBPerCharacterYear": 3380.9550781249995,
       "ledgerRows": 9,
       "ledgerBytes": 16842,
       "creationRecords": 5,
@@ -1866,36 +1879,36 @@
       "accepted": 3,
       "rejected": 2,
       "memory": {
-        "entries": 192,
+        "entries": 189,
         "byHolder": {
-          "v0": 33,
-          "v1": 39,
+          "v0": 31,
+          "v1": 38,
           "v2": 40,
           "v3": 40,
           "v4": 40
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 2468,
+        "bonds": 20,
+        "events": 2460,
         "consolidated": 211,
         "archived": 0,
-        "dropped": 479,
+        "dropped": 477,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 75,
+        "pruned": 69,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           }
         },
         "salience": {
-          "count": 537,
+          "count": 538,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -1903,14 +1916,14 @@
           "byValue": {
             "0.303": 2,
             "0.438": 83,
-            "0.463": 18,
+            "0.463": 19,
             "0.475": 18,
-            "0.495": 393,
-            "0.499": 12,
+            "0.495": 392,
+            "0.499": 13,
             "0.503": 11
           },
           "above": {
-            "0.45": 452,
+            "0.45": 453,
             "0.48": 416,
             "0.495": 416,
             "0.5": 11,
@@ -1919,10 +1932,11 @@
           }
         }
       },
+      "timelineToday": 51,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24590322335261505
       },
       "behaviors": {
         "walkSteps": 14300,
@@ -1946,13 +1960,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010300000001734588,
-        "simP95": 0.019200000002456363,
-        "memP50": 0.002799999994749669,
-        "memP95": 0.005199999999604188,
-        "dayCloseMs": 6.604899999998452,
-        "creatorCloseMs": 0.08370000000286382,
-        "dayWallMs": 838.013300000006
+        "simP50": 0.0044999999954598024,
+        "simP95": 0.01780000000144355,
+        "memP50": 0.00420000000303844,
+        "memP95": 0.008500000003550667,
+        "dayCloseMs": 10.421699999998964,
+        "creatorCloseMs": 0.12989999999990687,
+        "dayWallMs": 1201.4483999999939
       }
     },
     {
@@ -1964,10 +1978,10 @@
       "worldEvents": 448,
       "buildingCount": 10,
       "demolitions": 2,
-      "memoryJsonBytes": 697511,
+      "memoryJsonBytes": 703852,
       "memoryParts": {
         "entries": {
-          "bytes": 151288,
+          "bytes": 151721,
           "count": 241
         },
         "facts": {
@@ -1983,25 +1997,25 @@
           "count": 75
         },
         "beliefs": {
-          "bytes": 79837,
-          "count": 533
+          "bytes": 80165,
+          "count": 535
         },
         "cooldowns": {
-          "bytes": 54250,
-          "count": 808
+          "bytes": 54462,
+          "count": 811
         },
         "tells": {
-          "bytes": 31988,
-          "count": 533
+          "bytes": 32110,
+          "count": 535
         },
         "legends": {
-          "bytes": 8027,
-          "count": 42
+          "bytes": 7919,
+          "count": 41
         }
       },
-      "saveBytes": 817391,
-      "saveKBPerCharacterYear": 3884.7358723958337,
-      "memoryKBPerCharacterYear": 3314.9936848958337,
+      "saveBytes": 824654,
+      "saveKBPerCharacterYear": 3919.2540364583338,
+      "memoryKBPerCharacterYear": 3345.129947916667,
       "ledgerRows": 9,
       "ledgerBytes": 16842,
       "creationRecords": 5,
@@ -2020,8 +2034,8 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 2657,
+        "bonds": 20,
+        "events": 2655,
         "consolidated": 228,
         "archived": 0,
         "dropped": 519,
@@ -2030,11 +2044,11 @@
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 90,
+        "pruned": 85,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           }
         },
@@ -2063,10 +2077,11 @@
           }
         }
       },
+      "timelineToday": 59,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23937143963352275
       },
       "behaviors": {
         "walkSteps": 14500,
@@ -2090,13 +2105,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010300000001734588,
-        "simP95": 0.01870000000053551,
-        "memP50": 0.002799999994749669,
-        "memP95": 0.004899999999906868,
-        "dayCloseMs": 7.002600000007078,
-        "creatorCloseMs": 0.08050000000366708,
-        "dayWallMs": 817.7909
+        "simP50": 0.0044999999954598024,
+        "simP95": 0.01750000000174623,
+        "memP50": 0.004300000000512227,
+        "memP95": 0.008399999998800922,
+        "dayCloseMs": 10.410799999997835,
+        "creatorCloseMs": 0.12690000000293367,
+        "dayWallMs": 1201.405200000001
       }
     },
     {
@@ -2108,11 +2123,11 @@
       "worldEvents": 478,
       "buildingCount": 10,
       "demolitions": 3,
-      "memoryJsonBytes": 734276,
+      "memoryJsonBytes": 739901,
       "memoryParts": {
         "entries": {
-          "bytes": 152230,
-          "count": 242
+          "bytes": 151976,
+          "count": 241
         },
         "facts": {
           "bytes": 175181,
@@ -2127,25 +2142,25 @@
           "count": 80
         },
         "beliefs": {
-          "bytes": 84928,
-          "count": 567
+          "bytes": 85226,
+          "count": 569
         },
         "cooldowns": {
-          "bytes": 57769,
-          "count": 860
+          "bytes": 57981,
+          "count": 863
         },
         "tells": {
-          "bytes": 34039,
-          "count": 567
+          "bytes": 34161,
+          "count": 569
         },
         "legends": {
-          "bytes": 8404,
-          "count": 44
+          "bytes": 8341,
+          "count": 43
         }
       },
-      "saveBytes": 860145,
-      "saveKBPerCharacterYear": 3832.4331665039062,
-      "memoryKBPerCharacterYear": 3271.615478515625,
+      "saveBytes": 866584,
+      "saveKBPerCharacterYear": 3861.12255859375,
+      "memoryKBPerCharacterYear": 3296.6780395507812,
       "ledgerRows": 11,
       "ledgerBytes": 20574,
       "creationRecords": 6,
@@ -2154,9 +2169,9 @@
       "accepted": 4,
       "rejected": 2,
       "memory": {
-        "entries": 194,
+        "entries": 193,
         "byHolder": {
-          "v0": 34,
+          "v0": 33,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -2164,26 +2179,26 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 2828,
+        "bonds": 20,
+        "events": 2823,
         "consolidated": 246,
         "archived": 0,
-        "dropped": 558,
+        "dropped": 556,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 101,
+        "pruned": 96,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           }
         },
         "salience": {
-          "count": 616,
+          "count": 617,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -2192,13 +2207,13 @@
             "0.303": 3,
             "0.438": 95,
             "0.463": 21,
-            "0.475": 20,
+            "0.475": 21,
             "0.495": 451,
             "0.499": 13,
             "0.503": 13
           },
           "above": {
-            "0.45": 518,
+            "0.45": 519,
             "0.48": 477,
             "0.495": 477,
             "0.5": 13,
@@ -2207,10 +2222,11 @@
           }
         }
       },
+      "timelineToday": 51,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2390095165615648
       },
       "behaviors": {
         "walkSteps": 14400,
@@ -2234,13 +2250,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.02049999999871943,
-        "memP50": 0.0031999999991967343,
-        "memP95": 0.006100000005972106,
-        "dayCloseMs": 9.794499999996333,
-        "creatorCloseMs": 0.09130000000004657,
-        "dayWallMs": 865.4187999999995
+        "simP50": 0.0044999999954598024,
+        "simP95": 0.018300000003364403,
+        "memP50": 0.005000000004656613,
+        "memP95": 0.010199999996984843,
+        "dayCloseMs": 13.781999999999243,
+        "creatorCloseMs": 0.14570000000094296,
+        "dayWallMs": 1203.9123000000036
       }
     },
     {
@@ -2252,11 +2268,11 @@
       "worldEvents": 508,
       "buildingCount": 10,
       "demolitions": 3,
-      "memoryJsonBytes": 770078,
+      "memoryJsonBytes": 774960,
       "memoryParts": {
         "entries": {
-          "bytes": 152809,
-          "count": 244
+          "bytes": 151999,
+          "count": 241
         },
         "facts": {
           "bytes": 186199,
@@ -2271,25 +2287,25 @@
           "count": 85
         },
         "beliefs": {
-          "bytes": 89770,
-          "count": 599
+          "bytes": 90097,
+          "count": 601
         },
         "cooldowns": {
-          "bytes": 60870,
+          "bytes": 60898,
           "count": 906
         },
         "tells": {
-          "bytes": 35957,
-          "count": 599
+          "bytes": 36079,
+          "count": 601
         },
         "legends": {
-          "bytes": 9258,
-          "count": 49
+          "bytes": 9043,
+          "count": 47
         }
       },
-      "saveBytes": 901865,
-      "saveKBPerCharacterYear": 3781.9476677389703,
-      "memoryKBPerCharacterYear": 3229.302274816176,
+      "saveBytes": 907373,
+      "saveKBPerCharacterYear": 3805.0453239889703,
+      "memoryKBPerCharacterYear": 3249.7748161764703,
       "ledgerRows": 12,
       "ledgerBytes": 21009,
       "creationRecords": 6,
@@ -2298,9 +2314,9 @@
       "accepted": 4,
       "rejected": 2,
       "memory": {
-        "entries": 196,
+        "entries": 193,
         "byHolder": {
-          "v0": 36,
+          "v0": 33,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -2308,31 +2324,31 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 3018,
+        "bonds": 20,
+        "events": 3004,
         "consolidated": 264,
         "archived": 0,
-        "dropped": 598,
+        "dropped": 596,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 130,
+        "pruned": 122,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 653,
+          "count": 654,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -2342,24 +2358,25 @@
             "0.438": 101,
             "0.463": 22,
             "0.475": 22,
-            "0.495": 478,
+            "0.495": 479,
             "0.499": 14,
             "0.503": 13
           },
           "above": {
-            "0.45": 549,
-            "0.48": 505,
-            "0.495": 505,
+            "0.45": 550,
+            "0.48": 506,
+            "0.495": 506,
             "0.5": 13,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 58,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23496281121074802
       },
       "behaviors": {
         "walkSteps": 14500,
@@ -2383,13 +2400,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01900000000023283,
-        "memP50": 0.0031999999991967343,
-        "memP95": 0.005600000004051253,
-        "dayCloseMs": 12.203600000000733,
-        "creatorCloseMs": 0.09679999999934807,
-        "dayWallMs": 852.844600000004
+        "simP50": 0.00450000000273576,
+        "simP95": 0.01660000000265427,
+        "memP50": 0.0051000000021304,
+        "memP95": 0.00990000000456348,
+        "dayCloseMs": 16.863500000006752,
+        "creatorCloseMs": 0.09500000000116415,
+        "dayWallMs": 1204.6434999999983
       }
     },
     {
@@ -2401,11 +2418,11 @@
       "worldEvents": 538,
       "buildingCount": 10,
       "demolitions": 3,
-      "memoryJsonBytes": 801800,
+      "memoryJsonBytes": 806586,
       "memoryParts": {
         "entries": {
-          "bytes": 152820,
-          "count": 244
+          "bytes": 152090,
+          "count": 242
         },
         "facts": {
           "bytes": 197223,
@@ -2420,25 +2437,25 @@
           "count": 90
         },
         "beliefs": {
-          "bytes": 94567,
-          "count": 631
+          "bytes": 94894,
+          "count": 633
         },
         "cooldowns": {
-          "bytes": 60885,
+          "bytes": 60891,
           "count": 905
         },
         "tells": {
-          "bytes": 37875,
-          "count": 631
+          "bytes": 37997,
+          "count": 633
         },
         "legends": {
-          "bytes": 9654,
-          "count": 51
+          "bytes": 9371,
+          "count": 49
         }
       },
-      "saveBytes": 938797,
-      "saveKBPerCharacterYear": 3718.1087782118057,
-      "memoryKBPerCharacterYear": 3175.531684027778,
+      "saveBytes": 944276,
+      "saveKBPerCharacterYear": 3739.8083767361113,
+      "memoryKBPerCharacterYear": 3194.4866536458335,
       "ledgerRows": 12,
       "ledgerBytes": 21009,
       "creationRecords": 6,
@@ -2447,9 +2464,9 @@
       "accepted": 4,
       "rejected": 2,
       "memory": {
-        "entries": 196,
+        "entries": 194,
         "byHolder": {
-          "v0": 36,
+          "v0": 34,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -2457,31 +2474,31 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 3186,
+        "bonds": 20,
+        "events": 3177,
         "consolidated": 282,
         "archived": 0,
-        "dropped": 637,
+        "dropped": 638,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 190,
+        "pruned": 183,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 691,
+          "count": 692,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -2491,24 +2508,25 @@
             "0.438": 107,
             "0.463": 24,
             "0.475": 23,
-            "0.495": 505,
+            "0.495": 506,
             "0.499": 15,
             "0.503": 14
           },
           "above": {
-            "0.45": 581,
-            "0.48": 534,
-            "0.495": 534,
+            "0.45": 582,
+            "0.48": 535,
+            "0.495": 535,
             "0.5": 14,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 51,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23129101339621658
       },
       "behaviors": {
         "walkSteps": 14695,
@@ -2533,13 +2551,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01999999999679858,
-        "memP50": 0.0031999999991967343,
-        "memP95": 0.0062000000034458935,
-        "dayCloseMs": 11.283699999999953,
-        "creatorCloseMs": 0.08170000000245636,
-        "dayWallMs": 855.7121000000043
+        "simP50": 0.0044999999954598024,
+        "simP95": 0.01780000000144355,
+        "memP50": 0.005000000004656613,
+        "memP95": 0.010199999996984843,
+        "dayCloseMs": 18.696900000002643,
+        "creatorCloseMs": 0.09980000000359723,
+        "dayWallMs": 1181.251400000001
       }
     },
     {
@@ -2551,11 +2569,11 @@
       "worldEvents": 568,
       "buildingCount": 10,
       "demolitions": 4,
-      "memoryJsonBytes": 836111,
+      "memoryJsonBytes": 840786,
       "memoryParts": {
         "entries": {
-          "bytes": 153919,
-          "count": 244
+          "bytes": 152822,
+          "count": 243
         },
         "facts": {
           "bytes": 208256,
@@ -2570,25 +2588,25 @@
           "count": 95
         },
         "beliefs": {
-          "bytes": 100044,
-          "count": 667
+          "bytes": 100341,
+          "count": 669
         },
         "cooldowns": {
           "bytes": 60870,
           "count": 904
         },
         "tells": {
-          "bytes": 40059,
-          "count": 667
+          "bytes": 40181,
+          "count": 669
         },
         "legends": {
-          "bytes": 10284,
+          "bytes": 10342,
           "count": 54
         }
       },
-      "saveBytes": 978613,
-      "saveKBPerCharacterYear": 3671.810701069079,
-      "memoryKBPerCharacterYear": 3137.135228207237,
+      "saveBytes": 984062,
+      "saveKBPerCharacterYear": 3692.255653782895,
+      "memoryKBPerCharacterYear": 3154.676089638158,
       "ledgerRows": 14,
       "ledgerBytes": 24741,
       "creationRecords": 7,
@@ -2597,9 +2615,9 @@
       "accepted": 5,
       "rejected": 2,
       "memory": {
-        "entries": 196,
+        "entries": 195,
         "byHolder": {
-          "v0": 36,
+          "v0": 35,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -2607,31 +2625,31 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 3374,
+        "bonds": 20,
+        "events": 3376,
         "consolidated": 301,
         "archived": 0,
-        "dropped": 681,
+        "dropped": 680,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 261,
+        "pruned": 264,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 730,
+          "count": 733,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -2641,24 +2659,25 @@
             "0.438": 113,
             "0.463": 25,
             "0.475": 24,
-            "0.495": 532,
+            "0.495": 535,
             "0.499": 16,
             "0.503": 16
           },
           "above": {
-            "0.45": 613,
-            "0.48": 564,
-            "0.495": 564,
+            "0.45": 616,
+            "0.48": 567,
+            "0.495": 567,
             "0.5": 16,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 68,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2372778891094273
       },
       "behaviors": {
         "walkSteps": 14800,
@@ -2682,13 +2701,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01999999999679858,
-        "memP50": 0.0037999999985913746,
-        "memP95": 0.006800000002840534,
-        "dayCloseMs": 11.719700000001467,
-        "creatorCloseMs": 0.09069999999337597,
-        "dayWallMs": 864.6731999999975
+        "simP50": 0.00450000000273576,
+        "simP95": 0.017399999996996485,
+        "memP50": 0.005800000006274786,
+        "memP95": 0.012000000002444722,
+        "dayCloseMs": 17.543000000005122,
+        "creatorCloseMs": 0.13020000000688015,
+        "dayWallMs": 1269.989999999998
       }
     },
     {
@@ -2700,11 +2719,11 @@
       "worldEvents": 598,
       "buildingCount": 10,
       "demolitions": 4,
-      "memoryJsonBytes": 869899,
+      "memoryJsonBytes": 874086,
       "memoryParts": {
         "entries": {
-          "bytes": 153965,
-          "count": 245
+          "bytes": 152603,
+          "count": 243
         },
         "facts": {
           "bytes": 219292,
@@ -2719,25 +2738,25 @@
           "count": 100
         },
         "beliefs": {
-          "bytes": 106096,
-          "count": 707
+          "bytes": 106393,
+          "count": 709
         },
         "cooldowns": {
           "bytes": 60869,
           "count": 901
         },
         "tells": {
-          "bytes": 42509,
-          "count": 707
+          "bytes": 42631,
+          "count": 709
         },
         "legends": {
-          "bytes": 10934,
-          "count": 58
+          "bytes": 10657,
+          "count": 56
         }
       },
-      "saveBytes": 1018047,
-      "saveKBPerCharacterYear": 3628.7808105468753,
-      "memoryKBPerCharacterYear": 3100.714208984375,
+      "saveBytes": 1022893,
+      "saveKBPerCharacterYear": 3646.054150390625,
+      "memoryKBPerCharacterYear": 3115.6385742187504,
       "ledgerRows": 15,
       "ledgerBytes": 25178,
       "creationRecords": 7,
@@ -2746,9 +2765,9 @@
       "accepted": 5,
       "rejected": 2,
       "memory": {
-        "entries": 197,
+        "entries": 195,
         "byHolder": {
-          "v0": 37,
+          "v0": 35,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -2756,31 +2775,31 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 3574,
+        "bonds": 20,
+        "events": 3562,
         "consolidated": 320,
         "archived": 0,
-        "dropped": 722,
+        "dropped": 721,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 345,
+        "pruned": 337,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 772,
+          "count": 773,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -2790,24 +2809,25 @@
             "0.438": 119,
             "0.463": 26,
             "0.475": 26,
-            "0.495": 564,
+            "0.495": 565,
             "0.499": 17,
             "0.503": 16
           },
           "above": {
-            "0.45": 649,
-            "0.48": 597,
-            "0.495": 597,
+            "0.45": 650,
+            "0.48": 598,
+            "0.495": 598,
             "0.5": 16,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 49,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24134896459441055
       },
       "behaviors": {
         "walkSteps": 14400,
@@ -2831,13 +2851,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.019100000004982576,
-        "memP50": 0.003700000001117587,
-        "memP95": 0.006799999995564576,
-        "dayCloseMs": 11.860200000002806,
-        "creatorCloseMs": 0.0878999999986263,
-        "dayWallMs": 864.6577000000034
+        "simP50": 0.004399999997986015,
+        "simP95": 0.018499999998311978,
+        "memP50": 0.005799999998998828,
+        "memP95": 0.012500000004365575,
+        "dayCloseMs": 17.37220000000525,
+        "creatorCloseMs": 0.15340000000287546,
+        "dayWallMs": 1294.1460999999981
       }
     },
     {
@@ -2849,11 +2869,11 @@
       "worldEvents": 628,
       "buildingCount": 10,
       "demolitions": 4,
-      "memoryJsonBytes": 901746,
+      "memoryJsonBytes": 906648,
       "memoryParts": {
         "entries": {
-          "bytes": 154050,
-          "count": 245
+          "bytes": 153281,
+          "count": 244
         },
         "facts": {
           "bytes": 230295,
@@ -2868,25 +2888,25 @@
           "count": 105
         },
         "beliefs": {
-          "bytes": 110957,
-          "count": 739
+          "bytes": 111254,
+          "count": 741
         },
         "cooldowns": {
           "bytes": 60854,
           "count": 901
         },
         "tells": {
-          "bytes": 44427,
-          "count": 739
+          "bytes": 44549,
+          "count": 741
         },
         "legends": {
-          "bytes": 11486,
-          "count": 61
+          "bytes": 11379,
+          "count": 60
         }
       },
-      "saveBytes": 1055142,
-      "saveKBPerCharacterYear": 3581.9087611607147,
-      "memoryKBPerCharacterYear": 3061.1727120535716,
+      "saveBytes": 1060823,
+      "saveKBPerCharacterYear": 3601.1941499255954,
+      "memoryKBPerCharacterYear": 3077.813616071429,
       "ledgerRows": 15,
       "ledgerBytes": 25178,
       "creationRecords": 7,
@@ -2895,9 +2915,9 @@
       "accepted": 5,
       "rejected": 2,
       "memory": {
-        "entries": 197,
+        "entries": 196,
         "byHolder": {
-          "v0": 37,
+          "v0": 36,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -2905,8 +2925,8 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 3752,
+        "bonds": 20,
+        "events": 3749,
         "consolidated": 339,
         "archived": 0,
         "dropped": 763,
@@ -2915,21 +2935,21 @@
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 410,
+        "pruned": 408,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 812,
+          "count": 813,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -2940,23 +2960,24 @@
             "0.463": 27,
             "0.475": 27,
             "0.495": 595,
-            "0.499": 17,
+            "0.499": 18,
             "0.503": 17
           },
           "above": {
-            "0.45": 683,
-            "0.48": 629,
-            "0.495": 629,
+            "0.45": 684,
+            "0.48": 630,
+            "0.495": 630,
             "0.5": 17,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 64,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23981682794280915
       },
       "behaviors": {
         "walkSteps": 14695,
@@ -2981,13 +3002,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.019499999994877726,
-        "memP50": 0.003700000001117587,
-        "memP95": 0.006600000000617001,
-        "dayCloseMs": 12.461600000002363,
-        "creatorCloseMs": 0.08320000000094296,
-        "dayWallMs": 884.7056000000011
+        "simP50": 0.004600000000209548,
+        "simP95": 0.01870000000053551,
+        "memP50": 0.006000000001222361,
+        "memP95": 0.011700000002747402,
+        "dayCloseMs": 20.457500000004075,
+        "creatorCloseMs": 0.12880000000586733,
+        "dayWallMs": 1325.3740000000034
       }
     },
     {
@@ -2999,11 +3020,11 @@
       "worldEvents": 658,
       "buildingCount": 10,
       "demolitions": 5,
-      "memoryJsonBytes": 934146,
+      "memoryJsonBytes": 938745,
       "memoryParts": {
         "entries": {
-          "bytes": 154426,
-          "count": 246
+          "bytes": 153409,
+          "count": 245
         },
         "facts": {
           "bytes": 241301,
@@ -3018,25 +3039,25 @@
           "count": 110
         },
         "beliefs": {
-          "bytes": 115743,
-          "count": 771
+          "bytes": 116010,
+          "count": 773
         },
         "cooldowns": {
           "bytes": 60881,
           "count": 902
         },
         "tells": {
-          "bytes": 46345,
-          "count": 771
+          "bytes": 46467,
+          "count": 773
         },
         "legends": {
-          "bytes": 12073,
-          "count": 64
+          "bytes": 11911,
+          "count": 63
         }
       },
-      "saveBytes": 1093244,
-      "saveKBPerCharacterYear": 3542.5609019886365,
-      "memoryKBPerCharacterYear": 3027.0178444602275,
+      "saveBytes": 1098605,
+      "saveKBPerCharacterYear": 3559.932750355114,
+      "memoryKBPerCharacterYear": 3041.9204989346595,
       "ledgerRows": 17,
       "ledgerBytes": 28912,
       "creationRecords": 8,
@@ -3045,9 +3066,9 @@
       "accepted": 6,
       "rejected": 2,
       "memory": {
-        "entries": 198,
+        "entries": 197,
         "byHolder": {
-          "v0": 38,
+          "v0": 37,
           "v1": 40,
           "v2": 40,
           "v3": 40,
@@ -3055,31 +3076,31 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 3929,
+        "bonds": 20,
+        "events": 3924,
         "consolidated": 359,
         "archived": 0,
-        "dropped": 802,
+        "dropped": 800,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 473,
+        "pruned": 471,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 851,
+          "count": 854,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -3089,24 +3110,25 @@
             "0.438": 131,
             "0.463": 28,
             "0.475": 28,
-            "0.495": 622,
+            "0.495": 624,
             "0.499": 20,
-            "0.503": 18
+            "0.503": 19
           },
           "above": {
-            "0.45": 716,
-            "0.48": 660,
-            "0.495": 660,
-            "0.5": 18,
+            "0.45": 719,
+            "0.48": 663,
+            "0.495": 663,
+            "0.5": 19,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 58,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2382200452169287
       },
       "behaviors": {
         "walkSteps": 14700,
@@ -3130,13 +3152,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010500000003958121,
-        "simP95": 0.02050000000599539,
-        "memP50": 0.00399999999353895,
-        "memP95": 0.007700000001932494,
-        "dayCloseMs": 15.498699999996461,
-        "creatorCloseMs": 0.088900000002468,
-        "dayWallMs": 887.6574999999939
+        "simP50": 0.004600000000209548,
+        "simP95": 0.01840000000083819,
+        "memP50": 0.0062000000034458935,
+        "memP95": 0.012000000002444722,
+        "dayCloseMs": 19.18289999999979,
+        "creatorCloseMs": 0.09900000000197906,
+        "dayWallMs": 1319.0936000000002
       }
     },
     {
@@ -3148,10 +3170,10 @@
       "worldEvents": 688,
       "buildingCount": 10,
       "demolitions": 5,
-      "memoryJsonBytes": 966231,
+      "memoryJsonBytes": 971424,
       "memoryParts": {
         "entries": {
-          "bytes": 154509,
+          "bytes": 153836,
           "count": 246
         },
         "facts": {
@@ -3167,25 +3189,25 @@
           "count": 115
         },
         "beliefs": {
-          "bytes": 120604,
-          "count": 803
+          "bytes": 120916,
+          "count": 805
         },
         "cooldowns": {
           "bytes": 60866,
           "count": 901
         },
         "tells": {
-          "bytes": 48263,
-          "count": 803
+          "bytes": 48385,
+          "count": 805
         },
         "legends": {
           "bytes": 12623,
           "count": 67
         }
       },
-      "saveBytes": 1130583,
-      "saveKBPerCharacterYear": 3504.269658627717,
-      "memoryKBPerCharacterYear": 2994.856615149456,
+      "saveBytes": 1136633,
+      "saveKBPerCharacterYear": 3523.0217815896735,
+      "memoryKBPerCharacterYear": 3010.9524456521735,
       "ledgerRows": 18,
       "ledgerBytes": 29349,
       "creationRecords": 8,
@@ -3204,31 +3226,31 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 4108,
+        "bonds": 20,
+        "events": 4111,
         "consolidated": 379,
         "archived": 0,
-        "dropped": 844,
+        "dropped": 842,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 538,
+        "pruned": 542,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
-          "count": 890,
+          "count": 891,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -3239,23 +3261,24 @@
             "0.463": 29,
             "0.475": 30,
             "0.495": 650,
-            "0.499": 20,
+            "0.499": 21,
             "0.503": 20
           },
           "above": {
-            "0.45": 749,
-            "0.48": 690,
-            "0.495": 690,
+            "0.45": 750,
+            "0.48": 691,
+            "0.495": 691,
             "0.5": 20,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 60,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23666254263095715
       },
       "behaviors": {
         "walkSteps": 14800,
@@ -3279,13 +3302,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010500000003958121,
-        "simP95": 0.020000000004074536,
-        "memP50": 0.0039000000033411197,
-        "memP95": 0.0072000000000116415,
-        "dayCloseMs": 13.81710000000021,
-        "creatorCloseMs": 0.10319999999774154,
-        "dayWallMs": 866.2025999999969
+        "simP50": 0.004600000000209548,
+        "simP95": 0.01860000001033768,
+        "memP50": 0.006299999993643723,
+        "memP95": 0.012499999997089617,
+        "dayCloseMs": 18.938999999998487,
+        "creatorCloseMs": 0.14260000000649597,
+        "dayWallMs": 1278.9512000000032
       }
     },
     {
@@ -3297,10 +3320,10 @@
       "worldEvents": 718,
       "buildingCount": 10,
       "demolitions": 5,
-      "memoryJsonBytes": 999700,
+      "memoryJsonBytes": 1005150,
       "memoryParts": {
         "entries": {
-          "bytes": 155358,
+          "bytes": 155081,
           "count": 247
         },
         "facts": {
@@ -3316,25 +3339,25 @@
           "count": 120
         },
         "beliefs": {
-          "bytes": 126008,
-          "count": 839
+          "bytes": 126290,
+          "count": 841
         },
         "cooldowns": {
           "bytes": 60848,
           "count": 900
         },
         "tells": {
-          "bytes": 50447,
-          "count": 839
+          "bytes": 50569,
+          "count": 841
         },
         "legends": {
-          "bytes": 13045,
+          "bytes": 13089,
           "count": 69
         }
       },
-      "saveBytes": 1169517,
-      "saveKBPerCharacterYear": 3473.9071044921875,
-      "memoryKBPerCharacterYear": 2969.486490885417,
+      "saveBytes": 1175823,
+      "saveKBPerCharacterYear": 3492.6383056640625,
+      "memoryKBPerCharacterYear": 2985.675048828125,
       "ledgerRows": 18,
       "ledgerBytes": 29349,
       "creationRecords": 8,
@@ -3353,27 +3376,27 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 4286,
+        "bonds": 20,
+        "events": 4288,
         "consolidated": 399,
         "archived": 0,
-        "dropped": 882,
+        "dropped": 879,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 604,
+        "pruned": 608,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
@@ -3388,23 +3411,24 @@
             "0.463": 32,
             "0.475": 31,
             "0.495": 676,
-            "0.499": 23,
-            "0.503": 21
+            "0.499": 22,
+            "0.503": 22
           },
           "above": {
             "0.45": 783,
             "0.48": 720,
             "0.495": 720,
-            "0.5": 21,
+            "0.5": 22,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 52,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24093052898905087
       },
       "behaviors": {
         "walkSteps": 14400,
@@ -3428,13 +3452,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010499999996682163,
-        "simP95": 0.020100000001548324,
-        "memP50": 0.0039000000033411197,
-        "memP95": 0.0073999999949592166,
-        "dayCloseMs": 15.445299999999406,
-        "creatorCloseMs": 0.09410000000207219,
-        "dayWallMs": 883.3470000000016
+        "simP50": 0.004500000010011718,
+        "simP95": 0.01900000000023283,
+        "memP50": 0.0062000000034458935,
+        "memP95": 0.013399999996181577,
+        "dayCloseMs": 31.566900000005262,
+        "creatorCloseMs": 0.13929999999527354,
+        "dayWallMs": 1318.6902999999875
       }
     },
     {
@@ -3446,10 +3470,10 @@
       "worldEvents": 748,
       "buildingCount": 10,
       "demolitions": 6,
-      "memoryJsonBytes": 1034880,
+      "memoryJsonBytes": 1039790,
       "memoryParts": {
         "entries": {
-          "bytes": 156344,
+          "bytes": 155470,
           "count": 248
         },
         "facts": {
@@ -3465,25 +3489,25 @@
           "count": 125
         },
         "beliefs": {
-          "bytes": 132105,
-          "count": 879
+          "bytes": 132387,
+          "count": 881
         },
         "cooldowns": {
           "bytes": 60887,
           "count": 899
         },
         "tells": {
-          "bytes": 52897,
-          "count": 879
+          "bytes": 53019,
+          "count": 881
         },
         "legends": {
           "bytes": 13784,
           "count": 73
         }
       },
-      "saveBytes": 1210433,
-      "saveKBPerCharacterYear": 3451.6253515625003,
-      "memoryKBPerCharacterYear": 2951.025,
+      "saveBytes": 1216184,
+      "saveKBPerCharacterYear": 3468.0246875000003,
+      "memoryKBPerCharacterYear": 2965.0261718750003,
       "ledgerRows": 20,
       "ledgerBytes": 33081,
       "creationRecords": 9,
@@ -3502,27 +3526,27 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
+        "bonds": 20,
         "events": 4489,
         "consolidated": 420,
         "archived": 0,
-        "dropped": 921,
+        "dropped": 918,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 689,
+        "pruned": 691,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
@@ -3550,10 +3574,11 @@
           }
         }
       },
+      "timelineToday": 59,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24383275971255453
       },
       "behaviors": {
         "walkSteps": 14700,
@@ -3577,13 +3602,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010500000003958121,
-        "simP95": 0.02119999999558786,
-        "memP50": 0.004600000000209548,
-        "memP95": 0.008999999998195563,
-        "dayCloseMs": 16.56749999999738,
-        "creatorCloseMs": 0.0923999999940861,
-        "dayWallMs": 909.1684999999998
+        "simP50": 0.004700000004959293,
+        "simP95": 0.019499999994877726,
+        "memP50": 0.007400000002235174,
+        "memP95": 0.015299999999115244,
+        "dayCloseMs": 30.12380000000121,
+        "creatorCloseMs": 0.14349999999103602,
+        "dayWallMs": 1305.1615999999922
       }
     },
     {
@@ -3595,10 +3620,10 @@
       "worldEvents": 778,
       "buildingCount": 10,
       "demolitions": 6,
-      "memoryJsonBytes": 1066974,
+      "memoryJsonBytes": 1072309,
       "memoryParts": {
         "entries": {
-          "bytes": 156295,
+          "bytes": 155988,
           "count": 248
         },
         "facts": {
@@ -3614,25 +3639,25 @@
           "count": 130
         },
         "beliefs": {
-          "bytes": 137186,
-          "count": 913
+          "bytes": 137467,
+          "count": 915
         },
         "cooldowns": {
           "bytes": 60853,
           "count": 898
         },
         "tells": {
-          "bytes": 54948,
-          "count": 913
+          "bytes": 55070,
+          "count": 915
         },
         "legends": {
-          "bytes": 14353,
-          "count": 76
+          "bytes": 14190,
+          "count": 75
         }
       },
-      "saveBytes": 1247831,
-      "saveKBPerCharacterYear": 3421.41162109375,
-      "memoryKBPerCharacterYear": 2925.522160456731,
+      "saveBytes": 1254018,
+      "saveKBPerCharacterYear": 3438.375676081731,
+      "memoryKBPerCharacterYear": 2940.150127704327,
       "ledgerRows": 21,
       "ledgerBytes": 33518,
       "creationRecords": 9,
@@ -3651,27 +3676,27 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 4668,
+        "bonds": 20,
+        "events": 4666,
         "consolidated": 441,
         "archived": 0,
-        "dropped": 959,
+        "dropped": 958,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 757,
+        "pruned": 756,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           }
         },
         "salience": {
@@ -3683,8 +3708,8 @@
           "byValue": {
             "0.303": 5,
             "0.438": 155,
-            "0.463": 34,
-            "0.475": 35,
+            "0.463": 35,
+            "0.475": 34,
             "0.495": 727,
             "0.499": 24,
             "0.503": 24
@@ -3699,10 +3724,11 @@
           }
         }
       },
+      "timelineToday": 49,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24580627660453708
       },
       "behaviors": {
         "walkSteps": 14700,
@@ -3726,13 +3752,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.01059999999415595,
-        "simP95": 0.02089999999589054,
-        "memP50": 0.004600000000209548,
-        "memP95": 0.008300000001327135,
-        "dayCloseMs": 15.70010000000184,
-        "creatorCloseMs": 0.0893999999971129,
-        "dayWallMs": 905.9978000000046
+        "simP50": 0.004799999995157123,
+        "simP95": 0.022399999987101182,
+        "memP50": 0.007599999997182749,
+        "memP95": 0.01660000000265427,
+        "dayCloseMs": 30.03310000000056,
+        "creatorCloseMs": 0.14029999999911524,
+        "dayWallMs": 1333.6888000000035
       }
     },
     {
@@ -3744,10 +3770,10 @@
       "worldEvents": 808,
       "buildingCount": 10,
       "demolitions": 6,
-      "memoryJsonBytes": 1098415,
+      "memoryJsonBytes": 1103892,
       "memoryParts": {
         "entries": {
-          "bytes": 156421,
+          "bytes": 156184,
           "count": 248
         },
         "facts": {
@@ -3763,25 +3789,25 @@
           "count": 135
         },
         "beliefs": {
-          "bytes": 142359,
-          "count": 947
+          "bytes": 142642,
+          "count": 949
         },
         "cooldowns": {
           "bytes": 60861,
           "count": 898
         },
         "tells": {
-          "bytes": 55904,
+          "bytes": 55916,
           "count": 929
         },
         "legends": {
-          "bytes": 14925,
+          "bytes": 14995,
           "count": 79
         }
       },
-      "saveBytes": 1284385,
-      "saveKBPerCharacterYear": 3391.207501446759,
-      "memoryKBPerCharacterYear": 2900.184280960648,
+      "saveBytes": 1290704,
+      "saveKBPerCharacterYear": 3407.891782407407,
+      "memoryKBPerCharacterYear": 2914.645399305555,
       "ledgerRows": 21,
       "ledgerBytes": 33518,
       "creationRecords": 9,
@@ -3800,36 +3826,36 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 4855,
+        "bonds": 20,
+        "events": 4858,
         "consolidated": 462,
         "archived": 0,
-        "dropped": 1002,
+        "dropped": 999,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 844,
+        "pruned": 851,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           },
           "tells": {
-            "evicted": 133,
+            "evicted": 135,
             "byCount": 0,
-            "byBytes": 133
+            "byBytes": 135
           }
         },
         "salience": {
-          "count": 1042,
+          "count": 1044,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
@@ -3839,24 +3865,25 @@
             "0.438": 161,
             "0.463": 36,
             "0.475": 36,
-            "0.495": 755,
+            "0.495": 757,
             "0.499": 25,
             "0.503": 24
           },
           "above": {
-            "0.45": 876,
-            "0.48": 804,
-            "0.495": 804,
+            "0.45": 878,
+            "0.48": 806,
+            "0.495": 806,
             "0.5": 24,
             "0.55": 0,
             "0.6": 0
           }
         }
       },
+      "timelineToday": 63,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.24339808032348303
       },
       "behaviors": {
         "walkSteps": 14795,
@@ -3881,13 +3908,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010600000001431908,
-        "simP95": 0.021200000002863817,
-        "memP50": 0.004600000000209548,
-        "memP95": 0.008699999998498242,
-        "dayCloseMs": 24.44600000000355,
-        "creatorCloseMs": 0.12559999999939464,
-        "dayWallMs": 917.0453999999954
+        "simP50": 0.005000000004656613,
+        "simP95": 0.02549999998882413,
+        "memP50": 0.007700000001932494,
+        "memP95": 0.0181999999913387,
+        "dayCloseMs": 31.005099999994854,
+        "creatorCloseMs": 0.16969999999855645,
+        "dayWallMs": 1366.2619000000122
       }
     },
     {
@@ -3899,10 +3926,10 @@
       "worldEvents": 838,
       "buildingCount": 10,
       "demolitions": 7,
-      "memoryJsonBytes": 1128949,
+      "memoryJsonBytes": 1134351,
       "memoryParts": {
         "entries": {
-          "bytes": 156112,
+          "bytes": 155983,
           "count": 248
         },
         "facts": {
@@ -3918,25 +3945,25 @@
           "count": 140
         },
         "beliefs": {
-          "bytes": 147801,
-          "count": 983
+          "bytes": 148069,
+          "count": 985
         },
         "cooldowns": {
           "bytes": 60843,
           "count": 897
         },
         "tells": {
-          "bytes": 55900,
+          "bytes": 55909,
           "count": 928
         },
         "legends": {
-          "bytes": 15574,
-          "count": 83
+          "bytes": 15468,
+          "count": 82
         }
       },
-      "saveBytes": 1319863,
-      "saveKBPerCharacterYear": 3360.4212820870534,
-      "memoryKBPerCharacterYear": 2874.346993582589,
+      "saveBytes": 1326084,
+      "saveKBPerCharacterYear": 3376.2601841517853,
+      "memoryKBPerCharacterYear": 2888.100690569196,
       "ledgerRows": 23,
       "ledgerBytes": 37250,
       "creationRecords": 10,
@@ -3955,11 +3982,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 5051,
+        "bonds": 20,
+        "events": 5045,
         "consolidated": 484,
         "archived": 0,
-        "dropped": 1042,
+        "dropped": 1038,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -3968,19 +3995,19 @@
         "pruned": 959,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           },
           "tells": {
-            "evicted": 133,
+            "evicted": 135,
             "byCount": 0,
-            "byBytes": 133
+            "byBytes": 135
           }
         },
         "salience": {
@@ -3990,16 +4017,16 @@
           "p99": 0.502875,
           "max": 0.502875,
           "byValue": {
-            "0.303": 6,
+            "0.303": 5,
             "0.438": 167,
             "0.463": 37,
-            "0.475": 37,
+            "0.475": 38,
             "0.495": 788,
             "0.499": 25,
             "0.503": 25
           },
           "above": {
-            "0.45": 912,
+            "0.45": 913,
             "0.48": 838,
             "0.495": 838,
             "0.5": 25,
@@ -4008,10 +4035,11 @@
           }
         }
       },
+      "timelineToday": 57,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.23798702667994762
       },
       "behaviors": {
         "walkSteps": 14500,
@@ -4035,13 +4063,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.01059999999415595,
-        "simP95": 0.02089999999589054,
-        "memP50": 0.005499999999301508,
-        "memP95": 0.010399999999208376,
-        "dayCloseMs": 17.079699999994773,
-        "creatorCloseMs": 0.144800000001851,
-        "dayWallMs": 950.4300000000003
+        "simP50": 0.004700000004959293,
+        "simP95": 0.02079999999841675,
+        "memP50": 0.008699999991222285,
+        "memP95": 0.018899999995483086,
+        "dayCloseMs": 27.0850999999966,
+        "creatorCloseMs": 0.1827999999950407,
+        "dayWallMs": 1342.0583000000042
       }
     },
     {
@@ -4053,10 +4081,10 @@
       "worldEvents": 868,
       "buildingCount": 10,
       "demolitions": 7,
-      "memoryJsonBytes": 1159277,
+      "memoryJsonBytes": 1164987,
       "memoryParts": {
         "entries": {
-          "bytes": 155829,
+          "bytes": 155961,
           "count": 248
         },
         "facts": {
@@ -4072,8 +4100,8 @@
           "count": 145
         },
         "beliefs": {
-          "bytes": 153258,
-          "count": 1019
+          "bytes": 153541,
+          "count": 1021
         },
         "cooldowns": {
           "bytes": 60861,
@@ -4084,13 +4112,13 @@
           "count": 927
         },
         "legends": {
-          "bytes": 16134,
-          "count": 86
+          "bytes": 16027,
+          "count": 85
         }
       },
-      "saveBytes": 1355072,
-      "saveKBPerCharacterYear": 3331.0969827586205,
-      "memoryKBPerCharacterYear": 2849.785189924569,
+      "saveBytes": 1361621,
+      "saveKBPerCharacterYear": 3347.196019665948,
+      "memoryKBPerCharacterYear": 2863.821760506465,
       "ledgerRows": 24,
       "ledgerBytes": 37687,
       "creationRecords": 10,
@@ -4109,11 +4137,11 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 5241,
+        "bonds": 20,
+        "events": 5236,
         "consolidated": 506,
         "archived": 0,
-        "dropped": 1083,
+        "dropped": 1080,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
@@ -4122,29 +4150,29 @@
         "pruned": 1067,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           },
           "tells": {
-            "evicted": 133,
+            "evicted": 135,
             "byCount": 0,
-            "byBytes": 133
+            "byBytes": 135
           }
         },
         "salience": {
-          "count": 1125,
+          "count": 1124,
           "p50": 0.495,
           "p90": 0.495,
           "p99": 0.502875,
           "max": 0.502875,
           "byValue": {
-            "0.303": 6,
+            "0.303": 5,
             "0.438": 173,
             "0.463": 38,
             "0.475": 39,
@@ -4162,10 +4190,11 @@
           }
         }
       },
+      "timelineToday": 56,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2418311781423644
       },
       "behaviors": {
         "walkSteps": 14400,
@@ -4189,13 +4218,13 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.021300000000337604,
-        "memP50": 0.005399999994551763,
-        "memP95": 0.009700000002339948,
-        "dayCloseMs": 16.218300000000454,
-        "creatorCloseMs": 0.0852999999988242,
-        "dayWallMs": 908.0171999999948
+        "simP50": 0.0044000000052619725,
+        "simP95": 0.01860000001033768,
+        "memP50": 0.00849999999627471,
+        "memP95": 0.017799999986891635,
+        "dayCloseMs": 27.829100000002654,
+        "creatorCloseMs": 0.12659999998868443,
+        "dayWallMs": 1342.962599999999
       }
     },
     {
@@ -4207,10 +4236,10 @@
       "worldEvents": 898,
       "buildingCount": 10,
       "demolitions": 7,
-      "memoryJsonBytes": 1190479,
+      "memoryJsonBytes": 1196143,
       "memoryParts": {
         "entries": {
-          "bytes": 155738,
+          "bytes": 155871,
           "count": 248
         },
         "facts": {
@@ -4226,25 +4255,25 @@
           "count": 150
         },
         "beliefs": {
-          "bytes": 159303,
-          "count": 1059
+          "bytes": 159586,
+          "count": 1061
         },
         "cooldowns": {
           "bytes": 60887,
           "count": 896
         },
         "tells": {
-          "bytes": 55896,
+          "bytes": 55917,
           "count": 926
         },
         "legends": {
-          "bytes": 16730,
-          "count": 89
+          "bytes": 16623,
+          "count": 88
         }
       },
-      "saveBytes": 1391257,
-      "saveKBPerCharacterYear": 3306.0469075520837,
-      "memoryKBPerCharacterYear": 2828.9377278645834,
+      "saveBytes": 1397763,
+      "saveKBPerCharacterYear": 3321.5071289062503,
+      "memoryKBPerCharacterYear": 2842.3971028645833,
       "ledgerRows": 24,
       "ledgerBytes": 37687,
       "creationRecords": 10,
@@ -4263,32 +4292,32 @@
         },
         "summaries": 0,
         "impressions": 0,
-        "bonds": 0,
-        "events": 5437,
+        "bonds": 20,
+        "events": 5434,
         "consolidated": 528,
         "archived": 0,
-        "dropped": 1122,
+        "dropped": 1120,
         "promoted": 0,
         "trimmedTimelineEntries": 0,
         "unknownPlaceEntries": 0,
         "unknownWhenEntries": 0,
         "dayIndexWhenEntries": 0,
-        "pruned": 1186,
+        "pruned": 1187,
         "prunedByLayer": {
           "entries": {
-            "evicted": 349,
-            "byCount": 349,
+            "evicted": 345,
+            "byCount": 345,
             "byBytes": 0
           },
           "cooldowns": {
-            "evicted": 704,
+            "evicted": 707,
             "byCount": 0,
-            "byBytes": 704
+            "byBytes": 707
           },
           "tells": {
-            "evicted": 133,
+            "evicted": 135,
             "byCount": 0,
-            "byBytes": 133
+            "byBytes": 135
           }
         },
         "salience": {
@@ -4298,16 +4327,16 @@
           "p99": 0.502875,
           "max": 0.502875,
           "byValue": {
-            "0.303": 6,
+            "0.303": 5,
             "0.438": 179,
-            "0.463": 39,
+            "0.463": 40,
             "0.475": 40,
             "0.495": 844,
             "0.499": 29,
             "0.503": 27
           },
           "above": {
-            "0.45": 979,
+            "0.45": 980,
             "0.48": 900,
             "0.495": 900,
             "0.5": 27,
@@ -4316,10 +4345,11 @@
           }
         }
       },
+      "timelineToday": 58,
       "relations": {
-        "count": 0,
+        "count": 20,
         "meanTrust": 0,
-        "meanWarmth": 0
+        "meanWarmth": 0.2369281435112452
       },
       "behaviors": {
         "walkSteps": 14495,
@@ -4344,19 +4374,19 @@
       },
       "perf": {
         "steps": 14400,
-        "simP50": 0.010399999999208376,
-        "simP95": 0.01939999999740394,
-        "memP50": 0.0054000000018277206,
-        "memP95": 0.009500000000116415,
-        "dayCloseMs": 16.67029999999795,
-        "creatorCloseMs": 0.08150000000023283,
-        "dayWallMs": 896.2508000000016
+        "simP50": 0.004899999999906868,
+        "simP95": 0.024099999995087273,
+        "memP50": 0.008999999990919605,
+        "memP95": 0.022200000006705523,
+        "dayCloseMs": 30.81150000001071,
+        "creatorCloseMs": 0.17649999998684507,
+        "dayWallMs": 1699.3970000000118
       }
     }
   ],
   "fingerprints": {
     "world": "50deb30236c167cf0e972488161d34e6ae8fd72ffb17b2074f6fe13302baaccb",
-    "memory": "99f54733aa55c3c9dd7990b1545ee5fbbd274971c41c9935ed22b7a4e7e2a0a8",
+    "memory": "de95297f1cf835063fc267a2187fb288a9cb263781eb6b1da75669d7d5eb7777",
     "creator": "eb32b2a8fec65bad50eaa33eb580c9af3b68b39cdd3db7870012caf46367b8b7",
     "events": "2c6c28a3e62e285615ad6b64e6b282c4ee3176f03286c8d488d233ed7aa25588"
   },
