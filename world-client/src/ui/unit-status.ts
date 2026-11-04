@@ -268,6 +268,25 @@ function placeLabel(placeId: string | null, world: UnitStatusWorld): string {
  *
  * 只读 `dayTimelineOf`；适配器没给就整段缺席，不去猜别人的今天。
  */
+/** 原句没了时，按 kind 给一句人话；认不出就落到最后一句。 */
+const KIND_WHAT: Readonly<Record<string, string>> = {
+  routine_done: '在镇上停了一会儿',
+  daily_water: '去河湾打了一趟水',
+  daily_lamp: '把街灯点亮了',
+  street_greet: '和人碰面问了个好',
+  street_yield: '给人让了路',
+  street_together: '和人一起搭手做事',
+  tide_turn: '潮水掉头了',
+  market_open: '早市开了',
+  market_close: '早市收了',
+  night_market: '夜市支起来了',
+  work_end: '收工的钟敲了',
+  task_done: '交了一单活',
+  conflict: '起了争执',
+  celebration: '庆祝了一件事',
+  episodic: '做了一件日常事',
+};
+
 function timelineLines(
   villager: VillagerSnapshot,
   world: UnitStatusWorld,
@@ -283,7 +302,9 @@ function timelineLines(
       .map((id) => names.get(id) ?? id);
     return {
       clock: entry.whenKnown === false ? '时刻不明' : clockOf(entry.when),
-      what: entry.what ?? `${entry.kind}（没有留下说法）`,
+      // 原句被预算裁掉后只剩 kind。给一句人话，别把 `routine_done` 这种
+      // 内部枚举直接印到面板上；认不出的 kind 落在最后一句，也不印枚举。
+      what: entry.what ?? KIND_WHAT[entry.kind] ?? '做了一件小事',
       place: placeLabel(entry.placeId, world),
       who: others.length === 0 ? '独自' : `与 ${others.join('、')}`,
       memoryId: entry.memoryId,

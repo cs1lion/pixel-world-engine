@@ -28,6 +28,8 @@ import type { DayDigest, DayFlag, MemoryEntry, WorldFact } from './types.ts';
 
 /** 超过这个天龄的摘要进「远档」，压缩掉地点表与异常原句。 */
 export const DIGEST_FULL_DAYS = 30;
+/** world day 从 0 起：前 30 个世界日（第 1–30 天）**永不淘汰**。 */
+export const DIGEST_PROTECTED_DAYS = 30;
 /** 每天最多留几条异常原句。 */
 export const DIGEST_MAX_ANOMALIES = 3;
 /** 每天最多留几个「重要事件」指针。 */
@@ -136,6 +138,36 @@ export function compactDayDigest(digest: DayDigest): DayDigest {
 /** 这一档该不该压缩。`closedDay` 是刚关账的那一天。 */
 export function shouldCompact(digest: DayDigest, closedDay: number): boolean {
   return !digest.compact && closedDay - digest.day > DIGEST_FULL_DAYS;
+}
+
+/**
+ * 超预算时的保留顺序。**开天那 30 天是保底的**——它们记的是世界最早的
+ * 日子，而「回望最早那几天」正是岁月感本身。`legend` 曾经按「最旧优先」
+ * 淘汰，90 天后最早只到第 56 天；这里不重蹈那个错。
+ *
+ * 保底段之外按「这一天值不值钱」排：
+ * 1. 有争执 / 异常 / 大事（`dispute`/`anomaly`/`major`）→ 权重 2；
+ * 2. 只是有人有事（有任何事件）→ 1；
+ * 3. 只有附加条目的空白日 → 0。
+ *
+ * 同权重时**留更近的**：近月被翻看的次数最多，而中间那段「不近不远」的
+ * 普通日子就是浓度递减该削的地方。被削掉的是 31 天后的中段，不是开天那几天。
+ */
+export function digestRank(a: DayDigest, b: DayDigest): number {
+  const aEarly = a.day < DIGEST_PROTECTED_DAYS ? 1 : 0;
+  const bEarly = b.day < DIGEST_PROTECTED_DAYS ? 1 : 0;
+  if (aEarly !== bEarly) return bEarly - aEarly;
+  const aWeight = digestWeight(a);
+  const bWeight = digestWeight(b);
+  if (aWeight !== bWeight) return bWeight - aWeight;
+  return b.day - a.day;
+}
+
+function digestWeight(digest: DayDigest): number {
+  if (digest.flags.some((flag) => flag === 'dispute' || flag === 'anomaly' || flag === 'major')) {
+    return 2;
+  }
+  return digest.events.length > 0 ? 1 : 0;
 }
 
 /**

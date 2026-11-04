@@ -20,6 +20,7 @@ import { byteSizeOf, consolidateHolder, trimEntriesToBudget } from './consolidat
 import {
   buildDayDigest,
   compactDayDigest,
+  digestRank,
   digestTimelineOf,
   shouldCompact,
   stripDigestEvent,
@@ -1705,12 +1706,14 @@ export class MemoryWorld {
       this.emitPruned(day, at, 'legends', legends.byCount, legends.byBytes, this.legends.length);
     }
 
-    // 日摘要按「新的一天先留」裁。它和传说相反：摘要的价钱是**回溯**，
-    // 最近的日子被问到的次数最多，而传说要的是岁月感。两者排序不同是有意的。
-    const digests = this.trimRecords(this.digests, this.config.libraryBudget.digests, (a, b) => {
-      if (a.day !== b.day) return b.day - a.day;
-      return 0;
-    });
+    // 日摘要的淘汰顺序见 `digest.ts` 的 `digestRank`：开天前 30 天保底，
+    // 其余按「有争执/异常/大事 → 有事 → 空白」排，同权留更近的。
+    // 不按「最旧优先」——那正是 `legend` 改前犯过的错。
+    const digests = this.trimRecords(
+      this.digests,
+      this.config.libraryBudget.digests,
+      digestRank,
+    );
     if (digests.byCount + digests.byBytes > 0) {
       this.digests = digests.kept.sort((a, b) => a.day - b.day);
       this.emitPruned(day, at, 'digests', digests.byCount, digests.byBytes, this.digests.length);

@@ -12,8 +12,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DAY_MS } from '../src/world/memory/config.ts';
+import { DIGEST_PROTECTED_DAYS, digestRank } from '../src/world/memory/digest.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
-import type { MemoryEvent } from '../src/world/memory/types.ts';
+import type { DayDigest, MemoryEvent } from '../src/world/memory/types.ts';
 
 function makeRuntime(): { runtime: MemoryRuntime; events: MemoryEvent[] } {
   const events: MemoryEvent[] = [];
@@ -142,4 +143,44 @@ test('删一条事件会把它从摘要里摘掉', () => {
   assert.notEqual(digest, null);
   assert.deepEqual([...digest!.events.map(([eventId]) => eventId)], ['ev_b'], '删掉的拍子不能留着');
   assert.equal(digest!.firstEvent, 'ev_b', 'firstEvent 要重排');
+});
+
+function fakeDigest(day: number, flags: DayDigest['flags'] = []): DayDigest {
+  return {
+    day,
+    people: ['v0'],
+    firstEvent: `ev_${day}`,
+    lastEvent: `ev_${day}`,
+    places: ['street'],
+    flags,
+    events: [[`ev_${day}`, 'street_greet', 0]],
+    beats: [[0]],
+    extras: [],
+    anomalies: [],
+    pointers: [],
+    compact: false,
+  };
+}
+
+test('摘要超预算：开天前 30 天保底，中段普通日先削，异常日优先留', () => {
+  const digests = Array.from({ length: 90 }, (_, day) => fakeDigest(day));
+  const ranked = [...digests].sort(digestRank).slice(0, 60);
+  const kept = new Set(ranked.map((digest) => digest.day));
+
+  for (let day = 0; day < DIGEST_PROTECTED_DAYS; day += 1) {
+    assert.equal(kept.has(day), true, `开天第 ${day} 天不能淘汰`);
+  }
+  assert.equal(kept.has(89), true, '同权重时留更近的日子');
+  assert.equal(kept.has(45), false, '中段普通日先削');
+
+  const withAnomaly = digests.map((digest) =>
+    digest.day === 45
+      ? fakeDigest(45, ['anomaly'])
+      : digest,
+  );
+  const rankedAnomaly = [...withAnomaly].sort(digestRank).slice(0, 60);
+  const keptAnomaly = new Set(rankedAnomaly.map((digest) => digest.day));
+  assert.equal(keptAnomaly.has(45), true, '中段那一天出了异常，必须优先于普通近月日');
+  assert.equal(keptAnomaly.has(89), true, '近月仍在保留端');
+  assert.equal(keptAnomaly.has(60), false, '被它顶掉的是中段里最靠外的普通日');
 });

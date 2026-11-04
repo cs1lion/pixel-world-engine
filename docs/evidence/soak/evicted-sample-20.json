@@ -1,0 +1,165 @@
+{
+  "frame": "seed A：第 30 天仍存活、第 90 天已不在 facts 的事实",
+  "candidateCount": 698,
+  "sampleSize": 20,
+  "kindCounts": {
+    "routine_done": 178,
+    "market_open": 30,
+    "street_yield": 4,
+    "street_greet": 102,
+    "street_together": 54,
+    "tide_turn": 180,
+    "work_end": 30,
+    "daily_lamp": 30,
+    "night_market": 30,
+    "market_close": 30,
+    "daily_water": 30
+  },
+  "hintBuckets": {
+    "low": 698,
+    "mid": 0,
+    "high": 0
+  },
+  "sample": [
+    {
+      "eventId": "soak-378",
+      "day": 12,
+      "kind": "street_together",
+      "importanceHint": 0.38,
+      "what": "迷路人和沉灯夫人一起搭手做事。"
+    },
+    {
+      "eventId": "soak-838",
+      "day": 28,
+      "kind": "tide_turn",
+      "importanceHint": 0.35,
+      "what": "潮水退过一半，滩涂露出来了"
+    },
+    {
+      "eventId": "soak-215",
+      "day": 7,
+      "kind": "street_greet",
+      "importanceHint": 0.38,
+      "what": "灯笼头与炉匠碰面，互相问了个好。"
+    },
+    {
+      "eventId": "soak-209",
+      "day": 7,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边睡下了"
+    },
+    {
+      "eventId": "soak-31",
+      "day": 1,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边睡下了"
+    },
+    {
+      "eventId": "soak-64",
+      "day": 2,
+      "kind": "daily_water",
+      "importanceHint": 0.35,
+      "what": "灯笼头去河湾打水，顺手冲了冲河岸"
+    },
+    {
+      "eventId": "soak-413",
+      "day": 13,
+      "kind": "daily_lamp",
+      "importanceHint": 0.35,
+      "what": "炉匠把祭坛边的街灯一盏盏点亮"
+    },
+    {
+      "eventId": "soak-842",
+      "day": 28,
+      "kind": "daily_water",
+      "importanceHint": 0.35,
+      "what": "炉匠去河湾打水，顺手冲了冲河岸"
+    },
+    {
+      "eventId": "soak-124",
+      "day": 4,
+      "kind": "street_greet",
+      "importanceHint": 0.38,
+      "what": "汐与灯笼头碰面，互相问了个好。"
+    },
+    {
+      "eventId": "soak-129",
+      "day": 4,
+      "kind": "market_open",
+      "importanceHint": 0.35,
+      "what": "早市开了，摊子一处处支起来。"
+    },
+    {
+      "eventId": "soak-487",
+      "day": 16,
+      "kind": "tide_turn",
+      "importanceHint": 0.35,
+      "what": "潮水退过一半，滩涂露出来了"
+    },
+    {
+      "eventId": "soak-566",
+      "day": 18,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边歇下"
+    },
+    {
+      "eventId": "soak-592",
+      "day": 19,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在河湾看了看水"
+    },
+    {
+      "eventId": "soak-527",
+      "day": 17,
+      "kind": "tide_turn",
+      "importanceHint": 0.35,
+      "what": "潮水退过一半，滩涂露出来了"
+    },
+    {
+      "eventId": "soak-381",
+      "day": 12,
+      "kind": "work_end",
+      "importanceHint": 0.35,
+      "what": "收工的钟敲了，街上的活停下来。"
+    },
+    {
+      "eventId": "soak-679",
+      "day": 22,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边坐着"
+    },
+    {
+      "eventId": "soak-714",
+      "day": 23,
+      "kind": "night_market",
+      "importanceHint": 0.35,
+      "what": "夜市支起来了，灯下有人走动。"
+    },
+    {
+      "eventId": "soak-656",
+      "day": 21,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边歇下"
+    },
+    {
+      "eventId": "soak-263",
+      "day": 8,
+      "kind": "daily_lamp",
+      "importanceHint": 0.35,
+      "what": "炉匠把祭坛边的街灯一盏盏点亮"
+    },
+    {
+      "eventId": "soak-711",
+      "day": 23,
+      "kind": "work_end",
+      "importanceHint": 0.35,
+      "what": "收工的钟敲了，街上的活停下来。"
+    }
+  ]
+}
