@@ -18,6 +18,7 @@
 
 import { DEFAULT_MEMORY_CONFIG, type MemoryConfig } from './config.ts';
 import { placeHints, type NarrativeHint } from './hints.ts';
+import { enforceWitnessedProvenance, type MemoryImportReport } from './import-guard.ts';
 import type { LandmarkEvent } from './landmark.ts';
 import type { OcclusionGrid, Perceiver } from './perception.ts';
 import { witnessesOf } from './perception.ts';
@@ -433,6 +434,13 @@ export class MemoryRuntime {
    * 而单位读世界的门至今只有 `viewOf` 一扇——那扇门后只有他自己的东西。
    */
   private readonly positions = new Map<string, { readonly x: number; readonly y: number }>();
+  /**
+   * 最近一次读档的出处闸报告（拒绝 / 降级 / 因淘汰无法核实）。
+   *
+   * 读档失败时为 `null`——「没读到」与「读到了但降级了 3 条」是两件事，
+   * 面板与证据脚本要分得开。
+   */
+  private lastImportReport: MemoryImportReport | null = null;
 
   constructor(deps: MemoryRuntimeDeps = {}) {
     this.config = deps.config ?? DEFAULT_MEMORY_CONFIG;
@@ -480,21 +488,36 @@ export class MemoryRuntime {
    */
   fromJSON(text: string): boolean {
     // 空串是 v4→v5 迁移给老档的默认值：明确的「没有记忆」，不是坏档。
-    if (text === '') return false;
+    if (text === '') {
+      this.lastImportReport = null;
+      return false;
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
     } catch {
+      this.lastImportReport = null;
       return false;
     }
-    if (!isRuntimeSnapshot(parsed)) return false;
+    if (!isRuntimeSnapshot(parsed)) {
+      this.lastImportReport = null;
+      return false;
+    }
     // 迁移之后再校验一次：迁上来的形状必须也过得了当前版本那道闸。
     const migrated: unknown =
       parsed.memorySchemaVersion === MEMORY_SCHEMA_VERSION
         ? parsed
         : migrateSnapshot(parsed as unknown as Record<string, unknown>, parsed.memorySchemaVersion);
-    if (!isRuntimeSnapshot(migrated)) return false;
+    if (!isRuntimeSnapshot(migrated)) {
+      this.lastImportReport = null;
+      return false;
+    }
     return this.fromSnapshot(migrated);
+  }
+
+  /** 最近一次读档的出处闸报告；读档失败或从未读过时为 `null`。 */
+  get lastImport(): MemoryImportReport | null {
+    return this.lastImportReport;
   }
 
   /**
@@ -504,7 +527,10 @@ export class MemoryRuntime {
    * 校验与 `fromJSON` 同一道闸；返回 `false` 表示形状不认识，调用方保持空库。
    */
   fromSnapshot(snapshot: MemoryRuntimeSnapshot): boolean {
-    if (!isRuntimeSnapshot(snapshot)) return false;
+    if (!isRuntimeSnapshot(snapshot)) {
+      this.lastImportReport = null;
+      return false;
+    }
     this.lastClosedDay = snapshot.lastClosedDay;
     this.started = snapshot.started;
     this.now = snapshot.now;
@@ -512,7 +538,11 @@ export class MemoryRuntime {
     for (const item of snapshot.positions) {
       this.positions.set(item.holderId, { x: item.at.x, y: item.at.y });
     }
-    this.world.restoreSnapshot(snapshot.world);
+    // 出处闸：坏条目拒、自称亲历但无旁证的降级、因淘汰悬空但有旁证的放行。
+    // 见 `import-guard.ts` 里那张「旁证写在哪」的表。
+    const guarded = enforceWitnessedProvenance(snapshot.world);
+    this.world.restoreSnapshot(guarded.world);
+    this.lastImportReport = guarded.report;
     return true;
   }
 

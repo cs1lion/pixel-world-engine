@@ -1,0 +1,2 @@
+guard-red: 绕过读档闸后假记忆被召回 = true sourceMode = witnessed
+guard: RED（绕过闸时假记忆以 witnessed 存活；说明这道闸正是唯一拦它的东西）

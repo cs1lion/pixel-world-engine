@@ -578,3 +578,65 @@ node tmp/stress/flake-repro.mjs --file world-client/test/intent-async.test.ts \
 ### 已修：`tideLevelAt` 随世界时间线性变慢（提交在本分支）
 
 - 见 `docs/evidence/soak/REPORT.md` 第 2 节与 `test/tide-checkpoint.test.ts`：`stepTide` p50 0.3 µs → 17.9 µs（60×），30 日整轮 73.6 s → 50.3 s；曲线逐点与原实现一致。
+
+## 评测（eval/ledger-facts-question）
+
+测试分支：`eval/ledger-facts-question`（worktree `D:\project\pwe-eval`，基线 `39cff04`）。
+本段只记录评测过程中撞见的问题；按任务纪律**只记录、不顺带修**（EVAL-BUG-1 经用户批准后单独修，见下）。
+
+### EVAL-BUG-1 存档读入只查「entries 是数组」，`witnessed` 的假记忆能整条复活
+
+- **编号**：EVAL-BUG-1
+- **状态**：**已修**（同一分支 `eval/ledger-facts-question`，基线 `39cff04`）。
+- **依据（原始记录，保留不动）**：`src/world/memory/runtime.ts` 的 `isWorldSnapshot` 对 `entries` 只做
+  `Array.isArray`，不校验每条 `eventRefs` 是否在事实库里；`fromJSON` 之后
+  `recallForDialogue` 按 `sourceMode` 原样返回。
+- **读数（原始记录，保留不动）**：构造一条 `sourceMode: "witnessed"`、`eventRefs: ["eval-ghost-never-happened"]`
+  的条目塞进快照；`ghostEventExists = false`，`recalled = true`，返回
+  `sourceMode = "witnessed"`。也就是说「亲眼所见」可以没有任何事件出处。
+- **复现**：`node world-client/scripts/eval-counterfactual.ts --guard-red` → 退出码 1；
+  输出与 JSON 在 `docs/evidence/eval-counterfactual/`。
+- **影响范围**：读档可把不存在的亲历带进世界；`Oracle` 解释与回溯问答会把它当第一手证据。
+- **未修原因（历史记录）**：本轮任务是评测与取证，修复需要动 `isWorldSnapshot` 与迁移逻辑，留给后续单独 PR。
+
+#### 修法（2026-11-04）
+
+- **落点**：[import-guard.ts](../world-client/src/world/memory/import-guard.ts)，在
+  `MemoryRuntime.fromSnapshot` 里、`world.restoreSnapshot` 之前执行；报告挂在
+  `MemoryRuntime.lastImport`（`memory-import-report/1`）。
+- **判据不是「eventRefs 非空」，而是「有没有旁证」**：事件被摄入的那一刻，记忆层
+  除了写条目，还会独立写下断言（`claims[].eventRefs`，一事一条）、信念、痕迹、
+  传说/史诗、成长记录、关系账本（`bonds[].evidence`）、地标相位、地名史。
+  事实库会被淘汰，这些不会——所以：
+  - 引用不在 `facts`、但在上述任一库里查得到 → **历史淘汰，放行**，计入
+    `prunedUnverifiable`（90 天存档里正是 12 条，71 条 witnessed 一条不少）；
+  - 引用在快照里一处旁证都没有 → **导入时编造**，降级为 `heard`，计入
+    `downgradedEntries`；
+  - 条目形状坏（无 id / 无 `eventRefs` / `sourceMode` 不认识）→ **拒绝**（丢弃），
+    计入 `refusedEntries`。没有第三条「静默通过」。
+- **为什么不能写「witnessed 的 eventRefs 必须都解析到事件」**：90 天存档里 12 条合法的
+  `witnessed` 正指着已淘汰的事件，那种写法会把合法旧档拒掉，比原缺陷更糟。
+- **读数（修后）**：90 天存档 71→71，拒绝 0、降级 0、淘汰旁证 12；真 v5 样品 25→25；
+  注入的 `witnessed` 假记忆降级为 `heard`（`downgradedEntries=1`）。
+- **造错守卫**：默认模式（闸开着）契约 5/5 绿、退出 0；`--guard-red` 关掉读档闸
+  （直连 `world.restoreSnapshot`）后同一假记忆仍以 `witnessed` 复活 → 退出 1。
+  两边都跑过，红的那次原始输出在 `guard-red.txt`。
+- **证据**：[docs/evidence/eval-import-guard/](../docs/evidence/eval-import-guard/)（`import-guard.json`、
+  `guard-red.txt`）；回归测试 `world-client/test/memory-import-guard.test.ts`。
+
+### EVAL-BUG-2 账本 `script_sha` 混记 CRLF/LF，且两条读数在 main 上过期
+
+- **表现**：`eval/ledger-facts-question` 合到 `10f61ac` 时，`world-client/test/eval-ledger.test.ts`
+  连红两次、5 条 `script_sha` 不符（合并方 `merge --abort` 回滚，未改哈希凑通过）。
+- **根因一（行尾）**：仓库 `core.autocrlf=true`，索引 LF、工作树 CRLF。旧校验直接对工作树
+  **字节**算 sha256，同一账本里混进了两套哈希：`audit-palette.mjs`、`cast-motion.test.ts` 记的是
+  CRLF 哈希，`eval-counterfactual.ts` / `eval-rewind-qa.ts` / `eval-import-guard.ts` 记的是 LF 哈希，
+  任何 checkout 都无法同时满足。
+- **根因二（读数过期）**：`check-render-budget.mjs` 在 main 上被材质升级/场景动效改过，账本里
+  的 16130 是更早的 CI 机位读数；脚本内容变了就该红，这正是活校验的价值。
+- **修法**：生成端与校验端共用 `sha256OfContent` / `sha256OfFile`（先 `\r\n → \n` 再算哈希），
+  生成端 `scripts/eval-ledger-sha.ts --write` 回写，不再手抄；新增一条 CRLF/LF 同哈希回归测试。
+  **未**用全仓 `.gitattributes` 强制重规范化，也**未**放宽 `script_sha` 断言。
+- **重测（在 `10f61ac` 上）**：render p50 16130 → 16162（5 次计分轮两档 15514/16162，极差 648，
+  均 < 30000）；palette 0/0；walk 帧差 17 → 18（阈值 16 未动）；idle 10（阈值 8 未动）。
+  证据：[docs/evidence/eval-ledger/](../docs/evidence/eval-ledger/)。

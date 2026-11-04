@@ -26,7 +26,7 @@ import {
 import { silhouetteSimilarity } from '../src/render/silhouette-match.ts';
 
 const MAIN = ['迷路人', '汐', '炉匠', '沉灯夫人', '灯笼头'] as const;
-/** 行走相邻帧的 structural 帧差下限：实测最小 17（迷路人 侧面）。 */
+/** 行走相邻帧的 structural 帧差下限：实测最小 18（迷路人 侧面）。 */
 const MIN_WALK_FRAME_DIFF = 16;
 /** 待机两帧的 structural 帧差下限：实测最小 10（炉匠 背面）。 */
 const MIN_IDLE_FRAME_DIFF = 8;
