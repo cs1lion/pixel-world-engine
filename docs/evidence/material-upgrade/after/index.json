@@ -1,0 +1,158 @@
+{
+  "label": "after",
+  "base": "http://127.0.0.1:5191/",
+  "settleFrame": 240,
+  "sheets": [
+    {
+      "name": "street",
+      "camera": {
+        "scrollX": 200,
+        "scrollY": 312,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
+      "name": "south-road",
+      "camera": {
+        "scrollX": 280,
+        "scrollY": 424,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
+      "name": "east-plaza",
+      "camera": {
+        "scrollX": 544,
+        "scrollY": 320,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
+      "name": "west-plaza",
+      "camera": {
+        "scrollX": 0,
+        "scrollY": 336,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
+      "name": "mud-flat",
+      "camera": {
+        "scrollX": 520,
+        "scrollY": 448,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
+      "name": "boiler-base",
+      "camera": {
+        "scrollX": 264,
+        "scrollY": 116,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      }
+    },
+    {
+      "name": "villager",
+      "camera": {
+        "scrollX": 440,
+        "scrollY": 337,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      },
+      "villager": {
+        "id": "v3",
+        "pos": {
+          "x": 42,
+          "y": 31
+        },
+        "feetWorld": {
+          "x": 680,
+          "y": 497
+        }
+      }
+    },
+    {
+      "name": "default-wall",
+      "camera": {
+        "scrollX": 440,
+        "scrollY": 304,
+        "width": 480,
+        "height": 320
+      },
+      "cssPerWorld": 2,
+      "rect": {
+        "width": 960,
+        "height": 640,
+        "left": 25.5,
+        "top": 1
+      },
+      "building": {
+        "id": "code_forge#1",
+        "origin": {
+          "x": 40,
+          "y": 26
+        },
+        "footprint": {
+          "w": 5,
+          "h": 4
+        }
+      }
+    }
+  ],
+  "errors": []
+}

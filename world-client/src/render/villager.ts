@@ -163,10 +163,17 @@ function paintColor(paint: PaintRole, look: VillagerLook, palette: WorldPalette)
       return palette[look.scarf];
     case 'scarfLit':
       return palette[look.scarfLit];
+    case 'lit':
+      return palette.warmLight;
+    case 'contact':
+      return palette.deepShade;
     default:
       return palette[paint];
   }
 }
+
+/** 这两个角色是「覆盖层」：压半透明，不新增源色，也不进 24 色审计。 */
+const PAINT_ALPHA: Partial<Record<PaintRole, number>> = { lit: 0.42, contact: 0.38 };
 
 function drawVillager(
   g: Phaser.GameObjects.Graphics,
@@ -179,7 +186,7 @@ function drawVillager(
   nowMs: number,
 ): void {
   for (const item of villagerLayout(look, facing, pose, walking, mode, nowMs)) {
-    g.fillStyle(paintColor(item.paint, look, palette), 1);
+    g.fillStyle(paintColor(item.paint, look, palette), PAINT_ALPHA[item.paint] ?? 1);
     g.fillRect(item.x, item.y, item.w, item.h);
   }
 }

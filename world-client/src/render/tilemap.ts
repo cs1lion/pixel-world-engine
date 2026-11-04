@@ -175,13 +175,81 @@ function drawTexture(
 ): void {
   if (terrain === 'shallow' || terrain === 'mud' || terrain === 'coal') {
     const h = hash2(x, y);
-    g.fillStyle(terrain === 'coal' ? palette.soil : palette.plaza, 0.42);
+    // 浅滩/泥地/煤渣原先只有一道半透明横条，整片读成「刷了层色」。
+    // 这里按材质给三件东西：一道水/湿痕、一层颗粒、一点踩踏或积灰。
     if (terrain === 'shallow') {
+      g.fillStyle(palette.plaza, 0.42);
       g.fillRect(px + h % 7, py + 5 + (h % 4), 7, 1);
       g.fillRect(px + 4, py + 12, 5, 1);
-    } else {
-      g.fillRect(px + 3 + h % 7, py + 4 + (h % 7), terrain === 'coal' ? 3 : 5, 1);
-      if (terrain === 'coal') g.fillRect(px + 5, py + 10, 2, 2);
+      // 水面的第二道：更冷一档，贴着上一道错开 1px，读成浅水的波纹。
+      g.fillStyle(palette.water, 0.3);
+      g.fillRect(px + 2 + (h % 5), py + 7 + (h % 3), 6, 1);
+      // 卵石与岸边苔。
+      g.fillStyle(palette.stone, 0.5);
+      const peb = hash2(x * 5 + 1, y * 3 + 2);
+      g.fillRect(px + 1 + (peb % 13), py + 1 + ((peb >>> 6) % 13), 2, 1);
+      if (peb % 3 === 0) {
+        g.fillStyle(palette.moss, 0.35);
+        g.fillRect(px + 1 + (peb % 12), py + 13 + (peb % 2), 2, 1);
+      }
+      return;
+    }
+    if (terrain === 'coal') {
+      // 煤渣：灰白积灰 + 深色渣块 + 偶发一点未冷的余烬（1px，不发光）。
+      g.fillStyle(palette.soil, 0.42);
+      g.fillRect(px + 3 + h % 7, py + 4 + (h % 7), 3, 1);
+      g.fillRect(px + 5, py + 10, 2, 2);
+      g.fillStyle(palette.plaster, 0.25);
+      const ash = hash2(x * 7 + 3, y * 5 + 1);
+      g.fillRect(px + 1 + (ash % 13), py + 2 + ((ash >>> 5) % 12), 2 + (ash % 2), 1);
+      if (ash % 5 === 0) g.fillRect(px + 2 + ((ash >>> 9) % 10), py + 4 + (ash % 8), 1, 1);
+      g.fillStyle(palette.deepShade, 0.45);
+      g.fillRect(px + 2 + (h % 9), py + 9 + (h % 5), 2, 1);
+      if (h % 11 === 0) {
+        g.fillStyle(palette.ember, 0.5);
+        g.fillRect(px + 4 + (h % 8), py + 6 + ((h >>> 4) % 7), 1, 1);
+      }
+      return;
+    }
+    // 泥地：湿斑 + 卵石 + 踩踏的两道浅辙。
+    // 第一版把湿痕压在 0.4 alpha 上，远看整片还是平涂（读数 textureEnergy 0.5）；
+    // 改成**实色一档**：深两档 ink 的湿泥洼、亮两档 farm 的干壳、深一档 deepShade 的辙。
+    // 每格 1–2 块，块宽 4–11px 且长短不齐：读成被踩过的土，不是花纹。
+    if (h % 2 === 0) {
+      g.fillStyle(palette.farm, 1);
+      g.fillRect(px + 1 + ((h >>> 11) % 7), py + 8 + ((h >>> 6) % 4), 6 + ((h >>> 4) % 5), 4);
+    }
+    if (h % 3 === 0) {
+      g.fillStyle(palette.deepShade, 1);
+      g.fillRect(px + 2 + ((h >>> 3) % 8), py + 2 + ((h >>> 7) % 7), 7 + (h % 4), 4);
+    }
+    if (h % 4 === 0) {
+      g.fillStyle(palette.ink, 1);
+      g.fillRect(px + 3 + ((h >>> 13) % 9), py + 1 + ((h >>> 8) % 11), 2, 2);
+    }
+    // 颗粒：干土上散落的碎渣，1px，按格给 3–5 颗，密度不高但铺满整片。
+    {
+      const grain = hash2(x * 11 + 7, y * 13 + 3);
+      const gx = px + 1 + (grain % 13);
+      const gy = py + 1 + ((grain >>> 5) % 13);
+      g.fillStyle(palette.charcoal, 1);
+      g.fillRect(gx, gy, 1, 1);
+      g.fillStyle(palette.stone, 0.7);
+      g.fillRect(px + 1 + ((grain >>> 9) % 14), py + 2 + ((grain >>> 12) % 12), 2, 1);
+      g.fillRect(px + 2 + ((grain >>> 15) % 11), py + 12 + ((grain >>> 18) % 3), 1, 1);
+    }
+    g.fillStyle(palette.stone, 1);
+    const peb = hash2(x * 3 + 5, y * 7 + 2);
+    g.fillRect(px + 1 + (peb % 13), py + 1 + ((peb >>> 6) % 12), 1 + (peb % 2), 1);
+    // 踩踏痕：两道平行的暗辙，只给少数格，读成有人走过而不是花纹。
+    if (h % 5 === 0) {
+      g.fillStyle(palette.deepShade, 1);
+      g.fillRect(px + 2, py + 11 + (h % 3), 11, 1);
+      g.fillRect(px + 4, py + 13 + (h % 2), 8, 1);
+    }
+    if (h % 13 === 0) {
+      g.fillStyle(palette.moss, 0.6);
+      g.fillRect(px + 1 + (h % 10), py + 14, 2, 1);
     }
     return;
   }
@@ -249,15 +317,59 @@ function drawFlagstones(
   for (let i = 0; i < stones.length; i += 1) {
     const stone = stones[i]!;
     const [sx, sy, sw, sh] = stone;
-    g.fillStyle(face, 1);
+    // 每块石头自己的脸：底色档位、抖动位置、缺角都从它派生，
+    // 同一格永远同一副面孔（不读时钟、不读随机）。
+    const sh2 = hash2(x * 4 + i, y * 4 + i);
+
+    // 三档色调：stone 地形里少数石块换成 plaza——晒白/磨亮的一档。
+    // 只抬一档，且不是每格都有，读成「同一种石材的不同板」而不是马赛克。
+    const pale = terrain === 'stone' && sh2 % 11 === 0;
+    g.fillStyle(pale ? palette.plaza : face, 1);
     g.fillRect(px + sx, py + sy, sw, sh);
+
+    // 内侧倒角：右下各压 1px 缝色，让板读成有厚度，而不是贴在土上的色块。
+    g.fillStyle(seam, 1);
+    g.fillRect(px + sx, py + sy + sh - 1, sw, 1);
+    g.fillRect(px + sx + sw - 1, py + sy, 1, sh);
 
     // 光从左上打：石块上/左各 1px 受光。只有 stone 有更亮一档的 plaza 可用；
     // plaza 自身已是最亮石材，不再加高光，避免出现白线。
-    if (terrain === 'stone') {
-      g.fillStyle(palette.plaza, 1);
+    // 受光线用 0.45 而不是实色：`lamp-band` 的石板路采样带正好压在灯池上，
+    // 整片石板提亮会把「灯亮 - 灯灭」的列 ΔY 摊薄（实色版实测 10.95 → 5.6pp）。
+    if (terrain === 'stone' && !pale) {
+      g.fillStyle(palette.plaza, 0.45);
       g.fillRect(px + sx, py + sy, sw, 1);
       g.fillRect(px + sx, py + sy, 1, sh);
+      // 交界抖动：受光线下面隔列点两颗，把 1px 硬边散成石材颗粒。
+      const dot = sh2 % 11;
+      const d1 = (dot % 4 + 1) * 2;
+      const d2 = d1 + 3;
+      if (d1 < sw - 1) g.fillRect(px + sx + d1, py + sy + 1, 1, 1);
+      if (d2 < sw - 1) g.fillRect(px + sx + d2, py + sy + 2, 1, 1);
+    }
+
+    // 广场最亮，不再往上抬；改用稀疏石粒把平涂打散（每几块才一颗）。
+    if (terrain === 'plaza' && sh2 % 3 === 0) {
+      const gx2 = px + sx + 1 + (sh2 % Math.max(1, sw - 3));
+      const gy2 = py + sy + 2 + ((sh2 >>> 8) % Math.max(1, sh - 4));
+      g.fillStyle(palette.stone, 1);
+      g.fillRect(gx2, gy2, 1, 1);
+      if (sh2 % 4 === 0) g.fillRect(gx2 + 1, gy2, 1, 1);
+    }
+
+    // 广场石面的磨痕：一根 2px 的浅凹，位置换一根独立哈希轴。
+    // 为什么单开一档：广场带 x7/x8 两格的「下排石底边 + 上排石顶边」半格图案
+    // 曾经逐像素相同（48px 窗按 16px 切分读到 8/9）。撞脸发生在石面中部
+    // 而不是石粒所在的半格，所以调石粒的 salt 拆不开；这一道磨痕落在石面
+    // 里，把相邻格从「半格复制」拆开，同时给 1× 下的广场多一档可读的凹痕。
+    if (terrain === 'plaza') {
+      const wear = hash2(x * 19 + i * 7, y * 23 + i * 11);
+      if (wear % 2 === 0) {
+        const wx2 = px + sx + 1 + (wear % Math.max(1, sw - 3));
+        const wy2 = py + sy + 2 + ((wear >>> 9) % Math.max(1, sh - 4));
+        g.fillStyle(palette.stone, 1);
+        g.fillRect(wx2, wy2, 2, 1);
+      }
     }
 
     // 缺角：每块石头最多一个 1px 缺口，读成磨损而不是图案。
@@ -273,7 +385,8 @@ function drawFlagstones(
     }
   }
 
-  // 石板裂纹：一条 3–5px 的折线，只在少数石格出现。
+  // 石板裂纹：一条 2–5px 的折线，只在少数石格出现；裂口右侧带一颗受光唇，
+  // 让缝不是一条纯黑的直线。
   if (h % 4 === 0) {
     const cx = px + 3 + (h % 8);
     const cy = py + 2 + ((h >>> 8) % 9);
@@ -281,6 +394,11 @@ function drawFlagstones(
     g.fillRect(cx, cy, 1, 2);
     g.fillRect(cx + 1, cy + 2, 1, 1);
     g.fillRect(cx + 2, cy + 3, 1, 1);
+    if (h % 3 === 0) {
+      g.fillStyle(palette.plaza, 1);
+      g.fillRect(cx + 1, cy - 1, 1, 1);
+      g.fillRect(cx + 3, cy + 3, 1, 1);
+    }
   }
 }
 

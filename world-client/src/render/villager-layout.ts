@@ -32,6 +32,10 @@ export type PaintRole =
   | 'hair'
   | 'scarf'
   | 'scarfLit'
+  /** 受光：暖色压低透明度，任何底色上都读成主动光。 */
+  | 'lit'
+  /** 内描边/接触影：比 shade 再暗一档，用来把「外轮廓 / 内转折 / 暗部」分开。 */
+  | 'contact'
   | WorldColor;
 
 export interface PixelRect {
@@ -242,6 +246,8 @@ function headRects(look: VillagerLook, facing: VillagerSnapshot['facing'], blink
     push(out, [
       rect(faceX, top + 2, faceW, hh - 2, 'skin'),
       rect(faceX, top + 2, faceW, 1, 'hair'),
+      // 发影：刘海压一道内描边，头发与额头分成两档，而不是一条平色接平色。
+      rect(faceX, top + 3, faceW, 1, 'contact'),
       // 大鼻：2px 深色阴影，正面才压。
       rect(cx - 1, top + 5, 2, 2, 'skin'),
       rect(cx - 1, top + 7, 2, 1, 'ink'),
@@ -406,6 +412,9 @@ function outfitRects(
     const width = right - left + 1;
     out.push(rect(left - 1, y, width + 2, h, 'ink') as PixelRect);
     out.push(rect(left, y, width, h, 'base') as PixelRect);
+    // 左缘 1px 受光：光从左上来，布面上要有「基色 + 暗部 + 受光」三档，
+    // 否则一整件衣服只有平涂和右缘一道暗边。
+    out.push(rect(left, y, 1, h, 'lit') as PixelRect);
     // 右缘 1px 暗部：光从左上来，右边就该压一档。
     out.push(rect(right, y, 1, h, 'shade') as PixelRect);
   };
