@@ -121,3 +121,14 @@ python scripts/interior-analyze.py    # → docs/evidence/interior-view/analysis
   旧读数里混了一个残留的 7 指令人形图元（`show()` 未清 `actorG`，已修）。
 
 细节与三档清单见 `docs/evidence/PROGRESS.md` 的「块 2」一节。
+
+## 块 3 / 块 4 · 边界与多栋楼
+
+- 证据目录：`docs/evidence/interior-view-block3/`、`docs/evidence/interior-view-block4/`。
+- 块 3：连续 10 次进出位姿 10/10 逐字回原点；过渡开关关闭时冻结 1 秒 **0 像素差**；
+  中午工业楼与夜里 5 栋民居的 `occupants` 全为 `[]`——**空房路径已验证，有人路径未验证**
+  （模拟只在 `working` 时置 `visible=false`，本机没有上游派活）。
+- 块 4：橡木小屋（2 层）/ 石砌小屋（3 层）/ 远郊农舍（2 层）各拍首层，塔楼另拍第 3 层；
+  每间 12 色、调色板外 0、包围盒统一 `934×614 @ (17,11)`，Graphics/指令恒为 30 / 16145。
+- 注册方式：`interior:<instanceId>:f<floor>` 每栋每层一张烘焙图；墙体/窗/楼梯/门共用同一套
+  232×152 剖面模板，家具由 `wallSeed` 派生。**没有按楼型分模板，也没有多楼层世界态。**

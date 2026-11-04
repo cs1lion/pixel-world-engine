@@ -91,7 +91,6 @@ def main():
     after = load("street-after.png")
     floor_two = load("interior-f2.png")
     switch_mid = load("switch-mid.png")
-
     box = content_bbox(interior)
     colors = colors_inside(interior, box, DEBUG_TOGGLE_BOX)
     outside = [f"#{r:02x}{g:02x}{b:02x}" for (r, g, b) in colors if (r, g, b) not in WORLD_PALETTE]
@@ -126,6 +125,27 @@ def main():
         "switchMidColors": [f"#{r:02x}{g:02x}{b:02x}" for (r, g, b) in mid_colors],
         "switchMidOnlyInk": all((r, g, b) == INK for (r, g, b) in mid_colors),
     }
+
+    # 多栋楼：同一套剖面板，家具由 wallSeed 派生。这里只量「换楼真的换了画面」。
+    multi = {}
+    for slug in ("cottage_oak", "cottage_stone", "homestead_far", "cottage_stone-f3"):
+        path = os.path.join(SHOTS, f"interior-{slug}.png")
+        if not os.path.exists(path):
+            continue
+        image = load(f"interior-{slug}.png")
+        colors_multi = colors_inside(image, box, DEBUG_TOGGLE_BOX)
+        multi[slug] = {
+            "uniqueColors": len(colors_multi),
+            "outsidePalette": [
+                f"#{r:02x}{g:02x}{b:02x}"
+                for (r, g, b) in colors_multi
+                if (r, g, b) not in WORLD_PALETTE
+            ],
+            "bbox": content_bbox(image),
+            "vsFloorOne": diff_stats(interior, image, box),
+        }
+    if multi:
+        report["multiBuilding"] = multi
 
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)

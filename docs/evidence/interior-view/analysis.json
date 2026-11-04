@@ -26,7 +26,7 @@
     "total": 573476
   },
   "streetVsAfter": {
-    "changedPixels": 259428,
+    "changedPixels": 259082,
     "bbox": [
       1,
       1,
@@ -36,7 +36,7 @@
     "total": 616001
   },
   "midVsInterior": {
-    "changedPixels": 610846,
+    "changedPixels": 610750,
     "bbox": [
       1,
       1,
@@ -56,7 +56,7 @@
     "total": 616001
   },
   "streetVsInterior": {
-    "changedPixels": 582222,
+    "changedPixels": 582318,
     "bbox": [
       1,
       1,
@@ -89,5 +89,87 @@
       "#14110d"
     ],
     "switchMidOnlyInk": true
+  },
+  "multiBuilding": {
+    "cottage_oak": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 38672,
+        "bbox": [
+          32,
+          110,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    },
+    "cottage_stone": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 37536,
+        "bbox": [
+          44,
+          38,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    },
+    "homestead_far": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 38656,
+        "bbox": [
+          44,
+          110,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    },
+    "cottage_stone-f3": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 39040,
+        "bbox": [
+          36,
+          38,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    }
   }
 }

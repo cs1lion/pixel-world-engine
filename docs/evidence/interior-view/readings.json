@@ -202,7 +202,7 @@
     },
     "transition": {
       "framesToInside": 18,
-      "elapsedMs": 351,
+      "elapsedMs": 289,
       "midFrames": 9,
       "midMode": "entering",
       "cameraMid": {
@@ -291,7 +291,7 @@
       },
       "topUpAttempt": {
         "floor": 2,
-        "hintFrames": 59,
+        "hintFrames": 57,
         "mode": "inside"
       },
       "stairsDownPoint": {
@@ -310,7 +310,7 @@
       },
       "bottomDownAttempt": {
         "floor": 1,
-        "hintFrames": 34,
+        "hintFrames": 24,
         "mode": "inside"
       },
       "doorPoint": {
@@ -325,10 +325,97 @@
       },
       "poseAfterDoorMatches": true
     },
+    "occupancy": {
+      "time": "night",
+      "livingBuildings": [
+        {
+          "id": "cottage_oak#1",
+          "name": "橡木小屋"
+        },
+        {
+          "id": "cottage_plaster#1",
+          "name": "灰泥小屋"
+        },
+        {
+          "id": "cottage_stone#1",
+          "name": "石砌小屋"
+        },
+        {
+          "id": "homestead_far#1",
+          "name": "远郊农舍"
+        },
+        {
+          "id": "homestead_ridge#1",
+          "name": "山脊农舍"
+        }
+      ],
+      "probes": [
+        {
+          "id": "cottage_oak#1",
+          "name": "橡木小屋",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "cottage_plaster#1",
+          "name": "灰泥小屋",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "cottage_stone#1",
+          "name": "石砌小屋",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "homestead_far#1",
+          "name": "远郊农舍",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "homestead_ridge#1",
+          "name": "山脊农舍",
+          "mode": "inside",
+          "occupants": []
+        }
+      ],
+      "occupied": null,
+      "occupiedStats": null
+    },
+    "multiBuilding": [
+      {
+        "id": "cottage_oak#1",
+        "name": "cottage_oak#1",
+        "floors": 2,
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      {
+        "id": "cottage_stone#1",
+        "name": "cottage_stone#1",
+        "floors": 3,
+        "graphicsObjects": 30,
+        "totalCommands": 16145,
+        "topFloor": {
+          "floor": 3,
+          "floors": 3,
+          "canUp": false
+        }
+      },
+      {
+        "id": "homestead_far#1",
+        "name": "homestead_far#1",
+        "floors": 2,
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      }
+    ],
     "world": {
       "villagers": 2,
       "buildings": 11,
-      "memoryLength": 2994,
+      "memoryLength": 2992,
       "schemaVersion": 5,
       "schemaFingerprint": "3ca5663faee59423"
     }

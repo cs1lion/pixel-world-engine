@@ -1,0 +1,431 @@
+{
+  "capturedAt": "2026-11-04",
+  "baseUrl": "http://127.0.0.1:5191/",
+  "results": {
+    "building": {
+      "id": "code_forge#1",
+      "name": "炼码工坊",
+      "door": {
+        "x": 42,
+        "y": 30
+      },
+      "origin": {
+        "x": 40,
+        "y": 26
+      },
+      "footprint": {
+        "w": 5,
+        "h": 4
+      },
+      "floors": 2
+    },
+    "street": {
+      "pose": {
+        "scrollX": 528,
+        "scrollY": 416,
+        "zoom": 2
+      },
+      "graphicsObjects": 27,
+      "totalCommands": 16130
+    },
+    "interior": {
+      "pose": {
+        "scrollX": 440,
+        "scrollY": 288,
+        "zoom": 2
+      },
+      "canvas": {
+        "width": 480,
+        "height": 320
+      },
+      "graphicsObjects": 30,
+      "totalCommands": 16145,
+      "mode": "inside",
+      "floor": 1,
+      "floors": 2,
+      "occupants": [],
+      "room": {
+        "width": 232,
+        "height": 152
+      },
+      "door": {
+        "x": 102,
+        "y": 122,
+        "w": 28,
+        "h": 30
+      },
+      "stairs": {
+        "x": 12,
+        "y": 26,
+        "w": 34,
+        "h": 54
+      },
+      "stairUp": {
+        "x": 12,
+        "y": 26,
+        "w": 34,
+        "h": 27
+      },
+      "stairDown": {
+        "x": 12,
+        "y": 53,
+        "w": 34,
+        "h": 27
+      },
+      "view": {
+        "floor": 1,
+        "floors": 2,
+        "canUp": true,
+        "canDown": false,
+        "scale": 1,
+        "roomOpacity": 1,
+        "image": {
+          "x": 124,
+          "y": 84,
+          "displayWidth": 232,
+          "displayHeight": 152,
+          "alpha": 1,
+          "visible": true
+        },
+        "backdrop": {
+          "alpha": 1,
+          "visible": true
+        }
+      }
+    },
+    "delta": {
+      "graphicsObjects": 3,
+      "totalCommands": 15
+    },
+    "afterTenCycles": {
+      "pose": {
+        "scrollX": 528,
+        "scrollY": 416,
+        "zoom": 2
+      },
+      "matches": true,
+      "poseIdentical": true,
+      "graphicsObjects": 30,
+      "totalCommands": 16145,
+      "cycles": [
+        {
+          "cycle": 1,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 2,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 3,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 4,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 5,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 6,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 7,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 8,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 9,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        },
+        {
+          "cycle": 10,
+          "pose": {
+            "scrollX": 528,
+            "scrollY": 416,
+            "zoom": 2
+          },
+          "matches": true
+        }
+      ]
+    },
+    "transition": {
+      "framesToInside": 18,
+      "elapsedMs": 289,
+      "midFrames": 9,
+      "midMode": "entering",
+      "cameraMid": {
+        "scrollX": 440,
+        "scrollY": 288,
+        "zoom": 2
+      }
+    },
+    "enterByDoorClick": {
+      "doorPoint": {
+        "x": 480.5,
+        "y": 548.796875
+      },
+      "mode": "inside",
+      "buildingId": "code_forge#1",
+      "frames": 0
+    },
+    "floorSwitch": {
+      "from": {
+        "floor": 1,
+        "frames": 18,
+        "pose": {
+          "scrollX": 440,
+          "scrollY": 288,
+          "zoom": 2
+        },
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "mid": {
+        "frames": 9,
+        "mode": "switching",
+        "floor": 2,
+        "imageAlpha": 0,
+        "imageVisible": false
+      },
+      "to": {
+        "floor": 2,
+        "frames": 18,
+        "pose": {
+          "scrollX": 440,
+          "scrollY": 288,
+          "zoom": 2
+        },
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "poseIdentical": true,
+      "statsIdentical": true,
+      "deltaCommands": 0
+    },
+    "groundReturn": {
+      "firstFloor": {
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "afterDown": {
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      "sameAsFirstFloor": true,
+      "samePageFloorDelta": {
+        "graphicsObjects": 0,
+        "totalCommands": 0
+      }
+    },
+    "clicks": {
+      "stairsUpPoint": {
+        "x": 132.5,
+        "y": 242.796875
+      },
+      "switchUp": {
+        "frames": 18,
+        "timeout": false,
+        "floor": 2,
+        "mode": "inside",
+        "pose": {
+          "scrollX": 440,
+          "scrollY": 288,
+          "zoom": 2
+        }
+      },
+      "topUpPoint": {
+        "x": 131.5,
+        "y": 173.796875
+      },
+      "topUpAttempt": {
+        "floor": 2,
+        "hintFrames": 57,
+        "mode": "inside"
+      },
+      "stairsDownPoint": {
+        "x": 131.5,
+        "y": 281.796875
+      },
+      "switchDown": {
+        "frames": 18,
+        "timeout": false,
+        "floor": 1,
+        "mode": "inside"
+      },
+      "bottomDownPoint": {
+        "x": 131.5,
+        "y": 281.796875
+      },
+      "bottomDownAttempt": {
+        "floor": 1,
+        "hintFrames": 24,
+        "mode": "inside"
+      },
+      "doorPoint": {
+        "x": 479.5,
+        "y": 563.796875
+      },
+      "modeAfterDoor": "street",
+      "poseAfterDoor": {
+        "scrollX": 528,
+        "scrollY": 416,
+        "zoom": 2
+      },
+      "poseAfterDoorMatches": true
+    },
+    "occupancy": {
+      "time": "night",
+      "livingBuildings": [
+        {
+          "id": "cottage_oak#1",
+          "name": "橡木小屋"
+        },
+        {
+          "id": "cottage_plaster#1",
+          "name": "灰泥小屋"
+        },
+        {
+          "id": "cottage_stone#1",
+          "name": "石砌小屋"
+        },
+        {
+          "id": "homestead_far#1",
+          "name": "远郊农舍"
+        },
+        {
+          "id": "homestead_ridge#1",
+          "name": "山脊农舍"
+        }
+      ],
+      "probes": [
+        {
+          "id": "cottage_oak#1",
+          "name": "橡木小屋",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "cottage_plaster#1",
+          "name": "灰泥小屋",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "cottage_stone#1",
+          "name": "石砌小屋",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "homestead_far#1",
+          "name": "远郊农舍",
+          "mode": "inside",
+          "occupants": []
+        },
+        {
+          "id": "homestead_ridge#1",
+          "name": "山脊农舍",
+          "mode": "inside",
+          "occupants": []
+        }
+      ],
+      "occupied": null,
+      "occupiedStats": null
+    },
+    "multiBuilding": [
+      {
+        "id": "cottage_oak#1",
+        "name": "cottage_oak#1",
+        "floors": 2,
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      },
+      {
+        "id": "cottage_stone#1",
+        "name": "cottage_stone#1",
+        "floors": 3,
+        "graphicsObjects": 30,
+        "totalCommands": 16145,
+        "topFloor": {
+          "floor": 3,
+          "floors": 3,
+          "canUp": false
+        }
+      },
+      {
+        "id": "homestead_far#1",
+        "name": "homestead_far#1",
+        "floors": 2,
+        "graphicsObjects": 30,
+        "totalCommands": 16145
+      }
+    ],
+    "world": {
+      "villagers": 2,
+      "buildings": 11,
+      "memoryLength": 2992,
+      "schemaVersion": 5,
+      "schemaFingerprint": "3ca5663faee59423"
+    }
+  },
+  "summary": {
+    "poseRoundTrip": "PASS",
+    "allTenCyclesSame": true,
+    "transitionFrames": 18,
+    "floorSwitchFrames": 18,
+    "floorSwitchPoseIdentical": true,
+    "commandsWithinBudget": true
+  }
+}

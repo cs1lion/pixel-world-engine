@@ -243,6 +243,90 @@ const doorPoint = await roomClick(transition, layoutGround.door);
 await transition.waitForFunction(() => window.Oracle.interior().mode === 'street', null, { timeout: 20000 });
 const poseAfterDoor = poseOf(await transition.evaluate(() => window.Oracle.camera()));
 
+// --- 8. 边界：屋里此刻有谁 ----------------------------------------------
+// 夜里居民回家，才可能取到非空 `occupants`。逐个民居试，取不到就如实记空房——
+// 空房也是合法结果，绝不摆假人凑数。
+const night = await openPage(browser, 'time=night&debug=1&interior=instant');
+const living = (await night.evaluate(() => window.Oracle.interior().buildings))
+  .filter((candidate) => candidate.zone === 'living');
+const occupancyProbes = [];
+let occupied = null;
+for (const candidate of living.slice(0, 6)) {
+  await night.evaluate((id) => window.Oracle.enterInterior(id), candidate.id);
+  const state = await night.evaluate(() => window.Oracle.interior());
+  occupancyProbes.push({
+    id: candidate.id,
+    name: candidate.name,
+    mode: state.mode,
+    occupants: state.occupants,
+  });
+  if (state.occupants.length > 0) {
+    occupied = { id: candidate.id, name: candidate.name, occupants: state.occupants };
+    break;
+  }
+  await night.evaluate(() => window.Oracle.exitInterior());
+  await night.waitForFunction(() => window.Oracle.interior().mode === 'street', null, { timeout: 20000 });
+}
+let occupiedStats = null;
+if (occupied !== null) {
+  await night.waitForTimeout(200);
+  await shot(night, 'interior-occupied');
+  occupiedStats = await night.evaluate(() => {
+    const stats = window.Oracle.renderStats();
+    const state = window.Oracle.interior();
+    return {
+      occupants: state.occupants,
+      graphicsObjects: stats.graphicsObjects,
+      totalCommands: stats.totalCommands,
+    };
+  });
+  await night.evaluate(() => window.Oracle.exitInterior());
+}
+
+// --- 9. 多栋楼：换一栋就换一间 ------------------------------------------
+// 注册方式就是 `interior:<instanceId>:f<floor>` 这个键：同一套 232×152 剖面板，
+// 家具按 `wallSeed(building)` 派生。这里只验证「换楼真的换图」，不新增楼型模板。
+const multiPage = await openPage(browser, 'time=noon&debug=1&interior=instant');
+const multiIds = ['cottage_oak#1', 'cottage_stone#1', 'homestead_far#1'];
+const multi = [];
+for (const id of multiIds) {
+  const entered = await multiPage.evaluate((bid) => window.Oracle.enterInterior(bid), id);
+  const state = await multiPage.evaluate(() => window.Oracle.interior());
+  if (!entered || state.mode !== 'inside') {
+    multi.push({ id, entered, mode: state.mode });
+    continue;
+  }
+  await multiPage.waitForTimeout(200);
+  const slug = id.split('#')[0];
+  await shot(multiPage, `interior-${slug}`);
+  const stats = await multiPage.evaluate(() => window.Oracle.renderStats());
+  const entry = {
+    id,
+    name: state.buildingId,
+    floors: state.floors,
+    graphicsObjects: stats.graphicsObjects,
+    totalCommands: stats.totalCommands,
+  };
+  // 三层的楼（塔楼剪影）再往上看一眼最顶层：楼层夹取的上边界只测过单测，这里补实图。
+  if (state.floors >= 3) {
+    await multiPage.evaluate(() => {
+      window.Oracle.switchInteriorFloor(1);
+      window.Oracle.switchInteriorFloor(1);
+    });
+    await multiPage.waitForTimeout(200);
+    const top = await multiPage.evaluate(() => window.Oracle.interior());
+    await shot(multiPage, `interior-${slug}-f3`);
+    entry.topFloor = { floor: top.floor, floors: top.floors, canUp: top.canUp };
+    await multiPage.evaluate(() => {
+      window.Oracle.switchInteriorFloor(-1);
+      window.Oracle.switchInteriorFloor(-1);
+    });
+  }
+  multi.push(entry);
+  await multiPage.evaluate(() => window.Oracle.exitInterior());
+  await multiPage.waitForFunction(() => window.Oracle.interior().mode === 'street', null, { timeout: 20000 });
+}
+
 const world = await street.evaluate(() => {
   window.Oracle.saveNow();
   const parsed = JSON.parse(window.localStorage.getItem('xiaoxi.pixel-world.save.v1') ?? '{}');
@@ -361,6 +445,16 @@ report.results = {
     poseAfterDoor,
     poseAfterDoorMatches: samePose(poseAfterDoor, transitionPose),
   },
+  /** 边界：夜里的屋里有谁（`insideAt` 现取）。没人就记空数组。 */
+  occupancy: {
+    time: 'night',
+    livingBuildings: living.map((candidate) => ({ id: candidate.id, name: candidate.name })),
+    probes: occupancyProbes,
+    occupied,
+    occupiedStats,
+  },
+  /** 多栋楼：同一套剖面板，换 instanceId 就换一张烘焙图。 */
+  multiBuilding: multi,
   world: world,
 };
 

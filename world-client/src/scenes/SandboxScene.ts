@@ -3751,6 +3751,7 @@ export class SandboxScene extends Phaser.Scene {
         buildings: this.snapshot.buildings.map((building) => ({
           id: building.instanceId,
           name: building.displayName,
+          zone: building.zone,
           door: { x: building.door.x, y: building.door.y },
           origin: { x: building.origin.x, y: building.origin.y },
           footprint: { w: building.footprint.w, h: building.footprint.h },
