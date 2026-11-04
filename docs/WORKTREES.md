@@ -38,7 +38,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-06 | 基线快照（`54139dd`） |
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`fe11a7f` 已合入 main；worktree 仍有未提交改动，待 owner 收尾） |
-| D:/project/pwe-eval | eval/ledger-facts-question | 待认领 | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；合并期间外部创建，待认领；基线 `39cff04`） |
+| D:/project/pwe-eval | eval/ledger-facts-question | eval 线（在役会话） | 2026-11-04 | 2026-11-18 | 活跃（分支 tip `39cff04`，暂无自有提交；审计按「已合入 main」计为回收候选） |
 | D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：仍在活跃使用） |
 | D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`699f54b` 已合入 main；分支保留） |
 | D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main；分支保留） |
@@ -46,7 +46,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`ae4cc61` 已合入 main；`7319ee4` 未合入） |
 | D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`d725b7e` 已合入 main；`93da6d9` 未合入） |
 | D:/project/pwe-material | feat/material-upgrade | material-agent（Trae 会话，未推送） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；材质层：路面/空地/外立面/人物，按类分四次提交） |
-| D:/project/pwe-memexp | experiment/memory-volumes | 待认领 | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；合并期间外部创建，待认领；基线 `39cff04`） |
+| D:/project/pwe-memexp | experiment/daycard-readonly | 记忆实验线（在役会话） | 2026-11-04 | 2026-11-18 | 活跃（`169418d`，未合入 main；合并期间外部创建） |
 | D:/project/pwe-motion | feat/scene-motion | 场景动效线（在役） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main） |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-routine | feat/routine-real | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：待第二轮合并） |
