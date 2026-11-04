@@ -216,6 +216,74 @@ def test_街头事件的_otherId_有值时必须给当事人(client: TestClient)
     assert "otherId" in response.json()["detail"]
 
 
+#: 交付失败：`world.event` 里唯一带 `failure` 子对象的 kind。五件事都在载荷里：
+#: 谁（actorId）、哪单（taskId）、在哪（placeId + where）、为什么（reason）、
+#: 是否重复（repeat）。见 `docs/DELIVERY_FAILURE_EVENT_PROPOSAL.md`。
+DELIVERY_FAILURE = {
+    "kind": "delivery_failed",
+    "text": "阿禾饿得手抖，铸一口锅这一趟没送到。",
+    "placeId": "foundry#1",
+    "where": {"x": 3, "y": 4},
+    "actorId": "v0",
+    "failure": {"taskId": "loc-1", "taskKind": "code", "reason": "hunger", "repeat": False},
+}
+
+
+def test_交付失败是白名单里的正式事件(client: TestClient) -> None:
+    assert "delivery_failed" in WORLD_EVENT_KINDS
+    response = post(client, "world.event", DELIVERY_FAILURE)
+    assert response.status_code == 201, response.text
+    stored = client.get("/api/events").json()["events"][0]["payload"]
+    assert stored["failure"]["taskId"] == "loc-1"
+    assert stored["failure"]["reason"] == "hunger"
+    assert stored["failure"]["repeat"] is False
+
+
+def test_交付失败必须带_failure_子对象(client: TestClient) -> None:
+    payload = {key: value for key, value in DELIVERY_FAILURE.items() if key != "failure"}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "failure" in response.json()["detail"]
+
+
+def test_failure_只属于交付失败(client: TestClient) -> None:
+    payload = {**VALID_PAYLOADS["world.event"], "failure": DELIVERY_FAILURE["failure"]}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "failure" in response.json()["detail"]
+
+
+def test_交付失败必须有当事人(client: TestClient) -> None:
+    payload = {**DELIVERY_FAILURE, "actorId": None}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "actorId" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("reason", "rain"),
+        ("taskKind", "forged"),
+        ("repeat", "false"),
+        ("taskId", ""),
+    ],
+)
+def test_交付失败的_failure_字段也守闭集(client: TestClient, field: str, value: object) -> None:
+    failure = {**DELIVERY_FAILURE["failure"], field: value}
+    payload = {**DELIVERY_FAILURE, "failure": failure}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422, (field, value, response.text)
+
+
+def test_交付失败的_failure_多带字段被拒(client: TestClient) -> None:
+    failure = {**DELIVERY_FAILURE["failure"], "mood": "hungry"}
+    payload = {**DELIVERY_FAILURE, "failure": failure}
+    response = post(client, "world.event", payload)
+    assert response.status_code == 422
+    assert "mood" in response.json()["detail"]
+
+
 def test_每种合法的世界改变都能写进去(client: TestClient) -> None:
     for change, payload in VALID_PAYLOADS.items():
         response = post(client, change, payload)

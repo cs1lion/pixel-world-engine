@@ -39,7 +39,7 @@
   ],
   "recorded": {
     "inputDigest": "ed7319b96c6b7a8f88c750ba3ca5dfb3cd710e7964a1030987c98caec1d486e5",
-    "fingerprint": "576259f53fd55af2f96f617d755c319b44f207e96afbe787299f2a4784b12ca7",
+    "fingerprint": "6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075",
     "eventCount": 6,
     "eventDigest": "50d72a6f58c50b2cccfea3c8cf3bcf31270f18e5b3f66f018274601294369fce",
     "business": {
@@ -60,82 +60,82 @@
       {
         "step": 0,
         "atWorldMs": 86280000,
-        "fingerprint": "10c4761032ba90a67d65c51ef077664cc9f9cb5c1e184f6fb0bab797529d4ba7"
+        "fingerprint": "b6dec16fc27d2328c7641029dbe552ffb773fd97fe547b4451a542f0f7d06164"
       },
       {
         "step": 250,
         "atWorldMs": 86310000,
-        "fingerprint": "1cbda209310be78f36a4e2812cdf1199baa4666199fab6b74c60248c7c6fc8bb"
+        "fingerprint": "54dfa9bec18f9425613b78b89918eb91205764243d751f41466898c347a8e1d7"
       },
       {
         "step": 500,
         "atWorldMs": 86340000,
-        "fingerprint": "78204fefcbd87e349b21409571a99107a674301da58704407c23920d7c0357da"
+        "fingerprint": "e5d30de03cc0ca73f7a51fb2d02e9362718b0cda3415b7706f471384b1bda2c8"
       },
       {
         "step": 750,
         "atWorldMs": 86370000,
-        "fingerprint": "d94474cda752a18a7dac539be61004aa7096c7496be54e25da31c8398330f857"
+        "fingerprint": "3cfa02a80ab318008c80ac2846cb2782e51abd26bbb8d9f463cb4108c1b81763"
       },
       {
         "step": 1000,
         "atWorldMs": 86400000,
-        "fingerprint": "2aca71b77ed9e65fa5b944a25c31a80fae8b7c41d4445314c1ff8e88aaebb8cc"
+        "fingerprint": "3409879d8c28a7bc0dd24e57634a3ea04fc7a3bfb03d05f04b0bb453919dc85e"
       },
       {
         "step": 1250,
         "atWorldMs": 86430000,
-        "fingerprint": "28b452c1ace1411f95edb2f4539729988063b148a200f1b852c174d7f65d2f2a"
+        "fingerprint": "c43241739b25018e7853d3e3b442706a9a88605f0c5f06be735626e9d05a448c"
       },
       {
         "step": 1500,
         "atWorldMs": 86460000,
-        "fingerprint": "1727235d82fb4b8d33e12130379c5b4d3d74e9b213cba025ef78b691d1e60be1"
+        "fingerprint": "7492498ce655f09721bf9025ed745f4350a62851ee6c45dba32dba080c035ca9"
       },
       {
         "step": 1750,
         "atWorldMs": 86490000,
-        "fingerprint": "6b9b508e74656ec90e053a2feb97c38eea8f92044c703fa91b55c82f82218cb2"
+        "fingerprint": "551ece321d2d2b7eda62d7c627ebdd5dd4bf1a2c59255f77037407b67e88d2b4"
       },
       {
         "step": 2000,
         "atWorldMs": 86520000,
-        "fingerprint": "b7c289859c45eefd92e34cf4fa0edc1e21efffd763f79e2d8a6cf61071310146"
+        "fingerprint": "5bd009fde82765583ced803a11a810535461c23c19d9f839615cfdaf0f55bcb1"
       },
       {
         "step": 2250,
         "atWorldMs": 86550000,
-        "fingerprint": "2e17b59f2fd89ebb2c6d7f43378d85ae2a9ee7cf95877270d06ec581861e9ab0"
+        "fingerprint": "d70996b29f7d75c0cd93053244d027cd4a177004494cc1126b70e221baa98882"
       },
       {
         "step": 2500,
         "atWorldMs": 86580000,
-        "fingerprint": "a3c69959e5c00bc6164c5356e7ee03c05f2c7f5578ad9b2dc56d89f35acba32c"
+        "fingerprint": "1d51c323a65387b735023b4d9288bd83ac747daf8a1f5f0360270cc9e7cf7270"
       },
       {
         "step": 2750,
         "atWorldMs": 86610000,
-        "fingerprint": "d2bfbe95f4af4b086ec3aab26de1da497f2ab34d4c7e547a709fb7fcefd563cd"
+        "fingerprint": "689bcd8c1d0e5386fa7ea809b38e4b68501afc43eca4c8550b8e877270097256"
       },
       {
         "step": 3000,
         "atWorldMs": 86640000,
-        "fingerprint": "58cfe026499e44ea9455cdbb5cabdca9398174a2fd2f316ca3fef48382cf5593"
+        "fingerprint": "d470ce90c8f405a18aa7aa4306079d4b8ec8b9ee82873380180b0b7e70a12a3e"
       },
       {
         "step": 3250,
         "atWorldMs": 86670000,
-        "fingerprint": "2898aecfd259da04ca782725747d117d87cb7c3e37ee44db092293b89303a89a"
+        "fingerprint": "9e5ed0cbf678cf9a3c81659312e6a25afd21b7c7fe662cf1ebd5dba0f605919c"
       },
       {
         "step": 3500,
         "atWorldMs": 86700000,
-        "fingerprint": "dec2b2e629450ef64f553b7e1bc4cfb8ffdf788cfe1a1f022f399d0492685183"
+        "fingerprint": "694bd50059d9c11b3373509dd252b23090c2332ae6e9f19e1c8d062dea190651"
       },
       {
         "step": 3600,
         "atWorldMs": 86712000,
-        "fingerprint": "576259f53fd55af2f96f617d755c319b44f207e96afbe787299f2a4784b12ca7"
+        "fingerprint": "6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075"
       }
     ]
   }

@@ -27,7 +27,9 @@ const LINE_LIMIT = 3;
 
 export function composeReport(snapshot: WorldSnapshot): DailyReport {
   const done = snapshot.tasks.filter((task) => task.status === 'done');
-  const failed = snapshot.tasks.filter((task) => task.status === 'failed');
+  // 失败数从事件账数，不从任务状态推：`status = 'failed'` 只说这一单没成，
+  // 事件账才记下谁、哪单、在哪、为什么、是不是重复失败。每次失败恰好一条。
+  const failed = snapshot.deliveryFailures;
   const { feed: feedDelivered, local: localDelivered } = snapshot.deliveries;
   const delivered = feedDelivered + localDelivered;
   const lines: string[] = [];

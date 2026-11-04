@@ -748,6 +748,21 @@ export function projectWorld(snapshot: WorldSnapshot): Record<string, unknown> {
     },
     faith: snapshot.faith,
     deliveries: snapshot.deliveries,
+    // 失败事件账是正式事件流的一部分，必须进投影：日报数它，回放也要逐字
+    // 复现它。按 taskId 排序（每单最多一条，天然唯一），与其它数组同规矩。
+    deliveryFailures: [...snapshot.deliveryFailures]
+      .sort((a, b) => a.taskId.localeCompare(b.taskId))
+      .map((failure) => ({
+        at: failure.at,
+        taskId: failure.taskId,
+        summary: failure.summary,
+        workerId: failure.workerId,
+        source: failure.source,
+        reason: failure.reason,
+        repeat: failure.repeat,
+        placeId: failure.placeId,
+        where: failure.where,
+      })),
     deliveriesByVillager: [...snapshot.deliveriesByVillager].sort((a, b) =>
       a.villagerId.localeCompare(b.villagerId),
     ),

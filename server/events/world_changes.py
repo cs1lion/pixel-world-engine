@@ -71,6 +71,9 @@ TASK_KINDS = ("code", "research", "writing", "quick")
 #: 客户端那条读本文件的测试盯着 `WORLD_CHANGE_CHECKS`，这一条的值域靠
 #: `test_world_changes.py` 的参数化收着。
 WORLD_EVENT_KINDS = (
+    # 有人饿到顶，手上那一单没送到。唯一带 `failure` 子对象的成员，
+    # 见 `docs/DELIVERY_FAILURE_EVENT_PROPOSAL.md`。
+    "delivery_failed",
     "tide_turn",
     "routine_done",
     "daily_water",
@@ -92,6 +95,12 @@ WORLD_EVENT_KINDS = (
 #: 两边是**两套词**，所以 `test_value_domains.py` 不拿它们直接比，而是分别与
 #: 客户端对应的两处比，再各数一遍个数。
 MIRACLES = ("lamp", "tree", "cat")
+
+#: `delivery_failed.failure.reason`：为什么没送到。闭集，当前只有饥饿。
+#:
+#: 与客户端 `world-changes.ts` 的 `failure.reason` 字面量是同一个域。加一种
+#: 失败原因要两边一起加，否则世界回写会被自己的服务端拒掉。
+FAILURE_REASONS = ("hunger",)
 
 #: `weather` 事件里记的天气。与 `rules/schema.py` 的 `WEATHERS` 是同一个域：
 #: 意图侧说「下雨」改的是世界的天气，事件侧记的就是那场雨。同一天气两套词的话，
@@ -206,7 +215,7 @@ def _check_world_event(payload: dict[str, Any], path: str) -> None:
     与 `world.vitals` 的区别是它**有落点**：能算「谁看得见」，所以能进记忆。
     坐标叫 `where` 不叫 `at`——信封的 `at` 是世界时间，撞名的后果见模块头。
     """
-    _only(payload, {"kind", "text", "placeId", "where", "actorId", "otherId"}, path)
+    _only(payload, {"kind", "text", "placeId", "where", "actorId", "otherId", "failure"}, path)
     kind = _require_str(payload, "kind", path)
     if kind not in WORLD_EVENT_KINDS:
         raise WorldChangeError(
@@ -236,6 +245,24 @@ def _check_world_event(payload: dict[str, Any], path: str) -> None:
         value = _require(where, axis, int, path + ".where")
         if value < 0:
             raise WorldChangeError(f"{path}.where.{axis} 不能为负，收到 {value}")
+
+    # `failure` 子对象只属于 `delivery_failed`。别的种类带上它就是载荷形状
+    # 分叉；拒绝比宽容好，宽容会让两端的理解悄悄漂开。
+    if kind == "delivery_failed":
+        if actor is None:
+            raise WorldChangeError(f"{path}.actorId 不能是 null：交付失败必须有当事人")
+        failure = _require(payload, "failure", dict, f"{path}.failure")
+        _only(failure, {"taskId", "taskKind", "reason", "repeat"}, f"{path}.failure")
+        _require_str(failure, "taskId", f"{path}.failure")
+        task_kind = _require_str(failure, "taskKind", f"{path}.failure")
+        if task_kind not in TASK_KINDS:
+            raise WorldChangeError(f"{path}.failure.taskKind 不认识：{task_kind!r}")
+        reason = _require_str(failure, "reason", f"{path}.failure")
+        if reason not in FAILURE_REASONS:
+            raise WorldChangeError(f"{path}.failure.reason 不认识：{reason!r}")
+        _require(failure, "repeat", bool, f"{path}.failure")
+    elif "failure" in payload:
+        raise WorldChangeError(f"{path}.failure 只属于 delivery_failed")
 
 
 def _check_world_vitals(payload: dict[str, Any], path: str) -> None:

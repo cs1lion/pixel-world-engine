@@ -23,6 +23,7 @@ import { awaitingDecree } from './decree.ts';
 import { harborReportsBetween, harborStateAt } from './harbor.ts';
 import type { TaskFoldState } from './task-events.ts';
 import type { WorldChange } from './world-changes.ts';
+import { deliveryFailureEventOf } from './delivery-failure.ts';
 
 import { parseOracle } from './oracle.ts';
 import { parseOracleBuild, type BuildIntent } from './oracle-build.ts';
@@ -92,6 +93,7 @@ import type {
   ConstructionSnapshot,
   CarryKind,
   Critter,
+  DeliveryFailure,
   Facing,
   CarryItem,
   GridPoint,
@@ -541,6 +543,11 @@ export class Simulation {
    * 读档后重置，任务是新的，最多再失败一次。保证「每单只失败一次」。
    */
   private readonly hungerFailedTasks = new Set<string>();
+  /**
+   * 交付失败的事件账。**运行时、不落档**：事件的持久副本在记忆段
+   * （`WorldFact`，`kind = delivery_failed`），这里只供日报与指纹投影。
+   */
+  private readonly deliveryFailures: DeliveryFailure[] = [];
   private readonly tasks: TaskRecord[] = [];
   private readonly activities = new Map<string, WorkstationActivity>();
   private readonly events: WorldEvent[] = [];
@@ -1012,6 +1019,8 @@ export class Simulation {
       faith: { points: this.faithPoints, milestones: this.milestones },
       /** 上游交付与本地交付分开计，不合并成一个数。 */
       deliveries: { feed: this.feedDeliveries, local: this.localDeliveries },
+      /** 失败事件账：日报的失败行从这里数，不从任务状态推。 */
+      deliveryFailures: this.deliveryFailures.slice(),
       /** 按角色分账：日报与状态行据此写清是谁交付的。 */
       deliveriesByVillager: this.villagers.map((villager) => {
         const tally = this.deliveryTally.get(villager.id) ?? { feed: 0, local: 0 };
@@ -3553,7 +3562,28 @@ export class Simulation {
     villager.bubble = '饿得手抖，没送到。';
     villager.bubbleUntil = this.now + DELIVER_MS;
     villager.nextRoutineAt = this.now + 1600;
-    this.log('warn', `${villager.name}饿得手抖，${task.summary}这一趟没送到。`);
+
+    // 同一件事同时落两处：世界的事件账（日报从这里数失败）与正式事件流
+    // （`world.event`，记忆层据此产生事实与目击者记忆）。两样东西由
+    // `delivery-failure.ts` 一次生成，不会各说各话。
+    const where = building === undefined
+      ? this.cellOf(villager.pos)
+      : { x: building.door.x, y: building.door.y };
+    const prepared = deliveryFailureEventOf({
+      at: this.now,
+      taskId: task.id,
+      taskKind: task.kind,
+      summary: task.summary,
+      workerId: villager.id,
+      workerName: villager.name,
+      source: task.source === 'ledger' ? 'feed' : 'local',
+      placeId: building === undefined ? `place:${where.x},${where.y}` : building.instanceId,
+      where,
+      repeat: this.deliveryFailures.some((item) => item.taskId === task.id),
+    });
+    this.deliveryFailures.push(prepared.failure);
+    this.announce(prepared.change);
+    this.log('warn', prepared.text);
   }
 
   /** 交付按人和来源分开记账：上游/沙盒各自分开，角色之间也不合并。 */
