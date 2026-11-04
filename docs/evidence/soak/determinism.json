@@ -2,19 +2,19 @@
   "seed": "soak-a",
   "first": {
     "world": "5b7131d89bbd438c773f97dabbbdbd10a3af804705a9b0e4444579615e317443",
-    "memory": "12187ec76069a2125170b7151a50b7fbf6cb37811e140de23053d529d77a6fe0",
+    "memory": "823771b8bdf9abeaa2404718afd253320f409150ccaaed3c7b4bb4543117cc8c",
     "creator": "926f57e5fcfb1f135303fd4d12ecaaf31980178358cb745b48e9d3177fb68d22",
     "events": "9ea842d560463b87ce5c0bd854e0dae06488eaa49a066b521a6875f341c7ac77"
   },
   "again": {
     "world": "5b7131d89bbd438c773f97dabbbdbd10a3af804705a9b0e4444579615e317443",
-    "memory": "12187ec76069a2125170b7151a50b7fbf6cb37811e140de23053d529d77a6fe0",
+    "memory": "823771b8bdf9abeaa2404718afd253320f409150ccaaed3c7b4bb4543117cc8c",
     "creator": "926f57e5fcfb1f135303fd4d12ecaaf31980178358cb745b48e9d3177fb68d22",
     "events": "9ea842d560463b87ce5c0bd854e0dae06488eaa49a066b521a6875f341c7ac77"
   },
   "ledgerRaw": {
-    "first": "2b57d2ed258fe6845f1bd5cb032d7d64df3abdc0bf70c5f924562e0dc850e249",
-    "again": "76521a8737327c296418bfbd7dc651f01629ff09074f98d60b5b96cfc68830e8",
+    "first": "0a1d0f91e9f3a9e6a6ffab1e2335715265da34aef5bfe610e6b2c8f99c8ebc06",
+    "again": "0fd80612b40e2903e08ccc50b15ec2fcca176eae72bbdd365cf1354130b66bdb",
     "same": false
   }
 }

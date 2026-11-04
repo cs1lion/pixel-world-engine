@@ -70,6 +70,34 @@ const B = runs.find((run) => run.seed === 'soak-b');
 const characters = 5;
 const days30 = 30;
 
+function readJson(path, fallback = null) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+/** 改前那一轮（未加预算）的读数，用来给「改前 vs 改后」这一栏。 */
+const BEFORE = readJson(join(dir, 'soak-a/summary-30d-before.json'));
+/** 90 日实跑（seed A）。没有就整段省略，不编外推。 */
+const A90 = readJson(join(dir, 'soak-a/summary-90d.json'));
+
+/**
+ * 预算表。**与 `src/world/memory/config.ts` 的默认值一一对应**：那边改了，
+ * 这里要跟着改，否则报告会替实现背书。当前值在配置里都写了推导过程。
+ */
+const BUDGET = {
+  entries: { day: [16, 12_000], long: [64, 32_000], legend: [24, 16_000], impression: [32, 8_000] },
+  facts: [1_200, 350_000],
+  claims: [800, 230_000],
+  beliefs: [1_400, 165_000],
+  cooldowns: [1_000, 60_000],
+  tells: [1_000, 55_000],
+  written: [200, 200_000],
+  legends: [120, 20_000],
+};
+
 // 第 30 天记忆条目的层级构成：legend 层没有预算，是条目增长的主要来源。
 const finalMemory = JSON.parse(readFileSync(join(dir, 'soak-a/memory-30d.json'), 'utf8'));
 const tierStats = new Map();
@@ -115,6 +143,53 @@ const partRows = partKeys.map((key) => {
   const delta = kb(d30.bytes) - kb(d1.bytes);
   return `| ${key} | ${d1.count} | ${f1(kb(d1.bytes))} | ${d30.count} | ${f1(kb(d30.bytes))} | +${f1(delta)} | ${f1(delta / 29)} |`;
 });
+
+// -------------------------------------------------- 预算（第 1 条）读数
+
+const budgetRows = [
+  ...Object.entries(BUDGET.entries).map(
+    ([tier, [count, bytes]]) => `| 条目 · \`${tier}\`（每人） | ${count} | ${f1(kb(bytes))} KB |`,
+  ),
+  ...Object.entries(BUDGET).filter(([key]) => !['entries'].includes(key)).map(
+    ([layer, [count, bytes]]) => `| \`${layer}\`（全库） | ${count} | ${f1(kb(bytes))} KB |`,
+  ),
+];
+
+const day30After = A.days[29];
+const day30Before = BEFORE?.days[29] ?? null;
+const beforeAfterRows = [
+  `| 存档字节 | ${day30Before === null ? '—' : f1(kb(day30Before.saveBytes))} | ${f1(kb(day30After.saveBytes))} | ${day30Before === null ? '—' : `${(kb(day30After.saveBytes) - kb(day30Before.saveBytes)).toFixed(1)}（${pct((kb(day30After.saveBytes) - kb(day30Before.saveBytes)) / kb(day30Before.saveBytes))}）`} |`,
+  `| 记忆 JSON 字节 | ${day30Before === null ? '—' : f1(kb(day30Before.memoryJsonBytes))} | ${f1(kb(day30After.memoryJsonBytes))} | ${day30Before === null ? '—' : `${(kb(day30After.memoryJsonBytes) - kb(day30Before.memoryJsonBytes)).toFixed(1)}（${pct((kb(day30After.memoryJsonBytes) - kb(day30Before.memoryJsonBytes)) / kb(day30Before.memoryJsonBytes))}）`} |`,
+  `| 记忆条目（居民时间轴） | ${day30Before === null ? '—' : day30Before.memory.entries} | ${day30After.memory.entries} | ${day30Before === null ? '—' : day30After.memory.entries - day30Before.memory.entries} |`,
+  `| \`facts\` 条数 | ${day30Before === null ? '—' : day30Before.memoryParts.facts.count} | ${day30After.memoryParts.facts.count} | ${day30Before === null ? '—' : day30After.memoryParts.facts.count - day30Before.memoryParts.facts.count} |`,
+  `| 日均存档增量 | ${day30Before === null ? '—' : f1((kb(day30Before.saveBytes) - kb(BEFORE.days[0].saveBytes)) / 29)} KB | ${f1((kb(day30After.saveBytes) - kb(A.days[0].saveBytes)) / 29)} KB | — |`,
+];
+
+const day90Keys = [0, 6, 14, 21, 29, 44, 59, 74, 89];
+const day90Labels = ['1', '7', '15', '22', '30', '45', '60', '75', '90'];
+const rows90 = A90 === null
+  ? []
+  : day90Keys.map((index, position) => {
+      const d = A90.days[index];
+      return `| ${day90Labels[position]} | ${d.worldEvents} | ${d.memoryParts.facts.count} | ${f1(kb(d.memoryJsonBytes))} | ${f1(kb(d.saveBytes))} | ${d.memory.pruned} | ${d.perf.simP50.toFixed(4)} | ${f1(d.perf.dayCloseMs)} |`;
+    });
+
+const prunedRows = day30After.memory.prunedByLayer === undefined
+  ? []
+  : Object.entries(day30After.memory.prunedByLayer).map(
+      ([layer, item]) => `| \`${layer}\` | ${item.evicted} | ${item.byCount} | ${item.byBytes} |`,
+    );
+
+const salience = day30After.memory.salience;
+const salienceRows = Object.entries(salience.byValue ?? {})
+  .map(([value, count]) => `| ${value} | ${count} | ${pct(count / salience.count)} |`)
+  .join('\n');
+const aboveRows = Object.entries(salience.above ?? {})
+  .map(([threshold, count]) => `| ≥ ${threshold} | ${count} |`)
+  .join('\n');
+
+const factsRatio30 = day30After.memoryParts.facts.count / day30After.worldEvents;
+const factsRatio90 = A90 === null ? null : A90.days[89].memoryParts.facts.count / A90.days[89].worldEvents;
 
 // ---------------------------------------------------------------- 性能表
 
@@ -298,7 +373,7 @@ ${stockRows.join('\n')}
 | 第 30 天边际（日均增量 × 365 / 5） | ${f1(marginalKBPerCharYear)} KB | **${f1(solpctMarginal)}×** |
 | 其中记忆 JSON 边际 | ${f1(marginalMemKBPerCharYear)} KB | ${f1(marginalMemKBPerCharYear / 1.7)}× |
 
-**结论：1.7 KB/角色年的基线被打破，量级差约 ${Math.round(Math.log10(solpctMarginal))} 个数量级。** 存档不是「缓慢长」，而是每世界日 +${f1(rates(A, (d) => kb(d.saveBytes)).perDay)} KB，30 天到 ${f1(kb(A.days[29].saveBytes))} KB；按这条直线，第 31.5 天就会撞上导入上限 2 MB（\`IMPORT_MAX_BYTES\`，\`src/ui/save-store.ts:88\`）。
+**结论：1.7 KB/角色年的基线仍然被打破，但增长已经被预算关进笼子。** 这个世界每天约 30 件事，90 天实测 ${A90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes) * 365 / (5 * 90))} KB/角色年`}；旧口径按的是稀疏世界，在这里结构性不成立（见第 7 节）。改前的「每世界日 +${f1(rates(A, (d) => kb(d.saveBytes)).perDay)} KB、第 31.5 天撞 2 MB」已经不再成立：第 60–90 天只涨 ${A90 === null ? '—' : `+${f2((kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes)) / 30)} KB/天`}。2 MB 上限（\`IMPORT_MAX_BYTES\`，\`src/ui/save-store.ts:88\`）没有动，二进制压缩也没有用。
 
 ### 记忆库分项（第 1 天 → 第 30 天，字节 KB）
 
@@ -306,7 +381,53 @@ ${stockRows.join('\n')}
 | --- | --- | --- | --- | --- | --- | --- |
 ${partRows.join('\n')}
 
-条目数被预算裁到每层上限：\`day\` 层正好 5 × 16 = ${dayTier.count} 条（预算 16/人），但 \`legend\` 层 \`limitFor('legend') = Infinity\`——第 30 天有 **${legendTier.count} 条**（${f1(kb(legendTier.bytes))} KB，占全库条目字节的 ${pct(legendTier.bytes / (legendTier.bytes + dayTier.bytes))}），其中 ${placeHolders} 个地点 holder 各约 85 条。传说碑文按「涉及的人 × 每件事」刻，且不裁、也不归档（legend 每天只衰 0.15 × 0.05 = 0.75%，30 天还剩 0.79），所以它是条目层唯一的无上限增长项。表里 \`entries\` 是全库 ${A.days[29].memoryParts.entries.count} 条（含地点 holder）；第 1 节「记忆条目数」按居民时间轴合计 ${A.days[29].memory.entries} 条，两个口径都对，别混着比。\`facts\` / \`claims\` / \`beliefs\` / \`cooldowns\` / \`tells\` 同样没有任何预算——它们才是存档膨胀主体。表里单独的 \`legends\` 行是碑文库（${A.days[29].memoryParts.legends.count} 条记录），和 \`entries\` 里 \`tier='legend'\` 的记忆条目不是同一个库。
+条目层现在每个桶都有**条数 + 字节**双预算。\`day\` 层 5 × 16 = ${dayTier.count} 条；\`legend\` 层从 \`Infinity\` 收到 **24 条/持有者 / 16 KB**，第 30 天剩下 ${legendTier.count} 条（${f1(kb(legendTier.bytes))} KB）：5 位居民与 ${placeHolders} 个地点 holder **全部正好卡在 24 条**，碑文不再随「事 × 人 × 地点」无限刻下去。表里 \`entries\` 是全库 ${A.days[29].memoryParts.entries.count} 条（含地点 holder），第 1 节「记忆条目数」按居民时间轴合计 ${A.days[29].memory.entries} 条，两个口径都对，别混着比。表里单独的 \`legends\` 行是碑文库（${A.days[29].memoryParts.legends.count} 条记录），和 \`entries\` 里 \`tier='legend'\` 的记忆条目不是同一个库。
+
+### 预算（第 1 条）：改前 vs 改后（30 天末）
+
+改前指本轮修之前那一轮（\`summary-30d-before.json\`）；改后是当前代码同种子同场景重跑。**这一栏是「第 1 条」的验收数。**
+
+| 指标 | 改前 | 改后 | 差 |
+| --- | --- | --- | --- |
+${beforeAfterRows.join('\n')}
+
+30 天窗口里预算**刚刚开始咬合**（\`facts\` 898 条还没到 \`facts\` 的字节上限），所以日均只从 55.6 降到 ${f1((kb(day30After.saveBytes) - kb(A.days[0].saveBytes)) / 29)} KB；真正的「贴顶」发生在第 30–45 天之间，见下表。
+
+| 层 | 条数预算 | 字节预算 |
+| --- | --- | --- |
+${budgetRows.join('\n')}
+
+取值口径：按 90 天稳态下每条的平均字节反推条数，让 90 天末记忆 JSON 落在 ~1.2 MB，连同世界存档留出 2 MB 上限的约 26% 余量。**没有用二进制压缩，也没有动 \`IMPORT_MAX_BYTES\`。**
+
+#### 90 日实跑（seed A，同一场景，不是外推）
+
+${A90 === null ? '90 日读数尚未采集（`node scripts/soak-30d.ts --seed=soak-a --no-repeat --days=90`）。' : `| 天 | 世界事件 | facts | 记忆 KB | 存档 KB | pruned 累计 | sim p50 (ms) | dayClose (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+${rows90.join('\n')}
+
+**90 天末存档 ${f1(kb(A90.days[89].saveBytes))} KB，占 2 MB 的 ${pct(kb(A90.days[89].saveBytes) / 2048)}，没有撞上限。** 曲线在第 30–45 天之间由「线性长」转成「贴顶」：第 60 → 90 天只涨 ${f1(kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes))} KB（+${f2((kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes)) / 30)} KB/天），而改前是 **+55.6 KB/天**——按那条直线第 31.5 天就撞 2 MB。90 天实测的 \`sim p50\` ${A90.days[89].perf.simP50.toFixed(4)} ms 与第 1 天 ${A90.days[0].perf.simP50.toFixed(4)} ms 同量级，没有「越跑越慢」。
+
+- **facts / 世界事件比**：第 30 天 ${day30After.memoryParts.facts.count} / ${day30After.worldEvents} = **${factsRatio30.toFixed(3)}**；第 90 天 ${A90.days[89].memoryParts.facts.count} / ${A90.days[89].worldEvents} = **${factsRatio90.toFixed(3)}**。比值从 1 掉到 0.34，说明事实库在 90 天里裁掉了约三分之二的旧事实——留下的按「重要度 → 新」排序，不是按先进先出。
+- **淘汰原因**：90 天累计按层记在 \`memory.pruned\` 事件里；\`entries\` 是条数超限，其余六库都是**字节**超限（\`cooldowns\` 5537、\`tells\` 3375、\`beliefs\` 3155、\`facts\` 1773、\`claims\` 1160、\`written\` 292、\`legends\` 144）。这也解释了为什么只加条数上限没用：这些库的问题先出在字节。
+`}
+
+#### 为什么 \`T_promote=0.60\` 没动（二选一里的选项 b）
+
+30 天、5 位居民、共 ${salience.count} 条日层片段的显著度分布：
+
+| 显著度 | 条数 | 占比 |
+| --- | --- | --- |
+${salienceRows}
+
+| 门槛 | 越线条数 |
+| --- | --- |
+${aboveRows}
+
+**p50 = p90 = ${salience.p50}，p99 = max = ${salience.p99}，0.60 在整条分布之上**——日常世界跑多久都晋升不了，\`promoted = summaries = archived = 0\`，压缩这层空转。
+
+降阈值不安全：实测「听来的」条目显著度 **0.575**，「亲历且重要」的 **0.775**；\`T_promote=0.50\` 会把前者也晋升，而 \`makeSummary\` 写死 \`sourceMode: 'witnessed'\`、\`sourceChain: []\`，传闻的来历与保真度当场消失（\`test/memory-archive-reach.test.ts\` 的注释里有复现步骤）。0.60 正好卡在这两档之间，是设计里「至少两个维度突出才进日摘要」的数值位置。
+
+所以机制不是坏了，是**场景不够**：\`test/memory-archive-reach.test.ts\` 用「每 7 天一件亲历大事」跑 90 天，晋升、日摘要、周摘要、归档四步依次发生——实测 90 天后 **日/周摘要 68 条（周摘要 60 条）、归档 30 条（全部是摘要）**。这条路径是通的，只是纯日常走不到。
 
 ## 2. 性能
 
@@ -333,16 +454,23 @@ ${browserSection}
 | 摘要条目数 \`summaries\` | ${A.days[29].memory.summaries} |
 | 晋升 \`promoted\` | ${A.days[29].memory.promoted} |
 | 归档 \`archived\` | ${A.days[29].memory.archived} |
-| 预算裁掉 \`dropped\` | ${A.days[29].memory.dropped} |
+| 整理内裁掉 \`dropped\` | ${A.days[29].memory.dropped} |
+| **预算淘汰 \`memory.pruned\`** | **${A.days[29].memory.pruned}** |
 | 时间轴被裁条数 | ${A.days[29].memory.trimmedTimelineEntries} |
 | 地点不明条数 | ${A.days[29].memory.unknownPlaceEntries} |
-| \`when\` 写成日号（面板会显示 00:00） | ${A.days[29].memory.dayIndexWhenEntries} |
+| 面板会写「时刻不明」的格子 | 30 天 ${A.days[29].memory.unknownWhenEntries}；90 天 ${A90 === null ? '—' : A90.days[89].memory.unknownWhenEntries} |
 
-- **只有预算裁剪在生效**（\`dropped\` 累计 ${A.days[29].memory.dropped}），**归档从未触发**（\`archived=0\`）。原因可复算：日层衰减 15%/天，12 天才会跌破 \`T_forget=0.15\`；而日层预算只有 16 条，条目在 1–2 天内就被 \`dropped\` 挤掉，活不到归档。要走到归档，必须先有一条晋升到 \`long\` 层的摘要。\`legend\` 层是例外：不裁（\`Infinity\`）、每天只衰 0.75%，30 天也跌不到归档线。
-- **摘要从未产生**（\`summaries=0\`、\`promoted=0\`）：日层条目显著度最高 ${f2(dayTier.maxSalience)}，够不着 \`T_promote=0.6\`。于是 \`mergeWeekly\` 也无事可做——「压缩」这一整层在纯日常世界里是空转的。
-- **事件日志只增不改**：\`eventCount()\` 逐日单调（不变量 \`event-count-monotonic\` 每天核对）；世界事件累计 ${A.days[29].worldEvents} 条，无删除路径。
+第 30 天淘汰按层（\`memory.pruned\`，累计）：
+
+| 层 | 淘汰条数 | 条数超限 | 字节超限 |
+| --- | --- | --- | --- |
+${prunedRows.join('\n')}
+
+- **预算裁剪在真跑，而且分得清原因**：30 天累计淘汰 ${A.days[29].memory.pruned} 条，\`entries\` 由条数触发、其余各库由字节触发。改前这里只有一个 \`dropped\`（${BEFORE === null ? '—' : BEFORE.days[29].memory.dropped}）且全部来自整理，答不出「哪一层、为什么」。
+- **压缩入口是通的（选项 b 的证明）**：日常世界的日层显著度 p99 = max = ${salience.p99}，够不着 \`T_promote=0.60\`，所以 30 天 \`summaries=promoted=0\` 是**场景不够**，不是坏了。\`test/memory-archive-reach.test.ts\` 用「每 7 天一件亲历大事」跑 90 天，晋升 → 日摘要 → 周摘要 → 归档依次发生；同时它钉住了另一条边界：阈值降到 0.50 会把 0.575 的「听来的」条目也压成 \`witnessed\` 摘要，来源链断裂。审计见「为什么 \`T_promote=0.60\` 没动」。
+- **事件日志只增不改**：\`eventCount()\` 逐日单调（不变量 \`event-count-monotonic\` 每天核对）；世界事件累计 ${A.days[29].worldEvents} 条，无删除路径。**事实库只减不删世界事件**：\`facts\` 被裁 ${A.days[29].memoryParts.facts.count} 条是记忆表里的一行，世界事件日志本身不动。
 - **造物账本只有 append**：每天核对「今天的文件必须以昨天完整字节为前缀」（\`ledger-append-only\`），30 天 0 违反；行数 1 → ${A.days[29].ledgerRows} 单调。
-- **「被裁掉的事实写时刻不明」在本场景没有发生**：没有摘要，就没有「被裁掉的事实」；\`trimmedTimelineEntries=0\`、\`unknownPlaceEntries=0\`、\`dayIndexWhenEntries=0\`。这条口径**未被覆盖**，不能算通过——只是没有触发样本。
+- **「被裁掉的事实写时刻不明」有了实现与样本**：\`dayTimelineFor\` 现在给每一格 \`whenKnown\`；事实被裁掉（或这一格是摘要、\`when\` 是日号）时为 \`false\`，面板写「时刻不明」而不是拿 \`clockOf\` 算出一个 00:00。样本在 \`test/memory-budget.test.ts\`（裁掉 \`ev_low\` 后它的格子 \`whenKnown=false\`、\`what=null\`、\`placeId=null\`）与 \`test/unit-status.test.ts\`（渲染出 \`clock: '时刻不明'\`）。第 30 天是 ${A.days[29].memory.unknownWhenEntries}：时间线只覆盖昨天，昨天的条目所指事实都还在；到第 90 天事实被预算裁掉 ${A90 === null ? '—' : A90.days[89].memory.prunedByLayer.facts.evicted} 条，面板上出现 ${A90 === null ? '—' : A90.days[89].memory.unknownWhenEntries} 格「时刻不明」——这是真跑样本，不是只靠测试断言。
 
 ## 4. 不变量
 
@@ -396,18 +524,30 @@ ${marketRow}
 | \`stepTide\` p50 | 0.3 µs → 17.9 µs（60×） | 恒定 ~1 µs |
 | 30 日整轮耗时 | 73.6 s | 50.3 s（含插桩） |
 
+**记忆预算与清理层（第 1 条）**：
+
+1. **六个无预算的库补上条数 + 字节双预算**（\`src/world/memory/config.ts\` 的 \`libraryBudget\`）：\`facts\` / \`claims\` / \`beliefs\` / \`cooldowns\` / \`tells\` / \`written\` / \`legends\`。每个库按自己的价值轴淘汰（事实按重要度→新，冷却与传话按新旧，传说按传播面），不再一律按写入顺序。
+2. **碑文层从 \`Infinity\` 收到 24 条/持有者 / 16 KB**（\`budget.legend\`），并给条目四个桶都加了字节上限。
+3. **淘汰留痕**：新增 \`memory.pruned\` 事件（层 / 淘汰数 / 条数超限数 / 字节超限数 / 原因 / 剩余），每层每天至多一条；同时修正\`memory.archived\` 原先「每天把全部已归档条目重发一遍」的累计口径。
+4. **归档/晋升不改阈值，补可达性证明**（选项 b）：\`test/memory-archive-reach.test.ts\`。
+5. **面板不再编造时刻**：\`whenKnown\` 从 \`dayTimelineFor\` 一路透到 \`unit-status\`，事实被裁或摘要日号都写「时刻不明」。
+
+| 读数 | 改前 | 改后 |
+| --- | --- | --- |
+| 30 天末存档 | ${day30Before === null ? '—' : `${f1(kb(day30Before.saveBytes))} KB`} | ${f1(kb(day30After.saveBytes))} KB |
+| 90 天末存档 | 外推 ~5 MB（第 31.5 天撞 2 MB） | ${A90 === null ? '—' : `${f1(kb(A90.days[89].saveBytes))} KB`}（未撞上限） |
+| 90 天日均增量 | +55.6 KB/天 | ${A90 === null ? '—' : `+${f2((kb(A90.days[89].saveBytes) - kb(A90.days[59].saveBytes)) / 30)} KB/天（第 60–90 天）`} |
+
 ### 发现了（未修，按口径记 todo + BUGS_FOUND）
 
-1. **关系账本在纯日常世界永远是 0**——没有 \`street_tumble\` / \`street_water\` / \`street_help\`，\`incidents=0\`，\`bondsOf()\` 空。
-2. **记忆压缩层空转**——日层条目显著度最高 ${f2(dayTier.maxSalience)}，低于 \`T_promote=0.6\`，30 天 \`summaries=0\`、\`promoted=0\`；没有 \`long\` 层条目，\`archived\` 也就永远为 0，只有 \`dropped\` 在裁日层。
-3. **传说碑文无预算**——\`limitFor('legend') = Infinity\`，第 30 天 ${legendTier.count} 条（含 ${placeHolders} 个地点 holder），条目层唯一的无上限增长项。
-4. **存档随事件线性膨胀且无压缩**——\`facts\`/\`claims\`/\`beliefs\`/\`cooldowns\`/\`tells\` 无预算；30 天 1.69 MB，第 ~31.5 天撞 2 MB 导入上限；按边际口径 ${f1(marginalKBPerCharYear)} KB/角色年，对照 1.7 KB 基线差 ${f1(solpctMarginal)}×。
-5. **「被裁的事实写时刻不明」无样本**——机制未被任何一天覆盖，谈不上生效。
+1. **关系账本在纯日常世界永远是 0**——没有 \`street_tumble\` / \`street_water\` / \`street_help\`，\`incidents=0\`，\`bondsOf()\` 空（第 3 条，未到）。
+2. **\`T_promote=0.60\` 在日常场景走不到**——本报告已用分布解释并证明机制可达（选项 b），因此这条不再是缺陷，而是场景边界；剩余风险是「听来的 0.575 与 0.60 之间只隔 0.025」，场景一变就得重看分布。
 
 ### 还剩什么
 
-- **\`stepDecrees\` 每步 \`snapshot()\` 的全量分配**：堆 0 → 88 MB 后 p50/p95 都涨，下一轮可以改成按需字段或复用缓冲（本轮只定位，没动它）。
-- 上述五条缺陷的 \`todo\` 用例与 \`docs/BUGS_FOUND.md\` 本节；
+- **\`stepDecrees\` 每步 \`snapshot()\` 的全量分配**（第 2 条，未到）：堆 0 → 88 MB 后 p50/p95 都涨。
+- **关系账本恒 0**（第 3 条，未到）：需要先给分布再选 (a)/(b)。
+- \`docs/BUGS_FOUND.md\` 的「长周期浸泡」小节已同步：BUG-2 降级为「场景边界 + 可达性测试」，BUG-3/BUG-4 翻正。
 - 九道闸门。
 `;
 

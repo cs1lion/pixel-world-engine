@@ -177,7 +177,9 @@
 
 测试分支：`feat/soak-30d`（worktree `D:\project\pwe-soak`，基线 `origin/main` `eab9e36`）。
 夹具：`world-client/test/soak-support.ts`；跑数：`node scripts/soak-30d.ts`；读数与曲线：`docs/evidence/soak/REPORT.md`。
-未修缺陷用 `test/soak-30d.todo.test.ts` 的 4 条 `todo` 钉住（8 世界日即可复现，不拖长 `npm test`）。编号按本小节从 1 起，不与造物/交互混用。
+未修缺陷用 `test/soak-30d.todo.test.ts` 的 `todo` 钉住（8 世界日即可复现，不拖长 `npm test`）。编号按本小节从 1 起，不与造物/交互混用。
+
+第 1 条（记忆预算与清理层）已落地后，本小节的状态：BUG-1 仍未修（第 3 条才处理）；BUG-2 改判为「场景边界 + 可达性测试」，不再是缺陷；BUG-3 / BUG-4 已修并翻正为普通回归测试。
 
 ### BUG-1 纯日常世界的 30 日关系账本恒为 0
 
@@ -190,30 +192,42 @@
 ### BUG-2 记忆压缩层空转：摘要 / 晋升 / 归档全为 0
 
 - **编号**：BUG-2
-- **状态**：**未修**，`[SOAK-BUG-2]`。
-- **读数**：30 天 `summaries = 0`、`promoted = 0`、`archived = 0`，只有 `dropped` 在涨（累计 1117）。日层条目实测显著度最高 **0.5029**，低于 `T_promote = 0.6`；日层预算 16 条/人，条目 1–2 天内就被裁掉，活不到 12 天后跌破 `T_forget = 0.15` 的归档线。
-- **依据**：`src/world/memory/consolidate.ts` 的晋升条件是 `salience >= T_promote`，归档条件是 `tier === 'long' && strength < T_forget`。没有晋升 → 没有 `long` 条目 → 归档分支不可达。`mergeWeekly` 同理无事可做。
-- **影响**：「压缩」这一整层在纯日常长期世界里是空转的，记忆只剩「观测 → 追加 → 预算裁剪」；省下的只有条数，省不下字节（见 BUG-4）。
+- **状态**：**改判为场景边界，不是缺陷**（选项 b）。原 `[SOAK-BUG-2]` 的 `todo` 已撤下，可达性由 `test/memory-archive-reach.test.ts` 证明。
+- **读数**：30 天 `summaries = 0`、`promoted = 0`、`archived = 0`；日层条目实测显著度 **p50 = p90 = 0.495，p99 = max = 0.5029**（1156 条，分布表见 REPORT 第 1 节），`T_promote = 0.6` 在整条分布之上。
+- **为什么不能降阈值**：实测「听来的」（`sourceMode = 'heard'`）条目显著度 **0.575**，「亲历且重要」（`importanceHint = 0.9`）的 **0.775**。降到 0.50 会把传闻也晋升，而 `makeSummary` 写死 `sourceMode: 'witnessed'`、`sourceChain: []`——来源链当场断裂，冲突检测（「听说的和我看见的不一样」）失去输入。0.60 正好卡在两档之间。
+- **可达性证据**：`test/memory-archive-reach.test.ts`——每 7 天一件 `importanceHint = 0.95` 的亲历大事，跑 90 世界日，断言日摘要、周摘要、归档三者都非零，且归档的确实是 `long` 层摘要。实测读数：摘要 68 条（其中周摘要 60 条）、归档 30 条（全部是摘要）。
+- **剩余风险**：0.575 与 0.60 只隔 0.025；一旦世界事件的可信度/重要性分布变化，要重看这张分布表。
 
 ### BUG-3 传说碑文（legend 层）没有预算上限
 
 - **编号**：BUG-3
-- **状态**：**未修**，`[SOAK-BUG-3]`。
-- **读数**：8 天 95 条，30 天 **500 条 / 311.8 KB**，占全库条目字节的 86.6%；单个 holder 最多 85 条（含 `ledger_house#1`、`tea_stall#1` 两个地点 holder）。`day` 层则正好停在 5 × 16 = 80 条。
-- **依据**：`src/world/memory/world.ts` 的 `limitFor()` 对 `legend` 返回 `Infinity`；碑文按「每件事 × 每个涉及 holder」刻，且 legend 每天只衰 `0.15 × 0.05 = 0.75%`，30 天仍有 0.79，既裁不到也归档不到。
-- **影响**：这是条目层唯一的无上限增长项。按 30 天 500 条 / 0.62 KB 每条外推，一世界年约 6,100 条 / 3.7 MB，只增不减。
+- **状态**：**已修**，`[SOAK-BUG-3]` 已翻正为普通测试。
+- **改前读数**：8 天 95 条，30 天 **500 条 / 311.8 KB**，占全库条目字节的 86.6%；单个 holder 最多 85 条。
+- **改法**：`budget.legend = 24` 条/持有者、`budget.bytes.legend = 16_000`；`limitFor()` 不再返回 `Infinity`。
+- **改后读数**：30 天 **170 条 / 106.5 KB**；5 位居民 + 3 个地点 holder 全部正好卡在 24 条。条目层总字节从 311.8 KB 级降到 155 KB。
 
 ### BUG-4 存档随事件线性膨胀，30 天撞上导入上限
 
 - **编号**：BUG-4
-- **状态**：**未修**，`[SOAK-BUG-4]`。
-- **读数**：存档 76.5 KB（第 1 天）→ **1687.5 KB**（第 30 天），日均 **+55.6 KB**；边际 **≈4055 KB/角色年**，对照此前记录的 1.7 KB/角色年基线差约 2,400×（存量口径 4,106 KB 差约 2,400×）。记忆 JSON 分项：`facts` 321.7 KB、`claims` 211.4 KB、`written` 184.1 KB、`beliefs` 167.4 KB、`cooldowns` 113.7 KB、`tells` 67.3 KB——全部无预算，且 `facts` 条数与世界事件数一一对应（30 天 898 条）。
-- **依据**：`entries` 有预算（日/长/印象三层 + 无限的 legend），但 `facts` / `claims` / `written` / `beliefs` / `cooldowns` / `tells` 没有任何裁剪或归档路径；删除条目时也没有级联清理这些表（`archived = 0`，级联从未跑过）。
-- **影响**：按直线外推，**第 31.5 天** 就会超过 `src/ui/save-store.ts:88` 的 `IMPORT_MAX_BYTES = 2 MB`，玩家无法再导出/导入自己的世界；一世界年约 20 MB，localStorage 5 MB 配额约 90 天见底。
+- **状态**：**已修**，`[SOAK-BUG-4]` 翻正为「每个库都必须落在预算内」的回归测试。
+- **改前读数**：存档 76.5 KB（第 1 天）→ **1687.5 KB**（第 30 天），日均 **+55.6 KB**；直线外推 **第 31.5 天**撞 `src/ui/save-store.ts:88` 的 `IMPORT_MAX_BYTES = 2 MB`。`facts` / `claims` / `written` / `beliefs` / `cooldowns` / `tells` 六库无任何预算。
+- **改法**：给六个库加条数 + 字节双预算（`config.ts` 的 `libraryBudget`），每层按自己的价值轴淘汰；新增 `memory.pruned` 事件留痕（层 / 条数 / 字节 / 原因 / 剩余）；修正 `memory.archived` 每天重发全部已归档条目的累计口径。
+- **改后读数**：30 天 **1369.1 KB**（−318.4 KB，−18.9%）；**90 天实跑 1483.8 KB = 2 MB 的 72.4%**，未撞上限。第 60→90 天只涨 41.3 KB（+1.38 KB/天），改前是 +55.6 KB/天。
+- **facts / 世界事件比**：第 30 天 898 / 898 = 1.000；第 90 天 920 / 2693 = **0.342**。
+- **关于 1.7 KB/角色年**：这个基线仍然被打破（90 天存量口径约 1203 KB/角色年）。原因是**吞吐**——这个世界每天约 30 件事，而旧基线按的是稀疏世界；它不是本轮能达到的目标，本轮达到的是「增长有界」。别把这两件事混成一个数字。
 
-### 未记为缺陷的缺口（口径没被覆盖，不算通过）
+### 已补覆盖：「被裁掉的事实写时刻不明」
 
-- **「被裁掉的事实写时刻不明」没有样本**：30 天里 `summaries = 0`、`trimmedTimelineEntries = 0`、`unknownPlaceEntries = 0`、`dayIndexWhenEntries = 0`——没有任何事实被摘要/裁剪过，所以「裁掉时写时刻不明而不是编造」这条口径**一次也没被触发**。要验证它，得先造一个能产生摘要（显著度 ≥ 0.6）的场景，那是下一轮的事，不能拿 0 当绿。
+- 改前 30 天 `trimmedTimelineEntries = 0`、`unknownPlaceEntries = 0`，这条口径一次也没被触发——不能拿 0 当绿。
+- 现在 `dayTimelineFor` 给每一格 `whenKnown`：事实被预算裁掉、或这一格是摘要（`when` 是日号）时为 `false`；`unit-status` 把它渲染成 **`clock: '时刻不明'`**，不再用 `clockOf(day)` 编出一个 00:00。
+- 样本：`test/memory-budget.test.ts`（裁掉 `ev_low` 后 `whenKnown=false`、`what=null`、`placeId=null`，`ev_high` 仍为 `true`）；`test/unit-status.test.ts`（渲染出 `时刻不明`）。
+- 真跑样本：第 90 天事实库裁掉 1773 条后，面板上有 **8 格** `unknownWhenEntries`（第 30 天是 0，因为时间线只覆盖昨天、昨天的条目所指事实还在）。所以这条不只是测试断言。
+
+### 确定性基线随淘汰顺序重录（不是放宽断言）
+
+- **改动**：淘汰比较器补上用户要求的后两级，最终为 `固定/闪光灯 → 强度 → 显著度 → 新 → memoryId`。
+- **为什么轨迹会变**：这只在「日层溢出、且强度打平」时改变保留集合；一旦保留集合变了，后面的整理与造物读数就跟着变。`traces/outer-two-days.json` 的记忆指纹从 `803a26d4…` 变为 `59db174d…`；**世界指纹 `32ba01e7…` 与 52 条事件完全不变**，说明变化只在记忆/造物层。
+- **怎么处理**：用仓库自带的两步流程重录——`node scripts/trace-record.ts`（再录 3 条轨迹与基线存档）+ `node scripts/trace-to-test.ts`（重生成回归用例）。生成的用例仍断言**精确指纹与条数**，没有改成「只要求不报错」之类的弱断言；回放结论 `replayable`，三枚指纹三次运行逐字相同。
 
 ### 已修：`tideLevelAt` 随世界时间线性变慢（提交在本分支）
 
