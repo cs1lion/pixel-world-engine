@@ -15,7 +15,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "生成脚本未提交（pwe-soak 分支），script_sha 只能记 not_measured"
     },
     {
@@ -30,7 +30,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "第二种子复核；脚本未提交"
     },
     {
@@ -45,7 +45,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "seed-b 同口径为 1.75 KB/day"
     },
     {
@@ -60,7 +60,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "920 / 2693"
     },
     {
@@ -75,7 +75,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "抽样里 100% 缺失都落在 importanceHint < 0.4 的琐事，分带读数仍未量"
     },
     {
@@ -90,7 +90,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-04",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "需要按 importanceHint 分带重算，当前证据只有总数"
     },
     {
@@ -105,7 +105,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "timelineMissingPct"
     },
     {
@@ -120,7 +120,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "timelineMissingPct"
     },
     {
@@ -135,7 +135,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "timelineMissingPct"
     },
     {
@@ -150,7 +150,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "timelineMissingPct"
     },
     {
@@ -165,7 +165,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "23.4 KB；按 reach 淘汰，但 reach 缺真值来源"
     },
     {
@@ -180,7 +180,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-04",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "reach 缺真值：需要按近 3 个世界日的实际召回命中数复核 120 条"
     },
     {
@@ -291,7 +291,7 @@
       "script_sha": "not_measured",
       "judge": "program",
       "measured_at": "2026-11-03",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "world/memory/creator/events 全等；ledgerRaw 不等且不许当指纹"
     },
     {
@@ -339,7 +339,7 @@
       "script_sha": "ccae775afdadec6e22181bfa7da11fcc76d08eca49817de0112dbe402228eb87",
       "judge": "program",
       "measured_at": "2026-11-04",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "90 天存档只读引用 pwe-soak 提交 3a41541；读档闸 拒绝 0"
     },
     {
@@ -355,7 +355,7 @@
       "script_sha": "ccae775afdadec6e22181bfa7da11fcc76d08eca49817de0112dbe402228eb87",
       "judge": "program",
       "measured_at": "2026-11-04",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "无一条合法旧档被降级"
     },
     {
@@ -371,7 +371,7 @@
       "script_sha": "ccae775afdadec6e22181bfa7da11fcc76d08eca49817de0112dbe402228eb87",
       "judge": "program",
       "measured_at": "2026-11-04",
-      "gate": "ci-nightly",
+      "gate": "ci-pr",
       "note": "因淘汰无法用事实库核实、但断言/信念等旁证仍在，按设计放行"
     },
     {

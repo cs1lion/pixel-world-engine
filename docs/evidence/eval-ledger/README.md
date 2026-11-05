@@ -54,6 +54,18 @@
   失败信息与既有测试同格式，定位成本不增加。
 - 因此 `test/eval-ledger.test.ts` 就是 CI 入口；CLI 只用于生成证据 JSON。
 
+## gate 标签的真实含义（2026-11-05 修正）
+
+| 项 | 内容 |
+| --- | --- |
+| 改前 | 16 条来自 pwe-soak 证据树的读数标成 `gate: ci-nightly` |
+| 当初为什么标 nightly | 这些读数由离线 soak 脚本产出，单轮要跑几十个世界日，当时把「我希望它在 nightly 复核」写成了 gate |
+| 为什么改 | 仓里**没有** nightly workflow：`.github/workflows/` 只有 `ci.yml`，触发是 `pull_request` + `push`。`ci-nightly` 从未对应任何真实门。按「gate = 这条读数在哪个门被复算」的口径，唯一真实入口是 `npm test` 里的 `test/eval-ledger.test.ts`，即 `ci.yml` 的 `pull_request`/`push` job，也就是 `ci-pr` |
+| 改法 | 16 条 `gate` 由 `ci-nightly` 改为 `ci-pr`；`value` / `source` / `denominator` / `script_sha` 一个没动 |
+| 护栏 | 新增 `test/gate-workflow-reconcile.test.ts`：解析 `.github/workflows/*.yml` 的 `on:`，断言账本里出现的每个 gate 都有真实触发位置；新增 gate 不接真实门就红 |
+
+`ci-nightly` 仍保留在 `GATES` 枚举里：将来真加了 nightly workflow，它才有资格被写进账本。
+
 ## `script_sha` 的两类取值
 
 - 填了 `script` 的条目，在每次校验时重算文件 sha256（LF 归一化后），**脚本改了而读数
