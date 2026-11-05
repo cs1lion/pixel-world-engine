@@ -1,0 +1,6 @@
+{
+  "02-working.png": { "kind": "smoke", "minArea": 3000, "maxArea": 5200 },
+  "03-deliver.png": { "kind": "smoke", "minArea": 3000, "maxArea": 5200 },
+  "04-rain.png": { "kind": "rain", "minArea": 38, "maxArea": 85 },
+  "05-build.png": { "kind": "smoke", "minArea": 60, "maxArea": 160 }
+}

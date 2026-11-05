@@ -193,11 +193,133 @@ const pinForShot = async (anchor) => {
 
 const unpinForShot = async () => {
   if (!PIN_SHOTS) return;
-  await page.evaluate(() => {
-    window.Oracle.unpinShotState();
+  await page.evaluate((pin) => {
+    if (pin) window.Oracle.unpinShotState();
     window.Oracle.unfreezeWorldClock();
-  });
+  }, PIN_SHOTS);
 };
+
+const DAY_MS = 86_400_000;
+/** 01 钉住的呈现时刻：当天 07:05（用户决定一）。 */
+const SALUTE_PIN_MINUTE_MS = 7 * 3_600_000 + 5 * 60_000;
+
+const isStandingIdle = (villager) =>
+  villager.walking === false && villager.mode === 'idle' && villager.taskId === null;
+
+/**
+ * 01 构图夹具（2026-11-05 用户决定一）。
+ *
+ * 先钉呈现时刻 07:05 + 潮位 0（只钉画面），再**循环推进世界**直到
+ * 莞尔在祭坛 (48,36)、阿雾在农田边 (40,40)，且两人都站定、手上没有活。
+ * 硬超时 300 秒实时：超时直接判红并把现场打出来，不降级拍别的构图。
+ *
+ * 明确不用 `jumpWorldClock(750)`：那一跳会把两人拉回锚点、一起叠在 (48,36)，
+ * 「祭坛 + 街口」的原构图就没了。
+ */
+const pinSaluteComposition = async () => {
+  const deadline = Date.now() + 300_000;
+  await page.evaluate(
+    ({ dayMs, minuteMs }) => {
+      const snapshot = window.Oracle.view();
+      window.Oracle.pinShotState(Math.floor(snapshot.now / dayMs) * dayMs + minuteMs, 0);
+    },
+    { dayMs: DAY_MS, minuteMs: SALUTE_PIN_MINUTE_MS },
+  );
+  let last = null;
+  let lastJumpAt = Date.now();
+  while (Date.now() < deadline) {
+    last = await state();
+    const [wan, wu] = last.villagers;
+    const compositionOK =
+      isStandingIdle(wan) &&
+      isStandingIdle(wu) &&
+      Math.round(wan.pos.x) === 48 &&
+      Math.round(wan.pos.y) === 36 &&
+      Math.round(wu.pos.x) === 40 &&
+      Math.round(wu.pos.y) === 40;
+    if (compositionOK) {
+      console.log(
+        `01 构图成立：now=${last.now} 莞尔=${wan.pos.x},${wan.pos.y} 阿雾=${wu.pos.x},${wu.pos.y}`,
+      );
+      return last;
+    }
+    // 只在两人都站定时推进 5 世界分钟，走路途中不打断；留 1 秒给作息落地。
+    if (!wan.walking && !wu.walking && Date.now() - lastJumpAt > 1000) {
+      const minuteOfDay = Math.floor((last.now % DAY_MS) / 60_000);
+      if (minuteOfDay < 1435) {
+        await page.evaluate(
+          (minute) => window.Oracle.jumpWorldClock(minute),
+          minuteOfDay + 5,
+        );
+        lastJumpAt = Date.now();
+      }
+    }
+    await page.waitForTimeout(200);
+  }
+  const fail = last ?? (await state());
+  const day = Math.floor(fail.now / DAY_MS);
+  const minuteOfDay = Math.floor((fail.now % DAY_MS) / 60_000);
+  const dump = {
+    day,
+    minuteOfDay,
+    now: fail.now,
+    villagers: fail.villagers.map((v) => ({
+      name: v.name,
+      pos: v.pos,
+      mode: v.mode,
+      walking: v.walking,
+      taskId: v.taskId,
+      routine: v.routine,
+    })),
+    routineIndex: 'Oracle.view() 不暴露（快照只有 routine 文本）',
+    goalQueue: 'Oracle.view() 不暴露',
+  };
+  console.error('01 构图夹具 300s 超时：', JSON.stringify(dump, null, 2));
+  throw new Error(`01 构图夹具超时（300s）：day=${day} minuteOfDay=${minuteOfDay}`);
+};
+
+/**
+ * 把 `#stage` 的绘制原点钉到整数 CSS 像素（用户决定三 / 戊类夹具）。
+ *
+ * 半像素来自 flex 居中：`(可用宽 - 962) / 2` 可能是 0.5px。画布本身是
+ * `pixelated` 的，落点差半像素会让整幅图按不同的采样相位重采样——两跑之间
+ * 出现一片「每像素只差 1 级」的差。这里量一次偏移，用 `translate` 补到整数；
+ * 8 系列再在这个整数原点上做整数倍缩放。
+ */
+const snapStage = () =>
+  page.evaluate(() => {
+    const stage = document.querySelector('#stage');
+    stage.style.transformOrigin = 'top left';
+    stage.style.transform = '';
+    const rect = stage.getBoundingClientRect();
+    const snap = {
+      dx: Math.round(rect.left) - rect.left,
+      dy: Math.round(rect.top) - rect.top,
+      // 缩放截图按「未缩放时的整数盒」裁：元素自己的包围盒会随 Phaser 重排
+      // 漂 1～2 CSS px（3904/3888 就是这么来的），裁固定盒才稳。
+      left: Math.round(rect.left),
+      top: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+    window.__stageSnap = snap;
+    // `#stage` 是 `width: fit-content`：8 系列换视口后会被子元素撑宽 2～6px
+    // （实跑见过 963 → 967/969，4x 截图于是 3868/3876 漂移）。首次量到的
+    // 整数盒直接钉死，之后任何视口都按同一个盒子裁。
+    if (!stage.dataset.pinnedBox) {
+      stage.style.width = `${snap.width}px`;
+      stage.style.height = `${snap.height}px`;
+      stage.style.flex = 'none';
+      stage.dataset.pinnedBox = '1';
+    }
+    window.__applyStageZoom = (zoom) => {
+      const tx = snap.dx === 0 && snap.dy === 0 ? '' : `translate(${snap.dx}px, ${snap.dy}px)`;
+      const scale = zoom === 1 ? '' : `scale(${zoom})`;
+      stage.style.transform = `${tx} ${scale}`.trim();
+    };
+    window.__applyStageZoom(1);
+    return snap;
+  });
 
 const report = (title) => {
   console.log(`\n${title}：${checks.length} 项通过`);
@@ -464,20 +586,26 @@ async function runSandboxSuite() {
   // 0.95%）。所以先在采样回调里等**两个人都站定**，就地冻钟，再把呈现态钉死
   // （时刻取当天 12:30，与 07/08 同一口径；潮位取 0=退潮，与基线草地同色）。
   // 钉的只是画面，世界快照/判据/存档一概不变，拍完立刻解开。
-  await page.waitForFunction(
-    () => {
-      const snapshot = window.Oracle.view();
-      if (snapshot.villagers.some((villager) => villager.walking)) return false;
-      window.Oracle.freezeWorldClock();
-      window.Oracle.pinShotState(
-        Math.floor(snapshot.now / 86400000) * 86400000 + 45_000_000,
-        0,
-      );
-      return true;
-    },
-    null,
-    { timeout: 120000 },
-  );
+  if (PIN_SHOTS) {
+    // 决定一：07:05 + 等状态。超时直接抛红，不降级拍照。
+    await pinSaluteComposition();
+    await page.evaluate(() => window.Oracle.freezeWorldClock());
+  } else {
+    await page.waitForFunction(
+      () => {
+        const snapshot = window.Oracle.view();
+        if (snapshot.villagers.some((villager) => villager.walking)) return false;
+        window.Oracle.freezeWorldClock();
+        window.Oracle.pinShotState(
+          Math.floor(snapshot.now / 86400000) * 86400000 + 45_000_000,
+          0,
+        );
+        return true;
+      },
+      null,
+      { timeout: 120000 },
+    );
+  }
   const salutePromise = page.waitForFunction(
     () => {
       const snapshot = window.Oracle.view();
@@ -800,23 +928,42 @@ async function runSandboxSuite() {
   );
   await page.evaluate(() => window.Oracle.jumpWorldClock(750));
   {
+    // 钉住取景的判据是「两人站定」：`idle` + 不走 + 没活，且位置连拍三下不变
+    // （450ms）。只看「位置指纹两次相同」会抓到两人在瓷砖之间停一拍的空档，
+    // 冻下来的落点两跑能差半个画面（08 实测莞尔有时在祭坛前、有时在左下角）。
     const started = Date.now();
     let previous = null;
     let same = 0;
     for (;;) {
-      const fingerprint = await page.evaluate(() =>
-        window.Oracle.view().villagers
-          .map((v) => `${v.pos.x},${v.pos.y},${v.visible ? 1 : 0},${v.mode}`)
-          .join('|'),
-      );
-      same = previous !== null && fingerprint === previous ? same + 1 : 0;
-      previous = fingerprint;
-      if (same >= 2) break;
-      if (Date.now() - started > 90000) throw new Error('钉钟后两人迟迟没有坐定');
+      const state = await page.evaluate(() => ({
+        pos: window.Oracle.view().villagers.map((v) => `${v.name}:${v.pos.x},${v.pos.y}`).join('|'),
+        standing: window.Oracle.view().villagers.every(
+          (v) => v.mode === 'idle' && v.walking === false && v.taskId === null,
+        ),
+      }));
+      same = previous !== null && state.standing && state.pos === previous ? same + 1 : 0;
+      previous = state.pos;
+      if (same >= 3) break;
+      if (Date.now() - started > 120000) throw new Error('钉钟后两人迟迟没有站定');
       await page.waitForTimeout(150);
     }
   }
-  const pinnedClock = await page.evaluate(() => window.Oracle.freezeWorldClock());
+  const pinnedClock = await page.evaluate(({ pin, minuteMs }) => {
+    // 站定之后把时钟**回拨到整点 12:30**再冻：等站定花掉的那十几分钟世界时间
+    // 会让「莞尔：去祭坛 / 去农田边」这类状态行在两跑之间换词（06 实测就差这一行）。
+    // 回拨只动 `now`，人已经站定，位置不回退。
+    if (pin) window.Oracle.jumpWorldClock(minuteMs / 60_000);
+    const now = window.Oracle.freezeWorldClock();
+    // 戊类夹具（用户决定三，只在钉住口径下生效）：`freezeWorldClock` 只冻世界，
+    // 画面仍按快照里的 `now` 上色。跳到 750 之后还会多跑半分钟，两跑的冻结点
+    // 差几分钟，整幅光照就差 ±2 级（08 实测 37% 像素差 1～2 级）。把**呈现
+    // 时刻**钉到整点 12:30，画面才与真实冻结点无关。默认关闭时口径一字不改。
+    if (pin) {
+      const day = Math.floor(now / 86400000) * 86400000;
+      window.Oracle.pinShotState(day + minuteMs, 0);
+    }
+    return now;
+  }, { pin: PIN_SHOTS, minuteMs: SHOT_MINUTE_MS });
   check(Number.isFinite(pinnedClock), `07/08 抓拍前世界时钟已冻住（now=${pinnedClock}）`);
   await page.evaluate(() => {
     window.Oracle.setCameraMode('free');
@@ -836,19 +983,13 @@ async function runSandboxSuite() {
     `07/08 镜头钉在祭坛（scroll=${pinnedCamera.scrollX},${pinnedCamera.scrollY} zoom=${pinnedCamera.zoom}）`,
   );
 
-  // 08-400% 的画布尺寸会被竖向滚动条的有无带偏 16px；这一段让滚动条常驻。
+  // 08-400% 的画布尺寸会被竖向滚动条的有无带偏；滚动条已在页面加载时钉成常驻，
+  // 这里再把舞台原点重新量一次（上面 390px 往返回来过，居中余量可能变了）。
   await page.evaluate(() => {
     document.documentElement.style.overflowY = 'scroll';
   });
 
-  // D5-A：100%/200%/400% 缩放截图，验证 DOM overlay 仍贴合 canvas。
-  for (const zoom of [1, 2, 4]) {
-    await page.evaluate((value) => {
-      const stage = document.querySelector('#stage');
-      stage.style.transformOrigin = 'top left';
-      stage.style.transform = value === 1 ? '' : `scale(${value})`;
-    }, zoom);
-    await page.waitForTimeout(300);
+  const checkOverlayFit = async (zoom) => {
     const fit = await page.evaluate(() => {
       const canvas = document.querySelector('#app canvas');
       const overlay = document.querySelector('#world-overlay');
@@ -864,13 +1005,58 @@ async function runSandboxSuite() {
       fit.sameWidth && fit.sameOrigin && fit.contained,
       `${zoom * 100}% 缩放下 overlay 仍贴合 canvas`,
     );
-    await page.locator('#stage').screenshot({ path: `${OUT}/08-overlay-${zoom * 100}.png` });
+  };
+
+  // D5-A：100%/200%/400% 缩放截图，验证 DOM overlay 仍贴合 canvas。
+  if (PIN_SHOTS) {
+    // 戊类夹具（用户决定三）：固定整型视口 + 整数裁剪盒，不依赖元素外接盒
+    // （外接盒会随 Phaser 重排漂 1～2px，3904/3888 就是这么来的）。
+    await page.evaluate(() => {
+      // 投影会伸进元素截图的外接盒；8 系列只看画布贴合，先把投影摘掉。
+      document.querySelector('#app').style.boxShadow = 'none';
+      // 居中会在放大后把半幅图挪出视口；靠左排，裁剪盒才装得下。
+      document.querySelector('#stage').style.alignSelf = 'flex-start';
+    });
+    for (const zoom of [1, 2, 4]) {
+      await page.setViewportSize({
+        width: Math.max(1010, 16 + 963 * zoom + 32),
+        height: Math.max(940, 68 + 642 * zoom + 32),
+      });
+      await page.waitForTimeout(350);
+      // `page.screenshot({clip})` 的裁剪盒是**文档坐标**：页面若还停在上一视图
+      // 的滚动位置（8 系列实测偏了约 491px），裁出来只剩视口里那一条
+      // （08-100 于是成了 963×219）。每次换视口先把页面滚回原点再量。
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const snap = await snapStage();
+      await page.evaluate((value) => window.__applyStageZoom(value), zoom);
+      await page.waitForTimeout(300);
+      await checkOverlayFit(zoom);
+      await page.screenshot({
+        path: `${OUT}/08-overlay-${zoom * 100}.png`,
+        clip: { x: snap.left, y: snap.top, width: snap.width * zoom, height: snap.height * zoom },
+      });
+    }
+    await page.evaluate(() => {
+      window.__applyStageZoom(1);
+      document.querySelector('#app').style.boxShadow = '';
+      document.querySelector('#stage').style.alignSelf = '';
+    });
+  } else {
+    for (const zoom of [1, 2, 4]) {
+      await page.evaluate((value) => {
+        const stage = document.querySelector('#stage');
+        stage.style.transformOrigin = 'top left';
+        stage.style.transform = value === 1 ? '' : `scale(${value})`;
+      }, zoom);
+      await page.waitForTimeout(300);
+      await checkOverlayFit(zoom);
+      await page.locator('#stage').screenshot({ path: `${OUT}/08-overlay-${zoom * 100}.png` });
+    }
+    await page.evaluate(() => {
+      document.querySelector('#stage').style.transform = '';
+    });
   }
-  await page.evaluate(() => {
-    const stage = document.querySelector('#stage');
-    stage.style.transform = '';
-    document.documentElement.style.overflowY = '';
-  });
+  await page.setViewportSize({ width: 1010, height: 940 });
   await page.waitForTimeout(300);
 
   // 390px：overlay 不超出 canvas（页面级 960px canvas 溢出属既有 P3）。
@@ -893,6 +1079,10 @@ async function runSandboxSuite() {
   );
   await page.setViewportSize({ width: 1010, height: 940 });
   await page.waitForTimeout(250);
+  if (PIN_SHOTS) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await snapStage();
+  }
 
   // 上帝调试面板（S2-3）：只读浮层，不改变仿真。
   const panelInitial = await page.evaluate(() => ({
@@ -990,9 +1180,12 @@ async function runSandboxSuite() {
   );
   await page.screenshot({ path: `${OUT}/07-debug-panel-filtered.png` });
 
-  // 07/08 的四张到此拍完，解冻——后面暂停测试要等注入的活真做完，
-  // 冻着的话它永远停在 working，等待注定超时。
-  await page.evaluate(() => window.Oracle.unfreezeWorldClock());
+  // 07/08 的四张到此拍完，解冻并解钉——后面暂停测试要等注入的活真做完，
+  // 冻着的话它永远停在 working，等待注定超时；钉着的话底栏时钟也不再走。
+  await page.evaluate(() => {
+    window.Oracle.unpinShotState();
+    window.Oracle.unfreezeWorldClock();
+  });
   check(
     (await page.evaluate(() => window.Oracle.worldClockPinned())) === false,
     '07/08 拍完后世界时钟已解冻',
@@ -1195,6 +1388,20 @@ try {
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });
   check(errors.length === 0, '页面加载无 JS 报错');
+
+  // 戊类夹具（2026-11-05 用户决定三，只在钉住口径下生效）：
+  //   1. 常驻滚动条：8 系列的画布宽度会随滚动条有无漂移，先把它钉成常驻；
+  //   2. `#stage` 整数定位：flex 居中可能留下 0.5px，画布落点半像素就会整幅
+  //      按不同采样相位重采样（「每像素只差 1 级」的那一大片）。
+  if (PIN_SHOTS) {
+    await page.evaluate(() => {
+      document.documentElement.style.scrollbarGutter = 'stable';
+      document.documentElement.style.overflowY = 'scroll';
+      // 缩放后舞台会宽过视口；禁止横向滚动条，免得它反过来改视口尺寸。
+      document.documentElement.style.overflowX = 'hidden';
+    });
+    await snapStage();
+  }
 
   const opening = await state();
   // 大世界开局：镇内三铺 + 郊野三铺 + 五间民居。小世界只剩镇内三铺。

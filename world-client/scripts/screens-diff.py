@@ -13,6 +13,16 @@
 
 旧图目录用 `git archive HEAD world-client/eval/screens | tar -x -C <tmp>` 得到。
 输出：<out>/screens-diff.json + <out>/masks/<name>.png（差异区域描红，供人看）。
+
+结构档（2026-11-05 用户批准）：
+  python scripts/screens-diff.py --old R1 --new R2 --out OUT \
+      --structure-spec docs/evidence/pin-shots/structure-spec.json
+
+  spec 是 {文件名: {"kind": "smoke"|"rain", "minArea": N, "maxArea": M}}。
+  断言只看**可见差掩膜最大连通块面积**是否落在区间；块的坐标/包围盒、精确差、
+  可见差全部只记录不断言。命中区间 = PASS，否则退出码 1。
+  代价：颜色、形状、密度这类回归在结构档下**会漏**——它只证明「那里有一块
+  面积相当的变化」，不证明烟/雨还是原来那副样子。
 """
 import argparse
 import hashlib
@@ -171,6 +181,47 @@ def region_report(old: np.ndarray, new: np.ndarray, mask: np.ndarray, min_area: 
     return out
 
 
+def structure_report(mask: np.ndarray) -> dict:
+    """可见差掩膜的结构读数：连通块数、覆盖像素、最大块的面积/坐标/尺寸。
+
+    坐标只做记录：三跑的烟柱/雨丝形态本来就会挪。
+    """
+    groups = sorted(label_components(mask), key=lambda g: g['area'], reverse=True)
+    blocks = [
+        {
+            'areaPx': int(g['area']),
+            'bbox': [int(g['x0']), int(g['y0']), int(g['x1']), int(g['y1'])],
+            'size': [int(g['x1'] - g['x0'] + 1), int(g['y1'] - g['y0'] + 1)],
+        }
+        for g in groups
+    ]
+    largest = blocks[0] if blocks else None
+    return {
+        'components': len(blocks),
+        'coveredPx': int(mask.sum()),
+        'largestAreaPx': int(largest['areaPx']) if largest else 0,
+        'largestBbox': largest['bbox'] if largest else [],
+        'largestSize': largest['size'] if largest else [],
+        'blocks': blocks[:10],
+    }
+
+
+def structure_assertion(struct: dict, rule: dict) -> dict:
+    """区间断言。minArea 下界同时承担「存在」判据（>0 才可能落在区间）。"""
+    lo = int(rule['minArea'])
+    hi = int(rule['maxArea'])
+    area = int(struct['largestAreaPx'])
+    ok = area > 0 and lo <= area <= hi
+    return {
+        'kind': rule.get('kind', ''),
+        'minArea': lo,
+        'maxArea': hi,
+        'largestAreaPx': area,
+        'pass': ok,
+        'reason': 'pass' if ok else ('no-diff-region' if area == 0 else 'area-out-of-range'),
+    }
+
+
 def save_mask_png(old: np.ndarray, mask: np.ndarray, path: Path, scale: int = 1) -> None:
     """旧图上把差异像素涂成洋红，便于人眼定位。"""
     base = old[:, :, :3].astype(np.uint8).copy()
@@ -229,6 +280,8 @@ def analyse(old_path: Path, new_path: Path, out_dir: Path) -> dict:
     ]
     rec['regions'] = region_report(old, new, visible_mask, min_area=16)
     rec['regionsTotal'] = len(rec['regions'])
+    # 结构读数：始终输出（含精确差场景），断言只在给了 --structure-spec 时做。
+    rec['structure'] = structure_report(visible_mask)
 
     # 全局平移搜索：说明「整幅图有没有位移」。大图先按步长降采样，免得 81 次
     # 全尺寸布尔比较把内存打满；结论只关心「有没有 1–3px 级整幅位移」。
@@ -254,9 +307,18 @@ def main() -> None:
     ap.add_argument('--old', required=True)
     ap.add_argument('--new', required=True)
     ap.add_argument('--out', required=True)
+    ap.add_argument(
+        '--structure-spec',
+        default=None,
+        help='结构断言档：JSON {文件名: {kind, minArea, maxArea}}；给了就按最大块面积断言',
+    )
     args = ap.parse_args()
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    spec = {}
+    if args.structure_spec:
+        spec = json.loads(Path(args.structure_spec).read_text(encoding='utf-8'))
 
     names = sorted(p.name for p in Path(args.new).glob('*.png'))
     records = []
@@ -265,23 +327,53 @@ def main() -> None:
         if not old_path.exists():
             records.append({'name': name, 'oldSha256': None, 'note': '旧图不存在（新增文件）'})
             continue
-        records.append(analyse(old_path, Path(args.new) / name, out_dir))
+        rec = analyse(old_path, Path(args.new) / name, out_dir)
+        if 'structure' in rec and name in spec:
+            rec['structureAssertion'] = structure_assertion(rec['structure'], spec[name])
+        records.append(rec)
 
-    payload = {'oldDir': args.old, 'newDir': args.new, 'records': records}
+    failures = [
+        r['name']
+        for r in records
+        if r.get('structureAssertion') is not None and not r['structureAssertion']['pass']
+    ]
+    payload = {
+        'oldDir': args.old,
+        'newDir': args.new,
+        'structureSpec': args.structure_spec,
+        'structureFailures': failures,
+        'records': records,
+    }
     (out_dir / 'screens-diff.json').write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8'
     )
 
     # 给人看的一行摘要
-    print(f"{'file':30s} {'exact%':>7s} {'vis%':>7s} {'visBBox':>20s} {'regions':>8s}")
+    print(
+        f"{'file':30s} {'exact%':>7s} {'vis%':>7s} {'visBBox':>20s} {'regions':>8s}"
+        f" {'largestPx':>9s} {'structure':>9s}"
+    )
     for r in records:
         if r.get('oldSha256') is None or not r.get('comparable'):
             print(f"{r['name']:30s} {'—':>7s} {'—':>7s} {r.get('note', '')}")
             continue
+        st = r.get('structure') or {}
+        assert_part = ''
+        if r.get('structureAssertion') is not None:
+            a = r['structureAssertion']
+            assert_part = (
+                f"{'PASS' if a['pass'] else 'FAIL'} "
+                f"{a['kind']}[{a['minArea']},{a['maxArea']}]"
+            )
         print(
             f"{r['name']:30s} {r['exactDiffPct']:7.2f} {r['visibleDiffPct']:7.2f} "
-            f"{str(r['visibleBBox']):>20s} {r['regionsTotal']:8d}"
+            f"{str(r['visibleBBox']):>20s} {r['regionsTotal']:8d} "
+            f"{st.get('largestAreaPx', 0):9d} {assert_part:>9s}"
         )
+
+    if failures:
+        print(f"\n结构断言失败 {len(failures)} 张：{', '.join(failures)}")
+        raise SystemExit(1)
 
 
 if __name__ == '__main__':

@@ -5,7 +5,8 @@
 - 环境：同机器、同构建（本地 vite dev，端口 5210）、同脚本（`world-client/scripts/smoke.mjs`）、同 viewport
 - 目录内文件：
   - `diff_runs.py`：逐张比对工具（exact / visible≥8 / 每通道直方图 / 主色对）
-  - `summarize_probe.py`：把 `probe-salute.mjs` 的采样记录压成一行一张
+  - `summarize_probe.py`：把 `probe-frozen-run1.json` / `probe-frozen-run2.json` 的采样记录压成一行一张
+    （采样用的浏览器脚本是临时脚本，没有入库；原始采样记录本身就是证据）
   - `probe-summary.txt`：潮位扫描 + 同进程/跨进程冻钟的采样汇总
   - `diff-pre-fix-B1B2.json`、`diff-pre-fix-A2B1.json`、`diff-fix-run1-run2.json`、
     `diff-fix-run1-run2-run3.json`、`diff-fix-run1-run4.json`、`diff-fix-run4-run5-run6.json`
