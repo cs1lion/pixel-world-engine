@@ -339,6 +339,10 @@ export interface TrimResult {
   readonly byCount: number;
   /** 被字节上限裁掉的条数（条数没超、字节超了）。 */
   readonly byBytes: number;
+  /** 条数维度的独立溢出：`max(0, 本桶条数 − 条数上限)`，不看字节。 */
+  readonly countOver: number;
+  /** 字节维度的独立溢出：**忽略条数上限**再走一遍，只看字节会裁掉几条。 */
+  readonly bytesOver: number;
 }
 
 /**
@@ -376,6 +380,8 @@ export function trimEntriesToBudget(
   }
   let byCount = 0;
   let byBytes = 0;
+  let countOverTotal = 0;
+  let bytesOverTotal = 0;
   for (const [bucketKey, bucket] of byTier) {
     const tierKey = bucketKey.slice(bucketKey.indexOf('\u0000') + 1);
     const limit = limitFor(tierKey, config);
@@ -416,8 +422,19 @@ export function trimEntriesToBudget(
       if (countHit) byCount += evicted;
       else byBytes += evicted;
     }
+    // 两个独立溢出量：一个只看条数，一个忽略条数上限只看字节。
+    countOverTotal += Math.max(0, bucket.length - limit.count);
+    let bytesOnly = 0;
+    let bytesOnlyAccepted = 0;
+    for (const entry of ranked) {
+      const size = byteSizeOf(entry);
+      if (bytesOnly + size > limit.bytes) break;
+      bytesOnly += size;
+      bytesOnlyAccepted += 1;
+    }
+    bytesOverTotal += bucket.length - bytesOnlyAccepted;
   }
-  return { kept, byCount, byBytes };
+  return { kept, byCount, byBytes, countOver: countOverTotal, bytesOver: bytesOverTotal };
 }
 
 function limitFor(key: string, config: MemoryConfig): { count: number; bytes: number } {

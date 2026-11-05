@@ -96,6 +96,27 @@ test('事实超字节预算：按字节裁，原因记 bytes 而不是 count', (
   assert.equal(payload.reason, 'bytes');
 });
 
+test('条数与字节同时超限：countOver 与 bytesOver 两个独立溢出量都 > 0', () => {
+  // 130 条事实合计约 45 KB：条数上限 120（溢出 10 条），字节上限 28 KB。
+  // 两个数问的是两个问题——「只按条数裁，裁几条」与「忽略条数、只按字节裁，裁几条」。
+  const { world, events } = withFactsBudget(120, 28 * 1024);
+  for (let index = 0; index < 130; index += 1) {
+    ingest(world, `ev_${index}`, 1 - index / 1000, DAY_MS / 2 + index * 1000);
+  }
+  world.dayClosed(0, DAY_MS - 1);
+
+  const pruned = events.filter((event) => event.kind === 'memory.pruned');
+  assert.equal(pruned.length, 1);
+  const payload = pruned[0]!.payload as Record<string, unknown>;
+  assert.equal(payload.countOver, 10, '条数独立溢出 = 130 − 120');
+  assert.ok((payload.bytesOver as number) > 0, '忽略条数上限后，字节维度必须也真的溢出');
+  assert.equal(payload.byCount as number + (payload.byBytes as number), payload.evicted);
+  // `reason` 仍是派生单值：记「实际先撞到的那一维」——本例字节先满，故是 bytes，
+  // 与旧读者看到的口径一致；两个维度是否超限改由 countOver / bytesOver 回答。
+  assert.equal(payload.reason, (payload.byCount as number) > 0 ? 'count' : 'bytes');
+  assert.equal(payload.layer, 'facts');
+});
+
 test('事实被裁掉后，当天的时间线把那一格标成「时刻不明」', () => {
   const { runtime, world } = withFactsBudget(1);
   // 两条都留在 `day` 层（显著度低于 T_promote），测的是「事实没了」那一半，

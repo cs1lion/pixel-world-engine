@@ -580,7 +580,7 @@ export type MemoryEventKind =
   | 'memory.consolidated'
   | 'memory.recalled'
   | 'memory.archived'
-  /** 预算淘汰。每层每天至多一条，带 `layer` / `evicted` / `byCount` / `byBytes`。 */
+  /** 预算淘汰。每层每天至多一条，带 `layer` / `evicted` / `byCount` / `byBytes`， 以及两个独立溢出量 `countOver`（只按条数）与 `bytesOver`（忽略条数上限、只按字节）。 */
   | 'memory.pruned'
   | 'memory.deleted'
   | 'cue.fired'
