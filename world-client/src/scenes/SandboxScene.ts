@@ -25,6 +25,15 @@ import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
 import { tokenNameOf } from '../world/palette-data.ts';
 import { paletteFor, terrainFor, type WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
+import {
+  NO_SHOT_PIN,
+  phaseInputOf,
+  pinShot,
+  presentedNowOf,
+  presentedTideOf,
+  unpinShot,
+  type ShotPin,
+} from '../render/pin-shot-state.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
@@ -100,6 +109,25 @@ import { LAMP_MOTION_ON, ignitionSchedule, type LampMotion } from '../world/lamp
 import { STALL_MOTION_ON, type StallMotion } from '../world/stall-motion.ts';
 import { BANNER_MOTION_ON, type BannerMotion } from '../world/banner-motion.ts';
 import { SMOKE_MOTION_ON, type SmokeMotion } from '../world/smoke-motion.ts';
+import { createInteriorView, type InteriorView } from '../render/interior-view.ts';
+import {
+  INTERIOR_FIRST_FLOOR,
+  INTERIOR_ROOM_H,
+  INTERIOR_ROOM_W,
+  INTERIOR_SWITCH_SWAP_FRAME,
+  INTERIOR_TRANSITION_FRAMES,
+  interiorFloorsFor,
+  interiorSwitchOpacity,
+  interiorTransitionProgress,
+  lerp,
+  smoothStep,
+} from '../render/interior-layout.ts';
+import {
+  restoreInteriorViewState,
+  writeInteriorViewState,
+} from '../ui/interior-view-store.ts';
+import type { PlacedBuilding } from '../world/types.ts';
+import { parseMinuteOfDay } from './debug-now.ts';
 import { legacyLookFor, resolveLook } from '../world/villager-look.ts';
 import { createWorldOverlay, type WorldOverlay } from '../render/world-overlay.ts';
 import { createAccentEmitter, ensureAccentTextures, type AccentEmitter } from '../render/smoke.ts';
@@ -266,6 +294,29 @@ interface BuildingEntry {
   readonly emitter: AccentEmitter;
 }
 
+/** 街景 / 进场中 / 室内 / 出场中 / 切层中。过渡的每一帧都落在这五态里。 */
+type InteriorMode = 'street' | 'entering' | 'inside' | 'exiting' | 'switching';
+
+/**
+ * 进门前的相机位姿。**退出时逐字还原**——这是验收判据，不是「差不多」。
+ *
+ * `centerX/centerY` 是插值用的世界中心（`cam.midPoint`），而 `scrollX/scrollY/zoom`
+ * 是最后要写回去的那一份原值：`centerOn` 只是个方便入口，真正钉住画面的是这三个数。
+ */
+interface InteriorPose {
+  readonly scrollX: number;
+  readonly scrollY: number;
+  readonly zoom: number;
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly bounds: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+}
+
 /**
  * 一次已经入队、但还没落地的造物。**观测要等到 `building.built` 之后再做**。
  *
@@ -429,6 +480,21 @@ export class SandboxScene extends Phaser.Scene {
   private phaseTimer: number | null = null;
   private decor!: DecorView;
   private entries: BuildingEntry[] = [];
+  /** 内景视图。**懒创建**：没进过任何楼之前它不存在，街景的预算读数一个都不动。 */
+  private interiorView: InteriorView | null = null;
+  private interiorMode: InteriorMode = 'street';
+  private interiorBuildingId: string | null = null;
+  /** 过渡已经走过几帧。固定帧数推进，不读墙钟。 */
+  private interiorFrames = 0;
+  /** `?interior=instant` 或调试入口可关：验收机位要的是静止画面。 */
+  private interiorTransitionEnabled = true;
+  /** `?interior=step`：过渡不自走，由 `Oracle.stepInterior()` 一帧一帧推。 */
+  private interiorStepMode = false;
+  private interiorSavedPose: InteriorPose | null = null;
+  /** 当前站在第几层。**视图状态**：只在内存与本机独立键里，不进 v5。 */
+  private interiorFloor = INTERIOR_FIRST_FLOOR;
+  /** 切层过渡要去的层号。中点换图，末帧才认账。 */
+  private interiorSwitchTo = INTERIOR_FIRST_FLOOR;
   private accumulator = 0;
   private tick = 0;
   private villagerName = '莞尔';
@@ -457,6 +523,22 @@ export class SandboxScene extends Phaser.Scene {
   private updateCount = 0;
   /** 真正推进了世界的帧数。降频是否生效看它。 */
   private advanceCount = 0;
+  /**
+   * 调试钉钟：世界时间被冻在这一刻（毫秒），`null` 表示正常推进。
+   *
+   * 只由浏览器回归的截图口径调用（`Oracle.freezeWorldClock`）。冻住时不再
+   * 推进逻辑，但仍结算已排队的命令并照常渲染——截图要的是「同一时刻的同一
+   * 画面」，不是「世界停了、连命令也不认」。
+   */
+  private pinnedClock: number | null = null;
+  /**
+   * 呈现态钉死：画面上跟时间走的东西（潮位、鸟、眨眼、灶火）只认这一对值。
+   *
+   * 只由浏览器回归的截图口径调用（`Oracle.pinShotState`）。冻钟只停世界，
+   * `now` 仍可能是两跑之间差一个逻辑步——潮位跨过淹没阈值就是整片草地翻色，
+   * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
+   */
+  private shotPin: ShotPin = NO_SHOT_PIN;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -641,7 +723,16 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 测试与 UI 都能读到同一份报纸；它从快照推导，不另存。 */
   report(): DailyReport {
-    return composeReport(this.snapshot);
+    return composeReport(this.reportSnapshot());
+  }
+
+  /**
+   * 报纸只吃一个 `now`（底栏的「第 N 分 SS 秒」）。钉呈现态时用钉住的那个，
+   * 让两跑底栏一致；其余字段仍取真实快照。
+   */
+  private reportSnapshot(): WorldSnapshot {
+    if (this.shotPin.nowMs === null) return this.snapshot;
+    return { ...this.snapshot, now: presentedNowOf(this.shotPin, this.snapshot.now) };
   }
 
   constructor() {
@@ -774,6 +865,15 @@ export class SandboxScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.creation !== null) return;
       if (pointer.wasTouch) this.touches.set(pointer.id, { x: pointer.x, y: pointer.y });
+      // 室内视角下街景的拖拽 / 右键 / 洗地一律不接：点击只归门与楼梯。
+      // **但按下这一下仍要把两个点击状态清零**：否则上一次街景拖拽留下的
+      // `pressMoved = true` 会让室内每一次点击都在抬手时被当成拖拽吞掉
+      // （取证时就是这样：点楼梯没反馈、点门不出屋）。
+      if (this.interiorMode !== 'street') {
+        this.suppressClickUp = false;
+        this.pressMoved = false;
+        return;
+      }
       // 右键 = 上下文面板，不参与拖镜头，也不在抬手时开状态菜单。
       if (pointer.rightButtonDown()) {
         this.suppressClickUp = true;
@@ -809,6 +909,11 @@ export class SandboxScene extends Phaser.Scene {
       // 抬手时没怎么动，才算「点了一下」而不是拖镜头。没有这个区分的话，
       // 每次平移地图都会顺手洗掉路过的那盏灯——玩家只是在看世界。
       if (this.pressMoved) return;
+      // 室内：只认门与楼梯。门退出、楼梯给反馈（切层留给下一块）。
+      if (this.interiorMode !== 'street') {
+        this.interiorClick(pointer);
+        return;
+      }
       // 点到人就是「看她」：镜头跟过去，面板读出她记得的事。
       // 其次点碑：镇上认下的事都在那块石头上。
       // 再其次点楼：它叫什么、接过什么活、墙上留着什么。
@@ -821,6 +926,12 @@ export class SandboxScene extends Phaser.Scene {
         this.dismissUnitStatus();
         return;
       }
+      // 门排在楼之前：门格 / 门框那一格是「进去」，楼的其余部分是「看它」。
+      // 两者都在 footprint 边上，先判门才不会一进门就弹面板。
+      if (this.enterInteriorAt(pointer)) {
+        this.dismissUnitStatus();
+        return;
+      }
       if (this.openBuildingStatusAt(pointer)) return;
       // 点空白：三种单位面板一起收，行为与 Esc / 关闭按钮一致。
       this.dismissUnitStatus();
@@ -829,6 +940,7 @@ export class SandboxScene extends Phaser.Scene {
       this.washUnder(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.interiorMode !== 'street') return;
       if (this.creation !== null) return;
       if (pointer.wasTouch && this.touches.has(pointer.id)) {
         this.touches.set(pointer.id, { x: pointer.x, y: pointer.y });
@@ -861,10 +973,18 @@ export class SandboxScene extends Phaser.Scene {
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       if (this.creation !== null) return;
+      // 内景的暗场按 1 倍镜铺满整屏：任人缩到 0.5 倍就会露边，索性屋内不给缩。
+      if (this.interiorMode !== 'street') return;
       this.cameraCtl.zoomStep(dy > 0 ? -1 : 1);
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
+    // 验收机位要能关掉过渡：`?interior=instant` 时进门/退出不做动画，
+    // 否则「冻结 1 秒画面 0 差异」这类对比会被过渡帧搅掉。
+    this.interiorTransitionEnabled = params.get('interior') !== 'instant';
+    this.interiorStepMode = params.get('interior') === 'step';
+    // 读档必须回街景：这里**只清不还原**，原因写在 `interior-view-store.ts` 文件头。
+    restoreInteriorViewState();
     // 时钟入口：**默认是游玩时间驱动**，页面开着按倍率推进，关页面即冻结，
     // 重开从存档断点继续，永不补算。真实时钟必须显式 `?clock=real`——它保留
     // 1:1 步长、本地日界、跨会话补算与老档日界对齐；`?clock=fast`（或只给
@@ -1182,6 +1302,11 @@ export class SandboxScene extends Phaser.Scene {
     // 世界自己的事实，换时钟模式不改写它（`Simulation.fromSave` 会覆盖）。
     // 默认的游玩时间驱动从 0 起算；关页面即冻结，重开从档里的 `now` 继续，
     // 不做任何离线补算。
+    //
+    // `?debug=1&now=<0..1439>` 把**模拟时钟**也钉在指定世界分钟（只认调试层，
+    // 产品页的 URL 行为不变）。`?time=` 只换画面光照，不换模拟时钟；世界有了
+    // 回家语义之后，两者不一致会让「户外的她」这类断言在夜里落空（她在家）。
+    // 回归脚本因此同时写 `time=…&now=…`。
     let initialNow: number | undefined;
     if (this.debugInitialNow !== undefined) {
       initialNow = this.debugInitialNow * 60_000;
@@ -1480,6 +1605,25 @@ export class SandboxScene extends Phaser.Scene {
     // 真正推进过的帧才计数：`updateCount` 统计的是 Phaser 的调用次数，
     // 跳帧时它仍然每帧加一，看不出降频。
     this.advanceCount += 1;
+    // 调试钉钟：世界时间冻在 `pinnedClock`。只结算已排队的命令（`update(0)`
+    // 不推进时钟），渲染照旧——截图口径要的是「同一时刻的同一画面」。累加器
+    // 清零，解冻后不会把冻住的那段时间一次性补跑。
+    if (this.pinnedClock !== null) {
+      this.accumulator = 0;
+      this.sim.setSocialContext(this.socialContextFromMemory());
+      this.sim.setWeatherHabitLedger(this.weatherHabitFromMemory());
+      const results = this.sim.update(0);
+      for (const result of results) {
+        this.speak(result);
+      }
+      this.snapshot = this.sim.snapshot();
+      this.renderSnapshot(delta);
+      if (this.interiorMode === 'street') this.cameraCtl.update(delta);
+      else this.updateInterior();
+      this.publishCameraMode();
+      this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
+      return;
+    }
     // 造物模式暂停世界：幽灵预览期间不该有人走动或收工。
     // 只暂停推进，不清空累加器——退出后不会一次性补跑一大段。
     if (this.creation !== null) {
@@ -1549,7 +1693,10 @@ export class SandboxScene extends Phaser.Scene {
       this.clockNotice = `真实时钟：离线合并结算，跳过 ${skippedDays} 天`;
     }
     this.renderSnapshot(delta);
-    this.cameraCtl.update(delta);
+    // 内景期间相机归过渡管：导播 / 跟人 / 拖拽都在 `cameraCtl` 里，让它动一下
+    // 就会把刚算好的镜头插值推回去。
+    if (this.interiorMode === 'street') this.cameraCtl.update(delta);
+    else this.updateInterior();
     this.publishCameraMode();
     this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
@@ -3821,6 +3968,53 @@ export class SandboxScene extends Phaser.Scene {
     return this.phaseView.currentPhase() === 'night';
   }
 
+  /**
+   * 截图回归专用：把世界时钟跳到当天第 `minuteOfDay` 分钟。
+   *
+   * 只改 `now`，**不**冻结，也**不**给相对计时器做 `realignAfterClockJump`：
+   * 安静段（12:00–14:00）的打算就是让每个人重新挑一拍、走回锚点坐下——
+   * 把 `nextRoutineAt` 顺移会让他们原地不动，截出来的「回家」就成了假的。
+   * 落定之后由 `freezeWorldClock()` 冻住。
+   */
+  private jumpWorldClock(minuteOfDay: number): void {
+    if (!Number.isInteger(minuteOfDay) || minuteOfDay < 0 || minuteOfDay >= 1440) return;
+    const now = this.sim.snapshot().now;
+    const dayStart = Math.floor(now / DAY_MS) * DAY_MS;
+    const target = dayStart + minuteOfDay * 60_000;
+    const delta = target - now;
+    if (delta > 0) this.sim.fastForwardNow(delta);
+    else if (delta < 0) this.sim.rewindNow(-delta);
+  }
+
+  /** 冻住世界时间：`now` 停在当前值，逻辑不再推进，命令照旧结算。 */
+  private freezeWorldClock(): number {
+    this.pinnedClock = this.sim.snapshot().now;
+    return this.pinnedClock;
+  }
+
+  /**
+   * 钉住呈现态：这一帧画出来的时刻与潮位固定成给定值，与世界快照解耦。
+   *
+   * 只给截图回归用。冻钟之后 `now` 仍可能因抓拍晚一个逻辑步而不同，潮位又
+   * 是暗地/植被整片翻色的阈值开关；不钉的话同码两跑能差 24%。钉住的是
+   * **画面**，不是世界：快照、判据、存档一概不变，解冻后立刻回到世界值。
+   */
+  private pinShotState(nowMs: number, tideLevel: number): void {
+    this.shotPin = pinShot(this.shotPin, nowMs, tideLevel);
+    // 纸面只在状态行变化时重画；钉住后不敲一下，底栏会停在钉住之前的秒数。
+    this.repaintPaper();
+  }
+
+  private unpinShotState(): void {
+    this.shotPin = unpinShot();
+    this.repaintPaper();
+  }
+
+  /** 只重放最后一行状态：界面据此重画纸面（底栏时钟跟着呈现时刻走）。 */
+  private repaintPaper(): void {
+    for (const listener of this.statusListeners) listener(this.lastStatus);
+  }
+
   private registerOracleApi(): void {
     const api = {
       say: (text: string): CommandResult => this.say(text),
@@ -3956,6 +4150,53 @@ export class SandboxScene extends Phaser.Scene {
         worldViewY: this.cameras.main.worldView.y,
         mode: this.cameraCtl.mode(),
       }),
+      /**
+       * 内景：只查询与切换视图，**不碰世界**。
+       *
+       * 验收脚本靠这一组读状态：进场 / 出场各 N 次后，`camera()` 的三个数
+       * 必须与进入之前逐字相同；`renderStats()` 的增量也按这里的前后对照记。
+       */
+      interior: () => ({
+        mode: this.interiorMode,
+        buildingId: this.interiorBuildingId,
+        floor: this.interiorFloor,
+        switchTo: this.interiorMode === 'switching' ? this.interiorSwitchTo : this.interiorFloor,
+        floors: this.interiorView?.layout?.floors ?? null,
+        canUp: this.interiorView?.layout?.canUp ?? false,
+        canDown: this.interiorView?.layout?.canDown ?? false,
+        frames: this.interiorFrames,
+        transition: this.interiorTransitionEnabled,
+        room: { width: INTERIOR_ROOM_W, height: INTERIOR_ROOM_H },
+        door: this.interiorView?.layout?.door ?? null,
+        stairs: this.interiorView?.layout?.stairs ?? null,
+        stairUp: this.interiorView?.layout?.stairUp ?? null,
+        stairDown: this.interiorView?.layout?.stairDown ?? null,
+        hintFrames: this.interiorView?.hintFrames ?? 0,
+        occupants: this.interiorOccupantsOf(this.interiorBuildingId),
+        view: this.interiorView?.debug ?? null,
+        buildings: this.snapshot.buildings.map((building) => ({
+          id: building.instanceId,
+          name: building.displayName,
+          zone: building.zone,
+          door: { x: building.door.x, y: building.door.y },
+          origin: { x: building.origin.x, y: building.origin.y },
+          footprint: { w: building.footprint.w, h: building.footprint.h },
+          center: this.interiorCenter(building),
+          floors: interiorFloorsFor(building),
+          // 此刻楼里有几个人——只做验收读数用（`!visible` 且占地判到本楼）。
+          // 生产画面不读它：室内视图自己按同一判据点名画人。
+          occupants: this.interiorOccupantsOf(building.instanceId).length,
+        })),
+      }),
+      enterInterior: (buildingId: string): boolean => this.enterInterior(buildingId),
+      exitInterior: (): boolean => this.exitInterior(),
+      /** 切层：`delta=+1` 上楼、`-1` 下楼。越界返回 false（并闪一下楼梯提示）。 */
+      switchInteriorFloor: (delta: number): boolean => this.switchInteriorFloor(delta),
+      /** `?interior=step` 下逐帧推过渡：验收拿「第 9 帧」这张图。 */
+      stepInterior: (frames?: number): boolean => this.stepInterior(frames),
+      setInteriorTransition: (enabled: boolean): void => {
+        this.interiorTransitionEnabled = enabled;
+      },
       cameraMode: (): CameraMode => this.cameraCtl.mode(),
       setCameraMode: (mode: CameraMode): void => this.cameraCtl.setMode(mode),
       canFollow: (): boolean => this.cameraCtl.canFollow(),
@@ -4216,11 +4457,29 @@ export class SandboxScene extends Phaser.Scene {
         this.statusListeners.add(listener);
         return () => this.statusListeners.delete(listener);
       },
-      report: (): DailyReport => composeReport(this.snapshot),
+      // 钉呈现态时报纸底栏的「第 N 分」也读同一个时刻：否则两跑会在底栏
+      // 差一行字，而画面其余部分逐字节相同（戊类就是这么来的）。
+      report: (): DailyReport => composeReport(this.reportSnapshot()),
       slab: (): readonly OracleRecord[] => this.snapshot.oracle,
       view: (): WorldSnapshot => this.view(),
       setPhase: (phase: PhaseId): void => this.setPhase(phase),
       currentPhase: (): PhaseId => this.currentPhase(),
+      /*
+       * 世界时钟的调试钩子：只给截图回归。先把 `now` 跳到固定时刻，等全镇
+       * 落定后冻住，两张连拍才可能逐字节相同。正常游玩路径没有调用方。
+       */
+      jumpWorldClock: (minuteOfDay: number): void => this.jumpWorldClock(minuteOfDay),
+      freezeWorldClock: (): number => this.freezeWorldClock(),
+      unfreezeWorldClock: (): void => {
+        this.pinnedClock = null;
+      },
+      worldClockPinned: (): boolean => this.pinnedClock !== null,
+      /*
+       * 呈现态夹具：`now` 与潮位钉成给定值，只影响画面。截图前钉、拍完解，
+       * 世界与判据都不经过它。正常游玩路径没有调用方。
+       */
+      pinShotState: (nowMs: number, tideLevel: number): void => this.pinShotState(nowMs, tideLevel),
+      unpinShotState: (): void => this.unpinShotState(),
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),
@@ -4315,6 +4574,12 @@ export class SandboxScene extends Phaser.Scene {
   private renderSnapshot(delta: number): void {
     // 调试摆位只换这一帧要画的那份快照：身体、名字、气泡一起搬，世界不动。
     const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
+    // 呈现态夹具：钉住时画的是钉住的时刻；潮位在下面和判据覆写一起解。
+    // 两套钉法的优先级：**判据覆写（forcedPacked / pinnedTide / forcedLamps）
+    // 优先于拍摄钉住（pinShotState）**——覆写是判据层，钉住只是呈现层。
+    // 两者都不设置时（NO_SHOT_PIN 且三个覆写都是 null），presentedNow /
+    // presentedTideOf 原样返回快照值，行为与合并前逐字相同。
+    const presentedNow = presentedNowOf(this.shotPin, snapshot.now);
     this.syncBuildings();
     this.refreshGroundDecals();
 
@@ -4366,7 +4631,7 @@ export class SandboxScene extends Phaser.Scene {
       const look = style === undefined ? legacyLookFor(villager.id) : resolveLook(style);
       const appearance = { look, lamp: style?.lamp === true };
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
-      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
+      updateVillager(view, villager, presentedNow, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
     }
     // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
     // 只画可见的人；世界暂停时相位不动，影子也不动。
@@ -4386,9 +4651,9 @@ export class SandboxScene extends Phaser.Scene {
       }
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
-    this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
+    this.weatherFogView?.update(this.sim.weatherFogDensity(), presentedNow);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
-    // 今天 13:00 提前盖上了（记忆进行为）。天气那一档读环境帧；
+    // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。
     // 判据脚本钉的 `forcedPacked` 压过派生值——覆写优先，画面才钉得住。
     const env = this.sim.environment({
       phase: this.phaseView.currentPhase(),
@@ -4396,12 +4661,12 @@ export class SandboxScene extends Phaser.Scene {
     });
     const stallsPacked = this.forcedPacked
       ?? (stallsPackedFor(env) || this.sim.preCoveredToday());
-    this.weatherStallsView?.update(stallsPacked, this.snapshot.now, this.stallMotion);
-    // 潮位同理：帧里的有效潮位是默认，脚本钉住的 `pinnedTide` 优先。
-    const tideLevel = this.pinnedTide ?? env.tideLevel;
+    this.weatherStallsView?.update(stallsPacked, presentedNow, this.stallMotion);
+    // 潮位同理：判据覆写（`pinnedTide`）优先于拍摄钉住；两者都没有时用快照值。
+    const tideLevel = this.pinnedTide ?? presentedTideOf(this.shotPin, env.tideLevel);
     this.tideView.update(tideLevel);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
-    this.settingScenery?.update(tideLevel, this.snapshot.now, {
+    this.settingScenery?.update(tideLevel, presentedNow, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
       litOverride: this.forcedLamps ?? undefined,
@@ -4413,11 +4678,13 @@ export class SandboxScene extends Phaser.Scene {
       hideBayMist: this.hideBayMist,
       packed: stallsPacked,
     });
-    this.phaseView.update(this.snapshot, delta);
+    // 昼夜层读的是呈现时刻：钉住时给一份同值拷贝，免得「画面上按 12:30 算的鸟、
+    // 按真实时刻算的暗角」对不上。
+    this.phaseView.update(phaseInputOf(this.shotPin, snapshot), delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。
     this.ambienceView.update(
-      this.snapshot.now,
+      presentedNow,
       this.phaseView.currentPhase(),
       this.cameras.main.worldView,
     );
@@ -4425,7 +4692,7 @@ export class SandboxScene extends Phaser.Scene {
     // 留一片迷雾在中间会读成「这里还没长出来」。半径由世界给到盖住整张图，
     // 旧镇的迷雾照旧由世界自己收敛。判据在 `Simulation.visibleFog`，视图与两道闸
     // 读快照里同一个数，这里不再另算。设定集图没有探索迷雾视图（见 `create` 那段）。
-    this.fogView?.update(this.snapshot.fog, this.snapshot.now);
+    this.fogView?.update(this.snapshot.fog, presentedNow);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {
@@ -4633,6 +4900,374 @@ export class SandboxScene extends Phaser.Scene {
     return null;
   }
 
+  // --- interior ---------------------------------------------------------
+  //
+  // 进门 / 内景 / 退出是**纯视图**的一段：不写世界、不动存档、不发事件。
+  // 世界上唯一的变化是「相机在看哪」，所以三枚指纹一枚都不该变。
+
+  /**
+   * 画面中心的世界坐标。
+   *
+   * Phaser 的镜头变换是「以 `scroll + width/2` 为中心、再乘 zoom」：屏幕中心对应的
+   * 世界点就是 `scroll + width/2`，**与 zoom 无关**（zoom 只改可视范围的大小）。
+   * 第一次取证按 `width/(2·zoom)` 算，2 倍镜下把镜头多推了 120/80 世界像素，
+   * 内景于是被裁成左上角那一块——那个「偏移」是我自己算出来的，不是引擎的。
+   */
+  private cameraCenter(): { readonly x: number; readonly y: number } {
+    const cam = this.cameras.main;
+    return {
+      x: cam.scrollX + cam.width / 2,
+      y: cam.scrollY + cam.height / 2,
+    };
+  }
+
+  /** 中心点 → 滚动值。与 Phaser `centerOn` 同一套语义，自己写只是为了留注释。 */
+  private centerCameraAt(x: number, y: number): void {
+    const cam = this.cameras.main;
+    cam.scrollX = x - cam.width / 2;
+    cam.scrollY = y - cam.height / 2;
+  }
+
+  /** 楼心的世界坐标。进场与退场都往它插值。 */
+  private interiorCenter(building: PlacedBuilding): { readonly x: number; readonly y: number } {
+    return {
+      x: (building.origin.x + building.footprint.w / 2) * TILE_PX,
+      y: (building.origin.y + building.footprint.h / 2) * TILE_PX,
+    };
+  }
+
+  /**
+   * 点在门上？门槛格（footprint 外那一格）与门框格（footprint 最下排的同一 x）
+   * 都算门。判在 `openBuildingStatusAt` 之前：否则点门框会先弹楼的菜单。
+   */
+  private enterInteriorAt(pointer: Phaser.Input.Pointer): boolean {
+    if (this.interiorMode !== 'street') return false;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const cellX = Math.floor(world.x / TILE_PX);
+    const cellY = Math.floor(world.y / TILE_PX);
+    for (const building of this.snapshot.buildings) {
+      if (cellX !== building.door.x) continue;
+      const frameY = building.origin.y + building.footprint.h - 1;
+      if (cellY === building.door.y || cellY === frameY) {
+        return this.enterInterior(building.instanceId);
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 进屋：记住相机位姿 → 把楼心对到屏幕中心 → 内景交叉淡入。
+   *
+   * 位姿是**照抄**下来的（`scrollX/scrollY/zoom` 三个原值），不是重算的；
+   * 退出时照抄回去，所以「回到原点」是逐字相同，不是看起来差不多。
+   */
+  enterInterior(buildingId: string): boolean {
+    if (this.interiorMode !== 'street') return false;
+    const building = this.snapshot.buildings.find((item) => item.instanceId === buildingId);
+    if (building === undefined) return false;
+
+    const cam = this.cameras.main;
+    const bounds = cam.getBounds();
+    this.interiorSavedPose = {
+      scrollX: cam.scrollX,
+      scrollY: cam.scrollY,
+      zoom: cam.zoom,
+      centerX: this.cameraCenter().x,
+      centerY: this.cameraCenter().y,
+      bounds: {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+      },
+    };
+
+    this.interiorBuildingId = building.instanceId;
+    this.interiorFloor = INTERIOR_FIRST_FLOOR;
+    this.interiorSwitchTo = INTERIOR_FIRST_FLOOR;
+    this.interiorFrames = 0;
+    this.interiorMode = 'entering';
+    // 靠边的楼在世界边界内对不到屏幕正中：临时放开边界，退出时原样写回。
+    cam.setBounds(-40_000, -40_000, 80_000, 80_000);
+
+    this.interiorView = this.interiorView ?? createInteriorView(this);
+    this.interiorView.show(building, {
+      width: cam.width,
+      height: cam.height,
+      zoom: cam.zoom,
+    }, INTERIOR_FIRST_FLOOR);
+    this.refreshInteriorOccupants();
+    // 屋顶与烟囱收起来：进场的那几帧能看见剖面，而不是屋顶盖着内景。
+    this.setBuildingShellVisible(building.instanceId, false);
+    this.setStreetOverlaysVisible(false);
+
+    if (this.interiorTransitionEnabled) {
+      this.interiorView.setReveal(0);
+    } else {
+      const center = this.interiorCenter(building);
+      this.centerCameraAt(center.x, center.y);
+      this.interiorView.setReveal(1);
+      this.interiorMode = 'inside';
+    }
+
+    writeInteriorViewState({ buildingId: building.instanceId, floor: this.interiorFloor });
+    return true;
+  }
+
+  /** 点门退出：反向过渡，末帧把相机位姿逐字写回。 */
+  exitInterior(): boolean {
+    if (this.interiorMode === 'street' || this.interiorMode === 'exiting') return false;
+    // 切层走到一半被叫退出：先把楼层落地，再从那一层往街景退。
+    // 不这样的话会从 `interiorFloor`（旧层）开始插值，出去再进来看到的层号是错的。
+    if (this.interiorMode === 'switching') this.settleInteriorFloor();
+    this.interiorFrames = 0;
+    if (!this.interiorTransitionEnabled) {
+      this.finishInteriorExit();
+      return true;
+    }
+    this.interiorMode = 'exiting';
+    return true;
+  }
+
+  /** 每推进一帧调一次：进场 / 切层 / 室内 / 退场的唯一驱动。固定帧数，不读墙钟。 */
+  private updateInterior(): void {
+    if (
+      this.interiorMode === 'entering'
+      || this.interiorMode === 'exiting'
+      || this.interiorMode === 'switching'
+    ) {
+      // 验收机位可以钉住帧号（`?interior=step`）：不然截图那几百毫秒足够走完 18 帧，
+      // 「过渡中点帧」永远拍成室内帧。
+      if (!this.interiorStepMode) this.interiorFrames += 1;
+      this.applyInteriorFrame();
+      return;
+    }
+    // 室内：画面已经稳了，只把在场的人与楼梯提示刷新一下。
+    this.refreshInteriorOccupants();
+    this.interiorView?.tick();
+  }
+
+  /** 按当前帧号重算这一帧的画面：进场插值 / 退场插值 / 完成判定。 */
+  private applyInteriorFrame(): void {
+    const pose = this.interiorSavedPose;
+    const view = this.interiorView;
+    const buildingId = this.interiorBuildingId;
+    if (pose === null || view === null || buildingId === null) {
+      this.finishInteriorExit();
+      return;
+    }
+    const building = this.snapshot.buildings.find((item) => item.instanceId === buildingId);
+    if (building === undefined) {
+      this.finishInteriorExit();
+      return;
+    }
+    const center = this.interiorCenter(building);
+    const progress = smoothStep(interiorTransitionProgress(this.interiorFrames));
+
+    if (this.interiorMode === 'entering') {
+      this.centerCameraAt(
+        lerp(pose.centerX, center.x, progress),
+        lerp(pose.centerY, center.y, progress),
+      );
+      view.setReveal(progress);
+      this.refreshInteriorOccupants();
+      if (this.interiorFrames >= INTERIOR_TRANSITION_FRAMES) {
+        // 不清零：验收要读到的就是「走满了几帧」。室内态不再自增，留着无妨。
+        this.interiorMode = 'inside';
+        view.setReveal(1);
+      }
+      return;
+    }
+
+    if (this.interiorMode === 'switching') {
+      // 切层：相机不动，画面在中点黑到底，黑的那一帧才换贴图。
+      // 这里只淡**房间**、不淡暗场：`setReveal` 连暗场一起收，中点就会露出街景，
+      // 那是「走出门」的效果，不是「在屋里上楼」。
+      const opacity = interiorSwitchOpacity(this.interiorFrames);
+      view.setReveal(1);
+      view.setRoomOpacity(opacity);
+      if (
+        this.interiorFloor !== this.interiorSwitchTo
+        && this.interiorFrames >= INTERIOR_SWITCH_SWAP_FRAME
+      ) {
+        this.interiorFloor = this.interiorSwitchTo;
+        view.setFloor(this.interiorFloor);
+      }
+      view.tick();
+      if (this.interiorFrames >= INTERIOR_TRANSITION_FRAMES) {
+        this.settleInteriorFloor();
+        view.setRoomOpacity(1);
+      }
+      return;
+    }
+
+    if (this.interiorMode === 'exiting') {
+      this.centerCameraAt(
+        lerp(center.x, pose.centerX, progress),
+        lerp(center.y, pose.centerY, progress),
+      );
+      view.setReveal(1 - progress);
+      view.tick();
+      if (this.interiorFrames >= INTERIOR_TRANSITION_FRAMES) this.finishInteriorExit();
+    }
+  }
+
+  /**
+   * 验收专用：把过渡一帧一帧推。只在 `?interior=step` 下有意义。
+   *
+   * 不读墙钟、不看 delta——帧号是唯一的输入，所以同一帧号在任何机器上都画同一张图。
+   */
+  stepInterior(frames = 1): boolean {
+    if (!this.interiorStepMode) return false;
+    const inTransition = (): boolean =>
+      this.interiorMode === 'entering'
+      || this.interiorMode === 'exiting'
+      || this.interiorMode === 'switching';
+    if (!inTransition()) return false;
+    for (let index = 0; index < frames; index += 1) {
+      if (!inTransition()) break;
+      this.interiorFrames += 1;
+      this.applyInteriorFrame();
+    }
+    return true;
+  }
+
+  private finishInteriorExit(): void {
+    const pose = this.interiorSavedPose;
+    const buildingId = this.interiorBuildingId;
+    const cam = this.cameras.main;
+
+    if (pose !== null) {
+      // 顺序有讲究：先还原边界，再还原倍率，最后写回滚动值。
+      // 反过来写的话，最后一次夹取会按临时的大边界把画面留在楼里。
+      cam.setBounds(pose.bounds.x, pose.bounds.y, pose.bounds.width, pose.bounds.height);
+      cam.setZoom(pose.zoom);
+      cam.scrollX = pose.scrollX;
+      cam.scrollY = pose.scrollY;
+    }
+    if (buildingId !== null) this.setBuildingShellVisible(buildingId, true);
+    this.setStreetOverlaysVisible(true);
+
+    this.interiorView?.hide();
+    this.interiorMode = 'street';
+    this.interiorBuildingId = null;
+    this.interiorSavedPose = null;
+    this.interiorFrames = 0;
+    this.interiorFloor = INTERIOR_FIRST_FLOOR;
+    this.interiorSwitchTo = INTERIOR_FIRST_FLOOR;
+    writeInteriorViewState(null);
+  }
+
+  /**
+   * 切层：`delta=+1` 上楼、`-1` 下楼。**楼层只在视图里**，不动世界状态、不发事件。
+   *
+   * 越界（在顶层再往上、底层再往下）不绕回另一头，只闪一下被点的那一段：
+   * 上楼键在上半、下楼键在下半，点哪儿反馈就落哪儿，不让人猜为什么没动。
+   */
+  switchInteriorFloor(delta: number): boolean {
+    if (this.interiorMode !== 'inside') return false;
+    const buildingId = this.interiorBuildingId;
+    if (buildingId === null) return false;
+    const building = this.snapshot.buildings.find((item) => item.instanceId === buildingId);
+    if (building === undefined) return false;
+    const floors = interiorFloorsFor(building);
+    const target = this.interiorFloor + Math.sign(delta);
+    if (target < INTERIOR_FIRST_FLOOR || target > floors) {
+      this.interiorView?.flashStairs(delta > 0 ? 'up' : 'down');
+      return false;
+    }
+
+    this.interiorSwitchTo = target;
+    this.interiorFrames = 0;
+    // 过渡开关关掉时直接换图：验收冻结帧不能被切层动画搅动。
+    if (!this.interiorTransitionEnabled) {
+      this.interiorFloor = target;
+      this.interiorView?.setFloor(target);
+      this.interiorView?.setRoomOpacity(1);
+      this.interiorView?.setReveal(1);
+      this.writeInteriorView();
+      return true;
+    }
+    this.interiorMode = 'switching';
+    return true;
+  }
+
+  /** 切层过渡走完（或半途被退出打断）：把目标层认账，回到室内态。 */
+  private settleInteriorFloor(): void {
+    if (this.interiorFloor !== this.interiorSwitchTo) {
+      this.interiorFloor = this.interiorSwitchTo;
+      this.interiorView?.setFloor(this.interiorFloor);
+    }
+    this.interiorMode = 'inside';
+    this.writeInteriorView();
+  }
+
+  /** 楼层变化后只写**本机独立键**：读档不还原，回街景。 */
+  private writeInteriorView(): void {
+    const buildingId = this.interiorBuildingId;
+    if (buildingId === null) return;
+    writeInteriorViewState({ buildingId, floor: this.interiorFloor });
+  }
+
+  /** 室内点击：门=退出，楼梯上半=上楼、下半=下楼（越界只闪提示）。 */
+  private interiorClick(pointer: Phaser.Input.Pointer): void {
+    if (this.interiorMode !== 'inside') return;
+    const view = this.interiorView;
+    if (view === null) return;
+    // 内景画在屏幕坐标上，命中判定也直接用画布内部坐标，不再绕世界坐标。
+    const hit = view.hitTest(pointer.x, pointer.y);
+    if (hit === 'door') {
+      this.exitInterior();
+      return;
+    }
+    if (hit === 'stairs') {
+      const direction = view.stairDirectionAt(pointer.x, pointer.y);
+      if (direction === null) return;
+      // 越界时 `switchInteriorFloor` 自己已经闪了对应那一段，这里不重复闪。
+      this.switchInteriorFloor(direction === 'up' ? 1 : -1);
+    }
+  }
+
+  /**
+   * 屋里此刻有谁：`visible === false` 且占地判到本楼的人——就是上工那批。
+   * **没人就是空数组**，房间照空着画，不摆假人。
+   */
+  private interiorOccupantsOf(buildingId: string | null): string[] {
+    if (buildingId === null) return [];
+    return this.snapshot.villagers
+      .filter((villager) => !villager.visible && this.buildingIdAt(villager.pos) === buildingId)
+      .map((villager) => villager.id)
+      .sort();
+  }
+
+  private refreshInteriorOccupants(): void {
+    const view = this.interiorView;
+    if (view === null) return;
+    view.setOccupants(this.interiorOccupantsOf(this.interiorBuildingId));
+  }
+
+  private setBuildingShellVisible(buildingId: string, visible: boolean): void {
+    for (const entry of this.entries) {
+      if (entry.building.instanceId !== buildingId) continue;
+      entry.view.roof.setVisible(visible);
+      entry.view.chimney.setVisible(visible);
+    }
+  }
+
+  /**
+   * 街景的 DOM 浮层（人名/气泡投影与小地图）在屋里没有意义：
+   * 它们画在 canvas 之上，压过内景，而且会跟着自己那份世界继续动——
+   * 「冻结 1 秒画面 0 差异」里那 1032 个变化像素就是它们。
+   * 用 `visibility` 而不是 `display`：`#stage` 的尺寸不能跳。
+   */
+  private setStreetOverlaysVisible(visible: boolean): void {
+    for (const selector of ['#world-overlay', '#minimap']) {
+      const node = document.querySelector<HTMLElement>(selector);
+      if (node === null) continue;
+      node.style.visibility = visible ? '' : 'hidden';
+    }
+  }
+
   /**
    * 铺子的名字。**查不到就给 null，不把 instanceId 当名字还回去。**
    *
@@ -4750,15 +5385,6 @@ export class SandboxScene extends Phaser.Scene {
 }
 
 /**
- * `?now=` 的解析：0..1439 的整数世界分钟。
- *
- * 非法值（非数字、负数、超过一天、小数）当作没给——一个坏参数不该把世界
- * 悄悄挪到别的时刻，也不该白屏；回归脚本写错了会看到「还是 00:00」，比
- * 看到一个看似合理的错时刻更容易发现。
+ * `?now=` 的解析已收进 `./debug-now.ts`（整数分钟、坏参数明确失败），
+ * 这里只保留调用；`HH:MM` 那套已删除，仓库里只允许一种写法。
  */
-function parseMinuteOfDay(raw: string | null): number | undefined {
-  if (raw === null || raw.trim() === '') return undefined;
-  const minutes = Number(raw);
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1439) return undefined;
-  return minutes;
-}

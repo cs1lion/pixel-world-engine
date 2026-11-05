@@ -155,6 +155,10 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   // 给 0.15 与 `routine_done` 同档，不因为它天天发生就忽然变重。
   daily_water: { emotion: 0.25, surprise: 0.15, goalRelevance: 0.25, involvement: 0.15 },
   daily_lamp: { emotion: 0.3, surprise: 0.15, goalRelevance: 0.25, involvement: 0.15 },
+  // 进屋：对当事人是日常，对街上的人是一次「消失」——意外度与目标相关性
+  // 都得够，旁观者才写得进记忆（`(0.4 + 0.4 + 0.55 + 0.15) / 4 = 0.375`，
+  // 高于 T_write 0.3）。门槛压在 0.4 以下，不把这条日常推到传说级。
+  home_entry: { emotion: 0.4, surprise: 0.4, goalRelevance: 0.55, involvement: 0.15 },
   tavern_feast: { emotion: 0.85, surprise: 0.4, goalRelevance: 0.4, involvement: 0.35 },
   unknown: { emotion: 0.3, surprise: 0.3, goalRelevance: 0.3, involvement: 0.2 },
 };

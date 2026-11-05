@@ -10,9 +10,23 @@
  *   2. node scripts/check-phases.mjs
  *
  * 截图落在 eval/screens/phase-<id>.png，失败时可直接看。
+ *
+ * ── 两轮采样 + 钉法（2026-11-06 合并内景线时按用户裁决落地）───────────
+ * 冷启动的第一个页面要付 WebGL 管线/着色器首次编译、纹理首次上传、bundle
+ * 解码与 JIT 的钱；这段时间 rAF 的帧间隔被拉长，而相位渐变按**累计 delta**
+ * 推进（`FADE_MS = 900`）。所以首跑那次 `dawn 65.42 vs noon 66.10` 才会出现。
+ *
+ * 因此：预热一轮（`scored=false`）+ 计分一轮（`scored=true`）。
+ *   · **预热轮不进基线**：不写截图、不产出任何 pass/fail，读数全部丢弃；
+ *   · 计分轮才产出图与判定，基线只来自这一轮；
+ *   · `waitForTimeout(2200)` 与 `advanceCount 60` 是**冷启动预热手段，不是
+ *     确定性机制**——它们只把采样窗口对齐到「页面真的渲染过」，不保证两跑
+ *     逐像素相同；确定性来自下面的钉法（钉取景 / 居民落定 / 冻钟 00:35 /
+ *     压暗探针）。
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { waitFadeSettled, waitVillagersSettled } from './lib/capture.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = process.env.EVAL_OUT ?? 'eval/screens';
@@ -103,6 +117,9 @@ const decodeStats = async (shots) => {
 const capturePass = async (scored) => {
   const shots = {};
   const errors = [];
+  const facts = {};
+  /** 每张图的抓拍读数：实际等了多久（ms）、看了多少帧。只带出计分轮的。 */
+  const waits = [];
 
   for (const phase of PHASES) {
     const page = await context.newPage();
@@ -112,12 +129,9 @@ const capturePass = async (scored) => {
       await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
       await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
       // 渐变 FADE_MS = 900，等两倍确保拍到终态。
+      // ⚠ 这 2200ms 与下面的 60 帧是**冷启动预热**：只把采样窗口对齐到
+      // 「页面已渲染」，它们不保证两跑逐像素相同；逐像素一致靠后面钉法。
       await page.waitForTimeout(2200);
-      // 但墙钟不等于画面进度：冷启动的首帧可能卡 2s 以上，2200ms 到了，
-      // 这一页却连一次 update 都没跑过——实测 noon 均值 59.02（正常 66.10），
-      // 压暗与雾带根本没上屏。所以再等这一页**真的推进 60 帧**（60 帧 ≈ 1s，
-      // 覆盖 FADE_MS = 900 的渐变）才取图。这是把采样窗口对齐到「页面已渲染」，
-      // 不改任何亮度阈值或断言。
       const advanced = await page.evaluate(() => window.Oracle.ecoState().advanceCount);
       await page.waitForFunction(
         (target) => window.Oracle.ecoState().advanceCount >= target,
@@ -125,17 +139,53 @@ const capturePass = async (scored) => {
         { timeout: 20000, polling: 50 },
       );
 
+      // 钉住取景：等居民回屋要 20 秒以上，一过 15 秒导播就会接管并跟着走路的人
+      // 平移——四刻截图会各自落在不同位置，整幅对不上。开局这一帧本来就对准
+      // 祭坛（旧基线也是这个取景），切 free 后把中心点写死在那里。
+      const framing = await page.evaluate(() => {
+        const c = window.Oracle.camera();
+        const cx = c.worldViewX + c.width / (2 * c.zoom);
+        const cy = c.worldViewY + c.height / (2 * c.zoom);
+        window.Oracle.setCameraMode('free');
+        window.Oracle.centerCameraOn(cx, cy);
+        const after = window.Oracle.camera();
+        return { before: c, after };
+      });
+      // 先等两人回屋（街面不再有会动的精灵），再把世界时钟钉到 00:35 并冻住。
+      // 00:35 是他们各自坐下之后的固定时刻：萤火/窗灯的呼吸相位由此固定，
+      // 否则两跑的 `now` 差一秒，整片萤火都在不同的亮度上。
+      const folk = await waitVillagersSettled(page);
+      const pin = await page.evaluate(() => {
+        window.Oracle.jumpWorldClock(35);
+        const now = window.Oracle.freezeWorldClock();
+        return { now, pinned: window.Oracle.worldClockPinned() };
+      });
+
+      // 等压暗层渐变走完（取样区连续 3 帧不变），不再靠固定等待。
+      const box = await page.locator('canvas').first().boundingBox();
+      const fade = await waitFadeSettled(page, box);
+      waits.push({
+        shot: `phase-${phase}`,
+        waitedMs: folk.waitedMs + fade.waitedMs,
+        frames: fade.frames,
+        method: 'villagers-inside + clock-pin(00:35) + fade-probe',
+        villagersMs: folk.waitedMs,
+        fadeMs: fade.waitedMs,
+      });
+
       const actual = await page.evaluate(() => window.Oracle.currentPhase());
       const buffer = await page.locator('canvas').first().screenshot();
       if (scored) await writeFile(`${OUT}/phase-${phase}.png`, buffer);
       shots[phase] = { buffer, actual };
+      facts[phase] = { framing, folk, pin, fade };
     } finally {
       await page.close();
     }
   }
 
   // 夜雨必须隐藏萤火。产品没有 `?rain=` 入口——天气只能由神谕或台账改，
-  // 所以这里走真实操作路径：说一句「下雨吧」，等雨上屏再拍。
+  // 所以这里走真实操作路径：先等这一层压暗收敛（雨幕自己会动，探针在雨里
+  // 永远不收敛），再说一句「下雨吧」，等雨上屏再拍。
   const nightRain = await (async () => {
     const page = await context.newPage();
     try {
@@ -143,39 +193,36 @@ const capturePass = async (scored) => {
       await page.addInitScript(() => localStorage.clear());
       await page.goto(`${BASE}?ledger=off&time=night&debug=1`, { waitUntil: 'load' });
       await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
-      await page.waitForTimeout(400);
+      const box = await page.locator('canvas').first().boundingBox();
+      const fade = await waitFadeSettled(page, box);
+      waits.push({
+        shot: 'phase-night-rain:fade',
+        waitedMs: fade.waitedMs,
+        frames: fade.frames,
+        method: 'probe',
+      });
 
       const said = await page.evaluate(() => window.Oracle.say('下雨吧'));
 
-      // 雨渐变 1.8 秒；等足 3 秒确保 intensity 拉满。
+      // 雨渐变 1.8 秒；等足 3 秒确保 intensity 拉满。雨幕本身逐帧在动，
+      // 探针在这里不可用——这一张的等待时长照实记成固定值。
       await page.waitForTimeout(3000);
+      waits.push({ shot: 'phase-night-rain', waitedMs: 3000, frames: -1, method: 'fixed(rain)' });
       const weather = await page.evaluate(() => window.Oracle.view().weather);
 
       const buffer = await page.locator('canvas').first().screenshot();
       if (scored) await writeFile(`${OUT}/phase-night-rain.png`, buffer);
-      return { buffer, weather, said };
+      return { buffer, weather, said, fade };
     } finally {
       await page.close();
     }
   })();
 
   const stats = await decodeStats(shots);
-  return { shots, nightRain, stats, errors };
+  return { shots, nightRain, stats, errors, facts, waits };
 };
 
-/**
- * 预热轮（不计分）。
- *
- * 冷启动的第一个页面要付 WebGL 管线/着色器首次编译、生成纹理首次上传、
- * 1.6MB bundle 的解码与 JIT 的钱；这段时间 rAF 的帧间隔被拉长，而相位渐变
- * 按**累计 delta** 推进（`FADE_MS = 900`，见 `src/render/phase-view.ts`）。
- * 所以「等 2200ms 墙钟」在冷启动里可能只积累了不到 900ms 的游戏时间，
- * 晨刻的渐变没走完就被截屏——首跑那次 `dawn 65.42 vs noon 66.10` 就是这么来的。
- *
- * 这里先按**完全相同的路径**跑一遍（四刻页 + 夜雨页 + PNG 解码），读数全部丢弃，
- * 把一次性的首次成本消化在正式采样之前。阈值、断言条件、用例数量一个未动：
- * 正式轮仍是原来那 17 项，预热轮不产出任何 pass/fail。
- */
+// 预热轮（不计分）：路径与正式轮逐字相同，读数全部丢弃，不写截图、不判定。
 const warm = await capturePass(false).catch((error) => {
   console.log(`[预热轮] 不计分：预热失败（${error.message}），继续正式采样`);
   return null;
@@ -189,9 +236,38 @@ const pass = await capturePass(true);
 const shots = pass.shots;
 
 for (const phase of PHASES) {
+  const fact = pass.facts[phase];
+  check(
+    fact.framing.after.mode === 'free' &&
+      fact.framing.after.worldViewX === fact.framing.before.worldViewX &&
+      fact.framing.after.worldViewY === fact.framing.before.worldViewY &&
+      fact.framing.after.zoom === fact.framing.before.zoom,
+    `${phase} 取景钉在开局（祭坛）`,
+    `${fact.framing.before.worldViewX},${fact.framing.before.worldViewY} zoom=${fact.framing.before.zoom} → ${fact.framing.after.worldViewX},${fact.framing.after.worldViewY} zoom=${fact.framing.after.zoom} mode=${fact.framing.after.mode}`,
+  );
+  check(
+    fact.folk.settled,
+    `${phase} 居民落定（不再走动）`,
+    `等待 ${fact.folk.waitedMs}ms / ${fact.folk.polls} 拍`,
+  );
+  check(
+    fact.pin.pinned && (fact.pin.now / 60_000) % 1440 === 35,
+    `${phase} 世界时钟钉在 00:35`,
+    `now=${fact.pin.now}`,
+  );
+  check(
+    fact.fade.settled,
+    `${phase} 压暗层 6 秒内收敛`,
+    `等待 ${fact.fade.waitedMs}ms / ${fact.fade.frames} 帧`,
+  );
   check(pass.shots[phase].actual === phase, `?time=${phase} 真的停在${phase}`, `实际 ${pass.shots[phase].actual}`);
 }
 check(pass.errors.length === 0, '四刻页面无 JS 报错', pass.errors.join('; '));
+check(
+  pass.nightRain.fade.settled,
+  'night（雨前）压暗层 6 秒内收敛',
+  `等待 ${pass.nightRain.fade.waitedMs}ms / ${pass.nightRain.fade.frames} 帧`,
+);
 
 // 亮度严格递减
 for (let i = 0; i < PHASES.length - 1; i += 1) {
@@ -238,6 +314,9 @@ check(
 
 await browser.close();
 
+for (const item of pass.waits) {
+  console.log(`capture ${item.shot} waitedMs=${item.waitedMs} frames=${item.frames} method=${item.method}`);
+}
 for (const item of reports) {
   console.log(`${item.ok ? 'ok  ' : 'FAIL'} ${item.label}${item.detail === '' ? '' : `  ${item.detail}`}`);
 }

@@ -145,32 +145,46 @@ test('上游撤单：牌子没了，人被挪到铺子门口，同样不在祭�
   assert.equal(reattachAfter, 18, `撤单后该空 1800 拍（18 个 100ms）才挂新牌子，实得第 ${reattachAfter} 个`);
 });
 
-test('清牌子的路口一共六条：多出来的那条也要回 idle', () => {
+test('清牌子的路口一共七条：两条新增的也要回 idle', () => {
   // 这一条不驱世界，直接数源码：`routineLabel = null` 在 simulation.ts 里
-  // 出现几次，各自在哪个函数里。数出来是 9 处赋值，其中让人回到 idle 且没有
-  // 牌子的路口是 `abandonActiveTask`、`removeTask`、`finishInPlace`、
-  // `failDeliveryFromHunger`、`arriveAtAltar`、`wakeUp` 六个——最后那个她人就在
-  // 睡下的那一格，醒来同一拍就由作息重新挂牌，退路也是真的。
+  // 出现几次，各自在哪个函数里。合并内景线（2026-11-06）后数出来是 10 处赋值，
+  // 其中让人回到 idle 且没有牌子的路口是 `abandonActiveTask`、`removeTask`、
+  // `finishInPlace`、`failDeliveryFromHunger`、`arriveAtAltar`、`wakeAtHome`、
+  // `wakeUp` 七个。
   //
-  // 第五条是 2026-11-04 的失败原型（饿到顶 → 这一趟没送到）：它按
-  // `finishInPlace` 的同一套收尾——回 idle、清牌子、`nextRoutineAt` 往后挪。
-  // 第六条是 2026-11-05 的疲劳块（熬不住就地睡下 → 醒来）：`wakeUp` 撤掉睡牌、
-  // 把「上次睡醒」拨到此刻；她本来就在 idle，醒来那一拍继续问吃/作息。
-  // 多一条路口就得在这里多一个数：数一遍不会让新加的路口自动进注释，
-  // 但能让「到底有几条」有个可复按的数。
+  // 逐条来历（两边都活着，不是任一方覆盖另一方）：
+  // · `abandonActiveTask` / `removeTask` / `finishInPlace`：原有三条。
+  // · `failDeliveryFromHunger`：2026-11-04 的失败原型（饿到顶 → 这一趟没送到），
+  //   按 `finishInPlace` 的同一套收尾——回 idle、清牌子、`nextRoutineAt` 往后挪。
+  // · `arriveAtAltar`：原有，到祭坛那拍把牌子交给作息。
+  // · `wakeAtHome`：内景线「回家」那条新增的第五条。天亮从屋里出来，`visible`
+  //   翻回 true、人站到门口、牌子摘掉交给作息；她人就在自家门口，退路是真的。
+  // · `wakeUp`：2026-11-05 的疲劳块（熬不住就地睡下 → 醒来）新增的第六条。
+  //   撤掉睡牌、把「上次睡醒」拨到此刻；她本来就在 idle，醒来继续问吃/作息。
   //
-  // 另外三处都不回 idle，所以不在那六条里：`routeToBuilding`（她正赶往工位）、
+  // 另外三处都不回 idle，所以不在那七条里：`routeToBuilding`（她正赶往工位）、
   // `arriveAtWork`（她已到工位）、`stepDecrees`（她举着急件跑向祭坛）。三处的
   // 说法都归 `villagerModeLabel` 按 mode 分支管，压根不读牌子——清与不清都不
-  // 改变屏上与纸上。**别把「9 处」读成「九条路口」**：能问「她人在哪儿」的
-  // 只有回到 idle 那六条，另外三处那一刻她有别的说法。
+  // 改变屏上与纸上。**别把「10 处」读成「十条路口」**：能问「她人在哪儿」的
+  // 只有回到 idle 那七条，另外三处那一刻她有别的说法。
+  //
+  // 旧值→新值：分支 8 处 / 5 路口 → main 9 处 / 6 路口 → **合并后 10 处 / 7 路口**。
+  // 不是取某一边：两边新增的 `wakeAtHome` 与 `wakeUp` 都保留，所以是并集 +1。
   //
   // 为什么值得数：注释里那句「只有撤单那条路」就是因为没人数过才活下来的。
   const source = readFileSync(new URL('../src/world/simulation.ts', import.meta.url), 'utf8');
   const assignments = [...source.matchAll(/routineLabel = null/g)];
-  assert.equal(assignments.length, 9, `simulation.ts 里清牌子的地方该是 9 处，实得 ${assignments.length}`);
-  // 六个路口名都在文件里——少一个就说明有人删了一条路，那段注释得重看。
-  for (const fn of ['abandonActiveTask', 'removeTask', 'finishInPlace', 'failDeliveryFromHunger', 'arriveAtAltar', 'wakeUp']) {
+  assert.equal(assignments.length, 10, `simulation.ts 里清牌子的地方该是 10 处，实得 ${assignments.length}`);
+  // 七个路口名都在文件里——少一个就说明有人删了一条路，那段注释得重看。
+  for (const fn of [
+    'abandonActiveTask',
+    'removeTask',
+    'finishInPlace',
+    'failDeliveryFromHunger',
+    'arriveAtAltar',
+    'wakeAtHome',
+    'wakeUp',
+  ]) {
     assert.ok(source.includes(fn), `simulation.ts 里找不到 ${fn}——清牌子的路口变了`);
   }
 });

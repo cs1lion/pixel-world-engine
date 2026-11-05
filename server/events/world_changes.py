@@ -88,6 +88,7 @@ WORLD_EVENT_KINDS = (
     "street_tumble",
     "street_water",
     "street_help",
+    "home_entry",
     "market_open",
     "work_end",
     "night_market",

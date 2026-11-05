@@ -30,6 +30,7 @@ import { lampActivityOf } from '../src/render/lampoil-view.ts';
 import type { GridPoint, VillagerSnapshot, WorldEvent } from '../src/world/types.ts';
 import type { WorldSave } from '../src/world/save.ts';
 import type { WorldChange } from '../src/world/world-changes.ts';
+import { HOME_GOING_LABEL, HOME_INSIDE_LABEL } from '../src/world/homecoming.ts';
 
 export const STEP_MS = 6000;
 export const STEPS_PER_DAY = 14400;
@@ -271,7 +272,22 @@ export class DailyRun {
     const walking = villager.walking;
     const minute = minuteOfDay(this.nowValue);
     if (!this.lastWalking && walking) {
-      if (this.arrivedAt !== null && this.arrivalLabel !== null && this.arrivalPos !== null) {
+      // 停留只记「环线上的作息停留」，两种归家时段不算：
+      // 1. 到站说法是「回家」/「在家里歇下了」——整夜在家，那不是一个 20–40 分的停拍；
+      //    进门那一拍快照里的说法还是「回家」，进屋之后才翻成「在家里歇下了」。
+      // 2. 这一趟离场是「回家」——它是回家线在 22:00 的接管，不是市面歇脚的结束。
+      // homecoming 合进来之后这两段才在数据里出现（之前家里没人、夜里也不离场），
+      // 期望值（20–40 分）本身一个字没动。
+      const sleptAtHome = this.arrivalLabel === HOME_INSIDE_LABEL
+        || this.arrivalLabel === HOME_GOING_LABEL;
+      const leavingForHome = villager.routine === HOME_GOING_LABEL;
+      if (
+        !sleptAtHome
+        && !leavingForHome
+        && this.arrivedAt !== null
+        && this.arrivalLabel !== null
+        && this.arrivalPos !== null
+      ) {
         this.dwells.push({
           arriveAt: this.arrivedAt,
           leaveAt: this.nowValue,
@@ -303,7 +319,13 @@ export class DailyRun {
         pos: { ...villager.pos },
       });
     }
-    if (walking && (minute >= 22 * 60 || minute < 5 * 60)) {
+    // 「夜里不巡镇」量的是巡镇，不是回家：回家线在 22:00–06:00 会让她逐格走到
+    // 自家门口，那几步是合法行为（走到门口才 `visible = false`）。
+    if (
+      walking
+      && (minute >= 22 * 60 || minute < 5 * 60)
+      && villager.routine !== HOME_GOING_LABEL
+    ) {
       this.nightWalkingSteps += 1;
     }
     this.lastWalking = walking;

@@ -17,6 +17,7 @@ import { litLampCountAt } from '../src/world/lamp-street.ts';
 import { worldMinutes } from '../src/world/pace.ts';
 import type { TimetableId } from '../src/world/timetable.ts';
 import type { WorldEventKind } from '../src/world/world-changes.ts';
+import { HOME_GOING_LABEL } from '../src/world/homecoming.ts';
 import {
   DailyRun,
   DAY_MS,
@@ -89,13 +90,16 @@ test('L1 日常环线：真的动了、真的停了、停 20–40 分、最后�
 
 test('L1 起卧：22:00–05:00 居民应当歇下来，不应继续巡镇', () => {
   const run = dayRun();
+  // 口径：回家线在 22:00–05:00 会让她逐格走到自家门口（走到门口才消失），
+  // 那几趟是「回家」，不是「巡镇」。期望值仍是 0；只是把合法归家排除在外。
   const nightDepartures = run.departures.filter(
-    (departure) => departure.minute >= 22 * 60 || departure.minute < 5 * 60,
+    (departure) => (departure.minute >= 22 * 60 || departure.minute < 5 * 60)
+      && departure.routine !== HOME_GOING_LABEL,
   );
   assert.equal(
     run.nightWalkingSteps,
     0,
-    `期望 22:00–05:00 走动步数=0（起卧），实测 ${run.nightWalkingSteps} 步；判定依据：` +
+    `期望 22:00–05:00 除归家外的走动步数=0（起卧），实测 ${run.nightWalkingSteps} 步；判定依据：` +
       '闭市后应回到住处过夜，而不是继续跑农田/街口/祭坛环线',
   );
   assert.equal(
@@ -223,7 +227,11 @@ test('L1 19:00 夜市：应有人/摊子真的动起来，不只是「灯下有�
 
 test('L1 22:00 闭市：应落成闭市改变并让镇子歇下来，不只是「市面闭了」', () => {
   const run = dayRun();
-  const afterClose = run.departures.filter((departure) => departure.minute >= 22 * 60);
+  // 口径：22:00 那一刻的「回家」是闭市的结果（人往家走），不是「市面还开着」。
+  // 期望值仍是 0；只把 `routine = 回家` 这一趟排除。
+  const afterClose = run.departures.filter(
+    (departure) => departure.minute >= 22 * 60 && departure.routine !== HOME_GOING_LABEL,
+  );
   expectBeatEvent('market_close', 'market_close');
   assert.equal(
     afterClose.length,

@@ -200,6 +200,14 @@ export type WorldEventKind =
   | 'street_tumble'
   | 'street_water'
   | 'street_help'
+  /**
+   * 有人走进自家门、从街面上消失。
+   *
+   * 与 `routine_done` 分开是因为目击者的记法不同：作息落点是「她在这里做着
+   * 什么」，这一条是「她不在这里了」——街上的目击者要记得去哪儿找她，
+   * 而不是记得她还站在门口。
+   */
+  | 'home_entry'
   | 'market_open'
   | 'work_end'
   | 'night_market'

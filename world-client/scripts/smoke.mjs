@@ -31,11 +31,15 @@ const FEED = process.env.FEED === '1';
 // 显式注入的昼夜阶段。默认正午；要验「换一个本地时刻也成立」时
 // `SMOKE_TIME=dawn|dusk|night` 各跑一次，脚本不再读 `Date.now()`。
 const SMOKE_TIME = process.env.SMOKE_TIME ?? 'noon';
-// 场景的世界时刻由脚本显式给定（`?now=` 世界分钟，00:00 起算）：**默认 00:00
-// 属夜间休息**，居民回锚点睡下，本脚本那条「没人管的时候她会自己走动」在
-// 00:00 语境下本来就不该成立。所以场景显式置为白天 08:15，断言保持原样。
-// `time=noon` 只管画面光照相位，不改世界时钟；世界时钟只由 `now` 给。
-const SMOKE_NOW_MINUTES = 495;
+// `?time=` 只换画面光照，**模拟时钟**另算（默认从 00:00 起）。世界有了回家语义后，
+// 夜里居民真的在屋里，脚本中段那些「户外的她」断言会落空。所以用 `?now=`
+// 把模拟起点也钉到同一刻（调试层参数，整数世界分钟，见 `scenes/debug-now.ts`）。
+//
+// 正午这一档钉 **10:00（600 分）** 而不是 12:00：12:00–14:00 是安静段
+// （`hasEnvironment('quiet')`），全镇回锚点坐着，「没人管的时候她会自己走动」
+// 等 120 秒也等不到脚步。
+// 06:30 / 10:00 / 18:00 / 22:30 → 390 / 600 / 1080 / 1350（整数分钟，唯一写法）。
+const SMOKE_NOW_MINUTES = { dawn: 390, noon: 600, dusk: 1080, night: 1350 }[SMOKE_TIME] ?? 600;
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
@@ -123,6 +127,8 @@ const measureOverlayFit = async () => {
 // 6 倍速定的。条件一个字不改，只把等待上限放宽到 120 秒。
 const waitFor = async (predicate, label, timeout = 120000) => {
   const started = Date.now();
+  // 进度日志：卡住时能看出停在哪一条等待上（只写 stdout，不影响画面）。
+  console.log(`wait  ${label}`);
   for (;;) {
     const snapshot = await state();
     if (predicate(snapshot)) {
@@ -135,6 +141,318 @@ const waitFor = async (predicate, label, timeout = 120000) => {
     await page.waitForTimeout(120);
   }
 };
+
+/**
+ * 截图前把镜头钉死。
+ *
+ * 导播闲置 15 秒后接管、有活就跟着干活的人平移——同码两跑的 01–06 因此
+ * 取景不同（05-build 实测可见差 9%）。这一条在每张叙事图前把镜头切 free
+ * 并对准那个人所在的**整格**：背景固定，人还在画面中间。
+ */
+const pinShotCamera = async () => {
+  const pos = await page.evaluate(() => window.Oracle.view().villager.pos);
+  await page.evaluate(
+    ({ x, y }) => {
+      window.Oracle.setCameraMode('free');
+      window.Oracle.centerCameraOn(x, y);
+    },
+    { x: Math.round(pos.x) * TILE_PX, y: Math.round(pos.y) * TILE_PX },
+  );
+  await page.waitForTimeout(250);
+};
+
+/**
+ * 等两人真正站定：`idle` + 不走 + 没活，且位置连拍三下不变（450ms）。
+ *
+ * 只看「位置指纹两次相同」会抓到两人在瓷砖之间停一拍的空档，冻下来的落点
+ * 两跑能差半个画面（08 实测莞尔有时在祭坛前、有时在左下角）。
+ * 06 原来只等主控空闲就冻钟，阿雾可能还在走，两跑差 0.19%（差在阿雾的
+ * idle 姿态与位置）；07/08 与 06 现在共用这一条判据。
+ */
+const waitVillagersSettled = async (label = '两人迟迟没有站定') => {
+  const started = Date.now();
+  let previous = null;
+  let same = 0;
+  for (;;) {
+    const snapshot = await page.evaluate(() => ({
+      pos: window.Oracle.view().villagers.map((v) => `${v.name}:${v.pos.x},${v.pos.y}`).join('|'),
+      standing: window.Oracle.view().villagers.every(
+        (v) => v.mode === 'idle' && v.walking === false && v.taskId === null,
+      ),
+    }));
+    same = previous !== null && snapshot.standing && snapshot.pos === previous ? same + 1 : 0;
+    previous = snapshot.pos;
+    if (same >= 3) return;
+    if (Date.now() - started > 120000) throw new Error(label);
+    await page.waitForTimeout(150);
+  }
+};
+
+/**
+ * 只测量用：把「呈现时刻 + 潮位 + 镜头」一起钉住（`PIN_SHOTS=1`）。
+ *
+ * 默认关闭，正常抓拍口径一字不改。打开时每张图拍完立刻解钉解冻，
+ * 世界照原样往下跑，判据读的仍是真快照。
+ *
+ * `anchor` 给 `{x, y}` 时镜头钉在整格；`null` 表示沿用 `pinShotCamera()`
+ * 刚对好的位置（那一步也是整格对齐）。
+ */
+const PIN_SHOTS = process.env.PIN_SHOTS === '1';
+const SHOT_MINUTE_MS = 45_000_000; // 当天 12:30，与 07/08 同一口径
+
+const pinForShot = async (anchor) => {
+  if (!PIN_SHOTS) return;
+  await page.evaluate(
+    ({ anchor, minuteMs }) => {
+      window.Oracle.freezeWorldClock();
+      const snapshot = window.Oracle.view();
+      window.Oracle.pinShotState(
+        Math.floor(snapshot.now / 86400000) * 86400000 + minuteMs,
+        0,
+      );
+      if (anchor !== null) {
+        window.Oracle.setCameraMode('free');
+        window.Oracle.centerCameraOn(anchor.x, anchor.y);
+      }
+    },
+    { anchor, minuteMs: SHOT_MINUTE_MS },
+  );
+  await page.waitForTimeout(300);
+};
+
+const unpinForShot = async () => {
+  if (!PIN_SHOTS) return;
+  await page.evaluate((pin) => {
+    if (pin) window.Oracle.unpinShotState();
+    window.Oracle.unfreezeWorldClock();
+  }, PIN_SHOTS);
+};
+
+const DAY_MS = 86_400_000;
+
+/**
+ * 01 的构图锚点（2026-11-06 用户裁决 A / 规则二）。
+ *
+ * 05:00–12:00 逐分钟扫默认大世界，含 `祭坛(48,36)` 的合法组合里离 07:05
+ * 最近的是 **07:34**（实测 07:34–07:43 每分成立）：
+ *   莞尔 河湾 (52,32)、阿雾 祭坛 (48,36)，两人都 `idle` / 不走 / 无活动任务、
+ *   都可见、同框；祭坛投影也在画框内。
+ * 次近的 07:51（街口+祭坛）晚 17 分钟，08:46（祭坛+河湾）晚 101 分钟。
+ */
+const SALUTE_PIN_MINUTE_MS = 7 * 3_600_000 + 34 * 60_000;
+const SALUTE_ANCHOR = { x: 52, y: 32 };
+const SALUTE_ALTAR = { x: 48, y: 36 };
+
+const isStandingIdle = (villager) =>
+  villager.walking === false && villager.mode === 'idle' && villager.taskId === null;
+
+/**
+ * 01 构图夹具：**独立页面从 05:00 开机**，等早晨的构图自然长出来。
+ *
+ * 为什么另起一页：主页面从 `?now=600`（10:00）开局，向前只能走，永远到不了
+ * 当天早晨；`jumpWorldClock` 回拨只改 `now`、不重算世界（`rewindNow` 只动
+ * 时钟），那等于伪造早晨。这里用与主页面同尺寸的独立 context，从 05:00 自然
+ * 跑到 07:34，世界状态与扫描探针同一口径。
+ *
+ * 钉的是呈现时刻 07:34 + 潮位 0；`?time=dawn`——07:34 属 dawn（day-phase.ts
+ * 的 5–9 点边界），画面必须是晨光，不能拿 noon 光照冒充晨时。旧基线用
+ * noon 光照却钉 07:05（底栏晨时、画面正午），本轮作废重录。
+ *
+ * 硬超时：等构图 600 秒实时；派活后 120 秒内必须看到 `mode === 'saluting'`
+ * （行礼的世界事实，渲染层据此下蹲 2px）。任一超时直接判红并打印现场，
+ * 不降级拍别的构图。
+ */
+const captureSalute01 = async () => {
+  const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
+  const shotPage = await context.newPage();
+  const shotErrors = [];
+  shotPage.on('pageerror', (error) => shotErrors.push(error.message));
+  await shotPage.addInitScript(() => {
+    try {
+      if (sessionStorage.getItem('xiaoxi.smoke.salute.cleared') === null) {
+        localStorage.clear();
+        sessionStorage.setItem('xiaoxi.smoke.salute.cleared', '1');
+      }
+    } catch {
+      /* 隐私模式等场景忽略 */
+    }
+  });
+  await shotPage.goto(
+    `${URL_BASE}?feed=off&debug=1&time=dawn&now=300&speed=30`,
+    { waitUntil: 'load' },
+  );
+  await shotPage.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });
+  check(shotErrors.length === 0, '01 专用页面加载无 JS 报错');
+  await shotPage.evaluate(() => {
+    document.documentElement.style.scrollbarGutter = 'stable';
+    document.documentElement.style.overflowY = 'scroll';
+    document.documentElement.style.overflowX = 'hidden';
+  });
+  await snapStage(shotPage);
+
+  const deadline = Date.now() + 600_000;
+  let found = null;
+  let lastMinute = -1;
+  while (Date.now() < deadline) {
+    const snapshot = await shotPage.evaluate(() => window.Oracle.view());
+    const [wan, wu] = snapshot.villagers;
+    const minute = Math.floor((snapshot.now % DAY_MS) / 60_000);
+    if (minute !== lastMinute) {
+      lastMinute = minute;
+      if (minute % 5 === 0) {
+        const hh = Math.floor(minute / 60);
+        const mm = String(minute % 60).padStart(2, '0');
+        console.log(`01 等构图：第 ${minute} 分（${hh}:${mm}）`);
+      }
+    }
+    const compositionOK =
+      wan !== undefined && wu !== undefined &&
+      isStandingIdle(wan) && isStandingIdle(wu) &&
+      wan.visible && wu.visible &&
+      Math.round(wan.pos.x) === SALUTE_ANCHOR.x &&
+      Math.round(wan.pos.y) === SALUTE_ANCHOR.y &&
+      Math.round(wu.pos.x) === SALUTE_ALTAR.x &&
+      Math.round(wu.pos.y) === SALUTE_ALTAR.y;
+    if (compositionOK) {
+      found = snapshot;
+      break;
+    }
+    await shotPage.waitForTimeout(250);
+  }
+  if (found === null) {
+    const fail = await shotPage.evaluate(() => {
+      const snapshot = window.Oracle.view();
+      return {
+        minute: Math.floor((snapshot.now % 86_400_000) / 60_000),
+        villagers: snapshot.villagers.map((v) => ({
+          name: v.name, pos: v.pos, mode: v.mode, walking: v.walking,
+          taskId: v.taskId, visible: v.visible, routine: v.routine,
+        })),
+      };
+    });
+    console.error('01 构图夹具 600s 超时：', JSON.stringify(fail, null, 2));
+    throw new Error(`01 构图夹具超时（600s）：第 ${fail.minute} 分`);
+  }
+  const [wan, wu] = found.villagers;
+  check(Math.round(wan.pos.x) === SALUTE_ANCHOR.x && Math.round(wan.pos.y) === SALUTE_ANCHOR.y,
+    `01 锚点：莞尔在河湾 (${SALUTE_ANCHOR.x},${SALUTE_ANCHOR.y})`);
+  check(Math.round(wu.pos.x) === SALUTE_ALTAR.x && Math.round(wu.pos.y) === SALUTE_ALTAR.y,
+    `01 锚点：阿雾在祭坛 (${SALUTE_ALTAR.x},${SALUTE_ALTAR.y})`);
+  check(wan.visible && wu.visible, '01 锚点：两人都在户外可见');
+  console.log(`01 构图成立：now=${found.now}`);
+
+  // 冻钟 → 钉呈现态（07:34 / 潮位 0）→ 镜头对准莞尔（与 pinShotCamera 同口径）
+  await shotPage.evaluate(
+    ({ dayMs, minuteMs, tile }) => {
+      const snapshot = window.Oracle.view();
+      const now = Math.floor(snapshot.now / dayMs) * dayMs + minuteMs;
+      window.Oracle.freezeWorldClock();
+      window.Oracle.pinShotState(now, 0);
+      const pos = snapshot.villager.pos;
+      window.Oracle.setCameraMode('free');
+      window.Oracle.centerCameraOn(Math.round(pos.x) * tile, Math.round(pos.y) * tile);
+    },
+    { dayMs: DAY_MS, minuteMs: SALUTE_PIN_MINUTE_MS, tile: TILE_PX },
+  );
+  await shotPage.waitForTimeout(300);
+
+  // 规则一：祭坛必须真的在画框里（不是「名字叫祭坛」）。
+  const frame = await shotPage.evaluate(({ altar }) => {
+    const canvas = document.querySelector('#app canvas');
+    const rect = canvas.getBoundingClientRect();
+    const cam = window.Oracle.camera();
+    const ox = cam.scrollX + cam.width / 2 - cam.width / (2 * cam.zoom);
+    const oy = cam.scrollY + cam.height / 2 - cam.height / (2 * cam.zoom);
+    const wx = (altar.x + 0.5) * 16;
+    const wy = (altar.y + 0.5) * 16;
+    return {
+      x: (wx - ox) * cam.zoom * (rect.width / canvas.width),
+      y: (wy - oy) * cam.zoom * (rect.height / canvas.height),
+      w: rect.width,
+      h: rect.height,
+    };
+  }, { altar: SALUTE_ALTAR });
+  check(
+    frame.x >= 0 && frame.x <= frame.w && frame.y >= 0 && frame.y <= frame.h,
+    `01 锚点：祭坛在画框内（投影 ${Math.round(frame.x)},${Math.round(frame.y)} / ${frame.w}×${frame.h}）`,
+  );
+
+  // 派活 → 必须看到行礼（世界事实 mode=saluting + 气泡），超时判红。
+  const salutePromise = shotPage.waitForFunction(() => {
+    const snapshot = window.Oracle.view();
+    if (snapshot.villager.mode !== 'saluting') return false;
+    const bubbles = [...document.querySelectorAll('#world-overlay .overlay-bubble')];
+    const shown = bubbles.filter((node) => node.style.display !== 'none');
+    const names = [...document.querySelectorAll('#world-overlay .overlay-name')];
+    return {
+      snapshot,
+      overlay: {
+        texts: shown.map((node) => node.textContent),
+        shown: shown.length,
+        hiddenNames: names.filter((node) => node.style.display === 'none').length,
+      },
+    };
+  }, null, { timeout: 120_000 });
+  await shotPage.fill('#utterance', '帮我写个爬虫脚本');
+  await shotPage.click('button[type="submit"]');
+  const salute = await salutePromise.then((handle) => handle.jsonValue());
+  check(salute.snapshot.villager.mode === 'saluting', '01 锚点上行礼真的出现（mode=saluting）');
+  check(salute.snapshot.villager.bubble !== null, '行礼时头上有字');
+  check(
+    salute.overlay.shown >= 1 &&
+      salute.overlay.texts.some((text) => (text ?? '').includes('吾神降旨')),
+    '气泡在 DOM overlay 里显示（canvas 无中文）',
+  );
+  check(salute.overlay.hiddenNames >= 1, '有气泡时对应名字让位');
+  check(await shotPage.evaluate(() => window.Oracle.worldClockPinned()), '01 抓拍前世界时钟已冻住');
+  check(shotErrors.length === 0, '01 抓拍页面全程无 JS 报错');
+  await shotPage.waitForTimeout(300);
+  await shotPage.screenshot({ path: `${OUT}/01-salute.png` });
+  await context.close();
+};
+
+/**
+ * 把 `#stage` 的绘制原点钉到整数 CSS 像素（用户决定三 / 戊类夹具）。
+ *
+ * 半像素来自 flex 居中：`(可用宽 - 962) / 2` 可能是 0.5px。画布本身是
+ * `pixelated` 的，落点差半像素会让整幅图按不同的采样相位重采样——两跑之间
+ * 出现一片「每像素只差 1 级」的差。这里量一次偏移，用 `translate` 补到整数；
+ * 8 系列再在这个整数原点上做整数倍缩放。
+ */
+const snapStage = (target = page) =>
+  target.evaluate(() => {
+    const stage = document.querySelector('#stage');
+    stage.style.transformOrigin = 'top left';
+    stage.style.transform = '';
+    const rect = stage.getBoundingClientRect();
+    const snap = {
+      dx: Math.round(rect.left) - rect.left,
+      dy: Math.round(rect.top) - rect.top,
+      // 缩放截图按「未缩放时的整数盒」裁：元素自己的包围盒会随 Phaser 重排
+      // 漂 1～2 CSS px（3904/3888 就是这么来的），裁固定盒才稳。
+      left: Math.round(rect.left),
+      top: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+    window.__stageSnap = snap;
+    // `#stage` 是 `width: fit-content`：8 系列换视口后会被子元素撑宽 2～6px
+    // （实跑见过 963 → 967/969，4x 截图于是 3868/3876 漂移）。首次量到的
+    // 整数盒直接钉死，之后任何视口都按同一个盒子裁。
+    if (!stage.dataset.pinnedBox) {
+      stage.style.width = `${snap.width}px`;
+      stage.style.height = `${snap.height}px`;
+      stage.style.flex = 'none';
+      stage.dataset.pinnedBox = '1';
+    }
+    window.__applyStageZoom = (zoom) => {
+      const tx = snap.dx === 0 && snap.dy === 0 ? '' : `translate(${snap.dx}px, ${snap.dy}px)`;
+      const scale = zoom === 1 ? '' : `scale(${zoom})`;
+      stage.style.transform = `${tx} ${scale}`.trim();
+    };
+    window.__applyStageZoom(1);
+    return snap;
+  });
 
 const report = (title) => {
   console.log(`\n${title}：${checks.length} 项通过`);
@@ -393,6 +711,34 @@ async function runSandboxSuite() {
   // 行礼与气泡在 60× 下只活一个逻辑步（约 60–100ms 实时）。**先把 rAF 采样
   // 装上、再点提交**：等 click 返回后才装，安装本身的 IPC 就可能跨过那一拍。
   // 采样把快照与 DOM overlay 一起取回来，回执随后再核对（它不会因晚读消失）。
+  //
+  // ── 抓拍口径：站定 → 冻钟 → 钉呈现态 ───────────────────────────
+  // 原来这张图在「等回执」之后才拍，世界照跑：两跑落点差一个逻辑步，潮位就
+  // 可能跨过草地的淹没阈值（grass 高度 0.3），整片暗地/植被多一层
+  // `ink+water` 覆盖，蓝通道恒 +9。实测同码两跑可见差 24.7%，其中 92% 是
+  // 这一对颜色。
+  // 只冻在「看到行礼那一拍」还不够：另一个人（阿雾）可能正走在去街口的路上，
+  // 她的像素位置随世界时刻连续漂，冻在哪一拍就差几像素（修后第三跑就差了
+  // 0.95%）。所以先在采样回调里等**两个人都站定**，就地冻钟，再把呈现态钉死
+  // （时刻取当天 12:30，与 07/08 同一口径；潮位取 0=退潮，与基线草地同色）。
+  // 钉的只是画面，世界快照/判据/存档一概不变，拍完立刻解开。
+  // 01 的画面在 PIN 模式下由 `captureSalute01()` 在独立的 05:00 早晨世界里拍
+  // （见上方注释）；这里主页面只为判据把世界冻在「没人走路」那一拍。非 PIN
+  // 模式这一拍同时就是 01 的抓拍点。
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.Oracle.view();
+      if (snapshot.villagers.some((villager) => villager.walking)) return false;
+      window.Oracle.freezeWorldClock();
+      window.Oracle.pinShotState(
+        Math.floor(snapshot.now / 86400000) * 86400000 + 45_000_000,
+        0,
+      );
+      return true;
+    },
+    null,
+    { timeout: 120000 },
+  );
   const salutePromise = page.waitForFunction(
     () => {
       const snapshot = window.Oracle.view();
@@ -412,10 +758,12 @@ async function runSandboxSuite() {
     null,
     { timeout: 120000 },
   );
+  // 行礼只活一个逻辑步：镜头必须**提前**钉在祭坛，不能在抓拍那一拍再操作。
+  await pinShotCamera();
   await page.fill('#utterance', '帮我写个爬虫脚本');
   await page.click('button[type="submit"]');
   const salute = await salutePromise.then((handle) => handle.jsonValue());
-  checks.push('她停下手里的事行礼');
+  check(salute.snapshot.villager.mode === 'saluting', '她停下手里的事行礼');
   const saluting = salute.snapshot;
   const overlayBubble = salute.overlay;
   check(saluting.villager.bubble !== null, '行礼时头上有字');
@@ -425,13 +773,24 @@ async function runSandboxSuite() {
     '气泡在 DOM overlay 里显示（canvas 无中文）',
   );
   check(overlayBubble.hiddenNames >= 1, '有气泡时对应名字让位');
+  check(await page.evaluate(() => window.Oracle.worldClockPinned()), '01 抓拍前世界时钟已冻住');
   await page.waitForFunction(
     () => (document.querySelector('#reply')?.textContent ?? '').includes('神谕已送达'),
     null,
     { timeout: 5000 },
   );
   check(true, '界面回了世界结算后的神谕回执');
-  await page.screenshot({ path: `${OUT}/01-salute.png` });
+  // 冻着的那一帧画面上是「行礼中」：气泡还在（`bubbleUntil` 不随冻钟走）。
+  await page.waitForTimeout(300);
+  // PIN 模式的 01 画面已在独立早晨页面里写过，别拿 10:00 开局的页面覆盖它。
+  if (!PIN_SHOTS) {
+    await page.screenshot({ path: `${OUT}/01-salute.png` });
+  }
+  // 拍完立刻解冻、解钉：后面的「走进铺子开工」照原样走，判据读的还是真快照。
+  await page.evaluate(() => {
+    window.Oracle.unpinShotState();
+    window.Oracle.unfreezeWorldClock();
+  });
 
   const working = await waitFor((s) => s.villager.mode === 'working', '她走进铺子开始干活');
   check(working.villager.visible === false, '进屋后人不在门外');
@@ -448,17 +807,23 @@ async function runSandboxSuite() {
   const workingStatus = await page.textContent('#status');
   check(workingStatus.includes('默认交付：莞尔'), '状态行写清默认交付对象');
   await page.waitForTimeout(700);
+  await pinShotCamera();
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/02-working.png` });
+  await unpinForShot();
 
   // 交付与冷却也在 60× 下只活一个逻辑步；抓「第一次进入 delivering」那一拍，
   // 否则冷却已经过期，后面的断言会读到空。
   const delivering = await page
     .waitForFunction(
-      () => {
+      (pin) => {
         const snapshot = window.Oracle.view();
-        return snapshot.villager.mode === 'delivering' ? snapshot : false;
+        if (snapshot.villager.mode !== 'delivering') return false;
+        // 只测量：抓在「刚交付、人停在门口」这一拍就地冻钟。
+        if (pin) window.Oracle.freezeWorldClock();
+        return snapshot;
       },
-      null,
+      PIN_SHOTS,
       { timeout: 120000 },
     )
     .then((handle) => handle.jsonValue());
@@ -469,7 +834,12 @@ async function runSandboxSuite() {
     delivering.workstations.some((w) => w.activity.kind === 'cooling'),
     '铺子进入冷却',
   );
+  if (PIN_SHOTS) {
+    await pinShotCamera();
+    await pinForShot(null);
+  }
   await page.screenshot({ path: `${OUT}/03-deliver.png` });
+  await unpinForShot();
 
   const back = await waitFor((s) => s.villager.mode === 'idle', '她回到祭坛恢复闲逛');
   check(back.villager.taskId === null, '回到祭坛后手上没有单');
@@ -606,7 +976,10 @@ async function runSandboxSuite() {
   check(raining.villager.umbrella === true, '下雨时她撑起伞');
   check(raining.villager.mode === 'sheltering', '户外的她当场跑去躲雨');
   await page.waitForTimeout(500);
+  await pinShotCamera();
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/04-rain.png` });
+  await unpinForShot();
   await waitFor((s) => s.villager.mode === 'idle', '跑到屋檐下停住');
   await page.click('#clear');
   await waitFor((s) => s.weather === 'clear', '神谕让天放晴');
@@ -617,13 +990,16 @@ async function runSandboxSuite() {
   // 同样先装 rAF 采样再点建造，抓「新楼已出现且仍在施工」的同一拍。
   const beforeBuild = await state();
   const buildingPromise = page.waitForFunction(
-    ({ count }) => {
+    ({ count, pin }) => {
       const snapshot = window.Oracle.view();
-      return snapshot.buildings.length === count + 1 && snapshot.constructions.length === 1
-        ? snapshot
-        : false;
+      if (snapshot.buildings.length !== count + 1 || snapshot.constructions.length !== 1) {
+        return false;
+      }
+      // 只测量：抓在「新楼已出现且仍在施工」这一拍就地冻钟。
+      if (pin) window.Oracle.freezeWorldClock();
+      return snapshot;
     },
-    { count: beforeBuild.buildings.length },
+    { count: beforeBuild.buildings.length, pin: PIN_SHOTS },
     { timeout: 120000 },
   );
   await page.click('button[data-build="workshop_plot"]');
@@ -631,7 +1007,24 @@ async function runSandboxSuite() {
   checks.push('造物主落下一栋新楼');
   check(building.constructions.length === 1, '新楼处于施工中');
   check(building.roads.length > beforeBuild.roads.length, '新楼自动铺出了一条路');
+  // 施工只活不到一个逻辑步，抓拍后再钉镜头多半已经落成；钉到**新楼本身**
+  // 的格子上，两跑至少取景同一栋、同一片街区。
+  const built = await page.evaluate((id) => {
+    const b = window.Oracle.view().buildings.find((candidate) => candidate.instanceId === id);
+    return b === undefined
+      ? null
+      : { x: (b.origin.x + b.footprint.w / 2) * 16, y: (b.origin.y + b.footprint.h / 2) * 16 };
+  }, building.constructions[0].buildingId);
+  if (built !== null) {
+    await page.evaluate(({ x, y }) => {
+      window.Oracle.setCameraMode('free');
+      window.Oracle.centerCameraOn(x, y);
+    }, built);
+    await page.waitForTimeout(250);
+  }
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/05-build.png` });
+  await unpinForShot();
   await waitFor((s) => s.constructions.length === 0, '施工结束，新楼落成');
 
   for (let i = 0; i < 2; i += 1) {
@@ -643,7 +1036,22 @@ async function runSandboxSuite() {
   // 队列让交付多了一单，里程碑可能提前落到第 2 次：只要求确实记上了。
   check(withProp.faith.milestones >= 1, '里程碑记上了');
   await page.waitForTimeout(400);
+  // 06 与 07/08 同一确定性口径：只等主控空闲就冻钟不够——阿雾可能还在走，
+  // 冻下来的 idle 姿态与位置两跑能差 0.19%（差在阿雾的名字标签与身体）。
+  // PIN 模式下先把世界推到 12:30 安静段（全镇回锚点坐定），再等两人真正站定
+  // 才取景；默认口径一字不动，仍是抓真实运行中的一拍。
+  if (PIN_SHOTS) {
+    await waitFor(
+      (s) => s.villagers.every((item) => item.mode === 'idle'),
+      '06 抓拍前两人都空闲',
+    );
+    await page.evaluate(() => window.Oracle.jumpWorldClock(750));
+    await waitVillagersSettled('06 抓拍前两人迟迟没有站定');
+  }
+  await pinShotCamera();
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/06-faith.png` });
+  await unpinForShot();
 
   // 日报是纸面，读得到，且写的是真发生过的事。
   const paper = await page.evaluate(() => window.Oracle.report());
@@ -652,28 +1060,65 @@ async function runSandboxSuite() {
   check(paperText.includes(paper.headline), '报纸把标题渲染到了纸面上');
   check(paperText.includes('神恩') || paperText.includes('路灯'), '报纸写了落地的东西');
 
-  // 桥接：外部消息进世界，结果能从快照里读回来。
-  const bridged = await page.evaluate(async () => {
-    const before = window.Oracle.view().tasks.length;
-    window.Oracle.feed({
-      type: 'task.assigned',
-      taskId: 'ext-1',
-      taskKind: 'quick',
-      summary: '外部派来的小事',
-    });
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return { before, after: window.Oracle.view().tasks.length };
+  // 桥接放在 07/08 之后（见下）：`ext-1` 是 quick 单，会立刻被人接走；若在
+  // 钉钟前注入，它会在 `jumpWorldClock` 里被跳过的这段时间里变成「已超期」，
+  // 后面的「等两人空闲」要多等一百多个世界分钟。
+  //
+  // ── 钉住 07/08 的抓拍口径 ────────────────────────────────────────
+  // 08（三档缩放）与 07（调试面板）必须是「同一世界时刻 + 同一镜头」的连拍。
+  // 不钉的话导播在跟着人走、面板按真实时间重绘，同码两跑能差到 58%。
+  // 12:30 是安静段（12:00–14:00），全镇回锚点坐定，落点固定；坐定后再冻钟。
+  // 先等两人空闲：跳过的时钟会把进行中的活/相对定时器甩到位相之外，
+  // 有活在身时既拍不到「坐定」，也会让后续的等待多等一大截。
+  await waitFor(
+    (s) => s.villagers.every((item) => item.mode === 'idle'),
+    '07/08 抓拍前两人都空闲',
+  );
+  await page.evaluate(() => window.Oracle.jumpWorldClock(750));
+  // 判据见 `waitVillagersSettled`：06 与 07/08 共用同一条「真的站定」定义。
+  await waitVillagersSettled('钉钟后两人迟迟没有站定');
+  const pinnedClock = await page.evaluate(({ pin, minuteMs }) => {
+    // 站定之后把时钟**回拨到整点 12:30**再冻：等站定花掉的那十几分钟世界时间
+    // 会让「莞尔：去祭坛 / 去农田边」这类状态行在两跑之间换词（06 实测就差这一行）。
+    // 回拨只动 `now`，人已经站定，位置不回退。
+    if (pin) window.Oracle.jumpWorldClock(minuteMs / 60_000);
+    const now = window.Oracle.freezeWorldClock();
+    // 戊类夹具（用户决定三，只在钉住口径下生效）：`freezeWorldClock` 只冻世界，
+    // 画面仍按快照里的 `now` 上色。跳到 750 之后还会多跑半分钟，两跑的冻结点
+    // 差几分钟，整幅光照就差 ±2 级（08 实测 37% 像素差 1～2 级）。把**呈现
+    // 时刻**钉到整点 12:30，画面才与真实冻结点无关。默认关闭时口径一字不改。
+    if (pin) {
+      const day = Math.floor(now / 86400000) * 86400000;
+      window.Oracle.pinShotState(day + minuteMs, 0);
+    }
+    return now;
+  }, { pin: PIN_SHOTS, minuteMs: SHOT_MINUTE_MS });
+  check(Number.isFinite(pinnedClock), `07/08 抓拍前世界时钟已冻住（now=${pinnedClock}）`);
+  await page.evaluate(() => {
+    window.Oracle.setCameraMode('free');
+    window.Oracle.centerCameraOn(768, 576);
   });
-  check(bridged.after === bridged.before + 1, '外部 Agent 的消息进了同一条命令队列');
+  // `worldView` 要等下一帧 preRender 才刷新；这里读的是即时的 scroll（512,416 那组）。
+  await page.waitForTimeout(300);
+  const pinnedCamera = await page.evaluate(() => {
+    const c = window.Oracle.camera();
+    return { scrollX: c.scrollX, scrollY: c.scrollY, zoom: c.zoom, mode: c.mode };
+  });
+  check(
+    pinnedCamera.mode === 'free' &&
+      pinnedCamera.scrollX === 528 &&
+      pinnedCamera.scrollY === 416 &&
+      pinnedCamera.zoom === 2,
+    `07/08 镜头钉在祭坛（scroll=${pinnedCamera.scrollX},${pinnedCamera.scrollY} zoom=${pinnedCamera.zoom}）`,
+  );
 
-  // D5-A：100%/200%/400% 缩放截图，验证 DOM overlay 仍贴合 canvas。
-  for (const zoom of [1, 2, 4]) {
-    await page.evaluate((value) => {
-      const stage = document.querySelector('#stage');
-      stage.style.transformOrigin = 'top left';
-      stage.style.transform = value === 1 ? '' : `scale(${value})`;
-    }, zoom);
-    await page.waitForTimeout(300);
+  // 08-400% 的画布尺寸会被竖向滚动条的有无带偏；滚动条已在页面加载时钉成常驻，
+  // 这里再把舞台原点重新量一次（上面 390px 往返回来过，居中余量可能变了）。
+  await page.evaluate(() => {
+    document.documentElement.style.overflowY = 'scroll';
+  });
+
+  const checkOverlayFit = async (zoom) => {
     const fit = await page.evaluate(() => {
       const canvas = document.querySelector('#app canvas');
       const overlay = document.querySelector('#world-overlay');
@@ -689,12 +1134,58 @@ async function runSandboxSuite() {
       fit.sameWidth && fit.sameOrigin && fit.contained,
       `${zoom * 100}% 缩放下 overlay 仍贴合 canvas`,
     );
-    await page.locator('#stage').screenshot({ path: `${OUT}/08-overlay-${zoom * 100}.png` });
+  };
+
+  // D5-A：100%/200%/400% 缩放截图，验证 DOM overlay 仍贴合 canvas。
+  if (PIN_SHOTS) {
+    // 戊类夹具（用户决定三）：固定整型视口 + 整数裁剪盒，不依赖元素外接盒
+    // （外接盒会随 Phaser 重排漂 1～2px，3904/3888 就是这么来的）。
+    await page.evaluate(() => {
+      // 投影会伸进元素截图的外接盒；8 系列只看画布贴合，先把投影摘掉。
+      document.querySelector('#app').style.boxShadow = 'none';
+      // 居中会在放大后把半幅图挪出视口；靠左排，裁剪盒才装得下。
+      document.querySelector('#stage').style.alignSelf = 'flex-start';
+    });
+    for (const zoom of [1, 2, 4]) {
+      await page.setViewportSize({
+        width: Math.max(1010, 16 + 963 * zoom + 32),
+        height: Math.max(940, 68 + 642 * zoom + 32),
+      });
+      await page.waitForTimeout(350);
+      // `page.screenshot({clip})` 的裁剪盒是**文档坐标**：页面若还停在上一视图
+      // 的滚动位置（8 系列实测偏了约 491px），裁出来只剩视口里那一条
+      // （08-100 于是成了 963×219）。每次换视口先把页面滚回原点再量。
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const snap = await snapStage();
+      await page.evaluate((value) => window.__applyStageZoom(value), zoom);
+      await page.waitForTimeout(300);
+      await checkOverlayFit(zoom);
+      await page.screenshot({
+        path: `${OUT}/08-overlay-${zoom * 100}.png`,
+        clip: { x: snap.left, y: snap.top, width: snap.width * zoom, height: snap.height * zoom },
+      });
+    }
+    await page.evaluate(() => {
+      window.__applyStageZoom(1);
+      document.querySelector('#app').style.boxShadow = '';
+      document.querySelector('#stage').style.alignSelf = '';
+    });
+  } else {
+    for (const zoom of [1, 2, 4]) {
+      await page.evaluate((value) => {
+        const stage = document.querySelector('#stage');
+        stage.style.transformOrigin = 'top left';
+        stage.style.transform = value === 1 ? '' : `scale(${value})`;
+      }, zoom);
+      await page.waitForTimeout(300);
+      await checkOverlayFit(zoom);
+      await page.locator('#stage').screenshot({ path: `${OUT}/08-overlay-${zoom * 100}.png` });
+    }
+    await page.evaluate(() => {
+      document.querySelector('#stage').style.transform = '';
+    });
   }
-  await page.evaluate(() => {
-    const stage = document.querySelector('#stage');
-    stage.style.transform = '';
-  });
+  await page.setViewportSize({ width: 1010, height: 940 });
   await page.waitForTimeout(300);
 
   // 390px：overlay 不超出 canvas（页面级 960px canvas 溢出属既有 P3）。
@@ -717,6 +1208,10 @@ async function runSandboxSuite() {
   );
   await page.setViewportSize({ width: 1010, height: 940 });
   await page.waitForTimeout(250);
+  if (PIN_SHOTS) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await snapStage();
+  }
 
   // 上帝调试面板（S2-3）：只读浮层，不改变仿真。
   const panelInitial = await page.evaluate(() => ({
@@ -780,23 +1275,78 @@ async function runSandboxSuite() {
   check(injectAt400.open === false && injectAt400.insideContent === false, '注入区默认折叠且在刷新区之外');
   await page.screenshot({ path: `${OUT}/07-debug-panel-400ms.png` });
 
-  // 展开后点一次 feed：只进世界命令队列，不写事件日志。
-  const tasksBeforeFeed = await page.evaluate(() => window.Oracle.view().tasks.length);
-  await page.evaluate(() => {
+  // 1 秒后注入区仍在（此刻只展开、不点按钮：注入的活要在解冻之后才做得完）。
+  // 展开本身不碰世界，与旧基线的 1s 图（展开态）也保持同一纸面。
+  await page.waitForTimeout(600);
+  const injectAt1s = await page.evaluate(() => {
     const details = document.querySelector('#debug-inject');
     if (details instanceof HTMLDetailsElement) details.open = true;
+    return {
+      buttons: document.querySelectorAll('#debug-inject [data-debug-action]').length,
+      open: details?.open ?? null,
+    };
   });
+  check(injectAt1s.buttons === 2, '1s 后注入区仍在');
+  check(injectAt1s.open === true, '注入区可以展开');
+  await page.screenshot({ path: `${OUT}/07-debug-panel-1s.png` });
+  await page.selectOption('#debug-tone', 'info');
+  await page.waitForTimeout(500);
+  const filtered = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#debug-panel [data-debug-row="event"]')];
+    return { total: rows.length, tones: [...new Set(rows.map((row) => row.dataset.tone))] };
+  });
+  check(
+    filtered.total > 0 && filtered.tones.every((tone) => tone === 'info'),
+    '事件过滤只显示所选 tone',
+  );
+  const injectAfterFilter = await page.evaluate(() => ({
+    buttons: document.querySelectorAll('#debug-inject [data-debug-action]').length,
+    open: document.querySelector('#debug-inject')?.open ?? null,
+  }));
+  check(
+    injectAfterFilter.buttons === 2 && injectAfterFilter.open === true,
+    '切过滤后注入区仍在且保持展开',
+  );
+  await page.screenshot({ path: `${OUT}/07-debug-panel-filtered.png` });
+
+  // 07/08 的四张到此拍完，解冻并解钉——后面暂停测试要等注入的活真做完，
+  // 冻着的话它永远停在 working，等待注定超时；钉着的话底栏时钟也不再走。
+  await page.evaluate(() => {
+    window.Oracle.unpinShotState();
+    window.Oracle.unfreezeWorldClock();
+  });
+  check(
+    (await page.evaluate(() => window.Oracle.worldClockPinned())) === false,
+    '07/08 拍完后世界时钟已解冻',
+  );
+
+  // 桥接：外部消息进世界，结果能从快照里读回来。
+  // 放在解冻之后：这条 quick 单要真能在正常的时钟下做完，否则下面的
+  // 「等两人空闲」会被它拖住（详见 07/08 钉钟前的注释）。
+  const bridged = await page.evaluate(async () => {
+    const before = window.Oracle.view().tasks.length;
+    window.Oracle.feed({
+      type: 'task.assigned',
+      taskId: 'ext-1',
+      taskKind: 'quick',
+      summary: '外部派来的小事',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return { before, after: window.Oracle.view().tasks.length };
+  });
+  check(bridged.after === bridged.before + 1, '外部 Agent 的消息进了同一条命令队列');
+
+  // 解冻后再点一次 feed：只进世界命令队列，不写事件日志。冻着的时候这单
+  // 永远停在 working，后面的「等两人空闲」必超时。
+  const tasksBeforeFeed = await page.evaluate(() => window.Oracle.view().tasks.length);
   await page.click('#debug-inject [data-debug-action="feed"]');
   await page.waitForTimeout(600);
-  const injectAt1s = await page.evaluate(() => ({
-    buttons: document.querySelectorAll('#debug-inject [data-debug-action]').length,
+  const feedResult = await page.evaluate(() => ({
     tasks: window.Oracle.view().tasks.length,
     open: document.querySelector('#debug-inject')?.open ?? null,
   }));
-  check(injectAt1s.buttons === 2, '1s 后注入区仍在');
-  check(injectAt1s.tasks > tasksBeforeFeed, '注入按钮可用（feed 进了世界队列）');
-  check(injectAt1s.open === true, '展开状态在刷新后保留');
-  await page.screenshot({ path: `${OUT}/07-debug-panel-1s.png` });
+  check(feedResult.tasks > tasksBeforeFeed, '注入按钮可用（feed 进了世界队列）');
+  check(feedResult.open === true, '展开状态在刷新后保留');
 
   // 暂停后不再重绘：先冻结，再派一单，面板内容不动。
   // 30× 下前一段注入的活可能还没做完；先等两个人都回到空闲，否则新单一进
@@ -834,25 +1384,6 @@ async function runSandboxSuite() {
     () => document.querySelectorAll('#debug-panel [data-debug-row="task"]').length,
   );
   check(resumed > frozen.tasks, '恢复后面板继续刷新');
-  await page.selectOption('#debug-tone', 'info');
-  await page.waitForTimeout(500);
-  const filtered = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#debug-panel [data-debug-row="event"]')];
-    return { total: rows.length, tones: [...new Set(rows.map((row) => row.dataset.tone))] };
-  });
-  check(
-    filtered.total > 0 && filtered.tones.every((tone) => tone === 'info'),
-    '事件过滤只显示所选 tone',
-  );
-  const injectAfterFilter = await page.evaluate(() => ({
-    buttons: document.querySelectorAll('#debug-inject [data-debug-action]').length,
-    open: document.querySelector('#debug-inject')?.open ?? null,
-  }));
-  check(
-    injectAfterFilter.buttons === 2 && injectAfterFilter.open === true,
-    '切过滤后注入区仍在且保持展开',
-  );
-  await page.screenshot({ path: `${OUT}/07-debug-panel-filtered.png` });
 
   // 390px 视口不横向溢出，面板也不遮挡主舞台布局。
   await page.setViewportSize({ width: 390, height: 844 });
@@ -970,6 +1501,8 @@ async function runSandboxSuite() {
 
 try {
   await mkdir(OUT, { recursive: true });
+  // PIN 口径的 01 画面在独立页面里拍：主页面从 10:00 开局，向前到不了当天早晨。
+  if (PIN_SHOTS) await captureSalute01();
   await page.goto(
     // ?debug=1：维护条（派活按钮、造物、神迹、存档、调试面板）只在调试层出现，
     // 产品页默认没有它们。回归脚本要驱动它们，就必须显式打开这一层。
@@ -986,6 +1519,36 @@ try {
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });
   check(errors.length === 0, '页面加载无 JS 报错');
+  // `?now=` 的读数：脚本先用整数分钟把世界钉在四档之一，再从 Oracle 读回实际开局，
+  // 免得「URL 里配了、解析器没认」被当成一次正常跑。读回时世界已按 speed=30
+  // 走了 1–2 分钟，所以容差 ±2 分，并打印实际值进证据。
+  {
+    const posted = await page.evaluate(() => {
+      const nowMs = window.Oracle.view().now;
+      return Math.floor((nowMs % 86_400_000) / 60_000);
+    });
+    check(
+      posted >= SMOKE_NOW_MINUTES && posted <= SMOKE_NOW_MINUTES + 2,
+      `世界时钟按 ?now=${SMOKE_NOW_MINUTES} 开局（实测第 ${posted} 分钟）`,
+    );
+    console.log(
+      `[smoke] time=${SMOKE_TIME} now=${SMOKE_NOW_MINUTES}（实测开局 ${posted} 分）`,
+    );
+  }
+
+  // 戊类夹具（2026-11-05 用户决定三，只在钉住口径下生效）：
+  //   1. 常驻滚动条：8 系列的画布宽度会随滚动条有无漂移，先把它钉成常驻；
+  //   2. `#stage` 整数定位：flex 居中可能留下 0.5px，画布落点半像素就会整幅
+  //      按不同采样相位重采样（「每像素只差 1 级」的那一大片）。
+  if (PIN_SHOTS) {
+    await page.evaluate(() => {
+      document.documentElement.style.scrollbarGutter = 'stable';
+      document.documentElement.style.overflowY = 'scroll';
+      // 缩放后舞台会宽过视口；禁止横向滚动条，免得它反过来改视口尺寸。
+      document.documentElement.style.overflowX = 'hidden';
+    });
+    await snapStage();
+  }
 
   const opening = await state();
   // 大世界开局：镇内三铺 + 郊野三铺 + 五间民居。小世界只剩镇内三铺。

@@ -1,0 +1,175 @@
+{
+  "size": {
+    "width": 961,
+    "height": 641
+  },
+  "interior": {
+    "roomBBox": {
+      "x": 17,
+      "y": 11,
+      "w": 934,
+      "h": 614
+    },
+    "excludedDomBox": [
+      866,
+      0,
+      961,
+      60
+    ],
+    "uniqueColors": 13,
+    "paletteColors": 24,
+    "outsidePalette": []
+  },
+  "freeze": {
+    "changedPixels": 0,
+    "bbox": null,
+    "total": 573476
+  },
+  "streetVsAfter": {
+    "changedPixels": 259082,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "midVsInterior": {
+    "changedPixels": 610750,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "midVsStreet": {
+    "changedPixels": 612222,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "streetVsInterior": {
+    "changedPixels": 582318,
+    "bbox": [
+      1,
+      1,
+      961,
+      641
+    ],
+    "total": 616001
+  },
+  "floorSwitch": {
+    "floorTwoBBox": {
+      "x": 17,
+      "y": 11,
+      "w": 934,
+      "h": 614
+    },
+    "floorTwoUniqueColors": 12,
+    "floorTwoOutsidePalette": [],
+    "floorOneVsFloorTwo": {
+      "changedPixels": 38944,
+      "bbox": [
+        40,
+        42,
+        864,
+        566
+      ],
+      "total": 573476
+    },
+    "switchMidUniqueColors": 1,
+    "switchMidColors": [
+      "#14110d"
+    ],
+    "switchMidOnlyInk": true
+  },
+  "multiBuilding": {
+    "cottage_oak": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 38672,
+        "bbox": [
+          32,
+          110,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    },
+    "cottage_stone": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 37536,
+        "bbox": [
+          44,
+          38,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    },
+    "homestead_far": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 38656,
+        "bbox": [
+          44,
+          110,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    },
+    "cottage_stone-f3": {
+      "uniqueColors": 12,
+      "outsidePalette": [],
+      "bbox": {
+        "x": 17,
+        "y": 11,
+        "w": 934,
+        "h": 614
+      },
+      "vsFloorOne": {
+        "changedPixels": 39040,
+        "bbox": [
+          36,
+          38,
+          864,
+          566
+        ],
+        "total": 573476
+      }
+    }
+  }
+}

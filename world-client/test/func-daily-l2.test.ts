@@ -30,13 +30,17 @@ let entriesAtNight = 0;
 let entriesNextMorning = 0;
 
 /**
- * 同一份两天轨迹：连跑 48 小时，第 0 天 23:00 与第 1 天 06:00 各记一次
- * 记忆条目数，终点正好落在第 2 天 00:00，让第 0、1 两个世界日都关账。
+ * 同一份两天轨迹：连跑 48 小时，第 0 天 22:00（闭市、她开始回家）与第 1 天 06:00
+ * 各记一次记忆条目数，终点正好落在第 2 天 00:00，让第 0、1 两个世界日都关账。
+ *
+ * 为什么起点从 23:00 挪到 22:00：homecoming 合进来之后，夜里第一条真事实是
+ * 22:11 的「走进家门」；23:00 起算会把它切在窗口外，量到的只是「夜里没别的
+ * 事」而不是「隔夜有增量」。阈值 +2 一个字没动。
  */
 function twoDayRun(): DailyRun {
   if (sharedTwoDays === undefined) {
     const run = new DailyRun({ withMemory: true, worldId: 'func-daily-l2' });
-    run.runToMinute(0, 23 * 60);
+    run.runToMinute(0, 22 * 60);
     entriesAtNight = run.entryCount();
     run.runToMinute(1, 6 * 60);
     entriesNextMorning = run.entryCount();
@@ -215,11 +219,11 @@ test('L2 跨日关账：两个世界日各产出一份 onVitals（world.vitals�
   }
 });
 
-test('L2 跨日关账：记忆条目隔夜有真实增量（阈值 +2，实测夜 6 → 晨 9）', () => {
+test('L2 跨日关账：记忆条目隔夜有真实增量（阈值 +2，实测夜 7 → 晨 9）', () => {
   const run = twoDayRun();
   assert.ok(
     entriesNextMorning - entriesAtNight >= 2,
-    `第 0 天 23:00 到第 1 天 06:00 的记忆条目应至少 +2，实测 ${entriesAtNight} → ${entriesNextMorning}` +
+    `第 0 天 22:00 到第 1 天 06:00 的记忆条目应至少 +2，实测 ${entriesAtNight} → ${entriesNextMorning}` +
       `（增量 ${entriesNextMorning - entriesAtNight}）`,
   );
   assert.ok(
