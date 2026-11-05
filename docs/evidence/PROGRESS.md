@@ -297,3 +297,69 @@
   `entry-diff.txt` / `entry-feedback-fail.txt` / `render-budget.txt` / `smoke.txt` / `phases.txt` /
   `persistence.txt` / `setting.txt` / `buttons.txt`）。
 
+---
+
+## 块 7 · 入口配色收尾：UI 8 → 9，第九位只给边框；浅色套放弃
+
+- 开始 / 结束：2026-11-05 / 2026-11-05
+- 分支：`feat/behavior-queue`；未 push、未动 main
+- 结论：块 6 的两条阻塞中，**边框一条按批准修掉了**（`--line` 对底 1.46→3.49、
+  对面板 1.32→3.15），**浅色一条经评估后放弃**。世界 24 色一格未动。
+- 为什么只加这一位
+  - `#2b322c` 对页面底只有 1.46:1、对面板 1.32:1，低于 WCAG 非文本 3:1；
+    「深色靠浅边框分层」这条原则在旧值上只是勉强可见。上一轮 8/8 零余量，
+    按纪律没自行扩，记成阻塞。本轮只批一个位，所以只修这一处。
+- 改了什么
+  - `index.html` 变量块：`--line` = `#666a62`（新位）；旧值不删，改名 `--line-faint` = `#2b322c`。
+    `--line` 用于结构边线（顶栏、画布框、小地图、提示条、在手、神谕、输入框、按钮、状态条、
+    各面板外框、kbd、气泡描边）；`--line-faint` 只用于面板内部细线/点线（面板头分隔、
+    `.dbg-row` 点线、引用块左边线）——这些地方 3:1 实线会变噪音。
+  - `scripts/audit-palette.mjs`：`BUDGET.ui` 8→9；`PROPOSED_UI` 加 `#666a62` 与角色说明；
+    对比度段加 `line/base`、`line/panel`，并保留 `faintLine/*` 两项备查。
+  - `test/palette-budget.test.ts`：`UI_BUDGET` 9、`UNION_BUDGET` 32、`PROPOSED_UI` 9 项，
+    断言文案同步。
+  - `src/world/palette-data.ts`：只改头部注释（9 色 / 并集 32）。
+  - `docs/adr/ADR_PALETTE_24.md`：决策段 UI 附注 9 + 「浅色套经评估后放弃：无真实使用场景，
+    不为不存在的界面占预算」；判据表 8→9、并集 31→32；10-27 的实测读数保留原文并加现测对照；
+    文末加 2026-11-05 补记（为什么加、新边框读数、灰阶不等距口径、浅色套关闭）。
+- 读数（详见 `docs/evidence/palette-9/`）
+  - 色位并集：世界 24/24（引用 335）、UI 9/9（引用 183）、共享 1（`#e3a13c`）、
+    并集 **32**、两层超出 0；`--strict` 退出 0。
+  - 四条对比度（WCAG 2.x 相对亮度，算法同 `audit-palette`）：
+    主要字/底 **14.90:1**（不变）、次要字/底 **6.32:1**（不变）、
+    占位与不可用/面板 **5.71:1**（不变）、边框/底 **3.49:1**（旧 1.46，≥3.0）、
+    边框/面板 **3.15:1**（旧 1.32，≥3.0）。
+  - 灰阶不等距：按可用色位数压到 6 档，优先保证最低档 ≥3、文字档 ≥7:1，牺牲等距。
+    ΔL* 实测 5.20 / 3.62 / 7.08 / 41.23 / 28.77，不重排；`#666a62` 是功能位
+    （非文本 3:1），不插进这六档序列。
+  - 同构建两跑（Playwright 假时钟冻结到 2026-11-05T12:00，`?time=noon&ledger=off`）：
+    首屏整页 / 首屏画布 / 首次提交后整页 / 首次提交后画布 **四组 PNG 逐字节相同**，
+    可见差(≥8)=0、精确差=0；A/B 报错 0。
+  - 三枚指纹：世界 `a41f4e2e…`、记忆 `fb0847b3…`、造物 `c5198f0f…` 与基线逐字相同；
+    夜雨那条世界指纹 `6efda574…` 在其单测里同样通过。
+  - 九道闸门全绿：check 0 / test 2108 通过 0 失败 9 跳过 / build 0 / palette --strict 0 /
+    references 0 / citations 0 / sections 0 / claims --strict 0 / pytest 0。
+  - 浏览器：smoke 125、phases 17（EVAL_OUT 指到 tmp，未写 `eval/screens`）、persistence 8
+    （存档 v5 / 14984 字节）、render-budget 6（指令 16130、Graphics 27，相对基线 +0）、
+    setting 全项 ok。`test:buttons` 退出 2（`/api/memory/list` 404，既有缺口，未改代码）。
+  - 截图基线：跑闸门时 `eval/screens/` 被脚本重写，已 `git checkout` 还原，未进提交。
+- 真问题
+  1. 第一次并跑五个浏览器脚本时 `render-budget` 的「回到前台恢复满帧」失败
+     （恢复 47.0 vs 前台 57.0）；单独重跑通过（50.0 / 52.0）。是并跑帧率噪声，不是颜色回归。
+  2. 60× 加速下 3:1 的边框在小地图与 1px 实线上仍偏细；再亮一档会与次要文字（5.71:1）抢。
+     没有第 10 个位之前不调。
+  3. 浅色套仍无实现；本轮把它从阻塞降级为「明确不做」（无使用场景）。
+- 被否掉的写法
+  - 直接把 `--line` 换成 `#666a62`、丢掉 `#2b322c`：UI 仍是 8 色，拿不到批准的第九位，
+    且面板内点线会变得刺眼 → 保留为 `--line-faint`。
+  - 新边框取 `#63675f`：对面板 3.01:1，贴门槛没有余量 → `#666a62`（3.15）。
+  - 把新边框插进六档灰阶并重排 ΔL*：违反「不重排」→ 只作功能位记录。
+  - 重排灰阶求等距：9 位预算做不到 11 级等距，且会牺牲文字档 → 保留不等距并如实标注。
+- 没做到 / 未验证
+  - 真实 GPU / 不同 DPR / 不同字体下的两跑像素一致性未验证（仅本机 headless）。
+  - `test:buttons` 既有红；`#clock-align-check` 默认 disabled 未动。
+- 证据：`docs/evidence/palette-9/`（`audit.txt` / `palette.txt` / `contrast.txt` /
+  `diff.txt` / `fingerprints.txt` / `gates.txt` / `smoke.txt` / `persistence.txt` /
+  `render-budget.txt` / `setting.txt` / `buttons.txt`）。
+
+

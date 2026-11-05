@@ -1,0 +1,25 @@
+同构建两跑 · 入口首屏与首次提交后（2026-11-05）
+
+方法（与上一块同一套，探针用完即删）：Playwright + `page.clock.install({time})` 冻结时钟到
+2026-11-05T12:00:00+08:00（`?time=noon&ledger=off`）→ `goto(waitUntil:'commit')` →
+`clock.pauseAt(T0+500)` → 等 canvas → `document.fonts.ready` → `clock.runFor(3000)` 拍首屏
+→ 填「查一下资料」并点主按钮 → `clock.runFor(4000)` 拍提交后。A、B 是两次独立进程里跑的。
+全程无 `Date.now` 依赖：时钟被冻结，拍数由 `clock.runFor` 推进。
+
+区域	字节相同	sha256(A)	sha256(B)	字节数
+首屏整页	是	dbbade921ffeaeb4	dbbade921ffeaeb4	60134 / 60134
+首屏画布	是	9446e6503becfa7b	9446e6503becfa7b	20905 / 20905
+首次提交后整页	是	97d63e1c65de2196	97d63e1c65de2196	61028 / 61028
+首次提交后画布	是	98a3860a01095d9f	98a3860a01095d9f	20802 / 20802
+
+可见差（任一通道 ≥8 级）：0（字节级相同，上限即 0）
+精确差：0（四组 PNG 逐字节相等，长度也相等；没有 1–7 级的通道差）
+页面报错：A=0 B=0
+
+两跑的入口读数（逐字相同）：
+hintHidden=true
+reply="神谕已送达 爬虫矿洞。"   replyClasses="good"
+paperClock="第 3 分 06 秒"（世界时钟口径：12:03:06，3 秒 × 60 倍速）
+主按钮底色 rgb(227,161,60)（即 U6 琥珀，强调色唯一落点）
+--line=#666a62，--line-faint=#2b322c
+.oracle 上边框 rgb(102,106,98)（即新边框色真的上了屏）

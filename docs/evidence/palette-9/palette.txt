@@ -1,0 +1,187 @@
+# 调色板审计（只报告）
+
+- 根目录：`D:\project\pwe-lively\world-client`
+- 口径：只统计源码源色值；不模拟运行时 alpha/光照叠加；世界层与 UI 层分开。
+- 预算：世界 24 色 / UI 9 色。
+
+## 计数
+
+| 层 | 唯一色 | 引用站点 | 预算 | 超出 |
+|---|---:|---:|---:|---:|
+| 世界层 | 24 | 335 | 24 | 0 |
+| UI 层 | 9 | 183 | 9 | 0 |
+
+- 共享色 1：#e3a13c
+- 两层并集：32 色
+- 越界收敛预估：世界层 近似等价 0 / 微调 0 / 重画 0；UI 层 近似等价 0 / 微调 0 / 重画 0
+
+## 世界层 Top（按使用次数）
+
+| # | 色值 | 使用次数 | token | 站点（前 4） |
+|---:|---|---:|---|---|
+| 1 | #14110d | 52 | ink | src/main.ts:128 (WORLD.ink)<br>src/render/ambience-view.ts:67 (WORLD.ink)<br>src/render/ambience-view.ts:87 (WORLD.ink)<br>src/render/ambience-view.ts:92 (WORLD.ink) |
+| 2 | #e3a13c | 32 | amber | src/render/buildings.ts:198 (WORLD.amber)<br>src/render/buildings.ts:200 (WORLD.amber)<br>src/render/buildings.ts:263 (WORLD.amber)<br>src/render/buildings.ts:488 (WORLD.amber) |
+| 3 | #d8dad3 | 27 | pale | src/render/ambience-view.ts:77 (WORLD.pale)<br>src/render/ambience-view.ts:89 (WORLD.pale)<br>src/render/buildings.ts:298 (WORLD.pale)<br>src/render/buildings.ts:311 (WORLD.pale) |
+| 4 | #c9a86a | 26 | trim | src/render/buildings.ts:88 (WORLD.trim)<br>src/render/buildings.ts:286 (WORLD.trim)<br>src/render/buildings.ts:298 (WORLD.trim)<br>src/render/buildings.ts:342 (WORLD.trim) |
+| 5 | #f2c879 | 25 | warmLight | src/render/buildings.ts:94 (WORLD.warmLight)<br>src/render/buildings.ts:238 (WORLD.warmLight)<br>src/render/buildings.ts:265 (WORLD.warmLight)<br>src/render/buildings.ts:443 (WORLD.warmLight) |
+| 6 | #4a3f39 | 24 | timberDark | src/render/buildings.ts:227 (WORLD.timberDark)<br>src/render/buildings.ts:231 (WORLD.timberDark)<br>src/render/buildings.ts:296 (WORLD.timberDark)<br>src/render/buildings.ts:313 (WORLD.timberDark) |
+| 7 | #5a463e | 23 | charcoal/TERRAIN_COLORS.coal | src/render/buildings.ts:84 (WORLD.charcoal)<br>src/render/buildings.ts:259 (WORLD.charcoal)<br>src/render/buildings.ts:273 (WORLD.charcoal)<br>src/render/buildings.ts:282 (WORLD.charcoal) |
+| 8 | #18242b | 18 | deepShade/TERRAIN_COLORS.mud | src/render/buildings.ts:190 (WORLD.deepShade)<br>src/render/buildings.ts:192 (WORLD.deepShade)<br>src/render/buildings.ts:464 (WORLD.deepShade)<br>src/render/buildings.ts:502 (WORLD.deepShade) |
+| 9 | #1b211c | 14 | soil/TERRAIN_COLORS.tree/TERRAIN_SPECK.grass/TERRAIN_SPECK.farm | src/render/buildings.ts:86 (WORLD.soil)<br>src/render/buildings.ts:223 (WORLD.soil)<br>src/render/buildings.ts:433 (WORLD.soil)<br>src/render/buildings.ts:499 (WORLD.soil) |
+| 10 | #3d6b7a | 14 | water/TERRAIN_COLORS.shallow | src/render/ambience-view.ts:134 (WORLD.water)<br>src/render/buildings.ts:408 (WORLD.water)<br>src/render/fog-view.ts:77 (WORLD.water)<br>src/render/fog-view.ts:146 (WORLD.water) |
+| 11 | #3e433f | 14 | stone/TERRAIN_COLORS.stone/TERRAIN_SPECK.plaza | src/render/buildings.ts:219 (WORLD.stone)<br>src/render/buildings.ts:406 (WORLD.stone)<br>src/render/buildings.ts:659 (WORLD.stone)<br>src/render/decor.ts:91 (WORLD.stone) |
+| 12 | #4a4f42 | 13 | plaza/TERRAIN_COLORS.plaza/TERRAIN_SPECK.stone | src/render/buildings.ts:221 (WORLD.plaza)<br>src/render/buildings.ts:275 (WORLD.plaza)<br>src/render/buildings.ts:657 (WORLD.plaza)<br>src/render/decor.ts:59 (WORLD.plaza) |
+| 13 | #c06a3e | 10 | ember | src/render/buildings.ts:92 (WORLD.ember)<br>src/render/buildings.ts:261 (WORLD.ember)<br>src/render/buildings.ts:392 (WORLD.ember)<br>src/render/buildings.ts:567 (WORLD.ember) |
+| 14 | #c2b39a | 9 | plaster | src/render/buildings.ts:298 (WORLD.plaster)<br>src/render/decor.ts:427 (WORLD.plaster)<br>src/render/decor.ts:459 (WORLD.plaster)<br>src/render/villager.ts:186 (WORLD.plaster) |
+| 15 | #8a5a44 | 8 | timber | src/render/buildings.ts:339 (WORLD.timber)<br>src/render/buildings.ts:379 (WORLD.timber)<br>src/render/decor.ts:392 (WORLD.timber)<br>src/world/prefabs.json:28 (code_forge.body=timber) |
+| 16 | #4e6241 | 6 | moss | src/render/buildings.ts:394 (WORLD.moss)<br>src/render/buildings.ts:436 (WORLD.moss)<br>src/render/buildings.ts:471 (WORLD.moss)<br>src/render/buildings.ts:505 (WORLD.moss) |
+| 17 | #2d3b2e | 5 | grass/TERRAIN_COLORS.grass/TERRAIN_SPECK.tree | src/render/decor.ts:95 (WORLD.grass)<br>src/render/decor.ts:405 (WORLD.grass)<br>src/render/minimap.ts:83 (TERRAIN_COLORS.grass)<br>src/render/tilemap.ts:62 (TERRAIN_COLORS.grass) |
+| 18 | #223a4d | 4 | cloakDark | src/render/day-phase.ts:47 (WORLD.cloakDark)<br>src/render/smoke.ts:29 (WORLD.cloakDark)<br>src/render/weather.ts:89 (WORLD.cloakDark)<br>src/render/weather.ts:116 (WORLD.cloakDark) |
+| 19 | #9c4f3c | 4 | terracotta | src/render/buildings.ts:327 (WORLD.terracotta)<br>src/world/prefabs.json:28 (code_forge.roof=terracotta)<br>src/world/prefabs.json:226 (gear_tower.body=terracotta)<br>src/world/prefabs.json:259 (cottage_oak.roof=terracotta) |
+| 20 | #3b3423 | 3 | farm/TERRAIN_COLORS.farm | src/render/minimap.ts:83 (TERRAIN_COLORS.farm)<br>src/render/tilemap.ts:62 (TERRAIN_COLORS.farm)<br>src/scenes/SandboxScene.ts:534 (TERRAIN_COLORS.farm) |
+| 21 | #5f8a74 | 3 | copper | src/render/buildings.ts:284 (WORLD.copper)<br>src/world/prefabs.json:61 (star_archive.roof=copper)<br>src/world/prefabs.json:292 (cottage_plaster.roof=copper) |
+| 22 | #30506b | 1 | cloak | src/world/prefabs.json:127 (workshop_plot.roof=cloak) |
+| 23 | #334234 | 0 | grassLit |  |
+| 24 | #e0b48c | 0 | skin |  |
+
+## UI 层 Top（按使用次数）
+
+| # | 色值 | 使用次数 | CSS 变量 | 站点（前 4） |
+|---:|---|---:|---|---|
+| 1 | #8e968c | 33 | --dim | index.html:58 (--dim)<br>index.html:64 (--dim)<br>index.html:69 (--dim)<br>index.html:99 (--dim) |
+| 2 | #e8e2d2 | 31 | --ink | index.html:38 (--ink)<br>index.html:77 (--ink)<br>index.html:93 (--ink)<br>index.html:107 (--ink) |
+| 3 | #e3a13c | 27 | --amber | index.html:129 (--amber)<br>index.html:182 (--amber)<br>index.html:289 (--amber)<br>index.html:289 (--amber) |
+| 4 | #666a62 | 23 | --line | index.html:50 (--line)<br>index.html:63 (--line)<br>index.html:76 (--line)<br>index.html:91 (--line) |
+| 5 | #0c0f0d | 19 | --base | index.html:37 (--base)<br>index.html:154 (--base)<br>index.html:155 (--base)<br>index.html:166 (--base) |
+| 6 | #24211b | 19 | --paper-ink | index.html:216 (--paper-ink)<br>index.html:260 (--paper-ink)<br>index.html:307 (--paper-ink)<br>index.html:311 (--paper-ink) |
+| 7 | #171b18 | 15 | --panel | index.html:90 (--panel)<br>index.html:121 (--panel)<br>index.html:276 (--panel)<br>index.html:284 (--panel) |
+| 8 | #2b322c | 12 | --line-faint | index.html:264 (--line-faint)<br>index.html:371 (--line-faint)<br>index.html:383 (--line-faint)<br>index.html:393 (--line-faint) |
+| 9 | #c8876a | 4 | --warn | index.html:67 (--warn)<br>index.html:67 (--warn)<br>index.html:416 (--warn)<br>index.html:423 (--warn) |
+
+## 越界色：世界层（不在提案 24 色内）
+
+| 色值 | 使用 | L | 最近提案色 | ΔE76 | 建议 | 文件:行号 |
+|---|---:|---:|---|---:|---|---|
+
+## 越界色：UI 层（不在提案 9 色内）
+
+| 色值 | 使用 | L | 最近提案色 | ΔE76 | 建议 | 文件:行号 |
+|---|---:|---:|---|---:|---|---|
+
+## 提案 24 色世界
+
+| 色值 | 语义 | 当前使用 | L | 备注 |
+|---|---|---:|---:|---|
+| #14110d | 最暗/轮廓/阴影/眼睛（合并 ink、shadow、sky） | 52 | 0.6% |  |
+| #1b211c | 深土/树冠暗部/街巷暗（旧 soil；2026-10-27 补记：那句“当前 soil 定义未引用，保留槽”已过期——`WORLD.soil` 这个写法今天在 src/ 与 test/ 下 23 处、横跨 7 个文件） | 14 | 1.4% |  |
+| #2d3b2e | 草地基色 | 5 | 3.9% |  |
+| #334234 | 草地亮部/树冠亮部 | 0 | 4.8% | 当前未引用/保留槽 |
+| #3e433f | 石/灰泥基色 | 14 | 5.4% |  |
+| #4a4f42 | 广场/道路/石材亮部 | 13 | 7.4% |  |
+| #3b3423 | 农田土 | 3 | 3.5% |  |
+| #8a5a44 | 木/砖墙基色（建筑主体） | 8 | 13.1% |  |
+| #4a3f39 | 木/屋顶暗部（屋顶、树干、伞杆） | 24 | 5.3% |  |
+| #c9a86a | 暖色饰边/脚手架/旗帜/浅木 | 26 | 41.5% |  |
+| #e3a13c | 焦点琥珀（窗光、进度、路灯、祭坛符号） | 32 | 42.1% | 与 UI 共享 |
+| #e0b48c | 皮肤 | 0 | 50.4% | 当前未引用/保留槽 |
+| #30506b | 斗篷基色 | 1 | 7.4% |  |
+| #223a4d | 斗篷暗部 | 4 | 3.9% |  |
+| #c06a3e | 围巾/强调橙（同时给故障与暖色点缀） | 10 | 21.9% |  |
+| #d8dad3 | 烟/纸片/雨/高光浅色 | 27 | 69.4% |  |
+| #c2b39a | 灰泥墙/浅色纸面（书阁主体） | 9 | 46.0% |  |
+| #9c4f3c | 陶瓦/砖（工坊屋顶、干草垛） | 4 | 13.0% |  |
+| #5f8a74 | 铜绿屋顶（书阁塔楼） | 3 | 21.9% |  |
+| #3d6b7a | 水（水洼、雾、冷反光） | 14 | 12.9% |  |
+| #4e6241 | 苔（石缝、树冠、绿化带） | 6 | 10.7% |  |
+| #18242b | 冷影（檐下、底部、雾的冷暗层） | 18 | 1.6% |  |
+| #f2c879 | 暖高光（窗芯、灯芯、祭坛符文） | 25 | 61.6% |  |
+| #5a463e | 炭黑（暗瓦、烟囱、铁器） | 23 | 6.9% |  |
+
+## 提案 9 色 UI
+
+| 色值 | 语义 | 当前使用 | L | 备注 |
+|---|---|---:|---:|---|
+| #e8e2d2 | 纸面/深底亮文字 | 31 | 76.2% |  |
+| #24211b | 纸上墨字 | 19 | 1.5% |  |
+| #8e968c | 次要文字（深底） | 33 | 29.5% |  |
+| #171b18 | 面板底 | 15 | 1.0% |  |
+| #666a62 | 结构边框（对页面底 3.49:1、对面板 3.15:1） | 23 | 14.0% |  |
+| #2b322c | 面板内部细线/点线（不承担 3:1） | 12 | 3.0% |  |
+| #e3a13c | 强调/焦点（与琥珀同值） | 27 | 42.1% | 与世界共享 |
+| #0c0f0d | 页面底/投影 | 19 | 0.4% |  |
+| #c8876a | 警告/错误 | 4 | 30.6% |  |
+
+## 每文件字面量统计（手算核对口径）
+
+| 文件 | 层 | 口径 | 出现次数 | 唯一色 |
+|---|---|---|---:|---:|
+| src/main.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/ambience-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/ambience.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/bake.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/building-depth.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/building-proportions.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/buildings.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/camera-controller.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/camera-math.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/day-phase.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/decal.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/decor.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/eco-mode.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/fireflies.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/fog-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/ghost.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/harbor-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/labels.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/lampoil-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/minimap.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/phase-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/prop-depth.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/prop-grime.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/region-paint.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/setting-scenery.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/smoke.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/terrain-edges.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/tide-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/tilemap.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/villager-frames.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/villager-layout.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/villager.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/weather-fog-view.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/weather-stalls.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/weather.ts | world | canvas 字面量 | 0 | 0 |
+| src/render/world-overlay.ts | world | canvas 字面量 | 0 | 0 |
+| src/scenes/SandboxScene.ts | world | canvas 字面量 | 0 | 0 |
+| src/world/prefabs.json | world | prefab palette 槽位 | 48 | 13 |
+| index.html (style) | ui | CSS 字面量/变量（含 var 定义） | 24 | 9 |
+
+## 提案关键对比度（WCAG 比值）
+
+| 对比对 | 比值 |
+|---|---:|
+| outline/grass | 1.59:1 |
+| cloak/grass | 1.40:1 |
+| cloakShade/grass | 1.00:1 |
+| skin/grass | 6.23:1 |
+| scarf/grass | 3.02:1 |
+| amber/grass | 5.31:1 |
+| smoke/night | 13.34:1 |
+| paper/ink | 12.41:1 |
+| line/base | 3.49:1 |
+| line/panel | 3.15:1 |
+| faintLine/base | 1.46:1 |
+| faintLine/panel | 1.32:1 |
+| amber/panel | 7.82:1 |
+| dim/panel | 5.71:1 |
+| paper/panel | 13.46:1 |
+
+## 复跑
+
+```bash
+cd pixel-world
+node scripts/audit-palette.mjs          # 人读
+node scripts/audit-palette.mjs --json   # 机器可读
+node scripts/audit-palette.mjs --md     # 本 Markdown
+node scripts/audit-palette.mjs --strict # 超预算时退出码 1（已启用；默认不阻断）
+```
+
