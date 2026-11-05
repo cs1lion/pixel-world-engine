@@ -1136,10 +1136,18 @@ export class SandboxScene extends Phaser.Scene {
     // 世界自己的事实，换时钟模式不改写它（`Simulation.fromSave` 会覆盖）。
     // 默认的游玩时间驱动从 0 起算；关页面即冻结，重开从档里的 `now` 继续，
     // 不做任何离线补算。
+    //
+    // `?debug=1&now=HH:MM` 把**模拟时钟**也钉在指定时刻（只认调试层，产品页
+    // 的 URL 行为不变）。`?time=` 只换画面光照，不换模拟时钟；世界有了回家
+    // 语义之后，两者不一致会让「户外的她」这类断言在夜里落空（她在家）。
+    // 回归脚本因此同时写 `time=…&now=…`。
+    const startMinute = debugStartMinute(new URLSearchParams(window.location.search));
     const initialNow =
-      this.clockMode === 'real'
-        ? msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes)
-        : undefined;
+      startMinute !== null
+        ? startMinute * 60 * 1000
+        : this.clockMode === 'real'
+          ? msSinceLocalMidnight(Date.now(), this.realClockOffsetMinutes)
+          : undefined;
     this.sim =
       this.loadedSave !== null
         ? Simulation.fromSave(this.loadedSave, simDeps)
@@ -3757,6 +3765,9 @@ export class SandboxScene extends Phaser.Scene {
           footprint: { w: building.footprint.w, h: building.footprint.h },
           center: this.interiorCenter(building),
           floors: interiorFloorsFor(building),
+          // 此刻楼里有几个人——只做验收读数用（`!visible` 且占地判到本楼）。
+          // 生产画面不读它：室内视图自己按同一判据点名画人。
+          occupants: this.interiorOccupantsOf(building.instanceId).length,
         })),
       }),
       enterInterior: (buildingId: string): boolean => this.enterInterior(buildingId),
@@ -4705,4 +4716,21 @@ export class SandboxScene extends Phaser.Scene {
     }
     return ledger;
   }
+}
+
+/**
+ * `?debug=1&now=HH:MM`：把新世界的**模拟**起点钉在当天第几分钟。
+ * 只认调试层；不是 `debug=1` 或格式不对就返回 null（照旧从 0 起算）。
+ * 存在的理由：`?time=` 只换画面光照。世界有了回家语义后，夜里居民真的在屋里，
+ * 回归脚本的「户外的她」断言会在 00:00 落空——脚本要能把世界也钉到白天。
+ */
+function debugStartMinute(params: URLSearchParams): number | null {
+  if (params.get('debug') !== '1') return null;
+  const raw = params.get('now');
+  const match = raw === null ? null : /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (match === null) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
 }

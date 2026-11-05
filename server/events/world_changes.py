@@ -83,6 +83,7 @@ WORLD_EVENT_KINDS = (
     "street_tumble",
     "street_water",
     "street_help",
+    "home_entry",
 )
 
 #: `miracle` 事件里记的神迹名。**与 `rules/schema.py` 的 `MIRACLES` 不是同一个域**，

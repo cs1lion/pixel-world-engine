@@ -135,25 +135,29 @@ test('上游撤单：牌子没了，人被挪到铺子门口，同样不在祭�
   assert.equal(reattachAfter, 18, `撤单后该空 1800 拍（18 个 100ms）才挂新牌子，实得第 ${reattachAfter} 个`);
 });
 
-test('清牌子的路口一共四条：三条会把人留在祭坛外', () => {
+test('清牌子的路口一共五条：四条会把人留在祭坛外', () => {
   // 这一条不驱世界，直接数源码：`routineLabel = null` 在 simulation.ts 里
-  // 出现几次，各自在哪个函数里。数出来是 7 处赋值，其中让人回到 idle 且没有
+  // 出现几次，各自在哪个函数里。数出来是 8 处赋值，其中让人回到 idle 且没有
   // 牌子的路口是 `abandonActiveTask`、`removeTask`、`finishInPlace`、
-  // `arriveAtAltar` 四个——最后那个她人就在祭坛，退路恰好是真的。
+  // `arriveAtAltar`、`wakeAtHome` 五个——最后那个她人就在自家门口，退路恰好是真的。
   //
-  // 另外三处都不回 idle，所以不在那四条里：`routeToBuilding`（她正赶往工位）、
+  // 另外三处都不回 idle，所以不在那五条里：`routeToBuilding`（她正赶往工位）、
   // `arriveAtWork`（她已到工位）、`stepDecrees`（她举着急件跑向祭坛）。三处的
   // 说法都归 `villagerModeLabel` 按 mode 分支管，压根不读牌子——清与不清都不
-  // 改变屏上与纸上。**别把「7 处」读成「七条路口」**：能问「她人在哪儿」的
-  // 只有回到 idle 那四条，另外三处那一刻她有别的说法。
+  // 改变屏上与纸上。**别把「8 处」读成「八条路口」**：能问「她人在哪儿」的
+  // 只有回到 idle 那五条，另外三处那一刻她有别的说法。
+  //
+  // `wakeAtHome` 是「回家」那块加进来的第五条：天亮从屋里出来，`visible`
+  // 翻回 true、人站到门口、牌子摘掉交给作息。她不在祭坛外，也不在工位上，
+  // 是标准的一条 idle 路口，所以进这个数。
   //
   // 为什么值得数：注释里那句「只有撤单那条路」就是因为没人数过才活下来的。
   // 数一遍不会让新加的路口自动进注释，但能让「到底有几条」有个可复按的数。
   const source = readFileSync(new URL('../src/world/simulation.ts', import.meta.url), 'utf8');
   const assignments = [...source.matchAll(/routineLabel = null/g)];
-  assert.equal(assignments.length, 7, `simulation.ts 里清牌子的地方该是 7 处，实得 ${assignments.length}`);
-  // 四个路口名都在文件里——少一个就说明有人删了一条路，那段注释得重看。
-  for (const fn of ['abandonActiveTask', 'removeTask', 'finishInPlace', 'arriveAtAltar']) {
+  assert.equal(assignments.length, 8, `simulation.ts 里清牌子的地方该是 8 处，实得 ${assignments.length}`);
+  // 五个路口名都在文件里——少一个就说明有人删了一条路，那段注释得重看。
+  for (const fn of ['abandonActiveTask', 'removeTask', 'finishInPlace', 'arriveAtAltar', 'wakeAtHome']) {
     assert.ok(source.includes(fn), `simulation.ts 里找不到 ${fn}——清牌子的路口变了`);
   }
 });

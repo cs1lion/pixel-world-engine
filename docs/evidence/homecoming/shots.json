@@ -1,0 +1,30 @@
+{
+  "waitedPolls": 42,
+  "occupiedHomes": [
+    {
+      "id": "cottage_oak#1",
+      "occupants": 1,
+      "floors": 2
+    }
+  ],
+  "entered": {
+    "id": "cottage_oak#1",
+    "mode": "inside",
+    "floor": 1,
+    "floors": 2,
+    "occupants": [
+      "v0"
+    ]
+  },
+  "renderStats": {
+    "graphicsObjects": 30,
+    "totalCommands": 17112,
+    "largest": [
+      15448,
+      888,
+      310,
+      127,
+      118
+    ]
+  }
+}

@@ -31,6 +31,13 @@ const FEED = process.env.FEED === '1';
 // 显式注入的昼夜阶段。默认正午；要验「换一个本地时刻也成立」时
 // `SMOKE_TIME=dawn|dusk|night` 各跑一次，脚本不再读 `Date.now()`。
 const SMOKE_TIME = process.env.SMOKE_TIME ?? 'noon';
+// `?time=` 只换画面光照，**模拟时钟**另算（默认从 00:00 起）。世界有了回家语义后，
+// 夜里居民真的在屋里，脚本中段那些「户外的她」断言会落空。所以用 `?now=`
+// 把模拟起点也钉到同一刻（调试层参数，见 `debugStartMinute`）。
+//
+// 正午这一档钉 **10:00** 而不是 12:00：12:00–14:00 是安静段（`hasEnvironment('quiet')`），
+// 全镇回锚点坐着，「没人管的时候她会自己走动」等 120 秒也等不到脚步。
+const SMOKE_NOW = { dawn: '06:30', noon: '10:00', dusk: '18:00', night: '22:30' }[SMOKE_TIME] ?? '10:00';
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
@@ -972,8 +979,8 @@ try {
     //   快照里活一拍。按默认 60× 跑时步长 6000，施工会在同一拍内走完，
     //   「新楼处于施工中」这条根本采不到样；按 1:1 跑则长活变成几十分钟。
     FEED
-      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&speed=30`
-      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&speed=30`,
+      ? `${URL_BASE}?feed=on&debug=1&time=${SMOKE_TIME}&now=${SMOKE_NOW}&speed=30`
+      : `${URL_BASE}?feed=off&debug=1&time=${SMOKE_TIME}&now=${SMOKE_NOW}&speed=30`,
     { waitUntil: 'load' },
   );
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 15000 });

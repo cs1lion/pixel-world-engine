@@ -21,6 +21,15 @@ import {
 } from './tide.ts';
 import { awaitingDecree } from './decree.ts';
 import { harborReportsBetween, harborStateAt } from './harbor.ts';
+import {
+  HOME_GOING_LABEL,
+  HOME_INSIDE_LABEL,
+  homeEntryText,
+  homeFor,
+  homesOf,
+  insideSpotOf,
+  isHomeTime,
+} from './homecoming.ts';
 import type { TaskFoldState } from './task-events.ts';
 import type { WorldChange } from './world-changes.ts';
 
@@ -881,6 +890,7 @@ export class Simulation {
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
       const frame = this.environment();
       for (const villager of this.villagers) {
+        if (!villager.visible) continue;
         if (villager.mode !== 'idle' || villager.path.length > 0) continue;
         const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
         const beat = routineFor(frame, beats, villager.routineIndex, null);
@@ -1877,6 +1887,7 @@ export class Simulation {
       // pickVenue，于是回一句「这座镇子没有接 quick 的铺子」——把「这类活
       // 不占铺子」说成了「这座镇子缺一座铺子」。而那座镇子可能明明有六栋。
       if (TASK_PROFILES[task.kind].venue === 'in_place') {
+        this.ensureAwake(villager);
         this.startInPlace(villager, task, '上游');
         return;
       }
@@ -1908,6 +1919,8 @@ export class Simulation {
       }
       const building = this.buildings.find((item) => item.instanceId === chosen.venue.instanceId);
       if (building === undefined) continue;
+      // 从屋里被点到名的人先站到门口：从占地中心寻路会被墙挡住。
+      this.ensureAwake(villager);
       const route = this.routeTo(villager, building.door);
       if (!route.there && route.path.length === 0) continue;
       task.buildingId = building.instanceId;
@@ -2141,6 +2154,7 @@ export class Simulation {
     // 有人空着就叫一个人；全都在忙或全都抵押了名字才进等待队列。
     const free = this.workerFor();
     if (free === null) return this.enqueuePendingDispatch(taskKind, summary);
+    this.ensureAwake(free);
     return this.startDispatch(free, taskKind, summary);
   }
 
@@ -2236,6 +2250,7 @@ export class Simulation {
       const next = queue[0];
       if (next === undefined) continue;
       // 场地原因暂时派不下去就留在队首，下一拍再试，不丢单。
+      this.ensureAwake(villager);
       if (!this.startDispatch(villager, next.kind, next.summary).ok) continue;
       queue.shift();
       this.log('oracle', `排队的神谕开工：${next.summary}（${villager.name}）`);
@@ -2494,6 +2509,20 @@ export class Simulation {
       villager.nameState !== 'pawned' &&
       !this.inBreathing(villager)
     );
+  }
+
+  /**
+   * 睡着的人被点到名时，先从门口出来再接活。
+   *
+   * 「在屋里就永远不接活」是错的：世界从 00:00 起跑，一开门就是夜里，
+   * 那样一天的头六个小时整座镇子派不出任何活——`test:browser` 就是在这条上
+   * 死等的（第二个角色在屋里睡，第二单永远发不出去）。
+   *
+   * 翻转仍然发生在门口：她不是在街角凭空出现的，是从自家门里走出来的。
+   */
+  private ensureAwake(villager: Villager): void {
+    if (villager.visible) return;
+    this.wakeAtHome(villager);
   }
 
   /**
@@ -2971,7 +3000,110 @@ export class Simulation {
     return best;
   }
 
+  /** 这个居民住哪栋。纯派生（`homecoming.ts`），不落档；没有住宅就是 null。 */
+  private homeOf(villager: Villager): PlacedBuilding | null {
+    return homeFor(villager.id, homesOf(this.buildings));
+  }
+
+  /**
+   * 入夜回家 / 天亮出门。**返回 true 表示这一拍由它接管**。
+   *
+   * 三条纪律：
+   * 1. 先真的走到门口（A* 到 `home.door`），**位置到了才翻 `visible`**——
+   *    街角直接消失会被目击者记成「她凭空不见了」。
+   * 2. 走不到（被淹/被围）就停在原地等，**不假装进屋**。
+   * 3. 屋里只改两样世界已有的字段：`pos` 落进占地、`visible = false`。
+   *    没有新存档字段，v5 不动。
+   */
+  private stepHomecoming(villager: Villager, deltaMs: number): boolean {
+    // 已经在屋里（`visible = false` 且空闲只可能是这一条：干活时 mode 不是 idle）。
+    if (!villager.visible) {
+      if (isHomeTime(this.environment().minuteOfDay)) return true;
+      this.wakeAtHome(villager);
+      return true;
+    }
+    if (!isHomeTime(this.environment().minuteOfDay)) return false;
+    const home = this.homeOf(villager);
+    if (home === null) return false;
+
+    if (villager.path.length > 0) {
+      // 已经是回家的路：接着走。走的是别的路（入夜那一刻还在去别处）：改回家。
+      if (villager.routineLabel === HOME_GOING_LABEL) {
+        this.walk(villager, deltaMs);
+        return true;
+      }
+      villager.path = [];
+    }
+
+    const here = this.cellOf(villager.pos);
+    const goal = this.grid.isWalkable(home.door)
+      ? home.door
+      : this.grid.nearestWalkable(home.door);
+    if (goal !== null && goal.x === here.x && goal.y === here.y) {
+      this.enterHome(villager, home);
+      return true;
+    }
+
+    const route = this.routeTo(villager, home.door);
+    if (route.path.length === 0) {
+      // 走不到（终点被淹/被堵）：停在原地，下一拍再试。不翻 invisible 假装进了屋。
+      villager.routineLabel = HOME_GOING_LABEL;
+      return true;
+    }
+    villager.path = route.path;
+    villager.routineLabel = HOME_GOING_LABEL;
+    villager.routineGoing = '回家';
+    return true;
+  }
+
+  /**
+   * 进门那一刻：位置落进占地、翻成不可见，并报一件**门口**发生的事。
+   *
+   * 报的是门口而不是屋里：目击者站在街上，事件落在屋里就谁也看不见，
+   * 「她进屋了」这条事实会从所有旁观者的记忆里消失。
+   */
+  private enterHome(villager: Villager, home: PlacedBuilding): void {
+    villager.pos = insideSpotOf(home);
+    villager.path = [];
+    villager.visible = false;
+    villager.bubble = null;
+    villager.saluteUntil = 0;
+    villager.routineLabel = HOME_INSIDE_LABEL;
+    villager.routineGoing = null;
+    villager.nextRoutineAt = this.now + 1200;
+    this.log('info', `${villager.name}走进${home.displayName}，门合上了。`);
+    this.announce({
+      change: 'world.event',
+      kind: 'home_entry',
+      text: homeEntryText(villager.name, home.displayName),
+      placeId: home.instanceId,
+      where: home.door,
+      actorId: villager.id,
+    });
+  }
+
+  /**
+   * 天亮出门：站到门口、恢复可见，立刻交给作息挑下一拍。
+   *
+   * 家被拆了就回到祭坛——看不见的人不该留在世界状态里，否则读档后
+   * 她会以「在屋里」的样子站在一片空地上，而那块地上已经没有屋子了。
+   */
+  private wakeAtHome(villager: Villager): void {
+    const home = this.homeOf(villager);
+    const door = home?.door ?? this.altar;
+    villager.pos = { x: door.x, y: door.y };
+    villager.path = [];
+    villager.visible = true;
+    villager.bubble = null;
+    villager.routineLabel = null;
+    villager.routineGoing = null;
+    villager.nextRoutineAt = this.now;
+    if (home !== null) this.log('info', `${villager.name}走出${home.displayName}。`);
+  }
+
   private stepIdle(villager: Villager, deltaMs: number): void {
+    // 回家/起床排在作息之前：夜里她该在屋里，天亮她才回到街上。
+    if (this.stepHomecoming(villager, deltaMs)) return;
     if (villager.path.length > 0) {
       this.walk(villager, deltaMs);
       // 到了才开始算停留。派路那截不扣表——钟在她迈第一步时就开始走的话，
@@ -3373,6 +3505,7 @@ export class Simulation {
     // 那是另一种坏。这条边界由 `breathing-bubble.test.ts` 钉住。
     const free = this.villagers.find(
       (item) =>
+        item.visible &&
         item.mode === 'idle' &&
         item.path.length === 0 &&
         !this.inBreathing(item),
@@ -3863,6 +3996,9 @@ export class Simulation {
     for (const villager of this.villagers) {
       // 「站在落点上」= 不在走路、没有活、牌子上写着作息的那一句。
       // 与 `snapshotVillager` 判牌子的条件同源，不另立一套。
+      // 在屋里的不算落点：她的牌子写的是「在家里歇下了」，落点却在街上，
+      // 那会生出一条「她站在门口说了句闲话」的假事件。
+      if (!villager.visible) continue;
       if (villager.mode !== 'idle' || villager.path.length > 0) continue;
       if (villager.routineLabel === null) continue;
       const here = this.cellOf(villager.pos);
@@ -4118,23 +4254,25 @@ export class Simulation {
     ) {
       return;
     }
-    const villagers: lively.LivelyVillager[] = this.villagers.map((villager) => {
-      const cell = this.cellOf(villager.pos);
-      const walking = villager.path.length > 0;
-      const busyWithDecree = this.decreeBearer === villager.id && this.hasDecree();
-      return {
-        id: villager.id,
-        name: villager.name,
-        cell,
-        walking,
-        standing: !walking && villager.mode === 'idle',
-        carrying: villager.carrying !== null,
-        free:
-          villager.mode === 'idle'
-          && this.now >= villager.saluteUntil
-          && !busyWithDecree,
-      };
-    });
+    const villagers: lively.LivelyVillager[] = this.villagers
+      .filter((villager) => villager.visible)
+      .map((villager) => {
+        const cell = this.cellOf(villager.pos);
+        const walking = villager.path.length > 0;
+        const busyWithDecree = this.decreeBearer === villager.id && this.hasDecree();
+        return {
+          id: villager.id,
+          name: villager.name,
+          cell,
+          walking,
+          standing: !walking && villager.mode === 'idle',
+          carrying: villager.carrying !== null,
+          free:
+            villager.mode === 'idle'
+            && this.now >= villager.saluteUntil
+            && !busyWithDecree,
+        };
+      });
     const events = lively.livelyBetween({
       prevNow,
       now: this.now,

@@ -56,6 +56,12 @@ export function worldEventImportance(kind: WorldEventKind): number {
       // 它值得记住（决定今天过不过得了河），但不是传说级；0.55 让
       // 「看见的人」过 T_write，而不是把广播塞给全镇。
       return 0.55;
+    case 'home_entry':
+      // 「她进屋了」是日常，但**门槛是给旁观者设的**：事件本身的分量压在
+      // 0.4（传说门槛）下面，日复一日不该霸屏；显著度够不够看
+      // `KIND_PRIORS.home_entry`——那里把「看见一个人从街面上消失」的意外
+      // 与「以后去哪儿找她」的目标相关性补上了。
+      return 0.4;
   }
 }
 
@@ -79,6 +85,9 @@ export function worldEventValence(kind: WorldEventKind): number {
     case 'daily_lamp':
       return 0.15;
     case 'routine_done':
+      return 0.1;
+    case 'home_entry':
+      // 回家本身不是情绪事件（不是被赶出去，也不是出了事）。
       return 0.1;
     case 'tide_turn':
       return 0;
@@ -291,6 +300,11 @@ export function observationOf(
         placeId: change.placeId,
         at: change.where,
         actors,
+        // 进门这件事发生在**门口那一格**（`where` 是门外），所以是室外事件：
+        // 街上八格内的人看得见。**必须显式写 false**——`placeId` 绑的是住宅
+        // 实例，若靠 `placeIndoor` 从 placeId 推，任何绑楼的落点都会被判成
+        // 室内，这一幕只剩屋里的人（她自己）看得见，旁观者什么也记不下。
+        ...(change.kind === 'home_entry' ? { indoor: false } : {}),
         outcome: { what: change.text },
         importanceHint: worldEventImportance(change.kind),
         // 每日小事是她自己的一天里做得成的事：比潮水多一点温度，比交付轻。
