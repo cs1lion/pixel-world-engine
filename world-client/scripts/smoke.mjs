@@ -159,6 +159,46 @@ const pinShotCamera = async () => {
   await page.waitForTimeout(250);
 };
 
+/**
+ * 只测量用：把「呈现时刻 + 潮位 + 镜头」一起钉住（`PIN_SHOTS=1`）。
+ *
+ * 默认关闭，正常抓拍口径一字不改。打开时每张图拍完立刻解钉解冻，
+ * 世界照原样往下跑，判据读的仍是真快照。
+ *
+ * `anchor` 给 `{x, y}` 时镜头钉在整格；`null` 表示沿用 `pinShotCamera()`
+ * 刚对好的位置（那一步也是整格对齐）。
+ */
+const PIN_SHOTS = process.env.PIN_SHOTS === '1';
+const SHOT_MINUTE_MS = 45_000_000; // 当天 12:30，与 07/08 同一口径
+
+const pinForShot = async (anchor) => {
+  if (!PIN_SHOTS) return;
+  await page.evaluate(
+    ({ anchor, minuteMs }) => {
+      window.Oracle.freezeWorldClock();
+      const snapshot = window.Oracle.view();
+      window.Oracle.pinShotState(
+        Math.floor(snapshot.now / 86400000) * 86400000 + minuteMs,
+        0,
+      );
+      if (anchor !== null) {
+        window.Oracle.setCameraMode('free');
+        window.Oracle.centerCameraOn(anchor.x, anchor.y);
+      }
+    },
+    { anchor, minuteMs: SHOT_MINUTE_MS },
+  );
+  await page.waitForTimeout(300);
+};
+
+const unpinForShot = async () => {
+  if (!PIN_SHOTS) return;
+  await page.evaluate(() => {
+    window.Oracle.unpinShotState();
+    window.Oracle.unfreezeWorldClock();
+  });
+};
+
 const report = (title) => {
   console.log(`\n${title}：${checks.length} 项通过`);
   for (const label of checks) console.log(`  ok  ${label}`);
@@ -504,17 +544,22 @@ async function runSandboxSuite() {
   check(workingStatus.includes('默认交付：莞尔'), '状态行写清默认交付对象');
   await page.waitForTimeout(700);
   await pinShotCamera();
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/02-working.png` });
+  await unpinForShot();
 
   // 交付与冷却也在 60× 下只活一个逻辑步；抓「第一次进入 delivering」那一拍，
   // 否则冷却已经过期，后面的断言会读到空。
   const delivering = await page
     .waitForFunction(
-      () => {
+      (pin) => {
         const snapshot = window.Oracle.view();
-        return snapshot.villager.mode === 'delivering' ? snapshot : false;
+        if (snapshot.villager.mode !== 'delivering') return false;
+        // 只测量：抓在「刚交付、人停在门口」这一拍就地冻钟。
+        if (pin) window.Oracle.freezeWorldClock();
+        return snapshot;
       },
-      null,
+      PIN_SHOTS,
       { timeout: 120000 },
     )
     .then((handle) => handle.jsonValue());
@@ -525,7 +570,12 @@ async function runSandboxSuite() {
     delivering.workstations.some((w) => w.activity.kind === 'cooling'),
     '铺子进入冷却',
   );
+  if (PIN_SHOTS) {
+    await pinShotCamera();
+    await pinForShot(null);
+  }
   await page.screenshot({ path: `${OUT}/03-deliver.png` });
+  await unpinForShot();
 
   const back = await waitFor((s) => s.villager.mode === 'idle', '她回到祭坛恢复闲逛');
   check(back.villager.taskId === null, '回到祭坛后手上没有单');
@@ -663,7 +713,9 @@ async function runSandboxSuite() {
   check(raining.villager.mode === 'sheltering', '户外的她当场跑去躲雨');
   await page.waitForTimeout(500);
   await pinShotCamera();
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/04-rain.png` });
+  await unpinForShot();
   await waitFor((s) => s.villager.mode === 'idle', '跑到屋檐下停住');
   await page.click('#clear');
   await waitFor((s) => s.weather === 'clear', '神谕让天放晴');
@@ -674,13 +726,16 @@ async function runSandboxSuite() {
   // 同样先装 rAF 采样再点建造，抓「新楼已出现且仍在施工」的同一拍。
   const beforeBuild = await state();
   const buildingPromise = page.waitForFunction(
-    ({ count }) => {
+    ({ count, pin }) => {
       const snapshot = window.Oracle.view();
-      return snapshot.buildings.length === count + 1 && snapshot.constructions.length === 1
-        ? snapshot
-        : false;
+      if (snapshot.buildings.length !== count + 1 || snapshot.constructions.length !== 1) {
+        return false;
+      }
+      // 只测量：抓在「新楼已出现且仍在施工」这一拍就地冻钟。
+      if (pin) window.Oracle.freezeWorldClock();
+      return snapshot;
     },
-    { count: beforeBuild.buildings.length },
+    { count: beforeBuild.buildings.length, pin: PIN_SHOTS },
     { timeout: 120000 },
   );
   await page.click('button[data-build="workshop_plot"]');
@@ -703,7 +758,9 @@ async function runSandboxSuite() {
     }, built);
     await page.waitForTimeout(250);
   }
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/05-build.png` });
+  await unpinForShot();
   await waitFor((s) => s.constructions.length === 0, '施工结束，新楼落成');
 
   for (let i = 0; i < 2; i += 1) {
@@ -716,7 +773,9 @@ async function runSandboxSuite() {
   check(withProp.faith.milestones >= 1, '里程碑记上了');
   await page.waitForTimeout(400);
   await pinShotCamera();
+  await pinForShot(null);
   await page.screenshot({ path: `${OUT}/06-faith.png` });
+  await unpinForShot();
 
   // 日报是纸面，读得到，且写的是真发生过的事。
   const paper = await page.evaluate(() => window.Oracle.report());

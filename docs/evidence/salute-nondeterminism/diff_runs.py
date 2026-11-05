@@ -19,7 +19,49 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
+import cv2
 from PIL import Image
+
+
+def _shape_tag(w: int, h: int) -> str:
+    """按外接框粗分差异块的形状，只作读表提示，不是判据。"""
+    if h <= 22 and w >= 24:
+        return 'text'
+    if 6 <= w <= 48 and 8 <= h <= 64:
+        return 'sprite'
+    if w >= 64 and h >= 64:
+        return 'ground'
+    return 'mixed'
+
+
+def structure(mask: np.ndarray, limit: int = 6) -> dict:
+    """可见差（任一通道 >= 8）的结构化读数：连通块面积、最大块坐标与尺寸。
+
+    8 连通（斜着相接算一块）。`tag` 只按外接框的宽高猜形状，方便对表时认块：
+    细长横条=文字/UI，紧凑小块=精灵，大块=地面/整片覆盖。
+    """
+    count, _labelled, stats, _centroids = cv2.connectedComponentsWithStats(
+        mask.astype(np.uint8), connectivity=8
+    )
+    entries = []
+    for index in range(1, count):
+        x0, y0, w, h, area = (int(value) for value in stats[index])
+        entries.append({
+            'area': area,
+            'bbox': [x0, y0, x0 + w - 1, y0 + h - 1],
+            'size': [w, h],
+            'tag': _shape_tag(w, h),
+        })
+    entries.sort(key=lambda item: item['area'], reverse=True)
+    largest = entries[0] if entries else None
+    return {
+        'components': max(0, int(count) - 1),
+        'largest_area': largest['area'] if largest else 0,
+        'largest_bbox': largest['bbox'] if largest else [],
+        'largest_size': largest['size'] if largest else [],
+        'largest_tag': largest['tag'] if largest else '',
+        'top': entries[:limit],
+    }
 
 
 def load(path: Path) -> np.ndarray:
@@ -65,6 +107,7 @@ def compare(a_path: Path, b_path: Path) -> dict:
         'visible_px': int(mask.sum()),
         'max_delta': int(per_px_max.max()),
         'visible_bbox': bbox,
+        'struct': structure(mask),
         'top_color_pairs': top,
         'channel_hist': hist,
     }

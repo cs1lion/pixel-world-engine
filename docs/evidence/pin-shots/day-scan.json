@@ -1,0 +1,6178 @@
+[
+ {
+  "settled": true,
+  "minute": 360,
+  "now": 22302000,
+  "tide": 0.802,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 365,
+  "now": 21930000,
+  "tide": 0.055,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 370,
+  "now": 22224000,
+  "tide": 0.993,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 375,
+  "now": 22530000,
+  "tide": 0,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 380,
+  "now": 22824000,
+  "tide": 0.796,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 385,
+  "now": 23124000,
+  "tide": 0.622,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 390,
+  "now": 24906000,
+  "tide": 0.261,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 49.8,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.69
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 395,
+  "now": 24162000,
+  "tide": 0.204,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 400,
+  "now": 24024000,
+  "tide": 0.02,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 405,
+  "now": 24324000,
+  "tide": 0.853,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 410,
+  "now": 24624000,
+  "tide": 0.366,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 415,
+  "now": 24924000,
+  "tide": 0.327,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 420,
+  "now": 25224000,
+  "tide": 0.942,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 425,
+  "now": 26244000,
+  "tide": 0,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 430,
+  "now": 25824000,
+  "tide": 0.887,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 435,
+  "now": 26130000,
+  "tide": 0.246,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 440,
+  "now": 26424000,
+  "tide": 0.594,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 445,
+  "now": 26724000,
+  "tide": 0.509,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 450,
+  "now": 27024000,
+  "tide": 0.306,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 455,
+  "now": 27324000,
+  "tide": 0.916,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 460,
+  "now": 29106000,
+  "tide": 0.02,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 54,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.32
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 465,
+  "now": 28110000,
+  "tide": 0.932,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 470,
+  "now": 28224000,
+  "tide": 0.591,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 475,
+  "now": 28524000,
+  "tide": 0.094,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 480,
+  "now": 28830000,
+  "tide": 0.976,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 485,
+  "now": 29124000,
+  "tide": 0.003,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 490,
+  "now": 30900000,
+  "tide": 0.971,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48.9,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.19
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 495,
+  "now": 30216000,
+  "tide": 0.818,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 500,
+  "now": 30024000,
+  "tide": 0.82,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 505,
+  "now": 30324000,
+  "tide": 0.352,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 510,
+  "now": 30624000,
+  "tide": 0.359,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 515,
+  "now": 30924000,
+  "tide": 0.93,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 520,
+  "now": 31230000,
+  "tide": 0.007,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 525,
+  "now": 32250000,
+  "tide": 0.92,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 530,
+  "now": 31824000,
+  "tide": 0.43,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 535,
+  "now": 32124000,
+  "tide": 0.37,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 540,
+  "now": 32424000,
+  "tide": 0.699,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 545,
+  "now": 32724000,
+  "tide": 0.202,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 550,
+  "now": 33024000,
+  "tide": 0.928,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 555,
+  "now": 33324000,
+  "tide": 0.005,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 560,
+  "now": 35106000,
+  "tide": 0.926,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 54,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.32
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 565,
+  "now": 34104000,
+  "tide": 0.031,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 570,
+  "now": 34224000,
+  "tide": 0.427,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 575,
+  "now": 34524000,
+  "tide": 0.788,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 580,
+  "now": 34830000,
+  "tide": 0.054,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 585,
+  "now": 35124000,
+  "tide": 0.958,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 590,
+  "now": 36906000,
+  "tide": 0.014,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 49,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.24
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 595,
+  "now": 36204000,
+  "tide": 0.029,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 600,
+  "now": 36024000,
+  "tide": 0.741,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 605,
+  "now": 36330000,
+  "tide": 0.183,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 610,
+  "now": 36624000,
+  "tide": 0.908,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 615,
+  "now": 36924000,
+  "tide": 0.043,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 620,
+  "now": 37230000,
+  "tide": 0.97,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 625,
+  "now": 38250000,
+  "tide": 0.057,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 630,
+  "now": 37824000,
+  "tide": 0.988,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 635,
+  "now": 38124000,
+  "tide": 0.082,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 640,
+  "now": 38424000,
+  "tide": 0.614,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 645,
+  "now": 38730000,
+  "tide": 0.777,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 650,
+  "now": 39024000,
+  "tide": 0.002,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 655,
+  "now": 39324000,
+  "tide": 1,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 660,
+  "now": 41100000,
+  "tide": 0.257,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 53.9,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.23
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 665,
+  "now": 40110000,
+  "tide": 0.564,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 670,
+  "now": 40230000,
+  "tide": 0.073,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 675,
+  "now": 40524000,
+  "tide": 0.792,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 680,
+  "now": 40830000,
+  "tide": 0.343,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 685,
+  "now": 41124000,
+  "tide": 0.343,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 690,
+  "now": 42912000,
+  "tide": 0.531,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 49.1,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.28
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 695,
+  "now": 42204000,
+  "tide": 0.588,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 700,
+  "now": 42024000,
+  "tide": 0.948,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 705,
+  "now": 42324000,
+  "tide": 0.064,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 710,
+  "now": 42624000,
+  "tide": 0.779,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 715,
+  "now": 42924000,
+  "tide": 0.479,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 720,
+  "now": 43224000,
+  "tide": 0.269,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 725,
+  "now": 44196000,
+  "tide": 0.991,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 730,
+  "now": 43830000,
+  "tide": 0.006,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 735,
+  "now": 44124000,
+  "tide": 0.87,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 740,
+  "now": 44424000,
+  "tide": 0.506,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 745,
+  "now": 44730000,
+  "tide": 0.166,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 750,
+  "now": 45030000,
+  "tide": 0.986,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 755,
+  "now": 45330000,
+  "tide": 0.034,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 760,
+  "now": 45624000,
+  "tide": 0.929,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 765,
+  "now": 45924000,
+  "tide": 0.078,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 770,
+  "now": 46224000,
+  "tide": 0.658,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 775,
+  "now": 46524000,
+  "tide": 0.743,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 780,
+  "now": 46824000,
+  "tide": 0.02,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 785,
+  "now": 47124000,
+  "tide": 0.999,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 790,
+  "now": 47430000,
+  "tide": 0.031,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 795,
+  "now": 47724000,
+  "tide": 0.697,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 800,
+  "now": 48024000,
+  "tide": 0.703,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 805,
+  "now": 48324000,
+  "tide": 0.033,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 810,
+  "now": 48630000,
+  "tide": 0.993,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 815,
+  "now": 48930000,
+  "tide": 0.132,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 820,
+  "now": 49224000,
+  "tide": 0.761,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 825,
+  "now": 49530000,
+  "tide": 0.241,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 830,
+  "now": 49830000,
+  "tide": 0.556,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 835,
+  "now": 50130000,
+  "tide": 0.741,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 840,
+  "now": 50430000,
+  "tide": 0.059,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 845,
+  "now": 51456000,
+  "tide": 0.958,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 850,
+  "now": 51024000,
+  "tide": 0.042,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 855,
+  "now": 51324000,
+  "tide": 0.848,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 860,
+  "now": 52296000,
+  "tide": 0.309,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 865,
+  "now": 51924000,
+  "tide": 0.519,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 870,
+  "now": 52224000,
+  "tide": 0.64,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 875,
+  "now": 52524000,
+  "tide": 0.244,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 880,
+  "now": 52824000,
+  "tide": 0.805,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 885,
+  "now": 54510000,
+  "tide": 0.03,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 890,
+  "now": 53430000,
+  "tide": 0.938,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 895,
+  "now": 53724000,
+  "tide": 0.004,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 900,
+  "now": 54018000,
+  "tide": 0.917,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 905,
+  "now": 54324000,
+  "tide": 0.317,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 910,
+  "now": 54630000,
+  "tide": 0.398,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 915,
+  "now": 54930000,
+  "tide": 0.86,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 920,
+  "now": 55224000,
+  "tide": 0.003,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 925,
+  "now": 56370000,
+  "tide": 0.877,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 930,
+  "now": 55824000,
+  "tide": 0.216,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 935,
+  "now": 56124000,
+  "tide": 0.551,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 940,
+  "now": 56430000,
+  "tide": 0.657,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 945,
+  "now": 56724000,
+  "tide": 0.138,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 950,
+  "now": 57024000,
+  "tide": 0.953,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 955,
+  "now": 57330000,
+  "tide": 0.009,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 960,
+  "now": 59112000,
+  "tide": 0.444,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 54.1,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.42
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 965,
+  "now": 58104000,
+  "tide": 0.503,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 970,
+  "now": 58230000,
+  "tide": 0.946,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 975,
+  "now": 58524000,
+  "tide": 0.255,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 980,
+  "now": 58830000,
+  "tide": 0.664,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 985,
+  "now": 59130000,
+  "tide": 0.353,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 990,
+  "now": 60912000,
+  "tide": 0.844,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 49.1,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.28
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 995,
+  "now": 60204000,
+  "tide": 0.78,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1000,
+  "now": 60036000,
+  "tide": 0.11,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1005,
+  "now": 60330000,
+  "tide": 0.995,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1010,
+  "now": 60624000,
+  "tide": 0.039,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1015,
+  "now": 60924000,
+  "tide": 0.883,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1020,
+  "now": 61224000,
+  "tide": 0.215,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1025,
+  "now": 62256000,
+  "tide": 0.733,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1030,
+  "now": 61830000,
+  "tide": 0.52,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1035,
+  "now": 62130000,
+  "tide": 0.241,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1040,
+  "now": 62430000,
+  "tide": 0.972,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1045,
+  "now": 62730000,
+  "tide": 0.032,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1050,
+  "now": 63024000,
+  "tide": 0.788,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1055,
+  "now": 63324000,
+  "tide": 0.452,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1060,
+  "now": 65118000,
+  "tide": 0.985,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 54.2,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.51
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1065,
+  "now": 64098000,
+  "tide": 0,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1070,
+  "now": 64230000,
+  "tide": 0.33,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1075,
+  "now": 64530000,
+  "tide": 0.791,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1080,
+  "now": 64830000,
+  "tide": 0.079,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1085,
+  "now": 65136000,
+  "tide": 0.997,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1090,
+  "now": 66918000,
+  "tide": 0.009,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 49.2,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.33
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1095,
+  "now": 66198000,
+  "tide": 0.057,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1100,
+  "now": 66024000,
+  "tide": 0.323,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1105,
+  "now": 66330000,
+  "tide": 0.506,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1110,
+  "now": 66630000,
+  "tide": 0.796,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1115,
+  "now": 66930000,
+  "tide": 0.021,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1120,
+  "now": 67230000,
+  "tide": 0.961,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1125,
+  "now": 68262000,
+  "tide": 0.07,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1130,
+  "now": 67830000,
+  "tide": 0.519,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1135,
+  "now": 68130000,
+  "tide": 0.614,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1140,
+  "now": 68430000,
+  "tide": 0.198,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1145,
+  "now": 68736000,
+  "tide": 0.978,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1150,
+  "now": 69030000,
+  "tide": 0.044,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1155,
+  "now": 69330000,
+  "tide": 0.647,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1160,
+  "now": 71112000,
+  "tide": 0.991,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 54.1,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.42
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1165,
+  "now": 70110000,
+  "tide": 0.456,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1170,
+  "now": 70242000,
+  "tide": 0.901,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1175,
+  "now": 70530000,
+  "tide": 0.495,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1180,
+  "now": 70830000,
+  "tide": 0.138,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1185,
+  "now": 71124000,
+  "tide": 0.998,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1190,
+  "now": 72906000,
+  "tide": 0.1,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 49,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.24
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1195,
+  "now": 72210000,
+  "tide": 0.002,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1200,
+  "now": 72030000,
+  "tide": 0.524,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1205,
+  "now": 72330000,
+  "tide": 0.247,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1210,
+  "now": 72636000,
+  "tide": 0.971,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1215,
+  "now": 72930000,
+  "tide": 0.05,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1220,
+  "now": 73230000,
+  "tide": 0.704,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1225,
+  "now": 74262000,
+  "tide": 0.819,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1230,
+  "now": 73830000,
+  "tide": 0.087,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1235,
+  "now": 74130000,
+  "tide": 0.993,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1240,
+  "now": 74430000,
+  "tide": 0.201,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1245,
+  "now": 74730000,
+  "tide": 0.559,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1250,
+  "now": 75030000,
+  "tide": 0.623,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1255,
+  "now": 75330000,
+  "tide": 0.202,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1260,
+  "now": 77106000,
+  "tide": 0.898,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 54,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 6.32
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1265,
+  "now": 76098000,
+  "tide": 0.49,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1270,
+  "now": 76230000,
+  "tide": 0.957,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1275,
+  "now": 76530000,
+  "tide": 0.185,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1280,
+  "now": 76830000,
+  "tide": 0.511,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1285,
+  "now": 77136000,
+  "tide": 0.816,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 40,
+     "y": 40
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.94
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1290,
+  "now": 78906000,
+  "tide": 0.06,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 49,
+     "y": 34
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 2.24
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1295,
+  "now": 78210000,
+  "tide": 0,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1300,
+  "now": 78030000,
+  "tide": 0.431,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1305,
+  "now": 78330000,
+  "tide": 0.228,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1310,
+  "now": 78630000,
+  "tide": 0.97,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": true,
+  "minute": 1315,
+  "now": 78930000,
+  "tide": 0.021,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 0
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 56,
+     "y": 33
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 8.54
+   }
+  ]
+ },
+ {
+  "settled": false,
+  "minute": 1320,
+  "now": 80706000,
+  "tide": 0.803,
+  "altar": {
+   "x": 48,
+   "y": 36
+  },
+  "people": [
+   {
+    "name": "莞尔",
+    "pos": {
+     "x": 52,
+     "y": 42
+    },
+    "mode": "idle",
+    "walking": false,
+    "distance": 7.21
+   },
+   {
+    "name": "阿雾",
+    "pos": {
+     "x": 49,
+     "y": 51
+    },
+    "mode": "idle",
+    "walking": true,
+    "distance": 15.03
+   }
+  ]
+ }
+]

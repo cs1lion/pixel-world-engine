@@ -1,0 +1,1402 @@
+{
+ "sessions": [
+  {
+   "round": 1,
+   "steps": [
+    {
+     "minute": 720,
+     "settled": true,
+     "now": 43920000,
+     "day": 0,
+     "minuteOfDay": 732,
+     "tide": 0.167,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 725,
+     "settled": true,
+     "now": 43536000,
+     "day": 0,
+     "minuteOfDay": 725,
+     "tide": 0.878,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 730,
+     "settled": true,
+     "now": 43836000,
+     "day": 0,
+     "minuteOfDay": 730,
+     "tide": 0.01,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 735,
+     "settled": true,
+     "now": 44136000,
+     "day": 0,
+     "minuteOfDay": 735,
+     "tide": 0.899,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 740,
+     "settled": true,
+     "now": 44436000,
+     "day": 0,
+     "minuteOfDay": 740,
+     "tide": 0.461,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 745,
+     "settled": true,
+     "now": 44736000,
+     "day": 0,
+     "minuteOfDay": 745,
+     "tide": 0.185,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 750,
+     "settled": true,
+     "now": 45042000,
+     "day": 0,
+     "minuteOfDay": 750,
+     "tide": 0.972,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 755,
+     "settled": true,
+     "now": 45336000,
+     "day": 0,
+     "minuteOfDay": 755,
+     "tide": 0.025,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 760,
+     "settled": true,
+     "now": 45636000,
+     "day": 0,
+     "minuteOfDay": 760,
+     "tide": 0.957,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 765,
+     "settled": true,
+     "now": 45936000,
+     "day": 0,
+     "minuteOfDay": 765,
+     "tide": 0.048,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 770,
+     "settled": true,
+     "now": 47040000,
+     "day": 0,
+     "minuteOfDay": 784,
+     "tide": 0.831,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 780,
+     "settled": true,
+     "now": 46836000,
+     "day": 0,
+     "minuteOfDay": 780,
+     "tide": 0.039,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 790,
+     "settled": true,
+     "now": 47436000,
+     "day": 0,
+     "minuteOfDay": 790,
+     "tide": 0.022,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 800,
+     "settled": true,
+     "now": 48036000,
+     "day": 0,
+     "minuteOfDay": 800,
+     "tide": 0.66,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 810,
+     "settled": true,
+     "now": 48636000,
+     "day": 0,
+     "minuteOfDay": 810,
+     "tide": 0.997,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 820,
+     "settled": true,
+     "now": 49236000,
+     "day": 0,
+     "minuteOfDay": 820,
+     "tide": 0.811,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 830,
+     "settled": true,
+     "now": 49836000,
+     "day": 0,
+     "minuteOfDay": 830,
+     "tide": 0.581,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 840,
+     "settled": true,
+     "now": 50442000,
+     "day": 0,
+     "minuteOfDay": 840,
+     "tide": 0.087,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    }
+   ],
+   "saluteAt": {
+    "now": 50478000,
+    "minuteOfDay": 841,
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "toWork",
+    "distanceToAltar": 0
+   }
+  },
+  {
+   "round": 2,
+   "steps": [
+    {
+     "minute": 720,
+     "settled": true,
+     "now": 43914000,
+     "day": 0,
+     "minuteOfDay": 731,
+     "tide": 0.15,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 725,
+     "settled": true,
+     "now": 43542000,
+     "day": 0,
+     "minuteOfDay": 725,
+     "tide": 0.861,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 730,
+     "settled": true,
+     "now": 43836000,
+     "day": 0,
+     "minuteOfDay": 730,
+     "tide": 0.01,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 735,
+     "settled": true,
+     "now": 44136000,
+     "day": 0,
+     "minuteOfDay": 735,
+     "tide": 0.899,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 740,
+     "settled": true,
+     "now": 44442000,
+     "day": 0,
+     "minuteOfDay": 740,
+     "tide": 0.438,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 745,
+     "settled": true,
+     "now": 44736000,
+     "day": 0,
+     "minuteOfDay": 745,
+     "tide": 0.185,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 750,
+     "settled": true,
+     "now": 45036000,
+     "day": 0,
+     "minuteOfDay": 750,
+     "tide": 0.98,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 755,
+     "settled": true,
+     "now": 45336000,
+     "day": 0,
+     "minuteOfDay": 755,
+     "tide": 0.025,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 760,
+     "settled": true,
+     "now": 45636000,
+     "day": 0,
+     "minuteOfDay": 760,
+     "tide": 0.957,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 765,
+     "settled": true,
+     "now": 45936000,
+     "day": 0,
+     "minuteOfDay": 765,
+     "tide": 0.048,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 40,
+        "y": 40
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "去看了一眼农田",
+       "distanceToAltar": 8.94
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 56,
+        "y": 33
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在街口站着看了一会儿",
+       "distanceToAltar": 8.54
+      }
+     ]
+    },
+    {
+     "minute": 770,
+     "settled": true,
+     "now": 47034000,
+     "day": 0,
+     "minuteOfDay": 783,
+     "tide": 0.81,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 780,
+     "settled": true,
+     "now": 46836000,
+     "day": 0,
+     "minuteOfDay": 780,
+     "tide": 0.039,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 790,
+     "settled": true,
+     "now": 47430000,
+     "day": 0,
+     "minuteOfDay": 790,
+     "tide": 0.031,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 800,
+     "settled": true,
+     "now": 48036000,
+     "day": 0,
+     "minuteOfDay": 800,
+     "tide": 0.66,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 810,
+     "settled": true,
+     "now": 48642000,
+     "day": 0,
+     "minuteOfDay": 810,
+     "tide": 0.999,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 820,
+     "settled": true,
+     "now": 49236000,
+     "day": 0,
+     "minuteOfDay": 820,
+     "tide": 0.811,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 830,
+     "settled": true,
+     "now": 49836000,
+     "day": 0,
+     "minuteOfDay": 830,
+     "tide": 0.581,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    },
+    {
+     "minute": 840,
+     "settled": true,
+     "now": 50436000,
+     "day": 0,
+     "minuteOfDay": 840,
+     "tide": 0.072,
+     "altar": {
+      "x": 48,
+      "y": 36
+     },
+     "villagers": [
+      {
+       "id": "v0",
+       "name": "莞尔",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      },
+      {
+       "id": "v1",
+       "name": "阿雾",
+       "pos": {
+        "x": 48,
+        "y": 36
+       },
+       "mode": "idle",
+       "walking": false,
+       "routine": "在祭坛边坐着",
+       "distanceToAltar": 0
+      }
+     ]
+    }
+   ],
+   "saluteAt": {
+    "now": 50472000,
+    "minuteOfDay": 841,
+    "pos": {
+     "x": 48,
+     "y": 36
+    },
+    "mode": "toWork",
+    "distanceToAltar": 0
+   }
+  }
+ ]
+}
