@@ -270,7 +270,7 @@ cd server && python -m pytest
 引用对不上、节号不存在、色板超预算，**全都只让输出变长，不会让 `check`/`test` 变红**。
 只跑前两条的人会以为自己是绿的，而五个闸门一个都没过。
 
-2026-11-04 合并 `experiment/daycard-readonly` 后实测：`check` 0 错、`test` 2285 通过 / 9 跳过 / 0 失败
+2026-11-05 合并 `fix/audit-standards-20261105` 后实测：`check` 0 错、`test` 2289 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
 0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 544 通过 / 1 跳过。CI 跑同一批闸门；
 要最新的 run 链接就打开 Actions 里这条 commit 的那一次。
