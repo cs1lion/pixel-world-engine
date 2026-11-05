@@ -248,6 +248,63 @@ export function runRewindQa(fixture: {
           }
           break;
         }
+        case 'met': {
+          // 见面名单必须从当天 facts 重算：同一条事实的 actors ∪ witnesses 两两成对。
+          const expected = new Set<string>();
+          for (const fact of record.facts) {
+            const people = [...new Set([...fact.actors, ...fact.witnesses])].sort();
+            for (let left = 0; left < people.length; left += 1) {
+              for (let right = left + 1; right < people.length; right += 1) {
+                expected.add(`${people[left]}↔${people[right]}`);
+              }
+            }
+          }
+          if (expected.size === 0) {
+            if (!answer.answer.startsWith(`当天 ${record.facts.length} 条事实里没有两人同场`)) {
+              failures.push(`当天没有两人同场，但答案不是这个口径：${answer.answer}`);
+            }
+            break;
+          }
+          const actual = new Set(answer.answer.split('、'));
+          const missing = [...expected].filter((pair) => !actual.has(pair));
+          const extra = [...actual].filter((pair) => !expected.has(pair));
+          if (missing.length > 0 || extra.length > 0) {
+            failures.push(
+              `见面名单与事实重算不符（应为 ${expected.size} 对）：` +
+              `缺 ${missing.join('、') || '无'}；多 ${extra.join('、') || '无'}`,
+            );
+          }
+          break;
+        }
+        case 'absent': {
+          // 缺席名单必须重算：常驻名单 − 当天 actors ∪ witnesses。
+          const present = new Set<string>();
+          for (const fact of record.facts) {
+            for (const actor of fact.actors) present.add(actor);
+            for (const witness of fact.witnesses) present.add(witness);
+          }
+          const outsiders = [...present].filter((person) => !villagers.includes(person));
+          if (outsiders.length > 0) {
+            failures.push(`事实里出现了非常驻名单的人：${outsiders.join('、')}`);
+          }
+          const expectedAbsent = villagers.filter((person) => !present.has(person));
+          if (expectedAbsent.length === 0) {
+            if (!answer.answer.startsWith('无人缺席')) {
+              failures.push(`重算无人缺席，但答案不是：${answer.answer}`);
+            }
+            break;
+          }
+          const prefix = `${expectedAbsent.length} 人不在：`;
+          if (!answer.answer.startsWith(prefix)) {
+            failures.push(`缺席人数与重算不符：期望 ${expectedAbsent.length}`);
+            break;
+          }
+          const listed = answer.answer.slice(prefix.length).split('、');
+          if (listed.join('、') !== expectedAbsent.join('、')) {
+            failures.push(`缺席名单与重算不符：期望 ${expectedAbsent.join('、')}，实际 ${listed.join('、')}`);
+          }
+          break;
+        }
         case 'weather': {
           const label = WEATHER[record.weather] ?? record.weather;
           if (!answer.answer.includes(label)) failures.push(`天气标签缺失：${label}`);

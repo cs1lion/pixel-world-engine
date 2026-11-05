@@ -54,6 +54,29 @@
   失败信息与既有测试同格式，定位成本不增加。
 - 因此 `test/eval-ledger.test.ts` 就是 CI 入口；CLI 只用于生成证据 JSON。
 
+## gate 标签的真实含义（2026-11-05 修正）
+
+| 项 | 内容 |
+| --- | --- |
+| 改前 | 16 条来自 pwe-soak 证据树的读数标成 `gate: ci-nightly` |
+| 当初为什么标 nightly | 这些读数由离线 soak 脚本产出，单轮要跑几十个世界日，当时把「我希望它在 nightly 复核」写成了 gate |
+| 为什么改 | 仓里**没有** nightly workflow：`.github/workflows/` 只有 `ci.yml`，触发是 `pull_request` + `push`。`ci-nightly` 从未对应任何真实门。按「gate = 这条读数在哪个门被复算」的口径，唯一真实入口是 `npm test` 里的 `test/eval-ledger.test.ts`，即 `ci.yml` 的 `pull_request`/`push` job，也就是 `ci-pr` |
+| 改法 | 16 条 `gate` 由 `ci-nightly` 改为 `ci-pr`；`value` / `source` / `denominator` / `script_sha` 一个没动 |
+| 护栏 | 新增 `test/gate-workflow-reconcile.test.ts`：解析 `.github/workflows/*.yml` 的 `on:`，断言账本里出现的每个 gate 都有真实触发位置；新增 gate 不接真实门就红 |
+
+`ci-nightly` 仍保留在 `GATES` 枚举里：将来真加了 nightly workflow，它才有资格被写进账本。
+
+## 外部来源的 `input_sha`（2026-11-05）
+
+- `source` 以 `pwe-soak/` 开头、或 `note` 命中 `pwe-soak` 的条目，必须给 `input_sha`
+  （64 位小写 sha256，按 LF 归一化后算），或 `input_status: "not_measured"` + `input_note` 原因；
+  两者都没有就红。
+- 3 条 `*.soak90d` 的输入是 `docs/evidence/soak/soak-a/save-90d.json`，`input_sha` 写
+  `ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a`——与
+  `world-client/eval/fixtures/eval-soak-day-facts.json` 声明的 `saveSha256` 一致。
+- 其余 11 条取自 pwe-soak 证据树、输入文件未随仓提交：标 `input_status: "not_measured"`
+  并写 `input_note`，含义是**不可判**，不是「已验证」。
+
 ## `script_sha` 的两类取值
 
 - 填了 `script` 的条目，在每次校验时重算文件 sha256（LF 归一化后），**脚本改了而读数

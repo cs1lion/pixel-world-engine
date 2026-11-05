@@ -1617,7 +1617,7 @@ export class MemoryWorld {
     const entryTrim = trimEntriesToBudget(this.entries, this.config);
     if (entryTrim.byCount + entryTrim.byBytes > 0) {
       this.entries = entryTrim.kept as MemoryEntry[];
-      this.emitPruned(day, at, 'entries', entryTrim.byCount, entryTrim.byBytes, this.entries.length);
+      this.emitPruned(day, at, 'entries', entryTrim.byCount, entryTrim.byBytes, entryTrim.countOver, entryTrim.bytesOver, this.entries.length);
     }
 
     const facts = this.trimRecords([...this.facts.values()], this.config.libraryBudget.facts, (a, b) => {
@@ -1632,7 +1632,7 @@ export class MemoryWorld {
       for (const eventId of [...this.facts.keys()]) {
         if (!keep.has(eventId)) this.facts.delete(eventId);
       }
-      this.emitPruned(day, at, 'facts', facts.byCount, facts.byBytes, this.facts.size);
+      this.emitPruned(day, at, 'facts', facts.byCount, facts.byBytes, facts.countOver, facts.bytesOver, this.facts.size);
     }
 
     const claims = this.trimRecords([...this.claims.values()], this.config.libraryBudget.claims, (a, b) => {
@@ -1645,7 +1645,7 @@ export class MemoryWorld {
       for (const claimId of [...this.claims.keys()]) {
         if (!keep.has(claimId)) this.claims.delete(claimId);
       }
-      this.emitPruned(day, at, 'claims', claims.byCount, claims.byBytes, this.claims.size);
+      this.emitPruned(day, at, 'claims', claims.byCount, claims.byBytes, claims.countOver, claims.bytesOver, this.claims.size);
     }
 
     const beliefs = this.trimRecords(this.beliefs, this.config.libraryBudget.beliefs, (a, b) => {
@@ -1657,7 +1657,7 @@ export class MemoryWorld {
     if (beliefs.byCount + beliefs.byBytes > 0) {
       this.beliefs = beliefs.kept;
       this.reindexBeliefs();
-      this.emitPruned(day, at, 'beliefs', beliefs.byCount, beliefs.byBytes, this.beliefs.length);
+      this.emitPruned(day, at, 'beliefs', beliefs.byCount, beliefs.byBytes, beliefs.countOver, beliefs.bytesOver, this.beliefs.length);
     }
 
     const cooldowns = this.trimRecords(this.cooldowns, this.config.libraryBudget.cooldowns, (a, b) => {
@@ -1668,7 +1668,7 @@ export class MemoryWorld {
     if (cooldowns.byCount + cooldowns.byBytes > 0) {
       this.cooldowns = cooldowns.kept;
       this.reindexCooldowns();
-      this.emitPruned(day, at, 'cooldowns', cooldowns.byCount, cooldowns.byBytes, this.cooldowns.length);
+      this.emitPruned(day, at, 'cooldowns', cooldowns.byCount, cooldowns.byBytes, cooldowns.countOver, cooldowns.bytesOver, this.cooldowns.length);
     }
 
     const tells = this.trimRecords(this.tells, this.config.libraryBudget.tells, (a, b) => {
@@ -1680,7 +1680,7 @@ export class MemoryWorld {
       // `tells` 是 readonly 字段：就地换内容，不换数组本身。
       this.tells.length = 0;
       this.tells.push(...tells.kept);
-      this.emitPruned(day, at, 'tells', tells.byCount, tells.byBytes, this.tells.length);
+      this.emitPruned(day, at, 'tells', tells.byCount, tells.byBytes, tells.countOver, tells.bytesOver, this.tells.length);
     }
 
     const written = this.trimRecords(this.written, this.config.libraryBudget.written, (a, b) => {
@@ -1689,7 +1689,7 @@ export class MemoryWorld {
     });
     if (written.byCount + written.byBytes > 0) {
       this.written = written.kept;
-      this.emitPruned(day, at, 'written', written.byCount, written.byBytes, this.written.length);
+      this.emitPruned(day, at, 'written', written.byCount, written.byBytes, written.countOver, written.bytesOver, this.written.length);
     }
 
     // 传说先按「传得多远」留，同 reach 时**留更早立起来的**。
@@ -1703,7 +1703,7 @@ export class MemoryWorld {
     });
     if (legends.byCount + legends.byBytes > 0) {
       this.legends = legends.kept;
-      this.emitPruned(day, at, 'legends', legends.byCount, legends.byBytes, this.legends.length);
+      this.emitPruned(day, at, 'legends', legends.byCount, legends.byBytes, legends.countOver, legends.bytesOver, this.legends.length);
     }
 
     // 日摘要的淘汰顺序见 `digest.ts` 的 `digestRank`：开天前 30 天保底，
@@ -1716,7 +1716,7 @@ export class MemoryWorld {
     );
     if (digests.byCount + digests.byBytes > 0) {
       this.digests = digests.kept.sort((a, b) => a.day - b.day);
-      this.emitPruned(day, at, 'digests', digests.byCount, digests.byBytes, this.digests.length);
+      this.emitPruned(day, at, 'digests', digests.byCount, digests.byBytes, digests.countOver, digests.bytesOver, this.digests.length);
     }
   }
 
@@ -1728,8 +1728,10 @@ export class MemoryWorld {
     items: readonly T[],
     budget: LayerBudget,
     rank: (a: T, b: T) => number,
-  ): { kept: T[]; byCount: number; byBytes: number } {
-    if (items.length === 0) return { kept: [], byCount: 0, byBytes: 0 };
+  ): { kept: T[]; byCount: number; byBytes: number; countOver: number; bytesOver: number } {
+    if (items.length === 0) {
+      return { kept: [], byCount: 0, byBytes: 0, countOver: 0, bytesOver: 0 };
+    }
     let total = 0;
     let overBytes = false;
     for (const item of items) {
@@ -1739,8 +1741,9 @@ export class MemoryWorld {
         break;
       }
     }
+    const countOver = Math.max(0, items.length - budget.count);
     if (items.length <= budget.count && !overBytes) {
-      return { kept: [...items], byCount: 0, byBytes: 0 };
+      return { kept: [...items], byCount: 0, byBytes: 0, countOver: 0, bytesOver: 0 };
     }
     const ranked = [...items].sort(rank);
     const kept: T[] = [];
@@ -1757,10 +1760,23 @@ export class MemoryWorld {
       kept.push(item);
     }
     const evicted = items.length - kept.length;
+    // 第二遍**忽略条数上限**，只看字节：答「如果条数不限，光字节会裁掉几条」。
+    // 与 countOver 一起，两个数回答的是两个不同的问题，不再二选一。
+    let bytesOnly = 0;
+    let bytesOnlyKept = 0;
+    for (const item of ranked) {
+      const size = byteSizeOf(item);
+      if (bytesOnly + size > budget.bytes) break;
+      bytesOnly += size;
+      bytesOnlyKept += 1;
+    }
+    const bytesOver = items.length - bytesOnlyKept;
     return {
       kept,
       byCount: countHit ? evicted : 0,
       byBytes: countHit ? 0 : evicted,
+      countOver,
+      bytesOver,
     };
   }
 
@@ -1777,6 +1793,8 @@ export class MemoryWorld {
     layer: string,
     byCount: number,
     byBytes: number,
+    countOver: number,
+    bytesOver: number,
     remaining: number,
   ): void {
     this.emit('memory.pruned', at, {
@@ -1785,6 +1803,8 @@ export class MemoryWorld {
       evicted: byCount + byBytes,
       byCount,
       byBytes,
+      countOver,
+      bytesOver,
       reason: byCount > 0 ? 'count' : 'bytes',
       remaining,
     });

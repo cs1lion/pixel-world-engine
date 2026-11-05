@@ -199,8 +199,10 @@ try {
     proof: panel.proof,
     readMs: panel.cards?.readMs ?? null,
     cardsDays: panel.cards?.days ?? null,
-    saveBeforeBytes: toggle.beforeSave.length,
-    saveAfterBytes: toggle.afterSave.length,
+    // 存档大小按 UTF-8 字节算：`.length` 是 UTF-16 码元数，中文会被少算，
+    // 和「存档字节」不是同一个单位（两者在本存档上差 85,950）。
+    saveBeforeBytes: new TextEncoder().encode(toggle.beforeSave).length,
+    saveAfterBytes: new TextEncoder().encode(toggle.afterSave).length,
     saveRawEqual: toggle.beforeSave === toggle.afterSave,
     panelOpen: toggle.open,
     memoryViewEqual: JSON.stringify(before.memory) === JSON.stringify(after.memory),

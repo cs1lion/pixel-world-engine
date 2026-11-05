@@ -1016,7 +1016,7 @@
 
     <!-- 镇志抽屉：把 memory/ 读成一本能翻开的编年史（票据 #7）。
          放在左侧，与右侧的调试面板错开——两个都从右边出来会互相压。
-         中文走 DOM 不走 canvas（SPEC §4.8），所以这里是普通 HTML。 -->
+         中文走 DOM 不走 canvas（SPEC §11.8「中文与长文一律不进 canvas」），所以这里是普通 HTML。 -->
     <aside id="chronicle" hidden aria-label="镇志">
       <div class="chronicle-head">
         <strong id="chronicle-heading">镇志</strong>
@@ -1036,7 +1036,7 @@
 
     <!-- 日历抽屉：每天一行「有没有事 / 几个人 / 哪一天不平静」。
          数据来自场景的 `dayCards()`，只读 `DayDigest` 与事实，不改存档。
-         与镇志互斥——两者都落在左侧。中文全走 DOM（SPEC §4.8）。 -->
+         与镇志互斥——两者都落在左侧。中文全走 DOM（SPEC §11.8「中文与长文一律不进 canvas」）。 -->
     <aside id="daycard" hidden aria-label="日历">
       <div class="daycard-head">
         <strong id="daycard-heading">日历</strong>
@@ -1054,7 +1054,7 @@
 
     <!-- 村民面板：点一个人，她说她记得的事。读的是检索 Top-3（`recallForDialogue`），
          不调模型、不改世界。落在右侧——镇志已经占了左边，而调试面板只在 ?debug=1
-         时展开。中文全走 DOM（SPEC §4.8）。 -->
+         时展开。中文全走 DOM（SPEC §11.8「中文与长文一律不进 canvas」）。 -->
     <aside id="villager-panel" hidden aria-label="她记得的事">
       <div class="villager-head">
         <strong id="villager-panel-name"></strong>
@@ -1064,7 +1064,7 @@
     </aside>
 
     <!-- 碑：点镇心旁边那块石头，看镇上认下了哪些事。
-         碑文全走 DOM（SPEC §4.8 / D5-A）：canvas 里只有一块石头，字在这里。
+         碑文全走 DOM（SPEC §11.8「中文与长文一律不进 canvas」/ D5-A）：canvas 里只有一块石头，字在这里。
          空态那句把 `legendHolders` / `legendDays` 两个数说给用户听，
          不让他对着空白等。 -->
     <aside id="stele-panel" hidden aria-label="碑">
