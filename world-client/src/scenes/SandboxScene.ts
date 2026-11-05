@@ -15,6 +15,15 @@ import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
 import { TERRAIN_COLORS, WORLD, tokenNameOf } from '../world/palette-data.ts';
 import type { WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
+import {
+  NO_SHOT_PIN,
+  phaseInputOf,
+  pinShot,
+  presentedNowOf,
+  presentedTideOf,
+  unpinShot,
+  type ShotPin,
+} from '../render/pin-shot-state.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
 import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
@@ -443,8 +452,7 @@ export class SandboxScene extends Phaser.Scene {
    * `now` 仍可能是两跑之间差一个逻辑步——潮位跨过淹没阈值就是整片草地翻色，
    * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
    */
-  private pinnedPresentedNow: number | null = null;
-  private pinnedTideLevel: number | null = null;
+  private shotPin: ShotPin = NO_SHOT_PIN;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -618,7 +626,16 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 测试与 UI 都能读到同一份报纸；它从快照推导，不另存。 */
   report(): DailyReport {
-    return composeReport(this.snapshot);
+    return composeReport(this.reportSnapshot());
+  }
+
+  /**
+   * 报纸只吃一个 `now`（底栏的「第 N 分 SS 秒」）。钉呈现态时用钉住的那个，
+   * 让两跑底栏一致；其余字段仍取真实快照。
+   */
+  private reportSnapshot(): WorldSnapshot {
+    if (this.shotPin.nowMs === null) return this.snapshot;
+    return { ...this.snapshot, now: presentedNowOf(this.shotPin, this.snapshot.now) };
   }
 
   constructor() {
@@ -3665,14 +3682,19 @@ export class SandboxScene extends Phaser.Scene {
    * **画面**，不是世界：快照、判据、存档一概不变，解冻后立刻回到世界值。
    */
   private pinShotState(nowMs: number, tideLevel: number): void {
-    if (!Number.isFinite(nowMs) || !Number.isFinite(tideLevel)) return;
-    this.pinnedPresentedNow = nowMs;
-    this.pinnedTideLevel = tideLevel;
+    this.shotPin = pinShot(this.shotPin, nowMs, tideLevel);
+    // 纸面只在状态行变化时重画；钉住后不敲一下，底栏会停在钉住之前的秒数。
+    this.repaintPaper();
   }
 
   private unpinShotState(): void {
-    this.pinnedPresentedNow = null;
-    this.pinnedTideLevel = null;
+    this.shotPin = unpinShot();
+    this.repaintPaper();
+  }
+
+  /** 只重放最后一行状态：界面据此重画纸面（底栏时钟跟着呈现时刻走）。 */
+  private repaintPaper(): void {
+    for (const listener of this.statusListeners) listener(this.lastStatus);
   }
 
   private registerOracleApi(): void {
@@ -3929,7 +3951,9 @@ export class SandboxScene extends Phaser.Scene {
         this.statusListeners.add(listener);
         return () => this.statusListeners.delete(listener);
       },
-      report: (): DailyReport => composeReport(this.snapshot),
+      // 钉呈现态时报纸底栏的「第 N 分」也读同一个时刻：否则两跑会在底栏
+      // 差一行字，而画面其余部分逐字节相同（戊类就是这么来的）。
+      report: (): DailyReport => composeReport(this.reportSnapshot()),
       slab: (): readonly OracleRecord[] => this.snapshot.oracle,
       view: (): WorldSnapshot => this.view(),
       setPhase: (phase: PhaseId): void => this.setPhase(phase),
@@ -4040,8 +4064,8 @@ export class SandboxScene extends Phaser.Scene {
   private renderSnapshot(delta: number): void {
     const { snapshot } = this;
     // 呈现态夹具：钉住时画的是钉住的时刻与潮位，世界快照本身不参与。
-    const presentedNow = this.pinnedPresentedNow ?? snapshot.now;
-    const tideLevel = this.pinnedTideLevel ?? snapshot.tide.level;
+    const presentedNow = presentedNowOf(this.shotPin, snapshot.now);
+    const tideLevel = presentedTideOf(this.shotPin, snapshot.tide.level);
     this.syncBuildings();
     this.refreshGroundDecals();
 
@@ -4113,10 +4137,7 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 昼夜层读的是 `snapshot.now`：钉住呈现时刻时给它一份同值的拷贝，
     // 免得「画面上是按 12:30 算的鸟、按真实时刻算的暗角」对不上。
-    this.phaseView.update(
-      this.pinnedPresentedNow === null ? snapshot : { ...snapshot, now: presentedNow },
-      delta,
-    );
+    this.phaseView.update(phaseInputOf(this.shotPin, snapshot), delta);
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。
     this.ambienceView.update(
