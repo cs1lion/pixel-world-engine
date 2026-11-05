@@ -1,0 +1,72 @@
+{
+  "source": "docs/evidence/soak/soak-a/save-90d.json",
+  "witnessedEntries": 71,
+  "unresolvedEventRefs": 12,
+  "buckets": {
+    "refsWithoutCorroboration": 0,
+    "refsWithSingleCorroboration": 10,
+    "refsWithMultipleCorroboration": 2
+  },
+  "refs": [
+    {
+      "memoryId": "m_7773",
+      "eventRef": "soak-2607",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7817",
+      "eventRef": "soak-2628",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7868",
+      "eventRef": "soak-2637",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7912",
+      "eventRef": "soak-2658",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7953",
+      "eventRef": "soak-2664",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7955",
+      "eventRef": "soak-2666",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7957",
+      "eventRef": "soak-2667",
+      "references": 4
+    },
+    {
+      "memoryId": "m_7977",
+      "eventRef": "soak-2676",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7997",
+      "eventRef": "soak-2684",
+      "references": 1
+    },
+    {
+      "memoryId": "m_7999",
+      "eventRef": "soak-2687",
+      "references": 1
+    },
+    {
+      "memoryId": "m_8001",
+      "eventRef": "soak-2688",
+      "references": 4
+    },
+    {
+      "memoryId": "m_8003",
+      "eventRef": "soak-2691",
+      "references": 1
+    }
+  ]
+}

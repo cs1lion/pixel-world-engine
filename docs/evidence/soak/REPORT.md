@@ -353,6 +353,29 @@
 | `save-roundtrip` | 存档 JSON 可解析 |
 | `ledger-rows-monotonic` / `ledger-append-only` | 账本行数单调、文件只追加 |
 
+### 旁证分桶（witnessed 的未解析 `eventRef`，只记录不进断言）
+
+90 天快照里 71 条 `witnessed` 条目共留下 **12 个**「事实层已裁、解析不到」的 `eventRef`。
+对每一个，数它在 `claims` / `beliefs` / `legends` 里被引用了多少次（同一条记录算一次），
+分三桶：
+
+| 桶 | 含义 | 当前值 |
+| --- | --- | --- |
+| `0 条` | 没有任何旁证——孤证 | **0** |
+| `1 条` | 只有单条旁证 | **10** |
+| `≥2 条` | 至少两条旁证 | **2**（两条各被引用 4 次） |
+
+明细落在 [witnessed-corroboration.json](witnessed-corroboration.json)：无时间戳、键名与条目
+顺序（`memoryId` → `eventRef`）固定，逐字节可比。它由
+[memory-witnessed-corroboration.test.ts](../../../world-client/test/memory-witnessed-corroboration.test.ts)
+在跑测试时生成，三个桶的数同时打在 CI 日志里，看日志就能读到。
+
+**为什么不做成闸门。** 现有的闸门只有一条：`0 条 = 0`（有孤证就红）。再加「单旁证不许
+超过 N 条」这类判据会立刻红——12 条里 10 条只有单旁证，而这是**正常的长期运行形态**：
+事实层按预算裁掉旧事实后，亲历条目能守住的往往只剩一条叙事引用。把它做成闸门，等于
+逼出一次为了凑数的大重录（把旁证复制/扩写成多条），那是改数据，不是改行为。
+所以这里只记录分布、看它有没有往「0 条」漂，判红仍然只由「有没有旁证」这一条决定。
+
 ## 5. 确定性
 
 同种子 `soak-a` 跑两遍，四项指纹逐项相同：
