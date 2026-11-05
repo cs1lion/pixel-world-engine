@@ -31,9 +31,9 @@ test('轨迹回归：outer-two-days', async () => {
 
   // 2. 世界指纹 + 事件条数/摘要 + 世界业务读数。
   assert.equal(check.status, 'replayable');
-  assert.equal(check.fingerprint, 'a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964');
+  assert.equal(check.fingerprint, '20cd773bbef0006ff13957643f922db3a75df54f49e5722357b0f0e242d33161');
   assert.equal(check.eventCount, 50);
-  assert.equal(check.eventDigest, '5b59c5a747514a1b85cab86a2bfd14be947992125db5694e3a59824818e916a1');
+  assert.equal(check.eventDigest, '2b860773d0edfc49f2e3cfbfa3ea910b7944f1f01ab3c5f63490d4fe4d1db176');
   assert.equal(check.business.buildings, 2);
   assert.equal(check.business.day, 3);
   assert.equal(check.business.weather, 'clear');
@@ -43,7 +43,7 @@ test('轨迹回归：outer-two-days', async () => {
   const memory = check.memory;
   assert.ok(memory !== null);
   assert.equal(memory.deterministic, true);
-  assert.equal(memory.fingerprint, 'fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7');
+  assert.equal(memory.fingerprint, '8712bf39b4edb6ffd4c040343d0661471c2875e5bf3f95dca127257e2e5134ae');
   assert.equal(memory.business.lastClosedDay, 3);
   assert.equal(memory.business.entries, 45);
   assert.equal(memory.business.facts, 47);

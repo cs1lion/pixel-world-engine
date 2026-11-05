@@ -38,11 +38,12 @@ function goalOf(kind: string): BehaviorGoal {
   return { kind, target: { x: 0, y: 0 }, beatId: null, routineIndex: null };
 }
 
-/** 三条口子都给目标：谁先被问，谁就先命中。 */
+/** 四条口子都给目标：谁先被问，谁就先命中。 */
 const allGoals: BehaviorContext = {
   villagerId: 'v1',
   verificationGoal: () => goalOf('verify'),
   preCoverGoal: () => goalOf('pre-cover'),
+  sleepGoal: () => goalOf('sleep'),
   eatGoal: () => goalOf('eat'),
   routineGoal: () => goalOf('routine'),
 };
@@ -82,12 +83,15 @@ function makeSim(): Simulation {
 
 // ---------------------------------------------------------------- 逐拍等价
 
-test('逐拍决策与原链逐行相同：同一条轨迹 3000 拍', async () => {
+test('逐拍决策与本轮基线逐行相同：同一条轨迹 3000 拍', async () => {
   const trace = JSON.parse(
     readFileSync(new URL('../traces/outer-two-days.json', import.meta.url), 'utf8'),
   ) as TraceFile;
+  // 基线在「疲劳块」改代码之前采（docs/evidence/fatigue/baseline.txt），
+  // 改完后按新行为重录到 decisions-new.txt。旧文件仍然留着，不覆盖。
+  // 变的原因只有一个：`sleep` 规则进了表，1.6 世界日处多出一次就地睡。
   const expected = readFileSync(
-    new URL('../../docs/evidence/behavior-queue/decisions-before.txt', import.meta.url),
+    new URL('../../docs/evidence/fatigue/decisions-new.txt', import.meta.url),
     'utf8',
   )
     .trimEnd()
@@ -109,9 +113,9 @@ test('逐拍决策与原链逐行相同：同一条轨迹 3000 拍', async () =>
     for (const record of runtime.sim.drainDecisions()) lines.push(decisionLine(record));
   }
 
-  assert.equal(lines.length, expected.length, '决策条数与改动前不同');
+  assert.equal(lines.length, expected.length, '决策条数与基线不同');
   for (let index = 0; index < expected.length; index += 1) {
-    assert.equal(lines[index], expected[index], `第 ${index + 1} 条决策与改动前不同`);
+    assert.equal(lines[index], expected[index], `第 ${index + 1} 条决策与基线不同`);
   }
 });
 
@@ -121,7 +125,7 @@ test('登记顺序决定优先级：交换两条规则的位置，结果就变�
   const planner = new BehaviorPlanner(DEFAULT_BEHAVIOR_RULES, ROUTINE_RULE);
 
   assert.equal(planner.plan(allGoals)?.rule, 'verification', '默认顺序第一条是求证');
-  assert.deepEqual(planner.orderedIds(), ['verification', 'pre-cover', 'eat', 'routine']);
+  assert.deepEqual(planner.orderedIds(), ['verification', 'pre-cover', 'sleep', 'eat', 'routine']);
 
   planner.setRules([ROUTINE_RULE, PRE_COVER_RULE, VERIFICATION_RULE]);
   assert.equal(planner.plan(allGoals)?.rule, 'routine', '把作息登记在最前，它就先命中');
@@ -146,7 +150,7 @@ test('运行期新增一条规则不需要改 Simulation 或 Scene', () => {
   };
 
   sim.setBehaviorRules([once, ...DEFAULT_BEHAVIOR_RULES]);
-  assert.deepEqual(sim.behaviorRuleIds(), ['once', 'verification', 'pre-cover', 'eat', 'routine']);
+  assert.deepEqual(sim.behaviorRuleIds(), ['once', 'verification', 'pre-cover', 'sleep', 'eat', 'routine']);
 
   sim.setDecisionLogEnabled(true);
   for (let index = 0; index < 3; index += 1) sim.update(2000);

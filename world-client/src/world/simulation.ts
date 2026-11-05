@@ -70,6 +70,13 @@ import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effec
 import { BehaviorPlanner, GoalQueue, type BehaviorContext, type BehaviorGoal, type BehaviorRule } from './behavior.ts';
 import { needsAt, NEEDS_HUNGER_FAIL_THRESHOLD, type NeedsReading } from './needs.ts';
 import {
+  fatigueReadingOf,
+  sleepCrossedAtMs,
+  wakeUpAtMs,
+  type FatigueReading,
+  type SleepSpan,
+} from './fatigue.ts';
+import {
   DEFAULT_BEHAVIOR_RULES,
   ROUTINE_GUARDS,
   ROUTINE_RULE,
@@ -500,6 +507,21 @@ export interface DecisionRecord {
   readonly routineIndex: number | null;
 }
 
+/** 睡下的那一拍，牌子上写什么（复用已有 `routineLabel` 字段，不新造渲染概念）。 */
+const SLEEP_LABEL = '实在熬不住，就地睡下了';
+
+/**
+ * 睡眠账的一笔。**运行时投影、不落档**：`crossedAt` 是疲劳跨阈的确切时刻
+ * （由「上次睡醒 + 阈值/速率」算出），`sleptAt` 是第一次被看到的那一拍，
+ * `wokeAt` 在醒来时补上。跨阈次数就是这里的条数。
+ */
+export interface SleepRecord {
+  readonly villagerId: string;
+  readonly crossedAt: number;
+  readonly sleptAt: number;
+  wokeAt: number | null;
+}
+
 export class Simulation {
   private readonly grid: WorldGrid;
   private readonly altar: GridPoint;
@@ -538,6 +560,21 @@ export class Simulation {
    * 饥饿读数由 `needsAt(now, lastMealAt)` 现算，这里只存这一个时间点。
    */
   private readonly lastMealAt = new Map<string, number>();
+  /**
+   * 需求层第二版：每人「上次睡醒的世界时刻」。**不落档**——读档后从「刚睡醒」起。
+   * 疲劳读数由 `fatigueReadingOf(now, lastRestAt)` 现算，这里只存这一个时间点。
+   */
+  private readonly lastRestAt = new Map<string, number>();
+  /**
+   * 正睡着的段：起点 + 入睡时的疲劳值。**不落档**，读档后为空。
+   * 睡眠段的长度由 `wakeUpAtMs(span)` 算，不另存「还睡多久」。
+   */
+  private readonly asleepSpans = new Map<string, SleepSpan>();
+  /**
+   * 睡眠账：跨阈时刻 / 入睡时刻 / 醒来时刻。**运行时、不落档**，
+   * 只给证据与面板读数（`sleepReport()`）；睡觉本身不是世界事件。
+   */
+  private readonly sleepLog: SleepRecord[] = [];
   /**
    * 失败原型：已经因饥饿失败过的任务。**运行时集合、不落档**——
    * 读档后重置，任务是新的，最多再失败一次。保证「每单只失败一次」。
@@ -829,6 +866,8 @@ export class Simulation {
     for (const villager of this.villagers) this.pending.set(villager.id, []);
     // 开局（含读档）从「刚吃过」起：需求读数不进存档，读档不继承饥饿。
     for (const villager of this.villagers) this.lastMealAt.set(villager.id, this.now);
+    // 疲劳同理：开局从「刚睡醒」起，读档不继承上一会话的疲劳与未睡完的觉。
+    for (const villager of this.villagers) this.lastRestAt.set(villager.id, this.now);
     for (const villager of this.villagers) {
       this.deliveryTally.set(villager.id, { feed: 0, local: 0 });
     }
@@ -1156,6 +1195,41 @@ export class Simulation {
   setLastMealAt(villagerId: string, atWorldMs: number): void {
     if (!this.lastMealAt.has(villagerId)) return;
     this.lastMealAt.set(villagerId, atWorldMs);
+  }
+
+  /**
+   * 某人的疲劳读数。纯值对象，现算；从没走过作息的人返回 `null`。
+   * **不落档**：读档后这里从「刚睡醒」重算。
+   */
+  fatigueOf(villagerId: string): FatigueReading | null {
+    const lastRestAt = this.lastRestAt.get(villagerId);
+    if (lastRestAt === undefined) return null;
+    return fatigueReadingOf(this.now, lastRestAt, this.asleepSpans.get(villagerId) ?? null);
+  }
+
+  /**
+   * 把某人的「上次睡醒」拨到过去。只给证据脚本与单测用：让疲劳几拍内跨阈。
+   * 运行时读数，不落档。
+   */
+  setLastRestAt(villagerId: string, atWorldMs: number): void {
+    if (!this.lastRestAt.has(villagerId)) return;
+    this.lastRestAt.set(villagerId, atWorldMs);
+  }
+
+  /**
+   * 睡眠账：跨阈次数（= 条数）、每笔的跨阈/入睡/醒来时刻、当前还睡着的段。
+   * 运行时投影，不落档；睡觉本身不产生世界事件。
+   */
+  sleepReport(): {
+    readonly crossings: number;
+    readonly spans: readonly SleepRecord[];
+    readonly asleep: readonly { readonly villagerId: string; readonly wakeAtMs: number }[];
+  } {
+    const asleep: { villagerId: string; wakeAtMs: number }[] = [];
+    for (const [villagerId, span] of this.asleepSpans) {
+      asleep.push({ villagerId, wakeAtMs: wakeUpAtMs(span) });
+    }
+    return { crossings: this.sleepLog.length, spans: this.sleepLog.map((span) => ({ ...span })), asleep };
   }
 
   private recordDecision(
@@ -3179,6 +3253,7 @@ export class Simulation {
       villagerId: villager.id,
       verificationGoal: () => this.verificationGoal(villager),
       preCoverGoal: () => this.preCoverGoal(villager),
+      sleepGoal: () => this.sleepGoal(villager),
       eatGoal: () => this.eatGoal(villager),
       routineGoal: () => this.routineGoal(villager),
     };
@@ -3217,6 +3292,65 @@ export class Simulation {
     const stall = this.nearestStallCell(from);
     if (stall !== null) return stall;
     return this.altar;
+  }
+
+  /**
+   * 需求层第二版：熬不住就睡。
+   *
+   * **就地睡**——不回家、不去客栈：这一版没有「家」这个概念（回家线在另一条分支）。
+   * 落点就是脚下这一格，`path` 清空；睡着期间不产生新的走位。
+   * 状态只用**已有字段**表达：`routineLabel` 写一句牌子（HUD 原来就显示它），
+   * 决策口径的 `kind` 是 `'sleep'`。不新造渲染概念、不新增快照字段。
+   *
+   * 睡眠段的长度不是写死的：入夜那一刻的疲劳值按 `NEEDS_SLEEP_DECAY_PER_DAY`
+   * 归零所需的时间，由 `wakeUpAtMs(span)` 算出；`nextRoutineAt` 直接拨到醒来那一刻，
+   * 所以一整段觉只记**一条** `sleep` 决策，醒来那一拍记下一条（交还给吃/作息）。
+   *
+   * 不 announce：睡觉不是新的世界事实（与吃饭同一条纪律）。
+   */
+  private sleepGoal(villager: Villager): BehaviorGoal | null {
+    const span = this.asleepSpans.get(villager.id) ?? null;
+    if (span !== null) {
+      if (this.now < wakeUpAtMs(span)) {
+        villager.path = [];
+        villager.routineLabel = SLEEP_LABEL;
+        villager.routineGoing = null;
+        return { kind: 'sleep', target: this.cellOf(villager.pos), beatId: null, routineIndex: null };
+      }
+      this.wakeUp(villager);
+      // 醒来这一拍返回 null，同一拍继续问 eat / routine——不需要第三个分支。
+      return null;
+    }
+    const reading = this.fatigueOf(villager.id);
+    if (reading === null || !reading.sleepy) return null;
+    const startedAtMs = this.now;
+    this.asleepSpans.set(villager.id, { startedAtMs, fatigueAtStart: reading.fatigue });
+    this.sleepLog.push({
+      villagerId: villager.id,
+      crossedAt: sleepCrossedAtMs(this.lastRestAt.get(villager.id) ?? startedAtMs),
+      sleptAt: startedAtMs,
+      wokeAt: null,
+    });
+    villager.path = [];
+    villager.routineLabel = SLEEP_LABEL;
+    villager.routineGoing = null;
+    villager.nextRoutineAt = wakeUpAtMs({ startedAtMs, fatigueAtStart: reading.fatigue });
+    return { kind: 'sleep', target: this.cellOf(villager.pos), beatId: null, routineIndex: null };
+  }
+
+  /** 醒来：把「上次睡醒」拨到此刻，撤牌子，补上睡眠账的 `wokeAt`。 */
+  private wakeUp(villager: Villager): void {
+    this.asleepSpans.delete(villager.id);
+    this.lastRestAt.set(villager.id, this.now);
+    for (let index = this.sleepLog.length - 1; index >= 0; index -= 1) {
+      const record = this.sleepLog[index]!;
+      if (record.villagerId === villager.id && record.wokeAt === null) {
+        record.wokeAt = this.now;
+        break;
+      }
+    }
+    villager.routineLabel = null;
+    villager.routineGoing = null;
   }
 
   /** 作息那一拍：按旧 `stepIdle` 的循环逐字搬来，只把「命中」换成返回目标。 */
@@ -3976,6 +4110,10 @@ export class Simulation {
     // 需求读数是运行时读数：读档从「刚吃过」重算，不继承上一会话的饥饿。
     // 构造时 `now` 还是 0，这里必须按存档时刻重锚一次，否则读档即饿。
     for (const villager of sim.villagers) sim.lastMealAt.set(villager.id, world.now);
+    // 疲劳同一条纪律：读档从「刚睡醒」重锚。构造时 now 还是 0，不重锚就是读档即困。
+    for (const villager of sim.villagers) sim.lastRestAt.set(villager.id, world.now);
+    sim.asleepSpans.clear();
+    sim.sleepLog.length = 0;
     sim.buildings.length = 0;
     sim.buildings.push(...world.buildings.map((building) => ({ ...building })));
     // 编号水位按幸存建筑重推：幸存的 id 一个不变，新建的号一定比它们大。

@@ -20,7 +20,7 @@ import type { GridPoint } from './types.ts';
 
 /** 一个目标。字段与旧链记录的那几项一一对应，不多不少。 */
 export interface BehaviorGoal {
-  /** `verify` / `pre-cover` / `routine` / `quiet`。 */
+  /** `verify` / `pre-cover` / `eat` / `sleep` / `routine` / `quiet`。 */
   readonly kind: string;
   readonly target: GridPoint | null;
   readonly beatId: string | null;
@@ -44,6 +44,8 @@ export interface BehaviorContext {
   preCoverGoal(): BehaviorGoal | null;
   /** 「饿了，去吃点东西」：需求层第一版只有这一个口子。 */
   eatGoal(): BehaviorGoal | null;
+  /** 「熬不住了，就地睡下」：需求层第二版。睡着时它每拍都命中，醒了才让给别人。 */
+  sleepGoal(): BehaviorGoal | null;
   routineGoal(): BehaviorGoal | null;
 }
 

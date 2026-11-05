@@ -1,11 +1,16 @@
 /** 默认行为规则表：**登记顺序就是优先级**。
  *
- * 四条规则，前三段与旧链逐字相同，第四条是需求层第一版：
+ * 五条规则，前三段与旧链逐字相同，后两条是需求层：
  *
  *   1. `verification` —— 心里存着疑，先去现场看看；
  *   2. `pre-cover`    —— 昨天淋过雨（记忆未淡）、今天过了 13:00，先把摊布盖上；
- *   3. `eat`          —— 饿了去吃一口（阈下不命中，所以冻结轨迹上等于不存在）；
- *   4. `routine`      —— 没别的事时按作息走，也是兜底。
+ *   3. `sleep`        —— 熬不住就睡（第二版）；睡着时每拍都命中，醒了才让位；
+ *   4. `eat`          —— 饿了去吃一口（阈下不命中）；
+ *   5. `routine`      —— 没别的事时按作息走，也是兜底。
+ *
+ * 为什么 `sleep` 排在 `eat` 之前：睡着的人不该被饥饿拽起来走一趟。两条都跨阈时
+ * 「先睡，睡醒再吃」；睡醒那一拍 `sleep` 返回 null，同一拍就轮到 `eat` / `routine`，
+ * 不用另加一个「醒来」分支。
  *
  * 两条「路由」在这一层成为登记项：
  *   - `pre-cover` 是规则：条件全在旧 `preCoverHabit` 里，原样搬来；
@@ -39,10 +44,22 @@ export const EAT_RULE: BehaviorRule = {
   match: (ctx) => ctx.eatGoal(),
 };
 
-/** 默认顺序 = 旧链顺序，饿的插在作息前（它不命中时逐字等价）。 */
+/**
+ * 熬不住：跨过疲劳阈值就地睡下，睡着时每拍保持，衰减到 0 才醒。
+ *
+ * 排在 `eat` 之前：睡着的人不该被饥饿拽起来。醒的那一拍它返回 null，
+ * 同一拍继续问 `eat` / `routine`——「醒来回正常」不需要第二个分支。
+ */
+export const SLEEP_RULE: BehaviorRule = {
+  id: 'sleep',
+  match: (ctx) => ctx.sleepGoal(),
+};
+
+/** 默认顺序 = 旧链顺序 + 需求层两条：睡在吃前，都在作息前（不命中时逐字等价）。 */
 export const DEFAULT_BEHAVIOR_RULES: readonly BehaviorRule[] = [
   VERIFICATION_RULE,
   PRE_COVER_RULE,
+  SLEEP_RULE,
   EAT_RULE,
   ROUTINE_RULE,
 ];

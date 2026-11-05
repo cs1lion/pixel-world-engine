@@ -362,4 +362,105 @@
   `diff.txt` / `fingerprints.txt` / `gates.txt` / `smoke.txt` / `persistence.txt` /
   `render-budget.txt` / `setting.txt` / `buttons.txt`）。
 
+---
+
+## 块 8 · 疲劳与睡眠（原型线第 6 块，本轮只做疲劳）
+
+- 开始 / 结束：2026-11-05 / 2026-11-05
+- 分支：`feat/behavior-queue`；未 push、未动 main；未占 5188/5191/5202/5203
+- 原型线顺序：**疲劳 → 社会结构 → 经济**。这一轮只做疲劳，社会结构与经济未动。
+- 结构（纯值对象 + 纯函数，与 `needs.ts` 的 `hungerAt` 同构）
+  - 新文件 `src/world/fatigue.ts`：常量 `NEEDS_FATIGUE_PER_DAY = 1/2`（两个世界日 0→1）、
+    `NEEDS_SLEEP_DECAY_PER_DAY = 4`（0.8→0 要 0.2 天 = 4.8 小时）、
+    阈值 `NEEDS_SLEEP_THRESHOLD = 0.8`、醒线 `NEEDS_WAKE_THRESHOLD = 0`、
+    跨阈间隔 `NEEDS_SLEEP_CROSS_MS = 1.6 天`（= 阈值/速率，纯算术）。
+    纯函数四个：`fatigueAt`（清醒线性升 / 睡着线性降，clamp [0,1]）、
+    `fatigueReadingOf`（`{fatigue, sleepy, asleep}`）、`sleepCrossedAtMs`（跨阈的确切时刻）、
+    `wakeUpAtMs`（这一段睡到何时醒）。
+    不读 `Date.now()` / `performance.now()` / `Math.random()`；不落档。
+  - **不进 `EnvironmentFrame`**：那是世界环境（天气/时刻），疲劳是某个人的状态。
+  - 行为走已有规则表：`behavior.ts` 的 `kind` 加 `'sleep'`、`BehaviorContext` 加 `sleepGoal()` 口子；
+    `behavior-rules.ts` 新增 `SLEEP_RULE`，登记顺序
+    `verification → pre-cover → sleep → eat → routine`——`sleep` 排在 `eat` 之前，
+    睡着的人不会因为饿了被拽起来。`Simulation` 主循环结构未改（仍是「问规则表 → 拿第一个目标」）。
+  - `simulation.ts` 新增三个运行时字段（挨着 `lastMealAt`）：
+    `lastRestAt`（每人上次睡醒的世界时刻）、`asleepSpans`（睡着段的起点 + 入睡疲劳）、
+    `sleepLog`（跨阈/入睡/醒来三时刻）。构造与 `fromSave` 都把 `lastRestAt` 重锚到 `world.now`
+    （读档不继承疲劳、不继承没睡完的觉），`asleepSpans` / `sleepLog` 清空。
+    `sleepGoal()`：跨阈 → **就地睡**（落点 = 脚下这一格，`path` 清空）；
+    `nextRoutineAt` 直接拨到 `wakeUpAtMs(span)`，所以一整段觉只记 **1 条** `sleep` 决策；
+    到点 → `wakeUp()`（撤牌、补 `wokeAt`、`lastRestAt = now`），同一拍返回 `null`
+    把决策交还给 eat/routine——没有第三个分支。不 announce（睡觉不是新的世界事实，与吃饭同纪律）。
+  - 状态可见性用**已有字段**：`routineLabel = "实在熬不住，就地睡下了"`，由
+    `src/ui/unit-status.ts:327` 的 `villager.routine ?? '没有接活'` 原样上屏；
+    不新增快照字段、不新造渲染概念。
+  - **未跨分支引用**：`homecoming` / `homesOf` 在 `src/` 下 grep **0 次**。
+    「睡觉必须回家」在本版不成立，先做就地睡；与回家线（`feat/interior-view`）的对接
+    是**显式后续依赖**，本轮不写代码。
+- 判据读数（详见 `docs/evidence/fatigue/`）
+  - 跨阈次数与时刻：**2 次**（两个村民各一次），都在 **228,240,000 ms = 第 2.6417 个世界日**。
+    入睡 v1 229,320,000 / v0 229,560,000（跨阈后 18 / 22 世界分钟——跨阈是算出来的，
+    入睡是「下一次重排」真被看到的第一拍，不是迟滞）；醒来 246,780,000 / 247,020,000。
+  - 睡眠段长度分布：两段 **4.85 h / 4.85 h**，差 0.00 h。段长不是写死的：= 入睡疲劳 / 4 天，
+    可手算。跨阈前一个睡眠窗无（第 1.04 → 2.64 天之间没到阈值）。
+  - 完整回路一次（跨阈 → 入睡 → 醒来）：229,320,000 入睡（`kind:'sleep'`、落点 56,33、无 path、
+    牌子上屏），睡着 **4.85 h** 疲劳按 4/天递减、人不动，246,780,000 醒来（疲劳 0、`asleep:false`、
+    牌子清空）同一拍回到 `routine`；决策行 `229320000|v1|sleep|sleep|56,33|-|-`（整段只有这一条）。
+  - 同种子两跑：`trace:replay` 两次，世界 / 记忆 / 造物三枚指纹各两次逐字相同，且与重录值一致。
+  - 480 条决策 diff：**480 → 468**（净 −12）。被删的旧行 36 条全是 `routine`；
+    新增 24 条 = `sleep` 2 + `routine` 22；永久少掉 14 条 `routine`（4.85 小时睡觉窗口里本会排的作息）。
+    逐行 diff 起点第 445 条（229,320,000，v1 入睡那一拍）。
+    夜雨轨迹 2 条决策 digest 逐字不变（`5aa11118…`）——那里才第 12 分钟，离 1.6 天很远。
+  - 存档：**v5 不动**，`src/world/save.ts` 一行未改；`test/fatigue.test.ts` 直查 `toSave()` 的 JSON，
+    确认没有 `fatigue` / `lastRest` / `asleep` / `sleepLog` / `sleepSpan` 任一字样。
+    浏览器 `test:persistence` 8 项通过，存档仍是 v5。没有升 v6。
+  - 九道闸门：check 0 / test **2113 通过 0 失败 9 跳过**（旧 2108 + 新增 fatigue 5）/
+    build 0 / palette --strict 0 / references **154 处 0 存疑**（插入 74 行后逐条重指；含本条记录）/
+    citations 0 / sections 0 / claims --strict 0 / pytest 0。
+  - 浏览器：smoke 125、phases 17（EVAL_OUT 指到 tmp，未写 `eval/screens`）、persistence 8、
+    render-budget 6（指令 16130、Graphics 27）、setting 全项 ok；
+    `test:buttons` 退出 2（`/api/memory/list` 404，既有缺口，未改代码）。
+  - 截图基线：跑闸门时脚本重写 `eval/screens/` 16 张，已 `git checkout` 还原，未进提交。
+- 旧 → 新（为什么变，逐项见 `docs/evidence/fatigue/fingerprints-old-new.txt`）
+  - 世界 `a41f4e2e…` → `20cd773b…`（变）：两人第 2.64 天跨阈、第 2.65 天就地睡下、
+    第 2.86 天醒来，此后作息整体后移 4.85 小时。终局的业务读数（day / buildings / tasks /
+    deliveries / weather / faithPoints / eventCount=50）逐项与旧值相同，变的是**过程时刻**与
+    末尾位置/牌子。
+  - 记忆 `fb0847b3…` → `8712bf39…`（变）：条数逐项相同（facts 47 / entries 45 / claims 38 /
+    beliefs 11 / traces 5 / landmarks 2 / bonds 1 / moods 2 / written 6），变的是同一批事实被
+    写下的**时刻**。
+  - 造物 `c5198f0f…` **不变**：日终 2 次 / 提议 3 条 / 落地 1 栋，与睡眠窗无交集。
+  - 夜雨世界 `6efda574…` **不变**：轨迹只到第 12 分钟，`sleep` 一次都不命中。
+  - 事件数仍 50、没有新增事件种类；重录 `traces/outer-two-days.json` +
+    用 `scripts/trace-to-test.ts` 重新生成 `test/trace-regression-outer-two-days.test.ts`
+    （头注「不要手改」），理由只有一句：**新增 `sleep` 行为规则**。
+- 真问题
+  1. 跨阈 → 入睡有 18/22 个世界分钟的差：规则只在「她空下来重排」的那一拍才被问
+     （`nextRoutineAt` 闸门）。这不是迟滞，是作息把下一次重排排在了那里；
+     没有为此把睡眠塞进每拍轮询（那会让决策条数爆炸）。
+  2. 全量测试里 `daily-prop-cost` 在并行负载下偶发红（135ms > 50ms）；单独连跑两次 3/3 通过。
+     本块每计划拍只多一次 Map 读，记为噪声，未改阈值。
+  3. `test:buttons` 的 2 是既有缺口（`/api/memory/list` 404、`#clock-align-check` 默认 disabled），
+     未为变绿改代码。
+- 被否掉的写法
+  - 每 1.6 秒重排一次 `sleep`：一整段觉会记几十条决策、把 480 条决策序列冲烂
+    → `nextRoutineAt = wakeUpAtMs(span)`，整段只记 1 条。
+  - 睡觉必须回家 / 去客栈：需要跨分支引 `homecoming` / `homesOf`（未合入）→ 就地睡 +
+    写成显式后续依赖。
+  - 把疲劳塞进 `EnvironmentFrame`：「世界的环境」与「某个人的状态」混层 → 独立 `fatigue.ts`。
+  - 睡着时把 `kind` 改成 `'routine'` 或复用 `eat`：语义错、面板读不出 →
+    新 `kind:'sleep'`，状态走既有 `routineLabel`。
+  - 为保住旧指纹去调速率/阈值：违反「不许为指纹扭逻辑」→ 速率按「两日到顶、1.6 天跨阈」定，
+    接受世界/记忆指纹变、重建基线。
+  - 升 v6 落档疲劳：疲劳与 `lastMealAt` 同类，是运行时投影 → 不落档，v5 不动。
+- 没做到 / 未验证
+  - **与回家线对接（睡觉必须回家）未做**：显式后续依赖，等 `feat/interior-view` 合入后另起一块。
+  - 真实浏览器里长跑观察一次完整睡眠画面（牌子出现 → 4.85 小时后清空）未录屏；
+    面板字段已由单测与 `unit-status.ts:327` 的引用确认，但没有肉眼截图。
+  - 睡眠期间是否该有可见的动作/姿态（现在人站着不动）未做——那属于渲染概念，需另立设计。
+- 证据：`docs/evidence/fatigue/`（`baseline.txt` / `decisions-old.txt` / `decisions-new.txt` /
+  `decisions-night-old.txt` / `decisions-night-new.txt` / `decisions-diff.txt` /
+  `readings.txt` / `fingerprints-old-new.txt` / `gates.txt` / `smoke.txt` / `persistence.txt` /
+  `phases.txt` / `render-budget.txt` / `setting.txt` / `buttons.txt`）。
+
 

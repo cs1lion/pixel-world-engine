@@ -435,9 +435,9 @@
   },
   "recorded": {
     "inputDigest": "47412864ee3b606617f78a0364ce9ae0b7baeb231774250b57a71f51055a5c7f",
-    "fingerprint": "a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964",
+    "fingerprint": "20cd773bbef0006ff13957643f922db3a75df54f49e5722357b0f0e242d33161",
     "eventCount": 50,
-    "eventDigest": "5b59c5a747514a1b85cab86a2bfd14be947992125db5694e3a59824818e916a1",
+    "eventDigest": "2b860773d0edfc49f2e3cfbfa3ea910b7944f1f01ab3c5f63490d4fe4d1db176",
     "business": {
       "day": 3,
       "now": 270000000,
@@ -526,27 +526,27 @@
       {
         "step": 2500,
         "atWorldMs": 240000000,
-        "fingerprint": "8a28cc518faac04564d5d2c05a327109c8418654f97195aaf99d89d91e38c02b",
-        "memoryFingerprint": "2c6143f8750c03c145e1cd9c1ca2f0a2d2de18943f25ebfcfb542612039b84ae",
+        "fingerprint": "da4214eac87450c2a5963db6e3ea3e992c2c4a4bdeb4858152dfa0987175bc7e",
+        "memoryFingerprint": "ac2ed483e59c31f81e2c07f292ef3de601640b4ca75943cf21f18ff4941532be",
         "creatorFingerprint": "52f01e607745140b7a8f144c36d5d9aa8667b49752c67a160c8d148853a27b59"
       },
       {
         "step": 2750,
         "atWorldMs": 255000000,
-        "fingerprint": "44185ccbb10f8fa1099fd296be916ee4bedf36d4099e7c7ac9e763d3bae30b07",
-        "memoryFingerprint": "267ed4d59a7a7cbce999f644abb5f1eefe9f746323a180d7e735f088d57894a1",
+        "fingerprint": "85c586748de24002970bcd76f06921e9baf5dc2fbf43b1f9e4e5c3c0791aca7a",
+        "memoryFingerprint": "ba5357e273ce150806a29748eca31c707338ed277f20505a0c07594cd52f0193",
         "creatorFingerprint": "52f01e607745140b7a8f144c36d5d9aa8667b49752c67a160c8d148853a27b59"
       },
       {
         "step": 3000,
         "atWorldMs": 270000000,
-        "fingerprint": "a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964",
-        "memoryFingerprint": "fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7",
+        "fingerprint": "20cd773bbef0006ff13957643f922db3a75df54f49e5722357b0f0e242d33161",
+        "memoryFingerprint": "8712bf39b4edb6ffd4c040343d0661471c2875e5bf3f95dca127257e2e5134ae",
         "creatorFingerprint": "c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d"
       }
     ],
     "memory": {
-      "fingerprint": "fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7",
+      "fingerprint": "8712bf39b4edb6ffd4c040343d0661471c2875e5bf3f95dca127257e2e5134ae",
       "business": {
         "lastClosedDay": 3,
         "currentDay": 3,
