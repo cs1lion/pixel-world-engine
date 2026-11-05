@@ -1,0 +1,260 @@
+调色板审计（只报告，不阻断）
+根目录：D:\project\pwe-lively\world-client
+口径：只统计源码源色值；不模拟运行时 alpha/光照叠加；世界层与 UI 层分开。
+
+## 计数
+世界层唯一色：24（引用 335 处）  预算 24，超出 0
+UI 层唯一色：8（引用 183 处）  预算 8，超出 0
+共享色：1（#e3a13c）
+两层并集唯一色：31
+
+## 世界层 Top（按使用次数）
+#14110d  refs=52  ink
+    src/main.ts:128 (WORLD.ink)
+    src/render/ambience-view.ts:67 (WORLD.ink)
+    src/render/ambience-view.ts:87 (WORLD.ink)
+    src/render/ambience-view.ts:92 (WORLD.ink)
+#e3a13c  refs=32  amber
+    src/render/buildings.ts:198 (WORLD.amber)
+    src/render/buildings.ts:200 (WORLD.amber)
+    src/render/buildings.ts:263 (WORLD.amber)
+    src/render/buildings.ts:488 (WORLD.amber)
+#d8dad3  refs=27  pale
+    src/render/ambience-view.ts:77 (WORLD.pale)
+    src/render/ambience-view.ts:89 (WORLD.pale)
+    src/render/buildings.ts:298 (WORLD.pale)
+    src/render/buildings.ts:311 (WORLD.pale)
+#c9a86a  refs=26  trim
+    src/render/buildings.ts:88 (WORLD.trim)
+    src/render/buildings.ts:286 (WORLD.trim)
+    src/render/buildings.ts:298 (WORLD.trim)
+    src/render/buildings.ts:342 (WORLD.trim)
+#f2c879  refs=25  warmLight
+    src/render/buildings.ts:94 (WORLD.warmLight)
+    src/render/buildings.ts:238 (WORLD.warmLight)
+    src/render/buildings.ts:265 (WORLD.warmLight)
+    src/render/buildings.ts:443 (WORLD.warmLight)
+#4a3f39  refs=24  timberDark
+    src/render/buildings.ts:227 (WORLD.timberDark)
+    src/render/buildings.ts:231 (WORLD.timberDark)
+    src/render/buildings.ts:296 (WORLD.timberDark)
+    src/render/buildings.ts:313 (WORLD.timberDark)
+#5a463e  refs=23  charcoal/TERRAIN_COLORS.coal
+    src/render/buildings.ts:84 (WORLD.charcoal)
+    src/render/buildings.ts:259 (WORLD.charcoal)
+    src/render/buildings.ts:273 (WORLD.charcoal)
+    src/render/buildings.ts:282 (WORLD.charcoal)
+#18242b  refs=18  deepShade/TERRAIN_COLORS.mud
+    src/render/buildings.ts:190 (WORLD.deepShade)
+    src/render/buildings.ts:192 (WORLD.deepShade)
+    src/render/buildings.ts:464 (WORLD.deepShade)
+    src/render/buildings.ts:502 (WORLD.deepShade)
+#1b211c  refs=14  soil/TERRAIN_COLORS.tree/TERRAIN_SPECK.grass/TERRAIN_SPECK.farm
+    src/render/buildings.ts:86 (WORLD.soil)
+    src/render/buildings.ts:223 (WORLD.soil)
+    src/render/buildings.ts:433 (WORLD.soil)
+    src/render/buildings.ts:499 (WORLD.soil)
+#3d6b7a  refs=14  water/TERRAIN_COLORS.shallow
+    src/render/ambience-view.ts:134 (WORLD.water)
+    src/render/buildings.ts:408 (WORLD.water)
+    src/render/fog-view.ts:77 (WORLD.water)
+    src/render/fog-view.ts:146 (WORLD.water)
+#3e433f  refs=14  stone/TERRAIN_COLORS.stone/TERRAIN_SPECK.plaza
+    src/render/buildings.ts:219 (WORLD.stone)
+    src/render/buildings.ts:406 (WORLD.stone)
+    src/render/buildings.ts:659 (WORLD.stone)
+    src/render/decor.ts:91 (WORLD.stone)
+#4a4f42  refs=13  plaza/TERRAIN_COLORS.plaza/TERRAIN_SPECK.stone
+    src/render/buildings.ts:221 (WORLD.plaza)
+    src/render/buildings.ts:275 (WORLD.plaza)
+    src/render/buildings.ts:657 (WORLD.plaza)
+    src/render/decor.ts:59 (WORLD.plaza)
+#c06a3e  refs=10  ember
+    src/render/buildings.ts:92 (WORLD.ember)
+    src/render/buildings.ts:261 (WORLD.ember)
+    src/render/buildings.ts:392 (WORLD.ember)
+    src/render/buildings.ts:567 (WORLD.ember)
+#c2b39a  refs=9  plaster
+    src/render/buildings.ts:298 (WORLD.plaster)
+    src/render/decor.ts:427 (WORLD.plaster)
+    src/render/decor.ts:459 (WORLD.plaster)
+    src/render/villager.ts:186 (WORLD.plaster)
+#8a5a44  refs=8  timber
+    src/render/buildings.ts:339 (WORLD.timber)
+    src/render/buildings.ts:379 (WORLD.timber)
+    src/render/decor.ts:392 (WORLD.timber)
+    src/world/prefabs.json:28 (code_forge.body=timber)
+#4e6241  refs=6  moss
+    src/render/buildings.ts:394 (WORLD.moss)
+    src/render/buildings.ts:436 (WORLD.moss)
+    src/render/buildings.ts:471 (WORLD.moss)
+    src/render/buildings.ts:505 (WORLD.moss)
+#2d3b2e  refs=5  grass/TERRAIN_COLORS.grass/TERRAIN_SPECK.tree
+    src/render/decor.ts:95 (WORLD.grass)
+    src/render/decor.ts:405 (WORLD.grass)
+    src/render/minimap.ts:83 (TERRAIN_COLORS.grass)
+    src/render/tilemap.ts:62 (TERRAIN_COLORS.grass)
+#223a4d  refs=4  cloakDark
+    src/render/day-phase.ts:47 (WORLD.cloakDark)
+    src/render/smoke.ts:29 (WORLD.cloakDark)
+    src/render/weather.ts:89 (WORLD.cloakDark)
+    src/render/weather.ts:116 (WORLD.cloakDark)
+#9c4f3c  refs=4  terracotta
+    src/render/buildings.ts:327 (WORLD.terracotta)
+    src/world/prefabs.json:28 (code_forge.roof=terracotta)
+    src/world/prefabs.json:226 (gear_tower.body=terracotta)
+    src/world/prefabs.json:259 (cottage_oak.roof=terracotta)
+#3b3423  refs=3  farm/TERRAIN_COLORS.farm
+    src/render/minimap.ts:83 (TERRAIN_COLORS.farm)
+    src/render/tilemap.ts:62 (TERRAIN_COLORS.farm)
+    src/scenes/SandboxScene.ts:534 (TERRAIN_COLORS.farm)
+#5f8a74  refs=3  copper
+    src/render/buildings.ts:284 (WORLD.copper)
+    src/world/prefabs.json:61 (star_archive.roof=copper)
+    src/world/prefabs.json:292 (cottage_plaster.roof=copper)
+#30506b  refs=1  cloak
+    src/world/prefabs.json:127 (workshop_plot.roof=cloak)
+#334234  refs=0  grassLit
+#e0b48c  refs=0  skin
+
+## UI 层 Top
+#2b322c  refs=35  --line
+    index.html:49 (--line)
+    index.html:62 (--line)
+    index.html:75 (--line)
+    index.html:90 (--line)
+#8e968c  refs=33  --dim
+    index.html:57 (--dim)
+    index.html:63 (--dim)
+    index.html:68 (--dim)
+    index.html:98 (--dim)
+#e8e2d2  refs=31  --ink
+    index.html:37 (--ink)
+    index.html:76 (--ink)
+    index.html:92 (--ink)
+    index.html:106 (--ink)
+#e3a13c  refs=27  --amber
+    index.html:128 (--amber)
+    index.html:181 (--amber)
+    index.html:288 (--amber)
+    index.html:288 (--amber)
+#0c0f0d  refs=19  --base
+    index.html:36 (--base)
+    index.html:153 (--base)
+    index.html:154 (--base)
+    index.html:165 (--base)
+#24211b  refs=19  --paper-ink
+    index.html:215 (--paper-ink)
+    index.html:259 (--paper-ink)
+    index.html:306 (--paper-ink)
+    index.html:310 (--paper-ink)
+#171b18  refs=15  --panel
+    index.html:89 (--panel)
+    index.html:120 (--panel)
+    index.html:275 (--panel)
+    index.html:283 (--panel)
+#c8876a  refs=4  --warn
+    index.html:66 (--warn)
+    index.html:66 (--warn)
+    index.html:415 (--warn)
+    index.html:422 (--warn)
+
+## 世界层越界色（不在提案 24 色内）
+
+## UI 层越界色（不在提案 8 色内）
+
+## 提案 24 色世界
+#14110d  refs=52  L=0.6%  最暗/轮廓/阴影/眼睛（合并 ink、shadow、sky）
+#1b211c  refs=14  L=1.4%  深土/树冠暗部/街巷暗（旧 soil；2026-10-27 补记：那句“当前 soil 定义未引用，保留槽”已过期——`WORLD.soil` 这个写法今天在 src/ 与 test/ 下 23 处、横跨 7 个文件）
+#2d3b2e  refs=5  L=3.9%  草地基色
+#334234  refs=0  L=4.8%  草地亮部/树冠亮部 [当前未引用，保留槽]
+#3e433f  refs=14  L=5.4%  石/灰泥基色
+#4a4f42  refs=13  L=7.4%  广场/道路/石材亮部
+#3b3423  refs=3  L=3.5%  农田土
+#8a5a44  refs=8  L=13.1%  木/砖墙基色（建筑主体）
+#4a3f39  refs=24  L=5.3%  木/屋顶暗部（屋顶、树干、伞杆）
+#c9a86a  refs=26  L=41.5%  暖色饰边/脚手架/旗帜/浅木
+#e3a13c  refs=32  L=42.1%  焦点琥珀（窗光、进度、路灯、祭坛符号） [与 UI 共享]
+#e0b48c  refs=0  L=50.4%  皮肤 [当前未引用，保留槽]
+#30506b  refs=1  L=7.4%  斗篷基色
+#223a4d  refs=4  L=3.9%  斗篷暗部
+#c06a3e  refs=10  L=21.9%  围巾/强调橙（同时给故障与暖色点缀）
+#d8dad3  refs=27  L=69.4%  烟/纸片/雨/高光浅色
+#c2b39a  refs=9  L=46.0%  灰泥墙/浅色纸面（书阁主体）
+#9c4f3c  refs=4  L=13.0%  陶瓦/砖（工坊屋顶、干草垛）
+#5f8a74  refs=3  L=21.9%  铜绿屋顶（书阁塔楼）
+#3d6b7a  refs=14  L=12.9%  水（水洼、雾、冷反光）
+#4e6241  refs=6  L=10.7%  苔（石缝、树冠、绿化带）
+#18242b  refs=18  L=1.6%  冷影（檐下、底部、雾的冷暗层）
+#f2c879  refs=25  L=61.6%  暖高光（窗芯、灯芯、祭坛符文）
+#5a463e  refs=23  L=6.9%  炭黑（暗瓦、烟囱、铁器）
+
+## 提案 8 色 UI
+#e8e2d2  refs=31  L=76.2%  纸面/深底亮文字
+#24211b  refs=19  L=1.5%  纸上墨字
+#8e968c  refs=33  L=29.5%  次要文字（深底）
+#171b18  refs=15  L=1.0%  面板底
+#2b322c  refs=35  L=3.0%  分隔线/边框
+#e3a13c  refs=27  L=42.1%  强调/焦点（与琥珀同值） [与世界共享]
+#0c0f0d  refs=19  L=0.4%  页面底/投影
+#c8876a  refs=4  L=30.6%  警告/错误
+
+## palette.ts 未引用 token
+WORLD.grassLit, WORLD.skin, WORLD.cloak, TERRAIN_SPECK.grass, TERRAIN_SPECK.stone, TERRAIN_SPECK.plaza, TERRAIN_SPECK.farm, TERRAIN_SPECK.tree
+
+## 每文件字面量统计（手算核对口径）
+file	layer	occurrences	unique
+src/main.ts	world	0	0
+src/render/ambience-view.ts	world	0	0
+src/render/ambience.ts	world	0	0
+src/render/bake.ts	world	0	0
+src/render/building-depth.ts	world	0	0
+src/render/building-proportions.ts	world	0	0
+src/render/buildings.ts	world	0	0
+src/render/camera-controller.ts	world	0	0
+src/render/camera-math.ts	world	0	0
+src/render/day-phase.ts	world	0	0
+src/render/decal.ts	world	0	0
+src/render/decor.ts	world	0	0
+src/render/eco-mode.ts	world	0	0
+src/render/fireflies.ts	world	0	0
+src/render/fog-view.ts	world	0	0
+src/render/ghost.ts	world	0	0
+src/render/harbor-view.ts	world	0	0
+src/render/labels.ts	world	0	0
+src/render/lampoil-view.ts	world	0	0
+src/render/minimap.ts	world	0	0
+src/render/phase-view.ts	world	0	0
+src/render/prop-depth.ts	world	0	0
+src/render/prop-grime.ts	world	0	0
+src/render/region-paint.ts	world	0	0
+src/render/setting-scenery.ts	world	0	0
+src/render/smoke.ts	world	0	0
+src/render/terrain-edges.ts	world	0	0
+src/render/tide-view.ts	world	0	0
+src/render/tilemap.ts	world	0	0
+src/render/villager-frames.ts	world	0	0
+src/render/villager-layout.ts	world	0	0
+src/render/villager.ts	world	0	0
+src/render/weather-fog-view.ts	world	0	0
+src/render/weather-stalls.ts	world	0	0
+src/render/weather.ts	world	0	0
+src/render/world-overlay.ts	world	0	0
+src/scenes/SandboxScene.ts	world	0	0
+src/world/prefabs.json	world	48	13
+index.html (style)	ui	23	8
+
+## 提案关键对比度（WCAG 比值，仅作可读性初判依据）
+outline/grass: 1.59:1
+cloak/grass: 1.40:1
+cloakShade/grass: 1.00:1
+skin/grass: 6.23:1
+scarf/grass: 3.02:1
+amber/grass: 5.31:1
+smoke/night: 13.34:1
+paper/ink: 12.41:1
+amber/panel: 7.82:1
+dim/panel: 5.71:1
+paper/panel: 13.46:1
+
+提示：--json 输出机器可读结果；--strict 在超预算时退出码 1（已启用；默认仍返回 0）。
