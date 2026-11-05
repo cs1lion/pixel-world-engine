@@ -215,3 +215,85 @@
     「回家判成在室内」的冲突面积。
 - 证据：`docs/evidence/failure-event/`（`baseline.txt` / `after.txt` / `probe.txt`）。
 - 待办：无（浏览器失败场景仍未验证，见上）。
+
+---
+
+## 块 6 · 入口配色：理论压进 8 个 UI 位 + 首屏提示
+
+- 开始 / 结束：2026-11-05 / 2026-11-05
+- 分支：`feat/behavior-queue`（基于块 5 的 `088b026`），代码+读数提交 `c0a7749`，本记录为第二提交，未 push、未动 main
+- 原文取用：链接抓取失败（小红书 300031/300011 登录/风控墙、xiaohongshu 404「请打开 App 扫码」、WebFetch 空）；
+  用户随后粘贴了全文，按粘贴原文执行，不再抓链接、不凭标题猜。
+- 结论先行：**深色一套装得进 8 位，浅色一套装不进**。
+  - 11 级灰 → 5 级灰阶（base/panel/line/dim/ink）+ 1 个纸上墨字（paper-ink）= 6 个灰位；
+  - 4 语义 × 2 层 → 1 对（--warn）+ 提示走中性 + 成功复用 --amber = 0 新色；
+  - 合计仍是 8/8。浅色套至少要多 2 个 UI 位（浅面板、浅底次要文字），会让 strict 红，
+    按纪律未自行扩预算/改审计，列为阻塞待批。详见 `entry-color/mapping.txt`。
+- 压缩取舍（用实测，不拍脑袋）
+  - 灰阶 Y：0.45% / 1.03% / 1.54% / 2.98% / 29.46% / 76.20%；L*：4.05 → 9.25 → 12.87 → 19.95 → 61.18 → 89.95。
+  - 相邻 ΔL*：5.20 / 3.62 / 7.08 / 41.23 / 28.77，全部 ≥3（仓内既有「不可见」阈值）。
+    诚实说：这是功能灰阶，不是等距灰阶；11 档等距在 8 位里做不到。
+  - 对比度（WCAG 2.x，算法同 audit-palette）：主要字/底 14.90:1、/面板 13.46:1；
+    次要字/底 6.32:1、/面板 5.71:1；不可用同 --dim 5.71:1；主按钮字/强调底 7.21:1；
+    状态字/面板 5.91:1；边框/底 1.46:1、/面板 1.32:1（低于 3.0 非文本门槛，见真问题 1）。
+  - 语义配对：提示没有蓝位 → 中性条（panel + line + ink，靠位置不靠色相）；
+    成功没有绿位 → 复用琥珀（世界层本来就用它表示进度/亮灯）；
+    警告不抢琥珀 → 与出错共用陶土 --warn，靠文案区分。
+- 现状入口清单（改前，文件:行号，详见 `entry-color/entry.txt`）
+  - `index.html:888` `#hud-load`；`index.html:913` `#status`；`index.html:902` `#stage`；
+    `index.html:921-925` `#oracle` + `#utterance`；`index.html:1072` `#paper-clock`。
+  - `main.ts:92` 世界在模块顶层同步建好；`main.ts:123` `new Phaser.Game`；`main.ts:142` 立即启动场景。
+  - `SandboxScene.ts:571` create；580/587 烘焙地形；647-650 镜头 delayedCall(0) 平移到祭坛；
+    766 setPhase；780 默认时相 = `phaseAt(Date.now())`；1052-1061 游玩时钟从 0 起算。
+  - 默认时刻矛盾：报纸「第 0 分 00 秒」+ 天空按真实本地时相（正午）——未修（属 report/世界语义）。
+  - 改前路径：0 次点击可见世界；聚焦(1) + 回车(2) 得到第一句回执；首屏没有任何「能做什么」的说明。
+- 方案（代价排序）
+  - A（采用，S）：纯 DOM——画布上方一行提示（第一次提交/第一次点画布即收起）、主按钮强调填充、
+    次要按钮回中性、回执补成功色。只碰 `index.html` + `ui/shell.ts` + `ui/oracle-panel.ts`。
+  - B（否，S）：自动聚焦输入框，2 步→1 步；抢焦点、移动端弹键盘，收益不抵副作用。
+  - C（否，M/L）：默认时刻改「第 1 天 08:00」；改世界时钟语义 + 三指纹必变，和 simulation 线冲突。
+- 改了什么
+  - `index.html`：新增 `#entry-hint`（普通流、不叠画布、只用 var()）；`button.primary` 琥珀底 +
+    纸上墨字（唯一强调落点）；`button.secondary` 面板底 + 边框；默认 hover 不再用琥珀；
+    `#reply.good` 成功色；`#status` 初始文案具体化；日界提示 yes/no 分主次。
+  - `ui/shell.ts:19-26`：提示条在首个 submit 或首个 pointerdown 收起（`once`、即时 hidden，无计时器/过渡）。
+  - `ui/oracle-panel.ts:273`：`show(ok)` 同时切 good/bad。
+  - 未动 `main.ts` / `SandboxScene.ts` / 世界语义 / 存档 v5 / `projectWorld`。
+- 读数
+  - `audit-palette --strict`：世界 24/24（超 0）、UI 8/8（超 0）、共享 1、并集 31，退出 0。
+  - 同构建两跑（Playwright 假时钟 install + pauseAt + runFor 钉住 rAF）：
+    首屏 1010×940 可见差(≥8)=0、精确差 max=0、有差 0/949400、字节相同；
+    首次提交（点灯吧）同样 0/0/0/true；连跑 3 次稳定，A/B 无 JS 报错。
+  - 入口路径：0 次点击可见世界；Ctrl+K(1) + 回车(2) 得到回执。
+    世界时钟口径：首屏纸钟「第 0 分 06 秒」，首次提交「第 4 分 00 秒」（默认 60×，约 4 秒墙钟）。
+  - `render-budget`：6 项通过，绘制指令 16130 < 30000、Graphics 27，相对基线 +0。
+  - 九道闸门全绿：check 0 / test 2108 通过 0 失败 9 跳过 / build 0 / palette 0 /
+    references 0 / citations 0 / sections 0 / claims --strict 0（adr-schema 9/9）/ pytest 0。
+  - 浏览器：smoke 125、phases 17、persistence 8、render-budget 6、setting 29。
+  - `test:buttons`：退出码 2，`/api/memory/list` 回 404（既有缺口，未改代码）。
+  - 五禁忌逐条：鲜艳色 2 个（琥珀/陶土）→ 否；次要按钮不用强调 → 否；无 #000000 → 否；
+    彩色底上用纸上墨字（7.21:1）→ 否；深色靠更亮的 --line 分层，不靠反色 → 否。
+- 三指纹：世界 outer `a41f4e2e…` / night `6efda574…`、记忆 `fb0847b3…`、造物 `c5198f0f…`，
+  与基线逐字相同（未碰世界层）。
+- 真问题
+  1. `--line` 对底 1.46:1、对面板 1.32:1，低于 3.0 非文本门槛；它不是唯一状态信号
+     （焦点/选中用琥珀 8.65:1）。要修需要 1 个新色位 → 阻塞。
+  2. 成功与强调共用琥珀：同一位置不并现，但无色相区分；独立绿位需扩预算。
+  3. 警告与出错共用陶土，只能靠文案；「天本来就是晴的。」这种无操作被标成 bad 是既有分类，未改。
+  4. 00:00 开局问题未修（report/世界时钟语义，留给下一块）。
+  5. 首次提交依赖上游意图模型，dev 下会显示 HTTP 400 回执（既有）。
+- 被否掉的写法
+  - CSS transition/animation 淡出提示条：时长不可枚举，违反纪律 → 动作触发即时收起。
+  - 提示条标签用琥珀：稀释唯一强调落点 → 标签 --dim、正文 --ink。
+  - 提示条叠在画布上：破坏 canvas 包围盒与调色板截图 → 放到画布上方普通流。
+  - 新增绿/蓝语义位：8/8 已满，必须扩预算 → 未做。
+  - 自动聚焦输入框：抢焦点、移动端弹键盘 → 未做。
+- 没做到 / 未验证
+  - 浅色套（阻塞：需 UI 8→10；未自行扩预算或放宽审计）。
+  - 00:00 开局问题；`test:buttons` 既有红。
+  - 两跑像素比对只在本机 headless + 假时钟下成立（3 次复跑字节相同），
+    未在真实 GPU / 不同字体 / 不同 DPR 的设备上验证。
+- 证据：`docs/evidence/entry-color/`（`mapping.txt` / `entry.txt` / `palette.txt` / `contrast.txt` /
+  `entry-diff.txt` / `entry-feedback-fail.txt` / `render-budget.txt` / `smoke.txt` / `phases.txt` /
+  `persistence.txt` / `setting.txt` / `buttons.txt`）。
+
