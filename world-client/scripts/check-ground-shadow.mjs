@@ -20,6 +20,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { hashImage, recordShot, writePixelLedger } from './lib/pixel-ledger.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
@@ -166,10 +167,13 @@ async function shot(page, box, id) {
     now: window.Oracle.debugStepWorld(0),
     frame: window.__CAPTURE_STATE__.frame,
     weather: window.Oracle.view().weather,
+    tide: window.Oracle.view().tide,
     units: window.Oracle.debugGroundShadowUnits(),
     stats: window.Oracle.renderStats(),
     camera: window.Oracle.camera(),
   }));
+  const pixel = await hashImage(page, buf);
+  recordShot({ file, pixel, now: meta.now, tide: meta.tide, camera: meta.camera });
   return { id, file, buf, sha256: hashOf(buf), ...meta };
 }
 
@@ -306,6 +310,14 @@ for (const phase of PHASES) {
     writeFileSync(join(OUT, 'ground-shadow-foot-dusk.png'), crop);
     writeFileSync(join(OUT, 'ground-shadow-foot-dusk-3x.png'), crop3x);
     writeFileSync(join(OUT, 'ground-shadow-foot-dusk-off-3x.png'), cropOff3x);
+    for (const [name, cropBuf] of [
+      ['ground-shadow-foot-dusk.png', crop],
+      ['ground-shadow-foot-dusk-3x.png', crop3x],
+      ['ground-shadow-foot-dusk-off-3x.png', cropOff3x],
+    ]) {
+      const pixel = await hashImage(villager.page, cropBuf);
+      recordShot({ file: name, pixel, now: villagerOn.now, tide: villagerOn.tide, camera: villagerOn.camera });
+    }
     footCrop = { roi: footRoi, on3x: hashOf(crop3x), off3x: hashOf(cropOff3x) };
   }
 
@@ -425,6 +437,7 @@ const result = {
 };
 
 writeFileSync(join(OUT, 'ground-shadow.json'), `${JSON.stringify(result, null, 2)}\n`);
+writePixelLedger(OUT, 'ground-shadow');
 
 const row = (name, phase) => {
   const item = phaseRows.find((entry) => entry.phase === phase);

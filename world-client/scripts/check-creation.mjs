@@ -10,10 +10,11 @@
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { cellToCanvasPoint } from './lib/camera-projection.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
-const OUT = 'eval/screens';
+const OUT = process.env.EVAL_OUT ? resolve(process.env.EVAL_OUT) : 'eval/screens';
 const PREFAB = 'workshop_plot';
 
 const reports = [];

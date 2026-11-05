@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { recordShot, writePixelLedger } from './lib/pixel-ledger.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
@@ -165,7 +166,16 @@ async function shot(page, box, id) {
     stats: window.Oracle.renderStats(),
     poolCommands: window.Oracle.debugLampPool(),
     camera: window.Oracle.camera(),
+    tide: (() => {
+      try {
+        return window.Oracle.view().tide;
+      } catch {
+        return null;
+      }
+    })(),
   }));
+  const pixel = await pixelHash(page, buf);
+  recordShot({ file, pixel, now: meta.now, tide: meta.tide, camera: meta.camera });
   return {
     id,
     file,
@@ -303,9 +313,13 @@ async function pixelHash(page, buf) {
     ctx.drawImage(image, 0, 0);
     const data = ctx.getImageData(0, 0, c.width, c.height).data;
     const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
+    return {
+      sha256: Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join(''),
+      width: c.width,
+      height: c.height,
+    };
   }, buf.toString('base64'));
 }
 
@@ -366,7 +380,7 @@ const pauseDiff = await diffPair(reader, pause.a.buf, pause.b.buf, cam);
 const repeat = await capturePair(browser, { stalls: ONLY_CLOTH, from: STEADY_A, to: STEADY_B, tag: 'repeat' });
 const hashesA = [await pixelHash(reader, pairs['only-cloth'].a.buf), await pixelHash(reader, pairs['only-cloth'].b.buf)];
 const hashesB = [await pixelHash(reader, repeat.a.buf), await pixelHash(reader, repeat.b.buf)];
-const determinism = hashesA.map((hash, index) => ({ frame: index, a: hash, b: hashesB[index] ?? null, same: hash === hashesB[index] }));
+const determinism = hashesA.map((hash, index) => ({ frame: index, a: hash.sha256, b: hashesB[index]?.sha256 ?? null, same: hash.sha256 === hashesB[index]?.sha256 }));
 const allSame = determinism.every((row) => row.same);
 // 不一致时给出第一处差异的像素范围：定位比猜快。
 const determinismProbe = allSame
@@ -477,6 +491,7 @@ writeFileSync(
     peakRainCommands,
   }, null, 2)}\n`,
 );
+writePixelLedger(OUT, 'stall-motion');
 
 console.log('帧差', Object.fromEntries(Object.entries(diffs).map(([name, value]) => [name, pct(value.ratio)])));
 console.log('火光', pct(fireDiff.ratio), '地面', pct(fireGroundDiff.ratio));

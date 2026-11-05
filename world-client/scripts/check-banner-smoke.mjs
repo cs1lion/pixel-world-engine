@@ -24,6 +24,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { recordShot, writePixelLedger } from './lib/pixel-ledger.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
@@ -174,11 +175,14 @@ async function shot(page, box, id) {
     now: window.Oracle.debugStepWorld(0),
     frame: window.__CAPTURE_STATE__.frame,
     weather: window.Oracle.view().weather,
+    tide: window.Oracle.view().tide,
     banners: window.Oracle.debugBannerUnits(),
     smoke: window.Oracle.debugSmokeUnits(),
     stats: window.Oracle.renderStats(),
     camera: window.Oracle.camera(),
   }));
+  const pixel = await pixelHash(page, buf);
+  recordShot({ file, pixel, now: meta.now, tide: meta.tide, camera: meta.camera });
   return { id, file, buf, sha256: createHash('sha256').update(buf).digest('hex'), ...meta };
 }
 
@@ -356,9 +360,13 @@ async function pixelHash(page, buf) {
     ctx.drawImage(image, 0, 0);
     const data = ctx.getImageData(0, 0, c.width, c.height).data;
     const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
+    return {
+      sha256: Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join(''),
+      width: c.width,
+      height: c.height,
+    };
   }, buf.toString('base64'));
 }
 
@@ -444,9 +452,9 @@ const runA = await captureDeterminism(browser, 'a');
 const runB = await captureDeterminism(browser, 'b');
 const determinism = runA.hashes.map((hash, index) => ({
   frame: index,
-  a: hash,
-  b: runB.hashes[index] ?? null,
-  same: hash === runB.hashes[index],
+  a: hash.sha256,
+  b: runB.hashes[index]?.sha256 ?? null,
+  same: hash.sha256 === runB.hashes[index]?.sha256,
 }));
 const allSame = determinism.every((row) => row.same);
 const determinismProbe = allSame
@@ -587,6 +595,7 @@ writeFileSync(
     peakCommands,
   }, null, 2)}\n`,
 );
+writePixelLedger(OUT, 'banner-smoke');
 
 console.log('幌布帧差', Object.fromEntries(Object.entries(diffs).map(([name, value]) => [name, pct(value.ratio)])));
 console.log('布身读数', 't', pairs['banner-both'].a.banners.map((unit) => unit.swayDx), 't+1s', pairs['banner-both'].b.banners.map((unit) => unit.swayDx));

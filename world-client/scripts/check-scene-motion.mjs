@@ -5,7 +5,8 @@
  * 为什么用 `debugHoldWorld` + `debugStepWorld` 而不是「冻在第 N 帧」：
  * 这一支要给的是**世界时刻序列**（18:00:00、18:00:10……18:06:20），
  * 不是「第 180 帧长什么样」。世界冻住、手动按世界毫秒推进，每一帧的世界时刻
- * 都是钉死的；同一个序列跑两遍，逐帧 PNG 必须逐字节相同（sha256）。
+ * 都是钉死的；同一个序列跑两遍，逐帧**像素**必须相同（判据是逐像素 sha256，
+ * PNG 字节 sha256 会带编码器/元数据差异，不作判据）。
  *
  * 口径：
  * - `?debug=1&now=1079`（17:59 开局）+ 强制 dusk：总闸亮着，只让**世界时刻**
@@ -26,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { recordShot, writePixelLedger } from './lib/pixel-ledger.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
@@ -182,7 +184,16 @@ async function shot(page, box, id) {
     stats: window.Oracle.renderStats(),
     poolCommands: window.Oracle.debugLampPool(),
     camera: window.Oracle.camera(),
+    tide: (() => {
+      try {
+        return window.Oracle.view().tide;
+      } catch {
+        return null;
+      }
+    })(),
   }));
+  const pixel = await pixelHash(page, buf);
+  recordShot({ file, pixel, now: meta.now, tide: meta.tide, camera: meta.camera });
   return {
     id,
     file,
@@ -354,9 +365,13 @@ async function pixelHash(page, buf) {
     ctx.drawImage(image, 0, 0);
     const data = ctx.getImageData(0, 0, c.width, c.height).data;
     const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
+    return {
+      sha256: Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join(''),
+      width: c.width,
+      height: c.height,
+    };
   }, buf.toString('base64'));
 }
 
@@ -374,9 +389,9 @@ const hashes2 = [];
 for (const frame of run2.frames) hashes2.push(await pixelHash(reader, frame.buf));
 const determinism = run1.frames.map((frame, index) => ({
   id: frame.id,
-  a: hashes1[index],
-  b: hashes2[index] ?? null,
-  same: hashes1[index] === hashes2[index],
+  a: hashes1[index].sha256,
+  b: hashes2[index]?.sha256 ?? null,
+  same: hashes1[index].sha256 === hashes2[index]?.sha256,
 }));
 const allFramesSame = determinism.every((row) => row.same);
 
@@ -583,6 +598,7 @@ writeFileSync(jsonFile, JSON.stringify({
   peakCommands,
   camera: cam,
 }, null, 2));
+const ledgerFile = writePixelLedger(OUT, 'scene-motion');
 
 console.log('渐次：首盏', hhmmss(ignitionAtOn.firstAtMs), '末盏', hhmmss(ignitionAtOn.lastAtMs));
 console.log('峰值指令', peakCommands);

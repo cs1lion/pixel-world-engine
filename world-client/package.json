@@ -15,6 +15,8 @@
     "dev:live": "node scripts/dev-live.mjs",
     "test:live": "node scripts/accept-live.mjs",
     "test:browser": "node scripts/smoke.mjs",
+    "verify:reset": "node scripts/reset-verify-state.mjs",
+    "verify:compare": "node scripts/compare-ledger.mjs",
     "test:interact": "node scripts/check-interact.mjs",
     "test:oracle-e2e": "node scripts/check-oracle-e2e.mjs",
     "test:phases": "node scripts/check-phases.mjs",

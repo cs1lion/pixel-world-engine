@@ -23,7 +23,9 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
-const OUT = resolve(import.meta.dirname, '..', 'eval', 'screens');
+const OUT = process.env.EVAL_OUT
+  ? resolve(process.env.EVAL_OUT)
+  : resolve(import.meta.dirname, '..', 'eval', 'screens');
 mkdirSync(OUT, { recursive: true });
 
 const checks = [];
