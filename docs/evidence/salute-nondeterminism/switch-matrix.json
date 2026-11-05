@@ -1,0 +1,96 @@
+{
+ "runs": [
+  "C:\\Users\\18712\\AppData\\Local\\Temp\\salute\\switch-hw",
+  "C:\\Users\\18712\\AppData\\Local\\Temp\\salute\\switch-sw"
+ ],
+ "pairs": {
+  "switch-hw vs switch-sw": {
+   "pinnedA1.png": {
+    "exact_pct": 0.0,
+    "visible_pct": 0.0,
+    "visible_px": 0,
+    "max_delta": 0,
+    "visible_bbox": [],
+    "top_color_pairs": [],
+    "channel_hist": {
+     "r": {},
+     "g": {},
+     "b": {}
+    }
+   },
+   "pinnedA2.png": {
+    "exact_pct": 0.0,
+    "visible_pct": 0.0,
+    "visible_px": 0,
+    "max_delta": 0,
+    "visible_bbox": [],
+    "top_color_pairs": [],
+    "channel_hist": {
+     "r": {},
+     "g": {},
+     "b": {}
+    }
+   }
+  }
+ },
+ "intra": {
+  "hardware": {
+   "A1 vs A2": {
+    "exact_pct": 0.0,
+    "visible_pct": 0.0,
+    "visible_px": 0,
+    "max_delta": 0,
+    "visible_bbox": [],
+    "top_color_pairs": [],
+    "channel_hist": {
+     "r": {},
+     "g": {},
+     "b": {}
+    }
+   }
+  },
+  "swiftshader": {
+   "A1 vs A2": {
+    "exact_pct": 0.0,
+    "visible_pct": 0.0,
+    "visible_px": 0,
+    "max_delta": 0,
+    "visible_bbox": [],
+    "top_color_pairs": [],
+    "channel_hist": {
+     "r": {},
+     "g": {},
+     "b": {}
+    }
+   }
+  },
+  "hardware vs swiftshader": {
+   "A1": {
+    "exact_pct": 0.0,
+    "visible_pct": 0.0,
+    "visible_px": 0,
+    "max_delta": 0,
+    "visible_bbox": [],
+    "top_color_pairs": [],
+    "channel_hist": {
+     "r": {},
+     "g": {},
+     "b": {}
+    }
+   },
+   "A2": {
+    "exact_pct": 0.0,
+    "visible_pct": 0.0,
+    "visible_px": 0,
+    "max_delta": 0,
+    "visible_bbox": [],
+    "top_color_pairs": [],
+    "channel_hist": {
+     "r": {},
+     "g": {},
+     "b": {}
+    }
+   }
+  }
+ }
+}

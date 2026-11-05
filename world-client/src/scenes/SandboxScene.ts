@@ -436,6 +436,15 @@ export class SandboxScene extends Phaser.Scene {
    * 画面」，不是「世界停了、连命令也不认」。
    */
   private pinnedClock: number | null = null;
+  /**
+   * 呈现态钉死：画面上跟时间走的东西（潮位、鸟、眨眼、灶火）只认这一对值。
+   *
+   * 只由浏览器回归的截图口径调用（`Oracle.pinShotState`）。冻钟只停世界，
+   * `now` 仍可能是两跑之间差一个逻辑步——潮位跨过淹没阈值就是整片草地翻色，
+   * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
+   */
+  private pinnedPresentedNow: number | null = null;
+  private pinnedTideLevel: number | null = null;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -3648,6 +3657,24 @@ export class SandboxScene extends Phaser.Scene {
     return this.pinnedClock;
   }
 
+  /**
+   * 钉住呈现态：这一帧画出来的时刻与潮位固定成给定值，与世界快照解耦。
+   *
+   * 只给截图回归用。冻钟之后 `now` 仍可能因抓拍晚一个逻辑步而不同，潮位又
+   * 是暗地/植被整片翻色的阈值开关；不钉的话同码两跑能差 24%。钉住的是
+   * **画面**，不是世界：快照、判据、存档一概不变，解冻后立刻回到世界值。
+   */
+  private pinShotState(nowMs: number, tideLevel: number): void {
+    if (!Number.isFinite(nowMs) || !Number.isFinite(tideLevel)) return;
+    this.pinnedPresentedNow = nowMs;
+    this.pinnedTideLevel = tideLevel;
+  }
+
+  private unpinShotState(): void {
+    this.pinnedPresentedNow = null;
+    this.pinnedTideLevel = null;
+  }
+
   private registerOracleApi(): void {
     const api = {
       say: (text: string): CommandResult => this.say(text),
@@ -3917,6 +3944,12 @@ export class SandboxScene extends Phaser.Scene {
         this.pinnedClock = null;
       },
       worldClockPinned: (): boolean => this.pinnedClock !== null,
+      /*
+       * 呈现态夹具：`now` 与潮位钉成给定值，只影响画面。截图前钉、拍完解，
+       * 世界与判据都不经过它。正常游玩路径没有调用方。
+       */
+      pinShotState: (nowMs: number, tideLevel: number): void => this.pinShotState(nowMs, tideLevel),
+      unpinShotState: (): void => this.unpinShotState(),
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),
@@ -4006,6 +4039,9 @@ export class SandboxScene extends Phaser.Scene {
 
   private renderSnapshot(delta: number): void {
     const { snapshot } = this;
+    // 呈现态夹具：钉住时画的是钉住的时刻与潮位，世界快照本身不参与。
+    const presentedNow = this.pinnedPresentedNow ?? snapshot.now;
+    const tideLevel = this.pinnedTideLevel ?? snapshot.tide.level;
     this.syncBuildings();
     this.refreshGroundDecals();
 
@@ -4057,10 +4093,10 @@ export class SandboxScene extends Phaser.Scene {
       const look = style === undefined ? legacyLookFor(villager.id) : resolveLook(style);
       const appearance = { look, lamp: style?.lamp === true };
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
-      updateVillager(view, villager, snapshot.now, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? WORLD);
+      updateVillager(view, villager, presentedNow, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? WORLD);
     }
     this.weatherView.update(this.sim.weatherIntensity(), delta);
-    this.weatherFogView?.update(this.sim.weatherFogDensity(), this.snapshot.now);
+    this.weatherFogView?.update(this.sim.weatherFogDensity(), presentedNow);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
     // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。
     this.weatherStallsView?.update(
@@ -4069,17 +4105,22 @@ export class SandboxScene extends Phaser.Scene {
         autoAdvancing: this.phaseView.isAutoAdvancing(),
       })) || this.sim.preCoveredToday(),
     );
-    this.tideView.update(this.snapshot.tide.level);
+    this.tideView.update(tideLevel);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
-    this.settingScenery?.update(this.snapshot.tide.level, this.snapshot.now, {
+    this.settingScenery?.update(tideLevel, presentedNow, {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
     });
-    this.phaseView.update(this.snapshot, delta);
+    // 昼夜层读的是 `snapshot.now`：钉住呈现时刻时给它一份同值的拷贝，
+    // 免得「画面上是按 12:30 算的鸟、按真实时刻算的暗角」对不上。
+    this.phaseView.update(
+      this.pinnedPresentedNow === null ? snapshot : { ...snapshot, now: presentedNow },
+      delta,
+    );
     // 鸟与蝙蝠读模拟时刻而不是墙钟：暂停世界时它们也停，不会出现
     // 「世界静止但天上还在飞」的穿帮。
     this.ambienceView.update(
-      this.snapshot.now,
+      presentedNow,
       this.phaseView.currentPhase(),
       this.cameras.main.worldView,
     );
@@ -4087,7 +4128,7 @@ export class SandboxScene extends Phaser.Scene {
     // 留一片迷雾在中间会读成「这里还没长出来」。半径由世界给到盖住整张图，
     // 旧镇的迷雾照旧由世界自己收敛。判据在 `Simulation.visibleFog`，视图与两道闸
     // 读快照里同一个数，这里不再另算。设定集图没有探索迷雾视图（见 `create` 那段）。
-    this.fogView?.update(this.snapshot.fog, this.snapshot.now);
+    this.fogView?.update(this.snapshot.fog, presentedNow);
 
     // 气泡一出现就出声；同一个角色的同一句话不重复念。
     for (const villager of snapshot.villagers) {

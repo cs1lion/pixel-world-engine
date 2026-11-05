@@ -1,0 +1,17 @@
+
+== probe-times (times, errors=0)
+t0600      now= 36015000 tide=0.778 weather=clear phase=noon  villager=idle/1 pos=(46.95,36.00) cam=528,416 readback=480x320 top=[((36, 48, 42), 576)]
+t0615      now= 36915000 tide=0.027 weather=clear phase=noon  villager=idle/1 pos=(46.70,36.00) cam=528,416 readback=480x320 top=[((45, 59, 46), 576)]
+t0630      now= 37815000 tide=0.977 weather=clear phase=noon  villager=idle/1 pos=(46.45,36.00) cam=528,416 readback=480x320 top=[((34, 45, 42), 576)]
+t0645      now= 38715000 tide=0.823 weather=clear phase=noon  villager=idle/1 pos=(46.20,36.00) cam=528,416 readback=480x320 top=[((35, 47, 42), 576)]
+t0660      now= 39615000 tide=0.007 weather=clear phase=noon  villager=idle/1 pos=(46.00,36.05) cam=528,416 readback=480x320 top=[((45, 59, 46), 576)]
+t0675      now= 40515000 tide=0.757 weather=clear phase=noon  villager=idle/1 pos=(46.00,36.30) cam=528,416 readback=480x320 top=[((35, 48, 42), 576)]
+t0690      now= 41415000 tide=0.960 weather=clear phase=noon  villager=idle/1 pos=(46.00,36.55) cam=528,416 readback=480x320 top=[((34, 46, 43), 576)]
+
+== probe-frozen1 (frozen, errors=0)
+frozenA1   now= 37821000 tide=0.985 weather=clear phase=noon  villager=idle/1 pos=(46.90,36.00) cam=528,416 readback=480x320 top=[((34, 45, 43), 576)]
+frozenA2   now= 37821000 tide=0.985 weather=clear phase=noon  villager=idle/1 pos=(46.90,36.00) cam=528,416 readback=480x320 top=[((34, 45, 43), 576)]
+
+== probe-frozen2 (frozen, errors=0)
+frozenA1   now= 37818000 tide=0.981 weather=clear phase=noon  villager=idle/1 pos=(46.90,36.00) cam=528,416 readback=480x320 top=[((34, 45, 42), 576)]
+frozenA2   now= 37818000 tide=0.981 weather=clear phase=noon  villager=idle/1 pos=(46.90,36.00) cam=528,416 readback=480x320 top=[((34, 45, 42), 576)]

@@ -413,6 +413,31 @@ async function runSandboxSuite() {
   // 行礼与气泡在 60× 下只活一个逻辑步（约 60–100ms 实时）。**先把 rAF 采样
   // 装上、再点提交**：等 click 返回后才装，安装本身的 IPC 就可能跨过那一拍。
   // 采样把快照与 DOM overlay 一起取回来，回执随后再核对（它不会因晚读消失）。
+  //
+  // ── 抓拍口径：站定 → 冻钟 → 钉呈现态 ───────────────────────────
+  // 原来这张图在「等回执」之后才拍，世界照跑：两跑落点差一个逻辑步，潮位就
+  // 可能跨过草地的淹没阈值（grass 高度 0.3），整片暗地/植被多一层
+  // `ink+water` 覆盖，蓝通道恒 +9。实测同码两跑可见差 24.7%，其中 92% 是
+  // 这一对颜色。
+  // 只冻在「看到行礼那一拍」还不够：另一个人（阿雾）可能正走在去街口的路上，
+  // 她的像素位置随世界时刻连续漂，冻在哪一拍就差几像素（修后第三跑就差了
+  // 0.95%）。所以先在采样回调里等**两个人都站定**，就地冻钟，再把呈现态钉死
+  // （时刻取当天 12:30，与 07/08 同一口径；潮位取 0=退潮，与基线草地同色）。
+  // 钉的只是画面，世界快照/判据/存档一概不变，拍完立刻解开。
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.Oracle.view();
+      if (snapshot.villagers.some((villager) => villager.walking)) return false;
+      window.Oracle.freezeWorldClock();
+      window.Oracle.pinShotState(
+        Math.floor(snapshot.now / 86400000) * 86400000 + 45_000_000,
+        0,
+      );
+      return true;
+    },
+    null,
+    { timeout: 120000 },
+  );
   const salutePromise = page.waitForFunction(
     () => {
       const snapshot = window.Oracle.view();
@@ -447,13 +472,21 @@ async function runSandboxSuite() {
     '气泡在 DOM overlay 里显示（canvas 无中文）',
   );
   check(overlayBubble.hiddenNames >= 1, '有气泡时对应名字让位');
+  check(await page.evaluate(() => window.Oracle.worldClockPinned()), '01 抓拍前世界时钟已冻住');
   await page.waitForFunction(
     () => (document.querySelector('#reply')?.textContent ?? '').includes('神谕已送达'),
     null,
     { timeout: 5000 },
   );
   check(true, '界面回了世界结算后的神谕回执');
+  // 冻着的那一帧画面上是「行礼中」：气泡还在（`bubbleUntil` 不随冻钟走）。
+  await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/01-salute.png` });
+  // 拍完立刻解冻、解钉：后面的「走进铺子开工」照原样走，判据读的还是真快照。
+  await page.evaluate(() => {
+    window.Oracle.unpinShotState();
+    window.Oracle.unfreezeWorldClock();
+  });
 
   const working = await waitFor((s) => s.villager.mode === 'working', '她走进铺子开始干活');
   check(working.villager.visible === false, '进屋后人不在门外');
