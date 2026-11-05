@@ -13,6 +13,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from '@playwright/test';
+import {
+  BACKGROUND_FLOOR_FPS,
+  MIN_BACKGROUND_DIVISOR,
+  backgroundThrottleOk,
+} from './render-budget-threshold.ts';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 
@@ -100,6 +105,8 @@ const openSession = async () => {
  * 前台恢复 37.3 / 46.7），重跑即绿、阈值未动。单次 1.5 秒采样把 runner 的
  * 瞬时争用直接当成代码回归。阈值语义一个字没改（拖动 >= 静止 × 0.9、
  * 后台 <= 前台 / 3、恢复 >= 前台 × 0.9），改的只是测量方式。
+ * （后台那一条 2026-11-05 又加了个 12 帧地板，见 `render-budget-threshold.ts`；
+ * 这里记的是 11-03 当时的判据，不改写历史。）
  *
  * 失败时原始采样会跟着读数一起打出来，并在 EVAL_OUT 存在时把同一个采样
  * 对象写成 JSON——让看红的人当场分清「机器慢」还是「代码慢」。
@@ -315,11 +322,20 @@ check(
   `静止 ${idle.value.toFixed(1)}（采样 ${fmtSamples(idle.samples)}）/ `
     + `拖动 ${drag.value.toFixed(1)}（采样 ${fmtSamples(drag.samples)}）`,
 );
+/**
+ * 后台降频判据（2026-11-05 起改成双条件，见 `render-budget-threshold.ts`）：
+ * `后台 < 前台` 且（`后台 ≤ 前台/3` **或** `后台 ≤ 12 帧`）。
+ *
+ * 旧判据只有比例那一条，在慢 runner 上会假红：前台 19 帧时要求后台降到 6.3 以下，
+ * 而省电模式的下限本就在 10 帧附近。加的是 12 帧地板，比例条件一个字没放宽
+ * （前台 60 帧 / 后台 21 帧仍然红）。用例见 `test/render-budget-throttle.test.ts`。
+ */
 check(
-  background.value <= foreground.value / 3,
+  backgroundThrottleOk(foreground.value, background.value),
   '切到后台真的降频',
   `前台 ${foreground.value.toFixed(1)}（采样 ${fmtSamples(foreground.samples)}）/ `
-    + `后台 ${background.value.toFixed(1)}（采样 ${fmtSamples(background.samples)}）`,
+    + `后台 ${background.value.toFixed(1)}（采样 ${fmtSamples(background.samples)}）`
+    + `（要求：后台 < 前台，且 ≤ 前台/${MIN_BACKGROUND_DIVISOR} 或 ≤ ${BACKGROUND_FLOOR_FPS} 帧）`,
 );
 /**
  * 恢复满帧的判据（阈值未动，量法变了）。
@@ -366,7 +382,8 @@ if (process.env.EVAL_OUT) {
           minDragRatio: MIN_DRAG_RATIO,
           minRestoreRatio: RESTORE_RATIO,
           restoreFloorRatio: RESTORE_FLOOR_RATIO,
-          maxBackgroundDivisor: 3,
+          maxBackgroundDivisor: MIN_BACKGROUND_DIVISOR,
+          maxBackgroundFloorFps: BACKGROUND_FLOOR_FPS,
         },
         fps: { idle, drag },
         advances: { foreground, background, restored },
