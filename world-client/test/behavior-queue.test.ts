@@ -96,6 +96,8 @@ test('逐拍决策与本轮基线逐行相同：同一条轨迹 3000 拍', async
     new URL('../../docs/evidence/merge-main/decisions.txt', import.meta.url),
     'utf8',
   )
+    // Windows 工作树按 CRLF 检出，基线按行比对时先归一，Linux/CI 不受影响。
+    .replace(/\r\n/g, '\n')
     .trimEnd()
     .split('\n');
 
