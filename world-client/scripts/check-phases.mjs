@@ -13,6 +13,7 @@
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { waitFadeSettled, waitVillagersSettled } from './lib/capture.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
 const OUT = process.env.EVAL_OUT ?? 'eval/screens';
@@ -31,6 +32,8 @@ const REGION_BOTTOM = 640;
 
 const reports = [];
 const failures = [];
+/** 每张图的抓拍读数：实际等了多久（ms）、看了多少帧。写进证据清单。 */
+const captureWaits = [];
 const check = (ok, label, detail = '') => {
   reports.push({ ok, label, detail });
   if (!ok) failures.push(`${label}${detail === '' ? '' : `（${detail}）`}`);
@@ -53,8 +56,54 @@ for (const phase of PHASES) {
   await page.addInitScript(() => localStorage.clear());
   await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
-  // 渐变 FADE_MS = 900，等两倍确保拍到终态。
-  await page.waitForTimeout(2200);
+  // 钉住取景：等居民回屋要 20 秒以上，一过 15 秒导播就会接管并跟着走路的人
+  // 平移——四刻截图会各自落在不同位置，整幅对不上。开局这一帧本来就对准
+  // 祭坛（旧基线也是这个取景），切 free 后把中心点写死在那里。
+  const framing = await page.evaluate(() => {
+    const c = window.Oracle.camera();
+    const cx = c.worldViewX + c.width / (2 * c.zoom);
+    const cy = c.worldViewY + c.height / (2 * c.zoom);
+    window.Oracle.setCameraMode('free');
+    window.Oracle.centerCameraOn(cx, cy);
+    const after = window.Oracle.camera();
+    return { before: c, after };
+  });
+  check(
+    framing.after.mode === 'free' &&
+      framing.after.worldViewX === framing.before.worldViewX &&
+      framing.after.worldViewY === framing.before.worldViewY &&
+      framing.after.zoom === framing.before.zoom,
+    `${phase} 取景钉在开局（祭坛）`,
+    `${framing.before.worldViewX},${framing.before.worldViewY} zoom=${framing.before.zoom} → ${framing.after.worldViewX},${framing.after.worldViewY} zoom=${framing.after.zoom} mode=${framing.after.mode}`,
+  );
+  // 先等两人回屋（街面不再有会动的精灵），再把世界时钟钉到 00:35 并冻住。
+  // 00:35 是他们各自坐下之后的固定时刻：萤火/窗灯的呼吸相位由此固定，
+  // 否则两跑的 `now` 差一秒，整片萤火都在不同的亮度上。
+  const folk = await waitVillagersSettled(page);
+  check(folk.settled, `${phase} 居民落定（不再走动）`, `等待 ${folk.waitedMs}ms / ${folk.polls} 拍`);
+  const pin = await page.evaluate(() => {
+    window.Oracle.jumpWorldClock(35);
+    const now = window.Oracle.freezeWorldClock();
+    return { now, pinned: window.Oracle.worldClockPinned() };
+  });
+  check(
+    pin.pinned && (pin.now / 60_000) % 1440 === 35,
+    `${phase} 世界时钟钉在 00:35`,
+    `now=${pin.now}`,
+  );
+
+  // 等压暗层渐变走完（取样区连续 3 帧不变），不再靠固定等待。
+  const box = await page.locator('canvas').first().boundingBox();
+  const fade = await waitFadeSettled(page, box);
+  check(fade.settled, `${phase} 压暗层 6 秒内收敛`, `等待 ${fade.waitedMs}ms / ${fade.frames} 帧`);
+  captureWaits.push({
+    shot: `phase-${phase}`,
+    waitedMs: folk.waitedMs + fade.waitedMs,
+    frames: fade.frames,
+    method: 'villagers-inside + clock-pin(00:35) + fade-probe',
+    villagersMs: folk.waitedMs,
+    fadeMs: fade.waitedMs,
+  });
 
   const actual = await page.evaluate(() => window.Oracle.currentPhase());
   check(actual === phase, `?time=${phase} 真的停在${phase}`, `实际 ${actual}`);
@@ -152,13 +201,19 @@ const nightRain = await (async () => {
   await page.addInitScript(() => localStorage.clear());
   await page.goto(`${BASE}?ledger=off&time=night&debug=1`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
-  await page.waitForTimeout(400);
+  // 先等夜里这一层压暗收敛，再叫雨——雨幕自己会动，探针在雨里永远不收敛。
+  const box = await page.locator('canvas').first().boundingBox();
+  const fade = await waitFadeSettled(page, box);
+  check(fade.settled, 'night（雨前）压暗层 6 秒内收敛', `等待 ${fade.waitedMs}ms / ${fade.frames} 帧`);
+  captureWaits.push({ shot: 'phase-night-rain:fade', waitedMs: fade.waitedMs, frames: fade.frames, method: 'probe' });
 
   const said = await page.evaluate(() => window.Oracle.say('下雨吧'));
   check(said.ok === true, '神谕「下雨吧」被认出来了', said.message);
 
-  // 雨渐变 1.8 秒；等足 3 秒确保 intensity 拉满。
+  // 雨渐变 1.8 秒；等足 3 秒确保 intensity 拉满。雨幕本身逐帧在动，
+  // 探针在这里不可用——这一张的等待时长照实记成固定值。
   await page.waitForTimeout(3000);
+  captureWaits.push({ shot: 'phase-night-rain', waitedMs: 3000, frames: -1, method: 'fixed(rain)' });
   const weather = await page.evaluate(() => window.Oracle.view().weather);
   check(weather === 'rain', '夜里真的下起了雨', `weather=${weather}`);
 
@@ -175,6 +230,9 @@ check(
 
 await browser.close();
 
+for (const item of captureWaits) {
+  console.log(`capture ${item.shot} waitedMs=${item.waitedMs} frames=${item.frames} method=${item.method}`);
+}
 for (const item of reports) {
   console.log(`${item.ok ? 'ok  ' : 'FAIL'} ${item.label}${item.detail === '' ? '' : `  ${item.detail}`}`);
 }

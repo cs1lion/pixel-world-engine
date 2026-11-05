@@ -428,6 +428,14 @@ export class SandboxScene extends Phaser.Scene {
   private updateCount = 0;
   /** 真正推进了世界的帧数。降频是否生效看它。 */
   private advanceCount = 0;
+  /**
+   * 调试钉钟：世界时间被冻在这一刻（毫秒），`null` 表示正常推进。
+   *
+   * 只由浏览器回归的截图口径调用（`Oracle.freezeWorldClock`）。冻住时不再
+   * 推进逻辑，但仍结算已排队的命令并照常渲染——截图要的是「同一时刻的同一
+   * 画面」，不是「世界停了、连命令也不认」。
+   */
+  private pinnedClock: number | null = null;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -1433,6 +1441,25 @@ export class SandboxScene extends Phaser.Scene {
     // 真正推进过的帧才计数：`updateCount` 统计的是 Phaser 的调用次数，
     // 跳帧时它仍然每帧加一，看不出降频。
     this.advanceCount += 1;
+    // 调试钉钟：世界时间冻在 `pinnedClock`。只结算已排队的命令（`update(0)`
+    // 不推进时钟），渲染照旧——截图口径要的是「同一时刻的同一画面」。累加器
+    // 清零，解冻后不会把冻住的那段时间一次性补跑。
+    if (this.pinnedClock !== null) {
+      this.accumulator = 0;
+      this.sim.setSocialContext(this.socialContextFromMemory());
+      this.sim.setWeatherHabitLedger(this.weatherHabitFromMemory());
+      const results = this.sim.update(0);
+      for (const result of results) {
+        this.speak(result);
+      }
+      this.snapshot = this.sim.snapshot();
+      this.renderSnapshot(delta);
+      if (this.interiorMode === 'street') this.cameraCtl.update(delta);
+      else this.updateInterior();
+      this.publishCameraMode();
+      this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
+      return;
+    }
     // 造物模式暂停世界：幽灵预览期间不该有人走动或收工。
     // 只暂停推进，不清空累加器——退出后不会一次性补跑一大段。
     if (this.creation !== null) {
@@ -3597,6 +3624,30 @@ export class SandboxScene extends Phaser.Scene {
     return this.phaseView.currentPhase() === 'night';
   }
 
+  /**
+   * 截图回归专用：把世界时钟跳到当天第 `minuteOfDay` 分钟。
+   *
+   * 只改 `now`，**不**冻结，也**不**给相对计时器做 `realignAfterClockJump`：
+   * 安静段（12:00–14:00）的打算就是让每个人重新挑一拍、走回锚点坐下——
+   * 把 `nextRoutineAt` 顺移会让他们原地不动，截出来的「回家」就成了假的。
+   * 落定之后由 `freezeWorldClock()` 冻住。
+   */
+  private jumpWorldClock(minuteOfDay: number): void {
+    if (!Number.isInteger(minuteOfDay) || minuteOfDay < 0 || minuteOfDay >= 1440) return;
+    const now = this.sim.snapshot().now;
+    const dayStart = Math.floor(now / DAY_MS) * DAY_MS;
+    const target = dayStart + minuteOfDay * 60_000;
+    const delta = target - now;
+    if (delta > 0) this.sim.fastForwardNow(delta);
+    else if (delta < 0) this.sim.rewindNow(-delta);
+  }
+
+  /** 冻住世界时间：`now` 停在当前值，逻辑不再推进，命令照旧结算。 */
+  private freezeWorldClock(): number {
+    this.pinnedClock = this.sim.snapshot().now;
+    return this.pinnedClock;
+  }
+
   private registerOracleApi(): void {
     const api = {
       say: (text: string): CommandResult => this.say(text),
@@ -3856,6 +3907,16 @@ export class SandboxScene extends Phaser.Scene {
       view: (): WorldSnapshot => this.view(),
       setPhase: (phase: PhaseId): void => this.setPhase(phase),
       currentPhase: (): PhaseId => this.currentPhase(),
+      /*
+       * 世界时钟的调试钩子：只给截图回归。先把 `now` 跳到固定时刻，等全镇
+       * 落定后冻住，两张连拍才可能逐字节相同。正常游玩路径没有调用方。
+       */
+      jumpWorldClock: (minuteOfDay: number): void => this.jumpWorldClock(minuteOfDay),
+      freezeWorldClock: (): number => this.freezeWorldClock(),
+      unfreezeWorldClock: (): void => {
+        this.pinnedClock = null;
+      },
+      worldClockPinned: (): boolean => this.pinnedClock !== null,
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),

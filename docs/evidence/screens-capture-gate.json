@@ -1,0 +1,1532 @@
+{
+  "generatedAt": "2026-11-05",
+  "branch": "feat/interior-view",
+  "head": "eae85538c6a350ac622067a9cb2e47932f38c9fc",
+  "criterion": {
+    "visibleDiff": "任一通道差 >= 8 级的像素占比",
+    "exactDiff": "任一像素任一通道 != 0 的占比",
+    "step0Gate": "两次之间可见差 <= 0.2%",
+    "step2Gate": "07/08 两次可见差 0、精确差 0 或仅编码差"
+  },
+  "phaseSelfCheckOldTree": {
+    "codeTree": "43eb9c9（git worktree，仅加调试钩子；无回家语义）",
+    "runA": "C:/Users/18712/AppData/Local/Temp/pwe-old-phase1",
+    "runB": "C:/Users/18712/AppData/Local/Temp/pwe-old-phase2",
+    "recipe": "villagers-settled + 相机钉祭坛 + jumpWorldClock(35)+freeze + fade-probe(3 帧字节相同)",
+    "records": [
+      {
+        "name": "phase-dawn.png",
+        "oldSha256": "eb1959d7c2d402786462e5119e55e56da215cbdc45b379640c84f5c96668c9ca",
+        "newSha256": "eb1959d7c2d402786462e5119e55e56da215cbdc45b379640c84f5c96668c9ca",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-dusk.png",
+        "oldSha256": "1ae7856d11dfb123c26b3ae34f646b265d0bcf97fc42335148ef63629584903d",
+        "newSha256": "1ae7856d11dfb123c26b3ae34f646b265d0bcf97fc42335148ef63629584903d",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-night-rain.png",
+        "oldSha256": "259573d132733016a9fc169b083b55375225c4eea3921f4d203da5c6ec329dfd",
+        "newSha256": "e0e5dee769b8a4a281d0f2d1b4b09885bdcd4caf7a2f8cbd2e47a38d093e5e97",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 39.5118,
+        "visibleDiffPct": 1.2976,
+        "visibleBBox": [
+          21,
+          1,
+          799,
+          560
+        ],
+        "regionsTotal": 17,
+        "topRegions": [
+          {
+            "areaPx": 3136,
+            "bbox": [
+              549,
+              1,
+              616,
+              72
+            ],
+            "size": [
+              68,
+              72
+            ],
+            "oldColor": "#2f3235",
+            "newColor": "#223030",
+            "meanAbsDiff": 19.38095238095238
+          },
+          {
+            "areaPx": 1488,
+            "bbox": [
+              349,
+              49,
+              416,
+              80
+            ],
+            "size": [
+              68,
+              32
+            ],
+            "oldColor": "#2f3437",
+            "newColor": "#233a3d",
+            "meanAbsDiff": 27.225806451612904
+          },
+          {
+            "areaPx": 1120,
+            "bbox": [
+              353,
+              101,
+              420,
+              132
+            ],
+            "size": [
+              68,
+              32
+            ],
+            "oldColor": "#23323d",
+            "newColor": "#263035",
+            "meanAbsDiff": 14.5
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.395118,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          -0.407,
+          -0.003,
+          -0.004
+        ],
+        "deltaHistogram": {
+          "gt0": 243393,
+          "ge8": 7993,
+          "ge32": 2776,
+          "ge64": 1048,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-night.png",
+        "oldSha256": "2e59c9878a84aa269c9f23b34d713865cd8e3811844d355b2ab6a717320bd538",
+        "newSha256": "2e59c9878a84aa269c9f23b34d713865cd8e3811844d355b2ab6a717320bd538",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-noon.png",
+        "oldSha256": "afab76a647d1822955885e53824e0fcc1cd5ae5f1b545338ebe83b2feb84695a",
+        "newSha256": "afab76a647d1822955885e53824e0fcc1cd5ae5f1b545338ebe83b2feb84695a",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      }
+    ]
+  },
+  "phaseSelfCheckCurrentTree": {
+    "codeTree": "HEAD eae8553（含回家语义 + 调试钩子）",
+    "runA": "C:/Users/18712/AppData/Local/Temp/pwe-probe7",
+    "runB": "C:/Users/18712/AppData/Local/Temp/pwe-probe8",
+    "recipe": "同左",
+    "records": [
+      {
+        "name": "phase-dawn.png",
+        "oldSha256": "433d0d338f78a18ca0f931adb47efb34ed717e865f221961070a6a0cd30373b9",
+        "newSha256": "433d0d338f78a18ca0f931adb47efb34ed717e865f221961070a6a0cd30373b9",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-dusk.png",
+        "oldSha256": "1b02c7839b983e2fdee12f6dd0c10db511a8c8e37cb6fe995eec624e0e8e0ca1",
+        "newSha256": "1b02c7839b983e2fdee12f6dd0c10db511a8c8e37cb6fe995eec624e0e8e0ca1",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-night-rain.png",
+        "oldSha256": "5f255bc9c52037309cda3d25bb9412297797899183fb9d3aa5970cbb2008c9b0",
+        "newSha256": "45a7eafac2af3874078fb0b7f43e2c915f0c1c2f10c4e9802eca725fdb97dd39",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 1.6234,
+        "visibleDiffPct": 0.6198,
+        "visibleBBox": [
+          297,
+          1,
+          848,
+          602
+        ],
+        "regionsTotal": 6,
+        "topRegions": [
+          {
+            "areaPx": 3440,
+            "bbox": [
+              541,
+              1,
+              624,
+              72
+            ],
+            "size": [
+              84,
+              72
+            ],
+            "oldColor": "#223030",
+            "newColor": "#2f3235",
+            "meanAbsDiff": 22.74263565891473
+          },
+          {
+            "areaPx": 88,
+            "bbox": [
+              297,
+              551,
+              304,
+              570
+            ],
+            "size": [
+              8,
+              20
+            ],
+            "oldColor": "#4d5758",
+            "newColor": "#1d2a2e",
+            "meanAbsDiff": 45.0
+          },
+          {
+            "areaPx": 80,
+            "bbox": [
+              381,
+              219,
+              384,
+              238
+            ],
+            "size": [
+              4,
+              20
+            ],
+            "oldColor": "#2a3437",
+            "newColor": "#525b5d",
+            "meanAbsDiff": 38.5
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.016234,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.055,
+          0.029,
+          0.01
+        ],
+        "deltaHistogram": {
+          "gt0": 10000,
+          "ge8": 3818,
+          "ge32": 1464,
+          "ge64": 416,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-night.png",
+        "oldSha256": "9803496166a6395d6a47e4c9b68c4754276d69beb31677fcc45e992a54da9c6d",
+        "newSha256": "9803496166a6395d6a47e4c9b68c4754276d69beb31677fcc45e992a54da9c6d",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      },
+      {
+        "name": "phase-noon.png",
+        "oldSha256": "632ec1a8f2d764636f03148c208c0eada6b4eff1ea365ad2dfc8319786fc96bb",
+        "newSha256": "632ec1a8f2d764636f03148c208c0eada6b4eff1ea365ad2dfc8319786fc96bb",
+        "oldSize": [
+          961,
+          641
+        ],
+        "newSize": [
+          961,
+          641
+        ],
+        "identicalBytes": true,
+        "exactDiffPct": 0.0,
+        "visibleDiffPct": 0.0,
+        "visibleBBox": [],
+        "regionsTotal": 0,
+        "topRegions": [],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.0,
+          "overlapPx": 616001
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deltaHistogram": {
+          "gt0": 0,
+          "ge8": 0,
+          "ge32": 0,
+          "ge64": 0,
+          "ge128": 0
+        }
+      }
+    ]
+  },
+  "smokeSelfCheck": {
+    "codeTree": "HEAD eae8553（旧树缺 ?now=，smoke 无法在旧树上跑；故自证改在同一棵 HEAD 连跑两次）",
+    "runA": "C:/Users/18712/AppData/Local/Temp/pwe-smokeB1",
+    "runB": "C:/Users/18712/AppData/Local/Temp/pwe-smokeB2",
+    "runAnow": 46266000,
+    "runBnow": 46269000,
+    "records": [
+      {
+        "name": "01-salute.png",
+        "oldSha256": "2bd1b070f1e7342005535e7b0658d6a0a69e2fb4779c5b7aab3ca4cc4fa67f1d",
+        "newSha256": "f6d516fca74e8dec12f304d332b6e9eac4c38d2b938413d54090510851d64d7d",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 25.096,
+        "visibleDiffPct": 24.7655,
+        "visibleBBox": [
+          26,
+          69,
+          985,
+          708
+        ],
+        "regionsTotal": 26,
+        "topRegions": [
+          {
+            "areaPx": 75632,
+            "bbox": [
+              26,
+              69,
+              441,
+              260
+            ],
+            "size": [
+              416,
+              192
+            ],
+            "oldColor": "#2d3b2e",
+            "newColor": "#2e3f37",
+            "meanAbsDiff": 5.016994570199563
+          },
+          {
+            "areaPx": 73920,
+            "bbox": [
+              26,
+              517,
+              441,
+              708
+            ],
+            "size": [
+              416,
+              192
+            ],
+            "oldColor": "#2d3b2e",
+            "newColor": "#2e3f37",
+            "meanAbsDiff": 5.731457431457431
+          },
+          {
+            "areaPx": 49104,
+            "bbox": [
+              698,
+              517,
+              985,
+              708
+            ],
+            "size": [
+              288,
+              192
+            ],
+            "oldColor": "#2d3b2e",
+            "newColor": "#2e3f37",
+            "meanAbsDiff": 6.407733246442924
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.25096,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.488,
+          1.228,
+          2.434
+        ],
+        "deltaHistogram": {
+          "gt0": 238261,
+          "ge8": 235124,
+          "ge32": 9932,
+          "ge64": 2203,
+          "ge128": 873
+        }
+      },
+      {
+        "name": "02-working.png",
+        "oldSha256": "7c20270fcaf53b12756f9bd72aa6a1ccda9d6eba72adb4cd123b44523b95cc75",
+        "newSha256": "025025a0ba387f74a8be54709de17c8fc9e4d21090535ffbc4e21102f461e2dd",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 8.6648,
+        "visibleDiffPct": 0.1862,
+        "visibleBBox": [
+          114,
+          267,
+          667,
+          306
+        ],
+        "regionsTotal": 3,
+        "topRegions": [
+          {
+            "areaPx": 1024,
+            "bbox": [
+              114,
+              269,
+              145,
+              300
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "oldColor": "#2f4138",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 6.0
+          },
+          {
+            "areaPx": 728,
+            "bbox": [
+              636,
+              267,
+              667,
+              306
+            ],
+            "size": [
+              32,
+              40
+            ],
+            "oldColor": "#acaea7",
+            "newColor": "#a6aaa2",
+            "meanAbsDiff": 78.09706959706959
+          },
+          {
+            "areaPx": 16,
+            "bbox": [
+              462,
+              297,
+              465,
+              300
+            ],
+            "size": [
+              4,
+              4
+            ],
+            "oldColor": "#ce9338",
+            "newColor": "#da9b3a",
+            "meanAbsDiff": 7.333333333333333
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.086648,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          -0.002,
+          -0.013,
+          -0.022
+        ],
+        "deltaHistogram": {
+          "gt0": 82264,
+          "ge8": 1768,
+          "ge32": 512,
+          "ge64": 368,
+          "ge128": 200
+        }
+      },
+      {
+        "name": "03-deliver.png",
+        "oldSha256": "bbb09af44a6338646357da9a03ef174b4aab124a6a1687f8437dbb9af535d05b",
+        "newSha256": "5effddf77058221e8f6c17bff564e35bfa3584a5ed11d9e9e94898cd47cbfbb0",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 50.4424,
+        "visibleDiffPct": 1.1279,
+        "visibleBBox": [
+          610,
+          133,
+          713,
+          302
+        ],
+        "regionsTotal": 1,
+        "topRegions": [
+          {
+            "areaPx": 10708,
+            "bbox": [
+              610,
+              133,
+              713,
+              302
+            ],
+            "size": [
+              104,
+              170
+            ],
+            "oldColor": "#535c58",
+            "newColor": "#606a65",
+            "meanAbsDiff": 41.225003112937365
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.504424,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.008,
+          0.509,
+          0.015
+        ],
+        "deltaHistogram": {
+          "gt0": 478900,
+          "ge8": 10708,
+          "ge32": 5548,
+          "ge64": 2028,
+          "ge128": 456
+        }
+      },
+      {
+        "name": "04-rain.png",
+        "oldSha256": "d1dfcc7d78739c3befb589ecb189437ce016f9b87ff3c8e60ca977cfaf430751",
+        "newSha256": "a2ee658c1505db7ac3539d51cfb7e72af66c7c7c63cce5ac350137eeb1e37894",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 0.0636,
+        "visibleDiffPct": 0.0629,
+        "visibleBBox": [
+          54,
+          14,
+          832,
+          817
+        ],
+        "regionsTotal": 3,
+        "topRegions": [
+          {
+            "areaPx": 496,
+            "bbox": [
+              54,
+              14,
+              97,
+              29
+            ],
+            "size": [
+              44,
+              16
+            ],
+            "oldColor": "#14120f",
+            "newColor": "#3d433f",
+            "meanAbsDiff": 74.33333333333333
+          },
+          {
+            "areaPx": 64,
+            "bbox": [
+              780,
+              202,
+              783,
+              217
+            ],
+            "size": [
+              4,
+              16
+            ],
+            "oldColor": "#626c62",
+            "newColor": "#2d3b2f",
+            "meanAbsDiff": 51.0
+          },
+          {
+            "areaPx": 37,
+            "bbox": [
+              827,
+              810,
+              832,
+              817
+            ],
+            "size": [
+              6,
+              8
+            ],
+            "oldColor": "#c3bda9",
+            "newColor": "#d5c3c6",
+            "meanAbsDiff": 29.063063063063062
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.000636,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          -0.007,
+          -0.003,
+          -0.005
+        ],
+        "deltaHistogram": {
+          "gt0": 604,
+          "ge8": 597,
+          "ge32": 551,
+          "ge64": 135,
+          "ge128": 128
+        }
+      },
+      {
+        "name": "05-build.png",
+        "oldSha256": "b0d404f6921d3819743e14154081f98f921aed6689fc2fc488cbb29aad36a48b",
+        "newSha256": "0b97fe91e2d82a9bb6ab33f79a3f6ae4387f3ebfd060d4324ebdbc48067e0812",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 0.0051,
+        "visibleDiffPct": 0.0051,
+        "visibleBBox": [
+          290,
+          204,
+          295,
+          217
+        ],
+        "regionsTotal": 1,
+        "topRegions": [
+          {
+            "areaPx": 48,
+            "bbox": [
+              290,
+              204,
+              295,
+              217
+            ],
+            "size": [
+              6,
+              14
+            ],
+            "oldColor": "#2c4243",
+            "newColor": "#afb6b1",
+            "meanAbsDiff": 120.83333333333333
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 5.1e-05,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.007,
+          0.006,
+          0.006
+        ],
+        "deltaHistogram": {
+          "gt0": 48,
+          "ge8": 48,
+          "ge32": 48,
+          "ge64": 48,
+          "ge128": 48
+        }
+      },
+      {
+        "name": "06-faith.png",
+        "oldSha256": "cd17b49047cdbd3657393cd2219a764578956a34a9fa62cbacbb45ad95908577",
+        "newSha256": "aee5969d847482994351430e22fea090d666f05d660760296694f83add8fe9e2",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 10.4244,
+        "visibleDiffPct": 0.0848,
+        "visibleBBox": [
+          438,
+          46,
+          832,
+          818
+        ],
+        "regionsTotal": 5,
+        "topRegions": [
+          {
+            "areaPx": 448,
+            "bbox": [
+              438,
+              46,
+              473,
+              65
+            ],
+            "size": [
+              36,
+              20
+            ],
+            "oldColor": "#2f433e",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.80952380952381
+          },
+          {
+            "areaPx": 131,
+            "bbox": [
+              786,
+              810,
+              804,
+              817
+            ],
+            "size": [
+              19,
+              8
+            ],
+            "oldColor": "#d5cfb5",
+            "newColor": "#d5c3bb",
+            "meanAbsDiff": 44.23409669211196
+          },
+          {
+            "areaPx": 97,
+            "bbox": [
+              772,
+              809,
+              783,
+              818
+            ],
+            "size": [
+              12,
+              10
+            ],
+            "oldColor": "#cfc9b5",
+            "newColor": "#cfc9b5",
+            "meanAbsDiff": 32.92783505154639
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.104244,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.002,
+          0.195,
+          0.102
+        ],
+        "deltaHistogram": {
+          "gt0": 98969,
+          "ge8": 805,
+          "ge32": 740,
+          "ge64": 324,
+          "ge128": 80
+        }
+      },
+      {
+        "name": "07-debug-panel-1s.png",
+        "oldSha256": "bf23a9fd25ba3e941e074aa948e6d5cb92f6b58b4aa243aa02b82a6bc6b2a558",
+        "newSha256": "1dac66112a85a0815ea5f63fa3cf87e0a6bac701ce77e4cdb6ee5e97a2d79028",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 12.9778,
+        "visibleDiffPct": 0.0994,
+        "visibleBBox": [
+          134,
+          89,
+          633,
+          460
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 496,
+            "bbox": [
+              134,
+              445,
+              177,
+              460
+            ],
+            "size": [
+              44,
+              16
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 448,
+            "bbox": [
+              598,
+              89,
+              633,
+              108
+            ],
+            "size": [
+              36,
+              20
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.129778,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.001,
+          -0.128
+        ],
+        "deltaHistogram": {
+          "gt0": 123211,
+          "ge8": 944,
+          "ge32": 720,
+          "ge64": 288,
+          "ge128": 256
+        }
+      },
+      {
+        "name": "07-debug-panel-400ms.png",
+        "oldSha256": "bf23a9fd25ba3e941e074aa948e6d5cb92f6b58b4aa243aa02b82a6bc6b2a558",
+        "newSha256": "1dac66112a85a0815ea5f63fa3cf87e0a6bac701ce77e4cdb6ee5e97a2d79028",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 12.9778,
+        "visibleDiffPct": 0.0994,
+        "visibleBBox": [
+          134,
+          89,
+          633,
+          460
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 496,
+            "bbox": [
+              134,
+              445,
+              177,
+              460
+            ],
+            "size": [
+              44,
+              16
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 448,
+            "bbox": [
+              598,
+              89,
+              633,
+              108
+            ],
+            "size": [
+              36,
+              20
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.129778,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.001,
+          -0.128
+        ],
+        "deltaHistogram": {
+          "gt0": 123211,
+          "ge8": 944,
+          "ge32": 720,
+          "ge64": 288,
+          "ge128": 256
+        }
+      },
+      {
+        "name": "07-debug-panel-filtered.png",
+        "oldSha256": "0e9fdc59b9d48d6600b13853b38429ba8950de341a2689ea23beda099623d52d",
+        "newSha256": "c976a8f34dc5e32402fd0fe6b5ada21d98421b11c3cc3b767da57e566df0cd12",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 12.9778,
+        "visibleDiffPct": 0.0994,
+        "visibleBBox": [
+          134,
+          89,
+          633,
+          460
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 496,
+            "bbox": [
+              134,
+              445,
+              177,
+              460
+            ],
+            "size": [
+              44,
+              16
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 448,
+            "bbox": [
+              598,
+              89,
+              633,
+              108
+            ],
+            "size": [
+              36,
+              20
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.129778,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.001,
+          -0.128
+        ],
+        "deltaHistogram": {
+          "gt0": 123211,
+          "ge8": 944,
+          "ge32": 720,
+          "ge64": 288,
+          "ge128": 256
+        }
+      },
+      {
+        "name": "07-debug-panel.png",
+        "oldSha256": "f2f81bc79079157c63894d5f6b9fedde920e7fe4bfd25201be7e9c3421916181",
+        "newSha256": "615ace15059ec6902d400bc694fa5035a6c4ba4193f2291ab4a00dd4f0e116bb",
+        "oldSize": [
+          1010,
+          940
+        ],
+        "newSize": [
+          1010,
+          940
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 12.952,
+        "visibleDiffPct": 0.0994,
+        "visibleBBox": [
+          135,
+          89,
+          634,
+          460
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 496,
+            "bbox": [
+              135,
+              445,
+              178,
+              460
+            ],
+            "size": [
+              44,
+              16
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 448,
+            "bbox": [
+              599,
+              89,
+              634,
+              108
+            ],
+            "size": [
+              36,
+              20
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.12952,
+          "overlapPx": 949400
+        },
+        "meanSignedDeltaRGB": [
+          0.0,
+          0.001,
+          -0.128
+        ],
+        "deltaHistogram": {
+          "gt0": 122966,
+          "ge8": 944,
+          "ge32": 720,
+          "ge64": 288,
+          "ge128": 256
+        }
+      },
+      {
+        "name": "08-overlay-100.png",
+        "oldSha256": "11ad9b034ceb2bfa7f7f363d3ad5853ff8863773a03e1ee5261d7db3fcd9409c",
+        "newSha256": "1e1dd193683e18bb1c3b9a28d12fdcda82a3f35d5beae5602be3a37353d1e307",
+        "oldSize": [
+          964,
+          643
+        ],
+        "newSize": [
+          964,
+          643
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 36.4819,
+        "visibleDiffPct": 0.1523,
+        "visibleBBox": [
+          111,
+          90,
+          610,
+          461
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 496,
+            "bbox": [
+              111,
+              446,
+              154,
+              461
+            ],
+            "size": [
+              44,
+              16
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 448,
+            "bbox": [
+              575,
+              90,
+              610,
+              109
+            ],
+            "size": [
+              36,
+              20
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.364819,
+          "overlapPx": 619852
+        },
+        "meanSignedDeltaRGB": [
+          0.004,
+          0.005,
+          -0.355
+        ],
+        "deltaHistogram": {
+          "gt0": 226134,
+          "ge8": 944,
+          "ge32": 720,
+          "ge64": 288,
+          "ge128": 256
+        }
+      },
+      {
+        "name": "08-overlay-200.png",
+        "oldSha256": "150b8671da257cbe2d8efd9acad9e2f5c36f259982f4593f91749d745c7907b6",
+        "newSha256": "b5d433dd1aa5dc0625fb1bb3fd8e4563f38b2c193bf9fa68b86d4645ae6c2c1c",
+        "oldSize": [
+          1931,
+          1285
+        ],
+        "newSize": [
+          1931,
+          1285
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 36.451,
+        "visibleDiffPct": 0.1522,
+        "visibleBBox": [
+          228,
+          179,
+          1227,
+          922
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 1984,
+            "bbox": [
+              228,
+              891,
+              315,
+              922
+            ],
+            "size": [
+              88,
+              32
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 1792,
+            "bbox": [
+              1156,
+              179,
+              1227,
+              218
+            ],
+            "size": [
+              72,
+              40
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.364341,
+          "overlapPx": 621138
+        },
+        "meanSignedDeltaRGB": [
+          0.004,
+          0.005,
+          -0.355
+        ],
+        "deltaHistogram": {
+          "gt0": 904472,
+          "ge8": 3776,
+          "ge32": 2880,
+          "ge64": 1152,
+          "ge128": 1024
+        }
+      },
+      {
+        "name": "08-overlay-400.png",
+        "oldSha256": "be73563fcd4f1af055438d4fce1691d9a5650b7cf9f21df572827afc269026d0",
+        "newSha256": "94f60a84c68cf5cfaa34a4b3cbc534b3a70c5045df4209733ff01b4080ca72d4",
+        "oldSize": [
+          3904,
+          2569
+        ],
+        "newSize": [
+          3904,
+          2569
+        ],
+        "identicalBytes": false,
+        "exactDiffPct": 35.3718,
+        "visibleDiffPct": 0.1506,
+        "visibleBBox": [
+          555,
+          357,
+          2554,
+          1844
+        ],
+        "regionsTotal": 2,
+        "topRegions": [
+          {
+            "areaPx": 7936,
+            "bbox": [
+              555,
+              1781,
+              730,
+              1844
+            ],
+            "size": [
+              176,
+              64
+            ],
+            "oldColor": "#232f2b",
+            "newColor": "#14110d",
+            "meanAbsDiff": 72.73118279569893
+          },
+          {
+            "areaPx": 7168,
+            "bbox": [
+              2411,
+              357,
+              2554,
+              436
+            ],
+            "size": [
+              144,
+              80
+            ],
+            "oldColor": "#14110d",
+            "newColor": "#2d3b2e",
+            "meanAbsDiff": 60.11904761904762
+          }
+        ],
+        "bestShift": {
+          "dx": 0,
+          "dy": 0,
+          "share": 0.35321,
+          "overlapPx": 627568
+        },
+        "meanSignedDeltaRGB": [
+          0.004,
+          0.005,
+          -0.344
+        ],
+        "deltaHistogram": {
+          "gt0": 3547570,
+          "ge8": 15104,
+          "ge32": 11520,
+          "ge64": 4608,
+          "ge128": 4096
+        }
+      }
+    ]
+  },
+  "verdict": {
+    "step0PhaseGate": "pass",
+    "step0SmokeGate": "fail",
+    "firedBreakers": [
+      "①",
+      "③"
+    ],
+    "baselinesReRecorded": false,
+    "step3Executed": false,
+    "step4Executed": false
+  }
+}
