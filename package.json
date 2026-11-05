@@ -1,0 +1,9 @@
+{
+  "name": "pixel-world-engine-repo-harness",
+  "private": true,
+  "description": "仓库级手续：钩子自检与 worktree 巡检（不是前端 workspace）",
+  "scripts": {
+    "check:hooks": "node scripts/check-hooks.mjs",
+    "worktrees:audit": "node scripts/worktrees-audit.mjs"
+  }
+}

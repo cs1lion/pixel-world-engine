@@ -10,6 +10,34 @@ import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import { whenApi } from './when-api.ts';
 import type { PrefabBlueprint, TaskKind, WorldSnapshot } from '../world/types.ts';
 
+/**
+ * 一句话的上限：200 字。
+ * 定这个值不是随手挑：祭坛写作入口是「一句祈使」，200 字足够放下
+ * 一个地点、一个动作、一句限定；再长就超出这个世界能解析的句式。
+ * 超长选「整句拒收」而不是截断：截断会悄悄改掉命令的意思（比如把
+ * 「不要拆」截成「不要」），玩家却以为后半句已经生效；拒收并保留
+ * 原文，才看得见问题。上限同时写到输入框 `maxlength` 上，但提交入口
+ * 仍会再校验一次，粘贴与脚本绕得过 UI、绕不过 `prepareUtterance`。
+ */
+export const UTTERANCE_MAX_LENGTH = 200;
+
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
+export type UtteranceCheck =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly reason: 'empty' }
+  | { readonly ok: false; readonly reason: 'too-long'; readonly length: number };
+
+/** 写作面板的唯一入口校验：去掉控制字符、trim、判空、判上限。 */
+export function prepareUtterance(raw: string): UtteranceCheck {
+  const text = raw.replace(CONTROL_CHARS, '').trim();
+  if (text.length === 0) return { ok: false, reason: 'empty' };
+  if (text.length > UTTERANCE_MAX_LENGTH) {
+    return { ok: false, reason: 'too-long', length: text.length };
+  }
+  return { ok: true, text };
+}
+
 export interface OracleApi {
   /** 世界快照只读视图。HUD 与浏览器回归都从这里读，不另开接口。 */
   readonly view: () => WorldSnapshot;
@@ -59,8 +87,10 @@ export interface OracleApi {
     readonly taskKind: 'code' | 'research' | 'writing' | 'quick';
     readonly summary: string;
   }) => { readonly ok: boolean; readonly message: string };
-  /** 命令结算结果。返回取消订阅函数。 */
-  readonly onResult: (listener: (result: { ok: boolean; message: string }) => void) => () => void;
+  /** 命令结算结果。返回取消订阅函数。`raw` 是神谕那条路的原句，见 `CommandResult`。 */
+  readonly onResult: (
+    listener: (result: { ok: boolean; message: string; raw?: string }) => void,
+  ) => () => void;
   /** 世界状态一行字。像素画面不画中文，这行归纸面。 */
   readonly onStatus: (listener: (line: string) => void) => () => void;
   /** 时相：显式指定某一刻（截图/调试），会停止自动推进。 */
@@ -269,8 +299,14 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
 
   const show = (ok: boolean, message: string): void => {
     reply.textContent = message;
+    // 成功用强调琥珀、失败用陶土；与非成功互斥，同一个位置只出一种。
+    reply.classList.toggle('good', ok);
     reply.classList.toggle('bad', !ok);
   };
+
+  // 投递时清空输入框，回执却要等模型才回来。记下刚发出去的那句，
+  // 被上游拒收时把它放回输入框——否则玩家对着空框重打一遍。
+  let pendingText: string | null = null;
 
   // 场景在 create() 里才挂上 window.Oracle。等它出现再订阅一次结果流。
   // 等它用的是 setTimeout 不是 requestAnimationFrame：见 `when-api.ts`。
@@ -280,6 +316,20 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
       // 而它绝大多数时候无话可说（见 `simulation.ts` 的 syncEvents）——
       // 从前景说话它一开口，用户那句「雨落下来了。」就没了。
       if (result.message !== '') show(result.ok, result.message);
+      // 被上游拒收（4xx / 模型没答）时把原句还给输入框。
+      // 认 `raw` 而不是「最后一条」：回执是异步的，中途可能先到别的结果。
+      // 只在输入框空着时放回——用户已经重新敲了字，就别覆盖人家。
+      // 成功回执不动输入框；`pendingText` 留到下一次提交覆盖为止，
+      // 因为「正在问模型……」也是成功回执，此时清掉会让随后的拒收无处可还。
+      if (
+        pendingText !== null &&
+        result.raw === pendingText &&
+        !result.ok &&
+        input.value === ''
+      ) {
+        input.value = pendingText;
+        input.focus();
+      }
       paintPaper(api);
     });
     api.onStatus((line) => {
@@ -299,13 +349,23 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
     onGiveUp: () => show(false, '世界没有醒来。刷新页面再试。'),
   });
 
+  // UI 先拦一道；粘贴、脚本、调试写入都能绕过 maxlength，submit 里仍要再校验一次。
+  input.maxLength = UTTERANCE_MAX_LENGTH;
+
   const submit = (text: string): boolean => {
     const api = getApi();
     if (api === undefined) return false;
-    const trimmed = text.trim();
-    if (trimmed.length === 0) return false;
-    const parsed = api.say(trimmed);
+    const prepared = prepareUtterance(text);
+    if (!prepared.ok) {
+      if (prepared.reason === 'too-long') {
+        show(false, `这句话 ${prepared.length} 字，超过上限 ${UTTERANCE_MAX_LENGTH} 字；删短再发。`);
+        input.focus();
+      }
+      return false;
+    }
+    const parsed = api.say(prepared.text);
     if (!parsed.ok) show(false, parsed.message);
+    else pendingText = prepared.text;
     return parsed.ok;
   };
 

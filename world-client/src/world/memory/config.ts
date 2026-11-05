@@ -57,7 +57,21 @@ export interface SalienceWeights {
   readonly involvement: number;
 }
 
-/** 各层容量预算。v1.0 §3.1「各层容量预算」。 */
+/**
+ * 一层库的预算：**条数与字节双约束**，先超哪个按哪个裁。
+ *
+ * 为什么字节与条数要同时给：单看条数，一条碑文与一条印象一样重，于是
+ * 「80 条」可以是 5 KB 也可以是 50 KB；单看字节，条目大小一变（多存一句
+ * 说法、多记一个见证人），同一个条数上限的实际容量就跟着漂。两个都是硬
+ * 上限，改一个不会悄悄放大另一个。
+ */
+export interface LayerBudget {
+  readonly count: number;
+  /** 字节上限（UTF-8，口径与存档一致：`JSON.stringify` 后的字节数）。 */
+  readonly bytes: number;
+}
+
+/** 各层容量预算。v1.0 §3.1「各层容量预算」，字节那一栏是本轮补的。 */
 export interface MemoryBudget {
   /** 当日片段。 */
   readonly day: number;
@@ -67,6 +81,56 @@ export interface MemoryBudget {
   readonly long: number;
   /** 对他人的印象。 */
   readonly impression: number;
+  /**
+   * 碑文层。**曾经是 `Infinity`。**
+   *
+   * 30 日实测 500 条 / 311.8 KB，占条目字节的 86.6%，且不裁、不归档
+   * （legend 每天只衰 0.15 × 0.05 = 0.75%，30 天还剩 0.79，离
+   * `T_forget = 0.15` 有 98 天）。碑文是「传说成立时给每个当事人刻一条」，
+   * 条数随「传说 × 人 × 地点」长——它是条目层唯一的无上限增长项。
+   *
+   * 24 条/持有者：一个地点记事簿的容量，不是一块碑的容量。地点 Holder 是
+   * 碑文的主要持有者（30 日 6 个地点各 85 条），24 条之后按强度与新旧淘汰，
+   * 留下的正好是「最近还在被讲」的那批。
+   */
+  readonly legend: number;
+  /** 每一层的字节上限。与条数同时生效。 */
+  readonly bytes: Readonly<Record<'day' | 'long' | 'legend' | 'impression', number>>;
+}
+
+/**
+ * 条目层以外那几个库的预算。它们没有 `tier`，单独一张表。
+ *
+ * 30 日实测（seed A）：`facts` 898 条 / 321.7 KB、`claims` 598 / 211.4 KB、
+ * `beliefs` 1132 / 167.4 KB、`cooldowns` 1709 / 113.7 KB、`tells` 1132 / 67.3 KB、
+ * `written` 150 / 184.1 KB——六项合计 945 KB，占记忆 JSON 的 65%。它们原先
+ * **一条都没有预算**，这才是存档日均 +47.9 KB 的主体。
+ *
+ * 取值口径：按 90 天、稳态下每一条的平均字节数反推条数（见
+ * `docs/evidence/soak/REPORT.md` 的「预算表」），让 90 天末的记忆 JSON 落在
+ * 约 1.2 MB，连同世界存档一起留出 2 MB 上限的 30% 余量。
+ */
+export interface LibraryBudget {
+  readonly facts: LayerBudget;
+  readonly claims: LayerBudget;
+  readonly beliefs: LayerBudget;
+  readonly cooldowns: LayerBudget;
+  readonly tells: LayerBudget;
+  /** 日记与书信（`written.ts`）。它一条 1.2 KB，是字节意义上的大头。 */
+  readonly written: LayerBudget;
+  /** 镇志里的传说条目（`legends`），与碑文层的记忆条目不是一张表。 */
+  readonly legends: LayerBudget;
+  /**
+   * 日摘要（SOAK-BUG-5，`digest.ts`）。**每天至多一条**，90 天 ≈ 30 条全量 +
+   * 60 条浓缩，实测 1.0–1.6 KB/天。条数取 120 = 90 天再留一个月的余量；
+   * 字节取 160 KB = 90 天实测的约 1.4 倍。两个上限都是硬上限。
+   *
+   * 淘汰顺序见 `digestRank`：**开天前 30 天保底永不淘汰**，其余按
+   * 「有争执/异常/大事 → 有事 → 空白」排，同权留更近的日子。压到 60 条实测
+   * 保留 day 0–29 + 61–90，削掉中段 30–60（含 0 条争执/异常日）。换个名字的
+   * 「最旧优先」正是 legend 改前的错，这里不再犯。
+   */
+  readonly digests: LayerBudget;
 }
 
 export interface RecallWeights {
@@ -95,6 +159,31 @@ export interface MemoryConfig {
 
   // ------------------------------------------------------ 写入与晋升（§3.1）
   readonly T_write: number;
+  /**
+   * 晋升日摘要的门槛。**0.60 是对的，日常场景够不着它——本轮用数据确认了这一点。**
+   *
+   * seed A、30 世界日、5 位居民，共 1156 条日层片段，显著度分布是：
+   * `0.303 × 5`、`0.438 × 178`、`0.463 × 39`、`0.475 × 39`、`0.495 × 843`、
+   * `0.499 × 26`、`0.503 × 26`。**p50 = p90 = 0.495，p99 = max = 0.5029**，
+   * 主峰在 0.495（73%）。0.60 在整条分布之上，所以日常跑多久都不晋升。
+   *
+   * 那为什么不把它降到 0.50？因为 0.6 正好卡在两个真实档位之间：
+   * - **听来的**（`sourceMode = 'heard'`，含转述）实测 0.575；
+   * - **亲历且重要**（`importanceHint = 0.9` 的事故）实测 0.775。
+   *
+   * 降到 0.50 会把 0.575 那档全部晋升，而 `makeSummary` 写死
+   * `sourceMode: 'witnessed'`、`sourceChain: []`（摘要是一条结论，不是一条转述）。
+   * 实测：把阈值调到 0.5 后，v1/v2 的 heard 条目当场变成 `witnessed` 的 `long`
+   * 摘要——传闻的来历与保真度整条消失，「听说的和我看见的不一样」这个冲突
+   * 检测就再没有输入了。0.6 保住了这条边界：日常与传闻都留在 `day` 层，
+   * 只有亲历的重要事才压成摘要，这正是补充设计 §3.1「至少两个维度突出才
+   * 进 DaySummary」的数值位置。
+   *
+   * 结论（选项 b）：阈值不动，是**场景不够**——纯日常的 30 天里没有一件
+   * 亲历的大事。压缩与归档的入口是否真的通，由
+   * `test/memory-archive-reach.test.ts` 用「每 7 天一件亲历大事」的 90 天场景
+   * 单独证明（promoted / summaries / archived 三个计数都必须非零）。
+   */
   readonly T_promote: number;
   readonly T_flash: number;
   readonly weekLength: number;
@@ -110,6 +199,8 @@ export interface MemoryConfig {
 
   // ---------------------------------------------------------- 预算（§3.1）
   readonly budget: MemoryBudget;
+  /** 条目层以外的六个库的预算（条数 + 字节）。 */
+  readonly libraryBudget: LibraryBudget;
   /** 每个地点最多几层装饰。 */
   readonly placeTraceLayers: number;
 
@@ -147,7 +238,7 @@ export interface MemoryConfig {
    * 一件事要多重才配给一个地点**改名**（协议 §11 的历史链）。
    *
    * 与 `legendImportanceFloor` 分开是刻意的：能立碑的事不一定说得出一个名字。
-   * 0.6 正好是 `milestone` 的 hint（0.6，`observe.ts:73`）——
+   * 0.6 正好是 `milestone` 的 hint（0.6，`observe.ts:222`）——
    * `celebration`（0.8）也在其上，而 `conflict`（0.55）落在其下：那张
    * `EPITHETS` 表说的是「这类事说得出称号」，这个数说的是「配不配」。
    * 判据在 `toponym.ts` 的 `epithetFor()`，调用点在 `world.ts` 的 `maybeRename()`。
@@ -231,7 +322,7 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   salienceWeights: { emotion: 0.25, surprise: 0.25, goalRelevance: 0.25, involvement: 0.25 },
   salienceBias: 0.1,
 
-  // §3.1 写入与晋升。
+  // §3.1 写入与晋升。T_promote 保持 0.60：理由见 `MemoryConfig.T_promote`。
   T_write: 0.3,
   T_promote: 0.6,
   T_flash: 0.85,
@@ -245,8 +336,30 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   pBlur: 0.2,
   blurValenceGain: 1.15,
 
-  // §3.1 各层容量预算。
-  budget: { day: 16, daySummary: 5, long: 64, impression: 32 },
+  // §3.1 各层容量预算（条数 + 字节）。取值与推导见接口注释。
+  budget: {
+    day: 16,
+    daySummary: 5,
+    long: 64,
+    impression: 32,
+    legend: 24,
+    bytes: { day: 12_000, long: 32_000, legend: 16_000, impression: 8_000 },
+  },
+  // 六个无条目层的库。稳态容量按 90 天口径标定（见 REPORT 的「预算表」）。
+  libraryBudget: {
+    facts: { count: 1_200, bytes: 350_000 },
+    claims: { count: 800, bytes: 230_000 },
+    beliefs: { count: 1_400, bytes: 165_000 },
+    cooldowns: { count: 1_000, bytes: 60_000 },
+    tells: { count: 1_000, bytes: 55_000 },
+    written: { count: 200, bytes: 200_000 },
+    // SOAK-BUG-5 的余量处理：20 KB 时 90 天实测 19.6 KB（100.5%），再刻一条就
+    // 连锁淘汰。提到 28 KB 的代价实测：末存档 +4.21 KB（seed A）/ +2.49 KB（seed B），
+    // 尾段日增 +0.05 / +0.00 KB/天（条数上限 120 先卡住）。离 1800 KB 尚有
+    // 174.5 / 227.5 KB，不逼近，因此动上限，不加第三条排序项。
+    legends: { count: 120, bytes: 28_000 },
+    digests: { count: 120, bytes: 160_000 },
+  },
   placeTraceLayers: 5,
 
   // §3.1 检索打分权重；budget_k 默认 5，对话注入 Top-3。

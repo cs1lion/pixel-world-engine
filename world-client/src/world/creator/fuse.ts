@@ -5,6 +5,7 @@
  * **设计原则**（来自《补充架构设计 v1.0》第 2.2 节）：
  * 1. **升级条件**：连续 3 批或 14 个 world_day，自动检查通过率≥98% 且人工修改率≤2% → 升 1 级
  * 2. **降级触发**：单日摘要校验拒绝率 >10%，或不变式违反≥1 次，或人类回滚 → 立即降回 L1
+ *    （不高于当前等级；L0 已是最低档，保持 L0，不能借「降级」升层）
  * 3. **熔断执行**：降级后切出隔离沙盒分支，**直至回归集回放测试重新达标**才允许恢复
  *
  * **三处曾经写错的语义，这里逐条钉住**：
@@ -257,7 +258,8 @@ export class AutonomousFuseController {
        * 不该为了填满字段而随手写一个 `false`——那会让「没查」看起来像「查过」。
        */
       hasConflict?: boolean;
-      coverageRate?: number;
+      /** `null` = 分母为 0、没测到；和 `undefined` 一样不记分母，绝不按 0 分记。 */
+      coverageRate?: number | null;
       pathfindingConnected?: boolean;
       hasCollision?: boolean;
       spatialConstraintSatisfied?: boolean;
@@ -279,7 +281,9 @@ export class AutonomousFuseController {
       m.conflictChecks++;
       if (result.hasConflict) m.conflictCount++;
     }
-    if (result.coverageRate !== undefined) {
+    // 只有真的量到数才算一次观测；`null`（分母为 0）不碰分母，
+    // 否则「没测」会被记成「覆盖率 0」，把 L2 门禁误判成不达标。
+    if (typeof result.coverageRate === 'number') {
       m.coverageRate = result.coverageRate;
       m.coverageChecks++;
     }
@@ -544,13 +548,17 @@ export class AutonomousFuseController {
     const oldLevel = state.currentLevel;
 
     if (immediate) {
-      state.currentLevel = AutonomyLevel.L1;
+      // 《补充架构设计 v1.0》§2.2 的熔断对象是「处于 L2/L3 的模块」，
+      // 动作是「降级回 L1」——降级只能往下。L0 已经低于 L1，硬写 L1 等于
+      // 借降级升层；这里取 min，L0 留在 L0，L1 留在 L1，L2/L3 才落到 L1。
+      const frozenLevel = Math.min(oldLevel, AutonomyLevel.L1) as AutonomyLevel;
+      state.currentLevel = frozenLevel;
       state.lastDowngradeAt = this.dayCounter.get(roleId) || 0;
       state.isFused = true;
       state.lastRegressionPassed = undefined;
 
-      this.logEvent(roleId, 'downgrade_trigger', { reason }, oldLevel, AutonomyLevel.L1);
-      this.logEvent(roleId, 'fuse_triggered', { reason }, oldLevel, AutonomyLevel.L1);
+      this.logEvent(roleId, 'downgrade_trigger', { reason }, oldLevel, frozenLevel);
+      this.logEvent(roleId, 'fuse_triggered', { reason }, oldLevel, frozenLevel);
 
       // 熔断后旧成绩作废。留着它会让「恢复」这一步看起来已经达标，
       // 而那段历史恰好是出事之前跑出来的。

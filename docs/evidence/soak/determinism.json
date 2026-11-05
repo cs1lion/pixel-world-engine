@@ -1,0 +1,20 @@
+{
+  "seed": "soak-a",
+  "first": {
+    "world": "5b7131d89bbd438c773f97dabbbdbd10a3af804705a9b0e4444579615e317443",
+    "memory": "5f4190f2a9fcf380e27dc06bbe030ad1e3339ac69202ee370c34384307920b4a",
+    "creator": "926f57e5fcfb1f135303fd4d12ecaaf31980178358cb745b48e9d3177fb68d22",
+    "events": "9ea842d560463b87ce5c0bd854e0dae06488eaa49a066b521a6875f341c7ac77"
+  },
+  "again": {
+    "world": "5b7131d89bbd438c773f97dabbbdbd10a3af804705a9b0e4444579615e317443",
+    "memory": "5f4190f2a9fcf380e27dc06bbe030ad1e3339ac69202ee370c34384307920b4a",
+    "creator": "926f57e5fcfb1f135303fd4d12ecaaf31980178358cb745b48e9d3177fb68d22",
+    "events": "9ea842d560463b87ce5c0bd854e0dae06488eaa49a066b521a6875f341c7ac77"
+  },
+  "ledgerRaw": {
+    "first": "fec72999408e3e2b2d8d3a4b4568623ef6abf3b19b06c1546e3b5ae7333f3fad",
+    "again": "ce91f33f77e666f0b0013ad94d7299ea73082de50251e0111058a89d28bfd40a",
+    "same": false
+  }
+}

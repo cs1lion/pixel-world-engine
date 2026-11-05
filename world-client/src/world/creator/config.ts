@@ -219,7 +219,10 @@ export const MEMORY_PROTOCOL_CONFIG = {
 
   /** 写入与晋升阈值 */
   T_write: 0.30, // 写入 Episode
-  T_promote: 0.60, // 晋升日摘要
+  // 晋升日摘要。实测日常分布 p99 = max = 0.5029，够不着 0.60；但 0.60 正好卡在
+  // 「听来的 0.575」与「亲历且重要 0.775」之间，降到 0.50 会让传闻压成 witnessed
+  // 摘要、丢掉来源链。阈值不动，理由见 `world/memory/config.ts` 的 T_promote。
+  T_promote: 0.60,
   T_flash: 0.85, // 闪光灯永久记忆
 
   /** 层级周期 */

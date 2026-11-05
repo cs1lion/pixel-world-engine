@@ -133,6 +133,10 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   milestone: { emotion: 0.7, surprise: 0.4, goalRelevance: 0.7, involvement: 0.2 },
   // 日常交付：参与感有，意外很低。
   task_done: { emotion: 0.35, surprise: 0.2, goalRelevance: 0.5, involvement: 0.3 },
+  // 交付失败：情绪与意外都高于一次成功交付，且它挡了事（goalRelevance 0.6）。
+  // 数值依据见 `docs/DELIVERY_FAILURE_EVENT_PROPOSAL.md` §3：默认四等权下
+  // 当事人 0.7375（过摘要线 0.6、不过闪光 0.85），旁观目击者 0.5375（过写入线 0.3）。
+  delivery_failed: { emotion: 0.65, surprise: 0.7, goalRelevance: 0.6, involvement: 0.2 },
   expedition_done: { emotion: 0.45, surprise: 0.35, goalRelevance: 0.6, involvement: 0.3 },
   // 神谕相关：仪式感强，但当事人之外的人意外度不高。
   oracle_prayer: { emotion: 0.4, surprise: 0.45, goalRelevance: 0.35, involvement: 0.2 },

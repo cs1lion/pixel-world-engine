@@ -150,8 +150,11 @@ export interface BuildResult {
  * 门口、群落），所以它填得出来；没有那些检查的调用方就只填 `schemaPassed`。
  */
 export interface HumanApprovalObservation {
-  /** 要素覆盖率：已落地模板数 / 设定集模板总数。当前数据能算的就这一个口径。 */
-  readonly coverageRate?: number;
+  /**
+   * 要素覆盖率：已落地模板数 / 设定集模板总数。当前数据能算的就这一个口径。
+   * `null` 表示分母为 0、这一项没测到；它不会被记进计数器，也不会被当成 0 分。
+   */
+  readonly coverageRate?: number | null;
   /** 门口到镇心是否真的连通（`doorReaches` 的结果）。 */
   readonly pathfindingConnected?: boolean;
   /** 是否与既有建筑重叠。落位检查通过就是 `false`，这是查过的，不是猜的。 */
@@ -352,10 +355,13 @@ export class CreatorEngine {
     const state = this.fuseController.getRoleState(roleId);
     if (!state) return;
 
+    const { coverageRate, ...rest } = observation ?? {};
     this.fuseController.recordCommandResult(roleId, {
       schemaPassed: approved,
       wasManuallyModified: modifications !== undefined,
-      ...observation,
+      ...rest,
+      // `null` = 分母为 0，没测到；别把它写进计数器，否则门禁会把「没测」当 0 分。
+      ...(typeof coverageRate === 'number' ? { coverageRate } : {}),
     });
   }
 

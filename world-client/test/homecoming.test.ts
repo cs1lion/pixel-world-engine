@@ -166,6 +166,53 @@ test('同一初始时刻两跑：逐拍 pos 与 visible 逐字相同', () => {
   assert.equal(run(), run());
 });
 
+test('进屋即睡下：进门那一拍疲劳读数归零', () => {
+  const sim = makeSim(HOME_BEDTIME_MINUTE * MINUTE - 5 * MINUTE);
+  // 先把「上次睡醒」拨回 30 小时前：疲劳 0.625，还没跨阈（0.8），她不会在街上睡下，
+  // 但进屋那一刻必须被拨回此刻——否则夜里规则表不再被问，疲劳再也清不了零。
+  sim.setLastRestAt('v0', sim.snapshot().now - 30 * 60 * MINUTE);
+  let entered = false;
+  for (let tick = 1; tick <= 60; tick += 1) {
+    sim.update(MINUTE);
+    assert.ok(!sim.fatigueOf('v0')!.sleepy, `第 ${tick} 拍不该已经跨阈`);
+    if (!sim.snapshot().villagers[0]!.visible) {
+      entered = true;
+      break;
+    }
+  }
+  assert.equal(entered, true, '前提：她该在入夜后进屋');
+  const reading = sim.fatigueOf('v0');
+  assert.ok(reading !== null);
+  assert.equal(reading.fatigue, 0, '进屋瞬间疲劳读数应归零');
+  assert.equal(reading.sleepy, false);
+});
+
+test('默认大世界连跑两天不再触发疲劳睡（sleep = 0）', () => {
+  const sim = makeSim(0);
+  for (let tick = 0; tick < 2 * 1440; tick += 1) sim.update(MINUTE);
+  const report = sim.sleepReport();
+  assert.equal(report.crossings, 0, `两天不该跨阈，实测 ${report.crossings} 次`);
+  assert.equal(report.spans.length, 0, '两天不该有睡段');
+});
+
+test('同一初始时刻两跑：睡眠账与疲劳读数逐字相同', () => {
+  const run = (): string => {
+    const sim = makeSim(0);
+    const frames: string[] = [];
+    for (let tick = 0; tick < 2 * 1440; tick += 1) {
+      sim.update(MINUTE);
+      const villager = sim.snapshot().villagers[0]!;
+      const reading = sim.fatigueOf('v0')!;
+      frames.push(
+        `${villager.pos.x},${villager.pos.y},${villager.visible ? 1 : 0},` +
+          `${reading.fatigue.toFixed(6)},${reading.asleep ? 1 : 0}`,
+      );
+    }
+    return `${frames.join('|')}\n${JSON.stringify(sim.sleepReport())}`;
+  };
+  assert.equal(run(), run());
+});
+
 test('进门那一幕按室外记账：门口八格内的街上人看得见，屋里的人看不见', () => {
   const home = homeFor('v0', homesOf(buildLargeWorld(blueprints).buildings));
   assert.ok(home !== null);

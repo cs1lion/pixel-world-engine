@@ -15,7 +15,7 @@ import { sourceFiles } from './source-scan.ts';
  * |---|---|---|
  * | 色值 | 1 处（`blueprints.ts` 一条错误信息里的格式示例） | 已改，现在 0 处 → 硬闸 |
  * | 区域名 / 居民名 / 作息说法 | 0 处 | 硬闸 |
- * | 作息落点 | 4 处（莞尔镇的四个落点） | 登记表 `KNOWN_STOPS`，双向 |
+ * | 作息落点 | 6 处（莞尔镇的六个落点） | 登记表 `KNOWN_STOPS`，双向 |
  * | 预制体 id | 19 个 (文件, id) 对 | 登记表 `KNOWN_PREFABS`，双向 |
  *
  * **两张登记表是已知限制清单，不是豁免名单**（`terrain-edge-invisible.test.ts`
@@ -62,7 +62,7 @@ import { sourceFiles } from './source-scan.ts';
  *   但 `scripts/check-dengchao.mjs` 手抄了五个区域名，而它只查「这五个都在」——
  *   包里多一道区域它不红，会静默少查一项。所以那一处由最后一条测试单独钉着，
  *   不并进扫描范围。
- * - **莞尔镇本身没有配置包**。它的分区、预制体、四个落点全在 `setup.ts` 与
+ * - **莞尔镇本身没有配置包**。它的分区、预制体、六个落点全在 `setup.ts` 与
  *   `routines.ts` 里。`KNOWN_PREFABS` / `KNOWN_STOPS` 里绝大多数记录的理由
  *   就是这一句。等它有包了，两张表一起清空——在那之前，本闸门守的是
  *   「灯潮界完全由包驱动，且莞尔镇那部分不会再长」。
@@ -315,20 +315,28 @@ test('除包数据那一份之外，不引用设定集的名字与说法', () =>
 /**
  * 已知的、写在代码里的作息落点。键是 `文件:行`，值得说清**为什么**它还能在。
  *
- * 清空的条件只有一个：那个世界有了配置包。四条全是莞尔镇的，理由同一句，
+ * 清空的条件只有一个：那个世界有了配置包。六条全是莞尔镇的，理由同一句，
  * 但每一行都写出来——复制一句「同上」的清单，读的人不会真去核上面那句。
  */
 const KNOWN_STOPS: Readonly<Record<string, { readonly why: string }>> = {
-  'world/routines.ts:48': {
+  'world/routines.ts:64': {
     why: '莞尔镇没有配置包。这一拍是「在祭坛边坐着」，锚点就是祭坛本身，目标由参数传进来。',
   },
-  'world/routines.ts:51': {
+  'world/routines.ts:67': {
     why: '莞尔镇没有配置包。这一拍去农田边，落点是 `altar` 偏移 (-8,+4) 后找的最近可走格。',
   },
-  'world/routines.ts:58': {
+  'world/routines.ts:74': {
+    why: '莞尔镇没有配置包。这一拍去河湾看水，落点是 `altar` 偏移 (+4,-4) 后找的最近可走格'
+      + '——`setup.ts` 在那儿铺了一片泥滩，站的那一格四邻有水。',
+  },
+  'world/routines.ts:81': {
     why: '莞尔镇没有配置包。这一拍在街口站着，落点是 `altar` 偏移 (+8,-3) 后找的最近可走格。',
   },
-  'world/routines.ts:65': {
+  'world/routines.ts:88': {
+    why: '莞尔镇没有配置包。这一拍守着街口往里一格的早市摊子，落点是 `altar` 偏移 (+9,-2) 后找的最近可走格；'
+      + '闭市时这一拍整天不存在（`withMarketWords`）。',
+  },
+  'world/routines.ts:95': {
     why: '莞尔镇没有配置包。这一拍回到祭坛等神谕，与第一拍同一个 target，一圈的收尾。',
   },
 };
@@ -436,13 +444,20 @@ test('代码里声明的作息落点必须与 KNOWN_STOPS 一模一样', () => {
  */
 const KNOWN_OTHER_LABELS: Readonly<Record<string, { readonly why: string }>> = {
   'render/day-phase.ts:46': { why: '一天四个时辰的名字。#13 没点这一样，时辰归世界的钟，不归设定集。' },
-  'render/day-phase.ts:58': { why: '同上，四个时辰之一（正午）。' },
-  'render/day-phase.ts:69': { why: '同上，四个时辰之一（黄昏）。' },
-  'render/day-phase.ts:82': { why: '同上，四个时辰之一（夜）。' },
+  'render/day-phase.ts:61': { why: '同上，四个时辰之一（正午）。' },
+  'render/day-phase.ts:72': { why: '同上，四个时辰之一（黄昏）。' },
+  'render/day-phase.ts:85': { why: '同上，四个时辰之一（夜）。' },
   'world/tasks.ts:11': { why: '四类活计的名字与估时。#13 没点这一样；估时是世界机制，不是设定集的选择。' },
   'world/tasks.ts:12': { why: '同上，四类活计之一。' },
   'world/tasks.ts:13': { why: '同上，四类活计之一。' },
   'world/tasks.ts:14': { why: '同上，四类活计之一。' },
+  // 夜市那一段说法：`withMarketWords` 把市面那一拍换个牌子（`{ ...beat, label: … }`），
+  // 换出来的字面量里没有 `dwellMs:`，所以判据三认不出它是落点。它确实是世界数据
+  // （夜市怎么叫人），只是形状是「换一句说法」而不是「声明一个新落点」——与下雨
+  // 那两处同一类行为，登记在这儿才不假装判据覆盖到了。
+  'world/routines.ts:119': {
+    why: '`withMarketWords` 把市面那一拍换成「在夜市灯下看摊」——落点没变，只说法的相位变了。',
+  },
   // 取景的三个按钮名。**这不是世界数据**：它们说的是镜头怎么摆，不是这个世界里
   // 有什么——换一套设定集，三个字一个不改，也没有哪份设定集能给出别的叫法。
   // 写在代码里正是对的，搬进设定集反而会让同一组控件在不同世界叫不同名字。

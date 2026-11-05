@@ -1,0 +1,93 @@
+入口改造 · 现状清单 / 方案 / 读数（2026-11-05）
+
+基线：feat/behavior-queue HEAD 088b026（工作树干净，未 push）。
+本块只改 3 个文件：index.html、src/ui/shell.ts、src/ui/oracle-panel.ts。
+main.ts / SandboxScene.ts 未动（减少与 simulation 线的冲突）。
+
+一、现状入口清单（改前，文件:行号）
+- index.html:888  #hud-load 初始「世界正在醒来…」；hud.ts:32/43 首个快照后换成「天下太平 · N 人在镇 / N 人在忙 · X 单在手」。
+- index.html:897-900  #entry-hint（本块新增）。
+- index.html:902  #stage；main.ts:123 new Phaser.Game；main.ts:142 game.scene.add('SandboxScene', …, true) 立即启动。
+- main.ts:92  世界在模块顶层同步建好（第一帧之前 11 栋建筑/居民已经在内存里）。
+- SandboxScene.ts:571 create；580/587 bakeLayer + drawTerrain（地形烘焙）；647-650 delayedCall(0) 把镜头平移到祭坛；656 小地图；766 setPhase(initialPhase)；1054-1061 起 Simulation。
+- SandboxScene.ts:780 默认时相 = phaseAt(Date.now())，即真实本地时间。
+- 默认视角：祭坛居中；作者档 1×，否则 2×（639-643）。
+- 默认时刻：游玩时钟从 0 起算（1052-1057）→ 报纸「第 0 分 00 秒」，但天空按真实本地时相 → 开局「00:00 + 正午天空」自相矛盾；只有 ?clock=real 才把零点锚到本地零点。
+- 第一个可点：画布（点人 / 右键看记忆）；第一个可输入：#utterance + 「降下神谕」（index.html:921-925）；快捷键 Ctrl+K。
+- 改前路径：打开 → 0 次点击可见世界（首帧）→ 聚焦输入框(1) + 回车(2) 得到第一句回执；但首屏没有任何「能做什么」的说明，只剩一块画布 + 两行状态。
+
+二、方案（按代价排序）
+A（采用，S）：纯 DOM 三件套——画布上方一行开场提示（第一次提交或第一次点画布即收起）、主按钮改强调色填充、次要按钮/悬停回到中性、回执补成功色。只碰 index.html + 两个 ui/*.ts；不碰世界语义/存档 v5/projectWorld。
+B（未采用，S）：自动聚焦 #utterance，把 2 步压到 1 步。理由：移动端会弹键盘、抢走键盘焦点，还可能打断 Ctrl+K 与既有输入测试；首屏真正缺的是「说明」，不是「少点一次」。
+C（未采用，M/L）：把默认时刻改成「第 1 天 08:00 开局」或让报纸直接读真实本地时刻。这会改 report/世界时钟语义，三枚指纹必变，并与正在改 simulation.ts 的线正面冲突；本块只做视图层，不做。
+
+三、改了什么
+- index.html:82-107 新增 #entry-hint 样式（宽度 720、普通流、不叠画布；全部用 var()，无新字面色值）。
+- index.html:897-900 新增提示条：`先看一眼`（--dim）+ 「她在祭坛边。按 Ctrl+K 说第一句话，或右键点一个人看她记得什么。」（--ink）。
+- index.html 主按钮：`button.primary` 改为琥珀底 + 纸上墨字（唯一强调落点）；`:focus-visible` 琥珀焦点框；悬停不再把字染成琥珀。
+- index.html 次要按钮：`.secondary` 面板底 + 分隔线边框；默认 `button:hover` 只改边框到 --ink，强调色不参加悬停。
+- index.html `#reply.good` 用琥珀（成功）；`.bad` 用陶土（警告/出错）。
+- index.html:913 #status 初始文案改成「正在铺开世界：地形、灯与第一个人…」。
+- index.html clock-align 的「对齐到今天零点」加 `.primary`、「暂不」加 `.secondary`。
+- shell.ts:19-26 提示条收起：`#oracle` 第一次 submit 或 `#stage` 第一次 pointerdown，`{ once: true }`、即时 `hidden`。无计时器、无 transition、无随机。
+- oracle-panel.ts:273 show(ok) 同时切换 good/bad。
+
+四、读数
+A. 调色板（palette.txt）：世界 24/24（超 0），UI 8/8（超 0），共享 1（#e3a13c），并集 31。
+B. 对比度（contrast.txt，算法 = audit-palette 的 WCAG 2.x 相对亮度）：
+   - 主要文字/页面底 14.90:1；主要文字/面板 13.46:1
+   - 次要文字/页面底 6.32:1；次要文字/面板 5.71:1；占位/面板 5.71:1
+   - 不可用（同 --dim）/面板 5.71:1
+   - 主按钮字/强调底 7.21:1；状态字/面板 5.91:1
+   - 边框/页面底 1.46:1、边框/面板 1.32:1（低于 3.0 非文本门槛，见「真问题」）
+   - 灰阶相邻 ΔL*：5.20 / 3.62 / 7.08 / 41.23 / 28.77，全部 ≥3
+C. 入口路径：打开 → 0 次点击即可看清世界；Ctrl+K(1) + 回车(2) 得到第一句回执。
+   探针口径：首屏纸钟「第 0 分 06 秒」；首次提交纸钟「第 4 分 00 秒」（默认 60×，约 4 秒墙钟）。
+D. 同构建连跑两次（entry-diff.txt，Playwright 假时钟 install + pauseAt + runFor 钉住 rAF）：
+   首屏：1010×940，可见差(≥8)=0，精确差 max=0，有差像素 0/949400，字节相同 true
+   首次提交后（点灯吧 → 回执「一盏神迹点的灯落下了。」）：同样 0 / 0 / 0 / true
+   连跑 3 次，两次均字节相同。run A/B 无 JS 报错。
+E. 伤害性对照（entry-feedback-fail.txt）：提交「大家去广场」→ 上游意图模型 400 → 回执 `.bad`、世界不变，像素差仍 0。
+F. 五禁忌（逐条）：
+   1) 鲜艳色过多 → 否。UI 8 位里只有 2 个有彩度的色（琥珀 #e3a13c、陶土 #c8876a），其余 6 个中性。证据：palette.txt「提案 8 色 UI」。
+   2) 次要按钮用强调色 → 否。`.secondary` = --panel + --line；默认 hover 只到 --ink；琥珀只出现在 .primary / :focus-visible / 选中。证据：index.html 按钮规则 + 计算样式 primaryButtonBg rgb(227,161,60)。
+   3) 大面积纯黑 #000000 → 否。页面底 #0c0f0d、面板 #171b18；源码无 #000000。证据：全仓 grep + palette.txt。
+   4) 彩色背景上放灰字 → 否。唯一彩色底是主按钮琥珀，字用 --paper-ink（7.21:1），不是 --dim。
+   5) 深色模式靠反色 → 否。深色是基底主题，分层用比底更亮的边框 --line（#2b322c vs #0c0f0d / #171b18），不是浅色主题的反相。
+G. 九道闸门：
+   npm run check：退出 0
+   npm test：2108 通过 / 0 失败 / 9 跳过（退出 0）
+   npm run build：退出 0
+   audit-palette --strict：退出 0（24/24、8/8、超 0）
+   audit-references.ts：退出 0
+   audit-citations.ts：退出 0
+   audit-sections.ts：退出 0
+   audit-claims.ts --strict：退出 0（含 adr-schema 9/9）
+   pytest server/tests：退出 0
+H. 浏览器五道：smoke 125（smoke.txt）、phases 17（phases.txt）、persistence 8（persistence.txt）、
+   render-budget 6（render-budget.txt：绘制指令 16130 < 30000、Graphics 27、相对基线 +0）、setting 29（setting.txt）。
+I. test:buttons：退出码 2。既有缺口——服务端活着但 /api/memory/list 回 404（buttons.txt），未为变绿改代码。
+J. 三枚指纹（trace:replay + npm test 的回归断言）：
+   世界 outer a41f4e2e…、night 6efda574…；记忆 fb0847b3…；造物 c5198f0f…——与 HEAD 逐字相同。
+   原因：本块没碰 Simulation/report/存档/projectWorld，只改 DOM 与 CSS 变量引用。
+
+五、真问题
+1. 边框对比度 1.46:1 / 1.32:1 低于 WCAG 3:1 非文本门槛。边框不是唯一状态信号（焦点/选中用琥珀 8.65:1），但"深色靠浅边框分层"这条原则在现有 --line 上只是勉强可见。要修需要 1 个新 UI 位（扩预算），本块没做。
+2. 成功与强调共用琥珀：同一位置不会并现（按钮 vs 回执），但色相没有区分。要独立绿位需扩预算。
+3. 警告与出错共用陶土，只能靠文案区分。现状还把「天本来就是晴的。」这种无操作标成 bad（既有分类，未改）。
+4. 00:00 开局问题没修：游玩时钟从 0 起算，天空却按真实本地时相。属于 report/世界时钟语义，留给下一块。
+5. 首次提交依赖上游意图模型；dev 下会看到「模型调用失败：HTTP 400」回执（既有）。
+6. 浅色套未落地（需 UI 8→10，见 mapping.txt 第三节）。
+
+六、被否掉的写法
+- 用 CSS transition/animation 让提示条淡出：时长不可枚举，违反「过渡由世界时钟或可枚举拍数驱动」→ 改成动作触发即时收起。
+- 给提示条标签用琥珀：稀释「唯一强调落点」→ 标签用 --dim、正文用 --ink。
+- 把提示条叠在画布上：会破坏 canvas 包围盒与调色板截图 → 放在画布上方普通流。
+- 新增绿/蓝语义位：8/8 已满，必须扩预算；未做。
+- 自动聚焦 #utterance：抢焦点、移动端弹键盘；未做。
+
+七、没做到 / 未验证
+- 浅色套（阻塞：需扩 2 个 UI 位，未自行扩）。
+- 00:00 开局问题。
+- test:buttons 仍红（既有 404）。
+- 两跑像素比对在本机 headless + 假时钟下成立（3 次复跑字节相同）；没有在真实 GPU/不同字体/不同 DPR 的设备上验证。

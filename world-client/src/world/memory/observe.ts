@@ -32,6 +32,11 @@ export interface ObservationLookups {
 /** 世界事件的分量：街头小事比「今天做过活」重，互动只是见过一面。 */
 export function worldEventImportance(kind: WorldEventKind): number {
   switch (kind) {
+    case 'delivery_failed':
+      // 一次失败让村子少了一单、还暴露出有人饿着；比普通交付（0.45）重，
+      // 比炸炉事故（0.8）轻。0.70 高于史诗候选下限 0.55，但
+      // `irreversibilityOf` 对它是 0，最多讲成地方传说，不会立碑。
+      return 0.7;
     case 'street_tumble':
     case 'street_water':
     case 'street_help':
@@ -51,6 +56,13 @@ export function worldEventImportance(kind: WorldEventKind): number {
       return 0.35;
     case 'tide_turn':
       return 0.35;
+    // 市面四拍是镇子级事实（`actorId` 为 null）：分量与固定时刻表的每日小事
+    // 同档——镇子每天都会走过，但谁也没做成一件事。
+    case 'market_open':
+    case 'work_end':
+    case 'night_market':
+    case 'market_close':
+      return 0.35;
     case 'harbor_report':
       // 船班播报是镇子级事件，但个人记忆只记码头边在场的人。门槛要略高：
       // 它值得记住（决定今天过不过得了河），但不是传说级；0.55 让
@@ -67,6 +79,10 @@ export function worldEventImportance(kind: WorldEventKind): number {
 
 export function worldEventValence(kind: WorldEventKind): number {
   switch (kind) {
+    case 'delivery_failed':
+      // 当事人挨饿、村子丢单，明确为负；但没人受伤，不比炸炉事故（-0.7）
+      // 更重，比「打翻水」（-0.55）更重——损失落在别人身上，不只是湿了地。
+      return -0.6;
     case 'street_help':
       return 0.6;
     case 'street_together':
@@ -91,6 +107,12 @@ export function worldEventValence(kind: WorldEventKind): number {
       return 0.1;
     case 'tide_turn':
       return 0;
+    // 市面四拍没有情绪方向：开市闭市都是钟点到了，不是谁做成了什么。
+    case 'market_open':
+    case 'work_end':
+    case 'night_market':
+    case 'market_close':
+      return 0;
     case 'harbor_report':
       // 停航是坏消息，开航只是寻常；同一句话里已经说了船开没开。
       return 0;
@@ -99,6 +121,10 @@ export function worldEventValence(kind: WorldEventKind): number {
 
 export function worldEventArousal(kind: WorldEventKind): number {
   switch (kind) {
+    case 'delivery_failed':
+      // 一次当众的、带身体反应的失手（手抖、没送到），比摔倒（0.55）抓人，
+      // 但远不到全村骚动（0.7）。
+      return 0.6;
     case 'street_tumble':
     case 'street_water':
     case 'street_help':
@@ -190,8 +216,10 @@ export function observationOf(
         importanceHint: 0.45,
         valence: 0.3,
         arousal: 0.4,
-        // 交付发生在铺子里——室内。屋外八格的人看不见，这是痕迹通道存在的理由。
-        indoor: true,
+        // 交付发生在铺子里就按室内算——屋外八格的人看不见，这是痕迹通道存在的理由。
+        // 但原地办的活（`in_place`）本来就在露天：地点是那个人脚下，不能一并算成室内，
+        // 否则站在旁边的人永远看不见，自然目击也就永远形不成关系。
+        indoor: buildingId !== undefined,
       };
     }
 
@@ -294,6 +322,20 @@ export function observationOf(
       const actors = actor === null
         ? []
         : other === null || other === actor ? [actor] : [actor, other];
+      const failure = change.failure;
+      // 失败的结构化事实要进 `outcome`：日报与后续断言读的是「哪一单、为什么、
+      // 是不是重复」，不是那句给人看的话。`status: 'fail'` 是这条事件在
+      // 记忆层的可检索标记——没有它，失败事实与一次普通街头小事分不开。
+      const outcome = failure === undefined
+        ? { what: change.text }
+        : {
+            what: change.text,
+            status: 'fail',
+            taskId: failure.taskId,
+            taskKind: failure.taskKind,
+            reason: failure.reason,
+            repeat: failure.repeat,
+          };
       return {
         eventId,
         kind: change.kind,
@@ -305,12 +347,17 @@ export function observationOf(
         // 实例，若靠 `placeIndoor` 从 placeId 推，任何绑楼的落点都会被判成
         // 室内，这一幕只剩屋里的人（她自己）看得见，旁观者什么也记不下。
         ...(change.kind === 'home_entry' ? { indoor: false } : {}),
-        outcome: { what: change.text },
+        outcome,
         importanceHint: worldEventImportance(change.kind),
         // 每日小事是她自己的一天里做得成的事：比潮水多一点温度，比交付轻。
         // 街头小事有真正的情绪方向；互动只是「今天见过」。
         valence: worldEventValence(change.kind),
         arousal: worldEventArousal(change.kind),
+        // 有楼就是室内（同房间目击），原地单就是室外（8 格 + 遮挡）。
+        // 别的 world.event 不给这个字段，仍按调用方的地点推断。
+        ...(failure === undefined
+          ? {}
+          : { indoor: lookups.atOfBuilding(change.placeId) !== undefined }),
         ...(other === null || actor === null || other === actor
           ? {}
           : { bondDeltas: incidentBondDeltas(change.kind, actor, other) }),

@@ -96,3 +96,25 @@ export function driftPuffs(
   }
   return puffs;
 }
+
+/**
+ * 这一团是否还有一格落在世界矩形里（格坐标，`0..width` / `0..height`）。
+ *
+ * 灯潮界是 authored 包，揭示半径 = 宽 + 高 = 112，雾团绕在 108～116 格外——
+ * 整团在图外。相机被 `setBounds` 夹在世界矩形里，图外的东西一像素也看不见，
+ * 每帧却照样给它们铺块：14 团共 1931 块，`commandBuffer` 实测 15448 条，占黄昏
+ * 整帧 29770 条指令的一半还多。所以先剔掉整团出界的，再谈画法：这不是
+ * 「少画一点雾」，是画了也到不了屏幕。
+ *
+ * 判据取「圆心到矩形的最近距离 ≤ 半径」：擦到边界的团仍然算可见，
+ * 只剔除整团都在界外的那种，避免把边界雾切掉。
+ */
+export function puffReachesWorld(
+  puff: DriftPuff,
+  width: number,
+  height: number,
+): boolean {
+  const dx = Math.max(0, -puff.at.x, puff.at.x - width);
+  const dy = Math.max(0, -puff.at.y, puff.at.y - height);
+  return Math.hypot(dx, dy) <= puff.radius;
+}

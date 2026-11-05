@@ -6,7 +6,7 @@
 
 import Phaser from 'phaser';
 import type { PlacedBuilding, WorkAccent } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 
 const TEXTURE_KEYS: Record<WorkAccent, string> = {
   smoke: 'px-smoke',
@@ -24,9 +24,9 @@ export interface AccentEmitter {
 }
 
 export function ensureAccentTextures(scene: Phaser.Scene): void {
-  makeDot(scene, TEXTURE_KEYS.smoke, WORLD.pale, 4);
-  makeDot(scene, TEXTURE_KEYS.pages, WORLD.pale, 3);
-  makeDot(scene, TEXTURE_KEYS.ink, WORLD.cloakDark, 2);
+  makeDot(scene, TEXTURE_KEYS.smoke, paletteFor().pale, 4);
+  makeDot(scene, TEXTURE_KEYS.pages, paletteFor().pale, 3);
+  makeDot(scene, TEXTURE_KEYS.ink, paletteFor().cloakDark, 2);
 }
 
 export function createAccentEmitter(

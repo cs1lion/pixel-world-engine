@@ -1,0 +1,28 @@
+480 条决策 diff（改前 → 改后，同一条轨迹）
+
+命令：node scripts/behavior-decisions.ts traces/outer-two-days.json <out>
+旧：docs/evidence/fatigue/decisions-old.txt（480 条，sha 39aa269d…，改代码前采）
+新：docs/evidence/fatigue/decisions-new.txt（468 条，sha 4733ad4e…，改代码后采）
+
+## 计数
+旧条数	480
+新条数	468
+净差	−12
+被删掉的旧行	36 条，全部是 `routine`
+新出现的行	24 条：`sleep` 2 条 + `routine` 22 条（醒来后同一串作息，时刻整体后移）
+永久少掉的决策	14 条 `routine`——就是 4.85 小时睡觉窗口里本来会排的作息
+逐行 diff 起点	第 445 条（229,320,000 ms，v1 入睡那一拍）
+
+## 为什么变（逐项）
+1. **规则表多了一条 `sleep`**，排在 `eat` 之前：1.6 世界日处疲劳跨阈，两人就地睡下，
+   各记 1 条 `sleep` 决策（落点 56,33 = 脚下，无 path）。→ 新增 2 条。
+2. **睡着期间不重排作息**：`nextRoutineAt` 直接拨到醒来那一刻（`wakeUpAtMs`），
+   所以 4.85 小时里没有决策行。→ 少掉 14 条 `routine`。
+3. **醒来后作息时刻整体后移 4.85 小时**（+ 跨阈到入睡的 18/22 分钟），
+   同一串作息重新出现但 `now` 变了。→ 36 条旧 `routine` 行被 22 条新行替代。
+4. 没有为了让旧决策保持不变去调速率、调阈值或把 `sleep` 塞进别的规则——
+   速率/阈值是按「两个世界日疲劳到顶、1.6 天跨阈」定的，不是为了指纹。
+
+## 没变的部分
+夜雨轨迹 traces/night-rain-build.json：2 条决策，digest 与改前逐字相同
+（5aa11118…）；那里世界才第 12 分钟，离 1.6 天很远，睡眠规则不命中。

@@ -1,0 +1,60 @@
+合并 main 后的轨迹定位（裁决 B：先定位、后定基线）
+基准：origin/main 416eb8b 上重录的 outer-two-days（世界 32ba01e7… / 52 事件 / 摘要 baad0768…）
+合并后：世界 0663b93f… / 52 事件 / 摘要 baad0768…（事件流逐字相同）
+
+## 一、事件级增量（52 条逐拍对齐）
+新增事件：0
+消失事件：0
+时刻后移：0
+文案差：0
+
+（修复过程，留证不在结果里）
+合并初版在 seq 2 / 26 / 51（@93,600,000 / 180,000,000 / 266,400,000）三处牌面是
+「莞尔在祭坛边歇下」，基准是「莞尔在祭坛边睡下了」；时刻与 seq 完全相同。
+根因：main 的定时夜休在 `stepIdle` 的 `nextRoutineAt` 闸门**之前**每拍调用
+`settleForTheDay`（22:00 闭市那拍会把牌子从「歇下」翻成「睡下了」）；合并后它登记成
+`rest` 规则，排在闸门之后。21:00 醒着写了一次「歇下」并把表一次拨到 05:20，
+22:00 这一拍就再也不会被问——牌子整夜停在「歇下」。
+修法（`simulation.ts` 的 `settleForTheDay`）：醒着时把 `nextRoutineAt` 拨到闭市那一刻
+（22:00），睡着的分支才拨到 05:20。同一段夜休在 22:00 再问一次、翻牌；
+归属仍是定时夜休，没有与疲劳睡同拍各写一次。
+
+## 二、世界指纹差异的唯一来源
+逐字段比 `projectWorld`：合并后与基准的唯一差别是本分支 8f9e0cc
+「让交付失败进正式事件流」把 `deliveryFailures` 加进世界投影（本轨迹里是空数组）。
+验证（同一份合并后代码）：
+  终局投影去掉该字段：32ba01e7…（= 基准终局指纹）
+  step 0 检查点去掉该字段：474d9b96…（= 基准 step 0 检查点）
+→ 世界指纹 0663b93f… = 32ba01e7… + 一个空账本字段；没有行为增量。
+
+## 三、新基线（定位报告之后才记）
+世界 0663b93f…（52 事件，摘要 baad0768…）
+记忆 0604c712…（条目 47 / 事实 56 / 断言 37 / 信念 10；与基准逐字相同）
+造物 c1c83fb2…（日终 2 / 提议 3 / 落地 1；与基准逐字相同）
+业务读数：day 3 / now 270,000,000 / buildings 2 / eventCount 52（全部不变）
+同种子两跑：`trace:record` 内 `verifyTrace` 两次回放，三枚指纹逐字相同（683.1ms / 683.6ms）
+
+## 四、逐拍决策
+442 条（合并初版 438；+4 = 22:00 再问一拍 × 2 天 × 2 人）
+digest b190aecbfa5c0e3c32ef60ef9cb3c33eba22742c7df86df555e183e8cf817afa
+kind 分布：rest 346 / garden 22 / river 20 / promenade 18 / altar 16 / market 10 / quiet 10
+sleep 决策：0 条
+
+## 五、sleep 决策：默认轨迹里不出现（受控场景补证）
+原因：定时夜休在 05:20 的黎明分支把 `lastRestAt` 拨到此刻（疲劳清零），
+清醒时长永远到不了 1.6 天跨阈——两套睡眠共用一个休息定义，这是裁决 A 的直接结果。
+不允许用「代码在、单测绿」替代功能验证，故补受控场景：
+
+`docs/evidence/merge-main/sleep-scenario.ts`（在 world-client 下
+`node ../docs/evidence/merge-main/sleep-scenario.ts` 跑；func-daily-l2 起点；
+`setLastRestAt(id, -1.6 天)` 制造开局跨阈，避免 05:20 黎明复位）
+  startRoutine=null
+  midAsleep=true midFatigue=0.522535 midRoutine="实在熬不住，就地睡下了"
+  beforeWakeAsleep=false fatigue=0.000625（17,400,000 已醒）
+  afterWakeAsleep=false fatigue=0.001181（17,500,000；醒来回正常）
+  afterWakeRoutine="在祭坛边睡下了"（醒来后交还给定时夜休的牌子）
+  report={"crossings":1,"spans":[{"villagerId":"v0","crossedAt":0,"sleptAt":6000,
+          "wokeAt":17292000}],"asleep":[]}
+  两跑 stdout 的上面 7 行逐字相同（不记绝对文件 hash：Windows/CRLF 与 LF 口径
+  会让同一段文本的 sha 不同，读数以这 7 行为准）
+  （stderr 有一条 node 的 MODULE_TYPELESS_PACKAGE_JSON 警告，含进程号，不计入读数）

@@ -1,0 +1,14 @@
+逐拍决策 diff —— 改动前 vs 改动后
+=================================
+
+输入：traces/outer-two-days.json（3000 拍 × 60s）
+文件：decisions-before.txt / decisions-after.txt
+行数：480 / 480
+文件 sha256（两边都算）：
+  39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+
+比对方法：
+  Compare-Object (Get-Content decisions-before.txt) (Get-Content decisions-after.txt)
+差异条数：0
+
+结论：480 拍决策逐行相同，含 rule 来源、goal、target、beatId、routineIndex。

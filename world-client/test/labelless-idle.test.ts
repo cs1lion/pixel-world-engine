@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
@@ -35,6 +36,9 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：4000 拍 × 100ms 只有六个多世界分钟，午夜开局她还在
+    // 睡，等不到「有人先离开祭坛」这个夹具前提（`func-daily-l1.test.ts`）。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;
@@ -60,10 +64,16 @@ test('quick 原地办完：牌子没了，人站在原地，那 1800 拍里她�
   const sim = makeSim();
   // 先等她离开祭坛再派：开局两个人都立在祭坛格上，那一刻派活，
   // 办完她还在祭坛，退路恰好是真的，那就证不反任何东西。
+  //
+  // 等的是**排头的那个**，不是「随便哪个」：派活按 `villagers` 的顺序找
+  // 第一个空着的，观察的也得是同一个，否则「办完的人」和「牌子空了的人」
+  // 会是两个人。以前夜里没人挂作息牌子，等谁都不影响；白天每人身上都有
+  // 自己那一拍（`routine`），这件事才显出来。
   let snapshot = sim.snapshot();
+  const leadName = snapshot.villagers[0]!.name;
   // 一格一世界分钟；100ms 一步要 600 拍才走一格，所以把观察窗口拉长，
   // 但**不改 STEP**：下面「1800 拍」那条数的是 100ms 的拍。
-  for (let guard = 0; guard < 4000 && snapshot.villagers.every((v) => atAltar(v, snapshot)); guard += 1) {
+  for (let guard = 0; guard < 4000 && snapshot.villagers.some((v) => v.name === leadName && atAltar(v, snapshot)); guard += 1) {
     sim.update(STEP);
     snapshot = sim.snapshot();
   }
@@ -135,29 +145,46 @@ test('上游撤单：牌子没了，人被挪到铺子门口，同样不在祭�
   assert.equal(reattachAfter, 18, `撤单后该空 1800 拍（18 个 100ms）才挂新牌子，实得第 ${reattachAfter} 个`);
 });
 
-test('清牌子的路口一共五条：四条会把人留在祭坛外', () => {
+test('清牌子的路口一共七条：两条新增的也要回 idle', () => {
   // 这一条不驱世界，直接数源码：`routineLabel = null` 在 simulation.ts 里
-  // 出现几次，各自在哪个函数里。数出来是 8 处赋值，其中让人回到 idle 且没有
-  // 牌子的路口是 `abandonActiveTask`、`removeTask`、`finishInPlace`、
-  // `arriveAtAltar`、`wakeAtHome` 五个——最后那个她人就在自家门口，退路恰好是真的。
+  // 出现几次，各自在哪个函数里。合并内景线（2026-11-06）后数出来是 10 处赋值，
+  // 其中让人回到 idle 且没有牌子的路口是 `abandonActiveTask`、`removeTask`、
+  // `finishInPlace`、`failDeliveryFromHunger`、`arriveAtAltar`、`wakeAtHome`、
+  // `wakeUp` 七个。
   //
-  // 另外三处都不回 idle，所以不在那五条里：`routeToBuilding`（她正赶往工位）、
+  // 逐条来历（两边都活着，不是任一方覆盖另一方）：
+  // · `abandonActiveTask` / `removeTask` / `finishInPlace`：原有三条。
+  // · `failDeliveryFromHunger`：2026-11-04 的失败原型（饿到顶 → 这一趟没送到），
+  //   按 `finishInPlace` 的同一套收尾——回 idle、清牌子、`nextRoutineAt` 往后挪。
+  // · `arriveAtAltar`：原有，到祭坛那拍把牌子交给作息。
+  // · `wakeAtHome`：内景线「回家」那条新增的第五条。天亮从屋里出来，`visible`
+  //   翻回 true、人站到门口、牌子摘掉交给作息；她人就在自家门口，退路是真的。
+  // · `wakeUp`：2026-11-05 的疲劳块（熬不住就地睡下 → 醒来）新增的第六条。
+  //   撤掉睡牌、把「上次睡醒」拨到此刻；她本来就在 idle，醒来继续问吃/作息。
+  //
+  // 另外三处都不回 idle，所以不在那七条里：`routeToBuilding`（她正赶往工位）、
   // `arriveAtWork`（她已到工位）、`stepDecrees`（她举着急件跑向祭坛）。三处的
   // 说法都归 `villagerModeLabel` 按 mode 分支管，压根不读牌子——清与不清都不
-  // 改变屏上与纸上。**别把「8 处」读成「八条路口」**：能问「她人在哪儿」的
-  // 只有回到 idle 那五条，另外三处那一刻她有别的说法。
+  // 改变屏上与纸上。**别把「10 处」读成「十条路口」**：能问「她人在哪儿」的
+  // 只有回到 idle 那七条，另外三处那一刻她有别的说法。
   //
-  // `wakeAtHome` 是「回家」那块加进来的第五条：天亮从屋里出来，`visible`
-  // 翻回 true、人站到门口、牌子摘掉交给作息。她不在祭坛外，也不在工位上，
-  // 是标准的一条 idle 路口，所以进这个数。
+  // 旧值→新值：分支 8 处 / 5 路口 → main 9 处 / 6 路口 → **合并后 10 处 / 7 路口**。
+  // 不是取某一边：两边新增的 `wakeAtHome` 与 `wakeUp` 都保留，所以是并集 +1。
   //
   // 为什么值得数：注释里那句「只有撤单那条路」就是因为没人数过才活下来的。
-  // 数一遍不会让新加的路口自动进注释，但能让「到底有几条」有个可复按的数。
   const source = readFileSync(new URL('../src/world/simulation.ts', import.meta.url), 'utf8');
   const assignments = [...source.matchAll(/routineLabel = null/g)];
-  assert.equal(assignments.length, 8, `simulation.ts 里清牌子的地方该是 8 处，实得 ${assignments.length}`);
-  // 五个路口名都在文件里——少一个就说明有人删了一条路，那段注释得重看。
-  for (const fn of ['abandonActiveTask', 'removeTask', 'finishInPlace', 'arriveAtAltar', 'wakeAtHome']) {
+  assert.equal(assignments.length, 10, `simulation.ts 里清牌子的地方该是 10 处，实得 ${assignments.length}`);
+  // 七个路口名都在文件里——少一个就说明有人删了一条路，那段注释得重看。
+  for (const fn of [
+    'abandonActiveTask',
+    'removeTask',
+    'finishInPlace',
+    'failDeliveryFromHunger',
+    'arriveAtAltar',
+    'wakeAtHome',
+    'wakeUp',
+  ]) {
     assert.ok(source.includes(fn), `simulation.ts 里找不到 ${fn}——清牌子的路口变了`);
   }
 });

@@ -89,7 +89,7 @@ test('门就开在镇心上：也算连得出去', () => {
  * `clearMargin: 0` 是合法的（`blueprints.ts:45`），所以这不是一份假包。
  *
  * 四栋都声明 `zone: 'industry'`：灯潮界的 `grid.zones` 拿 industry 盖住整张图
- * （`pack.ts:41`，x 1–62、y 1–46），只有 x 30–34 一条窄巷是 street。
+ * （`pack.ts:182`，x 1–62、y 1–46），只有 x 30–34 一条窄巷是 street。
  * `checkPlacement` 要求整块占地都在蓝图声明的分区里，所以别去挤那条巷子。
  */
 function walledInPack(): ReturnType<typeof loadSettingPack> {
@@ -199,7 +199,7 @@ test('一扇真被围死的门，在同一个格子上仍然报死', () => {
 // ---------------------------------------------- 同一个病，隔十一行还有一处
 
 test('作息点就踩在出生点上：这是连得出去的，不是到不了', () => {
-  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:304`/`:307`），
+  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:335`/`:338`），
   // 对 `at === stop` 一个字都没禁——而「她就站在那个点上」是一份完全合法的
   // 设定集：守夜人认路认到自己的脚底下。
   //

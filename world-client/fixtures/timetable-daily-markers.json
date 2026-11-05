@@ -1,0 +1,284 @@
+{
+  "format": "pwe-fixture/1",
+  "fixtureVersion": 1,
+  "name": "timetable-daily-markers",
+  "purpose": "灯潮界一个白天：跨 05:00 收灯、06:00 打水、18:00 点灯，验证三笔日常是否真的落进世界与记忆。",
+  "expectedMs": 1712,
+  "covers": [
+    "05:00 收灯日志（世界事件，不是 world.event 事实）",
+    "06:00 打水（daily_water）与 18:00 点灯（daily_lamp）作为 memory fact 落账，含 placeId",
+    "18:05 收尾：只覆盖到点灯后 5 分钟，夜市不在此夹具"
+  ],
+  "doesNotCover": [
+    "跨多日的作息漂移与天气影响",
+    "灯油耗尽后的灰化与动作采样放慢（那是渲染层，不进世界指纹）",
+    "收灯日志之外的世界事件（潮汐转向等）不在此夹具断言"
+  ],
+  "trace": {
+    "format": "pwe-trace/2",
+    "traceVersion": 2,
+    "description": "夹具 timetable-daily-markers：灯潮界一个白天：跨 05:00 收灯、06:00 打水、18:00 点灯，验证三笔日常是否真的落进世界与记忆。",
+    "worldId": "dengchao",
+    "worldSeed": "fixture-timetable",
+    "initialNow": 17400000,
+    "stepMs": 120000,
+    "steps": 396,
+    "eventRange": {
+      "from": 0,
+      "to": 16
+    },
+    "injections": [],
+    "outer": {
+      "memory": true,
+      "creator": true
+    },
+    "recorded": {
+      "inputDigest": "5090a49525a12b915fe55ac255a35ae8608301c2c7050fb8819c4bffcdb35114",
+      "fingerprint": "b132e12af5d2ed86538ae318e75be4db5e590692b1846c9bb6a8920d1171e0fb",
+      "eventCount": 16,
+      "eventDigest": "22b07b32ea387bd3cb30bd142701fd690604487e23f1d102f425b3a279129f7d",
+      "business": {
+        "day": 0,
+        "now": 64920000,
+        "buildings": 9,
+        "tasksTotal": 0,
+        "tasksCompleted": 0,
+        "weather": "clear",
+        "faithPoints": 0,
+        "deliveries": {
+          "feed": 0,
+          "local": 0
+        },
+        "eventCount": 16
+      },
+      "checkpoints": [
+        {
+          "step": 0,
+          "atWorldMs": 17400000,
+          "fingerprint": "8302689306b9d8e46e32c5a7532373e832c45d9fec13b3c2ab219d4b4580ff83",
+          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 250,
+          "atWorldMs": 47400000,
+          "fingerprint": "d6f58dc88a8a236b6b5cf10eac7b604a786364cf2fdb40ef18b2236395401a58",
+          "memoryFingerprint": "488323d910a49cdfca34880a74deb05b5c395c9698510f889d7becda6ea0a545",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 396,
+          "atWorldMs": 64920000,
+          "fingerprint": "b132e12af5d2ed86538ae318e75be4db5e590692b1846c9bb6a8920d1171e0fb",
+          "memoryFingerprint": "9f8e235b5f7ce08420665c6664edbb3c1d8421060ec30d561bae33179fe7f981",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        }
+      ],
+      "memory": {
+        "fingerprint": "9f8e235b5f7ce08420665c6664edbb3c1d8421060ec30d561bae33179fe7f981",
+        "business": {
+          "lastClosedDay": 0,
+          "currentDay": 0,
+          "holders": 38,
+          "facts": 9,
+          "entries": 6,
+          "claims": 6,
+          "beliefs": 0,
+          "traces": 0,
+          "landmarks": 0,
+          "turningPoints": 0,
+          "bonds": 0,
+          "moods": 0,
+          "bondTrustSum": 0,
+          "moodValenceSum": 0,
+          "legends": 0,
+          "placeNames": 9,
+          "announcements": 0,
+          "written": 0,
+          "credibility": 0,
+          "metToday": 141
+        }
+      },
+      "creator": {
+        "fingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1",
+        "business": {
+          "dayCloses": [],
+          "proposals": [],
+          "landings": [],
+          "roles": [
+            {
+              "roleId": "art_supervisor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "auditor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "director",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "historian",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "interpreter",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "mapper",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assertions": [
+    {
+      "note": "05:00 收灯的世界事件",
+      "source": "events",
+      "path": "[1].at",
+      "op": "eq",
+      "value": 18000000
+    },
+    {
+      "note": "收灯文案",
+      "source": "events",
+      "path": "[1].text",
+      "op": "eq",
+      "value": "天还没亮，值夜的人把街灯一盏盏收起来。"
+    },
+    {
+      "note": "06:00 打水的世界事件",
+      "source": "events",
+      "path": "[3].at",
+      "op": "eq",
+      "value": 21600000
+    },
+    {
+      "note": "打水文案",
+      "source": "events",
+      "path": "[3].text",
+      "op": "eq",
+      "value": "天亮了，有人去桥边打水，顺手冲了冲桥面。"
+    },
+    {
+      "note": "18:00 点灯的世界事件",
+      "source": "events",
+      "path": "[15].at",
+      "op": "eq",
+      "value": 64800000
+    },
+    {
+      "note": "点灯文案",
+      "source": "events",
+      "path": "[15].text",
+      "op": "eq",
+      "value": "天色擦黑，街灯一盏盏亮起来。"
+    },
+    {
+      "note": "一天的世界事件总数（到 18:05 为止）",
+      "source": "world.business",
+      "path": "eventCount",
+      "op": "eq",
+      "value": 16
+    },
+    {
+      "note": "打水与点灯各自落成 memory fact（共 9 条）",
+      "source": "memory.business",
+      "path": "facts",
+      "op": "eq",
+      "value": 9
+    },
+    {
+      "note": "06:00 打水事实",
+      "source": "memory.snapshot",
+      "path": "world.facts[1].kind",
+      "op": "eq",
+      "value": "daily_water"
+    },
+    {
+      "note": "打水落点由世界给",
+      "source": "memory.snapshot",
+      "path": "world.facts[1].placeId",
+      "op": "eq",
+      "value": "place:1,1"
+    },
+    {
+      "note": "18:00 点灯事实",
+      "source": "memory.snapshot",
+      "path": "world.facts[8].kind",
+      "op": "eq",
+      "value": "daily_lamp"
+    },
+    {
+      "note": "点灯落点由世界给",
+      "source": "memory.snapshot",
+      "path": "world.facts[8].placeId",
+      "op": "eq",
+      "value": "place:32,29"
+    }
+  ]
+}

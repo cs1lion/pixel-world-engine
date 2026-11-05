@@ -6,6 +6,7 @@ import { ALTAR, buildLargeWorld, buildWorld, placeBlueprint } from '../src/world
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { composeReport } from '../src/world/report.ts';
 import { syllablePlan } from '../src/audio/animalese.ts';
 import { Bridge, toWorldCommand } from '../src/world/bridge.ts';
@@ -23,6 +24,9 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：作息那半会睡，午夜开局时日报收尾会如实写「睡下了」，
+    // 而这两条测的是「闲人在祭坛边坐着」那句退路。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       return blueprint === undefined
@@ -549,7 +553,7 @@ test('读档之后，上一次会话交付的单不算「今日」', () => {
 });
 
 test('「最近一单」数的是最晚交付的，不是数组末尾那一单', () => {
-  // `snapshot.tasks` 照创建顺序 push（simulation.ts:1755、:2352，全程不排序），
+  // `snapshot.tasks` 照创建顺序 push（simulation.ts:2029、:2651，全程不排序），
   // `done` 过滤一遍还是那个顺序。两个人同时干活时创建顺序和交付顺序会分叉：
   // 先派下去的长活后交，后派下去的短活先交。照数组末尾取，报纸就把**先**交的
   // 那单叫「最近」——一句话说着当下，指的却是过去。

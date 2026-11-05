@@ -20,7 +20,7 @@ export function propFootY(prop: WorldProp, originY: number): number {
 }
 
 /**
- * 角色 depth 的偏移量：`villager.ts` 用 `ALTITUDE + py + 8`。
+ * 角色 depth 的偏移量：`villager.ts` 的 `villagerDepthAt` 用 `脚底 + 8`。
  * 道具沿用同一档，两者才在同一把尺子上可比；换一个偏移会让排序在某些格子上翻转。
  */
 export const ACTOR_DEPTH_OFFSET = 8;

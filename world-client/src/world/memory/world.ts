@@ -15,8 +15,16 @@
  * `generatedBy.by = 'llm'`）留着，但本组不实现调用，也不占预算。
  */
 
-import { DEFAULT_MEMORY_CONFIG, weightsFor, type MemoryConfig } from './config.ts';
-import { consolidateHolder } from './consolidate.ts';
+import { DEFAULT_MEMORY_CONFIG, weightsFor, type LayerBudget, type MemoryConfig } from './config.ts';
+import { byteSizeOf, consolidateHolder, trimEntriesToBudget } from './consolidate.ts';
+import {
+  buildDayDigest,
+  compactDayDigest,
+  digestRank,
+  digestTimelineOf,
+  shouldCompact,
+  stripDigestEvent,
+} from './digest.ts';
 import { advanceEra, openEra, signatureOf } from './era.ts';
 import { makeEpic } from './epic.ts';
 import {
@@ -97,6 +105,7 @@ import type {
   Belief,
   Bond,
   Claim,
+  DayDigest,
   EpicEntry,
   Era,
   EventVoice,
@@ -287,6 +296,11 @@ export interface MemoryWorldSnapshot {
   /** 情绪残留（`memorySchemaVersion >= 4`）。每个角色一条当前值。 */
   readonly moods: readonly Mood[];
   readonly legends: readonly Legend[];
+  /**
+   * 逐日压后的时间轴（SOAK-BUG-5）。**可选**：v4 及更早的档没有这一段，
+   * 读档按空数组处理——空就是事实，不拿条目倒推一份假摘要。
+   */
+  readonly digests?: readonly DayDigest[];
   readonly placeNames: readonly {
     readonly placeId: string;
     readonly name: string;
@@ -309,6 +323,46 @@ export interface MemoryWorldSnapshot {
   readonly currentDay: number;
   readonly metToday: readonly (readonly [string, number])[];
 }
+
+/** 开局设定档案的注入输入：只写一条「读到档案」的记忆，不生成目击、断言或痕迹。 */
+export interface GenesisSeedInput {
+  readonly holderId: string;
+  readonly atMs: number;
+  readonly text: string;
+  readonly placeAt: { readonly x: number; readonly y: number };
+  readonly bonds: readonly {
+    readonly to: string;
+    readonly trust: number;
+    readonly warmth: number;
+    readonly debt: number;
+    readonly familiarity: number;
+  }[];
+}
+
+/**
+ * 日常照面：不靠「重要事件」也长关系的那条通道。
+ *
+ * 0.4 的门槛量的是**这件事重不重要**，不是**这两个人熟不熟**。打招呼、
+ * 让路、一起走一段都是 0.38，永远跨不过去——于是两个人天天见面，账本上
+ * 却永远是 0（30 天 360 次街头互动，`bondsOf()` 全空）。
+ *
+ * 这里给日常互动一条独立的、**按天结算**的小额累积：同一对一天里见几次
+ * 都只积一次，所以不会「聊一次就生死之交」；累积的目标是一个「熟识」
+ * 上限而不是满格，所以也不会「全员满格」。信任不动——见过面不等于信得过。
+ */
+const ACQUAINTANCE_KINDS = new Set(['street_greet', 'street_yield', 'street_together']);
+const ACQUAINTANCE_FAMILIARITY_CEIL = 0.75;
+const ACQUAINTANCE_WARMTH_CEIL = 0.4;
+/**
+ * 熟悉度不走日衰减（`decayBonds` 只收 trust/warmth），每天走近上限 4%：
+ * 30 天约 55%，90 天约 73%，永远到不了 1。
+ */
+const ACQUAINTANCE_FAMILIARITY_STEP = 0.04;
+/**
+ * warmth 会被 `decayBonds` 每天收 15%，所以入账的步子要大一些才能留下痕迹：
+ * 每天走近上限 20%，稳态约 0.23，30 天到约 0.22——有账，但离满格很远。
+ */
+const ACQUAINTANCE_WARMTH_STEP = 0.2;
 
 /**
  * 一台记忆世界。
@@ -401,6 +455,14 @@ export class MemoryWorld {
    */
   private turningPoints: TurningPoint[] = [];
   private legends: Legend[] = [];
+  /**
+   * 逐日的压后时间轴（SOAK-BUG-5，`digest.ts`）。**每天至多一条**，按 `day` 升序。
+   *
+   * 它独立于 `entries`：条目层的 `day` 桶每人只有 16 格，旧日片段会被挤掉，
+   * 而摘要是一天一条、不随人增长。它也不替代条目——近档仍读条目，摘要接的是
+   * 「条目被裁掉之后，那一天还能读出什么」。
+   */
+  private digests: DayDigest[] = [];
   /**
    * 每个地点此刻叫什么、改过几次名（协议 §11 的历史链）。
    *
@@ -598,6 +660,80 @@ export class MemoryWorld {
     this.birthClaim(fact, written, input.at);
 
     return { witnesses, written };
+  }
+
+  /**
+   * 开局把人物设定档案写进记忆。
+   *
+   * 这条**不是世界事件**：`source = genesis`、`kind = genesis_profile`，
+   * 只有当事人自己「读到」档案，`sourceMode = read`；不生成目击者、
+   * 不生成断言、不落痕迹，也不参与传言。重复调用按事件 id 幂等。
+   *
+   * 关系初值随同一条档案落账，证据指向同一条 genesis 事件，避免面板里
+   * "档案写了关系、关系账本却是空"的两套说法。
+   */
+  seedGenesis(input: GenesisSeedInput): boolean {
+    const eventId = `genesis:${input.holderId}`;
+    if (this.facts.has(eventId)) return false;
+    const day = Math.floor(input.atMs / this.config.dayMs);
+    const tick = input.atMs - day * this.config.dayMs;
+    const placeId = `genesis:${input.holderId}`;
+    const fact: WorldFact = {
+      eventId,
+      day,
+      tick,
+      kind: 'genesis_profile',
+      placeId,
+      actors: [input.holderId],
+      witnesses: [input.holderId],
+      outcome: { what: input.text, genesis: true },
+      visibility: 'world',
+      importanceHint: 0,
+      source: 'genesis',
+      parentEventId: null,
+      voice: { what: input.text, valence: 0, arousal: 0.15, detailLevel: 3 },
+    };
+    this.facts.set(eventId, fact);
+    this.placeAnchors.set(placeId, input.placeAt);
+
+    const base = this.makeEpisodic(input.holderId, fact, {
+      valence: 0,
+      arousal: 0.15,
+      salience: 0.55,
+      detailLevel: 3,
+    });
+    const entry: MemoryEntry = {
+      ...base,
+      tier: 'long',
+      sourceMode: 'read',
+      sourceChain: [],
+      strength: 1,
+      confidence: 1,
+    };
+    this.entries.push(entry);
+    for (const bond of input.bonds) {
+      if (bond.to === input.holderId) continue;
+      this.bonds.set(this.bondKey(input.holderId, bond.to), {
+        from: input.holderId,
+        to: bond.to,
+        trust: clampBond(bond.trust),
+        warmth: clampBond(bond.warmth),
+        debt: clampBond(bond.debt),
+        familiarity: clamp01(bond.familiarity),
+        strength: clamp01(Math.max(bond.familiarity, Math.abs(bond.trust), Math.abs(bond.warmth))),
+        confidence: 1,
+        evidence: [eventId],
+        updatedDay: day,
+      });
+      this.refreshRelation(input.holderId, bond.to);
+    }
+    this.emit('memory.written', input.atMs, {
+      memoryId: entry.memoryId,
+      holderId: input.holderId,
+      eventRefs: entry.eventRefs,
+      salience: entry.salience,
+    });
+    return true;
   }
 
   /**
@@ -1389,6 +1525,8 @@ export class MemoryWorld {
     // 而证据链仍指着原事件。当天刚写过的那条不衰减——否则「今天结下的
     // -0.22」在当天关账时就变成 -0.187，日读数会把两天的变化混成一天。
     this.decayBonds(closedDay);
+    // 衰减之后再记今天的日常照面：当天见过的那一对，`updatedDay` 落在今天。
+    this.accrueDailyAcquaintance(closedDay);
     this.diffuseDay(at);
     this.weatherTraces(closedDay);
 
@@ -1400,20 +1538,35 @@ export class MemoryWorld {
     this.updateMoods(closedDay, at);
 
     const ids = this.holderIds();
+    const archivedBefore = new Set(
+      this.entries.filter((entry) => entry.archived).map((entry) => entry.memoryId),
+    );
     for (const holderId of ids) {
       const result = consolidateHolder(holderId, this.entries, closedDay, this.config, this.facts);
       this.entries = [...result.entries] as MemoryEntry[];
       this.emit('memory.consolidated', at, { holderId, day: closedDay, stats: result.stats });
-      const archived = this.entries.filter((entry) => entry.holderId === holderId && entry.archived);
-      for (const entry of archived) {
-        this.emit('memory.archived', at, { memoryId: entry.memoryId });
-      }
+    }
+    // **只报这一天才归档的。** 原先这里每天把全部已归档条目重发一遍：
+    // 一条第 40 天归档的碑文，到第 90 天会被报 50 次，累计计数于是变成
+    // 「归档过多少条 × 又过了多少天」，读数没法用来判断清理是否生效。
+    for (const entry of this.entries) {
+      if (!entry.archived || archivedBefore.has(entry.memoryId)) continue;
+      this.emit('memory.archived', at, { memoryId: entry.memoryId, holderId: entry.holderId });
     }
 
     // 日报先贴，传说后算：公告也是一条「有人知道了」的路，而传说分不出
     // 也不该分他是从公告栏知道的还是从邻居那儿听来的。
     this.postDailyReport(closedDay, at);
     this.updateLegends(closedDay, at);
+
+    // **当天的时间轴要压在「今天最后一次写库」之后、预算之前。**
+    // 刻碑（`updateLegends`）也会给在场的人各记一条当天条目——它属于
+    // 「那天的时间轴」，但不在活动的片段里。压在刻碑之后，摘要的拍子数
+    // 才等于当天应有的条数；压在预算之前，才不会被旧日片段的裁剪带跑。
+    this.writeDayDigest(closedDay);
+    // 预算在传说之后：刻碑是今天最后一件往库里写字的事，落在预算外面就
+    // 要等明天才被裁，而读数取的是当天末。
+    this.enforceBudgets(closedDay, at);
     const vitals = computeVitals({
       day: closedDay,
       memories: this.entries,
@@ -1433,6 +1586,228 @@ export class MemoryWorld {
     // 心电图向外广播。本组不读它做任何决定——那是导演的事。
     this.emit('day.closed', at, { ...vitals });
     return vitals;
+  }
+
+  // ---------------------------------------------------------------- 预算
+
+  /**
+   * 关账的最后一道闸：每一个库都按「条数 + 字节」裁到预算内，并留下可查的痕迹。
+   *
+   * **为什么要有这一层。** 整理（`consolidateHolder`）只裁条目层的四个桶；
+   * 事实、断言、信念、冷却、传话记录、日记这六个库原先一条预算都没有。30 日
+   * 实测它们合计 945 KB（占记忆 65%），日均 +38 KB，而条目层的增长只有 +12 KB。
+   * 也就是说「存档越来越大」的主体不在整理路径上，任何只在整理里加阈值的
+   * 修法都拦不住它。
+   *
+   * **裁的顺序不是随意的**，每一个库都按它自己的价值轴：
+   * - `facts`：重要度 → 新 → id。一条拆楼留得比一条打水久。
+   * - `claims`：置信度 → 新。说不清的事先忘。
+   * - `beliefs`：置信度 → 新。同一个人对同一件事只留他知道得最清楚的那几条。
+   * - `cooldowns`：纯新旧。它只管「这会儿能不能再说」，过期就是过期。
+   * - `tells`：纯新旧。心电图只看最近三天。
+   * - `written`：纯新旧。日记与书信是有日期的记录，裁得掉旧的，裁不掉的事实。
+   * - `legends`（镇志条目）：传播面 → 新。讲得最广的那条传说最后才淡。
+   *
+   * **裁掉事实会被看见。** 条目里的 `eventRefs` 指向一条已经不在的事实库的
+   * 事件，面板读到的地点/当事人/说法三样都变成「不知道」——`dayTimelineFor`
+   * 已经按 null 返回，`unit-status` 写成「地点不明」「时刻不明」。这条路径
+   * 在这之前一次都没被走过，因为事实从来不删。
+   */
+  private enforceBudgets(day: number, at: number): void {
+    const entryTrim = trimEntriesToBudget(this.entries, this.config);
+    if (entryTrim.byCount + entryTrim.byBytes > 0) {
+      this.entries = entryTrim.kept as MemoryEntry[];
+      this.emitPruned(day, at, 'entries', entryTrim.byCount, entryTrim.byBytes, entryTrim.countOver, entryTrim.bytesOver, this.entries.length);
+    }
+
+    const facts = this.trimRecords([...this.facts.values()], this.config.libraryBudget.facts, (a, b) => {
+      const ia = a.importanceHint ?? 0;
+      const ib = b.importanceHint ?? 0;
+      if (ia !== ib) return ib - ia;
+      if (a.day !== b.day) return b.day - a.day;
+      return a.eventId.localeCompare(b.eventId);
+    });
+    if (facts.byCount + facts.byBytes > 0) {
+      const keep = new Set(facts.kept.map((fact) => fact.eventId));
+      for (const eventId of [...this.facts.keys()]) {
+        if (!keep.has(eventId)) this.facts.delete(eventId);
+      }
+      this.emitPruned(day, at, 'facts', facts.byCount, facts.byBytes, facts.countOver, facts.bytesOver, this.facts.size);
+    }
+
+    const claims = this.trimRecords([...this.claims.values()], this.config.libraryBudget.claims, (a, b) => {
+      if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+      if (a.createdDay !== b.createdDay) return b.createdDay - a.createdDay;
+      return a.claimId.localeCompare(b.claimId);
+    });
+    if (claims.byCount + claims.byBytes > 0) {
+      const keep = new Set(claims.kept.map((claim) => claim.claimId));
+      for (const claimId of [...this.claims.keys()]) {
+        if (!keep.has(claimId)) this.claims.delete(claimId);
+      }
+      this.emitPruned(day, at, 'claims', claims.byCount, claims.byBytes, claims.countOver, claims.bytesOver, this.claims.size);
+    }
+
+    const beliefs = this.trimRecords(this.beliefs, this.config.libraryBudget.beliefs, (a, b) => {
+      if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+      if (a.learnedDay !== b.learnedDay) return b.learnedDay - a.learnedDay;
+      if (a.holderId !== b.holderId) return a.holderId.localeCompare(b.holderId);
+      return a.claimId.localeCompare(b.claimId);
+    });
+    if (beliefs.byCount + beliefs.byBytes > 0) {
+      this.beliefs = beliefs.kept;
+      this.reindexBeliefs();
+      this.emitPruned(day, at, 'beliefs', beliefs.byCount, beliefs.byBytes, beliefs.countOver, beliefs.bytesOver, this.beliefs.length);
+    }
+
+    const cooldowns = this.trimRecords(this.cooldowns, this.config.libraryBudget.cooldowns, (a, b) => {
+      if (a.atMs !== b.atMs) return b.atMs - a.atMs;
+      if (a.pairKey !== b.pairKey) return a.pairKey.localeCompare(b.pairKey);
+      return (a.claimId ?? '').localeCompare(b.claimId ?? '');
+    });
+    if (cooldowns.byCount + cooldowns.byBytes > 0) {
+      this.cooldowns = cooldowns.kept;
+      this.reindexCooldowns();
+      this.emitPruned(day, at, 'cooldowns', cooldowns.byCount, cooldowns.byBytes, cooldowns.countOver, cooldowns.bytesOver, this.cooldowns.length);
+    }
+
+    const tells = this.trimRecords(this.tells, this.config.libraryBudget.tells, (a, b) => {
+      if (a.day !== b.day) return b.day - a.day;
+      if (a.from !== b.from) return a.from.localeCompare(b.from);
+      return a.claimId.localeCompare(b.claimId);
+    });
+    if (tells.byCount + tells.byBytes > 0) {
+      // `tells` 是 readonly 字段：就地换内容，不换数组本身。
+      this.tells.length = 0;
+      this.tells.push(...tells.kept);
+      this.emitPruned(day, at, 'tells', tells.byCount, tells.byBytes, tells.countOver, tells.bytesOver, this.tells.length);
+    }
+
+    const written = this.trimRecords(this.written, this.config.libraryBudget.written, (a, b) => {
+      if (a.writtenDay !== b.writtenDay) return b.writtenDay - a.writtenDay;
+      return a.recordId.localeCompare(b.recordId);
+    });
+    if (written.byCount + written.byBytes > 0) {
+      this.written = written.kept;
+      this.emitPruned(day, at, 'written', written.byCount, written.byBytes, written.countOver, written.bytesOver, this.written.length);
+    }
+
+    // 传说先按「传得多远」留，同 reach 时**留更早立起来的**。
+    // 原来是 `formedDay` 倒序（留最新），结果同一 reach 下世界最早的那批
+    // 碑文先被裁掉——90 天里早期传说整批消失，"岁月感"就是从这里漏的。
+    // 同 reach 意味着同样重要；同样重要时，越早的事越该留下。
+    const legends = this.trimRecords(this.legends, this.config.libraryBudget.legends, (a, b) => {
+      if (a.reach !== b.reach) return b.reach - a.reach;
+      if (a.formedDay !== b.formedDay) return a.formedDay - b.formedDay;
+      return a.legendId.localeCompare(b.legendId);
+    });
+    if (legends.byCount + legends.byBytes > 0) {
+      this.legends = legends.kept;
+      this.emitPruned(day, at, 'legends', legends.byCount, legends.byBytes, legends.countOver, legends.bytesOver, this.legends.length);
+    }
+
+    // 日摘要的淘汰顺序见 `digest.ts` 的 `digestRank`：开天前 30 天保底，
+    // 其余按「有争执/异常/大事 → 有事 → 空白」排，同权留更近的。
+    // 不按「最旧优先」——那正是 `legend` 改前犯过的错。
+    const digests = this.trimRecords(
+      this.digests,
+      this.config.libraryBudget.digests,
+      digestRank,
+    );
+    if (digests.byCount + digests.byBytes > 0) {
+      this.digests = digests.kept.sort((a, b) => a.day - b.day);
+      this.emitPruned(day, at, 'digests', digests.byCount, digests.byBytes, digests.countOver, digests.bytesOver, this.digests.length);
+    }
+  }
+
+  /**
+   * 一份记录按「条数 + 字节」裁到预算内。两个上限都先看，超了才排序——
+   * 没超的时候连一次排序都不做，稳态下这是每库一次长度判断。
+   */
+  private trimRecords<T extends object>(
+    items: readonly T[],
+    budget: LayerBudget,
+    rank: (a: T, b: T) => number,
+  ): { kept: T[]; byCount: number; byBytes: number; countOver: number; bytesOver: number } {
+    if (items.length === 0) {
+      return { kept: [], byCount: 0, byBytes: 0, countOver: 0, bytesOver: 0 };
+    }
+    let total = 0;
+    let overBytes = false;
+    for (const item of items) {
+      total += byteSizeOf(item);
+      if (total > budget.bytes) {
+        overBytes = true;
+        break;
+      }
+    }
+    const countOver = Math.max(0, items.length - budget.count);
+    if (items.length <= budget.count && !overBytes) {
+      return { kept: [...items], byCount: 0, byBytes: 0, countOver: 0, bytesOver: 0 };
+    }
+    const ranked = [...items].sort(rank);
+    const kept: T[] = [];
+    let bytes = 0;
+    let countHit = false;
+    for (const item of ranked) {
+      if (kept.length >= budget.count) {
+        countHit = true;
+        break;
+      }
+      const size = byteSizeOf(item);
+      if (bytes + size > budget.bytes) break;
+      bytes += size;
+      kept.push(item);
+    }
+    const evicted = items.length - kept.length;
+    // 第二遍**忽略条数上限**，只看字节：答「如果条数不限，光字节会裁掉几条」。
+    // 与 countOver 一起，两个数回答的是两个不同的问题，不再二选一。
+    let bytesOnly = 0;
+    let bytesOnlyKept = 0;
+    for (const item of ranked) {
+      const size = byteSizeOf(item);
+      if (bytesOnly + size > budget.bytes) break;
+      bytesOnly += size;
+      bytesOnlyKept += 1;
+    }
+    const bytesOver = items.length - bytesOnlyKept;
+    return {
+      kept,
+      byCount: countHit ? evicted : 0,
+      byBytes: countHit ? 0 : evicted,
+      countOver,
+      bytesOver,
+    };
+  }
+
+  /**
+   * 「淘汰过什么」的可查痕迹。**每层每天至多一条**，带条数、字节、原因与剩余量。
+   *
+   * 为什么不只留一个计数：计数说「丢了 40 条」，但答不出「因为条数还是因为
+   * 字节」「丢完之后那一层还剩多少」。这两个数决定下一步该调哪个旋钮——
+   * 条数超了调 `count`，字节超了看条目为什么变大。
+   */
+  private emitPruned(
+    day: number,
+    at: number,
+    layer: string,
+    byCount: number,
+    byBytes: number,
+    countOver: number,
+    bytesOver: number,
+    remaining: number,
+  ): void {
+    this.emit('memory.pruned', at, {
+      day,
+      layer,
+      evicted: byCount + byBytes,
+      byCount,
+      byBytes,
+      countOver,
+      bytesOver,
+      reason: byCount > 0 ? 'count' : 'bytes',
+      remaining,
+    });
   }
 
   // ---------------------------------------------------------------- 删除
@@ -1481,7 +1856,13 @@ export class MemoryWorld {
     for (const claimId of claims.removed) this.claims.delete(claimId);
 
     // 事件根才拿事实。记忆与断言被删时，别的事件还好好在那儿。
-    if (root.kind === 'event') this.facts.delete(root.id);
+    if (root.kind === 'event') {
+      this.facts.delete(root.id);
+      // 摘要里那条拍子也要摘掉：删掉的事件不该借着日摘要复活。
+      this.digests = this.digests
+        .map((digest) => stripDigestEvent(digest, root.id))
+        .filter((digest): digest is DayDigest => digest !== null);
+    }
 
     const counts = {
       memories: cascaded.report.removedMemoryIds.length,
@@ -1762,6 +2143,63 @@ export class MemoryWorld {
   }
 
   /**
+   * 结算当天的日常照面。每对每天至多一次，证据指向当天那一条街头事件。
+   *
+   * 只认 `street_greet / street_yield / street_together`——它们是「见过」
+   * 这一档，不是「出过事」那一档。已经有积怨（warmth < 0）的一对不靠
+   * 天天见面自动和好：那得靠 0.4 以上的事件。
+   */
+  private accrueDailyAcquaintance(closedDay: number): void {
+    const seen = new Set<string>();
+    for (const fact of this.facts.values()) {
+      if (fact.day !== closedDay || !ACQUAINTANCE_KINDS.has(fact.kind)) continue;
+      const pair = this.characterPair(fact.actors);
+      if (pair === null) continue;
+      const key = pairKey(pair[0], pair[1]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      this.touchAcquaintance(pair[0], pair[1], closedDay, fact.eventId);
+      this.touchAcquaintance(pair[1], pair[0], closedDay, fact.eventId);
+    }
+  }
+
+  private characterPair(actors: readonly string[]): readonly [string, string] | null {
+    const characters = actors.filter((id) => this.holders.get(id)?.type === 'character');
+    if (characters.length < 2) return null;
+    return [characters[0]!, characters[1]!];
+  }
+
+  private touchAcquaintance(from: string, to: string, day: number, eventId: string): void {
+    if (from === to) return;
+    const key = this.bondKey(from, to);
+    const current = this.bonds.get(key);
+    // 负 warmth 是「有过节」，不是「不熟」；日常照面不能把它抹平。
+    if (current !== undefined && current.warmth < 0) return;
+    const familiarity = clamp01(
+      (current?.familiarity ?? 0) +
+        (ACQUAINTANCE_FAMILIARITY_CEIL - (current?.familiarity ?? 0)) * ACQUAINTANCE_FAMILIARITY_STEP,
+    );
+    const warmth = clampBond(
+      (current?.warmth ?? 0) +
+        (ACQUAINTANCE_WARMTH_CEIL - (current?.warmth ?? 0)) * ACQUAINTANCE_WARMTH_STEP,
+    );
+    const evidence = [eventId, ...(current?.evidence ?? []).filter((id) => id !== eventId)].slice(0, 8);
+    this.bonds.set(key, {
+      from,
+      to,
+      trust: current?.trust ?? 0,
+      warmth,
+      debt: current?.debt ?? 0,
+      familiarity,
+      strength: clamp01(Math.max(familiarity, Math.abs(current?.trust ?? 0), Math.abs(warmth))),
+      confidence: current?.confidence ?? 0.6,
+      evidence,
+      updatedDay: day,
+    });
+    this.refreshRelation(from, to);
+  }
+
+  /**
    * 日终把关系读数往 0 收：与记忆强度同一条 `decayRate`（0.15/天），
    * 所以 `-0.22` 的 trust 会按 -0.187、-0.159、-0.135… 一路回到阈值内。
    *
@@ -1864,6 +2302,7 @@ export class MemoryWorld {
     readonly actors: readonly string[];
     readonly what: string;
     readonly day: number;
+    /** 事件发生的时刻（ms）。日摘要只存拍序不存时刻，这一项给它兜底排序。 */
     readonly tick: number;
   } | null {
     const fact = this.facts.get(eventId);
@@ -1875,6 +2314,28 @@ export class MemoryWorld {
       day: fact.day,
       tick: fact.tick,
     };
+  }
+
+  /** 某天的日摘要。那天没有被压过就返回 `null`——「没有记录」不是「无事发生」。 */
+  dayDigestOf(day: number): DayDigest | null {
+    return this.digests.find((digest) => digest.day === day) ?? null;
+  }
+
+  /** 全部日摘要（按天升序，只读给审计与面板）。 */
+  dayDigests(): readonly DayDigest[] {
+    return [...this.digests];
+  }
+
+  /**
+   * 某个人在某天的压后时间轴。**摘要只为「条目已被裁掉的那一天」兜底**：
+   * 近档仍以条目为准（调用方先读条目，空了再来这里）。
+   */
+  digestTimelineFor(
+    holderId: string,
+    day: number,
+  ): readonly { readonly eventId: string; readonly kind: string; readonly placeId: string | null }[] {
+    const digest = this.dayDigestOf(day);
+    return digest === null ? [] : digestTimelineOf(digest, holderId);
   }
 
   /** 这个人的方向性关系（只含 from=他自己）。只读副本，按 to 排序。 */
@@ -2466,6 +2927,28 @@ export class MemoryWorld {
   }
 
   /**
+   * 把刚关账的那一天压成一条日摘要（SOAK-BUG-5）。
+   *
+   * 位置在整理之后、预算之前：整理已经把当天的片段收拢，预算还没裁掉任何
+   * 旧日片段，此时压出来的 `beats` 才等于「当天应有条数」。
+   *
+   * 三档浓度：每天先按全量写；**天龄超 `DIGEST_FULL_DAYS` 的旧摘要当场压缩**
+   * （清地点表与异常原句，事件只留 id + kind）。压缩是幂等的，重复关账不会
+   * 把同一天压两遍。
+   */
+  private writeDayDigest(day: number): void {
+    const digest = buildDayDigest(day, this.entries, this.facts);
+    if (digest === null) return;
+    // 每天至多一条：同一天重写时替换，不追加。
+    this.digests = this.digests.filter((item) => item.day !== day);
+    this.digests.push(digest);
+    this.digests.sort((a, b) => a.day - b.day);
+    this.digests = this.digests.map((item) =>
+      shouldCompact(item, day) ? compactDayDigest(item) : item,
+    );
+  }
+
+  /**
    * 日终写日记。协议第 7 节把日记列为整理的**表现产物**之一——
    * 一个世界过了一天，该有人把今天的事记下来。
    *
@@ -3020,6 +3503,7 @@ export class MemoryWorld {
       bonds: [...this.bonds.values()],
       moods: [...this.moods.values()],
       legends: [...this.legends],
+      digests: [...this.digests],
       placeNames: [...this.placeNames.entries()].map(([placeId, toponym]) => ({
         placeId,
         name: toponym.name,
@@ -3098,6 +3582,8 @@ export class MemoryWorld {
     for (const mood of snapshot.moods ?? []) this.moods.set(mood.holderId, { ...mood, because: [...mood.because] });
 
     this.legends = [...snapshot.legends];
+    // v4 及更早的档没有日摘要这一段。空就是事实：那段历史没压过，不拿条目倒推。
+    this.digests = [...(snapshot.digests ?? [])];
 
     this.placeNames.clear();
     for (const entry of snapshot.placeNames) {
@@ -3200,6 +3686,7 @@ function cloneEpic(epic: EpicEntry): EpicEntry {
 /** 事实里没有 `what` 时，按 kind 给一句。只用于世界侧自己发的事件。 */
 const DEFAULT_WHAT: Readonly<Record<string, string>> = {
   task_done: '有人交了一单活',
+  delivery_failed: '有人饿着没把活送到',
   celebration: '有人庆祝了一件事',
   conflict: '有人起了争执',
   milestone: '达成了一个里程碑',

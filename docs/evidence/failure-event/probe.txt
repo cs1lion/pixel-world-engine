@@ -1,0 +1,34 @@
+交付失败事件 —— 取证读数
+========================
+
+outer-two-days
+  世界指纹（两跑）  a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964
+                     a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964
+  记忆指纹          fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+  造物指纹          c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+  事件              50 条（其中失败事件 0 条）
+  失败账            0 条；日报「没办成」0 行；逐项一致：是
+  记忆事实          47 条（delivery_failed 0 条）
+  outcome fail/deny 0/47 = 0.0%
+  记忆条目          45 条
+
+night-rain-build
+  世界指纹（两跑）  6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075
+                     6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075
+  记忆指纹          null
+  造物指纹          null
+  事件              6 条（其中失败事件 0 条）
+  失败账            0 条；日报「没办成」0 行；逐项一致：是
+  记忆事实          0 条（delivery_failed 0 条）
+  outcome fail/deny 0/0 = —
+  记忆条目          0 条
+
+专项场景（饿到顶 → 失败 → 吃一口 → 第二单成功）
+  失败事件          1 条（还没吃饭时）
+  失败账            1 条；日报「没办成」1 行；逐项一致：是
+  记忆事实          1 条（delivery_failed 1 条）
+  outcome fail/deny 1/1
+  目击者记忆条目    2 条（看见：v0,v1；只听到：—）
+  吃饭后失败事件    1 条；失败账 1 条；第二单 done
+  同种子两跑世界指纹 0717c0313ac2adfe0355107cb572f46478e42ab0a328bd72bb2ef14c6b3a3e65
+                   0717c0313ac2adfe0355107cb572f46478e42ab0a328bd72bb2ef14c6b3a3e65；逐字相同：是

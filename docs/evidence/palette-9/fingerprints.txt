@@ -1,0 +1,26 @@
+三枚指纹（2026-11-05，改边框色之后）
+
+命令：npm run trace:replay
+轨迹：traces/outer-two-days.json（pwe-trace/2）
+基线：traces/outer-baseline-v5.json（world.now=90000000，存档仍是 v5）
+
+世界指纹		a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964
+世界指纹（第二次）a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964
+两次逐字相同：是；与录制一致：是
+
+记忆指纹		fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+两次逐字相同：是；与录制一致：是
+
+造物指纹		c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+两次逐字相同：是；与录制一致：是
+
+事件：50 条（录制 50 条），摘要一致：是
+业务读数：{"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0},"eventCount":50}
+结论：replayable。三枚指纹与基线逐字相同——改的是 `<style>` 里的 UI 源色，
+没碰世界源色、没碰模拟与存档。
+
+对照上一块（入口改造）基线：
+
+世界	a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964	不变
+记忆	fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7	不变
+造物	c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d	不变

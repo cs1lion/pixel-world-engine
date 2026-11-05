@@ -16,7 +16,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm ci
+      # `npm test` 里有真实服务联调用例（creation-ledger-server.integration）：
+      # 自己在测试里起 `python -m uvicorn`，缺 uvicorn 会「服务进程提前退出」红。
+      - run: pip install -r ../server/requirements.txt
       - run: npm run check
       - run: npm test
       - run: npm run build
@@ -32,7 +38,7 @@ jobs:
       # 「§6 缺口 2」都是这一类，两处都靠人 review 才发现，没有任何机关会红。
       - run: node scripts/audit-sections.ts --strict
       # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
-      # 这里按固定探针复算；同时校验 8 份 ADR 的 status/evidence。
+      # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
       - run: node scripts/audit-claims.ts --strict
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
@@ -70,6 +76,27 @@ jobs:
             git status
             exit 1
           fi
+
+  # 仓库级手续：钩子自检与 worktree 登记巡检。只用 node 内置模块，不需要 npm ci。
+  repo-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # 新 clone / 新机器不会继承 core.hooksPath，钩子会安静地失效。这一步故意先跑一次：
+      # 未安装时把 `hooks: FAIL core.hooksPath=(unset)` 原样打进日志，不让它无声无息。
+      - name: 钩子自检（安装前读数）
+        run: npm run check:hooks || echo "::notice title=check:hooks::新 clone 未继承 core.hooksPath（预期）；下一步安装后必须 OK"
+      # 安装后必须 OK，否则 pre-push 的 main 保护形同不存在，这里直接红。
+      - name: 安装钩子并复核
+        run: |
+          git config core.hooksPath .githooks
+          npm run check:hooks
+      # 非 --strict：CI 里 main worktree 的绝对路径与登记表不同，严格模式会误红。
+      - name: worktree 登记巡检
+        run: npm run worktrees:audit
 
   server:
     runs-on: ubuntu-latest

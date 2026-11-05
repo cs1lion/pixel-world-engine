@@ -1,6 +1,6 @@
 /** D6-A 调色板预算的回归门禁。
  *
- * 目标：世界 24 色、UI 8 色、共享 1、并集 31。
+ * 目标：世界 24 色、UI 9 色、共享 1、并集 32。
  * 2026-10-21 用户批准 24 色 ADR（`docs/adr/ADR_PALETTE_24.md`），新增 W17–W24。
  * （原文在这两句各挂了一个「ART_PALETTE_AUDIT §5.3 第 6 步」的出处——那份文档
  * 在仓库里不存在，全仓 4 处命中全是引用、零处定义。出处删了，目标照留。）
@@ -19,9 +19,9 @@ import { parseBlueprint, parseBlueprintTable, BlueprintError } from '../src/worl
 import { buildWorld, buildWorldFromSave } from '../src/world/setup.ts';
 
 const WORLD_BUDGET = 24;
-const UI_BUDGET = 8;
-/** 世界 24 + UI 8 − 共享 1（#e3a13c）= 31。 */
-const UNION_BUDGET = 31;
+const UI_BUDGET = 9;
+/** 世界 24 + UI 9 − 共享 1（#e3a13c）= 32。 */
+const UNION_BUDGET = 32;
 
 const readText = (rel: string): string => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
@@ -58,9 +58,9 @@ test('世界层正好 24 个源色，且没有重复值', () => {
   assert.equal(new Set(values).size, WORLD_BUDGET, '世界 24 色里有重复值');
 });
 
-test('UI 层正好 8 个源色', () => {
+test('UI 层正好 9 个源色', () => {
   const colors = uiSourceColors();
-  assert.equal(colors.length, UI_BUDGET, `UI 预算 8 色，实际 ${colors.join(', ')}`);
+  assert.equal(colors.length, UI_BUDGET, `UI 预算 9 色，实际 ${colors.join(', ')}`);
 });
 
 /** 这张表逐字抄在这里：色数对但换值也必须变红。
@@ -99,6 +99,7 @@ const PROPOSED_UI = [
   '#24211b',
   '#8e968c',
   '#171b18',
+  '#666a62',
   '#2b322c',
   '#e3a13c',
   '#0c0f0d',
@@ -110,16 +111,16 @@ test('WORLD 的每个 token 值都等于提案 24 色（换值必须变红）', 
   assert.deepEqual(actual, PROPOSED_WORLD, 'WORLD 的 token 名或色值偏离了提案 24 色');
 });
 
-test('UI 的源色集合等于提案 8 色（换值必须变红）', () => {
-  assert.deepEqual([...uiSourceColors()].sort(), [...PROPOSED_UI].sort(), 'UI 色值偏离了提案 8 色');
+test('UI 的源色集合等于提案 9 色（换值必须变红）', () => {
+  assert.deepEqual([...uiSourceColors()].sort(), [...PROPOSED_UI].sort(), 'UI 色值偏离了提案 9 色');
 });
 
-test('世界与 UI 只共享 #e3a13c，并集 31', () => {
+test('世界与 UI 只共享 #e3a13c，并集 32', () => {
   const world = new Set(Object.values(WORLD).map(hex));
   const ui = new Set(uiSourceColors());
   const shared = [...ui].filter((color) => world.has(color));
   assert.deepEqual(shared, [hex(WORLD.amber)], `共享色只能是琥珀，实际 ${shared.join(', ')}`);
-  assert.equal(new Set([...world, ...ui]).size, UNION_BUDGET, '并集应为 24 + 8 − 1 = 31');
+  assert.equal(new Set([...world, ...ui]).size, UNION_BUDGET, '并集应为 24 + 9 − 1 = 32');
 });
 
 test('render/scenes 里不再有 canvas 颜色字面量（只许引用 WORLD）', () => {

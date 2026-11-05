@@ -14,6 +14,17 @@ export function bindShell(): void {
   const debug = params.get('debug') === '1' || params.get('debug') === '';
   if (maintenance !== null) maintenance.hidden = !debug;
 
+  // 开场提示收起：第一次提交神谕、或第一次点画布。两个都是**可枚举的用户动作**，
+  // 不用计时器、不依赖帧，也不做淡出过渡——收起只发生在用户真的动手之后。
+  const hint = document.querySelector<HTMLElement>('#entry-hint');
+  if (hint !== null) {
+    const dismiss = (): void => {
+      hint.hidden = true;
+    };
+    document.querySelector<HTMLFormElement>('#oracle')?.addEventListener('submit', dismiss, { once: true });
+    document.querySelector<HTMLElement>('#stage')?.addEventListener('pointerdown', dismiss, { once: true });
+  }
+
   const input = document.querySelector<HTMLInputElement>('#utterance');
   if (input === null) return;
 

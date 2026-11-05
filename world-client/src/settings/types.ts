@@ -1,6 +1,7 @@
 /** 一套设定集的外部数据。运行时由 loadSettingPack 校验、编译。 */
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
+import type { VillagerArchive } from '../world/villager-archive.ts';
 import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
 
@@ -29,6 +30,8 @@ export interface SettingVillager {
   readonly at: GridPoint;
   readonly routine: readonly SettingRoutineStop[];
   readonly style?: SettingVillagerStyle;
+  /** 主要人物才有：面板可读、开局注入记忆的设定档案。 */
+  readonly archive?: VillagerArchive;
 }
 
 /**
@@ -45,6 +48,7 @@ export interface CompiledVillager {
   readonly routine: readonly SettingRoutineStop[];
   readonly style?: SettingVillagerStyle;
   readonly carries: readonly CarryItem[];
+  readonly archive?: VillagerArchive;
 }
 
 export interface SettingScenery {
@@ -68,6 +72,27 @@ export interface SettingScenery {
     | 'shopfront'
     /** 灯街的竖招牌：木柱 + 竖板 + 三个自造字块。 */
     | 'signpost'
+    /**
+     * 设定集场景补绘（2026-11-03）：清单、页码与形制见
+     * `settings/dengchao/scene-artbook.ts`。这些都是装饰构件，不占地、不接活。
+     * - `boiler`：炉底入口旁的砖砌炉膛、烟道与烟囱；
+     * - `coal_heap`：炉前煤堆与木桶；
+     * - `quay`：渡口石砌突堤与下水踏步；
+     * - `steps`：街面石阶；
+     * - `drain`：街面石沟与铁格栅；
+     * - `shopfront_gable`：带弧形山墙与圆窗的店铺立面；
+     * - `ridge`：水对岸的屋脊线与山影；
+     * - `far_tower`：对岸的钟塔剪影。
+     */
+    | 'boiler'
+    | 'coal_heap'
+    | 'quay'
+    | 'steps'
+    | 'drain'
+    | 'street_paving'
+    | 'shopfront_gable'
+    | 'ridge'
+    | 'far_tower'
     /**
      * 碑：镇心旁边的一块矮石板，世界共识刻在上面。
      *

@@ -92,6 +92,46 @@ test('缩放时守住视野原点，而不是守住 scrollX', () => {
   assert.notEqual(cam.scrollX, 100, 'scrollX 必须跟着倍率改，否则就是原来那个 bug');
 });
 
+// ------------------------------------------------------------------ 捏合锚点
+
+/** 屏幕 `x` 处看到的世界坐标（用相机四件套算，与场景的命中口径相同）。 */
+function worldAt(cam: { scrollX: number; width: number; zoom: number }, screenX: number): number {
+  return viewOriginOf(cam.scrollX, cam.width, cam.zoom) + screenX / cam.zoom;
+}
+
+test('zoomStepAt 以屏幕点为锚：中点锚时 scroll 不动', () => {
+  const { ctl, cam } = harness({ zoomIndex: 2 });
+  ctl.zoomStepAt(1, cam.width / 2, cam.height / 2);
+  assert.equal(cam.zoom, 3, '捏合放大要真的换档');
+  assert.equal(cam.scrollX, 0, '锚点在正中时不该有额外位移');
+});
+
+test('zoomStepAt 以左侧为锚：放大后屏幕左边缘下的世界坐标不漂', () => {
+  const { ctl, cam } = harness({ zoomIndex: 2 });
+  const before = worldAt(cam, 0);
+  ctl.zoomStepAt(1, 0, 0);
+  assert.equal(cam.zoom, 3);
+  assert.ok(Math.abs(worldAt(cam, 0) - before) < 1e-9, `左边缘的世界坐标漂了：${before} → ${worldAt(cam, 0)}`);
+  // 屏幕 0 处为锚、2→3 倍：scroll 要减 40（480/6 - 480/4）。
+  assert.equal(cam.scrollX, -40);
+});
+
+test('zoomStepAt 到顶后继续捏合：zoom 与 scroll 都不动', () => {
+  const { ctl, cam } = harness({ zoomIndex: 3 });
+  const scroll = (cam.scrollX = 50);
+  ctl.zoomStepAt(1, 10, 10);
+  assert.equal(cam.zoom, 3, '已经在顶，不该出现第 4 档');
+  assert.equal(cam.scrollX, scroll, '到顶还继续推锚点，会让画面慢慢漂走');
+});
+
+test('zoomStepAt 与滚轮共用同一套档位：放大一格就是 2→3', () => {
+  const { ctl, cam } = harness({ zoomIndex: 2 });
+  ctl.zoomStepAt(1, 240, 160);
+  assert.equal(cam.zoom, 3);
+  ctl.zoomStepAt(-1, 240, 160);
+  assert.equal(cam.zoom, 2, '捏合缩回也要回到滚轮的那一档，不是另造一个倍数');
+});
+
 // ------------------------------------------------------------------ 模式
 
 test('没跟过任何人时，「跟随」按了也不动', () => {

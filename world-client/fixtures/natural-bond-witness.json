@@ -1,0 +1,329 @@
+{
+  "format": "pwe-fixture/1",
+  "fixtureVersion": 1,
+  "name": "natural-bond-witness",
+  "purpose": "灯潮界夜班：一条真实意图让一名居民在户外交付，旁边六人目击，关系与情绪真的变化；同日关账。",
+  "expectedMs": 348,
+  "covers": [
+    "自然关系形成：v1 在户外完成原地交付，v2–v6 作为目击者真的产生 bond（不是 memory 注入）",
+    "bond.trust 与 mood.valence 的实际值可读回",
+    "跨日关账（第 0 天 → 第 1 天）走真实 MemoryRuntime.tick"
+  ],
+  "doesNotCover": [
+    "自然负面关系：世界事件里只有 task_done（valence +0.3）与 importance 0.35 的日常小事带 actor，够不着观测门槛，负向关系只能靠 memory 注入构造",
+    "关系经对话/广播传播：本夹具只看目击，不触发 talk/broadcast",
+    "长期关系演化：只跨一天，看不到衰减与再确认"
+  ],
+  "trace": {
+    "format": "pwe-trace/2",
+    "traceVersion": 2,
+    "description": "夹具 natural-bond-witness：灯潮界夜班：一条真实意图让一名居民在户外交付，旁边六人目击，关系与情绪真的变化；同日关账。",
+    "worldId": "dengchao",
+    "worldSeed": "fixture-natural-bond",
+    "initialNow": 85800000,
+    "stepMs": 60000,
+    "steps": 12,
+    "eventRange": {
+      "from": 0,
+      "to": 6
+    },
+    "injections": [
+      {
+        "seq": 1,
+        "atWorldMs": 85860000,
+        "kind": "intent",
+        "payload": {
+          "raw": "写一份灯街夜巡记录"
+        }
+      },
+      {
+        "seq": 2,
+        "atWorldMs": 85920000,
+        "kind": "intent",
+        "payload": {
+          "raw": "顺手把桥边的落叶扫一扫"
+        }
+      }
+    ],
+    "outer": {
+      "memory": true,
+      "creator": true
+    },
+    "recorded": {
+      "inputDigest": "0722f41142a828b747fb4e57ea1254043a03bb71473f6ec57e9f7cabdb911b89",
+      "fingerprint": "4e369a5d3a0299aef364ec310da5ac46e24462c5b60d45960cdcce1aa72b6c82",
+      "eventCount": 6,
+      "eventDigest": "3c27b1e3bb0a25626b48fe01f8be707b806b09e73bbb6b2aed57b0d42be31933",
+      "business": {
+        "day": 1,
+        "now": 86520000,
+        "buildings": 9,
+        "tasksTotal": 2,
+        "tasksCompleted": 1,
+        "weather": "clear",
+        "faithPoints": 1,
+        "deliveries": {
+          "feed": 0,
+          "local": 1
+        },
+        "eventCount": 6
+      },
+      "checkpoints": [
+        {
+          "step": 0,
+          "atWorldMs": 85800000,
+          "fingerprint": "5ecf10ef8983152de69b7ea2a1819dce5f196c7c11d7388996b306ba2305875f",
+          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 12,
+          "atWorldMs": 86520000,
+          "fingerprint": "4e369a5d3a0299aef364ec310da5ac46e24462c5b60d45960cdcce1aa72b6c82",
+          "memoryFingerprint": "2cd700d19126ad6ca99129fc35bf1ff770812b407b0c2028160d6a72bd192a87",
+          "creatorFingerprint": "88fed9e880eec57b2a86f619b2c3e41917d60cf2f4d9b9e19b6d996c75aef925"
+        }
+      ],
+      "memory": {
+        "fingerprint": "2cd700d19126ad6ca99129fc35bf1ff770812b407b0c2028160d6a72bd192a87",
+        "business": {
+          "lastClosedDay": 1,
+          "currentDay": 1,
+          "holders": 38,
+          "facts": 2,
+          "entries": 14,
+          "claims": 1,
+          "beliefs": 3,
+          "traces": 0,
+          "landmarks": 0,
+          "turningPoints": 0,
+          "bonds": 5,
+          "moods": 7,
+          "bondTrustSum": 0.18,
+          "moodValenceSum": 0.81,
+          "legends": 0,
+          "placeNames": 9,
+          "announcements": 0,
+          "written": 6,
+          "credibility": 0,
+          "metToday": 34
+        }
+      },
+      "creator": {
+        "fingerprint": "88fed9e880eec57b2a86f619b2c3e41917d60cf2f4d9b9e19b6d996c75aef925",
+        "business": {
+          "dayCloses": [
+            {
+              "day": 1,
+              "vitals": {
+                "meanValence": 0.3,
+                "meanArousal": 0.3545,
+                "infoEntropy": 0,
+                "isolatedHoldersCount": 7
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "waiting_shelter",
+                "at": {
+                  "x": 32,
+                  "y": 8
+                },
+                "reason": "第 1 天还缺「候车亭」，在 (32,8) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            }
+          ],
+          "proposals": [
+            {
+              "day": 1,
+              "atWorldMs": 86400000,
+              "source": "dayClose",
+              "templateId": "waiting_shelter",
+              "at": {
+                "x": 32,
+                "y": 8
+              },
+              "reason": "第 1 天还缺「候车亭」，在 (32,8) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            }
+          ],
+          "landings": [],
+          "roles": [
+            {
+              "roleId": "art_supervisor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "auditor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "director",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "historian",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "interpreter",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "mapper",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 1,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assertions": [
+    {
+      "note": "跨日：世界日从 0 走到 1",
+      "source": "world.business",
+      "path": "day",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "这次交付真的发生了",
+      "source": "world.business",
+      "path": "deliveries.local",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "关系只由目击写成：五名目击者各有 v1 一条 bond",
+      "source": "memory.business",
+      "path": "bonds",
+      "op": "eq",
+      "value": 5
+    },
+    {
+      "note": "目击者 v2 对 v1 的信任读数",
+      "source": "memory.snapshot",
+      "path": "world.bonds[0].from",
+      "op": "eq",
+      "value": "v2"
+    },
+    {
+      "note": "信任值不是四舍五入后的 0",
+      "source": "memory.snapshot",
+      "path": "world.bonds[0].trust",
+      "op": "eq",
+      "value": 0.036
+    },
+    {
+      "note": "五条 bond 的 trust 合计",
+      "source": "memory.business",
+      "path": "bondTrustSum",
+      "op": "eq",
+      "value": 0.18
+    },
+    {
+      "note": "每个居民一条情绪（含没参与的 v0）",
+      "source": "memory.business",
+      "path": "moods",
+      "op": "eq",
+      "value": 7
+    },
+    {
+      "note": "没参与交付的 v0 情绪为 0",
+      "source": "memory.snapshot",
+      "path": "world.moods[0].valence",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "参与者 v1 的情绪被交付抬高",
+      "source": "memory.snapshot",
+      "path": "world.moods[1].valence",
+      "op": "eq",
+      "value": 0.135
+    },
+    {
+      "note": "情绪 valence 合计",
+      "source": "memory.business",
+      "path": "moodValenceSum",
+      "op": "eq",
+      "value": 0.81
+    },
+    {
+      "note": "原地交付的世界事件文案",
+      "source": "events",
+      "path": "[3].text",
+      "op": "eq",
+      "value": "顺手把桥边的落叶扫一扫 办完了（汐）。"
+    }
+  ]
+}

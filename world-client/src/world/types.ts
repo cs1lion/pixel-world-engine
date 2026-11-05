@@ -297,6 +297,28 @@ export interface VillagerDeliveries {
 }
 
 /**
+ * 一次交付失败：事件账的一行。
+ *
+ * 与 `TaskRecord.status = 'failed'` 不是一回事：任务状态只说「这一单没成」，
+ * 这一行记下**谁、哪一单、在哪、为什么、是不是重复失败**。日报的失败数从
+ * 这里数，不从任务状态推。运行时生成，不落档（事件的持久副本在记忆段）。
+ */
+export interface DeliveryFailure {
+  /** 世界时间（毫秒），不是墙钟。 */
+  readonly at: number;
+  readonly taskId: string;
+  readonly summary: string;
+  readonly workerId: string;
+  readonly source: 'feed' | 'local';
+  /** 失败原因闭集。当前只有饥饿；加一种要同时改服务端白名单。 */
+  readonly reason: 'hunger';
+  /** 这一单此前是否已经失败过。`hungerFailedTasks` 保证今天恒为 false。 */
+  readonly repeat: boolean;
+  readonly placeId: string;
+  readonly where: GridPoint;
+}
+
+/**
  * 从郊野带回来的东西。按活类型分：查资料带卷轴、写代码带石料、
  * 整理文稿带纸。
  */
@@ -524,6 +546,8 @@ export interface WorldSnapshot {
   readonly deliveries: DeliveryStats;
   /** 按角色分账的交付归属（顺序同 villagers）；日报据此写「谁交付了几单」。 */
   readonly deliveriesByVillager: readonly VillagerDeliveries[];
+  /** 交付失败的事件账（运行时、不落档）；日报的失败行从这里数。 */
+  readonly deliveryFailures: readonly DeliveryFailure[];
   /** 上游事件流的连接情况。断线时世界照常过日子，但不再谎报"没有活"。 */
   readonly feed: {
     readonly connected: boolean;
@@ -546,6 +570,14 @@ export type OracleIntent =
 export interface CommandResult {
   readonly ok: boolean;
   readonly message: string;
+  /**
+   * 这句话的原句。只有神谕那条路（`oracle` / `intentFromModel`）带。
+   *
+   * 回执是**异步**到的：投递时 `say()` 同步返回「已投递」，输入框当场清空；
+   * 上游的答复要等模型才回来。`raw` 让写作面板能认回「刚才那条回执对应哪句」，
+   * 于是被上游拒收时可以把原句放回输入框，而不是让玩家对着空框重打。
+   */
+  readonly raw?: string;
 }
 
 export interface WorldEvent {

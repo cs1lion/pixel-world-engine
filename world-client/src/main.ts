@@ -16,6 +16,7 @@ import { bindDebugPanel, type DebugOracle } from './ui/debug-panel.ts';
 import { bindClockAlignPanel, type ClockAlignOracle } from './ui/clock-align.ts';
 import { bindUnitStatusPanel, type UnitStatusOracle } from './ui/unit-status.ts';
 import { bindChronicle } from './ui/chronicle-panel.ts';
+import { bindDayCardPanel, type DayCardOracle } from './ui/daycard-panel.ts';
 import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
 import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
 import { bindStelePanel, type SteleOracle } from './ui/stele-panel.ts';
@@ -30,8 +31,38 @@ import {
 import type { WorldSave } from './world/save.ts';
 import type { BuiltWorld } from './world/setup.ts';
 import type { SettingPack } from './settings/types.ts';
-import { WORLD } from './world/palette-data.ts';
+import { paletteFor } from './world/theme.ts';
 import { selectSetting, worldForSetting } from './settings/index.ts';
+
+/**
+ * 调试种子口子：`?debug=1&debugPinSeed=<n>` 把全局 `Math.random` 换成以 n 为初值的 LCG。
+ *
+ * 存在的理由：截图/回归里「场景载入期」的随机若取真实时间，同一构建同参数两次跑也会落到
+ * 不同态（75.6/4.6、75.9/3.9、76.9/1.8 是同一分布的三组读数）。钉住种子后，载入期随机不再取墙钟。
+ *
+ * 只影响 debug 那一层：不打存档、不进回放指纹、不改正常运行时行为；常数与截图脚本
+ * `initScript` 里的 LCG 相同，两处给同一个 n 得到同一串数。
+ */
+function installDebugSeed(): void {
+  const params = new URLSearchParams(window.location.search);
+  const debug = params.get('debug') === '1' || params.get('debug') === '';
+  if (!debug) return;
+  const raw = params.get('debugPinSeed');
+  if (raw === null) return;
+  const seed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(seed)) return;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  // 雨滴已有自己的注入口（`render/weather.ts`）；同一种子一并传下去，避免两套 RNG 分叉。
+  // 这里必须写**初始种子**而不是 LCG 的当前状态：`installDebugSeed` 之后若有人先抽了数，
+  // 状态会前进，雨滴种子就会和 URL 里的 `debugPinSeed` 悄悄分叉。
+  (globalThis as { __RAIN_SEED__?: number }).__RAIN_SEED__ = seed >>> 0;
+}
+
+installDebugSeed();
 
 /**
  * 按这份存档建世界；`save` 为 null 表示没有存档，建一套默认世界。
@@ -125,7 +156,7 @@ const game = new Phaser.Game({
   parent: 'app',
   width: VIEW_WIDTH,
   height: VIEW_HEIGHT,
-  backgroundColor: WORLD.ink,
+  backgroundColor: paletteFor().ink,
   pixelArt: true,
   roundPixels: true,
   // 逻辑分辨率保持 480×320（30×20 格 ×16px），只放大画布显示尺寸。非整数缩放会让像素边缘渗色，
@@ -187,6 +218,12 @@ bindUnitStatusPanel(unitStatusOracle);
 // 镇志抽屉：票据 #7 的「像读一本编年史」。只读 memory/，不改变仿真。
 // 客户端在这里才装配：它要知道 fetch 走哪（开发时是 vite 代理的 /api）。
 bindChronicle({ client: createMemoryClient() });
+
+// 日历抽屉：只读日摘要，每天一行。与镇志同一套 DOM 语言，但数据不来自
+// 文件服务——它走场景的 `dayCards()`，读的是当前世界刚载入的 `world.memory`。
+const dayCardOracle = (): DayCardOracle | undefined =>
+  (window as unknown as { Oracle?: DayCardOracle }).Oracle;
+bindDayCardPanel(dayCardOracle);
 
 // 取景三按钮与村民面板。两个都只读场景暴露的那一面：一个改镜头模式，
 // 一个把「她记得什么」摆出来——都不改仿真。

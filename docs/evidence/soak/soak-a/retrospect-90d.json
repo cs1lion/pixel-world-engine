@@ -1,0 +1,437 @@
+{
+  "seed": "soak-a",
+  "days": 90,
+  "elapsedSeconds": 116.08830069999999,
+  "saveKB": 1625.5087890625,
+  "savePercent": 0.7937054634094238,
+  "last30KbPerDay": 2.930403645833333,
+  "facts": {
+    "alive": 920,
+    "events": 2693,
+    "ratio": 0.3416264389157074,
+    "evicted": 1773,
+    "evictedRecoverable": 873,
+    "evictedPointerOnly": 403,
+    "byDay": {
+      "0": 29,
+      "1": 30,
+      "2": 30,
+      "3": 29,
+      "4": 30,
+      "5": 29,
+      "6": 30,
+      "7": 30,
+      "8": 30,
+      "9": 30,
+      "10": 30,
+      "11": 30,
+      "12": 30,
+      "13": 22,
+      "14": 18,
+      "15": 18,
+      "16": 18,
+      "17": 18,
+      "18": 18,
+      "19": 18,
+      "20": 18,
+      "21": 18,
+      "22": 18,
+      "23": 18,
+      "24": 18,
+      "25": 18,
+      "26": 18,
+      "27": 18,
+      "28": 18,
+      "29": 18,
+      "30": 18,
+      "31": 18,
+      "32": 18,
+      "33": 18,
+      "34": 18,
+      "35": 18,
+      "36": 18,
+      "37": 18,
+      "38": 18,
+      "39": 18,
+      "40": 18,
+      "41": 18,
+      "42": 18,
+      "43": 18,
+      "44": 18,
+      "45": 18,
+      "46": 18,
+      "47": 18,
+      "48": 18,
+      "49": 17,
+      "50": 18,
+      "51": 18,
+      "52": 18,
+      "53": 18,
+      "54": 18,
+      "55": 18,
+      "56": 17,
+      "57": 18,
+      "58": 18,
+      "59": 18,
+      "60": 18,
+      "61": 18,
+      "62": 18,
+      "63": 18,
+      "64": 18,
+      "65": 18,
+      "66": 18,
+      "67": 18,
+      "68": 18,
+      "69": 18,
+      "70": 18,
+      "71": 18,
+      "72": 18,
+      "73": 18,
+      "74": 18,
+      "75": 18,
+      "76": 18,
+      "77": 18,
+      "78": 17,
+      "79": 18,
+      "80": 18,
+      "81": 17,
+      "82": 17,
+      "83": 18,
+      "84": 18,
+      "85": 18,
+      "86": 18,
+      "87": 18,
+      "88": 18,
+      "89": 18,
+      "90": 1
+    }
+  },
+  "prunedByLayer": {
+    "entries": {
+      "evicted": 1180,
+      "byCount": 1138,
+      "byBytes": 42
+    },
+    "cooldowns": {
+      "evicted": 5538,
+      "byCount": 0,
+      "byBytes": 5538
+    },
+    "tells": {
+      "evicted": 3376,
+      "byCount": 0,
+      "byBytes": 3376
+    },
+    "beliefs": {
+      "evicted": 3156,
+      "byCount": 0,
+      "byBytes": 3156
+    },
+    "facts": {
+      "evicted": 1773,
+      "byCount": 0,
+      "byBytes": 1773
+    },
+    "claims": {
+      "evicted": 1160,
+      "byCount": 0,
+      "byBytes": 1160
+    },
+    "written": {
+      "evicted": 292,
+      "byCount": 0,
+      "byBytes": 292
+    },
+    "legends": {
+      "evicted": 130,
+      "byCount": 130,
+      "byBytes": 0
+    }
+  },
+  "digest": {
+    "count": 90,
+    "bytes": 119672,
+    "countBudget": 120,
+    "bytesBudget": 160000,
+    "countPercent": 0.75,
+    "bytesPercent": 0.74795,
+    "compactCount": 59,
+    "fullCount": 31,
+    "maxPerDay": 1,
+    "maxAnomalies": 0,
+    "coveredDays": 90,
+    "firstDay": 0,
+    "lastDay": 89
+  },
+  "legend": {
+    "count": 120,
+    "bytes": 23999,
+    "countBudget": 120,
+    "countPercent": 1,
+    "bytesBudget": 28000,
+    "bytesPercent": 0.8571071428571428,
+    "formedDay": {
+      "min": 4,
+      "max": 89
+    },
+    "reach": {
+      "0": 89,
+      "1": 1,
+      "2": 1,
+      "3": 5,
+      "4": 5,
+      "5": 10,
+      "6": 1,
+      "8": 4,
+      "9": 1,
+      "10": 1,
+      "13": 1,
+      "16": 1
+    },
+    "evicted": 130,
+    "evictedFormedDay": {
+      "min": 36,
+      "max": 83
+    },
+    "evictedReach": {
+      "0": 130
+    },
+    "evictedSample": [
+      {
+        "legendId": "legend_3656",
+        "formedDay": 40,
+        "reach": 0,
+        "eventRefs": [
+          "soak-273"
+        ]
+      },
+      {
+        "legendId": "legend_3807",
+        "formedDay": 42,
+        "reach": 0,
+        "eventRefs": [
+          "soak-342"
+        ]
+      },
+      {
+        "legendId": "legend_3821",
+        "formedDay": 42,
+        "reach": 0,
+        "eventRefs": [
+          "soak-304"
+        ]
+      },
+      {
+        "legendId": "legend_3986",
+        "formedDay": 44,
+        "reach": 0,
+        "eventRefs": [
+          "soak-413"
+        ]
+      },
+      {
+        "legendId": "legend_3896",
+        "formedDay": 43,
+        "reach": 0,
+        "eventRefs": [
+          "soak-339"
+        ]
+      }
+    ]
+  },
+  "backfill": [
+    {
+      "day": 20,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 0,
+      "timelineAlive": 59,
+      "timelineAtClose": 59,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    },
+    {
+      "day": 45,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 1,
+      "timelineAlive": 61,
+      "timelineAtClose": 61,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    },
+    {
+      "day": 60,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 2,
+      "timelineAlive": 57,
+      "timelineAtClose": 57,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    },
+    {
+      "day": 89,
+      "worldEvents": 30,
+      "factsWritten": 30,
+      "factsAlive": 12,
+      "factsMissing": 18,
+      "factsMissingPct": 0.6,
+      "timelineEntriesOnly": 47,
+      "timelineAlive": 59,
+      "timelineAtClose": 59,
+      "timelineMissingPct": 0,
+      "digestAlive": true,
+      "eventsReachable": 20,
+      "eventsMissingPct": 0.33333333333333337
+    }
+  ],
+  "evictedFactSample": [
+    {
+      "eventId": "soak-4",
+      "factDay": 0,
+      "evictedDay": 31,
+      "kind": "daily_water",
+      "importanceHint": 0.35,
+      "what": "迷路人去河湾打水，顺手冲了冲河岸",
+      "recoverable": true,
+      "reachableFrom": [
+        {
+          "path": "world.entries[0].eventRefs[1]",
+          "layer": "entries",
+          "holderId": "lamp_archive#1",
+          "tier": "legend",
+          "createdDay": 4,
+          "archived": false
+        },
+        {
+          "path": "world.legends[32].eventRefs[1]",
+          "layer": "legends",
+          "legendId": "legend_0353",
+          "formedDay": 4,
+          "reach": 0,
+          "eventRefs": [
+            "soak-3",
+            "soak-4",
+            "soak-5"
+          ]
+        },
+        {
+          "path": "world.digests[0].events[2][0]",
+          "layer": "digests",
+          "day": 0,
+          "compact": true,
+          "pointerOnly": true
+        }
+      ]
+    },
+    {
+      "eventId": "soak-6",
+      "factDay": 0,
+      "evictedDay": 76,
+      "kind": "street_greet",
+      "importanceHint": 0.38,
+      "what": "迷路人与灯笼头碰面，互相问了个好。",
+      "recoverable": true,
+      "reachableFrom": [
+        {
+          "path": "world.legends[33].eventRefs[0]",
+          "layer": "legends",
+          "legendId": "legend_0363",
+          "formedDay": 4,
+          "reach": 0,
+          "eventRefs": [
+            "soak-6"
+          ]
+        },
+        {
+          "path": "world.digests[0].events[4][0]",
+          "layer": "digests",
+          "day": 0,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[2].events[4][0]",
+          "layer": "digests",
+          "day": 2,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[3].events[5][0]",
+          "layer": "digests",
+          "day": 3,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[4].events[8][0]",
+          "layer": "digests",
+          "day": 4,
+          "compact": true,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[31].events[5][0]",
+          "layer": "digests",
+          "day": 31,
+          "compact": true,
+          "pointerOnly": true
+        }
+      ]
+    },
+    {
+      "eventId": "soak-2664",
+      "factDay": 89,
+      "evictedDay": 89,
+      "kind": "routine_done",
+      "importanceHint": 0.35,
+      "what": "迷路人在祭坛边睡下了",
+      "recoverable": true,
+      "reachableFrom": [
+        {
+          "path": "world.entries[54].eventRefs[0]",
+          "layer": "entries",
+          "holderId": "v0",
+          "tier": "day",
+          "createdDay": 89,
+          "archived": false
+        },
+        {
+          "path": "world.claims[613].eventRefs[0]",
+          "layer": "claims"
+        },
+        {
+          "path": "world.digests[89].firstEvent",
+          "layer": "digests",
+          "day": 89,
+          "compact": false,
+          "pointerOnly": true
+        },
+        {
+          "path": "world.digests[89].events[0][0]",
+          "layer": "digests",
+          "day": 89,
+          "compact": false,
+          "pointerOnly": true
+        }
+      ]
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import type {
 import { TASK_PROFILES } from '../world/tasks.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { villagerAtCell } from '../world/types.ts';
+import type { VillagerArchive } from '../world/villager-archive.ts';
 import { villagerModeLabel } from '../world/villager-words.ts';
 
 export type UnitRef =
@@ -83,18 +84,24 @@ export interface UnitDayTimelineEntry {
    */
   readonly when: number;
   /**
-   * 事件实际发生在第几天。省略时退回 `day`（`createdDay`）——听说来的条目
-   * 今天才落账，天序会和时刻（`tick`）对不上。
+   * 事实发生的那一天。**不是 `createdDay`**：听说来的条目可能今天才落账，
+   * 说的却是昨天的事，天序要跟时刻（`tick`）同源。
    */
   readonly atDay?: number | null;
   /**
-   * 那天已经走过的毫秒数（事件真实发生的时刻）。查不到事实时省略或给 `null`，
-   * 面板写「时刻不明」，不编一个 `00:00`。
+   * 那件事发生时**当天已经走过的毫秒数**（事件真实发生的时刻）。查不到事实时
+   * 省略或给 `null`，面板写「时刻不明」，不编一个 `00:00`。
    */
   readonly tick?: number | null;
   readonly placeId: string | null;
   readonly actors: readonly string[];
   readonly what: string | null;
+  /**
+   * 这一格的时刻还站不站得住。省略按 true 处理（老适配器没有这个字段）。
+   * 事实被预算裁掉、或这一格是摘要（`when` 是「第几天」不是时刻）时为 false，
+   * 面板写「时刻不明」。
+   */
+  readonly whenKnown?: boolean;
   /** 记忆真的改了这一天的行为时，那句因果；没有就省略。 */
   readonly why?: string | null;
 }
@@ -121,6 +128,8 @@ export interface UnitStatusWorld {
   readonly tasks: readonly TaskRecord[];
   readonly workstations: readonly WorkstationSnapshot[];
   readonly constructions: readonly ConstructionSnapshot[];
+  /** 主要人物档案；按村民 id 索引。省略时面板不显示档案段。 */
+  readonly archives?: Readonly<Record<string, VillagerArchive>>;
 }
 
 export interface UnitStatusLine {
@@ -231,6 +240,27 @@ function innerLines(villagerId: string, memory: UnitMemoryReader | null): UnitSt
   return inner === null ? [] : [{ key: '心里', value: inner.text }];
 }
 
+function archiveLines(id: string, world: UnitStatusWorld): UnitStatusLine[] {
+  const archive = world.archives?.[id];
+  if (archive === undefined) return [];
+  return [
+    { key: '档案', value: `${archive.aliases.join('、')} · ${archive.identity}` },
+    { key: '辈分', value: archive.generation },
+    { key: '来历', value: archive.origin },
+    { key: '牵挂', value: archive.cares.join('；') },
+    { key: '忌讳', value: archive.taboos.join('；') },
+    { key: '动线', value: archive.routine },
+    { key: '口吻', value: archive.voice },
+    {
+      key: '关系初值',
+      value: archive.bonds
+        .map((bond) =>
+          `${bond.to} 信任 ${bond.trust.toFixed(2)} · 亲疏 ${bond.warmth.toFixed(2)} · ${debtLabel(bond.debt)}`)
+        .join('；'),
+    },
+  ];
+}
+
 /** 当天时刻写法：`13:20`。`tick` 是当天已走过的毫秒数，不是第几天。 */
 function clockOf(tick: number): string {
   const rest = tick - Math.floor(tick / DAY_MS) * DAY_MS;
@@ -267,6 +297,25 @@ function placeLabel(placeId: string | null, world: UnitStatusWorld): string {
  *
  * 只读 `dayTimelineOf`；适配器没给就整段缺席，不去猜别人的今天。
  */
+/** 原句没了时，按 kind 给一句人话；认不出就落到最后一句。 */
+const KIND_WHAT: Readonly<Record<string, string>> = {
+  routine_done: '在镇上停了一会儿',
+  daily_water: '去河湾打了一趟水',
+  daily_lamp: '把街灯点亮了',
+  street_greet: '和人碰面问了个好',
+  street_yield: '给人让了路',
+  street_together: '和人一起搭手做事',
+  tide_turn: '潮水掉头了',
+  market_open: '早市开了',
+  market_close: '早市收了',
+  night_market: '夜市支起来了',
+  work_end: '收工的钟敲了',
+  task_done: '交了一单活',
+  conflict: '起了争执',
+  celebration: '庆祝了一件事',
+  episodic: '做了一件日常事',
+};
+
 function timelineLines(
   villager: VillagerSnapshot,
   world: UnitStatusWorld,
@@ -282,7 +331,9 @@ function timelineLines(
       .map((id) => names.get(id) ?? id);
     return {
       clock: dayClockLabel(entry.atDay ?? entry.day, entry.tick),
-      what: entry.what ?? `${entry.kind}（没有留下说法）`,
+      // 原句被预算裁掉后只剩 kind。给一句人话，别把 `routine_done` 这种
+      // 内部枚举直接印到面板上；认不出的 kind 落在最后一句，也不印枚举。
+      what: entry.what ?? KIND_WHAT[entry.kind] ?? '做了一件小事',
       place: placeLabel(entry.placeId, world),
       who: others.length === 0 ? '独自' : `与 ${others.join('、')}`,
       memoryId: entry.memoryId,
@@ -321,6 +372,7 @@ function villagerContent(
   const where = annex === null ? `格子 (${cell.x}, ${cell.y})` : `格子 (${cell.x}, ${cell.y}) · ${annex.displayName}`;
 
   const lines: UnitStatusLine[] = [
+    ...archiveLines(villager.id, world),
     { key: '行为', value: modeText },
     {
       key: '目标',

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DRIFT_PUFFS, driftPuffs } from '../src/world/fog-drift.ts';
+import { DRIFT_PUFFS, driftPuffs, puffReachesWorld } from '../src/world/fog-drift.ts';
 
 const CENTER = { x: 40, y: 30 };
 const RADIUS = 16;
@@ -135,4 +135,30 @@ test('漂移速度落在注释说的那个区间里：量出来的，不是抄�
     `最慢该在 0.55～0.65 格/秒，实得 ${perSecond(slowest).toFixed(3)}——` +
       '低于这条雾就冻住了，高于那条就开始抢注意力',
   );
+});
+
+// ------------------------------------------------- 整团在图外的雾团不该画
+
+test('图外判定：整团出界才算看不见，擦到边界仍算可见', () => {
+  const make = (x: number, y: number, radius: number) => ({
+    at: { x, y },
+    alpha: 0.5,
+    radius,
+  });
+  assert.equal(puffReachesWorld(make(10, 10, 2.5), 96, 72), true, '图内');
+  assert.equal(puffReachesWorld(make(-6, 10, 2.5), 96, 72), false, '离左边 6 格、半径 2.5，整团在图外');
+  assert.equal(puffReachesWorld(make(-2, 10, 2.5), 96, 72), true, '圆心出界 2 格、半径 2.5，仍擦到边界');
+  assert.equal(puffReachesWorld(make(99, 50, 2.5), 96, 72), false, '离右边 3 格、半径 2.5，整团在外');
+});
+
+test('灯潮界 64×48 / 揭示半径 112：14 团全部整团出界，一个都不用画', () => {
+  const puffs = driftPuffs({ x: 32, y: 29 }, 112, 1000);
+  const outside = puffs.filter((puff) => !puffReachesWorld(puff, 64, 48));
+  assert.equal(outside.length, DRIFT_PUFFS, 'radius=112 绕在 108～116 格外，应全部出界');
+});
+
+test('默认世界 96×72 / 半径 38：边界雾团仍在图内，不能整层剔掉', () => {
+  const puffs = driftPuffs({ x: 48, y: 36 }, 38, 1000);
+  const inside = puffs.filter((puff) => puffReachesWorld(puff, 96, 72));
+  assert.ok(inside.length >= DRIFT_PUFFS - 2, `仍有 ${inside.length} 团可见，边界雾不能被切光`);
 });

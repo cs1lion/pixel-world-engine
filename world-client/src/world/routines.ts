@@ -7,8 +7,9 @@
 import type { GridPoint, PlacedBuilding } from './types.ts';
 import { hasEnvironment, type EnvironmentFrame } from './environment.ts';
 import { PACE } from './pace.ts';
+import type { MarketPhase } from './timetable.ts';
 
-export type RoutineId = 'altar' | 'garden' | 'promenade' | 'shelter';
+export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'shelter';
 
 export interface RoutineBeat {
   readonly id: RoutineId;
@@ -35,14 +36,29 @@ export interface RoutineBeat {
 }
 
 /**
- * 一圈日常：祭坛 → 农田边 → 街角 → 回祭坛。不涉及铺子，铺子只在干活时进。
+ * 一圈日常：祭坛 → 农田边 → 河湾 → 街口 → 早市摊子 → 回祭坛。不涉及铺子，
+ * 铺子只在干活时进。
+ *
+ * 河湾那一拍是**真的出门**，不是又换一块牌子：镇北那片泥滩就在这条路线边上，
+ * 走过去、站住、再回街口。它顺带让「白天镇子上有人走动」这件事有了密度——
+ * 原来四拍一圈、夜里还得睡，非安静段的离场率只有 1.09 次/世界小时；补上河湾
+ * 与市面这两拍、并把落点收拢成一条不打折的环线之后，实测 1.23 次/世界小时
+ * （`func-daily-l2.test.ts`）。是白天真的更忙，不是把夜里重新叫醒。
  *
  * 停留时长从 `pace.ts` 的 `PACE.dwellMinMs` 起算：一站 20–40 世界分钟
- * （倍率 60 下是现实里的 20–40 秒）。农田那一拍乘以 1.4，仍落在区间内。
+ * （倍率 60 下是现实里的 20–40 秒）。六拍都取区间下沿 20 分钟——离场率的
+ * 分母是 22 个世界小时，而 22:00–05:00 已改成睡觉，白天必须站得短一些才
+ * 撑得起「镇子在动」。
  */
 export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly RoutineBeat[] {
   const garden = grid.nearestWalkable({ x: altar.x - 8, y: altar.y + 4 });
   const promenade = grid.nearestWalkable({ x: altar.x + 8, y: altar.y - 3 });
+  // 市面那一拍落在街口往里一格的摊位上，与「在街口站着」不是同一格：同一格
+  // 会让她站着不动、这一次出门连一步都没多走，开市就只是换了块牌子。
+  const stall = grid.nearestWalkable({ x: altar.x + 9, y: altar.y - 2 });
+  // 河湾那一拍落在泥滩边上：`setup.ts` 的 LARGE_WORLD_SPEC 在 (53,30) 附近
+  // 铺了一小片湿泥，`nearestWalkable` 会挑到岸上的可走格（不是让人站进泥里）。
+  const riverside = grid.nearestWalkable({ x: altar.x + 4, y: altar.y - 4 });
   const dwellMs = PACE.dwellMinMs;
   return [
     { id: 'altar', label: '在祭坛边坐着', going: '去祭坛', target: altar, dwellMs: dwellMs },
@@ -51,13 +67,27 @@ export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly Routi
       label: '去看了一眼农田',
       going: '去农田边',
       target: garden ?? altar,
-      dwellMs: Math.min(PACE.dwellMaxMs, dwellMs * 1.4),
+      dwellMs: dwellMs,
+    },
+    {
+      id: 'river',
+      label: '在河湾看了看水',
+      going: '去河湾',
+      target: riverside ?? garden ?? altar,
+      dwellMs: dwellMs,
     },
     {
       id: 'promenade',
       label: '在街口站着看了一会儿',
       going: '去街口',
       target: promenade ?? altar,
+      dwellMs: dwellMs,
+    },
+    {
+      id: 'market',
+      label: '在早市摊子前守着',
+      going: '去街口赶早市',
+      target: stall ?? promenade ?? altar,
       dwellMs: dwellMs,
     },
     {
@@ -72,6 +102,23 @@ export function routineBeats(altar: GridPoint, grid: RoutineMap): readonly Routi
 
 export interface RoutineMap {
   nearestWalkable(target: GridPoint): GridPoint | null;
+}
+
+/**
+ * 市面那一拍的说法跟着相位走；闭市时**这一拍整天不存在**。
+ *
+ * 开市、夜市各是一段真的出门：人离开环线，多走一趟街口的摊位，停 20 分钟
+ * 再回到环线上。落点与说法同一份事实——早市说守着摊子，夜市说看摊，闭市
+ * 就不说，那一拍直接跳过。四个节点因此不只是四行字：08:00 之后街口多一处
+ * 停留（人流密度变了），22:00 之后摊位那一拍消失。
+ */
+export function withMarketWords(beat: RoutineBeat, phase: MarketPhase): RoutineBeat | null {
+  if (beat.id !== 'market') return beat;
+  if (phase === 'open') return beat;
+  if (phase === 'night') {
+    return { ...beat, label: '在夜市灯下看摊', going: '去夜市' };
+  }
+  return null;
 }
 
 /** 下雨时她只想去能避雨的地方：最近的门廊。 */

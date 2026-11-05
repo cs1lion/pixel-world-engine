@@ -26,9 +26,9 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/render/          渲染层（只读快照）
 ├── src/settings/        设定集加载器（莞尔镇 / 灯潮界）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
-├── scripts/             八道闸门里的六个 + 开发/验收脚本
+├── scripts/             九道闸门里的六个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                226 个测试文件 <!-- claim: test-file-count=226 -->
+└── test/                274 个测试文件 <!-- claim: test-file-count=274 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
@@ -38,7 +38,7 @@ server/                  FastAPI：规则校验、事件日志、LLM 造物主�
 docs/                    设计与决策
 ├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
 ├── iterations/          迭代资料（1027-task-1 内环 / 1027-task-2 外环）
-├── adr/                 架构决策记录 <!-- claim: adr-count=9 -->
+├── adr/                 架构决策记录 <!-- claim: adr-count=10 -->
 └── art/                 美术基准（《千与千寻视觉设定集》）
 memory/                  时间线记忆：entries / characters / events / rules
 ```
@@ -244,8 +244,8 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 
 ## 验证
 
-CI 跑八条，前端 job 六条 + 服务端 job 两条（以
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
+CI 跑九道闸门，前端 job 八条 + 服务端 job 一条（另有只读的浏览器 job 与仓库手续 job，
+不在这九道计数里；以 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
 
 ```bash
 cd world-client && npm run check && npm test && npm run build
@@ -266,13 +266,14 @@ cd server && python -m pytest
 服务端依赖的上下界锁在 `server/requirements.txt`；CI 只有 `pip install -r` 这一层安装，
 没有额外 lock。要完全复现时再引 constraints。
 
-**这几条要一起跑。** 后四条的输出有个共同性质：引用对不上、节号不存在、色板超预算，
-**全都只让输出变长，不会让 `check`/`test` 变红**。只跑前两条的人会以为自己是绿的，
-而四个闸门一个都没过。
+**这几条要一起跑。** 后五条（色板 + 三份审引用 + `audit-claims`）的输出有个共同性质：
+引用对不上、节号不存在、色板超预算，**全都只让输出变长，不会让 `check`/`test` 变红**。
+只跑前两条的人会以为自己是绿的，而五个闸门一个都没过。
 
-2026-11-03 的 CI 快照（[run 41553639144](https://github.com/cs1lion/pixel-world-engine/actions/runs/41553639144)，commit `85a0611`）：`check` 0 错、`test` 1901 通过 / 9 跳过 / 0 失败
+2026-11-05 合并 `fix/audit-standards-20261105` 后实测：`check` 0 错、`test` 2289 通过 / 9 跳过 / 0 失败
 （9 条全是 `terrain-edge-visibility.test.ts` 的色板待定项）、`build` 通过、三个引用审计
-0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 496 通过 / 1 跳过。
+0 缺陷、`audit-palette` 0 超预算、服务端 `pytest` 544 通过 / 1 跳过。CI 跑同一批闸门；
+要最新的 run 链接就打开 Actions 里这条 commit 的那一次。
 
 **通过数只作快照，不设 claim 探针**：它们依赖运行环境，机器只钉能秒算的值（测试文件数、
 ADR 数、存档版本、SPEC 权威、iterations 入库数）。数字变了就重跑 CI 并更新这一行与链接。
@@ -309,6 +310,40 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 ```
 
 不设 `PIXEL_WORLD_URL` 时默认找 `http://127.0.0.1:5188/`（`npm run dev:live` 的前端端口）。
+
+遮挡层还有一支可复现的摆位验收：把「沉灯夫人」按固定格钉在摊位后一格 / 前一格，
+冻结帧各截一张，两张并排写出 depth 读数（`eval/screens/placement-stall.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:scene-depth
+```
+
+街面光池也有一支证据脚本：同一冻结帧里只换灯态/潮位，量同一块地面的亮度与色温，
+并给出距灯 0.5–6 格的衰减（`eval/screens/lamp-pool.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-pool
+```
+
+夜街全景另有一支：zoom 1 扫过 5 根灯柱，逐列量「灯亮 - 灯灭」的亮度差，
+直接量出暗带位置与宽度，并对比改前/改后的像素差（`eval/screens/lamp-band-after.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:lamp-band
+```
+
+改前基线是一次性的：在外圈半径改动之前用 `BAND_LABEL=before` 拍一张；
+之后重跑默认拍「改后」，不会覆盖基线，合成页会多出「改前 → 改后」那一行。
+
+立面尺度也留了对照证据：同一机位、同一冻结帧拍「改前 / 改后」，把墙、人、灯柱三把标尺
+画在图上，并从截图里逐像素量墙高、石脚与灯体下沿的净空（`eval/screens/setting-scale.png`）：
+
+```bash
+cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting-scale
+```
+
+拍「改前」要先 `git stash` 掉 `src/` 的改动（`SCALE_LABEL=before`），恢复后再拍 `after`；
+改后那一跑会顺手合成并排图。
 
 ## 状态
 
@@ -361,6 +396,8 @@ cd world-client && PIXEL_WORLD_URL=http://127.0.0.1:5173/ npm run test:setting
 - **规范**：[`docs/SPEC.md`](docs/SPEC.md)（**唯一权威**；v2 增补见 §8–§15）
 - **取舍理由**：[`docs/SPEC_DRAFT_20261025.md`](docs/SPEC_DRAFT_20261025.md)
 - **术语表**：[`GLOSSARY.md`](GLOSSARY.md)
+- **断点续跑**：[`docs/RESUME.md`](docs/RESUME.md)
+- **worktree 登记**：[`docs/WORKTREES.md`](docs/WORKTREES.md)
 - **灯潮界实现范围**：[`docs/SETTING_DENGCHAO.md`](docs/SETTING_DENGCHAO.md)
 - **架构补充 v1.0**：[`docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md`](docs/iterations/1027-task-2/architecture-supplement-v1.0-params.md)
 - **造物引擎架构**：[`docs/iterations/1027-task-2/creator-engine-architecture.md`](docs/iterations/1027-task-2/creator-engine-architecture.md)
