@@ -40,6 +40,7 @@ export const JUDGES = ['program', 'human-rubric'] as const;
 export const GATES = ['ci-pr', 'ci-nightly', 'release'] as const;
 const NOT_MEASURED = 'not_measured';
 const HASH = /^[0-9a-f]{64}$/;
+const EXTERNAL_SOURCE = 'pwe-soak/';
 
 export interface LedgerMetric {
   readonly [key: string]: unknown;
@@ -145,6 +146,30 @@ export function validateLedger(document: unknown, worldClientRoot: string): Ledg
         }
       } catch {
         errors.push(`${where} script 指向的文件不存在：${metric.script}`);
+      }
+    }
+
+    // 外部来源（pwe-soak 证据树）必须钉住输入：要么给 input_sha，要么明说没量、并写原因。
+    // 起因：12 条 soak 读数只写了「来自 pwe-soak 的某个提交」，没人能证明读的是哪份输入。
+    const source = typeof metric.source === 'string' ? metric.source : '';
+    const note = typeof metric.note === 'string' ? metric.note : '';
+    const inputSha = metric.input_sha;
+    if (typeof inputSha === 'string' && !HASH.test(inputSha)) {
+      errors.push(`${where} input_sha 必须是 64 位小写 sha256`);
+    }
+    if (source.startsWith(EXTERNAL_SOURCE) || note.includes('pwe-soak')) {
+      const inputStatus = metric.input_status;
+      if (typeof inputSha === 'string' && HASH.test(inputSha)) {
+        // 已钉住输入，放行
+      } else if (inputStatus === NOT_MEASURED) {
+        if (typeof metric.input_note !== 'string' || metric.input_note.trim() === '') {
+          errors.push(`${where} input_status="${NOT_MEASURED}" 时必须写 input_note 说明为什么不可判`);
+        }
+      } else {
+        errors.push(
+          `${where} 外部来源（pwe-soak）必须给 input_sha（64 位小写 sha256）` +
+          `或 input_status="${NOT_MEASURED}" + input_note`,
+        );
       }
     }
   });

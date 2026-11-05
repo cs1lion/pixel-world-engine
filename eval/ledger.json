@@ -16,6 +16,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "生成脚本未提交（pwe-soak 分支），script_sha 只能记 not_measured"
     },
     {
@@ -31,6 +33,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "第二种子复核；脚本未提交"
     },
     {
@@ -46,6 +50,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "seed-b 同口径为 1.75 KB/day"
     },
     {
@@ -61,6 +67,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "920 / 2693"
     },
     {
@@ -76,6 +84,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "抽样里 100% 缺失都落在 importanceHint < 0.4 的琐事，分带读数仍未量"
     },
     {
@@ -106,6 +116,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "timelineMissingPct"
     },
     {
@@ -121,6 +133,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "timelineMissingPct"
     },
     {
@@ -136,6 +150,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "timelineMissingPct"
     },
     {
@@ -151,6 +167,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "timelineMissingPct"
     },
     {
@@ -166,6 +184,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "23.4 KB；按 reach 淘汰，但 reach 缺真值来源"
     },
     {
@@ -292,6 +312,8 @@
       "judge": "program",
       "measured_at": "2026-11-03",
       "gate": "ci-pr",
+      "input_status": "not_measured",
+      "input_note": "外部 pwe-soak 证据树未随仓提交，输入文件无法在 CI 内固定哈希（不可判，不当绿）",
       "note": "world/memory/creator/events 全等；ledgerRaw 不等且不许当指纹"
     },
     {
@@ -340,6 +362,7 @@
       "judge": "program",
       "measured_at": "2026-11-04",
       "gate": "ci-pr",
+      "input_sha": "ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a",
       "note": "90 天存档只读引用 pwe-soak 提交 3a41541；读档闸 拒绝 0"
     },
     {
@@ -356,6 +379,7 @@
       "judge": "program",
       "measured_at": "2026-11-04",
       "gate": "ci-pr",
+      "input_sha": "ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a",
       "note": "无一条合法旧档被降级"
     },
     {
@@ -372,6 +396,7 @@
       "judge": "program",
       "measured_at": "2026-11-04",
       "gate": "ci-pr",
+      "input_sha": "ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a",
       "note": "因淘汰无法用事实库核实、但断言/信念等旁证仍在，按设计放行"
     },
     {

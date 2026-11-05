@@ -66,6 +66,17 @@
 
 `ci-nightly` 仍保留在 `GATES` 枚举里：将来真加了 nightly workflow，它才有资格被写进账本。
 
+## 外部来源的 `input_sha`（2026-11-05）
+
+- `source` 以 `pwe-soak/` 开头、或 `note` 命中 `pwe-soak` 的条目，必须给 `input_sha`
+  （64 位小写 sha256，按 LF 归一化后算），或 `input_status: "not_measured"` + `input_note` 原因；
+  两者都没有就红。
+- 3 条 `*.soak90d` 的输入是 `docs/evidence/soak/soak-a/save-90d.json`，`input_sha` 写
+  `ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a`——与
+  `world-client/eval/fixtures/eval-soak-day-facts.json` 声明的 `saveSha256` 一致。
+- 其余 11 条取自 pwe-soak 证据树、输入文件未随仓提交：标 `input_status: "not_measured"`
+  并写 `input_note`，含义是**不可判**，不是「已验证」。
+
 ## `script_sha` 的两类取值
 
 - 填了 `script` 的条目，在每次校验时重算文件 sha256（LF 归一化后），**脚本改了而读数
