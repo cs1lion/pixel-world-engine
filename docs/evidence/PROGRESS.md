@@ -510,8 +510,8 @@
   - 同种子两跑：`trace:record` 的 `verifyTrace` 两次回放，三枚指纹逐字相同（683.1ms / 683.6ms）
 - `sleep` 决策：默认轨迹 **0 条**（定时夜休每黎明 05:20 清零疲劳）。
   受控场景 `docs/evidence/merge-main/sleep-scenario.ts` 真睡一次：crossedAt 0 / sleptAt 6,000 /
-  wokeAt 17,292,000（4.85h），睡中牌子「实在熬不住，就地睡下了」，两跑 stdout 逐字相同
-  （SHA256 `28B11382…`）
+  wokeAt 17,292,000（4.85h），睡中牌子「实在熬不住，就地睡下了」，两跑 stdout 的 7 行
+  逐字相同（不记绝对文件 hash：Windows/CRLF 与 LF 口径会改 sha，读数以 7 行为准）
 - 闸门：check 0 / test **2336 tests、2327 pass、0 fail、9 skipped** / build 0 /
   palette --strict 0（世界 24/24、51 引用；UI 9/9、**202 引用**；并集 32；`--line` 3.49 / 3.15）/
   references 172 处 0 存疑 / citations 0 / sections 159 对得上 / claims --strict 0 / pytest **554 passed**
