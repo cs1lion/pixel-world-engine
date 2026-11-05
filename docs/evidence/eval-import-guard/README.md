@@ -39,7 +39,7 @@
 | --- | --- | --- |
 | 引用在 `facts` 里 | 照常导入 | — |
 | 引用不在 `facts`，但在任一旁证库里 | **放行**（历史淘汰，无法用事实库核实） | `prunedUnverifiable` |
-| 引用在快照里一处旁证都没有 | **降级为 `heard`**（导入时编造） | `dowgradedEntries` |
+| 引用在快照里一处旁证都没有 | **降级为 `heard`**（导入时编造） | `downgradedEntries` |
 | 条目形状坏（无 id / 无 `eventRefs` / `sourceMode` 不认识） | **拒绝**（丢弃） | `refusedEntries` |
 
 没有「静默通过」这一档；也没有回调里的 try/catch 吞错。
@@ -54,7 +54,7 @@
 
 淘汰/编造的对照组：同一个假世界里删掉 `facts` 里的那条事实但**保留断言** → 仍是
 `witnessed`（`prunedUnverifiable=2`）；再把断言/信念/痕迹/传说…全部清空 → 降级为
-`heard`（`dowgradedEntries=2`，当天两条汇总记忆都指这条事件）。这说明判据不是
+`heard`（`downgradedEntries=2`，当天两条汇总记忆都指这条事件）。这说明判据不是
 「只要有淘汰水位就放行」。
 
 ## 造错守卫（两边都跑）

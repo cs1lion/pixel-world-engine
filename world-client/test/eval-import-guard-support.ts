@@ -7,7 +7,7 @@
  * | --- | --- | --- |
  * | `fabricated` | 基线世界 + 塞一条 `witnessed` 的假记忆（引用从未存在的事件） | 降级为 `heard`，`downgradedEntries=1` |
  * | `fabricatedLoose` | 同上，但绕过 `MemoryRuntime` 直连 `world.restoreSnapshot` | 仍以 `witnessed` 复活（造错守卫的靶子） |
- * | `prunedLegit` | 基线世界 + 从快照里删事实、保留断言（= 历史淘汰） | 仍是 `witnessed`，`prunedUnverifiable=1` |
+ * | `prunedLegit` | 基线世界 + 从快照里删事实、保留断言（= 历史淘汰） | 仍是 `witnessed`，`prunedUnverifiable=2` |
  * | `fabricatedNoCorroboration` | 同上，但连断言一起删 | 降级为 `heard`（没有旁证 → 不是历史淘汰） |
  * | `realSample` | 仓库里的真 v5 存档（`traces/outer-baseline-v5.json`） | 导入前后 `witnessed` 条数不变 |
  * | `soakArchive` | pwe-soak 的 90 天存档（只读引用，路径由调用方给） | 71 → 71，降级 0、拒绝 0、淘汰旁证 12 |
