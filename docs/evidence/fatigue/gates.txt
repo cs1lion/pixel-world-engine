@@ -1,0 +1,37 @@
+闸门读数（2026-11-05，疲劳与睡眠块之后）
+
+## 九道
+1. npm run check —— 语法 0 / 语义 0，退出 0
+2. npm test —— 2113 通过 / 0 失败 / 9 跳过（旧 2108 + 新增 fatigue 5 条）
+3. npm run build —— 退出 0（含既有 chunk 体积提示，与基线同）
+4. node scripts/audit-palette.mjs --strict —— 退出 0（UI 9/9、并集 32，未动配色）
+5. node scripts/audit-references.ts —— 154 处行号引用，0 处存疑（插入 74 行后逐条重指；
+   其中 2 处来自本块 PROGRESS 记录本身，含 PROGRESS 在内复跑仍为 0）
+6. node scripts/audit-citations.ts —— 0 处不在（world-client/tmp/next-day-save.json 已用
+   scripts/evidence-liveliness/make-next-day-save.ts 重新生成）
+7. node scripts/audit-sections.ts —— 159 处 §N 全对
+8. node scripts/audit-claims.ts --strict —— markers 5 / passed 5 / failed 0
+   （README 的 test-file-count 由 227 改 228：新增 test/fatigue.test.ts）
+9. python -m pytest server/tests -q —— 退出 0
+
+## 浏览器（dev 起在 5307，跑完即停）
+test:browser（smoke）	退出 0（125 项）
+test:phases（四刻）	17 项通过，退出 0（EVAL_OUT 指到 tmp/，不写 eval/screens）
+test:persistence		8 项通过，退出 0；存档 schemaVersion 仍是 **5**
+test:render-budget		6 项通过，退出 0；绘制指令 16130（< 30000）、Graphics 27
+test:setting（灯潮）	退出 0
+test:buttons		退出 2（已知缺口，如实记录：`/api/memory/list` 回 404，`#clock-align-check`
+	默认 disabled 的缺口仍在）。未为变绿改任何代码。
+
+## 存档
+`src/world/save.ts` 一行未改；`test/fatigue.test.ts` 里有一条断言直查 `toSave()` 的 JSON，
+确认没有 `fatigue` / `lastRest` / `asleep` / `sleepLog` / `sleepSpan` 任一字样。
+疲劳与 `lastMealAt` 同类：运行时投影，**没有升 v6**。
+
+## 截图基线
+跑闸门时 `eval/screens/` 被脚本重写 16 张，已 `git checkout` 还原，未进提交。
+
+## 其它
+- 全量测试里 `daily-prop-cost`（第 1 天 < 50ms）在并行跑时偶发红（135ms）；
+  单独连跑两次 3/3 通过。是负载噪声，不是本块引入的开销（本块每计划拍只多一次 Map 读）。
+- `test:buttons` 的 2 是既有缺口，见上。

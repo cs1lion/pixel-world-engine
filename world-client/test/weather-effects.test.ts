@@ -8,6 +8,7 @@ import {
   stallsPackedFor,
   walkSpeedFactor,
 } from '../src/world/weather-effects.ts';
+import { environmentAt } from '../src/world/environment.ts';
 
 /**
  * 天气的**行为**后果，不是换滤镜。
@@ -18,23 +19,27 @@ import {
  */
 
 test('雨里快走：雨/暴雨 1.5 倍，晴与雾正常步速', () => {
-  assert.equal(walkSpeedFactor('clear'), 1);
-  assert.equal(walkSpeedFactor('rain'), RAIN_WALK_FACTOR);
-  assert.equal(walkSpeedFactor('storm'), RAIN_WALK_FACTOR);
-  assert.equal(walkSpeedFactor('fog'), 1);
+  // 天气只是帧里的一项读数，函数自己不再比对 `'rain' | 'storm'`。
+  assert.equal(walkSpeedFactor(environmentAt(0, 'clear', 0.5)), 1);
+  assert.equal(walkSpeedFactor(environmentAt(0, 'rain', 0.5)), RAIN_WALK_FACTOR);
+  assert.equal(walkSpeedFactor(environmentAt(0, 'storm', 0.5)), RAIN_WALK_FACTOR);
+  assert.equal(walkSpeedFactor(environmentAt(0, 'fog', 0.5)), 1);
 });
 
 test('雨天收摊，雾天不收', () => {
-  assert.equal(stallsPackedFor('clear'), false);
-  assert.equal(stallsPackedFor('rain'), true);
-  assert.equal(stallsPackedFor('storm'), true);
-  assert.equal(stallsPackedFor('fog'), false);
+  assert.equal(stallsPackedFor(environmentAt(0, 'clear', 0.5)), false);
+  assert.equal(stallsPackedFor(environmentAt(0, 'rain', 0.5)), true);
+  assert.equal(stallsPackedFor(environmentAt(0, 'storm', 0.5)), true);
+  assert.equal(stallsPackedFor(environmentAt(0, 'fog', 0.5)), false);
 });
 
 test('雾天只走 8 格以内，晴雨的远路照走', () => {
   const here = { x: 20, y: 20 };
-  assert.equal(fogKeepsClose('fog', here, { x: 20 + FOG_VISIT_CELLS, y: 20 }), true);
-  assert.equal(fogKeepsClose('fog', here, { x: 20 + FOG_VISIT_CELLS + 1, y: 20 }), false);
-  assert.equal(fogKeepsClose('clear', here, { x: 0, y: 0 }), true);
-  assert.equal(fogKeepsClose('rain', here, { x: 0, y: 0 }), true);
+  const fog = environmentAt(0, 'fog', 0.5);
+  const clear = environmentAt(0, 'clear', 0.5);
+  const rain = environmentAt(0, 'rain', 0.5);
+  assert.equal(fogKeepsClose(fog, here, { x: 20 + FOG_VISIT_CELLS, y: 20 }), true);
+  assert.equal(fogKeepsClose(fog, here, { x: 20 + FOG_VISIT_CELLS + 1, y: 20 }), false);
+  assert.equal(fogKeepsClose(clear, here, { x: 0, y: 0 }), true);
+  assert.equal(fogKeepsClose(rain, here, { x: 0, y: 0 }), true);
 });

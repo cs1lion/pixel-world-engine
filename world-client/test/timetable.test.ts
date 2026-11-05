@@ -23,6 +23,7 @@ import {
   minuteOfDay,
 } from '../src/world/timetable.ts';
 import { routineFor, routineBeats } from '../src/world/routines.ts';
+import { environmentAt } from '../src/world/environment.ts';
 import { observationOf } from '../src/world/memory/observe.ts';
 import type { WorldChange } from '../src/world/world-changes.ts';
 
@@ -110,7 +111,8 @@ test('跨过的节拍：左开右闭，跨日也照付', () => {
 
 test('安静段：作息回锚点坐着，停满 40 世界分钟', () => {
   const beats = routineBeats(ALTAR, buildWorld(blueprints).grid);
-  const quiet = routineFor('clear', beats, 2, 0.5, null, true);
+  // 安静段由帧自己认：13:00 那一帧带 `quiet`，不必再传一个布尔。
+  const quiet = routineFor(environmentAt(worldMinutes(13 * 60), 'clear', 0.5), beats, 2);
   assert.deepEqual(quiet.target, beats[0]!.target, '安静段回锚点');
   assert.equal(quiet.label, beats[0]!.label, '说法也借锚点，不另编一句');
   assert.equal(quiet.dwellMs, worldMinutes(40));

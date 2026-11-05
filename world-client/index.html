@@ -18,7 +18,8 @@
         --ink: #e8e2d2;         /* U1 纸面 / 亮文字 */
         --dim: #8e968c;         /* U3 次要文字 */
         --panel: #171b18;       /* U4 面板底 */
-        --line: #2b322c;        /* U5 分隔线 / 边框 */
+        --line: #666a62;        /* U5 结构边框：对页面底 3.49:1、对面板 3.15:1（2026-11-05 由 #2b322c 换值） */
+        --line-faint: #2b322c;  /* U5b 面板内部细线/点线：只做分隔，不承担 3:1 */
         --amber: #e3a13c;       /* U6 焦点琥珀（与世界共享） */
         --paper-ink: #24211b;   /* U2 纸上墨字 */
         --base: #0c0f0d;        /* U7 页面底 / 投影 */
@@ -75,6 +76,36 @@
         border: 1px solid var(--line);
         color: var(--ink);
       }
+      /* 开场提示：第一次进来的人先看到「能做什么」，而不是一块空画布。
+         只占一行、在画布**上面**的普通流里——画布包围盒不能被 DOM 压住，
+         调色板截图要求它保持整数像素且没有叠层（见 #topbar 那段）。
+         颜色全部复用现有变量：提示本身是中性的，强调色只留给主按钮。 */
+      #entry-hint {
+        width: 720px;
+        max-width: 100%;
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        padding: 6px 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-left: 2px solid var(--line);
+        color: var(--ink);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      #entry-hint[hidden] { display: none; }
+      #entry-hint .entry-hint-tag {
+        color: var(--dim);
+        white-space: nowrap;
+        letter-spacing: 0.08em;
+      }
+      #entry-hint kbd {
+        font: inherit;
+        padding: 1px 5px;
+        border: 1px solid var(--line);
+        color: var(--ink);
+      }
       header { text-align: center; }
       h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 400; letter-spacing: 0.16em; }
       header p { margin: 4px 0 0; color: var(--dim); font-size: 12px; }
@@ -117,7 +148,7 @@
         /* §1.7 硬投影：原 0 18px 40px 是大半径高斯模糊，是整张图里唯一不像素的地方——
            像素语言里没有「柔和渐隐」，投影必须是硬边块，不留模糊过渡。
            两层阶梯（4px 深 + 8px 浅）模拟「离地一点」的厚度，两层都还是实心块。
-           颜色一律从 --base（UI 8 色之 U7）派生，不写新的 rgb 字面量：
+           颜色一律从 --base（UI 9 色之 U7）派生，不写新的 rgb 字面量：
            audit-palette 会把 CSS 字面量逐个计入 UI 层色数，写死 rgba() 等于隐式加色。 */
         box-shadow:
           4px 4px 0 0 color-mix(in srgb, var(--base) 55%, transparent),
@@ -186,7 +217,7 @@
         background: var(--ink);
         white-space: nowrap;
         /* §1.7：加 1px 硬描边，让它从「HTML 盒子」读成「像素气泡」。
-           描边用 --line（UI 8 色之一），与纸面/面板的边线同一套语言。 */
+           描边用 --line（UI 9 色之一），与纸面/面板的边线同一套语言。 */
         border: 1px solid var(--line);
       }
       /* 像素尾巴：用 ::after + border 画实心小三角，朝下指着角色。
@@ -230,7 +261,7 @@
         /* 不用实底：露话该读成「从地皮下浮上来」，不是又一块面板。
            半透明纸色把字托住，背后的剪影与泥点照样透得出来。 */
         background: color-mix(in srgb, var(--ink) 82%, transparent);
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
         white-space: nowrap;
         pointer-events: none;
       }
@@ -265,8 +296,27 @@
         white-space: nowrap;
         cursor: pointer;
       }
-      button:hover { border-color: var(--amber); color: var(--amber); }
-      button.primary { background: var(--panel); border-color: var(--amber); }
+      /* 次要按钮只用中性：底色 = 面板，边框 = 分隔线。强调色不参加悬停——
+         全界面的琥珀只留给主按钮、焦点框、选中态与成功回执。 */
+      button:hover { border-color: var(--ink); }
+      button:focus-visible { outline: 1px solid var(--amber); outline-offset: 1px; }
+      /* 主按钮是强调色唯一的填充落点：琥珀底 + 纸上墨字（实测 7.21:1）。 */
+      button.primary {
+        background: var(--amber);
+        border-color: var(--amber);
+        color: var(--paper-ink);
+      }
+      button.primary:hover {
+        border-color: var(--ink);
+        color: var(--paper-ink);
+      }
+      button.primary:focus-visible { outline-color: var(--ink); }
+      button.secondary {
+        background: var(--panel);
+        border-color: var(--line);
+        color: var(--ink);
+      }
+      button.secondary:hover { border-color: var(--ink); color: var(--ink); }
       /* 三条回复栏都可能收到「一行一条」的长说明（存档越界/放不下的坐标清单），
          而 textContent 不折行：HTML 把 \n 折成一个空格。没有这句，指名了个寂寞。 */
       #status {
@@ -318,7 +368,7 @@
         display: flex;
         gap: 8px;
         align-items: baseline;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
         padding-bottom: 4px;
         margin-bottom: 4px;
       }
@@ -330,7 +380,7 @@
       .unit-status-today {
         margin-top: 6px;
         padding-top: 4px;
-        border-top: 1px solid var(--line);
+        border-top: 1px solid var(--line-faint);
         color: var(--dim);
       }
       .unit-status-today > summary { cursor: pointer; color: var(--amber); }
@@ -340,7 +390,7 @@
       #unit-status .unit-status-placeholder {
         margin-top: 6px;
         padding-top: 4px;
-        border-top: 1px solid var(--line);
+        border-top: 1px solid var(--line-faint);
         color: var(--dim);
         cursor: not-allowed;
       }
@@ -360,6 +410,9 @@
         color: var(--dim);
         font-size: 12px;
       }
+      /* 成功与失败在同一个位置互斥出现：成功用强调琥珀，失败用陶土。
+         没有独立的绿色位（UI 预算 9 色已满），成功事件与「进度/亮灯」共用琥珀。 */
+      #reply.good { color: var(--amber); }
       #reply.bad { color: var(--warn); }
       #save-io-reply {
         min-height: 1.2em;
@@ -543,7 +596,7 @@
         justify-content: space-between;
         flex-wrap: wrap;
         padding-bottom: 6px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
       }
       #chronicle .chronicle-head strong {
         color: var(--amber);
@@ -682,7 +735,7 @@
         flex-wrap: wrap;
         justify-content: space-between;
         padding-bottom: 6px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
       }
       .dbg-head select, .dbg-head button { font-size: 11px; padding: 3px 6px; }
       #debug-pause { flex: 0 0 auto; width: auto; }
@@ -694,7 +747,7 @@
         gap: 6px;
         justify-content: space-between;
         padding: 1px 0;
-        border-bottom: 1px dotted var(--line);
+        border-bottom: 1px dotted var(--line-faint);
       }
       .dbg-key { color: var(--dim); flex: 0 1 auto; max-width: 46%; }
       .dbg-val { text-align: right; min-width: 0; overflow-wrap: anywhere; }
@@ -746,7 +799,7 @@
         align-items: center;
         justify-content: space-between;
         padding-bottom: 6px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
       }
       #villager-panel .villager-head strong {
         color: var(--amber);
@@ -758,7 +811,7 @@
       #villager-panel-body blockquote {
         margin: 8px 0;
         padding-left: 8px;
-        border-left: 2px solid var(--line);
+        border-left: 2px solid var(--line-faint);
         color: var(--ink);
       }
       #villager-panel-body .villager-when {
@@ -800,7 +853,7 @@
         align-items: center;
         justify-content: space-between;
         padding-bottom: 6px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
       }
       #stele-panel .stele-head strong {
         color: var(--amber);
@@ -812,7 +865,7 @@
       #stele-panel-body blockquote {
         margin: 8px 0;
         padding-left: 8px;
-        border-left: 2px solid var(--line);
+        border-left: 2px solid var(--line-faint);
         color: var(--ink);
       }
       #stele-panel-body blockquote p { margin: 0; }
@@ -861,7 +914,7 @@
         align-items: center;
         justify-content: space-between;
         padding-bottom: 6px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--line-faint);
       }
       #building-panel .building-head strong {
         color: var(--amber);
@@ -912,6 +965,13 @@
       <span class="hintkey"><kbd>Ctrl</kbd>+<kbd>K</kbd> 降下神谕</span>
     </div>
 
+    <!-- 开场提示：第一次进来的人先知道「这一步做什么」。不是弹窗、不挡画布，
+         第一次提交神谕或第一次点画布就收起；不靠计时器，也不引入过渡。 -->
+    <div id="entry-hint" role="note">
+      <span class="entry-hint-tag">先看一眼</span>
+      <span>她在祭坛边。按 <kbd>Ctrl</kbd>+<kbd>K</kbd> 说第一句话，或右键点一个人看她记得什么。</span>
+    </div>
+
     <div id="stage">
       <div id="app"></div>
       <div id="world-overlay"></div>
@@ -923,12 +983,12 @@
       <ul id="queue-list"></ul>
     </div>
 
-    <div id="status" role="status">世界正在醒来…</div>
+    <div id="status" role="status">正在铺开世界：地形、灯与第一个人…</div>
 
     <div id="clock-align" hidden role="status" aria-live="polite">
       <span id="clock-align-text"></span>
-      <button type="button" id="clock-align-yes">对齐到今天零点</button>
-      <button type="button" id="clock-align-no">暂不</button>
+      <button class="primary" type="button" id="clock-align-yes">对齐到今天零点</button>
+      <button class="secondary" type="button" id="clock-align-no">暂不</button>
     </div>
 
     <form class="oracle" id="oracle">

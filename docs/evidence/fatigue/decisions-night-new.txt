@@ -1,0 +1,2 @@
+86280120|v0|routine|garden|40,40|garden|2
+86280120|v1|routine|promenade|56,33|promenade|3

@@ -299,6 +299,8 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
 
   const show = (ok: boolean, message: string): void => {
     reply.textContent = message;
+    // 成功用强调琥珀、失败用陶土；与非成功互斥，同一个位置只出一种。
+    reply.classList.toggle('good', ok);
     reply.classList.toggle('bad', !ok);
   };
 

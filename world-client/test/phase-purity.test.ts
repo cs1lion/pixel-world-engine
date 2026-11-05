@@ -173,9 +173,11 @@ test('快照里没有时辰字段：字段清单冻在测试里，不猜名字',
   });
   const keys = Object.keys(sim.snapshot() as unknown as Record<string, unknown>);
 
-  // 2026-10-27 实测，23 个字段；2026-11-04 加 `harbor`，24 个。加字段 → 改这里；
+  // 2026-10-27 实测，23 个字段；2026-11-04 加 `harbor`，24 个；2026-11-05 加
+  // `deliveryFailures`（失败事件账，运行时投影），25 个。加字段 → 改这里；
   // 改这里 → 就会读到上面的说明。`harbor` 与 `tide` 同源：它跟着潮位走，
-  // 不把「今天是什么时辰」带进世界。
+  // 不把「今天是什么时辰」带进世界；`deliveryFailures` 同样只是事件账，
+  // 不读时辰。
   const EXPECTED: readonly string[] = [
     'now',
     'villager',
@@ -200,6 +202,7 @@ test('快照里没有时辰字段：字段清单冻在测试里，不猜名字',
     'faith',
     'deliveries',
     'deliveriesByVillager',
+    'deliveryFailures',
     'feed',
   ];
   assert.deepEqual(
@@ -210,7 +213,7 @@ test('快照里没有时辰字段：字段清单冻在测试里，不猜名字',
   );
 
   // 上面那条 deepEqual 已经够狠，这一条是给读的人的：明确说清"没有时辰字段"
-  // 在今天的键上长什么样。留着一个显式的空结果，比让人去数 24 个键好。
+  // 在今天的键上长什么样。留着一个显式的空结果，比让人去数 25 个键好。
   const phaseish = keys.filter((key) => /phase|timeOfDay|clock|dawn|noon|dusk|night/i.test(key));
   assert.deepEqual(phaseish, [], `快照里出现了像时辰的字段：${phaseish.join(', ')}`);
 });

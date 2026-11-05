@@ -1,0 +1,31 @@
+疲劳与睡眠 · 改前基线（2026-11-05，改代码之前采）
+
+本块会改决策序列，所以先落基线，改完后逐项对照。
+
+## 逐拍决策（npm run 的 behavior-decisions 探针，同一条轨迹、同一步长）
+迹线	traces/outer-two-days.json
+步数	3000 × 60000ms（世界日 1.04 → 3.13）
+决策数	480
+摘要	39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+逐行	docs/evidence/fatigue/decisions-old.txt
+
+迹线	traces/night-rain-build.json
+决策数	2
+摘要	5aa111186b4ebce2679be3e0a35b2ec89b502259cd63699e593c3f8e74f54b32
+逐行	docs/evidence/fatigue/decisions-night-old.txt
+
+## 世界/记忆/造物（trace:replay）
+事件 50 条
+世界指纹	a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964
+记忆指纹	fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+造物指纹	c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+夜雨世界指纹	6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075
+
+## 存档
+schemaVersion	5
+浏览器实测体积	14984 字节（见 docs/evidence/palette-9/persistence.txt）
+`src/world/save.ts` 字段表	未改（本块不动它）
+
+## 疲劳读数
+本轮之前仓里没有疲劳模块：`fatigueAt` / `fatigueReadingOf` 不存在，
+睡眠段/跨阈次数恒为 0（无读数可采，如实记为「不存在」）。

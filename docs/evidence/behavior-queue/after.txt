@@ -1,0 +1,51 @@
+行为规则 / 目标队列 —— 改动后读数
+==================================
+
+分支：feat/behavior-queue（从 feat/env-frame 的 d353c26 切出，未合入 main）
+采集时间：2026-11-04，**行为重构之后**
+端口：http://127.0.0.1:5307/
+
+取证方式说明
+------------
+新增 `src/world/behavior.ts`（`BehaviorPlanner` / `GoalQueue`）与
+`src/world/behavior-rules.ts`（默认三条规则 + 避让 guard）。
+`stepIdle` 不再写死 `chaseVerification → preCoverHabit → routine`，
+改为按表评估：第一个命中即产出目标，并盖章 `rule`。
+旧链的判据与副作用逐字搬进 `verificationGoal` / `preCoverGoal` /
+`routineGoal`；避让从「目标生产者」改为 `ROUTINE_GUARDS` 的
+`AVOIDANCE_GUARD`（同一字符串匹配、同一记账、同一 20 世界秒重试）。
+目标队列是运行时读数（`Map<villagerId, GoalQueue>`），不落档；
+本块没有任何规则调用 `interrupt`。
+
+一、三条指纹与事件数
+--------------------
+世界指纹   95ee830c948bb5b8c0e07964d7b8d6700a2470fc79a2f1adcf179d5ddfb08131
+记忆指纹   fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+造物指纹   c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+事件数     50 条（录制 50 条），摘要一致
+输入摘要   47412864ee3b606617f78a0364ce9ae0b7baeb231774250b57a71f51055a5c7f
+世界读数   {"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0},"eventCount":50}
+记忆读数   {"lastClosedDay":3,"currentDay":3,"holders":4,"facts":47,"entries":45,"claims":38,"beliefs":11,"traces":5,"landmarks":2,"turningPoints":0,"bonds":1,"moods":2,"bondTrustSum":-0.24,"moodValenceSum":0.246757,"legends":0,"placeNames":2,"announcements":0,"written":6,"credibility":0,"metToday":1}
+造物账     日终 2 次 / 提议 3 条 / 落地 1 栋
+
+二、逐拍决策日志（decisions-after.txt）
+--------------------------------------
+轨迹       traces/outer-two-days.json（3000 拍 × 60s，90,000,000 → 270,000,000）
+决策条数   480（与改动前逐条相同）
+文件 sha256 39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+逐行 diff  0 条差异（Compare-Object 计数 0）
+行格式     now|villagerId|rule|goal|target|beatId|routineIndex
+rule 取值  verification / pre-cover / routine / none
+
+三、渲染预算（render-budget-after.txt）
+--------------------------------------
+ok 绘制指令低于 30000           实际 16130
+ok Graphics 对象数量正常        实际 27
+ok 拖动时帧率不明显低于静止     静止 60.6 / 拖动 60.4（采样浮动，同档）
+ok 切到后台真的降频             前台 58.0 / 后台 11.0
+ok 回到前台恢复满帧             恢复 63.0
+ok 全程无 JS 报错
+
+四、调色板审计（--strict，退出码 0）
+----------------------------------
+超预算项：0

@@ -3686,6 +3686,7 @@ function cloneEpic(epic: EpicEntry): EpicEntry {
 /** 事实里没有 `what` 时，按 kind 给一句。只用于世界侧自己发的事件。 */
 const DEFAULT_WHAT: Readonly<Record<string, string>> = {
   task_done: '有人交了一单活',
+  delivery_failed: '有人饿着没把活送到',
   celebration: '有人庆祝了一件事',
   conflict: '有人起了争执',
   milestone: '达成了一个里程碑',

@@ -31,7 +31,7 @@ test('轨迹回归：outer-two-days', async () => {
 
   // 2. 世界指纹 + 事件条数/摘要 + 世界业务读数。
   assert.equal(check.status, 'replayable');
-  assert.equal(check.fingerprint, '32ba01e786168f8534bbe8a288b891f433a037253df0958468b934d469f96f17');
+  assert.equal(check.fingerprint, '0663b93fe966f5d92c20c13e0d5bcfca588d951a542ac01487c0710a95cf8e0f');
   assert.equal(check.eventCount, 52);
   assert.equal(check.eventDigest, 'baad0768ec9772570480c6435c6c2937a01bc0cc1507dc6cde6768844c1940e2');
   assert.equal(check.business.buildings, 2);

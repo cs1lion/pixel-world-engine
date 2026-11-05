@@ -20,7 +20,7 @@
 
 ## 决策（代码今天守的这一份）
 
-1. **世界层 24 个源色、UI 层 8 个、两层共享 1 个、并集 31。** 世界那 24 个是 canvas 上唯一允许出现的世界源色；UI 那 8 个活在 `index.html` 的 `<style>` 里，两层只共享琥珀 `#e3a13c` 一个值。
+1. **世界层 24 个源色、UI 层 9 个、两层共享 1 个、并集 32。** 世界那 24 个是 canvas 上唯一允许出现的世界源色；UI 那 9 个活在 `index.html` 的 `<style>` 里，两层只共享琥珀 `#e3a13c` 一个值。**（UI 附注 9：2026-11-05 由 8 位扩到 9 位，第九位只给结构边框 `#666a62`；浅色套经评估后放弃：无真实使用场景，不为不存在的界面占预算。见文末 2026-11-05 补记。）**
 2. **token 名是闭集。** 加第 25 个色 = 加第 25 个 token = 再走一次 ADR。`docs/SPEC_V2.md` §4.2 把这条定为引擎级约束（「24 色不变，设定集只做映射」），`GLOSSARY.md` 的「24 色预算」条目收的也是这一句。
 3. **设定集换值不换名。** `world-client/src/world/theme.ts` 把 `WorldPalette` 定义成 `Readonly<Record<WorldColor, number>>`——槽名来自 `WORLD`，是闭集；设定集手册自己的 11 色只是另一组**值**，落点仍是这 24 个槽。写错一个槽名（`terracota`）要当场编译失败，而不是运行时画出一个 `undefined` 色、安静地什么都不显示。
 
@@ -33,10 +33,10 @@
 | 断言 | 实际判什么 |
 |---|---|
 | `世界层正好 24 个源色，且没有重复值` | `Object.values(WORLD).length === 24` **且** `new Set(values).size === 24`。色数与去重两条都查 |
-| `UI 层正好 8 个源色` | 从 `index.html` 的 `<style>` 里抓源色：6 位十六进制字面量 + `rgba()`/`rgb()` 的前三个通道（四舍五入成 `#rrggbb`），去重后正好 8 个 |
+| `UI 层正好 9 个源色` | 从 `index.html` 的 `<style>` 里抓源色：6 位十六进制字面量 + `rgba()`/`rgb()` 的前三个通道（四舍五入成 `#rrggbb`），去重后正好 9 个 |
 | `WORLD 的每个 token 值都等于提案 24 色（换值必须变红）` | 与一份**逐字抄在测试里**的 24 项 `名字 → #rrggbb` 表做 `deepEqual`。名字多一个少一个、值换一分，都红 |
-| `UI 的源色集合等于提案 8 色（换值必须变红）` | 排序后集合相等 |
-| `世界与 UI 只共享 #e3a13c，并集 31` | 共享色必须**正好**是 `[hex(WORLD.amber)]`；并集大小必须正好 31 |
+| `UI 的源色集合等于提案 9 色（换值必须变红）` | 排序后集合相等 |
+| `世界与 UI 只共享 #e3a13c，并集 32` | 共享色必须**正好**是 `[hex(WORLD.amber)]`；并集大小必须正好 32 |
 | `render/scenes 里不再有 canvas 颜色字面量（只许引用 WORLD）` | 对 `main.ts`、`render/buildings.ts`、`render/decor.ts`、`render/smoke.ts`、`render/tilemap.ts`、`render/villager.ts`、`render/weather.ts`、`scenes/SandboxScene.ts` 八个文件剥掉块注释后扫 `0xRRGGBB`，必须一个都没有 |
 | `全部蓝图 × 4 槽都指向 WORLD token` | `prefabs.json` 每份蓝图的 `palette` 每个槽都必须是字符串、且必须是 `WORLD` 的键；总槽数必须等于蓝图套数 × 4（数字不写死，加一栋楼不用改这里） |
 | `解析器兼容旧值：整数与 "#rrggbb" 都解析回同一个数` | `parseBlueprint` 对 token 名、整数、`#rrggbb` 三种写法给出同一个 palette |
@@ -64,7 +64,7 @@
 
 ### 四、`world-client/scripts/audit-palette.mjs --strict`——CI 里那条
 
-`.github/workflows/ci.yml` 在 `npm run build` 之后跑 `node scripts/audit-palette.mjs --strict`。它自己有一份 `PROPOSED_WORLD`（24 项，带语义角色）与 `PROPOSED_UI`（8 项），`--strict` 在任一层超预算时退出码 1。**本 ADR 补记当天实测**：世界层唯一色 24（引用 345 处）、UI 层 8（116 处）、共享 1（`#e3a13c`）、并集 31，两层超出都是 0。
+`.github/workflows/ci.yml` 在 `npm run build` 之后跑 `node scripts/audit-palette.mjs --strict`。它自己有一份 `PROPOSED_WORLD`（24 项，带语义角色）与 `PROPOSED_UI`（8 项），`--strict` 在任一层超预算时退出码 1。**本 ADR 补记当天实测**：世界层唯一色 24（引用 345 处）、UI 层 8（116 处）、共享 1（`#e3a13c`）、并集 31，两层超出都是 0。（2026-11-05 现测：世界 24（335 处）、UI 9（183 处）、共享 1、并集 32，超出 0——见文末补记。）
 
 ## 理由：哪些能证，哪些不能
 
@@ -72,7 +72,7 @@
 
 - **24 这个数今天成立，而且是被三处独立守着的。** `WORLD` 里 24 个键、24 个互不相同的值（本 ADR 补记时逐个数过）；`palette-budget.test.ts` 判色数与去重；`loadSettingPack` 对每份设定集判「24 个槽各占一个不同值」。
 - **色板是要能换的，而且已经换过一次。** `theme.ts` 的闭集槽名 + `settings/types.ts` 要求每份包都带 `palette: WorldPalette` + 灯潮界那份真的给了另一组 24 个值（`settings/dengchao/pack.ts`）。`render/tilemap.ts` 里 `const palette = theme?.palette ?? WORLD;` 然后逐层传下去——渲染层不再自己读全局 `WORLD`，那块注释记着改它之前的两块色板同时出现在一张画面上的事。
-- **UI 那 8 色与世界那 24 色是两份预算，只共享琥珀一个值。** 测试里 `shared` 必须正好是 `[hex(WORLD.amber)]`。
+- **UI 那 9 色与世界那 24 色是两份预算，只共享琥珀一个值。** 测试里 `shared` 必须正好是 `[hex(WORLD.amber)]`。
 
 **不能证的（本 ADR 不替它编理由）：**
 
@@ -232,3 +232,33 @@ markdown 表格里都有汉字，两条正则都过。但判据的宽窄是说�
 改后（色板间接层落地，提交 9cafa18）**源色等于当前世界声明的 token**，24 个槽
 CIEDE2000 全为 0——比「≤10」更严。这条不是靠调低阈值过的：`audit-palette --strict`
 的世界层仍是 24/24、超出 0。
+
+---
+
+**2026-11-05 补记：UI 预算 8 → 9，第九位只给结构边框；浅色套放弃。**
+
+- **为什么加这一位。** 2026-11-05 的入口配色取证实测出边框 `#2b322c` 对页面底
+  `#0c0f0d` 只有 **1.46:1**、对面板 `#171b18` 只有 **1.32:1**，低于 WCAG「非文本
+  对比度 3:1」。深色界面靠浅边框分层这条原则，在旧值上只是勉强可见。上一轮因为
+  `8/8` 零余量没修，把它记成待批准阻塞项；本轮只批了「一个位」，所以只修这一处。
+- **第九位是什么。** `--line` 换成 `#666a62`：对页面底 **3.49:1**、对面板 **3.15:1**
+  （算法同 `audit-palette.mjs` 的 WCAG 2.x 相对亮度）。旧值 `#2b322c` 不删，
+  改名 `--line-faint`，只留给面板内部的细线/点线（面板头分隔、调试行点线、
+  引用块左边线）：这些地方本来就不该和正文抢注意力，3:1 的实线放在那里会变噪音。
+  所以是「6 档灰阶语义 + 边框一档两种线宽」：可见边线用 `--line`，内部分隔用
+  `--line-faint`，不是新增一档灰。
+- **灰阶不等距是接受的，不重排。** 六档按用途排开的 ΔL* 实测为
+  **5.20 / 3.62 / 7.08 / 41.23 / 28.77**（顺序：base → panel → paper-ink → line →
+  dim → ink）。这是**按可用色位数压到 6 档**的结果：优先保证最低档 ≥3 的相邻可辨、
+  文字档 ≥7:1 的可读，**牺牲等距**。把 11 级等距灰塞进 9 个 UI 位做不到；
+  能证明的只有「相邻两档可辨」，不是「步长相等」。
+- **浅色套：放弃。** 上一轮盘过，浅色套至少要 2 个新色位（浅面板 + 浅底上的中间灰）。
+  本轮评估后放弃——产品只有深色一条主题，没有真实的浅色界面；**无真实使用场景，
+  不为不存在的界面占预算。** `mapping.txt` 第三节的阻塞项就此关闭，不再是待批准项。
+- **改到的判据与文件。** `audit-palette.mjs` 的 `BUDGET.ui` 8→9 与 `PROPOSED_UI`
+  9 项；`palette-budget.test.ts` 的 `UI_BUDGET` 9、`UNION_BUDGET` 32、`PROPOSED_UI`
+  9 项；`index.html` 的变量块与 11 处内部分隔线改用 `--line-faint`。
+  世界 24 色一格未动。
+- **现测。** 见 `docs/evidence/palette-9/contrast.txt` 与 `audit.txt`；合并到 main
+  后的口径归一读数记在 `docs/evidence/merge-main/palette.txt`（UI 引用数与
+  `eval/ledger.json` 分母一并按实测重填）。

@@ -16,6 +16,7 @@
  * 是遗憾，但让整个世界停下来等一个 HTTP 请求是本末倒置。
  */
 
+import type { DeliveryFailurePayload } from './delivery-failure.ts';
 import type { GridPoint, TaskKind, Weather } from './types.ts';
 
 /** 日志里的事件 kind。与 `task.*` 并列，都是小写点分名。 */
@@ -129,6 +130,15 @@ export type WorldChange =
        * 记不下「对谁做的」。
        */
       readonly otherId?: string | null;
+      /**
+       * 交付失败的载荷子对象。**只有 `kind = 'delivery_failed'` 允许带**：
+       * 「哪一单、为什么失败、是不是重复失败」不塞进 `text`，因为它们是
+       * 记忆层与日报要读的结构化事实，不是给人看的一句话。
+       *
+       * `repeat` 是推送前真查一遍事件账得到的值，不是常量；块 4 的
+       * `hungerFailedTasks` 保证每单只失败一次，所以今天恒为 false。
+       */
+      readonly failure?: DeliveryFailurePayload;
     }
   | {
       /**
@@ -177,6 +187,7 @@ export type WorldChange =
 
 /** `world.event` 的种类闭集。服务端白名单的客户端一半。 */
 export type WorldEventKind =
+  | 'delivery_failed'
   | 'tide_turn'
   | 'routine_done'
   | 'daily_water'

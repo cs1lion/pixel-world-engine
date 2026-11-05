@@ -4,8 +4,8 @@
  * 纯函数决定下一个落点，模拟层只负责走过去。
  */
 
-import type { GridPoint, PlacedBuilding, Weather } from './types.ts';
-import { TIDE_HIGH_MIN, TIDE_LOW_MAX } from './tide.ts';
+import type { GridPoint, PlacedBuilding } from './types.ts';
+import { hasEnvironment, type EnvironmentFrame } from './environment.ts';
 import { PACE } from './pace.ts';
 import type { MarketPhase } from './timetable.ts';
 
@@ -146,25 +146,24 @@ export function shelterTarget(
  * 时退回锚点，牌子也照锚点说——世界可以在做不到时说「现在不行」，
  * 不能一边说屋檐一边把人放在露天里。
  *
- * `quiet` 是 12:00–14:00 的安静段：不下雨时大家都回锚点坐着，停到
+ * 帧里的 `quiet` 是 12:00–14:00 的安静段：不下雨时大家都回锚点坐着，停到
  * `PACE.quietDwellMs`。雨天优先——躲雨是比「正午歇着」更硬的事。
  */
 export function routineFor(
-  weather: Weather,
+  frame: EnvironmentFrame,
   beats: readonly RoutineBeat[],
   index: number,
-  tideLevel = 0,
   shelterAt: GridPoint | null = null,
-  quiet = false,
 ): RoutineBeat {
   // 暴雨一样躲，只是说法不同——这一档是雨的强度，不是新行为。
-  if (weather === 'rain' || weather === 'storm') {
+  if (hasEnvironment(frame, 'wet')) {
+    const storm = frame.weather === 'storm';
     // 落点是那道门；没门才退回锚点，并且连说法一起退回。
     if (shelterAt !== null) {
       return {
         id: 'shelter',
-        label: weather === 'storm' ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
-        going: weather === 'storm' ? '跑向屋檐下躲暴雨' : '跑向屋檐下躲雨',
+        label: storm ? '缩进屋檐下躲暴雨' : '躲到屋檐下看雨',
+        going: storm ? '跑向屋檐下躲暴雨' : '跑向屋檐下躲雨',
         target: shelterAt,
         dwellMs: PACE.dwellDefaultMs,
       };
@@ -172,7 +171,7 @@ export function routineFor(
     const anchor = beats[0]!;
     return {
       id: 'shelter',
-      label: weather === 'storm' ? '在祭坛边缩着等暴雨过去' : '在祭坛边看雨',
+      label: storm ? '在祭坛边缩着等暴雨过去' : '在祭坛边看雨',
       // 没门可躲时落点是锚点，所以赶路那句也得说锚点——说屋檐就是一边把她
       // 往祭坛送、一边告诉外面她去了屋檐。
       going: '去祭坛边',
@@ -182,7 +181,7 @@ export function routineFor(
   }
   // 安静段：不下雨就回锚点坐着。落点与说法都借锚点那一拍——这不是新玩法，
   // 只是「正午不赶路」；多出来的只有停留时长。
-  if (quiet) {
+  if (hasEnvironment(frame, 'quiet')) {
     const anchor = beats[0]!;
     return {
       id: anchor.id,
@@ -199,7 +198,7 @@ export function routineFor(
   // 早先这里只改 label、留着原来的 target：牌子写「沿街」，人照样往浅滩走。
   // 世界可以在做不到时说「现在不行」，但不能一边说一边做别的——
   // 那句话是给外面看的唯一凭据，说谎比不去更糟。
-  if (!tideBeatApplies(tide, tideLevel)) return fallbackTo(beats, beat);
+  if (!tideBeatApplies(tide, frame)) return fallbackTo(beats, beat);
   return beat;
 }
 
@@ -208,17 +207,18 @@ export function routineFor(
  *
  * 这是 `src/` 下**唯一**判定「现在去得了吗」的地方。`Simulation` 的快进判定也走
  * 这儿，不另写一份字面量——两处各写一遍时，改一处忘另一处，世界就会一边说
- * 「现在不行」一边把她送过去。那两个数在 `tide.ts`（`TIDE_LOW_MAX` /
- * `TIDE_HIGH_MIN`），也不许在调用处再写一遍。
+ * 「现在不行」一边把她送过去。两个门槛收在 `tide.ts`（`TIDE_LOW_MAX` /
+ * `TIDE_HIGH_MIN`），由 `environment.ts` 折成 `lowTide` / `highTide` 两个 flag；
+ * 这里只读 flag，不再读潮位数字，调用处也不许再写一遍。
  *
  * （`test/routine-tide-single-source.test.ts` 也 import 它，但那是为了验「没有
  *   第三份」，不是为了判行为。所以「全仓唯一」在字面上是假的，写 `src/` 下唯一。）
  *
  * 没写 `tide` 的落点恒真：它不挑潮位。
  */
-export function tideBeatApplies(tide: RoutineBeat['tide'], level: number): boolean {
-  if (tide === 'low') return level <= TIDE_LOW_MAX;
-  if (tide === 'high') return level >= TIDE_HIGH_MIN;
+export function tideBeatApplies(tide: RoutineBeat['tide'], frame: EnvironmentFrame): boolean {
+  if (tide === 'low') return frame.flags.has('lowTide');
+  if (tide === 'high') return frame.flags.has('highTide');
   return true;
 }
 

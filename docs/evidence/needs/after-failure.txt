@@ -1,0 +1,76 @@
+失败原型（饿到顶 → 交付失败一次）—— 改动后读数
+================================================
+
+分支：feat/behavior-queue
+采集时间：2026-11-04 22:12
+端口：http://127.0.0.1:5307/
+
+一、结论
+--------
+做到了：饿到顶（hunger >= 1.0）的人干完活，这一趟交付**失败一次**——任务落到
+**已有的** `failed` 状态（`TaskStatus` 早就有这个值，`report.ts` 也早就会把它
+算进失败数），交付数不涨，她说一句「饿得手抖，没送到。」，清牌子回 idle。
+同一单只失败一次；吃一口（读数回 0）之后下一单能正常交付。
+**没有动存档契约**：无新增落档字段、无版本号变化、无新事件类型；失败计数与
+「这单失败过」都只在运行时（`hungerFailedTasks: Set<string>`）。
+
+二、三条指纹与事件数（无变化）
+------------------------------
+世界指纹   95ee830c…（与 recorded 一致）
+记忆指纹   fb0847b3…（与 recorded 一致）
+造物指纹   c5198f0f…（与 recorded 一致）
+输入摘要   47412864…（与 recorded 一致）
+两次逐字相同：是
+事件数     50（录制 50）
+世界读数   {"day":3,"now":270000000,"buildings":2,"tasksTotal":0,"tasksCompleted":0,"weather":"clear","faithPoints":0,"deliveries":{"feed":0,"local":0,"eventCount":50}
+记忆读数   同 baseline
+造物账     日终 2 次 / 提议 3 条 / 落地 1 栋
+
+三、逐拍决策（decisions-failure-after.txt）
+-------------------------------------------
+条数       480（与 baseline 相同）
+sha256     39aa269d571adaae0a47c293c30d099dc2793e1ea9e01d5c9f1e44b3b280e9e8
+逐行 diff  0（decisions-failure-diff.txt；与 decisions-before / decisions-after 三方相同）
+为什么没变  冻结轨迹 50 小时，读档时 `lastMealAt` 锚到 `world.now`，最高饥饿
+            读数 0.694 < 0.9 吃阈值 < 1.0 失败阈值；两条新分支都进不去。
+
+四、专项场景（failure-scenario.txt）
+------------------------------------
+test 1「饿到顶 → 交付失败一次」：
+  - 先派 quick 单（原地办，`estimateMs` = 300 秒）；
+  - 开工后把 `lastMealAt` 挪到 3 个世界日之前，读数封顶 1.0；
+  - 落终态 = `failed`；`deliveries.local = 0`；气泡含「没送到」。
+test 2「吃一口之后再派一单能正常交付，同一单不会失败第二次」：
+  - 第一单同样 failed；
+  - `setLastMealAt(now)` 后读数 0，再派一单 → `done`，`deliveries.local = 1`；
+  - 第一单仍是 `failed`，没有被二次结算。
+
+五、改动结构（最小面）
+----------------------
+1. `needs.ts`：新增 `NEEDS_HUNGER_FAIL_THRESHOLD = 1`（与 0.9 吃阈值分开枚举）。
+2. `simulation.ts`：
+   - 运行时字段 `hungerFailedTasks: Set<string>`（不落档）；
+   - 两个交付漏斗（`finishInPlace`、`finishActiveTask`）在结算前各问一次
+     `deliveryFailsFromHunger`；命中即走 `failDeliveryFromHunger`；
+   - `failDeliveryFromHunger` 复用 `finishInPlace` 的收尾形状：任务 `failed`、
+     `completedAt`、清 `blockedQuestion`、回 idle、清牌子、`nextRoutineAt +1600`、
+     气泡 1400ms；有楼就把人挪回门口，原地单（无楼）不动位置；
+   - 不记交付、不加信仰、不发 `world.event`（避免新增世界事实种类）。
+3. 只读接口不动；`needsOf` 仍是纯值对象、运行时算。
+
+六、闸门
+--------
+check / build / palette --strict / references --strict / citations --strict /
+sections --strict / claims --strict（含 adr-schema）/ pytest（524 通过 1 跳过）/
+npm test（2102 通过 0 失败 9 跳过）/ worktrees:audit --strict 全绿。
+浏览器：browser / phases / persistence / render-budget / setting 通过；
+`test:buttons` 仍未验证：开发服务 `/api/memory/list` 回 HTTP 404，脚本按设计退出码 2。
+
+七、诚实记录（动过的那一条断言）
+--------------------------------
+`test/labelless-idle.test.ts` 里「清牌子的路口一共四条」是一条**源码计数**断言：
+它数 `routineLabel = null` 的出现次数，逼人每加一条回 idle 的路口就重新看一遍
+注释。失败原型确实新增了一条回 idle 且无牌子的路口，所以计数从 7 处改为 8 处，
+路口名单加上 `failDeliveryFromHunger`，注释一并写清第五条从哪来。
+这不是把断言改绿：断言守的是「路口数量」，数量真的变了；行为断言
+（牌子清掉、回 idle、人不在祭坛）一条没放宽。

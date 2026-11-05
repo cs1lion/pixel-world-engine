@@ -1,0 +1,36 @@
+三枚指纹 · 旧 → 新（2026-11-05，疲劳与睡眠块）
+
+## 旧（改代码前，块 6/7 基线）
+世界	a41f4e2e464c77f73f92fb62cb112638b7b11d325079634c490cdf22c3700964
+记忆	fb0847b31a4f82303e121d40a4da230b34be1b5029f2e9ce562cbfd5a6fd18b7
+造物	c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d
+夜雨世界	6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075
+
+## 新（重录 traces/outer-two-days.json 之后）
+世界	20cd773bbef0006ff13957643f922db3a75df54f49e5722357b0f0e242d33161	（变）
+记忆	8712bf39b4edb6ffd4c040343d0661471c2875e5bf3f95dca127257e2e5134ae	（变）
+造物	c5198f0f902a1a0c2167b54ca7d300c50dba0bd602ac3eda96a05e2a2d325e1d	（不变）
+夜雨世界	6efda5741f9203105aac358b4cd1e4859fce1b7c47e3a9863f2aa9704101c075	（不变）
+
+同种子两跑	trace:replay 跑两次，三枚指纹各两次逐字相同，且与重录值一致。
+	第一次 947.1ms / 第二次 720.4ms；两次的输入摘要 47412864…与 recorded 一致。
+
+## 为什么变
+- **世界**：状态指纹覆盖到决策时刻与走位。两人在第 2.64 天跨阈、第 2.65 天就地睡下、
+  第 2.86 天醒来，此后作息时刻整体后移 4.85 小时（跨阈→入睡还差 18/22 分钟）。
+  终局的业务读数（day / buildings / tasks / deliveries / weather / faithPoints /
+  eventCount=50）逐项与旧值相同，变的是**过程时刻**与末尾各人的位置/牌子。
+- **记忆**：条数逐项相同（facts 47 / entries 45 / claims 38 / beliefs 11 / traces 5 /
+  landmarks 2 / bonds 1 / moods 2 / written 6），变的是同一批事实被写下的**时刻**
+  （睡眠窗把后续动作整体挪了 4.85 小时）。
+- **造物**：日终 2 次 / 提议 3 条 / 落地 1 栋，与睡眠窗口无交集 → 不变。
+- **夜雨**：轨迹只到第 12 分钟，离 1.6 天很远，`sleep` 规则一次都不命中 → 不变。
+
+## 重录了什么
+- `traces/outer-two-days.json`（npm run trace:record 生成；同命令也重写了
+  `traces/outer-baseline-v5.json` 与 `traces/night-rain-build.json`，后两者逐字节未变）
+- `test/trace-regression-outer-two-days.test.ts`（由 scripts/trace-to-test.ts 重新生成，
+  文件头写明「不要手改」）
+- 事件数不变（50），事件摘要随新录制一致；没有新增事件种类。
+
+理由只有一句：**新增 `sleep` 行为规则**（不是「顺手更新」）。

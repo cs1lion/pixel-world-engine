@@ -1,0 +1,7 @@
+首屏	1010x940	可见差(≥8)=0	精确差max=0	有差像素=0/949400	字节相同=true	bbox=null
+  top cells: []
+首次提交后	1010x940	可见差(≥8)=0	精确差max=0	有差像素=0/949400	字节相同=true	bbox=null
+  top cells: []
+run A errors=0 run B errors=0
+首屏 UI： {"hud":"天下太平 · 2 人在镇","status":"莞尔：去农田边　/　阿雾：去街口　　晴　　上游离线 · 仅本地活　　上游交付 0 单 · 本地交付 0 单　　神恩 0/3　　没有存档。","paperClock":"第 0 分 06 秒","hintHidden":false,"primaryButtonBg":"rgb(227, 161, 60)","primaryButtonColor":"rgb(36, 33, 27)"}
+首次提交后 UI： {"status":"莞尔：去农田边　/　阿雾：去街口　　晴　　上游离线 · 仅本地活　　上游交付 0 单 · 本地交付 0 单　　神恩 0/3　　没有存档。","reply":"模型调用失败：意图模型调用失败：HTTP 400","paperClock":"第 4 分 00 秒","hintHidden":true,"replyClasses":"bad"}

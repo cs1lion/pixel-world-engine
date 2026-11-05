@@ -238,7 +238,7 @@ export interface MemoryConfig {
    * 一件事要多重才配给一个地点**改名**（协议 §11 的历史链）。
    *
    * 与 `legendImportanceFloor` 分开是刻意的：能立碑的事不一定说得出一个名字。
-   * 0.6 正好是 `milestone` 的 hint（0.6，`observe.ts:73`）——
+   * 0.6 正好是 `milestone` 的 hint（0.6，`observe.ts:222`）——
    * `celebration`（0.8）也在其上，而 `conflict`（0.55）落在其下：那张
    * `EPITHETS` 表说的是「这类事说得出称号」，这个数说的是「配不配」。
    * 判据在 `toponym.ts` 的 `epithetFor()`，调用点在 `world.ts` 的 `maybeRename()`。

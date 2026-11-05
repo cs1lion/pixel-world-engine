@@ -1,0 +1,27 @@
+闸门读数（2026-11-05，收尾配色之后）
+
+## 九道
+1. npm run check —— 退出 0（check-types 全过）
+2. npm test —— 2108 通过 / 0 失败 / 9 跳过（与基线同数）
+3. npm run build —— 退出 0（dist 正常产出）
+4. node scripts/audit-palette.mjs --strict —— 退出 0：世界 24/24（335 处）、UI 9/9（183 处）、
+   共享 1、并集 32、两层超出 0
+5. node scripts/audit-references.ts —— 退出 0
+6. node scripts/audit-citations.ts —— 退出 0
+7. node scripts/audit-sections.ts —— 退出 0
+8. node scripts/audit-claims.ts --strict —— 退出 0
+9. python -m pytest server/tests -q —— 退出 0
+
+## 浏览器（dev 起在 5307，跑完即停；PIXEL_WORLD_URL 指过去）
+test:browser（smoke）	125 项通过，退出 0
+test:phases（四刻）	17 项通过，退出 0（EVAL_OUT 指到 tmp/，不写 eval/screens）
+test:persistence		8 项通过，退出 0；存档 v5，14984 字节（14.6KB）
+test:render-budget		6 项通过，退出 0；绘制指令 16130（< 30000）、Graphics 27
+	第一遍与其它浏览器脚本并跑时「回到前台恢复满帧」失败（恢复 47.0 vs 前台 57.0），
+	单独重跑通过（恢复 50.0 / 前台 52.0）——并跑时的帧率噪声，与颜色无关。
+test:setting（灯潮）	退出 0（check-dengchao 全项 ok）
+test:buttons		退出 2（已知缺口，如实记录）：服务端活着但 /api/memory/list 回 404；
+	`#clock-align-check` 默认 disabled 的缺口仍在。本轮不为变绿改代码。
+
+## 两跑像素
+见 diff.txt：四组 PNG 逐字节相同，可见差 0、精确差 0。

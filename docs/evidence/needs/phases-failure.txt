@@ -1,0 +1,19 @@
+ok   ?time=dawn 真的停在dawn  实际 dawn
+ok   ?time=noon 真的停在noon  实际 noon
+ok   ?time=dusk 真的停在dusk  实际 dusk
+ok   ?time=night 真的停在night  实际 night
+ok   四刻页面无 JS 报错
+ok   dawn 必须明显亮于 noon  69.67 vs 64.59，差 5.08
+ok   noon 必须明显亮于 dusk  64.59 vs 57.68，差 6.91
+ok   dusk 必须明显亮于 night  57.68 vs 51.25，差 6.42
+ok   dawn 与 noon 在建筑区可辨  30.5% 像素变化，门槛 3%
+ok   dawn 与 dusk 在建筑区可辨  36.3% 像素变化，门槛 3%
+ok   dawn 与 night 在建筑区可辨  92.1% 像素变化，门槛 3%
+ok   noon 与 dusk 在建筑区可辨  27.7% 像素变化，门槛 3%
+ok   noon 与 night 在建筑区可辨  89.2% 像素变化，门槛 3%
+ok   dusk 与 night 在建筑区可辨  26.8% 像素变化，门槛 3%
+ok   神谕「下雨吧」被认出来了  神谕已投递，随下一拍生效。
+ok   夜里真的下起了雨  weather=rain
+ok   夜雨与晴夜画面不同（雨幕生效）  两张截图完全相同说明雨没上屏
+
+四刻可辨性：17 项通过

@@ -28,7 +28,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BUDGET = { world: 24, ui: 8 };
+const BUDGET = { world: 24, ui: 9 };
 
 /** 提案：24 色世界调色板。前 16 色为原材料表，W17–W24 为 2026-10-21 ADR 新增材料/光色。 */
 const PROPOSED_WORLD = [
@@ -58,13 +58,14 @@ const PROPOSED_WORLD = [
   { hex: '#5a463e', role: '炭黑（暗瓦、烟囱、铁器）' },
 ];
 
-/** 提案：8 色 UI 调色板。 */
+/** 提案：9 色 UI 调色板（2026-11-05 由 8 位扩到 9 位，第九位只给结构边框）。 */
 const PROPOSED_UI = [
   { hex: '#e8e2d2', role: '纸面/深底亮文字' },
   { hex: '#24211b', role: '纸上墨字' },
   { hex: '#8e968c', role: '次要文字（深底）' },
   { hex: '#171b18', role: '面板底' },
-  { hex: '#2b322c', role: '分隔线/边框' },
+  { hex: '#666a62', role: '结构边框（对页面底 3.49:1、对面板 3.15:1）' },
+  { hex: '#2b322c', role: '面板内部细线/点线（不承担 3:1）' },
   { hex: '#e3a13c', role: '强调/焦点（与琥珀同值）' },
   { hex: '#0c0f0d', role: '页面底/投影' },
   { hex: '#c8876a', role: '警告/错误' },
@@ -625,6 +626,10 @@ const report = {
     'amber/grass': contrast('#e3a13c', '#2d3b2e'),
     'smoke/night': contrast('#d8dad3', '#14110d'),
     'paper/ink': contrast('#e8e2d2', '#24211b'),
+    'line/base': contrast('#666a62', '#0c0f0d'),
+    'line/panel': contrast('#666a62', '#171b18'),
+    'faintLine/base': contrast('#2b322c', '#0c0f0d'),
+    'faintLine/panel': contrast('#2b322c', '#171b18'),
     'amber/panel': contrast('#e3a13c', '#171b18'),
     'dim/panel': contrast('#8e968c', '#171b18'),
     'paper/panel': contrast('#e8e2d2', '#171b18'),
@@ -694,7 +699,7 @@ function renderMarkdown(data) {
     lines.push(`| ${item.hex} | ${item.refs} | ${(item.luminance * 100).toFixed(1)}% | ${item.nearest.hex} | ${item.nearest.distance.toFixed(1)} | ${item.suggestion} | ${siteList(item.sites)} |`);
   }
   lines.push('');
-  lines.push('## 越界色：UI 层（不在提案 8 色内）');
+  lines.push('## 越界色：UI 层（不在提案 9 色内）');
   lines.push('');
   lines.push('| 色值 | 使用 | L | 最近提案色 | ΔE76 | 建议 | 文件:行号 |');
   lines.push('|---|---:|---:|---|---:|---|---|');
@@ -710,7 +715,7 @@ function renderMarkdown(data) {
     lines.push(`| ${item.hex} | ${item.role} | ${item.refs} | ${(item.luminance * 100).toFixed(1)}% | ${[item.shared ? '与 UI 共享' : '', item.reserved ? '当前未引用/保留槽' : ''].filter(Boolean).join('；')} |`);
   }
   lines.push('');
-  lines.push('## 提案 8 色 UI');
+  lines.push('## 提案 9 色 UI');
   lines.push('');
   lines.push('| 色值 | 语义 | 当前使用 | L | 备注 |');
   lines.push('|---|---|---:|---:|---|');
@@ -779,7 +784,7 @@ if (useJson) {
     for (const site of item.sites) console.log(`    ${fmtSite(site)}`);
   }
   console.log('');
-  console.log('## UI 层越界色（不在提案 8 色内）');
+  console.log('## UI 层越界色（不在提案 9 色内）');
   for (const item of report.outUi) {
     console.log(`${item.hex}  refs=${item.refs}  → 最近 ${item.nearest.hex} ΔE=${item.nearest.distance.toFixed(1)}  ${item.suggestion}`);
     for (const site of item.sites) console.log(`    ${fmtSite(site)}`);
@@ -790,7 +795,7 @@ if (useJson) {
     console.log(`${item.hex}  refs=${item.refs}  L=${(item.luminance * 100).toFixed(1)}%  ${item.role}${item.shared ? ' [与 UI 共享]' : ''}${item.reserved ? ' [当前未引用，保留槽]' : ''}`);
   }
   console.log('');
-  console.log('## 提案 8 色 UI');
+  console.log('## 提案 9 色 UI');
   for (const item of report.proposedUi) {
     console.log(`${item.hex}  refs=${item.refs}  L=${(item.luminance * 100).toFixed(1)}%  ${item.role}${item.shared ? ' [与世界共享]' : ''}${item.reserved ? ' [当前未引用，保留槽]' : ''}`);
   }
