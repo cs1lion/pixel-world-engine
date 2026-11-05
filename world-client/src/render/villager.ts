@@ -16,9 +16,8 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
-import type { VillagerSnapshot } from '../world/types.ts';
-import { WORLD } from '../world/palette-data.ts';
-import type { WorldPalette } from '../world/theme.ts';
+import type { Vec2, VillagerSnapshot } from '../world/types.ts';
+import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
 import { drawLamp, lampActivityOf, lampBodyAlpha } from './lampoil-view.ts';
 import {
@@ -61,18 +60,63 @@ export function createVillager(
   // alpha 两档：外层 `deepShade` 0.3，接触线 `ink` 0.55。影子仍按 16px 格宽画，
   // 不做 24px 加宽——宽过一格会读成「两个人挨着」。
   const shadow = scene.add.graphics();
-  shadow.fillStyle(WORLD.deepShade, 0.3);
+  shadow.fillStyle(paletteFor().deepShade, 0.3);
   shadow.fillRect(-6, 0, 12, 2);
   shadow.fillRect(-4, 2, 8, 1);
-  shadow.fillStyle(WORLD.ink, 0.55);
+  shadow.fillStyle(paletteFor().ink, 0.55);
   shadow.fillRect(-4, 0, 8, 1);
 
   const body = scene.add.graphics();
-  drawVillager(body, DEFAULT_LOOK, WORLD, 'down', villagerPose('idle', false, 0), 'idle', false, 0);
+  drawVillager(body, DEFAULT_LOOK, paletteFor(), 'down', villagerPose('idle', false, 0), 'idle', false, 0);
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
   return { container, body, shadow, lamp: newLamp() };
+}
+
+/** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
+export function villagerFootAt(
+  cell: Vec2,
+  originX = 0,
+  originY = 0,
+): { readonly x: number; readonly y: number } {
+  return {
+    x: pixelAt(originX + (cell.x + 0.5) * TILE_PX),
+    y: pixelAt(originY + (cell.y + 1) * TILE_PX),
+  };
+}
+
+/** 人物 depth：脚底 + 8。上一行的人（脚底小 16px）因此比构件低 4。 */
+export function villagerDepthAt(footY: number, altitude: number): number {
+  return altitude + footY + 8;
+}
+
+/**
+ * 静态接触线在 `createVillager` 里占脚底三行（footY..footY+2），且随人物容器
+ * 在 depth ≥1000，永远盖在 3.1 层之上。动态影子必须让到它下面 3 行，
+ * 否则正午/清晨这种短影子会整条被接触线吃掉，看不出相位差。
+ *
+ * 边界：鞋面像素在 `footY` 之上（body 层），动态影子从 `footY+3` 起画，
+ * 所以既压不到鞋，也不会把脚下画脏；「投影关掉」时这一层整层不画，
+ * 画面回到加入本功能前的样子（帧差 0.00%）。
+ */
+export const VILLAGER_SHADOW_ROW_OFFSET = 3;
+
+export function drawVillagerGroundShadow(
+  g: Phaser.GameObjects.Graphics,
+  footX: number,
+  footY: number,
+  shape: { readonly dx: number; readonly span: number; readonly alpha: number },
+  palette: WorldPalette = paletteFor(),
+): void {
+  if (shape.span <= 0 || shape.alpha <= 0) return;
+  const dir = shape.dx >= 0 ? 1 : -1;
+  const x = footX + (dir > 0 ? 3 : -3 - shape.span);
+  const y = footY + VILLAGER_SHADOW_ROW_OFFSET;
+  g.fillStyle(palette.deepShade, shape.alpha);
+  g.fillRect(x, y, shape.span, 2);
+  g.fillStyle(palette.ink, shape.alpha * 0.9);
+  g.fillRect(x, y, shape.span, 1);
 }
 
 /** 每帧把快照画出来；坐标换算只在这里做一次，且结果取整到整数像素。 */
@@ -84,13 +128,14 @@ export function updateVillager(
   originY: number,
   altitude: number,
   appearance?: VillagerAppearance,
-  palette: WorldPalette = WORLD,
+  palette: WorldPalette = paletteFor(),
 ): void {
-  const px = pixelAt(originX + (villager.pos.x + 0.5) * TILE_PX);
-  const py = pixelAt(originY + (villager.pos.y + 1) * TILE_PX);
+  const foot = villagerFootAt(villager.pos, originX, originY);
+  const px = foot.x;
+  const py = foot.y;
   view.container.setPosition(px, py);
   view.container.setVisible(villager.visible);
-  view.container.setDepth(altitude + py + 8);
+  view.container.setDepth(villagerDepthAt(py, altitude));
 
   // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
   // 推进发生在更新路径上，用的是 simulation 时间：世界暂停时灯也停，
@@ -146,10 +191,17 @@ function paintColor(paint: PaintRole, look: VillagerLook, palette: WorldPalette)
       return palette[look.scarf];
     case 'scarfLit':
       return palette[look.scarfLit];
+    case 'lit':
+      return palette.warmLight;
+    case 'contact':
+      return palette.deepShade;
     default:
       return palette[paint];
   }
 }
+
+/** 这两个角色是「覆盖层」：压半透明，不新增源色，也不进 24 色审计。 */
+const PAINT_ALPHA: Partial<Record<PaintRole, number>> = { lit: 0.42, contact: 0.38 };
 
 function drawVillager(
   g: Phaser.GameObjects.Graphics,
@@ -162,7 +214,7 @@ function drawVillager(
   nowMs: number,
 ): void {
   for (const item of villagerLayout(look, facing, pose, walking, mode, nowMs)) {
-    g.fillStyle(paintColor(item.paint, look, palette), 1);
+    g.fillStyle(paintColor(item.paint, look, palette), PAINT_ALPHA[item.paint] ?? 1);
     g.fillRect(item.x, item.y, item.w, item.h);
   }
 }
@@ -181,36 +233,36 @@ function drawCarried(
   const top = offsetY - 13;
   if (kind === 'scroll') {
     // 卷轴：浅色横卷 + 两端暗轴头 + 中间一条暗纹（读成"卷起来的纸"）。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-7, top, 15, 7);
-    g.fillStyle(WORLD.plaster, 1);
+    g.fillStyle(paletteFor().plaster, 1);
     g.fillRect(-6, top + 1, 13, 5);
-    g.fillStyle(WORLD.trim, 1);
+    g.fillStyle(paletteFor().trim, 1);
     g.fillRect(-6, top + 1, 13, 1);
-    g.fillStyle(WORLD.timberDark, 1);
+    g.fillStyle(paletteFor().timberDark, 1);
     g.fillRect(-7, top + 1, 2, 5);
     g.fillRect(6, top + 1, 2, 5);
     // 纸面暗纹：两条横线，读成"写过的纸"。
-    g.fillStyle(WORLD.charcoal, 1);
+    g.fillStyle(paletteFor().charcoal, 1);
     g.fillRect(-3, top + 3, 6, 1);
     g.fillRect(-3, top + 4, 4, 1);
   } else if (kind === 'stone') {
     // 石料：带亮面的方石，轮廓更清楚。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-6, top, 13, 8);
-    g.fillStyle(WORLD.stone, 1);
+    g.fillStyle(paletteFor().stone, 1);
     g.fillRect(-5, top + 1, 11, 6);
-    g.fillStyle(WORLD.plaza, 1);
+    g.fillStyle(paletteFor().plaza, 1);
     g.fillRect(-5, top + 1, 11, 2);
-    g.fillStyle(WORLD.charcoal, 1);
+    g.fillStyle(paletteFor().charcoal, 1);
     g.fillRect(-5, top + 6, 11, 1);
   } else {
     // 纸：一叠薄纸，边缘有齿。
-    g.fillStyle(WORLD.ink, 1);
+    g.fillStyle(paletteFor().ink, 1);
     g.fillRect(-7, top, 15, 7);
-    g.fillStyle(WORLD.pale, 1);
+    g.fillStyle(paletteFor().pale, 1);
     g.fillRect(-6, top + 1, 13, 5);
-    g.fillStyle(WORLD.plaster, 1);
+    g.fillStyle(paletteFor().plaster, 1);
     g.fillRect(-3, top + 1, 1, 5);
     g.fillRect(1, top + 1, 1, 5);
     g.fillRect(4, top + 1, 1, 5);
@@ -221,18 +273,18 @@ function drawCarried(
 function drawUmbrella(g: Phaser.GameObjects.Graphics, offsetY: number): void {
   const y = offsetY;
   // 伞面比旧版抬高 10px（头从 20 长到 30）：中间高、两侧低，右缘留一个缺口。
-  g.fillStyle(WORLD.ink, 1);
+  g.fillStyle(paletteFor().ink, 1);
   g.fillRect(-7, -41 + y, 14, 3);
-  g.fillStyle(WORLD.ember, 1);
+  g.fillStyle(paletteFor().ember, 1);
   g.fillRect(-6, -41 + y, 12, 2);
   g.fillRect(-4, -42 + y, 8, 1);
-  g.fillStyle(WORLD.trim, 1);
+  g.fillStyle(paletteFor().trim, 1);
   g.fillRect(-5, -42 + y, 4, 1);
-  g.fillStyle(WORLD.timberDark, 1);
+  g.fillStyle(paletteFor().timberDark, 1);
   g.fillRect(-5, -40 + y, 1, 2);
   g.fillRect(0, -40 + y, 1, 2);
   g.fillRect(4, -40 + y, 1, 2);
   g.fillRect(0, -38 + y, 1, 9);
-  g.fillStyle(WORLD.plaza, 1);
+  g.fillStyle(paletteFor().plaza, 1);
   g.fillRect(-1, -30 + y, 3, 1);
 }

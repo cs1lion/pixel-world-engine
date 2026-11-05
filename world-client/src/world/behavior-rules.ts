@@ -55,11 +55,24 @@ export const SLEEP_RULE: BehaviorRule = {
   match: (ctx) => ctx.sleepGoal(),
 };
 
+/**
+ * 定时夜休：21:00 回锚点歇下、22:00–05:00 睡、05:20 动身去水边（main 的 `ec42e91`）。
+ *
+ * 排在疲劳睡**之后**：两套睡眠共存时，疲劳先跨阈就地睡的那一段归它独占；
+ * 没跨阈的夜里才轮到这条。设定集自带作息的世界（`hasExplicitRoutine`）里
+ * 这条不命中——那份作息就是全部日常，引擎不替它加一张床。
+ */
+export const REST_RULE: BehaviorRule = {
+  id: 'rest',
+  match: (ctx) => ctx.restGoal(),
+};
+
 /** 默认顺序 = 旧链顺序 + 需求层两条：睡在吃前，都在作息前（不命中时逐字等价）。 */
 export const DEFAULT_BEHAVIOR_RULES: readonly BehaviorRule[] = [
   VERIFICATION_RULE,
   PRE_COVER_RULE,
   SLEEP_RULE,
+  REST_RULE,
   EAT_RULE,
   ROUTINE_RULE,
 ];

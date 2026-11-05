@@ -40,7 +40,7 @@ export interface Decree {
  * 按 id 排序该是 `[c_1, t5]`。「稳定可复现」这半句是真的（插入序确定），
  * 「顺序即任务 id 顺序」是假的——照着它去按 id 找人会找错。
  */
-export function awaitingDecree(snapshot: WorldSnapshot): Decree | null {
+export function awaitingDecree(snapshot: Pick<WorldSnapshot, 'tasks'>): Decree | null {
   for (const task of snapshot.tasks) {
     if (task.blockedQuestion === null) continue;
     const question = task.blockedQuestion.trim();

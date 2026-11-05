@@ -1,0 +1,50 @@
+#!/bin/sh
+# 本地强制：拒绝直接 push 到 main。
+#
+# 背景：GitHub 的分支保护 API 在本仓当前凭据下返回 404，远端规则暂时上不了。
+# 所以这条边界放在本地：只要装了 core.hooksPath=.githooks，任何一次 push 前
+# Git 都会把待推引用交给这个脚本，目标分支是 refs/heads/main 就拦下。
+#
+# 安装：git config core.hooksPath .githooks
+# 自检：npm run check:hooks
+# 豁免：PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main
+#       （--no-verify 会跳过整条 pre-push，不只跳过 main 这一条，见 docs/RESUME.md）
+#
+# pre-push 的 stdin 每行是：<local ref> <local sha> <remote ref> <remote sha>
+# 删除远端分支时 local ref 是 (delete)；为防手滑，删除 main 同样拦下。
+
+protected="refs/heads/main"
+
+if [ "${PWE_ALLOW_PUSH_MAIN:-0}" = "1" ]; then
+  echo "pre-push: PWE_ALLOW_PUSH_MAIN=1，跳过 main 保护" >&2
+  exit 0
+fi
+
+blocked=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$remote_ref" ] && continue
+  if [ "$remote_ref" = "$protected" ]; then
+    blocked=1
+    echo "pre-push: 拒绝直推 main（本地 $local_ref -> $remote_ref，提交 $local_sha）" >&2
+  fi
+done
+
+if [ "$blocked" -eq 1 ]; then
+  cat >&2 <<'MSG'
+
+main 是受保护分支：请走分支 + PR / merge，不要直接 push。
+  1) git switch -c feat/<topic>
+  2) git push -u origin feat/<topic>    # 然后开 PR
+  3) 由 PR 合入 main
+
+确实需要绕过时（例如恢复灾难现场）：
+  PWE_ALLOW_PUSH_MAIN=1 git push origin <ref>:main
+
+安装与自检：
+  git config core.hooksPath .githooks
+  npm run check:hooks
+MSG
+  exit 1
+fi
+
+exit 0

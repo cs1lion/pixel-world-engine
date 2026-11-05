@@ -1,0 +1,592 @@
+{
+  "generatedBy": "scripts/mem-daycard.ts",
+  "pureReadOnly": true,
+  "realSave": {
+    "path": "docs/evidence/soak/soak-a/save-90d.json",
+    "saveBytes": 1664523,
+    "memoryBytes": 1430508,
+    "days": 90,
+    "firstDay": 0,
+    "lastDay": 89,
+    "cardStats": {
+      "count": 90,
+      "minBytes": 48,
+      "maxBytes": 50,
+      "avgBytes": 49.04
+    },
+    "timings": {
+      "all90": {
+        "p50": 0.14419999999998367,
+        "min": 0.1303000000000054,
+        "max": 0.2307999999999879,
+        "days": 90,
+        "msPerDay": 0.0016
+      },
+      "screen30": {
+        "p50": 0.04290000000000305,
+        "min": 0.03540000000000987,
+        "max": 0.17159999999998377,
+        "days": 30,
+        "msPerDay": 0.0014
+      },
+      "screen7": {
+        "p50": 0.011599999999987176,
+        "min": 0.009000000000014552,
+        "max": 0.07059999999998468,
+        "days": 7,
+        "msPerDay": 0.0017
+      },
+      "weekGuardOnly": {
+        "p50": 0.01680000000001769,
+        "min": 0.012199999999978672,
+        "max": 2.5534999999999854,
+        "days": 7,
+        "msPerDay": 0.0024
+      }
+    },
+    "day89": {
+      "denominator": 68,
+      "rows": 68,
+      "missing": 0,
+      "flags": [
+        "social"
+      ],
+      "people": 10,
+      "events": 29
+    },
+    "sampleCards": [
+      {
+        "day": 85,
+        "card": "{\"d\":85,\"e\":26,\"p\":10,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "what": "那天有人来往",
+        "whatSource": "flag"
+      },
+      {
+        "day": 86,
+        "card": "{\"d\":86,\"e\":26,\"p\":10,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "what": "那天有人来往",
+        "whatSource": "flag"
+      },
+      {
+        "day": 87,
+        "card": "{\"d\":87,\"e\":28,\"p\":10,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "what": "那天有人来往",
+        "whatSource": "flag"
+      },
+      {
+        "day": 88,
+        "card": "{\"d\":88,\"e\":28,\"p\":10,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "what": "那天有人来往",
+        "whatSource": "flag"
+      },
+      {
+        "day": 89,
+        "card": "{\"d\":89,\"e\":29,\"p\":10,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "what": "那天有人来往",
+        "whatSource": "flag"
+      }
+    ]
+  },
+  "pureReadProof": {
+    "memoryBytesBefore": 1430508,
+    "memoryBytesAfter": 1430508,
+    "memoryShaBefore": "c1ae2ae6784cc75ddfcd8baaceb6498e155e3f9e39b1939f62be7df0258ebdd0",
+    "memoryShaAfter": "c1ae2ae6784cc75ddfcd8baaceb6498e155e3f9e39b1939f62be7df0258ebdd0",
+    "memoryEqual": true,
+    "memorySnapshotStable": true,
+    "saveBytesBefore": 1664523,
+    "saveBytesAfter": 1664523,
+    "saveShaBefore": "c3f0e0c7ed3a3aa4ce20d931f8b3ef10e3c23a8c991ffaf3a6c11cedc0f7f134",
+    "saveShaAfter": "c3f0e0c7ed3a3aa4ce20d931f8b3ef10e3c23a8c991ffaf3a6c11cedc0f7f134",
+    "saveEqual": true,
+    "note": "只调 dayDigestOf/dayDigests/factDigest 与纯函数；没有关账、没有写回、没有碰存档文件"
+  },
+  "synthetic": {
+    "path": "docs/evidence/mem-daycard/input/synthetic-120d.json",
+    "provenance": "沿用 docs/evidence/mem-clarity 的合成输入（90–120 天）；只用来验证读取口径，不代表真实世界",
+    "days": 31,
+    "samples": [
+      {
+        "day": 92,
+        "evidence": {
+          "digestDay": 92,
+          "digestEvents": 30,
+          "digestPeople": 8,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":92,\"e\":30,\"p\":8,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 92,
+          "e": 30,
+          "p": 8,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 8,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 30,
+          "people": 8,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 96,
+        "evidence": {
+          "digestDay": 96,
+          "digestEvents": 27,
+          "digestPeople": 6,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":96,\"e\":27,\"p\":6,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 96,
+          "e": 27,
+          "p": 6,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 6,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 27,
+          "people": 6,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 100,
+        "evidence": {
+          "digestDay": 100,
+          "digestEvents": 25,
+          "digestPeople": 7,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":100,\"e\":25,\"p\":7,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 100,
+          "e": 25,
+          "p": 7,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 7,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 25,
+          "people": 7,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 103,
+        "evidence": {
+          "digestDay": 103,
+          "digestEvents": 20,
+          "digestPeople": 6,
+          "digestFlags": [
+            "social",
+            "dispute"
+          ],
+          "digestAnomalies": [
+            "争执"
+          ],
+          "digestPointers": [],
+          "whatSource": "sentence"
+        },
+        "card": "{\"d\":103,\"e\":20,\"p\":6,\"f\":\"so+di\",\"s\":\"吵了一架\"}",
+        "cardFields": {
+          "d": 103,
+          "e": 20,
+          "p": 6,
+          "f": "so+di",
+          "s": "吵了一架"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 6,
+          "dispute": true,
+          "summary": "吵了一架",
+          "what": "争执"
+        },
+        "truth": {
+          "events": 20,
+          "people": 6,
+          "dispute": true,
+          "flags": [
+            "social",
+            "dispute"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 106,
+        "evidence": {
+          "digestDay": 106,
+          "digestEvents": 20,
+          "digestPeople": 7,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":106,\"e\":20,\"p\":7,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 106,
+          "e": 20,
+          "p": 7,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 7,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 20,
+          "people": 7,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 109,
+        "evidence": {
+          "digestDay": 109,
+          "digestEvents": 21,
+          "digestPeople": 6,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":109,\"e\":21,\"p\":6,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 109,
+          "e": 21,
+          "p": 6,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 6,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 21,
+          "people": 6,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 112,
+        "evidence": {
+          "digestDay": 112,
+          "digestEvents": 22,
+          "digestPeople": 7,
+          "digestFlags": [
+            "quiet"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":112,\"e\":22,\"p\":7,\"f\":\"qu\",\"s\":\"静了一天\"}",
+        "cardFields": {
+          "d": 112,
+          "e": 22,
+          "p": 7,
+          "f": "qu",
+          "s": "静了一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 7,
+          "dispute": false,
+          "summary": "静了一天",
+          "what": "那天没什么人走动"
+        },
+        "truth": {
+          "events": 22,
+          "people": 7,
+          "dispute": false,
+          "flags": [
+            "quiet"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 115,
+        "evidence": {
+          "digestDay": 115,
+          "digestEvents": 28,
+          "digestPeople": 8,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":115,\"e\":28,\"p\":8,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 115,
+          "e": 28,
+          "p": 8,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 8,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 28,
+          "people": 8,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 118,
+        "evidence": {
+          "digestDay": 118,
+          "digestEvents": 21,
+          "digestPeople": 7,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":118,\"e\":21,\"p\":7,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 118,
+          "e": 21,
+          "p": 7,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 7,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 21,
+          "people": 7,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      },
+      {
+        "day": 120,
+        "evidence": {
+          "digestDay": 120,
+          "digestEvents": 22,
+          "digestPeople": 7,
+          "digestFlags": [
+            "social"
+          ],
+          "digestAnomalies": [],
+          "digestPointers": [],
+          "whatSource": "flag"
+        },
+        "card": "{\"d\":120,\"e\":22,\"p\":7,\"f\":\"so\",\"s\":\"平常一天\"}",
+        "cardFields": {
+          "d": 120,
+          "e": 22,
+          "p": 7,
+          "f": "so",
+          "s": "平常一天"
+        },
+        "answer": {
+          "hasEvents": true,
+          "people": 7,
+          "dispute": false,
+          "summary": "平常一天",
+          "what": "那天有人来往"
+        },
+        "truth": {
+          "events": 22,
+          "people": 7,
+          "dispute": false,
+          "flags": [
+            "social"
+          ]
+        },
+        "correct": true
+      }
+    ],
+    "allCorrect": true,
+    "day103": {
+      "card": {
+        "d": 103,
+        "e": 20,
+        "p": 6,
+        "f": "so+di",
+        "s": "吵了一架"
+      },
+      "text": "{\"d\":103,\"e\":20,\"p\":6,\"f\":\"so+di\",\"s\":\"吵了一架\"}",
+      "bytes": 53,
+      "showsDispute": true,
+      "what": "争执"
+    },
+    "week103To109": {
+      "cards": [
+        {
+          "day": 103,
+          "f": "so+di",
+          "s": "吵了一架"
+        },
+        {
+          "day": 104,
+          "f": "so",
+          "s": "平常一天"
+        },
+        {
+          "day": 105,
+          "f": "qu",
+          "s": "静了一天"
+        },
+        {
+          "day": 106,
+          "f": "so",
+          "s": "平常一天"
+        },
+        {
+          "day": 107,
+          "f": "so",
+          "s": "平常一天"
+        },
+        {
+          "day": 108,
+          "f": "wo",
+          "s": "干活一天"
+        },
+        {
+          "day": 109,
+          "f": "so",
+          "s": "平常一天"
+        }
+      ],
+      "calm": false,
+      "tenseDays": [
+        103
+      ],
+      "flagsByDay": {
+        "103": [
+          "so",
+          "di"
+        ],
+        "104": [
+          "so"
+        ],
+        "105": [
+          "qu"
+        ],
+        "106": [
+          "so"
+        ],
+        "107": [
+          "so"
+        ],
+        "108": [
+          "wo"
+        ],
+        "109": [
+          "so"
+        ]
+      },
+      "summary": "第 103–109 天这周不平静：第 103 天有事",
+      "naiveMajorityIsCalm": true,
+      "guardThrew": true,
+      "guardMessage": "周视图把第 103 天的 di 旗子并掉了"
+    }
+  },
+  "checks": {
+    "day89TimelineMissingZero": true,
+    "sampleAnswersAllCorrect": true,
+    "day103ShowsDispute": true,
+    "weekFlagsPreservedPerDay": true,
+    "majorityVoteMergesIntoCalm": true,
+    "guardCatchesMergedWeek": true,
+    "memoryByteIdentical": true,
+    "saveByteIdentical": true,
+    "cardBytesInOfflineRange": true,
+    "pureReadOnly": true
+  }
+}

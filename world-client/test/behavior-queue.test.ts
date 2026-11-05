@@ -44,6 +44,7 @@ const allGoals: BehaviorContext = {
   verificationGoal: () => goalOf('verify'),
   preCoverGoal: () => goalOf('pre-cover'),
   sleepGoal: () => goalOf('sleep'),
+  restGoal: () => goalOf('rest'),
   eatGoal: () => goalOf('eat'),
   routineGoal: () => goalOf('routine'),
 };
@@ -88,10 +89,11 @@ test('逐拍决策与本轮基线逐行相同：同一条轨迹 3000 拍', async
     readFileSync(new URL('../traces/outer-two-days.json', import.meta.url), 'utf8'),
   ) as TraceFile;
   // 基线在「疲劳块」改代码之前采（docs/evidence/fatigue/baseline.txt），
-  // 改完后按新行为重录到 decisions-new.txt。旧文件仍然留着，不覆盖。
-  // 变的原因只有一个：`sleep` 规则进了表，1.6 世界日处多出一次就地睡。
+  // 疲劳块后重录到 decisions-new.txt；合并 main（定时夜休 + 市面四拍）后
+  // 再重录到 docs/evidence/merge-main/decisions.txt。旧文件都留着，不覆盖。
+  // 本条只核对「合并后代码」与「合并后新录」逐行一致，不再追旧谱系。
   const expected = readFileSync(
-    new URL('../../docs/evidence/fatigue/decisions-new.txt', import.meta.url),
+    new URL('../../docs/evidence/merge-main/decisions.txt', import.meta.url),
     'utf8',
   )
     .trimEnd()
@@ -125,7 +127,7 @@ test('登记顺序决定优先级：交换两条规则的位置，结果就变�
   const planner = new BehaviorPlanner(DEFAULT_BEHAVIOR_RULES, ROUTINE_RULE);
 
   assert.equal(planner.plan(allGoals)?.rule, 'verification', '默认顺序第一条是求证');
-  assert.deepEqual(planner.orderedIds(), ['verification', 'pre-cover', 'sleep', 'eat', 'routine']);
+  assert.deepEqual(planner.orderedIds(), ['verification', 'pre-cover', 'sleep', 'rest', 'eat', 'routine']);
 
   planner.setRules([ROUTINE_RULE, PRE_COVER_RULE, VERIFICATION_RULE]);
   assert.equal(planner.plan(allGoals)?.rule, 'routine', '把作息登记在最前，它就先命中');
@@ -150,7 +152,7 @@ test('运行期新增一条规则不需要改 Simulation 或 Scene', () => {
   };
 
   sim.setBehaviorRules([once, ...DEFAULT_BEHAVIOR_RULES]);
-  assert.deepEqual(sim.behaviorRuleIds(), ['once', 'verification', 'pre-cover', 'sleep', 'eat', 'routine']);
+  assert.deepEqual(sim.behaviorRuleIds(), ['once', 'verification', 'pre-cover', 'sleep', 'rest', 'eat', 'routine']);
 
   sim.setDecisionLogEnabled(true);
   for (let index = 0; index < 3; index += 1) sim.update(2000);

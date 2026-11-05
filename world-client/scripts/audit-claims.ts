@@ -15,7 +15,7 @@
  *
  * 输出：
  *   claims: markers=N passed=N failed=N
- *   adr-schema: files=8 valid=8
+ *   adr-schema: files=N valid=N   （N 由 readdirSync 实测，不写死）
  * 未找到任何标记时也明确说出来，避免“0 个标记 = 全绿”的错觉。
  * --strict 下任一失败（含 ADR 字段/证据不合法）exit 1。
  */

@@ -570,6 +570,14 @@ export type OracleIntent =
 export interface CommandResult {
   readonly ok: boolean;
   readonly message: string;
+  /**
+   * 这句话的原句。只有神谕那条路（`oracle` / `intentFromModel`）带。
+   *
+   * 回执是**异步**到的：投递时 `say()` 同步返回「已投递」，输入框当场清空；
+   * 上游的答复要等模型才回来。`raw` 让写作面板能认回「刚才那条回执对应哪句」，
+   * 于是被上游拒收时可以把原句放回输入框，而不是让玩家对着空框重打。
+   */
+  readonly raw?: string;
 }
 
 export interface WorldEvent {

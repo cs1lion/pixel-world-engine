@@ -12,8 +12,19 @@
 | 状态 | 含义 | 用户能做什么 |
 |---|---|---|
 | 503 | 服务端没配 Key | 找部署的人 |
-| 422 | 请求本身形状不对 | 客户端 bug |
+| 422 | 请求本身不对：形状不对，或句子超长 / 含控制字符 | 客户端 bug；旁路调用方改请求 |
 | 200 + unknown | 模型没听懂，或给的命令越界 | 换句话再说一遍 |
+
+**超长与不可见字符走 422，不走 200 + unknown。** 这两条不是「世界不肯做」，
+是「这条请求根本不该到模型面前」：200 + unknown 会让一句话被翻成「没听懂」，
+而用户以为是自己说得不好。客户端（`world-client/src/ui/oracle-panel.ts`）
+在提交前已经把控制字符剥掉、把 200 字上限拦在输入框上；服务端**再拦一遍**，
+是因为客户端只防手滑——粘贴、脚本、旧缓存里的旧前端都能绕过 UI。
+两边对同一类输入的处理不同，是刻意的：客户端剥除，是为了不因为一个玩家
+看不见的字符丢掉整句话；服务端拒收，是因为一条带控制字符的 HTTP 请求
+本来就说明它不是那面板发出来的，服务端不该替调用方洗数据。
+上限的数值与客户端 `UTTERANCE_MAX_LENGTH` 同一个数，见
+`orchestrator.MAX_UTTERANCE_CHARS`。
 
 **越界命令不给错误码，给 unknown。** 请求没错、模型也答了，只是答的东西
 世界不肯做。这正是客户端 `routeIntent` 把一切失败落到 unknown 的同一条纪律：
@@ -31,6 +42,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 from fastapi import APIRouter, Body, Request
@@ -38,7 +50,13 @@ from fastapi.responses import JSONResponse
 
 from events.projection import merge_world_size, world_summary
 from oracle import orchestrator, wire
-from oracle.orchestrator import Interpretation, ModelCaller, ModelUnavailable
+from oracle.orchestrator import (
+    MAX_UTTERANCE_CHARS,
+    Interpretation,
+    ModelCaller,
+    ModelUnavailable,
+    utterance_length,
+)
 
 router = APIRouter()
 
@@ -126,12 +144,21 @@ def _log_of(request: Request):
     return log
 
 
+#: 与客户端 `CONTROL_CHARS` 同一段区间：C0（`\u0000`–`\u001f`）加 DEL（`\u007f`）。
+#: 换行与制表符也在里面——它们能把提示词拆出额外一行，而写作面板不产生多行。
+_CONTROL_CHARS = re.compile(r"[\u0000-\u001f\u007f]")
+
+
 def _check_request(body: Any) -> str | None:
-    """请求形状。返回错误说明，`None` 表示没问题。"""
+    """请求形状与句子本身。返回错误说明，`None` 表示没问题。"""
     if not isinstance(body, dict):
         return "请求体必须是 JSON 对象"
-    if not isinstance(body.get("utterance"), str):
+    utterance = body.get("utterance")
+    if not isinstance(utterance, str):
         return "utterance 必须是字符串"
+    problem = _check_utterance(utterance)
+    if problem is not None:
+        return problem
     templates = body.get("templates")
     if not isinstance(templates, list):
         return "templates 必须是数组"
@@ -141,6 +168,26 @@ def _check_request(body: Any) -> str | None:
     context = body.get("context")
     if context is not None and not isinstance(context, dict):
         return "context 必须是对象或省略"
+    return None
+
+
+def _check_utterance(text: str) -> str | None:
+    """句子的两道闸：不可见字符、长度。返回错误说明，`None` 表示放行。
+
+    **先看控制字符，再数长度。** 客户端是先剥掉控制字符、再 `trim`、再数长度；
+    服务端不剥，见到控制字符就拒（上面写了两边为什么不同）。长度这一段两边
+    必须一致：按 `utterance_length()` 的 UTF-16 码元算，与 `String.length` 对齐；
+    `strip()` 在数长度之前，两端的空白不占上限（客户端也先 trim）。
+    """
+    found = _CONTROL_CHARS.findall(text)
+    if found:
+        return (
+            f"这句话里有 {len(found)} 个控制字符（不可见，含换行/制表符）；"
+            "服务端只收可打印文字，请删掉重发"
+        )
+    length = utterance_length(text.strip())
+    if length > MAX_UTTERANCE_CHARS:
+        return f"这句话 {length} 字，超过上限 {MAX_UTTERANCE_CHARS} 字；删短再发"
     return None
 
 

@@ -63,6 +63,51 @@ test('Bond 负向：三次负向变差但不清零，且不自动对称', () => 
   assert.equal(memory.bondOf('v1', 'v0'), null, '仍然不该有 B→A');
 });
 
+function greet(memory: MemoryRuntime, day: number, index: number): void {
+  memory.observe(
+    {
+      eventId: `greet-${day}-${index}`,
+      kind: 'street_greet',
+      placeId: 'place:street',
+      at: { x: 10, y: 10 },
+      actors: ['v0', 'v1'],
+      outcome: { what: 'v0 朝 v1 点了下头' },
+      importanceHint: 0.38,
+      valence: 0.2,
+      indoor: false,
+    },
+    ['v0', 'v1'],
+    day * DAY_MS + index * 1000,
+  );
+}
+
+test('日常照面：当天见 5 次也只积一次，不是 5 次', () => {
+  const memory = pair();
+  for (let index = 0; index < 5; index += 1) greet(memory, 0, index);
+  memory.tick(DAY_MS);
+  const bond = memory.bondOf('v0', 'v1');
+  assert.ok(bond !== null, '见过一面就该留下关系账');
+  assert.ok(bond!.warmth > 0 && bond!.warmth < 0.1, `一天只该积一小步，实际 ${bond!.warmth}`);
+});
+
+test('日常照面：天天见面 30 天有账但不满格，信任不动', () => {
+  const memory = pair();
+  for (let day = 0; day < 30; day += 1) {
+    for (let index = 0; index < 3; index += 1) greet(memory, day, index);
+    memory.tick((day + 1) * DAY_MS);
+  }
+  const bond = memory.bondOf('v0', 'v1');
+  assert.ok(bond !== null, '30 天见面应当有账');
+  assert.ok(bond!.warmth > 0.15 && bond!.warmth < 0.45, `warmth 应小额累积，实际 ${bond!.warmth}`);
+  assert.ok(
+    bond!.familiarity > 0.3 && bond!.familiarity < 0.9,
+    `familiarity 应到熟识但不满格，实际 ${bond!.familiarity}`,
+  );
+  assert.equal(bond!.trust, 0, '日常照面不该改信任');
+  assert.ok(memory.bondOf('v1', 'v0') !== null, '关系账双向都该有');
+  assert.equal(memory.bondOf('v0', 'v2'), null, '没见过的不该凭空有账');
+});
+
 test('Bond 与 Mood 的 roundtrip：读档原样回来', () => {
   const memory = pair();
   event(memory, 'pos-0', 'v1', 0.4, 1000, ['v0', 'v1']);

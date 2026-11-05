@@ -39,6 +39,19 @@ function makeSim(initialNow = 0): Simulation {
     villagerNames: ['莞尔'],
     wallClock: () => 1000,
     initialNow,
+  });
+}
+
+/** 设定集自带作息的世界：`villagerProfiles` 一给，`hasExplicitRoutine === true`。 */
+function makeExplicitRoutineSim(initialNow = 0): Simulation {
+  return new Simulation({
+    grid: new WorldGrid({ width: 12, height: 10, border: 1, zones: [], regions: [] }),
+    buildings: [],
+    altar: { x: 2, y: 2 },
+    villagerName: '莞尔',
+    villagerNames: ['莞尔'],
+    wallClock: () => 1000,
+    initialNow,
     villagerProfiles: [
       {
         at: { x: 2, y: 2 },
@@ -144,6 +157,18 @@ test('跨阈 → 就地睡下 → 醒来：完整回路一次，醒来回正常'
   for (let index = 0; index < 10; index += 1) sim.update(2000);
   assert.equal(sim.sleepReport().crossings, 1, '醒来后不该立刻又睡');
   assert.equal(sim.goalInterruptCount(), 0, '睡觉不该触发打断');
+});
+
+test('设定集自带作息的世界里疲劳睡不触发：两套睡眠同一个开关', () => {
+  // 同一对数、同样的「上次睡醒」：默认世界会跨阈，设定集世界不该跨。
+  const explicit = makeExplicitRoutineSim(Math.floor(2.0 * DAY_MS));
+  const id = explicit.snapshot().villagers[0]!.id;
+  explicit.setLastRestAt(id, 0);
+  explicit.setDecisionLogEnabled(true);
+  for (let index = 0; index < 20; index += 1) explicit.update(2000);
+  assert.equal(explicit.sleepReport().crossings, 0, '设定集世界里疲劳睡不该跨阈');
+  assert.equal(explicit.sleepReport().spans.length, 0);
+  assert.equal(explicit.fatigueOf(id)!.asleep, false);
 });
 
 test('疲劳读数不落档，也没有新增字段', () => {

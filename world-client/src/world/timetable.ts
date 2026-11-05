@@ -8,9 +8,11 @@
  * 加速模式下世界日从 00:00 起算；`?clock=real` 下世界日的零点被锚在本地
  * 00:00（`real-clock.ts`），两种模式下这套时刻都成立。
  *
- * 这一版只接**已有的动作**：晨间的打水/点灯两件小事、午间的安静段，以及
- * 市面几个节点的旁白。开市、收工、收摊没有各造一套新玩法——它们先只是镇子
- * 说得出口的时刻，不额外改任何人的状态。
+ * 这一版接**已经做得到的动作**：晨间的打水/点灯两件小事、午间的安静段，
+ * 以及市面四个节点（开市 / 收工 / 夜市 / 闭市）。后四个节点不另造玩法：
+ * 它们落成 `world.event`，同时由 `marketPhaseAt` 把街口那一拍的**说法**
+ * 换成此刻真在做的事（守着早市 / 看夜市 / 只是站着）。说法与行为仍是一份
+ * 事实——白天说「守着摊子」，夜里就不说。
  */
 
 import { DAY_MS } from './memory/config.ts';
@@ -29,8 +31,17 @@ export type TimetableId =
   | 'pack_up'
   | 'market_close';
 
-/** 两件已经接通的每日小事。其余时刻还没有具体动作，只是旁白。 */
-export type DailyChore = 'water' | 'lamp';
+/** 已经接通的每日小事与市面四个节点。其余时刻只写旁白。 */
+export type DailyChore =
+  | 'water'
+  | 'lamp'
+  | 'market_open'
+  | 'work_end'
+  | 'night_market'
+  | 'market_close';
+
+/** 市面的三种相位：早市开着、夜市开着、其余时候关着。 */
+export type MarketPhase = 'closed' | 'open' | 'night';
 
 export interface TimetableBeat {
   readonly id: TimetableId;
@@ -59,21 +70,35 @@ export const TIMETABLE: readonly TimetableBeat[] = [
     chore: null, choreText: null,
   },
   {
-    id: 'wash_bridge', minuteOfDay: 6 * 60, text: '天亮了，有人去桥边打水，顺手冲了冲桥面。',
-    chore: 'water', choreText: '去桥边打水，顺手冲了冲桥面',
+    id: 'wash_bridge', minuteOfDay: 6 * 60, text: '天亮了，有人去打水。',
+    // 具体去哪儿由世界现查：有河湾就去河湾；整张图都没有水边就照实说没找到水。
+    // 「桥边」这个旧说法默认镇上有桥，开阔世界里根本没有——说一套做一套。
+    chore: 'water', choreText: '去河湾打水，顺手冲了冲河岸',
   },
-  { id: 'market_open', minuteOfDay: 8 * 60, text: '早市开了，摊子一处处支起来。', chore: null, choreText: null },
+  {
+    id: 'market_open', minuteOfDay: 8 * 60, text: '早市开了，摊子一处处支起来。',
+    chore: 'market_open', choreText: null,
+  },
   { id: 'tea_talk', minuteOfDay: 10 * 60, text: '茶摊前起了几句闲话。', chore: null, choreText: null },
   { id: 'quiet_start', minuteOfDay: 12 * 60, text: '日头正顶，镇上安静下来。', chore: null, choreText: null },
   { id: 'quiet_end', minuteOfDay: 14 * 60, text: '午后的第一阵脚步声响起来。', chore: null, choreText: null },
-  { id: 'work_end', minuteOfDay: 17 * 60, text: '收工的钟敲了，街上的活停下来。', chore: null, choreText: null },
+  {
+    id: 'work_end', minuteOfDay: 17 * 60, text: '收工的钟敲了，街上的活停下来。',
+    chore: 'work_end', choreText: null,
+  },
   {
     id: 'light_lamps', minuteOfDay: 18 * 60, text: '天色擦黑，街灯一盏盏亮起来。',
     chore: 'lamp', choreText: '把祭坛边的街灯一盏盏点亮',
   },
-  { id: 'night_market', minuteOfDay: 19 * 60, text: '夜市支起来了，灯下有人走动。', chore: null, choreText: null },
+  {
+    id: 'night_market', minuteOfDay: 19 * 60, text: '夜市支起来了，灯下有人走动。',
+    chore: 'night_market', choreText: null,
+  },
   { id: 'pack_up', minuteOfDay: 21 * 60, text: '摊主开始收摊。', chore: null, choreText: null },
-  { id: 'market_close', minuteOfDay: 22 * 60, text: '市面闭了，镇子回到安静。', chore: null, choreText: null },
+  {
+    id: 'market_close', minuteOfDay: 22 * 60, text: '市面闭了，镇子回到安静。',
+    chore: 'market_close', choreText: null,
+  },
 ];
 
 /** 世界日的第几分钟。负数时刻也稳定（`floor` 而不是截断）。 */
@@ -87,6 +112,57 @@ export function minuteOfDay(worldNow: number): number {
 export function isQuietAt(worldNow: number): boolean {
   const minute = minuteOfDay(worldNow);
   return minute >= 12 * 60 && minute < 14 * 60;
+}
+
+/** 某一拍在一天里的分钟数。只读时刻表，不在别处再抄一遍字面量。 */
+function beatMinute(id: TimetableId): number {
+  const beat = TIMETABLE.find((item) => item.id === id);
+  if (beat === undefined) throw new Error(`时刻表里没有 ${id}`);
+  return beat.minuteOfDay;
+}
+
+const PACK_UP_MINUTE = beatMinute('pack_up');
+const LAMPS_OUT_MINUTE = beatMinute('lamps_out');
+const WATER_MINUTE = beatMinute('wash_bridge');
+const MARKET_OPEN_MINUTE = beatMinute('market_open');
+const WORK_END_MINUTE = beatMinute('work_end');
+const NIGHT_MARKET_MINUTE = beatMinute('night_market');
+const MARKET_CLOSE_MINUTE = beatMinute('market_close');
+
+/**
+ * 21:00–05:00：该回锚点了。
+ *
+ * 从收摊那一拍起往家走，22:00 闭市时人已经在锚点上睡着——这样 22:00 之后
+ * 一步都不必走。走到 05:00 收灯才醒。
+ */
+export function isEveningAt(worldNow: number): boolean {
+  const minute = minuteOfDay(worldNow);
+  return minute >= PACK_UP_MINUTE || minute < LAMPS_OUT_MINUTE;
+}
+
+/** 22:00–05:00：睡着的时段。说法与「回锚点」分开，但落点相同。 */
+export function isAsleepAt(worldNow: number): boolean {
+  const minute = minuteOfDay(worldNow);
+  return minute >= MARKET_CLOSE_MINUTE || minute < LAMPS_OUT_MINUTE;
+}
+
+/** 05:00–06:00：收灯之后、打水之前的那一小段。 */
+export function isDawnAt(worldNow: number): boolean {
+  const minute = minuteOfDay(worldNow);
+  return minute >= LAMPS_OUT_MINUTE && minute < WATER_MINUTE;
+}
+
+/**
+ * 市面此刻开着的是哪一场。
+ *
+ * 早市 08:00–17:00，夜市 19:00–22:00。这是**纯函数**，所以读档续跑不会分叉，
+ * 也不需要往存档里加一个「今天开没开市」的字段。
+ */
+export function marketPhaseAt(worldNow: number): MarketPhase {
+  const minute = minuteOfDay(worldNow);
+  if (minute >= NIGHT_MARKET_MINUTE && minute < MARKET_CLOSE_MINUTE) return 'night';
+  if (minute >= MARKET_OPEN_MINUTE && minute < WORK_END_MINUTE) return 'open';
+  return 'closed';
 }
 
 /** 某一拍在一天里的毫秒偏移。 */

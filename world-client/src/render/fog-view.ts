@@ -14,9 +14,9 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
-import { WORLD } from '../world/palette-data.ts';
+import { paletteFor } from '../world/theme.ts';
 import { bakeLayer, type BakedLayer } from './bake.ts';
-import { driftPuffs } from '../world/fog-drift.ts';
+import { driftPuffs, puffReachesWorld } from '../world/fog-drift.ts';
 
 export interface FogState {
   readonly center: { readonly x: number; readonly y: number };
@@ -74,7 +74,7 @@ export function createFogView(
         const alpha = 0.44 * (into * into * (3 - 2 * into));
         // 用冷色 water 而不是夜里的 deepShade：两者都压暗，但迷雾要读成
         // "这里还没去过"，不是"天黑了"。冷色带一点蓝，与夜晚的暖窗对比明显。
-        g.fillStyle(WORLD.water, alpha);
+        g.fillStyle(paletteFor().water, alpha);
         g.fillRect(px, py, BLOCK, BLOCK);
       }
     }
@@ -134,6 +134,9 @@ export function createFogView(
       // 上面这一串数由 `test/fog-puff-budget.test.ts` 按 `PUFF_CELL_PX` 与
       // `PUFF_RADII_TILES` 重算，改任一个它都会红。
       for (const puff of driftPuffs(fog.center, fog.revealedRadius, timeMs)) {
+        // 整团在图外的先剔掉：相机夹在世界矩形里，它们一像素也到不了屏幕。
+        // 灯潮界半径 112、图 64×48，14 团全在这一档——这一层实测占整帧一半指令。
+        if (!puffReachesWorld(puff, gridWidth, gridHeight)) continue;
         const cx = puff.at.x * TILE_PX;
         const cy = puff.at.y * TILE_PX;
         const r = puff.radius * TILE_PX;
@@ -143,7 +146,7 @@ export function createFogView(
             if (d > 1) continue;
             // 中心浓、边缘趋零，平方衰减让过渡更柔。
             const falloff = (1 - d) * (1 - d);
-            puffs.fillStyle(WORLD.water, puff.alpha * 0.24 * falloff);
+            puffs.fillStyle(paletteFor().water, puff.alpha * 0.24 * falloff);
             puffs.fillRect(Math.round(cx + dx), Math.round(cy + dy), PUFF_CELL_PX, PUFF_CELL_PX);
           }
         }

@@ -1,0 +1,575 @@
+{
+  "format": "pwe-fixture/1",
+  "fixtureVersion": 1,
+  "name": "build-demolish-rebuild",
+  "purpose": "莞尔镇清晨建一栋炼码工坊，两小时后拆掉，第 4 天原地重建：验证地标五段状态与痕迹能读回。",
+  "expectedMs": 262,
+  "covers": [
+    "建 → 拆 → 原地重建的完整循环，全部走真实 creatorBuild + demolish 命令",
+    "地标阶段 built → demolished → ruined → rebuilt 的演化",
+    "拆楼保留痕迹（long 层里的 ruin 记忆），重建后旧痕迹仍在",
+    "造物账：两次落地读数与一次拆除"
+  ],
+  "doesNotCover": [
+    "altered（改名）阶段：需要五名持有人讲满三天的传说才够门槛，短夹具构造不出来",
+    "长期废墟风化成史诗",
+    "拆除时门坐标的边界场景（本夹具在建筑静止时拆）"
+  ],
+  "trace": {
+    "format": "pwe-trace/2",
+    "traceVersion": 2,
+    "description": "夹具 build-demolish-rebuild：莞尔镇清晨建一栋炼码工坊，两小时后拆掉，第 4 天原地重建：验证地标五段状态与痕迹能读回。",
+    "worldId": "default",
+    "worldSeed": "fixture-cycle",
+    "initialNow": 21600000,
+    "stepMs": 3600000,
+    "steps": 101,
+    "eventRange": {
+      "from": 0,
+      "to": 101
+    },
+    "injections": [
+      {
+        "seq": 1,
+        "atWorldMs": 21600000,
+        "kind": "creatorBuild",
+        "payload": {
+          "templateId": "code_forge",
+          "at": {
+            "x": 20,
+            "y": 20
+          }
+        }
+      },
+      {
+        "seq": 2,
+        "atWorldMs": 28800000,
+        "kind": "command",
+        "payload": {
+          "command": {
+            "kind": "demolish",
+            "instanceId": "code_forge#1"
+          }
+        }
+      },
+      {
+        "seq": 3,
+        "atWorldMs": 370800000,
+        "kind": "creatorBuild",
+        "payload": {
+          "templateId": "code_forge",
+          "at": {
+            "x": 20,
+            "y": 20
+          }
+        }
+      }
+    ],
+    "outer": {
+      "memory": true,
+      "creator": true
+    },
+    "recorded": {
+      "inputDigest": "df2e8b5dc51c7f2744d0ec4fe995723c624dd3d79607ab3a10af8b79971da307",
+      "fingerprint": "41285775a853ecf83bf062b360fc068a897f6d164459efef44a0b0d461a2745a",
+      "eventCount": 101,
+      "eventDigest": "b4ff99965e6cfa07b5a29e550b721ebf1662422bd37c63b667abe38872380be1",
+      "business": {
+        "day": 4,
+        "now": 385200000,
+        "buildings": 1,
+        "tasksTotal": 0,
+        "tasksCompleted": 0,
+        "weather": "clear",
+        "faithPoints": 0,
+        "deliveries": {
+          "feed": 0,
+          "local": 0
+        },
+        "eventCount": 101
+      },
+      "checkpoints": [
+        {
+          "step": 0,
+          "atWorldMs": 21600000,
+          "fingerprint": "8eac223cd11e3fb822afdfd9cc4840f7dce75cb22fe8dbf8b4fd62291c32b343",
+          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 101,
+          "atWorldMs": 385200000,
+          "fingerprint": "41285775a853ecf83bf062b360fc068a897f6d164459efef44a0b0d461a2745a",
+          "memoryFingerprint": "9d59d9268e213db2b136d3aeaa58cbedfbfde2cd2430f6e010dbc6d11250a257",
+          "creatorFingerprint": "0042b082e8b590e0335fe4fe2d2ebe308a1a08b58604fb968665cd45f97d7f71"
+        }
+      ],
+      "memory": {
+        "fingerprint": "9d59d9268e213db2b136d3aeaa58cbedfbfde2cd2430f6e010dbc6d11250a257",
+        "business": {
+          "lastClosedDay": 4,
+          "currentDay": 4,
+          "holders": 3,
+          "facts": 60,
+          "entries": 24,
+          "claims": 32,
+          "beliefs": 8,
+          "traces": 6,
+          "landmarks": 1,
+          "turningPoints": 0,
+          "bonds": 0,
+          "moods": 2,
+          "bondTrustSum": 0,
+          "moodValenceSum": 0.140248,
+          "legends": 0,
+          "placeNames": 2,
+          "announcements": 0,
+          "written": 6,
+          "credibility": 0,
+          "metToday": 1
+        }
+      },
+      "creator": {
+        "fingerprint": "0042b082e8b590e0335fe4fe2d2ebe308a1a08b58604fb968665cd45f97d7f71",
+        "business": {
+          "dayCloses": [
+            {
+              "day": 1,
+              "vitals": {
+                "meanValence": 0.1125,
+                "meanArousal": 0.25,
+                "infoEntropy": 0,
+                "isolatedHoldersCount": 2
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "gear_tower",
+                "at": {
+                  "x": 18,
+                  "y": 18
+                },
+                "reason": "第 1 天还缺「齿轮塔」，在 (18,18) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 2,
+              "vitals": {
+                "meanValence": 0.1125,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "workshop_plot",
+                "at": {
+                  "x": 35,
+                  "y": 20
+                },
+                "reason": "第 2 天还缺「新工坊」，在 (35,20) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 3,
+              "vitals": {
+                "meanValence": 0.1134,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "cottage_oak",
+                "at": {
+                  "x": 42,
+                  "y": 16
+                },
+                "reason": "第 3 天还缺「橡木小屋」，在 (42,16) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            },
+            {
+              "day": 4,
+              "vitals": {
+                "meanValence": 0.1167,
+                "meanArousal": 0.25,
+                "infoEntropy": 0.4,
+                "isolatedHoldersCount": 0
+              },
+              "shouldInject": false,
+              "eventKind": null,
+              "reasoning": "世界状态健康，无需干预",
+              "fuse": {
+                "action": "requireReview",
+                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "suggestedLevel": null
+              },
+              "proposal": {
+                "templateId": "ink_house",
+                "at": {
+                  "x": 35,
+                  "y": 42
+                },
+                "reason": "第 4 天还缺「抄书斋」，在 (35,42) 找到了合规落点"
+              },
+              "autoEnqueued": false
+            }
+          ],
+          "proposals": [
+            {
+              "day": 0,
+              "atWorldMs": 21600000,
+              "source": "creatorBuild",
+              "templateId": "code_forge",
+              "at": {
+                "x": 20,
+                "y": 20
+              },
+              "reason": "第 0 天人工造物：code_forge",
+              "accepted": true,
+              "instanceId": "code_forge#1",
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 1,
+              "atWorldMs": 86400000,
+              "source": "dayClose",
+              "templateId": "gear_tower",
+              "at": {
+                "x": 18,
+                "y": 18
+              },
+              "reason": "第 1 天还缺「齿轮塔」，在 (18,18) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 2,
+              "atWorldMs": 172800000,
+              "source": "dayClose",
+              "templateId": "workshop_plot",
+              "at": {
+                "x": 35,
+                "y": 20
+              },
+              "reason": "第 2 天还缺「新工坊」，在 (35,20) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 3,
+              "atWorldMs": 259200000,
+              "source": "dayClose",
+              "templateId": "cottage_oak",
+              "at": {
+                "x": 42,
+                "y": 16
+              },
+              "reason": "第 3 天还缺「橡木小屋」，在 (42,16) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 4,
+              "atWorldMs": 345600000,
+              "source": "dayClose",
+              "templateId": "ink_house",
+              "at": {
+                "x": 35,
+                "y": 42
+              },
+              "reason": "第 4 天还缺「抄书斋」，在 (35,42) 找到了合规落点",
+              "accepted": false,
+              "instanceId": null,
+              "fuseAction": "requireReview"
+            },
+            {
+              "day": 4,
+              "atWorldMs": 367200000,
+              "source": "creatorBuild",
+              "templateId": "code_forge",
+              "at": {
+                "x": 20,
+                "y": 20
+              },
+              "reason": "第 4 天人工造物：code_forge",
+              "accepted": true,
+              "instanceId": "code_forge#2",
+              "fuseAction": "requireReview"
+            }
+          ],
+          "landings": [
+            {
+              "instanceId": "code_forge#1",
+              "templateId": "code_forge",
+              "prefabId": "code_forge",
+              "origin": {
+                "x": 20,
+                "y": 20
+              },
+              "door": {
+                "x": 22,
+                "y": 24
+              },
+              "coverageRate": 0.08333333333333333,
+              "pathfindingConnected": true,
+              "hasCollision": false,
+              "spatialConstraintSatisfied": true,
+              "traceable": true,
+              "replayHashConsistent": false,
+              "hasConflict": false,
+              "invariantViolated": false
+            },
+            {
+              "instanceId": "code_forge#2",
+              "templateId": "code_forge",
+              "prefabId": "code_forge",
+              "origin": {
+                "x": 20,
+                "y": 20
+              },
+              "door": {
+                "x": 22,
+                "y": 24
+              },
+              "coverageRate": 0.08333333333333333,
+              "pathfindingConnected": true,
+              "hasCollision": false,
+              "spatialConstraintSatisfied": true,
+              "traceable": true,
+              "replayHashConsistent": false,
+              "hasConflict": false,
+              "invariantViolated": false
+            }
+          ],
+          "roles": [
+            {
+              "roleId": "art_supervisor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 4,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "auditor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 4,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "director",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 4,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "historian",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 4,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "interpreter",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 4,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "mapper",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 4,
+              "totalCommands": 2,
+              "schemaPassCount": 2,
+              "conflictCount": 0,
+              "conflictChecks": 2,
+              "invariantChecks": 2
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assertions": [
+    {
+      "note": "重建后场上一栋楼（不是两栋）",
+      "source": "world.business",
+      "path": "buildings",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "跑到第 4 天",
+      "source": "world.business",
+      "path": "day",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "地标当前状态是重建后",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].current",
+      "op": "eq",
+      "value": "rebuilt"
+    },
+    {
+      "note": "五段状态里出现了四段（altered 没触发）",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].phases.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "第一段：建成",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].phases[0].state",
+      "op": "eq",
+      "value": "built"
+    },
+    {
+      "note": "第二段：拆除（当天）",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].phases[1].state",
+      "op": "eq",
+      "value": "demolished"
+    },
+    {
+      "note": "第三段：三天后荒废",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].phases[2].state",
+      "op": "eq",
+      "value": "ruined"
+    },
+    {
+      "note": "第四段：原地重建",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].phases[3].state",
+      "op": "eq",
+      "value": "rebuilt"
+    },
+    {
+      "note": "同一个地标认领新旧两个实例",
+      "source": "memory.snapshot",
+      "path": "world.landmarks[0].aliases",
+      "op": "contains",
+      "value": "code_forge#1"
+    },
+    {
+      "note": "拆掉的旧实例仍保留两条痕迹",
+      "source": "memory.snapshot",
+      "path": "world.traces[0].entries.length",
+      "op": "eq",
+      "value": 2
+    },
+    {
+      "note": "旧实例的痕迹挂在 code_forge#1 上",
+      "source": "memory.snapshot",
+      "path": "world.traces[0].placeId",
+      "op": "eq",
+      "value": "code_forge#1"
+    },
+    {
+      "note": "两次落地读数",
+      "source": "creator.business",
+      "path": "landings.length",
+      "op": "eq",
+      "value": 2
+    },
+    {
+      "note": "第一次落地是旧实例",
+      "source": "creator.business",
+      "path": "landings[0].instanceId",
+      "op": "eq",
+      "value": "code_forge#1"
+    },
+    {
+      "note": "重建落地是新实例",
+      "source": "creator.business",
+      "path": "landings[1].instanceId",
+      "op": "eq",
+      "value": "code_forge#2"
+    },
+    {
+      "note": "第一条人工提议被接受",
+      "source": "creator.business",
+      "path": "proposals[0].accepted",
+      "op": "eq",
+      "value": true
+    },
+    {
+      "note": "人工提议来源是 creatorBuild",
+      "source": "creator.business",
+      "path": "proposals[0].source",
+      "op": "eq",
+      "value": "creatorBuild"
+    }
+  ]
+}

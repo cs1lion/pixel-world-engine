@@ -121,6 +121,7 @@ test('记忆段覆盖全部状态：名册/事实/亲历/断言/痕迹/地名/�
     'cooldowns',
     'credibility',
     'currentDay',
+    'digests',
     'entries',
     'epics',
     'eras',

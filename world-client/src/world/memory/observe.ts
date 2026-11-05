@@ -56,6 +56,13 @@ export function worldEventImportance(kind: WorldEventKind): number {
       return 0.35;
     case 'tide_turn':
       return 0.35;
+    // 市面四拍是镇子级事实（`actorId` 为 null）：分量与固定时刻表的每日小事
+    // 同档——镇子每天都会走过，但谁也没做成一件事。
+    case 'market_open':
+    case 'work_end':
+    case 'night_market':
+    case 'market_close':
+      return 0.35;
     case 'harbor_report':
       // 船班播报是镇子级事件，但个人记忆只记码头边在场的人。门槛要略高：
       // 它值得记住（决定今天过不过得了河），但不是传说级；0.55 让
@@ -90,6 +97,12 @@ export function worldEventValence(kind: WorldEventKind): number {
     case 'routine_done':
       return 0.1;
     case 'tide_turn':
+      return 0;
+    // 市面四拍没有情绪方向：开市闭市都是钟点到了，不是谁做成了什么。
+    case 'market_open':
+    case 'work_end':
+    case 'night_market':
+    case 'market_close':
       return 0;
     case 'harbor_report':
       // 停航是坏消息，开航只是寻常；同一句话里已经说了船开没开。
@@ -194,8 +207,10 @@ export function observationOf(
         importanceHint: 0.45,
         valence: 0.3,
         arousal: 0.4,
-        // 交付发生在铺子里——室内。屋外八格的人看不见，这是痕迹通道存在的理由。
-        indoor: true,
+        // 交付发生在铺子里就按室内算——屋外八格的人看不见，这是痕迹通道存在的理由。
+        // 但原地办的活（`in_place`）本来就在露天：地点是那个人脚下，不能一并算成室内，
+        // 否则站在旁边的人永远看不见，自然目击也就永远形不成关系。
+        indoor: buildingId !== undefined,
       };
     }
 

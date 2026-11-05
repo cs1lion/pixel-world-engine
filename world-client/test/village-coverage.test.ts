@@ -6,12 +6,12 @@
  * §3.2 B 的五条评测指标里，`coverage_curve` 的**三个数有声明、有断言、没有测量**。
  * 先把三样分开——这个文件第二版就是把它们混在一起才写错的：
  *
- * - **声明**：`src/world/creator/config.ts:334` 把
+ * - **声明**：`src/world/creator/config.ts:355` 把
  *   `{ day1EndMax: 0.35, day3EndSteadyState: { min: 0.60, max: 0.80 } }` 写成常量。
  * - **断言**：`test/creator-config.test.ts:222` 断言这三个数在配置里就是这三个数。
  *   它**一条都没量世界**——配置写着 0.35 与这个世界跑不跑得到 0.35 是两件事。
  * - **测量**：**没有。** 没有任何测试、探针或 eval 跑过世界再算这个比例。
- *   它另外只作为一句话出现在 `src/world/memory/world.ts:729`（「同一件事在村里
+ *   它另外只作为一句话出现在 `src/world/memory/world.ts:910`（「同一件事在村里
  *   有两个版本同时流传，正是协议想避免的那种重复」）与
  *   `src/world/memory/propagate.ts:444` 的注释里，两处都是拿它当论据。
  *
@@ -38,7 +38,7 @@
  *    | 第 6 天末 | 100% | 62.5% | — | 全部-holder 落进区间里了 |
  *
  * 2. **「没有测试」也是错的。** 第一版只在 `src/world/memory/` 与 `test/memory-*`
- *    里找，没找造物主那一侧，于是漏了 `creator/config.ts:334` 的声明与
+ *    里找，没找造物主那一侧，于是漏了 `creator/config.ts:355` 的声明与
  *    `creator-config.test.ts:222` 的断言。声明与断言都在，缺的只有测量。
  *
  * 所以真正的缺陷不是「指标达不到」，而是**分母没有定义，而两种定义让同一次运行
@@ -119,7 +119,7 @@ const ALL_HOLDERS: readonly string[] = [...VILLAGERS, ...BUILDING_IDS];
 /**
  * 默认世界（不走设定集）会有几个村民。
  *
- * 从 `simulation.ts:822` 那一行读，不重抄：那个兜底数组的字面量一改，
+ * 从 `simulation.ts:858` 那一行读，不重抄：那个兜底数组的字面量一改，
  * 这里必须跟着改，否则这条钉的是一个已经不属于代码的数。
  */
 function defaultWorldVillagerCount(): number {
@@ -203,7 +203,7 @@ function awarenessAtDayEnd(days: number): Awareness {
 
 test('出货的村子今天十六个 holder：七个居民 + 九栋楼', () => {
   assert.equal(VILLAGERS.length, 7, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
-  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:142 的 placements 是九条）`);
+  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:255 的 placements 是九条）`);
   assert.equal(defaultWorldVillagerCount(), 2, '默认世界的村民兜底不再是两个');
   // 两组数合起来才是分母：设定集 16。
   assert.equal(ALL_HOLDERS.length, 16, '设定集的 holder 总数现在是十六个');

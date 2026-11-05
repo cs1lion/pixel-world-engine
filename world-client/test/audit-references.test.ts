@@ -312,7 +312,7 @@ test('带着名字的引用指到文件外、指到不存在的文件：报一�
 
 test('顺带提一句名字不算报位置：坐标说的多半是另一件事', () => {
   // 反方向也得钉。ADR 里「每个模板都过同一个 prefab() 助手、boundTask 硬编码
-  // null（pack.ts:14）」这种句子，prefab() 是顺带提的，坐标说的是 boundTask。
+  // null（pack.ts:133）」这种句子，prefab() 是顺带提的，坐标说的是 boundTask。
   // 隔开半句去认领一个坐标，就是把一句真话说成疑点——而误报一样毁掉一个守卫。
   const root = fixture();
   try {

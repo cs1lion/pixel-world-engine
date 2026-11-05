@@ -1,0 +1,103 @@
+{
+  "schema": "eval-counterfactual-evidence/1",
+  "elapsedMs": 18.11,
+  "contract": {
+    "deleteChangesRecall": true,
+    "danglingRefsZero": true,
+    "timelineCleared": true,
+    "worldNotEmptied": true,
+    "rumorNotWitnessed": true,
+    "fakeWitnessedRejected": true
+  },
+  "guard": {
+    "looseReproducesDefect": true
+  },
+  "defect": {
+    "id": "EVAL-BUG-1",
+    "summary": "存档闸只查 entries 是数组，witnessed 的假记忆能整条读进来并被当成亲眼所见",
+    "status": "fixed-by-import-guard",
+    "fixedBy": "src/world/memory/import-guard.ts（读档闸降级；报告见 fake.importReport）",
+    "observed": {
+      "guardedSourceMode": "heard",
+      "guardedDowngraded": 1,
+      "looseSourceMode": "witnessed",
+      "looseRecalled": true,
+      "ghostEventId": "eval-ghost-never-happened",
+      "ghostEventExists": false
+    }
+  },
+  "reading": {
+    "schema": "eval-counterfactual/1",
+    "seedKey": "eval-counterfactual",
+    "before": {
+      "memoryIds": [
+        "m_sum_a_0"
+      ],
+      "eventRefs": [
+        "eval-e1"
+      ],
+      "modes": [
+        "witnessed"
+      ]
+    },
+    "after": {
+      "memoryIds": [],
+      "eventRefs": [],
+      "modes": []
+    },
+    "allAfter": {
+      "memoryIds": [
+        "m_0008",
+        "m_0005"
+      ],
+      "eventRefs": [
+        "eval-e2",
+        "eval-e2"
+      ],
+      "modes": [
+        "witnessed",
+        "witnessed"
+      ]
+    },
+    "removedMemoryIds": [
+      "m_sum_a_0"
+    ],
+    "timelineBeforeEvents": [
+      "eval-e2",
+      "eval-e1",
+      "eval-e2"
+    ],
+    "timelineAfterEvents": [
+      "eval-e2",
+      "eval-e2"
+    ],
+    "hintsBefore": [
+      "trace_0003"
+    ],
+    "hintsAfter": [],
+    "danglingRefs": 0,
+    "fake": {
+      "ghostEventId": "eval-ghost-never-happened",
+      "ghostEventExists": false,
+      "rumorRecalled": true,
+      "rumorMode": "heard",
+      "witnessedRecalled": true,
+      "witnessedMode": "heard",
+      "importReport": {
+        "schema": "memory-import-report/1",
+        "witnessedBefore": 6,
+        "witnessedAfter": 5,
+        "refusedEntries": 0,
+        "downgradedEntries": 1,
+        "prunedUnverifiable": 0,
+        "refusedMemoryIds": [],
+        "downgradedMemoryIds": [
+          "m_fake_ghost"
+        ],
+        "prunedUnverifiableMemoryIds": []
+      },
+      "looseWitnessedRecalled": true,
+      "looseWitnessedMode": "witnessed"
+    }
+  }
+}

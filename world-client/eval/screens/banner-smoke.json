@@ -1,0 +1,835 @@
+{
+  "at": {
+    "a": 65400000,
+    "smokeB": 65520000
+  },
+  "banner": {
+    "camera": {
+      "x": 537,
+      "y": 470
+    },
+    "roi": {
+      "x0": 300,
+      "y0": 390,
+      "x1": 780,
+      "y1": 545
+    },
+    "diffs": {
+      "banner-both": {
+        "roi": {
+          "x0": 6,
+          "y0": 160,
+          "x1": 960,
+          "y1": 470,
+          "pixels": 295740
+        },
+        "changed": 468,
+        "ratio": 0.0015824710894704807,
+        "maxDelta": 147,
+        "bbox": {
+          "x0": 90,
+          "y0": 192,
+          "x1": 927,
+          "y1": 215
+        },
+        "fullChanged": 468,
+        "fullRatio": 0.0007725832012678289
+      },
+      "banner-sway": {
+        "roi": {
+          "x0": 6,
+          "y0": 160,
+          "x1": 960,
+          "y1": 470,
+          "pixels": 295740
+        },
+        "changed": 288,
+        "ratio": 0.0009738283627510651,
+        "maxDelta": 147,
+        "bbox": {
+          "x0": 92,
+          "y0": 194,
+          "x1": 917,
+          "y1": 215
+        },
+        "fullChanged": 288,
+        "fullRatio": 0.00047543581616481777
+      },
+      "banner-shadow": {
+        "roi": {
+          "x0": 6,
+          "y0": 160,
+          "x1": 960,
+          "y1": 470,
+          "pixels": 295740
+        },
+        "changed": 184,
+        "ratio": 0.0006221681206465138,
+        "maxDelta": 17,
+        "bbox": {
+          "x0": 90,
+          "y0": 192,
+          "x1": 927,
+          "y1": 215
+        },
+        "fullChanged": 184,
+        "fullRatio": 0.00030375066032752246
+      },
+      "banner-off": {
+        "roi": {
+          "x0": 6,
+          "y0": 160,
+          "x1": 960,
+          "y1": 470,
+          "pixels": 295740
+        },
+        "changed": 0,
+        "ratio": 0,
+        "maxDelta": 0,
+        "bbox": null,
+        "fullChanged": 0,
+        "fullRatio": 0
+      }
+    },
+    "units": {
+      "t": [
+        {
+          "order": 0,
+          "x": 336,
+          "y": 432,
+          "swayDx": 0,
+          "tilt": 0,
+          "shadowDx": 0,
+          "shadowSpan": 5,
+          "shadowAlpha": 0.2
+        },
+        {
+          "order": 1,
+          "x": 480,
+          "y": 528,
+          "swayDx": 0,
+          "tilt": 0,
+          "shadowDx": 0,
+          "shadowSpan": 5,
+          "shadowAlpha": 0.2
+        },
+        {
+          "order": 2,
+          "x": 736,
+          "y": 432,
+          "swayDx": 0,
+          "tilt": 0,
+          "shadowDx": 0,
+          "shadowSpan": 5,
+          "shadowAlpha": 0.2
+        }
+      ],
+      "t1": [
+        {
+          "order": 0,
+          "x": 336,
+          "y": 432,
+          "swayDx": -1,
+          "tilt": 1,
+          "shadowDx": -2,
+          "shadowSpan": 5,
+          "shadowAlpha": 0.2
+        },
+        {
+          "order": 1,
+          "x": 480,
+          "y": 528,
+          "swayDx": 0,
+          "tilt": 0,
+          "shadowDx": 0,
+          "shadowSpan": 5,
+          "shadowAlpha": 0.2
+        },
+        {
+          "order": 2,
+          "x": 736,
+          "y": 432,
+          "swayDx": 1,
+          "tilt": 1,
+          "shadowDx": 2,
+          "shadowSpan": 5,
+          "shadowAlpha": 0.2
+        }
+      ]
+    }
+  },
+  "shadow": {
+    "noon": [
+      {
+        "order": 0,
+        "x": 336,
+        "y": 432,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 1,
+        "shadowAlpha": 0.07
+      },
+      {
+        "order": 1,
+        "x": 480,
+        "y": 528,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 1,
+        "shadowAlpha": 0.07
+      },
+      {
+        "order": 2,
+        "x": 736,
+        "y": 432,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 1,
+        "shadowAlpha": 0.07
+      }
+    ],
+    "dusk": [
+      {
+        "order": 0,
+        "x": 336,
+        "y": 432,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 5,
+        "shadowAlpha": 0.2
+      },
+      {
+        "order": 1,
+        "x": 480,
+        "y": 528,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 5,
+        "shadowAlpha": 0.2
+      },
+      {
+        "order": 2,
+        "x": 736,
+        "y": 432,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 5,
+        "shadowAlpha": 0.2
+      }
+    ],
+    "night": [
+      {
+        "order": 0,
+        "x": 336,
+        "y": 432,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 0,
+        "shadowAlpha": 0
+      },
+      {
+        "order": 1,
+        "x": 480,
+        "y": 528,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 0,
+        "shadowAlpha": 0
+      },
+      {
+        "order": 2,
+        "x": 736,
+        "y": 432,
+        "swayDx": 0,
+        "tilt": 0,
+        "shadowDx": 0,
+        "shadowSpan": 0,
+        "shadowAlpha": 0
+      }
+    ]
+  },
+  "smoke": {
+    "highCamera": {
+      "x": 560,
+      "y": 250
+    },
+    "lowCamera": {
+      "x": 720,
+      "y": 470
+    },
+    "diffs": {
+      "high": {
+        "roi": {
+          "x0": 360,
+          "y0": 80,
+          "x1": 900,
+          "y1": 420,
+          "pixels": 183600
+        },
+        "changed": 1832,
+        "ratio": 0.009978213507625273,
+        "maxDelta": 21,
+        "bbox": {
+          "x0": 418,
+          "y0": 92,
+          "x1": 553,
+          "y1": 169
+        },
+        "fullChanged": 1832,
+        "fullRatio": 0.003024300052826202
+      },
+      "low": {
+        "roi": {
+          "x0": 360,
+          "y0": 370,
+          "x1": 620,
+          "y1": 464,
+          "pixels": 24440
+        },
+        "changed": 328,
+        "ratio": 0.01342062193126023,
+        "maxDelta": 11,
+        "bbox": {
+          "x0": 482,
+          "y0": 386,
+          "x1": 513,
+          "y1": 437
+        },
+        "fullChanged": 328,
+        "fullRatio": 0.0005414685684099313
+      },
+      "highOff": {
+        "roi": {
+          "x0": 360,
+          "y0": 80,
+          "x1": 900,
+          "y1": 420,
+          "pixels": 183600
+        },
+        "changed": 0,
+        "ratio": 0,
+        "maxDelta": 0,
+        "bbox": null,
+        "fullChanged": 0,
+        "fullRatio": 0
+      },
+      "lowOff": {
+        "roi": {
+          "x0": 360,
+          "y0": 370,
+          "x1": 620,
+          "y1": 464,
+          "pixels": 24440
+        },
+        "changed": 0,
+        "ratio": 0,
+        "maxDelta": 0,
+        "bbox": null,
+        "fullChanged": 0,
+        "fullRatio": 0
+      }
+    },
+    "visible": {
+      "high": {
+        "roi": {
+          "x0": 360,
+          "y0": 80,
+          "x1": 900,
+          "y1": 420,
+          "pixels": 183600
+        },
+        "changed": 2268,
+        "ratio": 0.012352941176470587,
+        "maxDelta": 39,
+        "bbox": {
+          "x0": 416,
+          "y0": 92,
+          "x1": 543,
+          "y1": 171
+        },
+        "fullChanged": 2268,
+        "fullRatio": 0.0037440570522979397
+      },
+      "low": {
+        "roi": {
+          "x0": 360,
+          "y0": 370,
+          "x1": 620,
+          "y1": 464,
+          "pixels": 24440
+        },
+        "changed": 1288,
+        "ratio": 0.05270049099836334,
+        "maxDelta": 18,
+        "bbox": {
+          "x0": 480,
+          "y0": 388,
+          "x1": 513,
+          "y1": 437
+        },
+        "fullChanged": 1288,
+        "fullRatio": 0.0021262546222926572
+      }
+    },
+    "wall": {
+      "high": [
+        {
+          "name": "叠浪楼",
+          "roi": {
+            "x0": 256,
+            "y0": 460,
+            "x1": 480,
+            "y1": 631,
+            "pixels": 38304
+          },
+          "changed": 0,
+          "ratio": 0,
+          "maxDelta": 0,
+          "bbox": null,
+          "fullChanged": 2268,
+          "fullRatio": 0.0037440570522979397
+        },
+        {
+          "name": "炉底入口",
+          "roi": {
+            "x0": 288,
+            "y0": 268,
+            "x1": 416,
+            "y1": 364,
+            "pixels": 12288
+          },
+          "changed": 0,
+          "ratio": 0,
+          "maxDelta": 0,
+          "bbox": null,
+          "fullChanged": 2268,
+          "fullRatio": 0.0037440570522979397
+        }
+      ],
+      "low": [
+        {
+          "name": "补灯铺",
+          "roi": {
+            "x0": 416,
+            "y0": 468,
+            "x1": 544,
+            "y1": 596,
+            "pixels": 16384
+          },
+          "changed": 0,
+          "ratio": 0,
+          "maxDelta": 0,
+          "bbox": null,
+          "fullChanged": 1288,
+          "fullRatio": 0.0021262546222926572
+        },
+        {
+          "name": "炉匠铺",
+          "roi": {
+            "x0": 224,
+            "y0": 468,
+            "x1": 352,
+            "y1": 596,
+            "pixels": 16384
+          },
+          "changed": 0,
+          "ratio": 0,
+          "maxDelta": 0,
+          "bbox": null,
+          "fullChanged": 1288,
+          "fullRatio": 0.0021262546222926572
+        }
+      ]
+    },
+    "wallTotal": 0,
+    "units": [
+      {
+        "order": 0,
+        "x": 576,
+        "anchorY": 164,
+        "puffs": [
+          {
+            "dx": 1,
+            "dy": -4,
+            "width": 7,
+            "height": 7,
+            "alpha": 0.1216
+          },
+          {
+            "dx": 2,
+            "dy": -11,
+            "width": 10,
+            "height": 8,
+            "alpha": 0.108
+          },
+          {
+            "dx": 0,
+            "dy": -20,
+            "width": 14,
+            "height": 8,
+            "alpha": 0.08
+          }
+        ]
+      },
+      {
+        "order": 1,
+        "x": 528,
+        "anchorY": 180,
+        "puffs": [
+          {
+            "dx": 1,
+            "dy": -5,
+            "width": 6,
+            "height": 7,
+            "alpha": 0.1504
+          },
+          {
+            "dx": 3,
+            "dy": -12,
+            "width": 11,
+            "height": 8,
+            "alpha": 0.08399999999999999
+          },
+          {
+            "dx": 5,
+            "dy": -21,
+            "width": 15,
+            "height": 8,
+            "alpha": 0.08
+          }
+        ]
+      },
+      {
+        "order": 2,
+        "x": 576,
+        "anchorY": 164,
+        "puffs": [
+          {
+            "dx": 1,
+            "dy": -3,
+            "width": 6,
+            "height": 7,
+            "alpha": 0.1152
+          },
+          {
+            "dx": 1,
+            "dy": -12,
+            "width": 10,
+            "height": 8,
+            "alpha": 0.1032
+          },
+          {
+            "dx": 2,
+            "dy": -20,
+            "width": 14,
+            "height": 8,
+            "alpha": 0.0512
+          }
+        ]
+      },
+      {
+        "order": 3,
+        "x": 720,
+        "anchorY": 532,
+        "puffs": [
+          {
+            "dx": 2,
+            "dy": -3,
+            "width": 7,
+            "height": 7,
+            "alpha": 0.1408
+          },
+          {
+            "dx": 4,
+            "dy": -12,
+            "width": 11,
+            "height": 8,
+            "alpha": 0.0792
+          },
+          {
+            "dx": 3,
+            "dy": -19,
+            "width": 14,
+            "height": 8,
+            "alpha": 0.07200000000000001
+          }
+        ]
+      },
+      {
+        "order": 0,
+        "x": 576,
+        "anchorY": 164,
+        "puffs": [
+          {
+            "dx": 1,
+            "dy": -4,
+            "width": 7,
+            "height": 7,
+            "alpha": 0.1216
+          },
+          {
+            "dx": 2,
+            "dy": -11,
+            "width": 10,
+            "height": 8,
+            "alpha": 0.108
+          },
+          {
+            "dx": 0,
+            "dy": -20,
+            "width": 14,
+            "height": 8,
+            "alpha": 0.08
+          }
+        ]
+      },
+      {
+        "order": 1,
+        "x": 528,
+        "anchorY": 180,
+        "puffs": [
+          {
+            "dx": 1,
+            "dy": -5,
+            "width": 6,
+            "height": 7,
+            "alpha": 0.1504
+          },
+          {
+            "dx": 3,
+            "dy": -12,
+            "width": 11,
+            "height": 8,
+            "alpha": 0.08399999999999999
+          },
+          {
+            "dx": 5,
+            "dy": -21,
+            "width": 15,
+            "height": 8,
+            "alpha": 0.08
+          }
+        ]
+      },
+      {
+        "order": 2,
+        "x": 576,
+        "anchorY": 164,
+        "puffs": [
+          {
+            "dx": 1,
+            "dy": -3,
+            "width": 6,
+            "height": 7,
+            "alpha": 0.1152
+          },
+          {
+            "dx": 1,
+            "dy": -12,
+            "width": 10,
+            "height": 8,
+            "alpha": 0.1032
+          },
+          {
+            "dx": 2,
+            "dy": -20,
+            "width": 14,
+            "height": 8,
+            "alpha": 0.0512
+          }
+        ]
+      },
+      {
+        "order": 3,
+        "x": 720,
+        "anchorY": 532,
+        "puffs": [
+          {
+            "dx": 2,
+            "dy": -3,
+            "width": 7,
+            "height": 7,
+            "alpha": 0.1408
+          },
+          {
+            "dx": 4,
+            "dy": -12,
+            "width": 11,
+            "height": 8,
+            "alpha": 0.0792
+          },
+          {
+            "dx": 3,
+            "dy": -19,
+            "width": 14,
+            "height": 8,
+            "alpha": 0.07200000000000001
+          }
+        ]
+      }
+    ]
+  },
+  "pause": {
+    "diff": {
+      "roi": {
+        "x0": 6,
+        "y0": 160,
+        "x1": 960,
+        "y1": 470,
+        "pixels": 295740
+      },
+      "changed": 0,
+      "ratio": 0,
+      "maxDelta": 0,
+      "bbox": null,
+      "fullChanged": 0,
+      "fullRatio": 0
+    },
+    "framesAdvanced": 63,
+    "nowA": 65400000,
+    "nowB": 65400000
+  },
+  "determinism": [
+    {
+      "frame": 0,
+      "a": "8f9f06c0d1c75027aa5f2cad7f0112672db14121115fe2d2455e14e261478366",
+      "b": "8f9f06c0d1c75027aa5f2cad7f0112672db14121115fe2d2455e14e261478366",
+      "same": true
+    },
+    {
+      "frame": 1,
+      "a": "6caf15ccdf29200f3ab98c78fdc436833dab2c0afe462e82c0864c0fc8d925a6",
+      "b": "6caf15ccdf29200f3ab98c78fdc436833dab2c0afe462e82c0864c0fc8d925a6",
+      "same": true
+    },
+    {
+      "frame": 2,
+      "a": "4b460617f4a22f25139e50bfc64a029c2b0a825118f81f6d7840d89d2c002949",
+      "b": "4b460617f4a22f25139e50bfc64a029c2b0a825118f81f6d7840d89d2c002949",
+      "same": true
+    },
+    {
+      "frame": 3,
+      "a": "59ff5a8d46561922f820e5bb704564adcbecbc3564c605cf51dde45106a1efb3",
+      "b": "59ff5a8d46561922f820e5bb704564adcbecbc3564c605cf51dde45106a1efb3",
+      "same": true
+    },
+    {
+      "frame": 4,
+      "a": "b60f4517b14cd5b604660891fa032ce1d9f6ecff0a4693e3f6e1d98e3eb60709",
+      "b": "b60f4517b14cd5b604660891fa032ce1d9f6ecff0a4693e3f6e1d98e3eb60709",
+      "same": true
+    },
+    {
+      "frame": 5,
+      "a": "04ac8d9538fb2d8a5fe0ba274bc6424d16c7c6dc35d1cc5aad34798fdd2cc458",
+      "b": "04ac8d9538fb2d8a5fe0ba274bc6424d16c7c6dc35d1cc5aad34798fdd2cc458",
+      "same": true
+    },
+    {
+      "frame": 6,
+      "a": "d471ceddabb86df120744944ef6ca0ee4702080eb8443a4b8b2e7cd71d2905af",
+      "b": "d471ceddabb86df120744944ef6ca0ee4702080eb8443a4b8b2e7cd71d2905af",
+      "same": true
+    },
+    {
+      "frame": 7,
+      "a": "b27c56fdc6e07c580ed9ec064669f0efa3f07badea2dce41799fbdeb785cf9d8",
+      "b": "b27c56fdc6e07c580ed9ec064669f0efa3f07badea2dce41799fbdeb785cf9d8",
+      "same": true
+    },
+    {
+      "frame": 8,
+      "a": "a2dc244f70795e136ea3ff759ce47d1c4cd85ba474a8db0e976ded9ad885c8ed",
+      "b": "a2dc244f70795e136ea3ff759ce47d1c4cd85ba474a8db0e976ded9ad885c8ed",
+      "same": true
+    },
+    {
+      "frame": 9,
+      "a": "e56419c8f21ca60fa3b4835163bd7983ae1c6426d942eec049f7373d76bba2c4",
+      "b": "e56419c8f21ca60fa3b4835163bd7983ae1c6426d942eec049f7373d76bba2c4",
+      "same": true
+    },
+    {
+      "frame": 10,
+      "a": "ad80d05f4b20754877a35f6ab0d9cc71d8e5fc3972bf3f1b78d02392d1f76526",
+      "b": "ad80d05f4b20754877a35f6ab0d9cc71d8e5fc3972bf3f1b78d02392d1f76526",
+      "same": true
+    },
+    {
+      "frame": 11,
+      "a": "0a6ab1d18125a7d1562c087e827b6bd218011266e733ba92dc30ca09e58da7cd",
+      "b": "0a6ab1d18125a7d1562c087e827b6bd218011266e733ba92dc30ca09e58da7cd",
+      "same": true
+    },
+    {
+      "frame": 12,
+      "a": "17971a103f6c19fc89c3c057e24bb1fff5960eca9de4c28611070724c18a133d",
+      "b": "17971a103f6c19fc89c3c057e24bb1fff5960eca9de4c28611070724c18a133d",
+      "same": true
+    }
+  ],
+  "determinismProbe": null,
+  "params": {
+    "banner": {
+      "camera": {
+        "x": 537,
+        "y": 470
+      },
+      "zoom": 1,
+      "roi": {
+        "x0": 300,
+        "y0": 390,
+        "x1": 780,
+        "y1": 545
+      }
+    },
+    "smokeHigh": {
+      "camera": {
+        "x": 560,
+        "y": 250
+      },
+      "zoom": 1,
+      "roi": {
+        "x0": 500,
+        "y0": 130,
+        "x1": 770,
+        "y1": 300
+      }
+    },
+    "smokeLow": {
+      "camera": {
+        "x": 720,
+        "y": 470
+      },
+      "zoom": 1,
+      "roi": {
+        "x0": 660,
+        "y0": 495,
+        "x1": 790,
+        "y1": 542
+      }
+    },
+    "viewport": {
+      "width": 1010,
+      "height": 700
+    },
+    "tide": 1,
+    "weather": "clear",
+    "phase": "dusk（?time=dusk 强制，autoAdvancing=false）",
+    "now": {
+      "bannerA": 65400000,
+      "bannerB": 65460000,
+      "smokeB": 65520000
+    }
+  },
+  "peakCommands": 17188
+}

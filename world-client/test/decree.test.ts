@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { awaitingDecree } from '../src/world/decree.ts';
 import { excerptBlockedQuestion } from '../src/world/types.ts';
 import { syncCommand } from './feed-helpers.ts';
@@ -22,6 +23,9 @@ function makeSim(): Simulation {
     altar: ALTAR,
     villagerName: '莞尔',
     wallClock: () => 1000,
+    // 从早上八点开局：作息那半会睡，午夜开局时传令官还在锚点歇着，
+    // 三十三世界分钟里派不出急件（`func-daily-l1.test.ts` 量的就是这一层）。
+    initialNow: worldHours(8),
   });
 }
 

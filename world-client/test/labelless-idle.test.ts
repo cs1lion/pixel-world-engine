@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { syncCommand } from './feed-helpers.ts';
 
 const raw = JSON.parse(
@@ -35,6 +36,9 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：4000 拍 × 100ms 只有六个多世界分钟，午夜开局她还在
+    // 睡，等不到「有人先离开祭坛」这个夹具前提（`func-daily-l1.test.ts`）。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;
@@ -60,10 +64,16 @@ test('quick 原地办完：牌子没了，人站在原地，那 1800 拍里她�
   const sim = makeSim();
   // 先等她离开祭坛再派：开局两个人都立在祭坛格上，那一刻派活，
   // 办完她还在祭坛，退路恰好是真的，那就证不反任何东西。
+  //
+  // 等的是**排头的那个**，不是「随便哪个」：派活按 `villagers` 的顺序找
+  // 第一个空着的，观察的也得是同一个，否则「办完的人」和「牌子空了的人」
+  // 会是两个人。以前夜里没人挂作息牌子，等谁都不影响；白天每人身上都有
+  // 自己那一拍（`routine`），这件事才显出来。
   let snapshot = sim.snapshot();
+  const leadName = snapshot.villagers[0]!.name;
   // 一格一世界分钟；100ms 一步要 600 拍才走一格，所以把观察窗口拉长，
   // 但**不改 STEP**：下面「1800 拍」那条数的是 100ms 的拍。
-  for (let guard = 0; guard < 4000 && snapshot.villagers.every((v) => atAltar(v, snapshot)); guard += 1) {
+  for (let guard = 0; guard < 4000 && snapshot.villagers.some((v) => v.name === leadName && atAltar(v, snapshot)); guard += 1) {
     sim.update(STEP);
     snapshot = sim.snapshot();
   }

@@ -1,0 +1,88 @@
+{
+  "label": "after",
+  "file": "eval/screens/setting-scale-after.png",
+  "cam": {
+    "scrollX": 360,
+    "scrollY": 265,
+    "zoom": 2,
+    "width": 480,
+    "height": 320,
+    "worldViewX": 480,
+    "worldViewY": 345,
+    "mode": "free"
+  },
+  "zoom": 2,
+  "clip": {
+    "x": 265.5,
+    "y": 228.796875,
+    "width": 480,
+    "height": 320
+  },
+  "stats": {
+    "graphicsObjects": 46,
+    "totalCommands": 12363,
+    "largest": [
+      1584,
+      1513,
+      1338,
+      1304,
+      1290
+    ]
+  },
+  "metrics": {
+    "personH": 30,
+    "shopfrontH": 48,
+    "shopfrontTop": 16,
+    "lampPostH": 58,
+    "lampBodyBottom": 43
+  },
+  "metricsSource": "渲染常量 setting-scale.ts",
+  "pins": {
+    "hero": {
+      "x": 600,
+      "y": 464,
+      "depth": 1472,
+      "w": 24,
+      "h": 30
+    },
+    "underLamp": {
+      "x": 616,
+      "y": 448,
+      "depth": 1456,
+      "w": 24,
+      "h": 30
+    },
+    "second": "迷路人"
+  },
+  "scanned": {
+    "frameH": 48,
+    "stoneH": 4,
+    "bodyBottomH": 43,
+    "refs": {
+      "frame": [
+        65,
+        45,
+        50
+      ],
+      "stone": [
+        82,
+        102,
+        106
+      ],
+      "post": [
+        65,
+        45,
+        50
+      ]
+    },
+    "metricsDriven": true
+  },
+  "errors": [],
+  "ancient": {
+    "personH": 30,
+    "shopfrontH": 32,
+    "shopfrontTop": 0,
+    "lampPostH": 37,
+    "lampBodyBottom": 24
+  }
+}

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, buildWorldFromSave, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
+import { worldHours } from '../src/world/pace.ts';
 import { EMPTY_FOLD, foldTaskEvents, type TaskEvent, type TaskFoldState } from '../src/world/task-events.ts';
 import { FeedClient } from '../src/world/feed.ts';
 import { createEventsClient, type EventsClient, type EventsResult } from '../src/world/events-client.ts';
@@ -53,6 +54,9 @@ function makeSim(): Simulation {
     buildings: world.buildings,
     altar: ALTAR,
     villagerName: '莞尔',
+    // 从早上八点开局：作息那半会睡，午夜开局时「没活了」的那一拍她本来
+    // 就挂着「睡下了」的牌子，撤单清牌那条断言看不见自己要看的行为。
+    initialNow: worldHours(8),
     spawnBuilding: (prefabId, instanceId) => {
       const blueprint = blueprints.get(prefabId);
       if (blueprint === undefined) return null;

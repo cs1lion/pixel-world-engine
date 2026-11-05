@@ -20,7 +20,7 @@ import type { GridPoint } from './types.ts';
 
 /** 一个目标。字段与旧链记录的那几项一一对应，不多不少。 */
 export interface BehaviorGoal {
-  /** `verify` / `pre-cover` / `eat` / `sleep` / `routine` / `quiet`。 */
+  /** `verify` / `pre-cover` / `eat` / `sleep` / `rest` / `routine` / `quiet`。 */
   readonly kind: string;
   readonly target: GridPoint | null;
   readonly beatId: string | null;
@@ -46,6 +46,8 @@ export interface BehaviorContext {
   eatGoal(): BehaviorGoal | null;
   /** 「熬不住了，就地睡下」：需求层第二版。睡着时它每拍都命中，醒了才让给别人。 */
   sleepGoal(): BehaviorGoal | null;
+  /** 夜间回锚点歇下 / 黎明动身去水边：main 的定时夜休，排在疲劳睡之后。 */
+  restGoal(): BehaviorGoal | null;
   routineGoal(): BehaviorGoal | null;
 }
 

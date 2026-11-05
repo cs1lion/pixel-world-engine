@@ -1,0 +1,958 @@
+{
+  "schema": "eval-soak-day-facts/1",
+  "provenance": {
+    "sourceTree": "pwe-soak",
+    "sourceCommit": "3a41541",
+    "saveFile": "docs/evidence/soak/soak-a/save-90d.json",
+    "saveSha256": "ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a",
+    "summaryFile": "docs/evidence/soak/soak-a/summary-90d.json",
+    "summarySha256": "90b3dcb8604fac37f8dbdeac3b88a85bd2c529a390858dc9c11c4c1d8b94837f",
+    "note": "完整存档不复制进本分支；fixture 只是第 20/45/60/89 天的可复算投影"
+  },
+  "days": [
+    {
+      "day": 20,
+      "weather": "clear",
+      "worldEvents": null,
+      "memoryHolders": null,
+      "facts": [
+        {
+          "eventId": "soak-603",
+          "day": 20,
+          "tick": 21600144,
+          "kind": "street_greet",
+          "placeId": "place:32,28",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-604",
+          "day": 20,
+          "tick": 24000144,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v0",
+            "v1"
+          ],
+          "witnesses": [
+            "v0",
+            "v1",
+            "v2",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与汐碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-605",
+          "day": 20,
+          "tick": 27000144,
+          "kind": "street_greet",
+          "placeId": "place:39,25",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-608",
+          "day": 20,
+          "tick": 28800144,
+          "kind": "street_greet",
+          "placeId": "place:40,26",
+          "actors": [
+            "v0",
+            "v3"
+          ],
+          "witnesses": [
+            "v0",
+            "v3",
+            "v1",
+            "v2",
+            "v4"
+          ],
+          "what": "迷路人与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-609",
+          "day": 20,
+          "tick": 31200144,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v0",
+            "v2"
+          ],
+          "witnesses": [
+            "v0",
+            "v2",
+            "v1",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与灯笼头碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-610",
+          "day": 20,
+          "tick": 33000144,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v1",
+            "v4"
+          ],
+          "witnesses": [
+            "v1",
+            "v4",
+            "v0",
+            "v2",
+            "v3"
+          ],
+          "what": "汐与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-612",
+          "day": 20,
+          "tick": 36000144,
+          "kind": "street_together",
+          "placeId": "place:39,25",
+          "actors": [
+            "v2",
+            "v3"
+          ],
+          "witnesses": [
+            "v2",
+            "v3",
+            "v0",
+            "v1",
+            "v4"
+          ],
+          "what": "灯笼头和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-613",
+          "day": 20,
+          "tick": 37800144,
+          "kind": "street_together",
+          "placeId": "place:40,26",
+          "actors": [
+            "v0",
+            "v4"
+          ],
+          "witnesses": [
+            "v0",
+            "v4",
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "what": "迷路人和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-614",
+          "day": 20,
+          "tick": 40200144,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v0",
+            "v4"
+          ],
+          "witnesses": [
+            "v0",
+            "v4",
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "what": "迷路人与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-615",
+          "day": 20,
+          "tick": 42600144,
+          "kind": "street_together",
+          "placeId": "place:24,33",
+          "actors": [
+            "v1",
+            "v2"
+          ],
+          "witnesses": [
+            "v1",
+            "v2",
+            "v0",
+            "v3",
+            "v4"
+          ],
+          "what": "汐和灯笼头一起搭手做事。"
+        },
+        {
+          "eventId": "soak-617",
+          "day": 20,
+          "tick": 44400144,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-618",
+          "day": 20,
+          "tick": 46200144,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v2",
+            "v3"
+          ],
+          "witnesses": [
+            "v2",
+            "v3",
+            "v0",
+            "v1",
+            "v4"
+          ],
+          "what": "灯笼头与炉匠碰面，互相问了个好。"
+        }
+      ]
+    },
+    {
+      "day": 45,
+      "weather": "clear",
+      "worldEvents": null,
+      "memoryHolders": null,
+      "facts": [
+        {
+          "eventId": "soak-1353",
+          "day": 45,
+          "tick": 21600400,
+          "kind": "street_greet",
+          "placeId": "place:32,28",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1354",
+          "day": 45,
+          "tick": 24000400,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v0",
+            "v1"
+          ],
+          "witnesses": [
+            "v0",
+            "v1",
+            "v2",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与汐碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1355",
+          "day": 45,
+          "tick": 26400400,
+          "kind": "street_greet",
+          "placeId": "place:39,25",
+          "actors": [
+            "v2",
+            "v3"
+          ],
+          "witnesses": [
+            "v2",
+            "v3",
+            "v0",
+            "v1",
+            "v4"
+          ],
+          "what": "灯笼头与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1356",
+          "day": 45,
+          "tick": 28200400,
+          "kind": "street_greet",
+          "placeId": "place:40,26",
+          "actors": [
+            "v0",
+            "v4"
+          ],
+          "witnesses": [
+            "v0",
+            "v4",
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "what": "迷路人与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1359",
+          "day": 45,
+          "tick": 30000400,
+          "kind": "street_greet",
+          "placeId": "place:41,26",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1360",
+          "day": 45,
+          "tick": 31800400,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v0",
+            "v3"
+          ],
+          "witnesses": [
+            "v0",
+            "v3",
+            "v1",
+            "v2",
+            "v4"
+          ],
+          "what": "迷路人和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1361",
+          "day": 45,
+          "tick": 33600400,
+          "kind": "street_together",
+          "placeId": "place:24,33",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1363",
+          "day": 45,
+          "tick": 36000400,
+          "kind": "street_together",
+          "placeId": "place:39,25",
+          "actors": [
+            "v1",
+            "v2"
+          ],
+          "witnesses": [
+            "v1",
+            "v2",
+            "v0",
+            "v3",
+            "v4"
+          ],
+          "what": "汐和灯笼头一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1364",
+          "day": 45,
+          "tick": 37800400,
+          "kind": "street_together",
+          "placeId": "place:40,26",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1365",
+          "day": 45,
+          "tick": 40200400,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v0",
+            "v2"
+          ],
+          "witnesses": [
+            "v0",
+            "v2",
+            "v1",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与灯笼头碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1366",
+          "day": 45,
+          "tick": 42600400,
+          "kind": "street_together",
+          "placeId": "place:24,33",
+          "actors": [
+            "v1",
+            "v4"
+          ],
+          "witnesses": [
+            "v1",
+            "v4",
+            "v0",
+            "v2",
+            "v3"
+          ],
+          "what": "汐和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1368",
+          "day": 45,
+          "tick": 45000400,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v0",
+            "v3"
+          ],
+          "witnesses": [
+            "v0",
+            "v3",
+            "v1",
+            "v2",
+            "v4"
+          ],
+          "what": "迷路人与炉匠碰面，互相问了个好。"
+        }
+      ]
+    },
+    {
+      "day": 60,
+      "weather": "clear",
+      "worldEvents": null,
+      "memoryHolders": null,
+      "facts": [
+        {
+          "eventId": "soak-1801",
+          "day": 60,
+          "tick": 21600528,
+          "kind": "street_greet",
+          "placeId": "place:32,28",
+          "actors": [
+            "v2",
+            "v3"
+          ],
+          "witnesses": [
+            "v2",
+            "v3",
+            "v0",
+            "v1",
+            "v4"
+          ],
+          "what": "灯笼头与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1802",
+          "day": 60,
+          "tick": 24000528,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v0",
+            "v4"
+          ],
+          "witnesses": [
+            "v0",
+            "v4",
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "what": "迷路人与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1803",
+          "day": 60,
+          "tick": 27000528,
+          "kind": "street_greet",
+          "placeId": "place:39,25",
+          "actors": [
+            "v1",
+            "v2"
+          ],
+          "witnesses": [
+            "v1",
+            "v2",
+            "v0",
+            "v3",
+            "v4"
+          ],
+          "what": "汐与灯笼头碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1806",
+          "day": 60,
+          "tick": 28800528,
+          "kind": "street_together",
+          "placeId": "place:40,26",
+          "actors": [
+            "v0",
+            "v4"
+          ],
+          "witnesses": [
+            "v0",
+            "v4",
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "what": "迷路人和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1807",
+          "day": 60,
+          "tick": 31200528,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v2",
+            "v3"
+          ],
+          "witnesses": [
+            "v2",
+            "v3",
+            "v0",
+            "v1",
+            "v4"
+          ],
+          "what": "灯笼头和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1808",
+          "day": 60,
+          "tick": 33000528,
+          "kind": "street_together",
+          "placeId": "place:24,33",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1810",
+          "day": 60,
+          "tick": 36000528,
+          "kind": "street_greet",
+          "placeId": "place:39,25",
+          "actors": [
+            "v0",
+            "v1"
+          ],
+          "witnesses": [
+            "v0",
+            "v1",
+            "v2",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与汐碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1811",
+          "day": 60,
+          "tick": 37800528,
+          "kind": "street_greet",
+          "placeId": "place:40,26",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1812",
+          "day": 60,
+          "tick": 40200528,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1813",
+          "day": 60,
+          "tick": 42600528,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v0",
+            "v3"
+          ],
+          "witnesses": [
+            "v0",
+            "v3",
+            "v1",
+            "v2",
+            "v4"
+          ],
+          "what": "迷路人与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-1815",
+          "day": 60,
+          "tick": 44400528,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-1816",
+          "day": 60,
+          "tick": 46200528,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v1",
+            "v4"
+          ],
+          "witnesses": [
+            "v1",
+            "v4",
+            "v0",
+            "v2",
+            "v3"
+          ],
+          "what": "汐和沉灯夫人一起搭手做事。"
+        }
+      ]
+    },
+    {
+      "day": 89,
+      "weather": "clear",
+      "worldEvents": null,
+      "memoryHolders": null,
+      "facts": [
+        {
+          "eventId": "soak-2668",
+          "day": 89,
+          "tick": 21600784,
+          "kind": "street_greet",
+          "placeId": "place:32,28",
+          "actors": [
+            "v0",
+            "v2"
+          ],
+          "witnesses": [
+            "v0",
+            "v2",
+            "v1",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与灯笼头碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2669",
+          "day": 89,
+          "tick": 24000784,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2670",
+          "day": 89,
+          "tick": 27000784,
+          "kind": "street_greet",
+          "placeId": "place:39,25",
+          "actors": [
+            "v0",
+            "v4"
+          ],
+          "witnesses": [
+            "v0",
+            "v4",
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "what": "迷路人与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2673",
+          "day": 89,
+          "tick": 28800784,
+          "kind": "street_together",
+          "placeId": "place:40,26",
+          "actors": [
+            "v1",
+            "v2"
+          ],
+          "witnesses": [
+            "v1",
+            "v2",
+            "v0",
+            "v3",
+            "v4"
+          ],
+          "what": "汐和灯笼头一起搭手做事。"
+        },
+        {
+          "eventId": "soak-2674",
+          "day": 89,
+          "tick": 31200784,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v3",
+            "v4"
+          ],
+          "witnesses": [
+            "v3",
+            "v4",
+            "v0",
+            "v1",
+            "v2"
+          ],
+          "what": "炉匠和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-2675",
+          "day": 89,
+          "tick": 33000784,
+          "kind": "street_greet",
+          "placeId": "place:24,33",
+          "actors": [
+            "v0",
+            "v1"
+          ],
+          "witnesses": [
+            "v0",
+            "v1",
+            "v2",
+            "v3",
+            "v4"
+          ],
+          "what": "迷路人与汐碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2677",
+          "day": 89,
+          "tick": 36000784,
+          "kind": "street_greet",
+          "placeId": "place:39,25",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头与沉灯夫人碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2678",
+          "day": 89,
+          "tick": 37800784,
+          "kind": "street_greet",
+          "placeId": "place:40,26",
+          "actors": [
+            "v0",
+            "v3"
+          ],
+          "witnesses": [
+            "v0",
+            "v3",
+            "v1",
+            "v2",
+            "v4"
+          ],
+          "what": "迷路人与炉匠碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2679",
+          "day": 89,
+          "tick": 40200784,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v2",
+            "v4"
+          ],
+          "witnesses": [
+            "v2",
+            "v4",
+            "v0",
+            "v1",
+            "v3"
+          ],
+          "what": "灯笼头和沉灯夫人一起搭手做事。"
+        },
+        {
+          "eventId": "soak-2680",
+          "day": 89,
+          "tick": 42000784,
+          "kind": "street_together",
+          "placeId": "place:24,33",
+          "actors": [
+            "v0",
+            "v3"
+          ],
+          "witnesses": [
+            "v0",
+            "v3",
+            "v1",
+            "v2",
+            "v4"
+          ],
+          "what": "迷路人和炉匠一起搭手做事。"
+        },
+        {
+          "eventId": "soak-2682",
+          "day": 89,
+          "tick": 45000784,
+          "kind": "street_greet",
+          "placeId": "place:32,29",
+          "actors": [
+            "v1",
+            "v2"
+          ],
+          "witnesses": [
+            "v1",
+            "v2",
+            "v0",
+            "v3",
+            "v4"
+          ],
+          "what": "汐与灯笼头碰面，互相问了个好。"
+        },
+        {
+          "eventId": "soak-2683",
+          "day": 89,
+          "tick": 46800784,
+          "kind": "street_together",
+          "placeId": "place:32,29",
+          "actors": [
+            "v1",
+            "v3"
+          ],
+          "witnesses": [
+            "v1",
+            "v3",
+            "v0",
+            "v2",
+            "v4"
+          ],
+          "what": "汐和炉匠一起搭手做事。"
+        }
+      ]
+    }
+  ]
+}

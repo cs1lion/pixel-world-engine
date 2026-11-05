@@ -464,3 +464,76 @@
   `phases.txt` / `render-budget.txt` / `setting.txt` / `buttons.txt`）。
 
 
+
+---
+
+## 块 9 · 收进 main：merge（12 提交原样）+ 两套睡眠裁决 + 指纹先定位后定基线
+
+
+- 开始 / 结束：2026-11-05 / 2026-11-05
+- 分支：`feat/behavior-queue`（worktree `D:\project\pwe-lively`）；**不 push、不改 main**
+- 做法：**merge 不用 rebase**，`origin/main` 的 `416eb8b` 合入，12 个原型提交 SHA 原样保留
+- 冲突：**18 个路径**（`MERGE_MSG` 留证），逐处处理见下；第四类未覆盖语义 **0**
+  1. `README.md`：claims 计数按实测重填（`test-file-count=270`）
+  2. `docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md`：行号按合并树重指（load 162-479 / saved 416-424 /
+     simulation 2284 / pickVenue 2158、2452 / pack 134、237-242）
+  3. `docs/adr/ADR_PALETTE_24.md`：两段补记都留（main 2026-11-04 + 分支 2026-11-05），UI 9
+  4. `server/tests/test_world_changes.py`：两边测试取并集（`delivery_failed` + 市面四拍）
+  5–7. `eval/screens/dengchao-*.png` 三张：两边都不取，代码定稿后用 setting 闸门重生成
+  8. `scripts/smoke-ego.mjs`：行号重指（isRaining 2763、3078 / scatterToShelter 2414）
+  9. `src/scenes/SandboxScene.ts`：帧读法（`environment({phase,autoAdvancing})`）；
+     `forcedPacked ?? (stallsPackedFor(env) || preCoveredToday())`；`pinnedTide ?? env.tideLevel`；
+     删掉未用的 `observationOf` import（`creator/ledger.ts` 的别名仍在用）
+  10. `src/world/simulation.ts`：`routineFor(frame,beats,index,shelter)` 四参、`hasEnvironment(frame,'quiet')`、
+      `fogKeepsClose(frame)` 全部按帧；`routineGoal` 的 quiet 统一成「写 main 的牌子 + `return {kind:'quiet'}`」；
+      夜休/黎明登记成 `rest` 规则（`!hasExplicitRoutine` 守卫）；`sleepGoal` 补 `hasExplicitRoutine` 守卫
+  11. `src/world/villager-words.ts`：行号 2206 / 2446 / 2154
+  12. `test/surface.test.ts`：2019 / 2636
+  13–14. 两条 trace 回归测试：**代码定稿后**用 `scripts/trace-to-test.ts` 重生成（头注「不要手改」）
+  15. `test/village-coverage.test.ts`：858
+  16. `test/villager-words.test.ts`：同 2206 / 2446 / 2154
+  17–18. `traces/outer-two-days.json` / `night-rain-build.json`：**代码定稿后**重录
+- 裁决 A 落地（两套睡眠共存，所有权写死）
+  - 顺序：`verification → pre-cover → sleep → rest → eat → routine`（`DEFAULT_BEHAVIOR_RULES`）
+  - 疲劳睡写「实在熬不住，就地睡下了」，独占 `routineLabel` / `nextRoutineAt` 到醒来；
+    醒后清空交还。定时夜休 `restGoal` 只在没有疲劳睡占用时生效（`asleepSpans` 判据 + `!hasExplicitRoutine`）
+  - 单测：「设定集自带作息的世界里疲劳睡不得触发」（`test/fatigue.test.ts`）
+  - **22:00 翻牌修正**：`settleForTheDay` 醒着时把 `nextRoutineAt` 拨到闭市那一刻，
+    睡着才拨 05:20。否则合并初版 21:00 写一次「歇下」就整夜不再翻牌（见下「真问题」）
+- 裁决 B 落地（先定位，后定基线）
+  - 基准 = main `32ba01e7…` / 52 事件；合并后 `0663b93f…` / 52 事件，`eventDigest` 两边都是
+    `baad0768…`，逐条事件（seq / 时刻 / 文案）**完全相同**：新增 0 / 消失 0 / 后移 0
+  - 世界指纹差的**唯一来源**：本分支 `8f9e0cc` 的 `deliveryFailures` 进了 `projectWorld`。
+    终局投影去掉该字段 = `32ba01e7…`；step 0 去掉 = `474d9b96…`（= 基准 step 0）
+  - 记忆 `0604c712…`、造物 `c1c83fb2…`（业务 2 / 3 / 1）与基准**逐字相同**
+  - 新基线：世界 `0663b93f…` / 记忆 `0604c712…` / 造物 `c1c83fb2…` / 夜雨 `2cb7cdb0…`（不变）
+  - 同种子两跑：`trace:record` 的 `verifyTrace` 两次回放，三枚指纹逐字相同（683.1ms / 683.6ms）
+- `sleep` 决策：默认轨迹 **0 条**（定时夜休每黎明 05:20 清零疲劳）。
+  受控场景 `docs/evidence/merge-main/sleep-scenario.ts` 真睡一次：crossedAt 0 / sleptAt 6,000 /
+  wokeAt 17,292,000（4.85h），睡中牌子「实在熬不住，就地睡下了」，两跑 stdout 逐字相同
+  （SHA256 `28B11382…`）
+- 闸门：check 0 / test **2336 tests、2327 pass、0 fail、9 skipped** / build 0 /
+  palette --strict 0（世界 24/24、51 引用；UI 9/9、**202 引用**；并集 32；`--line` 3.49 / 3.15）/
+  references 172 处 0 存疑 / citations 0 / sections 159 对得上 / claims --strict 0 / pytest **554 passed**
+- 浏览器：smoke 全项 ok / phases 17 项 / persistence 8 项 / render-budget 6 项
+  （指令 15514、Graphics 28）/ setting 全项 ok；`test:buttons` 60 个按钮 0 个不说话，
+  2 处既有审计缺口（`clock-align-check`）照旧记录、未改
+- 存档 v5：`save.ts` diff 0 行；`toSave()` 与 main 逐字相同（仅 CRLF 差异）；`outer-baseline-v5.json` diff 0 行
+- 决策：442 条（初版 438，+4 = 22:00 再问一拍 × 2 天 × 2 人），digest `b190aecb…`，
+  kind 分布 rest 346 / garden 22 / river 20 / promenade 18 / altar 16 / market 10 / quiet 10
+- 真问题（合并初版 → 修法）
+  1. 三段 02:00 事件牌面是「祭坛边歇下」而非「睡下了」：main 的定时夜休在 `nextRoutineAt`
+     闸门之前每拍调用 `settleForTheDay`，合并后它排进规则表、在闸门之后；21:00 醒着写一次
+     就把表拨到 05:20，22:00 不再被问。修法见「22:00 翻牌修正」，修完三处文案差归 0
+  2. `audit-references` 两处行号漂：`DOC_GOVERNANCE_REPORT.md` 753→816、
+     `memory/config.ts` 引的 `observe.ts` 那处（旧指向 73，现 222）
+  3. `audit-claims` 红：README 263 vs 实测 270 → 270
+  4. `eval/ledger.json` 的 `script_sha` 首次填错，按 `scripts/audit-palette.mjs` 内容实测
+     重算为 `5fea2fbe…`
+  5. `func-daily-l2` 红：疲劳睡落在非安静段，非安静离场率 1.02 < 1.2 → 夜休黎明分支写
+     `lastRestAt = now`（疲劳清零），恢复 54 / 1.23；默认轨迹从此不再触发疲劳睡
+- 没做到 / 未验证
+  - 默认种子里「疲劳睡」只是一条 0 命中的规则；功能验证靠受控场景，不算端到端自然发生
+  - 睡眠姿态、回家睡、两套睡眠/两套钉法合并——见 `docs/OPEN_ISSUES.md` §D
+- 证据：`docs/evidence/merge-main/`（`palette.txt` / `fingerprint.txt` / `decisions.txt` /
+  `decisions-night.txt` / `sleep-scenario.ts`）

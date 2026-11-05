@@ -1,0 +1,111 @@
+{
+  "issue": "check-lamp-band 在材质线复现出 75.6/4.6、75.9/3.9、76.9/1.8 三种读数；查明抖动源是载入期雨滴种子 window.__RAIN_SEED__，不是天气/潮位。",
+  "mechanism": {
+    "source": "world-client/src/render/weather.ts 读取 window.__RAIN_SEED__，页面每次载入不同；脚本 initScript 在任何模块执行前写入同值。",
+    "entry": "world-client/src/main.ts installDebugSeed()：?debug=1&debugPinSeed=<n> 替换 Math.random 为同常数 LCG，只影响 debug 层，不落存档、不进回放指纹。",
+    "trueClear": "debugSetWeather('clear') 只改 kind；雨幕按 WEATHER_FADE_MS = 5 世界分钟淡出。6b6962f 那组实测 frame80 rainStrength=0.260、frame180=0.000（见 transitionProbe），属过渡协议。判真晴必须 rainStrength < 0.05。",
+    "unpinnedRain": {
+      "coverage": [0.7594, 0.7563, 0.7688],
+      "gapCells": [3.94, 4.63, 1.81],
+      "note": "同一分布的三个采样；三组均未记录种子，属历史不可追溯采样。"
+    }
+  },
+  "protocol": {
+    "url": "http://127.0.0.1:5202/",
+    "query": "?world=dengchao&time=night&feed=off&ledger=off&debug=1&debugPinSeed=<seed>&now=720",
+    "camera": { "x": 368, "y": 470 },
+    "zoom": 1,
+    "viewport": { "width": 1010, "height": 700 },
+    "street": { "x0": 240, "x1": 560 },
+    "band": { "y0": 435, "y1": 535 },
+    "threshold": 0.01,
+    "tide": 1,
+    "weather": "clear",
+    "rainStrength": 0,
+    "trueClear": true,
+    "nowWorldMs": 43380000,
+    "freezeAt": 180,
+    "cameraPinned": { "weather": true, "tide": true }
+  },
+  "readings": {
+    "coverage": 0.765625,
+    "gapCells": 4.4375,
+    "gapAt": 471,
+    "min": 0,
+    "avg": 0.03330366644488807,
+    "max": 0.07392391389350657,
+    "commands": 17377,
+    "graphics": 61,
+    "poolCommands": { "lit": 2552, "dark": 0 }
+  },
+  "sameSeed": {
+    "seed": 20261019,
+    "runs": [
+      { "run": 1, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "run": 2, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "run": 3, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true }
+    ],
+    "identical": true,
+    "fieldsCompared": ["coverage", "gapCells", "gapAt", "min", "avg", "max", "commands", "graphics", "rainStrength", "trueClear"]
+  },
+  "crossSeed": {
+    "seeds": [1, 7, 42],
+    "runs": [
+      { "seed": 1, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "seed": 7, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true },
+      { "seed": 42, "coverage": 0.765625, "gapCells": 4.4375, "gapAt": 471, "min": 0, "avg": 0.03330366644488807, "max": 0.07392391389350657, "commands": 17377, "graphics": 61, "rainStrength": 0, "trueClear": true }
+    ],
+    "identical": true,
+    "conclusion": "真晴 + 满潮下种子不敏感（四项与指令 0 差）；种子仍写入每条读数口径，因为雨态下雨点由它决定。"
+  },
+  "baseline": {
+    "tree": "39cff04",
+    "url": "http://127.0.0.1:5203/",
+    "json": "world-client/eval/screens/lamp-band-before-seed-pinned.json",
+    "seed": 20261019,
+    "now": 720,
+    "coverage": 0.765625,
+    "gapCells": 4.4375,
+    "gapAt": 471,
+    "min": 0,
+    "avg": 0.033260969096404,
+    "max": 0.0688312821811544,
+    "commands": 16972,
+    "graphics": 49,
+    "tide": 1,
+    "rainStrength": null,
+    "pinned": { "weather": false, "tide": false },
+    "clearBasis": "slot-indirect: now=720 → 第 3 槽（240 世界分钟/槽）；weatherForSlot('dengchao',3)='clear'；基线无 debugSetWeather 可调，frame180 kind=clear；强度字段不可得",
+    "note": "基线无 debugSetWeather/debugPinTide/debugStepWorld/debugWeatherIntensity；?now=720 落在其自然 clear 槽（720–960 clear，槽内初始强度 0）。"
+  },
+  "baselineVsCurrent": {
+    "coverageDiffPp": 0,
+    "gapCellsDiff": 0,
+    "gapAtDiffPx": 0,
+    "avgDiffPp": 0.00426973,
+    "maxDiffPp": 0.5092632,
+    "verdict": "覆盖/暗带/位置 0 差（逐位相同）；ΔY avg +0.0043pp > 0.0001–0.001pp → 检出；ΔY max +0.509pp > 0.03–0.34pp → 检出。两者方向均为峰值变亮，不是覆盖退化。结论：无可检出的退化。"
+  },
+  "transitionProbe": {
+    "protocol": "6b6962f 那组：无 ?now（00:00 开局）、SETUP_AT=80 调 debugSetWeather('clear')、frame180 冻结；本轮复跑 seed=20261019",
+    "atSetupFrame80": { "now": 78000, "kind": "rain", "rainStrength": 0.260 },
+    "atFreezeFrame180": { "now": 180000, "kind": "clear", "rainStrength": 0 },
+    "note": "冻结帧本身是晴；但中途有雨（雨强从 0 渐入到 0.26 再淡到 0），且旧 JSON 无强度字段、种子未钉，只能记过渡期采样。旧文档的 0.97 是按满雨 1.0 起算的推导，不可复算。"
+  },
+  "retractedClaims": [
+    "跨 t/t+1s 的旧百分比变化：仓内零命中、无对应 JSON，撤下不作为证据。",
+    "开页时钟修正前的旧峰值：仓内零命中；现行 17282 有 ground-shadow.json 支撑。"
+  ],
+  "band": {
+    "coveragePp": 0.3125,
+    "coverageHow": "1/320：街段 x240..559 共 320 列，1 列跨阈 = 1/320",
+    "gapCells": 0.0625,
+    "gapHow": "gapCells = bestGap/16；bestGap 是列数，1 列 = 1/16 格",
+    "deltaYAvgPp": "0.0001–0.001",
+    "deltaYAvgHow": "320 列原始 double 的均值；单列 1 个码值摊到 320 列：暗部端约 0.0001pp、中灰端约 0.001pp；判据取下端",
+    "deltaYMaxPp": "0.03–0.34",
+    "deltaYMaxHow": "单列 1 像素的 8 位码值：暗部约 0.03pp、中灰约 0.34pp",
+    "gapAtPx": "1 世界像素（=2 图像像素，scale×zoom）",
+    "scope": "仅在「种子钉住 + 真晴（rainStrength<0.05）+ 满潮」下成立；任一口径未钉即回到「不可比」，不是带宽变大。"
+  }
+}

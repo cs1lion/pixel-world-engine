@@ -71,6 +71,17 @@ export const LARGE_WORLD_SPEC: GridSpec = {
   width: 96,
   height: 72,
   border: BORDER,
+  /**
+   * 镇北的一小片河湾泥滩（3 × 4 格）：开阔世界终于有「水边」可走。
+   *
+   * 打水那一拍要的是一格**挨着水的可走格**。原先大世界一张浅滩/泥滩都没有，
+   * `waterSpot()` 静默退回祭坛——牌子上写着「去桥边打水」，人却半步没动
+   * （BUG-002）。这里补的是泥滩不是浅滩：`test/terrain-edge-invisible.test.ts`
+   * 明确钉着莞尔镇**一张浅滩都没有**，那条断言不拆；泥滩同样算邻水。
+   *
+   * 位置避开了所有分区（学堂 20–29、街 34–37），也不压在任何落点路径上。
+   */
+  terrain: [{ x: 53, y: 30, w: 4, h: 3, terrain: 'mud' }],
   zones: [
     // 核心：祭坛 + 中心广场。
     { id: 'altar', x: 45, y: 33, w: 6, h: 6 },

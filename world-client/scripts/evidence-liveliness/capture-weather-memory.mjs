@@ -1,7 +1,7 @@
 /** 面板截图：第 0 天淋过雨，第 1 天提前盖布，展开「今日」条目看 why 那句话。
  *
  * 跑法（在 `world-client/` 下，先 `npm run dev -- --port 5307 --strictPort`，
- * 并先用 make-next-day-save.ts 生成 `tmp/next-day-save.json`）：
+ * 并先用 `make-next-day-save.ts` 生成下一日存档（它写到本脚本的 `tmp` 工作目录））：
  *   node scripts/evidence-liveliness/capture-weather-memory.mjs
  * 产物直接写进 `docs/evidence/liveliness/`。
  */

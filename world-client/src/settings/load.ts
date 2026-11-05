@@ -39,6 +39,7 @@ const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree
 const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
   'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall', 'stele',
   'lamp_string', 'paving', 'shopfront', 'signpost',
+  'boiler', 'coal_heap', 'quay', 'steps', 'drain', 'street_paving', 'shopfront_gable', 'ridge', 'far_tower',
 ];
 
 /** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */
@@ -321,6 +322,30 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       // `=== true` 为假，她就被当成两手空空——而设定集里明明写着提着灯。
       if (typeof style.lamp !== 'boolean') {
         throw new SettingPackError(`${villager.name} 的外观 lamp 只能是 true 或 false`);
+      }
+    }
+    const archive = villager.archive;
+    if (archive !== undefined) {
+      // 档案要在面板上读，也要在开局落进记忆；缺字段就是「面板空白、记忆没根」。
+      const filled = [
+        archive.aliases.length > 0,
+        archive.identity.trim() !== '',
+        archive.generation.trim() !== '',
+        archive.origin.trim() !== '',
+        archive.cares.length > 0,
+        archive.taboos.length > 0,
+        archive.routine.trim() !== '',
+        archive.voice.trim() !== '',
+      ];
+      if (filled.some((ok) => !ok)) throw new SettingPackError(`${villager.name} 的档案有空字段`);
+      if (archive.bonds.length !== 2) throw new SettingPackError(`${villager.name} 的档案必须写正好 2 段关系`);
+      const names = new Set(raw.villagers.map((item) => item.name));
+      for (const bond of archive.bonds) {
+        if (!names.has(bond.to)) throw new SettingPackError(`${villager.name} 的档案关系指向不存在的 ${bond.to}`);
+        if (bond.to === villager.name) throw new SettingPackError(`${villager.name} 的档案关系不能指向自己`);
+        for (const key of ['trust', 'warmth', 'debt', 'familiarity'] as const) {
+          if (!Number.isFinite(bond[key])) throw new SettingPackError(`${villager.name} 的档案关系 ${key} 不是有限数`);
+        }
       }
     }
     return {

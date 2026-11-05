@@ -43,6 +43,31 @@ export function scrollForOrigin(origin: number, viewportSize: number, zoom: numb
 }
 
 /**
+ * 换倍率时把**屏幕上某一点下的世界坐标**钉住：捏合缩放以两指中点为锚。
+ *
+ * 不好用 `scrollForOrigin` 硬凑：那个函数守的是视野原点（左上角），而捏合要守的
+ * 是两指中间那一点。屏幕 `screen` 处的世界坐标是
+ * `scroll + size/2 - size/(2z) + screen/z`；让它在新倍率下相等，解出新的 scroll。
+ *
+ * 只在**世界边界内**才等价：夹到边界时锚点不得不漂，这是边界本身的性质，
+ * 不是算错（`camera-controller.ts` 换完 scroll 仍要夹一次）。
+ */
+export function scrollForZoomAnchor(
+  scroll: number,
+  viewportSize: number,
+  fromZoom: number,
+  toZoom: number,
+  screen: number,
+): number {
+  // 展开后的等价式：`(1/to - 1/from) * (size/2 - screen)`。
+  // 不写成 `size/(2to) - size/(2from) + screen/from - screen/to`——那四项各自
+  // 带舍入，中间锚点（screen = size/2）本该正好抵消，实测却算出 423.99999999999994，
+  // 再被 `roundPixels` 的地板压成 423，凭空漂 1 世界px。写成差值形式，
+  // 中点处是严格的 0。
+  return scroll + (1 / toZoom - 1 / fromZoom) * (viewportSize / 2 - screen);
+}
+
+/**
  * 夹取**视野原点**（不是 `scrollX`）。
  *
  * `viewportWidth/Height` 是**画布**尺寸（逻辑像素），缩放后覆盖的世界范围是

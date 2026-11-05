@@ -1,0 +1,1334 @@
+{
+  "schema": "eval-rewind-qa/1",
+  "elapsedMs": 19.11,
+  "fixture": "world-client/eval/fixtures/eval-soak-day-facts.json",
+  "passed": 40,
+  "failed": 0,
+  "denominator": 40,
+  "provenance": {
+    "sourceTree": "pwe-soak",
+    "sourceCommit": "3a41541",
+    "saveFile": "docs/evidence/soak/soak-a/save-90d.json",
+    "saveSha256": "ea68ad60c504032fca286316e5334db90a4fbc1215e86f83875e344a435c123a",
+    "summaryFile": "docs/evidence/soak/soak-a/summary-90d.json",
+    "summarySha256": "90b3dcb8604fac37f8dbdeac3b88a85bd2c529a390858dc9c11c4c1d8b94837f",
+    "note": "完整存档不复制进本分支；fixture 只是第 20/45/60/89 天的可复算投影"
+  },
+  "villagers": [
+    "v0",
+    "v1",
+    "v2",
+    "v3",
+    "v4"
+  ],
+  "days": [
+    20,
+    45,
+    60,
+    89
+  ],
+  "checks": [
+    {
+      "day": 20,
+      "id": "people",
+      "question": "那天有几个人？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "first",
+      "question": "那天第一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "last",
+      "question": "那天最后一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "places",
+      "question": "那天去过哪些地方？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "conflict",
+      "question": "那天有没有争执？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "met",
+      "question": "那天和谁见过？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "weather",
+      "question": "那天天气如何？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "absent",
+      "question": "那天谁不在？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "quote",
+      "question": "“灯笼头与沉灯夫人碰面，互相问了个好。”是谁说的？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 20,
+      "id": "busiest",
+      "question": "那天最热闹的地方是哪里？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "people",
+      "question": "那天有几个人？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "first",
+      "question": "那天第一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "last",
+      "question": "那天最后一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "places",
+      "question": "那天去过哪些地方？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "conflict",
+      "question": "那天有没有争执？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "met",
+      "question": "那天和谁见过？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "weather",
+      "question": "那天天气如何？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "absent",
+      "question": "那天谁不在？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "quote",
+      "question": "“灯笼头与沉灯夫人碰面，互相问了个好。”是谁说的？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 45,
+      "id": "busiest",
+      "question": "那天最热闹的地方是哪里？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "people",
+      "question": "那天有几个人？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "first",
+      "question": "那天第一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "last",
+      "question": "那天最后一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "places",
+      "question": "那天去过哪些地方？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "conflict",
+      "question": "那天有没有争执？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "met",
+      "question": "那天和谁见过？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "weather",
+      "question": "那天天气如何？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "absent",
+      "question": "那天谁不在？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "quote",
+      "question": "“灯笼头与炉匠碰面，互相问了个好。”是谁说的？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 60,
+      "id": "busiest",
+      "question": "那天最热闹的地方是哪里？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "people",
+      "question": "那天有几个人？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "first",
+      "question": "那天第一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "last",
+      "question": "那天最后一件事是什么？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "places",
+      "question": "那天去过哪些地方？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "conflict",
+      "question": "那天有没有争执？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "met",
+      "question": "那天和谁见过？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "weather",
+      "question": "那天天气如何？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "absent",
+      "question": "那天谁不在？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "quote",
+      "question": "“迷路人与灯笼头碰面，互相问了个好。”是谁说的？",
+      "ok": true,
+      "failures": []
+    },
+    {
+      "day": 89,
+      "id": "busiest",
+      "question": "那天最热闹的地方是哪里？",
+      "ok": true,
+      "failures": []
+    }
+  ],
+  "answers": [
+    {
+      "day": 20,
+      "answers": [
+        {
+          "id": "people",
+          "question": "那天有几个人？",
+          "answer": "5 人（v0、v1、v2、v3、v4）；当天可追溯事件 12 条",
+          "eventRefs": [
+            "soak-603",
+            "soak-604",
+            "soak-605",
+            "soak-608",
+            "soak-609",
+            "soak-610",
+            "soak-612",
+            "soak-613",
+            "soak-614",
+            "soak-615",
+            "soak-617",
+            "soak-618"
+          ],
+          "derivation": "actors ∪ witnesses，按当天全部事实取并集"
+        },
+        {
+          "id": "first",
+          "question": "那天第一件事是什么？",
+          "answer": "灯笼头与沉灯夫人碰面，互相问了个好。（place:32,28，tick 21600144）",
+          "eventRefs": [
+            "soak-603"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最小的一条"
+        },
+        {
+          "id": "last",
+          "question": "那天最后一件事是什么？",
+          "answer": "灯笼头与炉匠碰面，互相问了个好。（place:32,29，tick 46200144）",
+          "eventRefs": [
+            "soak-618"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最大的一条"
+        },
+        {
+          "id": "places",
+          "question": "那天去过哪些地方？",
+          "answer": "5 处：place:24,33、place:32,28、place:32,29、place:39,25、place:40,26",
+          "eventRefs": [
+            "soak-604",
+            "soak-603",
+            "soak-609",
+            "soak-605",
+            "soak-608"
+          ],
+          "derivation": "当天事实的 placeId 去重，每处取最早一条为证"
+        },
+        {
+          "id": "conflict",
+          "question": "那天有没有争执？",
+          "answer": "没有争执（当天 12 条可追溯事件里没有争执类）",
+          "eventRefs": [
+            "soak-603",
+            "soak-604",
+            "soak-605",
+            "soak-608",
+            "soak-609",
+            "soak-610",
+            "soak-612",
+            "soak-613",
+            "soak-614",
+            "soak-615",
+            "soak-617",
+            "soak-618"
+          ],
+          "derivation": "kind 命中 dispute/quarrel/argument/fight/conflict；无命中时以当天全部事实为分母"
+        },
+        {
+          "id": "met",
+          "question": "那天和谁见过？",
+          "answer": "v0↔v1、v0↔v2、v0↔v3、v0↔v4、v1↔v2、v1↔v3、v1↔v4、v2↔v3、v2↔v4、v3↔v4",
+          "eventRefs": [
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-603",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-604",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-605",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-608",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-609",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-610",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-612",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-613",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-614",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-615",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-617",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618",
+            "soak-618"
+          ],
+          "derivation": "同一条事实的 actors ∪ witnesses 两两成对"
+        },
+        {
+          "id": "weather",
+          "question": "那天天气如何？",
+          "answer": "晴（summary 记录：clear）",
+          "eventRefs": [
+            "soak-603",
+            "soak-618"
+          ],
+          "derivation": "天气取自 summary 的 day.weather；事件引用只作当天边界旁证，不冒充天气来源"
+        },
+        {
+          "id": "absent",
+          "question": "那天谁不在？",
+          "answer": "无人缺席",
+          "eventRefs": [
+            "soak-603",
+            "soak-604",
+            "soak-605",
+            "soak-608",
+            "soak-609",
+            "soak-610",
+            "soak-612",
+            "soak-613",
+            "soak-614",
+            "soak-615",
+            "soak-617",
+            "soak-618"
+          ],
+          "derivation": "常驻名单 v0、v1、v2、v3、v4 减去当天 actors ∪ witnesses"
+        },
+        {
+          "id": "quote",
+          "question": "“灯笼头与沉灯夫人碰面，互相问了个好。”是谁说的？",
+          "answer": "灯笼头与沉灯夫人碰面，互相问了个好。 — v2、v4",
+          "eventRefs": [
+            "soak-603"
+          ],
+          "derivation": "取当天第一条 what 非空的事实，原句照抄，说话人取 actors"
+        },
+        {
+          "id": "busiest",
+          "question": "那天最热闹的地方是哪里？",
+          "answer": "place:32,29（4 条事实）",
+          "eventRefs": [
+            "soak-609",
+            "soak-614",
+            "soak-617",
+            "soak-618"
+          ],
+          "derivation": "当天事实按 placeId 计数，取最多者；并列时按地点名排序"
+        }
+      ]
+    },
+    {
+      "day": 45,
+      "answers": [
+        {
+          "id": "people",
+          "question": "那天有几个人？",
+          "answer": "5 人（v0、v1、v2、v3、v4）；当天可追溯事件 12 条",
+          "eventRefs": [
+            "soak-1353",
+            "soak-1354",
+            "soak-1355",
+            "soak-1356",
+            "soak-1359",
+            "soak-1360",
+            "soak-1361",
+            "soak-1363",
+            "soak-1364",
+            "soak-1365",
+            "soak-1366",
+            "soak-1368"
+          ],
+          "derivation": "actors ∪ witnesses，按当天全部事实取并集"
+        },
+        {
+          "id": "first",
+          "question": "那天第一件事是什么？",
+          "answer": "灯笼头与沉灯夫人碰面，互相问了个好。（place:32,28，tick 21600400）",
+          "eventRefs": [
+            "soak-1353"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最小的一条"
+        },
+        {
+          "id": "last",
+          "question": "那天最后一件事是什么？",
+          "answer": "迷路人与炉匠碰面，互相问了个好。（place:32,29，tick 45000400）",
+          "eventRefs": [
+            "soak-1368"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最大的一条"
+        },
+        {
+          "id": "places",
+          "question": "那天去过哪些地方？",
+          "answer": "6 处：place:24,33、place:32,28、place:32,29、place:39,25、place:40,26、place:41,26",
+          "eventRefs": [
+            "soak-1354",
+            "soak-1353",
+            "soak-1360",
+            "soak-1355",
+            "soak-1356",
+            "soak-1359"
+          ],
+          "derivation": "当天事实的 placeId 去重，每处取最早一条为证"
+        },
+        {
+          "id": "conflict",
+          "question": "那天有没有争执？",
+          "answer": "没有争执（当天 12 条可追溯事件里没有争执类）",
+          "eventRefs": [
+            "soak-1353",
+            "soak-1354",
+            "soak-1355",
+            "soak-1356",
+            "soak-1359",
+            "soak-1360",
+            "soak-1361",
+            "soak-1363",
+            "soak-1364",
+            "soak-1365",
+            "soak-1366",
+            "soak-1368"
+          ],
+          "derivation": "kind 命中 dispute/quarrel/argument/fight/conflict；无命中时以当天全部事实为分母"
+        },
+        {
+          "id": "met",
+          "question": "那天和谁见过？",
+          "answer": "v0↔v1、v0↔v2、v0↔v3、v0↔v4、v1↔v2、v1↔v3、v1↔v4、v2↔v3、v2↔v4、v3↔v4",
+          "eventRefs": [
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1353",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1354",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1355",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1356",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1359",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1360",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1361",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1363",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1364",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1365",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1366",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368",
+            "soak-1368"
+          ],
+          "derivation": "同一条事实的 actors ∪ witnesses 两两成对"
+        },
+        {
+          "id": "weather",
+          "question": "那天天气如何？",
+          "answer": "晴（summary 记录：clear）",
+          "eventRefs": [
+            "soak-1353",
+            "soak-1368"
+          ],
+          "derivation": "天气取自 summary 的 day.weather；事件引用只作当天边界旁证，不冒充天气来源"
+        },
+        {
+          "id": "absent",
+          "question": "那天谁不在？",
+          "answer": "无人缺席",
+          "eventRefs": [
+            "soak-1353",
+            "soak-1354",
+            "soak-1355",
+            "soak-1356",
+            "soak-1359",
+            "soak-1360",
+            "soak-1361",
+            "soak-1363",
+            "soak-1364",
+            "soak-1365",
+            "soak-1366",
+            "soak-1368"
+          ],
+          "derivation": "常驻名单 v0、v1、v2、v3、v4 减去当天 actors ∪ witnesses"
+        },
+        {
+          "id": "quote",
+          "question": "“灯笼头与沉灯夫人碰面，互相问了个好。”是谁说的？",
+          "answer": "灯笼头与沉灯夫人碰面，互相问了个好。 — v2、v4",
+          "eventRefs": [
+            "soak-1353"
+          ],
+          "derivation": "取当天第一条 what 非空的事实，原句照抄，说话人取 actors"
+        },
+        {
+          "id": "busiest",
+          "question": "那天最热闹的地方是哪里？",
+          "answer": "place:24,33（3 条事实）",
+          "eventRefs": [
+            "soak-1354",
+            "soak-1361",
+            "soak-1366"
+          ],
+          "derivation": "当天事实按 placeId 计数，取最多者；并列时按地点名排序"
+        }
+      ]
+    },
+    {
+      "day": 60,
+      "answers": [
+        {
+          "id": "people",
+          "question": "那天有几个人？",
+          "answer": "5 人（v0、v1、v2、v3、v4）；当天可追溯事件 12 条",
+          "eventRefs": [
+            "soak-1801",
+            "soak-1802",
+            "soak-1803",
+            "soak-1806",
+            "soak-1807",
+            "soak-1808",
+            "soak-1810",
+            "soak-1811",
+            "soak-1812",
+            "soak-1813",
+            "soak-1815",
+            "soak-1816"
+          ],
+          "derivation": "actors ∪ witnesses，按当天全部事实取并集"
+        },
+        {
+          "id": "first",
+          "question": "那天第一件事是什么？",
+          "answer": "灯笼头与炉匠碰面，互相问了个好。（place:32,28，tick 21600528）",
+          "eventRefs": [
+            "soak-1801"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最小的一条"
+        },
+        {
+          "id": "last",
+          "question": "那天最后一件事是什么？",
+          "answer": "汐和沉灯夫人一起搭手做事。（place:32,29，tick 46200528）",
+          "eventRefs": [
+            "soak-1816"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最大的一条"
+        },
+        {
+          "id": "places",
+          "question": "那天去过哪些地方？",
+          "answer": "5 处：place:24,33、place:32,28、place:32,29、place:39,25、place:40,26",
+          "eventRefs": [
+            "soak-1802",
+            "soak-1801",
+            "soak-1807",
+            "soak-1803",
+            "soak-1806"
+          ],
+          "derivation": "当天事实的 placeId 去重，每处取最早一条为证"
+        },
+        {
+          "id": "conflict",
+          "question": "那天有没有争执？",
+          "answer": "没有争执（当天 12 条可追溯事件里没有争执类）",
+          "eventRefs": [
+            "soak-1801",
+            "soak-1802",
+            "soak-1803",
+            "soak-1806",
+            "soak-1807",
+            "soak-1808",
+            "soak-1810",
+            "soak-1811",
+            "soak-1812",
+            "soak-1813",
+            "soak-1815",
+            "soak-1816"
+          ],
+          "derivation": "kind 命中 dispute/quarrel/argument/fight/conflict；无命中时以当天全部事实为分母"
+        },
+        {
+          "id": "met",
+          "question": "那天和谁见过？",
+          "answer": "v0↔v1、v0↔v2、v0↔v3、v0↔v4、v1↔v2、v1↔v3、v1↔v4、v2↔v3、v2↔v4、v3↔v4",
+          "eventRefs": [
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1801",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1802",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1803",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1806",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1807",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1808",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1810",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1811",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1812",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1813",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1815",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816",
+            "soak-1816"
+          ],
+          "derivation": "同一条事实的 actors ∪ witnesses 两两成对"
+        },
+        {
+          "id": "weather",
+          "question": "那天天气如何？",
+          "answer": "晴（summary 记录：clear）",
+          "eventRefs": [
+            "soak-1801",
+            "soak-1816"
+          ],
+          "derivation": "天气取自 summary 的 day.weather；事件引用只作当天边界旁证，不冒充天气来源"
+        },
+        {
+          "id": "absent",
+          "question": "那天谁不在？",
+          "answer": "无人缺席",
+          "eventRefs": [
+            "soak-1801",
+            "soak-1802",
+            "soak-1803",
+            "soak-1806",
+            "soak-1807",
+            "soak-1808",
+            "soak-1810",
+            "soak-1811",
+            "soak-1812",
+            "soak-1813",
+            "soak-1815",
+            "soak-1816"
+          ],
+          "derivation": "常驻名单 v0、v1、v2、v3、v4 减去当天 actors ∪ witnesses"
+        },
+        {
+          "id": "quote",
+          "question": "“灯笼头与炉匠碰面，互相问了个好。”是谁说的？",
+          "answer": "灯笼头与炉匠碰面，互相问了个好。 — v2、v3",
+          "eventRefs": [
+            "soak-1801"
+          ],
+          "derivation": "取当天第一条 what 非空的事实，原句照抄，说话人取 actors"
+        },
+        {
+          "id": "busiest",
+          "question": "那天最热闹的地方是哪里？",
+          "answer": "place:32,29（4 条事实）",
+          "eventRefs": [
+            "soak-1807",
+            "soak-1812",
+            "soak-1815",
+            "soak-1816"
+          ],
+          "derivation": "当天事实按 placeId 计数，取最多者；并列时按地点名排序"
+        }
+      ]
+    },
+    {
+      "day": 89,
+      "answers": [
+        {
+          "id": "people",
+          "question": "那天有几个人？",
+          "answer": "5 人（v0、v1、v2、v3、v4）；当天可追溯事件 12 条",
+          "eventRefs": [
+            "soak-2668",
+            "soak-2669",
+            "soak-2670",
+            "soak-2673",
+            "soak-2674",
+            "soak-2675",
+            "soak-2677",
+            "soak-2678",
+            "soak-2679",
+            "soak-2680",
+            "soak-2682",
+            "soak-2683"
+          ],
+          "derivation": "actors ∪ witnesses，按当天全部事实取并集"
+        },
+        {
+          "id": "first",
+          "question": "那天第一件事是什么？",
+          "answer": "迷路人与灯笼头碰面，互相问了个好。（place:32,28，tick 21600784）",
+          "eventRefs": [
+            "soak-2668"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最小的一条"
+        },
+        {
+          "id": "last",
+          "question": "那天最后一件事是什么？",
+          "answer": "汐和炉匠一起搭手做事。（place:32,29，tick 46800784）",
+          "eventRefs": [
+            "soak-2683"
+          ],
+          "derivation": "在当天仍可追溯的事实里取 tick 最大的一条"
+        },
+        {
+          "id": "places",
+          "question": "那天去过哪些地方？",
+          "answer": "5 处：place:24,33、place:32,28、place:32,29、place:39,25、place:40,26",
+          "eventRefs": [
+            "soak-2669",
+            "soak-2668",
+            "soak-2674",
+            "soak-2670",
+            "soak-2673"
+          ],
+          "derivation": "当天事实的 placeId 去重，每处取最早一条为证"
+        },
+        {
+          "id": "conflict",
+          "question": "那天有没有争执？",
+          "answer": "没有争执（当天 12 条可追溯事件里没有争执类）",
+          "eventRefs": [
+            "soak-2668",
+            "soak-2669",
+            "soak-2670",
+            "soak-2673",
+            "soak-2674",
+            "soak-2675",
+            "soak-2677",
+            "soak-2678",
+            "soak-2679",
+            "soak-2680",
+            "soak-2682",
+            "soak-2683"
+          ],
+          "derivation": "kind 命中 dispute/quarrel/argument/fight/conflict；无命中时以当天全部事实为分母"
+        },
+        {
+          "id": "met",
+          "question": "那天和谁见过？",
+          "answer": "v0↔v1、v0↔v2、v0↔v3、v0↔v4、v1↔v2、v1↔v3、v1↔v4、v2↔v3、v2↔v4、v3↔v4",
+          "eventRefs": [
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2668",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2669",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2670",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2673",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2674",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2675",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2677",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2678",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2679",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2680",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2682",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683",
+            "soak-2683"
+          ],
+          "derivation": "同一条事实的 actors ∪ witnesses 两两成对"
+        },
+        {
+          "id": "weather",
+          "question": "那天天气如何？",
+          "answer": "晴（summary 记录：clear）",
+          "eventRefs": [
+            "soak-2668",
+            "soak-2683"
+          ],
+          "derivation": "天气取自 summary 的 day.weather；事件引用只作当天边界旁证，不冒充天气来源"
+        },
+        {
+          "id": "absent",
+          "question": "那天谁不在？",
+          "answer": "无人缺席",
+          "eventRefs": [
+            "soak-2668",
+            "soak-2669",
+            "soak-2670",
+            "soak-2673",
+            "soak-2674",
+            "soak-2675",
+            "soak-2677",
+            "soak-2678",
+            "soak-2679",
+            "soak-2680",
+            "soak-2682",
+            "soak-2683"
+          ],
+          "derivation": "常驻名单 v0、v1、v2、v3、v4 减去当天 actors ∪ witnesses"
+        },
+        {
+          "id": "quote",
+          "question": "“迷路人与灯笼头碰面，互相问了个好。”是谁说的？",
+          "answer": "迷路人与灯笼头碰面，互相问了个好。 — v0、v2",
+          "eventRefs": [
+            "soak-2668"
+          ],
+          "derivation": "取当天第一条 what 非空的事实，原句照抄，说话人取 actors"
+        },
+        {
+          "id": "busiest",
+          "question": "那天最热闹的地方是哪里？",
+          "answer": "place:32,29（4 条事实）",
+          "eventRefs": [
+            "soak-2674",
+            "soak-2679",
+            "soak-2682",
+            "soak-2683"
+          ],
+          "derivation": "当天事实按 placeId 计数，取最多者；并列时按地点名排序"
+        }
+      ]
+    }
+  ]
+}
