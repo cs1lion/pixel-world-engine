@@ -267,3 +267,158 @@
 - 未验证：`test:buttons`（服务端数据缺）。
 - 下一步入口（只判断不动手）：要验「有人」必须先有真实在场者——或接一条上游派活，
   或让模拟在夜间把回家的居民也置 `visible=false`。后者会改世界语义，需要单独拍板。
+
+---
+
+## 块 5 · 回家的人真的进屋了（**世界语义变更**，提交 `7169a7d`）
+
+- 证据目录：`docs/evidence/homecoming/`——`readings.json`（逐拍轨迹/目击/记忆/两跑确定性）、
+  `shots.json`（浏览器实拍与渲染读数）、`analysis.json`（色数/调色板外色）、`shots/*.png`。
+- 语义变更，不是视图层：入夜（22:00–06:00）居民**先走到自家门口格**，下一拍位置落进
+  住宅占地、`visible = false`；天亮在门口格重新出现。外面的人看到的是
+  「走到门口 → 进屋消失」。世界真值、目击口径、记忆条数都随之改变。
+
+### 改了什么（提交 `7169a7d`）
+
+| 文件 | 改动 |
+| --- | --- |
+| `src/world/homecoming.ts`（新） | 家 = 居住分区按 `instanceId` 排序、按 id 派家；入夜/天亮时刻；占地中心格；事件文案。纯函数，不碰世界状态 |
+| `src/world/simulation.ts` | `stepIdle` 顶部接 `stepHomecoming`；新增 `homeOf / stepHomecoming / enterHome / wakeAtHome / ensureAwake`；5 处 `visible` 过滤（街面落点、活跃度、空闲块、应答神谕、派活前叫人）；import 一行 |
+| `src/world/world-changes.ts` | `WorldEventKind` 增 `'home_entry'`（与 `routine_done` 分开：后者是作息完成，前者是空间状态翻转） |
+| `server/events/world_changes.py` | `WORLD_EVENT_KINDS` 同步 |
+| `src/world/memory/observe.ts` | `home_entry` importance 0.4 / valence 0.1；**显式 `indoor: false`**（见下文目击） |
+| `src/world/memory/salience.ts` | `KIND_PRIORS.home_entry = {emotion .4, surprise .4, goalRelevance .55, involvement .15}` → 0.375 ≥ 0.3 门槛 |
+| `src/scenes/SandboxScene.ts` | ① `interior()` oracle 的 `buildings[]` 增 `occupants`（只供取证）；② `?debug=1&now=HH:MM` 把**模拟时钟**钉住（见「真问题 1/5」） |
+| `test/homecoming.test.ts`（新，6 条） | 翻转时机与占地位置、天亮门口、夜里被叫名从门口出来、无住宅不进屋、两跑逐字、**门口按室外记账** |
+| `test/labelless-idle.test.ts` | 清牌子 7→8、路口 4→5（`wakeAtHome` 是新增的合法清牌子点）——语义变更导致的诚实计数，不是顺手更新 |
+| `README.md` | `test-file-count` 224→225（新增一个测试文件） |
+| `scripts/homecoming-trace.ts`（新） | headless 逐拍取证 + 两跑确定性 + 快照 sha256 |
+| `scripts/homecoming-capture.mjs`（新） | 浏览器实拍室内有人；等「有人的家」用**轮询次数**，不读墙钟 |
+| `scripts/homecoming-analyze.py`（新） | 色数/调色板外色/bbox |
+
+### 逐拍轨迹（`readings.json`，cottage_oak#1 / v0）
+
+格式：拍, 世界分钟, visible, x, y, routine
+
+```
+57,1317,1,50,34,去街口   58,1318,1,51,34,去街口   59,1319,1,52,34,去街口
+60,1320,1,52,34,回家     61,1321,1,51,34,回家     62,1322,1,50,34,回家
+63,1323,1,50,35,回家     64,1324,1,50,36,回家     65,1325,1,50,37,回家
+66,1326,1,50,38,回家     67,1327,1,49,38,回家     68,1328,1,49,39,回家
+69,1329,1,49,40,回家     70,1330,1,49,41,回家     71,1331,1,49,42,回家
+72,1332,1,49,43,回家     73,1333,1,49,44,回家     74,1334,1,50,44,回家
+75,1335,1,51,44,回家     76,1336,0,52,42,在家里歇下了
+77–120：一直 0,52,42,在家里歇下了
+```
+
+- **翻转时刻 = 第 76 拍 / 世界 22:16**；翻转前最后一拍（75）站在**门口格 (51,44)**。
+- 翻转后位置 **(52,42)** 在住宅占地内（占地中心），`visible = false`。
+- 没有在街角消失：60–75 拍逐格从街口绕到门口，第 76 拍才翻。
+
+### 屋内与人（验收 1、2）
+
+- `occupants`：`cottage_oak#1:[v0]`、`cottage_plaster#1:[v1]`，其余三栋 `[]`。
+- 室内实拍 `shots/interior-occupied.png`：**14 色**，**调色板外 0 色**（空房 13 色，+1 就是人）；
+  bbox 934×614 @(17,11)；`renderStats` 17112 条指令 / 30 个 Graphics（预算 30000）。
+- 同机位夜街 313 色（灯光合成会出调色板外色，属既有）；与块 4 的白天 16145 条不可直接比，
+  本块是夜里（灯光/雨幕叠加）。
+
+### 目击读数（验收 3）
+
+- 翻转那一拍，门外街上只有 v1：pos (49,51)，Chebyshev **7** 格、欧氏 **7.28** 格（≤ 8），`visible = true`。
+- v1 记忆里读到的是「莞尔走进了橡木小屋，门在身后合上。」（`home_entry`），salience **0.375**，
+  tier `day`；**没有**「她还在街上」这类事实。v0 自记同一条 0.5875；v1 自记 0.5875。
+- 接线要点：`home_entry` 的 `where` 是**门外那格**，`placeId` 绑住宅。生产的 `placeIndoor`
+  只看 `placeId`，会把这一幕判成室内（只剩她自己看得见）。所以 `observationOf` 对它
+  **显式写 `indoor: false`**；`test/homecoming.test.ts` 用「街上七格外 true / 屋内 false」
+  两条钉住。取证脚本用**与 `SandboxScene` 一字不差**的 `placeIndoor`，读数仍成立。
+
+### 感知口径：改与不改的依据
+
+| 模块 | 改？ | 依据 |
+| --- | --- | --- |
+| `weather-witness` | 不改 | 已按 `visible` 排除（=「没进屋」）；进屋后自动不参与户外观测 |
+| `perception` | 只加 `home_entry` 的 `indoor:false` | `inside` 每拍按占地算，进屋后自动成立；缺的不是判据，是事件落点的室内外标注 |
+| `hearing` | 不改 | 进屋不发声音（`home_entry` 只进记忆，不发声）；「室内外按 `inside` 分」在位置落进占地后自然正确 |
+| `privacy` | 不改 | `writeMode` 与位置无关，私密写入规则不变 |
+
+### 指纹新旧对照（验收 4）
+
+| 轨迹 | 旧读数（录制值） | 新读数 | 为什么变 | 对应提交 |
+| --- | --- | --- | --- | --- |
+| outer-two-days 世界 | `95ee830c…` | `95ee830c…`（两跑逐字相同） | **不变**：LEGACY_PACK `placements: []`，回放里只造出 `star_archive`/`code_forge`，没有 `living`；`homesOf` 空 → `homeFor` null → `stepHomecoming` 立即 false | `7169a7d` |
+| 记忆 | `fb0847b3…` | `fb0847b3…` | 同上，无 `home_entry` | `7169a7d` |
+| 造物 | `c5198f0f…` | `c5198f0f…` | 同上 | `7169a7d` |
+| 大世界夜间（本块新基线） | 世界真值里没有「进屋」这件事 | 新增 `home_entry` 事件与 3 条记忆；快照 sha256 `5dfc40b3…` 两跑相同 | **语义变更**：回家真的把人在世界真值里置为屋内 | `7169a7d` |
+
+`npm run trace:replay`：`replayable`——世界/记忆/造物三枚指纹两次逐字相同，且与录制值逐项一致。
+**没有替换既有夹具**：受影响的是「有大世界住宅的夜间」这一场景，既有夹具里没有它；
+本块为它**新录**了 `readings.json` 作为基线。没有任何旧夹具被改写成新值。
+
+### 计数变化（验收 6，逐项）
+
+| 项 | 旧 | 新 | 为什么 |
+| --- | --- | --- | --- |
+| `business.buildings`（trace） | 2 | 2 | 回放里两栋楼都不是住宅；回家不增删楼 |
+| 事件条数（trace） | 50 | 50 | 同上 |
+| facts / entries / claims / beliefs | 47 / 45 / 38 / 11 | 同 | 同上 |
+| 大世界建筑数（persistence） | 11 | 11 | 回家不改建筑；摆件 2、雾 38 也不变 |
+| 大世界记忆（本块取证 21:00→23:00） | 0（旧语义夜间无新事实） | 3 条记忆 + 2 件 `home_entry` | 语义变更 |
+| 用例数 | 2114（2105 通 / 9 跳） | 2120（2111 通 / 9 跳） | +6（`homecoming.test.ts`） |
+| 测试文件数 | 224 | 225 | 新增一个文件；README claim 同步 |
+
+### 遇到的真问题
+
+1. **`?time=` 只改画面，不改模拟时钟**：页面从世界 00:00 起跑。有了回家语义后，
+   一开门两名居民就各回各家，前六分钟街面变空；`test:browser` 后半段所有「户外的她」断言
+   也因此落空。处理：加调试层参数 `?debug=1&now=HH:MM` 把模拟起点钉住，回归脚本改成
+   `time=noon&now=10:00`（12:00–14:00 是安静段，全镇坐着，「自己走动」等不到，故用 10:00）。
+   **断言一条没动**，只是让脚本的时间前提和它自己注释里说的一致。
+2. **「在屋里永远不接活」是过度设计**，并且当场把 `test:browser` 弄红：第二单派给睡着的 v1
+   永不接手，脚本死等 120 秒。改成**被点到名的人先从自家门口出来再出发**（`ensureAwake`
+   在派活三条路径上都调用）；翻转仍在门口格完成，不是街角凭空出现。
+3. **门口的室内外标注**：生产 `placeIndoor` 只看 `placeId`，会吞掉门口这一幕（见上）。
+4. `test:buttons` 仍因 `/api/memory/list` 404 无法验证（既有缺口，**未改代码**）。
+5. `eval/screens/*.png` 被浏览器闸门重写，且**四个时段全都有约 42% 像素差异**（含正午），
+   无法归因到回家（正午没有居民进屋）；属既有底图漂移，**未提交**，也没有写成「顺手更新」。
+
+### 被否掉的写法
+
+1. **在街角直接 `visible=false`**：用户硬约束禁止；也会让「门口目击」的落点变成街角，8 格口径失真。
+2. **给 `Villager` 加 `homeId` / 新增 `mode:'inside'`**：要升存档 v6，寻路/渲染/夹具全要跟着改；
+   家纯派生即可，`save.ts` 的 v5 白名单本来就含 `visible`（`test:persistence` 8/8 通过）。
+3. **复用 `routine_done` 表达进屋**：那个事件是「作息做完」，与「空间状态翻转」的目击/显著度不同。
+4. **把事件锚点放进占地**：那就真成室内事件，街上的人看不见，验收 3 直接不成立。
+5. **为让目击一定写入而把 `home_entry` 抬到传说级**：改的是记忆口径，不是本块目的；
+   0.375 已过 0.3 门槛，实测写入。
+
+### 做到 / 没做到 / 未验证
+
+- 做到：逐拍走到门口才翻转；占地内 `visible=false`；`occupants` 非空并实拍；
+  8 格内目击读到「进屋」；同种子两跑逐字相同（sha256 `5dfc40b3…`）；
+  `npm test` 2120（0 失败）、`test:browser` 125/125。
+- 没做到：同一栋楼多人同住的站位（每户目前只有 1 人）；不同住宅的起床错峰。
+- 未验证：`test:buttons`（`/api/memory/list` 404，退出码 2）；
+  `SMOKE_TIME=dawn|dusk|night` 的整套回归（夜里居民在家，后半段断言天然不成立，已不再当作全绿口径）。
+
+### 闸门（块 5 之后重跑）
+
+| 闸门 | 结果 |
+| --- | --- |
+| `npm run check` | 语法 0 / 语义 0 |
+| `npm test` | 2120 用例：2111 通过 / 9 跳过 / **0 失败** |
+| `npm run build` | 通过 |
+| 五个审计 | palette、references（146 处 0 存疑）、citations、sections（158 处）、claims（5/5）+ adr-schema 9/9 全过 |
+| `test:persistence` | 8/8（v5、11 栋、摆件 2、雾 38） |
+| `test:phases` | 17/17 |
+| `test:render-budget` | 6/6 |
+| `test:setting` | 通过 |
+| `trace:record/replay` | `replayable`，三枚指纹两次逐字一致且等于录制值 |
+| `test:browser` | **125/125 通过**（`time=noon&now=10:00`；断言未改） |
+| `test:buttons` | **未验证**：`/api/memory/list` 返回 404（退出码 2，既有缺口，未改代码） |
+
+### 阻塞
+
+- 无代码阻塞。**待你拍板**：新世界/新存档的模拟起点仍是 00:00（夜里），
+  是否要把开局挪到白天——这会影响所有「开局街面」的观感与存档起点，我没有擅自改。
+
