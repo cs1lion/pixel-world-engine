@@ -55,5 +55,6 @@ sleep 决策：0 条
   afterWakeRoutine="在祭坛边睡下了"（醒来后交还给定时夜休的牌子）
   report={"crossings":1,"spans":[{"villagerId":"v0","crossedAt":0,"sleptAt":6000,
           "wokeAt":17292000}],"asleep":[]}
-  两跑 stdout 逐字相同，SHA256：28B1138269D67828B973DD681DEF4FE0E00C9E24CD140E7C8CA1EC15B708C94B
+  两跑 stdout 的上面 7 行逐字相同（不记绝对文件 hash：Windows/CRLF 与 LF 口径
+  会让同一段文本的 sha 不同，读数以这 7 行为准）
   （stderr 有一条 node 的 MODULE_TYPELESS_PACKAGE_JSON 警告，含进程号，不计入读数）
