@@ -17,6 +17,7 @@
     "test:browser": "node scripts/smoke.mjs",
     "verify:reset": "node scripts/reset-verify-state.mjs",
     "verify:compare": "node scripts/compare-ledger.mjs",
+    "verify:phase": "node scripts/check-phase-frames.mjs",
     "test:interact": "node scripts/check-interact.mjs",
     "test:oracle-e2e": "node scripts/check-oracle-e2e.mjs",
     "test:phases": "node scripts/check-phases.mjs",

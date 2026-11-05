@@ -1,0 +1,274 @@
+{
+  "schema": 1,
+  "note": "丙类 18 张相位帧的预期区域与阈值基准。bbox 为 [x0, y0, x1, y1)，右下开区间；坐标取自 2026-11-05 三跑（tmp/anim-verify/r1|r2|r3）逐像素并集差分的连通块，外扩到对象边界。observed 是该图三跑并集在区域内的像素数与连通块数，阈值 = observed × margin。",
+  "outsidePixels": 0,
+  "margin": { "area": 1.4, "components": 1.5 },
+  "images": [
+    {
+      "file": "01-salute.png",
+      "size": [1010, 940],
+      "regions": [
+        {
+          "kind": "actor",
+          "bbox": [368, 203, 596, 491],
+          "source": "三跑并集最大两块 13376px@378,333,502,481 与 9376px@510,213,586,385 合并外扩 8px：主角抬手动作的身体与袖口"
+        },
+        {
+          "kind": "overlay",
+          "bbox": [513, 151, 656, 219],
+          "source": "448px@610,177,646,197 + 266px@535,161,560,173 + 266px@525,199,550,211：世界内招牌文字，DOM 文本栅格"
+        },
+        {
+          "kind": "overlay",
+          "bbox": [803, 61, 844, 101],
+          "source": "420px@813,71,834,91：小地图上的玩家标记"
+        }
+      ],
+      "observed": { "unionPixels": 24663, "unionComponents": 9 }
+    },
+    {
+      "file": "06-faith.png",
+      "size": [1010, 940],
+      "regions": [
+        {
+          "kind": "actor",
+          "bbox": [822, 126, 874, 198],
+          "source": "448px@830,134,866,154 + 448px@830,170,866,190：右侧走动的村民（16×24 人形，两帧相位各露一半）"
+        },
+        {
+          "kind": "actor",
+          "bbox": [226, 142, 278, 178],
+          "source": "448px@234,150,270,170：左侧走动的村民"
+        },
+        {
+          "kind": "overlay",
+          "bbox": [790, 800, 843, 827],
+          "source": "96px@821,809,833,819 + 63px@807,808,819,819 + 49px@798,809,805,819：神谕日报分页箭头，DOM 文本栅格抖动"
+        }
+      ],
+      "observed": { "unionPixels": 1552, "unionComponents": 6 }
+    },
+    {
+      "file": "creation-rejected.png",
+      "size": [1010, 1100],
+      "regions": [
+        {
+          "kind": "actor",
+          "bbox": [762, 185, 822, 217],
+          "source": "496px@770,193,814,209：世界右上角走过的小人"
+        },
+        {
+          "kind": "actor",
+          "bbox": [290, 473, 350, 505],
+          "source": "496px@298,481,342,497：街面中部走过的小人"
+        },
+        {
+          "kind": "actor",
+          "bbox": [86, 501, 146, 533],
+          "source": "496px@94,509,138,525：街面左下角走过的小人"
+        }
+      ],
+      "observed": { "unionPixels": 1488, "unionComponents": 3 }
+    },
+    {
+      "file": "dengchao-tide-high.png",
+      "size": [1010, 940],
+      "regions": [
+        {
+          "kind": "rain",
+          "bbox": [24, 68, 1000, 756],
+          "source": "整个 3D 视口：三跑差分为 109 个 1–2px 宽竖直细条、分布全屏，与雨幕逐帧相位一致；视口边界由基线图边框像素扫描（x 24–999，y 68–755）"
+        },
+        {
+          "kind": "overlay",
+          "bbox": [774, 910, 844, 940],
+          "source": "98px@784,921,796,931 + 97px@821,921,833,931 + 76px@807,920,819,931：神谕日报分页箭头"
+        }
+      ],
+      "observed": { "unionPixels": 5651, "unionComponents": 109 }
+    },
+    {
+      "file": "dengchao-tide-low.png",
+      "size": [1010, 940],
+      "regions": [
+        {
+          "kind": "rain",
+          "bbox": [24, 68, 1000, 756],
+          "source": "整个 3D 视口：三跑差分为 111 个竖直细条、分布全屏，与雨幕逐帧相位一致；另有 2728px@26,373,274,387 的潮位横条"
+        },
+        {
+          "kind": "overlay",
+          "bbox": [774, 910, 844, 940],
+          "source": "神谕日报分页箭头，与 dengchao-tide-high 同位置"
+        }
+      ],
+      "observed": { "unionPixels": 6124, "unionComponents": 111 }
+    },
+    {
+      "file": "ground-shadow-foot-dusk-3x.png",
+      "size": [264, 192],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [112, 118, 152, 164],
+          "source": "1116px@114,120,150,162：check-ground-shadow 的脚下 3× 裁图（脚底 ±16×±22、最近邻放大 3×），整块是投影与鞋底接触边"
+        }
+      ],
+      "observed": { "unionPixels": 1116, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-foot-dusk-off-3x.png",
+      "size": [264, 192],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [112, 118, 152, 164],
+          "source": "1116px@114,120,150,162：同 ground-shadow-foot-dusk-3x 的裁剪参数"
+        }
+      ],
+      "observed": { "unionPixels": 1116, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-foot-dusk.png",
+      "size": [88, 64],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [36, 38, 52, 56],
+          "source": "124px@38,40,50,54：脚下 1× 裁图，投影与鞋底交界"
+        }
+      ],
+      "observed": { "unionPixels": 124, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-villager-dusk-off.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [422, 388, 442, 410],
+          "source": "124px@426,392,438,406：0 号人物钉在格 (23,31)，黄昏影长 56px，取脚底投影"
+        }
+      ],
+      "observed": { "unionPixels": 124, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-villager-dusk-on.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [422, 388, 442, 410],
+          "source": "124px@426,392,438,406：同上，摊位开灯对照帧"
+        }
+      ],
+      "observed": { "unionPixels": 124, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-villager-night-off.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [422, 388, 442, 410],
+          "source": "120px@426,392,438,406：夜里不做投影，残留的是鞋底与地面接触像素"
+        }
+      ],
+      "observed": { "unionPixels": 120, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-villager-night-on.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [422, 388, 442, 410],
+          "source": "120px@426,392,438,406：同夜晚关灯帧"
+        }
+      ],
+      "observed": { "unionPixels": 120, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-villager-noon-off.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [422, 388, 442, 410],
+          "source": "120px@426,392,438,406：正午影长 1px，取脚底投影"
+        }
+      ],
+      "observed": { "unionPixels": 120, "unionComponents": 1 }
+    },
+    {
+      "file": "ground-shadow-villager-noon-on.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "shadow",
+          "bbox": [422, 388, 442, 410],
+          "source": "120px@426,392,438,406：同正午关灯帧"
+        }
+      ],
+      "observed": { "unionPixels": 120, "unionComponents": 1 }
+    },
+    {
+      "file": "lamp-pool-tide-10.png",
+      "size": [480, 320],
+      "regions": [
+        {
+          "kind": "light",
+          "bbox": [14, 72, 34, 150],
+          "source": "48px@22,78,26,90 + 48px@22,114,26,126 + 48px@22,130,26,142：左侧灯柱光晕边缘的三段竖条"
+        },
+        {
+          "kind": "edge",
+          "bbox": [338, 306, 356, 320],
+          "source": "32px@344,312,350,320：画布右下角潮水/岸线边缘"
+        }
+      ],
+      "observed": { "unionPixels": 176, "unionComponents": 4 }
+    },
+    {
+      "file": "placement-behind.png",
+      "size": [480, 320],
+      "regions": [
+        {
+          "kind": "actor",
+          "bbox": [270, 0, 392, 44],
+          "source": "80px@308,16,316,36 + 56px@276,0,282,14 + 48px@382,20,386,32 + 8px@324,0,328,2：被建筑遮挡、只露顶边的人物（placement 用例的『身后』对象）"
+        },
+        {
+          "kind": "actor",
+          "bbox": [404, 210, 424, 292],
+          "source": "48px@412,218,416,230 + 48px@412,270,416,282：右侧边缘同一小人露出的两段"
+        }
+      ],
+      "observed": { "unionPixels": 288, "unionComponents": 6 }
+    },
+    {
+      "file": "setting-scale-after.png",
+      "size": [480, 320],
+      "regions": [
+        {
+          "kind": "rain",
+          "bbox": [0, 0, 480, 320],
+          "source": "624px 分成 9 处 4–20px 竖直细条、散布全屏，与雨幕相位一致；整张裁图都是 3D 视口"
+        }
+      ],
+      "observed": { "unionPixels": 624, "unionComponents": 9 }
+    },
+    {
+      "file": "stall-motion-rain.png",
+      "size": [960, 631],
+      "regions": [
+        {
+          "kind": "rain",
+          "bbox": [0, 0, 960, 631],
+          "source": "1758px 分成 67 个 1–2px 竖直细条、散布全屏，与雨幕相位一致；整张是 3D 视口裁图"
+        }
+      ],
+      "observed": { "unionPixels": 1758, "unionComponents": 67 }
+    }
+  ]
+}
