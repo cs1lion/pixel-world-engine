@@ -229,7 +229,7 @@
       "denominator": "5 次计分轮 stats.totalCommands 的 p50（15514/15514/16162/16162/16162；两档极差 648）",
       "source": "world-client/scripts/check-render-budget.mjs 输出（vite dev http://127.0.0.1:5186/，2026-11-04）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "7e9ff9e2ca3eb24720f8c6fc35c4b7be808401bbe75bd293257e3754ff9f30ff",
+      "script_sha": "9cf59ba55dd672fb773ed4c0d9ab2493019a00ae427098bc96a1e117e84b4573",
       "judge": "program",
       "measured_at": "2026-11-04",
       "gate": "ci-pr",
