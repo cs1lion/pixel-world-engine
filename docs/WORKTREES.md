@@ -35,27 +35,29 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | 路径 | 分支 | owner | 创建时间 | 预计回收时间 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | D:/project/pixel-world-engine | main | cs1lion | 2026-10-25 | — | 主工作树（不回收） |
+| D:/project/pwe-anim | feat/animation-express | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；动画表现力线） |
+| D:/project/pwe-audit-fix | fix/audit-standards-20261105 | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；审计标准修订线） |
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-06 | 基线快照（`54139dd`） |
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
-| D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`fe11a7f` 已合入 main；worktree 仍有未提交改动，待 owner 收尾） |
+| D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 已合入 main（`fe11a7f`，经 `119397e`；worktree 仍有未提交改动，待 owner 收尾） |
 | D:/project/pwe-eval | eval/ledger-facts-question | eval 线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（分支 tip `0a965ca`，经 `91c08e6` 合入；worktree 待 owner 回收） |
-| D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：仍在活跃使用） |
-| D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`699f54b` 已合入 main；分支保留） |
-| D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main；分支保留） |
+| D:/project/pwe-fixtures | feat/fixtures | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`effefc9`，经 `3c45887`）；worktree 占用中，待 owner 收尾 |
+| D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`486099c` 已合入 main，经 `39cff04`；分支待 worktree 回收后删） |
+| D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main，经 `9d80f7b`；分支待 worktree 回收后删） |
 | D:/project/pwe-funcdaily | feat/func-daily | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
-| D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`ae4cc61` 已合入 main；`7319ee4` 未合入） |
-| D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（`d725b7e` 已合入 main；`93da6d9` 未合入） |
-| D:/project/pwe-material | feat/material-upgrade | material-agent（Trae 会话，未推送） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；材质层：路面/空地/外立面/人物，按类分四次提交） |
+| D:/project/pwe-funcinteract | feat/func-interact | cs1lion | 2026-11-03 | 2026-11-17 | 已合入 main（`e8afbe6`，经 `c4266dc`；早期 `ae4cc61` 亦已入 main） |
+| D:/project/pwe-lively | feat/liveliness | cs1lion | 2026-11-03 | 2026-11-17 | 已合入 main（`58c462c`，经 `f3bde10`；早期 `d725b7e` 亦已入 main） |
+| D:/project/pwe-material | feat/interior-view | material-agent（Trae 会话，未推送） | 2026-11-04 | 2026-11-18 | `feat/material-upgrade` 已合入（`b6e8318`，经 `501eda1`）；当前 checkout 的 `feat/interior-view`（`7cd06eb`）未合入 |
 | D:/project/pwe-memexp | experiment/daycard-readonly | 记忆实验线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（`169418d`，经 `3f4ed0f` 合入；worktree 待 owner 回收） |
-| D:/project/pwe-motion | feat/scene-motion | 场景动效线（在役） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main） |
+| D:/project/pwe-motion | feat/scene-motion | 场景动效线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`9cdcf78`，经 `ff63b96`；worktree 待 owner 回收） |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
-| D:/project/pwe-routine | feat/routine-real | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：待第二轮合并） |
-| D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（已合入 main；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢） |
-| D:/project/pwe-scene | feat/scene-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
-| D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 占用中（续期：仍在活跃使用） |
-| D:/project/pwe-soak | feat/soak-30d | 长周期浸泡线（在役） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main） |
-| D:/project/pwe-verify | verify/stall-motion（`3e417c7`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 待回收（证据已入 `verify/stall-motion`，合并后可清理） |
-| D:/project/pwe-warmup | feat/gate-warmup | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`a098721` 已合入 main）；帧率/相位闸门校准，收尾完成 |
+| D:/project/pwe-routine | feat/routine-real | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2cc0efe`，经 `49c953b`）；worktree 待回收 |
+| D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（`37c7946` 已合入 main，经 `ce92d97`；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢） |
+| D:/project/pwe-scene | feat/scene-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 已合入 main（`49d63bb`，经 `bba0aed`）；worktree 待回收 |
+| D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2d7406a`，经 `860f2bb`）；worktree 待回收 |
+| D:/project/pwe-soak | feat/soak-30d | 长周期浸泡线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`3a41541`，经 `89e0a88`；worktree 待 owner 回收） |
+| D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
+| D:/project/pwe-warmup | feat/gate-warmup | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`a098721` 已合入 main，经 `a6da49e`）；帧率/相位闸门校准，收尾完成 |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-06 | 待回收（基线快照） |
 
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
