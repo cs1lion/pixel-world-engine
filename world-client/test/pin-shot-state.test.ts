@@ -9,12 +9,19 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   NO_SHOT_PIN,
+  actorFrameOf,
   phaseInputOf,
+  pinActors,
   pinShot,
+  pinnedVillagersOf,
   presentedNowOf,
   presentedTideOf,
+  unpinActors,
   unpinShot,
+  type ActorPin,
 } from '../src/render/pin-shot-state.ts';
+import { villagerPose, villagerPoseAtFrame } from '../src/render/villager-frames.ts';
+import type { VillagerSnapshot, WorldSnapshot } from '../src/world/types.ts';
 
 const SNAPSHOT_NOW = 21_000_000;
 const SNAPSHOT_TIDE = 0.62;
@@ -117,4 +124,168 @@ test('9. Oracle 契约：pinShotState 两个必填参数、unpinShotState 无参
   const unpinLine = source.match(/unpinShotState: \((.*?)\): void =>/s);
   assert.ok(unpinLine, 'Oracle 上必须仍然导出 unpinShotState');
   assert.equal(unpinLine[1].trim(), '', 'unpinShotState 必须无参');
+});
+
+/** 造一条最小可用的角色快照；只填渲染会读的字段。 */
+function villagerOf(overrides: Partial<VillagerSnapshot> & { id: string }): VillagerSnapshot {
+  return {
+    name: overrides.id,
+    mode: 'idle',
+    pos: { x: 10, y: 10 },
+    walking: false,
+    facing: 'down',
+    visible: true,
+    taskId: null,
+    bubble: null,
+    routine: null,
+    umbrella: false,
+    carrying: null,
+    lampOil: 1,
+    nameState: 'held',
+    carries: [],
+    ...overrides,
+  } as VillagerSnapshot;
+}
+
+function worldOf(villagers: VillagerSnapshot[]): WorldSnapshot {
+  return { now: SNAPSHOT_NOW, villagers, villager: villagers[0] } as unknown as WorldSnapshot;
+}
+
+const ACTOR_A: ActorPin = {
+  id: 'v0',
+  pos: { x: 48, y: 36 },
+  facing: 'down',
+  mode: 'saluting',
+  walking: false,
+  frame: 0,
+  visible: true,
+};
+
+const ACTOR_B: ActorPin = {
+  id: 'v0',
+  pos: { x: 40, y: 40 },
+  facing: 'left',
+  mode: 'delivering',
+  walking: true,
+  frame: 2,
+  visible: true,
+};
+
+test('10. 第五钉：钉住后逐帧读到的角色恒等于钉入值', () => {
+  const snapshot = worldOf([villagerOf({ id: 'v0', pos: { x: 12, y: 9 }, facing: 'right' })]);
+  const pin = pinActors(pinShot(NO_SHOT_PIN, 12 * 30 * 60_000, 0), [ACTOR_A]);
+  // 连取三帧：结果不随读取次数、时刻、快照原值变化。
+  const read = [0, 1, 2].map(() => pinnedVillagersOf(pin, snapshot).villagers[0] as VillagerSnapshot);
+  for (const villager of read) {
+    assert.deepEqual(villager.pos, ACTOR_A.pos);
+    assert.equal(villager.facing, ACTOR_A.facing);
+    assert.equal(villager.mode, ACTOR_A.mode);
+    assert.equal(villager.walking, ACTOR_A.walking);
+    assert.equal(villager.visible, ACTOR_A.visible);
+  }
+  // 帧号是第五钉里唯一不进快照的那个维度，单独由 `actorFrameOf` 提供。
+  assert.equal(actorFrameOf(pin, 'v0'), ACTOR_A.frame);
+});
+
+test('11. 两组姿态各自复现：同帧号必得同一副身子，不同帧号可区分', () => {
+  const standing = villagerPoseAtFrame('idle', false, 0);
+  const walking = villagerPoseAtFrame('idle', true, 2);
+  assert.notDeepEqual(standing, walking, '站姿与走姿必须能分开');
+  assert.deepEqual(villagerPoseAtFrame('idle', false, 0), standing, '第一组复现');
+  assert.deepEqual(villagerPoseAtFrame('idle', true, 2), walking, '第二组复现');
+
+  // 两组钉各自得到自己的帧号，互不串。
+  const pinA = pinActors(NO_SHOT_PIN, [ACTOR_A]);
+  const pinB = pinActors(NO_SHOT_PIN, [ACTOR_B]);
+  assert.equal(actorFrameOf(pinA, 'v0'), 0);
+  assert.equal(actorFrameOf(pinB, 'v0'), 2);
+  assert.equal(actorFrameOf(pinB, 'v1'), null, '没钉的角色交回原路径');
+});
+
+test('12. 解钉复原：unpinActors 只解角色，unpinShot 连时刻潮位一起解', () => {
+  const timed = pinShot(NO_SHOT_PIN, 12 * 30 * 60_000, 0);
+  const pinned = pinActors(timed, [ACTOR_A]);
+  // 后钉时刻不许把已钉的角色抹掉。
+  const later = pinShot(pinned, 7 * 5 * 60_000, 0);
+  assert.equal(later.actors[0]?.id, 'v0');
+  assert.equal(presentedNowOf(later, SNAPSHOT_NOW), 7 * 5 * 60_000);
+
+  const clearedActors = unpinActors(later);
+  assert.equal(clearedActors.actors.length, 0);
+  assert.equal(clearedActors.nowMs, later.nowMs, '解角色不动时刻');
+
+  const released = unpinShot();
+  assert.equal(released, NO_SHOT_PIN);
+  assert.equal(released.actors.length, 0);
+  assert.equal(presentedNowOf(released, SNAPSHOT_NOW), SNAPSHOT_NOW);
+});
+
+test('13. 非法条目逐条丢弃：合法的照钉，不因一个人写错退回等站定', () => {
+  const bad = [
+    ACTOR_A,
+    { ...ACTOR_A, id: '' },
+    { ...ACTOR_A, pos: { x: Number.NaN, y: 36 } },
+    { ...ACTOR_A, facing: 'sideways' },
+    { ...ACTOR_A, frame: -1 },
+    { ...ACTOR_A, frame: 1.5 },
+  ] as unknown as ActorPin[];
+  const pin = pinActors(NO_SHOT_PIN, bad);
+  assert.equal(pin.actors.length, 1);
+  assert.deepEqual(pin.actors[0], ACTOR_A);
+  // 全非法等价于解钉，且不换对象。
+  const empty = pinActors(NO_SHOT_PIN, [{ ...ACTOR_A, id: '' }] as unknown as ActorPin[]);
+  assert.equal(empty, NO_SHOT_PIN);
+});
+
+test('14. 快照不变：角色钉只产出派生视图，世界对象原样', () => {
+  const untouched = villagerOf({ id: 'v1', pos: { x: 20, y: 20 } });
+  const snapshot = worldOf([villagerOf({ id: 'v0', pos: { x: 12, y: 9 } }), untouched]);
+  const before = JSON.stringify(snapshot);
+  const pin = pinActors(NO_SHOT_PIN, [ACTOR_A]);
+  const view = pinnedVillagersOf(pin, snapshot);
+  assert.notEqual(view, snapshot, '钉住时必须拷贝');
+  assert.equal(snapshot.villagers[0]?.pos.x, 12, '快照的位置没被改');
+  assert.equal(view.villagers[1], untouched, '没钉的人保持同一引用');
+  assert.equal(JSON.stringify(snapshot), before);
+  // 默认路径零拷贝：没有角色钉时原样返回。
+  assert.equal(pinnedVillagersOf(NO_SHOT_PIN, snapshot), snapshot);
+  assert.equal(
+    pinnedVillagersOf(pinActors(NO_SHOT_PIN, [{ ...ACTOR_B, id: 'v9' }]), snapshot),
+    snapshot,
+    '一个 id 都没命中也不拷贝',
+  );
+});
+
+test('15. 等待无关：原路径的帧号随取样时刻变，钉住后同一帧号恒定', () => {
+  // 这条就是「三跑 0 差是等出来的」的机理：1200ms 与 2800ms 取到不同帧号。
+  const originalA = villagerPose('idle', false, 1200);
+  const originalB = villagerPose('idle', false, 2800);
+  assert.notEqual(originalA.frame, originalB.frame, '未钉时两个等待确实取到不同帧');
+
+  const pin = pinActors(NO_SHOT_PIN, [ACTOR_A]);
+  const frame = actorFrameOf(pin, 'v0');
+  assert.notEqual(frame, null);
+  const pinnedA = villagerPoseAtFrame('idle', false, frame as number);
+  const pinnedB = villagerPoseAtFrame('idle', false, frame as number);
+  assert.deepEqual(pinnedA, pinnedB, '钉住后 1200/2800/5000 都是同一帧');
+});
+
+test('16. Oracle 契约：第五钉是并列入口，不改 pinShotState 的参数顺序', () => {
+  const source = readFileSync(new URL('../src/scenes/SandboxScene.ts', import.meta.url), 'utf8');
+  const pinShotLine = source.match(/pinShotState: \((.*?)\): void =>/s);
+  assert.ok(pinShotLine);
+  assert.equal(
+    pinShotLine[1].replace(/\s+/g, ' ').trim(),
+    'nowMs: number, tideLevel: number',
+    '加第五钉不许动四钉的签名',
+  );
+  const pinActorsLine = source.match(/pinActors: \((.*?)\): void =>/s);
+  assert.ok(pinActorsLine, 'Oracle 上必须导出并列的 pinActors');
+  assert.equal(
+    pinActorsLine[1].replace(/\s+/g, ' ').trim(),
+    'actors: readonly ActorPin[]',
+  );
+  const unpinActorsLine = source.match(/unpinActors: \((.*?)\): void =>/s);
+  assert.ok(unpinActorsLine, 'Oracle 上必须导出 unpinActors');
+  assert.equal(unpinActorsLine[1].trim(), '', 'unpinActors 必须无参');
 });

@@ -27,11 +27,16 @@ import { paletteFor, terrainFor, type WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
 import {
   NO_SHOT_PIN,
+  actorFrameOf,
   phaseInputOf,
+  pinActors,
   pinShot,
+  pinnedVillagersOf,
   presentedNowOf,
   presentedTideOf,
+  unpinActors,
   unpinShot,
+  type ActorPin,
   type ShotPin,
 } from '../render/pin-shot-state.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
@@ -1621,7 +1626,7 @@ export class SandboxScene extends Phaser.Scene {
       if (this.interiorMode === 'street') this.cameraCtl.update(delta);
       else this.updateInterior();
       this.publishCameraMode();
-      this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
+      this.minimap?.update(this.paintingSnapshot(), this.cameraCtl.viewportRect());
       return;
     }
     // 造物模式暂停世界：幽灵预览期间不该有人走动或收工。
@@ -1698,7 +1703,7 @@ export class SandboxScene extends Phaser.Scene {
     if (this.interiorMode === 'street') this.cameraCtl.update(delta);
     else this.updateInterior();
     this.publishCameraMode();
-    this.minimap?.update(this.snapshot, this.cameraCtl.viewportRect());
+    this.minimap?.update(this.paintingSnapshot(), this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
     this.maybeAutoSave();
     this.persistClockBaseline();
@@ -4010,6 +4015,36 @@ export class SandboxScene extends Phaser.Scene {
     this.repaintPaper();
   }
 
+  /**
+   * 第五枚钉子：把每个可见角色这一帧画在哪儿、朝哪、什么姿态、帧号几、可不可见
+   * 钉成给定值。只改 `renderSnapshot` 里那份**画面用**的快照；世界的路线、任务、
+   * 记忆与存档一个字节不动。
+   *
+   * 没有它的时候，三跑 0 差是「等站定」等来的——同一套四钉只把冻结前等待从
+   * 1200ms 改成 2800ms，角色就走了不同的路，居民区差 4.55%。
+   */
+  private pinActorState(actors: readonly ActorPin[]): void {
+    this.shotPin = pinActors(this.shotPin, actors);
+  }
+
+  private unpinActorState(): void {
+    this.shotPin = unpinActors(this.shotPin);
+  }
+
+  /**
+   * 这一帧**画**用的快照：三层覆盖按优先级叠好，谁读画面谁读它。
+   *
+   *   1. 第五枚钉（`pinActors`）：角色这一帧画在哪、朝哪、什么姿态；
+   *   2. 调试摆位（`pinnedVillagers`）：判据层要的固定站位，压过拍摄钉住；
+   *   3. 世界与判据读的仍是 `this.snapshot`，这里只派生一份视图。
+   *
+   * 小地图（`#minimap`）也走这里：它画的是居民点，属于「画面读取」的一部分，
+   * 不能一边钉住世界画布、一边让地图上的点跟着真实世界跑。
+   */
+  private paintingSnapshot(): WorldSnapshot {
+    return pinVillagers(pinnedVillagersOf(this.shotPin, this.snapshot), this.pinnedVillagers);
+  }
+
   /** 只重放最后一行状态：界面据此重画纸面（底栏时钟跟着呈现时刻走）。 */
   private repaintPaper(): void {
     for (const listener of this.statusListeners) listener(this.lastStatus);
@@ -4307,9 +4342,10 @@ export class SandboxScene extends Phaser.Scene {
       debugGroundShadowUnits: () => {
         const shape = groundShadowAt(this.phaseView.currentPhase());
         const on = this.groundShadowMotion.on;
-        // 读数必须和画面对齐：renderSnapshot 用的是 `pinVillagers` 后的快照，
-        // 这里若读未钉的 `this.snapshot`，影子画在钉住的位置、读数却是世界位置。
-        const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
+        // 读数必须和画面对齐：renderSnapshot 读的是 `paintingSnapshot()`（第五钉 +
+        // 判据摆位后的快照），这里若读未钉的 `this.snapshot`，影子画在钉住的位置、
+        // 读数却是世界位置。
+        const snapshot = this.paintingSnapshot();
         return {
           on,
           phase: this.phaseView.currentPhase(),
@@ -4480,6 +4516,12 @@ export class SandboxScene extends Phaser.Scene {
        */
       pinShotState: (nowMs: number, tideLevel: number): void => this.pinShotState(nowMs, tideLevel),
       unpinShotState: (): void => this.unpinShotState(),
+      /*
+       * 第五枚钉：角色位置与姿态。参数顺序与四钉无关，`pinShotState` 的签名
+       * 一个字符不动；`unpinShotState()` 无参复原时连角色一起解。
+       */
+      pinActors: (actors: readonly ActorPin[]): void => this.pinActorState(actors),
+      unpinActors: (): void => this.unpinActorState(),
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),
@@ -4572,8 +4614,7 @@ export class SandboxScene extends Phaser.Scene {
   // ----------------------------------------------------------------- render
 
   private renderSnapshot(delta: number): void {
-    // 调试摆位只换这一帧要画的那份快照：身体、名字、气泡一起搬，世界不动。
-    const snapshot = pinVillagers(this.snapshot, this.pinnedVillagers);
+    const snapshot = this.paintingSnapshot();
     // 呈现态夹具：钉住时画的是钉住的时刻；潮位在下面和判据覆写一起解。
     // 两套钉法的优先级：**判据覆写（forcedPacked / pinnedTide / forcedLamps）
     // 优先于拍摄钉住（pinShotState）**——覆写是判据层，钉住只是呈现层。
@@ -4631,7 +4672,19 @@ export class SandboxScene extends Phaser.Scene {
       const look = style === undefined ? legacyLookFor(villager.id) : resolveLook(style);
       const appearance = { look, lamp: style?.lamp === true };
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
-      updateVillager(view, villager, presentedNow, 0, 0, ALTITUDE, appearance, this.pack?.palette ?? paletteFor());
+      // 第六个实参之后的 `actorFrameOf`：钉住时按帧号取姿态，未钉住返回 null，
+      // `updateVillager` 走原来的时刻采样路径（逐字节不变）。
+      updateVillager(
+        view,
+        villager,
+        presentedNow,
+        0,
+        0,
+        ALTITUDE,
+        appearance,
+        this.pack?.palette ?? paletteFor(),
+        actorFrameOf(this.shotPin, villager.id),
+      );
     }
     // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
     // 只画可见的人；世界暂停时相位不动，影子也不动。
