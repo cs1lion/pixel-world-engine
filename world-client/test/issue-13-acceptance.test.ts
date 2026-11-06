@@ -224,7 +224,7 @@ test('条件五：三条命令的口子都在，check 与 build 真跑过', () =
   };
   for (const [name, expected] of [
     ['check', 'node scripts/check-types.ts'],
-    ['test', '--import ./test/phaser-hooks.mjs --test test/*.test.ts'],
+    ['test', '--import ./test/phaser-hooks.mjs --test "test/**/*.test.ts"'],
     ['build', 'node scripts/check-types.ts && vite build'],
   ] as const) {
     assert.ok(
