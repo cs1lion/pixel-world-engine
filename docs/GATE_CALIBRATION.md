@@ -412,4 +412,49 @@ import 新导出名；这个符号在 base 上不存在 → 测试文件在 base
   3. 拆成「先加新符号（旧名保留）→ 改引用 → 删旧名」三步，保证每一步在 base 上都能编译。
 - 不要用「本地 `red:first` 绿」推断「CI 绿」：两者 base 不同。
 
+## 12. 2026-11-06：夹具重录不进 `red:first`（设计如此，不是过滤错）
+
+### 现象
+
+`ea05cd0` 改了 `world-client/fixtures/*.json` 与 `world-client/scripts/fixture-check.ts`，
+`npm run red:first -- --base a03a1cb` 报 SKIP。两次提示不同：
+
+- 提交前跑：`git diff base..HEAD` 为空（改动还在工作树）→
+  「本次没有 world-client 改动（只改文档或其它目录）」；
+- 提交后再跑：`测试 diff 为空（只改测试以外，或纯重构没有新增/修改测试）`。
+
+第一句只描述**已提交的 diff**，容易被误读成「路径过滤把 fixtures 漏了」；提交后再跑才能
+看到真实原因。
+
+### 过滤逻辑（读代码确认）
+
+- `changedFiles()` 用 `git diff --name-status base..HEAD -- world-client`，**会看到**
+  `fixtures/` 与 `scripts/`；
+- `planTestChanges()` 只把 `world-client/test/*.test.ts` 排进要跑的测试列表，`test/` 之外
+  的改动只当支撑文件或忽略；
+- `SNAPSHOT_LIKE_TESTS` 另外显式跳过 `pin-shot-state` / `fixture-self-check` /
+  `eval-fixture-hash`。
+
+所以不是路径漏判，而是 `red:first` 的定义只覆盖「新增/修改的普通测试」。
+
+### 为什么可以接受
+
+`red:first` 的前提是「新测试写新行为，在 base 上必须红」。夹具重录写的是**当前行为**，
+不是新行为；把重录后的夹具套到 base，只会拿新期望值对旧行为，红仍然是「值不符」，
+证明不了任何缺失实现。它的守卫是另外两条：
+
+- `npm test` 里的 `fixture-self-check`：钉断言数量与形状、`eventRange` 与
+  `recorded.eventCount` 一致、`inputDigest` 可复算；
+- `fixture:check`：整局回放，反向用例必须红在断言上（`ea05cd0` 已实测）。
+
+因此 fixture-only 改动不进 `red:first` 是可接受的设计边界，不是孤儿闸门。
+
+### 下次要预期什么
+
+- 只改夹具/录制脚本 → `red:first` 一定 SKIP。要在提交后再跑；提交前跑得到的是误导性的
+  「本次没有 world-client 改动」。
+- 如果新测试依赖 `test/` 之外的新夹具，`red:first` 会把缺文件判成 module / ERROR
+  （脚本头部已写明），这是有意的，不要误判成夹具坏了。
+- 要让一条行为改动「先红后绿」，必须落到 `world-client/test/*.test.ts`；只改夹具不算。
+
 
