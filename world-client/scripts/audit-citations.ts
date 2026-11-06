@@ -276,6 +276,14 @@ const KNOWN: Readonly<Record<string, { why: string; at: readonly string[] }>> = 
     why: 'docs/iterations 里记的仓外产物原名，本仓没有这个文件',
     at: ['docs/iterations/1027-task-2/README.md'],
   },
+  'SCREENSHOT_BASELINE_CHANGES.md': {
+    why: 'pin-shots/05 说明 night-rain 不在那份清单里；清单在 pwe-anim 工作树的 feat/animation-express 分支，本仓 main 没有',
+    at: ['docs/evidence/pin-shots/05-NIGHT-RAIN-BASELINE-DRIFT.md'],
+  },
+  'docs/evidence/animation-express/SCREENSHOT_BASELINE_CHANGES.md': {
+    why: '同上：pwe-anim 分支上的清单路径，本仓 main 未提交该文件',
+    at: ['docs/evidence/pin-shots/05-NIGHT-RAIN-BASELINE-DRIFT.md'],
+  },
 
   // —— 修正注释里点名的那两个被删/从未存在的文件。引它们是**为了说它们不在**。
   'test/world-door-reachability.test.ts': {

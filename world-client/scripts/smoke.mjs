@@ -24,11 +24,12 @@ import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { projectWorldToCanvas, TILE_PX } from './lib/camera-projection.mjs';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const URL_BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(URL_BASE);
-const OUT = process.env.EVAL_OUT ?? 'eval/screens';
+const OUT = resolveShotDir('smoke');
 // 事件流模式：先起服务端（8000），再 `FEED=1 node scripts/smoke.mjs`。
 const FEED = process.env.FEED === '1';
 // 显式注入的昼夜阶段。默认正午；要验「换一个本地时刻也成立」时

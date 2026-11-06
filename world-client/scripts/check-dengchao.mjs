@@ -22,11 +22,12 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(BASE);
-const OUT = resolve(import.meta.dirname, '..', 'eval', 'screens');
+const OUT = resolveShotDir('check-dengchao');
 mkdirSync(OUT, { recursive: true });
 
 const checks = [];

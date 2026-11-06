@@ -59,8 +59,8 @@ test('SHOT_DIR 由本文件位置推出且自己保证存在（写死过一次�
   assert.ok(decl !== null, '找不到 `const SHOT_DIR = …;` 这一行，文件头的说法要跟着改');
   assert.match(
     decl[1],
-    /^resolve\(import\.meta\.dirname, '\.\.', 'eval', 'screens'\)$/,
-    'SHOT_DIR 必须由本文件位置推出，不许写死绝对路径',
+    /^resolveShotDir\('smoke-ego'\)$/,
+    'SHOT_DIR 必须由本文件位置推出（现在经 shot-output.mjs 的 CLIENT_ROOT），不许写死绝对路径',
   );
   assert.ok(
     /mkdirSync\(SHOT_DIR, \{ recursive: true \}\)/.test(EGO),

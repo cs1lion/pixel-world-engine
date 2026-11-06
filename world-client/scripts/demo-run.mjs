@@ -33,11 +33,12 @@ import {
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const PIXEL = join(ROOT, 'pixel-world');
 const PY = join(ROOT, '.venv', 'Scripts', 'python.exe');
-const OUT = join(PIXEL, 'eval', 'screens');
+const OUT = resolveShotDir('demo-run');
 const CDP_URL = process.env.CDP_URL ?? 'http://127.0.0.1:9333';
 const MODE = (process.argv.includes('--mode') ? process.argv[process.argv.indexOf('--mode') + 1] : 'mock');
 const KEEP = process.argv.includes('--keep');

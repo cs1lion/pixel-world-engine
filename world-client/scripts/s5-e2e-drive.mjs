@@ -15,9 +15,10 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = process.env.S5_EVIDENCE_DIR || join(HERE, '..', 'eval', 'screens');
+const OUT = process.env.S5_EVIDENCE_DIR || resolveShotDir('s5-e2e-drive');
 mkdirSync(OUT, { recursive: true });
 const URL = (process.env.S5_WORLD_URL || 'http://127.0.0.1:5189') + '/?ledger=on&debug=1';
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -220,8 +220,9 @@
 - **提案方向**：默认输出改到 `world-client/tmp/`（`tmp/` 已在 ignore 内），由 `EVAL_OUT` 覆盖；setting 的三张基线仍留在 `eval/screens`（它们是比对底片）。
 - **代价**：需同步更新 `03-ACTOR-PIN.md` 等文档里的路径描述，属一次性迁移；同时改两个脚本的默认常量。
 - **本轮 [事实]**：**不改默认，只登记**；只给 `actor-pin/`、`actor-pin-pairs/` 加了**精确** ignore（见根 `.gitignore`），未加任何 `eval/screens/` 宽规则，169 个已跟踪基线不受影响。
+- **2026-11-06 已落地 [事实]**：按用户裁决统一写入口——所有出图 gate 默认写未跟踪的 `world-client/tmp/screens/<脚本名>/`；写回 `eval/screens` 基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`；目标目录命中已跟踪文件又无授权时直接拒绝退出，并打印会被覆盖的文件清单与两条放行命令。判断集中在 [shot-output.mjs](file:///D:/project/pwe-docs-fix/world-client/scripts/lib/shot-output.mjs)，已接入 A 档 12 条（含 `check-creation`、`check-dengchao` 两条原本无出口的）、B 档 5 条，以及 `check-shot-actor-pin` / `check-rain-pin` / `accept-live`；`lamp-band-before*` 三件仍从 `eval/screens/` 只读复用，不随输出目录漂走。
 - **建议时机**：下一次动抓拍夹具或 setting 闸门时。
-- **是否需要用户决策**：**是**（是否迁移默认输出目录；迁移后旧路径是否留兼容）。
+- **是否需要用户决策**：**否**（默认已迁移；旧路径兼容性由显式 `EVAL_OUT` 承担）。
 
 ### E5. GitHub 默认视图只显示最新 attempt，重跑会把首跑的红藏起来
 
@@ -248,6 +249,17 @@
 - **只读入口（不进 CI）**：`npm run ci:attempt1 -- --since 2026-11-04`（[ci-attempt1-audit.mjs](file:///D:/project/pwe-material/scripts/ci-attempt1-audit.mjs)）列出时间窗内「attempt 1 失败、最终却 success」的 run，并打印逐条 `gh run view … --attempt 1`。只读 `gh` 数据，不改判据、不进工作流。
 - **建议时机**：已落地（纪律 + 入口）。
 - **是否需要用户决策**：否（review 纪律）。
+
+### E6. `phase-night-rain.png` 是否继续当硬基线
+
+- **现状 [事实]**：`check-phases.mjs` 的 night-rain 分支只做 `waitFadeSettled` → `say('下雨吧')` → 固定 `waitForTimeout(3000)`，读数记成 `method: 'fixed(rain)'`、`frames: -1`（[check-phases.mjs](file:///D:/project/pwe-docs-fix/world-client/scripts/check-phases.mjs#L210-L219)）。它**没有** `waitVillagersSettled`、没有 `jumpWorldClock(35)` / `freezeWorldClock`、没有 `pinShotState`，所以居民行走相位与雨丝相位都随墙钟落点漂。四张计分 phase 图有 `villagers-inside + clock-pin(00:35) + fade-probe`，同日重跑逐字节不变；night-rain 则每次重写都不同。
+- **读数 [事实]**：一次重跑与 HEAD 的差异为 961×641 中 ≥1 差 427,246 px（69.358%）、≥10 差 5,451 px；高差块集中在顶部中央居民精灵 `x545–672 / y28–128`，全帧 ±1–2 是雨幕亮度相位。两个 sha256、四张同组 phase 逐字节相同的旁证、以及一次「先判雨丝、实为居民」的误判更正，见 [05-NIGHT-RAIN-BASELINE-DRIFT.md](file:///D:/project/pwe-docs-fix/docs/evidence/pin-shots/05-NIGHT-RAIN-BASELINE-DRIFT.md)。
+- **问题 [事实]**：作为硬基线，它**不可复现、每次跑都漂**；漂移量与居民/雨的随机相位同量级，无法用阈值区分「真的坏了」与「又漂了」。
+- **候选路径 A：补钉**。照四张计分 phase 的口径加 `waitVillagersSettled` + `jumpWorldClock(35)` + `freezeWorldClock`（必要时补 `pinShotState`），按 [04-RENDER-INPUT-TABLE.md](file:///D:/project/pwe-docs-fix/docs/evidence/pin-shots/04-RENDER-INPUT-TABLE.md) 的 `now / tide / villagers / trails` 四类输入钉住。目标：三跑逐字节 0 差，night-rain 继续当硬基线；代价是这一镜的「雨刚上来」语义被冻钟改变，需要重新定构图时刻。
+- **候选路径 B：降级为单幅结构度量**。按 [02-STRUCTURE-GATE.md](file:///D:/project/pwe-docs-fix/docs/evidence/pin-shots/02-STRUCTURE-GATE.md) 的「结构档」口径，只断言单幅存在 + 雨幕可见 + 亮度/结构指标在范围内，不再逐字节比较。目标：不再要求复现，night-rain 退出硬基线名单；代价是丢掉「同机位逐像素」这层保护。
+- **本轮 [事实]**：**不改判据**，只登记两条候选；漂移文件已按纪律还原，基线未更新。
+- **建议时机**：下一次动 night-rain 判据或天气呈现时。
+- **是否需要用户决策**：**是**（A 补钉 vs B 降级为结构度量）。
 
 ## F. Phaser 4 升级遗留（2026-11-06）
 
