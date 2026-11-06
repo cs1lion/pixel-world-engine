@@ -277,7 +277,7 @@ node scripts/verify-all.mjs
 `[实测]` 2026-11-06 的读数：
 
 ```text
-pass=8 fail=0 skip=1 elapsed=5241ms
+pass=8 fail=0 skip=1 elapsed=4769ms
 读数：D:\project\pwe-verify-out\verify-all\last-run.json
 ```
 
