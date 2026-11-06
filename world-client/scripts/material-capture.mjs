@@ -19,12 +19,15 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // 证据放仓库根 docs/，不放在 world-client/docs：README/审计脚本都从仓库根读。
 const EVIDENCE = resolve(HERE, '..', '..', 'docs', 'evidence', 'material-upgrade');
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const LABEL = process.argv.includes('--label')
   ? process.argv[process.argv.indexOf('--label') + 1]
   : 'before';

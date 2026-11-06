@@ -12,9 +12,12 @@
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const OUT = 'D:/project/pwe-material/docs/evidence/interior-view';
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const VIEW = { width: 960, height: 640 };
 
 /** 相机位姿的三个原值：逐字相同才叫「回到原点」。 */

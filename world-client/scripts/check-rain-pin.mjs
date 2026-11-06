@@ -25,8 +25,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import process from 'node:process';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const OUT = process.env.EVAL_OUT;
 if (!OUT) {
   console.error('必须给 EVAL_OUT（建议放临时目录，别写进仓库的 eval/screens）');

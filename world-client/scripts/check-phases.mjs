@@ -27,8 +27,11 @@
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { waitFadeSettled, waitVillagersSettled } from './lib/capture.mjs';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const OUT = process.env.EVAL_OUT ?? 'eval/screens';
 const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 

@@ -30,6 +30,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const CLIENT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SERVER = join(CLIENT, '..', 'server');
@@ -189,6 +190,7 @@ async function main() {
   });
   children.push(vite);
   await waitForHttp(BASE, '前端起来');
+  await assertTreeIdentity(BASE);
   console.log(`  前端    ${BASE}→ ${API}`);
 
   // ------------------------------------------------------------ 服务端闸（旁路）

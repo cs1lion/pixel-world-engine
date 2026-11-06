@@ -18,11 +18,14 @@
 import { chromium } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const require = createRequire(import.meta.url);
 const PHASER_VERSION = require('phaser/package.json').version;
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5210/';
+
+await assertTreeIdentity(BASE);
 const OUT = process.env.EVAL_OUT ?? 'tmp/fps-protocol';
 const ROUNDS = Number(process.env.ROUNDS ?? 6);
 const SAMPLE_MS = Number(process.env.SAMPLE_MS ?? 4000);
