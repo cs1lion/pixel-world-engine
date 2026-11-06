@@ -5,14 +5,15 @@
 > 工作树里的文件恢复为 HEAD 版本，`git status` 里 `eval/screens` 干净。
 > 漂移成因是 night-rain 这一镜**没有钉居民、没有冻钟**，不是渲染器变了。
 
-## 1. 两个 sha256（逐字节比对）
+## 1. sha256（逐字节比对）
 
 | 版本 | sha256 | 字节数 |
 |---|---|---|
 | HEAD / 还原后工作树 | `58de4e1dd491b1a694b46223f226079dc044b5ee479692f1caae623220d37435` | 22373 |
 | 闸门重写后的工作树（还原前测得） | `f7fa5a623e33d7cb6ab6938227a08391277d13f394297324d0ca04111d106f5a` | 22169 |
+| 同日复跑一次（新默认 tmp，未跟踪） | `f0cc935e3f3a41e7bb0f072b4e50310a9a32fdc04f4715abacee048216f764c9` | 22235 |
 
-判定：**不同** → 按用户裁决不保留漂移文件，执行还原；还原后两者再次逐字节相同。
+三次三个值，其中后两次都是同机位、同 `check-phases`、同 preview 构建；**每次都不同**，直接证明这一镜不可复现。
 
 复算命令（Node 读 Buffer，不经 PowerShell 文本管道，避免编码污染）：
 
@@ -32,7 +33,9 @@ node -e "const {execFileSync}=require('child_process'),c=require('crypto'),fs=re
 | `phase-night.png` | `271dfbe1d33020c6617c67218f73eda3c5dbbafe80ba47eebdfc14880f2494b2` | 21725 |
 
 四张计分图都走 `villagers-inside + clock-pin(00:35) + fade-probe`，重写后字节不变；
-只有 night-rain 漂了。⇒ 渲染路径整体没变，漂移是**这一镜的取样条件**造成的。
+只有 night-rain 漂了。同日复跑一次（输出按新默认进 `tmp/screens/check-phases/`），
+四张仍是这四个 sha256、`SAME`，night-rain 又是 `f0cc935e…`。⇒ 渲染路径整体没变，
+漂移是**这一镜的取样条件**造成的。
 
 ## 3. 像素级读数（还原前测得）
 
@@ -84,4 +87,6 @@ node -e "const {execFileSync}=require('child_process'),c=require('crypto'),fs=re
 ## 7. 处置（本轮）
 
 - 文件：已还原，不保留漂移版本，不更新基线。
-- 判据：不改（仍按现状当硬基线跑），待 `docs/OPEN_ISSUES.md` 的登记项拍板后再决定。
+- 复跑验证：按新默认输出重跑一次 `check-phases`（`tmp/screens/check-phases/`，未跟踪），
+  34 项全过、`git status` 干净；同组四张计分图逐字节相同，night-rain 得到**第三个** sha256。
+- 判据：不改（仍按现状当硬基线跑），待 `docs/OPEN_ISSUES.md` 的登记项（E6）拍板后再决定。
