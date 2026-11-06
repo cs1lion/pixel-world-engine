@@ -373,4 +373,43 @@ ok   全程无 JS 报错
 
 **以后怎么用这张账**：`world-client-browser` 再红时先按三步对号——① `119074`/绘制指令 → 真回归；② drag/restore/background 或 6/8 秒收敛 → 先怀疑 runner 速度与 §9 口径；③ `ERR_CONNECTION_REFUSED` 或 curl `exit code 7` → 查 preview 是否被跨 step 清掉或监听地址不对。三步都对不上，才按新问题查。
 
+## 11. 2026-11-06：`red:first` 在纯改名改动上的死角
+
+### 症状
+
+`red:first` 的判据是「新测试在 base 上必须红，且红因不能是 compile / import / 缺模块」。
+CI 的 base 取 `github.event.pull_request.base.sha || github.event.before`——push main 时，
+`before` 就是**上一个 main 提交**。
+
+一次纯改名（`ee57759`：两个同名 `TERRAIN_HEIGHT` 各自改名）里，测试为了编译通过必须
+import 新导出名；这个符号在 base 上不存在 → 测试文件在 base 上整块 import 失败 →
+判成 compile 类错误 → `red:first` 报 ERROR，合并被拦。
+
+根因是闸门的前提错了：它假设「新测试写的是新行为」，所以 base 上失败＝预期。
+但改名改动里，测试写的是**同一个行为**，只换了名字；base 上红不是行为差异，是符号缺失。
+
+### 这次的处理（只改测试写法，不动闸门逻辑）
+
+1. 改名提交 `ee57759` 保留两个过渡别名（`TERRAIN_WATER_CLEARANCE` /
+   `TERRAIN_EDGE_PRIORITY`），本地以分叉点当 base 跑 `red:first` 通过。
+2. 但 CI 的 base 是 `f11852c`（push 前的 main），比本地分叉点更早，别名不在它里面；
+   第一次 CI 仍因 compile 类错误不放行。
+3. 补 `8bd5ed7`：两个测试不再静态 import 新导出，改成命名空间取值 + `assert.ok(...)`
+   兜底。符号缺失于是落在**断言失败**上，而不是模块编译失败。CI run #109 四个 job 全绿
+   （headSha `a03a1cb`）。
+
+代价：这两处测试失去了编译期符号保证，运行期靠 `assert.ok` 兜底；这是一次性兼容写法，
+不是长期风格。
+
+### 下次重命名要预期什么
+
+- 只要「测试 import 的符号在 `github.event.before` 那棵树上不存在」，`red:first` 必然把红
+  判成 compile / ERROR；这与你本地用分叉点当 base 是否绿**无关**。
+- 三条可行路径：
+  1. 在改名提交里保留过渡别名，并确认 **CI 的 base（`before`）** 也在别名之后；
+     只在本分支分叉点验证不够。
+  2. 测试改成运行时取值（命名空间 / 动态 import）+ 断言兜底，让红落在断言上。
+  3. 拆成「先加新符号（旧名保留）→ 改引用 → 删旧名」三步，保证每一步在 base 上都能编译。
+- 不要用「本地 `red:first` 绿」推断「CI 绿」：两者 base 不同。
+
 
