@@ -527,10 +527,24 @@ node scripts/fixture-check.ts --only build-demolish-rebuild
      说明该提交对这两个读数是反向贡献），**排除整个 `1905bdd`**。
 
    剩余指向 `0fd53a6`（街头互动首次引入）或 `937f247` 的行为改动；未单独验证，不硬圆。
+
+   `archived 9→0` 另做了定性检查（临时计数桩插在 `consolidate.ts` 第 4 步归档判定
+   之后，回放 `memory-decay-20d`，插桩已撤销、仓库无残留）：
+
+   - **调用 40 次**（20 天 × 2 holder），与断言 `memory.consolidated` 事件 40 条一致；
+   - 每次参与归档判定的条目数 `checked` 都 > 0（第 1 天起 2–18 条），说明归档路径
+     被逐条求值，不是「一次都没被调用」；
+   - 全程最低强度 `min = 0.3771`，`T_forget = 0.15`，从未跨线；
+   - 每次 `archived = 0`。
+
+   结论：**归档仍在发生，只是这个样本里没有任何条目达到归档条件**。原因是事实条数
+   277→379 后 day 桶更早触顶，旧条目在降到 `T_forget` 前先被预算淘汰（dropped
+   145→204）——数据层后果，不是代码层 bug，不开 issue。可证伪点：把同类夹具拉长到
+   约 100 天或收紧 day 桶预算，应出现 `archived > 0`；本次不做。
 5. **范围外**：`recorded` 的业务读数也有变化（如 `creator-dayclose-rejected` 的
    `metToday` 0→1，`build` 的 memory `facts` 60→78、`entries`/`claims`/`traces`/`bonds`
    等），本次未逐条归因；它们与上表同源，都是这次重录的一部分。
-6. **遗留**：`timetable-daily-markers` 两条断言的 note 已经过期——「共 9 条」实际是 23，
-   「18:00 点灯事实」实际是 `street_greet`。只影响可读性，不影响校验。
+6. **已修**：`timetable-daily-markers` 三条过期 note（「共 9 条」→ 23、「18:00 点灯
+   事实」→ 索引 8 街口招呼、「点灯落点」→ 街口招呼落点）已只改文字、不动期望值。
 
 
