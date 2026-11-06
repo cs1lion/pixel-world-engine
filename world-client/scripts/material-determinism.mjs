@@ -6,7 +6,7 @@
  *   2) 同一帧号两遍运行，逐像素是否一致（本引擎在载入期有 Date.now 参与
  *      的种子，两遍会有 ~0.15% 的散布，基线同样如此，见 evidence 的说明）。
  *
- * 用法：dev server 起在 5191 后 `node scripts/material-determinism.mjs <label>`，
+ * 用法：dev server 起在 5211 后 `node scripts/material-determinism.mjs <label>`，
  * 产物写到 <仓库根>/docs/evidence/material-upgrade/<label>/det-*.png。
  */
 import { chromium } from '@playwright/test';
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(HERE, '..', '..', 'docs', 'evidence', 'material-upgrade',
   process.argv[2] ?? 'after');
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5191/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const FRAME_MS = 1000 / 60;
 
 function pinClock({ frameMs }) {

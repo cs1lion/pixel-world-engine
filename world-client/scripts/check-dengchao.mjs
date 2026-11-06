@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const OUT = resolve(import.meta.dirname, '..', 'eval', 'screens');
 mkdirSync(OUT, { recursive: true });
 

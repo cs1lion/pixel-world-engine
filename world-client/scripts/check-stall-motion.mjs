@@ -14,8 +14,8 @@
  *   · 盖布的 t / t+1s 像素差用「晴天 + 钉死已盖」的同一态量布料本身。
  *
  * 跑法：
- *   cd world-client && npm run dev -- --port 5202
- *   PIXEL_WORLD_URL=http://127.0.0.1:5202/ node scripts/check-stall-motion.mjs
+ *   cd world-client && npm run dev -- --port 5211
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ node scripts/check-stall-motion.mjs
  */
 
 import { createHash } from 'node:crypto';
@@ -23,7 +23,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
 mkdirSync(OUT, { recursive: true });
 

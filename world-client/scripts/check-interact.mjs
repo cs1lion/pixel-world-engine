@@ -2,7 +2,7 @@
  * 交互 L1/L2/L3 的真实点击脚本（沿用 smoke.mjs 的写法，不引入新框架）。
  *
  * 跑法：
- *   npm run dev -- --port 5188
+ *   npm run dev -- --port 5211
  *   node scripts/check-interact.mjs
  *
  * 只做「玩家手会点到的路径」：左键 / 右键 / 长按 / 点空白 / 边缘 / 缩放 / 面板互斥 /
@@ -13,7 +13,7 @@
 import { chromium } from '@playwright/test';
 import { cellToCanvasPoint, viewOriginOf, TILE_PX } from './lib/camera-projection.mjs';
 
-const BASE = process.env.PWE_URL ?? 'http://127.0.0.1:5188/';
+const BASE = process.env.PWE_URL ?? 'http://127.0.0.1:5211/';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const results = [];

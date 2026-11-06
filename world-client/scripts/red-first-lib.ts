@@ -1,0 +1,174 @@
+/**
+ * red-first 的纯逻辑：把 `git diff --name-status` 的结果分成
+ * 「该在 base 上跑红的测试」「合理跳过」「支撑文件」。
+ *
+ * 这一层不碰 git、不碰进程，方便单测；真正的临时 worktree / 跑测试在
+ * `red-first.ts`。跳过条件集中在这里，避免 CLI 里散落 if。
+ */
+
+export interface ChangedFile {
+  /** git 的 A/M/D/R 状态；R 取新路径。 */
+  status: string;
+  /** 仓库根相对路径。 */
+  path: string;
+}
+
+export interface SkipEntry {
+  file: string;
+  reason: string;
+}
+
+export interface TestPlan {
+  kind: 'run' | 'skip';
+  run: string[];
+  support: string[];
+  skipped: SkipEntry[];
+  reason?: string;
+}
+
+/**
+ * 「快照型参数化用例」的显式清单。
+ *
+ * 这些用例钉的是已经存在的快照/夹具字段，或由参数化夹具驱动；在 base 上
+ * 它们可能因为字段本来就存在而直接绿，红灯判据不成立。跳过不是放行，
+ * 而是交给普通 `npm test` 与夹具自检，并在这里写明原因。
+ */
+export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
+  {
+    file: 'test/pin-shot-state.test.ts',
+    reason: '快照字段登记用例：钉的是现有快照/渲染输入表，base 上可能本来就绿',
+  },
+  {
+    file: 'test/fixture-self-check.test.ts',
+    reason: '夹具自检用例：参数化读 fixtures，base 上可能本来就绿',
+  },
+  {
+    file: 'test/eval-fixture-hash.test.ts',
+    reason: '夹具哈希用例：参数化读夹具与基线，base 上可能本来就绿',
+  },
+];
+
+const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
+
+/** `world-client/test/foo.test.ts` → `test/foo.test.ts`；不在这棵树下返回 null。 */
+export function toTestRelative(path: string): string | null {
+  const prefix = 'world-client/';
+  if (!path.startsWith(prefix)) return null;
+  const rest = path.slice(prefix.length);
+  return rest.startsWith('test/') ? rest : null;
+}
+
+export function isSnapshotLikeTest(testRelativePath: string): string | null {
+  return SNAPSHOT_BY_FILE.get(testRelativePath) ?? null;
+}
+
+/**
+ * 规则（按用户要求的窄范围）：
+ * 1. 没有 world-client 改动 → 跳过（只改文档/其它目录）；
+ * 2. 没有 test/ 下的测试文件改动 → 跳过（只改测试以外、纯重构、测试 diff 为空）；
+ * 3. 测试文件被删除 → 跳过并说明（base 上没有可跑的新测试，需人工核对）；
+ * 4. 快照型参数化用例 → 跳过并说明；混合时只跑剩下的普通测试。
+ */
+export function planTestChanges(changes: ChangedFile[]): TestPlan {
+  const worldChanges = changes.filter((change) => change.path.startsWith('world-client/'));
+  if (worldChanges.length === 0) {
+    return {
+      kind: 'skip',
+      run: [],
+      support: [],
+      skipped: [],
+      reason: '本次没有 world-client 改动（只改文档或其它目录）',
+    };
+  }
+
+  const testChanges = worldChanges
+    .map((change) => ({ ...change, relative: toTestRelative(change.path) }))
+    .filter((change): change is ChangedFile & { relative: string } => change.relative !== null);
+
+  if (testChanges.length === 0) {
+    return {
+      kind: 'skip',
+      run: [],
+      support: [],
+      skipped: [],
+      reason: '测试 diff 为空（只改测试以外，或纯重构没有新增/修改测试）',
+    };
+  }
+
+  const run: string[] = [];
+  const support: string[] = [];
+  const skipped: SkipEntry[] = [];
+
+  for (const change of testChanges) {
+    if (!change.relative.endsWith('.test.ts')) {
+      if (change.status !== 'D') support.push(change.relative);
+      continue;
+    }
+    if (change.status === 'D') {
+      skipped.push({
+        file: change.relative,
+        reason: '测试文件被删除：base 上没有可跑的测试，需人工核对是否只是删用例',
+      });
+      continue;
+    }
+    const snapshotReason = isSnapshotLikeTest(change.relative);
+    if (snapshotReason) {
+      skipped.push({ file: change.relative, reason: snapshotReason });
+      continue;
+    }
+    run.push(change.relative);
+  }
+
+  if (run.length === 0) {
+    return {
+      kind: 'skip',
+      run: [],
+      support,
+      skipped,
+      reason:
+        skipped.length > 0
+          ? '改动只涉及快照型/被删除的测试，已按条件跳过'
+          : '没有可跑的测试文件',
+    };
+  }
+
+  return { kind: 'run', run: run.sort(), support: support.sort(), skipped };
+}
+
+/** 解析 `--base` / `--repo` / `--timeout` / `--keep`；空字符串的 base 视为未给。 */
+export interface Args {
+  base: string;
+  repo: string;
+  timeoutMs: number;
+  keep: boolean;
+}
+
+export function parseArgs(argv: string[]): Args {
+  const args: Args = { base: '', repo: '', timeoutMs: 120_000, keep: false };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]!;
+    if (arg === '--keep') {
+      args.keep = true;
+    } else if (arg.startsWith('--base=')) {
+      args.base = arg.slice('--base='.length).trim();
+    } else if (arg === '--base') {
+      args.base = (argv[i + 1] ?? '').trim();
+      i += 1;
+    } else if (arg.startsWith('--repo=')) {
+      args.repo = arg.slice('--repo='.length).trim();
+    } else if (arg === '--repo') {
+      args.repo = (argv[i + 1] ?? '').trim();
+      i += 1;
+    } else if (arg.startsWith('--timeout=')) {
+      const value = Number(arg.slice('--timeout='.length));
+      if (Number.isFinite(value) && value > 0) args.timeoutMs = value;
+    } else if (arg === '--timeout') {
+      const value = Number(argv[i + 1]);
+      if (Number.isFinite(value) && value > 0) args.timeoutMs = value;
+      i += 1;
+    } else {
+      throw new Error(`不认识的参数：${arg}`);
+    }
+  }
+  return args;
+}

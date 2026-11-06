@@ -35,8 +35,8 @@
  * 「点了什么都不说」。那是脚本的毛病，不是按钮的。
  *
  * 用法：
- *   node scripts/dev-live.mjs &            # 或任何在 5188 的 vite
- *   node scripts/check-buttons.mjs         # 默认打 5188
+ *   node scripts/dev-live.mjs &            # 或任何在 5211 的 vite
+ *   node scripts/check-buttons.mjs         # 默认打 5211
  *   PIXEL_WORLD_URL=http://127.0.0.1:5175/ node scripts/check-buttons.mjs
  *
  * 退出码：测出问题就是 1（沉默、点不动、审到一半页面没了，三类都算）；
@@ -46,7 +46,7 @@
 import { chromium } from '@playwright/test';
 import { waitForQuiet } from './quiesce.ts';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 
 /**
  * 先问一句「背后有没有服务端，且镇志里有没有条目」，没有就拒跑。
@@ -59,7 +59,7 @@ const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
  * 8 轮等不到 `.chronicle-row`），抽屉里四颗按钮一次都没被点到；镇志标题
  * 停在「读不到镇志：Not Found」上不再翻，「重读」于是被审成沉默。
  * 那次报出「46 个按钮、3 个一句话都不说」——三个全是冤的，同一份代码对着
- * 带后端的 5188 是 56 个按钮、0 个沉默。
+ * 带后端的 5211 是 56 个按钮、0 个沉默。
  *
  * 一条后端就够了：`/api/memory/list` 是镇志的数据源，它拿不出条目时这半界
  * 界面都不该拿来下结论。
@@ -106,7 +106,7 @@ async function requireBackend() {
     console.error(
       `背后没有服务端：${url.href} ${detail}\n` +
         '这项审计要连着后端跑（镇志条目、意图端点都靠它）。\n' +
-        '  node scripts/dev-live.mjs &     # 服务端 + 前端，5188\n' +
+        '  node scripts/dev-live.mjs &     # 服务端 + 前端，5211\n' +
         '对着裸 vite 跑，测不出沉默也测不出说话——它只会把好按钮冤成哑巴。',
     );
     process.exit(2);

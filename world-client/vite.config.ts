@@ -6,7 +6,7 @@ import { defineConfig } from 'vite';
 // 端口与服务端地址可以用环境变量改：浏览器验收要开一份隔离实例
 // （自己的事件库、自己的端口），不能去占开发时正在跑的那一份。
 const apiTarget = process.env.PIXEL_WORLD_API ?? 'http://127.0.0.1:8000';
-const clientPort = Number(process.env.PIXEL_WORLD_CLIENT_PORT ?? 5188);
+const clientPort = Number(process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211);
 
 export default defineConfig({
   base: './',

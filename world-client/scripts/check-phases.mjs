@@ -6,7 +6,7 @@
  * 判据来自 ADR_WORLD_ALIVE §2「验收阈值」，数字改动必须同步改这里的常量。
  *
  * 跑法：
- *   1. npm run dev（默认 5188；其它端口用 PIXEL_WORLD_URL 指过去）
+ *   1. npm run dev（默认 5211；其它端口用 PIXEL_WORLD_URL 指过去）
  *   2. node scripts/check-phases.mjs
  *
  * 截图落在 eval/screens/phase-<id>.png，失败时可直接看。
@@ -28,7 +28,7 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { waitFadeSettled, waitVillagersSettled } from './lib/capture.mjs';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const OUT = process.env.EVAL_OUT ?? 'eval/screens';
 const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 

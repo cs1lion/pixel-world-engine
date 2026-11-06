@@ -2,7 +2,7 @@
  * 回家之后的室内取证：屋里真的有人，人真的画在内景上。
  *
  * 跑法（在 `world-client/` 下先开本 worktree 的 dev server）：
- *   npx vite --port 5191 --strictPort
+ *   npx vite --port 5211 --strictPort
  *   node scripts/homecoming-capture.mjs
  *
  * 页面默认从世界 00:00 起跑（加速 60×）。入夜判定从 22:00 起到 06:00——
@@ -13,7 +13,7 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const OUT = 'D:/project/pwe-material/docs/evidence/homecoming';
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5191/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const VIEW = { width: 960, height: 640 };
 
 const browser = await chromium.launch();

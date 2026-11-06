@@ -65,7 +65,7 @@
  *   下面的注释。）
  *
  * 前置条件：
- *   1. dev server 在 5188（`npm run dev`）。
+ *   1. dev server 在 5211（`npm run dev`）。
  *      （这里原来还写着一条退路：沙箱里若报
  *      `[plugin externalize-deps] Error: spawn EPERM`，「改用同目录的
  *      `vite.harness.mjs`」。**那个文件仓库里从来没有**——`git log --all
@@ -86,11 +86,11 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const URL_BASE = 'http://127.0.0.1:5188/';
+const URL_BASE = 'http://127.0.0.1:5211/';
 /** 实际打开的页面地址（沙盒模式固定 ?ledger=off）；reload 等价做法是重新 goto 同一地址。 */
 const PAGE_URL = `${URL_BASE}?ledger=off&debug=1`;
 /** CDP 清存储要用的 origin（不带路径与查询串）。 */
-const ORIGIN = 'http://127.0.0.1:5188';
+const ORIGIN = 'http://127.0.0.1:5211';
 /**
  * 截图必须用绝对路径（ego 拒绝相对路径）。**由本文件位置推出来**，不写死。
  *

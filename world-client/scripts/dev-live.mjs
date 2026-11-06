@@ -3,7 +3,7 @@
  * 本仓的一键启动：服务端 + 前端，各一个进程。
  *
  * 为什么需要它：在这之前，跑起这个世界要求你知道三个本仓没有写在任何地方的事实——
- * 服务端入口是 `server/main.py`（不是别的什么 app 模块）、前端在 5188、Vite 的
+ * 服务端入口是 `server/main.py`（不是别的什么 app 模块）、前端在 5211、Vite 的
  * `/api` 代理指向 8000。少一个，页面上就只剩「上游离线」，而那句话不会告诉你
  * 是代理错了还是服务端没起。
  *
@@ -36,7 +36,7 @@ const STATE_PATH = join(ROOT, 'tmp', 'dev-live.json');
 // Vite 的代理指向一个没人听的地方，症状从「8000 被占了」变成「上游一直离线」，
 // 后者难查得多。
 const SERVER_PORT = Number(process.env.PIXEL_WORLD_SERVER_PORT ?? 8000);
-const CLIENT_PORT = Number(process.env.PIXEL_WORLD_CLIENT_PORT ?? 5188);
+const CLIENT_PORT = Number(process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211);
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 function portOpen(port) {

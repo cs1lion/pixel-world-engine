@@ -16,7 +16,7 @@
  *
  * 跑法：
  *   cd world-client && npm run dev
- *   PIXEL_WORLD_URL=http://127.0.0.1:5188/ SCALE_LABEL=before node scripts/check-setting-scale.mjs
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ SCALE_LABEL=before node scripts/check-setting-scale.mjs
  *   # 恢复改动后
  *   SCALE_LABEL=after node scripts/check-setting-scale.mjs
  *
@@ -27,7 +27,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5188/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
 const LABEL = process.env.SCALE_LABEL ?? 'after';
 mkdirSync(OUT, { recursive: true });

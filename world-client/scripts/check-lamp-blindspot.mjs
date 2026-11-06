@@ -12,7 +12,7 @@
  * 默认参数即复算证据 JSON 里的两组数；算不出那两组就直接报错，不写文件。
  *
  * 跑法（先有 `lamp-band-after` 的图与 JSON）：
- *   BAND_SEED=20261019 BAND_NOW=720 PIXEL_WORLD_URL=http://127.0.0.1:5202/ npm run test:lamp-band
+ *   BAND_SEED=20261019 BAND_NOW=720 PIXEL_WORLD_URL=http://127.0.0.1:5211/ npm run test:lamp-band
  *   node scripts/check-lamp-blindspot.mjs
  */
 

@@ -25,8 +25,8 @@
  * 跑法：
  *   cd world-client && npm run dev
  *   # 默认拍「改后」；只有在半径改动之前才需要先拍改前基线
- *   PIXEL_WORLD_URL=http://127.0.0.1:5202/ BAND_SEED=20261019 BAND_NOW=720 BAND_LABEL=before node scripts/check-lamp-band.mjs
- *   PIXEL_WORLD_URL=http://127.0.0.1:5202/ BAND_SEED=20261019 BAND_NOW=720 node scripts/check-lamp-band.mjs
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ BAND_SEED=20261019 BAND_NOW=720 BAND_LABEL=before node scripts/check-lamp-band.mjs
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ BAND_SEED=20261019 BAND_NOW=720 node scripts/check-lamp-band.mjs
  *   # 两次都在时，合成页会多一行「before / after 差异」
  */
 
@@ -34,7 +34,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5202/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
 // 默认拍「改后」：`before` 是半径改动之前拍的一次性基线，重跑不该覆盖它。
 const LABEL = process.env.BAND_LABEL ?? 'after';

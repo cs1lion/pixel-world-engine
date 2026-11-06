@@ -1,7 +1,7 @@
 /* S4 演示实跑录音机：按 DEMO_SCRIPT v0.2 逐段跑、从运行日志出计时、留 100%/400% 截图。
  *
  * 两种模式：
- *   --mode mock   连外部 dev server（默认 5188）+ 外部 Chrome（CDP 9333），页面 ?ledger=off
+ *   --mode mock   连外部 dev server（默认 5211）+ 外部 Chrome（CDP 9333），页面 ?ledger=off
  *   --mode live   自己起隔离实例 8001（数据副本、lifespan ON、真实 WS）+ 临时 Vite 5189 代理，
  *                 页面 ?ledger=on；全程不碰 8000、不写仓库 data/
  *
@@ -45,7 +45,7 @@ const KEEP = process.argv.includes('--keep');
 const SERVE = process.argv.includes('--serve');
 const API = 'http://127.0.0.1:8001';
 const LIVE_PAGE = 'http://127.0.0.1:5189/?ledger=on&debug=1';
-const MOCK_PAGE = process.env.DEMO_DEV_URL ?? 'http://127.0.0.1:5188/?ledger=off&debug=1';
+const MOCK_PAGE = process.env.DEMO_DEV_URL ?? 'http://127.0.0.1:5211/?ledger=off&debug=1';
 const LOG_PATH = join(OUT, `demo-run-${MODE}.jsonl`);
 const T0 = Date.now();
 // live 模式在页面打开前先落一单，seg1 用它取真实帧证据。
@@ -433,7 +433,7 @@ async function mockRun() {
     // 不用 addInitScript 清，否则两次 “读档/导入后 reload” 会被当成首次导航再次清档。
     const cdp = await context.newCDPSession(page);
     await cdp.send('Storage.clearDataForOrigin', {
-      origin: 'http://127.0.0.1:5188',
+      origin: 'http://127.0.0.1:5211',
       storageTypes: 'local_storage,session_storage',
     });
     log('setup', 'start', { page: MOCK_PAGE, mode: 'mock', ledger: 'off' });
@@ -623,7 +623,7 @@ mkdirSync(OUT, { recursive: true });
 if (process.argv.includes('--reset-only')) {
   // 干净重置：只清两个原点的 localStorage/sessionStorage（不关用户的 Chrome、不动 8000）。
   const { context, page } = await connectBrowser();
-  for (const origin of ['http://127.0.0.1:5188', 'http://127.0.0.1:5189']) {
+  for (const origin of ['http://127.0.0.1:5211', 'http://127.0.0.1:5189']) {
     const cdp = await context.newCDPSession(page);
     await cdp.send('Storage.clearDataForOrigin', {
       origin,

@@ -2,7 +2,7 @@
  * 内景这条线的验收取数：街景 / 过渡中点 / 室内三张裁图 + 相机位姿往返 + 指令增量。
  *
  * 跑法（在 `world-client/` 下先开本 worktree 的 dev server）：
- *   npx vite --port 5191 --strictPort
+ *   npx vite --port 5211 --strictPort
  *   node scripts/interior-capture.mjs
  *
  * 只读页面、只点页面暴露的 `window.Oracle`，不写存档、不碰世界。
@@ -14,7 +14,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
 const OUT = 'D:/project/pwe-material/docs/evidence/interior-view';
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5191/';
+const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
 const VIEW = { width: 960, height: 640 };
 
 /** 相机位姿的三个原值：逐字相同才叫「回到原点」。 */
