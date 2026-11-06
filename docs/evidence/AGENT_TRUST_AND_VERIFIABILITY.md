@@ -1,5 +1,7 @@
 # 老项目如何培养 agent 信任、如何构建可验证环境
 
+> 口径说明：本文中的测量值若非判据，一律标注日期或改为取当前值的命令；判据（阈值、面积上限、块数上限、预算）保持写死。
+
 ## 0. 依据、标注与边界
 
 这份文档以 `poteto-mode` 的实际内容为依据，再落到本仓库的存量代码库场景。
@@ -21,35 +23,35 @@
 
 ### 1.1 判据层：命令 + 退出码 + 数值
 
-`[本仓]` 九道离线闸门在 `docs/evidence/fatigue/gates.txt` 有完整读数：`npm run check` 退出 0；`npm test` 2113 通过 / 0 失败 / 9 跳过；`npm run build` 退出 0；`audit-palette --strict` 退出 0（UI 9/9、并集 32）；`audit-references` 154 处 0 存疑；`audit-citations` 0 处不在；`audit-sections` 159 处 §N 全对；`audit-claims --strict` markers 5 / passed 5 / failed 0；`pytest server/tests -q` 退出 0。
+`[本仓]` 九道离线闸门都能用命令取当前值，不必信正文里的数：`npm run check`、`npm test`（看汇总行 `# tests / # pass / # fail / # skip`）、`npm run build`、`node scripts/audit-palette.mjs --strict`（UI 预算 ≤9、并集预算 ≤32 是判据）、`node scripts/audit-references.ts --strict`（看“共查 N 处 / 存疑”）、`node scripts/audit-citations.ts --strict`（看“未解析”）、`node scripts/audit-sections.ts --strict`（看“受查 N 处”）、`node scripts/audit-claims.ts --strict`（看 `markers / passed / failed`）、`pytest server/tests -q`。历史读数保留在 `docs/evidence/fatigue/gates.txt`：2026-11-05 读数 `npm test` 2113 通过 / 0 失败 / 9 跳过、`audit-references` 154 处、`audit-sections` 159 处；这些数字只代表当天那棵树，不代表当前值。
 
-这九条之所以能承载信任，不是因为数量多，而是每条都有退出码，且读数能复算。反过来，`[本仓]` 四个抓拍脚本 `check-scene-motion.mjs`、`check-stall-motion.mjs`、`check-banner-smoke.mjs`、`check-ground-shadow.mjs` 全仓没有 `process.exit`，0.00% 与 13/13 只是打印。它们是测量器，不是闸门。这就是“看起来有验证、实际没有门”的典型。
+这九条之所以能承载信任，不是因为数量多，而是每条都有退出码，且读数能复算。反过来，`[本仓]` 四个抓拍脚本 `check-scene-motion.mjs`、`check-stall-motion.mjs`、`check-banner-smoke.mjs`、`check-ground-shadow.mjs` 全仓没有 `process.exit`，打印出来的百分比与确定性对照只是读数（当前值跑脚本取）。它们是测量器，不是闸门。这就是“看起来有验证、实际没有门”的典型。
 
 ### 1.2 归因层：失败必须能指到具体输入
 
 `[本仓]` 钉子契约把渲染输入钉成四类：`now`、`tide`、`trails`、`villagers`；25 个快照键 = 4 pin + 10 stable + 11 dom；`test/pin-shot-state.test.ts:403-479` 断言未登记字段为空、11 个 dom 字段在绘制路径 0 命中。三档等待 1200/2800/5000 的精确差、可见差、结构块全为 0（`04-RENDER-INPUT-TABLE.md:94-108`）。
 
-失败也能归因：把 v0 的 `pos.x` 加 1 格，精确差 2.6396%、可见差 2.4920%、最大块 14704 px；把痕迹从 `(49,36)` 移到 `(48,36)`，精确=可见 0.0104%（64 px，8×8）。一个失败样本直接告诉你“是角色位置”还是“是痕迹”，不需要人猜。`[本仓]`
+失败也能归因：把 v0 的 `pos.x` 加 1 格、把痕迹从 `(49,36)` 移到 `(48,36)`，两个反向样本都会判红。具体读数会随夹具重录变化，跑流程 1 取当前值；2026-11-04 至 11-06 的归档记录是 `five-shift` 精确差 2.6396%、可见差 2.4920%、最大块 14704 px，`trail-shift` 精确=可见 0.0104%（64 px，8×8），出处 `docs/evidence/pin-shots/`。一个失败样本直接告诉你“是角色位置”还是“是痕迹”，不需要人猜。`[本仓]`
 
 `[模式]` `principle-sequence-verifiable-units` 第 15 行要求交付顺序是「先失败的测试，再修复」。`[模式]` `principle-prove-it-works` 第 11 行要求核对真实产物，第 22 行要求把检查脚本化。`[本仓]` 的钉子三档、相位帧自检、账本六红，都是这个形状，但「切成小单元」这一点只挂在 `principle-sequence-verifiable-units`，不替 `principle-prove-it-works` 加戏。
 
 ### 1.3 证据层：读数要落盘，且要能被别人复算
 
-`[本仓]` `eval/ledger.json` 有 25 条 metric，12 个必填字段；`script_sha` 会按当前脚本内容复核，CRLF→LF 归一化后比对，不一致就报“脚本改过，读数需重测”（`eval-ledger-lib.ts:24-37,62-64,135-150`）。外部来源 `pwe-soak/` 必须给 `input_sha`，或者写 `input_status='not_measured'` + `input_note`，否则红（`:152-174`）。这条规则的价值是：账本不能拿“来自某个提交”当证据，必须钉住是哪份输入。
+`[本仓]` `eval/ledger.json` 的 metric 条数随测量增加，跑 `node scripts/eval-ledger.ts` 取当前值；schema 判据是 12 个必填字段；`script_sha` 会按当前脚本内容复核，CRLF→LF 归一化后比对，不一致就报“脚本改过，读数需重测”（`eval-ledger-lib.ts:24-37,62-64,135-150`）。外部来源 `pwe-soak/` 必须给 `input_sha`，或者写 `input_status='not_measured'` + `input_note`，否则红（`:152-174`）。这条规则的价值是：账本不能拿“来自某个提交”当证据，必须钉住是哪份输入。
 
-`[本仓]` 旁证分桶更直接：`docs/evidence/soak/witnessed-corroboration.json` 记 71 条 witnessed、12 条未解析 `eventRef`，分桶 `0 / 10 / 2`（无旁证 / 单旁证 / 多旁证）；`test/memory-witnessed-corroboration.test.ts` 断言 `violations.length === 0`。孤证不是“大概没事”，是一条会红的断言。
+`[本仓]` 旁证分桶更直接：`docs/evidence/soak/witnessed-corroboration.json` 记录 witnessed 与未解析 `eventRef` 的条数，分桶为「无旁证 / 单旁证 / 多旁证」；当前值跑旁证测试取。2026-11-05 的历史读数是 71 条 witnessed、12 条未解析，分桶 `0 / 10 / 2`，不代表当前值；`test/memory-witnessed-corroboration.test.ts` 断言 `violations.length === 0`。孤证不是“大概没事”，是一条会红的断言。
 
 `[本仓]` 本次新增的 `verify-ledger-selfcheck.ts` 证明这条判据不是永远绿：缺 `seed`、`value=0` 且 `source=not_measured`、`script_sha` 篡改、外部来源删 `input_sha`、重复 `id`、`version=2`，六种坏账本全部判红。
 
 ### 1.4 记账层：把“谁在用什么、什么时候回收”也变成读数
 
-`[本仓]` `npm run worktrees:audit` 本次实测输出 11 个“已合入 main 但 worktree 仍在”的回收候选，退出 0；`--strict` 下“未登记”或“过期未回收”才退出 1，因为合并后是否立刻回收由 owner 判断（见仓库根的 scripts/worktrees-audit.mjs 第 3-16 行）。`docs/OPEN_ISSUES.md` 用 `[事实]` / `[推断]` 标注，每条带证据链接和“需要决策”，把“我记得”变成“登记在案”。
+`[本仓]` `npm run worktrees:audit` 的输出里有“已合入 main 但 worktree 仍在”的回收候选，条数随合并与回收变化，跑命令取当前值（2026-11-06 曾实测 11 个，不代表当前）；`--strict` 下“未登记”或“过期未回收”才退出 1，因为合并后是否立刻回收由 owner 判断（见仓库根的 scripts/worktrees-audit.mjs 第 3-16 行）。`docs/OPEN_ISSUES.md` 用 `[事实]` / `[推断]` 标注，每条带证据链接和“需要决策”，把“我记得”变成“登记在案”。
 
 `[模式]` `principle-encode-lessons-in-structure` 第 11 行说：“If the fix is structural, only use the structural fix. The instruction is the symptom.” 本仓库的对应物不是更多说明，而是 `WORKTREES.md` 登记表、`OPEN_ISSUES` 字段、`eval/ledger.json` schema、`unregisteredRenderFields` 守卫。`[本仓]`
 
 ### 1.5 信任的单位是“一条论断”，不是“一个 agent”
 
-`[推断]` 不要让“这个 agent 上次很靠谱”成为信任来源。可迁移的信任单位是：一条论断 + 一条可重跑命令 + 一个失败样本 + 一个落盘读数。`[本仓]` `verify-all.mjs` 把 8 条流程串起来，任一 FAIL 退出 1；`--self-test` 注入必红项后整体判红，本次实测通过。入口本身也必须有反向验证，否则“汇总入口”只是另一个永远绿的壳。
+`[推断]` 不要让“这个 agent 上次很靠谱”成为信任来源。可迁移的信任单位是：一条论断 + 一条可重跑命令 + 一个失败样本 + 一个落盘读数。`[本仓]` `verify-all.mjs` 把当前能离线跑的流程串起来（条数跑 `node scripts/verify-all.mjs --list` 取当前；2026-11-06 读数 8 条，不代表当前值），任一 FAIL 退出 1；`--self-test` 注入必红项后整体判红，本次实测通过。入口本身也必须有反向验证，否则“汇总入口”只是另一个永远绿的壳。
 
 ## 2. 可验证环境的最小构成
 
@@ -59,8 +61,8 @@
 |---|---|---|---|
 | 1 | 确定性输入钉 | 同一改动两跑不同，差异无法归因 | `pinShotState` 四类 pin 字段；07:34 + 潮位 0 + 相机 (52,32)×16 + 静置 2600 ms |
 | 2 | 可重跑判据（脚本 + 退出码 + 数值） | 只剩“看起来对” | `screens-diff.py` 三层差；`compare-ledger` 逐像素 sha；`audit-palette --strict` |
-| 3 | 必须判红的反向样本 | 判据可能永远绿 | 角色偏移 2.6396%、痕迹偏移 0.0104%、2900 px 烟柱、差 7 级、账本六红 |
-| 4 | 读数落点（路径 + schema） | 数字无法复算，只能信口述 | `eval/ledger.json` 25 条；`palette-9/*.txt`；`screens-diff.json`；`runs.json` |
+| 3 | 必须判红的反向样本 | 判据可能永远绿 | 角色偏移 / 痕迹偏移两个像素必红样本、2900 px 烟柱、差 7 级、账本六红 |
+| 4 | 读数落点（路径 + schema） | 数字无法复算，只能信口述 | `eval/ledger.json`（条数取当前）；`palette-9/*.txt`；`screens-diff.json`；`runs.json` |
 | 5 | 单一入口 + 红传播 | 每条都要人记命令，漏跑没人发现 | `verify-all.mjs`；`--self-test` 证明会判红 |
 
 为什么是这五件：
@@ -69,7 +71,7 @@
 2. **可重跑判据**是信任的载体。`[模式]` `principle-build-the-lever` 第 10 行说：“A deterministic script turns ‘trust me’ into ‘run this’.” 本仓的 lever 是 `screens-diff.py`、`verify-all.mjs`，以及当前 main 上还没有、只在 pwe-anim 分支上的 compare-ledger.mjs。
 3. **反向样本**是判据的体检。没有它，你不知道阈值是判据还是装饰。`[本仓]` 相位帧 `--self-test` 把差区平移出区、把面积长到 ×1.5，两条都必须红；render-budget 单测用 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 四条必红边界证明双条件没被放宽。
 4. **读数落点**是复算的入口。`[本仓]` 旁证测试会覆盖写 `witnessed-corroboration.json`，固定键序、无时间戳、末尾 `\n`；账本有 schema 和 `script_sha`，所以别人能重跑并对照。
-5. **单一入口**是防漏。`[本仓]` 九道闸门加浏览器套件已经很多，人记不住；`verify-all.mjs` 先把离线能跑的 8 条串起来，SKIP 显式打印原因，不把“没跑”伪装成“绿”。
+5. **单一入口**是防漏。`[本仓]` 九道闸门加浏览器套件已经很多，人记不住；`verify-all.mjs` 先把当前离线能跑的流程串起来（条数 `--list` 取当前；2026-11-06 读数 8 条，不代表当前值），SKIP 显式打印原因，不把“没跑”伪装成“绿”。
 
 “多了就没人维护”的证据在本仓是具体的：
 
@@ -85,7 +87,7 @@
 
 ### 第 0 步：只读盘点，先分类
 
-把现有流程分成四类：离线可跑、需要浏览器与服务、被前置卡住、只有文档。`[本仓]` 本次盘点结果就是 `VERIFIABLE_FLOWS.md` 的 10 行总表：8 条进汇总，1 条 SKIP，1 条只能校结构。
+把现有流程分成四类：离线可跑、需要浏览器与服务、被前置卡住、只有文档。`[本仓]` 本次盘点结果就是 `VERIFIABLE_FLOWS.md` 的总表；具体几条进汇总、几条 SKIP 看当前表与 `verify-all.mjs --list`。2026-11-06 读数是 8 条进汇总、1 条 SKIP、1 条只能校结构，不代表当前值。
 
 这一步不要急着写新判据。先回答“哪条流程现在根本没有退出码”，否则会重复建设。
 
@@ -99,17 +101,17 @@
 
 `[模式]` `principle-sequence-verifiable-units` 第 15 行说，交付顺序应该是“先失败的测试，再修复”。老项目可以先补“能判红的检查”，再补“让检查变绿的工作”。
 
-`[本仓]` `screens-diff.py` 的三层差是判据，`reverse-structure-check.py` 是反向样本；本次又加了 `verify-screens-diff-selfcheck.py`，5 例里 2 绿 3 红。判据和反向样本必须同一天落地，否则很容易只留下“绿的那一半”。
+`[本仓]` `screens-diff.py` 的三层差是判据，`reverse-structure-check.py` 是反向样本；本次又加了 `verify-screens-diff-selfcheck.py`，绿例与必红例都进自检（例数看脚本头注释与运行输出）。判据和反向样本必须同一天落地，否则很容易只留下“绿的那一半”。
 
 ### 第 3 步：把读数落盘，并登记进账本
 
-判据跑完要留下可复算的东西：JSON、掩膜、账本行、截图。`[本仓]` `eval/ledger.json` 的 25 条 metric、`script_sha` 复核、外部输入 `input_sha`/`input_note` 就是这一步；`palette-9`、`screens-diff.json`、`*-pixel-ledger.json` 是同一层。
+判据跑完要留下可复算的东西：JSON、掩膜、账本行、截图。`[本仓]` `eval/ledger.json` 的 metric（条数跑 `eval-ledger.ts` 取当前）、`script_sha` 复核、外部输入 `input_sha`/`input_note` 就是这一步；`palette-9`、`screens-diff.json`、`*-pixel-ledger.json` 是同一层。
 
 这一步最容易半途而废，因为“测试绿了”已经能交差，落盘看起来是额外工作。但不落盘，下一次只能重跑，不能复算；跨 worktree 时更糟，读数会指回错误的树。
 
 ### 第 4 步：建一个入口，先只收离线流程
 
-`[本仓]` `verify-all.mjs` 只收 8 条离线流程；浏览器流程显式 SKIP 并写原因。入口必须自己也能判红：`--self-test` 注入 `process.exit(1)`，整体退出非零。
+`[本仓]` `verify-all.mjs` 只收当前离线流程（条数 `--list` 取当前；2026-11-06 读数 8 条，不代表当前值）；浏览器流程显式 SKIP 并写原因。入口必须自己也能判红：`--self-test` 注入 `process.exit(1)`，整体退出非零。
 
 不要在这一步追求“全量”。先让入口可信，再逐步收编浏览器流程。
 
@@ -137,31 +139,31 @@
 
 本仓库有直接证据：
 
-- `[本仓]` 四个抓拍脚本有读数、没有退出码，0.00% 只是打印。
+- `[本仓]` 四个抓拍脚本有读数、没有退出码，对照百分比只是打印（当前值跑脚本取）。
 - `[本仓]` 相位帧判据有效，但只有 stdout，没有 JSON/掩膜。
-- `[本仓]` 动画基线账本 232 行、157 张图，原来没有任何脚本校验；本次补的是结构校验，语义真值仍要重录后由人确认。
-- `[本仓]` `03-ACTOR-PIN.md` 与 `04-RENDER-INPUT-TABLE.md` 对五钉 1200 vs 2800 记了 0.0104% 与 0，两个读数不在同一口径；`render-budget` 有 15514/28 与 16130/27 两套。判据在演进，读数没有同步重录，就会出现“文档看起来有结论、实际对不上”。
+- `[本仓]` 动画基线账本（总行数跑 `verify-animation-baseline.mjs` 取当前；结构判据是 157 行清单、157 张图与六类计数），原来没有任何脚本校验；本次补的是结构校验，语义真值仍要重录后由人确认。
+- `[本仓]` `03-ACTOR-PIN.md` 与 `04-RENDER-INPUT-TABLE.md` 对五钉 1200 vs 2800 记了不同读数（2026-11-04 至 11-06 归档为 0.0104% 与 0，出处 `docs/evidence/pin-shots/`），两个读数不在同一口径；`render-budget` 有 15514/28 与 16130/27 两套（2026-11-05/06 归档，出处 `docs/evidence/render-budget-threshold/README.md` 与 `docs/evidence/fatigue/gates.txt`）。这些数只代表当时那棵树，当前值跑对应流程取。判据在演进，读数没有同步重录，就会出现“文档看起来有结论、实际对不上”。
 
 ## 4. 失效边界
 
 ### 4.1 这套做法判不了什么
 
 - **主观观感与卡通感**：像素差能判“变了多少”，判不了“好不好看”。`[本仓]` 动画基线账本自己写明，卡通感/主观观感的像素判据本就判不了。
-- **时序手感**：相位帧弱判据只判区外 0、区内面积/块数上限；`01-salute.png` 的允许上限是 34529 px/14 块（观测 24663/9），它不判“这一段节奏舒不舒服”。`[本仓]`
+- **时序手感**：相位帧弱判据只判区外 0、区内面积/块数上限；`01-salute.png` 在 2026-11-05 归档读数里允许上限是 34529 px/14 块（观测 24663/9），它不判“这一段节奏舒不舒服”。这些读数不代表当前值，出处见 pwe-anim 分支的相位帧判据文档第 54-73 行。`[本仓]`
 - **DOM 覆盖层**：截图主要抓画布；`test:buttons` 仍因 `/api/memory/list` 404 退出 2，镇志抽屉点不到。DOM 层的可验证性目前是缺口。`[本仓]`
-- **未钉住的呈现态**：雨幕、天气过渡、角色渐隐这类“呈现态”还没有像四钉那样钉死；相位帧只能给弱判据。`[本仓]` 账本里 18 张被降级为“相位相关”，28 张不可归因，29 张三跑 0 差但基线不可复现，2 张不可比。
+- **未钉住的呈现态**：雨幕、天气过渡、角色渐隐这类“呈现态”还没有像四钉那样钉死；相位帧只能给弱判据。`[本仓]` 账本里有“相位相关”“不可归因”“三跑 0 差但基线不可复现”“不可比”四类降级记录；分类计数以账本当前行与 `verify-animation-baseline.mjs` 为准（2026-11-06 读数为 18 / 28 / 29 / 2 张，不代表当前）。
 - **跨树读数**：读数一旦出自另一棵 worktree，主仓复算不了。`[本仓]` `palette-9/audit.txt` 的 root 是 `pwe-lively`，`pixel-ledger`/`compare-ledger` 只在 `pwe-anim`。
 
 ### 4.2 “判据看起来绿但其实是空判”的四种形态
 
 | 形态 | 本仓表现 | 判定 |
 |---|---|---|
-| 无门的 gate | 四个抓拍脚本没有 `process.exit`，0.00% 只是读数 | 不能进闸门，只能当测量器 |
-| 判据被放宽到能包住一切 | 本仓未发现显式放宽阈值的改动；但存在规格漂移风险：`structure-spec.json` 里 `05` 的 kind 写成 `smoke`；`03`/`04` 五钉读数矛盾；render-budget 15514/28 与 16130/27 并存 | 规格漂移，需重录与对齐口径 |
+| 无门的 gate | 四个抓拍脚本没有 `process.exit`，打印的对照百分比只是读数（当前值跑脚本取） | 不能进闸门，只能当测量器 |
+| 判据被放宽到能包住一切 | 本仓未发现显式放宽阈值的改动；但存在规格漂移风险：`structure-spec.json` 里 `05` 的 kind 写成 `smoke`；`03`/`04` 五钉读数矛盾；render-budget 两套历史读数并存（日期与出处见第 3 节末尾） | 规格漂移，需重录与对齐口径 |
 | 断言永远为真 | 账本允许 `not_measured`，但 `not_measured` 不等于通过；`verify-all` 把 exit 2 记为 SKIP，不记为 pass | 只能标“不可判”，不能标绿 |
 | 生成物未入库无法复算 | `eval/screens/actor-pin` 为空；`pwe-anim` 的 r1/r2/r3 不随仓提交；相位帧无产物 | 证据链断，流程退化为一次性人工 |
 
-`[模式]` `principle-explain-the-number` 第 9-11 行要求：说清是什么限制了数字、列出这个数字还可能测到什么、把跑次数与散布留在证据里。本仓的 15514/16130 两套读数、0.0104%/0 两套五钉读数，正是“没有把跑次数与口径留在同一条证据里”的后果。
+`[模式]` `principle-explain-the-number` 第 9-11 行要求：说清是什么限制了数字、列出这个数字还可能测到什么、把跑次数与散布留在证据里。本仓的两套 render-budget 读数、两套五钉读数（日期与出处见第 3 节末尾），正是“没有把跑次数与口径留在同一条证据里”的后果。
 
 ## 5. 结论
 
