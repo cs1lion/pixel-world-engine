@@ -11,3 +11,15 @@
 | 2026-11-06 | [phaser4-upgrade](./phaser4-upgrade/) | Phaser 3.90.0 → 4.2.1 升级（合入 `430dd0d`） | 源码改动 0；五道全绿；四场景跨组逐字节相同；雨帧 0.115%（雨幕未钉）；旧口径两轮抖动 > 可能影响；新帧率口径跨轮离散度 0.0%（贴 60Hz 截顶） | 本分支 `e3a67e1` + CI `42165248544` |
 
 已有目录（`cast-artbook/`、`liveliness/`、`scene-artbook/`、`20261102-live-check/`）沿用原线编号，不在本次改动内。
+
+## 合并前必跑引用审计（给后来者）
+
+任何新增或修改的文档在合并前，必须在目标树上先跑下面两条，再提交：
+
+```bash
+cd world-client
+node scripts/audit-references.ts --strict
+node scripts/audit-citations.ts --strict
+```
+
+原因：文档会引用「我以为存在」的文件——仓外 skill 安装路径、别的 worktree 里的脚本、当前分支上还没有的产物。两道闸门专抓这类引用，`npm test` 里也有对应用例；不要等 CI 抓。实测 2026-11-06：`docs/evidence/AGENT_TRUST_AND_VERIFIABILITY.md` 与 `VERIFIABLE_FLOWS.md` 引入 22 处未解析引用 + 5 处行号存疑，导致 main 的 CI world-client job 红。修法是改写文字描述，不是往白名单加条目、不是改扫描规则、不是降阈值。

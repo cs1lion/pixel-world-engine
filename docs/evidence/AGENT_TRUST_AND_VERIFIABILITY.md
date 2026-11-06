@@ -4,8 +4,8 @@
 
 这份文档以 `poteto-mode` 的实际内容为依据，再落到本仓库的存量代码库场景。
 
-- 采用规范：`C:\Users\18712\.agents\skills\poteto-mode\SKILL.md`（下称 `SKILL.md`）。
-- 同目录 `playbooks/investigation.md` 用于本次只读盘点。
+- 采用规范：poteto-mode 技能安装目录下的 SKILL.md（本机路径 C:\Users\18712\.agents\skills\poteto-mode\SKILL.md，下称「该规范文件」）。
+- 同目录的 playbooks/investigation.md 用于本次只读盘点（仓外文件，不在本仓库）。
 - 叶技能读自本机 pstack 副本 `D:\project\neurosama\.agents\skills\pstack\`：`principle-build-the-lever`、`principle-prove-it-works`、`principle-sequence-verifiable-units`、`principle-explain-the-number`、`principle-encode-lessons-in-structure`。这些叶技能没有随 `poteto-mode` 单独安装；本轮是只读引用，不是“已装进本工作区”。
 - 论断标注分三类：`[模式]` 来自上述 poteto-mode 文件；`[本仓]` 来自本仓库可查文件或本次实测；`[推断]` 是我的判断，不是任何一方的原文。
 
@@ -15,7 +15,7 @@
 
 一句话：信任不来自 agent 的自信，也不来自代码量，而来自「一个能重跑、会判红、失败可归因、读数可复算」的判据链。
 
-`[模式]` `SKILL.md:126` 要求「Every claim carries its evidence or its label in the same sentence」。`[模式]` `principle-prove-it-works` 第 11 行要求「Verify every task output by checking the real thing directly」，第 22 行要求「The strongest proof is a deterministic script that re-runs the same comparison」。这两条把信任从“我说我做了”改成“你跑这条命令”。
+`[模式]` 规范文件 SKILL.md 第 126 行要求「Every claim carries its evidence or its label in the same sentence」。`[模式]` `principle-prove-it-works` 第 11 行要求「Verify every task output by checking the real thing directly」，第 22 行要求「The strongest proof is a deterministic script that re-runs the same comparison」。这两条把信任从“我说我做了”改成“你跑这条命令”。
 
 本仓库把这条链拆成四层。
 
@@ -43,7 +43,7 @@
 
 ### 1.4 记账层：把“谁在用什么、什么时候回收”也变成读数
 
-`[本仓]` `npm run worktrees:audit` 本次实测输出 11 个“已合入 main 但 worktree 仍在”的回收候选，退出 0；`--strict` 下“未登记”或“过期未回收”才退出 1，因为合并后是否立刻回收由 owner 判断（`scripts/worktrees-audit.mjs:3-16`）。`docs/OPEN_ISSUES.md` 用 `[事实]` / `[推断]` 标注，每条带证据链接和“需要决策”，把“我记得”变成“登记在案”。
+`[本仓]` `npm run worktrees:audit` 本次实测输出 11 个“已合入 main 但 worktree 仍在”的回收候选，退出 0；`--strict` 下“未登记”或“过期未回收”才退出 1，因为合并后是否立刻回收由 owner 判断（见仓库根的 scripts/worktrees-audit.mjs 第 3-16 行）。`docs/OPEN_ISSUES.md` 用 `[事实]` / `[推断]` 标注，每条带证据链接和“需要决策”，把“我记得”变成“登记在案”。
 
 `[模式]` `principle-encode-lessons-in-structure` 第 11 行说：“If the fix is structural, only use the structural fix. The instruction is the symptom.” 本仓库的对应物不是更多说明，而是 `WORKTREES.md` 登记表、`OPEN_ISSUES` 字段、`eval/ledger.json` schema、`unregisteredRenderFields` 守卫。`[本仓]`
 
@@ -66,7 +66,7 @@
 为什么是这五件：
 
 1. **确定性输入钉**是前提。没有钉住世界时钟、潮位、相机、角色位置和痕迹，像素差会把“世界自己动了”算成“你的改动”。`[本仓]` 钉子契约里 25 个快照键只有 4 个需要钉，另外 10 个 stable、11 个 dom 字段不进画面；这个划分不是拍脑袋，是 `RENDER_INPUT_TABLE` 逐字段核对出来的。
-2. **可重跑判据**是信任的载体。`[模式]` `principle-build-the-lever` 第 10 行说：“A deterministic script turns ‘trust me’ into ‘run this’.” 本仓的 lever 是 `screens-diff.py`、`compare-ledger.mjs`、`verify-all.mjs`。
+2. **可重跑判据**是信任的载体。`[模式]` `principle-build-the-lever` 第 10 行说：“A deterministic script turns ‘trust me’ into ‘run this’.” 本仓的 lever 是 `screens-diff.py`、`verify-all.mjs`，以及当前 main 上还没有、只在 pwe-anim 分支上的 compare-ledger.mjs。
 3. **反向样本**是判据的体检。没有它，你不知道阈值是判据还是装饰。`[本仓]` 相位帧 `--self-test` 把差区平移出区、把面积长到 ×1.5，两条都必须红；render-budget 单测用 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 四条必红边界证明双条件没被放宽。
 4. **读数落点**是复算的入口。`[本仓]` 旁证测试会覆盖写 `witnessed-corroboration.json`，固定键序、无时间戳、末尾 `\n`；账本有 schema 和 `script_sha`，所以别人能重跑并对照。
 5. **单一入口**是防漏。`[本仓]` 九道闸门加浏览器套件已经很多，人记不住；`verify-all.mjs` 先把离线能跑的 8 条串起来，SKIP 显式打印原因，不把“没跑”伪装成“绿”。
@@ -175,16 +175,16 @@
 
 | 文件 | 节/行 | 用到的内容 | 本文标注 |
 |---|---|---|---|
-| `C:\Users\18712\.agents\skills\poteto-mode\SKILL.md` | `## Principles`，第 54 行 | Build the Lever：把工作和证明做成可重跑的工具 | `[模式]` |
+| poteto-mode 安装目录的 SKILL.md（C:\Users\18712\.agents\skills\poteto-mode\SKILL.md） | `## Principles`，第 54 行 | Build the Lever：把工作和证明做成可重跑的工具 | `[模式]` |
 | 同上 | `## Principles`，第 65-71 行 | Prove It Works / Sequence Verifiable Units / Test Behavior / Explain the Number | `[模式]` |
 | 同上 | `## Delegation`，第 75-76 行 | Guard the Context Window / Never Block on the Human | `[模式]` |
 | 同上 | `## Meta`，第 80 行 | Encode Lessons in Structure | `[模式]` |
 | 同上 | `## Writing the reply`，第 120-126 行 | 每条论断带证据或标签，禁止编造引用 | `[模式]` |
 | 同上 | `## Playbooks`，第 140 行 | Investigation：只读问题、给出有引用的答案 | `[模式]` |
-| `D:\project\neurosama\.agents\skills\pstack\principle-build-the-lever\SKILL.md` | 第 8-22 行 | 确定性脚本把 “trust me” 变成 “run this” | `[模式]` |
-| `...\principle-prove-it-works\SKILL.md` | 第 11-24 行 | 核对真实产物，脚本化检查并保留产物 | `[模式]` |
-| `...\principle-sequence-verifiable-units\SKILL.md` | 第 9-15 行 | 每个单元结束在可检查状态，失败先于修复 | `[模式]` |
-| `...\principle-explain-the-number\SKILL.md` | 第 9-11 行 | 说明限制因素、排除其他解释、保留跑次数与散布 | `[模式]` |
-| `...\principle-encode-lessons-in-structure\SKILL.md` | 第 11 行 | 结构性修复优先于重复说明 | `[模式]` |
+| 本机 pstack 副本的 principle-build-the-lever 叶技能 SKILL.md | 第 8-22 行 | 确定性脚本把 “trust me” 变成 “run this” | `[模式]` |
+| 本机 pstack 副本的 principle-prove-it-works 叶技能 SKILL.md | 第 11-24 行 | 核对真实产物，脚本化检查并保留产物 | `[模式]` |
+| 本机 pstack 副本的 principle-sequence-verifiable-units 叶技能 SKILL.md | 第 9-15 行 | 每个单元结束在可检查状态，失败先于修复 | `[模式]` |
+| 本机 pstack 副本的 principle-explain-the-number 叶技能 SKILL.md | 第 9-11 行 | 说明限制因素、排除其他解释、保留跑次数与散布 | `[模式]` |
+| 本机 pstack 副本的 principle-encode-lessons-in-structure 叶技能 SKILL.md | 第 11 行 | 结构性修复优先于重复说明 | `[模式]` |
 
 本仓库实践部分（九道闸门、四钉、三层像素差、反向用例、账本与旁证、`worktrees:audit`、`OPEN_ISSUES`）全部标为 `[本仓]`，读数来自 `docs/evidence/` 与本次实测，未从 poteto-mode 反推。
