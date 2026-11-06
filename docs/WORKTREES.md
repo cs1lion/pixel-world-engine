@@ -59,7 +59,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2d7406a`，经 `860f2bb`）；远程分支已删（2026-11-05）；worktree 待回收 |
 | D:/project/pwe-soak | feat/soak-30d | 长周期浸泡线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`3a41541`，经 `89e0a88`；worktree 待 owner 回收） |
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
-| D:/project/pwe-world-expand | feat/stair-flight（`7fb29d7`） | 世界扩展线（在役会话） | 2026-11-06 | 2026-11-20 | 活跃（未合入 main；台阶收敛，基点 `a03a1cb`）。**未 push、无 PR**，等评审；P1 未开 |
+| D:/project/pwe-world-expand | feat/stair-flight（`7fb29d7`） | 世界扩展线（在役会话） | 2026-11-06 | 2026-11-20 | 活跃（未合入 main；台阶收敛，基点 `a03a1cb`）。**未 push、无 PR**，等评审；P1 未开。渲染层守卫已下沉到 `stairFlight()`（调用点的 `?? 0` 已删，缺 `treads`/`rise` 当场抛） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-13 | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，

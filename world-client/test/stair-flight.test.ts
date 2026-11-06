@@ -35,8 +35,8 @@ interface StairParams {
   readonly x: number;
   readonly y: number;
   readonly width: number;
-  readonly treads: number;
-  readonly rise: number;
+  readonly treads?: number;
+  readonly rise?: number;
   readonly run?: number;
   readonly insetSide?: 'left' | 'right';
 }
@@ -171,10 +171,18 @@ test('生成器不 import Phaser：TypeScript 的 Phaser 依赖不许漏进来',
 
 test('非法参数当场拒绝（不是画出负宽度的台阶）', async () => {
   const stairFlight = await loadStairFlight();
-  assert.throws(() => stairFlight({ x: 0, y: 0, width: 64, treads: 0, rise: 4 }), 'treads 必须 ≥ 1');
-  assert.throws(() => stairFlight({ x: 0, y: 0, width: 64, treads: 4, rise: 0 }), 'rise 必须 ≥ 1');
+  assert.throws(() => stairFlight({ x: 0, y: 0, width: 64, treads: 0, rise: 4 }), /treads/);
+  assert.throws(() => stairFlight({ x: 0, y: 0, width: 64, treads: 4, rise: 0 }), /rise/);
   assert.throws(
     () => stairFlight({ x: 0, y: 0, width: 9, treads: 4, rise: 4, run: 3, insetSide: 'left' }),
-    '收分到宽度 ≤ 0 必须拒绝',
+    /宽度 ≤ 0|收成 0/,
   );
+});
+
+test('缺传级数/每级高时点名报错，不退化成 0 级台（渲染层不依赖数据层纪律）', async () => {
+  const stairFlight = await loadStairFlight();
+  const bare = { x: 0, y: 0, width: 64 } as { x: number; y: number; width: number; treads?: number; rise?: number };
+  assert.throws(() => stairFlight({ ...bare, rise: 4 }), /缺少 treads/, '缺 treads 必须点名 treads');
+  assert.throws(() => stairFlight({ ...bare, treads: 4 }), /缺少 rise/, '缺 rise 必须点名 rise');
+  assert.doesNotThrow(() => stairFlight({ ...bare, treads: 4, rise: 4 }), '两者都给才画');
 });

@@ -23,10 +23,10 @@ export interface StairFlightParams {
   readonly y: number;
   /** 第一级踏步的宽度；有内缩时逐级变窄。 */
   readonly width: number;
-  /** 级数（≥1）。 */
-  readonly treads: number;
-  /** 每级高度，同时也是每级踏步的厚度（≥1）。 */
-  readonly rise: number;
+  /** 级数（≥1）。必填：缺省不按 0 级画，直接抛。 */
+  readonly treads?: number;
+  /** 每级高度，同时也是每级踏步的厚度（≥1）。必填：缺省不按 0px 画，直接抛。 */
+  readonly rise?: number;
   /** 每级向收分一侧内缩的像素（≥0，缺省 0 = 直上直下）。 */
   readonly run?: number;
   /** 收分方向：`left` = 左沿逐渐右移、右沿不动（渡口踏步）；缺省 `left`。 */
@@ -79,6 +79,14 @@ export function stairFlight(params: StairFlightParams): StairFlight {
   const { x, y, width, treads, rise } = params;
   const run = params.run ?? 0;
   const insetSide = params.insetSide ?? 'left';
+  // 守卫在生成器里，不在调用方：数据层漏写 treads/rise 时，这里当场抛，
+  // 不退化成「0 级台阶」——那是测试全绿、画面没东西的静默失败。
+  if (treads === undefined) {
+    throw new Error('stairFlight: 缺少 treads（台阶级数）；数据里必须显式写，不会按 0 级画');
+  }
+  if (rise === undefined) {
+    throw new Error('stairFlight: 缺少 rise（每级高度）；数据里必须显式写，不会按 0px 画');
+  }
   assertFinite('x', x);
   assertFinite('y', y);
   assertFinite('width', width);

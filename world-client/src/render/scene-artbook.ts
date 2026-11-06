@@ -521,8 +521,8 @@ function drawQuay(
     x: x + w - 20,
     y: y + 2,
     width: 20,
-    treads: treads ?? 0,
-    rise: rise ?? 0,
+    treads,
+    rise,
     run: 3,
     insetSide: 'left',
   });
@@ -591,7 +591,7 @@ function drawSteps(
   g.fillStyle(c.stone, 1);
   g.fillRect(x - 3, y, w + 6, 18);
   // 四级踏步：级数/每级高来自数据（设定集 p35/p40：四级、每级 4px、不内缩）。
-  const flight = stairFlight({ x, y, width: w, treads: treads ?? 0, rise: rise ?? 0 });
+  const flight = stairFlight({ x, y, width: w, treads, rise });
   for (const tread of flight.treads) {
     g.fillStyle(tread.index % 2 === 0 ? c.plaza : c.stone, 1);
     g.fillRect(tread.x, tread.y, tread.width, tread.height);
