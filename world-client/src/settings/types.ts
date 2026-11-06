@@ -103,6 +103,15 @@ export interface SettingScenery {
     | 'stele';
   readonly at: GridPoint;
   readonly length?: number;
+  /**
+   * 台阶类构件的级数（`steps` / `quay` 用）与每级高度。
+   *
+   * 为什么写进数据而不是留在绘制函数里：形制是设定集的事实（街面四级、渡口三级），
+   * 绘制只该回答「这个数怎么画」。级数/每级高涨一档，总高差必须跟着变——这是
+   * `render/stair-flight.ts` 的反向用例。
+   */
+  readonly treads?: number;
+  readonly rise?: number;
 }
 
 /**
