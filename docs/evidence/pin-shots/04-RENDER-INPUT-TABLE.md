@@ -281,8 +281,9 @@ export interface WeatherPin {
 - **相位不靠墙钟**：钉住后 `weather.ts` 先 `setRainSeed(__RAIN_SEED__)` 重置 LCG、
   重建 150 颗雨滴的初始位置，再以固定步长 `1000/60 ms` 推进 `frames` 次
   （`rebuildToFrames`），之后每帧只 `paint`、不再累加。因此同一 `frames`
-  在不同机器、不同帧率下得到**逐像素相同**的一帧；若继续用「按实际 delta 累加」，
-  帧数不同的机器相位必然不同（跨组对照里那 0.115% 的主因之一）。
+  在不同机器、不同实际渲染帧率下得到**逐像素相同**的一帧（步进仍按 60Hz 计，
+  见下文前提）；若继续用「按实际 delta 累加」，帧数不同的机器相位必然不同
+  （跨组对照里那 0.115% 的主因之一）。
 - 浓淡：`update` 读 `pin.intensity`，不读 `sim.weatherIntensity()`；雾密度
   `weatherFogDensity()` 由它派生，随之一起定住。
 - 非法值（NaN / Infinity / 越界 / 非整数帧）整条丢弃、同值幂等；只解雨幕用
@@ -306,16 +307,31 @@ export interface WeatherPin {
 三张 PNG 逐字节相同（sha256 前 16 位 `303eced7af05132e`），`screens-diff.py`
 的 `identicalBytes: true`、`deltaHistogram` 全 0。
 
-**跨引擎复核（2026-11-06，rebase 到 `430dd0d` = Phaser 4.2.1 之后重跑）**：同一夹具、
-同一 `pinWeather(0.86, 24)`，三跑 sha 仍是 `303eced7af05132e`、bytes 仍是 22435，
-与 rebase 前（Phaser 3.90.0）**逐字节相同**；两条扰动也原样复现
-（`ec997a9dd9a84c4c` / `d54f2d2e263babc2`，读数同为 0.0964% / 40.96%）。
-即补钉之后，Phaser 3 vs 4 的雨帧从「0.115% 判不了」变成**逐字节 0 差**——
-差异确实来自未钉的呈现态，不是引擎。
+### 跨引擎复核（Phaser 3.90.0 vs 4.2.1，2026-11-06）
 
-夹具细节：轮询改成 `polling: 100`。脚本接管了 `requestAnimationFrame`，
-Playwright 默认的 `raf` 轮询在最后一帧后拿不到回调，会等不到 `done`；这与判据无关，
-但会让夹具假红。
+rebase 到含 Phaser 4.2.1 的 `430dd0d` 之后，用**同一夹具、同一 `pinWeather(0.86, 24)`**
+重跑；与 rebase 前的树（Phaser 3.90.0）并排：
+
+| 跑 | Phaser 3.90.0 | Phaser 4.2.1 |
+| --- | --- | --- |
+| baseline-1 | 22435 B / `303eced7af05132e` | 22435 B / `303eced7af05132e` |
+| baseline-2 | 22435 B / `303eced7af05132e` | 22435 B / `303eced7af05132e` |
+| baseline-3 | 22435 B / `303eced7af05132e` | 22435 B / `303eced7af05132e` |
+| shift-frame（24→25） | 22453 B / `ec997a9dd9a84c4c` | 22453 B / `ec997a9dd9a84c4c` |
+| shift-intensity（0.86→0.87） | 22447 B / `d54f2d2e263babc2` | 22447 B / `d54f2d2e263babc2` |
+
+两棵树逐字节相同，三跑之间也逐字节相同。这是本轮最有说服力的一条读数：
+**雨帧跨组从「0.115% 判不了」变成跨引擎 0 差**——那 0.115% 来自未钉的
+`weatherIntensity` 与雨滴相位，不是 Phaser 3 → 4 的渲染差异。只要这两条呈现输入
+被钉住，引擎升级前后这条对照都可判。
+
+### 夹具细节与 60Hz 前提
+
+- 轮询改成 `polling: 100`：脚本接管了 `requestAnimationFrame`，Playwright 默认的
+  `raf` 轮询在最后一帧后拿不到回调，会等不到 `done`；这与判据无关，但会让夹具假红。
+- **`frames` 的 60Hz 前提**：一步固定 `1000/60 ms`。若将来改步进常量、或按别的刷新率
+  理解「帧」，同一个 `frames` 就不再等价于原来的相位，必须同步改 `weather.ts` 的
+  `advance(1000/60)` 并重钉一组读数。注释里已标明这是**前提**，不是无条件常量。
 
 原始读数：`render-input/rain-pin/diff-12.json`、`diff-23.json`、`diff-13.json`、
 `diff-frame.json`、`diff-intensity.json`。
