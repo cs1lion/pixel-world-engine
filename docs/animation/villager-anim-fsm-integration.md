@@ -32,6 +32,27 @@
 `villagerLayout` 的签名接受 `VillagerPose`，适配层把
 `AnimLayerSample.pose` 拼成主层姿态；跨层混合在绘制侧完成（见下一节）。
 
+## 接口层结论：`layers` 不是替换 `pose.frame`，而是把 pose 升级成序列
+
+`villagerLayout` 现在每次只拿一个 `VillagerPose`（`frame` / `offsetY` /
+`footLeft` / `footRight`）加一个 `mode`。FSM 每层的 `frame` 与旧
+`villagerPose().frame` 是同一个 12fps 帧号（稳态逐字段对齐已由单测证明），所以
+它**可以**直接填进 `VillagerPose.frame`；但 `layers` **不能**压成一个
+`pose.frame`——一次交叉淡入里，每个状态有自己的帧号、位移和动作叠加。
+
+第二版的接口层做法：
+1. 适配层把每层转成 `{ pose, mode, walking, weight }`：
+   `pose = { frame: layer.frame, offsetY, footLeft, footRight }`；
+   `mode` 由状态反查（`walk` → `idle` + `walking=true`，其余一一对应）；
+   `walking = layer.state === 'walk'`。
+2. 按权重从小到大画（残影在下、主层在上），每层调用一次 `villagerLayout`，
+   绘制时 `globalAlpha = layer.weight`。
+3. 伞、灯、怀抱物这些**非动作图层只在主层画一次**，不跟着残影循环。
+4. 稳态只有一层时，输出与旧路径逐字节等价；默认开关关闭时仍走旧路径。
+
+结论一句话：`layers[].frame` 是**逐层替换** `pose.frame`，不是在现有 pose 上
+并列一层；现有 `pose.frame` 保留，只是第二版每个绘制层各有一份。
+
 ## 开关与新旧并行
 
 沿用仓库已有的「参数开关 + 默认走旧路径」习惯（同类开关见 `?light=` 试点）：
@@ -78,9 +99,13 @@
 
 ## 已知限制（第一版就存在）
 
-- 转移时长是设计值，不是从世界节奏推导出来的；`saluting` 的 700ms 世界里
-  只有入场，没有出场动画，这里给了 180ms 的淡出。
-- 连续打断超过 4 条残影时会丢掉权重最小的一条，画面会有一处很小的跳变；
-  单测钉住层数上限，但不假装跳变不存在。
+- 转移时长是**未验证的设计初始值**，不是从世界节奏、也不是从 `SALUTE_MS=700` /
+  `DELIVER_MS=1400` / `estimateMs` 推导出来的；世界常量管的是停留多久，不是淡入
+  淡出多久。第二版以截图对照逐条校准。
+- 连续打断超过 4 条残影时，只在最轻那条权重低于 0.12 时才丢；高于它改为延长
+  保留（硬上限 12 条）。所以被丢的残影一定很轻，但「丢」本身仍有极小跳变，
+  单测钉住阈值与权重和，不假装跳变不存在。
+- 只覆盖现有 5 种画面（idle / walk / salute / work / deliver）；「跑」「坐」
+  「挥手」没有帧序列和排版数据，状态机不产生新动作。
 - `facing`、`carrying`、伞、灯都不进状态机：它们由快照事实驱动，第二版继续
   走现有叠加层。

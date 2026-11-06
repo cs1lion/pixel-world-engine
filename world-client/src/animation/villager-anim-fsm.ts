@@ -120,9 +120,17 @@ export const ANIM_STATES: readonly AnimStateSpec[] = [
 /**
  * 转移时长表：**任意两个不同状态之间都有显式时长**，共 20 条。
  *
- * 取值原则：动作差越大、越要「收住」，淡入淡出越长；同为循环的代换（走 ↔ 站）
- * 最短。所有值都是整数毫秒，且落在 90–220ms 这一带——短到不会被误读成新动作，
- * 长到 12fps 下至少跨过一整帧。
+ * ⚠️ 全部是**设计初始值，未经验证**。现有系统本来就没有过渡（切表是突变），
+ * 所以这些数字不是从既有行为推导出来的，也不是已定契约；第二版接入时必须用
+ * 截图对照逐条校准，校准前只当作占位。
+ *
+ * 世界侧常量 `SALUTE_MS=700`、`DELIVER_MS=1400`、`estimateMs` 决定的是
+ * 「在某个状态停留多久」，不是「交叉淡入多久」。本表 **没有一条** 由它们推出；
+ * 下表 `source` 字段一律是 `design`，便于以后区分「推导值」与「设计值」。
+ *
+ * 取值原则（设计层面，不是观测结论）：动作差越大、越要「收住」，淡入淡出越长；
+ * 同为循环的代换（走 ↔ 站）最短。所有值落在 90–220ms 这一带——短到不会被误读
+ * 成新动作，长到 12fps 下至少跨过一整帧。
  */
 export const ANIM_TRANSITION_MS: Readonly<
   Record<AnimStateId, Readonly<Record<AnimStateId, number>>>
@@ -133,6 +141,16 @@ export const ANIM_TRANSITION_MS: Readonly<
   work: { idle: 140, walk: 180, salute: 160, work: 0, deliver: 220 },
   deliver: { idle: 160, walk: 200, salute: 160, work: 200, deliver: 0 },
 };
+
+/** 转移时长的来源。`design` = 凭设计填的占位值；`world-constant` = 由世界常量推出。 */
+export type AnimDurationSource = 'design' | 'world-constant';
+
+/**
+ * 世界常量只决定状态停留时长，不决定交叉淡入时长，所以这里没有推导值。
+ * 第二版若把某条时长改成由 `SALUTE_MS` / `DELIVER_MS` / `estimateMs` 推出，
+ * 必须把对应行改成 `world-constant` 并在文档里写明算式。
+ */
+export const ANIM_DURATION_SOURCE: AnimDurationSource = 'design';
 
 /** 进入某个状态意味着世界里发生了什么。条件表只说明「什么时候是它」。 */
 const TARGET_CONDITION: Readonly<Record<AnimStateId, string>> = {
@@ -148,6 +166,8 @@ export interface AnimTransitionSpec {
   readonly to: AnimStateId;
   readonly durationMs: number;
   readonly condition: string;
+  /** 时长来源；第一版全部是 `design`（未验证初始值）。 */
+  readonly source: AnimDurationSource;
 }
 
 function buildTransitions(): readonly AnimTransitionSpec[] {
@@ -160,6 +180,7 @@ function buildTransitions(): readonly AnimTransitionSpec[] {
         to,
         durationMs: ANIM_TRANSITION_MS[from][to],
         condition: `${TARGET_CONDITION[to]}（从 ${from} 打断）`,
+        source: ANIM_DURATION_SOURCE,
       });
     }
   }
@@ -235,11 +256,25 @@ export interface AnimFade {
 }
 
 /**
- * 残影上限。正常的一次打断只有 1 条残影（画面 = 旧状态 + 新状态，两两混合）；
- * 极端连续打断时最多保留 4 条；超过就丢掉此刻权重最小的那条，并把它记进报告，
- * 不假装没有发生过。
+ * 残影的目标上限。正常的一次打断只有 1 条残影（画面 = 旧状态 + 新状态，两两混合）。
  */
 export const MAX_RESIDUAL_LAYERS = 4;
+
+/**
+ * 允许丢弃残影的**权重下限**。只有权重低于它才允许丢；高于它时宁可多保留一层，
+ * 也不丢——丢高权重会让画面直接跳一下。
+ *
+ * 0.12 的取值理由：12fps 下，权重 0.12 的残影在 1–2px 姿态差上贡献不到半像素；
+ * 它低于「两两混合」里最小可辨认分量（0.25），也不至于让残影永远清不掉。
+ */
+export const MIN_DROPPABLE_RESIDUAL_WEIGHT = 0.12;
+
+/**
+ * 残影的硬上限（安全阀）。超过它时必然要丢一条；由于权重和不超过 1，
+ * 13 条残影里最轻的一条 ≤ 1/13 ≈ 0.077，必定低于 0.12——所以「被迫丢弃」也
+ * 永远不会丢到高权重的那条。
+ */
+export const HARD_RESIDUAL_LAYER_CAP = 12;
 
 /** 调用方持有的状态值。纯数据，可以安全地深拷贝、存档、跨引擎传递。 */
 export interface AnimFsmState {
@@ -259,19 +294,20 @@ function clamp01(value: number): number {
   return value;
 }
 
-function fadeWeight(fade: AnimFade, nowMs: number): number {
+/** 某条残影在 `nowMs` 的权重。导出给单测核对「被丢的那条确实低于下限」。 */
+export function residualWeightAt(fade: AnimFade, nowMs: number): number {
   if (fade.durationMs <= 0) return 0;
   const progress = clamp01((nowMs - fade.startedAtMs) / fade.durationMs);
   return fade.startWeight * (1 - progress);
 }
 
 function liveFades(fades: readonly AnimFade[], nowMs: number): readonly AnimFade[] {
-  return fades.filter((fade) => fadeWeight(fade, nowMs) > 0);
+  return fades.filter((fade) => residualWeightAt(fade, nowMs) > 0);
 }
 
 function currentWeightOf(fades: readonly AnimFade[], nowMs: number): number {
   let residual = 0;
-  for (const fade of fades) residual += fadeWeight(fade, nowMs);
+  for (const fade of fades) residual += residualWeightAt(fade, nowMs);
   return clamp01(1 - residual);
 }
 
@@ -310,13 +346,19 @@ export function advanceAnimFsm(
     let dropIndex = 0;
     let dropWeight = Infinity;
     for (let index = 0; index < next.length; index += 1) {
-      const weight = fadeWeight(next[index] as AnimFade, now);
+      const weight = residualWeightAt(next[index] as AnimFade, now);
       if (weight < dropWeight) {
         dropWeight = weight;
         dropIndex = index;
       }
     }
-    next = next.filter((_, index) => index !== dropIndex);
+    // 政策：只在「最轻的那条已经低到看不出来」时才丢。否则延长保留——
+    // 把两个不同状态合并成一层会丢掉状态身份，硬丢高权重又会直接跳；多画
+    // 一层残影比跳一下便宜。硬上限保证被迫丢弃时最轻的一条必然低于下限。
+    const forcedByCap = next.length > HARD_RESIDUAL_LAYER_CAP;
+    if (forcedByCap || dropWeight < MIN_DROPPABLE_RESIDUAL_WEIGHT) {
+      next = next.filter((_, index) => index !== dropIndex);
+    }
   }
   return { current: intent, enteredAtMs: now, fades: next };
 }
@@ -373,7 +415,7 @@ export function sampleAnimFsm(state: AnimFsmState, nowMs: number): AnimSample {
     return b.startWeight - a.startWeight;
   });
   for (const fade of sorted) {
-    const weight = fadeWeight(fade, now);
+    const weight = residualWeightAt(fade, now);
     if (weight <= 0) continue;
     layers.push(layerOf(fade.state, weight, now));
   }
@@ -400,6 +442,21 @@ export function animGraphMarkdown(): string {
     '> 本文件由 `world-client/scripts/export-anim-graph.ts` 从 `villager-anim-fsm.ts` 生成；手改会在单测里变红。',
   );
   lines.push('');
+  lines.push('## 边界：只做组合与转移，不产生新动作');
+  lines.push('');
+  lines.push('- 覆盖的 5 个状态只对应**现有画面**：idle / walk / salute / work / deliver。');
+  lines.push(
+    '- 「跑」「坐」「挥手」这类动作**没有对应的帧序列与排版数据**，状态机不产生新帧，也不负责把它画出来。',
+  );
+  lines.push('- 新增一个动作，六样东西要一起补：');
+  lines.push('  1. 帧序列（`villager-frames.ts` 的 12fps 采样表）；');
+  lines.push('  2. 排版数据（`villager-layout.ts` 里该 mode 的像素叠加）；');
+  lines.push('  3. 世界状态（`VillagerMode` 及触发、结束条件）；');
+  lines.push('  4. 本模块的状态；');
+  lines.push('  5. 转移（下表 20 个方向里的新增行）；');
+  lines.push('  6. 时长（初始值，未验证）与单测。');
+  lines.push('- 状态机真正解决的是「动作之间的组合与打断」，不解决「多一个动作」。');
+  lines.push('');
   lines.push('## 状态');
   lines.push('');
   lines.push('| 状态 | 帧数 | 循环时长 | 动作位移 | 说明 |');
@@ -414,20 +471,36 @@ export function animGraphMarkdown(): string {
   lines.push('');
   lines.push('任意两个不同状态之间都有显式时长；下表 20 条覆盖全部打断方向。');
   lines.push('');
-  lines.push('| 从 | 到 | 时长 | 条件 |');
-  lines.push('| --- | --- | --- | --- |');
+  lines.push(
+    '⚠️ 所有时长都是**设计初始值，未经验证**。现有系统没有过渡（切表是突变），这些数字不是从既有行为推导出来的，也不是已定契约；第二版接入时以截图对照逐条校准。',
+  );
+  lines.push(
+    '世界常量 `SALUTE_MS=700`、`DELIVER_MS=1400`、`estimateMs` 决定的是「停留多久」，不是「淡入淡出多久」；本表没有一条由它们推出（来源列全部是 design）。',
+  );
+  lines.push('');
+  lines.push('| 从 | 到 | 时长 | 来源 | 条件 |');
+  lines.push('| --- | --- | --- | --- | --- |');
   for (const transition of ANIM_TRANSITIONS) {
+    const sourceLabel = transition.source === 'design' ? 'design（未验证）' : 'world-constant';
     lines.push(
-      `| ${transition.from} | ${transition.to} | ${transition.durationMs}ms | ${transition.condition} |`,
+      `| ${transition.from} | ${transition.to} | ${transition.durationMs}ms | ${sourceLabel} | ${transition.condition} |`,
     );
   }
   lines.push('');
   lines.push('## 混合权重');
   lines.push('');
   lines.push('- 当前层权重 = `1 - Σ残影权重`；残影权重 = `startWeight × (1 - 进度)`。');
-  lines.push('- 稳态只有一层；一次打断是两两混合；连续打断最多保留 4 条残影。');
-  lines.push('- 超过上限时丢掉此刻权重最小的残影。这是已知损失，不藏。');
-  lines.push('- 权重和恒为 1（浮点误差除外）；同一意图重复调用不会重新开始过渡。');
+  lines.push('- 稳态只有一层；一次打断是两两混合；连续打断时残影目标上限为 4 条。');
+  lines.push(
+    `- 超过 4 条时，只有最轻残影的权重低于 ${MIN_DROPPABLE_RESIDUAL_WEIGHT} 才允许丢弃；高于它时改为**延长保留**（最多 ${HARD_RESIDUAL_LAYER_CAP} 条硬上限）。`,
+  );
+  lines.push(
+    '- 延长保留的理由：把两个不同状态合并成一层会丢掉身份，硬丢高权重又会直接跳；多画一层残影比跳一下便宜。',
+  );
+  lines.push(
+    `- 硬上限保证被迫丢弃时最轻的一条 ≤ 1/13 ≈ 0.077 < ${MIN_DROPPABLE_RESIDUAL_WEIGHT}，所以任何被丢的残影都低于下限；权重和恒为 1（浮点误差除外）。`,
+  );
+  lines.push('- 同一意图重复调用不会重新开始过渡。');
   lines.push('');
   lines.push('## 采样');
   lines.push('');
