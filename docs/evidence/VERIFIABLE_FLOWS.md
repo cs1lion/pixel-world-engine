@@ -6,24 +6,32 @@
 
 - 本机存在 `poteto-mode`，来源 `backnotprop/pstack@poteto-mode`，安装命令 `npx skills add backnotprop/pstack@poteto-mode -g -y`，装到 `C:\Users\18712\.agents\skills\poteto-mode`，并已通过 `C:\Users\18712\.trae-cn\skills\poteto-mode` 的 Junction 对 Trae 可见。
 - 本文采用的规范文件是 `C:\Users\18712\.agents\skills\poteto-mode\SKILL.md` 的 `## Principles` 与 `## Playbooks`（Investigation），以及本地 pstack 叶技能 `principle-build-the-lever`、`principle-prove-it-works`、`principle-sequence-verifiable-units`、`principle-explain-the-number`、`principle-encode-lessons-in-structure`。
-- 本任务按 Investigation 的只读口径执行：只新增文档与脚本，不改任何既有判据的数值、不放宽阈值、不删用例；不 push、不合 main、不 `stash`、不动别人的工作树。
+- 盘点阶段按 Investigation 的只读口径执行：只新增文档与脚本，不改任何既有判据的数值、不放宽阈值、不删用例；不 `stash`、不动别人的工作树。入库（合 main 与 push）由用户在本轮单独授权，动作记录见第 7 节。
 - 证据标签：`[实测]` 本次实际运行；`[证据]` 读自已归档的证据文件；`[文档]` 只有书面记录、无执行判据。
 - 端口纪律：**5188 / 5191 / 5202 / 5203 一律不用**。下面所有浏览器命令都显式改到 `5211`，因为 `smoke.mjs:27`、四个抓拍脚本 `:30/:26/:28/:24`、`check-render-budget.mjs:22` 的默认端口分别落在 5188 和 5202，必须用 `PIXEL_WORLD_URL` 覆盖。
 
 ## 1. 总表
 
-| # | 流程 | 触发命令（摘要） | 判据（摘要） | 反向用例 | 产物 | 现状 | 入汇总 |
-|---|---|---|---|---|---|---|---|
-| 1 | 钉子契约 | `node --import ./test/phaser-hooks.mjs --test test/pin-shot-state.test.ts`；浏览器 `check-shot-actor-pin.mjs` | 三档 1200/2800/5000 精确 0.0000%、可见 0.0000%、结构块 0；未登记渲染字段为空 | `five-shift` 2.6396%、`trail-shift` 0.0104% 必须判红 | `EVAL_OUT/*.png`、`runs.json` | 单测可跑；浏览器需 5211 | 单测已入 |
-| 2 | 三层结构差 | `python scripts/screens-diff.py --old ... --new ... --out ... --structure-spec ...` | 精确差任通道 >0；可见差 RGB ≥8；结构块面积落在 `[minArea,maxArea]` | `verify-screens-diff-selfcheck.py` 5 例，含 2900 与差 7 级必红 | `screens-diff.json`、`masks/*.png` | 自检已跑通；真图需两跑目录 | 已入 |
-| 3 | 相位帧弱判据 | `node scripts/check-phase-frames.mjs --ref ... --cur ...` / `npm run verify:phase` | 区外差 0 px；区内面积 ≤ `ceil(union*1.4)`；块数 ≤ `ceil(union*1.5)` | `--self-test` 平移出区、面积 ×1.5 必红 | stdout（无文件） | 仅 `pwe-anim`，需 Chromium | 主仓 SKIP |
-| 4 | 抓拍夹具与账本 | 四个 `check-*.mjs` + `EVAL_OUT`；`verify:reset`、`verify:compare` | 抓拍脚本只测量不判红；ledger 比对逐像素 sha 全等、尺寸相同 | 改一张 PNG 即 `pixel-diff`，`compare` 退出 1 | `*-pixel-ledger.json` | 需浏览器 + 服务；ledger 仅在 `pwe-anim` | 未入 |
-| 5 | render-budget 双条件 | `node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts`；浏览器 `check-render-budget.mjs` | 指令 <30000、Graphics <40、拖动 ≥0.9 静止、后台 <前台且 ≤1/3 或 ≤12、恢复 ≥0.5 前台 | 单测 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 必红 | `render-budget-samples.json`（有 `EVAL_OUT` 时） | 单测可跑；浏览器需服务 | 单测已入 |
-| 6 | 入口配色 9 色位 | `node scripts/audit-palette.mjs --strict` + `test/palette-budget.test.ts` | 世界 ≤24、UI ≤9、并集 ≤32、共享恰为 `#e3a13c`；边框对比 3.49/3.15 ≥3.0 | 值层测试换值必红；加第 10 个 UI hex 时 `--strict` 退出 1 | `palette-9/*.txt` | 离线可跑 | 已入 |
-| 7 | 疲劳与睡眠 | `node --import ./test/phaser-hooks.mjs --test test/fatigue.test.ts test/homecoming.test.ts` | 0.5/天、睡 4/天、阈 0.8、跨阈 1.6 天、睡段 0.2 天；默认两天 0 次、强制场景 1 次 | 强制跨阈场景必触发 1 次，默认世界必须 0 | 无 | 离线可跑 | 已入 |
-| 8 | 行为/环境/需求 | 六个 `test/*.test.ts` | 规则注册表、环境标志闭集、`delivery_failed` 载荷、旁观分桶 | 交换规则顺序结果变、饥饿到顶必失败、室内只同屋记得 | 无 | 离线可跑；`test:buttons` 404 | 已入 |
-| 9 | 账本与旁证 | `node scripts/eval-ledger.ts`、`verify-ledger-selfcheck.ts`、`memory-witnessed-corroboration.test.ts` | 12 必填字段；`script_sha` 不符即红；外部来源必须钉输入；旁证 `violations===0` | 自检 1 绿 + 6 红 | `eval/ledger.json`、`witnessed-corroboration.json` | 离线可跑 | 已入 |
-| 10 | 动画基线账本 | `node scripts/verify-animation-baseline.mjs` | 157 行、六类 73/29/28/18/2/7、12 位哈希、7 位提交 | `--self-test` 删行/坏哈希/改归类必红 | stdout | 文档在 `pwe-anim`；新增结构校验 | 已入 |
+| # | 流程 | 触发命令（摘要） | 判据（摘要） | 反向用例 | 产物 | 现状 | 本次执行 | 入汇总 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 钉子契约 | `node --import ./test/phaser-hooks.mjs --test test/pin-shot-state.test.ts`；浏览器 `check-shot-actor-pin.mjs` | 三档 1200/2800/5000 精确 0.0000%、可见 0.0000%、结构块 0；未登记渲染字段为空 | `five-shift` 2.6396%、`trail-shift` 0.0104% 必须判红 | `EVAL_OUT/*.png`、`runs.json` | 单测可跑；浏览器需 5211 | 已执行（离线单测）；浏览器半边未执行 | 单测已入 |
+| 2 | 三层结构差 | `python scripts/screens-diff.py --old ... --new ... --out ... --structure-spec ...` | 精确差任通道 >0；可见差 RGB ≥8；结构块面积落在 `[minArea,maxArea]` | `verify-screens-diff-selfcheck.py` 5 例，含 2900 与差 7 级必红 | `screens-diff.json`、`masks/*.png` | 自检已跑通；真图需两跑目录 | 已执行 | 已入 |
+| 3 | 相位帧弱判据 | `node scripts/check-phase-frames.mjs --ref ... --cur ...` / `npm run verify:phase` | 区外差 0 px；区内面积 ≤ `ceil(union*1.4)`；块数 ≤ `ceil(union*1.5)` | `--self-test` 平移出区、面积 ×1.5 必红 | stdout（无文件） | 仅 `pwe-anim`，需 Chromium | **未执行**（汇总 SKIP）：主仓无脚本/`verify:phase`/`phase-regions.json`；前置 = `pwe-anim` 工作树 + Chromium + r1/r2 截图 | 主仓 SKIP |
+| 4 | 抓拍夹具与账本 | 四个 `check-*.mjs` + `EVAL_OUT`；`verify:reset`、`verify:compare` | 抓拍脚本只测量不判红；ledger 比对逐像素 sha 全等、尺寸相同 | 改一张 PNG 即 `pixel-diff`，`compare` 退出 1 | `*-pixel-ledger.json` | 需浏览器 + 服务；ledger 仅在 `pwe-anim` | **未执行**：需浏览器 + 5211 本地服务；前置 = 起停 harness + `pixel-ledger`/`compare-ledger` 合入 main | 未入 |
+| 5 | render-budget 双条件 | `node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts`；浏览器 `check-render-budget.mjs` | 指令 <30000、Graphics <40、拖动 ≥0.9 静止、后台 <前台且 ≤1/3 或 ≤12、恢复 ≥0.5 前台 | 单测 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 必红 | `render-budget-samples.json`（有 `EVAL_OUT` 时） | 单测可跑；浏览器需服务 | 已执行（离线单测）；浏览器六项未执行 | 单测已入 |
+| 6 | 入口配色 9 色位 | `node scripts/audit-palette.mjs --strict` + `test/palette-budget.test.ts` | 世界 ≤24、UI ≤9、并集 ≤32、共享恰为 `#e3a13c`；边框对比 3.49/3.15 ≥3.0 | 值层测试换值必红；加第 10 个 UI hex 时 `--strict` 退出 1 | `palette-9/*.txt` | 离线可跑 | 已执行（离线）；**第 10 色红例未执行**：需临时给 `index.html` 加第 10 个 UI hex | 已入 |
+| 7 | 疲劳与睡眠 | `node --import ./test/phaser-hooks.mjs --test test/fatigue.test.ts test/homecoming.test.ts` | 0.5/天、睡 4/天、阈 0.8、跨阈 1.6 天、睡段 0.2 天；默认两天 0 次、强制场景 1 次 | 强制跨阈场景必触发 1 次，默认世界必须 0 | 无 | 离线可跑 | 已执行 | 已入 |
+| 8 | 行为/环境/需求 | 六个 `test/*.test.ts` | 规则注册表、环境标志闭集、`delivery_failed` 载荷、旁观分桶 | 交换规则顺序结果变、饥饿到顶必失败、室内只同屋记得 | 无 | 离线可跑；`test:buttons` 404 | 已执行 | 已入 |
+| 9 | 账本与旁证 | `node scripts/eval-ledger.ts`、`verify-ledger-selfcheck.ts`、`memory-witnessed-corroboration.test.ts` | 12 必填字段；`script_sha` 不符即红；外部来源必须钉输入；旁证 `violations===0` | 自检 1 绿 + 6 红 | `eval/ledger.json`、`witnessed-corroboration.json` | 离线可跑 | 已执行 | 已入 |
+| 10 | 动画基线账本 | `node scripts/verify-animation-baseline.mjs` | 157 行、六类 73/29/28/18/2/7、12 位哈希、7 位提交 | `--self-test` 删行/坏哈希/改归类必红 | stdout | 文档在 `pwe-anim`；新增结构校验 | 已执行 | 已入 |
+
+执行状态口径：`已执行` = 本次实际跑过且退出 0；`未执行` = 本次没有跑，哪怕同一流程在汇总入口里记 SKIP 也不算通过；`浏览器半边未执行` = 一条流程里只有离线半边跑了，浏览器部分登记在第 4 节。
+
+**未执行清单（3 项，均不计入通过）**
+
+1. **流程 3 相位帧真跑**。原因：主仓没有 `check-phase-frames.mjs`、没有 `verify:phase`、没有 `phase-regions.json`，汇总入口因此记 SKIP。前置：切到 `D:\project\pwe-anim`（`feat/animation-express`），备好 `tmp/anim-verify/r1|r2` 两跑截图，并安装 Chromium/Playwright。
+2. **流程 4 抓拍与账本比对**。原因：四支抓拍要浏览器 + 5211 本地服务，账本工具只在 `pwe-anim`。前置：一个能自动起停 dev server 的 harness；把 `pixel-ledger.mjs`/`compare-ledger.mjs` 合进 main。
+3. **流程 6 的 `--strict` 第 10 色红例**。原因：构造红样要临时给 `index.html` 加第 10 个 UI hex，本次只读约束下没有改文件。前置：在一次性 worktree 里改样、跑 `--strict`、确认退出 1 后丢弃该改动。
 
 ## 2. 每条流程
 
@@ -272,16 +280,19 @@ $env:VERIFY_ALL_OUT='D:\project\pwe-verify-out\verify-all'
 node scripts/verify-all.mjs
 ```
 
+**定位（写死）**：这是**人工手动入口**，不得接进 CI、不得挂进 `npm test`/`npm run ci`、不得作为合并闸门。它会拉起浏览器与本机服务，接进 CI 会把机器差异变成假红。已核对：根 `package.json` 只有 `check:hooks`/`worktrees:audit`，`world-client/package.json` 的 scripts 没有 `verify-all`，`.github/workflows/ci.yml` 也没有引用它。
+
 `VERIFY_ALL_OUT` 指到仓外，避免往仓库里写生成物；不设时默认 `world-client/tmp/verify-all`（gitignore）。已知副作用只有一项：旁证测试会用 `\n` 覆盖写 `docs/evidence/soak/witnessed-corroboration.json`；入口在跑完后按原始字节还原，本次实测改前/改后 SHA-256 相同（`762EB77A…0FFD4672`），不会污染工作树。
 
 `[实测]` 2026-11-06 的读数：
 
 ```text
-pass=8 fail=0 skip=1 elapsed=4769ms
+汇总口径：8 通过 / 0 失败 / 1 跳过 / 3 未执行
+verify-all 原始：pass=8 fail=0 skip=1 elapsed=4769ms
 读数：D:\project\pwe-verify-out\verify-all\last-run.json
 ```
 
-8 条通过：`pin-contract`、`screens-diff-selfcheck`、`render-budget-threshold`、`palette-9`、`fatigue-homecoming`、`behavior-needs`、`eval-ledger`、`animation-baseline`。1 条 SKIP：`phase-frames`，原因是主仓没有脚本、没有 `verify:phase`、没有 `phase-regions.json`。
+`8 通过` 是 `verify-all` 实测 pass 的 8 条；`1 跳过` 是汇总入口里的 `phase-frames`；`3 未执行` 是流程 3 真跑、流程 4、流程 6 的 `--strict` 第 10 色红例，原因与前置见第 1 节未执行清单。三者都不计入通过，也不把 SKIP 折算成绿。流程 1、流程 5 的浏览器半边只在第 4 节登记，不计入这四个数字。
 
 入口自身的反向验证：
 
@@ -308,7 +319,7 @@ node scripts/verify-all.mjs --self-test
 
 ## 5. 盘点结论
 
-1. **能立刻重跑的流程有 8 条**，已全部进 `verify-all.mjs`；每条都有反向用例，入口本身也有必红自检。
+1. **能立刻重跑的流程有 8 条**，已全部进 `verify-all.mjs`；每条都有反向用例，入口本身也有必红自检。本次口径是 `8 通过 / 0 失败 / 1 跳过 / 3 未执行`，SKIP 与未执行都不算通过。
 2. **最大的空判风险在流程 4**：四个抓拍脚本没有阈值、没有 `process.exit`，0.00% 与 13/13 只是读数，不是闸门。真正能判红的是 `compare-ledger` 的逐像素 sha 全等。
 3. **第二个空判风险在流程 3**：相位帧只有 stdout，没有 JSON/掩膜；判据本身有效（区外 0 + 面积/块数上限），但证据不可复算。
 4. **流程 10 只能校验账本结构，不能校验语义**：157 行、六类计数、哈希与提交都能钉住，但「哪张图该变」仍要重录后由人确认。
@@ -326,4 +337,8 @@ node scripts/verify-all.mjs --self-test
 | `world-client/scripts/verify-ledger-selfcheck.ts` | 账本校验器 1 绿 + 6 红自检 |
 | `world-client/scripts/verify-animation-baseline.mjs` | 157 行动画基线账本的结构校验与 3 例反向自检 |
 
-未改任何既有判据的数值、阈值或用例；未提交、未 push、未合 main、未 `stash`。
+未改任何既有判据的数值、阈值或用例；未 `stash`、未动别人的工作树。
+
+## 7. 入库记录
+
+由用户授权，在盘点完成后执行 `--no-ff` 合 main 与 push；动作与 CI 结果记录在提交说明与最终交接中，本表不因此改动任何判据。

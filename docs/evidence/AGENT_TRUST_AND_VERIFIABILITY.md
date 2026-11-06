@@ -31,7 +31,7 @@
 
 失败也能归因：把 v0 的 `pos.x` 加 1 格，精确差 2.6396%、可见差 2.4920%、最大块 14704 px；把痕迹从 `(49,36)` 移到 `(48,36)`，精确=可见 0.0104%（64 px，8×8）。一个失败样本直接告诉你“是角色位置”还是“是痕迹”，不需要人猜。`[本仓]`
 
-`[模式]` `principle-prove-it-works` 和 `principle-sequence-verifiable-units` 都指向同一件事：把大改动切成小单元，每个单元结束在一个可检查的状态。`[本仓]` 的钉子三档、相位帧自检、账本六红，都是这个形状。
+`[模式]` `principle-sequence-verifiable-units` 第 15 行要求交付顺序是「先失败的测试，再修复」。`[模式]` `principle-prove-it-works` 第 11 行要求核对真实产物，第 22 行要求把检查脚本化。`[本仓]` 的钉子三档、相位帧自检、账本六红，都是这个形状，但「切成小单元」这一点只挂在 `principle-sequence-verifiable-units`，不替 `principle-prove-it-works` 加戏。
 
 ### 1.3 证据层：读数要落盘，且要能被别人复算
 
@@ -45,7 +45,7 @@
 
 `[本仓]` `npm run worktrees:audit` 本次实测输出 11 个“已合入 main 但 worktree 仍在”的回收候选，退出 0；`--strict` 下“未登记”或“过期未回收”才退出 1，因为合并后是否立刻回收由 owner 判断（`scripts/worktrees-audit.mjs:3-16`）。`docs/OPEN_ISSUES.md` 用 `[事实]` / `[推断]` 标注，每条带证据链接和“需要决策”，把“我记得”变成“登记在案”。
 
-`[模式]` `principle-encode-lessons-in-structure` 第 4 行说：“If the fix is structural, only use the structural fix. The instruction is the symptom.” 本仓库的对应物不是更多说明，而是 `WORKTREES.md` 登记表、`OPEN_ISSUES` 字段、`eval/ledger.json` schema、`unregisteredRenderFields` 守卫。`[本仓]`
+`[模式]` `principle-encode-lessons-in-structure` 第 11 行说：“If the fix is structural, only use the structural fix. The instruction is the symptom.” 本仓库的对应物不是更多说明，而是 `WORKTREES.md` 登记表、`OPEN_ISSUES` 字段、`eval/ledger.json` schema、`unregisteredRenderFields` 守卫。`[本仓]`
 
 ### 1.5 信任的单位是“一条论断”，不是“一个 agent”
 
@@ -166,10 +166,10 @@
 ## 5. 结论
 
 1. `[推断]` 老项目培养 agent 信任，第一步不是让 agent 更可信，而是让**论断可重跑**。一条命令、一个退出码、一个必红样本，比十页说明有用。
-2. `[本仓]` 可验证环境的最小构成是五件：确定性输入钉、可重跑判据、反向样本、读数落点、单一入口。九道闸门与浏览器套件是扩展；先有这五件，再谈扩展。
-3. `[本仓]` 迁移顺序应该是：盘点分类 → 钉一条最常吵架的流程 → 判据 + 反向样本 → 落盘 + 账本 → 单一入口 → 把重复教训做成结构 → 最后扩浏览器闸门。最容易半途而废的是“判据写了但没反向样本、跑了但没落盘”。
-4. `[本仓]` 当前最该补的三件事：给四个抓拍脚本加退出码或明确标注“只测量不判红”；把 `pixel-ledger`/`compare-ledger`/`phase-frames` 合进 main；让浏览器流程有自动起停和产物保留。
-5. `[推断]` 这套做法判不了主观观感、时序手感、DOM 覆盖层和未钉住的呈现态。承认这些边界，比把它们伪装成绿更可信。
+2. `[推断]` 可验证环境的最小构成是五件：确定性输入钉、可重跑判据、反向样本、读数落点、单一入口。九道闸门与浏览器套件是扩展；先有这五件，再谈扩展。`[本仓]` 的对应物见第 2 节表格。
+3. `[推断]` 迁移顺序应该是：盘点分类 → 钉一条最常吵架的流程 → 判据 + 反向样本 → 落盘 + 账本 → 单一入口 → 把重复教训做成结构 → 最后扩浏览器闸门。最容易半途而废的是「判据写了但没反向样本、跑了但没落盘」。`[本仓]` 的四条证据见第 3 节末尾。
+4. `[本仓]` 当前事实是：四个抓拍脚本只有读数没有退出码；`pixel-ledger`/`compare-ledger`/`phase-frames` 只在 `pwe-anim`；浏览器流程没有自动起停与产物保留。`[推断]` 因此最该补的是这三件。
+5. `[推断]` 这套做法判不了主观观感、时序手感、DOM 覆盖层和未钉住的呈现态。承认这些边界，比把它们伪装成绿更可信。`[本仓]` 的具体缺口见第 4 节。
 
 ## 附：poteto-mode 引用对照
 
@@ -185,6 +185,6 @@
 | `...\principle-prove-it-works\SKILL.md` | 第 11-24 行 | 核对真实产物，脚本化检查并保留产物 | `[模式]` |
 | `...\principle-sequence-verifiable-units\SKILL.md` | 第 9-15 行 | 每个单元结束在可检查状态，失败先于修复 | `[模式]` |
 | `...\principle-explain-the-number\SKILL.md` | 第 9-11 行 | 说明限制因素、排除其他解释、保留跑次数与散布 | `[模式]` |
-| `...\principle-encode-lessons-in-structure\SKILL.md` | 第 4 行 | 结构性修复优先于重复说明 | `[模式]` |
+| `...\principle-encode-lessons-in-structure\SKILL.md` | 第 11 行 | 结构性修复优先于重复说明 | `[模式]` |
 
 本仓库实践部分（九道闸门、四钉、三层像素差、反向用例、账本与旁证、`worktrees:audit`、`OPEN_ISSUES`）全部标为 `[本仓]`，读数来自 `docs/evidence/` 与本次实测，未从 poteto-mode 反推。
