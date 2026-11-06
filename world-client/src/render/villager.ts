@@ -34,6 +34,8 @@ import {
   type PaintRole,
 } from './villager-layout.ts';
 import { DEFAULT_LOOK, resolveLook, type VillagerLook } from '../world/villager-look.ts';
+import { villagerDrawPlanOf } from '../animation/villager-anim-fsm-view.ts';
+import type { AnimFsmState } from '../animation/villager-anim-fsm.ts';
 
 export { VILLAGER_H, VILLAGER_W };
 
@@ -43,6 +45,13 @@ export interface VillagerView {
   readonly shadow: Phaser.GameObjects.Graphics;
   /** 这盏灯的余量。跟着人走，不跟着帧——掉帧不该让油少烧。 */
   lamp: LampState;
+  /**
+   * 动画状态机的位置（仅 `?animfsm=1` 时非空）。
+   *
+   * 为什么存放在视图上：过渡要跨帧推进，状态必须跟着某一个人活；
+   * 关掉开关时清成 `null`，下次打开重新从意图起，不会带着旧残影。
+   */
+  animState: AnimFsmState | null;
 }
 
 /** 世界递下来的外观：设定集给的四个维度 + 颜色槽，以及「她提没提灯」。 */
@@ -72,7 +81,7 @@ export function createVillager(
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
-  return { container, body, shadow, lamp: newLamp() };
+  return { container, body, shadow, lamp: newLamp(), animState: null };
 }
 
 /** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
@@ -135,6 +144,15 @@ export function updateVillager(
    * 钉住时姿态只由帧号 + mode + walking 决定，等待时长与灯油都不再进入画面。
    */
   poseFrame: number | null = null,
+  /**
+   * 第二版开关（`?animfsm=1`）。缺省 `false`：一个字节都不该变。
+   *
+   * 打开时也未必接管：钉子缺省 `settled`（稳态），按 `poseFrame` 画成单层权重 1，
+   * 与旧系统等价；只有没钉姿态、或显式 `settled: false` 才由状态机混合。
+   */
+  animFsmEnabled = false,
+  /** 姿态钉是否要求稳态（`ActorPin.settled` 缺省 true）。没有姿态钉时传 `null`。 */
+  pinSettled: boolean | null = null,
 ): void {
   const foot = villagerFootAt(villager.pos, originX, originY);
   const px = foot.x;
@@ -158,28 +176,63 @@ export function updateVillager(
   // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
   // 钉住时直接按帧号取姿态：不再经过时刻与灯油那一层，等待时长才进不了画面。
-  const pose = poseFrame === null
-    ? villagerPose(villager.mode, villager.walking, lampAnimationTime(oil, nowMs))
-    : villagerPoseAtFrame(villager.mode, villager.walking, poseFrame);
+  const animTime = lampAnimationTime(oil, nowMs);
+  // 这一帧由谁画，只在这里判一次。关闭 / 稳态钉时 `plan.source !== 'fsm'`，
+  // 下面走的是与今天逐字节相同的旧路径（状态机连一步都没推进）。
+  const plan = villagerDrawPlanOf({
+    enabled: animFsmEnabled,
+    mode: villager.mode,
+    walking: villager.walking,
+    nowMs: animTime,
+    pinnedFrame: poseFrame,
+    settled: pinSettled,
+    prev: view.animState,
+  });
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
   view.body.setAlpha(lampBodyAlpha(oil));
   view.body.clear();
-  drawVillager(
-    view.body,
-    appearance?.look ?? resolveLook(undefined),
-    palette,
-    villager.facing,
-    pose,
-    villager.mode,
-    villager.walking,
-    nowMs,
-  );
+  const look = appearance?.look ?? resolveLook(undefined);
+  let offsetY: number;
+  if (plan.source === 'fsm') {
+    view.animState = plan.state;
+    // 残影在下、当前层在上：`sampleAnimFsm` 的顺序是「当前 → 残影」，这里倒着画。
+    for (const layer of plan.layers.slice().reverse()) {
+      drawVillager(
+        view.body,
+        look,
+        palette,
+        villager.facing,
+        layer.pose,
+        layer.mode,
+        layer.walking,
+        nowMs,
+        layer.weight,
+      );
+    }
+    offsetY = plan.offsetY ?? 0;
+  } else {
+    view.animState = null;
+    const pose = poseFrame === null
+      ? villagerPose(villager.mode, villager.walking, animTime)
+      : villagerPoseAtFrame(villager.mode, villager.walking, poseFrame);
+    drawVillager(
+      view.body,
+      look,
+      palette,
+      villager.facing,
+      pose,
+      villager.mode,
+      villager.walking,
+      nowMs,
+    );
+    offsetY = pose.offsetY;
+  }
   if (withLamp) {
     // 快照里的灯油只在这里影响画面；燃料不会变成任务或路径的隐藏条件。
     drawLamp(view.body, oil, palette);
   }
-  if (villager.umbrella) drawUmbrella(view.body, pose.offsetY);
-  if (villager.carrying !== null) drawCarried(view.body, villager.carrying, pose.offsetY);
+  if (villager.umbrella) drawUmbrella(view.body, offsetY);
+  if (villager.carrying !== null) drawCarried(view.body, villager.carrying, offsetY);
 
   // 走路时整条阴影一起变淡：抬脚时接触减弱，落地时才压深。
   // 判据与步态同一个（`villager.walking`，即 `path.length > 0`），别另列 mode 表：
@@ -221,9 +274,14 @@ function drawVillager(
   mode: VillagerSnapshot['mode'],
   walking: boolean,
   nowMs: number,
+  /**
+   * 该层的权重（仅状态机接管时传入）。稳态是 1：`PAINT_ALPHA × 1` 与今天同一个
+   * 浮点值，不改变任何一帧；过渡期残影按权重压半透明。
+   */
+  layerWeight = 1,
 ): void {
   for (const item of villagerLayout(look, facing, pose, walking, mode, nowMs)) {
-    g.fillStyle(paintColor(item.paint, look, palette), PAINT_ALPHA[item.paint] ?? 1);
+    g.fillStyle(paintColor(item.paint, look, palette), (PAINT_ALPHA[item.paint] ?? 1) * layerWeight);
     g.fillRect(item.x, item.y, item.w, item.h);
   }
 }

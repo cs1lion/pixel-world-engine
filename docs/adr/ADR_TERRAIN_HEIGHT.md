@@ -75,15 +75,15 @@
 
 | 用途 | 位置 | 写法 |
 | --- | --- | --- |
-| 人物脚底 | `render/villager.ts:79-88`（grep `villagerFootAt`） | `x=(cell.x+0.5)*16`, `y=(cell.y+1)*16` |
-| 人物深度 | `villager.ts:91-94`（grep `villagerDepthAt`） | `ALTITUDE + footY + 8` |
+| 人物脚底 | `render/villager.ts:88-97`（grep `villagerFootAt`） | `x=(cell.x+0.5)*16`, `y=(cell.y+1)*16` |
+| 人物深度 | `villager.ts:100-102`（grep `villagerDepthAt`） | `ALTITUDE + footY + 8` |
 | 建筑容器 | `render/buildings.ts:67-70` | `px=origin.x*16`, `py=origin.y*16` |
 | 建筑落地线 | `render/building-depth.ts:34-41`（grep `buildingBaseY` / `actorDepthAt`） | `baseY=originY+footprintH*16`；`actorDepth=ALT+(gridY+1)*16+8` |
 | 道具 | `render/prop-depth.ts:18`、`:29-30` | `(at.y+0.8)*16`，深度 `+8` |
 | 布景 | `render/scenery-depth.ts` | 行号 + 12 / 4 的偏移 |
 | 装饰 | `render/decor.ts` | 同样按 `py + ACTOR_DEPTH_OFFSET` |
 
-`ALTITUDE = 1000`：`SandboxScene.ts:289`（grep `const ALTITUDE = 1000`）。
+`ALTITUDE = 1000`：`SandboxScene.ts:291`（grep `const ALTITUDE = 1000`）。
 **已有 y 排序**：人物 +8、道具 +8、布景 +12/4、建筑 body 0 / decal 16 / front 32；
 地形整体在 -10，所以「地形永远在人下面」。今天没有任何东西按高度改屏幕 y。
 
@@ -656,10 +656,10 @@ world.terrainEdits: readonly {
 | `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:52` |
 | `drawTerrain` | `world-client/src/render/tilemap.ts:24` |
 | `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:99` / `:133` |
-| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:79` / `:91` |
+| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:88` / `:100` |
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
 | `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
-| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:289` |
+| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:291` |
 | 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |
 | `pave-reachable.test.ts` 的 `nearestWalkable` 断言 | `world-client/test/pave-reachable.test.ts:177` |

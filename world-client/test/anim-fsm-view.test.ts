@@ -77,8 +77,17 @@ test('2. 开关打开 = 接管：稳态输出与今天的最终帧逐字段相�
   assert.ok(m, '缺少接入渲染实现：src/animation/villager-anim-fsm-view.ts');
 
   // 第一帧就是稳态：直接从意图起，没有淡入残影。
+  //
+  // 只覆盖**世界里真实存在**的组合：saluting / working / delivering 三个动作在
+  // 进入时都显式清空了 path（simulation.ts 2646 / 2253 / 4043），所以 walking
+  // 恒为 false；其余 mode 才可能边走边待机（`walking = path.length > 0`）。
+  // 这三个动作若硬凑 walking=true，状态机按「行礼/干活时腿不迈」画，与旧路径
+  // 的走路腿不同——那是不可达组合，不在「接管不改画面」的判据里。
   for (const mode of ALL_MODES) {
-    for (const walking of [false, true]) {
+    const walkings = mode === 'saluting' || mode === 'working' || mode === 'delivering'
+      ? [false]
+      : [false, true];
+    for (const walking of walkings) {
       for (const nowMs of [0, 83, 100, 1234.5, 99999]) {
         const plan = m.villagerDrawPlanOf({
           enabled: true,
