@@ -226,12 +226,23 @@
 ### E5. GitHub 默认视图只显示最新 attempt，重跑会把首跑的红藏起来
 
 - **现状 [事实]**：网页 run 页、`gh run list`、以及不带 `--attempt` 的 `gh run view` 都只显示**最新 attempt**。一次 `gh run rerun --failed` 成功之后，attempt 1 的失败在默认视图里消失，只剩 success。
-- **复现 [事实]**：本轮 `world-client-browser` 诊断里，至少 5 次首跑红被重跑掩盖（默认视图全是 success，必须 `--attempt 1` 才看得到）：
-  - `42157897952`（`05a34abf`，phases 6217ms）
-  - `42154120584`（`ac4fe28a`，phases 6248ms）
-  - `41780154730`（`ed9eb4cd`，throttle）
-  - `41698910545`（`db948016`，throttle 11.0 vs 10.67）
-  - `41686628894`（`20d98412`，drag/restore）
+- **复现 [事实]**：按「首跑红、最终绿」口径，`world-client-browser` 自 2026-11-02 22:27（+0800，`29597bd` 接入 CI）至 2026-11-06 共 **82 个 run**，其中 **15 条重跑过、14 条首跑红被重跑掩盖**（默认视图全是 success，必须 `--attempt 1` 才看得到）：
+  - `42157897952`（`05a34abf`，phases 6217ms/25 帧）
+  - `42154120584`（`ac4fe28a`，phases 6248ms/24 帧）
+  - `41780154730`（`ed9eb4cd`，background 19.0/10.0）
+  - `41698910545`（`db948016`，background 32.0/11.0 vs 10.67）
+  - `41686628894`（`20d98412`，drag 32.4/25.1、restore 31.0/36.0）
+  - `41630373031`（`9a02fcda`，restore 29.0/33.0）
+  - `41624984892`（`e9a39d8b`，restore 30.0/38.0）
+  - `41616480893`（`d3f133e8`，restore 26.0/36.0）
+  - `41612010831`（`b10a8165`，restore 31.0/36.0）
+  - `41580036942`（`860f2bb2`，drag 44.1/39.7、restore 31.0/36.0）
+  - `41575068959`（`2d7406a8`，drag 57.0/45.4）
+  - `41569115855`（`5fdd603d`，dawn 65.36 vs noon 66.60，差 -1.24）
+  - `41553639144`（`85a06118`，restore 37.3，前台 46.7）
+  - `41553156868`（`fcb225b9`，drag 43.6/35.2）
+- **不算「被掩盖」的一条 [事实]**：`41661860644`（`ba6e616f`）attempt 1/2/3 三次全红、最终仍 failure，单列在此、不计入上面 14 条。重跑掩盖的判据是「首跑红、最终绿」；最终仍红本来就是默认视图可见的红。
+- **统计边界 [事实]**：`ci-attempt1-audit.mjs` 只看 attempt 1、只到 run 级、不区分 job，因此看不到「attempt 2 红、attempt 3 绿」这类更深的掩盖；本时间窗（82 run）没有这类漏检（`41661860644` 的 attempt 2 也红、最终仍红，属于可见红）。
 - **影响 [事实]**：review 只看默认视图，会把「首跑红」当成没发生，「这个 job 一直绿」的判断因此失真；反过来，拿首跑红去改代码，会追一个只在慢机器上出现的假红。
 - **纪律**：review 任何一次 run，**必须**看首跑：`gh run view <run-id> --attempt 1`。重跑成功不等于首跑成功。
 - **只读入口（不进 CI）**：`npm run ci:attempt1 -- --since 2026-11-04`（[ci-attempt1-audit.mjs](file:///D:/project/pwe-material/scripts/ci-attempt1-audit.mjs)）列出时间窗内「attempt 1 失败、最终却 success」的 run，并打印逐条 `gh run view … --attempt 1`。只读 `gh` 数据，不改判据、不进工作流。
