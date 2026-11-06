@@ -81,9 +81,11 @@ export interface ShotPin {
 夹具 `world-client/scripts/check-shot-actor-pin.mjs`（独立 context，1010×940，`localStorage.clear()`，
 `?feed=off&debug=1&time=dawn&now=300&speed=30`，锚点 `centerCameraOn(52*16, 32*16)`）：
 
-- `four-1200` / `four-2800`：**不调** `pinActors`，只钉时刻 07:34 + 潮位 0 + 相机；
-- `five-1200` / `five-2800` / `five-5000`：同一套 pin，另钉两条：
-  `v0 = (52,32) down idle frame 0`、`v1 = (48,36) up idle frame 1`；
+- `bare-1200` / `bare-2800`：**不调** `pinActors` / `pinTrails` / `pinWeather`，
+  只钉时刻 07:34 + 潮位 0 + 相机（历史负控，跨进程本就不稳定）；
+- `four-1200` / `four-2800` / `five-1200` / `five-2800` / `five-5000`：同一套完整钉，
+  角色 `v0 = (52,32) down idle frame 0`、`v1 = (48,36) up idle frame 1`，
+  痕迹 `(49,36) strength 2`，雨幕 `(0, 0)`；等待档之间必须逐字节 0 差；
 - `five-shift`：同上，只把 `v0` 的 `pos.x` +1 格（(53,32)），其余逐字相同。
 
 冻结前等待（`waitForTimeout` 的时长）只改这一个旋钮。三层读数用
@@ -100,8 +102,8 @@ five-shift.png        exact 2.64%  vis 2.49%  blocks 7 largest 14704 [148,124] [
 原始读数在 `actor-pin/<组>/screens-diff.json`，掩膜在同目录 `masks/`。六张源图留在
 `world-client/eval/screens/actor-pin/`（不入库，本轮不重录基线）。
 
-- 四钉的两块 285 px（`[288,468,312,479]`、`[307,500,331,511]`）是两块名字牌，最大块 8048
-  才是人；也就是说四钉下“等站定”等了 2800ms 之后，人确实站到了另一个地方。
+- `bare` 组的两块 285 px（`[288,468,312,479]`、`[307,500,331,511]`）是两块名字牌，最大块 8048
+  才是人；也就是说只钉四钉时，“等站定”等了 2800ms 之后，人确实站到了另一个地方。
 - 反向 `five-shift`：精确差 >0，最大块 `[476,264,623,387]` 正是被挪的莞尔本人
   （钉的是 (52,32) → 屏幕中心一带），另有名字牌与两处影子尖端跟着走。判据没有被钉死成“永远绿”。
 
