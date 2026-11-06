@@ -33,9 +33,10 @@
  *   碰过（`0d70cad` / `6bf0a57` / `46ec540` / `d36aad2` / `1309807` / `7119a9a` /
  *   `1bcb137` / `cdcb2e4`——后两笔是列完这份名单之后才有的，所以名单一度是旧的），
  *   没有一笔改过实现。
- *   它也不是 CI 会重跑的东西：脚本要一个活在 5188 的开发服务器（`ci.yml` 跑的是
- *   check / test / build / audit-palette / audit-references / audit-citations /
- *   audit-sections 共七道，没有它），所以那是一份
+ *   它也不是 CI 会重跑的东西：脚本要一个活在 5211 的开发服务器（当时默认 5188；
+ *   `ci.yml` 跑的是
+ *   check / audit-ports / test / red-first / build / audit-palette / audit-references /
+ *   audit-citations / audit-sections / audit-claims 共十道，没有它），所以那是一份
  *   **手工记下的量**，不是每次提交都在复核的量。
  *   所以「指令总量这个量级有人量过」是真的——77 万与 87% 今天都还在，删掉的只有
  *   2 万（见下面 2026-10-28 复审补记）；站不住的只是**地形/迷雾那个拆分**——迷雾那半已由上面的算术证伪，地形那半
