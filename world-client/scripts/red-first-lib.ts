@@ -50,7 +50,7 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
 
-/** `world-client/test/foo.test.ts` → `test/foo.test.ts`；不在这棵树下返回 null。 */
+/** 测试文件路径 → 相对测试目录的路径；不在这棵树下返回 null。 */
 export function toTestRelative(path: string): string | null {
   const prefix = 'world-client/';
   if (!path.startsWith(prefix)) return null;

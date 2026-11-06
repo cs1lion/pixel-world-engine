@@ -26,9 +26,9 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/render/          渲染层（只读快照）
 ├── src/settings/        设定集加载器（莞尔镇 / 灯潮界）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
-├── scripts/             九道闸门里的六个 + 开发/验收脚本
+├── scripts/             十一道闸门里的八个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
-└── test/                274 个测试文件 <!-- claim: test-file-count=274 -->
+└── test/                276 个测试文件 <!-- claim: test-file-count=276 -->
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
 ├── rules/               七条命令的 Schema 与校验（`COMMAND_CHECKS`）
 ├── events/              事件日志（取代督办台账）
