@@ -5,7 +5,7 @@
 ## 0. 规范依据与盘点边界
 
 - 本机存在 `poteto-mode`，来源 `backnotprop/pstack@poteto-mode`，安装命令 `npx skills add backnotprop/pstack@poteto-mode -g -y`，装到 `C:\Users\18712\.agents\skills\poteto-mode`，并已通过 `C:\Users\18712\.trae-cn\skills\poteto-mode` 的 Junction 对 Trae 可见。
-- 本文采用的规范文件是 `C:\Users\18712\.agents\skills\poteto-mode\SKILL.md` 的 `## Principles` 与 `## Playbooks`（Investigation），以及本地 pstack 叶技能 `principle-build-the-lever`、`principle-prove-it-works`、`principle-sequence-verifiable-units`、`principle-explain-the-number`、`principle-encode-lessons-in-structure`。
+- 本文采用的规范文件是 poteto-mode 安装目录下的 SKILL.md（本机路径 C:\Users\18712\.agents\skills\poteto-mode\SKILL.md）的 `## Principles` 与 `## Playbooks`（Investigation），以及本地 pstack 叶技能 `principle-build-the-lever`、`principle-prove-it-works`、`principle-sequence-verifiable-units`、`principle-explain-the-number`、`principle-encode-lessons-in-structure`。
 - 盘点阶段按 Investigation 的只读口径执行：只新增文档与脚本，不改任何既有判据的数值、不放宽阈值、不删用例；不 `stash`、不动别人的工作树。入库（合 main 与 push）由用户在本轮单独授权，动作记录见第 7 节。
 - 证据标签：`[实测]` 本次实际运行；`[证据]` 读自已归档的证据文件；`[文档]` 只有书面记录、无执行判据。
 - 端口纪律：**5188 / 5191 / 5202 / 5203 一律不用**。下面所有浏览器命令都显式改到 `5211`，因为 `smoke.mjs:27`、四个抓拍脚本 `:30/:26/:28/:24`、`check-render-budget.mjs:22` 的默认端口分别落在 5188 和 5202，必须用 `PIXEL_WORLD_URL` 覆盖。
@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|---|---|---|
 | 1 | 钉子契约 | `node --import ./test/phaser-hooks.mjs --test test/pin-shot-state.test.ts`；浏览器 `check-shot-actor-pin.mjs` | 三档 1200/2800/5000 精确 0.0000%、可见 0.0000%、结构块 0；未登记渲染字段为空 | `five-shift` 2.6396%、`trail-shift` 0.0104% 必须判红 | `EVAL_OUT/*.png`、`runs.json` | 单测可跑；浏览器需 5211 | 已执行（离线单测）；浏览器半边未执行 | 单测已入 |
 | 2 | 三层结构差 | `python scripts/screens-diff.py --old ... --new ... --out ... --structure-spec ...` | 精确差任通道 >0；可见差 RGB ≥8；结构块面积落在 `[minArea,maxArea]` | `verify-screens-diff-selfcheck.py` 5 例，含 2900 与差 7 级必红 | `screens-diff.json`、`masks/*.png` | 自检已跑通；真图需两跑目录 | 已执行 | 已入 |
-| 3 | 相位帧弱判据 | `node scripts/check-phase-frames.mjs --ref ... --cur ...` / `npm run verify:phase` | 区外差 0 px；区内面积 ≤ `ceil(union*1.4)`；块数 ≤ `ceil(union*1.5)` | `--self-test` 平移出区、面积 ×1.5 必红 | stdout（无文件） | 仅 `pwe-anim`，需 Chromium | **未执行**（汇总 SKIP）：主仓无脚本/`verify:phase`/`phase-regions.json`；前置 = `pwe-anim` 工作树 + Chromium + r1/r2 截图 | 主仓 SKIP |
+| 3 | 相位帧弱判据 | `node scripts/check-phase-frames.mjs --ref ... --cur ...` / `npm run verify:phase` | 区外差 0 px；区内面积 ≤ `ceil(union*1.4)`；块数 ≤ `ceil(union*1.5)` | `--self-test` 平移出区、面积 ×1.5 必红 | stdout（无文件） | 仅 pwe-anim，需 Chromium | **未执行**（汇总 SKIP）：主仓无脚本、无 verify:phase、无 phase-regions.json（该文件只在 pwe-anim 分支上）；前置 = pwe-anim 工作树 + Chromium + r1/r2 截图 | 主仓 SKIP |
 | 4 | 抓拍夹具与账本 | 四个 `check-*.mjs` + `EVAL_OUT`；`verify:reset`、`verify:compare` | 抓拍脚本只测量不判红；ledger 比对逐像素 sha 全等、尺寸相同 | 改一张 PNG 即 `pixel-diff`，`compare` 退出 1 | `*-pixel-ledger.json` | 需浏览器 + 服务；ledger 仅在 `pwe-anim` | **未执行**：需浏览器 + 5211 本地服务；前置 = 起停 harness + `pixel-ledger`/`compare-ledger` 合入 main | 未入 |
 | 5 | render-budget 双条件 | `node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts`；浏览器 `check-render-budget.mjs` | 指令 <30000、Graphics <40、拖动 ≥0.9 静止、后台 <前台且 ≤1/3 或 ≤12、恢复 ≥0.5 前台 | 单测 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 必红 | `render-budget-samples.json`（有 `EVAL_OUT` 时） | 单测可跑；浏览器需服务 | 已执行（离线单测）；浏览器六项未执行 | 单测已入 |
 | 6 | 入口配色 9 色位 | `node scripts/audit-palette.mjs --strict` + `test/palette-budget.test.ts` | 世界 ≤24、UI ≤9、并集 ≤32、共享恰为 `#e3a13c`；边框对比 3.49/3.15 ≥3.0 | 值层测试换值必红；加第 10 个 UI hex 时 `--strict` 退出 1 | `palette-9/*.txt` | 离线可跑 | 已执行（离线）；**第 10 色红例未执行**：需临时给 `index.html` 加第 10 个 UI hex | 已入 |
@@ -29,8 +29,8 @@
 
 **未执行清单（3 项，均不计入通过）**
 
-1. **流程 3 相位帧真跑**。原因：主仓没有 `check-phase-frames.mjs`、没有 `verify:phase`、没有 `phase-regions.json`，汇总入口因此记 SKIP。前置：切到 `D:\project\pwe-anim`（`feat/animation-express`），备好 `tmp/anim-verify/r1|r2` 两跑截图，并安装 Chromium/Playwright。
-2. **流程 4 抓拍与账本比对**。原因：四支抓拍要浏览器 + 5211 本地服务，账本工具只在 `pwe-anim`。前置：一个能自动起停 dev server 的 harness；把 `pixel-ledger.mjs`/`compare-ledger.mjs` 合进 main。
+1. **流程 3 相位帧真跑**。原因：主仓没有 check-phase-frames.mjs、没有 verify:phase、没有 phase-regions.json（三者在 pwe-anim 分支上才有），汇总入口因此记 SKIP。前置：切到 D:\project\pwe-anim（`feat/animation-express`），备好 `tmp/anim-verify/r1|r2` 两跑截图，并安装 Chromium/Playwright。
+2. **流程 4 抓拍与账本比对**。原因：四支抓拍要浏览器 + 5211 本地服务，账本工具只在 pwe-anim 分支上。前置：一个能自动起停 dev server 的 harness；把 pixel-ledger.mjs 与 compare-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）合进 main。
 3. **流程 6 的 `--strict` 第 10 色红例**。原因：构造红样要临时给 `index.html` 加第 10 个 UI hex，本次只读约束下没有改文件。前置：在一次性 worktree 里改样、跑 `--strict`、确认退出 1 后丢弃该改动。
 
 ## 2. 每条流程
@@ -99,15 +99,15 @@ npm run verify:phase -- --ref ../tmp/anim-verify/r1/screens --cur ../tmp/anim-ve
 node scripts/check-phase-frames.mjs --self-test --ref ../tmp/anim-verify/r1/screens --cur ../tmp/anim-verify/r2/screens
 ```
 
-**输入**：`scripts/lib/phase-regions.json`（`schema:1`、`outsidePixels:0`、`margin.area:1.4`、`margin.components:1.5`，18 张图的 bbox 与 `observed.unionPixels/unionComponents`）；`PHASE_FRAME_CRITERIA.md`；两跑截图目录。
+**输入**：pwe-anim 分支上的 scripts/lib/phase-regions.json（当前 main 上不存在；schema:1、outsidePixels:0、margin.area:1.4、margin.components:1.5，18 张图的 bbox 与 observed.unionPixels/unionComponents）；同分支的 PHASE_FRAME_CRITERIA.md；两跑截图目录。
 
-**判据**：区外差异像素必须为 0（RGBA 逐像素、容差 0）；区内面积 ≤ `ceil(unionPixels × 1.4)`；区内连通块 ≤ `ceil(unionComponents × 1.5)`；尺寸不一致直接 FAIL。例：`01-salute.png` 观测 24663 px/9 块，本次允许 34529 px/14 块；`06` 为 2173 px/9 块；`ground-shadow-*` 为 174/2 或 168/2。`[证据]` `PHASE_FRAME_CRITERIA.md:54-73`。
+**判据**：区外差异像素必须为 0（RGBA 逐像素、容差 0）；区内面积 ≤ `ceil(unionPixels × 1.4)`；区内连通块 ≤ `ceil(unionComponents × 1.5)`；尺寸不一致直接 FAIL。例：`01-salute.png` 观测 24663 px/9 块，本次允许 34529 px/14 块；`06` 为 2173 px/9 块；`ground-shadow-*` 为 174/2 或 168/2。`[证据]` PHASE_FRAME_CRITERIA.md 第 54-73 行（pwe-anim 分支）。
 
 **反向用例**：`--self-test` 把真实差区平移到画面底部，期望区外 >0；再把面积沿四邻域生长到 `ceil(union × 1.5)`，期望超上限。两条都必须红，否则脚本退出 1。`[证据]` 已记录实测。
 
 **产物落点**：只有 stdout 的 `ok/FAIL/missing` 与总计，**没有 JSON、没有掩膜**。这是本条流程的证据缺口。
 
-**现状**：只存在于 `D:\project\pwe-anim`（`feat/animation-express`），主仓没有脚本、没有 `verify:phase`、没有 `phase-regions.json`。需要 Chromium/Playwright；r1/r2/r3 三套 18 张齐备，今天可跑。主仓 `verify-all.mjs` 显式 SKIP。
+**现状**：只存在于 D:\project\pwe-anim（`feat/animation-express`），主仓没有脚本、没有 verify:phase、没有 phase-regions.json（后两者在 pwe-anim 分支上）。需要 Chromium/Playwright；r1/r2/r3 三套 18 张齐备，今天可跑。主仓 `verify-all.mjs` 显式 SKIP。
 
 ### 流程 4：抓拍夹具与账本
 
@@ -132,15 +132,15 @@ cd D:\project\pwe-anim\world-client
 npm run verify:compare -- <左目录> <右目录>
 ```
 
-**输入**：`EVAL_OUT` 目录；四支脚本的默认输出是 `world-client/eval/screens`（`check-scene-motion.mjs:31`、`check-stall-motion.mjs:27`、`check-banner-smoke.mjs:29`、`check-ground-shadow.mjs:25`）；`pixel-ledger.mjs` 给每张图记 `file + 逐像素 sha256 + 尺寸 + now + tide + camera`。
+**输入**：`EVAL_OUT` 目录；四支脚本的默认输出是 `world-client/eval/screens`（`check-scene-motion.mjs:31`、`check-stall-motion.mjs:27`、`check-banner-smoke.mjs:29`、`check-ground-shadow.mjs:25`）；pixel-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）给每张图记 file + 逐像素 sha256 + 尺寸 + now + tide + camera。
 
-**判据**：四支抓拍脚本是**测量器，不是闸门**：全仓这四个文件没有 `process.exit`，唯一失败路径是页面报错抛异常。读数里「应为 0」的对照是全关 0.00%、暂停 0.00%、残留 0.00%、池指令 灭0/亮2552/再灭0、确定性 13/13。真正的硬判据在 `compare-ledger.mjs`：逐像素 sha256 全等且尺寸相同，`counts.ok === total` 才退出 0，否则退出 1。`[证据]` `scene-motion/README.md:76-79,267`、`compare-ledger.mjs:102-136`。
+**判据**：四支抓拍脚本是**测量器，不是闸门**：全仓这四个文件没有 `process.exit`，唯一失败路径是页面报错抛异常。读数里「应为 0」的对照是全关 0.00%、暂停 0.00%、残留 0.00%、池指令 灭0/亮2552/再灭0、确定性 13/13。真正的硬判据在 compare-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）：逐像素 sha256 全等且尺寸相同，counts.ok === total 才退出 0，否则退出 1。`[证据]` `scene-motion/README.md:76-79,267`、compare-ledger.mjs 第 102-136 行。
 
 **反向用例**：复制 `run1` 为 `run2`，只改其中一张 PNG 的 1 个像素，再 `verify:compare run1 run2`，该图变 `pixel-diff`，整体退出 1；或把 `capturePair` 两边都传 `motion: null`，ROI 差立刻非 0。不需要改阈值。
 
 **产物落点**：`<EVAL_OUT>/*.png`、`*.json`、`*.html`；`pwe-anim` 还会写 `<name>-pixel-ledger.json`。
 
-**现状**：需要浏览器 + 本地服务；主仓没有 `pixel-ledger.mjs`、`compare-ledger.mjs`、`verify:reset`、`verify:compare`，这些只在 `pwe-anim`。主仓 `verify-all.mjs` 未纳入，原因见第 4 节。
+**现状**：需要浏览器 + 本地服务；主仓没有 pixel-ledger.mjs、compare-ledger.mjs、verify:reset、verify:compare，这些只在 pwe-anim 分支上。主仓 `verify-all.mjs` 未纳入，原因见第 4 节。
 
 ### 流程 5：render-budget 双条件
 
@@ -262,7 +262,7 @@ node scripts/verify-animation-baseline.mjs
 node scripts/verify-animation-baseline.mjs --self-test
 ```
 
-**输入**：`D:\project\pwe-anim\docs\evidence\animation-express\SCREENSHOT_BASELINE_CHANGES.md`（232 行，157 行逐张清单）。
+**输入**：pwe-anim 分支上的 docs/evidence/animation-express/SCREENSHOT_BASELINE_CHANGES.md（232 行，157 行逐张清单）。
 
 **判据**：新增的结构校验断言标题声明 157 张、行数 157、编号连续 1..157、六类计数恰为 `甲·可信=73 / 甲·基线不可复现=29 / 乙=28 / 丙=18 / 丁=2 / 参照=7`、每行旧/新基线是 12 位小写哈希、对应提交是 7 位哈希。`[实测]` 本次通过。
 
@@ -270,7 +270,7 @@ node scripts/verify-animation-baseline.mjs --self-test
 
 **产物落点**：stdout；文档本身在 `pwe-anim`。
 
-**现状**：这份账本原来没有任何脚本校验，只有 `PROGRESS.md:125` 与 `PHASE_FRAME_CRITERIA.md:7` 两处引用。现在能校验「账本自己的结构」，仍不能校验「哪张图真的该变」；语义真值仍需重录后由人确认。
+**现状**：这份账本原来没有任何脚本校验，只有 `PROGRESS.md:125` 与 PHASE_FRAME_CRITERIA.md 第 7 行（pwe-anim 分支）两处引用。现在能校验「账本自己的结构」，仍不能校验「哪张图真的该变」；语义真值仍需重录后由人确认。
 
 ## 3. 汇总入口
 
@@ -310,7 +310,7 @@ node scripts/verify-all.mjs --self-test
 |---|---|---|
 | 钉子六图 `check-shot-actor-pin.mjs` | 需要浏览器 + 本地服务 | 5211 dev server；`eval/screens/actor-pin` 当前为空 |
 | 抓拍四支 `check-*-motion/smoke/shadow` | 需要浏览器 + 本地服务 | 5211 dev server；脚本本身无阈值、无退出码 |
-| `verify:compare` 跨进程账本 | 工具只在 `pwe-anim` | 主仓无 `pixel-ledger.mjs`/`compare-ledger.mjs` |
+| `verify:compare` 跨进程账本 | 工具只在 pwe-anim 分支上 | 主仓无 pixel-ledger.mjs / compare-ledger.mjs |
 | 相位帧真跑 | 需要 Chromium + 两跑截图 | 主仓无脚本；`pwe-anim` 需 r1/r2/r3 |
 | render-budget 浏览器六项 | 需要浏览器 + 本地服务 | 5211 dev server；离线只覆盖纯函数边界 |
 | smoke / phases / persistence / buttons | 需要浏览器 + 本地服务 | `test:buttons` 仍因 `/api/memory/list` 404 退出 2 |
