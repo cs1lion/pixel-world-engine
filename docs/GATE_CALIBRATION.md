@@ -457,4 +457,80 @@ import 新导出名；这个符号在 base 上不存在 → 测试文件在 base
   （脚本头部已写明），这是有意的，不要误判成夹具坏了。
 - 要让一条行为改动「先红后绿」，必须落到 `world-client/test/*.test.ts`；只改夹具不算。
 
+## 13. 2026-11-06：`ea05cd0` 重录的 10 条期望值逐条归因
+
+`3443fab` 只写了「夹具重录不进 red:first」的边界，没写「每个新期望值是哪次改动造成的」。
+这一节补上。结论：**10/10 都能落到已知 intended 提交上，没有一条落在无改动或方向相反的
+提交**；但其中 8 条只能归到合并提交（没有细分到子提交），另有多条是跨两次合并分段变化
+——与此前口头表里的「单点归因」不符，在这里修正。
+
+### 核法（不改代码，只在合入点两侧回放）
+
+夹具在 `effefc9` 录制后到 `a03a1cb` 之间没有重录，所以在每个合入点两侧各跑一次，
+用**该提交自带的旧夹具**，看失败行里的「期望 … 实际 …」：
+
+```powershell
+git worktree add --detach D:\project\.pwe-attr <commit>
+New-Item -ItemType Junction -Path D:\project\.pwe-attr\world-client\node_modules `
+  -Target D:\project\pwe-terrain-design\world-client\node_modules
+cd D:\project\.pwe-attr\world-client
+node scripts/fixture-check.ts --only memory-decay-20d
+node scripts/fixture-check.ts --only timetable-daily-markers
+node scripts/fixture-check.ts --only build-demolish-rebuild
+```
+
+边界点：`a6da49e`（街头互动合入前）→ `0dfcd2f`（liveliness 合入）→ `49c953b`
+（routine 合入）→ `416eb8b`（behavior-queue 合入前）→ `df69173`（behavior-queue 合入）
+→ `a03a1cb`（当前 main）。`d679c85`、`416eb8b` 分别与前一合入点读数一致，下表不单列。
+
+### 边界读数（实际值）
+
+`a6da49e` 一整条夹具 PASS，读数取旧夹具里的期望值。
+
+| 提交 | archived | dropped | facts | 事件条数(memory) | 打水文案 | facts(timetable) | facts[1].placeId | facts[8].kind | facts[8].placeId | 事件条数(build) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `a6da49e` | 9 | 145 | 277 | 458 | 桥边打水，顺手冲桥面 | 9 | `place:1,1` | `daily_lamp` | `place:32,29` | 101 |
+| `0dfcd2f` | 0 | 187 | 297 | 458 | 桥边打水，顺手冲桥面 | 21 | `place:1,1` | `routine_done` | `place:19,29` | 101 |
+| `49c953b` | 0 | 217 | 393 | 458 | 天亮了，有人去打水。 | 23 | `place:23,19` | `street_greet` | `place:32,27` | 98 |
+| `df69173` | 0 | 204 | 379 | 446 | 天亮了，有人去打水。 | 23 | `place:23,19` | `street_greet` | `place:32,27` | 95 |
+| `a03a1cb` | 0 | 204 | 379 | 446 | 天亮了，有人去打水。 | 23 | `place:23,19` | `street_greet` | `place:32,27` | 95 |
+
+### 逐条归因
+
+| 夹具 | 断言 | 旧值 → 新值 | 由哪个 commit 造成 | 依据 |
+| --- | --- | --- | --- | --- |
+| memory-decay-20d | `memory.consolidated.archived` | 9 → 0 | `0dfcd2f`（合并级；子提交未细分） | 边界回放：`a6da49e`=9，`0dfcd2f`=0，此后不变 |
+| memory-decay-20d | `memory.consolidated.dropped` | 145 → 187 → 217 → 204 | `0dfcd2f` → `49c953b` → `df69173` | 三点边界回放，与 facts 同步涨落 |
+| memory-decay-20d | `memory.business.facts` | 277 → 297 → 393 → 379 | `0dfcd2f` → `49c953b` → `df69173` | 同上 |
+| memory-decay-20d | `recorded.eventCount` | 458 → 446 | `df69173`（合并级） | `49c953b`、`416eb8b` 仍 458，`df69173`=446 |
+| timetable-daily-markers | `events[3].text` | 桥边打水，顺手冲桥面 → 天亮了，有人去打水。 | `49c953b`（子提交 `ec42e91`） | `git log -S'天亮了，有人去打水。' -- world-client/src/world/timetable.ts` → `ec42e91`；边界回放 `0dfcd2f` 仍旧文案 |
+| timetable-daily-markers | `memory.business.facts` | 9 → 21 → 23 | `0dfcd2f` → `49c953b` | 边界回放 |
+| timetable-daily-markers | `world.facts[1].placeId` | `place:1,1` → `place:23,19` | `49c953b`（子提交 `ec42e91`） | `0dfcd2f` 仍 `place:1,1`，`49c953b` 变 `place:23,19`；`ec42e91` 提交信息写明「打水到水边」 |
+| timetable-daily-markers | `world.facts[8].kind` | `daily_lamp` → `routine_done` → `street_greet` | `0dfcd2f` → `49c953b` | 边界回放；事实条数 9→21→23，索引 8 从点灯被挤到街口招呼 |
+| timetable-daily-markers | `world.facts[8].placeId` | `place:32,29` → `place:19,29` → `place:32,27` | `0dfcd2f` → `49c953b` | 同上，跟着索引 8 指向的事实漂移 |
+| build-demolish-rebuild | `recorded.eventCount` | 101 → 98 → 95 | `49c953b` → `df69173` | 边界回放：`0dfcd2f`=101，`49c953b`=98，`df69173`=95 |
+
+### 两处修正与粒度限制
+
+1. **build 101→95 不是单点**：`49c953b` 先降到 98，`df69173` 再降到 95。
+2. **memory facts/dropped 也不是单点**：跨三次合入涨落，终值 379/204 是净效果。
+3. **没有回归**：每个中间值都在 intended 合入点变化，终值在 `a03a1cb` 精确复现；
+   新夹具在 `a03a1cb` 上 100/100 即为此。
+4. **8 条只到合并级**：memory 的 archived/dropped/facts/事件条数，timetable 的
+   facts/kind[8]/placeId[8]，build 的事件条数。原因分三种：memory 四条与 build 一条受限于
+   「分支提交不含夹具基础设施」或「数值跨两个合入点」；timetable 三条是索引漂移（facts
+   9→21→23 把索引 8 指向的事实换掉），本身就没有单一的子提交改动。memory 那四条另做了
+   两次反事实回放（在 `0dfcd2f` 上）：
+   - 把 `937f247` 改的三个重要性常量恢复成 `0.45 / 0.3 / 0.28` → 仍 0 / 187 / 297，
+     **排除这组常量**；
+   - `git revert --no-commit 1905bdd` → archived 仍 0（且 dropped/facts 变 221/314，
+     说明该提交对这两个读数是反向贡献），**排除整个 `1905bdd`**。
+
+   剩余指向 `0fd53a6`（街头互动首次引入）或 `937f247` 的行为改动；未单独验证，不硬圆。
+5. **范围外**：`recorded` 的业务读数也有变化（如 `creator-dayclose-rejected` 的
+   `metToday` 0→1，`build` 的 memory `facts` 60→78、`entries`/`claims`/`traces`/`bonds`
+   等），本次未逐条归因；它们与上表同源，都是这次重录的一部分。
+6. **遗留**：`timetable-daily-markers` 两条断言的 note 已经过期——「共 9 条」实际是 23，
+   「18:00 点灯事实」实际是 `street_greet`。只影响可读性，不影响校验。
+
 
