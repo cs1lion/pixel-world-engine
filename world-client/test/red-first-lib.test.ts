@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, planTestChanges, classifyBaseFailure, type ChangedFile } from '../scripts/red-first-lib.ts';
+import { parseArgs, planTestChanges, type ChangedFile } from '../scripts/red-first-lib.ts';
+
+/**
+ * 分类器在 base 上可能还不存在。用动态 import + 属性断言，让「缺实现」表现为
+ * 断言失败（而不是 ERR_MODULE_NOT_FOUND / 缺命名导出），这样 red-first 闸门
+ * 才能把这条测试判成合格的红。
+ */
+type ClassifierModule = { classifyBaseFailure?: (output: string) => string };
+const loadClassifier = async (): Promise<ClassifierModule> =>
+  (await import('../scripts/red-first-lib.ts')) as unknown as ClassifierModule;
 
 const change = (status: string, path: string): ChangedFile => ({ status, path });
 
@@ -75,7 +84,9 @@ test('parseArgs：支持 --base/--repo/--timeout/--keep，空 base 当未给', (
   assert.equal(args.keep, true);
 });
 
-test('失败分类：断言失败才算合格的红', () => {
+test('失败分类：断言失败才算合格的红', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     '✖ 正常新测试 (2ms)',
     '  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:',
@@ -83,39 +94,51 @@ test('失败分类：断言失败才算合格的红', () => {
     '  + 3',
     '  - 4',
   ].join('\n');
-  assert.equal(classifyBaseFailure(output), 'assertion');
+  assert.equal(lib.classifyBaseFailure!(output), 'assertion');
 });
 
-test('失败分类：import 不存在判 module，不冒充断言', () => {
+test('失败分类：import 不存在判 module，不冒充断言', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     '✖ test/red-first-probe.test.ts',
     "  Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'file:///tmp/red-first-probe.ts'",
   ].join('\n');
-  assert.equal(classifyBaseFailure(output), 'module');
+  assert.equal(lib.classifyBaseFailure!(output), 'module');
 });
 
-test('失败分类：语法/类型失败判 compile', () => {
-  assert.equal(classifyBaseFailure("SyntaxError: Unexpected token 'export'"), 'compile');
-  assert.equal(classifyBaseFailure('src/a.ts(3,5): error TS2322: Type is not assignable'), 'compile');
+test('失败分类：语法/类型失败判 compile', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
+  assert.equal(lib.classifyBaseFailure!("SyntaxError: Unexpected token 'export'"), 'compile');
+  assert.equal(lib.classifyBaseFailure!('src/a.ts(3,5): error TS2322: Type is not assignable'), 'compile');
 });
 
-test('失败分类：进程崩溃判 crash', () => {
-  assert.equal(classifyBaseFailure('FATAL ERROR: Reached heap limit Allocation failed'), 'crash');
+test('失败分类：进程崩溃判 crash', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
+  assert.equal(lib.classifyBaseFailure!('FATAL ERROR: Reached heap limit Allocation failed'), 'crash');
 });
 
-test('失败分类：没有任何测试信号判 unknown', () => {
-  assert.equal(classifyBaseFailure(''), 'unknown');
-  assert.equal(classifyBaseFailure('some unexpected stderr noise'), 'unknown');
+test('失败分类：没有任何测试信号判 unknown', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
+  assert.equal(lib.classifyBaseFailure!(''), 'unknown');
+  assert.equal(lib.classifyBaseFailure!('some unexpected stderr noise'), 'unknown');
 });
 
-test('失败分类：import 错误与断言文字同时出现时，按 module 处理', () => {
+test('失败分类：import 错误与断言文字同时出现时，按 module 处理', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     'AssertionError [ERR_ASSERTION]: nope',
     "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'x'",
   ].join('\n');
-  assert.equal(classifyBaseFailure(output), 'module');
+  assert.equal(lib.classifyBaseFailure!(output), 'module');
 });
 
-test('失败分类：测试级超时按断言失败处理', () => {
-  assert.equal(classifyBaseFailure("failureType: 'testTimeoutFailure'"), 'assertion');
+test('失败分类：测试级超时按断言失败处理', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
+  assert.equal(lib.classifyBaseFailure!("failureType: 'testTimeoutFailure'"), 'assertion');
 });
