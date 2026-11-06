@@ -128,6 +128,9 @@ export function createWeatherView(
    * 从 `__RAIN_SEED__` 重建雨滴场，再推进 `frames` 个固定步（1000/60 ms/步）。
    * 这样相位只由帧数决定，与墙钟、这一跑实际渲染了多少次无关。
    *
+   * **前提**：步长固定按 60Hz（1000/60 ms）理解。若改步进常量或换刷新率口径，
+   * `WeatherPin.frames` 不再等价于同一相位，必须重钉一组读数。
+   *
    * 没有注入种子时不重建（会把当前画面冻住，`frames` 无效）；截图夹具必须带种子。
    */
   function rebuildToFrames(frames: number): void {

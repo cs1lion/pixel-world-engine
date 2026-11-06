@@ -57,10 +57,17 @@ export interface TrailPin {
  * 钉法：`intensity` 是冻结那一刻写进钉子的**常量**（不是每跑再读实时值）；
  * `frames` 是确定性帧数，渲染层从 `__RAIN_SEED__` 重建后只推进这么多固定步，
  * 之后逐帧画同一张雨幕，不再拿墙钟/animation delta 累加。
+ *
+ * **前提（不是无条件常量）**：固定步长为 `1000/60 ms`，即按 60Hz 计帧。
+ * 若将来改变步进常量、或按别的刷新率理解「帧」，`frames` 对应的相位会整体变化，
+ * 必须同步改这里与 `weather.ts` 的 `advance(1000/60)` 并重新钉一组读数。
  */
 export interface WeatherPin {
   readonly intensity: number;
-  /** 从种子重建后推进的固定步数（1000/60 ms 一步），与墙钟无关。 */
+  /**
+   * 从种子重建后推进的固定步数，一步 = 1000/60 ms（60Hz 前提，与墙钟无关）。
+   * 步进或目标帧率一旦变更，这个数就不再等价于原来的相位，需重钉。
+   */
   readonly frames: number;
 }
 
