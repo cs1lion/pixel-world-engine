@@ -281,6 +281,12 @@ export interface DebugOracle {
    */
   pinTrails?(trails: readonly TrailPin[]): void;
   unpinTrails?(): void;
+  /**
+   * 呈现态（快照之外，截图回归）：钉住雨幕的浓淡与确定性相位。
+   * 不是世界快照的新字段；`unpinShotState()` 复原时一并解。
+   */
+  pinWeather?(intensity: number, frames: number): void;
+  unpinWeather?(): void;
   events(limit: number): readonly WorldEvent[];
   saveStatus(): SaveStatusView;
   /** 某个角色记得的事，按天/时刻排序。省略表示这一面没挂。 */

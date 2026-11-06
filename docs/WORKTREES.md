@@ -58,6 +58,9 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-13 | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 
+**2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
+按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
+
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
 若某个 worktree 实际由其他人/agent 创建，owner 应改成实际负责人或「待认领」，
 不能继续挂默认值——巡检只认表，不认猜。

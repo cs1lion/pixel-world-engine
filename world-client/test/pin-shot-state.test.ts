@@ -11,6 +11,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   NO_SHOT_PIN,
+  PRESENTATION_INPUTS,
   RENDER_INPUT_TABLE,
   actorFrameOf,
   missingRenderFields,
@@ -18,14 +19,17 @@ import {
   pinActors,
   pinShot,
   pinTrails,
+  pinWeather,
   pinnedTrailsOf,
   pinnedVillagersOf,
   presentedNowOf,
   presentedTideOf,
+  presentedWeatherOf,
   unregisteredRenderFields,
   unpinActors,
   unpinShot,
   unpinTrails,
+  unpinWeather,
   type ActorPin,
   type TrailPin,
 } from '../src/render/pin-shot-state.ts';
@@ -476,5 +480,41 @@ test('23. dom 字段在绘制路径 0 命中（静态证明，不依赖某一次
     [],
     'dom 字段出现在绘制路径里：登记表把真进画面的字段错标成了 dom（或新增绘制模块读了它）',
   );
+});
+
+// ------------------------------------------- 呈现态（快照之外）：雨幕
+
+test('24. 呈现态：雨幕钉不在 25 字段表里，实时浓淡变化不影响画面值', () => {
+  // 关键分层：WeatherPin 是呈现态，不是 WorldSnapshot 的第 26 个字段。
+  assert.equal(RENDER_INPUT_TABLE.length, 25, '25 字段表不许因为雨幕变成 26');
+  assert.deepEqual(Object.keys(realSnapshot()).length, 25);
+
+  const pin = pinWeather(NO_SHOT_PIN, 0.86, 24);
+  const first = presentedWeatherOf(pin, 0.85);
+  const second = presentedWeatherOf(pin, 0.87);
+  assert.deepEqual(first, { intensity: 0.86, frames: 24 });
+  assert.deepEqual(second, first, '实时 0.85～0.87 怎么跳，画面值都是钉住的 0.86');
+
+  assert.deepEqual(PRESENTATION_INPUTS.map((entry) => entry.name), ['weatherIntensity', 'rainPhase']);
+  assert.equal(NO_SHOT_PIN.weather, null, '默认路径不钉雨幕');
+
+  // 接线证明：renderSnapshot 必须真的把 shotPin.weather 传给 weatherView。
+  const scene = readFileSync(SCENE_FILE, 'utf8');
+  assert.match(scene, /weatherView\.update\([^;]*this\.shotPin\.weather\)/s, 'weatherView.update 没吃呈现态钉');
+});
+
+test('25. 呈现态解钉与非法值：只解雨幕，非法整条丢弃', () => {
+  const pinned = pinWeather(pinShot(NO_SHOT_PIN, SNAPSHOT_NOW, SNAPSHOT_TIDE), 0.86, 24);
+  const released = unpinWeather(pinned);
+  assert.equal(released.weather, null);
+  assert.equal(released.nowMs, SNAPSHOT_NOW, '只解雨幕，不动时刻');
+  assert.deepEqual(presentedWeatherOf(released, 0.9), { intensity: 0.9, frames: null });
+
+  const base = pinWeather(NO_SHOT_PIN, 0.86, 24);
+  assert.equal(pinWeather(base, Number.NaN, 24), base, 'NaN 浓淡不生效');
+  assert.equal(pinWeather(base, 1.2, 24), base, '越界浓淡不生效');
+  assert.equal(pinWeather(base, 0.86, -1), base, '负帧数不生效');
+  assert.equal(pinWeather(base, 0.86, 1.5), base, '非整数帧数不生效');
+  assert.equal(pinWeather(base, 0.86, 24), base, '同值幂等');
 });
 

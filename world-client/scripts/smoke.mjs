@@ -51,6 +51,9 @@ page.on('pageerror', (error) => errors.push(error.message));
 // 用 addInitScript 在页面脚本之前清，且只清第一次导航（sessionStorage 标记）——
 // 若改成“先 goto 再 clear”，第一份世界会在离开页面时把内存状态自动存档回来。
 await page.addInitScript(() => {
+  // 雨滴确定性种子：只影响雨幕粒子（render/weather.ts），不碰世界随机的 Math.random。
+  // 雨帧三跑 0 差要靠它重建相位，配合 Oracle.pinWeather 的固定帧数。
+  window.__RAIN_SEED__ = 20261106;
   try {
     if (sessionStorage.getItem('xiaoxi.smoke.cleared') === null) {
       localStorage.clear();
@@ -199,11 +202,16 @@ const waitVillagersSettled = async (label = '两人迟迟没有站定') => {
  */
 const PIN_SHOTS = process.env.PIN_SHOTS === '1';
 const SHOT_MINUTE_MS = 45_000_000; // 当天 12:30，与 07/08 同一口径
+// 雨幕呈现态（快照之外）：冻结那一刻写进钉子的常量，跨跑不再读实时的
+// `sim.weatherIntensity()`（冻结点实测 0.85～0.87）与帧 delta 累加的相位。
+// 反向用例用这两个环境变量故意错开一帧 / 改一点浓淡。
+const SHOT_RAIN_FRAMES = Number(process.env.SMOKE_RAIN_FRAMES ?? 24);
+const SHOT_RAIN_INTENSITY = Number(process.env.SMOKE_RAIN_INTENSITY ?? 0.86);
 
 const pinForShot = async (anchor) => {
   if (!PIN_SHOTS) return;
   await page.evaluate(
-    ({ anchor, minuteMs }) => {
+    ({ anchor, minuteMs, rainFrames, rainIntensity }) => {
       window.Oracle.freezeWorldClock();
       const snapshot = window.Oracle.view();
       window.Oracle.pinShotState(
@@ -224,12 +232,20 @@ const pinForShot = async (anchor) => {
           visible: villager.visible,
         })),
       );
+      if (snapshot.weather === 'rain') {
+        // 呈现态：雨幕浓淡 + 确定性相位（从 __RAIN_SEED__ 重建后推进固定帧数）。
+        window.Oracle.pinWeather(rainIntensity, rainFrames);
+        // 雨里她刚跑过屋檐；痕迹只增不减，不钉整张表三跑会多出不同脚印。
+        window.Oracle.pinTrails(
+          snapshot.trails.map((trail) => ({ at: { x: trail.at.x, y: trail.at.y }, strength: trail.strength })),
+        );
+      }
       if (anchor !== null) {
         window.Oracle.setCameraMode('free');
         window.Oracle.centerCameraOn(anchor.x, anchor.y);
       }
     },
-    { anchor, minuteMs: SHOT_MINUTE_MS },
+    { anchor, minuteMs: SHOT_MINUTE_MS, rainFrames: SHOT_RAIN_FRAMES, rainIntensity: SHOT_RAIN_INTENSITY },
   );
   await page.waitForTimeout(300);
 };

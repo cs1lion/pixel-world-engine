@@ -32,6 +32,7 @@ import {
   pinActors,
   pinShot,
   pinTrails,
+  pinWeather,
   pinnedTrailsOf,
   pinnedVillagersOf,
   presentedNowOf,
@@ -39,6 +40,7 @@ import {
   unpinActors,
   unpinShot,
   unpinTrails,
+  unpinWeather,
   type ActorPin,
   type ShotPin,
   type TrailPin,
@@ -4047,6 +4049,19 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
+   * 呈现态（快照之外）：雨幕的浓淡与相位。`intensity` 是冻结那一帧写进来的
+   * 常量，`frames` 是从种子重建后推进的固定帧数——两者都不再从实时值/墙钟读。
+   * 它只改「雨画成什么样」，`WorldSnapshot`、判据与存档一个字节不动。
+   */
+  private pinWeatherState(intensity: number, frames: number): void {
+    this.shotPin = pinWeather(this.shotPin, intensity, frames);
+  }
+
+  private unpinWeatherState(): void {
+    this.shotPin = unpinWeather(this.shotPin);
+  }
+
+  /**
    * 这一帧**画**用的快照：三层覆盖按优先级叠好，谁读画面谁读它。
    *
    *   1. 第六枚钉（`pinTrails`）：地面痕迹画哪几条、强度多少；
@@ -4547,6 +4562,12 @@ export class SandboxScene extends Phaser.Scene {
        */
       pinTrails: (trails: readonly TrailPin[]): void => this.pinTrailState(trails),
       unpinTrails: (): void => this.unpinTrailState(),
+      /*
+       * 呈现态（快照之外）：雨幕浓淡 + 确定性相位。不是第七枚世界钉，
+       * 也不往 WorldSnapshot 里塞字段；`unpinShotState()` 复原时一并解。
+       */
+      pinWeather: (intensity: number, frames: number): void => this.pinWeatherState(intensity, frames),
+      unpinWeather: (): void => this.unpinWeatherState(),
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),
@@ -4728,7 +4749,7 @@ export class SandboxScene extends Phaser.Scene {
         );
       }
     }
-    this.weatherView.update(this.sim.weatherIntensity(), delta);
+    this.weatherView.update(this.sim.weatherIntensity(), delta, this.shotPin.weather);
     this.weatherFogView?.update(this.sim.weatherFogDensity(), presentedNow);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、
     // 今天 13:00 提前盖上了（记忆进行为）。两种都画同一块布。

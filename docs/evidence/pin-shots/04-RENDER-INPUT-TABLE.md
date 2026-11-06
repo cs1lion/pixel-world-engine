@@ -231,3 +231,105 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 原始读数：`render-input/five-pin/diff-12.json`、`diff-23.json`、`diff-13.json`；
 其余组（`four-*` / `five*` / `five-shift` / `trail-shift` / `dom-blank` / `altar-shift`）
 的读数在 `render-input/<组>/screens-diff.json`，掩膜在同目录 `masks/`。
+
+## 八、快照之外的呈现态（雨幕）
+
+### 为什么之前漏了
+
+第一节的表只回答一个问题：**`WorldSnapshot` 的每个字段画不画、怎么钉**。
+雨幕的两个输入根本不在快照里，所以整张表看不见它们：
+
+- `weather` 字段只到 `firefliesVisible(snapshot.weather)` 和状态行——它管的是
+  晴天萤火可见性，**雨天雨幕不读它**；
+- 雨幕浓淡来自 `sim.weatherIntensity()`（仿真派生值），雨滴相位来自
+  `weather.ts` 内部按帧 delta 累加的 `elapsed`。
+
+晴天时 `weatherIntensity()` 恒为 0（见「快照之外的 world 读数」三档 `0 / 0 / 0`），
+三档 0 差把这条路径「看起来覆盖住了」；一旦下雨这个前提就失效。这不是表做错了，
+是表只管快照——**快照之外还有一层呈现态输入**，此前没有任何测试逼它登记。
+
+### 有哪些、谁读它
+
+| 呈现输入 | 读它的函数 | 为什么不在快照里 | 钉法 |
+| --- | --- | --- | --- |
+| `weatherIntensity` | `weatherView.update`：雨滴三层 alpha（远 0.14+0.12·I、近 0.42+0.38·I、中 0.28+0.3·I）、压暗层、雾、水洼涟漪 | `sim.weatherIntensity()` 是连续派生值，冻结那刻实测 0.85～0.87 每次都不同 | `WeatherPin.intensity` 钉成常量 |
+| `rainPhase` | 同上：150 颗雨滴的位置（`xs/ys`）与水洼波纹相位 | `weather.ts` 内部 `elapsed` 按帧 delta 累加，跑多少帧就推多远；同机位不同机器帧数不同 | `WeatherPin.frames` 钉成常量（固定步数） |
+
+**分层**：这是**呈现态**，不是 `WorldSnapshot` 的第 26 个字段。`RENDER_INPUT_TABLE`
+仍是 25 条（pin 4 / stable 10 / dom 11），第 21、22 条守卫一字未动；两条呈现输入
+单独登记在 `PRESENTATION_INPUTS`（`weatherIntensity` / `rainPhase`），证据单列本节。
+
+### 怎么钉
+
+```ts
+export interface WeatherPin {
+  readonly intensity: number; // 冻结那一刻的浓淡（实测 0.85～0.87 → 钉 0.86）
+  readonly frames: number;    // 从 __RAIN_SEED__ 重建后推进的固定步数（24）
+}
+```
+
+- 入口并列、不改旧签名：`Oracle.pinWeather(intensity, frames)` / `unpinWeather()`；
+  `pinShotState(nowMs, tideLevel)` 一个字符没动，`unpinShotState()` 无参连带解。
+- **相位不靠墙钟**：钉住后 `weather.ts` 先 `setRainSeed(__RAIN_SEED__)` 重置 LCG、
+  重建 150 颗雨滴的初始位置，再以固定步长 `1000/60 ms` 推进 `frames` 次
+  （`rebuildToFrames`），之后每帧只 `paint`、不再累加。因此同一 `frames`
+  在不同机器、不同帧率下得到**逐像素相同**的一帧；若继续用「按实际 delta 累加」，
+  帧数不同的机器相位必然不同（跨组对照里那 0.115% 的主因之一）。
+- 浓淡：`update` 读 `pin.intensity`，不读 `sim.weatherIntensity()`；雾密度
+  `weatherFogDensity()` 由它派生，随之一起定住。
+- 非法值（NaN / Infinity / 越界 / 非整数帧）整条丢弃、同值幂等；只解雨幕用
+  `unpinWeather`，不会顺手抹掉时刻/潮位/角色/痕迹。
+- 路由是静态断言的：`SandboxScene.renderSnapshot()` 必须写成
+  `weatherView.update(…, this.shotPin.weather)`，测试第 24 条检索这一句，
+  防止有人另接一条绕过钉的调用。
+
+### 三跑 0 差（同机位雨景）
+
+夹具 `scripts/check-rain-pin.mjs`：沿用 `capture-palette.mjs` 的三把锁
+（`__RAIN_SEED__`、LCG 覆盖 `Math.random`、固定 rAF 帧计数/时间戳），第 30 帧按雨，
+**第 240 帧**调 `Oracle.pinWeather(0.86, 24)`，第 241 帧停。三跑各拍一张。
+
+| 配对 | 精确差 | 可见差 | 结构块 | 字节 / sha |
+| --- | --- | --- | --- | --- |
+| baseline-1 ↔ baseline-2 | **0.0000%**（0 px） | **0.0000%**（0 px） | **0 块** | 22435 B / `303eced7af05132e` |
+| baseline-2 ↔ baseline-3 | **0.0000%**（0 px） | **0.0000%**（0 px） | **0 块** | 同 |
+| baseline-1 ↔ baseline-3 | **0.0000%**（0 px） | **0.0000%**（0 px） | **0 块** | 同 |
+
+三张 PNG 逐字节相同（sha256 前 16 位 `303eced7af05132e`），`screens-diff.py`
+的 `identicalBytes: true`、`deltaHistogram` 全 0。
+
+### 反向用例（必须判红，且红在被改的地方）
+
+| 用例 | 改动 | 精确差 | 可见差 | 结构块 | 判定 |
+| --- | --- | --- | --- | --- | --- |
+| `shift-frame` | `frames` 24 → **25**（雨滴相位错开一帧） | **0.0964%**（592 px），bbox `[30,144,779,501]` | **0.0964%** | **10 块**，最大 **80 px**（8×20）@ `[546,270,553,289]` | **判红** |
+| `shift-intensity` | `intensity` 0.86 → **0.87**（浓淡改一点） | **40.96%**（251686 px），bbox `[0,0,959,639]` | 0.0000%（0 px） | 0 块 | **判红**（精确层） |
+
+- `shift-frame` 的红全落在雨滴自身：10 个块都是 4×12 / 4×18 / 8×20 的雨线，
+  旧帧那条已落下、新帧整体下移一行，色值在 `#929791` 与 `#404a45` 之间互换。
+- `shift-intensity` 的红是**全画布精确差**：浓淡只改 alpha，每像素差值都 < 8
+  （`deltaHistogram`：`ge8 = 0`、`ge32 = 0`），所以「可见层」按 8 级阈值看不见；
+  但精确层 40.96% 判红。这条反向用例同时说明：**判据必须看精确层**，
+  只看可见层会把整体淡变当噪声放过。
+- sha：`shift-frame` `ec997a9dd9a84c4c`（22453 B）、
+  `shift-intensity` `d54f2d2e263babc2`（22447 B），均与基线不同。
+
+### 这解释了雨帧「判不了」，不是升级有问题
+
+Phaser 3 vs 4 的跨组对照里，四个场景逐字节相同，只有雨帧跨组 0.115%；
+而同组三跑本身抖动 0.068%～0.151%——0.115% 落在自己的噪声区间内，
+既判不了「没变」也判不了「变了」。原因正是本节两条输入没钉：
+
+- `weatherIntensity` 每次冻结落在 0.85～0.87 之间（跨组/同组各取各的值），
+  按 `shift-intensity` 的读数，仅 0.01 的差就足以造成大面积精确差；
+- 雨滴相位按实际跑的帧数走，跨组/同组各跑各的帧数，按 `shift-frame` 的读数，
+  差一帧就是 0.0964%。
+
+两者叠加即可到 0.1% 量级，与同组抖动同阶。引擎本身没问题——四个非雨场景逐字节
+相同已经证明了同输入同输出。补钉后雨帧三跑 0 差、两条扰动稳定判红，这一帧才从
+「判不了」变成「可判」，Phaser 4 升级的该组读数也才有意义。
+
+验证入口：`scripts/check-rain-pin.mjs`（三跑 + 两条扰动）、
+`test/pin-shot-state.test.ts` 第 24 条（25 字段表不变、实时 0.85/0.87 不影响画面值、
+`PRESENTATION_INPUTS` 恰好两条、路由静态断言）与第 25 条（只解雨幕、非法整条丢弃、
+同值幂等）。
