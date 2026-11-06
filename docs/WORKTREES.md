@@ -51,7 +51,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-material | feat/interior-view | material-agent（Trae 会话，未推送） | 2026-11-04 | 2026-11-18 | `feat/material-upgrade` 已合入（`b6e8318`，经 `501eda1`）；当前 checkout 的 `feat/interior-view`（`7cd06eb`）未合入 |
 | D:/project/pwe-memexp | experiment/daycard-readonly | 记忆实验线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（`169418d`，经 `3f4ed0f` 合入；worktree 待 owner 回收） |
 | D:/project/pwe-motion | feat/scene-motion | 场景动效线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`9cdcf78`，经 `ff63b96`；worktree 待 owner 回收） |
-| D:/project/pwe-p4-light | sample/phaser4-lighting | 待认领 | 2026-11-06 | 2026-11-20 | 分支无独有提交（tip 是 main 祖先）、工作区含未提交的 Phaser 4 试点改动；用途=光照试点；待处置：提交到分支或回收 |
+| D:/project/pwe-p4-light | sample/phaser4-lighting | Phaser 4 升级/光照试点线（在役会话） | 2026-11-06 | 2026-11-20 | **保留，勿回收**：升级提交 `e3a67e1` 已合入 main（`430dd0d`）；`2250162`（`?light=terrain\|graphics\|on` 探针）留在分支、未 push、未合 main，是光照结论唯一代码载体；工作区干净 |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-13 | 本轮未回收（工作区不干净）：`37c7946` 已合入 main，经 `ce92d97`；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢；到期续登记，回收需 owner 确认（续期不等于留用或批准删除） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2d7406a`，经 `860f2bb`）；远程分支已删（2026-11-05）；worktree 待回收 |
