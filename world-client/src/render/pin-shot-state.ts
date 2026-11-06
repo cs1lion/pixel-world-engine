@@ -242,6 +242,12 @@ export function pinnedTrailsOf(pin: ShotPin, snapshot: WorldSnapshot): WorldSnap
  * `stable` = 画面读它，但它不随世界时刻变（证据：三档冻结快照逐字段 diff 为 0），
  *            因此「冻在哪一刻」不影响它，无需再钉；
  * `dom`   = 绘制路径不读，只进 DOM / 神谕 / 日报（证据：整组置空后像素 0 差）。
+ *
+ * ⚑ `stable` **不是通用结论，只对本场景成立**。它由「本夹具的机器状态」背书：
+ * 工位全 idle、无在建、无道具/氛围实体。语义上会随世界时刻走的字段一旦在别的
+ * 场景变成非空/在产（典型：`workstations[].progress`、`constructions[].remainingMs`），
+ * **必须钉**，不能继续拿 stable 当免钉理由。守卫测试只保证字段被登记，不保证
+ * 登记时的前提永远成立——换场景必须重新跑三档快照 diff。
  */
 export type RenderInputHandling = 'pin' | 'stable' | 'dom';
 
@@ -263,8 +269,8 @@ export const RENDER_INPUT_TABLE: readonly RenderInputEntry[] = Object.freeze([
   { field: 'villager', reader: '-', handling: 'dom', note: '兼容字段（= villagers[0]），绘制路径不读' },
   { field: 'buildings', reader: 'syncBuildings / updateBuilding / refreshDecals', handling: 'stable', note: '楼是静态陈设：三档快照全等' },
   { field: 'startupBuildingIds', reader: '-', handling: 'dom', note: '只用于「这栋楼是不是这次造的」的日报口径' },
-  { field: 'workstations', reader: 'updateBuilding / 烟囱发射器', handling: 'stable', note: 'activity.kind=operating 时才影响烟；本夹具 0 个在产' },
-  { field: 'constructions', reader: 'decor.syncScaffolds / drawScaffolds', handling: 'stable', note: '本夹具无在建' },
+  { field: 'workstations', reader: 'updateBuilding / 烟囱发射器 / phase-view（在产亮窗）', handling: 'stable', note: '⚑ 仅因本场景 11 个工位全 idle 才 stable（三档快照全等）。在产时 progress 随时刻走，**必须钉**' },
+  { field: 'constructions', reader: 'decor.syncScaffolds / drawScaffolds（remainingMs/totalMs）', handling: 'stable', note: '⚑ 仅因本场景无在建才 stable（空表无可比）。在建时 remainingMs 随时刻走，**必须钉**' },
   { field: 'props', reader: 'decor.syncProps', handling: 'stable', note: '地上的小物件：三档全等' },
   { field: 'critters', reader: 'decor.syncCritters', handling: 'stable', note: '氛围实体：本夹具 0' },
   { field: 'roads', reader: 'decor.redrawRoads', handling: 'stable', note: '石板路是静态陈设：三档全等' },

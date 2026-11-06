@@ -49,6 +49,19 @@ now / tide / villager / villagers / trails
 
 计数：**pin 4 / stable 10 / dom 11 = 25**。
 
+### ⚑ `stable` 的前提（不是通用结论）
+
+`stable` 只由**本夹具的机器状态**背书：11 个工位全 `idle`、0 个在建、0 个道具、
+0 个氛围实体。语义上会随世界时刻走的字段一旦在别的场景变成非空/在产：
+
+- `workstations[].progress`（在产时烟囱/亮窗随时间走）
+- `constructions[].remainingMs / totalMs`（在建时脚手架随时间走）
+
+**必须钉**，不能继续拿 stable 当免钉理由。守卫测试只保证字段被登记，不保证
+登记时的前提永远成立——换场景必须重新跑三档冻结快照逐字段 diff。代码侧已在
+`pin-shot-state.ts` 的登记表注释与 `workstations` / `constructions` 两条 note 上
+标了 `⚑`。
+
 > `altar` 与 `weather` 原本被错标成 dom。置空证据一跑就抓到：`altar = null` 直接
 > 在 `phase-view` 抛 `Cannot read properties of null (reading 'x')`；`weather` 的
 > `firefliesVisible` 也会看它。两个都改归 `stable`，并把 dom 置空组缩到 11 个。
