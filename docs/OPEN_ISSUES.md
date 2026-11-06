@@ -31,6 +31,14 @@
 - **建议时机**：合入后整理；暂不处理也可以，但需要在文档里保持“未接线”的标注。
 - **是否需要用户决策**：**是**（删除 vs 接线）。若不接线，建议删除该字段与对应测试，避免误导。
 
+### A4. 街面四级台阶被铺装整段盖住，画面上只剩 2px
+
+- **问题**：`street_steps`（世界坐标 20,31）的四级踏面画完之后，紧接着被后画的 `street_paving`（12,31，长 40 格）整段覆盖；屏幕上能看见的只有最底下 2 行（阶沿墨线 + 底板），踏面本身 0 行可见。几何断言全绿，画面里几乎没有这个构件。**[事实]**
+- **证据**：绘制顺序按 `pack.scenery` 的排列、两者同在 `ground` 一层（[scene-artbook.ts](file:///D:/project/pixel-world-engine/world-client/src/render/scene-artbook.ts#L67-L89)）；数据里台阶在前（[scene-artbook.ts](file:///D:/project/pixel-world-engine/world-client/src/settings/dengchao/scene-artbook.ts#L158-L158)）、铺装在后（[scene-artbook.ts](file:///D:/project/pixel-world-engine/world-client/src/settings/dengchao/scene-artbook.ts#L177-L177)）；铺装是 `fillRect(x, y, w, 16)`（[scene-artbook.ts](file:///D:/project/pixel-world-engine/world-client/src/render/scene-artbook.ts#L563-L563)），恰好盖住四级共 16px（台阶 fill 到 y+15，只有 y+16 的墨线与 y+17 的底板露出）；台阶自身另画到底板与挡墙（[scene-artbook.ts](file:///D:/project/pixel-world-engine/world-client/src/render/scene-artbook.ts#L592-L609)）。
+- **影响**：`stairFlight` 收敛后单测只保证坐标、不保证可见；上面三级无论怎么改都不会出现在图上，视觉验收也测不出来。反向用例 `rise 4→5` 只在设备像素 `[417,335,544,344]`（127×9）这条底带上产生 0.16% 差异——可动的可见面积就是这 2–4px。这是「单测全绿、画面没东西」的典型样本。**[事实+推断]**
+- **建议时机**：本分支只登记，不动代码。要动先裁决「留、挪、删」。
+- **是否需要用户决策**：**是**（**待裁决**）。选项：(1) 把铺装挪到台阶之前画（台阶压在铺装上）；(2) 把台阶挪到铺装尽头或无铺装区；(3) 删掉这个 asset；(4) 明确它是「被盖住的填充件」，在数据里显式标注意图，避免后来者以为它能看见。
+
 ## B. 工程债
 
 ### B1. `Simulation.build` 不支持同模板多栋；配色只能选 token
