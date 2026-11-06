@@ -229,7 +229,7 @@
       "denominator": "单次计分轮 stats.totalCommands（本次 16163；同次预热轮 16163 不计分）。旧分母「5 次计分轮 p50=16162（15514/15514/16162/16162/16162）」已随脚本收敛为单轮计分，按实测归一",
       "source": "world-client/scripts/check-render-budget.mjs 输出（preview/dev http://127.0.0.1:5188/，2026-11-06 合并 feat/interior-view 后重测）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "9cf59ba55dd672fb773ed4c0d9ab2493019a00ae427098bc96a1e117e84b4573",
+      "script_sha": "640b8a00dff4bbf9b61bb8d9c4a2ac04b24bacae4cbaafcb2c047cc8386bd3ff",
       "judge": "program",
       "measured_at": "2026-11-06",
       "gate": "ci-pr",

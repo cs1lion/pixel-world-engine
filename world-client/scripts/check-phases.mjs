@@ -257,16 +257,16 @@ for (const phase of PHASES) {
   );
   check(
     fact.fade.settled,
-    `${phase} 压暗层 8 秒内收敛`,
-    `等待 ${fact.fade.waitedMs}ms / ${fact.fade.frames} 帧`,
+    `${phase} 压暗层 ${fact.fade.maxFrames} 帧内收敛`,
+    `等待 ${fact.fade.frames} 帧（墙钟 ${fact.fade.waitedMs}ms，仅作读数）`,
   );
   check(pass.shots[phase].actual === phase, `?time=${phase} 真的停在${phase}`, `实际 ${pass.shots[phase].actual}`);
 }
 check(pass.errors.length === 0, '四刻页面无 JS 报错', pass.errors.join('; '));
 check(
   pass.nightRain.fade.settled,
-  'night（雨前）压暗层 8 秒内收敛',
-  `等待 ${pass.nightRain.fade.waitedMs}ms / ${pass.nightRain.fade.frames} 帧`,
+  `night（雨前）压暗层 ${pass.nightRain.fade.maxFrames} 帧内收敛`,
+  `等待 ${pass.nightRain.fade.frames} 帧（墙钟 ${pass.nightRain.fade.waitedMs}ms，仅作读数）`,
 );
 
 // 亮度严格递减

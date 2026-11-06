@@ -20,7 +20,7 @@
 | 2 | 三层结构差 | `python scripts/screens-diff.py --old ... --new ... --out ... --structure-spec ...` | 精确差任通道 >0；可见差 RGB ≥8；结构块面积落在 `[minArea,maxArea]` | `verify-screens-diff-selfcheck.py` 正/反向自检（例数看脚本），含 2900 与差 7 级必红 | `screens-diff.json`、`masks/*.png` | 自检已跑通；真图需两跑目录 | 已执行 | 已入 |
 | 3 | 相位帧弱判据 | `node scripts/check-phase-frames.mjs --ref ... --cur ...` / `npm run verify:phase` | 区外差 0 px；区内面积 ≤ `ceil(union*1.4)`；块数 ≤ `ceil(union*1.5)` | `--self-test` 平移出区、面积 ×1.5 必红 | stdout（无文件） | 仅 pwe-anim，需 Chromium | **未执行**（汇总 SKIP）：主仓无脚本、无 verify:phase、无 phase-regions.json（该文件只在 pwe-anim 分支上）；前置 = pwe-anim 工作树 + Chromium + r1/r2 截图 | 主仓 SKIP |
 | 4 | 抓拍夹具与账本 | 四个 `check-*.mjs` + `EVAL_OUT`；`verify:reset`、`verify:compare` | 抓拍脚本只测量不判红；ledger 比对逐像素 sha 全等、尺寸相同 | 改一张 PNG 即 `pixel-diff`，`compare` 退出 1 | `*-pixel-ledger.json` | 需浏览器 + 服务；ledger 仅在 `pwe-anim` | **未执行**：需浏览器 + 5211 本地服务；前置 = 起停 harness + `pixel-ledger`/`compare-ledger` 合入 main | 未入 |
-| 5 | render-budget 双条件 | `node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts`；浏览器 `check-render-budget.mjs` | 指令 <30000、Graphics <40、拖动 ≥0.9 静止、后台 <前台且 ≤1/3 或 ≤12、恢复 ≥0.5 前台 | 单测 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 必红 | `render-budget-samples.json`（有 `EVAL_OUT` 时） | 单测可跑；浏览器需服务 | 已执行（离线单测）；浏览器六项未执行 | 单测已入 |
+| 5 | render-budget（硬闸 + 记录项） | `node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts`；浏览器 `check-render-budget.mjs` | **硬闸**：指令 <30000、Graphics <40、无 JS 报错；**记录项（不阻塞）**：拖动 ≥0.9 静止、后台 <前台且 ≤1/3 或 ≤12、恢复 ≥0.5 前台 | 单测 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 必红；浏览器反例 `RENDER_BUDGET_FORCE_COMMANDS=20000` 硬闸必红 | `render-budget-samples.json`（`EVAL_OUT` 或 `tmp/render-budget/`） | 单测可跑；浏览器需服务 | 已执行（离线单测 + 2026-11-06 浏览器正跑/反例） | 单测已入 |
 | 6 | 入口配色 9 色位 | `node scripts/audit-palette.mjs --strict` + `test/palette-budget.test.ts` | 世界 ≤24、UI ≤9、并集 ≤32、共享恰为 `#e3a13c`；边框对比 ≥3.0（3.49/3.15 是 2026-11-05 历史读数，见流程 6） | 值层测试换值必红；加第 10 个 UI hex 时 `--strict` 退出 1 | `palette-9/*.txt` | 离线可跑 | 已执行（离线）；**第 10 色红例未执行**：需临时给 `index.html` 加第 10 个 UI hex | 已入 |
 | 7 | 疲劳与睡眠 | `node --import ./test/phaser-hooks.mjs --test test/fatigue.test.ts test/homecoming.test.ts` | 0.5/天、睡 4/天、阈 0.8、跨阈 1.6 天、睡段 0.2 天；默认两天 0 次、强制场景 1 次 | 强制跨阈场景必触发 1 次，默认世界必须 0 | 无 | 离线可跑 | 已执行 | 已入 |
 | 8 | 行为/环境/需求 | 六个 `test/*.test.ts` | 规则注册表、环境标志闭集、`delivery_failed` 载荷、旁观分桶 | 交换规则顺序结果变、饥饿到顶必失败、室内只同屋记得 | 无 | 离线可跑；`test:buttons` 404 | 已执行 | 已入 |
@@ -144,7 +144,7 @@ npm run verify:compare -- <左目录> <右目录>
 
 **现状**：需要浏览器 + 本地服务；主仓没有 pixel-ledger.mjs、compare-ledger.mjs、verify:reset、verify:compare，这些只在 pwe-anim 分支上。主仓 `verify-all.mjs` 未纳入，原因见第 4 节。
 
-### 流程 5：render-budget 双条件
+### 流程 5：render-budget（硬闸 = 指令数 + Graphics；fps 三类为记录项）
 
 **触发命令**
 
@@ -152,7 +152,7 @@ npm run verify:compare -- <左目录> <右目录>
 cd D:\project\pixel-world-engine\world-client
 node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts
 
-# 浏览器六项
+# 浏览器：硬闸 3 项 + 记录项 3 项
 node node_modules/vite/bin/vite.js --port 5211 --strictPort
 cd D:\project\pixel-world-engine\world-client
 $env:PIXEL_WORLD_URL='http://127.0.0.1:5211/'
@@ -162,13 +162,15 @@ node scripts/check-render-budget.mjs
 
 **输入**：`scripts/render-budget-threshold.ts` 的纯函数；`test/render-budget-throttle.test.ts`；`docs/evidence/render-budget-threshold/README.md`。
 
-**判据**：绘制指令 `stats.totalCommands < 30000`（`check-render-budget.mjs:39,308-312`）；Graphics 对象 `<40`（`:313-317`）；拖动帧率 ≥ 静止 ×0.9（`:41,319-324`）；后台降频 `back < front` 且（`back ≤ front/3` 或 `back ≤ 12`）（`render-budget-threshold.ts:18-27`，调用点 `check-render-budget.mjs:333-339`）；回前台末秒中位 ≤ `front/0.9` 且每个 1 秒窗 ≥ `front × 0.5`（`:44-46,349-366`）；`session.errors.length === 0`（`:368`）。采样 4 次 × 1 秒，丢首个取后 3 次中位。`[证据]` README 记一次历史实测（2026-11-05/06 归档，5322 端口：指令 15514、Graphics 28、静止 42.3/拖动 51.4、前台 57.0/后台 11.0、恢复 59.9、6 项通过）；`fatigue/gates.txt` 另记 16130/27（2026-11-05 归档）。两处读数来自不同树/日期，**不代表当前值**，当前值跑本流程取；**不一致本身是盘点缺口**。
+**判据（2026-11-06 起）**：**硬闸门**——绘制指令 `stats.totalCommands < 30000`；Graphics 对象 `<40`；`session.errors.length === 0`（非 fps 指标，保持硬闸）。**记录项**（只打印 + 落盘，不 `exit 1`）——拖动帧率 ≥ 静止 ×0.9；后台降频 `back < front` 且（`back ≤ front/3` 或 `back ≤ 12`）；回前台末秒中位 ≤ `front/0.9` 且每个 1 秒窗 ≥ `front × 0.5`。采样 4 次 × 1 秒，丢首个取后 3 次中位。
 
-**反向用例**：单测的四条必红边界：`(60,58)` 不降载、`(60,21)` 半降载、`(37,12.5)` 既超 1/3 又超地板 12、`NaN`；同时 `(19,10)` 在旧规则下 false、新规则 true，证明修的是假红不是放宽。`[实测]` 本次单测通过。
+**为什么把 fps 降为记录项（写进证据）**：共享 runner 上 fps 分不清「机器慢」与「引擎变重」——同一份代码前台 19 帧 vs 57 帧；`前台/3` 在 19 帧时算出 6.33，已贴 Chrome 后台约 10 帧地板，**结构上不可达**。**这是放宽**：代价是中小幅度的真实性能退化在 CI 里看不见，只能靠本地口径已钉住的 `scripts/fps-protocol.mjs`；保留的硬闸仍抓大幅退化（指令翻倍即 >30000）。完整说明见 [GATE_CALIBRATION.md](../GATE_CALIBRATION.md) §9.2。
 
-**产物落点**：`render-budget-samples.json`（仅在 `EVAL_OUT` 存在时写，`check-render-budget.mjs:371-402`）。
+**反向用例**：`[实测 2026-11-06]` `RENDER_BUDGET_FORCE_COMMANDS=20000` 把计分轮读数抬到 **35515**，硬闸 `exit 1`；同一轮三条 fps 记录项仍 `pass`——证明降的只是 fps，不是整条预算闸门。单测边界 `(60,58)`、`(60,21)`、`(37,12.5)`、`NaN` 仍必红（双条件纯函数原样保留）；`(19,10)` 在旧规则下 false、新规则 true，证明修的是假红。
 
-**现状**：离线单测可直接跑；浏览器六项需要服务，主仓 CI 用 5188，本次命令改 5211。
+**产物落点**：`render-budget-samples.json`——`EVAL_OUT` 存在时写该目录，否则写 `world-client/tmp/render-budget/`（`tmp/` 已在 ignore 内）。新增 `records` 数组（逐条 `verdict`/`label`/`detail`）与 `commands.forGate`。
+
+**现状**：离线单测可直接跑；浏览器需要服务，主仓 CI 用 5188，本次命令改 5211。2026-11-06 本机实测：硬闸 3 项通过（指令 15515、Graphics 28、无报错），记录项 3 项 pass。
 
 ### 流程 6：入口配色 9 色位
 
@@ -313,7 +315,7 @@ node scripts/verify-all.mjs --self-test
 | 抓拍四支 `check-*-motion/smoke/shadow` | 需要浏览器 + 本地服务 | 5211 dev server；脚本本身无阈值、无退出码 |
 | `verify:compare` 跨进程账本 | 工具只在 pwe-anim 分支上 | 主仓无 pixel-ledger.mjs / compare-ledger.mjs |
 | 相位帧真跑 | 需要 Chromium + 两跑截图 | 主仓无脚本；`pwe-anim` 需 r1/r2/r3 |
-| render-budget 浏览器六项 | 需要浏览器 + 本地服务 | 5211 dev server；离线只覆盖纯函数边界 |
+| render-budget 浏览器（硬闸 3 项 + 记录项 3 项） | 需要浏览器 + 本地服务 | 5211 预览；离线只覆盖纯函数边界 |
 | smoke / phases / persistence / buttons | 需要浏览器 + 本地服务 | `test:buttons` 仍因 `/api/memory/list` 404 退出 2 |
 
 这些流程不是「没写」，是「当前 checkout 不能无浏览器复算」。要进汇总，需要先补两样东西：一个能自动起停 dev server 的 harness，以及把 `pwe-anim` 的 `pixel-ledger`/`compare-ledger`/`phase-frames` 合进 main。两者都不在本次只读盘点的范围内。
