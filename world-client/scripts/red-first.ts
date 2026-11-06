@@ -190,7 +190,7 @@ function main(): void {
   const worktree = mkdtempSync(join(tmpdir(), 'pwe-red-first-'));
   rmSync(worktree, { recursive: true, force: true });
   try {
-    git(['worktree', 'add', '--detach', worktree, base], repo);
+    git(['worktree', 'add', '-q', '--detach', worktree, base], repo);
     const patch = git(['diff', '--binary', `${base}..HEAD`, '--', 'world-client/test'], repo);
     if (!patch.trim()) {
       console.log('red-first: SKIP 测试 diff 为空（patch 为空）');
