@@ -7,7 +7,8 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { ConstructionSnapshot, Critter, GridPoint, TaskKind, WorldProp } from '../world/types.ts';
 import { paletteFor } from '../world/theme.ts';
-import { ACTOR_DEPTH_OFFSET, propDepth, propFootY } from './prop-depth.ts';
+import { groundTopY, propDepthAt, propFootAt } from './ground.ts';
+import { propDepth, propFootY } from './prop-depth.ts';
 import { grimeSpecks } from './prop-grime.ts';
 import { GRIME_CLEAN } from '../world/grime.ts';
 
@@ -53,7 +54,7 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
       const isRoad = (x: number, y: number): boolean => at.has(x + ',' + y);
       for (const cell of cells) {
         const px = originX + cell.x * TILE_PX;
-        const py = originY + cell.y * TILE_PX;
+        const py = originY + groundTopY(cell.y);
         // 小径：1px soil 软边 + plaza 面 + 不规则石板。描边按「这一侧有没有相邻的径」
         // 逐边判定，多格小径才会连成一条路，而不是一串各自带框的方块。
         roads.fillStyle(paletteFor().plaza, 1);
@@ -106,7 +107,7 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
       trails.clear();
       for (const trail of list) {
         const px = originX + trail.at.x * TILE_PX;
-        const py = originY + trail.at.y * TILE_PX;
+        const py = originY + groundTopY(trail.at.y);
         // 强度 2：草被踩倒一条；强度 3：露出土色。
         // 用 soil（W02）而不是新增色——它是现成的"草下的土"。
         trails.fillStyle(paletteFor().soil, trail.strength >= 3 ? 0.5 : 0.28);
@@ -153,10 +154,10 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
         const g = scene.add.graphics();
         drawCat(g);
         const px = originX + (critter.at.x + 0.5) * TILE_PX;
-        const py = originY + (critter.at.y + 0.8) * TILE_PX;
+        const py = propFootAt(critter.at.y, originY);
         g.setPosition(px, py);
         // 与角色同一把尺子：猫也参与 Y-Sort，走到角色后面会被挡住。
-        g.setDepth(DECOR_ALTITUDE + py + ACTOR_DEPTH_OFFSET);
+        g.setDepth(propDepthAt(critter.at.y, DECOR_ALTITUDE, originY));
         critters.set(critter.id, g);
       }
     },

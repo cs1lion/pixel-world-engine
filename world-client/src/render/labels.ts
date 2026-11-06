@@ -5,6 +5,7 @@
  */
 
 import { TILE_PX } from '../world/setup.ts';
+import { PROP_FOOT_INSET_PX, groundY } from './ground.ts';
 import { GRIME_CLEAN } from '../world/grime.ts';
 import type { VillagerSnapshot } from '../world/types.ts';
 import { viewOriginOf } from './camera-math.ts';
@@ -109,7 +110,7 @@ export function villagerLabelAnchors(
 ): LabelAnchors {
   if (!villager.visible) return { name: null, bubble: null };
   const worldX = (villager.pos.x + 0.5) * TILE_PX;
-  const worldY = (villager.pos.y + 1) * TILE_PX;
+  const worldY = groundY(villager.pos.y);
   const bubble = projectWorldToOverlay(worldX, worldY - VILLAGER_BUBBLE_LIFT, viewport);
   if (villager.bubble !== null) {
     return { name: null, bubble };
@@ -160,7 +161,7 @@ export function revealAnchor(
 ): OverlayPoint {
   return projectWorldToOverlay(
     (prop.at.x + 0.5) * TILE_PX,
-    (prop.at.y + 0.8) * TILE_PX - REVEAL_LIFT_PX,
+    groundY(prop.at.y) - PROP_FOOT_INSET_PX - REVEAL_LIFT_PX,
     viewport,
   );
 }

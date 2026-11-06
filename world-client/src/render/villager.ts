@@ -16,6 +16,7 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
+import { actorDepth, groundY } from './ground.ts';
 import type { Vec2, VillagerSnapshot } from '../world/types.ts';
 import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
@@ -75,21 +76,21 @@ export function createVillager(
   return { container, body, shadow, lamp: newLamp() };
 }
 
-/** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
+/** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。
+ *
+ * 竖直方向走 `ground.groundY`（唯一投影），水平方向与高度无关，仍按格宽算。
+ * `level` 默认 0：阶段 0 全图平地，调用点一个也没传。
+ */
 export function villagerFootAt(
   cell: Vec2,
   originX = 0,
   originY = 0,
+  level = 0,
 ): { readonly x: number; readonly y: number } {
   return {
     x: pixelAt(originX + (cell.x + 0.5) * TILE_PX),
-    y: pixelAt(originY + (cell.y + 1) * TILE_PX),
+    y: pixelAt(originY + groundY(cell.y, level)),
   };
-}
-
-/** 人物 depth：脚底 + 8。上一行的人（脚底小 16px）因此比构件低 4。 */
-export function villagerDepthAt(footY: number, altitude: number): number {
-  return altitude + footY + 8;
 }
 
 /**
@@ -141,7 +142,9 @@ export function updateVillager(
   const py = foot.y;
   view.container.setPosition(px, py);
   view.container.setVisible(villager.visible);
-  view.container.setDepth(villagerDepthAt(py, altitude));
+  // depth 锚在**格行号**，不锚在投影后的脚底：抬层后北边低地人与高地人的
+  // 屏幕脚底会相同，只有行号能把次序定死。阶段 0 全图 level 0，数值与旧公式逐字相同。
+  view.container.setDepth(actorDepth(villager.pos.y, altitude));
 
   // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
   // 推进发生在更新路径上，用的是 simulation 时间：世界暂停时灯也停，

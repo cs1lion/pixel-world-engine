@@ -99,13 +99,13 @@ type OracleSurfaces = OracleApi &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
+import { actorDepth } from '../render/ground.ts';
 import {
   createVillager,
   drawVillagerGroundShadow,
   updateVillager,
   VILLAGER_H,
   VILLAGER_W,
-  villagerDepthAt,
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
@@ -4296,7 +4296,7 @@ export class SandboxScene extends Phaser.Scene {
         return {
           x: foot.x,
           y: foot.y,
-          depth: villagerDepthAt(foot.y, ALTITUDE),
+          depth: actorDepth(cell.y, ALTITUDE),
           w: VILLAGER_W,
           h: VILLAGER_H,
         };

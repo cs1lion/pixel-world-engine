@@ -656,9 +656,10 @@ world.terrainEdits: readonly {
 | `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:52` |
 | `drawTerrain` | `world-client/src/render/tilemap.ts:24` |
 | `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:99` / `:133` |
-| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:79` / `:91` |
-| `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
-| `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
+| `villagerFootAt` | `world-client/src/render/villager.ts:84` |
+| `groundTopY` / `groundY` / `actorDepth` | `world-client/src/render/ground.ts:48` / `:56` / `:64` |
+| `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:40` / `:35` |
+| `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:22` / `:33` |
 | `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:289` |
 | 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |
