@@ -272,7 +272,7 @@ $env:VERIFY_ALL_OUT='D:\project\pwe-verify-out\verify-all'
 node scripts/verify-all.mjs
 ```
 
-`VERIFY_ALL_OUT` 指到仓外，避免往仓库里写生成物；不设时默认 `world-client/tmp/verify-all`（gitignore）。
+`VERIFY_ALL_OUT` 指到仓外，避免往仓库里写生成物；不设时默认 `world-client/tmp/verify-all`（gitignore）。已知副作用只有一项：旁证测试会用 `\n` 覆盖写 `docs/evidence/soak/witnessed-corroboration.json`；入口在跑完后按原始字节还原，本次实测改前/改后 SHA-256 相同（`762EB77A…0FFD4672`），不会污染工作树。
 
 `[实测]` 2026-11-06 的读数：
 
