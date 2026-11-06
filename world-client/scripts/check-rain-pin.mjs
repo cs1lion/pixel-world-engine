@@ -96,7 +96,11 @@ async function capture(browser, { label, pinFrames, pinIntensity }) {
       pinIntensity,
     });
     await page.goto(`${BASE}?ledger=off&time=noon&debug=1`, { waitUntil: 'load' });
-    await page.waitForFunction(() => window.__CAPTURE_STATE__?.done === true, null, { timeout: 30000 });
+    // 夹具接管了 rAF：轮询不能用 `raf`，否则最后一帧后没人再调度回调，永远等不到 done。
+    await page.waitForFunction(() => window.__CAPTURE_STATE__?.done === true, null, {
+      timeout: 30000,
+      polling: 100,
+    });
     await page.waitForTimeout(200);
 
     const state = await page.evaluate(() => ({
