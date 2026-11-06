@@ -34,13 +34,33 @@ interface Claim {
   readonly expected: string;
 }
 
+/**
+ * 递归列出参与计数的测试文件（POSIX 相对路径，已排序）。
+ *
+ * 口径：`world-client/test` 下任意层级、文件名以 `.test.ts` 结尾的文件。
+ * 含子目录（再套一层目录的用例也算），不含辅助脚本、fixture 数据文件，
+ * 以及生成物目录 `node_modules` / `tmp`。
+ */
+function listTestFiles(root: string): string[] {
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === 'tmp') continue;
+        walk(full);
+      } else if (entry.name.endsWith('.test.ts')) {
+        files.push(relative(root, full).replaceAll('\\', '/'));
+      }
+    }
+  };
+  walk(join(root, 'world-client', 'test'));
+  return files.sort();
+}
+
 /** 固定探针：名字 → (root) => 实际值。新增类型必须在这里加，不接受任意命令。 */
 const PROBES: Record<string, (root: string) => string> = {
-  'test-file-count': (root) =>
-    String(
-      readdirSync(join(root, 'world-client', 'test')).filter((name) => name.endsWith('.test.ts'))
-        .length,
-    ),
+  'test-file-count': (root) => String(listTestFiles(root).length),
   'save-schema-version': (root) => {
     const text = readFileSync(join(root, 'world-client', 'src', 'world', 'save.ts'), 'utf8');
     const matched = /CURRENT_SCHEMA_VERSION\s*=\s*(\d+)/.exec(text);
@@ -67,6 +87,15 @@ const PROBES: Record<string, (root: string) => string> = {
     });
     return String(out.split('\n').filter((line) => line.trim() !== '').length);
   },
+};
+
+/** 失败时附带的明细：直接看到多/少了哪个文件，不用再翻一轮树。 */
+const PROBE_DETAILS: Record<string, (root: string) => { scope: string; files: string[] }> = {
+  'test-file-count': (root) => ({
+    scope:
+      'world-client/test 下任意层级的 *.test.ts（递归含子目录；不计辅助脚本、fixture 数据文件，跳过 node_modules/tmp）',
+    files: listTestFiles(root),
+  }),
 };
 
 function walkMarkdown(dir: string): string[] {
@@ -181,6 +210,13 @@ if (JSON_OUT) {
       console.log(
         `FAIL ${item.file}  claim:${item.name}  文档与代码不符，实际是 ${item.actual}（期望 ${item.expected}）`,
       );
+      const detail = PROBE_DETAILS[item.name];
+      if (detail !== undefined) {
+        const { scope, files } = detail(ROOT);
+        console.log(`  统计范围：${scope}`);
+        console.log(`  参与统计的 ${files.length} 个文件：`);
+        for (const file of files) console.log(`    ${file}`);
+      }
     }
   }
   console.log(`adr-schema: files=${adr.files} valid=${adr.files - adr.issues.length}`);
