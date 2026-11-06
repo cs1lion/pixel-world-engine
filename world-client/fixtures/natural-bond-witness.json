@@ -51,7 +51,7 @@
     },
     "recorded": {
       "inputDigest": "0722f41142a828b747fb4e57ea1254043a03bb71473f6ec57e9f7cabdb911b89",
-      "fingerprint": "4e369a5d3a0299aef364ec310da5ac46e24462c5b60d45960cdcce1aa72b6c82",
+      "fingerprint": "68fcbf2d188320039aec127b976edd58e96bd4a99a1d85e8aab46eb69c25dde1",
       "eventCount": 6,
       "eventDigest": "3c27b1e3bb0a25626b48fe01f8be707b806b09e73bbb6b2aed57b0d42be31933",
       "business": {
@@ -72,20 +72,20 @@
         {
           "step": 0,
           "atWorldMs": 85800000,
-          "fingerprint": "5ecf10ef8983152de69b7ea2a1819dce5f196c7c11d7388996b306ba2305875f",
-          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "fingerprint": "ee7b054fee920fef696730aebd2690255475bc6d58b0b9da9b392de1e9fdb007",
+          "memoryFingerprint": "7deb618472b20587801a7441c977d0475efc99adbc529572bfc97e3ea1b1acdd",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 12,
           "atWorldMs": 86520000,
-          "fingerprint": "4e369a5d3a0299aef364ec310da5ac46e24462c5b60d45960cdcce1aa72b6c82",
-          "memoryFingerprint": "2cd700d19126ad6ca99129fc35bf1ff770812b407b0c2028160d6a72bd192a87",
+          "fingerprint": "68fcbf2d188320039aec127b976edd58e96bd4a99a1d85e8aab46eb69c25dde1",
+          "memoryFingerprint": "a4a1f289f5396eed99f83aff21811c26d23737648ec7ea5a546b87bc5ab25284",
           "creatorFingerprint": "88fed9e880eec57b2a86f619b2c3e41917d60cf2f4d9b9e19b6d996c75aef925"
         }
       ],
       "memory": {
-        "fingerprint": "2cd700d19126ad6ca99129fc35bf1ff770812b407b0c2028160d6a72bd192a87",
+        "fingerprint": "a4a1f289f5396eed99f83aff21811c26d23737648ec7ea5a546b87bc5ab25284",
         "business": {
           "lastClosedDay": 1,
           "currentDay": 1,

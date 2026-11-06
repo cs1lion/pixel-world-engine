@@ -30,6 +30,9 @@ jobs:
       # 端口纪律 lint：脚本/配置/.env 里的禁用端口（5188/5191/5202/5203）命中即红。
       - run: npm run audit:ports
       - run: npm test
+      # 夹具回放：5 条真实轨迹，核对输入摘要 → 世界/事件/记忆/造物指纹。
+      # 本地回放合计约 0.9s（单条最慢约 0.45s），放在前端 job 单步跑，不并入其他 step。
+      - run: npm run fixture:check
       # 先红后绿：只把本次 `world-client/test/` 的 diff 套到 base 上再跑，必须红。
       # base 取自事件 sha（PR 用 base.sha，push main 用 before），避免浅克隆/local ref 失真。
       - name: red-first 红灯闸门
