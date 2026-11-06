@@ -142,9 +142,11 @@ test('事件带的时间：秒与毫秒都认，缺失或非法记 null——绝
 });
 
 test('对账：已结算不重复、不复活；缺席不是撤单；撤单才撤', () => {
-  const sample = JSON.parse(
-    readFileSync(new URL('../../docs/save-v5.sample.json', import.meta.url), 'utf8'),
-  ) as WorldSave;
+  const sample = migrateSave(
+    JSON.parse(
+      readFileSync(new URL('../../docs/save-v5.sample.json', import.meta.url), 'utf8'),
+    ) as unknown as Record<string, unknown>,
+  ) as unknown as WorldSave;
   assertSave(sample);
   const demo = 'c_demo000001';
   const settledLedger = 'c_000000000001';
@@ -252,6 +254,8 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
     worldChangeVersion: _worldChangeVersion,
     // v5 的记忆段同理：老档没有它，迁移只补空串，不塞一份假记忆。
     memory: _memory,
+    // v6 的地形改动同理：老档没有它，迁移只补空数组。
+    terrainEdits: _terrainEdits,
     props: migratedProps,
     buildings: migratedBuildings,
     villagers: migratedVillagers,

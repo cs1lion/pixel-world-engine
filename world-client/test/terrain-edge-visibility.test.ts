@@ -44,7 +44,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TERRAIN_COLORS, WORLD } from '../src/world/palette-data.ts';
-import { BRIGHT, DARK, EDGE_VISIBLE_MIN_DL, TERRAIN_HEIGHT } from '../src/render/terrain-edges.ts';
+import { BRIGHT, DARK, EDGE_VISIBLE_MIN_DL, TERRAIN_EDGE_PRIORITY } from '../src/render/terrain-edges.ts';
 import type { TerrainId } from '../src/world/types.ts';
 
 /** §4.1:218 的验收线。 */
@@ -86,7 +86,7 @@ function measurePairs(): readonly PairResult[] {
   const out: PairResult[] = [];
   for (const self of TERRAINS) {
     for (const neighbor of TERRAINS) {
-      if (TERRAIN_HEIGHT[neighbor] >= TERRAIN_HEIGHT[self]) continue;
+      if (TERRAIN_EDGE_PRIORITY[neighbor] >= TERRAIN_EDGE_PRIORITY[self]) continue;
       const token = WORLD[BRIGHT[self]];
       const own = dl(token, TERRAIN_COLORS[self]);
       const against = dl(token, TERRAIN_COLORS[neighbor]);

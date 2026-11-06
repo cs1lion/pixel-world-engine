@@ -84,12 +84,6 @@ export const TERRAIN_WATER_CLEARANCE: Readonly<Record<string, number>> = {
 };
 
 /**
- * 过渡别名：旧名 `TERRAIN_HEIGHT` 与 `render/terrain-edges.ts` 里的视觉优先级表撞名，
- * 本轮先改本表名，测试引用在下一提交一并改走，届时删除此导出。
- */
-export const TERRAIN_HEIGHT = TERRAIN_WATER_CLEARANCE;
-
-/**
  * 被水淹的格子走起来更贵，而不是不可走。
  *
  * 不可走会让读档时落在水里的角色直接卡死（同「迷雾只拦建造」那条教训：

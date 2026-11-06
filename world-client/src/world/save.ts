@@ -1,4 +1,4 @@
-/** 存档 v5：只序列化世界自有事实（ADR_SAVE §1，final / frozen）。
+/** 存档 v6：只序列化世界自有事实（ADR_SAVE §1，final / frozen）。
  *
  * 这里刻意不 import Simulation：存档形状与运行时类解耦，测试可离线校验。
  * 字段冻结规则：WorldSaveV1 与 docs/save-v1.sample.json 必须一致；
@@ -20,6 +20,7 @@ import type {
   TaskRecord,
   TaskSource,
   TaskStatus,
+  TerrainEdit,
   VillagerMode,
   Weather,
   WorkAccent,
@@ -28,12 +29,12 @@ import type {
   WorldProp,
   ZoneId,
 } from './types.ts';
-import { ORACLE_SLAB_LIMIT } from './types.ts';
+import { MAX_TERRAIN_LEVEL, ORACLE_SLAB_LIMIT, TERRAIN_IDS } from './types.ts';
 import { CARRY_ITEMS } from './gate.ts';
 import type { WeatherState } from './weather.ts';
 import type { TideOverride } from './tide.ts';
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 /** 槽位键沿用 v1：升 schema 不改存储键，老档才读得到、才谈得上迁移。 */
 export const SAVE_STORAGE_KEY = 'xiaoxi.pixel-world.save.v1';
 /** 已结算记录超过这个数就告警一次（每会话一次）。 */
@@ -68,6 +69,14 @@ export const SCHEMA_V4_FINGERPRINT = 'aea397c23b23cda4';
  * `memorySchemaVersion` 校验。字段集合与指纹机制不变。
  */
 export const SCHEMA_V5_FINGERPRINT = '3ca5663faee59423';
+/**
+ * v6 冻结指纹。由 docs/save-v6.sample.json 算出，单测核对。
+ *
+ * v6 只加一个**位置**：`world.terrainEdits`。它是玩家改过的地形最终值
+ * （`{x,y,terrain,level}` 的稀疏数组），底稿（设定集里的地形与高度）不入档。
+ * 空数组合法：刚开局没改过任何一格。
+ */
+export const SCHEMA_V6_FINGERPRINT = '042c2fb7730fb185';
 
 /** v1 冻结路径全集（99 条，来自 docs/save-v1.sample.json；指纹见上，单测核对）。
  * `assertSaveV1` 做**集合包含**校验：存档出现的每条叶子路径都必须在这个集合里；
@@ -259,6 +268,21 @@ export const SAVE_V4_ADDED_PATHS: readonly string[] = [
 export const SAVE_V5_ADDED_PATHS: readonly string[] = ['world.memory'];
 
 /**
+ * v6 在 v5 之上新增的叶子路径：**只有地形改动**。
+ *
+ * 底稿（设定集里的地形与 `level`）不入档，运行时按 `GridSpec` 重建；
+ * 这里记的是玩家改过的**最终值**，稀疏、按格去重，读档时不会被底稿覆盖。
+ * 样例里是空数组，所以元素键不在样例路径里，但运行中非空时必须合法。
+ */
+export const SAVE_V6_ADDED_PATHS: readonly string[] = [
+  'world.terrainEdits[]',
+  'world.terrainEdits[].level',
+  'world.terrainEdits[].terrain',
+  'world.terrainEdits[].x',
+  'world.terrainEdits[].y',
+];
+
+/**
  * v1 冻结的 `world.tasks[]` 键集合（必须与 docs/save-v1.sample.json 逐键一致）。
  * 运行时字段（如 ledgerCompletedAt）不得落盘；字段漂移必须升版本，不能裸加。
  */
@@ -413,13 +437,23 @@ export interface SaveWorldLegacy {
 export type MemorySave = string;
 
 /**
- * 当前版本的世界形状 = v1–v4 的全部字段 + `world.memory`。
+ * v5 的世界形状 = v1–v4 的全部字段 + `world.memory`。
  *
  * `memory` 是一个字符串：`MemoryRuntime.toJSON()` 的产物，空串表示没有记忆。
  * 它不展开成对象，理由见 `SCHEMA_V5_FINGERPRINT` 的注释。
  */
-export interface SaveWorld extends SaveWorldLegacy {
+export interface SaveWorldV5 extends SaveWorldLegacy {
   readonly memory: MemorySave;
+}
+
+/**
+ * 当前版本（v6）的世界形状 = v5 + `world.terrainEdits`。
+ *
+ * `terrainEdits` 只记玩家改过的地形**最终值**（稀疏、去重），
+ * 底稿由设定集的 `GridSpec` 重建，不进存档。
+ */
+export interface SaveWorld extends SaveWorldV5 {
+  readonly terrainEdits: readonly TerrainEdit[];
 }
 
 export interface SaveMeta {
@@ -457,12 +491,18 @@ export interface WorldSaveV4 {
 
 export interface WorldSaveV5 {
   readonly schemaVersion: 5;
+  readonly world: SaveWorldV5;
+  readonly meta: SaveMeta;
+}
+
+export interface WorldSaveV6 {
+  readonly schemaVersion: 6;
   readonly world: SaveWorld;
   readonly meta: SaveMeta;
 }
 
-/** 运行期只认当前版本。v1–v4 只在迁移入口出现，不流进 Simulation。 */
-export type WorldSave = WorldSaveV5;
+/** 运行期只认当前版本。v1–v5 只在迁移入口出现，不流进 Simulation。 */
+export type WorldSave = WorldSaveV6;
 
 export type RawSave = Record<string, unknown>;
 
@@ -560,8 +600,15 @@ export const SAVE_V5_ALLOWED_PATHS: readonly string[] = [
   ...SAVE_V5_ADDED_PATHS,
 ];
 
+/** v6 允许全集 = v5 全集 + 地形改动（含非空时的元素键）。 */
+export const SAVE_V6_ALLOWED_PATHS: readonly string[] = [
+  ...SAVE_V5_ALLOWED_PATHS,
+  ...SAVE_V6_ADDED_PATHS,
+];
+
 const SAVE_V4_PATH_SET = new Set(SAVE_V4_ALLOWED_PATHS);
 const SAVE_V5_PATH_SET = new Set(SAVE_V5_ALLOWED_PATHS);
+const SAVE_V6_PATH_SET = new Set(SAVE_V6_ALLOWED_PATHS);
 
 /** 对任意存档对象取指纹（跳过 meta.schemaFingerprint）。 */
 export function saveFingerprint(save: unknown): string {
@@ -746,7 +793,7 @@ function checkPointList(value: unknown, path: string): void {
  * `version` 决定查到哪一版为止：旧档在迁移前必须能过这一层，
  * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`，v2 不查 v3 的三个字段。
  */
-function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5): void {
+function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5 | 6): void {
   const world = asRecord(raw.world, 'world');
 
   checkNumber(requireKey(world, 'now', 'world'), 'world.now', { min: 0 });
@@ -1009,6 +1056,31 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 
     checkString(requireKey(world, 'memory', 'world'), 'world.memory', { allowEmpty: true });
   }
 
+  if (version >= 6) {
+    // ---- 地形改动（v6）：玩家改过的最终值，稀疏、按格去重。
+    // 底稿（设定集的 terrain/level）不入档；这里只拦「同一格两条最终值」这种坏档。
+    const edits = asArray(requireKey(world, 'terrainEdits', 'world'), 'world.terrainEdits');
+    const seen = new Set<string>();
+    edits.forEach((item, index) => {
+      const path = `world.terrainEdits[${index}]`;
+      const edit = asRecord(item, path);
+      const x = checkNumber(requireKey(edit, 'x', path), `${path}.x`, { min: 0, integer: true });
+      const y = checkNumber(requireKey(edit, 'y', path), `${path}.y`, { min: 0, integer: true });
+      const level = checkNumber(requireKey(edit, 'level', path), `${path}.level`, {
+        min: 0, integer: true,
+      });
+      if (level > MAX_TERRAIN_LEVEL) {
+        fail(`${path}.level`, `必须在 0..${MAX_TERRAIN_LEVEL}，实际 ${level}`);
+      }
+      checkEnum(requireKey(edit, 'terrain', path), TERRAIN_IDS, `${path}.terrain`);
+      const key = `${x},${y}`;
+      if (seen.has(key)) {
+        fail(`${path}`, `同一格 ${key} 出现两次；改动必须是最终值、按格去重`);
+      }
+      seen.add(key);
+    });
+  }
+
   // ---- 天气
   const weather = asRecord(requireKey(world, 'weather', 'world'), 'world.weather');
   checkEnum(requireKey(weather, 'kind', 'world.weather'), WEATHER_KINDS, 'world.weather.kind');
@@ -1071,8 +1143,9 @@ function validateMetaFields(raw: Record<string, unknown>): void {
  */
 export function validateSaveFields(
   raw: unknown,
-  version: 1 | 2 | 3 | 4 | 5 = CURRENT_SCHEMA_VERSION,
-): asserts raw is WorldSaveV1 | WorldSaveV2 | WorldSaveV3 | WorldSaveV4 | WorldSaveV5 {
+  version: 1 | 2 | 3 | 4 | 5 | 6 = CURRENT_SCHEMA_VERSION,
+): asserts raw is
+  | WorldSaveV1 | WorldSaveV2 | WorldSaveV3 | WorldSaveV4 | WorldSaveV5 | WorldSaveV6 {
   if (!isObject(raw)) fail('存档', '不是对象');
   validateMetaFields(raw);
   validateWorldFields(raw, version);
@@ -1091,10 +1164,10 @@ export function validateSaveFields(
  *
  * 三层各管一段，合起来才等价于"形状完全没变"；任何一层失败都按坏档处理。
  *
- * 迁移完成后到这里的存档是 **v5**——`CURRENT_SCHEMA_VERSION = 5`，而 `assertSave`
- * 第一件事就是拿它比（下面那个 `schemaVersion 不是 5` 的抛错）。
+ * 迁移完成后到这里的存档是 **v6**——`CURRENT_SCHEMA_VERSION = 6`，而 `assertSave`
+ * 第一件事就是拿它比（下面那个 `schemaVersion 不是 6` 的抛错）。
  */
-export function assertSave(raw: unknown): asserts raw is WorldSaveV5 {
+export function assertSave(raw: unknown): asserts raw is WorldSaveV6 {
   if (!isObject(raw)) throw new Error('存档不是对象');
   if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`schemaVersion 不是 ${CURRENT_SCHEMA_VERSION}（迁移没跑？）`);
@@ -1108,7 +1181,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV5 {
   if (typeof meta.schemaFingerprint !== 'string') {
     throw new Error('存档缺 meta.schemaFingerprint（当前版本要求该字段存在）');
   }
-  if (meta.schemaFingerprint !== SCHEMA_V5_FINGERPRINT) {
+  if (meta.schemaFingerprint !== SCHEMA_V6_FINGERPRINT) {
     throw new Error('存档指纹不符（字段变了但版本没升，或存档损坏）');
   }
   // 第 1 层：字段级类型/范围/存在性（含 weather/faith、各数组元素、done⊆settled）。
@@ -1121,7 +1194,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV5 {
     assertKeys(task as Record<string, unknown>, SAVE_TASK_KEYS, 'world.tasks[]');
   }
   // 第 3 层：路径集合包含校验——只防「新增路径」（顶层/world/meta/数组元素里多字段）。
-  const outside = collectSavePaths(raw).filter((path) => !SAVE_V5_PATH_SET.has(path));
+  const outside = collectSavePaths(raw).filter((path) => !SAVE_V6_PATH_SET.has(path));
   if (outside.length > 0) {
     throw new Error(
       `存档字段漂移：出现 v${CURRENT_SCHEMA_VERSION} 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
@@ -1183,7 +1256,8 @@ function showPoint(point: { readonly x: number; readonly y: number }): string {
  * 启动 + 指名是哪栋楼」。
  *
  * 本函数对建筑查的仍然只是**坐标这个数在不在世界里**，跟落位合不合法不是一件事。
- * 落位那一层有三个不放行的路子，出处是两处：两栋楼重叠、门口落在自己占地里是
+ * 落位那一层有三个不放行的路子，出处是两处：
+ * 两栋楼重叠、门口落在自己占地里是
  * `WorldGrid.place()` 返回 false；门口到不了镇心是 `assertWorldInvariants` 经
  * `doorReaches` 抛的 `WorldSetupError`。它们一个都不归本函数管，今天也都不白屏了。
  *
@@ -1249,6 +1323,14 @@ export function findOutOfWorldCoordinates(
     }
   });
 
+  // 地形改动（v6）：越界的改动不会抛，只会永远落不到任何格子上——
+  // 于是「我明明改过这里」变成一句没人能验证的话。一样点名。
+  world.terrainEdits.forEach((edit, index) => {
+    if (outsideWorld(edit, bounds)) {
+      out.push(`world.terrainEdits[${index}] = ${showPoint(edit)}`);
+    }
+  });
+
   return out;
 }
 
@@ -1261,7 +1343,7 @@ export function findOutOfWorldCoordinates(
  */
 function assertLegacySave(
   raw: unknown,
-  version: 1 | 2 | 3 | 4,
+  version: 1 | 2 | 3 | 4 | 5,
   fingerprint: string,
   pathSet: ReadonlySet<string>,
 ): void {
@@ -1323,6 +1405,15 @@ export function assertSaveV3(raw: unknown): asserts raw is WorldSaveV3 {
  */
 export function assertSaveV4(raw: unknown): asserts raw is WorldSaveV4 {
   assertLegacySave(raw, 4, SCHEMA_V4_FINGERPRINT, SAVE_V4_PATH_SET);
+}
+
+/**
+ * 只认 v5 形状的自证校验。v5→v6 迁移前用它，理由同 v1/v3/v4：
+ * v5 曾经是当前版本，降级为旧版之后，迁移链必须先证明「它确实是 v5」，
+ * 否则被改过的 v5 档会被安静地迁成 v6。
+ */
+export function assertSaveV5(raw: unknown): asserts raw is WorldSaveV5 {
+  assertLegacySave(raw, 5, SCHEMA_V5_FINGERPRINT, SAVE_V5_PATH_SET);
 }
 
 /** 逐级迁移链入口；任一步抛错都拒绝加载（ADR_SAVE §3）。 */
@@ -1468,6 +1559,27 @@ export const MIGRATIONS: Record<number, Migration> = {
       meta: { ...meta, schemaFingerprint: SCHEMA_V5_FINGERPRINT },
     };
   },
+
+  /**
+   * v5 → v6：只补一个位置 `world.terrainEdits`（见 SCHEMA_V6_FINGERPRINT 的注释）。
+   *
+   * 缺省是空数组：老档的世界从来没被玩家改过地形，不能凭空安一条改动上去。
+   * 这个数组是**最终值**（不是增量日志），同一格后写的覆盖先写的；
+   * 空的含义是「底稿是什么就是什么」，不是「世界被清空了」。
+   */
+  5: (raw) => {
+    const world = isObject(raw.world) ? raw.world : {};
+    const meta = isObject(raw.meta) ? raw.meta : {};
+    return {
+      ...raw,
+      schemaVersion: 6,
+      world: {
+        ...world,
+        terrainEdits: Array.isArray(world.terrainEdits) ? world.terrainEdits : [],
+      },
+      meta: { ...meta, schemaFingerprint: SCHEMA_V6_FINGERPRINT },
+    };
+  },
 };
 
 export function migrateSave(raw: RawSave): RawSave {
@@ -1477,6 +1589,7 @@ export function migrateSave(raw: RawSave): RawSave {
   if (version === 2) assertSaveV2(raw);
   if (version === 3) assertSaveV3(raw);
   if (version === 4) assertSaveV4(raw);
+  if (version === 5) assertSaveV5(raw);
   let current = raw;
   let cursor = version;
   while (cursor < CURRENT_SCHEMA_VERSION) {

@@ -1092,7 +1092,7 @@ export class SoakRun {
         schemaVersion?: number;
         world?: { villagers?: unknown[]; memory?: unknown };
       };
-      if (parsed.schemaVersion !== 5) push('save-schema-v5', String(parsed.schemaVersion));
+      if (parsed.schemaVersion !== 6) push('save-schema-v6', String(parsed.schemaVersion));
       if (parsed.world?.villagers?.length !== snapshot.villagers.length) {
         push('save-villager-count', String(parsed.world?.villagers?.length));
       }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   FLOODED_WALK_COST,
-  TERRAIN_HEIGHT,
+  TERRAIN_WATER_CLEARANCE,
   TIDE_JITTER_MS,
   TIDE_PERIOD_MS,
   describeTide,
@@ -71,7 +71,7 @@ test('潮位跨周期连续，不会在周期边界跳变', () => {
 
 test('被淹判定按地形高度算', () => {
   // 退潮时全干。
-  for (const terrain of Object.keys(TERRAIN_HEIGHT)) {
+  for (const terrain of Object.keys(TERRAIN_WATER_CLEARANCE)) {
     assert.equal(isFlooded(terrain, 0), false, `${terrain} 在退潮时不该被淹`);
   }
   // 满潮时草地与农田进水，石板路与广场露出。

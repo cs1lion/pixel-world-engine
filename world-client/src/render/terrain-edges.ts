@@ -61,11 +61,6 @@ export const TERRAIN_EDGE_PRIORITY: Readonly<Record<TerrainId, number>> = {
 };
 
 /**
- * 过渡别名：旧名与 `world/tide.ts` 的水面净空表撞名，测试引用在下一提交改走，届时删除。
- */
-export const TERRAIN_HEIGHT = TERRAIN_EDGE_PRIORITY;
-
-/**
  * 亮一档 token 名：只用现有 24 色里的 `grassLit` / `plaza`。
  *
  * 存 **token 名**而不是解析后的色值：设定集换掉 `plaza` 时，边要跟着换，

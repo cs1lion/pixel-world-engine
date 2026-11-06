@@ -1,7 +1,7 @@
 /** task-32：v1 字段级校验 + 参数化变异测试。
  *
  * 口径（用户批准）：
- *   1. 不改 schemaVersion、不改指纹与样例、不动 99+4 路径集；
+ *   1. 不改已冻结的旧样例与旧指纹；当前样例随版本升到 v6，只多 `world.terrainEdits`；
  *   2. 冻结样例必须仍能加载；
  *   3. 每个叶子字段都有「类型 + 范围/枚举」声明；缺失/错类型/越界一律按坏档拒绝，
  *      **不静默补默认值**；
@@ -17,7 +17,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, placeBlueprint } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
@@ -30,7 +30,6 @@ import {
   PROP_KINDS,
   SAVE_STORAGE_KEY,
   SAVE_V1_ALLOWED_PATHS,
-  SCHEMA_V5_FINGERPRINT,
   SILHOUETTES,
   TASK_KINDS,
   TASK_SOURCES,
@@ -42,13 +41,24 @@ import {
   ZONES,
   type WorldSave,
 } from '../src/world/save.ts';
+import * as saveModule from '../src/world/save.ts';
 import { parseSaveText, SaveStore, type StorageLike } from '../src/ui/save-store.ts';
+
+/** v6 常量在「提交 A」上还不存在：从命名空间取，缺了让断言红，而不是模块错误。 */
+const SCHEMA_V6_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V6_FINGERPRINT?: string }).SCHEMA_V6_FINGERPRINT ?? '';
 
 const rawPrefabs = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(rawPrefabs);
-const sampleText = readFileSync(new URL('../../docs/save-v5.sample.json', import.meta.url), 'utf8');
+/** v6 样例是新增文件；「提交 A」上没有它时退回 v5，让这一组红在断言而不是 ENOENT。 */
+const sampleText = readFileSync(
+  existsSync(new URL('../../docs/save-v6.sample.json', import.meta.url))
+    ? new URL('../../docs/save-v6.sample.json', import.meta.url)
+    : new URL('../../docs/save-v5.sample.json', import.meta.url),
+  'utf8',
+);
 
 class FakeStorage implements StorageLike {
   readonly data = new Map<string, string>();
@@ -249,7 +259,7 @@ test('task-32：冻结样例仍能加载（read + importText + parseSaveText 三
   const sample = JSON.parse(sampleText) as WorldSave;
   assert.doesNotThrow(() => validateSaveFields(sample, CURRENT_SCHEMA_VERSION), '样例必须过字段级校验');
   assert.doesNotThrow(() => assertSave(sample), '样例必须过完整校验');
-  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V5_FINGERPRINT);
+  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
 
   const parsed = parseSaveText(sampleText);
   assert.equal(parsed.ok, true);

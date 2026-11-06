@@ -1,29 +1,21 @@
-# ADR：分层高度差地形 + 地貌（提案，只设计不实现）
+# ADR：分层高度差地形 + 地貌（设计 + 阶段 1 数据模型）
 
-- status: proposed
+- status: pending-review
+- verified_at: 2026-11-06
+- verified_by: agent，按只读证据核对，用户授权，2026-11-06
 - date: 2026-11-06
-- scope: 只写文档；不改 `src/`、不改测试、不提交代码、不起服务
+- scope: 设计文档；阶段 1 只落数据模型，不改渲染坐标、不接消费者
 - 代码快照: `f11852c`（`origin/main`）
-- evidence（只读核对过的文件）：
-  `world-client/src/world/grid.ts`, `world-client/src/world/types.ts`,
-  `world-client/src/world/setup.ts`, `world-client/src/world/save.ts`,
-  `world-client/src/world/tide.ts`, `world-client/src/world/simulation.ts`,
-  `world-client/src/world/routines.ts`, `world-client/src/world/world-changes.ts`,
-  `world-client/src/render/tilemap.ts`, `world-client/src/render/bake.ts`,
-  `world-client/src/render/villager.ts`, `world-client/src/render/buildings.ts`,
-  `world-client/src/render/building-depth.ts`, `world-client/src/render/prop-depth.ts`,
-  `world-client/src/render/scenery-depth.ts`, `world-client/src/render/terrain-edges.ts`,
-  `world-client/src/scenes/SandboxScene.ts`, `world-client/scripts/check-render-budget.mjs`,
-  `docs/adr/ADR_SAVE.md`, `docs/adr/ADR_WORLD_FACTS_SOURCE.md`,
-  `world-client/test/pave-reachable.test.ts`, `world-client/test/path-cost.test.ts`,
-  `world-client/test/tide.test.ts`, `world-client/test/settings.test.ts`,
-  `world-client/test/pack-venue.test.ts`
+- evidence: `world-client/src/world/grid.ts`, `world-client/src/world/types.ts`, `world-client/src/world/setup.ts`, `world-client/src/world/save.ts`, `world-client/src/world/tide.ts`, `world-client/src/world/simulation.ts`, `world-client/src/world/routines.ts`, `world-client/src/world/world-changes.ts`, `world-client/src/render/tilemap.ts`, `world-client/src/render/bake.ts`, `world-client/src/render/villager.ts`, `world-client/src/render/buildings.ts`, `world-client/src/render/building-depth.ts`, `world-client/src/render/prop-depth.ts`, `world-client/src/render/scenery-depth.ts`, `world-client/src/render/terrain-edges.ts`, `world-client/src/scenes/SandboxScene.ts`, `world-client/scripts/check-render-budget.mjs`, `docs/adr/ADR_SAVE.md`, `docs/adr/ADR_WORLD_FACTS_SOURCE.md`, `world-client/test/pave-reachable.test.ts`, `world-client/test/path-cost.test.ts`, `world-client/test/tide.test.ts`, `world-client/test/settings.test.ts`, `world-client/test/pack-venue.test.ts`
 
 > **行号口径**：下面给的 `文件:行号` 只对 `f11852c` 成立。仓库的引用审计查不出「这一行还是不是那个东西」，
 > 所以每个关键位置同时给**可 grep 的记号**（函数名 / 常量名 / 原句）。行号漂了就以记号为锚，别以行号为准。
 
-> **这份文档没有实现证据**：仓库里今天没有高度字段、没有高度投影、没有地形改动入档、没有桥/沟/梯。
-> 下面的「现状」都指 `f11852c` 的真实代码；「决策」都是设计，**没有一行被实现**。凡是我查不到的，§11 明说查不到。
+> **这份文档的「现状」指 `f11852c` 的真实代码，本身不是实现证据**：那时仓库里没有高度字段、没有高度投影、没有地形改动入档、没有桥/沟/梯。
+> 之后的「阶段 1（仅数据模型）」已落地：`TileCell.level`、`GridSpec.levels/ramps/ladders`、`grid.levelAt`、
+> `world.terrainEdits` 的 v6 结构与序列化。**这些字段没有消费者**——渲染、寻路、存档重建都不读 `level`，
+> 抬层不会改变任何像素或可达性；投影收敛、`canStep`/`nearestWalkableOnLevel`、崖面仍只在设计里。见 §8 的落地记录。
+> 凡是我查不到的，§11 明说查不到。
 
 ---
 
@@ -73,9 +65,9 @@
 - 代码：`setup.ts:624-642`（grep `export function rebuildGridFromPlacements`），
   读档入口 `setup.ts:661-671`（`buildWorldFromSave`），
   生产入口 `main.ts:82`（`buildWorldFromSave(save.world.buildings, pack.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR)`）。
-- 存档版本：`save.ts:36` `CURRENT_SCHEMA_VERSION = 5`；
-  v5 冻结指纹 `save.ts:70`；v5 新增路径 `save.ts:259`（`world.memory`）；
-  v5 允许路径全集 `save.ts:557-565`；迁移表 `save.ts:1331`；v4→v5 迁移 `save.ts:1455-1468`。
+- 存档版本：`save.ts:37` `CURRENT_SCHEMA_VERSION = 6`（本阶段已升版）；
+  v5 冻结指纹 `save.ts:71`；v5 新增路径 `save.ts:268`（`world.memory`）；
+  v5 允许路径全集 `save.ts:598-602`；迁移表 `save.ts:1422`；v4→v5 迁移 `save.ts:1546-1560`。
 
 ### 1.3 今天没有投影函数，只有逐格换算
 
@@ -303,7 +295,7 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 上层门面：`reaches()` `setup.ts:583-591`（`goal = isWalkable(to) ? to : nearestWalkable(to)`），
   `doorReaches()` `setup.ts:601-602`，`paveFrom()` `setup.ts:612-620`。
 - 生产调用点：`world-client/src/settings/load.ts:442`（门）、`:473`（村民巡游点），
-  `world-client/src/world/simulation.ts:2920`、`:3355`、`:4842`（目标改写/回家/默认点），
+  `world-client/src/world/simulation.ts:2929`、`:3364`、`:4857`（目标改写/回家/默认点），
   `world-client/src/world/routines.ts:54-61`（园子、长廊、摊位、河边四个点）。
 
 ### 4.2 具体判断：哪些测试会失效、为什么
@@ -364,7 +356,7 @@ reaches(grid, from, to)
 
 - `path` 内部：`passable(next)` 改成 `canStep(current, next, accept)`；
   `costAt(next)` 改成 `stepCost(current, next)`；**起点也要先判可站**（当前代码只判目标，
-  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2306` 的注释与代码不一致——顺手在这一处补齐）。
+  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2315` 的注释与代码不一致——顺手在这一处补齐）。
 - `pave-reachable` 的语义**保持**：端点自己可走时按端点算；不可走时允许改写，但改写候选必须
   **与目标同层**，是否可达仍由 `path` 判。`pave-reachable.test.ts:178` 的“树篱 hub、一门之隔”仍然为真；
   `:196` 的“真被围死的门”仍然为假——这两条是本次改动不能碰坏的既有语义。
@@ -424,8 +416,8 @@ world.terrainEdits: readonly {
 
 ### 5.3 版本与兼容
 
-- `CURRENT_SCHEMA_VERSION` 5 → 6（`save.ts:36`）。
-- `MIGRATIONS[5]`：只补 `world.terrainEdits = []`，其余字段逐字不动（照 `save.ts:1455-1468` 的写法）。
+- `CURRENT_SCHEMA_VERSION` 5 → 6（`save.ts:37`）。
+- `MIGRATIONS[5]`：只补 `world.terrainEdits = []`，其余字段逐字不动（照 `save.ts:1546-1560` 的写法）。
 - 新冻结指纹 `SCHEMA_V6_FINGERPRINT`，由新样例 docs/save-v6.sample.json 算出；
   **v5 样例与 `SCHEMA_V5_FINGERPRINT` 保留**，v5 的 `assertSaveV5`/允许路径集合保留。
 - `SAVE_V6_ADDED_PATHS = ['world.terrainEdits']`；`SAVE_V6_ALLOWED_PATHS` 基于 v5 集合追加。
@@ -535,6 +527,11 @@ world.terrainEdits: readonly {
 | **5 地形改动** | 修桥/挖沟的编辑入口、v6 `terrainEdits`、rebake、可选 `world.changed` | 否 | 3（语义稳定后） |
 
 每一步都给自己的闸；阶段 0/1 的验收是“0 差”，阶段 3 起才是“按语义重录基线”。
+
+**阶段 1 落地记录（本次交付）**：只落了数据模型与 v6 结构——`level` 默认 0、构造期 `levels` / `ramps` / `ladders`
+编译成 `climb`、唯一读入口 `grid.levelAt(p)`、`world.terrainEdits` 只搬运与序列化。
+`canStep` / `nearestWalkableOnLevel` 未做；渲染与寻路没有读 `level`；`terrainEdits` 没有任何写入者。
+验收读数留在本轮报告里，不在这份文档里写死（测试数会漂）。
 
 ---
 
@@ -646,17 +643,17 @@ world.terrainEdits: readonly {
 
 | 记号 | 位置 |
 | --- | --- |
-| `interface TileCell` | `world-client/src/world/types.ts:28` |
-| `readonly terrain?:` / `constructor(spec: GridSpec` | `world-client/src/world/grid.ts:46` / `:120` |
-| `function terrainFor` | `world-client/src/world/grid.ts:603` |
-| `isWalkable` / `costAt` | `world-client/src/world/grid.ts:251` / `:272` |
-| `path(` / `nearestWalkable` | `world-client/src/world/grid.ts:394` / `:487` |
+| `interface TileCell` | `world-client/src/world/types.ts:42` |
+| `readonly terrain?:` / `constructor(spec: GridSpec` | `world-client/src/world/grid.ts:61` / `:150` |
+| `function terrainFor` | `world-client/src/world/grid.ts:709` |
+| `isWalkable` / `costAt` | `world-client/src/world/grid.ts:297` / `:326` |
+| `path(` / `nearestWalkable` | `world-client/src/world/grid.ts:448` / `:541` |
 | `reaches` / `doorReaches` / `paveFrom` | `world-client/src/world/setup.ts:583` / `:601` / `:612` |
 | `rebuildGridFromPlacements` / `buildWorldFromSave` | `world-client/src/world/setup.ts:624` / `:661` |
-| `CURRENT_SCHEMA_VERSION` / `SCHEMA_V5_FINGERPRINT` | `world-client/src/world/save.ts:36` / `:70` |
-| `MIGRATIONS` / v4→v5 | `world-client/src/world/save.ts:1331` / `:1455` |
-| `isFlooded` / `TERRAIN_HEIGHT`（潮） | `world-client/src/world/tide.ts:180` / `:71` |
-| `TERRAIN_HEIGHT`（画边） | `world-client/src/render/terrain-edges.ts:52` |
+| `CURRENT_SCHEMA_VERSION` / `SCHEMA_V5_FINGERPRINT` | `world-client/src/world/save.ts:37` / `:71` |
+| `MIGRATIONS` / v4→v5 | `world-client/src/world/save.ts:1422` / `:1546` |
+| `isFlooded` / `TERRAIN_WATER_CLEARANCE`（潮） | `world-client/src/world/tide.ts:180` / `:71` |
+| `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:52` |
 | `drawTerrain` | `world-client/src/render/tilemap.ts:24` |
 | `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:99` / `:133` |
 | `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:79` / `:91` |

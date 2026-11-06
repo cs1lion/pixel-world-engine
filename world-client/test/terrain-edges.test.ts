@@ -9,7 +9,7 @@ import {
   EDGE_VISIBLE_MIN_DL,
   SIDE_BIT,
   TERRAIN_EDGE_VARIANTS,
-  TERRAIN_HEIGHT,
+  TERRAIN_EDGE_PRIORITY,
   cornerMask,
   primitiveCount,
   sideMask,
@@ -37,7 +37,7 @@ test('材质高度序 tree > grass > farm > stone > plaza', () => {
   const order: readonly TerrainId[] = ['tree', 'grass', 'farm', 'stone', 'plaza'];
   for (let i = 1; i < order.length; i += 1) {
     assert.ok(
-      TERRAIN_HEIGHT[order[i - 1]!] > TERRAIN_HEIGHT[order[i]!],
+      TERRAIN_EDGE_PRIORITY[order[i - 1]!] > TERRAIN_EDGE_PRIORITY[order[i]!],
       `${order[i - 1]} 必须高于 ${order[i]}`,
     );
   }
@@ -55,7 +55,7 @@ test('边只画在高度更高的一侧', () => {
   for (const self of TERRAINS) {
     for (const other of TERRAINS) {
       const mask = sideMask(self, all(other));
-      const shouldDraw = TERRAIN_HEIGHT[other] < TERRAIN_HEIGHT[self];
+      const shouldDraw = TERRAIN_EDGE_PRIORITY[other] < TERRAIN_EDGE_PRIORITY[self];
       assert.equal(
         mask !== 0,
         shouldDraw,
@@ -262,7 +262,7 @@ test('暗边色对本格底色 ΔL* ≥ 6（边可见性回归锁）', () => {
  */
 test('stone 亮边豁免的结构前提（改这三条任一都必须重估豁免）', () => {
   // ① stone 是高度 1，比它低的只有 plaza（高度 0）
-  const lowerNeighbors = TERRAINS.filter((t) => TERRAIN_HEIGHT[t] < TERRAIN_HEIGHT.stone);
+  const lowerNeighbors = TERRAINS.filter((t) => TERRAIN_EDGE_PRIORITY[t] < TERRAIN_EDGE_PRIORITY.stone);
   assert.deepEqual(lowerNeighbors, ['plaza'], 'stone 的低邻格必须只有 plaza');
 
   // ② BRIGHT.stone 用的就是 plaza 的底色

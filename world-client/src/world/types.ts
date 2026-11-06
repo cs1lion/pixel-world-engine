@@ -25,14 +25,45 @@ export type ZoneId =
 
 export type TerrainId = 'grass' | 'stone' | 'plaza' | 'farm' | 'tree' | 'shallow' | 'mud' | 'coal';
 
+/** 地形的闭集。存档校验与设定集解析共用这一份，别再各处手抄。 */
+export const TERRAIN_IDS: readonly TerrainId[] = [
+  'grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal',
+];
+
+/** 几何高度上限（0 = 平面）。渲染的 y 偏移也按这个上限预留。 */
+export const MAX_TERRAIN_LEVEL = 3;
+
+/** 一条跨层边：这一格到相邻格。`ramp` 只能跨 1 层，`ladder` 至少 2 层。 */
+export interface ClimbLink {
+  readonly kind: 'ramp' | 'ladder';
+  readonly to: GridPoint;
+}
+
 export interface TileCell {
   zone: ZoneId;
   terrain: TerrainId;
+  /**
+   * 几何高度：0 = 今天的平面。**全仓唯一的高度来源**。
+   *
+   * 读它只允许走 `WorldGrid.levelAt(p)`——别在渲染/寻路/存档里自己
+   * 拼 `cell.level`，那会变成第二套高度表示。
+   */
+  level: number;
+  /** 跨层边；没有这一项表示这一格没有坡/梯出口。 */
+  climb?: ClimbLink;
   /** 地理区域。旧世界的 ZoneId 仍负责建造许可，两者不混用。 */
   region?: string;
   walkable: boolean;
   /** 占用者 id（建筑实例名），null 表示空。 */
   occupant: string | null;
+}
+
+/** 玩家对地形的最终改动（存档 v6）。底稿不入档，只有这里进档。 */
+export interface TerrainEdit {
+  readonly x: number;
+  readonly y: number;
+  readonly terrain: TerrainId;
+  readonly level: number;
 }
 
 /** 神谕能派的活。前三种入驻铺子，`quick` 在原地做完。 */
