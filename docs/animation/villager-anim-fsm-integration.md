@@ -109,3 +109,21 @@
   「挥手」没有帧序列和排版数据，状态机不产生新动作。
 - `facing`、`carrying`、伞、灯都不进状态机：它们由快照事实驱动，第二版继续
   走现有叠加层。
+
+## 第二版实际落地（与上面预案的差异）
+
+已接进渲染，开关 `?animfsm=1`；缺省（不带参数）仍走旧路径。
+
+| 预案 | 实际 |
+| --- | --- |
+| 适配层放 `src/render/` | 放 `src/animation/villager-anim-fsm-view.ts`：不 import Phaser、不读时钟，只把「快照 + 开关 + 钉子」翻译成绘制计划 |
+| 逐帧对照 `window.__animFsmDiff` | **未做**：对照靠单测与截图 A/B，不把诊断缓冲塞进场景（少一处会被误当世界状态的全局变量） |
+| 残影按 `globalAlpha` 压 | 压在 `fillRect` 的 alpha 上（`PAINT_ALPHA × weight`），仍是 24 色闭集里的 `fillRect`，不新增混合色 |
+| 只有开关控制 | 另有 `ActorPin.settled`（缺省 `true`）：`settled` 的姿态钉按旧路径画单层权重 1；只有 `settled: false` 或**没有姿态钉**才由状态机接管 |
+
+`ActorPin.settled` 的判定写在 `world-client/src/render/pin-shot-state.ts` 的
+`actorSettledOf()`（三值：`null` 无姿态钉 / `true` 稳态 / `false` 接受过渡）；
+开关判定写在 `animFsmEnabledOf()`（`?animfsm` 与 `?animfsm=1` 为开，其余为关）。
+
+转移时长仍是 `villager-anim-fsm.ts` 里的 `design` 初值（90–220ms），第二版**没有**
+顺手校准；要调需要单独一轮、带截图读数。

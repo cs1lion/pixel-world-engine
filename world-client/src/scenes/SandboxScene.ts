@@ -28,6 +28,7 @@ import { DAY_MS } from '../world/memory/config.ts';
 import {
   NO_SHOT_PIN,
   actorFrameOf,
+  actorSettledOf,
   phaseInputOf,
   pinActors,
   pinShot,
@@ -45,6 +46,7 @@ import {
   type ShotPin,
   type TrailPin,
 } from '../render/pin-shot-state.ts';
+import { animFsmEnabledOf } from '../animation/villager-anim-fsm-view.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
@@ -550,6 +552,12 @@ export class SandboxScene extends Phaser.Scene {
    * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
    */
   private shotPin: ShotPin = NO_SHOT_PIN;
+  /**
+   * 第二版动画状态机开关（`?animfsm=1`）。**缺省关闭**：关闭时
+   * `updateVillager` 走原路径，157 张基线必须逐字节不变。打开后也只有
+   * 「没钉姿态」或显式 `settled: false` 的角色由状态机接管。
+   */
+  private animFsmEnabled = false;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -990,6 +998,8 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
+    // 第二版动画状态机：缺省关闭。打开与否只影响小人怎么画，不碰世界与存档。
+    this.animFsmEnabled = animFsmEnabledOf(params);
     // 验收机位要能关掉过渡：`?interior=instant` 时进门/退出不做动画，
     // 否则「冻结 1 秒画面 0 差异」这类对比会被过渡帧搅掉。
     this.interiorTransitionEnabled = params.get('interior') !== 'instant';
@@ -4720,6 +4730,8 @@ export class SandboxScene extends Phaser.Scene {
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
       // 第六个实参之后的 `actorFrameOf`：钉住时按帧号取姿态，未钉住返回 null，
       // `updateVillager` 走原来的时刻采样路径（逐字节不变）。
+      // 第八个之后的两项是第二版开关与钉子语义：`?animfsm=1` 且没有稳态姿态钉时
+      // 才由状态机接管；`settled` 缺省（`true`）保持旧路径，基线不动。
       updateVillager(
         view,
         villager,
@@ -4730,6 +4742,8 @@ export class SandboxScene extends Phaser.Scene {
         appearance,
         this.pack?.palette ?? paletteFor(),
         actorFrameOf(this.shotPin, villager.id),
+        this.animFsmEnabled,
+        actorSettledOf(this.shotPin, villager.id),
       );
     }
     // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
