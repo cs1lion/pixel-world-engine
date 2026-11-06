@@ -14,8 +14,8 @@
  * 但**服务端那条路是真的**——`env_caller` 真发 HTTP、白名单真校验、
  * 信封真序列化。用注入 `app.state.model_caller` 会绕过其中的一大半。
  *
- * 隔离：自己的端口、自己的事件库（`tmp/`），不碰开发时在跑的 8000/5211，
- * 也不碰 `data/events.db`。
+ * 隔离：自己的端口（前端 5212，开发默认 5211）、自己的事件库（`tmp/`），
+ * 不碰开发时在跑的 8000/5211，也不碰 `data/events.db`。
  *
  * 跑法：`npm run test:live`（前置只需 `npm ci` 与一个能用的 python）
  */
@@ -35,7 +35,7 @@ const SERVER_DIR = join(ROOT, 'server');
 const OUT = process.env.EVAL_LIVE_OUT ?? join(CLIENT_DIR, 'eval', 'live');
 
 const API_PORT = Number(process.env.LIVE_API_PORT ?? 8011);
-const CLIENT_PORT = Number(process.env.LIVE_CLIENT_PORT ?? 5211);
+const CLIENT_PORT = Number(process.env.LIVE_CLIENT_PORT ?? 5212);
 const STUB_PORT = Number(process.env.LIVE_STUB_PORT ?? 8012);
 
 /** 这次验收要盖的那栋楼。大世界里这一格是合规的工业区空地。 */
@@ -170,7 +170,7 @@ async function startEnvironment(tempRoot) {
 
   const client = spawn(
     process.execPath,
-    [join(CLIENT_DIR, 'node_modules', 'vite', 'bin', 'vite.js')],
+    [join(CLIENT_DIR, 'node_modules', 'vite', 'bin', 'vite.js'), '--strictPort'],
     {
       cwd: CLIENT_DIR,
       env: {

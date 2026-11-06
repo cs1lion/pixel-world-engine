@@ -135,6 +135,67 @@ export function planTestChanges(changes: ChangedFile[]): TestPlan {
   return { kind: 'run', run: run.sort(), support: support.sort(), skipped };
 }
 
+/**
+ * base 上失败的原因分类。
+ *
+ * 只有 `assertion` 算「红得对」：测试代码真的跑到了断言，并因为实现缺失而失败。
+ * 其余四类一律不可采信（ERROR）：
+ *   - module：模块解析失败（测试文件 import 写错、依赖不存在）；
+ *   - compile：语法/类型/转译失败；
+ *   - crash：进程级崩溃（OOM、段错误、未捕获的运行时致命错误）；
+ *   - unknown：没有识别到断言信号，无法说明为什么红。
+ *
+ * 分类顺序是「基础设施错误优先」：同一份输出里既出现 import 错误又出现断言
+ * 文字时，按 module 处理，避免把「根本没跑起来」误认成断言失败。
+ */
+export type BaseFailureKind = 'assertion' | 'module' | 'compile' | 'crash' | 'unknown';
+
+const MODULE_FAILURE = [
+  /ERR_MODULE_NOT_FOUND/,
+  /ERR_UNKNOWN_FILE_EXTENSION/,
+  /ERR_UNSUPPORTED_ESM_URL_SCHEME/,
+  /Cannot find module/,
+  /Cannot find package/,
+  /Failed to resolve import/,
+];
+
+const COMPILE_FAILURE = [
+  /ERR_INVALID_TYPESCRIPT_SYNTAX/,
+  /SyntaxError/,
+  /error TS\d+/,
+  /Unexpected token/,
+  /Unexpected identifier/,
+];
+
+const CRASH_FAILURE = [
+  /FATAL ERROR/,
+  /Segmentation fault/,
+  /core dumped/,
+  /JavaScript heap out of memory/,
+  /ERR_WORKER_OUT_OF_MEMORY/,
+  /Aborted/,
+];
+
+const ASSERTION_FAILURE = [
+  /ERR_ASSERTION/,
+  /AssertionError/,
+  /Assertion failed/,
+  /failureType: 'testCodeFailure'/,
+  /failureType: 'testTimeoutFailure'/,
+  /test timed out/,
+  /^\s*not ok \d+/m,
+  /^\s*✖ /m,
+  /\bexpected\b[\s\S]*\bactual\b/i,
+];
+
+export function classifyBaseFailure(output: string): BaseFailureKind {
+  if (MODULE_FAILURE.some((pattern) => pattern.test(output))) return 'module';
+  if (COMPILE_FAILURE.some((pattern) => pattern.test(output))) return 'compile';
+  if (CRASH_FAILURE.some((pattern) => pattern.test(output))) return 'crash';
+  if (ASSERTION_FAILURE.some((pattern) => pattern.test(output))) return 'assertion';
+  return 'unknown';
+}
+
 /** 解析 `--base` / `--repo` / `--timeout` / `--keep`；空字符串的 base 视为未给。 */
 export interface Args {
   base: string;

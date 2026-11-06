@@ -11,6 +11,14 @@
  *   - 根与 world-client/server 下的 .env* 示例
  *
  * 不扫 docs/ 与 test/：文档里的历史读数与测试夹具不是运行端口。
+ *
+ * 端口分配表（基线 5211 的前提是「同时只允许一个服务端在 5210–5219 段监听」）：
+ *   5211  默认 dev/preview 服务端：vite.config 默认、dev-live、CI preview；
+ *         以及所有只连接、不监听的脚本（check-* / smoke / 各类 capture）。
+ *   5212  accept-live 自起的隔离前端（`npm run test:live`），可与 5211 并存。
+ *   5189  demo-run / demo-live-serve / e2e-real-frame / s5-e2e-serve 的临时 vite。
+ *   5291  check-oracle-e2e；5322  daycard-browser；5307  evidence-liveliness 手动。
+ *   8000/8001 开发 API；8011/8012 accept-live API 与 LLM 桩；8931/8932 oracle。
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';

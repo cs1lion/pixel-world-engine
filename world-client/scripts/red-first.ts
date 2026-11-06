@@ -2,7 +2,17 @@
  * red-first：本次改动的测试，在「没有本次实现」的 base 上必须红。
  *
  * 机制：取 base → 建临时 detached worktree → 只把 `world-client/test/` 的
- * diff 套上去 → 用 base 的源码 + 本次的测试跑一遍 → 必须非零退出。
+ * diff 套上去 → 用 base 的源码 + 本次的测试跑一遍 → 必须**红在断言上**。
+ *
+ * 判定（exit code 三值）：
+ *   0 = PASS（base 上因断言失败而红）或 SKIP（合理跳过）；
+ *   1 = FAIL（base 上直接绿，不是先红后绿）；
+ *   2 = ERROR（非零退出，但不是断言失败：module / compile / crash / unknown）。
+ *
+ * 只有「测试跑到了断言、并因为缺实现而失败」才算合格的红。import 写错、
+ * 语法/转译失败、进程崩溃都会非零退出，但那是测试没跑起来，不是先红后绿；
+ * 一律判 ERROR，不可采信。能区分「红得对不对」是这条闸门唯一的价值，
+ * 否则它只是又一个 exit code 检查。
  *
  * base 选择（按优先级）：
  *   1. `--base <ref>` / `RED_FIRST_BASE`；
@@ -15,7 +25,8 @@
  *   - `origin/main` 是本地引用，可能没 fetch；CI 里用事件 sha 更准。
  *   - base 本身已经坏、或测试的失败被 base 的其它错误掩盖时，判据会失真。
  *   - 只套 `world-client/test/` 的 diff；如果新测试依赖 test/ 之外的新夹具/
- *     新依赖，base 上会因缺文件而红——这也算红，但不是「断言抓到了缺失」。
+ *     新依赖，base 上会因缺文件报 ERR_MODULE_NOT_FOUND → 判 ERROR（module），
+ *     不可采信。这是有意的：那种红不是断言抓到了缺失。
  *
  * 跳过条件（不是放行，见 `red-first-lib.ts` 的注释）：
  *   - 只改文档/其它目录；
@@ -38,7 +49,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, planTestChanges, type ChangedFile } from './red-first-lib.ts';
+import { classifyBaseFailure, parseArgs, planTestChanges, type ChangedFile } from './red-first-lib.ts';
 
 interface RunResult {
   status: number;
@@ -232,7 +243,16 @@ function main(): void {
       return;
     }
 
-    console.log(`red-first: PASS base 上按预期红（exit=${result.status}）`);
+    const kind = classifyBaseFailure(result.output);
+    if (kind !== 'assertion') {
+      console.error(`red-first: ERROR 非断言失败（分类=${kind}）；这次红不可采信，不放行。`);
+      console.error(tail(result.output));
+      console.error(`red-first: RESULT=ERROR kind=${kind} elapsed=${Date.now() - started}ms`);
+      process.exitCode = 2;
+      return;
+    }
+
+    console.log(`red-first: PASS base 上按预期红（断言失败，exit=${result.status}）`);
     console.log(tail(result.output));
     console.log(`red-first: RESULT=RED elapsed=${Date.now() - started}ms`);
   } finally {
