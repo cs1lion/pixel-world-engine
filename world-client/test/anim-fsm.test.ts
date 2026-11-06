@@ -329,7 +329,7 @@ test('文档就是生成函数的原文：状态图不会与代码分叉', () =>
   const doc = readFileSync(
     new URL('../../docs/animation/villager-anim-fsm.md', import.meta.url),
     'utf8',
-  );
+  ).replace(/\r\n/g, '\n'); // Windows 检出会把生成文件转成 CRLF；比对前统一换行。
   assert.equal(doc, animGraphMarkdown(), '状态图文档过期：请跑 node scripts/export-anim-graph.ts');
   assert.ok(doc.includes('| idle |'), '文档里没有状态表');
   assert.ok(doc.includes('| walk | idle |'), '文档里没有转移表');
