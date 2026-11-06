@@ -86,6 +86,7 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const URL_BASE =
   process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
@@ -100,12 +101,11 @@ const ORIGIN = new URL(URL_BASE).origin;
  *
  * 原来写死成 `D:/project/neurosama/tmp/wt-pixel-world/pixel-world/eval/screens`
  * ——那是搬入前（`996cbd3` 之前）那个 worktree 的路径，今天整个不存在。后果不是
- * 报错而是**证据失踪**：跑一次，11 张 `smoke-ego-*.png` 全写到别处（或写失败），
- * 本仓 `eval/screens/` 里一张都没有。同一形状的另一处见上面「跑法」那条。
- * `check-dengchao.mjs` 早就是这一句的写法（`resolve(import.meta.dirname, …)`），
- * 抄它。
+ * 报错而是**证据失踪**：跑一次，11 张 `smoke-ego-*.png` 全写到别处（或写失败）。
+ * 现在统一走 `lib/shot-output.mjs`：默认落 `tmp/screens/smoke-ego/`（未跟踪），
+ * 要写回 `eval/screens` 基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`。
  */
-const SHOT_DIR = resolve(import.meta.dirname, '..', 'eval', 'screens');
+const SHOT_DIR = resolveShotDir('smoke-ego');
 mkdirSync(SHOT_DIR, { recursive: true });
 
 /**

@@ -32,6 +32,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import process from 'node:process';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const CDP_URL = process.env.CDP_URL ?? 'http://127.0.0.1:9333';
 const PAGE_URL = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/?ledger=off&debug=1`;
@@ -53,7 +54,7 @@ function withPhase(url, phase) {
 function withNight(url, night) {
   return withPhase(url, night ? 'night' : null);
 }
-const OUT = 'eval/screens';
+const OUT = resolveShotDir('capture-palette');
 const SEED = Number(process.env.PALETTE_SEED ?? 20261019);
 const FRAME_MS = 1000 / 60;
 const STOP_AT = 240;

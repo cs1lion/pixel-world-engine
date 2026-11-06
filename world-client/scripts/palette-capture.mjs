@@ -42,9 +42,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { parseOverrides } from '../vite.palette.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
-const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
-const SHOT_DIR = `${ROOT}eval/screens`;
+const SHOT_DIR = resolveShotDir('palette-capture');
 
 /** 文件名安全的后缀：去掉不合法字符，只留大写字母数字与短横。 */
 function safeLabel(text) {

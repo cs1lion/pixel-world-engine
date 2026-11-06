@@ -28,11 +28,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const CLIENT_DIR = resolve(import.meta.dirname, '..');
 const ROOT = resolve(CLIENT_DIR, '..');
 const SERVER_DIR = join(ROOT, 'server');
-const OUT = process.env.EVAL_LIVE_OUT ?? join(CLIENT_DIR, 'eval', 'live');
+const OUT = process.env.EVAL_LIVE_OUT ?? resolveShotDir('accept-live');
 
 const API_PORT = Number(process.env.LIVE_API_PORT ?? 8011);
 const CLIENT_PORT = Number(process.env.LIVE_CLIENT_PORT ?? 5212);

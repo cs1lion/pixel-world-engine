@@ -10,7 +10,7 @@
  * 0.85～0.87）和雨滴相位仍不在快照里。本脚本在第 240 帧调用
  * `Oracle.pinWeather(intensity, frames)`，把这两样也钉成常量。
  *
- * 产物（EVAL_OUT 下）：
+ * 产物（默认 tmp/screens/check-rain-pin/，`EVAL_OUT` 可重定向）：
  *   baseline-1/rain-pin.png  baseline-2/rain-pin.png  baseline-3/rain-pin.png
  *   shift-frame/rain-pin.png      （frames = 24 + 1，故意错开一帧）
  *   shift-intensity/rain-pin.png  （intensity = 0.86 + 0.01）
@@ -18,7 +18,7 @@
  *
  * 跑法：
  *   node node_modules/vite/bin/vite.js --port 5211 --strictPort
- *   PIXEL_WORLD_URL=http://127.0.0.1:5211 EVAL_OUT=$env:TEMP/pwe-rain-pin node scripts/check-rain-pin.mjs
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5211 node scripts/check-rain-pin.mjs
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -26,15 +26,12 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import process from 'node:process';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(BASE);
-const OUT = process.env.EVAL_OUT;
-if (!OUT) {
-  console.error('必须给 EVAL_OUT（建议放临时目录，别写进仓库的 eval/screens）');
-  process.exit(1);
-}
+const OUT = resolveShotDir('check-rain-pin');
 const SEED = Number(process.env.PALETTE_SEED ?? 20261019);
 const FRAME_MS = 1000 / 60;
 const RAIN_CLICK_AT = 30;

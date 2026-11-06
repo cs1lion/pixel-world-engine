@@ -25,6 +25,8 @@
  * 跑法：
  *   cd world-client && npm run dev
  *   # 默认拍「改后」；只有在半径改动之前才需要先拍改前基线
+ *   # 输出默认落 tmp/screens/check-lamp-band/；「改前」三件从 eval/screens/ 读，
+ *   # 要写回仓库基线须显式 --write-baseline 或 EVAL_OUT=eval/screens
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ BAND_SEED=20261019 BAND_NOW=720 BAND_LABEL=before node scripts/check-lamp-band.mjs
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ BAND_SEED=20261019 BAND_NOW=720 node scripts/check-lamp-band.mjs
  *   # 两次都在时，合成页会多一行「before / after 差异」
@@ -34,12 +36,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { BASELINE_DIR, resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(BASE);
-const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
+const OUT = resolveShotDir('check-lamp-band');
 // 默认拍「改后」：`before` 是半径改动之前拍的一次性基线，重跑不该覆盖它。
+// 现在默认写 tmp，`before` 三件常从 `eval/screens/` 只读复用。
 const LABEL = process.env.BAND_LABEL ?? 'after';
 mkdirSync(OUT, { recursive: true });
 
@@ -358,9 +362,9 @@ async function pixelDiff(page, beforeBuf, afterBuf) {
 
 // 改前 / 改后的像素差：灯亮图应只在池子附近变，灯灭图应一个像素都不变。
 // 只有 `before` 与本次同种子、同为真晴时才比；否则是跨协议比较，按读数纪律不作数。
-const beforeJsonFile = join(OUT, 'lamp-band-before.json');
-const beforeLitFile = join(OUT, 'lamp-band-before-lit.png');
-const beforeDarkFile = join(OUT, 'lamp-band-before-dark.png');
+const beforeJsonFile = join(BASELINE_DIR, 'lamp-band-before.json');
+const beforeLitFile = join(BASELINE_DIR, 'lamp-band-before-lit.png');
+const beforeDarkFile = join(BASELINE_DIR, 'lamp-band-before-dark.png');
 const beforeParams = existsSync(beforeJsonFile)
   ? (JSON.parse(readFileSync(beforeJsonFile, 'utf8')).params ?? null)
   : null;
@@ -487,7 +491,7 @@ const chart = (cols) => {
   </svg>`;
 };
 
-const beforeFile = join(OUT, 'lamp-band-before.json');
+const beforeFile = join(BASELINE_DIR, 'lamp-band-before.json');
 const afterFile = join(OUT, 'lamp-band-after.json');
 let diffRow = '';
 if (existsSync(beforeFile) && existsSync(afterFile)) {

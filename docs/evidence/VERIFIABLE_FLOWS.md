@@ -10,7 +10,7 @@
 - 本文采用的规范文件是 poteto-mode 安装目录下的 SKILL.md（本机路径 C:\Users\18712\.agents\skills\poteto-mode\SKILL.md）的 `## Principles` 与 `## Playbooks`（Investigation），以及本地 pstack 叶技能 `principle-build-the-lever`、`principle-prove-it-works`、`principle-sequence-verifiable-units`、`principle-explain-the-number`、`principle-encode-lessons-in-structure`。
 - 盘点阶段按 Investigation 的只读口径执行：只新增文档与脚本，不改任何既有判据的数值、不放宽阈值、不删用例；不 `stash`、不动别人的工作树。入库（合 main 与 push）由用户在本轮单独授权，动作记录见第 7 节。
 - 证据标签：`[实测]` 本次实际运行；`[证据]` 读自已归档的证据文件；`[文档]` 只有书面记录、无执行判据。
-- 端口纪律：**5188 / 5191 / 5202 / 5203 一律不用**。下面所有浏览器命令都显式改到 `5211`；客户端 URL 默认值已统一跟随 `PIXEL_WORLD_CLIENT_PORT`（未设置时回落 `5211`），见 `smoke.mjs:28`、`check-render-budget.mjs:43` 与四个抓拍脚本 `homecoming-capture.mjs:17`、`interior-capture.mjs:18`、`material-capture.mjs:28`、`material-determinism.mjs:22`。多工作树并行时每棵树必须导出自己的 `PIXEL_WORLD_CLIENT_PORT`；漏设时身份闸会判红，不会静默测到隔壁树的应用。
+- 端口纪律：**5188 / 5191 / 5202 / 5203 一律不用**。下面所有浏览器命令都显式改到 `5211`；客户端 URL 默认值已统一跟随 `PIXEL_WORLD_CLIENT_PORT`（未设置时回落 `5211`），见 `smoke.mjs:29`、`check-render-budget.mjs:43` 与四个抓拍脚本 `homecoming-capture.mjs:17`、`interior-capture.mjs:18`、`material-capture.mjs:28`、`material-determinism.mjs:22`。多工作树并行时每棵树必须导出自己的 `PIXEL_WORLD_CLIENT_PORT`；漏设时身份闸会判红，不会静默测到隔壁树的应用。
 
 ## 1. 总表
 
@@ -134,7 +134,7 @@ cd D:\project\pwe-anim\world-client
 npm run verify:compare -- <左目录> <右目录>
 ```
 
-**输入**：`EVAL_OUT` 目录；四支脚本的默认输出是 `world-client/eval/screens`（`check-scene-motion.mjs:31`、`check-stall-motion.mjs:27`、`check-banner-smoke.mjs:29`、`check-ground-shadow.mjs:25`）；pixel-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）给每张图记 file + 逐像素 sha256 + 尺寸 + now + tide + camera。
+**输入**：`EVAL_OUT` 目录；四支脚本默认输出到未跟踪的 `tmp/screens/<脚本名>/`，写回 `world-client/eval/screens` 须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`（`check-scene-motion.mjs:35`、`check-stall-motion.mjs:31`、`check-banner-smoke.mjs:33`、`check-ground-shadow.mjs:29`）；pixel-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）给每张图记 file + 逐像素 sha256 + 尺寸 + now + tide + camera。
 
 **判据**：四支抓拍脚本是**测量器，不是闸门**：全仓这四个文件没有 `process.exit`，唯一失败路径是页面报错抛异常。读数里「应为 0」的对照（全关、暂停、残留）与确定性对照都只是打印，当前值跑脚本取。真正的硬判据在 compare-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）：逐像素 sha256 全等且尺寸相同，counts.ok === total 才退出 0，否则退出 1。`[证据]` `scene-motion/README.md:76-79,267`、compare-ledger.mjs 第 102-136 行。
 

@@ -12,11 +12,12 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { cellToCanvasPoint } from './lib/camera-projection.mjs';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(BASE);
-const OUT = 'eval/screens';
+const OUT = resolveShotDir('check-creation');
 const PREFAB = 'workshop_plot';
 
 const reports = [];

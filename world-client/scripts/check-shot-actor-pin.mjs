@@ -20,16 +20,17 @@
  *   3. 用 `scripts/screens-diff.py` 对三组图出三层读数（精确 / 可见 / 结构）。
  *
  * 环境变量：`PIXEL_WORLD_URL`（默认 http://127.0.0.1:5211/）、
- * `EVAL_OUT`（默认 eval/screens/actor-pin）。
+ * `EVAL_OUT`（默认 tmp/screens/check-shot-actor-pin）。
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(BASE);
-const OUT = process.env.EVAL_OUT ?? 'eval/screens/actor-pin';
+const OUT = resolveShotDir('check-shot-actor-pin');
 
 /** 默认大世界 05:00 开局；等待时长就是这之后到冻结之间的那段。 */
 const WORLD_URL = `${BASE}?feed=off&debug=1&time=dawn&now=300&speed=30`;

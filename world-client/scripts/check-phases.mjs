@@ -9,7 +9,8 @@
  *   1. npm run dev（默认 5211；其它端口用 PIXEL_WORLD_URL 指过去）
  *   2. node scripts/check-phases.mjs
  *
- * 截图落在 eval/screens/phase-<id>.png，失败时可直接看。
+ * 截图默认落在 tmp/screens/check-phases/phase-<id>.png（未跟踪），失败时可直接看；
+ * 要写回仓库基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`。
  *
  * ── 两轮采样 + 钉法（2026-11-06 合并内景线时按用户裁决落地）───────────
  * 冷启动的第一个页面要付 WebGL 管线/着色器首次编译、纹理首次上传、bundle
@@ -28,11 +29,12 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { waitFadeSettled, waitVillagersSettled } from './lib/capture.mjs';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
 await assertTreeIdentity(BASE);
-const OUT = process.env.EVAL_OUT ?? 'eval/screens';
+const OUT = resolveShotDir('check-phases');
 const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 
 /**
