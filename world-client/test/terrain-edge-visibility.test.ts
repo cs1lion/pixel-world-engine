@@ -44,8 +44,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TERRAIN_COLORS, WORLD } from '../src/world/palette-data.ts';
-import { BRIGHT, DARK, EDGE_VISIBLE_MIN_DL, TERRAIN_EDGE_PRIORITY } from '../src/render/terrain-edges.ts';
+import { BRIGHT, DARK, EDGE_VISIBLE_MIN_DL } from '../src/render/terrain-edges.ts';
+import * as edgesModule from '../src/render/terrain-edges.ts';
 import type { TerrainId } from '../src/world/types.ts';
+
+/** 新导出在 origin/main（f11852c）上还不存在：从命名空间取，缺了让断言红，
+ * 而不是静态 import 直接变成模块错误——CI 的 red-first 以 push 前的主干为 base。 */
+const TERRAIN_EDGE_PRIORITY = (
+  edgesModule as { TERRAIN_EDGE_PRIORITY?: Readonly<Record<TerrainId, number>> }
+).TERRAIN_EDGE_PRIORITY;
+
+function edgePriority(terrain: TerrainId): number {
+  assert.ok(TERRAIN_EDGE_PRIORITY, 'terrain-edges.ts 必须导出 TERRAIN_EDGE_PRIORITY');
+  return TERRAIN_EDGE_PRIORITY![terrain]!;
+}
 
 /** §4.1:218 的验收线。 */
 const MIN_DL = 8;
@@ -86,7 +98,7 @@ function measurePairs(): readonly PairResult[] {
   const out: PairResult[] = [];
   for (const self of TERRAINS) {
     for (const neighbor of TERRAINS) {
-      if (TERRAIN_EDGE_PRIORITY[neighbor] >= TERRAIN_EDGE_PRIORITY[self]) continue;
+      if (edgePriority(neighbor) >= edgePriority(self)) continue;
       const token = WORLD[BRIGHT[self]];
       const own = dl(token, TERRAIN_COLORS[self]);
       const against = dl(token, TERRAIN_COLORS[neighbor]);

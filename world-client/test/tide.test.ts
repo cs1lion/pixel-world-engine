@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 
 import {
   FLOODED_WALK_COST,
-  TERRAIN_WATER_CLEARANCE,
   TIDE_JITTER_MS,
   TIDE_PERIOD_MS,
   describeTide,
@@ -11,6 +10,13 @@ import {
   periodLength,
   tideLevelAt,
 } from '../src/world/tide.ts';
+import * as tideModule from '../src/world/tide.ts';
+
+/** 新导出在 origin/main（f11852c）上还不存在：从命名空间取，缺了让断言红，
+ * 而不是静态 import 直接变成模块错误——CI 的 red-first 以 push 前的主干为 base。 */
+const TERRAIN_WATER_CLEARANCE = (
+  tideModule as { TERRAIN_WATER_CLEARANCE?: Readonly<Record<string, number>> }
+).TERRAIN_WATER_CLEARANCE;
 
 test('潮位是 now 的纯函数：同一时刻永远同一个值', () => {
   for (const now of [0, 1_000, 60_000, 123_456, 3_600_000]) {
@@ -70,8 +76,9 @@ test('潮位跨周期连续，不会在周期边界跳变', () => {
 });
 
 test('被淹判定按地形高度算', () => {
+  assert.ok(TERRAIN_WATER_CLEARANCE, 'tide.ts 必须导出 TERRAIN_WATER_CLEARANCE');
   // 退潮时全干。
-  for (const terrain of Object.keys(TERRAIN_WATER_CLEARANCE)) {
+  for (const terrain of Object.keys(TERRAIN_WATER_CLEARANCE!)) {
     assert.equal(isFlooded(terrain, 0), false, `${terrain} 在退潮时不该被淹`);
   }
   // 满潮时草地与农田进水，石板路与广场露出。
