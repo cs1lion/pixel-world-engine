@@ -246,7 +246,7 @@
       "value": 16
     },
     {
-      "note": "打水与点灯各自落成 memory fact（共 9 条）",
+      "note": "打水、点灯与街口招呼等落成 memory fact（共 23 条）",
       "source": "memory.business",
       "path": "facts",
       "op": "eq",
@@ -267,14 +267,14 @@
       "value": "place:23,19"
     },
     {
-      "note": "18:00 点灯事实",
+      "note": "索引 8 是街口招呼（事实增多后索引从点灯漂移到这里）",
       "source": "memory.snapshot",
       "path": "world.facts[8].kind",
       "op": "eq",
       "value": "street_greet"
     },
     {
-      "note": "点灯落点由世界给",
+      "note": "街口招呼落点由世界给",
       "source": "memory.snapshot",
       "path": "world.facts[8].placeId",
       "op": "eq",
