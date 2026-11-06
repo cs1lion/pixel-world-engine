@@ -50,28 +50,6 @@ const TRAIL_PINS = [{ at: { x: 49, y: 36 }, strength: 2 }];
 /** trail 反向用例：只把这一格往西挪一格，其余一字不动。 */
 const TRAIL_SHIFT = [{ at: { x: 48, y: 36 }, strength: 2 }];
 
-/**
- * 11 个「不进 canvas」字段的置空值。画面只该读 paintingSnapshot 里剩下的字段；
- * 这组值一变，像素必须 0 差——否则就是登记表把某个真进画面的字段错标成了 dom。
- *
- * 曾经这里还有 `altar` 与 `weather`：实测一个被 `phase-view` 当光晕锚点读、
- * 一个被 `firefliesVisible` 读，置空直接抛 `null.x`／改值会动萤火，于是双双改归
- * `stable`——这条证据链真的抓到了登记表的错误，而不是走个过场。
- */
-const DOM_BLANK = {
-  villager: null,
-  startupBuildingIds: [],
-  tasks: [],
-  pending: [],
-  oracle: [],
-  events: [],
-  faith: null,
-  deliveries: null,
-  deliveriesByVillager: null,
-  deliveryFailures: null,
-  feed: null,
-};
-
 /** 把 `#stage` 的绘制原点钉到整数 CSS 像素（与 smoke.mjs 同口径）。 */
 const snapStage = (page) =>
   page.evaluate(() => {
@@ -131,7 +109,6 @@ async function capture({
   pin,
   shift = 0,
   trails = TRAIL_PINS,
-  override = null,
 }) {
   const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
   const page = await context.newPage();
@@ -157,14 +134,13 @@ async function capture({
   await page.waitForTimeout(waitMs);
 
   const before = await page.evaluate(
-    ({ actors, minuteMs, anchor, tile, dayMs, trailPins, paintingOverride }) => {
+    ({ actors, minuteMs, anchor, tile, dayMs, trailPins }) => {
       const snapshot = window.Oracle.view();
       window.Oracle.freezeWorldClock();
       const now = Math.floor(snapshot.now / dayMs) * dayMs + minuteMs;
       window.Oracle.pinShotState(now, 0);
       if (actors !== null) window.Oracle.pinActors(actors);
       if (trailPins !== null) window.Oracle.pinTrails(trailPins);
-      if (paintingOverride !== null) window.Oracle.debugOverridePainting(paintingOverride);
       window.Oracle.setCameraMode('free');
       window.Oracle.centerCameraOn(anchor.x * tile, anchor.y * tile);
       const cam = window.Oracle.camera();
@@ -199,7 +175,6 @@ async function capture({
       tile: TILE_PX,
       dayMs: DAY_MS,
       trailPins: trails,
-      paintingOverride: override,
     },
   );
 
@@ -215,7 +190,6 @@ async function capture({
     fivePin: pin !== null,
     shift,
     trails,
-    override,
     before,
     errors,
     bytes: shot.length,
@@ -256,38 +230,26 @@ for (const waitMs of FIVE_WAITS) {
 await capture({ name: 'five-shift', waitMs: FIVE_WAITS[0], pin: true, shift: 1 });
 // 反向用例 2：只把钉住的那条痕迹往西挪一格，数量不变、位置变一处。
 await capture({ name: 'trail-shift', waitMs: FIVE_WAITS[0], pin: true, trails: TRAIL_SHIFT });
-// 负控证据：13 个 dom 字段整组置空，canvas 必须与 five-1200 逐像素相同。
-await capture({ name: 'dom-blank', waitMs: FIVE_WAITS[0], pin: true, override: DOM_BLANK });
-// 正控：把一条确实进画面的 stable 字段（altar：phase-view 的祭坛光晕锚点）
-// 挪走，像素必须变——用来证明「stable 不是『没人读』，而是『读它，但三档
-// 冻结时刻下逐字节相同』」。roads 在本夹具是空表（overrides 后 0 差），
-// 所以正控不能选它。
-await capture({
-  name: 'altar-shift',
-  waitMs: FIVE_WAITS[0],
-  pin: true,
-  override: { altar: { x: 1, y: 1 } },
-});
 
 await writeFile(`${OUT}/runs.json`, JSON.stringify(results, null, 2), 'utf8');
 await browser.close();
 
 /*
  * 逐字节负控：像素读数由 `screens-diff.py` 出，这里只做二值判定。
- *   - 三档等待 + dom 置空：必须与 five-1200 逐字节相同（改一处就抛）；
- *   - 两条反向用例 + 一条 stable 正控：必须与 five-1200 不同（变成空操作就抛）。
+ *   - 三档等待：必须与 five-1200 逐字节相同（改一处就抛）；
+ *   - 两条反向用例：必须与 five-1200 不同（变成空操作就抛）。
  * 判据用字节而不是「近似相等」：同一像素数组的 PNG 编码是确定的。
  */
 const baseline = pngBytes.get('five-1200');
-for (const name of ['five-2800', 'five-5000', 'dom-blank']) {
+for (const name of ['five-2800', 'five-5000']) {
   if (!baseline.equals(pngBytes.get(name))) {
     throw new Error(`${name} 必须与 five-1200 逐字节相同，实测不同`);
   }
 }
-for (const name of ['five-shift', 'trail-shift', 'altar-shift']) {
+for (const name of ['five-shift', 'trail-shift']) {
   if (baseline.equals(pngBytes.get(name))) {
-    throw new Error(`${name} 是反向/正控用例，必须与 five-1200 不同，实测相同`);
+    throw new Error(`${name} 是反向用例，必须与 five-1200 不同，实测相同`);
   }
 }
-console.log('逐字节负控：三档等待与 dom 置空全同；两条反向与一条正控全异');
+console.log('逐字节负控：三档等待全同；两条反向全异');
 console.log(`\n抓拍完成：${OUT}`);

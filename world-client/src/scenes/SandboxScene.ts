@@ -548,14 +548,6 @@ export class SandboxScene extends Phaser.Scene {
    * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
    */
   private shotPin: ShotPin = NO_SHOT_PIN;
-  /**
-   * 证据专用：只压画面这一层的字段覆盖（`debugOverridePainting` 写这里）。
-   *
-   * 它不是第七枚钉。用途只有一个：把登记表里的字段**置空/改值**再拍一张，
-   * 用像素差证明「这个字段进不进画面」。`this.snapshot`、世界、判据一律不动。
-   * 证据脚本用完必须置回 `null`。
-   */
-  private paintingOverride: Partial<WorldSnapshot> | null = null;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -4066,12 +4058,10 @@ export class SandboxScene extends Phaser.Scene {
    * 不能一边钉住世界画布、一边让地图上的点跟着真实世界跑。
    */
   private paintingSnapshot(): WorldSnapshot {
-    const base = pinVillagers(
+    return pinVillagers(
       pinnedTrailsOf(this.shotPin, pinnedVillagersOf(this.shotPin, this.snapshot)),
       this.pinnedVillagers,
     );
-    if (this.paintingOverride === null) return base;
-    return { ...base, ...this.paintingOverride };
   }
 
   /** 只重放最后一行状态：界面据此重画纸面（底栏时钟跟着呈现时刻走）。 */
@@ -4557,14 +4547,6 @@ export class SandboxScene extends Phaser.Scene {
        */
       pinTrails: (trails: readonly TrailPin[]): void => this.pinTrailState(trails),
       unpinTrails: (): void => this.unpinTrailState(),
-      /*
-       * 证据口子：只改画面上那一层快照（置空/改值都行），世界与判据不看它。
-       * 渲染输入登记表要靠它出「改值 → 像素差 / 置空 → 0 差」的读数。
-       * 传 `null` 复原；正常游玩路径没有调用方。
-       */
-      debugOverridePainting: (patch: Partial<WorldSnapshot> | null): void => {
-        this.paintingOverride = patch;
-      },
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),

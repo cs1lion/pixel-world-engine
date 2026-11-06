@@ -5,8 +5,10 @@
  * `src/render/pin-shot-state.ts`：渲染分支调的就是这里这些函数。
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   NO_SHOT_PIN,
   RENDER_INPUT_TABLE,
@@ -411,7 +413,7 @@ test('21. 守卫：快照字段必须逐个登记，pin 的字段必须真在 Sh
   }
 
   // 快照里唯一随世界时刻走的四个字段必须都是 pin，其余只能是 stable/dom。
-  // （stable/dom 的「不随时刻变」由三档冻结快照逐字段 diff 为 0 与置空 0 像素佐证。）
+  // （stable 由三档冻结快照逐字段 diff 为 0 佐证；dom 由第 23 条静态检索佐证。）
   const pinnedFields = RENDER_INPUT_TABLE.filter((entry) => entry.handling === 'pin').map((e) => e.field);
   assert.deepEqual(pinnedFields.sort(), ['now', 'tide', 'trails', 'villagers']);
 });
@@ -423,5 +425,56 @@ test('22. 摊牌：真实快照 25 个字段，表里 4 个 pin、10 个 stable�
   assert.equal(Object.keys(snapshot).length, RENDER_INPUT_TABLE.length);
   // altar / weather 从 dom 挪到 stable：都是「画面上真的读」，只是不随时刻变。
   assert.deepEqual(counts, { pin: 4, stable: 10, dom: 11 });
+});
+
+const RENDER_DIR = fileURLToPath(new URL('../src/render/', import.meta.url));
+const SCENE_FILE = fileURLToPath(new URL('../src/scenes/SandboxScene.ts', import.meta.url));
+/** 不画 canvas、只做快照合成的两个模块；其余 render 模块一律算绘制路径。 */
+const NON_DRAWING_MODULES = new Set(['pin-shot-state.ts', 'villager-pin.ts']);
+
+function renderSnapshotBody(): string {
+  const source = readFileSync(SCENE_FILE, 'utf8');
+  const start = source.indexOf('private renderSnapshot(');
+  assert.ok(start >= 0, 'SandboxScene 里找不到 renderSnapshot');
+  const open = source.indexOf('{', start);
+  let depth = 1;
+  for (let i = open + 1; i < source.length; i += 1) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(open + 1, i);
+    }
+  }
+  throw new Error('renderSnapshot 花括号不平衡');
+}
+
+test('23. dom 字段在绘制路径 0 命中（静态证明，不依赖某一次运行）', () => {
+  const allFiles = readdirSync(RENDER_DIR).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
+  // 两个非绘制模块必须真的存在，避免改名后这条测试退化成空扫。
+  for (const name of NON_DRAWING_MODULES) {
+    assert.ok(allFiles.includes(name), `非绘制模块 ${name} 不见了`);
+  }
+  const drawingFiles = allFiles.filter((f) => !NON_DRAWING_MODULES.has(f));
+  assert.ok(drawingFiles.length > 0, '绘制路径扫空了');
+
+  const domFields = RENDER_INPUT_TABLE.filter((entry) => entry.handling === 'dom').map((e) => e.field);
+  assert.equal(domFields.length, 11);
+
+  const hits: string[] = [];
+  const scan = (label: string, text: string) => {
+    for (const field of domFields) {
+      // 只认属性访问 `.field`；`villager` 不会误吃 `villagers`（\b 卡在 s 前）。
+      const count = (text.match(new RegExp(`\\.${field}\\b`, 'g')) ?? []).length;
+      if (count > 0) hits.push(`${label}:${field}:${count}`);
+    }
+  };
+  for (const name of drawingFiles) scan(name, readFileSync(join(RENDER_DIR, name), 'utf8'));
+  scan('SandboxScene.renderSnapshot', renderSnapshotBody());
+
+  assert.deepEqual(
+    hits,
+    [],
+    'dom 字段出现在绘制路径里：登记表把真进画面的字段错标成了 dom（或新增绘制模块读了它）',
+  );
 });
 

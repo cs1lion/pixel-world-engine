@@ -25,9 +25,9 @@ now / tide / villager / villagers / trails
 | `tide` | `sim.environment() → tideView / settingScenery`（画面读 `env.tideLevel`） | **变**（0.9945→0.8802） | **pin** | `tideLevel`（钉 0） |
 | `villagers` | `updateVillager`、`drawVillagerGroundShadow`、`overlay.sync`、`minimap.update` | **变** | **pin** | `actors`（pos/facing/mode/walking/frame/visible） |
 | `trails` | `decor.syncTrails` | **变**（只增不减，晚冻 45 s 多一条） | **pin** | `trails`（整张表，强度/位置） |
-| `villager` | 绘制不读；只有 `world/report.ts` 日报读 | 变（= villagers[0]） | dom | 与 `villagers` 同一来源，置空 0 差 |
+| `villager` | 绘制不读；只有 `world/report.ts` 日报读 | 变（= villagers[0]） | dom | 与 `villagers` 同一来源，绘制路径静态检索 0 命中（第 23 条） |
 | `buildings` | `syncBuildings`、`updateBuilding`、`phase-view`（亮窗/屋顶）、`minimap` | 不变（11 栋） | stable | 三档快照同值 |
-| `startupBuildingIds` | 绘制不读 | 不变 | dom | 置空 0 差 |
+| `startupBuildingIds` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
 | `workstations` | `updateBuilding`、烟囱发射器、`phase-view`（在产亮窗） | 不变（11 个全 `idle`） | stable(注) | 三档快照同值；语义上在产时 `progress` 会变，那时必须钉 |
 | `constructions` | `decor.syncScaffolds`、`drawScaffolds`（读 `remainingMs/totalMs`） | 不变（空表） | stable(注) | 空表无可比；非空时会随时长变，那时必须钉 |
 | `props` | `decor.syncProps`、`phase-view`（灯芯光晕）、`minimap` | 不变（空表） | stable | 三档快照同值 |
@@ -37,15 +37,21 @@ now / tide / villager / villagers / trails
 | `harbor` | `harborView.update`（读 `this.snapshot`） | 不变（`null`） | stable | 三档快照同值 |
 | `altar` | `phase-view` 祭坛光晕锚点（`snapshot.altar.x/y`） | 不变 | stable | 三档同值；**置空直接抛 `null.x`**，挪位置像素差 0.4167% |
 | `weather` | `phase-view` `firefliesVisible(snapshot.weather)`；`statusLine` 也读（DOM） | 不变（`clear`） | stable | 三档同值；改值会动萤火 → 不是 dom |
-| `tasks` | 绘制不读（状态行/队列 DOM） | 不变 | dom | 置空 0 差 |
-| `pending` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `oracle` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `events` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `faith` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `deliveries` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `deliveriesByVillager` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `deliveryFailures` | 绘制不读 | 不变 | dom | 置空 0 差 |
-| `feed` | 绘制不读（状态行 DOM） | 不变 | dom | 置空 0 差 |
+| `tasks` | 绘制不读（状态行/队列 DOM） | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `pending` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `oracle` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `events` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `faith` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `deliveries` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `deliveriesByVillager` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `deliveryFailures` | 绘制不读 | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+| `feed` | 绘制不读（状态行 DOM） | 不变 | dom | 绘制路径静态检索 0 命中（第 23 条） |
+
+**dom 的现行证据是静态检索**（第 23 条）：`src/render/` 下除两个快照合成模块外的
+全部绘制模块 + `SandboxScene.renderSnapshot()` 方法体，逐个检索 11 个 dom 字段的
+属性访问（`.field`），要求 0 命中。这条不依赖某一次运行，随代码演进自动报警。
+文末「一次性历史读数」里的 `dom-blank` 是删口子之前拍的，**口子已删除，不可重跑**，
+只作历史参照，不再作为结论依据。
 
 计数：**pin 4 / stable 10 / dom 11 = 25**。
 
@@ -101,25 +107,33 @@ now / tide / villager / villagers / trails
 | **five 1200 vs 5000** | **0** | **0** | **0** |
 | **five 2800 vs 5000** | **0** | **0** | **0** |
 
-## 三、反向用例与正/负控
+## 三、反向用例（现行夹具）
 
 | 用例 | 改动 | 精确差 | 可见差 | 最大结构块 | 判定 |
 | --- | --- | --- | --- | --- | --- |
 | `five-shift` | 莞尔 `pos.x` +1 格 | **2.6396%** | **2.4920%** | **14704 px**（148×124）@ `[476,264,623,387]` | **判红** |
 | `trail-shift` | 钉住的痕迹 (49,36) → (48,36)，只挪一格 | **0.0104%**（64 px） | **0.0104%**（64 px） | **64 px**（8×8）@ `[332,620,339,627]` | **判红** |
-| `dom-blank` | 11 个 dom 字段整组置空 | **0** | **0** | **0** | 负控通过 |
-| `altar-shift` | stable 字段 `altar` 挪到 (1,1) | **0.4167%** | **0.3281%** | 2016 px @ `[268,612,339,639]` | 正控通过（stable 确实进画面） |
 
 `trail-shift` 的 64 px 与上一轮溯源的那条痕完全同一 bbox `[332,620,339,627]`
 （`fillRect(px+3, py+11, 10, 2)` 露出的一截），即「改一处位置」被判红，且红在痕上。
-`altar-shift` 证明 `stable` 不是「没人读」：祭坛光晕确实进 canvas，只是三档冻结时刻下
-它逐字节相同。
+两条反向用例同时证明判据没被钉死成永远绿：角色换一格出 14704 px，痕迹换一格出 64 px，
+位置都落在被改的对象上。
 
 夹具末尾对 PNG 字节做二值断言（不是「近似相等」）：
 
-- `five-2800 / five-5000 / dom-blank` 必须与 `five-1200` **逐字节相同**；
-- `five-shift / trail-shift / altar-shift` 必须与 `five-1200` **不同**。
+- `five-2800 / five-5000` 必须与 `five-1200` **逐字节相同**；
+- `five-shift / trail-shift` 必须与 `five-1200` **不同**。
   反向用例一旦退化成空操作，夹具直接抛错。
+
+### 一次性历史读数（口子已删除，不可重跑）
+
+下面两组是删除 `debugOverridePainting` **之前**拍的，只作历史参照；夹具里对应两跑
+已一并移除。现行证据以第 23 条静态检索为准。
+
+| 用例 | 改动 | 精确差 | 可见差 | 最大结构块 | 当时判定 |
+| --- | --- | --- | --- | --- | --- |
+| `dom-blank`（已删除） | 11 个 dom 字段整组置空 | 0 | 0 | 0 | 当时负控通过 |
+| `altar-shift`（已删除） | stable 字段 `altar` 挪到 (1,1) | 0.4167% | 0.3281% | 2016 px @ `[268,612,339,639]` | 当时正控通过 |
 
 ## 四、守卫测试：防未来，不防今天
 
@@ -138,6 +152,17 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 同文件第 22 条做摊牌：真实快照 25 个键，表里恰好 4 pin / 10 stable / 11 dom，
 多一个少一个都红。
 
+**第 23 条：dom 字段的静态证明**（替代删掉的「置空一跑」）：
+
+- 检索范围：`src/render/` 下除 `pin-shot-state.ts` / `villager-pin.ts`（只做快照合成、
+  不画 canvas）之外的全部绘制模块，加上 `SandboxScene.renderSnapshot()` 的方法体；
+- 检索式：11 个 dom 字段的**属性访问** `.field`（`\b` 保证 `villager` 不误吃 `villagers`）；
+- 要求：**0 命中**；命中即判红，并指出「文件:字段:次数」；
+- 防退化：两个非绘制模块必须真实存在、绘制文件数必须 > 0，改名/清空目录都会红；
+- 防未来：新增绘制模块默认自动进入检索范围，不需要人记得加白名单。
+
+这比「置空一跑 0 差」更强：不依赖某一次运行、不依赖夹具状态，随代码演进自动失效报警。
+
 ## 五、实现与契约
 
 - `pin-shot-state.ts`：新增 `TrailPin`、`pinTrails`、`unpinTrails`、`pinnedTrailsOf`；
@@ -146,20 +171,31 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
   世界与判据仍读 `this.snapshot`。
 - 入口并列、签名不动：`pinShotState(nowMs, tideLevel)` 一个字符没动；
   `pinTrails(trails)` / `unpinTrails()` 与 `pinActors` 并列；`unpinShotState()` 无参连带解。
-- 证据口子 `debugOverridePainting(patch | null)`：只压「画面上那一层快照」，
-  `this.snapshot`、世界、判据一律不动；传 `null` 复原，正常游玩路径没有调用方。
-  它只用于登记表的正/负控制（置空 → 0 差，改值 → 像素差），不是第七枚钉。
-- 只动夹具与 render 读取路径；不动世界逻辑、不重录基线、不 push、不合 main。
+- 证据口子 `debugOverridePainting` **已删除**：`paintingOverride` 字段、`DebugOracle`
+  声明、夹具的 `dom-blank` / `altar-shift` 两跑全部移除。它曾挂在 `window.Oracle` 上，
+  控制台/Playwright 都能任意改画面，属于判据后门；为两条一次性读数留后门不划算。
+  已拍读数作为历史留在本文档，但不可重跑。
+- `window.Oracle` 无条件挂载的问题只登记、不修改，见 `OPEN_ISSUES.md`。
+- 只动夹具与 render 读取路径；不动世界逻辑、不重录基线。合并与推送按收口流程执行。
 
 ## 六、闸门
 
 | 闸门 | 命令 | 读数 |
 | --- | --- | --- |
 | 类型 | `npm run check` | 语法 0 处 / 语义 0 处 |
-| 单测 | `npm test` | tests 2387 / pass 2378 / fail 0 / skipped 9（新增 17–22 共 6 条） |
-| 构建 | `npm run build` | 193 modules，dist 1,766.41 kB（gzip 500.85 kB），676ms |
-| 负控 | `node scripts/check-shot-actor-pin.mjs` | 三档逐字节全同、dom 置空全同、两反向 + 一正控全异 |
-| 像素 | `scripts/screens-diff.py` 八组配对 | 见第二、三节 |
+| 单测 | `npm test` | tests 2388 / pass 2379 / fail 0 / skipped 9 |
+| 构建 | `npm run build` | dist 1,766.48 kB（gzip 500.91 kB），647ms |
+| 调色板 | `node scripts/audit-palette.mjs --strict` | 通过，退出 0 |
+| 行号引用 | `node scripts/audit-references.ts --strict` | 173 处，0 存疑 |
+| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3048 处，未解析 0 |
+| 节号 | `node scripts/audit-sections.ts --strict` | 159 处，全部对得上 |
+| 断言/ADR | `node scripts/audit-claims.ts --strict` | claims 5/5，ADR 10/10 |
+| 服务端 | `python -m pytest` | 553 passed / 1 skipped |
+| 工作树 | `npm run worktrees:audit -- --strict` | **红**：仓库级历史状态（2 未登记、3 过期），与本分支无关 |
+| 负控 | `node scripts/check-shot-actor-pin.mjs` | 三档逐字节全同；两条反向全异 |
+| 像素 | `scripts/screens-diff.py` 七组配对 | 见第二、三节 |
+| 浏览器 | `test:browser` / `test:phases` / `test:persistence` / `test:render-budget` / `test:setting` | 全绿（smoke / 四刻 34 项 / 持久化 8 项 / 渲染预算 6 项 / 设定集） |
 
-开发服务器端口 5211（避开 5188 / 5191 / 5202 / 5203）。原始读数在
-`render-input/<组>/screens-diff.json`，掩膜在同目录 `masks/`。
+开发服务器端口 5211（避开 5188 / 5191 / 5202 / 5203）。浏览器闸门写出的
+`eval/screens/*.png` 已用 `git checkout -- world-client/eval/screens` 还原，未夹带进提交。
+原始读数在 `render-input/<组>/screens-diff.json`，掩膜在同目录 `masks/`。
