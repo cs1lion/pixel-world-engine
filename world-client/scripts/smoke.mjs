@@ -210,6 +210,20 @@ const pinForShot = async (anchor) => {
         Math.floor(snapshot.now / 86400000) * 86400000 + minuteMs,
         0,
       );
+      // 第五枚钉（角色）：冻结那一刻谁站在哪、朝哪、什么姿态，连角色画什么一起钉死。
+      // 只影响画面；判据仍读 `Oracle.view()` 的真实快照。
+      window.Oracle.pinActors(
+        snapshot.villagers.map((villager) => ({
+          id: villager.id,
+          pos: { x: villager.pos.x, y: villager.pos.y },
+          facing: villager.facing,
+          mode: villager.mode,
+          walking: villager.walking,
+          // 12:30 / 07:34 这类整分处的自然帧号都是 0（12fps × 2 帧 / 4 帧步态）。
+          frame: 0,
+          visible: villager.visible,
+        })),
+      );
       if (anchor !== null) {
         window.Oracle.setCameraMode('free');
         window.Oracle.centerCameraOn(anchor.x, anchor.y);
@@ -406,6 +420,24 @@ const captureSalute01 = async () => {
   check(salute.overlay.hiddenNames >= 1, '有气泡时对应名字让位');
   check(await shotPage.evaluate(() => window.Oracle.worldClockPinned()), '01 抓拍前世界时钟已冻住');
   check(shotErrors.length === 0, '01 抓拍页面全程无 JS 报错');
+  // 第五枚钉（角色）：行礼这帧的位置/朝向/姿态钉在看见 salute 的这一刻，
+  // 之后 300ms 的等待不再改动画面。只钉画面，判据仍读上面的真实快照。
+  if (PIN_SHOTS) {
+    await shotPage.evaluate(() => {
+      const snapshot = window.Oracle.view();
+      window.Oracle.pinActors(
+        snapshot.villagers.map((villager) => ({
+          id: villager.id,
+          pos: { x: villager.pos.x, y: villager.pos.y },
+          facing: villager.facing,
+          mode: villager.mode,
+          walking: villager.walking,
+          frame: 0,
+          visible: villager.visible,
+        })),
+      );
+    });
+  }
   await shotPage.waitForTimeout(300);
   await shotPage.screenshot({ path: `${OUT}/01-salute.png` });
   await context.close();
@@ -1090,6 +1122,20 @@ async function runSandboxSuite() {
     if (pin) {
       const day = Math.floor(now / 86400000) * 86400000;
       window.Oracle.pinShotState(day + minuteMs, 0);
+      // 第五枚钉（角色）：站定之后把每个人的位置/朝向/姿态一起钉住，
+      // 07×4 与 08×3 的等待时长从此不进入画面。判据仍读真实快照。
+      const snapshot = window.Oracle.view();
+      window.Oracle.pinActors(
+        snapshot.villagers.map((villager) => ({
+          id: villager.id,
+          pos: { x: villager.pos.x, y: villager.pos.y },
+          facing: villager.facing,
+          mode: villager.mode,
+          walking: villager.walking,
+          frame: 0,
+          visible: villager.visible,
+        })),
+      );
     }
     return now;
   }, { pin: PIN_SHOTS, minuteMs: SHOT_MINUTE_MS });

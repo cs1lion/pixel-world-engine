@@ -7,7 +7,7 @@
 ## 一、渲染输入字段表（25 个字段，一个不漏）
 
 判定口径：三档等待 1200 / 2800 / 5000ms 各冻结一次，取冻结瞬间的原始快照
-逐字段 JSON 比较（`runs.json` 里的 `before.snapshot`）。实测只有 5 个字段变：
+逐字段 JSON 比较（`runs.json`（与本文同目录）里的 `before.snapshot`）。实测只有 5 个字段变：
 
 ```
 now / tide / villager / villagers / trails
