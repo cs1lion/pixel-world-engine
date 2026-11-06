@@ -28,6 +28,18 @@ export interface ActorPin {
   /** 姿态帧号（0..frameCount-1）。钉住后不再由时刻与灯油重算。 */
   readonly frame: number;
   readonly visible: boolean;
+  /**
+   * 这条钉是不是**稳态断言**（缺省 `true`）。
+   *
+   * 稳态 = 该角色只渲染一层、权重 1、帧号就是 `frame`，不许进 90–220ms
+   * 的过渡混合。旧系统没有过渡，`frame` 钉本来就等价于稳态；第二版接状态机
+   * 后，只有显式写 `false` 才表示「按 live 采样、接受过渡」。
+   *
+   * **必须可选且缺省 `true`**：老调用点（`.mjs` 脚本）少写这个字段时，
+   * 若被判成非法条目整条丢弃，画面会从「有钉」退回「live」，13 张 smoke
+   * 基线立刻变样。
+   */
+  readonly settled?: boolean;
 }
 
 /**
@@ -125,6 +137,8 @@ export function isActorPinValid(actor: ActorPin): boolean {
   if (typeof actor.walking !== 'boolean') return false;
   if (!Number.isInteger(actor.frame) || actor.frame < 0) return false;
   if (typeof actor.visible !== 'boolean') return false;
+  // `settled` 缺省合法（= 稳态）；写了就必须是布尔，否则这条钉整条丢弃。
+  if (actor.settled !== undefined && typeof actor.settled !== 'boolean') return false;
   return true;
 }
 
@@ -137,7 +151,9 @@ function sameActor(a: ActorPin, b: ActorPin): boolean {
     a.mode === b.mode &&
     a.walking === b.walking &&
     a.frame === b.frame &&
-    a.visible === b.visible
+    a.visible === b.visible &&
+    // 缺省 = `true` 参与比较：显式 `false` 必须被认成新钉，不能被幂等短路吞掉。
+    (a.settled ?? true) === (b.settled ?? true)
   );
 }
 

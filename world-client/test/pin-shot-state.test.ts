@@ -14,6 +14,7 @@ import {
   PRESENTATION_INPUTS,
   RENDER_INPUT_TABLE,
   actorFrameOf,
+  isActorPinValid,
   missingRenderFields,
   phaseInputOf,
   pinActors,
@@ -516,5 +517,33 @@ test('25. 呈现态解钉与非法值：只解雨幕，非法整条丢弃', () =
   assert.equal(pinWeather(base, 0.86, -1), base, '负帧数不生效');
   assert.equal(pinWeather(base, 0.86, 1.5), base, '非整数帧数不生效');
   assert.equal(pinWeather(base, 0.86, 24), base, '同值幂等');
+});
+
+// ------------------------------------------------------- 稳态钉（settled）
+
+test('26. 稳态钉：settled 缺省等价 true；显式 false 与缺省判为不同；非布尔整条丢弃', () => {
+  // 旧调用点（`.mjs` 里那四处）都不写 settled：这条钉必须仍然合法、仍然在。
+  const missing = pinActors(NO_SHOT_PIN, [ACTOR_A]);
+  assert.equal(missing.actors.length, 1, '缺省 settled 不许让整条钉消失');
+  assert.equal(missing.actors[0]?.settled, undefined);
+  assert.equal(isActorPinValid(ACTOR_A), true, '缺省 = 合法（语义 true）');
+
+  // 显式 false = 过渡断言，必须与缺省（= true）判为不同：幂等短路不能吞掉这次改动。
+  const transition = pinActors(missing, [{ ...ACTOR_A, settled: false }]);
+  assert.notEqual(transition, missing, '只改 settled 也要换对象');
+  assert.equal(transition.actors[0]?.settled, false);
+  assert.equal(isActorPinValid({ ...ACTOR_A, settled: false }), true);
+
+  // 反向：把缺省值显式写成 true，语义相同 → 幂等，不换对象。
+  const explicitTrue = pinActors(NO_SHOT_PIN, [{ ...ACTOR_A, settled: true }]);
+  assert.equal(pinActors(explicitTrue, [ACTOR_A]), explicitTrue, '缺省与显式 true 等价');
+
+  // 反向证明「整条钉被丢弃」真的会发生：非布尔不是悄悄放行，而是判非法。
+  const bad = { ...ACTOR_A, settled: 'yes' } as unknown as ActorPin;
+  assert.equal(isActorPinValid(bad), false, 'settled 非布尔必须判非法');
+  assert.equal(pinActors(NO_SHOT_PIN, [bad]), NO_SHOT_PIN, '全非法等价于解钉');
+  const mixed = pinActors(NO_SHOT_PIN, [ACTOR_A, bad]);
+  assert.equal(mixed.actors.length, 1, '坏条目整条丢，合法的照钉');
+  assert.deepEqual(mixed.actors[0], ACTOR_A);
 });
 
