@@ -88,6 +88,22 @@
 - **建议时机**：合入后决定删或接。
 - **是否需要用户决策**：**是**（与 A3 同源，删除/接线都改变后续工作量）。
 
+### B7. red-first 把「静态 import 新导出」的正常 TDD 判成 ERROR（已知误报）
+
+- **问题**：`red-first` 只把「断言失败」算合格的红。测试如果静态 `import { newThing } from '../scripts/...'`，而 base 上这个命名导出还不存在，Node 会报 `SyntaxError: ... does not provide an export named 'newThing'`；分类器按 `compile` 处理，闸门输出 `ERROR`（exit 2），不是 `PASS`。**[事实]**（实测：`world-client/test/red-first-lib.test.ts` 用静态 import 时本分支闸门为 ERROR；改成动态 import 后为 PASS）
+- **触发条件**：本次改动在 `test/` 之外新增导出，且测试用静态 `import` 直接引用它。先写测试、后写实现的正常 TDD 正好命中。
+- **规避方式**：测试改为动态 import + 存在性断言：
+  ```ts
+  const lib = (await import('../scripts/foo.ts')) as unknown as { newThing?: (...args) => T };
+  assert.equal(typeof lib.newThing, 'function');
+  // 再调用 lib.newThing 做行为断言
+  ```
+  base 上 `typeof` 是 `undefined` → 断言失败 → 合格的红；tip 上是函数 → 通过。分类器为此专门保留了 `typeof fn === 'function'` 这条断言路径。
+- **保守侧**：`typeof` 只验证「导出存在」，抓不到函数签名/默认值变化。签名变化请继续用静态 import + 实际调用断言（导出本身存在，静态 import 不会误报）。这是有意的保守：宁可把「没跑起来」判 ERROR，也不让 import 写错冒充先红后绿。
+- **影响**：不修的话，下一个照抄静态 import 的作者会长期看到 ERROR，误以为闸门坏了；写测试时需按上面的写法，或先把导出以 stub 形式落地。
+- **建议时机**：下一次改 red-first 时再考虑加 lint/模板拦截；本轮只登记，不改工具。
+- **是否需要用户决策**：否（已按「登记已知误报」处理）。
+
 ## C. 设计边界（不是 bug，但需要被知道）
 
 ### C1. 零造物世界会停在 L1

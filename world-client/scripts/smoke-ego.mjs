@@ -86,11 +86,12 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const URL_BASE = 'http://127.0.0.1:5211/';
+const URL_BASE =
+  process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 /** 实际打开的页面地址（沙盒模式固定 ?ledger=off）；reload 等价做法是重新 goto 同一地址。 */
 const PAGE_URL = `${URL_BASE}?ledger=off&debug=1`;
 /** CDP 清存储要用的 origin（不带路径与查询串）。 */
-const ORIGIN = 'http://127.0.0.1:5211';
+const ORIGIN = new URL(URL_BASE).origin;
 /**
  * 截图必须用绝对路径（ego 拒绝相对路径）。**由本文件位置推出来**，不写死。
  *

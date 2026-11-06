@@ -24,7 +24,7 @@ import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { projectWorldToCanvas, TILE_PX } from './lib/camera-projection.mjs';
 
-const URL_BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
+const URL_BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 const OUT = process.env.EVAL_OUT ?? 'eval/screens';
 // 事件流模式：先起服务端（8000），再 `FEED=1 node scripts/smoke.mjs`。
 const FEED = process.env.FEED === '1';

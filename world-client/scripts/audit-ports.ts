@@ -19,6 +19,18 @@
  *   5189  demo-run / demo-live-serve / e2e-real-frame / s5-e2e-serve 的临时 vite。
  *   5291  check-oracle-e2e；5322  daycard-browser；5307  evidence-liveliness 手动。
  *   8000/8001 开发 API；8011/8012 accept-live API 与 LLM 桩；8931/8932 oracle。
+ *
+ * 多工作树并行（本仓常见 30+ 棵同时开 `npm run dev`）：
+ *   每棵工作树固定一个 5210–5299 内的端口（避开 5212 给 accept-live），并在该
+ *   工作树的终端里导出 `PIXEL_WORLD_CLIENT_PORT=52xx`。`npm run dev` 已带
+ *   `--strictPort`：端口被占会直接失败，不会静默漂到 521x 隔壁。
+ *   客户端脚本一律 `PIXEL_WORLD_URL=http://127.0.0.1:52xx/` 指过去；未显式设置时会
+ *   回落到 `PIXEL_WORLD_CLIENT_PORT`（check-interact 的变量名是 `PWE_URL`，
+ *   capture-palette / demo-run 用各自的 URL 变量），再回落到 5211。
+ *   剩余的洞：若两棵工作树都忘了设环境变量，第二棵的 dev 会在 strictPort 处失败，
+ *   但它的 check-* 仍默认打 5211，可能测到第一棵的应用。所以并行时必须设环境
+ *   变量；这条规则目前靠纪律 + strictPort 报错，客户端尚不校验「服务器是不是我
+ *   这棵树起的」。
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';

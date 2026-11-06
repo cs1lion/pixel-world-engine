@@ -13,7 +13,7 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const OUT = 'D:/project/pwe-material/docs/evidence/homecoming';
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
+const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 const VIEW = { width: 960, height: 640 };
 
 const browser = await chromium.launch();

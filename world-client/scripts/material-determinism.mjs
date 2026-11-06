@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(HERE, '..', '..', 'docs', 'evidence', 'material-upgrade',
   process.argv[2] ?? 'after');
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
+const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 const FRAME_MS = 1000 / 60;
 
 function pinClock({ frameMs }) {

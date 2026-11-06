@@ -246,6 +246,12 @@ function main(): void {
     const kind = classifyBaseFailure(result.output);
     if (kind !== 'assertion') {
       console.error(`red-first: ERROR 非断言失败（分类=${kind}）；这次红不可采信，不放行。`);
+      if (kind === 'compile' && /does not provide an export named/.test(result.output)) {
+        console.error(
+          'red-first: 提示：测试静态 import 了 base 上还不存在的新导出。' +
+            '改为动态 import + `typeof fn === "function"` 断言（见 docs/OPEN_ISSUES.md B7）。',
+        );
+      }
       console.error(tail(result.output));
       console.error(`red-first: RESULT=ERROR kind=${kind} elapsed=${Date.now() - started}ms`);
       process.exitCode = 2;

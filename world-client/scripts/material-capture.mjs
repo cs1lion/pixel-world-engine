@@ -24,7 +24,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // 证据放仓库根 docs/，不放在 world-client/docs：README/审计脚本都从仓库根读。
 const EVIDENCE = resolve(HERE, '..', '..', 'docs', 'evidence', 'material-upgrade');
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
+const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 const LABEL = process.argv.includes('--label')
   ? process.argv[process.argv.indexOf('--label') + 1]
   : 'before';

@@ -45,7 +45,7 @@ const KEEP = process.argv.includes('--keep');
 const SERVE = process.argv.includes('--serve');
 const API = 'http://127.0.0.1:8001';
 const LIVE_PAGE = 'http://127.0.0.1:5189/?ledger=on&debug=1';
-const MOCK_PAGE = process.env.DEMO_DEV_URL ?? 'http://127.0.0.1:5211/?ledger=off&debug=1';
+const MOCK_PAGE = process.env.DEMO_DEV_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/?ledger=off&debug=1`;
 const LOG_PATH = join(OUT, `demo-run-${MODE}.jsonl`);
 const T0 = Date.now();
 // live 模式在页面打开前先落一单，seg1 用它取真实帧证据。
@@ -433,7 +433,7 @@ async function mockRun() {
     // 不用 addInitScript 清，否则两次 “读档/导入后 reload” 会被当成首次导航再次清档。
     const cdp = await context.newCDPSession(page);
     await cdp.send('Storage.clearDataForOrigin', {
-      origin: 'http://127.0.0.1:5211',
+      origin: new URL(MOCK_PAGE).origin,
       storageTypes: 'local_storage,session_storage',
     });
     log('setup', 'start', { page: MOCK_PAGE, mode: 'mock', ledger: 'off' });
@@ -623,7 +623,7 @@ mkdirSync(OUT, { recursive: true });
 if (process.argv.includes('--reset-only')) {
   // 干净重置：只清两个原点的 localStorage/sessionStorage（不关用户的 Chrome、不动 8000）。
   const { context, page } = await connectBrowser();
-  for (const origin of ['http://127.0.0.1:5211', 'http://127.0.0.1:5189']) {
+  for (const origin of [new URL(MOCK_PAGE).origin, 'http://127.0.0.1:5189']) {
     const cdp = await context.newCDPSession(page);
     await cdp.send('Storage.clearDataForOrigin', {
       origin,

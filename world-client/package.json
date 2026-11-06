@@ -5,7 +5,7 @@
   "type": "module",
   "description": "像素世界引擎的前端：模拟内核 + 渲染 + HUD",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --strictPort",
     "build": "node scripts/check-types.ts && vite build",
     "build:world": "node scripts/check-types.ts && vite build --base=/world/",
     "preview": "vite preview",

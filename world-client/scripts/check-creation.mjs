@@ -12,7 +12,7 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { cellToCanvasPoint } from './lib/camera-projection.mjs';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
+const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 const OUT = 'eval/screens';
 const PREFAB = 'workshop_plot';
 

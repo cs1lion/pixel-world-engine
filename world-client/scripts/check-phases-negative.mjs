@@ -28,7 +28,7 @@
 import { chromium } from '@playwright/test';
 import { waitFadeSettled } from './lib/capture.mjs';
 
-const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5211/';
+const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 /** 与 `check-phases.mjs` / `waitFadeSettled` 的默认上限保持同一口径。 */
 const MAX_FRAMES = 60;
 
