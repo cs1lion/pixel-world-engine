@@ -12,7 +12,10 @@ jobs:
       run:
         working-directory: world-client
     steps:
+      # red-first 要拿 base 提交建临时 worktree；默认浅克隆只有 1 个提交，取不到 base。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -24,7 +27,15 @@ jobs:
       # 自己在测试里起 `python -m uvicorn`，缺 uvicorn 会「服务进程提前退出」红。
       - run: pip install -r ../server/requirements.txt
       - run: npm run check
+      # 端口纪律 lint：脚本/配置/.env 里的禁用端口（5188/5191/5202/5203）命中即红。
+      - run: npm run audit:ports
       - run: npm test
+      # 先红后绿：只把本次 `world-client/test/` 的 diff 套到 base 上再跑，必须红。
+      # base 取自事件 sha（PR 用 base.sha，push main 用 before），避免浅克隆/local ref 失真。
+      - name: red-first 红灯闸门
+        run: npm run red:first -- --base "${{ github.event.pull_request.base.sha || github.event.before }}"
+        env:
+          RED_FIRST_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       - run: npm run build
       - run: node scripts/audit-palette.mjs --strict
       # 行号引用对不上就红。文档与注释里写的「代码在那儿」得真的是在那儿——
