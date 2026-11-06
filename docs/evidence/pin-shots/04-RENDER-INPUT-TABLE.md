@@ -188,21 +188,20 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 | 单测 | `npm test` | tests 2390 / pass 2381 / fail 0 / skipped 9 |
 | 构建 | `npm run build` | dist 1,940.16 kB（gzip 540.32 kB），682ms（Phaser 4.2.1） |
 | 调色板 | `node scripts/audit-palette.mjs --strict` | 通过，退出 0 |
-| 行号引用 | `node scripts/audit-references.ts --strict` | 173 处，0 存疑 |
-| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3077 处，未解析 0 |
+| 行号引用 | `node scripts/audit-references.ts --strict` | 220 处，0 存疑 |
+| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3201 处，未解析 0 |
 | 节号 | `node scripts/audit-sections.ts --strict` | 159 处，全部对得上 |
 | 断言/ADR | `node scripts/audit-claims.ts --strict` | claims 5/5，ADR 10/10 |
 | 服务端 | `python -m pytest` | 553 passed / 1 skipped |
-| 工作树 | `npm run worktrees:audit -- --strict` | 绿：total=23 registered=23 unregistered=0 overdue=0；`pwe-a3` 表项悬空已清理（目录已不存在） |
+| 工作树 | `npm run worktrees:audit -- --strict` | 绿：total=25 registered=25 unregistered=0 overdue=0；补登 `pwe-docs-flows` / `pwe-docs-fix`，删掉悬空的 `pwe-a3` |
 | 负控 | `node scripts/check-shot-actor-pin.mjs` | 三档逐字节全同；两条反向全异 |
 | 雨帧负控 | `node scripts/check-rain-pin.mjs` | 三跑逐字节同；`frames+1` / `intensity+0.01` 均判红（见第八节） |
 | 像素 | `scripts/screens-diff.py` 七组配对 | 见第二、三节 |
 | 浏览器 | `test:browser` / `test:phases` / `test:persistence` / `test:render-budget` / `test:setting` | 全绿：smoke 144 项 + 01 专用页 12 项 / 四刻 34 项 / 持久化 8 项 / 渲染预算 6 项 / 设定集 29 项（均在本轮 Phaser 4.2.1 树重跑） |
 
-> 本表读数取自 `430dd0d` 树。之后 main 被外部推进到 `48042a3`（并入 `docs/verifiable-flows`
-> 与 fps 修复，非本分支）；rebase 后 references / citations 因新并入的
-> `docs/evidence/AGENT_TRUST_AND_VERIFIABILITY.md`、`VERIFIABLE_FLOWS.md` 转红
-> （5 处行号存疑、22 处引用未解析），其余各道读数不变。
+> 本表读数取自 rebase 到 `6df4324` 的树（main 已绿：run `42171603592` 四个 job 全 success）。
+> 期间 main 两次外推（`48042a3` / `6df4324`）曾让 references / citations 短暂转红，
+> 对方按文字改写修掉后已回到 0 存疑 / 0 未解析；本表数字均按当前树实测重填，未沿用旧值。
 
 开发服务器端口 5211（避开 5188 / 5191 / 5202 / 5203）。浏览器闸门写出的
 `eval/screens/*.png` 已用 `git checkout -- world-client/eval/screens` 还原，未夹带进提交。

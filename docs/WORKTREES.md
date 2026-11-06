@@ -41,6 +41,8 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-13 | 基线快照（`54139dd`）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 已合入 main（`fe11a7f`，经 `119397e`）；本轮未回收：`tmp/` 有 49 张页面扫描图（gitignored），待确认 |
+| D:/project/pwe-docs-flows | docs/verifiable-flows | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `48042a3`）；worktree 待 owner 回收 |
+| D:/project/pwe-docs-fix | docs/verifiable-flows-fix | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `6df4324`）；worktree 待 owner 回收 |
 | D:/project/pwe-eval | eval/ledger-facts-question | eval 线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（分支 tip `0a965ca`，经 `91c08e6` 合入；worktree 待 owner 回收） |
 | D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`486099c` 已合入 main，经 `39cff04`；分支待 worktree 回收后删） |
 | D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main，经 `9d80f7b`；分支待 worktree 回收后删） |
@@ -60,6 +62,8 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
+同日补登 `pwe-docs-flows`、`pwe-docs-fix`（docs 修复线，均已在 main），
+分支 tip 分别为 `48042a3`、`6df4324`；只登记，未动其工作树。
 
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
 若某个 worktree 实际由其他人/agent 创建，owner 应改成实际负责人或「待认领」，
