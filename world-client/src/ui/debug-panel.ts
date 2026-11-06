@@ -8,7 +8,7 @@ import type { AgentToWorld } from '../world/bridge.ts';
 import type { RewindResult } from '../world/history/scene-history.ts';
 import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
 import type { SettingSceneryMetrics } from '../render/setting-scale.ts';
-import type { ActorPin } from '../render/pin-shot-state.ts';
+import type { ActorPin, TrailPin } from '../render/pin-shot-state.ts';
 import { summarizeWorld } from '../world/world-state.ts';
 
 export const DEBUG_EVENT_LIMIT = 50;
@@ -275,6 +275,17 @@ export interface DebugOracle {
    */
   pinActors?(actors: readonly ActorPin[]): void;
   unpinActors?(): void;
+  /**
+   * 第六枚钉子（截图回归）：把整张地面痕迹表钉成给定值。
+   * 同 `pinActors`，只改画面用的那份快照；痕迹只增不减，所以钉的是整张表。
+   */
+  pinTrails?(trails: readonly TrailPin[]): void;
+  unpinTrails?(): void;
+  /**
+   * 证据专用：只覆盖「画面上那一层快照」的字段，世界与判据不看。
+   * 渲染输入登记表用它做正/负控制（改值 → 像素差，置空 → 0 差）。
+   */
+  debugOverridePainting?(patch: Partial<WorldSnapshot> | null): void;
   events(limit: number): readonly WorldEvent[];
   saveStatus(): SaveStatusView;
   /** 某个角色记得的事，按天/时刻排序。省略表示这一面没挂。 */

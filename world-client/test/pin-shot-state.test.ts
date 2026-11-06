@@ -9,22 +9,54 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   NO_SHOT_PIN,
+  RENDER_INPUT_TABLE,
   actorFrameOf,
+  missingRenderFields,
   phaseInputOf,
   pinActors,
   pinShot,
+  pinTrails,
+  pinnedTrailsOf,
   pinnedVillagersOf,
   presentedNowOf,
   presentedTideOf,
+  unregisteredRenderFields,
   unpinActors,
   unpinShot,
+  unpinTrails,
   type ActorPin,
+  type TrailPin,
 } from '../src/render/pin-shot-state.ts';
 import { villagerPose, villagerPoseAtFrame } from '../src/render/villager-frames.ts';
+import { WorldGrid } from '../src/world/grid.ts';
+import { Simulation } from '../src/world/simulation.ts';
 import type { VillagerSnapshot, WorldSnapshot } from '../src/world/types.ts';
 
 const SNAPSHOT_NOW = 21_000_000;
 const SNAPSHOT_TIDE = 0.62;
+
+/**
+ * 守卫测试要的是**真的**快照，不是手搓的 fixture：只有真快照的键集合才能
+ * 随 `types.ts` 一起长出来。世界本体在 Node 里能造（Phaser 只在渲染层）。
+ */
+function realSnapshot(): WorldSnapshot {
+  const grid = new WorldGrid({
+    width: 24,
+    height: 18,
+    border: 1,
+    zones: [],
+    regions: [{ id: 'court', x: 1, y: 1, w: 20, h: 15 }],
+  });
+  const sim = new Simulation({
+    grid,
+    buildings: [],
+    altar: { x: 20, y: 9 },
+    villagerName: '汐',
+    wallClock: () => 1000,
+    villagerProfiles: [{ at: { x: 4, y: 8 }, routine: [] }],
+  });
+  return sim.snapshot();
+}
 
 test('1. 钉 now：画面读钉住值，不读快照', () => {
   const pin = pinShot(NO_SHOT_PIN, 12 * 30 * 60_000, 0);
@@ -289,3 +321,107 @@ test('16. Oracle 契约：第五钉是并列入口，不改 pinShotState 的参�
   assert.ok(unpinActorsLine, 'Oracle 上必须导出 unpinActors');
   assert.equal(unpinActorsLine[1].trim(), '', 'unpinActors 必须无参');
 });
+
+// ------------------------------------------------- 第六钉：地面痕迹（trails）
+
+const TRAIL_A: TrailPin = { at: { x: 49, y: 36 }, strength: 2 };
+const TRAIL_B: TrailPin = { at: { x: 47, y: 41 }, strength: 3 };
+
+function trailsWorldOf(trails: readonly { at: { x: number; y: number }; strength: number }[]): WorldSnapshot {
+  return { ...worldOf([]), trails: trails as WorldSnapshot['trails'] } as WorldSnapshot;
+}
+
+test('17. 第六钉：钉住后逐帧读到的痕迹表恒等于钉入值', () => {
+  // 世界侧「只增不减」：1200 时是空表、2800 时多一条 (49,36)。钉住后三帧同值。
+  const worldA = trailsWorldOf([]);
+  const worldB = trailsWorldOf([TRAIL_A]);
+  const pin = pinTrails(pinShot(NO_SHOT_PIN, 12 * 30 * 60_000, 0), [TRAIL_A]);
+  const reads = [worldA, worldA, worldB, worldB].map((snapshot) => pinnedTrailsOf(pin, snapshot).trails);
+  for (const trails of reads) {
+    assert.equal(trails.length, 1);
+    assert.deepEqual(trails[0], TRAIL_A);
+  }
+  assert.equal(pinnedTrailsOf(pin, worldB).trails.length, 1, '晚冻带出来的第二条被钉住值盖掉');
+});
+
+test('18. 两组痕迹各自复现：不同时刻钉不同表，互不串味', () => {
+  const pinA = pinTrails(NO_SHOT_PIN, [TRAIL_A]);
+  const pinB = pinTrails(NO_SHOT_PIN, [TRAIL_B, TRAIL_A]);
+  const world = trailsWorldOf([]);
+
+  assert.deepEqual(pinnedTrailsOf(pinA, world).trails, [TRAIL_A]);
+  assert.deepEqual(pinnedTrailsOf(pinB, world).trails, [TRAIL_B, TRAIL_A]);
+  assert.notDeepEqual(pinnedTrailsOf(pinA, world).trails, pinnedTrailsOf(pinB, world).trails);
+  // 连取两次：同一个 pin 读出来的表不随读取次数变化。
+  assert.deepEqual(pinnedTrailsOf(pinB, world).trails, pinnedTrailsOf(pinB, world).trails);
+});
+
+test('19. 解钉与非法条目：只解痕迹、逐条丢弃、空钉零拷贝', () => {
+  const pinned = pinTrails(pinTrails(pinShot(NO_SHOT_PIN, 30 * 60_000, 0), [TRAIL_A]), [TRAIL_B]);
+  assert.equal(pinned.trails.length, 1, '重新钉是覆盖，不是追加');
+
+  const released = unpinTrails(pinned);
+  assert.equal(released.trails.length, 0);
+  assert.equal(released.nowMs, pinned.nowMs, '只解痕迹这一枚，时刻保留');
+  assert.deepEqual(pinnedTrailsOf(released, trailsWorldOf([TRAIL_A])).trails, [TRAIL_A], '解钉后回落到世界快照');
+
+  const dirty = pinTrails(NO_SHOT_PIN, [
+    { at: { x: Number.NaN, y: 3 }, strength: 2 },
+    { at: { x: 1, y: 1 }, strength: 0 },
+    { at: { x: 1, y: 1 }, strength: 1.5 },
+    TRAIL_A,
+  ] as TrailPin[]);
+  assert.equal(dirty.trails.length, 1, '非法条目逐条丢弃，合法的那条留下');
+  assert.deepEqual(dirty.trails[0], TRAIL_A);
+
+  const allBad = pinTrails(pinned, [{ at: { x: Number.NaN, y: 0 }, strength: 2 }] as TrailPin[]);
+  assert.equal(allBad.trails.length, 0, '全非法等价于解钉');
+});
+
+test('20. 快照不变：钉痕迹只产出拷贝，世界快照原样；空钉同引用', () => {
+  const world = trailsWorldOf([TRAIL_A]);
+  const before = JSON.stringify(world);
+  const copied = pinnedTrailsOf(pinTrails(NO_SHOT_PIN, [TRAIL_B]), world);
+  assert.notEqual(copied, world, '钉住时必须拷贝');
+  assert.deepEqual(copied.trails, [TRAIL_B]);
+  assert.equal(world.trails.length, 1, '原快照没被改');
+  assert.deepEqual(world.trails[0], TRAIL_A);
+  assert.equal(JSON.stringify(world), before);
+  assert.equal(pinnedTrailsOf(NO_SHOT_PIN, world), world, '默认路径零拷贝');
+});
+
+// ------------------------------------------- 渲染输入全集：防未来，不防今天
+
+/**
+ * 这条守卫测试的价值是**防未来**，不是防今天：今天它一定是绿的（表是照着
+ * 现有快照抄的）。它挡住的是下一次 `types.ts` 给 `WorldSnapshot` 加字段时，
+ * 有人直接拿去画、却没回答「它随世界时刻变吗、要不要钉」——那时它会红，
+ * 逼着先把那一行登记进 `RENDER_INPUT_TABLE` 再谈画面。
+ */
+test('21. 守卫：快照字段必须逐个登记，pin 的字段必须真在 ShotPin 上', () => {
+  const snapshot = realSnapshot();
+  assert.deepEqual(unregisteredRenderFields(snapshot), [], '新字段没登记进渲染输入表');
+  assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段已改名或删除）');
+
+  const pinKeys = new Set(Object.keys(NO_SHOT_PIN));
+  for (const entry of RENDER_INPUT_TABLE) {
+    if (entry.handling !== 'pin') continue;
+    assert.ok(entry.pinKey, `${entry.field} 标了 pin 却没写 pinKey`);
+    assert.ok(pinKeys.has(entry.pinKey), `${entry.field} 的 pinKey ${entry.pinKey} 不在 ShotPin 上`);
+  }
+
+  // 快照里唯一随世界时刻走的四个字段必须都是 pin，其余只能是 stable/dom。
+  // （stable/dom 的「不随时刻变」由三档冻结快照逐字段 diff 为 0 与置空 0 像素佐证。）
+  const pinnedFields = RENDER_INPUT_TABLE.filter((entry) => entry.handling === 'pin').map((e) => e.field);
+  assert.deepEqual(pinnedFields.sort(), ['now', 'tide', 'trails', 'villagers']);
+});
+
+test('22. 摊牌：真实快照 25 个字段，表里 4 个 pin、10 个 stable、11 个 dom', () => {
+  const snapshot = realSnapshot();
+  const counts = { pin: 0, stable: 0, dom: 0 };
+  for (const entry of RENDER_INPUT_TABLE) counts[entry.handling] += 1;
+  assert.equal(Object.keys(snapshot).length, RENDER_INPUT_TABLE.length);
+  // altar / weather 从 dom 挪到 stable：都是「画面上真的读」，只是不随时刻变。
+  assert.deepEqual(counts, { pin: 4, stable: 10, dom: 11 });
+});
+

@@ -1,0 +1,257 @@
+{
+  "oldDir": "D:\\project\\pwe-material\\world-client\\eval\\screens\\actor-pin-pairs\\five-1200--five-shift/old",
+  "newDir": "D:\\project\\pwe-material\\world-client\\eval\\screens\\actor-pin-pairs\\five-1200--five-shift/new",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "shot.png",
+      "oldSha256": "28928885a4aa4bacf6b73157ccf41a09b1cdc924314f526844e053d93eb99379",
+      "newSha256": "ef76ca0e1476a30d796aef249f669216057d2527199bec34981cffd986d33cf8",
+      "oldBytes": 28171,
+      "newBytes": 28038,
+      "identicalBytes": false,
+      "oldSize": [
+        960,
+        640
+      ],
+      "newSize": [
+        960,
+        640
+      ],
+      "comparable": true,
+      "exactChangedPx": 16218,
+      "exactDiffPct": 2.6396,
+      "visibleChangedPx": 15311,
+      "visibleDiffPct": 2.492,
+      "exactBBox": [
+        476,
+        10,
+        799,
+        403
+      ],
+      "visibleBBox": [
+        476,
+        10,
+        799,
+        399
+      ],
+      "deltaHistogram": {
+        "gt0": 16218,
+        "ge8": 15311,
+        "ge32": 10022,
+        "ge64": 3903,
+        "ge128": 2252
+      },
+      "meanSignedDeltaRGB": [
+        0.171,
+        0.192,
+        0.012
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 14704,
+          "bbox": [
+            476,
+            264,
+            623,
+            387
+          ],
+          "size": [
+            148,
+            124
+          ],
+          "oldColor": "#28383d",
+          "newColor": "#2d3e3e",
+          "meanAbsDiff": 36.6278563656148
+        },
+        {
+          "areaPx": 242,
+          "bbox": [
+            563,
+            212,
+            587,
+            223
+          ],
+          "size": [
+            25,
+            12
+          ],
+          "oldColor": "#404c53",
+          "newColor": "#b2b0a5",
+          "meanAbsDiff": 92.09504132231405
+        },
+        {
+          "areaPx": 233,
+          "bbox": [
+            499,
+            212,
+            523,
+            223
+          ],
+          "size": [
+            25,
+            12
+          ],
+          "oldColor": "#b3b0a4",
+          "newColor": "#414a49",
+          "meanAbsDiff": 95.69957081545064
+        },
+        {
+          "areaPx": 64,
+          "bbox": [
+            524,
+            396,
+            539,
+            399
+          ],
+          "size": [
+            16,
+            4
+          ],
+          "oldColor": "#24312f",
+          "newColor": "#2b3b34",
+          "meanAbsDiff": 7.333333333333333
+        },
+        {
+          "areaPx": 64,
+          "bbox": [
+            588,
+            396,
+            603,
+            399
+          ],
+          "size": [
+            16,
+            4
+          ],
+          "oldColor": "#2b3b34",
+          "newColor": "#24312f",
+          "meanAbsDiff": 7.333333333333333
+        }
+      ],
+      "regionsTotal": 5,
+      "structure": {
+        "components": 7,
+        "coveredPx": 15311,
+        "largestAreaPx": 14704,
+        "largestBbox": [
+          476,
+          264,
+          623,
+          387
+        ],
+        "largestSize": [
+          148,
+          124
+        ],
+        "blocks": [
+          {
+            "areaPx": 14704,
+            "bbox": [
+              476,
+              264,
+              623,
+              387
+            ],
+            "size": [
+              148,
+              124
+            ]
+          },
+          {
+            "areaPx": 242,
+            "bbox": [
+              563,
+              212,
+              587,
+              223
+            ],
+            "size": [
+              25,
+              12
+            ]
+          },
+          {
+            "areaPx": 233,
+            "bbox": [
+              499,
+              212,
+              523,
+              223
+            ],
+            "size": [
+              25,
+              12
+            ]
+          },
+          {
+            "areaPx": 64,
+            "bbox": [
+              524,
+              396,
+              539,
+              399
+            ],
+            "size": [
+              16,
+              4
+            ]
+          },
+          {
+            "areaPx": 64,
+            "bbox": [
+              588,
+              396,
+              603,
+              399
+            ],
+            "size": [
+              16,
+              4
+            ]
+          },
+          {
+            "areaPx": 3,
+            "bbox": [
+              799,
+              10,
+              799,
+              12
+            ],
+            "size": [
+              1,
+              3
+            ]
+          },
+          {
+            "areaPx": 1,
+            "bbox": [
+              796,
+              10,
+              796,
+              10
+            ],
+            "size": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.026396,
+        "overlapPx": 614400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}

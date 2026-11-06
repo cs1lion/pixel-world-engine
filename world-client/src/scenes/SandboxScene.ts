@@ -31,13 +31,17 @@ import {
   phaseInputOf,
   pinActors,
   pinShot,
+  pinTrails,
+  pinnedTrailsOf,
   pinnedVillagersOf,
   presentedNowOf,
   presentedTideOf,
   unpinActors,
   unpinShot,
+  unpinTrails,
   type ActorPin,
   type ShotPin,
+  type TrailPin,
 } from '../render/pin-shot-state.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
@@ -544,6 +548,14 @@ export class SandboxScene extends Phaser.Scene {
    * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
    */
   private shotPin: ShotPin = NO_SHOT_PIN;
+  /**
+   * 证据专用：只压画面这一层的字段覆盖（`debugOverridePainting` 写这里）。
+   *
+   * 它不是第七枚钉。用途只有一个：把登记表里的字段**置空/改值**再拍一张，
+   * 用像素差证明「这个字段进不进画面」。`this.snapshot`、世界、判据一律不动。
+   * 证据脚本用完必须置回 `null`。
+   */
+  private paintingOverride: Partial<WorldSnapshot> | null = null;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -4032,17 +4044,34 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
+   * 第六枚钉：地面踩踏痕。它只增不减，晚冻 45 s 就多一条；四钉/五钉都钉不住。
+   */
+  private pinTrailState(trails: readonly TrailPin[]): void {
+    this.shotPin = pinTrails(this.shotPin, trails);
+  }
+
+  private unpinTrailState(): void {
+    this.shotPin = unpinTrails(this.shotPin);
+  }
+
+  /**
    * 这一帧**画**用的快照：三层覆盖按优先级叠好，谁读画面谁读它。
    *
-   *   1. 第五枚钉（`pinActors`）：角色这一帧画在哪、朝哪、什么姿态；
-   *   2. 调试摆位（`pinnedVillagers`）：判据层要的固定站位，压过拍摄钉住；
-   *   3. 世界与判据读的仍是 `this.snapshot`，这里只派生一份视图。
+   *   1. 第六枚钉（`pinTrails`）：地面痕迹画哪几条、强度多少；
+   *   2. 第五枚钉（`pinActors`）：角色这一帧画在哪、朝哪、什么姿态；
+   *   3. 调试摆位（`pinnedVillagers`）：判据层要的固定站位，压过拍摄钉住；
+   *   4. 世界与判据读的仍是 `this.snapshot`，这里只派生一份视图。
    *
    * 小地图（`#minimap`）也走这里：它画的是居民点，属于「画面读取」的一部分，
    * 不能一边钉住世界画布、一边让地图上的点跟着真实世界跑。
    */
   private paintingSnapshot(): WorldSnapshot {
-    return pinVillagers(pinnedVillagersOf(this.shotPin, this.snapshot), this.pinnedVillagers);
+    const base = pinVillagers(
+      pinnedTrailsOf(this.shotPin, pinnedVillagersOf(this.shotPin, this.snapshot)),
+      this.pinnedVillagers,
+    );
+    if (this.paintingOverride === null) return base;
+    return { ...base, ...this.paintingOverride };
   }
 
   /** 只重放最后一行状态：界面据此重画纸面（底栏时钟跟着呈现时刻走）。 */
@@ -4522,6 +4551,20 @@ export class SandboxScene extends Phaser.Scene {
        */
       pinActors: (actors: readonly ActorPin[]): void => this.pinActorState(actors),
       unpinActors: (): void => this.unpinActorState(),
+      /*
+       * 第六枚钉：地面踩踏痕。同样是并列入口，`pinShotState` 不动；
+       * 钉的是「整张痕迹表」，因为痕迹只增不减——只钉旧的那几条等于没钉。
+       */
+      pinTrails: (trails: readonly TrailPin[]): void => this.pinTrailState(trails),
+      unpinTrails: (): void => this.unpinTrailState(),
+      /*
+       * 证据口子：只改画面上那一层快照（置空/改值都行），世界与判据不看它。
+       * 渲染输入登记表要靠它出「改值 → 像素差 / 置空 → 0 差」的读数。
+       * 传 `null` 复原；正常游玩路径没有调用方。
+       */
+      debugOverridePainting: (patch: Partial<WorldSnapshot> | null): void => {
+        this.paintingOverride = patch;
+      },
       realPhase: (): PhaseId => this.realPhase(),
       isAutoPhase: (): boolean => this.isAutoPhase(),
       setAutoPhase: (): void => this.setAutoPhase(),

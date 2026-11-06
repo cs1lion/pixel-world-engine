@@ -30,11 +30,25 @@ export interface ActorPin {
   readonly visible: boolean;
 }
 
+/**
+ * 一条踩踏痕。字段与 `WorldSnapshot['trails'][number]` 同名同义。
+ *
+ * 它是**只增不减**的累积字段（强度 2 起才可见），所以它读的是「冻结那一刻
+ * 世界已经走过多少路」，而不是「现在几点」。四钉/五钉都钉不住它：等到 2800ms
+ * 再冻，格 (49,36) 就多出一条痕，画面在同一位置差 64px。
+ */
+export interface TrailPin {
+  readonly at: Vec2;
+  readonly strength: number;
+}
+
 export interface ShotPin {
   readonly nowMs: number | null;
   readonly tideLevel: number | null;
   /** 第五枚钉：空数组 = 不钉角色（默认路径，与只有四钉时逐字节相同）。 */
   readonly actors: readonly ActorPin[];
+  /** 第六枚钉：空数组 = 不钉地面痕迹（同上，默认路径不改行为）。 */
+  readonly trails: readonly TrailPin[];
 }
 
 /** 未钉住：呈现值全部回落到世界快照。 */
@@ -42,10 +56,13 @@ export const NO_SHOT_PIN: ShotPin = Object.freeze({
   nowMs: null,
   tideLevel: null,
   actors: Object.freeze([]),
+  trails: Object.freeze([]),
 });
 
 /** 空角色集合：解钉时复用同一个对象，默认路径不多一次分配。 */
 const NO_ACTORS: readonly ActorPin[] = NO_SHOT_PIN.actors;
+/** 空痕迹集合，同上。 */
+const NO_TRAILS: readonly TrailPin[] = NO_SHOT_PIN.trails;
 
 const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
 
@@ -166,4 +183,119 @@ export function pinnedVillagersOf(pin: ShotPin, snapshot: WorldSnapshot): WorldS
 export function phaseInputOf<T extends { now: number }>(pin: ShotPin, snapshot: T): T {
   if (pin.nowMs === null) return snapshot;
   return { ...snapshot, now: pin.nowMs };
+}
+
+// ------------------------------------------------------------- 第六枚钉：地面痕迹
+
+export function isTrailPinValid(trail: TrailPin): boolean {
+  if (typeof trail.at?.x !== 'number' || !Number.isFinite(trail.at.x)) return false;
+  if (typeof trail.at?.y !== 'number' || !Number.isFinite(trail.at.y)) return false;
+  if (!Number.isInteger(trail.strength) || trail.strength < 1) return false;
+  return true;
+}
+
+function sameTrail(a: TrailPin, b: TrailPin): boolean {
+  return a.at.x === b.at.x && a.at.y === b.at.y && a.strength === b.strength;
+}
+
+/**
+ * 钉住地面痕迹。非法条目逐条丢弃；空列表等价于解钉。
+ *
+ * 为什么要钉整张表而不只钉「今天已有的那几条」：痕迹是**只增不减**的，晚冻
+ * 45 s 就会多一条。只钉旧的那几条、让新的漏进来，等于没钉。
+ */
+export function pinTrails(prev: ShotPin, trails: readonly TrailPin[]): ShotPin {
+  const clean = trails.filter(isTrailPinValid);
+  if (clean.length === 0) return prev.trails.length === 0 ? prev : unpinTrails(prev);
+  if (clean.length === prev.trails.length && clean.every((trail, i) => sameTrail(trail, prev.trails[i]!))) {
+    return prev;
+  }
+  return { ...prev, trails: clean };
+}
+
+/** 只解地面痕迹这一枚：时刻、潮位、角色保持钉住。 */
+export function unpinTrails(prev: ShotPin): ShotPin {
+  if (prev.trails.length === 0) return prev;
+  return { ...prev, trails: NO_TRAILS };
+}
+
+/**
+ * 把痕迹钉覆盖到渲染用的那份快照上。空钉时原样返回（默认路径零拷贝），
+ * 否则返回浅拷贝，世界快照本身一个字节不动。
+ */
+export function pinnedTrailsOf(pin: ShotPin, snapshot: WorldSnapshot): WorldSnapshot {
+  if (pin.trails.length === 0) return snapshot;
+  return { ...snapshot, trails: pin.trails };
+}
+
+// --------------------------------------------------- 渲染输入全集（不是又补一枚钉）
+
+/**
+ * 渲染读到的世界字段登记表。
+ *
+ * 为什么要有这张表：`trails` 是「冻结哪一刻没定义清楚」暴露出来的第二个洞——
+ * 补完它还会有下一个。与其等下一个，不如把 `WorldSnapshot` 的每个字段一次性
+ * 定性：**画面上读它吗、它随世界时刻变吗、怎么处置**。守卫测试拿真实快照
+ * 的键与这张表对账，将来 `types.ts` 加了新字段而这里没登记，直接判红。
+ *
+ * `pin`  = 已并进 shot pin（`pinKey` 指向 `ShotPin` 上的那一格）；
+ * `stable` = 画面读它，但它不随世界时刻变（证据：三档冻结快照逐字段 diff 为 0），
+ *            因此「冻在哪一刻」不影响它，无需再钉；
+ * `dom`   = 绘制路径不读，只进 DOM / 神谕 / 日报（证据：整组置空后像素 0 差）。
+ */
+export type RenderInputHandling = 'pin' | 'stable' | 'dom';
+
+export interface RenderInputEntry {
+  readonly field: keyof WorldSnapshot;
+  /** 哪个绘制函数读它（`-` = 绘制路径不读）。 */
+  readonly reader: string;
+  readonly handling: RenderInputHandling;
+  /** `handling === 'pin'` 时，对应 `ShotPin` 上的格子。 */
+  readonly pinKey?: keyof ShotPin;
+  readonly note: string;
+}
+
+export const RENDER_INPUT_TABLE: readonly RenderInputEntry[] = Object.freeze([
+  { field: 'now', reader: 'presentedNowOf / phaseInputOf / weatherView', handling: 'pin', pinKey: 'nowMs', note: '呈现时刻：昼夜、鸟、灯、潮都由它派生' },
+  { field: 'tide', reader: 'sim.environment() → tideView / settingScenery', handling: 'pin', pinKey: 'tideLevel', note: '画面读 env.tideLevel（= tide.level），经 shot pin 覆写' },
+  { field: 'villagers', reader: 'updateVillager / drawVillagerGroundShadow / overlay.sync', handling: 'pin', pinKey: 'actors', note: '钉 pos/facing/mode/walking/frame/visible；子字段 bubble 只进 DOM、lampOil 是凭证' },
+  { field: 'trails', reader: 'decor.syncTrails', handling: 'pin', pinKey: 'trails', note: '只增不减的累积字段：晚冻 45 s 就多一条' },
+  { field: 'villager', reader: '-', handling: 'dom', note: '兼容字段（= villagers[0]），绘制路径不读' },
+  { field: 'buildings', reader: 'syncBuildings / updateBuilding / refreshDecals', handling: 'stable', note: '楼是静态陈设：三档快照全等' },
+  { field: 'startupBuildingIds', reader: '-', handling: 'dom', note: '只用于「这栋楼是不是这次造的」的日报口径' },
+  { field: 'workstations', reader: 'updateBuilding / 烟囱发射器', handling: 'stable', note: 'activity.kind=operating 时才影响烟；本夹具 0 个在产' },
+  { field: 'constructions', reader: 'decor.syncScaffolds / drawScaffolds', handling: 'stable', note: '本夹具无在建' },
+  { field: 'props', reader: 'decor.syncProps', handling: 'stable', note: '地上的小物件：三档全等' },
+  { field: 'critters', reader: 'decor.syncCritters', handling: 'stable', note: '氛围实体：本夹具 0' },
+  { field: 'roads', reader: 'decor.redrawRoads', handling: 'stable', note: '石板路是静态陈设：三档全等' },
+  { field: 'fog', reader: 'fogView（设定集图为 null）/ refreshRuins', handling: 'stable', note: '设定集图整张已探明，半径不变' },
+  { field: 'harbor', reader: 'harborView.update', handling: 'stable', note: '本夹具 harbor=null（无渡口）' },
+  { field: 'tasks', reader: '-', handling: 'dom', note: '状态行 / 队列 / 气泡文案' },
+  { field: 'pending', reader: '-', handling: 'dom', note: '待派发神谕列表，只进 DOM' },
+  { field: 'oracle', reader: '-', handling: 'dom', note: '神谕石板，只进 DOM' },
+  { field: 'events', reader: '-', handling: 'dom', note: '事件流，只进 DOM' },
+  { field: 'altar', reader: 'phase-view（祭坛光晕锚点 snapshot.altar.x/y）', handling: 'stable', note: '镇心坐标，世界运行时也恒定；置空会直接抛 null.x（已实测）' },
+  { field: 'weather', reader: 'phase-view（firefliesVisible(snapshot.weather)）；statusLine 也读（DOM）', handling: 'stable', note: '晴天；三档冻结时刻同值。画面侧的雨幕/雾幕走 sim.weatherIntensity()，不走这个字段' },
+  { field: 'faith', reader: '-', handling: 'dom', note: '状态行读数' },
+  { field: 'deliveries', reader: '-', handling: 'dom', note: '状态行读数' },
+  { field: 'deliveriesByVillager', reader: '-', handling: 'dom', note: '日报读数' },
+  { field: 'deliveryFailures', reader: '-', handling: 'dom', note: '日报读数' },
+  { field: 'feed', reader: 'statusLine（DOM）', handling: 'dom', note: '上游连接状态，只进 DOM' },
+]);
+
+/**
+ * 守卫：快照上出现了登记表里没有的字段 → 返回它们的名字（非空即判红）。
+ *
+ * 这条测试防的是**未来**：现在它是绿的，不代表它对；它保证的是
+ * 「下一次 types.ts 加字段时，必须先回答『画面读不读、要不要钉』」。
+ */
+export function unregisteredRenderFields(snapshot: object): string[] {
+  const known = new Set<string>(RENDER_INPUT_TABLE.map((entry) => entry.field));
+  return Object.keys(snapshot).filter((key) => !known.has(key));
+}
+
+/** 守卫另一半：登记表里的字段必须真的存在于快照上（防止改名/删除后留死条目）。 */
+export function missingRenderFields(snapshot: object): string[] {
+  const present = new Set(Object.keys(snapshot));
+  return RENDER_INPUT_TABLE.map((entry) => entry.field).filter((field) => !present.has(field));
 }
