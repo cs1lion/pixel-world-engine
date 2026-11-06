@@ -36,7 +36,7 @@ export const TIDE_JITTER_MS = 2 * 60_000;
  *
  * **两个数都是拍的，规格里没有依据**：`docs/SPEC_V2.md` 的潮汐只到 §4.3 的
  * 覆盖，没给定作息的门槛。能老实说的只有两条结构事实，不是理由——
- *   - `TIDE_LOW_MAX` 0.34 略高于 `TERRAIN_HEIGHT.grass` 的 0.3，于是「草地
+ *   - `TIDE_LOW_MAX` 0.34 略高于 `TERRAIN_WATER_CLEARANCE.grass` 的 0.3，于是「草地
  *     开始进水」与「浅滩作息不再成立」之间隔着 0.04；
  *   - `TIDE_HIGH_MIN` 0.6 与 `describeTide` 的两个标签（0.85 满潮 /
  *     0.15 见底）刻意不重合：作息问的是「去得了吗」，不是「现在叫什么」。
@@ -60,7 +60,7 @@ export const TIDE_HIGH_MIN = 0.6;
  *
  * 这里原来写「路面必须**严格高于 1**：……路基若正好是 1，满潮时 `level > height`
  * 仍然成立，整张路网会被判成水里」——**理由是反的**。`isFlooded` 用的是严格大于
- * （`return level > (height ?? TERRAIN_HEIGHT.grass)`），路基正好取 1.0 时
+ * （`return level > (height ?? TERRAIN_WATER_CLEARANCE.grass)`），路基正好取 1.0 时
  * `1 > 1` 为 false，本来就不淹。而 `level` 确实能取到正好 1：`tideLevelAt` 在半个
  * 周期处返回 `(1 - cos(pi)) / 2 = 1`，覆盖那条路也被 `clampLevel` 夹在 1。
  *
@@ -68,7 +68,7 @@ export const TIDE_HIGH_MIN = 0.6;
  * 必须避开的数，于是把 1.2 往上再加，或者反过来以为「严格大于」是笔误而去改
  * `isFlooded`。两边都是白改。
  */
-export const TERRAIN_HEIGHT: Readonly<Record<string, number>> = {
+export const TERRAIN_WATER_CLEARANCE: Readonly<Record<string, number>> = {
   // 广场与石板是垫高的路基，永远在潮线之上。
   plaza: 1.3,
   stone: 1.2,
@@ -82,6 +82,12 @@ export const TERRAIN_HEIGHT: Readonly<Record<string, number>> = {
   mud: 0.24,
   coal: 0.75,
 };
+
+/**
+ * 过渡别名：旧名 `TERRAIN_HEIGHT` 与 `render/terrain-edges.ts` 里的视觉优先级表撞名，
+ * 本轮先改本表名，测试引用在下一提交一并改走，届时删除此导出。
+ */
+export const TERRAIN_HEIGHT = TERRAIN_WATER_CLEARANCE;
 
 /**
  * 被水淹的格子走起来更贵，而不是不可走。
@@ -178,9 +184,9 @@ export function tideLevelAt(now: number): number {
 
 /** 这个地形在这个潮位下是不是被淹了。 */
 export function isFlooded(terrain: string, level: number): boolean {
-  const height = TERRAIN_HEIGHT[terrain];
+  const height = TERRAIN_WATER_CLEARANCE[terrain];
   // 没登记的地形按草地算：宁可湿脚，也不要因为漏配一个地形就让整片区域变干。
-  return level > (height ?? TERRAIN_HEIGHT.grass);
+  return level > (height ?? TERRAIN_WATER_CLEARANCE.grass);
 }
 
 /** 潮汐的一句话状态，给状态行用。 */

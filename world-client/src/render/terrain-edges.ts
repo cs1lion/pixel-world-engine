@@ -49,7 +49,7 @@ import { paletteFor, type WorldColor, type WorldPalette } from '../world/theme.t
 import { TILE_PX } from '../world/setup.ts';
 
 /** 材质高度序：边只画在高度**更大**的一侧。 */
-export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
+export const TERRAIN_EDGE_PRIORITY: Readonly<Record<TerrainId, number>> = {
   tree: 4,
   grass: 3,
   farm: 2,
@@ -59,6 +59,11 @@ export const TERRAIN_HEIGHT: Readonly<Record<TerrainId, number>> = {
   mud: 1,
   coal: 2,
 };
+
+/**
+ * 过渡别名：旧名与 `world/tide.ts` 的水面净空表撞名，测试引用在下一提交改走，届时删除。
+ */
+export const TERRAIN_HEIGHT = TERRAIN_EDGE_PRIORITY;
 
 /**
  * 亮一档 token 名：只用现有 24 色里的 `grassLit` / `plaza`。
@@ -221,7 +226,7 @@ export interface EdgeNeighbors {
 /** 邻格比本格低（严格小于）→ 这一侧要画边。越界 / 同高 / 更高都不画。 */
 function isLower(self: TerrainId, other: TerrainId | null): boolean {
   if (other === null) return false;
-  return TERRAIN_HEIGHT[other] < TERRAIN_HEIGHT[self];
+  return TERRAIN_EDGE_PRIORITY[other] < TERRAIN_EDGE_PRIORITY[self];
 }
 
 /** 四邻边掩码：某一位为 1 表示该侧的邻格材质更低，需要一条 1px 台阶边。 */
