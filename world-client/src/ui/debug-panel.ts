@@ -8,6 +8,7 @@ import type { AgentToWorld } from '../world/bridge.ts';
 import type { RewindResult } from '../world/history/scene-history.ts';
 import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
 import type { SettingSceneryMetrics } from '../render/setting-scale.ts';
+import type { ActorPin, TrailPin } from '../render/pin-shot-state.ts';
 import { summarizeWorld } from '../world/world-state.ts';
 
 export const DEBUG_EVENT_LIMIT = 50;
@@ -268,6 +269,18 @@ export interface ClockStatusView {
 
 export interface DebugOracle {
   view(): WorldSnapshot;
+  /**
+   * 第五枚钉子（截图回归）：把角色这一帧的位置/朝向/姿态帧钉成给定值。
+   * 只改画面用的那份快照，不写世界、不写存档。正常游玩路径没有调用方。
+   */
+  pinActors?(actors: readonly ActorPin[]): void;
+  unpinActors?(): void;
+  /**
+   * 第六枚钉子（截图回归）：把整张地面痕迹表钉成给定值。
+   * 同 `pinActors`，只改画面用的那份快照；痕迹只增不减，所以钉的是整张表。
+   */
+  pinTrails?(trails: readonly TrailPin[]): void;
+  unpinTrails?(): void;
   events(limit: number): readonly WorldEvent[];
   saveStatus(): SaveStatusView;
   /** 某个角色记得的事，按天/时刻排序。省略表示这一面没挂。 */

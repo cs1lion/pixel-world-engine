@@ -1,0 +1,66 @@
+{
+  "oldDir": "D:\\project\\pwe-material\\world-client\\eval\\screens\\actor-pin-pairs\\five-1200--five-2800/old",
+  "newDir": "D:\\project\\pwe-material\\world-client\\eval\\screens\\actor-pin-pairs\\five-1200--five-2800/new",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "shot.png",
+      "oldSha256": "28928885a4aa4bacf6b73157ccf41a09b1cdc924314f526844e053d93eb99379",
+      "newSha256": "28928885a4aa4bacf6b73157ccf41a09b1cdc924314f526844e053d93eb99379",
+      "oldBytes": 28171,
+      "newBytes": 28171,
+      "identicalBytes": true,
+      "oldSize": [
+        960,
+        640
+      ],
+      "newSize": [
+        960,
+        640
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 614400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}

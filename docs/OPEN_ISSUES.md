@@ -160,3 +160,27 @@
 - **提案方向**：默认大世界也要有一条可复放轨迹，纳入 `trace:replay` 与四枚指纹；代价是新增一份可复放存档 + 一条轨迹并重录一次基线。
 - **建议时机**：下一次动回家线之前。
 - **是否需要用户决策**：**是**（要不要为它付一份新基线）。
+
+## E. 调试面与证据链
+
+### E1. `window.Oracle` 无条件挂载，生产同样可达
+
+- **现状 [事实]**：`SandboxScene.create()` 无条件调用 `registerOracleApi()`，`window.Oracle = oracle` 无条件赋值（[SandboxScene.ts](file:///D:/project/pwe-material/world-client/src/scenes/SandboxScene.ts#L1439-L1439)、[SandboxScene.ts](file:///D:/project/pwe-material/world-client/src/scenes/SandboxScene.ts#L4653-L4654)）。它暴露的不只是只读读数，还有 `pinShotState` / `pinActors` / `pinTrails` / `debugSetWeather` 等会改状态的调试方法；本轮已删除唯一一个「任意改画面」的 `debugOverridePainting`，但口子面仍在。
+- **既有依赖 [事实]**：`scripts/smoke.mjs`、`check-phases.mjs`、`check-persistence.mjs`、`check-render-budget.mjs`、`check-dengchao.mjs`、`check-shot-actor-pin.mjs` 等全部经 `window.Oracle` 取状态、挪镜头、钉快照；没有它，这套浏览器证据链无法工作。
+- **风险 [事实+推断]**：任何页面脚本、控制台命令、Playwright 会话都能调用这些方法改世界状态或镜头，且与「正常游玩路径」没有类型隔离；截图闸门因此可以被外部脚本影响（本轮删掉的 `debugOverridePainting` 是最极端的一例）。生产环境同样可达，玩家本地脚本也能用。
+- **提案方向**：三选一——(a) 仅在 DEV 或测试构建挂载（`import.meta.env.DEV` / 专门构建）；(b) 只暴露只读方法，写入类挪到测试专用入口；(c) 保留现状但在文档里明确它是「测试面」并接受风险。
+- **代价**：任何一项都会影响全部既有浏览器脚本与证据链（需要同步改脚本入口或加构建开关），并要求重跑五道浏览器闸门。不是本轮能顺手改的。
+- **建议时机**：下一次动浏览器闸门或重构调试面板时。
+- **是否需要用户决策**：**是**（选 (a)/(b)/(c)）。
+
+### E2. `worktrees:audit --strict` 把「未登记」与「过期」混在同一条失败里
+
+- **现状 [事实]**：`scripts/worktrees-audit.mjs` 的 strict 判红条件是「未登记 ∪ 过期未回收 ∪ 表项悬空」，三者都只改 `process.exitCode = 1`（[worktrees-audit.mjs](file:///D:/project/pwe-material/scripts/worktrees-audit.mjs#L193-L195)）。输出虽分段，但退出码不区分。
+- **问题**：这两类性质不同——**未登记是纪律问题**（新建 worktree 没先登记，说明流程没走），**过期是记账问题**（owner 还没处理回收，续期即可）。混判后，一次「补账」就能把纪律问题一起转绿，读数上看不出哪天漏登记过；反之，一个拖期的旧快照也会让 CI 红，掩盖真正的新漏登记。
+- **影响 [推断]**：strict 红失去可读性，值班人只能靠读输出段落人工分辨；长期会逼人把过期项一律写成「保留」来消红，登记表退化成摆设。
+- **提案方向**：拆成两个判据——未登记 / 表项悬空仍红（exit 1）；过期未回收单独提示，或给独立退出码（例如 exit 2），CI 可只对前者失败。需要同时改脚本与本文判定口径表。
+- **代价**：改一处脚本 + 一处文档口径 + CI 调用方式；不改历史表项数据。
+- **本轮回溯**：本轮只补账（补登 2 条、3 个过期项续期到 2026-11-13）并让 strict 转绿，**没有改判据**。
+- **建议时机**：下一次改 worktree 巡检或 CI 门禁时。
+- **是否需要用户决策**：**是**（是否拆退出码、CI 是否只认未登记为红）。
+

@@ -24,6 +24,7 @@ import {
   lampAnimationTime,
   pixelAt,
   villagerPose,
+  villagerPoseAtFrame,
   type VillagerPose,
 } from './villager-frames.ts';
 import {
@@ -129,6 +130,11 @@ export function updateVillager(
   altitude: number,
   appearance?: VillagerAppearance,
   palette: WorldPalette = paletteFor(),
+  /**
+   * 第五枚钉子：钉住的姿态帧号。`null` = 原路径，按时刻与灯油采样。
+   * 钉住时姿态只由帧号 + mode + walking 决定，等待时长与灯油都不再进入画面。
+   */
+  poseFrame: number | null = null,
 ): void {
   const foot = villagerFootAt(villager.pos, originX, originY);
   const px = foot.x;
@@ -151,7 +157,10 @@ export function updateVillager(
   const oil = withLamp ? view.lamp.oil : 1;
   // 油尽时人发灰、动作采样放慢——这是画面上的疲惫，不是世界里的减速：
   // 位置仍由 simulation 决定，这里只改同一帧号被取样的时刻。
-  const pose = villagerPose(villager.mode, villager.walking, lampAnimationTime(oil, nowMs));
+  // 钉住时直接按帧号取姿态：不再经过时刻与灯油那一层，等待时长才进不了画面。
+  const pose = poseFrame === null
+    ? villagerPose(villager.mode, villager.walking, lampAnimationTime(oil, nowMs))
+    : villagerPoseAtFrame(villager.mode, villager.walking, poseFrame);
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
   view.body.setAlpha(lampBodyAlpha(oil));
   view.body.clear();

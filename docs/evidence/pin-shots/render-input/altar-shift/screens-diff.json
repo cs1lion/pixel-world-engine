@@ -1,0 +1,115 @@
+{
+  "oldDir": "D:\\project\\pwe-material\\world-client\\eval\\screens\\actor-pin-pairs\\five-1200--altar-shift/old",
+  "newDir": "D:\\project\\pwe-material\\world-client\\eval\\screens\\actor-pin-pairs\\five-1200--altar-shift/new",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "shot.png",
+      "oldSha256": "28928885a4aa4bacf6b73157ccf41a09b1cdc924314f526844e053d93eb99379",
+      "newSha256": "4c6fee9e678ca0c2167dacdd991c9b697e6fc6d6b5ef6282a2f29cbebf699474",
+      "oldBytes": 28171,
+      "newBytes": 28105,
+      "identicalBytes": false,
+      "oldSize": [
+        960,
+        640
+      ],
+      "newSize": [
+        960,
+        640
+      ],
+      "comparable": true,
+      "exactChangedPx": 2560,
+      "exactDiffPct": 0.4167,
+      "visibleChangedPx": 2016,
+      "visibleDiffPct": 0.3281,
+      "exactBBox": [
+        264,
+        608,
+        343,
+        639
+      ],
+      "visibleBBox": [
+        268,
+        612,
+        339,
+        639
+      ],
+      "deltaHistogram": {
+        "gt0": 2560,
+        "ge8": 2016,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        -0.049,
+        -0.034,
+        -0.017
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 2016,
+          "bbox": [
+            268,
+            612,
+            339,
+            639
+          ],
+          "size": [
+            72,
+            28
+          ],
+          "oldColor": "#292621",
+          "newColor": "#17191a",
+          "meanAbsDiff": 9.047619047619047
+        }
+      ],
+      "regionsTotal": 1,
+      "structure": {
+        "components": 1,
+        "coveredPx": 2016,
+        "largestAreaPx": 2016,
+        "largestBbox": [
+          268,
+          612,
+          339,
+          639
+        ],
+        "largestSize": [
+          72,
+          28
+        ],
+        "blocks": [
+          {
+            "areaPx": 2016,
+            "bbox": [
+              268,
+              612,
+              339,
+              639
+            ],
+            "size": [
+              72,
+              28
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.004167,
+        "overlapPx": 614400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}

@@ -89,10 +89,29 @@ export function villagerPose(
   nowMs: number,
 ): VillagerPose {
   const frames = walking ? WALK_POSES : IDLE_POSES;
-  const frame = animFrame(nowMs, frames.length);
-  const base = frames[frame] as Omit<VillagerPose, 'frame' | 'frameCount'>;
+  return villagerPoseAtFrame(mode, walking, animFrame(nowMs, frames.length));
+}
+
+/**
+ * 直接按帧号取姿态（第五枚钉子用）。
+ *
+ * 与 `villagerPose` 的区别只在「帧号从哪来」：正常路径由时刻采样，钉住时由
+ * `ActorPin.frame` 给定。取样时刻与灯油因此不再影响姿态——同一帧号必得同一
+ * 副身子，不管冻结前等了 1200ms 还是 5000ms。
+ *
+ * 越界帧号按帧数回绕；非有限值落到 0，与 `animFrame` 的兜底一致。
+ */
+export function villagerPoseAtFrame(
+  mode: VillagerMode,
+  walking: boolean,
+  frame: number,
+): VillagerPose {
+  const frames = walking ? WALK_POSES : IDLE_POSES;
+  const raw = Number.isFinite(frame) ? Math.trunc(frame) : 0;
+  const index = ((raw % frames.length) + frames.length) % frames.length;
+  const base = frames[index] as Omit<VillagerPose, 'frame' | 'frameCount'>;
   return {
-    frame,
+    frame: index,
     frameCount: frames.length,
     offsetY: base.offsetY + modeLift(mode),
     footLeft: base.footLeft,
