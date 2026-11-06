@@ -1,0 +1,186 @@
+{
+  "oldDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\actor-pin-pairs\\four\\old",
+  "newDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\actor-pin-pairs\\four\\new",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "four.png",
+      "oldSha256": "8b8a7d2ce1280c0a57c6cedb7b1377ac8f635463dcb15669d8b17c77b81bf10d",
+      "newSha256": "d58fc28819b5e3a4f46c181b5b72f78efab24fbb242adb42216b49fbadb481ab",
+      "oldBytes": 27331,
+      "newBytes": 27253,
+      "identicalBytes": false,
+      "oldSize": [
+        960,
+        640
+      ],
+      "newSize": [
+        960,
+        640
+      ],
+      "comparable": true,
+      "exactChangedPx": 8636,
+      "exactDiffPct": 1.4056,
+      "visibleChangedPx": 8623,
+      "visibleDiffPct": 1.4035,
+      "exactBBox": [
+        264,
+        10,
+        799,
+        639
+      ],
+      "visibleBBox": [
+        264,
+        10,
+        799,
+        639
+      ],
+      "deltaHistogram": {
+        "gt0": 8636,
+        "ge8": 8623,
+        "ge32": 7327,
+        "ge64": 4103,
+        "ge128": 1437
+      },
+      "meanSignedDeltaRGB": [
+        -0.033,
+        0.008,
+        0.009
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 8048,
+          "bbox": [
+            264,
+            520,
+            367,
+            639
+          ],
+          "size": [
+            104,
+            120
+          ],
+          "oldColor": "#424142",
+          "newColor": "#424542",
+          "meanAbsDiff": 54.33996023856859
+        },
+        {
+          "areaPx": 285,
+          "bbox": [
+            288,
+            468,
+            312,
+            479
+          ],
+          "size": [
+            25,
+            12
+          ],
+          "oldColor": "#cbc6b7",
+          "newColor": "#424b44",
+          "meanAbsDiff": 107.02222222222223
+        },
+        {
+          "areaPx": 285,
+          "bbox": [
+            307,
+            500,
+            331,
+            511
+          ],
+          "size": [
+            25,
+            12
+          ],
+          "oldColor": "#384142",
+          "newColor": "#cbc6b7",
+          "meanAbsDiff": 107.22222222222223
+        }
+      ],
+      "regionsTotal": 3,
+      "structure": {
+        "components": 4,
+        "coveredPx": 8623,
+        "largestAreaPx": 8048,
+        "largestBbox": [
+          264,
+          520,
+          367,
+          639
+        ],
+        "largestSize": [
+          104,
+          120
+        ],
+        "blocks": [
+          {
+            "areaPx": 8048,
+            "bbox": [
+              264,
+              520,
+              367,
+              639
+            ],
+            "size": [
+              104,
+              120
+            ]
+          },
+          {
+            "areaPx": 285,
+            "bbox": [
+              288,
+              468,
+              312,
+              479
+            ],
+            "size": [
+              25,
+              12
+            ]
+          },
+          {
+            "areaPx": 285,
+            "bbox": [
+              307,
+              500,
+              331,
+              511
+            ],
+            "size": [
+              25,
+              12
+            ]
+          },
+          {
+            "areaPx": 5,
+            "bbox": [
+              796,
+              10,
+              799,
+              12
+            ],
+            "size": [
+              4,
+              3
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.014056,
+        "overlapPx": 614400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": -0.0
+    }
+  ]
+}
