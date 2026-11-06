@@ -257,7 +257,7 @@ for (const phase of PHASES) {
   );
   check(
     fact.fade.settled,
-    `${phase} 压暗层 6 秒内收敛`,
+    `${phase} 压暗层 8 秒内收敛`,
     `等待 ${fact.fade.waitedMs}ms / ${fact.fade.frames} 帧`,
   );
   check(pass.shots[phase].actual === phase, `?time=${phase} 真的停在${phase}`, `实际 ${pass.shots[phase].actual}`);
@@ -265,7 +265,7 @@ for (const phase of PHASES) {
 check(pass.errors.length === 0, '四刻页面无 JS 报错', pass.errors.join('; '));
 check(
   pass.nightRain.fade.settled,
-  'night（雨前）压暗层 6 秒内收敛',
+  'night（雨前）压暗层 8 秒内收敛',
   `等待 ${pass.nightRain.fade.waitedMs}ms / ${pass.nightRain.fade.frames} 帧`,
 );
 
