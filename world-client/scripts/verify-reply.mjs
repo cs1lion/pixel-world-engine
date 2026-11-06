@@ -28,9 +28,11 @@
  */
 
 import { chromium } from '@playwright/test';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5199/';
 
+await assertTreeIdentity(BASE);
 /** 与 `smoke-ego.mjs` 同一套：MessageChannel 门控到 60fps。测试专用，不进产物。 */
 const RAF_PATCH = `(() => {
   const realNow = performance.now.bind(performance);

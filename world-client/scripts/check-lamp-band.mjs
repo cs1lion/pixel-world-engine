@@ -33,8 +33,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const OUT = process.env.EVAL_OUT ?? resolve(import.meta.dirname, '..', 'eval', 'screens');
 // 默认拍「改后」：`before` 是半径改动之前拍的一次性基线，重跑不该覆盖它。
 const LABEL = process.env.BAND_LABEL ?? 'after';

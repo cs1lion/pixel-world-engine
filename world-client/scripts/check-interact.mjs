@@ -12,8 +12,11 @@
 
 import { chromium } from '@playwright/test';
 import { cellToCanvasPoint, viewOriginOf, TILE_PX } from './lib/camera-projection.mjs';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PWE_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const results = [];

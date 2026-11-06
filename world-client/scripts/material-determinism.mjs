@@ -14,11 +14,14 @@ import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(HERE, '..', '..', 'docs', 'evidence', 'material-upgrade',
   process.argv[2] ?? 'after');
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const FRAME_MS = 1000 / 60;
 
 function pinClock({ frameMs }) {

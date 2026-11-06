@@ -38,9 +38,11 @@ import {
   MIN_BACKGROUND_DIVISOR,
   backgroundThrottleOk,
 } from './render-budget-threshold.ts';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
+await assertTreeIdentity(BASE);
 /**
  * 指令上限。原来这里写「烘焙后实测约 2 万；给一倍余量」。
  *

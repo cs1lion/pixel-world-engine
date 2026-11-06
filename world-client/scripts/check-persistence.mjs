@@ -11,9 +11,11 @@
  *   2. node scripts/check-persistence.mjs
  */
 import { chromium } from '@playwright/test';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
+await assertTreeIdentity(BASE);
 /**
  * 存档体积上限。
  *

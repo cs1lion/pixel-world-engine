@@ -31,10 +31,12 @@ import { chromium } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import process from 'node:process';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const CDP_URL = process.env.CDP_URL ?? 'http://127.0.0.1:9333';
 const PAGE_URL = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/?ledger=off&debug=1`;
 
+await assertTreeIdentity(PAGE_URL);
 /**
  * 固定时相后再截图，否则结果跟着本地钟点漂移、无法复现。
  *

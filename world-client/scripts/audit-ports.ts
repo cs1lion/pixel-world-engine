@@ -27,10 +27,14 @@
  *   客户端脚本一律 `PIXEL_WORLD_URL=http://127.0.0.1:52xx/` 指过去；未显式设置时会
  *   回落到 `PIXEL_WORLD_CLIENT_PORT`（check-interact 的变量名是 `PWE_URL`，
  *   capture-palette / demo-run 用各自的 URL 变量），再回落到 5211。
- *   剩余的洞：若两棵工作树都忘了设环境变量，第二棵的 dev 会在 strictPort 处失败，
- *   但它的 check-* 仍默认打 5211，可能测到第一棵的应用。所以并行时必须设环境
- *   变量；这条规则目前靠纪律 + strictPort 报错，客户端尚不校验「服务器是不是我
- *   这棵树起的」。
+ *
+ *   这之后不再是「靠纪律」：vite dev/preview 注册只读 `/__tree-id`，返回本服务的
+ *   工作树绝对路径、实际监听端口、启动时间；连本机 vite 的 check-* / smoke /
+ *   capture / verify 脚本在等待 HTTP 通过后先校验身份，路径不一致即退出 1，并打印
+ *   「你连的是 52xx 那棵树（路径 X），你站在另一棵树（路径 Y）」。端点不可达或返回
+ *   体不合法同样判红，不放行。端点不进生产构建产物：插件 `apply: 'serve'`，只挂
+ *   `configureServer` / `configurePreviewServer`，`build` 不触发。外部 URL 或显式
+ *   `PIXEL_WORLD_SKIP_TREE_IDENTITY=1` 时跳过比对（并打印跳过原因）。
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';

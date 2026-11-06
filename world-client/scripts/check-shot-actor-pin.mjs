@@ -24,8 +24,11 @@
  */
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+
+await assertTreeIdentity(BASE);
 const OUT = process.env.EVAL_OUT ?? 'eval/screens/actor-pin';
 
 /** 默认大世界 05:00 开局；等待时长就是这之后到冻结之间的那段。 */

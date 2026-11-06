@@ -10,7 +10,7 @@
 - 本文采用的规范文件是 poteto-mode 安装目录下的 SKILL.md（本机路径 C:\Users\18712\.agents\skills\poteto-mode\SKILL.md）的 `## Principles` 与 `## Playbooks`（Investigation），以及本地 pstack 叶技能 `principle-build-the-lever`、`principle-prove-it-works`、`principle-sequence-verifiable-units`、`principle-explain-the-number`、`principle-encode-lessons-in-structure`。
 - 盘点阶段按 Investigation 的只读口径执行：只新增文档与脚本，不改任何既有判据的数值、不放宽阈值、不删用例；不 `stash`、不动别人的工作树。入库（合 main 与 push）由用户在本轮单独授权，动作记录见第 7 节。
 - 证据标签：`[实测]` 本次实际运行；`[证据]` 读自已归档的证据文件；`[文档]` 只有书面记录、无执行判据。
-- 端口纪律：**5188 / 5191 / 5202 / 5203 一律不用**。下面所有浏览器命令都显式改到 `5211`，因为 `smoke.mjs:27`、四个抓拍脚本 `:30/:26/:28/:24`、`check-render-budget.mjs:22` 的默认端口分别落在 5188 和 5202，必须用 `PIXEL_WORLD_URL` 覆盖。
+- 端口纪律：**5188 / 5191 / 5202 / 5203 一律不用**。下面所有浏览器命令都显式改到 `5211`；客户端 URL 默认值已统一跟随 `PIXEL_WORLD_CLIENT_PORT`（未设置时回落 `5211`），见 `smoke.mjs:28`、`check-render-budget.mjs:43` 与四个抓拍脚本 `homecoming-capture.mjs:17`、`interior-capture.mjs:18`、`material-capture.mjs:28`、`material-determinism.mjs:22`。多工作树并行时每棵树必须导出自己的 `PIXEL_WORLD_CLIENT_PORT`；漏设时身份闸会判红，不会静默测到隔壁树的应用。
 
 ## 1. 总表
 

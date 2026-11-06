@@ -45,9 +45,11 @@
 
 import { chromium } from '@playwright/test';
 import { waitForQuiet } from './quiesce.ts';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
+await assertTreeIdentity(BASE);
 /**
  * 先问一句「背后有没有服务端，且镇志里有没有条目」，没有就拒跑。
  *

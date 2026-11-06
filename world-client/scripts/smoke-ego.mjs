@@ -85,11 +85,14 @@
 // 下面 SHOT_DIR 那两处（`resolve` 与 `mkdirSync`）的写法抄 `check-dengchao.mjs`。
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
 
 const URL_BASE =
   process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 /** 实际打开的页面地址（沙盒模式固定 ?ledger=off）；reload 等价做法是重新 goto 同一地址。 */
 const PAGE_URL = `${URL_BASE}?ledger=off&debug=1`;
+
+await assertTreeIdentity(PAGE_URL);
 /** CDP 清存储要用的 origin（不带路径与查询串）。 */
 const ORIGIN = new URL(URL_BASE).origin;
 /**
