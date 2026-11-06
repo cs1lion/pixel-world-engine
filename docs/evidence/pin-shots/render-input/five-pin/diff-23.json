@@ -1,0 +1,1074 @@
+{
+  "oldDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\pwe-interior-5pin\\r2",
+  "newDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\pwe-interior-5pin\\r3",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "01-salute.png",
+      "oldSha256": "a5b6deda189a17b4b36e58b36b647ecef1dd3eb52bb1e19fb0cb1413435eb08d",
+      "newSha256": "a5b6deda189a17b4b36e58b36b647ecef1dd3eb52bb1e19fb0cb1413435eb08d",
+      "oldBytes": 43492,
+      "newBytes": 43492,
+      "identicalBytes": true,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "02-working.png",
+      "oldSha256": "8418e51502e530c68da9eb25474c619e144ca4b62ff81afa2a1ddc86d7eddc0d",
+      "newSha256": "4d964509a699838bd4a5a02578a9d0f06e878951e1e388b1a7fac68e60a466a1",
+      "oldBytes": 33514,
+      "newBytes": 33723,
+      "identicalBytes": false,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 3004,
+      "exactDiffPct": 0.3164,
+      "visibleChangedPx": 2988,
+      "visibleDiffPct": 0.3147,
+      "exactBBox": [
+        454,
+        229,
+        669,
+        316
+      ],
+      "visibleBBox": [
+        620,
+        229,
+        669,
+        316
+      ],
+      "deltaHistogram": {
+        "gt0": 3004,
+        "ge8": 2988,
+        "ge32": 2800,
+        "ge64": 2540,
+        "ge128": 1572
+      },
+      "meanSignedDeltaRGB": [
+        0.102,
+        0.112,
+        0.111
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 2988,
+          "bbox": [
+            620,
+            229,
+            669,
+            316
+          ],
+          "size": [
+            50,
+            88
+          ],
+          "oldColor": "#878f85",
+          "newColor": "#969d94",
+          "meanAbsDiff": 119.31236055332441
+        }
+      ],
+      "regionsTotal": 1,
+      "structure": {
+        "components": 1,
+        "coveredPx": 2988,
+        "largestAreaPx": 2988,
+        "largestBbox": [
+          620,
+          229,
+          669,
+          316
+        ],
+        "largestSize": [
+          50,
+          88
+        ],
+        "blocks": [
+          {
+            "areaPx": 2988,
+            "bbox": [
+              620,
+              229,
+              669,
+              316
+            ],
+            "size": [
+              50,
+              88
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.003164,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "03-deliver.png",
+      "oldSha256": "06553af412a3b1400835551d578843fe8a8acc72ce7808d9cd1716eac1cca6ab",
+      "newSha256": "79f3cd3cc5a5380e3712f9de4e7bbfcb79eb5183920ddd69056b90804ff4bc72",
+      "oldBytes": 35052,
+      "newBytes": 34806,
+      "identicalBytes": false,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 5320,
+      "exactDiffPct": 0.5604,
+      "visibleChangedPx": 4854,
+      "visibleDiffPct": 0.5113,
+      "exactBBox": [
+        602,
+        69,
+        707,
+        134
+      ],
+      "visibleBBox": [
+        602,
+        69,
+        693,
+        134
+      ],
+      "deltaHistogram": {
+        "gt0": 5320,
+        "ge8": 4854,
+        "ge32": 3882,
+        "ge64": 1764,
+        "ge128": 132
+      },
+      "meanSignedDeltaRGB": [
+        0.011,
+        0.012,
+        0.011
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 4854,
+          "bbox": [
+            602,
+            69,
+            693,
+            134
+          ],
+          "size": [
+            92,
+            66
+          ],
+          "oldColor": "#727b71",
+          "newColor": "#868e84",
+          "meanAbsDiff": 54.43386897404203
+        }
+      ],
+      "regionsTotal": 1,
+      "structure": {
+        "components": 1,
+        "coveredPx": 4854,
+        "largestAreaPx": 4854,
+        "largestBbox": [
+          602,
+          69,
+          693,
+          134
+        ],
+        "largestSize": [
+          92,
+          66
+        ],
+        "blocks": [
+          {
+            "areaPx": 4854,
+            "bbox": [
+              602,
+              69,
+              693,
+              134
+            ],
+            "size": [
+              92,
+              66
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.005604,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "04-rain.png",
+      "oldSha256": "cff374f7d3204e5c573cfa435ec21bfa9f7ded37226a73d6cbbe0efbffb1237f",
+      "newSha256": "60a93ac4a54b7ed836aa68a7efd05ddf8f80d5dbcad14cf3bd35d1a16f591433",
+      "oldBytes": 52627,
+      "newBytes": 52582,
+      "identicalBytes": false,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 128,
+      "exactDiffPct": 0.0135,
+      "visibleChangedPx": 128,
+      "visibleDiffPct": 0.0135,
+      "exactBBox": [
+        726,
+        66,
+        815,
+        97
+      ],
+      "visibleBBox": [
+        726,
+        66,
+        815,
+        97
+      ],
+      "deltaHistogram": {
+        "gt0": 128,
+        "ge8": 128,
+        "ge32": 80,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        -0.005,
+        -0.005,
+        -0.005
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 80,
+          "bbox": [
+            726,
+            66,
+            729,
+            85
+          ],
+          "size": [
+            4,
+            20
+          ],
+          "oldColor": "#6d726d",
+          "newColor": "#3d433f",
+          "meanAbsDiff": 47.0
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            812,
+            86,
+            815,
+            97
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#465347",
+          "newColor": "#2d3b2f",
+          "meanAbsDiff": 24.333333333333332
+        }
+      ],
+      "regionsTotal": 2,
+      "structure": {
+        "components": 2,
+        "coveredPx": 128,
+        "largestAreaPx": 80,
+        "largestBbox": [
+          726,
+          66,
+          729,
+          85
+        ],
+        "largestSize": [
+          4,
+          20
+        ],
+        "blocks": [
+          {
+            "areaPx": 80,
+            "bbox": [
+              726,
+              66,
+              729,
+              85
+            ],
+            "size": [
+              4,
+              20
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              812,
+              86,
+              815,
+              97
+            ],
+            "size": [
+              4,
+              12
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.000135,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "05-build.png",
+      "oldSha256": "4e6b43c3f017e2c33af219d88656083fe34d163382695c92ff67dd4c7fb7b675",
+      "newSha256": "5abf6bbd44c7d82a02480ef5ada10f048e6f5bbd3b35674a35fb2d6d59ec2aed",
+      "oldBytes": 51422,
+      "newBytes": 51389,
+      "identicalBytes": false,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 532,
+      "exactDiffPct": 0.056,
+      "visibleChangedPx": 518,
+      "visibleDiffPct": 0.0546,
+      "exactBBox": [
+        466,
+        0,
+        827,
+        217
+      ],
+      "visibleBBox": [
+        466,
+        0,
+        827,
+        217
+      ],
+      "deltaHistogram": {
+        "gt0": 532,
+        "ge8": 518,
+        "ge32": 473,
+        "ge64": 374,
+        "ge128": 108
+      },
+      "meanSignedDeltaRGB": [
+        -0.021,
+        -0.022,
+        -0.02
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 278,
+          "bbox": [
+            466,
+            206,
+            493,
+            217
+          ],
+          "size": [
+            28,
+            12
+          ],
+          "oldColor": "#aba285",
+          "newColor": "#aaa285",
+          "meanAbsDiff": 86.86570743405275
+        },
+        {
+          "areaPx": 120,
+          "bbox": [
+            800,
+            104,
+            807,
+            133
+          ],
+          "size": [
+            8,
+            30
+          ],
+          "oldColor": "#b4b8b3",
+          "newColor": "#374143",
+          "meanAbsDiff": 121.0111111111111
+        },
+        {
+          "areaPx": 80,
+          "bbox": [
+            622,
+            178,
+            625,
+            197
+          ],
+          "size": [
+            4,
+            20
+          ],
+          "oldColor": "#aa9e95",
+          "newColor": "#6f5246",
+          "meanAbsDiff": 71.33333333333333
+        },
+        {
+          "areaPx": 40,
+          "bbox": [
+            824,
+            0,
+            827,
+            9
+          ],
+          "size": [
+            4,
+            10
+          ],
+          "oldColor": "#3f4945",
+          "newColor": "#656d69",
+          "meanAbsDiff": 36.666666666666664
+        }
+      ],
+      "regionsTotal": 4,
+      "structure": {
+        "components": 4,
+        "coveredPx": 518,
+        "largestAreaPx": 278,
+        "largestBbox": [
+          466,
+          206,
+          493,
+          217
+        ],
+        "largestSize": [
+          28,
+          12
+        ],
+        "blocks": [
+          {
+            "areaPx": 278,
+            "bbox": [
+              466,
+              206,
+              493,
+              217
+            ],
+            "size": [
+              28,
+              12
+            ]
+          },
+          {
+            "areaPx": 120,
+            "bbox": [
+              800,
+              104,
+              807,
+              133
+            ],
+            "size": [
+              8,
+              30
+            ]
+          },
+          {
+            "areaPx": 80,
+            "bbox": [
+              622,
+              178,
+              625,
+              197
+            ],
+            "size": [
+              4,
+              20
+            ]
+          },
+          {
+            "areaPx": 40,
+            "bbox": [
+              824,
+              0,
+              827,
+              9
+            ],
+            "size": [
+              4,
+              10
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.00056,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "06-faith.png",
+      "oldSha256": "66bb22e2b6372bff4e73a0d01a373949ba65e281544bc5539a312aa68225b45b",
+      "newSha256": "66bb22e2b6372bff4e73a0d01a373949ba65e281544bc5539a312aa68225b45b",
+      "oldBytes": 51135,
+      "newBytes": 51135,
+      "identicalBytes": true,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "07-debug-panel-1s.png",
+      "oldSha256": "0dca5a944ba85ef9c4cf0c979c4ee2681f5e76966b77d3e3004826dfd9d7cd21",
+      "newSha256": "0dca5a944ba85ef9c4cf0c979c4ee2681f5e76966b77d3e3004826dfd9d7cd21",
+      "oldBytes": 86813,
+      "newBytes": 86813,
+      "identicalBytes": true,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "07-debug-panel-400ms.png",
+      "oldSha256": "0dca5a944ba85ef9c4cf0c979c4ee2681f5e76966b77d3e3004826dfd9d7cd21",
+      "newSha256": "0dca5a944ba85ef9c4cf0c979c4ee2681f5e76966b77d3e3004826dfd9d7cd21",
+      "oldBytes": 86813,
+      "newBytes": 86813,
+      "identicalBytes": true,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "07-debug-panel-filtered.png",
+      "oldSha256": "0afd549481ffab621b10fe4643cc32a4ee3393f74bb205ca3a5b34cacc786e30",
+      "newSha256": "0afd549481ffab621b10fe4643cc32a4ee3393f74bb205ca3a5b34cacc786e30",
+      "oldBytes": 86206,
+      "newBytes": 86206,
+      "identicalBytes": true,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "07-debug-panel.png",
+      "oldSha256": "0dca5a944ba85ef9c4cf0c979c4ee2681f5e76966b77d3e3004826dfd9d7cd21",
+      "newSha256": "0dca5a944ba85ef9c4cf0c979c4ee2681f5e76966b77d3e3004826dfd9d7cd21",
+      "oldBytes": 86813,
+      "newBytes": 86813,
+      "identicalBytes": true,
+      "oldSize": [
+        1010,
+        940
+      ],
+      "newSize": [
+        1010,
+        940
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 949400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "08-overlay-100.png",
+      "oldSha256": "c111010775c4f8a87d71e31e59f307b3f24da7540b056a2abd0c8911320a8315",
+      "newSha256": "c111010775c4f8a87d71e31e59f307b3f24da7540b056a2abd0c8911320a8315",
+      "oldBytes": 25243,
+      "newBytes": 25243,
+      "identicalBytes": true,
+      "oldSize": [
+        963,
+        642
+      ],
+      "newSize": [
+        963,
+        642
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 618246
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "08-overlay-200.png",
+      "oldSha256": "68ac098319376c0a9354e5b8cc7e75a3e340b2d100cec307056979013de3c75e",
+      "newSha256": "68ac098319376c0a9354e5b8cc7e75a3e340b2d100cec307056979013de3c75e",
+      "oldBytes": 42355,
+      "newBytes": 42355,
+      "identicalBytes": true,
+      "oldSize": [
+        1926,
+        1284
+      ],
+      "newSize": [
+        1926,
+        1284
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 618246
+      },
+      "bestShiftStep": 2,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "08-overlay-400.png",
+      "oldSha256": "dbdad4b9212b388b0a618afcc4e1b37ce462ab670e5bb8adc02dc1164afb6b29",
+      "newSha256": "dbdad4b9212b388b0a618afcc4e1b37ce462ab670e5bb8adc02dc1164afb6b29",
+      "oldBytes": 69883,
+      "newBytes": 69883,
+      "identicalBytes": true,
+      "oldSize": [
+        3852,
+        2568
+      ],
+      "newSize": [
+        3852,
+        2568
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 618246
+      },
+      "bestShiftStep": 4,
+      "shiftGainPct": 0.0
+    }
+  ]
+}
