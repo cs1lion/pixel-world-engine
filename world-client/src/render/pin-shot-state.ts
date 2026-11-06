@@ -42,6 +42,35 @@ export interface TrailPin {
   readonly strength: number;
 }
 
+/**
+ * 雨幕的呈现态——**快照之外**，不是 `WorldSnapshot` 的新字段。
+ *
+ * 为什么单列：`WorldSnapshot.weather` 只是档位（晴天/雨天），画面侧的雨幕读的是
+ * `sim.weatherIntensity()` 的连续浓淡，以及 `render/weather.ts` 内部按帧 delta
+ * 累加的雨滴相位。这两样都不在快照里，却是渲染输入。
+ *
+ * 不钉的后果：同一份代码，`weatherIntensity` 在冻结那一刻读到 0.85～0.87 的
+ * 不同值，雨滴相位又跟着「这一跑实际渲染了多少帧」走——跨组对照里雨帧差
+ * 0.115%，而**同组三跑本身**就抖 0.068%～0.151%。差值和噪声同量级，
+ * 「没变」和「变了」都判不了。
+ *
+ * 钉法：`intensity` 是冻结那一刻写进钉子的**常量**（不是每跑再读实时值）；
+ * `frames` 是确定性帧数，渲染层从 `__RAIN_SEED__` 重建后只推进这么多固定步，
+ * 之后逐帧画同一张雨幕，不再拿墙钟/animation delta 累加。
+ *
+ * **前提（不是无条件常量）**：固定步长为 `1000/60 ms`，即按 60Hz 计帧。
+ * 若将来改变步进常量、或按别的刷新率理解「帧」，`frames` 对应的相位会整体变化，
+ * 必须同步改这里与 `weather.ts` 的 `advance(1000/60)` 并重新钉一组读数。
+ */
+export interface WeatherPin {
+  readonly intensity: number;
+  /**
+   * 从种子重建后推进的固定步数，一步 = 1000/60 ms（60Hz 前提，与墙钟无关）。
+   * 步进或目标帧率一旦变更，这个数就不再等价于原来的相位，需重钉。
+   */
+  readonly frames: number;
+}
+
 export interface ShotPin {
   readonly nowMs: number | null;
   readonly tideLevel: number | null;
@@ -49,6 +78,8 @@ export interface ShotPin {
   readonly actors: readonly ActorPin[];
   /** 第六枚钉：空数组 = 不钉地面痕迹（同上，默认路径不改行为）。 */
   readonly trails: readonly TrailPin[];
+  /** 呈现态（快照之外）：雨幕浓淡与相位；null = 不钉（默认路径）。 */
+  readonly weather: WeatherPin | null;
 }
 
 /** 未钉住：呈现值全部回落到世界快照。 */
@@ -57,6 +88,7 @@ export const NO_SHOT_PIN: ShotPin = Object.freeze({
   tideLevel: null,
   actors: Object.freeze([]),
   trails: Object.freeze([]),
+  weather: null,
 });
 
 /** 空角色集合：解钉时复用同一个对象，默认路径不多一次分配。 */
@@ -227,6 +259,75 @@ export function pinnedTrailsOf(pin: ShotPin, snapshot: WorldSnapshot): WorldSnap
   if (pin.trails.length === 0) return snapshot;
   return { ...snapshot, trails: pin.trails };
 }
+
+// ------------------------------------ 呈现态（快照之外）：雨幕的浓淡与相位
+
+function isWeatherPinValid(pin: WeatherPin): boolean {
+  if (!Number.isFinite(pin.intensity) || pin.intensity < 0 || pin.intensity > 1) return false;
+  if (!Number.isInteger(pin.frames) || pin.frames < 0) return false;
+  return true;
+}
+
+/**
+ * 钉住雨幕的呈现态（浓淡 + 相位）。非法值整条丢弃，保持原来的钉。
+ *
+ * 这是**呈现态**，不是 `WorldSnapshot` 的第 26 个字段：不改 `RENDER_INPUT_TABLE`
+ * 的 25 条，也不往快照里塞东西。钉住后渲染不再读 `sim.weatherIntensity()`，
+ * 雨滴也不按实时帧 delta 累加。
+ */
+export function pinWeather(prev: ShotPin, intensity: number, frames: number): ShotPin {
+  const next: WeatherPin = { intensity, frames };
+  if (!isWeatherPinValid(next)) return prev;
+  if (prev.weather !== null && prev.weather.intensity === intensity && prev.weather.frames === frames) {
+    return prev;
+  }
+  return { ...prev, weather: next };
+}
+
+/** 只解雨幕这一枚：其它钉保持。 */
+export function unpinWeather(prev: ShotPin): ShotPin {
+  if (prev.weather === null) return prev;
+  return { ...prev, weather: null };
+}
+
+/**
+ * 画面上用的雨幕浓淡 / 相位。未钉时浓淡回落世界值、相位为 `null`（交回原路径）。
+ */
+export function presentedWeatherOf(
+  pin: ShotPin,
+  snapshotIntensity: number,
+): { readonly intensity: number; readonly frames: number | null } {
+  if (pin.weather === null) return { intensity: snapshotIntensity, frames: null };
+  return { intensity: pin.weather.intensity, frames: pin.weather.frames };
+}
+
+export interface PresentationInputEntry {
+  readonly name: string;
+  /** 哪个绘制函数读它。 */
+  readonly reader: string;
+  /** 怎么钉。 */
+  readonly pin: string;
+  readonly note: string;
+}
+
+/**
+ * 快照之外的呈现态登记表。**不属于** `RENDER_INPUT_TABLE`（那张表只对账
+ * `WorldSnapshot` 的 25 个键）；这一节单列，因为它们是渲染输入却不在快照里。
+ */
+export const PRESENTATION_INPUTS: readonly PresentationInputEntry[] = Object.freeze([
+  {
+    name: 'weatherIntensity',
+    reader: 'weatherView.update（雨滴 alpha / 压暗 / 雾 / 溅水）',
+    pin: 'WeatherPin.intensity',
+    note: '`sim.weatherIntensity()` 的连续值；冻结时 0.85～0.87 每次不同，钉成常量',
+  },
+  {
+    name: 'rainPhase',
+    reader: 'weatherView.update（雨滴位置 / 水洼波纹）',
+    pin: 'WeatherPin.frames',
+    note: '内部按帧 delta 累加的 elapsed；改为从 `__RAIN_SEED__` 重建后推进固定帧数',
+  },
+]);
 
 // --------------------------------------------------- 渲染输入全集（不是又补一枚钉）
 
