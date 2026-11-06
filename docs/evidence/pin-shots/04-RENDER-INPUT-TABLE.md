@@ -187,15 +187,47 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 | 构建 | `npm run build` | dist 1,766.48 kB（gzip 500.91 kB），647ms |
 | 调色板 | `node scripts/audit-palette.mjs --strict` | 通过，退出 0 |
 | 行号引用 | `node scripts/audit-references.ts --strict` | 173 处，0 存疑 |
-| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3048 处，未解析 0 |
+| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3049 处，未解析 0 |
 | 节号 | `node scripts/audit-sections.ts --strict` | 159 处，全部对得上 |
 | 断言/ADR | `node scripts/audit-claims.ts --strict` | claims 5/5，ADR 10/10 |
 | 服务端 | `python -m pytest` | 553 passed / 1 skipped |
-| 工作树 | `npm run worktrees:audit -- --strict` | **红**：仓库级历史状态（2 未登记、3 过期），与本分支无关 |
+| 工作树 | `npm run worktrees:audit -- --strict` | 绿：补登 2 条、3 个过期项续期到 2026-11-13（见 `WORKTREES.md`） |
 | 负控 | `node scripts/check-shot-actor-pin.mjs` | 三档逐字节全同；两条反向全异 |
 | 像素 | `scripts/screens-diff.py` 七组配对 | 见第二、三节 |
 | 浏览器 | `test:browser` / `test:phases` / `test:persistence` / `test:render-budget` / `test:setting` | 全绿（smoke / 四刻 34 项 / 持久化 8 项 / 渲染预算 6 项 / 设定集） |
 
 开发服务器端口 5211（避开 5188 / 5191 / 5202 / 5203）。浏览器闸门写出的
 `eval/screens/*.png` 已用 `git checkout -- world-client/eval/screens` 还原，未夹带进提交。
-原始读数在 `render-input/<组>/screens-diff.json`，掩膜在同目录 `masks/`。
+
+## 七、合并后五钉三跑（新基线，2026-11-06）
+
+之前内景线的 0 差是**四钉**（时刻 / 潮位 / 相机 / 缩放）口径，本分支加入角色钉后一律
+作废，以这一组为准。
+
+**方法**：`PIN_SHOTS=1` 跑 `scripts/smoke.mjs`；PIN 路径在钉呈现态之后调用
+`Oracle.pinActors`——`01` 在看见行礼那一帧钉、`06` 随 `pinForShot` 钉、`07`/`08`
+在站定 + 整点钉，`frame` 取整分处的自然帧 0。三跑各 13 张，主页面 144 项检查通过、
+`01` 专用页面 12 项通过。
+
+**三跑**：r1（与提交 `1d0052b` 内容相同的本地 canary）、r2、r3（merge 后的 `main`
+工作树）。r1↔r2、r2↔r3、r1↔r3 三对由 `scripts/screens-diff.py` 配对。
+
+| 文件 | r1↔r2（精确 / 可见 / 结构块） | r2↔r3 | r1↔r3 |
+| --- | --- | --- | --- |
+| `01-salute.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `06-faith.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `07-debug-panel.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `07-debug-panel-400ms.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `07-debug-panel-1s.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `07-debug-panel-filtered.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `08-overlay-100.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `08-overlay-200.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+| `08-overlay-400.png` | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px | 0.00% / 0.00% / 0 px |
+
+**不在本次口径内的四张**：`02-working` / `03-deliver` / `04-rain` / `05-build` 抓的是
+「正在干活 / 交付 / 下雨 / 施工」的瞬时状态，三跑仍有非零差（精确 0.01%–3.91%，
+最大结构块 278–5024 px）。它们不参与上面的 0 差结论，也不被五钉覆盖。
+
+原始读数：`render-input/five-pin/diff-12.json`、`diff-23.json`、`diff-13.json`；
+其余组（`four-*` / `five*` / `five-shift` / `trail-shift` / `dom-blank` / `altar-shift`）
+的读数在 `render-input/<组>/screens-diff.json`，掩膜在同目录 `masks/`。
