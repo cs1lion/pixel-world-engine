@@ -194,6 +194,17 @@
 - **建议时机**：下一次动相位渲染或抓拍脚本时。
 - **是否需要用户决策**：**是**（按帧数 vs 钉住时钟；以及是否把「小样区假收敛」一并修）。
 
+### E4. 夹具默认输出落在已跟踪目录
+
+- **现状 [事实]**：`check-shot-actor-pin.mjs` 默认写 `world-client/eval/screens/actor-pin`（[check-shot-actor-pin.mjs](file:///D:/project/pwe-material/world-client/scripts/check-shot-actor-pin.mjs#L29-L29)），产出 9 张源图 + `runs.json`，而这套夹具的默认输出位置正落在 `eval/screens/` 这棵已跟踪目录树里（同树下另有 169 个已跟踪基线，`actor-pin/` 子目录本身是未跟踪）；`setting` 闸门的 `check-dengchao.mjs` 固定写 `world-client/eval/screens/dengchao-*.png`，且没有 `EVAL_OUT` 覆盖（[check-dengchao.mjs](file:///D:/project/pwe-material/world-client/scripts/check-dengchao.mjs#L26-L26)），每跑一次都要 `git restore` 三张基线。
+- **问题 [事实]**：噪音与误提交风险来自「默认输出位置」，不是产物本身——同一目录既放比对底片，又放夹具新产物，`git add -A` 分不开。
+- **影响 [推断]**：`git add -A` 会把未跟踪产物一次扫入；setting 每次手动还原，漏还原或误还原都没人挡。
+- **提案方向**：默认输出改到 `world-client/tmp/`（`tmp/` 已在 ignore 内），由 `EVAL_OUT` 覆盖；setting 的三张基线仍留在 `eval/screens`（它们是比对底片）。
+- **代价**：需同步更新 `03-ACTOR-PIN.md` 等文档里的路径描述，属一次性迁移；同时改两个脚本的默认常量。
+- **本轮 [事实]**：**不改默认，只登记**；只给 `actor-pin/`、`actor-pin-pairs/` 加了**精确** ignore（见根 `.gitignore`），未加任何 `eval/screens/` 宽规则，169 个已跟踪基线不受影响。
+- **建议时机**：下一次动抓拍夹具或 setting 闸门时。
+- **是否需要用户决策**：**是**（是否迁移默认输出目录；迁移后旧路径是否留兼容）。
+
 ## F. Phaser 4 升级遗留（2026-11-06）
 
 ### F1. `?light=` 探针的去向：留分支、不进 main

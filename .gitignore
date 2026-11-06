@@ -17,5 +17,9 @@ tmp/
 .vite/
 world-client/.tmp-audit/
 
+# 夹具的未入库源图与中间产物（结论已在 docs/evidence/pin-shots/）
+world-client/eval/screens/actor-pin/
+world-client/eval/screens/actor-pin-pairs/
+
 # 个人简历的构建产物，与引擎无关
 resume-v3/
