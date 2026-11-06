@@ -226,7 +226,7 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 
 **不在本次口径内的四张**：`02-working` / `03-deliver` / `04-rain` / `05-build` 抓的是
 「正在干活 / 交付 / 下雨 / 施工」的瞬时状态，三跑仍有非零差（精确 0.01%–3.91%，
-最大结构块 278–5024 px）。它们不参与上面的 0 差结论，也不被五钉覆盖。
+最大结构块 80–5024 px）。它们不参与上面的 0 差结论，也不被五钉覆盖。
 
 原始读数：`render-input/five-pin/diff-12.json`、`diff-23.json`、`diff-13.json`；
 其余组（`four-*` / `five*` / `five-shift` / `trail-shift` / `dom-blank` / `altar-shift`）
