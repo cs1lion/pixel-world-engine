@@ -10,14 +10,22 @@
  * 采样区必须只有静止地面：萤火、雨、行人、会呼吸的灯都不算收敛。晴天
  * 四刻里选左下角的一块空地（见 `DEFAULT_PATCH`）。
  *
- * 上限 8 秒。**超时不收敛就报错，不要改成固定等待或世界时钟驱动**——
- * 那说明压暗层跟的是帧 delta 而不是时间，是代码问题（本轮范围外）。
+ * 上限 **60 帧（探针取样次数）**，不是墙钟秒数。**超帧上限不收敛就报错，
+ * 不要改成固定等待或世界时钟驱动**——那说明压暗层跟的是帧 delta 而不是时间，
+ * 是代码问题（本轮范围外）。
  *
- * 为什么是 8 秒：本地实测 319–840ms；共享 CI runner 上同一份代码实测
- * 6217ms / 25 帧（30fps 软件渲染，帧间隔被拉长，而渐变按帧 delta 推进）。
- * 这是机器速度差异，不是渲染回归。8 秒只给共享 runner 留余量，不改变判据
- * 形态：真的不收敛，8 秒后仍返回 `settled:false`，闸门仍判红。反向用例见
- * `scripts/check-phases-negative.mjs`（雨幕逐帧在动，探针永远不收敛）。
+ * 为什么按帧判而不是按毫秒：压暗层在 `phase-view` 里按**帧 delta**累加
+ * （`FADE_MS = 900`），推进的是世界/渲染帧的进度，不是墙钟。同一份代码，
+ * 共享 runner 上帧间隔被拉长（30fps 软件渲染 + 截图开销），墙钟要 6–8 秒
+ * 才凑够同样的帧进度；本地只要 319–840ms。按毫秒判，阈值等于在赌「最慢的
+ * 那台机器」；按帧进度判，判据只问「压暗层推进完了没有」。
+ *
+ * 为什么是 60 帧：现有全部读数里最差的是共享 runner 的 **31 帧 / 8226ms**
+ * （另有 24 帧 / 6248ms、25 帧 / 6217ms），本地 3–14 帧。60 ≈ 最差观测值的
+ * 1.9 倍，留给「比已知最慢 runner 再慢一倍」的情况。留余量的理由不是
+ * 「怕红」：探针每取一帧都要一次截图，取帧本身也花机器时间；真实不收敛的
+ * 样本会一直动，跑到 60 帧仍然 `settled:false`，闸门照样判红（反向用例见
+ * `scripts/check-phases-negative.mjs`，实测恰在帧上限处判红）。
  */
 
 /** 画布内取样区（CSS 像素，相对 canvas 左上角）：左下角一块只有草地的空地。 */
@@ -62,11 +70,11 @@ export async function waitVillagersSettled(page, options = {}) {
  *
  * @param {import('@playwright/test').Page} page
  * @param {{x:number,y:number}} canvasBox 画布的页面坐标（`boundingBox()`）
- * @param {{capMs?:number,stableFrames?:number,patch?:{dx:number,dy:number,width:number,height:number}}} [options]
- * @returns {Promise<{settled:boolean,waitedMs:number,frames:number,capMs:number}>}
+ * @param {{maxFrames?:number,stableFrames?:number,patch?:{dx:number,dy:number,width:number,height:number}}} [options]
+ * @returns {Promise<{settled:boolean,waitedMs:number,frames:number,maxFrames:number}>}
  */
 export async function waitFadeSettled(page, canvasBox, options = {}) {
-  const capMs = options.capMs ?? 8000;
+  const maxFrames = options.maxFrames ?? 60;
   const stableFrames = options.stableFrames ?? 3;
   const patch = options.patch ?? DEFAULT_PATCH;
   const clip = {
@@ -79,15 +87,17 @@ export async function waitFadeSettled(page, canvasBox, options = {}) {
   let previous = null;
   let same = 0;
   let frames = 0;
-  while (Date.now() - startedAt <= capMs) {
+  // 判据是**帧进度**：取到第 `maxFrames` 帧还没收敛就判不收敛。
+  // `waitedMs` 只是读数（打印/落盘用），不参与判定。
+  while (frames < maxFrames) {
     const shot = await page.screenshot({ clip });
     frames += 1;
     same = previous !== null && shot.equals(previous) ? same + 1 : 0;
     previous = shot;
     // 连续 `stableFrames` 帧逐字节相同 = 这一块画面不再变，压暗层走完了。
     if (same >= stableFrames - 1) {
-      return { settled: true, waitedMs: Date.now() - startedAt, frames, capMs };
+      return { settled: true, waitedMs: Date.now() - startedAt, frames, maxFrames };
     }
   }
-  return { settled: false, waitedMs: Date.now() - startedAt, frames, capMs };
+  return { settled: false, waitedMs: Date.now() - startedAt, frames, maxFrames };
 }

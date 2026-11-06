@@ -1,5 +1,10 @@
 # 后台降频判据改双条件（render-budget-threshold）
 
+> **2026-11-06 后续**：本条的 `前台/3`（含 12 帧地板）在 `check-render-budget.mjs` 里
+> 已从硬闸降为**记录项**（打印 + 落盘，不 `exit 1`）。纯函数与单测原样保留，只用来
+> 算「若按旧判据会过还是不过」。降级理由、代价与反向用例见
+> [GATE_CALIBRATION.md](../../GATE_CALIBRATION.md) §9.2。
+
 - 日期：2026-11-05
 - 分支：`fix/render-budget-threshold`（从 `origin/main` 的 `10508c2` 切出）
 - 改动位置：[render-budget-threshold.ts](../../../world-client/scripts/render-budget-threshold.ts)（纯函数本体）、
