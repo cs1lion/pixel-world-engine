@@ -24,16 +24,18 @@
 四个 `PHASES` 常量全部正确，但渲染器只读 `label`、不读 `dim`/`mistBand`/`fireflies`：结构断言全绿，四张截图却一模一样。所以结构项只能当前置，不能单独作为通过条件。
 另一个反例：整帧统一压暗 40%——`L(dusk) > L(night)` 仍成立，但黄昏没有暖光、黎明没有雾带。像素项必须和雾带/萤火的可见像素数一起报，不能只看平均亮度。
 
-**我们现在能不能跑**：**一次性实测，通过（不是闸门）**。四张同机位、同天气、无村民、只差时相的截图已存入 [`docs/evidence/design-acceptance/`](./evidence/design-acceptance/)：
+**我们现在能不能跑**：**一次性实测，通过（不是闸门）**。四张同机位、同天气、无村民、只差时相的**钉住后组合图**（`combos/pinned/`，不是 `combos/controls/`）已存入 [`docs/evidence/design-acceptance/`](./evidence/design-acceptance/)：
 
 | 时刻 | 文件 | SHA-256（前 12 位） | 全图平均灰度 |
 |---|---|---|---|
 | 05:40 dawn | `0540-clear-none.png` | `00FFA8BA2B4A` | **67.84** |
-| 12:10 noon | `1210-clear-none.png` | `BD8874572FF2` | **57.86** |
-| 18:20 dusk | `1820-clear-none.png` | `270306F636D4` | **54.29** |
+| 12:10 noon | `1210-clear-none.png` | `6006BB90D0F7` | **57.79** |
+| 18:20 dusk | `1820-clear-none.png` | `18585B4D7E3F` | **54.08** |
 | 22:40 night | `2240-clear-none.png` | `DA664787D236` | **45.14** |
 
-排序为 `dawn > noon > dusk > night`；`L(dusk) − L(night) = 54.29 − 45.14 = 9.15` 灰度级，**≥ 1.5，通过**。dawn 比 noon 亮是实测事实（与 GATE 里 dawn 65.04 > noon 58.90 一致），不是排序写错，也不因此改阈值。
+排序为 `dawn > noon > dusk > night`；`L(dusk) − L(night) = 54.08 − 45.14 = 8.94` 灰度级，**≥ 1.5，通过**。dawn 比 noon 亮是实测事实（与 GATE 里 dawn 65.04 > noon 58.90 一致），不是排序写错，也不因此改阈值。
+
+**图源口径**：本判据只用 `combos/pinned/` 的正式组合图——村民完全不画、对外读数引用的就是这一份。`combos/controls/` 是对照组（村民按自然状态照常画着），只在 eval 线量“对照组 vs 钉住组”差异时用，**不在本判据里使用**；两组在 `1210`/`1820` 有差异，混用会让 sha 与对外清单对不上。
 
 **读数口径**：961×641 整图、未裁切。画布是 960×640，多出的末行/末列与相邻像素同值，属截图边界的 1 px 重复，不是边框。四张图是 eval 线隐藏 HUD 后所拍（原始输出 `hud hidden = 18732 B`，可见文字泄露 0 条），页面里没有顶栏/状态栏，所以**不存在「含固定 HUD」这件事**。
 
@@ -41,8 +43,8 @@
 
 ```text
 00FFA8BA2B4AAC2B21DFAD8CE2ACA07B8A76E457361E3B7F09B4F367B4EBA82E  0540-clear-none.png
-BD8874572FF2FC93016C1EF10E1D74722A80FB28F5CD56ACCB4BA0C307BBBA5B  1210-clear-none.png
-270306F636D4EB2FE5A227D1D06A9C028A0610E53FE12041E82EF1C0CA7FE8ED  1820-clear-none.png
+6006BB90D0F71D251329B720E7864FB25714B1E6C26F47D9D715C230D6D07BCA  1210-clear-none.png
+18585B4D7E3F031893A9398CC1E0A20195FF70B2F4A9D35618C90C01EA7759D1  1820-clear-none.png
 DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-none.png
 ```
 
@@ -184,7 +186,7 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 
 | 要点 | 今天落地的产物 | 待办 | 依赖谁 / 等什么 |
 |---|---|---|---|
-| 1 时间 | 四张原图 + sha 入库；一次性实测 dusk−night=9.15，**通过** | 无（**不做静态闸门**） | 要成闸门需每次重新渲染再量，归浏览器 job，等 e2e 稳定 |
+| 1 时间 | `pinned` 四张原图 + sha 入库；一次性实测 dusk−night=8.94，**通过** | 无（**不做静态闸门**） | 要成闸门需每次重新渲染再量，归浏览器 job，等 e2e 稳定 |
 | 2 光源 | 无（不建空测试） | 光源实体表 + 暖像素代理量 | 数据层「光源实体」，未立项 |
 | 3 主题色 | 引用现有 `scripts/audit-palette.mjs --strict` | `LANDMARK_KIND → token` 注册表 + 互异/色相断言 | 注册表约 20 行数据，待建 |
 | 4 发光 | `scripts/measure-design-readouts.mjs`（只读数） | 0.18 / noon<0.10 标定后转闸门 | 需 `dusk`+`noon` 两张标定图 |
@@ -199,7 +201,7 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 
 | 要点 | 判据形态 | 断言（压缩） | 反例（压缩） | 我们现在能不能跑 |
 |---|---|---|---|---|
-| 1 时间靠光色推进 | 像素（实测标定 1.5 灰度级）+ 接线体检 | 四刻同机位 `L(dusk) − L(night) ≥ 1.5`；`dawn.mistBand>0`、`dusk.ridge>0`、`night.fireflies` | 四刻常量正确但渲染只读 `label`，截图全同 | **已跑，通过**：dusk 54.29 > night 45.14，差 9.15 |
+| 1 时间靠光色推进 | 像素（实测标定 1.5 灰度级）+ 接线体检 | 四刻同机位 `L(dusk) − L(night) ≥ 1.5`；`dawn.mistBand>0`、`dusk.ridge>0`、`night.fireflies` | 四刻常量正确但渲染只读 `label`，截图全同 | **已跑，通过**：dusk 54.08 > night 45.14，差 8.94 |
 | 2 先定光源实体与色温 | 不可执行 | 室内 region 光源表非空、色温 2550–3150K，暖像素占比 ≥30% | 塞 `intensity:0` 假光源，表非空但无暖光 | **不能**：无光源实体，只有全局 `glow` |
 | 3 主题色绑定构件 | 结构 | `audit-palette --strict` 为 0；四类构件 token 互异、色相在暖区、`S ≥ 0.25` | 全用同一 `terracotta`，合规但整体染色 | **半能**：audit 引用现有闸门；注册表未建 |
 | 4 发光靠压低周边 | 像素（暂定 0.18） | patch/annulus 亮度差 ≥0.18，`noon` 同窗 <0.10，annulus ≥3 token | annulus 涂黑、或全屏压暗，比值虚高 | **只读数**，不设 pass/fail |
