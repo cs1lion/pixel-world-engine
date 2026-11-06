@@ -167,6 +167,8 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 
 - `pin-shot-state.ts`：新增 `TrailPin`、`pinTrails`、`unpinTrails`、`pinnedTrailsOf`；
   `RENDER_INPUT_TABLE`（25 条）+ `unregisteredRenderFields` / `missingRenderFields`。
+- 呈现态（快照之外）：`WeatherPin` / `pinWeather` / `unpinWeather` / `PRESENTATION_INPUTS`，
+  见第八节；25 字段表与 `pinShotState` 签名未动。
 - `SandboxScene.paintingSnapshot()`：`pinTrails → pinActors → pinnedVillagers` 三层覆盖，
   世界与判据仍读 `this.snapshot`。
 - 入口并列、签名不动：`pinShotState(nowMs, tideLevel)` 一个字符没动；
@@ -183,18 +185,19 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 | 闸门 | 命令 | 读数 |
 | --- | --- | --- |
 | 类型 | `npm run check` | 语法 0 处 / 语义 0 处 |
-| 单测 | `npm test` | tests 2388 / pass 2379 / fail 0 / skipped 9 |
-| 构建 | `npm run build` | dist 1,766.48 kB（gzip 500.91 kB），647ms |
+| 单测 | `npm test` | tests 2390 / pass 2381 / fail 0 / skipped 9 |
+| 构建 | `npm run build` | dist 1,940.16 kB（gzip 540.32 kB），682ms（Phaser 4.2.1） |
 | 调色板 | `node scripts/audit-palette.mjs --strict` | 通过，退出 0 |
 | 行号引用 | `node scripts/audit-references.ts --strict` | 173 处，0 存疑 |
-| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3049 处，未解析 0 |
+| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3073 处，未解析 0 |
 | 节号 | `node scripts/audit-sections.ts --strict` | 159 处，全部对得上 |
 | 断言/ADR | `node scripts/audit-claims.ts --strict` | claims 5/5，ADR 10/10 |
 | 服务端 | `python -m pytest` | 553 passed / 1 skipped |
-| 工作树 | `npm run worktrees:audit -- --strict` | 绿：补登 2 条、3 个过期项续期到 2026-11-13（见 `WORKTREES.md`） |
+| 工作树 | `npm run worktrees:audit -- --strict` | 绿：total=23 registered=23 unregistered=0 overdue=0；`pwe-a3` 表项悬空已清理（目录已不存在） |
 | 负控 | `node scripts/check-shot-actor-pin.mjs` | 三档逐字节全同；两条反向全异 |
+| 雨帧负控 | `node scripts/check-rain-pin.mjs` | 三跑逐字节同；`frames+1` / `intensity+0.01` 均判红（见第八节） |
 | 像素 | `scripts/screens-diff.py` 七组配对 | 见第二、三节 |
-| 浏览器 | `test:browser` / `test:phases` / `test:persistence` / `test:render-budget` / `test:setting` | 全绿（smoke / 四刻 34 项 / 持久化 8 项 / 渲染预算 6 项 / 设定集） |
+| 浏览器 | `test:browser` / `test:phases` / `test:persistence` / `test:render-budget` / `test:setting` | 全绿：smoke 144 项 + 01 专用页 12 项 / 四刻 34 项 / 持久化 8 项 / 渲染预算 6 项 / 设定集 29 项（均在本轮 Phaser 4.2.1 树重跑） |
 
 开发服务器端口 5211（避开 5188 / 5191 / 5202 / 5203）。浏览器闸门写出的
 `eval/screens/*.png` 已用 `git checkout -- world-client/eval/screens` 还原，未夹带进提交。
@@ -297,6 +300,20 @@ export interface WeatherPin {
 
 三张 PNG 逐字节相同（sha256 前 16 位 `303eced7af05132e`），`screens-diff.py`
 的 `identicalBytes: true`、`deltaHistogram` 全 0。
+
+**跨引擎复核（2026-11-06，rebase 到 `430dd0d` = Phaser 4.2.1 之后重跑）**：同一夹具、
+同一 `pinWeather(0.86, 24)`，三跑 sha 仍是 `303eced7af05132e`、bytes 仍是 22435，
+与 rebase 前（Phaser 3.90.0）**逐字节相同**；两条扰动也原样复现
+（`ec997a9dd9a84c4c` / `d54f2d2e263babc2`，读数同为 0.0964% / 40.96%）。
+即补钉之后，Phaser 3 vs 4 的雨帧从「0.115% 判不了」变成**逐字节 0 差**——
+差异确实来自未钉的呈现态，不是引擎。
+
+夹具细节：轮询改成 `polling: 100`。脚本接管了 `requestAnimationFrame`，
+Playwright 默认的 `raf` 轮询在最后一帧后拿不到回调，会等不到 `done`；这与判据无关，
+但会让夹具假红。
+
+原始读数：`render-input/rain-pin/diff-12.json`、`diff-23.json`、`diff-13.json`、
+`diff-frame.json`、`diff-intensity.json`。
 
 ### 反向用例（必须判红，且红在被改的地方）
 

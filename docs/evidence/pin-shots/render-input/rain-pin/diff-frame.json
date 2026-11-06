@@ -1,0 +1,376 @@
+{
+  "oldDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\pwe-rain-pin-p4\\baseline-1",
+  "newDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\pwe-rain-pin-p4\\shift-frame",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "rain-pin.png",
+      "oldSha256": "303eced7af05132ea3aafab8950fee0c8c9c70b96cd91193b37ae0c9843c4644",
+      "newSha256": "ec997a9dd9a84c4c14f8d653749cdac7290674cc2e7148f2d0ed4fcd65392df9",
+      "oldBytes": 22435,
+      "newBytes": 22453,
+      "identicalBytes": false,
+      "oldSize": [
+        960,
+        640
+      ],
+      "newSize": [
+        960,
+        640
+      ],
+      "comparable": true,
+      "exactChangedPx": 592,
+      "exactDiffPct": 0.0964,
+      "visibleChangedPx": 592,
+      "visibleDiffPct": 0.0964,
+      "exactBBox": [
+        30,
+        144,
+        779,
+        501
+      ],
+      "visibleBBox": [
+        30,
+        144,
+        779,
+        501
+      ],
+      "deltaHistogram": {
+        "gt0": 592,
+        "ge8": 592,
+        "ge32": 592,
+        "ge64": 288,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        -0.001,
+        -0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 80,
+          "bbox": [
+            546,
+            270,
+            553,
+            289
+          ],
+          "size": [
+            8,
+            20
+          ],
+          "oldColor": "#929791",
+          "newColor": "#404a44",
+          "meanAbsDiff": 79.26666666666667
+        },
+        {
+          "areaPx": 80,
+          "bbox": [
+            546,
+            292,
+            553,
+            311
+          ],
+          "size": [
+            8,
+            20
+          ],
+          "oldColor": "#404a45",
+          "newColor": "#929791",
+          "meanAbsDiff": 72.86666666666666
+        },
+        {
+          "areaPx": 72,
+          "bbox": [
+            366,
+            182,
+            369,
+            199
+          ],
+          "size": [
+            4,
+            18
+          ],
+          "oldColor": "#929791",
+          "newColor": "#404a45",
+          "meanAbsDiff": 79.75925925925925
+        },
+        {
+          "areaPx": 72,
+          "bbox": [
+            366,
+            202,
+            369,
+            219
+          ],
+          "size": [
+            4,
+            18
+          ],
+          "oldColor": "#404a45",
+          "newColor": "#929791",
+          "meanAbsDiff": 78.33333333333333
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            536,
+            144,
+            539,
+            155
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#656d68",
+          "newColor": "#404a45",
+          "meanAbsDiff": 35.666666666666664
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            536,
+            162,
+            539,
+            173
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#3b4543",
+          "newColor": "#616966",
+          "meanAbsDiff": 36.333333333333336
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            776,
+            320,
+            779,
+            331
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#656d68",
+          "newColor": "#404a45",
+          "meanAbsDiff": 35.666666666666664
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            776,
+            342,
+            779,
+            353
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#1d2728",
+          "newColor": "#4a5352",
+          "meanAbsDiff": 42.44444444444444
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            30,
+            472,
+            33,
+            483
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#4f5b59",
+          "newColor": "#233232",
+          "meanAbsDiff": 41.333333333333336
+        },
+        {
+          "areaPx": 48,
+          "bbox": [
+            30,
+            490,
+            33,
+            501
+          ],
+          "size": [
+            4,
+            12
+          ],
+          "oldColor": "#233232",
+          "newColor": "#4f5b59",
+          "meanAbsDiff": 41.333333333333336
+        }
+      ],
+      "regionsTotal": 10,
+      "structure": {
+        "components": 10,
+        "coveredPx": 592,
+        "largestAreaPx": 80,
+        "largestBbox": [
+          546,
+          270,
+          553,
+          289
+        ],
+        "largestSize": [
+          8,
+          20
+        ],
+        "blocks": [
+          {
+            "areaPx": 80,
+            "bbox": [
+              546,
+              270,
+              553,
+              289
+            ],
+            "size": [
+              8,
+              20
+            ]
+          },
+          {
+            "areaPx": 80,
+            "bbox": [
+              546,
+              292,
+              553,
+              311
+            ],
+            "size": [
+              8,
+              20
+            ]
+          },
+          {
+            "areaPx": 72,
+            "bbox": [
+              366,
+              182,
+              369,
+              199
+            ],
+            "size": [
+              4,
+              18
+            ]
+          },
+          {
+            "areaPx": 72,
+            "bbox": [
+              366,
+              202,
+              369,
+              219
+            ],
+            "size": [
+              4,
+              18
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              536,
+              144,
+              539,
+              155
+            ],
+            "size": [
+              4,
+              12
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              536,
+              162,
+              539,
+              173
+            ],
+            "size": [
+              4,
+              12
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              776,
+              320,
+              779,
+              331
+            ],
+            "size": [
+              4,
+              12
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              776,
+              342,
+              779,
+              353
+            ],
+            "size": [
+              4,
+              12
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              30,
+              472,
+              33,
+              483
+            ],
+            "size": [
+              4,
+              12
+            ]
+          },
+          {
+            "areaPx": 48,
+            "bbox": [
+              30,
+              490,
+              33,
+              501
+            ],
+            "size": [
+              4,
+              12
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.000964,
+        "overlapPx": 614400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}

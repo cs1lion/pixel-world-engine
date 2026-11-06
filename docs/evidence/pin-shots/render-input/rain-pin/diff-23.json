@@ -1,0 +1,66 @@
+{
+  "oldDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\pwe-rain-pin-p4\\baseline-2",
+  "newDir": "C:\\Users\\18712\\AppData\\Local\\Temp\\pwe-rain-pin-p4\\baseline-3",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "rain-pin.png",
+      "oldSha256": "303eced7af05132ea3aafab8950fee0c8c9c70b96cd91193b37ae0c9843c4644",
+      "newSha256": "303eced7af05132ea3aafab8950fee0c8c9c70b96cd91193b37ae0c9843c4644",
+      "oldBytes": 22435,
+      "newBytes": 22435,
+      "identicalBytes": true,
+      "oldSize": [
+        960,
+        640
+      ],
+      "newSize": [
+        960,
+        640
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 614400
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}
