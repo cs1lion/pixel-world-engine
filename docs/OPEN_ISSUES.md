@@ -186,13 +186,15 @@
 
 ### E3. 压暗收敛用墙钟判，本身脆
 
-- **现状 [事实]**：`waitFadeSettled` 以墙钟上限（2026-11-06 从 6 s 调到 8 s）+「连续 3 帧逐字节相同」判收敛，超时返回 `settled:false`（[capture.mjs](file:///D:/project/pwe-material/world-client/scripts/lib/capture.mjs#L68-L92)）。本轮只改上限，判据形态未动。
+- **现状 [事实]**：`waitFadeSettled` 以墙钟上限（2026-11-06 从 6 s 调到 8 s）+「连续 3 帧逐字节相同」判收敛，超时返回 `settled:false`（[capture.mjs](file:///D:/project/pwe-material/world-client/scripts/lib/capture.mjs)）。**2026-11-06 晚些时候已把上限改成帧进度 `maxFrames = 60`**，见下方「已落地」。
 - **问题 [事实]**：同一份代码，本地实测 319–840ms，共享 CI runner 实测 **6217ms / 25 帧**——阈值只能覆盖已知机器。压暗层按帧 delta 累加（`FADE_MS = 900`），机器越慢、截图越贵，墙钟就越长；换更慢的 runner，8 s 也可能不够。另有反向用例暴露的第二个盲点：26×26 小样区在雨幕里会因「连续三帧没有雨滴穿过」误报收敛（实测 2146ms / 15 帧），说明「连续 3 帧相同」不完全等于「压暗收敛」。
 - **影响 [推断]**：阈值会跟着最慢机器水涨船高，判据逐步从「收敛了」退化成「等够久了」；红绿的可解释性变差。但不会漏红——真的不收敛，8 s 后仍 `settled:false`（反向用例实测 8139ms / 56 帧，闸门 FAIL），只是判红的理由变成「墙钟到点」而不是「进度没走完」。
-- **提案方向**：长期改成**按帧数**判（先累计足够的帧 delta，再判画面静止），或**钉住时钟**（测试用假时钟 / 手动 step 世界与渲染）后再判；两者都能把「机器快慢」从判据里拿掉。本轮**不改判据形态**，只调上限并补反向用例（[check-phases-negative.mjs](file:///D:/project/pwe-material/world-client/scripts/check-phases-negative.mjs)）。
-- **代价**：要把压暗渐变从帧 delta 驱动改成可观测进度，或加测试专用时钟钩子；会同时改 `check-phases.mjs` 与 `capture.mjs`。
-- **建议时机**：下一次动相位渲染或抓拍脚本时。
-- **是否需要用户决策**：**是**（按帧数 vs 钉住时钟；以及是否把「小样区假收敛」一并修）。
+- **提案方向**：长期改成**按帧数**判（先累计足够的帧 delta，再判画面静止），或**钉住时钟**（测试用假时钟 / 手动 step 世界与渲染）后再判；两者都能把「机器快慢」从判据里拿掉。
+- **2026-11-06 已落地 [事实]**：选了**按帧进度**方案——上限由墙钟 `capMs = 8000` 改为 `maxFrames = 60`（判据只数探针取样帧，`waitedMs` 仅作读数）。N 的依据与正控/反例读数见 [GATE_CALIBRATION.md](file:///D:/project/pwe-material/docs/GATE_CALIBRATION.md) §9.1：正控 8 帧 / 1216ms 收敛；反例（雨幕、整块画布）**恰在第 60 帧**判红（7835ms）。反向用例已重写为「正控 + 反例」，脚本自身退出 0 = 反例成立（[check-phases-negative.mjs](file:///D:/project/pwe-material/world-client/scripts/check-phases-negative.mjs)）。
+- **仍未解决 [事实]**：**小样区假收敛**没修——26×26 草地样区在雨里可能连续三帧没有雨滴穿过，探针误报 `settled:true`（实测 2146ms / 15 帧）。本轮只换上限口径，没有换采样区。
+- **代价**：已付——`capture.mjs` 与 `check-phases.mjs` 的文案/返回值同步改，反向用例重写。
+- **建议时机**：下次动相位渲染或抓拍脚本时，再决定是否换采样区。
+- **是否需要用户决策**：**是**（是否把「小样区假收敛」一并修；按帧 vs 钉时钟已定为按帧）。
 
 ### E4. 夹具默认输出落在已跟踪目录
 
@@ -204,6 +206,21 @@
 - **本轮 [事实]**：**不改默认，只登记**；只给 `actor-pin/`、`actor-pin-pairs/` 加了**精确** ignore（见根 `.gitignore`），未加任何 `eval/screens/` 宽规则，169 个已跟踪基线不受影响。
 - **建议时机**：下一次动抓拍夹具或 setting 闸门时。
 - **是否需要用户决策**：**是**（是否迁移默认输出目录；迁移后旧路径是否留兼容）。
+
+### E5. GitHub 默认视图只显示最新 attempt，重跑会把首跑的红藏起来
+
+- **现状 [事实]**：网页 run 页、`gh run list`、以及不带 `--attempt` 的 `gh run view` 都只显示**最新 attempt**。一次 `gh run rerun --failed` 成功之后，attempt 1 的失败在默认视图里消失，只剩 success。
+- **复现 [事实]**：本轮 `world-client-browser` 诊断里，至少 5 次首跑红被重跑掩盖（默认视图全是 success，必须 `--attempt 1` 才看得到）：
+  - `42157897952`（`05a34abf`，phases 6217ms）
+  - `42154120584`（`ac4fe28a`，phases 6248ms）
+  - `41780154730`（`ed9eb4cd`，throttle）
+  - `41698910545`（`db948016`，throttle 11.0 vs 10.67）
+  - `41686628894`（`20d98412`，drag/restore）
+- **影响 [事实]**：review 只看默认视图，会把「首跑红」当成没发生，「这个 job 一直绿」的判断因此失真；反过来，拿首跑红去改代码，会追一个只在慢机器上出现的假红。
+- **纪律**：review 任何一次 run，**必须**看首跑：`gh run view <run-id> --attempt 1`。重跑成功不等于首跑成功。
+- **只读入口（不进 CI）**：`npm run ci:attempt1 -- --since 2026-11-04`（[ci-attempt1-audit.mjs](file:///D:/project/pwe-material/scripts/ci-attempt1-audit.mjs)）列出时间窗内「attempt 1 失败、最终却 success」的 run，并打印逐条 `gh run view … --attempt 1`。只读 `gh` 数据，不改判据、不进工作流。
+- **建议时机**：已落地（纪律 + 入口）。
+- **是否需要用户决策**：否（review 纪律）。
 
 ## F. Phaser 4 升级遗留（2026-11-06）
 
