@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type {
+  AnimFade,
   AnimFsmState,
   AnimSample,
   AnimStateId,
@@ -40,12 +41,15 @@ const {
   ANIM_STATE_IDS,
   ANIM_STATES,
   ANIM_TRANSITIONS,
+  HARD_RESIDUAL_LAYER_CAP,
   MAX_RESIDUAL_LAYERS,
+  MIN_DROPPABLE_RESIDUAL_WEIGHT,
   advanceAnimFsm,
   animFrameAt,
   animGraphMarkdown,
   animIntentOf,
   createAnimFsmState,
+  residualWeightAt,
   sampleAnimFsm,
   transitionDurationMs,
 } = fsm;
@@ -74,6 +78,11 @@ test('状态表：5 个动作态，转移表覆盖全部 20 个不同方向的�
     assert.ok(transition.durationMs > 0, `${transition.from}→${transition.to} 时长非正`);
     assert.ok(transition.durationMs <= 500, `${transition.from}→${transition.to} 时长长得不像过渡`);
     assert.ok(transition.condition.length > 0, `${transition.from}→${transition.to} 缺条件说明`);
+    assert.equal(
+      transition.source,
+      'design',
+      `${transition.from}→${transition.to} 的来源不是「未验证设计值」`,
+    );
   }
 });
 
@@ -193,7 +202,7 @@ test('极短时间内连续打断 A→B→C：权重连续、不跳变、最终�
 
   const opening = sampleAnimFsm(state, 20);
   assert.ok(opening.layers.length >= 3, `A→B→C 至少三层，实得 ${opening.layers.length}`);
-  assert.ok(opening.layers.length <= MAX_RESIDUAL_LAYERS + 1);
+  assert.ok(opening.layers.length <= HARD_RESIDUAL_LAYER_CAP + 1);
   assert.ok(Math.abs(weightSum(opening) - 1) < EPS);
 
   let previous = opening;
@@ -289,11 +298,80 @@ test('连续 20 次打断：残影层数有上限，权重和仍为 1', () => {
     state = advanceAnimFsm(state, intents[index % intents.length] as AnimStateId, index + 1);
     const sample = sampleAnimFsm(state, index + 1);
     assert.ok(
-      sample.layers.length <= MAX_RESIDUAL_LAYERS + 1,
-      `第 ${index + 1} 次打断后层数 ${sample.layers.length} 超过上限`,
+      sample.layers.length <= HARD_RESIDUAL_LAYER_CAP + 1,
+      `第 ${index + 1} 次打断后层数 ${sample.layers.length} 超过硬上限`,
     );
     assert.ok(Math.abs(weightSum(sample) - 1) < EPS, `第 ${index + 1} 次打断后权重和不是 1`);
   }
+});
+
+test('A→B→C→D→E 连续打断：任何被丢残影的权重都低于丢弃下限', () => {
+  let state = createAnimFsmState('walk', 0);
+  const steps: readonly [AnimStateId, number][] = [
+    ['idle', 1],
+    ['work', 2],
+    ['deliver', 3],
+    ['salute', 5],
+    ['walk', 6],
+  ];
+  for (const [intent, at] of steps) {
+    // 残影对象在推进过程中按引用保留，所以差集就是「这次被丢的那条」。
+    const before = [...state.fades];
+    state = advanceAnimFsm(state, intent, at);
+    const dropped = before.filter((fade) => !state.fades.includes(fade));
+    assert.ok(dropped.length <= 1, `t=${at} 一次推进丢了 ${dropped.length} 条残影`);
+    for (const fade of dropped) {
+      const weight = residualWeightAt(fade, at);
+      assert.ok(
+        weight < MIN_DROPPABLE_RESIDUAL_WEIGHT,
+        `t=${at} 丢掉了权重 ${weight} 的残影（下限 ${MIN_DROPPABLE_RESIDUAL_WEIGHT}）`,
+      );
+    }
+    const sample = sampleAnimFsm(state, at);
+    assert.ok(Math.abs(weightSum(sample) - 1) < EPS, `t=${at} 权重和不是 1`);
+    assert.ok(state.fades.length <= HARD_RESIDUAL_LAYER_CAP, `t=${at} 残影超过硬上限`);
+  }
+});
+
+test('高权重残影不丢：超过目标上限时延长保留', () => {
+  // 5 条残影各 0.16（合计 0.8），当前状态还剩 0.2 权重。
+  const fades: AnimFade[] = [
+    { state: 'idle', startedAtMs: 0, durationMs: 200, startWeight: 0.16 },
+    { state: 'walk', startedAtMs: 0, durationMs: 200, startWeight: 0.16 },
+    { state: 'salute', startedAtMs: 0, durationMs: 200, startWeight: 0.16 },
+    { state: 'work', startedAtMs: 0, durationMs: 200, startWeight: 0.16 },
+    { state: 'deliver', startedAtMs: 0, durationMs: 200, startWeight: 0.16 },
+  ];
+  const state: AnimFsmState = { current: 'walk', enteredAtMs: 0, fades };
+  const advanced = advanceAnimFsm(state, 'idle', 0);
+  // 新增一条 0.2 的残影后共 6 条；最轻 0.16 >= 0.12，不允许丢。
+  assert.ok(advanced.fades.length > MAX_RESIDUAL_LAYERS, '没有触发「超过目标上限」场景');
+  assert.equal(advanced.fades.length, 6, '高权重残影被丢了');
+  for (const fade of fades) {
+    assert.ok(advanced.fades.includes(fade), '有高权重残影被悄悄替换/丢弃');
+  }
+  const sample = sampleAnimFsm(advanced, 0);
+  assert.ok(Math.abs(weightSum(sample) - 1) < EPS);
+  // 当前层权重为 0，但仍在输里；加 6 条残影。
+  assert.equal(sample.layers.length, 7);
+});
+
+test('硬上限被迫丢弃时，被丢的权重仍然低于下限', () => {
+  const fades: AnimFade[] = new Array(12).fill(null).map(() => ({
+    state: 'walk' as AnimStateId,
+    startedAtMs: 0,
+    durationMs: 200,
+    startWeight: 0.07,
+  }));
+  const state: AnimFsmState = { current: 'idle', enteredAtMs: 0, fades };
+  const advanced = advanceAnimFsm(state, 'work', 0);
+  const dropped = fades.filter((fade) => !advanced.fades.includes(fade));
+  assert.equal(dropped.length, 1, '超过硬上限时应恰好丢一条');
+  const weight = residualWeightAt(dropped[0] as AnimFade, 0);
+  assert.ok(weight < MIN_DROPPABLE_RESIDUAL_WEIGHT, `硬上限丢掉了权重 ${weight} 的残影`);
+  assert.equal(advanced.fades.length, HARD_RESIDUAL_LAYER_CAP);
+  const sample = sampleAnimFsm(advanced, 0);
+  assert.ok(Math.abs(weightSum(sample) - 1) < EPS);
 });
 
 test('快照 mode/walking → 意图的映射覆盖全部 8 个 mode', () => {
@@ -333,6 +411,13 @@ test('文档就是生成函数的原文：状态图不会与代码分叉', () =>
   assert.equal(doc, animGraphMarkdown(), '状态图文档过期：请跑 node scripts/export-anim-graph.ts');
   assert.ok(doc.includes('| idle |'), '文档里没有状态表');
   assert.ok(doc.includes('| walk | idle |'), '文档里没有转移表');
+  assert.ok(
+    doc.includes('## 边界：只做组合与转移，不产生新动作'),
+    '文档开头没有写清「状态机不产生新动作」的边界',
+  );
+  assert.ok(doc.includes('设计初始值，未经验证'), '文档没有标明转移时长是未验证初始值');
+  assert.ok(doc.includes('| 来源 |'), '转移表没有时长来源列');
+  assert.ok(doc.includes('design（未验证）'), '转移表没有把设计值标出来');
 });
 
 test('状态值可深拷贝、可跨引擎传递：只含字符串、数字与数组', () => {
