@@ -74,10 +74,10 @@ node -e "const {execFileSync}=require('child_process'),c=require('crypto'),fs=re
 误判成因：先看到全帧 69% 的 ±1 差异，就把高差块也归给雨幕，没有先算
 `≥10` 掩码的 bbox。以后固定顺序：**先按阈值分层 → 再对最高阈值层求 bbox → 才归因**。
 
-## 6. 与 `SCREENSHOT_BASELINE_CHANGES.md` 的关系
+## 6. 与 pwe-anim 工作树上的基线变更清单的关系
 
-该清单在 `pwe-anim` 工作树的分支 `feat/animation-express`
-（`docs/evidence/animation-express/SCREENSHOT_BASELINE_CHANGES.md`），共 157 张
+该清单在 pwe-anim 工作树的分支 feat/animation-express 上，路径为
+docs/evidence/animation-express/SCREENSHOT_BASELINE_CHANGES.md（当前 main 上不存在该文件），共 157 张
 （`eval/screens` 152 + `eval/live` 5），其中「基线不可复现」29 张。
 **这 29 张里没有 `phase-*` 系列**（清单不含 phase 图），所以 night-rain 之前不在名单内。
 
