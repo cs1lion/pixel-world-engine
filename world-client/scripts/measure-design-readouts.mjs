@@ -223,6 +223,7 @@ const p4 = patchAnnulus(img, center, rect);
 const p8 = gradientReadout(img, rect);
 
 console.log(`图像 ${img.width}x${img.height}  取样窗 ${rect.w}x${rect.h} @ (${rect.x},${rect.y})`);
+console.log(`全图平均灰度   ${fmt(meanLuma(img, 0, 0, img.width, img.height))}   （含固定 HUD；跨图比较只看差值）`);
 console.log('阈值未钉，以下只报数，不判红绿。');
 console.log('');
 console.log('【要点 4｜发光靠压低周边】');
