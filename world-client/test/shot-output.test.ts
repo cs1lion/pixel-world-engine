@@ -26,6 +26,7 @@ interface ShotModule {
     script: string,
     target: { dir: string; authorized: boolean },
     files: string[],
+    options?: Record<string, unknown>,
   ) => string[];
 }
 
@@ -69,7 +70,7 @@ test('--write-baseline：落到基线目录，且算显式授权', async () => {
   assert.equal(target.explicit, 'flag');
 });
 
-test('EVAL_OUT=eval/screens 是授权；其它 EVAL_OUT 只改路径、不算授权', async () => {
+test('EVAL_OUT 显式改路径都算知情选择；只有缺省路径才算误写', async () => {
   const lib = await load();
   assert.equal(typeof lib.resolveShotTarget, 'function', '输出模块缺 resolveShotTarget');
 
@@ -83,7 +84,7 @@ test('EVAL_OUT=eval/screens 是授权；其它 EVAL_OUT 只改路径、不算授
   const other = lib.resolveShotTarget!('check-phases', { ...baseOptions, env: { EVAL_OUT: runnerTemp } });
   assert.equal(other.dir, runnerTemp);
   assert.equal(other.baseline, false);
-  assert.equal(other.authorized, false);
+  assert.equal(other.authorized, true, 'CI 自己指到 runner 临时目录，是显式选择');
 
   const subdir = lib.resolveShotTarget!('check-phases', {
     ...baseOptions,
@@ -91,7 +92,7 @@ test('EVAL_OUT=eval/screens 是授权；其它 EVAL_OUT 只改路径、不算授
   });
   assert.equal(subdir.dir, resolve(BASELINE, 'actor-pin'));
   assert.equal(subdir.baseline, false, '子目录不是基线根目录本身');
-  assert.equal(subdir.authorized, false);
+  assert.equal(subdir.authorized, true, '显式 EVAL_OUT 就是知情选择，哪怕指向子目录');
 });
 
 test('命中已跟踪文件且无授权：拒绝并打印清单与两条放行命令', async () => {
@@ -100,7 +101,7 @@ test('命中已跟踪文件且无授权：拒绝并打印清单与两条放行�
 
   const target = { dir: BASELINE, authorized: false };
   const files = ['world-client/eval/screens/phase-night.png', 'world-client/eval/screens/phase-night-rain.png'];
-  const lines = lib.blockedWriteLines!('check-phases', target, files);
+  const lines = lib.blockedWriteLines!('check-phases', target, files, { clientRoot: CLIENT_ROOT });
   assert.equal(lines.length > 0, true, '未授权的基线写入必须被拦');
   const text = lines.join('\n');
   assert.match(text, /拒绝写入/);
@@ -108,7 +109,6 @@ test('命中已跟踪文件且无授权：拒绝并打印清单与两条放行�
   for (const file of files) assert.ok(text.includes(file), `缺被覆盖文件 ${file}：${text}`);
   assert.ok(text.includes('--write-baseline'), `缺 --write-baseline 放行命令：${text}`);
   assert.ok(text.includes('EVAL_OUT=eval/screens'), `缺 EVAL_OUT 放行命令：${text}`);
-  assert.ok(text.includes('check-phases'), `缺脚本名：${text}`);
 });
 
 test('已授权或目录里没有已跟踪文件：不拦', async () => {

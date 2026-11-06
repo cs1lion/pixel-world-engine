@@ -71,21 +71,25 @@ export function resolveShotTarget(script, options = {}) {
       ? baselineDir
       : resolve(clientRoot, 'tmp', 'screens', script);
   const baseline = resolve(dir) === resolve(baselineDir);
-  const authorized = baseline && (flag || explicitOut);
+  // 显式意图有两种：`--write-baseline`，或自己给了 `EVAL_OUT`。后者哪怕指向
+  // 另一个已跟踪目录（例如 `eval/live`）也算知情选择；缺省路径命中已跟踪文件才算误写。
+  const authorized = flag || explicitOut;
   const explicit = flag ? 'flag' : explicitOut ? 'EVAL_OUT' : null;
   return { dir, baseline, authorized, explicit };
 }
 
 /** 拒写时打印的行；放行（已授权或没有已跟踪文件）时返回空数组。 */
-export function blockedWriteLines(script, target, files) {
+export function blockedWriteLines(script, target, files, { clientRoot = CLIENT_ROOT } = {}) {
   if (target.authorized || files.length === 0) return [];
+  const rel = toPosix(relative(clientRoot, target.dir));
+  const outPath = rel !== '' && !rel.startsWith('..') && !rel.includes(':') ? rel : target.dir;
   return [
     `[截图输出] 拒绝写入 ${target.dir}：该目录下有 ${files.length} 个**已跟踪**文件，但没有显式授权。`,
     '[截图输出] 会被覆盖的已跟踪文件：',
     ...files.map((file) => `  - ${file}`),
     '[截图输出] 放行方式（二选一）：',
     `  node scripts/${script}.mjs ${WRITE_BASELINE_FLAG}`,
-    `  EVAL_OUT=eval/screens node scripts/${script}.mjs`,
+    `  EVAL_OUT=${outPath} node scripts/${script}.mjs`,
   ];
 }
 
@@ -99,13 +103,17 @@ export function blockedWriteLines(script, target, files) {
 export function resolveShotDir(script, options = {}) {
   const target = resolveShotTarget(script, options);
   const files = trackedFilesIn(target.dir, { clientRoot: options.clientRoot });
-  const blocked = blockedWriteLines(script, target, files);
+  const blocked = blockedWriteLines(script, target, files, { clientRoot: options.clientRoot });
   if (blocked.length > 0) {
     for (const line of blocked) console.error(line);
     process.exit(1);
   }
   mkdirSync(target.dir, { recursive: true });
-  const note = target.authorized ? '（仓库基线，已显式授权）' : '（未跟踪）';
+  const note = target.baseline && target.authorized
+    ? '（仓库基线，已显式授权）'
+    : target.explicit === 'EVAL_OUT'
+      ? '（显式 EVAL_OUT）'
+      : '（未跟踪）';
   console.log(`[截图输出] ${script} → ${target.dir}${note}`);
   return target.dir;
 }
