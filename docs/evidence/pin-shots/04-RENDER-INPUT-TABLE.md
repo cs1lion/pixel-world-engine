@@ -199,6 +199,11 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 | 像素 | `scripts/screens-diff.py` 七组配对 | 见第二、三节 |
 | 浏览器 | `test:browser` / `test:phases` / `test:persistence` / `test:render-budget` / `test:setting` | 全绿：smoke 144 项 + 01 专用页 12 项 / 四刻 34 项 / 持久化 8 项 / 渲染预算 6 项 / 设定集 29 项（均在本轮 Phaser 4.2.1 树重跑） |
 
+> 本表读数取自 `430dd0d` 树。之后 main 被外部推进到 `48042a3`（并入 `docs/verifiable-flows`
+> 与 fps 修复，非本分支）；rebase 后 references / citations 因新并入的
+> `docs/evidence/AGENT_TRUST_AND_VERIFIABILITY.md`、`VERIFIABLE_FLOWS.md` 转红
+> （5 处行号存疑、22 处引用未解析），其余各道读数不变。
+
 开发服务器端口 5211（避开 5188 / 5191 / 5202 / 5203）。浏览器闸门写出的
 `eval/screens/*.png` 已用 `git checkout -- world-client/eval/screens` 还原，未夹带进提交。
 
