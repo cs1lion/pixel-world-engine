@@ -189,7 +189,7 @@ assert.deepEqual(missingRenderFields(snapshot), [], '表里有死条目（字段
 | 构建 | `npm run build` | dist 1,940.16 kB（gzip 540.32 kB），682ms（Phaser 4.2.1） |
 | 调色板 | `node scripts/audit-palette.mjs --strict` | 通过，退出 0 |
 | 行号引用 | `node scripts/audit-references.ts --strict` | 173 处，0 存疑 |
-| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3073 处，未解析 0 |
+| 引用存在性 | `node scripts/audit-citations.ts --strict` | 3077 处，未解析 0 |
 | 节号 | `node scripts/audit-sections.ts --strict` | 159 处，全部对得上 |
 | 断言/ADR | `node scripts/audit-claims.ts --strict` | claims 5/5，ADR 10/10 |
 | 服务端 | `python -m pytest` | 553 passed / 1 skipped |
