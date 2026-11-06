@@ -135,6 +135,6 @@ test('Simulation 的快进判定调的是这道判据，tide.ts 也没请回死�
   assert.doesNotMatch(
     tide,
     /TIDE_FLOOD_LEVEL/,
-    '真正决定淹不淹的是 `TERRAIN_HEIGHT` 与 `isFlooded`，不是任何一个潮位阈值',
+    '真正决定淹不淹的是 `TERRAIN_WATER_CLEARANCE` 与 `isFlooded`，不是任何一个潮位阈值',
   );
 });

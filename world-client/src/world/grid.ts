@@ -4,7 +4,16 @@
  * 渲染层只读快照，不许自己改坐标。
  */
 
-import type { CarryItem, GridPoint, PrefabBlueprint, TerrainId, TileCell, ZoneId } from './types.ts';
+import type {
+  CarryItem,
+  ClimbLink,
+  GridPoint,
+  PrefabBlueprint,
+  TerrainId,
+  TileCell,
+  ZoneId,
+} from './types.ts';
+import { MAX_TERRAIN_LEVEL } from './types.ts';
 import type { RegionRequirement } from './types.ts';
 import { WALK_COST, walkCostOf } from './terrain-cost.ts';
 import { shouldGrowTree } from './wilderness.ts';
@@ -35,6 +44,12 @@ export interface ZoneRegion {
   readonly h: number;
 }
 
+/** 一条跨层边的两个端点（坡/梯的输入形状）。 */
+export interface TerrainEdge {
+  readonly a: GridPoint;
+  readonly b: GridPoint;
+}
+
 export interface GridSpec {
   readonly width: number;
   readonly height: number;
@@ -50,6 +65,21 @@ export interface GridSpec {
     readonly h: number;
     readonly terrain: TerrainId;
   }[];
+  /**
+   * 设定集显式抬高的格子。缺省全图 `level = 0`，与今天的平面世界逐字相同。
+   * 同一格被多个补丁覆盖时，后写的赢（与 `terrain` 补丁同一规矩）。
+   */
+  readonly levels?: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+    readonly level: number;
+  }[];
+  /** 坡（跨 1 层）。每条边在构造时编译成两端的 `climb`。 */
+  readonly ramps?: readonly TerrainEdge[];
+  /** 梯（跨 ≥2 层）。同上。 */
+  readonly ladders?: readonly TerrainEdge[];
   /** 地名只用于展示与设定，不参与旧的建造许可。 */
   readonly regions?: readonly {
     readonly id: string;
@@ -142,6 +172,7 @@ export class WorldGrid {
         this.cells[y * spec.width + x] = {
           zone,
           terrain: edge ? 'tree' : terrain,
+          level: 0,
           walkable: !edge,
           occupant: null,
         };
@@ -155,6 +186,21 @@ export class WorldGrid {
         }
       }
     }
+    for (const patch of spec.levels ?? []) {
+      if (!Number.isInteger(patch.level) || patch.level < 0 || patch.level > MAX_TERRAIN_LEVEL) {
+        throw new Error(
+          `GridSpec.levels 的 level 必须是 0..${MAX_TERRAIN_LEVEL} 的整数，收到 ${patch.level}`,
+        );
+      }
+      for (let y = patch.y; y < patch.y + patch.h; y += 1) {
+        for (let x = patch.x; x < patch.x + patch.w; x += 1) {
+          const cell = this.at({ x, y });
+          if (cell !== undefined) cell.level = patch.level;
+        }
+      }
+    }
+    linkClimbs(this, spec.ramps ?? [], 'ramp');
+    linkClimbs(this, spec.ladders ?? [], 'ladder');
     for (const region of spec.regions ?? []) {
       if (region.requires != null) this.requirements.set(region.id, region.requires);
       // 呼吸与门是两件事，同一个循环里各记各的：一道区域可以两者都要。
@@ -250,6 +296,14 @@ export class WorldGrid {
 
   isWalkable(p: GridPoint): boolean {
     return this.at(p)?.walkable === true;
+  }
+
+  /**
+   * 这一格的几何高度。**全仓唯一的高度读入口**：渲染、寻路、存档都要走它。
+   * 越界按 0（平面）返回，免得每个调用方各自兜底、各写一套。
+   */
+  levelAt(p: GridPoint): number {
+    return this.at(p)?.level ?? 0;
   }
 
   /** 潮汐每拍调一次。只影响寻路代价，不改格子的可走性。 */
@@ -599,6 +653,58 @@ function rebuild(cameFrom: Int32Array, goalIndex: number, width: number): GridPo
   out.reverse();
   return out.slice(1); // 去掉起点：她已经站在那了。
 }
+
+/**
+ * 把设定集里的坡/梯边编译成两端格子上的 `climb`。
+ *
+ * 只做形状与层差校验，**不改可走性**——跨层通行规则在阶段 3 才接。
+ * 一条边两端必须都已在世界里；坡只跨 1 层，梯至少跨 2 层。
+ */
+function linkClimbs(
+  grid: WorldGrid,
+  edges: readonly TerrainEdge[],
+  kind: ClimbLink['kind'],
+): void {
+  for (const edge of edges) {
+    const a = grid.at(edge.a);
+    const b = grid.at(edge.b);
+    if (a === undefined || b === undefined) {
+      throw new Error(
+        `GridSpec.${kind === 'ramp' ? 'ramps' : 'ladders'} 的边超出世界：`
+        + `(${edge.a.x},${edge.a.y})-(${edge.b.x},${edge.b.y})`,
+      );
+    }
+    const delta = Math.abs(a.level - b.level);
+    if (kind === 'ramp' && delta !== 1) {
+      throw new Error(
+        `坡只能跨 1 层：(${edge.a.x},${edge.a.y})-(${edge.b.x},${edge.b.y}) 相差 ${delta} 层`,
+      );
+    }
+    if (kind === 'ladder' && delta < 2) {
+      throw new Error(
+        `梯至少跨 2 层：(${edge.a.x},${edge.a.y})-(${edge.b.x},${edge.b.y}) 只差 ${delta} 层`,
+      );
+    }
+    claimClimb(a, edge.b, kind);
+    claimClimb(b, edge.a, kind);
+  }
+}
+
+/** 一格只留一条跨层边；再连第二条（不同方向或不同种类）就是设定集自相矛盾。 */
+function claimClimb(cell: TileCell, to: GridPoint, kind: ClimbLink['kind']): void {
+  const existing = cell.climb;
+  if (
+    existing !== undefined
+    && (existing.kind !== kind || existing.to.x !== to.x || existing.to.y !== to.y)
+  ) {
+    throw new Error(
+      `同一格不能有两条不同的跨层边：(${to.x},${to.y}) 已有 ${existing.kind}`
+      + `→(${existing.to.x},${existing.to.y})，又要连 ${kind}`,
+    );
+  }
+  cell.climb = { kind, to: { x: to.x, y: to.y } };
+}
+
 
 function terrainFor(zone: ZoneId): TileCell['terrain'] {
   switch (zone) {

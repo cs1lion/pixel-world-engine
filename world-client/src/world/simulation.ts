@@ -135,6 +135,7 @@ import type {
   PropKind,
   TaskRecord,
   TaskKind,
+  TerrainEdit,
   Vec2,
   VillagerMode,
   VillagerSnapshot,
@@ -147,7 +148,7 @@ import type {
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
 import type { MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_V5_FINGERPRINT } from './save.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V6_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -699,6 +700,14 @@ export class Simulation {
    * 世界被玩家实质改变过几次（v3 存档字段）。**只存不用**：写它是 #8 的事。
    */
   private worldChangeVersion = 0;
+  /**
+   * 玩家改过的地形最终值（v6 存档字段）。
+   *
+   * **本阶段只搬运，不消费**：没有编辑器、没有写入者，读档原样读回、存档原样写出。
+   * 网格高度仍由 `GridSpec` 的 `levels` 重建，`terrainEdits` 还没有接进 `WorldGrid`
+   * （阶段 1 明确不接消费者；接的那一步必须让 `grid.levelAt` 成为唯一读入口）。
+   */
+  private readonly terrainEdits: TerrainEdit[] = [];
   private faithPoints = 0;
   private milestones = 0;
   /** 交付统计按来源分开：上游的活只有上游能收，沙盒/离线本地另计。 */
@@ -4474,11 +4483,13 @@ export class Simulation {
         worldChangeVersion: this.worldChangeVersion,
         // v5：记忆层整段交回来，空串 = 没有记忆。
         memory: memoryState,
+        // v6：玩家地形改动最终值；本阶段只序列化，没有写入者。
+        terrainEdits: this.terrainEdits.map((edit) => ({ ...edit })),
       },
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.feedReconciled,
-        schemaFingerprint: SCHEMA_V5_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V6_FINGERPRINT,
       },
     };
   }
@@ -4624,6 +4635,10 @@ export class Simulation {
     // v3 的两个位置：原样读回，这一版不用它们（见 #14 / #8）。
     sim.tideOverride = world.tideOverride === null ? null : { ...world.tideOverride };
     sim.worldChangeVersion = world.worldChangeVersion;
+    // v6：地形改动原样读回（不应用——本阶段没有消费者）。
+    // 轨迹/夹具里的旧存档可能没有这一项：按「没改过地形」读，不编也不抛。
+    sim.terrainEdits.length = 0;
+    sim.terrainEdits.push(...(world.terrainEdits ?? []).map((edit) => ({ ...edit })));
     sim.feedConnected = false;
     sim.feedLastReadAt = null;
     sim.feedCursor = 0;

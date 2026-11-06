@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parseBlueprintTable } from '../src/world/blueprints.ts';
 import { ALTAR, buildWorld, buildWorldFromSave } from '../src/world/setup.ts';
 import { Simulation } from '../src/world/simulation.ts';
@@ -11,9 +11,9 @@ import {
   collectSavePaths,
   SAVE_STORAGE_KEY,
   SAVE_TASK_KEYS,
-  SCHEMA_V5_FINGERPRINT,
   type WorldSave,
 } from '../src/world/save.ts';
+import * as saveModule from '../src/world/save.ts';
 import {
   exportFileName,
   IMPORT_MAX_BYTES,
@@ -22,12 +22,22 @@ import {
   type StorageLike,
 } from '../src/ui/save-store.ts';
 
+/** v6 常量在「提交 A」上还不存在：从命名空间取，缺了让断言红，而不是模块错误。 */
+const SCHEMA_V6_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V6_FINGERPRINT?: string }).SCHEMA_V6_FINGERPRINT ?? '';
+
 const rawPrefabs = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(rawPrefabs);
 
-const sampleText = readFileSync(new URL('../../docs/save-v5.sample.json', import.meta.url), 'utf8');
+/** v6 样例是新增文件；「提交 A」上没有它时退回 v5，让这一组红在断言而不是 ENOENT。 */
+const sampleText = readFileSync(
+  existsSync(new URL('../../docs/save-v6.sample.json', import.meta.url))
+    ? new URL('../../docs/save-v6.sample.json', import.meta.url)
+    : new URL('../../docs/save-v5.sample.json', import.meta.url),
+  'utf8',
+);
 
 class FakeStorage implements StorageLike {
   readonly data = new Map<string, string>();
@@ -93,7 +103,7 @@ test('导出内容就是当前版存档：通过校验、字段不超出冻结�
   assert.ok(text !== null, '写完后应能读到单槽原文');
   const parsed = JSON.parse(text) as WorldSave;
   assert.doesNotThrow(() => assertSave(parsed));
-  assert.equal(parsed.meta.schemaFingerprint, SCHEMA_V5_FINGERPRINT);
+  assert.equal(parsed.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
   // 指纹是按“实际数据叶子路径”算的，空数组/空对象会让路径集合缩水，
   // 所以这里比的是「导出路径必须全部落在冻结样例的路径集合里」——多一个字段就红。
   const samplePaths = new Set(collectSavePaths(JSON.parse(sampleText)));
@@ -144,7 +154,7 @@ test('导入合法档：写入单槽、可读回、能重建世界（刷新恢�
   if (!read.ok) return;
   const world = buildWorldFromSave(read.save.world.buildings, blueprints);
   assert.equal(world.buildings.length, read.save.world.buildings.length);
-  assert.equal(read.save.meta.schemaFingerprint, SCHEMA_V5_FINGERPRINT);
+  assert.equal(read.save.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
 });
 
 test('导入坏档：拒绝、原文件按现有机制备份、不写主槽', () => {
