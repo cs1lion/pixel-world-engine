@@ -233,3 +233,47 @@ render-budget 101s **6 项**（末秒 59.9 / 逐秒 59.9×4 / 前台 59.9 / 推�
 方向闸（第 6 天）同理，只换成墙钟：第 6 天的 CPU 差值在 Windows 上会读成 0.00，
 `0 < 0 * 2` 恒假，所以两边都用同一套 min-of-3 墙钟（读数 0.16ms vs 0.46ms）。
 
+## 八、2026-11-06：压暗探针上限 6 s → 8 s（CI 抖动，不是放宽）
+
+**改了什么**：`world-client/scripts/lib/capture.mjs` 的 `waitFadeSettled` 默认上限
+`capMs` 从 6000 改成 8000（[capture.mjs](file:///D:/project/pwe-material/world-client/scripts/lib/capture.mjs#L68-L92)）；
+`check-phases.mjs` 只同步两处断言文案「6 秒内收敛」→「8 秒内收敛」
+（[check-phases.mjs](file:///D:/project/pwe-material/world-client/scripts/check-phases.mjs#L258-L270)）。
+判据形态、采样区、连续帧数、其它断言一个字没动。
+
+**为什么改**：同一份代码，共享 runner 上实测 `night（雨前）压暗层 6 秒内收敛`
+**等待 6217ms / 25 帧**（run `42154120584`、`42157897952` 的 browser job 红，
+`gh run rerun --failed` 后过），本地实测只有 **319–840ms**。
+压暗层按**帧 delta** 累加（`FADE_MS = 900`），共享 runner 是 30fps 软件渲染、
+截图本身也贵，帧间隔被拉长，于是墙钟要 6 秒以上才凑够 3 个相同帧。
+这是机器速度差，不是渲染回归。
+
+| 环境 | 实测等待 | 帧数 | 结论 |
+| --- | --- | --- | --- |
+| 本地（Windows，16 逻辑核） | 319 / 496 / 571 / 578 / 840 ms | 3–14 | 远低于 6 s |
+| 共享 CI runner（GitHub Actions） | **6217 ms** | **25** | 卡在 6 s 门槛上 |
+
+8 秒相对最差观测值（6217ms）留了约 1.8 s 余量（约 29%），只覆盖机器速度差。
+
+**这不是放宽——反向用例实测**：新增 [check-phases-negative.mjs](file:///D:/project/pwe-material/world-client/scripts/check-phases-negative.mjs)，
+夜里先下雨（雨幕逐帧都在动），再对**整块画布**跑同一个 `waitFadeSettled`
+（默认 8 s 上限）与同款 `check(...)` 断言。2026-11-06 实跑：
+
+```
+[反例] weather=rain say=ok
+[反例] probe waitedMs=8139 frames=56 capMs=8000 settled=false
+FAIL night（雨幕）压暗层 8 秒内收敛  等待 8139ms / 56 帧
+[反例] 反例成立：雨幕逐帧在动，8 秒后仍未收敛 → 闸门判红。
+exit=1
+```
+
+即：真的不收敛，8 秒后照样 `settled:false`、照样 FAIL。该脚本**期望红**，不进 CI 绿闸。
+
+**这条反例也暴露了两个口径问题**（已记 [OPEN_ISSUES.md](file:///D:/project/pwe-material/docs/OPEN_ISSUES.md) E3）：
+
+1. **墙钟判收敛本身脆**：阈值只能覆盖已知机器；换更慢的 runner，8 s 也未必够。
+2. **小样区会假收敛**：26×26 的草地样区在雨里经常连续三帧没有一颗雨滴穿过，
+   探针会误报 `settled:true`（同场景实测 2146ms / 15 帧就「收敛」了）。反例因此改用整块画布；
+   晴天的压暗层仍用原小样区（那里只该有静态地面）。
+
+

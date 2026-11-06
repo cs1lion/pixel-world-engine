@@ -36,6 +36,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | --- | --- | --- | --- | --- | --- |
 | C:/Users/18712/AppData/Local/Temp/pwe-main-probe | (detached) | 合并线 | 2026-11-06 | 2026-11-13 | 临时对照工作树（用后移除，非长期资产；到期回收，不续期） |
 | D:/project/pixel-world-engine | main | cs1lion | 2026-10-25 | — | 主工作树（不回收） |
+| D:/project/pwe-a3 | (detached) | 待认领 | 2026-11-06 | 2026-11-20 | 未登记补登（detached @ `ae89fc6`，用途待 owner 确认；到期回收需 owner 确认） |
 | D:/project/pwe-anim | feat/animation-express | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；动画表现力线） |
 | D:/project/pwe-audit-fix | fix/audit-standards-20261105 | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；审计标准修订线） |
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-13 | 基线快照（`54139dd`）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
@@ -50,7 +51,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-material | feat/interior-view | material-agent（Trae 会话，未推送） | 2026-11-04 | 2026-11-18 | `feat/material-upgrade` 已合入（`b6e8318`，经 `501eda1`）；当前 checkout 的 `feat/interior-view`（`7cd06eb`）未合入 |
 | D:/project/pwe-memexp | experiment/daycard-readonly | 记忆实验线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（`169418d`，经 `3f4ed0f` 合入；worktree 待 owner 回收） |
 | D:/project/pwe-motion | feat/scene-motion | 场景动效线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`9cdcf78`，经 `ff63b96`；worktree 待 owner 回收） |
-| D:/project/pwe-p4-light | sample/phaser4-lighting | 待认领 | 2026-11-06 | 2026-11-20 | 活跃（Phaser 4 光照试点，未合入 main；证据在 `C:\Users\18712\OneDrive\文档\Trae-CN\temp_20261106_02`） |
+| D:/project/pwe-p4-light | sample/phaser4-lighting | 待认领 | 2026-11-06 | 2026-11-20 | 分支无独有提交（tip 是 main 祖先）、工作区含未提交的 Phaser 4 试点改动；用途=光照试点；待处置：提交到分支或回收 |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-13 | 本轮未回收（工作区不干净）：`37c7946` 已合入 main，经 `ce92d97`；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢；到期续登记，回收需 owner 确认（续期不等于留用或批准删除） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2d7406a`，经 `860f2bb`）；远程分支已删（2026-11-05）；worktree 待回收 |

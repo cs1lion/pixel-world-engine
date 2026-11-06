@@ -10,8 +10,14 @@
  * 采样区必须只有静止地面：萤火、雨、行人、会呼吸的灯都不算收敛。晴天
  * 四刻里选左下角的一块空地（见 `DEFAULT_PATCH`）。
  *
- * 上限 6 秒。**超时不收敛就报错，不要改成固定等待或世界时钟驱动**——
+ * 上限 8 秒。**超时不收敛就报错，不要改成固定等待或世界时钟驱动**——
  * 那说明压暗层跟的是帧 delta 而不是时间，是代码问题（本轮范围外）。
+ *
+ * 为什么是 8 秒：本地实测 319–840ms；共享 CI runner 上同一份代码实测
+ * 6217ms / 25 帧（30fps 软件渲染，帧间隔被拉长，而渐变按帧 delta 推进）。
+ * 这是机器速度差异，不是渲染回归。8 秒只给共享 runner 留余量，不改变判据
+ * 形态：真的不收敛，8 秒后仍返回 `settled:false`，闸门仍判红。反向用例见
+ * `scripts/check-phases-negative.mjs`（雨幕逐帧在动，探针永远不收敛）。
  */
 
 /** 画布内取样区（CSS 像素，相对 canvas 左上角）：左下角一块只有草地的空地。 */
@@ -60,7 +66,7 @@ export async function waitVillagersSettled(page, options = {}) {
  * @returns {Promise<{settled:boolean,waitedMs:number,frames:number,capMs:number}>}
  */
 export async function waitFadeSettled(page, canvasBox, options = {}) {
-  const capMs = options.capMs ?? 6000;
+  const capMs = options.capMs ?? 8000;
   const stableFrames = options.stableFrames ?? 3;
   const patch = options.patch ?? DEFAULT_PATCH;
   const clip = {
