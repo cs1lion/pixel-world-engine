@@ -14,7 +14,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {
+import type {
+  AnimFsmState,
+  AnimSample,
+  AnimStateId,
+} from '../src/animation/villager-anim-fsm.ts';
+import { villagerPose } from '../src/render/villager-frames.ts';
+import type { VillagerMode } from '../src/world/types.ts';
+
+/**
+ * 实现文件在 base 上可能还不存在。用动态 import 把「缺实现」变成一条断言失败
+ * （`AssertionError`），而不是 `ERR_MODULE_NOT_FOUND`——后者会被 red-first 判成
+ * 「测试根本没跑起来」，那样这条闸门就白跑了。实现缺失时其余用例不注册，
+ * 免得把「缺文件」伪装成一片下游 TypeError。
+ */
+type FsmModule = typeof import('../src/animation/villager-anim-fsm.ts');
+const fsm: FsmModule | null = await import('../src/animation/villager-anim-fsm.ts').catch(() => null);
+
+test('动画状态机实现存在：`villager-anim-fsm.ts` 可加载', () => {
+  assert.ok(fsm, '缺少动画状态机实现');
+});
+
+if (fsm !== null) {
+const {
   ANIM_STATE_IDS,
   ANIM_STATES,
   ANIM_TRANSITIONS,
@@ -26,12 +48,7 @@ import {
   createAnimFsmState,
   sampleAnimFsm,
   transitionDurationMs,
-  type AnimFsmState,
-  type AnimSample,
-  type AnimStateId,
-} from '../src/animation/villager-anim-fsm.ts';
-import { villagerPose } from '../src/render/villager-frames.ts';
-import type { VillagerMode } from '../src/world/types.ts';
+} = fsm;
 
 const EPS = 1e-9;
 
@@ -326,3 +343,4 @@ test('状态值可深拷贝、可跨引擎传递：只含字符串、数字与�
   assert.deepEqual(copy, state);
   assert.deepEqual(sampleAnimFsm(copy, 50), sampleAnimFsm(state, 50));
 });
+} // if (fsm !== null)
