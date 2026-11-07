@@ -1,0 +1,189 @@
+{
+  "params": {
+    "camera": {
+      "x": 832,
+      "y": 522
+    },
+    "zoom": 1,
+    "viewport": {
+      "width": 1010,
+      "height": 700
+    },
+    "now": 65400000,
+    "phase": [
+      "dusk",
+      "noon"
+    ],
+    "lamps": {
+      "dusk": "forced-on",
+      "noon": "forced-off"
+    },
+    "units": {
+      "patch": "8×8 世界 px",
+      "annulus": "32×32 世界 px",
+      "render": "2×"
+    },
+    "luma": "Rec.601 0.299/0.587/0.114",
+    "tokenRule": "最近地形 token 色，RGB 距离 ≤60，覆盖 ≥1% annulus 像素"
+  },
+  "sample": {
+    "rule": "该帧内 max(灯体 8×8 最亮像素) 的那一盏；中心 = 它 8×8 内最亮像素",
+    "lamp": {
+      "order": 21,
+      "hanging": true,
+      "world": {
+        "x": 652,
+        "y": 404
+      }
+    },
+    "centerImagePx": {
+      "x": 208,
+      "y": 84
+    },
+    "centerWorld": {
+      "x": 648,
+      "y": 404
+    },
+    "maxLuma": 165.102,
+    "lampCount": 10
+  },
+  "dusk": {
+    "patch": 84.65312499999983,
+    "annulus": 81.48913958333563,
+    "ratio": 0.012407785947702761,
+    "patchBox": [
+      200,
+      76,
+      16,
+      16
+    ],
+    "annulusBox": [
+      176,
+      52,
+      64,
+      64
+    ],
+    "tokenCountDuskFrame": 5,
+    "tokensDuskFrame": [
+      {
+        "id": "farm",
+        "pixels": 1224,
+        "share": 0.31875
+      },
+      {
+        "id": "charcoal(coal)",
+        "pixels": 864,
+        "share": 0.225
+      },
+      {
+        "id": "grass",
+        "pixels": 684,
+        "share": 0.178125
+      },
+      {
+        "id": "plaza",
+        "pixels": 120,
+        "share": 0.03125
+      },
+      {
+        "id": "soil(tree/mud)",
+        "pixels": 60,
+        "share": 0.015625
+      },
+      {
+        "id": "stone",
+        "pixels": 16,
+        "share": 0.004166666666666667
+      },
+      {
+        "id": "moss(shallow)",
+        "pixels": 8,
+        "share": 0.0020833333333333333
+      }
+    ],
+    "classifiedShare": 0.775,
+    "imagePxVariant": {
+      "patch": 88.48318750000007,
+      "annulus": 84.20014166666564,
+      "ratio": 0.01679625816993893
+    }
+  },
+  "noon": {
+    "patch": 96.29884375000036,
+    "annulus": 89.63111145833358,
+    "ratio": 0.026147969771242275,
+    "tokenCount": 5,
+    "tokens": [
+      {
+        "id": "grass",
+        "pixels": 1004,
+        "share": 0.26145833333333335
+      },
+      {
+        "id": "charcoal(coal)",
+        "pixels": 736,
+        "share": 0.19166666666666668
+      },
+      {
+        "id": "soil(tree/mud)",
+        "pixels": 60,
+        "share": 0.015625
+      },
+      {
+        "id": "plaza",
+        "pixels": 56,
+        "share": 0.014583333333333334
+      },
+      {
+        "id": "farm",
+        "pixels": 40,
+        "share": 0.010416666666666666
+      },
+      {
+        "id": "stone",
+        "pixels": 8,
+        "share": 0.0020833333333333333
+      },
+      {
+        "id": "moss(shallow)",
+        "pixels": 4,
+        "share": 0.0010416666666666667
+      }
+    ],
+    "classifiedShare": 0.496875,
+    "imagePxVariant": {
+      "patch": 100.80312500000008,
+      "annulus": 95.75071666666628,
+      "ratio": 0.019813366013073732
+    }
+  },
+  "thresholds": {
+    "duskMin": 0.18,
+    "noonMax": 0.1,
+    "tokenMin": 3
+  },
+  "criterion": {
+    "satisfied": false,
+    "failures": [
+      "dusk ratio 0.012 < 0.18"
+    ]
+  },
+  "mechanism": {
+    "implementation": "全屏相位 dim（乘色压暗整帧）+ 灯/窗 ADD 光池",
+    "localSurroundSuppression": false,
+    "note": "annulus 没有被局部压低；它随全屏 dim 一起变暗。ratio 通过只能说明「发光块在 dim 下浮出来」，不能当成本条 KB 要点所要求的「发光靠压低周边」实现。"
+  },
+  "artifacts": {
+    "dusk": {
+      "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-dusk.png",
+      "bytes": 37862,
+      "sha256": "719d37b9a4431bcad3371be8fdec4c55f229cb2d7d1388feffd55fd8c13e8cf0"
+    },
+    "noon": {
+      "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-noon.png",
+      "bytes": 32786,
+      "sha256": "eba73394100ceb059f2cf411288b22f09109b15e6e4175ec21af09617118a2f2"
+    }
+  },
+  "errors": []
+}

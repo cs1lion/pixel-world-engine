@@ -18,8 +18,10 @@
  * - G2：**每个有影相位**（晨 / 午 / 昏）都量三段阶梯：「内 > 中 > 外」，相邻两段相对落差
  *   ≥25%（来源见断言旁注释）。只测黄昏分不清「按相位根锚定」与「把问题反向搬了一次」。
  * - G3：墙角接触暗部按**基底 token** 多样本量 ΔL；钉住的样本必须落在 6–14，**双向**判红
- *   （太淡读不出 / 太深像第二层影子）。深底（grass/mud）与遮挡墙角是主动放弃的对照，
- *   只要求留在带外；放弃理由见 G3 段落注释与 `docs/evidence/lighting-gaps/README.md`。
+ *   （太淡读不出 / 太深像第二层影子）。**任何样本（含放弃的）ΔL 必须 > 0**——接触暗部
+ *   不许把基底提亮；这条在把阴影色改浅时会红。放弃样本按原因**分开登记**：
+ *   `dark` = 深底（grass/mud，永远进不了带）、`occluded` = 遮挡（基底够亮但墙角被压住，
+ *   换机位也不变；只有改层次才可复测）。它们只要求留读数、不参与带内判定。
  * - G1：4× 同框只作人工裁决证据，不进断言。
  *
  * G0 的接线顺序（**现在只做「能红」，还没接 CI**）
@@ -611,25 +613,35 @@ const hashes2 = await runPass('b');
 // `ΔL = 关(基底) − 开`，只算这一块自己的贡献，不受邻格地形 token 干扰。
 const AO_MIN = 6;
 const AO_MAX = 14;
-/** 与 `render/buildings.ts` 的 `deepShade, 0.15` **同一处 α**；改一处必须改两处。 */
-const AO_ALPHA = 0.15;
-/** deepShade `#1b303b` 的 Rec.709 亮度（44.33）；α 叠色后 ΔL = α×(L_base − 44.33)。 */
-const AO_SHADE_LUMA = 44.33;
-/** 0.15×(L−44.33) ≥ 6 ⇒ L ≥ 84.33：低于这个基底，任何全局 α 都到不了下限。 */
+/** 与 `render/buildings.ts` 的 `ink, 0.12` **同一处 α / 同一个色**；改一处必须改两处。 */
+const AO_ALPHA = 0.12;
+/** ink `#111821` 的 Rec.709 亮度（23.16）；α 叠色后 ΔL = α×(L_base − 23.16)。 */
+const AO_SHADE_LUMA = 23.16;
+/** 0.12×(L−23.16) ≥ 6 ⇒ L ≥ 73.16：低于这个基底，任何全局 α 都到不了下限。 */
 const AO_SUPPORTED_BASE = AO_SHADE_LUMA + AO_MIN / AO_ALPHA;
+/**
+ * **本判据是窄带判据。** 带 [6,14] 只有 8 宽，而 plaza 与最暗的可读基底只差 ~45 luma：
+ * 上端余量 = `14 − 最大 pinned ΔL`，下端余量 = `最小 pinned ΔL − 6`。
+ * 当前实测上端余量 1.07（7.7% of 14，lamp_archive plaza 12.93），下端 1.46（24.3% of 6，
+ * ferry_station stone 7.46）。**任一端余量 <5% 都是触发线：触发时重新配平 α / 阴影色，
+ * 不许放宽 [6,14]。** 会用掉余量的情形见 README「窄带声明」。
+ */
 /**
  * `role`：
  * - `pinned`：判据钉住的样本，必须落在 [6,14]；
- * - `dark`：深底对照，**主动放弃**这一档；必须带外（<下限），若哪天进带内说明分档理由失效；
- * - `occluded`：基底够亮但墙角被压在上面的一层盖住，**因遮挡放弃**；必须带外，理由与基底无关。
+ * - `dark`：**深底放弃**（grass / mud）。阴影色再淡也拉不回来，所以这一档永远测不到；
+ *   只留在带外（<下限）——进带内说明分档理由失效，要重新审视。
+ * - `occluded`：**遮挡放弃**（基底够亮，但墙角被压在上一层下面）。读数不是「AO 不工作」，
+ *   而是 ROI 里只有一部分看得见；所以只登记读数与可见像素比例，**不参与**带内判定。
+ *   换机位/换时刻都不改变（遮挡物是静态层，不是角色），只有改层次才可复测。
  */
 const AO_SAMPLES = [
   { id: 'lamp_archive#1', base: 'plaza', role: 'pinned' },     // 最亮
   { id: 'soot_forge#1', base: 'stone', role: 'pinned' },       // 可读基底里最暗
   { id: 'ferry_station#1', base: 'stone', role: 'pinned' },    // 同档第二例（防单点）
-  { id: 'boiler_annex#1', base: 'stone', role: 'occluded' },   // 同 token 的遮挡对照
+  { id: 'boiler_annex#1', base: 'stone', role: 'occluded' },   // 遮挡：上层压住左半墙角
   { id: 'tea_stall#1', base: 'grass', role: 'dark' },          // 深底：放弃
-  { id: 'lamp_workshop#1', base: 'mud', role: 'dark' },        // 最深：放弃（压不暗）
+  { id: 'lamp_workshop#1', base: 'mud', role: 'dark' },        // 最深：放弃（旧色曾压不暗）
 ];
 const TILE = 16;
 const catalogScene = await openScene(browser, { phase: 'noon', camera: { x: 504, y: 368 }, villagerCell: null });
@@ -667,6 +679,9 @@ for (const sample of sampleList) {
   const onScene = await openScene(browser, { phase: 'noon', camera: center, villagerCell: null });
   const onShot = await shot(onScene.page, onScene.box, `ao-on-${slug}`);
   const on = await lumaStats(onScene.page, onShot.buf, onShot.camera, roi);
+  // 遮挡判定不靠猜：同 ROI 上 on/off 有多少像素真的变了。满 ROI 都变 = 没遮挡；
+  // 只有一部分变 = 那块墙角被压在上一层下面（`occluded` 的读数就是这部分的混合值）。
+  const onOffDiff = await diffPair(reader, offShot.buf, onShot.buf, onShot.camera, roi);
   // 既有最外层 α0.16 阶梯的当次实测（只在 plaza 的 lamp_archive 取，基底亮、读数稳）。
   let step = null;
   if (sample.id === 'lamp_archive#1') {
@@ -685,6 +700,9 @@ for (const sample of sampleList) {
     delta: off.mean - on.mean,
     pixels: off.pixels,
     supported: off.mean >= AO_SUPPORTED_BASE,
+    visible: onOffDiff === null
+      ? null
+      : { changed: onOffDiff.changed, pixels: onOffDiff.roi.pixels, ratio: onOffDiff.ratio },
     ...(step === null ? {} : { step }),
   });
 }
@@ -703,6 +721,18 @@ ao.pinnedCount = ao.samples.filter((sample) => sample.role === 'pinned' && !samp
 ao.pinnedBases = [...new Set(ao.samples.filter((sample) => sample.role === 'pinned').map((sample) => sample.base))];
 // 实测覆盖的基底 token：至少 3 档（plaza / stone / grass …），带外的档也要有读数。
 ao.measuredBases = [...new Set(ao.samples.filter((sample) => !sample.missing).map((sample) => sample.base))];
+// 窄带余量：两端到 [6,14] 的距离。任一 <5% 就是「刚好卡进去」，触发重新配平。
+const aoPinned = ao.samples.filter((sample) => sample.role === 'pinned' && !sample.missing);
+if (aoPinned.length > 0) {
+  const lowest = Math.min(...aoPinned.map((sample) => sample.delta));
+  const highest = Math.max(...aoPinned.map((sample) => sample.delta));
+  ao.margins = {
+    lower: lowest - AO_MIN,
+    upper: AO_MAX - highest,
+    lowerSample: aoPinned.find((sample) => sample.delta === lowest).id,
+    upperSample: aoPinned.find((sample) => sample.delta === highest).id,
+  };
+}
 
 // G1：黄昏同机位，建筑与角色同时在框内，4× 对照。
 // 机位：wave_house 左墙 + 钉在 (26,27) 的人同框；避开篝火/烟/长凳（前两版都被它们污染）。
@@ -788,8 +818,9 @@ for (const sample of ao.samples) {
     console.log(`  [G3] ${sample.id} 不在建筑表`);
     continue;
   }
+  const visible = sample.visible === null ? '' : `，可见 ${sample.visible.changed}/${sample.visible.pixels}px`;
   console.log(`  [G3] ${sample.id}（token ${sample.base}，${AO_ROLE_LABEL[sample.role] ?? '探针'}）基底 ${sample.baseMean.toFixed(2)}`
-    + ` → 开 ${sample.afterMean.toFixed(2)} → ΔL ${sample.delta.toFixed(2)}`
+    + ` → 开 ${sample.afterMean.toFixed(2)} → ΔL ${sample.delta.toFixed(2)}${visible}`
     + `（${sample.supported ? '基底够亮' : '基底低于可读门槛'}）`);
 }
 console.log(`  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL ${ao.stepDelta.toFixed(2)}；`
@@ -797,6 +828,16 @@ console.log(`  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL
 console.log(`  [G3] 推断：上限 ${ao.max} = 追平该阶 → 超过会读成第二层影子；下限 ${ao.min} = 0.4×该阶 → 再淡读不出`);
 console.log(`  [G3 样本] 钉住 ${ao.pinnedCount} 例，覆盖 token ${ao.pinnedBases.join('/')}；`
   + `实测覆盖 token ${ao.measuredBases.join('/')}`);
+if (ao.margins) {
+  const lowerPct = ao.margins.lower / AO_MIN;
+  const upperPct = ao.margins.upper / AO_MAX;
+  const lowerNarrow = ao.margins.lower >= 0 && lowerPct < 0.05;
+  const upperNarrow = ao.margins.upper >= 0 && upperPct < 0.05;
+  console.log(`  [G3 窄带] 下端余量 ${ao.margins.lower.toFixed(2)}（${(lowerPct * 100).toFixed(1)}% of ${AO_MIN}，`
+    + `${ao.margins.lowerSample}）；上端余量 ${ao.margins.upper.toFixed(2)}（${(upperPct * 100).toFixed(1)}% of ${AO_MAX}，`
+    + `${ao.margins.upperSample}）→ ${ao.margins.lower < 0 || ao.margins.upper < 0 ? '已越界（红）'
+      : lowerNarrow || upperNarrow ? '窄带（触发即重新配平，不放宽阈值）' : '非窄带'}`);
+}
 console.log(`  [G1] ${g1.path} (${g1.hash})`);
 console.log(`口径 机位 摊位 x${STALL_CAMERA.x}/y${STALL_CAMERA.y}、人物 x${VILLAGER_CAMERA.x}/y${VILLAGER_CAMERA.y}、zoom ${closed.camera.zoom}、视口 1010×700、潮位 1、晴、相位 ${PHASES.join('/')}、depth 3.1`);
 void row;
@@ -859,9 +900,10 @@ for (const item of phaseRows) {
 }
 
 // G3：双向判据 + 基底覆盖面。低于下限 = 白加，高于上限 = 读成第二层影子。
-// 深底两档（grass 64.90 / mud 41.32）不是「α 没调够」：mud 的基底 luma 41.32 已经
-// **低于** deepShade 的 44.33，叠上去反而变亮；grass 要进带得 α ≥ 0.29，而同一 α 会把
-// plaza 顶到 25 以上。所以这两档明确**放弃**，只要求它们留在带外；一旦进带内说明分档理由失效。
+// 深底两档（grass 64.90 / mud 41.32）不是「α 没调够」，是单一全局 α 的物理不可能：
+// ink（23.16）能压暗它们（ΔL 5.01 / 2.19，>0），但要把 grass 拉进 [6,14] 需 α ≥ 0.144，
+// 同一 α 把 plaza（134.09）顶到 15.97 > 14；mud 需 α ≥ 0.329，plaza 会到 36 以上。
+// 所以这两档明确**放弃**（深底），只要求 ΔL > 0 且留在带外；进带内说明分档理由失效。
 if (ao.pinnedCount < 3) {
   failures.push(`G3 钉住的样本只有 ${ao.pinnedCount} 例，不足 3 例`);
 }
@@ -876,6 +918,13 @@ for (const sample of ao.samples) {
     failures.push(`G3 样本 ${sample.id} 不在建筑表`);
     continue;
   }
+  // 第一性断言：接触暗部只能压暗。ΔL ≤ 0 说明阴影色比基底还亮（钳制会跳过矩形 → ΔL=0），
+  // 这是语义错误，不论该样本是 pinned / dark / occluded 都判红。
+  if (sample.delta <= 0) {
+    failures.push(`G3 ${sample.id}（${sample.base}，${sample.role}）ΔL ${sample.delta.toFixed(2)} ≤ 0：`
+      + `接触暗部没有压暗基底（阴影色比基底亮，已钳制为不产出矩形）`);
+    continue;
+  }
   if (sample.role === 'pinned') {
     if (!sample.supported) {
       failures.push(`G3 ${sample.id}（${sample.base}）基底 ${sample.baseMean.toFixed(2)} 低于可读门槛 ${AO_SUPPORTED_BASE.toFixed(2)}`);
@@ -886,10 +935,14 @@ for (const sample of ao.samples) {
     }
     continue;
   }
-  // dark / occluded：主动放弃的两档，只要求「留在带外」。
-  if (sample.delta >= AO_MIN) {
-    failures.push(`G3 ${sample.id}（${sample.base}，${sample.role}）ΔL ${sample.delta.toFixed(2)} 进了带内，放弃理由失效`);
+  if (sample.role === 'dark') {
+    // 深底：ΔL > 0 已由上面的第一性断言管住；这里只管「仍然进不了带」。
+    if (sample.delta >= AO_MIN) {
+      failures.push(`G3 ${sample.id}（${sample.base}，深底）ΔL ${sample.delta.toFixed(2)} 进了带内，放弃理由失效`);
+    }
   }
+  // occluded：只登记读数与可见像素比例，不判带内——它的 ROI 只有一部分可见，
+  // 那个 ΔL 是可见部分的混合值，不能当干净墙角读。
 }
 
 if (failures.length > 0) {

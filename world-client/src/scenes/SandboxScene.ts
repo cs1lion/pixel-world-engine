@@ -798,7 +798,15 @@ export class SandboxScene extends Phaser.Scene {
 
     this.entries = this.world.buildings.map((building) => ({
       building,
-      view: createBuilding(this, building, originX, originY),
+      view: createBuilding(
+        this,
+        building,
+        originX,
+        originY,
+        // AO 落点是楼左下角外一格的地面：把那一格的地形底色交给建筑层，
+        // 建筑层才能拒绝「阴影色比基底还亮」的合成（见 `render/buildings.ts`）。
+        this.terrainBaseOf({ x: building.origin.x - 1, y: building.origin.y + building.footprint.h }),
+      ),
       emitter: createAccentEmitter(this, building.accent),
     }));
     // 覆盖层按**世界**尺寸建，不是画布尺寸：大世界里镜头只是世界的一小块。
@@ -4853,7 +4861,13 @@ export class SandboxScene extends Phaser.Scene {
       if (this.entries.some((entry) => entry.building.instanceId === building.instanceId)) continue;
       this.entries.push({
         building,
-        view: createBuilding(this, building, 0, 0),
+        view: createBuilding(
+          this,
+          building,
+          0,
+          0,
+          this.terrainBaseOf({ x: building.origin.x - 1, y: building.origin.y + building.footprint.h }),
+        ),
         emitter: createAccentEmitter(this, building.accent),
       });
     }

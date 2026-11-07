@@ -1,11 +1,11 @@
-[工作树身份] 一致：D:\project\pwe-lighting（端口 5301，启动于 2026-11-07T07:37:26.736Z）
+[工作树身份] 一致：D:\project\pwe-lighting（端口 5301，启动于 2026-11-07T08:38:13.680Z）
 [截图输出] check-ground-shadow → D:\project\pwe-lighting\world-client\tmp\screens\check-ground-shadow（未跟踪）
 dawn: 摊位开/关 0.50%（1156px，影长 4,4,4,4,4,4） / 人物开/关 0.07%（24px）
 noon: 摊位开/关 0.45%（1040px，影长 1,1,1,1,1,1） / 人物开/关 0.02%（8px）
 dusk: 摊位开/关 0.55%（1260px，影长 7,7,7,7,7,7） / 人物开/关 0.17%（56px）
 night: 摊位开/关 0.00%（0px，影长 0,0,0,0,0,0） / 人物开/关 0.00%（0px）
 全关同刻两页 0.00%（0px）；跨 t/t+1s 0.00%（0px，既有横条）
-暂停 0.00%（帧 +73）
+暂停 0.00%（帧 +71）
 确定性 13/13；峰值指令 19179
   [G2 摊位 dawn] inner 9.26% / mid 4.46% / outer 1.56%
   [G2 人物 dawn] inner 5.91% / mid 1.28%
@@ -13,16 +13,16 @@ night: 摊位开/关 0.00%（0px，影长 0,0,0,0,0,0） / 人物开/关 0.00%�
   [G2 人物 noon] inner 4.84%
   [G2 摊位 dusk] inner 9.54% / mid 4.50% / outer 2.22%
   [G2 人物 dusk] inner 13.09% / mid 5.14% / outer 3.30%
-  [G3] lamp_archive#1（token plaza，钉住·须在带内）基底 134.09 → 开 120.81 → ΔL 13.28（基底够亮）
-  [G3] soot_forge#1（token stone，钉住·须在带内）基底 90.55 → 开 83.77 → ΔL 6.77（基底够亮）
-  [G3] ferry_station#1（token stone，钉住·须在带内）基底 87.00 → 开 80.77 → ΔL 6.24（基底够亮）
-  [G3] boiler_annex#1（token stone，遮挡·放弃）基底 116.40 → 开 111.22 → ΔL 5.18（基底够亮）
-  [G3] tea_stall#1（token grass，深底·放弃）基底 64.90 → 开 61.97 → ΔL 2.93（基底低于可读门槛）
-  [G3] lamp_workshop#1（token mud，深底·放弃）基底 41.32 → 开 42.11 → ΔL -0.79（基底低于可读门槛）
-  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL 14.00；本轮 α 0.15、可读基底门槛 84.33 (测+算)
+  [G3] lamp_archive#1（token plaza，钉住·须在带内）基底 134.09 → 开 121.16 → ΔL 12.93，可见 64/64px（基底够亮）
+  [G3] soot_forge#1（token stone，钉住·须在带内）基底 90.55 → 开 82.66 → ΔL 7.88，可见 64/64px（基底够亮）
+  [G3] ferry_station#1（token stone，钉住·须在带内）基底 87.00 → 开 79.54 → ΔL 7.46，可见 64/64px（基底够亮）
+  [G3] boiler_annex#1（token stone，遮挡·放弃）基底 116.40 → 开 110.41 → ΔL 5.99，可见 48/64px（基底够亮）
+  [G3] tea_stall#1（token grass，深底·放弃）基底 64.90 → 开 60.11 → ΔL 4.79，可见 64/64px（基底低于可读门槛）
+  [G3] lamp_workshop#1（token mud，深底·放弃）基底 41.32 → 开 39.53 → ΔL 1.79，可见 64/64px（基底低于可读门槛）
+  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL 14.00；本轮 α 0.12、可读基底门槛 73.16 (测+算)
   [G3] 推断：上限 14 = 追平该阶 → 超过会读成第二层影子；下限 6 = 0.4×该阶 → 再淡读不出
   [G3 样本] 钉住 3 例，覆盖 token plaza/stone；实测覆盖 token plaza/stone/grass/mud
-  [G1] D:\project\pwe-lighting\world-client\tmp\screens\check-ground-shadow\lighting-g1-dusk-4x.png (c5e564ee12e3d2b98e917917618a056ab1017b23d6731b0337a2817f964bc21b)
+  [G3 窄带] 下端余量 1.46（24.3% of 6，ferry_station#1）；上端余量 1.07（7.7% of 14，lamp_archive#1）→ 非窄带
+  [G1] D:\project\pwe-lighting\world-client\tmp\screens\check-ground-shadow\lighting-g1-dusk-4x.png (85d327b343998f6f7ffeed5f75b6dd334937075ba8b6aa9cc6656f079fdfe047)
 口径 机位 摊位 x400/y470、人物 x400/y470、zoom 1、视口 1010×700、潮位 1、晴、相位 dawn/noon/dusk/night、depth 3.1
 [判据] 绿
-EXIT=0
