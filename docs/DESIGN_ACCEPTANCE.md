@@ -92,17 +92,17 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 
 **原书依据**：`p037_L`（72）"by reducing the surrounding colors, the color shined like gold."
 
-**判据形态**：`像素`（阈值暂定，须标定）。
+**判据形态**：`像素`（比值形式已定，阈值未标定、来源无实测）。
 
 **断言原文**
-> 黄昏固定机位下，以最亮窗/灯为中心取 8×8 patch、其外 32×32 环形 annulus，要求 `(meanL(patch) − meanL(annulus)) / 255 ≥ 0.18`；同一机位 `noon` 相位的同一 patch 该比值必须 `< 0.10`；annulus 内至少出现 3 种地形 token 色。
+> 黄昏固定机位下，以最亮窗/灯为中心取 8×8 世界 px 的 patch、其外 32×32 世界 px 的环形 annulus，要求 D = (meanL(patch) − meanL(annulus)) / max(meanL(annulus), 32) ≥ T_dusk；同一机位 noon 相位的同一 patch 必须 D < T_noon；annulus 内至少出现 3 种地形 token 色。meanL 取最终合成帧的 8 位 sRGB Rec.601 luma（不线性化）；32 是防发散的策略常数。T_dusk / T_noon 未标定、来源无实测，在附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后）之前，本条只读数、不进闸门。
 
 **反例**
 把 annulus 整块涂黑：比值轻松超标，但周边材质全丢——所以 annulus 必须有 ≥3 种 token 色。
-把全屏压暗而不动发光块：比值同样抬高；`noon` 对照 `< 0.10` 用来堵这一条。
+把全屏压暗而不动发光块：比值同样抬高；`noon` 对照 D < T_noon 用来堵这一条。
 只把 patch 提亮成纯白：比值达标，但材质细节归零；patch 内不同灰度级数 ≥ 4（与要点 8 共用扫描工具）。
 
-**我们现在能不能跑**：**只读数，不判定**。读数脚本 [`world-client/scripts/measure-design-readouts.mjs`](../world-client/scripts/measure-design-readouts.mjs) 已建（`node scripts/measure-design-readouts.mjs <截图.png> [--rect=x,y,w,h]`），输出 patch/annulus 亮度差与 patch 灰度级数，**退出码恒 0，不设 pass/fail**。暂定值 `0.18` 先不进闸门；`dusk` 与 `noon` 两张标定图落地后再钉。
+**我们现在能不能跑**：**只读数，不判定**。读数脚本 [`world-client/scripts/measure-design-readouts.mjs`](../world-client/scripts/measure-design-readouts.mjs) 已建（`node scripts/measure-design-readouts.mjs <截图.png> [--rect=x,y,w,h]`），输出 patch/annulus 亮度差与 patch 灰度级数，**退出码恒 0，不设 pass/fail**。`0.18` / `0.10` 是未标定、来源无实测的占位值，先不进闸门；`dusk` 与 `noon` 两张标定图（同帧记录几何单位与 dim 前/后）落地后再钉。
 
 ---
 
@@ -189,7 +189,7 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 | 1 时间 | `pinned` 四张原图 + sha 入库；一次性实测 dusk−night=8.94，**通过** | 无（**不做静态闸门**） | 要成闸门需每次重新渲染再量，归浏览器 job，等 e2e 稳定 |
 | 2 光源 | 无（不建空测试） | 光源实体表 + 暖像素代理量 | 数据层「光源实体」，未立项 |
 | 3 主题色 | 引用现有 `scripts/audit-palette.mjs --strict` | `LANDMARK_KIND → token` 注册表 + 互异/色相断言 | 注册表约 20 行数据，待建 |
-| 4 发光 | `scripts/measure-design-readouts.mjs`（只读数） | 0.18 / noon<0.10 标定后转闸门 | 需 `dusk`+`noon` 两张标定图 |
+| 4 发光 | `scripts/measure-design-readouts.mjs`（只读数） | D ≥ T_dusk / noon D < T_noon（T 未标定）标定后转闸门 | 需 `dusk`+`noon` 两张标定图 |
 | 5 高差 | 无（实现归世界扩展 P2） | 由 P2 的踏步生成器统一实现与验收 | 世界扩展 P2 |
 | 6 岸线 | 无（不建空测试） | 岸带矩形结构单测 | 世界扩展「岸线」组件 |
 | 7 暗口 | 无（不建空测试） | ADR O1 搬进验收 | ADR 阶段 2「抬升 + 遮挡层」 |
@@ -204,7 +204,7 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 | 1 时间靠光色推进 | 像素（实测标定 1.5 灰度级）+ 接线体检 | 四刻同机位 `L(dusk) − L(night) ≥ 1.5`；`dawn.mistBand>0`、`dusk.ridge>0`、`night.fireflies` | 四刻常量正确但渲染只读 `label`，截图全同 | **已跑，通过**：dusk 54.08 > night 45.14，差 8.94 |
 | 2 先定光源实体与色温 | 不可执行 | 室内 region 光源表非空、色温 2550–3150K，暖像素占比 ≥30% | 塞 `intensity:0` 假光源，表非空但无暖光 | **不能**：无光源实体，只有全局 `glow` |
 | 3 主题色绑定构件 | 结构 | `audit-palette --strict` 为 0；四类构件 token 互异、色相在暖区、`S ≥ 0.25` | 全用同一 `terracotta`，合规但整体染色 | **半能**：audit 引用现有闸门；注册表未建 |
-| 4 发光靠压低周边 | 像素（暂定 0.18） | patch/annulus 亮度差 ≥0.18，`noon` 同窗 <0.10，annulus ≥3 token | annulus 涂黑、或全屏压暗，比值虚高 | **只读数**，不设 pass/fail |
+| 4 发光靠压低周边 | 像素（D 形式，阈值未标定） | D ≥ T_dusk，`noon` 同窗 D < T_noon（T 未标定），annulus ≥3 token | annulus 涂黑、或全屏压暗，比值虚高 | **只读数**，不设 pass/fail |
 | 5 高差用竖向交通 | 结构 | `Δlevel=1` 两端 `climb` 互指；`Δ≥2` 无 climb；`Δ=0` 无 climb；夹具含 0/1/2 | 全图 level 0 只贴崖面贴图，断言真空成立 | **不做测试**：实现归世界扩展 P2 |
 | 6 水嵌在地貌里 | 结构（未来） | 每条水-陆邻接边恰好 1 条岸带矩形，只覆盖陆侧半格、不含水格中心；水-水边 0 条 | 沿水格四周描边（会侵入水面）；整块池塘加内描边 | **不能**：岸线组件未建，不建空测试 |
 | 7 暗口建立视距 | 像素（精确几何） | `actorDepth < occluderDepth`；崖面矩形内人物像素 0；`?occluders=off` 时 >0 | 整层裁掉人物（off 也为 0）；脚下画黑影冒充遮挡 | **不能**：等 ADR 阶段 2，不建空测试 |
@@ -222,6 +222,6 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 ### 判定口径（避免「写死常量」）
 
 1. 结构判据一旦红了，只允许改数据/夹具，不允许把断言改成同义反复（例如把「必须存在」改成「若存在则…」）。
-2. 像素判据的阈值分两类：`实测标定`（1.5 灰度级、`MIN_LUMA_STEP`）可直接引用；`暂定`（0.18 / 2 / 8 / 4）必须在同一份提交里附标定截图和旧值→新值的原因。
+2. 像素判据的阈值分两类：`实测标定`（1.5 灰度级、`MIN_LUMA_STEP`）可直接引用；`未标定`（0.18 / 0.10 / 2 / 8 / 4）必须在同一份提交里附标定截图和旧值→新值的原因；其中 `0.18` / `0.10` 已失效，不得作为目标值引用。
 3. 一个框只验证一件事：要点 5 的像素侧与结构侧分开报，避免「结构绿了但画面没抬升」被算作通过。
 4. 空世界通过即视为判据失败：所有 `结构` 断言必须自带夹具覆盖要求（至少 1 个正例场景 + 1 个反例场景）。
