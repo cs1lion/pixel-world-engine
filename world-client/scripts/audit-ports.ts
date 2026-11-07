@@ -46,6 +46,7 @@ import {
   checkScanFloor,
   failureWhy,
   loadScanBaseline,
+  silentWindow,
 } from './audit-scan-guard-lib.ts';
 import type { ScanFloor, ScanRootProblem } from './audit-scan-guard-lib.ts';
 
@@ -209,6 +210,12 @@ function main(): void {
         `超出 ${floor.overPercent}%，请按实测刷新 baseline 并记入 note。`,
     );
     process.exitCode = 1;
+  } else if (floor.kind === 'ok') {
+    const win = silentWindow(floor);
+    console.log(`audit-ports: 受查数在地板内（基线 ${floor.baseline}，允许降 ${floor.allowed}）`);
+    console.log(
+      `audit-ports: 无感塌陷窗口：${win.gap} 处（${win.percent}%）＝过期线 ${win.staleLine} − 地板 ${win.floor}`,
+    );
   }
 
   const clean = problems.length === 0 && floor.kind === 'ok';

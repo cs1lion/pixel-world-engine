@@ -62,6 +62,7 @@ import {
   checkScanFloor,
   failureWhy,
   loadScanBaseline,
+  silentWindow,
 } from './audit-scan-guard-lib.ts';
 import type { ScanFloor, ScanRootProblem } from './audit-scan-guard-lib.ts';
 
@@ -595,7 +596,11 @@ function main(): void {
     );
     process.exitCode = 1;
   } else {
+    const win = silentWindow(floor);
     process.stdout.write(`受查数在地板内（基线 ${floor.baseline}，允许降 ${floor.allowed}）。\n`);
+    process.stdout.write(
+      `无感塌陷窗口：${win.gap} 处（${win.percent}%）＝过期线 ${win.staleLine} − 地板 ${win.floor}。\n`,
+    );
   }
 
   if (problems.length > 0) {

@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { auditReferences, invisibleNameRefs } from '../scripts/audit-references.ts';
+import { silentWindow } from '../scripts/audit-scan-guard-lib.ts';
 
 /** 一份够用的假仓库：两个源文件 + 一份文档。 */
 function fixture(): string {
@@ -342,6 +343,22 @@ test('基线过期：实际超过基线 20% 就报；刷新到实测值才绿', 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('无感塌陷窗口由基线实算，不写死', () => {
+  // 当前两个审计的实测基线：references 529 / ports 155。
+  assert.deepEqual(silentWindow({ baseline: 529, allowed: 11 }), {
+    floor: 518,
+    staleLine: 635,
+    gap: 117,
+    percent: 22,
+  });
+  assert.deepEqual(silentWindow({ baseline: 155, allowed: 5 }), {
+    floor: 150,
+    staleLine: 186,
+    gap: 36,
+    percent: 23,
+  });
 });
 
 // ---------------------------------------------- 「那东西就在这儿」也得真的是它

@@ -88,6 +88,13 @@ export function loadScanBaseline(file: string = SCAN_BASELINE_PATH): LoadedBasel
  * **红线只能靠刷新基线消除**（按实测值写回 + 记日期/commit/前后值），
  * 不许把 20% 调大来消红——那等于把守卫调哑。改比例必须按政策常数记账
  * （理由 + 当时的实测面 + 谁批的）。
+ *
+ * **这里有一个有意的盲窗，不是遗漏**：地板是「基线 − max(minDrop, 2%)」，
+ * 过期线是「基线 + ceil(基线 × 20%)」，两者之间约 22% 的区间里任何回落都
+ * 不会红（references 现在 117 处 / 22%，ports 36 处 / 23%，由 `silentWindow`
+ * 实算并打印）。收紧到能把这段也抓住，就得让每次正常文档改动都红，进而训练
+ * 人忽略红——代价比窄窗更大。为什么现在不收紧、将来什么条件才允许收紧
+ * （例如有了按文件粒度记账的手段），见 `docs/OPEN_ISSUES.md` 的 E11。
  */
 export const STALE_RATIO = 0.2;
 
@@ -119,6 +126,36 @@ function allowedDrop(baseline: ScanBaselineFile, floor: number): number {
 /** 允许的最大增幅：超过它说明基线已经过期，需要按实测刷新。 */
 function allowedGrowth(floor: number): number {
   return Math.ceil(floor * STALE_RATIO);
+}
+
+/** 绿区盲窗的四个读数，全部由当前基线实算，不写死。 */
+export type SilentWindow = {
+  /** 地板：低于它判塌陷。 */
+  readonly floor: number;
+  /** 过期线：高于它判基线过期。 */
+  readonly staleLine: number;
+  /** 两者之间的落差：这段里任何回落都不会红。 */
+  readonly gap: number;
+  /** `gap` 占基线的百分比（整数，四舍五入）。 */
+  readonly percent: number;
+};
+
+/**
+ * 绿区盲窗：地板到过期线之间这段，任何回落都不会红。
+ *
+ * 它是 `minDrop`/2% 与 `STALE_RATIO` 两个阈值的必然产物，不是遗漏。把读数打出来
+ * 是为了让这个洞有数字、别只剩一句「只防塌陷」；收紧取舍见 `STALE_RATIO` 注释。
+ */
+export function silentWindow(floor: { readonly baseline: number; readonly allowed: number }): SilentWindow {
+  const growth = allowedGrowth(floor.baseline);
+  const lowest = floor.baseline - floor.allowed;
+  const staleLine = floor.baseline + growth;
+  return {
+    floor: lowest,
+    staleLine,
+    gap: staleLine - lowest,
+    percent: Math.round(((staleLine - lowest) / floor.baseline) * 100),
+  };
 }
 
 export function checkScanFloor(
