@@ -173,7 +173,7 @@ exit=0
 ```
 
 它**没有**发现「18 个文件」这种偏差：这条 lint 只扫 `<!-- delivery -->` 机器可读块，
-而本分支的证据 README 没有 delivery 块（`docs/agents/reporting.md` 也不在本分支），
+而本分支的证据 README 没有 delivery 块（报告规范文档也不在本分支），
 散文里的数字不在它的输入里。缺口记入 [OPEN_ISSUES.md](../../OPEN_ISSUES.md) B8。
 
 ## 3. 红 → 绿
