@@ -12,9 +12,11 @@
  *      `continue-on-error: true`、`if: false`、命令里的 `|| true` 会让失败
  *      穿过 CI，一律不算消费方（job 级同名字段同理）。
  *   3) 允许清单（scripts/orphan-gates-allowlist.json）里的每条必须有 id、
- *      kind（manual / pending-ci）、reason、acceptedBecause、blockedBy；
+ *      kind（manual / pending-ci / obsolete）、reason、acceptedBecause、blockedBy；
  *      指向不存在的检查 → 红；已经不再孤儿 → 红；没有登记的孤儿 → 红；
- *      pending-ci 条数不得超过顶层的 pendingCiBudget（棘轮）。
+ *      三类条数必须分别**等于** pendingCiBudget / manualBudget / obsoleteBudget（棘轮）；
+ *      budgetLedger 末条的三个计数必须与三个预算一致，且每条都带
+ *      approved_at / approved_by / reason（预算变更必须留下审批记录）。
  *
  * 退出码：0 = 全部有主；1 = 有未登记孤儿，或清单自身有问题。
  * 只用 node 内置模块，repo-harness job 不需要 npm ci。
@@ -368,13 +370,69 @@ const orphans = CHECK_IDS.filter((id) => !reached.has(id));
 const allowedOrphans = orphans.filter((id) => allowed.has(id));
 const newOrphans = orphans.filter((id) => !allowed.has(id));
 
-const budget = Number.isInteger(parsed?.pendingCiBudget) ? parsed.pendingCiBudget : null;
-const pendingCount = [...allowed.values()].filter((entry) => entry.kind === 'pending-ci').length;
-if (budget === null) {
-  problems.push('允许清单缺 pendingCiBudget（必须是整数）');
-} else if (pendingCount > budget) {
-  problems.push(`pending-ci 债务 ${pendingCount} 条 > 预算 ${budget}：新增豁免必须同时显式抬高 pendingCiBudget`);
+const counts = { 'pending-ci': 0, manual: 0, obsolete: 0 };
+for (const entry of allowed.values()) {
+  if (entry.kind in counts) counts[entry.kind] += 1;
 }
+
+const BUDGETS = [
+  ['pending-ci', 'pendingCiBudget'],
+  ['manual', 'manualBudget'],
+  ['obsolete', 'obsoleteBudget'],
+];
+const budgets = {};
+for (const [kind, key] of BUDGETS) {
+  const value = parsed?.[key];
+  if (!Number.isInteger(value)) {
+    budgets[kind] = null;
+    problems.push(`允许清单缺 ${key}（必须是整数）`);
+    continue;
+  }
+  budgets[kind] = value;
+  if (counts[kind] !== value) {
+    problems.push(
+      `${kind} 条数 ${counts[kind]} ≠ 预算 ${value}：条数必须与预算相等；新增条目同一提交 +1、删除条目同一提交 -1，改 kind 也要同步两边`,
+    );
+  }
+}
+
+const LEDGER_KEYS = [
+  ['pending-ci', 'pendingCi'],
+  ['manual', 'manual'],
+  ['obsolete', 'obsolete'],
+];
+const ledger = Array.isArray(parsed?.budgetLedger) ? parsed.budgetLedger : null;
+if (!ledger || ledger.length === 0) {
+  problems.push('允许清单缺 budgetLedger（至少一条基线记录，含 approved_at / approved_by / reason 与三类条数）');
+} else {
+  let previousAt = '';
+  ledger.forEach((record, index) => {
+    const tag = `budgetLedger 第 ${index + 1} 条`;
+    for (const key of ['approved_at', 'approved_by', 'reason']) {
+      if (typeof record?.[key] !== 'string' || !record[key].trim()) problems.push(`${tag} 缺 ${key}`);
+    }
+    const at = typeof record?.approved_at === 'string' ? record.approved_at.trim() : '';
+    if (at) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) problems.push(`${tag} approved_at 必须是 YYYY-MM-DD`);
+      else if (at < previousAt) problems.push(`${tag} approved_at 早于上一条`);
+      else previousAt = at;
+    }
+    for (const [, key] of LEDGER_KEYS) {
+      if (!Number.isInteger(record?.[key])) problems.push(`${tag} 缺整数 ${key}`);
+    }
+  });
+  const last = ledger[ledger.length - 1];
+  for (const [kind, key] of LEDGER_KEYS) {
+    if (Number.isInteger(last?.[key]) && budgets[kind] !== null && last[key] !== budgets[kind]) {
+      problems.push(
+        `budgetLedger 末条 ${key}=${last[key]} ≠ ${kind} 预算 ${budgets[kind]}：任何预算变更都必须追加一条带 approved_at / approved_by / reason 的记录`,
+      );
+    }
+  }
+}
+
+const budget = budgets['pending-ci'];
+const pendingCount = counts['pending-ci'];
 
 const allowedManual = allowedOrphans.filter((id) => allowed.get(id).kind === 'manual').length;
 const allowedPending = allowedOrphans.filter((id) => allowed.get(id).kind === 'pending-ci').length;
@@ -416,8 +474,11 @@ for (const problem of problems) console.log(`  ${problem}`);
 console.log('');
 
 const budgetText = budget === null ? '缺' : String(budget);
-const headroom = budget === null ? '-' : String(budget - pendingCount);
-console.log(`债务：pending-ci ${pendingCount} / 预算 ${budgetText}（余量 ${headroom}）`);
+const manualBudgetText = budgets.manual === null ? '缺' : String(budgets.manual);
+const obsoleteBudgetText = budgets.obsolete === null ? '缺' : String(budgets.obsolete);
+console.log(
+  `债务：pending-ci ${pendingCount} / 预算 ${budgetText}；manual ${counts.manual} / 预算 ${manualBudgetText}；obsolete ${counts.obsolete} / 预算 ${obsoleteBudgetText}（三类均须相等）`,
+);
 console.log(`清单：允许 ${allowed.size} 条，孤儿 ${orphans.length} 条`);
 console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿（manual ${allowedManual} / pending-ci ${allowedPending} / obsolete ${allowedObsolete.length}） / ${newOrphans.length} 未登记`);
 

@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 /**
- * 回归：只有「能判红」的步骤才算消费方。
+ * 检测器自检。
  *
- * 背景：`chore/orphan-gates` 最初只查可达性，`continue-on-error: true`、
- * `run: ... || true`、`if: false` 三种接线会让失败穿过 CI，却仍被记成
- * 「有消费方」，闸门等于没接。这里给三种写法各一条反例，外加一条正面对照。
+ * 两组回归：
+ *  1) 只有「能判红」的步骤才算消费方。`continue-on-error: true`、
+ *     `run: ... || true`、`if: false` 三种接线会让失败穿过 CI，却仍被记成
+ *     「有消费方」，闸门等于没接。这里给三种写法各一条反例，外加一条正面对照。
+ *  2) 清单只能变短：三类条数必须分别等于三个预算；新增条目没抬预算、抬了预算
+ *     但缺 approved 三字段、把 pending-ci 改成 manual 绕过预算，都必须红。
+ *     另保留一条「未登记的新检查」探针。
  *
  * 跑法：node --test scripts/orphan-gates-selftest.mjs
  */
@@ -21,7 +25,33 @@ const AUDIT_SOURCE = join(dirname(fileURLToPath(import.meta.url)), 'audit-orphan
 /** 副本改名，避免它自己按 `scripts/audit-*` 被算成第三个检查。 */
 const AUDIT_COPY = 'orphan-gates-audit.mjs';
 
-function makeFixture({ steps, jobKeys = [] }) {
+const BASE_ALLOWLIST = {
+  schema: 'pwe-orphan-gates-allowlist/2',
+  pendingCiBudget: 0,
+  manualBudget: 0,
+  obsoleteBudget: 0,
+  budgetLedger: [
+    {
+      approved_at: '2026-11-07',
+      approved_by: 'fixture',
+      reason: 'fixture 基线',
+      pendingCi: 0,
+      manual: 0,
+      obsolete: 0,
+    },
+  ],
+  entries: [],
+};
+
+const entry = (id, kind) => ({
+  id,
+  kind,
+  reason: 'fixture',
+  acceptedBecause: 'fixture',
+  blockedBy: 'fixture',
+});
+
+function makeFixture({ steps, jobKeys = [], extraScripts = {}, allowlist = BASE_ALLOWLIST }) {
   const dir = mkdtempSync(join(tmpdir(), 'orphan-gates-selftest-'));
   mkdirSync(join(dir, 'scripts'), { recursive: true });
   mkdirSync(join(dir, '.github', 'workflows'), { recursive: true });
@@ -31,10 +61,10 @@ function makeFixture({ steps, jobKeys = [] }) {
     JSON.stringify({ name: 'fixture', private: true, scripts: { 'test:gate': 'node scripts/check-gate.mjs' } }, null, 2),
   );
   writeFileSync(join(dir, 'scripts', 'check-gate.mjs'), 'process.exit(0);\n');
-  writeFileSync(
-    join(dir, 'scripts', 'orphan-gates-allowlist.json'),
-    JSON.stringify({ schema: 'orphan-gates-allowlist/v1', pendingCiBudget: 0, entries: [] }, null, 2),
-  );
+  for (const [name, body] of Object.entries(extraScripts)) {
+    writeFileSync(join(dir, 'scripts', name), body);
+  }
+  writeFileSync(join(dir, 'scripts', 'orphan-gates-allowlist.json'), JSON.stringify(allowlist, null, 2));
   writeFileSync(
     join(dir, '.github', 'workflows', 'ci.yml'),
     [
@@ -108,4 +138,62 @@ test('job 级 continue-on-error: true 不算消费方', () => {
   );
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stdout, /\[新孤儿（未登记）\] 2/);
+});
+
+test('未登记的新检查 → 红（新孤儿探针）', () => {
+  const result = audit(
+    makeFixture({
+      steps: ['      - run: npm run test:gate'],
+      extraScripts: { 'check-orphan.mjs': 'process.exit(0);\n' },
+    }),
+  );
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[新孤儿（未登记）\] 1/);
+});
+
+test('新增 pending-ci 没抬预算 → 红', () => {
+  const result = audit(
+    makeFixture({
+      steps: ['      - run: npm run test:gate'],
+      extraScripts: { 'check-extra.mjs': 'process.exit(0);\n' },
+      allowlist: {
+        ...BASE_ALLOWLIST,
+        entries: [entry('file:scripts/check-extra.mjs', 'pending-ci')],
+      },
+    }),
+  );
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /pending-ci 条数 1 ≠ 预算 0/);
+});
+
+test('抬了预算但缺 approved 三字段 → 红', () => {
+  const result = audit(
+    makeFixture({
+      steps: ['      - run: npm run test:gate'],
+      extraScripts: { 'check-extra.mjs': 'process.exit(0);\n' },
+      allowlist: {
+        ...BASE_ALLOWLIST,
+        pendingCiBudget: 1,
+        entries: [entry('file:scripts/check-extra.mjs', 'pending-ci')],
+        budgetLedger: [{ reason: '新增一条', pendingCi: 1, manual: 0, obsolete: 0 }],
+      },
+    }),
+  );
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /budgetLedger 第 1 条 缺 approved_at/);
+});
+
+test('pending-ci 改成 manual 不能绕过预算 → 红', () => {
+  const result = audit(
+    makeFixture({
+      steps: ['      - run: npm run test:gate'],
+      extraScripts: { 'check-extra.mjs': 'process.exit(0);\n' },
+      allowlist: {
+        ...BASE_ALLOWLIST,
+        entries: [entry('file:scripts/check-extra.mjs', 'manual')],
+      },
+    }),
+  );
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /manual 条数 1 ≠ 预算 0/);
 });

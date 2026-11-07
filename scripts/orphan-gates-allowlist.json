@@ -1,7 +1,19 @@
 {
-  "schema": "pwe-orphan-gates-allowlist/1",
+  "schema": "pwe-orphan-gates-allowlist/2",
   "pendingCiBudget": 19,
-  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
+  "manualBudget": 8,
+  "obsoleteBudget": 1,
+  "budgetLedger": [
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "owner",
+      "reason": "基线快照：把「上限」改成「等值断言」，固化本轮结束时的 pending-ci 19 / manual 8 / obsolete 1；不是新增豁免",
+      "pendingCi": 19,
+      "manual": 8,
+      "obsolete": 1
+    }
+  ],
+  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数并占用自己的预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。三类条数必须分别等于 pendingCiBudget / manualBudget / obsoleteBudget；任何预算变更都必须同一提交追加一条带 approved_at / approved_by / reason 的 budgetLedger 记录。",
   "entries": [
     {
       "id": "file:world-client/scripts/check-scene-motion.mjs",
