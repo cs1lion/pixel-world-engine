@@ -701,7 +701,10 @@
 4. **孤儿闸门** `fixture:check`、`check-phases-negative`、`check-rain-pin`、`check-shot-actor-pin`、`check-lamp-band`、`check-lamp-pool`（另加 `check-ground-shadow`，见 2）都不在 `.github/workflows/ci.yml` — 归属各线；下一步：等 `chore/orphan-gates` 合并后逐条接线，接一条删一条允许清单。
 5. **同一棵树上两条线并行写** `pwe-anim-fsm` 那 6 个未提交文件（`ci.yml`、`package.json`、check-anim-fsm-transition.mjs、png-diff.mjs、两份 docs）— 动画线；本窗口未碰、未带进合并。下一步：由动画线自己提交或丢弃，关闭窗口前确认归属。
 6. **要点 4 阈值** `T_dusk / T_noon` 未标定、来源无实测 — 设计验收线；下一步：附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后），在此之前只读数、不进闸门。
-7. **V1 本地验证缺口** `red:first` 与 `pytest` 本轮**未在本地跑**（没有 push，CI 不会自行发生）— 集成 / 服务端线；下一步：`red:first` 用 `--base <push 前的 main sha>`（本地取 `git rev-parse origin/main` 或推送前 `HEAD~N`），`pytest` 在 `server/` 下跑；两项都过了才算验证。
+7. **V1 — 已闭合（2026-11-07）** `red:first` 与 `pytest` 已在真 CI 实跑：run `42381670587`（push main，`f1dfa00..c52745d`）。`red:first` 的 base 为 `f1dfa000665d193e2b3b0ab08ddfe88a3040fc45`，以 `AssertionError` 收场（`actual 'undefined'` / `expected 'function'`），`RESULT=RED elapsed=21713ms`，不是 module / compile；`server` job 16s success。
 8. **B1 天花板「只降不升」无自动锁定** 脚本只拿当次读数比写死常量（`33,488` / `34,666`），把常量改大不会被任何测试拦住 — 预算线；下一步：补一条断言「本次常量不得大于上一记录值」的测试（需要一个随提交更新的记录值），在此之前只能靠 review。
+9. **`test:phases` CI 耗时接近单相位上限** 实测 run `42381670587` 的 `world-client-browser` job：`test:phases` 350s（`14:29:40.709` → `14:35:30.844`）；四个相位 `waitVillagersSettled` 各约 25.6s（25,592 / 25,683 / 25,565 / 25,692 ms），单相位上限 45s，占 57%，余量约 19s — 浏览器闸门线。处置口径：**撞线就减每相位的等待量，不许抬 45s 上限**。本地读数 26s 是错的量级，**本地耗时不构成 CI 的时间依据**；以后估 CI 时间只认真 CI 数据。
+
+**本次 push 路径记录（不是未闭合项）**：推送 `c52745d` 时 `.githooks/pre-push` 按设计拦下 main 直推；改用钩子头注释写明的豁免 `PWE_ALLOW_PUSH_MAIN=1`（未用 `--no-verify`），结果 `f1dfa00..c52745d main -> main`。豁免是逐次显式动作、每次推送仍需单独授权，**main 直推不是常态、也不是被默认允许的路径**。另注意该豁免在钩子开头整体 `exit 0`，会连带跳过未来加在 pre-push 的所有检查（见 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` §风险：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L596-L599)）。
 
 
