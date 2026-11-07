@@ -1,0 +1,682 @@
+{
+  "schema": "glow-calibration/samples/1",
+  "purpose": "逐盏灯同一套几何的 D 分布：灯与灯之间、亮灯与灭灯之间的差，是「能不能标定」的证据。",
+  "recorder": "world-client/scripts/check-glow-contrast.mjs",
+  "frames": {
+    "dusk": {
+      "frameIndex": 113,
+      "rawSha256": "41a79047b13bf181d619981b57971cece7a81477203de777632dd32f25e13d72"
+    },
+    "duskOff": {
+      "frameIndex": 116,
+      "rawSha256": "b7966dada184a6d35c5e4648083180666aa96d02e83bc846970baf8c8d322dfd"
+    },
+    "noon": {
+      "frameIndex": 105,
+      "rawSha256": "04c045584f7ca3efc7263ae68985482e3c3d833b4e4cafc9ecf2af2c70471798"
+    }
+  },
+  "window": {
+    "viewport": {
+      "width": 1010,
+      "height": 700
+    },
+    "clip": {
+      "dusk": {
+        "x": 25.5,
+        "y": 112.796875,
+        "width": 960,
+        "height": 640
+      },
+      "noon": {
+        "x": 25.5,
+        "y": 112.796875,
+        "width": 960,
+        "height": 640
+      }
+    }
+  },
+  "cameras": {
+    "dusk": {
+      "scrollX": 544,
+      "scrollY": 362,
+      "zoom": 1,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 544,
+      "worldViewY": 362,
+      "mode": "free"
+    },
+    "duskOff": {
+      "scrollX": 544,
+      "scrollY": 362,
+      "zoom": 1,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 544,
+      "worldViewY": 362,
+      "mode": "free"
+    },
+    "noon": {
+      "scrollX": 544,
+      "scrollY": 362,
+      "zoom": 1,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 544,
+      "worldViewY": 362,
+      "mode": "free"
+    }
+  },
+  "cameraAgreement": true,
+  "sampling": {
+    "patch": "8×8 世界 px",
+    "annulus": "32×32 世界 px（外框减 patch）",
+    "luma": "Rec.601，最终帧 8 位 sRGB",
+    "footprintDeltaLuma": 5
+  },
+  "stats": {
+    "lampsInView": 10,
+    "sampled": 10,
+    "duskLit": {
+      "n": 10,
+      "min": 0.19524383882698865,
+      "max": 0.4893809291362597,
+      "mean": 0.3191661956601565,
+      "p10": 0.19652873669381407,
+      "p25": 0.23738478647073127,
+      "p50": 0.326601433765096,
+      "p75": 0.3735511270644981,
+      "p90": 0.41179772271072
+    },
+    "duskLitBeforeDim": {
+      "n": 10,
+      "min": 0.2020605756858553,
+      "max": 0.5076809837656694,
+      "mean": 0.3310775659857377,
+      "p10": 0.2049699837979646,
+      "p25": 0.2458784510200409,
+      "p50": 0.33770725406272206,
+      "p75": 0.386635649248927,
+      "p90": 0.4287776380113039
+    },
+    "duskUnlit": {
+      "n": 10,
+      "min": -0.0473756298894247,
+      "max": 0.31440832456183637,
+      "mean": 0.12811288564547862,
+      "p10": 0.0454206442119878,
+      "p25": 0.06944994970887755,
+      "p50": 0.138815312702087,
+      "p75": 0.16734539465367643,
+      "p90": 0.2202193413979839
+    },
+    "noonUnlit": {
+      "n": 10,
+      "min": 0.009259278509871287,
+      "max": 0.32774281836843566,
+      "mean": 0.14173197811272467,
+      "p10": 0.06368563695379574,
+      "p25": 0.07568777531553011,
+      "p50": 0.14690276541474412,
+      "p75": 0.1753460874278031,
+      "p90": 0.22925511753771913
+    },
+    "duskLitMinusUnlit": {
+      "n": 10,
+      "min": 0.05751568088747397,
+      "max": 0.26470256327302905,
+      "mean": 0.191053310014678,
+      "p10": 0.1313128158321069,
+      "p25": 0.1709485943667931,
+      "p50": 0.177607074047867,
+      "p75": 0.24522396295981236,
+      "p90": 0.2626664672193443
+    },
+    "lampFootprintShare": {
+      "n": 10,
+      "min": 0.21875,
+      "max": 0.703125,
+      "mean": 0.4484375,
+      "p10": 0.246875,
+      "p25": 0.265625,
+      "p50": 0.46875,
+      "p75": 0.61328125,
+      "p90": 0.646875
+    },
+    "lampPatchDelta": {
+      "n": 10,
+      "min": 5.15684374999999,
+      "max": 23.37718749999996,
+      "mean": 15.97867656249998,
+      "p10": 10.908279687500007,
+      "p25": 14.498500000000005,
+      "p50": 16.051046874999976,
+      "p75": 19.625777343749956,
+      "p90": 20.736151562499952
+    },
+    "patchLevelsDusk": {
+      "n": 10,
+      "min": 6,
+      "max": 11,
+      "mean": 8.1,
+      "p10": 6,
+      "p25": 6.25,
+      "p50": 8,
+      "p75": 9.75,
+      "p90": 10.1
+    }
+  },
+  "samples": [
+    {
+      "order": 21,
+      "hanging": true,
+      "lampBodyWorld": {
+        "x": 652,
+        "y": 404
+      },
+      "centerWorld": {
+        "x": 648,
+        "y": 404
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 208,
+          "y": 84
+        },
+        "duskOff": {
+          "x": 208,
+          "y": 84
+        },
+        "noon": {
+          "x": 208,
+          "y": 84
+        }
+      },
+      "dusk": {
+        "patch": 98.86735937499975,
+        "annulus": 82.7173135416687,
+        "D": 0.19524383882698865,
+        "patchLevels": 7,
+        "patchBeforeDim": 114.37714211309495,
+        "annulusBeforeDim": 95.15089707341512,
+        "DBeforeDim": 0.2020605756858553
+      },
+      "duskOff": {
+        "patch": 84.27629687499983,
+        "annulus": 79.82740833333675,
+        "D": 0.05573134133436697,
+        "patchLevels": 6
+      },
+      "noon": {
+        "patch": 95.84710937500036,
+        "annulus": 89.59909479166703,
+        "D": 0.06973301011423179,
+        "patchLevels": 6
+      },
+      "lamp": {
+        "footprintShare": 0.21875,
+        "meanDelta": 14.591062499999977
+      }
+    },
+    {
+      "order": 22,
+      "hanging": true,
+      "lampBodyWorld": {
+        "x": 684,
+        "y": 404
+      },
+      "centerWorld": {
+        "x": 684,
+        "y": 400
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 280,
+          "y": 76
+        },
+        "duskOff": {
+          "x": 280,
+          "y": 76
+        },
+        "noon": {
+          "x": 280,
+          "y": 76
+        }
+      },
+      "dusk": {
+        "patch": 115.30168750000033,
+        "annulus": 77.41584791666932,
+        "D": 0.4893809291362597,
+        "patchLevels": 7,
+        "patchBeforeDim": 133.94181845238134,
+        "annulusBeforeDim": 88.83962847222539,
+        "DBeforeDim": 0.5076809837656694
+      },
+      "duskOff": {
+        "patch": 100.80318750000049,
+        "annulus": 76.69092291666949,
+        "D": 0.31440832456183637,
+        "patchLevels": 6
+      },
+      "noon": {
+        "patch": 115.10662500000028,
+        "annulus": 86.69346458333418,
+        "D": 0.32774281836843566,
+        "patchLevels": 6
+      },
+      "lamp": {
+        "footprintShare": 0.25,
+        "meanDelta": 14.498500000000005
+      }
+    },
+    {
+      "order": 25,
+      "hanging": true,
+      "lampBodyWorld": {
+        "x": 748,
+        "y": 404
+      },
+      "centerWorld": {
+        "x": 744,
+        "y": 407
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 400,
+          "y": 90
+        },
+        "duskOff": {
+          "x": 400,
+          "y": 90
+        },
+        "noon": {
+          "x": 400,
+          "y": 90
+        }
+      },
+      "dusk": {
+        "patch": 79.51437500000019,
+        "annulus": 66.44628437499998,
+        "D": 0.19667150312346135,
+        "patchLevels": 9,
+        "patchBeforeDim": 91.33787500000022,
+        "annulusBeforeDim": 75.78062425595236,
+        "DBeforeDim": 0.20529325136597676
+      },
+      "duskOff": {
+        "patch": 74.35753125000029,
+        "annulus": 65.27424062499888,
+        "D": 0.13915582223598738,
+        "patchLevels": 5
+      },
+      "noon": {
+        "patch": 83.86345312500004,
+        "annulus": 73.11113229166592,
+        "D": 0.14706817547893164,
+        "patchLevels": 5
+      },
+      "lamp": {
+        "footprintShare": 0.53125,
+        "meanDelta": 5.15684374999999
+      }
+    },
+    {
+      "order": 18,
+      "hanging": true,
+      "lampBodyWorld": {
+        "x": 588,
+        "y": 404
+      },
+      "centerWorld": {
+        "x": 586,
+        "y": 407
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 84,
+          "y": 90
+        },
+        "duskOff": {
+          "x": 84,
+          "y": 90
+        },
+        "noon": {
+          "x": 84,
+          "y": 90
+        }
+      },
+      "dusk": {
+        "patch": 119.72617187499971,
+        "annulus": 86.7697593750018,
+        "D": 0.37981449686366875,
+        "patchLevels": 11,
+        "patchBeforeDim": 139.20906175595204,
+        "annulusBeforeDim": 99.97523735119262,
+        "DBeforeDim": 0.3924354214528043
+      },
+      "duskOff": {
+        "patch": 108.1788437499996,
+        "annulus": 89.42219062500249,
+        "D": 0.20975389882422257,
+        "patchLevels": 8
+      },
+      "noon": {
+        "patch": 123.9799218750002,
+        "annulus": 101.76368437500004,
+        "D": 0.21831203966763957,
+        "patchLevels": 8
+      },
+      "lamp": {
+        "footprintShare": 0.453125,
+        "meanDelta": 11.547328125000009
+      }
+    },
+    {
+      "order": 24,
+      "hanging": true,
+      "lampBodyWorld": {
+        "x": 716,
+        "y": 404
+      },
+      "centerWorld": {
+        "x": 714,
+        "y": 407
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 340,
+          "y": 90
+        },
+        "duskOff": {
+          "x": 340,
+          "y": 90
+        },
+        "noon": {
+          "x": 340,
+          "y": 90
+        }
+      },
+      "dusk": {
+        "patch": 96.43406250000002,
+        "annulus": 71.18160416666527,
+        "D": 0.35476101766698626,
+        "patchLevels": 6,
+        "patchBeforeDim": 111.48036011904766,
+        "annulusBeforeDim": 81.41790972222056,
+        "DBeforeDim": 0.3692363326372952
+      },
+      "duskOff": {
+        "patch": 81.93556249999993,
+        "annulus": 69.76092291666632,
+        "D": 0.1745194741456756,
+        "patchLevels": 5
+      },
+      "noon": {
+        "patch": 92.87281250000014,
+        "annulus": 78.53137604166906,
+        "D": 0.1826204656177354,
+        "patchLevels": 5
+      },
+      "lamp": {
+        "footprintShare": 0.25,
+        "meanDelta": 14.498500000000005
+      }
+    },
+    {
+      "order": 19,
+      "hanging": true,
+      "lampBodyWorld": {
+        "x": 620,
+        "y": 404
+      },
+      "centerWorld": {
+        "x": 618,
+        "y": 407
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 148,
+          "y": 90
+        },
+        "duskOff": {
+          "x": 148,
+          "y": 90
+        },
+        "noon": {
+          "x": 148,
+          "y": 90
+        }
+      },
+      "dusk": {
+        "patch": 109.77682812499944,
+        "annulus": 83.19982916666596,
+        "D": 0.3194357395265129,
+        "patchLevels": 6,
+        "patchBeforeDim": 127.36460491071362,
+        "annulusBeforeDim": 95.7253204365071,
+        "DBeforeDim": 0.3305215833170524
+      },
+      "duskOff": {
+        "patch": 91.7829687499997,
+        "annulus": 80.10221145833364,
+        "D": 0.145823156177679,
+        "patchLevels": 4
+      },
+      "noon": {
+        "patch": 104.65660937500024,
+        "annulus": 90.72780833333191,
+        "D": 0.1535229528580062,
+        "patchLevels": 4
+      },
+      "lamp": {
+        "footprintShare": 0.484375,
+        "meanDelta": 17.993859374999964
+      }
+    },
+    {
+      "order": 17,
+      "hanging": false,
+      "lampBodyWorld": {
+        "x": 568,
+        "y": 479
+      },
+      "centerWorld": {
+        "x": 565,
+        "y": 475
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 42,
+          "y": 226
+        },
+        "duskOff": {
+          "x": 42,
+          "y": 226
+        },
+        "noon": {
+          "x": 42,
+          "y": 226
+        }
+      },
+      "dusk": {
+        "patch": 115.37840625000005,
+        "annulus": 86.50566041666742,
+        "D": 0.3337671280036791,
+        "patchLevels": 10,
+        "patchBeforeDim": 134.03315029761913,
+        "annulusBeforeDim": 99.66083382936598,
+        "DBeforeDim": 0.34489292480839173
+      },
+      "duskOff": {
+        "patch": 97.86737499999975,
+        "annulus": 90.02969583333574,
+        "D": 0.08705659942662965,
+        "patchLevels": 7
+      },
+      "noon": {
+        "patch": 111.97673437500046,
+        "annulus": 102.53247083333606,
+        "D": 0.09210997711169772,
+        "patchLevels": 7
+      },
+      "lamp": {
+        "footprintShare": 0.703125,
+        "meanDelta": 17.511031249999977
+      }
+    },
+    {
+      "order": 20,
+      "hanging": false,
+      "lampBodyWorld": {
+        "x": 632,
+        "y": 399
+      },
+      "centerWorld": {
+        "x": 629,
+        "y": 395
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 170,
+          "y": 66
+        },
+        "duskOff": {
+          "x": 170,
+          "y": 66
+        },
+        "noon": {
+          "x": 170,
+          "y": 66
+        }
+      },
+      "dusk": {
+        "patch": 97.01445312500006,
+        "annulus": 74.37788958333151,
+        "D": 0.3043453325777279,
+        "patchLevels": 9,
+        "patchBeforeDim": 112.17130133928579,
+        "annulusBeforeDim": 85.22301140872798,
+        "DBeforeDim": 0.31620907880518684
+      },
+      "duskOff": {
+        "patch": 76.57174999999992,
+        "annulus": 71.99427708333187,
+        "D": 0.06358106646962686,
+        "patchLevels": 6
+      },
+      "noon": {
+        "patch": 86.5920156250001,
+        "annulus": 80.91095729166567,
+        "D": 0.07021370805014092,
+        "patchLevels": 6
+      },
+      "lamp": {
+        "footprintShare": 0.640625,
+        "meanDelta": 20.44270312499995
+      }
+    },
+    {
+      "order": 23,
+      "hanging": false,
+      "lampBodyWorld": {
+        "x": 696,
+        "y": 479
+      },
+      "centerWorld": {
+        "x": 693,
+        "y": 475
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 298,
+          "y": 226
+        },
+        "duskOff": {
+          "x": 298,
+          "y": 226
+        },
+        "noon": {
+          "x": 298,
+          "y": 226
+        }
+      },
+      "dusk": {
+        "patch": 102.33124999999995,
+        "annulus": 84.21877291666975,
+        "D": 0.21506460443506573,
+        "patchLevels": 6,
+        "patchBeforeDim": 118.50082142857138,
+        "annulusBeforeDim": 96.93834871032114,
+        "DBeforeDim": 0.22243490842499225
+      },
+      "duskOff": {
+        "patch": 78.95406249999972,
+        "annulus": 82.88058229166988,
+        "D": -0.0473756298894247,
+        "patchLevels": 6
+      },
+      "noon": {
+        "patch": 89.50278125000013,
+        "annulus": 88.68165312499995,
+        "D": 0.009259278509871287,
+        "patchLevels": 6
+      },
+      "lamp": {
+        "footprintShare": 0.3125,
+        "meanDelta": 23.37718749999996
+      }
+    },
+    {
+      "order": 26,
+      "hanging": false,
+      "lampBodyWorld": {
+        "x": 760,
+        "y": 399
+      },
+      "centerWorld": {
+        "x": 757,
+        "y": 395
+      },
+      "centerPx": {
+        "dusk": {
+          "x": 426,
+          "y": 66
+        },
+        "duskOff": {
+          "x": 426,
+          "y": 66
+        },
+        "noon": {
+          "x": 426,
+          "y": 66
+        }
+      },
+      "dusk": {
+        "patch": 97.70046875000008,
+        "annulus": 69.62802499999783,
+        "D": 0.40317736644121566,
+        "patchLevels": 10,
+        "patchBeforeDim": 112.98798660714296,
+        "annulusBeforeDim": 79.56841071428313,
+        "DBeforeDim": 0.4200105995941522
+      },
+      "duskOff": {
+        "patch": 77.53071874999993,
+        "annulus": 68.10051354166539,
+        "D": 0.1384748031681866,
+        "patchLevels": 7
+      },
+      "noon": {
+        "patch": 87.74134375000011,
+        "annulus": 76.51389687499773,
+        "D": 0.14673735535055663,
+        "patchLevels": 7
+      },
+      "lamp": {
+        "footprintShare": 0.640625,
+        "meanDelta": 20.169749999999954
+      }
+    }
+  ]
+}

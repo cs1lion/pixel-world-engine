@@ -92,17 +92,17 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 
 **原书依据**：`p037_L`（72）"by reducing the surrounding colors, the color shined like gold."
 
-**判据形态**：`像素`（比值形式已定，阈值未标定、来源无实测）。
+**判据形态**：`像素`（比值形式已定，阈值未标定、来源无实测；2026-11-07 已有标定实测，但已论证按当前测量无法给出可分离的 T，见 OPEN_ISSUES K6）。
 
 **断言原文**
-> 黄昏固定机位下，以最亮窗/灯为中心取 8×8 世界 px 的 patch、其外 32×32 世界 px 的环形 annulus，要求 D = (meanL(patch) − meanL(annulus)) / max(meanL(annulus), 32) ≥ T_dusk；同一机位 noon 相位的同一 patch 必须 D < T_noon；annulus 内至少出现 3 种地形 token 色。meanL 取最终合成帧的 8 位 sRGB Rec.601 luma（不线性化）；32 是防发散的策略常数。T_dusk / T_noon 未标定、来源无实测，在附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后）之前，本条只读数、不进闸门。
+> 黄昏固定机位下，以最亮窗/灯为中心取 8×8 世界 px 的 patch、其外 32×32 世界 px 的环形 annulus，要求 D = (meanL(patch) − meanL(annulus)) / max(meanL(annulus), 32) ≥ T_dusk；同一机位 noon 相位的同一 patch 必须 D < T_noon；annulus 内至少出现 3 种地形 token 色。meanL 取最终合成帧的 8 位 sRGB Rec.601 luma（不线性化）；32 是防发散的策略常数。T_dusk / T_noon 未标定、来源无实测；2026-11-07 已附 dusk / noon 同帧标定图与记录（`docs/evidence/glow-calibration/`），但已论证按当前测量无法给出可分离的 T（10 盏灯的亮/灭 D 区间重叠，且 D 主要反映位置而非灯本身），故本条仍只读数、不进闸门；缺什么见 OPEN_ISSUES K6。
 
 **反例**
 把 annulus 整块涂黑：比值轻松超标，但周边材质全丢——所以 annulus 必须有 ≥3 种 token 色。
 把全屏压暗而不动发光块：比值同样抬高；`noon` 对照 D < T_noon 用来堵这一条。
 只把 patch 提亮成纯白：比值达标，但材质细节归零；patch 内不同灰度级数 ≥ 4（与要点 8 共用扫描工具）。
 
-**我们现在能不能跑**：**只读数，不判定**。读数脚本 [`world-client/scripts/measure-design-readouts.mjs`](../world-client/scripts/measure-design-readouts.mjs) 已建（`node scripts/measure-design-readouts.mjs <截图.png> [--rect=x,y,w,h]`），输出 patch/annulus 亮度差与 patch 灰度级数，**退出码恒 0，不设 pass/fail**。`0.18` / `0.10` 是未标定、来源无实测的占位值，先不进闸门；`dusk` 与 `noon` 两张标定图（同帧记录几何单位与 dim 前/后）落地后再钉。
+**我们现在能不能跑**：**只读数，不判定**。读数脚本 [`world-client/scripts/measure-design-readouts.mjs`](../world-client/scripts/measure-design-readouts.mjs) 已建（`node scripts/measure-design-readouts.mjs <截图.png> [--rect=x,y,w,h]`），输出 patch/annulus 亮度差与 patch 灰度级数，**退出码恒 0，不设 pass/fail**。标定证据由 [`world-client/scripts/check-glow-contrast.mjs`](../world-client/scripts/check-glow-contrast.mjs) 产出：`docs/evidence/glow-calibration/{dusk,noon}.png` + 同名 `.json` + `samples.json`（同帧、同记录器、同窗口；几何双口径与 dim 前/后都在记录里）。本帧 dusk D 0.195 / noon D 0.070，但 10 盏灯下亮灯 D 0.195–0.489、同位置灭灯 −0.047–0.314，区间重叠，**已论证不能按当前测量标定成闸门阈值**（细节与「缺什么」见 OPEN_ISSUES K6）。`0.18` / `0.10` 继续失效，不得作为目标值。
 
 ---
 
@@ -189,7 +189,7 @@ DA664787D2362C5E4035A304DFCF06B94DB5447BB5931DC7549045EE825D3529  2240-clear-non
 | 1 时间 | `pinned` 四张原图 + sha 入库；一次性实测 dusk−night=8.94，**通过** | 无（**不做静态闸门**） | 要成闸门需每次重新渲染再量，归浏览器 job，等 e2e 稳定 |
 | 2 光源 | 无（不建空测试） | 光源实体表 + 暖像素代理量 | 数据层「光源实体」，未立项 |
 | 3 主题色 | 引用现有 `scripts/audit-palette.mjs --strict` | `LANDMARK_KIND → token` 注册表 + 互异/色相断言 | 注册表约 20 行数据，待建 |
-| 4 发光 | `scripts/measure-design-readouts.mjs`（只读数） | D ≥ T_dusk / noon D < T_noon（T 未标定）标定后转闸门 | 需 `dusk`+`noon` 两张标定图 |
+| 4 发光 | `scripts/measure-design-readouts.mjs`（只读数）+ `check-glow-contrast.mjs` 的 `docs/evidence/glow-calibration/` 标定证据 | D ≥ T_dusk / noon D < T_noon；**已论证按当前测量不可标定**（K6） | 需要人工标签 + 灯专用测量 + 多状态样本，才有资格重做判据形式 |
 | 5 高差 | 无（实现归世界扩展 P2） | 由 P2 的踏步生成器统一实现与验收 | 世界扩展 P2 |
 | 6 岸线 | 无（不建空测试） | 岸带矩形结构单测 | 世界扩展「岸线」组件 |
 | 7 暗口 | 无（不建空测试） | ADR O1 搬进验收 | ADR 阶段 2「抬升 + 遮挡层」 |

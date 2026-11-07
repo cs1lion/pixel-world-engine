@@ -1,0 +1,168 @@
+{
+  "schema": "glow-calibration/1",
+  "phase": "dusk",
+  "purpose": "要点 4 的 T 标定记录：几何双口径、dim 前后亮度、现判据 D。只记本帧读数，阈值结论不在这里。",
+  "frame": {
+    "phase": "dusk",
+    "frameIndex": 113,
+    "worldTimeMs": 65400100,
+    "camera": {
+      "scrollX": 544,
+      "scrollY": 362,
+      "zoom": 1,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 544,
+      "worldViewY": 362,
+      "mode": "free"
+    },
+    "viewport": {
+      "width": 1010,
+      "height": 700
+    },
+    "clip": {
+      "x": 25.5,
+      "y": 112.796875,
+      "width": 960,
+      "height": 640
+    },
+    "renderStats": {
+      "frame": 81,
+      "graphicsObjects": 155,
+      "totalCommands": 34666
+    },
+    "rawShotFile": "world-client/tmp/screens/check-glow-contrast/glow-dusk.png",
+    "rawSha256": "41a79047b13bf181d619981b57971cece7a81477203de777632dd32f25e13d72"
+  },
+  "geometry": {
+    "conversion": "截图 px = (世界坐标 − camera.worldView) × 2 × zoom；本帧 zoom = 1，2× 为渲染倍率，故 1 世界 px = 2 截图 px",
+    "scaleScreenshotPxPerWorldPx": 2,
+    "center": {
+      "screenshotPx": {
+        "x": 208,
+        "y": 84
+      },
+      "world": {
+        "x": 648,
+        "y": 404
+      }
+    },
+    "patch": {
+      "world": {
+        "size": "8×8 world px",
+        "box": [
+          644,
+          400,
+          8,
+          8
+        ],
+        "pixels": 256
+      },
+      "screenshot": {
+        "size": "16×16 px",
+        "box": [
+          200,
+          76,
+          16,
+          16
+        ],
+        "pixels": 256
+      }
+    },
+    "annulus": {
+      "world": {
+        "size": "32×32 world px",
+        "box": [
+          632,
+          388,
+          32,
+          32
+        ],
+        "pixels": 3840
+      },
+      "screenshot": {
+        "size": "64×64 px",
+        "box": [
+          176,
+          52,
+          64,
+          64
+        ],
+        "pixels": 3840
+      }
+    },
+    "annulusNote": "annulus 是外框 32×32 世界 px 减去中间 patch 的环带读数；外框边与 patch 边都在网格线上"
+  },
+  "luma": {
+    "phase": "dusk",
+    "dim": {
+      "alpha": 0.16,
+      "color": "0x14110d",
+      "luma": 17.441
+    },
+    "dimSource": "world-client/src/render/day-phase.ts PHASES[*].dim / dimColor；整帧 dim 矩形见 world-client/src/render/phase-view.ts DIM_DEPTH = 8009（在灯/窗光池层之上）",
+    "lumaAfterDim": {
+      "patch": 98.86735937499975,
+      "annulus": 82.7173135416687
+    },
+    "lumaBeforeDim": {
+      "patch": 114.37714211309495,
+      "annulus": 95.15089707341512
+    },
+    "lumaBeforeDimIsInferred": true,
+    "inversion": "L_before = (L_after − α·L_dim) / (1 − α)；8 位量化误差被 1/(1−α) 放大",
+    "D": {
+      "afterDim": 0.19524383882698865,
+      "beforeDim": 0.2020605756858553
+    }
+  },
+  "composition": {
+    "tokenCount": 5,
+    "tokensAbove1pct": [
+      {
+        "id": "charcoal(coal)",
+        "pixels": 1492,
+        "share": 0.3885416666666667
+      },
+      {
+        "id": "farm",
+        "pixels": 1076,
+        "share": 0.28020833333333334
+      },
+      {
+        "id": "grass",
+        "pixels": 156,
+        "share": 0.040625
+      },
+      {
+        "id": "soil(tree/mud)",
+        "pixels": 108,
+        "share": 0.028125
+      },
+      {
+        "id": "plaza",
+        "pixels": 104,
+        "share": 0.027083333333333334
+      }
+    ],
+    "classifiedShare": 0.775,
+    "patchColorLevels": 7
+  },
+  "image": {
+    "file": "docs/evidence/glow-calibration/dusk.png",
+    "bytes": 153072,
+    "sha256": "ac315ef2ef8142c12046407e4976feed4897d5924a370967f399023c239d1ec3",
+    "annotatedFromRawSha256": "41a79047b13bf181d619981b57971cece7a81477203de777632dd32f25e13d72",
+    "note": "标注图与读数来自同一张原始帧缓冲；标注只画在导出图里，读数用未标注缓冲。"
+  },
+  "legend": [
+    "同一帧缓冲标注，原始帧 sha256 41a79047b13bf181…；读数用未标注的缓冲",
+    "网格 1 格 = 4 世界 px = 8 截图 px；patch = 2×2 格；annulus 外框 = 8×8 格（读数不含 patch）",
+    "洋红实线 = patch 边；青色虚线 = annulus 外框；白色十字 = 取样中心",
+    "中心：截图 (208, 84) px = 世界 (648.00, 404.00)",
+    "dim α=0.16 ink 0x14110d：meanL 后 patch 98.87 / annulus 82.72",
+    "dim 前（反解）patch 114.38 / annulus 95.15",
+    "D 后 dim 0.195；D 前 dim 0.202",
+    "第 21 盏灯（灯串）@ 世界 652,404"
+  ]
+}

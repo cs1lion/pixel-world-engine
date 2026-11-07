@@ -1,0 +1,162 @@
+{
+  "schema": "glow-calibration/1",
+  "phase": "noon",
+  "purpose": "要点 4 的 T 标定记录：几何双口径、dim 前后亮度、现判据 D。只记本帧读数，阈值结论不在这里。",
+  "frame": {
+    "phase": "noon",
+    "frameIndex": 105,
+    "worldTimeMs": 65400100,
+    "camera": {
+      "scrollX": 544,
+      "scrollY": 362,
+      "zoom": 1,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 544,
+      "worldViewY": 362,
+      "mode": "free"
+    },
+    "viewport": {
+      "width": 1010,
+      "height": 700
+    },
+    "clip": {
+      "x": 25.5,
+      "y": 112.796875,
+      "width": 960,
+      "height": 640
+    },
+    "renderStats": {
+      "frame": 72,
+      "graphicsObjects": 155,
+      "totalCommands": 26412
+    },
+    "rawShotFile": "world-client/tmp/screens/check-glow-contrast/glow-noon.png",
+    "rawSha256": "04c045584f7ca3efc7263ae68985482e3c3d833b4e4cafc9ecf2af2c70471798"
+  },
+  "geometry": {
+    "conversion": "截图 px = (世界坐标 − camera.worldView) × 2 × zoom；本帧 zoom = 1，2× 为渲染倍率，故 1 世界 px = 2 截图 px",
+    "scaleScreenshotPxPerWorldPx": 2,
+    "center": {
+      "screenshotPx": {
+        "x": 208,
+        "y": 84
+      },
+      "world": {
+        "x": 648,
+        "y": 404
+      }
+    },
+    "patch": {
+      "world": {
+        "size": "8×8 world px",
+        "box": [
+          644,
+          400,
+          8,
+          8
+        ],
+        "pixels": 256
+      },
+      "screenshot": {
+        "size": "16×16 px",
+        "box": [
+          200,
+          76,
+          16,
+          16
+        ],
+        "pixels": 256
+      }
+    },
+    "annulus": {
+      "world": {
+        "size": "32×32 world px",
+        "box": [
+          632,
+          388,
+          32,
+          32
+        ],
+        "pixels": 3840
+      },
+      "screenshot": {
+        "size": "64×64 px",
+        "box": [
+          176,
+          52,
+          64,
+          64
+        ],
+        "pixels": 3840
+      }
+    },
+    "annulusNote": "annulus 是外框 32×32 世界 px 减去中间 patch 的环带读数；外框边与 patch 边都在网格线上"
+  },
+  "luma": {
+    "phase": "noon",
+    "dim": {
+      "alpha": 0,
+      "color": null,
+      "luma": 0
+    },
+    "dimSource": "world-client/src/render/day-phase.ts PHASES[*].dim / dimColor；整帧 dim 矩形见 world-client/src/render/phase-view.ts DIM_DEPTH = 8009（在灯/窗光池层之上）",
+    "lumaAfterDim": {
+      "patch": 95.84710937500036,
+      "annulus": 89.59909479166703
+    },
+    "lumaBeforeDim": {
+      "patch": 95.84710937500036,
+      "annulus": 89.59909479166703
+    },
+    "lumaBeforeDimIsInferred": false,
+    "inversion": "α = 0，dim 前后是同一批像素，直接量",
+    "D": {
+      "afterDim": 0.06973301011423179,
+      "beforeDim": 0.06973301011423179
+    }
+  },
+  "composition": {
+    "tokenCount": 4,
+    "tokensAbove1pct": [
+      {
+        "id": "grass",
+        "pixels": 996,
+        "share": 0.259375
+      },
+      {
+        "id": "charcoal(coal)",
+        "pixels": 732,
+        "share": 0.190625
+      },
+      {
+        "id": "soil(tree/mud)",
+        "pixels": 72,
+        "share": 0.01875
+      },
+      {
+        "id": "plaza",
+        "pixels": 56,
+        "share": 0.014583333333333334
+      }
+    ],
+    "classifiedShare": 0.49375,
+    "patchColorLevels": 6
+  },
+  "image": {
+    "file": "docs/evidence/glow-calibration/noon.png",
+    "bytes": 136342,
+    "sha256": "7cddba8c451469f5fe2f74677b5f75d50a356642a5df081eb0028b74e95c522d",
+    "annotatedFromRawSha256": "04c045584f7ca3efc7263ae68985482e3c3d833b4e4cafc9ecf2af2c70471798",
+    "note": "标注图与读数来自同一张原始帧缓冲；标注只画在导出图里，读数用未标注缓冲。"
+  },
+  "legend": [
+    "同一帧缓冲标注，原始帧 sha256 04c045584f7ca3ef…；读数用未标注的缓冲",
+    "网格 1 格 = 4 世界 px = 8 截图 px；patch = 2×2 格；annulus 外框 = 8×8 格（读数不含 patch）",
+    "洋红实线 = patch 边；青色虚线 = annulus 外框；白色十字 = 取样中心",
+    "中心：截图 (208, 84) px = 世界 (648.00, 404.00)",
+    "dim α=0（无 dim）：meanL patch 95.85 / annulus 89.60",
+    "D（现判据，与 dim 前相同）0.070",
+    "灯强制关；第 21 盏灯（灯串）@ 世界 652,404"
+  ]
+}

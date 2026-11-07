@@ -700,7 +700,24 @@
 3. **E8 — 已闭合（2026-11-07）** 旁证测试默认只写 `world-client/tmp/`，不再改写已跟踪的 `docs/evidence/soak/witnessed-corroboration.json`；连跑两遍 `npm test` 后 `git status --porcelain` 无该文件，`git hash-object` 前后一致（`b9c3214b…`）；`verify-all` 的 `PRESERVE` 已删除。原「跑完必须 `git checkout`」的临时纪律已失效。
 4. **孤儿闸门** `fixture:check`、`check-phases-negative`、`check-rain-pin`、`check-shot-actor-pin`、`check-lamp-band`、`check-lamp-pool`（另加 `check-ground-shadow`，见 2）都不在 `.github/workflows/ci.yml` — 归属各线；下一步：等 `chore/orphan-gates` 合并后逐条接线，接一条删一条允许清单。
 5. **同一棵树上两条线并行写** `pwe-anim-fsm` 那 6 个未提交文件（`ci.yml`、`package.json`、check-anim-fsm-transition.mjs、png-diff.mjs、两份 docs）— 动画线；本窗口未碰、未带进合并。下一步：由动画线自己提交或丢弃，关闭窗口前确认归属。
-6. **要点 4 阈值** `T_dusk / T_noon` 未标定、来源无实测 — 设计验收线；下一步：附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后），在此之前只读数、不进闸门。
+6. **要点 4 阈值 `T_dusk / T_noon` — 已论证不可按当前测量标定（2026-11-07）** — 设计验收线。
+   - **证据**：`docs/evidence/glow-calibration/{dusk,noon}.png` + 同名 `.json` + `samples.json`。两张图都从**同一张原始帧缓冲**标注（记录 `image.annotatedFromRawSha256` = `frame.rawSha256`），同一记录器（`world-client/scripts/check-glow-contrast.mjs`）、同一窗口（viewport 1010×700，canvas clip 960×640）。网格 1 格 = 4 世界 px = 8 截图 px，且对齐取样中心：patch = 2×2 格，annulus 外框 = 8×8 格。
+   - **几何双口径**：patch 8×8 世界 px = 16×16 截图 px（世界 box 644,400,8,8 / 截图 box 200,76,16,16）；annulus 32×32 世界 px = 64×64 截图 px（632,388,32,32 / 176,52,64,64）；换算依据 `截图 px = (世界 − camera.worldView) × 2 × zoom`（2× 渲染，zoom 1）。
+   - **本帧读数**（第 21 盏灯串，中心世界 648,404）：dusk meanL patch 98.87 / annulus 82.72 ⇒ **D 0.195**（dim α0.16 ink 反解后 patch 114.38 / annulus 95.15 ⇒ D 0.202）；noon patch 95.85 / annulus 89.60 ⇒ **D 0.070**（α=0，前后同一批像素）。
+   - **为什么不能标定**：
+     1. **亮/灭区间重叠，不存在可分离阈值**。同一批中心、10 盏灯：亮灯 D 0.195–0.489（p50 0.334）；同位置灯全关 D −0.047–0.314（p50 0.139）；noon 关灯 D 0.009–0.328（p50 0.147）。最大灭灯 0.314 > 最小亮灯 0.195 —— 任何能排除全部灭灯样本的 `T_dusk` 都会判掉一盏真实点亮的灯。
+     2. **D 不专属灯，量的是位置**。10 盏灯 patch 内「灯足迹」（同帧开/关灯 luma 差 ≥5 的像素）只占 21.9%–70.3%（中位 46.9%）；本帧选中的「最亮灯」足迹仅 21.9%，其最亮像素 R=255 已裁剪（既有窗光 ADD），patch 大部分是窗/墙等静态环境。同一套灯美术只换位置，D 就从 0.195 到 0.489（2.5×），阈值会编码位置而不是发光质量。
+     3. **跨相位不可比**。同一中心 dusk D 0.195、noon D 0.070；dim 反解只解释 0.195→0.202，其余是环境亮度差 —— `T_dusk` 与 `T_noon` 是两个互不推导的数，不能当成同一把尺子的两端。
+     4. **样本面窄**：10 盏 / 1 个冻结帧 / 1 个场景（灯潮）/ 晴 / 潮位 1 / 村民钉住 / 全部运动停掉。没有天气、潮位、呼吸/点燃/摆动状态。
+     5. **没有标签**。「亮得成立」是人的判断，这套读数没有任何人工标注；任何 T 都只能描述这一帧，不能标定「成立」。
+   - **反证旧值的巧合**：本帧 0.195 / 0.070 恰好落在 `0.18 / 0.10` 两侧 —— 若只采这一盏，就会「验证」这两个从未有实测来源的数。但 10 盏里 noon D ≥ 0.10 有 6 盏、dusk 灭灯 D ≥ 0.18 有 2 盏；照这两个数上闸门，会判红一半以上的 noon 灯、放行两盏死灯。
+   - **缺什么才能标定**：
+     a. **标签**：人工标注「亮 / 不亮 / 边界」的样本，覆盖多场景、多相位、多帧态；先定义「发光成立」的可观察含义。
+     b. **灯专用测量**：patch 只取灯足迹像素，或直接判 `ΔD = D(开灯) − D(同位置关灯)`；annulus 排除窗光/相邻灯；中心选择不得落在窗/墙上，并剔除裁剪像素。
+     c. **样本量**：多场景 × 多灯 × 多天气/潮位/运动状态，足以给出分布与分位。
+     d. **相位政策**：闸门覆盖哪些相位、为什么；若 dusk 与 noon 都用，二者关系要写明，不能各取一个孤立数。
+     e. **窗光占优的归属**：既有 ADD 窗光会把 patch 打到裁剪，先定「这算灯的功劳还是窗的」。
+   - **当前状态**：只读数、不进闸门；`0.18 / 0.10` 继续失效，不得作为目标值。下一步不是再标一次，而是补齐 a–e 后重做判据形式。
 7. **V1 — 已闭合（2026-11-07）** `red:first` 与 `pytest` 已在真 CI 实跑：run `42381670587`（push main，`f1dfa00..c52745d`）。`red:first` 的 base 为 `f1dfa000665d193e2b3b0ab08ddfe88a3040fc45`，以 `AssertionError` 收场（`actual 'undefined'` / `expected 'function'`），`RESULT=RED elapsed=21713ms`，不是 module / compile；`server` job 16s success。
 8. **B1 天花板棘轮 — 已锁定（2026-11-07）** 新增 `test/policy-ceilings.test.ts` + `scripts/policy-ceilings.json`：脚本常量 > 已批准值即红，记录必须含 `approved_at` / `approved_by` / `reason`；`[实测]` 把 `MAX_COMMANDS_CEILING` 从 33,488 改到 33,489 会红，降到 33,000 只提示不红。拦不住：运行时 env 覆盖、先降再涨回原值（仍 ≤ 已批准值）、`reason` 真伪。
 9. **`test:phases` CI 耗时接近单相位上限** 实测 run `42381670587` 的 `world-client-browser` job：`test:phases` 350s（`14:29:40.709` → `14:35:30.844`）；四个相位 `waitVillagersSettled` 各约 25.6s（25,592 / 25,683 / 25,565 / 25,692 ms），单相位上限 45s，占 57%，余量约 19s — 浏览器闸门线。处置口径：**撞线就减每相位的等待量，不许抬 45s 上限**。本地读数 26s 是错的量级，**本地耗时不构成 CI 的时间依据**；以后估 CI 时间只认真 CI 数据。
