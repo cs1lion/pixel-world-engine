@@ -152,4 +152,24 @@ test('真仓库今天没有白名单外的引用', () => {
   assert.ok(real.checked > 100, `只受查了 ${real.checked} 处，闸门大概没扫到东西`);
   // 白名单不能是空的：空的白名单配 0 处未解析，通常意味着扫描范围塌了。
   assert.ok(real.known > 0, '白名单内 0 处——要么判据变了，要么扫描范围空了');
+  // 扫描根一个都不能缺：缺了那片就是「没查」，不是「查了没问题」。
+  assert.deepEqual(real.problems, [], '真仓库的扫描根缺了，见上方报告');
+});
+
+test('扫描根不存在要进返回值，不许静默 `continue`', () => {
+  // 原来的行为：`if (!existsSync(abs)) continue;`——输出照样写「未解析 0 处」，
+  // 而这一片一个反引号都没查。这里造一个空目录当假仓库，七个根全不在，
+  // 一条都躲不掉。
+  const root = mkdtempSync(path.join(tmpdir(), 'pwe-cite-empty-'));
+  try {
+    const r = auditCitations({ root });
+    assert.equal(r.checked, 0, '根不存在时不该有受查数');
+    assert.equal(r.problems.length, 7, `只报出 ${r.problems.length} 个缺根`);
+    const docs = r.problems.find((p) => p.scanRoot === 'docs');
+    assert.ok(docs !== undefined, '`docs` 缺了必须报');
+    assert.equal(docs.expected, path.join(root, 'docs').split(path.sep).join('/'));
+    assert.equal(docs.actual, '不存在');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

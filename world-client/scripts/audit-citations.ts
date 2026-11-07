@@ -315,6 +315,14 @@ export interface CitationFinding {
   readonly text: string;
 }
 
+export interface ScanRootProblem {
+  readonly scanRoot: string;
+  /** 期望存在的绝对路径。 */
+  readonly expected: string;
+  /** 实际看到的状态。 */
+  readonly actual: string;
+}
+
 export interface CitationAudit {
   /** 受查过而且没找到对应文件的。 */
   readonly findings: readonly CitationFinding[];
@@ -329,6 +337,8 @@ export interface CitationAudit {
    * 它在描述一处已经不在那儿的示例，而清单看着依旧满满当当。
    */
   readonly unused: readonly string[];
+  /** 扫描根不存在。一条都不该有：根缺失 = 这片没查，绿是假的。 */
+  readonly problems: readonly ScanRootProblem[];
 }
 
 /** 递归收集目录下的所有文件路径（已归一成正斜杠）。 */
@@ -405,6 +415,7 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
   const allFiles = walk(root);
 
   const findings: CitationFinding[] = [];
+  const problems: ScanRootProblem[] = [];
   const skips = new Map<string, number>();
   /** 真放过事的白名单 key。对不上 `KNOWN` 的那批就是一条都没放过的。 */
   const fired = new Set<string>();
@@ -413,7 +424,10 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
 
   for (const scanRoot of SCAN_ROOTS) {
     const abs = path.join(root, scanRoot).split(path.sep).join('/');
-    if (!existsSync(abs)) continue;
+    if (!existsSync(abs)) {
+      problems.push({ scanRoot, expected: abs, actual: '不存在' });
+      continue;
+    }
     const files = statSync(abs).isDirectory() ? walk(abs) : [abs];
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
@@ -454,12 +468,13 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
     unused: Object.keys(KNOWN)
       .filter((key) => !fired.has(key))
       .sort(),
+    problems,
   };
 }
 
 function main(): void {
   const strict = process.argv.includes('--strict');
-  const { findings, known, skips, checked, unused } = auditCitations();
+  const { findings, known, skips, checked, unused, problems } = auditCitations();
 
   const skipLine = [...skips]
     .sort((a, b) => b[1] - a[1])
@@ -469,6 +484,18 @@ function main(): void {
     `引用存在性：受查 ${checked} 处，未解析 ${findings.length} 处；` +
       `白名单内 ${known} 处不算缺陷。\n跳过：${skipLine}\n`,
   );
+  // 扫描根不存在 = **这一片一个反引号都没查**。原来的行为是 `continue`：
+  // 输出照样报「未解析 0 处」，读的人以为绿了。这里必须无条件红，
+  // 且与 `--strict` 无关：这不是「发现了多少存疑」，是「判据根本没跑完」。
+  if (problems.length > 0) {
+    process.stdout.write(`\n扫描面不完整：${problems.length} 个扫描根不存在，这次判据无效。\n`);
+    for (const p of problems) {
+      process.stdout.write(
+        `  扫描根不存在：${p.scanRoot} —— 期望 ${p.expected}，实际 ${p.actual}\n`,
+      );
+    }
+    process.exitCode = 1;
+  }
   for (const f of findings) {
     process.stdout.write(`  ${f.file}:${f.line}  ${f.token}\n`);
     process.stdout.write(`      ${f.text}\n`);
