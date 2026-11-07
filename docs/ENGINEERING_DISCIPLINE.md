@@ -86,6 +86,23 @@
 - **违反暴露**：`audit-citations` / `audit-references` 能抓当前树里不存在的引用；全历史不存在的判定只能靠上面的 git 命令。
 - **对应物**：[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L362-L367) G4；[audit-citations.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-citations.ts)；[audit-references.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-references.ts)。
 
+### C7 喂判据的读数不得用 `??` / `catch {}` 兜底；缺失必须抛
+
+**状态**：`[人工步骤]`
+- **触发**：写一个会被判据读的数（基线、实测值、已跟踪文件清单、色温、活动 span……）。
+- **怎么做**：缺字段、命令失败、取样无效 → **抛**，或走调用方现成的红路径，并打印缺的字段 / 失败的命令；**只有「仅供人看」的展示字段**可以用默认值。判别标准一句话：这个值会不会进 `if`、比较、汇总？会 → 不许兜底。
+- **违反暴露**：`?? 0` / `?? []` / `catch { return [] }` 会把「不知道」变成「没有」或「是 0」，判据恒绿或恒红，输出里看不出字段缺失。`Math.max(NaN, …)` 和 `floor - actual > NaN` 更隐蔽——整个地板比较直接失效。没有通用 lint：`??` 用在展示字段是合法的，只能靠 review。
+- **对应物**：本轮静默普查同一族的六处（编号沿用那份回执）：
+  - **#2** [check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs) `aoUnknownBase` 汇总的 `?? 0`：`contactAoUnknownBase` 缺失被当成「未知基底 0」，判绿。
+  - **#4** [shot-output.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/lib/shot-output.mjs) `trackedFilesIn` 的 `catch { return [] }`：git 答不上来被当成「没有已跟踪文件」，未授权的基线写入直接放行。
+  - **#1 / #3 / #11 / #12** [check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs) 的四处：
+    夜间村民 / 摊位 span 汇总的 `?? []` / `?? 0`（缺失 = 没有活动，夜间判据静默通过）；
+    阶梯判据的 `stallSpan ?? 0` / `villagerSpan ?? 0`（缺失被当成 0 格，`checkLadder` 比错期望值）；
+    `stalls?.find(...) ?? stalls?.[0]`（缺 `stall_on` 时整个单元被跳过，读数不报）；
+    `villagers[0] ?? <备用坐标>`（缺人时用备用坐标顶替实测读数）。
+  - 其余七条不属于这一族（取样判据本身缺失、阈值缺字段等），按各自条目处理；`allowedDrop` 的 NaN 由 **#5** 在加载边界核 `threshold.minDrop` / `threshold.ratio`，同属「缺失必须红」。
+- **落地状态**：`#4` / `#5` 已在新分支修；`#2` / `#1` / `#3` / `#11` / `#12` 在 `check-ground-shadow.mjs` 内，等帧相位改造落地后做第二轮（同一文件两边同时改必打架）。
+
 ## 2. 红先与 TDD
 
 ### T1 先红再绿
@@ -425,3 +442,4 @@
 | --- | --- | --- |
 | 2026-11-07 | 本周合并窗口暴露的问题：H1 的 `0.18` 判据造假；G5 的跨记录器 `33,445 / 34,666`；G3 的同树并发写；G2 的前向引用；G4 的引用幻影；E5 的重跑掩盖；K4 的孤儿闸门 | 首次固化本文件：40 条纪律，按任务类型组合使用；`[尚未实现]` 条目单独列出，禁止当既有闸门引用。 |
 | 2026-11-07 | 外部《Skill 自迭代能力 改造指南》落成开发规范；skill 改造缺少「三件套」「四类验证边界」的可执行口径 | 新增 X3（纪律共 41 条）并配套 [SKILL_ITERATION_STANDARD.md](SKILL_ITERATION_STANDARD.md)：四块判据、三件套、`[需人工]` 标注、四类验证边界、收尾五问、可复制诊断模板，以及与既有条款的逐条关系与冲突条件；§0 取值表与 §10 同步增加对应行。 |
+| 2026-11-08 | 静默普查：13 条 `[裸]` 里有 6 条是同一动作——`?? 默认值` / `catch {}` 顶替实测读数（#1 #2 #3 #4 #11 #12） | 新增 C7（纪律共 42 条）：喂判据的读数缺失必须抛，只有仅供人看的展示字段可用默认值；逐条指到这一族的六处，并记 `#4` / `#5` 已修、`check-ground-shadow.mjs` 的四条留待第二轮。 |

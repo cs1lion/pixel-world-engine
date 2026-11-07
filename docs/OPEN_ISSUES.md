@@ -387,6 +387,50 @@
 - **建议时机**：下一次动任何逐字节像素闸门之前。
 - **是否需要用户决策**：**是**（「截图面剔 DOM」还是「改判据」，二选一要先定）。
 
+### E13. `setting-scale-after.png` 是量测输入，却与运行产物同名同址：一次基线重拍会静默换掉已跟踪基线
+
+> 编号说明（2026-11-08 全类型扫描）：E10 / E11 在 `chore/eval-screens-audit` 分支（旧基线、扫描面地板窗口）；
+> **E12 已被帧相位线的在途改动占用**（`main` 工作树未提交：`check-ground-shadow.mjs` 的步进注释、
+> `shot-stable.mjs` 文件头、`shot-stable.test.ts` 都已引用）；本条按用户指定用 **E13**。
+> 该分支的 E9（旧 `setting-scale-after` 基线）与 main 的 E9 同号、且 main 先入（`ba78b96` 03:04:30
+> vs `6386299` 03:52:55），按 M3 顺延；E10 / E11 已被引用不能动，E12 已占用，故 **合并时改为 E14**。
+> 全仓最终占用：E9（main）、E10 / E11（chore）、E12（帧相位）、E13（本条）、E14（chore 的旧 E9）。
+
+- **现状 [实测]**：`world-client/eval/screens/setting-scale-after.png` 同时是两样东西：
+  (1) `check-setting-scale` 的**量测输入**——脚本把 PNG 解码回像素、算窗口占屏比；
+  (2) `--write-baseline` / `EVAL_OUT=eval/screens` 时的**落盘目标**——文件名由 `OUT` +
+  `setting-scale-after.png` 重拼，**每次运行都写同一个名字**。默认输出是
+  `world-client/tmp/screens/check-setting-scale`（不入仓）；只有显式授权才写跟踪目录。
+- **有没有机制能发现「某次运行把已跟踪基线改掉」[实测]**：**没有**。
+  - `resolveShotDir` 只在「未授权 + 目标目录里已有已跟踪文件」时拒绝；`--write-baseline` /
+    `EVAL_OUT=eval/screens` 是显式授权，授权之后直接写，不再比对字节。
+  - `.github/workflows/ci.yml` 的 browser job 把 `EVAL_OUT` 指到 runner 临时目录，收尾用
+    `git status --porcelain` 查脏；但 **`check-setting-scale` 不在该 job 的脚本列表里**，
+    这条写入链路不被 CI 覆盖。
+  - `eval/screens/` 没有 manifest / sha256 / 摘要清单；`setting-scale-after.json` 里的
+    `"file": "eval/screens/setting-scale-after.png"` 也不参与任何校验（`load()` 用 `OUT`
+    重拼真实路径）。没有任何「已记录摘要」可以拿来判「字节还是不是那一份」。
+  - 因此发现方式只剩人工 `git diff` / `git status`，或事后某条闸门读数变了才发现。
+- **后果 [事实]**：一次带授权的重拍会把「量测输入」和「本次输出」写成同一份字节；如果新读数变差，
+  基线已经先被替换，之后所有比较都拿新字节当基准——「基线是 2026-11-08 那次重拍的已跟踪字节」
+  这个前提静默失效，工作区里的旧字节不可恢复（只能翻 git 历史）。
+- **修法选项**（本轮只记账，未动代码）：
+  1. **临时输出 + 显式 `--update-baseline`**：`check-setting-scale` 永远先写 `tmp/screens/...`；
+     另设 `--update-baseline` 才由人把新字节拷进 `eval/screens/` 并单独提交。默认路径里不存在
+     「运行即覆盖基线」。
+  2. **落盘前比对已记录摘要**：在 `eval/screens/` 放一份 `.sha256` 清单（或 JSON manifest）；
+     落盘前算当前 PNG 的 sha256，与清单不符且没有 `--update-baseline` → 打印
+     `[判据前提不成立]` 并非 0 退出，不写。
+  两者可组合：1 管「写哪儿」，2 管「字节还是不是那一份」。
+- **为什么现在不改**：`chore/eval-screens-audit` 已冻结（`de549f3`，不再加提交），且该分支刚重拍过
+  这份基线（E9 / `3b68819`）；本轮若在别的分支动同一 PNG / JSON，合并时必然与重拍冲突。
+- **顺带收**：`setting-scale-after.json` 的 `"file": "eval/screens/setting-scale-after.png"` 是死字段
+  ——它在落盘时写死（`check-setting-scale.mjs` 的 `writeFileSync`），但读取时被 `load()` 用
+  `OUT` 重拼的路径覆盖，没有消费者。合入后与上面第 1 项一起删掉（或改成真实相对路径）；
+  本轮不动，避免与 chore 分支对同一 JSON 的重写打架。
+- **建议时机**：`chore/eval-screens-audit` 合入后、下一次要重拍 `setting-scale` 基线之前。
+- **是否需要用户决策**：**是**（选 1 / 2 / 两者）。
+
 ## F. Phaser 4 升级遗留（2026-11-06）
 
 ### F1. `?light=` 探针的去向：留分支、不进 main
