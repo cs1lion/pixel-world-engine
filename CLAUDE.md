@@ -6,6 +6,7 @@
 - 迁移盘点：`docs/MIGRATION_FROM_XIAOXI.md`。
 - 迭代目标暂存：`docs/iterations/`（目前：1027 迭代任务 1 · 内环、1027 迭代任务 2 · 外环）。
 - 美术设定（初版视觉基准）：《千与千寻视觉设定集》，见 `docs/art/`。
+- 交付报告纪律：`docs/agents/reporting.md`——说"已落地/通过/不变"必须带机器可读证据块，`world-client/` 下跑 `npm run audit:reports`。
 
 ## 命令
 
