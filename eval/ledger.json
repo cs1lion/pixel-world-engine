@@ -249,7 +249,7 @@
       "judge": "program",
       "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（故记 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后为 788。修复提交 feat/palette-audit-fix@3228fa5"
+      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（故记 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后为 788。修复提交 feat/palette-audit-fix@3228fa5。script_sha 算法：按 UTF-8 读入全文 → 将所有 CRLF（`\r\n`）替换为 LF（`\n`）→ 对替换后的全文取 sha256；单独 CR 不处理。按工作区字节直接算会对不上，别把 `script_sha` 不一致误判成读数过期"
     },
     {
       "id": "palette.violations.ui",
@@ -265,7 +265,7 @@
       "judge": "program",
       "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（世界层因此误报为 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后世界层 788；UI 层本口径不变，引用 202 处。修复提交 feat/palette-audit-fix@3228fa5"
+      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（世界层因此误报为 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后世界层 788；UI 层本口径不变，引用 202 处。修复提交 feat/palette-audit-fix@3228fa5。script_sha 算法：按 UTF-8 读入全文 → 将所有 CRLF（`\r\n`）替换为 LF（`\n`）→ 对替换后的全文取 sha256；单独 CR 不处理。按工作区字节直接算会对不上，别把 `script_sha` 不一致误判成读数过期"
     },
     {
       "id": "motion.structDiff.walk.min",
