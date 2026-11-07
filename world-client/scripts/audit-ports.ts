@@ -203,6 +203,12 @@ function main(): void {
         `少 ${floor.baseline - targets.length} 个（允许最多降 ${floor.allowed} 个）。`,
     );
     process.exitCode = 1;
+  } else if (floor.kind === 'stale') {
+    console.error(
+      `audit-ports: 基线过期：实际 ${targets.length}，基线 ${floor.baseline}，` +
+        `超出 ${floor.overPercent}%，请按实测刷新 baseline 并记入 note。`,
+    );
+    process.exitCode = 1;
   }
 
   const clean = problems.length === 0 && floor.kind === 'ok';

@@ -312,6 +312,38 @@ test('受查数掉过阈值才报：max(5, 基线 2%)', () => {
   }
 });
 
+test('基线过期：实际超过基线 20% 就报；刷新到实测值才绿', () => {
+  // 反例：把基线人为调低到实际的一半（超出 100%）。旧地板只判下降，这种
+  // 过期基线会静默失效——实际面塌掉一半都不会红。过期判据必须开口。
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 1)}、${ref('a.ts', 2)}、${ref('a.ts', 6)}、${ref('a.ts', 7)}。\n`);
+    const baselineFile = path.join(root, 'baseline.json');
+    const actual = auditReferences({ root, baselineFile }).checked;
+    assert.equal(actual, 4, '四处坐标都要被数进去');
+    const write = (checked: number): void => {
+      writeFileSync(
+        baselineFile,
+        JSON.stringify({ threshold: { minDrop: 5, ratio: 0.02 }, audits: { references: { checked } } }),
+        'utf8',
+      );
+    };
+    // 基线 = 实际的一半：实际超出 100%，判「基线过期」。
+    write(Math.floor(actual / 2));
+    const stale = auditReferences({ root, baselineFile }).floor;
+    assert.equal(stale.kind, 'stale', `基线过期没报：${JSON.stringify(stale)}`);
+    if (stale.kind === 'stale') {
+      assert.equal(stale.baseline, 2);
+      assert.equal(stale.overPercent, 100);
+    }
+    // 调回实测值：绿。过期红只能靠刷新基线消除，不是靠改比例。
+    write(actual);
+    assert.equal(auditReferences({ root, baselineFile }).floor.kind, 'ok');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------- 「那东西就在这儿」也得真的是它
 
 test('写着「这东西在那儿」的引用，那儿得有那样东西', () => {

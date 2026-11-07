@@ -5,6 +5,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { commentKindFor, findBannedPorts } from '../scripts/audit-ports-lib.ts';
 import { REQUIRED_DIRS, REQUIRED_FILES, scanRootProblems } from '../scripts/audit-ports.ts';
+import { checkScanFloor } from '../scripts/audit-scan-guard-lib.ts';
+
+test('端口受查数同样判基线过期：基线只有实际的一半即红', () => {
+  // references 的用例钉住了过期判据；这里只钉 ports 这条 metric 走的是同一把尺，
+  // 免得将来有人给它另写一套阈值。
+  const baseline = {
+    threshold: { minDrop: 5, ratio: 0.02 },
+    audits: { ports: { files: 78 } },
+  };
+  const floor = checkScanFloor(baseline, 'ports', 'files', 155);
+  assert.equal(floor.kind, 'stale');
+  if (floor.kind === 'stale') assert.equal(floor.baseline, 78);
+});
 
 test('代码/字符串里的禁用端口：命中', () => {
   const source = [
