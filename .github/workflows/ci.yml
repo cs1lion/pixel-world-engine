@@ -112,6 +112,9 @@ jobs:
       # 允许清单里的例外必须存在、带理由，且一接闸就要从清单删掉，否则这里红。
       - name: 孤儿闸门检测
         run: npm run audit:orphan-gates
+      # 回归：continue-on-error: true / `|| true` / if: false 的接线不算消费方（5 条用例）。
+      - name: 孤儿闸门检测自检
+        run: node --test scripts/orphan-gates-selftest.mjs
 
   server:
     runs-on: ubuntu-latest

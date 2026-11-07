@@ -25,6 +25,8 @@
 
 支持 job 级与 step 级 `working-directory`。不追：child_process 拼字符串的调用、composite action、仓库外脚本。
 
+**消费方还必须能判红**：`continue-on-error: true`、`if: false`、命令里的 `|| true` 会让失败穿过 CI，一律不算消费方（job 级同名字段同理）。`scripts/orphan-gates-selftest.mjs` 用 5 条用例钉住这个口径（一条正面对照 + 四条反例）。
+
 ### 关 3：允许清单
 
 `scripts/orphan-gates-allowlist.json`。每条必须写：
@@ -52,7 +54,8 @@
 ### 债务棘轮
 
 顶层 `pendingCiBudget` 是显式预算。实际 `pending-ci` 条数一旦大于它，CI 就红。新增一条 `pending-ci` 豁免必须同时抬高这个数字——评审时看得见，清单不能只长不短。
-当前 `pendingCiBudget = 27`（`manual 2 / pending-ci 27 / obsolete 1`）是 **2026-11-07 按上面规则第一次量准** 的数字，不是「可以长期不动」的基线：每次接闸、重分或删条目，都要按实测重设。`manual` 与 `obsolete` 不占预算。
+当前 `pendingCiBudget = 24`（`manual 6 / pending-ci 24 / obsolete 1`）。原值 27，2026-11-07 下调 3：`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 6。
+这不是「可以长期不动」的基线：每次接闸、重分或删条目，都要按实测重设。`manual` 与 `obsolete` 不占预算。
 
 ## 命令与输出
 
@@ -66,7 +69,7 @@ npm run audit:orphan-gates
 
 ## CI
 
-`.github/workflows/ci.yml` 的 `repo-harness` job 多一步。只用 node 内置模块，不需要 `npm ci`、不需要浏览器。
+`.github/workflows/ci.yml` 的 `repo-harness` job 两步：`npm run audit:orphan-gates`，以及 `node --test scripts/orphan-gates-selftest.mjs`。只用 node 内置模块，不需要 `npm ci`、不需要浏览器。
 
 具体读数不写死在文档里（它会随检查数增长）：第一次运行的完整清单见引入这个闸门的提交说明。
 
@@ -74,17 +77,19 @@ npm run audit:orphan-gates
 
 清单条目一旦被接进 workflow、被 npm 脚本调用或被 import，必须在**同一提交**里删掉；否则 `audit-orphan-gates` 会红。
 这是设计预期：清单只记录「还没人跑」的东西，不记录「正在跑」的东西。
-例如 `fixture:check` 的 `blockedBy` 写的就是「等地形分支合入」：合并那一刻，地形改动给它接上消费方，CI 会先红一次；正确动作是删掉清单条目，而不是放宽判据。这次红是预期，不是故障。
+例如某条 `pending-ci` 在另一条分支被接进 workflow：合并那一刻，那条改动给它接上消费方，CI 会先红一次；正确动作是删掉清单条目，而不是放宽判据。这次红是预期，不是故障。
 
 ## 已知问题（记录，不在本工具里自行处置）
 
 - `test:inprocess` 与 `npm test` 跑同一批用例，只是跑法变体，属于冗余入口。建议直接删除，不要长期留在豁免里。
 - `check-lamp-blindspot` 依赖 `check-lamp-band` 的产物，本身不是独立检查。它的豁免理由必须写明「消费产物而非重跑」，不能当成一条独立闸门。
 - `test:live` 会改写已入库的 `eval/live/` 截图，是危险入口。应由 owner 要求它默认写临时目录；否则谁手工跑一次就脏了基线证据。
+- **预算只是上限，不是单调递减**（本轮只登记，不实现）。删掉几条后余量变大，后续可再塞新 `pending-ci` 而无需显式抬预算；`manual` / `obsolete` 不占预算，改 `kind` 也能绕开「只长不短」。下一版提案：把预算钉成等值断言——`pending-ci` 条数必须**等于** `pendingCiBudget`，删一条必须同一提交降 1，加一条必须同一提交升 1；或对清单做只允许缩减方向的快照校验，并在 CI 里跑。
+- 命名判据会把「只读数的工具」也认成检查（`check-glow-contrast` 已被 owner 明确降级为非闸门）。本轮只能登记 `manual`；下一版应允许脚本自带「不是闸门」标记，由检测器尊重。
 
 ## 新增一个检查时
 
-- 要进闸：接进 workflow，或让一个已被调用的脚本 `import` 它；同一提交里把清单对应条目删掉。
+- 要进闸：接进 workflow，或让一个已被调用的脚本 `import` 它；接线步骤必须能判红（不许 `continue-on-error: true` / `|| true` / `if: false`）；同一提交里把清单对应条目删掉。
 - 暂不进闸：在清单加一条，写清 `kind`、`reason`、`acceptedBecause`、`blockedBy`；若标 `pending-ci`，同时确认预算数字。
 - 该删但本轮不删：标 `obsolete`，`blockedBy` 写删除建议；它不占预算，只会被单独打出来。
 - 两件都没做：CI 红。

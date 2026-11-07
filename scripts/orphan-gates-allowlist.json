@@ -1,6 +1,6 @@
 {
   "schema": "pwe-orphan-gates-allowlist/1",
-  "pendingCiBudget": 27,
+  "pendingCiBudget": 24,
   "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
   "entries": [
     {
@@ -33,17 +33,17 @@
     },
     {
       "id": "file:world-client/scripts/check-lamp-band.mjs",
-      "kind": "pending-ci",
-      "reason": "夜街灯带暗带位置与宽度验收",
+      "kind": "manual",
+      "reason": "夜街灯带暗带位置与宽度读数（只读数，不判定）",
       "acceptedBecause": "有 npm 入口但 CI 未调用；基线没有消费方",
-      "blockedBy": "preview + Playwright；lamp-band 有 2 张重跑不稳，未钉帧"
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
     },
     {
       "id": "file:world-client/scripts/check-lamp-pool.mjs",
-      "kind": "pending-ci",
-      "reason": "街面光池亮度/色温验收",
+      "kind": "manual",
+      "reason": "街面光池亮度/色温读数（只读数，不判定）",
       "acceptedBecause": "有 npm 入口但 CI 未调用",
-      "blockedBy": "preview + Playwright；lamp-pool 有 5 张重跑不稳，未钉帧"
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
     },
     {
       "id": "file:world-client/scripts/check-buttons.mjs",
@@ -68,10 +68,17 @@
     },
     {
       "id": "file:world-client/scripts/check-rain-pin.mjs",
-      "kind": "pending-ci",
-      "reason": "雨帧三跑逐像素 0 差 + 两条扰动必须非零",
+      "kind": "manual",
+      "reason": "雨帧三跑与两条扰动的截图（只拍图，配对交给 screens-diff.py）",
       "acceptedBecause": "需要 preview + Playwright，尚未决定是否值得常驻 CI",
-      "blockedBy": "preview + Playwright；两次完整跑的成本尚未评估"
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/check-glow-contrast.mjs",
+      "kind": "manual",
+      "reason": "发光块亮度比/周边材质/通道峰值/局部压暗的读数工具（00d3121 起只读数，退出码恒 0）",
+      "acceptedBecause": "main 在分支基点之后把它改成「不是闸门，也不在 CI」；合入时按命名规则被算成检查，只能登记为 manual",
+      "blockedBy": "无客观判红：只输出读数，不设 exit 非 0；要进闸先按 OPEN_ISSUES H1 标定 D（ANNULUS_FLOOR = 32）"
     },
     {
       "id": "npm:world-client#test:lamp-band",
@@ -189,8 +196,8 @@
       "id": "npm:world-client#fixture:check",
       "kind": "pending-ci",
       "reason": "trace fixture 校验入口",
-      "acceptedBecause": "地形分支已给它接上消费方，等合入",
-      "blockedBy": "等地形分支合入；合入后本条目会因「已有消费方」报红，删条目即可（这是设计，不是故障）"
+      "acceptedBecause": "J1：当前 5/5 FAIL（100 断言 0 通过），owner 未认领；接进 CI 只会把既有红带进来",
+      "blockedBy": "J1 未认领：先重录基线或修模拟对齐旧基线，才谈接线；消费方可达不等于绿"
     },
     {
       "id": "file:world-client/scripts/check-setting-scale.mjs",

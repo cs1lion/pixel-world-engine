@@ -5,10 +5,12 @@
  * 判据（写死在代码里，也抄在 docs/ORPHAN_GATES.md）：
  *   1) 检查 = 任意 scripts/ 目录下的 check-* 与 audit-*（.mjs/.ts），
  *      加上 npm 脚本名以 test:/audit:/fixture:/check:/baseline: 开头的条目。
- *   2) 有消费方 = 从任一 workflow 的 `run:` 出发可达：
+ *   2) 有消费方 = 从任一 workflow 的 `run:` 出发可达，且那条步骤必须**能判红**：
  *      workflow 直接 `npm run X` / `node scripts/...`；
  *      npm 脚本体内 `npm run Y` / `node scripts/...`；
  *      JS/TS 文件之间的 import / require。
+ *      `continue-on-error: true`、`if: false`、命令里的 `|| true` 会让失败
+ *      穿过 CI，一律不算消费方（job 级同名字段同理）。
  *   3) 允许清单（scripts/orphan-gates-allowlist.json）里的每条必须有 id、
  *      kind（manual / pending-ci）、reason、acceptedBecause、blockedBy；
  *      指向不存在的检查 → 红；已经不再孤儿 → 红；没有登记的孤儿 → 红；
@@ -145,10 +147,82 @@ function parseWorkflow(file) {
   let cwd = ROOT;
   let index = 0;
 
-  const emit = (commands) => {
+  const indentOf = (line) => line.length - line.trimStart().length;
+  const literal = (value, expected) =>
+    value !== null &&
+    new RegExp(`^(?:${expected}|'${expected}'|"${expected}")$`, 'i').test(value.trim());
+  const keyIn = (start, end, indent, key) => {
+    const pattern = new RegExp(`^\\s*${key}:\\s*(.*)$`);
+    for (let i = start; i < end; i += 1) {
+      const match = lines[i].match(pattern);
+      if (match && indentOf(lines[i]) === indent) return match[1];
+    }
+    return null;
+  };
+  const jobBlock = (from) => {
+    let start = from;
+    for (let i = from - 1; i >= 0; i -= 1) {
+      if (indentOf(lines[i]) === 2 && /^[A-Za-z0-9_.-]+:$/.test(lines[i].trim())) {
+        start = i;
+        break;
+      }
+    }
+    let end = lines.length;
+    for (let i = from + 1; i < lines.length; i += 1) {
+      if (indentOf(lines[i]) === 2 && /^[A-Za-z0-9_.-]+:$/.test(lines[i].trim())) {
+        end = i;
+        break;
+      }
+    }
+    return { start, end };
+  };
+
+  const stepBlock = (at, keyIndent, isListItem) => {
+    let listIndent = isListItem ? keyIndent : keyIndent - 2;
+    let start = at;
+    if (!isListItem) {
+      for (let i = at - 1; i >= 0; i -= 1) {
+        const match = lines[i].match(/^(\s*)- /);
+        if (match && match[1].length <= listIndent) {
+          start = i;
+          listIndent = match[1].length;
+          break;
+        }
+        if (indentOf(lines[i]) === 2 && /^[A-Za-z0-9_.-]+:$/.test(lines[i].trim())) break;
+      }
+    }
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i += 1) {
+      const match = lines[i].match(/^(\s*)- /);
+      if (match && match[1].length <= listIndent) {
+        end = i;
+        break;
+      }
+      if (indentOf(lines[i]) === 2 && /^[A-Za-z0-9_.-]+:$/.test(lines[i].trim())) {
+        end = i;
+        break;
+      }
+    }
+    return { start, end, keyIndent: listIndent + 2 };
+  };
+  // 只有「能判红」的步骤才算消费方：continue-on-error: true、if: false、`|| true`
+  // 都会让失败穿过 CI，等于没接。job 级同名字段一并排除。
+  const isBlockingAt = (at, keyIndent, isListItem) => {
+    const step = stepBlock(at, keyIndent, isListItem);
+    if (literal(keyIn(step.start, step.end, step.keyIndent, 'continue-on-error'), 'true')) return false;
+    if (literal(keyIn(step.start, step.end, step.keyIndent, 'if'), 'false')) return false;
+    const block = jobBlock(at);
+    if (literal(keyIn(block.start, block.end, 4, 'continue-on-error'), 'true')) return false;
+    if (literal(keyIn(block.start, block.end, 4, 'if'), 'false')) return false;
+    return true;
+  };
+
+  const emit = (commands, blocking) => {
+    if (!blocking) return;
     for (const rawLine of commands) {
       const line = rawLine.replace(/\s+#.*$/, '').trim();
       if (!line || line.startsWith('#')) continue;
+      if (/\|\|\s*true(?=\s|;|$)/.test(line)) continue;
       const refs = refsInCommand(line, cwd);
       for (const name of refs.npmRuns) roots.push({ kind: 'npm', name, pkgDir: packageFor(cwd), site: `${site}#${job}` });
       for (const refFile of refs.files) roots.push({ kind: 'file', file: refFile, site: `${site}#${job}` });
@@ -184,6 +258,7 @@ function parseWorkflow(file) {
       }
       if (value === '' || value.startsWith('|') || value.startsWith('>')) {
         const keyIndent = indent;
+        const blocking = isBlockingAt(index, keyIndent, isListItem);
         const block = [];
         index += 1;
         while (index < lines.length) {
@@ -194,10 +269,10 @@ function parseWorkflow(file) {
         }
         const nonEmpty = block.filter((line) => line.trim());
         const minIndent = nonEmpty.length ? Math.min(...nonEmpty.map((line) => line.length - line.trimStart().length)) : 0;
-        emit(block.map((line) => (line.trim() === '' ? '' : line.slice(minIndent))));
+        emit(block.map((line) => (line.trim() === '' ? '' : line.slice(minIndent))), blocking);
         continue;
       }
-      emit([value]);
+      emit([value], isBlockingAt(index, indent, isListItem));
     }
     index += 1;
   }
@@ -307,7 +382,7 @@ const allowedObsolete = allowedOrphans.filter((id) => allowed.get(id).kind === '
 
 console.log(`孤儿闸门检测（${rel(ROOT) || ROOT}）`);
 console.log('判据：文件 **/scripts/check-*、**/scripts/audit-*（.mjs/.ts）；npm 脚本前缀 test:/audit:/fixture:/check:/baseline:');
-console.log('消费方判据：workflow 的 run: → npm 脚本互调 → import/require 闭包');
+console.log('消费方判据：workflow 的 run:（步骤必须能判红）→ npm 脚本互调 → import/require 闭包');
 console.log('');
 
 const consumedChecks = CHECK_IDS.filter((id) => reached.has(id));
