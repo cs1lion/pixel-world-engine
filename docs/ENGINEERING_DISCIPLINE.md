@@ -24,6 +24,7 @@
 | 接孤儿闸门 | L2、L3、M1、V2、E6 |
 | 只改文档 / 编号 | C6、E4、E5、E6、L3、V2 |
 | 环境化 / 流程改进 | X1、X2、L1、L2、E6 |
+| 改造 / 迭代 skill 或工作流文档 | X3、X1、X2、E1、E4、E6 |
 | 交付前自查（任何改动） | V1、V2、V5、E1、E4、E6 |
 
 > 实话：标 `[人工步骤]` 的多数条款只是**检查点**，不是可复现动作 —— 照做不等于复现。真正具备「命令 + 判绿口径」的只有 **E3 / M1 / M2 / M5**；其余需要先补成命令与判据，才能当作可执行的验收项来依赖。
@@ -373,6 +374,14 @@
 - **违反暴露**：第一段没有闸，只能 review；后两段由 `red-first` 强制——先实现后补一个在 base 上也绿的测试会 `exit 1`。
 - **对应物**：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L231-L276) architect 先定外框；[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L345-L396) TDD；[red-first.ts](file:///D:/project/pixel-world-engine/world-client/scripts/red-first.ts#L1-L15)。
 
+### X3 skill 自迭代改造按「四块判据 + 四类验证边界」执行
+
+**状态**：`[人工步骤]`（判据与模板见规范文档；完整性 lint `[尚未实现]`）
+- **触发**：改造、迭代或接任本仓任一 skill / 工作流文档（`docs/agents/` 下的文件、`CLAUDE.md` 的 Agent skills 节、后续入仓的 skill 定义）。
+- **怎么做**：先按规范文档的四问诊断模板给出结论与证据（文件 + 小节），补报一次；再与用户确认验收标准，只问缺失或矛盾项、最多 3 个；然后按四块结构改造，「三件套」（工作流程图、任务清单、脚本清单）缺一不可；交付按收尾五问逐条作答，并按四类验证边界给每一项标 5.1 / 5.2 / 5.3 / 5.4。验收标准未确认前不做大范围重构；这里的边界与 X1 的分工按规范文档的条件表判定，不按「更严」自动选边。
+- **违反暴露**：没有脚本核对三件套是否齐、四类边界是否被混称，只能 review。声明「已验证」但只有 5.2 / 5.4 口径的，按 E4 与 E6 当未验证处理。
+- **对应物**：[SKILL_ITERATION_STANDARD.md](SKILL_ITERATION_STANDARD.md#L1-L20) 的四块判据、三件套、`[需人工]` 标注、四类边界、收尾五问与诊断模板；[AGENT_TRUST_AND_VERIFIABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/AGENT_TRUST_AND_VERIFIABILITY.md) 的证据标签与信任阶梯。
+
 ## 10. 尚未实现清单（不得当作闸门引用）
 
 以下项目在 2026-11-07 的当前树上没有完整对应物，或只有人工步骤。写文档、回报、PR 说明时不得把它们写成「已有闸门」：
@@ -391,6 +400,7 @@
 12. `fixture:check` 当前 5/5 FAIL（J1，未认领），不是绿闸。
 13. `verify-all.mjs` 是人工手动入口，不接 CI；没有脚本阻止别人把它接进去。
 14. `audit:reports --strict` 未接 CI，且当前 main 没有该脚本（p1-shore §6.7 的已知缺口）。
+15. skill 改造的自检：三件套是否齐、四类验证边界是否被混称，没有脚本；只有 X3 的人工清单与规范文档里的诊断模板。
 
 ## 11. 来源
 
@@ -413,3 +423,4 @@
 | 日期 | 依据 | 变更 |
 | --- | --- | --- |
 | 2026-11-07 | 本周合并窗口暴露的问题：H1 的 `0.18` 判据造假；G5 的跨记录器 `33,445 / 34,666`；G3 的同树并发写；G2 的前向引用；G4 的引用幻影；E5 的重跑掩盖；K4 的孤儿闸门 | 首次固化本文件：40 条纪律，按任务类型组合使用；`[尚未实现]` 条目单独列出，禁止当既有闸门引用。 |
+| 2026-11-07 | 外部《Skill 自迭代能力 改造指南》落成开发规范；skill 改造缺少「三件套」「四类验证边界」的可执行口径 | 新增 X3（纪律共 41 条）并配套 [SKILL_ITERATION_STANDARD.md](SKILL_ITERATION_STANDARD.md)：四块判据、三件套、`[需人工]` 标注、四类验证边界、收尾五问、可复制诊断模板，以及与既有条款的逐条关系与冲突条件；§0 取值表与 §10 同步增加对应行。 |
