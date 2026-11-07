@@ -45,7 +45,6 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-docs-flows | docs/verifiable-flows | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `48042a3`）；worktree 待 owner 回收 |
 | D:/project/pwe-docs-fix | docs/verifiable-flows-fix | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `6df4324`）；worktree 待 owner 回收 |
 | D:/project/pwe-eval | eval/ledger-facts-question | eval 线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（分支 tip `0a965ca`，经 `91c08e6` 合入；worktree 待 owner 回收） |
-| D:/project/pwe-evidence-provenance | chore/evidence-provenance-audit | 证据同源审计线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `459c8ac`，分支 tip `92cea52`；只读 warn/exit 0，未接 CI、未登记 allowlist，本轮不并入） |
 | D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`486099c` 已合入 main，经 `39cff04`；分支待 worktree 回收后删） |
 | D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main，经 `9d80f7b`；分支待 worktree 回收后删） |
 | D:/project/pwe-funcdaily | feat/func-daily | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
@@ -57,6 +56,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-p4-light | sample/phaser4-lighting | Phaser 4 升级/光照试点线（在役会话） | 2026-11-06 | 2026-11-20 | **保留，勿回收**：升级提交 `e3a67e1` 已合入 main（`430dd0d`）；`2250162`（`?light=terrain/graphics/on` 探针）留在分支、未 push、未合 main，是光照结论唯一代码载体；工作区干净 |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-13 | 本轮未回收（工作区不干净）：`37c7946` 已合入 main，经 `ce92d97`；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢；到期续登记，回收需 owner 确认（续期不等于留用或批准删除） |
+| D:/project/pwe-evidence-provenance | chore/evidence-provenance-audit | 证据同源审计线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `60f77cd`，分支 tip `92cea52`；只读 warn/exit 0，未接 CI、未登记 allowlist，本轮不并入） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2d7406a`，经 `860f2bb`）；远程分支已删（2026-11-05）；worktree 待回收 |
 | D:/project/pwe-soak | feat/soak-30d | 长周期浸泡线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`3a41541`，经 `89e0a88`；worktree 待 owner 回收） |
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
