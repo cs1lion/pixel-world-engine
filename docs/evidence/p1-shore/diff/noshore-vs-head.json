@@ -1,0 +1,251 @@
+{
+  "oldDir": "tmp/p1-shore/noshore",
+  "newDir": "tmp/p1-shore/head",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "noon-high.png",
+      "oldSha256": "10c21cd5b5df3f822ba954203e5b662f9b8293c62f4475f604512496e18df872",
+      "newSha256": "37ecbad826d8254a98975f77e2d69ca1c901d89d888cfe26470ed929ff1e0d03",
+      "oldBytes": 14068,
+      "newBytes": 14263,
+      "identicalBytes": false,
+      "oldSize": [
+        961,
+        641
+      ],
+      "newSize": [
+        961,
+        641
+      ],
+      "comparable": true,
+      "exactChangedPx": 11520,
+      "exactDiffPct": 1.8701,
+      "visibleChangedPx": 10400,
+      "visibleDiffPct": 1.6883,
+      "exactBBox": [
+        1,
+        297,
+        960,
+        308
+      ],
+      "visibleBBox": [
+        1,
+        297,
+        960,
+        308
+      ],
+      "deltaHistogram": {
+        "gt0": 11520,
+        "ge8": 10400,
+        "ge32": 576,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        -0.281,
+        -0.1,
+        0.006
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 10368,
+          "bbox": [
+            1,
+            297,
+            864,
+            308
+          ],
+          "size": [
+            864,
+            12
+          ],
+          "oldColor": "#52666a",
+          "newColor": "#3e5b65",
+          "meanAbsDiff": 14.497942386831276
+        },
+        {
+          "areaPx": 32,
+          "bbox": [
+            957,
+            297,
+            960,
+            304
+          ],
+          "size": [
+            4,
+            8
+          ],
+          "oldColor": "#1c2c36",
+          "newColor": "#1f3440",
+          "meanAbsDiff": 7.0
+        }
+      ],
+      "regionsTotal": 2,
+      "structure": {
+        "components": 2,
+        "coveredPx": 10400,
+        "largestAreaPx": 10368,
+        "largestBbox": [
+          1,
+          297,
+          864,
+          308
+        ],
+        "largestSize": [
+          864,
+          12
+        ],
+        "blocks": [
+          {
+            "areaPx": 10368,
+            "bbox": [
+              1,
+              297,
+              864,
+              308
+            ],
+            "size": [
+              864,
+              12
+            ]
+          },
+          {
+            "areaPx": 32,
+            "bbox": [
+              957,
+              297,
+              960,
+              304
+            ],
+            "size": [
+              4,
+              8
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.018701,
+        "overlapPx": 616001
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "noon-low.png",
+      "oldSha256": "9e8bb941464fdfb92f8c04e0f5842447c14d08f2388032e8a451aa93281e8d6d",
+      "newSha256": "0c71c0a691bb556afe9ca09a77df63eac89dede584e9e9f45013a1ec410c2ca8",
+      "oldBytes": 13876,
+      "newBytes": 14069,
+      "identicalBytes": false,
+      "oldSize": [
+        961,
+        641
+      ],
+      "newSize": [
+        961,
+        641
+      ],
+      "comparable": true,
+      "exactChangedPx": 11520,
+      "exactDiffPct": 1.8701,
+      "visibleChangedPx": 11520,
+      "visibleDiffPct": 1.8701,
+      "exactBBox": [
+        1,
+        297,
+        960,
+        308
+      ],
+      "visibleBBox": [
+        1,
+        297,
+        960,
+        308
+      ],
+      "deltaHistogram": {
+        "gt0": 11520,
+        "ge8": 11520,
+        "ge32": 624,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        -0.287,
+        -0.097,
+        0.014
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 11520,
+          "bbox": [
+            1,
+            297,
+            960,
+            308
+          ],
+          "size": [
+            960,
+            12
+          ],
+          "oldColor": "#52666a",
+          "newColor": "#3e5b65",
+          "meanAbsDiff": 13.801851851851852
+        }
+      ],
+      "regionsTotal": 1,
+      "structure": {
+        "components": 1,
+        "coveredPx": 11520,
+        "largestAreaPx": 11520,
+        "largestBbox": [
+          1,
+          297,
+          960,
+          308
+        ],
+        "largestSize": [
+          960,
+          12
+        ],
+        "blocks": [
+          {
+            "areaPx": 11520,
+            "bbox": [
+              1,
+              297,
+              960,
+              308
+            ],
+            "size": [
+              960,
+              12
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.018701,
+        "overlapPx": 616001
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}

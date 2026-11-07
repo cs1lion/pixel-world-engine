@@ -2,7 +2,7 @@
 import { parseBlueprintTable } from '../world/blueprints.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { BuiltWorld } from '../world/setup.ts';
-import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
+import { doorReaches, placeBlueprint, reaches, rehydratePalettes, TILE_PX, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import {
@@ -19,6 +19,8 @@ import type {
   SettingPack,
   SettingRoutineStop,
   SettingScenery,
+  SettingShore,
+  ShoreStyleId,
 } from './types.ts';
 
 export class SettingPackError extends Error {}
@@ -28,6 +30,101 @@ const TOKENS = Object.keys(WORLD) as WorldColor[];
 
 /** 八种地形各自要落到一个色板槽上，一种都不能少。 */
 const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal'];
+
+/** 岸型闭集。与 `render/shore-band.ts` 的 `SHORE_PRESETS` 同一份名单。 */
+const SHORE_STYLES: readonly ShoreStyleId[] = ['straight', 'inset'];
+
+/** 岸型预设的退让量。与 `render/shore-band.ts` 的 `SHORE_PRESETS` 同一份数字。 */
+const SHORE_INSET: Readonly<Record<ShoreStyleId, number>> = { straight: 0, inset: 2 };
+
+/**
+ * 一组岸型参数：每个字段都在装载期查一遍。
+ *
+ * 漏查的后果都是「画面少一层/画错一层」而不是报错：`style` 写错时渲染侧
+ * 解析不出预设（这里拒，才不会到运行时才抛）；`depthPx = 0` 或段和凑不对
+ * 会画成缺段/0 带宽，这份配置等于没写，而截图差异是 0——正是 A1 验收要抓的
+ * 「存在但没人用」。
+ *
+ * `depthPx` 与每段长度都必须是 8 的倍数：段按 8px 切，给 30 会切出 6px 毛边段，
+ * 直接违反 J7 的「每段 ≥8px」。
+ */
+function validateShore(shore: SettingShore): SettingShore {
+  if (!SHORE_STYLES.includes(shore.style)) {
+    throw new SettingPackError(`shore.style ${String(shore.style)} 不是 straight / inset 之一`);
+  }
+  if (!Array.isArray(shore.land) || shore.land.length === 0) {
+    throw new SettingPackError('shore.land 必须是非空的地形数组');
+  }
+  for (const terrain of shore.land) {
+    if (!TERRAINS.includes(terrain)) {
+      throw new SettingPackError(`shore.land ${String(terrain)} 不是八种地形之一`);
+    }
+  }
+  if (!Number.isInteger(shore.depthPx) || shore.depthPx < 8 || shore.depthPx > 48 || shore.depthPx % 8 !== 0) {
+    throw new SettingPackError(`shore.depthPx ${String(shore.depthPx)} 必须是 8 的整数倍（8..48）`);
+  }
+  if (!Array.isArray(shore.steps) || shore.steps.length < 2 || shore.steps.length > 3) {
+    throw new SettingPackError(`shore.steps 必须是 2..3 段`);
+  }
+  let sum = 0;
+  shore.steps.forEach((step, index) => {
+    if (!TOKENS.includes(step.token)) {
+      throw new SettingPackError(`shore.steps[${index}].token ${String(step.token)} 不在 24 色里`);
+    }
+    if (!Number.isInteger(step.depthPx) || step.depthPx < 8 || step.depthPx % 8 !== 0) {
+      throw new SettingPackError(`shore.steps[${index}].depthPx ${String(step.depthPx)} 必须是 8 的整数倍`);
+    }
+    sum += step.depthPx;
+  });
+  if (sum !== shore.depthPx) {
+    throw new SettingPackError(`shore.steps 的长度和 ${sum} 不等于 shore.depthPx ${shore.depthPx}`);
+  }
+  if (shore.staggerPx !== 4 && shore.staggerPx !== 8) {
+    throw new SettingPackError(`shore.staggerPx ${String(shore.staggerPx)} 只能是 4 或 8`);
+  }
+  if (!Number.isInteger(shore.staggerLevels) || shore.staggerLevels < 2 || shore.staggerLevels > 4) {
+    throw new SettingPackError(`shore.staggerLevels ${String(shore.staggerLevels)} 必须是 2..4 的整数`);
+  }
+  if (!Number.isInteger(shore.staggerStep) || shore.staggerStep < 0 || shore.staggerStep >= shore.steps.length) {
+    throw new SettingPackError(`shore.staggerStep ${String(shore.staggerStep)} 必须是 steps 的合法下标`);
+  }
+  for (const [name, value] of [['maxTruncatedPx', shore.maxTruncatedPx], ['maxOverlapPx', shore.maxOverlapPx]] as const) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new SettingPackError(`shore.${name} ${String(value)} 必须是 ≥0 的整数`);
+    }
+  }
+  const furthest = SHORE_INSET[shore.style] + shore.depthPx + shore.staggerPx * (shore.staggerLevels - 1);
+  if (furthest > 3 * TILE_PX) {
+    throw new SettingPackError(
+      `shore 的 insetPx（${SHORE_INSET[shore.style]}）+ depthPx（${shore.depthPx}）+ staggerPx × (levels−1) = ${furthest} 超过 3 格 ${3 * TILE_PX}`,
+    );
+  }
+  return {
+    land: [...shore.land],
+    style: shore.style,
+    depthPx: shore.depthPx,
+    staggerPx: shore.staggerPx,
+    staggerLevels: shore.staggerLevels,
+    staggerStep: shore.staggerStep,
+    maxTruncatedPx: shore.maxTruncatedPx,
+    maxOverlapPx: shore.maxOverlapPx,
+    steps: shore.steps.map((step) => ({ token: step.token, depthPx: step.depthPx })),
+  };
+}
+
+/** 岸型表：每道陆地地形只能归一组，否则同一格有两种读法。 */
+function validateShoreTable(shore: readonly SettingShore[]): SettingShore[] {
+  if (shore.length === 0) throw new SettingPackError('shore 写了就不能是空数组（不想画就整项省掉）');
+  const claimed = new Set<string>();
+  return shore.map((entry) => {
+    const checked = validateShore(entry);
+    for (const terrain of checked.land) {
+      if (claimed.has(terrain)) throw new SettingPackError(`shore.land ${terrain} 被两组岸型同时声明`);
+      claimed.add(terrain);
+    }
+    return checked;
+  });
+}
 
 /**
  * 构件闭集。与 `SettingScenery['kind']` 是同一份名单，运行时再验一次。
@@ -197,6 +294,8 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       return [terrain, color];
     }),
   ) as Record<TerrainId, number>;
+  // 岸线带：缺席是合法的（旧设定集不画），但写了就必须每一项都对。
+  const shore = raw.shore === undefined ? undefined : validateShoreTable(raw.shore);
   const { width, height } = raw.grid;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 30 || height < 20) {
     throw new SettingPackError('地图至少要有 30×20 格');
@@ -364,7 +463,7 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     }
   }
   const propReveals = compilePropReveals(raw.propReveals);
-  return { ...raw, palette, terrainColors, blueprints, villagers, propReveals, authored: true };
+  return { ...raw, palette, terrainColors, shore, blueprints, villagers, propReveals, authored: true };
 }
 
 /**

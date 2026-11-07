@@ -177,6 +177,60 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 可 `copper` 在色板里的本义是铜绿**屋顶**，用它当滩涂本来就是借的。
     shallow: 'moss', mud: 'soil', coal: 'charcoal',
   },
+  // 岸线带（v3：构件化、跨 2–3 格，见 docs/P1_SHORE_BAND_DESIGN.md §6）：
+  // 24px 基值 = 3 段 × 8px，沿法线跨 2 格落地，末段按 hash2 逐格错位 0/4/8/12px，
+  // 总宽 24–36px。每组三档都是实色平铺，不叠 alpha。
+  //
+  // **石板段与草岸段是两组独立三档，不是一个 token 通吃**：`plaza` 是铺装色，
+  // 铺在草岸上会把岸读成码头/硬边（材质词义不对，不是看不见）。所以 stone 用
+  // `soil→farm→plaza`（`farm→plaza` 正午 23.0 / 22.21），grass 用
+  // `soil→farm→copper`（`farm→copper` 正午 13.0 / 13.06）。读数与穷举见 §6.5。
+  // 两组都用直岸（inset 0）：灯潮界行 15 的岸线是全格宽的北侧边，直岸段沿水线的
+  // 覆盖宽度是整格 16px，段与段之间不留缝。
+  //
+  // `staggerStep` 取 0（湿端）：错位加宽放在贴水的那一段，末段固定 8px。v3 的初版
+  // 把错位加在末段，正午 4× 下 `farm→plaza` 那一段被撑到 16~20px，读成一块亮板
+  // （不是「读成带」，是亮面太大），所以按 §6.5 的退回方案把加宽挪到湿端。
+  //
+  // `maxTruncatedPx` 是 0：截断必须当场失败，不许悄悄少画一段——24px 带的三格
+  // （行 15/16/17）在灯潮界都是陆格。
+  // `maxOverlapPx` 不是 0：灯潮界有 4 个拐角格（(7,9) 北+西 / (19,9) 北+东 /
+  // (28,14) 北+西 / (36,14) 北+东），北带与竖带必然在同一格的 `[d, d)²` 内相交，
+  // 裁掉的重叠是拐角结构而不是缺陷。石材段实测 2656 px（草岸段不在拐角，0），
+  // 这里写死实测基线当**回归棘轮**：重叠涨上去就抛，而不是放宽到某个安全大数。
+  // 它是棘轮、不是合格线——只保证不许变大，不代表 2656 可接受（见设计稿 §6.4）。
+  shore: [
+    {
+      land: ['stone'],
+      style: 'straight',
+      depthPx: 24,
+      staggerPx: 4,
+      staggerLevels: 4,
+      staggerStep: 0,
+      maxTruncatedPx: 0,
+      maxOverlapPx: 2656,
+      steps: [
+        { token: 'soil', depthPx: 8 },
+        { token: 'farm', depthPx: 8 },
+        { token: 'plaza', depthPx: 8 },
+      ],
+    },
+    {
+      land: ['grass'],
+      style: 'straight',
+      depthPx: 24,
+      staggerPx: 4,
+      staggerLevels: 4,
+      staggerStep: 0,
+      maxTruncatedPx: 0,
+      maxOverlapPx: 0,
+      steps: [
+        { token: 'soil', depthPx: 8 },
+        { token: 'farm', depthPx: 8 },
+        { token: 'copper', depthPx: 8 },
+      ],
+    },
+  ],
   grid: {
     width: 64, height: 48, border: 1,
     zones: [
