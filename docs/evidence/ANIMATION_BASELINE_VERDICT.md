@@ -251,7 +251,7 @@ CI 的 `world-client-browser` job 实际只跑四条：`test:persistence`、`tes
 - **B**：降级为人工视觉参考（标注尺寸裁切与材质漂移）。
 - **C**：删除这批图与其 sidecar。
 
-**核对说明**：本工作树的 `docs/OPEN_ISSUES.md` 当前条目只到 E1–E6，未见 E7 正文；本节按另一线的登记口径引用，未在本树核实 E7 正文。
+**核对说明**：本工作树的 `docs/OPEN_ISSUES.md` 当前条目为 E1–E6 与 E8（E8 是 soak 改写条目，原被误记为 E7 后改号）；**E7 仍为空号**，保留给本节的 157 张基线条目（正文在 `fix/entry-hint-clip` 分支，未合入），未在本树核实 E7 正文。
 
 **出处**：`.github/workflows/ci.yml`（浏览器 job 四步与 `EVAL_OUT`）；`world-client/package.json`（npm 入口）；`world-client/scripts/check-phases.mjs`（默认写 tmp、显式才写基线）；`docs/evidence/VERIFIABLE_FLOWS.md` 流程 4（四支无 npm 入口脚本清单）。
 
@@ -306,11 +306,11 @@ git ls-tree -r --name-only 0a6742c -- world-client/eval/screens
 
 - **A 尺寸层**：最低。隐藏 `#entry-hint` 或改抓拍窗口即可让 108/108 回到 631；不需要重录。但修完 0/108 逐字节相同，收益只是"恢复可比"。
 - **B 时效层**：高。必须重录全套（实际产出 144 张，另 13 张是一次性参照），而且**要先修抓拍口径**，否则会把瞬时相位固化进新基线。抓拍不可复现的实测旁证：同码两跑 `smoke` 的 `01` 差 0.35%、`03` 差 1.32%、`05` 差 17.29%、`07-1s` 差 34.99%、`08-overlay-100` 差 57.96%；`check-phases` 的 dusk 38.57%、night-rain 33.29%；`01-salute` 与基线只差 2.09%，但同代码重拍一次变成 26.41%。另有时间序列佐证：2.2s 采样仍在相位渐变里，3.2s 后才稳定。出处 `docs/evidence/SCREENS_BASELINE_AUDIT.md` 与 `docs/evidence/screens-audit-readings.json`。
-- **C 机制层**：不能靠刷新基线修。正确做法是换判据：**同次运行比较**，不依赖跨运行基线。这条路已在 `test:animfsm-transition` 落地，CI 增量约 3.6s，反向用例三项全红。
+- **C 机制层**：不能靠刷新基线修。正确做法是换判据：**同次运行比较**，不依赖跨运行基线。这条路在一次性探针 `test:animfsm-transition` 上验证过（脚本、npm 入口与 CI 接线均未入库），反向用例三项全红。
 
 **建议（不替 owner 拍板）：**
 
-1. **FSM 回归不要用这 169 个产物**，用 `test:animfsm-transition`。它已经进 CI，且只做同次运行比较。
+1. **FSM 回归不要用这 169 个产物**，用 `test:animfsm-transition`（一次性探针；脚本、npm 入口与 CI 接线均未入库，不能当作「已在 CI 里跑的闸门」），且只做同次运行比较。
 2. 这批基线按 E7 的三选一处置：A 接 CI、B 降级人工参考、C 删除。若选 A，必须先解决抓拍不可复现与过渡盲区，否则接进去只会产出假红或恒绿。
 3. 无论选哪个，**不要在没有修抓拍口径前重录**：那会把某一刻的相位渐变固化，下一轮又对不上。
 

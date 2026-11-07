@@ -298,7 +298,10 @@
 - **建议时机**：下一次动 night-rain 判据或天气呈现时。
 - **是否需要用户决策**：**是**（A 补钉 vs B 降级为结构度量）。
 
-### E7. `memory-witnessed-corroboration` 测试直接改写已跟踪证据文件（待修）
+### E8. `memory-witnessed-corroboration` 测试直接改写已跟踪证据文件（待修）
+
+> 编号说明：E7 是另一线登记的「157 张基线没有消费方」（A/B/C 三选项，在 `fix/entry-hint-clip`
+> 分支，未合入）。本条原被误记为 E7，两个不同问题共号；按先入者保留 E7、后入者改为 **E8**。
 
 - **现状 [事实]**：`test/memory-witnessed-corroboration.test.ts` 把结果写到仓库内已跟踪的 `docs/evidence/soak/witnessed-corroboration.json`（[memory-witnessed-corroboration.test.ts](file:///D:/project/pwe-anim-fsm/world-client/test/memory-witnessed-corroboration.test.ts#L95)）。`npm test` 直接跑它时没有 `verify-all.mjs` 的 `PRESERVE` 保护，会把该文件按 LF 重写，`git status` 立刻多出一条 `M`。
 - **复现 [事实]**：2026-11-07 两次 `npm test` 都复现；虽内容语义未变，但行尾从 CRLF 变 LF，属于**检查改写工作区**。已用 `git checkout --` 还原，未进入提交。
@@ -334,7 +337,7 @@
 
 ## G. 合并窗口登记（2026-11-07）
 
-### G1. `npm test` 会改写 `docs/evidence/soak/witnessed-corroboration.json`（材质线编号 E7）
+### G1. `npm test` 会改写 `docs/evidence/soak/witnessed-corroboration.json`（编号 E8）
 
 - **现象 [事实]**：跑一次 `npm test` 之后，该文件被写成 LF 行尾，`git status --short` 显示 `M`，但 `git diff` 为空（纯行尾差异，内容逐字未变）。已在本轮合并中两次复现。
 - **影响 [事实+推断]**：每次跑测试都会在工作区留 `M`，交付账本默认拒绝脏工作区；靠人记「复位一下」不是判据，下一个人遇到同样的 `M` 会怀疑真的有内容改动。
@@ -375,14 +378,17 @@
   （逐栋板缝 13→13）。+88 是合并后的实测净差，未逐项拆账。
 - **处置 [事实]**：按「新功能抬升必须单独记账」，`check-render-budget` 天花板由 33,400 改为
   **33,488**（= 33,445 + 43 条政策余量；相对旧值 +88，全部归 lighting），设计目标 30,000 未动；
+  这 43 是材质线 33,357 那组同配置 3 跑（极差 0）设的政策常数，**不是本轮独立采样得出**；
   账本 `render.drawCalls.static.p50` 同步为 33,445、`script_sha` 同步。**这不是把抬升后的值
   当新基线**：+88 记在本条，后续收紧只能来自等量或更多删除。
-- **未决 [事实]**：`check-ground-shadow` 的 `PEAK_BUDGET` 缺省仍是修递归口径前写的设计目标
-  **30,000**，现在每次跑都红（34,666 ≥ 30,000），且只有预算这一条红。它不在 CI，属手工检查；
-  但不能长期用「红的是旧阈值」口头解释。下一步（二选一，由 lighting 线 owner 定）：
-  (a) 该脚本改两级口径：按它自己的配置取实测天花板记账，`>天花板` 才红；
-  (b) 若它只作记录，把预算断言降为记录项并写明。合并窗口本轮**未改**该脚本阈值。
-- **是否需要用户决策**：是（owner 选 (a)/(b)）。
+- **已执行 [事实]**：owner 定走两级口径（目标不动、天花板按本记录器自己的采样）。改动：
+  `check-ground-shadow.mjs` 设计目标仍 **30,000**；另设 `PEAK_CEILING = 34,666`
+  （同配置连跑 **2 次**峰值均 34,666、**极差 0**，故余量 0；**不套** render-budget 的
+  33,445/33,488）。峰值 `(30,000, 34,666]` 记账不红，`> 34,666` 才红。复跑
+  `[判据] 绿`、`[记账] 债务 4666`。
+- **仍未闭合 [事实]**：该脚本仍不在 CI，只是手工检查；零余量意味着任何新增命令都要重新
+  记账，不能用「先跑绿再说」放行。下一步：与其余孤儿闸门一起排期接线（见本节末清单）。
+- **是否需要用户决策**：否（口径已定，执行完毕）。
 
 ## H. 判据冲突（2026-11-07）
 
@@ -677,12 +683,24 @@
 
 ### J1. 5 条回放夹具 5/5 FAIL（归属模拟线，待认领）
 
-- **现象 [事实]**：合并后在 main 上跑 `fixture:check`，5 条夹具 100 项断言 0 通过 / 5 失败。代表读数：facts 60→78、events 101→95、archived 9→0、dropped 145→204、timetable 打水文案与落点变更。
+- **现象 [事实]**：合并后在 main 上跑 `fixture:check`，5 条夹具 100 项断言 0 通过 / 5 失败。本轮复跑代表读数：build-demolish facts 277→379、timetable facts 9→23、archived 9→0、dropped 145→204、世界/记忆指纹全变。
 - **归属 [事实]**：材质线声明是既有模拟漂移，与雾改烘焙、相位泄漏无关；本窗口在四条线全合入后仍复现，说明不是合并引入的。
 - **下一步（必须二选一，由模拟线 owner 定）**：
   - (a) 重录基线，并在证据里写明这次行为变更的来源；
   - (b) 修模拟，使旧基线重新对齐。
 - **纪律**：未认领前不许把该检查从 CI 或手工清单里静默移除；一个长期红且无人认领的检查等于没有检查。
 - **是否需要用户决策**：**是**（指定 owner 与 (a)/(b)）。
+
+## K. 合并窗口未闭合清单（2026-11-07）
+
+用于决定合并窗口是否关闭。按编号、归属线、下一步逐条列出：
+
+1. **J1** 回放夹具 5/5 FAIL（100 断言 0 通过）— 模拟线；下一步二选一：重录基线（写明行为变更来源）或修模拟对齐旧基线。owner 未认领。
+2. **G5 剩余** 两级口径已落地并复跑 `[判据] 绿`（设计目标 30,000 / 天花板 34,666=2 跑极差 0），但 `check-ground-shadow` 仍不在 CI — lighting 线；下一步：与孤儿闸门一起排期接线。
+3. **E8** `npm test` 改写已跟踪的 `docs/evidence/soak/witnessed-corroboration.json` 行尾（原误记 E7，已改号）— 测试/工具线（材质线登记）；下一步：测试改在临时副本上跑，或测试结束自动恢复；不许再靠人工 `git checkout`。
+4. **孤儿闸门** `fixture:check`、`check-phases-negative`、`check-rain-pin`、`check-shot-actor-pin`、`check-lamp-band`、`check-lamp-pool`（另加 `check-ground-shadow`，见 2）都不在 `.github/workflows/ci.yml` — 归属各线；下一步：等 `chore/orphan-gates` 合并后逐条接线，接一条删一条允许清单。
+5. **同一棵树上两条线并行写** `pwe-anim-fsm` 那 6 个未提交文件（`ci.yml`、`package.json`、check-anim-fsm-transition.mjs、png-diff.mjs、两份 docs）— 动画线；本窗口未碰、未带进合并。下一步：由动画线自己提交或丢弃，关闭窗口前确认归属。
+6. **要点 4 阈值** `T_dusk / T_noon` 未标定、来源无实测 — 设计验收线；下一步：附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后），在此之前只读数、不进闸门。
+7. **V1 本地验证缺口** `red:first` 与 `pytest` 本轮**未在本地跑**（没有 push，CI 不会自行发生）— 集成 / 服务端线；下一步：`red:first` 用 `--base <push 前的 main sha>`（本地取 `git rev-parse origin/main` 或推送前 `HEAD~N`），`pytest` 在 `server/` 下跑；两项都过了才算验证。
 
 

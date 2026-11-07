@@ -15,6 +15,8 @@
  * -------------
  * - G0：本节读数（同刻/跨 t+1s/暂停/确定性/夜间影长/峰值指令）任一不达标即红；
  *   只读**本次运行**的值，不读 `eval/screens/ground-shadow.json`（11-04 的，陈旧即无效）。
+ *   峰值指令走两级口径：设计目标 30,000 不动；本记录器自己的天花板见 `PEAK_CEILING`
+ *   （来源：同配置连跑 2 次峰值均 34,666、极差 0；**不套 render-budget 的 33,445/33,488**）。
  * - G2：**每个有影相位**（晨 / 午 / 昏）都量三段阶梯：「内 > 中 > 外」，相邻两段相对落差
  *   ≥25%（来源见断言旁注释）。只测黄昏分不清「按相位根锚定」与「把问题反向搬了一次」。
  * - G3：墙角接触暗部按**基底 token** 多样本量 ΔL；钉住的样本必须落在 6–14，**双向**判红
@@ -35,7 +37,7 @@
  * 跑法：
  *   cd world-client && npm run dev -- --port 5211
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ node scripts/check-ground-shadow.mjs
- *   # G0 红样例：GROUND_SHADOW_PEAK_BUDGET=1 ...
+ *   # G0 红样例：GROUND_SHADOW_PEAK_CEILING=1 ...
  */
 
 import { createHash } from 'node:crypto';
@@ -53,8 +55,15 @@ mkdirSync(OUT, { recursive: true });
 
 const MIN = 60_000;
 const STEADY_A = 1090 * MIN;
-/** 峰值指令上限。G0 的预算断言用；CI 不设时仍取 30000。 */
-const PEAK_BUDGET = Number(process.env.GROUND_SHADOW_PEAK_BUDGET ?? 30_000);
+/** 设计目标。G0 的目标线，不是本记录器的天花板。 */
+const DESIGN_TARGET = 30_000;
+/**
+ * 本记录器自己的峰值天花板。**不许套 render-budget 的 33,445 / 33,488**：两个记录器的
+ * 机位（400/470 vs 默认）、分辨率（1010×700）、相位集合（四相位/潮位/天气）都不同。
+ * 来源：同一配置连跑 2 次，峰值均为 34,666、极差 0 → 天花板 = 34,666 + 0。
+ * 峰值在 (30,000, 34,666] 记账不红；> 34,666 才红（零余量，任何新增都要重新记账）。
+ */
+const PEAK_CEILING = Number(process.env.GROUND_SHADOW_PEAK_CEILING ?? 34_666);
 
 /** 摊位机位：西侧摊位都在画面里（与 `check-stall-motion` 同一段街）。 */
 const STALL_CAMERA = { x: 400, y: 470 };
@@ -783,7 +792,9 @@ const result = {
   determinism,
   determinismProbe: { pass1, pass2: hashes2 },
   peakCommands,
-  peakBudget: PEAK_BUDGET,
+  peakBudget: DESIGN_TARGET,
+  peakCeiling: PEAK_CEILING,
+  peakDebt: Math.max(0, peakCommands - DESIGN_TARGET),
   ao,
   g1,
 };
@@ -803,7 +814,7 @@ for (const item of phaseRows) {
 }
 console.log(`全关同刻两页 ${pct(closedSameTime.ratio)}（${closedSameTime.changed}px）；跨 t/t+1s ${pct(closedStep.ratio)}（${closedStep.changed}px，既有横条）`);
 console.log(`暂停 ${pct(pauseDiff.ratio)}（帧 +${pauseB.frame - pauseA.frame}）`);
-console.log(`确定性 ${determinism}/13；峰值指令 ${peakCommands}`);
+console.log(`确定性 ${determinism}/13；峰值指令 ${peakCommands}（设计目标 ${DESIGN_TARGET} / 天花板 ${PEAK_CEILING}）`);
 for (const item of phaseRows) {
   if (item.stall.segments) {
     const s = item.stall.segments.map((seg) => `${seg.name} ${(seg.strength * 100).toFixed(2)}%`).join(' / ');
@@ -863,7 +874,7 @@ const nightStallSpans = night?.stall.on.stalls?.map((unit) => unit.span) ?? [];
 const nightVillagerSpan = night?.villager.on.villagers?.[0]?.span ?? 0;
 if (nightStallSpans.some((span) => span > 0)) failures.push(`夜间摊位影长应为 0，实为 ${nightStallSpans.join(',')}`);
 if (nightVillagerSpan > 0) failures.push(`夜间人物影长应为 0，实为 ${nightVillagerSpan}`);
-if (peakCommands >= PEAK_BUDGET) failures.push(`峰值指令 ${peakCommands} ≥ 预算 ${PEAK_BUDGET}`);
+if (peakCommands > PEAK_CEILING) failures.push(`峰值指令 ${peakCommands} > 天花板 ${PEAK_CEILING}（设计目标 ${DESIGN_TARGET}）`);
 
 // G2：三段阶梯必须是「内 > 中 > 外」，且相邻两段的落差够读得出来。
 // 阈值来源：α 阶梯 [1, 0.65, 0.35] 的名义**相对**落差是 35%（内→中）与 46%（中→外）；
@@ -957,6 +968,9 @@ if (aoUnknownBase !== 0) {
   failures.push(`接触暗部「基底未知」${aoUnknownBase} 次：AO 落点那格取错了（正常必须为 0）`);
 }
 
+console.log(
+  `[记账] 设计目标 ${DESIGN_TARGET} / 实测峰值 ${peakCommands} / 天花板 ${PEAK_CEILING}，债务 ${Math.max(0, peakCommands - DESIGN_TARGET)}`,
+);
 if (failures.length > 0) {
   console.log(`[判据] 红（${failures.length} 条）`);
   for (const failure of failures) console.log(`  - ${failure}`);
