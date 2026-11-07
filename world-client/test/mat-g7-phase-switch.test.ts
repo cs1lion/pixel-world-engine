@@ -12,10 +12,40 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blend } from '../src/render/phase-view.ts';
 import { PHASES } from '../src/render/day-phase.ts';
 
-test('MAT-G7 关灯方向：渐变早期不再沿用上一刻的亮窗/屋脊', () => {
+// ---------------------------------------------------------------- 动态模块
+//
+// `blend` 是这次合入才有的导出。静态 import 在 base 上会
+// `SyntaxError: does not provide an export named`，被 `red:first` 归成
+// compile（exit 2）；改成动态 import + 显式断言后，base 上红在断言上。
+
+interface BlendView {
+  readonly litWindows: number;
+  readonly ridge: number;
+  readonly glow: number;
+  readonly dim: number;
+}
+
+interface PhaseViewModule {
+  readonly blend?: (from: unknown, to: unknown, t: number) => BlendView;
+}
+
+const PHASE_VIEW_MODULE_PATH = '../src/render/phase-view.ts';
+
+async function blendOf(): Promise<NonNullable<PhaseViewModule['blend']>> {
+  let mod: PhaseViewModule = {};
+  try {
+    mod = (await import(PHASE_VIEW_MODULE_PATH)) as PhaseViewModule;
+  } catch {
+    // 模块整体不存在时也按「缺导出」处理：红在断言上，不红在解析上。
+  }
+  assert.equal(typeof mod.blend, 'function', 'render/phase-view.ts 必须导出 blend');
+  return mod.blend!;
+}
+
+test('MAT-G7 关灯方向：渐变早期不再沿用上一刻的亮窗/屋脊', async () => {
+  const blend = await blendOf();
   for (const from of [PHASES.dusk, PHASES.night] as const) {
     const early = blend(from, PHASES.dawn, 0.28);
     assert.equal(
@@ -31,20 +61,23 @@ test('MAT-G7 关灯方向：渐变早期不再沿用上一刻的亮窗/屋脊', 
   }
 });
 
-test('MAT-G7 切换瞬间（t=0）旧内容就已清掉', () => {
+test('MAT-G7 切换瞬间（t=0）旧内容就已清掉', async () => {
+  const blend = await blendOf();
   const atSwitch = blend(PHASES.dusk, PHASES.dawn, 0);
   assert.equal(atSwitch.litWindows, 0, 't=0 仍是黄昏的 2 扇亮窗');
   assert.equal(atSwitch.ridge, 0, 't=0 仍是黄昏的屋脊受光');
 });
 
-test('MAT-G7 点灯方向保留渐变：晨→昏 前半个渐变不立刻全亮', () => {
+test('MAT-G7 点灯方向保留渐变：晨→昏 前半个渐变不立刻全亮', async () => {
+  const blend = await blendOf();
   const early = blend(PHASES.dawn, PHASES.dusk, 0.2);
   assert.equal(early.litWindows, 0, '晨→昏 t=0.2 就亮满 2 扇：熄灯规则被误套到点灯方向');
   const late = blend(PHASES.dawn, PHASES.dusk, 0.7);
   assert.equal(late.litWindows, 2, '晨→昏 t=0.7 仍没亮窗');
 });
 
-test('MAT-G7 连续量仍插值：glow / dim 不许跟着离散内容一起跳', () => {
+test('MAT-G7 连续量仍插值：glow / dim 不许跟着离散内容一起跳', async () => {
+  const blend = await blendOf();
   const mid = blend(PHASES.dusk, PHASES.dawn, 0.5);
   assert.ok(
     mid.glow > PHASES.dawn.glow && mid.glow < PHASES.dusk.glow,

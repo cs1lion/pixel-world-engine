@@ -9,12 +9,47 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { edgeRows } from '../src/render/buildings.ts';
 import { WORLD } from '../src/world/palette-data.ts';
+
+// ---------------------------------------------------------------- 动态模块
+//
+// `edgeRows` 是这次合入才有的导出。静态 import 在 base 上会
+// `SyntaxError: does not provide an export named`，被 `red:first` 归成
+// compile（exit 2）；改成动态 import + 显式断言后，base 上红在断言上。
+
+interface EdgeRowView {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly token: string;
+  readonly alpha: number;
+}
+
+interface BuildingsModule {
+  readonly edgeRows?: (
+    kind: 'doorStep' | 'wall',
+    rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+  ) => readonly EdgeRowView[];
+}
+
+const BUILDINGS_MODULE_PATH = '../src/render/buildings.ts';
+
+async function edgeRowsOf(): Promise<NonNullable<BuildingsModule['edgeRows']>> {
+  let mod: BuildingsModule = {};
+  try {
+    mod = (await import(BUILDINGS_MODULE_PATH)) as BuildingsModule;
+  } catch {
+    // 模块整体不存在时也按「缺导出」处理：红在断言上，不红在解析上。
+  }
+  assert.equal(typeof mod.edgeRows, 'function', 'render/buildings.ts 必须导出 edgeRows');
+  return mod.edgeRows!;
+}
 
 const step = { x: 0, y: 100, w: 24, h: 3 };
 
-test('MAT-G3 台阶有底部暗行：1px、既有暗色、不越出台阶', () => {
+test('MAT-G3 台阶有底部暗行：1px、既有暗色、不越出台阶', async () => {
+  const edgeRows = await edgeRowsOf();
   const rows = edgeRows('doorStep', step);
   assert.ok(rows.length > 0, '台阶没有底部暗行：edgeRows 返回空');
   const bottom = rows.filter((row) => row.y === step.y + step.h - 1);
@@ -29,7 +64,8 @@ test('MAT-G3 台阶有底部暗行：1px、既有暗色、不越出台阶', () =
   );
 });
 
-test('MAT-G3 墙右下有 1px 暗列：判据', () => {
+test('MAT-G3 墙右下有 1px 暗列：判据', async () => {
+  const edgeRows = await edgeRowsOf();
   const wall = { x: 0, y: 30, w: 64, h: 40 };
   const rows = edgeRows('wall', wall);
   const column = rows.find((row) => row.w === 1 && row.h === wall.h);

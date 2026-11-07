@@ -14,7 +14,6 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { glowLayers } from '../src/render/phase-view.ts';
 
 /** 现网实际出现的五档尺寸与基底 alpha（见 phase-view.ts 的 addGlow 调用点）。 */
 const CASES = [
@@ -25,7 +24,45 @@ const CASES = [
   { label: '路灯 12×9', w: 12, h: 9, alpha: 0.11 },
 ];
 
-test('MAT-G1 辉光：任一像素至多被一层覆盖，累加 alpha ≤ 声明峰值', () => {
+// ---------------------------------------------------------------- 动态模块
+//
+// `glowLayers` 是这次合入才有的导出。静态 import 在 base 上会直接
+// `SyntaxError: does not provide an export named`，被 `red:first` 归成 compile
+// （exit 2）；改成动态 import + 显式 typeof 断言后，base 上红在断言上。
+
+interface GlowLayerView {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly token: string;
+  readonly alpha: number;
+}
+
+interface GlowPlanView {
+  readonly layers: readonly GlowLayerView[];
+  readonly peakAlpha: number;
+}
+
+interface PhaseViewModule {
+  readonly glowLayers?: (cx: number, cy: number, w: number, h: number, alpha: number) => GlowPlanView;
+}
+
+const PHASE_VIEW_MODULE_PATH = '../src/render/phase-view.ts';
+
+async function glowLayersOf(): Promise<NonNullable<PhaseViewModule['glowLayers']>> {
+  let mod: PhaseViewModule = {};
+  try {
+    mod = (await import(PHASE_VIEW_MODULE_PATH)) as PhaseViewModule;
+  } catch {
+    // 模块整体不存在时也按「缺导出」处理：红在断言上，不红在解析上。
+  }
+  assert.equal(typeof mod.glowLayers, 'function', 'render/phase-view.ts 必须导出 glowLayers');
+  return mod.glowLayers!;
+}
+
+test('MAT-G1 辉光：任一像素至多被一层覆盖，累加 alpha ≤ 声明峰值', async () => {
+  const glowLayers = await glowLayersOf();
   const failures: string[] = [];
   for (const item of CASES) {
     const plan = glowLayers(20, 20, item.w, item.h, item.alpha);
@@ -69,7 +106,8 @@ test('MAT-G1 辉光：任一像素至多被一层覆盖，累加 alpha ≤ 声�
   );
 });
 
-test('MAT-G1 辉光只用既有 amber / warmLight，不新增色', () => {
+test('MAT-G1 辉光只用既有 amber / warmLight，不新增色', async () => {
+  const glowLayers = await glowLayersOf();
   const plan = glowLayers(20, 20, 13, 9, 0.11);
   for (const layer of plan.layers) {
     assert.ok(

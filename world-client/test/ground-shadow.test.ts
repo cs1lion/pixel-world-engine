@@ -6,9 +6,37 @@ import {
   GROUND_SHADOW_MOTION_ON,
   groundShadowAt,
   groundShadowSpan,
-  shadowSegments,
 } from '../src/world/ground-shadow.ts';
 import { LAMP_POOL_DEPTH, TIDE_DEPTH } from '../src/render/layer-depth.ts';
+
+// ---------------------------------------------------------------- 动态模块
+//
+// `shadowSegments` 是这次合入才有的导出。静态 import 在 base 上会
+// `SyntaxError: does not provide an export named`，被 `red:first` 归成
+// compile（exit 2）；改成动态 import + 显式断言后，base 上红在断言上。
+
+interface ShadowSegmentView {
+  readonly x: number;
+  readonly width: number;
+  readonly alpha: number;
+}
+
+interface GroundShadowModule {
+  readonly shadowSegments?: (x0: number, span: number, alpha: number, dir: number) => readonly ShadowSegmentView[];
+}
+
+const GROUND_SHADOW_MODULE_PATH = '../src/world/ground-shadow.ts';
+
+async function shadowSegmentsOf(): Promise<NonNullable<GroundShadowModule['shadowSegments']>> {
+  let mod: GroundShadowModule = {};
+  try {
+    mod = (await import(GROUND_SHADOW_MODULE_PATH)) as GroundShadowModule;
+  } catch {
+    // 模块整体不存在时也按「缺导出」处理：红在断言上，不红在解析上。
+  }
+  assert.equal(typeof mod.shadowSegments, 'function', 'world/ground-shadow.ts 必须导出 shadowSegments');
+  return mod.shadowSegments!;
+}
 
 test('落地投影的 depth 严格夹在潮水与光池之间，远低于人物与摊位', () => {
   // 潮水 / 光池 / 人 ≥ 1000。影子必须比水高、比光低，才不与光池打架。
@@ -50,7 +78,8 @@ test('开关只有 on 一个字段：关掉即整层不画', () => {
   assert.equal(GROUND_SHADOW_MOTION_OFF.on, false);
 });
 
-test('阶梯切成 1–3 段整数像素，连续且总长等于 span', () => {
+test('阶梯切成 1–3 段整数像素，连续且总长等于 span', async () => {
+  const shadowSegments = await shadowSegmentsOf();
   for (const span of [1, 2, 3, 4, 5, 7, 27]) {
     const segments = shadowSegments(100, span, groundShadowAt('dusk').alpha, -1);
     assert.equal(segments.length, span <= 2 ? 1 : span <= 4 ? 2 : 3, `${span}px 的段数`);
@@ -67,7 +96,8 @@ test('阶梯切成 1–3 段整数像素，连续且总长等于 span', () => {
   }
 });
 
-test('内段永远贴着物体：朝右内段在左端、朝左内段在右端，α 逐级递减', () => {
+test('内段永远贴着物体：朝右内段在左端、朝左内段在右端，α 逐级递减', async () => {
+  const shadowSegments = await shadowSegmentsOf();
   const alpha = groundShadowAt('dusk').alpha;
   const right = shadowSegments(100, 7, alpha, 1);
   assert.ok(right[0].alpha > right[1].alpha && right[1].alpha > right[2].alpha);
@@ -77,7 +107,8 @@ test('内段永远贴着物体：朝右内段在左端、朝左内段在右端�
   assert.equal(right[0].alpha, alpha, '内段用满 α');
 });
 
-test('α 层数 ≤ 4：三段阶梯最多 3 个 α，内芯 1px 再叠一档', () => {
+test('α 层数 ≤ 4：三段阶梯最多 3 个 α，内芯 1px 再叠一档', async () => {
+  const shadowSegments = await shadowSegmentsOf();
   for (const span of [1, 2, 3, 4, 5, 7, 27]) {
     const segments = shadowSegments(0, span, 0.26, -1);
     const alphas = new Set(segments.map((segment) => segment.alpha));
@@ -86,7 +117,8 @@ test('α 层数 ≤ 4：三段阶梯最多 3 个 α，内芯 1px 再叠一档', 
   }
 });
 
-test('夜里 / 零长度直接返回空段，不落暗像素', () => {
+test('夜里 / 零长度直接返回空段，不落暗像素', async () => {
+  const shadowSegments = await shadowSegmentsOf();
   assert.deepEqual(shadowSegments(0, groundShadowAt('night').span, 0, -1), []);
   assert.deepEqual(shadowSegments(0, 7, 0, -1), []);
 });
