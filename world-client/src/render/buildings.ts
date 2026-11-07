@@ -223,6 +223,29 @@ function wallSeed(building: PlacedBuilding): number {
   return hsh >>> 0;
 }
 
+/** 板缝的纵向节拍（世界像素）。同一排建筑按这个节拍落缝，跨栋才不会错位。 */
+export const WALL_SEAM_PITCH = 16;
+
+/**
+ * 墙面横板缝的局部 y 行（相对楼体左上角）。
+ *
+ * 位置**只由世界基线决定**：从 `(baseY + roofH + 3)` 向上取整到 16px 节拍，
+ * 之后每 16px 一条，画到 `h - 8`（横梁上沿）。`seed` 不参与位置，只决定深浅，
+ * 所以同排、同材质、不同 `roofH` 的相邻建筑，板缝落在同一组世界 y 上。
+ */
+export function wallSeamRows(baseY: number, roofH: number, h: number, seed: number): readonly number[] {
+  const top = roofH + 3;
+  const bottom = h - 8;
+  if (bottom <= top) return [];
+  const firstWorld = Math.ceil((baseY + top) / WALL_SEAM_PITCH) * WALL_SEAM_PITCH;
+  const rows: number[] = [];
+  for (let worldY = firstWorld; worldY <= baseY + bottom; worldY += WALL_SEAM_PITCH) {
+    rows.push(worldY - baseY);
+  }
+  void seed;
+  return rows;
+}
+
 /** 墙体：平色 → 板壁木纹 + 地基砌缝 → 檐影 + 木梁 + 立面套件。 */
 function drawWall(
   g: Phaser.GameObjects.Graphics,
@@ -243,10 +266,10 @@ function drawWall(
   const bodyTop = roofH + 3;
   const bodyH = h - 8 - bodyTop;
   if (bodyH > 8) {
-    g.fillStyle(paletteFor().timberDark, 0.3);
-    g.fillRect(1, bodyTop + 2 + (seed % Math.max(1, bodyH - 6)), w - 2, 1);
-    if (bodyH > 26) {
-      g.fillRect(1, bodyTop + 6 + ((seed >>> 8) % Math.max(1, bodyH - 12)), w - 2, 1);
+    const seams = wallSeamRows(building.origin.y * TILE_PX, roofH, h, seed);
+    for (let i = 0; i < seams.length; i += 1) {
+      g.fillStyle(paletteFor().timberDark, (i + (seed >>> 4)) % 2 === 0 ? 0.3 : 0.26);
+      g.fillRect(1, seams[i]!, w - 2, 1);
     }
     g.fillStyle(paletteFor().timberDark, 0.26);
     const specks = Math.max(2, Math.floor(w / 14));

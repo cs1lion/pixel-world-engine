@@ -221,19 +221,19 @@
     },
     {
       "id": "render.drawCalls.static.p50",
-      "value": 33741,
+      "value": 33357,
       "unit": "draw-calls",
       "seed": "demo-dengchao",
       "weather": "8 组合（正午/夜/昏/晨 × 晴/雨/暴风雨/雾）",
       "rainSeed": "not_measured",
-      "denominator": "整场景递归 stats.totalCommands 的逐帧峰值：8 个时相/天气组合、587 帧连续采样（10,480.5ms），峰值帧 635（晨+雨+灯全开；其中一转帧带时相切换未清的辉光层）。稳定态峰值 33,343（8 段闸门采样，昏+雨，帧 1968）。修雾前峰值 52,125（昏+雾+灯全开，帧 546；雾单层 2,646 块 × 8 条 = 21,168）",
-      "source": "world-client/scripts/check-render-budget.mjs 输出的逐帧峰值 + world-client/tmp/peak-frames.mjs 587 帧探针（preview/dev http://127.0.0.1:5217/，2026-11-07）",
+      "denominator": "整场景递归 stats.totalCommands 的逐帧峰值：闸门自身连续记录器全域（8 个时相/天气组合 + 相位/天气切换帧，按 Oracle.currentPhase() 归组），全域峰值 33,357（昏+暴风雨+灯全开，帧 2336）。33,741（帧 635）是已修复的 MAT-G7 泄漏帧，不作基线。修雾前峰值 52,125（昏+雾+灯全开，帧 546；雾单层 2,646 块 × 8 条 = 21,168）",
+      "source": "world-client/scripts/check-render-budget.mjs 输出的逐帧峰值（preview/dev http://127.0.0.1:5217/，2026-11-07）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "9f60731991057b3cc71c2bf4bf09a5550bc007c21ceda91d08b8de8e31ace7f3",
+      "script_sha": "9c4c2a11fd7257fde35a3667e036fdd09b98aebde45436fc1a3b1c6539412d7e",
       "judge": "program",
       "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "分母改峰值：旧值 27,453 只是正午开局帧，把最坏状态（昏+雾 52,125）漏在闸门外，会让每张图都比在错误基准上。修雾（逐方块 Graphics → 3 张烘焙纹理 + 18 个 Image）后峰值降到 33,741，天花板从 52,125 棘轮到 33,741，债务从 22,125 缩到 3,741；MAX_COMMANDS=30,000 保持为设计目标未动"
+      "note": "分母改峰值：旧值 27,453 只是正午开局帧，把最坏状态（昏+雾 52,125）漏在闸门外，会让每张图都比在错误基准上。修雾（逐方块 Graphics → 3 张烘焙纹理 + 18 个 Image）后含 MAT-G7 泄漏的峰值是 33,741；修掉泄漏后同源读数 33,357（同配置 3 跑：2336 / 2421 / 2435，极差 0）；天花板 33,400 = 33,357 + 43 条政策余量，债务 3,400。MAT-G2（板缝改世界锚定）在现地图上是命令中性（2→2、1→1 条缝），不抬峰值；MAX_COMMANDS=30,000 保持为设计目标未动"
     },
     {
       "id": "palette.violations.world",

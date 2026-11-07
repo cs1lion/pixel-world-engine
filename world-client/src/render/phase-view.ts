@@ -160,17 +160,33 @@ function band(
   ];
 }
 
-function blend(from: PhaseRecipe, to: PhaseRecipe, t: number): Blend {
+/**
+ * 离散内容的方向判据（MAT-G7）。
+ *
+ * 亮窗数 / 屋脊线这类**离散内容**决定 `drawGlows` 画多少个矩形；alpha 再小
+ * 也照样整层重画。所以换相位时若沿用上一刻的「亮着的灯」，900ms 渐变期里
+ * 每帧都会重画整层旧辉光（实测 2,840 条），把峰值抬到 33,741，而稳态只有
+ * 31,301——那不是成本，是旧内容没清。
+ *
+ * 规则：**关灯方向**（目标更少）从切换那一刻就取目标值；**点灯方向**保留
+ * `t < 0.5` 的交叉，避免灯一帧全亮。连续量（dim / glow / mist）照常插值。
+ */
+function contentAt(from: number, to: number, t: number): number {
+  return to <= from ? to : t < 0.5 ? from : to;
+}
+
+export function blend(from: PhaseRecipe, to: PhaseRecipe, t: number): Blend {
   return {
     // 颜色没有中间态可插（插了就是第 25 色），过半直接换到目标色。
     dimColor: t < 0.5 ? from.dimColor : to.dimColor,
     dim: lerp(from.dim, to.dim, t),
     glow: lerp(from.glow, to.glow, t),
-    ridge: lerp(from.ridge, to.ridge, t),
-    litWindows: t < 0.5 ? from.litWindows : to.litWindows,
+    // 屋脊只有黄昏有：目标没有就立刻不画（关灯方向），目标有就按 lerp 渐亮。
+    ridge: to.ridge === 0 ? 0 : lerp(from.ridge, to.ridge, t),
+    litWindows: contentAt(from.litWindows, to.litWindows, t),
     mist: lerp(from.mist, to.mist, t),
     mistBand: lerp(from.mistBand, to.mistBand, t),
-    fireflies: t < 0.5 ? from.fireflies : to.fireflies,
+    fireflies: to.fireflies ? (from.fireflies ? true : t >= 0.5) : false,
   };
 }
 
@@ -330,6 +346,10 @@ export function createPhaseView(
       targetPhase = next;
       t = 0;
       glowKey = '';
+      // 旧辉光层的 commandBuffer 要立刻清掉：不然 `setPhase()` 之后、下一次
+      // `update()` 之前读 `renderStats()`，会把上一刻的 2,840 条算进新时相。
+      // 这是 MAT-G7 的复现路径；下一次 update 本来就会按 `glowKey=''` 重画。
+      glows.clear();
     },
     currentPhase(): PhaseId {
       return targetPhase;

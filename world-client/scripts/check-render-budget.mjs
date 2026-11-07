@@ -72,20 +72,34 @@ const MAX_COMMANDS = 30_000;
 /**
  * 实测峰值天花板（棘轮）：**只许变小**。
  *
- * 2026-11-07 第一次量准是 52,125 条（昏 + 雾 + 灯全开，帧 546）——雾用逐方块
- * Graphics，单层 2,646 块 × 8 条 = 21,168 条。当天把雾改成烘焙纹理后，同一
- * 8 个时相/天气组合的逐帧峰值降到 33,741 条（晨 + 雨 + 灯全开，帧 635）。
- * 它就是「现在这套画法在已实现状态里的最坏值」，不是安全大数；以后只许往下调，
- * 再变重就硬红。
+ * 历史：
+ * - 52,125（昏 + 雾 + 灯全开，帧 546）：雾用逐方块 Graphics，单层 2,646 块
+ *   × 8 条 = 21,168 条。
+ * - 33,741（晨 + 雨，帧 635）：雾改烘焙后。但这一帧是 **MAT-G7 泄漏帧**
+ *   （见 `docs/OPEN_ISSUES.md`）：相位切换后的 900ms 渐变期里，旧辉光层
+ *   （2,840 条亮窗/门池/屋脊）被继续重画；晨 + 雨稳态只有 31,301。
+ * - 33,357（2026-11-07，修掉 MAT-G7 后，**同一台**连续记录器全域读数）：
+ *   晨 + 雨降到 31,261 / 31,275（≤31,301）；全局最坏是**合法的**
+ *   昏 + 暴风雨 / 昏 + 雨 + 灯全开——两扇亮窗 + 屋脊 + 满雨幕，不是泄漏。
+ *
+ * 判据和它比的对象同源：记录器覆盖 8 个组合的**连续帧**（含相位/天气切换帧），
+ * 按 `Oracle.currentPhase()` 归组；`setPeakLabel()` 之后但状态还没换的帧不算。
+ * 取 33,400 = 同配置 **3 次**实测峰值 33,357（帧 2336 / 2421 / 2435，极差 0）
+ * + **43 条政策余量**（只给角色走位 / 开工窗帧的观测抖动，不是新功能预算）；
+ * 以后仍只许往下调。
  */
-const MAX_COMMANDS_CEILING = 33_741;
+const MAX_COMMANDS_CEILING = 33_400;
 /**
- * 显式债务 = 天花板 − 设计目标 = 3,741 条。
+ * 显式债务 = 天花板 − 设计目标 = 3,400 条。
  *
  * 记账口径（对齐 `chore/orphan-gates` 的 `pendingCiBudget`）：
  * - 峰值 ≤ `MAX_COMMANDS`：不欠债，硬闸绿；
- * - 峰值在 (30,000, 33,741]：**记账**（打印 + 落盘，不红），债务不许超过本值；
- * - 峰值 > 33,741：**硬红**，说明又变重了，不是「调上限」能解决的。
+ * - 峰值在 (30,000, 33,400]：**记账**（打印 + 落盘，不红），债务不许超过本值；
+ * - 峰值 > 33,400：**硬红**，说明又变重了，不是「调上限」能解决的。
+ *
+ * 抬升口径：只有「删掉等价或更多命令」时天花板才自动下降（本轮 33,741 →
+ * 33,400，全部来自 MAT-G7 泄漏删除）；**新功能导致的抬升必须单独记账**
+ * （谁抬、抬多少、为什么），不许夹带别的削减，也不许把抬升后的值当新基线往下卖。
  */
 const MAX_COMMANDS_DEBT = MAX_COMMANDS_CEILING - MAX_COMMANDS;
 /**
@@ -286,27 +300,50 @@ const PEAK_STATES = [
   { label: '晨+雨+灯全开', phase: 'dawn', weather: 'rain', pan: false, frames: 40 },
 ];
 
-/** 在页面上按帧采样 `count` 帧的绘制指令；返回逐帧读数。 */
-const sampleCommandFrames = (page, count) =>
-  page.evaluate(
-    (n) =>
-      new Promise((resolve) => {
-        const frames = [];
-        const tick = () => {
-          const stats = window.Oracle.renderStats();
-          frames.push({
-            frame: stats.frame,
-            total: stats.totalCommands,
-            top: stats.top.totalCommands,
-            graphics: stats.graphicsObjects,
-          });
-          if (frames.length >= n) resolve(frames);
-          else requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      }),
-    count,
-  );
+/**
+ * 连续逐帧记录器：切换 label 时不停机，时相/天气切换的过渡帧也算进目标组合。
+ *
+ * 同一个 `frame` 可能被读到两次（`setPhase()` 之后、下一次 `update()` 之前会有
+ * 一次「早读」，读到的是上一刻的 commandBuffer），以**末次**读数为准。早读不是
+ * 上屏帧，不能进天花板；`setPhase()` 里已经 `glows.clear()`，早读读到的是清空后
+ * 的低值。**旧辉光跨 900ms 渐变期被重画**是另一件事，已按 MAT-G7 修掉并登记。
+ */
+const startPeakRecorder = (page) =>
+  page.evaluate(() => {
+    const rec = { stop: false, label: '预热', byFrame: new Map() };
+    window.__peakRecorder = rec;
+    const tick = () => {
+      if (rec.stop) return;
+      const stats = window.Oracle.renderStats();
+      rec.byFrame.set(stats.frame, {
+        label: rec.label,
+        frame: stats.frame,
+        total: stats.totalCommands,
+        top: stats.top.totalCommands,
+        graphics: stats.graphicsObjects,
+        // 实际相位/天气：`setPeakLabel()` 比 `setPhase()` 先调用，切换前那一两帧
+        // 仍属于上一段。按 label 分组会把它们算进新组合（晨+雨 峰值帧落在
+        // 黄昏那一帧就是这么来的）。按**实际相位**分组，判据才和被测状态同源。
+        phase: window.Oracle.currentPhase(),
+        weather: window.Oracle.view().weather,
+      });
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
+const setPeakLabel = (page, label) =>
+  page.evaluate((next) => {
+    if (window.__peakRecorder !== undefined) window.__peakRecorder.label = next;
+  }, label);
+
+const stopPeakRecorder = (page) =>
+  page.evaluate(() => {
+    window.__peakRecorder.stop = true;
+    const frames = [...window.__peakRecorder.byFrame.values()].sort((a, b) => a.frame - b.frame);
+    delete window.__peakRecorder;
+    return frames;
+  });
 
 /** 切到某个峰值采样状态：时相 / 天气 / 灯 / 镜头。`useSay` = 用真实入口首次下雨。 */
 const applyPeakState = async (page, state, useSay) => {
@@ -348,35 +385,55 @@ const applyPeakState = async (page, state, useSay) => {
 };
 
 /**
- * 逐帧取峰值：8 个组合各采一段，记每段峰值帧号与全局峰值。
- * 读数同时保留 `top`（旧口径）与 `total`（递归口径），便于对照。
+ * 逐帧取峰值：**同一台记录器**从正午开局一路录到晨+雨，覆盖全部 8 个组合
+ * 和它们之间的切换帧。判据（`MAX_COMMANDS_CEILING`）与它比的对象都取自
+ * 这一次连续采样——不再出现「窗口峰值 33,343、天花板来自另一次 587 帧探针」
+ * 那种同源性问题。
  */
 const measureCommandsPeak = async (page) => {
-  const states = [];
+  await startPeakRecorder(page);
   let rainIntroDone = false;
-  let best = null;
   for (const state of PEAK_STATES) {
+    await setPeakLabel(page, state.label);
     const useSay = state.weather === 'rain' && !rainIntroDone;
     await applyPeakState(page, state, useSay);
     if (state.weather === 'rain') rainIntroDone = true;
-    const frames = await sampleCommandFrames(page, state.frames);
-    let top = null;
-    for (const reading of frames) {
-      if (top === null || reading.total > top.total) top = reading;
-    }
-    const reading = {
+    // 让记录器把该组合的稳态也收进来；过渡帧已经由上面的 wait 覆盖。
+    await page.waitForTimeout(state.frames * 16);
+  }
+  const frames = await stopPeakRecorder(page);
+
+  const states = PEAK_STATES.map((state) => {
+    // 只收「实际已进入该组合」的帧：相位必须已经是目标相位，指定天气的状态
+    // 还必须天气也到位。这样**过渡帧照收**（`setPhase()` 后第一帧相位就是目标），
+    // 但切换前那一两帧（label 已换、状态没换）不会被算进来。
+    const group = frames.filter(
+      (reading) =>
+        reading.label === state.label
+        && reading.phase === state.phase
+        && (state.weather === null || reading.weather === state.weather),
+    );
+    if (group.length === 0) throw new Error(`峰值记录器没收到 ${state.label}（相位 ${state.phase}）`);
+    const top = group.reduce((a, b) => (b.total > a.total ? b : a));
+    return {
       label: state.label,
-      frames: frames.length,
-      frameSpan: [frames[0].frame, frames.at(-1).frame],
+      frames: group.length,
+      frameSpan: [group[0].frame, group.at(-1).frame],
       peakFrame: top.frame,
       total: top.total,
       top: top.top,
       graphics: top.graphics,
     };
-    states.push(reading);
-    if (best === null || reading.total > best.total) best = reading;
-  }
-  return { states, worst: best, debt: Math.max(0, best.total - MAX_COMMANDS) };
+  });
+  const best = states.reduce((a, b) => (b.total > a.total ? b : a));
+  const worst = {
+    label: best.label,
+    peakFrame: best.peakFrame,
+    total: best.total,
+    top: best.top,
+    graphics: best.graphics,
+  };
+  return { states, worst, debt: Math.max(0, worst.total - MAX_COMMANDS), framesTotal: frames.length };
 };
 
 /** 一轮完整测量：绘制指令、静止/拖动帧率、后台降频与回前台恢复。不含任何判定。 */
