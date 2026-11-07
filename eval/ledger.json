@@ -221,19 +221,19 @@
     },
     {
       "id": "render.drawCalls.static.p50",
-      "value": 33357,
+      "value": 33445,
       "unit": "draw-calls",
       "seed": "demo-dengchao",
       "weather": "8 组合（正午/夜/昏/晨 × 晴/雨/暴风雨/雾）",
       "rainSeed": "not_measured",
-      "denominator": "整场景递归 stats.totalCommands 的逐帧峰值：闸门自身连续记录器全域（8 个时相/天气组合 + 相位/天气切换帧，按 Oracle.currentPhase() 归组），全域峰值 33,357（昏+暴风雨+灯全开，帧 2336）。33,741（帧 635）是已修复的 MAT-G7 泄漏帧，不作基线。修雾前峰值 52,125（昏+雾+灯全开，帧 546；雾单层 2,646 块 × 8 条 = 21,168）",
-      "source": "world-client/scripts/check-render-budget.mjs 输出的逐帧峰值（preview/dev http://127.0.0.1:5217/，2026-11-07）",
+      "denominator": "整场景递归 stats.totalCommands 的逐帧峰值：闸门自身连续记录器全域（8 个时相/天气组合 + 相位/天气切换帧，按 Oracle.currentPhase() 归组），四线合并后 main（2e22e9f）全域峰值 33,445（昏+暴风雨+灯全开，帧 2565）。33,741（帧 635）是已修复的 MAT-G7 泄漏帧，不作基线。修雾前峰值 52,125（昏+雾+灯全开，帧 546；雾单层 2,646 块 × 8 条 = 21,168）",
+      "source": "world-client/scripts/check-render-budget.mjs 输出的逐帧峰值（dev http://127.0.0.1:5240/，2026-11-07 合并窗口，同一会话先 render-budget 后 check-ground-shadow）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "9c4c2a11fd7257fde35a3667e036fdd09b98aebde45436fc1a3b1c6539412d7e",
+      "script_sha": "246d0742b79cd953666d1a0bca9a4baed03ac53b404dfc87d83a6a6630be3887",
       "judge": "program",
       "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "分母改峰值：旧值 27,453 只是正午开局帧，把最坏状态（昏+雾 52,125）漏在闸门外，会让每张图都比在错误基准上。修雾（逐方块 Graphics → 3 张烘焙纹理 + 18 个 Image）后含 MAT-G7 泄漏的峰值是 33,741；修掉泄漏后同源读数 33,357（同配置 3 跑：2336 / 2421 / 2435，极差 0）；天花板 33,400 = 33,357 + 43 条政策余量，债务 3,400。MAT-G2（板缝改世界锚定）在现地图上是命令中性（2→2、1→1 条缝），不抬峰值；MAX_COMMANDS=30,000 保持为设计目标未动"
+      "note": "分母改峰值：旧值 27,453 只是正午开局帧，把最坏状态（昏+雾 52,125）漏在闸门外，会让每张图都比在错误基准上。修雾（逐方块 Graphics → 3 张烘焙纹理 + 18 个 Image）后含 MAT-G7 泄漏的峰值是 33,741；修掉泄漏后同源读数 33,357（同配置 3 跑：2336 / 2421 / 2435，极差 0）。四线合并后同机同记录器重测 33,445（+88），抬升来自 lighting 线的逐帧新增（灯压暗环 3 环 × 4 条/亮灯、接触 AO 1 条/栋、落地影分段）；shore 的 321 条只进一次性烘焙（bakeLayer 的临时 Graphics 不进显示列表），逐帧增量 0；MAT-G2 命令中性。天花板由 33,400 改为 33,488 = 33,445 + 43 条政策余量，相对旧值 +88 全部记在 OPEN_ISSUES G5，不是新基线；MAX_COMMANDS=30,000 保持为设计目标未动。check-ground-shadow 同一窗口按自身机位读出 34,666（不是同一配置，不可互换），其 PEAK_BUDGET 缺省 30,000 的旧口径问题记 G5"
     },
     {
       "id": "palette.violations.world",
@@ -242,14 +242,14 @@
       "seed": "not_measured",
       "weather": "not_measured",
       "rainSeed": "not_measured",
-      "denominator": "世界层唯一色 24（引用 788 处），预算 24",
-      "source": "scripts/audit-palette.mjs --strict 输出（world-client 根，2026-11-07 合并 feat/palette-audit-fix 后重测）",
+      "denominator": "世界层唯一色 24（引用 791 处），预算 24",
+      "source": "scripts/audit-palette.mjs --strict 输出（world-client 根，2026-11-07 四线合并后 main 重读）",
       "script": "scripts/audit-palette.mjs",
       "script_sha": "ae349072facc4a0c9d01b3b9ec327c2cdaaf16ca00a5fc751263e30ce8a836ea",
       "judge": "program",
       "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（故记 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后为 788。修复提交 feat/palette-audit-fix@3228fa5。script_sha 算法：按 UTF-8 读入全文 → 将所有 CRLF（`\r\n`）替换为 LF（`\n`）→ 对替换后的全文取 sha256；单独 CR 不处理。按工作区字节直接算会对不上，别把 `script_sha` 不一致误判成读数过期"
+      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（故记 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后为 788；四线合并后在 main 重读为 791（+3 来自 lighting/anim-fsm 的新读点，唯一色与越界仍为 24 / 0）。修复提交 feat/palette-audit-fix@3228fa5。script_sha 算法：按 UTF-8 读入全文 → 将所有 CRLF（`\r\n`）替换为 LF（`\n`）→ 对替换后的全文取 sha256；单独 CR 不处理。按工作区字节直接算会对不上，别把 `script_sha` 不一致误判成读数过期"
     },
     {
       "id": "palette.violations.ui",
