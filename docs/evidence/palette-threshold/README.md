@@ -91,7 +91,7 @@ node docs/evidence/palette-threshold/gen-threshold.mjs
 palette.ts 未引用 token：19 项
   grass, grassLit, farm, pale, terracotta, moss            ← 用户点名的 6 条误报
   TERRAIN_COLORS.grass / soil / water / stone / mud / tree / shallow / coal   ← 8 条别名误报
-  TERRAIN_SPECK.grass / soil / water / stone / mud         ← 5 条，确实无读点
+  TERRAIN_SPECK.grass / stone / plaza / farm / tree        ← 5 条，确实无读点
 引用处数：95
 ```
 
@@ -101,8 +101,8 @@ palette.ts 未引用 token：19 项
 世界层唯一色：24 / 24（over 0）
 静态可证引用（WORLD 槽）：24 / 24
 动态引用（静态不可判定）：无（所有 24 槽都有静态读点）
-未引用（无任何读点）：TERRAIN_SPECK.grass, TERRAIN_SPECK.soil,
-                      TERRAIN_SPECK.water, TERRAIN_SPECK.stone, TERRAIN_SPECK.mud
+未引用（无任何读点）：TERRAIN_SPECK.grass, TERRAIN_SPECK.stone,
+                      TERRAIN_SPECK.plaza, TERRAIN_SPECK.farm, TERRAIN_SPECK.tree
 引用处数：831
 ```
 
