@@ -323,7 +323,7 @@ cd D:\project\pwe-anim\world-client
 npm run verify:compare -- <左目录> <右目录>
 ```
 
-**输入**：`EVAL_OUT` 目录；四支脚本默认输出到未跟踪的 `tmp/screens/<脚本名>/`，写回 `world-client/eval/screens` 须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`（`check-scene-motion.mjs:35`、`check-stall-motion.mjs:31`、`check-banner-smoke.mjs:33`、`check-ground-shadow.mjs:29`）；pixel-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）给每张图记 file + 逐像素 sha256 + 尺寸 + now + tide + camera。
+**输入**：`EVAL_OUT` 目录；四支脚本默认输出到未跟踪的 `tmp/screens/<脚本名>/`，写回 `world-client/eval/screens` 须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`（`check-scene-motion.mjs:35`、`check-stall-motion.mjs:31`、`check-banner-smoke.mjs:33`、`check-ground-shadow.mjs` 的 `resolveShotDir('check-ground-shadow')`）；pixel-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）给每张图记 file + 逐像素 sha256 + 尺寸 + now + tide + camera。
 
 **判据**：四支抓拍脚本是**测量器，不是闸门**：全仓这四个文件没有 `process.exit`，唯一失败路径是页面报错抛异常。读数里「应为 0」的对照（全关、暂停、残留）与确定性对照都只是打印，当前值跑脚本取。真正的硬判据在 compare-ledger.mjs（当前 main 上不存在，只在 pwe-anim 分支上）：逐像素 sha256 全等且尺寸相同，counts.ok === total 才退出 0，否则退出 1。`[证据]` `scene-motion/README.md:76-79,267`、compare-ledger.mjs 第 102-136 行。
 

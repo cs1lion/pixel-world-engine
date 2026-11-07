@@ -26,6 +26,14 @@
  *   换机位也不变；只有改层次才可复测）。它们只要求留读数、不参与带内判定。
  * - G1：4× 同框只作人工裁决证据，不进断言。
  *
+ * 抓拍前提（fail-closed）
+ * ---------------------
+ * 所有用于比较的帧都先过 `shotStable`（连续 8 帧逐字节相同）。等不到就打印
+ * `[判据前提不成立] …` 并以非 0 退出，**不回退成「拍一张算了」**。为什么需要：
+ * 撤回记录里 30 轮 4 红（13.3%）都是「首张同刻图抓拍早于整屏调色收敛」——
+ * 同刻两页确实冻住了世界，只是第一张落在 `FADE_MS = 900` 的渐变中途。判据没变，
+ * 变的是「先证画面停住，再取字节」。
+ *
  * G0 的接线顺序（**现在只做「能红」，还没接 CI**）
  * -------------------------------------------------
  * 1. 等 `chore/orphan-gates` 合并（它要改 `.github/workflows/ci.yml`、从允许清单删条目）；
@@ -41,12 +49,13 @@
  */
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
 import { assertSurfacePresent } from './lib/measure-surface.mjs';
+import { shotStable } from './lib/shot-stable.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -65,6 +74,12 @@ const DESIGN_TARGET = 30_000;
  * 峰值在 (30,000, 34,666] 记账不红；> 34,666 才红（零余量，任何新增都要重新记账）。
  */
 const PEAK_CEILING = Number(process.env.GROUND_SHADOW_PEAK_CEILING ?? 34_666);
+
+/**
+ * 抓拍前提的上限（不是判据阈值）。见 `scripts/lib/shot-stable.mjs`：
+ * 8 帧逐字节相同才算停住；等不到就是前提不成立，红。
+ */
+const PREMISE_TIMEOUT_MS = 30_000;
 
 /** 摊位机位：西侧摊位都在画面里（与 `check-stall-motion` 同一段街）。 */
 const STALL_CAMERA = { x: 400, y: 470 };
@@ -93,14 +108,21 @@ function initScript({ freezeAt }) {
     rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
     return rng / 4294967296;
   };
-  const state = { frame: 0, frozen: false };
+  const state = { frame: 0, frozen: false, queued: null };
   window.__CAPTURE_STATE__ = state;
   const realRaf = window.requestAnimationFrame.bind(window);
   const frameMs = 1000 / 60;
+  // 帧时钟：`performance.now()` 与喂给渲染循环的时间戳都取 `frame × 16.667ms`。
+  // 渲染循环（Phaser TimeStep）吃的是 rAF 回调的**时间戳参数**，不是 `performance.now()`；
+  // 这里两者同源，所以「帧号相同」= 「dt 序列相同」= 「真实播放的稳态 60fps」。
+  // 每步固定注入 16.6667ms，是为了不让强制步进变成「dt≈0 的空转」——那会测到另一个东西。
   performance.now = () => state.frame * frameMs;
   window.requestAnimationFrame = (cb) => {
+    state.queued = cb;
     if (state.frozen) return 0;
     return realRaf(() => {
+      // 冻结发生在排队期间：这一帧作废，回调留在 `queued` 里等手动步进。
+      if (state.frozen) return;
       state.frame += 1;
       if (freezeAt > 0 && state.frame >= freezeAt) {
         state.frozen = true;
@@ -109,6 +131,24 @@ function initScript({ freezeAt }) {
       }
       cb(state.frame * frameMs);
     });
+  };
+  /** 冻住真实 rAF，返回冻住那一刻的帧号（之后只能 `__stepFrames` 前进）。 */
+  window.__pinFrame = () => {
+    state.frozen = true;
+    return state.frame;
+  };
+  /** 手动步进 n 帧，每帧照常注入 16.6667ms；返回步进后的帧号与实际步数。 */
+  window.__stepFrames = (n) => {
+    let stepped = 0;
+    for (let k = 0; k < n; k += 1) {
+      const cb = state.queued;
+      if (typeof cb !== 'function') break;
+      state.queued = null;
+      state.frame += 1;
+      cb(state.frame * frameMs);
+      stepped += 1;
+    }
+    return { frame: state.frame, stepped };
   };
 }
 
@@ -190,10 +230,44 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
 
 const hashOf = (buf) => createHash('sha256').update(buf).digest('hex');
 
+/** 前提不成立：打印一行、置非 0 退出码、中止——不降级、不重试换绿。 */
+function premiseFailure(label, reason) {
+  const line = `[判据前提不成立] ${label}：${reason}`;
+  console.log(line);
+  process.exitCode = 1;
+  throw new Error(line);
+}
+
+/**
+ * 先证画面停住，再取字节。等不到就把「前提」判红并中止——不拿一张可能还在渐变的
+ * 图去和另一张比。`shotStable` 返回的 buffer 就是满足判据的那一帧，直接写盘。
+ *
+ * 传 `advance` 走步进模式：步进恰好 8 帧、逐帧比，帧数固定，两页才走同样的帧序列。
+ */
+async function stableShot(page, box, label, { advance } = {}) {
+  const premise = await shotStable(page, {
+    clip: box,
+    timeoutMs: PREMISE_TIMEOUT_MS,
+    ...(advance === undefined ? {} : { advance }),
+  });
+  if (!premise.stable) premiseFailure(label, String(premise.reason));
+  return premise;
+}
+
+/** 手动推进 n 帧；步不满就是帧源断了，按前提不成立处理。 */
+async function stepFrames(page, count, label = 'stepFrames') {
+  const result = await page.evaluate((n) => window.__stepFrames(n), count);
+  if (result.stepped !== count) {
+    premiseFailure(label, `只步进了 ${result.stepped}/${count} 帧（帧源断了，没有排队的 rAF 回调）`);
+  }
+  return result.frame;
+}
+
 async function shot(page, box, id) {
+  const premise = await stableShot(page, box, id);
   const file = join(OUT, `ground-shadow-${id}.png`);
-  await page.screenshot({ path: file, clip: box });
-  const buf = readFileSync(file);
+  writeFileSync(file, premise.buffer);
+  const buf = premise.buffer;
   const meta = await page.evaluate(() => ({
     now: window.Oracle.debugStepWorld(0),
     frame: window.__CAPTURE_STATE__.frame,
@@ -571,33 +645,80 @@ const closedStep = await diffPair(
 await closed.page.close();
 
 // 确定性：同一份配置开两个页面，各自从 18:10:00 起每 10 世界秒一帧，逐帧 sha256 比。
+//
+// **前提是「两页帧号相等」，不是「各自等到连续 8 帧相同」就开比。** 画面里有一处
+// 按渲染帧推进、不随世界钟推进的微动（OPEN_ISSUES E12），量化平台由帧号决定：
+// 实测两页各等到「连续 8 帧相同」时帧号是 135 / 179，13 张里 5 张不等。所以这里
+// 冻结真实 rAF、把手动步进都走到同一个 PIN_FRAME，再逐帧比；帧号不等就判前提不成立。
+/** 两页共同的对齐帧号。必须大于开页时真实跑出的帧数（实测 135–180），留足余量。 */
+const PIN_FRAME = 1000;
+/** 对齐之后再多走 90 帧：`FADE_MS = 900` → 54 帧，留一半余量让调色彻底停住。 */
+const SETTLE_FRAMES = 90;
+
+/**
+ * 冻住真实 rAF，从当前帧一路**正常 dt 步进**到 PIN_FRAME + SETTLE_FRAMES。
+ * 不用「把帧号一把拨过去」：那会给渲染循环一个几百秒的 delta，测的是另一个东西。
+ */
+async function pinClock(page, tag) {
+  const frozenAt = await page.evaluate(() => window.__pinFrame());
+  if (frozenAt > PIN_FRAME) {
+    premiseFailure(`${tag}-pin`, `冻住时帧号 ${frozenAt} 已超过 PIN_FRAME=${PIN_FRAME}，拨不回同一相位`);
+  }
+  const target = PIN_FRAME + SETTLE_FRAMES;
+  const frame = await stepFrames(page, target - frozenAt, `${tag}-settle`);
+  if (frame !== target) {
+    premiseFailure(`${tag}-pin`, `步进后帧号 ${frame}，期望 ${target}`);
+  }
+  return frame;
+}
+
 async function runPass(tag) {
   const scene = await openScene(browser, { phase: 'dusk', camera: STALL_CAMERA, villagerCell: null });
   await scene.page.evaluate(() => window.Oracle.debugGroundShadows({ on: true }));
-  // 页面启动耗时不同会让世界钟停在不同的绝对时刻；先推到统一的 18:10:00，
-  // 再等场景稳定（昼夜调色是帧驱动的），两遍才有同一组绝对帧。
+  // 页面启动耗时不同会让世界钟停在不同的绝对时刻；先推到统一的 18:10:00。
   await scene.page.evaluate((target) => {
     const now = window.Oracle.debugStepWorld(0);
     window.Oracle.debugStepWorld(target - now);
   }, STEADY_A);
   await waitFrames(scene.page, 30);
+  await pinClock(scene.page, tag);
+
   const hashes = [];
+  const frames = [];
   let commands = 0;
   for (let i = 0; i < 13; i += 1) {
     if (i > 0) {
       await scene.page.evaluate(() => window.Oracle.debugStepWorld(10_000));
-      await waitFrames(scene.page, 3);
+      // 与抓拍同样的帧预算：3 帧沉降 + 8 帧前提，两页完全一致。
+      await stepFrames(scene.page, 3, `determinism-${tag}-${i}-step`);
     }
-    hashes.push(hashOf(await scene.page.screenshot({ clip: scene.box, path: null })));
+    // 确定性比较的是两遍同一帧；每一帧同样要先证停住，否则比的是两张渐变中途图。
+    const frame = await stableShot(scene.page, scene.box, `determinism-${tag}-${i}`, {
+      advance: () => stepFrames(scene.page, 1, `determinism-${tag}-${i}-advance`),
+    });
+    hashes.push(frame.hash);
+    frames.push(await scene.page.evaluate(() => window.__CAPTURE_STATE__.frame));
     commands = (await scene.page.evaluate(() => window.Oracle.renderStats())).totalCommands;
   }
   peakCommands = Math.max(peakCommands, commands);
   await scene.page.close();
-  return hashes;
+  return { hashes, frames };
 }
 
 const pass1 = await runPass('a');
-const hashes2 = await runPass('b');
+const pass2 = await runPass('b');
+
+// 前提断言：两遍的帧号必须逐项相等，否则「同一帧」这句话不成立，后面比出来的不等
+// 不能算判据红。
+for (let i = 0; i < Math.max(pass1.frames.length, pass2.frames.length); i += 1) {
+  if (pass1.frames[i] !== pass2.frames[i]) {
+    premiseFailure(
+      `determinism-frame-${i}`,
+      `两页帧号不等（a=${String(pass1.frames[i])}，b=${String(pass2.frames[i])}）——比较对象没有同相`,
+    );
+  }
+}
+console.log(`[相位] 两遍帧号一致：${pass1.frames[0]}…${pass1.frames[pass1.frames.length - 1]}（13 个采样点）`);
 
 // G3：建筑墙角的接触暗部。正午无 dim，ΔL 只由静态绘制决定。
 //
@@ -765,7 +886,7 @@ await g1Scene.page.close();
 await reader.close();
 await browser.close();
 
-const determinism = pass1.filter((hash, index) => hash === hashes2[index]).length;
+const determinism = pass1.hashes.filter((hash, index) => hash === pass2.hashes[index]).length;
 
 const result = {
   params: {
@@ -785,7 +906,7 @@ const result = {
   closed: { sameTime: closedSameTime, step: closedStep },
   pause: { diff: pauseDiff, framesAdvanced: pauseB.frame - pauseA.frame, nowA: pauseA.now, nowB: pauseB.now },
   determinism,
-  determinismProbe: { pass1, pass2: hashes2 },
+  determinismProbe: { pass1: pass1.hashes, pass2: pass2.hashes, frames: pass1.frames },
   peakCommands,
   peakBudget: DESIGN_TARGET,
   peakCeiling: PEAK_CEILING,
