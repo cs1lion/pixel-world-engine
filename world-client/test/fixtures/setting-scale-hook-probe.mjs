@@ -41,8 +41,9 @@ function stubHtml(mode) {
 <canvas width="1010" height="700"></canvas>
 <script>
 const canvas = document.querySelector('canvas');
-canvas.getContext('2d').fillStyle = '#111';
-canvas.getContext('2d').fillRect(0, 0, 1010, 700);
+const g = canvas.getContext('2d');
+g.fillStyle = '#111';
+g.fillRect(0, 0, 1010, 700);
 function tick() {
   if (window.__CAPTURE_STATE__.frozen) return;
   window.requestAnimationFrame(tick);
@@ -53,11 +54,33 @@ const cam = { zoom: 2, worldViewX: 460, worldViewY: 400, mode: 'free', width: 48
 window.Oracle = {
   view: () => ({ villagers }),
   camera: () => ({ ...cam }),
-  centerCameraOn: (x, y) => { cam.worldViewX = x - 140; cam.worldViewY = y - 25; },
+  centerCameraOn: (x, y) => { cam.worldViewX = x - 120; cam.worldViewY = y - 80; drawScene(); },
   debugPinVillager: (id, cell) => ({ x: cell.x * 16 + 8, y: (cell.y + 1) * 16, h: 30 }),
   renderStats: () => ({ totalCommands: 0, graphicsObjects: 0, largest: [0, 0, 0, 0, 0] }),
   ${HOOKS[mode]}
 };
+// 桩页也要有可量的几何：没有钩子的旧构建画 32px 墙，有钩子的画 48px。
+// 这样新增的「墙高扫描 = 常量」自洽判据在反例里同样成立。机位变了要重画。
+function drawScene() {
+  const wallH = ${mode === 'missing' ? 32 : 48};
+  // 截图裁的是画布中心 480x320；扫描列给的是截图内坐标，画布坐标要加裁切原点。
+  const CLIP_X = Math.round(1010 / 2 - 240);
+  const CLIP_Y = Math.round(700 / 2 - 160);
+  const sx = (wx) => Math.round((wx - cam.worldViewX) * 4 - 240) + CLIP_X;
+  const sy = (wy) => Math.round((wy - cam.worldViewY) * 4 - 160) + CLIP_Y;
+  const base = sy(464) - 1;
+  g.fillStyle = '#111';
+  g.fillRect(0, 0, 1010, 700);
+  g.fillStyle = '#412d32';
+  g.fillRect(sx(577), base - wallH * 4 + 1, 3, wallH * 4);
+  g.fillStyle = '#a4483d';
+  g.fillRect(sx(577), base - wallH * 4 - 27, 3, 28);
+  g.fillStyle = '#5a6b73';
+  g.fillRect(sx(578), base - 15, 1, 16);
+  g.fillStyle = '#6b4a3f';
+  g.fillRect(sx(632), sy(448) - 1 - 171, 1, 172);
+}
+drawScene();
 </script></body></html>`;
 }
 

@@ -19,7 +19,7 @@
     "height": 320
   },
   "stats": {
-    "frame": 112,
+    "frame": 116,
     "graphicsObjects": 155,
     "totalCommands": 30021,
     "top": {
@@ -303,6 +303,7 @@
   },
   "scanned": {
     "frameH": 13,
+    "wallBandH": 48,
     "stoneH": 3,
     "bodyBottomH": 43,
     "refs": {

@@ -31,6 +31,7 @@ interface ProbeModule {
   MEASURED_SOURCE: string;
   BASELINE_SOURCE: string;
   BASELINE_ANNOTATION: string;
+  annotateEquality(actual: number, expected: number, label: string): string;
   judgeSettingScaleProbe(probe: ProbeInput, options?: { label?: string }): ProbeVerdict;
   assertMeasuredReading(json: unknown, options?: { label?: string }): Record<string, number>;
   isMeasuredReading(json: unknown): boolean;
@@ -223,4 +224,21 @@ test('改后是实测：并排图不带标注', async () => {
   assert.equal(shot.fromBaselineConstant, false);
   assert.equal(shot.annotation, null);
   assert.deepEqual(shot.scale, VALID);
+});
+
+test('「X（= Y）」文案守卫：相等才写等号', async () => {
+  const { annotateEquality } = await load();
+  assert.equal(annotateEquality(48, 48, '墙高'), '（= 墙高 48）');
+});
+
+test('「X（= Y）」文案守卫：喂一对不相等的值，必须写「≠」且不许出现等号', async () => {
+  const { annotateEquality } = await load();
+  const note = annotateEquality(13, 48, '墙高');
+  assert.match(note, /^（≠ 墙高：读数 13，期望 48，差 -35）/);
+  assert.doesNotMatch(note, /（=/, '不相等的读数不许被写成等号');
+});
+
+test('「X（= Y）」文案守卫：非有限数直接抛，不拼出一行假文案', async () => {
+  const { annotateEquality } = await load();
+  assert.throws(() => annotateEquality(Number.NaN, 48, '墙高'), /文案自洽/);
 });

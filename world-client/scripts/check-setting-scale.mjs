@@ -38,7 +38,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
-import { judgeSettingScaleProbe, readShotForComposite } from './lib/setting-scale-probe.mjs';
+import { annotateEquality, judgeSettingScaleProbe, readShotForComposite } from './lib/setting-scale-probe.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -58,7 +58,13 @@ const ZOOM = 2;
 const SHOP = { x: 576, base: 464, id: 'shopfront_mid' };
 /** 街灯：`lamp_post_7` at (39,27)；柱脚 = 27*16 + 16 = 448。 */
 const LAMP = { x: 624, base: 448, id: 'lamp_post_7' };
-/** 扫描列：店面左木框（`x .. x+2`，从墙顶连续涂到石脚底边，量到的就是墙高）。 */
+/**
+ * 扫描列：店面左木框（`x .. x+2`）。
+ *
+ * 注意「连续涂装」不等于墙高：`c.timber` 的木纹刺（1×2px，压在 `x+1`，正是这一列）
+ * 与板缝会把整段打断。`frameH` 只量第一段连续同色（受美术纹理影响，**不是墙高**）；
+ * `wallBandH` 允许 ≤3 世界像素的断点，量到檐口下沿，才是墙高。两者都落盘。
+ */
 const SCAN_SHOP_X = 577;
 /** 扫描列：灯柱本体（`x + 7 .. x + 9`），两个人都不站在这两列上。 */
 const SCAN_LAMP_X = 632;
@@ -210,11 +216,34 @@ const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) =>
     }
     return count / 4;
   };
+  /**
+   * 允许短断点的连续段：从 `fromRow` 向上走，遇到异色只记 gap，gap 不超过
+   * `maxGapPx` 就继续；量到**最后一个同色像素**为止。木纹刺只有 2 世界像素
+   * （8 图中像素），檐口上方的异色带是 7 世界像素（28 图中像素）——3 世界像素
+   * 的容差正好跳过木纹/板缝，停在檐口下沿。
+   */
+  const bandRun = (x, fromRow, ref, maxGapPx) => {
+    let lastMatch = -1;
+    let gap = 0;
+    for (let y = fromRow; y >= 0; y -= 1) {
+      if (near(px(x, y), ref, 6)) {
+        lastMatch = y;
+        gap = 0;
+      } else {
+        gap += 1;
+        if (gap > maxGapPx) break;
+      }
+    }
+    return lastMatch < 0 ? 0 : (fromRow - lastMatch + 1) / 4;
+  };
   const frameRef = px(columns.frameX, columns.frameRefRow);
   const stoneRef = px(columns.stoneX, columns.stoneRow);
   const postRef = px(columns.lampX, columns.postRow);
   return {
+    /** 第一段连续同色——**不是墙高**：木纹刺/板缝会把它截断（旧 PNG 48，新 PNG 13）。 */
     frameH: run(columns.frameX, columns.frameRow, frameRef),
+    /** 墙高：允许 ≤3 世界像素断点的连续段，量到檐口下沿（与 `metrics.shopfrontH` 对照）。 */
+    wallBandH: bandRun(columns.frameX, columns.frameRow, frameRef, 12),
     stoneH: run(columns.stoneX, columns.stoneRow, stoneRef),
     /** 柱脚到灯体下沿的连续涂装：灯体挂在柱顶，这一段是全高里「人能不能顶到」的那一截。 */
     bodyBottomH: run(columns.lampX, columns.postRow, postRef),
@@ -266,7 +295,11 @@ writeFileSync(
 const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 console.log(`[${LABEL}] 机位 (${CAMERA.x}, ${CAMERA.y}) zoom ${cam.zoom} view ${cam.worldViewX},${cam.worldViewY}`);
 console.log(`  常量（${metrics === null ? '改前基线常量，非本次实测、不参与判定' : 'debugSettingScale 实测'}）：墙 ${scale.shopfrontH}（顶抬 ${scale.shopfrontTop}）/ 人 ${scale.personH} / 柱 ${scale.lampPostH} / 灯体下沿 ${scale.lampBodyBottom}`);
-console.log(`  扫描：木框立柱 ${fmt(scanned.frameH)}（= 墙高）/ 石脚 ${fmt(scanned.stoneH)} / 柱脚→灯体下沿 ${fmt(scanned.bodyBottomH)}`);
+console.log(`  扫描：墙高 ${fmt(scanned.wallBandH)}${annotateEquality(scanned.wallBandH, scale.shopfrontH, '墙高')}；连续段口径 ${fmt(scanned.frameH)}（受木纹刺/板缝影响，不等于墙高）/ 石脚 ${fmt(scanned.stoneH)} / 柱脚→灯体下沿 ${fmt(scanned.bodyBottomH)}`);
+if (scanned.wallBandH !== scale.shopfrontH) {
+  console.error(`\n[扫描自洽] 判红：墙高扫描 ${fmt(scanned.wallBandH)} ≠ 常量 ${fmt(scale.shopfrontH)}，差 ${fmt(scanned.wallBandH - scale.shopfrontH)}。ADR 要求扫描与渲染常量一致。\n`);
+  process.exit(1);
+}
 console.log(`  指令 ${stats.totalCommands} / Graphics ${stats.graphicsObjects}`);
 console.log(`  图 ${file}${errors.length === 0 ? '' : `（页面错误：${errors.join('; ')}）`}`);
 
@@ -337,7 +370,7 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
     const s = shot.scale;
     const scan = shot.scanned;
     return `
-      <tr><td>店面墙</td><td>${fmt(scan.frameH)} px（左木框连续涂装，到石脚底边）</td>
+      <tr><td>店面墙</td><td>${typeof scan.wallBandH === 'number' ? `${fmt(scan.wallBandH)} px（左木框，允许 ≤3px 断点的连续涂装，到石脚底边）${annotateEquality(scan.wallBandH, s.shopfrontH, '墙高')}` : '未测（旧口径 JSON，请重拍）'}；连续段口径 ${fmt(scan.frameH)} px（受木纹刺打断，不等于墙高）</td>
           <td>${s.shopfrontH} px（顶抬 ${s.shopfrontTop}）</td>
           <td>${ratio(shot.scale)}×</td></tr>
       <tr><td>其中石脚</td><td>${fmt(scan.stoneH)} px</td><td>4 px</td><td>落地线 y+32</td></tr>
@@ -378,7 +411,8 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
      <h1>灯潮界立面尺度：改前 / 改后，同一机位、同一冻结帧</h1>
      <p class="note">
        机位正对 shopfront_mid 与 lamp_post_7（世界 ${CAMERA.x}, ${CAMERA.y}，zoom ${ZOOM}）。
-       标尺读的是渲染常量；表里的「扫描」是逐像素量出来的连续涂装长度，两者对得上才算数。
+       标尺读的是渲染常量；表里的「扫描」按「允许 ≤3 世界像素断点的连续涂装」量到檐口下沿，
+       与常量一致才写「=」，不一致写「≠」。单列出的「连续段口径」会被木纹刺截断，不等于墙高。
        落地的石脚底边两图都在 y+32，占地与碰撞格没动。
        ${shots.before.annotation === null ? '' : '<span class="warn">改前那一拍是基线常量（图上已标注），只供人看对比，不参与判定。</span>'}
      </p>

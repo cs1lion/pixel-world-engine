@@ -182,6 +182,23 @@ export function isBaselineConstantShot(json) {
 export const BASELINE_ANNOTATION = '改前为基线常量、非实测、未参与判定';
 
 /**
+ * 「读数 X（= Y）」这行字本身就是一条断言。读数变了、文案没变，就会把 13 写成
+ * `= 墙高 48`——等号是伪造的。等号/不等号的生成收在这里：只有真的相等才给 `=`,
+ * 否则给 `≠` 并把读数、期望、差值写全。`check-setting-scale.mjs` 还会在不等时判红。
+ */
+export function annotateEquality(actual, expected, label) {
+  const a = Number(actual);
+  const b = Number(expected);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) {
+    throw new SettingScaleReadingError(
+      `[文案自洽] ${label} 的读数/期望不是有限数：读数=${String(actual)}、期望=${String(expected)}`,
+    );
+  }
+  if (a === b) return `（= ${label} ${b}）`;
+  return `（≠ ${label}：读数 ${a}，期望 ${b}，差 ${a - b}）`;
+}
+
+/**
  * 仅供人看的并排图读取：`after` 必须实测；`before` 允许基线常量，但 JSON 不许带
  * `metrics`、必须自报基线，且返回的 `annotation` 必须画在图上。
  * 任何数值消费仍走 `assertMeasuredReading`，不许从这里拿到的 `scale` 做差。
