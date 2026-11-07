@@ -50,7 +50,7 @@
 | F4 | `node scripts/check-stall-motion.mjs`（5211） | 0 | 40.0 s | 23:53:15 | `帧号 141 168 / 127 150`；`峰值指令 晴 35002 雨 37958` | 5.1 |
 | F4 | `node scripts/check-banner-smoke.mjs`（5211） | 0 | 63.3 s | 23:54:19 | `烟囱起飘高度 [164,180,164,532]` 两次相同；`峰值指令 34938` | 5.1 |
 | F4 | `node scripts/check-ground-shadow.mjs`（5211，第二次） | 0 | 94.2 s | 23:55:53 | `[记账] 设计目标 30000 / 实测峰值 34666 / 天花板 34666，债务 4666`；`[判据] 绿` | 5.1 |
-| F4 | `node scripts/check-ground-shadow.mjs`（5211，首次，窗口 23:37–23:42） | 1 | 未逐秒记 | — | `全关同刻两页 2.43%（13712 px）` | 5.4（环境干扰，见流程 4 复跑段） |
+| F4 | `node scripts/check-ground-shadow.mjs`（5211，首次，窗口 23:37–23:42） | 1 | 未逐秒记 | — | `全关同刻两页 2.43%（13712 px）` | 5.4（外因，非 HMR；2026-11-08 证伪，见流程 4 复跑段） |
 | F4 | 两跑账本比对 `npm run verify:compare -- <左> <右>` | — | — | 未执行 | 工具只在 pwe-anim | `[需人工]`（H2） |
 | F5 | `node --import ./test/phaser-hooks.mjs --test test/render-budget-throttle.test.ts` | 0 | 419 ms | 23:47:40 | `# pass 3` | 5.1 |
 | F5 | `node scripts/check-render-budget.mjs`（5211） | 0 | 86.6 s | 23:51:35 | `渲染预算：硬闸门 3 项通过；记录项 4 项不阻塞` | 5.1（记录项条数与判据「3 项」不符，见流程 5） |
@@ -333,7 +333,7 @@ npm run verify:compare -- <左目录> <右目录>
 
 **现状**：需要浏览器 + 本地服务；主仓没有 pixel-ledger.mjs、compare-ledger.mjs、verify:reset、verify:compare，这些只在 pwe-anim 分支上。主仓 `verify-all.mjs` 未纳入，原因见第 4 节。
 
-**2026-11-07 复跑**：四支抓拍全部 `exit=0`（60.0 / 40.0 / 63.3 / 94.2 s，23:52:35–23:55:53），读数见 1.1。**同一命令首跑曾 `exit=1`**：`check-ground-shadow` 打印 `全关同刻两页 2.43%（13712 px）`，窗口 23:37–23:42；第二次同命令 `exit=0`、`[判据] 绿`、`实测峰值 34666`。两次之间 `world-client/tmp/capture/run1/*.html` 被 vite 的服务根扫到、触发了 HMR 重载（产物写进了服务根），首跑读数按环境干扰记，不归因代码、不改判据（见第 5 节第 8 条）。账本比对仍未执行（H2）。另核到 `check-ground-shadow.mjs:977` 有 `process.exitCode = 1`，所以第 4 节「脚本无退出码」那一行按事实收窄为「三支没有、ground-shadow 有」。
+**2026-11-07 复跑**：四支抓拍全部 `exit=0`（60.0 / 40.0 / 63.3 / 94.2 s，23:52:35–23:55:53），读数见 1.1。**同一命令首跑曾 `exit=1`**：`check-ground-shadow` 打印 `全关同刻两页 2.43%（13712 px）`，窗口 23:37–23:42；第二次同命令 `exit=0`、`[判据] 绿`、`实测峰值 34666`。**2026-11-08 复核推翻了「HMR 重载」这个归因**（详见第 5 节第 8 条）：vite 日志里那条 `page reload tmp/.../*.html` 只是服务端发消息，`world-client/node_modules/vite/dist/client/client.mjs（`full-reload` 分支在 1096–1100 行）` 只重载「payload 与当前文档同名」的 html，探针实测写 tmp 后 0 次导航、页面 token 存活、world 时刻不变；把同样的 html 写到仓外（不经过 vite）后同一条命令照样红（54.99% / 309870 px / maxDelta 4），两次不写盘的控制跑都是 0.00%。逐帧证据：`closed-a` 两跑不同，`closed-b` 与 `closed-t1` 跨跑逐字节相同（`00412DE273AD`）——收敛后的画面是确定的，只有首张被提前拍下。故该红读数是「首张『同刻』图在整屏调色收敛前抓拍」，记 5.4，不归因代码、不改判据。账本比对仍未执行（H2）。另核到 `check-ground-shadow.mjs:977` 有 `process.exitCode = 1`，所以第 4 节「脚本无退出码」那一行按事实收窄为「三支没有、ground-shadow 有」。
 
 ### 流程 5：render-budget（硬闸 = 指令数 + Graphics；fps 三类为记录项）
 
@@ -540,7 +540,11 @@ node scripts/verify-all.mjs --self-test
 5. **2026-11-07 起工作区不再有测试带来的脏文件**：此前 `docs/evidence/soak/witnessed-corroboration.json` 会因旁证测试以 `\n` 写盘而显示 ` M`（`git diff` 为空、仅 LF→CRLF 警告）；该测试已改为只写 `world-client/tmp/` 并做内容比对。
 6. **端口纪律必须写进每条浏览器命令**：脚本默认 5188/5202，恰好落在禁用名单；不覆盖就会占用被禁端口。
 7. **读数不一致要如实列出**：render-budget 有 2026-11-05/06 的两套历史读数（15514/28 与 16130/27，出处见第 3 节末尾）；`03-ACTOR-PIN.md` 与 `04-RENDER-INPUT-TABLE.md` 对五钉 1200 vs 2800 记了 0.0104% 与 0（2026-11-04 至 11-06 归档，出处 `docs/evidence/pin-shots/`）；`palette-9/audit.txt` 的 root 指向 `pwe-lively`。这些都是历史读数、不代表当前值；它们不是「新发现」，是盘点时必须标出的证据缺口。
-8. **2026-11-07 复跑新增两个事实**：①「四支抓拍脚本都没有退出码」这句不准确——`check-ground-shadow.mjs:977` 有 `process.exitCode = 1`，复跑首跑就是靠它退出 1 的；②把抓拍产物写进 `world-client/tmp`（正好是 vite 服务根）会触发 HMR 重载，同一条命令连着跑出过一次红（`2.43% / 13712 px`）与一次绿（`[判据] 绿`）。**环境能造出假红**，所以抓拍结论必须连跑并对照 vite 日志，单次红读数只能记 5.4。
+8. **假红的正确归因（2026-11-08 复核，推翻 2026-11-07 的「HMR 重载」说法）**
+   - **症状**：`check-ground-shadow` 的 `全关同刻两页` / `跨 t` 偶发非 0——2026-11-07 一次 `2.43% / 13712 px / maxDelta 2`，2026-11-08 两次 `54.99% / 309870 px / maxDelta 4`；bbox 覆盖整画面，差值只有 2–4 级，`[判据] 红`、`exit=1`。同一命令另有两次 `0.00%`、`[判据] 绿`、`exit=0`。
+   - **根因**：不是 HMR，也不是服务根或输出目录。①vite 确实会对 `tmp/**/*.html` 打 `page reload`，但 `world-client/node_modules/vite/dist/client/client.mjs（`full-reload` 分支在 1096–1100 行）` 只重载「payload 与当前文档同名」的 html；5211 上探针实测：写 tmp 的 html 后 0 次导航、`window.__PROBE_TOKEN__` 存活、world 时刻不变，而 touch `index.html` 的正对照立刻重载（导航 +1、token 变 null）。②把同样的 html 写到**仓外**（`D:\project\pwe-verify-out\outside-writer`，完全不经过 vite）后，同一条命令照样红（`54.99% / 309870 px`）。③`closed-a` 两跑互不相同，`closed-b` 与 `closed-t1` **跨跑逐字节相同**（`00412DE273AD`）：收敛后的画面是确定的，只有首张被提前拍下。**结论**：首张「同刻」图在整屏调色（昼夜色调）收敛前抓拍；机器上有别的写盘进程时更容易落在过渡中。精确触发时序仍未定，按 5.4 记。
+   - **为什么容易误判成回归**：判据原文是「同一时刻两页必须一模一样」，红了自然先查渲染/投影层；而差值只有 2–4 级、均匀铺满画面，正是色调过渡的形态，不是几何或遮挡错误。11-07 那版只看到 vite 日志有 `page reload` 行就写成「HMR 重载」，**没验证浏览器是否真的导航**——日志里有这条不等于页面重载了。
+   - **两个候选修法都被实验否掉**：`server.watch.ignored` 挡不住仓外写盘（第②条那跑产物仍在 `tmp/` 根内，红的触发者却在根外）；把默认 `EVAL_OUT` 挪出服务根也挡不住同一个仓外写盘进程。真要修得改判据侧（例如先证明同一页连拍两次稳定、再比两页），那是改判定口径，不在本次授权范围，故本次**零改动**。
 
 ## 6. 本次新增文件
 
