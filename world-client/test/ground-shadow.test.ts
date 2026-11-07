@@ -6,6 +6,7 @@ import {
   GROUND_SHADOW_MOTION_ON,
   groundShadowAt,
   groundShadowSpan,
+  shadowSegments,
 } from '../src/world/ground-shadow.ts';
 import { LAMP_POOL_DEPTH, TIDE_DEPTH } from '../src/render/layer-depth.ts';
 
@@ -47,4 +48,45 @@ test('同一相位两次调用返回同一形状（不读墙钟、不存上一�
 test('开关只有 on 一个字段：关掉即整层不画', () => {
   assert.equal(GROUND_SHADOW_MOTION_ON.on, true);
   assert.equal(GROUND_SHADOW_MOTION_OFF.on, false);
+});
+
+test('阶梯切成 1–3 段整数像素，连续且总长等于 span', () => {
+  for (const span of [1, 2, 3, 4, 5, 7, 27]) {
+    const segments = shadowSegments(100, span, groundShadowAt('dusk').alpha, -1);
+    assert.equal(segments.length, span <= 2 ? 1 : span <= 4 ? 2 : 3, `${span}px 的段数`);
+    assert.equal(segments[0].x, 100);
+    assert.equal(segments.at(-1)!.x + segments.at(-1)!.width, 100 + span, `${span}px 总长`);
+    for (const [index, segment] of segments.entries()) {
+      assert.ok(Number.isInteger(segment.x), '段起点必须是整数');
+      assert.ok(Number.isInteger(segment.width) && segment.width >= 1, '段宽必须是正整数');
+      if (index > 0) {
+        const previous = segments[index - 1];
+        assert.equal(segment.x, previous.x + previous.width, '段与段必须首尾相接');
+      }
+    }
+  }
+});
+
+test('内段永远贴着物体：朝右内段在左端、朝左内段在右端，α 逐级递减', () => {
+  const alpha = groundShadowAt('dusk').alpha;
+  const right = shadowSegments(100, 7, alpha, 1);
+  assert.ok(right[0].alpha > right[1].alpha && right[1].alpha > right[2].alpha);
+  const left = shadowSegments(100, 7, alpha, -1);
+  assert.ok(left[2].alpha > left[1].alpha && left[1].alpha > left[0].alpha, '黄昏朝左：右端最深');
+  assert.equal(left[2].alpha, alpha, '内段用满 α');
+  assert.equal(right[0].alpha, alpha, '内段用满 α');
+});
+
+test('α 层数 ≤ 4：三段阶梯最多 3 个 α，内芯 1px 再叠一档', () => {
+  for (const span of [1, 2, 3, 4, 5, 7, 27]) {
+    const segments = shadowSegments(0, span, 0.26, -1);
+    const alphas = new Set(segments.map((segment) => segment.alpha));
+    // 绘制端只在内段再叠一条 ink 内芯 → 总 α 层 = 阶梯数 + 1。
+    assert.ok(alphas.size + 1 <= 4, `${span}px 的 α 层 ${alphas.size} + 内芯 超过 4`);
+  }
+});
+
+test('夜里 / 零长度直接返回空段，不落暗像素', () => {
+  assert.deepEqual(shadowSegments(0, groundShadowAt('night').span, 0, -1), []);
+  assert.deepEqual(shadowSegments(0, 7, 0, -1), []);
 });

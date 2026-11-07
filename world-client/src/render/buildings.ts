@@ -181,10 +181,18 @@ export function drawBuildingDecals(
 }
 
 /**
- * 地面层：三步阶梯投影 + 门口光池。光从左上打，投影落右下（与角色接触阴影同向）。
+ * 地面层：三步阶梯接地影 + 墙角接触暗部 + 门口光池。
+ *
+ * **方向口径（G1）**：这一层是**静态结构/接触影**，方向固定朝右下，不跟随光照相位，
+ * 不来自哪一侧的太阳。动态相位影（黄昏朝左下、清晨朝右）住在 `world/ground-shadow.ts`，
+ * 是另一层、另一条公式；此前这行注释写「光从左上打（与角色接触阴影同向）」，
+ * 把两层的方向混成了一句话，已按 4× 对照的结论改掉。
  *
  * 三步 α 0.16 / 0.32 / 0.55：越靠墙越深、越往外越淡，读成「楼坐在地上」而不是
  * 底下垫了一块灰板。不用 blur——像素画里模糊边缘会变成脏灰带。
+ *
+ * 左下角另加一块 4×4 的接触暗部（α 0.12）：右侧已有接地影，左侧墙脚原本是干的，
+ * 楼会像浮在地上。这一块与太阳无关，只补「墙面与地面相接」的那口气。
  */
 function drawGroundShadow(
   scene: Phaser.Scene,
@@ -203,6 +211,9 @@ function drawGroundShadow(
   g.fillRect(3, h, w - 1, 2);
   g.fillStyle(paletteFor().deepShade, 0.16);
   g.fillRect(4, h + 2, w, 2);
+  // 左墙脚接触暗部：只补左侧（右侧三层已铺到墙外），4×4 与墙角 ROI 同尺寸。
+  g.fillStyle(paletteFor().deepShade, 0.12);
+  g.fillRect(-4, h, 4, 4);
 
   // 门口光池：屋里有灯，光落在门前。两层 ── 外圈铺开、内芯更亮，都是琥珀的低透明度。
   const doorX = building.door.x * TILE_PX - px;

@@ -36,6 +36,7 @@ import {
 import { DEFAULT_LOOK, resolveLook, type VillagerLook } from '../world/villager-look.ts';
 import { villagerDrawPlanOf } from '../animation/villager-anim-fsm-view.ts';
 import type { AnimFsmState } from '../animation/villager-anim-fsm.ts';
+import { shadowSegments, type ShadowSegment } from '../world/ground-shadow.ts';
 
 export { VILLAGER_H, VILLAGER_W };
 
@@ -123,10 +124,20 @@ export function drawVillagerGroundShadow(
   const dir = shape.dx >= 0 ? 1 : -1;
   const x = footX + (dir > 0 ? 3 : -3 - shape.span);
   const y = footY + VILLAGER_SHADOW_ROW_OFFSET;
-  g.fillStyle(palette.deepShade, shape.alpha);
-  g.fillRect(x, y, shape.span, 2);
-  g.fillStyle(palette.ink, shape.alpha * 0.9);
-  g.fillRect(x, y, shape.span, 1);
+  const segments = shadowSegments(x, shape.span, shape.alpha, dir);
+  for (const segment of segments) {
+    g.fillStyle(palette.deepShade, segment.alpha);
+    g.fillRect(segment.x, y, segment.width, 2);
+  }
+  // 内芯只压在内段：再往下铺满整条会抹平阶梯（旧画法就是这么把外段提亮的）。
+  const inner = segments.reduce<ShadowSegment | null>(
+    (deepest, segment) => (deepest === null || segment.alpha > deepest.alpha ? segment : deepest),
+    null,
+  );
+  if (inner !== null) {
+    g.fillStyle(palette.ink, inner.alpha * 0.9);
+    g.fillRect(inner.x, y, inner.width, 1);
+  }
 }
 
 /** 每帧把快照画出来；坐标换算只在这里做一次，且结果取整到整数像素。 */

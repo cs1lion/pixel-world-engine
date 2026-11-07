@@ -62,6 +62,7 @@ import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
   groundShadowAt,
+  shadowSegments,
   type GroundShadowMotion,
 } from '../world/ground-shadow.ts';
 import { sceneryDepth } from './scenery-depth.ts';
@@ -1117,11 +1118,23 @@ function drawStallGroundShadow(
   // 柜台底是 y+16：影子从那一行往下铺两行，朝一侧随相位拉长（正午短、黄昏长）。
   const dir = shape.dx >= 0 ? 1 : -1;
   const start = x + 2 + shape.dx + (dir > 0 ? 0 : -shape.span);
+  // 整条影子按影长切阶梯，**内段贴着柜台**；内芯也只压内段（压在梢上会读成倒挂）。
+  const segments = shadowSegments(start, 20 + shape.span, shape.alpha, dir);
+  for (const segment of segments) {
+    g.fillStyle(c.deepShade, segment.alpha);
+    g.fillRect(segment.x, y + 16, segment.width, 2);
+  }
+  const inner = segments.reduce<null | { x: number; width: number; alpha: number }>(
+    (deepest, segment) => (deepest === null || segment.alpha > deepest.alpha ? segment : deepest),
+    null,
+  );
+  if (inner !== null) {
+    g.fillStyle(c.ink, inner.alpha * 0.9);
+    g.fillRect(inner.x, y + 16, Math.min(16, inner.width), 1);
+  }
+  // 第二行下面那条 16px 外沿保持基 α（不参与阶梯）：它在地面更下一行，只做过渡。
   g.fillStyle(c.deepShade, shape.alpha);
-  g.fillRect(start, y + 16, 20 + shape.span, 2);
   g.fillRect(start + (dir > 0 ? 0 : 4), y + 18, 16, 1);
-  g.fillStyle(c.ink, shape.alpha * 0.9);
-  g.fillRect(start, y + 16, 16, 1);
 }
 
 /**

@@ -11,9 +11,26 @@
  * - 相位三态各取「摊位 + 人物」两处；影长 1 / 7 / 0 px，夜里整层不画。
  * - 人物脚下放大裁图：世界脚底 ±16×±22，原尺寸 + 3×（最近邻，不糊边）。
  *
+ * 判据（G0–G3）
+ * -------------
+ * - G0：本节读数（同刻/跨 t+1s/暂停/确定性/夜间影长/峰值指令）任一不达标即红；
+ *   只读**本次运行**的值，不读 `eval/screens/ground-shadow.json`（11-04 的，陈旧即无效）。
+ * - G2：黄昏三段阶梯必须是「内 > 中 > 外」，相邻两段相对落差 ≥25%（来源见断言旁注释）。
+ * - G3：墙角接触暗部 ΔL 必须落在 6–14，**双向**判红（太淡读不出 / 太深像第二层影子）。
+ * - G1：4× 同框只作人工裁决证据，不进断言。
+ *
+ * G0 的接线顺序（**现在只做「能红」，还没接 CI**）
+ * -------------------------------------------------
+ * 1. 等 `chore/orphan-gates` 合并（它要改 `.github/workflows/ci.yml`、从允许清单删条目）；
+ * 2. 合并后**单独一条分支**给 ci.yml 加这一步，并同时把本脚本从「允许清单」里删掉；
+ * 3. 两条分支不要同时改 ci.yml——会冲突；「从允许清单删掉」也不能早于接线。
+ *
+ * 输出只写 `tmp/screens/check-ground-shadow/`（未跟踪），不写 `eval/screens`。
+ *
  * 跑法：
  *   cd world-client && npm run dev -- --port 5211
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ node scripts/check-ground-shadow.mjs
+ *   # G0 红样例：GROUND_SHADOW_PEAK_BUDGET=1 ...
  */
 
 import { createHash } from 'node:crypto';
@@ -31,6 +48,8 @@ mkdirSync(OUT, { recursive: true });
 
 const MIN = 60_000;
 const STEADY_A = 1090 * MIN;
+/** 峰值指令上限。G0 的预算断言用；CI 不设时仍取 30000。 */
+const PEAK_BUDGET = Number(process.env.GROUND_SHADOW_PEAK_BUDGET ?? 30_000);
 
 /** 摊位机位：西侧摊位都在画面里（与 `check-stall-motion` 同一段街）。 */
 const STALL_CAMERA = { x: 400, y: 470 };
@@ -239,6 +258,134 @@ async function diffPair(page, aBuf, bBuf, cam, roi) {
   }, { b64, roi, cam });
 }
 
+/**
+ * 沿影长切三段（内 / 中 / 外），与 `world/ground-shadow.ts` 的 `shadowSegments`
+ * 同一套取整与朝向：**内段贴着物体**，`dir<0`（黄昏朝左）时内段在右端。
+ * 少了这个朝向，黄昏会把「梢」读成「芯」——基线就是这么把摊位影读成倒挂的。
+ */
+function splitShadowSpan(x, span, dir) {
+  const widths = [
+    Math.max(1, Math.round(span * 0.4)),
+    Math.max(1, Math.round(span * 0.35)),
+    0,
+  ];
+  widths[2] = Math.max(1, span - widths[0] - widths[1]);
+  const names = ['inner', 'mid', 'outer'];
+  let cursor = dir > 0 ? x : x + span;
+  return widths.map((width, index) => {
+    if (dir > 0) {
+      const segment = { name: names[index], x0: cursor, x1: cursor + width };
+      cursor += width;
+      return segment;
+    }
+    cursor -= width;
+    return { name: names[index], x0: cursor, x1: cursor + width };
+  });
+}
+
+/** 一个世界 ROI 的平均亮度（Rec.709 权重，只看源像素，不模拟 alpha）。 */
+async function lumaStats(page, buf, cam, roi) {
+  const b64 = buf.toString('base64');
+  return page.evaluate(async ({ b64, roi, cam }) => {
+    const image = new Image();
+    await new Promise((res, rej) => {
+      image.onload = res;
+      image.onerror = rej;
+      image.src = `data:image/png;base64,${b64}`;
+    });
+    const c = document.createElement('canvas');
+    c.width = image.width;
+    c.height = image.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const px = (wx) => (wx - cam.worldViewX) * 2 * cam.zoom;
+    const py = (wy) => (wy - cam.worldViewY) * 2 * cam.zoom;
+    const x0 = Math.max(0, Math.round(px(roi.x0)));
+    const x1 = Math.min(c.width, Math.round(px(roi.x1)));
+    const y0 = Math.max(0, Math.round(py(roi.y0)));
+    const y1 = Math.min(c.height, Math.round(py(roi.y1)));
+    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    let sum = 0;
+    let n = 0;
+    let min = 255;
+    let max = 0;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const i = (y * c.width + x) * 4;
+        const l = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+        sum += l;
+        n += 1;
+        if (l < min) min = l;
+        if (l > max) max = l;
+      }
+    }
+    return { pixels: n, mean: n === 0 ? 0 : sum / n, min, max };
+  }, { b64, roi, cam });
+}
+
+/** 一次解码，多个世界 ROI 一起量；G3 逐栋找干净墙角时用。 */
+async function lumaStatsMany(page, buf, cam, rois) {
+  const b64 = buf.toString('base64');
+  return page.evaluate(async ({ b64, rois, cam }) => {
+    const image = new Image();
+    await new Promise((res, rej) => {
+      image.onload = res;
+      image.onerror = rej;
+      image.src = `data:image/png;base64,${b64}`;
+    });
+    const c = document.createElement('canvas');
+    c.width = image.width;
+    c.height = image.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const px = (wx) => (wx - cam.worldViewX) * 2 * cam.zoom;
+    const py = (wy) => (wy - cam.worldViewY) * 2 * cam.zoom;
+    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    return rois.map((roi) => {
+      const x0 = Math.max(0, Math.round(px(roi.x0)));
+      const x1 = Math.min(c.width, Math.round(px(roi.x1)));
+      const y0 = Math.max(0, Math.round(py(roi.y0)));
+      const y1 = Math.min(c.height, Math.round(py(roi.y1)));
+      let sum = 0;
+      let n = 0;
+      let min = 255;
+      let max = 0;
+      for (let y = y0; y < y1; y += 1) {
+        for (let x = x0; x < x1; x += 1) {
+          const i = (y * c.width + x) * 4;
+          const l = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+          sum += l;
+          n += 1;
+          if (l < min) min = l;
+          if (l > max) max = l;
+        }
+      }
+      return { pixels: n, mean: n === 0 ? 0 : sum / n, min, max };
+    });
+  }, { b64, rois, cam });
+}
+
+/** 每个影段的「关−开」相对压暗；G2 判据读这一列。 */
+async function segmentStrength(page, onBuf, offBuf, cam, segments) {
+  const rows = [];
+  for (const seg of segments) {
+    const roiOn = { x0: seg.x0, x1: seg.x1, y0: seg.y0, y1: seg.y1 };
+    const roiOff = { ...roiOn };
+    const on = await lumaStats(page, onBuf, cam, roiOn);
+    const off = await lumaStats(page, offBuf, cam, roiOff);
+    const strength = off.mean === 0 ? 0 : (off.mean - on.mean) / off.mean;
+    rows.push({
+      name: seg.name,
+      world: { x0: seg.x0, x1: seg.x1, y0: seg.y0, y1: seg.y1 },
+      on: on.mean,
+      off: off.mean,
+      strength,
+      onRange: on.max - on.min,
+    });
+  }
+  return rows;
+}
+
 /** 从一帧里裁出世界框，按 `scale` 最近邻放大，返回 PNG 字节。 */
 async function cropUpscale(page, buf, cam, roi, scale) {
   const b64 = buf.toString('base64');
@@ -283,6 +430,21 @@ for (const phase of PHASES) {
   const stallOff = await shot(stall.page, stall.box, `stall-${phase}-off`);
   const stallDiff = await diffPair(reader, stallOn.buf, stallOff.buf, stall.camera, STALL_ROI);
   peakCommands = Math.max(peakCommands, stallOn.stats.totalCommands, stallOff.stats.totalCommands);
+  // G2 现状读数：黄昏沿影长切三段，量「关−开」的相对压暗。
+  let stallSegments = null;
+  if (phase === 'dusk') {
+    const unit = stallOn.units.stalls?.find((s) => s.order === 0) ?? stallOn.units.stalls?.[0];
+    if (unit) {
+      const dir = unit.dx >= 0 ? 1 : -1;
+      const start = unit.x + 2 + unit.dx + (dir > 0 ? 0 : -unit.span);
+      const segments = splitShadowSpan(start, 20 + unit.span, dir).map((seg) => ({
+        ...seg,
+        y0: unit.y + 16,
+        y1: unit.y + 18,
+      }));
+      stallSegments = await segmentStrength(stall.page, stallOn.buf, stallOff.buf, stall.camera, segments);
+    }
+  }
   await stall.page.close();
 
   // 人物：同一时刻开 / 关。
@@ -300,6 +462,24 @@ for (const phase of PHASES) {
   const villagerRoi = { x0: foot.x - 48, y0: foot.y - 70, x1: foot.x + 48, y1: foot.y + 16 };
   const villagerDiff = await diffPair(reader, villagerOn.buf, villagerOff.buf, villager.camera, villagerRoi);
   peakCommands = Math.max(peakCommands, villagerOn.stats.totalCommands, villagerOff.stats.totalCommands);
+  // G2 现状读数：黄昏沿人物影长切三段。
+  let villagerSegments = null;
+  if (phase === 'dusk' && foot.span > 0) {
+    const dir = foot.dx >= 0 ? 1 : -1;
+    const start = foot.x + (dir > 0 ? 3 : -3 - foot.span);
+    const segments = splitShadowSpan(start, foot.span, dir).map((seg) => ({
+      ...seg,
+      y0: foot.y + 3,
+      y1: foot.y + 5,
+    }));
+    villagerSegments = await segmentStrength(
+      villager.page,
+      villagerOn.buf,
+      villagerOff.buf,
+      villager.camera,
+      segments,
+    );
+  }
 
   let footCrop = null;
   if (phase === 'dusk') {
@@ -320,12 +500,14 @@ for (const phase of PHASES) {
       off: stallOff.units,
       diff: stallDiff,
       stats: { on: stallOn.stats, off: stallOff.stats },
+      segments: stallSegments,
     },
     villager: {
       on: villagerOn.units,
       off: villagerOff.units,
       diff: villagerDiff,
       stats: { on: villagerOn.stats, off: villagerOff.stats },
+      segments: villagerSegments,
     },
     footCrop,
   });
@@ -401,6 +583,95 @@ async function runPass(tag) {
 
 const pass1 = await runPass('a');
 const hashes2 = await runPass('b');
+
+// G3：建筑墙角的接触暗部。正午无 dim，ΔL 只由静态绘制决定。
+//
+// 阈值来源（先量现状，再定阈值）：
+// - 同栋楼下方既有最外层阶梯（α 0.16，rows h+2..h+4）**每次运行实测**，
+//   与同帧空地比 ΔL = `stepDelta`（本次 14.00；理论 0.16×(134−44.3)=14.36 对得上）；
+// - 上限 14 = 那一阶的实测值：墙角接触暗部最深也只能追平它，超过就读成「第二层影子」；
+// - 下限 6 = 0.4× 那一阶（14×0.4=5.6 进位），再淡在 24 色量化 + 抖动里读不出，等于白加。
+// 这两个数只对**当前调色板与地面亮度**成立；换设定集要跟着 stepDelta 重算。
+const AO_PIN = 'lamp_archive#1';
+const AO_MIN = 6;
+const AO_MAX = 14;
+const aoScene = await openScene(browser, { phase: 'noon', camera: { x: 504, y: 368 }, villagerCell: null });
+const aoShot = await shot(aoScene.page, aoScene.box, 'ao-noon');
+const buildings = await aoScene.page.evaluate(() => window.Oracle.interior().buildings);
+const TILE = 16;
+// 逐栋量左下墙角，只用于候选表；**判据样本钉死**成 AO_PIN。
+// 按「ΔL 最接近 0」动态挑会在实现后漂移，阈值就钉不住了。
+const rois = buildings.flatMap((b) => {
+  const left = b.origin.x * TILE;
+  const bottom = b.origin.y * TILE + b.footprint.h * TILE;
+  return [
+    { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 },
+    { x0: left - 12, x1: left - 8, y0: bottom, y1: bottom + 4 },
+  ];
+});
+const stats = await lumaStatsMany(aoScene.page, aoShot.buf, aoShot.camera, rois);
+const candidates = buildings.map((b, index) => {
+  const [corner, open] = [stats[index * 2], stats[index * 2 + 1]];
+  return {
+    building: b.id,
+    origin: b.origin,
+    footprint: b.footprint,
+    cornerMean: corner.mean,
+    openMean: open.mean,
+    delta: open.mean - corner.mean,
+    visible: corner.pixels > 0 && open.pixels > 0,
+  };
+});
+const pinned = buildings.find((b) => b.id === AO_PIN);
+const ao = { building: AO_PIN, pinFound: pinned !== undefined, candidates };
+if (pinned !== undefined) {
+  const left = pinned.origin.x * TILE;
+  const bottom = pinned.origin.y * TILE + pinned.footprint.h * TILE;
+  const [corner, open, stepBand] = await lumaStatsMany(
+    aoScene.page,
+    aoShot.buf,
+    aoShot.camera,
+    [
+      { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 },
+      { x0: left - 12, x1: left - 8, y0: bottom, y1: bottom + 4 },
+      // 既有最外层阶梯（α 0.16，rows h+2..h+4）：给阈值做当次实测来源。
+      // 不再量它下方的空地——那个 ROI 已出画（上一跑 mean 0），拿空地 corner 做基准即可。
+      { x0: left + 8, x1: left + 16, y0: bottom + 2, y1: bottom + 4 },
+    ],
+  );
+  Object.assign(ao, {
+    cornerRoi: { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 },
+    openRoi: { x0: left - 12, x1: left - 8, y0: bottom, y1: bottom + 4 },
+    cornerMean: corner.mean,
+    openMean: open.mean,
+    delta: open.mean - corner.mean,
+    // 阶梯的压暗 = 同帧空地（corner 的对照 ROI）− 阶梯带。
+    stepDelta: open.mean - stepBand.mean,
+    stepBandMean: stepBand.mean,
+    min: AO_MIN,
+    max: AO_MAX,
+  });
+}
+await aoScene.page.close();
+
+// G1：黄昏同机位，建筑与角色同时在框内，4× 对照。
+// 机位：wave_house 左墙 + 钉在 (26,27) 的人同框；避开篝火/烟/长凳（前两版都被它们污染）。
+const g1Scene = await openScene(browser, { phase: 'dusk', camera: { x: 480, y: 450 }, villagerCell: { x: 26, y: 27 } });
+const g1Shot = await shot(g1Scene.page, g1Scene.box, 'g1-dusk');
+// 裁到建筑墙脚：上一版下沿停在 495，楼底接地影正好被切掉，没法做同框对照。
+const g1Roi = { x0: 380, y0: 405, x1: 550, y1: 540 };
+const g1Buf = await cropUpscale(g1Scene.page, g1Shot.buf, g1Shot.camera, g1Roi, 4);
+const g1Path = join(OUT, 'lighting-g1-dusk-4x.png');
+writeFileSync(g1Path, g1Buf);
+const g1 = {
+  camera: { x: 480, y: 450 },
+  villagerCell: { x: 26, y: 27 },
+  roi: g1Roi,
+  path: g1Path,
+  hash: hashOf(g1Buf),
+};
+await g1Scene.page.close();
+
 await reader.close();
 await browser.close();
 
@@ -426,6 +697,9 @@ const result = {
   determinism,
   determinismProbe: { pass1, pass2: hashes2 },
   peakCommands,
+  peakBudget: PEAK_BUDGET,
+  ao,
+  g1,
 };
 
 writeFileSync(join(OUT, 'ground-shadow.json'), `${JSON.stringify(result, null, 2)}\n`);
@@ -444,5 +718,84 @@ for (const item of phaseRows) {
 console.log(`全关同刻两页 ${pct(closedSameTime.ratio)}（${closedSameTime.changed}px）；跨 t/t+1s ${pct(closedStep.ratio)}（${closedStep.changed}px，既有横条）`);
 console.log(`暂停 ${pct(pauseDiff.ratio)}（帧 +${pauseB.frame - pauseA.frame}）`);
 console.log(`确定性 ${determinism}/13；峰值指令 ${peakCommands}`);
+for (const item of phaseRows) {
+  if (item.stall.segments) {
+    const s = item.stall.segments.map((seg) => `${seg.name} ${(seg.strength * 100).toFixed(2)}%`).join(' / ');
+    console.log(`  [G2 摊位 ${item.phase}] ${s}`);
+  }
+  if (item.villager.segments) {
+    const s = item.villager.segments.map((seg) => `${seg.name} ${(seg.strength * 100).toFixed(2)}%`).join(' / ');
+    console.log(`  [G2 人物 ${item.phase}] ${s}`);
+  }
+}
+if (ao.pinFound) {
+  console.log(`  [G3] ${ao.building} 墙角 ${ao.cornerMean.toFixed(2)} / 空地 ${ao.openMean.toFixed(2)} → ΔL ${ao.delta.toFixed(2)}`
+    + `（阈值 ${ao.min}–${ao.max}；既有 α0.16 阶梯实测 ΔL ${ao.stepDelta.toFixed(2)}）`);
+} else {
+  console.log(`  [G3] 样本 ${ao.building} 不在建筑表里`);
+}
+console.log(`  [G3 候选] ${ao.candidates.map((c) => `${c.building} ${c.visible ? c.delta.toFixed(2) : '出画'}`).join(' / ')}`);
+console.log(`  [G1] ${g1.path} (${g1.hash})`);
 console.log(`口径 机位 摊位 x${STALL_CAMERA.x}/y${STALL_CAMERA.y}、人物 x${VILLAGER_CAMERA.x}/y${VILLAGER_CAMERA.y}、zoom ${closed.camera.zoom}、视口 1010×700、潮位 1、晴、相位 ${PHASES.join('/')}、depth 3.1`);
 void row;
+
+// G0：把读数变成判据。只读本次运行产出的值，不读 11-04 的旧 JSON。
+const failures = [];
+const expectZero = (label, item) => {
+  if (item.changed !== 0) failures.push(`${label} 应为 0.00%，实为 ${pct(item.ratio)}（${item.changed}px）`);
+};
+expectZero('全关同刻两页', closedSameTime);
+expectZero('跨 t/t+1s', closedStep);
+expectZero('暂停', pauseDiff);
+if (determinism !== 13) failures.push(`确定性应为 13/13，实为 ${determinism}/13`);
+const night = phaseRows.find((item) => item.phase === 'night');
+const nightStallSpans = night?.stall.on.stalls?.map((unit) => unit.span) ?? [];
+const nightVillagerSpan = night?.villager.on.villagers?.[0]?.span ?? 0;
+if (nightStallSpans.some((span) => span > 0)) failures.push(`夜间摊位影长应为 0，实为 ${nightStallSpans.join(',')}`);
+if (nightVillagerSpan > 0) failures.push(`夜间人物影长应为 0，实为 ${nightVillagerSpan}`);
+if (peakCommands >= PEAK_BUDGET) failures.push(`峰值指令 ${peakCommands} ≥ 预算 ${PEAK_BUDGET}`);
+
+// G2：三段阶梯必须是「内 > 中 > 外」，且相邻两段的落差够读得出来。
+// 阈值来源：α 阶梯 [1, 0.65, 0.35] 的名义**相对**落差是 35%（内→中）与 46%（中→外）；
+// 取 25% 作底线 ≈ 较小那个名义落差的 0.7 倍——给 2px 的短梢留出采样余量
+// （绝对 pp 落差会随底色/角色所在材质漂，基线里人物 2px 外段就是这么只差 1.84pp 的）。
+// 「α 层数 ≤4」不在这里数像素：由 `shadowSegments` 的结构（3 阶 + 1px 内芯）在单测里钉住。
+const G2_MIN_REL_DROP = 0.25;
+const checkLadder = (label, rows) => {
+  if (!Array.isArray(rows) || rows.length !== 3) {
+    failures.push(`${label} 缺三段读数`);
+    return;
+  }
+  const [inner, mid, outer] = rows;
+  if (inner.strength <= 0 || mid.strength <= 0 || outer.strength <= 0) {
+    failures.push(`${label} 有段没压暗：${rows.map((r) => `${r.name} ${pct(r.strength)}`).join(' / ')}`);
+    return;
+  }
+  const relDrop = (from, to) => (from - to) / from;
+  if (relDrop(inner.strength, mid.strength) < G2_MIN_REL_DROP) {
+    failures.push(`${label} 内→中只淡 ${(relDrop(inner.strength, mid.strength) * 100).toFixed(1)}% < ${G2_MIN_REL_DROP * 100}%`);
+  }
+  if (relDrop(mid.strength, outer.strength) < G2_MIN_REL_DROP) {
+    failures.push(`${label} 中→外只淡 ${(relDrop(mid.strength, outer.strength) * 100).toFixed(1)}% < ${G2_MIN_REL_DROP * 100}%`);
+  }
+};
+const duskRow = phaseRows.find((item) => item.phase === 'dusk');
+checkLadder('G2 摊位 dusk', duskRow?.stall.segments);
+checkLadder('G2 人物 dusk', duskRow?.villager.segments);
+
+// G3：双向判据。低于下限 = 白加，高于上限 = 读成第二层影子（此前只写在风险栏里）。
+if (!ao.pinFound || ao.delta === undefined) {
+  failures.push(`G3 样本 ${AO_PIN} 不在建筑表/画面里`);
+} else if (ao.delta < AO_MIN) {
+  failures.push(`G3 墙角 ΔL ${ao.delta.toFixed(2)} < 下限 ${AO_MIN}（接触暗部读不出）`);
+} else if (ao.delta > AO_MAX) {
+  failures.push(`G3 墙角 ΔL ${ao.delta.toFixed(2)} > 上限 ${AO_MAX}（压太深，会读成第二层影子）`);
+}
+
+if (failures.length > 0) {
+  console.log(`[判据] 红（${failures.length} 条）`);
+  for (const failure of failures) console.log(`  - ${failure}`);
+  process.exitCode = 1;
+} else {
+  console.log('[判据] 绿');
+}
