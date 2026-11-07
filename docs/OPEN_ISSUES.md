@@ -410,8 +410,18 @@
   `（≠ 墙高：读数 13，期望 48，差 -35）`；`check-setting-scale.mjs` 在
   `wallBandH ≠ shopfrontH` 时打 `[扫描自洽]` 并 exit 1。单测钉住：相等写等号、不等写
   `≠` 且不许出现 `（=`、非有限数直接抛（`test/check-setting-scale-probe.test.ts`）。
-- **复核**：`node test/fixtures/setting-scale-hook-probe.mjs` 5/5 PASS——桩页无钩子画
-  32px 墙、有钩子画 48px，自洽判据在反例里同样生效。
+- **判据本身跑红的证据（2026-11-08）[实测]**：桩页 `mismatch`（钩子仍报 48、桩页把墙
+  画成 56px，判据常量一个字没动）跑出
+  `扫描：墙高 56（≠ 墙高：读数 56，期望 48，差 8）`，
+  stderr `[扫描自洽] 判红：墙高扫描 56 ≠ 常量 48，差 8`，exit=1；JSON 在判红前已落盘，
+  exit 1 使它不构成通过。`node test/fixtures/setting-scale-hook-probe.mjs` **6/6 PASS**。
+- **容差与独立性 [实测]**：`≤3 世界像素断点` 是政策常数（为什么是 3、放宽到 6 要如何
+  记账，见 `docs/adr/ADR_SCALE_DUAL_READING.md` 的「政策常数」与「量法的适用边界」）。
+  同一冻结帧对三家 `shopfront`（`(12,27)` / `(36,27)` / `(48,27)`）各量一次，
+  `wallBandH` **均 48**；`frameH` 12/13/12 的差异只来自木刺位置。窗（`x+5` 起）、
+  窄立面门（`x+width-18` 起）、竖招牌（`x+width-7`）、挂灯（檐下幔脚）都不在左木框
+  列，故不打断。边界：本口径只覆盖 `shopfront` 这一种 48px 窄立面，`shopfront_gable`
+  （y=23、落地线不同、带圆窗）不在本闸门扫描范围。
 - **建议时机**：已修；下次改扫描列或材质时检查列上是否有 1–3px 纹理。
 - **是否需要用户决策**：**否**。
 

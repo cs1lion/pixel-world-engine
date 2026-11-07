@@ -264,7 +264,7 @@ git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motio
 | `check-lamp-band.mjs` 负测（移走 before JSON） | **退出 1**，`[改前/改后对比] 判红：缺少改前基线JSON…` | 缺输入即红 |
 | `check-scene-motion.mjs`（5251） | 通过：13/13 确定性；灯灭池指令 0/0、帧差 0.00%；dark 帧改写 tmp | 删 dark 副本不影响脚本，tmp 仍产出该帧 |
 | `check-ground-shadow.mjs`（5251） | 通过，exit 0：判据绿；全关同刻两页 0.00%，跨 t/t+1s 0.00%；closed 组不读基线 | 删 closed-t 不影响读数 |
-| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip（删除那轮）；**2026-11-08 已修**：`docs/OPEN_ISSUES.md:503` 原来的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 写法靠「目录名恰好等于 pixel-world-engine」才被后缀匹配放过，改成仓内相对路径 `docs/DESIGN_ACCEPTANCE.md` 后，`audit-citations --strict` 在本工作树也是 **0 未解析**，该测试转绿。 | 环境差异不是缺陷，改写法即消除 |
+| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip（删除那轮）；**2026-11-08 已修**：`docs/OPEN_ISSUES.md` 的 E7「复核」条（“`npm test` 唯一红是工作树目录名导致的 `audit-citations` 既有引用”）里的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 写法靠「目录名恰好等于 pixel-world-engine」才被后缀匹配放过，改成仓内相对路径 `docs/DESIGN_ACCEPTANCE.md` 后，`audit-citations --strict` 在本工作树也是 **0 未解析**，该测试转绿。 | 环境差异不是缺陷，改写法即消除 |
 
 ## 七、E7 结案取舍
 

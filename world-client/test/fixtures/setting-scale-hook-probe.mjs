@@ -7,12 +7,14 @@
  *   1. MODE=missing —— 没有 debugSettingScale（旧构建）：改后必须红、退出码非 0；
  *   2. MODE=invalid —— 钩子在但返回值非法：必须红、退出码非 0，并带实际值；
  *   3. MODE=ok      —— 合法读数：必须绿、退出码 0，落盘 metrics 来自实测。
- * 另加两条：
+ * 另加三条：
  *   4. MODE=missing + SCALE_LABEL=before：声明为改前基线、退出 0（旧构建的
  *      唯一例外，控制台会大声说明常量不参与判定）；
  *   5. 改前是基线常量 + 改后实测：并排图**允许合成**，但必须 exit 0 且图上带
  *      标注「改前为基线常量、非实测、未参与判定」。「基线常量不许做差」这条由
- *      `test/check-setting-scale-probe.test.ts` 的数值消费用例钉住。
+ *      `test/check-setting-scale-probe.test.ts` 的数值消费用例钉住；
+ *   6. MODE=mismatch —— 钩子报 48、桩页却画 56px 墙：`[扫描自洽]` 必须判红并
+ *      exit 1。这是判据本身跑红的证据，不是 `annotateEquality` 的单测反例。
  *
  * 为什么不进 `npm test`：本仓 `npm test` 不依赖浏览器，浏览器类闸门走
  * `test:*` 脚本。这条只作为可复现证据。
@@ -33,6 +35,8 @@ const HOOKS = {
   missing: '',
   invalid: `debugSettingScale: () => ({ personH: 30, shopfrontH: '四十八', shopfrontTop: 16, lampPostH: 58, lampBodyBottom: 43 }),`,
   ok: `debugSettingScale: () => ({ personH: 30, shopfrontH: 48, shopfrontTop: 16, lampPostH: 58, lampBodyBottom: 43 }),`,
+  // 常量仍是 48，但桩页把墙画成 56：模拟「画面与常量对不上」，用来跑红自洽判据。
+  mismatch: `debugSettingScale: () => ({ personH: 30, shopfrontH: 48, shopfrontTop: 16, lampPostH: 58, lampBodyBottom: 43 }),`,
 };
 
 function stubHtml(mode) {
@@ -59,10 +63,10 @@ window.Oracle = {
   renderStats: () => ({ totalCommands: 0, graphicsObjects: 0, largest: [0, 0, 0, 0, 0] }),
   ${HOOKS[mode]}
 };
-// 桩页也要有可量的几何：没有钩子的旧构建画 32px 墙，有钩子的画 48px。
-// 这样新增的「墙高扫描 = 常量」自洽判据在反例里同样成立。机位变了要重画。
+// 桩页也要有可量的几何：没有钩子的旧构建画 32px 墙，有钩子的画 48px；
+// mismatch 模式故意画 56px，用来跑红自洽判据。机位变了要重画。
 function drawScene() {
-  const wallH = ${mode === 'missing' ? 32 : 48};
+  const wallH = ${mode === 'missing' ? 32 : mode === 'mismatch' ? 56 : 48};
   // 截图裁的是画布中心 480x320；扫描列给的是截图内坐标，画布坐标要加裁切原点。
   const CLIP_X = Math.round(1010 / 2 - 240);
   const CLIP_Y = Math.round(700 / 2 - 160);
@@ -119,9 +123,10 @@ function runScript({ base, label, outDir }) {
 const cases = [];
 async function run(name, { mode, label, outName, prepare, check }) {
   const outDir = mkdtempSync(join(tmpdir(), `setting-scale-probe-${outName}-`));
+  let result;
   try {
     if (prepare !== undefined) prepare(outDir);
-    const result = await withStub(mode, (base) => runScript({ base, label, outDir }));
+    result = await withStub(mode, (base) => runScript({ base, label, outDir }));
     await check(result, outDir);
     cases.push(`PASS ${name}：exit=${result.code}`);
     console.log(`\n===== ${name} =====`);
@@ -131,6 +136,12 @@ async function run(name, { mode, label, outName, prepare, check }) {
   } catch (error) {
     cases.push(`FAIL ${name}：${error instanceof Error ? error.message : String(error)}`);
     console.error(`\n===== ${name} =====`);
+    // 失败时把子进程原始输出带出来，否则只剩断言差异、看不到判据到底说了什么。
+    if (result !== undefined) {
+      if (result.stdout.trim() !== '') console.error(result.stdout.trim());
+      if (result.stderr.trim() !== '') console.error(result.stderr.trim());
+      console.error(`exit=${result.code}`);
+    }
     throw error;
   } finally {
     rmSync(outDir, { recursive: true, force: true });
@@ -171,6 +182,17 @@ try {
       const json = JSON.parse(readFileSync(jsonPath(outDir), 'utf8'));
       assert.equal(json.metrics.shopfrontH, 48);
       assert.match(json.metricsSource, /debugSettingScale 实测/);
+    },
+  });
+
+  await run('墙高与常量不符：自洽判据必须红并 exit 1', {
+    mode: 'mismatch',
+    outName: 'mismatch',
+    async check(result, outDir) {
+      assert.equal(result.code, 1, '画面与常量不符必须非 0 退出');
+      assert.match(result.stdout, /扫描：墙高 56（≠ 墙高：读数 56，期望 48，差 8）/);
+      assert.match(result.stderr, /\[扫描自洽\] 判红：墙高扫描 56 ≠ 常量 48，差 8/);
+      assert.equal(existsSync(jsonPath(outDir)), true, '判红前读数已落盘；exit 1 说明它不构成通过');
     },
   });
 

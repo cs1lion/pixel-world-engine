@@ -71,6 +71,16 @@ const SCAN_LAMP_X = 632;
 /** 石脚扫描列：色带只有 4px，且不在木框、门、窗、招牌上。 */
 const SCAN_STONE_X = 578;
 
+/**
+ * 政策常数：`wallBandH` 允许的最大断点（世界像素）。
+ *
+ * 实测断点是 `2589366` 的 4 颗木纹刺：每颗 1×2px、正落在木框扫描列上，宽 2 世界
+ * 像素。「≤3」只容得下这类细刺，容不下真正的结构断裂（8px 以上的错位/缺口）。
+ * 将来若要放宽到 6，必须按政策常数记账（理由 + 同帧实测对照 + 谁批的），不许顺手
+ * 改——放宽会把「结构断了」也吞成「墙高没变」。
+ */
+const WALL_BAND_MAX_GAP_WX = 3;
+
 /** 主角钉在店面正前方（第 28 行，脚底与石脚底边同一条线 464）。 */
 const HERO = '沉灯夫人';
 const HERO_CELL = { x: 37, y: 28 };
@@ -192,7 +202,7 @@ await page.screenshot({ path: file, clip });
 const reader = await browser.newPage();
 const buf = readFileSync(file);
 const b64 = buf.toString('base64');
-const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) => {
+const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven, wallBandMaxGapPx }) => {
   const image = new Image();
   await new Promise((res, rej) => {
     image.onload = res;
@@ -218,9 +228,9 @@ const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) =>
   };
   /**
    * 允许短断点的连续段：从 `fromRow` 向上走，遇到异色只记 gap，gap 不超过
-   * `maxGapPx` 就继续；量到**最后一个同色像素**为止。木纹刺只有 2 世界像素
-   * （8 图中像素），檐口上方的异色带是 7 世界像素（28 图中像素）——3 世界像素
-   * 的容差正好跳过木纹/板缝，停在檐口下沿。
+   * `maxGapPx` 就继续；量到**最后一个同色像素**为止。断点只有 2 世界像素
+   * （木纹刺 1×2px，8 图中像素），檐口上方的异色带是 7 世界像素（28 图中像素）——
+   * `WALL_BAND_MAX_GAP_WX`（3 世界像素）正好跳过细刺、停在檐口下沿。
    */
   const bandRun = (x, fromRow, ref, maxGapPx) => {
     let lastMatch = -1;
@@ -243,7 +253,7 @@ const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) =>
     /** 第一段连续同色——**不是墙高**：木纹刺/板缝会把它截断（旧 PNG 48，新 PNG 13）。 */
     frameH: run(columns.frameX, columns.frameRow, frameRef),
     /** 墙高：允许 ≤3 世界像素断点的连续段，量到檐口下沿（与 `metrics.shopfrontH` 对照）。 */
-    wallBandH: bandRun(columns.frameX, columns.frameRow, frameRef, 12),
+    wallBandH: bandRun(columns.frameX, columns.frameRow, frameRef, wallBandMaxGapPx),
     stoneH: run(columns.stoneX, columns.stoneRow, stoneRef),
     /** 柱脚到灯体下沿的连续涂装：灯体挂在柱顶，这一段是全高里「人能不能顶到」的那一截。 */
     bodyBottomH: run(columns.lampX, columns.postRow, postRef),
@@ -253,6 +263,8 @@ const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) =>
 }, {
   b64,
   metricsDriven: metrics !== null,
+  /** 政策常数不能直接进页面上下文，按图中像素传进去（1 世界像素 = 4 图中像素）。 */
+  wallBandMaxGapPx: WALL_BAND_MAX_GAP_WX * 4,
   /** 世界像素 → 截图中像素：`(wy - worldViewY) * 2 * zoom - 160`；扫描从该像素的底行起。 */
   columns: {
     frameX: Math.round((SCAN_SHOP_X - cam.worldViewX) * 2 * ZOOM - 240),
