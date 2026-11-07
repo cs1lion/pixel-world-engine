@@ -5,6 +5,10 @@
 - **问题**：这 169 个基线产物，能不能用来判断动画 FSM（`?animfsm=1`）有没有改变画面？
 - **结论**：**不能。** "不能"分三层：尺寸层可修、时效层可修但代价高、机制层是这套基线机制本身的缺陷，刷新基线也修不好。
 - **纪律**：本报告只读。未重录、未改基线、未 push。
+- **追记（2026-11-07，E7 审计后）**：`ground-shadow-closed-t.png` 因零生产、零消费、零证据引用已删除。
+  本报告的计数应读作 169→**166**、157 PNG→**154**、"13 张一次性参照"→**12**；
+  其余分类（144 可生产 / 108 尺寸不同 / 23 噪声 / 13 逐字节相同）不变。
+  逐件消费分类与证据见 `docs/evidence/E7_SCREENS_CONSUMPTION.md`。
 
 > 标注约定
 >
@@ -63,6 +67,7 @@
 13 张逐字节相同的是 smoke 的 9 张钉帧（01-salute、06、07×4、08×3）加 check-phases 的 4 张。
 
 基线 157 PNG 里，默认口径不产出的 13 张是一次性 `before`/合成/`-1x` 参照：ground-shadow 的 `-closed-t` 与 4 张 `-1x`、lamp-band 的 6 张 `before`、setting-scale 的 2 张。
+（E7 后为 12 张：`-closed-t` 已按零引用删除。）
 
 **出处**：world-client/tmp/measure/baseline-table-finaloff.txt（逐脚本合计 144/13/131）；world-client/tmp/animfsm-report.md 第 1 节（108/23/13 分类）。
 
@@ -251,7 +256,9 @@ CI 的 `world-client-browser` job 实际只跑四条：`test:persistence`、`tes
 - **B**：降级为人工视觉参考（标注尺寸裁切与材质漂移）。
 - **C**：删除这批图与其 sidecar。
 
-**核对说明**：本工作树的 `docs/OPEN_ISSUES.md` 当前条目为 E1–E6 与 E8（E8 是 soak 改写条目，原被误记为 E7 后改号）；**E7 仍为空号**，保留给本节的 157 张基线条目（正文在 `fix/entry-hint-clip` 分支，未合入），未在本树核实 E7 正文。
+**核对说明**：本报告写于 `main`/`8182414` 时，`docs/OPEN_ISSUES.md` 的 E7 为空号（正文在 `fix/entry-hint-clip` 分支，未合入）。
+2026-11-07 的 E7 审计已在 `chore/eval-screens-audit` 分支补齐全量消费分类并结案（选 B），
+见 `docs/evidence/E7_SCREENS_CONSUMPTION.md`；本报告正文仍按结案前的 157/169 计数。
 
 **出处**：`.github/workflows/ci.yml`（浏览器 job 四步与 `EVAL_OUT`）；`world-client/package.json`（npm 入口）；`world-client/scripts/check-phases.mjs`（默认写 tmp、显式才写基线）；`docs/evidence/VERIFIABLE_FLOWS.md` 流程 4（四支无 npm 入口脚本清单）。
 
