@@ -1,6 +1,6 @@
 {
   "schema": "pwe-orphan-gates-allowlist/1",
-  "pendingCiBudget": 23,
+  "pendingCiBudget": 22,
   "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
   "entries": [
     {
@@ -142,13 +142,6 @@
       "reason": "遮挡层摆位 depth 读数验收",
       "acceptedBecause": "需 preview + Playwright；README 里是手工跑法",
       "blockedBy": "preview + Playwright；脚本读 depth 并判红，只缺环境"
-    },
-    {
-      "id": "file:world-client/scripts/check-shot-actor-pin.mjs",
-      "kind": "pending-ci",
-      "reason": "角色钉帧截图验收",
-      "acceptedBecause": "需 preview + Playwright；当前没有 CI 消费方",
-      "blockedBy": "preview + Playwright；逐字节负控会抛，只缺环境"
     },
     {
       "id": "file:world-client/scripts/check-s5-d.mjs",
