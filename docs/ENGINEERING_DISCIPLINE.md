@@ -26,6 +26,8 @@
 | 环境化 / 流程改进 | X1、X2、L1、L2、E6 |
 | 交付前自查（任何改动） | V1、V2、V5、E1、E4、E6 |
 
+> 实话：标 `[人工步骤]` 的多数条款只是**检查点**，不是可复现动作 —— 照做不等于复现。真正具备「命令 + 判绿口径」的只有 **E3 / M1 / M2 / M5**；其余需要先补成命令与判据，才能当作可执行的验收项来依赖。
+
 ## 1. 判据与设计
 
 ### C1 全称断言必须附枚举或测试依据
@@ -54,7 +56,7 @@
 
 ### C4 阈值形式必须对无关参数不敏感
 
-**状态**：`[尚未实现]`（形式已拍板，现行 `check-glow-contrast.mjs` 仍未改）
+**状态**：`[尚未实现]`（形式已拍板；`check-glow-contrast.mjs` 已改为只读、退出码恒 0、不在 CI，但 D 比值闸本身仍未实现）
 - **触发**：阈值用绝对 luma 差、绝对亮度比，或换一档曝光/时相就会变意思。
 - **怎么做**：用有界相对量：
 
@@ -64,7 +66,7 @@
   ```
 
   标定时同时记录 dim 参数与帧态；绝对差不得再作为新合同。
-- **违反暴露**：曝一档，判据换一个意思，历史读数无法比较。`check-glow-contrast.mjs` 当前仍输出撤回前的 `0.18 / 0.10`，不是新口径；不得引用为「未达标」。
+- **违反暴露**：曝一档，判据换一个意思，历史读数无法比较。`check-glow-contrast.mjs` 曾按 `0.18 / 0.10` 判定（`ea762a6` 起写入，`00d3121` 起撤除），现只输出原始读数、退出码恒 0；旧阈值不得引用为「未达标」。
 - **对应物**：[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L414-L435) H1 的形式与待办 1；[check-glow-contrast.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-glow-contrast.mjs)；[measure-design-readouts.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/measure-design-readouts.mjs)。
 
 ### C5 主判据与辅助判据分开
@@ -145,10 +147,10 @@
 
 ### V4 判据层
 
-**状态**：`[已实现-部分]`（`check-glow-contrast` 仍是旧形式）
+**状态**：`[已实现-部分]`（判据层闸在；D 比值闸未实现，`check-glow-contrast` 已降为只读读数工具）
 - **触发**：改画面、几何、性能或相位行为。
 - **怎么做**：结构差用 `screens-diff.py` 三层判据并跑自检；落地影用 G0–G3；逐帧预算用 `check-render-budget`；相位用 `check-phases`。判据层只回答「这次是否越线」，不替代证据层。
-- **违反暴露**：自检或闸门 exit 1。`check-glow-contrast.mjs` 的 `0.18 / 0.10` 是撤回前口径，不能当判据引用。
+- **违反暴露**：自检或闸门 exit 1。`check-glow-contrast.mjs` 已不判定、退出码恒 0，它输出的比值只是读数，不是判据；D 比值闸仍未实现（见 C4）。
 - **对应物**：[screens-diff.py](file:///D:/project/pixel-world-engine/world-client/scripts/screens-diff.py)；[verify-screens-diff-selfcheck.py](file:///D:/project/pixel-world-engine/world-client/scripts/verify-screens-diff-selfcheck.py)；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L14-L27)；[check-render-budget.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-render-budget.mjs#L9-L18)。
 
 ### V5 证据与账本层
@@ -207,7 +209,7 @@
 - **触发**：写「CI 会跑 X」「脚本会拦 Y」。
 - **怎么做**：逐条对照 `.github/workflows/ci.yml` 实物和 `package.json` 的 scripts；不存在就标 `[尚未实现]`，不写成既有事实。引用/行号/节号/已登记数字用四个 audit 脚本兜底。
 - **违反暴露**：`audit-references` / `audit-citations` / `audit-sections` / `audit-claims` 会红；但 `npm run <script>` 是否存在、CI 步骤是否真的在跑，不在这些闸的覆盖内，必须人工对照 `ci.yml`。
-- **对应物**：[ci.yml](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml#L29-L53)；[audit-citations.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-citations.ts)；[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
+- **对应物**：[ci.yml](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml#L29-L53)；CI 实际在跑的六个审计：[audit-ports.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-ports.ts)、[audit-palette.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/audit-palette.mjs)、[audit-references.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-references.ts)、[audit-citations.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-citations.ts)、[audit-sections.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-sections.ts)、[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
 
 ## 5. 预算与棘轮
 
@@ -216,7 +218,7 @@
 **状态**：`[已实现]`（`check-ground-shadow` 仍未接 CI，见 L2）
 - **触发**：改渲染路径、加常驻绘制、或预算读数上升。
 - **怎么做**：设计目标是意图，不许动；天花板是实测棘轮，只有「删掉等价或更多命令」才自动下降；峰值 ≤ 目标算不欠债，目标与天花板之间记账，超过天花板才硬红。
-- **违反暴露**：`check-render-budget` 超 `33,488` 红；`check-ground-shadow` 超 `34,666` 红；中间区间只记账不红。
+- **违反暴露**：`check-render-budget` 超 `33,488` 红；`check-ground-shadow` 超 `34,666` 红；中间区间只记账不红。**「只降不升」当前没有自动锁定**：脚本只拿当次读数比写死常量，常量本身改大不会被任何测试拦住，只能靠 review；待补的断言见 [OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L694-L705) K8。
 - **对应物**：[check-render-budget.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-render-budget.mjs#L71-L119)；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L58-L66)。
 
 ### B2 新功能导致的抬升必须单独记账
@@ -266,7 +268,7 @@
 **状态**：`[尚未实现]`（无自动闸；只有书面边界）
 - **触发**：合并、切换、清理、测试失败想「先 stash 一下」。
 - **怎么做**：不 `git stash`、不 `git checkout --` 别人的改动、不删除未跟踪文件。看到别人工作树在写，停手。`docs/RESUME.md` 里建议 stash 的旧口径与本条冲突时，以本条为准。
-- **违反暴露**：没有脚本检测；只能靠 `git status`、reflog 与 review。丢工作通常事后才能发现，这是本周最容易踩的一条。
+- **违反暴露**：没有脚本检测；只能靠 `git status`、reflog 与 review。丢工作通常事后才能发现，这是本周最容易踩的一条。**失效边界（本轮实际发生）**：删**未跟踪目录**也会透过 `node_modules` junction 伤到共享依赖 —— `Remove-Item -Recurse` 清临时树时删掉了主树 `world-client/node_modules/.bin` 与 rolldown 原生绑定，`npm install` 后恢复，无 tracked 改动。判据：删临时树前先确认里面没有指向共享 `node_modules` 的 junction / 符号链接。
 - **对应物**：[VERIFIABLE_FLOWS.md](file:///D:/project/pixel-world-engine/docs/evidence/VERIFIABLE_FLOWS.md#L9-L13)；[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L756-L762)；[RESUME.md](file:///D:/project/pixel-world-engine/docs/RESUME.md#L86-L87) 的旧 stash 建议（与本条冲突，以本条为准）。
 
 ### W3 端口只用 5210–5299，带 `--strictPort`，跑之前断言树 id
@@ -325,7 +327,7 @@
 - **触发**：任何合并完成。
 - **怎么做**：跑 `node scripts/audit-citations.ts --strict` 与 `node scripts/audit-references.ts --strict`；确认前向引用归零；逐条看 K/J 清单，该关闭的关闭、该改 owner 的改 owner。合完不回访等于没合。
 - **违反暴露**：未解析引用仍红；登记条目挂空；review 能发现，但没有自动关闭。
-- **对应物**：[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L347-L353) G2 的消解点（3630 处受查、2 处解析）；[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L694-L704) K 清单。
+- **对应物**：[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L347-L353) G2 的消解点（具体读数以当次 `audit-citations --strict` / `audit-references --strict` 输出为准，本条只规定判据）；[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L694-L704) K 清单。
 
 ## 8. 遗留与孤儿闸门
 
@@ -377,7 +379,7 @@
 
 1. 通用的全称断言 lint（只有岸带 J9 这个真实枚举样例 + 设计稿写作规矩）。
 2. 通用的阈值三件套 lint（`audit-claims` 只覆盖已登记 claim）。
-3. 阈值形式 D 的闸：`check-glow-contrast.mjs` 仍输出撤回前的 `0.18 / 0.10`，H1 待办 1 未完成。
+3. 阈值形式 D 的闸：`check-glow-contrast.mjs` 已改为只读（无判定、退出码恒 0、不在 CI），它输出的比值不是闸；D 比值闸本身仍未实现，H1 待办 1 未完成。
 4. 判据与比较对象同源的 lint（无）。
 5. 自动编号冲突检测（无）。
 6. 自动「不 stash / 不丢弃 / 不 checkout 别人文件」检测（无）。

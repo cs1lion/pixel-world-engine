@@ -702,5 +702,6 @@
 5. **同一棵树上两条线并行写** `pwe-anim-fsm` 那 6 个未提交文件（`ci.yml`、`package.json`、check-anim-fsm-transition.mjs、png-diff.mjs、两份 docs）— 动画线；本窗口未碰、未带进合并。下一步：由动画线自己提交或丢弃，关闭窗口前确认归属。
 6. **要点 4 阈值** `T_dusk / T_noon` 未标定、来源无实测 — 设计验收线；下一步：附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后），在此之前只读数、不进闸门。
 7. **V1 本地验证缺口** `red:first` 与 `pytest` 本轮**未在本地跑**（没有 push，CI 不会自行发生）— 集成 / 服务端线；下一步：`red:first` 用 `--base <push 前的 main sha>`（本地取 `git rev-parse origin/main` 或推送前 `HEAD~N`），`pytest` 在 `server/` 下跑；两项都过了才算验证。
+8. **B1 天花板「只降不升」无自动锁定** 脚本只拿当次读数比写死常量（`33,488` / `34,666`），把常量改大不会被任何测试拦住 — 预算线；下一步：补一条断言「本次常量不得大于上一记录值」的测试（需要一个随提交更新的记录值），在此之前只能靠 review。
 
 
