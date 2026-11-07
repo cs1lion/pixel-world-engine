@@ -10,8 +10,9 @@
  *      npm 脚本体内 `npm run Y` / `node scripts/...`；
  *      JS/TS 文件之间的 import / require。
  *   3) 允许清单（scripts/orphan-gates-allowlist.json）里的每条必须有 id、
- *      reason、acceptedBecause；指向不存在的检查 → 红；已经不再孤儿 → 红；
- *      没有登记的孤儿 → 红。
+ *      kind（manual / pending-ci）、reason、acceptedBecause、blockedBy；
+ *      指向不存在的检查 → 红；已经不再孤儿 → 红；没有登记的孤儿 → 红；
+ *      pending-ci 条数不得超过顶层的 pendingCiBudget（棘轮）。
  *
  * 退出码：0 = 全部有主；1 = 有未登记孤儿，或清单自身有问题。
  * 只用 node 内置模块，repo-harness job 不需要 npm ci。
@@ -252,11 +253,11 @@ while (queue.length > 0) {
 
 const problems = [];
 const allowed = new Map();
+let parsed = null;
 
 if (!existsSync(ALLOWLIST_FILE)) {
   problems.push(`缺少允许清单：${rel(ALLOWLIST_FILE)}`);
 } else {
-  let parsed;
   try {
     parsed = JSON.parse(readFileSync(ALLOWLIST_FILE, 'utf8'));
   } catch (error) {
@@ -273,6 +274,12 @@ if (!existsSync(ALLOWLIST_FILE)) {
     if (typeof entry.acceptedBecause !== 'string' || !entry.acceptedBecause.trim()) {
       problems.push(`允许清单缺 acceptedBecause：${id}`);
     }
+    if (entry.kind !== 'manual' && entry.kind !== 'pending-ci') {
+      problems.push(`允许清单 kind 必须是 manual 或 pending-ci：${id}`);
+    }
+    if (typeof entry.blockedBy !== 'string' || !entry.blockedBy.trim()) {
+      problems.push(`允许清单缺 blockedBy：${id}`);
+    }
     if (!CHECK_IDS.includes(id)) {
       problems.push(`允许清单指向不存在的检查：${id}`);
     } else if (reached.has(id)) {
@@ -286,6 +293,17 @@ const orphans = CHECK_IDS.filter((id) => !reached.has(id));
 const allowedOrphans = orphans.filter((id) => allowed.has(id));
 const newOrphans = orphans.filter((id) => !allowed.has(id));
 
+const budget = Number.isInteger(parsed?.pendingCiBudget) ? parsed.pendingCiBudget : null;
+const pendingCount = [...allowed.values()].filter((entry) => entry.kind === 'pending-ci').length;
+if (budget === null) {
+  problems.push('允许清单缺 pendingCiBudget（必须是整数）');
+} else if (pendingCount > budget) {
+  problems.push(`pending-ci 债务 ${pendingCount} 条 > 预算 ${budget}：新增豁免必须同时显式抬高 pendingCiBudget`);
+}
+
+const allowedManual = allowedOrphans.filter((id) => allowed.get(id).kind === 'manual').length;
+const allowedPending = allowedOrphans.filter((id) => allowed.get(id).kind === 'pending-ci').length;
+
 console.log(`孤儿闸门检测（${rel(ROOT) || ROOT}）`);
 console.log('判据：文件 **/scripts/check-*、**/scripts/audit-*（.mjs/.ts）；npm 脚本前缀 test:/audit:/fixture:/check:/baseline:');
 console.log('消费方判据：workflow 的 run: → npm 脚本互调 → import/require 闭包');
@@ -298,9 +316,10 @@ for (const id of consumedChecks) {
 }
 console.log('');
 
-console.log(`[已知孤儿（允许清单）] ${allowedOrphans.length}`);
+console.log(`[已知孤儿（允许清单）] ${allowedOrphans.length}（manual ${allowedManual} / pending-ci ${allowedPending}）`);
 for (const id of allowedOrphans) {
-  console.log(`  ${id}\n    — ${allowed.get(id).reason}（暂不接：${allowed.get(id).acceptedBecause}）`);
+  const entry = allowed.get(id);
+  console.log(`  ${id}\n    — [${entry.kind}] ${entry.reason}（卡在：${entry.blockedBy}）`);
 }
 console.log('');
 
@@ -312,7 +331,10 @@ console.log(`[允许清单问题] ${problems.length}`);
 for (const problem of problems) console.log(`  ${problem}`);
 console.log('');
 
+const budgetText = budget === null ? '缺' : String(budget);
+const headroom = budget === null ? '-' : String(budget - pendingCount);
+console.log(`债务：pending-ci ${pendingCount} / 预算 ${budgetText}（余量 ${headroom}）`);
 console.log(`清单：允许 ${allowed.size} 条，孤儿 ${orphans.length} 条`);
-console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿 / ${newOrphans.length} 未登记`);
+console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿（manual ${allowedManual} / pending-ci ${allowedPending}） / ${newOrphans.length} 未登记`);
 
 process.exit(problems.length > 0 || newOrphans.length > 0 ? 1 : 0);
