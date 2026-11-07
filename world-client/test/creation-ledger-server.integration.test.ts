@@ -98,7 +98,28 @@ interface RunningServer {
   stop(): Promise<void>;
 }
 
+interface StartupProbe {
+  readonly lastStatus: number | null;
+  readonly lastError: string | null;
+  readonly msSinceSpawn: number;
+}
+
+/** 只补诊断：失败时把「最后一次 status / 错误码 / 距 spawn 毫秒」写进信息里。 */
+function startupFailureMessage(reason: string, logs: string, probe: StartupProbe): string {
+  const status = probe.lastStatus === null ? '无响应' : String(probe.lastStatus);
+  const error = probe.lastError === null ? '无' : probe.lastError;
+  return `${reason}（lastStatus=${status}，lastError=${error}，msSinceSpawn=${probe.msSinceSpawn}）：\n${logs}`;
+}
+
+function describeFetchError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const cause = (error as { cause?: unknown } | null)?.cause;
+  const code = (cause as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? `${message}（${code}）` : message;
+}
+
 async function startServer(dataDir: string): Promise<RunningServer> {
+  const startedAt = Date.now();
   const port = await freePort();
   const child: ChildProcess = spawn(
     'python',
@@ -128,10 +149,13 @@ async function startServer(dataDir: string): Promise<RunningServer> {
   });
 
   const deadline = Date.now() + 20000;
+  let lastStatus: number | null = null;
+  let lastError: string | null = null;
   while (Date.now() < deadline) {
     if (exited) throw new Error(`服务进程提前退出：\n${logs}`);
     try {
       const response = await fetch(`${baseUrl}/api/creation-ledger/entries?worldId=probe`);
+      lastStatus = response.status;
       if (response.status === 200) {
         return {
           baseUrl,
@@ -146,13 +170,18 @@ async function startServer(dataDir: string): Promise<RunningServer> {
           },
         };
       }
-    } catch {
-      // 还没起来，继续等。
+    } catch (error) {
+      // 还没起来，继续等；但把最后一次的错误码留住，失败时才能报出来。
+      lastError = describeFetchError(error);
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   child.kill('SIGKILL');
-  throw new Error(`服务在 20 秒内没起来：\n${logs}`);
+  throw new Error(startupFailureMessage('服务在 20 秒内没起来', logs, {
+    lastStatus,
+    lastError,
+    msSinceSpawn: Date.now() - startedAt,
+  }));
 }
 
 async function withServer<T>(run: (server: RunningServer, dataDir: string) => Promise<T>): Promise<T> {
@@ -364,4 +393,27 @@ test('两个 worldId 的账本与队列不串：同 recordId 各落各的，loca
     assert.deepEqual(leftQueue.load()?.records.map((item) => item.recordId), ['q-left']);
     assert.deepEqual(rightQueue.load()?.records.map((item) => item.recordId), ['q-right']);
   });
+});
+
+test('启动超时的失败信息必须带 lastStatus / lastError / msSinceSpawn', () => {
+  const message = startupFailureMessage(
+    '服务在 20 秒内没起来',
+    'INFO: Uvicorn running on http://127.0.0.1:1723\n',
+    { lastStatus: 503, lastError: 'fetch failed（ECONNREFUSED）', msSinceSpawn: 20015 },
+  );
+  assert.match(message, /lastStatus=503/);
+  assert.match(message, /lastError=fetch failed（ECONNREFUSED）/);
+  assert.match(message, /msSinceSpawn=20015/);
+  // 日志照旧附在后面：只有这三个读数、丢掉日志就查不了「服务到底起没起」。
+  assert.match(message, /Uvicorn running on http:\/\/127\.0\.0\.1:1723/);
+
+  // 一次都没拿到响应（B13 那次的现象）时也要显式写「无响应 / 无」，不能留空。
+  const silent = startupFailureMessage('服务在 20 秒内没起来', '', {
+    lastStatus: null,
+    lastError: null,
+    msSinceSpawn: 20001,
+  });
+  assert.match(silent, /lastStatus=无响应/);
+  assert.match(silent, /lastError=无/);
+  assert.match(silent, /msSinceSpawn=20001/);
 });
