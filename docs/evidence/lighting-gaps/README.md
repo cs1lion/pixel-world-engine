@@ -271,7 +271,7 @@ KB 原文（`D:\project\pixel-world-engine` 的 docs/DESIGN_ACCEPTANCE.md，另�
 ### R5 提交状态与 sha
 
 - 证据产出于 **2026-11-07 16:59–17:00（本地）**，工作树 = `HEAD 4343632` + 本批未提交改动。
-- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha：`@@COMMIT_SHA@@`。
+- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha：`e75e2d2aedcc630b1f4607f5ed137eb03261533b`（`e75e2d2`）。
   本段 sha 回填是紧随其后的 `docs(lighting)` 小提交，不改动代码与产物。
 - 未 push；未碰 `eval/screens`；未碰 `ci.yml`（等 `chore/orphan-gates` 合并后一次接线）；
   未碰他人工作树。
