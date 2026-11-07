@@ -60,7 +60,7 @@
 
 任何预算变更（新增/删除条目、`kind` 迁移）都必须在**同一提交**里往 `budgetLedger` 追加一条记录，写清 `approved_at`（`YYYY-MM-DD`）、`approved_by`、`reason`，以及变更后的三个条数；`budgetLedger` 末条的三个计数必须与三个预算一致。CI 在中间提交上就会红，所以「先加条目、以后补预算」走不通，效果上等价于同一提交。
 
-当前 `pendingCiBudget = 23`、`manualBudget = 11`、`obsoleteBudget = 1`（`manual 11 / pending-ci 23 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。
+当前 `pendingCiBudget = 20`、`manualBudget = 11`、`obsoleteBudget = 1`（`manual 11 / pending-ci 20 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。
 
 这套机制拦得住：新增/删除条目却不调整预算；改 `kind` 静默迁移；抬预算不留审批记录；「先记账、后补预算」的跨提交操作（CI 会在中间提交红）。
 拦不住：`budgetLedger` 是当前状态的账，不是 git 历史审计——有人可以把旧记录改写而不是追加，CI 只能看到改写后的自洽状态；也拦不住审批字段填得敷衍（`approved_by: "x"` 仍能通过），那要靠评审。
@@ -79,7 +79,7 @@ npm run audit:orphan-gates
 
 `.github/workflows/ci.yml` 的 `repo-harness` job 两步：`npm run audit:orphan-gates`，以及 `node --test scripts/orphan-gates-selftest.mjs`。只用 node 内置模块，不需要 `npm ci`、不需要浏览器。
 
-自检 16 条：正面对照、三种伪消费方（`continue-on-error: true` / `|| true` / `if: false`）、job 级 `continue-on-error`、新孤儿探针、三条预算反例（新增 `pending-ci` 不抬预算、抬预算缺审批字段、改 `kind` 绕预算）、五条盲区解析用例（python 步骤、python 静态 `.py` 路径、`npx --yes tsx`、一层 composite action、静态 `child_process` 字面量数组），以及两条「清单登记入口」用例（允许清单把不按 `check-*` / `audit-*` 命名的脚本登记成检查、登记后的 python 检查被 workflow 直连时必须判红）。
+自检 16 条：正面对照、三种伪消费方（`continue-on-error: true` / `|| true` / `if: false`）、job 级 `continue-on-error`、新孤儿探针、三条预算反例（新增 `pending-ci` 不抬预算、抬预算缺审批字段、改 `kind` 绕预算）、五条盲区解析用例（python 步骤、python 静态 `.py` 路径、`npx --yes tsx`、一层 composite action、静态 `child_process` 字面量数组），以及两条「清单登记入口」用例（`extraChecks` 把不按 `check-*` / `audit-*` 命名的脚本登记成检查、登记后的 python 检查被 workflow 直连时必须判红）。
 
 具体读数不写死在文档里（它会随检查数增长）：第一次运行的完整清单见引入这个闸门的提交说明。
 
@@ -127,10 +127,10 @@ npm run audit:orphan-gates
    ```
 
    `world-client` job 已有 `working-directory: world-client`，`npm run fixture:check` 解析为 `node scripts/fixture-check.ts`，不用再写路径。不许加 `continue-on-error`、不许写 `|| true`、不许用 `if: false`——关 2 会把这些接线判成「无有效消费方」。
-2. 同一提交删掉允许清单里的 `npm:world-client#fixture:check` 条目，把 `pendingCiBudget` 从 23 降到 22，并往 `budgetLedger` 追加一条记录（`approved_at` / `approved_by` / `reason`，以及变更后的 `pendingCi 22 / manual 11 / obsolete 1`）。删条目不同步降预算、或降预算不删条目，现在都会红。三件事必须一起。
+2. 同一提交删掉允许清单里的 `npm:world-client#fixture:check` 条目，把 `pendingCiBudget` 从 20 降到 19，并往 `budgetLedger` 追加一条记录（`approved_at` / `approved_by` / `reason`，以及变更后的 `pendingCi 19 / manual 11 / obsolete 1`）。删条目不同步降预算、或降预算不删条目，现在都会红。三件事必须一起。
 3. 自证（贴原始输出，不要只写「通过」）：
    - `world-client/` 下按 CI 形态跑 `npm run fixture:check`，记录耗时与退出码；期望 fixture 全 PASS、`exit 0`。
-   - `node scripts/audit-orphan-gates.mjs`：期望 `[有消费方] 23`、`[已知孤儿] 34（manual 11 / pending-ci 22 / obsolete 1）`、`[新孤儿（未登记）] 0`、债务 `pending-ci 22 / 预算 22；manual 11 / 预算 11；obsolete 1 / 预算 1`、`exit 0`。
+   - `node scripts/audit-orphan-gates.mjs`：期望 `[有消费方] 26`、`[已知孤儿] 31（manual 11 / pending-ci 19 / obsolete 1）`、`[新孤儿（未登记）] 0`、债务 `pending-ci 19 / 预算 19；manual 11 / 预算 11；obsolete 1 / 预算 1`、`exit 0`。
    - 反向证据：新加的那行若带 `|| true`，`npm:world-client#fixture:check` 必须被重新判成「无有效消费方」。这条已由 `scripts/orphan-gates-selftest.mjs` 的 `|| true` 用例覆盖，接线时不必再手工改坏一次，但要在提交说明里点名是哪条用例。
    - `git status --porcelain` 必须为空：fixture 校验只读，不许写脏仓库。
 

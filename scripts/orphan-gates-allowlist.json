@@ -9,7 +9,7 @@
     "file:world-client/scripts/verify-ledger-selfcheck.ts",
     "file:world-client/scripts/verify-screens-diff-selfcheck.py"
   ],
-  "pendingCiBudget": 22,
+  "pendingCiBudget": 20,
   "manualBudget": 11,
   "obsoleteBudget": 1,
   "budgetLedger": [
@@ -34,6 +34,14 @@
       "approved_by": "session:6ae7eeba7914aafa364408dd",
       "reason": "第一批接线：verify-ledger-selfcheck.ts 接进 world-client job 独立 step，同提交删条、pending-ci 23→22",
       "pendingCi": 22,
+      "manual": 11,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "第二批接线：screens-diff-selfcheck 与 screens-diff 接进 world-client job 独立 step（numpy 2.5.1 / pillow 12.3.0 锁版本），同提交删两条、pending-ci 22→20",
+      "pendingCi": 20,
       "manual": 11,
       "obsolete": 1
     }
@@ -258,25 +266,11 @@
       "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
     },
     {
-      "id": "file:world-client/scripts/screens-diff.py",
-      "kind": "pending-ci",
-      "reason": "截图三层差判据（精确/可见/8 连通结构块），供 verify-screens-diff-selfcheck.py 正/反向自检",
-      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
-      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
-    },
-    {
       "id": "file:world-client/scripts/verify-animation-baseline.mjs",
       "kind": "pending-ci",
       "reason": "动画基线账本结构校验（157 行），verify-all 的 animation-baseline 项",
       "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
-      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
-    },
-    {
-      "id": "file:world-client/scripts/verify-screens-diff-selfcheck.py",
-      "kind": "pending-ci",
-      "reason": "结构差判据的正/反向自检（绿例与必红例），verify-all 的 screens-diff-selfcheck 项",
-      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
-      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
+      "blockedBy": "CI 必被 when 跳过（路径指向 pwe-anim，CI 不存在该文件）；接它的前提是 pwe-anim 证据进仓或改 when，否则接了也是假绿"
     }
   ]
 }

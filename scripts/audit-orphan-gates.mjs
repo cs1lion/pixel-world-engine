@@ -478,29 +478,33 @@ if (existsSync(WORKFLOW_DIR)) {
   }
 }
 
-while (queue.length > 0) {
-  const id = queue.shift();
-  if (id.startsWith('npm:')) {
-    const script = NPM_SCRIPTS.get(id);
-    if (!script) continue;
-    const refs = refsInCommand(script.body, script.pkgDir);
-    for (const name of refs.npmRuns) {
-      const next = `npm:${rel(script.pkgDir)}#${name}`;
-      if (NPM_SCRIPTS.has(next)) reach(next, `${id} 里调用 npm run ${name}`);
+function drainQueue() {
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id.startsWith('npm:')) {
+      const script = NPM_SCRIPTS.get(id);
+      if (!script) continue;
+      const refs = refsInCommand(script.body, script.pkgDir);
+      for (const name of refs.npmRuns) {
+        const next = `npm:${rel(script.pkgDir)}#${name}`;
+        if (NPM_SCRIPTS.has(next)) reach(next, `${id} 里调用 npm run ${name}`);
+      }
+      for (const abs of refs.files) {
+        const relFile = rel(abs);
+        if (CHECK_FILES.has(`file:${relFile}`)) reach(`file:${relFile}`, `${id} 里 node 调用`);
+      }
+      for (const found of refs.discoveries) addDiscovery(found.abs, found.form, id);
+      continue;
     }
-    for (const abs of refs.files) {
-      const relFile = rel(abs);
-      if (CHECK_FILES.has(`file:${relFile}`)) reach(`file:${relFile}`, `${id} 里 node 调用`);
+    const file = CHECK_FILES.get(id) ?? { abs: resolve(ROOT, id.slice('file:'.length)) };
+    for (const imported of importsOf(file.abs)) {
+      const next = `file:${rel(imported)}`;
+      if (CHECK_FILES.has(next)) reach(next, `${id} import`);
     }
-    for (const found of refs.discoveries) addDiscovery(found.abs, found.form, id);
-    continue;
-  }
-  const file = CHECK_FILES.get(id) ?? { abs: resolve(ROOT, id.slice('file:'.length)) };
-  for (const imported of importsOf(file.abs)) {
-    const next = `file:${rel(imported)}`;
-    if (CHECK_FILES.has(next)) reach(next, `${id} import`);
   }
 }
+
+drainQueue();
 
 // 静态 child_process：只认字面量数组里的 scripts/ 路径，拼字符串一律留作已知边界。
 for (const pkgDir of PACKAGES) {
@@ -535,6 +539,7 @@ for (const pkgDir of PACKAGES) {
     PY_FILES.push({ abs, pkgDir, text: readFileSync(abs, 'utf8') });
   }
 }
+const PY_EDGES = [];
 for (const { abs, pkgDir, text } of PY_FILES) {
   for (const match of text.matchAll(/['"]([^'"\n]+\.py)['"]/g)) {
     const token = match[1];
@@ -543,6 +548,7 @@ for (const { abs, pkgDir, text } of PY_FILES) {
       : resolve(dirname(abs), token);
     if (!target || target === abs || !isFile(target)) continue;
     const line = text.slice(0, match.index).split(/\r?\n/).length;
+    PY_EDGES.push({ from: rel(abs), to: rel(target), line });
     addDiscovery(target, `python 静态路径（${rel(abs)}:${line}）`, `${rel(abs)}:${line}`);
   }
 }
@@ -551,6 +557,16 @@ for (const { abs, pkgDir } of PY_FILES) {
     addDiscovery(abs, '未被 workflow / npm / 静态 spawn 引用（仅文档手动命令）', rel(pkgDir));
   }
 }
+
+// python 静态引用是真实的运行边：只要引用者已接入（workflow 直跑或被已接入脚本拉起），
+// 被引用的 python 检查也要算消费方，否则接线删条后会变成假孤儿。
+for (const edge of PY_EDGES) {
+  const fromId = `file:${edge.from}`;
+  const toId = `file:${edge.to}`;
+  if (!reached.has(fromId) || !CHECK_FILES.has(toId)) continue;
+  reach(toId, `${fromId} 静态路径（第 ${edge.line} 行）`);
+}
+drainQueue();
 
 const allowed = new Map();
 for (const entry of parsed?.entries ?? []) {

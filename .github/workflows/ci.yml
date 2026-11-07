@@ -55,6 +55,11 @@ jobs:
       # 两条独立 step 各自可判红：eval-ledger 先算，selfcheck 再验分桶与必填字段。
       - run: node scripts/eval-ledger.ts
       - run: node scripts/verify-ledger-selfcheck.ts
+      # screens-diff 自检只喂合成图（200x200），不读 eval/screens 的截图基线，
+      # 所以 E7 删掉的 3 张基线不影响它。锁定版本是因为仓库没有 requirements.txt，
+      # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
+      - run: pip install numpy==2.5.1 pillow==12.3.0
+      - run: python scripts/verify-screens-diff-selfcheck.py
 
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
