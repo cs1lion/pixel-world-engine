@@ -259,12 +259,12 @@ git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motio
 | 闸门 | 结果 | 证明什么 |
 |---|---|---|
 | `check-lamp-blindspot.mjs` | 通过，exit 0：原图 76.5625% / 4.4375 格 @ x471；JSON 内容未变（仅行尾差异，已还原） | ① 的 after 三件仍读得到，删除没有误伤 |
-| `check-lamp-band.mjs`（5251） | 通过，exit 0：after 76.6% / 4.4 格 @ x471；**before/after 差首次跑出来**：灯亮 10476/563520（1.9%，max 19），灯灭 0/563520（0.0%，max 0） | before 三件现在是真读；半径 40→32 的差别只在灯亮图上 |
+| `check-lamp-band.mjs`（5251） | 通过，exit 0：after 76.6% / 4.4 格 @ x471；**before/after 差首次跑出来**：灯亮 10476/563520（1.9%，max 19），灯灭 0/563520（0.0%，max 0）；灯亮 bbox 为 x226..959 / y238..449（横跨整街且高于地面光池 y435..535，说明该半径常量同时波及灯体周围光照，"只在池子附近变"的旧假设不成立） | before 三件现在是真读；这一步让一个被静默很久的假设失效暴露出来 |
 | `check-lamp-band.mjs` 负测（`BAND_SEED=1111`） | **退出 1**，`[改前/改后对比] 判红：种子不一致…` | 协议不符不再静默跳过 |
 | `check-lamp-band.mjs` 负测（移走 before JSON） | **退出 1**，`[改前/改后对比] 判红：缺少改前基线JSON…` | 缺输入即红 |
 | `check-scene-motion.mjs`（5251） | 通过：13/13 确定性；灯灭池指令 0/0、帧差 0.00%；dark 帧改写 tmp | 删 dark 副本不影响脚本，tmp 仍产出该帧 |
 | `check-ground-shadow.mjs`（5251） | 通过，exit 0：判据绿；全关同刻两页 0.00%，跨 t/t+1s 0.00%；closed 组不读基线 | 删 closed-t 不影响读数 |
-| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip。失败是 `audit-citations.test.ts` 的"真仓库"一条，原因是本审计工作树目录名 `pwe-baseline-audit` 不含 `pixel-world-engine`，而 `docs/OPEN_ISSUES.md:427` 的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 依赖目录名做后缀匹配；同一测试在未改动的主树上 5/5 通过。 | 环境性失败，与删除的 3 件无关；新增审计文档未引入未解析引用 |
+| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip。失败是 `audit-citations.test.ts` 的"真仓库"一条，原因是本审计工作树目录名 `pwe-baseline-audit` 不含 `pixel-world-engine`，而 `docs/OPEN_ISSUES.md:429` 的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 依赖目录名做后缀匹配；同一测试在未改动的主树上 5/5 通过。 | 环境性失败，与删除的 3 件无关；新增审计文档未引入未解析引用 |
 
 ## 七、E7 结案取舍
 
