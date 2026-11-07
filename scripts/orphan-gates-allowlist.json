@@ -1,0 +1,291 @@
+{
+  "schema": "pwe-orphan-gates-allowlist/2",
+  "extraChecks": [
+    "file:world-client/scripts/homecoming-analyze.py",
+    "file:world-client/scripts/interior-analyze.py",
+    "file:world-client/scripts/material-analyze.py",
+    "file:world-client/scripts/screens-diff.py",
+    "file:world-client/scripts/verify-animation-baseline.mjs",
+    "file:world-client/scripts/verify-ledger-selfcheck.ts",
+    "file:world-client/scripts/verify-screens-diff-selfcheck.py"
+  ],
+  "pendingCiBudget": 21,
+  "manualBudget": 11,
+  "obsoleteBudget": 1,
+  "budgetLedger": [
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "owner",
+      "reason": "基线快照：把「上限」改成「等值断言」，固化本轮结束时的 pending-ci 19 / manual 8 / obsolete 1；不是新增豁免",
+      "pendingCi": 19,
+      "manual": 8,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "7 条盲区候选按有无客观判红分别归 manual / pending-ci",
+      "pendingCi": 23,
+      "manual": 11,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "第一批接线：verify-ledger-selfcheck.ts 接进 world-client job 独立 step，同提交删条、pending-ci 23→22",
+      "pendingCi": 22,
+      "manual": 11,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "第二批接线：screens-diff-selfcheck 与 screens-diff 接进 world-client job 独立 step（numpy 2.5.1 / pillow 12.3.0 锁版本），同提交删两条、pending-ci 22→20",
+      "pendingCi": 20,
+      "manual": 11,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-08",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "撤回 check-ground-shadow 接线：30 轮实测 4 红（13.3%），随机红会训练人忽略红；回填 pending-ci，预算 20→21（脚本 PEAK_CEILING = 34,666 不动）",
+      "pendingCi": 21,
+      "manual": 11,
+      "obsolete": 1
+    }
+  ],
+  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数并占用自己的预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。三类条数必须分别等于 pendingCiBudget / manualBudget / obsoleteBudget；任何预算变更都必须同一提交追加一条带 approved_at / approved_by / reason 的 budgetLedger 记录。extraChecks 只负责命名豁免（声明它是检查，不按 check-*/audit-* 命名也算），entries 只负责孤儿豁免；接线后从 entries 删条但仍留在 extraChecks，检查总数不会因为接线反而变小。",
+  "entries": [
+    {
+      "id": "file:world-client/scripts/check-scene-motion.mjs",
+      "kind": "pending-ci",
+      "reason": "夜街运动量截图验收，产出 eval/screens 的 scene-motion 基线",
+      "acceptedBecause": "它产出的基线目前没有 CI 消费方，只在人工比对时用；接闸要先解决重跑不稳",
+      "blockedBy": "基线没有 CI 消费方（eval/screens 只做人工比对），且 14 张同构建重跑不稳未钉帧"
+    },
+    {
+      "id": "file:world-client/scripts/check-stall-motion.mjs",
+      "kind": "pending-ci",
+      "reason": "摊位运动量截图验收，产出 eval/screens 的 stall-motion 基线",
+      "acceptedBecause": "同上：基线没有消费方，且同构建重跑不稳",
+      "blockedBy": "基线没有 CI 消费方；14 张重跑不稳里 stall-motion 占 5 张，未钉帧"
+    },
+    {
+      "id": "file:world-client/scripts/check-banner-smoke.mjs",
+      "kind": "pending-ci",
+      "reason": "招牌/横幅冒烟截图验收",
+      "acceptedBecause": "需要 preview + Playwright，且它产出的基线当前没人消费",
+      "blockedBy": "preview + Playwright；banner-smoke 有 2 张同构建重跑不稳，未钉帧"
+    },
+    {
+      "id": "file:world-client/scripts/check-lamp-band.mjs",
+      "kind": "manual",
+      "reason": "夜街灯带暗带位置与宽度读数（只读数，不判定）",
+      "acceptedBecause": "有 npm 入口但 CI 未调用；基线没有消费方",
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/check-lamp-pool.mjs",
+      "kind": "manual",
+      "reason": "街面光池亮度/色温读数（只读数，不判定）",
+      "acceptedBecause": "有 npm 入口但 CI 未调用",
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/check-buttons.mjs",
+      "kind": "pending-ci",
+      "reason": "界面每个按钮点下去必须有回执（silence 检测）",
+      "acceptedBecause": "需 preview + Playwright；有 npm 入口但 CI 未调用",
+      "blockedBy": "preview + Playwright；按钮回执需要稳定的等待/超时判据"
+    },
+    {
+      "id": "file:world-client/scripts/check-interact.mjs",
+      "kind": "pending-ci",
+      "reason": "点击交互截图验收",
+      "acceptedBecause": "需 preview + Playwright；CI 未调用",
+      "blockedBy": "preview + Playwright；交互序列需先固定成脚本"
+    },
+    {
+      "id": "file:world-client/scripts/check-oracle-e2e.mjs",
+      "kind": "pending-ci",
+      "reason": "起 python 服务 + vite 的 oracle 端到端验收",
+      "acceptedBecause": "CI 里另起服务成本高，当前由人手工跑",
+      "blockedBy": "CI 需另起 python oracle 服务与 vite preview"
+    },
+    {
+      "id": "file:world-client/scripts/check-rain-pin.mjs",
+      "kind": "manual",
+      "reason": "雨帧三跑与两条扰动的截图（只拍图，配对交给 screens-diff.py）",
+      "acceptedBecause": "需要 preview + Playwright，尚未决定是否值得常驻 CI",
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/check-glow-contrast.mjs",
+      "kind": "manual",
+      "reason": "发光块亮度比/周边材质/通道峰值/局部压暗的读数工具（00d3121 起只读数，退出码恒 0）",
+      "acceptedBecause": "main 在分支基点之后把它改成「不是闸门，也不在 CI」；合入时按命名规则被算成检查，只能登记为 manual",
+      "blockedBy": "无客观判红：只输出读数，不设 exit 非 0；要进闸先按 OPEN_ISSUES H1 标定 D（ANNULUS_FLOOR = 32）"
+    },
+    {
+      "id": "npm:world-client#test:lamp-band",
+      "kind": "manual",
+      "reason": "npm 别名 → check-lamp-band.mjs（只读读数，不判定）",
+      "acceptedBecause": "CI 未调用，且基线无消费方",
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+    },
+    {
+      "id": "npm:world-client#test:lamp-pool",
+      "kind": "manual",
+      "reason": "npm 别名 → check-lamp-pool.mjs（只读读数，不判定）",
+      "acceptedBecause": "CI 未调用，且基线无消费方",
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+    },
+    {
+      "id": "npm:world-client#test:buttons",
+      "kind": "pending-ci",
+      "reason": "按钮回执验收入口，目标 check-buttons.mjs",
+      "acceptedBecause": "需 preview，CI 未调用",
+      "blockedBy": "目标 check-buttons.mjs 未接 CI（同上：等待判据）"
+    },
+    {
+      "id": "npm:world-client#test:interact",
+      "kind": "pending-ci",
+      "reason": "交互验收入口，目标 check-interact.mjs",
+      "acceptedBecause": "需 preview，CI 未调用",
+      "blockedBy": "目标 check-interact.mjs 未接 CI（同上：交互序列）"
+    },
+    {
+      "id": "npm:world-client#test:oracle-e2e",
+      "kind": "pending-ci",
+      "reason": "oracle 端到端入口，目标 check-oracle-e2e.mjs",
+      "acceptedBecause": "CI 另起服务成本高",
+      "blockedBy": "目标 check-oracle-e2e.mjs 未接 CI（同上：另起服务）"
+    },
+    {
+      "id": "file:world-client/scripts/check-creation.mjs",
+      "kind": "pending-ci",
+      "reason": "创造模式放置验收",
+      "acceptedBecause": "需要 preview + Playwright，且没有 npm 入口",
+      "blockedBy": "preview + Playwright；脚本自带 check() 判红，只缺环境"
+    },
+    {
+      "id": "file:world-client/scripts/check-dengchao.mjs",
+      "kind": "pending-ci",
+      "reason": "灯潮界（setting）画面验收",
+      "acceptedBecause": "需 preview + Playwright；README 里是手工跑法",
+      "blockedBy": "preview + Playwright；脚本自带 check() 判红，只缺环境"
+    },
+    {
+      "id": "file:world-client/scripts/check-lamp-blindspot.mjs",
+      "kind": "pending-ci",
+      "reason": "读本轮 lamp-band 截图算灯带盲区，不重拍",
+      "acceptedBecause": "依赖 check-lamp-band 的产物，后者未接 CI",
+      "blockedBy": "依赖 check-lamp-band 的产物；接 CI 需在同一 job 先生成产物再判红"
+    },
+    {
+      "id": "file:world-client/scripts/check-scene-depth.mjs",
+      "kind": "pending-ci",
+      "reason": "遮挡层摆位 depth 读数验收",
+      "acceptedBecause": "需 preview + Playwright；README 里是手工跑法",
+      "blockedBy": "preview + Playwright；脚本读 depth 并判红，只缺环境"
+    },
+    {
+      "id": "file:world-client/scripts/check-s5-d.mjs",
+      "kind": "pending-ci",
+      "reason": "只读 S5 e2e 证据 JSON 的完成/交付验收器",
+      "acceptedBecause": "它要的证据由外部 live 跑产出，CI 里没有这份证据",
+      "blockedBy": "CI 需先产出/挂载 S5 e2e 证据 JSON"
+    },
+    {
+      "id": "npm:world-client#test:browser",
+      "kind": "pending-ci",
+      "reason": "浏览器冒烟（smoke.mjs）",
+      "acceptedBecause": "需要 preview + Playwright；CI 未调用",
+      "blockedBy": "preview + Playwright；smoke.mjs 失败会退出非 0，只缺环境"
+    },
+    {
+      "id": "npm:world-client#test:live",
+      "kind": "pending-ci",
+      "reason": "真实服务端 HTTP 链路验收，会改写 eval/live/ 的入库截图",
+      "acceptedBecause": "会写脏已入库证据，README 明说不能当今日证据",
+      "blockedBy": "先改成默认写临时目录（当前会写脏 eval/live 入库截图），再接 CI"
+    },
+    {
+      "id": "npm:world-client#test:setting",
+      "kind": "pending-ci",
+      "reason": "灯潮界画面验收入口，目标 check-dengchao.mjs",
+      "acceptedBecause": "需 preview，README 里是手工跑法",
+      "blockedBy": "目标 check-dengchao.mjs 未接 CI（同上：只缺环境）"
+    },
+    {
+      "id": "npm:world-client#test:scene-depth",
+      "kind": "pending-ci",
+      "reason": "遮挡层摆位验收入口，目标 check-scene-depth.mjs",
+      "acceptedBecause": "需 preview，README 里是手工跑法",
+      "blockedBy": "目标 check-scene-depth.mjs 未接 CI（同上：只缺环境）"
+    },
+    {
+      "id": "npm:world-client#fixture:check",
+      "kind": "pending-ci",
+      "reason": "trace fixture 校验入口",
+      "acceptedBecause": "J1：当前 5/5 FAIL（100 断言 0 通过），owner 未认领；接进 CI 只会把既有红带进来",
+      "blockedBy": "J1 未认领：先重录基线或修模拟对齐旧基线，才谈接线；消费方可达不等于绿"
+    },
+    {
+      "id": "file:world-client/scripts/check-setting-scale.mjs",
+      "kind": "manual",
+      "reason": "立面尺度改前/改后对照验收",
+      "acceptedBecause": "需 preview + Playwright，且改前图要先 stash",
+      "blockedBy": "改前图要先 stash src/，需要人在场干预"
+    },
+    {
+      "id": "npm:world-client#test:setting-scale",
+      "kind": "manual",
+      "reason": "立面尺度验收入口，目标 check-setting-scale.mjs",
+      "acceptedBecause": "需 preview，人工跑",
+      "blockedBy": "目标 check-setting-scale.mjs 需先 stash src/，需要人在场干预"
+    },
+    {
+      "id": "npm:world-client#test:inprocess",
+      "kind": "obsolete",
+      "reason": "单进程测试入口（--experimental-test-isolation=none），本地提速用",
+      "acceptedBecause": "与 npm test 跑同一批用例，只是跑法变体，没有独立回归价值",
+      "blockedBy": "删除建议：与 npm test 同批用例，只是 --experimental-test-isolation=none 的跑法变体"
+    },
+    {
+      "id": "file:world-client/scripts/homecoming-analyze.py",
+      "kind": "manual",
+      "reason": "回家取证的裁图读数：室内区域包围盒、唯一色数、调色板外色数",
+      "acceptedBecause": "只输出 analysis.json 与读数，没有可自动判定的红绿",
+      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/interior-analyze.py",
+      "kind": "manual",
+      "reason": "内景取证裁图的读数：房间包围盒、色数、冻结差、过渡中点差",
+      "acceptedBecause": "只输出 analysis.json 与读数，没有可自动判定的红绿",
+      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/material-analyze.py",
+      "kind": "manual",
+      "reason": "材质证据的裁图与像素读数：世界坐标切窗、源色分布/纹理能量/同材质格重复率",
+      "acceptedBecause": "只输出读数与放大图，没有可自动判定的红绿",
+      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/verify-animation-baseline.mjs",
+      "kind": "pending-ci",
+      "reason": "动画基线账本结构校验（157 行），verify-all 的 animation-baseline 项",
+      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
+      "blockedBy": "CI 必被 when 跳过（路径指向 pwe-anim，CI 不存在该文件）；接它的前提是 pwe-anim 证据进仓或改 when，否则接了也是假绿"
+    },
+    {
+      "id": "file:world-client/scripts/check-ground-shadow.mjs",
+      "kind": "pending-ci",
+      "reason": "落地投影 G0–G3 验收：同刻 / 跨 t+1s / 暂停 / 确定性 / 夜间影长 / 峰值指令两级口径（脚本自身 PEAK_CEILING = 34,666 不动）",
+      "acceptedBecause": "有客观 exit 非 0，但首张同刻图抓拍早于调色收敛：30 轮实测 4 红（13.3%）",
+      "blockedBy": "30 轮实测 4 红（13.3%），红因首张同刻图抓拍早于调色收敛；修法为 `shotStable`（连续 8 帧逐字节相同才允许比较），修好并验证 30 轮 0 红后重新接线"
+    }
+  ]
+}

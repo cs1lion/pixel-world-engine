@@ -51,6 +51,16 @@ jobs:
       # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
       # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
       - run: node scripts/audit-claims.ts --strict
+      # 指标账本的口径（25 条 metric）必须能复算；不接 verify-all 聚合器，
+      # 两条独立 step 各自可判红：eval-ledger 先算，selfcheck 再验分桶与必填字段。
+      - run: node scripts/eval-ledger.ts
+      - run: node scripts/verify-ledger-selfcheck.ts
+      # screens-diff 自检只喂合成图（200x200），不读 eval/screens 的截图基线，
+      # 所以 E7 删掉的 3 张基线不影响它。锁定版本是因为仓库没有 requirements.txt，
+      # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
+      - run: pip install numpy==2.5.1 pillow==12.3.0
+      - run: python scripts/verify-screens-diff-selfcheck.py
+
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
   # 三道都只读；EVAL_OUT 指到 runner 临时目录，保证仓库 eval/ 不被写脏。
@@ -80,6 +90,8 @@ jobs:
           npm run test:persistence
           npm run test:render-budget
           npm run test:phases
+          node scripts/check-shot-actor-pin.mjs
+          node scripts/check-phases-negative.mjs
         env:
           EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: |
@@ -108,6 +120,13 @@ jobs:
       # 非 --strict：CI 里 main worktree 的绝对路径与登记表不同，严格模式会误红。
       - name: worktree 登记巡检
         run: npm run worktrees:audit
+      # 孤儿闸门：检查脚本 / 检查型 npm 脚本必须有 workflow 或 import 消费方；
+      # 允许清单里的例外必须存在、带理由，且一接闸就要从清单删掉，否则这里红。
+      - name: 孤儿闸门检测
+        run: npm run audit:orphan-gates
+      # 回归：continue-on-error: true / `|| true` / if: false 的接线不算消费方（5 条用例）。
+      - name: 孤儿闸门检测自检
+        run: node --test scripts/orphan-gates-selftest.mjs
 
   server:
     runs-on: ubuntu-latest

@@ -41,6 +41,13 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { commentKindFor, findBannedPorts } from './audit-ports-lib.ts';
+import {
+  SCAN_BASELINE_PATH,
+  checkScanFloor,
+  failureWhy,
+  loadScanBaseline,
+} from './audit-scan-guard-lib.ts';
+import type { ScanFloor, ScanRootProblem } from './audit-scan-guard-lib.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const WORLD_ROOT = join(REPO_ROOT, 'world-client');
@@ -81,23 +88,62 @@ function walk(dir: string, files: ScanTarget[]): void {
   }
 }
 
-function collectTargets(): ScanTarget[] {
+/** 必须有、否则说明扫描面缺了一块：目录根。 */
+export const REQUIRED_DIRS: readonly string[] = [
+  'world-client/scripts',
+  'scripts',
+  '.github/workflows',
+  'server',
+];
+
+/**
+ * 必须有、否则说明扫描面缺了一块：固定文件落点。
+ * `.env*` 不在此列——文件头写明它们是**示例**，允许不存在。
+ */
+export const REQUIRED_FILES: readonly string[] = [
+  'world-client/vite.config.ts',
+  'world-client/package.json',
+  'package.json',
+];
+
+/**
+ * 期望的扫描根在不在。**根缺失就是红**：`walk()` 原来对着不存在的目录
+ * `return`，受查数悄悄缩水，而输出仍是一句「0 处禁用端口」。
+ */
+export function scanRootProblems(repoRoot: string = REPO_ROOT): ScanRootProblem[] {
+  const problems: ScanRootProblem[] = [];
+  const check = (rel: string, kind: '目录' | '文件'): void => {
+    const abs = join(repoRoot, rel);
+    try {
+      const st = statSync(abs);
+      const ok = kind === '目录' ? st.isDirectory() : st.isFile();
+      if (!ok) problems.push({ scanRoot: rel, expected: abs, actual: `不是${kind}` });
+    } catch (error) {
+      problems.push({ scanRoot: rel, expected: abs, actual: failureWhy(error) });
+    }
+  };
+  for (const rel of REQUIRED_DIRS) check(rel, '目录');
+  for (const rel of REQUIRED_FILES) check(rel, '文件');
+  return problems;
+}
+
+function collectTargets(repoRoot: string = REPO_ROOT, worldRoot: string = WORLD_ROOT): ScanTarget[] {
   const targets: ScanTarget[] = [];
-  walk(join(WORLD_ROOT, 'scripts'), targets);
-  walk(join(REPO_ROOT, 'scripts'), targets);
-  walk(join(REPO_ROOT, '.github', 'workflows'), targets);
-  walk(join(REPO_ROOT, 'server'), targets);
+  walk(join(worldRoot, 'scripts'), targets);
+  walk(join(repoRoot, 'scripts'), targets);
+  walk(join(repoRoot, '.github', 'workflows'), targets);
+  walk(join(repoRoot, 'server'), targets);
 
   for (const path of [
-    join(WORLD_ROOT, 'vite.config.ts'),
-    join(WORLD_ROOT, 'package.json'),
-    join(REPO_ROOT, 'package.json'),
-    join(REPO_ROOT, '.env'),
-    join(REPO_ROOT, '.env.example'),
-    join(WORLD_ROOT, '.env'),
-    join(WORLD_ROOT, '.env.example'),
-    join(REPO_ROOT, 'server', '.env'),
-    join(REPO_ROOT, 'server', '.env.example'),
+    join(worldRoot, 'vite.config.ts'),
+    join(worldRoot, 'package.json'),
+    join(repoRoot, 'package.json'),
+    join(repoRoot, '.env'),
+    join(repoRoot, '.env.example'),
+    join(worldRoot, '.env'),
+    join(worldRoot, '.env.example'),
+    join(repoRoot, 'server', '.env'),
+    join(repoRoot, 'server', '.env.example'),
   ]) {
     if (existsSync(path)) targets.push({ path, why: '' });
   }
@@ -110,12 +156,13 @@ function collectTargets(): ScanTarget[] {
   });
 }
 
-function isTestOrFixture(path: string): boolean {
-  const rel = relative(REPO_ROOT, path).split('\\').join('/');
+function isTestOrFixture(path: string, repoRoot: string = REPO_ROOT): boolean {
+  const rel = relative(repoRoot, path).split('\\').join('/');
   return rel.includes('/test/') || rel.includes('/fixtures/');
 }
 
 function main(): void {
+  const problems = scanRootProblems();
   const targets = collectTargets().filter((target) => !isTestOrFixture(target.path));
   let hitCount = 0;
   for (const target of targets) {
@@ -128,13 +175,51 @@ function main(): void {
     }
   }
 
-  const relTargets = targets.map((target) => relative(REPO_ROOT, target.path));
+  if (problems.length > 0) {
+    console.error(`audit-ports: 扫描面不完整：${problems.length} 个扫描根不存在。`);
+    for (const p of problems) {
+      console.error(
+        `  扫描根不存在：${p.scanRoot} —— 期望 ${p.expected}，实际 ${p.actual}`,
+      );
+    }
+    process.exitCode = 1;
+  }
+
+  const loaded = loadScanBaseline(SCAN_BASELINE_PATH);
+  let floor: ScanFloor;
+  if (loaded.ok) {
+    floor = checkScanFloor(loaded.baseline, 'ports', 'files', targets.length);
+  } else {
+    console.error(`audit-ports: 扫描面基线没查成：${loaded.why}。没有地板就不是绿。`);
+    floor = { kind: 'missing' };
+    process.exitCode = 1;
+  }
+  if (floor.kind === 'missing' && loaded.ok) {
+    console.error('audit-ports: 基线文件里没有 ports.files。没有地板就不是绿。');
+    process.exitCode = 1;
+  } else if (floor.kind === 'breach') {
+    console.error(
+      `audit-ports: 扫描面塌陷：受查 ${targets.length} 个文件，比基线 ${floor.baseline} ` +
+        `少 ${floor.baseline - targets.length} 个（允许最多降 ${floor.allowed} 个）。`,
+    );
+    process.exitCode = 1;
+  }
+
+  const clean = problems.length === 0 && floor.kind === 'ok';
   if (hitCount > 0) {
-    console.error(`audit-ports: ${hitCount} 处禁用端口（扫描 ${relTargets.length} 个文件）`);
+    console.error(`audit-ports: ${hitCount} 处禁用端口（扫描 ${targets.length} 个文件）`);
     process.exitCode = 1;
     return;
   }
-  console.log(`audit-ports: 0 处禁用端口（扫描 ${relTargets.length} 个文件）`);
+  if (!clean) {
+    // 有扫描面问题时绝不打印那句「0 处」的绿话——它会被读成「验过了」。
+    console.error(`audit-ports: 扫描 ${targets.length} 个文件，0 处禁用端口；但扫描面问题未解决，本次不算绿。`);
+    return;
+  }
+  console.log(`audit-ports: 0 处禁用端口（扫描 ${targets.length} 个文件）`);
 }
 
-main();
+// 被 import 时不跑 main：测试要的就是那几个纯函数，不是它的退出码。
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

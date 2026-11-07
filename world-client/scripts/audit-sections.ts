@@ -142,12 +142,25 @@ export interface SectionFinding {
   readonly doc: string;
 }
 
+export interface ScanFailure {
+  /** 读不成的绝对路径。 */
+  readonly path: string;
+  /** 失败原因（ENOENT / EACCES / ENOTDIR 等），直接打印给读报告的人。 */
+  readonly why: string;
+}
+
 export interface SectionAudit {
   readonly findings: readonly SectionFinding[];
   /** 每一类跳过的处数。判据报不出跳过次数，等于没有判据。 */
   readonly skips: ReadonlyMap<string, number>;
   /** 受查的 `§N` 处数（认得出文档的那些）。 */
   readonly checked: number;
+  /** 列出但读不成的文件。一个都不能有——有就说明这次扫描面不完整。 */
+  readonly scanFailures: readonly ScanFailure[];
+  /** 实际读入的文件数。必须等于 `listed`。 */
+  readonly scanned: number;
+  /** 列出来打算读的文件数。 */
+  readonly listed: number;
   /**
    * 这次的「已提交」清单是不是真来自 `git ls-files`。
    *
@@ -210,7 +223,15 @@ function sectionsOf(root: string, rel: string): Set<string> {
  * 默认扫描一处都没算，而 6 条用例一条都不红。
  * 所以根先问一句「是文件吗」，是就直接收下。
  */
-export function scanFiles(root: string): string[] {
+/** 失败原因：优先给 `ENOENT` / `EACCES` 这种能查的码，其次才给 message。 */
+export function failureWhy(error: unknown): string {
+  if (error !== null && typeof error === 'object' && 'code' in error) {
+    return String((error as { code: unknown }).code);
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function scanFiles(root: string, failures: ScanFailure[] = []): string[] {
   const out: string[] = [];
   // 扫描后缀与 `SCAN_ROOTS` 里的根必须对得上：`server` 是个根，而它底下一份
   // `.ts|.mjs|.md` 都没有（39 个 `.py`、1 个 `toml`、1 个 `txt`）。只认前三个
@@ -223,7 +244,8 @@ export function scanFiles(root: string): string[] {
     let entries: string[];
     try {
       entries = readdirSync(dir);
-    } catch {
+    } catch (error) {
+      failures.push({ path: dir, why: failureWhy(error) });
       return;
     }
     for (const e of entries) {
@@ -235,7 +257,8 @@ export function scanFiles(root: string): string[] {
       let isDir = false;
       try {
         isDir = statSync(p).isDirectory();
-      } catch {
+      } catch (error) {
+        failures.push({ path: p, why: failureWhy(error) });
         continue;
       }
       if (isDir) walk(p);
@@ -247,7 +270,10 @@ export function scanFiles(root: string): string[] {
     let isFile = false;
     try {
       isFile = statSync(p).isFile();
-    } catch {
+    } catch (error) {
+      // 扫描根不存在 / 不可读：记下来，main 会打印并以非 0 退出。
+      // 「根缺失 → 少扫一片 → 仍然绿」是最坏的一种绿。
+      failures.push({ path: p, why: failureWhy(error) });
       continue;
     }
     if (isFile) {
@@ -304,16 +330,23 @@ export function auditSections({
   };
   let checked = 0;
 
-  for (const abs of scan ?? scanFiles(root)) {
+  const scanFailures: ScanFailure[] = [];
+  const listed = scan ?? scanFiles(root, scanFailures);
+  let scanned = 0;
+
+  for (const abs of listed) {
     const rel = path.relative(root, abs).split(path.sep).join('/');
     // 与 `statSync` 同一个理由：多会话同写，文件可能在列出之后、读之前消失。
-    // 读不到就跳过这一个文件，别让整道闸门崩掉——崩掉的闸门看起来像在管事。
+    // 但**不能静默跳过**：读不到就是这次扫描面不完整，必须计数、打印、非 0 退出。
+    // 「读不到就装作没看见」会让受查数悄悄缩水，而闸门照样绿。
     let text: string;
     try {
       text = readFileSync(abs, 'utf8');
-    } catch {
+    } catch (error) {
+      scanFailures.push({ path: abs, why: failureWhy(error) });
       continue;
     }
+    scanned += 1;
     const lines = text.split(/\r?\n/);
     lines.forEach((line, i) => {
       SEC.lastIndex = 0;
@@ -368,7 +401,7 @@ export function auditSections({
     });
   }
 
-  return { findings, skips, checked, viaGit };
+  return { findings, skips, checked, scanFailures, scanned, listed: listed.length, viaGit };
 }
 
 function main(): void {
@@ -379,6 +412,15 @@ function main(): void {
   }
   for (const [reason, n] of [...r.skips].sort((a, b) => b[1] - a[1])) {
     console.log(`跳过 ${n} 处：${reason}`);
+  }
+  console.log(`受查文件：读入 ${r.scanned} / 实际列出 ${r.listed} 个。`);
+  if (r.scanFailures.length > 0) {
+    console.log(`\n扫描面不完整：${r.scanFailures.length} 个文件没读成，这次判据无效。`);
+    for (const f of r.scanFailures) {
+      const shown = path.relative(ROOT, f.path).split(path.sep).join('/');
+      console.log(`  读失败：${shown} —— ${f.why}`);
+    }
+    process.exitCode = 1;
   }
   console.log(`\n受查 ${r.checked} 处（认得出文档的 §N）。`);
   if (r.findings.length === 0) {

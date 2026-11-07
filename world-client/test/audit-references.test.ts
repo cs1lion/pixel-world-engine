@@ -248,13 +248,68 @@ test('代码里的键值对不是续引：少了前引号这个条件就会误�
 test('真仓库现在是干净的：0 处存疑', () => {
   // 这一条是那道真正的闸门。它不换 root，审的就是这个 checkout——
   // 谁改代码挪走了函数，这里当场红，而不是等某个后人在文档里照着错的行号改错地方。
-  const { checked, findings } = auditReferences();
+  const { checked, findings, problems, floor } = auditReferences();
   assert.ok(checked > 100, `该查到几百处引用，只查到 ${checked}——扫描范围是不是缩了`);
   assert.deepEqual(
     findings.map((f) => `${f.where}  ${f.ref} —— ${f.why}`),
     [],
     '仓库里有没有哪处行号引用对不上了',
   );
+  // 根一个都不能缺：缺了那片就是没查，不是查了没问题。
+  assert.deepEqual(problems, [], '真仓库的扫描根缺了，见上方报告');
+  // 地板要在：基线文件读成了、而且受查数没塌。
+  assert.equal(floor.kind, 'ok', `受查数相对基线塌了：${JSON.stringify(floor)}`);
+});
+
+test('扫描根不存在要进返回值，不许静默 `return out`', () => {
+  // 原来 `walk()` 对着不存在的根 `statSync` 失败就 `return out`，
+  // 调用方只看到受查数小了一点。这里用 `fixture()`（只有 docs 与两个 src 目录），
+  // 另外四个根一个都不在，必须逐个报出来。
+  const root = fixture();
+  try {
+    const r = auditReferences({ root, baselineFile: path.join(root, 'none.json') });
+    assert.deepEqual(
+      [...r.problems].map((p) => p.scanRoot).sort(),
+      ['GLOSSARY.md', 'README.md', 'server', 'world-client/scripts'].sort(),
+    );
+    const server = r.problems.find((p) => p.scanRoot === 'server');
+    assert.ok(server !== undefined);
+    assert.equal(server.expected, path.resolve(root, 'server'));
+    assert.equal(server.actual, 'ENOENT');
+    // 基线文件也不存在：没有地板同样是红，不许默认绿。
+    assert.equal(r.floor.kind, 'missing');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('受查数掉过阈值才报：max(5, 基线 2%)', () => {
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 6)}。\n`);
+    const baselineFile = path.join(root, 'baseline.json');
+    const actual = auditReferences({ root, baselineFile }).checked;
+    const write = (checked: number): void => {
+      writeFileSync(
+        baselineFile,
+        JSON.stringify({ threshold: { minDrop: 5, ratio: 0.02 }, audits: { references: { checked } } }),
+        'utf8',
+      );
+    };
+    // 与基线持平：在地板内。
+    write(actual);
+    assert.equal(auditReferences({ root, baselineFile }).floor.kind, 'ok');
+    // 掉 5：正好在允许范围内（判据是「超过」才红）。
+    write(actual + 5);
+    assert.equal(auditReferences({ root, baselineFile }).floor.kind, 'ok');
+    // 掉 8：超过 max(5, ceil(基线 × 2%) = 1) = 5，报。
+    write(actual + 8);
+    const floor = auditReferences({ root, baselineFile }).floor;
+    assert.equal(floor.kind, 'breach');
+    if (floor.kind === 'breach') assert.equal(floor.allowed, 5);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------- 「那东西就在这儿」也得真的是它
