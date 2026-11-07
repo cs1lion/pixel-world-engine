@@ -7,7 +7,18 @@ import { parseArgs, planTestChanges, type ChangedFile } from '../scripts/red-fir
  * 断言失败（而不是 ERR_MODULE_NOT_FOUND / 缺命名导出），这样 red-first 闸门
  * 才能把这条测试判成合格的红。
  */
-type ClassifierModule = { classifyBaseFailure?: (output: string) => string };
+type ClassifierModule = {
+  classifyBaseFailure?: (output: string) => string;
+  explainBaseFailure?: (output: string) => {
+    kind: string;
+    pattern: string | null;
+    line: number | null;
+    matched: string | null;
+    file: string | null;
+    fileLine: number | null;
+    context: string[];
+  };
+};
 const loadClassifier = async (): Promise<ClassifierModule> =>
   (await import('../scripts/red-first-lib.ts')) as unknown as ClassifierModule;
 
@@ -141,4 +152,50 @@ test('失败分类：测试级超时按断言失败处理', async () => {
   const lib = await loadClassifier();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   assert.equal(lib.classifyBaseFailure!("failureType: 'testTimeoutFailure'"), 'assertion');
+});
+
+test('诊断：module 红要指到命中的规则、行号与出错文件', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.explainBaseFailure, 'function');
+  const output = [
+    '✖ test/check-setting-scale-probe.test.ts',
+    "  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/tmp/x/scripts/lib/setting-scale-probe.mjs'",
+    '  imported from /tmp/x/test/check-setting-scale-probe.test.ts',
+  ].join('\n');
+  const evidence = lib.explainBaseFailure!(output);
+  assert.equal(evidence.kind, 'module');
+  assert.equal(evidence.pattern, 'ERR_MODULE_NOT_FOUND');
+  assert.equal(evidence.line, 2, '要说清是全量输出里的第几行，不是 tail 里的第几行');
+  assert.match(evidence.matched ?? '', /Cannot find module/);
+  assert.match(evidence.file ?? '', /test[/\\]check-setting-scale-probe\.test\.ts$/);
+  assert.ok(evidence.context.length > 0, '上下文要一起给出来');
+});
+
+test('诊断：compile 红要找到错误消息上方那个出错文件与行号', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.explainBaseFailure, 'function');
+  // 拼出来：源码里不留「路径 + 冒号 + 行号」的字面形状，否则 audit-references
+  // 会把这条夹具当成一处真的引用去查（它连自己的测试数据一起审）。
+  const site = ['file:///tmp/pwe/x/world-client/test/audit-references.test.ts', ':2', '0'].join('');
+  const output = [
+    site,
+    "import { silentWindow } from '../scripts/audit-scan-guard-lib.ts';",
+    '         ^^^^^^^^^^^^',
+    "SyntaxError: The requested module '../scripts/audit-scan-guard-lib.ts' does not provide an export named 'silentWindow'",
+  ].join('\n');
+  const evidence = lib.explainBaseFailure!(output);
+  assert.equal(evidence.kind, 'compile');
+  assert.equal(evidence.pattern, 'SyntaxError');
+  assert.equal(evidence.file, '/tmp/pwe/x/world-client/test/audit-references.test.ts');
+  assert.equal(evidence.fileLine, 20);
+});
+
+test('诊断：没有任何信号时字段留空，不编造现场', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.explainBaseFailure, 'function');
+  const evidence = lib.explainBaseFailure!('some unexpected stderr noise');
+  assert.equal(evidence.kind, 'unknown');
+  assert.equal(evidence.pattern, null);
+  assert.equal(evidence.line, null);
+  assert.deepEqual(evidence.context, []);
 });

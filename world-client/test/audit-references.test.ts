@@ -17,7 +17,22 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { auditReferences, invisibleNameRefs } from '../scripts/audit-references.ts';
-import { silentWindow } from '../scripts/audit-scan-guard-lib.ts';
+
+/**
+ * `silentWindow` 是随 E11 新增的导出，base 上还不存在。
+ *
+ * 静态 import 会让整份测试在链接阶段就以
+ * `SyntaxError: … does not provide an export named 'silentWindow'` 结束，
+ * red-first 判 `compile`（不可采信）——那是「测试没跑起来」，不是「先红」。
+ * 改成动态 import + 存在性断言（B7）：base 上红在 `typeof` 断言上。
+ */
+interface ScanGuardLib {
+  silentWindow?: (input: { baseline: number; allowed: number }) => unknown;
+}
+
+async function loadScanGuard(): Promise<ScanGuardLib> {
+  return (await import('../scripts/audit-scan-guard-lib.ts')) as unknown as ScanGuardLib;
+}
 
 /** 一份够用的假仓库：两个源文件 + 一份文档。 */
 function fixture(): string {
@@ -345,7 +360,10 @@ test('基线过期：实际超过基线 20% 就报；刷新到实测值才绿', 
   }
 });
 
-test('无感塌陷窗口由基线实算，不写死', () => {
+test('无感塌陷窗口由基线实算，不写死', async () => {
+  const lib = await loadScanGuard();
+  assert.equal(typeof lib.silentWindow, 'function', '模块缺 silentWindow');
+  const silentWindow = lib.silentWindow!;
   // 当前两个审计的实测基线：references 529 / ports 155。
   assert.deepEqual(silentWindow({ baseline: 529, allowed: 11 }), {
     floor: 518,
