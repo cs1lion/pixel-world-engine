@@ -296,6 +296,7 @@ test('允许清单可以把不按 check/audit 命名的脚本登记成检查', (
       extraScripts: { 'check-py.py': 'raise SystemExit(1)\n' },
       allowlist: {
         ...BASE_ALLOWLIST,
+        extraChecks: ['file:scripts/check-py.py'],
         pendingCiBudget: 1,
         entries: [entry('file:scripts/check-py.py', 'pending-ci')],
         budgetLedger: [
@@ -316,6 +317,7 @@ test('已归类的 python 检查被 workflow 直连 → 红（清单必须同提
       extraScripts: { 'check-py.py': 'raise SystemExit(1)\n' },
       allowlist: {
         ...BASE_ALLOWLIST,
+        extraChecks: ['file:scripts/check-py.py'],
         pendingCiBudget: 1,
         entries: [entry('file:scripts/check-py.py', 'pending-ci')],
         budgetLedger: [

@@ -1,6 +1,15 @@
 {
   "schema": "pwe-orphan-gates-allowlist/2",
-  "pendingCiBudget": 23,
+  "extraChecks": [
+    "file:world-client/scripts/homecoming-analyze.py",
+    "file:world-client/scripts/interior-analyze.py",
+    "file:world-client/scripts/material-analyze.py",
+    "file:world-client/scripts/screens-diff.py",
+    "file:world-client/scripts/verify-animation-baseline.mjs",
+    "file:world-client/scripts/verify-ledger-selfcheck.ts",
+    "file:world-client/scripts/verify-screens-diff-selfcheck.py"
+  ],
+  "pendingCiBudget": 22,
   "manualBudget": 11,
   "obsoleteBudget": 1,
   "budgetLedger": [
@@ -19,9 +28,17 @@
       "pendingCi": 23,
       "manual": 11,
       "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "第一批接线：verify-ledger-selfcheck.ts 接进 world-client job 独立 step，同提交删条、pending-ci 23→22",
+      "pendingCi": 22,
+      "manual": 11,
+      "obsolete": 1
     }
   ],
-  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数并占用自己的预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。三类条数必须分别等于 pendingCiBudget / manualBudget / obsoleteBudget；任何预算变更都必须同一提交追加一条带 approved_at / approved_by / reason 的 budgetLedger 记录。",
+  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数并占用自己的预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。三类条数必须分别等于 pendingCiBudget / manualBudget / obsoleteBudget；任何预算变更都必须同一提交追加一条带 approved_at / approved_by / reason 的 budgetLedger 记录。extraChecks 只负责命名豁免（声明它是检查，不按 check-*/audit-* 命名也算），entries 只负责孤儿豁免；接线后从 entries 删条但仍留在 extraChecks，检查总数不会因为接线反而变小。",
   "entries": [
     {
       "id": "file:world-client/scripts/check-scene-motion.mjs",
@@ -251,13 +268,6 @@
       "id": "file:world-client/scripts/verify-animation-baseline.mjs",
       "kind": "pending-ci",
       "reason": "动画基线账本结构校验（157 行），verify-all 的 animation-baseline 项",
-      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
-      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
-    },
-    {
-      "id": "file:world-client/scripts/verify-ledger-selfcheck.ts",
-      "kind": "pending-ci",
-      "reason": "指标账本与旁证分桶的自检，verify-all 的 eval-ledger 项",
       "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
       "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
     },

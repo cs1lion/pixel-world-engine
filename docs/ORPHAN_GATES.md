@@ -11,7 +11,7 @@
 1. 路径是任意 `scripts/` 目录下的 `check-*` 或 `audit-*`，扩展名 `.mjs` / `.ts`。
    只认 `scripts/` 的直接子文件，不向下递归。
 2. npm 脚本名以 `test:` / `audit:` / `fixture:` / `check:` / `baseline:` 开头。
-3. 允许清单里的 `file:` 条目如果指向 `scripts/` 下真实存在的 `.py` / `.mjs` / `.ts` / `.js`，也会被登记为检查。这是「盲区候选归类」的入口：python 与 `verify-*` 这类不按 `check-*` / `audit-*` 命名的脚本，只有显式登记后才进入检查域；没登记的仍只是候选。
+3. 允许清单里的 `extraChecks` 列出的 `file:` 条目如果指向 `scripts/` 下真实存在的 `.py` / `.mjs` / `.ts` / `.js`，也会被登记为检查。这是「盲区候选归类」的入口：python 与 `verify-*` 这类不按 `check-*` / `audit-*` 命名的脚本，只有写进 `extraChecks` 后才进入检查域；`entries` 只负责孤儿豁免，不负责命名。接线后从 `entries` 删条，但仍留在 `extraChecks`，所以检查总数不会因为接线反而变小。
 
 不算检查：普通测试文件（`*.test.ts`）、不带这些前缀的 npm 脚本（如 `build`、`preview`、`worktrees:audit`）。
 

@@ -51,6 +51,11 @@ jobs:
       # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
       # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
       - run: node scripts/audit-claims.ts --strict
+      # 指标账本的口径（25 条 metric）必须能复算；不接 verify-all 聚合器，
+      # 两条独立 step 各自可判红：eval-ledger 先算，selfcheck 再验分桶与必填字段。
+      - run: node scripts/eval-ledger.ts
+      - run: node scripts/verify-ledger-selfcheck.ts
+
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
   # 三道都只读；EVAL_OUT 指到 runner 临时目录，保证仓库 eval/ 不被写脏。

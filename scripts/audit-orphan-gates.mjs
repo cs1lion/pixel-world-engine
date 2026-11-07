@@ -93,17 +93,19 @@ if (!existsSync(ALLOWLIST_FILE)) {
   }
 }
 
-// 已归类候选：允许清单里的 file: 条目可以把「不按 check-*/audit-* 命名」的脚本
-// 提升为登记检查（python、verify-* 等）。文件必须真实存在且在 scripts/ 下；
-// 指向不存在的路径仍按「清单指向不存在的检查」判红。
-for (const entry of parsed?.entries ?? []) {
-  if (typeof entry?.id !== 'string' || !entry.id.startsWith('file:')) continue;
-  const relPath = entry.id.slice('file:'.length);
+// 命名豁免：`extraChecks` 里的 file: 条目把「不按 check-*/audit-* 命名」的脚本
+// 提升为检查（python、verify-* 等）。这是「它是检查」的声明，和「它暂时豁免」
+// （entries）分开：接线删条之后仍留在检查域里，总量不会因为接线反而变小。
+// 文件必须真实存在且在 scripts/ 下；指向不存在的路径仍按
+// 「允许清单指向不存在的检查」判红。
+for (const id of Array.isArray(parsed?.extraChecks) ? parsed.extraChecks : []) {
+  if (typeof id !== 'string' || !id.startsWith('file:')) continue;
+  const relPath = id.slice('file:'.length);
   if (!/(^|\/)scripts\/[^/]+\.(?:py|mjs|ts|js)$/.test(relPath)) continue;
-  if (CHECK_FILES.has(entry.id)) continue;
+  if (CHECK_FILES.has(id)) continue;
   const abs = resolve(ROOT, relPath);
   if (!isFile(abs)) continue;
-  CHECK_FILES.set(entry.id, { id: entry.id, abs, relPath });
+  CHECK_FILES.set(id, { id, abs, relPath });
 }
 
 const NPM_CHECK_IDS = [...NPM_SCRIPTS.values()]
