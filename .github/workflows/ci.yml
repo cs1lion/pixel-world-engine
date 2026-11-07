@@ -51,6 +51,10 @@ jobs:
       # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
       # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
       - run: node scripts/audit-claims.ts --strict
+      # 交付报告纪律（docs/agents/reporting.md）：带结构化块的报告复核产物哈希、
+      # 退出码、比对口径、提交状态与时间线。它自己也必须有消费方，否则
+      # chore/orphan-gates 合入后会把它当成新的未登记孤儿——接在这里就是登记。
+      - run: npm run audit:reports
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
   # 三道都只读；EVAL_OUT 指到 runner 临时目录，保证仓库 eval/ 不被写脏。

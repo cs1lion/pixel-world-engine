@@ -32,10 +32,10 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 服务端在 `server/`，CI 有第二个 job：`pip install -r requirements.txt` 然后
 `python -m pytest`。
 
-**这几条要一起跑，别只跑前两条。** CI 现在跑**十一道闸门**：前端 job 十道，
-服务端 job 一道。后五道（色板 + 三份审引用 + `audit-claims`）的输出有个共同性质：
-**断言对不上、节号不存在、色板超预算，全都只让输出变长，不会让 `check`/`test`
-变红。** 所以只跑前三条的人会以为自己是绿的，而五道闸门一个都没过。完整清单以
+**这几条要一起跑，别只跑前两条。** CI 现在跑**十二道闸门**：前端 job 十一道，
+服务端 job 一道。后六道（色板 + 三份审引用 + `audit-claims` + `audit-reports`）的输出有个共同性质：
+**断言对不上、节号不存在、色板超预算、报告对不上账，全都只让输出变长，不会让 `check`/`test`
+变红。** 所以只跑前三条的人会以为自己是绿的，而六道闸门一个都没过。完整清单以
 `.github/workflows/ci.yml` 为准——那一份加了新步骤时，这里要跟着改。
 
 | # | 闸门 | 命令（`world-client/` 下执行） | 在 CI 里 |
@@ -50,10 +50,11 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 | 8 | 文件引用 | `node scripts/audit-citations.ts --strict` | 前端 job |
 | 9 | 节号引用 | `node scripts/audit-sections.ts --strict` | 前端 job |
 | 10 | 标注断言 + ADR 字段 | `node scripts/audit-claims.ts --strict` | 前端 job |
-| 11 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
+| 11 | 交付报告纪律 | `npm run audit:reports` | 前端 job |
+| 12 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
 
 CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
-`test:phases`，只读、写到 runner 临时目录）。它是验收，不在这十一道计数里。
+`test:phases`，只读、写到 runner 临时目录）。它是验收，不在这十二道计数里。
 
 ## 权限边界（本地强制）
 

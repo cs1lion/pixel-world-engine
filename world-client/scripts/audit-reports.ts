@@ -8,7 +8,8 @@
  *   R3 比对口径：method/threshold/size/shots/scope 齐全；byte-exact 时 threshold 必须 0
  *   R4 推断：每条 basis 非空且 ≥8 字符（语义归属仍靠人工）
  *   R5 状态：state 闭集、sha 40 位、state 与 pushed 不矛盾；非浅克隆时验证 sha 在本仓
- *   R6 时间：未跟踪产物 mtime ≤ reportedAt（已跟踪产物跳过，checkout 会重写 mtime）
+ *   R6 时间：主判据用 git 提交时间（产物提交时间 vs 报告文件提交时间）；
+ *            报告文件未提交时退回未跟踪产物的 mtime ≤ reportedAt（可被作者填写规避）
  *   R7 无产物：artifacts 为空时必须写 noArtifactsReason
  *
  * 不会联网、不重放历史命令、不做自然语言判断——这些写进文档的人工检查点。
@@ -71,6 +72,35 @@ function commitExists(sha: string): boolean {
   }
 }
 
+function isDirty(path: string): boolean {
+  try {
+    return execFileSync('git', ['status', '--porcelain', '--', path], { cwd: ROOT, encoding: 'utf8' }).trim() !== '';
+  } catch {
+    return true;
+  }
+}
+
+/** 最后一次触及该路径的提交时间（毫秒）。取不到（未跟踪/无历史）返回 undefined。 */
+function lastCommitMs(path: string): number | undefined {
+  try {
+    const out = execFileSync('git', ['log', '-1', '--format=%ct', '--', path], { cwd: ROOT, encoding: 'utf8' }).trim();
+    if (out === '') return undefined;
+    const seconds = Number.parseInt(out, 10);
+    return Number.isFinite(seconds) ? seconds * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 报告文件的 R6 基线：只有已提交且工作区无改动时才成立。
+ * 有未提交改动时，git 时间是旧版本的时间，不能拿来比产物。
+ */
+function reportCommitMsOf(path: string): number | undefined {
+  if (!isTracked(path) || isDirty(path)) return undefined;
+  return lastCommitMs(path);
+}
+
 function sha256Of(file: string): string {
   return createHash('sha256').update(readFileSync(file)).digest('hex');
 }
@@ -79,7 +109,7 @@ const BLOCK = /<!--\s*delivery\s*\r?\n\s*\{/g;
 const FENCED = /```[\s\S]*?```/g;
 
 const issues: Issue[] = [];
-const counts = { reports: 0, artifacts: 0, checks: 0, skippedTime: 0 };
+const counts = { reports: 0, artifacts: 0, checks: 0, gitTime: 0, mtimeTime: 0, unverifiedTime: 0, fallbackTime: 0 };
 
 const shallow = isShallow();
 if (shallow) console.log('audit-reports: 浅克隆，R5 的「sha 在本仓」检查跳过（会误判）');
@@ -110,6 +140,8 @@ for (const file of walk(join(ROOT, 'docs'))) {
     const add = (why: string): void => {
       issues.push({ file: rel, why });
     };
+    // R6 的报告侧基线：已提交且工作区无改动才有；否则退回 reportedAt。
+    const reportMs = reportCommitMsOf(rel);
 
     // R1 / R7 -------------------------------------------------------------
     const artifacts = data.artifacts;
@@ -151,14 +183,36 @@ for (const file of walk(join(ROOT, 'docs'))) {
         } else if (typeof item.noHashReason !== 'string' || item.noHashReason.trim() === '') {
           add(`R1 ${path} 既没有 sha256 也没有 noHashReason`);
         }
-        // R6
+        // R6：主判据是 git 提交时间；mtime 只在未跟踪/有未提交改动时才可信。
         if (typeof data.reportedAt === 'string' && ISO_WITH_ZONE.test(data.reportedAt)) {
-          if (isTracked(path)) {
-            counts.skippedTime += 1;
+          const reported = Date.parse(data.reportedAt);
+          const artifactTracked = isTracked(path);
+          const artifactClean = artifactTracked && !isDirty(path);
+          if (artifactClean) {
+            const artifactMs = lastCommitMs(path);
+            if (artifactMs === undefined) {
+              counts.unverifiedTime += 1;
+            } else if (reportMs !== undefined) {
+              counts.gitTime += 1;
+              if (artifactMs > reportMs) {
+                add(`R6 ${path} 的提交时间晚于报告文件的提交时间（产物后置 = 未交付）`);
+              }
+            } else {
+              // 报告还没提交：主判据缺席，退回 reportedAt 这个辅助判据。
+              counts.fallbackTime += 1;
+              if (artifactMs > reported) {
+                add(`R6 ${path} 的提交时间晚于 reportedAt（报告文件未提交或有未提交改动，辅助判据可被作者填写规避）`);
+              }
+            }
+          } else if (reportMs !== undefined) {
+            counts.mtimeTime += 1;
+            if (statSync(full).mtimeMs > reportMs) {
+              add(`R6 ${path} 的 mtime 晚于报告文件的提交时间（产物后置 = 未交付）`);
+            }
           } else {
-            const reported = Date.parse(data.reportedAt);
+            counts.fallbackTime += 1;
             if (statSync(full).mtimeMs > reported) {
-              add(`R6 ${path} 的 mtime 晚于 reportedAt（产物晚于报告 = 未交付）`);
+              add(`R6 ${path} 的 mtime 晚于 reportedAt（产物晚于报告 = 未交付；报告文件未提交，此判据可被作者填写规避）`);
             }
           }
         }
@@ -249,8 +303,17 @@ for (const file of walk(join(ROOT, 'docs'))) {
 
 const counted = `reports=${counts.reports} artifacts=${counts.artifacts} checks=${counts.checks} issues=${issues.length}`;
 console.log(`audit-reports: ${counted}`);
-if (counts.skippedTime > 0) {
-  console.log(`audit-reports: ${counts.skippedTime} 个已跟踪产物的时间戳跳过（checkout 会重写 mtime，需人工核 git 时间线）`);
+if (counts.gitTime > 0) {
+  console.log(`audit-reports: R6 ${counts.gitTime} 个产物按 git 提交时间比对报告文件提交时间`);
+}
+if (counts.mtimeTime > 0) {
+  console.log(`audit-reports: R6 ${counts.mtimeTime} 个产物按 mtime 比对报告文件提交时间（未跟踪或工作区有改动）`);
+}
+if (counts.unverifiedTime > 0) {
+  console.log(`audit-reports: R6 ${counts.unverifiedTime} 个产物取不到提交时间，未做先后比对（需人工）`);
+}
+if (counts.fallbackTime > 0) {
+  console.log(`audit-reports: R6 ${counts.fallbackTime} 个产物退回 reportedAt 辅助判据（报告文件未提交，此判据可被作者填写规避）`);
 }
 for (const issue of issues) console.log(`audit-reports: FAIL ${issue.file} —— ${issue.why}`);
 if (issues.length === 0) console.log('audit-reports: 全部可自动核对项通过；人工检查点见 docs/agents/reporting.md');

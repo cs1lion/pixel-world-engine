@@ -26,7 +26,7 @@ world-client/            Phaser 前端（模拟内核 + 渲染 + HUD）
 ├── src/render/          渲染层（只读快照）
 ├── src/settings/        设定集加载器（莞尔镇 / 灯潮界）
 ├── src/ui/              DOM 覆盖层（编年史面板、神谕面板、存档槽）
-├── scripts/             十一道闸门里的八个 + 开发/验收脚本
+├── scripts/             十二道闸门里的九个 + 开发/验收脚本
 ├── eval/                验收截图（`live/` 真实 HTTP，`screens/` 离线自转）
 └── test/                测试文件数不写死；用例数以 `npm test` 输出为准
 server/                  FastAPI：规则校验、事件日志、LLM 造物主、记忆写入
@@ -244,8 +244,8 @@ v4（`CURRENT_SCHEMA_VERSION = 4`，v1→v4 逐级迁移，任一步抛错整次
 
 ## 验证
 
-CI 跑九道闸门，前端 job 八条 + 服务端 job 一条（另有只读的浏览器 job 与仓库手续 job，
-不在这九道计数里；以 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
+CI 跑十二道闸门，前端 job 十一条 + 服务端 job 一条（另有只读的浏览器 job 与仓库手续 job，
+不在这十二道计数里；以 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 为准）：
 
 ```bash
 cd world-client && npm run check && npm test && npm run build
@@ -256,7 +256,7 @@ cd world-client && node scripts/audit-palette.mjs --strict
 ```
 
 ```bash
-cd world-client && node scripts/audit-references.ts --strict && node scripts/audit-citations.ts --strict && node scripts/audit-sections.ts --strict && node scripts/audit-claims.ts --strict
+cd world-client && node scripts/audit-references.ts --strict && node scripts/audit-citations.ts --strict && node scripts/audit-sections.ts --strict && node scripts/audit-claims.ts --strict && npm run audit:reports
 ```
 
 ```bash
