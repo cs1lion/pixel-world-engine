@@ -108,6 +108,10 @@ jobs:
       # 非 --strict：CI 里 main worktree 的绝对路径与登记表不同，严格模式会误红。
       - name: worktree 登记巡检
         run: npm run worktrees:audit
+      # 孤儿闸门：检查脚本 / 检查型 npm 脚本必须有 workflow 或 import 消费方；
+      # 允许清单里的例外必须存在、带理由，且一接闸就要从清单删掉，否则这里红。
+      - name: 孤儿闸门检测
+        run: npm run audit:orphan-gates
 
   server:
     runs-on: ubuntu-latest
