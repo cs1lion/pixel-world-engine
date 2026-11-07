@@ -274,8 +274,8 @@ if (!existsSync(ALLOWLIST_FILE)) {
     if (typeof entry.acceptedBecause !== 'string' || !entry.acceptedBecause.trim()) {
       problems.push(`允许清单缺 acceptedBecause：${id}`);
     }
-    if (entry.kind !== 'manual' && entry.kind !== 'pending-ci') {
-      problems.push(`允许清单 kind 必须是 manual 或 pending-ci：${id}`);
+    if (!['manual', 'pending-ci', 'obsolete'].includes(entry.kind)) {
+      problems.push(`允许清单 kind 必须是 manual / pending-ci / obsolete：${id}`);
     }
     if (typeof entry.blockedBy !== 'string' || !entry.blockedBy.trim()) {
       problems.push(`允许清单缺 blockedBy：${id}`);
@@ -303,6 +303,7 @@ if (budget === null) {
 
 const allowedManual = allowedOrphans.filter((id) => allowed.get(id).kind === 'manual').length;
 const allowedPending = allowedOrphans.filter((id) => allowed.get(id).kind === 'pending-ci').length;
+const allowedObsolete = allowedOrphans.filter((id) => allowed.get(id).kind === 'obsolete');
 
 console.log(`孤儿闸门检测（${rel(ROOT) || ROOT}）`);
 console.log('判据：文件 **/scripts/check-*、**/scripts/audit-*（.mjs/.ts）；npm 脚本前缀 test:/audit:/fixture:/check:/baseline:');
@@ -316,10 +317,18 @@ for (const id of consumedChecks) {
 }
 console.log('');
 
-console.log(`[已知孤儿（允许清单）] ${allowedOrphans.length}（manual ${allowedManual} / pending-ci ${allowedPending}）`);
+console.log(`[已知孤儿（允许清单）] ${allowedOrphans.length}（manual ${allowedManual} / pending-ci ${allowedPending} / obsolete ${allowedObsolete.length}）`);
 for (const id of allowedOrphans) {
   const entry = allowed.get(id);
+  if (entry.kind === 'obsolete') continue;
   console.log(`  ${id}\n    — [${entry.kind}] ${entry.reason}（卡在：${entry.blockedBy}）`);
+}
+console.log('');
+
+console.log(`[obsolete（应删）] ${allowedObsolete.length}`);
+for (const id of allowedObsolete) {
+  const entry = allowed.get(id);
+  console.log(`  ${id}\n    — ${entry.reason}（${entry.blockedBy}）`);
 }
 console.log('');
 
@@ -335,6 +344,6 @@ const budgetText = budget === null ? '缺' : String(budget);
 const headroom = budget === null ? '-' : String(budget - pendingCount);
 console.log(`债务：pending-ci ${pendingCount} / 预算 ${budgetText}（余量 ${headroom}）`);
 console.log(`清单：允许 ${allowed.size} 条，孤儿 ${orphans.length} 条`);
-console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿（manual ${allowedManual} / pending-ci ${allowedPending}） / ${newOrphans.length} 未登记`);
+console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿（manual ${allowedManual} / pending-ci ${allowedPending} / obsolete ${allowedObsolete.length}） / ${newOrphans.length} 未登记`);
 
 process.exit(problems.length > 0 || newOrphans.length > 0 ? 1 : 0);

@@ -1,7 +1,7 @@
 {
   "schema": "pwe-orphan-gates-allowlist/1",
-  "pendingCiBudget": 15,
-  "note": "每个条目都必须存在（file:... 或 npm:<包>#<名字>），并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。kind=manual 表示明确的人工验收步骤/一次性取证；kind=pending-ci 表示应该接进 CI 的债务，其条数不得超过 pendingCiBudget。",
+  "pendingCiBudget": 27,
+  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
   "entries": [
     {
       "id": "file:world-client/scripts/check-scene-motion.mjs",
@@ -110,108 +110,108 @@
     },
     {
       "id": "file:world-client/scripts/check-creation.mjs",
-      "kind": "manual",
+      "kind": "pending-ci",
       "reason": "创造模式放置验收",
-      "acceptedBecause": "需要 preview + Playwright，且没有 npm 入口；按人工探索性验收",
-      "blockedBy": "人工探索性验收，无稳定数值判据"
+      "acceptedBecause": "需要 preview + Playwright，且没有 npm 入口",
+      "blockedBy": "preview + Playwright；脚本自带 check() 判红，只缺环境"
     },
     {
       "id": "file:world-client/scripts/check-dengchao.mjs",
-      "kind": "manual",
+      "kind": "pending-ci",
       "reason": "灯潮界（setting）画面验收",
       "acceptedBecause": "需 preview + Playwright；README 里是手工跑法",
-      "blockedBy": "人工目视判据（README 的手工步骤）"
+      "blockedBy": "preview + Playwright；脚本自带 check() 判红，只缺环境"
     },
     {
       "id": "file:world-client/scripts/check-lamp-blindspot.mjs",
-      "kind": "manual",
+      "kind": "pending-ci",
       "reason": "读本轮 lamp-band 截图算灯带盲区，不重拍",
       "acceptedBecause": "依赖 check-lamp-band 的产物，后者未接 CI",
-      "blockedBy": "消费 check-lamp-band 的产物而非重跑，不是独立检查"
+      "blockedBy": "依赖 check-lamp-band 的产物；接 CI 需在同一 job 先生成产物再判红"
     },
     {
       "id": "file:world-client/scripts/check-phases-negative.mjs",
-      "kind": "manual",
+      "kind": "pending-ci",
       "reason": "时相收敛判据的反向用例，必须按预期判红",
       "acceptedBecause": "反向用例要专门的「预期失败」步骤，现有 CI 只有 red:first 一处这种结构",
-      "blockedBy": "预期判红的反向用例，人工跑；接 CI 要专用结构"
+      "blockedBy": "预期判红的反向用例；接 CI 要 red:first 同类的预期失败步骤"
     },
     {
       "id": "file:world-client/scripts/check-scene-depth.mjs",
-      "kind": "manual",
+      "kind": "pending-ci",
       "reason": "遮挡层摆位 depth 读数验收",
       "acceptedBecause": "需 preview + Playwright；README 里是手工跑法",
-      "blockedBy": "人工目视/读数判据（README 的手工步骤）"
+      "blockedBy": "preview + Playwright；脚本读 depth 并判红，只缺环境"
+    },
+    {
+      "id": "file:world-client/scripts/check-shot-actor-pin.mjs",
+      "kind": "pending-ci",
+      "reason": "角色钉帧截图验收",
+      "acceptedBecause": "需 preview + Playwright；当前没有 CI 消费方",
+      "blockedBy": "preview + Playwright；逐字节负控会抛，只缺环境"
+    },
+    {
+      "id": "file:world-client/scripts/check-s5-d.mjs",
+      "kind": "pending-ci",
+      "reason": "只读 S5 e2e 证据 JSON 的完成/交付验收器",
+      "acceptedBecause": "它要的证据由外部 live 跑产出，CI 里没有这份证据",
+      "blockedBy": "CI 需先产出/挂载 S5 e2e 证据 JSON"
+    },
+    {
+      "id": "npm:world-client#test:browser",
+      "kind": "pending-ci",
+      "reason": "浏览器冒烟（smoke.mjs）",
+      "acceptedBecause": "需要 preview + Playwright；CI 未调用",
+      "blockedBy": "preview + Playwright；smoke.mjs 失败会退出非 0，只缺环境"
+    },
+    {
+      "id": "npm:world-client#test:live",
+      "kind": "pending-ci",
+      "reason": "真实服务端 HTTP 链路验收，会改写 eval/live/ 的入库截图",
+      "acceptedBecause": "会写脏已入库证据，README 明说不能当今日证据",
+      "blockedBy": "先改成默认写临时目录（当前会写脏 eval/live 入库截图），再接 CI"
+    },
+    {
+      "id": "npm:world-client#test:setting",
+      "kind": "pending-ci",
+      "reason": "灯潮界画面验收入口，目标 check-dengchao.mjs",
+      "acceptedBecause": "需 preview，README 里是手工跑法",
+      "blockedBy": "目标 check-dengchao.mjs 未接 CI（同上：只缺环境）"
+    },
+    {
+      "id": "npm:world-client#test:scene-depth",
+      "kind": "pending-ci",
+      "reason": "遮挡层摆位验收入口，目标 check-scene-depth.mjs",
+      "acceptedBecause": "需 preview，README 里是手工跑法",
+      "blockedBy": "目标 check-scene-depth.mjs 未接 CI（同上：只缺环境）"
+    },
+    {
+      "id": "npm:world-client#fixture:check",
+      "kind": "pending-ci",
+      "reason": "trace fixture 校验入口",
+      "acceptedBecause": "地形分支已给它接上消费方，等合入",
+      "blockedBy": "等地形分支合入；合入后本条目会因「已有消费方」报红，删条目即可（这是设计，不是故障）"
     },
     {
       "id": "file:world-client/scripts/check-setting-scale.mjs",
       "kind": "manual",
       "reason": "立面尺度改前/改后对照验收",
       "acceptedBecause": "需 preview + Playwright，且改前图要先 stash",
-      "blockedBy": "改前图要先 stash src/，无法在 CI 里自然复现"
-    },
-    {
-      "id": "file:world-client/scripts/check-shot-actor-pin.mjs",
-      "kind": "manual",
-      "reason": "角色钉帧截图验收",
-      "acceptedBecause": "一次性取证用的人工验收，当前没有 CI 消费方",
-      "blockedBy": "一次性取证，已固化进证据目录"
-    },
-    {
-      "id": "file:world-client/scripts/check-s5-d.mjs",
-      "kind": "manual",
-      "reason": "只读 S5 e2e 证据 JSON 的完成/交付验收器",
-      "acceptedBecause": "它要的证据由外部 live 跑产出，CI 里没有这份证据",
-      "blockedBy": "只读外部 live 跑产出的证据 JSON，CI 无该证据"
-    },
-    {
-      "id": "npm:world-client#test:inprocess",
-      "kind": "manual",
-      "reason": "单进程测试入口（--experimental-test-isolation=none），本地提速用",
-      "acceptedBecause": "与 npm test 跑同一批用例，只是跑法变体，没有独立回归价值",
-      "blockedBy": "与 npm test 同批用例的跑法变体，冗余入口（建议删除，不进债务）"
-    },
-    {
-      "id": "npm:world-client#test:live",
-      "kind": "manual",
-      "reason": "真实服务端 HTTP 链路验收，会改写 eval/live/ 的入库截图",
-      "acceptedBecause": "会写脏已入库证据，README 明说不能当今日证据；不适合 CI 默认跑",
-      "blockedBy": "会改写已入库 eval/live 截图；危险入口，需先改成默认写临时目录"
-    },
-    {
-      "id": "npm:world-client#test:browser",
-      "kind": "manual",
-      "reason": "浏览器冒烟（smoke.mjs）",
-      "acceptedBecause": "需要 preview + Playwright；CI 未调用，人工跑",
-      "blockedBy": "人工浏览器冒烟，稳定判据未整理"
-    },
-    {
-      "id": "npm:world-client#test:setting",
-      "kind": "manual",
-      "reason": "灯潮界画面验收入口，目标 check-dengchao.mjs",
-      "acceptedBecause": "需 preview，README 里是手工跑法",
-      "blockedBy": "人工目视判据（README 的手工步骤）"
-    },
-    {
-      "id": "npm:world-client#test:scene-depth",
-      "kind": "manual",
-      "reason": "遮挡层摆位验收入口，目标 check-scene-depth.mjs",
-      "acceptedBecause": "需 preview，README 里是手工跑法",
-      "blockedBy": "人工目视/读数判据（README 的手工步骤）"
+      "blockedBy": "改前图要先 stash src/，需要人在场干预"
     },
     {
       "id": "npm:world-client#test:setting-scale",
       "kind": "manual",
       "reason": "立面尺度验收入口，目标 check-setting-scale.mjs",
       "acceptedBecause": "需 preview，人工跑",
-      "blockedBy": "改前图要先 stash src/，无法在 CI 里自然复现"
+      "blockedBy": "目标 check-setting-scale.mjs 需先 stash src/，需要人在场干预"
     },
     {
-      "id": "npm:world-client#fixture:check",
-      "kind": "manual",
-      "reason": "trace fixture 校验入口",
-      "acceptedBecause": "人工校验入口，尚未决定是否接 CI",
-      "blockedBy": "人工 fixture 校验入口，无自动调用方"
+      "id": "npm:world-client#test:inprocess",
+      "kind": "obsolete",
+      "reason": "单进程测试入口（--experimental-test-isolation=none），本地提速用",
+      "acceptedBecause": "与 npm test 跑同一批用例，只是跑法变体，没有独立回归价值",
+      "blockedBy": "删除建议：与 npm test 同批用例，只是 --experimental-test-isolation=none 的跑法变体"
     }
   ]
 }

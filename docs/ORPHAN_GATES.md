@@ -30,24 +30,29 @@
 `scripts/orphan-gates-allowlist.json`。每条必须写：
 
 - `id`：`file:<相对路径>` 或 `npm:<包>#<脚本名>`；
-- `kind`：`manual`（明确的人工验收步骤 / 一次性取证，不打算接 CI）或 `pending-ci`（应该接进 CI 的债务）；
+- `kind`：必须是下面三类之一（规则写死，不看印象）：
+  - `pending-ci`：脚本有**客观 pass/fail**（失败会 exit 非 0），只缺环境（preview / 浏览器 / 服务 / 预期失败步骤）；
+  - `manual`：需要**人的目视判断**（没有可自动判定的红绿），或需要**人在场干预**（先 stash `src/`、一次性取证）；
+  - `obsolete`：判据已失效或冗余，**应该删**。
 - `reason`：这个检查是什么；
 - `acceptedBecause`：现在为什么可以不接；
-- `blockedBy`：卡在什么上（manual 写清为什么只能人工，pending-ci 写清接闸的阻塞项）。
+- `blockedBy`：卡在什么上（manual 写清为什么只能人工，pending-ci 写清接闸的阻塞项，obsolete 写删除建议）。
 
-「暂不接」不是债务描述。只有 `pending-ci` 计入预算；写不出「待接 CI」的，就诚实标 `manual`。
+「暂不接」不是债务描述。只有 `pending-ci` 计入预算；`manual` 和 `obsolete` 不计。
+输出会把三个数字分开打：`manual N / pending-ci M / obsolete K`；`obsolete` 另起一节，逐条给删除建议。
 
 以下情况直接红：
 
 1. 有孤儿没登记；
 2. 清单指向不存在的检查（防止清单自己烂掉）；
 3. 清单条目已经有了消费方（说明该删了，不能让「临时接受」变成永久挡箭牌）；
-4. 缺 `kind` / `reason` / `acceptedBecause` / `blockedBy`，`kind` 不在两个枚举内，或重复登记；
+4. 缺 `kind` / `reason` / `acceptedBecause` / `blockedBy`，`kind` 不在三个枚举内，或重复登记；
 5. `pending-ci` 条数超过顶层 `pendingCiBudget`。
 
 ### 债务棘轮
 
-顶层 `pendingCiBudget` 是显式预算。实际 `pending-ci` 条数一旦大于它，CI 就红。新增一条 `pending-ci` 豁免必须同时抬高这个数字——评审时看得见，清单不能只长不短。`manual` 不占预算，因为它不是债务。
+顶层 `pendingCiBudget` 是显式预算。实际 `pending-ci` 条数一旦大于它，CI 就红。新增一条 `pending-ci` 豁免必须同时抬高这个数字——评审时看得见，清单不能只长不短。
+当前 `pendingCiBudget = 27`（`manual 2 / pending-ci 27 / obsolete 1`）是 **2026-11-07 按上面规则第一次量准** 的数字，不是「可以长期不动」的基线：每次接闸、重分或删条目，都要按实测重设。`manual` 与 `obsolete` 不占预算。
 
 ## 命令与输出
 
@@ -55,8 +60,8 @@
 npm run audit:orphan-gates
 ```
 
-输出三桶：**有消费方**（附消费路径）、**已知孤儿（允许清单）**、**新孤儿（未登记）**，再加**允许清单问题**和**债务读数**。
-已知孤儿会按 `manual N / pending-ci M` 分开计数；债务行打印 `pending-ci X / 预算 Y（余量 Z）`。
+输出分节：**有消费方**（附消费路径）、**避免孤儿（允许清单）**、**obsolete（应删）**、**新孤儿（未登记）**，再加**允许清单问题**和**债务读数**。
+已知孤儿会按 `manual N / pending-ci M / obsolete K` 三数分开计数；债务行打印 `pending-ci X / 预算 Y（余量 Z）`，`obsolete` 另起一节逐条给删除建议。
 没有未登记孤儿且清单自洽时退出 0，否则退出 1。
 
 ## CI
@@ -69,7 +74,7 @@ npm run audit:orphan-gates
 
 清单条目一旦被接进 workflow、被 npm 脚本调用或被 import，必须在**同一提交**里删掉；否则 `audit-orphan-gates` 会红。
 这是设计预期：清单只记录「还没人跑」的东西，不记录「正在跑」的东西。
-例如地形那条改动给 `fixture:check` 接上消费方后，CI 会先红一次；正确动作是删掉清单条目，而不是放宽判据。
+例如 `fixture:check` 的 `blockedBy` 写的就是「等地形分支合入」：合并那一刻，地形改动给它接上消费方，CI 会先红一次；正确动作是删掉清单条目，而不是放宽判据。这次红是预期，不是故障。
 
 ## 已知问题（记录，不在本工具里自行处置）
 
@@ -81,4 +86,5 @@ npm run audit:orphan-gates
 
 - 要进闸：接进 workflow，或让一个已被调用的脚本 `import` 它；同一提交里把清单对应条目删掉。
 - 暂不进闸：在清单加一条，写清 `kind`、`reason`、`acceptedBecause`、`blockedBy`；若标 `pending-ci`，同时确认预算数字。
+- 该删但本轮不删：标 `obsolete`，`blockedBy` 写删除建议；它不占预算，只会被单独打出来。
 - 两件都没做：CI 红。
