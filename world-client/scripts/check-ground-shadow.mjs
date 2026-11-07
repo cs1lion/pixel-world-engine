@@ -46,6 +46,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
+import { assertSurfacePresent } from './lib/measure-surface.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -135,15 +136,9 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
   const box = await canvas.boundingBox();
   if (box === null) throw new Error('找不到 canvas');
 
-  await page.evaluate(() => {
-    for (const selector of [
-      '#topbar', '#status', '#minimap', '#queue', '#oracle', '#maintenance',
-      '#debug-panel', '#world-overlay', '#chronicle',
-    ]) {
-      const element = document.querySelector(selector);
-      if (element instanceof HTMLElement) element.style.visibility = 'hidden';
-    }
-  });
+  // 测量面契约（scripts/lib/measure-surface.mjs）：隐藏 UI chrome 与逐帧会动的
+  // 名字/气泡，保留区域名/露话这类场景内文字。守卫会立刻报出改名/失效的选择器。
+  await assertSurfacePresent(page);
 
   await waitFrames(page, 24);
   // 页面冷启动会吃掉数量不定的帧，世界钟因此每次落点不同；人物钉在「当时的自格」，

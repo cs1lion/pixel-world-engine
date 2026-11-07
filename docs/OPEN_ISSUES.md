@@ -378,6 +378,10 @@
 - **影响面 [事实]**：所有做逐字节比对的像素闸门都可能受同一因素影响——至少点名 `check-ground-shadow`、`check-shot-actor-pin`、`check-phases-negative`，以及直接对 `canvas` 元素截图的 `check-phases`。
   - 已错误地把「DOM overlay 不在画布里」写进注释：`world-client/scripts/check-shot-actor-pin.mjs` 第 14 行（「只拍 `#app canvas`：DOM overlay（名字/气泡）与纸面不在画布里」）。该断言与实测不符，必须按错的写。
   - 这条不是没人踩过：`check-banner-smoke`、`check-stall-motion`、`check-scene-motion`、`check-ground-shadow`、`check-glow-contrast` 与 `capture-palette` 的部分档位都主动隐藏了 `#world-overlay` / `#debug-panel`，说明问题已被局部绕过，但没有统一前提。
+- **续证（2026-11-08）[实测]**：`canvas.toDataURL()` 在这套 WebGL 上下文里返回**全黑**（480×320，`r=g=b=0`、alpha 全 255）——「改读 backing buffer」不是免费选项，需要 `preserveDrawingBuffer: true` 或渲染后 `gl.readPixels`，两者都要动渲染初始化并处理取样时序，成本如实记在这里。
+  - `#world-overlay` 实测是**透明容器**（`background: rgba(0,0,0,0)`、`background-image: none`、`pointer-events: none`、`z-index: 6`，与 canvas 同框），不是压暗层；压暗画在 canvas 上。隐藏整个容器会把区域名/露话一起藏掉，那等于换了判据对象。
+  - 判别实验：`check-phases-negative` 的整画布雨幕取样，隐藏 `#world-overlay` 与保持原样**都是 60 帧未收敛**（正控 5 帧收敛）——说明该反例测的是画布雨幕，不是 overlay。
+  - 测量面分组已收敛为单一来源 `world-client/scripts/lib/measure-surface.mjs`：`CHROME`（隐藏）/ `SCENE_DOM`（保留）/ `DYNAMIC`（逐帧会动，逐字节判据取字节前隐藏）。两个像素闸门都改用它，并在真实页面上断言隐藏清单的选择器都存在。
 - **为什么重要**：如果 CI 与本地在字体、抗锯齿、叠层布局上不同，那么「逐字节相同」这个前提在 CI 上可能**永远不成立**——`shotStable` 修法（等连续 8 帧逐字节相同）会等不到第 8 帧，先卡在前提上。所以顺序必须是：先决定截图面要不要剔掉 DOM（隐藏叠层，或直接取 canvas backing buffer），再决定判据要不要改；顺序反了，就会把「重试换绿」当成修法。
 - **不做的事**：**先不修，只登记**。等 `check-shot-actor-pin` 的撤回落定后单独排期。
 - **建议时机**：下一次动任何逐字节像素闸门之前。
