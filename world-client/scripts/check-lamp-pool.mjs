@@ -22,6 +22,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
+import { reportReadings } from './lib/lamp-pool-classify.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -356,38 +357,7 @@ console.log(
 console.log(`绘制指令（灯亮满潮）：${out.lit.stats.totalCommands}，Graphics ${out.lit.stats.graphicsObjects}`);
 console.log(`并排图：${join(OUT, 'lamp-pool.png')}`);
 
-// 纯黑没有色度信息，硬算会得出约 2259K 的伪造读数，所以不给色温。
-// 但纯黑不都是故障：`force:false` 的灯灭对照组、以及衰减曲线 4/6 格远端本来
-// 就该是零光（见文件头与 DISTANCES 注释「末端 4/6 格用来证明光真的衰减到零」）。
-// 只有「灯亮态 + 池心 / 两档潮位 / 曲线 0.5–2.5 格」采到纯黑，才说明灯态没生效
-// 或取样链路坏了——那时是判据前提不成立，不是产品缺陷。
-const readings = [
-  ['灯亮（池心）', out.closeReading.lit],
-  ['灯灭（池心）', out.closeReading.dark],
-  ...out.curve.flatMap((row) => [
-    [`${row.d} 格 亮`, row.lit],
-    [`${row.d} 格 灭`, row.dark],
-  ]),
-  ['潮位低（灯亮池心）', out.tide.low.value],
-  ['潮位高（灯亮池心）', out.tide.high.value],
-];
-/** 必须点亮才有意义的读数：这些位置采到纯黑，说明前提不成立。 */
-const mustBeLit = new Set([
-  '灯亮（池心）',
-  '潮位低（灯亮池心）',
-  '潮位高（灯亮池心）',
-  ...out.curve.filter((row) => row.d <= 2.5).map((row) => `${row.d} 格 亮`),
-]);
-const zeroLight = readings.filter(([, reading]) => reading.cct === null);
-for (const [label] of zeroLight) {
-  if (mustBeLit.has(label)) continue;
-  console.error(`[零光] ${label}：rgb 全黑，没有色度信息，不给色温（不在「必须点亮」集合，不判红）。`);
-}
-const broken = zeroLight.filter(([label]) => mustBeLit.has(label));
-if (broken.length > 0) {
-  for (const [label] of broken) {
-    console.error(`[判据前提不成立] ${label}：灯亮态采到纯黑——不是「灯本来就灭」，是灯态或取样链路坏了。`);
-  }
-  console.error(`[判据前提不成立] 判红：${broken.length} 个「必须点亮」的读数没有有效像素。`);
-  process.exitCode = 1;
-}
+// 分类表在 `lib/lamp-pool-classify.mjs`：预期零光只记、不判红；
+// 「必须点亮」的位置采到纯黑才是判据前提不成立（退出码 1）。
+const exitCode = reportReadings(out);
+if (exitCode !== 0) process.exitCode = exitCode;
