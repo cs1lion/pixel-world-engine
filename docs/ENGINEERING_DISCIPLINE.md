@@ -400,7 +400,7 @@
 12. `fixture:check` 当前 5/5 FAIL（J1，未认领），不是绿闸。
 13. `verify-all.mjs` 是人工手动入口，不接 CI；没有脚本阻止别人把它接进去。
 14. `audit:reports --strict` 未接 CI，且当前 main 没有该脚本（p1-shore §6.7 的已知缺口）。
-15. skill 改造的自检：三件套是否齐、四类验证边界是否被混称，没有脚本；只有 X3 的人工清单与规范文档里的诊断模板。
+15. skill 改造的自检：`scripts/audit-skill-docs.ts` 已能查三件套、互指、必含列与退出码 / 在 CI 真值、声称与证据痕迹；但只有 npm 入口、warn 期退出码 0、未接 CI，也不判证据内容是否成立。
 
 ## 11. 来源
 
