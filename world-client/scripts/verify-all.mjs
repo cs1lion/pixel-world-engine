@@ -11,6 +11,7 @@
  * 跑法（cwd = world-client）：
  *   node scripts/verify-all.mjs            # 跑全部当前可跑的
  *   node scripts/verify-all.mjs --list     # 只列流程与状态
+ *   node scripts/verify-all.mjs --json     # 只输出注册表 JSON（给 audit:verify-flows 读）
  *   node scripts/verify-all.mjs --only palette-9,eval-ledger
  *   node scripts/verify-all.mjs --self-test  # 反向验证：注入必红项，确认整体退出非零
  * 退出码：任一 FAIL → 1；全部 pass/skip → 0。
@@ -124,9 +125,10 @@ const OUT_OF_AGGREGATE = [
 ];
 
 function parseArgs(argv) {
-  const args = { only: null, list: false, selfTest: false };
+  const args = { only: null, list: false, json: false, selfTest: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--list') args.list = true;
+    else if (argv[i] === '--json') args.json = true;
     else if (argv[i] === '--self-test') args.selfTest = true;
     else if (argv[i] === '--only') args.only = (argv[++i] || '').split(',').filter(Boolean);
   }
@@ -192,6 +194,22 @@ function main() {
     }
     console.log('\n不进入汇总入口：');
     for (const [name, reason] of OUT_OF_AGGREGATE) console.log(`SKIP  ${name}: ${reason}`);
+    return 0;
+  }
+
+  if (args.json) {
+    // 只读注册表，不跑任何命令：`when` 是纯 fs 检查，不 spawn。
+    const checks = CHECKS.map((check) => {
+      const reason = check.when ? check.when() : null;
+      return {
+        id: check.id,
+        title: check.title,
+        runnable: reason === null,
+        reason,
+        commands: check.commands,
+      };
+    });
+    process.stdout.write(`${JSON.stringify({ checks, outOfAggregate: OUT_OF_AGGREGATE }, null, 2)}\n`);
     return 0;
   }
 
