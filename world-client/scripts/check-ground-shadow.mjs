@@ -56,6 +56,15 @@ import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
 import { assertSurfacePresent } from './lib/measure-surface.mjs';
 import { shotStable } from './lib/shot-stable.mjs';
+import {
+  assertSameFrames,
+  frameClockInitScript,
+  pinClock,
+  premiseFailure,
+  readFrame,
+  stepFrames,
+  waitForFrames,
+} from './lib/frame-clock.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -97,75 +106,28 @@ const BANNERS_OFF = { sway: false, shadow: false };
 const SMOKE_OFF = { drift: false };
 const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 
-function initScript({ freezeAt }) {
-  try {
-    localStorage.clear();
-  } catch {
-    /* 忽略 */
-  }
-  let rng = 20261019;
-  Math.random = () => {
-    rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
-    return rng / 4294967296;
-  };
-  const state = { frame: 0, frozen: false, queued: null };
-  window.__CAPTURE_STATE__ = state;
-  const realRaf = window.requestAnimationFrame.bind(window);
-  const frameMs = 1000 / 60;
-  // 帧时钟：`performance.now()` 与喂给渲染循环的时间戳都取 `frame × 16.667ms`。
-  // 渲染循环（Phaser TimeStep）吃的是 rAF 回调的**时间戳参数**，不是 `performance.now()`；
-  // 这里两者同源，所以「帧号相同」= 「dt 序列相同」= 「真实播放的稳态 60fps」。
-  // 每步固定注入 16.6667ms，是为了不让强制步进变成「dt≈0 的空转」——那会测到另一个东西。
-  performance.now = () => state.frame * frameMs;
-  window.requestAnimationFrame = (cb) => {
-    state.queued = cb;
-    if (state.frozen) return 0;
-    return realRaf(() => {
-      // 冻结发生在排队期间：这一帧作废，回调留在 `queued` 里等手动步进。
-      if (state.frozen) return;
-      state.frame += 1;
-      if (freezeAt > 0 && state.frame >= freezeAt) {
-        state.frozen = true;
-        cb(state.frame * frameMs);
-        return;
-      }
-      cb(state.frame * frameMs);
-    });
-  };
-  /** 冻住真实 rAF，返回冻住那一刻的帧号（之后只能 `__stepFrames` 前进）。 */
-  window.__pinFrame = () => {
-    state.frozen = true;
-    return state.frame;
-  };
-  /** 手动步进 n 帧，每帧照常注入 16.6667ms；返回步进后的帧号与实际步数。 */
-  window.__stepFrames = (n) => {
-    let stepped = 0;
-    for (let k = 0; k < n; k += 1) {
-      const cb = state.queued;
-      if (typeof cb !== 'function') break;
-      state.queued = null;
-      state.frame += 1;
-      cb(state.frame * frameMs);
-      stepped += 1;
-    }
-    return { frame: state.frame, stepped };
-  };
-}
-
-async function waitFrames(page, count) {
-  const from = await page.evaluate(() => window.__CAPTURE_STATE__.frame);
-  await page.waitForFunction(
-    ({ from, count }) => window.__CAPTURE_STATE__.frame >= from + count,
-    { from, count },
-    { timeout: 20000 },
-  );
-}
+/**
+ * 相位参数（全部由本闸门给，库 `scripts/lib/frame-clock.mjs` 里没有这些数字）。
+ * - `FRAME_MS`：步进时每帧注入的固定 dt。60fps 的稳态就是 `1000 / 60`；只钉帧号
+ *   不注入 dt，`TimeStep` 会算出接近 0 的 delta，测的是另一个东西。
+ * - `PIN_FRAME`：两页共同的对齐帧号，必须大于开页时真实跑出的帧数（实测 135–180）。
+ * - `SETTLE_FRAMES`：对齐之后再多走 90 帧。`FADE_MS = 900` → 54 帧，留一半余量。
+ * - `REQUIRE_IDENTICAL_FRAMES`：抓拍前提「连续 N 帧逐字节相同」，N 不动（8）。
+ * - `DETERMINISM_SAMPLES` / `DETERMINISM_SETTLE_STEPS`：确定性判据的采样点数与
+ *   每步沉降帧数，两遍必须完全一致。
+ */
+const FRAME_MS = 1000 / 60;
+const PIN_FRAME = 1000;
+const SETTLE_FRAMES = 90;
+const REQUIRE_IDENTICAL_FRAMES = 8;
+const DETERMINISM_SAMPLES = 13;
+const DETERMINISM_SETTLE_STEPS = 3;
 
 async function openScene(browser, { phase, camera, villagerCell, extraQuery = '' }) {
   const page = await browser.newPage({ viewport: { width: 1010, height: 700 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(initScript, { freezeAt: 0 });
+  await page.addInitScript(frameClockInitScript, { freezeAt: 0, frameMs: FRAME_MS });
   await page.goto(
     `${BASE}?world=dengchao&time=${phase}&feed=off&ledger=off&debug=1&now=1075${extraQuery}`,
     { waitUntil: 'load' },
@@ -180,7 +142,7 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
   // 名字/气泡，保留区域名/露话这类场景内文字。守卫会立刻报出改名/失效的选择器。
   await assertSurfacePresent(page);
 
-  await waitFrames(page, 24);
+  await waitForFrames(page, 24);
   // 页面冷启动会吃掉数量不定的帧，世界钟因此每次落点不同；人物钉在「当时的自格」，
   // 影子就可能一会儿被别的摊位影子压住（0.12% 与 0.17% 两跑）。先冻住世界、再统一
   // 推到 18:10:00，让村民位置只由种子决定，再钉人、再量。
@@ -190,7 +152,7 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
     const now = window.Oracle.debugStepWorld(0);
     if (target > now) window.Oracle.debugStepWorld(target - now);
   }, STEADY_A);
-  await waitFrames(page, 2);
+  await waitForFrames(page, 2);
   const chosenCamera = await page.evaluate(([camera, villagerCell]) => {
     for (const villager of window.Oracle.view().villagers) {
       window.Oracle.debugPinVillager(villager.id, { x: 2, y: 2 });
@@ -216,9 +178,9 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
     window.Oracle.centerCameraOn(lens.x, lens.y);
     return lens;
   }, [camera, villagerCell]);
-  await waitFrames(page, 40);
+  await waitForFrames(page, 40);
   await page.evaluate(() => window.Oracle.debugHoldWorld(true));
-  await waitFrames(page, 2);
+  await waitForFrames(page, 2);
   return {
     page,
     box,
@@ -230,37 +192,22 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
 
 const hashOf = (buf) => createHash('sha256').update(buf).digest('hex');
 
-/** 前提不成立：打印一行、置非 0 退出码、中止——不降级、不重试换绿。 */
-function premiseFailure(label, reason) {
-  const line = `[判据前提不成立] ${label}：${reason}`;
-  console.log(line);
-  process.exitCode = 1;
-  throw new Error(line);
-}
-
 /**
  * 先证画面停住，再取字节。等不到就把「前提」判红并中止——不拿一张可能还在渐变的
  * 图去和另一张比。`shotStable` 返回的 buffer 就是满足判据的那一帧，直接写盘。
  *
- * 传 `advance` 走步进模式：步进恰好 8 帧、逐帧比，帧数固定，两页才走同样的帧序列。
+ * 传 `advance` 走步进模式：步进恰好 `REQUIRE_IDENTICAL_FRAMES` 帧、逐帧比，帧数
+ * 固定，两页才走同样的帧序列。
  */
 async function stableShot(page, box, label, { advance } = {}) {
   const premise = await shotStable(page, {
     clip: box,
+    requireIdenticalFrames: REQUIRE_IDENTICAL_FRAMES,
     timeoutMs: PREMISE_TIMEOUT_MS,
     ...(advance === undefined ? {} : { advance }),
   });
   if (!premise.stable) premiseFailure(label, String(premise.reason));
   return premise;
-}
-
-/** 手动推进 n 帧；步不满就是帧源断了，按前提不成立处理。 */
-async function stepFrames(page, count, label = 'stepFrames') {
-  const result = await page.evaluate((n) => window.__stepFrames(n), count);
-  if (result.stepped !== count) {
-    premiseFailure(label, `只步进了 ${result.stepped}/${count} 帧（帧源断了，没有排队的 rAF 回调）`);
-  }
-  return result.frame;
 }
 
 async function shot(page, box, id) {
@@ -270,13 +217,12 @@ async function shot(page, box, id) {
   const buf = premise.buffer;
   const meta = await page.evaluate(() => ({
     now: window.Oracle.debugStepWorld(0),
-    frame: window.__CAPTURE_STATE__.frame,
     weather: window.Oracle.view().weather,
     units: window.Oracle.debugGroundShadowUnits(),
     stats: window.Oracle.renderStats(),
     camera: window.Oracle.camera(),
   }));
-  return { id, file, buf, sha256: hashOf(buf), ...meta };
+  return { id, file, buf, sha256: hashOf(buf), frame: await readFrame(page), ...meta };
 }
 
 async function diffPair(page, aBuf, bBuf, cam, roi) {
@@ -513,7 +459,7 @@ for (const phase of PHASES) {
   const stall = await openScene(browser, { phase, camera: STALL_CAMERA, villagerCell: null });
   const stallOn = await shot(stall.page, stall.box, `stall-${phase}-on`);
   await stall.page.evaluate(() => window.Oracle.debugGroundShadows({ on: false }));
-  await waitFrames(stall.page, 2);
+  await waitForFrames(stall.page, 2);
   const stallOff = await shot(stall.page, stall.box, `stall-${phase}-off`);
   const stallDiff = await diffPair(reader, stallOn.buf, stallOff.buf, stall.camera, STALL_ROI);
   peakCommands = Math.max(peakCommands, stallOn.stats.totalCommands, stallOff.stats.totalCommands);
@@ -544,7 +490,7 @@ for (const phase of PHASES) {
   });
   const villagerOn = await shot(villager.page, villager.box, `villager-${phase}-on`);
   await villager.page.evaluate(() => window.Oracle.debugGroundShadows({ on: false }));
-  await waitFrames(villager.page, 2);
+  await waitForFrames(villager.page, 2);
   const villagerOff = await shot(villager.page, villager.box, `villager-${phase}-off`);
   const foot = villagerOn.units.villagers[0] ?? { x: villager.lens.x, y: villager.lens.y + 70 };
   // ROI 跟着被钉的人走：脚底 ±48 / 上 70 / 下 16 世界像素。
@@ -623,7 +569,7 @@ await closed2.page.close();
 // 暂停世界：渲染帧继续走、世界时刻不动，画面必须不动。
 // 放在推进世界之前测：此时两页仍在同一时刻。
 await closed.page.evaluate(() => window.Oracle.debugGroundShadows({ on: true }));
-await waitFrames(closed.page, 2);
+await waitForFrames(closed.page, 2);
 const pauseA = await shot(closed.page, closed.box, 'pause-a');
 await closed.page.waitForTimeout(1000);
 const pauseB = await shot(closed.page, closed.box, 'pause-b');
@@ -633,7 +579,7 @@ const pauseDiff = await diffPair(reader, pauseA.buf, pauseB.buf, closed.camera, 
 // 关掉投影时这一步应为 0.00%；若哪天读数非 0，先查横条 bbox，再归因到这一层。
 await closed.page.evaluate(() => window.Oracle.debugGroundShadows({ on: false }));
 await closed.page.evaluate(() => window.Oracle.debugStepWorld(60_000));
-await waitFrames(closed.page, 2);
+await waitForFrames(closed.page, 2);
 const closedB = await shot(closed.page, closed.box, 'closed-t1');
 const closedStep = await diffPair(
   reader,
@@ -649,28 +595,8 @@ await closed.page.close();
 // **前提是「两页帧号相等」，不是「各自等到连续 8 帧相同」就开比。** 画面里有一处
 // 按渲染帧推进、不随世界钟推进的微动（OPEN_ISSUES E12），量化平台由帧号决定：
 // 实测两页各等到「连续 8 帧相同」时帧号是 135 / 179，13 张里 5 张不等。所以这里
-// 冻结真实 rAF、把手动步进都走到同一个 PIN_FRAME，再逐帧比；帧号不等就判前提不成立。
-/** 两页共同的对齐帧号。必须大于开页时真实跑出的帧数（实测 135–180），留足余量。 */
-const PIN_FRAME = 1000;
-/** 对齐之后再多走 90 帧：`FADE_MS = 900` → 54 帧，留一半余量让调色彻底停住。 */
-const SETTLE_FRAMES = 90;
-
-/**
- * 冻住真实 rAF，从当前帧一路**正常 dt 步进**到 PIN_FRAME + SETTLE_FRAMES。
- * 不用「把帧号一把拨过去」：那会给渲染循环一个几百秒的 delta，测的是另一个东西。
- */
-async function pinClock(page, tag) {
-  const frozenAt = await page.evaluate(() => window.__pinFrame());
-  if (frozenAt > PIN_FRAME) {
-    premiseFailure(`${tag}-pin`, `冻住时帧号 ${frozenAt} 已超过 PIN_FRAME=${PIN_FRAME}，拨不回同一相位`);
-  }
-  const target = PIN_FRAME + SETTLE_FRAMES;
-  const frame = await stepFrames(page, target - frozenAt, `${tag}-settle`);
-  if (frame !== target) {
-    premiseFailure(`${tag}-pin`, `步进后帧号 ${frame}，期望 ${target}`);
-  }
-  return frame;
-}
+// 在 `scripts/lib/frame-clock.mjs` 里冻结真实 rAF、把两页都步进到同一个 PIN_FRAME，
+// 再逐帧比；帧号不等就判前提不成立。
 
 async function runPass(tag) {
   const scene = await openScene(browser, { phase: 'dusk', camera: STALL_CAMERA, villagerCell: null });
@@ -680,24 +606,24 @@ async function runPass(tag) {
     const now = window.Oracle.debugStepWorld(0);
     window.Oracle.debugStepWorld(target - now);
   }, STEADY_A);
-  await waitFrames(scene.page, 30);
-  await pinClock(scene.page, tag);
+  await waitForFrames(scene.page, 30);
+  await pinClock(scene.page, { targetFrame: PIN_FRAME, settleFrames: SETTLE_FRAMES, label: tag });
 
   const hashes = [];
   const frames = [];
   let commands = 0;
-  for (let i = 0; i < 13; i += 1) {
+  for (let i = 0; i < DETERMINISM_SAMPLES; i += 1) {
     if (i > 0) {
       await scene.page.evaluate(() => window.Oracle.debugStepWorld(10_000));
-      // 与抓拍同样的帧预算：3 帧沉降 + 8 帧前提，两页完全一致。
-      await stepFrames(scene.page, 3, `determinism-${tag}-${i}-step`);
+      // 与抓拍同样的帧预算：沉降帧 + 前提帧，两页完全一致。
+      await stepFrames(scene.page, DETERMINISM_SETTLE_STEPS, `determinism-${tag}-${i}-step`);
     }
     // 确定性比较的是两遍同一帧；每一帧同样要先证停住，否则比的是两张渐变中途图。
     const frame = await stableShot(scene.page, scene.box, `determinism-${tag}-${i}`, {
       advance: () => stepFrames(scene.page, 1, `determinism-${tag}-${i}-advance`),
     });
     hashes.push(frame.hash);
-    frames.push(await scene.page.evaluate(() => window.__CAPTURE_STATE__.frame));
+    frames.push(await readFrame(scene.page));
     commands = (await scene.page.evaluate(() => window.Oracle.renderStats())).totalCommands;
   }
   peakCommands = Math.max(peakCommands, commands);
@@ -710,15 +636,7 @@ const pass2 = await runPass('b');
 
 // 前提断言：两遍的帧号必须逐项相等，否则「同一帧」这句话不成立，后面比出来的不等
 // 不能算判据红。
-for (let i = 0; i < Math.max(pass1.frames.length, pass2.frames.length); i += 1) {
-  if (pass1.frames[i] !== pass2.frames[i]) {
-    premiseFailure(
-      `determinism-frame-${i}`,
-      `两页帧号不等（a=${String(pass1.frames[i])}，b=${String(pass2.frames[i])}）——比较对象没有同相`,
-    );
-  }
-}
-console.log(`[相位] 两遍帧号一致：${pass1.frames[0]}…${pass1.frames[pass1.frames.length - 1]}（13 个采样点）`);
+assertSameFrames(pass1.frames, pass2.frames, { label: 'determinism-frame' });
 
 // G3：建筑墙角的接触暗部。正午无 dim，ΔL 只由静态绘制决定。
 //
