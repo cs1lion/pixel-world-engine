@@ -317,6 +317,100 @@ check(
   '两张截图完全相同说明雨没上屏',
 );
 
+/**
+ * 最坏帧裁剪：雨 + 灯全开 + 辉光最强的一档。
+ *
+ * 辉光配平（`GLOW_GAIN = 1.62`）已经把光池中心顶到「不裁剪前提下的上限」：
+ * 夜帧 WCAG 1.683（≥ 下限 1.67），dusk 晴帧整幅最大通道 R=250，离 255 只剩 5 级。
+ * 所以这里只守一条线：**最坏组合下任一通道 ≥255 的像素数必须为 0**。
+ * 两档都拍：night（用户点名的「雨 + 夜 + 灯全开」）与 dusk（glow 1.2，辉光更强，
+ * 比夜帧更容易裁，属于同一组合里的最不利档）。
+ * 雨必须走真实入口（`say('下雨吧')`）再冻钟——先冻钟雨渐变不会上屏（实测）。
+ */
+const captureWorstFrame = async (phase) => {
+  const page = await context.newPage();
+  try {
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript(() => localStorage.clear());
+    await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
+    await page.waitForTimeout(2200);
+    const advanced = await page.evaluate(() => window.Oracle.ecoState().advanceCount);
+    await page.waitForFunction((t) => window.Oracle.ecoState().advanceCount >= t, advanced + 60, {
+      timeout: 20000,
+      polling: 50,
+    });
+    const box = await page.locator('#app canvas').first().boundingBox();
+    const framing = await page.evaluate(() => {
+      const c = window.Oracle.camera();
+      const cx = c.worldViewX + c.width / (2 * c.zoom);
+      const cy = c.worldViewY + c.height / (2 * c.zoom);
+      window.Oracle.setCameraMode('free');
+      window.Oracle.centerCameraOn(cx, cy);
+      return window.Oracle.camera();
+    });
+    await waitVillagersSettled(page);
+    await waitFadeSettled(page, box);
+
+    const said = await page.evaluate(() => window.Oracle.say('下雨吧'));
+    await page.waitForFunction(() => window.Oracle.view().weather === 'rain', null, { timeout: 8000 });
+    await page.waitForTimeout(3000);
+    const pin = await page.evaluate(() => {
+      window.Oracle.jumpWorldClock(35);
+      const now = window.Oracle.freezeWorldClock();
+      window.Oracle.debugForceLamps(true);
+      return { now, pinned: window.Oracle.worldClockPinned() };
+    });
+    await page.waitForTimeout(300);
+    const weather = await page.evaluate(() => window.Oracle.view().weather);
+    const buffer = await page.locator('#app canvas').first().screenshot();
+    if (phase === 'dusk') await writeFile(`${OUT}/worst-dusk-rain-lamps.png`, buffer);
+    const stat = await page.evaluate(
+      async (src) => {
+        const img = new Image();
+        await new Promise((r, j) => {
+          img.onload = r;
+          img.onerror = j;
+          img.src = src;
+        });
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, img.width, img.height).data;
+        let clip = 0;
+        const maxChannel = [0, 0, 0];
+        for (let i = 0; i < d.length; i += 4) {
+          for (let k = 0; k < 3; k += 1) maxChannel[k] = Math.max(maxChannel[k], d[i + k]);
+          if (d[i] >= 255 || d[i + 1] >= 255 || d[i + 2] >= 255) clip += 1;
+        }
+        return { clip, maxChannel, size: [img.width, img.height] };
+      },
+      `data:image/png;base64,${buffer.toString('base64')}`,
+    );
+    return { phase, weather, said, pin, framing, errors, ...stat };
+  } finally {
+    await page.close();
+  }
+};
+
+for (const phase of ['night', 'dusk']) {
+  const worst = await captureWorstFrame(phase);
+  check(
+    worst.weather === 'rain',
+    `${phase} 最坏帧真的在下雨`,
+    `weather=${worst.weather}，said=${worst.said.ok}`,
+  );
+  check(
+    worst.clip === 0,
+    `${phase} 最坏帧（雨 + 灯全开 + 辉光最强）裁剪像素为 0`,
+    `裁剪 ${worst.clip} 像素；整幅最大通道 R/G/B=${worst.maxChannel.join('/')}（${worst.size.join('×')}）`,
+  );
+  check(worst.errors.length === 0, `${phase} 最坏帧页面无 JS 报错`, worst.errors.join('; '));
+}
+
 await browser.close();
 
 for (const item of pass.waits) {

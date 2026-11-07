@@ -55,7 +55,7 @@ import { createIdbHistoryStore } from '../world/history/store.ts';
 import { observationsFor, type ObservationContext } from '../world/observation-rules.ts';
 import { dayCardOf, groupIntoWeeks, weekViewOf } from '../world/memory/daycard.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
-import type { OracleApi } from '../ui/oracle-panel.ts';
+import type { OracleApi, RenderLayerReading } from '../ui/oracle-panel.ts';
 import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { ClockAlignOracle, ClockAlignmentView } from '../ui/clock-align.ts';
 import {
@@ -4141,16 +4141,115 @@ export class SandboxScene extends Phaser.Scene {
         hasCallback: (this.game.loop as unknown as { callback?: unknown }).callback !== undefined,
         focused: document.visibilityState === 'visible' && document.hasFocus(),
       }),
-      /** 渲染统计：排查性能时看每帧有多少绘制指令。 */
+      /**
+       * 渲染统计：排查性能时看每帧有多少绘制指令。
+       *
+       * **递归遍历容器**，不只数顶层。楼体拆了三层容器（back / body / front），
+       * 容器里的 Graphics 不是 `children.list` 的成员；2026-11-07 之前这里只
+       * `filter` 顶层，11 栋楼的 99 个 Graphics / 11,090 条命令全在计数之外。
+       *
+       * 为什么不会重复计数：Phaser 的 `Container.add()` 会把子对象从场景显示
+       * 列表里摘掉，挂在容器里的对象**只有一个**父级；从显示列表根往下递归，
+       * 每个对象恰好走到一次。`visited` 只是兜底（同一对象被两条路径拿到时
+       * 直接跳过），不是主要依据。容器本身也是显示列表成员，但它只在递归入口
+       * 被消费一次，父容器不会再数它的子容器——`top` 与 `containers` 因此可加。
+       */
       renderStats: () => {
-        const graphics = this.children.list.filter(
-          (item) => item.type === 'Graphics',
-        ) as Phaser.GameObjects.Graphics[];
-        const counts = graphics.map((g) => g.commandBuffer?.length ?? 0);
+        const visited = new Set<Phaser.GameObjects.GameObject>();
+        const largest: number[] = [];
+        const containers: RenderLayerReading[] = [];
+        let topGraphics = 0;
+        let topCommands = 0;
+        let totalGraphics = 0;
+        let totalCommands = 0;
+
+        /** 楼体三层容器按楼号命名，免得读数里只剩一串下标。 */
+        const nameOf = (obj: Phaser.GameObjects.GameObject): string | null => {
+          for (const entry of this.entries) {
+            if (obj === entry.view.back) return `${entry.building.instanceId}.back`;
+            if (obj === entry.view.container) return `${entry.building.instanceId}.body`;
+            if (obj === entry.view.front) return `${entry.building.instanceId}.front`;
+          }
+          return null;
+        };
+        const commandsOf = (g: Phaser.GameObjects.Graphics): number => {
+          const n = g.commandBuffer?.length ?? 0;
+          largest.push(n);
+          return n;
+        };
+        /** 数一棵容器子树的全部 Graphics；返回值只含这棵子树。 */
+        const measureContainer = (
+          container: Phaser.GameObjects.Container,
+          path: string,
+          depth: number,
+        ): { graphicsObjects: number; totalCommands: number; containers: number } => {
+          if (visited.has(container)) return { graphicsObjects: 0, totalCommands: 0, containers: 0 };
+          visited.add(container);
+          // 先登记再递归：容器的读数要含整棵子树，嵌套容器自然排在其父之后。
+          const reading = {
+            path,
+            depth,
+            graphicsObjects: 0,
+            totalCommands: 0,
+            containers: 0,
+          };
+          containers.push(reading);
+          let graphicsObjects = 0;
+          let commands = 0;
+          let nested = 0;
+          const list = container.list as readonly Phaser.GameObjects.GameObject[];
+          list.forEach((child, index) => {
+            if (visited.has(child)) return;
+            if (child.type === 'Graphics') {
+              visited.add(child);
+              graphicsObjects += 1;
+              commands += commandsOf(child as Phaser.GameObjects.Graphics);
+            } else if (child.type === 'Container') {
+              const sub = measureContainer(
+                child as Phaser.GameObjects.Container,
+                nameOf(child) ?? `${path}[${index}]`,
+                depth + 1,
+              );
+              graphicsObjects += sub.graphicsObjects;
+              commands += sub.totalCommands;
+              nested += sub.containers;
+            }
+          });
+          reading.graphicsObjects = graphicsObjects;
+          reading.totalCommands = commands;
+          reading.containers = 1 + nested;
+          return { graphicsObjects, totalCommands: commands, containers: 1 + nested };
+        };
+
+        this.children.list.forEach((item, index) => {
+          if (visited.has(item)) return;
+          if (item.type === 'Graphics') {
+            visited.add(item);
+            topGraphics += 1;
+            topCommands += commandsOf(item as Phaser.GameObjects.Graphics);
+          } else if (item.type === 'Container') {
+            const sub = measureContainer(
+              item as Phaser.GameObjects.Container,
+              nameOf(item) ?? `top[${index}]`,
+              1,
+            );
+            totalGraphics += sub.graphicsObjects;
+            totalCommands += sub.totalCommands;
+          }
+        });
+        // `largest` 只报最大的 5 张；数组本体不留整份清单。
+        largest.sort((a, b) => b - a);
+        largest.length = Math.min(largest.length, 5);
         return {
-          graphicsObjects: graphics.length,
-          totalCommands: counts.reduce((sum, n) => sum + n, 0),
-          largest: [...counts].sort((a, b) => b - a).slice(0, 5),
+          frame: this.game.loop.frame,
+          // 兼容旧口径的两个数：含义从「顶层」改成「整场景」，读者见 `top`。
+          graphicsObjects: topGraphics + totalGraphics,
+          totalCommands: topCommands + totalCommands,
+          /** 直接挂在场景显示列表上的 Graphics（不在任何容器里）。 */
+          top: { graphicsObjects: topGraphics, totalCommands: topCommands },
+          /** 每个容器的子树读数；`depth` 1 的是顶层容器，>1 的嵌在它们里面。 */
+          containers,
+          largest,
         };
       },
       /** 立刻把镜头中心对准世界坐标（不带动画）。小地图跳转与测试都用它。 */

@@ -355,10 +355,12 @@ check(
       ? ''
       : `（实测 ${stats.totalCommands} + 反例人为抬高 ${FORCED_COMMAND_OFFSET}）`),
 );
+// `renderStats()` 2026-11-07 起递归到容器（楼体/居民在容器里，整场景 131 个 Graphics）。
+// 这条 `< 40` 是给**顶层**定的（顶层 28 个），口径不能跟着递归数变，否则等于换了把尺子。
 check(
-  stats.graphicsObjects < 40,
-  'Graphics 对象数量正常',
-  `实际 ${stats.graphicsObjects}`,
+  stats.top.graphicsObjects < 40,
+  '顶层 Graphics 对象数量正常',
+  `实际 ${stats.top.graphicsObjects}（整场景含容器 ${stats.graphicsObjects}）`,
 );
 
 // 记录项（2026-11-06 降级）：只打印/落盘，不阻塞。

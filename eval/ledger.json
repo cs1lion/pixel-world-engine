@@ -221,19 +221,19 @@
     },
     {
       "id": "render.drawCalls.static.p50",
-      "value": 16163,
+      "value": 27453,
       "unit": "draw-calls",
       "seed": "demo-dengchao",
       "weather": "not_measured",
       "rainSeed": "not_measured",
-      "denominator": "单次计分轮 stats.totalCommands（本次 16163；同次预热轮 16163 不计分）。旧分母「5 次计分轮 p50=16162（15514/15514/16162/16162/16162）」已随脚本收敛为单轮计分，按实测归一",
-      "source": "world-client/scripts/check-render-budget.mjs 输出（preview/dev http://127.0.0.1:5188/，2026-11-06 合并 feat/interior-view 后重测）",
+      "denominator": "单次计分轮 stats.totalCommands（2026-11-07 起递归含容器：顶层 15,515 + 楼体容器 11,090 + 居民容器 848 = 27,453；同次预热轮 27,453 不计分）。旧分母 16,163 是「只数 children.list 顶层」的口径，楼体 99 个 Graphics / 11,090 条命令在容器里，未进数",
+      "source": "world-client/scripts/check-render-budget.mjs 输出（preview/dev http://127.0.0.1:5217/，2026-11-07 递归口径重测）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "cb69b603dff3868045a573609d63c1b4d134aaa465970b906e5c08a13b9380b6",
+      "script_sha": "9683389cb9b0ae8aab9f179a673d20881982ee5a2128ec1e7b2f0dca67748fa7",
       "judge": "program",
-      "measured_at": "2026-11-06",
+      "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "16163 远低于 30000 天花板；与旧 p50 16162 差 1 条属同档抖动，阈值与断言一字未动。另：端口默认值 5188→5211 属端口纪律改动，不改变渲染路径与计分逻辑，读数不重测，script_sha 按改后脚本内容刷新；2026-11-06 再改为跟随 PIXEL_WORLD_CLIENT_PORT（默认仍 5211）并接入工作树身份闸（探测在浏览器启动前，不改变采样与计分路径），同理刷新"
+      "note": "口径修正：旧值 16,163 漏掉容器里的楼体（99 Graphics / 11,090 条），新值 27,453 是整场景递归合计（加法校验 top + Σdepth-1 成立，不是重复计数）。MAX_COMMANDS=30,000 与断言一字未动。真实逐帧峰值另见 docs/OPEN_ISSUES.md MAT-G4：雨+夜+灯 33,101、雾 52,125，均已越线；闸门仍是开局单次快照（27,453），绿的来源是采样窗口而非余量。`graphicsObjects < 40` 改为读 top.graphicsObjects（阈值未动），否则递归后的 131 会误判"
     },
     {
       "id": "palette.violations.world",
