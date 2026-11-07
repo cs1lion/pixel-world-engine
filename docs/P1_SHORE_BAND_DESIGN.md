@@ -131,6 +131,46 @@ P1 不填那 8 个空格，也不为它们提供任何「已目视」声明。
 **范围声明**：水位/潮汐是动态的（`isFloodedAt` 会把涨潮淹没的草地也算水），
 本轮岸带只按**地形浅滩**（`terrain === 'shallow'`）求岸，不跟随潮位重烘；
 潮汐侧的泡沫线仍归 tide-view。**不声称「任意潮位自动跟随」**。
+为什么「水」只能用地形浅滩、不能用 `isFloodedAt`，见 3.3.1 的实测结论。
+
+### 3.3.1 潮位改不改水/陆格分类：结论（实测，2026-11-07）
+
+**不改。** `TileCell.terrain` 不随潮位变化；潮位只写 `WorldGrid.tideLevel`，进而改
+`isFloodedAt(p)` 这个**动态谓词**，以及 `render/tide-view.ts` 的水幕/泡沫。
+
+代码事实（已读源码）：
+
+- `world/tide.ts` 的 `TERRAIN_WATER_CLEARANCE` 是静态表，`isFlooded(terrain, level)`
+  只是 `level > clearance`（严格大于）；
+- `world/grid.ts` 的 `setTideLevel` 只写 `this.tideLevel`；`isFloodedAt` 每次现算，
+  不写回任何格子的 `terrain`。
+
+实测读数（灯潮界 64×48，`buildSettingWorld` 后逐格读，原样抄自运行输出）：
+
+```
+{ "width": 64, "height": 48,
+  "shallowCells": 790,
+  "floodedAt0": 0,
+  "floodedAt1": 2343,
+  "floodedTerrainsAt1": ["coal", "grass", "mud", "shallow", "tree"],
+  "terrainArrayIdenticalAcrossTide": true,
+  "isFloodedShallow0": false,
+  "isFloodedShallow1": true,
+  "isFloodedGrass031": true,
+  "isFloodedPlaza1": false }
+```
+
+**对 J3 的含义（按这个写，否则判据会假）**：
+
+1. J3 的「水」定义只能是**地形浅滩**（`terrain === 'shallow'`，灯潮界 790 格），
+   不能是 `isFloodedAt`：用后者，低潮时水集合为空（0 格），判据空转；高潮时
+   2343 格（含草地/农田/泥地/林地）都算水，岸带必然「入水」。
+2. 在这个定义下，岸带按浅滩求边、只画在陆格内，**任何潮位都成立**。
+3. 但**画面上**的高潮水线会向陆侧扩张，并盖住岸带（tide-view 在岸带之上，
+   `TIDE_DEPTH` 高于地形烘焙）。这不是 J3 失败，是本轮的范围声明：岸带是静态
+   烘焙，不跟随潮位重烘。第二轮必须拍一张**满潮**六钉截图作为证据，并注明
+   哪些岸带段被水幕覆盖、哪些（石板/广场，`plaza/stone` 满潮也不淹，实测
+   `isFlooded('plaza',1) === false`）仍然可见。
 
 ### 3.4 J4 直岸 k 格连续 = k × TILE_PX
 
@@ -149,6 +189,50 @@ P1 不填那 8 个空格，也不为它们提供任何「已目视」声明。
     不新建对象）；指令差值 = 岸带段数 × 每段 fillRect 次数（段数由测试打印）。
 - 硬闸：Graphics < 40、指令 < 30000；差值只报告，不拿「没超」当「没成本」。
 
+### 3.6 像素 → 格子：DPR、zoom、scroll、canvas 偏移（第二轮新增）
+
+截图上的「每格 16px」是**世界像素**，不是截图像素。灯潮界的实际链路是：
+
+1. 相机 `cameraZoom`（六钉/默认 2）：1 世界像素 → `cameraZoom` 逻辑画布像素；
+2. 画布显示：`scale.zoom = 2`（`src/main.ts` 的 `scale` 配置），即
+   `canvasScale = canvasRect.width / canvas.width`（480×320 → 960×640）；
+3. 设备像素：`deviceScaleFactor`（Playwright 默认 1；本轮六钉口径固定记 1）；
+4. 截图原点：`#app` 有 1px border，元素截图/整页截图的 `offset` 必须实测，
+   不能写死；证据图是 961×641 时，按 960×640 的画布盒 + 1px 边界解释，
+   偏移逐张从 `getBoundingClientRect()` 取。
+
+公式（`origin` 是**视野左上角**，不是 `scroll`；与 `render/camera-math.ts` 的
+`viewOriginOf` 同式）：
+
+```
+originX = scrollX + cameraWidth/2 - cameraWidth/(2*cameraZoom)
+originY = scrollY + cameraHeight/2 - cameraHeight/(2*cameraZoom)
+cssX    = (worldX - originX) * cameraZoom * canvasScale
+deviceX = cssX * deviceScaleFactor + offsetX * deviceScaleFactor
+```
+
+格子矩形（格坐标 → 设备像素）：
+
+```
+deviceX = (cell.x*16 - originX) * cameraZoom * canvasScale * dpr + offsetX*dpr
+deviceY = (cell.y*16 - originY) * cameraZoom * canvasScale * dpr + offsetY*dpr
+deviceW = 16 * cameraZoom * canvasScale * dpr     // 本仓默认 = 16*2*2*1 = 64
+```
+
+**校准点（单测里钉死）**：`scroll=(240,160)`、`camera=480×320`、`zoom=2`、
+`canvas=960×640`、`game=480×320`、`dpr=1`、`offset=(0,0)` →
+`origin=(360,240)`；格 `(23,16)` 左上角 = `(32,64)`，尺寸 `64×64`；
+`dpr=2` 且 `offset=(1,1)` 时左上角 = `(66,130)`，尺寸 `128×128`。
+反向：设备 `(95,127)` → 格 `(23,16)`，`(96,128)` → `(24,17)`（半开区间）。
+
+**端到端掩膜**：六钉差异掩膜的每个像素先按上式反解成格坐标，再判
+「是否落在 `terrain === 'shallow'` 的格」。截图前必须记录
+`Oracle.camera()` 的 `scrollX/scrollY/width/height/zoom`、`canvas.getBoundingClientRect()`、
+`window.devicePixelRatio`；任何一项缺省，掩膜判据作废（宁可判「未验证」，不判绿）。
+
+**口径限制**：结构断言只在 `deviceScaleFactor=1` 时按上面的整数读数成立；
+换成 `dpr=2` 必须按公式重算，不能复用「每格 64px」。
+
 ## 4. 反向用例设计（故意越界必须红）
 
 | # | 故意做错什么 | 期望的红 |
@@ -164,14 +248,30 @@ P1 不填那 8 个空格，也不为它们提供任何「已目视」声明。
 M1/M2 的意义：**先证明检查器会红**，再用它来判「0 像素」；
 只有绿的正向用例说明不了检查器是否真的在看。
 
+### 4.1 验收（第二轮必须逐条给读数，缺一条不算完成）
+
+| # | 验收 | 读数 |
+| --- | --- | --- |
+| A1 | **默认世界真的用上 `shore`**：`dengchao` 数据里配了 `shore`，六钉截图与改前**差异非零** | 差异像素数与 bbox（设备像素），并按 3.6 反解：差异必须只落在陆格 |
+| A2 | **反向：删掉该配置 → 画面逐字节回到改前**（M6 升格为验收，不再只是反向用例） | 两份截图的 sha256 相同（逐字节），且差异像素数 = 0、bbox = 空 |
+| A3 | **满潮证据**（3.3.1 第 3 条） | 一张满潮六钉截图；注明哪些岸带段被水幕覆盖、哪些（`plaza/stone`）仍可见；不声称岸带跟随潮位 |
+| A4 | 预算改前/改后都在基点 f1dfa00 上**实测**，不沿用旧数 | Graphics 差值与指令差值（段数由测试打印） |
+
+A1 是这条线的老毛病：只有「旧设定集不配就不画」的向后兼容，等于交付一段
+永远不执行的代码。A2 是它的反面证明——这份画面差异确实来自这一项配置，
+不是别处的改动。
+
 ## 5. 先红后实现（顺序不能反）
 
-1. 先只提交测试文件（新建的 test/shore-band.test.ts，尚未创建）与本设计稿；测试用动态 import +
+1. 先只提交测试文件（`world-client/test/shore-band.test.ts`）与本设计稿；测试用动态 import +
    `typeof` 断言，模块不存在时红在**断言**，不是 module-not-found。
 2. 跑 `npm run red:first -- --base f1dfa00`，必须看到 `RESULT=RED`，
-   且失败类型是 AssertionError（例如「render/shore-band.ts 必须导出 waterLandEdges」）；
-   另有一条数据断言（灯潮界数据必须有 `shore`）同时红。
+   且失败类型是 AssertionError，至少包含：
+   - 「render/shore-band.ts 必须导出 waterLandEdges」；
+   - 「灯潮界数据必须有 `shore`」；
+   - 「潮位不改地形分类」的实测用例（这条在基点上应当绿，作为 J3 定义的前提）。
 3. 再实现 render/shore-band.ts（新建）、接线、数据与装载校验；红转绿。
-4. 第二轮报告：红→绿读数、六钉截图差（差异必须只在陆格）、预算改前改后差值。
+4. 第二轮报告：红→绿读数、六钉截图差（差异必须只在陆格）、预算改前改后差值、
+   A1/A2/A3 的读数。
 
 停止条件：若红不是断言红（编译/import 类），停手改测试，不进入实现。
