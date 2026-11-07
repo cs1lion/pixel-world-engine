@@ -64,6 +64,11 @@
   `node test/fixtures/setting-scale-hook-probe.mjs`（自带桩页，不要求 vite、不读基线目录）。
   判绿口径：5 条全 PASS 且末尾打印「全部通过」——无钩子 exit 1、非法值 exit 1、
   合法值 exit 0、无钩子 + 改前声明 exit 0、拿基线常量做差 exit 1。
+- 2026-11-08 因读数口径变更重拍了 `eval/screens/setting-scale-after.{png,json}`：
+  五个尺度常量与 `metrics` 五个值均**未变**（`shopfrontH 48` 等），但扫描读数与
+  渲染统计随当期构建变化（`frameH 48→13`、`stoneH 4→3`、`totalCommands
+  12363→30021`、`graphicsObjects 46→155`），图像非逐字节相同。此次**未**重拍
+  `before`，它仍是基线常量口径；并排图合成会被 `assertMeasuredReading` 判红。
 - 「改前 / 改后」必须是同一机位、同一冻结帧、只差尺度这一件事；改前那一拍要先
   `git stash` 掉 `src/` 的改动，再拍 `before`，恢复后拍 `after`。
 - 这条不替代别的闸门（预算、调色板、单测），只补上「尺度类改动」这一格的证据口径。
