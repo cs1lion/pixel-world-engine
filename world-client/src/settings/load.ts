@@ -2,7 +2,7 @@
 import { parseBlueprintTable } from '../world/blueprints.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { BuiltWorld } from '../world/setup.ts';
-import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
+import { doorReaches, placeBlueprint, reaches, rehydratePalettes, TILE_PX, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import {
@@ -19,6 +19,8 @@ import type {
   SettingPack,
   SettingRoutineStop,
   SettingScenery,
+  SettingShore,
+  ShoreStyleId,
 } from './types.ts';
 
 export class SettingPackError extends Error {}
@@ -28,6 +30,32 @@ const TOKENS = Object.keys(WORLD) as WorldColor[];
 
 /** 八种地形各自要落到一个色板槽上，一种都不能少。 */
 const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal'];
+
+/** 岸型闭集。与 `render/shore-band.ts` 的 `SHORE_PRESETS` 同一份名单。 */
+const SHORE_STYLES: readonly ShoreStyleId[] = ['straight', 'inset'];
+
+/**
+ * 岸线带参数：四个字段全部在装载期查一遍。
+ *
+ * 漏查的后果都是「画面少一层/画错一层」而不是报错：`style` 写错时渲染侧
+ * 解析不出预设（这里拒，才不会到运行时才抛）；`depthPx = 0` 会画成 0 带宽，
+ * 这份配置等于没写，而截图差异是 0——正是 A1 验收要抓的「存在但没人用」。
+ */
+function validateShore(shore: SettingShore): SettingShore {
+  if (!SHORE_STYLES.includes(shore.style)) {
+    throw new SettingPackError(`shore.style ${String(shore.style)} 不是 straight / inset 之一`);
+  }
+  if (!Number.isInteger(shore.depthPx) || shore.depthPx < 1 || shore.depthPx > TILE_PX) {
+    throw new SettingPackError(`shore.depthPx ${String(shore.depthPx)} 必须是 1..${TILE_PX} 的整数`);
+  }
+  if (!TOKENS.includes(shore.token)) {
+    throw new SettingPackError(`shore.token ${String(shore.token)} 不在 24 色里`);
+  }
+  if (!Number.isFinite(shore.alpha) || shore.alpha <= 0 || shore.alpha > 1) {
+    throw new SettingPackError(`shore.alpha ${String(shore.alpha)} 必须在 (0, 1]`);
+  }
+  return { style: shore.style, depthPx: shore.depthPx, token: shore.token, alpha: shore.alpha };
+}
 
 /**
  * 构件闭集。与 `SettingScenery['kind']` 是同一份名单，运行时再验一次。
@@ -197,6 +225,8 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       return [terrain, color];
     }),
   ) as Record<TerrainId, number>;
+  // 岸线带：缺席是合法的（旧设定集不画），但写了就必须四个字段都对。
+  const shore = raw.shore === undefined ? undefined : validateShore(raw.shore);
   const { width, height } = raw.grid;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 30 || height < 20) {
     throw new SettingPackError('地图至少要有 30×20 格');
@@ -364,7 +394,7 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     }
   }
   const propReveals = compilePropReveals(raw.propReveals);
-  return { ...raw, palette, terrainColors, blueprints, villagers, propReveals, authored: true };
+  return { ...raw, palette, terrainColors, shore, blueprints, villagers, propReveals, authored: true };
 }
 
 /**

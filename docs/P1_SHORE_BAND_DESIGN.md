@@ -193,13 +193,14 @@ P1 不填那 8 个空格，也不为它们提供任何「已目视」声明。
 
 截图上的「每格 16px」是**世界像素**，不是截图像素。灯潮界的实际链路是：
 
-1. 相机 `cameraZoom`（六钉/默认 2）：1 世界像素 → `cameraZoom` 逻辑画布像素；
+1. 相机 `cameraZoom`（本轮六钉推到 2；作者包默认 1）：1 世界像素 → `cameraZoom` 逻辑画布像素；
 2. 画布显示：`scale.zoom = 2`（`src/main.ts` 的 `scale` 配置），即
    `canvasScale = canvasRect.width / canvas.width`（480×320 → 960×640）；
-3. 设备像素：`deviceScaleFactor`（Playwright 默认 1；本轮六钉口径固定记 1）；
-4. 截图原点：`#app` 有 1px border，元素截图/整页截图的 `offset` 必须实测，
-   不能写死；证据图是 961×641 时，按 960×640 的画布盒 + 1px 边界解释，
-   偏移逐张从 `getBoundingClientRect()` 取。
+3. 设备像素：`deviceScaleFactor`（Playwright 默认 1；本轮六钉口径实测 1）；
+4. 截图原点：元素截图实测是 **961×641**，而画布盒是 960×640：
+   Playwright 对 `rect.x=25.5` 这类半像素位置做了取整，画布内容在截图里
+   从 **(1,1)** 开始。偏移不能写死，按每张图的 `getBoundingClientRect()`
+   与截图尺寸实测；本轮两张六钉都落在 (1,1)。
 
 公式（`origin` 是**视野左上角**，不是 `scroll`；与 `render/camera-math.ts` 的
 `viewOriginOf` 同式）：
@@ -216,7 +217,7 @@ deviceX = cssX * deviceScaleFactor + offsetX * deviceScaleFactor
 ```
 deviceX = (cell.x*16 - originX) * cameraZoom * canvasScale * dpr + offsetX*dpr
 deviceY = (cell.y*16 - originY) * cameraZoom * canvasScale * dpr + offsetY*dpr
-deviceW = 16 * cameraZoom * canvasScale * dpr     // 本仓默认 = 16*2*2*1 = 64
+deviceW = 16 * cameraZoom * canvasScale * dpr     // 本轮六钉 = 16*2*2*1 = 64
 ```
 
 **校准点（单测里钉死）**：`scroll=(240,160)`、`camera=480×320`、`zoom=2`、
@@ -224,6 +225,20 @@ deviceW = 16 * cameraZoom * canvasScale * dpr     // 本仓默认 = 16*2*2*1 = 6
 `origin=(360,240)`；格 `(23,16)` 左上角 = `(32,64)`，尺寸 `64×64`；
 `dpr=2` 且 `offset=(1,1)` 时左上角 = `(66,130)`，尺寸 `128×128`。
 反向：设备 `(95,127)` → 格 `(23,16)`，`(96,128)` → `(24,17)`（半开区间）。
+
+**本轮六钉实测（不是假设）**：灯潮界作者包开局相机 `zoom=1`（`zoomIndex:0`），
+六钉抓拍用滚轮推到 `zoom=2` 后记录：
+
+```
+camera: scroll=(560,88) width=480 height=320 zoom=2 → worldView=(680,168)
+canvas: rect=960×640，buffer=480×320，dpr=1
+截图:   961×641 → 内容 offset=(1,1)
+一格 = 16 × zoom(2) × canvasScale(2) × dpr(1) = 64 设备像素
+```
+
+校准：设备 `(1,297)` → css `(0,296)` → world `(680,242)` → 格 `(42,15)`，
+该格 `terrain === 'stone'`（陆地，非浅滩）。改后差异的 bbox
+`[1,297,960,308]` 与按上式的正解逐像素对齐。**若沿用「每格 16px」会差 4 倍**。
 
 **端到端掩膜**：六钉差异掩膜的每个像素先按上式反解成格坐标，再判
 「是否落在 `terrain === 'shallow'` 的格」。截图前必须记录

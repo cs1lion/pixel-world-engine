@@ -439,7 +439,7 @@ test('J4 直岸 k 格连续 = k × TILE_PX，断一格必须拆段', async () =>
     water: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 4, y: 0 }],
     land: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 4, y: 1 }],
   };
-  const segments = rectsOf(edgesOf(gap), NUMBERS).sort((a, b) => a.rect.x - b.rect.x);
+  const segments = [...rectsOf(edgesOf(gap), NUMBERS)].sort((a, b) => a.rect.x - b.rect.x);
   assert.deepEqual(
     segments.map((entry) => entry.lengthPx),
     [3 * TILE_PX, TILE_PX],

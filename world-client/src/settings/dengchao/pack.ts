@@ -177,6 +177,10 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 可 `copper` 在色板里的本义是铜绿**屋顶**，用它当滩涂本来就是借的。
     shallow: 'moss', mud: 'soil', coal: 'charcoal',
   },
+  // 岸线带：这本人用「收进」——从水边向陆侧退 2px 再铺 3px 湿色带，岸线
+  // 读成有厚度的一条，而不是只有 1px 水线。形制是引擎预设（自定，书里无对应），
+  // 设定集只写选哪套、多宽、什么色。
+  shore: { style: 'inset', depthPx: 3, token: 'water', alpha: 0.5 },
   grid: {
     width: 64, height: 48, border: 1,
     zones: [

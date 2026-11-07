@@ -51,6 +51,26 @@ export interface CompiledVillager {
   readonly archive?: VillagerArchive;
 }
 
+/**
+ * 岸型预设 id。闭集与 `render/shore-band.ts` 的 `SHORE_PRESETS` 对齐：
+ * 加一种岸型要两处同时加，装载期会拒掉认不出的词。
+ */
+export type ShoreStyleId = 'straight' | 'inset';
+
+/**
+ * 岸线带的数据层参数。只写「哪套预设 + 多宽 + 什么色 + 多透明」；
+ * 具体从哪里退、退几像素由引擎的预设表解析，设定集不写像素几何。
+ *
+ * 缺席 = 这本人不画岸带（旧设定集路径），画面与加这个组件之前逐字节一致。
+ */
+export interface SettingShore {
+  readonly style: ShoreStyleId;
+  /** 带宽（世界像素），1..TILE_PX。写成 0 会被装载期拒绝，不按 0 静默画。 */
+  readonly depthPx: number;
+  readonly token: WorldColor;
+  readonly alpha: number;
+}
+
 export interface SettingScenery {
   readonly kind:
     | 'lantern'
@@ -196,6 +216,8 @@ export interface SettingPack {
    * 也就没有什么要盖的，于是一件都不脏。莞尔镇就是这样。
    */
   readonly propReveals?: ReadonlyMap<PropKind, readonly string[]>;
+  /** 岸线带参数。省略 = 不画（旧设定集与默认世界之外的包都走这条）。 */
+  readonly shore?: SettingShore;
   readonly authored: boolean;
 }
 
@@ -228,4 +250,6 @@ export interface RawSettingPack {
    * 话那个错在类型上就不存在，`compilePropReveals` 也就白写了。
    */
   readonly propReveals?: Readonly<Record<string, readonly string[]>>;
+  /** 岸线带（原文，装载期校验）。省略 = 不画。 */
+  readonly shore?: SettingShore;
 }
