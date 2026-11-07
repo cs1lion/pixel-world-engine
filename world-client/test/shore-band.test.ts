@@ -1223,6 +1223,106 @@ test('J9 实测基线：真实 dengchao 的拐角重叠石材 2656 / 草岸 0，
   );
 });
 
+// 不变量（独立于实现方式）：每条水陆边的贴水 1px 带，像素 token 必须等于湿端 token。
+// 拐角的两条腿各自都要过；亮端（末段）允许被吸收或被吞掉，不要求出现在贴水位置。
+test('J9 不变量：每条水陆边的贴水 1px 带必须是湿端 token（拐角两条腿都算）', async () => {
+  const mod = await shore();
+  has(mod, 'resolveShoreConfig');
+  has(mod, 'shoreBandRects');
+  has(mod, 'waterLandEdgesFromGrid');
+
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const grid = buildSettingWorld(pack).grid;
+  const configs = mod.resolveShoreConfig!((pack as { readonly shore?: unknown }).shore);
+  assert.ok(configs !== null && configs.length === 2, '两组岸型都要解析出来');
+  const edges = mod.waterLandEdgesFromGrid!(grid, (terrain) => terrain === 'shallow');
+  const isLand = (cell: GridPoint): boolean => grid.at(cell)?.terrain !== 'shallow';
+
+  interface Pixel {
+    readonly x: number;
+    readonly y: number;
+  }
+  interface EdgeView {
+    readonly land: GridPoint;
+    readonly side: string;
+  }
+  interface PieceLike {
+    readonly token: string;
+    readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  }
+
+  /** 每条边的贴水 1px 带（陆侧那一行/列）。 */
+  const wetStrip = (edge: EdgeView): Pixel[] => {
+    const ox = edge.land.x * TILE_PX;
+    const oy = edge.land.y * TILE_PX;
+    const out: Pixel[] = [];
+    for (let i = 0; i < TILE_PX; i += 1) {
+      if (edge.side === 'north') out.push({ x: ox + i, y: oy });
+      else if (edge.side === 'south') out.push({ x: ox + i, y: oy + TILE_PX - 1 });
+      else if (edge.side === 'west') out.push({ x: ox, y: oy + i });
+      else out.push({ x: ox + TILE_PX - 1, y: oy + i });
+    }
+    return out;
+  };
+
+  /** 把 pieces 栅格化成像素 → token，再逐条边检查贴水带。 */
+  const violationsOf = (
+    pieces: readonly PieceLike[],
+    source: readonly EdgeView[],
+    wetToken: string,
+  ): { readonly bad: string[]; readonly checked: number } => {
+    const cover = new Map<string, string>();
+    for (const piece of pieces) {
+      for (let y = piece.rect.y; y < piece.rect.y + piece.rect.h; y += 1) {
+        for (let x = piece.rect.x; x < piece.rect.x + piece.rect.w; x += 1) {
+          cover.set(`${x},${y}`, piece.token);
+        }
+      }
+    }
+    const bad: string[] = [];
+    let checked = 0;
+    for (const edge of source) {
+      for (const px of wetStrip(edge)) {
+        checked += 1;
+        const token = cover.get(`${px.x},${px.y}`);
+        if (token !== wetToken) bad.push(`${key(edge.land)}/${edge.side} (${px.x},${px.y}) = ${String(token)}`);
+      }
+    }
+    return { bad, checked };
+  };
+
+  for (const kind of ['stone', 'grass'] as const) {
+    const config: ShoreNumbersView = configs.find((entry) => entry.land.includes(kind))!;
+    const result = mod.shoreBandRects!(edges, [config], isLand);
+    const applicable = edges.filter((edge) => config.land.includes(edge.terrain as never));
+    const wetToken: string = config.steps[0]!.token;
+    const { bad, checked } = violationsOf(result.pieces, applicable, wetToken);
+    assert.ok(checked > 0, `${kind}：贴水带不能为空，判据不许空转（${checked} px）`);
+    assert.deepEqual(
+      bad,
+      [],
+      `${kind}：每条边的贴水 1px 带都必须是 ${wetToken}，共 ${checked} px 中有 ${bad.length} px 违规`,
+    );
+  }
+
+  // 证伪：把一处贴水像素改成末段 token，同一个检查器必须报出来。
+  const stone = configs.find((entry) => entry.land.includes('stone'))!;
+  const result = mod.shoreBandRects!(edges, [stone], isLand);
+  const applicable = edges.filter((edge) => stone.land.includes(edge.terrain as never));
+  const first = wetStrip(applicable[0]!)[0]!;
+  const mutated = [
+    ...result.pieces,
+    { token: stone.steps[stone.steps.length - 1]!.token, rect: { x: first.x, y: first.y, w: 1, h: 1 } },
+  ];
+  const falsified = violationsOf(mutated, applicable, stone.steps[0]!.token);
+  // 拐角像素可能同时属于两条边，所以按「至少 1 条、且命中的正是这个坐标」判。
+  assert.ok(falsified.bad.length >= 1, '把贴水像素换成末段 token，检查器必须报出来（判据可证伪）');
+  assert.ok(
+    falsified.bad.some((entry) => entry.includes(`(${first.x},${first.y})`)),
+    `证伪必须命中被改的坐标 (${first.x},${first.y})，实际 ${falsified.bad.join('; ')}`,
+  );
+});
+
 test('J9 结构检查：反向 M10/M12 截断与上限（maxTruncatedPx）', async () => {
   const mod = await shore();
   has(mod, 'waterLandEdges');

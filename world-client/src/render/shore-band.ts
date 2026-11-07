@@ -313,13 +313,18 @@ export function shoreBandRects(
     }
   }
 
-  // 发出顺序：格坐标 → side → 段下标。后发的矩形先减去同格已占的像素。
+  // 发出顺序：格坐标 → **段下标（湿端优先）** → side → 矩形位置。
+  // 湿端优先是拐角不变量：贴水的 1px 带必须永远是 `steps[0]`。
+  // 同一格里横带与竖带相交时，若按 side 排序，side 靠前的那条腿会把另一条腿的
+  // 湿段裁掉，竖岸的贴水带就露出 farm/plaza（实测 `(7,9)`/`(19,9)` 各 16px）。
+  // 按 step 排序后，较低段的矩形先占地，较高段（干端）被吸收——正是
+  // 「湿端连续、亮端让吞」。这是引擎规则，与具体地图无关。
   portions.sort(
     (a, b) =>
       a.cell.y - b.cell.y ||
       a.cell.x - b.cell.x ||
-      SIDES.indexOf(a.side) - SIDES.indexOf(b.side) ||
       a.step - b.step ||
+      SIDES.indexOf(a.side) - SIDES.indexOf(b.side) ||
       a.rect.x - b.rect.x ||
       a.rect.y - b.rect.y,
   );
