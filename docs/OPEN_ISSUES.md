@@ -689,15 +689,69 @@
 - **根因提交 [事实]**（`git bisect`/first-parent 二分，判据为 `fixture:check --only <夹具>` 退出码）：
   | 提交 | 内容 | 首先翻红的夹具 | 读数变化 |
   | --- | --- | --- | --- |
-  | `0dfcd2f` | merge liveliness `d725b7e`；代码由 `0fd53a6`（街头小事入 `world.event` 并入账）、`937f247`（重要度/激励阈值）带入 | build-demolish、memory-decay、timetable | memory facts 277→297，archived 9→0，dropped 145→187（该提交实测）；build/timetable 同时首次翻红（HEAD 终值 build facts 60→78、bonds 0→2） |
+  | `0dfcd2f` | merge liveliness `d725b7e`；代码由 `0fd53a6`（街头小事入 `world.event` 并入账）、`937f247`（重要度/激励阈值）、`1905bdd`（限流/跨天衰减/五人轮转）带入 | build-demolish、memory-decay、timetable | memory facts 277→297，archived 9→0，dropped 145→187（该提交实测）；build/timetable 同时首次翻红（HEAD 终值 build facts 60→78、bonds 0→2） |
   | `49c953b` | merge routine-real `2cc0efe`；代码由 `ec42e91`（市面四拍、打水到水边、旁白改口）带入 | creator-dayclose；并继续抬高 memory/timetable | memory 297→393；timetable 继续增至终值 23（+market_open/work_end/night_market/market_close） |
   | `df69173` | merge behavior-queue | natural-bond-witness | memory 393→379（routine_done 120→105、street_together +1）；bond 业务读数不变、仅指纹变 |
   上一笔 `a6da49e` 在 5 条夹具上全部 PASS；`0dfcd2f` 是第一笔让读数翻转的 mainline 提交。
-- **为什么 facts 从 277 变 379 [事实]**：终局事实 379 = tide_turn 120 + routine_done 105 + daily_water 20 + daily_lamp 20 + street_greet 20 + street_together 14 + market_open 20 + work_end 20 + night_market 20 + market_close 20。相对 277 的 +102 = 新增 6 类事件共 114 条（street_greet 20、street_together 14、market_open/work_end/night_market/market_close 各 20）− routine_done 被预算裁掉 12。样本里的 eventId/placeId/actors 均来自实际回放事件；新 kind 在 `world-changes.ts` 中声明、在 `simulation.ts` 中发射。
+- **为什么 facts 从 277 变 379 [事实]**：终局事实 379 = tide_turn 120 + routine_done 105 + daily_water 20 + daily_lamp 20 + street_greet 20 + street_together 14 + market_open 20 + work_end 20 + night_market 20 + market_close 20。相对 277 的 +102 = 新增 6 类事件共 114 条（street_greet 20、street_together 14、market_open/work_end/night_market/market_close 各 20）− routine_done 12（117→105，逐提交归属见下条「+114 / −12」）。样本里的 eventId/placeId/actors 均来自实际回放事件；新 kind 在 `world-changes.ts` 中声明、在 `simulation.ts` 中发射。
 - **方向判据与证据 [判据]**：判「行为变对了、基线旧了」，用了三条：
   1. **新生事件是真实行为**：新增 fact 逐条对应 `world.event`（street_greet/together、market 四拍、work_end），kind 已声明、actor/place 可读、无凭空重复；不是指纹噪声。
   2. **旧语义没有被改坏**：build-demolish、creator-dayclose、natural-bond-witness 的**全部人工语义断言仍通过**，只是录制指纹/读数变；natural-bond 的业务读数（facts 2 / entries 14 / bonds 5 / trust 合计 0.18）与旧基线逐字段相同，只有内部指纹变。
   3. **归档逻辑没有丢**：`archived 9→0` 不是分支被删。`consolidate.ts` 的归档分支仍在，`test/memory-archive-reach.test.ts` 在 HEAD 上仍绿；0 是预算先淘汰：基线里第二个 holder 每天收集 0–2 条、有条目活到第 13 天强度 0.142（< `T_forget=0.15`）才归档；新行为下同一 holder 每天 1–4 条，day 桶（16 条）先把旧条目淘汰，20 天窗口里最老只活到 7 天、强度 0.377，到不了归档阈值；dropped 145→204 同源。
+- **出处追查（2026-11-07 追加）[事实]**：为「行为变对了」补可追链条。方法：在隔离 worktree 里用 `TraceRuntime` 手工步进复跑三条夹具的同一参数轨迹（memory-decay：seed `fixture-decay`、`initialNow=0`、`stepMs=3600000`、480 拍；build-demolish：seed `fixture-cycle`、`initialNow=21600000`、101 拍 + 3 条注入；timetable：seed `fixture-timetable`、`initialNow=17400000`、`stepMs=120000`、396 拍），终局按 `fact.kind` 分组，并从 `memory.consolidated` 事件的 `stats` 合计 `archived/dropped`。探针未入库，原始读数如下（每行一个 first-parent 提交，省略未变化字段）：
+
+  ```text
+  a6da49e  memory-decay facts 277 archived 9 dropped 145 | routine_done 117 tide_turn 120 daily_lamp 20 daily_water 20
+  0dfcd2f  memory-decay facts 297 archived 0 dropped 187 | + street_yield 20，其余同上
+  49c953b  memory-decay facts 393 archived 0 dropped 217 | market_open/work_end/night_market/market_close 各 20，street_greet 20，street_together 13，routine_done 120，street_yield 0
+  df69173  memory-decay facts 379 archived 0 dropped 204 | routine_done 105，street_together 14，其余同上
+  a6da49e  build        facts 60  bonds 0 | routine_done 24 tide_turn 25 daily_lamp 4 daily_water 4 milestone 2 conflict 1
+  0dfcd2f  build        facts 64  bonds 0 | + street_yield 4
+  49c953b  build        facts 81  bonds 0 | market_open 5 market_close 4 night_market 4 work_end 4 street_greet 5 street_together 2 routine_done 21 street_yield 0
+  df69173  build        facts 78  bonds 2 | routine_done 18，其余同上
+  a6da49e  timetable    facts 9  | routine_done 4 tide_turn 3 daily_lamp 1 daily_water 1
+  0dfcd2f  timetable    facts 21 | + street_greet 5 street_together 2 street_yield 5
+  49c953b  timetable    facts 23 | + market_open 1 work_end 1
+  df69173  timetable    facts 23（不变）
+  ```
+
+  三条夹具的出处表：
+
+  | 夹具 | 行为改变（旧基线 → 现在） | 引入提交（mainline 合并 ← 分支代码） | 提交自称 | 文档支持 |
+  | --- | --- | --- | --- | --- |
+  | memory-decay | street_yield +20、archived 9→0、dropped 145→187；随后 market 4×20、street_greet 20、street_together 13，yield 归 0；最后 routine_done 120→105、together +1 | `0dfcd2f` ← `0fd53a6`（建街头互动代码并落 `world.event`，但 20 天读数与旧基线逐项相同，属「代码先到、行为未显」）、`937f247`（首笔可观察变化：yield 37、archived 归 0）、`1905bdd`（限流到 20）；`49c953b` ← `ec42e91`（市面四拍/打水到水边/夜休）；`df69173` ← `e362a9a`（需求层-饥饿）、`cfb5afa`（疲劳与睡眠）、`ec58c4c`（与 origin/main 合并） | 见右列文档；`ec42e91` 自称修 BUG-003（docs 里查不到该条目） | `docs/BUGS_FOUND.md` BUG-1（街头互动按 12 次/天、greet/yield/together 分布）；`docs/evidence/soak/REPORT.md` 第 10 行默认环线「醒 / 打水 / 市面四拍 / 睡」与 394–408 行按天计数；`docs/evidence/PROGRESS.md` 块 8/9（疲劳睡、夜休、`22:00 翻牌`，501–502 行）；`docs/BUGS_FOUND.md` 555 行的 90 日淘汰样本也按 kind 列出 greet/together/market 四拍/`routine_done` 的常态分布 |
+  | build-demolish | 60→64（yield 4）→81（market 17、greet 5、together 2、routine_done −3、yield −4）→78（routine_done −3、bonds 0→2） | 同上三笔合并、同一组分支提交 | 同上 | 同上 |
+  | timetable-daily-markers | 9→21（greet 5、together 2、yield 5）→23（market_open 1、work_end 1） | `0dfcd2f` + `49c953b`，分支代码 `0fd53a6/937f247/1905bdd` 与 `ec42e91` | 同上 | 同上 |
+
+  ADR 方面：**没有针对街头互动或市面四拍的 ADR**；`docs/adr/ADR_WORLD_ALIVE.md` 只支持「居民按作息由 `Simulation.update` 驱动」这一层。`docs/adr/ADR_MEMORY.md` 未涉及预算/归档，不能算支持。
+
+- **`+114 / −12` 的归属 [事实]**：净 +102 的唯一算式仍是 +114 − 12，逐项落到提交：
+
+  | 项 | 条数 | 引入提交 | 改动类型 |
+  | --- | --- | --- | --- |
+  | `street_greet` | +20 | 行为由 `0fd53a6` 建立；20 条读数在 `49c953b` 合并后才成立（单跑 liveliness 分支为 0） | 新增世界行为 + `world.event` 落账 |
+  | `street_together` | +14 | 行为由 `0fd53a6` 建立；13 条在 `49c953b`，+1 在 `df69173` | 同上 |
+  | `market_open / work_end / night_market / market_close` | 各 +20（共 +80） | `ec42e91` 发射（`6f1404c` 只建时刻表骨架，`a6da49e` 上四类一条都没有）；经 `49c953b` 合入 | 时刻表 + 四拍各自落 `world.event` |
+  | `routine_done` | −12（117→105） | `e362a9a` −4、`cfb5afa` −10、合并 `ec58c4c` +2 | 需求层/疲劳睡眠改写作息占位，不是事件被删 |
+  | 合计 | +114 − 12 = +102 | | |
+
+  另有一笔不进 +114 的进出：`street_yield` 在 `937f247` 分支上出现 37 条、`1905bdd` 限流到 20，`49c953b` 合并后归 0。它一进一出净 0，所以 +114 只数 6 类；但它不是「少了一类」，是让路分支在合并后不再成立（逐行原因未追，见下一条）。
+
+- **`archived 9→0` 的机制出处 [事实]**：
+  1. **归档分支本身可达**：`test/memory-archive-reach.test.ts` 断言摘要晋升与归档段非空；该测试由 `fc1b11a` 引入，HEAD 实跑 `1..1 / pass 1 / fail 0`。
+  2. **归零是「日预算先淘汰」**：`budget.day = 16` 由 `6514cae` 设定，**此后没有任何提交改过这个值**；`fc1b11a` 只在同一 `budget` 里补了 `legend` 与 `bytes`（`day: 16` 未动）。`docs/BUGS_FOUND.md` 第 499 行独立记录了同一机制：「日层条目过归档期后被 `day` 桶预算裁掉」。
+  3. **触发者是负载不是参数**：`0fd53a6` 单跑仍是 277 / archived 9 / dropped 145（代码先到、行为未显）；`937f247` 首次把 archived 打到 0（277→314、dropped 145→221）；`1905bdd` 限流后 archived 仍 0（297 条、dropped 187）；`ec42e91` 单跑时 archived 回到 8（无街头负载，360 条），`49c953b` 合并后又回 0。mainline 上第一笔翻红仍是 `0dfcd2f`。
+  4. **结论**：「哪个提交改了日预算」**没有答案**——窗口内没有提交改 `budget.day`；归零是 `937f247` 起新增的街头事实把日桶填满导致的。机制有出处（`6514cae` 的 `day: 16` + `fc1b11a` 的双预算留痕 + BUG-2 测试），参数变更没有出处。
+
+- **找不到单一出处的项 [事实]**（不编理由）：
+  1. `street_greet 20 / street_together 14`：kind 的代码可追到 `0fd53a6`，但 20/14 这两个数**不属于任何单笔提交**。单跑 liveliness 分支：`0fd53a6` 与旧基线完全相同（277/9/145，无 street），`937f247` 只有 yield 37，`1905bdd` 限流后 yield 20、greet/together 仍为 0；单跑 routine-real（`ec42e91`）street 全 0；只有两线合并（`49c953b`）才出现 greet 20/together 13，再加 behavior-queue 合并（`df69173`）变 14。方向判定依赖业务断言（`.length`、`actorCounts`、`places`、`beatOrder`）与 `BUGS_FOUND.md` BUG-1 的行为描述，不是单笔提交的意图。
+  2. `routine_done −12`：同样没有单一出处。相对旧基线 117→105 是三段相加：`e362a9a` −4、`cfb5afa` −10、合并 `ec58c4c` +2（合并后与 routine-real 的作息竞争）。单看任一提交都不是 −12。
+  3. `street_yield 20→0`：`937f247` 加入、`49c953b` 合并后归零；「为什么让路分支不再成立」没有单独提交可指，差异分散在 `0fd53a6/937f247/1905bdd` 与 `ec42e91` 的合并交互。
+  4. `ec42e91` 的提交说明写「BUG-003」，但 `docs/` 里查不到 BUG-003 条目（`docs/BUGS_FOUND.md` 的 BUG-3 是「传说碑文预算」，与四拍无关）；这条方向只有提交说明与 `soak/REPORT.md` 的默认环线描述支持，**没有 ADR**。`docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md` 只是被同一合并碰过，内容与四拍无关。
+  5. `archived 9→0` 在分支上先在 `937f247` 归零、`ec42e91` 单跑又回 8、合并后再归零，**不存在一笔「把归档关掉」的提交**；它由「日桶容量 + 新增负载」两件事叠加，没有单一出处。
+
+- **收口 [判据]**：基线更新的依据是 `0dfcd2f`（`0fd53a6/937f247/1905bdd`）、`49c953b`（`ec42e91`）、`df69173`（`e362a9a/cfb5afa/ec58c4c`）这三笔 mainline 合并与对应分支提交，加上 `docs/BUGS_FOUND.md` BUG-1/BUG-2、`docs/evidence/PROGRESS.md` 块 8/9、`docs/evidence/soak/REPORT.md` 的默认环线读数，不是「反正现在跑出来是这样」。其中 `market 四拍 +80` 有单一提交 `ec42e91`，归档归零有单一机制（`6514cae` 的 `day: 16` + `937f247` 的负载）但无参数变更提交；`street_greet/together` 的 20/14 与 `routine_done −12` 是合并交互的结果，找不到单一提交，方向判定依赖业务断言而非提交意图。
+
 - **处置 [事实]**：按 (a) 在隔离 worktree `D:/project/pwe-j1-drift`（分支 `chore/j1-fixture-drift`）重录 5 条夹具，并同步重录 `recorded.checkpoints`；重录后 `fixture:check` = 5 条夹具 / 100 项断言 / **5 通过 0 失败**，`verifyTrace` 5 条均 `replayable`（三枚指纹与录制值逐项一致）。重录只改 `world-client/fixtures/*.json`，未改 `eval/screens` 截图、未 push、未动主树工作区。
 - **残余 [判据]**：memory-decay 20 天窗口内归档不再触发，夹具已更新 `purpose`/`covers`/`doesNotCover` 写明原因，归档路径由 `test/memory-archive-reach.test.ts` 覆盖；若产品要求「20 天内必须看到软遗忘」，那是预算标定的新决策，不在本次重录里偷偷改 `budget.day`。
 - **纪律**：未合并前不许把该检查从 CI 或手工清单里静默移除；一个长期红且无人认领的检查等于没有检查。
