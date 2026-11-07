@@ -15,16 +15,20 @@
 4. 读 12 个生产脚本（`check-*`、`smoke.mjs`），区分「写」与「读」：只有带路径的 `readFileSync` / `existsSync`，
    且在当前仓库数据上**实际执行成立**，才算 ①。仅被脚本写出的不算消费方。
 5. 实跑读取方：`node scripts/check-lamp-blindspot.mjs`（读 after 三件）、
-   `PIXEL_WORLD_URL=http://127.0.0.1:5251/ node scripts/check-lamp-band.mjs`（验证 before 三件是否真被读）。
+   `PIXEL_WORLD_URL=http://127.0.0.1:5251/ node scripts/check-lamp-band.mjs`（读 before 三件做像素差；
+   2026-11-07 修死接后，缺件/协议不符会 exit 1）。
 
 ## 二、三类件数
 
 | 类 | 定义 | 件数 | 其中 PNG |
 |---|---|---|---|
-| ① | 闸门脚本实测读取（缺件即红/退出） | **3** | 2 |
-| ② | 只作为证据被文档/证据 JSON 引用 | **163** | 152 |
+| ① | 闸门脚本实测读取（缺件即红/退出） | **6** | 4 |
+| ② | 只作为证据被文档/证据 JSON 引用 | **160** | 150 |
 | ③ | 既无闸门消费，也无文档引用 | **3** | 3 |
 | 合计 | | **169** | **157** |
+
+> 2026-11-07 修死接后，`check-lamp-band` 实读 before 三件（`lamp-band-before.json`、`-lit.png`、`-dark.png`），
+> 这三件从 ② 移到 ①：① 由 3 变 6、② 由 163 变 160。③ 不变。
 
 ② 里有 3 件是"清单/噪声"级引用而非读数引用：`banner-smoke.html`、`stall-motion.html`（`docs/evidence/ANIMATION_BASELINE_VERDICT.md:150` 的噪声 sidecar 清单）、
 `lamp-band-before-seed-pinned.png`（同一次 39cff04 基线的合成页，`docs/evidence/ANIMATION_BASELINE_VERDICT.md:276` 的入库清单）。
@@ -40,15 +44,20 @@
    `lamp-band-after.json`、`lamp-band-after-lit.png`、`lamp-band-after-dark.png` 被
    `check-lamp-blindspot.mjs` **实际读取**（:25-27，:34-36 缺件即抛错）。这一条与
    `docs/evidence/ANIMATION_BASELINE_VERDICT.md:150` 的 "lamp-band-after.json 是 read-only consumer" 一致。
-2. **`check-lamp-band` 对 before 三件的读是死接。** `check-lamp-band.mjs:365-377` 要求
-   `beforeJson.params.seed === SEED` 且 `params.trueClear === true`；但
-   `lamp-band-before.json` 顶层没有 `params` 字段（只有 `cam/stats/tideLevel/coverage/...`）。
-   2026-11-07 在 5251 实跑，输出只有 after，没有 before/after 像素差 → `sameProtocol=false`，三件**未被读**。
-   因此 `docs/OPEN_ISSUES.md:641` 的 "check-lamp-band（读 eval/screens 的 3 件晴态改前基线）通过"
-   应读作"路径存在、代码有读分支，但当前 JSON 不满足协议，实测静默跳过"。这三件仍保留：它们是
-   `docs/evidence/scene-artbook/README.md:13` 里 "改前 66.3% → 改后 76.6%" 的改前证据。
-3. **"没有消费方" 的真实含义是没有 CI 闸门。** 不是没有读取方：3 件有实测读取，163 件有文档/证据引用。
-   157 张 PNG 里 152 张是证据，3 张是零引用，2 张是读取输入。
+2. **`check-lamp-band` 对 before 三件的读曾是死接（2026-11-07 已修复）。** 消费方
+   `check-lamp-band.mjs` 要求 `beforeJson.params.seed === SEED` 且 `params.trueClear === true`；
+   但产出方在 `fa24737` 写下的 `lamp-band-before.json` 还是旧 schema（顶层只有
+   `label/shots/cam/stats/tideLevel/coverage/...`，没有 `params`）。`params` 是 `64ef771` 才加进
+   `result` 的，`sameProtocol` 判据是 `909e9de` 才加的；从那时起 before JSON 一直没重产，
+   于是判据永久 `false`、before/after 对比永久静默跳过，脚本却一直绿。
+   **修复（同一分支）**：把 `POINT_POOL_RX` 临时回退 40→32（只改这一个常量）后重拍 before，
+   产出方按当前协议写出 `params`（seed=20261019、trueClear=true、now=720、rainStrength=0），
+   三件从 ② 升为 ①。消费方改为**缺件 / 缺 params / 种子不符 / 非真晴 / 尺寸不一 → 打印原因 + 退出 1**。
+   实测跑通后：灯亮图 10476 / 563520（1.9%，最大差 19），灯灭图 0 / 563520（0.0%）。
+   before 的新读数为 65.9% / 5.3 格 / avg 3.51pp / 34575 指令 / 155 Graphics（旧记录 66.3% 是
+   fa24737 那次未钉种子的采样，差 0.4pp；暗带 5.3 格不变）。
+3. **"没有消费方" 的真实含义是没有 CI 闸门。** 不是没有读取方：6 件有实测读取，160 件有文档/证据引用。
+   157 张 PNG 里 150 张是证据，3 张是零引用，4 张是读取输入。
 
 ## 四、全量表
 
@@ -131,13 +140,13 @@
 | `lamp-band-after-lit.png` | ① | check-lamp-blindspot.mjs:26-27,34-36,35（读像素） | 保留（闸门实测读取） |
 | `lamp-band-after.json` | ① | check-lamp-blindspot.mjs:25,39（readFileSync；:34-36 缺失即 exit 1） | 保留（闸门实测读取） |
 | `lamp-band-after.png` | ② | docs/evidence/scene-motion/README.md:79（表内只引 after 主图；lit/dark/json 另为 ①） | 保留（证据引用） |
-| `lamp-band-before-dark.png` | ② | docs/evidence/scene-artbook/README.md:13（改前/改后 66.3%→76.6%，明确列 before.png 及 -lit/-dark） | 保留（证据引用） |
-| `lamp-band-before-lit.png` | ② | docs/evidence/scene-artbook/README.md:13（改前/改后 66.3%→76.6%，明确列 before.png 及 -lit/-dark） | 保留（证据引用） |
+| `lamp-band-before-dark.png` | ① | check-lamp-band.mjs:380-410（读像素做像素差；缺件即 exit 1） | 保留（闸门实测读取） |
+| `lamp-band-before-lit.png` | ① | check-lamp-band.mjs:380-410（读像素做像素差；缺件即 exit 1） | 保留（闸门实测读取） |
 | `lamp-band-before-seed-pinned-dark.png` | ② | docs/evidence/scene-motion/README.md:232-236（同一次 39cff04 基线；lit/dark 被该 JSON 的 shots 字段 :79-81 指向；ANIMATION_BASELINE_VERDICT.md:276 清单） | 保留（证据引用） |
 | `lamp-band-before-seed-pinned-lit.png` | ② | docs/evidence/scene-motion/README.md:232-236（同一次 39cff04 基线；lit/dark 被该 JSON 的 shots 字段 :79-81 指向；ANIMATION_BASELINE_VERDICT.md:276 清单） | 保留（证据引用） |
 | `lamp-band-before-seed-pinned.json` | ② | docs/evidence/scene-motion/README.md:232-236（39cff04 同协议基线原始 JSON） | 保留（证据引用） |
 | `lamp-band-before-seed-pinned.png` | ② | docs/evidence/scene-motion/README.md:232-236（同一次 39cff04 基线；lit/dark 被该 JSON 的 shots 字段 :79-81 指向；ANIMATION_BASELINE_VERDICT.md:276 清单） | 保留（证据引用） |
-| `lamp-band-before.json` | ② | docs/evidence/scene-artbook/README.md:13（同名 .json）；check-lamp-band.mjs:365-377 有读路径，但该 JSON 无 params/seed/trueClear，实测 sameProtocol=false → 不读（死接） | 保留（证据引用） |
+| `lamp-band-before.json` | ① | check-lamp-band.mjs:380-410（读 params 校验协议 + 与 after 做像素差；缺件/缺 params/种子不符/非真晴 → exit 1） | 保留（闸门实测读取） |
 | `lamp-band-before.png` | ② | docs/evidence/scene-artbook/README.md:13（改前/改后 66.3%→76.6%，明确列 before.png 及 -lit/-dark） | 保留（证据引用） |
 | `lamp-pool-curve-dark.png` | ② | docs/evidence/scene-artbook/README.md:12 + docs/evidence/scene-motion/README.md:80（`lamp-pool-*.png` 通配） | 保留（证据引用） |
 | `lamp-pool-curve-lit.png` | ② | docs/evidence/scene-artbook/README.md:12 + docs/evidence/scene-motion/README.md:80（`lamp-pool-*.png` 通配） | 保留（证据引用） |
@@ -245,15 +254,17 @@ git -C D:\project\pwe-baseline-audit ls-files world-client/eval/screens | Measur
 git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motion-dark-t" -- world-client docs/evidence/scene-motion docs/evidence/scene-artbook docs/evidence/SCREENS_BASELINE_AUDIT.md
 ```
 
-## 六、受影响闸门复跑（删除后）
+## 六、受影响闸门复跑（E7 删除 + 死接修复后）
 
 | 闸门 | 结果 | 证明什么 |
 |---|---|---|
-| `check-lamp-blindspot.mjs` | 通过：原图 76.5625% / 4.4375 格 @ x471；JSON 内容未变（仅行尾差异，已还原） | ① 的 after 三件仍读得到，删除没有误伤 |
-| `check-lamp-band.mjs`（5251） | 通过：after 76.6% / 4.4 格 @ x471；**无 before/after 差**（死接状态与删除前一致） | ② 的 before 三件未删除；死接不是本次造成的 |
+| `check-lamp-blindspot.mjs` | 通过，exit 0：原图 76.5625% / 4.4375 格 @ x471；JSON 内容未变（仅行尾差异，已还原） | ① 的 after 三件仍读得到，删除没有误伤 |
+| `check-lamp-band.mjs`（5251） | 通过，exit 0：after 76.6% / 4.4 格 @ x471；**before/after 差首次跑出来**：灯亮 10476/563520（1.9%，max 19），灯灭 0/563520（0.0%，max 0） | before 三件现在是真读；半径 40→32 的差别只在灯亮图上 |
+| `check-lamp-band.mjs` 负测（`BAND_SEED=1111`） | **退出 1**，`[改前/改后对比] 判红：种子不一致…` | 协议不符不再静默跳过 |
+| `check-lamp-band.mjs` 负测（移走 before JSON） | **退出 1**，`[改前/改后对比] 判红：缺少改前基线JSON…` | 缺输入即红 |
 | `check-scene-motion.mjs`（5251） | 通过：13/13 确定性；灯灭池指令 0/0、帧差 0.00%；dark 帧改写 tmp | 删 dark 副本不影响脚本，tmp 仍产出该帧 |
-| `check-ground-shadow.mjs`（5251） | 通过：判据绿；全关同刻两页 0.00%，跨 t/t+1s 0.00%；closed 组不读基线 | 删 closed-t 不影响读数 |
-| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip。失败是 `audit-citations.test.ts` 的"真仓库"一条，原因是本审计工作树目录名 `pwe-baseline-audit` 不含 `pixel-world-engine`，而 `docs/OPEN_ISSUES.md:400` 的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 依赖目录名做后缀匹配；同一测试在未改动的主树上 5/5 通过。 | 环境性失败，与删除的 3 件无关；新增审计文档未引入未解析引用 |
+| `check-ground-shadow.mjs`（5251） | 通过，exit 0：判据绿；全关同刻两页 0.00%，跨 t/t+1s 0.00%；closed 组不读基线 | 删 closed-t 不影响读数 |
+| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip。失败是 `audit-citations.test.ts` 的"真仓库"一条，原因是本审计工作树目录名 `pwe-baseline-audit` 不含 `pixel-world-engine`，而 `docs/OPEN_ISSUES.md:427` 的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 依赖目录名做后缀匹配；同一测试在未改动的主树上 5/5 通过。 | 环境性失败，与删除的 3 件无关；新增审计文档未引入未解析引用 |
 
 ## 七、E7 结案取舍
 
@@ -263,7 +274,7 @@ git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motio
 - **否决 A（接 CI）**：144 张可生产图里 108 张与当前视口尺寸不一致（硬裁切/缩放），
   23 张同尺寸但同构建重跑就会变（`docs/evidence/ANIMATION_BASELINE_VERDICT.md` §2.1）；
   先接闸门会把裁切与噪声当成红，属于"闸门红线比问题还糊"。
-- **否决 C（整批删除）**：① 3 件被实测读取，② 163 件是 README / scene-artbook / 审计表的引用对象；
+- **否决 C（整批删除）**：① 6 件被实测读取，② 160 件是 README / scene-artbook / 审计表的引用对象；
   整批删除会打断证据链，且 delete 提交无法证明"零消费"。
 - **无重新接闸门项**：本轮没有需要接既有脚本的 ③ 件。若将来把某组证据转成回归，
   唯一现成的读取入口是 `check-lamp-blindspot.mjs`（after 组）；其余组需要改各自 `check-*` 的读取逻辑，
@@ -277,8 +288,14 @@ git -C D:\project\pwe-baseline-audit ls-files world-client/eval/screens | Measur
 # 2) 本表每一行的证据：按"文件:行"打开对应脚本/文档
 # 3) 被删 3 件在代码与证据文档里 0 命中（exit 1；范围排除记录删除本身的文档）
 git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motion-dark-t" -- world-client docs/evidence/scene-motion docs/evidence/scene-artbook docs/evidence/SCREENS_BASELINE_AUDIT.md
-# 4) 读取方实跑
+# 4) 重拍改前基线（只在半径改动前需要；本条用「临时回退常量」在同构建上复现）
+#   a. world-client/src/render/lamp-pool.ts 的 POINT_POOL_RX 临时改回 32，npm run build
+#   b. $env:BAND_LABEL='before'; node scripts/check-lamp-band.mjs --write-baseline
+#   c. 常量改回 40 并重新 build —— 这一步的临时改动不要提交
+# 5) 读取方实跑（先 npm run build，再 npm run preview -- --port 5251 --strictPort）
 cd D:\project\pwe-baseline-audit\world-client
 node scripts/check-lamp-blindspot.mjs
-# 5) 死接验证：看 check-lamp-band 输出里有没有 "before / after" 差
+node scripts/check-lamp-band.mjs            # 应打印「灯亮 / 灯灭 changed」，exit 0
+# 6) 判红验证：换种子应 exit 1，不再静默跳过
+$env:BAND_SEED='1111'; node scripts/check-lamp-band.mjs; echo "exit=$LASTEXITCODE"   # 期望 1
 ```

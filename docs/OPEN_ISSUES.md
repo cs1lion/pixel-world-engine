@@ -257,7 +257,7 @@
 - **提案方向**：默认输出改到 `world-client/tmp/`（`tmp/` 已在 ignore 内），由 `EVAL_OUT` 覆盖；setting 的三张基线仍留在 `eval/screens`（它们是比对底片）。
 - **代价**：需同步更新 `03-ACTOR-PIN.md` 等文档里的路径描述，属一次性迁移；同时改两个脚本的默认常量。
 - **本轮 [事实]**：**不改默认，只登记**；只给 `actor-pin/`、`actor-pin-pairs/` 加了**精确** ignore（见根 `.gitignore`），未加任何 `eval/screens/` 宽规则，169 个已跟踪基线不受影响。
-- **2026-11-06 已落地 [事实]**：按用户裁决统一写入口——所有出图 gate 默认写未跟踪的 world-client/tmp/screens/<脚本名>/；写回 `eval/screens` 基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`；目标目录命中已跟踪文件又无授权时直接拒绝退出，并打印会被覆盖的文件清单与两条放行命令。判断集中在 [shot-output.mjs](file:///D:/project/pwe-docs-fix/world-client/scripts/lib/shot-output.mjs)，已接入 A 档 12 条（含 `check-creation`、`check-dengchao` 两条原本无出口的）、B 档 5 条，以及 `check-shot-actor-pin` / `check-rain-pin` / `accept-live`；`lamp-band-before*` 三件仍保留在 `eval/screens/`（E7 复核：代码有读分支，但该 JSON 缺 `params`，当前实测不读），不随输出目录漂走。
+- **2026-11-06 已落地 [事实]**：按用户裁决统一写入口——所有出图 gate 默认写未跟踪的 world-client/tmp/screens/<脚本名>/；写回 `eval/screens` 基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`；目标目录命中已跟踪文件又无授权时直接拒绝退出，并打印会被覆盖的文件清单与两条放行命令。判断集中在 [shot-output.mjs](file:///D:/project/pwe-docs-fix/world-client/scripts/lib/shot-output.mjs)，已接入 A 档 12 条（含 `check-creation`、`check-dengchao` 两条原本无出口的）、B 档 5 条，以及 `check-shot-actor-pin` / `check-rain-pin` / `accept-live`；`lamp-band-before*` 三件仍保留在 `eval/screens/`（E7 修死接后：before JSON 已补 `params`，`check-lamp-band` 实测读它做像素差；缺件/协议不符会判红退出），不随输出目录漂走。
 - **建议时机**：下一次动抓拍夹具或 setting 闸门时。
 - **是否需要用户决策**：**否**（默认已迁移；旧路径兼容性由显式 `EVAL_OUT` 承担）。
 
@@ -304,11 +304,14 @@
   "157" 只是 PNG 数，不是全部跟踪件；12 件 sidecar 一直没进过任何计数。
 - **读取方 [实测]**：CI 六条闸门都不读这批图，但不是零读取方：
   `check-lamp-blindspot.mjs:25-27` 实际读 `lamp-band-after.json` 与 `-lit/-dark`（:34-36 缺件即抛错）；
-  `check-lamp-band.mjs:365-377` 有 before 三件的读分支，但 `lamp-band-before.json` 缺 `params`，
-  2026-11-07 在 5251 实跑 `sameProtocol=false`、输出无 before/after 差，三件被静默跳过。
-- **分类 [实测]**：① 闸门读取 **3** 件；② 文档/证据引用 **163** 件；③ 零消费零引用 **3** 件
+  `check-lamp-band.mjs` 读 before 三件（`lamp-band-before.{json,lit,dark.png}`）并做像素差。
+  **2026-11-07 修死接后**：before JSON 已由产出方补写 `params`（seed=20261019、trueClear=true），
+  缺件 / 缺 params / 种子不符 / 非真晴 / 尺寸不一致一律打印原因并退出 1，不再静默跳过。
+- **分类 [实测]**：① 闸门读取 **6** 件（after 三件 + before 三件）；② 文档/证据引用 **160** 件；③ 零消费零引用 **3** 件
   （ground-shadow-closed-t.png、scene-motion-dark-t.png、scene-motion-dark-t1.png）。
   逐件证据（脚本行号 / 文档行号）与全量表见 `docs/evidence/E7_SCREENS_CONSUMPTION.md`。
+- **before/after 对比首次跑通 [实测，2026-11-07]**：灯亮图 10476 / 563520 像素变化（1.9%，最大差 19）；
+  灯灭图 0 / 563520（0.0%，最大差 0）。灯灭图逐像素不变，证明这次死接修好后这段判据仍是「半径改动只动灯亮图」。
 - **选项**：A 接进 CI（先钉住重跑不稳的图，再让 `check-*` 把 `eval/screens` 当逐字节基线）；
   B 降级为人工视觉参考（不接闸门，保留 44px 裁切与 7.8–8.9% 材质漂移标注）；
   C 整批删除（承认这批图无法判断 FSM 变化）。
@@ -662,7 +665,7 @@
     - 非雾态下雾层在 `shown <= 0.01` 时直接 `setVisible(false)` + `puffs.clear()` 提前返回，**贡献 0 像素**；before/after 在这些状态里的差异全部来自角色走位 / 雨点相位（A/A 对照自己就有 200–4,888 像素、最大通道差 80–192），不是雾层。
     - 雾态同一冻结帧（tmp/screens/fog/before.png vs `after.png`）：**最大通道差 2/255**、平均 0.829、>8 像素 **0**（见上一行）。这个差在**逐字节断言**下会红，所以雾态若将来进硬基线，必须用容差 2 而不是 sha；当前 166 件（E7 前 169）里没有雾态，故无冲突。
     - **5 条回放夹具**（`fixtures/*.json`，`scripts/fixture-check.ts`）全部是**模拟轨迹**，字段只有 `world / events / memory / creator`，`weather` 一律 `clear`，**没有任何渲染字段**；雾层实现不参与它们的计算，改前改后都碰不到。当前实测 **5/5 FAIL**，但差异是 `facts 60→78`、`events 101→95`、`archived 9→0` 这类**模拟/记忆漂移**，与雾烘焙无因果关系（本次改动只动 `src/render/` 与脚本/文档，`git diff --name-only` 无 `src/world/`、`src/sim/`）。这 5 条应由模拟线单独重录基线，不能算在雾改动账上。
-    - **锐利比对实测**：`check-lamp-band` 通过（before 三件路径仍在，但该 JSON 缺 `params`，2026-11-07 实测不读，见 E7）；`check-anim-fsm-transition`（逐字节 sha，晴）通过；`check-shot-actor-pin`（雾槽 now=301，逐字节正/负对照）通过。岸带 J3「差异 0 像素」不在本仓库，无法在此树复跑——按「基点比改动还旧」的教训，**不改它的基线**，由岸带线自己用同一容差口径复核。
+    - **锐利比对实测**：`check-lamp-band` 通过（before 三件由 `check-lamp-band` 实读：灯亮图 1.9% 像素变化、灯灭图 0/563520，见 E7）；`check-anim-fsm-transition`（逐字节 sha，晴）通过；`check-shot-actor-pin`（雾槽 now=301，逐字节正/负对照）通过。岸带 J3「差异 0 像素」不在本仓库，无法在此树复跑——按「基点比改动还旧」的教训，**不改它的基线**，由岸带线自己用同一容差口径复核。
   - 天花板随之下棘轮：52,125 → **33,400**（修雾后先落 33,741，再把其中的 MAT-G7 泄漏 341 条删掉后自动降到 33,400，见 MAT-G7）；债务 22,125 → **3,400**。
 - **`eval/ledger.json` 分母改峰值 [事实]**：`render.drawCalls.static.p50` 的 `value` 从 27,453（正午开局）改为 **33,357**（合法全局峰值，昏 + 暴风雨 + 灯全开，帧 2336；同一配置三次跑均为 33,357）。**不取 33,741**——那是 MAT-G7 泄漏帧，取它等于把 bug 当基线。`denominator` 写明「8 组合连续采样（含相位/天气切换帧）/ 同一台闸门记录器 / 全域峰值帧 2336」，note 里保留修雾前 52,125 与修雾后含泄漏的 33,741 两段历史。台账分母取开局帧会让以后每张图都比在错误基准上。
 

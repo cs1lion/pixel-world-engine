@@ -30,6 +30,8 @@
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ BAND_SEED=20261019 BAND_NOW=720 BAND_LABEL=before node scripts/check-lamp-band.mjs
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ BAND_SEED=20261019 BAND_NOW=720 node scripts/check-lamp-band.mjs
  *   # 两次都在时，合成页会多一行「before / after 差异」
+ *   # 缺 before 三件（或 JSON 没 params / 种子不符 / 不是真晴 / 尺寸不一）时，after 直接判红退出，
+ *   # 不再静默跳过那段对比。
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -361,20 +363,54 @@ async function pixelDiff(page, beforeBuf, afterBuf) {
 }
 
 // 改前 / 改后的像素差：灯亮图应只在池子附近变，灯灭图应一个像素都不变。
-// 只有 `before` 与本次同种子、同为真晴时才比；否则是跨协议比较，按读数纪律不作数。
-const beforeJsonFile = join(BASELINE_DIR, 'lamp-band-before.json');
-const beforeLitFile = join(BASELINE_DIR, 'lamp-band-before-lit.png');
-const beforeDarkFile = join(BASELINE_DIR, 'lamp-band-before-dark.png');
-const beforeParams = existsSync(beforeJsonFile)
-  ? (JSON.parse(readFileSync(beforeJsonFile, 'utf8')).params ?? null)
-  : null;
-const sameProtocol = beforeParams !== null && beforeParams.seed === SEED && beforeParams.trueClear === true;
+//
+// **不许静默跳过**：缺件、缺 `params`、种子/真晴不符、尺寸不一致，一律打印原因并以 1 退出。
+// 这段对比曾经因为 `lamp-band-before.json` 没写 `params` 而永久 `sameProtocol=false`，
+// 脚本照旧绿、照样输出读数——那是「量测脚本」变成「永远绿的空判」。改前基线缺失时，
+// 要么按 32px 半径重拍 before，要么这次就别跑 after；没有第三条路。
 let diff = null;
-if (LABEL !== 'before' && sameProtocol && existsSync(beforeLitFile) && existsSync(beforeDarkFile)) {
+if (LABEL !== 'before') {
+  const failClosed = async (reason) => {
+    console.error(`\n[改前/改后对比] 判红：${reason}`);
+    console.error('[改前/改后对比] 不允许静默跳过；补齐 world-client/eval/screens/lamp-band-before.{json,lit.png,dark.png} 后重跑。\n');
+    await browser.close();
+    process.exit(1);
+  };
+
+  const beforeJsonFile = join(BASELINE_DIR, 'lamp-band-before.json');
+  const beforeLitFile = join(BASELINE_DIR, 'lamp-band-before-lit.png');
+  const beforeDarkFile = join(BASELINE_DIR, 'lamp-band-before-dark.png');
+  for (const [file, what] of [
+    [beforeJsonFile, 'JSON'],
+    [beforeLitFile, '灯亮图'],
+    [beforeDarkFile, '灯灭图'],
+  ]) {
+    if (!existsSync(file)) await failClosed(`缺少改前基线${what}：${file}`);
+  }
+
+  let beforeParams;
+  try {
+    beforeParams = JSON.parse(readFileSync(beforeJsonFile, 'utf8')).params ?? null;
+  } catch (error) {
+    await failClosed(`改前基线 JSON 读不出：${beforeJsonFile}（${error instanceof Error ? error.message : String(error)}）`);
+  }
+  if (beforeParams === null) {
+    await failClosed(`改前基线 JSON 没有 params 字段：${beforeJsonFile}（旧版产出方写的读数，协议不可确认）`);
+  }
+  if (beforeParams.seed !== SEED) {
+    await failClosed(`种子不一致：before=${String(beforeParams.seed)}，本次=${SEED}；跨种子像素差不是同协议比较`);
+  }
+  if (beforeParams.trueClear !== true) {
+    await failClosed(`改前基线不是真晴（trueClear=${String(beforeParams.trueClear)}）；跨天气的像素差不作数`);
+  }
+
   diff = {
     lit: await pixelDiff(reader, readFileSync(beforeLitFile), lit.buf),
     dark: await pixelDiff(reader, readFileSync(beforeDarkFile), dark.buf),
   };
+  if (diff.lit === null || diff.dark === null) {
+    await failClosed('改前 / 改后截图尺寸不一致，像素差算不出来（不是「跳过」，是输入坏了）');
+  }
 }
 await reader.close();
 
