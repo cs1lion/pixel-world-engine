@@ -26,6 +26,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import {
+  normalizeHex,
+  parsePaletteTokens,
+  stripBlockComments,
+  stripLineComments,
+} from './lib/palette-tokens.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUDGET = { world: 24, ui: 9 };
@@ -115,12 +121,6 @@ function rgbToHex(r, g, b) {
   return `#${[r, g, b].map((value) => clamp255(value).toString(16).padStart(2, '0')).join('')}`;
 }
 
-function normalizeHex(raw, digits) {
-  const value = raw.toLowerCase();
-  if (digits === 3) return `#${value[0]}${value[0]}${value[1]}${value[1]}${value[2]}${value[2]}`;
-  return `#${value}`;
-}
-
 function rgbToLab({ r, g, b }) {
   const linear = [r, g, b].map((value) => {
     const channel = value / 255;
@@ -154,21 +154,6 @@ function contrast(hexA, hexB) {
 }
 
 // ---------------------------------------------------------------- text utils
-
-function stripBlockComments(text) {
-  return text.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '));
-}
-
-function stripLineComments(text) {
-  return text
-    .split('\n')
-    .map((line) => {
-      if (line.includes('://')) return line;
-      const index = line.indexOf('//');
-      return index >= 0 ? line.slice(0, index) : line;
-    })
-    .join('\n');
-}
 
 /** 容忍 '#abc' / '#aabbcc' / '0xRRGGBB' / 'rgb(...)' / 'rgba(...)'。 */
 function parseColorValue(raw) {
@@ -232,47 +217,6 @@ function scanCssColorSites(text, file, offsetLine = 0) {
 }
 
 // ---------------------------------------------------------------- palette.ts tokens
-
-function parsePaletteTokens() {
-  const source = stripLineComments(stripBlockComments(read(PALETTE_FILE)));
-  const tokens = [];
-  // D6-A 之后 token 定义在 WORLD（世界 24 色）；TERRAIN_COLORS/TERRAIN_SPECK 是指向 WORLD 的别名表。
-  for (const objectName of ['WORLD', 'TERRAIN_COLORS', 'TERRAIN_SPECK']) {
-    const startMatch = new RegExp(`export const ${objectName}\\s*=\\s*\\{`).exec(source);
-    if (startMatch === null) continue;
-    const start = startMatch.index + startMatch[0].length;
-    let depth = 1;
-    let end = start;
-    while (end < source.length && depth > 0) {
-      if (source[end] === '{') depth += 1;
-      if (source[end] === '}') depth -= 1;
-      end += 1;
-    }
-    const block = source.slice(start, end - 1);
-    const lineOffset = source.slice(0, start).split('\n').length;
-    for (const [index, line] of block.split('\n').entries()) {
-      const match = /^\s*([a-zA-Z0-9_]+)\s*:\s*(0x[0-9a-fA-F]{6}|(?:WORLD|UI)\.[a-zA-Z0-9_]+)/.exec(line);
-      if (match === null) continue;
-      tokens.push({
-        object: objectName,
-        name: match[1],
-        fullName: `${objectName}.${match[1]}`,
-        raw: match[2],
-        hex: match[2].startsWith('0x') ? normalizeHex(match[2].slice(2), 6) : null,
-        aliasOf: match[2].includes('.') ? match[2] : null,
-        file: PALETTE_FILE,
-        line: lineOffset + index,
-      });
-    }
-  }
-  const byFullName = new Map(tokens.map((token) => [token.fullName, token]));
-  for (const token of tokens) {
-    if (token.aliasOf === null) continue;
-    const target = byFullName.get(token.aliasOf);
-    if (target !== undefined) token.hex = target.hex;
-  }
-  return tokens.filter((token) => token.hex !== null);
-}
 
 /** 在一份源码里静态认出的“色板绑定名”。
  *
@@ -488,7 +432,9 @@ function scanUiTs() {
 
 // ---------------------------------------------------------------- aggregate
 
-const paletteTokens = parsePaletteTokens();
+const parsedPalette = parsePaletteTokens(read(PALETTE_FILE), { file: PALETTE_FILE });
+const paletteTokens = parsedPalette.tokens;
+const droppedPaletteTokens = parsedPalette.dropped;
 const paletteRefs = scanPaletteTokenRefs(paletteTokens);
 const prefabSites = scanPrefabSites(paletteTokens);
 const uiCss = scanUiCss();
@@ -678,6 +624,7 @@ const report = {
     uiRefs: uiColors.reduce((sum, color) => sum + color.ui.refs.length, 0),
     overBudgetWorld: Math.max(0, worldColors.length - BUDGET.world),
     overBudgetUi: Math.max(0, uiColors.length - BUDGET.ui),
+    droppedTokens: droppedPaletteTokens.length,
   },
   shared: sharedColors.map((color) => color.hex).sort(),
   topWorld: sortByRefs(worldColors, 'world').slice(0, 24).map((color) => ({
@@ -697,6 +644,7 @@ const report = {
   unusedTokens,
   unusedWorldTokens,
   unusedAliasTokens,
+  droppedTokens: droppedPaletteTokens,
   dynamicWorldTokens,
   dynamicReadSites: paletteRefs.dynamicSites,
   proposedWorld: proposedRows('world'),
@@ -766,6 +714,18 @@ function renderMarkdown(data) {
   lines.push(`- 两层并集：${data.counts.union} 色`);
   lines.push(`- 越界收敛预估：世界层 近似等价 ${data.outSummary.world.equivalent} / 微调 ${data.outSummary.world.adjust} / 重画 ${data.outSummary.world.repaint}；UI 层 近似等价 ${data.outSummary.ui.equivalent} / 微调 ${data.outSummary.ui.adjust} / 重画 ${data.outSummary.ui.repaint}`);
   lines.push('');
+  if (data.droppedTokens.length > 0) {
+    lines.push('## 解析失败的 palette token');
+    lines.push('');
+    lines.push(`被丢弃 ${data.droppedTokens.length} 条（形状不符或别名指向不存在的槽）：`);
+    lines.push('');
+    lines.push('| 符号名 | 原始值 | 原因 |');
+    lines.push('|---|---|---|');
+    for (const item of data.droppedTokens) {
+      lines.push(`| ${cell(item.fullName)} | ${cell(item.raw || '—')} | ${cell(item.reason)} |`);
+    }
+    lines.push('');
+  }
   lines.push('## 世界层 Top（按使用次数）');
   lines.push('');
   lines.push('| # | 色值 | 使用次数 | token | 站点（前 4） |');
@@ -857,6 +817,13 @@ if (useJson) {
   console.log(`共享色：${report.counts.shared}（${report.shared.join(', ') || '无'}）`);
   console.log(`两层并集唯一色：${report.counts.union}`);
   console.log('');
+  if (report.droppedTokens.length > 0) {
+    console.log(`## 解析失败的 palette token（被丢弃 ${report.droppedTokens.length} 条）`);
+    for (const item of report.droppedTokens) {
+      console.log(`    ${item.fullName}  raw=${item.raw || '—'}  ${item.reason}`);
+    }
+    console.log('');
+  }
   console.log('## 世界层 Top（按使用次数）');
   for (const item of report.topWorld) {
     console.log(`${item.hex}  refs=${item.refs}  ${item.tokens.join('/')}`);
@@ -925,9 +892,14 @@ if (useJson) {
   console.log('## 提案关键对比度（WCAG 比值，仅作可读性初判依据）');
   for (const [name, value] of Object.entries(report.contrast)) console.log(`${name}: ${value.toFixed(2)}:1`);
   console.log('');
-  console.log('提示：--json 输出机器可读结果；--strict 在超预算时退出码 1（已启用；默认仍返回 0）。');
+  console.log('提示：--json 输出机器可读结果；--strict 在超预算或丢弃 token 时退出码 1（已启用；默认仍返回 0）。');
 }
 
-if (strict && (report.counts.overBudgetWorld > 0 || report.counts.overBudgetUi > 0)) {
+if (
+  strict &&
+  (report.counts.overBudgetWorld > 0 ||
+    report.counts.overBudgetUi > 0 ||
+    report.counts.droppedTokens > 0)
+) {
   process.exitCode = 1;
 }
