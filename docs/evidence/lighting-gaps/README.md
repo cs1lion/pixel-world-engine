@@ -236,7 +236,7 @@ patch_required = annulus + 45.9        （固定 annulus，问 patch 要升到�
 **结论先说：不同源。`0.18` 不是任何一次测量的产物 —— 它是 KB 作者写判据时的占位值，
 未标定、来源无实测。严重度按「判据造假」记，不按「参数待调」记。**
 
-1. **来源**：`D:\project\pixel-world-engine\docs\DESIGN_ACCEPTANCE.md` 要点 4，
+1. **来源**：`docs/DESIGN_ACCEPTANCE.md` 要点 4，
    首次出现在 `ea762a6d20c9de77399b77fcd5463144bf0618f9`（2026-11-06，guoyu，
    "把 8 条设计要点写成可执行判据"）。原始素材只有一句画册引文 `p037_L`（72）——
    *"by reducing the surrounding colors, the color shined like gold."* —— **引文里没有任何数字**。

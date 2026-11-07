@@ -164,7 +164,7 @@ palette.ts 未引用 token：19 项
 
 - 用户点名的 6 条全部消失；剩下的 5 条是 `TERRAIN_SPECK` 别名表——`src/`、`test/`、`scripts/` 里都没有读点，属 dead data（不是 dead color），已登记 `docs/OPEN_ISSUES.md`。
 - **没有用白名单消误报**：绑定识别是静态可证规则，动态下标单列。
-- 动态下标确实存在 6 处（`region-paint.ts:370/392/394`、`terrain-edges.ts:310/312`、`villager.ts:194`），但候选集合里每个槽都另有静态读点，所以「仅动态引用」的槽为 0；报告保留 `dynamicReadSites` 明细。
+- 动态下标确实存在 6 处（`region-paint.ts:370/392/394`、`terrain-edges.ts:312/314`、`villager.ts:194`），但候选集合里每个槽都另有静态读点，所以「仅动态引用」的槽为 0；报告保留 `dynamicReadSites` 明细。
 
 ### `refs` 反向核查（为什么 831 → 788，且没有高估）
 
