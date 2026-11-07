@@ -46,6 +46,14 @@
 
 - 落地位：`scripts/check-setting-scale.mjs` 每张图都同时打「常量 / 扫描」两行；
   `test/setting-scale.test.ts` 钉住常量之间的关系；扫描钉住画面。
+- 读数来源必须诚实：`scripts/check-setting-scale.mjs` 拿不到
+  `window.Oracle.debugSettingScale` 实测值时，打印 `[判据前提不成立]` 并**非 0 退出**，
+  不退回改前基线常量继续判定——否则「通过」可能只是基线在和自己比。「环境没有这个
+  钩子」与「钩子在但读数非法」分开报，后者带实际返回值。唯一例外是
+  `SCALE_LABEL=before`（旧构建本来就没有这个钩子）：那一跑控制台大声声明「改前基线
+  常量，非本次实测、不参与判定」，其常量不得用于任何「通过」结论。判定在
+  `scripts/lib/setting-scale-probe.mjs`，反例见 `test/check-setting-scale-probe.test.ts`
+  与 `test/fixtures/setting-scale-hook-probe.mjs`。
 - 「改前 / 改后」必须是同一机位、同一冻结帧、只差尺度这一件事；改前那一拍要先
   `git stash` 掉 `src/` 的改动，再拍 `before`，恢复后拍 `after`。
 - 这条不替代别的闸门（预算、调色板、单测），只补上「尺度类改动」这一格的证据口径。

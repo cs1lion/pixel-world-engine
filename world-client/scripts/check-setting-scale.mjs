@@ -14,6 +14,13 @@
  * 用 HEAD 的旧尺度拍，再 `git stash pop` 拍「改后」。同一支脚本、同一机位，
  * 两张图只差尺度这一件事。
  *
+ * **读数来源必须诚实**：拿不到 `window.Oracle.debugSettingScale` 的实测值时，
+ * 「改后」这一跑直接打印 `[判据前提不成立]` 并以非 0 退出，不许退回改前基线常量
+ * 继续判定——那样「通过」可能只是基线在和自己比。两种「拿不到」分开报：
+ * 环境没这个钩子（`missing`）与钩子在但读数非法（`throw` / 形状不对）。
+ * 唯一例外是 `SCALE_LABEL=before`：旧构建本来就没有这个钩子，那一跑只产出
+ * 改前基线，常量会大声声明「非本次实测、不参与判定」。
+ *
  * 跑法：
  *   cd world-client && npm run dev
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ SCALE_LABEL=before node scripts/check-setting-scale.mjs
@@ -28,6 +35,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
+import { judgeSettingScaleProbe } from './lib/setting-scale-probe.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -61,7 +69,8 @@ const HERO_CELL = { x: 37, y: 28 };
 const UNDER_LAMP_CELL = { x: 38, y: 27 };
 
 /**
- * 改前的尺度（HEAD 上没有 `debugSettingScale` 这个口子，用这份基线常量画标尺）。
+ * 改前的尺度（旧构建上没有 `debugSettingScale` 这个口子，这份常量只给
+ * `SCALE_LABEL=before` 画改前标尺；「改后」拿不到实测值会直接判红，不退回它）。
  * `lampBodyBottom` 取 24 而不是旧代码注释里的 25：旧画法把灯体底下的 1px `ink`
  * 衬线画在灯体外面，25 量的是衬线的下边、净空其实只有 24；新画法把衬线收进
  * 灯体最后一格，43 就是净空。以扫描为准，两图同一口径。
@@ -138,8 +147,33 @@ await page.waitForTimeout(300);
 
 const cam = await page.evaluate(() => window.Oracle.camera());
 const stats = await page.evaluate(() => window.Oracle.renderStats());
-/** 改后的渲染常量读数；HEAD 没有这个口子时退回基线常量。 */
-const metrics = await page.evaluate(() => window.Oracle.debugSettingScale?.() ?? null);
+/**
+ * 读数探针：只负责把「钩子在不在 / 返回了什么」原样带回 node，不在页面里做判定。
+ * 判定在 `lib/setting-scale-probe.mjs`，两种「拿不到」在那里分开。
+ */
+const probe = await page.evaluate(() => {
+  const hook = window.Oracle?.debugSettingScale;
+  if (typeof hook !== 'function') {
+    return { status: 'missing', detail: `window.Oracle.debugSettingScale 不是函数（typeof=${typeof hook}）` };
+  }
+  try {
+    return { status: 'value', value: hook() };
+  } catch (error) {
+    return { status: 'throw', detail: error instanceof Error ? error.message : String(error) };
+  }
+});
+const verdict = judgeSettingScaleProbe(probe, { label: LABEL });
+if (!verdict.ok) {
+  console.error(`\n[判据前提不成立] ${verdict.message}`);
+  console.error('[判据前提不成立] 没有实测读数就不判定、不落盘；换到支持 debugSettingScale 的构建后重跑。\n');
+  await page.close();
+  await browser.close();
+  process.exit(1);
+}
+if (verdict.declared) {
+  console.log(`[改前基线] ${verdict.message}；常量只用来画改前标尺，不参与判定。`);
+}
+const metrics = verdict.metrics;
 
 const clip = { x: box.x + box.width / 2 - 240, y: box.y + box.height / 2 - 160, width: 480, height: 320 };
 const file = join(OUT, `setting-scale-${LABEL}.png`);
@@ -202,6 +236,7 @@ await reader.close();
 await page.close();
 await browser.close();
 
+/** 只有声明过的改前基线那一跑 metrics 才是 null；其余路径在上面的判定里已经判红退出。 */
 const scale = metrics ?? BEFORE;
 const result = {
   label: LABEL,
@@ -211,7 +246,7 @@ const result = {
   clip,
   stats,
   metrics,
-  metricsSource: metrics === null ? 'HEAD 基线常量（无 debugSettingScale）' : '渲染常量 setting-scale.ts',
+  metricsSource: verdict.source,
   pins,
   scanned,
   errors,
@@ -225,7 +260,7 @@ writeFileSync(
 
 const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 console.log(`[${LABEL}] 机位 (${CAMERA.x}, ${CAMERA.y}) zoom ${cam.zoom} view ${cam.worldViewX},${cam.worldViewY}`);
-console.log(`  常量：墙 ${scale.shopfrontH}（顶抬 ${scale.shopfrontTop}）/ 人 ${scale.personH} / 柱 ${scale.lampPostH} / 灯体下沿 ${scale.lampBodyBottom}`);
+console.log(`  常量（${metrics === null ? '改前基线常量，非本次实测、不参与判定' : 'debugSettingScale 实测'}）：墙 ${scale.shopfrontH}（顶抬 ${scale.shopfrontTop}）/ 人 ${scale.personH} / 柱 ${scale.lampPostH} / 灯体下沿 ${scale.lampBodyBottom}`);
 console.log(`  扫描：木框立柱 ${fmt(scanned.frameH)}（= 墙高）/ 石脚 ${fmt(scanned.stoneH)} / 柱脚→灯体下沿 ${fmt(scanned.bodyBottomH)}`);
 console.log(`  指令 ${stats.totalCommands} / Graphics ${stats.graphicsObjects}`);
 console.log(`  图 ${file}${errors.length === 0 ? '' : `（页面错误：${errors.join('; ')}）`}`);
@@ -237,6 +272,12 @@ const afterFile = join(OUT, 'setting-scale-after.png');
 if (existsSync(beforeFile) && existsSync(afterFile)) {
   const load = (label) => {
     const json = JSON.parse(readFileSync(join(OUT, `setting-scale-${label}.json`), 'utf8'));
+    // 改后必须有实测 metrics；`ancient` 只属于改前基线，不能拿来冒充改后读数。
+    if (label === 'after' && json.metrics === null) {
+      console.error(`\n[并排图] 判红：改后 JSON（setting-scale-after.json）没有实测 metrics，`);
+      console.error('[并排图] 它只可能是旧口径产物；不许用 ancient 常量当改后读数，重拍 after 后再合成。\n');
+      process.exit(1);
+    }
     const fallback = json.metrics ?? json.ancient;
     return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: fallback };
   };

@@ -1,0 +1,169 @@
+/**
+ * `check-setting-scale.mjs` 读数来源的可复现反例（端到端，手动跑）：
+ *
+ *   node test/fixtures/setting-scale-hook-probe.mjs
+ *
+ * 用桩页冒充一个「只提供取数所需 Oracle 面」的构建，分别跑三种情况：
+ *   1. MODE=missing —— 没有 debugSettingScale（旧构建）：改后必须红、退出码非 0；
+ *   2. MODE=invalid —— 钩子在但返回值非法：必须红、退出码非 0，并带实际值；
+ *   3. MODE=ok      —— 合法读数：必须绿、退出码 0，落盘 metrics 来自实测。
+ * 另加一条 MODE=missing + SCALE_LABEL=before：声明为改前基线、退出 0（旧构建的
+ * 唯一例外，控制台会大声说明常量不参与判定）。
+ *
+ * 为什么不进 `npm test`：本仓 `npm test` 不依赖浏览器，浏览器类闸门走
+ * `test:*` 脚本。这条只作为可复现证据。
+ */
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const FIXTURE_DIR = dirname(fileURLToPath(import.meta.url));
+const CLIENT_ROOT = resolve(FIXTURE_DIR, '..', '..');
+const SCRIPT = join(CLIENT_ROOT, 'scripts', 'check-setting-scale.mjs');
+
+const HOOKS = {
+  missing: '',
+  invalid: `debugSettingScale: () => ({ personH: 30, shopfrontH: '四十八', shopfrontTop: 16, lampPostH: 58, lampBodyBottom: 43 }),`,
+  ok: `debugSettingScale: () => ({ personH: 30, shopfrontH: 48, shopfrontTop: 16, lampPostH: 58, lampBodyBottom: 43 }),`,
+};
+
+function stubHtml(mode) {
+  return `<!doctype html><html><head><meta charset="utf-8" />
+<style>html,body{margin:0;background:#111}canvas{display:block}</style></head><body>
+<canvas width="1010" height="700"></canvas>
+<script>
+const canvas = document.querySelector('canvas');
+canvas.getContext('2d').fillStyle = '#111';
+canvas.getContext('2d').fillRect(0, 0, 1010, 700);
+function tick() {
+  if (window.__CAPTURE_STATE__.frozen) return;
+  window.requestAnimationFrame(tick);
+}
+window.requestAnimationFrame(tick);
+const villagers = [{ id: 'v1', name: '沉灯夫人' }, { id: 'v2', name: '阿石' }];
+const cam = { zoom: 2, worldViewX: 460, worldViewY: 400, mode: 'free', width: 480, height: 320, scrollX: 360, scrollY: 265 };
+window.Oracle = {
+  view: () => ({ villagers }),
+  camera: () => ({ ...cam }),
+  centerCameraOn: (x, y) => { cam.worldViewX = x - 140; cam.worldViewY = y - 25; },
+  debugPinVillager: (id, cell) => ({ x: cell.x * 16 + 8, y: (cell.y + 1) * 16, h: 30 }),
+  renderStats: () => ({ totalCommands: 0, graphicsObjects: 0, largest: [0, 0, 0, 0, 0] }),
+  ${HOOKS[mode]}
+};
+</script></body></html>`;
+}
+
+async function withStub(mode, fn) {
+  const server = createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(stubHtml(mode));
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address();
+  try {
+    return await fn(`http://127.0.0.1:${port}/`);
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
+}
+
+function runScript({ base, label, outDir }) {
+  const env = {
+    ...process.env,
+    PIXEL_WORLD_URL: base,
+    PIXEL_WORLD_SKIP_TREE_IDENTITY: '1',
+    EVAL_OUT: outDir,
+  };
+  if (label === undefined) delete env.SCALE_LABEL;
+  else env.SCALE_LABEL = label;
+  return new Promise((done) => {
+    const child = spawn(process.execPath, [SCRIPT], { cwd: CLIENT_ROOT, env });
+    const chunks = { stdout: '', stderr: '' };
+    child.stdout.on('data', (chunk) => { chunks.stdout += chunk; });
+    child.stderr.on('data', (chunk) => { chunks.stderr += chunk; });
+    child.on('close', (code) => done({ code, ...chunks }));
+  });
+}
+
+const cases = [];
+async function run(name, { mode, label, outName, check }) {
+  const outDir = mkdtempSync(join(tmpdir(), `setting-scale-probe-${outName}-`));
+  try {
+    const result = await withStub(mode, (base) => runScript({ base, label, outDir }));
+    await check(result, outDir);
+    cases.push(`PASS ${name}：exit=${result.code}`);
+    console.log(`\n===== ${name} =====`);
+    console.log(result.stdout.trim());
+    if (result.stderr.trim() !== '') console.log(result.stderr.trim());
+    console.log(`exit=${result.code}`);
+  } catch (error) {
+    cases.push(`FAIL ${name}：${error instanceof Error ? error.message : String(error)}`);
+    console.error(`\n===== ${name} =====`);
+    throw error;
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+}
+
+const jsonPath = (outDir) => join(outDir, 'setting-scale-after.json');
+
+try {
+  await run('无钩子 + 改后：必须红', {
+    mode: 'missing',
+    outName: 'missing',
+    async check(result, outDir) {
+      assert.equal(result.code, 1, '无钩子的改后跑必须非 0 退出');
+      assert.match(result.stderr, /\[判据前提不成立\] 环境不支持 debugSettingScale/);
+      assert.doesNotMatch(result.stdout, /debugSettingScale 实测/);
+      assert.equal(existsSync(jsonPath(outDir)), false, '判红时不应落盘读数 JSON');
+    },
+  });
+
+  await run('钩子返回非法值：必须红并给出实际值', {
+    mode: 'invalid',
+    outName: 'invalid',
+    async check(result, outDir) {
+      assert.equal(result.code, 1, '读数非法的改后跑必须非 0 退出');
+      assert.match(result.stderr, /\[判据前提不成立\] 读数非法/);
+      assert.match(result.stderr, /"四十八"/, '错误信息要带上实际返回值');
+      assert.equal(existsSync(jsonPath(outDir)), false, '判红时不应落盘读数 JSON');
+    },
+  });
+
+  await run('合法读数 + 改后：必须绿且落盘实测', {
+    mode: 'ok',
+    outName: 'ok',
+    async check(result, outDir) {
+      assert.equal(result.code, 0, '正常路径必须绿');
+      assert.match(result.stdout, /常量（debugSettingScale 实测）：墙 48/);
+      const json = JSON.parse(readFileSync(jsonPath(outDir), 'utf8'));
+      assert.equal(json.metrics.shopfrontH, 48);
+      assert.match(json.metricsSource, /debugSettingScale 实测/);
+    },
+  });
+
+  await run('无钩子 + 改前：声明为改前基线，不参与判定', {
+    mode: 'missing',
+    label: 'before',
+    outName: 'before',
+    async check(result, outDir) {
+      assert.equal(result.code, 0, '改前基线那一跑允许无钩子');
+      assert.match(result.stdout, /\[改前基线\] 环境不支持 debugSettingScale/);
+      assert.match(result.stdout, /改前基线常量，非本次实测、不参与判定/);
+      const json = JSON.parse(readFileSync(join(outDir, 'setting-scale-before.json'), 'utf8'));
+      assert.equal(json.metrics, null);
+      assert.match(json.metricsSource, /不参与判定/);
+    },
+  });
+
+  console.log('\n全部通过：');
+  for (const line of cases) console.log(`  ${line}`);
+} catch (error) {
+  console.error('\n存在失败：');
+  for (const line of cases) console.error(`  ${line}`);
+  process.exitCode = 1;
+}
