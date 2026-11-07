@@ -22,9 +22,25 @@ import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
 import { DOOR, doorRect, type DoorMetrics } from './building-proportions.ts';
 import { drawDecal, roofHeight } from './decal.ts';
+import { shouldDrawContactAo } from './contact-ao.ts';
 import type { NarrativeHint } from '../world/memory/hints.ts';
 
 export { BUILDING_DEPTH };
+
+/**
+ * 调试口子：`?contactAO=0`（或 `off`）关掉楼底接触暗部，默认开。
+ *
+ * 为什么用 URL 参数而不是 Oracle 开关：楼是一次性烘焙的静态层，没有逐帧重绘的钩子；
+ * 开一页关着烘焙、同机位再开一页，拿两张同 ROI 的读数相减，才是这一块自己的 ΔL。
+ * 非浏览器环境（单测）没有 window，按开处理。
+ */
+function contactAoEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  const value = new URLSearchParams(window.location.search).get('contactAO');
+  return value !== '0' && value !== 'off';
+}
+
+export { contactAoUnknownBaseCount, lumaOf } from './contact-ao.ts';
 
 export interface BuildingView {
   /** 地面层：三步投影 + 门口光池，depth = ALTITUDE + baseY - 2。 */
@@ -63,6 +79,8 @@ export function createBuilding(
   building: PlacedBuilding,
   originX: number,
   originY: number,
+  /** AO 落点那一格的地形底色（0xRRGGBB）；给了才能保证「只压暗、不提亮」。 */
+  groundBase?: number,
 ): BuildingView {
   const px = originX + building.origin.x * TILE_PX;
   const py = originY + building.origin.y * TILE_PX;
@@ -85,7 +103,7 @@ export function createBuilding(
   // 这里才批量。尺寸依据见 `building-proportions.ts`。
   const doorMetrics = DOOR;
 
-  drawGroundShadow(scene, back, building, w, h, px, py);
+  drawGroundShadow(scene, back, building, w, h, px, py, groundBase);
   drawWall(g, building, w, h, roofH, doorX);
   drawRoof(roofG, building.silhouette, w, roofH, roof, trim);
   drawChimney(roofG, w, roof, trim);
@@ -181,10 +199,33 @@ export function drawBuildingDecals(
 }
 
 /**
- * 地面层：三步阶梯投影 + 门口光池。光从左上打，投影落右下（与角色接触阴影同向）。
+ * 地面层：三步阶梯接地影 + 墙角接触暗部 + 门口光池。
+ *
+ * **方向口径（G1）**：这一层是**静态结构/接触影**，方向固定朝右下，不跟随光照相位，
+ * 不来自哪一侧的太阳。动态相位影（黄昏朝左下、清晨朝右）住在 `world/ground-shadow.ts`，
+ * 是另一层、另一条公式；此前这行注释写「光从左上打（与角色接触阴影同向）」，
+ * 把两层的方向混成了一句话，已按 4× 对照的结论改掉。
  *
  * 三步 α 0.16 / 0.32 / 0.55：越靠墙越深、越往外越淡，读成「楼坐在地上」而不是
  * 底下垫了一块灰板。不用 blur——像素画里模糊边缘会变成脏灰带。
+ *
+ * 左下角另加一块 4×4 的接触暗部（α 0.12）：右侧已有接地影，左侧墙脚原本是干的，
+ * 楼会像浮在地上。这一块与太阳无关，只补「墙面与地面相接」的那口气。
+ *
+ * 阴影色为什么是 `ink`（#111821，Rec.709 亮度 23.16）而不是 `deepShade`：
+ * `deepShade` 的亮度是 44.33，**高于最深的 mud 基底（soil #202b35，41.38）**，
+ * 叠上去会把那块地提亮（实测 −0.79）——一个叫「接触暗部」的东西做出变亮结果
+ * 是语义错误。`ink` 是 24 色里最暗的一档，比所有地形基底都暗，任何基底都只会变暗。
+ *
+ * α 0.12 由 G3 的实测带 [6,14] 定（详见 `docs/evidence/lighting-gaps/README.md`）：
+ * `ink` 下可读基底里最暗的 stone（90.55）读 8.09、最亮的 plaza（134.09）读 13.28；
+ * 抬 α 会把 plaza 推出上限，降 α 会让 stone 跌破下限。
+ *
+ * 兜底（判在 `contact-ao.ts`）：合成后若比基底亮（有人把阴影色改浅到比基底还亮），
+ * **直接不产出这块矩形**，而不是画一块提亮的矩形。判据脚本里另有断言「对任一基底 ΔL > 0」
+ * 会把这种情况判红。**基底未知（调用方没传落点那格）同样不画，并计数**——把「不知道」
+ * 当「安全」放行等于默认它是亮底；`renderStats().contactAoUnknownBase` 断言为 0，
+ * 出现即说明 `terrainBaseOf(...)` 取错位置，是红事，不是缺省行为。
  */
 function drawGroundShadow(
   scene: Phaser.Scene,
@@ -194,6 +235,7 @@ function drawGroundShadow(
   h: number,
   px: number,
   py: number,
+  groundBase?: number,
 ): void {
   const g = scene.add.graphics();
   // 最贴地的一步最深、最窄；往外两层逐级变淡变宽，整体向右下错开 2px。
@@ -203,6 +245,17 @@ function drawGroundShadow(
   g.fillRect(3, h, w - 1, 2);
   g.fillStyle(paletteFor().deepShade, 0.16);
   g.fillRect(4, h + 2, w, 2);
+  // 左墙脚接触暗部：只补左侧（右侧三层已铺到墙外），4×4 与墙角 ROI 同尺寸。
+  // `?contactAO=0` 关掉这一块，给证据脚本做同机位 on/off：ΔL 只由这一块贡献，
+  // 不靠「旁边找一块看起来差不多的地」当基准（那种基准常落在另一个地形 token 上）。
+  if (contactAoEnabled()) {
+    const shade = paletteFor().ink;
+    // 未知基底不画（并按「取错落点」计数）；已知基底只在确实会变暗时画。
+    if (shouldDrawContactAo(groundBase, shade)) {
+      g.fillStyle(shade, 0.12);
+      g.fillRect(-4, h, 4, 4);
+    }
+  }
 
   // 门口光池：屋里有灯，光落在门前。两层 ── 外圈铺开、内芯更亮，都是琥珀的低透明度。
   const doorX = building.door.x * TILE_PX - px;
