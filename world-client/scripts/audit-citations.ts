@@ -68,6 +68,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 /** 仓库根。这个脚本从 `world-client/` 里被 CI 调用，但它管的是整座仓库的自述。 */
@@ -380,6 +381,33 @@ function skipReason(tok: string): string | null {
 }
 
 /**
+ * 仓库的规范名：`origin` URL 的最后一段，**不取 checkout 目录名**。
+ *
+ * 同一座仓库可以有任意多个工作树/副本目录（pixel-world-engine、
+ * pwe-orphan-gates、pwe-baseline-audit…），只有 remote 是稳定标识。
+ * 文档里的仓名限定写法（pixel-world-engine/docs/x.md）要按这个名剥前缀，
+ * 而不是按当前目录名「碰巧」后缀命中。取不到（临时 fixture、无 remote）返回
+ * null：此时不剥前缀，宁可红也不猜。
+ */
+function repoQualifier(root: string): string | null {
+  try {
+    const url = execFileSync('git', ['-C', root, 'remote', 'get-url', 'origin'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const name = url
+      .replace(/[\\/]+$/, '')
+      .replace(/\.git$/, '')
+      .split(/[\\/:]/)
+      .filter(Boolean)
+      .pop();
+    return name !== undefined && name.length > 0 ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 这个 token 在仓里能不能找到一个真实文件对应。
  *
  * 只有一层判据：**全仓后缀匹配**（外加仓库根与 `world-client/` 两个直接落点）。
@@ -392,10 +420,32 @@ function skipReason(tok: string): string | null {
  * `world-client/src/world/setup.ts`——仓库根下的文档按模块内相对路径引用。
  * 实测关掉它，未解析从 0 涨到 49 处 / 28 个不同 token。
  *
+ * **匹配对象是仓内相对路径，不是绝对路径。** 之前 `allFiles` 存的是
+ * `D:/project/pwe-orphan-gates/...` 这种绝对路径，endsWith('/pixel-world-engine/docs/x.md')
+ * 只因为 checkout 目录名叫 pixel-world-engine 才命中：同一份文档换个工作树目录名
+ * （`pwe-orphan-gates`）就变红。审计结论不该由目录名决定，所以先 `path.relative`
+ * 归一到仓内相对路径（POSIX 分隔符），再匹配。
+ *
+ * 仓名限定写法（pixel-world-engine/docs/x.md）单独处理：`origin` 的仓库名
+ * 是**稳定标识**（所有工作树共享同一 remote），而目录名不是。token 若以
+ * `<origin 仓库名>/` 开头，去掉这段前缀再按仓内相对路径匹配一次。取不到 origin
+ * 就不剥——宁可红，也不猜。
+ *
+ * 歧义规则（例如 docs/x.md 与 server/docs/x.md 同名）：本审计问的是
+ * 「这个路径在仓里**存在**吗」，不是「唯一指向哪一个」。两处同名都命中就算存在，
+ * **不做「按出现位置就近解析」**——那会改判据（本批只许把静默变显式），
+ * 精确定位是 `audit-references.ts` 的职责。也不要求写全路径：后缀匹配之所以保留，
+ * 就是为了让 `docs/adr` 里那种模块内相对写法继续成立。
+ *
  * `root` 与文件清单都从参数进，**不在模块加载时算**：测试要拿一份临时目录当假仓库，
  * 模块级的缓存会把真仓库的结果冻在第一次 import 里，于是假仓库永远审出真仓库的结论。
  */
-function resolves(tok: string, root: string, allFiles: readonly string[]): boolean {
+function resolves(
+  tok: string,
+  root: string,
+  allFiles: readonly string[],
+  qualifier: string | null,
+): boolean {
   // 后缀匹配之前先试两个直接落点：`docs/SPEC.md` 这种仓库根相对的，
   // 以及 `world-client/package.json` 这种的。后缀匹配同样覆盖它们，先试是为了
   // 少走一遍全仓扫描——不是多一道判据。
@@ -403,7 +453,12 @@ function resolves(tok: string, root: string, allFiles: readonly string[]): boole
     const c = path.join(d, tok).split(path.sep).join('/');
     if (existsSync(c) && statSync(c).isFile()) return true;
   }
-  return allFiles.some((f) => f.endsWith(`/${tok}`));
+  // 仓名限定：`<qualifier>/docs/x.md` 只是把仓名当前缀，去掉后仍是仓内相对路径。
+  const candidates = [tok];
+  if (qualifier !== null && tok.startsWith(`${qualifier}/`)) {
+    candidates.push(tok.slice(qualifier.length + 1));
+  }
+  return candidates.some((t) => allFiles.some((f) => f === t || f.endsWith(`/${t}`)));
 }
 
 /**
@@ -412,7 +467,10 @@ function resolves(tok: string, root: string, allFiles: readonly string[]): boole
  * 纯函数：只读文件系统，不写、不改环境。退出码归 `main` 管。
  */
 export function auditCitations({ root = ROOT }: { root?: string } = {}): CitationAudit {
-  const allFiles = walk(root);
+  const qualifier = repoQualifier(root);
+  // 归一到仓内相对路径再匹配。绝对路径里带着 checkout 目录名，拿它做后缀匹配
+  // 等于让目录名参与判据（`/pixel-world-engine/docs/x.md` 只在叫这个名字的目录下命中）。
+  const allFiles = walk(root).map((f) => path.relative(root, f).split(path.sep).join('/'));
 
   const findings: CitationFinding[] = [];
   const problems: ScanRootProblem[] = [];
@@ -449,7 +507,7 @@ export function auditCitations({ root = ROOT }: { root?: string } = {}): Citatio
             continue;
           }
           checked++;
-          if (resolves(tok, root, allFiles)) continue;
+          if (resolves(tok, root, allFiles, qualifier)) continue;
           findings.push({
             file: rel,
             line: i + 1,

@@ -24,7 +24,7 @@
 2. 被调用 npm 脚本的体内再出现 `npm run Y` / `node scripts/...`。
 3. 已到达的 JS/TS 文件用相对路径 `import` / `import()` / `require` 到的文件，逐跳追。
 
-支持 job 级与 step 级 `working-directory`。除 `node` 外，也认 `tsx` / `npx [--flag] tsx` / `npx ts-node` / `python` 这几种命令形态，以及一层本地 composite action（`uses: ./.github/actions/<name>` → `action.yml` 里 `runs.using: composite` 的 `steps[].run:`）。
+支持 job 级与 step 级 `working-directory`。除 `node` 外，也认 `tsx` / `npx [--flag] tsx` / `npx ts-node` / `python` 这几种命令形态，以及一层本地 composite action（`uses: ./.github/actions/<name>` → 该目录的 action 元数据里 `runs.using: composite` 的 `steps[].run:`）。
 其中 `node` / `tsx` 目标与 composite 里的 JS/TS 目标照常算消费方；`python` 目标和不符 `check-*` / `audit-*` 命名的脚本不改变孤儿总数，只进「盲区候选」（见「已知边界」）。
 
 **消费方还必须能判红**：`continue-on-error: true`、`if: false`、命令里的 `|| true` 会让失败穿过 CI，一律不算消费方（job 级同名字段同理）。`scripts/orphan-gates-selftest.mjs` 用 5 条用例钉住这个口径（一条正面对照 + 四条反例）。
@@ -60,7 +60,7 @@
 
 任何预算变更（新增/删除条目、`kind` 迁移）都必须在**同一提交**里往 `budgetLedger` 追加一条记录，写清 `approved_at`（`YYYY-MM-DD`）、`approved_by`、`reason`，以及变更后的三个条数；`budgetLedger` 末条的三个计数必须与三个预算一致。CI 在中间提交上就会红，所以「先加条目、以后补预算」走不通，效果上等价于同一提交。
 
-当前 `pendingCiBudget = 20`、`manualBudget = 11`、`obsoleteBudget = 1`（`manual 11 / pending-ci 20 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。
+当前 `pendingCiBudget = 20`、`manualBudget = 11`、`obsoleteBudget = 1`（`manual 11 / pending-ci 20 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。
 
 这套机制拦得住：新增/删除条目却不调整预算；改 `kind` 静默迁移；抬预算不留审批记录；「先记账、后补预算」的跨提交操作（CI 会在中间提交红）。
 拦不住：`budgetLedger` 是当前状态的账，不是 git 历史审计——有人可以把旧记录改写而不是追加，CI 只能看到改写后的自洽状态；也拦不住审批字段填得敷衍（`approved_by: "x"` 仍能通过），那要靠评审。

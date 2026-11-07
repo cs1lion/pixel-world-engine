@@ -12,6 +12,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -171,5 +172,40 @@ test('扫描根不存在要进返回值，不许静默 `continue`', () => {
     assert.equal(docs.actual, '不存在');
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('结论不随 checkout 目录名变：仓名限定写法按 origin 剥前缀', () => {
+  // 同一份内容放进两个不同名的目录：pixel-world-engine 与 pwe-other。
+  // 老实现拿绝对路径做后缀匹配，只有目录名恰好叫 pixel-world-engine 的那个「碰巧」绿；
+  // 现在两边必须同一结论，且绿不能变成红。
+  const parent = mkdtempSync(path.join(tmpdir(), 'pwe-cite-names-'));
+  const repoName = ['pixel', 'world', 'engine'].join('-');
+  const acceptance = ['docs', ['DESIGN', 'ACCEPTANCE'].join('_')].join('/') + '.' + 'md';
+  const docPath = ['docs', 'd'].join('/') + '.' + 'md';
+  const fill = (root: string): void => {
+    for (const dir of ['docs', 'world-client/src/world', 'world-client/test', 'world-client/scripts', 'server']) {
+      mkdirSync(path.join(root, dir), { recursive: true });
+    }
+    writeFileSync(path.join(root, 'GLOSSARY.md'), '# g\n', 'utf8');
+    writeFileSync(path.join(root, 'README.md'), '# r\n', 'utf8');
+    writeFileSync(path.join(root, 'world-client', 'src', 'world', 'setup.ts'), 'export const setup = 1;\n', 'utf8');
+    writeFileSync(path.join(root, ...acceptance.split('/')), '# acceptance\n', 'utf8');
+    const ref = [repoName, acceptance].join('/');
+    writeFileSync(path.join(root, ...docPath.split('/')), `依据见 \`${ref}\`。\n`, 'utf8');
+    execFileSync('git', ['-C', root, 'init', '-q']);
+    execFileSync('git', ['-C', root, 'remote', 'add', 'origin', `git@github.com:cs1lion/${repoName}.git`]);
+  };
+  try {
+    const same = path.join(parent, 'pixel-world-engine');
+    const other = path.join(parent, 'pwe-other');
+    for (const root of [same, other]) fill(root);
+    const a = auditCitations({ root: same });
+    const b = auditCitations({ root: other });
+    assert.deepEqual(a.findings.map((f) => f.token), [], '目录名同名时不该有未解析');
+    assert.deepEqual(b.findings.map((f) => f.token), [], '换个目录名结论必须一样');
+    assert.equal(a.checked, b.checked, '两个目录名的受查数应一致');
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
   }
 });
