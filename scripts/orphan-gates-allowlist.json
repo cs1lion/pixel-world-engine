@@ -9,8 +9,8 @@
     "file:world-client/scripts/verify-ledger-selfcheck.ts",
     "file:world-client/scripts/verify-screens-diff-selfcheck.py"
   ],
-  "pendingCiBudget": 21,
-  "manualBudget": 11,
+  "pendingCiBudget": 20,
+  "manualBudget": 15,
   "obsoleteBudget": 1,
   "budgetLedger": [
     {
@@ -51,6 +51,14 @@
       "reason": "撤回 check-ground-shadow 接线：30 轮实测 4 红（13.3%），随机红会训练人忽略红；回填 pending-ci，预算 20→21（脚本 PEAK_CEILING = 34,666 不动）",
       "pendingCi": 21,
       "manual": 11,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-08",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "合并收尾（一条终态）：登记 skill 线 4 条只读审计为 manual（11→15），并把 fixture:check 接进 world-client job 后删条（pending 21→20）；不拆两条",
+      "pendingCi": 20,
+      "manual": 15,
       "obsolete": 1
     }
   ],
@@ -124,7 +132,7 @@
       "kind": "manual",
       "reason": "发光块亮度比/周边材质/通道峰值/局部压暗的读数工具（00d3121 起只读数，退出码恒 0）",
       "acceptedBecause": "main 在分支基点之后把它改成「不是闸门，也不在 CI」；合入时按命名规则被算成检查，只能登记为 manual",
-      "blockedBy": "无客观判红：只输出读数，不设 exit 非 0；要进闸先按 OPEN_ISSUES H1 标定 D（ANNULUS_FLOOR = 32）"
+      "blockedBy": "无客观判红：只输出读数，不设 exit 非 0；D 已论证不可按当前测量标定（OPEN_ISSUES K6，证据 docs/evidence/glow-calibration/），要进闸须先补齐 K6 缺项 a–e"
     },
     {
       "id": "npm:world-client#test:lamp-band",
@@ -225,13 +233,6 @@
       "blockedBy": "目标 check-scene-depth.mjs 未接 CI（同上：只缺环境）"
     },
     {
-      "id": "npm:world-client#fixture:check",
-      "kind": "pending-ci",
-      "reason": "trace fixture 校验入口",
-      "acceptedBecause": "J1：当前 5/5 FAIL（100 断言 0 通过），owner 未认领；接进 CI 只会把既有红带进来",
-      "blockedBy": "J1 未认领：先重录基线或修模拟对齐旧基线，才谈接线；消费方可达不等于绿"
-    },
-    {
       "id": "file:world-client/scripts/check-setting-scale.mjs",
       "kind": "manual",
       "reason": "立面尺度改前/改后对照验收",
@@ -286,6 +287,34 @@
       "reason": "落地投影 G0–G3 验收：同刻 / 跨 t+1s / 暂停 / 确定性 / 夜间影长 / 峰值指令两级口径（脚本自身 PEAK_CEILING = 34,666 不动）",
       "acceptedBecause": "有客观 exit 非 0，但首张同刻图抓拍早于调色收敛：30 轮实测 4 红（13.3%）",
       "blockedBy": "30 轮实测 4 红（13.3%），红因首张同刻图抓拍早于调色收敛；修法为 `shotStable`（连续 8 帧逐字节相同才允许比较），修好并验证 30 轮 0 红后重新接线"
+    },
+    {
+      "id": "file:world-client/scripts/audit-skill-docs.ts",
+      "kind": "manual",
+      "reason": "技能文档规范审计：3 份文档 9 条发现，只 warn",
+      "acceptedBecause": "skill 线合入时新增，按命名规则算检查；脚本退出码恒 0，CI 未调用",
+      "blockedBy": "无客观判红：只输出发现清单、退出码恒 0；补上判红判据后才可归 pending-ci"
+    },
+    {
+      "id": "npm:world-client#audit:skill-docs",
+      "kind": "manual",
+      "reason": "npm 别名 → audit-skill-docs.ts（只 warn，不判定）",
+      "acceptedBecause": "CI 未调用，且脚本退出码恒 0",
+      "blockedBy": "同 audit-skill-docs.ts：无客观判红"
+    },
+    {
+      "id": "file:world-client/scripts/audit-verify-flows.ts",
+      "kind": "manual",
+      "reason": "可验证流程表登记审计：10 行 / 9 注册 / 0 问题，只 warn",
+      "acceptedBecause": "skill 线合入时新增，按命名规则算检查；脚本退出码恒 0，CI 未调用",
+      "blockedBy": "无客观判红：只输出发现清单、退出码恒 0；补上判红判据后才可归 pending-ci"
+    },
+    {
+      "id": "npm:world-client#audit:verify-flows",
+      "kind": "manual",
+      "reason": "npm 别名 → audit-verify-flows.ts（只 warn，不判定）",
+      "acceptedBecause": "CI 未调用，且脚本退出码恒 0",
+      "blockedBy": "同 audit-verify-flows.ts：无客观判红"
     }
   ]
 }

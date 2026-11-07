@@ -60,7 +60,7 @@
 
 任何预算变更（新增/删除条目、`kind` 迁移）都必须在**同一提交**里往 `budgetLedger` 追加一条记录，写清 `approved_at`（`YYYY-MM-DD`）、`approved_by`、`reason`，以及变更后的三个条数；`budgetLedger` 末条的三个计数必须与三个预算一致。CI 在中间提交上就会红，所以「先加条目、以后补预算」走不通，效果上等价于同一提交。
 
-当前 `pendingCiBudget = 21`、`manualBudget = 11`、`obsoleteBudget = 1`（`manual 11 / pending-ci 21 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。2026-11-08 撤回 `check-ground-shadow` 接线，20→21：30 轮实测 4 红（13.3%，Wilson 5.3%–29.7%），红因首张同刻图抓拍早于调色收敛，修法是 `shotStable`（连续 8 帧逐字节相同才允许比较）；**撤回理由：随机红会训练人忽略红**。脚本自身的 `PEAK_CEILING = 34,666` 不动。
+当前 `pendingCiBudget = 20`、`manualBudget = 15`、`obsoleteBudget = 1`（`manual 15 / pending-ci 20 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。2026-11-08 撤回 `check-ground-shadow` 接线，20→21：30 轮实测 4 红（13.3%，Wilson 5.3%–29.7%），红因首张同刻图抓拍早于调色收敛，修法是 `shotStable`（连续 8 帧逐字节相同才允许比较）；**撤回理由：随机红会训练人忽略红**。脚本自身的 `PEAK_CEILING = 34,666` 不动。随后合并收尾（2026-11-08）把 `fixture:check` 接进 `world-client` job 并删条，21→20；skill 线 4 条只读审计（2 个脚本 + 2 个 npm 别名）按命名规则登记为 `manual`，11→15。两项共用一条 `budgetLedger` 终态记录（末条 `pendingCi 20 / manual 15 / obsolete 1`，与三个预算一致）。
 
 这套机制拦得住：新增/删除条目却不调整预算；改 `kind` 静默迁移；抬预算不留审批记录；「先记账、后补预算」的跨提交操作（CI 会在中间提交红）。
 拦不住：`budgetLedger` 是当前状态的账，不是 git 历史审计——有人可以把旧记录改写而不是追加，CI 只能看到改写后的自洽状态；也拦不住审批字段填得敷衍（`approved_by: "x"` 仍能通过），那要靠评审。
@@ -116,25 +116,25 @@ npm run audit:orphan-gates
 这是设计预期：清单只记录「还没人跑」的东西，不记录「正在跑」的东西。
 例如某条 `pending-ci` 在另一条分支被接进 workflow：合并那一刻，那条改动给它接上消费方，CI 会先红一次；正确动作是删掉清单条目，而不是放宽判据。这次红是预期，不是故障。
 
-## 待命接线：`fixture:check`（等 J1 合入 main 后再执行）
+## 已接线：`fixture:check`（随 2026-11-08 合并收尾落地）
 
-**现在不要改 `ci.yml`。** J1 分支（`chore/j1-fixture-drift`，`fe460a1`，5/5 PASS）合入 main 之前接上，只会把既有的红带进 CI；合并顺序由 owner 定。下面是合入 main 后的动作，三步必须同一提交。
+已随收尾提交接进 CI，三步同提交完成：
 
-1. 改 `.github/workflows/ci.yml` 的 `world-client` job（**不是** `world-client-browser`；`scripts/fixture-check.ts` 只读文件与内存重放，不连 preview、不需要浏览器），在 `- run: npm test` 之后加一行（当前是第 32 行之后）：
+1. 改 `.github/workflows/ci.yml` 的 `world-client` job（**不是** `world-client-browser`；`scripts/fixture-check.ts` 只读文件与内存重放，不连 preview、不需要浏览器），在 `- run: npm test` 之后加了一行：
 
    ```yaml
        - run: npm run fixture:check
    ```
 
-   `world-client` job 已有 `working-directory: world-client`，`npm run fixture:check` 解析为 `node scripts/fixture-check.ts`，不用再写路径。不许加 `continue-on-error`、不许写 `|| true`、不许用 `if: false`——关 2 会把这些接线判成「无有效消费方」。
-2. 同一提交删掉允许清单里的 `npm:world-client#fixture:check` 条目，把 `pendingCiBudget` 从 21 降到 20，并往 `budgetLedger` 追加一条记录（`approved_at` / `approved_by` / `reason`，以及变更后的 `pendingCi 20 / manual 11 / obsolete 1`）。删条目不同步降预算、或降预算不删条目，现在都会红。三件事必须一起。
-3. 自证（贴原始输出，不要只写「通过」）：
-   - `world-client/` 下按 CI 形态跑 `npm run fixture:check`，记录耗时与退出码；期望 fixture 全 PASS、`exit 0`。
-   - `node scripts/audit-orphan-gates.mjs`：期望 `[有消费方] 26`、`[已知孤儿] 32（manual 11 / pending-ci 20 / obsolete 1）`、`[新孤儿（未登记）] 0`、债务 `pending-ci 20 / 预算 20；manual 11 / 预算 11；obsolete 1 / 预算 1`、`exit 0`。
-   - 反向证据：新加的那行若带 `|| true`，`npm:world-client#fixture:check` 必须被重新判成「无有效消费方」。这条已由 `scripts/orphan-gates-selftest.mjs` 的 `|| true` 用例覆盖，接线时不必再手工改坏一次，但要在提交说明里点名是哪条用例。
-   - `git status --porcelain` 必须为空：fixture 校验只读，不许写脏仓库。
+   `world-client` job 已有 `working-directory: world-client`，`npm run fixture:check` 解析为 `node scripts/fixture-check.ts`，不用再写路径。没有加 `continue-on-error`、没有写 `|| true`、没有用 `if: false`——关 2 会把这些接线判成「无有效消费方」。
+2. 同提交删掉了允许清单里的 `npm:world-client#fixture:check` 条目，`pendingCiBudget` 21→20，并往 `budgetLedger` 追加一条终态记录；同一提交还登记了 skill 线的 4 条只读审计为 `manual`（11→15），所以末条读数是 `pendingCi 20 / manual 15 / obsolete 1`。
+3. 自证（原始输出见提交说明与合并报告）：
+   - `world-client/` 下按 CI 形态跑 `npm run fixture:check`：6 条夹具 / 195 项断言，6 通过 / 0 失败，`exit 0`。
+   - `node scripts/audit-orphan-gates.mjs`：`[有消费方] 26`、`[已知孤儿] 36（manual 15 / pending-ci 20 / obsolete 1）`、`[新孤儿（未登记）] 0`、债务三类等值、`exit 0`。
+   - 反向证据：新加的那行若带 `|| true`，`npm:world-client#fixture:check` 会被重新判成「无有效消费方」；这条已由 `scripts/orphan-gates-selftest.mjs` 的 `|| true` 用例覆盖，提交说明点名该用例。
+   - `git status --porcelain` 为空：fixture 校验只读，不写脏仓库。
 
-**接不上的情况**：J1 合入后若 `fixture:check` 仍非全 PASS 或仍 `exit` 非 0，停下并回到本节，不要用放宽 `fixture:check` 判据或 `continue-on-error` 换绿。
+**接不上时**：若 `fixture:check` 非全 PASS 或 `exit` 非 0，停下并回到本节，不要用放宽 `fixture:check` 判据或 `continue-on-error` 换绿。
 
 ## 已知问题（记录，不在本工具里自行处置）
 

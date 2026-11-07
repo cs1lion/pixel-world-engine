@@ -130,6 +130,13 @@
 - **建议时机**：v3 改走「构件化、跨 2–3 格」——夜岸用现成冷灰三档 `soil→farm→stone`、宽 24px、确定性错位；判据与分配规则见 [P1_SHORE_BAND_DESIGN.md](P1_SHORE_BAND_DESIGN.md) §6。停止再调单格宽度/第三组色值。
 - **是否需要用户决策**：**是**（批准 v3 设计与「4× 仍②就停手」的停止规则）。
 
+### B11. 分支收工前只跑本线检查，漏掉跨模块的静态自检
+
+- **问题**：分支收工时只跑本线相关检查（`fixture:check` + `check-types`），不跑全量 `npm test`，跨模块的静态自检不会被发现。**[事实]**（2026-11-08 合并时：J1 的 `fe460a1` 重录只刷新了 `recorded`，漏改 `trace.eventRange.to`（101/458 未跟到 95/446）；`fixture:check` 6/6 全绿，而 `npm test` 的 `fixture-self-check.test.ts` 红）
+- **影响**：语义层的回放闸门（`fixture:check`）不校验 `eventRange` 条数，只有全量测试里的静态自检会抓；只看回放绿会给出「夹具已对齐」的错觉。
+- **建议时机**：立即生效——**分支收工前必须跑全量 `npm test`**，并在分支说明里贴 0 fail 的读数。
+- **是否需要用户决策**：否（流程纪律，已记入收尾清单）。
+
 ## C. 设计边界（不是 bug，但需要被知道）
 
 ### C1. 零造物世界会停在 L1
@@ -710,7 +717,7 @@
 
 ## J. 回放夹具基线漂移（2026-11-07）
 
-### J1. 5 条回放夹具 5/5 FAIL（已定位 + 已按 (a) 重录，待 review/合并）
+### J1. 回放夹具漂移（已定位 + 已按 (a) 重录，已合入 main `cd1e02f`）
 
 - **现象 [事实]**：合并后在 main 上跑 `fixture:check`，5 条夹具 100 项断言 0 通过 / 5 失败。本轮复跑代表读数：memory-decay facts 277→379、timetable facts 9→23、archived 9→0、dropped 145→204、世界/记忆指纹全变。
 - **读数更正 [事实]**：**更正：`facts 277→379` 属 memory-decay；build-demolish 为 60→78。** 原记录把 277→379 错记在 build-demolish 名下；两条都漂，但别混在一起引用。
@@ -784,13 +791,13 @@
 - **处置 [事实]**：按 (a) 在隔离 worktree `D:/project/pwe-j1-drift`（分支 `chore/j1-fixture-drift`）重录 5 条夹具，并同步重录 `recorded.checkpoints`；重录后 `fixture:check` = 5 条夹具 / 100 项断言 / **5 通过 0 失败**，`verifyTrace` 5 条均 `replayable`（三枚指纹与录制值逐项一致）。重录只改 `world-client/fixtures/*.json`，未改 `eval/screens` 截图、未 push、未动主树工作区。
 - **残余 [判据]**：memory-decay 20 天窗口内归档不再触发，夹具已更新 `purpose`/`covers`/`doesNotCover` 写明原因，归档路径由 `test/memory-archive-reach.test.ts` 覆盖；若产品要求「20 天内必须看到软遗忘」，那是预算标定的新决策，不在本次重录里偷偷改 `budget.day`。
 - **纪律**：未合并前不许把该检查从 CI 或手工清单里静默移除；一个长期红且无人认领的检查等于没有检查。
-- **是否需要用户决策**：**否**（(a) 已按本轮任务执行）；只剩 review 与合并授权。
+- **是否需要用户决策**：**否**（(a) 已按本轮任务执行并合入 main `cd1e02f`）。
 
 ## K. 合并窗口未闭合清单（2026-11-07）
 
 用于决定合并窗口是否关闭。按编号、归属线、下一步逐条列出：
 
-1. **J1** 回放夹具 5/5 FAIL（100 断言 0 通过）— 已定位到 `0dfcd2f`/`49c953b`/`df69173` 三笔模拟行为变更并按 (a) 重录（worktree `D:/project/pwe-j1-drift`，分支 `chore/j1-fixture-drift`）；重录后 5/5 PASS，待 review 与合并。
+1. **J1** 回放夹具 5/5 FAIL（100 断言 0 通过）— 已定位到 `0dfcd2f`/`49c953b`/`df69173` 三笔模拟行为变更并按 (a) 重录（worktree `D:/project/pwe-j1-drift`，分支 `chore/j1-fixture-drift`）；重录后 6/6 PASS（195 项断言），已合入 main `cd1e02f`；`fixture:check` 已接 CI（pending-ci 20）。
 2. **G5 剩余** 两级口径已落地并复跑 `[判据] 绿`（设计目标 30,000 / 天花板 34,666=2 跑极差 0），但 `check-ground-shadow` 仍不在 CI — lighting 线；下一步：与孤儿闸门一起排期接线。
 3. **E8 — 已闭合（2026-11-07）** 旁证测试默认只写 `world-client/tmp/`，不再改写已跟踪的 `docs/evidence/soak/witnessed-corroboration.json`；连跑两遍 `npm test` 后 `git status --porcelain` 无该文件，`git hash-object` 前后一致（`b9c3214b…`）；`verify-all` 的 `PRESERVE` 已删除。原「跑完必须 `git checkout`」的临时纪律已失效。
 4. **孤儿闸门** `fixture:check`、`check-phases-negative`、`check-rain-pin`、`check-shot-actor-pin`、`check-lamp-band`、`check-lamp-pool`（另加 `check-ground-shadow`，见 2）都不在 `.github/workflows/ci.yml` — 归属各线；下一步：等 `chore/orphan-gates` 合并后逐条接线，接一条删一条允许清单。
