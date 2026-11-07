@@ -274,32 +274,108 @@ function parsePaletteTokens() {
   return tokens.filter((token) => token.hex !== null);
 }
 
+/** 在一份源码里静态认出的“色板绑定名”。
+ *
+ * 渲染层不直接读 `WORLD.x`：调用点写 `paletteFor().x`、形参 `palette: WorldPalette`
+ * 的 `palette.x`、或 `const palette = theme?.palette ?? paletteFor()`。
+ * 旧版只数 `WORLD.x`，把这些读点全漏了，反过来把 `moss`/`pale`/`terracotta`
+ * 报成“未引用”。这里只认静态可证的两种来源：类型标注与别名声明；
+ * 认不出的下标访问落到「动态引用」，不静默算作已用。
+ */
+function paletteBindingNames(text) {
+  const names = new Set(['WORLD', 'TERRAIN_COLORS', 'TERRAIN_SPECK']);
+  const typed = /(\w+)\s*:\s*(?:WorldPalette|Readonly<Record<WorldColor,\s*number>>|SettingPack\['palette'\])/g;
+  for (;;) {
+    const match = typed.exec(text);
+    if (match === null) break;
+    names.add(match[1]);
+  }
+  const alias = /\b(?:const|let|var)\s+(\w+)\s*=\s*([^;\n]*)/g;
+  for (;;) {
+    const match = alias.exec(text);
+    if (match === null) break;
+    if (/paletteFor\s*\(|\bworldPalette\s*\(|\.palette\b/.test(match[2])) names.add(match[1]);
+  }
+  return names;
+}
+
 function scanPaletteTokenRefs(tokens) {
   const byFullName = new Map(tokens.map((token) => [token.fullName, token]));
   const sites = [];
+  const dynamicSites = [];
+  const terrainTableReads = [];
   // palette.ts 内部的 TERRAIN_COLORS.grass: UI.grass 是定义别名，不算使用。
   for (const file of WORLD_FILES.filter((item) => item !== PALETTE_FILE)) {
     const text = stripLineComments(stripBlockComments(read(file)));
+    const bindings = paletteBindingNames(text);
     for (const [index, line] of text.split('\n').entries()) {
-      for (const objectName of ['WORLD', 'TERRAIN_COLORS', 'TERRAIN_SPECK']) {
-        const direct = new RegExp(`\\b${objectName}\\.([a-zA-Z0-9_]+)\\b`, 'g');
+      const lineNo = index + 1;
+      const pushStatic = (fullName) => {
+        const token = byFullName.get(fullName);
+        if (token !== undefined) sites.push({ hex: token.hex, token: fullName, file, line: lineNo, alpha: null });
+      };
+      for (const binding of bindings) {
+        // 负向前视排除“别人的 .palette”——`building.palette.trim` 是 prefab 槽位，
+        // 不是 WORLD.trim 的读点；`theme?.palette.x` 这类真实读点另有表达式分支。
+        const read = new RegExp(`(?<![.\\w])${binding}\\s*\\.\\s*([a-zA-Z0-9_]+)\\b`, 'g');
+        const isAliasTable = binding === 'TERRAIN_COLORS' || binding === 'TERRAIN_SPECK';
         for (;;) {
-          const match = direct.exec(line);
+          const match = read.exec(line);
           if (match === null) break;
-          const token = byFullName.get(`${objectName}.${match[1]}`);
-          if (token === undefined) continue;
-          sites.push({ hex: token.hex, token: token.fullName, file, line: index + 1, alpha: null });
+          pushStatic(isAliasTable ? `${binding}.${match[1]}` : `WORLD.${match[1]}`);
         }
-        // 动态访问 TERRAIN_COLORS[cell.terrain] / TERRAIN_SPECK[terrain]：整个对象被使用。
-        if (new RegExp(`\\b${objectName}\\[`).test(line)) {
-          for (const token of tokens.filter((item) => item.object === objectName)) {
-            sites.push({ hex: token.hex, token: token.fullName, file, line: index + 1, alpha: null });
+        // 动态下标：binding[expr]；字面量下标（palette['moss']）仍按静态引用算。
+        const indexed = new RegExp(`(?<![.\\w])${binding}\\s*\\[([^\\]]+)\\]`, 'g');
+        for (;;) {
+          const match = indexed.exec(line);
+          if (match === null) break;
+          const expr = match[1].trim();
+          const literal = /^['"]([a-zA-Z0-9_]+)['"]$/.exec(expr);
+          if (literal !== null) {
+            const isAliasTable = binding === 'TERRAIN_COLORS' || binding === 'TERRAIN_SPECK';
+            pushStatic(isAliasTable ? `${binding}.${literal[1]}` : `WORLD.${literal[1]}`);
+          } else {
+            dynamicSites.push({ binding, file, line: lineNo, expr });
           }
+        }
+      }
+      // 表达式绑定：paletteFor().x / worldPalette().x / this.palette.x
+      const exprRead = /(?:paletteFor\s*\(\)|worldPalette\s*\(\)|this\s*\.\s*palette)\s*\.\s*([a-zA-Z0-9_]+)\b/g;
+      for (;;) {
+        const match = exprRead.exec(line);
+        if (match === null) break;
+        pushStatic(`WORLD.${match[1]}`);
+      }
+      // 地形表整表动态读：terrainFor()[terrain] / theme?.terrainColors[terrain]
+      if (/terrainFor\s*\(\)\s*\[|\bterrainColors\s*\[/.test(line)) {
+        terrainTableReads.push({ file, line: lineNo });
+      }
+    }
+  }
+  // 别名静态解析：读到 TERRAIN_COLORS.x 也等于读到它所指向的 WORLD 槽。
+  const aliasReads = sites.filter((site) => site.token.startsWith('TERRAIN_'));
+  for (const site of aliasReads) {
+    const alias = byFullName.get(site.token);
+    if (alias !== undefined && alias.aliasOf !== null) {
+      const target = byFullName.get(alias.aliasOf);
+      if (target !== undefined) {
+        sites.push({ hex: target.hex, token: target.fullName, file: site.file, line: site.line, alpha: null });
+      }
+    }
+  }
+  // 整表动态读：TERRAIN_COLORS 的每一项都被读（内容是静态别名，可解析到 WORLD 槽）。
+  for (const read of terrainTableReads) {
+    for (const token of tokens.filter((item) => item.object === 'TERRAIN_COLORS')) {
+      sites.push({ hex: token.hex, token: token.fullName, file: read.file, line: read.line, alpha: null });
+      if (token.aliasOf !== null) {
+        const target = byFullName.get(token.aliasOf);
+        if (target !== undefined) {
+          sites.push({ hex: target.hex, token: target.fullName, file: read.file, line: read.line, alpha: null });
         }
       }
     }
   }
-  return sites;
+  return { sites, dynamicSites, terrainTableReads };
 }
 
 // ---------------------------------------------------------------- prefabs / UI / CSS
@@ -436,7 +512,7 @@ for (const token of paletteTokens) {
     line: token.line,
   });
 }
-for (const site of paletteRefs) bucket(site.hex).world.refs.push({ ...site, kind: 'palette-ref' });
+for (const site of paletteRefs.sites) bucket(site.hex).world.refs.push({ ...site, kind: 'palette-ref' });
 for (const site of prefabSites) bucket(site.hex).world.refs.push({ ...site, kind: 'prefab-slot' });
 
 for (const site of uiCss.refs) bucket(site.hex).ui.refs.push(site);
@@ -568,16 +644,22 @@ function fileLiteralStats() {  const rows = [];
   return rows;
 }
 
-const usedTokenNames = new Set(paletteRefs.map((site) => site.token));
-const usedTokenAliases = paletteTokens.filter((token) => token.aliasOf !== null && usedTokenNames.has(token.fullName));
-for (const alias of usedTokenAliases) usedTokenNames.add(alias.aliasOf);
-const unusedTokens = paletteTokens
-  .map((token) => ({
-    ...token,
-    refs: paletteRefs.filter((site) => site.token === token.fullName).length,
-    indirectlyUsed: token.aliasOf !== null ? usedTokenNames.has(token.aliasOf) : false,
-  }))
-  .filter((token) => token.refs === 0 && !usedTokenNames.has(token.fullName));
+// 读点分三类：静态可证的引用 / 只能靠动态下标到达 / 无任何读点。
+// 动态下标（palette[primary]、palette[look.cloak] 等）能到达任意 WORLD 槽，
+// 所以未被静态引用的槽一律进「动态引用」，不算「已用」也不算「未引用」。
+const staticTokenNames = new Set(paletteRefs.sites.map((site) => site.token));
+const hasDynamicIndex = paletteRefs.dynamicSites.length > 0;
+const worldTokens = paletteTokens.filter((token) => token.object === 'WORLD');
+const unreferencedWorld = worldTokens
+  .filter((token) => !staticTokenNames.has(token.fullName))
+  .map((token) => token.fullName);
+const dynamicWorldTokens = hasDynamicIndex ? unreferencedWorld : [];
+const unusedWorldTokens = hasDynamicIndex ? [] : unreferencedWorld;
+const unusedAliasTokens = paletteTokens
+  .filter((token) => token.object !== 'WORLD')
+  .filter((token) => !staticTokenNames.has(token.fullName))
+  .map((token) => token.fullName);
+const unusedTokens = [...unusedWorldTokens, ...unusedAliasTokens];
 
 const report = {
   root: ROOT,
@@ -607,7 +689,11 @@ const report = {
     sites: color.ui.refs.slice(0, 4),
     vars: color.ui.defs.filter((def) => def.kind === 'css-var-def').map((def) => def.name),
   })),
-  unusedTokens: unusedTokens.map((token) => token.fullName),
+  unusedTokens,
+  unusedWorldTokens,
+  unusedAliasTokens,
+  dynamicWorldTokens,
+  dynamicReadSites: paletteRefs.dynamicSites,
   proposedWorld: proposedRows('world'),
   proposedUi: proposedRows('ui'),
   outWorld: outOfBudget('world'),
@@ -800,8 +886,17 @@ if (useJson) {
     console.log(`${item.hex}  refs=${item.refs}  L=${(item.luminance * 100).toFixed(1)}%  ${item.role}${item.shared ? ' [与世界共享]' : ''}${item.reserved ? ' [当前未引用，保留槽]' : ''}`);
   }
   console.log('');
-  console.log('## palette.ts 未引用 token');
-  console.log(report.unusedTokens.join(', ') || '无');
+  console.log('## palette.ts 读点状态');
+  const staticWorld = worldTokens.filter((token) => staticTokenNames.has(token.fullName)).length;
+  console.log(`静态可证引用（WORLD 槽）：${staticWorld} / ${worldTokens.length}`);
+  console.log(`动态引用（静态不可判定）：${report.dynamicWorldTokens.join(', ') || '无'}`);
+  console.log(`未引用（无任何读点）：${report.unusedTokens.join(', ') || '无'}`);
+  if (report.dynamicReadSites.length > 0) {
+    console.log(`动态读点示例：`);
+    for (const site of report.dynamicReadSites.slice(0, 6)) {
+      console.log(`    ${site.file}:${site.line}  ${site.binding}[${site.expr}]`);
+    }
+  }
   console.log('');
   console.log('## 每文件字面量统计（手算核对口径）');
   console.log('file\tlayer\toccurrences\tunique');
