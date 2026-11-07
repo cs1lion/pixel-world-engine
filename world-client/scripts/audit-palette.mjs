@@ -296,6 +296,14 @@ function paletteBindingNames(text) {
     if (match === null) break;
     if (/paletteFor\s*\(|\bworldPalette\s*\(|\.palette\b/.test(match[2])) names.add(match[1]);
   }
+  // 函数参数的默认值别名：`colors: { readonly ink: number; ... } = paletteFor()`。
+  // 这类写法没有 `const`，上面两条规则都覆盖不到（实测漏掉 tide-view.ts 的 4 处读点）。
+  const paramAlias = /(\w+)\s*:\s*(?:\{[^}]*\}|[A-Za-z_][\w.]*(?:<[^>]*>)?)\s*=\s*(?:paletteFor|worldPalette)\s*\(\s*\)/g;
+  for (;;) {
+    const match = paramAlias.exec(text);
+    if (match === null) break;
+    names.add(match[1]);
+  }
   return names;
 }
 
@@ -352,30 +360,24 @@ function scanPaletteTokenRefs(tokens) {
       }
     }
   }
-  // 别名静态解析：读到 TERRAIN_COLORS.x 也等于读到它所指向的 WORLD 槽。
-  const aliasReads = sites.filter((site) => site.token.startsWith('TERRAIN_'));
-  for (const site of aliasReads) {
+  // 别名静态解析：读到 TERRAIN_COLORS.x 也等于读到它指向的 WORLD 槽，
+  // 但**不再往 sites 里复制一份**——复制会让同一处源码被计两次 refs
+  // （实测 `minimap.ts:83` 曾同时以 `TERRAIN_COLORS.farm` 与 `WORLD.farm` 出现）。
+  const referencedWorld = new Set();
+  for (const site of sites) {
+    if (!site.token.startsWith('TERRAIN_')) continue;
     const alias = byFullName.get(site.token);
-    if (alias !== undefined && alias.aliasOf !== null) {
-      const target = byFullName.get(alias.aliasOf);
-      if (target !== undefined) {
-        sites.push({ hex: target.hex, token: target.fullName, file: site.file, line: site.line, alpha: null });
-      }
-    }
+    if (alias !== undefined && alias.aliasOf !== null) referencedWorld.add(alias.aliasOf);
   }
   // 整表动态读：TERRAIN_COLORS 的每一项都被读（内容是静态别名，可解析到 WORLD 槽）。
+  // 同样只记「可达」，不伪造读点数：一处整表读不是 16 处 dot 读。
   for (const read of terrainTableReads) {
     for (const token of tokens.filter((item) => item.object === 'TERRAIN_COLORS')) {
-      sites.push({ hex: token.hex, token: token.fullName, file: read.file, line: read.line, alpha: null });
-      if (token.aliasOf !== null) {
-        const target = byFullName.get(token.aliasOf);
-        if (target !== undefined) {
-          sites.push({ hex: target.hex, token: target.fullName, file: read.file, line: read.line, alpha: null });
-        }
-      }
+      referencedWorld.add(token.fullName);
+      if (token.aliasOf !== null) referencedWorld.add(token.aliasOf);
     }
   }
-  return { sites, dynamicSites, terrainTableReads };
+  return { sites, dynamicSites, terrainTableReads, referencedWorld };
 }
 
 // ---------------------------------------------------------------- prefabs / UI / CSS
@@ -647,7 +649,10 @@ function fileLiteralStats() {  const rows = [];
 // 读点分三类：静态可证的引用 / 只能靠动态下标到达 / 无任何读点。
 // 动态下标（palette[primary]、palette[look.cloak] 等）能到达任意 WORLD 槽，
 // 所以未被静态引用的槽一律进「动态引用」，不算「已用」也不算「未引用」。
-const staticTokenNames = new Set(paletteRefs.sites.map((site) => site.token));
+const staticTokenNames = new Set([
+  ...paletteRefs.sites.map((site) => site.token),
+  ...paletteRefs.referencedWorld,
+]);
 const hasDynamicIndex = paletteRefs.dynamicSites.length > 0;
 const worldTokens = paletteTokens.filter((token) => token.object === 'WORLD');
 const unreferencedWorld = worldTokens
@@ -895,6 +900,21 @@ if (useJson) {
     console.log(`动态读点示例：`);
     for (const site of report.dynamicReadSites.slice(0, 6)) {
       console.log(`    ${site.file}:${site.line}  ${site.binding}[${site.expr}]`);
+    }
+  }
+  if (process.argv.includes('--sites')) {
+    console.log('');
+    console.log('## 读点明细（--sites；只列真实语法读点，不含别名派生）');
+    const grouped = new Map();
+    for (const site of paletteRefs.sites) {
+      if (!grouped.has(site.token)) grouped.set(site.token, []);
+      grouped.get(site.token).push(site);
+    }
+    for (const [token, list] of [...grouped.entries()].sort((a, b) => b[1].length - a[1].length)) {
+      console.log(`${token}  ${list.length}`);
+      for (const site of list) {
+        console.log(`    ${site.file}:${site.line}${site.alpha === null ? '' : `  alpha=${site.alpha}`}`);
+      }
     }
   }
   console.log('');

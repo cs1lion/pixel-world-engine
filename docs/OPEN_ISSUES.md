@@ -104,6 +104,14 @@
 - **建议时机**：下一次改 red-first 时再考虑加 lint/模板拦截；本轮只登记，不改工具。
 - **是否需要用户决策**：否（已按「登记已知误报」处理）。
 
+### B8. `TERRAIN_SPECK` 5 个键全仓无读点（死数据，只登记不删）
+
+- **问题**：`TERRAIN_SPECK` 的 `grass` / `stone` / `plaza` / `farm` / `tree` 五个键在 `src/`、`test/`、`scripts/` 中均无读点，属死数据。**[事实]**（实测：`node world-client/scripts/audit-palette.mjs --strict --sites`，逐 token 列表里这 5 个键的读点为 0；其余 24 个 `WORLD` 槽均为 24/24 静态可证引用）
+- **证据**：定义在 `world-client/src/world/palette-data.ts`；审计逐条读点明细见 `docs/evidence/palette-threshold/README.md`（「`refs` 反向核查」一节）。
+- **影响**：读色板的人会以为它还有用；但删键可能连带影响打包/类型闭集与体积预算，风险大于收益。
+- **建议时机**：等下一次要动 `palette-data.ts` 或打包清单时一并处理。
+- **是否需要用户决策**：**是**（删除 vs 保留）。本轮按「只登记、不删表项、不改打包」处理。
+
 ## C. 设计边界（不是 bug，但需要被知道）
 
 ### C1. 零造物世界会停在 L1
