@@ -65,7 +65,9 @@ CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
   日常走分支 + PR。豁免**只跳过 main 保护**，第二道大文件检查（默认 5 MB）照跑；
   `--no-verify` 才会跳过整条 pre-push。
 - 第二道：新增 blob ≥ `PWE_PREPUSH_MAX_BLOB_BYTES`（默认 5242880）即拒推，因为
-  证据图/大快照进历史后只能重写历史才能删。
+  证据图/大快照进历史后只能重写历史才能删。确需放宽时用同名环境变量，
+  **并必须在本次推送的提交说明里写明放宽到多少、为什么、谁批准的**；
+  钩子看不到提交说明，这一条靠 review 核。
 - review 责任落在 `.github/CODEOWNERS`；变更入口用
   `.github/pull_request_template.md`，必填「改了什么 / 为什么 / 验证命令与读数」。
 

@@ -10,7 +10,9 @@
 #   2) 大文件检查：拒绝新增 blob ≥ PWE_PREPUSH_MAX_BLOB_BYTES（默认 5 MB）。
 #      理由：证据图/快照进历史后删不掉，只能重写历史；这类东西在本仓反复出现。
 #      只查本次推送新增的对象（rev-list <remote_sha>..<local_sha>），不查全库。
-#      放宽：PWE_PREPUSH_MAX_BLOB_BYTES=<字节数> git push ...（同样只影响这一次）。
+#      放宽：PWE_PREPUSH_MAX_BLOB_BYTES=<字节数> git push ...（只影响这一次）。
+#      **每次放宽必须在本次推送的提交说明里写明：放宽到多少、为什么、谁批准的。**
+#      钩子看不到提交说明，这句只能靠 review 核；不写就等于这次放宽没有痕迹。
 #
 # 安装：git config core.hooksPath .githooks
 # 自检：npm run check:hooks（含两条路径的反向用例：有豁免 / 无豁免）
