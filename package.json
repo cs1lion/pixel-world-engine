@@ -4,6 +4,7 @@
   "description": "仓库级手续：钩子自检与 worktree 巡检（不是前端 workspace）",
   "scripts": {
     "check:hooks": "node scripts/check-hooks.mjs",
+    "audit:orphan-gates": "node scripts/audit-orphan-gates.mjs",
     "worktrees:audit": "node scripts/worktrees-audit.mjs",
     "ci:attempt1": "node scripts/ci-attempt1-audit.mjs"
   }
