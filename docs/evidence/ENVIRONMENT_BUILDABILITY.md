@@ -595,7 +595,7 @@
 
 - 保护只覆盖「直推 main」，不覆盖「作者自己合并自己的分支」。本仓的实际合并是本地 `--no-ff` 合 main，然后 `PWE_ALLOW_PUSH_MAIN=1` push；`git log --merges` 里没有 PR 号。**作者、合并者、推送者是同一个人/同一个 AI。**
 - `CODEOWNERS` 只有走 PR 才触发；没有 PR，它等于没写。
-- `pre-push` 的 `PWE_ALLOW_PUSH_MAIN=1` 在脚本开头直接 `exit 0`，**整条 pre-push 被跳过**（不只是 main 保护）。这意味着一旦用豁免，blast radius、review trailer 等所有未来加在 pre-push 的检查也一起失效。
+- `pre-push` 的 `PWE_ALLOW_PUSH_MAIN=1` 在 2026-11-07 之前于脚本开头直接 `exit 0`，**整条 pre-push 被跳过**（不只是 main 保护），blast radius、review trailer 等未来加在 pre-push 的检查也一起失效。**已修**：豁免改为只跳过 main 保护，第二道大文件检查（默认 5 MB）照跑；`npm run check:hooks` 在临时仓里真跑钩子，覆盖有/无豁免 × main/非 main × 小/大文件五条路径。仍拦不住的部分：`--no-verify` 依旧跳过整条钩子；本地钩子对 `git push --no-verify` 与直接操作远端无能为力。
 - 本文这次交付也是同一模式：分支 → 本地 `--no-ff` 合 main → `PWE_ALLOW_PUSH_MAIN=1` push；没有 PR，作者/合并者/推送者是同一个 AI。**这不是假设，是本次交付的实际流程。**
 
 **完全没有**

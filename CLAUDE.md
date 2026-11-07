@@ -62,7 +62,10 @@ CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
 - 安装：`git config core.hooksPath .githooks`；自检：`npm run check:hooks`
   （仓库根目录）。**没装时 push 不会报错，保护会安静消失**，所以这是一条必跑读数。
 - 豁免：`PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main`。只给灾难恢复用；
-  日常走分支 + PR。`--no-verify` 会跳过整条 pre-push，不只跳过 main 这一条。
+  日常走分支 + PR。豁免**只跳过 main 保护**，第二道大文件检查（默认 5 MB）照跑；
+  `--no-verify` 才会跳过整条 pre-push。
+- 第二道：新增 blob ≥ `PWE_PREPUSH_MAX_BLOB_BYTES`（默认 5242880）即拒推，因为
+  证据图/大快照进历史后只能重写历史才能删。
 - review 责任落在 `.github/CODEOWNERS`；变更入口用
   `.github/pull_request_template.md`，必填「改了什么 / 为什么 / 验证命令与读数」。
 

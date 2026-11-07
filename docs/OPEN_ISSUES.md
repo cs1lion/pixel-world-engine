@@ -705,6 +705,6 @@
 8. **B1 天花板棘轮 — 已锁定（2026-11-07）** 新增 `test/policy-ceilings.test.ts` + `scripts/policy-ceilings.json`：脚本常量 > 已批准值即红，记录必须含 `approved_at` / `approved_by` / `reason`；`[实测]` 把 `MAX_COMMANDS_CEILING` 从 33,488 改到 33,489 会红，降到 33,000 只提示不红。拦不住：运行时 env 覆盖、先降再涨回原值（仍 ≤ 已批准值）、`reason` 真伪。
 9. **`test:phases` CI 耗时接近单相位上限** 实测 run `42381670587` 的 `world-client-browser` job：`test:phases` 350s（`14:29:40.709` → `14:35:30.844`）；四个相位 `waitVillagersSettled` 各约 25.6s（25,592 / 25,683 / 25,565 / 25,692 ms），单相位上限 45s，占 57%，余量约 19s — 浏览器闸门线。处置口径：**撞线就减每相位的等待量，不许抬 45s 上限**。本地读数 26s 是错的量级，**本地耗时不构成 CI 的时间依据**；以后估 CI 时间只认真 CI 数据。
 
-**本次 push 路径记录（不是未闭合项）**：推送 `c52745d` 时 `.githooks/pre-push` 按设计拦下 main 直推；改用钩子头注释写明的豁免 `PWE_ALLOW_PUSH_MAIN=1`（未用 `--no-verify`），结果 `f1dfa00..c52745d main -> main`。豁免是逐次显式动作、每次推送仍需单独授权，**main 直推不是常态、也不是被默认允许的路径**。另注意该豁免在钩子开头整体 `exit 0`，会连带跳过未来加在 pre-push 的所有检查（见 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` §风险：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L596-L599)）。
+**本次 push 路径记录（不是未闭合项）**：推送 `c52745d` 时 `.githooks/pre-push` 按设计拦下 main 直推；改用钩子头注释写明的豁免 `PWE_ALLOW_PUSH_MAIN=1`（未用 `--no-verify`），结果 `f1dfa00..c52745d main -> main`。豁免是逐次显式动作、每次推送仍需单独授权，**main 直推不是常态、也不是被默认允许的路径**。该豁免在 2026-11-07 已改为**只跳过 main 保护**，大文件检查（默认 5 MB）在豁免路径下照跑，`npm run check:hooks` 的五条反向用例覆盖这两种路径（见 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` §风险：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L596-L599)）。
 
 
