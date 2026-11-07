@@ -296,7 +296,7 @@
 - **处置 [事实]**：抽出纯函数 `glowLayers(cx,cy,w,h,alpha) → { layers, peakAlpha }`，三圈 `0.55a / 1a / 1.15a` 互不重叠；`drawGlows` 只照单 `fillRect`。
 - **判据（可证伪）[事实]**：任一像素覆盖层数 ≤ 1；累加 alpha ≤ `peakAlpha`（1.15a）。用例 `world-client/test/mat-g1-glow.test.ts`，五档现网尺寸。
 - **红→绿 [事实]**：改前 5 档全部报「像素 (20,20) 被覆盖 3 层，累加 2.70a（声明峰值 1.15a）」；拆环带后 0 失败。
-- **读数（夜帧祭坛邻域 40×28 世界像素，`world-client/tmp/screens/mat-g1/glow-night-{before,after}-4x.png`）[事实]**：
+- **读数（环化后、配平前；夜帧祭坛邻域 40×28 世界像素，`world-client/tmp/screens/mat-g1/glow-night-{before,after}-4x.png`）[事实]**（最终配平状态看下面的对比度行，不要把这张表当成交付读数）：
 
   | | uniqueColors | outsidePalette | 总能量 Σ(R+G+B) |
   |---|---|---|---|
