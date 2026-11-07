@@ -139,9 +139,9 @@ export const WEATHER_LABEL: Readonly<Record<Weather, string>> = {
  * 为什么加在这里而不是渲染层：天气视图（`render/weather.ts`）只收这一个数，
  * 收齐了它就不必知道天气有几档——加第三档时它一行没改，就是这条设计的回报。
  * 整个 `src/render/` 只有两处碰天气，另一处是 `phase-view.ts` 的 `drawFireflies`
- * 调的那一句 `firefliesVisible`（**叫名字，不叫行号**：这里原先写
- * `phase-view.ts:197`，而行号跟着我自己的编辑漂——往 `drawFireflies` 里加一行，
- * 那个数指的就是别处了，而行号引用审计查不出来，因为那两行都"有代码"）。
+ * 调的那一句 `firefliesVisible`（**叫名字，不叫行号**：这里原先写行号（197），
+ * 而行号跟着我自己的编辑漂——往 `drawFireflies` 里加一行，那个数指的就是别处了，
+ * 而行号引用审计查不出来，因为那两行都"有代码"）。
  *
  * 这里原来写「`Simulation.weatherIntensity()` 是渲染层唯一的输入」，不成立——
  * 萤火虫也看天气。渲染层有两条天气通道：这条给浓淡，那条只给「是不是晴天」一个布尔。

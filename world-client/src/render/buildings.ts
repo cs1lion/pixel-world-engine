@@ -18,7 +18,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { PlacedBuilding, WorkstationSnapshot } from '../world/types.ts';
-import { paletteFor, type WorldPalette } from '../world/theme.ts';
+import { paletteFor, type WorldColor, type WorldPalette } from '../world/theme.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
 import { DOOR, doorRect, type DoorMetrics } from './building-proportions.ts';
 import { drawDecal, roofHeight } from './decal.ts';
@@ -276,6 +276,29 @@ function wallSeed(building: PlacedBuilding): number {
   return hsh >>> 0;
 }
 
+/** 板缝的纵向节拍（世界像素）。同一排建筑按这个节拍落缝，跨栋才不会错位。 */
+export const WALL_SEAM_PITCH = 16;
+
+/**
+ * 墙面横板缝的局部 y 行（相对楼体左上角）。
+ *
+ * 位置**只由世界基线决定**：从 `(baseY + roofH + 3)` 向上取整到 16px 节拍，
+ * 之后每 16px 一条，画到 `h - 8`（横梁上沿）。`seed` 不参与位置，只决定深浅，
+ * 所以同排、同材质、不同 `roofH` 的相邻建筑，板缝落在同一组世界 y 上。
+ */
+export function wallSeamRows(baseY: number, roofH: number, h: number, seed: number): readonly number[] {
+  const top = roofH + 3;
+  const bottom = h - 8;
+  if (bottom <= top) return [];
+  const firstWorld = Math.ceil((baseY + top) / WALL_SEAM_PITCH) * WALL_SEAM_PITCH;
+  const rows: number[] = [];
+  for (let worldY = firstWorld; worldY <= baseY + bottom; worldY += WALL_SEAM_PITCH) {
+    rows.push(worldY - baseY);
+  }
+  void seed;
+  return rows;
+}
+
 /** 墙体：平色 → 板壁木纹 + 地基砌缝 → 檐影 + 木梁 + 立面套件。 */
 function drawWall(
   g: Phaser.GameObjects.Graphics,
@@ -296,10 +319,10 @@ function drawWall(
   const bodyTop = roofH + 3;
   const bodyH = h - 8 - bodyTop;
   if (bodyH > 8) {
-    g.fillStyle(paletteFor().timberDark, 0.3);
-    g.fillRect(1, bodyTop + 2 + (seed % Math.max(1, bodyH - 6)), w - 2, 1);
-    if (bodyH > 26) {
-      g.fillRect(1, bodyTop + 6 + ((seed >>> 8) % Math.max(1, bodyH - 12)), w - 2, 1);
+    const seams = wallSeamRows(building.origin.y * TILE_PX, roofH, h, seed);
+    for (let i = 0; i < seams.length; i += 1) {
+      g.fillStyle(paletteFor().timberDark, (i + (seed >>> 4)) % 2 === 0 ? 0.3 : 0.26);
+      g.fillRect(1, seams[i]!, w - 2, 1);
     }
     g.fillStyle(paletteFor().timberDark, 0.26);
     const specks = Math.max(2, Math.floor(w / 14));
@@ -340,9 +363,16 @@ function drawWall(
   for (let x = 6; x < w - 4; x += 14) {
     g.fillRect(x, roofH + 2, 2, h - roofH - 8);
   }
-  // 左上受光：只在最左一列加 1px 暖高光，不做渐变。
+  // 抬升构件的固定边饰：上/左亮、下/右暗。这是**作图约定**，不是光照推导——
+  // 镇里的建筑影是固定的右下静态结构/接触影，不来自太阳，所以「受光面/背光边」
+  // 这类说法在这里没有依据。左列 1px 暖高光、右列 1px 暗木色，同一竖高、同一套规矩。
+  const wallEdge = { x: 0, y: roofH + 2, w, h: h - roofH - 8 };
   g.fillStyle(paletteFor().warmLight, 1);
-  g.fillRect(0, roofH + 2, 1, h - roofH - 8);
+  g.fillRect(wallEdge.x, wallEdge.y, 1, wallEdge.h);
+  for (const row of edgeRows('wall', wallEdge)) {
+    g.fillStyle(paletteFor()[row.token], row.alpha);
+    g.fillRect(row.x, row.y, row.w, row.h);
+  }
 
   drawFacade(g, building, w, h, roofH, doorX);
 }
@@ -764,6 +794,55 @@ function drawDoorStep(
   g.fillRect(doorX - half, h, metrics.stepW, 1);
   g.fillStyle(paletteFor().stone, 1);
   g.fillRect(doorX - half + 1, h + 1, metrics.stepW - 2, 1);
+  // 台阶底 1px：与地形暗边同一套规矩（朝下的一侧压暗），用既有的 soil，不新增色。
+  const step = { x: doorX - half, y: h, w: metrics.stepW, h: 3 };
+  for (const row of edgeRows('doorStep', step)) {
+    g.fillStyle(paletteFor()[row.token], row.alpha);
+    g.fillRect(row.x, row.y, row.w, row.h);
+  }
+}
+
+export type EdgeKind = 'doorStep' | 'wall';
+
+export interface EdgeRect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+export interface EdgeRow extends EdgeRect {
+  readonly token: WorldColor;
+  readonly alpha: number;
+}
+
+/**
+ * 构件边饰的统一判据：**作图约定**，不是光照推导——抬升构件一律「上/左亮、下/右暗」。
+ *
+ * 镇里的建筑影是固定右下的静态结构/接触影，不来自太阳，所以这里的右列不是「背光边」，
+ * 只是「构件右下收一档」。`drawDoorStep` 与 `drawWall` 都只消费本函数返回的计划。
+ *
+ * token 全是既有 24 色（`soil` / `timberDark`）；alpha 一律 1，和地形那条 1px 实线
+ * 同一口径——半透明的暗边会被下面的石板色透上来，读成脏灰而不是台阶。
+ */
+export function edgeRows(kind: EdgeKind, rect: EdgeRect): readonly EdgeRow[] {
+  if (kind === 'doorStep') {
+    // 台阶：最下一级（stone）比上一级（plaza）窄 1px，暗行跟着同一宽度收边。
+    return [
+      {
+        x: rect.x + 1,
+        y: rect.y + rect.h - 1,
+        w: Math.max(1, rect.w - 2),
+        h: 1,
+        token: 'soil',
+        alpha: 1,
+      },
+    ];
+  }
+  // 墙：抬升构件的固定边饰——上/左亮、下/右暗（作图约定，方向与太阳无关）。
+  return [
+    { x: rect.x + rect.w - 1, y: rect.y, w: 1, h: rect.h, token: 'timberDark', alpha: 1 },
+  ];
 }
 
 /** 招牌图标：<>（代码）/ 书（研究）/ 笔（写作）/ 锤（空工坊）。只用现有色。 */

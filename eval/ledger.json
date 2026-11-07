@@ -221,19 +221,19 @@
     },
     {
       "id": "render.drawCalls.static.p50",
-      "value": 16163,
+      "value": 33357,
       "unit": "draw-calls",
       "seed": "demo-dengchao",
-      "weather": "not_measured",
+      "weather": "8 组合（正午/夜/昏/晨 × 晴/雨/暴风雨/雾）",
       "rainSeed": "not_measured",
-      "denominator": "单次计分轮 stats.totalCommands（本次 16163；同次预热轮 16163 不计分）。旧分母「5 次计分轮 p50=16162（15514/15514/16162/16162/16162）」已随脚本收敛为单轮计分，按实测归一",
-      "source": "world-client/scripts/check-render-budget.mjs 输出（preview/dev http://127.0.0.1:5188/，2026-11-06 合并 feat/interior-view 后重测）",
+      "denominator": "整场景递归 stats.totalCommands 的逐帧峰值：闸门自身连续记录器全域（8 个时相/天气组合 + 相位/天气切换帧，按 Oracle.currentPhase() 归组），全域峰值 33,357（昏+暴风雨+灯全开，帧 2336）。33,741（帧 635）是已修复的 MAT-G7 泄漏帧，不作基线。修雾前峰值 52,125（昏+雾+灯全开，帧 546；雾单层 2,646 块 × 8 条 = 21,168）",
+      "source": "world-client/scripts/check-render-budget.mjs 输出的逐帧峰值（preview/dev http://127.0.0.1:5217/，2026-11-07）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "cb69b603dff3868045a573609d63c1b4d134aaa465970b906e5c08a13b9380b6",
+      "script_sha": "9c4c2a11fd7257fde35a3667e036fdd09b98aebde45436fc1a3b1c6539412d7e",
       "judge": "program",
-      "measured_at": "2026-11-06",
+      "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "16163 远低于 30000 天花板；与旧 p50 16162 差 1 条属同档抖动，阈值与断言一字未动。另：端口默认值 5188→5211 属端口纪律改动，不改变渲染路径与计分逻辑，读数不重测，script_sha 按改后脚本内容刷新；2026-11-06 再改为跟随 PIXEL_WORLD_CLIENT_PORT（默认仍 5211）并接入工作树身份闸（探测在浏览器启动前，不改变采样与计分路径），同理刷新"
+      "note": "分母改峰值：旧值 27,453 只是正午开局帧，把最坏状态（昏+雾 52,125）漏在闸门外，会让每张图都比在错误基准上。修雾（逐方块 Graphics → 3 张烘焙纹理 + 18 个 Image）后含 MAT-G7 泄漏的峰值是 33,741；修掉泄漏后同源读数 33,357（同配置 3 跑：2336 / 2421 / 2435，极差 0）；天花板 33,400 = 33,357 + 43 条政策余量，债务 3,400。MAT-G2（板缝改世界锚定）在现地图上是命令中性（2→2、1→1 条缝），不抬峰值；MAX_COMMANDS=30,000 保持为设计目标未动"
     },
     {
       "id": "palette.violations.world",

@@ -56,17 +56,137 @@ export interface PhaseView {
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-function blend(from: PhaseRecipe, to: PhaseRecipe, t: number): Blend {
+/** 辉光层只用既有的 `amber` / `warmLight`，不新增色。 */
+export type GlowToken = 'amber' | 'warmLight';
+
+/** 一块矩形辉光层。纯数据：`glowLayers()` 算，`drawGlows` 只照单绘制。 */
+export interface GlowLayer {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly token: GlowToken;
+  readonly alpha: number;
+}
+
+export interface GlowPlan {
+  readonly layers: readonly GlowLayer[];
+  /** 声明峰值：本团辉光在任何像素上允许出现的累加 alpha 上限。 */
+  readonly peakAlpha: number;
+}
+
+/** 内芯相对基底的倍率：历史三叠层的内芯就是 1.15a。 */
+export const GLOW_PEAK_RATIO = 1.15;
+
+/**
+ * 环化后的补光系数：每处 `addGlow` 的 alpha 统一乘上它。
+ *
+ * 环化把中心从 2.70a 压到 1.15a（−57%），丢掉的是真的光（改前/改后整幅裁剪像素
+ * 都是 0，说明旧亮度不是 ADD 饱和撑出来的）。补多少不按「看起来跟以前一样」，
+ * 按**不裁剪前提下的可行窗口**：
+ *
+ *   下限 = 夜帧 WCAG 1.67（`SETTING_DENGCHAO.md` 的「看得见」线）
+ *   上限 = 整幅零裁剪（任一通道不得到 255）
+ *
+ * 2026-11-07 实测（4 组最坏帧）：
+ *   gain   夜晴 WCAG   昏晴最大通道   裁剪像素
+ *   1.62   1.683       250            0
+ *   1.66   1.690       251            0
+ *   1.70   1.715       252            0
+ *   1.74   1.768       254            0   ← 零裁剪边界
+ *   1.76   1.768       255           40   ← 已溢出
+ *
+ * 所以 `GLOW_GAIN ∈ [约 1.61, 1.74]`，窗口宽 0.13（约 8%）；对应 WCAG 上限
+ * 1.768（夜晴），比下限 1.67 只高 5.9%。取 1.62 是因为它贴着下限（+0.8%），
+ * 把余量留给「以后真要更亮」；再往上抬就到裁剪边界，**不是**随便调参能解决的
+ * 余量。判据与最坏帧断言见 `docs/OPEN_ISSUES.md` MAT-G1。
+ */
+export const GLOW_GAIN = 1.62;
+
+/**
+ * 一团辉光拆成互不重叠的层。
+ *
+ * 判据（`test/mat-g1-glow.test.ts` 钉住）：**任一像素最多被一层覆盖，累加 alpha
+ * 不超过 `peakAlpha`**。ADD 混合下叠几层就是几倍的亮度，三层嵌套让中心变成
+ * 2.70a——那是积分，不是设计；多盖一层只是把同一个光源画得更亮，界面上看不出来，
+ * 预算里却全算进去了。
+ */
+export function glowLayers(cx: number, cy: number, w: number, h: number, alpha: number): GlowPlan {
+  const left = Math.round(cx - w / 2);
+  const top = Math.round(cy - h / 2);
+  const width = Math.max(1, Math.round(w));
+  const height = Math.max(1, Math.round(h));
+  const peakAlpha = alpha * GLOW_PEAK_RATIO;
+  const layers: GlowLayer[] = [];
+
+  // 三圈由外向内递增：0.55a → a → 1.15a（= 声明峰值）。
+  // 原来那三块是**嵌套矩形**，叠在中心就是 2.70a。这里把同样的三档摊成环带，
+  // 一圈只盖一层：外圈拿原来第二层的 0.55a（拆掉叠加后它才是最外那圈的量级），
+  // 中圈 a，内芯 1.15a。若反过来排（外亮内暗），中间会凹成一条沟，读成描边。
+  layers.push(...band(left, top, width, height, 'amber', alpha * 0.55));
+  if (width >= 3 && height >= 3) {
+    layers.push(...band(left + 1, top + 1, width - 2, height - 2, 'amber', alpha));
+  }
+  if (width >= 5 && height >= 5) {
+    layers.push({
+      x: left + 2,
+      y: top + 2,
+      w: width - 4,
+      h: height - 4,
+      token: 'warmLight',
+      alpha: peakAlpha,
+    });
+  }
+  return { layers, peakAlpha };
+}
+
+/** 一圈 1px 边框；尺寸太小（小于 3）时退化成一整块，仍然只有一层。 */
+function band(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  token: GlowToken,
+  alpha: number,
+): GlowLayer[] {
+  if (w < 3 || h < 3) {
+    return [{ x, y, w: Math.max(1, w), h: Math.max(1, h), token, alpha }];
+  }
+  return [
+    { x, y, w, h: 1, token, alpha },
+    { x, y: y + h - 1, w, h: 1, token, alpha },
+    { x, y: y + 1, w: 1, h: h - 2, token, alpha },
+    { x: x + w - 1, y: y + 1, w: 1, h: h - 2, token, alpha },
+  ];
+}
+
+/**
+ * 离散内容的方向判据（MAT-G7）。
+ *
+ * 亮窗数 / 屋脊线这类**离散内容**决定 `drawGlows` 画多少个矩形；alpha 再小
+ * 也照样整层重画。所以换相位时若沿用上一刻的「亮着的灯」，900ms 渐变期里
+ * 每帧都会重画整层旧辉光（实测 2,840 条），把峰值抬到 33,741，而稳态只有
+ * 31,301——那不是成本，是旧内容没清。
+ *
+ * 规则：**关灯方向**（目标更少）从切换那一刻就取目标值；**点灯方向**保留
+ * `t < 0.5` 的交叉，避免灯一帧全亮。连续量（dim / glow / mist）照常插值。
+ */
+function contentAt(from: number, to: number, t: number): number {
+  return to <= from ? to : t < 0.5 ? from : to;
+}
+
+export function blend(from: PhaseRecipe, to: PhaseRecipe, t: number): Blend {
   return {
     // 颜色没有中间态可插（插了就是第 25 色），过半直接换到目标色。
     dimColor: t < 0.5 ? from.dimColor : to.dimColor,
     dim: lerp(from.dim, to.dim, t),
     glow: lerp(from.glow, to.glow, t),
-    ridge: lerp(from.ridge, to.ridge, t),
-    litWindows: t < 0.5 ? from.litWindows : to.litWindows,
+    // 屋脊只有黄昏有：目标没有就立刻不画（关灯方向），目标有就按 lerp 渐亮。
+    ridge: to.ridge === 0 ? 0 : lerp(from.ridge, to.ridge, t),
+    litWindows: contentAt(from.litWindows, to.litWindows, t),
     mist: lerp(from.mist, to.mist, t),
     mistBand: lerp(from.mistBand, to.mistBand, t),
-    fireflies: t < 0.5 ? from.fireflies : to.fireflies,
+    fireflies: to.fireflies ? (from.fireflies ? true : t >= 0.5) : false,
   };
 }
 
@@ -108,23 +228,11 @@ export function createPhaseView(
     glows.clear();
     if (view.glow <= 0.001) return;
     const addGlow = (cx: number, cy: number, w: number, h: number, alpha: number): void => {
-      const a = alpha * view.glow;
-      glows.fillStyle(paletteFor().amber, a);
-      glows.fillRect(Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h));
-      glows.fillStyle(paletteFor().amber, a * 0.55);
-      glows.fillRect(
-        Math.round(cx - w / 2) + 1,
-        Math.round(cy - h / 2) + 1,
-        Math.max(1, Math.round(w) - 2),
-        Math.max(1, Math.round(h) - 2),
-      );
-      glows.fillStyle(paletteFor().warmLight, a * 1.15);
-      glows.fillRect(
-        Math.round(cx - w / 4),
-        Math.round(cy - h / 4),
-        Math.max(1, Math.round(w / 2)),
-        Math.max(1, Math.round(h / 2)),
-      );
+      const plan = glowLayers(cx, cy, w, h, alpha * view.glow * GLOW_GAIN);
+      for (const layer of plan.layers) {
+        glows.fillStyle(paletteFor()[layer.token], layer.alpha);
+        glows.fillRect(layer.x, layer.y, layer.w, layer.h);
+      }
     };
 
     for (const building of snapshot.buildings) {
@@ -238,6 +346,10 @@ export function createPhaseView(
       targetPhase = next;
       t = 0;
       glowKey = '';
+      // 旧辉光层的 commandBuffer 要立刻清掉：不然 `setPhase()` 之后、下一次
+      // `update()` 之前读 `renderStats()`，会把上一刻的 2,840 条算进新时相。
+      // 这是 MAT-G7 的复现路径；下一次 update 本来就会按 `glowKey=''` 重画。
+      glows.clear();
     },
     currentPhase(): PhaseId {
       return targetPhase;

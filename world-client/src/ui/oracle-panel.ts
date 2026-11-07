@@ -38,6 +38,33 @@ export function prepareUtterance(raw: string): UtteranceCheck {
   return { ok: true, text };
 }
 
+/** 一个容器的子树读数；`graphicsObjects` / `totalCommands` 已含它内部所有嵌套容器。 */
+export interface RenderLayerReading {
+  /** 容器路径：楼体容器按楼号命名（`<id>.back` / `.body` / `.front`），其余用 `top[i]` 下标链。 */
+  readonly path: string;
+  /** 1 = 顶层容器；>1 = 嵌在别的容器里。 */
+  readonly depth: number;
+  readonly graphicsObjects: number;
+  readonly totalCommands: number;
+  /** 这棵子树里的容器总数（含自身）。 */
+  readonly containers: number;
+}
+
+/**
+ * 渲染统计：递归到容器里的全部 Graphics。
+ *
+ * 旧口径只数 `children.list` 的顶层 Graphics，楼体容器里的 99 个 Graphics 不在数里；
+ * `top` 保留单看顶层的那一份，`graphicsObjects` / `totalCommands` 是整场景合计。
+ */
+export interface RenderStats {
+  readonly frame: number;
+  readonly graphicsObjects: number;
+  readonly totalCommands: number;
+  readonly top: { readonly graphicsObjects: number; readonly totalCommands: number };
+  readonly containers: readonly RenderLayerReading[];
+  readonly largest: readonly number[];
+}
+
 export interface OracleApi {
   /** 世界快照只读视图。HUD 与浏览器回归都从这里读，不另开接口。 */
   readonly view: () => WorldSnapshot;
@@ -71,12 +98,8 @@ export interface OracleApi {
   };
   /** 当前急件：上游 blocked 单的完整问题。 */
   readonly decree: () => { readonly taskId: string; readonly question: string; readonly title: string } | null;
-  /** 渲染统计：绘制对象数与指令总量。 */
-  readonly renderStats: () => {
-    readonly graphicsObjects: number;
-    readonly totalCommands: number;
-    readonly largest: readonly number[];
-  };
+  /** 渲染统计：绘制对象数与指令总量（递归含容器）。 */
+  readonly renderStats: () => RenderStats;
   /** 立刻把镜头中心对准世界坐标。 */
   readonly centerCameraOn: (x: number, y: number) => void;
   /** 只查询某格能不能建，不改变状态。 */
