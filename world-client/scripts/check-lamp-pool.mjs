@@ -180,8 +180,12 @@ function measure([r, g, b]) {
   const Y = 0.2126 * R + 0.7152 * G + 0.0722 * B;
   const Z = 0.0193 * R + 0.1192 * G + 0.9505 * B;
   const sum = X + Y + Z;
-  const x = sum === 0 ? 0 : X / sum;
-  const y = sum === 0 ? 0 : Y / sum;
+  if (sum === 0) {
+    // 纯黑没有色度信息：x=y=0 代进 McCamy 公式会算出约 2259K，那是编出来的读数。
+    return { luminance: Y, cct: null, rgb: [r, g, b], reason: '无有效像素' };
+  }
+  const x = X / sum;
+  const y = Y / sum;
   const n = (x - 0.332) / (0.1858 - y);
   const cct = 437 * n ** 3 + 3601 * n ** 2 + 6861 * n + 5514.7;
   return { luminance: Y, cct: Math.round(cct), rgb: [r, g, b] };
@@ -251,7 +255,8 @@ try {
   const encode = (file) => `data:image/png;base64,${readFileSync(file).toString('base64')}`;
   const marker = (shot, point, scale = 1) => `
     <div class="dot" style="left:${point.x * scale}px;top:${point.y * scale}px"></div>`;
-  const fmt = (m) => `Y ${m.luminance.toFixed(3)} · ${m.cct}K · rgb(${m.rgb.join(',')})`;
+  const fmt = (m) =>
+    `Y ${m.luminance.toFixed(3)} · ${m.cct === null ? '无有效像素' : `${m.cct}K`} · rgb(${m.rgb.join(',')})`;
 
   const card = (shot, label, note, w, h, scale = 1, point = null) => `
     <figure style="width:${w}px">
@@ -330,7 +335,7 @@ try {
   await browser.close();
 }
 
-const fmt = (m) => `Y ${m.luminance.toFixed(3)} ${m.cct}K`;
+const fmt = (m) => `Y ${m.luminance.toFixed(3)} ${m.cct === null ? '无有效像素' : `${m.cct}K`}`;
 for (const shot of Object.values(out)) {
   if (shot === null || typeof shot !== 'object' || !('cam' in shot)) continue;
   console.log(
@@ -350,3 +355,39 @@ console.log(
 );
 console.log(`绘制指令（灯亮满潮）：${out.lit.stats.totalCommands}，Graphics ${out.lit.stats.graphicsObjects}`);
 console.log(`并排图：${join(OUT, 'lamp-pool.png')}`);
+
+// 纯黑没有色度信息，硬算会得出约 2259K 的伪造读数，所以不给色温。
+// 但纯黑不都是故障：`force:false` 的灯灭对照组、以及衰减曲线 4/6 格远端本来
+// 就该是零光（见文件头与 DISTANCES 注释「末端 4/6 格用来证明光真的衰减到零」）。
+// 只有「灯亮态 + 池心 / 两档潮位 / 曲线 0.5–2.5 格」采到纯黑，才说明灯态没生效
+// 或取样链路坏了——那时是判据前提不成立，不是产品缺陷。
+const readings = [
+  ['灯亮（池心）', out.closeReading.lit],
+  ['灯灭（池心）', out.closeReading.dark],
+  ...out.curve.flatMap((row) => [
+    [`${row.d} 格 亮`, row.lit],
+    [`${row.d} 格 灭`, row.dark],
+  ]),
+  ['潮位低（灯亮池心）', out.tide.low.value],
+  ['潮位高（灯亮池心）', out.tide.high.value],
+];
+/** 必须点亮才有意义的读数：这些位置采到纯黑，说明前提不成立。 */
+const mustBeLit = new Set([
+  '灯亮（池心）',
+  '潮位低（灯亮池心）',
+  '潮位高（灯亮池心）',
+  ...out.curve.filter((row) => row.d <= 2.5).map((row) => `${row.d} 格 亮`),
+]);
+const zeroLight = readings.filter(([, reading]) => reading.cct === null);
+for (const [label] of zeroLight) {
+  if (mustBeLit.has(label)) continue;
+  console.error(`[零光] ${label}：rgb 全黑，没有色度信息，不给色温（不在「必须点亮」集合，不判红）。`);
+}
+const broken = zeroLight.filter(([label]) => mustBeLit.has(label));
+if (broken.length > 0) {
+  for (const [label] of broken) {
+    console.error(`[判据前提不成立] ${label}：灯亮态采到纯黑——不是「灯本来就灭」，是灯态或取样链路坏了。`);
+  }
+  console.error(`[判据前提不成立] 判红：${broken.length} 个「必须点亮」的读数没有有效像素。`);
+  process.exitCode = 1;
+}
