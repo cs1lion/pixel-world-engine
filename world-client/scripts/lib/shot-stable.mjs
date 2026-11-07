@@ -35,7 +35,7 @@
  * 退化边界：若将来改成直接读 canvas backing buffer，`CHROME` / `DYNAMIC` 的隐藏
  * 都不再相关；若 CI 的字体/抗锯齿让整块画面永远逐字节不同，这里会先卡在前提上
  * （这正是 E9 说的顺序：先定截图面，再定判据）。步进模式依赖调用方提供可复现的
- * 帧源（本仓库是 `check-ground-shadow.mjs` 的 `__stepFrames`）；没有帧源就退回
+ * 帧源（本仓库是 `scripts/lib/frame-clock.mjs` 的 `stepFrames`）；没有帧源就退回
  * 实时模式，不要自己造一个「等一会儿」的假步进。
  */
 

@@ -264,7 +264,7 @@ git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motio
 | `check-lamp-band.mjs` 负测（移走 before JSON） | **退出 1**，`[改前/改后对比] 判红：缺少改前基线JSON…` | 缺输入即红 |
 | `check-scene-motion.mjs`（5251） | 通过：13/13 确定性；灯灭池指令 0/0、帧差 0.00%；dark 帧改写 tmp | 删 dark 副本不影响脚本，tmp 仍产出该帧 |
 | `check-ground-shadow.mjs`（5251） | 通过，exit 0：判据绿；全关同刻两页 0.00%，跨 t/t+1s 0.00%；closed 组不读基线 | 删 closed-t 不影响读数 |
-| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip（删除那轮）；**2026-11-08 已修**：`docs/OPEN_ISSUES.md` 里原来的 `pixel-world-engine/docs/DESIGN_ACCEPTANCE.md` 写法靠「目录名恰好等于 pixel-world-engine」才被后缀匹配放过，改成仓内相对路径 `docs/DESIGN_ACCEPTANCE.md` 后，`audit-citations --strict` 在本工作树也是 **0 未解析**，该测试转绿。 | 环境差异不是缺陷，改写法即消除 |
+| `npm test` | 2528 tests / 2518 pass / 1 fail / 9 skip（删除那轮）；**2026-11-08 已修**：`docs/OPEN_ISSUES.md` 的 E7「复核」条（“`npm test` 唯一红是工作树目录名导致的 `audit-citations` 既有引用”）里的 pixel-world-engine/docs/DESIGN_ACCEPTANCE.md 写法靠「目录名恰好等于 pixel-world-engine」才被后缀匹配放过，改成仓内相对路径 `docs/DESIGN_ACCEPTANCE.md` 后，`audit-citations --strict` 在本工作树也是 **0 未解析**，该测试转绿。 | 环境差异不是缺陷，改写法即消除 |
 
 ## 七、E7 结案取舍
 
@@ -299,3 +299,26 @@ node scripts/check-lamp-band.mjs            # 应打印「灯亮 / 灯灭 change
 # 6) 判红验证：换种子应 exit 1，不再静默跳过
 $env:BAND_SEED='1111'; node scripts/check-lamp-band.mjs; echo "exit=$LASTEXITCODE"   # 期望 1
 ```
+
+## 九、`audit-references` 受查数口径核对（2026-11-08）
+
+受查数有三个数：**529（本工作树）**、**530（main 工作树 `7636c64`）**、**342（地板基线）**。
+它们是同一审计、同一口径、同一扫描根下的三种读数，不能混着当「当前面」引用。
+
+- **命令与读数**：`cd world-client && node scripts/audit-references.ts`，输出
+  `共查 529 处行号引用，0 处存疑`（`--strict` 同值）。扫描根由脚本位置推出，与 cwd 无关；
+  本工作树分支落后 main，脚本里还没有地板判据，所以不打印地板行。main 工作树同一命令是
+  `共查 530 处行号引用，0 处存疑` + `受查数在地板内（基线 342，允许降 7）`。
+- **342 是什么**：main 上 world-client/scripts/audit-scan-baseline.json 的 `references.checked`，
+  是 `74e4067`（「扫描根缺失与受查数缩水一律报红」）时点的**基线快照**，此后未更新。
+  把该提交的树导出后用同口径重数是 **342**，所以它不是另一个口径，而是旧基线。基线
+  `note` 写明「只防塌陷，不追增长」，因此当前面涨到 530 不会红，也不需要追着改。
+- **+187 的构成**：基线树 342 → 本工作树 529。逐文件对照只有两处差异：
+  `docs/evidence/E7_SCREENS_CONSUMPTION.md` **+186**（该提交时本文还不存在）、
+  `docs/OPEN_ISSUES.md` **+1**；其余 48 个文件逐文件读数完全一致。
+- **不是工作树差异**：两棵树都有 50 个文件含行号引用，文件名集合一致；本工作树**没有**
+  main 未合入的额外证据文档。529 与 530 差 1，是 main 比本分支多 47 个提交、在
+  `docs/OPEN_ISSUES.md` 里多出一处行号引用，与本批改动无关（本批只把一处行号引用改成
+  锚点，净减 1，不是新增）。
+- **结论**：地板值没错，错的比较对象——342 是快照地板、529/530 是当前面。合并窗口后
+  应按 main 的读法引用 530 这一量级，不写「受查面 342」。
