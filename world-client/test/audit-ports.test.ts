@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { commentKindFor, findBannedPorts } from '../scripts/audit-ports-lib.ts';
+import { REQUIRED_DIRS, REQUIRED_FILES, scanRootProblems } from '../scripts/audit-ports.ts';
 
 test('代码/字符串里的禁用端口：命中', () => {
   const source = [
@@ -55,4 +59,59 @@ test('文件类型判定：脚本走 JS 去注释，yaml/env 走 #', () => {
   assert.equal(commentKindFor('ci.yml'), 'hash');
   assert.equal(commentKindFor('.env.example'), 'hash');
   assert.equal(commentKindFor('package.json'), 'none');
+});
+
+test('期望的扫描根不存在：逐个报出来，不许静默缩水', () => {
+  // 原来 `walk()` 对着不存在的目录直接 `return`：受查文件数悄悄变少，
+  // 输出仍是一句「0 处禁用端口」。这里拿一个空目录当假仓库，四目录 + 三文件
+  // 一个都不在，必须一条不漏。
+  const root = mkdtempSync(path.join(tmpdir(), 'pwe-ports-empty-'));
+  try {
+    const problems = scanRootProblems(root);
+    assert.equal(problems.length, REQUIRED_DIRS.length + REQUIRED_FILES.length);
+    assert.deepEqual(
+      problems.map((p) => p.scanRoot),
+      [...REQUIRED_DIRS, ...REQUIRED_FILES],
+    );
+    for (const p of problems) {
+      assert.equal(p.expected, path.join(root, p.scanRoot));
+      assert.equal(p.actual, 'ENOENT');
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('期望的根是文件而不是目录，也要报', () => {
+  // 存在但形状不对，与不存在一样会让 `walk()` 静默空转；不能只看「在不在」。
+  const root = mkdtempSync(path.join(tmpdir(), 'pwe-ports-shape-'));
+  try {
+    for (const rel of REQUIRED_DIRS) {
+      if (rel !== 'server') mkdirSync(path.join(root, rel), { recursive: true });
+    }
+    for (const rel of REQUIRED_FILES) {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), '{}\n', 'utf8');
+    }
+    writeFileSync(path.join(root, 'server'), 'not a directory\n', 'utf8');
+    const problems = scanRootProblems(root);
+    assert.deepEqual(problems.map((p) => p.scanRoot), ['server']);
+    assert.equal(problems[0]!.actual, '不是目录');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('根都在时一条问题都不报', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'pwe-ports-ok-'));
+  try {
+    for (const rel of REQUIRED_DIRS) mkdirSync(path.join(root, rel), { recursive: true });
+    for (const rel of REQUIRED_FILES) {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), '{}\n', 'utf8');
+    }
+    assert.deepEqual(scanRootProblems(root), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
