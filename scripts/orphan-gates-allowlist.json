@@ -1,7 +1,7 @@
 {
   "schema": "pwe-orphan-gates-allowlist/2",
-  "pendingCiBudget": 19,
-  "manualBudget": 8,
+  "pendingCiBudget": 23,
+  "manualBudget": 11,
   "obsoleteBudget": 1,
   "budgetLedger": [
     {
@@ -10,6 +10,14 @@
       "reason": "基线快照：把「上限」改成「等值断言」，固化本轮结束时的 pending-ci 19 / manual 8 / obsolete 1；不是新增豁免",
       "pendingCi": 19,
       "manual": 8,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-07",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "7 条盲区候选按有无客观判红分别归 manual / pending-ci",
+      "pendingCi": 23,
+      "manual": 11,
       "obsolete": 1
     }
   ],
@@ -210,6 +218,55 @@
       "reason": "单进程测试入口（--experimental-test-isolation=none），本地提速用",
       "acceptedBecause": "与 npm test 跑同一批用例，只是跑法变体，没有独立回归价值",
       "blockedBy": "删除建议：与 npm test 同批用例，只是 --experimental-test-isolation=none 的跑法变体"
+    },
+    {
+      "id": "file:world-client/scripts/homecoming-analyze.py",
+      "kind": "manual",
+      "reason": "回家取证的裁图读数：室内区域包围盒、唯一色数、调色板外色数",
+      "acceptedBecause": "只输出 analysis.json 与读数，没有可自动判定的红绿",
+      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/interior-analyze.py",
+      "kind": "manual",
+      "reason": "内景取证裁图的读数：房间包围盒、色数、冻结差、过渡中点差",
+      "acceptedBecause": "只输出 analysis.json 与读数，没有可自动判定的红绿",
+      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/material-analyze.py",
+      "kind": "manual",
+      "reason": "材质证据的裁图与像素读数：世界坐标切窗、源色分布/纹理能量/同材质格重复率",
+      "acceptedBecause": "只输出读数与放大图，没有可自动判定的红绿",
+      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+    },
+    {
+      "id": "file:world-client/scripts/screens-diff.py",
+      "kind": "pending-ci",
+      "reason": "截图三层差判据（精确/可见/8 连通结构块），供 verify-screens-diff-selfcheck.py 正/反向自检",
+      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
+      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
+    },
+    {
+      "id": "file:world-client/scripts/verify-animation-baseline.mjs",
+      "kind": "pending-ci",
+      "reason": "动画基线账本结构校验（157 行），verify-all 的 animation-baseline 项",
+      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
+      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
+    },
+    {
+      "id": "file:world-client/scripts/verify-ledger-selfcheck.ts",
+      "kind": "pending-ci",
+      "reason": "指标账本与旁证分桶的自检，verify-all 的 eval-ledger 项",
+      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
+      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
+    },
+    {
+      "id": "file:world-client/scripts/verify-screens-diff-selfcheck.py",
+      "kind": "pending-ci",
+      "reason": "结构差判据的正/反向自检（绿例与必红例），verify-all 的 screens-diff-selfcheck 项",
+      "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
+      "blockedBy": "有客观退出码，缺的是接线：4 条的消费方都是 verify-all.mjs，该聚合器不在 CI，且带 when 与 allowExit2，须先证明 allowExit2 不掩盖失败"
     }
   ]
 }
