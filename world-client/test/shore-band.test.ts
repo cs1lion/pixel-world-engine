@@ -1345,6 +1345,21 @@ test('J9 不变量：每条水陆边的贴水 1px 带必须是湿端 token（拐
       + `无岸型 ${skipped.length} 条（${skippedTerrains.join('/') || '无'}）`,
   );
 
+  // 无岸型边的构成必须逐类钉住：`tree` 90 是 `grid.border: 1` 的边框环，
+  // `plaza` 9 是水口南岸。上面那条「只能是 land 名单之外」对任何新地形都成立，
+  // 所以它不会把 `sand`/`mud` 拦下来；这一条会——新地形落进分母时先重判岸型。
+  const skippedByName = skipped.reduce<Record<string, number>>((acc, edge) => {
+    const name = String(edge.terrain);
+    acc[name] = (acc[name] ?? 0) + 1;
+    return acc;
+  }, {});
+  assert.deepEqual(
+    skippedByName,
+    { tree: 90, plaza: 9 },
+    `无岸型边的构成变了：${JSON.stringify(skippedByName)}——`
+      + 'tree 90 是边框环、plaza 9 是水口南岸；扩图或新增地形时先重判并补带',
+  );
+
   // 证伪：石材与草岸各改一处贴水像素，同一个检查器都必须报出来。
   for (const kind of ['stone', 'grass'] as const) {
     const config = configs.find((entry) => entry.land.includes(kind))!;
