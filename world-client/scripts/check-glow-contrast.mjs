@@ -1,42 +1,32 @@
 /**
- * KB 要点 4 的可测判据：**发光块的亮度比 + 周边材质数**。
+ * 要点 4 的**读数工具**：发光块的亮度比、周边材质构成、通道峰值、局部压暗机制。
  *
- * KB 原文（D:\project\pixel-world-engine 的 docs/DESIGN_ACCEPTANCE.md，另一棵只读树，不在本仓）：
- *   「黄昏固定机位下，以最亮窗/灯为中心取 8×8 patch、其外 32×32 环形 annulus，要求
- *     (meanL(patch) − meanL(annulus)) / 255 ≥ 0.18；同一机位 noon 相位的同一 patch 该比值
- *     必须 < 0.10；annulus 内至少出现 3 种地形 token 色。」
+ * **身份（2026-11-07 起）：只读数，不判定；退出码恒 0。不是闸门，也不在 CI。**
+ * 旧的绝对差阈值 `0.18 / 0.10` 没有实测来源，形式又随全屏 dim 漂移，已判定失效；
+ * `T_dusk` / `T_noon` 一律「未标定」，不得把它们当目标值引用。要进闸门，先按
+ * OPEN_ISSUES H1 的有界相对量 `D` 标定（`ANNULUS_FLOOR = 32`），标定前只输出读数。
  *
- * 可测形式（本条判据的取样区域 / 阈值 / 比较对象）
- * ----------------------------------------------
+ * 量什么
+ * ------
  * - **取样区域**：固定机位 = `lamp_post_10` 的池心 (832,522)，zoom 1，视口 1010×700。
  *   在该帧 `debugLampUnits()` 里逐盏量灯体 8×8 世界像素，取最亮的一盏，再以它 8×8 内
  *   最亮的像素为**中心**。patch = 中心 ±4 世界 px；annulus = 中心 ±16 世界 px 的方框
  *   减去 patch（即「其外」）。
- * - **单位**：8×8 / 32×32 按**世界像素**（= 设计像素）取。截图是 2× 渲染，所以截图里
- *   patch 16×16、annulus 64×64。理由：截图像素口径下 annulus 只有 16×16 世界 px（一格），
- *   一格只有一种地形，KB 的「≥3 种地形 token」永远不可能满足——两条要求只在设计像素
- *   口径下自洽。另报一份截图像素口径（4×4 / 16×16 世界 px）作为灵敏度参照，不参与判定。
- * - **阈值**：dusk `ratio ≥ 0.18`；noon `ratio < 0.10`；annulus 内 ≥3 种地形 token
- *   （按最近 token 色分类，覆盖 ≥1% annulus 像素才算「出现」）。阈值原样照抄，不改。
- * - **比较对象**：noon 用**同一个世界中心**、同一机位、同一 patch/annulus；灯在 noon
- *   强制关（`debugForceLamps(false)`），否则「白天的灯还亮着」会把 noon 对照废掉。
- * - **亮度**：Rec.601 `0.299R+0.587G+0.114B`，与 KB 的读数脚本
- *   measure-design-readouts.mjs 同口径（那一份也在另一棵只读树里）。
+ * - **单位**：世界像素（= 设计像素）。截图是 2× 渲染，所以截图里 patch 16×16、
+ *   annulus 64×64。另报一份截图像素口径（4×4 / 16×16 世界 px）作为灵敏度参照，
+ *   不参与任何判定。
+ * - **三个相位**：dusk / noon / dawn。noon 与 dusk 用**同一个世界中心**、同一机位；
+ *   noon 的灯强制关（`debugForceLamps(false)`），dusk / dawn 的灯强制开。
+ * - **亮度**：Rec.601 `0.299R+0.587G+0.114B`，取最终帧 8 位 sRGB，不做线性化。
+ *   `ratio = (meanL(patch) − meanL(annulus)) / 255`。这是**旧口径读数**，只为和历史
+ *   数字可比；它不是一个可用的阈值形式。
  *
- * **ratio 的定义式（可反解，不是一句「实测 0.012」）**
- * ------------------------------------------------
- * `ratio = (meanL(patch) − meanL(annulus)) / 255`
- *   - `meanL` = 对**最终帧**逐像素取 Rec.601 加权亮度，再做算术平均；
- *   - 取的是浏览器截图里的 **8 位 sRGB 值**（R/G/B 0..255），**不做线性化**、不取亮度 Y；
- *   - 所有合成（全屏 dim、alpha、ADD 光池、灯体）都已在这张最终帧里，不再拆层重算。
- *
- * 因此阈值 0.18 等价于 `patch − annulus = 45.9 luma`。反解（给定 patch 与阈值）：
- * `annulus_target = patch − 0.18 × 255`。本脚本把这两个数直接写进结果，
- * 改光池时以它为靶子，而不是拿「尽量亮」当目标。
- *
- * **读数满足 ≠ 机制实现了「局部压低周边」。** 本实现的机制是**全屏 dim + ADD 光池**：
- * annulus 没有被局部压暗，它只是在全局 dim 下一起变暗。脚本把
- * `mechanism` 单独写进结果，不用 `ratio` 通过来冒充机制通过。
+ * 另外三项读数
+ * -----------
+ * - 地形 token：annulus 内最近 token 色（RGB 距离 ≤60，覆盖 ≥1% 才算「出现」）。
+ * - 通道峰值 / 裁剪像素数：ADD 叠到 255 时能看出来；只报读数，不判红。
+ * - 局部压暗机制：同一冻结帧、只拨 `debugLampLocalShade`，annulus 的回升量（luma）。
+ *   这是「机制有没有在压周边」的读数，不是阈值判定。
  *
  * 输出只写 `tmp/screens/check-glow-contrast/`，不写 `eval/screens`。
  * 跑法：
@@ -62,19 +52,6 @@ const STEADY_A = 1090 * MIN;
 const CAMERA = { x: 832, y: 522 };
 const PATCH_W = 8;
 const ANNULUS_W = 32;
-const DUSK_MIN = 0.18;
-const NOON_MAX = 0.10;
-const TOKEN_MIN = 3;
-/** KB 反例护栏：patch 内不同颜色级数 ≥4（防止「提亮成纯白」把细节抹平）。 */
-const PATCH_LEVEL_MIN = 4;
-/**
- * 「局部压低周边」的最小可测回升量（luma）。
- *
- * 同一冻结帧、只拨 `debugLampLocalShade` 一个开关、annulus 由 960 个像素取平均：
- * 量化噪声上限 ~0.01 luma，1.0 luma 已是几十倍余量。门槛不取 0 是为了挡住
- * 「关掉后画面上什么都没变，却因取整抖动判真」。
- */
-const SUPPRESSION_MIN_LUMA = 1.0;
 /**
  * `setting-scenery.ts` 里 `LAMP_SHADE_RINGS` 的镜像（世界 px / alpha），用来把实测回升
  * 反解成「几何覆盖率」再给压暗上限：外端 17 被 annulus 边 16 截断。两处必须同步改。
@@ -87,10 +64,7 @@ const SHADE_RINGS = [
 /** 调色板能拿到的最暗色（`palette-data.ts` 的 ink 0x14110d）。压暗的下限就是它。 */
 const INK_RGB = [0x14, 0x11, 0x0d];
 const INK_LUMA = 0.299 * INK_RGB[0] + 0.587 * INK_RGB[1] + 0.114 * INK_RGB[2];
-/** 灯芯可用的最亮既有色（`palette-data.ts` 的 warmLight 0xf2c879），不新增色的天花板。 */
-const WARM_RGB = [0xf2, 0xc8, 0x79];
-const WARM_LUMA = 0.299 * WARM_RGB[0] + 0.587 * WARM_RGB[1] + 0.114 * WARM_RGB[2];
-/** 「灯影响到的像素」判据：同一帧开灯/关灯 luma 差 ≥5。 */
+/** @deprecated 仅供 patchCeiling 读数（灯地盘）；不参与判定。 */
 const FOOTPRINT_DELTA = 5.0;
 /** 灯潮界的 7 个地形 token 色（`settings/dengchao/pack.ts` 的 terrainColors 解析结果）。 */
 const TERRAIN_TOKENS = [
@@ -533,43 +507,12 @@ await browser.close();
 const duskTokenCrossCheck = dusk.tokenRows;
 const tokenRows = noon.tokenRows;
 
-// 反解：阈值是 ratio，不是「annulus 绝对值」。给定 patch，ratio 就是一个 luma 差。
-//   ratio ≥ 0.18 ⇔ patch − annulus ≥ 45.9 ⇔ annulus ≤ patch − 45.9
-//   ratio < 0.10 ⇔ annulus > patch − 25.5（noon 是上界，反解给的是「不能低于多少」）
-const GAP_DUSK = DUSK_MIN * 255;
-const GAP_NOON = NOON_MAX * 255;
-const inverse = {
-  definition: 'ratio = (meanL(patch) − meanL(annulus)) / 255；meanL 是最终帧 8 位 sRGB 的 Rec.601 加权平均，不线性化',
-  gapLumaDusk: GAP_DUSK,
-  gapLumaNoon: GAP_NOON,
-  dusk: {
-    patch: dusk.patch,
-    annulus: dusk.annulus,
-    annulusTarget: dusk.patch - GAP_DUSK,
-    annulusMustDrop: dusk.annulus - (dusk.patch - GAP_DUSK),
-    ambientAnnulusLampsOff: duskOff.annulus,
-    ambientPatchLampsOff: duskOff.patch,
-    poolSpill: dusk.annulus - duskOff.annulus,
-    ambientAtOrAboveTarget: duskOff.annulus >= dusk.patch - GAP_DUSK,
-    patchNeededIfAnnulusFixed: dusk.annulus + GAP_DUSK,
-    ringsOn: dusk.rings,
-    ringsOff: duskNoShade.rings,
-    ringsLampsOff: duskOff.rings,
-  },
-  noon: {
-    patch: noon.patch,
-    annulus: noon.annulus,
-    annulusMustStayAbove: noon.patch - GAP_NOON,
-    patchNeededIfAnnulusFixed: noon.annulus + GAP_NOON,
-  },
-};
-// 机制：不是看 ratio，是看「关掉局部压暗后 annulus 回升多少」。回升 ≥1.0 luma 才算真压低。
+// ratio 只是旧口径读数：0.18 / 0.10 已撤回，不再做「给定阈值反解 annulus 靶子」。
+// 机制读数：不是看 ratio，是看「关掉局部压暗后 annulus 回升多少」。只报数，不设门槛。
 const suppressionDelta = duskNoShade.annulus - dusk.annulus;
 const mechanism = {
   implementation: '全屏相位 dim（压整帧）+ 灯/窗光池 + 每盏灯三档 ink 局部压暗（环带 5–17 世界 px）',
-  localSurroundSuppression: suppressionDelta >= SUPPRESSION_MIN_LUMA,
   suppressionDelta,
-  threshold: SUPPRESSION_MIN_LUMA,
   annulusWithShade: dusk.annulus,
   annulusWithoutShade: duskNoShade.annulus,
   patchWithShade: dusk.patch,
@@ -605,24 +548,8 @@ const shadeBound = (() => {
     rings: rows,
     maxDropLuma,
     annulusIfOpaque,
-    ratioIfOpaque: (dusk.patch - annulusIfOpaque) / 255,
-    targetReachedAtOpaque: (dusk.patch - annulusIfOpaque) / 255 >= DUSK_MIN,
   };
 })();
-
-// patch 上限：不新增色、不把发光块画得比灯体更大时，patch 最多能到多少。
-const patchBound = {
-  note: 'footprint = 同一帧开灯/关灯 luma 差 ≥5 的像素；ceiling = 把 footprint 内全部推到实测最亮像素。',
-  footprintPixels: ceiling.footprintPixels,
-  footprintShare: ceiling.footprintShare,
-  maxOnLuma: ceiling.maxOn,
-  ceilLuma: ceiling.ceiling,
-  warmLumaPalette: WARM_LUMA,
-  requiredPatchVsCurrentAnnulus: inverse.dusk.patchNeededIfAnnulusFixed,
-  requiredPatchVsAmbient: duskOff.annulus + GAP_DUSK,
-  shortfallVsAmbient: duskOff.annulus + GAP_DUSK - ceiling.ceiling,
-  enoughVsAmbient: ceiling.ceiling >= duskOff.annulus + GAP_DUSK,
-};
 
 // 通道裁剪归属：灯开/灯关两帧裁剪数一样 ⇒ 这是既有 ADD 窗光，不是本轮灯改动引入。
 const clipping = {
@@ -636,37 +563,6 @@ const clipping = {
     || duskChannels.maxG !== duskOffChannels.maxG
     || duskChannels.maxB !== duskOffChannels.maxB,
 };
-
-const failures = [];
-if (!(dusk.ratio >= DUSK_MIN)) failures.push(`dusk ratio ${dusk.ratio.toFixed(3)} < ${DUSK_MIN}`);
-if (!(noon.ratio < NOON_MAX)) failures.push(`noon ratio ${noon.ratio.toFixed(3)} ≥ ${NOON_MAX}`);
-// KB 的反例护栏：只把 patch 提亮成纯白会让比值达标、但材质细节归零。patch 内灰度级数 ≥4。
-if (dusk.patchLevels < PATCH_LEVEL_MIN) {
-  failures.push(`dusk patch 只有 ${dusk.patchLevels} 级色 < ${PATCH_LEVEL_MIN}：发光块被提亮成一片纯色`);
-}
-if (!mechanism.localSurroundSuppression) {
-  failures.push(`局部压低周边未成立：关掉压暗后 annulus 只回升 ${suppressionDelta.toFixed(2)} < ${SUPPRESSION_MIN_LUMA}`
-    + '（这是「全屏 dim + 亮灯芯」而不是「压低周边」）');
-}
-if (noon.tokenCount < TOKEN_MIN) {
-  failures.push(`annulus 地形 token ${noon.tokenCount} < ${TOKEN_MIN}（noon 帧：`
-    + `${tokenRows.filter((row) => row.share >= 0.01).map((row) => row.id).join('/') || '无'}）`);
-}
-// 红线：最坏帧不许出现通道 255 裁剪。灯芯若靠 ADD 叠到饱和，这里会红。
-// 归属单独标：灯开/灯关两帧一样就是既有窗光，不是本轮灯改动引入——但**红条照留**，
-// 「既有」不等于「可以接受」。
-for (const [label, channels] of [
-  ['dusk', duskChannels], ['dusk（灯关）', duskOffChannels],
-  ['dusk（压暗关）', duskNoShadeChannels], ['dawn', dawnChannels], ['noon', noonChannels],
-]) {
-  if (channels.clipped !== 0) {
-    const source = label === 'dusk' && !clipping.attributableToLamp
-      ? '（灯关帧同样裁剪，属既有 ADD 窗光，非本轮灯改动）'
-      : '';
-    failures.push(`${label} 帧 ${channels.clipped} 个像素通道 ≥255`
-      + `（max ${channels.maxR}/${channels.maxG}/${channels.maxB}）：ADD 叠到饱和，红线${source}`);
-  }
-}
 
 const result = {
   params: {
@@ -708,16 +604,15 @@ const result = {
     patchLevels: dawn.patchLevels, tokenCount: dawn.tokenCount,
     note: '灯强制点亮；只作读数，不作判定（KB 无 dawn 阈值）',
   },
-  inverse,
   shadeBound,
-  patchBound,
+  patchCeilingReadings: ceiling,
   clipping,
   channels: { dusk: duskChannels, duskOff: duskOffChannels, duskNoShade: duskNoShadeChannels, dawn: dawnChannels, noon: noonChannels },
-  thresholds: { duskMin: DUSK_MIN, noonMax: NOON_MAX, tokenMin: TOKEN_MIN, suppressionMinLuma: SUPPRESSION_MIN_LUMA },
-  // 读数判定与机制判定分开写：阈值全过也不等于「局部压低周边」。
-  criterion: {
-    satisfied: failures.length === 0,
-    failures,
+  // 只读数、不判定：旧阈值 0.18 / 0.10 已失效，T_dusk / T_noon 未标定。
+  judgement: {
+    mode: 'read-only',
+    calibrated: { dusk: false, noon: false },
+    note: '0.18 / 0.10 已撤回，不得作为目标值；本脚本不产生红绿，退出码恒 0。',
   },
   mechanism,
   artifacts: {
@@ -736,45 +631,25 @@ const pct = (value) => `${(value * 100).toFixed(2)}%`;
 console.log(`样本：第 ${chosen.order} 盏灯（${chosen.hanging ? '灯串' : '灯柱'}）@ 世界 ${chosen.world.x},${chosen.world.y}，`
   + `中心世界 ${worldCenter.x.toFixed(1)},${worldCenter.y.toFixed(1)}；候选 ${lampRows.length} 盏，峰值 ${chosen.best.l.toFixed(1)}`);
 console.log(`dusk  patch ${dusk.patch.toFixed(2)} / annulus ${dusk.annulus.toFixed(2)} → ratio ${dusk.ratio.toFixed(3)}`
-  + `（阈值 ≥${DUSK_MIN}，${dusk.ratio >= DUSK_MIN ? '过' : '不过'}）；patch ${dusk.patchLevels} 级色（≥${PATCH_LEVEL_MIN}）`);
+  + `（T_dusk 未标定；仅读数）；patch ${dusk.patchLevels} 级色（仅读数）`);
 console.log(`noon  patch ${noon.patch.toFixed(2)} / annulus ${noon.annulus.toFixed(2)} → ratio ${noon.ratio.toFixed(3)}`
-  + `（阈值 <${NOON_MAX}，${noon.ratio < NOON_MAX ? '过' : '不过'}）`);
+  + `（T_noon 未标定；仅读数）`);
 console.log(`dawn  patch ${dawn.patch.toFixed(2)} / annulus ${dawn.annulus.toFixed(2)} → ratio ${dawn.ratio.toFixed(3)}`
-  + `（仅读数，KB 无 dawn 阈值；灯强制点亮，annulus 更亮故比值必低于 dusk）`);
-console.log(`annulus 地形 token ${noon.tokenCount} 种（noon 帧，阈值 ≥${TOKEN_MIN}）：`
+  + `（未标定相；仅读数，灯强制点亮）`);
+console.log(`annulus 地形 token ${noon.tokenCount} 种（noon 帧，仅读数）：`
   + `${tokenRows.filter((row) => row.share >= 0.01).map((row) => `${row.id} ${pct(row.share)}`).join(' / ') || '无'}`);
-console.log(`  dusk 帧同区域交叉核对：${dusk.tokenCount} 种（dim 会压偏色，不作判定用）`);
-console.log(`截图像素口径参照：dusk ${duskImagePx.ratio.toFixed(3)} / noon ${noonImagePx.ratio.toFixed(3)}`);
-console.log(`反解（dusk）：patch ${inverse.dusk.patch.toFixed(2)} 固定 ⇒ ratio≥${DUSK_MIN} 需 annulus ≤ ${inverse.dusk.annulusTarget.toFixed(2)}`
-  + `（现在 ${inverse.dusk.annulus.toFixed(2)}，还得降 ${inverse.dusk.annulusMustDrop.toFixed(2)}）`);
-console.log(`  环境下限（灯全关）：annulus ${inverse.dusk.ambientAnnulusLampsOff.toFixed(2)} / patch ${inverse.dusk.ambientPatchLampsOff.toFixed(2)}`
-  + `；光池贡献 ${inverse.dusk.poolSpill.toFixed(2)}；环境已达/超目标 = ${inverse.dusk.ambientAtOrAboveTarget ? '是（缩光池到 0 也到不了）' : '否'}`);
-console.log(`  若 annulus 不动 ⇒ patch 需到 ${inverse.dusk.patchNeededIfAnnulusFixed.toFixed(2)}`);
-console.log(`  环带衰减（世界 px，压暗开/关）：`
-  + inverse.dusk.ringsOn.map((row, i) => `[${row.from},${row.to}) ${row.mean.toFixed(1)}/${inverse.dusk.ringsOff[i].mean.toFixed(1)}`).join('  '));
-console.log(`反解（noon）：patch ${inverse.noon.patch.toFixed(2)} ⇒ ratio<${NOON_MAX} 需 annulus 不低于 ${inverse.noon.annulusMustStayAbove.toFixed(2)}`
-  + `（现在 ${inverse.noon.annulus.toFixed(2)}）`);
+console.log(`  dusk 帧同区域交叉核对：${dusk.tokenCount} 种（dim 会压偏色，仅读数）`);
+console.log(`截图像素口径参照：dusk ${duskImagePx.ratio.toFixed(3)} / noon ${noonImagePx.ratio.toFixed(3)}（不参与判定）`);
 console.log(`通道峰值：dusk ${duskChannels.maxR}/${duskChannels.maxG}/${duskChannels.maxB}（裁剪 ${duskChannels.clipped}）`
   + `；dawn ${dawnChannels.maxR}/${dawnChannels.maxG}/${dawnChannels.maxB}（裁剪 ${dawnChannels.clipped}）`
   + `；noon ${noonChannels.maxR}/${noonChannels.maxG}/${noonChannels.maxB}（裁剪 ${noonChannels.clipped}）`);
 console.log(`  裁剪归属：灯开 ${clipping.duskOn} / 灯关 ${clipping.duskOff} / 压暗关 ${clipping.duskNoShade}`
-  + ` ⇒ 本轮灯改动引入 = ${clipping.attributableToLamp ? '是' : '否（既有 ADD 窗光）'}`);
-console.log(`patch 上限（不新增色、不扩发光足迹）：灯地盘 ${patchBound.footprintPixels} 像素`
-  + `（${pct(patchBound.footprintShare)}），推满到 ${patchBound.maxOnLuma.toFixed(1)} ⇒ patch 最多 ${patchBound.ceilLuma.toFixed(2)}；`
-  + `需 ${patchBound.requiredPatchVsAmbient.toFixed(2)}（annulus 取环境最低 ${inverse.dusk.ambientAnnulusLampsOff.toFixed(2)}）`
-  + `，差 ${patchBound.shortfallVsAmbient.toFixed(2)} luma ⇒ ${patchBound.enoughVsAmbient ? '够' : '不够'}`);
-console.log(`压暗上限（按 alpha 线性外推，偏松；实测 α=1 那轮给的是 0.093）：`
+  + ` ⇒ 本轮灯改动引入 = ${clipping.attributableToLamp ? '是' : '否（既有 ADD 窗光）'}（仅读数）`);
+console.log(`patch 上限（不新增色、不扩发光足迹）：灯地盘 ${ceiling.footprintPixels} 像素`
+  + `（${pct(ceiling.footprintShare)}），推满到 ${ceiling.maxOn.toFixed(1)} ⇒ patch 最多 ${ceiling.ceiling.toFixed(2)}（仅读数）`);
+console.log(`压暗上限（按 alpha 线性外推，偏松；仅读数）：`
   + `${shadeBound.rings.map((row) => `[${row.from},${row.to}) α${row.alpha} 覆盖 ${pct(row.coveredShare)}`).join('  ')}`
-  + ` ⇒ annulus 最多降到 ${shadeBound.annulusIfOpaque.toFixed(2)}，ratio 最多 ${shadeBound.ratioIfOpaque.toFixed(3)}`
-  + `（${shadeBound.targetReachedAtOpaque ? '到 0.18' : '仍到不了 0.18'}）`);
-console.log(`机制：局部压低周边 = ${mechanism.localSurroundSuppression ? '是' : '否'}；`
-  + `关掉压暗后 annulus ${mechanism.annulusWithoutShade.toFixed(2)}（亮着时 ${mechanism.annulusWithShade.toFixed(2)}），`
-  + `回升 ${suppressionDelta.toFixed(2)} luma（门槛 ${SUPPRESSION_MIN_LUMA}）；patch 变化 ${mechanism.patchDelta.toFixed(2)}`);
-
-if (failures.length > 0) {
-  console.log(`[判据] 红（${failures.length} 条）`);
-  for (const failure of failures) console.log(`  - ${failure}`);
-  process.exitCode = 1;
-} else {
-  console.log('[判据] 绿（仅阈值读数；机制另见 mechanism）');
-}
+  + ` ⇒ annulus 最多降到 ${shadeBound.annulusIfOpaque.toFixed(2)}`);
+console.log(`机制读数：关掉压暗后 annulus ${mechanism.annulusWithoutShade.toFixed(2)}（亮着时 ${mechanism.annulusWithShade.toFixed(2)}），`
+  + `回升 ${suppressionDelta.toFixed(2)} luma；patch 变化 ${mechanism.patchDelta.toFixed(2)}（不设门槛）`);
+console.log('[读数] 完成（不判定；T_dusk / T_noon 未标定；退出码 0）');
