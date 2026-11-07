@@ -704,6 +704,8 @@ for (const sample of sampleList) {
       ? null
       : { changed: onOffDiff.changed, pixels: onOffDiff.roi.pixels, ratio: onOffDiff.ratio },
     ...(step === null ? {} : { step }),
+    // 「基底未知」计数：renderStats 里读，正常必须 0。非 0 = AO 落点那格取错了。
+    unknownBase: onShot.stats.contactAoUnknownBase ?? null,
   });
 }
 const aoStep = ao.samples.find((sample) => sample.step !== undefined)?.step ?? null;
@@ -733,6 +735,10 @@ if (aoPinned.length > 0) {
     upperSample: aoPinned.find((sample) => sample.delta === highest).id,
   };
 }
+// 「基底未知」不是缺省，是取错了落点：任何一次都得红。只在 AO 打开的页上计数
+// （`?contactAO=0` 根本不进判定，计数天然为 0，不能拿来当证据）。
+const aoUnknownBase = ao.samples.reduce((sum, sample) => sum + (sample.unknownBase ?? 0), 0);
+ao.unknownBase = aoUnknownBase;
 
 // G1：黄昏同机位，建筑与角色同时在框内，4× 对照。
 // 机位：wave_house 左墙 + 钉在 (26,27) 的人同框；避开篝火/烟/长凳（前两版都被它们污染）。
@@ -826,6 +832,7 @@ for (const sample of ao.samples) {
 console.log(`  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL ${ao.stepDelta.toFixed(2)}；`
   + `本轮 α ${AO_ALPHA}、可读基底门槛 ${AO_SUPPORTED_BASE.toFixed(2)} (测+算)`);
 console.log(`  [G3] 推断：上限 ${ao.max} = 追平该阶 → 超过会读成第二层影子；下限 ${ao.min} = 0.4×该阶 → 再淡读不出`);
+console.log(`  [G3 基底未知] ${aoUnknownBase} 次（须为 0；非 0 = AO 落点那格取错了）`);
 console.log(`  [G3 样本] 钉住 ${ao.pinnedCount} 例，覆盖 token ${ao.pinnedBases.join('/')}；`
   + `实测覆盖 token ${ao.measuredBases.join('/')}`);
 if (ao.margins) {
@@ -943,6 +950,11 @@ for (const sample of ao.samples) {
   }
   // occluded：只登记读数与可见像素比例，不判带内——它的 ROI 只有一部分可见，
   // 那个 ΔL 是可见部分的混合值，不能当干净墙角读。
+}
+
+// 「基底未知」不是缺省，是取错了落点：任何一次都得红（计算见 G3 汇总处）。
+if (aoUnknownBase !== 0) {
+  failures.push(`接触暗部「基底未知」${aoUnknownBase} 次：AO 落点那格取错了（正常必须为 0）`);
 }
 
 if (failures.length > 0) {

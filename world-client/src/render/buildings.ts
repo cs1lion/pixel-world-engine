@@ -22,6 +22,7 @@ import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
 import { DOOR, doorRect, type DoorMetrics } from './building-proportions.ts';
 import { drawDecal, roofHeight } from './decal.ts';
+import { shouldDrawContactAo } from './contact-ao.ts';
 import type { NarrativeHint } from '../world/memory/hints.ts';
 
 export { BUILDING_DEPTH };
@@ -39,13 +40,7 @@ function contactAoEnabled(): boolean {
   return value !== '0' && value !== 'off';
 }
 
-/** 0xRRGGBB 的 Rec.709 亮度；接触暗部「必须压暗」这一条按它判，不靠肉眼。 */
-function lumaOf(color: number): number {
-  const r = (color >> 16) & 0xff;
-  const g = (color >> 8) & 0xff;
-  const b = color & 0xff;
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
+export { contactAoUnknownBaseCount, lumaOf } from './contact-ao.ts';
 
 export interface BuildingView {
   /** 地面层：三步投影 + 门口光池，depth = ALTITUDE + baseY - 2。 */
@@ -226,8 +221,11 @@ export function drawBuildingDecals(
  * `ink` 下可读基底里最暗的 stone（90.55）读 8.09、最亮的 plaza（134.09）读 13.28；
  * 抬 α 会把 plaza 推出上限，降 α 会让 stone 跌破下限。
  *
- * 兜底：合成后若比基底亮（有人把阴影色改浅到比基底还亮），**直接不产出这块矩形**，
- * 而不是画一块提亮的矩形。判据脚本里另有断言「对任一基底 ΔL > 0」会把这种情况判红。
+ * 兜底（判在 `contact-ao.ts`）：合成后若比基底亮（有人把阴影色改浅到比基底还亮），
+ * **直接不产出这块矩形**，而不是画一块提亮的矩形。判据脚本里另有断言「对任一基底 ΔL > 0」
+ * 会把这种情况判红。**基底未知（调用方没传落点那格）同样不画，并计数**——把「不知道」
+ * 当「安全」放行等于默认它是亮底；`renderStats().contactAoUnknownBase` 断言为 0，
+ * 出现即说明 `terrainBaseOf(...)` 取错位置，是红事，不是缺省行为。
  */
 function drawGroundShadow(
   scene: Phaser.Scene,
@@ -252,8 +250,8 @@ function drawGroundShadow(
   // 不靠「旁边找一块看起来差不多的地」当基准（那种基准常落在另一个地形 token 上）。
   if (contactAoEnabled()) {
     const shade = paletteFor().ink;
-    // 只在「确实会变暗」时产出：基底未知（单测）时不拦；已知就按 Rec.709 亮度比。
-    if (groundBase === undefined || lumaOf(shade) < lumaOf(groundBase)) {
+    // 未知基底不画（并按「取错落点」计数）；已知基底只在确实会变暗时画。
+    if (shouldDrawContactAo(groundBase, shade)) {
       g.fillStyle(shade, 0.12);
       g.fillRect(-4, h, 4, 4);
     }

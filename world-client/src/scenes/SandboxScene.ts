@@ -101,6 +101,7 @@ type OracleSurfaces = OracleApi &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
 import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
+import { contactAoUnknownBaseCount } from '../render/contact-ao.ts';
 import {
   createVillager,
   drawVillagerGroundShadow,
@@ -445,6 +446,12 @@ export class SandboxScene extends Phaser.Scene {
   private forcedLamps: boolean | null = null;
   /** 灯柱/灯串的三支动态开关；缺省全开，证据脚本逐支关掉取对照。 */
   private lampMotion: LampMotion = LAMP_MOTION_ON;
+  /**
+   * 灯周围「局部压低周边」的开关；`debugLampLocalShade` 写这里。缺省开。
+   * 证据脚本在同一冻结帧上关掉它，量 annulus 回升多少——用来区分
+   * 「真把周边压暗」和「只是全屏 dim」。
+   */
+  private lampLocalShade = true;
   /** 摊位两支动态开关（棚布/盖布摆动、火光跳动）；缺省全开。 */
   private stallMotion: StallMotion = STALL_MOTION_ON;
   /** 幌布两支动态开关（布身摆动、沿墙投影）；缺省全开。 */
@@ -4159,6 +4166,8 @@ export class SandboxScene extends Phaser.Scene {
           graphicsObjects: graphics.length,
           totalCommands: counts.reduce((sum, n) => sum + n, 0),
           largest: [...counts].sort((a, b) => b - a).slice(0, 5),
+          /** 接触暗部「基底未知」次数：正常应为 0；非 0 说明 AO 落点那格取错了。 */
+          contactAoUnknownBase: contactAoUnknownBaseCount(),
         };
       },
       /** 立刻把镜头中心对准世界坐标（不带动画）。小地图跳转与测试都用它。 */
@@ -4326,6 +4335,14 @@ export class SandboxScene extends Phaser.Scene {
        */
       debugForceLamps: (on: boolean | null): boolean | null => {
         this.forcedLamps = on;
+        return on;
+      },
+      /**
+       * 灯周围「局部压低周边」的开关。同一冻结帧上关掉它，annulus 会回升——
+       * 回升多少就是「真压低」的证据（check-glow-contrast.mjs 的机制项）。
+       */
+      debugLampLocalShade: (on: boolean): boolean => {
+        this.lampLocalShade = on;
         return on;
       },
       /**
@@ -4791,6 +4808,7 @@ export class SandboxScene extends Phaser.Scene {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
       litOverride: this.forcedLamps ?? undefined,
+      localShade: this.lampLocalShade,
       motion: this.lampMotion,
       stalls: this.stallMotion,
       banners: this.bannerMotion,

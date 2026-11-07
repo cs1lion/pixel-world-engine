@@ -310,6 +310,11 @@ export interface DebugOracle {
    */
   debugForceLamps?(on: boolean | null): boolean | null;
   /**
+   * 灯周围「局部压低周边」的开关（缺省开）。同一冻结帧上关掉它，annulus 会回升；
+   * 回升量是「真压低」与「只是全屏 dim」的分界，由证据脚本比较。
+   */
+  debugLampLocalShade?(on: boolean): boolean;
+  /**
    * 灯柱/灯串的三支动态开关。缺省全开；证据脚本逐支关掉取「关掉时帧差为 0」的对照。
    */
   debugLampMotion?(patch: { ignite?: boolean; breathe?: boolean; sway?: boolean }): {

@@ -12,11 +12,13 @@
     "now": 65400000,
     "phase": [
       "dusk",
-      "noon"
+      "noon",
+      "dawn"
     ],
     "lamps": {
       "dusk": "forced-on",
-      "noon": "forced-off"
+      "noon": "forced-off",
+      "dawn": "forced-on（仅读数，KB 无阈值）"
     },
     "units": {
       "patch": "8×8 世界 px",
@@ -48,9 +50,9 @@
     "lampCount": 10
   },
   "dusk": {
-    "patch": 84.65312499999983,
-    "annulus": 81.48913958333563,
-    "ratio": 0.012407785947702761,
+    "patch": 99.24418749999974,
+    "annulus": 82.76787604166874,
+    "ratio": 0.06461298611110194,
     "patchBox": [
       200,
       76,
@@ -66,34 +68,34 @@
     "tokenCountDuskFrame": 5,
     "tokensDuskFrame": [
       {
-        "id": "farm",
-        "pixels": 1224,
-        "share": 0.31875
+        "id": "charcoal(coal)",
+        "pixels": 1456,
+        "share": 0.37916666666666665
       },
       {
-        "id": "charcoal(coal)",
-        "pixels": 864,
-        "share": 0.225
+        "id": "farm",
+        "pixels": 1116,
+        "share": 0.290625
       },
       {
         "id": "grass",
-        "pixels": 684,
-        "share": 0.178125
+        "pixels": 164,
+        "share": 0.042708333333333334
       },
       {
         "id": "plaza",
-        "pixels": 120,
-        "share": 0.03125
+        "pixels": 104,
+        "share": 0.027083333333333334
       },
       {
         "id": "soil(tree/mud)",
-        "pixels": 60,
-        "share": 0.015625
+        "pixels": 96,
+        "share": 0.025
       },
       {
         "id": "stone",
-        "pixels": 16,
-        "share": 0.004166666666666667
+        "pixels": 32,
+        "share": 0.008333333333333333
       },
       {
         "id": "moss(shallow)",
@@ -104,9 +106,10 @@
     "classifiedShare": 0.775,
     "imagePxVariant": {
       "patch": 88.48318750000007,
-      "annulus": 84.20014166666564,
-      "ratio": 0.01679625816993893
-    }
+      "annulus": 93.92751666666618,
+      "ratio": -0.02135031045751415
+    },
+    "patchLevels": 6
   },
   "noon": {
     "patch": 96.29884375000036,
@@ -157,32 +160,256 @@
       "ratio": 0.019813366013073732
     }
   },
+  "duskLampsOff": {
+    "patch": 84.65312499999983,
+    "annulus": 79.8713614583368,
+    "ratio": 0.01875201388887461
+  },
+  "dawn": {
+    "patch": 102.63703125000016,
+    "annulus": 86.1552208333325,
+    "ratio": 0.06463455065359865,
+    "patchLevels": 6,
+    "tokenCount": 5,
+    "note": "灯强制点亮；只作读数，不作判定（KB 无 dawn 阈值）"
+  },
+  "inverse": {
+    "definition": "ratio = (meanL(patch) − meanL(annulus)) / 255；meanL 是最终帧 8 位 sRGB 的 Rec.601 加权平均，不线性化",
+    "gapLumaDusk": 45.9,
+    "gapLumaNoon": 25.5,
+    "dusk": {
+      "patch": 99.24418749999974,
+      "annulus": 82.76787604166874,
+      "annulusTarget": 53.34418749999974,
+      "annulusMustDrop": 29.423688541669,
+      "ambientAnnulusLampsOff": 79.8713614583368,
+      "ambientPatchLampsOff": 84.65312499999983,
+      "poolSpill": 2.8965145833319355,
+      "ambientAtOrAboveTarget": true,
+      "patchNeededIfAnnulusFixed": 128.66787604166873,
+      "ringsOn": [
+        {
+          "from": 5,
+          "to": 9,
+          "pixels": 864,
+          "mean": 85.44840393518525
+        },
+        {
+          "from": 9,
+          "to": 13,
+          "pixels": 1376,
+          "mean": 84.12694113372002
+        },
+        {
+          "from": 13,
+          "to": 16,
+          "pixels": 1368,
+          "mean": 78.22090131578933
+        }
+      ],
+      "ringsOff": [
+        {
+          "from": 5,
+          "to": 9,
+          "pixels": 864,
+          "mean": 85.84027546296294
+        },
+        {
+          "from": 9,
+          "to": 13,
+          "pixels": 1376,
+          "mean": 86.28283430232413
+        },
+        {
+          "from": 13,
+          "to": 16,
+          "pixels": 1368,
+          "mean": 79.99318713450275
+        }
+      ],
+      "ringsLampsOff": [
+        {
+          "from": 5,
+          "to": 9,
+          "pixels": 864,
+          "mean": 81.5169976851853
+        },
+        {
+          "from": 9,
+          "to": 13,
+          "pixels": 1376,
+          "mean": 85.91495348837056
+        },
+        {
+          "from": 13,
+          "to": 16,
+          "pixels": 1368,
+          "mean": 73.0662660818702
+        }
+      ]
+    },
+    "noon": {
+      "patch": 96.29884375000036,
+      "annulus": 89.63111145833358,
+      "annulusMustStayAbove": 70.79884375000036,
+      "patchNeededIfAnnulusFixed": 115.13111145833358
+    }
+  },
+  "shadeBound": {
+    "note": "coveredShare = 实测回落 / (当前 alpha ×（关压暗时该环均值 − ink luma）) = 这环真正被压到的像素占比；opaqueDrop = 该环在 alpha=1 时最多能压掉的 luma。",
+    "inkLuma": 17.441,
+    "rings": [
+      {
+        "from": 5,
+        "to": 9,
+        "alpha": 0.2,
+        "pixels": 864,
+        "meanWithShade": 85.44840393518525,
+        "meanWithoutShade": 85.84027546296294,
+        "drop": 0.3918715277776812,
+        "headroom": 68.39927546296293,
+        "coveredShare": 0.02864588295163105,
+        "opaqueDrop": 1.9593576388884058
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "alpha": 0.13,
+        "pixels": 1376,
+        "meanWithShade": 84.12694113372002,
+        "meanWithoutShade": 86.28283430232413,
+        "drop": 2.155893168604109,
+        "headroom": 68.84183430232413,
+        "coveredShare": 0.2408970326359697,
+        "opaqueDrop": 16.583793604646996
+      },
+      {
+        "from": 13,
+        "to": 16,
+        "alpha": 0.08,
+        "pixels": 1368,
+        "meanWithShade": 78.22090131578933,
+        "meanWithoutShade": 79.99318713450275,
+        "drop": 1.7722858187134136,
+        "headroom": 62.552187134502745,
+        "coveredShare": 0.35416144101055946,
+        "opaqueDrop": 22.15357273391767
+      }
+    ],
+    "maxDropLuma": 15.193534506650007,
+    "annulusIfOpaque": 67.57434153501873,
+    "ratioIfOpaque": 0.12419547437247454,
+    "targetReachedAtOpaque": false
+  },
+  "patchBound": {
+    "note": "footprint = 同一帧开灯/关灯 luma 差 ≥5 的像素；ceiling = 把 footprint 内全部推到实测最亮像素。",
+    "footprintPixels": 56,
+    "footprintShare": 0.21875,
+    "maxOnLuma": 165.102,
+    "ceilLuma": 101.90746874999977,
+    "warmLumaPalette": 203.552,
+    "requiredPatchVsCurrentAnnulus": 128.66787604166873,
+    "requiredPatchVsAmbient": 125.7713614583368,
+    "shortfallVsAmbient": 23.863892708337033,
+    "enoughVsAmbient": false
+  },
+  "clipping": {
+    "duskOn": 576,
+    "duskOff": 576,
+    "duskNoShade": 576,
+    "dawn": 0,
+    "noon": 0,
+    "attributableToLamp": false
+  },
+  "channels": {
+    "dusk": {
+      "maxR": 255,
+      "maxG": 241,
+      "maxB": 173,
+      "clipped": 576,
+      "pixels": 563520
+    },
+    "duskOff": {
+      "maxR": 255,
+      "maxG": 241,
+      "maxB": 173,
+      "clipped": 576,
+      "pixels": 563520
+    },
+    "duskNoShade": {
+      "maxR": 255,
+      "maxG": 241,
+      "maxB": 173,
+      "clipped": 576,
+      "pixels": 563520
+    },
+    "dawn": {
+      "maxR": 203,
+      "maxG": 185,
+      "maxB": 167,
+      "clipped": 0,
+      "pixels": 563520
+    },
+    "noon": {
+      "maxR": 244,
+      "maxG": 215,
+      "maxB": 189,
+      "clipped": 0,
+      "pixels": 563520
+    }
+  },
   "thresholds": {
     "duskMin": 0.18,
     "noonMax": 0.1,
-    "tokenMin": 3
+    "tokenMin": 3,
+    "suppressionMinLuma": 1
   },
   "criterion": {
     "satisfied": false,
     "failures": [
-      "dusk ratio 0.012 < 0.18"
+      "dusk ratio 0.065 < 0.18",
+      "dusk 帧 576 个像素通道 ≥255（max 255/241/173）：ADD 叠到饱和，红线（灯关帧同样裁剪，属既有 ADD 窗光，非本轮灯改动）",
+      "dusk（灯关） 帧 576 个像素通道 ≥255（max 255/241/173）：ADD 叠到饱和，红线",
+      "dusk（压暗关） 帧 576 个像素通道 ≥255（max 255/241/173）：ADD 叠到饱和，红线"
     ]
   },
   "mechanism": {
-    "implementation": "全屏相位 dim（乘色压暗整帧）+ 灯/窗 ADD 光池",
-    "localSurroundSuppression": false,
-    "note": "annulus 没有被局部压低；它随全屏 dim 一起变暗。ratio 通过只能说明「发光块在 dim 下浮出来」，不能当成本条 KB 要点所要求的「发光靠压低周边」实现。"
+    "implementation": "全屏相位 dim（压整帧）+ 灯/窗光池 + 每盏灯三档 ink 局部压暗（环带 5–17 世界 px）",
+    "localSurroundSuppression": true,
+    "suppressionDelta": 1.5288593750003656,
+    "threshold": 1,
+    "annulusWithShade": 82.76787604166874,
+    "annulusWithoutShade": 84.29673541666911,
+    "patchWithShade": 99.24418749999974,
+    "patchWithoutShade": 99.24418749999974,
+    "patchDelta": 0,
+    "note": "同一冻结帧、同一机位、同一全屏 dim，只拨 debugLampLocalShade；回升量即局部压低的净效应。"
   },
   "artifacts": {
     "dusk": {
       "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-dusk.png",
-      "bytes": 37862,
-      "sha256": "719d37b9a4431bcad3371be8fdec4c55f229cb2d7d1388feffd55fd8c13e8cf0"
+      "bytes": 39956,
+      "sha256": "f3146547b81acfec35b5d24a67783d2f4ae58ed8e720db77944b233a97ae07f2"
+    },
+    "duskNoShade": {
+      "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-dusk-noshade.png",
+      "bytes": 37863,
+      "sha256": "ab959726559306737d272f430efcf36f7e256b4c61a29aba3c0251629e11fd3d"
+    },
+    "duskOff": {
+      "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-dusk-off.png",
+      "bytes": 33751,
+      "sha256": "2e6a6d4cbd305f616c16fcaf18523b7a20de8af63b4ce6bf9d5badbead7e8256"
     },
     "noon": {
       "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-noon.png",
       "bytes": 32786,
       "sha256": "eba73394100ceb059f2cf411288b22f09109b15e6e4175ec21af09617118a2f2"
+    },
+    "dawn": {
+      "file": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-glow-contrast\\glow-dawn.png",
+      "bytes": 45816,
+      "sha256": "fa6b648dc3665f735921133f55e1f8d66f12ba9d286fe1dd1f0ebd622b455083"
     }
   },
   "errors": []

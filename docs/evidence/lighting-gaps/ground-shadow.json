@@ -241,7 +241,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
@@ -252,7 +253,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": [
@@ -501,7 +503,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
@@ -512,7 +515,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": [
@@ -752,7 +756,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
@@ -763,7 +768,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": [
@@ -1012,7 +1018,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
@@ -1023,7 +1030,8 @@
               1513,
               1304,
               1290
-            ]
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": [
@@ -1243,25 +1251,27 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 19179,
+            "totalCommands": 21473,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 18715,
+            "totalCommands": 21009,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": [
@@ -1503,25 +1513,27 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 19179,
+            "totalCommands": 21473,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 18715,
+            "totalCommands": 21009,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": [
@@ -1771,25 +1783,27 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 18603,
+            "totalCommands": 20897,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 18603,
+            "totalCommands": 20897,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": null
@@ -1986,25 +2000,27 @@
         "stats": {
           "on": {
             "graphicsObjects": 61,
-            "totalCommands": 18603,
+            "totalCommands": 20897,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           },
           "off": {
             "graphicsObjects": 61,
-            "totalCommands": 18603,
+            "totalCommands": 20897,
             "largest": [
+              3078,
               2552,
               2399,
               2010,
-              1513,
-              1304
-            ]
+              1513
+            ],
+            "contactAoUnknownBase": 0
           }
         },
         "segments": null
@@ -2054,44 +2070,44 @@
       "maxDelta": 0,
       "bbox": null
     },
-    "framesAdvanced": 71,
+    "framesAdvanced": 68,
     "nowA": 65400100,
     "nowB": 65400100
   },
   "determinism": 13,
   "determinismProbe": {
     "pass1": [
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b"
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0"
     ],
     "pass2": [
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b",
-      "d977b8033e265989b535fb58ed3f5d7a1f60fde70bb83b017a8dda3d2b1c600b"
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0",
+      "0ac80c60281e1629d82d5570ce5942bde9fa043bef3ad13fd2ac1ec192fcc5c0"
     ]
   },
-  "peakCommands": 19179,
+  "peakCommands": 21473,
   "peakBudget": 30000,
   "ao": {
     "samples": [
@@ -2119,7 +2135,8 @@
           "delta": 13.996000000000066,
           "openMean": 134.08780000000016,
           "bandMean": 120.09180000000009
-        }
+        },
+        "unknownBase": 0
       },
       {
         "id": "soot_forge#1",
@@ -2140,7 +2157,8 @@
           "changed": 64,
           "pixels": 64,
           "ratio": 1
-        }
+        },
+        "unknownBase": 0
       },
       {
         "id": "ferry_station#1",
@@ -2161,7 +2179,8 @@
           "changed": 64,
           "pixels": 64,
           "ratio": 1
-        }
+        },
+        "unknownBase": 0
       },
       {
         "id": "boiler_annex#1",
@@ -2182,7 +2201,8 @@
           "changed": 48,
           "pixels": 64,
           "ratio": 0.75
-        }
+        },
+        "unknownBase": 0
       },
       {
         "id": "tea_stall#1",
@@ -2203,7 +2223,8 @@
           "changed": 64,
           "pixels": 64,
           "ratio": 1
-        }
+        },
+        "unknownBase": 0
       },
       {
         "id": "lamp_workshop#1",
@@ -2224,7 +2245,8 @@
           "changed": 64,
           "pixels": 64,
           "ratio": 1
-        }
+        },
+        "unknownBase": 0
       }
     ],
     "min": 6,
@@ -2255,7 +2277,8 @@
       "upper": 1.0721999999997394,
       "lowerSample": "ferry_station#1",
       "upperSample": "lamp_archive#1"
-    }
+    },
+    "unknownBase": 0
   },
   "g1": {
     "camera": {
@@ -2273,6 +2296,6 @@
       "y1": 540
     },
     "path": "D:\\project\\pwe-lighting\\world-client\\tmp\\screens\\check-ground-shadow\\lighting-g1-dusk-4x.png",
-    "hash": "85d327b343998f6f7ffeed5f75b6dd334937075ba8b6aa9cc6656f079fdfe047"
+    "hash": "60076acdb8d948d4aa042ce62e5a4031a5be770c4548ea5c736630448b8d9788"
   }
 }

@@ -155,6 +155,12 @@ export interface SettingSceneryClock {
   /** 调试灯态：给了就压过时钟判据（`debugForceLamps` 写这个口子）。 */
   readonly litOverride?: boolean;
   /**
+   * 局部压低周边的开关（`debugLampLocalShade` 写这个口子）。缺省开；
+   * 证据脚本在同一帧上关掉它，量 annulus 掉了多少——这是「真压低」与
+   * 「只是全屏 dim」的分界。
+   */
+  readonly localShade?: boolean;
+  /**
    * 三支动态的开关（`debugLampMotion` 写这个口子）。缺省全开——夜街本来就该是活的；
    * 关掉哪一支，那一支就变成常量，证据脚本靠这个取「关掉时帧差为 0」的对照。
    */
@@ -294,6 +300,37 @@ const POOL_SMOOTHNESS = 12;
 
 /** 灯串每 2 格挂一盏；与 `settings/dengchao/lamp-street.ts` 的计数同一口径。 */
 const LANTERNS_PER_STRING = 6;
+
+/**
+ * 灯周围「压低周边」的档位（世界 px）：`[inner, outer)` 的方框，alpha 由内到外递减。
+ *
+ * - 内端 5：避开 8×8 的 patch（±4）与 4×6 的灯芯（竖向 ±3），压暗不许把发光块本身算进去；
+ * - 外端 17：盖住 KB 的 32×32 annulus（±16），再往外就不属于「周边」了；
+ * - 三档而不是一档：单档方框会读成一个硬边黑框，分三档才像一圈渐隐的暗部。
+ *
+ * alpha 0.20/0.13/0.08 是在 1× 下「看得出来、但不抢灯芯」的上限（见证据脚本的通道检查：
+ * 压暗只会降通道，不会产生 255 裁剪）。
+ */
+const LAMP_SHADE_RINGS = [
+  { inner: 5, outer: 9, alpha: 0.20 },
+  { inner: 9, outer: 13, alpha: 0.13 },
+  { inner: 13, outer: 17, alpha: 0.08 },
+] as const;
+
+/** 画一圈方框（中心挖空到 `inner`）：四边各一条。像素风里方框比圆环更稳、更省指令。 */
+function fillSquareRing(
+  g: Phaser.GameObjects.Graphics,
+  cx: number,
+  cy: number,
+  inner: number,
+  outer: number,
+): void {
+  const side = outer - inner;
+  g.fillRect(cx - outer, cy - outer, outer * 2, side);
+  g.fillRect(cx - outer, cy + inner, outer * 2, side);
+  g.fillRect(cx - outer, cy - inner, side, inner * 2);
+  g.fillRect(cx + inner, cy - inner, side, inner * 2);
+}
 
 export function createSettingScenery(
   scene: Phaser.Scene,
@@ -606,6 +643,8 @@ export function createSettingScenery(
       const lit = override ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
       // 三支动态的开关：缺省全开；关掉哪一支，那一支就退化成常量。
       const motion = clock.motion ?? LAMP_MOTION_ON;
+      // 局部压低周边的开关：缺省开（见 `SettingSceneryClock.localShade`）。
+      const localShade = clock.localShade ?? true;
       const phase = clock.phase;
       // 摊位落地投影：一层独立 Graphics（depth 3.1），只按相位给形状，不随帧插值。
       const groundShadows = clock.groundShadows ?? GROUND_SHADOW_MOTION_ON;
@@ -696,6 +735,21 @@ export function createSettingScenery(
           layer.fillRect(rope.x + i * segment + shift, rope.y - 22 + sag, segment, 1);
         }
       }
+      // 局部压低周边：三档方框，内圈重、外圈轻，中心 8×8（patch）那一块留空给灯芯。
+      // 这一笔就是「发光靠压低周边」的实现：它压暗灯周围的既有颜色（ink 不新增色），
+      // 不抬灯自己的亮度；同一帧关掉（`?lampLocalShade=0`）量 annulus 的回升，
+      // 就是「真压低」与「只是全屏 dim」的分界（check-glow-contrast.mjs）。
+      if (lit && localShade) {
+        for (const unit of lampUnits) {
+          const amount = Math.min(1, brightness.get(unit) ?? 0);
+          if (amount <= 0.02) continue;
+          const sway = swayOf(unit);
+          for (const ring of LAMP_SHADE_RINGS) {
+            lampLight.fillStyle(c.ink, ring.alpha * amount);
+            fillSquareRing(lampLight, unit.x + sway.dx, unit.y + sway.dy, ring.inner, ring.outer);
+          }
+        }
+      }
       // 灯体周围一圈光晕 + 灯芯；落地的那一圈在 lampPool 里，不在这里。
       if (lit) {
         for (const unit of lampUnits) {
@@ -703,15 +757,21 @@ export function createSettingScenery(
           if (amount <= 0.02) continue;
           const sway = swayOf(unit);
           lampLight.fillStyle(c.amber, (0.13 + level * 0.02) * Math.min(1, amount));
-          lampLight.fillRect(unit.x - 7 + sway.dx, unit.y - 4 + sway.dy, 14, 9);
+          lampLight.fillRect(unit.x - 5 + sway.dx, unit.y - 3 + sway.dy, 10, 7);
           lampLight.fillStyle(c.warmLight, 0.95 * Math.min(1, amount));
           lampLight.fillRect(unit.x - 2 + sway.dx, unit.y - 3 + sway.dy, 4, 6);
         }
       }
       for (const point of lights) {
+        if (lit && localShade) {
+          for (const ring of LAMP_SHADE_RINGS) {
+            lampLight.fillStyle(c.ink, ring.alpha);
+            fillSquareRing(lampLight, point.x, point.y, ring.inner, ring.outer);
+          }
+        }
         if (lit) {
           lampLight.fillStyle(c.amber, 0.13 + level * 0.02);
-          lampLight.fillRect(point.x - 7, point.y - 4, 14, 9);
+          lampLight.fillRect(point.x - 5, point.y - 3, 10, 7);
           lampLight.fillStyle(c.warmLight, 0.95);
           lampLight.fillRect(point.x - 2, point.y - 3, 4, 6);
         } else {
@@ -997,8 +1057,12 @@ function drawLampBodyAt(
     g.fillStyle(c.ink, 0.28);
     g.fillRect(x + 1, y + 1, 6, 8);
   } else {
-    g.fillStyle(c.ember, 0.32 + 0.68 * Math.min(1, amount));
+    const glow = Math.min(1, amount);
+    g.fillStyle(c.ember, 0.32 + 0.68 * glow);
     g.fillRect(x, y, 8, LAMP_BODY_H);
+    // 同灯串：灯罩本身透暖高光，中央亮芯另在 lampLight 里画（`有芯的光`）。
+    g.fillStyle(c.warmLight, 0.62 * glow);
+    g.fillRect(x + 1, y + 1, 6, 10);
   }
   g.fillStyle(c.trim, 1);
   g.fillRect(x, y, 8, 1);
@@ -1023,12 +1087,19 @@ function drawHangingLanternAt(
   g.fillRect(bx, by - 1, 7, 1);
   if (!lit) {
     g.fillStyle(paper, 1);
+    g.fillRect(bx, by, 7, 9);
   } else if (amount <= 0.02) {
     g.fillStyle(c.ink, 0.5);
+    g.fillRect(bx, by, 7, 9);
   } else {
-    g.fillStyle(paper, 0.35 + 0.65 * Math.min(1, amount));
+    const glow = Math.min(1, amount);
+    g.fillStyle(paper, 0.35 + 0.65 * glow);
+    g.fillRect(bx, by, 7, 9);
+    // 有芯的光：纸面本身透一层暖高光（既有 warmLight，不新增色）；中央亮芯另在
+    // lampLight 里画。两层叠起来才读成「有芯」——只画芯、纸面还是暗红，灯就不发光。
+    g.fillStyle(c.warmLight, 0.68 * glow);
+    g.fillRect(bx + 1, by + 1, 5, 7);
   }
-  g.fillRect(bx, by, 7, 9);
   g.fillStyle(c.trim, 1);
   g.fillRect(bx, by, 7, 1);
   g.fillStyle(c.pale, lit && amount <= 0.02 ? 0.35 : 0.75);

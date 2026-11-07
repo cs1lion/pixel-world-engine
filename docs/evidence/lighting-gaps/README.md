@@ -2,22 +2,29 @@
 
 - 日期：2026-11-07
 - 分支：`feat/lighting-gaps`
-- 证据跑时的 HEAD：`4343632`（本批改动尚未提交，见 R5）
-- 改动位置：[buildings.ts](../../../world-client/src/render/buildings.ts)（接触暗部改 `ink` 0.12、钳制「不提亮」）、
-  [SandboxScene.ts](../../../world-client/src/scenes/SandboxScene.ts)（把 AO 落点那一格的地形底色传给建筑层）、
-  [check-ground-shadow.mjs](../../../world-client/scripts/check-ground-shadow.mjs)（ΔL > 0 断言、窄带余量、放弃样本分档）、
-  [check-glow-contrast.mjs](../../../world-client/scripts/check-glow-contrast.mjs)（KB 要点 4 的可测判据）
+- 证据跑时的 HEAD：`5075d71`（本批改动尚未提交，见 R5）
+- 改动位置：
+  - [contact-ao.ts](../../../world-client/src/render/contact-ao.ts)（新）：`shouldDrawContactAo` + 未知基底计数
+  - [buildings.ts](../../../world-client/src/render/buildings.ts)：AO 改走 `shouldDrawContactAo`，接触暗部 `ink` 0.12
+  - [contact-ao.test.ts](../../../world-client/test/contact-ao.test.ts)（新）：未知 / 已知基底的计数单测
+  - [SandboxScene.ts](../../../world-client/src/scenes/SandboxScene.ts)：`renderStats().contactAoUnknownBase`、`debugLampLocalShade`
+  - [debug-panel.ts](../../../world-client/src/ui/debug-panel.ts)：`debugLampLocalShade` 的可选调试口
+  - [setting-scenery.ts](../../../world-client/src/render/setting-scenery.ts)：有芯的光（纸面 warmLight 叠层）+ 三档 ink 局部压暗
+  - [check-ground-shadow.mjs](../../../world-client/scripts/check-ground-shadow.mjs)：`[G3 基底未知]` 计数断言
+  - [check-glow-contrast.mjs](../../../world-client/scripts/check-glow-contrast.mjs)：ratio 定义式、反解、三相位、机制对照、停手判据
 
 > **本仓未接入 `audit:reports` 闸门。** 仓内没有 `audit:reports` 这个 npm script，`docs/` 下也没有对应配置。
 > 下面的 R1–R7 是按报告纪律**手工**填的：闸门缺席不等于证据缺席。
 
 ## 一句话
 
-AO 从 `deepShade` 0.15 改成 `ink` 0.12，并加了「合成后比基底亮就不产出矩形」的钳制与 ΔL > 0 断言；
-`mud` 从「−0.79 的提亮」变成「+1.79 的压暗但仍在带外」。窄带判据按实测重新声明：
-上端余量 7.7%、下端 24.3%，**任一端 <5% 才触发重新配平**。放弃样本按 `occluded`（遮挡）与
-`dark`（深底）分开登记。KB 要点 4 的可测判据已落地，现状读数 **dusk 0.012 < 0.18，不满足**；
-noon 对照 0.026 < 0.10 通过，annulus token 只名义满足；机制仍是**全屏 dim + ADD 光池**，不是局部压低周边。
+`groundBase` 未知时**不再默认画**：AO 改走 `shouldDrawContactAo`，未知基底 → 不产出矩形并累加计数；
+单测断言「已知基底不计入未知」，现场 `renderStats().contactAoUnknownBase` 实测 **0 次**（非 0 即红）。
+KB 要点 4 的判据补成可反解的：`ratio = (meanL(patch) − meanL(annulus)) / 255`，8 位 sRGB 的 Rec.601 平均、
+**不线性化**；由此反解 dusk 目标 annulus = `patch − 45.9`：旧 patch 84.65 → **38.75**，改后 patch 99.24 → **53.34**。
+光池按这个靶子改成「有芯的光」（纸面 warmLight 叠层 + 三档 ink 局部压暗，未新增色），读数
+dusk **0.065** / noon **0.026** / dawn **0.065**；仍不达 0.18。两条路都已到上限：patch 顶到 **101.91**（需 125.77），
+压暗 α=1 实测 **0.093** ⇒ **停手：这条要改美术模型**，不是调参。
 
 ## 1. G2：晨 / 午 / 昏跑同一条判据
 
@@ -63,23 +70,45 @@ AO 那一块 4×4 压在**楼左侧地面**，不在墙面：本设定集各 pre
 
 ### 2.1 AO 不许提亮：钳制 + 断言
 
-实现（[buildings.ts](../../../world-client/src/render/buildings.ts)）：
+实现（[buildings.ts](../../../world-client/src/render/buildings.ts) + 新模块
+[contact-ao.ts](../../../world-client/src/render/contact-ao.ts)）：
 
 ```ts
 if (contactAoEnabled()) {
   const shade = paletteFor().ink;         // Rec.709 亮度 23.16，比所有地形基底都暗
-  if (groundBase === undefined || lumaOf(shade) < lumaOf(groundBase)) {
+  if (shouldDrawContactAo(groundBase, shade)) {   // 基底未知 → 不画，并计数
     g.fillStyle(shade, 0.12);
     g.fillRect(-4, h, 4, 4);
   }
 }
 ```
 
+```ts
+// contact-ao.ts（纯模块，不依赖 Phaser）
+export function shouldDrawContactAo(groundBase: number | undefined, shade: number): boolean {
+  if (groundBase === undefined) {      // 「不知道」≠「安全」：不画，且记一次
+    unknownBaseCount += 1;
+    return false;
+  }
+  return lumaOf(shade) < lumaOf(groundBase);
+}
+```
+
 - **为什么换色**：`deepShade` 的亮度 44.33，**高于最深的 mud 基底**（soil `#202b35`，41.38），
   叠上去实测 −0.79（提亮）。一个叫「接触暗部」的东西变亮是语义错误，所以阴影色换成 24 色里最暗的
   `ink`（23.16）。`mud` 现在读 +1.79（仍 <6，见 2.4 的深底放弃）。
-- **钳制**：合成后比基底亮时**不产出矩形**（`groundBase` 未给的单测场景不拦）。
-- **断言**：`check-ground-shadow.mjs` 对**所有**样本（pinned / dark / occluded）先判
+- **钳制**：合成后比基底亮时**不产出矩形**（`lumaOf(shade) < lumaOf(groundBase)`）。
+- **未知基底不再默认画**（本批修正）：上一版把 `groundBase === undefined` 写进「画」的分支，
+  等于把「不知道」当「安全」。现在未知 → 不画 + `unknownBaseCount += 1`；这个计数只在
+  `contactAoEnabled()` 且真走到 `createBuilding` 时累加，别处不计。
+  - **测试断言**：`test/contact-ao.test.ts` 断言「undefined → false 且计数 +1」、
+    「已知基底（mud/grass/stone/plaza）→ true 且计数不变」、「charcoal 对 mud 为 false 但**不计入未知**」
+    （那是「提亮」分支，不是「取错落点」）。
+  - **现场断言**：`renderStats().contactAoUnknownBase` 由
+    `check-ground-shadow.mjs` 逐样本读回并汇总，**非 0 一律红**——因为非 0 只可能说明
+    `terrainBaseOf({ x: origin.x−1, y: origin.y + footprint.h })` 取错了格。
+  - **本批实测【测】**：6 个样本全为 0，汇总 `[G3 基底未知] 0 次`，判据绿（exit 0）。
+- **ΔL > 0 断言**：`check-ground-shadow.mjs` 对**所有**样本（pinned / dark / occluded）先判
   `ΔL > 0`；`ΔL ≤ 0` 一律红，不再看角色。
 - **红样例**（临时把阴影色改浅到 `charcoal` 50.66，跑完立即恢复 `ink`）【测】：
 
@@ -180,35 +209,120 @@ KB 原文（`D:\project\pixel-world-engine` 的 docs/DESIGN_ACCEPTANCE.md，另�
   （`debugForceLamps(false)`），否则「白天的灯还亮着」会把 noon 对照废掉。
 - **亮度**：Rec.601 `0.299R+0.587G+0.114B`，与 KB 的读数脚本 measure-design-readouts.mjs 同口径。
 
-### 3.2 现状读数【测】（2026-11-07，exit 1）
+### 3.2 ratio 的定义式（可反解，不是一句「实测 0.012」）
 
-| 相位 | patch meanL | annulus meanL | `(patch−annulus)/255` | 阈值 | 结果 |
-| --- | --- | --- | --- | --- | --- |
-| dusk | 84.65 | 81.49 | **0.012** | ≥ 0.18 | **不过** |
-| noon（同一世界中心） | 96.30 | 89.63 | 0.026 | < 0.10 | 过 |
-| 截图像素口径参照 dusk / noon | 88.48 / 100.80 | 84.20 / 95.75 | 0.017 / 0.020 | — | — |
+```text
+ratio = (meanL(patch) − meanL(annulus)) / 255
+```
 
-- 样本：第 21 盏灯（灯串）@ 世界 `(652,404)`，中心世界 `(648,404)`，灯体 8×8 峰值 165.1；
-  视口内候选 10 盏，按「最亮的一盏」预先钉住，没有为了读数换灯。
-- annulus 地形 token：按上述规则数到 **5 种**（noon 帧：grass 26.15% / charcoal 19.17% /
-  soil 1.56% / plaza 1.46% / farm 1.04%），≥3 名义上满足；但 `classifiedShare` 只有 0.497，
-  且大份额的 grass/charcoal 很可能来自立面/屋面——**这条只是名义满足**，不能当「annulus 真是
-  三种地面 token」的证据。
+- **不是** `(patch − annulus) / patch`：分母是 **255**（8 位满刻度），不是 patch 自身。
+  若按 patch 归一，0.18 只需 `0.18 × 84.65 = 15.24 luma`，和 KB 的 45.9 差三倍——定义先错，靶子就错。
+- `meanL` = 对**最终帧**逐像素取 Rec.601 `0.299R + 0.587G + 0.114B`，再算术平均；
+- 取浏览器截图里的 **8 位 sRGB 值**（0..255），**不做线性化**、不取亮度 Y、不拆层重算；
+- 相位 dim、光池、灯体、AO 全部已烘进这张最终帧——量的是「玩家看到的那张图」。
 
-### 3.3 现状是否满足这条 KB 要点？
+因此 `ratio ≥ 0.18 ⇔ patch − annulus = 0.18 × 255 = 45.9 luma`。反解两条，改光池时以它们为靶子：
 
-**不满足。**
+```text
+annulus_target = patch − 45.9          （固定 patch，问 annulus 要降到多少）
+patch_required = annulus + 45.9        （固定 annulus，问 patch 要升到多少）
+```
 
-- **读数**：dusk 0.012 < 0.18（差 0.168，约 42.9 luma），只有 noon 对照过。
-- **机制**：也不是「局部压低周边」——实现是**全屏相位 dim（乘色压暗整帧）+ 灯/窗 ADD 光池**。
-  annulus 没有被局部压暗，它只是和整帧一起变暗。noon 0.026 < 0.10 说明「全屏压暗冒充对比」这条
-  反例没有发生（否则 noon 也会抬高），但 dusk 起不来恰好说明：**全屏 dim 不产生局部对比**。
-- **不满足是实现的哪种选择导致的**：
-  1. **ADD 光池**：32×32 的 annulus 把灯下的光池整个包进来，annulus 被抬到 81.49，与 patch 84.65 只差 3.16。
-  2. **发光芯太小**：灯芯 4×6 世界 px，在 8×8 patch 里只占约 9/16 的像素面积，patch 均值被背景稀释到 84.65。
-  3. **全屏 dim**：patch 与 annulus 同倍压暗，比值不变——dim 越深，两边一起暗，不会把 0.012 变成 0.18。
-- **不许把「读数在阈值内」等同于「实现了局部压低周边」**：noon 的 0.026 与 token 的 5 都只是读数；
-  机制字段在脚本里单独写死 `localSurroundSuppression: false`。
+### 3.3 反解：annulus 要降到多少【算】
+
+| 口径 | patch | annulus 现状 | 目标 annulus = patch − 45.9 | 还差 |
+| --- | --- | --- | --- | --- |
+| **改前（上一批读数，用户问的那个）** | 84.65 | 81.49 | **38.75** | 42.74 |
+| **改后（有芯的光）** | 99.24 | 82.77 | **53.34** | 29.42 |
+| noon 对照（改后，上界不是下界） | 96.30 | 89.63 | 不能低于 70.80 | 现状高 18.83 → 过 |
+
+### 3.4 光池半径 / ADD 扩散范围要缩到多大【测+算】
+
+**缩到 0 也不够。** 同机位、同中心、灯全关（`debugForceLamps(false)`）的 annulus 是任何光池改动
+都到不了的**下限**（光池只会往上加）：
+
+| 量 | 值 |
+| --- | --- |
+| 灯全关 annulus / patch | **79.87 / 84.65** |
+| 光池贡献（开灯 − 关灯） | **+2.90** |
+| 目标 annulus（改前 / 改后） | 38.75 / 53.34 |
+| 关灯后仍差 | **41.12 / 26.52** |
+
+把光池半径缩到 0 最多回收 2.90 luma，缺口是它的 9–14 倍。**「缩光池」不是这条判据的杠杆。**
+
+### 3.5 patch 提亮的上限：也不够【测+算】
+
+用同一帧开灯/关灯两张图逐像素比，luma 差 ≥5 的像素算「灯的地盘」：**56/256 像素 = 21.88%**。
+把这块地盘里每个像素都推到该帧最亮的 165.1（实测峰值）：
+
+| 量 | 值 |
+| --- | --- |
+| patch 现状 | 99.24 |
+| patch 上限（不扩足迹、不新增色） | **101.91** |
+| 需要（annulus 取环境最低 79.87） | **125.77** |
+| 差 | **23.86 luma** |
+
+要补这 23.86，只能让发光块从 21.88% 占到约 65%——**把灯画得比 7×9 灯体更大**（超出既有美术边界），
+或换一个比 `warmLight` 更亮的色（红线：不许新增色）。两条都不成立 ⇒ patch 路线关闭。
+
+### 3.6 三种相位读数【测】（2026-11-07，`check-glow-contrast-three-phase.log`，exit 1）
+
+| 相位 | 灯态 | patch meanL | annulus meanL | ratio | 阈值 | 结果 |
+| --- | --- | --- | --- | --- | --- | --- |
+| dusk | 强制点亮 | 99.24 | 82.77 | **0.065** | ≥ 0.18 | **不过** |
+| noon | 强制关闭 | 96.30 | 89.63 | **0.026** | < 0.10 | 过 |
+| dawn | 强制点亮（仅读数） | 102.64 | 86.16 | **0.065** | KB 无阈值 | 仅参照 |
+
+- patch 内色阶 dusk **6 级** ≥ 4（KB 反例护栏：没被提亮成一片纯色）。
+- dawn 比 dusk 的 annulus 亮 3.39 luma、patch 亮 3.40，比值同为 0.065——说明这条对比是
+  「灯相对周边」而非「晨昏绝对亮度」。
+- annulus 地形 token（noon 帧）5 种（grass 26.15% / charcoal 19.17% / soil 1.56% / plaza 1.46% / farm 1.04%），
+  `classifiedShare` 仅 0.497，大份额来自立面/屋面——**仍只是名义满足**，不能当「三种地面 token」的证据。
+
+### 3.7 机制：`localSurroundSuppression` 凭什么能变真【测】
+
+**实现**：全屏相位 dim（压整帧）+ 灯/窗光池 + **每盏灯三档 `ink` 局部压暗**
+（环带 `[5,9)/[9,13)/[13,17)` 世界 px，α 0.20/0.13/0.08，画在 `lampLight` 层，中心留给灯芯）。
+
+**判据**：同一冻结帧、同一机位、同一全屏 dim，只拨 `debugLampLocalShade` 一个开关：
+
+| 量 | 压暗开 | 压暗关 | 差 |
+| --- | --- | --- | --- |
+| annulus meanL | 82.77 | **84.30** | **+1.53 luma** |
+| patch meanL | 99.24 | 99.24 | **0.00** |
+
+- 门槛 1.0 luma（量化噪声上限 ~0.01，量的是 960 个 annulus 像素的均值）。
+- 回升 **不能来自 dim**（dim 一个字都没动），也**不是「把灯芯挪走/改亮」**（patch 变化 0.00）
+  ⇒ 只能来自「周围的 ink 环带被撤掉」。这就是「真压低」的可测证据，不是名义 token 数。
+- **幅度要说清**：1.53 luma 只证明**机制在**，不证明**幅度够**——比值仍是 0.065。
+- 为什么只有 1.53：inner 环被光晕/灯芯盖住，外环大部分被 depth > 700 的构件/楼体压住；
+  α=1 的直测实验里真正被压到的环带像素只有 **2.02% / 13.95% / 22.26%**
+  （低 α 线性外推会高估成 2.86% / 24.09% / 35.42%，以 α=1 直测为准）。
+
+### 3.8 停手条件：逐条核对 ⇒ **这条要改美术模型**
+
+| 条件 | 核对 | 结论 |
+| --- | --- | --- |
+| ① 光池扩散超出既有美术边界 | patch 路线要发光足迹从 21.88% 扩到 ~65%（大于灯体）；压暗路线要把 `ink` 画到楼体/构件之上（改 z-order） | **触发** |
+| ② 必然产生裁剪 | 达标靠**压暗**不靠增亮，不需要新增裁剪；现状 576 px 裁剪在「灯开 / 灯关 / 压暗关」三帧完全相同、max 同为 255/241/173 ⇒ 既有 **ADD 窗光**，非本轮引入 | 未触发（但红条照留） |
+| ③ 必须新增色 | 24 色里最暗的 `ink` 推到 α=1（完全不透明）实测 annulus **75.42**、ratio **0.093**，仍不到 0.18；再往下只能加更暗的色或改全局 dim | **触发** |
+
+α=1 那轮是**临时实验**：把 `LAMP_SHADE_RINGS` 三档 α 全改 1、跑完立即恢复 0.20/0.13/0.08，
+产物留在 `check-glow-contrast-alpha1.log`（含比值 0.093、环带覆盖 2.02% / 13.95% / 22.26%）。
+
+**结论：0.18 在这套美术模型里到不了。** 本批停在这里，不为了让读数好看去扩灯体、加盖满屏、
+或引入新色。要继续只能改美术模型（发光足迹 / 周边压暗范围 / z-order），需单独批准。
+
+### 3.9 改前基线（历史读数，保留下限）
+
+| 相位 | patch | annulus | ratio |
+| --- | --- | --- | --- |
+| dusk（无芯、无压暗、光晕 14×9） | 84.65 | 81.49 | **0.012** |
+| noon（同一世界中心） | 96.30 | 89.63 | 0.026 |
+| 截图像素口径参照 dusk / noon | 88.48 / 100.80 | 84.20 / 95.75 | 0.017 / 0.020 |
+
+改前机制是**全屏 dim + ADD 光池**，`localSurroundSuppression` 在脚本里写死 `false`；
+本批用「同一帧只拨压暗开关」把这条判据变成可测，并实测为真（3.7）。
 
 ## 4. R1–R7 结构化块
 
@@ -217,94 +331,125 @@ KB 原文（`D:\project\pixel-world-engine` 的 docs/DESIGN_ACCEPTANCE.md，另�
 | 文件 | 字节 | sha256 |
 | --- | --- | --- |
 | `check-ground-shadow-green.log` | 2676 | `8f326aa75aac4887897eb338d12218dcf5c4a21878bc68c317e70e98171a93fa` |
+| `check-ground-shadow-unknown-base.log`（本批） | 2752 | `704ccfea34c88ecdab5d4d5f6ec5a1a72de67fa2c13a57055f0cfe43e88de434` |
 | `check-ground-shadow-red-ao.log` | 3000 | `e5fe55ed15e3a574fd016c15383a00b0163fd71b7987f55f8b4916bd49921331` |
-| `ground-shadow.json` | 51218 | `c32b45d52b2d5111a5f3ccba9a7fc047cb43144b40d7c53f86c515b67d3abe01` |
+| `ground-shadow.json`（本批覆盖） | 52020 | `92173c9c7ec99a235a75d0c22bd628ef7c5c870ccff91b5fc1688c6eefff4eeb` |
 | `ground-shadow-ao-on-soot_forge-1.png` | 37942 | `68fc3061568b842bd636cf541e46a6ca95a38092221e89d11dec6e2e7bae2a49` |
 | `ground-shadow-ao-off-soot_forge-1.png` | 37785 | `629c95238974664693206ee6a74f6586c2d20468772146c74e6d029e5e03060b` |
-| `check-glow-contrast.log` | 926 | `598822a5ba42d468ed36465cf4940422ac79ad0422911468c9153e63644ef807` |
-| `glow-contrast.json` | 4195 | `4800acb2ef9658c6ca3f4843997b0506fb42fe63b4b5dfe0ba6d08f86a6d8773` |
-| `glow-dusk.png` | 37862 | `719d37b9a4431bcad3371be8fdec4c55f229cb2d7d1388feffd55fd8c13e8cf0` |
+| `check-glow-contrast.log`（上一批历史） | 926 | `598822a5ba42d468ed36465cf4940422ac79ad0422911468c9153e63644ef807` |
+| `check-glow-contrast-three-phase.log`（本批） | 2636 | `42071dec60fedfaaa67bbf0010413ac4fe8934b6cf258ad8b5340a4289732028` |
+| `check-glow-contrast-alpha1.log`（本批临时实验） | 2629 | `e58d2758bca42769f3150f92ab94681acd48822d29c3e3d14905b42b4fa3067c` |
+| `glow-contrast.json`（本批覆盖） | 10825 | `2678e0ff389273fb1c6d66e053dee0d08560e21a3e4563d3393e71e855094fc3` |
+| `glow-dusk.png`（本批覆盖） | 39956 | `f3146547b81acfec35b5d24a67783d2f4ae58ed8e720db77944b233a97ae07f2` |
+| `glow-dusk-off.png`（本批） | 33751 | `2e6a6d4cbd305f616c16fcaf18523b7a20de8af63b4ce6bf9d5badbead7e8256` |
+| `glow-dusk-noshade.png`（本批） | 37863 | `ab959726559306737d272f430efcf36f7e256b4c61a29aba3c0251629e11fd3d` |
 | `glow-noon.png` | 32786 | `eba73394100ceb059f2cf411288b22f09109b15e6e4175ec21af09617118a2f2` |
+| `glow-dawn.png`（本批） | 45816 | `fa6b648dc3665f735921133f55e1f8d66f12ba9d286fe1dd1f0ebd622b455083` |
 | `ao-scan-alpha012.log` | 2714 | `dbda315106697d2c52afd1405a8afd5bb4d13171ef0a12405393c818965c707c` |
 | `lighting-g1-dusk-4x.png` | 50059 | `85d327b343998f6f7ffeed5f75b6dd334937075ba8b6aa9cc6656f079fdfe047` |
 
 `ao-scan-alpha012.log` 是上一批 `deepShade` 的探针，保留作 2.3 的历史基线；本批没有重跑探针。
+`glow-dusk.png` / `glow-noon.png` / `glow-contrast.json` / `ground-shadow.json` 被本批覆盖，
+字节与 sha 以上表为准；上一批的旧 sha 只保留在该批历史记录里。
 
 ### R2 exit（整数）
 
 | 跑 | exit | 判据行 |
 | --- | --- | --- |
-| 绿（`ink` @ 0.12，本批实现） | **0** | `[判据] 绿` |
+| 绿（`ink` @ 0.12，G3 含未知基底断言，本批） | **0** | `[判据] 绿`；`[G3 基底未知] 0 次（须为 0…）` |
 | 红（临时把阴影色改浅到 `charcoal` 50.66） | **1** | `[判据] 红（3 条）`，含 `ΔL 0.00 ≤ 0` 的语义红条 |
-| KB 要点 4（现状读数） | **1** | `[判据] 红（1 条）：dusk ratio 0.012 < 0.18` |
+| KB 要点 4（本批实现，三相位） | **1** | `[判据] 红（4 条）：dusk 0.065 < 0.18；dusk / dusk 灯关裁剪各 576（既有窗光）；机制已真但幅度不够` |
+| KB 要点 4 α=1 上限实验（临时，不作为交付读数） | **1** | `dusk ratio 0.093 < 0.18`，用于证明压暗路线到 0.18 不成立 |
 
 ### R3 比对口径
 
 - **method**：G2 = 同机位 `debugGroundShadows` 开/关，段内平均亮度差 ÷ 基底；相邻段相对落差。
   G3 = 同机位 `?contactAO=0` 再开一页，`ΔL = 关(基底) − 开`，ROI 恰为 AO 的 4×4 世界像素；
   另在同 ROI 做 on/off 像素差，数「真正变了的像素」。
-  KB4 = 同机位两页（`time=dusk` / `time=noon`），dusk 找最亮灯 → 8×8 世界 patch、32×32 annulus；
-  noon 用同一世界中心；`ratio = (meanL(patch) − meanL(annulus)) / 255`（Rec.601）。
-- **threshold**：G2 相邻段相对落差 ≥ 25%；G3 ΔL ∈ [6,14]，且**所有**样本 ΔL > 0；
-  KB4 dusk ≥ 0.18 / noon < 0.10 / annulus ≥ 3 token。
+  KB4 = 同机位三页（`time=dusk` / `time=noon` / `time=dawn`），dusk 找最亮灯 → 8×8 世界 patch、32×32 annulus；
+  noon 用同一世界中心并强制关灯；dawn 强制点亮、只作读数；另加 dusk 灯全关页（环境下限）与
+  dusk 压暗关页（机制对照），再借「开灯/关灯」两图量发光足迹与 patch 上限。
+  `ratio = (meanL(patch) − meanL(annulus)) / 255`（Rec.601，8 位 sRGB，不线性化）。
+- **threshold**：G2 相邻段相对落差 ≥ 25%；G3 ΔL ∈ [6,14]，且**所有**样本 ΔL > 0、
+  `contactAoUnknownBase` 恒 0；KB4 dusk ≥ 0.18 / noon < 0.10 / annulus ≥ 3 token /
+  patch 内色阶 ≥ 4 / 最坏帧通道 <255 / 压暗关时 annulus 回升 ≥ 1.0 luma。
 - **size**：视口 1010×700；`zoom` 1；画布内渲染 2×；G3 ROI 4×4 世界 px；KB4 patch 16×16 截图 px、
   annulus 64×64 截图 px（= 8×8 / 32×32 世界 px）；摊位 ROI `20 + span`；人物脚底 ROI ±48 / 上 70 / 下 16。
 - **shots**：每相位 stall/villager 各 on/off 1 张；另含全关同刻 2、暂停 2、确定性 13×2 帧哈希、
-  G3 6 样本 ×2 页、G1 4× 1 张、KB4 dusk/noon 各 1 张。产物只写 `world-client/tmp/screens/`，
-  不写 `eval/screens`。
+  G3 6 样本 ×2 页、G1 4× 1 张、KB4 dusk/noon/dawn + dusk-off + dusk-noshade 共 5 张。
+  产物只写 `world-client/tmp/screens/`，不写 `eval/screens`。
 - **scope**：机位 摊位 (400,470)、人物 (400,470)，人物钉格 (23,31)；KB4 机位 (832,522)；
   潮位 1；晴；相位 dawn/noon/dusk/night；世界时刻 18:10（1090 min）；落地影 depth 3.1；
-  建筑接触暗部深度随建筑层。
+  建筑接触暗部深度随建筑层；灯压暗环画在 `lampLight`（depth 700）。
 
 ### R4 basis（哪句是测的、哪句是推的）
 
 - **测**：2.2 六样本的基底/开后/ΔL；2.1 红样例的三条读数与 0/64 可见像素；2.4 的 48/64；
   KB4 的 84.65 / 81.49 / 0.012 / 96.30 / 89.63 / 0.026 / 峰值 165.1 / 候选 10 盏；
-  G2 三相位各段 strength；夜间开/关 0.00%（0 px）；确定性 13/13。
+  G2 三相位各段 strength；夜间开/关 0.00%（0 px）；确定性 13/13；
+  本批：`contactAoUnknownBase` 0/6 样本；改后 dusk 99.24 / 82.77 / 0.065、noon 96.30 / 89.63 / 0.026、
+  dawn 102.64 / 86.16 / 0.065；灯全关 annulus 79.87、patch 84.65（光池 +2.90）；
+  压暗开/关 annulus 82.77 / 84.30（+1.53 luma）、patch 不变；发光足迹 56/256 px、最亮 165.1、
+  patch 上限 101.91；α=1 实验 annulus 75.42 / ratio 0.093；裁剪 576 px 在三帧相同、max 255/241/173。
 - **推**：上限 14 = 追平既有最外阶 α0.16 的同帧实测 ΔL 14.00 → 超过会读成第二层影子
   （14.00 本身仍是「追平」，未超过）；下限 6 = 0.4×14 进位；可读基底门槛 **73.16** =
   23.16 + 6/0.12；grass 需 α ≥ 0.144、mud 需 α ≥ 0.330（由实测基底 luma 推）；
   boiler 被压住那一角的 ~172 luma（由 `116.40 = 0.75×98 + 0.25×172` 反解）；
-  「两端 <5% 不可能」的不等式（2.3）。
+  「两端 <5% 不可能」的不等式（2.3）；
+  本批：反解 annulus 目标 `patch − 45.9`（38.75 / 53.34）、`patch_required = annulus + 45.9`；
+  「光池缩到 0 也不够」（79.87 > 53.34）；「发光足迹要 ~65% 才够」＝ 由 101.91 上限推的算术，
+  不是测的；α=1 实测的环带覆盖率 2.02% / 13.95% / 22.26%。
 - 报告与本节里，带「【测】/【推】」或「实测/推断」标记的句子按上述划分。
 
 ### R5 提交状态与 sha
 
-- 证据产出于 **2026-11-07 16:59–17:00（本地）**，工作树 = `HEAD 4343632` + 本批未提交改动。
-- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha：`e75e2d2aedcc630b1f4607f5ed137eb03261533b`（`e75e2d2`）。
-  本段 sha 回填是紧随其后的 `docs(lighting)` 小提交，不改动代码与产物。
+- 本批证据产出于 **2026-11-07 18:15–18:22（本地）**，工作树 = `HEAD 5075d71` + 本批未提交改动。
+- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha 见紧随其后的
+  `docs(lighting)` 小提交回填（该小提交不改代码与产物）。
+- 上一批的提交 sha：`e75e2d2aedcc630b1f4607f5ed137eb03261533b`（代码 + 证据）、
+  其后 `5075d71` 为 sha 回填。
 - 未 push；未碰 `eval/screens`；未碰 `ci.yml`（等 `chore/orphan-gates` 合并后一次接线）；
   未碰他人工作树。
 
 ### R6 时间（产物 ≤ 报告）
 
-- 产物 mtime：2026-11-07 16:59:58（本地），全部产物同一批次写出。
-- 本 README 写入：2026-11-07 17:00（本地）；提交紧随其后。
+- 产物 mtime：2026-11-07 18:20:41（本地），本批产物同一次运行写出。
+- 本 README 写入：2026-11-07 18:30（本地）；提交紧随其后。
 - 满足「产物时间 ≤ 报告时间 ≤ 提交时间」。
-- 已知覆盖：红跑与绿跑写同一路径（`ground-shadow.json` 与 AO 截图），入库的是恢复 `ink` 后的绿跑产物；
-  红跑的读数在 `check-ground-shadow-red-ao.log` 里逐行保留。
+- 已知覆盖：绿跑与红跑写同一路径（`ground-shadow.json` 与 AO 截图），入库的是恢复 `ink` 后的绿跑产物；
+  红跑读数在 `check-ground-shadow-red-ao.log`。α=1 上限实验与正式读数写同一批截图路径，
+  入库截图取自恢复 0.20/0.13/0.08 之后的正式跑；α=1 的读数在 `check-glow-contrast-alpha1.log` 里保留。
 
 ### R7 artifacts / noArtifactsReason
 
-- `artifacts`（非空）：`check-ground-shadow-green.log`、`check-ground-shadow-red-ao.log`、
-  `ground-shadow.json`、`ground-shadow-ao-on-soot_forge-1.png`、
-  `ground-shadow-ao-off-soot_forge-1.png`、`check-glow-contrast.log`、`glow-contrast.json`、
-  `glow-dusk.png`、`glow-noon.png`、`ao-scan-alpha012.log`、`lighting-g1-dusk-4x.png`。
+- `artifacts`（非空）：`check-ground-shadow-green.log`、`check-ground-shadow-unknown-base.log`、
+  `check-ground-shadow-red-ao.log`、`ground-shadow.json`、`ground-shadow-ao-on-soot_forge-1.png`、
+  `ground-shadow-ao-off-soot_forge-1.png`、`check-glow-contrast.log`、`check-glow-contrast-three-phase.log`、
+  `check-glow-contrast-alpha1.log`、`glow-contrast.json`、`glow-dusk.png`、`glow-dusk-off.png`、
+  `glow-dusk-noshade.png`、`glow-noon.png`、`glow-dawn.png`、`ao-scan-alpha012.log`、
+  `lighting-g1-dusk-4x.png`。
 - 因为 `artifacts` 非空，**不适用 `noArtifactsReason`**；若未来某轮确实没有产物，必须在该轮写
   `noArtifactsReason`。
 - 闸门状态：**本仓未接入 `audit:reports`**（无该 npm script、无配置）；本块为手工纪律块。
+- **预算口径提醒**：`renderStats()` 仍只数**顶层** `Graphics`，楼体的 99 个 Graphics / 11,090 条命令
+  没进数。本批 G3 日志里的 `峰值指令 21473` 仍是这个旧口径，**不是定论**；等材质线的递归统计落地后
+  需按新口径重测，届时不得引用 19179/21473 作为最终峰值。
 
 ## 5. 复跑
 
 ```powershell
-# 绿（本批实现：ink 0.12）
+# 绿（本批实现：ink 0.12 + 未知基底不画，G3 会打印 [G3 基底未知] 0 次）
 $env:PIXEL_WORLD_URL="http://127.0.0.1:5301/"
 node scripts/check-ground-shadow.mjs
 
 # 红样例（临时把 buildings.ts 的阴影色改成 paletteFor().charcoal，跑完恢复 ink）
 node scripts/check-ground-shadow.mjs
 
-# KB 要点 4（dusk / noon 同机位）
+# KB 要点 4（dusk / noon / dawn 三相位 + 灯全关 + 压暗关，每次约 5 张截图）
+node scripts/check-glow-contrast.mjs
+
+# 压暗上限实验（临时把 setting-scenery.ts 的 LAMP_SHADE_RINGS 三档 α 全改 1，
+# 并把本脚本里 SHADE_RINGS 的 α 同步改 1；跑完两处都恢复 0.20/0.13/0.08）
 node scripts/check-glow-contrast.mjs
 
 # 探针（逐栋扫 AO，上一批用过；本批未重跑）
@@ -333,4 +478,6 @@ git -C D:\project\pwe-lighting checkout HEAD -- `
   [villager-layout.ts:415](../../../world-client/src/render/villager-layout.ts#L415)、
   [banner-motion.ts:85](../../../world-client/src/world/banner-motion.ts#L85)）：
   本轮不清，已登记为 [OPEN_ISSUES D7](../../OPEN_ISSUES.md) 低优先级清理项。
-- KB 要点 4 只做了「可测判据 + 现状读数」，**没有**改成局部压低周边；那是实现改动，需单独批准。
+- KB 要点 4：本批按反解出的靶子改了光池（有芯的光 + 三档局部压暗），**未达 0.18**；
+  进一步的两条路都到上限（patch 101.91 < 125.77；压暗 α=1 实测 0.093）⇒ **停手，这条要改美术模型**
+  （发光足迹 / 周边压暗范围 / z-order），需单独批准。详见 3.5–3.8。
