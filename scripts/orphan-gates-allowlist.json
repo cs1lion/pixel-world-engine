@@ -9,7 +9,7 @@
     "file:world-client/scripts/verify-ledger-selfcheck.ts",
     "file:world-client/scripts/verify-screens-diff-selfcheck.py"
   ],
-  "pendingCiBudget": 20,
+  "pendingCiBudget": 21,
   "manualBudget": 11,
   "obsoleteBudget": 1,
   "budgetLedger": [
@@ -42,6 +42,14 @@
       "approved_by": "session:6ae7eeba7914aafa364408dd",
       "reason": "第二批接线：screens-diff-selfcheck 与 screens-diff 接进 world-client job 独立 step（numpy 2.5.1 / pillow 12.3.0 锁版本），同提交删两条、pending-ci 22→20",
       "pendingCi": 20,
+      "manual": 11,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-08",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "撤回 check-ground-shadow 接线：30 轮实测 4 红（13.3%），随机红会训练人忽略红；回填 pending-ci，预算 20→21（脚本 PEAK_CEILING = 34,666 不动）",
+      "pendingCi": 21,
       "manual": 11,
       "obsolete": 1
     }
@@ -271,6 +279,13 @@
       "reason": "动画基线账本结构校验（157 行），verify-all 的 animation-baseline 项",
       "acceptedBecause": "有客观 exit 非 0，但唯一消费方是 verify-all.mjs 这个人工聚合入口",
       "blockedBy": "CI 必被 when 跳过（路径指向 pwe-anim，CI 不存在该文件）；接它的前提是 pwe-anim 证据进仓或改 when，否则接了也是假绿"
+    },
+    {
+      "id": "file:world-client/scripts/check-ground-shadow.mjs",
+      "kind": "pending-ci",
+      "reason": "落地投影 G0–G3 验收：同刻 / 跨 t+1s / 暂停 / 确定性 / 夜间影长 / 峰值指令两级口径（脚本自身 PEAK_CEILING = 34,666 不动）",
+      "acceptedBecause": "有客观 exit 非 0，但首张同刻图抓拍早于调色收敛：30 轮实测 4 红（13.3%）",
+      "blockedBy": "30 轮实测 4 红（13.3%），红因首张同刻图抓拍早于调色收敛；修法为 `shotStable`（连续 8 帧逐字节相同才允许比较），修好并验证 30 轮 0 红后重新接线"
     }
   ]
 }
