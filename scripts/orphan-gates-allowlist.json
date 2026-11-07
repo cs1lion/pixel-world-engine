@@ -1,5 +1,5 @@
 {
-  "schema": "pwe-orphan-gates-allowlist/2",
+  "schema": "pwe-orphan-gates-allowlist/3",
   "extraChecks": [
     "file:world-client/scripts/homecoming-analyze.py",
     "file:world-client/scripts/interior-analyze.py",
@@ -9,8 +9,9 @@
     "file:world-client/scripts/verify-ledger-selfcheck.ts",
     "file:world-client/scripts/verify-screens-diff-selfcheck.py"
   ],
-  "pendingCiBudget": 21,
-  "manualBudget": 15,
+  "pendingCiBudget": 29,
+  "manualBudget": 2,
+  "reportBudget": 5,
   "obsoleteBudget": 1,
   "budgetLedger": [
     {
@@ -68,9 +69,18 @@
       "pendingCi": 21,
       "manual": 15,
       "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-08",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "manual 语义重定义（四类）：manual 收窄成「有判据但需人在场/preview、无法无人值守」（15→2）；有 exit 判红路径的 8 条迁 pending-ci（21→29）；纯输出无判据的 5 条新立 report（0→5）；obsolete 不变",
+      "pendingCi": 29,
+      "manual": 2,
+      "report": 5,
+      "obsolete": 1
     }
   ],
-  "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数并占用自己的预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。三类条数必须分别等于 pendingCiBudget / manualBudget / obsoleteBudget；任何预算变更都必须同一提交追加一条带 approved_at / approved_by / reason 的 budgetLedger 记录。extraChecks 只负责命名豁免（声明它是检查，不按 check-*/audit-* 命名也算），entries 只负责孤儿豁免；接线后从 entries 删条但仍留在 extraChecks，检查总数不会因为接线反而变小。",
+  "note": "分类规则（写死，不看印象，四类）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/CI 接线/预期失败步骤）；kind=manual = 有判据但需要人在场干预、无法无人值守（先 stash src/、一次性取证）；kind=report = 纯输出、没有可自动判定的红绿——它产出的读数和图只供人看或供别的工具消费，不是闸门，不设 exit 非 0；kind=obsolete = 判据已失效或冗余，应该删，单独计数并占用自己的预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。四类条数必须分别等于 pendingCiBudget / manualBudget / reportBudget / obsoleteBudget（等值强制：不等即红，不是只打印）；任何预算变更都必须同一提交追加一条带 approved_at / approved_by / reason 的 budgetLedger 记录，末条四类计数必须与四个预算相等。report 条目在 docs/ORPHAN_GATES.md 里各有一行「为什么它不是闸门」。extraChecks 只负责命名豁免（声明它是检查，不按 check-*/audit-* 命名也算），entries 只负责孤儿豁免；接线后从 entries 删条但仍留在 extraChecks，检查总数不会因为接线反而变小。",
   "entries": [
     {
       "id": "file:world-client/scripts/check-scene-motion.mjs",
@@ -95,17 +105,17 @@
     },
     {
       "id": "file:world-client/scripts/check-lamp-band.mjs",
-      "kind": "manual",
-      "reason": "夜街灯带暗带位置与宽度读数（只读数，不判定）",
+      "kind": "pending-ci",
+      "reason": "夜街灯带暗带位置与宽度读数；客观判红只在改前/改后对比分支（缺基线产物即 exit 1），读数本身仍人工看",
       "acceptedBecause": "有 npm 入口但 CI 未调用；基线没有消费方",
-      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+      "blockedBy": "CI 接线（preview + Playwright）；改前/改后对比分支缺基线产物即 exit 1，需先补 world-client/eval/screens/lamp-band-before.{json,lit.png,dark.png}"
     },
     {
       "id": "file:world-client/scripts/check-lamp-pool.mjs",
-      "kind": "manual",
-      "reason": "街面光池亮度/色温读数（只读数，不判定）",
+      "kind": "pending-ci",
+      "reason": "街面光池亮度/色温读数；reportReadings 给出 exitCode，必须点亮的位置采到纯黑即判红",
       "acceptedBecause": "有 npm 入口但 CI 未调用",
-      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+      "blockedBy": "CI 接线（preview + Playwright）；判据已在 reportReadings，只缺环境"
     },
     {
       "id": "file:world-client/scripts/check-buttons.mjs",
@@ -130,31 +140,31 @@
     },
     {
       "id": "file:world-client/scripts/check-rain-pin.mjs",
-      "kind": "manual",
+      "kind": "report",
       "reason": "雨帧三跑与两条扰动的截图（只拍图，配对交给 screens-diff.py）",
       "acceptedBecause": "需要 preview + Playwright，尚未决定是否值得常驻 CI",
-      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+      "blockedBy": "只拍图与读数、退出码恒 0，没有任何可自动判定的红绿；配对判据在 screens-diff.py，不在这里"
     },
     {
       "id": "file:world-client/scripts/check-glow-contrast.mjs",
-      "kind": "manual",
+      "kind": "report",
       "reason": "发光块亮度比/周边材质/通道峰值/局部压暗的读数工具（00d3121 起只读数，退出码恒 0）",
-      "acceptedBecause": "main 在分支基点之后把它改成「不是闸门，也不在 CI」；合入时按命名规则被算成检查，只能登记为 manual",
-      "blockedBy": "无客观判红：只输出读数，不设 exit 非 0；D 已论证不可按当前测量标定（OPEN_ISSUES K6，证据 docs/evidence/glow-calibration/），要进闸须先补齐 K6 缺项 a–e"
+      "acceptedBecause": "main 在分支基点之后把它改成「不是闸门，也不在 CI」；它没有任何可自动判定的红绿，归 report",
+      "blockedBy": "只输出读数、不设 exit 非 0；D 已论证不可按当前测量标定（OPEN_ISSUES K6，证据 docs/evidence/glow-calibration/），要成为闸门须先补齐 K6 缺项 a–e 并定出阈值"
     },
     {
       "id": "npm:world-client#test:lamp-band",
-      "kind": "manual",
-      "reason": "npm 别名 → check-lamp-band.mjs（只读读数，不判定）",
+      "kind": "pending-ci",
+      "reason": "npm 别名 → check-lamp-band.mjs（有 exit 1 路径：缺改前基线产物）",
       "acceptedBecause": "CI 未调用，且基线无消费方",
-      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+      "blockedBy": "CI 接线；目标 check-lamp-band.mjs 还缺改前基线产物（lamp-band-before.{json,lit.png,dark.png}）"
     },
     {
       "id": "npm:world-client#test:lamp-pool",
-      "kind": "manual",
-      "reason": "npm 别名 → check-lamp-pool.mjs（只读读数，不判定）",
+      "kind": "pending-ci",
+      "reason": "npm 别名 → check-lamp-pool.mjs（reportReadings 给出 exitCode）",
       "acceptedBecause": "CI 未调用，且基线无消费方",
-      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
+      "blockedBy": "CI 接线（preview + Playwright）；判据已在目标脚本，只缺环境"
     },
     {
       "id": "npm:world-client#test:buttons",
@@ -243,16 +253,16 @@
     {
       "id": "file:world-client/scripts/check-setting-scale.mjs",
       "kind": "manual",
-      "reason": "立面尺度改前/改后对照验收",
+      "reason": "立面尺度改前/改后对照验收；有 exit 1 判据，但改前图必须先 stash src/ 再跑，无法无人值守",
       "acceptedBecause": "需 preview + Playwright，且改前图要先 stash",
-      "blockedBy": "改前图要先 stash src/，需要人在场干预"
+      "blockedBy": "需要人在场干预：改前图要先 stash src/ 再重跑；改前/改后并排图路径可离线合成，但数值读数必须来自本次抓拍"
     },
     {
       "id": "npm:world-client#test:setting-scale",
       "kind": "manual",
-      "reason": "立面尺度验收入口，目标 check-setting-scale.mjs",
+      "reason": "立面尺度验收入口，目标 check-setting-scale.mjs；判据有 exit 1，但需人在场",
       "acceptedBecause": "需 preview，人工跑",
-      "blockedBy": "目标 check-setting-scale.mjs 需先 stash src/，需要人在场干预"
+      "blockedBy": "目标 check-setting-scale.mjs 需先 stash src/，需要人在场干预，无法无人值守"
     },
     {
       "id": "npm:world-client#test:inprocess",
@@ -263,24 +273,24 @@
     },
     {
       "id": "file:world-client/scripts/homecoming-analyze.py",
-      "kind": "manual",
+      "kind": "report",
       "reason": "回家取证的裁图读数：室内区域包围盒、唯一色数、调色板外色数",
       "acceptedBecause": "只输出 analysis.json 与读数，没有可自动判定的红绿",
-      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+      "blockedBy": "没有 sys.exit/SystemExit、退出码恒 0，只能人工看图；要成为闸门须先定出包围盒/色数阈值并补 exit 路径"
     },
     {
       "id": "file:world-client/scripts/interior-analyze.py",
-      "kind": "manual",
+      "kind": "report",
       "reason": "内景取证裁图的读数：房间包围盒、色数、冻结差、过渡中点差",
       "acceptedBecause": "只输出 analysis.json 与读数，没有可自动判定的红绿",
-      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+      "blockedBy": "没有 sys.exit/SystemExit、退出码恒 0，只能人工看图；要成为闸门须先定出房间包围盒/冻结差阈值并补 exit 路径"
     },
     {
       "id": "file:world-client/scripts/material-analyze.py",
-      "kind": "manual",
+      "kind": "report",
       "reason": "材质证据的裁图与像素读数：世界坐标切窗、源色分布/纹理能量/同材质格重复率",
       "acceptedBecause": "只输出读数与放大图，没有可自动判定的红绿",
-      "blockedBy": "没有 sys.exit/SystemExit，无客观判红；只能人工看图，补判据后才可归 pending-ci"
+      "blockedBy": "没有 sys.exit/SystemExit、退出码恒 0，只能人工看图；要成为闸门须先定出纹理能量/重复率阈值并补 exit 路径"
     },
     {
       "id": "file:world-client/scripts/verify-animation-baseline.mjs",
@@ -298,31 +308,31 @@
     },
     {
       "id": "file:world-client/scripts/audit-skill-docs.ts",
-      "kind": "manual",
-      "reason": "技能文档规范审计：3 份文档 9 条发现，只 warn",
-      "acceptedBecause": "skill 线合入时新增，按命名规则算检查；脚本退出码恒 0，CI 未调用",
-      "blockedBy": "无客观判红：只输出发现清单、退出码恒 0；补上判红判据后才可归 pending-ci"
+      "kind": "pending-ci",
+      "reason": "技能文档规范审计：3 份文档 9 条发现；`--strict` 下发现即 exit 1",
+      "acceptedBecause": "skill 线合入时新增，按命名规则算检查；裸跑只 warn，但 --strict 有客观判红",
+      "blockedBy": "CI 接线（npm 入口当前不带 --strict）+ 三篇文档未补：domain.md / issue-tracker.md / triage-labels.md 各缺三件套，--strict 实测 9 处红"
     },
     {
       "id": "npm:world-client#audit:skill-docs",
-      "kind": "manual",
-      "reason": "npm 别名 → audit-skill-docs.ts（只 warn，不判定）",
-      "acceptedBecause": "CI 未调用，且脚本退出码恒 0",
-      "blockedBy": "同 audit-skill-docs.ts：无客观判红"
+      "kind": "pending-ci",
+      "reason": "npm 别名 → audit-skill-docs.ts（--strict 有 exit 1）",
+      "acceptedBecause": "CI 未调用，且别名当前不带 --strict",
+      "blockedBy": "CI 接线（别名要带 --strict）+ 三篇文档未补：domain.md / issue-tracker.md / triage-labels.md 各缺三件套，--strict 实测 9 处红"
     },
     {
       "id": "file:world-client/scripts/audit-verify-flows.ts",
-      "kind": "manual",
-      "reason": "可验证流程表登记审计：10 行 / 9 注册 / 0 问题，只 warn",
-      "acceptedBecause": "skill 线合入时新增，按命名规则算检查；脚本退出码恒 0，CI 未调用",
-      "blockedBy": "无客观判红：只输出发现清单、退出码恒 0；补上判红判据后才可归 pending-ci"
+      "kind": "pending-ci",
+      "reason": "可验证流程表登记审计：10 行 / 9 注册 / 0 问题；`--strict` 下发现即 exit 1",
+      "acceptedBecause": "skill 线合入时新增，按命名规则算检查；裸跑只 warn，但 --strict 有客观判红（当前 0 findings）",
+      "blockedBy": "CI 接线：npm 入口要带 --strict；判据与发现清单都已就绪，只缺这一处接线"
     },
     {
       "id": "npm:world-client#audit:verify-flows",
-      "kind": "manual",
-      "reason": "npm 别名 → audit-verify-flows.ts（只 warn，不判定）",
-      "acceptedBecause": "CI 未调用，且脚本退出码恒 0",
-      "blockedBy": "同 audit-verify-flows.ts：无客观判红"
+      "kind": "pending-ci",
+      "reason": "npm 别名 → audit-verify-flows.ts（--strict 有 exit 1）",
+      "acceptedBecause": "CI 未调用，且别名当前不带 --strict",
+      "blockedBy": "CI 接线：别名要带 --strict（目标脚本当前 0 findings，一接即绿）"
     },
     {
       "id": "file:world-client/scripts/check-shot-actor-pin.mjs",

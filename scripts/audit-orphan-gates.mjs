@@ -12,11 +12,14 @@
  *      `continue-on-error: true`、`if: false`、命令里的 `|| true` 会让失败
  *      穿过 CI，一律不算消费方（job 级同名字段同理）。
  *   3) 允许清单（scripts/orphan-gates-allowlist.json）里的每条必须有 id、
- *      kind（manual / pending-ci / obsolete）、reason、acceptedBecause、blockedBy；
+ *      kind（pending-ci / manual / report / obsolete）、reason、acceptedBecause、blockedBy；
  *      指向不存在的检查 → 红；已经不再孤儿 → 红；没有登记的孤儿 → 红；
- *      三类条数必须分别**等于** pendingCiBudget / manualBudget / obsoleteBudget（棘轮）；
- *      budgetLedger 末条的三个计数必须与三个预算一致，且每条都带
- *      approved_at / approved_by / reason（预算变更必须留下审批记录）。
+ *      manual = 有判据但需人在场/preview、无法无人值守；
+ *      report = 纯输出、没有可自动判定的红绿（不是闸门），blockedBy 即「为什么它不是闸门」；
+ *      四类条数必须分别**等于** pendingCiBudget / manualBudget / reportBudget / obsoleteBudget（等值强制）；
+ *      budgetLedger 末条的四类计数必须与四个预算一致，且每条都带
+ *      approved_at / approved_by / reason（预算变更必须留下审批记录；
+ *      四类之前的旧记录没有 report 计数，不追改，但末条必须补齐）。
  *
  * 退出码：0 = 全部有主；1 = 有未登记孤儿，或清单自身有问题。
  * 只用 node 内置模块，repo-harness job 不需要 npm ci。
@@ -580,8 +583,8 @@ for (const entry of parsed?.entries ?? []) {
   if (typeof entry.acceptedBecause !== 'string' || !entry.acceptedBecause.trim()) {
     problems.push(`允许清单缺 acceptedBecause：${id}`);
   }
-  if (!['manual', 'pending-ci', 'obsolete'].includes(entry.kind)) {
-    problems.push(`允许清单 kind 必须是 manual / pending-ci / obsolete：${id}`);
+  if (!['pending-ci', 'manual', 'report', 'obsolete'].includes(entry.kind)) {
+    problems.push(`允许清单 kind 必须是 pending-ci / manual / report / obsolete：${id}`);
   }
   if (typeof entry.blockedBy !== 'string' || !entry.blockedBy.trim()) {
     problems.push(`允许清单缺 blockedBy：${id}`);
@@ -598,7 +601,7 @@ const orphans = CHECK_IDS.filter((id) => !reached.has(id));
 const allowedOrphans = orphans.filter((id) => allowed.has(id));
 const newOrphans = orphans.filter((id) => !allowed.has(id));
 
-const counts = { 'pending-ci': 0, manual: 0, obsolete: 0 };
+const counts = { 'pending-ci': 0, manual: 0, report: 0, obsolete: 0 };
 for (const entry of allowed.values()) {
   if (entry.kind in counts) counts[entry.kind] += 1;
 }
@@ -606,6 +609,7 @@ for (const entry of allowed.values()) {
 const BUDGETS = [
   ['pending-ci', 'pendingCiBudget'],
   ['manual', 'manualBudget'],
+  ['report', 'reportBudget'],
   ['obsolete', 'obsoleteBudget'],
 ];
 const budgets = {};
@@ -627,11 +631,12 @@ for (const [kind, key] of BUDGETS) {
 const LEDGER_KEYS = [
   ['pending-ci', 'pendingCi'],
   ['manual', 'manual'],
+  ['report', 'report'],
   ['obsolete', 'obsolete'],
 ];
 const ledger = Array.isArray(parsed?.budgetLedger) ? parsed.budgetLedger : null;
 if (!ledger || ledger.length === 0) {
-  problems.push('允许清单缺 budgetLedger（至少一条基线记录，含 approved_at / approved_by / reason 与三类条数）');
+  problems.push('允许清单缺 budgetLedger（至少一条基线记录，含 approved_at / approved_by / reason 与四类条数）');
 } else {
   let previousAt = '';
   ledger.forEach((record, index) => {
@@ -646,7 +651,11 @@ if (!ledger || ledger.length === 0) {
       else previousAt = at;
     }
     for (const [, key] of LEDGER_KEYS) {
-      if (!Number.isInteger(record?.[key])) problems.push(`${tag} 缺整数 ${key}`);
+      if (!Number.isInteger(record?.[key])) {
+        // 四类之前的旧记录没有 report 计数：历史不追改，但末条必须补齐。
+        if (key === 'report' && index < ledger.length - 1) continue;
+        problems.push(`${tag} 缺整数 ${key}`);
+      }
     }
   });
   const last = ledger[ledger.length - 1];
@@ -664,6 +673,7 @@ const pendingCount = counts['pending-ci'];
 
 const allowedManual = allowedOrphans.filter((id) => allowed.get(id).kind === 'manual').length;
 const allowedPending = allowedOrphans.filter((id) => allowed.get(id).kind === 'pending-ci').length;
+const allowedReport = allowedOrphans.filter((id) => allowed.get(id).kind === 'report');
 const allowedObsolete = allowedOrphans.filter((id) => allowed.get(id).kind === 'obsolete');
 
 console.log(`孤儿闸门检测（${rel(ROOT) || ROOT}）`);
@@ -678,11 +688,18 @@ for (const id of consumedChecks) {
 }
 console.log('');
 
-console.log(`[已知孤儿（允许清单）] ${allowedOrphans.length}（manual ${allowedManual} / pending-ci ${allowedPending} / obsolete ${allowedObsolete.length}）`);
+console.log(`[已知孤儿（允许清单）] ${allowedOrphans.length}（pending-ci ${allowedPending} / manual ${allowedManual} / report ${allowedReport.length} / obsolete ${allowedObsolete.length}）`);
 for (const id of allowedOrphans) {
   const entry = allowed.get(id);
-  if (entry.kind === 'obsolete') continue;
+  if (entry.kind === 'obsolete' || entry.kind === 'report') continue;
   console.log(`  ${id}\n    — [${entry.kind}] ${entry.reason}（卡在：${entry.blockedBy}）`);
+}
+console.log('');
+
+console.log(`[report（只输出，无判据）] ${allowedReport.length}`);
+for (const id of allowedReport) {
+  const entry = allowed.get(id);
+  console.log(`  ${id}\n    — ${entry.reason}\n    — 为什么它不是闸门：${entry.blockedBy}`);
 }
 console.log('');
 
@@ -736,8 +753,8 @@ console.log(`[盲区候选（只发现，不判红）] ${visibleDiscoveries.leng
 for (const item of visibleDiscoveries) {
   const forms = [...item.forms].join(' / ');
   const evidence = exitEvidence(item.abs);
-  const kind = evidence ? 'pending-ci' : 'manual';
-  const why = evidence || '没有任何客观退出码，只能人工目视读数';
+  const kind = evidence ? 'pending-ci' : 'report';
+  const why = evidence || '没有任何客观退出码，只能人工目视读数——它是 report，不是闸门';
   console.log(`  ${item.file}`);
   console.log(`    引用形态：${forms}`);
   console.log(`    引用位置：${[...item.sites].join('、')}`);
@@ -752,11 +769,12 @@ console.log('');
 
 const budgetText = budget === null ? '缺' : String(budget);
 const manualBudgetText = budgets.manual === null ? '缺' : String(budgets.manual);
+const reportBudgetText = budgets.report === null ? '缺' : String(budgets.report);
 const obsoleteBudgetText = budgets.obsolete === null ? '缺' : String(budgets.obsolete);
 console.log(
-  `债务：pending-ci ${pendingCount} / 预算 ${budgetText}；manual ${counts.manual} / 预算 ${manualBudgetText}；obsolete ${counts.obsolete} / 预算 ${obsoleteBudgetText}（三类均须相等）`,
+  `债务：pending-ci ${pendingCount} / 预算 ${budgetText}；manual ${counts.manual} / 预算 ${manualBudgetText}；report ${counts.report} / 预算 ${reportBudgetText}；obsolete ${counts.obsolete} / 预算 ${obsoleteBudgetText}（四类均须相等）`,
 );
 console.log(`清单：允许 ${allowed.size} 条，孤儿 ${orphans.length} 条`);
-console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿（manual ${allowedManual} / pending-ci ${allowedPending} / obsolete ${allowedObsolete.length}） / ${newOrphans.length} 未登记`);
+console.log(`合计 ${CHECK_IDS.length} 个检查：${CHECK_IDS.length - orphans.length} 有消费方 / ${allowedOrphans.length} 已知孤儿（pending-ci ${allowedPending} / manual ${allowedManual} / report ${allowedReport.length} / obsolete ${allowedObsolete.length}） / ${newOrphans.length} 未登记`);
 
 process.exit(problems.length > 0 || newOrphans.length > 0 ? 1 : 0);

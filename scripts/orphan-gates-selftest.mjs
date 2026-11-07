@@ -30,9 +30,10 @@ const AUDIT_SOURCE = join(dirname(fileURLToPath(import.meta.url)), 'audit-orphan
 const AUDIT_COPY = 'orphan-gates-audit.mjs';
 
 const BASE_ALLOWLIST = {
-  schema: 'pwe-orphan-gates-allowlist/2',
+  schema: 'pwe-orphan-gates-allowlist/3',
   pendingCiBudget: 0,
   manualBudget: 0,
+  reportBudget: 0,
   obsoleteBudget: 0,
   budgetLedger: [
     {
@@ -41,6 +42,7 @@ const BASE_ALLOWLIST = {
       reason: 'fixture 基线',
       pendingCi: 0,
       manual: 0,
+      report: 0,
       obsolete: 0,
     },
   ],
@@ -207,6 +209,21 @@ test('pending-ci 改成 manual 不能绕过预算 → 红', () => {
   assert.match(result.stdout, /manual 条数 1 ≠ 预算 0/);
 });
 
+test('新增 report 没抬 reportBudget → 红（四类都是等值强制，不是只打印）', () => {
+  const result = audit(
+    makeFixture({
+      steps: ['      - run: npm run test:gate'],
+      extraScripts: { 'check-extra.mjs': 'process.exit(0);\n' },
+      allowlist: {
+        ...BASE_ALLOWLIST,
+        entries: [entry('file:scripts/check-extra.mjs', 'report')],
+      },
+    }),
+  );
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /report 条数 1 ≠ 预算 0/);
+});
+
 test('python 步骤写进 workflow → 进盲区候选，不判红', () => {
   const result = audit(
     makeFixture({
@@ -300,13 +317,13 @@ test('允许清单可以把不按 check/audit 命名的脚本登记成检查', (
         pendingCiBudget: 1,
         entries: [entry('file:scripts/check-py.py', 'pending-ci')],
         budgetLedger: [
-          { approved_at: '2026-11-07', approved_by: 'fixture', reason: 'fixture', pendingCi: 1, manual: 0, obsolete: 0 },
+          { approved_at: '2026-11-07', approved_by: 'fixture', reason: 'fixture', pendingCi: 1, manual: 0, report: 0, obsolete: 0 },
         ],
       },
     }),
   );
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /\[已知孤儿（允许清单）\] 1（manual 0 \/ pending-ci 1 \/ obsolete 0）/);
+  assert.match(result.stdout, /\[已知孤儿（允许清单）\] 1（pending-ci 1 \/ manual 0 \/ report 0 \/ obsolete 0）/);
   assert.match(result.stdout, /\[盲区候选（只发现，不判红）\] 0/);
 });
 
@@ -321,7 +338,7 @@ test('已归类的 python 检查被 workflow 直连 → 红（清单必须同提
         pendingCiBudget: 1,
         entries: [entry('file:scripts/check-py.py', 'pending-ci')],
         budgetLedger: [
-          { approved_at: '2026-11-07', approved_by: 'fixture', reason: 'fixture', pendingCi: 1, manual: 0, obsolete: 0 },
+          { approved_at: '2026-11-07', approved_by: 'fixture', reason: 'fixture', pendingCi: 1, manual: 0, report: 0, obsolete: 0 },
         ],
       },
     }),
