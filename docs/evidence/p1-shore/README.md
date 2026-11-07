@@ -163,10 +163,18 @@ npm run red:first -- --base f1dfa00
 npm run check
 npm test
 
-# 抓拍（本地产物，不进仓库）
-node tmp/p1-shore-capture.mjs        # 需先起 vite，端口与脚本内一致
-python tmp/p1-shore-mask-check.py    # 掩膜反解，输出 tmp/p1-shore/mask-check.json
-
 # 预算
 npm run test:render-budget
 ```
+
+截图与掩膜是临时的 Playwright 脚本产出的，按仓库惯例不入库、跑完即删；口径如下：
+
+1. 起 `vite`，打开 `?world=dengchao&time=noon&feed=off&ledger=off&debug=1&now=60&speed=0.1`
+   并先 `localStorage.clear()`；滚轮把 `zoom` 推到 2。
+2. `Oracle.say('潮位 0%' / '潮位 100%')` 写 grid，等快照潮位到位后
+   `pinShotState(43200000, tide)` + `pinActors`（7 位 idle frame 0）+ `pinTrails([])` +
+   `pinWeather(0,0)` + `freezeWorldClock` + `setCameraMode('free')` +
+   `centerCameraOn(800,248)`，`waitFadeSettled` 后截 canvas。每次记录
+   `Oracle.camera()`、`canvas.getBoundingClientRect()`、buffer 尺寸与 `dpr`（见 `runs.json`）。
+3. `scripts/screens-diff.py` 出 sha256 / exact / visible / 连通区 / bbox；
+   掩膜差异像素固定在 `(255,0,255)`，按 §1.3 公式反解成格，落成 `mask-check.json`。
