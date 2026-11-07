@@ -98,17 +98,20 @@ const SMOKE_OFF = { drift: false };
 const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 
 function initScript({ freezeAt }) {
+  // 清不掉就要能被看见：「雨留在场景里」与「存储清理失败」是两件事，
+  // 不能都归到「忽略」。失败原因记进 state，由 openScene 读出后分开判。
+  let storageError = null;
   try {
     localStorage.clear();
-  } catch {
-    /* 忽略 */
+  } catch (error) {
+    storageError = String(error);
   }
   let rng = 20261019;
   Math.random = () => {
     rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
     return rng / 4294967296;
   };
-  const state = { frame: 0, frozen: false, queued: null };
+  const state = { frame: 0, frozen: false, queued: null, storageError };
   window.__CAPTURE_STATE__ = state;
   const realRaf = window.requestAnimationFrame.bind(window);
   const frameMs = 1000 / 60;
@@ -191,7 +194,7 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
     if (target > now) window.Oracle.debugStepWorld(target - now);
   }, STEADY_A);
   await waitFrames(page, 2);
-  const chosenCamera = await page.evaluate(([camera, villagerCell]) => {
+  const opened = await page.evaluate(([camera, villagerCell]) => {
     for (const villager of window.Oracle.view().villagers) {
       window.Oracle.debugPinVillager(villager.id, { x: 2, y: 2 });
     }
@@ -206,7 +209,11 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
       window.Oracle.debugPinVillager(target.id, villagerCell);
     }
     window.Oracle.debugPinTide(1);
-    window.Oracle.debugSetWeather?.('clear');
+    // #11：天气钩子不在就不能钉天气——读数里的影子也就无法排除「雨还留着」。
+    const weatherHook = typeof window.Oracle.debugSetWeather === 'function';
+    const weatherBefore = window.Oracle.view().weather ?? null;
+    let weatherRequested = null;
+    if (weatherHook) weatherRequested = window.Oracle.debugSetWeather('clear') ?? null;
     window.Oracle.debugHideAmbience(true);
     window.Oracle.debugHideBayMist(true);
     window.Oracle.debugLampMotion({ ignite: false, breathe: false, sway: false });
@@ -214,17 +221,55 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
     window.Oracle.debugBannerMotion({ sway: false, shadow: false });
     window.Oracle.debugSmokeMotion({ drift: false });
     window.Oracle.centerCameraOn(lens.x, lens.y);
-    return lens;
+    return {
+      lens,
+      diagnostics: {
+        weatherHook,
+        weatherBefore,
+        weatherRequested,
+        storageError: window.__CAPTURE_STATE__?.storageError ?? null,
+      },
+    };
   }, [camera, villagerCell]);
   await waitFrames(page, 40);
   await page.evaluate(() => window.Oracle.debugHoldWorld(true));
   await waitFrames(page, 2);
+  // 天气落定后再读一次：钩子调用的返回值是「下命令那一刻」，这里才是「画面里到底是晴是雨」。
+  const weatherAfter = await page.evaluate(() => window.Oracle.view().weather ?? null);
+  const diagnostics = { ...opened.diagnostics, weatherAfter };
+  // #11：钩子不在就红——不钉天气，灰罩/雨滴/雾会随存档飘进来，所有影子读数都无法解释。
+  if (!diagnostics.weatherHook) {
+    premiseFailure(
+      `${phase} 天气钉死`,
+      'window.Oracle.debugSetWeather 不存在，无法把天气钉成 clear；影子读数无法排除雨天残留',
+    );
+  }
+  // 天气没落成 clear 也是红；但要把「清存储失败」与「雨从别处进来」分开说，不能都归到「忽略」。
+  if (diagnostics.weatherAfter !== 'clear') {
+    const storageNote =
+      diagnostics.storageError === null
+        ? '存储已清空，雨不是从存档带进来的'
+        : `存储清理失败（${diagnostics.storageError}），雨可能是存档带进来的`;
+    premiseFailure(
+      `${phase} 天气钉死`,
+      `请求 clear 后读到的天气仍是 ${String(diagnostics.weatherAfter)}（命令返回 ${String(
+        diagnostics.weatherRequested,
+      )}，进入前是 ${String(diagnostics.weatherBefore)}）；${storageNote}。雨留在场景里，影子读数不可用`,
+    );
+  }
+  if (diagnostics.storageError !== null) {
+    // 存储清不掉但天气确实是 clear：雨没留在场景里，只把这件事记出来，不判红。
+    console.log(
+      `[前提] ${phase} localStorage 清理失败（${diagnostics.storageError}）；天气已确认为 clear，雨不留在场景里。`,
+    );
+  }
   return {
     page,
     box,
     errors,
     camera: await page.evaluate(() => window.Oracle.camera()),
-    lens: chosenCamera,
+    lens: opened.lens,
+    diagnostics,
   };
 }
 
@@ -546,7 +591,35 @@ for (const phase of PHASES) {
   await villager.page.evaluate(() => window.Oracle.debugGroundShadows({ on: false }));
   await waitFrames(villager.page, 2);
   const villagerOff = await shot(villager.page, villager.box, `villager-${phase}-off`);
-  const foot = villagerOn.units.villagers[0] ?? { x: villager.lens.x, y: villager.lens.y + 70 };
+  // #1：脚底只能从「本次读数」里取。拿不到人物/影长就判前提失败——
+  // 用镜头位置顶替脚底，会把「没取到读数」伪装成「取到了」。
+  const villagerUnits = villagerOn.units?.villagers;
+  if (!Array.isArray(villagerUnits) || villagerUnits.length === 0) {
+    premiseFailure(
+      `#1 ${phase} 人物脚底`,
+      `debugGroundShadowUnits().villagers ${Array.isArray(villagerUnits) ? '为空' : '字段缺失'}，`
+      + '取不到 0 号人物；不能用镜头位置顶替脚底',
+    );
+  }
+  const foot = villagerUnits[0];
+  if (!Number.isFinite(foot.x) || !Number.isFinite(foot.y)) {
+    premiseFailure(
+      `#1 ${phase} 人物脚底`,
+      `0 号人物缺 x/y（x=${String(foot.x)}，y=${String(foot.y)}）；不能用镜头位置顶替脚底`,
+    );
+  }
+  if (!Number.isFinite(foot.dx)) {
+    premiseFailure(
+      `#1 ${phase} 人物影向`,
+      `0 号人物缺 dx（${String(foot.dx)}）：无法判定影子朝哪边，不能默认朝右`,
+    );
+  }
+  if (typeof foot.span !== 'number' || !Number.isFinite(foot.span)) {
+    premiseFailure(
+      `#1 ${phase} 人物影长`,
+      `0 号人物缺 span（${String(foot.span)}）：0 是合法值，缺失不是`,
+    );
+  }
   // ROI 跟着被钉的人走：脚底 ±48 / 上 70 / 下 16 世界像素。
   const villagerRoi = { x0: foot.x - 48, y0: foot.y - 70, x1: foot.x + 48, y1: foot.y + 16 };
   const villagerDiff = await diffPair(reader, villagerOn.buf, villagerOff.buf, villager.camera, villagerRoi);
@@ -830,7 +903,8 @@ for (const sample of sampleList) {
       : { changed: onOffDiff.changed, pixels: onOffDiff.roi.pixels, ratio: onOffDiff.ratio },
     ...(step === null ? {} : { step }),
     // 「基底未知」计数：renderStats 里读，正常必须 0。非 0 = AO 落点那格取错了。
-    unknownBase: onShot.stats.contactAoUnknownBase ?? null,
+    // #2：不写 `?? null`——字段不存在时原样留 undefined，由下面的汇总单独报「字段缺失」。
+    unknownBase: onShot.stats.contactAoUnknownBase,
   });
 }
 const aoStep = ao.samples.find((sample) => sample.step !== undefined)?.step ?? null;
@@ -862,8 +936,16 @@ if (aoPinned.length > 0) {
 }
 // 「基底未知」不是缺省，是取错了落点：任何一次都得红。只在 AO 打开的页上计数
 // （`?contactAO=0` 根本不进判定，计数天然为 0，不能拿来当证据）。
-const aoUnknownBase = ao.samples.reduce((sum, sample) => sum + (sample.unknownBase ?? 0), 0);
+// #2：字段缺失与「计数为 0」是两件事。缺失不在求和里冒充 0，单独点名哪个样本缺字段。
+const aoUnknownBaseMissing = ao.samples.filter(
+  (sample) => !sample.missing && typeof sample.unknownBase !== 'number',
+);
+const aoUnknownBase = ao.samples.reduce(
+  (sum, sample) => sum + (typeof sample.unknownBase === 'number' ? sample.unknownBase : 0),
+  0,
+);
 ao.unknownBase = aoUnknownBase;
+ao.unknownBaseMissing = aoUnknownBaseMissing.map((sample) => sample.id);
 
 // G1：黄昏同机位，建筑与角色同时在框内，4× 对照。
 // 机位：wave_house 左墙 + 钉在 (26,27) 的人同框；避开篝火/烟/长凳（前两版都被它们污染）。
@@ -959,7 +1041,15 @@ for (const sample of ao.samples) {
 console.log(`  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL ${ao.stepDelta.toFixed(2)}；`
   + `本轮 α ${AO_ALPHA}、可读基底门槛 ${AO_SUPPORTED_BASE.toFixed(2)} (测+算)`);
 console.log(`  [G3] 推断：上限 ${ao.max} = 追平该阶 → 超过会读成第二层影子；下限 ${ao.min} = 0.4×该阶 → 再淡读不出`);
-console.log(`  [G3 基底未知] ${aoUnknownBase} 次（须为 0；非 0 = AO 落点那格取错了）`);
+if (aoUnknownBaseMissing.length > 0) {
+  // 缺字段时不许打印一个由缺失伪造出来的 0：那会让「字段没了」看起来像「计数是 0」。
+  console.log(
+    `  [G3 基底未知] 字段缺失（${aoUnknownBaseMissing.map((sample) => sample.id).join(', ')}）：`
+    + 'renderStats.contactAoUnknownBase 不存在，不能按 0 放行',
+  );
+} else {
+  console.log(`  [G3 基底未知] ${aoUnknownBase} 次（须为 0；非 0 = AO 落点那格取错了）`);
+}
 console.log(`  [G3 样本] 钉住 ${ao.pinnedCount} 例，覆盖 token ${ao.pinnedBases.join('/')}；`
   + `实测覆盖 token ${ao.measuredBases.join('/')}`);
 if (ao.margins) {
@@ -985,11 +1075,41 @@ expectZero('全关同刻两页', closedSameTime);
 expectZero('跨 t/t+1s', closedStep);
 expectZero('暂停', pauseDiff);
 if (determinism !== 13) failures.push(`确定性应为 13/13，实为 ${determinism}/13`);
+// #3：夜间影长必须为 0。`?? []` / `?? 0` 会让「没这一行 / 没这个字段」静默变成「是 0」，
+// 所以这里逐项确认读数在不在，缺哪个字段就点哪个字段。
 const night = phaseRows.find((item) => item.phase === 'night');
-const nightStallSpans = night?.stall.on.stalls?.map((unit) => unit.span) ?? [];
-const nightVillagerSpan = night?.villager.on.villagers?.[0]?.span ?? 0;
-if (nightStallSpans.some((span) => span > 0)) failures.push(`夜间摊位影长应为 0，实为 ${nightStallSpans.join(',')}`);
-if (nightVillagerSpan > 0) failures.push(`夜间人物影长应为 0，实为 ${nightVillagerSpan}`);
+if (night === undefined) {
+  failures.push('夜间行缺失（PHASES 里没有 night）：无法评估「夜间影长必须为 0」');
+} else {
+  const nightStalls = night.stall.on.stalls;
+  if (!Array.isArray(nightStalls) || nightStalls.length === 0) {
+    failures.push(
+      `夜间摊位 units.stalls ${Array.isArray(nightStalls) ? '为空' : '字段缺失'}：`
+      + '无法证明夜间摊位影长为 0',
+    );
+  } else {
+    const badSpans = nightStalls.filter((unit) => !Number.isFinite(unit.span));
+    if (badSpans.length > 0) {
+      failures.push(`夜间摊位 ${badSpans.length} 个单位缺 span 字段：无法证明夜间影长为 0`);
+    } else if (nightStalls.some((unit) => unit.span > 0)) {
+      failures.push(`夜间摊位影长应为 0，实为 ${nightStalls.map((unit) => unit.span).join(',')}`);
+    }
+  }
+  const nightVillagers = night.villager.on.villagers;
+  if (!Array.isArray(nightVillagers) || nightVillagers.length === 0) {
+    failures.push(
+      `夜间人物 units.villagers ${Array.isArray(nightVillagers) ? '为空' : '字段缺失'}：`
+      + '无法证明夜间人物影长为 0',
+    );
+  } else {
+    const nightFoot = nightVillagers[0];
+    if (!Number.isFinite(nightFoot.span)) {
+      failures.push('夜间人物 0 号缺 span 字段：无法证明夜间影长为 0');
+    } else if (nightFoot.span > 0) {
+      failures.push(`夜间人物影长应为 0，实为 ${nightFoot.span}`);
+    }
+  }
+}
 if (peakCommands > PEAK_CEILING) failures.push(`峰值指令 ${peakCommands} > 天花板 ${PEAK_CEILING}（设计目标 ${DESIGN_TARGET}）`);
 
 // G2：三段阶梯必须是「内 > 中 > 外」，且相邻两段的落差够读得出来。
@@ -1026,11 +1146,28 @@ const checkLadder = (label, rows, span) => {
     }
   }
 };
+// #1：亮相位本该有影。「没有段」不是「阶梯合格」，而是判据前提不成立——
+// 段为 null 只可能是因为取不到单位或影长，沉默跳过等于把缺读数当成通过。
+const LIT_PHASES = new Set(['dawn', 'noon', 'dusk']);
 for (const item of phaseRows) {
   const stallSpan = item.stall.on.stalls?.[0]?.span ?? 0;
   const villagerSpan = item.villager.on.villagers?.[0]?.span ?? 0;
-  if (item.stall.segments) checkLadder(`G2 摊位 ${item.phase}`, item.stall.segments, 20 + stallSpan);
-  if (item.villager.segments) checkLadder(`G2 人物 ${item.phase}`, item.villager.segments, villagerSpan);
+  if (LIT_PHASES.has(item.phase)) {
+    if (item.stall.segments === null) {
+      failures.push(`G2 摊位 ${item.phase} 没有段：判据前提不成立（取不到摊位单位或影长）`);
+    } else {
+      checkLadder(`G2 摊位 ${item.phase}`, item.stall.segments, 20 + stallSpan);
+    }
+    if (item.villager.segments === null) {
+      failures.push(`G2 人物 ${item.phase} 没有段：判据前提不成立（取不到人物单位或影长）`);
+    } else {
+      checkLadder(`G2 人物 ${item.phase}`, item.villager.segments, villagerSpan);
+    }
+    continue;
+  }
+  if (item.stall.segments !== null || item.villager.segments !== null) {
+    failures.push(`G2 ${item.phase} 没有光却切出了段：判据前提不成立（夜间影长应为 0）`);
+  }
 }
 
 // G3：双向判据 + 基底覆盖面。低于下限 = 白加，高于上限 = 读成第二层影子。
@@ -1080,6 +1217,13 @@ for (const sample of ao.samples) {
 }
 
 // 「基底未知」不是缺省，是取错了落点：任何一次都得红（计算见 G3 汇总处）。
+// #2：字段缺失 = 判据前提不成立，不能把缺失当 0 放行。
+if (aoUnknownBaseMissing.length > 0) {
+  failures.push(
+    `G3 基底未知计数缺失（${aoUnknownBaseMissing.map((sample) => sample.id).join(', ')}）：`
+    + 'contactAoUnknownBase 字段不存在 = 判据前提不成立，不许把缺失当 0',
+  );
+}
 if (aoUnknownBase !== 0) {
   failures.push(`接触暗部「基底未知」${aoUnknownBase} 次：AO 落点那格取错了（正常必须为 0）`);
 }
