@@ -60,7 +60,7 @@
 
 任何预算变更（新增/删除条目、`kind` 迁移）都必须在**同一提交**里往 `budgetLedger` 追加一条记录，写清 `approved_at`（`YYYY-MM-DD`）、`approved_by`、`reason`，以及变更后的三个条数；`budgetLedger` 末条的三个计数必须与三个预算一致。CI 在中间提交上就会红，所以「先加条目、以后补预算」走不通，效果上等价于同一提交。
 
-当前 `pendingCiBudget = 20`、`manualBudget = 15`、`obsoleteBudget = 1`（`manual 15 / pending-ci 20 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。2026-11-08 撤回 `check-ground-shadow` 接线，20→21：30 轮实测 4 红（13.3%，Wilson 5.3%–29.7%），红因首张同刻图抓拍早于调色收敛，修法是 `shotStable`（连续 8 帧逐字节相同才允许比较）；**撤回理由：随机红会训练人忽略红**。脚本自身的 `PEAK_CEILING = 34,666` 不动。随后合并收尾（2026-11-08）把 `fixture:check` 接进 `world-client` job 并删条，21→20；skill 线 4 条只读审计（2 个脚本 + 2 个 npm 别名）按命名规则登记为 `manual`，11→15。两项共用一条 `budgetLedger` 终态记录（末条 `pendingCi 20 / manual 15 / obsolete 1`，与三个预算一致）。
+当前 `pendingCiBudget = 21`、`manualBudget = 15`、`obsoleteBudget = 1`（`manual 15 / pending-ci 21 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。2026-11-08 撤回 `check-ground-shadow` 接线，20→21：30 轮实测 4 红（13.3%，Wilson 5.3%–29.7%），红因首张同刻图抓拍早于调色收敛，修法是 `shotStable`（连续 8 帧逐字节相同才允许比较）；**撤回理由：随机红会训练人忽略红**。脚本自身的 `PEAK_CEILING = 34,666` 不动。随后合并收尾（2026-11-08）把 `fixture:check` 接进 `world-client` job 并删条，21→20；skill 线 4 条只读审计（2 个脚本 + 2 个 npm 别名）按命名规则登记为 `manual`，11→15。两项共用一条 `budgetLedger` 终态记录（`pendingCi 20 / manual 15 / obsolete 1`）。2026-11-08 再撤回 `check-shot-actor-pin` 接线，20→21：CI main `d03f9d5` / run `42397872873` 上 `five-2800 ≠ five-1200`；本机 30 轮（idle/load 交替）0 红、三档同一哈希，根因未证，故不满足「加 `shotStable` 前提」的门槛。**撤回理由：随机红会训练人忽略红。**
 
 这套机制拦得住：新增/删除条目却不调整预算；改 `kind` 静默迁移；抬预算不留审批记录；「先记账、后补预算」的跨提交操作（CI 会在中间提交红）。
 拦不住：`budgetLedger` 是当前状态的账，不是 git 历史审计——有人可以把旧记录改写而不是追加，CI 只能看到改写后的自洽状态；也拦不住审批字段填得敷衍（`approved_by: "x"` 仍能通过），那要靠评审。
@@ -135,6 +135,17 @@ npm run audit:orphan-gates
    - `git status --porcelain` 为空：fixture 校验只读，不写脏仓库。
 
 **接不上时**：若 `fixture:check` 非全 PASS 或 `exit` 非 0，停下并回到本节，不要用放宽 `fixture:check` 判据或 `continue-on-error` 换绿。
+
+## 已撤回：`check-shot-actor-pin`（2026-11-08）
+
+它曾接在 `world-client-browser` 的同一 step 里（紧邻 `check-phases-negative`）。撤回只删那一行，同 step 的其它闸门与 `check-phases-negative` 不动，也没有加 `continue-on-error` / `|| true`。
+
+1. 允许清单回填 `pending-ci` 条目；`pendingCiBudget` 20→21；同提交追加 `budgetLedger` 末条（`pendingCi 21 / manual 15 / obsolete 1`，与三个预算一致）。
+2. 撤回依据：CI main `d03f9d5` / run `42397872873` 上 `five-2800 ≠ five-1200`（日志：冻结前世界分别是 301 / 302 / 303 分）。**撤回理由：随机红会训练人忽略红。**
+3. 本机量化（同一台机器，30 轮，idle / load 交替）：`exit 0` 30 / 30，`five-1200` / `five-2800` / `five-5000` 30 轮全部同一 SHA-256 前缀 `9CA3160DE5FE`，含 3 个忙循环同时压 CPU 的 15 轮。三档之间逐字节相同，**不随冻结时刻变**；四钉组 `four-1200` 与 `four-2800` 每轮都不同，那是设计（四钉本就钉不住角色），不能当成对照。
+4. 归因结论：`pinActors` 的 `v0` / `v1` 都命中（快照里角色 `id` 就是 `v0` / `v1`）；三档原始快照的差异字段只有 `now` / `villager` / `villagers` / `trails` / `tide`，全部在被钉的面上；画面上读的其它角色字段（`carrying` / `umbrella` / `lampOil`）三档同值。所以**既不是「等待条件不足」，也不是「钉帧没铺满」**；CI 那一次红不在被钉的输入面上，本机无法复现，根因未证 —— 因此不满足「加 `shotStable` 前提」的门槛，按与 `check-ground-shadow` 相同的口径撤回。
+5. 尚未排除的嫌疑（已实测，不是推测）：`canvas.screenshot()` 会把 DOM 叠层截进字节（注入 40×40 纯红 DOM 后画布截图字节立刻变），而脚本注释写的是「DOM overlay 不在画布里」；`#topbar`（0–56px）、`#minimap`、`overlay-name` 都压在画布区域上。DOM 文本的抗锯齿/字体回退在 CI 与本地不同，这一点优先复核。
+6. 撤回后读数：`[有消费方] 25`、`[已知孤儿] 37（manual 15 / pending-ci 21 / obsolete 1）`、`[新孤儿（未登记）] 0`、债务三类等值、`exit 0`；`orphan-gates-selftest.mjs` 16/16。
 
 ## 已知问题（记录，不在本工具里自行处置）
 

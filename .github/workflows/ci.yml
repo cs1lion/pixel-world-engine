@@ -92,7 +92,6 @@ jobs:
           npm run test:persistence
           npm run test:render-budget
           npm run test:phases
-          node scripts/check-shot-actor-pin.mjs
           node scripts/check-phases-negative.mjs
         env:
           EVAL_OUT: ${{ runner.temp }}/eval-screens
