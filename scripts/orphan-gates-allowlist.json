@@ -1,6 +1,6 @@
 {
   "schema": "pwe-orphan-gates-allowlist/1",
-  "pendingCiBudget": 24,
+  "pendingCiBudget": 23,
   "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
   "entries": [
     {
@@ -23,13 +23,6 @@
       "reason": "招牌/横幅冒烟截图验收",
       "acceptedBecause": "需要 preview + Playwright，且它产出的基线当前没人消费",
       "blockedBy": "preview + Playwright；banner-smoke 有 2 张同构建重跑不稳，未钉帧"
-    },
-    {
-      "id": "file:world-client/scripts/check-ground-shadow.mjs",
-      "kind": "pending-ci",
-      "reason": "地面投影截图验收",
-      "acceptedBecause": "需要 preview + Playwright，且基线当前只在人工比对时用",
-      "blockedBy": "preview + Playwright；基线没有 CI 消费方"
     },
     {
       "id": "file:world-client/scripts/check-lamp-band.mjs",
