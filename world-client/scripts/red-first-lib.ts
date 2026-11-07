@@ -220,9 +220,9 @@ const SIGNALS: readonly { kind: BaseFailureKind; patterns: readonly RegExp[] }[]
 ];
 
 /**
- * `test/xxx.test.ts`（可带 `file://` 前缀）都认；路径后面紧跟行号的也认。
- * （注释里不写那个「冒号 + 数字」的字面形状：`audit-references` 会把它当成
- * 一处真的行号引用去查。）
+ * 测试文件的路径（可带 `file://` 前缀）都认；路径后面紧跟行号的也认。
+ * （注释里不写具体的文件路径或冒号加数字：`audit-references` / `audit-citations`
+ * 会把它们当成真的引用去查。）
  */
 const FILE_HINT = /((?:file:\/\/\/)?[^\s()"']*?test[/\\][^\s:'"()]+\.(?:ts|tsx|mjs|js))(?::(\d+)(?::\d+)?)?/;
 
