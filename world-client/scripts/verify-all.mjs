@@ -16,7 +16,7 @@
  * 退出码：任一 FAIL → 1；全部 pass/skip → 0。
  * 读数：tmp/verify-all/last-run.json 与 tmp/verify-all/logs/<id>.log
  */
-import { mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -30,25 +30,9 @@ const NODE = process.execPath;
 const PYTHON = process.env.PYTHON || 'python';
 const TEST_IMPORT = ['./test/phaser-hooks.mjs'];
 
-// 已知副作用：旁证测试会用 \n 覆盖写这份 JSON。入口在跑完后按原始字节还原，
-// 保证工作树不因为汇总入口产生新的改动。
-const PRESERVE = [resolve(ROOT, '..', 'docs/evidence/soak/witnessed-corroboration.json')];
-
-function snapshotPreserved() {
-  return PRESERVE.map((path) => ({
-    path,
-    exists: existsSync(path),
-    data: existsSync(path) ? readFileSync(path) : null,
-  }));
-}
-
-function restorePreserved(snapshots) {
-  for (const item of snapshots) {
-    if (item.exists) writeFileSync(item.path, item.data);
-    else if (existsSync(item.path)) unlinkSync(item.path);
-  }
-}
-
+// 旁证测试不再写已跟踪的 docs/evidence/soak/witnessed-corroboration.json：
+// 它默认只写 gitignore 的 `world-client/tmp/` 并做内容比对（见 E8）。
+// 因此这里不再需要备份/还原那份证据文件。
 const CHECKS = [
   {
     id: 'pin-contract',
@@ -231,13 +215,7 @@ function main() {
 
   mkdirSync(OUT, { recursive: true });
   const started = Date.now();
-  const preserved = snapshotPreserved();
-  let results;
-  try {
-    results = selected.map(runCheck);
-  } finally {
-    restorePreserved(preserved);
-  }
+  const results = selected.map(runCheck);
   const summary = {
     generatedAt: new Date().toISOString(),
     cwd: ROOT,

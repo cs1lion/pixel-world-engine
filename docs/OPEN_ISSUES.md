@@ -298,16 +298,17 @@
 - **建议时机**：下一次动 night-rain 判据或天气呈现时。
 - **是否需要用户决策**：**是**（A 补钉 vs B 降级为结构度量）。
 
-### E8. `memory-witnessed-corroboration` 测试直接改写已跟踪证据文件（待修）
+### E8. `memory-witnessed-corroboration` 测试直接改写已跟踪证据文件（已修，2026-11-07）
 
 > 编号说明：E7 是另一线登记的「157 张基线没有消费方」（A/B/C 三选项，在 `fix/entry-hint-clip`
 > 分支，未合入）。本条原被误记为 E7，两个不同问题共号；按先入者保留 E7、后入者改为 **E8**。
 
-- **现状 [事实]**：`test/memory-witnessed-corroboration.test.ts` 把结果写到仓库内已跟踪的 `docs/evidence/soak/witnessed-corroboration.json`（[memory-witnessed-corroboration.test.ts](file:///D:/project/pwe-anim-fsm/world-client/test/memory-witnessed-corroboration.test.ts#L95)）。`npm test` 直接跑它时没有 `verify-all.mjs` 的 `PRESERVE` 保护，会把该文件按 LF 重写，`git status` 立刻多出一条 `M`。
-- **复现 [事实]**：2026-11-07 两次 `npm test` 都复现；虽内容语义未变，但行尾从 CRLF 变 LF，属于**检查改写工作区**。已用 `git checkout --` 还原，未进入提交。
-- **问题 [事实]**：检查应当只读或写临时副本；一旦 CI/本地靠「跑完再还原」兜底，迟早有人把 LF 重写当成正常 diff 提交，或者忘还原后把噪音带进提交。
-- **修法方向**：把输出路径改成 `tmp/`（或 `mkdtemp`），测试断言的输入仍来自仓库里的基线；若必须落回 `docs/evidence/soak/`，改成「读旧 → 内存比对 → 显式 `--update` 才写」。
-- **临时纪律 [事实]**：修好之前，每次跑 `npm test` / `verify-all` 后必须 `git checkout -- docs/evidence/soak/witnessed-corroboration.json`；提交前 `git status` 里出现该文件一律视为测试副作用，不是真实改动。
+- **现状 [事实]**（2026-11-07 已修）：该测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore），并对已跟踪证据做 EOL 归一化后的内容比对；仅显式 `PWE_WRITE_WITNESSED=1` 才写回 `docs/evidence/soak/`。`verify-all.mjs` 里为此存在的 `PRESERVE` 备份/还原已删除。
+- **复现 [历史]**：2026-11-07 两次 `npm test` 均复现；内容语义未变，但行尾从 CRLF 变 LF，`git status` 立刻多出一条 `M`。
+- **问题 [事实]**：检查应当只读或写临时副本；靠「跑完再还原」兜底，迟早有人把 LF 重写当成正常 diff 提交，或者忘还原后把噪音带进提交。
+- **落地验证 [实测]**：删掉自动改写后连跑两遍 `npm test`（2525 tests / 2516 pass / 0 fail / 9 skip），`git status --porcelain` 只剩本次代码改动的两个文件；该文件 `git hash-object` 前后均为 `b9c3214bc1568de714ebe8e9fbfec7384b0be5be`。
+- **新边界 [事实]**：基线数据或分桶变化导致读数与已跟踪证据不一致时，测试会红并提示用 `PWE_WRITE_WITNESSED=1` 刷新，不再静默改写。
+- **临时纪律**：原「跑完必须 `git checkout -- docs/evidence/soak/witnessed-corroboration.json`」已失效，不要再按那条做。
 - **建议时机**：下一次动 memory/witness 测试或 CI 时。
 - **是否需要用户决策**：**否**（方向明确：检查不许改写工作区）。
 
@@ -337,12 +338,11 @@
 
 ## G. 合并窗口登记（2026-11-07）
 
-### G1. `npm test` 会改写 `docs/evidence/soak/witnessed-corroboration.json`（编号 E8）
+### G1. `npm test` 曾改写 `docs/evidence/soak/witnessed-corroboration.json`（编号 E8，已关闭 2026-11-07）
 
-- **现象 [事实]**：跑一次 `npm test` 之后，该文件被写成 LF 行尾，`git status --short` 显示 `M`，但 `git diff` 为空（纯行尾差异，内容逐字未变）。已在本轮合并中两次复现。
-- **影响 [事实+推断]**：每次跑测试都会在工作区留 `M`，交付账本默认拒绝脏工作区；靠人记「复位一下」不是判据，下一个人遇到同样的 `M` 会怀疑真的有内容改动。
-- **建议**：该测试应在临时副本上跑，不许改写工作区文件；这不是本轮合并能顺手改的范围。
-- **是否需要用户决策**：否（登记为待修项）。
+- **现象 [历史]**：跑一次 `npm test` 之后，该文件被写成 LF 行尾，`git status --short` 显示 `M`，但 `git diff` 为空（纯行尾差异，内容逐字未变）。
+- **影响 [事实+推断]**：每次跑测试都会在工作区留 `M`，交付账本默认拒绝脏工作区；靠人记「复位一下」不是判据。
+- **处置 [实测]**：旁证测试默认只写 `world-client/tmp/` 并与已跟踪证据做内容比对，不再改写工作区；验证读数见 E8。
 
 ### G2. 合并窗口内的前向引用（已关闭，2026-11-07）
 
@@ -697,7 +697,7 @@
 
 1. **J1** 回放夹具 5/5 FAIL（100 断言 0 通过）— 模拟线；下一步二选一：重录基线（写明行为变更来源）或修模拟对齐旧基线。owner 未认领。
 2. **G5 剩余** 两级口径已落地并复跑 `[判据] 绿`（设计目标 30,000 / 天花板 34,666=2 跑极差 0），但 `check-ground-shadow` 仍不在 CI — lighting 线；下一步：与孤儿闸门一起排期接线。
-3. **E8** `npm test` 改写已跟踪的 `docs/evidence/soak/witnessed-corroboration.json` 行尾（原误记 E7，已改号）— 测试/工具线（材质线登记）；下一步：测试改在临时副本上跑，或测试结束自动恢复；不许再靠人工 `git checkout`。
+3. **E8 — 已闭合（2026-11-07）** 旁证测试默认只写 `world-client/tmp/`，不再改写已跟踪的 `docs/evidence/soak/witnessed-corroboration.json`；连跑两遍 `npm test` 后 `git status --porcelain` 无该文件，`git hash-object` 前后一致（`b9c3214b…`）；`verify-all` 的 `PRESERVE` 已删除。原「跑完必须 `git checkout`」的临时纪律已失效。
 4. **孤儿闸门** `fixture:check`、`check-phases-negative`、`check-rain-pin`、`check-shot-actor-pin`、`check-lamp-band`、`check-lamp-pool`（另加 `check-ground-shadow`，见 2）都不在 `.github/workflows/ci.yml` — 归属各线；下一步：等 `chore/orphan-gates` 合并后逐条接线，接一条删一条允许清单。
 5. **同一棵树上两条线并行写** `pwe-anim-fsm` 那 6 个未提交文件（`ci.yml`、`package.json`、check-anim-fsm-transition.mjs、png-diff.mjs、两份 docs）— 动画线；本窗口未碰、未带进合并。下一步：由动画线自己提交或丢弃，关闭窗口前确认归属。
 6. **要点 4 阈值** `T_dusk / T_noon` 未标定、来源无实测 — 设计验收线；下一步：附 dusk / noon 两张标定图（同帧记录几何单位与 dim 前/后），在此之前只读数、不进闸门。

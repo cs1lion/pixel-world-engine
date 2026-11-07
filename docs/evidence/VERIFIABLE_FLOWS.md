@@ -252,7 +252,7 @@ node --import ./test/phaser-hooks.mjs --test test/memory-witnessed-corroboration
 
 **反向用例**：新增的 `verify-ledger-selfcheck.ts` 在内存副本上构造六种坏账本：缺 `seed`、`value=0` 且 `source=not_measured`、`script_sha` 篡改、外部来源删 `input_sha`、重复 `id`、`version=2`。六种都必须红且错误含指定关键词，否则脚本退出 1。
 
-**产物落点**：`eval/ledger.json`（`eval-ledger-sha.ts --write` 才会回写）；旁证测试会覆盖写 `docs/evidence/soak/witnessed-corroboration.json`（固定键序、无时间戳、末尾 `\n`）。主仓当前该文件显示 ` M`，`git diff` 为空、只有 LF→CRLF 警告，是 EOL-only 修改。
+**产物落点**：`eval/ledger.json`（`eval-ledger-sha.ts --write` 才会回写）；旁证测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore），并把读出内容与已跟踪证据做 EOL 归一化比对；仅 `PWE_WRITE_WITNESSED=1` 时才覆盖写 `docs/evidence/soak/witnessed-corroboration.json`（固定键序、无时间戳、末尾 `\n`）。`[实测]` 2026-11-07 改后连跑两遍 `npm test`，该文件不再出现 ` M`，`git hash-object` 前后一致。
 
 **现状**：离线可跑，但旁证测试依赖 `pwe-soak` 90 天快照；快照不随仓提交时这条会红，不能当绿。
 
@@ -286,7 +286,7 @@ node scripts/verify-all.mjs
 
 **定位（写死）**：这是**人工手动入口**，不得接进 CI、不得挂进 `npm test`/`npm run ci`、不得作为合并闸门。它会拉起浏览器与本机服务，接进 CI 会把机器差异变成假红。已核对：根 `package.json` 只有 `check:hooks`/`worktrees:audit`，`world-client/package.json` 的 scripts 没有 `verify-all`，`.github/workflows/ci.yml` 也没有引用它。
 
-`VERIFY_ALL_OUT` 指到仓外，避免往仓库里写生成物；不设时默认 `world-client/tmp/verify-all`（gitignore）。已知副作用只有一项：旁证测试会用 `\n` 覆盖写 `docs/evidence/soak/witnessed-corroboration.json`；入口在跑完后按原始字节还原，`[实测]` 改前/改后 SHA-256 相同（具体值跑该入口的输出取当前），不会污染工作树。
+`VERIFY_ALL_OUT` 指到仓外，避免往仓库里写生成物；不设时默认 `world-client/tmp/verify-all`（gitignore）。旁证测试不再改写已跟踪证据（默认只写 `world-client/tmp/`），入口里为此存在的 `PRESERVE` 备份/还原已在 2026-11-07 删除；`[实测]` 连跑两遍 `npm test` 后工作区无该文件改动。
 
 `[证据]` 2026-11-06 的历史读数（出处：本次运行写在仓外的 verify-all 产物 last-run.json，不代表当前值）：
 
@@ -326,7 +326,7 @@ node scripts/verify-all.mjs --self-test
 2. **最大的空判风险在流程 4**：四个抓拍脚本没有阈值、没有 `process.exit`，打印出来的对照百分比与确定性计数只是读数，不是闸门（当前值跑脚本取）。真正能判红的是 `compare-ledger` 的逐像素 sha 全等。
 3. **第二个空判风险在流程 3**：相位帧只有 stdout，没有 JSON/掩膜；判据本身有效（区外 0 + 面积/块数上限），但证据不可复算。
 4. **流程 10 只能校验账本结构，不能校验语义**：157 行、六类计数、哈希与提交都能钉住，但「哪张图该变」仍要重录后由人确认。
-5. **主仓当前只有一处脏文件**：`docs/evidence/soak/witnessed-corroboration.json`，`git diff` 为空、仅 LF→CRLF 警告，是 EOL-only 修改；来源是旁证测试以 `\n` 写盘。
+5. **2026-11-07 起工作区不再有测试带来的脏文件**：此前 `docs/evidence/soak/witnessed-corroboration.json` 会因旁证测试以 `\n` 写盘而显示 ` M`（`git diff` 为空、仅 LF→CRLF 警告）；该测试已改为只写 `world-client/tmp/` 并做内容比对。
 6. **端口纪律必须写进每条浏览器命令**：脚本默认 5188/5202，恰好落在禁用名单；不覆盖就会占用被禁端口。
 7. **读数不一致要如实列出**：render-budget 有 2026-11-05/06 的两套历史读数（15514/28 与 16130/27，出处见第 3 节末尾）；`03-ACTOR-PIN.md` 与 `04-RENDER-INPUT-TABLE.md` 对五钉 1200 vs 2800 记了 0.0104% 与 0（2026-11-04 至 11-06 归档，出处 `docs/evidence/pin-shots/`）；`palette-9/audit.txt` 的 root 指向 `pwe-lively`。这些都是历史读数、不代表当前值；它们不是「新发现」，是盘点时必须标出的证据缺口。
 
