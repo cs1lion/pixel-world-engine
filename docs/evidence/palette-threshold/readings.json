@@ -1,0 +1,92 @@
+{
+  "base": "#30454a",
+  "baseLab": {
+    "L": 27.79,
+    "a": -6.76,
+    "b": -5.66
+  },
+  "method": {
+    "blockArtPx": 16,
+    "scale": 4,
+    "rows": 8,
+    "outputPx": {
+      "width": 128,
+      "height": 512
+    },
+    "direction": "保持 a/b 不变，只加 L*"
+  },
+  "rows": [
+    {
+      "deltaLTarget": 2,
+      "hex": "#354a4f",
+      "L": 29.96,
+      "a": -6.74,
+      "b": -5.62,
+      "deltaL": 2.17,
+      "deltaE2000": 1.66
+    },
+    {
+      "deltaLTarget": 3,
+      "hex": "#374c51",
+      "L": 30.82,
+      "a": -6.73,
+      "b": -5.6,
+      "deltaL": 3.03,
+      "deltaE2000": 2.33
+    },
+    {
+      "deltaLTarget": 4,
+      "hex": "#394e53",
+      "L": 31.68,
+      "a": -6.72,
+      "b": -5.59,
+      "deltaL": 3.89,
+      "deltaE2000": 3
+    },
+    {
+      "deltaLTarget": 5,
+      "hex": "#3b5156",
+      "L": 32.89,
+      "a": -7.04,
+      "b": -5.67,
+      "deltaL": 5.1,
+      "deltaE2000": 3.97
+    },
+    {
+      "deltaLTarget": 6,
+      "hex": "#3e5358",
+      "L": 33.81,
+      "a": -6.69,
+      "b": -5.55,
+      "deltaL": 6.02,
+      "deltaE2000": 4.7
+    },
+    {
+      "deltaLTarget": 8,
+      "hex": "#42585d",
+      "L": 35.85,
+      "a": -7.01,
+      "b": -5.62,
+      "deltaL": 8.06,
+      "deltaE2000": 6.38
+    },
+    {
+      "deltaLTarget": 10,
+      "hex": "#475d62",
+      "L": 37.93,
+      "a": -6.98,
+      "b": -5.59,
+      "deltaL": 10.14,
+      "deltaE2000": 8.13
+    },
+    {
+      "deltaLTarget": 12,
+      "hex": "#4c6167",
+      "L": 39.69,
+      "a": -6.36,
+      "b": -6.01,
+      "deltaL": 11.9,
+      "deltaE2000": 9.65
+    }
+  ]
+}
