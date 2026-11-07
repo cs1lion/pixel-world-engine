@@ -2,6 +2,7 @@
   "schema": "glow-calibration/1",
   "phase": "dusk",
   "purpose": "要点 4 的 T 标定记录：几何双口径、dim 前后亮度、现判据 D。只记本帧读数，阈值结论不在这里。",
+  "recorder": "world-client/scripts/check-glow-contrast.mjs",
   "frame": {
     "phase": "dusk",
     "frameIndex": 113,
