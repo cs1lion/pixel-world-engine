@@ -27,6 +27,42 @@ import { assertTreeIdentity } from './lib/tree-identity.mjs';
 const BASE = process.env.PIXEL_WORLD_URL ?? 'http://127.0.0.1:5199/';
 
 await assertTreeIdentity(BASE);
+
+/**
+ * 记下「答复落地」的时刻：包一层 `fetch`，只认 `/api/world/intent`。
+ *
+ * 为什么要在页面里记而不是在 Node 里监听 `page.on('response')`：答复可能在
+ * 「等雨落下」那段就已经回来，那时 Node 侧还没开始数点；记在页面里，
+ * 先落的答复也不会漏。成功、HTTP 失败、网络失败（含 10s 超时）都算落地——
+ * 失败的答复一样会往那一行写字，一样得被拦。
+ */
+const LANDING_PATCH = `(() => {
+  window.__intentLandings = [];
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const url = String(args[0]?.url ?? args[0]);
+    const isIntent = url.includes('/api/world/intent');
+    try {
+      const response = await realFetch(...args);
+      if (isIntent) window.__intentLandings.push({ at: performance.now(), ok: response.ok });
+      return response;
+    } catch (error) {
+      if (isIntent) window.__intentLandings.push({ at: performance.now(), ok: false, error: String(error) });
+      throw error;
+    }
+  };
+})();`;
+
+/** 意图客户端的超时（`src/world/intent-client.ts` 的 `INTENT_TIMEOUT_MS`）。 */
+const INTENT_TIMEOUT_MS = 10_000;
+/** 响应到达后给 `response.json()` 与下一拍命令队列落字的时间。 */
+const SETTLE_MS = 300;
+/**
+ * 上限不是猜答复几秒回来，而是「最晚什么时候它一定已经落地」：
+ * 客户端 10s 必超时，超时也会以一条 unknown 答复落回队列；再留 2s 给队列与面板。
+ * 到了上限还没看到落地，就不许往下当作答复没来——那是「无法判定」，要红。
+ */
+const CAP_MS = INTENT_TIMEOUT_MS + 2_000;
 /** MessageChannel 门控到 60fps。测试专用，不进产物。 */
 const RAF_PATCH = `(() => {
   const realNow = performance.now.bind(performance);
@@ -56,6 +92,7 @@ const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 await page.addInitScript(RAF_PATCH);
+await page.addInitScript(LANDING_PATCH);
 await page.addInitScript(() => {
   try { localStorage.clear(); } catch { /* 隐私模式等场景忽略 */ }
 });
@@ -77,23 +114,42 @@ const rained = await page
   .then(() => true)
   .catch(() => false);
 
-// 十秒里每 100ms 记一次那一行，看它翻过哪些值。模型那边实测约 4.8 秒回来。
-const timeline = await page.evaluate(`(async () => {
+// 不等一个猜出来的固定秒数：等到「答复落地」再留一小段落字时间；最晚到 CAP_MS。
+// 落地可能发生在上面「等雨落下」那段，那时本轮还没开始数点——所以先把已落地的读出来，
+// 它的落地时刻在 `at` 里，不会因为数点晚而漏掉。
+const pole = await page.evaluate(`(async () => {
+  const CAP_MS = ${CAP_MS};
+  const SETTLE_MS = ${SETTLE_MS};
+  const started = performance.now();
   const seen = [];
   let last = null;
-  for (let i = 0; i < 100; i += 1) {
+  let landed = null;
+  while (true) {
     const now = (document.querySelector('#reply')?.textContent ?? '').trim();
     if (now !== last) {
-      seen.push({ at: i * 100, text: now });
+      seen.push({ at: Math.round(performance.now() - started), text: now });
       last = now;
     }
+    const hit = (window.__intentLandings ?? [])[0];
+    if (hit !== undefined) {
+      if (landed === null) landed = { at: Math.round(hit.at - started), ok: hit.ok };
+      if (performance.now() - hit.at >= SETTLE_MS) break;
+    }
+    if (performance.now() - started >= CAP_MS) break;
     await new Promise((r) => setTimeout(r, 100));
   }
-  return seen;
+  return { seen, landed, elapsed: Math.round(performance.now() - started) };
 })()`);
 
+const timeline = pole.seen;
 console.log('那一行翻过的值：');
 for (const step of timeline) console.log(`  ${String(step.at).padStart(5)}ms  ${JSON.stringify(step.text)}`);
+console.log(
+  `等到 ${pole.elapsed}ms 收手：` +
+    (pole.landed === null
+      ? `答复在 ${CAP_MS}ms 上限内没有落地`
+      : `答复在 ${pole.landed.at}ms 落地（ok=${pole.landed.ok}）`),
+);
 
 const final = await page.evaluate(`({
   reply: (document.querySelector('#reply')?.textContent ?? '').trim(),
@@ -109,7 +165,7 @@ if (!timeline.some((step) => step.text === '雨落下来了。')) {
 // 二、那一行最后归它。迟到的答复不许再翻它。
 const last = timeline[timeline.length - 1];
 if (last === undefined || last.text !== '雨落下来了。') {
-  problems.push(`十秒后那一行是「${last?.text ?? ''}」，不是第二句的回执——被迟到的答复盖了`);
+  problems.push(`答复落地后那一行是「${last?.text ?? ''}」，不是第二句的回执——被迟到的答复盖了`);
 }
 // 三、盖它的正是那句天气答复：认得出它来，才证明等的就是它。
 const clobber = timeline.find(
@@ -117,6 +173,18 @@ const clobber = timeline.find(
 );
 if (clobber !== undefined) {
   problems.push(`${clobber.at}ms 出现了答给第一句的话：「${clobber.text}」`);
+}
+// 三·二、答复必须在上限内落地。没落地不是「没发生」，是「这一次无法判定」——
+// 不落地就收手，等于又回到「窗口外的事看不见」，所以它自己就是一条红。
+if (pole.landed === null) {
+  problems.push(
+    `等了 ${CAP_MS}ms 仍未看到意图答复落地（无响应、无失败）：上限外无法判定，不能算过`,
+  );
+}
+// 三·三、收尾那一刻也要比，而不只是打印。答复可能恰好在数点结束后才翻那一行：
+// 只看到 timeline 的最后一条会漏掉它，final.reply 是最后一道闸。
+if (final.reply !== '雨落下来了。') {
+  problems.push(`收尾时那一行是「${final.reply}」，不是第二句的回执——迟到的答复翻了它`);
 }
 // 四、世界那一侧没被顺手关掉。
 //
