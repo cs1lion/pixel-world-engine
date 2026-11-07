@@ -161,6 +161,19 @@ const pins = await page.evaluate(({ hero, heroCell, lampCell }) => {
   }
   return { hero: out[hero], underLamp: second === undefined ? null : out[second.name], second: second?.name };
 }, { hero: HERO, heroCell: HERO_CELL, lampCell: UNDER_LAMP_CELL });
+/**
+ * #12：主角脚底是「人」这一列的**数值来源**。`debugPinVillager` 没返回落点就红，
+ * 不退回 `HERO_CELL` 常量格、也不拿 `personH` 当这次读数——那是「基线常量冒充实测」。
+ * 并排图那一侧另行处理：允许按常量格画，但必须标注清楚（见 `ruler`）。
+ */
+if (pins.hero === undefined || pins.hero === null || typeof pins.hero.h !== 'number') {
+  console.error(
+    `\n[判据前提不成立] 未取到主角脚底：debugPinVillager(${HERO}, ${HERO_CELL.x},${HERO_CELL.y}) 没有返回带 h 的落点（pins.hero=${JSON.stringify(pins.hero)}），人的像素读数无来源。\n`,
+  );
+  await page.close();
+  await browser.close();
+  process.exit(1);
+}
 await page.waitForFunction(() => window.__CAPTURE_STATE__.frozen === true, null, { timeout: 20000 });
 await page.waitForTimeout(300);
 
@@ -357,11 +370,16 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
     const lampTop = at(shot, LAMP.x + 8, LAMP.base - s.lampPostH).y;
     const lampBase = at(shot, LAMP.x + 8, LAMP.base).y;
     const bodyY = at(shot, LAMP.x + 8, LAMP.base - s.lampBodyBottom).y;
-    const hero = shot.pins.hero ?? { x: HERO_CELL.x * 16 + 8, y: (HERO_CELL.y + 1) * 16, h: s.personH };
+    // #12：并排图这一侧允许缺少 `pins.hero` 时按常量格画（旧改前 JSON 没有 pins 字段），
+    // 但标签必须说清「未取到脚底、常量格、非本次实测」，不许只写「人 30」冒充读数。
+    const heroPin = shot.pins?.hero;
+    const heroMeasured = heroPin !== undefined && heroPin !== null && typeof heroPin.h === 'number';
+    const hero = heroMeasured ? heroPin : { x: HERO_CELL.x * 16 + 8, y: (HERO_CELL.y + 1) * 16, h: s.personH };
+    const heroLabel = heroMeasured ? `人 ${heroPin.h}` : '人 未取到脚底（常量格）';
     const heroFoot = at(shot, 0, hero.y).y;
     return [
       bracket(at(shot, SHOP.x, 0).x - 10, shopTop, shopBase, `墙 ${s.shopfrontH}`),
-      bracket(at(shot, hero.x, 0).x - 14, heroFoot - (hero.h ?? s.personH) * 4, heroFoot, `人 ${hero.h ?? s.personH}`, '#9fd0ff'),
+      bracket(at(shot, hero.x, 0).x - 14, heroFoot - (heroMeasured ? heroPin.h : s.personH) * 4, heroFoot, heroLabel, heroMeasured ? '#9fd0ff' : '#f0a9a9'),
       bracket(at(shot, LAMP.x + 8, 0).x + 10, lampTop, lampBase, `柱 ${s.lampPostH}`),
       `<div class="hline" style="left:${at(shot, LAMP.x - 4, 0).x}px;top:${bodyY}px;width:26px"></div>`,
     ].join('');
@@ -372,12 +390,31 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
         <img src="${encode(shot.file)}" style="width:${W}px;height:${H}px" />
         ${ruler(shot)}
         ${shot.annotation === null ? '' : `<div class="annotation">${shot.annotation}</div>`}
+        ${
+          shot.pins?.hero !== undefined && typeof shot.pins.hero?.h === 'number'
+            ? ''
+            : '<div class="annotation" style="left:auto;right:0">未取到主角脚底：蓝尺按常量格绘制，非本次实测</div>'
+        }
       </div>
       <figcaption><b>${title}</b><br />${note}</figcaption>
     </figure>`;
 
   const ratio = (s) => (s.shopfrontH / s.personH).toFixed(2);
   const postRatio = (s) => (s.lampPostH / s.personH).toFixed(2);
+  /**
+   * #12：`pins.hero.h` 一旦要当读数写进表里，就先证它在那儿。缺失 → 判红点名，
+   * 不退回 `s.personH`——那正是「基线常量冒充本次读数」，表格里会写成「人 30 px」。
+   */
+  const requireHeroReading = (shot) => {
+    const h = shot.pins?.hero?.h;
+    if (typeof h !== 'number' || !Number.isFinite(h)) {
+      console.error(
+        `\n[判据前提不成立] 未取到主角脚底：${shot.label} 的 pins.hero 缺失或没有数值 h（${JSON.stringify(shot.pins?.hero)}），人的像素读数不能拿常量顶替。\n`,
+      );
+      process.exit(1);
+    }
+    return h;
+  };
   const readings = (shot) => {
     const s = shot.scale;
     const scan = shot.scanned;
@@ -386,7 +423,7 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
           <td>${s.shopfrontH} px（顶抬 ${s.shopfrontTop}）</td>
           <td>${ratio(shot.scale)}×</td></tr>
       <tr><td>其中石脚</td><td>${fmt(scan.stoneH)} px</td><td>4 px</td><td>落地线 y+32</td></tr>
-      <tr><td>人</td><td>${shot.pins.hero?.h ?? s.personH} px</td><td>${s.personH} px</td><td>分母</td></tr>
+      <tr><td>人</td><td>${requireHeroReading(shot)} px</td><td>${s.personH} px</td><td>分母</td></tr>
       <tr><td>街灯柱</td><td>全高被灯体遮住，像素量不到；柱脚→灯体下沿见下行</td><td>${s.lampPostH} px</td><td>${postRatio(shot.scale)}×</td></tr>
       <tr><td>灯体下沿</td><td>${fmt(scan.bodyBottomH)} px（柱脚起连续涂装）</td><td>${s.lampBodyBottom} px</td><td>${s.lampBodyBottom - s.personH > 0 ? `+${s.lampBodyBottom - s.personH} vs 头顶` : `${s.lampBodyBottom - s.personH} vs 头顶`}</td></tr>`;
   };
