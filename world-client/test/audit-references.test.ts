@@ -312,6 +312,34 @@ test('受查数掉过阈值才报：max(5, 基线 2%)', () => {
   }
 });
 
+test('基线缺 threshold.minDrop / ratio：地板判红，并打印缺的字段名', () => {
+  // 缺字段时 `allowedDrop` 会算出 NaN，`floor - actual > NaN` 恒 false——
+  // 地板判据把自己吞成绿。缺字段不是「阈值更宽松」，是判据失效，必须红。
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 6)}。\n`);
+    const baselineFile = path.join(root, 'baseline.json');
+    const audits = { references: { checked: 1 } };
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ threshold: { ratio: 0.02 }, audits }, 'threshold.minDrop'],
+      [{ threshold: { minDrop: 5 }, audits }, 'threshold.ratio'],
+      [{ threshold: { minDrop: null, ratio: 0.02 }, audits }, 'threshold.minDrop'],
+      [{ audits }, 'threshold'],
+    ];
+    for (const [payload, field] of cases) {
+      writeFileSync(baselineFile, JSON.stringify(payload), 'utf8');
+      const r = auditReferences({ root, baselineFile });
+      assert.equal(r.floor.kind, 'missing', `缺 ${field} 时地板不能判 ok`);
+      assert.ok(
+        typeof r.baselineWhy === 'string' && r.baselineWhy.includes(field),
+        `缺 ${field} 时要打印字段名，实际：${r.baselineWhy}`,
+      );
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------- 「那东西就在这儿」也得真的是它
 
 test('写着「这东西在那儿」的引用，那儿得有那样东西', () => {

@@ -59,16 +59,40 @@ export type LoadedBaseline =
   | { readonly ok: true; readonly baseline: ScanBaselineFile }
   | { readonly ok: false; readonly why: string };
 
+/** 阈值字段缺失时返回缺哪个；齐全返回 `null`。 */
+function thresholdProblem(raw: unknown): string | null {
+  if (raw === null || typeof raw !== 'object') return '基线不是对象';
+  const threshold = (raw as { threshold?: unknown }).threshold;
+  if (threshold === null || typeof threshold !== 'object') return '缺少 threshold（阈值对象）';
+  const { minDrop, ratio } = threshold as { minDrop?: unknown; ratio?: unknown };
+  if (typeof minDrop !== 'number' || !Number.isFinite(minDrop)) {
+    return '缺少 threshold.minDrop（或不是有限数）';
+  }
+  if (typeof ratio !== 'number' || !Number.isFinite(ratio)) {
+    return '缺少 threshold.ratio（或不是有限数）';
+  }
+  return null;
+}
+
 /**
  * 读基线。**读不到不算通过**：没有地板的扫描面就是一块没人核过的绿地，
  * 调用方必须把它当成红（`kind: 'missing'`），不能悄悄跳过。
+ *
+ * 形状也要核：缺 `threshold.minDrop` / `threshold.ratio` 时 `allowedDrop` 会算出
+ * `NaN`（`Math.ceil(floor * undefined)`），`floor - actual > NaN` 恒为 `false`——
+ * 地板判据把自己吞成绿。缺字段不是「阈值更宽松」，是**判据失效**，所以在加载
+ * 边界就返回 `ok: false`，并打印缺的是哪个字段。
  */
 export function loadScanBaseline(file: string = SCAN_BASELINE_PATH): LoadedBaseline {
+  let raw: unknown;
   try {
-    return { ok: true, baseline: JSON.parse(readFileSync(file, 'utf8')) as ScanBaselineFile };
+    raw = JSON.parse(readFileSync(file, 'utf8'));
   } catch (error) {
     return { ok: false, why: `${file} —— ${failureWhy(error)}` };
   }
+  const problem = thresholdProblem(raw);
+  if (problem !== null) return { ok: false, why: `${file} —— ${problem}` };
+  return { ok: true, baseline: raw as ScanBaselineFile };
 }
 
 /**
