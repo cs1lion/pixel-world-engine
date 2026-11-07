@@ -184,7 +184,7 @@ palette.ts 未引用 token：19 项
 |---|---|---|---|---|
 | `ink` | 高频 | 120 | 逐行正则 `\.ink\b` 扫 `src/` + `test/`，再排除非色板命中 | 128 命中 = 120 + `smoke.ts:29` 的 `TEXTURE_KEYS.ink`（假阳性）+ 7 条 test（不在审计范围）。**无重复、无遗漏** |
 | `plaster` | 中频 | 17 | 同上 | 17 = 17，零多余零遗漏；再加 `prefabs.json` 里 4 处 `"plaster"` 值，hex refs=21 对得上 |
-| `farm` | 低频 | 1 | 同上 | 1 条 `tilemap.ts:219`；其余 6 条是 `palette-data.ts:102` 的别名**定义**（不是读点）与 5 条 test，符合预期 |
+| `farm` | 低频 | 1 | 同上 | 1 条 `tilemap.ts:227`；其余 6 条是 `palette-data.ts:102` 的别名**定义**（不是读点）与 5 条 test，符合预期 |
 
 - 同一行出现两次同 token 是合法的两次读（`decal.ts:83` 的 `palette.stone !== base` 与 `return palette.stone`）；重复计数检查是「同一处源码被两条规则命中」，不是「同一行有两个读点」。
 - `refs 95 → 788` 的 8.3 倍差是旧口径漏读；831 → 788 是修掉重复 + 补漏，两版不可直接比较。

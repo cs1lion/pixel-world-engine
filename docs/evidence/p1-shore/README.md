@@ -199,7 +199,7 @@ exit=0
 | 灯潮界 低潮 | 15118 指令 / 61 Graphics | 15118 指令 / 61 Graphics | **0 / 0** |
 | 灯潮界 满潮 | 15286 指令 / 61 Graphics | 15286 指令 / 61 Graphics | **0 / 0** |
 
-- 默认世界由 `npm run test:render-budget` 实测（`tmp/render-budget/render-budget-samples.json`，
+- 默认世界由 `npm run test:render-budget` 实测（样本写在 tmp/render-budget/render-budget-samples.json，
   `measuredAt 2026-11-07T05:53:18Z`），三档硬闸 30000 指令未动。
 - 灯潮界读数内嵌在六钉 `runs.json` 的 `stats` 字段，base/head 逐项相同。
 - 差值为 0 的原因：岸带画在**既有地形烘焙 Graphics** 上（`drawTerrain` 的 `g`），
@@ -329,12 +329,12 @@ grass: overlapPx    0, truncatedPx 0, maxOverlapPx    0
 | `node --import ./test/phaser-hooks.mjs --test test/shore-band.test.ts` | tests 36 / pass 36 / fail 0 | 0 |
 | `npm test` | tests 2499 / pass 2490 / fail 0 / skipped 9 | 0 |
 | `npm run check` | 语法 0 处 / 语义 0 处 | 0 |
-| 拐角截图 `tmp/p1-shore-v3/corner.mjs` | 4 张，`errors=0` ×4，camera 各自 `worldView` 与 `runs.json` 一致 | 0 |
-| 融合统计 `tmp/p1-shore-v3/fusion.py` | 27 格 / 432 art px，融合 28 art px | 0 |
-| 接缝截图 `tmp/p1-shore-v3/seam.mjs` | 4 张，`errors=0` ×4，`runs.json` 记各自 `worldView` | 0 |
-| 满潮截图 `tmp/p1-shore-v3/seam-high.mjs` | 1 张，`tide=1`，`errors=0`；与低潮整幅逐字节相同 | 0 |
-| 接缝裁剪 `tmp/p1-shore-v3/seams.py` | 4 张（树 3 + plaza 1），原生 4× 不放大 | 0 |
-| 接缝取色 `tmp/p1-shore-v3/plaza-sample4.py` / `seam-sample.py` | 行 27 / 行 28 与树侧采样（`UNIT=4`） | 0 |
+| 拐角截图（临时脚本 tmp/p1-shore-v3/corner.mjs，未入库） | 4 张，`errors=0` ×4，camera 各自 `worldView` 与 `runs.json` 一致 | 0 |
+| 融合统计（临时脚本 tmp/p1-shore-v3/fusion.py，未入库） | 27 格 / 432 art px，融合 28 art px | 0 |
+| 接缝截图（临时脚本 tmp/p1-shore-v3/seam.mjs，未入库） | 4 张，`errors=0` ×4，`runs.json` 记各自 `worldView` | 0 |
+| 满潮截图（临时脚本 tmp/p1-shore-v3/seam-high.mjs，未入库） | 1 张，`tide=1`，`errors=0`；与低潮整幅逐字节相同 | 0 |
+| 接缝裁剪（临时脚本 tmp/p1-shore-v3/seams.py，未入库） | 4 张（树 3 + plaza 1），原生 4× 不放大 | 0 |
+| 接缝取色（临时脚本 tmp/p1-shore-v3/plaza-sample4.py 与 seam-sample.py，未入库） | 行 27 / 行 28 与树侧采样（`UNIT=4`） | 0 |
 
 实现（拐角修复）提交：`5c0258bd01eea10842d4fd02c9a7cbcfa690ec4f`（`feat/shore-band`，
 本地提交，未推）。本节证据与测试紧随其后单独提交；`status.sha` 指**实现**。
