@@ -7,8 +7,18 @@
  * 烘焙成纹理后应当降到 3 万以下。这条脚本防的是"哪天又有人往大 Graphics 里塞东西"。
  *
  * ── 2026-11-06：fps 三类断言降级为「只记录、不阻塞」 ────────────────────
- * 硬闸门只剩：绘制指令数（< 30000）、Graphics 对象数（< 40）、全程无 JS 报错
- * （后者不是 fps 指标，保持硬闸）。
+ * 硬闸门只剩：绘制指令**峰值**（≤ 实测天花板 `MAX_COMMANDS_CEILING`，见下）、
+ * 顶层 Graphics 对象数（< 40）、全程无 JS 报错（后者不是 fps 指标，保持硬闸）。
+ *
+ * ── 2026-11-07：绘制指令改「逐帧峰值」，不再读开局单帧 ──────────────────
+ * 旧法只在页面刚打开时读一次正午快照（27,453），真实峰值（昏 + 雾 + 灯全开）
+ * 是 52,125——闸门看不见最坏状态，绿是采样窗口的产物。现在按 `PEAK_STATES`
+ * 逐帧采样 8 个时相/天气组合，报每个组合的峰值帧号；设计目标 `MAX_COMMANDS`
+ * 仍是 30,000（意图，不许动），超出部分按 `MAX_COMMANDS_DEBT` 记账，
+ * 超出 `MAX_COMMANDS_CEILING` 才是硬红。
+ *
+ * 当天又把雾从「每帧 2,646 块 fillRect」改成三张烘焙纹理 + 18 个 Image，
+ * 峰值从 52,125 降到 33,741（晨 + 雨 + 灯全开，帧 635），天花板随之下棘轮。
  *
  * 为什么降级：这条闸跑在共享 runner 上，fps 读数分不清「机器慢」与「引擎
  * 变重」——同一份代码，runner 繁忙时前台只有 19 帧，空闲时 57 帧。
@@ -59,6 +69,25 @@ await assertTreeIdentity(BASE);
  * 别信这一行。本脚本自己会打出来。
  */
 const MAX_COMMANDS = 30_000;
+/**
+ * 实测峰值天花板（棘轮）：**只许变小**。
+ *
+ * 2026-11-07 第一次量准是 52,125 条（昏 + 雾 + 灯全开，帧 546）——雾用逐方块
+ * Graphics，单层 2,646 块 × 8 条 = 21,168 条。当天把雾改成烘焙纹理后，同一
+ * 8 个时相/天气组合的逐帧峰值降到 33,741 条（晨 + 雨 + 灯全开，帧 635）。
+ * 它就是「现在这套画法在已实现状态里的最坏值」，不是安全大数；以后只许往下调，
+ * 再变重就硬红。
+ */
+const MAX_COMMANDS_CEILING = 33_741;
+/**
+ * 显式债务 = 天花板 − 设计目标 = 3,741 条。
+ *
+ * 记账口径（对齐 `chore/orphan-gates` 的 `pendingCiBudget`）：
+ * - 峰值 ≤ `MAX_COMMANDS`：不欠债，硬闸绿；
+ * - 峰值在 (30,000, 33,741]：**记账**（打印 + 落盘，不红），债务不许超过本值；
+ * - 峰值 > 33,741：**硬红**，说明又变重了，不是「调上限」能解决的。
+ */
+const MAX_COMMANDS_DEBT = MAX_COMMANDS_CEILING - MAX_COMMANDS;
 /**
  * 拖动帧率相对静止帧率的比例下限（2026-11-06 起**只记录**：打印 + 落盘，
  * 不并入 failures、不触发 exit 1）。
@@ -237,8 +266,121 @@ const rafSummary = (stamps, windowMs = SAMPLE_MS, windowCount = SAMPLE_COUNT) =>
 
 const fpsOf = (intervalMs) => (intervalMs > 0 ? 1000 / intervalMs : 0);
 
+/**
+ * 绘制指令峰值采样要覆盖的组合（至少这 8 个）。
+ *
+ * `weather` 为 null 表示沿用上一段；`rain` 第一次走真实入口 `say('下雨吧')`，
+ * 之后用 `debugSetWeather` 直接切。雨渐变约 1.8 秒，切换后等 2.5 秒再采样，
+ * 保证采样落在拉满的帧上。每段按**帧数**采样（rAF 与 Phaser 帧 1:1）。
+ */
+const PEAK_STATES = [
+  { label: '正午开局', phase: 'noon', weather: null, pan: false, frames: 40 },
+  { label: '夜+灯全开', phase: 'night', weather: null, pan: false, frames: 50 },
+  { label: '夜+雨+灯全开', phase: 'night', weather: 'rain', pan: false, frames: 60 },
+  { label: '昏+雨+灯全开', phase: 'dusk', weather: null, pan: false, frames: 60 },
+  { label: '昏+暴风雨+灯全开', phase: 'dusk', weather: 'storm', pan: false, frames: 50 },
+  { label: '昏+雾+灯全开', phase: 'dusk', weather: 'fog', pan: false, frames: 50 },
+  { label: '昏+雨+灯全开（推镜头）', phase: 'dusk', weather: 'rain', pan: true, frames: 50 },
+  // 晨+雨之前是「推镜头」的雨态；这里显式再确认一次 `weather: 'rain'`，
+  // 否则只等 500ms，雨幕还没拉满就采样——实测比真实峰值低约 2,300 条。
+  { label: '晨+雨+灯全开', phase: 'dawn', weather: 'rain', pan: false, frames: 40 },
+];
+
+/** 在页面上按帧采样 `count` 帧的绘制指令；返回逐帧读数。 */
+const sampleCommandFrames = (page, count) =>
+  page.evaluate(
+    (n) =>
+      new Promise((resolve) => {
+        const frames = [];
+        const tick = () => {
+          const stats = window.Oracle.renderStats();
+          frames.push({
+            frame: stats.frame,
+            total: stats.totalCommands,
+            top: stats.top.totalCommands,
+            graphics: stats.graphicsObjects,
+          });
+          if (frames.length >= n) resolve(frames);
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    count,
+  );
+
+/** 切到某个峰值采样状态：时相 / 天气 / 灯 / 镜头。`useSay` = 用真实入口首次下雨。 */
+const applyPeakState = async (page, state, useSay) => {
+  if (state.phase !== undefined) {
+    await page.evaluate((phase) => window.Oracle.setPhase(phase), state.phase);
+  }
+  await page.evaluate(() => window.Oracle.debugForceLamps(true));
+  if (state.weather === 'rain') {
+    if (useSay) {
+      await page.evaluate(() => window.Oracle.say('下雨吧'));
+    } else {
+      await page.evaluate(() => window.Oracle.debugSetWeather('rain'));
+    }
+    await page.waitForFunction(() => window.Oracle.view().weather === 'rain', null, { timeout: 8000 });
+    await page.waitForTimeout(2500);
+  } else if (state.weather === 'storm' || state.weather === 'fog') {
+    await page.evaluate((weather) => window.Oracle.debugSetWeather(weather), state.weather);
+    await page.waitForFunction(
+      (weather) => window.Oracle.view().weather === weather,
+      state.weather,
+      { timeout: 8000 },
+    );
+    await page.waitForTimeout(1200);
+  } else if (state.phase !== undefined) {
+    await page.waitForTimeout(500);
+  }
+  if (state.pan) {
+    await page.evaluate(() => {
+      const view = window.Oracle.view();
+      const target = view.buildings.find((b) => b.prefabId === 'code_forge') ?? view.buildings[0];
+      window.Oracle.setCameraMode('free');
+      window.Oracle.centerCameraOn(
+        target.origin.x * 16 + (target.footprint.w * 16) / 2,
+        target.origin.y * 16 + (target.footprint.h * 16) / 2,
+      );
+    });
+    await page.waitForTimeout(300);
+  }
+};
+
+/**
+ * 逐帧取峰值：8 个组合各采一段，记每段峰值帧号与全局峰值。
+ * 读数同时保留 `top`（旧口径）与 `total`（递归口径），便于对照。
+ */
+const measureCommandsPeak = async (page) => {
+  const states = [];
+  let rainIntroDone = false;
+  let best = null;
+  for (const state of PEAK_STATES) {
+    const useSay = state.weather === 'rain' && !rainIntroDone;
+    await applyPeakState(page, state, useSay);
+    if (state.weather === 'rain') rainIntroDone = true;
+    const frames = await sampleCommandFrames(page, state.frames);
+    let top = null;
+    for (const reading of frames) {
+      if (top === null || reading.total > top.total) top = reading;
+    }
+    const reading = {
+      label: state.label,
+      frames: frames.length,
+      frameSpan: [frames[0].frame, frames.at(-1).frame],
+      peakFrame: top.frame,
+      total: top.total,
+      top: top.top,
+      graphics: top.graphics,
+    };
+    states.push(reading);
+    if (best === null || reading.total > best.total) best = reading;
+  }
+  return { states, worst: best, debt: Math.max(0, best.total - MAX_COMMANDS) };
+};
+
 /** 一轮完整测量：绘制指令、静止/拖动帧率、后台降频与回前台恢复。不含任何判定。 */
-const measurePass = async (page) => {
+const measurePass = async (page, { measurePeak = true } = {}) => {
   const stats = await page.evaluate(() => window.Oracle.renderStats());
 
   const idle = await sampleFps(page);
@@ -301,8 +443,11 @@ const measurePass = async (page) => {
   const restored = await sampleAdvances();
   const rafRestored = rafSummary(await rafRestoredPromise);
 
+  const peak = measurePeak ? await measureCommandsPeak(page) : null;
+
   return {
     stats,
+    peak,
     idle,
     drag,
     foreground,
@@ -327,7 +472,7 @@ const measurePass = async (page) => {
  */
 const warmSession = await openSession();
 try {
-  const warm = await measurePass(warmSession.page);
+  const warm = await measurePass(warmSession.page, { measurePeak: false });
   console.log(
     `[预热轮] 不计分：绘制指令 ${warm.stats.totalCommands} / `
       + `静止 ${warm.idle.value.toFixed(1)} / 拖动 ${warm.drag.value.toFixed(1)} / `
@@ -346,14 +491,40 @@ const session = await openSession();
 const measured = await measurePass(session.page);
 const { stats, idle, drag, foreground, background, restored } = measured;
 
-const commandsForGate = stats.totalCommands + FORCED_COMMAND_OFFSET;
+const peakForGate = measured.peak.worst.total + FORCED_COMMAND_OFFSET;
+const peakDebt = measured.peak.debt;
+for (const state of measured.peak.states) {
+  console.log(
+    `[峰值] ${state.label} 帧 ${state.peakFrame}（${state.frameSpan[0]}–${state.frameSpan[1]}，${state.frames} 帧）：`
+      + `${state.total} 条（旧口径 ${state.top}）`,
+  );
+}
+console.log(
+  `[债务] 设计目标 ${MAX_COMMANDS} / 实测峰值 ${measured.peak.worst.total}`
+    + `（${measured.peak.worst.label}，帧 ${measured.peak.worst.peakFrame}）/ 欠 ${peakDebt} 条 / `
+    + `天花板 ${MAX_COMMANDS_CEILING}（额度 ${MAX_COMMANDS_DEBT} 条）`,
+);
+// 债务是**记账**，不是放宽：峰值超过设计目标就打印并落盘，超天花板才硬红。
+// 额度就是天花板与目标之差，不允许「先把债务写大一点再慢慢还」——天花板本身
+// 是实测值且只许变小（修完雾要跟着往下调），债务随之只能缩。
+console.log(
+  peakDebt > 0
+    ? `[记账] 超出设计目标 ${peakDebt} 条已登记（额度 ${MAX_COMMANDS_DEBT}）；`
+      + `峰值 > ${MAX_COMMANDS_CEILING} 即硬红。`
+    : `[记账] 峰值未超设计目标，无债务。`,
+);
+record(
+  peakDebt <= MAX_COMMANDS_DEBT,
+  '绘制指令债务在登记额度内（只记录，不阻塞）',
+  `债务 ${peakDebt} 条 / 额度 ${MAX_COMMANDS_DEBT} 条（设计目标 ${MAX_COMMANDS}，实测天花板 ${MAX_COMMANDS_CEILING}）`,
+);
 check(
-  commandsForGate < MAX_COMMANDS,
-  `[计分轮] 绘制指令低于 ${MAX_COMMANDS}`,
-  `[计分轮] 实际 ${commandsForGate}`
+  peakForGate <= MAX_COMMANDS_CEILING,
+  `[计分轮] 绘制指令峰值不超过天花板 ${MAX_COMMANDS_CEILING}`,
+  `[计分轮] 实际峰值 ${peakForGate}（${measured.peak.worst.label}，帧 ${measured.peak.worst.peakFrame}）`
     + (FORCED_COMMAND_OFFSET === 0
       ? ''
-      : `（实测 ${stats.totalCommands} + 反例人为抬高 ${FORCED_COMMAND_OFFSET}）`),
+      : `（含反例人为抬高 ${FORCED_COMMAND_OFFSET}）`),
 );
 // `renderStats()` 2026-11-07 起递归到容器（楼体/居民在容器里，整场景 131 个 Graphics）。
 // 这条 `< 40` 是给**顶层**定的（顶层 28 个），口径不能跟着递归数变，否则等于换了把尺子。
@@ -434,7 +605,18 @@ writeFileSync(
       sampleCount: SAMPLE_COUNT,
       sampleMs: SAMPLE_MS,
       forcedCommandOffset: FORCED_COMMAND_OFFSET,
-      commands: { measured: stats.totalCommands, forGate: commandsForGate, limit: MAX_COMMANDS },
+      commands: {
+        snapshot: stats.totalCommands,
+        snapshotTop: stats.top.totalCommands,
+        peak: measured.peak.worst.total,
+        peakLabel: measured.peak.worst.label,
+        peakFrame: measured.peak.worst.peakFrame,
+        debt: peakDebt,
+        target: MAX_COMMANDS,
+        ceiling: MAX_COMMANDS_CEILING,
+        debtBudget: MAX_COMMANDS_DEBT,
+        states: measured.peak.states,
+      },
       thresholds: {
         minDragRatio: MIN_DRAG_RATIO,
         minRestoreRatio: RESTORE_RATIO,

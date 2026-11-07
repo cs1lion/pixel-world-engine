@@ -221,19 +221,19 @@
     },
     {
       "id": "render.drawCalls.static.p50",
-      "value": 27453,
+      "value": 33741,
       "unit": "draw-calls",
       "seed": "demo-dengchao",
-      "weather": "not_measured",
+      "weather": "8 组合（正午/夜/昏/晨 × 晴/雨/暴风雨/雾）",
       "rainSeed": "not_measured",
-      "denominator": "单次计分轮 stats.totalCommands（2026-11-07 起递归含容器：顶层 15,515 + 楼体容器 11,090 + 居民容器 848 = 27,453；同次预热轮 27,453 不计分）。旧分母 16,163 是「只数 children.list 顶层」的口径，楼体 99 个 Graphics / 11,090 条命令在容器里，未进数",
-      "source": "world-client/scripts/check-render-budget.mjs 输出（preview/dev http://127.0.0.1:5217/，2026-11-07 递归口径重测）",
+      "denominator": "整场景递归 stats.totalCommands 的逐帧峰值：8 个时相/天气组合、587 帧连续采样（10,480.5ms），峰值帧 635（晨+雨+灯全开；其中一转帧带时相切换未清的辉光层）。稳定态峰值 33,343（8 段闸门采样，昏+雨，帧 1968）。修雾前峰值 52,125（昏+雾+灯全开，帧 546；雾单层 2,646 块 × 8 条 = 21,168）",
+      "source": "world-client/scripts/check-render-budget.mjs 输出的逐帧峰值 + world-client/tmp/peak-frames.mjs 587 帧探针（preview/dev http://127.0.0.1:5217/，2026-11-07）",
       "script": "scripts/check-render-budget.mjs",
-      "script_sha": "9683389cb9b0ae8aab9f179a673d20881982ee5a2128ec1e7b2f0dca67748fa7",
+      "script_sha": "9f60731991057b3cc71c2bf4bf09a5550bc007c21ceda91d08b8de8e31ace7f3",
       "judge": "program",
       "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "口径修正：旧值 16,163 漏掉容器里的楼体（99 Graphics / 11,090 条），新值 27,453 是整场景递归合计（加法校验 top + Σdepth-1 成立，不是重复计数）。MAX_COMMANDS=30,000 与断言一字未动。真实逐帧峰值另见 docs/OPEN_ISSUES.md MAT-G4：雨+夜+灯 33,101、雾 52,125，均已越线；闸门仍是开局单次快照（27,453），绿的来源是采样窗口而非余量。`graphicsObjects < 40` 改为读 top.graphicsObjects（阈值未动），否则递归后的 131 会误判"
+      "note": "分母改峰值：旧值 27,453 只是正午开局帧，把最坏状态（昏+雾 52,125）漏在闸门外，会让每张图都比在错误基准上。修雾（逐方块 Graphics → 3 张烘焙纹理 + 18 个 Image）后峰值降到 33,741，天花板从 52,125 棘轮到 33,741，债务从 22,125 缩到 3,741；MAX_COMMANDS=30,000 保持为设计目标未动"
     },
     {
       "id": "palette.violations.world",
