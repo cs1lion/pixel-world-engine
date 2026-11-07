@@ -8,12 +8,14 @@
     "建 → 拆 → 原地重建的完整循环，全部走真实 creatorBuild + demolish 命令",
     "地标阶段 built → demolished → ruined → rebuilt 的演化",
     "拆楼保留痕迹（long 层里的 ruin 记忆），重建后旧痕迹仍在",
-    "造物账：两次落地读数与一次拆除"
+    "造物账：两次落地读数与一次拆除",
+    "6 类新增事件的语义读数：街头问候/搭手的数量与参与者、市面四拍的数量/时段/地点/无参与者、四拍同日顺序"
   ],
   "doesNotCover": [
     "altered（改名）阶段：需要五名持有人讲满三天的传说才够门槛，短夹具构造不出来",
     "长期废墟风化成史诗",
-    "拆除时门坐标的边界场景（本夹具在建筑静止时拆）"
+    "拆除时门坐标的边界场景（本夹具在建筑静止时拆）",
+    "第 4 天在 08:00 后截断：当天的收工/夜市/闭市不在此夹具，顺序只在第 0–3 天核对"
   ],
   "trace": {
     "format": "pwe-trace/2",
@@ -71,9 +73,9 @@
     },
     "recorded": {
       "inputDigest": "df2e8b5dc51c7f2744d0ec4fe995723c624dd3d79607ab3a10af8b79971da307",
-      "fingerprint": "41285775a853ecf83bf062b360fc068a897f6d164459efef44a0b0d461a2745a",
-      "eventCount": 101,
-      "eventDigest": "b4ff99965e6cfa07b5a29e550b721ebf1662422bd37c63b667abe38872380be1",
+      "fingerprint": "1b52ae0b5864528f38bd8fefc55e72cbb9b66d019f335e7d34ee75336a3f9b28",
+      "eventCount": 95,
+      "eventDigest": "3e0cac95517ece7fa15fdcded4f4be03486602f733b28fbf7d9f1fddc5a4c443",
       "business": {
         "day": 4,
         "now": 385200000,
@@ -86,58 +88,58 @@
           "feed": 0,
           "local": 0
         },
-        "eventCount": 101
+        "eventCount": 95
       },
       "checkpoints": [
         {
           "step": 0,
           "atWorldMs": 21600000,
-          "fingerprint": "8eac223cd11e3fb822afdfd9cc4840f7dce75cb22fe8dbf8b4fd62291c32b343",
-          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "fingerprint": "3b98e2d4d4f54297b09e7667244dcbcb42bf84b0945582e246e4200a422a4616",
+          "memoryFingerprint": "7deb618472b20587801a7441c977d0475efc99adbc529572bfc97e3ea1b1acdd",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 101,
           "atWorldMs": 385200000,
-          "fingerprint": "41285775a853ecf83bf062b360fc068a897f6d164459efef44a0b0d461a2745a",
-          "memoryFingerprint": "9d59d9268e213db2b136d3aeaa58cbedfbfde2cd2430f6e010dbc6d11250a257",
-          "creatorFingerprint": "0042b082e8b590e0335fe4fe2d2ebe308a1a08b58604fb968665cd45f97d7f71"
+          "fingerprint": "1b52ae0b5864528f38bd8fefc55e72cbb9b66d019f335e7d34ee75336a3f9b28",
+          "memoryFingerprint": "0010fc0515ebbbf701bd191d6d60b05e43790deb725f19efdb378df973f225d7",
+          "creatorFingerprint": "f0151c4f3f519b507716509bc2e7e142f78ec92150154e78329b0251287dd09c"
         }
       ],
       "memory": {
-        "fingerprint": "9d59d9268e213db2b136d3aeaa58cbedfbfde2cd2430f6e010dbc6d11250a257",
+        "fingerprint": "0010fc0515ebbbf701bd191d6d60b05e43790deb725f19efdb378df973f225d7",
         "business": {
           "lastClosedDay": 4,
           "currentDay": 4,
           "holders": 3,
-          "facts": 60,
-          "entries": 24,
-          "claims": 32,
+          "facts": 78,
+          "entries": 34,
+          "claims": 33,
           "beliefs": 8,
-          "traces": 6,
+          "traces": 5,
           "landmarks": 1,
           "turningPoints": 0,
-          "bonds": 0,
+          "bonds": 2,
           "moods": 2,
           "bondTrustSum": 0,
-          "moodValenceSum": 0.140248,
+          "moodValenceSum": 0.195233,
           "legends": 0,
           "placeNames": 2,
           "announcements": 0,
-          "written": 6,
+          "written": 8,
           "credibility": 0,
           "metToday": 1
         }
       },
       "creator": {
-        "fingerprint": "0042b082e8b590e0335fe4fe2d2ebe308a1a08b58604fb968665cd45f97d7f71",
+        "fingerprint": "f0151c4f3f519b507716509bc2e7e142f78ec92150154e78329b0251287dd09c",
         "business": {
           "dayCloses": [
             {
               "day": 1,
               "vitals": {
-                "meanValence": 0.1125,
-                "meanArousal": 0.25,
+                "meanValence": 0.23,
+                "meanArousal": 0.29,
                 "infoEntropy": 0,
                 "isolatedHoldersCount": 2
               },
@@ -162,8 +164,8 @@
             {
               "day": 2,
               "vitals": {
-                "meanValence": 0.1125,
-                "meanArousal": 0.25,
+                "meanValence": 0.1765,
+                "meanArousal": 0.2735,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -188,8 +190,8 @@
             {
               "day": 3,
               "vitals": {
-                "meanValence": 0.1134,
-                "meanArousal": 0.25,
+                "meanValence": 0.1822,
+                "meanArousal": 0.274,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -214,8 +216,8 @@
             {
               "day": 4,
               "vitals": {
-                "meanValence": 0.1167,
-                "meanArousal": 0.25,
+                "meanValence": 0.1646,
+                "meanArousal": 0.2688,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -570,6 +572,188 @@
       "path": "proposals[0].source",
       "op": "eq",
       "value": "creatorBuild"
+    },
+    {
+      "note": "街头问候 5 次：建/拆/重建四天半里每天一次；掉数说明配对/站位条件退化",
+      "source": "memory.factsByKind",
+      "path": "street_greet.length",
+      "op": "eq",
+      "value": 5
+    },
+    {
+      "note": "同街搭手 2 次：只出现在第 0、2 天；数目变化说明时段或配对条件被改坏",
+      "source": "memory.factsByKind",
+      "path": "street_together.length",
+      "op": "eq",
+      "value": 2
+    },
+    {
+      "note": "早市开市 5 次：第 0–4 天各 08:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_open.length",
+      "op": "eq",
+      "value": 5
+    },
+    {
+      "note": "收工 4 次：第 0–3 天各 17:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "work_end.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "夜市 4 次：第 0–3 天各 19:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "night_market.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "闭市 4 次：第 0–3 天各 22:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_close.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "早市只落在 08:00（28800000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "market_open.tickOfDay",
+      "op": "eq",
+      "value": [28800000]
+    },
+    {
+      "note": "收工只落在 17:00（61200000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "work_end.tickOfDay",
+      "op": "eq",
+      "value": [61200000]
+    },
+    {
+      "note": "夜市只落在 19:00（68400000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "night_market.tickOfDay",
+      "op": "eq",
+      "value": [68400000]
+    },
+    {
+      "note": "闭市只落在 22:00（79200000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "market_close.tickOfDay",
+      "op": "eq",
+      "value": [79200000]
+    },
+    {
+      "note": "早市落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "market_open.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "收工落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "work_end.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "夜市落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "night_market.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "闭市落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "market_close.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "早市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "market_open.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "收工是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "work_end.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "夜市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "night_market.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "闭市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "market_close.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "街头问候的参与者始终是 v0+v1 这一对；换人或掉成单人即红",
+      "source": "memory.kindReadings",
+      "path": "street_greet.actorPairs",
+      "op": "eq",
+      "value": ["v0+v1"]
+    },
+    {
+      "note": "同街搭手的参与者始终是 v0+v1 这一对；换人或掉成单人即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.actorPairs",
+      "op": "eq",
+      "value": ["v0+v1"]
+    },
+    {
+      "note": "每条街头问候都有真实落点（placeId 为空即红）",
+      "source": "memory.kindReadings",
+      "path": "street_greet.emptyPlaces",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "每条同街搭手都有真实落点（placeId 为空即红）",
+      "source": "memory.kindReadings",
+      "path": "street_together.emptyPlaces",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "同街搭手最早不早于 08:00（28800000ms）；跑到清晨即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.tickOfDayMin",
+      "op": "gte",
+      "value": 28800000
+    },
+    {
+      "note": "同街搭手最晚不晚于 18:00 前（64799999ms）；拖到傍晚/夜里即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.tickOfDayMax",
+      "op": "lte",
+      "value": 64799999
+    },
+    {
+      "note": "第 0–3 天市面四拍顺序均为 开市→收工→夜市→闭市；details 非空即红并列出逆序拍点",
+      "source": "memory.beatOrder",
+      "path": "details",
+      "op": "eq",
+      "value": []
+    },
+    {
+      "note": "顺序读数确实核对了 4 个完整日；夹具提前结束会让这条先红",
+      "source": "memory.beatOrder",
+      "path": "checkedDays",
+      "op": "eq",
+      "value": 4
     }
   ]
 }

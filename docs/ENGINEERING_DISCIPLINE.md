@@ -143,6 +143,7 @@
 - **触发**：渲染/世界/判据相关的读数。
 - **怎么做**：钉住时刻、潮位、相位、角色、轨迹、天气；同参数两跑逐帧 sha256 必须相同；脚本连接本机 vite 前先校验 `/__tree-id`，路径不一致即红。模拟层可用 `trace:record` / `trace:replay` / `trace:to-test` 固定轨迹。
 - **违反暴露**：sha 不一致；树 id mismatch 打印「你连的是 52xx 那棵树…」并退出 1；`fixture:check` 当前 5/5 FAIL（J1，未认领），不是绿闸。
+- **不断言**：`street_greet / street_together / street_quarrel / street_yield` 彼此没有确定先后。同一 tick 由 [`livelyBetween`](file:///D:/project/pixel-world-engine/world-client/src/world/liveliness.ts#L263-L341) 的分支优先级择一（争执 → 让路 → 搭手 → 问候），但跨 tick 的次序由站位、行走、信任、冷却和哈希槽共同决定；夹具只断言各类是否出现、参与者与状态约束，不把当前次序固化成规则。
 - **对应物**：[pin-shot-state.ts](file:///D:/project/pixel-world-engine/world-client/src/render/pin-shot-state.ts#L57-L95)；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L1-L19)；[tree-identity.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/lib/tree-identity.mjs#L1-L18)；[fixture-check.ts](file:///D:/project/pixel-world-engine/world-client/scripts/fixture-check.ts)。
 
 ### V4 判据层

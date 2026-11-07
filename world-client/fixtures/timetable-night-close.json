@@ -1,0 +1,335 @@
+{
+  "format": "pwe-fixture/1",
+  "fixtureVersion": 1,
+  "name": "timetable-night-close",
+  "purpose": "灯潮镇同一天跑到 22:04：补齐 timetable-daily-markers 停在 18:05 时缺的 19:00 夜市与 22:00 闭市，验证四拍在同一个 place:40,26 的 marketSpot 上完整落账且顺序正确。",
+  "expectedMs": 1800,
+  "covers": [
+    "08:00 market_open / 17:00 work_end / 19:00 night_market / 22:00 market_close 各 1 次",
+    "四拍时刻精确，地点均为 place:40,26，旁白事件参与者为 0",
+    "同日四拍顺序：开市→收工→夜市→闭市（checkedDays=1，details 为空）"
+  ],
+  "doesNotCover": [
+    "跨多日：只跑一个世界日",
+    "街头事件的先后关系：street_greet / street_together / street_quarrel / street_yield 无确定次序，不断言（见 docs/ENGINEERING_DISCIPLINE.md V3）",
+    "深夜 23:00 之后：本夹具停在 22:04，不覆盖收灯后的世界事件"
+  ],
+  "trace": {
+    "format": "pwe-trace/2",
+    "traceVersion": 2,
+    "description": "灯潮镇同一天从 04:50 跑到 22:04：补齐 19:00 夜市与 22:00 闭市",
+    "worldId": "dengchao",
+    "worldSeed": "fixture-timetable",
+    "initialNow": 17400000,
+    "stepMs": 120000,
+    "steps": 517,
+    "eventRange": {
+      "from": 0,
+      "to": 21
+    },
+    "injections": [],
+    "outer": {
+      "memory": true,
+      "creator": true
+    },
+    "recorded": {
+      "inputDigest": "f41664b54efcf926a100317ff54211035b426222fb0b9e8c323b1376b7389b03",
+      "fingerprint": "63240c67a21a1aba37720c2851d153badde20cbfd66ffb4dcd883d4031149c02",
+      "eventCount": 21,
+      "eventDigest": "b826087ecd8cab2e62ef9a0287a95115c617834e8a113b581753db82ff2de338",
+      "business": {
+        "day": 0,
+        "now": 79440000,
+        "buildings": 9,
+        "tasksTotal": 0,
+        "tasksCompleted": 0,
+        "weather": "clear",
+        "faithPoints": 0,
+        "deliveries": {
+          "feed": 0,
+          "local": 0
+        },
+        "eventCount": 21
+      },
+      "checkpoints": [
+        {
+          "step": 0,
+          "atWorldMs": 17400000,
+          "fingerprint": "bc5fd4c6cd93088a8944ada632b6997e66c163941eb4926778d11ed76e721d75",
+          "memoryFingerprint": "7deb618472b20587801a7441c977d0475efc99adbc529572bfc97e3ea1b1acdd",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 250,
+          "atWorldMs": 47400000,
+          "fingerprint": "cc5fe9d05606ab7bd50a98425b0543e32574845b05beb3aa3fdc6d594664781d",
+          "memoryFingerprint": "39b2fcb8788c6e64bd8e1aa5258c1a88a886308c44f32060d327887a23d07879",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 500,
+          "atWorldMs": 77400000,
+          "fingerprint": "5e2a42caa1437b2ea24de79980d7dd9c3b0bb4bb5cbdfb8566649fe260a621bc",
+          "memoryFingerprint": "0783553bf161782f861a619a9eeaa72538a891c1c5fe445ea87f267fa62aae8a",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        },
+        {
+          "step": 517,
+          "atWorldMs": 79440000,
+          "fingerprint": "63240c67a21a1aba37720c2851d153badde20cbfd66ffb4dcd883d4031149c02",
+          "memoryFingerprint": "15a94d964d34ae457b00b58e36fb7ffa945ca5781da81eaee7ffdb97f60177d8",
+          "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
+        }
+      ],
+      "memory": {
+        "fingerprint": "15a94d964d34ae457b00b58e36fb7ffa945ca5781da81eaee7ffdb97f60177d8",
+        "business": {
+          "lastClosedDay": 0,
+          "currentDay": 0,
+          "holders": 38,
+          "facts": 27,
+          "entries": 31,
+          "claims": 19,
+          "beliefs": 0,
+          "traces": 0,
+          "landmarks": 0,
+          "turningPoints": 0,
+          "bonds": 0,
+          "moods": 0,
+          "bondTrustSum": 0,
+          "moodValenceSum": 0,
+          "legends": 0,
+          "placeNames": 9,
+          "announcements": 0,
+          "written": 0,
+          "credibility": 0,
+          "metToday": 143
+        }
+      },
+      "creator": {
+        "fingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1",
+        "business": {
+          "dayCloses": [],
+          "proposals": [],
+          "landings": [],
+          "roles": [
+            {
+              "roleId": "art_supervisor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "auditor",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "director",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "historian",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "interpreter",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            },
+            {
+              "roleId": "mapper",
+              "currentLevel": 0,
+              "targetLevel": 3,
+              "isFused": false,
+              "lastRegressionPassed": null,
+              "batches": 0,
+              "days": 0,
+              "totalCommands": 0,
+              "schemaPassCount": 0,
+              "conflictCount": 0,
+              "conflictChecks": 0,
+              "invariantChecks": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assertions": [
+    {
+      "note": "早市 1 次：这一天 08:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_open.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "收工 1 次：这一天 17:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "work_end.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "夜市 1 次：跑到 22:04 才看得到的 19:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "night_market.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "闭市 1 次：跑到 22:04 才看得到的 22:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_close.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "夜市只落在 19:00（68400000ms）这一拍",
+      "source": "memory.kindReadings",
+      "path": "night_market.tickOfDay",
+      "op": "eq",
+      "value": [
+        68400000
+      ]
+    },
+    {
+      "note": "闭市只落在 22:00（79200000ms）这一拍",
+      "source": "memory.kindReadings",
+      "path": "market_close.tickOfDay",
+      "op": "eq",
+      "value": [
+        79200000
+      ]
+    },
+    {
+      "note": "夜市落在本夹具的街口 marketSpot（place:40,26）",
+      "source": "memory.kindReadings",
+      "path": "night_market.places",
+      "op": "eq",
+      "value": [
+        "place:40,26"
+      ]
+    },
+    {
+      "note": "闭市落在本夹具的街口 marketSpot（place:40,26）",
+      "source": "memory.kindReadings",
+      "path": "market_close.places",
+      "op": "eq",
+      "value": [
+        "place:40,26"
+      ]
+    },
+    {
+      "note": "早市也落在同一个 marketSpot（place:40,26）",
+      "source": "memory.kindReadings",
+      "path": "market_open.places",
+      "op": "eq",
+      "value": [
+        "place:40,26"
+      ]
+    },
+    {
+      "note": "收工也落在同一个 marketSpot（place:40,26）",
+      "source": "memory.kindReadings",
+      "path": "work_end.places",
+      "op": "eq",
+      "value": [
+        "place:40,26"
+      ]
+    },
+    {
+      "note": "夜市是旁白事件，不记到任何居民头上（参与者人数为 0）",
+      "source": "memory.kindReadings",
+      "path": "night_market.actorCounts",
+      "op": "eq",
+      "value": [
+        0
+      ]
+    },
+    {
+      "note": "闭市是旁白事件，不记到任何居民头上（参与者人数为 0）",
+      "source": "memory.kindReadings",
+      "path": "market_close.actorCounts",
+      "op": "eq",
+      "value": [
+        0
+      ]
+    },
+    {
+      "note": "夜市与闭市都发生在同一个世界日（day 0）",
+      "source": "memory.factsByKind",
+      "path": "night_market[0].day",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "闭市也发生在同一个世界日（day 0）",
+      "source": "memory.factsByKind",
+      "path": "market_close[0].day",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "同日四拍顺序为 开市→收工→夜市→闭市；details 非空即列出逆序拍点",
+      "source": "memory.beatOrder",
+      "path": "details",
+      "op": "eq",
+      "value": []
+    },
+    {
+      "note": "顺序读数确实核对了 1 天（四拍齐全）；窗口截短会让这条先红",
+      "source": "memory.beatOrder",
+      "path": "checkedDays",
+      "op": "eq",
+      "value": 1
+    }
+  ]
+}
