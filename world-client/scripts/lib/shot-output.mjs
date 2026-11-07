@@ -29,7 +29,13 @@ export const WRITE_BASELINE_FLAG = '--write-baseline';
 
 const toPosix = (value) => value.split(/[\\/]+/).join('/');
 
-/** 目录下已跟踪的文件（仓库相对路径）。目录在仓库外或 git 不可用时返回空。 */
+/**
+ * 目录下已跟踪的文件（仓库相对路径）。
+ *
+ * 目录落在 `clientRoot` 之外是确定的「这个口径不看那里」，返回空；
+ * **git 跑不起来则抛**——「不知道有没有已跟踪文件」不等于「没有」。
+ * 静默返回空会让 `resolveShotDir` 以为目录干净，未授权的基线写入直接放行。
+ */
 export function trackedFilesIn(dir, { clientRoot = CLIENT_ROOT } = {}) {
   const rel = toPosix(relative(clientRoot, dir));
   if (rel !== '' && (rel.startsWith('..') || rel.includes(':'))) return [];
@@ -41,8 +47,12 @@ export function trackedFilesIn(dir, { clientRoot = CLIENT_ROOT } = {}) {
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     return out.split('\0').filter(Boolean);
-  } catch {
-    return [];
+  } catch (error) {
+    throw new Error(
+      `无法确认 ${dir} 是否有已跟踪文件：git ls-files 失败` +
+        `（${error instanceof Error ? error.message : String(error)}）。` +
+        '「不知道」不等于「没有」，不能据此放行写入。',
+    );
   }
 }
 
