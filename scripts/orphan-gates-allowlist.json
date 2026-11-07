@@ -1,6 +1,6 @@
 {
   "schema": "pwe-orphan-gates-allowlist/1",
-  "pendingCiBudget": 22,
+  "pendingCiBudget": 21,
   "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
   "entries": [
     {
@@ -128,13 +128,6 @@
       "reason": "读本轮 lamp-band 截图算灯带盲区，不重拍",
       "acceptedBecause": "依赖 check-lamp-band 的产物，后者未接 CI",
       "blockedBy": "依赖 check-lamp-band 的产物；接 CI 需在同一 job 先生成产物再判红"
-    },
-    {
-      "id": "file:world-client/scripts/check-phases-negative.mjs",
-      "kind": "pending-ci",
-      "reason": "时相收敛判据的反向用例，必须按预期判红",
-      "acceptedBecause": "反向用例要专门的「预期失败」步骤，现有 CI 只有 red:first 一处这种结构",
-      "blockedBy": "预期判红的反向用例；接 CI 要 red:first 同类的预期失败步骤"
     },
     {
       "id": "file:world-client/scripts/check-scene-depth.mjs",
