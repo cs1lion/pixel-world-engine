@@ -185,11 +185,19 @@ export const DENGCHAO_RAW: RawSettingPack = {
   // 铺在草岸上会把岸读成码头/硬边（材质词义不对，不是看不见）。所以 stone 用
   // `soil→farm→plaza`（`farm→plaza` 正午 23.0 / 22.21），grass 用
   // `soil→farm→copper`（`farm→copper` 正午 13.0 / 13.06）。读数与穷举见 §6.5。
-  // 两组都用直岸（inset 0）：灯潮界行 15 的岸线是全格宽的北侧边，
-  // 直岸下每格至多一条边，`overlapPx === 0` 是结构事实。
+  // 两组都用直岸（inset 0）：灯潮界行 15 的岸线是全格宽的北侧边，直岸段沿水线的
+  // 覆盖宽度是整格 16px，段与段之间不留缝。
   //
-  // `maxTruncatedPx` / `maxOverlapPx` 都是 0：截断或双重压暗必须当场失败，
-  // 不许悄悄少画一段——24px 带的三格（行 15/16/17）在灯潮界都是陆格。
+  // `staggerStep` 取 0（湿端）：错位加宽放在贴水的那一段，末段固定 8px。v3 的初版
+  // 把错位加在末段，正午 4× 下 `farm→plaza` 那一段被撑到 16~20px，读成一块亮板
+  // （不是「读成带」，是亮面太大），所以按 §6.5 的退回方案把加宽挪到湿端。
+  //
+  // `maxTruncatedPx` 是 0：截断必须当场失败，不许悄悄少画一段——24px 带的三格
+  // （行 15/16/17）在灯潮界都是陆格。
+  // `maxOverlapPx` 不是 0：灯潮界有 4 个拐角格（(7,9) 北+西 / (19,9) 北+东 /
+  // (28,14) 北+西 / (36,14) 北+东），北带与竖带必然在同一格的 `[d, d)²` 内相交，
+  // 裁掉的重叠是拐角结构而不是缺陷。石材段实测 2656 px（草岸段不在拐角，0），
+  // 这里写死实测基线当回归闸门：重叠涨上去就抛，而不是放宽到某个安全大数。
   shore: [
     {
       land: ['stone'],
@@ -197,9 +205,9 @@ export const DENGCHAO_RAW: RawSettingPack = {
       depthPx: 24,
       staggerPx: 4,
       staggerLevels: 4,
-      staggerStep: 2,
+      staggerStep: 0,
       maxTruncatedPx: 0,
-      maxOverlapPx: 0,
+      maxOverlapPx: 2656,
       steps: [
         { token: 'soil', depthPx: 8 },
         { token: 'farm', depthPx: 8 },
@@ -212,7 +220,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       depthPx: 24,
       staggerPx: 4,
       staggerLevels: 4,
-      staggerStep: 2,
+      staggerStep: 0,
       maxTruncatedPx: 0,
       maxOverlapPx: 0,
       steps: [

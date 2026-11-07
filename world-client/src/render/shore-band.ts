@@ -72,7 +72,7 @@ export interface ShoreNumbers {
   readonly depthPx: number;
   readonly staggerPx: number;
   readonly staggerLevels: number;
-  /** 错位加在哪一段（v3 取最后一段）。 */
+  /** 错位加在哪一段（v3 取第一段/湿端，末段保持恒定宽度）。 */
   readonly staggerStep: number;
   readonly maxTruncatedPx: number;
   readonly maxOverlapPx: number;

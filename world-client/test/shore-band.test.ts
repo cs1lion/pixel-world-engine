@@ -189,7 +189,7 @@ const BASE = {
   depthPx: 24,
   staggerPx: 4,
   staggerLevels: 4,
-  staggerStep: 2,
+  staggerStep: 0,
   maxTruncatedPx: 0,
   maxOverlapPx: 0,
 } as const;
@@ -480,11 +480,10 @@ test('J2 两种岸型预设：直岸 inset 0、收进 inset 2', async () => {
   const straightRects = mod.shoreBandRects!(edges, [straight]);
   const insetRects = mod.shoreBandRects!(edges, [inset]);
 
-  assert.equal(straightRects.pieces.filter((piece) => piece.step === 0).length, 4, '4 格各发一块湿段');
-  assert.equal(straightRects.pieces.filter((piece) => piece.step === 1).length, 4, '4 格各发一块中段');
+  assert.deepEqual([...new Set(straightRects.pieces.map((piece) => piece.step))].sort(), [0, 1, 2], '三档都要发出来');
+  assert.ok(straightRects.pieces.filter((piece) => piece.step === 0).length >= 4, '湿段错位后可能跨格拆成两块');
   assert.equal(straightRects.pieces[0]!.rect.y, 1 * TILE_PX, '直岸紧贴水边（陆格北沿）');
   assert.equal(insetRects.pieces[0]!.rect.y, 1 * TILE_PX + 2, '收进从水边向陆侧退 2px');
-  assert.equal(straightRects.pieces[0]!.rect.h, 8, 'depthPx 的第一段是 8px');
   assert.equal(straightRects.truncatedPx, 0);
   assert.equal(straightRects.overlapPx, 0);
 });
@@ -514,11 +513,13 @@ test('J2 灯潮界必须真的配上 shore，且石板与草岸各有独立三�
     assert.equal(entry.depthPx, 24);
     assert.equal(entry.staggerPx, 4);
     assert.equal(entry.staggerLevels, 4);
-    assert.equal(entry.staggerStep, 2, '错位只加在最后一段');
+    assert.equal(entry.staggerStep, 0, '错位只加在湿端第一段，末段固定 8px（否则正午读成亮板）');
     assert.equal(entry.maxTruncatedPx, 0);
-    assert.equal(entry.maxOverlapPx, 0);
     assert.deepEqual(entry.steps?.map((step) => step.depthPx), [8, 8, 8]);
   }
+  // 拐角重叠是结构事实（4 个拐角格），石材段按实测基线写死；草岸段不在拐角。
+  assert.equal(stone!.maxOverlapPx, 2656, '石材段的重叠上限是实测基线，不是 0');
+  assert.equal(grass!.maxOverlapPx, 0, '草岸段不在拐角，重叠必须是 0');
   assert.ok((WORLD as Record<string, unknown>).plaza !== undefined && (WORLD as Record<string, unknown>).copper !== undefined);
 
   const loaded = loadSettingPack(DENGCHAO_RAW) as { readonly shore?: unknown };
@@ -788,12 +789,13 @@ test('J6 24px 落 2 格、36px 落 3 格，每格承担段与 §6.4 表一致', 
   assert.deepEqual(
     phase3.pieces.map((piece) => [piece.step, piece.cell, piece.rect.y, piece.rect.h]),
     [
-      [0, { x: 44, y: 15 }, 240, 8],
-      [1, { x: 44, y: 15 }, 248, 8],
-      [2, { x: 44, y: 16 }, 256, 16],
+      [0, { x: 44, y: 15 }, 240, 16],
+      [0, { x: 44, y: 16 }, 256, 4],
+      [1, { x: 44, y: 16 }, 260, 8],
+      [2, { x: 44, y: 16 }, 268, 4],
       [2, { x: 44, y: 17 }, 272, 4],
     ],
-    '36px：plaza 段 20px 切到行 16 的 16px + 行 17 的 4px，不压缩不重排',
+    '36px：错位 12px 加在湿端（soil 20px 切到行 15 的 16px + 行 16 的 4px），末段固定 8px',
   );
 });
 
@@ -958,7 +960,7 @@ test('J7 末段与背景地形仍可辨：plaza↔stone、copper↔grass', () =>
   assert.ok(Math.abs(copperGrassNight.dL - 10.2) <= 0.05 && Math.abs(copperGrassNight.dE - 9.16) <= 0.05, '夜相 copper→grass 10.2 / 9.16');
 });
 
-test('J7 每段沿法线 ≥8 art px：错位只加宽最后一段，不借中段', async () => {
+test('J7 每段沿法线 ≥8 art px：错位只加宽湿端第一段，末段恒定 8px', async () => {
   const mod = await shore();
   has(mod, 'waterLandEdges');
   has(mod, 'shoreBandRects');
@@ -972,9 +974,9 @@ test('J7 每段沿法线 ≥8 art px：错位只加宽最后一段，不借中�
     );
     const byStep = new Map<number, number>();
     for (const piece of result.pieces) byStep.set(piece.step, (byStep.get(piece.step) ?? 0) + piece.rect.h);
-    assert.equal(byStep.get(0), 8, '第一段永远是 8px');
+    assert.equal(byStep.get(0), 8 + extra, '第一段（湿端）= 8 + 相位 × 4');
     assert.equal(byStep.get(1), 8, '中段永远是 8px（不许从中间借宽度）');
-    assert.equal(byStep.get(2), 8 + extra, '末段 = 8 + 相位 × 4');
+    assert.equal(byStep.get(2), 8, '末段永远是 8px（亮面不许被错位撑大）');
   }
   assert.ok(edges.length === 1);
 });
@@ -1170,6 +1172,54 @@ test('J9 反向 M13：同格两侧临水只裁不叠，直岸单侧 overlapPx ==
     () => mod.shoreBandRects!(mod.waterLandEdges!(corner), [strictCorner]),
     /重叠 196 px 超过上限 0/,
     'maxOverlapPx 超限必须当场抛',
+  );
+});
+
+test('J9 实测基线：真实 dengchao 的拐角重叠石材 2656 / 草岸 0，且超一像素必须抛', async () => {
+  const mod = await shore();
+  has(mod, 'resolveShoreConfig');
+  has(mod, 'shoreBandRects');
+  has(mod, 'waterLandEdgesFromGrid');
+  has(mod, 'countDoubleCovered');
+  has(mod, 'countPixelsInCells');
+
+  const pack = loadSettingPack(DENGCHAO_RAW);
+  const grid = buildSettingWorld(pack).grid;
+  const configs = mod.resolveShoreConfig!((pack as { readonly shore?: unknown }).shore);
+  assert.ok(configs !== null && configs.length === 2, '两组岸型都要解析出来');
+  const edges = mod.waterLandEdgesFromGrid!(grid, (terrain) => terrain === 'shallow');
+  const isLand = (cell: GridPoint): boolean => grid.at(cell)?.terrain !== 'shallow';
+
+  // 拐角格是结构事实：这 4 格两侧同时临水，北带与竖带必然相交。
+  const sides = new Map<string, string[]>();
+  for (const edge of edges) {
+    const k = key(edge.land);
+    sides.set(k, [...(sides.get(k) ?? []), edge.side]);
+  }
+  const corners = [...sides.entries()].filter(([, list]) => list.length > 1).map(([k]) => k).sort();
+  assert.deepEqual(corners, ['19,9', '28,14', '36,14', '7,9'], '灯潮界有 4 个拐角格（此前写的「全是北侧」是错的）');
+
+  const water = new Set<string>();
+  for (let y = 0; y < grid.height; y += 1) {
+    for (let x = 0; x < grid.width; x += 1) {
+      if (grid.at({ x, y })?.terrain === 'shallow') water.add(key({ x, y }));
+    }
+  }
+
+  for (const [label, overlap] of [['stone', 2656], ['grass', 0]] as const) {
+    const config = configs.find((entry) => entry.land.includes(label))!;
+    const result = mod.shoreBandRects!(edges, [config], isLand);
+    assert.equal(result.truncatedPx, 0, `${label}：三格承载都是陆格，不许截断`);
+    assert.equal(result.overlapPx, overlap, `${label}：只裁不叠的重叠面积必须等于实测基线`);
+    assert.equal(mod.countDoubleCovered!(result.pieces), 0, `${label}：同一像素不许画两次`);
+    assert.equal(mod.countPixelsInCells!(result.pieces, water), 0, `${label}：被裁掉的部分也不许漏进水面`);
+  }
+
+  // 反向：基线少给 1px 就必须当场抛，证明 2656 是闸门而不是安全大数。
+  const stone = configs.find((entry) => entry.land.includes('stone'))!;
+  assert.throws(
+    () => mod.shoreBandRects!(edges, [{ ...stone, maxOverlapPx: 2655 }], isLand),
+    /重叠 2656 px 超过上限 2655/,
   );
 });
 
