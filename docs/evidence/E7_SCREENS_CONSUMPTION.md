@@ -240,8 +240,9 @@
 
 ```powershell
 git -C D:\project\pwe-baseline-audit ls-files world-client/eval/screens | Measure-Object -Line
-git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t"
-git -C D:\project\pwe-baseline-audit grep -n "scene-motion-dark-t"
+# 代码与证据文档里应 0 命中（exit 1）。范围故意排除 OPEN_ISSUES / ANIMATION_BASELINE_VERDICT /
+# 本审计文档，因为它们按设计要写这三个文件名来记录删除本身。
+git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motion-dark-t" -- world-client docs/evidence/scene-motion docs/evidence/scene-artbook docs/evidence/SCREENS_BASELINE_AUDIT.md
 ```
 
 ## 六、受影响闸门复跑（删除后）
@@ -274,8 +275,10 @@ git -C D:\project\pwe-baseline-audit grep -n "scene-motion-dark-t"
 # 1) 计数
 git -C D:\project\pwe-baseline-audit ls-files world-client/eval/screens | Measure-Object -Line
 # 2) 本表每一行的证据：按"文件:行"打开对应脚本/文档
-# 3) 读取方实跑
+# 3) 被删 3 件在代码与证据文档里 0 命中（exit 1；范围排除记录删除本身的文档）
+git -C D:\project\pwe-baseline-audit grep -n "ground-shadow-closed-t|scene-motion-dark-t" -- world-client docs/evidence/scene-motion docs/evidence/scene-artbook docs/evidence/SCREENS_BASELINE_AUDIT.md
+# 4) 读取方实跑
 cd D:\project\pwe-baseline-audit\world-client
 node scripts/check-lamp-blindspot.mjs
-# 4) 死接验证：看 check-lamp-band 输出里有没有 "before / after" 差
+# 5) 死接验证：看 check-lamp-band 输出里有没有 "before / after" 差
 ```
