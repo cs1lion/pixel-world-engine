@@ -72,11 +72,11 @@
 
 | 条目 | 为什么它不是闸门 |
 | --- | --- |
-| `file:world-client/scripts/check-rain-pin.mjs` | 只拍图与读数、退出码恒 0；配对判据在 `screens-diff.py`，不在这里 |
-| `file:world-client/scripts/check-glow-contrast.mjs` | 只输出读数、不设 exit 非 0；D 已论证不可按当前测量标定（K6），要成为闸门须先补齐 K6 缺项 a–e 并定出阈值 |
-| `file:world-client/scripts/homecoming-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出包围盒/色数阈值并补 exit 路径 |
-| `file:world-client/scripts/interior-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出房间包围盒/冻结差阈值并补 exit 路径 |
-| `file:world-client/scripts/material-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出纹理能量/重复率阈值并补 exit 路径 |
+| `world-client/scripts/check-rain-pin.mjs` | 只拍图与读数、退出码恒 0；配对判据在 `screens-diff.py`，不在这里 |
+| `world-client/scripts/check-glow-contrast.mjs` | 只输出读数、不设 exit 非 0；D 已论证不可按当前测量标定（K6），要成为闸门须先补齐 K6 缺项 a–e 并定出阈值 |
+| `world-client/scripts/homecoming-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出包围盒/色数阈值并补 exit 路径 |
+| `world-client/scripts/interior-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出房间包围盒/冻结差阈值并补 exit 路径 |
+| `world-client/scripts/material-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出纹理能量/重复率阈值并补 exit 路径 |
 
 它们是**被观察**，不是**被信任**：读数变了不会红，只有人看图才知道。
 
