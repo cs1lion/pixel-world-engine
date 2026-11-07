@@ -187,9 +187,9 @@ OFF1 vs ON1 的 22 张 PNG 逐张如下（count=变化像素数，box=x,y,w,h，
 
 **出处**：world-client/tmp/animfsm-report.md 第 7 节；`docs/animation/villager-anim-fsm-integration.md` 的"过渡合成的视觉口径与待定项"。
 
-### 2.7 闸门：三条断言已固化
+### 2.7 闸门：三条断言
 
-**实测。** 一次性探针已固化为 `world-client/scripts/check-anim-fsm-transition.mjs`，npm 入口 `test:animfsm-transition`，并接入 `.github/workflows/ci.yml` 的 `world-client-browser` job。
+**实测。** 过渡像素校验目前由一次性探针完成（脚本、npm 入口与 CI 接线均未入库，随动画线后续提交）；本节读数来自该探针，不能当作「已在 CI 里跑的闸门」。
 
 三条断言：
 
@@ -236,7 +236,7 @@ OFF1 vs ON1 的 22 张 PNG 逐张如下（count=变化像素数，box=x,y,w,h，
 
 CI 的 `world-client-browser` job 实际只跑四条：`test:persistence`、`test:render-budget`、`test:phases`、`test:animfsm-transition`。其中：
 
-- `test:phases` **不读仓内基线**：它默认把截图写进 `tmp/screens/`，只有显式 `--write-baseline` 或 `EVAL_OUT=eval/screens` 才写回基线；CI 把 `EVAL_OUT` 指到 `${{ runner.temp }}/eval-screens`。判据是四刻亮度顺序与同次运行的区域差，不是与基线逐字节比较。
+- `test:phases` **不读仓内基线**：它默认把截图写进 tmp/screens/，只有显式 `--write-baseline` 或 `EVAL_OUT=eval/screens` 才写回基线；CI 把 `EVAL_OUT` 指到 `${{ runner.temp }}/eval-screens`。判据是四刻亮度顺序与同次运行的区域差，不是与基线逐字节比较。
 - `persistence` / `render-budget` 不产出、也不比对 `eval/screens` 的 PNG。
 - 新增的 `test:animfsm-transition` 同样不读基线，只做同次运行比较。
 
@@ -285,8 +285,8 @@ git ls-tree -r --name-only 0a6742c -- world-client/eval/screens
 
 **先后关系（实测，写清时间顺序）：**
 
-- 在过渡像素探针之前，只有**运行时参数到达**的证据：`tmp/probe-animfsm-query.mjs` 包了 `URLSearchParams.get`，ON 页的 `search` 含 `animfsm=1`，启动期 `get('animfsm')` 被调用 1 次；OFF 页也调用 1 次、取到 null。这只证明开关被读到，**没有过渡帧的像素证据**。
-- 2026-11-07 用一次性探针补上了过渡帧像素证据（第 2.6 节），随后才固化为例行闸门（第 2.7 节）。顺序是：参数到达 → 像素证据 → 闸门；不是一开始就有像素证据。
+- 在过渡像素探针之前，只有**运行时参数到达**的证据：tmp/probe-animfsm-query.mjs 包了 `URLSearchParams.get`，ON 页的 `search` 含 `animfsm=1`，启动期 `get('animfsm')` 被调用 1 次；OFF 页也调用 1 次、取到 null。这只证明开关被读到，**没有过渡帧的像素证据**。
+- 2026-11-07 用一次性探针补上了过渡帧像素证据（第 2.6 节），随后计划固化为例行闸门（第 2.7 节，接线尚未入库）。顺序是：参数到达 → 像素证据 → 闸门；不是一开始就有像素证据。
 
 **出处**：world-client/tmp/animfsm-report.md 第 3、4、7 节。
 
