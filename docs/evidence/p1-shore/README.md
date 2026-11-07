@@ -6,11 +6,15 @@
 - 实现：`world-client/src/render/shore-band.ts`、`world-client/src/render/tilemap.ts`、
   `world-client/src/settings/{types,load}.ts`、`world-client/src/settings/dengchao/pack.ts`
 - 测试：[world-client/test/shore-band.test.ts](../../../world-client/test/shore-band.test.ts)
-- 实现提交：`53c3d300885d9ab3546203fe554a15b26b40fbc4`
+- 实现提交（v1）：`53c3d300885d9ab3546203fe554a15b26b40fbc4`
+- 拐角修复提交（v3）：`5c0258bd01eea10842d4fd02c9a7cbcfa690ec4f`
+
+> 本文件 §0–§5 是 v1（`53c3d30`）的口径，保留作历史；v3（`5c0258b`）的拐角修复、
+> 不变量覆盖、融合复测与合并前检查清单一律追加在 §6。两套读数不要混用。
 
 ## 0. 文件清单
 
-本目录递归 **19 个文件**（含本 README 与 2 张 4× 裁剪），实测命令：
+本目录递归 **28 个文件**（含本 README；v1 的 19 个 + §6 的 9 张 v3 产物），实测命令：
 `Get-ChildItem -Recurse -File docs/evidence/p1-shore | Measure-Object`。
 
 | 路径 | 内容 |
@@ -23,6 +27,7 @@
 | `diff/masks/*.png` | 差异掩膜（差异像素染成品红 `255,0,255`） |
 | `mask-check.json` | 掩膜像素按 §3.6 公式反解到格：`waterCellPixels` 与校准点 |
 | `crops/noon-{low,high}-4x.png` | 岸段 `x42..57` 的 4× 观感对照（见 §2.1） |
+| `v3/` | 拐角修复后的 4× 裁剪、直岸 4×、宽幅融合图与六钉整幅（9 张，见 §6.5） |
 
 六钉口径不变：`nowMs=43200000`（noon）、`tideLevel` 钉在 0 / 1、7 位村民 frame 0、
 `pinTrails([])`、`pinWeather(0,0)`、世界钟冻结、压暗层 `waitFadeSettled`、canvas-only。
@@ -226,3 +231,205 @@ npm run test:render-budget
    `Oracle.camera()`、`canvas.getBoundingClientRect()`、buffer 尺寸与 `dpr`（见 `runs.json`）。
 3. `scripts/screens-diff.py` 出 sha256 / exact / visible / 连通区 / bbox；
    掩膜差异像素固定在 `(255,0,255)`，按 §1.3 公式反解成格，落成 `mask-check.json`。
+
+## 6. v3 拐角修复与不变量（实现 `5c0258b`，2026-11-07 追加）
+
+### 6.1 不变量判据（独立于实现方式，可证伪）
+
+判据：**每条水陆边，陆侧贴水 1px 带上的每个像素 token 必须是 `steps[0].token`，
+且 `steps[0]` 必须是 `soil`；拐角的两条腿各自独立成立，亮端允许被吸收或被铺装吞掉。**
+
+实测覆盖（`J9 不变量` 用例，`world-client/test/shore-band.test.ts`）：
+
+```
+全图水陆边                      186 条
+有岸型（走进同一条断言）           87 条 = 石材 72 + 草岸 15
+贴水像素                        1392 px = 石材 1152 + 草岸 240
+无岸型（不画带，但计入分母）        99 条 = 树 90 + 铺装 9
+违规                              0 px
+```
+
+- 逐边累计断言：分组条数必须等于「有岸型」全集（87），像素数必须 = 87 × 16 = 1392；
+  分组漏边或只测一类地形会直接报出分母。
+- 证伪：石材、草岸各把一处贴水像素换成末段 token，同一检查器都必须报出该坐标。
+- **修复前红样例（32 px）**：
+  `7,9/west (112,152..159)=farm`、`7,10/west (112,160..167)=plaza`，
+  `19,9/east (319,152..159)=farm`、`19,10/east (319,160..167)=plaza`。
+  原因是发出顺序 `side` 先于段下标，竖带湿段被北带干段裁掉。
+
+### 6.2 修复前后：四个拐角格的 4× 判定
+
+拐角图口径：noon / 潮位 0 / zoom 2；每张图用各自的 `camera.worldViewX/Y`，
+`device = (world − worldView) × 4 + 1`（不是六钉的 scroll）。
+裁剪范围是拐角格 ±1 格（48 art px → 192 设备 px → 4× 768×768）。
+
+| 拐角格 | 修复前竖岸湿边纵序 | 修复前断口 | 修复前判定 | 修复后（4×） | 判定 |
+| --- | --- | --- | --- | --- | --- |
+| `(7,9)` 北+西 | `soil 8 → farm 8 → plaza 8 → soil 8`（x=112） | 0 | ② 亮端贴水 | `soil` 连续全程；8×8 `farm` 退到内角，`plaza` 被北带吞 | ① |
+| `(19,9)` 北+东 | 同上（x=319） | 0 | ② 亮端贴水 | 同上 | ① |
+| `(28,14)` 北+西 | `soil 16 → farm 8 → plaza 8`（x=448） | 0 | ① | 原样，湿边全程 `soil` | ① |
+| `(36,14)` 北+东 | `soil 20 → farm 8 → plaza 4`（x=591） | 0 | ① | 原样，湿边全程 `soil` | ① |
+
+**断口 = 0（四处）** 的口径：J9 把 `pieces` 栅格化成像素 → token，逐条边取贴水带；
+87 条边 1392 px 中被裁掉的 256 px **全部被另一条腿盖住**，`cover` 没有缺像素，
+所以「水边漏画」为 0。4× 图只用于判「湿边第一段是不是 soil」，不用于数面积。
+
+修复只改发出顺序：格坐标 → **段下标（湿端优先）** → side。没有新增矩形、
+没有 `world === '…'` 分支、不动跨格承载；并集不变（§6.3）。
+
+### 6.3 重叠与截断（复测）
+
+```
+stone: overlapPx 2656, truncatedPx 0, maxOverlapPx 2656（回归棘轮）
+grass: overlapPx    0, truncatedPx 0, maxOverlapPx    0
+反向：maxOverlapPx 2655 必须抛 `/重叠 2656 px 超过上限 2655/`
+```
+
+`2656` 是「不许变大」的棘轮，不是合格线；16 格逐格被裁面积与枚举表见设计稿 §6.4。
+
+### 6.4 末段融合复测（修复后重拍）
+
+`v3/wide/stone-wide.png`，相机中心 `(744,248)`、`worldView=(624,168)`、潮位 0：
+
+```
+行 15 石板段岸线：27 格 / 432 art px
+融合：28 art px（6.5%），4 段，外沿全在行 16
+  x 698..702（5） 格 43
+  x 752..759（8） 格 47
+  x 816..822（7） 格 51
+  x 848..855（8） 格 53
+```
+
+融合口径：末段（`plaza`）最后一行与其正下方一行在同一像素列上都是 `plaza` 实色；
+融合处只是「外边界不可见」，不算「三档通行证」，其余 404 art px 仍按三档判。
+拐角修复前后这组读数逐项相同（融合与拐角不在同一段岸线）。
+
+### 6.5 本轮落地的 9 张图（字节 + sha256）
+
+| 文件 | bytes | sha256 |
+| --- | --- | --- |
+| `v3/corners/07-09-NW-3cell-4x.png` | 4323 | `c24028876c7bc64cb11f95b65ff902a1ce3e6c4bf19b8dae2a16fc0e7b323671` |
+| `v3/corners/19-09-NE-3cell-4x.png` | 4275 | `342e8edd7bf233a4a7d9f84c3d5536f5c1fcd848f59eebe59b284b7e62a66727` |
+| `v3/corners/28-14-NW-3cell-4x.png` | 4279 | `eabea38ae52ef5df2c81e049ea0cffb3d948ae45e2ba0d9a78148f4f3ae61029` |
+| `v3/corners/36-14-NE-3cell-4x.png` | 4031 | `eb6474a49154a2fd2ec4cb3b46e6960279b70554226ae5a9be1b97c8c4009bd8` |
+| `v3/straight/noon-low-stone-4x.png` | 8170 | `9f9aa412e031c001532deeb028c946ca6c766e3c3748d1a58b425b19656a6dc8` |
+| `v3/straight/noon-low-grass-4x.png` | 4180 | `ff3340778f06999f85b17009749f23c71d471a9b462c847b1097399f21c117db` |
+| `v3/wide/stone-wide.png` | 12129 | `f819a04df35d5fe2eb6e025c111f5871f2560bf544b41bfd47aa5145f5f2ad54` |
+| `v3/head/noon-low.png` | 12041 | `2878d5c22af36b26c14f7e0edfcd868d3eb6422a3f9cd9eb82d7404c9c258567` |
+| `v3/head/noon-high.png` | 12233 | `743ad2a828da2eb3af5b02b5eacb5dcf0da4d01e0e0d29d2fe4b234d41e84042` |
+
+六张新 4× 裁剪 = 4 张拐角 + 2 张直岸（石板 / 草岸）；宽幅图用于融合统计，
+两张六钉整幅是它们的原始截图。4× 均为最近邻放大，脚本按仓库惯例不入库。
+
+### 6.6 命令与退出码
+
+| 命令 | 读数（本次运行） | exit |
+| --- | --- | --- |
+| `node --import ./test/phaser-hooks.mjs --test test/shore-band.test.ts` | tests 36 / pass 36 / fail 0 | 0 |
+| `npm test` | tests 2499 / pass 2490 / fail 0 / skipped 9 | 0 |
+| `npm run check` | 语法 0 处 / 语义 0 处 | 0 |
+| 拐角截图 `tmp/p1-shore-v3/corner.mjs` | 4 张，`errors=0` ×4，camera 各自 `worldView` 与 `runs.json` 一致 | 0 |
+| 融合统计 `tmp/p1-shore-v3/fusion.py` | 27 格 / 432 art px，融合 28 art px | 0 |
+
+实现（拐角修复）提交：`5c0258bd01eea10842d4fd02c9a7cbcfa690ec4f`（`feat/shore-band`，
+本地提交，未推）。本节证据与测试紧随其后单独提交；`status.sha` 指**实现**。
+
+### 6.7 合并前检查清单（本分支到此停，等合并窗口）
+
+**改了哪些文件**
+
+- `world-client/src/render/shore-band.ts`：`portions.sort` 改为 格 → 段下标 → side（+注释）。
+- `world-client/test/shore-band.test.ts`：J9 不变量扩到全图 186 条边、`steps[0] === 'soil'`、石材/草岸各一证伪。
+- `docs/P1_SHORE_BAND_DESIGN.md`：§6.4 / §6.5.5 / §6.10 的修复前后读数与 1392 px 口径。
+- `docs/evidence/p1-shore/README.md` + `v3/` 9 张图（本节）。
+- `docs/evidence/soak/witnessed-corroboration.json`：仅 mtime/行尾脏标记，blob 与 HEAD 相同
+  （`b9c3214…`），已用 `git add` 清掉 stat 噪声，内容零改动。
+
+**岸带新增矩形数（旧口径下不可见的成本）**
+
+```
+pieces 321（石材 270 + 草岸 51），每块一次 fillRect
+按 token：soil 108 / farm 111 / plaza 86 / copper 16
+平均每边 1.73 块（186 条水陆边）
+```
+
+- 全部写进**既有地形烘焙 Graphics**，不新建 Graphics；所以旧闸读数仍是
+  `15118/15286 指令、61 Graphics`，与修复前逐项相同。
+- `[推断]` 递归口径下约 **+321 条指令**，占真实峰值 **52,125** 的 **0.62%**
+  （321 / 52,125，纯算术）。依据：材质线在递归统计下读出 52,125，而
+  `renderStats()` 只数顶层 Graphics（楼体 99 个 / 11,090 条没进数）；
+  岸带的 321 块同样在递归口径才可见。**这是「新口径待测」，不是实测值**。
+- 结论：在这之前**不合并**——闸门绿只是因为只读开局帧，30,000 的硬闸已经
+  被真实峰值 52,125 超了 74%；岸带的增量要等递归统计 + 两级阈值落地后再复测。
+
+**CI 会跑哪些步骤（当前 `.github/workflows/ci.yml`）**
+
+- `world-client`：`npm ci` → `pip install -r ../server/requirements.txt` →
+  `npm run check` → `npm run audit:ports` → `npm test` →
+  `red:first --base <base sha>` → `npm run build` → `audit-palette` →
+  `audit-references` → `audit-citations` → `audit-sections` → `audit-claims`。
+- `world-client-browser`：`playwright install` → `build` → `preview:5211` →
+  `test:persistence` → `test:render-budget` → `test:phases` → `git status` 必须干净。
+- `repo-harness`：`check:hooks`（安装前后各一次）、`worktrees:audit`。
+- `server`：`pytest`。
+- 缺口：`audit:reports --strict` **没有接入 CI**，且本分支没有该脚本
+  （只在 `feat/stair-flight` 的 `c0cbd3c`）；合并后要在带该脚本的分支上补跑一次。
+
+**与 `chore/orphan-gates` 的 `ci.yml` 是否冲突**
+
+`Compare-Object` 比对两支的 `ci.yml`：对方相对本分支只有 **4 行新增**
+（一行注释、`name: 孤儿闸门检测`、`run: npm run audit:orphan-gates`、空行），
+无删除、无改写。文本上不冲突，任一先后合并都可干净 rebase；
+本分支没有新增脚本，不会触发对方的孤儿清单例外。
+
+<!-- delivery
+{
+  "artifacts": [
+    { "path": "docs/evidence/p1-shore/v3/corners/07-09-NW-3cell-4x.png", "bytes": 4323,
+      "sha256": "c24028876c7bc64cb11f95b65ff902a1ce3e6c4bf19b8dae2a16fc0e7b323671" },
+    { "path": "docs/evidence/p1-shore/v3/corners/19-09-NE-3cell-4x.png", "bytes": 4275,
+      "sha256": "342e8edd7bf233a4a7d9f84c3d5536f5c1fcd848f59eebe59b284b7e62a66727" },
+    { "path": "docs/evidence/p1-shore/v3/corners/28-14-NW-3cell-4x.png", "bytes": 4279,
+      "sha256": "eabea38ae52ef5df2c81e049ea0cffb3d948ae45e2ba0d9a78148f4f3ae61029" },
+    { "path": "docs/evidence/p1-shore/v3/corners/36-14-NE-3cell-4x.png", "bytes": 4031,
+      "sha256": "eb6474a49154a2fd2ec4cb3b46e6960279b70554226ae5a9be1b97c8c4009bd8" },
+    { "path": "docs/evidence/p1-shore/v3/straight/noon-low-stone-4x.png", "bytes": 8170,
+      "sha256": "9f9aa412e031c001532deeb028c946ca6c766e3c3748d1a58b425b19656a6dc8" },
+    { "path": "docs/evidence/p1-shore/v3/straight/noon-low-grass-4x.png", "bytes": 4180,
+      "sha256": "ff3340778f06999f85b17009749f23c71d471a9b462c847b1097399f21c117db" },
+    { "path": "docs/evidence/p1-shore/v3/wide/stone-wide.png", "bytes": 12129,
+      "sha256": "f819a04df35d5fe2eb6e025c111f5871f2560bf544b41bfd47aa5145f5f2ad54" },
+    { "path": "docs/evidence/p1-shore/v3/head/noon-low.png", "bytes": 12041,
+      "sha256": "2878d5c22af36b26c14f7e0edfcd868d3eb6422a3f9cd9eb82d7404c9c258567" },
+    { "path": "docs/evidence/p1-shore/v3/head/noon-high.png", "bytes": 12233,
+      "sha256": "743ad2a828da2eb3af5b02b5eacb5dcf0da4d01e0e0d29d2fe4b234d41e84042" }
+  ],
+  "checks": [
+    { "name": "node --import ./test/phaser-hooks.mjs --test test/shore-band.test.ts", "exit": 0 },
+    { "name": "npm test", "exit": 0 },
+    { "name": "npm run check", "exit": 0 }
+  ],
+  "diff": {
+    "method": "structure-block",
+    "threshold": 0,
+    "size": "768x768",
+    "shots": 4,
+    "scope": "四个拐角格 ±1 格 4× 裁剪；判据是贴水带缺像素数与 token 纵序，不是整屏逐字节"
+  },
+  "status": {
+    "state": "local-commit",
+    "sha": "5c0258bd01eea10842d4fd02c9a7cbcfa690ec4f",
+    "branch": "feat/shore-band",
+    "pushed": false,
+    "pr": false
+  },
+  "reportedAt": "2026-11-07T18:10:00+08:00",
+  "inferences": [
+    { "claim": "递归口径下岸带约新增 321 条指令，占真实峰值 52,125 的 0.62%",
+      "basis": "321 = 石材 270 + 草岸 51 块 piece，每块一次 fillRect；52,125 取自材质线递归实测，比例是算术，不是本次实测" },
+    { "claim": "与 chore/orphan-gates 的 ci.yml 不冲突",
+      "basis": "Compare-Object 比对：对方只有 4 行新增（注释、step 名、run audit:orphan-gates），无删除改写" }
+  ]
+}
+-->
+

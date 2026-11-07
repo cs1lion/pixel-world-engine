@@ -1291,8 +1291,21 @@ test('J9 不变量：每条水陆边的贴水 1px 带必须是湿端 token（拐
     return { bad, checked };
   };
 
+  // 覆盖口径：枚举**全图**水陆边，再按岸型的 land 名单分组；不允许只测石材。
+  // 没有岸型的地形（树/铺装）不画带，自然也不该有湿端断言，但必须显式计入分母，
+  // 这样「贴水判据只覆盖一类地形」会以分母的形式暴露出来。
+  const coveredTerrains = new Set<string>(configs.flatMap((entry) => entry.land as readonly string[]));
+  const applicableAll = edges.filter((edge) => coveredTerrains.has(String(edge.terrain)));
+  const skipped = edges.filter((edge) => !coveredTerrains.has(String(edge.terrain)));
+  const perKind: string[] = [];
+  let checkedEdges = 0;
+  let checkedPx = 0;
+
   for (const kind of ['stone', 'grass'] as const) {
     const config: ShoreNumbersView = configs.find((entry) => entry.land.includes(kind))!;
+    // 不变量本身：湿端就是 steps[0]，且必须是 soil；不能因为数据把 steps[0] 改了
+    // 就让判据跟着松掉（「湿端是 soil」是判据，不是数据的自由度）。
+    assert.equal(config.steps[0]!.token, 'soil', `${kind}：steps[0] 必须是 soil（湿端）`);
     const result = mod.shoreBandRects!(edges, [config], isLand);
     const applicable = edges.filter((edge) => config.land.includes(edge.terrain as never));
     const wetToken: string = config.steps[0]!.token;
@@ -1303,24 +1316,56 @@ test('J9 不变量：每条水陆边的贴水 1px 带必须是湿端 token（拐
       [],
       `${kind}：每条边的贴水 1px 带都必须是 ${wetToken}，共 ${checked} px 中有 ${bad.length} px 违规`,
     );
+    checkedEdges += applicable.length;
+    checkedPx += checked;
+    perKind.push(`${kind} ${applicable.length} 条 / ${checked} px`);
   }
 
-  // 证伪：把一处贴水像素改成末段 token，同一个检查器必须报出来。
-  const stone = configs.find((entry) => entry.land.includes('stone'))!;
-  const result = mod.shoreBandRects!(edges, [stone], isLand);
-  const applicable = edges.filter((edge) => stone.land.includes(edge.terrain as never));
-  const first = wetStrip(applicable[0]!)[0]!;
-  const mutated = [
-    ...result.pieces,
-    { token: stone.steps[stone.steps.length - 1]!.token, rect: { x: first.x, y: first.y, w: 1, h: 1 } },
-  ];
-  const falsified = violationsOf(mutated, applicable, stone.steps[0]!.token);
-  // 拐角像素可能同时属于两条边，所以按「至少 1 条、且命中的正是这个坐标」判。
-  assert.ok(falsified.bad.length >= 1, '把贴水像素换成末段 token，检查器必须报出来（判据可证伪）');
-  assert.ok(
-    falsified.bad.some((entry) => entry.includes(`(${first.x},${first.y})`)),
-    `证伪必须命中被改的坐标 (${first.x},${first.y})，实际 ${falsified.bad.join('; ')}`,
+  // 逐边无遗漏：分组枚举的并集必须等于「有岸型」的全集，且每边恰好 16 px。
+  assert.equal(
+    checkedEdges,
+    applicableAll.length,
+    `贴水判据必须逐边覆盖：分组 ${checkedEdges} 条 vs 全图有岸型 ${applicableAll.length} 条`,
   );
+  assert.equal(
+    checkedPx,
+    applicableAll.length * TILE_PX,
+    `贴水像素必须逐边累计：${checkedPx} px vs ${applicableAll.length} 条 × ${TILE_PX} px`,
+  );
+  const skippedTerrains = [...new Set(skipped.map((edge) => String(edge.terrain)))].sort();
+  assert.ok(
+    skipped.every((edge) => !coveredTerrains.has(String(edge.terrain))),
+    '没有岸型的边只能是 land 名单之外的地形，不能有声明了岸型却被漏掉的边',
+  );
+  // 分母落进断言消息：全图边数 = 有岸型 + 无岸型，且按岸型分组逐条列出。
+  assert.equal(
+    applicableAll.length + skipped.length,
+    edges.length,
+    `全图 ${edges.length} 条水陆边：有岸型 ${applicableAll.length} 条（${perKind.join('；')}），`
+      + `无岸型 ${skipped.length} 条（${skippedTerrains.join('/') || '无'}）`,
+  );
+
+  // 证伪：石材与草岸各改一处贴水像素，同一个检查器都必须报出来。
+  for (const kind of ['stone', 'grass'] as const) {
+    const config = configs.find((entry) => entry.land.includes(kind))!;
+    const result = mod.shoreBandRects!(edges, [config], isLand);
+    const applicable = edges.filter((edge) => config.land.includes(edge.terrain as never));
+    const first = wetStrip(applicable[0]!)[0]!;
+    const mutated = [
+      ...result.pieces,
+      { token: config.steps[config.steps.length - 1]!.token, rect: { x: first.x, y: first.y, w: 1, h: 1 } },
+    ];
+    const falsified = violationsOf(mutated, applicable, config.steps[0]!.token);
+    // 拐角像素可能同时属于两条边，所以按「至少 1 条、且命中的正是这个坐标」判。
+    assert.ok(
+      falsified.bad.length >= 1,
+      `${kind}：把贴水像素换成末段 token，检查器必须报出来（判据可证伪）`,
+    );
+    assert.ok(
+      falsified.bad.some((entry) => entry.includes(`(${first.x},${first.y})`)),
+      `${kind}：证伪必须命中被改的坐标 (${first.x},${first.y})，实际 ${falsified.bad.join('; ')}`,
+    );
+  }
 });
 
 test('J9 结构检查：反向 M10/M12 截断与上限（maxTruncatedPx）', async () => {
