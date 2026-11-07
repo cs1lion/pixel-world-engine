@@ -26,6 +26,19 @@ import type { NarrativeHint } from '../world/memory/hints.ts';
 
 export { BUILDING_DEPTH };
 
+/**
+ * 调试口子：`?contactAO=0`（或 `off`）关掉楼底接触暗部，默认开。
+ *
+ * 为什么用 URL 参数而不是 Oracle 开关：楼是一次性烘焙的静态层，没有逐帧重绘的钩子；
+ * 开一页关着烘焙、同机位再开一页，拿两张同 ROI 的读数相减，才是这一块自己的 ΔL。
+ * 非浏览器环境（单测）没有 window，按开处理。
+ */
+function contactAoEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  const value = new URLSearchParams(window.location.search).get('contactAO');
+  return value !== '0' && value !== 'off';
+}
+
 export interface BuildingView {
   /** 地面层：三步投影 + 门口光池，depth = ALTITUDE + baseY - 2。 */
   readonly back: Phaser.GameObjects.Container;
@@ -191,8 +204,14 @@ export function drawBuildingDecals(
  * 三步 α 0.16 / 0.32 / 0.55：越靠墙越深、越往外越淡，读成「楼坐在地上」而不是
  * 底下垫了一块灰板。不用 blur——像素画里模糊边缘会变成脏灰带。
  *
- * 左下角另加一块 4×4 的接触暗部（α 0.12）：右侧已有接地影，左侧墙脚原本是干的，
+ * 左下角另加一块 4×4 的接触暗部（α 0.15）：右侧已有接地影，左侧墙脚原本是干的，
  * 楼会像浮在地上。这一块与太阳无关，只补「墙面与地面相接」的那口气。
+ *
+ * α 由 0.12 调到 0.15，依据是 G3 的实测带 [6,14]（详见
+ * `docs/evidence/lighting-gaps/README.md`）：0.12 时可读基底里最暗的一档 stone
+ * （基底 luma 90.55）只读 5.19，低于下限 6（读不出）；0.15 把最暗的干净墙角
+ * 抬到 6.21（+3.5% 余量），最亮的 plaza（134.09）到 13.55（距上限 14 留 3.2%）。
+ * 0.155 时 plaza 实测 14.00 正好顶到上限，没有余量，故取 0.15。
  */
 function drawGroundShadow(
   scene: Phaser.Scene,
@@ -212,8 +231,12 @@ function drawGroundShadow(
   g.fillStyle(paletteFor().deepShade, 0.16);
   g.fillRect(4, h + 2, w, 2);
   // 左墙脚接触暗部：只补左侧（右侧三层已铺到墙外），4×4 与墙角 ROI 同尺寸。
-  g.fillStyle(paletteFor().deepShade, 0.12);
-  g.fillRect(-4, h, 4, 4);
+  // `?contactAO=0` 关掉这一块，给证据脚本做同机位 on/off：ΔL 只由这一块贡献，
+  // 不靠「旁边找一块看起来差不多的地」当基准（那种基准常落在另一个地形 token 上）。
+  if (contactAoEnabled()) {
+    g.fillStyle(paletteFor().deepShade, 0.15);
+    g.fillRect(-4, h, 4, 4);
+  }
 
   // 门口光池：屋里有灯，光落在门前。两层 ── 外圈铺开、内芯更亮，都是琥珀的低透明度。
   const doorX = building.door.x * TILE_PX - px;

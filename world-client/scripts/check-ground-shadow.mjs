@@ -15,8 +15,11 @@
  * -------------
  * - G0：本节读数（同刻/跨 t+1s/暂停/确定性/夜间影长/峰值指令）任一不达标即红；
  *   只读**本次运行**的值，不读 `eval/screens/ground-shadow.json`（11-04 的，陈旧即无效）。
- * - G2：黄昏三段阶梯必须是「内 > 中 > 外」，相邻两段相对落差 ≥25%（来源见断言旁注释）。
- * - G3：墙角接触暗部 ΔL 必须落在 6–14，**双向**判红（太淡读不出 / 太深像第二层影子）。
+ * - G2：**每个有影相位**（晨 / 午 / 昏）都量三段阶梯：「内 > 中 > 外」，相邻两段相对落差
+ *   ≥25%（来源见断言旁注释）。只测黄昏分不清「按相位根锚定」与「把问题反向搬了一次」。
+ * - G3：墙角接触暗部按**基底 token** 多样本量 ΔL；钉住的样本必须落在 6–14，**双向**判红
+ *   （太淡读不出 / 太深像第二层影子）。深底（grass/mud）与遮挡墙角是主动放弃的对照，
+ *   只要求留在带外；放弃理由见 G3 段落注释与 `docs/evidence/lighting-gaps/README.md`。
  * - G1：4× 同框只作人工裁决证据，不进断言。
  *
  * G0 的接线顺序（**现在只做「能红」，还没接 CI**）
@@ -65,7 +68,7 @@ const LAMPS_OFF = { ignite: false, breathe: false, sway: false };
 const STALLS_OFF = { cloth: false, fire: false };
 const BANNERS_OFF = { sway: false, shadow: false };
 const SMOKE_OFF = { drift: false };
-const PHASES = ['noon', 'dusk', 'night'];
+const PHASES = ['dawn', 'noon', 'dusk', 'night'];
 
 function initScript({ freezeAt }) {
   try {
@@ -106,13 +109,13 @@ async function waitFrames(page, count) {
   );
 }
 
-async function openScene(browser, { phase, camera, villagerCell }) {
+async function openScene(browser, { phase, camera, villagerCell, extraQuery = '' }) {
   const page = await browser.newPage({ viewport: { width: 1010, height: 700 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(initScript, { freezeAt: 0 });
   await page.goto(
-    `${BASE}?world=dengchao&time=${phase}&feed=off&ledger=off&debug=1&now=1075`,
+    `${BASE}?world=dengchao&time=${phase}&feed=off&ledger=off&debug=1&now=1075${extraQuery}`,
     { waitUntil: 'load' },
   );
   await page.waitForFunction(() => window.Oracle?.view !== undefined, null, { timeout: 30000 });
@@ -259,17 +262,21 @@ async function diffPair(page, aBuf, bBuf, cam, roi) {
 }
 
 /**
- * 沿影长切三段（内 / 中 / 外），与 `world/ground-shadow.ts` 的 `shadowSegments`
- * 同一套取整与朝向：**内段贴着物体**，`dir<0`（黄昏朝左）时内段在右端。
- * 少了这个朝向，黄昏会把「梢」读成「芯」——基线就是这么把摊位影读成倒挂的。
+ * 沿影长切段（内 / 中 / 外），与 `world/ground-shadow.ts` 的 `shadowSegments`
+ * **同一套段数、取整与朝向**：≤2px 单段、≤4px 两段（0.6/0.4）、更长三段（0.4/0.35/0.25）；
+ * **内段永远贴着物体**——`dir>0`（晨/午，影朝右）内段在左端，`dir<0`（黄昏，影朝左）内段在右端。
+ * 少了朝向这一层，黄昏会把「梢」读成「芯」；少了段数这一层，晨相的 4px 影会被切成
+ * 不存在的三段，读数跟实现对不上。
  */
 function splitShadowSpan(x, span, dir) {
-  const widths = [
-    Math.max(1, Math.round(span * 0.4)),
-    Math.max(1, Math.round(span * 0.35)),
-    0,
-  ];
-  widths[2] = Math.max(1, span - widths[0] - widths[1]);
+  const ratios = span <= 2 ? [1] : span <= 4 ? [0.6, 0.4] : [0.4, 0.35, 0.25];
+  let remaining = span;
+  const widths = ratios.map((ratio, index) => {
+    if (index === ratios.length - 1) return remaining;
+    const width = Math.max(1, Math.round(span * ratio));
+    remaining -= width;
+    return width;
+  });
   const names = ['inner', 'mid', 'outer'];
   let cursor = dir > 0 ? x : x + span;
   return widths.map((width, index) => {
@@ -430,11 +437,13 @@ for (const phase of PHASES) {
   const stallOff = await shot(stall.page, stall.box, `stall-${phase}-off`);
   const stallDiff = await diffPair(reader, stallOn.buf, stallOff.buf, stall.camera, STALL_ROI);
   peakCommands = Math.max(peakCommands, stallOn.stats.totalCommands, stallOff.stats.totalCommands);
-  // G2 现状读数：黄昏沿影长切三段，量「关−开」的相对压暗。
+  // G2 读数：每个有影的相位都沿影长切段，量「关−开」的相对压暗。
+  // 只测黄昏分不清「按相位根锚定」和「把问题反向搬了一次」——晨相根在左、影朝右，
+  // 正好是黄昏的镜像；午相 span=1 只剩单段，用来确认没有凭空多出阶梯。
   let stallSegments = null;
-  if (phase === 'dusk') {
+  {
     const unit = stallOn.units.stalls?.find((s) => s.order === 0) ?? stallOn.units.stalls?.[0];
-    if (unit) {
+    if (unit && unit.span > 0) {
       const dir = unit.dx >= 0 ? 1 : -1;
       const start = unit.x + 2 + unit.dx + (dir > 0 ? 0 : -unit.span);
       const segments = splitShadowSpan(start, 20 + unit.span, dir).map((seg) => ({
@@ -462,9 +471,9 @@ for (const phase of PHASES) {
   const villagerRoi = { x0: foot.x - 48, y0: foot.y - 70, x1: foot.x + 48, y1: foot.y + 16 };
   const villagerDiff = await diffPair(reader, villagerOn.buf, villagerOff.buf, villager.camera, villagerRoi);
   peakCommands = Math.max(peakCommands, villagerOn.stats.totalCommands, villagerOff.stats.totalCommands);
-  // G2 现状读数：黄昏沿人物影长切三段。
+  // G2 读数：人物在每个有影的相位都量；晨相 span=4 只有两段、午相 span=1 只有单段。
   let villagerSegments = null;
-  if (phase === 'dusk' && foot.span > 0) {
+  if (foot.span > 0) {
     const dir = foot.dx >= 0 ? 1 : -1;
     const start = foot.x + (dir > 0 ? 3 : -3 - foot.span);
     const segments = splitShadowSpan(start, foot.span, dir).map((seg) => ({
@@ -587,72 +596,113 @@ const hashes2 = await runPass('b');
 // G3：建筑墙角的接触暗部。正午无 dim，ΔL 只由静态绘制决定。
 //
 // 阈值来源（先量现状，再定阈值）：
-// - 同栋楼下方既有最外层阶梯（α 0.16，rows h+2..h+4）**每次运行实测**，
-//   与同帧空地比 ΔL = `stepDelta`（本次 14.00；理论 0.16×(134−44.3)=14.36 对得上）；
-// - 上限 14 = 那一阶的实测值：墙角接触暗部最深也只能追平它，超过就读成「第二层影子」；
-// - 下限 6 = 0.4× 那一阶（14×0.4=5.6 进位），再淡在 24 色量化 + 抖动里读不出，等于白加。
-// 这两个数只对**当前调色板与地面亮度**成立；换设定集要跟着 stepDelta 重算。
-const AO_PIN = 'lamp_archive#1';
+// - **测的**：同栋楼下方既有最外层阶梯（α 0.16，rows h+2..h+4）每次运行实测，
+//   与同帧 plaza 空地比 ΔL = `stepDelta`（上一轮 14.00；理论 0.16×(134−44.3)=14.36）；
+// - **推的**：上限 14 = 那一阶实测值 → 「超过就追平/超过既有最外阶、会读成第二层影子」；
+// - **推的**：下限 6 = 0.4× 那一阶（14×0.4=5.6 进位）→ 「再淡在 24 色量化 + 抖动里读不出」。
+// 这两句是推断，不是测量；`basis` 在输出里标成 `(推)`，别把它们读成实测结论。
+//
+// AO 压在**楼左侧地面**，不在墙面；本设定集所有 prefab 的墙体 `body` token 各自不同
+// （terracotta / copper / charcoal / timberDark），但 AO 落点是地面格，所以「墙面 token」
+// 在这条判据里真正变的是**基底地形 token**：AO 占 (origin.x−1, origin.y+footprint.h)
+// 这一格，取该格的地形。样本按**基底 token** 取，覆盖最亮（plaza）到最深（mud）四档。
+//
+// 每栋楼的 ΔL 不是拿旁边空地当基准，而是同机位 `?contactAO=0` 再开一页：
+// `ΔL = 关(基底) − 开`，只算这一块自己的贡献，不受邻格地形 token 干扰。
 const AO_MIN = 6;
 const AO_MAX = 14;
-const aoScene = await openScene(browser, { phase: 'noon', camera: { x: 504, y: 368 }, villagerCell: null });
-const aoShot = await shot(aoScene.page, aoScene.box, 'ao-noon');
-const buildings = await aoScene.page.evaluate(() => window.Oracle.interior().buildings);
+/** 与 `render/buildings.ts` 的 `deepShade, 0.15` **同一处 α**；改一处必须改两处。 */
+const AO_ALPHA = 0.15;
+/** deepShade `#1b303b` 的 Rec.709 亮度（44.33）；α 叠色后 ΔL = α×(L_base − 44.33)。 */
+const AO_SHADE_LUMA = 44.33;
+/** 0.15×(L−44.33) ≥ 6 ⇒ L ≥ 84.33：低于这个基底，任何全局 α 都到不了下限。 */
+const AO_SUPPORTED_BASE = AO_SHADE_LUMA + AO_MIN / AO_ALPHA;
+/**
+ * `role`：
+ * - `pinned`：判据钉住的样本，必须落在 [6,14]；
+ * - `dark`：深底对照，**主动放弃**这一档；必须带外（<下限），若哪天进带内说明分档理由失效；
+ * - `occluded`：基底够亮但墙角被压在上面的一层盖住，**因遮挡放弃**；必须带外，理由与基底无关。
+ */
+const AO_SAMPLES = [
+  { id: 'lamp_archive#1', base: 'plaza', role: 'pinned' },     // 最亮
+  { id: 'soot_forge#1', base: 'stone', role: 'pinned' },       // 可读基底里最暗
+  { id: 'ferry_station#1', base: 'stone', role: 'pinned' },    // 同档第二例（防单点）
+  { id: 'boiler_annex#1', base: 'stone', role: 'occluded' },   // 同 token 的遮挡对照
+  { id: 'tea_stall#1', base: 'grass', role: 'dark' },          // 深底：放弃
+  { id: 'lamp_workshop#1', base: 'mud', role: 'dark' },        // 最深：放弃（压不暗）
+];
 const TILE = 16;
-// 逐栋量左下墙角，只用于候选表；**判据样本钉死**成 AO_PIN。
-// 按「ΔL 最接近 0」动态挑会在实现后漂移，阈值就钉不住了。
-const rois = buildings.flatMap((b) => {
-  const left = b.origin.x * TILE;
-  const bottom = b.origin.y * TILE + b.footprint.h * TILE;
-  return [
-    { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 },
-    { x0: left - 12, x1: left - 8, y0: bottom, y1: bottom + 4 },
-  ];
-});
-const stats = await lumaStatsMany(aoScene.page, aoShot.buf, aoShot.camera, rois);
-const candidates = buildings.map((b, index) => {
-  const [corner, open] = [stats[index * 2], stats[index * 2 + 1]];
-  return {
-    building: b.id,
-    origin: b.origin,
-    footprint: b.footprint,
-    cornerMean: corner.mean,
-    openMean: open.mean,
-    delta: open.mean - corner.mean,
-    visible: corner.pixels > 0 && open.pixels > 0,
+const catalogScene = await openScene(browser, { phase: 'noon', camera: { x: 504, y: 368 }, villagerCell: null });
+const buildings = await catalogScene.page.evaluate(() => window.Oracle.interior().buildings);
+await catalogScene.page.close();
+
+const ao = { samples: [], min: AO_MIN, max: AO_MAX, supportedBase: AO_SUPPORTED_BASE };
+// 探针模式：`GROUND_SHADOW_AO_SCAN=1` 逐栋扫一遍，用来挑「钉住」的样本；正式判据只跑 AO_SAMPLES。
+const sampleList = process.env.GROUND_SHADOW_AO_SCAN === '1'
+  ? buildings.map((building) => ({ id: building.id, base: 'scan' }))
+  : AO_SAMPLES;
+for (const sample of sampleList) {
+  const building = buildings.find((item) => item.id === sample.id);
+  if (building === undefined) {
+    ao.samples.push({ ...sample, missing: true });
+    continue;
+  }
+  const left = building.origin.x * TILE;
+  const bottom = building.origin.y * TILE + building.footprint.h * TILE;
+  const center = {
+    x: Math.round(left + (building.footprint.w * TILE) / 2),
+    y: Math.round(bottom - 90),
   };
-});
-const pinned = buildings.find((b) => b.id === AO_PIN);
-const ao = { building: AO_PIN, pinFound: pinned !== undefined, candidates };
-if (pinned !== undefined) {
-  const left = pinned.origin.x * TILE;
-  const bottom = pinned.origin.y * TILE + pinned.footprint.h * TILE;
-  const [corner, open, stepBand] = await lumaStatsMany(
-    aoScene.page,
-    aoShot.buf,
-    aoShot.camera,
-    [
-      { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 },
+  const roi = { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 };
+  const offScene = await openScene(browser, {
+    phase: 'noon',
+    camera: center,
+    villagerCell: null,
+    extraQuery: '&contactAO=0',
+  });
+  const slug = sample.id.replace('#', '-');
+  const offShot = await shot(offScene.page, offScene.box, `ao-off-${slug}`);
+  const off = await lumaStats(offScene.page, offShot.buf, offShot.camera, roi);
+  await offScene.page.close();
+  const onScene = await openScene(browser, { phase: 'noon', camera: center, villagerCell: null });
+  const onShot = await shot(onScene.page, onScene.box, `ao-on-${slug}`);
+  const on = await lumaStats(onScene.page, onShot.buf, onShot.camera, roi);
+  // 既有最外层 α0.16 阶梯的当次实测（只在 plaza 的 lamp_archive 取，基底亮、读数稳）。
+  let step = null;
+  if (sample.id === 'lamp_archive#1') {
+    const [openGround, stepBand] = await lumaStatsMany(onScene.page, onShot.buf, onShot.camera, [
       { x0: left - 12, x1: left - 8, y0: bottom, y1: bottom + 4 },
-      // 既有最外层阶梯（α 0.16，rows h+2..h+4）：给阈值做当次实测来源。
-      // 不再量它下方的空地——那个 ROI 已出画（上一跑 mean 0），拿空地 corner 做基准即可。
       { x0: left + 8, x1: left + 16, y0: bottom + 2, y1: bottom + 4 },
-    ],
-  );
-  Object.assign(ao, {
-    cornerRoi: { x0: left - 4, x1: left, y0: bottom, y1: bottom + 4 },
-    openRoi: { x0: left - 12, x1: left - 8, y0: bottom, y1: bottom + 4 },
-    cornerMean: corner.mean,
-    openMean: open.mean,
-    delta: open.mean - corner.mean,
-    // 阶梯的压暗 = 同帧空地（corner 的对照 ROI）− 阶梯带。
-    stepDelta: open.mean - stepBand.mean,
-    stepBandMean: stepBand.mean,
-    min: AO_MIN,
-    max: AO_MAX,
+    ]);
+    step = { delta: openGround.mean - stepBand.mean, openMean: openGround.mean, bandMean: stepBand.mean };
+  }
+  await onScene.page.close();
+  ao.samples.push({
+    ...sample,
+    roi,
+    baseMean: off.mean,
+    afterMean: on.mean,
+    delta: off.mean - on.mean,
+    pixels: off.pixels,
+    supported: off.mean >= AO_SUPPORTED_BASE,
+    ...(step === null ? {} : { step }),
   });
 }
-await aoScene.page.close();
+const aoStep = ao.samples.find((sample) => sample.step !== undefined)?.step ?? null;
+ao.stepDelta = aoStep?.delta ?? null;
+ao.alpha = AO_ALPHA;
+ao.basis = {
+  measured: `既有最外阶 α0.16 的同帧实测 ΔL ${(ao.stepDelta ?? NaN).toFixed(2)}`,
+  inferred: [
+    `上限 ${AO_MAX} = 追平该阶 → 超过会读成第二层影子`,
+    `下限 ${AO_MIN} = 0.4×该阶（14×0.4=5.6 进位）→ 再淡读不出`,
+  ],
+};
+// 钉住的样本不能只有一个：至少 3 例，且必须同时覆盖最暗（stone）与最亮（plaza）两档。
+ao.pinnedCount = ao.samples.filter((sample) => sample.role === 'pinned' && !sample.missing).length;
+ao.pinnedBases = [...new Set(ao.samples.filter((sample) => sample.role === 'pinned').map((sample) => sample.base))];
+// 实测覆盖的基底 token：至少 3 档（plaza / stone / grass …），带外的档也要有读数。
+ao.measuredBases = [...new Set(ao.samples.filter((sample) => !sample.missing).map((sample) => sample.base))];
 
 // G1：黄昏同机位，建筑与角色同时在框内，4× 对照。
 // 机位：wave_house 左墙 + 钉在 (26,27) 的人同框；避开篝火/烟/长凳（前两版都被它们污染）。
@@ -728,13 +778,25 @@ for (const item of phaseRows) {
     console.log(`  [G2 人物 ${item.phase}] ${s}`);
   }
 }
-if (ao.pinFound) {
-  console.log(`  [G3] ${ao.building} 墙角 ${ao.cornerMean.toFixed(2)} / 空地 ${ao.openMean.toFixed(2)} → ΔL ${ao.delta.toFixed(2)}`
-    + `（阈值 ${ao.min}–${ao.max}；既有 α0.16 阶梯实测 ΔL ${ao.stepDelta.toFixed(2)}）`);
-} else {
-  console.log(`  [G3] 样本 ${ao.building} 不在建筑表里`);
+const AO_ROLE_LABEL = {
+  pinned: '钉住·须在带内',
+  dark: '深底·放弃',
+  occluded: '遮挡·放弃',
+};
+for (const sample of ao.samples) {
+  if (sample.missing) {
+    console.log(`  [G3] ${sample.id} 不在建筑表`);
+    continue;
+  }
+  console.log(`  [G3] ${sample.id}（token ${sample.base}，${AO_ROLE_LABEL[sample.role] ?? '探针'}）基底 ${sample.baseMean.toFixed(2)}`
+    + ` → 开 ${sample.afterMean.toFixed(2)} → ΔL ${sample.delta.toFixed(2)}`
+    + `（${sample.supported ? '基底够亮' : '基底低于可读门槛'}）`);
 }
-console.log(`  [G3 候选] ${ao.candidates.map((c) => `${c.building} ${c.visible ? c.delta.toFixed(2) : '出画'}`).join(' / ')}`);
+console.log(`  [G3] 测量（非推断）：既有 α0.16 阶梯同帧实测 ΔL ${ao.stepDelta.toFixed(2)}；`
+  + `本轮 α ${AO_ALPHA}、可读基底门槛 ${AO_SUPPORTED_BASE.toFixed(2)} (测+算)`);
+console.log(`  [G3] 推断：上限 ${ao.max} = 追平该阶 → 超过会读成第二层影子；下限 ${ao.min} = 0.4×该阶 → 再淡读不出`);
+console.log(`  [G3 样本] 钉住 ${ao.pinnedCount} 例，覆盖 token ${ao.pinnedBases.join('/')}；`
+  + `实测覆盖 token ${ao.measuredBases.join('/')}`);
 console.log(`  [G1] ${g1.path} (${g1.hash})`);
 console.log(`口径 机位 摊位 x${STALL_CAMERA.x}/y${STALL_CAMERA.y}、人物 x${VILLAGER_CAMERA.x}/y${VILLAGER_CAMERA.y}、zoom ${closed.camera.zoom}、视口 1010×700、潮位 1、晴、相位 ${PHASES.join('/')}、depth 3.1`);
 void row;
@@ -761,35 +823,73 @@ if (peakCommands >= PEAK_BUDGET) failures.push(`峰值指令 ${peakCommands} ≥
 // （绝对 pp 落差会随底色/角色所在材质漂，基线里人物 2px 外段就是这么只差 1.84pp 的）。
 // 「α 层数 ≤4」不在这里数像素：由 `shadowSegments` 的结构（3 阶 + 1px 内芯）在单测里钉住。
 const G2_MIN_REL_DROP = 0.25;
-const checkLadder = (label, rows) => {
-  if (!Array.isArray(rows) || rows.length !== 3) {
-    failures.push(`${label} 缺三段读数`);
+/**
+ * 按实有的段数逐对检查：单段只要求「有压暗」，两段查内→中，三段再加查中→外。
+ * 段数不是缺陷——`span<=2` 在设计上就是单段；但在晨/午相位上，摊位的影长
+ * 20+span ≥21，永远有完整三段，所以「内→中、中→外各 ≥25%」这条在每个相位
+ * 都能由摊位跑满，人物的短影只跑它够得到的对数。
+ */
+const checkLadder = (label, rows, span) => {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    failures.push(`${label} 缺读数`);
     return;
   }
-  const [inner, mid, outer] = rows;
-  if (inner.strength <= 0 || mid.strength <= 0 || outer.strength <= 0) {
+  const weak = rows.filter((row) => row.strength <= 0);
+  if (weak.length > 0) {
     failures.push(`${label} 有段没压暗：${rows.map((r) => `${r.name} ${pct(r.strength)}`).join(' / ')}`);
     return;
   }
   const relDrop = (from, to) => (from - to) / from;
-  if (relDrop(inner.strength, mid.strength) < G2_MIN_REL_DROP) {
-    failures.push(`${label} 内→中只淡 ${(relDrop(inner.strength, mid.strength) * 100).toFixed(1)}% < ${G2_MIN_REL_DROP * 100}%`);
-  }
-  if (relDrop(mid.strength, outer.strength) < G2_MIN_REL_DROP) {
-    failures.push(`${label} 中→外只淡 ${(relDrop(mid.strength, outer.strength) * 100).toFixed(1)}% < ${G2_MIN_REL_DROP * 100}%`);
+  for (let index = 1; index < rows.length; index += 1) {
+    const from = rows[index - 1];
+    const to = rows[index];
+    if (relDrop(from.strength, to.strength) < G2_MIN_REL_DROP) {
+      failures.push(
+        `${label}（影长 ${span}px，${rows.length} 段）${from.name}→${to.name} 只淡 `
+        + `${(relDrop(from.strength, to.strength) * 100).toFixed(1)}% < ${G2_MIN_REL_DROP * 100}%`,
+      );
+    }
   }
 };
-const duskRow = phaseRows.find((item) => item.phase === 'dusk');
-checkLadder('G2 摊位 dusk', duskRow?.stall.segments);
-checkLadder('G2 人物 dusk', duskRow?.villager.segments);
+for (const item of phaseRows) {
+  const stallSpan = item.stall.on.stalls?.[0]?.span ?? 0;
+  const villagerSpan = item.villager.on.villagers?.[0]?.span ?? 0;
+  if (item.stall.segments) checkLadder(`G2 摊位 ${item.phase}`, item.stall.segments, 20 + stallSpan);
+  if (item.villager.segments) checkLadder(`G2 人物 ${item.phase}`, item.villager.segments, villagerSpan);
+}
 
-// G3：双向判据。低于下限 = 白加，高于上限 = 读成第二层影子（此前只写在风险栏里）。
-if (!ao.pinFound || ao.delta === undefined) {
-  failures.push(`G3 样本 ${AO_PIN} 不在建筑表/画面里`);
-} else if (ao.delta < AO_MIN) {
-  failures.push(`G3 墙角 ΔL ${ao.delta.toFixed(2)} < 下限 ${AO_MIN}（接触暗部读不出）`);
-} else if (ao.delta > AO_MAX) {
-  failures.push(`G3 墙角 ΔL ${ao.delta.toFixed(2)} > 上限 ${AO_MAX}（压太深，会读成第二层影子）`);
+// G3：双向判据 + 基底覆盖面。低于下限 = 白加，高于上限 = 读成第二层影子。
+// 深底两档（grass 64.90 / mud 41.32）不是「α 没调够」：mud 的基底 luma 41.32 已经
+// **低于** deepShade 的 44.33，叠上去反而变亮；grass 要进带得 α ≥ 0.29，而同一 α 会把
+// plaza 顶到 25 以上。所以这两档明确**放弃**，只要求它们留在带外；一旦进带内说明分档理由失效。
+if (ao.pinnedCount < 3) {
+  failures.push(`G3 钉住的样本只有 ${ao.pinnedCount} 例，不足 3 例`);
+}
+for (const base of ['stone', 'plaza']) {
+  if (!ao.pinnedBases.includes(base)) failures.push(`G3 钉住样本缺 ${base} 一档`);
+}
+if (ao.measuredBases.length < 3) {
+  failures.push(`G3 实测只覆盖 ${ao.measuredBases.length} 档基底（${ao.measuredBases.join('/')}），不足 3 档`);
+}
+for (const sample of ao.samples) {
+  if (sample.missing) {
+    failures.push(`G3 样本 ${sample.id} 不在建筑表`);
+    continue;
+  }
+  if (sample.role === 'pinned') {
+    if (!sample.supported) {
+      failures.push(`G3 ${sample.id}（${sample.base}）基底 ${sample.baseMean.toFixed(2)} 低于可读门槛 ${AO_SUPPORTED_BASE.toFixed(2)}`);
+    } else if (sample.delta < AO_MIN) {
+      failures.push(`G3 ${sample.id}（${sample.base}）ΔL ${sample.delta.toFixed(2)} < 下限 ${AO_MIN}（接触暗部读不出）`);
+    } else if (sample.delta > AO_MAX) {
+      failures.push(`G3 ${sample.id}（${sample.base}）ΔL ${sample.delta.toFixed(2)} > 上限 ${AO_MAX}（压太深，会读成第二层影子）`);
+    }
+    continue;
+  }
+  // dark / occluded：主动放弃的两档，只要求「留在带外」。
+  if (sample.delta >= AO_MIN) {
+    failures.push(`G3 ${sample.id}（${sample.base}，${sample.role}）ΔL ${sample.delta.toFixed(2)} 进了带内，放弃理由失效`);
+  }
 }
 
 if (failures.length > 0) {
