@@ -681,21 +681,33 @@
 
 ## J. 回放夹具基线漂移（2026-11-07）
 
-### J1. 5 条回放夹具 5/5 FAIL（归属模拟线，待认领）
+### J1. 5 条回放夹具 5/5 FAIL（已定位 + 已按 (a) 重录，待 review/合并）
 
-- **现象 [事实]**：合并后在 main 上跑 `fixture:check`，5 条夹具 100 项断言 0 通过 / 5 失败。本轮复跑代表读数：build-demolish facts 277→379、timetable facts 9→23、archived 9→0、dropped 145→204、世界/记忆指纹全变。
-- **归属 [事实]**：材质线声明是既有模拟漂移，与雾改烘焙、相位泄漏无关；本窗口在四条线全合入后仍复现，说明不是合并引入的。
-- **下一步（必须二选一，由模拟线 owner 定）**：
-  - (a) 重录基线，并在证据里写明这次行为变更的来源；
-  - (b) 修模拟，使旧基线重新对齐。
-- **纪律**：未认领前不许把该检查从 CI 或手工清单里静默移除；一个长期红且无人认领的检查等于没有检查。
-- **是否需要用户决策**：**是**（指定 owner 与 (a)/(b)）。
+- **现象 [事实]**：合并后在 main 上跑 `fixture:check`，5 条夹具 100 项断言 0 通过 / 5 失败。本轮复跑代表读数：memory-decay facts 277→379、timetable facts 9→23、archived 9→0、dropped 145→204、世界/记忆指纹全变。
+- **读数更正 [事实]**：**更正：`facts 277→379` 属 memory-decay；build-demolish 为 60→78。** 原记录把 277→379 错记在 build-demolish 名下；两条都漂，但别混在一起引用。
+- **归属 [事实]**：材质线声明与雾改烘焙、相位泄漏无关；本轮用二进制定位证实是模拟线三笔行为变更，不是「既有模拟漂移」这种无主结论。
+- **根因提交 [事实]**（`git bisect`/first-parent 二分，判据为 `fixture:check --only <夹具>` 退出码）：
+  | 提交 | 内容 | 首先翻红的夹具 | 读数变化 |
+  | --- | --- | --- | --- |
+  | `0dfcd2f` | merge liveliness `d725b7e`；代码由 `0fd53a6`（街头小事入 `world.event` 并入账）、`937f247`（重要度/激励阈值）带入 | build-demolish、memory-decay、timetable | memory facts 277→297，archived 9→0，dropped 145→187（该提交实测）；build/timetable 同时首次翻红（HEAD 终值 build facts 60→78、bonds 0→2） |
+  | `49c953b` | merge routine-real `2cc0efe`；代码由 `ec42e91`（市面四拍、打水到水边、旁白改口）带入 | creator-dayclose；并继续抬高 memory/timetable | memory 297→393；timetable 继续增至终值 23（+market_open/work_end/night_market/market_close） |
+  | `df69173` | merge behavior-queue | natural-bond-witness | memory 393→379（routine_done 120→105、street_together +1）；bond 业务读数不变、仅指纹变 |
+  上一笔 `a6da49e` 在 5 条夹具上全部 PASS；`0dfcd2f` 是第一笔让读数翻转的 mainline 提交。
+- **为什么 facts 从 277 变 379 [事实]**：终局事实 379 = tide_turn 120 + routine_done 105 + daily_water 20 + daily_lamp 20 + street_greet 20 + street_together 14 + market_open 20 + work_end 20 + night_market 20 + market_close 20。相对 277 的 +102 = 新增 6 类事件共 114 条（street_greet 20、street_together 14、market_open/work_end/night_market/market_close 各 20）− routine_done 被预算裁掉 12。样本里的 eventId/placeId/actors 均来自实际回放事件；新 kind 在 `world-changes.ts` 中声明、在 `simulation.ts` 中发射。
+- **方向判据与证据 [判据]**：判「行为变对了、基线旧了」，用了三条：
+  1. **新生事件是真实行为**：新增 fact 逐条对应 `world.event`（street_greet/together、market 四拍、work_end），kind 已声明、actor/place 可读、无凭空重复；不是指纹噪声。
+  2. **旧语义没有被改坏**：build-demolish、creator-dayclose、natural-bond-witness 的**全部人工语义断言仍通过**，只是录制指纹/读数变；natural-bond 的业务读数（facts 2 / entries 14 / bonds 5 / trust 合计 0.18）与旧基线逐字段相同，只有内部指纹变。
+  3. **归档逻辑没有丢**：`archived 9→0` 不是分支被删。`consolidate.ts` 的归档分支仍在，`test/memory-archive-reach.test.ts` 在 HEAD 上仍绿；0 是预算先淘汰：基线里第二个 holder 每天收集 0–2 条、有条目活到第 13 天强度 0.142（< `T_forget=0.15`）才归档；新行为下同一 holder 每天 1–4 条，day 桶（16 条）先把旧条目淘汰，20 天窗口里最老只活到 7 天、强度 0.377，到不了归档阈值；dropped 145→204 同源。
+- **处置 [事实]**：按 (a) 在隔离 worktree `D:/project/pwe-j1-drift`（分支 `chore/j1-fixture-drift`）重录 5 条夹具，并同步重录 `recorded.checkpoints`；重录后 `fixture:check` = 5 条夹具 / 100 项断言 / **5 通过 0 失败**，`verifyTrace` 5 条均 `replayable`（三枚指纹与录制值逐项一致）。重录只改 `world-client/fixtures/*.json`，未改 `eval/screens` 截图、未 push、未动主树工作区。
+- **残余 [判据]**：memory-decay 20 天窗口内归档不再触发，夹具已更新 `purpose`/`covers`/`doesNotCover` 写明原因，归档路径由 `test/memory-archive-reach.test.ts` 覆盖；若产品要求「20 天内必须看到软遗忘」，那是预算标定的新决策，不在本次重录里偷偷改 `budget.day`。
+- **纪律**：未合并前不许把该检查从 CI 或手工清单里静默移除；一个长期红且无人认领的检查等于没有检查。
+- **是否需要用户决策**：**否**（(a) 已按本轮任务执行）；只剩 review 与合并授权。
 
 ## K. 合并窗口未闭合清单（2026-11-07）
 
 用于决定合并窗口是否关闭。按编号、归属线、下一步逐条列出：
 
-1. **J1** 回放夹具 5/5 FAIL（100 断言 0 通过）— 模拟线；下一步二选一：重录基线（写明行为变更来源）或修模拟对齐旧基线。owner 未认领。
+1. **J1** 回放夹具 5/5 FAIL（100 断言 0 通过）— 已定位到 `0dfcd2f`/`49c953b`/`df69173` 三笔模拟行为变更并按 (a) 重录（worktree `D:/project/pwe-j1-drift`，分支 `chore/j1-fixture-drift`）；重录后 5/5 PASS，待 review 与合并。
 2. **G5 剩余** 两级口径已落地并复跑 `[判据] 绿`（设计目标 30,000 / 天花板 34,666=2 跑极差 0），但 `check-ground-shadow` 仍不在 CI — lighting 线；下一步：与孤儿闸门一起排期接线。
 3. **E8** `npm test` 改写已跟踪的 `docs/evidence/soak/witnessed-corroboration.json` 行尾（原误记 E7，已改号）— 测试/工具线（材质线登记）；下一步：测试改在临时副本上跑，或测试结束自动恢复；不许再靠人工 `git checkout`。
 4. **孤儿闸门** `fixture:check`、`check-phases-negative`、`check-rain-pin`、`check-shot-actor-pin`、`check-lamp-band`、`check-lamp-pool`（另加 `check-ground-shadow`，见 2）都不在 `.github/workflows/ci.yml` — 归属各线；下一步：等 `chore/orphan-gates` 合并后逐条接线，接一条删一条允许清单。

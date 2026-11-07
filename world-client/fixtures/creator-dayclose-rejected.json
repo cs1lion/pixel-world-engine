@@ -34,7 +34,7 @@
     },
     "recorded": {
       "inputDigest": "eb47f00fd48cb01cb14c2e61b2f26ee8c80030d76914c13f0314a61a6a3d3567",
-      "fingerprint": "0aa9e332528f91c94ff957f6c433af928c829b89ed15bac4743eb1b2ede33aaf",
+      "fingerprint": "b5783c598d96f17848360b95376c5d46bb8722372509b53afa81c34f48968524",
       "eventCount": 2,
       "eventDigest": "5dc55a765d578b4199223f84f549ab228436eefff01b562b23412aded61377af",
       "business": {
@@ -55,20 +55,20 @@
         {
           "step": 0,
           "atWorldMs": 85800000,
-          "fingerprint": "3a16c347aa4d4a0be49e840fc98df3d3213ebdc03a0969b615e24497d7257642",
-          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "fingerprint": "1530d8368379230b1197bcea9333a60a4ef51a0cc9fd7a06d514b7d0e94da4a3",
+          "memoryFingerprint": "7deb618472b20587801a7441c977d0475efc99adbc529572bfc97e3ea1b1acdd",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 12,
           "atWorldMs": 86520000,
-          "fingerprint": "0aa9e332528f91c94ff957f6c433af928c829b89ed15bac4743eb1b2ede33aaf",
-          "memoryFingerprint": "9d4efcd7d48836ac08276546cc8cbd55857c37d98783ef47cd20601f3e679276",
+          "fingerprint": "b5783c598d96f17848360b95376c5d46bb8722372509b53afa81c34f48968524",
+          "memoryFingerprint": "20eb68399cfb222bea117107c3f5700fe9d47796ac635b45b3a3b58166bef2e0",
           "creatorFingerprint": "e75d227384f2a18e6578c3413f309f51d5cd227cfb9a8abf6535923b4b77c04d"
         }
       ],
       "memory": {
-        "fingerprint": "9d4efcd7d48836ac08276546cc8cbd55857c37d98783ef47cd20601f3e679276",
+        "fingerprint": "20eb68399cfb222bea117107c3f5700fe9d47796ac635b45b3a3b58166bef2e0",
         "business": {
           "lastClosedDay": 1,
           "currentDay": 1,
@@ -89,7 +89,7 @@
           "announcements": 0,
           "written": 0,
           "credibility": 0,
-          "metToday": 0
+          "metToday": 1
         }
       },
       "creator": {

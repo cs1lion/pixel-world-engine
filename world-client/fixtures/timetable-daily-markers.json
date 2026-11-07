@@ -34,9 +34,9 @@
     },
     "recorded": {
       "inputDigest": "5090a49525a12b915fe55ac255a35ae8608301c2c7050fb8819c4bffcdb35114",
-      "fingerprint": "b132e12af5d2ed86538ae318e75be4db5e590692b1846c9bb6a8920d1171e0fb",
+      "fingerprint": "3d7c6666b95d52a59bbfa515716f9bc26d9eb76ac608c24d001bbf11c35c0c47",
       "eventCount": 16,
-      "eventDigest": "22b07b32ea387bd3cb30bd142701fd690604487e23f1d102f425b3a279129f7d",
+      "eventDigest": "b4f0a50f604868cec6f7ffeebbb0da6b3d4c0de6ca4f9241bd195b8a1327b70b",
       "business": {
         "day": 0,
         "now": 64920000,
@@ -55,34 +55,34 @@
         {
           "step": 0,
           "atWorldMs": 17400000,
-          "fingerprint": "8302689306b9d8e46e32c5a7532373e832c45d9fec13b3c2ab219d4b4580ff83",
-          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "fingerprint": "bc5fd4c6cd93088a8944ada632b6997e66c163941eb4926778d11ed76e721d75",
+          "memoryFingerprint": "7deb618472b20587801a7441c977d0475efc99adbc529572bfc97e3ea1b1acdd",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 250,
           "atWorldMs": 47400000,
-          "fingerprint": "d6f58dc88a8a236b6b5cf10eac7b604a786364cf2fdb40ef18b2236395401a58",
-          "memoryFingerprint": "488323d910a49cdfca34880a74deb05b5c395c9698510f889d7becda6ea0a545",
+          "fingerprint": "cc5fe9d05606ab7bd50a98425b0543e32574845b05beb3aa3fdc6d594664781d",
+          "memoryFingerprint": "39b2fcb8788c6e64bd8e1aa5258c1a88a886308c44f32060d327887a23d07879",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 396,
           "atWorldMs": 64920000,
-          "fingerprint": "b132e12af5d2ed86538ae318e75be4db5e590692b1846c9bb6a8920d1171e0fb",
-          "memoryFingerprint": "9f8e235b5f7ce08420665c6664edbb3c1d8421060ec30d561bae33179fe7f981",
+          "fingerprint": "3d7c6666b95d52a59bbfa515716f9bc26d9eb76ac608c24d001bbf11c35c0c47",
+          "memoryFingerprint": "74e3161fb04505dd6b8e249e9f8f9bc040ea64806215f67411cb097685304bec",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         }
       ],
       "memory": {
-        "fingerprint": "9f8e235b5f7ce08420665c6664edbb3c1d8421060ec30d561bae33179fe7f981",
+        "fingerprint": "74e3161fb04505dd6b8e249e9f8f9bc040ea64806215f67411cb097685304bec",
         "business": {
           "lastClosedDay": 0,
           "currentDay": 0,
           "holders": 38,
-          "facts": 9,
-          "entries": 6,
-          "claims": 6,
+          "facts": 23,
+          "entries": 30,
+          "claims": 18,
           "beliefs": 0,
           "traces": 0,
           "landmarks": 0,
@@ -96,7 +96,7 @@
           "announcements": 0,
           "written": 0,
           "credibility": 0,
-          "metToday": 141
+          "metToday": 143
         }
       },
       "creator": {
@@ -218,11 +218,11 @@
       "value": 21600000
     },
     {
-      "note": "打水文案",
+      "note": "打水文案（ec42e91 按 BUG-002 改口：去水边打水，旁白不再写桥面）",
       "source": "events",
       "path": "[3].text",
       "op": "eq",
-      "value": "天亮了，有人去桥边打水，顺手冲了冲桥面。"
+      "value": "天亮了，有人去打水。"
     },
     {
       "note": "18:00 点灯的世界事件",
@@ -246,11 +246,11 @@
       "value": 16
     },
     {
-      "note": "打水与点灯各自落成 memory fact（共 9 条）",
+      "note": "打水与点灯各自落成 memory fact（共 23 条：新增 20 条街头互动/市面四拍事实，见 OPEN_ISSUES J1；0fd53a6/937f247/ec42e91）",
       "source": "memory.business",
       "path": "facts",
       "op": "eq",
-      "value": 9
+      "value": 23
     },
     {
       "note": "06:00 打水事实",
@@ -260,23 +260,23 @@
       "value": "daily_water"
     },
     {
-      "note": "打水落点由世界给",
+      "note": "打水落点由世界给（ec42e91 按 BUG-002 改到水边）",
       "source": "memory.snapshot",
       "path": "world.facts[1].placeId",
       "op": "eq",
-      "value": "place:1,1"
+      "value": "place:23,19"
     },
     {
-      "note": "18:00 点灯事实",
+      "note": "18:00 点灯事实（索引由 8 后移到 22：新增 20 条街头/市面事实插在前面）",
       "source": "memory.snapshot",
-      "path": "world.facts[8].kind",
+      "path": "world.facts[22].kind",
       "op": "eq",
       "value": "daily_lamp"
     },
     {
-      "note": "点灯落点由世界给",
+      "note": "点灯落点由世界给（同一事实的索引由 8 后移到 22）",
       "source": "memory.snapshot",
-      "path": "world.facts[8].placeId",
+      "path": "world.facts[22].placeId",
       "op": "eq",
       "value": "place:32,29"
     }

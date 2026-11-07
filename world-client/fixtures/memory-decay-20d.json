@@ -2,17 +2,18 @@
   "format": "pwe-fixture/1",
   "fixtureVersion": 1,
   "name": "memory-decay-20d",
-  "purpose": "莞尔镇从第 0 天起跑 20 个世界日（1 小时一拍），让日预算淘汰与归档真的发生，统计事件累计值。",
+  "purpose": "莞尔镇从第 0 天起跑 20 个世界日（1 小时一拍），统计日预算淘汰与归档的事件累计值。2026-11-07 重录：街头互动（0fd53a6/937f247，经 0dfcd2f）与市面四拍（ec42e91，经 49c953b）让日桶更满，旧条目在强度跌到 T_forget 前先被预算淘汰，20 天窗口内归档累计为 0；归档路径本身由 test/memory-archive-reach.test.ts 覆盖。",
   "expectedMs": 461,
   "covers": [
-    "日预算淘汰：memory.consolidated 事件里的 archived / dropped 累计计数",
+    "日预算淘汰：memory.consolidated 事件里的 archived / dropped 累计计数（重录后 archived=0，原因见 purpose）",
     "终局快照里的归档条目已被裁掉（archived entries = 0）",
     "20 次日终关账（consolidated events = 20）"
   ],
   "doesNotCover": [
     "分钟级衰减曲线：1 小时一拍是粗粒度快进，拍内细节不可见",
     "传说形成 / 史诗 / 地名改写：20 天里没有足够多的人重复讲述",
-    "跨世界日的具体条目内容（只断言计数，不断言某一条记忆）"
+    "跨世界日的具体条目内容（只断言计数，不断言某一条记忆）",
+    "归档触发本身：新增事件把日桶填满后旧条目先被预算淘汰，本夹具 20 天窗口内不再触发归档；归档路径见 test/memory-archive-reach.test.ts"
   ],
   "trace": {
     "format": "pwe-trace/2",
@@ -34,9 +35,9 @@
     },
     "recorded": {
       "inputDigest": "54a053606a16e2419b1b28ef3cd40cd2474309854749a03f3ba9d88ae6cbdcb5",
-      "fingerprint": "f55f988e11c17bd377d4273ed521471185171d46266de7fb6ec8ee28dcdd7fb4",
-      "eventCount": 458,
-      "eventDigest": "4cc60e24f59eca0c69fbfec95264bd6b799af94d3d9dc759bc0d1ebdbbb3b671",
+      "fingerprint": "6ce5d952f40dac2082b0dc4cef8f989925d20082a15aec9f22910e1d3db7146d",
+      "eventCount": 446,
+      "eventDigest": "a3ce2008752d7fdf268789b6cc8275cb6dc242660cc60cacf406325d3fe320a4",
       "business": {
         "day": 20,
         "now": 1728000000,
@@ -49,65 +50,65 @@
           "feed": 0,
           "local": 0
         },
-        "eventCount": 458
+        "eventCount": 446
       },
       "checkpoints": [
         {
           "step": 0,
           "atWorldMs": 0,
-          "fingerprint": "c6bda0d833ed49bd5cab36928234233f2b57a4f44b61d9406395be5e80fecf46",
-          "memoryFingerprint": "5876d78fc252364d25c2c11e8a58562dc808fe5d62c0a06baaf8e9494a2ab166",
+          "fingerprint": "bccd8febb79bb951df157a19e52951d4ebb9dd2fbd1514ad6eacdaf0fa466878",
+          "memoryFingerprint": "7deb618472b20587801a7441c977d0475efc99adbc529572bfc97e3ea1b1acdd",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 250,
           "atWorldMs": 900000000,
-          "fingerprint": "26e281e829db47b5e0a1759843c461a5d7e3160ffd5de49817a1ae96c48b300b",
-          "memoryFingerprint": "10a2268dd1240037d1a35bcbaed67d0843fabc17ca9011c17240b3d426cb645f",
-          "creatorFingerprint": "0a8c704c3910d66c521f03f64c626ca48af9048d61353f6327981fcde33a7a3a"
+          "fingerprint": "52f7d997937c304f0da9b4de1ed5121cc5a9c4626ea7b23648b5073fa1adadb3",
+          "memoryFingerprint": "87fd8f8acff77d46010f06def2806afd25c14c98e2360420c6fbff3a7b104e5d",
+          "creatorFingerprint": "2bcc0632167a6baa1453dd09f54875efdc642d8b89d45d09e2101496e60c4d29"
         },
         {
           "step": 480,
           "atWorldMs": 1728000000,
-          "fingerprint": "f55f988e11c17bd377d4273ed521471185171d46266de7fb6ec8ee28dcdd7fb4",
-          "memoryFingerprint": "f09e4dd9d98c490b638b1136204fc3af2fdf7cfb4a2b17c927de6008200e7d82",
-          "creatorFingerprint": "7314ccc61026932b44c56acb5a6ba1c3b2c6a613c86256b0a77f29657a1f151e"
+          "fingerprint": "6ce5d952f40dac2082b0dc4cef8f989925d20082a15aec9f22910e1d3db7146d",
+          "memoryFingerprint": "f09a93cc9b7f96f665cc238c8d362ef20feac58448f95d06404d3e21e578db67",
+          "creatorFingerprint": "ec787f389e22c92fe4e4cf8e4172baf2c7f71654d2a490595319513d9f7ac9be"
         }
       ],
       "memory": {
-        "fingerprint": "f09e4dd9d98c490b638b1136204fc3af2fdf7cfb4a2b17c927de6008200e7d82",
+        "fingerprint": "f09a93cc9b7f96f665cc238c8d362ef20feac58448f95d06404d3e21e578db67",
         "business": {
           "lastClosedDay": 20,
           "currentDay": 20,
           "holders": 2,
-          "facts": 277,
+          "facts": 379,
           "entries": 32,
-          "claims": 157,
+          "claims": 179,
           "beliefs": 40,
-          "traces": 3,
+          "traces": 4,
           "landmarks": 0,
           "turningPoints": 0,
-          "bonds": 0,
+          "bonds": 2,
           "moods": 2,
           "bondTrustSum": 0,
-          "moodValenceSum": 0.142091,
+          "moodValenceSum": 0.192477,
           "legends": 0,
           "placeNames": 0,
           "announcements": 0,
-          "written": 30,
+          "written": 40,
           "credibility": 0,
           "metToday": 0
         }
       },
       "creator": {
-        "fingerprint": "7314ccc61026932b44c56acb5a6ba1c3b2c6a613c86256b0a77f29657a1f151e",
+        "fingerprint": "ec787f389e22c92fe4e4cf8e4172baf2c7f71654d2a490595319513d9f7ac9be",
         "business": {
           "dayCloses": [
             {
               "day": 1,
               "vitals": {
-                "meanValence": 0.12,
-                "meanArousal": 0.25,
+                "meanValence": 0.1583,
+                "meanArousal": 0.2667,
                 "infoEntropy": 0,
                 "isolatedHoldersCount": 2
               },
@@ -132,8 +133,8 @@
             {
               "day": 2,
               "vitals": {
-                "meanValence": 0.1154,
-                "meanArousal": 0.25,
+                "meanValence": 0.1526,
+                "meanArousal": 0.2658,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -158,8 +159,8 @@
             {
               "day": 3,
               "vitals": {
-                "meanValence": 0.1168,
-                "meanArousal": 0.25,
+                "meanValence": 0.1583,
+                "meanArousal": 0.2674,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -184,8 +185,8 @@
             {
               "day": 4,
               "vitals": {
-                "meanValence": 0.1167,
-                "meanArousal": 0.25,
+                "meanValence": 0.1574,
+                "meanArousal": 0.2674,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -210,8 +211,8 @@
             {
               "day": 5,
               "vitals": {
-                "meanValence": 0.1168,
-                "meanArousal": 0.25,
+                "meanValence": 0.1685,
+                "meanArousal": 0.2708,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -236,8 +237,8 @@
             {
               "day": 6,
               "vitals": {
-                "meanValence": 0.1167,
-                "meanArousal": 0.25,
+                "meanValence": 0.178,
+                "meanArousal": 0.272,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -262,8 +263,8 @@
             {
               "day": 7,
               "vitals": {
-                "meanValence": 0.1134,
-                "meanArousal": 0.25,
+                "meanValence": 0.1886,
+                "meanArousal": 0.274,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -288,8 +289,8 @@
             {
               "day": 8,
               "vitals": {
-                "meanValence": 0.1158,
-                "meanArousal": 0.25,
+                "meanValence": 0.1812,
+                "meanArousal": 0.272,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -314,8 +315,8 @@
             {
               "day": 9,
               "vitals": {
-                "meanValence": 0.1159,
-                "meanArousal": 0.25,
+                "meanValence": 0.1726,
+                "meanArousal": 0.2708,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -340,8 +341,8 @@
             {
               "day": 10,
               "vitals": {
-                "meanValence": 0.1201,
-                "meanArousal": 0.25,
+                "meanValence": 0.175,
+                "meanArousal": 0.2708,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -366,8 +367,8 @@
             {
               "day": 11,
               "vitals": {
-                "meanValence": 0.117,
-                "meanArousal": 0.25,
+                "meanValence": 0.1751,
+                "meanArousal": 0.2708,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -392,8 +393,8 @@
             {
               "day": 12,
               "vitals": {
-                "meanValence": 0.1158,
-                "meanArousal": 0.25,
+                "meanValence": 0.1609,
+                "meanArousal": 0.2674,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -418,8 +419,8 @@
             {
               "day": 13,
               "vitals": {
-                "meanValence": 0.1159,
-                "meanArousal": 0.25,
+                "meanValence": 0.1583,
+                "meanArousal": 0.2674,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -444,8 +445,8 @@
             {
               "day": 14,
               "vitals": {
-                "meanValence": 0.1201,
-                "meanArousal": 0.25,
+                "meanValence": 0.155,
+                "meanArousal": 0.2667,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -470,8 +471,8 @@
             {
               "day": 15,
               "vitals": {
-                "meanValence": 0.117,
-                "meanArousal": 0.25,
+                "meanValence": 0.1777,
+                "meanArousal": 0.274,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -496,8 +497,8 @@
             {
               "day": 16,
               "vitals": {
-                "meanValence": 0.1167,
-                "meanArousal": 0.25,
+                "meanValence": 0.1643,
+                "meanArousal": 0.2688,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -522,8 +523,8 @@
             {
               "day": 17,
               "vitals": {
-                "meanValence": 0.1168,
-                "meanArousal": 0.25,
+                "meanValence": 0.1593,
+                "meanArousal": 0.2667,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -548,8 +549,8 @@
             {
               "day": 18,
               "vitals": {
-                "meanValence": 0.1167,
-                "meanArousal": 0.25,
+                "meanValence": 0.1667,
+                "meanArousal": 0.2688,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -574,8 +575,8 @@
             {
               "day": 19,
               "vitals": {
-                "meanValence": 0.1134,
-                "meanArousal": 0.25,
+                "meanValence": 0.1721,
+                "meanArousal": 0.27,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -600,8 +601,8 @@
             {
               "day": 20,
               "vitals": {
-                "meanValence": 0.1167,
-                "meanArousal": 0.25,
+                "meanValence": 0.1617,
+                "meanArousal": 0.2667,
                 "infoEntropy": 0.4,
                 "isolatedHoldersCount": 0
               },
@@ -1020,18 +1021,18 @@
       "value": 40
     },
     {
-      "note": "归档累计（事件口径，不是终局快照）",
+      "note": "归档累计（事件口径）：新增事件把日桶填满，旧条目先被预算淘汰，20 天窗口内归档未触发（原因见 purpose）",
       "source": "memory.consolidated",
       "path": "archived",
       "op": "eq",
-      "value": 9
+      "value": 0
     },
     {
-      "note": "预算淘汰累计（事件口径）",
+      "note": "预算淘汰累计（事件口径）：日桶更满后由 145 升到 204，与 facts 增量同源",
       "source": "memory.consolidated",
       "path": "dropped",
       "op": "eq",
-      "value": 145
+      "value": 204
     },
     {
       "note": "终局仍有条目",
@@ -1041,11 +1042,11 @@
       "value": 32
     },
     {
-      "note": "终局事实条数",
+      "note": "终局事实条数：277→379（+102）= street_greet 20 + street_together 14 + market_open/work_end/night_market/market_close 各 20 − routine_done 12",
       "source": "memory.business",
       "path": "facts",
       "op": "eq",
-      "value": 277
+      "value": 379
     }
   ]
 }
