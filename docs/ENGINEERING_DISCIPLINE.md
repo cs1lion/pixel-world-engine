@@ -218,8 +218,8 @@
 **状态**：`[已实现]`（`check-ground-shadow` 仍未接 CI，见 L2）
 - **触发**：改渲染路径、加常驻绘制、或预算读数上升。
 - **怎么做**：设计目标是意图，不许动；天花板是实测棘轮，只有「删掉等价或更多命令」才自动下降；峰值 ≤ 目标算不欠债，目标与天花板之间记账，超过天花板才硬红。
-- **违反暴露**：`check-render-budget` 超 `33,488` 红；`check-ground-shadow` 超 `34,666` 红；中间区间只记账不红。**「只降不升」当前没有自动锁定**：脚本只拿当次读数比写死常量，常量本身改大不会被任何测试拦住，只能靠 review；待补的断言见 [OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L694-L705) K8。
-- **对应物**：[check-render-budget.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-render-budget.mjs#L71-L119)；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L58-L66)。
+- **违反暴露**：`check-render-budget` 超 `33,488` 红；`check-ground-shadow` 超 `34,666` 红；中间区间只记账不红。**「只降不升」已由 `test/policy-ceilings.test.ts` + `scripts/policy-ceilings.json` 锁定**：脚本常量大于已批准值即红，失败信息写明「这是政策常数，不是实测值」，抬升必须在同一次提交里改记录并填 `approved_at` / `approved_by` / `reason`。拦不住的部分如实列：运行时 env 覆盖（`GROUND_SHADOW_PEAK_CEILING` / `RENDER_BUDGET_FORCE_COMMANDS`）、先降到批准值以下再涨回原值（仍 ≤ 已批准值）、以及 `reason` 是否属实；降低无需改记录，测试只提示可收紧。
+- **对应物**：[check-render-budget.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-render-budget.mjs#L71-L119)；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L58-L66)；[policy-ceilings.json](file:///D:/project/pixel-world-engine/world-client/scripts/policy-ceilings.json)；[policy-ceilings.test.ts](file:///D:/project/pixel-world-engine/world-client/test/policy-ceilings.test.ts)。
 
 ### B2 新功能导致的抬升必须单独记账
 
