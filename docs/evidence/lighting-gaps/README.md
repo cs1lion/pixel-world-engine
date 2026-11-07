@@ -337,7 +337,7 @@ patch_required = annulus + 45.9        （固定 annulus，问 patch 要升到�
 | `ground-shadow-ao-on-soot_forge-1.png` | 37942 | `68fc3061568b842bd636cf541e46a6ca95a38092221e89d11dec6e2e7bae2a49` |
 | `ground-shadow-ao-off-soot_forge-1.png` | 37785 | `629c95238974664693206ee6a74f6586c2d20468772146c74e6d029e5e03060b` |
 | `check-glow-contrast.log`（上一批历史） | 926 | `598822a5ba42d468ed36465cf4940422ac79ad0422911468c9153e63644ef807` |
-| `check-glow-contrast-three-phase.log`（本批） | 2636 | `42071dec60fedfaaa67bbf0010413ac4fe8934b6cf258ad8b5340a4289732028` |
+| `check-glow-contrast-three-phase.log`（本批） | 2689 | `31210798ec7eb0f8f965165e762d2c30905cbfbcdcd3cf3fbc373783701c7905` |
 | `check-glow-contrast-alpha1.log`（本批临时实验） | 2629 | `e58d2758bca42769f3150f92ab94681acd48822d29c3e3d14905b42b4fa3067c` |
 | `glow-contrast.json`（本批覆盖） | 10825 | `2678e0ff389273fb1c6d66e053dee0d08560e21a3e4563d3393e71e855094fc3` |
 | `glow-dusk.png`（本批覆盖） | 39956 | `f3146547b81acfec35b5d24a67783d2f4ae58ed8e720db77944b233a97ae07f2` |
@@ -403,7 +403,7 @@ patch_required = annulus + 45.9        （固定 annulus，问 patch 要升到�
 
 ### R5 提交状态与 sha
 
-- 本批证据产出于 **2026-11-07 18:15–18:22（本地）**，工作树 = `HEAD 5075d71` + 本批未提交改动。
+- 本批证据产出于 **2026-11-07 18:15–18:33（本地）**，工作树 = `HEAD 5075d71` + 本批未提交改动。
 - 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha：
   `7f549cb3b825e987b31348eaf9a8e1d6171587b7`（`7f549cb`，18 个文件）。
   本段 sha 回填是紧随其后的 `docs(lighting)` 小提交，不改动代码与产物。
@@ -414,8 +414,8 @@ patch_required = annulus + 45.9        （固定 annulus，问 patch 要升到�
 
 ### R6 时间（产物 ≤ 报告）
 
-- 产物 mtime：2026-11-07 18:20:41（本地），本批产物同一次运行写出。
-- 本 README 写入：2026-11-07 18:30（本地）；提交紧随其后。
+- 产物 mtime：2026-11-07 18:32:19（本地），本批产物同一次运行写出。
+- 本 README 写入：2026-11-07 18:34（本地）；提交紧随其后。
 - 满足「产物时间 ≤ 报告时间 ≤ 提交时间」。
 - 已知覆盖：绿跑与红跑写同一路径（`ground-shadow.json` 与 AO 截图），入库的是恢复 `ink` 后的绿跑产物；
   红跑读数在 `check-ground-shadow-red-ao.log`。α=1 上限实验与正式读数写同一批截图路径，
