@@ -15,7 +15,8 @@
     "跨多日的作息漂移与天气影响",
     "灯油耗尽后的灰化与动作采样放慢（那是渲染层，不进世界指纹）",
     "收灯日志之外的世界事件（潮汐转向等）不在此夹具断言",
-    "夜市（19:00 night_market）与闭市（22:00 market_close）：回放只到 18:05，需要一条跑到 22:00 之后的单日夹具才能覆盖"
+    "夜市（19:00 night_market）与闭市（22:00 market_close）：回放只到 18:05，这两拍由 timetable-night-close 覆盖",
+    "street_greet / street_together / street_quarrel / street_yield 的先后关系：无确定次序，不断言（见 docs/ENGINEERING_DISCIPLINE.md V3）"
   ],
   "trace": {
     "format": "pwe-trace/2",
