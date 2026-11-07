@@ -62,6 +62,7 @@ import {
   checkScanFloor,
   failureWhy,
   loadScanBaseline,
+  silentWindow,
 } from './audit-scan-guard-lib.ts';
 import type { ScanFloor, ScanRootProblem } from './audit-scan-guard-lib.ts';
 
@@ -574,8 +575,9 @@ function main(): void {
   }
   process.stdout.write(`共查 ${checked} 处行号引用，${findings.length} 处存疑\n`);
 
-  // 地板：受查数比上次核过的基线掉太多 = 扫描面塌了。**这是无条件红**，
-  // 与「有没有存疑」无关——存疑为 0 恰恰可能是「没查到东西」的结果。
+  // 地板：受查数比上次核过的基线掉太多 = 扫描面塌了；涨太多 = 基线过期。
+  // 两个方向都是**无条件红**，与「有没有存疑」无关——存疑为 0 恰恰可能是
+  // 「没查到东西」的结果，而基线过期会让地板静默失效。
   if (floor.kind === 'missing') {
     process.stdout.write(
       `扫描面基线没查成：${baselineWhy ?? '基线文件里没有 references.checked'}。没有地板就不是绿。\n`,
@@ -587,8 +589,18 @@ function main(): void {
         `${floor.baseline - checked} 处（允许最多降 ${floor.allowed} 处）。\n`,
     );
     process.exitCode = 1;
+  } else if (floor.kind === 'stale') {
+    process.stdout.write(
+      `基线过期：实际 ${checked}，基线 ${floor.baseline}，超出 ${floor.overPercent}%，` +
+        '请按实测刷新 baseline 并记入 note。\n',
+    );
+    process.exitCode = 1;
   } else {
+    const win = silentWindow(floor);
     process.stdout.write(`受查数在地板内（基线 ${floor.baseline}，允许降 ${floor.allowed}）。\n`);
+    process.stdout.write(
+      `无感塌陷窗口：${win.gap} 处（${win.percent}%）＝过期线 ${win.staleLine} − 地板 ${win.floor}。\n`,
+    );
   }
 
   if (problems.length > 0) {

@@ -14,6 +14,13 @@
  * 用 HEAD 的旧尺度拍，再 `git stash pop` 拍「改后」。同一支脚本、同一机位，
  * 两张图只差尺度这一件事。
  *
+ * **读数来源必须诚实**：拿不到 `window.Oracle.debugSettingScale` 的实测值时，
+ * 「改后」这一跑直接打印 `[判据前提不成立]` 并以非 0 退出，不许退回改前基线常量
+ * 继续判定——那样「通过」可能只是基线在和自己比。两种「拿不到」分开报：
+ * 环境没这个钩子（`missing`）与钩子在但读数非法（`throw` / 形状不对）。
+ * 唯一例外是 `SCALE_LABEL=before`：旧构建本来就没有这个钩子，那一跑只产出
+ * 改前基线，常量会大声声明「非本次实测、不参与判定」。
+ *
  * 跑法：
  *   cd world-client && npm run dev
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ SCALE_LABEL=before node scripts/check-setting-scale.mjs
@@ -21,6 +28,9 @@
  *   SCALE_LABEL=after node scripts/check-setting-scale.mjs
  *
  * 改后那一跑发现 before / after 都在，会额外合成并排图 `setting-scale.png`。
+ * 并排图**只供人看**：改前允许是基线常量，但图上必须标注「改前为基线常量、
+ * 非实测、未参与判定」、且那份 JSON 不带 `metrics`；改后必须是实测。任何数值
+ * 消费（做差、容差、进判据）仍走 `assertMeasuredReading`，这里拿到的数不做差。
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -28,6 +38,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
+import { annotateEquality, judgeSettingScaleProbe, readShotForComposite } from './lib/setting-scale-probe.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -47,12 +58,28 @@ const ZOOM = 2;
 const SHOP = { x: 576, base: 464, id: 'shopfront_mid' };
 /** 街灯：`lamp_post_7` at (39,27)；柱脚 = 27*16 + 16 = 448。 */
 const LAMP = { x: 624, base: 448, id: 'lamp_post_7' };
-/** 扫描列：店面左木框（`x .. x+2`，从墙顶连续涂到石脚底边，量到的就是墙高）。 */
+/**
+ * 扫描列：店面左木框（`x .. x+2`）。
+ *
+ * 注意「连续涂装」不等于墙高：`c.timber` 的木纹刺（1×2px，压在 `x+1`，正是这一列）
+ * 与板缝会把整段打断。`frameH` 只量第一段连续同色（受美术纹理影响，**不是墙高**）；
+ * `wallBandH` 允许 ≤3 世界像素的断点，量到檐口下沿，才是墙高。两者都落盘。
+ */
 const SCAN_SHOP_X = 577;
 /** 扫描列：灯柱本体（`x + 7 .. x + 9`），两个人都不站在这两列上。 */
 const SCAN_LAMP_X = 632;
 /** 石脚扫描列：色带只有 4px，且不在木框、门、窗、招牌上。 */
 const SCAN_STONE_X = 578;
+
+/**
+ * 政策常数：`wallBandH` 允许的最大断点（世界像素）。
+ *
+ * 实测断点是 `2589366` 的 4 颗木纹刺：每颗 1×2px、正落在木框扫描列上，宽 2 世界
+ * 像素。「≤3」只容得下这类细刺，容不下真正的结构断裂（8px 以上的错位/缺口）。
+ * 将来若要放宽到 6，必须按政策常数记账（理由 + 同帧实测对照 + 谁批的），不许顺手
+ * 改——放宽会把「结构断了」也吞成「墙高没变」。
+ */
+const WALL_BAND_MAX_GAP_WX = 3;
 
 /** 主角钉在店面正前方（第 28 行，脚底与石脚底边同一条线 464）。 */
 const HERO = '沉灯夫人';
@@ -61,7 +88,8 @@ const HERO_CELL = { x: 37, y: 28 };
 const UNDER_LAMP_CELL = { x: 38, y: 27 };
 
 /**
- * 改前的尺度（HEAD 上没有 `debugSettingScale` 这个口子，用这份基线常量画标尺）。
+ * 改前的尺度（旧构建上没有 `debugSettingScale` 这个口子，这份常量只给
+ * `SCALE_LABEL=before` 画改前标尺；「改后」拿不到实测值会直接判红，不退回它）。
  * `lampBodyBottom` 取 24 而不是旧代码注释里的 25：旧画法把灯体底下的 1px `ink`
  * 衬线画在灯体外面，25 量的是衬线的下边、净空其实只有 24；新画法把衬线收进
  * 灯体最后一格，43 就是净空。以扫描为准，两图同一口径。
@@ -138,8 +166,33 @@ await page.waitForTimeout(300);
 
 const cam = await page.evaluate(() => window.Oracle.camera());
 const stats = await page.evaluate(() => window.Oracle.renderStats());
-/** 改后的渲染常量读数；HEAD 没有这个口子时退回基线常量。 */
-const metrics = await page.evaluate(() => window.Oracle.debugSettingScale?.() ?? null);
+/**
+ * 读数探针：只负责把「钩子在不在 / 返回了什么」原样带回 node，不在页面里做判定。
+ * 判定在 `lib/setting-scale-probe.mjs`，两种「拿不到」在那里分开。
+ */
+const probe = await page.evaluate(() => {
+  const hook = window.Oracle?.debugSettingScale;
+  if (typeof hook !== 'function') {
+    return { status: 'missing', detail: `window.Oracle.debugSettingScale 不是函数（typeof=${typeof hook}）` };
+  }
+  try {
+    return { status: 'value', value: hook() };
+  } catch (error) {
+    return { status: 'throw', detail: error instanceof Error ? error.message : String(error) };
+  }
+});
+const verdict = judgeSettingScaleProbe(probe, { label: LABEL });
+if (!verdict.ok) {
+  console.error(`\n[判据前提不成立] ${verdict.message}`);
+  console.error('[判据前提不成立] 没有实测读数就不判定、不落盘；换到支持 debugSettingScale 的构建后重跑。\n');
+  await page.close();
+  await browser.close();
+  process.exit(1);
+}
+if (verdict.declared) {
+  console.log(`[改前基线] ${verdict.message}；常量只用来画改前标尺，不参与判定。`);
+}
+const metrics = verdict.metrics;
 
 const clip = { x: box.x + box.width / 2 - 240, y: box.y + box.height / 2 - 160, width: 480, height: 320 };
 const file = join(OUT, `setting-scale-${LABEL}.png`);
@@ -149,7 +202,7 @@ await page.screenshot({ path: file, clip });
 const reader = await browser.newPage();
 const buf = readFileSync(file);
 const b64 = buf.toString('base64');
-const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) => {
+const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven, wallBandMaxGapPx }) => {
   const image = new Image();
   await new Promise((res, rej) => {
     image.onload = res;
@@ -173,11 +226,34 @@ const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) =>
     }
     return count / 4;
   };
+  /**
+   * 允许短断点的连续段：从 `fromRow` 向上走，遇到异色只记 gap，gap 不超过
+   * `maxGapPx` 就继续；量到**最后一个同色像素**为止。断点只有 2 世界像素
+   * （木纹刺 1×2px，8 图中像素），檐口上方的异色带是 7 世界像素（28 图中像素）——
+   * `WALL_BAND_MAX_GAP_WX`（3 世界像素）正好跳过细刺、停在檐口下沿。
+   */
+  const bandRun = (x, fromRow, ref, maxGapPx) => {
+    let lastMatch = -1;
+    let gap = 0;
+    for (let y = fromRow; y >= 0; y -= 1) {
+      if (near(px(x, y), ref, 6)) {
+        lastMatch = y;
+        gap = 0;
+      } else {
+        gap += 1;
+        if (gap > maxGapPx) break;
+      }
+    }
+    return lastMatch < 0 ? 0 : (fromRow - lastMatch + 1) / 4;
+  };
   const frameRef = px(columns.frameX, columns.frameRefRow);
   const stoneRef = px(columns.stoneX, columns.stoneRow);
   const postRef = px(columns.lampX, columns.postRow);
   return {
+    /** 第一段连续同色——**不是墙高**：木纹刺/板缝会把它截断（旧 PNG 48，新 PNG 13）。 */
     frameH: run(columns.frameX, columns.frameRow, frameRef),
+    /** 墙高：允许 ≤3 世界像素断点的连续段，量到檐口下沿（与 `metrics.shopfrontH` 对照）。 */
+    wallBandH: bandRun(columns.frameX, columns.frameRow, frameRef, wallBandMaxGapPx),
     stoneH: run(columns.stoneX, columns.stoneRow, stoneRef),
     /** 柱脚到灯体下沿的连续涂装：灯体挂在柱顶，这一段是全高里「人能不能顶到」的那一截。 */
     bodyBottomH: run(columns.lampX, columns.postRow, postRef),
@@ -187,6 +263,8 @@ const scanned = await reader.evaluate(async ({ b64, columns, metricsDriven }) =>
 }, {
   b64,
   metricsDriven: metrics !== null,
+  /** 政策常数不能直接进页面上下文，按图中像素传进去（1 世界像素 = 4 图中像素）。 */
+  wallBandMaxGapPx: WALL_BAND_MAX_GAP_WX * 4,
   /** 世界像素 → 截图中像素：`(wy - worldViewY) * 2 * zoom - 160`；扫描从该像素的底行起。 */
   columns: {
     frameX: Math.round((SCAN_SHOP_X - cam.worldViewX) * 2 * ZOOM - 240),
@@ -202,6 +280,7 @@ await reader.close();
 await page.close();
 await browser.close();
 
+/** 只有声明过的改前基线那一跑 metrics 才是 null；其余路径在上面的判定里已经判红退出。 */
 const scale = metrics ?? BEFORE;
 const result = {
   label: LABEL,
@@ -211,7 +290,9 @@ const result = {
   clip,
   stats,
   metrics,
-  metricsSource: metrics === null ? 'HEAD 基线常量（无 debugSettingScale）' : '渲染常量 setting-scale.ts',
+  metricsSource: verdict.source,
+  /** 改前基线那一跑必须显式带这个标记；消费方据此拒绝把它当读数。 */
+  metricsFromBaselineConstant: verdict.fromBaselineConstant === true,
   pins,
   scanned,
   errors,
@@ -225,8 +306,12 @@ writeFileSync(
 
 const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 console.log(`[${LABEL}] 机位 (${CAMERA.x}, ${CAMERA.y}) zoom ${cam.zoom} view ${cam.worldViewX},${cam.worldViewY}`);
-console.log(`  常量：墙 ${scale.shopfrontH}（顶抬 ${scale.shopfrontTop}）/ 人 ${scale.personH} / 柱 ${scale.lampPostH} / 灯体下沿 ${scale.lampBodyBottom}`);
-console.log(`  扫描：木框立柱 ${fmt(scanned.frameH)}（= 墙高）/ 石脚 ${fmt(scanned.stoneH)} / 柱脚→灯体下沿 ${fmt(scanned.bodyBottomH)}`);
+console.log(`  常量（${metrics === null ? '改前基线常量，非本次实测、不参与判定' : 'debugSettingScale 实测'}）：墙 ${scale.shopfrontH}（顶抬 ${scale.shopfrontTop}）/ 人 ${scale.personH} / 柱 ${scale.lampPostH} / 灯体下沿 ${scale.lampBodyBottom}`);
+console.log(`  扫描：墙高 ${fmt(scanned.wallBandH)}${annotateEquality(scanned.wallBandH, scale.shopfrontH, '墙高')}；连续段口径 ${fmt(scanned.frameH)}（受木纹刺/板缝影响，不等于墙高）/ 石脚 ${fmt(scanned.stoneH)} / 柱脚→灯体下沿 ${fmt(scanned.bodyBottomH)}`);
+if (scanned.wallBandH !== scale.shopfrontH) {
+  console.error(`\n[扫描自洽] 判红：墙高扫描 ${fmt(scanned.wallBandH)} ≠ 常量 ${fmt(scale.shopfrontH)}，差 ${fmt(scanned.wallBandH - scale.shopfrontH)}。ADR 要求扫描与渲染常量一致。\n`);
+  process.exit(1);
+}
 console.log(`  指令 ${stats.totalCommands} / Graphics ${stats.graphicsObjects}`);
 console.log(`  图 ${file}${errors.length === 0 ? '' : `（页面错误：${errors.join('; ')}）`}`);
 
@@ -237,8 +322,16 @@ const afterFile = join(OUT, 'setting-scale-after.png');
 if (existsSync(beforeFile) && existsSync(afterFile)) {
   const load = (label) => {
     const json = JSON.parse(readFileSync(join(OUT, `setting-scale-${label}.json`), 'utf8'));
-    const fallback = json.metrics ?? json.ancient;
-    return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: fallback };
+    // 并排图只供人看：改前允许基线常量（图上标注、JSON 不带 metrics），改后必须实测。
+    // 数值消费仍走 assertMeasuredReading；这里拿到的 scale 不许做差。
+    try {
+      const shot = readShotForComposite(json, { label });
+      return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: shot.scale, annotation: shot.annotation };
+    } catch (error) {
+      console.error(`\n[并排图] 判红：${error instanceof Error ? error.message : String(error)}`);
+      console.error('[并排图] 改后必须是 debugSettingScale 实测；改前只允许声明过的基线常量（JSON 不许带 metrics）。\n');
+      process.exit(1);
+    }
   };
   const shots = { before: load('before'), after: load('after') };
 
@@ -278,6 +371,7 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
       <div class="frame" style="width:${W}px;height:${H}px">
         <img src="${encode(shot.file)}" style="width:${W}px;height:${H}px" />
         ${ruler(shot)}
+        ${shot.annotation === null ? '' : `<div class="annotation">${shot.annotation}</div>`}
       </div>
       <figcaption><b>${title}</b><br />${note}</figcaption>
     </figure>`;
@@ -288,7 +382,7 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
     const s = shot.scale;
     const scan = shot.scanned;
     return `
-      <tr><td>店面墙</td><td>${fmt(scan.frameH)} px（左木框连续涂装，到石脚底边）</td>
+      <tr><td>店面墙</td><td>${typeof scan.wallBandH === 'number' ? `${fmt(scan.wallBandH)} px（左木框，允许 ≤3px 断点的连续涂装，到石脚底边）${annotateEquality(scan.wallBandH, s.shopfrontH, '墙高')}` : '未测（旧口径 JSON，请重拍）'}；连续段口径 ${fmt(scan.frameH)} px（受木纹刺打断，不等于墙高）</td>
           <td>${s.shopfrontH} px（顶抬 ${s.shopfrontTop}）</td>
           <td>${ratio(shot.scale)}×</td></tr>
       <tr><td>其中石脚</td><td>${fmt(scan.stoneH)} px</td><td>4 px</td><td>落地线 y+32</td></tr>
@@ -316,6 +410,9 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
                        white-space: nowrap; font-size: 11px; color: #e9ece6;
                        background: rgba(15,18,22,.82); padding: 0 3px; }
        .hline { position: absolute; border-top: 1px dashed #f4d596; }
+       .annotation { position: absolute; left: 0; top: 0; padding: 2px 6px; background: #9b2c2c;
+                     color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+       .warn { color: #f0a9a9; }
        figcaption { padding-top: 6px; color: #c9d1cc; }
        b { color: #f4d596; font-weight: 600; }
        table { border-collapse: collapse; font-size: 12px; }
@@ -326,22 +423,25 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
      <h1>灯潮界立面尺度：改前 / 改后，同一机位、同一冻结帧</h1>
      <p class="note">
        机位正对 shopfront_mid 与 lamp_post_7（世界 ${CAMERA.x}, ${CAMERA.y}，zoom ${ZOOM}）。
-       标尺读的是渲染常量；表里的「扫描」是逐像素量出来的连续涂装长度，两者对得上才算数。
+       标尺读的是渲染常量；表里的「扫描」按「允许 ≤3 世界像素断点的连续涂装」量到檐口下沿，
+       与常量一致才写「=」，不一致写「≠」。单列出的「连续段口径」会被木纹刺截断，不等于墙高。
        落地的石脚底边两图都在 y+32，占地与碰撞格没动。
+       ${shots.before.annotation === null ? '' : '<span class="warn">改前那一拍是基线常量（图上已标注），只供人看对比，不参与判定。</span>'}
      </p>
      <main>
-       ${card(shots.before, '改前', `墙 ${shots.before.scale.shopfrontH} / 柱 ${shots.before.scale.lampPostH} / 灯体下沿 ${shots.before.scale.lampBodyBottom}`)}
+       ${card(shots.before, shots.before.annotation === null ? '改前' : '改前（基线常量，非实测）', `墙 ${shots.before.scale.shopfrontH} / 柱 ${shots.before.scale.lampPostH} / 灯体下沿 ${shots.before.scale.lampBodyBottom}`)}
        ${card(shots.after, '改后', `墙 ${shots.after.scale.shopfrontH} / 柱 ${shots.after.scale.lampPostH} / 灯体下沿 ${shots.after.scale.lampBodyBottom}`)}
        <div>
          <div class="panel">
            <b>像素读数</b>
            <table>
-             <tr><th>构件</th><th>改前（扫描）</th><th>改后（常量）</th><th>比例</th></tr>
+             <tr><th>构件</th><th>改后（扫描）</th><th>改后（常量）</th><th>比例</th></tr>
              ${readings(shots.after)}
            </table>
          </div>
          <div class="panel">
            <b>改前 vs 改后</b><br />
+           ${shots.before.annotation === null ? '' : `<span class="warn">${shots.before.annotation}</span><br />`}
            店面墙 ${shots.before.scale.shopfrontH} → ${shots.after.scale.shopfrontH} px（${ratio(shots.before.scale)}× → ${ratio(shots.after.scale)}×）<br />
            街灯柱 ${shots.before.scale.lampPostH} → ${shots.after.scale.lampPostH} px（${postRatio(shots.before.scale)}× → ${postRatio(shots.after.scale)}×）<br />
            灯体下沿 ${shots.before.scale.lampBodyBottom} → ${shots.after.scale.lampBodyBottom} px（净空）
@@ -359,4 +459,9 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
   await compose.close();
   await c2.close();
   console.log(`并排图：${join(OUT, 'setting-scale.png')}`);
+  console.log(
+    shots.before.annotation === null
+      ? '并排图两拍均为实测。'
+      : `并排图标注：${shots.before.annotation}（改前 JSON 不带 metrics，只供人看）`,
+  );
 }
