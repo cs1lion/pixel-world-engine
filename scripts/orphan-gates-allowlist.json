@@ -1,6 +1,6 @@
 {
   "schema": "pwe-orphan-gates-allowlist/1",
-  "pendingCiBudget": 21,
+  "pendingCiBudget": 19,
   "note": "分类规则（写死，不看印象）：kind=pending-ci = 脚本有客观 pass/fail（失败会 exit 非 0），只缺环境（preview/浏览器/服务/预期失败步骤）；kind=manual = 需要人的目视判断（没有可自动判定的红绿），或需要人在场干预（先 stash src/、一次性取证）；kind=obsolete = 判据已失效或冗余，应该删，单独计数且不占预算。每个条目都必须存在，并且当前确实没有消费方；一旦接进 workflow 或被 import，本清单必须同一提交里删掉该条，否则 audit-orphan-gates 会红——这是设计，不是故障。pending-ci 条数不得超过 pendingCiBudget。",
   "entries": [
     {
@@ -75,17 +75,17 @@
     },
     {
       "id": "npm:world-client#test:lamp-band",
-      "kind": "pending-ci",
-      "reason": "灯带验收入口，目标 check-lamp-band.mjs",
+      "kind": "manual",
+      "reason": "npm 别名 → check-lamp-band.mjs（只读读数，不判定）",
       "acceptedBecause": "CI 未调用，且基线无消费方",
-      "blockedBy": "目标 check-lamp-band.mjs 未接 CI（同上：重跑不稳）"
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
     },
     {
       "id": "npm:world-client#test:lamp-pool",
-      "kind": "pending-ci",
-      "reason": "光池验收入口，目标 check-lamp-pool.mjs",
+      "kind": "manual",
+      "reason": "npm 别名 → check-lamp-pool.mjs（只读读数，不判定）",
       "acceptedBecause": "CI 未调用，且基线无消费方",
-      "blockedBy": "目标 check-lamp-pool.mjs 未接 CI（同上：重跑不稳）"
+      "blockedBy": "无客观判红：只输出读数与合成图，不设 exit 非 0；补上判据后才可归 pending-ci"
     },
     {
       "id": "npm:world-client#test:buttons",
