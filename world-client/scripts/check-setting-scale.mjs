@@ -28,6 +28,9 @@
  *   SCALE_LABEL=after node scripts/check-setting-scale.mjs
  *
  * 改后那一跑发现 before / after 都在，会额外合成并排图 `setting-scale.png`。
+ * 并排图**只供人看**：改前允许是基线常量，但图上必须标注「改前为基线常量、
+ * 非实测、未参与判定」、且那份 JSON 不带 `metrics`；改后必须是实测。任何数值
+ * 消费（做差、容差、进判据）仍走 `assertMeasuredReading`，这里拿到的数不做差。
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -35,7 +38,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
-import { assertMeasuredReading, judgeSettingScaleProbe } from './lib/setting-scale-probe.mjs';
+import { judgeSettingScaleProbe, readShotForComposite } from './lib/setting-scale-probe.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -274,15 +277,16 @@ const afterFile = join(OUT, 'setting-scale-after.png');
 if (existsSync(beforeFile) && existsSync(afterFile)) {
   const load = (label) => {
     const json = JSON.parse(readFileSync(join(OUT, `setting-scale-${label}.json`), 'utf8'));
-    // 比较两拍读数前，两份都必须是实测；基线常量不是读数，不许静默做差。
+    // 并排图只供人看：改前允许基线常量（图上标注、JSON 不带 metrics），改后必须实测。
+    // 数值消费仍走 assertMeasuredReading；这里拿到的 scale 不许做差。
     try {
-      assertMeasuredReading(json, { label });
+      const shot = readShotForComposite(json, { label });
+      return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: shot.scale, annotation: shot.annotation };
     } catch (error) {
-      console.error(`\n[改前/改后对比] 判红：${error instanceof Error ? error.message : String(error)}`);
-      console.error('[改前/改后对比] 两份 JSON 都必须是 debugSettingScale 实测才能比较；不许拿基线常量做差。\n');
+      console.error(`\n[并排图] 判红：${error instanceof Error ? error.message : String(error)}`);
+      console.error('[并排图] 改后必须是 debugSettingScale 实测；改前只允许声明过的基线常量（JSON 不许带 metrics）。\n');
       process.exit(1);
     }
-    return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: json.metrics };
   };
   const shots = { before: load('before'), after: load('after') };
 
@@ -322,6 +326,7 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
       <div class="frame" style="width:${W}px;height:${H}px">
         <img src="${encode(shot.file)}" style="width:${W}px;height:${H}px" />
         ${ruler(shot)}
+        ${shot.annotation === null ? '' : `<div class="annotation">${shot.annotation}</div>`}
       </div>
       <figcaption><b>${title}</b><br />${note}</figcaption>
     </figure>`;
@@ -360,6 +365,9 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
                        white-space: nowrap; font-size: 11px; color: #e9ece6;
                        background: rgba(15,18,22,.82); padding: 0 3px; }
        .hline { position: absolute; border-top: 1px dashed #f4d596; }
+       .annotation { position: absolute; left: 0; top: 0; padding: 2px 6px; background: #9b2c2c;
+                     color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+       .warn { color: #f0a9a9; }
        figcaption { padding-top: 6px; color: #c9d1cc; }
        b { color: #f4d596; font-weight: 600; }
        table { border-collapse: collapse; font-size: 12px; }
@@ -372,20 +380,22 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
        机位正对 shopfront_mid 与 lamp_post_7（世界 ${CAMERA.x}, ${CAMERA.y}，zoom ${ZOOM}）。
        标尺读的是渲染常量；表里的「扫描」是逐像素量出来的连续涂装长度，两者对得上才算数。
        落地的石脚底边两图都在 y+32，占地与碰撞格没动。
+       ${shots.before.annotation === null ? '' : '<span class="warn">改前那一拍是基线常量（图上已标注），只供人看对比，不参与判定。</span>'}
      </p>
      <main>
-       ${card(shots.before, '改前', `墙 ${shots.before.scale.shopfrontH} / 柱 ${shots.before.scale.lampPostH} / 灯体下沿 ${shots.before.scale.lampBodyBottom}`)}
+       ${card(shots.before, shots.before.annotation === null ? '改前' : '改前（基线常量，非实测）', `墙 ${shots.before.scale.shopfrontH} / 柱 ${shots.before.scale.lampPostH} / 灯体下沿 ${shots.before.scale.lampBodyBottom}`)}
        ${card(shots.after, '改后', `墙 ${shots.after.scale.shopfrontH} / 柱 ${shots.after.scale.lampPostH} / 灯体下沿 ${shots.after.scale.lampBodyBottom}`)}
        <div>
          <div class="panel">
            <b>像素读数</b>
            <table>
-             <tr><th>构件</th><th>改前（扫描）</th><th>改后（常量）</th><th>比例</th></tr>
+             <tr><th>构件</th><th>改后（扫描）</th><th>改后（常量）</th><th>比例</th></tr>
              ${readings(shots.after)}
            </table>
          </div>
          <div class="panel">
            <b>改前 vs 改后</b><br />
+           ${shots.before.annotation === null ? '' : `<span class="warn">${shots.before.annotation}</span><br />`}
            店面墙 ${shots.before.scale.shopfrontH} → ${shots.after.scale.shopfrontH} px（${ratio(shots.before.scale)}× → ${ratio(shots.after.scale)}×）<br />
            街灯柱 ${shots.before.scale.lampPostH} → ${shots.after.scale.lampPostH} px（${postRatio(shots.before.scale)}× → ${postRatio(shots.after.scale)}×）<br />
            灯体下沿 ${shots.before.scale.lampBodyBottom} → ${shots.after.scale.lampBodyBottom} px（净空）
@@ -403,4 +413,9 @@ if (existsSync(beforeFile) && existsSync(afterFile)) {
   await compose.close();
   await c2.close();
   console.log(`并排图：${join(OUT, 'setting-scale.png')}`);
+  console.log(
+    shots.before.annotation === null
+      ? '并排图两拍均为实测。'
+      : `并排图标注：${shots.before.annotation}（改前 JSON 不带 metrics，只供人看）`,
+  );
 }

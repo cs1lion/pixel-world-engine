@@ -7,8 +7,12 @@
  *   1. MODE=missing —— 没有 debugSettingScale（旧构建）：改后必须红、退出码非 0；
  *   2. MODE=invalid —— 钩子在但返回值非法：必须红、退出码非 0，并带实际值；
  *   3. MODE=ok      —— 合法读数：必须绿、退出码 0，落盘 metrics 来自实测。
- * 另加一条 MODE=missing + SCALE_LABEL=before：声明为改前基线、退出 0（旧构建的
- * 唯一例外，控制台会大声说明常量不参与判定）。
+ * 另加两条：
+ *   4. MODE=missing + SCALE_LABEL=before：声明为改前基线、退出 0（旧构建的
+ *      唯一例外，控制台会大声说明常量不参与判定）；
+ *   5. 改前是基线常量 + 改后实测：并排图**允许合成**，但必须 exit 0 且图上带
+ *      标注「改前为基线常量、非实测、未参与判定」。「基线常量不许做差」这条由
+ *      `test/check-setting-scale-probe.test.ts` 的数值消费用例钉住。
  *
  * 为什么不进 `npm test`：本仓 `npm test` 不依赖浏览器，浏览器类闸门走
  * `test:*` 脚本。这条只作为可复现证据。
@@ -162,18 +166,24 @@ try {
     },
   });
 
-  await run('拿基线常量去和实测值做差：消费方必须红', {
+  await run('改前基线常量 + 并排图：允许合成，但必须带标注', {
     mode: 'ok',
     outName: 'compare',
-    /** 一份「改前」确实是基线常量的 JSON + 一张占位 PNG，凑齐合成条件。 */
+    /** 一份「改前」确实是基线常量的 JSON（含画标尺要用的 cam / pins / ancient）+ 占位 PNG。 */
     prepare(outDir) {
       writeFileSync(
         join(outDir, 'setting-scale-before.json'),
         `${JSON.stringify({
           label: 'before',
+          file: 'eval/screens/setting-scale-before.png',
+          cam: { zoom: 2, worldViewX: 480, worldViewY: 345, width: 480, height: 320 },
+          stats: { totalCommands: 12363, graphicsObjects: 46 },
           metrics: null,
           metricsSource: '改前基线常量（非实测）',
           metricsFromBaselineConstant: true,
+          pins: { hero: { x: 600, y: 464, h: 30 } },
+          scanned: { frameH: 32, stoneH: 4, bodyBottomH: 24 },
+          ancient: { personH: 30, shopfrontH: 32, shopfrontTop: 0, lampPostH: 37, lampBodyBottom: 24 },
         })}\n`,
       );
       writeFileSync(
@@ -184,11 +194,14 @@ try {
         ),
       );
     },
-    async check(result) {
-      assert.equal(result.code, 1, '拿基线常量做差必须非 0 退出');
-      assert.match(result.stderr, /\[改前\/改后对比\] 判红/);
-      assert.match(result.stderr, /不是 debugSettingScale 实测读数/);
-      assert.match(result.stderr, /metricsSource="改前基线常量（非实测）"/);
+    async check(result, outDir) {
+      assert.equal(result.code, 0, '改前基线常量允许进并排图，必须绿');
+      assert.doesNotMatch(result.stderr, /\[并排图\] 判红/);
+      assert.match(result.stdout, /并排图标注：改前为基线常量、非实测、未参与判定/);
+      assert.equal(existsSync(join(outDir, 'setting-scale.png')), true, '并排图必须落盘');
+      // 改前那份 JSON 仍然不带 metrics：人能看对比，机器拿不到可做差的数。
+      const beforeJson = JSON.parse(readFileSync(join(outDir, 'setting-scale-before.json'), 'utf8'));
+      assert.equal(beforeJson.metrics, null);
     },
   });
 

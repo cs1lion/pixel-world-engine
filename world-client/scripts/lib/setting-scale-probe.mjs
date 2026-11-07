@@ -136,26 +136,99 @@ export function judgeSettingScaleProbe(probe, options = {}) {
  * 或改错 `metricsSource`，做出来的差会静默通过。只认 `MEASURED_SOURCE`
  * 且 `metricsFromBaselineConstant` 不为 `true`。
  *
+ * 这条守的是**数值消费**：做差、容差判定、任何进入判据的地方。仅供人看的
+ * 并排图走 `readShotForComposite`，那里允许改前基线常量但必须图上标注。
+ *
  * @param {unknown} json 读回来的 `setting-scale-*.json`
  * @param {{ label?: string }} [options]
  * @returns {Record<string, number>}
  */
 export function assertMeasuredReading(json, options = {}) {
   const label = options.label ?? '?';
-  const record = json !== null && typeof json === 'object' ? /** @type {Record<string, unknown>} */ (json) : {};
-  const measured =
-    record.metricsFromBaselineConstant !== true &&
-    record.metrics !== null &&
-    typeof record.metrics === 'object' &&
-    record.metricsSource === MEASURED_SOURCE;
-  if (!measured) {
+  if (!isMeasuredReading(json)) {
+    const record = recordOf(json);
     throw new SettingScaleReadingError(
       `[判据前提不成立] 读数非法：${label} 的 metricsSource=${JSON.stringify(record.metricsSource)}、` +
         `metricsFromBaselineConstant=${JSON.stringify(record.metricsFromBaselineConstant)}，` +
         '不是 debugSettingScale 实测读数；不许拿它做差或与另一份读数比较',
     );
   }
-  return /** @type {Record<string, number>} */ (record.metrics);
+  return /** @type {Record<string, number>} */ (recordOf(json).metrics);
+}
+
+/** 一份 JSON 是否是「实测读数」。 */
+export function isMeasuredReading(json) {
+  const record = recordOf(json);
+  return (
+    record.metricsFromBaselineConstant !== true &&
+    record.metrics !== null &&
+    typeof record.metrics === 'object' &&
+    record.metricsSource === MEASURED_SOURCE
+  );
+}
+
+/**
+ * 一份 JSON 是否是声明过的「改前基线常量」拍：`metrics` 必须为空，来源必须
+ * 自报基线（新口径看 flag，旧基线看文案），两者都不许被当成读数。
+ */
+export function isBaselineConstantShot(json) {
+  const record = recordOf(json);
+  if (record.metrics !== null && record.metrics !== undefined) return false;
+  if (record.metricsFromBaselineConstant === true) return true;
+  return typeof record.metricsSource === 'string' && record.metricsSource.includes('基线常量');
+}
+
+/** 并排图上的可见标注；消费方必须把它画出来。 */
+export const BASELINE_ANNOTATION = '改前为基线常量、非实测、未参与判定';
+
+/**
+ * 仅供人看的并排图读取：`after` 必须实测；`before` 允许基线常量，但 JSON 不许带
+ * `metrics`、必须自报基线，且返回的 `annotation` 必须画在图上。
+ * 任何数值消费仍走 `assertMeasuredReading`，不许从这里拿到的 `scale` 做差。
+ *
+ * @param {unknown} json
+ * @param {{ label?: string }} [options]
+ * @returns {{ scale: Record<string, number>, annotation: string | null, fromBaselineConstant: boolean }}
+ */
+export function readShotForComposite(json, options = {}) {
+  const label = options.label ?? '?';
+  if (isMeasuredReading(json)) {
+    return { scale: /** @type {Record<string, number>} */ (recordOf(json).metrics), annotation: null, fromBaselineConstant: false };
+  }
+  if (label !== 'before') {
+    throw new SettingScaleReadingError(
+      `[判据前提不成立] 读数非法：${label} 必须是 debugSettingScale 实测；并排图只允许改前那一拍用基线常量`,
+    );
+  }
+  if (!isBaselineConstantShot(json)) {
+    const record = recordOf(json);
+    throw new SettingScaleReadingError(
+      `[判据前提不成立] 读数非法：before 的 metricsSource=${JSON.stringify(record.metricsSource)}、` +
+        `metricsFromBaselineConstant=${JSON.stringify(record.metricsFromBaselineConstant)}，` +
+        '既不是实测也不是声明过的基线常量',
+    );
+  }
+  const ancient = recordOf(json).ancient;
+  const missing = [];
+  const bad = [];
+  for (const field of REQUIRED_FIELDS) {
+    if (ancient === null || typeof ancient !== 'object' || !(field in ancient)) missing.push(field);
+    else if (!Number.isFinite(ancient[field]) || ancient[field] < 0) bad.push(`${field}=${describeProbeValue(ancient[field])}`);
+  }
+  if (missing.length > 0 || bad.length > 0) {
+    const reasons = [];
+    if (missing.length > 0) reasons.push(`缺 ${missing.join('/')}`);
+    if (bad.length > 0) reasons.push(`非法 ${bad.join('、')}`);
+    throw new SettingScaleReadingError(`[判据前提不成立] 读数非法：before 的 ancient 不可用（${reasons.join('；')}）`);
+  }
+  const scale = {};
+  for (const field of REQUIRED_FIELDS) scale[field] = ancient[field];
+  return { scale, annotation: BASELINE_ANNOTATION, fromBaselineConstant: true };
+}
+
+/** @param {unknown} json */
+function recordOf(json) {
+  return json !== null && typeof json === 'object' ? /** @type {Record<string, any>} */ (json) : {};
 }
 
 /** 消费方读到非实测来源时的红。名字单独导出，便于调用方只吞它、不吞别的错。 */

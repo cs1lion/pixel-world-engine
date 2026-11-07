@@ -341,6 +341,50 @@
 - **建议时机**：下一次动 memory/witness 测试或 CI 时。
 - **是否需要用户决策**：**否**（方向明确：检查不许改写工作区）。
 
+### E9. 旧 `setting-scale-after` 基线出自 `2194c52` 构建，落后 350 个提交（2026-11-08 重拍）
+
+- **现状 [实测]**（2026-11-08）：重拍 after 时 `ancient` / `metrics` 的五个尺度值逐一同值
+  （30 / 48 / 16 / 58 / 43），但三处读数与图像变了：`scanned.frameH` 48→13、
+  `scanned.stoneH` 4→3、`stats.totalCommands` 12363→30021、`stats.graphicsObjects`
+  46→155，PNG 哈希不同。命令数 2.4 倍、Graphics 3.4 倍，不是「来源字段过期」能解释的量级。
+- **旧基线出处 [实测]**：`git log --follow` 该文件只有两个提交——`2194c52`（2026-11-04，
+  「scale: 店面墙 32→48px、灯柱 37→58px」）写入，以及本次 `3b68819` 重拍。`2194c52`
+  当时新建了 setting-scale 的 before / after / 并排图三件套，并改
+  `world-client/src/render/setting-scale.ts`、`world-client/src/render/setting-scenery.ts`、
+  `world-client/src/scenes/SandboxScene.ts`、`world-client/src/ui/debug-panel.ts`。
+  `2194c52..HEAD` 共 **350 个提交**（含动画状态机、光照缺口、岸线带、调色板审计、
+  设计验收等合入）。所以旧基线不是「过期的来源字段」，是**旧构建的整份产物**。
+- **48→13 / 4→3：画面真的变了，不是扫描口径**：拿**当前**扫描几何
+  （frameX 148、frameRow 315、frameRefRow 276、stoneX 152、stoneRow 315）分别套旧 PNG
+  与新 PNG：旧 PNG 得 48 / 4 / 43，新 PNG 得 13 / 3 / 43；两图的扫描列、取样几何、
+  脚本算法完全同一份（脚本扫描段自 `2194c52` 起未改）。差别在像素本身：旧图该列是
+  一整段 65,45,50 的 192 屏幕像素连续涂装；新图是 61,48,55（52px）与 100,67,64（8px）
+  交替的横带——即 `world-client/src/render/buildings.ts` 的墙面板缝
+  （`WALL_SEAM_PITCH = 16` 世界像素，1px 横缝，`ee03d84`「修相位切换旧辉光泄漏并锚定
+  墙面板缝」引入）。板缝把连续涂装打断，「从左木框向上数连续段」只能数到 13。
+  **结论：算法没换、取样没错，是美术层加了板缝，基色也从 65,45,50 微调到 61,48,55。**
+- **12363→30021 / 46→155：递归口径 + 350 个提交的合计，不是尺度带来的**：旧
+  `renderStats` 只报顶层；`9617f3a` 改成递归计数（`visited`、嵌套 `sub.totalCommands`），
+  并新增 `top`（仅顶层）与 `containers`。重拍后 `top` 仍是 17,664 / 60，
+  `totalCommands` 才是 30,021 / 155。新值与 `check-render-budget` 现峰值 **33,445**
+  （G5 天花板 34,666）同量级，说明它是当前构建的真实读数。旧值 12,363 / 46 **与同一
+  `2194c52` 的 before 拍统计完全相同**（before 的 `stats.totalCommands` 就是 12,363、
+  `graphicsObjects` 就是 46）——直接证明旧 after 记的是那个旧构建。逐个功能归因
+  **未做**（需要一次二分，收益不抵「旧基线不可用」这个结论）；350 个提交合入的动画
+  状态机、光照缺口、岸线带、调色板审计、设计验收等，共同构成本轮合计读数。
+- **为什么不能比 [事实]**：ADR 要求「同机位、同冻结帧、只差尺度这一件事」。旧基线同时
+  差了 350 个提交（功能 + 美术 + 计数口径），任何差值都无法归因到尺度；拿它做差会把
+  「旧构建」的差异算到本次改动头上。
+- **新基线怎么来 [实测]**：`3b68819` 在当前构建上用 `--write-baseline` 重拍 after，
+  五个值 30 / 48 / 16 / 58 / 43；JSON 的 `metricsSource` 是实测、
+  `metricsFromBaselineConstant` 为 `false`。`before` 未重拍，仍是基线常量口径；并排图
+  允许出现，但图上标注「改前为基线常量、非实测、未参与判定」，该 JSON 不带 `metrics`。
+- **复核**：`git log --follow -- world-client/eval/screens/setting-scale-after.json`；
+  把当前扫描几何套回 `2194c52` 的 after PNG（`git show 2194c52:world-client/eval/screens/setting-scale-after.png`）
+  应得 48 / 4 / 43，套当前 PNG 应得 13 / 3 / 43。
+- **建议时机**：下一次改尺度、改扫描列或再重拍基线时。
+- **是否需要用户决策**：**否**（结论已由像素与提交史证实；重拍保留）。
+
 ## F. Phaser 4 升级遗留（2026-11-06）
 
 ### F1. `?light=` 探针的去向：留分支、不进 main
