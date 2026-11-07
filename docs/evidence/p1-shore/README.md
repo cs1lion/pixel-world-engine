@@ -14,7 +14,7 @@
 
 ## 0. 文件清单
 
-本目录递归 **28 个文件**（含本 README；v1 的 19 个 + §6 的 9 张 v3 产物），实测命令：
+本目录递归 **33 个文件**（含本 README；v1 的 19 个 + v3 拐角批次 9 张 + §6.8 接缝批次 5 张），实测命令：
 `Get-ChildItem -Recurse -File docs/evidence/p1-shore | Measure-Object`。
 
 | 路径 | 内容 |
@@ -27,7 +27,8 @@
 | `diff/masks/*.png` | 差异掩膜（差异像素染成品红 `255,0,255`） |
 | `mask-check.json` | 掩膜像素按 §3.6 公式反解到格：`waterCellPixels` 与校准点 |
 | `crops/noon-{low,high}-4x.png` | 岸段 `x42..57` 的 4× 观感对照（见 §2.1） |
-| `v3/` | 拐角修复后的 4× 裁剪、直岸 4×、宽幅融合图与六钉整幅（9 张，见 §6.5） |
+| `v3/` | 拐角修复后的 4× 裁剪、直岸 4×、宽幅融合图与六钉整幅（拐角批次 9 张，见 §6.5） |
+| `v3/seams/` | 无岸型（`tree` 90 / `plaza` 9）接缝 4×（5 张，见 §6.8） |
 
 六钉口径不变：`nowMs=43200000`（noon）、`tideLevel` 钉在 0 / 1、7 位村民 frame 0、
 `pinTrails([])`、`pinWeather(0,0)`、世界钟冻结、压暗层 `waitFadeSettled`、canvas-only。
@@ -304,7 +305,7 @@ grass: overlapPx    0, truncatedPx 0, maxOverlapPx    0
 融合处只是「外边界不可见」，不算「三档通行证」，其余 404 art px 仍按三档判。
 拐角修复前后这组读数逐项相同（融合与拐角不在同一段岸线）。
 
-### 6.5 本轮落地的 9 张图（字节 + sha256）
+### 6.5 拐角批次的 9 张图（字节 + sha256）
 
 | 文件 | bytes | sha256 |
 | --- | --- | --- |
@@ -330,6 +331,10 @@ grass: overlapPx    0, truncatedPx 0, maxOverlapPx    0
 | `npm run check` | 语法 0 处 / 语义 0 处 | 0 |
 | 拐角截图 `tmp/p1-shore-v3/corner.mjs` | 4 张，`errors=0` ×4，camera 各自 `worldView` 与 `runs.json` 一致 | 0 |
 | 融合统计 `tmp/p1-shore-v3/fusion.py` | 27 格 / 432 art px，融合 28 art px | 0 |
+| 接缝截图 `tmp/p1-shore-v3/seam.mjs` | 4 张，`errors=0` ×4，`runs.json` 记各自 `worldView` | 0 |
+| 满潮截图 `tmp/p1-shore-v3/seam-high.mjs` | 1 张，`tide=1`，`errors=0`；与低潮整幅逐字节相同 | 0 |
+| 接缝裁剪 `tmp/p1-shore-v3/seams.py` | 4 张（树 3 + plaza 1），原生 4× 不放大 | 0 |
+| 接缝取色 `tmp/p1-shore-v3/plaza-sample4.py` / `seam-sample.py` | 行 27 / 行 28 与树侧采样（`UNIT=4`） | 0 |
 
 实现（拐角修复）提交：`5c0258bd01eea10842d4fd02c9a7cbcfa690ec4f`（`feat/shore-band`，
 本地提交，未推）。本节证据与测试紧随其后单独提交；`status.sha` 指**实现**。
@@ -340,8 +345,8 @@ grass: overlapPx    0, truncatedPx 0, maxOverlapPx    0
 
 - `world-client/src/render/shore-band.ts`：`portions.sort` 改为 格 → 段下标 → side（+注释）。
 - `world-client/test/shore-band.test.ts`：J9 不变量扩到全图 186 条边、`steps[0] === 'soil'`、石材/草岸各一证伪。
-- `docs/P1_SHORE_BAND_DESIGN.md`：§6.4 / §6.5.5 / §6.10 的修复前后读数与 1392 px 口径。
-- `docs/evidence/p1-shore/README.md` + `v3/` 9 张图（本节）。
+- `docs/P1_SHORE_BAND_DESIGN.md`：§6.4 / §6.5.5 / §6.10 的修复前后读数与 1392 px 口径；§6.12 的覆盖边界（99 条无岸型）。
+- `docs/evidence/p1-shore/README.md` + `v3/` 9 张拐角批次图（§6.5）+ `v3/seams/` 5 张接缝图（§6.8）。
 - `docs/evidence/soak/witnessed-corroboration.json`：仅 mtime/行尾脏标记，blob 与 HEAD 相同
   （`b9c3214…`），已用 `git add` 清掉 stat 噪声，内容零改动。
 
@@ -361,6 +366,19 @@ pieces 321（石材 270 + 草岸 51），每块一次 fillRect
   岸带的 321 块同样在递归口径才可见。**这是「新口径待测」，不是实测值**。
 - 结论：在这之前**不合并**——闸门绿只是因为只读开局帧，30,000 的硬闸已经
   被真实峰值 52,125 超了 74%；岸带的增量要等递归统计 + 两级阈值落地后再复测。
+
+**新功能抬升记账（材质线新口径的单独账目）**
+
+按「天花板只许变小」补的口子：天花板只因**删掉等价或更多命令**自动下降；
+**新功能导致的抬升必须单独记账，且不许夹带别的削减**。本次岸带就按这个格式记：
+
+```
+谁抬     shoreBandRects（world-client/src/render/shore-band.ts，实现 5c0258b）
+抬多少   +321 条 fillRect / +0.62%（321 / 52,125）  [推断，新口径待测]
+为什么   186 条水陆边里 87 条有岸型，每边 1.73 块；只裁不叠；不新建 Graphics
+夹带削减 无（本条不抵扣任何删除或等价重写的命令）
+状态     等递归统计 + 两级阈值实测后，把 0.62% 换成实数再合入
+```
 
 **CI 会跑哪些步骤（当前 `.github/workflows/ci.yml`）**
 
@@ -382,6 +400,71 @@ pieces 321（石材 270 + 草岸 51），每块一次 fillRect
 无删除、无改写。文本上不冲突，任一先后合并都可干净 rebase；
 本分支没有新增脚本，不会触发对方的孤儿清单例外。
 
+### 6.8 无岸型 99 条：性质判断与接缝 4× 读数
+
+186 条水陆边里 **99 条没有岸带**（tree 90 + plaza 9，53%）。逐类判性质，结论是
+**设计决定，不补**；判据是画面与几何，不是「无岸型、计入分母」的口径。
+
+| 地形 | 边数 | 位置 | 4× 图 | 判定 |
+| --- | --- | --- | --- | --- |
+| `tree` | 90 | 行 0 南 62（x1..62）+ 列 0 东 14（y1..14）+ 列 63 西 14（y1..14） | `tree-north` / `tree-west` / `tree-east` | 林墙入海，边界自然收住（`grid.border: 1`） |
+| `plaza` | 9 | 行 27（`{x:28,y:27,w:9,h:1}` 浅滩）南岸 x28..36 | `plaza-nine`（低潮）+ `plaza-nine-high`（满潮） | 朱红桥桥头/堤岸，不是「忘了处理」 |
+
+**4× 口径**：与本文件 §6.2 相同，`device = (world − worldView) × 4 + 1`；
+裁剪盒按 world px 给（原生 4×，不放大、不重采样）：
+
+```
+tree-north  (480,0)–(576,48)       行 0..2   / 列 30..35   → 384×192
+tree-west   (0,48)–(48,144)        行 3..8   / 列 0..2     → 192×384
+tree-east   (976,48)–(1024,144)    行 3..8   / 列 61..63   → 192×384
+plaza-nine  (416,416)–(608,480)    行 26..29 / 列 26..37   → 768×256
+```
+
+各图用各自 `runs.json` 的 `worldView`（tree-north `(400,0)`、tree-west `(0,32)`、
+tree-east `(784,32)`、plaza `(392,352)`），不是六钉的 scroll。
+
+**`tree` 90 条（逐点取色；字节表见本节末 5 张接缝图）**
+
+```
+tree-north  (528,7)=#202b35（树底）  (528,20)=#47645c（水）
+tree-west   (7,80)/(7,120)=#202b35   (20,80)/(40,80)=#47645c
+tree-east   (1016,80)/(1016,120)=#202b35  (1000,80)/(984,80)=#47645c
+```
+
+- 接缝线 world `y=16`（北）/ `x=16`（西）/ `x=1008`（东）贯穿整幅笔直，
+  陆侧到水线只有一种底色 `#202b35`，水侧直接是 `#47645c`。
+- **没有** `soil→farm→plaza` / `soil→farm→copper` 的 24 px 三段带：
+  这三种 token 的色值（`#202b35 / #3d5154 / #7d8984 / #53736d`）只在 87 条有岸型边出现。
+- 判读：**「林墙入海/地图边界自然收住」**。这里的「收住」不是带子收住，而是
+  本来就没有带子可按——树冠的块状剪影本身构成分隔；`grid.border: 1` 外不可行走，
+  画岸带反而会暗示边框外还有滩。**设计决定**，不是遗漏。
+
+**`plaza` 9 条（水口南岸，桥长 = 水口宽）**
+
+- 9 条边正好是行 27（`{x:28,y:27,w:9,h:1,terrain:'shallow'}`）的南岸 x28..36；
+  朱红桥 `{kind:'bridge',at:{x:28,y:27},length:9}` 恰好覆盖这 9 格。
+- 行 27 逐格中心（x28..36）：
+  `#bf5441 #bf5441 #bf5441 #2c3439 #bf5441 #bf5441 #b59678 #bf5441 #553435`
+  ——桥红为主，其余是桥体暗部/高光/阴影，**无水体色**；行 28 是 `#7d8984`（plaza）
+  与 `#52666a`（桥头石），直接接桥面。
+- **低潮 vs 满潮逐字节相同**：整幅 `961×641` 原始截图同为 `09f148cdec95972139d20cf3f3e26ec7c0fb9f617da8a1d5dfd4b60270573e78`，
+  4× 裁剪同为 `fd42a8ec…`。说明该视域的水线被桥完全遮住，潮位抬升不改变一个像素。
+- 判读：**读成「朱红桥横跨水口的桥头/堤岸」**，不是「忘了处理」。**设计决定**。
+
+结论：**99 条 = 90 tree（地图边框，自然收住）+ 9 plaza（水口南岸，桥整条遮住，读成桥头），
+均为设计决定，不补岸带**。将来新增可涉水岸型（`sand` / `mud` 等）必须先在 `land`
+登记并进 J9，否则会静默落进「无岸型」分母（设计稿 §6.12）。
+
+5 张接缝图的字节与 sha256：
+
+| 文件 | bytes | sha256 |
+| --- | --- | --- |
+| `v3/seams/tree-north-4x.png` | 2583 | `1ce4bdfe4b3646f31f4f7e84c7a60654dd3991ea531259d7d886e3978ec4fc23` |
+| `v3/seams/tree-west-4x.png` | 2241 | `7f99eafcbdfc425a893e0d544cd5ddee8c499b3d5066c8abe55c5aaedb14919d` |
+| `v3/seams/tree-east-4x.png` | 2797 | `8a33fe7d093e75ffab4a21b8934a922f5fa308f15421a8779812748651cdd20c` |
+| `v3/seams/plaza-nine-4x.png` | 12993 | `fd42a8ec8a1ac6fea4e99a85df13123a2c2cd6c751c70a403ad16f7d405585cc` |
+| `v3/seams/plaza-nine-high-4x.png` | 12993 | `fd42a8ec8a1ac6fea4e99a85df13123a2c2cd6c751c70a403ad16f7d405585cc`（与低潮相同） |
+
 <!-- delivery
 {
   "artifacts": [
@@ -402,7 +485,17 @@ pieces 321（石材 270 + 草岸 51），每块一次 fillRect
     { "path": "docs/evidence/p1-shore/v3/head/noon-low.png", "bytes": 12041,
       "sha256": "2878d5c22af36b26c14f7e0edfcd868d3eb6422a3f9cd9eb82d7404c9c258567" },
     { "path": "docs/evidence/p1-shore/v3/head/noon-high.png", "bytes": 12233,
-      "sha256": "743ad2a828da2eb3af5b02b5eacb5dcf0da4d01e0e0d29d2fe4b234d41e84042" }
+      "sha256": "743ad2a828da2eb3af5b02b5eacb5dcf0da4d01e0e0d29d2fe4b234d41e84042" },
+    { "path": "docs/evidence/p1-shore/v3/seams/tree-north-4x.png", "bytes": 2583,
+      "sha256": "1ce4bdfe4b3646f31f4f7e84c7a60654dd3991ea531259d7d886e3978ec4fc23" },
+    { "path": "docs/evidence/p1-shore/v3/seams/tree-west-4x.png", "bytes": 2241,
+      "sha256": "7f99eafcbdfc425a893e0d544cd5ddee8c499b3d5066c8abe55c5aaedb14919d" },
+    { "path": "docs/evidence/p1-shore/v3/seams/tree-east-4x.png", "bytes": 2797,
+      "sha256": "8a33fe7d093e75ffab4a21b8934a922f5fa308f15421a8779812748651cdd20c" },
+    { "path": "docs/evidence/p1-shore/v3/seams/plaza-nine-4x.png", "bytes": 12993,
+      "sha256": "fd42a8ec8a1ac6fea4e99a85df13123a2c2cd6c751c70a403ad16f7d405585cc" },
+    { "path": "docs/evidence/p1-shore/v3/seams/plaza-nine-high-4x.png", "bytes": 12993,
+      "sha256": "fd42a8ec8a1ac6fea4e99a85df13123a2c2cd6c751c70a403ad16f7d405585cc" }
   ],
   "checks": [
     { "name": "node --import ./test/phaser-hooks.mjs --test test/shore-band.test.ts", "exit": 0 },
@@ -414,7 +507,7 @@ pieces 321（石材 270 + 草岸 51），每块一次 fillRect
     "threshold": 0,
     "size": "768x768",
     "shots": 4,
-    "scope": "四个拐角格 ±1 格 4× 裁剪；判据是贴水带缺像素数与 token 纵序，不是整屏逐字节"
+    "scope": "四个拐角格 ±1 格 4× 裁剪；判据是贴水带缺像素数与 token 纵序，不是整屏逐字节；另附 §6.8 的 5 张无岸型接缝 4×"
   },
   "status": {
     "state": "local-commit",
@@ -423,7 +516,7 @@ pieces 321（石材 270 + 草岸 51），每块一次 fillRect
     "pushed": false,
     "pr": false
   },
-  "reportedAt": "2026-11-07T18:10:00+08:00",
+  "reportedAt": "2026-11-07T19:40:00+08:00",
   "inferences": [
     { "claim": "递归口径下岸带约新增 321 条指令，占真实峰值 52,125 的 0.62%",
       "basis": "321 = 石材 270 + 草岸 51 块 piece，每块一次 fillRect；52,125 取自材质线递归实测，比例是算术，不是本次实测" },
