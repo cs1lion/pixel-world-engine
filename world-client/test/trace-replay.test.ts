@@ -18,7 +18,6 @@ import {
   verifyTrace,
 } from '../src/trace/replay.ts';
 
-const HUGE = Number.MAX_SAFE_INTEGER;
 const LEGACY_TRACE = fileURLToPath(new URL('../traces/night-rain-build.json', import.meta.url));
 const OUTER_TRACE = fileURLToPath(new URL('../traces/outer-two-days.json', import.meta.url));
 
@@ -45,7 +44,7 @@ async function makeV1Trace(): Promise<TraceFile> {
       },
     ],
   };
-  const probe = await runTrace({ ...base, eventRange: { from: 0, to: HUGE } });
+  const probe = await runTrace({ ...base, eventRange: { from: 0, to: 0 } }, { openEventRange: true });
   return recordTrace({ ...base, eventRange: { from: 0, to: probe.events.length } });
 }
 
@@ -75,7 +74,7 @@ async function makeV2Trace(): Promise<TraceFile> {
     ],
     outer: { memory: true, creator: true },
   };
-  const probe = await runTrace({ ...base, eventRange: { from: 0, to: HUGE } });
+  const probe = await runTrace({ ...base, eventRange: { from: 0, to: 0 } }, { openEventRange: true });
   return recordTrace({ ...base, eventRange: { from: 0, to: probe.events.length } });
 }
 
@@ -126,9 +125,14 @@ test('换一个种子：inputDigest 对不上，报被改动', async () => {
 
 test('v2 删掉造物意图并重算摘要：世界与造物账都对不上', async () => {
   const trace = readTrace(OUTER_TRACE);
-  const input: TraceInput = {
+  const withoutCreator: TraceInput = {
     ...trace,
     injections: trace.injections.filter((injection) => injection.kind !== 'creatorBuild'),
+  };
+  const probe = await runTrace(withoutCreator, { openEventRange: true });
+  const input: TraceInput = {
+    ...withoutCreator,
+    eventRange: { ...withoutCreator.eventRange, to: probe.events.length },
   };
   const tampered: TraceFile = {
     ...input,
@@ -228,6 +232,16 @@ test('v2 只改一个 mood 的 valence：记忆指纹抓到，世界/造物不�
   assert.equal(check.checks.creator, true);
   assert.equal(check.divergence?.kind, 'memory');
   assert.equal(check.divergence?.step, 0);
+});
+
+test('eventRange.to 超出实际事件数：显式报错，不静默截断', async () => {
+  const trace = await makeV1Trace();
+  const actual = trace.recorded.eventCount;
+  await assert.rejects(
+    runTrace({ ...trace, eventRange: { from: 0, to: actual + 1 } } as TraceInput),
+    (error: unknown) =>
+      error instanceof TraceFormatError && error.message.includes('超出实际事件数'),
+  );
 });
 
 test('格式不全：跑世界之前就拒', () => {

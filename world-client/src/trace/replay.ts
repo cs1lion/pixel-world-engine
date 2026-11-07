@@ -124,6 +124,11 @@ export interface TraceVerification {
 export interface RunOptions {
   /** 只在这个拍（1 起）留下投影，供定位分歧时逐字段比较。 */
   readonly captureStep?: number;
+  /**
+   * 录制前的探针模式：事件上界未知，跑完按实际事件数收口。
+   * 普通回放不传这个开关——`eventRange.to` 与实际不符一律显式报错。
+   */
+  readonly openEventRange?: boolean;
 }
 
 export interface RunWithCapture extends ReplayRun {
@@ -177,7 +182,10 @@ export async function runTrace(input: TraceInput, options: RunOptions = {}): Pro
   }
 
   const snapshot = runtime.snapshot();
-  const ranged = eventsInRange(runtime.events, input.eventRange);
+  const range = options.openEventRange === true
+    ? { from: input.eventRange.from, to: runtime.events.length }
+    : input.eventRange;
+  const ranged = eventsInRange(runtime.events, range);
   const memoryFingerprint = runtime.memoryFingerprint();
   const memoryBusiness = runtime.memoryBusiness();
   const creatorFingerprint = runtime.creatorFingerprint();
@@ -299,7 +307,10 @@ export async function runTraceWithRuntime(
     );
   }
   const after = runtime.snapshot();
-  const ranged = eventsInRange(runtime.events, input.eventRange);
+  const range = options.openEventRange === true
+    ? { from: input.eventRange.from, to: runtime.events.length }
+    : input.eventRange;
+  const ranged = eventsInRange(runtime.events, range);
   const memoryFingerprint = runtime.memoryFingerprint();
   const memoryBusiness = runtime.memoryBusiness();
   const creatorFingerprint = runtime.creatorFingerprint();
@@ -667,6 +678,11 @@ function sameLeaf(left: unknown, right: unknown): boolean {
 }
 
 function eventsInRange(events: readonly CapturedEvent[], range: TraceEventRange): readonly CapturedEvent[] {
+  if (range.to > events.length) {
+    throw new TraceFormatError(
+      `eventRange.to=${range.to} 超出实际事件数 ${events.length}：输入声明了不存在的事件序号（不回退成静默截断）`,
+    );
+  }
   return events.filter((event) => event.seq >= range.from && event.seq < range.to);
 }
 
