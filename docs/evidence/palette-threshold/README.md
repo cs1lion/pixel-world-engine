@@ -15,6 +15,8 @@
 `ramp-test-4x.png` sha256 `FDAB80BF35CCD34E503F92C69690CAA0C62D38D17929282C20A4F09D0BA6CD4F`
 `readings.json` sha256 `E0F7BB64D7B2DB5B516F310218C1EA8F00C66003935C7F6E591D9959EB864A1F`
 
+（以上是**生成器直出内容**的 sha256，即 LF 换行的版本；仓库内 `core.autocrlf=true`，检出到工作区后文本文件会变成 CRLF，此时对工作区文件算 sha256 会不同。要比对复跑结果，请看下面「复跑」一节按 git blob 比对。）
+
 ## 生成方法与参数
 
 - 基色：灯潮界草色 `#30454a`（L\* 27.79，a −6.76，b −5.66）。
@@ -64,7 +66,19 @@
 node docs/evidence/palette-threshold/gen-threshold.mjs
 ```
 
-连续两次运行，`readings.json` 与 `ramp-test-4x.png` 逐字节一致（脚本内的 ζ 用固定参数，无随机、无时间戳）。若修改了 `de2000.mjs`，自检会在生成前抛错。
+**按 git blob 比对（不受换行转换影响）：**
+
+```powershell
+git hash-object --no-filters docs/evidence/palette-threshold/readings.json
+git hash-object --no-filters docs/evidence/palette-threshold/ramp-test-4x.png
+```
+
+- `readings.json` blob `3ec83f46608fa8a7014ed88afcebc497f679382d`
+- `ramp-test-4x.png` blob `7c7fa137eeb49a272079c085667a42705fe0aca3`
+
+连续两次运行，上述两个 blob 与脚本重复运行产出的 blob 完全一致（实测：连跑两次 + 与已入库 blob 三方比对，均相同）。脚本内色值、ζ 均为固定参数，无随机、无时间戳；若修改了 `de2000.mjs`，自检会在生成前抛错。
+
+注：`ramp-test-4x.png` 是二进制，blob 与工作区文件一致；`readings.json` 是文本，`core.autocrlf=true` 检出后为 CRLF，所以对工作区文件算 sha256 会与上表不同，但 `git diff` 无内容差异（只是换行转换）。直接比对上面的 blob 值即可。
 
 ---
 
@@ -108,4 +122,5 @@ palette.ts 未引用 token：19 项
 
 - 用户点名的 6 条全部消失；剩下的 5 条是 `TERRAIN_SPECK` 别名表——`src/`、`test/`、`scripts/` 里都没有读点，属 dead data（不是 dead color）。
 - **没有用白名单消误报**：绑定识别是静态可证规则，动态下标单列。
+- 动态下标确实存在 6 处（`region-paint.ts:370/392/394` 的 `palette[primary]`/`palette[accent]`、`terrain-edges.ts:310/312` 的 `palette[BRIGHT[self]]`/`palette[DARK[self]]`、`villager.ts:194` 的 `palette[look.cloak]`），但它们的候选集合里每个槽都另有静态读点，所以「仅动态引用、静态不可判定」的槽为 0；报告里保留 `dynamicReadSites` 明细，未来若某槽只经字符串拼接取用，会落进 `dynamicWorldTokens` 而不是被当成已用。
 - `refs` 从 95 涨到 831 不是「颜色变多了」，是**旧口径漏读**；两版读数不可直接比较。
