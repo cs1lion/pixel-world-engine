@@ -20,7 +20,7 @@
 | `gen-threshold.mjs` | 生成器：算色、写 `readings.json`、写 `ramp-test-4x.png` |
 | `ramp-test-4x.png` | 判读用图，128×512（8 行 × 左右两块） |
 | `readings.json` | 每档实际 hex、回算 L\*、ΔL\*、ΔE2000 |
-| `calibration-sheet.png/.md` | 四格校准拼图与逐格说明（见「校准」一节） |
+| `calibration-sheet.png`、`calibration-sheet.md` | 四格校准拼图与逐格说明（见「校准」一节） |
 
 `ramp-test-4x.png` sha256 `FDAB80BF35CCD34E503F92C69690CAA0C62D38D17929282C20A4F09D0BA6CD4F`
 `readings.json` sha256 `E0F7BB64D7B2DB5B516F310218C1EA8F00C66003935C7F6E591D9959EB864A1F`

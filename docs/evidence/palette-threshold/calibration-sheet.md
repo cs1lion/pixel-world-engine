@@ -44,7 +44,7 @@
 
 ## 第 3 格 · 台阶暗行（改前 / 改后）
 
-- 素材：`D:\project\pwe-anim-fsm\world-client\tmp\screens\mat-g3\step-before-4x.png` 与 `step-after-4x.png`，各 320×192，**1 art px = 8 图内 px**（`grid8.txt` 为 40×24 网格，与 320×192 ÷ 8 一致）。
+- 素材：`D:\project\pwe-anim-fsm\world-client\tmp\screens\mat-g3\step-before-4x.png` 与 `step-after-4x.png`，各 320×192，**1 art px = 8 图内 px**（对应的 8× 网格临时表为 40×24，与 320×192 ÷ 8 一致）。
 - 逐像素 diff（实测）：**1408 个设备像素 = 176×8**，bbox `x 72..247, y 104..111`，即 **22 art px 长 × 1 art px 高**，全部落在同一行（y = 13）。与「22 格且全在同一行」相符（1 格 = 8×8 设备像素）。
 - 读数（`de2000.mjs`）：
 
@@ -61,7 +61,7 @@
 ## 第 4 格 · 黄昏影（4× 对照）
 
 - 素材：`C:\Users\18712\OneDrive\文档\Trae-CN\temp_20261107_01\lighting-report-2\lighting-g1-dusk-4x.png`，存在，原 1360×1080；本格按 **2× 最近邻降采样**到 680×540（避免平滑，且保留整帧）。
-- 该目录内另有 `ground-shadow.json`、`g0-red.txt`、`g1-villager-8x.png` 等，但**没有对应的 ΔL/ΔE 读数**。
+- 该目录内另有 ground-shadow.json、g0-red.txt、g1-villager-8x.png 等临时产物，但**没有对应的 ΔL/ΔE 读数**。
 - 因此本格**不参与判据校准**，只作观感对照；不标注数值，也不拿它当证据。
 - 缺失情况：本格素材**未缺失**。
 

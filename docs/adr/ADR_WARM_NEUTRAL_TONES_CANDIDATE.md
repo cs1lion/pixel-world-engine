@@ -1,6 +1,7 @@
 # ADR 候选：暖中性两档（L\*≈45 / L\*≈58）要不要进 24 色预算
 
-- status: **candidate（未决，等 owner 决策）**
+- status: pending-review
+- 决策状态：候选方案，等 owner 决策
 - verified_at: 2026-11-07
 - verified_by: agent，按证据整理，未获授权实施
 - evidence: `world-client/src/world/palette-data.ts`、`world-client/scripts/audit-palette.mjs`、`world-client/test/palette-budget.test.ts`、`world-client/src/settings/load.ts`、`docs/adr/ADR_PALETTE_24.md`、`docs/evidence/palette-threshold/README.md`、`docs/investigations/P1_SHORE_ROOTCAUSE.md`

@@ -38,7 +38,7 @@ server/                  FastAPI：规则校验、事件日志、LLM 造物主�
 docs/                    设计与决策
 ├── SPEC.md              **唯一权威**（v1 + v2 增补 §8–§15；`SPEC_V2.md` 已冻结归档）
 ├── iterations/          迭代资料（1027-task-1 内环 / 1027-task-2 外环）
-├── adr/                 架构决策记录 <!-- claim: adr-count=11 -->
+├── adr/                 架构决策记录 <!-- claim: adr-count=12 -->
 └── art/                 美术基准（《千与千寻视觉设定集》）
 memory/                  时间线记忆：entries / characters / events / rules
 ```

@@ -242,14 +242,14 @@
       "seed": "not_measured",
       "weather": "not_measured",
       "rainSeed": "not_measured",
-      "denominator": "世界层唯一色 24（引用 95 处），预算 24",
-      "source": "scripts/audit-palette.mjs --strict 输出（world-client 根，2026-11-06 合并 feat/interior-view 后重测；口径归一：旧分母「引用 51 处」与脚本计数漂移，按实测 95 重填）",
+      "denominator": "世界层唯一色 24（引用 788 处），预算 24",
+      "source": "scripts/audit-palette.mjs --strict 输出（world-client 根，2026-11-07 合并 feat/palette-audit-fix 后重测）",
       "script": "scripts/audit-palette.mjs",
-      "script_sha": "5fea2fbe62b5fa31b02201d0c3004df81189bf1738ebb37036b38c2e58f3e6a2",
+      "script_sha": "389757dedbcbe248be7b3aeeb89cd59130950a8283223f52f19db66923a091f6",
       "judge": "program",
-      "measured_at": "2026-11-06",
+      "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "超出 0"
+      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（故记 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后为 788。修复提交 feat/palette-audit-fix@3228fa5"
     },
     {
       "id": "palette.violations.ui",
@@ -259,13 +259,13 @@
       "weather": "not_measured",
       "rainSeed": "not_measured",
       "denominator": "UI 层唯一色 9（引用 202 处），预算 9",
-      "source": "scripts/audit-palette.mjs --strict 输出（world-client 根，2026-11-06 合并 feat/interior-view 后复测；口径归一：旧分母 166 与脚本计数漂移，按实测 202）",
+      "source": "scripts/audit-palette.mjs --strict 输出（world-client 根，2026-11-07 合并 feat/palette-audit-fix 后重测）",
       "script": "scripts/audit-palette.mjs",
-      "script_sha": "5fea2fbe62b5fa31b02201d0c3004df81189bf1738ebb37036b38c2e58f3e6a2",
+      "script_sha": "389757dedbcbe248be7b3aeeb89cd59130950a8283223f52f19db66923a091f6",
       "judge": "program",
-      "measured_at": "2026-11-06",
+      "measured_at": "2026-11-07",
       "gate": "ci-pr",
-      "note": "超出 0"
+      "note": "超出 0。口径变更（不是数字漂移）：旧口径只数 `WORLD.x`（世界层因此误报为 95 处）；新口径解析三种静态绑定——`paletteFor().x`、形参 `palette.x`、`const c = pack.palette; c.x`。中途读数 831 作废：三处整表遍历按「8 别名 × 2」复制出 48 条假读点，去重补漏后世界层 788；UI 层本口径不变，引用 202 处。修复提交 feat/palette-audit-fix@3228fa5"
     },
     {
       "id": "motion.structDiff.walk.min",
