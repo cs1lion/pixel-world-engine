@@ -11,7 +11,9 @@
  *   2. 每条用真实 `TraceRuntime` 跑一遍，先核对 `recorded`（输入摘要 / 世界 /
  *      事件 / 记忆 / 造物），再求值夹具声明的业务断言；
  *   3. **单条失败不影响其他条**：每条独立 try/catch，失败写清原因；
- *   4. 最后打汇总表；任一条失败则退出码 1。
+ *   4. 每条打印 commit 锚（录制时的 HEAD）：不一致或缺失只提示、不判红——
+ *      那只说明夹具比代码旧，判红会逼得每次无关提交都重录，人就会绕过闸门；
+ *   5. 最后打汇总表；任一条失败则退出码 1。
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -22,6 +24,7 @@ import { digestOfInput, canonicalJson, validateTrace } from '../src/trace/format
 import type { TraceBaseline, TraceFile } from '../src/trace/format.ts';
 import type { WorldSave } from '../src/world/save.ts';
 import { runTraceWithRuntime } from '../src/trace/replay.ts';
+import { currentCommitAnchorLine } from '../src/trace/provenance.ts';
 import { TraceRuntime } from '../src/trace/runtime.ts';
 import {
   baselineSourceOf,
@@ -190,6 +193,15 @@ function printTable(rows: readonly Row[]): void {
   for (const line of lines) process.stdout.write(`${format(line)}\n`);
 }
 
+/** 从任意夹具 JSON 里取 `trace.recordedAtCommit`；取不到就按旧格式处理。 */
+function recordedAtCommitOf(data: unknown): string | undefined {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const trace = (data as { trace?: unknown }).trace;
+  if (typeof trace !== 'object' || trace === null) return undefined;
+  const value = (trace as { recordedAtCommit?: unknown }).recordedAtCommit;
+  return typeof value === 'string' ? value : undefined;
+}
+
 async function main(): Promise<void> {
   const fixtures = loadFixtures();
   const outcomes: Outcome[] = [];
@@ -202,6 +214,7 @@ async function main(): Promise<void> {
         `${row.checks} 项断言${row.overBudget ? `（超 ${BUDGET_MS}ms 预算）` : ''}\n`,
     );
     for (const failure of outcome.failures) process.stdout.write(`  - ${failure}\n`);
+    process.stdout.write(`  ${currentCommitAnchorLine(recordedAtCommitOf(entry.data))}\n`);
   }
 
   printTable(outcomes.map((item) => item.row));

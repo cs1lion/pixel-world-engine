@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runTrace, verifyTrace } from '../src/trace/replay.ts';
+import { currentCommitAnchorLine } from '../src/trace/provenance.ts';
 import type { TraceFile } from '../src/trace/format.ts';
 
 const CLIENT_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   const lines = [
     `轨迹：${path}`,
     `格式：${trace.format} / v${trace.traceVersion} —— ${check.compatibility.message}`,
+    currentCommitAnchorLine(trace.recordedAtCommit),
     `世界：${trace.worldId} / seed=${trace.worldSeed}`,
     `时钟：${trace.initialNow} + ${trace.steps} × ${trace.stepMs} = ${trace.initialNow + trace.steps * trace.stepMs}`,
     trace.baseline === undefined
