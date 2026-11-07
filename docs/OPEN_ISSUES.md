@@ -906,6 +906,10 @@
 7. **V1 — 已闭合（2026-11-07）** `red:first` 与 `pytest` 已在真 CI 实跑：run `42381670587`（push main，`f1dfa00..c52745d`）。`red:first` 的 base 为 `f1dfa000665d193e2b3b0ab08ddfe88a3040fc45`，以 `AssertionError` 收场（`actual 'undefined'` / `expected 'function'`），`RESULT=RED elapsed=21713ms`，不是 module / compile；`server` job 16s success。
 8. **B1 天花板棘轮 — 已锁定（2026-11-07）** 新增 `test/policy-ceilings.test.ts` + `scripts/policy-ceilings.json`：脚本常量 > 已批准值即红，记录必须含 `approved_at` / `approved_by` / `reason`；`[实测]` 把 `MAX_COMMANDS_CEILING` 从 33,488 改到 33,489 会红，降到 33,000 只提示不红。拦不住：运行时 env 覆盖、先降再涨回原值（仍 ≤ 已批准值）、`reason` 真伪。
 9. **`test:phases` CI 耗时接近单相位上限** 实测 run `42381670587` 的 `world-client-browser` job：`test:phases` 350s（`14:29:40.709` → `14:35:30.844`）；四个相位 `waitVillagersSettled` 各约 25.6s（25,592 / 25,683 / 25,565 / 25,692 ms），单相位上限 45s，占 57%，余量约 19s — 浏览器闸门线。处置口径：**撞线就减每相位的等待量，不许抬 45s 上限**。本地读数 26s 是错的量级，**本地耗时不构成 CI 的时间依据**；以后估 CI 时间只认真 CI 数据。
+10. **E 编号终局核对 + 主树在途 E12 正文将变假** — 编号纪律 M6 的合并动作，**必须在本窗口关闭前做**。
+   - **主树在途 E12 的正文写着「E10/E11 未被占用」**（`D:/project/pixel-world-engine` 工作树未提交的 `docs/OPEN_ISSUES.md`）。`chore/eval-screens-audit` 合入后，E10/E11 就被占用，这句当场变成假话 —— 合并时必须改掉，不能留一个「已知会错」的句子进主树。
+   - **终局核对**：全仓 `E` 编号唯一、无同号不同事；生成最终登记表（号 → 标题 → 归属分支 → 合入提交）。预期占用：E9（main）、E10/E11（chore）、E12（帧相位）、E13（PNG 覆盖，本 fix 分支）、E14（chore 旧 E9，按 M3 顺延）。
+   - **分支上的编号只是临时占位**：`fix/silent-readings` 本轮占用 E13，可能与帧相位线（E12）与 chore（E10/E11/E14）在合并时相邻；以主树定稿为准。
 
 **本次 push 路径记录（不是未闭合项）**：推送 `c52745d` 时 `.githooks/pre-push` 按设计拦下 main 直推；改用钩子头注释写明的豁免 `PWE_ALLOW_PUSH_MAIN=1`（未用 `--no-verify`），结果 `f1dfa00..c52745d main -> main`。豁免是逐次显式动作、每次推送仍需单独授权，**main 直推不是常态、也不是被默认允许的路径**。该豁免在 2026-11-07 已改为**只跳过 main 保护**，大文件检查（默认 5 MB）在豁免路径下照跑，`npm run check:hooks` 的五条反向用例覆盖这两种路径（见 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` §风险：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L596-L599)）。
 
