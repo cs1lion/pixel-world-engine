@@ -56,6 +56,96 @@ export interface PhaseView {
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+/** 辉光层只用既有的 `amber` / `warmLight`，不新增色。 */
+export type GlowToken = 'amber' | 'warmLight';
+
+/** 一块矩形辉光层。纯数据：`glowLayers()` 算，`drawGlows` 只照单绘制。 */
+export interface GlowLayer {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly token: GlowToken;
+  readonly alpha: number;
+}
+
+export interface GlowPlan {
+  readonly layers: readonly GlowLayer[];
+  /** 声明峰值：本团辉光在任何像素上允许出现的累加 alpha 上限。 */
+  readonly peakAlpha: number;
+}
+
+/** 内芯相对基底的倍率：历史三叠层的内芯就是 1.15a。 */
+export const GLOW_PEAK_RATIO = 1.15;
+
+/**
+ * 环化后的补光系数：每处 `addGlow` 的 alpha 统一乘上它。
+ *
+ * 环化把中心从 2.70a 压到 1.15a（−57%），丢掉的是真的光（改前/改后整幅裁剪像素
+ * 都是 0，说明旧亮度不是 ADD 饱和撑出来的）。补多少不按「看起来跟以前一样」，
+ * 按**不裁剪前提下的上限**：最亮的一档是 dusk（glow 1.2），实测光池中心
+ * （6×4 世界像素）单像素 R 在 1.6 倍时是 249，整幅 0 个任一通道 ≥255 的像素；
+ * 离 255 只剩 6 级，再往上就是拿余量换亮度。判据见 `docs/OPEN_ISSUES.md` MAT-G1。
+ */
+export const GLOW_GAIN = 1.6;
+
+/**
+ * 一团辉光拆成互不重叠的层。
+ *
+ * 判据（`test/mat-g1-glow.test.ts` 钉住）：**任一像素最多被一层覆盖，累加 alpha
+ * 不超过 `peakAlpha`**。ADD 混合下叠几层就是几倍的亮度，三层嵌套让中心变成
+ * 2.70a——那是积分，不是设计；多盖一层只是把同一个光源画得更亮，界面上看不出来，
+ * 预算里却全算进去了。
+ */
+export function glowLayers(cx: number, cy: number, w: number, h: number, alpha: number): GlowPlan {
+  const left = Math.round(cx - w / 2);
+  const top = Math.round(cy - h / 2);
+  const width = Math.max(1, Math.round(w));
+  const height = Math.max(1, Math.round(h));
+  const peakAlpha = alpha * GLOW_PEAK_RATIO;
+  const layers: GlowLayer[] = [];
+
+  // 三圈由外向内递增：0.55a → a → 1.15a（= 声明峰值）。
+  // 原来那三块是**嵌套矩形**，叠在中心就是 2.70a。这里把同样的三档摊成环带，
+  // 一圈只盖一层：外圈拿原来第二层的 0.55a（拆掉叠加后它才是最外那圈的量级），
+  // 中圈 a，内芯 1.15a。若反过来排（外亮内暗），中间会凹成一条沟，读成描边。
+  layers.push(...band(left, top, width, height, 'amber', alpha * 0.55));
+  if (width >= 3 && height >= 3) {
+    layers.push(...band(left + 1, top + 1, width - 2, height - 2, 'amber', alpha));
+  }
+  if (width >= 5 && height >= 5) {
+    layers.push({
+      x: left + 2,
+      y: top + 2,
+      w: width - 4,
+      h: height - 4,
+      token: 'warmLight',
+      alpha: peakAlpha,
+    });
+  }
+  return { layers, peakAlpha };
+}
+
+/** 一圈 1px 边框；尺寸太小（小于 3）时退化成一整块，仍然只有一层。 */
+function band(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  token: GlowToken,
+  alpha: number,
+): GlowLayer[] {
+  if (w < 3 || h < 3) {
+    return [{ x, y, w: Math.max(1, w), h: Math.max(1, h), token, alpha }];
+  }
+  return [
+    { x, y, w, h: 1, token, alpha },
+    { x, y: y + h - 1, w, h: 1, token, alpha },
+    { x, y: y + 1, w: 1, h: h - 2, token, alpha },
+    { x: x + w - 1, y: y + 1, w: 1, h: h - 2, token, alpha },
+  ];
+}
+
 function blend(from: PhaseRecipe, to: PhaseRecipe, t: number): Blend {
   return {
     // 颜色没有中间态可插（插了就是第 25 色），过半直接换到目标色。
@@ -108,23 +198,11 @@ export function createPhaseView(
     glows.clear();
     if (view.glow <= 0.001) return;
     const addGlow = (cx: number, cy: number, w: number, h: number, alpha: number): void => {
-      const a = alpha * view.glow;
-      glows.fillStyle(paletteFor().amber, a);
-      glows.fillRect(Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h));
-      glows.fillStyle(paletteFor().amber, a * 0.55);
-      glows.fillRect(
-        Math.round(cx - w / 2) + 1,
-        Math.round(cy - h / 2) + 1,
-        Math.max(1, Math.round(w) - 2),
-        Math.max(1, Math.round(h) - 2),
-      );
-      glows.fillStyle(paletteFor().warmLight, a * 1.15);
-      glows.fillRect(
-        Math.round(cx - w / 4),
-        Math.round(cy - h / 4),
-        Math.max(1, Math.round(w / 2)),
-        Math.max(1, Math.round(h / 2)),
-      );
+      const plan = glowLayers(cx, cy, w, h, alpha * view.glow * GLOW_GAIN);
+      for (const layer of plan.layers) {
+        glows.fillStyle(paletteFor()[layer.token], layer.alpha);
+        glows.fillRect(layer.x, layer.y, layer.w, layer.h);
+      }
     };
 
     for (const building of snapshot.buildings) {
