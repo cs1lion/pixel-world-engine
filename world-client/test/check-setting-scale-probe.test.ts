@@ -24,10 +24,14 @@ interface ProbeVerdict {
   metrics: Record<string, number> | null;
   source: string;
   declared?: boolean;
+  fromBaselineConstant?: boolean;
 }
 
 interface ProbeModule {
+  MEASURED_SOURCE: string;
+  BASELINE_SOURCE: string;
   judgeSettingScaleProbe(probe: ProbeInput, options?: { label?: string }): ProbeVerdict;
+  assertMeasuredReading(json: unknown, options?: { label?: string }): Record<string, number>;
 }
 
 const MODULE_PATH = new URL('../scripts/lib/setting-scale-probe.mjs', import.meta.url).href;
@@ -52,14 +56,14 @@ test('无钩子（环境不支持）→ 判红，且说的是「环境不支持�
 });
 
 test('无钩子 + 改前那一跑：声明为改前基线常量，不参与判定', async () => {
-  const { judgeSettingScaleProbe } = await load();
+  const { judgeSettingScaleProbe, BASELINE_SOURCE } = await load();
   const verdict = judgeSettingScaleProbe({ status: 'missing', detail: 'typeof=undefined' }, { label: 'before' });
   assert.equal(verdict.ok, true);
   assert.equal(verdict.code, 'before-baseline');
   assert.equal(verdict.declared, true);
   assert.equal(verdict.metrics, null);
-  assert.match(verdict.source, /改前基线常量/);
-  assert.match(verdict.source, /不参与判定/);
+  assert.equal(verdict.source, BASELINE_SOURCE);
+  assert.equal(verdict.fromBaselineConstant, true);
 });
 
 test('钩子存在但抛异常 → 判红，报「读数非法」并带原因', async () => {
@@ -102,10 +106,46 @@ test('钩子返回值缺字段 / 非数字 → 判红，并列出实际值', asy
 });
 
 test('钩子返回值合法 → 绿，读数原样带回，来源标为实测', async () => {
-  const { judgeSettingScaleProbe } = await load();
+  const { judgeSettingScaleProbe, assertMeasuredReading } = await load();
   const verdict = judgeSettingScaleProbe({ status: 'value', value: { ...VALID } }, { label: 'after' });
   assert.equal(verdict.ok, true);
   assert.equal(verdict.code, 'ok');
   assert.deepEqual(verdict.metrics, VALID);
   assert.match(verdict.source, /debugSettingScale 实测/);
+  assert.equal(verdict.fromBaselineConstant, false);
+
+  // 落盘 JSON 的形状：消费方只认这个组合。
+  const json = { metrics: verdict.metrics, metricsSource: verdict.source, metricsFromBaselineConstant: verdict.fromBaselineConstant };
+  assert.deepEqual(assertMeasuredReading(json, { label: 'after' }), VALID);
+});
+
+test('消费方把改前基线常量当读数 → 必须抛红（不许拿基线常量做差）', async () => {
+  const { assertMeasuredReading, BASELINE_SOURCE } = await load();
+  /** 真·改前基线 JSON 的形状：metrics 为 null + 来源是基线常量 + 显式标记。 */
+  const beforeJson = {
+    label: 'before',
+    metrics: null,
+    metricsSource: BASELINE_SOURCE,
+    metricsFromBaselineConstant: true,
+  };
+  assert.throws(
+    () => assertMeasuredReading(beforeJson, { label: 'before' }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /\[判据前提不成立\] 读数非法：before/);
+      assert.match(error.message, /metricsFromBaselineConstant=true/);
+      assert.match(error.message, /不许拿它做差/);
+      return true;
+    },
+  );
+
+  // 就算有人把基线常量抄进 metrics，来源不对也必须红——不能只看「像不像数字」。
+  assert.throws(
+    () =>
+      assertMeasuredReading({
+        ...beforeJson,
+        metrics: { personH: 30, shopfrontH: 32, shopfrontTop: 0, lampPostH: 37, lampBodyBottom: 24 },
+      }),
+    /不是 debugSettingScale 实测读数/,
+  );
 });

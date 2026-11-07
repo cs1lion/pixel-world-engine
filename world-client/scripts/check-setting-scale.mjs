@@ -35,7 +35,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
-import { judgeSettingScaleProbe } from './lib/setting-scale-probe.mjs';
+import { assertMeasuredReading, judgeSettingScaleProbe } from './lib/setting-scale-probe.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -247,6 +247,8 @@ const result = {
   stats,
   metrics,
   metricsSource: verdict.source,
+  /** 改前基线那一跑必须显式带这个标记；消费方据此拒绝把它当读数。 */
+  metricsFromBaselineConstant: verdict.fromBaselineConstant === true,
   pins,
   scanned,
   errors,
@@ -272,14 +274,15 @@ const afterFile = join(OUT, 'setting-scale-after.png');
 if (existsSync(beforeFile) && existsSync(afterFile)) {
   const load = (label) => {
     const json = JSON.parse(readFileSync(join(OUT, `setting-scale-${label}.json`), 'utf8'));
-    // 改后必须有实测 metrics；`ancient` 只属于改前基线，不能拿来冒充改后读数。
-    if (label === 'after' && json.metrics === null) {
-      console.error(`\n[并排图] 判红：改后 JSON（setting-scale-after.json）没有实测 metrics，`);
-      console.error('[并排图] 它只可能是旧口径产物；不许用 ancient 常量当改后读数，重拍 after 后再合成。\n');
+    // 比较两拍读数前，两份都必须是实测；基线常量不是读数，不许静默做差。
+    try {
+      assertMeasuredReading(json, { label });
+    } catch (error) {
+      console.error(`\n[改前/改后对比] 判红：${error instanceof Error ? error.message : String(error)}`);
+      console.error('[改前/改后对比] 两份 JSON 都必须是 debugSettingScale 实测才能比较；不许拿基线常量做差。\n');
       process.exit(1);
     }
-    const fallback = json.metrics ?? json.ancient;
-    return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: fallback };
+    return { ...json, file: join(OUT, `setting-scale-${label}.png`), scale: json.metrics };
   };
   const shots = { before: load('before'), after: load('after') };
 

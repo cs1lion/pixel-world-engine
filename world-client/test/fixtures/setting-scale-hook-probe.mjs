@@ -16,7 +16,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,9 +90,10 @@ function runScript({ base, label, outDir }) {
 }
 
 const cases = [];
-async function run(name, { mode, label, outName, check }) {
+async function run(name, { mode, label, outName, prepare, check }) {
   const outDir = mkdtempSync(join(tmpdir(), `setting-scale-probe-${outName}-`));
   try {
+    if (prepare !== undefined) prepare(outDir);
     const result = await withStub(mode, (base) => runScript({ base, label, outDir }));
     await check(result, outDir);
     cases.push(`PASS ${name}：exit=${result.code}`);
@@ -156,7 +157,38 @@ try {
       assert.match(result.stdout, /改前基线常量，非本次实测、不参与判定/);
       const json = JSON.parse(readFileSync(join(outDir, 'setting-scale-before.json'), 'utf8'));
       assert.equal(json.metrics, null);
-      assert.match(json.metricsSource, /不参与判定/);
+      assert.equal(json.metricsSource, '改前基线常量（非实测）');
+      assert.equal(json.metricsFromBaselineConstant, true);
+    },
+  });
+
+  await run('拿基线常量去和实测值做差：消费方必须红', {
+    mode: 'ok',
+    outName: 'compare',
+    /** 一份「改前」确实是基线常量的 JSON + 一张占位 PNG，凑齐合成条件。 */
+    prepare(outDir) {
+      writeFileSync(
+        join(outDir, 'setting-scale-before.json'),
+        `${JSON.stringify({
+          label: 'before',
+          metrics: null,
+          metricsSource: '改前基线常量（非实测）',
+          metricsFromBaselineConstant: true,
+        })}\n`,
+      );
+      writeFileSync(
+        join(outDir, 'setting-scale-before.png'),
+        Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      );
+    },
+    async check(result) {
+      assert.equal(result.code, 1, '拿基线常量做差必须非 0 退出');
+      assert.match(result.stderr, /\[改前\/改后对比\] 判红/);
+      assert.match(result.stderr, /不是 debugSettingScale 实测读数/);
+      assert.match(result.stderr, /metricsSource="改前基线常量（非实测）"/);
     },
   });
 

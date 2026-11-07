@@ -49,11 +49,21 @@
 - 读数来源必须诚实：`scripts/check-setting-scale.mjs` 拿不到
   `window.Oracle.debugSettingScale` 实测值时，打印 `[判据前提不成立]` 并**非 0 退出**，
   不退回改前基线常量继续判定——否则「通过」可能只是基线在和自己比。「环境没有这个
-  钩子」与「钩子在但读数非法」分开报，后者带实际返回值。唯一例外是
-  `SCALE_LABEL=before`（旧构建本来就没有这个钩子）：那一跑控制台大声声明「改前基线
-  常量，非本次实测、不参与判定」，其常量不得用于任何「通过」结论。判定在
-  `scripts/lib/setting-scale-probe.mjs`，反例见 `test/check-setting-scale-probe.test.ts`
-  与 `test/fixtures/setting-scale-hook-probe.mjs`。
+  钩子」与「钩子在但读数非法」分开报，后者带实际返回值。
+- `SCALE_LABEL=before` 的例外**锁在 JSON 里**，不只靠控制台喊一句：该跑落盘的
+  `setting-scale-before.json` 必须同时满足 `"metrics": null`、
+  `"metricsSource": "改前基线常量（非实测）"`、`"metricsFromBaselineConstant": true`。
+  任何消费方要把它们当读数，必须走 `scripts/lib/setting-scale-probe.mjs` 的
+  `assertMeasuredReading`：来源不是实测就抛 `[判据前提不成立] 读数非法`，
+  不许静默比较。`check-setting-scale.mjs` 的并排图合成已用它守两拍：拿基线常量
+  去和实测值做差直接 `[改前/改后对比] 判红`。反例见
+  `test/check-setting-scale-probe.test.ts` 与 `test/fixtures/setting-scale-hook-probe.mjs`
+  的「拿基线常量去和实测值做差」一条。
+- 反例脚本的运行口径：`test/fixtures/setting-scale-hook-probe.mjs` 依赖浏览器，
+  **不进 `npm test`**；由改动本脚本或其读数口径的人，在收工前于本工作树手动跑
+  `node test/fixtures/setting-scale-hook-probe.mjs`（自带桩页，不要求 vite、不读基线目录）。
+  判绿口径：5 条全 PASS 且末尾打印「全部通过」——无钩子 exit 1、非法值 exit 1、
+  合法值 exit 0、无钩子 + 改前声明 exit 0、拿基线常量做差 exit 1。
 - 「改前 / 改后」必须是同一机位、同一冻结帧、只差尺度这一件事；改前那一拍要先
   `git stash` 掉 `src/` 的改动，再拍 `before`，恢复后拍 `after`。
 - 这条不替代别的闸门（预算、调色板、单测），只补上「尺度类改动」这一格的证据口径。
