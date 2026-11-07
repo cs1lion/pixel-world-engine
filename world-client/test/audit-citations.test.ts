@@ -209,3 +209,68 @@ test('结论不随 checkout 目录名变：仓名限定写法按 origin 剥前�
     rmSync(parent, { recursive: true, force: true });
   }
 });
+
+test('忽略规则收敛扫描面，但不放宽判据', () => {
+  // 这条钉的是两半，缺一半都会把修复变成「为了变绿而放宽判据」：
+  //   1. 落在 `.gitignore` 里的路径不参与「引用是否存在」的判定——**即使本机磁盘
+  //      上真的有这个文件**。那正是「本地绿、CI 红」的根源：干净检出里没有 tmp 产物。
+  //   2. 忽略目录**之外**一条真的不存在的仓内路径，照旧必须报出来。
+  // 忽略判定交给 git 自己（与本仓同一条路）；假仓库只要有一份 `.gitignore` 就够。
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, '.gitignore'), 'tmp/\n', 'utf8');
+    // 忽略判定由 git 自己给，所以假仓库得是个仓库。
+    execFileSync('git', ['-C', root, 'init', '-q']);
+    // 本机跑过测试的状态：tmp 产物真的在磁盘上。它不能被当成仓内引用。
+    mkdirSync(path.join(root, 'tmp'), { recursive: true });
+    const onDisk = ['tmp', 'produced'].join('/') + '.json';
+    const absent = ['tmp', 'never-produced'].join('/') + '.json';
+    writeFileSync(path.join(root, ...onDisk.split('/')), '{}\n', 'utf8');
+
+    const r = auditDoc(
+      root,
+      [
+        `跑过测试后本机有 \`${onDisk}\`。`,
+        `换台机器就没有 \`${absent}\`。`,
+        `另有一条真的不存在的仓内路径 \`${phantom()}\`。`,
+      ].join('\n'),
+    );
+
+    // 第一半：两条 tmp 路径都落在忽略规则里，即使其中一条本机存在。
+    assert.deepEqual(
+      r.ignoredPaths,
+      [absent, onDisk].sort(),
+      '忽略规则内的路径必须一律不参与判定（含本机真的存在的那条）',
+    );
+    assert.equal(r.ignored, 2, '两处引用都该记成忽略未判定，并报得出数量');
+    // 第二半：忽略目录之外的不存在路径照旧要报——判据没放宽。
+    assert.deepEqual(r.findings.map((f) => f.token), [phantom()], '忽略目录外的坏路径必须照报');
+    assert.equal(r.trackedUnderIgnore, 0, '这个假仓库没有强塞进忽略目录的跟踪文件');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('被跟踪的文件永远不被忽略规则排除', () => {
+  // 手写解析器最容易错的地方：只看「路径匹配忽略规则」就判 ignored。
+  // git 的答案是：**被跟踪的文件不受忽略规则约束**。这条造一个
+  // 「既匹配 `tmp/`、又真的被跟踪」的文件，引用它必须判存在。
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, '.gitignore'), 'tmp/\n', 'utf8');
+    mkdirSync(path.join(root, 'tmp'), { recursive: true });
+    const forced = ['tmp', 'forced'].join('/') + '.json';
+    writeFileSync(path.join(root, ...forced.split('/')), '{}\n', 'utf8');
+    execFileSync('git', ['-C', root, 'init', '-q']);
+    // `-f`：无视忽略规则把它强塞进索引——正是要防的那种「产物被提交」。
+    execFileSync('git', ['-C', root, 'add', '-f', forced]);
+
+    const r = auditDoc(root, `引用了 \`${forced}\`。`);
+
+    assert.deepEqual(r.findings, [], '被跟踪的文件即使匹配忽略规则也必须判存在');
+    assert.equal(r.ignored, 0, '被跟踪的路径不能进「忽略未判定」计数');
+    assert.equal(r.trackedUnderIgnore, 1, '守卫要报出「被跟踪但在忽略规则下」的条数');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

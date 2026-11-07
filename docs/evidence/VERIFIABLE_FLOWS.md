@@ -163,7 +163,7 @@ flowchart TD
 | T6 | F6 入口配色 | `index.html` 等、调色板提案表 | stdout、`palette-9/*.txt` | `world-client/scripts/audit-palette.mjs` + `test/palette-budget.test.ts` | 世界 ≤24、UI ≤9、并集 ≤32、共享色恰为 amber | 已执行（5.1）；第 10 色红例 `[需人工]`（H4） | 本次复跑：本机；红例：一次性 worktree 持有者 |
 | T7 | F7 疲劳与睡眠 | `fatigue.ts`、`homecoming.ts` | stdout | `world-client/test/fatigue.test.ts` + `test/homecoming.test.ts` | 0.5/天、睡 4/天、阈 0.8、跨阈 1.6 天 | 已执行（5.1） | 本次复跑：本机 |
 | T8 | F8 行为/环境/需求 | 六个测试文件 | stdout | `world-client/test/needs-failure.test.ts` 等六个 | 规则顺序、环境闭集、失败载荷、旁观分桶 | 已执行（5.1） | 本次复跑：本机 |
-| T9 | F9 账本与旁证 | `eval/ledger.json`、soak 快照 | stdout、`tmp/witnessed-corroboration.json` | `world-client/scripts/eval-ledger.ts` + `scripts/verify-ledger-selfcheck.ts` | 12 字段、script_sha 复核、旁证 violations 0 | 已执行（5.1） | 本次复跑：本机 |
+| T9 | F9 账本与旁证 | `eval/ledger.json`、soak 快照 | stdout、`tmp/witnessed-corroboration.json`（运行期生成，不入仓） | `world-client/scripts/eval-ledger.ts` + `scripts/verify-ledger-selfcheck.ts` | 12 字段、script_sha 复核、旁证 violations 0 | 已执行（5.1） | 本次复跑：本机 |
 | T10 | F10 动画基线账本 | SCREENSHOT_BASELINE_CHANGES.md（pwe-anim） | stdout | `world-client/scripts/verify-animation-baseline.mjs` | 157 行、六类 73/29/28/18/2/7、12 位哈希、7 位提交 | 已执行（5.1，仅结构）；语义 `[需人工]`（H5） | 本次复跑：本机；语义：重录人 |
 
 「入口」里的 scripts/check-phase-frames.mjs、scripts/compare-ledger.mjs 在 1.5 里标为「仓外」，指它们只存在于 `D:\project\pwe-anim`；本仓跑不了，所以对应任务的状态不是「已执行」。
@@ -201,7 +201,7 @@ flowchart TD
 | `test/delivery-failure-event.test.ts` | `node --import ./test/phaser-hooks.mjs --test test/delivery-failure-event.test.ts` | `delivery-failure.ts` | stdout TAP | 0 = 全过；非 0 = 旁观分桶红 | 是 | 已实现 |
 | `scripts/eval-ledger.ts` | `node scripts/eval-ledger.ts` | `eval/ledger.json` | stdout 条数 + 校验结论 | 0 = 账本 12 字段全过；非 0 = 校验失败 | 否 | 已实现 |
 | `scripts/verify-ledger-selfcheck.ts` | `node scripts/verify-ledger-selfcheck.ts` | 内存副本 | stdout 逐例判定 | 0 = 1 绿 + 6 红按预期；非 0 = 自检漂移 | 否 | 已实现 |
-| `test/memory-witnessed-corroboration.test.ts` | `node --import ./test/phaser-hooks.mjs --test test/memory-witnessed-corroboration.test.ts` | soak 90 天快照 | `tmp/witnessed-corroboration.json` | 0 = violations 为 0；非 0 = 有未解析且无引用的 witnessed | 是 | 已实现，依赖仓外快照 |
+| `test/memory-witnessed-corroboration.test.ts` | `node --import ./test/phaser-hooks.mjs --test test/memory-witnessed-corroboration.test.ts` | soak 90 天快照 | `tmp/witnessed-corroboration.json`（运行期生成，不入仓） | 0 = violations 为 0；非 0 = 有未解析且无引用的 witnessed | 是 | 已实现，依赖仓外快照 |
 | `scripts/verify-animation-baseline.mjs` | `node scripts/verify-animation-baseline.mjs` | SCREENSHOT_BASELINE_CHANGES.md（pwe-anim） | stdout | 0 = 结构全对；非 0 = 行数/计数/哈希/提交不符 | 否 | 已实现 |
 
 **未执行清单（2026-11-06 读数，原样保留；不计入通过，也不代表当前）**
@@ -451,7 +451,7 @@ node --import ./test/phaser-hooks.mjs --test test/memory-witnessed-corroboration
 
 **反向用例**：新增的 `verify-ledger-selfcheck.ts` 在内存副本上构造六种坏账本：缺 `seed`、`value=0` 且 `source=not_measured`、`script_sha` 篡改、外部来源删 `input_sha`、重复 `id`、`version=2`。六种都必须红且错误含指定关键词，否则脚本退出 1。
 
-**产物落点**：`eval/ledger.json`（`eval-ledger-sha.ts --write` 才会回写）；旁证测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore），并把读出内容与已跟踪证据做 EOL 归一化比对；仅 `PWE_WRITE_WITNESSED=1` 时才覆盖写 `docs/evidence/soak/witnessed-corroboration.json`（固定键序、无时间戳、末尾 `\n`）。`[实测]` 2026-11-07 改后连跑两遍 `npm test`，该文件不再出现 ` M`，`git hash-object` 前后一致。
+**产物落点**：`eval/ledger.json`（`eval-ledger-sha.ts --write` 才会回写）；旁证测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore；运行期生成，不入仓），并把读出内容与已跟踪证据做 EOL 归一化比对；仅 `PWE_WRITE_WITNESSED=1` 时才覆盖写 `docs/evidence/soak/witnessed-corroboration.json`（固定键序、无时间戳、末尾 `\n`）。`[实测]` 2026-11-07 改后连跑两遍 `npm test`，该文件不再出现 ` M`，`git hash-object` 前后一致。
 
 **现状**：离线可跑，但旁证测试依赖 `pwe-soak` 90 天快照；快照不随仓提交时这条会红，不能当绿。
 

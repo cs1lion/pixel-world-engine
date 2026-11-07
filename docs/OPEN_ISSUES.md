@@ -137,6 +137,13 @@
 - **建议时机**：立即生效——**分支收工前必须跑全量 `npm test`**，并在分支说明里贴 0 fail 的读数。
 - **是否需要用户决策**：否（流程纪律，已记入收尾清单）。
 
+### B12. 扫描磁盘的审计只在工作区验收，结论依赖本机残留状态
+
+- **问题**：凡是以「磁盘上有/没有某个文件」为判据的审计（`audit-citations`、`audit-references`、`audit-orphan-gates` 之类），在工作区跑出的绿可能只是「这台机器上碰巧残留了生成物」。**[事实]**（2026-11-08 同一个晚上两次「本地绿、CI 红」：一次是 `tmp/witnessed-corroboration.json`（跑过测试才存在的运行时产物，被 gitignore），另一次是 `node_modules` junction；两者在干净检出里都不存在，判据于是翻转）
+- **影响**：工作区绿把「判据依赖残留状态」伪装成「已通过」，问题只在 push 之后由 CI 暴露，定位成本翻倍；更坏的是有人会拿白名单把这种红按下去，判据从此少一层。
+- **建议时机**：立即生效——**涉及扫描磁盘的审计，验收必须在 `git archive HEAD`（或等价）导出的干净检出里再跑一遍**，不能只在工作区跑；两种状态（干净检出 / 本地有残留）都要绿才算过。
+- **是否需要用户决策**：否（流程纪律）。
+
 ## C. 设计边界（不是 bug，但需要被知道）
 
 ### C1. 零造物世界会停在 L1
@@ -339,7 +346,7 @@
 > 编号说明：E7（`eval/screens` 基线消费审计）原在 `fix/entry-hint-clip` 分支登记、未合入；
 > 本条分支已完成审计并结案（见上），**E8 编号保持不变**。
 
-- **现状 [事实]**（2026-11-07 已修）：该测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore），并对已跟踪证据做 EOL 归一化后的内容比对；仅显式 `PWE_WRITE_WITNESSED=1` 才写回 `docs/evidence/soak/`。`verify-all.mjs` 里为此存在的 `PRESERVE` 备份/还原已删除。
+- **现状 [事实]**（2026-11-07 已修）：该测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore；运行期生成，不入仓），并对已跟踪证据做 EOL 归一化后的内容比对；仅显式 `PWE_WRITE_WITNESSED=1` 才写回 `docs/evidence/soak/`。`verify-all.mjs` 里为此存在的 `PRESERVE` 备份/还原已删除。
 - **复现 [历史]**：2026-11-07 两次 `npm test` 均复现；内容语义未变，但行尾从 CRLF 变 LF，`git status` 立刻多出一条 `M`。
 - **问题 [事实]**：检查应当只读或写临时副本；靠「跑完再还原」兜底，迟早有人把 LF 重写当成正常 diff 提交，或者忘还原后把噪音带进提交。
 - **落地验证 [实测]**：删掉自动改写后连跑两遍 `npm test`（2525 tests / 2516 pass / 0 fail / 9 skip），`git status --porcelain` 只剩本次代码改动的两个文件；该文件 `git hash-object` 前后均为 `b9c3214bc1568de714ebe8e9fbfec7384b0be5be`。
