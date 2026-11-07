@@ -404,8 +404,9 @@ patch_required = annulus + 45.9        （固定 annulus，问 patch 要升到�
 ### R5 提交状态与 sha
 
 - 本批证据产出于 **2026-11-07 18:15–18:22（本地）**，工作树 = `HEAD 5075d71` + 本批未提交改动。
-- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha 见紧随其后的
-  `docs(lighting)` 小提交回填（该小提交不改代码与产物）。
+- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha：
+  `7f549cb3b825e987b31348eaf9a8e1d6171587b7`（`7f549cb`，18 个文件）。
+  本段 sha 回填是紧随其后的 `docs(lighting)` 小提交，不改动代码与产物。
 - 上一批的提交 sha：`e75e2d2aedcc630b1f4607f5ed137eb03261533b`（代码 + 证据）、
   其后 `5075d71` 为 sha 回填。
 - 未 push；未碰 `eval/screens`；未碰 `ci.yml`（等 `chore/orphan-gates` 合并后一次接线）；
