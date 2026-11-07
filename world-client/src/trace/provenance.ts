@@ -51,6 +51,23 @@ export function commitsSince(commit: string): number | null {
   }
 }
 
+/**
+ * 当前仓库是否浅克隆。CI 的 `actions/checkout` 默认 `fetch-depth: 1`，
+ * 旧锚不在浅历史里，`rev-list --count A..HEAD` 会直接失败（exit 128）。
+ * 这不是缺陷，只该降级文案，不该判红。
+ */
+export function isShallowRepository(): boolean {
+  try {
+    return execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
 /** 短 SHA：报错信息里够用，也照旧文档的示例。 */
 function short(sha: string): string {
   return sha.slice(0, 7);
@@ -64,11 +81,12 @@ export function commitAnchorLine(
   recordedAtCommit: string | undefined,
   head: string | null,
   distance: number | null,
+  shallow = false,
 ): string {
   if (recordedAtCommit === undefined || recordedAtCommit === '') {
     return head === null
-      ? '注意：该夹具无 commit 锚（旧格式）；当前 HEAD 不可读（不判红）'
-      : `注意：该夹具无 commit 锚（旧格式）；当前 HEAD ${short(head)}（不判红）`;
+      ? '注意：录制 commit 不可考（旧格式，重录才会获得）；当前 HEAD 不可读（不判红）'
+      : `注意：录制 commit 不可考（旧格式，重录才会获得）；当前 HEAD ${short(head)}（不判红）`;
   }
   if (head === null) {
     return `注意：夹具录制于 ${short(recordedAtCommit)}，当前 HEAD 不可读（不判红）`;
@@ -77,7 +95,9 @@ export function commitAnchorLine(
     return `commit 锚：录制于 ${short(head)}（与当前 HEAD 相同）`;
   }
   const tail = distance === null
-    ? '（录制 commit 不在当前历史里，可能是未提交中间态或已改写）'
+    ? shallow
+      ? '（无法计算间隔：浅克隆）'
+      : '（录制 commit 不在当前历史里，可能是未提交中间态或已改写）'
     : `，相差 ${distance} 个提交`;
   return `注意：夹具录制于 ${short(recordedAtCommit)}，当前 HEAD ${short(head)}${tail}（不判红）`;
 }
@@ -85,6 +105,10 @@ export function commitAnchorLine(
 /** 真实入口：读 HEAD 与提交距离，返回一行提示。 */
 export function currentCommitAnchorLine(recordedAtCommit: string | undefined): string {
   const head = headCommit();
-  const distance = recordedAtCommit === undefined ? null : commitsSince(recordedAtCommit);
-  return commitAnchorLine(recordedAtCommit, head, distance);
+  if (recordedAtCommit === undefined || recordedAtCommit === '') {
+    return commitAnchorLine(recordedAtCommit, head, null);
+  }
+  const distance = commitsSince(recordedAtCommit);
+  const shallow = distance === null && isCommitSha(recordedAtCommit) && isShallowRepository();
+  return commitAnchorLine(recordedAtCommit, head, distance, shallow);
 }

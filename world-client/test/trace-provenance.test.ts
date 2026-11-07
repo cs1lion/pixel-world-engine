@@ -25,10 +25,10 @@ test('isCommitSha 只认 40 位小写十六进制', () => {
   assert.equal(isCommitSha(undefined), false);
 });
 
-test('无字段：旧格式提示，不判红', () => {
+test('无字段：旧格式提示「录制 commit 不可考」，不判红', () => {
   const line = commitAnchorLine(undefined, HEAD, null);
-  assert.match(line, /注意：该夹具无 commit 锚/);
-  assert.match(line, /旧格式/);
+  assert.match(line, /注意：录制 commit 不可考/);
+  assert.match(line, /旧格式，重录才会获得/);
   assert.match(line, /不判红/);
   assert.match(line, new RegExp(HEAD.slice(0, 7)));
 });
@@ -51,6 +51,13 @@ test('录制 commit 不在当前历史里：说明可能是未提交中间态', 
   const line = commitAnchorLine('0'.repeat(40), HEAD, null);
   assert.match(line, /不在当前历史里/);
   assert.match(line, /未提交中间态/);
+  assert.match(line, /不判红/);
+});
+
+test('浅克隆里间隔算不出来：降级为浅克隆提示，不判红', () => {
+  const line = commitAnchorLine(OLD, HEAD, null, true);
+  assert.match(line, /无法计算间隔：浅克隆/);
+  assert.doesNotMatch(line, /未提交中间态/);
   assert.match(line, /不判红/);
 });
 
