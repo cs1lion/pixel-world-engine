@@ -355,6 +355,18 @@
 - **建议时机**：下一次动 memory/witness 测试或 CI 时。
 - **是否需要用户决策**：**否**（方向明确：检查不许改写工作区）。
 
+### E9. `canvas.screenshot()` 会把 DOM 叠层截进字节：逐字节像素闸门的前提要先复核
+
+- **现象 [实测]**：`canvas.screenshot()` 截的是「页面渲染后裁到元素包围盒」，不是 canvas backing buffer —— DOM 叠层会被截进字节。注入 40×40 纯红 DOM 后，画布截图字节立刻变化；`#topbar`（0–56px）、`#minimap`、`overlay-name` 都压在画布区域上。
+- **证据级别 [事实]**：这条是**实测**，不是推测。它与 `check-shot-actor-pin` 在 CI 首跑 1/1 红「根因未证」是**两件事**，不要混写：那条只说明「本机 30 轮 0 红，测不出来」，这条说明「截图面本身不纯」。
+- **影响面 [事实]**：所有做逐字节比对的像素闸门都可能受同一因素影响——至少点名 `check-ground-shadow`、`check-shot-actor-pin`、`check-phases-negative`，以及直接对 `canvas` 元素截图的 `check-phases`。
+  - 已错误地把「DOM overlay 不在画布里」写进注释：`world-client/scripts/check-shot-actor-pin.mjs` 第 14 行（「只拍 `#app canvas`：DOM overlay（名字/气泡）与纸面不在画布里」）。该断言与实测不符，必须按错的写。
+  - 这条不是没人踩过：`check-banner-smoke`、`check-stall-motion`、`check-scene-motion`、`check-ground-shadow`、`check-glow-contrast` 与 `capture-palette` 的部分档位都主动隐藏了 `#world-overlay` / `#debug-panel`，说明问题已被局部绕过，但没有统一前提。
+- **为什么重要**：如果 CI 与本地在字体、抗锯齿、叠层布局上不同，那么「逐字节相同」这个前提在 CI 上可能**永远不成立**——`shotStable` 修法（等连续 8 帧逐字节相同）会等不到第 8 帧，先卡在前提上。所以顺序必须是：先决定截图面要不要剔掉 DOM（隐藏叠层，或直接取 canvas backing buffer），再决定判据要不要改；顺序反了，就会把「重试换绿」当成修法。
+- **不做的事**：**先不修，只登记**。等 `check-shot-actor-pin` 的撤回落定后单独排期。
+- **建议时机**：下一次动任何逐字节像素闸门之前。
+- **是否需要用户决策**：**是**（「截图面剔 DOM」还是「改判据」，二选一要先定）。
+
 ## F. Phaser 4 升级遗留（2026-11-06）
 
 ### F1. `?light=` 探针的去向：留分支、不进 main
