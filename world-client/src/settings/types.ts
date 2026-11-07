@@ -57,18 +57,39 @@ export interface CompiledVillager {
  */
 export type ShoreStyleId = 'straight' | 'inset';
 
+/** 岸带的一段色阶。`depthPx` 是沿法线的长度，8 起、%8 === 0。 */
+export interface SettingShoreStep {
+  readonly token: WorldColor;
+  readonly depthPx: number;
+}
+
 /**
- * 岸线带的数据层参数。只写「哪套预设 + 多宽 + 什么色 + 多透明」；
- * 具体从哪里退、退几像素由引擎的预设表解析，设定集不写像素几何。
+ * 一组岸型的参数：适用哪些陆地地形、哪套预设、多宽、怎么错位、色阶分几段。
+ *
+ * 为什么按 `land` 分组而不是一个 token 通吃：`plaza` 是铺装色，铺在草岸上
+ * 会把岸读成码头/硬边（不是「看不见」，是材质词义不对）。石板段与草岸段
+ * 各有独立三档，选取按陆格地形查表，渲染层不写分支。
  *
  * 缺席 = 这本人不画岸带（旧设定集路径），画面与加这个组件之前逐字节一致。
  */
 export interface SettingShore {
+  /** 适用哪些陆地地形。 */
+  readonly land: readonly TerrainId[];
   readonly style: ShoreStyleId;
-  /** 带宽（世界像素），1..TILE_PX。写成 0 会被装载期拒绝，不按 0 静默画。 */
+  /** 基线总宽（世界像素）= `steps` 之和；8..48 且必须是 8 的整数倍。 */
   readonly depthPx: number;
-  readonly token: WorldColor;
-  readonly alpha: number;
+  /** 错位步长，4 或 8（1/4 或半格）。 */
+  readonly staggerPx: number;
+  /** 错位档数，2..4。 */
+  readonly staggerLevels: number;
+  /** 错位加在哪一段；v3 取最后一段。 */
+  readonly staggerStep: number;
+  /** 允许的截断像素上限；灯潮界 0。 */
+  readonly maxTruncatedPx: number;
+  /** 允许被裁掉的重叠面积上限；灯潮界 0。 */
+  readonly maxOverlapPx: number;
+  /** 2..3 段，每段 ≥8 且 %8 === 0，和 = depthPx。 */
+  readonly steps: readonly SettingShoreStep[];
 }
 
 export interface SettingScenery {
@@ -217,7 +238,7 @@ export interface SettingPack {
    */
   readonly propReveals?: ReadonlyMap<PropKind, readonly string[]>;
   /** 岸线带参数。省略 = 不画（旧设定集与默认世界之外的包都走这条）。 */
-  readonly shore?: SettingShore;
+  readonly shore?: readonly SettingShore[];
   readonly authored: boolean;
 }
 
@@ -251,5 +272,5 @@ export interface RawSettingPack {
    */
   readonly propReveals?: Readonly<Record<string, readonly string[]>>;
   /** 岸线带（原文，装载期校验）。省略 = 不画。 */
-  readonly shore?: SettingShore;
+  readonly shore?: readonly SettingShore[];
 }

@@ -4,26 +4,36 @@
  * 纯函数，不碰 Phaser。为什么单独一层：岸型要能从数据里换（直岸 / 收进），
  * 而绘制层只该拿到已经解析成数字的矩形。把「是不是收进」的等值判断写在绘制里，
  * 加第三种岸型就得改绘制；留在这里，加岸型只是往 `SHORE_PRESETS` 加一行。
- *
  * 「水」的定义是**地形浅滩**（`terrain === 'shallow'`），不是潮位谓词
  * `isFloodedAt`：后者在低潮时一格都不认（水集合为空，判据空转），在高潮时
  * 又把 2000 多格陆地认成水（岸带必然「入水」）。实测读数见
  * `docs/P1_SHORE_BAND_DESIGN.md` §3.3.1。
+ *
+ * v3（`docs/P1_SHORE_BAND_DESIGN.md` §6）：带宽以 `depthPx`（8 的整数倍，
+ * 24 = 1.5 格）跨 2–3 格落地，逐格错位由 `hash2` 决定；每一段是不透明实色，
+ * 不叠 alpha。返回 `{ pieces, truncatedPx, overlapPx }`：截断与被裁掉的重叠
+ * 面积都要能对着数据里的上限断言，不许静默少画一段。
  */
 
 import { WORLD, type WorldColor } from '../world/palette-data.ts';
 import { TILE_PX } from '../world/setup.ts';
-import type { GridPoint } from '../world/types.ts';
+import type { GridPoint, TerrainId } from '../world/types.ts';
 
 export type ShoreSide = 'north' | 'east' | 'south' | 'west';
 
 export interface WaterLandEdge {
-  /** 陆格：岸带只能画在这一格里。 */
+  /** 陆格：岸带从这一格的水边起算。 */
   readonly land: GridPoint;
   /** 水格：岸带不得越过这条边。 */
   readonly water: GridPoint;
   /** 水在陆的哪一侧。 */
   readonly side: ShoreSide;
+  /**
+   * 陆格的地形。`waterLandEdgesFromGrid` 会填；
+   * 显式夹具可以省略（此时只允许单一岸型）。
+   * 岸型的选取按这个地形查数据，而不是在渲染层写分支。
+   */
+  readonly terrain?: TerrainId;
 }
 
 export interface WaterLandFixture {
@@ -49,19 +59,42 @@ export const SHORE_PRESETS: Readonly<Record<'straight' | 'inset', ShoreStylePres
   inset: { insetPx: 2 },
 };
 
-export interface ShoreNumbers {
-  readonly insetPx: number;
-  readonly depthPx: number;
+export interface ShoreStepNumbers {
   readonly token: WorldColor;
-  readonly alpha: number;
+  readonly depthPx: number;
+}
+
+export interface ShoreNumbers {
+  /** 这一组色阶适用于哪些陆地地形（按数据查表，不写分支）。 */
+  readonly land: readonly TerrainId[];
+  readonly insetPx: number;
+  /** 基线总宽 = steps 之和；8..48 且 %8 === 0。 */
+  readonly depthPx: number;
+  readonly staggerPx: number;
+  readonly staggerLevels: number;
+  /** 错位加在哪一段（v3 取最后一段）。 */
+  readonly staggerStep: number;
+  readonly maxTruncatedPx: number;
+  readonly maxOverlapPx: number;
+  readonly steps: readonly ShoreStepNumbers[];
 }
 
 export interface ShoreRect {
+  /** 这一块实际落在哪一格（跨格后会与岸线源格不同）。 */
   readonly cell: GridPoint;
   readonly side: ShoreSide;
+  /** 段下标：0 是湿段（贴水），往后越干。 */
+  readonly step: number;
+  readonly token: WorldColor;
   readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
-  /** 沿岸方向的长度（世界像素）。直岸 k 格连续 = k × TILE_PX。 */
+  /** 沿岸方向的长度（世界像素）。 */
   readonly lengthPx: number;
+}
+
+export interface ShoreBandResult {
+  readonly pieces: readonly ShoreRect[];
+  readonly truncatedPx: number;
+  readonly overlapPx: number;
 }
 
 const SIDES: readonly ShoreSide[] = ['north', 'east', 'south', 'west'];
@@ -95,7 +128,7 @@ export function waterLandEdges(fixture: WaterLandFixture): WaterLandEdge[] {
   return edges;
 }
 
-/** 同一套四邻接判据，从网格上扫出浅滩与陆地。 */
+/** 同一套四邻接判据，从网格上扫出浅滩与陆地，并带上陆格地形。 */
 export function waterLandEdgesFromGrid(
   grid: ShoreGridLike,
   isWaterTerrain: (terrain: string) => boolean,
@@ -109,7 +142,12 @@ export function waterLandEdgesFromGrid(
       (isWaterTerrain(cell.terrain) ? water : land).push({ x, y });
     }
   }
-  return waterLandEdges({ water, land });
+  const edges = waterLandEdges({ water, land });
+  // 再加上地形：岸型的选取按陆格地形查数据表。
+  return edges.map((edge) => {
+    const cell = grid.at(edge.land);
+    return cell === undefined ? edge : { ...edge, terrain: cell.terrain as TerrainId };
+  });
 }
 
 /**
@@ -120,88 +158,217 @@ export function waterLandEdgesFromGrid(
  */
 export function resolveShore(
   style: 'straight' | 'inset',
-  numbers: { readonly depthPx: number; readonly token: WorldColor; readonly alpha: number },
+  numbers: Omit<ShoreNumbers, 'insetPx'>,
 ): ShoreNumbers {
   const preset = (SHORE_PRESETS as Record<string, ShoreStylePreset | undefined>)[style];
   if (preset === undefined) throw new Error(`shore-band: 未知岸型 ${String(style)}`);
-  assertDepth(numbers.depthPx);
-  assertToken(numbers.token);
-  assertAlpha(numbers.alpha);
-  return { insetPx: preset.insetPx, depthPx: numbers.depthPx, token: numbers.token, alpha: numbers.alpha };
-}
-
-/** 旧设定集没配 `shore` → null → 一段都不画（画面与改前逐字节一致）。 */
-export function resolveShoreConfig(shore: unknown): ShoreNumbers | null {
-  if (shore === undefined || shore === null) return null;
-  const value = shore as {
-    readonly style?: unknown;
-    readonly depthPx?: unknown;
-    readonly token?: unknown;
-    readonly alpha?: unknown;
-  };
-  if (typeof value.style !== 'string' || typeof value.depthPx !== 'number' || typeof value.token !== 'string' || typeof value.alpha !== 'number') {
-    throw new Error('shore-band: shore 配置缺 style/depthPx/token/alpha');
+  const resolved: ShoreNumbers = { ...numbers, insetPx: preset.insetPx };
+  const { insetPx, depthPx, steps } = resolved;
+  assertInset(insetPx);
+  assertDepth(depthPx);
+  assertSteps(steps, depthPx);
+  assertStagger(resolved);
+  assertMaxima(resolved.maxTruncatedPx, resolved.maxOverlapPx);
+  if (resolved.land === undefined || resolved.land.length === 0) {
+    throw new Error('shore-band: 岸型必须声明 land（适用哪些陆地地形）');
   }
-  return resolveShore(value.style as 'straight' | 'inset', {
-    depthPx: value.depthPx,
-    token: value.token as WorldColor,
-    alpha: value.alpha,
-  });
+  const furthest = insetPx + depthPx + resolved.staggerPx * (resolved.staggerLevels - 1);
+  if (furthest > 3 * TILE_PX) {
+    throw new Error(
+      `shore-band: insetPx（${insetPx}）+ depthPx（${depthPx}）+ staggerPx × (levels−1) = ${furthest} 超过 3 格 ${3 * TILE_PX}，会跨出陆格`,
+    );
+  }
+  return resolved;
 }
 
 /**
- * 边 → 岸带矩形。同 side 且沿岸方向连续的陆格合成一段；断一格就拆段。
+ * 数据里的岸型表 → 绘制用的数字表。`undefined` / `null` → null → 一段都不画。
  *
- * 矩形一律落在**陆格**内：水边是矩形的外沿，`insetPx` 只把矩形往陆侧退。
- * `depthPx + insetPx > TILE_PX` 会压进水面，当场抛，不靠测试之外的人眼。
+ * 为什么是一张表而不是一个对象：石板段与草岸段的末段 token 不同
+ * （`plaza` 是铺装词，铺在草岸上会把岸读成码头/硬边），两组各自三档，
+ * 按陆格地形选取。选取是查表，不在渲染层写岸型分支。
  */
-export function shoreBandRects(edges: readonly WaterLandEdge[], numbers: ShoreNumbers | null): ShoreRect[] {
-  if (numbers === null) return [];
-  assertInset(numbers.insetPx);
-  assertDepth(numbers.depthPx);
-  if (numbers.insetPx + numbers.depthPx > TILE_PX) {
-    throw new Error(
-      `shore-band: depthPx（${numbers.depthPx}）+ insetPx（${numbers.insetPx}）= ${numbers.insetPx + numbers.depthPx} 超过一格 TILE_PX=${TILE_PX}，会压进水面`,
+export function resolveShoreConfig(shore: unknown): ShoreNumbers[] | null {
+  if (shore === undefined || shore === null) return null;
+  const entries = Array.isArray(shore) ? shore : [shore];
+  const configs: ShoreNumbers[] = [];
+  for (const entry of entries) {
+    const value = entry as {
+      readonly land?: unknown;
+      readonly style?: unknown;
+      readonly depthPx?: unknown;
+      readonly staggerPx?: unknown;
+      readonly staggerLevels?: unknown;
+      readonly staggerStep?: unknown;
+      readonly maxTruncatedPx?: unknown;
+      readonly maxOverlapPx?: unknown;
+      readonly steps?: unknown;
+    };
+    if (
+      typeof value.style !== 'string' ||
+      typeof value.depthPx !== 'number' ||
+      !Array.isArray(value.land) ||
+      typeof value.staggerPx !== 'number' ||
+      typeof value.staggerLevels !== 'number' ||
+      typeof value.staggerStep !== 'number' ||
+      typeof value.maxTruncatedPx !== 'number' ||
+      typeof value.maxOverlapPx !== 'number' ||
+      !Array.isArray(value.steps)
+    ) {
+      throw new Error('shore-band: shore 配置缺 land/style/depthPx/stagger*/max*/steps');
+    }
+    configs.push(
+      resolveShore(value.style as 'straight' | 'inset', {
+        land: value.land as readonly TerrainId[],
+        depthPx: value.depthPx,
+        staggerPx: value.staggerPx,
+        staggerLevels: value.staggerLevels,
+        staggerStep: value.staggerStep,
+        maxTruncatedPx: value.maxTruncatedPx,
+        maxOverlapPx: value.maxOverlapPx,
+        steps: value.steps as readonly ShoreStepNumbers[],
+      }),
     );
   }
+  return configs;
+}
 
-  // 同一对水/陆格只算一次；夹具里重复写同一格不该让长度翻倍。
+/**
+ * 确定性错位：只用格坐标，无随机、无种子、无时钟。
+ *
+ * v2 的线性取模（x 系数 3、y 系数 5，两者皆奇）等价于按 x+y 的奇偶交替，
+ * 直岸上会出现 24/28/24/28 的规则锯口（见设计稿 §6.6）。
+ */
+export function hash2(x: number, y: number): number {
+  let h = (x * 374761393 + y * 668265263) >>> 0;
+  h = ((h ^ (h >>> 13)) * 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+interface Portion {
+  readonly cell: GridPoint;
+  readonly side: ShoreSide;
+  readonly step: number;
+  readonly token: WorldColor;
+  readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  readonly config: ShoreNumbers;
+}
+
+/**
+ * 边 → 岸带矩形。逐格发截面（沿水线每格 16px 全宽，格子之间不留缝），
+ * 沿法线跨 2–3 格落地；同一格被两条边覆盖时**只裁不叠**。
+ *
+ * 矩形一律落在**陆格**内：水边是外沿，`insetPx` 只把起点往陆侧退。
+ * 越界的部分在格边截断，记进 `truncatedPx`；超过数据上限当场抛。
+ */
+export function shoreBandRects(
+  edges: readonly WaterLandEdge[],
+  configs: readonly ShoreNumbers[] | null,
+  isLandCell: (cell: GridPoint) => boolean = () => true,
+): ShoreBandResult {
+  if (configs === null || configs.length === 0) return { pieces: [], truncatedPx: 0, overlapPx: 0 };
+  for (const config of configs) assertConfig(config);
+
   const unique = new Map<string, WaterLandEdge>();
   for (const edge of edges) unique.set(`${cellKey(edge.water)}>${cellKey(edge.land)}`, edge);
 
-  const rects: ShoreRect[] = [];
-  for (const side of SIDES) {
-    const items = [...unique.values()].filter((edge) => edge.side === side);
-    if (items.length === 0) continue;
-    if (side === 'north' || side === 'south') {
-      const rows = new Map<number, WaterLandEdge[]>();
-      for (const edge of items) {
-        const row = rows.get(edge.land.y) ?? [];
-        row.push(edge);
-        rows.set(edge.land.y, row);
-      }
-      for (const row of rows.values()) {
-        row.sort((a, b) => a.land.x - b.land.x);
-        for (const run of runsAlong(row, (edge) => edge.land.x)) {
-          rects.push(makeRect(run, side, numbers));
+  const portions: Portion[] = [];
+  const truncatedByConfig = new Map<ShoreNumbers, number>();
+  let truncatedPx = 0;
+
+  const ordered = [...unique.values()].sort(
+    (a, b) => a.land.y - b.land.y || a.land.x - b.land.x || SIDES.indexOf(a.side) - SIDES.indexOf(b.side),
+  );
+
+  for (const edge of ordered) {
+    const config = pickConfig(configs, edge);
+    if (config === null) continue;
+
+    const { insetPx, steps, staggerPx, staggerLevels, staggerStep } = config;
+    const phase = hash2(edge.land.x, edge.land.y) % staggerLevels;
+    const extra = phase * staggerPx;
+
+    let t0 = insetPx;
+    for (let step = 0; step < steps.length; step += 1) {
+      const length = steps[step]!.depthPx + (step === staggerStep ? extra : 0);
+      const a = t0;
+      const b = t0 + length;
+      t0 = b;
+      for (const portion of splitByCell(edge, step, steps[step]!.token, a, b)) {
+        if (!isLandCell(portion.cell)) {
+          // 截断量是沿法线的长度（px），不是面积：M12 的读数就是 8。
+          const lost = portion.side === 'north' || portion.side === 'south' ? portion.rect.h : portion.rect.w;
+          truncatedPx += lost;
+          truncatedByConfig.set(config, (truncatedByConfig.get(config) ?? 0) + lost);
+          continue;
         }
-      }
-    } else {
-      const columns = new Map<number, WaterLandEdge[]>();
-      for (const edge of items) {
-        const column = columns.get(edge.land.x) ?? [];
-        column.push(edge);
-        columns.set(edge.land.x, column);
-      }
-      for (const column of columns.values()) {
-        column.sort((a, b) => a.land.y - b.land.y);
-        for (const run of runsAlong(column, (edge) => edge.land.y)) {
-          rects.push(makeRect(run, side, numbers));
-        }
+        portions.push({ ...portion, config });
       }
     }
   }
-  return rects;
+
+  for (const [config, lost] of truncatedByConfig) {
+    if (lost > config.maxTruncatedPx) {
+      throw new Error(`shore-band: 截断 ${lost} px 超过上限 ${config.maxTruncatedPx}`);
+    }
+  }
+
+  // 发出顺序：格坐标 → side → 段下标。后发的矩形先减去同格已占的像素。
+  portions.sort(
+    (a, b) =>
+      a.cell.y - b.cell.y ||
+      a.cell.x - b.cell.x ||
+      SIDES.indexOf(a.side) - SIDES.indexOf(b.side) ||
+      a.step - b.step ||
+      a.rect.x - b.rect.x ||
+      a.rect.y - b.rect.y,
+  );
+
+  const occupied = new Map<string, { x: number; y: number; w: number; h: number }[]>();
+  const pieces: ShoreRect[] = [];
+  const overlapByConfig = new Map<ShoreNumbers, number>();
+  let overlapPx = 0;
+
+  for (const portion of portions) {
+    const key = cellKey(portion.cell);
+    const taken = occupied.get(key) ?? [];
+    let remaining: { x: number; y: number; w: number; h: number }[] = [portion.rect];
+    let removed = 0;
+    for (const cover of taken) {
+      const next: typeof remaining = [];
+      for (const rect of remaining) {
+        const split = subtractRect(rect, cover);
+        removed += split.removed;
+        next.push(...split.rects);
+      }
+      remaining = next;
+    }
+    if (removed > 0) {
+      overlapPx += removed;
+      overlapByConfig.set(portion.config, (overlapByConfig.get(portion.config) ?? 0) + removed);
+    }
+    for (const rect of remaining) {
+      if (rect.w === 0 || rect.h === 0) continue;
+      pieces.push({
+        cell: { ...portion.cell },
+        side: portion.side,
+        step: portion.step,
+        token: portion.token,
+        rect,
+        lengthPx: portion.side === 'north' || portion.side === 'south' ? rect.w : rect.h,
+      });
+      taken.push(rect);
+    }
+    occupied.set(key, taken);
+  }
+
+  for (const [config, lost] of overlapByConfig) {
+    if (lost > config.maxOverlapPx) {
+      throw new Error(`shore-band: 重叠 ${lost} px 超过上限 ${config.maxOverlapPx}`);
+    }
+  }
+
+  return { pieces, truncatedPx, overlapPx };
 }
 
 /** 检查器：矩形里每一个像素归到的格，有多少落在给定的水格集合里。 */
@@ -219,6 +386,25 @@ export function countPixelsInCells(
     }
   }
   return leaked;
+}
+
+/** 同一格内被多个矩形盖住（叠画）的像素数。只裁不叠时必须是 0。 */
+export function countDoubleCovered(
+  rects: readonly { readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number } }[],
+): number {
+  let doubled = 0;
+  for (let i = 0; i < rects.length; i += 1) {
+    for (let j = i + 1; j < rects.length; j += 1) {
+      const a = rects[i]!.rect;
+      const b = rects[j]!.rect;
+      const left = Math.max(a.x, b.x);
+      const right = Math.min(a.x + a.w, b.x + b.w);
+      const top = Math.max(a.y, b.y);
+      const bottom = Math.min(a.y + a.h, b.y + b.h);
+      if (left < right && top < bottom) doubled += (right - left) * (bottom - top);
+    }
+  }
+  return doubled;
 }
 
 // ------------------------------------------------------------------ 像素换算
@@ -275,53 +461,140 @@ export function deviceToCell(x: number, y: number, view: DeviceView): GridPoint 
 
 // ------------------------------------------------------------------ 内部
 
-function runsAlong(edges: readonly WaterLandEdge[], axis: (edge: WaterLandEdge) => number): WaterLandEdge[][] {
-  const runs: WaterLandEdge[][] = [];
-  let current: WaterLandEdge[] = [];
-  for (const edge of edges) {
-    const previous = current[current.length - 1];
-    if (previous !== undefined && axis(edge) !== axis(previous) + 1) {
-      runs.push(current);
-      current = [];
-    }
-    current.push(edge);
+function pickConfig(configs: readonly ShoreNumbers[], edge: WaterLandEdge): ShoreNumbers | null {
+  if (edge.terrain === undefined) {
+    if (configs.length === 1) return configs[0]!;
+    throw new Error(`shore-band: 边 (${edge.land.x},${edge.land.y}) 缺 terrain，无法在 ${configs.length} 组岸型里选取`);
   }
-  if (current.length > 0) runs.push(current);
-  return runs;
+  return configs.find((config) => config.land.includes(edge.terrain!)) ?? null;
 }
 
-function makeRect(run: readonly WaterLandEdge[], side: ShoreSide, numbers: ShoreNumbers): ShoreRect {
-  const first = run[0]!;
-  const last = run[run.length - 1]!;
-  const lengthPx = run.length * TILE_PX;
-  const { insetPx, depthPx } = numbers;
-  const north = first.land.y * TILE_PX;
-  const west = first.land.x * TILE_PX;
+/**
+ * 把 [a,b) 按格窗 [k×16,(k+1)×16) 切开，发到第 k 格。
+ * `a`/`b` 是从水边起算的法向坐标，k=0 是岸线源格自己。
+ */
+function splitByCell(
+  edge: WaterLandEdge,
+  step: number,
+  token: WorldColor,
+  a: number,
+  b: number,
+): Omit<Portion, 'config'>[] {
+  const portions: Omit<Portion, 'config'>[] = [];
+  const first = Math.floor(a / TILE_PX);
+  const last = Math.floor((b - 1) / TILE_PX);
+  for (let k = first; k <= last; k += 1) {
+    const start = Math.max(a, k * TILE_PX);
+    const end = Math.min(b, (k + 1) * TILE_PX);
+    if (end <= start) continue;
+    const cell = cellAlong(edge, k);
+    const rect = rectOf(edge, start, end);
+    portions.push({ cell, side: edge.side, step, token, rect });
+  }
+  return portions;
+}
+
+function cellAlong(edge: WaterLandEdge, k: number): GridPoint {
+  const { land, side } = edge;
+  if (side === 'north') return { x: land.x, y: land.y + k };
+  if (side === 'south') return { x: land.x, y: land.y - k };
+  if (side === 'east') return { x: land.x - k, y: land.y };
+  return { x: land.x + k, y: land.y };
+}
+
+function rectOf(edge: WaterLandEdge, start: number, end: number): { x: number; y: number; w: number; h: number } {
+  const { land, side } = edge;
+  const span = end - start;
+  const baseX = land.x * TILE_PX;
+  const baseY = land.y * TILE_PX;
   if (side === 'north') {
-    return { cell: { ...first.land }, side, lengthPx, rect: { x: west, y: north + insetPx, w: lengthPx, h: depthPx } };
+    return { x: baseX, y: baseY + start, w: TILE_PX, h: span };
   }
   if (side === 'south') {
-    return {
-      cell: { ...first.land },
-      side,
-      lengthPx,
-      rect: { x: west, y: last.land.y * TILE_PX + TILE_PX - insetPx - depthPx, w: lengthPx, h: depthPx },
-    };
+    return { x: baseX, y: baseY + TILE_PX - end, w: TILE_PX, h: span };
   }
-  if (side === 'west') {
-    return { cell: { ...first.land }, side, lengthPx, rect: { x: west + insetPx, y: north, w: depthPx, h: lengthPx } };
+  if (side === 'east') {
+    return { x: baseX + TILE_PX - end, y: baseY, w: span, h: TILE_PX };
   }
-  return {
-    cell: { ...first.land },
-    side,
-    lengthPx,
-    rect: { x: last.land.x * TILE_PX + TILE_PX - insetPx - depthPx, y: north, w: depthPx, h: lengthPx },
-  };
+  return { x: baseX + start, y: baseY, w: span, h: TILE_PX };
+}
+
+/** 从 subject 里减去 cover，返回剩下的矩形与减掉的面积。 */
+function subtractRect(
+  subject: { x: number; y: number; w: number; h: number },
+  cover: { x: number; y: number; w: number; h: number },
+): { rects: { x: number; y: number; w: number; h: number }[]; removed: number } {
+  const left = Math.max(subject.x, cover.x);
+  const right = Math.min(subject.x + subject.w, cover.x + cover.w);
+  const top = Math.max(subject.y, cover.y);
+  const bottom = Math.min(subject.y + subject.h, cover.y + cover.h);
+  if (left >= right || top >= bottom) return { rects: [subject], removed: 0 };
+  const removed = (right - left) * (bottom - top);
+  const rects: { x: number; y: number; w: number; h: number }[] = [];
+  if (top > subject.y) rects.push({ x: subject.x, y: subject.y, w: subject.w, h: top - subject.y });
+  if (bottom < subject.y + subject.h) rects.push({ x: subject.x, y: bottom, w: subject.w, h: subject.y + subject.h - bottom });
+  if (left > subject.x) rects.push({ x: subject.x, y: top, w: left - subject.x, h: bottom - top });
+  if (right < subject.x + subject.w) rects.push({ x: right, y: top, w: subject.x + subject.w - right, h: bottom - top });
+  return { rects, removed };
+}
+
+function assertConfig(config: ShoreNumbers): void {
+  assertInset(config.insetPx);
+  assertDepth(config.depthPx);
+  assertSteps(config.steps, config.depthPx);
+  assertStagger(config);
+  assertMaxima(config.maxTruncatedPx, config.maxOverlapPx);
+  if (config.insetPx + config.depthPx + config.staggerPx * (config.staggerLevels - 1) > 3 * TILE_PX) {
+    throw new Error(
+      `shore-band: insetPx（${config.insetPx}）+ depthPx（${config.depthPx}）+ staggerPx × (levels−1) 超过 3 格 ${3 * TILE_PX}`,
+    );
+  }
 }
 
 function assertDepth(value: number): void {
-  if (!Number.isInteger(value) || value < 1 || value > TILE_PX) {
-    throw new Error(`shore-band: depthPx 必须是 1..${TILE_PX} 的整数，收到 ${String(value)}`);
+  if (!Number.isInteger(value) || value < 8 || value > 48 || value % 8 !== 0) {
+    throw new Error(`shore-band: depthPx 必须是 8 的整数倍（8..48），收到 ${String(value)}`);
+  }
+}
+
+function assertSteps(steps: readonly ShoreStepNumbers[], depthPx: number): void {
+  if (!Array.isArray(steps) || steps.length < 2 || steps.length > 3) {
+    throw new Error(`shore-band: steps 必须是 2..3 段，收到 ${Array.isArray(steps) ? steps.length : String(steps)}`);
+  }
+  let sum = 0;
+  steps.forEach((step, index) => {
+    if (!Number.isInteger(step.depthPx) || step.depthPx < 8 || step.depthPx % 8 !== 0) {
+      throw new Error(`shore-band: steps[${index}].depthPx 必须是 8 的整数倍，收到 ${String(step.depthPx)}`);
+    }
+    assertToken(step.token);
+    sum += step.depthPx;
+  });
+  if (sum !== depthPx) {
+    throw new Error(`shore-band: steps 的长度和 ${sum} 不等于 depthPx ${depthPx}`);
+  }
+}
+
+function assertStagger(numbers: ShoreNumbers): void {
+  if (numbers.staggerPx !== 4 && numbers.staggerPx !== 8) {
+    throw new Error(`shore-band: staggerPx 只能是 4 或 8，收到 ${String(numbers.staggerPx)}`);
+  }
+  if (!Number.isInteger(numbers.staggerLevels) || numbers.staggerLevels < 2 || numbers.staggerLevels > 4) {
+    throw new Error(`shore-band: staggerLevels 必须是 2..4 的整数，收到 ${String(numbers.staggerLevels)}`);
+  }
+  if (
+    !Number.isInteger(numbers.staggerStep) ||
+    numbers.staggerStep < 0 ||
+    numbers.staggerStep >= numbers.steps.length
+  ) {
+    throw new Error(`shore-band: staggerStep 必须是 0..${numbers.steps.length - 1} 的整数，收到 ${String(numbers.staggerStep)}`);
+  }
+}
+
+function assertMaxima(truncated: number, overlap: number): void {
+  for (const [name, value] of [['maxTruncatedPx', truncated], ['maxOverlapPx', overlap]] as const) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`shore-band: ${name} 必须是 ≥0 的整数，收到 ${String(value)}`);
+    }
   }
 }
 
@@ -334,11 +607,5 @@ function assertInset(value: number): void {
 function assertToken(value: WorldColor): void {
   if ((WORLD as Record<string, unknown>)[value] === undefined) {
     throw new Error(`shore-band: token ${String(value)} 不在 24 色里`);
-  }
-}
-
-function assertAlpha(value: number): void {
-  if (!Number.isFinite(value) || value <= 0 || value > 1) {
-    throw new Error(`shore-band: alpha 必须在 (0, 1]，收到 ${String(value)}`);
   }
 }

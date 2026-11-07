@@ -44,7 +44,7 @@ export function drawTerrain(
      * 岸线带参数。省略就一段都不画——旧设定集与未配置的包画面逐字节不变。
      * 设定集只写选哪套预设，像素几何由 `render/shore-band.ts` 解析。
      */
-    readonly shore?: SettingShore;
+    readonly shore?: readonly SettingShore[];
   },
 ): void {
   // 给了 target 就画进它：烘焙到纹理时用同一个 Graphics，
@@ -793,16 +793,24 @@ function drawShoreBand(
   originY: number,
   g: Phaser.GameObjects.Graphics,
   palette: WorldPalette,
-  shore: SettingShore | undefined,
+  shore: readonly SettingShore[] | undefined,
 ): void {
-  const numbers = resolveShoreConfig(shore);
-  if (numbers === null) return;
+  const configs = resolveShoreConfig(shore);
+  if (configs === null) return;
   const edges = waterLandEdgesFromGrid(grid, (terrain) => terrain === 'shallow');
-  const rects = shoreBandRects(edges, numbers);
-  if (rects.length === 0) return;
-  g.fillStyle(palette[numbers.token], numbers.alpha);
-  for (const entry of rects) {
-    g.fillRect(originX + entry.rect.x, originY + entry.rect.y, entry.rect.w, entry.rect.h);
+  // 跨格落地时「目标格还是不是陆」要问网格：岸带不许画进浅滩，也不许画到图外。
+  const { pieces } = shoreBandRects(edges, configs, (cell) => {
+    if (cell.x < 0 || cell.y < 0 || cell.x >= grid.width || cell.y >= grid.height) return false;
+    return grid.at(cell)?.terrain !== 'shallow';
+  });
+  // 每段是实色平铺（alpha 1）：色阶读数按合成后的出画值算，不在这里再压暗。
+  let token: string | null = null;
+  for (const piece of pieces) {
+    if (piece.token !== token) {
+      token = piece.token;
+      g.fillStyle(palette[piece.token], 1);
+    }
+    g.fillRect(originX + piece.rect.x, originY + piece.rect.y, piece.rect.w, piece.rect.h);
   }
 }
 
