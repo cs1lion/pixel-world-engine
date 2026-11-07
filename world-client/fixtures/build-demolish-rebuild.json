@@ -8,12 +8,14 @@
     "建 → 拆 → 原地重建的完整循环，全部走真实 creatorBuild + demolish 命令",
     "地标阶段 built → demolished → ruined → rebuilt 的演化",
     "拆楼保留痕迹（long 层里的 ruin 记忆），重建后旧痕迹仍在",
-    "造物账：两次落地读数与一次拆除"
+    "造物账：两次落地读数与一次拆除",
+    "6 类新增事件的语义读数：街头问候/搭手的数量与参与者、市面四拍的数量/时段/地点/无参与者、四拍同日顺序"
   ],
   "doesNotCover": [
     "altered（改名）阶段：需要五名持有人讲满三天的传说才够门槛，短夹具构造不出来",
     "长期废墟风化成史诗",
-    "拆除时门坐标的边界场景（本夹具在建筑静止时拆）"
+    "拆除时门坐标的边界场景（本夹具在建筑静止时拆）",
+    "第 4 天在 08:00 后截断：当天的收工/夜市/闭市不在此夹具，顺序只在第 0–3 天核对"
   ],
   "trace": {
     "format": "pwe-trace/2",
@@ -570,6 +572,188 @@
       "path": "proposals[0].source",
       "op": "eq",
       "value": "creatorBuild"
+    },
+    {
+      "note": "街头问候 5 次：建/拆/重建四天半里每天一次；掉数说明配对/站位条件退化",
+      "source": "memory.factsByKind",
+      "path": "street_greet.length",
+      "op": "eq",
+      "value": 5
+    },
+    {
+      "note": "同街搭手 2 次：只出现在第 0、2 天；数目变化说明时段或配对条件被改坏",
+      "source": "memory.factsByKind",
+      "path": "street_together.length",
+      "op": "eq",
+      "value": 2
+    },
+    {
+      "note": "早市开市 5 次：第 0–4 天各 08:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_open.length",
+      "op": "eq",
+      "value": 5
+    },
+    {
+      "note": "收工 4 次：第 0–3 天各 17:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "work_end.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "夜市 4 次：第 0–3 天各 19:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "night_market.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "闭市 4 次：第 0–3 天各 22:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_close.length",
+      "op": "eq",
+      "value": 4
+    },
+    {
+      "note": "早市只落在 08:00（28800000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "market_open.tickOfDay",
+      "op": "eq",
+      "value": [28800000]
+    },
+    {
+      "note": "收工只落在 17:00（61200000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "work_end.tickOfDay",
+      "op": "eq",
+      "value": [61200000]
+    },
+    {
+      "note": "夜市只落在 19:00（68400000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "night_market.tickOfDay",
+      "op": "eq",
+      "value": [68400000]
+    },
+    {
+      "note": "闭市只落在 22:00（79200000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "market_close.tickOfDay",
+      "op": "eq",
+      "value": [79200000]
+    },
+    {
+      "note": "早市落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "market_open.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "收工落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "work_end.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "夜市落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "night_market.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "闭市落在街口 marketSpot（place:56,33）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "market_close.places",
+      "op": "eq",
+      "value": ["place:56,33"]
+    },
+    {
+      "note": "早市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "market_open.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "收工是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "work_end.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "夜市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "night_market.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "闭市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "market_close.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "街头问候的参与者始终是 v0+v1 这一对；换人或掉成单人即红",
+      "source": "memory.kindReadings",
+      "path": "street_greet.actorPairs",
+      "op": "eq",
+      "value": ["v0+v1"]
+    },
+    {
+      "note": "同街搭手的参与者始终是 v0+v1 这一对；换人或掉成单人即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.actorPairs",
+      "op": "eq",
+      "value": ["v0+v1"]
+    },
+    {
+      "note": "每条街头问候都有真实落点（placeId 为空即红）",
+      "source": "memory.kindReadings",
+      "path": "street_greet.emptyPlaces",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "每条同街搭手都有真实落点（placeId 为空即红）",
+      "source": "memory.kindReadings",
+      "path": "street_together.emptyPlaces",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "同街搭手最早不早于 08:00（28800000ms）；跑到清晨即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.tickOfDayMin",
+      "op": "gte",
+      "value": 28800000
+    },
+    {
+      "note": "同街搭手最晚不晚于 18:00 前（64799999ms）；拖到傍晚/夜里即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.tickOfDayMax",
+      "op": "lte",
+      "value": 64799999
+    },
+    {
+      "note": "第 0–3 天市面四拍顺序均为 开市→收工→夜市→闭市；details 非空即红并列出逆序拍点",
+      "source": "memory.beatOrder",
+      "path": "details",
+      "op": "eq",
+      "value": []
+    },
+    {
+      "note": "顺序读数确实核对了 4 个完整日；夹具提前结束会让这条先红",
+      "source": "memory.beatOrder",
+      "path": "checkedDays",
+      "op": "eq",
+      "value": 4
     }
   ]
 }

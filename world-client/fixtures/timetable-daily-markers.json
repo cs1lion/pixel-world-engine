@@ -7,12 +7,15 @@
   "covers": [
     "05:00 收灯日志（世界事件，不是 world.event 事实）",
     "06:00 打水（daily_water）与 18:00 点灯（daily_lamp）作为 memory fact 落账，含 placeId",
+    "市面两拍：08:00 早市（market_open）与 17:00 收工（work_end）的数量/时段/地点/无参与者",
+    "街头问候与搭手：数量、两人一对的参与者、真实落点与白天时段窗",
     "18:05 收尾：只覆盖到点灯后 5 分钟，夜市不在此夹具"
   ],
   "doesNotCover": [
     "跨多日的作息漂移与天气影响",
     "灯油耗尽后的灰化与动作采样放慢（那是渲染层，不进世界指纹）",
-    "收灯日志之外的世界事件（潮汐转向等）不在此夹具断言"
+    "收灯日志之外的世界事件（潮汐转向等）不在此夹具断言",
+    "夜市（19:00 night_market）与闭市（22:00 market_close）：回放只到 18:05，需要一条跑到 22:00 之后的单日夹具才能覆盖"
   ],
   "trace": {
     "format": "pwe-trace/2",
@@ -279,6 +282,132 @@
       "path": "world.facts[22].placeId",
       "op": "eq",
       "value": "place:32,29"
+    },
+    {
+      "note": "街头问候 5 次：这个白天里居民两两碰面五次；掉数说明配对/站位条件退化",
+      "source": "memory.factsByKind",
+      "path": "street_greet.length",
+      "op": "eq",
+      "value": 5
+    },
+    {
+      "note": "同街搭手 2 次：只在白天判定窗内发生；数目变化说明时段或配对条件被改坏",
+      "source": "memory.factsByKind",
+      "path": "street_together.length",
+      "op": "eq",
+      "value": 2
+    },
+    {
+      "note": "早市开市 1 次：这一天 08:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "market_open.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "收工 1 次：这一天 17:00 一拍",
+      "source": "memory.factsByKind",
+      "path": "work_end.length",
+      "op": "eq",
+      "value": 1
+    },
+    {
+      "note": "每条街头问候都是两人一对（参与者人数恒为 2）",
+      "source": "memory.kindReadings",
+      "path": "street_greet.actorCounts",
+      "op": "eq",
+      "value": [2]
+    },
+    {
+      "note": "每条同街搭手都是两人一对（参与者人数恒为 2）",
+      "source": "memory.kindReadings",
+      "path": "street_together.actorCounts",
+      "op": "eq",
+      "value": [2]
+    },
+    {
+      "note": "每条街头问候都有真实落点（placeId 为空即红）",
+      "source": "memory.kindReadings",
+      "path": "street_greet.emptyPlaces",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "每条同街搭手都有真实落点（placeId 为空即红）",
+      "source": "memory.kindReadings",
+      "path": "street_together.emptyPlaces",
+      "op": "eq",
+      "value": 0
+    },
+    {
+      "note": "同街搭手最早不早于 08:00（28800000ms）；跑到清晨即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.tickOfDayMin",
+      "op": "gte",
+      "value": 28800000
+    },
+    {
+      "note": "同街搭手最晚不晚于 18:00 前（64799999ms）；拖到傍晚/夜里即红",
+      "source": "memory.kindReadings",
+      "path": "street_together.tickOfDayMax",
+      "op": "lte",
+      "value": 64799999
+    },
+    {
+      "note": "早市只落在 08:00（28800000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "market_open.tickOfDay",
+      "op": "eq",
+      "value": [28800000]
+    },
+    {
+      "note": "早市落在本夹具的街口 marketSpot（place:40,26）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "market_open.places",
+      "op": "eq",
+      "value": ["place:40,26"]
+    },
+    {
+      "note": "早市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "market_open.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "收工只落在 17:00（61200000ms）这一拍；挪到别的时段即红",
+      "source": "memory.kindReadings",
+      "path": "work_end.tickOfDay",
+      "op": "eq",
+      "value": [61200000]
+    },
+    {
+      "note": "收工落在本夹具的街口 marketSpot（place:40,26）；换地点即红",
+      "source": "memory.kindReadings",
+      "path": "work_end.places",
+      "op": "eq",
+      "value": ["place:40,26"]
+    },
+    {
+      "note": "收工是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
+      "source": "memory.kindReadings",
+      "path": "work_end.actorCounts",
+      "op": "eq",
+      "value": [0]
+    },
+    {
+      "note": "这一天开市早于收工；details 非空即红并列出逆序拍点",
+      "source": "memory.beatOrder",
+      "path": "details",
+      "op": "eq",
+      "value": []
+    },
+    {
+      "note": "顺序读数确实核对了 1 天（当天至少两拍）；窗口提前结束会让这条先红",
+      "source": "memory.beatOrder",
+      "path": "checkedDays",
+      "op": "eq",
+      "value": 1
     }
   ]
 }
