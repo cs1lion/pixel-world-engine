@@ -154,6 +154,16 @@ test('失败分类：测试级超时按断言失败处理', async () => {
   assert.equal(lib.classifyBaseFailure!("failureType: 'testTimeoutFailure'"), 'assertion');
 });
 
+test('失败分类：断言消息里引用 Node 原文时，仍按断言处理', async () => {
+  const lib = await loadClassifier();
+  assert.equal(typeof lib.classifyBaseFailure, 'function');
+  const output = [
+    '✖ 无钩子（环境不支持）→ 判红 (4ms)',
+    "  AssertionError [ERR_ASSERTION]: 模块缺 assertMeasuredReading：Cannot find module '/tmp/x.mjs' imported from /tmp/t.ts",
+  ].join('\n');
+  assert.equal(lib.classifyBaseFailure!(output), 'assertion');
+});
+
 test('诊断：module 红要指到命中的规则、行号与出错文件', async () => {
   const lib = await loadClassifier();
   assert.equal(typeof lib.explainBaseFailure, 'function');

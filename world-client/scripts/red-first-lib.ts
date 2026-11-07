@@ -154,8 +154,11 @@ const MODULE_FAILURE = [
   /ERR_MODULE_NOT_FOUND/,
   /ERR_UNKNOWN_FILE_EXTENSION/,
   /ERR_UNSUPPORTED_ESM_URL_SCHEME/,
-  /Cannot find module/,
-  /Cannot find package/,
+  // 行首锚定：B14 的写法会把 Node 的原文（`Cannot find module …`）留在断言
+  // 消息里，那是「测试先于实现」的合格红，不是基础设施错误。真正的模块错误
+  // 总以 `Error [ERR_MODULE_NOT_FOUND]: …` 或 `Cannot find module …` 起行。
+  /^\s*(?:Error(?: \[[A-Z_]+\])?: )?Cannot find module\b/m,
+  /^\s*(?:Error(?: \[[A-Z_]+\])?: )?Cannot find package\b/m,
   /Failed to resolve import/,
 ];
 
