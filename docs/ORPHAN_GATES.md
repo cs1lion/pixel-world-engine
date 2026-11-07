@@ -79,6 +79,26 @@ npm run audit:orphan-gates
 这是设计预期：清单只记录「还没人跑」的东西，不记录「正在跑」的东西。
 例如某条 `pending-ci` 在另一条分支被接进 workflow：合并那一刻，那条改动给它接上消费方，CI 会先红一次；正确动作是删掉清单条目，而不是放宽判据。这次红是预期，不是故障。
 
+## 待命接线：`fixture:check`（等 J1 合入 main 后再执行）
+
+**现在不要改 `ci.yml`。** J1 分支（`chore/j1-fixture-drift`，`fe460a1`，5/5 PASS）合入 main 之前接上，只会把既有的红带进 CI；合并顺序由 owner 定。下面是合入 main 后的动作，三步必须同一提交。
+
+1. 改 `.github/workflows/ci.yml` 的 `world-client` job（**不是** `world-client-browser`；`scripts/fixture-check.ts` 只读文件与内存重放，不连 preview、不需要浏览器），在 `- run: npm test` 之后加一行（当前是第 32 行之后）：
+
+   ```yaml
+       - run: npm run fixture:check
+   ```
+
+   `world-client` job 已有 `working-directory: world-client`，`npm run fixture:check` 解析为 `node scripts/fixture-check.ts`，不用再写路径。不许加 `continue-on-error`、不许写 `|| true`、不许用 `if: false`——关 2 会把这些接线判成「无有效消费方」。
+2. 同一提交删掉允许清单里的 `npm:world-client#fixture:check` 条目，并把 `pendingCiBudget` 从 19 降到 18。只删条目不减预算不会红，但会悄悄放大余量；只减预算不删条目会红。两件事必须一起。
+3. 自证（贴原始输出，不要只写「通过」）：
+   - `world-client/` 下按 CI 形态跑 `npm run fixture:check`，记录耗时与退出码；期望 fixture 全 PASS、`exit 0`。
+   - `node scripts/audit-orphan-gates.mjs`：期望 `[有消费方] 23`、`[已知孤儿] 27（manual 8 / pending-ci 18 / obsolete 1）`、`[新孤儿（未登记）] 0`、债务 `pending-ci 18 / 预算 18（余量 0）`、`exit 0`。
+   - 反向证据：新加的那行若带 `|| true`，`npm:world-client#fixture:check` 必须被重新判成「无有效消费方」。这条已由 `scripts/orphan-gates-selftest.mjs` 的 `|| true` 用例覆盖，接线时不必再手工改坏一次，但要在提交说明里点名是哪条用例。
+   - `git status --porcelain` 必须为空：fixture 校验只读，不许写脏仓库。
+
+**接不上的情况**：J1 合入后若 `fixture:check` 仍非全 PASS 或仍 `exit` 非 0，停下并回到本节，不要用放宽 `fixture:check` 判据或 `continue-on-error` 换绿。
+
 ## 已知问题（记录，不在本工具里自行处置）
 
 - `test:inprocess` 与 `npm test` 跑同一批用例，只是跑法变体，属于冗余入口。建议直接删除，不要长期留在豁免里。
