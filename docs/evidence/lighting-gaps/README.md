@@ -145,8 +145,9 @@ AO 那一块 4×4 压在**楼左侧地面**，不在墙面：本设定集各 pre
 
 - 证据产出于 **2026-11-07 16:07–16:09（本地）**，工作树 = `HEAD d01eaa3` + 本轮未提交改动
   （α 0.15、`?contactAO=0`、G2 全相位、G3 多样本、本次 README）。
-- 本 README 与代码在**同一个提交**入库；该提交的完整 sha 用
-  `git log -1 --format=%H -- docs/evidence/lighting-gaps/README.md` 取（README 无法自指自身 sha）。
+- 本 README 与代码在**同一个提交**入库；该提交（代码 + 证据）的完整 sha：
+  `f5d63167535608340bc0c19fc49c46c7378aab7b`（`fix(lighting): 接触暗部 α 定到 0.15 …`）。
+  本段 sha 回填是紧随其后的 `docs(lighting)` 小提交，不改动代码与产物。
 - 未 push；未碰 `eval/screens`；未碰他人工作树。
 
 ### R6 时间（产物 ≤ 报告）
