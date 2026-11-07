@@ -257,7 +257,7 @@
 - **提案方向**：默认输出改到 `world-client/tmp/`（`tmp/` 已在 ignore 内），由 `EVAL_OUT` 覆盖；setting 的三张基线仍留在 `eval/screens`（它们是比对底片）。
 - **代价**：需同步更新 `03-ACTOR-PIN.md` 等文档里的路径描述，属一次性迁移；同时改两个脚本的默认常量。
 - **本轮 [事实]**：**不改默认，只登记**；只给 `actor-pin/`、`actor-pin-pairs/` 加了**精确** ignore（见根 `.gitignore`），未加任何 `eval/screens/` 宽规则，169 个已跟踪基线不受影响。
-- **2026-11-06 已落地 [事实]**：按用户裁决统一写入口——所有出图 gate 默认写未跟踪的 world-client/tmp/screens/<脚本名>/；写回 `eval/screens` 基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`；目标目录命中已跟踪文件又无授权时直接拒绝退出，并打印会被覆盖的文件清单与两条放行命令。判断集中在 [shot-output.mjs](file:///D:/project/pwe-docs-fix/world-client/scripts/lib/shot-output.mjs)，已接入 A 档 12 条（含 `check-creation`、`check-dengchao` 两条原本无出口的）、B 档 5 条，以及 `check-shot-actor-pin` / `check-rain-pin` / `accept-live`；`lamp-band-before*` 三件仍从 `eval/screens/` 只读复用，不随输出目录漂走。
+- **2026-11-06 已落地 [事实]**：按用户裁决统一写入口——所有出图 gate 默认写未跟踪的 world-client/tmp/screens/<脚本名>/；写回 `eval/screens` 基线须显式 `--write-baseline` 或 `EVAL_OUT=eval/screens`；目标目录命中已跟踪文件又无授权时直接拒绝退出，并打印会被覆盖的文件清单与两条放行命令。判断集中在 [shot-output.mjs](file:///D:/project/pwe-docs-fix/world-client/scripts/lib/shot-output.mjs)，已接入 A 档 12 条（含 `check-creation`、`check-dengchao` 两条原本无出口的）、B 档 5 条，以及 `check-shot-actor-pin` / `check-rain-pin` / `accept-live`；`lamp-band-before*` 三件仍保留在 `eval/screens/`（E7 复核：代码有读分支，但该 JSON 缺 `params`，当前实测不读），不随输出目录漂走。
 - **建议时机**：下一次动抓拍夹具或 setting 闸门时。
 - **是否需要用户决策**：**否**（默认已迁移；旧路径兼容性由显式 `EVAL_OUT` 承担）。
 
@@ -298,10 +298,34 @@
 - **建议时机**：下一次动 night-rain 判据或天气呈现时。
 - **是否需要用户决策**：**是**（A 补钉 vs B 降级为结构度量）。
 
+### E7. `eval/screens` 的 157 张 PNG 基线没有 CI 消费方（已结案：选 B，2026-11-07）
+
+- **现状 [事实]**：`world-client/eval/screens` 跟踪 **169 件 = 157 PNG + 3 HTML + 9 JSON**（HEAD `bfe4487`）。
+  "157" 只是 PNG 数，不是全部跟踪件；12 件 sidecar 一直没进过任何计数。
+- **读取方 [实测]**：CI 六条闸门都不读这批图，但不是零读取方：
+  `check-lamp-blindspot.mjs:25-27` 实际读 `lamp-band-after.json` 与 `-lit/-dark`（:34-36 缺件即抛错）；
+  `check-lamp-band.mjs:365-377` 有 before 三件的读分支，但 `lamp-band-before.json` 缺 `params`，
+  2026-11-07 在 5251 实跑 `sameProtocol=false`、输出无 before/after 差，三件被静默跳过。
+- **分类 [实测]**：① 闸门读取 **3** 件；② 文档/证据引用 **163** 件；③ 零消费零引用 **3** 件
+  （ground-shadow-closed-t.png、scene-motion-dark-t.png、scene-motion-dark-t1.png）。
+  逐件证据（脚本行号 / 文档行号）与全量表见 `docs/evidence/E7_SCREENS_CONSUMPTION.md`。
+- **选项**：A 接进 CI（先钉住重跑不稳的图，再让 `check-*` 把 `eval/screens` 当逐字节基线）；
+  B 降级为人工视觉参考（不接闸门，保留 44px 裁切与 7.8–8.9% 材质漂移标注）；
+  C 整批删除（承认这批图无法判断 FSM 变化）。
+- **本轮 [事实]**：选 **B**。A 前置不成立：144 张可生产图里 108 张尺寸不同、23 张同尺寸但同构建重跑即变
+  （`docs/evidence/ANIMATION_BASELINE_VERDICT.md` §2.1）；C 会打断 163 件证据引用并删掉 3 件实测读取件。
+  已删除 ③ 的 3 件，删除提交说明含"删了什么 / 凭什么判定 / 如何复核"；**不新增闸门**。
+- **复核 [实测，2026-11-07]**：删除后 `check-lamp-blindspot` / `check-lamp-band` / `check-scene-motion` /
+  `check-ground-shadow` 全绿；`npm test` 唯一红是工作树目录名导致的 `audit-citations` 既有引用
+  （主树同测试 5/5 绿），与删除的 3 件无关。现计数 **166 件 = 154 PNG + 3 HTML + 9 JSON**。
+- **建议时机**：下一次要把某组证据转成回归时。届时唯一现成读取入口是 `check-lamp-blindspot`（after 组）；
+  其余组要改各自 `check-*` 的读取逻辑，属"新建闸门语义"，不在本条范围。
+- **是否需要用户决策**：**否**（本轮已按证据裁决 B 并执行；要改 A/C 再单独裁决）。
+
 ### E8. `memory-witnessed-corroboration` 测试直接改写已跟踪证据文件（已修，2026-11-07）
 
-> 编号说明：E7 是另一线登记的「157 张基线没有消费方」（A/B/C 三选项，在 `fix/entry-hint-clip`
-> 分支，未合入）。本条原被误记为 E7，两个不同问题共号；按先入者保留 E7、后入者改为 **E8**。
+> 编号说明：E7（`eval/screens` 基线消费审计）原在 `fix/entry-hint-clip` 分支登记、未合入；
+> 本条分支已完成审计并结案（见上），**E8 编号保持不变**。
 
 - **现状 [事实]**（2026-11-07 已修）：该测试默认只写 `world-client/tmp/witnessed-corroboration.json`（gitignore），并对已跟踪证据做 EOL 归一化后的内容比对；仅显式 `PWE_WRITE_WITNESSED=1` 才写回 `docs/evidence/soak/`。`verify-all.mjs` 里为此存在的 `PRESERVE` 备份/还原已删除。
 - **复现 [历史]**：2026-11-07 两次 `npm test` 均复现；内容语义未变，但行尾从 CRLF 变 LF，`git status` 立刻多出一条 `M`。
@@ -634,11 +658,11 @@
   - 冻钟后的同一雾帧（tmp/fog-shot.mjs，昏 + 雾 + 灯全开）：改前 `totalCommands 50,989` / Graphics 131 / 顶层 28；改后 **29,821 / 130 / 27**，差值 **恰 −21,168**（雾层全额）。
   - 像素对照（tmp/fog-diff.mjs，480×321）：变化像素 82.9%，**最大通道差 2/255**、平均 0.83、差 >8 的像素 **0**。差异来自纹理块落点用 `round(dx)`、旧写法逐块 `round(cx+dx)`，最多平移 1px；半透明覆盖层上不可见。
   - **对既有基线的冲击（2026-07 审计，tmp/fog-audit-*）[事实]**：
-    - 仓库内**已跟踪基线 169 件** = 157 PNG + 3 HTML + 9 JSON（`git ls-files eval/screens`）。**其中雾态采集 0 件**：`capture-palette` 明确断言 rain/非 rain，`check-lamp-band` / `check-setting-scale` / 四刻 phase 都在晴或雨态，`scene-motion` / `banner-smoke` / `ground-shadow` / `stall-motion` 的世界时间是 18:10（seed `dengchao` 的天气槽 4 = clear）。因此**失效 0 / 完好 169**。
+    - 仓库内**已跟踪基线 169 件** = 157 PNG + 3 HTML + 9 JSON（`git ls-files world-client/eval/screens`）。**其中雾态采集 0 件**：`capture-palette` 明确断言 rain/非 rain，`check-lamp-band` / `check-setting-scale` / 四刻 phase 都在晴或雨态，`scene-motion` / `banner-smoke` / `ground-shadow` / `stall-motion` 的世界时间是 18:10（seed `dengchao` 的天气槽 4 = clear）。因此**失效 0 / 完好 169**（本段为 E7 删除前读数；E7 后为 **166 件 = 154 PNG + 3 HTML + 9 JSON**，见 E7）。
     - 非雾态下雾层在 `shown <= 0.01` 时直接 `setVisible(false)` + `puffs.clear()` 提前返回，**贡献 0 像素**；before/after 在这些状态里的差异全部来自角色走位 / 雨点相位（A/A 对照自己就有 200–4,888 像素、最大通道差 80–192），不是雾层。
-    - 雾态同一冻结帧（tmp/screens/fog/before.png vs `after.png`）：**最大通道差 2/255**、平均 0.829、>8 像素 **0**（见上一行）。这个差在**逐字节断言**下会红，所以雾态若将来进硬基线，必须用容差 2 而不是 sha；当前 169 件里没有雾态，故无冲突。
+    - 雾态同一冻结帧（tmp/screens/fog/before.png vs `after.png`）：**最大通道差 2/255**、平均 0.829、>8 像素 **0**（见上一行）。这个差在**逐字节断言**下会红，所以雾态若将来进硬基线，必须用容差 2 而不是 sha；当前 166 件（E7 前 169）里没有雾态，故无冲突。
     - **5 条回放夹具**（`fixtures/*.json`，`scripts/fixture-check.ts`）全部是**模拟轨迹**，字段只有 `world / events / memory / creator`，`weather` 一律 `clear`，**没有任何渲染字段**；雾层实现不参与它们的计算，改前改后都碰不到。当前实测 **5/5 FAIL**，但差异是 `facts 60→78`、`events 101→95`、`archived 9→0` 这类**模拟/记忆漂移**，与雾烘焙无因果关系（本次改动只动 `src/render/` 与脚本/文档，`git diff --name-only` 无 `src/world/`、`src/sim/`）。这 5 条应由模拟线单独重录基线，不能算在雾改动账上。
-    - **锐利比对实测**：`check-lamp-band`（读 `eval/screens` 的 3 件晴态改前基线）通过；`check-anim-fsm-transition`（逐字节 sha，晴）通过；`check-shot-actor-pin`（雾槽 now=301，逐字节正/负对照）通过。岸带 J3「差异 0 像素」不在本仓库，无法在此树复跑——按「基点比改动还旧」的教训，**不改它的基线**，由岸带线自己用同一容差口径复核。
+    - **锐利比对实测**：`check-lamp-band` 通过（before 三件路径仍在，但该 JSON 缺 `params`，2026-11-07 实测不读，见 E7）；`check-anim-fsm-transition`（逐字节 sha，晴）通过；`check-shot-actor-pin`（雾槽 now=301，逐字节正/负对照）通过。岸带 J3「差异 0 像素」不在本仓库，无法在此树复跑——按「基点比改动还旧」的教训，**不改它的基线**，由岸带线自己用同一容差口径复核。
   - 天花板随之下棘轮：52,125 → **33,400**（修雾后先落 33,741，再把其中的 MAT-G7 泄漏 341 条删掉后自动降到 33,400，见 MAT-G7）；债务 22,125 → **3,400**。
 - **`eval/ledger.json` 分母改峰值 [事实]**：`render.drawCalls.static.p50` 的 `value` 从 27,453（正午开局）改为 **33,357**（合法全局峰值，昏 + 暴风雨 + 灯全开，帧 2336；同一配置三次跑均为 33,357）。**不取 33,741**——那是 MAT-G7 泄漏帧，取它等于把 bug 当基线。`denominator` 写明「8 组合连续采样（含相位/天气切换帧）/ 同一台闸门记录器 / 全域峰值帧 2336」，note 里保留修雾前 52,125 与修雾后含泄漏的 33,741 两段历史。台账分母取开局帧会让以后每张图都比在错误基准上。
 
