@@ -196,6 +196,131 @@ function edgeStats(file, [x0, y0, w, h]) {
   return { maxH, maxV, sharpH, sharpV, atH, atV };
 }
 
+/**
+ * 远带残差：把「≥40 的锐边像素」当掩膜，量它最长的一段连续锐边。
+ *
+ * 为什么是长度而不是个数：一个被糊平的边只会留下零星梯度（水面 dither、量化噪声），
+ * 不会连成一条线；一条**连续 16 world px 以上**的硬边一定来自真实结构。所以判据
+ * 用「最长连续段」：
+ * - ≤ 8 world px：可接受残差，记账；
+ * - 8～16：记账、标「待裁决」，不判红；
+ * - ≥ 16：按 S-9 判关路径。
+ *
+ * 入口是**剥掉 DOM 标签**的那张图（`capture` 里遮掉 overlay 后另拍一张）：地点标签
+ * 是 DOM 叠在 canvas 之上，不是世界层，不该进这个数。
+ */
+function residualStats(file, [x0, y0, w, h], pxPerWorld) {
+  const img = decodePng(readFileSync(file));
+  const mask = new Uint8Array(w * h);
+  let pixels = 0;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      // 区域最后一行/列的邻居是**设计上的 1px 硬边**（隔离行、焦点带起点），
+      // 不能算进残差：那是裁切窗口，不是没糊到的结构。
+      if (x + 1 >= w || y + 1 >= h) continue;
+      const sx = x0 + x;
+      const sy = y0 + y;
+      if (sx < 1 || sy < 1 || sx >= img.width - 1 || sy >= img.height - 1) continue;
+      const i = (sy * img.width + sx) * img.channels;
+      const r = (sy * img.width + sx + 1) * img.channels;
+      const d = ((sy + 1) * img.width + sx) * img.channels;
+      let sharp = false;
+      for (let c = 0; c < Math.min(3, img.channels); c += 1) {
+        if (Math.abs(img.data[i + c] - img.data[r + c]) >= 40) sharp = true;
+        if (Math.abs(img.data[i + c] - img.data[d + c]) >= 40) sharp = true;
+      }
+      if (sharp) {
+        mask[y * w + x] = 1;
+        pixels += 1;
+      }
+    }
+  }
+  let runH = 0;
+  let runV = 0;
+  let atH = null;
+  let atV = null;
+  for (let y = 0; y < h; y += 1) {
+    let run = 0;
+    for (let x = 0; x < w; x += 1) {
+      run = mask[y * w + x] === 1 ? run + 1 : 0;
+      if (run > runH) {
+        runH = run;
+        atH = [x0 + x - run + 1, y0 + y];
+      }
+    }
+  }
+  for (let x = 0; x < w; x += 1) {
+    let run = 0;
+    for (let y = 0; y < h; y += 1) {
+      run = mask[y * w + x] === 1 ? run + 1 : 0;
+      if (run > runV) {
+        runV = run;
+        atV = [x0 + x, y0 + y - run + 1];
+      }
+    }
+  }
+  // 连通块（4 邻接），按像素数倒序，给世界坐标包围盒。
+  const seen = new Uint8Array(w * h);
+  const clusters = [];
+  const stack = [];
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      if (mask[y * w + x] === 0 || seen[y * w + x] === 1) continue;
+      stack.length = 0;
+      stack.push([x, y]);
+      seen[y * w + x] = 1;
+      let n = 0;
+      let minX = x;
+      let maxX = x;
+      let minY = y;
+      let maxY = y;
+      while (stack.length > 0) {
+        const [cx, cy] = stack.pop();
+        n += 1;
+        if (cx < minX) minX = cx;
+        if (cx > maxX) maxX = cx;
+        if (cy < minY) minY = cy;
+        if (cy > maxY) maxY = cy;
+        const next = [
+          [cx - 1, cy],
+          [cx + 1, cy],
+          [cx, cy - 1],
+          [cx, cy + 1],
+        ];
+        for (const [nx, ny] of next) {
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          if (mask[ny * w + nx] === 0 || seen[ny * w + nx] === 1) continue;
+          seen[ny * w + nx] = 1;
+          stack.push([nx, ny]);
+        }
+      }
+      clusters.push({
+        pixels: n,
+        world: [
+          Number(((x0 + minX) / pxPerWorld).toFixed(1)) + 0,
+          Number(((y0 + minY) / pxPerWorld).toFixed(1)) + 0,
+          Number(((maxX - minX + 1) / pxPerWorld).toFixed(1)),
+          Number(((maxY - minY + 1) / pxPerWorld).toFixed(1)),
+        ],
+      });
+    }
+  }
+  clusters.sort((a, b) => b.pixels - a.pixels);
+  return {
+    pixels,
+    longestRun: {
+      screenH: runH,
+      screenV: runV,
+      worldH: Number((runH / pxPerWorld).toFixed(1)),
+      worldV: Number((runV / pxPerWorld).toFixed(1)),
+      atH,
+      atV,
+    },
+    clusters: clusters.slice(0, 6),
+    clusterCount: clusters.length,
+  };
+}
+
 async function freeze(page) {
   await page.evaluate((camera) => {
     const oracle = window.Oracle;
@@ -262,6 +387,29 @@ async function capture(entry, frame) {
   const file = join(OUT, entry.dofOn ? 'on.png' : 'off.png');
   writeFileSync(file, shot.buffer);
 
+  // 标签是 DOM 叠在 canvas 之上，不是世界层；残差计数必须把它们剥掉再拍一张。
+  // 只遮 overlay 根节点，canvas 内容不动，所以这张图和 on.png 只差标签。
+  let labelFree = null;
+  if (entry.dofOn) {
+    await page.evaluate(() => {
+      const label = document.querySelector('.setting-region-label');
+      const root = label === null ? null : label.parentElement;
+      if (root !== null) {
+        root.setAttribute('data-dof-hidden', '1');
+        root.style.visibility = 'hidden';
+      }
+    });
+    labelFree = join(OUT, 'on-nolabel.png');
+    writeFileSync(labelFree, await page.screenshot({ clip: box }));
+    await page.evaluate(() => {
+      const root = document.querySelector('[data-dof-hidden="1"]');
+      if (root !== null) {
+        root.style.visibility = '';
+        root.removeAttribute('data-dof-hidden');
+      }
+    });
+  }
+
   const readings = await page.evaluate(() => ({
     camera: window.Oracle.camera(),
     stats: window.Oracle.renderStats(),
@@ -270,7 +418,7 @@ async function capture(entry, frame) {
   }));
   await page.close();
   if (errors.length > 0) throw new Error(`页面异常：${errors.join('; ')}`);
-  return { file, box, readings, hash: shot.hash };
+  return { file, box, readings, hash: shot.hash, labelFree };
 }
 
 async function main() {
@@ -327,6 +475,8 @@ async function main() {
       off: edgeStats(shotOff.file, regions.far),
       on: edgeStats(shotOn.file, regions.far),
     };
+    // 残差只量剥掉 DOM 标签的 on 图；建筑/道具（≥1000）是唯一来源。
+    const residual = residualStats(shotOn.labelFree, regions.far, pxPerWorld);
 
     const failures = [];
     if (diff.focus.exactDiffPct !== 0) failures.push(`C1 焦点带变了 ${diff.focus.exactDiffPct}%`);
@@ -350,6 +500,17 @@ async function main() {
       if (!(after < 20)) failures.push(`C7 ${name} 在糊带内仍有锐边（最大梯度 ${after}，应 <20）`);
     }
 
+    // C8：远带残差（剥掉 DOM 标签后）的最长连续锐边。≤8 world px 记账、
+    // 8～16 标待裁决、≥16 按 S-9 判关路径。
+    const longest = Math.max(residual.longestRun.worldH, residual.longestRun.worldV);
+    if (longest >= 16) {
+      failures.push(`C8 远带出现 ${longest} world px 的连续锐边（≥16，按 S-9 关路径）`);
+    } else if (longest > 8) {
+      console.log(`C8 待裁决：最长连续锐边 ${longest} world px（>8 且 <16）`);
+    } else {
+      console.log(`C8 可接受残差：最长连续锐边 ${longest} world px（≤8）`);
+    }
+
     const report = {
       base: BASE,
       world: WORLD,
@@ -359,12 +520,13 @@ async function main() {
       diff,
       edges,
       band,
+      residual,
       structure: {
         off: { images: sOff.images, drawCalls: sOff.drawCalls, totalCommands: sOff.totalCommands },
         on: { images: sOn.images, drawCalls: sOn.drawCalls, totalCommands: sOn.totalCommands },
       },
       dof: shotOn.readings.dof,
-      files: { off: shotOff.file, on: shotOn.file },
+      files: { off: shotOff.file, on: shotOn.file, onNoLabel: shotOn.labelFree },
     };
     writeFileSync(join(OUT, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log(JSON.stringify(report, null, 2));
