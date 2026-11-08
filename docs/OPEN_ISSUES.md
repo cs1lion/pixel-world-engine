@@ -1045,6 +1045,12 @@
    - **终局核对**：全仓 `E` 编号唯一、无同号不同事；生成最终登记表（号 → 标题 → 归属分支 → 合入提交）。预期占用：E9（main）、E10/E11（chore）、E12（帧相位）、E13（PNG 覆盖，本 fix 分支）、E14（chore 旧 E9，按 M3 顺延）。
    - **分支上的编号只是临时占位**：`fix/silent-readings` 本轮占用 E13，可能与帧相位线（E12）与 chore（E10/E11/E14）在合并时相邻；以主树定稿为准。
 
+## L. 命名冲突：`RoutineId` 的 `garden` 指农田（2026-11-08 登记，未改）
+
+- **现象 [事实]**：`world-client/src/world/routines.ts` 的 `RoutineId` 里已有一个 `'garden'`，它的 label 是「去看了一眼农田」，目标是 `altar.x - 8, altar.y + 4`（`routineBeats` 里按世界坐标硬编码）。设定集里的「庭院 / 花径 / 桥头前庭」才是这一轮想用 `garden` 指的东西：同一个词，两个意思。
+- **处置 [判据]**：不现在改。场所种类改用 `courtyard`，避开这处既有词；本轮不做 `SiteKind` 改名（纯改名在 `red-first` 闸门下无法给出「断言红」，见本轮回滚 `acfae31`）。
+- **下一步**：`RoutineId.garden` 是否改成 `farm` 需单独评估——该值可能已进存档（`world-client/src/world/save.ts` 的作息字段）、也可能进世界事件与回放夹具（`routine_done` 的读数列）。单开一笔，先枚举它的消费面，再决定改名与迁移；不要顺手改。
+
 **本次 push 路径记录（不是未闭合项）**：推送 `c52745d` 时 `.githooks/pre-push` 按设计拦下 main 直推；改用钩子头注释写明的豁免 `PWE_ALLOW_PUSH_MAIN=1`（未用 `--no-verify`），结果 `f1dfa00..c52745d main -> main`。豁免是逐次显式动作、每次推送仍需单独授权，**main 直推不是常态、也不是被默认允许的路径**。该豁免在 2026-11-07 已改为**只跳过 main 保护**，大文件检查（默认 5 MB）在豁免路径下照跑，`npm run check:hooks` 的五条反向用例覆盖这两种路径（见 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` §风险：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L596-L599)）。
 
 
