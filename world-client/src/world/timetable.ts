@@ -46,8 +46,26 @@ export type MarketPhase = 'closed' | 'open' | 'night';
 /** 场所身份：复用 `placeId` 的内容表 key，不做闭集枚举。 */
 export type SiteId = string;
 
-/** 场所种类：只收真实内容，空词表不预支。 */
-export type SiteKind = 'market' | 'park';
+/**
+ * 场所种类的运行时闭集：`SiteKind` 由它派生，装载期也由它校验。
+ *
+ * 只收真实内容。设定集只有庭院 / 花径 / 桥头前庭，没有城市公园；`park`
+ * 从未有消费方，这里直接不收。空词表不预支。
+ */
+export const SITE_KINDS = ['market', 'courtyard'] as const;
+
+/** 场所种类：闭集的元素类型，不另写一遍字面量。 */
+export type SiteKind = (typeof SITE_KINDS)[number];
+
+const SITE_KIND_SET: ReadonlySet<string> = new Set(SITE_KINDS);
+
+/** 闭集之外的 kind 直接 throw，与 `siteStateAt` 未知 id 同一条口径。 */
+function requireSiteKind(kind: string, where: string): SiteKind {
+  if (!SITE_KIND_SET.has(kind)) {
+    throw new Error(`${where} 的 kind ${kind} 不在 SITE_KINDS 里`);
+  }
+  return kind as SiteKind;
+}
 
 /** 一条营业时段。左闭右开，分钟口径与世界日一致；`closed` 由「不命中任何带」派生。 */
 export interface SiteBand {
@@ -153,8 +171,8 @@ const MARKET_CLOSE_MINUTE = beatMinute('market_close');
  * 这一刀唯一的场所：街口摊位。
  *
  * 四个时刻全部引用上面从 `TIMETABLE` 派生的常量，**不在这里另写一遍**；
- * 时刻表仍是单一事实源。公园的时段是内容决定，设定集还没给，不在这里
- * 编一个数字——「只换数据」由测试内的 `SiteDef` fixture 证明。
+ * 时刻表仍是单一事实源。庭院 / 花径 / 桥头前庭的开放时段是内容决定，
+ * 设定集还没给，不在这里编一个数字——「只换数据」由测试内的 `SiteDef` fixture 证明。
  */
 export const SITE_TABLE: readonly SiteDef[] = [
   {
@@ -168,6 +186,9 @@ export const SITE_TABLE: readonly SiteDef[] = [
 ];
 
 const SITE_BY_ID = new Map<SiteId, SiteDef>(SITE_TABLE.map((site) => [site.id, site]));
+
+// 装载期校验：表里出现闭集之外的 kind 就在这里 throw，不许等到渲染时才露馅。
+for (const site of SITE_TABLE) requireSiteKind(site.kind, `SITE_TABLE/${site.id}`);
 
 /**
  * 21:00–05:00：该回锚点了。
@@ -198,9 +219,11 @@ export function isDawnAt(worldNow: number): boolean {
  * 这是「场所的状态 = 世界时刻的纯函数」的形态：输入只有 `SiteDef` 与
  * 世界时刻，不看帧号、不看调用次数，所以同一世界时刻必得同一状态，读档
  * 续跑不会分叉，也不需要往存档里加「今天开没开」的字段。`kind` 不参与
- * 相位判断——公园与集市共用这一条循环，只换 `bands` 数据。
+ * 相位判断——庭院与集市共用这一条循环，只换 `bands` 数据；但闭集之外的
+ * kind 在这里 throw，不当成「今天关着」。
  */
 export function sitePhaseOf(site: SiteDef, worldNow: number): MarketPhase {
+  requireSiteKind(site.kind, `场所 ${site.id}`);
   const minute = minuteOfDay(worldNow);
   for (const band of site.bands) {
     if (minute >= band.fromMinute && minute < band.toMinute) return band.phase;
