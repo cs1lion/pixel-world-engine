@@ -297,9 +297,9 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 兜底 `nearestWalkable(goal, accept)`：`grid.ts:487-503`，只按曼哈顿距离扫全图，**完全不看层、也不看能不能从起点到达**。
 - 上层门面：`reaches()` `setup.ts:583-591`（`goal = isWalkable(to) ? to : nearestWalkable(to)`），
   `doorReaches()` `setup.ts:601-602`，`paveFrom()` `setup.ts:612-620`。
-- 生产调用点：`world-client/src/settings/load.ts:649`（门）、`:682`（村民巡游点），
+- 生产调用点：`world-client/src/settings/load.ts:664`（门）、`:697`（村民巡游点），
   `world-client/src/world/simulation.ts:2929`、`:3364`、`:4857`（目标改写/回家/默认点），
-  `world-client/src/world/routines.ts:54-61`（园子、长廊、摊位、河边四个点）。
+  `world-client/src/world/routines.ts:72-79`（园子、长廊、摊位、河边四个点）。
 
 ### 4.2 具体判断：哪些测试会失效、为什么
 
@@ -371,8 +371,8 @@ reaches(grid, from, to)
   两边都只调门面。
 - 建筑落位：`place()` 时检查 footprint 的层必须一致（或显式先铺平台），
   门口格必须能从祭坛到达；否则抛 `WorldSetupError`。门开在悬崖底、楼在崖顶这类图直接拒绝落地。
-- 出生点/巡游点：巡游点今天查 `reaches`（`world-client/src/settings/load.ts:646`），会自动走新判据；
-  **出生点今天只查 `isWalkable`**（同文件 `:624`），抬层后这不够——必须补
+- 出生点/巡游点：巡游点今天查 `reaches`（`world-client/src/settings/load.ts:697`），会自动走新判据；
+  **出生点今天只查 `isWalkable`**（同文件 `:675`），抬层后这不够——必须补
   `reaches(grid, anchor, spawn)`，否则“站在封闭台地上但可走”会被当成合法出生点。
 
 ### 4.4 水、潮与层的关系（不许再长第三个高度）
