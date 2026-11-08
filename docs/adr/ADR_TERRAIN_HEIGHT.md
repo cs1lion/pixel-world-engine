@@ -149,7 +149,10 @@ export interface GridSpec {
 5. 编译 `ramps` / `ladders` 成每个端点上的 `climb`：
    `{ kind: 'ramp' | 'stairs' | 'ladder', to: GridPoint }`；两端必须互指，否则构造时抛
    `WorldSetupError`（不静默取一侧）。
-6. `walkable` 由地形与层推导一次：`water` 恒 false；树篱恒 false；其余保持今天的行为。
+6. `walkable` 由地形与层推导一次：`water` 恒 false；**树（含树篱）今天恒 true（代价 2.5，不是阻挡物）**；其余保持今天的行为。
+   **（2026-11-08 事实更正）** 此条原写「树篱恒 false」，与代码不符：`WALK_COST.tree = 2.5`、
+   `isWalkable` 对 `tree` 为真。因此在潮位 0.31–0.42 的窗口里，树（`TERRAIN_WATER_CLEARANCE` 0.42）
+   比被淹草地（0.30，代价 3.40）便宜，树篱会被当成抄近路的干通道（详见 `OPEN_ISSUES.md` O1）。
 
 **为什么不做区域多边形**：分区矩形今天用于建造许可与群落叙事（`grid.ts:158-168`、`biomes.ts`）；
 高度是逐格的几何，且悬崖的“边”必须落在格边界上。用多边形表达会引入“多边形重叠时谁赢”的优先级，
@@ -368,8 +371,8 @@ reaches(grid, from, to)
   两边都只调门面。
 - 建筑落位：`place()` 时检查 footprint 的层必须一致（或显式先铺平台），
   门口格必须能从祭坛到达；否则抛 `WorldSetupError`。门开在悬崖底、楼在崖顶这类图直接拒绝落地。
-- 出生点/巡游点：巡游点今天查 `reaches`（`world-client/src/settings/load.ts:503`），会自动走新判据；
-  **出生点今天只查 `isWalkable`**（同文件 `:482`），抬层后这不够——必须补
+- 出生点/巡游点：巡游点今天查 `reaches`（`world-client/src/settings/load.ts:646`），会自动走新判据；
+  **出生点今天只查 `isWalkable`**（同文件 `:624`），抬层后这不够——必须补
   `reaches(grid, anchor, spawn)`，否则“站在封闭台地上但可走”会被当成合法出生点。
 
 ### 4.4 水、潮与层的关系（不许再长第三个高度）

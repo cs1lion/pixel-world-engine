@@ -12,7 +12,7 @@
  * 一条记账逻辑都没有改。
  */
 
-import { selectSetting, worldForSetting, routineProfiles } from '../settings/index.ts';
+import { selectSetting, worldForSetting, routineProfiles, siteTargetResolver } from '../settings/index.ts';
 import type { SettingPack } from '../settings/types.ts';
 import type { BuiltWorld } from '../world/setup.ts';
 import { biomeRingAllows, checkPlacement, placeBlueprint } from '../world/setup.ts';
@@ -195,7 +195,7 @@ export class TraceRuntime {
       ...(this.pack.villagers.length > 0
         ? {
             villagerNames: this.pack.villagers.map((villager) => villager.name),
-            villagerProfiles: routineProfiles(this.pack),
+            villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid)),
           }
         : {}),
       ...(this.pack.regions.length > 0
@@ -640,6 +640,9 @@ export class TraceRuntime {
     const seen = new Set<string>();
     for (const villager of this.pack.villagers) {
       for (const stop of villager.routine) {
+        // 场所落点不登记成地标：它由 `sites` 表解析，不是一格写死的坐标作息点。
+        // 登记进去会凭空多一个 place holder，改掉记忆读数与夹具。
+        if ('site' in stop) continue;
         const key = `${stop.x},${stop.y}`;
         if (seen.has(key)) continue;
         seen.add(key);

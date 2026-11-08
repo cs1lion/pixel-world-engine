@@ -4,7 +4,12 @@ import { WORLD, TERRAIN_COLORS } from '../world/palette-data.ts';
 import { activateWorld, registerWorldPalette } from '../world/theme.ts';
 import { LARGE_ALTAR, LARGE_WORLD_SPEC } from '../world/setup.ts';
 import type { SettingPack } from './types.ts';
-import { loadSettingPack, buildSettingWorld } from './load.ts';
+import {
+  loadSettingPack,
+  buildSettingWorld,
+  resolveStopPoint,
+  siteTargetResolver,
+} from './load.ts';
 import { DENGCHAO_RAW } from './dengchao/pack.ts';
 import { PACE, dwellMsForSetting } from '../world/pace.ts';
 
@@ -38,24 +43,47 @@ export function worldForSetting(pack: SettingPack, buildings?: Parameters<typeof
   return buildSettingWorld(pack, buildings);
 }
 
-export function routineProfiles(pack: SettingPack) {
+export { siteTargetResolver };
+
+/** 场所落点 → 这条作息自己的 id。表里没有的场所走通用 `promenade`。 */
+const SITE_ROUTINE_IDS: Readonly<Record<string, 'courtyard'>> = { courtyard: 'courtyard' };
+
+export function routineProfiles(
+  pack: SettingPack,
+  resolveSite: (site: string) => { x: number; y: number } = siteTargetResolver(pack),
+) {
+  // 场所 id → 种类。门控只认种类（时刻表以 kind 为 id）；落点靠 id 区分，
+  // 所以同一处花径可以有两个站位锚，门却只有一扇。
+  const kindOf = new Map((pack.sites ?? []).map((site) => [site.id, site.kind]));
   return pack.villagers.map((villager) => ({
     at: villager.at,
     // 开局带什么凭证，装载时已经从 style.lamp 算好（`load.ts`）。
     // 这里原样递下去，不再问一遍 style——那会变成第二个事实。
     carries: villager.carries,
-    routine: villager.routine.map((stop, index) => ({
-      id: index === 0 ? 'altar' as const : 'promenade' as const,
-      label: stop.label,
-      // 设定集的落点只有坐标，没有目的地的名字，所以默认那句是「赶路」——
-      // 与 `villager-words.ts` 里 `toWork` 挑不到铺子时的说法同一句。想说
-      // 「去浅滩」的设定集自己在 `going` 里写，写了就说它写的。
-      going: stop.going ?? '赶路',
-      target: { x: stop.x, y: stop.y },
-      // 设定集给的是相对长短（4600–6500 的旧毫秒值），世界负责把它折进
-      // 20–40 世界分钟的节奏（见 `pace.ts`）。省略就是默认停留。
-      dwellMs: stop.dwellMs === undefined ? PACE.dwellDefaultMs : dwellMsForSetting(stop.dwellMs),
-      ...(stop.tide === undefined ? {} : { tide: stop.tide }),
-    })),
+    routine: villager.routine.map((stop, index) => {
+      const kind = 'site' in stop ? kindOf.get(stop.site) : undefined;
+      return {
+        // 场所落点带自己的 id（现在只有花径）；坐标落点沿用原来的两项。
+        id: index === 0
+          ? 'altar' as const
+          : (kind === undefined
+              ? 'promenade' as const
+              : (SITE_ROUTINE_IDS[kind] ?? 'promenade' as const)),
+        label: stop.label,
+        // 设定集的落点只有坐标，没有目的地的名字，所以默认那句是「赶路」——
+        // 与 `villager-words.ts` 里 `toWork` 挑不到铺子时的说法同一句。想说
+        // 「去浅滩」的设定集自己在 `going` 里写，写了就说它写的。
+        going: stop.going ?? '赶路',
+        // 给场所的落点在这里解析成格：锚 + `nearestWalkable`。解析不到就 throw，
+        // 不静默落到 (0,0)。
+        target: resolveStopPoint(stop, resolveSite),
+        // 设定集给的是相对长短（4600–6500 的旧毫秒值），世界负责把它折进
+        // 20–40 世界分钟的节奏（见 `pace.ts`）。省略就是默认停留。
+        dwellMs: stop.dwellMs === undefined ? PACE.dwellDefaultMs : dwellMsForSetting(stop.dwellMs),
+        ...(stop.tide === undefined ? {} : { tide: stop.tide }),
+        // 场所开关：关着时这一拍退回锚点，口径与潮汐条件一致。
+        ...(kind === undefined ? {} : { site: kind }),
+      };
+    }),
   }));
 }

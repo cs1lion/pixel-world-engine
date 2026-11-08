@@ -164,15 +164,17 @@ const LAMPS_OUT_MINUTE = beatMinute('lamps_out');
 const WATER_MINUTE = beatMinute('wash_bridge');
 const MARKET_OPEN_MINUTE = beatMinute('market_open');
 const WORK_END_MINUTE = beatMinute('work_end');
+const QUIET_END_MINUTE = beatMinute('quiet_end');
 const NIGHT_MARKET_MINUTE = beatMinute('night_market');
 const MARKET_CLOSE_MINUTE = beatMinute('market_close');
 
 /**
- * 这一刀唯一的场所：街口摊位。
+ * 两个场所：街口摊位，与西侧草地口袋的花径。
  *
- * 四个时刻全部引用上面从 `TIMETABLE` 派生的常量，**不在这里另写一遍**；
- * 时刻表仍是单一事实源。庭院 / 花径 / 桥头前庭的开放时段是内容决定，
- * 设定集还没给，不在这里编一个数字——「只换数据」由测试内的 `SiteDef` fixture 证明。
+ * 时刻全部引用上面从 `TIMETABLE` 派生的常量，**不在这里另写一遍**；时刻表仍是
+ * 单一事实源。花径的开放时段是内容决定（设定集没给数字），这里取「安静段结束」
+ * 到「收工」这一段——两端仍然是时刻表的 `quiet_end` / `work_end`，作息那边
+ * 只读 `siteStateAt` 折出来的 flag，不另写一套时间判断。
  */
 export const SITE_TABLE: readonly SiteDef[] = [
   {
@@ -182,6 +184,12 @@ export const SITE_TABLE: readonly SiteDef[] = [
       { fromMinute: MARKET_OPEN_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' },
       { fromMinute: NIGHT_MARKET_MINUTE, toMinute: MARKET_CLOSE_MINUTE, phase: 'night' },
     ],
+  },
+  {
+    id: 'courtyard',
+    kind: 'courtyard',
+    // 花径 14:00–17:00 开放：安静段结束开门，收工关门。
+    bands: [{ fromMinute: QUIET_END_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' }],
   },
 ];
 

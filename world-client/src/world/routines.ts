@@ -5,11 +5,12 @@
  */
 
 import type { GridPoint, PlacedBuilding } from './types.ts';
-import { hasEnvironment, type EnvironmentFrame } from './environment.ts';
+import { hasEnvironment, type EnvironmentFlag, type EnvironmentFrame } from './environment.ts';
+import type { SiteId } from './timetable.ts';
 import { PACE } from './pace.ts';
 // 场所开关从 EnvironmentFrame 的 flag 读：同一刻只有一份读数，不在这里按相位再算一次。
 
-export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'shelter';
+export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'courtyard' | 'shelter';
 
 export interface RoutineBeat {
   readonly id: RoutineId;
@@ -33,6 +34,13 @@ export interface RoutineBeat {
   readonly target: GridPoint;
   readonly dwellMs: number;
   readonly tide?: 'low' | 'high';
+  /**
+   * 这一拍属于哪个场所。场所关着时退回锚点，与潮汐条件不成立时同一条口径。
+   *
+   * 「开不开」不在作息里判：`environment.ts` 已经从 `siteStateAt` 折成 flag，
+   * 这里只读 flag——同一刻只有一份读数。
+   */
+  readonly site?: SiteId;
 }
 
 /**
@@ -199,7 +207,25 @@ export function routineFor(
   // 世界可以在做不到时说「现在不行」，但不能一边说一边做别的——
   // 那句话是给外面看的唯一凭据，说谎比不去更糟。
   if (!tideBeatApplies(tide, frame)) return fallbackTo(beats, beat);
+  if (!siteBeatApplies(beat.site, frame)) return fallbackTo(beats, beat);
   return beat;
+}
+
+/** 场所 → 环境帧 flag。表里没有的场所当场 throw，不静默当成开着。 */
+const SITE_FLAGS: Readonly<Record<string, EnvironmentFlag>> = { courtyard: 'courtyardOpen' };
+
+/**
+ * 这一拍的场所此刻开着吗。
+ *
+ * 与 `tideBeatApplies` 并列的第二条「现在去得了吗」。两个都只读帧 flag：
+ * 场所的时段在 `SITE_TABLE`，折成 flag 的是 `environment.ts`，这里不按分钟再判。
+ * 场所没登记就 throw——否则新加的场所会悄悄退回锚点，牌子还写着花径。
+ */
+export function siteBeatApplies(site: SiteId | undefined, frame: EnvironmentFrame): boolean {
+  if (site === undefined) return true;
+  const flag = SITE_FLAGS[site];
+  if (flag === undefined) throw new Error(`环境帧里没有场所 ${site} 的开关`);
+  return frame.flags.has(flag);
 }
 
 /**

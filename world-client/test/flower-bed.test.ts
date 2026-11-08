@@ -4,7 +4,7 @@
  * 这一条钉三件事：
  *
  * 1. **闭集**：`flower_bed` 是合法构件，装载期不判「未知构件」；
- * 2. **落地**：包里真的有花圃，而且都在 x3..9 × y19..25 这个灌木带围合的口袋里
+ * 2. **落地**：包里真的有花圃，而且都在 x2..11 × y19..27 这个灌木带围合的口袋里
  *    （跑到口袋外就不是花径，是散在草地上的红点）；
  * 3. **回归**：认不出的 kind 仍然在装载期 throw——闭集是开了一格，不是拆了门。
  *
@@ -24,8 +24,8 @@ type RawPack = { readonly scenery: readonly SceneryItem[] };
 type LoadModule = { readonly loadSettingPack?: (raw: RawPack) => RawPack };
 type PackModule = { readonly DENGCHAO_RAW?: RawPack };
 
-/** 花径口袋外框（含端点）：三边 2 格树篱，中间 3 格宽小径。 */
-const POCKET = { x0: 3, y0: 19, x1: 9, y1: 25 } as const;
+/** 花径口袋外框（含端点）：两侧各 2 格树篱、北侧 2 格树篱，中央 2 格净空。 */
+const POCKET = { x0: 2, y0: 19, x1: 11, y1: 27 } as const;
 
 test('花径：flower_bed 合法、在包里、在口袋格内；未知 kind 仍 throw', async () => {
   const load = (await import('../src/settings/load.ts')) as unknown as LoadModule;
@@ -38,7 +38,7 @@ test('花径：flower_bed 合法、在包里、在口袋格内；未知 kind 仍
 
   const beds = raw.scenery.filter((item) => item.kind === 'flower_bed');
   if (beds.length === 0) assert.fail('花径没有花圃：包里 flower_bed 为 0 件');
-  assert.ok(beds.length >= 4, `花圃太少：${beds.length} 件——两侧各三床才算一条小径`);
+  assert.ok(beds.length >= 4, `花圃太少：${beds.length} 件——两列 2 格宽 × 4 格深才算一处花床`);
 
   for (const bed of beds) {
     const inside = bed.at.x >= POCKET.x0 && bed.at.x <= POCKET.x1

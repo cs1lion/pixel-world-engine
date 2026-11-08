@@ -11,8 +11,9 @@ import {
   VILLAGER_HEADS,
   VILLAGER_OUTFITS,
 } from '../world/villager-look.ts';
-import type { PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
+import type { GridPoint, PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
+import { SITE_KINDS, type SiteKind } from '../world/timetable.ts';
 import type {
   CompiledVillager,
   RawSettingPack,
@@ -20,6 +21,7 @@ import type {
   SettingRoutineStop,
   SettingScenery,
   SettingShore,
+  SettingSite,
   ShoreStyleId,
 } from './types.ts';
 
@@ -256,6 +258,37 @@ function assertRoutineStop(stop: SettingRoutineStop, villagerName: string): void
   }
 }
 
+/** 这个落点是「给场所」还是「给坐标」。 */
+function isSiteStop(stop: SettingRoutineStop): stop is SettingRoutineStop & { readonly site: string } {
+  return 'site' in stop;
+}
+
+/**
+ * 场所锚点表：id 唯一、`kind` 在闭集里、锚在界内。
+ *
+ * 这里只验表本身；「锚能不能解析成可走格」要等网格建好，由
+ * `buildSettingWorld` 与 `siteTargetResolver` 负责。两处都 throw，不静默。
+ */
+function compileSites(
+  sites: RawSettingPack['sites'],
+  inBounds: (p: { x: number; y: number }, label: string) => void,
+): readonly SettingSite[] {
+  if (sites === undefined) return [];
+  const seen = new Set<string>();
+  return sites.map((site) => {
+    if (typeof site.id !== 'string' || site.id.trim() === '') {
+      throw new SettingPackError('场所 id 不能为空');
+    }
+    if (seen.has(site.id)) throw new SettingPackError(`场所 ${site.id} 重复`);
+    seen.add(site.id);
+    if (!SITE_KINDS.includes(site.kind as SiteKind)) {
+      throw new SettingPackError(`场所 ${site.id} 的 kind ${site.kind} 不在闭集里`);
+    }
+    inBounds(site, `场所 ${site.id}`);
+    return { id: site.id, kind: site.kind as SiteKind, x: site.x, y: site.y };
+  });
+}
+
 export function loadSettingPack(raw: RawSettingPack): SettingPack {
   if (!/^[a-z][a-z0-9-]*$/.test(raw.id)) throw new SettingPackError('设定集 id 不合法');
   if (raw.saveKey.length === 0) throw new SettingPackError('存档槽不能为空');
@@ -454,16 +487,24 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       carries: style?.lamp === true ? (['lamp'] as const) : [],
     };
   });
+  const sites = compileSites(raw.sites, inBounds);
+  const siteIds = new Set(sites.map((site) => site.id));
   for (const villager of villagers) {
     inBounds(villager.at, villager.name);
     if (villager.routine.length === 0) throw new SettingPackError(`${villager.name} 没有作息`);
     for (const stop of villager.routine) {
-      inBounds(stop, `${villager.name} 的作息`);
+      if (isSiteStop(stop)) {
+        if (!siteIds.has(stop.site)) {
+          throw new SettingPackError(`${villager.name} 的作息指向未知场所 ${stop.site}`);
+        }
+      } else {
+        inBounds(stop, `${villager.name} 的作息`);
+      }
       assertRoutineStop(stop, villager.name);
     }
   }
   const propReveals = compilePropReveals(raw.propReveals);
-  return { ...raw, palette, terrainColors, shore, blueprints, villagers, propReveals, authored: true };
+  return { ...raw, palette, terrainColors, shore, blueprints, sites, villagers, propReveals, authored: true };
 }
 
 /**
@@ -509,6 +550,37 @@ function parseColor(value: string, name: string): number {
   return Number.parseInt(value.slice(1), 16);
 }
 
+/** 一个落点解析成「人站的那一格」：给坐标原样返回，给场所走 `resolveSite`。 */
+export function resolveStopPoint(
+  stop: SettingRoutineStop,
+  resolveSite: (site: string) => GridPoint,
+): GridPoint {
+  return isSiteStop(stop) ? resolveSite(stop.site) : { x: stop.x, y: stop.y };
+}
+
+/**
+ * 场所 → 格点。
+ *
+ * 给了网格就把锚落到最近的**可走格**（花圃是摆件但树篱是地形，锚不能压在上面）；
+ * 没给网格（只想算作息字句的路径）原样返回锚。两种情况解析不到都 throw——
+ * 静默落到 (0,0) 会让「作息把人送到花径」悄悄变成「送到地图西北角」。
+ */
+export function siteTargetResolver(
+  pack: SettingPack,
+  grid?: { nearestWalkable(p: GridPoint): GridPoint | null },
+): (site: string) => GridPoint {
+  const sites = new Map((pack.sites ?? []).map((site) => [site.id, site]));
+  return (siteId) => {
+    const site = sites.get(siteId);
+    if (site === undefined) throw new SettingPackError(`未知场所 ${siteId}`);
+    const anchor = { x: site.x, y: site.y };
+    if (grid === undefined) return anchor;
+    const point = grid.nearestWalkable(anchor);
+    if (point === null) throw new SettingPackError(`场所 ${siteId} 解析不到可走格`);
+    return point;
+  };
+}
+
 /** 显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则。 */
 export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuilding[]): BuiltWorld {
   const grid = new WorldGrid({ ...pack.grid, terrain: pack.terrain, regions: pack.regions });
@@ -547,6 +619,7 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
     const id = grid.at(p)?.region;
     return id === undefined ? '这片区域' : (names.get(id) ?? id);
   };
+  const resolveSite = siteTargetResolver(pack, grid);
   for (const villager of pack.villagers) {
     if (!grid.isWalkable(villager.at)) throw new SettingPackError(`${villager.name} 出生点不可走`);
     // 生在一道她进不去的门里：她兜里那几件过不了脚下这道门，于是**一步也动不了**
@@ -561,7 +634,8 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
       );
     }
     for (const stop of villager.routine) {
-      if (!grid.isWalkable(stop)) throw new SettingPackError(`${villager.name} 的作息点不可走：${stop.label}`);
+      const point = resolveStopPoint(stop, resolveSite);
+      if (!grid.isWalkable(point)) throw new SettingPackError(`${villager.name} 的作息点不可走：${stop.label}`);
       // 这里的可达性**故意不过渡有仪式的门**：装载时还没有人知道她以后会带上什么，
       // 而门后的作息点完全可以是合法的（等她有了灯就走得到）。
       // 按两手空空判会把这种包误拒；门是运行时的事，不该在装载时夺权。
@@ -569,7 +643,7 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
       // 走 `reaches`，不自己写 `path(...).length === 0`：那个返回值在
       // 「作息点就踩在出生点上」时是空数组，照抄它会拒一份合法的包，
       // 还说「她 到不了 就站在起点上」——那句话是假话。
-      if (!reaches(grid, villager.at, stop)) {
+      if (!reaches(grid, villager.at, point)) {
         throw new SettingPackError(`${villager.name} 到不了 ${stop.label}`);
       }
     }

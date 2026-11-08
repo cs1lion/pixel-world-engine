@@ -1601,7 +1601,7 @@ export class Simulation {
    */
   private miracleSpotProblem(at: GridPoint): string | null {
     if (!this.grid.inBounds(at)) return '那里在世界外面。';
-    // 判「被占」而不是「不能走」：树与树篱不可走但可以放东西，
+    // 判「被占」而不是「不能走」：树（含树篱）可走、也可以在上面放东西，
     // 建筑不可走且不能放。两者的区别在 occupant。
     const cell = this.grid.at(at);
     if (cell === undefined) return '那里在世界外面。';

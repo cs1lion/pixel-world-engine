@@ -1,7 +1,7 @@
 /**
  * 场所开关：某个场所在某段世界时间上开/关。
  *
- * 这一版只有**一个**按时段开闭的场所（街口摊位），所以投影只需要世界时刻一个输入，
+ * 这一版有**两个**按时段开闭的场所（街口摊位与花径），投影只要世界时刻一个输入，
  * 不留 site 维度。它钉三件事：
  *
  * 1. 边界：左闭右开，与 `marketPhaseAt` 同一口径；期望表**从 `TIMETABLE` 派生**，
@@ -231,33 +231,38 @@ test('回放：跨 08:00 / 17:00 / 19:00 的一条轨迹两跑，三层指纹一
   }
 });
 
-test('SITE_TABLE：这一刀只有 market 一条，时段合法且不重叠', () => {
+test('SITE_TABLE：market 与 courtyard 两条，时段合法且不重叠', () => {
   const defs = requireSiteTable();
-  assert.equal(defs.length, 1, 'SITE_TABLE 只放 market；公园时段待设定集给出，不在这里编造');
-  const market = defs[0];
-  assert.equal(market.id, 'market');
+  const ids = defs.map((def) => def.id).sort();
+  assert.deepEqual(ids, ['courtyard', 'market'], 'SITE_TABLE 现在是两条：街口摊位与花径');
+  const market = defs.find((def) => def.id === 'market')!;
+  const courtyard = defs.find((def) => def.id === 'courtyard')!;
   assert.equal(market.kind, 'market');
+  assert.equal(courtyard.kind, 'courtyard', '花径的 kind 必须与 SiteKind 闭集里的 courtyard 同名');
   assert.ok(market.bands.length >= 2, 'market 至少要有早市与夜市两条时段');
+  assert.equal(courtyard.bands.length, 1, '花径只有一条白天时段：安静段结束到收工');
 
-  const ordered = [...market.bands].sort((a, b) => a.fromMinute - b.fromMinute);
-  assert.deepEqual(
-    market.bands.map((band) => band.fromMinute),
-    ordered.map((band) => band.fromMinute),
-    'bands 必须按开始时刻排序',
-  );
-  for (const band of market.bands) {
-    assert.ok(
-      Number.isInteger(band.fromMinute) && Number.isInteger(band.toMinute),
-      '时段边界必须是整分钟',
+  for (const def of defs) {
+    const ordered = [...def.bands].sort((a, b) => a.fromMinute - b.fromMinute);
+    assert.deepEqual(
+      def.bands.map((band) => band.fromMinute),
+      ordered.map((band) => band.fromMinute),
+      `${def.id} 的 bands 必须按开始时刻排序`,
     );
-    assert.ok(band.fromMinute >= 0 && band.toMinute <= 1440, '时段必须落在一天之内');
-    assert.ok(band.fromMinute < band.toMinute, '时段必须非空');
-  }
-  for (let index = 1; index < market.bands.length; index += 1) {
-    assert.ok(
-      market.bands[index - 1].toMinute <= market.bands[index].fromMinute,
-      '时段不许重叠',
-    );
+    for (const band of def.bands) {
+      assert.ok(
+        Number.isInteger(band.fromMinute) && Number.isInteger(band.toMinute),
+        `${def.id} 的时段边界必须是整分钟`,
+      );
+      assert.ok(band.fromMinute >= 0 && band.toMinute <= 1440, `${def.id} 的时段必须落在一天之内`);
+      assert.ok(band.fromMinute < band.toMinute, `${def.id} 的时段必须非空`);
+    }
+    for (let index = 1; index < def.bands.length; index += 1) {
+      assert.ok(
+        def.bands[index - 1]!.toMinute <= def.bands[index]!.fromMinute,
+        `${def.id} 的时段不许重叠`,
+      );
+    }
   }
 
   // 结果证据：四个边界与 TIMETABLE 派生值逐字一致。代码上的单一来源由
@@ -269,6 +274,13 @@ test('SITE_TABLE：这一刀只有 market 一条，时段合法且不重叠', ()
       [NIGHT_FROM, NIGHT_TO],
     ],
     'market 的四个边界必须来自 TIMETABLE，不能在表里另抄一遍',
+  );
+  const quietEnd = TIMETABLE.find((beat) => beat.id === 'quiet_end')!.minuteOfDay;
+  const workEnd = TIMETABLE.find((beat) => beat.id === 'work_end')!.minuteOfDay;
+  assert.deepEqual(
+    courtyard.bands.map((band) => [band.fromMinute, band.toMinute, band.phase]),
+    [[quietEnd, workEnd, 'open']],
+    '花径的开门/关门必须引用 quiet_end / work_end，不能在表里另写 14:00 / 17:00',
   );
 });
 

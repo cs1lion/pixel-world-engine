@@ -251,13 +251,15 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { x: 28, y: 27, w: 9, h: 1, terrain: 'shallow' },
     { x: 28, y: 34, w: 9, h: 12, terrain: 'stone' },
     { x: 39, y: 35, w: 18, h: 8, terrain: 'mud' },
-    // 花径口袋（设定集 p110–111）：外框 x3..9 × y19..25。三边各 2 格树篱，
-    // 中间 3 格宽小径走草地（不铺 plaza：plaza 的潮位清水位与草地不同，
-    // 换成铺装会改掉 `shore-band` 那条冻结的潮位格数 2343）；
-    // 南端 y26..27 留草口接广场（y28 起是 plaza）。
-    { x: 3, y: 19, w: 7, h: 2, terrain: 'tree' },
-    { x: 3, y: 21, w: 2, h: 5, terrain: 'tree' },
-    { x: 8, y: 21, w: 2, h: 5, terrain: 'tree' },
+    // 花径口袋（设定集 p110–111）：外框 x2..11 × y19..27（10 格宽）。
+    // 北侧 2 格树篱、东西各 2 格树篱；内里 x4..9 是草地。
+    // 参考图要求：中央净空 ≥2 格（两个人并排坐得下）、南口 ≥3 格宽。
+    // 小径仍走草地，不铺 plaza——plaza 的潮位清水位与草地不同，换成铺装会改掉
+    // `shore-band` 那条冻结的潮位格数 2343；南端 y27 的 x4..9 是 6 格宽的草口，
+    // 接 y28 起的广场。
+    { x: 2, y: 19, w: 10, h: 2, terrain: 'tree' },
+    { x: 2, y: 21, w: 2, h: 7, terrain: 'tree' },
+    { x: 10, y: 21, w: 2, h: 7, terrain: 'tree' },
   ],
   // 三色槽位（主色/点缀/禁用）逐个照 `docs/SPEC_V2.md` §4.1 那张表抄，
   // 不自己推——那张表是用户 2026-10-25 确认过的。五个都在表里，一格不差。
@@ -332,6 +334,14 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { prefabId: 'soot_forge', at: { x: 37, y: 34 } },
   ],
   hub: { x: 32, y: 29 },
+  // 场所锚点：作息里写 `site` 的落点按这张表解析，不再写死坐标。
+  // 花径中央净空只有 2 格宽（x6..7），两个人要并排站就各占一格——两个站位锚
+  // 同 kind `courtyard`，门控一样，只靠 id 区分落点。运行时由 `nearestWalkable`
+  // 落地，不在每条作息里各写一遍坐标——坐标一挪就得改每一处，迟早漏一条。
+  sites: [
+    { id: 'courtyard', kind: 'courtyard', x: 6, y: 24 },
+    { id: 'courtyard-east', kind: 'courtyard', x: 7, y: 24 },
+  ],
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
   // 它们是**设定集的话**，不是引擎的话——所以写在这儿，不写进 `grime.ts`。
   // 一件摆件落地时按「世界上已经有几件」取一句，于是同一个存档回放出同一句。
@@ -396,6 +406,10 @@ export const DENGCHAO_RAW: RawSettingPack = {
     }, routine: [
       { x: 32, y: 27, label: '点亮楼前的长灯', dwellMs: 5800 },
       { x: 19, y: 29, label: '在迎灯舍前照看来客', dwellMs: 5200 },
+      // 花径（设定集 p110–111）：14:00–17:00 才开。落点不写死坐标，由 `sites`
+      // 表的站位锚 + 地图可走格解析（见 `test/courtyard-routine.test.ts`）。
+      // 放在第三拍（下标 2）：开局的作息指针正好停在这里，14:00 出发、15:30 前后到。
+      { site: 'courtyard', label: '在花径里看一会儿花', going: '去花径', dwellMs: 5200 },
       { x: 39, y: 29, label: '满潮时收起滩边的灯', dwellMs: 4800, tide: 'high' },
       { x: 50, y: 42, label: '趁退潮拾回还能用的灯芯', dwellMs: 6000, tide: 'low' },
     ] },
@@ -430,6 +444,9 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { x: 34, y: 29, label: '在镇心石边沉灯', dwellMs: 6000 },
       { x: 36, y: 29, label: '在镇心石边讲那年的潮', dwellMs: 5200 },
       { x: 27, y: 29, label: '沿街巡一遍还没灭的灯', dwellMs: 5000 },
+      // 两个人各占中央净空一格（x6 与 x7），并排站着；坐姿不在这一刀。
+      // 放在第四拍（下标 3）：她的作息指针起步在 3，14:00 出发、16:20 前后到。
+      { site: 'courtyard-east', label: '在花径里站一会儿', going: '去花径', dwellMs: 5200 },
       { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
     ] },
     { name: '账房先生', at: { x: 34, y: 28 }, style: {
@@ -458,16 +475,15 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { kind: 'track', at: { x: 2, y: 8 }, length: 60 },
     { kind: 'sign', at: { x: 19, y: 15 } },
     { kind: 'statue', at: { x: 26, y: 28 } },
-    // 花径（设定集 p110–111）：小径两侧各三床花圃，庭心一件石作。花圃与石作
-    // 都走 bake（静态纹理，每帧 0 条）——峰值指令净增 0，见 `docs/OPEN_ISSUES.md` N 节。
-    // 降级：没有粉紫（杜鹃 / 绣球做不出来），花墙读作小树丛；木栅 / 石垣 / 瓦顶本轮不做。
-    { kind: 'flower_bed', at: { x: 5, y: 21 } },
-    { kind: 'flower_bed', at: { x: 7, y: 21 } },
-    { kind: 'flower_bed', at: { x: 5, y: 23 } },
-    { kind: 'flower_bed', at: { x: 7, y: 23 } },
-    { kind: 'flower_bed', at: { x: 5, y: 25 } },
-    { kind: 'flower_bed', at: { x: 7, y: 25 } },
-    { kind: 'statue', at: { x: 6, y: 23 } },
+    // 花径（设定集 p110–111）：两列花床，每列 2 格宽 × 4 格深（厚 2 格才读得出
+    // 「花床」而不是一条花边）；中央 x6..7 是净空，两个人能并排站。庭心石作挪到
+    // 西侧 (4,25)，不压在中央净空列上。花圃与石作都走 bake（静态纹理，每帧 0 条）
+    // ——峰值指令净增 0，见 `docs/OPEN_ISSUES.md` N 节。
+    // 降级：没有粉紫（杜鹃 / 绣球做不出来），花墙读作小树丛；木栅 / 石垣 / 瓦顶本轮不做；
+    // **石作不加灯**（+306 条，144 条余量吃穿），夜里这片是全黑的。
+    ...[4, 5].flatMap((x) => [21, 22, 23, 24].map((y) => ({ kind: 'flower_bed' as const, at: { x, y } }))),
+    ...[8, 9].flatMap((x) => [21, 22, 23, 24].map((y) => ({ kind: 'flower_bed' as const, at: { x, y } }))),
+    { kind: 'statue', at: { x: 4, y: 25 } },
     // 碑立在镇心 (32,29) 旁边：世界共识刻在这儿，而不是刻在某栋楼的外墙上。
     // 碑上不写字（中文不进 canvas），字在 `#stele-panel` 里。
     { kind: 'stele', at: { x: 34, y: 28 } },

@@ -60,7 +60,11 @@ test('灯潮界的 27 个作息落点：5 个归楼，22 个归自己', () => {
   }));
   const stops = new Set<string>();
   for (const villager of pack.villagers) {
-    for (const stop of villager.routine) stops.add(`${stop.x},${stop.y}`);
+    for (const stop of villager.routine) {
+      // 场所落点不是写死的坐标作息点：它由 `sites` 表解析，不进这张「坐标 → 楼」表。
+      if ('site' in stop) continue;
+      stops.add(`${stop.x},${stop.y}`);
+    }
   }
   const attributed: string[] = [];
   for (const key of stops) {

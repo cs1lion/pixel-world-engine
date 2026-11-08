@@ -4,13 +4,30 @@ import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import type { VillagerArchive } from '../world/villager-archive.ts';
 import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
+import type { SiteKind } from '../world/timetable.ts';
 
 export interface SettingPlacement {
   readonly prefabId: string;
   readonly at: GridPoint;
 }
 
-export interface SettingRoutineStop extends GridPoint {
+/**
+ * 场所锚点：作息按**场所**解析落点，不再写死坐标。
+ *
+ * `x/y` 不是「人站的那一格」，而是场所的锚——运行时由 `nearestWalkable` 落到
+ * 最近的可走格（`settings/index.ts` 的 `siteTargetResolver`）。锚写进包里而不写进
+ * 作息里，是因为同一处会被多条作息引用：坐标一改就得改每一处，迟早漏一条。
+ */
+export interface SettingSite {
+  readonly id: string;
+  /** 闭集 `SITE_KINDS` 的元素；装载期校验，不在闭集里当场 throw。 */
+  readonly kind: SiteKind;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** 落点里与「去哪」无关的那些字。 */
+export interface SettingRoutineWords {
   readonly label: string;
   /**
    * 赶路时牌子说的那句。省略就说「赶路」。
@@ -24,6 +41,15 @@ export interface SettingRoutineStop extends GridPoint {
   /** low = 只在退潮去；high = 涨潮时改去别处。 */
   readonly tide?: 'low' | 'high';
 }
+
+/**
+ * 作息落点：**要么给坐标，要么给场所 id**，两者只取其一。
+ *
+ * 同时给就是两个事实（场所挪了、坐标没挪），装载期会拒掉。只给 `site` 的落点
+ * 由 `sites` 表解析；解析不到就 throw，不许静默落到 (0,0)。
+ */
+export type SettingRoutineStop = SettingRoutineWords &
+  ({ readonly site: string } | GridPoint);
 
 export interface SettingVillager {
   readonly name: string;
@@ -231,6 +257,8 @@ export interface SettingPack {
   readonly blueprints: ReadonlyMap<string, PrefabBlueprint>;
   readonly placements: readonly SettingPlacement[];
   readonly hub: GridPoint;
+  /** 场所锚点表：作息里的 `site` 落点按这张表解析。省略 = 这本设定集没有场所落点。 */
+  readonly sites?: readonly SettingSite[];
   readonly villagers: readonly CompiledVillager[];
   readonly scenery: readonly SettingScenery[];
   /**
@@ -259,6 +287,8 @@ export interface RawSettingPack {
   readonly grid: GridSpec;
   readonly terrain: SettingPack['terrain'];
   readonly regions: SettingPack['regions'];
+  /** 场所锚点的原文：`kind` 这里还是字符串，装载期才收窄进闭集。 */
+  readonly sites?: readonly { readonly id: string; readonly kind: string; readonly x: number; readonly y: number }[];
   readonly prefabs: Record<string, unknown>;
   readonly placements: readonly SettingPlacement[];
   readonly hub: GridPoint;

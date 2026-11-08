@@ -38,9 +38,9 @@
     },
     "recorded": {
       "inputDigest": "5090a49525a12b915fe55ac255a35ae8608301c2c7050fb8819c4bffcdb35114",
-      "fingerprint": "3d7c6666b95d52a59bbfa515716f9bc26d9eb76ac608c24d001bbf11c35c0c47",
+      "fingerprint": "22fc23da25ade5aac3aaf26e06f4c5f96a8e9eb419e007e2004a2254fd3ea436",
       "eventCount": 16,
-      "eventDigest": "b4f0a50f604868cec6f7ffeebbb0da6b3d4c0de6ca4f9241bd195b8a1327b70b",
+      "eventDigest": "e06e246bbfbb54956d96876bc055017c2e95edbc0fb14d6a66bd46c0b4bc7018",
       "business": {
         "day": 0,
         "now": 64920000,
@@ -66,26 +66,26 @@
         {
           "step": 250,
           "atWorldMs": 47400000,
-          "fingerprint": "cc5fe9d05606ab7bd50a98425b0543e32574845b05beb3aa3fdc6d594664781d",
-          "memoryFingerprint": "39b2fcb8788c6e64bd8e1aa5258c1a88a886308c44f32060d327887a23d07879",
+          "fingerprint": "d038ec87ba9f112697308988d42967da3debc18e757f124197506bde37de980f",
+          "memoryFingerprint": "84ac607f56f5ce0fe0c686b8077407a66668790ee78a2da113a8e613f91350f6",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 396,
           "atWorldMs": 64920000,
-          "fingerprint": "3d7c6666b95d52a59bbfa515716f9bc26d9eb76ac608c24d001bbf11c35c0c47",
-          "memoryFingerprint": "74e3161fb04505dd6b8e249e9f8f9bc040ea64806215f67411cb097685304bec",
+          "fingerprint": "22fc23da25ade5aac3aaf26e06f4c5f96a8e9eb419e007e2004a2254fd3ea436",
+          "memoryFingerprint": "790d65d3f7ab41834a2b4ae5f3e2464c7ce0ccbd33edf27211508f6a66981915",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         }
       ],
       "memory": {
-        "fingerprint": "74e3161fb04505dd6b8e249e9f8f9bc040ea64806215f67411cb097685304bec",
+        "fingerprint": "790d65d3f7ab41834a2b4ae5f3e2464c7ce0ccbd33edf27211508f6a66981915",
         "business": {
           "lastClosedDay": 0,
           "currentDay": 0,
           "holders": 38,
           "facts": 23,
-          "entries": 30,
+          "entries": 34,
           "claims": 18,
           "beliefs": 0,
           "traces": 0,
@@ -100,7 +100,7 @@
           "announcements": 0,
           "written": 0,
           "credibility": 0,
-          "metToday": 143
+          "metToday": 150
         }
       },
       "creator": {
@@ -317,14 +317,18 @@
       "source": "memory.kindReadings",
       "path": "street_greet.actorCounts",
       "op": "eq",
-      "value": [2]
+      "value": [
+        2
+      ]
     },
     {
       "note": "每条同街搭手都是两人一对（参与者人数恒为 2）",
       "source": "memory.kindReadings",
       "path": "street_together.actorCounts",
       "op": "eq",
-      "value": [2]
+      "value": [
+        2
+      ]
     },
     {
       "note": "每条街头问候都有真实落点（placeId 为空即红）",
@@ -359,42 +363,54 @@
       "source": "memory.kindReadings",
       "path": "market_open.tickOfDay",
       "op": "eq",
-      "value": [28800000]
+      "value": [
+        28800000
+      ]
     },
     {
       "note": "早市落在本夹具的街口 marketSpot（place:40,26）；换地点即红",
       "source": "memory.kindReadings",
       "path": "market_open.places",
       "op": "eq",
-      "value": ["place:40,26"]
+      "value": [
+        "place:40,26"
+      ]
     },
     {
       "note": "早市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
       "source": "memory.kindReadings",
       "path": "market_open.actorCounts",
       "op": "eq",
-      "value": [0]
+      "value": [
+        0
+      ]
     },
     {
       "note": "收工只落在 17:00（61200000ms）这一拍；挪到别的时段即红",
       "source": "memory.kindReadings",
       "path": "work_end.tickOfDay",
       "op": "eq",
-      "value": [61200000]
+      "value": [
+        61200000
+      ]
     },
     {
       "note": "收工落在本夹具的街口 marketSpot（place:40,26）；换地点即红",
       "source": "memory.kindReadings",
       "path": "work_end.places",
       "op": "eq",
-      "value": ["place:40,26"]
+      "value": [
+        "place:40,26"
+      ]
     },
     {
       "note": "收工是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
       "source": "memory.kindReadings",
       "path": "work_end.actorCounts",
       "op": "eq",
-      "value": [0]
+      "value": [
+        0
+      ]
     },
     {
       "note": "这一天开市早于收工；details 非空即红并列出逆序拍点",

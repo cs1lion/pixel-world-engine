@@ -266,7 +266,7 @@ import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
 import type { SettingPack } from '../settings/types.ts';
 import { createSettingScenery, type SettingSceneryView } from '../render/setting-scenery.ts';
-import { routineProfiles, selectSetting } from '../settings/index.ts';
+import { routineProfiles, selectSetting, siteTargetResolver } from '../settings/index.ts';
 
 export interface ScenePayload {
   readonly world: BuiltWorld;
@@ -1149,7 +1149,7 @@ export class SandboxScene extends Phaser.Scene {
       stallsAt: this.stallCells,
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
-        villagerProfiles: routineProfiles(this.pack),
+        villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid)),
       } : {}),
       // 地域的叫法。喂模型的世界现状要说「叠浪楼要一盏灯」，不说 `bathhouse`。
       // 没有设定集（莞尔镇）时这道门不存在，给张空表与不给等价。
@@ -2650,6 +2650,10 @@ export class SandboxScene extends Phaser.Scene {
     const seen = new Set<string>();
     for (const villager of this.pack.villagers) {
       for (const stop of villager.routine) {
+        // 场所落点不登记成地标：它由 `sites` 表解析，不是一格写死的坐标作息点。
+        // 登记进去会凭空多一个 place holder，改掉记忆读数与夹具——「把场所
+        // 本身登记成地标」是另一笔。
+        if ('site' in stop) continue;
         const key = `${stop.x},${stop.y}`;
         if (seen.has(key)) continue;
         seen.add(key);

@@ -16,7 +16,7 @@
 import type { Weather } from './types.ts';
 import { DAY_MS } from './memory/config.ts';
 import { TIDE_HIGH_MIN, TIDE_LOW_MAX } from './tide.ts';
-import { isQuietAt, minuteOfDay, siteOpenAt, TIMETABLE, type TimetableId } from './timetable.ts';
+import { isQuietAt, minuteOfDay, siteOpenAt, siteStateAt, TIMETABLE, type TimetableId } from './timetable.ts';
 import { lampStreetLitAt, type LampPhase } from './lamp-street.ts';
 
 /**
@@ -40,6 +40,7 @@ export type EnvironmentFlag =
   | 'workEnded'
   | 'marketOpen'
   | 'nightMarket'
+  | 'courtyardOpen'
   | 'lampsLit'
   | 'lampsOut';
 
@@ -98,6 +99,9 @@ export function environmentAt(
   const marketPhase = siteOpenAt(now);
   if (marketPhase === 'open') flags.add('marketOpen');
   if (marketPhase === 'night') flags.add('nightMarket');
+  // 花径：只有一份读数——「开不开」由 `siteStateAt` 按 SITE_TABLE 的时段算，
+  // 作息那边只问这一帧里的 flag，不按分钟再判一次。
+  if (siteStateAt('courtyard', now) === 'open') flags.add('courtyardOpen');
   if (lighting !== undefined) {
     if (lampStreetLitAt(now, lighting.phase, lighting.autoAdvancing)) flags.add('lampsLit');
     else flags.add('lampsOut');
