@@ -425,7 +425,7 @@
 **部分存在**
 
 - **不是「真人操作路径」**：浏览器闸门大量依赖 `window.Oracle` 的调试方法（`pinShotState` / `pinActors` / `pinTrails` / `debugSetWeather` 等）。`docs/OPEN_ISSUES.md` E1 明确说这些方法与正常游玩路径没有类型隔离，生产也可达。照这套 SOP 点一遍，验的是「调试面 + 世界状态」，不是「玩家点按钮」。
-- **CI 只跑三道浏览器闸门**：`persistence` / `render-budget` / `phases`；`smoke` 与 `setting` 不在 CI。CI 的 `EVAL_OUT` 指向 `runner.temp`，跑完只检查工作区是否干净，**没有 `upload-artifact`**——截图不留在证据里。
+- **CI 只跑三道浏览器闸门**：`persistence` / `render-budget` / `phases`——判据＝[`.github/workflows/ci.yml`](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml) 的 `world-client-browser` job step 列表；`smoke` 与 `setting` 不在其中（`audit-orphan-gates` 记为 `pending-ci`）。CI 的 `EVAL_OUT` 指向 `runner.temp`，跑完只检查工作区是否干净，**没有 `upload-artifact`**——截图不留在证据里。
 - **没有视频**：全仓没有视频录制脚本；截图是 PNG，不是「录一段真实用户路径」。
 - **DOM 层缺口**：`docs/evidence/VERIFIABLE_FLOWS.md` 流程 8 记录 `test:buttons` 因 `/api/memory/list` 回 404 退出 2，镇志抽屉点不到。
 - **截图基线本身不稳**：`docs/evidence/SCREENS_CAPTURE_GATE.md` 记录同一 HEAD 两跑，`01-salute` 可见差 24.765%、`03-deliver` 1.128%，原因是环境染色档位与烟柱粒子相位；该文档的结论是「第 0 步自证未通过」，没有重录基线。这说明「截图全等」在某些流程上还不是稳定判据。
@@ -805,7 +805,7 @@
 
 #### 风险
 
-**最可能半途而废在「把 markdown 当成已经建成了」。** 本仓已经有大量这种证据：端口纪律、`verify-all` 不接 CI、`worktrees:audit --strict`、易变数字口径、不 `stash`——这些都写在文档里，但只有一部分有闸。第二个风险是「结构化的成本被低估」：把一条规则变成 lint 要处理误报，而误报会让人关掉闸门；`audit-citations.ts` 的注释自己记录了「一条只产误报、不产真阳的判据比没有更糟」。
+**最可能半途而废在「把 markdown 当成已经建成了」。** 本仓已经有大量这种证据：端口纪律、`verify-all` 的接线状态（唯一权威陈述在 [ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md) V5，坐标指向 `audit-orphan-gates` 的盲区候选）、`worktrees:audit --strict`、易变数字口径、不 `stash`——这些都写在文档里，但只有一部分有闸。第二个风险是「结构化的成本被低估」：把一条规则变成 lint 要处理误报，而误报会让人关掉闸门；`audit-citations.ts` 的注释自己记录了「一条只产误报、不产真阳的判据比没有更糟」。
 
 ## 5. 如果真要建，建议的顺序与最小集合
 

@@ -61,14 +61,14 @@
 
 任何预算变更（新增/删除条目、`kind` 迁移）都必须在**同一提交**里往 `budgetLedger` 追加一条记录，写清 `approved_at`（`YYYY-MM-DD`）、`approved_by`、`reason`，以及变更后的四个条数；`budgetLedger` 末条的四个计数必须与四个预算一致（四类之前的旧记录没有 `report` 计数，历史不追改，但末条必须补齐）。CI 在中间提交上就会红，所以「先加条目、以后补预算」走不通，效果上等价于同一提交。
 
-当前 `pendingCiBudget = 29`、`manualBudget = 2`、`reportBudget = 5`、`obsoleteBudget = 1`（`pending-ci 29 / manual 2 / report 5 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。2026-11-08 撤回 `check-ground-shadow` 接线，20→21：30 轮实测 4 红（13.3%，Wilson 5.3%–29.7%），红因首张同刻图抓拍早于调色收敛，修法是 `shotStable`（连续 8 帧逐字节相同才允许比较）；**撤回理由：随机红会训练人忽略红**。脚本自身的 `PEAK_CEILING = 34,666` 不动。随后合并收尾（2026-11-08）把 `fixture:check` 接进 `world-client` job 并删条，21→20；skill 线 4 条只读审计（2 个脚本 + 2 个 npm 别名）按命名规则登记为 `manual`，11→15。两项共用一条 `budgetLedger` 终态记录（`pendingCi 20 / manual 15 / obsolete 1`）。2026-11-08 再撤回 `check-shot-actor-pin` 接线，20→21：CI main `d03f9d5` / run `42397872873` 上 `five-2800 ≠ five-1200`；本机 30 轮（idle/load 交替）0 红、三档同一哈希，根因未证，故不满足「加 `shotStable` 前提」的门槛。**撤回理由：随机红会训练人忽略红。** 2026-11-08 `manual` 语义重定义（四类）：`manual` 收窄成「有判据但需人在场/preview、无法无人值守」，15→2（只剩 `check-setting-scale.mjs` 与其 npm 别名，改前图必须先 stash `src/`）；有 exit 判红路径的 8 条迁 `pending-ci`（21→29）：`check-lamp-band` / `check-lamp-pool` 及两个 npm 别名、`audit-skill-docs` / `audit-verify-flows` 及两个 npm 别名；纯输出无判据的 5 条新立 `report`（0→5）；`obsolete` 不变。这一笔只动分类与账本，不动任何判据阈值。
+当前 `pendingCiBudget = 29`、`manualBudget = 2`、`reportBudget = 6`、`obsoleteBudget = 1`（`pending-ci 29 / manual 2 / report 6 / obsolete 1`）。原值 27，2026-11-07 连降三轮：27→24，`check-lamp-band` / `check-lamp-pool` / `check-rain-pin` 按关 3 的规则没有客观 `exit` 非 0，改归 `manual`，不再计入 `pending-ci`；24→21，`check-ground-shadow` / `check-shot-actor-pin` / `check-phases-negative` 接进 workflow，同提交删条；21→19，npm 别名 `test:lamp-band` / `test:lamp-pool` 跟着本体改 `manual`——别名和本体必须同一 `kind`，不能一个 `pending-ci` 一个 `manual`。同一轮总检查数从 49 变 50（合入 main 的 `00d3121` 带来 `check-glow-contrast`，它已明确「不是闸门，也不在 CI」，只能登记为 `manual`），所以 `manual` 从 2 变 8。同一天把 7 条盲区候选按有无客观判红归类：3 条 python 读数脚本 → `manual`（8→11），4 条有客观退出码的 `screens-diff` / `verify-*` → `pending-ci`（19→23）；它们按关 1 第 3 条登记，检查总数 50→57，已知孤儿 28→35。随后两批接线各删条：`verify-ledger-selfcheck.ts` → 23→22；`verify-screens-diff-selfcheck.py` 与 `screens-diff.py` → 22→20。`verify-animation-baseline.mjs` 仍留 `pending-ci`：CI 里它必被 `when` 跳过（路径指向 `pwe-anim`），接进去也是假绿。2026-11-08 撤回 `check-ground-shadow` 接线，20→21：30 轮实测 4 红（13.3%，Wilson 5.3%–29.7%），红因首张同刻图抓拍早于调色收敛，修法是 `shotStable`（连续 8 帧逐字节相同才允许比较）；**撤回理由：随机红会训练人忽略红**。脚本自身的 `PEAK_CEILING = 34,666` 不动。随后合并收尾（2026-11-08）把 `fixture:check` 接进 `world-client` job 并删条，21→20；skill 线 4 条只读审计（2 个脚本 + 2 个 npm 别名）按命名规则登记为 `manual`，11→15。两项共用一条 `budgetLedger` 终态记录（`pendingCi 20 / manual 15 / obsolete 1`）。2026-11-08 再撤回 `check-shot-actor-pin` 接线，20→21：CI main `d03f9d5` / run `42397872873` 上 `five-2800 ≠ five-1200`；本机 30 轮（idle/load 交替）0 红、三档同一哈希，根因未证，故不满足「加 `shotStable` 前提」的门槛。**撤回理由：随机红会训练人忽略红。** 2026-11-08 `manual` 语义重定义（四类）：`manual` 收窄成「有判据但需人在场/preview、无法无人值守」，15→2（只剩 `check-setting-scale.mjs` 与其 npm 别名，改前图必须先 stash `src/`）；有 exit 判红路径的 8 条迁 `pending-ci`（21→29）：`check-lamp-band` / `check-lamp-pool` 及两个 npm 别名、`audit-skill-docs` / `audit-verify-flows` 及两个 npm 别名；纯输出无判据的 5 条新立 `report`（0→5）；`obsolete` 不变。这一笔只动分类与账本，不动任何判据阈值。2026-11-08 新增 `audit-claims-state.ts`（E7 的可跑读数，`report` 类），report 5→6，四类其余不变。
 
 这套机制拦得住：新增/删除条目却不调整预算；改 `kind` 静默迁移；抬预算不留审批记录；「先记账、后补预算」的跨提交操作（CI 会在中间提交红）。
 拦不住：`budgetLedger` 是当前状态的账，不是 git 历史审计——有人可以把旧记录改写而不是追加，CI 只能看到改写后的自洽状态；也拦不住审批字段填得敷衍（`approved_by: "x"` 仍能通过），那要靠评审。
 
-### report：五条「不是闸门」的东西
+### report：六条「不是闸门」的东西
 
-`report` 的判据只有一条：**没有可自动判定的红绿**。下面 5 条都登记为 `report`，各占一行理由（这一行同时写进允许清单的 `blockedBy`，由 `audit-orphan-gates` 原样打印）：
+`report` 的判据只有一条：**没有可自动判定的红绿**。下面 6 条都登记为 `report`，各占一行理由（这一行同时写进允许清单的 `blockedBy`，由 `audit-orphan-gates` 原样打印）：
 
 | 条目 | 为什么它不是闸门 |
 | --- | --- |
@@ -77,6 +77,7 @@
 | `world-client/scripts/homecoming-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出包围盒/色数阈值并补 exit 路径 |
 | `world-client/scripts/interior-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出房间包围盒/冻结差阈值并补 exit 路径 |
 | `world-client/scripts/material-analyze.py` | 没有 `sys.exit` / `SystemExit`、退出码恒 0，只能人工看图；要成为闸门须先定出纹理能量/重复率阈值并补 exit 路径 |
+| `world-client/scripts/audit-claims-state.ts` | 只打印命中段（文件 + 小节标题）并恒 exit 0；判「真缺陷 / 合法」是人的判断，要成为闸门须先定出「哪些命中必须红」的判据 |
 
 它们是**被观察**，不是**被信任**：读数变了不会红，只有人看图才知道。
 

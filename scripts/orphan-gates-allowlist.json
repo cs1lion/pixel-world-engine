@@ -11,7 +11,7 @@
   ],
   "pendingCiBudget": 29,
   "manualBudget": 2,
-  "reportBudget": 5,
+  "reportBudget": 6,
   "obsoleteBudget": 1,
   "budgetLedger": [
     {
@@ -77,6 +77,15 @@
       "pendingCi": 29,
       "manual": 2,
       "report": 5,
+      "obsolete": 1
+    },
+    {
+      "approved_at": "2026-11-08",
+      "approved_by": "session:6ae7eeba7914aafa364408dd",
+      "reason": "E7 落成可跑读数：新增 audit-claims-state.ts（report 类、只打印命中段、恒 exit 0、不接 CI、不进 verify-all），report 5→6；pending-ci / manual / obsolete 不变",
+      "pendingCi": 29,
+      "manual": 2,
+      "report": 6,
       "obsolete": 1
     }
   ],
@@ -340,6 +349,13 @@
       "reason": "第五/六枚钉（角色 + 地面痕迹）负控：同一套钉下 1200/2800/5000ms 三档必须逐字节相同，反向用例（挪角色一格 / 挪痕迹一格）必须不同",
       "acceptedBecause": "有客观 exit 非 0；但 CI 上随机红（main d03f9d5 / run 42397872873：five-2800 ≠ five-1200），本机 30 轮（idle/load 交替）0 红，三档同一哈希",
       "blockedBy": "CI 随机红且根因未证：本机无法复现，不能证明是抓拍早于画面稳定。已实测 `canvas.screenshot()` 会把 DOM 叠层（topbar / 名字气泡 / 小地图）截进字节，与脚本注释「DOM overlay 不在画布里」不符，是尚未排除的嫌疑；修法候选为 shotStable（连续 8 帧逐字节相同才允许比较），必须先证根因且修后 30 轮 0 红才可重新接线"
+    },
+    {
+      "id": "file:world-client/scripts/audit-claims-state.ts",
+      "kind": "report",
+      "reason": "E7 的可跑读数：扫 docs/README/CLAUDE 的 markdown 段，抓「闸门接线状态 + 无坐标、无判据」的句子",
+      "acceptedBecause": "这一轮只到「读数 + 可复核的命中清单」：命中要人看，判「真缺陷 / 合法」是人的判断；不接 CI、不进 verify-all、不加 npm script",
+      "blockedBy": "只打印命中段（文件 + 小节标题）并恒 exit 0，没有可自动判定的红绿；要成为闸门须先定出「哪些命中必须红」的判据，而第一版 51 段里大半是散文，口径未定"
     }
   ]
 }

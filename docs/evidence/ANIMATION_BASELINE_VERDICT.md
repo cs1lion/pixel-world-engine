@@ -247,8 +247,8 @@ CI 的 `world-client-browser` job 实际只跑四条：`test:persistence`、`tes
 
 因此：**这 157 张 PNG 在 CI 里没有任何自动化消费方**。存在两处人工/旁路引用，但都不构成回归闸门：
 
-- `check-lamp-band` 会从 `eval/screens/` 只读复用 3 张"改前"参照；它不在 CI，也不做回归比对。
-- `world-client/scripts/verify-animation-baseline.mjs` 只校验另一份 157 行**账本文档**的结构（另一工作线的 animation-express 账本，不是本报告这 157 张 PNG），不读这 157 张图；它挂在人工入口 `verify-all.mjs`，不在 CI，也没有 npm script。
+- `check-lamp-band` 会从 `eval/screens/` 只读复用 3 张"改前"参照；它不在 CI（权威状态在 `audit-orphan-gates` 的账本条目：`scripts/orphan-gates-allowlist.json` 里 `world-client/scripts/check-lamp-band.mjs` 那条，`kind: pending-ci`），也不做回归比对。
+- `world-client/scripts/verify-animation-baseline.mjs` 只校验另一份 157 行**账本文档**的结构（另一工作线的 animation-express 账本，不是本报告这 157 张 PNG），不读这 157 张图；它挂在人工入口 `verify-all.mjs`，不在 CI（权威状态同样在 `audit-orphan-gates` 的账本条目（`scripts/orphan-gates-allowlist.json` 里 `world-client/scripts/verify-animation-baseline.mjs` 那条），`kind: pending-ci`），也没有 npm script。
 
 该问题已由另一线登记为 `docs/OPEN_ISSUES.md` 的 **E7**，三个处置方向待 owner 定：
 

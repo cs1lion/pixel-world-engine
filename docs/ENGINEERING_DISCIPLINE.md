@@ -57,7 +57,7 @@
 
 ### C4 阈值形式必须对无关参数不敏感
 
-**状态**：`[尚未实现]`（形式已拍板；`check-glow-contrast.mjs` 已改为只读、退出码恒 0、不在 CI，但 D 比值闸本身仍未实现）
+**状态**：`[尚未实现]`（形式已拍板；`check-glow-contrast.mjs` 已改为只读——`audit-orphan-gates` 记为 `report`：它只输出读数、没有可自动判定的红绿；D 比值闸本身仍未实现）
 - **触发**：阈值用绝对 luma 差、绝对亮度比，或换一档曝光/时相就会变意思。
 - **怎么做**：用有界相对量：
 
@@ -177,7 +177,7 @@
 **状态**：`[已实现-账本]` + `[人工步骤-汇总入口]`
 - **触发**：任何要写进 docs/evidence 或账本的读数。
 - **怎么做**：账本 12 个必填字段齐全（含 `seed / weather / rainSeed / denominator / source / script_sha / judge`）；脚本改了必须重测并同步 `script_sha`；外部证据树脚本未提交时写 `not_measured`。汇总入口 `verify-all.mjs` 只做人工手动入口。
-- **违反暴露**：`verify-ledger-selfcheck` 或账本校验红；`verify-all.mjs` 非零；它不接 CI，所以 CI 绿不代表它跑过。
+- **违反暴露**：`verify-ledger-selfcheck` 或账本校验红；`verify-all.mjs` 非零。它是**人工聚合入口**，不在 CI，所以 CI 绿不代表它跑过；这句话的坐标不在正文里——权威登记在 `audit-orphan-gates` 的盲区候选（见 [ORPHAN_GATES.md](file:///D:/project/pixel-world-engine/docs/ORPHAN_GATES.md)「已知边界」）：一旦有人把它接进 workflow 或 npm script，读数会自己从「盲区候选」移到「有消费方」。
 - **对应物**：[eval-ledger-lib.ts](file:///D:/project/pixel-world-engine/world-client/scripts/eval-ledger-lib.ts#L1-L45)；[verify-ledger-selfcheck.ts](file:///D:/project/pixel-world-engine/world-client/scripts/verify-ledger-selfcheck.ts)；[VERIFIABLE_FLOWS.md](file:///D:/project/pixel-world-engine/docs/evidence/VERIFIABLE_FLOWS.md#L279-L299)。
 
 ## 4. 证据纪律
@@ -235,6 +235,7 @@
 **状态**：`[人工步骤]`（`audit-claims` 的受查面不包含这类句子，见「违反暴露」）
 - **触发**：在文档里写某个闸门 / 脚本 / 检查「当前 N/M FAIL」「尚未接线」「未认领」「不是绿闸」这类状态。
 - **怎么做**：二选一——写「判据＝命令 X，在哪里跑（CI job / 手工入口）」；或写「某 commit + 某日期 实测 N/M」。两样都没有的说法会被时间腐蚀，不许写。同一个读数在仓库里只留一份带坐标的原文，其余位置引用它，不复制成多份会各自漂移的副本。
+- **落点**：状态句应指向**被机器强制的对象**（账本条目 / 判据命令），而不是断言一个会被时间腐蚀的现在时。「现在不在 CI」是没人负责改的全称否定；「`audit-orphan-gates` 记为 `pending-ci`」由四类等值预算强制——接线必须在同一提交删条并降预算，改账本的人与读这句话的人被同一次提交绑在一起。
 - **违反暴露**：没有自动闸查这类句子——`audit-claims` 只管 markers 与 adr-schema，不覆盖「5/5 FAIL」这种读数，`audit-references` 也管不到语义；只能 review。反面教材是 `audit-references` 的 342 基线：一个过期读数被当成事实，后来没人敢更新，守卫守着一个失效数字（2026-11-08 实测 529，基线已另立）。
 - **对应物**：[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L217-L224) E4（未实测标 `[推断]`）；[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L225-L231) E6（不许写不存在的闸门）；[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
 
@@ -242,7 +243,7 @@
 
 ### B1 两级阈值：设计目标不动，天花板只降不升
 
-**状态**：`[已实现]`（`check-ground-shadow` 仍未接 CI，见 L2）
+**状态**：`[已实现]`（`check-ground-shadow` 的接线状态只在 L2 记一处，这里不复述）
 - **触发**：改渲染路径、加常驻绘制、或预算读数上升。
 - **怎么做**：设计目标是意图，不许动；天花板是实测棘轮，只有「删掉等价或更多命令」才自动下降；峰值 ≤ 目标算不欠债，目标与天花板之间记账，超过天花板才硬红。
 - **违反暴露**：`check-render-budget` 超 `33,488` 红；`check-ground-shadow` 超 `34,666` 红；中间区间只记账不红。**「只降不升」已由 `test/policy-ceilings.test.ts` + `scripts/policy-ceilings.json` 锁定**：脚本常量大于已批准值即红，失败信息写明「这是政策常数，不是实测值」，抬升必须在同一次提交里改记录并填 `approved_at` / `approved_by` / `reason`。拦不住的部分如实列：运行时 env 覆盖（`GROUND_SHADOW_PEAK_CEILING` / `RENDER_BUDGET_FORCE_COMMANDS`）、先降到批准值以下再涨回原值（仍 ≤ 已批准值）、以及 `reason` 是否属实；降低无需改记录，测试只提示可收紧。
@@ -385,7 +386,7 @@
 **状态**：`[人工步骤]`（自动完整性检查 `[尚未实现]`）
 - **触发**：发现一个能跑但不在 CI 里的脚本。
 - **怎么做**：按 K4 清单逐条接；接一条、删一条允许清单；等 `chore/orphan-gates` 合并后单独开分支改 `ci.yml`；不要两条分支同时改 `ci.yml`。
-- **违反暴露**：一次性全接会让第一次运行就是一片既有红，之后所有人都会忽略它。当前 main 没有自动孤儿审计脚本，`check-ground-shadow` 也不在 CI。
+- **违反暴露**：一次性全接会让第一次运行就是一片既有红，之后所有人都会忽略它。`check-ground-shadow` 不在 CI——权威状态在 `audit-orphan-gates` 的账本条目：`scripts/orphan-gates-allowlist.json` 里 `world-client/scripts/check-ground-shadow.mjs` 那条，`kind: pending-ci`；理由是 30 轮实测 4 红（13.3%），红因首张同刻图早于调色收敛，撤回等 `shotStable`。接线时必须在同一提交删条并降预算，否则账本会红。
 - **对应物**：[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L701) K4；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L29-L33) 的接线顺序；[ci.yml](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml)。
 
 ### L3 编号先入者保号
