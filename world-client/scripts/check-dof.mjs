@@ -18,50 +18,122 @@
  * 跨后端比较留给 CI 的两台执行器。
  */
 import { chromium } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { shotStable } from './lib/shot-stable.mjs';
 import { assertSameFrames, frameClockInitScript, freezeFrameClock, pinClock, stepFrames } from './lib/frame-clock.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
 
 const BASE = process.env.PWE_URL ?? 'http://127.0.0.1:5211';
-const OUT = resolve(process.env.PWE_OUT ?? 'tmp/check-dof');
+const OUT = resolveShotDir('check-dof');
 const WORLD = process.env.PWE_DOF_WORLD ?? 'dengchao';
 /** 远景带必须含水：灯潮界的湾在 y≈1..14 格，镜头中心压在这里。 */
 const CAMERA = { x: 300, y: 160 };
 const QUERY = `?world=${WORLD}&time=noon&feed=off&ledger=off&debug=1`;
 
-const DIFF_SCRIPT = String.raw`
-import json, sys
-from PIL import Image
-off = Image.open(sys.argv[1]).convert('RGBA')
-on = Image.open(sys.argv[2]).convert('RGBA')
-if off.size != on.size:
-    print(json.dumps({'error': f'size {off.size} != {on.size}'}))
-    raise SystemExit(2)
-regions = json.loads(sys.argv[3])
-a = off.load(); b = on.load()
-out = {}
-for name, (x0, y0, w, h) in regions.items():
-    diff = 0; vis = 0; maxd = 0
-    for y in range(y0, y0 + h):
-        for x in range(x0, x0 + w):
-            pa = a[x, y]; pb = b[x, y]
-            d = max(abs(pa[i] - pb[i]) for i in range(3))
-            if d > 0: diff += 1
-            if d >= 2: vis += 1
-            if d > maxd: maxd = d
-    n = w * h
-    out[name] = {'pixels': n, 'exactDiffPct': 100.0 * diff / n, 'visibleDiffPct': 100.0 * vis / n, 'maxDelta': maxd}
-print(json.dumps(out))
-`;
+// 比较在 Node 里做，不引 python / PIL：CI 的浏览器 job 只装了 npm 依赖。
+// 只支持 Playwright 截出来的 8-bit 非隔行 PNG（灰度 / RGB / RGBA）——
+// 截图契约就是它，遇到别的编码直接报错，不静默猜。
+const CHANNELS = { 0: 1, 2: 3, 4: 2, 6: 4 };
+
+function decodePng(buf) {
+  if (buf.length < 8 || buf.toString('ascii', 1, 4) !== 'PNG') throw new Error('不是 PNG 文件');
+  let pos = 8;
+  let width = 0;
+  let height = 0;
+  let depth = 0;
+  let colorType = -1;
+  const idat = [];
+  while (pos + 12 <= buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const type = buf.toString('ascii', pos + 4, pos + 8);
+    const data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      depth = data[8];
+      colorType = data[9];
+      if (data[12] !== 0) throw new Error('不支持隔行 PNG（interlace=1）');
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+    pos += len + 12;
+  }
+  const channels = CHANNELS[colorType];
+  if (depth !== 8 || !channels) {
+    throw new Error(`只支持 8-bit 灰度/RGB/RGBA：bitDepth=${depth}, colorType=${colorType}`);
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * channels;
+  const out = Buffer.alloc(stride * height);
+  let rp = 0;
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[rp];
+    rp += 1;
+    const row = raw.subarray(rp, rp + stride);
+    rp += stride;
+    const prev = y > 0 ? out.subarray((y - 1) * stride, y * stride) : null;
+    const cur = out.subarray(y * stride, (y + 1) * stride);
+    for (let x = 0; x < stride; x += 1) {
+      const a = x >= channels ? cur[x - channels] : 0;
+      const b = prev ? prev[x] : 0;
+      const c = prev && x >= channels ? prev[x - channels] : 0;
+      let v = row[x];
+      if (filter === 1) v = (v + a) & 0xff;
+      else if (filter === 2) v = (v + b) & 0xff;
+      else if (filter === 3) v = (v + ((a + b) >> 1)) & 0xff;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        v = (v + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xff;
+      } else if (filter !== 0) {
+        throw new Error(`未知 PNG 行过滤类型 ${filter}`);
+      }
+      cur[x] = v;
+    }
+  }
+  return { width, height, channels, data: out };
+}
 
 function diffRegions(offPng, onPng, regions) {
-  const stdout = execFileSync('python', ['-c', DIFF_SCRIPT, offPng, onPng, JSON.stringify(regions)], {
-    encoding: 'utf8',
-    maxBuffer: 4 * 1024 * 1024,
-  });
-  return JSON.parse(stdout);
+  const off = decodePng(readFileSync(offPng));
+  const on = decodePng(readFileSync(onPng));
+  if (off.width !== on.width || off.height !== on.height) {
+    throw new Error(`尺寸不同：${off.width}x${off.height} ≠ ${on.width}x${on.height}`);
+  }
+  const out = {};
+  for (const [name, [x0, y0, w, h]] of Object.entries(regions)) {
+    let diff = 0;
+    let vis = 0;
+    let maxd = 0;
+    for (let y = y0; y < y0 + h; y += 1) {
+      for (let x = x0; x < x0 + w; x += 1) {
+        const i = (y * off.width + x) * off.channels;
+        const j = (y * on.width + x) * on.channels;
+        let d = 0;
+        for (let c = 0; c < Math.min(3, off.channels); c += 1) {
+          const delta = Math.abs(off.data[i + c] - on.data[j + c]);
+          if (delta > d) d = delta;
+        }
+        if (d > 0) diff += 1;
+        if (d >= 2) vis += 1;
+        if (d > maxd) maxd = d;
+      }
+    }
+    const n = w * h;
+    out[name] = {
+      pixels: n,
+      exactDiffPct: (100 * diff) / n,
+      visibleDiffPct: (100 * vis) / n,
+      maxDelta: maxd,
+    };
+  }
+  return out;
 }
 
 async function freeze(page) {
@@ -131,7 +203,6 @@ async function capture(entry, frame) {
 }
 
 async function main() {
-  mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader'] });
   try {
     const off = await open(browser, false);

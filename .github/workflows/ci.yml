@@ -93,6 +93,7 @@ jobs:
           npm run test:render-budget
           npm run test:phases
           node scripts/check-phases-negative.mjs
+          npm run test:dof
         env:
           EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: |
