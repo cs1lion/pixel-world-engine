@@ -43,6 +43,26 @@ export type DailyChore =
 /** 市面的三种相位：早市开着、夜市开着、其余时候关着。 */
 export type MarketPhase = 'closed' | 'open' | 'night';
 
+/** 场所身份：复用 `placeId` 的内容表 key，不做闭集枚举。 */
+export type SiteId = string;
+
+/** 场所种类：只收真实内容，空词表不预支。 */
+export type SiteKind = 'market' | 'park';
+
+/** 一条营业时段。左闭右开，分钟口径与世界日一致；`closed` 由「不命中任何带」派生。 */
+export interface SiteBand {
+  readonly fromMinute: number;
+  readonly toMinute: number;
+  readonly phase: Exclude<MarketPhase, 'closed'>;
+}
+
+/** 场所的静态内容：只有身份、种类与时段，没有任何运行时状态。 */
+export interface SiteDef {
+  readonly id: SiteId;
+  readonly kind: SiteKind;
+  readonly bands: readonly SiteBand[];
+}
+
 export interface TimetableBeat {
   readonly id: TimetableId;
   /** 世界日内的第几分钟（06:00 = 360）。 */
@@ -130,6 +150,26 @@ const NIGHT_MARKET_MINUTE = beatMinute('night_market');
 const MARKET_CLOSE_MINUTE = beatMinute('market_close');
 
 /**
+ * 这一刀唯一的场所：街口摊位。
+ *
+ * 四个时刻全部引用上面从 `TIMETABLE` 派生的常量，**不在这里另写一遍**；
+ * 时刻表仍是单一事实源。公园的时段是内容决定，设定集还没给，不在这里
+ * 编一个数字——「只换数据」由测试内的 `SiteDef` fixture 证明。
+ */
+export const SITE_TABLE: readonly SiteDef[] = [
+  {
+    id: 'market',
+    kind: 'market',
+    bands: [
+      { fromMinute: MARKET_OPEN_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' },
+      { fromMinute: NIGHT_MARKET_MINUTE, toMinute: MARKET_CLOSE_MINUTE, phase: 'night' },
+    ],
+  },
+];
+
+const SITE_BY_ID = new Map<SiteId, SiteDef>(SITE_TABLE.map((site) => [site.id, site]));
+
+/**
  * 21:00–05:00：该回锚点了。
  *
  * 从收摊那一拍起往家走，22:00 闭市时人已经在锚点上睡着——这样 22:00 之后
@@ -155,22 +195,34 @@ export function isDawnAt(worldNow: number): boolean {
 /**
  * 某个场所此刻开着的是哪一场。
  *
- * 这是「场所的状态 = 世界时刻的纯函数」的最小形态：输入只有世界时刻，不看帧号、
- * 不看调用次数，所以同一世界时刻必得同一状态，读档续跑不会分叉，也不需要往
- * 存档里加「今天开没开」的字段。
- *
- * 这一版只有一个按时段开闭的场所（街口摊位），因此**不留 site 维度**——加一个
- * 没有第二个成员的 keyed 表只是把「一个常量」包装成「一个接口」。真要有第二个
- * 场所时再加 keyed 表，未知 key 直接 throw（与 `beatMinute` 同一条口径），
- * 不许 `?? 'closed'`。
- *
- * 早市 08:00–17:00，夜市 19:00–22:00，其余关着。边界左闭右开。
+ * 这是「场所的状态 = 世界时刻的纯函数」的形态：输入只有 `SiteDef` 与
+ * 世界时刻，不看帧号、不看调用次数，所以同一世界时刻必得同一状态，读档
+ * 续跑不会分叉，也不需要往存档里加「今天开没开」的字段。`kind` 不参与
+ * 相位判断——公园与集市共用这一条循环，只换 `bands` 数据。
  */
-export function siteOpenAt(worldNow: number): MarketPhase {
+export function sitePhaseOf(site: SiteDef, worldNow: number): MarketPhase {
   const minute = minuteOfDay(worldNow);
-  if (minute >= NIGHT_MARKET_MINUTE && minute < MARKET_CLOSE_MINUTE) return 'night';
-  if (minute >= MARKET_OPEN_MINUTE && minute < WORK_END_MINUTE) return 'open';
+  for (const band of site.bands) {
+    if (minute >= band.fromMinute && minute < band.toMinute) return band.phase;
+  }
   return 'closed';
+}
+
+/**
+ * 按场所 id 查静态内容表，再投影成相位。
+ *
+ * 未知 id 直接 throw（与 `beatMinute` 同一条口径），不许 `?? 'closed'`
+ * 把「表里没有」静默成「今天关着」。
+ */
+export function siteStateAt(siteId: SiteId, worldNow: number): MarketPhase {
+  const site = SITE_BY_ID.get(siteId);
+  if (site === undefined) throw new Error(`SITE_TABLE 里没有场所 ${siteId}`);
+  return sitePhaseOf(site, worldNow);
+}
+
+/** 街口摊位的旧入口：委托到 `siteStateAt('market')`，行为逐字不变。 */
+export function siteOpenAt(worldNow: number): MarketPhase {
+  return siteStateAt('market', worldNow);
 }
 
 /** 旧名字，行为与 `siteOpenAt` 逐字相同。保留只为兼容现有调用方。 */
