@@ -152,6 +152,8 @@ import { FOG_VISIT_CELLS, stallsPackedFor } from '../world/weather-effects.ts';
 import type { WeatherHabitEntry } from '../world/weather-witness.ts';
 import { WEATHER_LABEL } from '../world/weather.ts';
 import { createTideView, type TideView } from '../render/tide-view.ts';
+import { createDofView, type DofView } from '../render/dof-view.ts';
+import { DOF_DEPTH } from '../render/layer-depth.ts';
 import { createHarborView, harborSiteOf, type HarborView } from '../render/harbor-view.ts';
 import { withinHarborWitnessRange } from '../world/harbor.ts';
 import { createPhaseView, type PhaseView } from '../render/phase-view.ts';
@@ -500,6 +502,11 @@ export class SandboxScene extends Phaser.Scene {
   private phaseTimer: number | null = null;
   private decor!: DecorView;
   private entries: BuildingEntry[] = [];
+  /** P2 移轴糊图。`?dof=on` 才创建；默认 off 时这一层不存在，像素一格不动。 */
+  private dofView: DofView | null = null;
+  /** 糊图的版本向量：地形与静态结构各自计数，变化才重建（见 §13.5）。 */
+  private terrainVersion = 0;
+  private structuresVersion = 0;
   /** 内景视图。**懒创建**：没进过任何楼之前它不存在，街景的预算读数一个都不动。 */
   private interiorView: InteriorView | null = null;
   private interiorMode: InteriorMode = 'street';
@@ -821,6 +828,19 @@ export class SandboxScene extends Phaser.Scene {
       w: this.world.grid.width * TILE_PX,
       h: this.world.grid.height * TILE_PX,
     };
+    // P2 纯烘焙移轴：默认 off。开的时候只烘一张全图糊图，运行期只换行裁切窗。
+    if (new URLSearchParams(window.location.search).get('dof') === 'on') {
+      this.dofView = createDofView(this, {
+        width: worldPx.w,
+        height: worldPx.h,
+        terrainKey: `world-terrain-${this.pack?.id ?? 'default'}`,
+        depth: DOF_DEPTH,
+        blurRadius: 1,
+        graphics: [this.decor.roads],
+      });
+      // 相机在 update 里才定型，PRE_RENDER 是「这一帧最终画面」的第一时间。
+      this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.updateDof, this);
+    }
     this.weatherView = createWeatherView(this, worldPx.w, worldPx.h);
     this.tideView = createTideView(this, this.world.grid, originX, originY, this.pack?.palette);
     const harborSite = harborSiteOf(this.pack);
@@ -1484,6 +1504,9 @@ export class SandboxScene extends Phaser.Scene {
     // 烘焙的纹理不随场景销毁自动释放，必须手动清：否则热更新或重进场景时
     // 会留下同名旧纹理，下一次 generateTexture 直接复用，画面停在上一版。
     this.terrainLayer?.destroy();
+    this.events.off(Phaser.Scenes.Events.PRE_RENDER, this.updateDof, this);
+    this.dofView?.destroy();
+    this.dofView = null;
     this.settingScenery?.destroy();
     this.settingScenery = null;
     this.tideView?.destroy();
@@ -4264,6 +4287,9 @@ export class SandboxScene extends Phaser.Scene {
           // 兼容旧口径的两个数：含义从「顶层」改成「整场景」，读者见 `top`。
           graphicsObjects: topGraphics + totalGraphics,
           totalCommands: topCommands + totalCommands,
+          /** 结构性读数：`?dof=on` 只该多 1 张 Image、多 1 个绘制项，命令数不动。 */
+          images: this.children.list.filter((child) => child.type === 'Image').length,
+          drawCalls: this.cameras.main.renderList.length,
           /** 直接挂在场景显示列表上的 Graphics（不在任何容器里）。 */
           top: { graphicsObjects: topGraphics, totalCommands: topCommands },
           /** 每个容器的子树读数；`depth` 1 的是顶层容器，>1 的嵌在它们里面。 */
@@ -4349,6 +4375,8 @@ export class SandboxScene extends Phaser.Scene {
         worldViewY: this.cameras.main.worldView.y,
         mode: this.cameraCtl.mode(),
       }),
+      /** P2 糊图读数：只在 `?dof=on` 时有对象，默认 off 返回 null。 */
+      dof: () => (this.dofView === null ? null : { ...this.dofView.stats() }),
       /**
        * 内景：只查询与切换视图，**不碰世界**。
        *
@@ -4830,6 +4858,7 @@ export class SandboxScene extends Phaser.Scene {
     if (snapshot.roads.length !== this.lastRoadCount) {
       this.lastRoadCount = snapshot.roads.length;
       this.decor.redrawRoads(snapshot.roads);
+      this.structuresVersion += 1;
     }
     this.decor.syncTrails(snapshot.trails);
     this.decor.syncProps(snapshot.props);
@@ -4978,6 +5007,7 @@ export class SandboxScene extends Phaser.Scene {
       this.entries = this.entries.filter((entry) => standing.has(entry.building.instanceId));
       for (const entry of gone) this.disposeBuilding(entry);
     }
+    let added = 0;
     for (const building of this.snapshot.buildings) {
       if (this.entries.some((entry) => entry.building.instanceId === building.instanceId)) continue;
       this.entries.push({
@@ -4991,7 +5021,9 @@ export class SandboxScene extends Phaser.Scene {
         ),
         emitter: createAccentEmitter(this, building.accent),
       });
+      added += 1;
     }
+    if (gone.length > 0 || added > 0) this.structuresVersion += 1;
     this.refreshRuins(standing);
   }
 
@@ -5146,6 +5178,20 @@ export class SandboxScene extends Phaser.Scene {
       }
     }
     return null;
+  }
+
+  /**
+   * P2 帧首：版本向量变了先重建糊图，再按这台相机算出这一帧的行裁切窗。
+   *
+   * 版本向量只认「地形」与「静态结构」两件事：潮位 / 天气 / 人物都不在里面，
+   * 否则糊图过期节奏就变成潮位节奏，等于把整屏重烘换个名字搬回来。
+   */
+  private updateDof(): void {
+    const dof = this.dofView;
+    if (dof === null) return;
+    dof.setVersion(this.terrainVersion, this.structuresVersion);
+    const cam = this.cameras.main;
+    dof.update(cam.worldView.y, cam.zoom, cam.height);
   }
 
   // --- interior ---------------------------------------------------------
