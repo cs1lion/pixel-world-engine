@@ -16,20 +16,38 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { GridPoint } from '../src/world/types.ts';
 
-type HeightView = typeof import('../src/render/height-view.ts');
-type Switches = typeof import('../src/render/hd2d-switch.ts');
+/**
+ * 这两个类型是**结构性写死的**，不用 `typeof import(...)`：
+ * base 上模块还不存在，类型级 import 会让 red-first 变成 compile ERROR，
+ * 而我们要的是「断言红」。见 docs/OPEN_ISSUES.md B7。
+ */
+interface LevelFieldLike {
+  readonly width: number;
+  readonly height: number;
+  levelAt(p: GridPoint): number;
+}
+interface HeightViewLike {
+  readonly LEVEL_PX: number;
+  stepsOf(field: LevelFieldLike): { x: number; row: number; drop: number; top: number; height: number }[];
+  occluderRowsOf(field: LevelFieldLike): { row: number; level: number }[];
+  occluderStripDepth(row: number, altitude?: number): number;
+}
+interface SwitchesLike {
+  hd2dEnabledOf(search: string | URLSearchParams): boolean;
+  dofEnabledOf(search: string | URLSearchParams): boolean;
+}
 
-async function loadHeightView(): Promise<HeightView | null> {
+async function loadHeightView(): Promise<HeightViewLike | null> {
   try {
-    return await import('../src/render/height-view.ts');
+    return (await import('../src/render/height-view.ts')) as HeightViewLike;
   } catch {
     return null;
   }
 }
 
-async function loadSwitches(): Promise<Switches | null> {
+async function loadSwitches(): Promise<SwitchesLike | null> {
   try {
-    return await import('../src/render/hd2d-switch.ts');
+    return (await import('../src/render/hd2d-switch.ts')) as SwitchesLike;
   } catch {
     return null;
   }
