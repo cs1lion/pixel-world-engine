@@ -13,6 +13,8 @@
  * - C1b：隔离行（焦线上一行）逐字节相同 → exactDiffPct = 0。
  * - C3：远景带必须真的变：exactDiffPct > 0 且 visibleDiffPct ≥ 0.5（ΔRGB ≥ 2 记可见）。
  * - C4：结构性读数先比：images +1、drawCalls +1、totalCommands 不动；再看像素。
+ * - C7：三处已知静态摆件边缘（木栈竖边 / 栏杆横边 / 船壳）的最大梯度，
+ *   `?dof=off` 下 >40、糊带内 <20。窗口按世界像素点名，不量整条远带。
  *
  * C2（硬件 / SwiftShader 双后端 0 diff）不在这里跑：本机只有 SwiftShader，
  * 跨后端比较留给 CI 的两台执行器。
@@ -136,10 +138,79 @@ function diffRegions(offPng, onPng, regions) {
   return out;
 }
 
+/**
+ * 糊带内的锐边统计：沿 x / y 的相邻像素最大梯度。
+ *
+ * 为什么不量整条远带：远带里还有两类**本来就不该糊**的东西——≥1000 的建筑/道具
+ * （与人物逐行交错，平面糊图结构上盖不到，S-4 未闭合）和 HUD/地点标签（画在
+ * 糊图之上）。拿它们的最大梯度做判据，等于要求糊图盖住整座世界。
+ *
+ * 所以按摆件点名量：三块窗口各自压在**已知静态摆件**的一条边上（世界像素，
+ * 来自 `dengchao` 渡口的绘制命令缓冲，改画法时这里要跟着改）：
+ * - `ladder`：渡口木栈的左竖边 —— `harbor-view` 的 `fillRect(176, py+3, 32, 12)`；
+ * - `railing`：横贯全幅的栏杆两条横边 —— `setting-scenery` 街面层的
+ *   `fillRect(32, 132, 960, 2)` / `fillRect(32, 139, 960, 2)`；
+ * - `boat`：船壳与船篷的横边 —— `harbor-view` 的 `drawBoat` 一带。
+ *
+ * 判据：`?dof=off` 下这些边 >40（锐），糊带内必须 <20（平）。
+ */
+const PROBES = {
+  ladder: { x: 172, y: 52, w: 12, h: 96 },
+  railing: { x: 64, y: 129, w: 30, h: 14 },
+  boat: { x: 206, y: 112, w: 26, h: 14 },
+};
+
+function edgeStats(file, [x0, y0, w, h]) {
+  const img = decodePng(readFileSync(file));
+  let maxH = 0;
+  let maxV = 0;
+  let sharpH = 0;
+  let sharpV = 0;
+  let atH = null;
+  let atV = null;
+  for (let y = y0 + 2; y < y0 + h - 2; y += 1) {
+    for (let x = x0 + 2; x < x0 + w - 2; x += 1) {
+      const i = (y * img.width + x) * img.channels;
+      const r = (y * img.width + x + 1) * img.channels;
+      const d = ((y + 1) * img.width + x) * img.channels;
+      let gh = 0;
+      let gv = 0;
+      for (let c = 0; c < Math.min(3, img.channels); c += 1) {
+        const dh = Math.abs(img.data[i + c] - img.data[r + c]);
+        const dv = Math.abs(img.data[i + c] - img.data[d + c]);
+        if (dh > gh) gh = dh;
+        if (dv > gv) gv = dv;
+      }
+      if (gh >= 40) sharpH += 1;
+      if (gv >= 40) sharpV += 1;
+      if (gh > maxH) {
+        maxH = gh;
+        atH = [x, y];
+      }
+      if (gv > maxV) {
+        maxV = gv;
+        atV = [x, y];
+      }
+    }
+  }
+  return { maxH, maxV, sharpH, sharpV, atH, atV };
+}
+
 async function freeze(page) {
   await page.evaluate((camera) => {
     const oracle = window.Oracle;
     oracle.debugHoldWorld(true);
+    // 两页各自在真实时间里加载，世界时钟会差几百毫秒；船的档期、灯影格数因此
+    // 可能差几拍，`totalCommands` 就会凭空多出几条。先把世界时钟推到整分钟边界，
+    // 两页的世界时刻才落在同一个刻度上。`debugStepWorld` 是唯一能读到世界时刻的
+    // 入口（它返回推进后的 `snapshot.now`），先推 1ms 当作读时钟。
+    const now = oracle.debugStepWorld(1);
+    let remain = 60000 - (now % 60000);
+    while (remain > 0) {
+      const step = Math.min(5000, remain);
+      oracle.debugStepWorld(step);
+      remain -= step;
+    }
     // 雨/雾的强度按**世界时间**衰减，冻住世界就永远停在半途（实测 0.0997）。
     // 先把强度踩到渲染层的隐藏阈值（0.02）以下，再谈「画面停住」。
     oracle.debugSetWeather('clear');
@@ -236,6 +307,26 @@ async function main() {
       whole: [0, 0, width, height],
     };
     const diff = diffRegions(shotOff.file, shotOn.file, regions);
+    // 摆件边缘的窗口按世界像素给，换算用**实测**的镜头读数，不抄常量。
+    const cam = shotOff.readings.camera;
+    const pxPerWorld = cam.zoom * (shotOff.box.width / cam.width);
+    const toScreen = (rect) => [
+      Math.round((rect.x - cam.worldViewX) * pxPerWorld),
+      Math.round((rect.y - cam.worldViewY) * pxPerWorld),
+      Math.round(rect.w * pxPerWorld),
+      Math.round(rect.h * pxPerWorld),
+    ];
+    const edges = { off: {}, on: {} };
+    for (const [name, rect] of Object.entries(PROBES)) {
+      const box = toScreen(rect);
+      edges.off[name] = edgeStats(shotOff.file, box);
+      edges.on[name] = edgeStats(shotOn.file, box);
+    }
+    // 整条远带的最大梯度只记账、不设闸：里面还有 ≥1000 的建筑顶与标签（见上）。
+    const band = {
+      off: edgeStats(shotOff.file, regions.far),
+      on: edgeStats(shotOn.file, regions.far),
+    };
 
     const failures = [];
     if (diff.focus.exactDiffPct !== 0) failures.push(`C1 焦点带变了 ${diff.focus.exactDiffPct}%`);
@@ -251,6 +342,14 @@ async function main() {
       failures.push(`C4 totalCommands ${sOff.totalCommands} → ${sOn.totalCommands}（应不动）`);
     }
 
+    // C7：三处已知摆件边缘必须在 off 下是硬边、在 on 下被糊平。
+    for (const name of Object.keys(PROBES)) {
+      const before = Math.max(edges.off[name].maxH, edges.off[name].maxV);
+      const after = Math.max(edges.on[name].maxH, edges.on[name].maxV);
+      if (!(before > 40)) failures.push(`C7 ${name} 在 off 下不是锐边（最大梯度 ${before}，应 >40）`);
+      if (!(after < 20)) failures.push(`C7 ${name} 在糊带内仍有锐边（最大梯度 ${after}，应 <20）`);
+    }
+
     const report = {
       base: BASE,
       world: WORLD,
@@ -258,6 +357,8 @@ async function main() {
       zoom,
       hashes: { off: shotOff.hash, on: shotOn.hash },
       diff,
+      edges,
+      band,
       structure: {
         off: { images: sOff.images, drawCalls: sOff.drawCalls, totalCommands: sOff.totalCommands },
         on: { images: sOn.images, drawCalls: sOn.drawCalls, totalCommands: sOn.totalCommands },
