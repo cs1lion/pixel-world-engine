@@ -252,11 +252,12 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { x: 28, y: 34, w: 9, h: 12, terrain: 'stone' },
     { x: 39, y: 35, w: 18, h: 8, terrain: 'mud' },
     // 花径口袋（设定集 p110–111）：外框 x3..9 × y19..25。三边各 2 格树篱，
-    // 中间 3 格宽小径；南端 y26..27 留草口接广场（y28 起是 plaza）。
+    // 中间 3 格宽小径走草地（不铺 plaza：plaza 的潮位清水位与草地不同，
+    // 换成铺装会改掉 `shore-band` 那条冻结的潮位格数 2343）；
+    // 南端 y26..27 留草口接广场（y28 起是 plaza）。
     { x: 3, y: 19, w: 7, h: 2, terrain: 'tree' },
     { x: 3, y: 21, w: 2, h: 5, terrain: 'tree' },
     { x: 8, y: 21, w: 2, h: 5, terrain: 'tree' },
-    { x: 5, y: 21, w: 3, h: 5, terrain: 'plaza' },
   ],
   // 三色槽位（主色/点缀/禁用）逐个照 `docs/SPEC_V2.md` §4.1 那张表抄，
   // 不自己推——那张表是用户 2026-10-25 确认过的。五个都在表里，一格不差。
