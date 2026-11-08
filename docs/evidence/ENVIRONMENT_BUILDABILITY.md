@@ -66,7 +66,7 @@
 - `CLAUDE.md` 给出仓库结构与权威边界：`docs/SPEC.md` 是唯一权威，禁止新增 `SPEC_*` 文件；迭代资料在 `docs/iterations/`；美术设定在 `docs/art/`。这不是口号——`audit-claims` 的 `spec-authority` 探针会数 `SPEC` 文件数、检查唯一权威标记和 `SPEC_V2.md` 的历史归档标记，对不上就红（`world-client/scripts/audit-claims.ts`）。
 - `docs/agents/domain.md` 明确要求「探索代码库之前先读 `GLOSSARY.md` 与 `docs/adr/`」，并规定输出要使用 `GLOSSARY.md` 的词。这是本仓对「先建立全局观」的书面约定。
 - `docs/adr/` 当前有 10 份 ADR（2026-11-06 本地读数：`adr-schema` files=10 valid=10；跑 `node world-client/scripts/audit-claims.ts --strict` 取当前值）；`audit-claims` 同时校验 ADR 的 `status / verified_at / evidence` 字段与证据路径。
-- `docs/iterations/README.md` 把外部设计资料按迭代任务分组，并写明「原样收存，附索引；不代表已排期」，还用 `<!-- claim: iterations-tracked-count=12 -->` 钉住入库文件数。
+- `docs/iterations/README.md` 把外部设计资料按迭代任务分组，并写明「原样收存，附索引；不代表已排期」；入库文件数由该文件自己的一条 `iterations-tracked-count` 登记钉住（值 12，权威只在 `docs/iterations/README.md`，别处不重复登记）。
 
 **部分存在**
 

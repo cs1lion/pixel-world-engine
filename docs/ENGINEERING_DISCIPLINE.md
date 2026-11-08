@@ -16,13 +16,13 @@
 | 改渲染 / 世界实现 | C1、C3、C4、C5、B1、B2、B4、B5、T1、T2、V1、V3、V4、E1、E2、E4、E6 |
 | 加 / 改测试 | T1、T2、T3、V1、V2、E1、E4 |
 | 改判据 / 阈值 | C1、C2、C3、C4、C5、B1、B5、T1、T2、V4、E1、E4、E6 |
-| 写证据 / 读数 | C2、C3、C5、C6、E1、E2、E3、E4、E5、E6、V5 |
+| 写证据 / 读数 | C2、C3、C5、C6、E1、E2、E3、E4、E5、E6、E8、V5 |
 | 修 bug | T4、T1、T2、V1、V4、E1、E4 |
 | 起服务 / 新建 worktree | W1、W3、V2、X1 |
 | 同树多线 / 接手别人的树 | W1、W2、W4、M1 |
 | 开合并窗口 | M1、M2、M3、M4、M5、W1、W2、L1、L2、L3、E6 |
 | 接孤儿闸门 | L2、L3、M1、V2、E6 |
-| 只改文档 / 编号 | C6、E4、E5、E6、L3、V2 |
+| 只改文档 / 编号 | C6、E4、E5、E6、E8、L3、V2 |
 | 环境化 / 流程改进 | X1、X2、L1、L2、E6 |
 | 改造 / 迭代 skill 或工作流文档 | X3、X1、X2、E1、E4、E6 |
 | 交付前自查（任何改动） | V1、V2、V5、E1、E4、E6 |
@@ -239,6 +239,15 @@
 - **违反暴露**：没有自动闸查这类句子——`audit-claims` 只管 markers 与 adr-schema，不覆盖「5/5 FAIL」这种读数，`audit-references` 也管不到语义；只能 review。反面教材是 `audit-references` 的 342 基线：一个过期读数被当成事实，后来没人敢更新，守卫守着一个失效数字（2026-11-08 实测 529，基线已另立）。
 - **第二个发作（受查面数量）**：受查面数量必须有「可刷新的基线 + 过期判据」（`audit-scan-baseline.json` 的 `note` 记日期 / commit / 前后值 / 为什么刷，`STALE_RATIO` 判过期），不能靠测试里写死一个数字。本轮实测：`aa49a36` 重写 README 时顺手删掉唯一一条 `adr-count` claim 标记（值 12），claims markers 5→4，全场只有 `audit-claims.test.ts` 里写死的 `5` 在喊——写死的数字会把「内容变了」和「闸门坏了」搅成同一团红，下次文档一改又是一条假警报。测试应断言性质（每条 marker 与实测一致、扫描根齐全、地板在阈值内），数量交给基线。这与 342 基线是同一个病的两次发作。
 - **对应物**：[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L217-L224) E4（未实测标 `[推断]`）；[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L225-L231) E6（不许写不存在的闸门）；[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
+
+### E8 文档举例不得原样复制可被扫描器识别的构造（2026-11-08）
+
+**状态**：`[人工步骤]`（不是 bug：写进文档的字面量就是被受查的对象）
+- **触发**：在文档里举例说明某个机制或写法，顺手把一个可被扫描器识别的构造原样抄进去：claim 标记壳、真实存在的文件路径、可执行命令。
+- **怎么做**：二选一——**变形**（描述而不照抄：写「`adr-count` 标记、值 12」而不是连标记壳一起抄；写「一个形如 xxx.test.ts 的假文件名」而不是一个会被当成引用的路径）；或**标明示意**（用带占位符的形状，如 `check-<名字>.mjs`——扫描器按 glob 跳过，人也不会当成真文件）。
+- **违反暴露**：两次实测同形。① 一条注释里写了假测试文件名，被 `audit-citations` 当成真引用判「未解析」（它只认反引号里的 token，不区分注释与正文）；② 在 E7 正文里原样抄了 claim 标记壳，被 `audit-claims` 当成真登记扫进去，markers 从 4 变回 5。两次都不是闸门错，是**引用即被受查**。
+- **判据**：改完跑 `node world-client/scripts/audit-claims.ts --strict` 与 `node world-client/scripts/audit-citations.ts --strict`：只为说明而写的字面量不应改变这两项的读数。
+- **对应物**：[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L225-L231) E6（不许写不存在的闸门）；[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)；[audit-citations.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-citations.ts)。
 
 ## 5. 预算与棘轮
 
@@ -468,3 +477,4 @@
 | 2026-11-07 | 外部《Skill 自迭代能力 改造指南》落成开发规范；skill 改造缺少「三件套」「四类验证边界」的可执行口径 | 新增 X3（纪律共 41 条）并配套 [SKILL_ITERATION_STANDARD.md](SKILL_ITERATION_STANDARD.md)：四块判据、三件套、`[需人工]` 标注、四类验证边界、收尾五问、可复制诊断模板，以及与既有条款的逐条关系与冲突条件；§0 取值表与 §10 同步增加对应行。 |
 | 2026-11-08 | 静默普查：13 条 `[裸]` 里有 6 条是同一动作——`?? 默认值` / `catch {}` 顶替实测读数（#1 #2 #3 #4 #11 #12） | 新增 C7（纪律共 42 条）：喂判据的读数缺失必须抛，只有仅供人看的展示字段可用默认值；逐条指到这一族的六处，并记 `#4` / `#5` 已修、`check-ground-shadow.mjs` 的四条留待第二轮。 |
 | 2026-11-08 | 三个分支各自手工分配 `E` 编号，撞号（main E9 vs chore E9）与「在途正文写出会当场变假的断言」（E12 写「E10/E11 未被占用」） | 新增 M6（纪律共 43 条）：分支编号只是临时占位、合并时主树定稿；引用一律用标题/锚点；合并时终局核对并生成 `E` 登记表。§K 第 10 条登记 E12 正文改写与终局核对动作。 |
+| 2026-11-08 | 两次同形的「引用即被受查」：注释里的假测试文件名被 `audit-citations` 当真引用；E7 正文里照抄的 claim 标记壳被 `audit-claims` 当真登记（markers 4→5） | 新增 E8（纪律共 44 条）：文档举例不得原样复制可被扫描器识别的构造——要么变形、要么标明示意；§0 的「写证据 / 读数」「只改文档 / 编号」两行同步加上 E8。 |
