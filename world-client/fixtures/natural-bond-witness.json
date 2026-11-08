@@ -52,7 +52,7 @@
     },
     "recorded": {
       "inputDigest": "0722f41142a828b747fb4e57ea1254043a03bb71473f6ec57e9f7cabdb911b89",
-      "fingerprint": "68fcbf2d188320039aec127b976edd58e96bd4a99a1d85e8aab46eb69c25dde1",
+      "fingerprint": "64917e06696b4b2778710439a7dfc12338938b130d8c5c6451d7ba660a769007",
       "eventCount": 6,
       "eventDigest": "3c27b1e3bb0a25626b48fe01f8be707b806b09e73bbb6b2aed57b0d42be31933",
       "business": {
@@ -80,17 +80,17 @@
         {
           "step": 12,
           "atWorldMs": 86520000,
-          "fingerprint": "68fcbf2d188320039aec127b976edd58e96bd4a99a1d85e8aab46eb69c25dde1",
-          "memoryFingerprint": "a4a1f289f5396eed99f83aff21811c26d23737648ec7ea5a546b87bc5ab25284",
+          "fingerprint": "64917e06696b4b2778710439a7dfc12338938b130d8c5c6451d7ba660a769007",
+          "memoryFingerprint": "962568795dae00afeb79793a85ef94b88f815d13a5c4ace4113d6b1062285d60",
           "creatorFingerprint": "88fed9e880eec57b2a86f619b2c3e41917d60cf2f4d9b9e19b6d996c75aef925"
         }
       ],
       "memory": {
-        "fingerprint": "a4a1f289f5396eed99f83aff21811c26d23737648ec7ea5a546b87bc5ab25284",
+        "fingerprint": "962568795dae00afeb79793a85ef94b88f815d13a5c4ace4113d6b1062285d60",
         "business": {
           "lastClosedDay": 1,
           "currentDay": 1,
-          "holders": 38,
+          "holders": 36,
           "facts": 2,
           "entries": 14,
           "claims": 1,
@@ -107,7 +107,7 @@
           "announcements": 0,
           "written": 6,
           "credibility": 0,
-          "metToday": 34
+          "metToday": 35
         }
       },
       "creator": {

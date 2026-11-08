@@ -38,7 +38,7 @@
     },
     "recorded": {
       "inputDigest": "5090a49525a12b915fe55ac255a35ae8608301c2c7050fb8819c4bffcdb35114",
-      "fingerprint": "22fc23da25ade5aac3aaf26e06f4c5f96a8e9eb419e007e2004a2254fd3ea436",
+      "fingerprint": "b438b05891dddfca72290bc3ea4b065229aec4de85f18bc9434d38eeace17ec8",
       "eventCount": 16,
       "eventDigest": "e06e246bbfbb54956d96876bc055017c2e95edbc0fb14d6a66bd46c0b4bc7018",
       "business": {
@@ -66,24 +66,24 @@
         {
           "step": 250,
           "atWorldMs": 47400000,
-          "fingerprint": "d038ec87ba9f112697308988d42967da3debc18e757f124197506bde37de980f",
-          "memoryFingerprint": "84ac607f56f5ce0fe0c686b8077407a66668790ee78a2da113a8e613f91350f6",
+          "fingerprint": "12d2acbf3b26a2b706c1f11b9e9a8412e947457492b256705310ec73c88f6bb7",
+          "memoryFingerprint": "36c4be91d9ea3d553e7de0653a347db1d50148c9c3322811f2ec79fb352001d9",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 396,
           "atWorldMs": 64920000,
-          "fingerprint": "22fc23da25ade5aac3aaf26e06f4c5f96a8e9eb419e007e2004a2254fd3ea436",
-          "memoryFingerprint": "790d65d3f7ab41834a2b4ae5f3e2464c7ce0ccbd33edf27211508f6a66981915",
+          "fingerprint": "b438b05891dddfca72290bc3ea4b065229aec4de85f18bc9434d38eeace17ec8",
+          "memoryFingerprint": "91af71ee1ce3e2327b75070e9a4737cba9a4e940c454bb98bd2f863bb1469f23",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         }
       ],
       "memory": {
-        "fingerprint": "790d65d3f7ab41834a2b4ae5f3e2464c7ce0ccbd33edf27211508f6a66981915",
+        "fingerprint": "91af71ee1ce3e2327b75070e9a4737cba9a4e940c454bb98bd2f863bb1469f23",
         "business": {
           "lastClosedDay": 0,
           "currentDay": 0,
-          "holders": 38,
+          "holders": 36,
           "facts": 23,
           "entries": 34,
           "claims": 18,
@@ -91,16 +91,16 @@
           "traces": 0,
           "landmarks": 0,
           "turningPoints": 0,
-          "bonds": 0,
+          "bonds": 2,
           "moods": 0,
-          "bondTrustSum": 0,
+          "bondTrustSum": -0.18,
           "moodValenceSum": 0,
           "legends": 0,
           "placeNames": 9,
           "announcements": 0,
           "written": 0,
           "credibility": 0,
-          "metToday": 150
+          "metToday": 145
         }
       },
       "creator": {
@@ -285,18 +285,18 @@
       "value": "place:32,29"
     },
     {
-      "note": "街头问候 5 次：这个白天里居民两两碰面五次；掉数说明配对/站位条件退化",
+      "note": "街头问候 4 次：2026-11-08 集市/工坊场所锚接上后重录，比上一版少 1 次（账房先生收市后回镇心、炉匠收工后回铺门，碰面相位变了）；再掉数说明配对/站位条件退化",
       "source": "memory.factsByKind",
       "path": "street_greet.length",
       "op": "eq",
-      "value": 5
+      "value": 4
     },
     {
-      "note": "同街搭手 2 次：只在白天判定窗内发生；数目变化说明时段或配对条件被改坏",
+      "note": "同街搭手 3 次：2026-11-08 重录，比上一版多 1 次（同上，碰面相位变了）；只在白天判定窗内发生，数目变化说明时段或配对条件被改坏",
       "source": "memory.factsByKind",
       "path": "street_together.length",
       "op": "eq",
-      "value": 2
+      "value": 3
     },
     {
       "note": "早市开市 1 次：这一天 08:00 一拍",

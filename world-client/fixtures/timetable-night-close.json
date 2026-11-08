@@ -34,7 +34,7 @@
     },
     "recorded": {
       "inputDigest": "f41664b54efcf926a100317ff54211035b426222fb0b9e8c323b1376b7389b03",
-      "fingerprint": "aadec3753d9559a5f3c9dcc9a6aa86644247c43631f386d84c18297fb3618d87",
+      "fingerprint": "98972de06e602f2327b89196d7271efc3df80f8785e702de801eb99e37267bf9",
       "eventCount": 21,
       "eventDigest": "9e961dc38cab2fbdbf3c69492399bc882b8a5d8d8ecbd8955044c16a05112337",
       "business": {
@@ -62,48 +62,48 @@
         {
           "step": 250,
           "atWorldMs": 47400000,
-          "fingerprint": "d038ec87ba9f112697308988d42967da3debc18e757f124197506bde37de980f",
-          "memoryFingerprint": "84ac607f56f5ce0fe0c686b8077407a66668790ee78a2da113a8e613f91350f6",
+          "fingerprint": "12d2acbf3b26a2b706c1f11b9e9a8412e947457492b256705310ec73c88f6bb7",
+          "memoryFingerprint": "36c4be91d9ea3d553e7de0653a347db1d50148c9c3322811f2ec79fb352001d9",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 500,
           "atWorldMs": 77400000,
-          "fingerprint": "3151345612c71c1b9047d3d89164cd30ac6cd08914e977bd317a641b3fc538ac",
-          "memoryFingerprint": "0b24996b0fa3a8c536a07eee350e8a852b91b078278a1e3c3b96d1b7a216f654",
+          "fingerprint": "9019a099a78be369357653365a3b266ab216ca269165eed20d9630fb10f74a4a",
+          "memoryFingerprint": "990bc837227ef48f266e87ca68ed2268cba6b8e8603da967a147a5769696bb08",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         },
         {
           "step": 517,
           "atWorldMs": 79440000,
-          "fingerprint": "aadec3753d9559a5f3c9dcc9a6aa86644247c43631f386d84c18297fb3618d87",
-          "memoryFingerprint": "91e28f146d58079e06fb652d0582ceb57b482c9f15479ed040a027d2c5d9dc16",
+          "fingerprint": "98972de06e602f2327b89196d7271efc3df80f8785e702de801eb99e37267bf9",
+          "memoryFingerprint": "3a5cfbabc2958160fc316c428d0da9de4d84a209ab1c5bc1019ebda6a8d285f3",
           "creatorFingerprint": "2f6dfee9717bf2d0c9858814e463fe352988c846a83b9fa8bdf59d47304b4ad1"
         }
       ],
       "memory": {
-        "fingerprint": "91e28f146d58079e06fb652d0582ceb57b482c9f15479ed040a027d2c5d9dc16",
+        "fingerprint": "3a5cfbabc2958160fc316c428d0da9de4d84a209ab1c5bc1019ebda6a8d285f3",
         "business": {
           "lastClosedDay": 0,
           "currentDay": 0,
-          "holders": 38,
+          "holders": 36,
           "facts": 27,
-          "entries": 39,
+          "entries": 38,
           "claims": 19,
           "beliefs": 0,
           "traces": 0,
           "landmarks": 0,
           "turningPoints": 0,
-          "bonds": 0,
+          "bonds": 2,
           "moods": 0,
-          "bondTrustSum": 0,
+          "bondTrustSum": -0.18,
           "moodValenceSum": 0,
           "legends": 0,
           "placeNames": 9,
           "announcements": 0,
           "written": 0,
           "credibility": 0,
-          "metToday": 151
+          "metToday": 145
         }
       },
       "creator": {
