@@ -31,10 +31,12 @@ interface HeightViewLike {
   stepsOf(field: LevelFieldLike): { x: number; row: number; drop: number; top: number; height: number }[];
   occluderRowsOf(field: LevelFieldLike): { row: number; level: number }[];
   occluderStripDepth(row: number, altitude?: number): number;
+  actorDepthOf(row: number, altitude?: number, level?: number): number;
 }
 interface SwitchesLike {
   hd2dEnabledOf(search: string | URLSearchParams): boolean;
   dofEnabledOf(search: string | URLSearchParams): boolean;
+  occludersEnabledOf(search: string | URLSearchParams): boolean;
 }
 
 async function loadHeightView(): Promise<HeightViewLike | null> {
@@ -96,6 +98,18 @@ describe('hd2d / dof 开关', () => {
     assert.equal(mod.dofEnabledOf('?dof=1'), true);
     assert.equal(mod.hd2dEnabledOf(new URLSearchParams('hd2d=on')), true);
   });
+
+  it('?occluders=off 只关遮挡条：高度层开着、遮挡条不出', async () => {
+    const mod = await loadSwitches();
+    assert.ok(mod, 'render/hd2d-switch.ts 必须先存在');
+    assert.equal(mod.occludersEnabledOf('?hd2d=on'), true, '缺省跟随 hd2d=on');
+    assert.equal(mod.occludersEnabledOf('?hd2d=1'), true);
+    assert.equal(mod.occludersEnabledOf('?hd2d=on&occluders=off'), false);
+    assert.equal(mod.occludersEnabledOf('?hd2d=on&occluders=0'), false);
+    assert.equal(mod.occludersEnabledOf('?hd2d=on&occluders=bogus'), true, '只有 off/0 算关');
+    assert.equal(mod.occludersEnabledOf(''), false, 'hd2d 关着时遮挡条本来就不该存在');
+    assert.equal(mod.occludersEnabledOf('?occluders=on'), false, '单独开 occluders 不能绕过 hd2d');
+  });
 });
 
 describe('平面世界：高度层必须是空操作', () => {
@@ -143,13 +157,23 @@ describe('阶面只在南缘（D2：无旋转、无侧立面）', () => {
     );
   });
 
-  it('阶面高度被一行夹住（多级台阶这一笔还不做台面上移）', async () => {
+  it('多级台阶：阶面高度不再被一行夹住（H3 台面上移已做）', async () => {
     const mod = await loadHeightView();
     assert.ok(mod, 'render/height-view.ts 必须先存在');
     const field = fieldOf(8, 8, { '2,2': 3 });
     const [step] = mod.stepsOf(field);
     assert.equal(step.drop, 3);
+    assert.equal(step.height, 3 * mod.LEVEL_PX, '三级台阶必须画三级高的崖面');
+    // 顶边 = 行底 + 一格 - drop*一格：三级时落到 row-1 的南半格，正是压住北侧人的那条带。
+    assert.equal(step.top, 2 * mod.LEVEL_PX + mod.LEVEL_PX - 3 * mod.LEVEL_PX);
+  });
+
+  it('一级台阶的读数与上一笔逐字段相同（0 diff 的结构理由不靠重录）', async () => {
+    const mod = await loadHeightView();
+    assert.ok(mod, 'render/height-view.ts 必须先存在');
+    const [step] = mod.stepsOf(fieldOf(8, 8, { '2,2': 1 }));
     assert.equal(step.height, mod.LEVEL_PX);
+    assert.equal(step.top, 2 * mod.LEVEL_PX);
   });
 });
 
@@ -187,6 +211,20 @@ describe('裁剪条：只在由北向南抬升的那一行', () => {
       assert.ok(strip < actorDepth(row), `第 ${row} 行的裁剪条会盖住站在台地上的人`);
       assert.equal(Number.isInteger(strip), true, 'depth 必须是整数像素');
       assert.equal(mod.occluderStripDepth(row, 100), strip + 100, 'altitude 只能整体平移');
+    }
+  });
+
+  it('台地上的人仍压在裁剪条之上（level 只做极小分档，不改行序）', async () => {
+    const mod = await loadHeightView();
+    assert.ok(mod, 'render/height-view.ts 必须先存在');
+    for (let row = 1; row < 30; row += 1) {
+      const strip: number = mod.occluderStripDepth(row);
+      const north = mod.actorDepthOf(row - 1, 0, 0);
+      const onTop = mod.actorDepthOf(row, 0, 1);
+      assert.ok(strip > north, `第 ${row} 行：北侧人（level 0）必须被压住`);
+      assert.ok(onTop > strip, `第 ${row} 行：站在台地上的人（level 1）必须在条之上`);
+      assert.equal(mod.actorDepthOf(row, 0, 0), (row + 1) * 16 + 8, 'level 0 与旧公式逐字相同');
+      assert.equal(mod.actorDepthOf(row, 0, 1), (row + 1) * 16 + 8 - 0.5, 'level 1 只低 0.5');
     }
   });
 });

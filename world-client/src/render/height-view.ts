@@ -58,9 +58,10 @@ export function stepsOf(field: LevelField): HeightStep[] {
       const south = field.levelAt({ x, y: row + 1 });
       const drop = level - south;
       if (drop <= 0) continue;
-      // 高过一格的部分会越到下一行的地面上，那需要台面本身整体上移（H3），
-      // 这一笔不做。所以阶面最多占满自己这一行，多出来的级数在这里被夹掉。
-      const height = Math.min(drop * LEVEL_PX, TILE_PX);
+      // 高过一格的部分越到上方行的地面上——H3 台面上移已做（tilemap 按 level 上移
+      // 整格），所以阶面必须画满 `drop*LEVEL_PX`，不能再夹到一行；夹掉就会在
+      // 台面上方留一条没有崖面的空洞。
+      const height = drop * LEVEL_PX;
       steps.push({ x, row, drop, top: row * TILE_PX + TILE_PX - height, height });
     }
   }
@@ -98,12 +99,24 @@ export function occluderRowsOf(field: LevelField): OccluderRow[] {
 }
 
 /**
+ * 角色 depth：**按格行锚，不按视觉脚底锚**。
+ *
+ * 台面上移以后，站在 `(row, level)` 的人视觉脚底被抬高 `level*LEVEL_PX`，
+ * 但排序必须仍按行——否则台地上的人会被自己行下的裁剪条盖住。
+ * `level` 只贡献 **0.5px** 的分档（同一行里 level 高的人略靠后），
+ * `level = 0` 时与旧公式 `altitude + (row+1)*TILE_PX + 8` 逐字相同。
+ */
+export function actorDepthOf(row: number, altitude = 0, level = 0): number {
+  return altitude + (row + 1) * TILE_PX + ACTOR_DEPTH_OFFSET - level * 0.5;
+}
+
+/**
  * 裁剪条的 depth：**必须**落在 `row-1` 行的人与 `row` 行的人之间。
  *
- * 角色 depth 是 `脚底 y + 8`（villager.ts 的 `villagerDepthAt`），而第 `r` 行
- * 的人脚底在 `(r+1)*TILE_PX`。所以区间是 `(row*16+8, row*16+24)`，这里取中点
- * `row*16+16`：北侧那行的人盖在它下面，南侧这行的人盖在它上面。取整像素，
- * 不随相机、缩放或帧时变化。
+ * 角色 depth 见 `actorDepthOf`：第 `r` 行的人是 `(r+1)*TILE_PX + 8 - level*0.5`。
+ * 区间取到 level 0 的端点：`(row*16+8, row*16+24)`，这里取中点 `row*16+16`：
+ * 北侧那行的人盖在它下面，南侧这行的人（哪怕 level 1）盖在它上面。
+ * 取整像素，不随相机、缩放或帧时变化。
  */
 export function occluderStripDepth(row: number, altitude = 0): number {
   return altitude + row * TILE_PX + ACTOR_DEPTH_OFFSET + TILE_PX / 2;

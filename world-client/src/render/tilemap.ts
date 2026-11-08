@@ -45,6 +45,14 @@ export function drawTerrain(
      * 设定集只写选哪套预设，像素几何由 `render/shore-band.ts` 解析。
      */
     readonly shore?: readonly SettingShore[];
+    /**
+     * 每格的台地级数（`?hd2d=on` 时由 SandboxScene 传入，缺省不给）。
+     *
+     * 缺省走原来的三 pass 路径——166 张基线与这个参数无关，是结构性的 0 diff。
+     * 给了就逐格一次画完（底色→材质→拼边）：抬升后第 `y` 行会画进 `y-1` 行的
+     * 带里，三 pass 的「按 pass 整图跑」会让 `y-1` 的草簇重新盖回抬起的台面。
+     */
+    readonly lift?: (x: number, y: number) => number;
   },
 ): void {
   // 给了 target 就画进它：烘焙到纹理时用同一个 Graphics，
@@ -59,48 +67,68 @@ export function drawTerrain(
    * 是为了「画成什么样完全由入参决定」这件事在测试里可证。
    */
   const palette = theme?.palette ?? paletteFor();
+  const lift = theme?.lift;
 
-  // pass 1：底色。先全部铺满，后面的纹理才不会被邻格底色覆盖。
-  for (let y = 0; y < grid.height; y += 1) {
-    for (let x = 0; x < grid.width; x += 1) {
-      const cell = grid.at({ x, y });
-      if (cell === undefined) continue;
-      g.fillStyle(theme?.terrainColors[cell.terrain] ?? terrainFor()[cell.terrain], 1);
-      g.fillRect(originX + x * TILE_PX, originY + y * TILE_PX, TILE_PX, TILE_PX);
+  if (lift === undefined) {
+    // pass 1：底色。先全部铺满，后面的纹理才不会被邻格底色覆盖。
+    for (let y = 0; y < grid.height; y += 1) {
+      for (let x = 0; x < grid.width; x += 1) {
+        const cell = grid.at({ x, y });
+        if (cell === undefined) continue;
+        g.fillStyle(theme?.terrainColors[cell.terrain] ?? terrainFor()[cell.terrain], 1);
+        g.fillRect(originX + x * TILE_PX, originY + y * TILE_PX, TILE_PX, TILE_PX);
+      }
+    }
+
+    // pass 2：材质内部结构。
+    for (let y = 0; y < grid.height; y += 1) {
+      for (let x = 0; x < grid.width; x += 1) {
+        const cell = grid.at({ x, y });
+        if (cell === undefined) continue;
+        drawTexture(g, originX + x * TILE_PX, originY + y * TILE_PX, x, y, cell.terrain, palette);
+      }
+    }
+
+    // pass 3：材质拼接边（高度序由 terrain-edges 决定，边只画在高材质一侧）。
+    for (let y = 0; y < grid.height; y += 1) {
+      for (let x = 0; x < grid.width; x += 1) {
+        const cell = grid.at({ x, y });
+        if (cell === undefined) continue;
+        drawTileEdge(
+          g,
+          cell.terrain,
+          neighborsOf(grid, x, y),
+          originX + x * TILE_PX,
+          originY + y * TILE_PX,
+        );
+      }
+    }
+  } else {
+    // 抬升路径（`?hd2d=on`）：每格底色→材质→拼边一次画完，按行升序保证
+    // 抬起的台面压在北邻之上；整图 pass 分离会让北邻的细节重新盖回来。
+    for (let y = 0; y < grid.height; y += 1) {
+      for (let x = 0; x < grid.width; x += 1) {
+        const cell = grid.at({ x, y });
+        if (cell === undefined) continue;
+        const px = originX + x * TILE_PX;
+        const py = originY + y * TILE_PX - lift(x, y) * TILE_PX;
+        g.fillStyle(theme?.terrainColors[cell.terrain] ?? terrainFor()[cell.terrain], 1);
+        g.fillRect(px, py, TILE_PX, TILE_PX);
+        drawTexture(g, px, py, x, y, cell.terrain, palette);
+        drawTileEdge(g, cell.terrain, neighborsOf(grid, x, y), px, py);
+      }
     }
   }
 
-  // pass 2：材质内部结构。
-  for (let y = 0; y < grid.height; y += 1) {
-    for (let x = 0; x < grid.width; x += 1) {
-      const cell = grid.at({ x, y });
-      if (cell === undefined) continue;
-      drawTexture(g, originX + x * TILE_PX, originY + y * TILE_PX, x, y, cell.terrain, palette);
-    }
-  }
-
-  // pass 3：材质拼接边（高度序由 terrain-edges 决定，边只画在高材质一侧）。
-  for (let y = 0; y < grid.height; y += 1) {
-    for (let x = 0; x < grid.width; x += 1) {
-      const cell = grid.at({ x, y });
-      if (cell === undefined) continue;
-      drawTileEdge(
-        g,
-        cell.terrain,
-        neighborsOf(grid, x, y),
-        originX + x * TILE_PX,
-        originY + y * TILE_PX,
-      );
-    }
-  }
-
-  drawPlantingBeds(scene, grid, originX, originY, palette, g);
-  drawFarmFence(scene, grid, originX, originY, palette, g);
-  drawDressing(scene, grid, originX, originY, palette, g, altar);
-  drawWaterline(grid, originX, originY, g, palette);
+  drawPlantingBeds(scene, grid, originX, originY, palette, g, lift);
+  drawFarmFence(scene, grid, originX, originY, palette, g, lift);
+  drawDressing(scene, grid, originX, originY, palette, g, altar, lift);
+  drawWaterline(grid, originX, originY, g, palette, lift);
   drawShoreBand(grid, originX, originY, g, palette, theme?.shore);
   // 地域三色最后画：地界要压在草簇、碎石、水线之上，才读得出「这块地归谁」。
   // 排在材质拼接边之后、网格线之前——前者是地形自己的语法，后者只是排查辅助。
+  // 岸带与地域色是整块矩形（不是逐格铺），抬升留给作者输入通道那一轮；
+  // 演示口不把这两种格子抬到高处。
   drawRegionGrounding(g, grid, originX, originY, palette, theme?.regions ?? []);
 
   // 网格线只是排查落位用的辅助层，默认不画：铺满全屏的细线会把地形纹理与轮廓压成
@@ -537,6 +565,7 @@ function drawPlantingBeds(
   originY: number,
   palette: WorldPalette,
   target?: Phaser.GameObjects.Graphics,
+  lift?: (x: number, y: number) => number,
 ): void {
   const g = target ?? scene.add.graphics();
   const streetX = Math.floor(grid.width / 2) - 2;
@@ -569,7 +598,7 @@ function drawPlantingBeds(
       for (let x = rx; x < rx + rw; x += 1) {
         if (grid.at({ x, y })?.terrain !== 'stone') continue;
         const px = originX + x * TILE_PX;
-        const py = originY + y * TILE_PX;
+        const py = originY + y * TILE_PX - (lift?.(x, y) ?? 0) * TILE_PX;
         const h = hash2(x + 71, y + 29);
         g.fillStyle(palette.grass, 1);
         g.fillRect(px, py, TILE_PX, TILE_PX);
@@ -618,13 +647,14 @@ function drawFarmFence(
   originY: number,
   palette: WorldPalette,
   target?: Phaser.GameObjects.Graphics,
+  lift?: (x: number, y: number) => number,
 ): void {
   const g = target ?? scene.add.graphics();
   for (let y = 0; y < grid.height; y += 1) {
     for (let x = 0; x < grid.width; x += 1) {
       if (grid.at({ x, y })?.terrain !== 'farm') continue;
       const px = originX + x * TILE_PX;
-      const py = originY + y * TILE_PX;
+      const py = originY + y * TILE_PX - (lift?.(x, y) ?? 0) * TILE_PX;
       const h = hash2(x + 13, y + 41);
       if (y === grid.height - 2) {
         g.fillStyle(palette.timberDark, 1);
@@ -664,6 +694,7 @@ function drawDressing(
   palette: WorldPalette,
   target?: Phaser.GameObjects.Graphics,
   altar?: GridPoint,
+  lift?: (x: number, y: number) => number,
 ): void {
   const g = target ?? scene.add.graphics();
   for (let y = 0; y < grid.height; y += 1) {
@@ -671,7 +702,7 @@ function drawDressing(
       const cell = grid.at({ x, y });
       if (cell === undefined || cell.terrain !== 'grass') continue;
       const px = originX + x * TILE_PX;
-      const py = originY + y * TILE_PX;
+      const py = originY + y * TILE_PX - (lift?.(x, y) ?? 0) * TILE_PX;
       const h = hash2(x, y);
       // 没有祭坛坐标就退回工坊环的配方：调用方漏传时行为最接近旧版，
       // 而不是让整张图突然变成郊野。
@@ -763,6 +794,7 @@ function drawWaterline(
   originY: number,
   g: Phaser.GameObjects.Graphics,
   palette: WorldPalette,
+  lift?: (x: number, y: number) => number,
 ): void {
   g.fillStyle(palette.water, 0.4);
   for (let y = 0; y < grid.height; y += 1) {
@@ -771,7 +803,12 @@ function drawWaterline(
       if (cell?.terrain !== 'shallow') continue;
       // 只画朝下那一侧：岸线下面就是陆地，视线先落到这里。
       if (grid.at({ x, y: y + 1 })?.terrain === 'shallow') continue;
-      g.fillRect(originX + x * TILE_PX, originY + (y + 1) * TILE_PX, TILE_PX - 3, 1);
+      g.fillRect(
+        originX + x * TILE_PX,
+        originY + (y + 1) * TILE_PX - (lift?.(x, y) ?? 0) * TILE_PX,
+        TILE_PX - 3,
+        1,
+      );
     }
   }
 }

@@ -166,7 +166,7 @@ import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
 import { createHeightView, type HeightView } from '../render/height-bake.ts';
-import { hd2dEnabledOf } from '../render/hd2d-switch.ts';
+import { occludersEnabledOf, hd2dEnabledOf } from '../render/hd2d-switch.ts';
 import {
   FRAME_CLAMP_MS,
   paceFrame,
@@ -582,6 +582,8 @@ export class SandboxScene extends Phaser.Scene {
   private heightView: HeightView | null = null;
   /** 这一跑要不要高度层。`?hd2d` 不写 / 写 `off` 都是 false。 */
   private hd2dEnabled = false;
+  /** 这一跑要不要逐行遮挡条。只在 `hd2d` 开时可能为 true（`?occluders=off` 关掉）。 */
+  private occludersEnabled = false;
   /** 拖拽平移的起点（屏幕坐标）；null 表示没在拖。 */
   private dragFrom: { x: number; y: number } | null = null;
   /** 这一回按下之后指针挪过没有。挪过了就是拖镜头，没挪过才算点一下。 */
@@ -800,18 +802,27 @@ export class SandboxScene extends Phaser.Scene {
     // 就不再变。只在开局画一次，之后每帧只贴一个 quad。
     // 这里原来还写着「每帧要 51 万条绘制指令，可见区域只占世界 12.5%」——两个数
     // 都没有出处（可见区域实测是 8.7%），理由不靠它们也成立，详见 `bake.ts`。
+    // 开关只解析一次：地形烘焙本身要按它决定画不画台面上移（H1/H3）。
+    this.hd2dEnabled = hd2dEnabledOf(window.location.search);
+    this.occludersEnabled = occludersEnabledOf(window.location.search);
+    const terrainKey = `world-terrain-${this.pack?.id ?? 'default'}`;
+    const theme = this.hd2dEnabled
+      ? {
+          ...(this.pack ?? { palette: paletteFor(), terrainColors: terrainFor() }),
+          lift: (x: number, y: number): number => this.world.grid.levelAt({ x, y }),
+        }
+      : (this.pack ?? undefined);
     this.terrainLayer = bakeLayer(
       this,
-      `world-terrain-${this.pack?.id ?? 'default'}`,
+      terrainKey,
       this.world.grid.width * TILE_PX,
       this.world.grid.height * TILE_PX,
       -10,
       // 传祭坛坐标：地表细节按群落配方分化，镇内与郊野长得不一样。
-      (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar, this.pack ?? undefined),
+      (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar, theme),
     );
     // 高度层：默认不建。平面世界打开 `?hd2d=on` 也返回 null——`stepsOf` 为空时
     // 连一张纹理都不生成，所以「开关关掉 = 显示列表逐对象不变」是结构性的。
-    this.hd2dEnabled = hd2dEnabledOf(window.location.search);
     if (this.hd2dEnabled) {
       this.heightView = createHeightView(
         this,
@@ -820,6 +831,8 @@ export class SandboxScene extends Phaser.Scene {
         originX,
         originY,
         ALTITUDE,
+        terrainKey,
+        this.occludersEnabled,
       );
     }
     ensureAccentTextures(this);
@@ -4475,11 +4488,13 @@ export class SandboxScene extends Phaser.Scene {
         const known = this.snapshot.villagers.some((villager) => villager.id === villagerId);
         if (!known) return null;
         this.pinnedVillagers.set(villagerId, { x: cell.x, y: cell.y });
-        const foot = villagerFootAt(cell);
+        // 钉位也要读级数：台地上的人整体抬 `level*16`，depth 锚未抬升的行底。
+        const level = this.world.grid.levelAt(cell);
+        const foot = villagerFootAt(cell, 0, 0, level);
         return {
           x: foot.x,
           y: foot.y,
-          depth: villagerDepthAt(foot.y, ALTITUDE),
+          depth: villagerDepthAt((cell.y + 1) * TILE_PX, ALTITUDE, level),
           w: VILLAGER_W,
           h: VILLAGER_H,
         };
@@ -4577,7 +4592,8 @@ export class SandboxScene extends Phaser.Scene {
           villagers: snapshot.villagers
             .filter((villager) => villager.visible)
             .map((villager) => {
-              const foot = villagerFootAt(villager.pos, 0, 0);
+              // 投影也跟着台面抬：影子必须贴在脚下，不能留在低处。
+              const foot = villagerFootAt(villager.pos, 0, 0, this.world.grid.levelAt(villager.pos));
               return {
                 id: villager.id,
                 x: foot.x,
@@ -4925,6 +4941,7 @@ export class SandboxScene extends Phaser.Scene {
         actorFrameOf(this.shotPin, villager.id),
         this.animFsmEnabled,
         actorSettledOf(this.shotPin, villager.id),
+        this.world.grid.levelAt(villager.pos),
       );
     }
     // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
@@ -4934,7 +4951,8 @@ export class SandboxScene extends Phaser.Scene {
       const shape = groundShadowAt(this.phaseView.currentPhase());
       for (const villager of snapshot.villagers) {
         if (!villager.visible) continue;
-        const foot = villagerFootAt(villager.pos, 0, 0);
+        // 投影也跟着台面抬，理由同 `paintingSnapshot`。
+        const foot = villagerFootAt(villager.pos, 0, 0, this.world.grid.levelAt(villager.pos));
         drawVillagerGroundShadow(
           this.groundShadowLayer,
           foot.x,
