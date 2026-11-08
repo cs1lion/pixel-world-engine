@@ -279,6 +279,14 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 真正的作者输入通道是 §8 **阶段 3** 的 `GridSpec.levels`；在它落地之前，本文档与任何证据
   不得写成“已经具备高度场景”——H1/H3 的观感只能靠上述调试补丁演示。
 
+**引擎语义坑：Phaser 4 的 crop 偏移已经算进 quad 的局部左上角**。`setCrop(x, y, w, h)` 在
+`TransformerImage` 里的落点是 `x = -displayOriginX + crop.x`——crop 自己的偏移已经进了 quad 的局部左上角。
+所以裁剪条 Image 的位置必须是 `(0, 0)`，**不能再写成 `(0, bandY)`**：写成 `(0, bandY)` 时贴图又抬了
+`bandY`，整条落到 `2*bandY`（bandY=16 时落到 32），第一条演示直接跑出画面。
+实测对照：错位版（Image 放 `(0, bandY)`）forward = reverse = **3872 px**（两条 ROI 读数一模一样，
+说明条根本没落在 ROI 的任何像素上）；改回 `(0, 0)` 后 forward = **0**、reverse = **3872**、
+`stripIdentity = 0`。这不是我们代码的坑，是引擎语义；下一个人一定会再踩。
+
 ### 3.4 谁在前面，由什么决定
 
 - **行号**决定主次序：`北 < 南`（与今天完全一致）。
@@ -574,6 +582,29 @@ world.terrainEdits: readonly {
 | O1 后方 | 崖在 `(x,R)` level 1，人在 `(x,R-1)` level 0，固定 pose | 同一机位、同一帧的**差分**：A = 开遮挡（人在 ROI）、A′ = 开遮挡（人移走）；B = `?occluders=off`（人在 ROI）、B′ = off（人移走）。ROI = 抬起带矩形（世界 y `R*16-16..R*16`） | ① `actorDepth < occluderDepth`；② ROI 内 `diff(A, A′) = 0`；③ ROI 内 `diff(B, B′) > 0`（报原始像素数）；④ 人不在 ROI 时 `diff(A′, B′) = 0`（逐像素） | **为什么不用“人物专属色”**：24 色里没有只属于人的色，专属色是软判据；差分把“条画错了但恰好那里没人”直接变成读数。④ 就是那条兜底：人在 ROI 外时，开关前后同一 ROI 必须逐像素相同；否则说明条本身画错了 |
 | O2 上方 | 人在 `(x,R)` level 1，（崖面就在脚下） | 人物整体像素数与“同一 pose 站在 1×1 平地”的对照完全相同 | 差 = 0；且 `actorDepth > occluderDepth` | 反向：把 `LEVEL_PX` 调 0 的渲染夹具，像素数仍等于对照；证明 O2 量的不是“人变高”而是“没被自己脚下挡” |
 | O3 前方 | 人在 `(x,R+1)` level 0 | 同 O2 的像素数对照；`actorDepth > occluderDepth` | 差 = 0 | 反向：把该人移到 `(x,R-1)`，O1 必须变红（同测试内的位置对照） |
+
+**O1 本轮实测**（`?hd2d=on&hpatch=10,58,3,3,1`，人钉 `(11,57)` NORTH，ROI 64×64 CSS = 世界 16×16，
+y 912..928）：forward `diff(A, A′) = 0`；reverse `diff(B, B′) = 3872 px`；兜底 `diff(A′, B′) = 0`
+（`stripIdentity`）；台地对照（平地页 vs 打补丁页）= `1392 px`。`renderStats().images`：`hd2d=on` 24 /
+`&occluders=off` 22，差值 2 就是地形带 + 崖面带两条。③④ 必须和 ①② 一起报：只有 forward=0 区分不了
+“条画对了”和“条根本没画”。
+
+**基线比对口径（165 与 166 各是什么）**：`world-client/eval/screens` 的 **166 是跟踪件总数
+（154 PNG + 3 HTML + 9 JSON）**，逐像素可比的只有 154 张 PNG（`screens-diff.py` 只比顶层 `*.png`）。
+两跑（base 树 `bfbdd80` 与本笔各跑同一套 12 条脚本）各产出 **165 张同名 PNG**：
+142 张是 154 张跟踪 PNG 的重产件；另 23 张是脚本当场产出但**未跟踪**的件——`ground-shadow` 的 dawn
+两相位 4 张、`clock-a/clock-b` 2 张、`ao-off/ao-on` ×6 样本 12 张、`g1-dusk` 与 `lighting-g1-dusk-4x`
+2 张；`check-phases` 的 `worst-dusk-rain-lamps` 1 张；`check-scene-motion` 的 `scene-motion-dark-t/t1`
+2 张。剩下 **12 张跟踪 PNG 默认口径不重产**，是一次性参照：`ground-shadow-villager-{dusk,noon}-{on,off}-1x.png`
+4 张、`lamp-band-before*.png` 6 张、`setting-scale-before.png` 与合成图 `setting-scale.png` 2 张。
+所以“166 − 165 = 1”是跨口径相减（166 里有 3 HTML + 9 JSON 不参与逐像素；154 张 PNG 里有 12 张不在
+默认产出里），**没有任何一张 PNG 在“两跑之间”缺失**。
+
+**29 张不同怎么判**：165 张里 136 张逐字节相同，29 张不同。这 29 张在同树两遍（A/A）复跑里同样对不上
+（`dengchao-noon` 14.60/14.61、`placement-*` 3.35/3.34、`creation-rejected` 0.7846/0.7846），
+说明它们在当前抓图协议下本来就不可复现，不能拿来当证据。
+**结论：0 张差异可归因于本笔改动。** 不写成“0 diff 通过”：能证的是“差异无法归因于本笔”，
+证不了“两跑像素全同”——后者被抓图协议本身的不可复现性否掉了。
 
 **遮挡判据的边界**：`LEVEL_PX = 16`、崖高 1 层时，崖面只在“紧邻北边一行”的人身上有可见遮挡；
 不要拿两行以北的人当反例——那里本来就没有像素重叠。判据测的是“有重叠时谁盖谁”，不是“隔着多远还能盖”。
