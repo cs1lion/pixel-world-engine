@@ -13,7 +13,7 @@ import {
 } from '../world/villager-look.ts';
 import type { GridPoint, PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
-import { SITE_KINDS, type SiteKind } from '../world/timetable.ts';
+import { isSiteKind, siteDefOf, type SiteKind } from '../world/timetable.ts';
 import type {
   CompiledVillager,
   RawSettingPack,
@@ -259,8 +259,10 @@ function assertRoutineStop(stop: SettingRoutineStop, villagerName: string): void
   }
 }
 
-/** 这个落点是「给场所」还是「给坐标」。 */
-function isSiteStop(stop: SettingRoutineStop): stop is SettingRoutineStop & { readonly site: string } {
+/** 带 `site` 的那一支：**必带 `activity`**，由类型定死。 */
+type SettingSiteStop = Extract<SettingRoutineStop, { readonly site: string }>;
+
+function isSiteStop(stop: SettingRoutineStop): stop is SettingSiteStop {
   return 'site' in stop;
 }
 
@@ -285,9 +287,12 @@ function compileSites(
     }
     if (seen.has(site.id)) throw new SettingPackError(`场所 ${site.id} 重复`);
     seen.add(site.id);
-    if (!SITE_KINDS.includes(site.kind as SiteKind)) {
-      throw new SettingPackError(`场所 ${site.id} 的 kind ${site.kind} 不在闭集里`);
+    if (!isSiteKind(site.kind)) {
+      // kind 的事实源是 `SITE_TABLE`：表里没有这一行，门就永远不开，人也永远不去，
+      // 牌子还写着去——静默失效比报错难查。
+      throw new SettingPackError(`场所 ${site.id} 的 kind ${site.kind} 没有门控行`);
     }
+    const kind: SiteKind = site.kind;
     const hasCoords = site.x !== undefined || site.y !== undefined;
     const hasBuilding = site.building !== undefined;
     if (hasCoords && hasBuilding) {
@@ -302,13 +307,13 @@ function compileSites(
       if (!buildingIds.has(site.building)) {
         throw new SettingPackError(`场所 ${site.id} 的建筑 ${site.building} 不在 placements 里`);
       }
-      return { id: site.id, kind: site.kind as SiteKind, building: site.building };
+      return { id: site.id, kind, building: site.building };
     }
     if (site.x === undefined || site.y === undefined) {
       throw new SettingPackError(`场所 ${site.id} 必须有坐标锚或建筑锚`);
     }
     inBounds({ x: site.x, y: site.y }, `场所 ${site.id}`);
-    return { id: site.id, kind: site.kind as SiteKind, x: site.x, y: site.y };
+    return { id: site.id, kind, x: site.x, y: site.y };
   });
 }
 
@@ -511,14 +516,24 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
     };
   });
   const sites = compileSites(raw.sites, inBounds, raw.placements);
-  const siteIds = new Set(sites.map((site) => site.id));
+  // 场所 id → 种类：交叉校验要问「这个场所允许哪些词」，而许可挂在种类那一行。
+  const siteKinds = new Map(sites.map((site) => [site.id, site.kind]));
   for (const villager of villagers) {
     inBounds(villager.at, villager.name);
     if (villager.routine.length === 0) throw new SettingPackError(`${villager.name} 没有作息`);
     for (const stop of villager.routine) {
       if (isSiteStop(stop)) {
-        if (!siteIds.has(stop.site)) {
+        const kind = siteKinds.get(stop.site);
+        if (kind === undefined) {
           throw new SettingPackError(`${villager.name} 的作息指向未知场所 ${stop.site}`);
+        }
+        // 词与场所的交叉校验：这一笔的主判据。不匹配就在这里 throw，
+        // 不留到行为层静默退回锚点（那种失效没有牌子、也没有日志）。
+        const allowed = siteDefOf(kind).activities ?? [];
+        if (!allowed.includes(stop.activity)) {
+          throw new SettingPackError(
+            `${villager.name} 的作息「${stop.label}」：场所 ${stop.site}（kind ${kind}）不允许活动 ${String(stop.activity)}`,
+          );
         }
       } else {
         inBounds(stop, `${villager.name} 的作息`);

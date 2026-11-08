@@ -423,7 +423,8 @@ export const DENGCHAO_RAW: RawSettingPack = {
       // 花径（设定集 p110–111）：14:00–17:00 才开。落点不写死坐标，由 `sites`
       // 表的站位锚 + 地图可走格解析（见 `test/courtyard-routine.test.ts`）。
       // 放在第三拍（下标 2）：开局的作息指针正好停在这里，14:00 出发、15:30 前后到。
-      { site: 'courtyard', label: '在花径里看一会儿花', going: '去花径', dwellMs: 5200 },
+      // 活动词 `stroll` 是**引擎取值**：设定集只写了花径的「坐下」，没有「走看」。
+      { site: 'courtyard', activity: 'stroll', label: '在花径里看一会儿花', going: '去花径', dwellMs: 5200 },
       { x: 39, y: 29, label: '满潮时收起滩边的灯', dwellMs: 4800, tide: 'high' },
       { x: 50, y: 42, label: '趁退潮拾回还能用的灯芯', dwellMs: 6000, tide: 'low' },
     ] },
@@ -449,7 +450,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       // 锅炉房（设定集工坊三处之一）：`boiler_annex#1` 的坐标锚，白天才去。
       // 06:00–17:00 是**引擎约定、无设定集依据**（设定集只给「白天斜射阳光」，没钟点）。
       // 首拍 (39,38) 仍是字面坐标：它同时是锚点，门控在那里会空转（O3）。
-      { site: 'boiler_annex#1', label: '到炉底入口边上搬炭', dwellMs: 6000 },
+      { site: 'boiler_annex#1', activity: 'work', label: '到炉底入口边上搬炭', dwellMs: 6000 },
       { x: 24, y: 24, label: '在街边喝一碗热的', dwellMs: 4800 },
     ] },
     // 设定集：掌柜（PDF p.53；书页 104–105 的掌柜造型）。
@@ -463,7 +464,9 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { x: 27, y: 29, label: '沿街巡一遍还没灭的灯', dwellMs: 5000 },
       // 两个人各占中央净空一格（x6 与 x7），并排站着；坐姿不在这一刀。
       // 放在第四拍（下标 3）：她的作息指针起步在 3，14:00 出发、16:20 前后到。
-      { site: 'courtyard-east', label: '在花径里站一会儿', going: '去花径', dwellMs: 5200 },
+      // ⚠ 活动词 `rest` 与 label「站一会儿」不一致：**保留 `rest`**（设定集写的是
+      // 「坐下」）。接行为时要么改 label、要么改词，别当笔误删掉这一行。
+      { site: 'courtyard-east', activity: 'rest', label: '在花径里站一会儿', going: '去花径', dwellMs: 5200 },
       { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
     ] },
     { name: '账房先生', at: { x: 34, y: 28 }, style: {
@@ -476,7 +479,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       // 集市两态（设定集：「午后阳光下的饮食街」/「入夜灯笼点亮」）。
       // 08:00–17:00 与 19:00–22:00 都是**引擎约定、无设定集依据**（设定集没有钟点）；
       // 锚 (17,26) 上就是 `stall_north_1`，不是空街口。
-      { site: 'market', label: '在摊位间对一遍零钱', dwellMs: 4800 },
+      { site: 'market', activity: 'trade', label: '在摊位间对一遍零钱', dwellMs: 4800 },
     ] },
     { name: '洗衣妇', at: { x: 37, y: 31 }, style: {
       cloak: 'copper', cloakDark: 'deepShade', scarf: 'pale', scarfLit: 'plaster', hair: 'soil',
@@ -486,7 +489,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       // 大浴场清洗（设定集工坊三处之一）：`wave_house#1` 的建筑锚，落点取门。
       // ⚠ 设定集对这一处**没有任何时间依据**——「斜射阳光」只属于锅炉房，
       // 清洗那页连时间描述都是缺的。06:00–17:00 纯属引擎取值，不是还原。
-      { site: 'wave_house#1', label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
+      { site: 'wave_house#1', activity: 'work', label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
       { x: 52, y: 42, label: '把洗好的布晾在滩边', dwellMs: 6000, tide: 'low' },
       { x: 24, y: 31, label: '把干净衣裳送到街尾', dwellMs: 5400 },
     ] },

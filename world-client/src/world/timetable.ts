@@ -47,29 +47,15 @@ export type MarketPhase = 'closed' | 'open' | 'night';
 export type SiteId = string;
 
 /**
- * 场所种类的运行时闭集：`SiteKind` 由它派生，装载期也由它校验。
+ * 场所里允许做的活动：闭集，四个词。
  *
- * **`kind` 是门控种类，不是外观种类**：它只决定「这个场所按哪套时段开关」，
- * 不许拿它做绘制分支（外观走 `SettingScenery['kind']`）。同名不代表同一件事。
+ * - `trade` / `work` / `rest` 有设定集依据（饮食街 / 工坊 / 花径坐下）；
+ * - `stroll` 是**引擎取值**（设定集没有「走看」这个词）。
  *
- * 只收真实内容。设定集只有庭院 / 花径 / 桥头前庭，没有城市公园；`park`
- * 从未有消费方，这里直接不收。`workshop` 是三处工坊（锅炉房 / 大浴场清洗；
- * 配膳间本包没有建筑，见 `docs/OPEN_ISSUES.md` O3）共用的门控种类。
+ * `gather` / `perform` 刻意不收：设定集没有对应内容，也没有消费方。
+ * 预留会让**写错的词**看起来合法——闭集的价值就是写错就 throw。
  */
-export const SITE_KINDS = ['market', 'courtyard', 'workshop'] as const;
-
-/** 场所种类：闭集的元素类型，不另写一遍字面量。 */
-export type SiteKind = (typeof SITE_KINDS)[number];
-
-const SITE_KIND_SET: ReadonlySet<string> = new Set(SITE_KINDS);
-
-/** 闭集之外的 kind 直接 throw，与 `siteStateAt` 未知 id 同一条口径。 */
-function requireSiteKind(kind: string, where: string): SiteKind {
-  if (!SITE_KIND_SET.has(kind)) {
-    throw new Error(`${where} 的 kind ${kind} 不在 SITE_KINDS 里`);
-  }
-  return kind as SiteKind;
-}
+export type ActivityId = 'trade' | 'work' | 'rest' | 'stroll';
 
 /** 一条营业时段。左闭右开，分钟口径与世界日一致；`closed` 由「不命中任何带」派生。 */
 export interface SiteBand {
@@ -78,11 +64,18 @@ export interface SiteBand {
   readonly phase: Exclude<MarketPhase, 'closed'>;
 }
 
-/** 场所的静态内容：只有身份、种类与时段，没有任何运行时状态。 */
+/**
+ * 场所的静态内容：只有身份、种类、时段与允许的活动，没有任何运行时状态。
+ *
+ * `activities` **省略 = 这个场所不承载活动**（纯门场所），查询一律 false；
+ * 写成空数组则在装载期 throw——写了空清单像是「想列却漏了」，省略才是表态。
+ * 与 `SITE_FLAGS` 空表同一条口径：静默失效比报错难查。
+ */
 export interface SiteDef {
   readonly id: SiteId;
   readonly kind: SiteKind;
   readonly bands: readonly SiteBand[];
+  readonly activities?: readonly ActivityId[];
 }
 
 export interface TimetableBeat {
@@ -182,8 +175,11 @@ const MARKET_CLOSE_MINUTE = beatMinute('market_close');
  *
  * **`workshop` 只做门，不做落点**：落点在包里的 `sites`（id = 建筑的 `instanceId`），
  * 与花径那条 `courtyard` 的用法对称。
+ *
+ * **这张表是 kind 的唯一事实源**：`SITE_KINDS` 由它派生，`siteDefOf(kind)` 也查它。
+ * 表里加一个 kind，闭集就自动多一个；包里写了表里没有的 kind，装载期 throw。
  */
-export const SITE_TABLE: readonly SiteDef[] = [
+export const SITE_TABLE = [
   {
     id: 'market',
     kind: 'market',
@@ -191,12 +187,16 @@ export const SITE_TABLE: readonly SiteDef[] = [
       { fromMinute: MARKET_OPEN_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' },
       { fromMinute: NIGHT_MARKET_MINUTE, toMinute: MARKET_CLOSE_MINUTE, phase: 'night' },
     ],
+    // 饮食街：交易有据；「在摊位间走一遍」是引擎取值。
+    activities: ['trade', 'stroll'],
   },
   {
     id: 'courtyard',
     kind: 'courtyard',
     // 花径 14:00–17:00 开放：安静段结束开门，收工关门。
     bands: [{ fromMinute: QUIET_END_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' }],
+    // 花径「坐下」有据（p110–111）；走看是引擎取值。
+    activities: ['rest', 'stroll'],
   },
   {
     id: 'workshop',
@@ -206,13 +206,84 @@ export const SITE_TABLE: readonly SiteDef[] = [
     // 大浴场清洗那页连时间描述都没有，更没有任何钟点。两端只是复用时刻表的
     // `wash_bridge` / `work_end`，不是还原。
     bands: [{ fromMinute: WATER_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' }],
+    // 三处工坊只做活。
+    activities: ['work'],
   },
-];
+] as const;
+
+/**
+ * 场所种类：由 `SITE_TABLE` 派生，不另写一份字面量。
+ *
+ * **`kind` 是门控种类，不是外观种类**：它只决定「这个场所按哪套时段开关」，
+ * 不许拿它做绘制分支（外观走 `SettingScenery['kind']`）。同名不代表同一件事。
+ *
+ * 只收真实内容。设定集只有庭院 / 花径 / 桥头前庭，没有城市公园；`park`
+ * 从未有消费方，这里直接不收。`workshop` 是三处工坊（锅炉房 / 大浴场清洗；
+ * 配膳间本包没有建筑，见 `docs/OPEN_ISSUES.md` O3）共用的门控种类。
+ */
+export type SiteKind = (typeof SITE_TABLE)[number]['kind'];
+
+/** 场所种类的运行时清单：直接从表里取，顺序即表的顺序。 */
+export const SITE_KINDS: readonly SiteKind[] = SITE_TABLE.map((site) => site.kind);
+
+const SITE_KIND_SET: ReadonlySet<string> = new Set(SITE_KINDS);
+
+/** 这个字符串是不是闭集里的 kind。 */
+export function isSiteKind(kind: string): kind is SiteKind {
+  return SITE_KIND_SET.has(kind);
+}
+
+/** 闭集之外的 kind 直接 throw，与 `siteStateAt` 未知 id 同一条口径。 */
+function requireSiteKind(kind: string, where: string): SiteKind {
+  if (!isSiteKind(kind)) {
+    throw new Error(`${where} 的 kind ${kind} 不在 SITE_KINDS 里`);
+  }
+  return kind;
+}
 
 const SITE_BY_ID = new Map<SiteId, SiteDef>(SITE_TABLE.map((site) => [site.id, site]));
+const SITE_BY_KIND = new Map<string, SiteDef>(SITE_TABLE.map((site) => [site.kind, site]));
 
-// 装载期校验：表里出现闭集之外的 kind 就在这里 throw，不许等到渲染时才露馅。
-for (const site of SITE_TABLE) requireSiteKind(site.kind, `SITE_TABLE/${site.id}`);
+/**
+ * 按种类取那一行门控内容。表里没有就 throw。
+ *
+ * 与 `siteStateAt` 未知 id 同一条口径：`?? closed` 会把「表里没有」静默成
+ * 「今天关着」，那种错最难查——牌子写着去花径，人永远不去。
+ */
+export function siteDefOf(kind: SiteKind): SiteDef {
+  const def = SITE_BY_KIND.get(kind);
+  if (def === undefined) throw new Error(`场所种类 ${kind} 没有门控行`);
+  return def;
+}
+
+// 装载期校验：表里出现闭集之外的 kind、一个 kind 两行、或空活动清单，都在这里 throw。
+// 空清单是「想列却漏了」，与 `SITE_FLAGS` 空表同一条——不留到运行期变成「没人做」。
+for (const site of SITE_TABLE) {
+  requireSiteKind(site.kind, `SITE_TABLE/${site.id}`);
+  const activities = site.activities as readonly ActivityId[] | undefined;
+  if (activities !== undefined && activities.length === 0) {
+    throw new Error(`场所 ${site.id} 的活动清单是空表`);
+  }
+}
+if (new Set(SITE_KINDS).size !== SITE_TABLE.length) {
+  throw new Error('SITE_TABLE 里一个 kind 只能有一行（`siteDefOf` 按 kind 取行）');
+}
+
+/**
+ * 这个场所此刻允不允许做这件事：门开着 ∧ 词在这一行的清单里。
+ *
+ * **只读 `bands` 与 `activities`，不读 `kind`**：同一种 kind 的两行可以给不同清单，
+ * 所以实现里不许出现 `kind === 'market'` 这种分支（`test/site-activities.test.ts`
+ * 拿「同 kind 不同清单」的探针当反例钉住）。
+ *
+ * 纯函数：输入只有静态内容与世界时刻，不落人物状态、不写存档，回放不出分叉。
+ * 没写 `activities` 的场所（纯门）一律 false，不 throw——省略是表态，不是写错。
+ */
+export function activityAllowedAt(site: SiteDef, activity: ActivityId, now: number): boolean {
+  const allowed = site.activities;
+  if (allowed === undefined || !allowed.includes(activity)) return false;
+  return sitePhaseOf(site, now) !== 'closed';
+}
 
 /**
  * 21:00–05:00：该回锚点了。

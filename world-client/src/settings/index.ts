@@ -12,6 +12,7 @@ import {
 } from './load.ts';
 import { DENGCHAO_RAW } from './dengchao/pack.ts';
 import { PACE, dwellMsForSetting } from '../world/pace.ts';
+import type { RoutineBeatBase, RoutineBeat } from '../world/routines.ts';
 
 const LEGACY_PACK: SettingPack = {
   id: 'default', name: '莞尔镇', saveKey: 'xiaoxi.pixel-world.save.v1',
@@ -68,9 +69,10 @@ export function routineProfiles(
     // 开局带什么凭证，装载时已经从 style.lamp 算好（`load.ts`）。
     // 这里原样递下去，不再问一遍 style——那会变成第二个事实。
     carries: villager.carries,
-    routine: villager.routine.map((stop, index) => {
-      const kind = 'site' in stop ? kindOf.get(stop.site) : undefined;
-      return {
+    routine: villager.routine.map((stop, index): RoutineBeat => {
+      const siteStop = 'site' in stop ? stop : undefined;
+      const kind = siteStop === undefined ? undefined : kindOf.get(siteStop.site);
+      const base: RoutineBeatBase = {
         // 场所落点带自己的 id（现在只有花径）；坐标落点沿用原来的两项。
         // 集市 / 工坊的场所落点走 `promenade`（见 `SITE_ROUTINE_IDS` 的注释）。
         id: index === 0
@@ -90,9 +92,12 @@ export function routineProfiles(
         // 20–40 世界分钟的节奏（见 `pace.ts`）。省略就是默认停留。
         dwellMs: stop.dwellMs === undefined ? PACE.dwellDefaultMs : dwellMsForSetting(stop.dwellMs),
         ...(stop.tide === undefined ? {} : { tide: stop.tide }),
-        // 场所开关：关着时这一拍退回锚点，口径与潮汐条件一致。
-        ...(kind === undefined ? {} : { site: kind }),
       };
+      // 场所开关 + 活动词：两者成对。关着时这一拍退回锚点，口径与潮汐条件一致；
+      // 词与场所不匹配在装载期就已经 throw 了（`load.ts` 的交叉校验）。
+      return siteStop === undefined || kind === undefined
+        ? base
+        : { ...base, site: kind, activity: siteStop.activity };
     }),
   }));
 }

@@ -4,7 +4,7 @@ import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import type { VillagerArchive } from '../world/villager-archive.ts';
 import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
-import type { SiteKind } from '../world/timetable.ts';
+import type { ActivityId, SiteKind } from '../world/timetable.ts';
 
 export interface SettingPlacement {
   readonly prefabId: string;
@@ -55,9 +55,13 @@ export interface SettingRoutineWords {
  *
  * 同时给就是两个事实（场所挪了、坐标没挪），装载期会拒掉。只给 `site` 的落点
  * 由 `sites` 表解析；解析不到就 throw，不许静默落到 (0,0)。
+ *
+ * **给 `site` 就必须给 `activity`**（类型层面挡死）：到了场所之后做什么，不许
+ * 由行为层按 kind 猜，也不许只靠 `label` 的文字。装载期还会交叉校验
+ * 「这个词这个场所允不允许」，不匹配就 throw。
  */
 export type SettingRoutineStop = SettingRoutineWords &
-  ({ readonly site: string } | GridPoint);
+  ({ readonly site: string; readonly activity: ActivityId } | GridPoint);
 
 export interface SettingVillager {
   readonly name: string;

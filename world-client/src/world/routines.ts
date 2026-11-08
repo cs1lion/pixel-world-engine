@@ -6,13 +6,13 @@
 
 import type { GridPoint, PlacedBuilding } from './types.ts';
 import { hasEnvironment, type EnvironmentFlag, type EnvironmentFrame } from './environment.ts';
-import type { SiteId } from './timetable.ts';
+import type { ActivityId, SiteId } from './timetable.ts';
 import { PACE } from './pace.ts';
 // 场所开关从 EnvironmentFrame 的 flag 读：同一刻只有一份读数，不在这里按相位再算一次。
 
 export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'courtyard' | 'shelter';
 
-export interface RoutineBeat {
+export interface RoutineBeatBase {
   readonly id: RoutineId;
   readonly label: string;
   /**
@@ -34,14 +34,24 @@ export interface RoutineBeat {
   readonly target: GridPoint;
   readonly dwellMs: number;
   readonly tide?: 'low' | 'high';
-  /**
-   * 这一拍属于哪个场所。场所关着时退回锚点，与潮汐条件不成立时同一条口径。
-   *
-   * 「开不开」不在作息里判：`environment.ts` 已经从 `siteStateAt` 折成 flag，
-   * 这里只读 flag——同一刻只有一份读数。
-   */
-  readonly site?: SiteId;
 }
+
+/**
+ * 一拍日常。
+ *
+ * **带 `site` 必带 `activity`**（类型层面挡死）：到了场所之后做什么，不许由
+ * 行为层按 kind 猜，也不许只靠 `label` 的文字。不带 `site` 的拍是纯坐标落点，
+ * 不允许挂 `activity`。
+ *
+ * 「这个场所此刻允不允许这个词」由 `activityAllowedAt` 判；「开不开」不在作息里
+ * 判：`environment.ts` 已经从 `siteStateAt` 折成 flag，这里只读 flag——同一刻
+ * 只有一份读数。
+ */
+export type RoutineBeat = RoutineBeatBase &
+  (
+    | { readonly site: SiteId; readonly activity: ActivityId }
+    | { readonly site?: undefined; readonly activity?: undefined }
+  );
 
 /**
  * 一圈日常：祭坛 → 农田边 → 河湾 → 街口 → 早市摊子 → 回祭坛。不涉及铺子，

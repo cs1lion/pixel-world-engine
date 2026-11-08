@@ -319,24 +319,24 @@ test('除包数据那一份之外，不引用设定集的名字与说法', () =>
  * 但每一行都写出来——复制一句「同上」的清单，读的人不会真去核上面那句。
  */
 const KNOWN_STOPS: Readonly<Record<string, { readonly why: string }>> = {
-  'world/routines.ts:72': {
+  'world/routines.ts:82': {
     why: '莞尔镇没有配置包。这一拍是「在祭坛边坐着」，锚点就是祭坛本身，目标由参数传进来。',
   },
-  'world/routines.ts:75': {
+  'world/routines.ts:85': {
     why: '莞尔镇没有配置包。这一拍去农田边，落点是 `altar` 偏移 (-8,+4) 后找的最近可走格。',
   },
-  'world/routines.ts:82': {
+  'world/routines.ts:92': {
     why: '莞尔镇没有配置包。这一拍去河湾看水，落点是 `altar` 偏移 (+4,-4) 后找的最近可走格'
       + '——`setup.ts` 在那儿铺了一片泥滩，站的那一格四邻有水。',
   },
-  'world/routines.ts:89': {
+  'world/routines.ts:99': {
     why: '莞尔镇没有配置包。这一拍在街口站着，落点是 `altar` 偏移 (+8,-3) 后找的最近可走格。',
   },
-  'world/routines.ts:96': {
+  'world/routines.ts:106': {
     why: '莞尔镇没有配置包。这一拍守着街口往里一格的早市摊子，落点是 `altar` 偏移 (+9,-2) 后找的最近可走格；'
       + '闭市时这一拍整天不存在（`withMarketWords`）。',
   },
-  'world/routines.ts:103': {
+  'world/routines.ts:113': {
     why: '莞尔镇没有配置包。这一拍回到祭坛等神谕，与第一拍同一个 target，一圈的收尾。',
   },
 };
@@ -455,7 +455,7 @@ const KNOWN_OTHER_LABELS: Readonly<Record<string, { readonly why: string }>> = {
   // 换出来的字面量里没有 `dwellMs:`，所以判据三认不出它是落点。它确实是世界数据
   // （夜市怎么叫人），只是形状是「换一句说法」而不是「声明一个新落点」——与下雨
   // 那两处同一类行为，登记在这儿才不假装判据覆盖到了。
-  'world/routines.ts:127': {
+  'world/routines.ts:137': {
     why: '`withMarketWords` 把市面那一拍换成「在夜市灯下看摊」——落点没变，只说法的相位变了。',
   },
   // 取景的三个按钮名。**这不是世界数据**：它们说的是镜头怎么摆，不是这个世界里
