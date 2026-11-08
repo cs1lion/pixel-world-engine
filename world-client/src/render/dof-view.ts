@@ -19,42 +19,16 @@ import { boxBlurRGBA, countNonOpaque, focusWindow } from './dof-blur.ts';
 const KEY_A = 'world-blur-a';
 const KEY_B = 'world-blur-b';
 
-/** 与 `SetTransform` 只用到的那两项保持一致，避免把整份 Renderer 类型拖进来。 */
-interface CanvasLikeRenderer {
-  readonly blendModes: readonly string[];
-  readonly antialias: boolean;
-}
-
-interface TargetCameraLike {
-  setScene(scene: Phaser.Scene): unknown;
-  setViewport(x: number, y: number, w: number, h: number): unknown;
-  scrollX: number;
-  scrollY: number;
-}
-
-interface CanvasRenderable {
-  renderCanvas(
-    renderer: unknown,
-    src: unknown,
-    camera: unknown,
-    parentMatrix: unknown,
-    ctx: CanvasRenderingContext2D,
-    allowClip: boolean,
-  ): void;
-}
-
 export interface DofViewOptions {
-  /** 世界像素宽高（1536×1152）。 */
+  /** 世界像素宽高。 */
   readonly width: number;
   readonly height: number;
   /** 静态层的地形贴图 key —— S-0 断言就钉在它身上。 */
   readonly terrainKey: string;
-  /** drawable depth：夹在地面层与潮水之间。 */
+  /** drawable depth：地形之上、痕迹与潮水之下。 */
   readonly depth: number;
   /** box blur 半径（backing px），k = 2r+1。 */
   readonly blurRadius: number;
-  /** 地形之外、同样属于静态闭包的 Graphics（铺装等），按 depth 顺序重画。 */
-  readonly graphics: readonly Phaser.GameObjects.Graphics[];
 }
 
 export interface DofStats {
@@ -90,29 +64,8 @@ function assertReadableTerrain(scene: Phaser.Scene, key: string): HTMLCanvasElem
   return source;
 }
 
-/** 把若干顶层 Graphics 按 commandBuffer 重画进任意 2D context（与 generateTexture 同一支笔）。 */
-export function drawGraphicsInto(
-  scene: Phaser.Scene,
-  ctx: CanvasRenderingContext2D,
-  graphics: readonly Phaser.GameObjects.Graphics[],
-  width: number,
-  height: number,
-): void {
-  if (graphics.length === 0) return;
-  const renderer = scene.game.renderer as unknown as CanvasLikeRenderer;
-  const camera = (Phaser.GameObjects.Graphics as unknown as { readonly TargetCamera: TargetCameraLike })
-    .TargetCamera;
-  camera.setScene(scene);
-  camera.setViewport(0, 0, width, height);
-  camera.scrollX = 0;
-  camera.scrollY = 0;
-  for (const g of graphics) {
-    (g as unknown as CanvasRenderable).renderCanvas(renderer, g, camera, null, ctx, false);
-  }
-}
-
 export function createDofView(scene: Phaser.Scene, options: DofViewOptions): DofView {
-  const { width, height, terrainKey, depth, blurRadius, graphics } = options;
+  const { width, height, terrainKey, depth, blurRadius } = options;
   const terrain = assertReadableTerrain(scene, terrainKey);
 
   const work = document.createElement('canvas');
@@ -150,7 +103,6 @@ export function createDofView(scene: Phaser.Scene, options: DofViewOptions): Dof
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(terrain, 0, 0);
-    drawGraphicsInto(scene, ctx, graphics, width, height);
     const frame = ctx.getImageData(0, 0, width, height);
     composeMs = Date.now() - startedCompose;
 

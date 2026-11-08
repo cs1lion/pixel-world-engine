@@ -836,7 +836,6 @@ export class SandboxScene extends Phaser.Scene {
         terrainKey: `world-terrain-${this.pack?.id ?? 'default'}`,
         depth: DOF_DEPTH,
         blurRadius: 1,
-        graphics: [this.decor.roads],
       });
       // 相机在 update 里才定型，PRE_RENDER 是「这一帧最终画面」的第一时间。
       this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.updateDof, this);
