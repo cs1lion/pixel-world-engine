@@ -306,6 +306,21 @@ export class WorldGrid {
     return this.at(p)?.level ?? 0;
   }
 
+  /**
+   * 写入一格高度。**调试演示口（`?hpatch=`）专用，不是作者输入通道**——
+   * 生产路径的高度只在构造时由 `GridSpec.levels` 落成（本轮全仓零生产者）。
+   * 校验与构造函数同一条：`0..MAX_TERRAIN_LEVEL` 的整数，否则 throw。
+   */
+  setLevel(p: GridPoint, level: number): void {
+    if (!Number.isInteger(level) || level < 0 || level > MAX_TERRAIN_LEVEL) {
+      throw new Error(
+        `setLevel 的 level 必须是 0..${MAX_TERRAIN_LEVEL} 的整数，收到 ${level}`,
+      );
+    }
+    const cell = this.at(p);
+    if (cell !== undefined) cell.level = level;
+  }
+
   /** 潮汐每拍调一次。只影响寻路代价，不改格子的可走性。 */
   setTideLevel(level: number): void {
     this.tideLevel = Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 0;

@@ -9,6 +9,8 @@ import {
   TILE_PX,
 } from './world/setup.ts';
 import { SandboxScene } from './scenes/SandboxScene.ts';
+import { hd2dEnabledOf } from './render/hd2d-switch.ts';
+import { demoLevelPatchesOf } from './world/height-demo.ts';
 import { bindOraclePanel, utterancePlaceholder, type OracleApi } from './ui/oracle-panel.ts';
 import { bindHud } from './ui/hud.ts';
 import { bindShell } from './ui/shell.ts';
@@ -121,6 +123,23 @@ if (worldTitle !== null) worldTitle.textContent = pack.name;
 const brand = document.querySelector<HTMLElement>('#topbar .brand');
 if (brand !== null) brand.textContent = pack.name;
 const world = buildWorldFor(pack, loadedSave.ok ? loadedSave.save : null);
+
+/**
+ * `?hpatch=`：**调试演示口**，不是作者输入通道。
+ *
+ * 只在 `?hd2d=on` 时解析（关着时 `demoLevelPatchesOf` 连参数都不读）；格式错直接
+ * throw，不静默降级成平地。不写存档、不参与 trace/replay、不进任何夹具——
+ * 见 `world/height-demo.ts` 与 `docs/OPEN_ISSUES.md` 的「高度层有渲染判定，
+ * 但没有内容生产者」。
+ */
+const demoPatches = demoLevelPatchesOf(window.location.search, hd2dEnabledOf(window.location.search));
+for (const patch of demoPatches) {
+  for (let dy = 0; dy < patch.h; dy += 1) {
+    for (let dx = 0; dx < patch.w; dx += 1) {
+      world.grid.setLevel({ x: patch.x + dx, y: patch.y + dy }, patch.level);
+    }
+  }
+}
 
 /**
  * 输入框里的例子必须在这张图上真能办到。

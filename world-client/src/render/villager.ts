@@ -16,6 +16,7 @@
 
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
+import { actorDepthOf } from './height-view.ts';
 import type { Vec2, VillagerSnapshot } from '../world/types.ts';
 import { paletteFor, type WorldPalette } from '../world/theme.ts';
 import { advanceLamp, lampDayOf, newLamp, type LampState } from '../world/lampoil.ts';
@@ -85,21 +86,32 @@ export function createVillager(
   return { container, body, shadow, lamp: newLamp(), animState: null };
 }
 
-/** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
+/** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。
+ *
+ * `level` 是这一格的台地级数：台面上移（H3）就是把整格人一起抬 `level*16`。
+ * 缺省 0，与旧画面逐字节相同。
+ */
 export function villagerFootAt(
   cell: Vec2,
   originX = 0,
   originY = 0,
+  level = 0,
 ): { readonly x: number; readonly y: number } {
   return {
     x: pixelAt(originX + (cell.x + 0.5) * TILE_PX),
-    y: pixelAt(originY + (cell.y + 1) * TILE_PX),
+    y: pixelAt(originY + (cell.y + 1) * TILE_PX - level * TILE_PX),
   };
 }
 
-/** 人物 depth：脚底 + 8。上一行的人（脚底小 16px）因此比构件低 4。 */
-export function villagerDepthAt(footY: number, altitude: number): number {
-  return altitude + footY + 8;
+/**
+ * 人物 depth：**按行锚定**的脚底 + 8，`level` 只做 0.5px 分档。
+ *
+ * `footY` 必须是**未抬升**的脚底（`(cell.y+1)*16`）：台地上移只改视觉位置，
+ * 不改排序行。`level = 0` 时与旧公式逐字相同；分档公式的唯一实现是
+ * `height-view.ts` 的 `actorDepthOf`，这里只做转接，避免第二份真相。
+ */
+export function villagerDepthAt(footY: number, altitude: number, level = 0): number {
+  return actorDepthOf(Math.round(footY / TILE_PX) - 1, altitude, level);
 }
 
 /**
@@ -164,13 +176,17 @@ export function updateVillager(
   animFsmEnabled = false,
   /** 姿态钉是否要求稳态（`ActorPin.settled` 缺省 true）。没有姿态钉时传 `null`。 */
   pinSettled: boolean | null = null,
+  /** 这一格的台地级数（`?hd2d=on` 才可能非 0）。缺省 0：位置与排序都逐字节不变。 */
+  level = 0,
 ): void {
-  const foot = villagerFootAt(villager.pos, originX, originY);
+  const anchorY = originY + (villager.pos.y + 1) * TILE_PX;
+  const foot = villagerFootAt(villager.pos, originX, originY, level);
   const px = foot.x;
   const py = foot.y;
   view.container.setPosition(px, py);
   view.container.setVisible(villager.visible);
-  view.container.setDepth(villagerDepthAt(py, altitude));
+  // depth 锚在**未抬升**的行底（anchorY），不是视觉脚底：见 villagerDepthAt。
+  view.container.setDepth(villagerDepthAt(anchorY, altitude, level));
 
   // 灯油只在有灯的人身上成立；没提灯的人不受存档字段影响。
   // 推进发生在更新路径上，用的是 simulation 时间：世界暂停时灯也停，

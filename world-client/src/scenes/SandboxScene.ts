@@ -165,6 +165,8 @@ import {
 import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
+import { createHeightView, type HeightView } from '../render/height-bake.ts';
+import { occludersEnabledOf, hd2dEnabledOf } from '../render/hd2d-switch.ts';
 import {
   FRAME_CLAMP_MS,
   paceFrame,
@@ -572,6 +574,16 @@ export class SandboxScene extends Phaser.Scene {
   /** 上次真正推进世界的时刻（Phaser 的 time 参数）。 */
   private lastAdvanceAt = 0;
   private terrainLayer!: BakedLayer;
+  /**
+   * 高度层（`?hd2d=on`）。**缺省是 null**：平面世界连纹理都不建一张。
+   *
+   * 这里只放「画出来的东西」；判定在 `render/height-view.ts`，只读 `levelAt`。
+   */
+  private heightView: HeightView | null = null;
+  /** 这一跑要不要高度层。`?hd2d` 不写 / 写 `off` 都是 false。 */
+  private hd2dEnabled = false;
+  /** 这一跑要不要逐行遮挡条。只在 `hd2d` 开时可能为 true（`?occluders=off` 关掉）。 */
+  private occludersEnabled = false;
   /** 拖拽平移的起点（屏幕坐标）；null 表示没在拖。 */
   private dragFrom: { x: number; y: number } | null = null;
   /** 这一回按下之后指针挪过没有。挪过了就是拖镜头，没挪过才算点一下。 */
@@ -790,15 +802,39 @@ export class SandboxScene extends Phaser.Scene {
     // 就不再变。只在开局画一次，之后每帧只贴一个 quad。
     // 这里原来还写着「每帧要 51 万条绘制指令，可见区域只占世界 12.5%」——两个数
     // 都没有出处（可见区域实测是 8.7%），理由不靠它们也成立，详见 `bake.ts`。
+    // 开关只解析一次：地形烘焙本身要按它决定画不画台面上移（H1/H3）。
+    this.hd2dEnabled = hd2dEnabledOf(window.location.search);
+    this.occludersEnabled = occludersEnabledOf(window.location.search);
+    const terrainKey = `world-terrain-${this.pack?.id ?? 'default'}`;
+    const theme = this.hd2dEnabled
+      ? {
+          ...(this.pack ?? { palette: paletteFor(), terrainColors: terrainFor() }),
+          lift: (x: number, y: number): number => this.world.grid.levelAt({ x, y }),
+        }
+      : (this.pack ?? undefined);
     this.terrainLayer = bakeLayer(
       this,
-      `world-terrain-${this.pack?.id ?? 'default'}`,
+      terrainKey,
       this.world.grid.width * TILE_PX,
       this.world.grid.height * TILE_PX,
       -10,
       // 传祭坛坐标：地表细节按群落配方分化，镇内与郊野长得不一样。
-      (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar, this.pack ?? undefined),
+      (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar, theme),
     );
+    // 高度层：默认不建。平面世界打开 `?hd2d=on` 也返回 null——`stepsOf` 为空时
+    // 连一张纹理都不生成，所以「开关关掉 = 显示列表逐对象不变」是结构性的。
+    if (this.hd2dEnabled) {
+      this.heightView = createHeightView(
+        this,
+        `world-height-${this.pack?.id ?? 'default'}`,
+        this.world.grid,
+        originX,
+        originY,
+        ALTITUDE,
+        terrainKey,
+        this.occludersEnabled,
+      );
+    }
     ensureAccentTextures(this);
     this.decor = createDecorView(this, originX, originY);
     this.decor.redrawRoads([]);
@@ -1484,6 +1520,8 @@ export class SandboxScene extends Phaser.Scene {
     // 烘焙的纹理不随场景销毁自动释放，必须手动清：否则热更新或重进场景时
     // 会留下同名旧纹理，下一次 generateTexture 直接复用，画面停在上一版。
     this.terrainLayer?.destroy();
+    this.heightView?.destroy();
+    this.heightView = null;
     this.settingScenery?.destroy();
     this.settingScenery = null;
     this.tideView?.destroy();
@@ -4181,6 +4219,15 @@ export class SandboxScene extends Phaser.Scene {
         let topCommands = 0;
         let totalGraphics = 0;
         let totalCommands = 0;
+        let topImages = 0;
+        let topQuads = 0;
+        let totalImages = 0;
+        let totalQuads = 0;
+
+        /** 以纹理 quad 提交的对象类型。Image 是其中「只有一张静态图」的那一档。 */
+        const isQuad = (type: string): boolean =>
+          type === 'Image' || type === 'Sprite' || type === 'TileSprite'
+          || type === 'Blitter' || type === 'NineSlice';
 
         /** 楼体三层容器按楼号命名，免得读数里只剩一串下标。 */
         const nameOf = (obj: Phaser.GameObjects.GameObject): string | null => {
@@ -4201,8 +4248,8 @@ export class SandboxScene extends Phaser.Scene {
           container: Phaser.GameObjects.Container,
           path: string,
           depth: number,
-        ): { graphicsObjects: number; totalCommands: number; containers: number } => {
-          if (visited.has(container)) return { graphicsObjects: 0, totalCommands: 0, containers: 0 };
+        ): { graphicsObjects: number; totalCommands: number; containers: number; images: number; quads: number } => {
+          if (visited.has(container)) return { graphicsObjects: 0, totalCommands: 0, containers: 0, images: 0, quads: 0 };
           visited.add(container);
           // 先登记再递归：容器的读数要含整棵子树，嵌套容器自然排在其父之后。
           const reading = {
@@ -4216,6 +4263,8 @@ export class SandboxScene extends Phaser.Scene {
           let graphicsObjects = 0;
           let commands = 0;
           let nested = 0;
+          let images = 0;
+          let quads = 0;
           const list = container.list as readonly Phaser.GameObjects.GameObject[];
           list.forEach((child, index) => {
             if (visited.has(child)) return;
@@ -4232,12 +4281,18 @@ export class SandboxScene extends Phaser.Scene {
               graphicsObjects += sub.graphicsObjects;
               commands += sub.totalCommands;
               nested += sub.containers;
+              images += sub.images;
+              quads += sub.quads;
+            } else if (isQuad(child.type)) {
+              visited.add(child);
+              if (child.type === 'Image') images += 1;
+              quads += 1;
             }
           });
           reading.graphicsObjects = graphicsObjects;
           reading.totalCommands = commands;
           reading.containers = 1 + nested;
-          return { graphicsObjects, totalCommands: commands, containers: 1 + nested };
+          return { graphicsObjects, totalCommands: commands, containers: 1 + nested, images, quads };
         };
 
         this.children.list.forEach((item, index) => {
@@ -4254,6 +4309,12 @@ export class SandboxScene extends Phaser.Scene {
             );
             totalGraphics += sub.graphicsObjects;
             totalCommands += sub.totalCommands;
+            totalImages += sub.images;
+            totalQuads += sub.quads;
+          } else if (isQuad(item.type)) {
+            visited.add(item);
+            if (item.type === 'Image') topImages += 1;
+            topQuads += 1;
           }
         });
         // `largest` 只报最大的 5 张；数组本体不留整份清单。
@@ -4269,6 +4330,11 @@ export class SandboxScene extends Phaser.Scene {
           /** 每个容器的子树读数；`depth` 1 的是顶层容器，>1 的嵌在它们里面。 */
           containers,
           largest,
+          /** 纯 Image（烘焙层、逐行裁剪条）：旧 `totalCommands` 口径里完全看不见的那一档。 */
+          images: topImages + totalImages,
+          imageObjects: topQuads + totalQuads,
+          /** 上界口径：一个 Graphics / 一个 quad 各算一次提交，不扣同纹理合批。 */
+          drawCalls: topGraphics + totalGraphics + topQuads + totalQuads,
           /** 接触暗部「基底未知」次数：正常应为 0；非 0 说明 AO 落点那格取错了。 */
           contactAoUnknownBase: contactAoUnknownBaseCount(),
         };
@@ -4422,11 +4488,13 @@ export class SandboxScene extends Phaser.Scene {
         const known = this.snapshot.villagers.some((villager) => villager.id === villagerId);
         if (!known) return null;
         this.pinnedVillagers.set(villagerId, { x: cell.x, y: cell.y });
-        const foot = villagerFootAt(cell);
+        // 钉位也要读级数：台地上的人整体抬 `level*16`，depth 锚未抬升的行底。
+        const level = this.world.grid.levelAt(cell);
+        const foot = villagerFootAt(cell, 0, 0, level);
         return {
           x: foot.x,
           y: foot.y,
-          depth: villagerDepthAt(foot.y, ALTITUDE),
+          depth: villagerDepthAt((cell.y + 1) * TILE_PX, ALTITUDE, level),
           w: VILLAGER_W,
           h: VILLAGER_H,
         };
@@ -4524,7 +4592,8 @@ export class SandboxScene extends Phaser.Scene {
           villagers: snapshot.villagers
             .filter((villager) => villager.visible)
             .map((villager) => {
-              const foot = villagerFootAt(villager.pos, 0, 0);
+              // 投影也跟着台面抬：影子必须贴在脚下，不能留在低处。
+              const foot = villagerFootAt(villager.pos, 0, 0, this.world.grid.levelAt(villager.pos));
               return {
                 id: villager.id,
                 x: foot.x,
@@ -4872,6 +4941,7 @@ export class SandboxScene extends Phaser.Scene {
         actorFrameOf(this.shotPin, villager.id),
         this.animFsmEnabled,
         actorSettledOf(this.shotPin, villager.id),
+        this.world.grid.levelAt(villager.pos),
       );
     }
     // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
@@ -4881,7 +4951,8 @@ export class SandboxScene extends Phaser.Scene {
       const shape = groundShadowAt(this.phaseView.currentPhase());
       for (const villager of snapshot.villagers) {
         if (!villager.visible) continue;
-        const foot = villagerFootAt(villager.pos, 0, 0);
+        // 投影也跟着台面抬，理由同 `paintingSnapshot`。
+        const foot = villagerFootAt(villager.pos, 0, 0, this.world.grid.levelAt(villager.pos));
         drawVillagerGroundShadow(
           this.groundShadowLayer,
           foot.x,

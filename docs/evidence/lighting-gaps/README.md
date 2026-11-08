@@ -605,7 +605,7 @@ git -C D:\project\pwe-lighting checkout HEAD -- `
 ## 6. 未纳入本轮
 
 - G1「4× 看不出来」：接受，按规则只改注释、不记待裁决项。
-- 残留的单层太阳语义（[tilemap.ts:335](../../../world-client/src/render/tilemap.ts#L335)、
+- 残留的单层太阳语义（[tilemap.ts:360](../../../world-client/src/render/tilemap.ts#L360)、
   [villager-layout.ts:415](../../../world-client/src/render/villager-layout.ts#L415)、
   [banner-motion.ts:85](../../../world-client/src/world/banner-motion.ts#L85)）：
   本轮不清，已登记为 [OPEN_ISSUES D7](../../OPEN_ISSUES.md) 低优先级清理项。

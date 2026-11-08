@@ -501,6 +501,22 @@ const reader = await browser.newPage();
 
 const phaseRows = [];
 let peakCommands = 0;
+/**
+ * P0 的绘制读数（**只报不进闸**，D4 裁决）。
+ *
+ * `totalCommands` 只数 Graphics 的 commandBuffer，烘焙层 / 逐行裁剪条这类纯 Image
+ * 在旧口径里是隐形的。这三个数在峰值那一帧一起取，跟着峰值走，不单独造判据。
+ */
+let peakDraw = { images: 0, imageObjects: 0, drawCalls: 0 };
+/** 记一帧的绘制读数；只在指令峰值被刷新时同步，保证四个数描述的是同一帧。 */
+function noteDraw(stats) {
+  if (stats.totalCommands < peakCommands) return;
+  peakDraw = {
+    images: stats.images ?? 0,
+    imageObjects: stats.imageObjects ?? 0,
+    drawCalls: stats.drawCalls ?? 0,
+  };
+}
 
 for (const phase of PHASES) {
   // 摊位：同一时刻开 / 关。
@@ -511,6 +527,8 @@ for (const phase of PHASES) {
   const stallOff = await shot(stall.page, stall.box, `stall-${phase}-off`);
   const stallDiff = await diffPair(reader, stallOn.buf, stallOff.buf, stall.camera, STALL_ROI);
   peakCommands = Math.max(peakCommands, stallOn.stats.totalCommands, stallOff.stats.totalCommands);
+  noteDraw(stallOn.stats);
+  noteDraw(stallOff.stats);
   // G2 读数：每个有影的相位都沿影长切段，量「关−开」的相对压暗。
   // 只测黄昏分不清「按相位根锚定」和「把问题反向搬了一次」——晨相根在左、影朝右，
   // 正好是黄昏的镜像；午相 span=1 只剩单段，用来确认没有凭空多出阶梯。
@@ -573,6 +591,8 @@ for (const phase of PHASES) {
   const villagerRoi = { x0: foot.x - 48, y0: foot.y - 70, x1: foot.x + 48, y1: foot.y + 16 };
   const villagerDiff = await diffPair(reader, villagerOn.buf, villagerOff.buf, villager.camera, villagerRoi);
   peakCommands = Math.max(peakCommands, villagerOn.stats.totalCommands, villagerOff.stats.totalCommands);
+  noteDraw(villagerOn.stats);
+  noteDraw(villagerOff.stats);
   // G2 读数：人物在每个有影的相位都量；晨相 span=4 只有两段、午相 span=1 只有单段。
   let villagerSegments = null;
   if (foot.span > 0) {
@@ -962,6 +982,7 @@ console.log(`暂停 ${pct(pauseDiff.ratio)}（帧 +${pauseB.frame - pauseA.frame
 console.log(`世界钟驱动 18:11→19:11（跨 19:00 支摊）${pct(clockDiff.ratio)}（${clockDiff.changed}px，`
   + `摊位 open ${stallOpenA.join(',')} → ${stallOpenB.join(',')}）`);
 console.log(`确定性 ${determinism}/13；峰值指令 ${peakCommands}（设计目标 ${DESIGN_TARGET} / 天花板 ${PEAK_CEILING}）`);
+console.log(`绘制读数（只报不进闸）images ${peakDraw.images} / imageObjects ${peakDraw.imageObjects} / drawCalls ${peakDraw.drawCalls}`);
 for (const item of phaseRows) {
   if (item.stall.segments) {
     const s = item.stall.segments.map((seg) => `${seg.name} ${(seg.strength * 100).toFixed(2)}%`).join(' / ');
@@ -1187,6 +1208,9 @@ if (aoUnknownBase !== 0) {
 
 console.log(
   `[记账] 设计目标 ${DESIGN_TARGET} / 实测峰值 ${peakCommands} / 天花板 ${PEAK_CEILING}，债务 ${Math.max(0, peakCommands - DESIGN_TARGET)}`,
+);
+console.log(
+  `[记账·绘制读数] images ${peakDraw.images} / imageObjects ${peakDraw.imageObjects} / drawCalls ${peakDraw.drawCalls}（只报不进闸）`,
 );
 if (failures.length > 0) {
   console.log(`[判据] 红（${failures.length} 条）`);
