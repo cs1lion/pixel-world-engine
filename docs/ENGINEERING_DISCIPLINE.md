@@ -157,10 +157,10 @@
 
 ### V3 复现性：多钉 + 同参数两跑比 sha + 树 id 防端口串树
 
-**状态**：`[已实现-部分]`（`fixture:check` 当前红，见 L1）
+**状态**：`[已实现]`
 - **触发**：渲染/世界/判据相关的读数。
 - **怎么做**：钉住时刻、潮位、相位、角色、轨迹、天气；同参数两跑逐帧 sha256 必须相同；脚本连接本机 vite 前先校验 `/__tree-id`，路径不一致即红。模拟层可用 `trace:record` / `trace:replay` / `trace:to-test` 固定轨迹。
-- **违反暴露**：sha 不一致；树 id mismatch 打印「你连的是 52xx 那棵树…」并退出 1；`fixture:check` 当前 5/5 FAIL（J1，未认领），不是绿闸。
+- **违反暴露**：sha 不一致；树 id mismatch 打印「你连的是 52xx 那棵树…」并退出 1。回放夹具的判据＝`npm run fixture:check` 全绿（CI `world-client` job 已接，见 [ci.yml](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml#L33-L34)）。**本节唯一的读数坐标**：2026-11-08 / `fbb2b85` 实测 6 条夹具 / 195 项断言 / 6 PASS 0 FAIL / exit 0；其它位置引用这句，不复制数字。
 - **不断言**：`street_greet / street_together / street_quarrel / street_yield` 彼此没有确定先后。同一 tick 由 [`livelyBetween`](file:///D:/project/pixel-world-engine/world-client/src/world/liveliness.ts#L263-L341) 的分支优先级择一（争执 → 让路 → 搭手 → 问候），但跨 tick 的次序由站位、行走、信任、冷却和哈希槽共同决定；夹具只断言各类是否出现、参与者与状态约束，不把当前次序固化成规则。
 - **对应物**：[pin-shot-state.ts](file:///D:/project/pixel-world-engine/world-client/src/render/pin-shot-state.ts#L57-L95)；[check-ground-shadow.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/check-ground-shadow.mjs#L1-L19)；[tree-identity.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/lib/tree-identity.mjs#L1-L18)；[fixture-check.ts](file:///D:/project/pixel-world-engine/world-client/scripts/fixture-check.ts)。
 
@@ -230,6 +230,14 @@
 - **违反暴露**：`audit-references` / `audit-citations` / `audit-sections` / `audit-claims` 会红；但 `npm run <script>` 是否存在、CI 步骤是否真的在跑，不在这些闸的覆盖内，必须人工对照 `ci.yml`。
 - **对应物**：[ci.yml](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml#L29-L53)；CI 实际在跑的六个审计：[audit-ports.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-ports.ts)、[audit-palette.mjs](file:///D:/project/pixel-world-engine/world-client/scripts/audit-palette.mjs)、[audit-references.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-references.ts)、[audit-citations.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-citations.ts)、[audit-sections.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-sections.ts)、[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
 
+### E7 描述闸门状态的现在时必须有坐标（2026-11-08）
+
+**状态**：`[人工步骤]`（`audit-claims` 的受查面不包含这类句子，见「违反暴露」）
+- **触发**：在文档里写某个闸门 / 脚本 / 检查「当前 N/M FAIL」「尚未接线」「未认领」「不是绿闸」这类状态。
+- **怎么做**：二选一——写「判据＝命令 X，在哪里跑（CI job / 手工入口）」；或写「某 commit + 某日期 实测 N/M」。两样都没有的说法会被时间腐蚀，不许写。同一个读数在仓库里只留一份带坐标的原文，其余位置引用它，不复制成多份会各自漂移的副本。
+- **违反暴露**：没有自动闸查这类句子——`audit-claims` 只管 markers 与 adr-schema，不覆盖「5/5 FAIL」这种读数，`audit-references` 也管不到语义；只能 review。反面教材是 `audit-references` 的 342 基线：一个过期读数被当成事实，后来没人敢更新，守卫守着一个失效数字（2026-11-08 实测 529，基线已另立）。
+- **对应物**：[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L217-L224) E4（未实测标 `[推断]`）；[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L225-L231) E6（不许写不存在的闸门）；[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
+
 ## 5. 预算与棘轮
 
 ### B1 两级阈值：设计目标不动，天花板只降不升
@@ -287,7 +295,10 @@
 **状态**：`[尚未实现]`（无自动闸；只有书面边界）
 - **触发**：合并、切换、清理、测试失败想「先 stash 一下」。
 - **怎么做**：不 `git stash`、不 `git checkout --` 别人的改动、不删除未跟踪文件。看到别人工作树在写，停手。`docs/RESUME.md` 里建议 stash 的旧口径与本条冲突时，以本条为准。
-- **违反暴露**：没有脚本检测；只能靠 `git status`、reflog 与 review。丢工作通常事后才能发现，这是本周最容易踩的一条。**失效边界（本轮实际发生）**：删**未跟踪目录**也会透过 `node_modules` junction 伤到共享依赖 —— `Remove-Item -Recurse` 清临时树时删掉了主树 `world-client/node_modules/.bin` 与 rolldown 原生绑定，`npm install` 后恢复，无 tracked 改动。判据：删临时树前先确认里面没有指向共享 `node_modules` 的 junction / 符号链接。
+- **违反暴露**：没有脚本检测；只能靠 `git status`、reflog 与 review。丢工作通常事后才能发现，这是本周最容易踩的一条。**失效边界（同一形状已发生两次）**：删**未跟踪目录**也会透过 `node_modules` junction 伤到共享依赖。
+  - 第一次（2026-11-07）：`Remove-Item -Recurse` 清临时树时删掉了主树 `world-client/node_modules/.bin` 与 rolldown 原生绑定，`npm install` 后恢复，无 tracked 改动。
+  - 第二次（2026-11-08）：同形状再现——`@rolldown/binding-win32-x64-msvc` 只剩 `.node`、缺 `package.json`，`npm ls` 报 `invalid: "1.2.15"`，`vite build` 报 `Cannot find native binding`，全量 `npm test` 因此红 1 条（`issue-13-acceptance.test.ts` 的 vite build 条件）。`npm i` 修好（`npm ls` 报 1.2.15、`package.json` 与 `.node` 都在、构建 793ms 通过、`npm test` 回到 2600/2591/0/9），但**「`npm i` 能修好」不等于「没有代价」**：修的时候另有两处 dev server 在跑（`pwe-site-hours` 5230 用自己那份依赖，主树 5211 用这份），它们用的就是被换掉的那份依赖；主树 5211 的 vite 还把旧 `.node` 锁着，留下 `@rolldown/.binding-win32-x64-msvc-7ws3PCOL` 删不掉，只能等它退出。
+  - 判据：删临时树前先确认里面没有指向共享 `node_modules` 的 junction / 符号链接（`Get-Item <path> | Select-Object LinkType,Target`）。**回收工作树后的收尾检查**必须跑这两条，它们是损坏时最先红的读数：`npm ls --all 2>&1 | Select-String invalid`（须为空）、`npx vite build`（须成功）。
 - **对应物**：[VERIFIABLE_FLOWS.md](file:///D:/project/pixel-world-engine/docs/evidence/VERIFIABLE_FLOWS.md#L9-L13)；[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L756-L762)；[RESUME.md](file:///D:/project/pixel-world-engine/docs/RESUME.md#L86-L87) 的旧 stash 建议（与本条冲突，以本条为准）。
 
 ### W3 端口只用 5210–5299，带 `--strictPort`，跑之前断言树 id
@@ -366,7 +377,7 @@
 **状态**：`[人工步骤]`（自动 owner 检查 `[尚未实现]`）
 - **触发**：某个检查长期红或长期跳过。
 - **怎么做**：写清归属线与下一步（修复 / 重录基线 / 保持记录项）；没人认领前不许从 CI 或手工清单里静默移除。一个长期红且无人认领的检查等于没有检查。
-- **违反暴露**：没有 owner 字段校验；只能 review K/J 清单。当前 `fixture:check` 5/5 FAIL（100 断言 0 通过），owner 未认领。
+- **违反暴露**：没有 owner 字段校验；只能 review K/J 清单。J1（回放夹具漂移）已闭合：判据＝`npm run fixture:check` 全绿、CI `world-client` job 已接；读数坐标见 V3「违反暴露」，本节不复制数字。
 - **对应物**：[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L691-L692) 的纪律；[OPEN_ISSUES.md](file:///D:/project/pixel-world-engine/docs/OPEN_ISSUES.md#L698) J1；[fixture-check.ts](file:///D:/project/pixel-world-engine/world-client/scripts/fixture-check.ts)。
 
 ### L2 孤儿闸门逐条接进 CI，不许一次性全接
@@ -426,7 +437,7 @@
 9. 长期红的 owner 自动检查（无）。
 10. 前向引用自动回访（`audit-citations` 只能抓当前缺失）。
 11. 教训登记表（ENVIRONMENT §4.4 建议，尚未创建）。
-12. `fixture:check` 当前 5/5 FAIL（J1，未认领），不是绿闸。
+12. ~~`fixture:check` 不是绿闸~~ — 已闭合（J1 重录后接进 CI）：判据＝`npm run fixture:check` 全绿、CI `world-client` job 已接；读数坐标见 V3「违反暴露」。本条保留在原位是为了让清单编号不挪动，事务性内容已被 V3 取代。
 13. `verify-all.mjs` 是人工手动入口，不接 CI；没有脚本阻止别人把它接进去。
 14. `audit:reports --strict` 未接 CI，且当前 main 没有该脚本（p1-shore §6.7 的已知缺口）。
 15. skill 改造的自检：`scripts/audit-skill-docs.ts` 已能查三件套、互指、必含列与退出码 / 在 CI 真值、声称与证据痕迹；但只有 npm 入口、warn 期退出码 0、未接 CI，也不判证据内容是否成立。
