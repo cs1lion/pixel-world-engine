@@ -15,6 +15,14 @@
  * - C4：结构性读数先比：images +1、drawCalls +1、totalCommands 不动；再看像素。
  * - C7：三处已知静态摆件边缘（木栈竖边 / 栏杆横边 / 船壳）的最大梯度，
  *   `?dof=off` 下 >40、糊带内 <20。窗口按世界像素点名，不量整条远带。
+ * - C8：闭包完整性。把 depth ≥1000 的立体构件藏掉后，远带内连续锐边必须 = 0；
+ *   它守的是「糊图之上还有没有别的东西没被糊到」。
+ * - C8b：已知残留上限。≥1000 建筑附属物（S-4 未闭合）的残差按三机位实测最差
+ *   收下的棘轮（14,000 px / 200 簇 / 最长连续 96 world px）；三个机位各量一遍，
+ *   取最差记账。它守「不许悄悄变多」，不是可接受线（见 docs/OPEN_ISSUES.md E15）。
+ *
+ * 三个机位：渡口（远带含水）、林地（远带全是树林与屋顶）、叠浪楼（远带全是屋顶）。
+ * C1～C7 只在渡口机位跑；C8 / C8b 三个机位都跑。
  *
  * C2（硬件 / SwiftShader 双后端 0 diff）不在这里跑：本机只有 SwiftShader，
  * 跨后端比较留给 CI 的两台执行器。
@@ -30,8 +38,25 @@ import { resolveShotDir } from './lib/shot-output.mjs';
 const BASE = process.env.PWE_URL ?? 'http://127.0.0.1:5211';
 const OUT = resolveShotDir('check-dof');
 const WORLD = process.env.PWE_DOF_WORLD ?? 'dengchao';
-/** 远景带必须含水：灯潮界的湾在 y≈1..14 格，镜头中心压在这里。 */
-const CAMERA = { x: 300, y: 160 };
+/**
+ * 三个机位。第一个是渡口（远带含水，C1～C7 的读数口径都按它），
+ * 后两个刻意让远带**不含水面**：树林 + 屋顶最容易露馅——水会把残差盖住，
+ * 屋顶和招牌不会。
+ */
+const CAMERAS = [
+  { id: 'harbor', x: 300, y: 160 },
+  { id: 'woodland', x: 200, y: 400 },
+  { id: 'rooftops', x: 800, y: 700 },
+];
+/**
+ * C8b 的回归棘轮：三机位实测最差 + 一点余量（2026-11-09）。
+ *
+ * 它守的是「不许悄悄变多」，不是「可接受线」。用户原先拍的 600 / 12 / 18 是按渡口
+ * 单机位估的（远带只有一栋楼的屋顶探进来，残留 471 px）；无水机位的远带里只要有
+ * 整片街景或整栋楼，≥1000 的锐边就以万计——那是 S-4 的结构性后果，不是回归。
+ * 三机位明细与这条推翻记录见 docs/OPEN_ISSUES.md E15。
+ */
+const C8B_CAPS = { pixels: 14000, clusters: 200, longest: 96 };
 const QUERY = `?world=${WORLD}&time=noon&feed=off&ledger=off&debug=1`;
 
 // 比较在 Node 里做，不引 python / PIL：CI 的浏览器 job 只装了 npm 依赖。
@@ -200,11 +225,10 @@ function edgeStats(file, [x0, y0, w, h]) {
  * 远带残差：把「≥40 的锐边像素」当掩膜，量它最长的一段连续锐边。
  *
  * 为什么是长度而不是个数：一个被糊平的边只会留下零星梯度（水面 dither、量化噪声），
- * 不会连成一条线；一条**连续 16 world px 以上**的硬边一定来自真实结构。所以判据
- * 用「最长连续段」：
- * - ≤ 8 world px：可接受残差，记账；
- * - 8～16：记账、标「待裁决」，不判红；
- * - ≥ 16：按 S-9 判关路径。
+ * 不会连成一条线；一条连续成段的硬边一定来自真实结构。同一个统计函数服务两条闸：
+ * - **C8**（藏掉 ≥1000 的构件）：连续锐边必须 = 0 —— 此时图上只剩糊图与贴地层，
+ *   还有成段锐边就说明闭包漏了；
+ * - **C8b**（构件放回来）：像素 / 簇数 / 最长段按三机位实测棘轮记账，只守「不许变多」。
  *
  * 入口是**剥掉 DOM 标签**的那张图（`capture` 里遮掉 overlay 后另拍一张）：地点标签
  * 是 DOM 叠在 canvas 之上，不是世界层，不该进这个数。
@@ -321,7 +345,7 @@ function residualStats(file, [x0, y0, w, h], pxPerWorld) {
   };
 }
 
-async function freeze(page) {
+async function freeze(page, camera) {
   await page.evaluate((camera) => {
     const oracle = window.Oracle;
     oracle.debugHoldWorld(true);
@@ -356,10 +380,10 @@ async function freeze(page) {
     oracle.debugGroundShadows({ on: false });
     oracle.setCameraMode('free');
     oracle.centerCameraOn(camera.x, camera.y);
-  }, CAMERA);
+  }, camera);
 }
 
-async function open(browser, dofOn) {
+async function open(browser, dofOn, camera) {
   const page = await browser.newPage({ viewport: { width: 1080, height: 760 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
@@ -367,12 +391,12 @@ async function open(browser, dofOn) {
   await page.goto(`${BASE}${QUERY}${dofOn ? '&dof=on' : ''}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.Oracle !== undefined && window.Oracle.view !== undefined);
   await page.waitForTimeout(400);
-  await freeze(page);
+  await freeze(page, camera);
   return { page, errors };
 }
 
 async function capture(entry, frame) {
-  const { page, errors } = entry;
+  const { page, errors, tag, dofOn } = entry;
   const canvas = page.locator('canvas').first();
   const box = await canvas.boundingBox();
   if (box === null) throw new Error('找不到画布包围盒');
@@ -381,16 +405,26 @@ async function capture(entry, frame) {
 
   const shot = await shotStable(page, {
     clip: box,
-    advance: () => stepFrames(page, 1, 'dof-shot'),
+    advance: () => stepFrames(page, 1, `dof-shot-${tag}`),
   });
   if (!shot.stable) throw new Error(`C6 前提不成立：${shot.reason}`);
-  const file = join(OUT, entry.dofOn ? 'on.png' : 'off.png');
+  const file = join(OUT, `${dofOn ? 'on' : 'off'}-${tag}.png`);
   writeFileSync(file, shot.buffer);
 
-  // 标签是 DOM 叠在 canvas 之上，不是世界层；残差计数必须把它们剥掉再拍一张。
-  // 只遮 overlay 根节点，canvas 内容不动，所以这张图和 on.png 只差标签。
+  // 读数在**藏构件之前**取：藏完要推进一帧才会重绘，帧号就与 off 页不同了，
+  // 而 C4 的 totalCommands 与抓拍帧号必须成对比较。
+  const readings = await page.evaluate(() => ({
+    camera: window.Oracle.camera(),
+    stats: window.Oracle.renderStats(),
+    clock: window.__CAPTURE_STATE__.frame,
+    dof: typeof window.Oracle.dof === 'function' ? window.Oracle.dof() : null,
+  }));
+
   let labelFree = null;
-  if (entry.dofOn) {
+  let groundOnly = null;
+  if (dofOn) {
+    // 标签是 DOM 叠在 canvas 之上，不是世界层；残差计数必须把它们剥掉再拍一张。
+    // 只遮 overlay 根节点，canvas 内容不动，所以这张图和 on.png 只差标签。
     await page.evaluate(() => {
       const label = document.querySelector('.setting-region-label');
       const root = label === null ? null : label.parentElement;
@@ -399,8 +433,17 @@ async function capture(entry, frame) {
         root.style.visibility = 'hidden';
       }
     });
-    labelFree = join(OUT, 'on-nolabel.png');
+    labelFree = join(OUT, `on-${tag}-nolabel.png`);
     writeFileSync(labelFree, await page.screenshot({ clip: box }));
+
+    // C8：把 depth ≥1000 的立体构件全藏掉。糊图在 999，贴地层都压在它下面，
+    // 这张图上若还有连续锐边，就只能是「有东西画在了糊图之上」。
+    // 标签**先别恢复**：它是 DOM 叠加，恢复后会被截进这张图，混进 C8 的计数。
+    await page.evaluate(() => window.Oracle.debugHideAboveDepth(1000, true));
+    await stepFrames(page, 1, `dof-hide-${tag}`);
+    groundOnly = join(OUT, `on-${tag}-ground.png`);
+    writeFileSync(groundOnly, await page.screenshot({ clip: box }));
+    await page.evaluate(() => window.Oracle.debugHideAboveDepth(1000, false));
     await page.evaluate(() => {
       const root = document.querySelector('[data-dof-hidden="1"]');
       if (root !== null) {
@@ -410,37 +453,51 @@ async function capture(entry, frame) {
     });
   }
 
-  const readings = await page.evaluate(() => ({
-    camera: window.Oracle.camera(),
-    stats: window.Oracle.renderStats(),
-    clock: window.__CAPTURE_STATE__.frame,
-    dof: typeof window.Oracle.dof === 'function' ? window.Oracle.dof() : null,
-  }));
   await page.close();
   if (errors.length > 0) throw new Error(`页面异常：${errors.join('; ')}`);
-  return { file, box, readings, hash: shot.hash, labelFree };
+  return { file, box, readings, hash: shot.hash, labelFree, groundOnly };
 }
 
 async function main() {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader'] });
   try {
-    const off = await open(browser, false);
-    const on = await open(browser, true);
-    off.dofOn = false;
-    on.dofOn = true;
+    // 三个机位：每个机位各开 off / on 两页，冻同一时刻、钉同一帧前后对照。
+    const shots = [];
+    for (const camera of CAMERAS) {
+      const off = await open(browser, false, camera);
+      const on = await open(browser, true, camera);
+      off.tag = camera.id;
+      off.dofOn = false;
+      on.tag = camera.id;
+      on.dofOn = true;
 
-    // 两页各自冻住后，钉到同一个绝对帧号 + 同一段沉降，再逐帧比较。
-    const frozenOff = await freezeFrameClock(off.page);
-    const frozenOn = await freezeFrameClock(on.page);
-    const target = Math.max(frozenOff, frozenOn) + 30;
-    const settle = 60;
-    const frameOff = await pinClock(off.page, { targetFrame: target, settleFrames: settle, label: 'dof-off' });
-    const frameOn = await pinClock(on.page, { targetFrame: target, settleFrames: settle, label: 'dof-on' });
-    assertSameFrames([frameOff], [frameOn], { label: 'dof' });
+      // 两页各自冻住后，钉到同一个绝对帧号 + 同一段沉降，再逐帧比较。
+      const frozenOff = await freezeFrameClock(off.page);
+      const frozenOn = await freezeFrameClock(on.page);
+      const target = Math.max(frozenOff, frozenOn) + 30;
+      const settle = 60;
+      const frameOff = await pinClock(off.page, {
+        targetFrame: target,
+        settleFrames: settle,
+        label: `dof-off-${camera.id}`,
+      });
+      const frameOn = await pinClock(on.page, {
+        targetFrame: target,
+        settleFrames: settle,
+        label: `dof-on-${camera.id}`,
+      });
+      assertSameFrames([frameOff], [frameOn], { label: `dof-${camera.id}` });
 
-    const shotOff = await capture(off, frameOff);
-    const shotOn = await capture(on, frameOn);
-    assertSameFrames([shotOff.readings.clock], [shotOn.readings.clock], { label: 'dof-capture' });
+      const shotOff = await capture(off, frameOff);
+      const shotOn = await capture(on, frameOn);
+      assertSameFrames([shotOff.readings.clock], [shotOn.readings.clock], {
+        label: `dof-capture-${camera.id}`,
+      });
+      shots.push({ camera, shotOff, shotOn });
+    }
+
+    // C1～C7 与结构性读数只在渡口机位量（口径见文件头）。
+    const { camera: primaryCamera, shotOff, shotOn } = shots[0];
 
     const zoom = shotOff.readings.camera.zoom;
     const scale = shotOff.box.width / 480;
@@ -475,8 +532,6 @@ async function main() {
       off: edgeStats(shotOff.file, regions.far),
       on: edgeStats(shotOn.file, regions.far),
     };
-    // 残差只量剥掉 DOM 标签的 on 图；建筑/道具（≥1000）是唯一来源。
-    const residual = residualStats(shotOn.labelFree, regions.far, pxPerWorld);
 
     const failures = [];
     if (diff.focus.exactDiffPct !== 0) failures.push(`C1 焦点带变了 ${diff.focus.exactDiffPct}%`);
@@ -500,33 +555,82 @@ async function main() {
       if (!(after < 20)) failures.push(`C7 ${name} 在糊带内仍有锐边（最大梯度 ${after}，应 <20）`);
     }
 
-    // C8：远带残差（剥掉 DOM 标签后）的最长连续锐边。≤8 world px 记账、
-    // 8～16 标待裁决、≥16 按 S-9 判关路径。
-    const longest = Math.max(residual.longestRun.worldH, residual.longestRun.worldV);
-    if (longest >= 16) {
-      failures.push(`C8 远带出现 ${longest} world px 的连续锐边（≥16，按 S-9 关路径）`);
-    } else if (longest > 8) {
-      console.log(`C8 待裁决：最长连续锐边 ${longest} world px（>8 且 <16）`);
-    } else {
-      console.log(`C8 可接受残差：最长连续锐边 ${longest} world px（≤8）`);
+    // C8 / C8b：三个机位各量一遍。C8 先藏掉 depth ≥1000 的立体构件，
+    // 只看闭包盖不盖得住糊图之上的贴地层；C8b 再把它们放回来，量已知残留的账。
+    const c8Cameras = [];
+    for (const { camera, shotOff: so, shotOn: sn } of shots) {
+      const cam2 = so.readings.camera;
+      const scale2 = cam2.zoom * (so.box.width / cam2.width);
+      const row2 = Math.round(cam2.zoom * (so.box.width / 480));
+      const far2 = [0, 0, Math.round(so.box.width), Math.round(so.box.height / 2) - row2];
+      const ground = residualStats(sn.groundOnly, far2, scale2);
+      const known = residualStats(sn.labelFree, far2, scale2);
+      const groundLongest = Math.max(ground.longestRun.worldH, ground.longestRun.worldV);
+      const knownLongest = Math.max(known.longestRun.worldH, known.longestRun.worldV);
+      c8Cameras.push({
+        id: camera.id,
+        camera: { x: camera.x, y: camera.y, observed: cam2 },
+        ground: { pixels: ground.pixels, clusters: ground.clusterCount, longest: groundLongest },
+        known: {
+          pixels: known.pixels,
+          clusters: known.clusterCount,
+          longest: knownLongest,
+          clustersTop: known.clusters,
+        },
+      });
+      if (ground.pixels !== 0 || groundLongest !== 0) {
+        failures.push(
+          `C8 ${camera.id} 藏掉 ≥1000 后远带仍有 ${ground.pixels} px 锐边（最长 ${groundLongest} world px，应 =0）`,
+        );
+      }
+      if (known.pixels > C8B_CAPS.pixels) {
+        failures.push(`C8b ${camera.id} 残留 ${known.pixels} px（应 ≤${C8B_CAPS.pixels}）`);
+      }
+      if (known.clusterCount > C8B_CAPS.clusters) {
+        failures.push(`C8b ${camera.id} 残留 ${known.clusterCount} 簇（应 ≤${C8B_CAPS.clusters}）`);
+      }
+      if (knownLongest > C8B_CAPS.longest) {
+        failures.push(`C8b ${camera.id} 最长连续锐边 ${knownLongest} world px（应 ≤${C8B_CAPS.longest}）`);
+      }
     }
+    const worstOf = (pick) => c8Cameras.reduce((a, b) => (pick(b) > pick(a) ? b : a));
+    const worstPixels = worstOf((c) => c.known.pixels);
+    const worstClusters = worstOf((c) => c.known.clusters);
+    const worstLongest = worstOf((c) => c.known.longest);
+    const c8bWorst = {
+      pixels: { camera: worstPixels.id, value: worstPixels.known.pixels },
+      clusters: { camera: worstClusters.id, value: worstClusters.known.clusters },
+      longest: { camera: worstLongest.id, value: worstLongest.known.longest },
+    };
+    console.log(
+      `C8 闭包完整性：${c8Cameras.map((c) => `${c.id} ${c.ground.pixels}px/${c.ground.longest}px`).join(' / ')}`,
+    );
+    console.log(
+      `C8b 已知残留最差：${worstPixels.id} ${worstPixels.known.pixels}px / ` +
+        `${worstClusters.id} ${worstClusters.known.clusters} 簇 / ${worstLongest.id} ${worstLongest.known.longest} world px`,
+    );
 
     const report = {
       base: BASE,
       world: WORLD,
-      camera: { ...CAMERA, observed: shotOff.readings.camera },
+      camera: { x: primaryCamera.x, y: primaryCamera.y, observed: shotOff.readings.camera },
       zoom,
       hashes: { off: shotOff.hash, on: shotOn.hash },
       diff,
       edges,
       band,
-      residual,
+      c8: { caps: C8B_CAPS, cameras: c8Cameras, worst: c8bWorst },
       structure: {
         off: { images: sOff.images, drawCalls: sOff.drawCalls, totalCommands: sOff.totalCommands },
         on: { images: sOn.images, drawCalls: sOn.drawCalls, totalCommands: sOn.totalCommands },
       },
       dof: shotOn.readings.dof,
-      files: { off: shotOff.file, on: shotOn.file, onNoLabel: shotOn.labelFree },
+      files: {
+        off: shotOff.file,
+        on: shotOn.file,
+        onNoLabel: shotOn.labelFree,
+        onGround: shotOn.groundOnly,
+      },
     };
     writeFileSync(join(OUT, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log(JSON.stringify(report, null, 2));

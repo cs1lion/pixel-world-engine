@@ -507,6 +507,17 @@ export class SandboxScene extends Phaser.Scene {
   /** 糊图的版本向量：地形与静态结构各自计数，变化才重建（见 §13.5）。 */
   private terrainVersion = 0;
   private structuresVersion = 0;
+  /**
+   * `debugHideAboveDepth` 藏起来的显示列表项与它们原来的可见性 / 透明度。
+   * 只服务于证据隔离：量远带残差时先把 ≥1000 的立体构件摘出去。
+   *
+   * 为什么连 alpha 一起改：人物每帧都会 `setVisible(villager.visible)` 把可见性
+   * 写回来，只藏 visible 的话，下一帧人就又出现了——量 C8 的那张图会混进人物。
+   */
+  private aboveDepthSaved: Map<
+    Phaser.GameObjects.GameObject,
+    { visible: boolean; alpha: number }
+  > | null = null;
   /** 内景视图。**懒创建**：没进过任何楼之前它不存在，街景的预算读数一个都不动。 */
   private interiorView: InteriorView | null = null;
   private interiorMode: InteriorMode = 'street';
@@ -4622,6 +4633,42 @@ export class SandboxScene extends Phaser.Scene {
       debugHideAmbience: (hidden: boolean): boolean => {
         this.ambienceView.setHidden(hidden);
         return hidden;
+      },
+      /**
+       * 藏掉显示列表里 depth ≥ threshold 的顶层对象（证据隔离用）。
+       *
+       * 只服务 P2 的 C8：糊图（depth 999）盖住了全部 depth <1000 的贴地层，
+       * 所以把 ≥1000 的立体构件摘掉后，远带里若还有连续锐边，就只能是
+       * 「有东西画在了糊图之上」——闭包完整性因此可以单独判。返回藏起来的项数，
+       * 恢复时逐项还原原来的可见性与透明度（不是一律设 true / 1）。
+       */
+      debugHideAboveDepth: (threshold: number, hidden: boolean): number => {
+        type VisibleObject = Phaser.GameObjects.GameObject & {
+          depth: number;
+          visible: boolean;
+          alpha: number;
+        };
+        if (hidden) {
+          if (this.aboveDepthSaved !== null) return this.aboveDepthSaved.size;
+          const saved = new Map<Phaser.GameObjects.GameObject, { visible: boolean; alpha: number }>();
+          for (const child of this.children.list as VisibleObject[]) {
+            if (child.depth < threshold) continue;
+            saved.set(child, { visible: child.visible, alpha: child.alpha });
+            child.visible = false;
+            child.alpha = 0;
+          }
+          this.aboveDepthSaved = saved;
+          return saved.size;
+        }
+        if (this.aboveDepthSaved !== null) {
+          for (const [child, state] of this.aboveDepthSaved) {
+            const target = child as VisibleObject;
+            target.visible = state.visible;
+            target.alpha = state.alpha;
+          }
+          this.aboveDepthSaved = null;
+        }
+        return 0;
       },
       /**
        * 立面与街灯的像素尺寸。尺子读的就是渲染用的常量（`SettingSceneryMetrics`），

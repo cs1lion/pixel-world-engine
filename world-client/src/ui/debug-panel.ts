@@ -399,6 +399,11 @@ export interface DebugOracle {
   debugHideAmbience?(hidden: boolean): boolean;
   /** 藏掉湾面低雾（证据隔离用：低雾随世界时刻横移，不是烟）。 */
   debugHideBayMist?(hidden: boolean): boolean;
+  /**
+   * 藏掉显示列表里 depth ≥ threshold 的顶层对象（证据隔离用），返回藏起来的项数。
+   * P2/C8 用它把 ≥1000 的立体构件摘出去，单独量糊图之上还有没有锐边。
+   */
+  debugHideAboveDepth?(threshold: number, hidden: boolean): number;
   /** 人物 / 摊位落地投影开关（关掉后这一层不画像素，对照帧差为 0）。 */
   debugGroundShadows?(patch: { on?: boolean }): { on: boolean };
   /** 本帧落地投影读数：人物按脚底、摊位按柜台底。 */
