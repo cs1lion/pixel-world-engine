@@ -5,17 +5,50 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import {
-  REPO_ROOT,
-  auditClaims,
-  scanRootProblemLines,
-  scanRootProblems,
-} from '../scripts/audit-claims.ts';
-
 /**
  * 扫描根缺失不能静默归零：`README.md` / `CLAUDE.md` / `docs` 是 claim 标记的
  * 唯一来源，根没了 → 扫出 0 个标记 → 与「全绿」同形。这里钉住的是**它开口**。
+ *
+ * `audit-claims.ts` 在 base 上还是「只有 `#!/usr/bin/env node` 的脚本、没有任何导出」，
+ * 静态 import 会红成 `ERR_MODULE_NOT_FOUND` / 缺导出，被判 `module` 而不可采信。
+ * 按 B7 形状：动态 import 捕获，先断言导出是函数（base 上 `actual 'undefined'`），
+ * 再把 import 错误放进断言信息。
  */
+
+interface ScanRootProblem {
+  scanRoot: string;
+  actual: string;
+}
+
+interface ClaimsModule {
+  REPO_ROOT: string;
+  auditClaims(options: { root: string; baselineFile?: string }): {
+    problems: ScanRootProblem[];
+    markers: number;
+    floor: { kind: string };
+  };
+  scanRootProblems(root: string): ScanRootProblem[];
+  scanRootProblemLines(problems: ScanRootProblem[]): string[];
+}
+
+const MODULE_PATH = new URL('../scripts/audit-claims.ts', import.meta.url).href;
+
+async function load(): Promise<ClaimsModule> {
+  let mod: ClaimsModule | null = null;
+  let importError: unknown = null;
+  try {
+    mod = (await import(MODULE_PATH)) as unknown as ClaimsModule;
+  } catch (error) {
+    importError = error;
+  }
+  assert.equal(
+    typeof mod?.auditClaims,
+    'function',
+    `模块缺 auditClaims${importError === null ? '' : `：${importError instanceof Error ? importError.message : String(importError)}`}`,
+  );
+  assert.equal(importError, null, '模块缺 audit-claims 导出：import 抛了错');
+  return mod!;
+}
 
 function fixture(seed: { withDocs: boolean; withReadme: boolean; withClaude: boolean }): string {
   const root = mkdtempSync(path.join(tmpdir(), 'pwe-claims-'));
@@ -37,7 +70,8 @@ function baselineFile(root: string, markers: number): string {
   return file;
 }
 
-test('删除 docs 与 README：判红并打印缺哪个根', () => {
+test('删除 docs 与 README：判红并打印缺哪个根', async () => {
+  const { auditClaims, scanRootProblems, scanRootProblemLines } = await load();
   const root = fixture({ withDocs: false, withReadme: false, withClaude: true });
   try {
     const problems = scanRootProblems(root);
@@ -58,7 +92,8 @@ test('删除 docs 与 README：判红并打印缺哪个根', () => {
   }
 });
 
-test('docs 被改成文件：报「不是目录」', () => {
+test('docs 被改成文件：报「不是目录」', async () => {
+  const { scanRootProblems } = await load();
   const root = fixture({ withDocs: false, withReadme: true, withClaude: true });
   try {
     writeFileSync(path.join(root, 'docs'), 'not a dir\n', 'utf8');
@@ -71,7 +106,8 @@ test('docs 被改成文件：报「不是目录」', () => {
   }
 });
 
-test('根都在但标记塌陷：地板判红', () => {
+test('根都在但标记塌陷：地板判红', async () => {
+  const { auditClaims } = await load();
   const root = fixture({ withDocs: true, withReadme: true, withClaude: true });
   try {
     writeFileSync(path.join(root, 'README.md'), '# r\n<!-- claim: test-file-count=1 -->\n', 'utf8');
@@ -85,7 +121,9 @@ test('根都在但标记塌陷：地板判红', () => {
   }
 });
 
-test('正例：真实仓库 markers=5、扫描根齐全、地板在阈值内', () => {
+test('正例：真实仓库 markers=5、扫描根齐全、地板在阈值内', async () => {
+  const { auditClaims, REPO_ROOT } = await load();
+  assert.equal(typeof REPO_ROOT, 'string', `REPO_ROOT 缺常量，实际 ${typeof REPO_ROOT}`);
   const audit = auditClaims({ root: REPO_ROOT });
   assert.deepEqual(audit.problems, [], JSON.stringify(audit.problems));
   assert.equal(audit.markers, 5, `正例标记数漂了，实际 ${audit.markers}`);
