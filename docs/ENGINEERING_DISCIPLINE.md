@@ -237,6 +237,7 @@
 - **怎么做**：二选一——写「判据＝命令 X，在哪里跑（CI job / 手工入口）」；或写「某 commit + 某日期 实测 N/M」。两样都没有的说法会被时间腐蚀，不许写。同一个读数在仓库里只留一份带坐标的原文，其余位置引用它，不复制成多份会各自漂移的副本。
 - **落点**：状态句应指向**被机器强制的对象**（账本条目 / 判据命令），而不是断言一个会被时间腐蚀的现在时。「现在不在 CI」是没人负责改的全称否定；「`audit-orphan-gates` 记为 `pending-ci`」由四类等值预算强制——接线必须在同一提交删条并降预算，改账本的人与读这句话的人被同一次提交绑在一起。
 - **违反暴露**：没有自动闸查这类句子——`audit-claims` 只管 markers 与 adr-schema，不覆盖「5/5 FAIL」这种读数，`audit-references` 也管不到语义；只能 review。反面教材是 `audit-references` 的 342 基线：一个过期读数被当成事实，后来没人敢更新，守卫守着一个失效数字（2026-11-08 实测 529，基线已另立）。
+- **第二个发作（受查面数量）**：受查面数量必须有「可刷新的基线 + 过期判据」（`audit-scan-baseline.json` 的 `note` 记日期 / commit / 前后值 / 为什么刷，`STALE_RATIO` 判过期），不能靠测试里写死一个数字。本轮实测：`aa49a36` 重写 README 时顺手删掉唯一一条 `adr-count` claim 标记（值 12），claims markers 5→4，全场只有 `audit-claims.test.ts` 里写死的 `5` 在喊——写死的数字会把「内容变了」和「闸门坏了」搅成同一团红，下次文档一改又是一条假警报。测试应断言性质（每条 marker 与实测一致、扫描根齐全、地板在阈值内），数量交给基线。这与 342 基线是同一个病的两次发作。
 - **对应物**：[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L217-L224) E4（未实测标 `[推断]`）；[ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md#L225-L231) E6（不许写不存在的闸门）；[audit-claims.ts](file:///D:/project/pixel-world-engine/world-client/scripts/audit-claims.ts)。
 
 ## 5. 预算与棘轮

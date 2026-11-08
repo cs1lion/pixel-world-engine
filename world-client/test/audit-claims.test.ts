@@ -20,11 +20,21 @@ interface ScanRootProblem {
   actual: string;
 }
 
+interface ClaimResult {
+  file: string;
+  name: string;
+  expected: string;
+  actual: string;
+  ok: boolean;
+}
+
 interface ClaimsModule {
   REPO_ROOT: string;
   auditClaims(options: { root: string; baselineFile?: string }): {
     problems: ScanRootProblem[];
     markers: number;
+    results: ClaimResult[];
+    failed: ClaimResult[];
     floor: { kind: string };
   };
   scanRootProblems(root: string): ScanRootProblem[];
@@ -121,11 +131,29 @@ test('根都在但标记塌陷：地板判红', async () => {
   }
 });
 
-test('正例：真实仓库 markers=5、扫描根齐全、地板在阈值内', async () => {
+test('正例：真实仓库扫描根齐全、每条 marker 与实测一致、地板在阈值内', async () => {
   const { auditClaims, REPO_ROOT } = await load();
   assert.equal(typeof REPO_ROOT, 'string', `REPO_ROOT 缺常量，实际 ${typeof REPO_ROOT}`);
   const audit = auditClaims({ root: REPO_ROOT });
   assert.deepEqual(audit.problems, [], JSON.stringify(audit.problems));
-  assert.equal(audit.markers, 5, `正例标记数漂了，实际 ${audit.markers}`);
+
+  // 受查总数**从扫描结果推导**，不写死字面量：文档增删标记是内容变化，不是闸门坏了。
+  assert.equal(
+    audit.markers,
+    audit.results.length,
+    `标记总数必须等于逐条结果数：markers ${audit.markers} / results ${audit.results.length}`,
+  );
+  assert.ok(audit.markers > 0, '扫描面为空：三个根都在却一个 marker 也没扫到');
+  // 性质而不是魔数：每条 marker 的期望值都必须与探针实测一致。
+  assert.equal(
+    audit.failed.length,
+    0,
+    `有 marker 与实测不符：${audit.failed
+      .map((item) => `${item.file} ${item.name}=${item.expected} / 实测 ${item.actual}`)
+      .join('；')}`,
+  );
+
+  // 地板（可刷新的基线）在这一项是 'ok'：数量本身由 audit-scan-baseline.json 管，
+  // 塌陷与过期都走同一份基线，测试不再复制阈值。
   assert.equal(audit.floor.kind, 'ok', JSON.stringify(audit.floor));
 });
