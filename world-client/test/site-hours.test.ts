@@ -41,7 +41,7 @@ type SiteBandLike = {
 };
 type SiteDefLike = {
   readonly id: string;
-  readonly kind: 'market' | 'garden';
+  readonly kind: 'market' | 'park';
   readonly bands: readonly SiteBandLike[];
 };
 type SiteTableModule = {
@@ -232,7 +232,7 @@ test('回放：跨 08:00 / 17:00 / 19:00 的一条轨迹两跑，三层指纹一
 
 test('SITE_TABLE：这一刀只有 market 一条，时段合法且不重叠', () => {
   const defs = requireSiteTable();
-  assert.equal(defs.length, 1, 'SITE_TABLE 只放 market；庭院时段待设定集给出，不在这里编造');
+  assert.equal(defs.length, 1, 'SITE_TABLE 只放 market；公园时段待设定集给出，不在这里编造');
   const market = defs[0];
   assert.equal(market.id, 'market');
   assert.equal(market.kind, 'market');
@@ -324,19 +324,19 @@ test('siteOpenAt 委托 siteStateAt(market)：边界与 night 分支逐点不变
   assert.equal(siteOpenAt(worldMinutes(NIGHT_TO)), 'closed', '22:00 闭市右开');
 });
 
-test('SiteDef 只换数据：测试内 garden fixture 走同一个 sitePhaseOf', () => {
+test('SiteDef 只换数据：测试内 park fixture 走同一个 sitePhaseOf', () => {
   const sitePhaseOf = requireSitePhaseOf();
 
-  // 只在测试里造一条 garden 数据，证明相位函数不按 kind 写分支；
-  // 生产 `SITE_TABLE` 不写庭院时段，等设定集给内容。
-  const garden: SiteDefLike = {
-    id: 'garden:fixture',
-    kind: 'garden',
+  // 只在测试里造一条 park 数据，证明相位函数不按 kind 写分支；
+  // 生产 `SITE_TABLE` 不写公园时段，等设定集给内容。
+  const park: SiteDefLike = {
+    id: 'park:fixture',
+    kind: 'park',
     bands: [{ fromMinute: 6 * 60, toMinute: 22 * 60, phase: 'open' }],
   };
 
-  assert.equal(sitePhaseOf(garden, worldMinutes(6 * 60)), 'open', '庭院 06:00 左闭');
-  assert.equal(sitePhaseOf(garden, worldMinutes(6 * 60 - 1)), 'closed', '庭院 06:00 前关闭');
-  assert.equal(sitePhaseOf(garden, worldMinutes(22 * 60 - 1)), 'open', '庭院 22:00 前仍开');
-  assert.equal(sitePhaseOf(garden, worldMinutes(22 * 60)), 'closed', '庭院 22:00 右开');
+  assert.equal(sitePhaseOf(park, worldMinutes(6 * 60)), 'open', '公园 06:00 左闭');
+  assert.equal(sitePhaseOf(park, worldMinutes(6 * 60 - 1)), 'closed', '公园 06:00 前关闭');
+  assert.equal(sitePhaseOf(park, worldMinutes(22 * 60 - 1)), 'open', '公园 22:00 前仍开');
+  assert.equal(sitePhaseOf(park, worldMinutes(22 * 60)), 'closed', '公园 22:00 右开');
 });
