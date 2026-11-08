@@ -102,6 +102,7 @@
 - **保守侧**：`typeof` 只验证「导出存在」，抓不到函数签名/默认值变化。签名变化请继续用静态 import + 实际调用断言（导出本身存在，静态 import 不会误报）。这是有意的保守：宁可把「没跑起来」判 ERROR，也不让 import 写错冒充先红后绿。
 - **影响**：不修的话，下一个照抄静态 import 的作者会长期看到 ERROR，误以为闸门坏了；写测试时需按上面的写法，或先把导出以 stub 形式落地。
 - **建议时机**：下一次改 red-first 时再考虑加 lint/模板拦截；本轮只登记，不改工具。
+  - 2026-11-08：已让 `module` / `compile` 的红直接打印「命中的规则 + 全量输出行号 + 出错文件 + 上下文」，不再只给 `tail(output, 18)`；模板拦截仍未做。
 - **是否需要用户决策**：否（已按「登记已知误报」处理）。
 
 ### B8. `TERRAIN_SPECK` 5 个键全仓无读点（死数据，只登记不删）
@@ -159,6 +160,13 @@
 - **不做的事**：不抬 20s、不加白名单、不把「复跑绿」当作结论。
 - **建议时机**：CI 再次出现该条红时优先做；或下一次动这个集成测试时顺手补诊断字段。
 - **是否需要用户决策**：**是**（是否给 `startServer` 补诊断输出，需要单独一次提交授权）。
+
+### B14. 合并前没有在被合并的提交上跑过闸门（2026-11-08 登记）
+
+- **问题**：`chore/eval-screens-audit` **一次 CI 都没跑过**就合进了 main（`gh run list --branch chore/eval-screens-audit` 为空）。它带进来的两个测试在 base 上的红不合规：`check-setting-scale-probe.test.ts` 裸 `await import` 新模块 → `ERR_MODULE_NOT_FOUND`（占 `module`），`audit-references.test.ts` 静态 import 新导出 `silentWindow` → `SyntaxError`（占 `compile`）。**[事实]**（`eafbcc3` 的 CI run `42421415005`：`world-client` job 红在 `red-first`，`RESULT=ERROR kind=module`；本地用同一 base `7636c64` 复现，全量输出里决定分类的是那两条，`shot-stable` 的断言红只是被 `tail` 留下的最后 18 行）
+- **判据不动**：`red-first` 判红是对的，`classifyBaseFailure` 的优先级（`module > compile > crash > assertion`）与全部阈值都不改。修的是测试形状：模块不存在 / 新导出不存在，一律「动态 import + `typeof fn === 'function'` 断言」（B7）；**谁把判定范围放宽去容忍 module 红，等于把这道闸门关掉**。
+- **建议时机**：立即生效——**合并前必须在被合并的那个提交上跑过一次 `red:first` 与全量 `npm test`，用与 CI 相同的 base；没跑过不许合。**
+- **是否需要用户决策**：否（流程纪律）。
 
 ## C. 设计边界（不是 bug，但需要被知道）
 

@@ -49,7 +49,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classifyBaseFailure, parseArgs, planTestChanges, type ChangedFile } from './red-first-lib.ts';
+import { explainBaseFailure, parseArgs, planTestChanges, type ChangedFile } from './red-first-lib.ts';
 
 interface RunResult {
   status: number;
@@ -243,17 +243,26 @@ function main(): void {
       return;
     }
 
-    const kind = classifyBaseFailure(result.output);
-    if (kind !== 'assertion') {
-      console.error(`red-first: ERROR 非断言失败（分类=${kind}）；这次红不可采信，不放行。`);
-      if (kind === 'compile' && /does not provide an export named/.test(result.output)) {
+    const failure = explainBaseFailure(result.output);
+    if (failure.kind !== 'assertion') {
+      console.error(`red-first: ERROR 非断言失败（分类=${failure.kind}）；这次红不可采信，不放行。`);
+      // 分类扫的是全量输出，tail 只有最后 18 行——真因常在截掉的前面。
+      // 这里把命中的规则、行号、出错文件和上下文单独打出来。
+      console.error(
+        `red-first: 命中 /${failure.pattern}/ @ 输出第 ${failure.line} 行` +
+          (failure.file === null
+            ? '；输出里没解析到出错文件'
+            : `；出错文件 ${failure.file}${failure.fileLine === null ? '' : `:${failure.fileLine}`}`),
+      );
+      for (const line of failure.context) console.error(`red-first:   | ${line.trimEnd()}`);
+      if (failure.kind === 'compile' && /does not provide an export named/.test(result.output)) {
         console.error(
           'red-first: 提示：测试静态 import 了 base 上还不存在的新导出。' +
             '改为动态 import + `typeof fn === "function"` 断言（见 docs/OPEN_ISSUES.md B7）。',
         );
       }
       console.error(tail(result.output));
-      console.error(`red-first: RESULT=ERROR kind=${kind} elapsed=${Date.now() - started}ms`);
+      console.error(`red-first: RESULT=ERROR kind=${failure.kind} elapsed=${Date.now() - started}ms`);
       process.exitCode = 2;
       return;
     }

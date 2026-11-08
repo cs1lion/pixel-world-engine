@@ -154,8 +154,11 @@ const MODULE_FAILURE = [
   /ERR_MODULE_NOT_FOUND/,
   /ERR_UNKNOWN_FILE_EXTENSION/,
   /ERR_UNSUPPORTED_ESM_URL_SCHEME/,
-  /Cannot find module/,
-  /Cannot find package/,
+  // 行首锚定：B14 的写法会把 Node 的原文（`Cannot find module …`）留在断言
+  // 消息里，那是「测试先于实现」的合格红，不是基础设施错误。真正的模块错误
+  // 总以 `Error [ERR_MODULE_NOT_FOUND]: …` 或 `Cannot find module …` 起行。
+  /^\s*(?:Error(?: \[[A-Z_]+\])?: )?Cannot find module\b/m,
+  /^\s*(?:Error(?: \[[A-Z_]+\])?: )?Cannot find package\b/m,
   /Failed to resolve import/,
 ];
 
@@ -189,11 +192,89 @@ const ASSERTION_FAILURE = [
 ];
 
 export function classifyBaseFailure(output: string): BaseFailureKind {
-  if (MODULE_FAILURE.some((pattern) => pattern.test(output))) return 'module';
-  if (COMPILE_FAILURE.some((pattern) => pattern.test(output))) return 'compile';
-  if (CRASH_FAILURE.some((pattern) => pattern.test(output))) return 'crash';
-  if (ASSERTION_FAILURE.some((pattern) => pattern.test(output))) return 'assertion';
-  return 'unknown';
+  return explainBaseFailure(output).kind;
+}
+
+/** 一次分类的现场：命中的是哪条规则、哪一行、哪个文件。 */
+export interface BaseFailureEvidence {
+  kind: BaseFailureKind;
+  /** 命中的正则源码；`unknown` 时为 null。 */
+  pattern: string | null;
+  /** 命中行在输出里的行号（1 起）。 */
+  line: number | null;
+  /** 命中的那一行（已 trim）。 */
+  matched: string | null;
+  /** 出错文件；输出里找不到时为 null。 */
+  file: string | null;
+  /** 出错文件里的行号（能解析到就带）。 */
+  fileLine: number | null;
+  /** 命中行前后各 4 行，供人直接看现场。 */
+  context: string[];
+}
+
+const SIGNALS: readonly { kind: BaseFailureKind; patterns: readonly RegExp[] }[] = [
+  { kind: 'module', patterns: MODULE_FAILURE },
+  { kind: 'compile', patterns: COMPILE_FAILURE },
+  { kind: 'crash', patterns: CRASH_FAILURE },
+  { kind: 'assertion', patterns: ASSERTION_FAILURE },
+];
+
+/**
+ * 测试文件的路径（可带 `file://` 前缀）都认；路径后面紧跟行号的也认。
+ * （注释里不写具体的文件路径或冒号加数字：`audit-references` / `audit-citations`
+ * 会把它们当成真的引用去查。）
+ */
+const FILE_HINT = /((?:file:\/\/\/)?[^\s()"']*?test[/\\][^\s:'"()]+\.(?:ts|tsx|mjs|js))(?::(\d+)(?::\d+)?)?/;
+
+/**
+ * 给出「为什么红」的现场，而不只是分类。
+ *
+ * 分类器扫的是**全量输出**，而闸门只打 `tail(output, 18)`——真因常常在截掉的
+ * 前面（2026-11-08：`kind=module` 的真因是另一份测试的 `ERR_MODULE_NOT_FOUND`，
+ * 日志尾部只剩一条形状正确的 shot-stable 断言，读日志的人会追错方向）。
+ * 所以这里把命中规则、行号、文件和上下文一并交出来。
+ */
+export function explainBaseFailure(output: string): BaseFailureEvidence {
+  const lines = output.split(/\r?\n/);
+  for (const signal of SIGNALS) {
+    for (const pattern of signal.patterns) {
+      const match = pattern.exec(output);
+      if (!match) continue;
+      const lineIndex = output.slice(0, match.index).split(/\r?\n/).length - 1;
+      const hint = findFileHint(lines, lineIndex);
+      return {
+        kind: signal.kind,
+        pattern: pattern.source,
+        line: lineIndex + 1,
+        matched: (lines[lineIndex] ?? '').trim(),
+        file: hint?.file ?? null,
+        fileLine: hint?.line ?? null,
+        context: lines.slice(Math.max(0, lineIndex - 4), Math.min(lines.length, lineIndex + 5)),
+      };
+    }
+  }
+  return { kind: 'unknown', pattern: null, line: null, matched: null, file: null, fileLine: null, context: [] };
+}
+
+function findFileHint(lines: readonly string[], hit: number): { file: string; line: number | null } | null {
+  // 先看命中行本身与下一行（`ERR_MODULE_NOT_FOUND` 的 `imported from …` 在下一行），
+  // 再往回找（`SyntaxError` 的文件头与源码行在错误消息上方）。
+  const offsets = [0, 1, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10];
+  for (const offset of offsets) {
+    const index = hit + offset;
+    if (index < 0 || index >= lines.length) continue;
+    const found = FILE_HINT.exec(lines[index] ?? '');
+    if (!found) continue;
+    return { file: stripFileUrl(found[1] ?? ''), line: found[2] ? Number(found[2]) : null };
+  }
+  return null;
+}
+
+/** `file:///tmp/x` → `/tmp/x`；`file:///C:/x` → `C:/x`。 */
+function stripFileUrl(raw: string): string {
+  if (!raw.startsWith('file:///')) return raw;
+  const rest = raw.slice('file:///'.length);
+  return /^[A-Za-z]:/.test(rest) ? rest : `/${rest}`;
 }
 
 /** 解析 `--base` / `--repo` / `--timeout` / `--keep`；空字符串的 base 视为未给。 */

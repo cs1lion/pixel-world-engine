@@ -44,8 +44,29 @@ interface ProbeModule {
 
 const MODULE_PATH = new URL('../scripts/lib/setting-scale-probe.mjs', import.meta.url).href;
 
+/**
+ * 模块不存在时必须红在**断言**上，不能是 `ERR_MODULE_NOT_FOUND`：
+ * 后者会被 red-first 判成 `module`（不可采信），于是「测试先于实现」这件事
+ * 在闸门里看不见，反而像闸门坏了（B7）。
+ *
+ * 顺序是刻意的：先断言导出是函数（base 上 `actual 'undefined'` / `expected
+ * 'function'`），再把 import 错误本身放进断言信息——错误对象留着，不吞。
+ */
 async function load(): Promise<ProbeModule> {
-  return (await import(MODULE_PATH)) as unknown as ProbeModule;
+  let mod: ProbeModule | null = null;
+  let importError: unknown = null;
+  try {
+    mod = (await import(MODULE_PATH)) as unknown as ProbeModule;
+  } catch (error) {
+    importError = error;
+  }
+  assert.equal(
+    typeof mod?.assertMeasuredReading,
+    'function',
+    `模块缺 assertMeasuredReading${importError === null ? '' : `：${importError instanceof Error ? importError.message : String(importError)}`}`,
+  );
+  assert.equal(importError, null, '模块缺 setting-scale-probe：import 抛了错');
+  return mod!;
 }
 
 const VALID = { personH: 30, shopfrontH: 48, shopfrontTop: 16, lampPostH: 58, lampBodyBottom: 43 };
