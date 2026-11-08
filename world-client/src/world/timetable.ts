@@ -46,8 +46,8 @@ export type MarketPhase = 'closed' | 'open' | 'night';
 /** 场所身份：复用 `placeId` 的内容表 key，不做闭集枚举。 */
 export type SiteId = string;
 
-/** 场所种类：只收真实内容，空词表不预支。 */
-export type SiteKind = 'market' | 'park';
+/** 场所种类：只收真实内容，空词表不预支。设定集只有庭院 / 花径 / 桥头前庭。 */
+export type SiteKind = 'market' | 'garden';
 
 /** 一条营业时段。左闭右开，分钟口径与世界日一致；`closed` 由「不命中任何带」派生。 */
 export interface SiteBand {
@@ -153,8 +153,8 @@ const MARKET_CLOSE_MINUTE = beatMinute('market_close');
  * 这一刀唯一的场所：街口摊位。
  *
  * 四个时刻全部引用上面从 `TIMETABLE` 派生的常量，**不在这里另写一遍**；
- * 时刻表仍是单一事实源。公园的时段是内容决定，设定集还没给，不在这里
- * 编一个数字——「只换数据」由测试内的 `SiteDef` fixture 证明。
+ * 时刻表仍是单一事实源。庭院 / 花径 / 桥头前庭的开放时段是内容决定，
+ * 设定集还没给，不在这里编一个数字——「只换数据」由测试内的 `SiteDef` fixture 证明。
  */
 export const SITE_TABLE: readonly SiteDef[] = [
   {
@@ -198,7 +198,7 @@ export function isDawnAt(worldNow: number): boolean {
  * 这是「场所的状态 = 世界时刻的纯函数」的形态：输入只有 `SiteDef` 与
  * 世界时刻，不看帧号、不看调用次数，所以同一世界时刻必得同一状态，读档
  * 续跑不会分叉，也不需要往存档里加「今天开没开」的字段。`kind` 不参与
- * 相位判断——公园与集市共用这一条循环，只换 `bands` 数据。
+ * 相位判断——庭院 / 花径与集市共用这一条循环，只换 `bands` 数据。
  */
 export function sitePhaseOf(site: SiteDef, worldNow: number): MarketPhase {
   const minute = minuteOfDay(worldNow);
