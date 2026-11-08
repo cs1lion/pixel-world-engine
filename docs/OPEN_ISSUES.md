@@ -1053,4 +1053,11 @@
 
 **本次 push 路径记录（不是未闭合项）**：推送 `c52745d` 时 `.githooks/pre-push` 按设计拦下 main 直推；改用钩子头注释写明的豁免 `PWE_ALLOW_PUSH_MAIN=1`（未用 `--no-verify`），结果 `f1dfa00..c52745d main -> main`。豁免是逐次显式动作、每次推送仍需单独授权，**main 直推不是常态、也不是被默认允许的路径**。该豁免在 2026-11-07 已改为**只跳过 main 保护**，大文件检查（默认 5 MB）在豁免路径下照跑，`npm run check:hooks` 的五条反向用例覆盖这两种路径（见 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` §风险：[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L596-L599)）。
 
+## M. `red-first` 的模型缺「测试 diff 是回退」这一判定（2026-11-08 登记，未修）
+
+- **事实 [读数]**：`acfae31`（`git revert dc061f4`）推上去后，CI 的 `world-client` job 在 `red-first 红灯闸门` 判红；本地 `npm run red:first -- --base dc061f4` 复现同一句——测试 7 条全绿 → `FAIL 测试在 base 上已经绿`；而 `--base acfae31` 是 SKIP（该次没有世界代码改动）。
+- **性质 [判据]**：判据本身没写错——「本次测试 diff 在 base 上必须红」对新增断言成立。缺的是模型里没有「这次测试 diff 是把测试改回旧内容」这一分支：revert 的测试 diff 在 base 上必然绿，所以**任何 revert 都天然不满足闸门**，与操作顺序无关。
+- **代价 [事实]**：一笔内容正确的回滚会长期留一条红 run。用「再推一个纯文档提交、让下一次运行的 diff 为空从而跳过闸门」只是让 HEAD 看起来绿，等于把「这里红过一次」从视野里拿掉——**不作为通行做法**，也不许用提交前缀白名单或 `--no-verify` 绕。
+- **修复方案待定**：可选方向（都未选）——按 diff 语义识别「测试回退」并降级为 SKIP＋显式记录；或对 revert 提交要求「回滚前后测试集合一致」的等价性证据。两条都要单独评估，这一笔只记事实与代价。
+
 
