@@ -336,6 +336,10 @@ const startPeakRecorder = (page) =>
         total: stats.totalCommands,
         top: stats.top.totalCommands,
         graphics: stats.graphicsObjects,
+        // P0 读数：只记录、不进闸（`totalCommands` 看不见纯 Image 的烘焙层）。
+        images: stats.images,
+        imageObjects: stats.imageObjects,
+        drawCalls: stats.drawCalls,
         // 实际相位/天气：`setPeakLabel()` 比 `setPhase()` 先调用，切换前那一两帧
         // 仍属于上一段。按 label 分组会把它们算进新组合（晨+雨 峰值帧落在
         // 黄昏那一帧就是这么来的）。按**实际相位**分组，判据才和被测状态同源。
@@ -576,6 +580,9 @@ console.log(
     + `（${measured.peak.worst.label}，帧 ${measured.peak.worst.peakFrame}）/ 欠 ${peakDebt} 条 / `
     + `天花板 ${MAX_COMMANDS_CEILING}（额度 ${MAX_COMMANDS_DEBT} 条）`,
 );
+console.log(
+  `[绘制读数] images ${stats.images} / imageObjects ${stats.imageObjects} / drawCalls ${stats.drawCalls}（只报不进闸）`,
+);
 // 债务是**记账**，不是放宽：峰值超过设计目标就打印并落盘，超天花板才硬红。
 // 额度就是天花板与目标之差，不允许「先把债务写大一点再慢慢还」——天花板本身
 // 是实测值且只许变小（修完雾要跟着往下调），债务随之只能缩。
@@ -680,6 +687,10 @@ writeFileSync(
       commands: {
         snapshot: stats.totalCommands,
         snapshotTop: stats.top.totalCommands,
+        // P0 读数：只落盘、不进闸（没有基线、没有消费方的天花板是孤儿闸门）。
+        images: stats.images,
+        imageObjects: stats.imageObjects,
+        drawCalls: stats.drawCalls,
         peak: measured.peak.worst.total,
         peakLabel: measured.peak.worst.label,
         peakFrame: measured.peak.worst.peakFrame,

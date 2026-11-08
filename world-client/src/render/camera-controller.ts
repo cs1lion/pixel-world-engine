@@ -19,6 +19,7 @@ import {
   ZOOM_STEPS,
   clampScroll,
   createDirectorClock,
+  panCenterAt,
   scrollForOrigin,
   scrollForZoomAnchor,
   stepZoomIndex,
@@ -118,6 +119,27 @@ export function createCameraController(
   let lastPannedIndex = -1;
   /** 刚发生、还没给镜头看的事件落点。只在导播里被消费。 */
   let pendingEvent: { x: number; y: number } | null = null;
+  /**
+   * 自己走的平移动画（P4：整数像素缓动）。
+   *
+   * 为什么不用 `cam.panEffect`：它逐帧把 `scrollX/scrollY` 插成浮点，再靠
+   * `roundPixels` 在绘制时取整。结果是**同一条缓动在两帧里可能落进同一像素**，
+   * 于是看起来「顿一下再跳两格」；而像素风的平滑感恰恰要求每一步都真的移动一个
+   * 整数像素。这里每帧只把**中心点**取整一次，再交给 `centerOn`：落点一定是整数
+   * 世界像素（四个缩放档下 `半宽/半高` 都是整数，所以 scroll 也一定是整数）。
+   */
+  let pan: { fromX: number; fromY: number; toX: number; toY: number; elapsed: number; duration: number } | null =
+    null;
+
+  /** 推进一帧平移动画。`Sine.easeInOut`，与原来 `cam.pan` 的曲线同一条。 */
+  const stepPan = (deltaMs: number): void => {
+    if (pan === null) return;
+    pan.elapsed += deltaMs;
+    const t = Math.min(1, pan.elapsed / Math.max(1, pan.duration));
+    const at = panCenterAt(pan.fromX, pan.fromY, pan.toX, pan.toY, t);
+    cam.centerOn(at.x, at.y);
+    if (t >= 1) pan = null;
+  };
 
   const mode = (): CameraMode => (following ? 'follow' : clock.mode());
 
@@ -142,12 +164,12 @@ export function createCameraController(
     panTo(x, y, durationMs = 300) {
       this.notifyInput();
       if (durationMs <= 0) {
-        // 0 毫秒时 `cam.pan` 不会在这一帧生效，worldView 仍是旧值——
-        // overlay 会在开局错位一整个屏幕。这里直接设中心点。
+        // 0 毫秒时不能留一帧旧位姿：overlay 会在开局错位一整个屏幕，直接设中心点。
+        pan = null;
         cam.centerOn(x, y);
         return;
       }
-      cam.pan(x, y, durationMs, 'Sine.easeInOut', true);
+      pan = { fromX: cam.centerX, fromY: cam.centerY, toX: x, toY: y, elapsed: 0, duration: durationMs };
     },
 
     zoomStep(direction) {
@@ -254,6 +276,8 @@ export function createCameraController(
     },
 
     update(deltaMs) {
+      // 先推进上一步排下的平移。导播本帧新排的那一步，从下一帧开始走。
+      stepPan(deltaMs);
       // 跟随中什么都不做，并把导播的闲置计时按在 0。
       //
       // 原来没有这一段：`follow()` 只 reset 了一次闲置计时，时钟仍登记着，
@@ -278,7 +302,7 @@ export function createCameraController(
         const point = pendingEvent;
         pendingEvent = null;
         lastPannedIndex = clock.targetIndex();
-        cam.pan(point.x, point.y, 900, 'Sine.easeInOut', true);
+        pan = { fromX: cam.centerX, fromY: cam.centerY, toX: point.x, toY: point.y, elapsed: 0, duration: 900 };
         return;
       }
 
@@ -291,20 +315,20 @@ export function createCameraController(
       // 用时钟的档位索引取候选，不另记一个计数器：`candidates()` 每帧重新算，
       // 列表长度与顺序都可能变，两个各自递增的计数器迟早指向不同的元素。
       const point = list[index % list.length]!;
-      cam.pan(point.x, point.y, 900, 'Sine.easeInOut', true);
+      pan = { fromX: cam.centerX, fromY: cam.centerY, toX: point.x, toY: point.y, elapsed: 0, duration: 900 };
     },
 
     notifyInput() {
       // 四件事都要做。原来只做了最后一件：
       //  - `stopFollow`：否则 `mode()` 说自由、Phaser 还在跟着她走；
-      //  - `panEffect.reset`：否则一次 900ms 的导播平移会逐帧盖掉拖拽，
+      //  - `pan = null`：否则一次 900ms 的导播平移会逐帧盖掉拖拽，
       //    玩家按住拖半天，镜头等平移跑完才跟手；
       //  - 丢掉还没给镜头看的事件、忘掉「这一档平移过」：否则再进导播时，
       //    镜头会先跳到一个已经过时的落点，或者干等一档不动；
       //  - 时钟回自由。
       if (following) cam.stopFollow();
       following = false;
-      if (cam.panEffect.isRunning) cam.panEffect.reset();
+      pan = null;
       pendingEvent = null;
       lastPannedIndex = -1;
       clock.notifyInput();

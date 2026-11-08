@@ -63,6 +63,25 @@ export interface RenderStats {
   readonly top: { readonly graphicsObjects: number; readonly totalCommands: number };
   readonly containers: readonly RenderLayerReading[];
   readonly largest: readonly number[];
+  /**
+   * 纯 `Image` 对象数：烘焙层与逐行裁剪条这类「一次性画完、只贴一张 quad」的层。
+   *
+   * `totalCommands` 只数 Graphics 的 commandBuffer，这类层在旧口径里是**隐形的**——
+   * 它们每帧确实在提交绘制，但读数里一条命令都没有。
+   */
+  readonly images: number;
+  /** 一切以纹理 quad 提交的对象：Image / Sprite / TileSprite / Blitter / NineSlice。 */
+  readonly imageObjects: number;
+  /**
+   * 绘制提交数的**上界**口径：`graphicsObjects + imageObjects`，按「一个对象至少一次提交」
+   * 计，不扣同纹理合批。它比 `totalCommands` 更接近「GL 侧发生了什么」，
+   * 也仍然是个静态计数——不读 GPU、不随帧时变化。
+   *
+   * **这一轮只报读数，不进闸**：没有基线、没有消费方的天花板只会变成一道没人看的闸门。
+   * 进闸要同时满足三条（写在这里，不进实现）：① 有一条真实消费方（哪个判据靠它判红）；
+   * ② 有可刷新的基线 + 过期判据；③ 有一本等值预算账。
+   */
+  readonly drawCalls: number;
 }
 
 export interface OracleApi {

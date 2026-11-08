@@ -100,6 +100,30 @@ export function clampScroll(
 export type DirectorMode = 'free' | 'director';
 
 /**
+ * 平移动画的第 `t`（0..1）步落点：整数世界像素。
+ *
+ * 曲线是 `Sine.easeInOut`：`-0.5 * (cos(πt) - 1)`，与 `cam.pan` 默认的那条同形。
+ * **取整发生在插值之后**——先算浮点落点再 `Math.round`，而不是先取整起终点。
+ * 这样 0 与 1 两端仍然是精确的起终点，中间每一步都真的是一个整数像素：
+ * 逐帧把 `scroll` 插成浮点再让 `roundPixels` 取整，会出现「两帧停在同一像素、
+ * 第三帧跳两格」的顿感，正是要改掉的东西。
+ */
+export function panCenterAt(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  t: number,
+): { x: number; y: number } {
+  const clamped = Math.max(0, Math.min(1, t));
+  const eased = -0.5 * (Math.cos(Math.PI * clamped) - 1);
+  return {
+    x: Math.round(fromX + (toX - fromX) * eased),
+    y: Math.round(fromY + (toY - fromY) * eased),
+  };
+}
+
+/**
  * 导播计时：闲置多久接管、接管后多久换一个目标。
  *
  * 抽成纯逻辑是因为这些规则最容易写错，而它们又必须脱离浏览器反复验：
