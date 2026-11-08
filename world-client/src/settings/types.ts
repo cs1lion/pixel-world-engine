@@ -17,13 +17,21 @@ export interface SettingPlacement {
  * `x/y` 不是「人站的那一格」，而是场所的锚——运行时由 `nearestWalkable` 落到
  * 最近的可走格（`settings/index.ts` 的 `siteTargetResolver`）。锚写进包里而不写进
  * 作息里，是因为同一处会被多条作息引用：坐标一改就得改每一处，迟早漏一条。
+ *
+ * 两种锚互斥，装载期校验：
+ * - **坐标锚** `{ x, y }`：给没有建筑承载的场所（如一条街的集市）。
+ * - **建筑锚** `{ building }`：`id` **必须等于**该建筑的 `instanceId`，落点取
+ *   `PlacedBuilding.door`。建筑是既有身份，不为它再造一个场所 id。
  */
-export interface SettingSite {
+export type SettingSite = SettingSiteBase & (
+  | { readonly x: number; readonly y: number }
+  | { readonly building: string }
+);
+
+export interface SettingSiteBase {
   readonly id: string;
   /** 闭集 `SITE_KINDS` 的元素；装载期校验，不在闭集里当场 throw。 */
   readonly kind: SiteKind;
-  readonly x: number;
-  readonly y: number;
 }
 
 /** 落点里与「去哪」无关的那些字。 */
@@ -287,8 +295,14 @@ export interface RawSettingPack {
   readonly grid: GridSpec;
   readonly terrain: SettingPack['terrain'];
   readonly regions: SettingPack['regions'];
-  /** 场所锚点的原文：`kind` 这里还是字符串，装载期才收窄进闭集。 */
-  readonly sites?: readonly { readonly id: string; readonly kind: string; readonly x: number; readonly y: number }[];
+  /** 场所锚点的原文：`kind` 这里还是字符串，装载期才收窄进闭集；锚的两种形式也在装载期校验。 */
+  readonly sites?: readonly {
+    readonly id: string;
+    readonly kind: string;
+    readonly x?: number;
+    readonly y?: number;
+    readonly building?: string;
+  }[];
   readonly prefabs: Record<string, unknown>;
   readonly placements: readonly SettingPlacement[];
   readonly hub: GridPoint;

@@ -195,7 +195,7 @@ export class TraceRuntime {
       ...(this.pack.villagers.length > 0
         ? {
             villagerNames: this.pack.villagers.map((villager) => villager.name),
-            villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid)),
+            villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid, this.world.buildings)),
           }
         : {}),
       ...(this.pack.regions.length > 0

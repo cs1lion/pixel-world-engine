@@ -41,6 +41,7 @@ export type EnvironmentFlag =
   | 'marketOpen'
   | 'nightMarket'
   | 'courtyardOpen'
+  | 'workshopOpen'
   | 'lampsLit'
   | 'lampsOut';
 
@@ -102,6 +103,8 @@ export function environmentAt(
   // 花径：只有一份读数——「开不开」由 `siteStateAt` 按 SITE_TABLE 的时段算，
   // 作息那边只问这一帧里的 flag，不按分钟再判一次。
   if (siteStateAt('courtyard', now) === 'open') flags.add('courtyardOpen');
+  // 工坊：同一口径，只由 `siteStateAt('workshop')` 派生（三处工坊共用一扇门）。
+  if (siteStateAt('workshop', now) === 'open') flags.add('workshopOpen');
   if (lighting !== undefined) {
     if (lampStreetLitAt(now, lighting.phase, lighting.autoAdvancing)) flags.add('lampsLit');
     else flags.add('lampsOut');

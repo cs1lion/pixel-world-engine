@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack, SettingPackError } from '../src/settings/load.ts';
-import { routineProfiles, selectSetting } from '../src/settings/index.ts';
+import { routineProfiles, selectSetting, siteTargetResolver } from '../src/settings/index.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { checkPlacement } from '../src/world/setup.ts';
 import { parseOracleBuild } from '../src/world/oracle-build.ts';
@@ -177,7 +177,7 @@ test('开局带什么凭证从设定集来：汐带着灯，迷路人两手空�
     altar: world.altar,
     villagerName: '迷路人',
     villagerNames: pack.villagers.map((v) => v.name),
-    villagerProfiles: routineProfiles(pack),
+    villagerProfiles: routineProfiles(pack, siteTargetResolver(pack, world.grid, world.buildings)),
     blueprints: pack.blueprints,
   });
   const carriesOf = (name: string): readonly string[] | undefined =>
@@ -215,7 +215,7 @@ test('门落下之后两个人的路真的不一样：汐进得去叠浪楼，�
     altar: world.altar,
     villagerName: '迷路人',
     villagerNames: pack.villagers.map((v) => v.name),
-    villagerProfiles: routineProfiles(pack),
+    villagerProfiles: routineProfiles(pack, siteTargetResolver(pack, world.grid, world.buildings)),
     blueprints: pack.blueprints,
   });
   // 叠浪楼的声明矩形。汐的第一个作息点「点亮楼前的长灯」就在它里面，
@@ -246,7 +246,7 @@ test('露话池整条链通到世界上：灯潮界的灯洗得出它自己那�
     altar: world.altar,
     villagerName: '汐',
     villagerNames: pack.villagers.map((v) => v.name),
-    villagerProfiles: routineProfiles(pack),
+    villagerProfiles: routineProfiles(pack, siteTargetResolver(pack, world.grid, world.buildings)),
     blueprints: pack.blueprints,
     propReveals: pack.propReveals,
   });
@@ -300,7 +300,7 @@ test('一份露话都不给：编译成「没有」，不是错误', () => {
 });
 
 test('居民们有独立出生点，潮位让作息选择真实变化', () => {  const world = buildSettingWorld(pack);
-  const sim = new Simulation({ grid: world.grid, buildings: world.buildings, altar: world.altar, villagerName: '迷路人', villagerNames: pack.villagers.map(v => v.name), villagerProfiles: routineProfiles(pack), blueprints: pack.blueprints });
+  const sim = new Simulation({ grid: world.grid, buildings: world.buildings, altar: world.altar, villagerName: '迷路人', villagerNames: pack.villagers.map(v => v.name), villagerProfiles: routineProfiles(pack, siteTargetResolver(pack, world.grid, world.buildings)), blueprints: pack.blueprints });
   assert.notDeepEqual(sim.snapshot().villagers[0]?.pos, sim.snapshot().villagers[1]?.pos);
   assert.equal(sim.snapshot().villagers[1]?.lampOil, 1);
   for (let i = 0; i < 500; i++) sim.update(100);

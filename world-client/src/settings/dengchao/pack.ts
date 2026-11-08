@@ -341,6 +341,20 @@ export const DENGCHAO_RAW: RawSettingPack = {
   sites: [
     { id: 'courtyard', kind: 'courtyard', x: 6, y: 24 },
     { id: 'courtyard-east', kind: 'courtyard', x: 7, y: 24 },
+    // 集市：一条街有六摊（`lamp-street.ts` 的 `stall_*`，包络 x15..48 × y26..33），
+    // 一个坐标锚表示不了整条街。这里取 `stall_north_1` 所在的那一格：判据是
+    // 「这个坐标上有没有摊位」，不是位移。引擎自带的市面点 `marketSpot()`(40,26)
+    // 是空街口、离最近摊 6 格——见 `docs/OPEN_ISSUES.md` O3。
+    { id: 'market', kind: 'market', x: 17, y: 26 },
+    // 锅炉房 = `boiler_annex#1`（显示名「炉底入口」；炉膛 (33,14)、煤堆 (34,16)、
+    // 烟 (33,12) 都在它门旁 4–7 格内）。它不是建筑锚而是坐标锚，原因**不是**
+    // 「这栋没有门」——它有门，门在 (31,17)。但门落在 bathhouse 区域（`requires: 'lamp'`），
+    // 而炉匠 `carries: []`，走门等于静默失效（人永远到不了，牌子还写着搬炭）。
+    // 所以锚在现状作息点 (33,15)：出区域、可走，距炉膛 1、煤堆 2。
+    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15 },
+    // 大浴场清洗 = `wave_house#1`（叠浪楼）：建筑锚，id 就是 instanceId，
+    // 落点由 `PlacedBuilding.door` 解析。洗衣妇有灯，进得去。
+    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1' },
   ],
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
   // 它们是**设定集的话**，不是引擎的话——所以写在这儿，不写进 `grime.ts`。
@@ -432,7 +446,10 @@ export const DENGCHAO_RAW: RawSettingPack = {
     }, routine: [
       { x: 39, y: 38, label: '在炉匠铺门口抖灰', dwellMs: 5600 },
       { x: 35, y: 30, label: '在镇心石边上歇脚', dwellMs: 5000 },
-      { x: 33, y: 15, label: '到炉底入口边上搬炭', dwellMs: 6000 },
+      // 锅炉房（设定集工坊三处之一）：`boiler_annex#1` 的坐标锚，白天才去。
+      // 06:00–17:00 是**引擎约定、无设定集依据**（设定集只给「白天斜射阳光」，没钟点）。
+      // 首拍 (39,38) 仍是字面坐标：它同时是锚点，门控在那里会空转（O3）。
+      { site: 'boiler_annex#1', label: '到炉底入口边上搬炭', dwellMs: 6000 },
       { x: 24, y: 24, label: '在街边喝一碗热的', dwellMs: 4800 },
     ] },
     // 设定集：掌柜（PDF p.53；书页 104–105 的掌柜造型）。
@@ -456,14 +473,20 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { x: 34, y: 30, label: '在镇心听人报今日的账', dwellMs: 4600 },
       { x: 30, y: 32, label: '在账房门口核今天的账', dwellMs: 5600 },
       { x: 23, y: 29, label: '去街口找人说一笔旧账', dwellMs: 5000 },
-      { x: 17, y: 26, label: '在摊位间对一遍零钱', dwellMs: 4800 },
+      // 集市两态（设定集：「午后阳光下的饮食街」/「入夜灯笼点亮」）。
+      // 08:00–17:00 与 19:00–22:00 都是**引擎约定、无设定集依据**（设定集没有钟点）；
+      // 锚 (17,26) 上就是 `stall_north_1`，不是空街口。
+      { site: 'market', label: '在摊位间对一遍零钱', dwellMs: 4800 },
     ] },
     { name: '洗衣妇', at: { x: 37, y: 31 }, style: {
       cloak: 'copper', cloakDark: 'deepShade', scarf: 'pale', scarfLit: 'plaster', hair: 'soil',
       build: 'adult', head: 'ponytail', outfit: 'apron', accent: 'none', lamp: true,
     }, routine: [
       { x: 36, y: 30, label: '在镇心石边拧干最后一件', dwellMs: 5000 },
-      { x: 33, y: 26, label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
+      // 大浴场清洗（设定集工坊三处之一）：`wave_house#1` 的建筑锚，落点取门。
+      // ⚠ 设定集对这一处**没有任何时间依据**——「斜射阳光」只属于锅炉房，
+      // 清洗那页连时间描述都是缺的。06:00–17:00 纯属引擎取值，不是还原。
+      { site: 'wave_house#1', label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
       { x: 52, y: 42, label: '把洗好的布晾在滩边', dwellMs: 6000, tide: 'low' },
       { x: 24, y: 31, label: '把干净衣裳送到街尾', dwellMs: 5400 },
     ] },

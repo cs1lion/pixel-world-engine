@@ -1,8 +1,8 @@
 /**
  * 场所开关：某个场所在某段世界时间上开/关。
  *
- * 这一版有**两个**按时段开闭的场所（街口摊位与花径），投影只要世界时刻一个输入，
- * 不留 site 维度。它钉三件事：
+ * 这一版有**三条**按时段开闭的门控行（街口摊位、花径、三处工坊），投影只要世界时刻
+ * 一个输入，不留 site 维度。它钉三件事：
  *
  * 1. 边界：左闭右开，与 `marketPhaseAt` 同一口径；期望表**从 `TIMETABLE` 派生**，
  *    不在这里再抄一遍 08:00 / 19:00 这类字面量；
@@ -41,7 +41,7 @@ type SiteBandLike = {
 };
 type SiteDefLike = {
   readonly id: string;
-  readonly kind: 'market' | 'courtyard';
+  readonly kind: string;
   readonly bands: readonly SiteBandLike[];
 };
 type SiteTableModule = {
@@ -55,6 +55,9 @@ type SiteTableModule = {
 
 const hours = (await import('../src/world/timetable.ts')) as unknown as SiteHoursModule;
 const table = (await import('../src/world/timetable.ts')) as unknown as SiteTableModule;
+const routines = (await import('../src/world/routines.ts')) as unknown as {
+  readonly SITE_FLAGS?: Readonly<Record<string, readonly string[]>>;
+};
 
 function requireSiteTable(): readonly SiteDefLike[] {
   const defs = table.SITE_TABLE;
@@ -231,16 +234,21 @@ test('回放：跨 08:00 / 17:00 / 19:00 的一条轨迹两跑，三层指纹一
   }
 });
 
-test('SITE_TABLE：market 与 courtyard 两条，时段合法且不重叠', () => {
+test('SITE_TABLE：怎么开门是性质——id 唯一、时段合法不重叠、每个 kind 至少一行', () => {
   const defs = requireSiteTable();
-  const ids = defs.map((def) => def.id).sort();
-  assert.deepEqual(ids, ['courtyard', 'market'], 'SITE_TABLE 现在是两条：街口摊位与花径');
-  const market = defs.find((def) => def.id === 'market')!;
-  const courtyard = defs.find((def) => def.id === 'courtyard')!;
-  assert.equal(market.kind, 'market');
-  assert.equal(courtyard.kind, 'courtyard', '花径的 kind 必须与 SiteKind 闭集里的 courtyard 同名');
-  assert.ok(market.bands.length >= 2, 'market 至少要有早市与夜市两条时段');
-  assert.equal(courtyard.bands.length, 1, '花径只有一条白天时段：安静段结束到收工');
+  assert.ok(defs.length > 0, 'SITE_TABLE 不许为空：空表等于所有场所永远关着');
+
+  // id 唯一：同一个场所挂两套时段，`siteStateAt` 只会静默取到先遍历到的那条。
+  const ids = defs.map((def) => def.id);
+  assert.equal(new Set(ids).size, ids.length, `SITE_TABLE 的 id 必须唯一：${ids.join(', ')}`);
+
+  // 闭集里的每个 kind 都得有至少一条门控行，否则那个 kind 永远打不开。
+  for (const kind of table.SITE_KINDS ?? []) {
+    assert.ok(
+      defs.some((def) => def.kind === kind),
+      `SITE_KINDS 里的 ${kind} 在 SITE_TABLE 里没有门控行`,
+    );
+  }
 
   for (const def of defs) {
     const ordered = [...def.bands].sort((a, b) => a.fromMinute - b.fromMinute);
@@ -265,21 +273,24 @@ test('SITE_TABLE：market 与 courtyard 两条，时段合法且不重叠', () =
     }
   }
 
-  // 结果证据：四个边界与 TIMETABLE 派生值逐字一致。代码上的单一来源由
-  // `SITE_TABLE` 直接引用 `MARKET_OPEN_MINUTE` 等派生常量保证，这里只钉结果。
-  assert.deepEqual(
-    market.bands.map((band) => [band.fromMinute, band.toMinute]),
-    [
-      [OPEN_FROM, OPEN_TO],
-      [NIGHT_FROM, NIGHT_TO],
-    ],
-    'market 的四个边界必须来自 TIMETABLE，不能在表里另抄一遍',
-  );
+  // 结果证据：营业边界必须来自 TIMETABLE 派生值。这里只问「有没有这条带」，
+  // 不写死条数、也不写死 id 列表——设定集以后给集市加一条时段，这里不该红。
+  const hasBand = (def: SiteDefLike, from: number, to: number, phase: 'open' | 'night'): boolean =>
+    def.bands.some((band) => band.fromMinute === from && band.toMinute === to && band.phase === phase);
+
+  const market = defs.find((def) => def.id === 'market');
+  assert.ok(market !== undefined, 'SITE_TABLE 里必须有 market 门控行');
+  assert.equal(market.kind, 'market');
+  assert.ok(hasBand(market, OPEN_FROM, OPEN_TO, 'open'), 'market 的早市边界必须来自 TIMETABLE');
+  assert.ok(hasBand(market, NIGHT_FROM, NIGHT_TO, 'night'), 'market 的夜市边界必须来自 TIMETABLE');
+
+  const courtyard = defs.find((def) => def.id === 'courtyard');
+  assert.ok(courtyard !== undefined, 'SITE_TABLE 里必须有 courtyard 门控行');
+  assert.equal(courtyard.kind, 'courtyard', '花径的 kind 必须与 SiteKind 闭集里的 courtyard 同名');
   const quietEnd = TIMETABLE.find((beat) => beat.id === 'quiet_end')!.minuteOfDay;
   const workEnd = TIMETABLE.find((beat) => beat.id === 'work_end')!.minuteOfDay;
-  assert.deepEqual(
-    courtyard.bands.map((band) => [band.fromMinute, band.toMinute, band.phase]),
-    [[quietEnd, workEnd, 'open']],
+  assert.ok(
+    hasBand(courtyard, quietEnd, workEnd, 'open'),
     '花径的开门/关门必须引用 quiet_end / work_end，不能在表里另写 14:00 / 17:00',
   );
 });
@@ -354,14 +365,27 @@ test('SiteDef 只换数据：测试内 courtyard fixture 走同一个 sitePhaseO
   assert.equal(sitePhaseOf(courtyard, worldMinutes(22 * 60)), 'closed', '庭院 22:00 右开');
 });
 
-test('场所种类闭集是运行时单一源：含 courtyard，不含 park', () => {
+test('场所种类闭集是运行时单一源：kind 合法、无重复、与门控登记表键集合一致', () => {
   const kinds = table.SITE_KINDS;
   if (kinds === undefined) {
     assert.fail('timetable.ts 必须导出 SITE_KINDS（场所种类闭集）');
   }
-  assert.deepEqual(kinds, ['market', 'courtyard'], '闭集只收真实内容');
+  assert.ok(kinds.length > 0, 'SITE_KINDS 不许为空');
+  assert.equal(new Set(kinds).size, kinds.length, `SITE_KINDS 不许重复：${kinds.join(', ')}`);
   assert.equal(kinds.includes('courtyard'), true, '庭院 / 花径 / 桥头前庭');
   assert.equal(kinds.includes('park'), false, '设定集没有城市公园');
+
+  // 闭集与门控登记表必须一一对应：少一个 = 有扇永远打不开的门；
+  // 多一个 = 登记表挂了闭集外的种类，装载期会 throw。
+  const flags = routines.SITE_FLAGS;
+  if (flags === undefined) {
+    assert.fail('routines.ts 必须导出 SITE_FLAGS（门控登记表）');
+  }
+  assert.deepEqual(
+    [...kinds].sort(),
+    Object.keys(flags).sort(),
+    'SITE_KINDS 与 SITE_FLAGS 的键集合必须一致',
+  );
 });
 
 test('闭集之外的 kind 直接 throw，不静默成 closed', () => {

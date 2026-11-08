@@ -211,8 +211,25 @@ export function routineFor(
   return beat;
 }
 
-/** 场所 → 环境帧 flag。表里没有的场所当场 throw，不静默当成开着。 */
-const SITE_FLAGS: Readonly<Record<string, EnvironmentFlag>> = { courtyard: 'courtyardOpen' };
+/**
+ * 场所 → 环境帧 flag（**任一命中即算开**）。
+ *
+ * 表里没有的场所当场 throw，空表也 throw——空数组是「永不开的静默门」，
+ * 配置写错时没人会发现，所以装载期就拦掉。
+ *
+ * 集市是两态：午后（`marketOpen`）与入夜灯笼点亮（`nightMarket`），两个 flag
+ * 都算开；`some` 的语义与顺序无关，不许写成「取第一个」。
+ */
+export const SITE_FLAGS: Readonly<Record<string, readonly EnvironmentFlag[]>> = {
+  market: ['marketOpen', 'nightMarket'],
+  courtyard: ['courtyardOpen'],
+  workshop: ['workshopOpen'],
+};
+
+// 装载期校验：空数组就是永不开的门，直接 throw，不留到运行期变成「没人去」。
+for (const [site, flags] of Object.entries(SITE_FLAGS)) {
+  if (flags.length === 0) throw new Error(`场所 ${site} 的开关是空表`);
+}
 
 /**
  * 这一拍的场所此刻开着吗。
@@ -223,9 +240,10 @@ const SITE_FLAGS: Readonly<Record<string, EnvironmentFlag>> = { courtyard: 'cour
  */
 export function siteBeatApplies(site: SiteId | undefined, frame: EnvironmentFrame): boolean {
   if (site === undefined) return true;
-  const flag = SITE_FLAGS[site];
-  if (flag === undefined) throw new Error(`环境帧里没有场所 ${site} 的开关`);
-  return frame.flags.has(flag);
+  const flags = SITE_FLAGS[site];
+  if (flags === undefined) throw new Error(`环境帧里没有场所 ${site} 的开关`);
+  if (flags.length === 0) throw new Error(`场所 ${site} 的开关是空表`);
+  return flags.some((flag) => frame.flags.has(flag));
 }
 
 /**

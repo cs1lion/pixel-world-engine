@@ -49,10 +49,14 @@ export type SiteId = string;
 /**
  * 场所种类的运行时闭集：`SiteKind` 由它派生，装载期也由它校验。
  *
+ * **`kind` 是门控种类，不是外观种类**：它只决定「这个场所按哪套时段开关」，
+ * 不许拿它做绘制分支（外观走 `SettingScenery['kind']`）。同名不代表同一件事。
+ *
  * 只收真实内容。设定集只有庭院 / 花径 / 桥头前庭，没有城市公园；`park`
- * 从未有消费方，这里直接不收。空词表不预支。
+ * 从未有消费方，这里直接不收。`workshop` 是三处工坊（锅炉房 / 大浴场清洗；
+ * 配膳间本包没有建筑，见 `docs/OPEN_ISSUES.md` O3）共用的门控种类。
  */
-export const SITE_KINDS = ['market', 'courtyard'] as const;
+export const SITE_KINDS = ['market', 'courtyard', 'workshop'] as const;
 
 /** 场所种类：闭集的元素类型，不另写一遍字面量。 */
 export type SiteKind = (typeof SITE_KINDS)[number];
@@ -169,12 +173,15 @@ const NIGHT_MARKET_MINUTE = beatMinute('night_market');
 const MARKET_CLOSE_MINUTE = beatMinute('market_close');
 
 /**
- * 两个场所：街口摊位，与西侧草地口袋的花径。
+ * 三条门控行：街口摊位、西侧草地口袋的花径、三处工坊。
  *
  * 时刻全部引用上面从 `TIMETABLE` 派生的常量，**不在这里另写一遍**；时刻表仍是
  * 单一事实源。花径的开放时段是内容决定（设定集没给数字），这里取「安静段结束」
  * 到「收工」这一段——两端仍然是时刻表的 `quiet_end` / `work_end`，作息那边
  * 只读 `siteStateAt` 折出来的 flag，不另写一套时间判断。
+ *
+ * **`workshop` 只做门，不做落点**：落点在包里的 `sites`（id = 建筑的 `instanceId`），
+ * 与花径那条 `courtyard` 的用法对称。
  */
 export const SITE_TABLE: readonly SiteDef[] = [
   {
@@ -190,6 +197,15 @@ export const SITE_TABLE: readonly SiteDef[] = [
     kind: 'courtyard',
     // 花径 14:00–17:00 开放：安静段结束开门，收工关门。
     bands: [{ fromMinute: QUIET_END_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' }],
+  },
+  {
+    id: 'workshop',
+    kind: 'workshop',
+    // 工坊 06:00–17:00：打水开门、收工关门。
+    // ⚠ 这是**引擎约定、无设定集依据**：设定集只给了「白天斜射阳光」（且只对锅炉房），
+    // 大浴场清洗那页连时间描述都没有，更没有任何钟点。两端只是复用时刻表的
+    // `wash_bridge` / `work_end`，不是还原。
+    bands: [{ fromMinute: WATER_MINUTE, toMinute: WORK_END_MINUTE, phase: 'open' }],
   },
 ];
 

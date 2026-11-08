@@ -47,10 +47,12 @@ test('半径是 2，而这条数是量出来的', () => {
   assert.equal(FOOTFALL_ATTRIBUTION_RADIUS, 2, '改了它就要重新量灯潮界的落点归属，并改 SETTING_DENGCHAO 里那张表');
 });
 
-test('灯潮界的 27 个作息落点：5 个归楼，22 个归自己', () => {
-  // 2026-11-01 实测。这一条钉的是**这个世界**的形态：
-  // 归楼的 5 个分别是 汐/洗衣妇 的叠浪楼前、灯笼头 的迎灯舍前、炉匠 的炉匠铺门口、
-  // 账房先生 的账房门口——都是「她就站在那栋楼门口」的作息。
+test('灯潮界的 24 个坐标作息落点：4 个归楼，20 个归自己', () => {
+  // 2026-11-01 实测 27/5；2026-11-08 集市与工坊接上场所锚后重算：
+  // 炉匠 (33,15)→`boiler_annex#1`、账房先生 (17,26)→`market`、洗衣妇 (33,26)→`wave_house#1`
+  // 三条坐标作息点改成 `site` 落点（场所落点不进这张「坐标 → 楼」表，见循环里的 skip）。
+  // 其中洗衣妇的 (33,26) 原来距叠浪楼门 2 格、算归楼，所以 27→24、5→4；
+  // 归楼的四栋不变（叠浪楼还剩汐的 (32,27) 那一处）。
   const pack = loadSettingPack(DENGCHAO_RAW);
   const world = buildSettingWorld(pack);
   const doors = world.buildings.map((building) => ({
@@ -72,8 +74,8 @@ test('灯潮界的 27 个作息落点：5 个归楼，22 个归自己', () => {
     const placeId = footfallPlace({ x, y }, doors);
     if (placeId !== cellPlaceId({ x, y })) attributed.push(`${key}→${placeId}`);
   }
-  assert.equal(stops.size, 27, '作息落点不再是 27 个——改了作息就回来重算这张表');
-  assert.equal(attributed.length, 5, `归到楼上的落点从 5 个变了：${attributed.join('、')}`);
+  assert.equal(stops.size, 24, '作息落点不再是 24 个——改了作息就回来重算这张表');
+  assert.equal(attributed.length, 4, `归到楼上的落点从 4 个变了：${attributed.join('、')}`);
   assert.deepEqual(
     [...new Set(attributed.map((entry) => entry.split('→')[1]!.replace(/#\d+$/, '')))].sort(),
     ['lamp_lodge', 'ledger_house', 'soot_forge', 'wave_house'],

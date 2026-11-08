@@ -117,6 +117,14 @@ function walledInPack(): ReturnType<typeof loadSettingPack> {
     },
     // 孤屋在 (5,30)，门口在 (6,32)。四邻里 (6,31) 在它自己占地里，
     // 另外三格各摆一堵墙——门就开在世界外了。
+    // 这一份包只测门口可达性：场所表与指向场所的作息都摘掉。场所里有建筑锚
+    // （`wave_house#1`），它按新的落位表校验，而这里只摆了孤屋与三堵墙——
+    // 不摘的话会先报「建筑不在 placements 里」，到不了门口检查那一步。
+    sites: [],
+    villagers: DENGCHAO_RAW.villagers.map((villager) => ({
+      ...villager,
+      routine: villager.routine.filter((stop) => !('site' in stop)),
+    })),
     placements: [
       { prefabId: 'lonely_house', at: { x: 5, y: 30 } },
       { prefabId: 'wall_west', at: { x: 5, y: 32 } },

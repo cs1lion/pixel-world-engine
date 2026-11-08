@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
-import { routineProfiles } from '../src/settings/index.ts';
+import { routineProfiles, siteTargetResolver } from '../src/settings/index.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import { MemoryRuntime } from '../src/world/memory/runtime.ts';
 import { observationOf } from '../src/world/memory/observe.ts';
@@ -84,7 +84,7 @@ function dengchaoSim(): Fixture {
     altar: PACK.hub,
     villagerName: PACK.villagers[0]!.name,
     villagerNames: PACK.villagers.map((v) => v.name),
-    villagerProfiles: routineProfiles(PACK),
+    villagerProfiles: routineProfiles(PACK, siteTargetResolver(PACK, WORLD.grid, WORLD.buildings)),
     blueprints: PACK.blueprints,
     wallClock: () => 1000,
     onChange: (change, at) => {

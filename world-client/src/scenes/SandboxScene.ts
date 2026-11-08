@@ -1149,7 +1149,7 @@ export class SandboxScene extends Phaser.Scene {
       stallsAt: this.stallCells,
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
-        villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid)),
+        villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid, this.world.buildings)),
       } : {}),
       // 地域的叫法。喂模型的世界现状要说「叠浪楼要一盏灯」，不说 `bathhouse`。
       // 没有设定集（莞尔镇）时这道门不存在，给张空表与不给等价。

@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
 import { doorReaches } from '../src/world/setup.ts';
-import { routineProfiles } from '../src/settings/index.ts';
+import { routineProfiles, siteTargetResolver } from '../src/settings/index.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import type { WorldChange } from '../src/world/world-changes.ts';
 import { syncCommand } from './feed-helpers.ts';
@@ -49,7 +49,7 @@ function dengchaoSim(): Fixture {
     altar: PACK.hub,
     villagerName: PACK.villagers[0]!.name,
     villagerNames: PACK.villagers.map((villager) => villager.name),
-    villagerProfiles: routineProfiles(PACK),
+    villagerProfiles: routineProfiles(PACK, siteTargetResolver(PACK, world.grid, world.buildings)),
     blueprints: PACK.blueprints,
     wallClock: () => 1000,
     onChange: (change) => {

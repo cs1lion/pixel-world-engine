@@ -139,9 +139,15 @@ test('集市与工坊作息：锚落在摊上、按场所门控、关着退回�
     assert.ok(flags.length > 0, `场所 ${kind} 的开关是空表：那是永不开的静默门`);
   }
 
-  // 7. 行为：开着的窗口里有人站在锚点上，关着的窗口里没有。
+  // 7. 行为：开着的窗口里该 NPC 站在锚点上，关着的窗口里不站。
+  //    只认「指定的那个人」——锚边上路过别人不算「有人在这儿」。
   const profiles = index.routineProfiles(pack, resolve);
-  const hitsAt = (initialNow: number, hours: number, target: { x: number; y: number }): Set<string> => {
+  const standsAt = (
+    initialNow: number,
+    hours: number,
+    target: { x: number; y: number },
+    who: string,
+  ): boolean => {
     const sim = new simModule.Simulation({
       grid: world.grid,
       buildings: world.buildings,
@@ -153,29 +159,32 @@ test('集市与工坊作息：锚落在摊上、按场所门控、关着退回�
       wallClock: () => 1000,
       initialNow,
     });
-    const hits = new Set<string>();
     const end = hours * 60 * MINUTE_MS;
-    // 落点可能被 nearestWalkable 挪一格，取锚周围 1 格都算「站在那儿」。
+    // 落点可能被 nearestWalkable 挪一格，取锚周围 1 格都算「站在这儿」；
+    // 还在走的（路过、赶路）不算站。
     for (let t = 0; t < end; t += 1000) {
       sim.update(1000);
       for (const villager of sim.snapshot().villagers) {
+        if (villager.name !== who || villager.walking) continue;
         if (Math.abs(villager.pos.x - target.x) + Math.abs(villager.pos.y - target.y) <= 1) {
-          hits.add(villager.id);
+          return true;
         }
       }
     }
-    return hits;
+    return false;
   };
 
+  const CLERK = '账房先生';
+  const SMITH = '炉匠';
+  const LAUNDRESS = '洗衣妇';
   const minuteMs = (minute: number): number => minute * MINUTE_MS;
-  const marketNoon = hitsAt(minuteMs(8 * 60 + 30), 2, MARKET_AT);
-  assert.ok(marketNoon.size > 0, '08:30–10:30 集市锚上必须有人');
-  assert.ok(hitsAt(minuteMs(19 * 60 + 30), 1, MARKET_AT).size > 0, '19:30–20:30 夜市锚上必须有人');
-  assert.equal(hitsAt(minuteMs(22 * 60 + 30), 1.5, MARKET_AT).size, 0, '22:30 之后集市锚上不该有人');
-  assert.ok(hitsAt(minuteMs(8 * 60 + 30), 2, BOILER_AT).size > 0, '08:30–10:30 锅炉房锚上必须有人');
-  assert.ok(hitsAt(minuteMs(8 * 60 + 30), 2, bathPoint).size > 0, '08:30–10:30 大浴场清洗落点上必须有人');
-  assert.equal(hitsAt(minuteMs(17 * 60 + 30), 2, BOILER_AT).size, 0, '收工后锅炉房锚上不该有人');
-  assert.equal(hitsAt(minuteMs(17 * 60 + 30), 2, bathPoint).size, 0, '收工后大浴场清洗落点上不该有人');
+  assert.ok(standsAt(minuteMs(8 * 60 + 30), 2, MARKET_AT, CLERK), '08:30–10:30 账房先生该站在集市锚上');
+  assert.ok(standsAt(minuteMs(19 * 60 + 30), 1, MARKET_AT, CLERK), '19:30–20:30 夜市里账房先生该站在集市锚上');
+  assert.ok(!standsAt(minuteMs(22 * 60 + 30), 1.5, MARKET_AT, CLERK), '22:30 之后账房先生不该站在集市锚上');
+  assert.ok(standsAt(minuteMs(8 * 60 + 30), 2, BOILER_AT, SMITH), '08:30–10:30 炉匠该站在锅炉房锚上');
+  assert.ok(standsAt(minuteMs(8 * 60 + 30), 2, bathPoint, LAUNDRESS), '08:30–10:30 洗衣妇该站在大浴场清洗落点上');
+  assert.ok(!standsAt(minuteMs(17 * 60 + 30), 2, BOILER_AT, SMITH), '收工后炉匠不该站在锅炉房锚上');
+  assert.ok(!standsAt(minuteMs(17 * 60 + 30), 2, bathPoint, LAUNDRESS), '收工后洗衣妇不该站在大浴场清洗落点上');
 
-  console.log(JSON.stringify({ marketAt: MARKET_AT, boilerAt: BOILER_AT, bathPoint, marketNoon: [...marketNoon] }));
+  console.log(JSON.stringify({ marketAt: MARKET_AT, boilerAt: BOILER_AT, bathPoint }));
 });

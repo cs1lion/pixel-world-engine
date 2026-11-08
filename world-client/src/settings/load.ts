@@ -18,6 +18,7 @@ import type {
   CompiledVillager,
   RawSettingPack,
   SettingPack,
+  SettingPlacement,
   SettingRoutineStop,
   SettingScenery,
   SettingShore,
@@ -272,8 +273,11 @@ function isSiteStop(stop: SettingRoutineStop): stop is SettingRoutineStop & { re
 function compileSites(
   sites: RawSettingPack['sites'],
   inBounds: (p: { x: number; y: number }, label: string) => void,
+  placements: readonly SettingPlacement[],
 ): readonly SettingSite[] {
   if (sites === undefined) return [];
+  // 建筑实例 id 与 `buildSettingWorld` 的生成口径一致：`${blueprint.id}#1`。
+  const buildingIds = new Set(placements.map((placement) => `${placement.prefabId}#1`));
   const seen = new Set<string>();
   return sites.map((site) => {
     if (typeof site.id !== 'string' || site.id.trim() === '') {
@@ -284,7 +288,26 @@ function compileSites(
     if (!SITE_KINDS.includes(site.kind as SiteKind)) {
       throw new SettingPackError(`场所 ${site.id} 的 kind ${site.kind} 不在闭集里`);
     }
-    inBounds(site, `场所 ${site.id}`);
+    const hasCoords = site.x !== undefined || site.y !== undefined;
+    const hasBuilding = site.building !== undefined;
+    if (hasCoords && hasBuilding) {
+      throw new SettingPackError(`场所 ${site.id} 不能同时给坐标锚与建筑锚`);
+    }
+    if (hasBuilding) {
+      if (site.building !== site.id) {
+        throw new SettingPackError(
+          `场所 ${site.id} 的建筑锚必须用自己的 instanceId（收到 ${String(site.building)}）`,
+        );
+      }
+      if (!buildingIds.has(site.building)) {
+        throw new SettingPackError(`场所 ${site.id} 的建筑 ${site.building} 不在 placements 里`);
+      }
+      return { id: site.id, kind: site.kind as SiteKind, building: site.building };
+    }
+    if (site.x === undefined || site.y === undefined) {
+      throw new SettingPackError(`场所 ${site.id} 必须有坐标锚或建筑锚`);
+    }
+    inBounds({ x: site.x, y: site.y }, `场所 ${site.id}`);
     return { id: site.id, kind: site.kind as SiteKind, x: site.x, y: site.y };
   });
 }
@@ -487,7 +510,7 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       carries: style?.lamp === true ? (['lamp'] as const) : [],
     };
   });
-  const sites = compileSites(raw.sites, inBounds);
+  const sites = compileSites(raw.sites, inBounds, raw.placements);
   const siteIds = new Set(sites.map((site) => site.id));
   for (const villager of villagers) {
     inBounds(villager.at, villager.name);
@@ -568,11 +591,24 @@ export function resolveStopPoint(
 export function siteTargetResolver(
   pack: SettingPack,
   grid?: { nearestWalkable(p: GridPoint): GridPoint | null },
+  buildings?: readonly PlacedBuilding[],
 ): (site: string) => GridPoint {
   const sites = new Map((pack.sites ?? []).map((site) => [site.id, site]));
   return (siteId) => {
     const site = sites.get(siteId);
     if (site === undefined) throw new SettingPackError(`未知场所 ${siteId}`);
+    // 建筑锚：落点取门。没有建筑表就 throw——不许悄悄退成坐标或 (0,0)。
+    if ('building' in site) {
+      if (buildings === undefined) {
+        throw new SettingPackError(`场所 ${siteId} 是建筑锚，但没有建筑表`);
+      }
+      const building = buildings.find((item) => item.instanceId === site.building);
+      if (building === undefined) throw new SettingPackError(`场所 ${siteId} 的建筑 ${site.building} 不存在`);
+      if (grid === undefined) return building.door;
+      const doorPoint = grid.nearestWalkable(building.door);
+      if (doorPoint === null) throw new SettingPackError(`场所 ${siteId} 解析不到可走格`);
+      return doorPoint;
+    }
     const anchor = { x: site.x, y: site.y };
     if (grid === undefined) return anchor;
     const point = grid.nearestWalkable(anchor);
@@ -619,7 +655,7 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
     const id = grid.at(p)?.region;
     return id === undefined ? '这片区域' : (names.get(id) ?? id);
   };
-  const resolveSite = siteTargetResolver(pack, grid);
+  const resolveSite = siteTargetResolver(pack, grid, buildings);
   for (const villager of pack.villagers) {
     if (!grid.isWalkable(villager.at)) throw new SettingPackError(`${villager.name} 出生点不可走`);
     // 生在一道她进不去的门里：她兜里那几件过不了脚下这道门，于是**一步也动不了**

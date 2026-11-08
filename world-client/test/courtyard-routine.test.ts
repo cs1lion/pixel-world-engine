@@ -75,7 +75,7 @@ test('花径作息：按场所解析落点、按 siteStateAt 门控、到点有�
   if (courtyardStops.length === 0) assert.fail('没有任何一条作息指向花径：人不会走过去');
 
   // 2. 解析：落到口袋里可走的草地，不压花、不站树篱；两个站位互不重叠。
-  const resolve = index.siteTargetResolver(pack, world.grid);
+  const resolve = index.siteTargetResolver(pack, world.grid, world.buildings);
   const points = courtyardSites.map((site) => resolve(site.id));
   if (points.length < 2) assert.fail('花径只有一个站位锚：中央净空两格宽，两个人得各占一格');
   for (const point of points) {

@@ -45,7 +45,15 @@ export function worldForSetting(pack: SettingPack, buildings?: Parameters<typeof
 
 export { siteTargetResolver };
 
-/** 场所落点 → 这条作息自己的 id。表里没有的场所走通用 `promenade`。 */
+/**
+ * 场所落点 → 这条作息自己的 id。表里没有的场所走通用 `promenade`。
+ *
+ * 集市与工坊刻意**不**登记：
+ * - 集市的 `RoutineId` 一旦是 `'market'`，`withMarketWords` 会改写设定集自己写的词，
+ *   闭市时还会 `return null` 把这一拍吞掉（不是退回锚点，是整拍消失）；
+ * - 工坊没有对应的 `RoutineId` 词，加一个词只为日志好看，不值得扩闭集。
+ * 两处都靠 `site` 门控，字号仍用设定集给的 `label`。
+ */
 const SITE_ROUTINE_IDS: Readonly<Record<string, 'courtyard'>> = { courtyard: 'courtyard' };
 
 export function routineProfiles(
@@ -64,6 +72,7 @@ export function routineProfiles(
       const kind = 'site' in stop ? kindOf.get(stop.site) : undefined;
       return {
         // 场所落点带自己的 id（现在只有花径）；坐标落点沿用原来的两项。
+        // 集市 / 工坊的场所落点走 `promenade`（见 `SITE_ROUTINE_IDS` 的注释）。
         id: index === 0
           ? 'altar' as const
           : (kind === undefined
