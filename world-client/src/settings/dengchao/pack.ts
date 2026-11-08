@@ -251,6 +251,12 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { x: 28, y: 27, w: 9, h: 1, terrain: 'shallow' },
     { x: 28, y: 34, w: 9, h: 12, terrain: 'stone' },
     { x: 39, y: 35, w: 18, h: 8, terrain: 'mud' },
+    // 花径口袋（设定集 p110–111）：外框 x3..9 × y19..25。三边各 2 格树篱，
+    // 中间 3 格宽小径；南端 y26..27 留草口接广场（y28 起是 plaza）。
+    { x: 3, y: 19, w: 7, h: 2, terrain: 'tree' },
+    { x: 3, y: 21, w: 2, h: 5, terrain: 'tree' },
+    { x: 8, y: 21, w: 2, h: 5, terrain: 'tree' },
+    { x: 5, y: 21, w: 3, h: 5, terrain: 'plaza' },
   ],
   // 三色槽位（主色/点缀/禁用）逐个照 `docs/SPEC_V2.md` §4.1 那张表抄，
   // 不自己推——那张表是用户 2026-10-25 确认过的。五个都在表里，一格不差。
@@ -451,6 +457,16 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { kind: 'track', at: { x: 2, y: 8 }, length: 60 },
     { kind: 'sign', at: { x: 19, y: 15 } },
     { kind: 'statue', at: { x: 26, y: 28 } },
+    // 花径（设定集 p110–111）：小径两侧各三床花圃，庭心一件石作。花圃与石作
+    // 都走 bake（静态纹理，每帧 0 条）——峰值指令净增 0，见 `docs/OPEN_ISSUES.md` N 节。
+    // 降级：没有粉紫（杜鹃 / 绣球做不出来），花墙读作小树丛；木栅 / 石垣 / 瓦顶本轮不做。
+    { kind: 'flower_bed', at: { x: 5, y: 21 } },
+    { kind: 'flower_bed', at: { x: 7, y: 21 } },
+    { kind: 'flower_bed', at: { x: 5, y: 23 } },
+    { kind: 'flower_bed', at: { x: 7, y: 23 } },
+    { kind: 'flower_bed', at: { x: 5, y: 25 } },
+    { kind: 'flower_bed', at: { x: 7, y: 25 } },
+    { kind: 'statue', at: { x: 6, y: 23 } },
     // 碑立在镇心 (32,29) 旁边：世界共识刻在这儿，而不是刻在某栋楼的外墙上。
     // 碑上不写字（中文不进 canvas），字在 `#stele-panel` 里。
     { kind: 'stele', at: { x: 34, y: 28 } },

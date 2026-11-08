@@ -59,6 +59,7 @@ import {
   type SmokeMotion,
 } from '../world/smoke-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
+import { bakeLayer } from './bake.ts';
 import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
@@ -570,14 +571,60 @@ export function createSettingScenery(
       g.fillStyle(c.trim, 0.8);
       g.fillRect(x + 6, y + 1, 1, 3);
     } else if (item.kind === 'statue') {
-      const g = propLayer(item.at.y);
-      g.fillStyle(c.stone, 1);
-      g.fillRect(x, y + 8, 16, 8);
-      g.fillRect(x + 4, y - 3, 8, 12);
-      g.fillStyle(c.plaza, 1);
-      g.fillRect(x + 5, y - 2, 3, 8);
-      g.fillStyle(c.water, 1);
-      g.fillRect(x + 2, y + 4, 12, 2);
+      // 石作走 bake：静态、不随世界时间变化。原先是每件四条 `fillRect` 进 propRows
+      // 的行 Graphics，改成一枚 16×19 的纹理后每帧 0 条（实测 −29 条/件，
+      // 见 `docs/OPEN_ISSUES.md` N 节）。纹理原点在 (0,0)，所以图钉在 (x, y−3)，
+      // 与原 Graphics 的落地边逐像素对齐。
+      const baked = bakeLayer(
+        scene,
+        `statue-${item.at.x}-${item.at.y}`,
+        16,
+        19,
+        sceneryDepth(item.at.y, altitude),
+        (g) => {
+          g.fillStyle(c.stone, 1);
+          g.fillRect(0, 11, 16, 8);
+          g.fillRect(4, 0, 8, 12);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(5, 1, 3, 8);
+          g.fillStyle(c.water, 1);
+          g.fillRect(2, 7, 12, 2);
+        },
+      );
+      baked.image.setPosition(x, y - 3);
+    } else if (item.kind === 'flower_bed') {
+      // 花径的花圃（设定集 p110–111）：一条土床，上面两簇花。花床是死的，
+      // 也走 bake——每件一条 16×12 纹理，每帧 0 条。
+      //
+      // **降级**：24 色里没有粉紫，杜鹃 / 绣球画不出来；这一床只能用暖红
+      // （ember / terracotta）＋米白（plaster），读作小树丛，读不出一面
+      // 修剪过的花墙。这是与设定集的差距，不是还原。
+      const baked = bakeLayer(
+        scene,
+        `flower_bed-${item.at.x}-${item.at.y}`,
+        16,
+        12,
+        sceneryDepth(item.at.y, altitude),
+        (g) => {
+          g.fillStyle(c.charcoal, 1);
+          g.fillRect(0, 9, 16, 3);
+          g.fillStyle(c.soil, 1);
+          g.fillRect(1, 7, 14, 3);
+          g.fillStyle(c.moss, 1);
+          g.fillRect(1, 3, 6, 6);
+          g.fillRect(9, 4, 6, 5);
+          g.fillStyle(c.ember, 1);
+          g.fillRect(1, 1, 6, 3);
+          g.fillRect(9, 2, 6, 3);
+          g.fillStyle(c.terracotta, 1);
+          g.fillRect(2, 4, 4, 2);
+          g.fillRect(10, 5, 4, 2);
+          g.fillStyle(c.plaster, 1);
+          g.fillRect(3, 1, 2, 2);
+          g.fillRect(10, 2, 2, 2);
+        },
+      );
+      baked.image.setPosition(x, y - 4);
     }
   }
 
