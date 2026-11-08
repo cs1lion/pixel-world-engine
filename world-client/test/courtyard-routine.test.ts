@@ -1,0 +1,136 @@
+/**
+ * 花径作息：村民要真的走进那处口袋，到点站着，不是只换一块牌子。
+ *
+ * 这一条钉四件事：
+ *
+ * 1. **按场所解析落点**：作息的目标不再写死坐标，`site: 'courtyard'` 由包的
+ *    `sites` 表 + 地图的可走格解析；解析不到就 throw，不许静默落到 (0,0)。
+ * 2. **门控只有一份读数**：花径开不开由 `siteStateAt('courtyard')` 决定，
+ *    再折成环境帧 flag——不在作息里另写一套时间判断。
+ * 3. **落点是走得到的草地/小径**：不在花床（x5/x7 那六床），不在树篱
+ *    （x3..4、x8..9、y19..20）。
+ * 4. **行为可观测**：14:00–17:00 的花径口袋里有人（≥1），09:00–11:00 是 0。
+ *    正反两条都钉——只钉正例会假绿（人本来就站在那儿也能过）。
+ *
+ * 动态 import 是刻意的：base 上包里没有 `sites`、也没有 `site` 落点，测试必须红在
+ * **断言**上，不能变成 module / compile。
+ */
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { DAY_MS } from '../src/world/memory/config.ts';
+
+const MINUTE_MS = 60_000;
+
+/** 花径口袋：外框 x3..9 × y19..25，可走的是中间 x5..7 × y21..25。 */
+const POCKET = { x0: 3, y0: 19, x1: 9, y1: 25 } as const;
+const WALKABLE_IN_POCKET = { x0: 5, y0: 21, x1: 7, y1: 25 } as const;
+/** 六床花圃的格子：落点不许压在花上。 */
+const FLOWER_BEDS = new Set(['5,21', '7,21', '5,23', '7,23', '5,25', '7,25']);
+
+function inPocket(x: number, y: number): boolean {
+  return x >= POCKET.x0 && x <= POCKET.x1 && y >= POCKET.y0 && y <= POCKET.y1;
+}
+
+function onBed(x: number, y: number): boolean {
+  return FLOWER_BEDS.has(`${x},${y}`);
+}
+
+test('花径作息：按场所解析落点、按 siteStateAt 门控、到点有人停留', async () => {
+  const load = await import('../src/settings/load.ts');
+  const index = await import('../src/settings/index.ts');
+  const packModule = await import('../src/settings/dengchao/pack.ts');
+  const env = await import('../src/world/environment.ts');
+  const simModule = await import('../src/world/simulation.ts');
+  if (typeof load.loadSettingPack !== 'function') assert.fail('loadSettingPack 缺失');
+  if (typeof index.routineProfiles !== 'function') assert.fail('routineProfiles 缺失');
+  if (typeof index.siteTargetResolver !== 'function') assert.fail('siteTargetResolver 缺失：落点只能写死坐标');
+  if (typeof env.environmentAt !== 'function') assert.fail('environmentAt 缺失');
+  if (typeof simModule.Simulation !== 'function') assert.fail('Simulation 缺失');
+
+  const raw = packModule.DENGCHAO_RAW;
+  const pack = load.loadSettingPack(raw);
+  const world = load.buildSettingWorld(pack);
+
+  // 1. 包里得有场所表与指向花径的作息。
+  const sites = (pack as unknown as { sites?: readonly { id: string; kind: string; x: number; y: number }[] }).sites;
+  if (sites === undefined || sites.length === 0) assert.fail('包里没有 sites：落点无处解析');
+  const courtyard = sites.find((site) => site.id === 'courtyard');
+  if (courtyard === undefined) assert.fail('包里没有 courtyard 场所');
+  assert.equal(courtyard.kind, 'courtyard');
+  const stops = pack.villagers.flatMap((villager) => villager.routine as readonly { site?: string }[]);
+  const courtyardStops = stops.filter((stop) => stop.site === 'courtyard');
+  if (courtyardStops.length === 0) assert.fail('没有任何一条作息指向花径：人不会走过去');
+
+  // 2. 解析：落到口袋里可走的草地，不压花、不站树篱。
+  const resolve = index.siteTargetResolver(pack, world.grid);
+  const point = resolve('courtyard');
+  assert.ok(inPocket(point.x, point.y), `落点跑出口袋：(${point.x}, ${point.y})`);
+  assert.ok(
+    point.x >= WALKABLE_IN_POCKET.x0 && point.x <= WALKABLE_IN_POCKET.x1
+    && point.y >= WALKABLE_IN_POCKET.y0 && point.y <= WALKABLE_IN_POCKET.y1,
+    `落点不在可走区：(${point.x}, ${point.y})`,
+  );
+  assert.ok(!onBed(point.x, point.y), `落点压在花床上：(${point.x}, ${point.y})`);
+  assert.ok(world.grid.isWalkable(point), `落点不可走：(${point.x}, ${point.y})`);
+
+  // 3. 解析失败必须确定：未知场所 throw；解析不到可走格 throw。
+  assert.throws(() => resolve('park'), /未知场所 park/);
+  const deadGrid = { nearestWalkable: () => null };
+  assert.throws(
+    () => index.siteTargetResolver(pack, deadGrid)('courtyard'),
+    /解析不到可走格/,
+  );
+
+  // 4. 门控只有一份读数：花径 14:00–17:00 开，09:00 不开。
+  const open = env.environmentAt(15 * 60 * MINUTE_MS, 'clear', 0.5);
+  const shut = env.environmentAt(9 * 60 * MINUTE_MS, 'clear', 0.5);
+  assert.ok(open.flags.has('courtyardOpen'), '15:00 花径该开着');
+  assert.ok(!shut.flags.has('courtyardOpen'), '09:00 花径不该开');
+
+  // 5. 行为：跑真 Simulation，两个窗口各取一次读数。
+  const profiles = index.routineProfiles(pack, resolve);
+  const sample = (initialNow: number, hours: number): { minute: number; id: string; x: number; y: number }[] => {
+    const sim = new simModule.Simulation({
+      grid: world.grid,
+      buildings: world.buildings,
+      altar: pack.hub,
+      villagerNames: pack.villagers.map((villager) => villager.name),
+      villagerProfiles: profiles,
+      blueprints: pack.blueprints,
+      wallClock: () => 1000,
+      initialNow,
+    });
+    const hits: { minute: number; id: string; x: number; y: number }[] = [];
+    const end = hours * 60 * MINUTE_MS;
+    for (let t = 0; t < end; t += 1000) {
+      sim.update(1000);
+      const minute = initialNow / MINUTE_MS + Math.round(t / MINUTE_MS);
+      for (const villager of sim.snapshot().villagers) {
+        if (inPocket(villager.pos.x, villager.pos.y)) {
+          hits.push({ minute, id: villager.id, x: villager.pos.x, y: villager.pos.y });
+        }
+      }
+    }
+    return hits;
+  };
+
+  const afternoon = sample(14 * 60 * MINUTE_MS, 3);
+  if (afternoon.length === 0) assert.fail('14:00–17:00 花径里一个人也没有');
+  const morning = sample(9 * 60 * MINUTE_MS, 2);
+  assert.equal(morning.length, 0, `09:00–11:00 花径里不该有人，实测 ${morning.length} 条读数`);
+
+  // 读数交给出口打印，测试本身只钉「有 / 没有」。
+  const first = afternoon[0]!;
+  const representative = afternoon.find((hit) => !onBed(hit.x, hit.y));
+  if (representative === undefined) assert.fail('到过花径的人都压在花床上');
+  console.log(JSON.stringify({
+    courtyardPoint: point,
+    firstContact: first,
+    sample: [0, Math.floor(afternoon.length / 2), afternoon.length - 1]
+      .map((i) => afternoon[i])
+      .filter((hit) => hit !== undefined),
+    dayMs: DAY_MS,
+  }));
+});
