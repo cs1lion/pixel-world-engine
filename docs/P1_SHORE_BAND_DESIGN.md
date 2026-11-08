@@ -60,7 +60,7 @@ docs/P1_SHORE_BAND_DESIGN.md               （本文件）
 **交集：无。** 语义上也无相位冲突：岸带属于地形烘焙（开局画一次，静态贴图），
 不参与逐帧；动画 FSM 只管角色表现与相位时钟，两边没有共享时钟或共享可变状态。
 `SandboxScene.ts` 不需要改——`drawTerrain` 已经拿到 `this.pack ?? undefined` 作为
-theme 参数（`SandboxScene.ts:810`），岸型从 pack 进来即可。
+theme 参数（`SandboxScene.ts:822`），岸型从 pack 进来即可。
 边界：本轮岸带**不跟随潮位重烘**（那会碰到 tide-view 的重烘节流，属于另一条线），
 详见 3.3 的范围声明。
 

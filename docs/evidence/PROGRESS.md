@@ -242,7 +242,7 @@
 - 现状入口清单（改前，文件:行号，详见 `entry-color/entry.txt`）
   - `index.html:888` `#hud-load`；`index.html:913` `#status`；`index.html:902` `#stage`；
     `index.html:921-925` `#oracle` + `#utterance`；`index.html:1072` `#paper-clock`。
-  - `main.ts:92` 世界在模块顶层同步建好；`main.ts:123` `new Phaser.Game`；`main.ts:142` 立即启动场景。
+  - `main.ts:92` 世界在模块顶层同步建好；`main.ts:123` `new Phaser.Game`；`main.ts:165` 立即启动场景。
   - `SandboxScene.ts:571` create；580/587 烘焙地形；647-650 镜头 delayedCall(0) 平移到祭坛；
     766 setPhase；780 默认时相 = `phaseAt(Date.now())`；1052-1061 游玩时钟从 0 起算。
   - 默认时刻矛盾：报纸「第 0 分 00 秒」+ 天空按真实本地时相（正午）——未修（属 report/世界语义）。

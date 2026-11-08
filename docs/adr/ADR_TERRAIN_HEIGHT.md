@@ -268,6 +268,17 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 按行裁剪是为了让每一行有独立的 depth，和人物/道具共用同一把 y-sort 尺子。
 **为什么不每格一个 Image**：6912 个对象、纹理批次和内存都不可控；行裁剪是同语义的最小代价。
 
+**阶段 2 落地记录（调试演示口，不是作者输入通道）**：
+渲染抬升与遮挡可以先用手工夹具演示，入口是 `?hd2d=on` 下的
+`?hpatch=x,y,w,h,level[;...]`（给网格打临时水平层）与 `?occluders=off`（只关裁剪条，用于 O1 反证）。
+纪律写在代码注释里，同样适用于本文档：
+
+- `?hd2d=off`（默认）**结构上不解析** `hpatch`，不是解析后忽略。
+- 格式非法必须 `throw`（整数、`x,y ≥ 0`、`w,h ≥ 1`、`level ∈ 0..3`），不许静默降级成平地。
+- 不写存档、不参与 trace/replay、不进任何夹具；任何 recorder / 捕图脚本不得传这个参数。
+- 真正的作者输入通道是 §8 **阶段 3** 的 `GridSpec.levels`；在它落地之前，本文档与任何证据
+  不得写成“已经具备高度场景”——H1/H3 的观感只能靠上述调试补丁演示。
+
 ### 3.4 谁在前面，由什么决定
 
 - **行号**决定主次序：`北 < 南`（与今天完全一致）。
@@ -552,11 +563,15 @@ world.terrainEdits: readonly {
 | H2 | 一条 1 格宽的坡：低格 (5,6,0) → 坡边 → 高格 (5,5,1)；固定相机 zoom=2 | 人物从低走到高，按格边界采样容器 `y` | 每次跨过 `climb` 边，`y` 变化恰好 `-LEVEL_PX`；`x` 不变；回程恰好 `+LEVEL_PX` | 反向：删掉 `climb` 边，`path` 必须为空（同时命中 R1）；证明“能走上去”不是地形贴图自动给的 |
 | H3 | 同一格 level 0 / 1，钉住相机与帧 | 该格中心与格底线两处像素扫描 | 高地图案整体上移 `LEVEL_PX`；格底出现崖面颜色；低位格底不再是原地形色 | 反向：`?height=off` 下两处颜色回到基准；且世界三枚指纹（世界/记忆/造物）在开关前后逐字相同 |
 
+> **H1/H3 现在怎么取夹具**：本笔没有作者高度世界（见 `OPEN_ISSUES.md` E15），
+> 两份夹具的 `level 0 / 1` 由调试演示口 `?hpatch` 在同一张平地上临时打出来；
+> 它只负责演示，不是作者输入通道，也不进任何基线/夹具。观感结论不得超出“调试补丁演示”的范围。
+
 ### O：遮挡真的生效
 
 | 编号 | 夹具 | 测量 | 通过 | 怎么证明没被放宽 |
 | --- | --- | --- | --- | --- |
-| O1 后方 | 崖在 `(x,R)` level 1，人在 `(x,R-1)` level 0，固定 pose | ① `actorDepth < occluderDepth`；② 在崖面/抬起带矩形里扫人物调色板像素 | ① 严格不等式；② 该矩形内人物专属色像素数 = 0 | 同一测试跑 `?occluders=off`：② 必须 > 0（同一帧、同一坐标）。若没有关掉遮挡层也能 0，说明是别的东西在挡，判失败 |
+| O1 后方 | 崖在 `(x,R)` level 1，人在 `(x,R-1)` level 0，固定 pose | 同一机位、同一帧的**差分**：A = 开遮挡（人在 ROI）、A′ = 开遮挡（人移走）；B = `?occluders=off`（人在 ROI）、B′ = off（人移走）。ROI = 抬起带矩形（世界 y `R*16-16..R*16`） | ① `actorDepth < occluderDepth`；② ROI 内 `diff(A, A′) = 0`；③ ROI 内 `diff(B, B′) > 0`（报原始像素数）；④ 人不在 ROI 时 `diff(A′, B′) = 0`（逐像素） | **为什么不用“人物专属色”**：24 色里没有只属于人的色，专属色是软判据；差分把“条画错了但恰好那里没人”直接变成读数。④ 就是那条兜底：人在 ROI 外时，开关前后同一 ROI 必须逐像素相同；否则说明条本身画错了 |
 | O2 上方 | 人在 `(x,R)` level 1，（崖面就在脚下） | 人物整体像素数与“同一 pose 站在 1×1 平地”的对照完全相同 | 差 = 0；且 `actorDepth > occluderDepth` | 反向：把 `LEVEL_PX` 调 0 的渲染夹具，像素数仍等于对照；证明 O2 量的不是“人变高”而是“没被自己脚下挡” |
 | O3 前方 | 人在 `(x,R+1)` level 0 | 同 O2 的像素数对照；`actorDepth > occluderDepth` | 差 = 0 | 反向：把该人移到 `(x,R-1)`，O1 必须变红（同测试内的位置对照） |
 
@@ -659,10 +674,10 @@ world.terrainEdits: readonly {
 | `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:54` |
 | `drawTerrain` | `world-client/src/render/tilemap.ts:24` |
 | `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:99` / `:133` |
-| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:88` / `:100` |
+| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:94` / `:113` |
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
 | `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
 | `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:291` |
-| 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
+| 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:815` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |
 | `pave-reachable.test.ts` 的 `nearestWalkable` 断言 | `world-client/test/pave-reachable.test.ts:177` |
