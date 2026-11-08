@@ -28,7 +28,7 @@ type PackModule = { readonly DENGCHAO_RAW?: RawPack };
 const POCKET = { x0: 3, y0: 19, x1: 9, y1: 25 } as const;
 
 test('花径：flower_bed 合法、在包里、在口袋格内；未知 kind 仍 throw', async () => {
-  const load = (await import('../src/settings/load.ts')) as LoadModule;
+  const load = (await import('../src/settings/load.ts')) as unknown as LoadModule;
   const loadPack = load.loadSettingPack;
   if (loadPack === undefined) assert.fail('loadSettingPack 缺失');
 
