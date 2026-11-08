@@ -179,6 +179,12 @@ async function openScene(browser, { phase, camera, villagerCell, extraQuery = ''
     window.Oracle.debugStallMotion({ cloth: false, fire: false });
     window.Oracle.debugBannerMotion({ sway: false, shadow: false });
     window.Oracle.debugSmokeMotion({ drift: false });
+    // 镜头必须钉在 free：本闸门的自动导演（camera-controller 的空闲 clock）会在
+    // ~1000 帧后自己 pan 一整屏（实测 1001→1042 帧、整幅 563,520 px 里 17–35% 在变），
+    // 那是**视图变换**随渲染 delta 推进，不是世界内容。E12 记下的那 11 px 就是它的
+    // sub-pixel 尾巴（bbox 落在叠浪楼右上沿的抗锯齿边）。其他闸门都先 setCameraMode('free')，
+    // 只有这里漏了——漏一次就让「冻结世界 → 逐字节静止」失去前提。
+    window.Oracle.setCameraMode('free');
     window.Oracle.centerCameraOn(lens.x, lens.y);
     return {
       lens,
@@ -658,15 +664,40 @@ const closedStep = await diffPair(
   closed.camera,
   { x0: -10000, y0: -10000, x1: 10000, y1: 10000 },
 );
+
+// 世界钟驱动（正面判据）：上面的「暂停」只证「冻结时不动」，它不知道「该动的时候要动」。
+// 这一条与本页的暂停同处同机位，但把世界钟推过 19:00 夜市支摊边界（18:11 闭市 → 19:11 夜市）：
+// 摊位的 `open` 读数必须翻面，STALL_ROI 的像素必须随之改变。两条一起才叫「由世界钟驱动」。
+// 本页没有 pinClock（真实帧时钟在跑），所以这里测的是世界钟，不是帧号。
+const STALL_BOUNDARY = 1151 * MIN; // 19:11：19:00 支摊、22:00 闭市（左闭右开）
+await closed.page.evaluate(() => window.Oracle.debugGroundShadows({ on: true }));
+await waitForFrames(closed.page, 2);
+const clockA = await shot(closed.page, closed.box, 'clock-a');
+const stallOpenA = await closed.page.evaluate(
+  () => window.Oracle.debugStallUnits().stalls.map((unit) => unit.open),
+);
+let clockNow = clockA.now;
+while (clockNow < STALL_BOUNDARY) {
+  const advance = Math.min(MIN, STALL_BOUNDARY - clockNow);
+  await closed.page.evaluate((ms) => window.Oracle.debugStepWorld(ms), advance);
+  clockNow += advance;
+}
+await waitForFrames(closed.page, 2);
+const clockB = await shot(closed.page, closed.box, 'clock-b');
+const stallOpenB = await closed.page.evaluate(
+  () => window.Oracle.debugStallUnits().stalls.map((unit) => unit.open),
+);
+const clockDiff = await diffPair(reader, clockA.buf, clockB.buf, closed.camera, STALL_ROI);
 await closed.page.close();
 
 // 确定性：同一份配置开两个页面，各自从 18:10:00 起每 10 世界秒一帧，逐帧 sha256 比。
 //
-// **前提是「两页帧号相等」，不是「各自等到连续 8 帧相同」就开比。** 画面里有一处
-// 按渲染帧推进、不随世界钟推进的微动（OPEN_ISSUES E12），量化平台由帧号决定：
-// 实测两页各等到「连续 8 帧相同」时帧号是 135 / 179，13 张里 5 张不等。所以这里
-// 在 `scripts/lib/frame-clock.mjs` 里冻结真实 rAF、把两页都步进到同一个 PIN_FRAME，
-// 再逐帧比；帧号不等就判前提不成立。
+// **前提是「两页帧号相等」，不是「各自等到连续 8 帧相同」就开比。** 画面里那处
+// 「按渲染帧推进、不随世界钟推进」的微动（OPEN_ISSUES E12）查清了是**自动导演镜头**：
+// 世界冻住、DOM 隐藏、隔离全开时，backing buffer 在 1001→1042 帧整幅平移（563,520 px 里
+// 17–35% 在变），把镜头 `setCameraMode('free')` 后逐帧步进 110 帧变化为 0。E12 记的 11 px
+// 只是 pan 尾部的 sub-pixel 边沿。`openScene` 现在也钉镜头，但这两个「同一帧」的采样
+// 仍按帧号对齐——帧号不等就判前提不成立，不拿「各自停住」冒充同相。
 
 async function runPass(tag) {
   const scene = await openScene(browser, { phase: 'dusk', camera: STALL_CAMERA, villagerCell: null });
@@ -902,6 +933,7 @@ const result = {
   phases: phaseRows,
   closed: { sameTime: closedSameTime, step: closedStep },
   pause: { diff: pauseDiff, framesAdvanced: pauseB.frame - pauseA.frame, nowA: pauseA.now, nowB: pauseB.now },
+  clockDrive: { from: clockA.now, to: clockB.now, diff: clockDiff, openA: stallOpenA, openB: stallOpenB },
   determinism,
   determinismProbe: { pass1: pass1.hashes, pass2: pass2.hashes, frames: pass1.frames },
   peakCommands,
@@ -927,6 +959,8 @@ for (const item of phaseRows) {
 }
 console.log(`全关同刻两页 ${pct(closedSameTime.ratio)}（${closedSameTime.changed}px）；跨 t/t+1s ${pct(closedStep.ratio)}（${closedStep.changed}px，既有横条）`);
 console.log(`暂停 ${pct(pauseDiff.ratio)}（帧 +${pauseB.frame - pauseA.frame}）`);
+console.log(`世界钟驱动 18:11→19:11（跨 19:00 支摊）${pct(clockDiff.ratio)}（${clockDiff.changed}px，`
+  + `摊位 open ${stallOpenA.join(',')} → ${stallOpenB.join(',')}）`);
 console.log(`确定性 ${determinism}/13；峰值指令 ${peakCommands}（设计目标 ${DESIGN_TARGET} / 天花板 ${PEAK_CEILING}）`);
 for (const item of phaseRows) {
   if (item.stall.segments) {
@@ -989,6 +1023,14 @@ const expectZero = (label, item) => {
 expectZero('全关同刻两页', closedSameTime);
 expectZero('跨 t/t+1s', closedStep);
 expectZero('暂停', pauseDiff);
+// 世界钟驱动：与「暂停」成对。冻结时静止只证明「不许动」，这一条证明「该动的时候会动」。
+if (clockDiff.changed === 0) {
+  failures.push(`世界钟推进 18:11→19:11（跨 19:00 夜市支摊边界）后 STALL_ROI 未变化（0px）：该处没被世界钟驱动`);
+}
+if (!(stallOpenA.every((open) => open === false) && stallOpenB.every((open) => open === true))) {
+  failures.push(`摊位开合读数没有随世界钟翻面（18:11 open=${JSON.stringify(stallOpenA)}，`
+    + `19:11 open=${JSON.stringify(stallOpenB)}）`);
+}
 if (determinism !== 13) failures.push(`确定性应为 13/13，实为 ${determinism}/13`);
 // #3：夜间影长必须为 0。`?? []` / `?? 0` 会让「没这一行 / 没这个字段」静默变成「是 0」，
 // 所以这里逐项确认读数在不在，缺哪个字段就点哪个字段。
