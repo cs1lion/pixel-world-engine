@@ -306,9 +306,11 @@
 **状态**：`[尚未实现]`（无自动闸；只有书面边界）
 - **触发**：合并、切换、清理、测试失败想「先 stash 一下」。
 - **怎么做**：不 `git stash`、不 `git checkout --` 别人的改动、不删除未跟踪文件。看到别人工作树在写，停手。`docs/RESUME.md` 里建议 stash 的旧口径与本条冲突时，以本条为准。
-- **违反暴露**：没有脚本检测；只能靠 `git status`、reflog 与 review。丢工作通常事后才能发现，这是本周最容易踩的一条。**失效边界（同一形状已发生两次）**：删**未跟踪目录**也会透过 `node_modules` junction 伤到共享依赖。
+- **违反暴露**：没有脚本检测；只能靠 `git status`、reflog 与 review。丢工作通常事后才能发现，这是本周最容易踩的一条。**失效边界（同一形状已发生三次）**：删**未跟踪目录**也会透过 `node_modules` junction 伤到共享依赖。
   - 第一次（2026-11-07）：`Remove-Item -Recurse` 清临时树时删掉了主树 `world-client/node_modules/.bin` 与 rolldown 原生绑定，`npm install` 后恢复，无 tracked 改动。
   - 第二次（2026-11-08）：同形状再现——`@rolldown/binding-win32-x64-msvc` 只剩 `.node`、缺 `package.json`，`npm ls` 报 `invalid: "1.2.15"`，`vite build` 报 `Cannot find native binding`，全量 `npm test` 因此红 1 条（`issue-13-acceptance.test.ts` 的 vite build 条件）。`npm i` 修好（`npm ls` 报 1.2.15、`package.json` 与 `.node` 都在、构建 793ms 通过、`npm test` 回到 2600/2591/0/9），但**「`npm i` 能修好」不等于「没有代价」**：修的时候另有两处 dev server 在跑（`pwe-site-hours` 5230 用自己那份依赖，主树 5211 用这份），它们用的就是被换掉的那份依赖；主树 5211 的 vite 还把旧 `.node` 锁着，留下 `@rolldown/.binding-win32-x64-msvc-7ws3PCOL` 删不掉，只能等它退出。
+  - 第三次（2026-11-08，P2 移轴那笔）：同形状再现——`red-first` 临时 worktree 收尾时先 `git worktree remove`，再用 `Remove-Item -Recurse` 清残留目录，穿过 `node_modules` junction 删掉了主树依赖；`npm ci` 恢复后全量重跑（2633 项 / 0 失败 / 9 skipped）、`npm run check`、`test:dof` 才回到绿。
+  - **写死的做法（W2 的硬规则）**：删 worktree 只用 `git worktree remove`；绝不对含 junction 的路径用 `Remove-Item -Recurse` / `rmdir /s`。必须删目录时先 `cmd /c rmdir <junction>`（不带 `/s`，只拆链不动目标），再删外层。
   - 判据：删临时树前先确认里面没有指向共享 `node_modules` 的 junction / 符号链接（`Get-Item <path> | Select-Object LinkType,Target`）。**回收工作树后的收尾检查**必须跑这两条，它们是损坏时最先红的读数：`npm ls --all 2>&1 | Select-String invalid`（须为空）、`npx vite build`（须成功）。
 - **对应物**：[VERIFIABLE_FLOWS.md](file:///D:/project/pixel-world-engine/docs/evidence/VERIFIABLE_FLOWS.md#L9-L13)；[ENVIRONMENT_BUILDABILITY.md](file:///D:/project/pixel-world-engine/docs/evidence/ENVIRONMENT_BUILDABILITY.md#L756-L762)；[RESUME.md](file:///D:/project/pixel-world-engine/docs/RESUME.md#L86-L87) 的旧 stash 建议（与本条冲突，以本条为准）。
 
