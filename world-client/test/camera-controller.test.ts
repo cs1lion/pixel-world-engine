@@ -1,7 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCameraController } from '../src/render/camera-controller.ts';
-import { DIRECTOR_DWELL_MS, DIRECTOR_IDLE_MS, panCenterAt, viewOriginOf } from '../src/render/camera-math.ts';
+import { DIRECTOR_DWELL_MS, DIRECTOR_IDLE_MS, viewOriginOf } from '../src/render/camera-math.ts';
+
+/**
+ * `panCenterAt` 是这一笔新加的导出。base 上它不存在，所以**不能静态 import**——
+ * 那会让 red:first 变成 compile ERROR 而不是断言红（docs/OPEN_ISSUES.md B7）。
+ */
+async function loadPanCenterAt(): Promise<
+  ((fromX: number, fromY: number, toX: number, toY: number, t: number) => { x: number; y: number }) | null
+> {
+  try {
+    const mod = (await import('../src/render/camera-math.ts')) as {
+      panCenterAt?: (fromX: number, fromY: number, toX: number, toY: number, t: number) => { x: number; y: number };
+    };
+    return typeof mod.panCenterAt === 'function' ? mod.panCenterAt : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 控制器：模式切换、跟随的松开，以及「事件打断轮转」。
@@ -264,9 +281,11 @@ test('导播里事件打断轮转，并吃掉这一档', () => {
 
 // ------------------------------------------------------------------ 视野
 
-test('整数像素缓动：每一步都是整数像素，单调不回退，端点精确', () => {
+test('整数像素缓动：每一步都是整数像素，单调不回退，端点精确', async () => {
   // P4 的核心判据。这条曲线若在中途落进同一像素、下一帧跳两格，就是原来
   // `cam.pan` 逐帧插浮点 + `roundPixels` 取整的顿感，正是要改掉的东西。
+  const panCenterAt = await loadPanCenterAt();
+  assert.ok(typeof panCenterAt === 'function', 'camera-math.ts 必须导出 panCenterAt');
   const from = { x: 120.4, y: 80.6 };
   const to = { x: 430, y: 260 };
   let prev = Number.NEGATIVE_INFINITY;
