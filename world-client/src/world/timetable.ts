@@ -153,16 +153,29 @@ export function isDawnAt(worldNow: number): boolean {
 }
 
 /**
- * 市面此刻开着的是哪一场。
+ * 某个场所此刻开着的是哪一场。
  *
- * 早市 08:00–17:00，夜市 19:00–22:00。这是**纯函数**，所以读档续跑不会分叉，
- * 也不需要往存档里加一个「今天开没开市」的字段。
+ * 这是「场所的状态 = 世界时刻的纯函数」的最小形态：输入只有世界时刻，不看帧号、
+ * 不看调用次数，所以同一世界时刻必得同一状态，读档续跑不会分叉，也不需要往
+ * 存档里加「今天开没开」的字段。
+ *
+ * 这一版只有一个按时段开闭的场所（街口摊位），因此**不留 site 维度**——加一个
+ * 没有第二个成员的 keyed 表只是把「一个常量」包装成「一个接口」。真要有第二个
+ * 场所时再加 keyed 表，未知 key 直接 throw（与 `beatMinute` 同一条口径），
+ * 不许 `?? 'closed'`。
+ *
+ * 早市 08:00–17:00，夜市 19:00–22:00，其余关着。边界左闭右开。
  */
-export function marketPhaseAt(worldNow: number): MarketPhase {
+export function siteOpenAt(worldNow: number): MarketPhase {
   const minute = minuteOfDay(worldNow);
   if (minute >= NIGHT_MARKET_MINUTE && minute < MARKET_CLOSE_MINUTE) return 'night';
   if (minute >= MARKET_OPEN_MINUTE && minute < WORK_END_MINUTE) return 'open';
   return 'closed';
+}
+
+/** 旧名字，行为与 `siteOpenAt` 逐字相同。保留只为兼容现有调用方。 */
+export function marketPhaseAt(worldNow: number): MarketPhase {
+  return siteOpenAt(worldNow);
 }
 
 /** 某一拍在一天里的毫秒偏移。 */

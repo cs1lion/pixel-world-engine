@@ -31,6 +31,7 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import { siteOpenAt } from '../world/timetable.ts';
 import {
   LAMP_MOTION_ON,
   lampBreathAt,
@@ -176,6 +177,14 @@ export interface SettingSceneryClock {
    */
   readonly packed?: boolean;
   /**
+   * 场所此刻开没开（`siteOpenAt(presentedNow)` 的投影）。为假时摊位收起：
+   * 不画棚布、不画火盆，只留柜台。缺省视为开——旧调用方画面不变。
+   *
+   * 这个值**只许来自呈现时刻**（`presentedNow`），不许读 `scene.time.now` 或
+   * delta：E12 的教训是「按帧推进的微动在世界时间轴上不成立」。
+   */
+  readonly open?: boolean;
+  /**
    * 幌布两支动态的开关（`debugBannerMotion` 写这个口子）：布身摆动、沿墙投影。
    * 缺省全开；关掉哪一支，那一支就退化成常量。
    */
@@ -252,6 +261,7 @@ interface StallReadout {
   order: number;
   x: number;
   y: number;
+  open: boolean;
   awningSway: number;
   fireLevel: number;
   fireHeight: number;
@@ -831,14 +841,15 @@ export function createSettingScenery(
       // 火盆的焰与暖晕按世界时刻跳动；火不投地面光池，夜街光带读数不受影响。
       const stallMotion = clock.stalls ?? STALL_MOTION_ON;
       const packed = clock.packed ?? false;
+      const open = clock.open ?? (siteOpenAt(now) !== 'closed');
       stallReadout.length = 0;
       for (const unit of stallUnits) {
         const layer = stallRows.get(unit.row);
-        const cloth = stallMotion.cloth && !packed
+        const cloth = open && stallMotion.cloth && !packed
           ? stallClothSwayAt(now, unit.order)
           : { dx: 0, lift: 0 };
-        const fire = stallMotion.fire ? stallFireAt(now, unit.order) : { level: 0, height: 0 };
-        if (layer !== undefined) {
+        const fire = open && stallMotion.fire ? stallFireAt(now, unit.order) : { level: 0, height: 0 };
+        if (layer !== undefined && open) {
           drawStallAwningAt(layer, unit.x, unit.y, c, cloth.dx, cloth.lift);
           drawStallFireAt(layer, unit.x, unit.y, c, fire.level, fire.height);
         }
@@ -846,6 +857,7 @@ export function createSettingScenery(
           order: unit.order,
           x: unit.x,
           y: unit.y,
+          open,
           awningSway: cloth.dx,
           fireLevel: fire.level,
           fireHeight: fire.height,

@@ -75,7 +75,7 @@ import {
   isAsleepAt,
   isDawnAt,
   isEveningAt,
-  marketPhaseAt,
+  // 场所开关走 EnvironmentFrame.flags（同一刻一份读数），不再直接读 marketPhaseAt。
   minuteOfDay,
 } from './timetable.ts';
 import {
@@ -3633,8 +3633,8 @@ export class Simulation {
       const scheduled = routineFor(frame, beats, villager.routineIndex, shelterTarget(this.buildings, here));
       villager.routineIndex += 1;
       // 闭市时摊位那一拍不存在：跳过它，环线照走。开市/夜市时它是一段真的
-      // 多走一趟街口摊位的出门。市面相位也按帧里的时刻算，不另读一次钟。
-      const beat = withMarketWords(scheduled, marketPhaseAt(frame.now));
+      // 多走一趟街口摊位的出门。场所开关读帧里的 flag，不另读一次钟。
+      const beat = withMarketWords(scheduled, frame);
       if (beat === null) continue;
       const target = this.resolvedTarget(beat);
       if (target === null || this.routineGuarded(villager, target)) continue;

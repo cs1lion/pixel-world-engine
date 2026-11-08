@@ -7,7 +7,7 @@
 import type { GridPoint, PlacedBuilding } from './types.ts';
 import { hasEnvironment, type EnvironmentFrame } from './environment.ts';
 import { PACE } from './pace.ts';
-import type { MarketPhase } from './timetable.ts';
+// 场所开关从 EnvironmentFrame 的 flag 读：同一刻只有一份读数，不在这里按相位再算一次。
 
 export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'shelter';
 
@@ -105,17 +105,17 @@ export interface RoutineMap {
 }
 
 /**
- * 市面那一拍的说法跟着相位走；闭市时**这一拍整天不存在**。
+ * 市面那一拍的说法跟着帧里的场所开关走；闭市时**这一拍整天不存在**。
  *
  * 开市、夜市各是一段真的出门：人离开环线，多走一趟街口的摊位，停 20 分钟
  * 再回到环线上。落点与说法同一份事实——早市说守着摊子，夜市说看摊，闭市
  * 就不说，那一拍直接跳过。四个节点因此不只是四行字：08:00 之后街口多一处
  * 停留（人流密度变了），22:00 之后摊位那一拍消失。
  */
-export function withMarketWords(beat: RoutineBeat, phase: MarketPhase): RoutineBeat | null {
+export function withMarketWords(beat: RoutineBeat, frame: EnvironmentFrame): RoutineBeat | null {
   if (beat.id !== 'market') return beat;
-  if (phase === 'open') return beat;
-  if (phase === 'night') {
+  if (hasEnvironment(frame, 'marketOpen')) return beat;
+  if (hasEnvironment(frame, 'nightMarket')) {
     return { ...beat, label: '在夜市灯下看摊', going: '去夜市' };
   }
   return null;
