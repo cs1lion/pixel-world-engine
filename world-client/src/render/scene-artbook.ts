@@ -12,6 +12,7 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import { markDofStatic } from './dof-view.ts';
 
 export interface SceneArtbookClock {
   readonly phase: LampPhase;
@@ -47,14 +48,16 @@ export function createSceneArtbook(
   hallAt?: ArtbookPoint,
 ): SceneArtbookView {
   // depth 1.5：石阶/石沟压在铺装（1）之上，又被潮水（3）盖住。
-  const ground = scene.add.graphics().setDepth(1.5);
+  // 贴地三张（ground / backdrop / quay）在创建时画一遍就不再动，进 P2 糊图闭包；
+  // water / farLight / fog 是每帧重画的动态层，不标。
+  const ground = markDofStatic(scene.add.graphics().setDepth(1.5));
   // depth 3.4：水面灯影贴在水面（3）上，桥（4）仍压在它前面。
   const water = scene.add.graphics().setDepth(3.4);
   // depth 5：对岸屋脊/钟塔压在水面，又让渡口石堤（6）站在它前面。
-  const backdrop = scene.add.graphics().setDepth(5);
+  const backdrop = markDofStatic(scene.add.graphics().setDepth(5));
   // depth 5.2：对岸窗火压在屋脊上，仍在水面与雾之下。
   const farLight = scene.add.graphics().setDepth(5.2);
-  const quay = scene.add.graphics().setDepth(6);
+  const quay = markDofStatic(scene.add.graphics().setDepth(6));
   // depth 1370：街市山墙在既有店铺立面之前、木构挑檐之后。
   const facade = scene.add.graphics().setDepth(1370);
   // depth 1417：叠浪楼补绘压在通用楼体（1416）之上，门洞挑檐（1448）仍在它前面。

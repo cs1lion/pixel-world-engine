@@ -69,6 +69,7 @@ import {
 } from '../world/ground-shadow.ts';
 import { sceneryDepth } from './scenery-depth.ts';
 import { LAMP_POOL_DEPTH } from './layer-depth.ts';
+import { markDofStatic } from './dof-view.ts';
 import { lampPoolBands, wideLampPoolBands } from './lamp-pool.ts';
 import {
   LAMP_BODY_BOTTOM,
@@ -348,9 +349,10 @@ export function createSettingScenery(
   pack: SettingPack,
   altitude: number,
 ): SettingSceneryView {
-  const track = scene.add.graphics().setDepth(1);
-  const street = scene.add.graphics().setDepth(1);
-  const bridge = scene.add.graphics().setDepth(4);
+  // 贴地三层进 P2 糊图闭包：它们在创建时画一遍就不再动。
+  const track = markDofStatic(scene.add.graphics().setDepth(1));
+  const street = markDofStatic(scene.add.graphics().setDepth(1));
+  const bridge = markDofStatic(scene.add.graphics().setDepth(4));
   // 街面光池：压在铺装与潮水之上、桥与构件之下，见头部那条分层契约。
   const lampPool = scene.add.graphics().setDepth(LAMP_POOL_DEPTH);
   // 人物与摊位的落地投影：比潮水高、比光池低（暖光仍压在影子上），见 `ground-shadow.ts`。

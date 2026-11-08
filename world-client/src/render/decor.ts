@@ -10,6 +10,7 @@ import { paletteFor } from '../world/theme.ts';
 import { ACTOR_DEPTH_OFFSET, propDepth, propFootY } from './prop-depth.ts';
 import { grimeSpecks } from './prop-grime.ts';
 import { GRIME_CLEAN } from '../world/grime.ts';
+import { markDofStatic } from './dof-view.ts';
 
 /** 场景把 ALTITUDE 传给装饰层，道具 depth 与角色用同一把尺子。 */
 export const DECOR_ALTITUDE = 1000;
@@ -27,7 +28,7 @@ export interface DecorView {
 }
 
 export function createDecorView(scene: Phaser.Scene, originX: number, originY: number): DecorView {
-  const roads = scene.add.graphics();
+  const roads = markDofStatic(scene.add.graphics());
   roads.setDepth(1);
   // 道具**不能**放进容器：Phaser 的 Container 按 list 顺序渲染子对象，容器内子对象的
   // depth 不参与全局排序（见 ContainerWebGLRenderer：直接遍历 container.list）。
@@ -39,7 +40,7 @@ export function createDecorView(scene: Phaser.Scene, originX: number, originY: n
   const props = new Map<string, PropNode>();
   const critters = new Map<string, Phaser.GameObjects.Graphics>();
   // 痕迹单独一层，压在路下面：踩出来的东西该比铺出来的更轻。
-  const trails = scene.add.graphics();
+  const trails = markDofStatic(scene.add.graphics());
   trails.setDepth(0);
   let lastTrailKey = '';
   const scaffolds = new Map<string, Phaser.GameObjects.Container>();

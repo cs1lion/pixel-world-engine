@@ -835,7 +835,10 @@ export class SandboxScene extends Phaser.Scene {
         height: worldPx.h,
         terrainKey: `world-terrain-${this.pack?.id ?? 'default'}`,
         depth: DOF_DEPTH,
-        blurRadius: 1,
+        // r=5 → k=11。r=1（k=3）时，贴地带里一根 180 反差的木栈边只从 180 降到
+        // 61，眼睛仍读成锐边；box blur 的台阶梯度上限就是 C/k，要压到判据的 <20
+        // 必须 k≥11。核没变（可分离整数盒式、单次迭代），只改了窗口半径。
+        blurRadius: 5,
       });
       // 相机在 update 里才定型，PRE_RENDER 是「这一帧最终画面」的第一时间。
       this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.updateDof, this);
