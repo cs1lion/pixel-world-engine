@@ -41,10 +41,11 @@ type SiteBandLike = {
 };
 type SiteDefLike = {
   readonly id: string;
-  readonly kind: 'market' | 'park';
+  readonly kind: 'market' | 'courtyard';
   readonly bands: readonly SiteBandLike[];
 };
 type SiteTableModule = {
+  readonly SITE_KINDS?: readonly string[];
   readonly SITE_TABLE?: readonly SiteDefLike[];
   readonly siteStateAt?: (siteId: string, worldNow: number) => Phase;
   readonly sitePhaseOf?: (site: SiteDefLike, worldNow: number) => Phase;
@@ -324,19 +325,44 @@ test('siteOpenAt 委托 siteStateAt(market)：边界与 night 分支逐点不变
   assert.equal(siteOpenAt(worldMinutes(NIGHT_TO)), 'closed', '22:00 闭市右开');
 });
 
-test('SiteDef 只换数据：测试内 park fixture 走同一个 sitePhaseOf', () => {
+test('SiteDef 只换数据：测试内 courtyard fixture 走同一个 sitePhaseOf', () => {
   const sitePhaseOf = requireSitePhaseOf();
 
-  // 只在测试里造一条 park 数据，证明相位函数不按 kind 写分支；
-  // 生产 `SITE_TABLE` 不写公园时段，等设定集给内容。
-  const park: SiteDefLike = {
-    id: 'park:fixture',
-    kind: 'park',
+  // 只在测试里造一条 courtyard 数据，证明相位函数不按 kind 写分支；
+  // 生产 `SITE_TABLE` 不写庭院时段，等设定集给内容。
+  const courtyard: SiteDefLike = {
+    id: 'courtyard:fixture',
+    kind: 'courtyard',
     bands: [{ fromMinute: 6 * 60, toMinute: 22 * 60, phase: 'open' }],
   };
 
-  assert.equal(sitePhaseOf(park, worldMinutes(6 * 60)), 'open', '公园 06:00 左闭');
-  assert.equal(sitePhaseOf(park, worldMinutes(6 * 60 - 1)), 'closed', '公园 06:00 前关闭');
-  assert.equal(sitePhaseOf(park, worldMinutes(22 * 60 - 1)), 'open', '公园 22:00 前仍开');
-  assert.equal(sitePhaseOf(park, worldMinutes(22 * 60)), 'closed', '公园 22:00 右开');
+  assert.equal(sitePhaseOf(courtyard, worldMinutes(6 * 60)), 'open', '庭院 06:00 左闭');
+  assert.equal(sitePhaseOf(courtyard, worldMinutes(6 * 60 - 1)), 'closed', '庭院 06:00 前关闭');
+  assert.equal(sitePhaseOf(courtyard, worldMinutes(22 * 60 - 1)), 'open', '庭院 22:00 前仍开');
+  assert.equal(sitePhaseOf(courtyard, worldMinutes(22 * 60)), 'closed', '庭院 22:00 右开');
+});
+
+test('场所种类闭集是运行时单一源：含 courtyard，不含 park', () => {
+  const kinds = table.SITE_KINDS;
+  if (kinds === undefined) {
+    assert.fail('timetable.ts 必须导出 SITE_KINDS（场所种类闭集）');
+  }
+  assert.deepEqual(kinds, ['market', 'courtyard'], '闭集只收真实内容');
+  assert.equal(kinds.includes('courtyard'), true, '庭院 / 花径 / 桥头前庭');
+  assert.equal(kinds.includes('park'), false, '设定集没有城市公园');
+});
+
+test('闭集之外的 kind 直接 throw，不静默成 closed', () => {
+  const sitePhaseOf = requireSitePhaseOf();
+  const unknown = {
+    id: 'legacy:fixture',
+    kind: 'park',
+    bands: [{ fromMinute: 6 * 60, toMinute: 22 * 60, phase: 'open' }],
+  } as unknown as SiteDefLike;
+
+  assert.throws(
+    () => sitePhaseOf(unknown, worldMinutes(12 * 60)),
+    /SITE_KINDS/,
+    '与 siteStateAt 未知 id 同口径：表里没有的 kind 不许当成「今天关着」',
+  );
 });
