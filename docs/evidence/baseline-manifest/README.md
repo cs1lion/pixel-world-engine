@@ -62,8 +62,9 @@
 
 - 规模：166 个文件（154 PNG + 9 JSON + 3 HTML）/ 8.1 MB；记录 17,174 字节（sha256 `c04a30bf11a3…`）。
 - 耗时（各 3 次，含 node 启动）：校验 604–662 ms，`--update` 664–702 ms（全量 sha256，没有缓存）。
-- 单测：`test/baseline-manifest.test.ts` 10 条（diff 三类、排序确定性、解析三种坏输入、跨平台指纹、
-  「另有 N 个」的截断回归、
+  同一份代码在更快的机器上 review 复现为 334–401 ms——这是机器读数，不是方法开销。
+- 单测：`test/baseline-manifest.test.ts` 11 条（diff 三类、排序确定性、解析三种坏输入、跨平台指纹、
+  「另有 N 个」的截断回归、加载器只吞「文件不在」（语法错必须原样抛）、
   排除记录自身、端到端改一字节定位）。
 - **基线字节未变**：`git diff --stat -- eval/screens/` 为空——这一笔只加记录，不碰底片。
 
@@ -96,5 +97,10 @@ PNG 指纹不变（`01-salute.png` 仍是 `a5b6deda189a…`），`setting-scale-
   `--update`」，但那已经是逐条 `old→new` 的显式动作，不再无声。
 - **不覆盖 `docs/evidence/`**：那里是给人看的证据图，靠各自 README 的读数说话，
   不是逐字节比较的输入。
+- **不覆盖 `eval/live/`**：那儿有 5 张已跟踪的验收图（`01-online.png` … `05-dengchao-built.png`），
+  而写入路径更松——`scripts/accept-live.mjs:36` 的 `OUT` 是
+  `process.env.EVAL_LIVE_OUT ?? resolveShotDir('accept-live')`，**环境变量一设就整条绕过
+  `resolveShotDir`**，连「这是仓库基线」的提示都不会出现。它们算不算必须自证的基线，
+  要单独定；在那之前，重拍 `eval/live/` 仍然是无声的。
 - **没有让 `check-setting-scale` 进 browser job**：这条闸门管字节，不管「那个脚本
   有没有被跑过」，两件事不混。

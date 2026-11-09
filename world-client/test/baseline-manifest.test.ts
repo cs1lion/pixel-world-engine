@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /**
  * 基线指纹库（E13）的新增模块。red-first 会把这份测试套到 base 上，而 base 里
@@ -48,13 +49,18 @@ interface BaselineModule {
 }
 
 const MODULE_PATH: string = '../scripts/lib/baseline-manifest.mjs';
-const load = async (): Promise<BaselineModule> => {
+const MODULE_MISSING = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND']);
+const loadFrom = async (url: string): Promise<BaselineModule> => {
   try {
-    return (await import(MODULE_PATH)) as unknown as BaselineModule;
-  } catch {
-    return {};
+    return (await import(url)) as unknown as BaselineModule;
+  } catch (error) {
+    // 只吞「文件不在」（red-first 时模块还没写）。裸 `catch {}` 会把模块里的语法错、
+    // 导入错也变成后面的「缺 diffBaseline」——测试套自己说谎，正是这条闸门要防的那类事。
+    if (MODULE_MISSING.has((error as { code?: string }).code ?? '')) return {};
+    throw error;
   }
 };
+const load = (): Promise<BaselineModule> => loadFrom(MODULE_PATH);
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -115,7 +121,12 @@ test('排序与确定性：输入顺序不同，序列化逐字节相同', async
   const two = lib.serializeManifest!({ 'a.png': HASH_A, 'b.png': HASH_B });
   assert.equal(one, two);
   assert.ok(one.endsWith('\n'), '序列化必须以换行收尾');
-  assert.deepEqual(JSON.parse(one).files === undefined ? [] : Object.keys(JSON.parse(one).files), ['a.png', 'b.png']);
+  // serializeManifest 一定写出 `files`，所以不再留 `files === undefined ? [] :` 那种死分支——
+  // 它只会让后来人以为「没有 files」也是一种合法形状。
+  assert.deepEqual(Object.keys((JSON.parse(one) as { files: Record<string, string> }).files), [
+    'a.png',
+    'b.png',
+  ]);
 });
 
 test('解析：往返一致；版本不符 / 指纹不是 64 位 / 非 JSON 都抛', async () => {
@@ -238,4 +249,20 @@ test('渲染：超过 limit 的条数必须报「另有 N 个」，且 N 按实�
   assert.match(removed[1], /added\s+u\.png/);
   const noted = lib.diffLines!(one, { notes: { missing: '（记录里有、磁盘上没有）' } });
   assert.match(noted[0], /m\.png（记录里有、磁盘上没有）/);
+});
+
+test('加载器只吞「文件不在」：模块里的语法错必须原样抛出去', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pwe-baseline-load-'));
+  try {
+    // 「文件不在」→ 空模块，交给每条用例自己的第一句断言去红在断言上（red-first 需要）。
+    assert.deepEqual(await loadFrom(pathToFileURL(join(dir, 'nope.mjs')).href), {});
+
+    // 语法错 → 必须冒出来。吞掉它就等于把「模块写坏了」报成「缺 diffBaseline」，
+    // 读的人会去补函数，而真正的问题在别处。
+    const broken = join(dir, 'broken.mjs');
+    writeFileSync(broken, 'export const = ;\n', 'utf8');
+    await assert.rejects(loadFrom(pathToFileURL(broken).href));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
