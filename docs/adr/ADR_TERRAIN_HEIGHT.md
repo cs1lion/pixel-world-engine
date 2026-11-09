@@ -658,7 +658,7 @@ world.terrainEdits: readonly {
 | `isFlooded` / `TERRAIN_WATER_CLEARANCE`（潮） | `world-client/src/world/tide.ts:180` / `:71` |
 | `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:54` |
 | `drawTerrain` | `world-client/src/render/tilemap.ts:24` |
-| `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:99` / `:133` |
+| `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:124` / `:134` |
 | `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:88` / `:100` |
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
 | `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
