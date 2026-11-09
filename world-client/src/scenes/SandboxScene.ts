@@ -100,7 +100,15 @@ type OracleSurfaces = OracleApi &
   ClockAlignOracle &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
-import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
+import {
+  createBuilding,
+  drawBuildingDecals,
+  updateBuilding,
+  buildingBakeBox,
+  textureBorderAlpha,
+  type BuildingView,
+  type BuildingBakeLayerReading,
+} from '../render/buildings.ts';
 import { contactAoUnknownBaseCount } from '../render/contact-ao.ts';
 import {
   createVillager,
@@ -4603,6 +4611,46 @@ export class SandboxScene extends Phaser.Scene {
        * （截图只能看出「没有暖斑」，看不出「上一帧的椭圆有没有被擦掉」）。
        */
       debugLampPool: (): number => this.settingScenery?.poolCommands() ?? 0,
+      /**
+       * 建筑烘焙自检：逐栋、逐层报 `Image` 的落点 / 原点 / 缩放 / 纹理尺寸，
+       * 以及纹理四边的最大 alpha。
+       *
+       * 两个判据（`scripts/check-building-bake.mjs` 消费）：
+       * 1. 落点必须等于 `buildingBakeBox(w, h)` —— 出版框和贴图落点是**一对**，
+       *    任何一件错 1px 都会让整栋楼的像素移位，而画面只是"看起来还行"；
+       * 2. 四边 alpha 必须是 0 —— 内容贴边说明留白不够、已被裁掉 1px 且不会报错。
+       */
+      debugBuildingBake: () =>
+        this.entries.map(({ building, view }) => {
+          const w = building.footprint.w * TILE_PX;
+          const h = building.footprint.h * TILE_PX;
+          const box = buildingBakeBox(w, h);
+          const layers: BuildingBakeLayerReading[] = [];
+          const prefix = `building-bake:${building.instanceId}:`;
+          const walk = (container: Phaser.GameObjects.Container): void => {
+            (container.list as readonly Phaser.GameObjects.GameObject[]).forEach((child) => {
+              if (child.type !== 'Image') return;
+              const image = child as Phaser.GameObjects.Image;
+              if (!image.texture.key.startsWith(prefix)) return;
+              layers.push({
+                key: image.texture.key,
+                layer: image.texture.key.slice(prefix.length),
+                x: image.x,
+                y: image.y,
+                originX: image.originX,
+                originY: image.originY,
+                scaleX: image.scaleX,
+                scaleY: image.scaleY,
+                frameW: image.frame?.width ?? null,
+                frameH: image.frame?.height ?? null,
+                borderAlpha: textureBorderAlpha(this, image.texture.key),
+              });
+            });
+          };
+          walk(view.container);
+          walk(view.front);
+          return { instanceId: building.instanceId, w, h, box, layers };
+        }),
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
