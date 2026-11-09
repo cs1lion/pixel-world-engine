@@ -62,6 +62,15 @@ test('花径：fence 合法、在包里、只在花床南端面；未知 kind �
     );
   }
 
+  // 位置钉死：两列花床的南端面各 2 格（x4/5、x8/9），中央 x6/7 是穿行净空。
+  // 只钉「两侧都有」不够——整排搬到 x6/7 也能过，而那就把入口堵上了；
+  // 挪成 x5/9 各两条同样能过，但那不再是「花床的端面」。
+  assert.deepEqual(
+    fences.map((fence) => fence.at.x).sort((a, b) => a - b),
+    [4, 5, 8, 9],
+    `木栅落位不是 x4/5 + x8/9：${fences.map((fence) => fence.at.x).join('/')}`,
+  );
+
   // 两列都要有：只有一列是画歪了，不是形制。
   const sides = new Set(fences.map((fence) => (fence.at.x < 6 ? 'west' : 'east')));
   assert.equal(sides.size, 2, `木栅只落在一列：${[...sides].join('/')}`);

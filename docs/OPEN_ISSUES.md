@@ -522,21 +522,22 @@
   `01-salute.png 记录 a5b6deda189a… → 实际 dd023d3d060d…` exit 1；删一张 →
   `missing 1` 点名 `02-working.png`；对未跟踪目录 `--update` 直接拒绝
   （记录不给脏工作树背书）。`--update` 连跑两次，记录逐字节相同
-  （sha256 `678077bb0100753db97f27e5ec38b5de5ed3282d9502b97af0629c8cda00f930`）。
+  （v2 记录 sha256 `c04a30bf11a3d5f1dde268bab6550d276a75839a44b49c860368d60bc38b0cc3`）。
   完整红证读数见 `docs/evidence/baseline-manifest/README.md`。
 - **跨平台 [实测]**（2026-11-09 首次 CI）：Linux runner 把 **12 个文本文件**判成「字节变了」
   （`.json` / `.html`；154 个 PNG 一个没动）——`core.autocrlf=true` 下它们在库里是
   `i/lf w/crlf`，Windows 磁盘字节与 Linux checkout 字节本来就不同。已改为文本按 LF 归一、
   二进制按原字节（判据同 git：前 8000 字节含 NUL），记录版本 **1→2**。
 - **顺带收（同一笔）**：`setting-scale-*.json` 里写死的 `"file": "eval/screens/..."` 已删。
-  输出默认落在 `tmp/screens/...` 时它就在撒谎，而 `load()` 一律用 `OUT` 重拼，没有消费者。
+  写入器不再写它；`eval/screens/` 里那两份**已跟踪**的旧 JSON 仍留着这个字段，
+  消费者本来就不用它（`load()` 一律用 `OUT` 重拼），下次重拍时自然消失。
 - **残留**：①`--update` 仍靠人跑——闸门能保证「变了就红」，不能保证「红之后没人乱点
   `--update`」，但那已经是逐条 `old→new` 的显式动作，不再无声；②记录只覆盖
   `eval/screens/`，`docs/evidence/` 下的证据图不在册（那些靠各自 README 的读数说话，
   不是逐字节比较的输入）；③`check-setting-scale` 本身仍不在 browser job 的脚本列表里；
   ④记录是**生成物**：合并冲突时不要手改 JSON，取任意一侧后跑 `--update` 重生成；
-  ⑤早于本笔的分支没带记录，`audit:baseline` 会判红（「没有记录」不等于「没变过」），
-  合入前 rebase 到带记录的主干即可。
+  ⑤`pull_request` 的 checkout 取 merge ref，旧分支通常自带主干那份记录；真正会红的是
+  「本分支自己动过 `eval/screens` 却没更新记录」，按上面的 `--update` 规则处理。
 
 ### E14. 旧 `setting-scale-after` 基线出自 `2194c52` 构建，落后 350 个提交（2026-11-08 重拍）
 

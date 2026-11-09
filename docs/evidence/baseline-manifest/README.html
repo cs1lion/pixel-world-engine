@@ -191,7 +191,7 @@
 <td>5</td>
 <td><code>--update</code> 连跑两次</td>
 <td>记录逐字节相同</td>
-<td>sha256 都是 <code>678077bb0100…</code></td>
+<td>sha256 都是 <code>c04a30bf11a3…</code>（v2 记录）</td>
 <td>0</td>
 </tr>
 </tbody>
@@ -201,9 +201,10 @@
 ——那次是我的拷贝漏了文件，不是闸门的错，但正好当了一次「missing 真的会点名」的实证。</p>
 <h2 id="_4">读数</h2>
 <ul>
-<li>规模：166 个文件 / 8.1 MB；记录 17,174 字节（sha256 <code>c04a30bf11a3…</code>）。</li>
+<li>规模：166 个文件（154 PNG + 9 JSON + 3 HTML）/ 8.1 MB；记录 17,174 字节（sha256 <code>c04a30bf11a3…</code>）。</li>
 <li>耗时（各 3 次，含 node 启动）：校验 604–662 ms，<code>--update</code> 664–702 ms（全量 sha256，没有缓存）。</li>
-<li>单测：<code>test/baseline-manifest.test.ts</code> 8 条（diff 三类、排序确定性、解析三种坏输入、
+<li>单测：<code>test/baseline-manifest.test.ts</code> 10 条（diff 三类、排序确定性、解析三种坏输入、跨平台指纹、
+  「另有 N 个」的截断回归、
   排除记录自身、端到端改一字节定位）。</li>
 <li><strong>基线字节未变</strong>：<code>git diff --stat -- eval/screens/</code> 为空——这一笔只加记录，不碰底片。</li>
 </ul>
@@ -224,7 +225,8 @@
 </ul>
 <p>验证：把 12 个文本文件转成 LF 的<strong>拷贝</strong>上跑校验 → <code>记录 166 / 已跟踪 0 / 全部一致</code>；
 PNG 指纹不变（<code>01-salute.png</code> 仍是 <code>a5b6deda189a…</code>），<code>setting-scale-after.json</code> 变成 CI
-看到的那个值 <code>3720ae2c3ba5…</code>。这条闸门第一次红，红出的就是它自己该防的那类事。</p>
+看到的那个值 <code>3720ae2c3ba5…</code>。第一次红是它自己的跨平台误报，不是基线被覆盖——
+但那句「字节与记录不符」正是它该说的话，只是这次说给了作者听。</p>
 <h2 id="_5">没做什么</h2>
 <ul>
 <li><strong>不在闸门里自动 <code>--update</code></strong>：闸门只能保证「变了就红」，不能保证「红之后没人乱点

@@ -52,7 +52,7 @@
 | 2 | 追加一个 `\x00` 到 `01-salute.png` | 只报 1 个 changed | `changed 1 / missing 0 / unlisted 0`，点名 `a5b6deda189a… → dd023d3d060d…` | 1 |
 | 3 | 删掉 `02-working.png` | 报 missing | `missing 1`，点名 `02-working.png` | 1 |
 | 4 | 对未跟踪目录 `--update` | 拒绝 | `下没有已跟踪文件，没有可入账的基线` | 1 |
-| 5 | `--update` 连跑两次 | 记录逐字节相同 | sha256 都是 `678077bb0100…` | 0 |
+| 5 | `--update` 连跑两次 | 记录逐字节相同 | sha256 都是 `c04a30bf11a3…`（v2 记录） | 0 |
 
 第 3 步前先跑过一次「只拷 `*.png` 不拷 `.json`/`.html`」的残缺拷贝，闸门**正确点名了
 12 个 missing**（`banner-smoke.json`、`setting-scale-after.json`、`scene-motion.html` …）
@@ -60,9 +60,10 @@
 
 ## 读数
 
-- 规模：166 个文件 / 8.1 MB；记录 17,174 字节（sha256 `c04a30bf11a3…`）。
+- 规模：166 个文件（154 PNG + 9 JSON + 3 HTML）/ 8.1 MB；记录 17,174 字节（sha256 `c04a30bf11a3…`）。
 - 耗时（各 3 次，含 node 启动）：校验 604–662 ms，`--update` 664–702 ms（全量 sha256，没有缓存）。
-- 单测：`test/baseline-manifest.test.ts` 8 条（diff 三类、排序确定性、解析三种坏输入、
+- 单测：`test/baseline-manifest.test.ts` 10 条（diff 三类、排序确定性、解析三种坏输入、跨平台指纹、
+  「另有 N 个」的截断回归、
   排除记录自身、端到端改一字节定位）。
 - **基线字节未变**：`git diff --stat -- eval/screens/` 为空——这一笔只加记录，不碰底片。
 
@@ -86,7 +87,8 @@ PR #37 的 `world-client` job 24 秒红在 `npm run audit:baseline`：**12 个�
 
 验证：把 12 个文本文件转成 LF 的**拷贝**上跑校验 → `记录 166 / 已跟踪 0 / 全部一致`；
 PNG 指纹不变（`01-salute.png` 仍是 `a5b6deda189a…`），`setting-scale-after.json` 变成 CI
-看到的那个值 `3720ae2c3ba5…`。这条闸门第一次红，红出的就是它自己该防的那类事。
+看到的那个值 `3720ae2c3ba5…`。第一次红是它自己的跨平台误报，不是基线被覆盖——
+但那句「字节与记录不符」正是它该说的话，只是这次说给了作者听。
 
 ## 没做什么
 

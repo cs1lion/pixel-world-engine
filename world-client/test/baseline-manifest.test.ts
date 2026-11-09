@@ -17,6 +17,7 @@ interface BaselineModule {
   MANIFEST_VERSION?: number;
   hashBuffer?: (buffer: Buffer) => string;
   fingerprintBytes?: (buffer: Buffer) => string;
+  diffLines?: (diff: unknown, options?: Record<string, unknown>) => string[];
   hashFile?: (absPath: string) => string;
   collectHashes?: (dir: string, names: string[]) => Record<string, string>;
   diffBaseline?: (
@@ -201,4 +202,40 @@ test('指纹跨平台：文本 CRLF 与 LF 同值，二进制不归一', async (
     lib.fingerprintBytes!(Buffer.from('{"a":1}\n', 'latin1')),
     lib.fingerprintBytes!(Buffer.from('{"a":2}\n', 'latin1')),
   );
+});
+
+test('渲染：超过 limit 的条数必须报「另有 N 个」，且 N 按实际少打的算', async () => {
+  const lib = await load();
+  assert.equal(typeof lib.diffLines, 'function', '基线库缺 diffLines');
+
+  // 25 个 changed、另两类为 0：旧写法「总数 − 3×limit」会算出 −35，一句「另有」都没有。
+  const changed = Array.from({ length: 25 }, (_, i) => ({
+    name: `f${String(i).padStart(2, '0')}.png`,
+    recorded: 'a'.repeat(64),
+    actual: 'b'.repeat(64),
+  }));
+  const lines = lib.diffLines!({ changed, missing: [], unlisted: [] });
+  assert.equal(lines.length, 21, `期望 20 条明细 + 1 条汇总，实际 ${lines.length}`);
+  assert.match(lines[20], /另有 5 个/);
+
+  // 三类都刚好到 limit：不应出现「另有」。
+  const full = Array.from({ length: 20 }, (_, i) => ({
+    name: `g${i}.png`,
+    recorded: 'a'.repeat(64),
+    actual: 'b'.repeat(64),
+  }));
+  const exact = lib.diffLines!({ changed: full, missing: [], unlisted: [] });
+  assert.equal(exact.length, 20);
+  assert.ok(!exact.some((line) => line.includes('另有')));
+
+  // 干净：一行都没有（调用方据 isClean 判通过，不靠「没输出」）。
+  assert.deepEqual(lib.diffLines!({ changed: [], missing: [], unlisted: [] }), []);
+
+  // 标签与备注可换：update 用 removed/added，verify 用 missing/unlisted 加括号说明。
+  const one = { changed: [], missing: ['m.png'], unlisted: ['u.png'] };
+  const removed = lib.diffLines!(one, { labels: { missing: 'removed', unlisted: 'added' } });
+  assert.match(removed[0], /removed\s+m\.png/);
+  assert.match(removed[1], /added\s+u\.png/);
+  const noted = lib.diffLines!(one, { notes: { missing: '（记录里有、磁盘上没有）' } });
+  assert.match(noted[0], /m\.png（记录里有、磁盘上没有）/);
 });

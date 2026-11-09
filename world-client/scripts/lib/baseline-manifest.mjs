@@ -65,7 +65,7 @@ export function isBinaryBuffer(buffer) {
  * 为什么不直接对磁盘字节取指纹：这个仓库的 `core.autocrlf=true`，`.json` / `.html`
  * 这类文本在库里是 `i/lf w/crlf`——Windows 工作区读到的是 CRLF，Linux runner
  * checkout 出来的是 LF。同一份内容在两处得到两个指纹，闸门就会在 CI 上红一片
- * （2026-11-09 第一次跑 CI 就红在这里：17 个文本文件全被判「字节变了」，PNG 反而
+ * （2026-11-09 第一次跑 CI 就红在这里：12 个文本文件全被判「字节变了」，PNG 反而
  * 一个没动）。
  *
  * 「基线有没有变」不该由平台的行尾决定；而**入库字节**的口径就是 LF，所以归一
@@ -180,11 +180,42 @@ export function writeManifest(dir, files, { manifestName = MANIFEST_NAME } = {})
 }
 
 /**
+ * 把 diff 渲染成给人看的行。每类最多 `limit` 条，剩下的合成一句「另有 N 个」。
+ *
+ * `N` 必须按**实际少打了几条**算。写成「总数 − 3 × limit」的话，只要有一类没
+ * 超限，剩下的类别就会算成负数——25 个 changed 只打 20 条、却一句「另有」都
+ * 没有，人以为那就是全部（2026-11-09 review 抓到过这一版）。
+ */
+export function diffLines(diff, options = {}) {
+  const limit = options.limit ?? 20;
+  const labels = { changed: 'changed', missing: 'missing', unlisted: 'unlisted', ...options.labels };
+  const notes = { changed: '', missing: '', unlisted: '', ...options.notes };
+
+  const changed = diff.changed.slice(0, limit);
+  const missing = diff.missing.slice(0, limit);
+  const unlisted = diff.unlisted.slice(0, limit);
+  const short = (hash) => `${hash.slice(0, 12)}…`;
+
+  const lines = [];
+  for (const item of changed) {
+    lines.push(`  · ${labels.changed}  ${item.name}  ${short(item.recorded)} → ${short(item.actual)}${notes.changed}`);
+  }
+  for (const name of missing) lines.push(`  · ${labels.missing}  ${name}${notes.missing}`);
+  for (const name of unlisted) lines.push(`  · ${labels.unlisted}  ${name}${notes.unlisted}`);
+
+  const total = diff.changed.length + diff.missing.length + diff.unlisted.length;
+  const shown = changed.length + missing.length + unlisted.length;
+  if (total > shown) lines.push(`  · …另有 ${total - shown} 个未逐条列出`);
+  return lines;
+}
+
+/**
  * 从 `git ls-files` 的仓库相对路径里挑出「本目录、且不是记录自己」的文件名。
  *
- * `trackedFilesIn` 返回的是仓库相对路径（`world-client/eval/screens/x.png`），
- * 记录里存的是目录相对名（`x.png`）——两边同名会让人以为可以直接比对，
- * 所以转换只在这一处做。
+ * `trackedFilesIn` 返回的是**相对 `clientRoot` 的路径**（`eval/screens/x.png`，
+ * 不是仓库根相对、也不是绝对路径——`git ls-files` 在子目录里按 cwd 输出），
+ * 记录里存的是目录相对名（`x.png`）。两边看着像同一个名字但不是，所以转换只
+ * 在这一处做：`join(clientRoot, tracked)` 再相对 `dir` 取余。
  */
 export function namesFromTracked(trackedFiles, dir, { clientRoot, manifestName = MANIFEST_NAME } = {}) {
   const names = [];
