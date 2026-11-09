@@ -297,7 +297,9 @@ await browser.close();
 const scale = metrics ?? BEFORE;
 const result = {
   label: LABEL,
-  file,
+  // 这里**不写路径**。以前写着一个固定的 `eval/screens/setting-scale-*.png`，
+  // 可输出默认落在 `tmp/screens/...`，那个字段等于在撒谎；而且它没有任何消费者
+  // ——读的一方一律用 `OUT` 重拼（E13 的「顺带收」）。宁缺勿假。
   cam,
   zoom: ZOOM,
   clip,
@@ -313,8 +315,7 @@ const result = {
 };
 writeFileSync(
   join(OUT, `setting-scale-${LABEL}.json`),
-  // 落盘时不写本机绝对路径，换成仓库内的相对位置。
-  `${JSON.stringify({ ...result, file: `eval/screens/setting-scale-${LABEL}.png` }, null, 2)}\n`,
+  `${JSON.stringify(result, null, 2)}\n`,
 );
 
 const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));

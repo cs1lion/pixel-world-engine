@@ -473,7 +473,7 @@
 - **建议时机**：下一次动任何逐字节像素闸门或镜头模式时。
 - **是否需要用户决策**：**否**（判别已完成：不是产品动画，修法在测量侧，判据已补）。
 
-### E13. `setting-scale-after.png` 是量测输入，却与运行产物同名同址：一次基线重拍会静默换掉已跟踪基线
+### E13. `setting-scale-after.png` 是量测输入，却与运行产物同名同址：一次基线重拍会静默换掉已跟踪基线（2026-11-09 修）
 
 > 编号说明（2026-11-08 全类型扫描）：E10 / E11 在 `chore/eval-screens-audit` 分支（旧基线、扫描面地板窗口）；
 > **E12 已被帧相位线的在途改动占用**（`main` 工作树未提交：`check-ground-shadow.mjs` 的步进注释、
@@ -487,35 +487,52 @@
   (2) `--write-baseline` / `EVAL_OUT=eval/screens` 时的**落盘目标**——文件名由 `OUT` +
   `setting-scale-after.png` 重拼，**每次运行都写同一个名字**。默认输出是
   `world-client/tmp/screens/check-setting-scale`（不入仓）；只有显式授权才写跟踪目录。
-- **有没有机制能发现「某次运行把已跟踪基线改掉」[实测]**：**没有**。
+- **有没有机制能发现「某次运行把已跟踪基线改掉」[实测]**：**没有**（2026-11-09 之前；
+  现在有了，见下面「修法」）。
   - `resolveShotDir` 只在「未授权 + 目标目录里已有已跟踪文件」时拒绝；`--write-baseline` /
     `EVAL_OUT=eval/screens` 是显式授权，授权之后直接写，不再比对字节。
   - `.github/workflows/ci.yml` 的 browser job 把 `EVAL_OUT` 指到 runner 临时目录，收尾用
     `git status --porcelain` 查脏；但 **`check-setting-scale` 不在该 job 的脚本列表里**，
-    这条写入链路不被 CI 覆盖。
+    这条写入链路不被 CI 覆盖（2026-11-09 起由 `npm run audit:baseline` 覆盖**字节**，
+    不是覆盖「有没有跑 check-setting-scale」）。
   - `eval/screens/` 没有 manifest / sha256 / 摘要清单；`setting-scale-after.json` 里的
     `"file": "eval/screens/setting-scale-after.png"` 也不参与任何校验（`load()` 用 `OUT`
-    重拼真实路径）。没有任何「已记录摘要」可以拿来判「字节还是不是那一份」。
+    重拼真实路径）。没有任何「已记录摘要」可判「字节还是不是那一份」（2026-11-09 起已建记录）。
   - 因此发现方式只剩人工 `git diff` / `git status`，或事后某条闸门读数变了才发现。
 - **后果 [事实]**：一次带授权的重拍会把「量测输入」和「本次输出」写成同一份字节；如果新读数变差，
   基线已经先被替换，之后所有比较都拿新字节当基准——「基线是 2026-11-08 那次重拍的已跟踪字节」
   这个前提静默失效，工作区里的旧字节不可恢复（只能翻 git 历史）。
-- **修法选项**（本轮只记账，未动代码）：
-  1. **临时输出 + 显式 `--update-baseline`**：`check-setting-scale` 永远先写 `tmp/screens/...`；
-     另设 `--update-baseline` 才由人把新字节拷进 `eval/screens/` 并单独提交。默认路径里不存在
-     「运行即覆盖基线」。
-  2. **落盘前比对已记录摘要**：在 `eval/screens/` 放一份 `.sha256` 清单（或 JSON manifest）；
-     落盘前算当前 PNG 的 sha256，与清单不符且没有 `--update-baseline` → 打印
-     `[判据前提不成立]` 并非 0 退出，不写。
-  两者可组合：1 管「写哪儿」，2 管「字节还是不是那一份」。
-- **为什么现在不改**：`chore/eval-screens-audit` 已冻结（`de549f3`，不再加提交），且该分支刚重拍过
-  这份基线（E9 / `3b68819`）；本轮若在别的分支动同一 PNG / JSON，合并时必然与重拍冲突。
-- **顺带收**：`setting-scale-after.json` 的 `"file": "eval/screens/setting-scale-after.png"` 是死字段
-  ——它在落盘时写死（`check-setting-scale.mjs` 的 `writeFileSync`），但读取时被 `load()` 用
-  `OUT` 重拼的路径覆盖，没有消费者。合入后与上面第 1 项一起删掉（或改成真实相对路径）；
-  本轮不动，避免与 chore 分支对同一 JSON 的重写打架。
-- **建议时机**：`chore/eval-screens-audit` 合入后、下一次要重拍 `setting-scale` 基线之前。
-- **是否需要用户决策**：**是**（选 1 / 2 / 两者）。
+- **修法（2026-11-09 落地：走方案 2；方案 1 早在 `shot-output.mjs` 里就有了）**：
+  「写哪儿」不是缺口——缺省写 `tmp/screens/<脚本名>/`，`--write-baseline` 或
+  `EVAL_OUT` 才算授权。缺的是「**字节还是不是那一份**」：授权之后直接写，没有记录可比。
+  - `world-client/eval/screens/.baseline-manifest.json`：166 个已跟踪文件的 sha256。
+    键排序、两空格、末尾换行——同样的输入必须逐字节相同，否则「记录自己被改过」
+    又要靠人看 diff。
+  - `world-client/scripts/audit-baseline.mjs` + `npm run audit:baseline`：三类漂移分开报
+    ——`changed`（记过、在、字节变了）/ `missing`（记过、没了）/ `unlisted`（在、没记过）。
+    **记录不存在也判红**：「没有记录」不等于「没变过」，只等于「从来不可自证」。
+    记录读不懂（版本不符 / 指纹不是 64 位）同样判红，不退回空表。
+  - 换基线必须显式：`npm run audit:baseline -- --update`，重写记录并逐条打印
+    `old→new`；记录与图要进**同一个提交**。
+  - CI：`world-client` job 第 8 步（`audit:ports` 之后）跑 `npm run audit:baseline`。
+  - `resolveShotDir` 授权写基线时的提示改成「写完必须 `--update` 并同提交」，
+    让规矩出现在**执行写入的那一刻**，不只在文档里。
+- **读数 [实测]**：166 个文件 / 8.1 MB；校验 **604–662 ms**、`--update` **664–702 ms**（各 3 次，含 node 启动）。完整拷贝原样 →
+  `记录 166 / 已跟踪 0 / 全部一致` exit 0；追加 1 字节 → `changed 1`，点名
+  `01-salute.png 记录 a5b6deda189a… → 实际 dd023d3d060d…` exit 1；删一张 →
+  `missing 1` 点名 `02-working.png`；对未跟踪目录 `--update` 直接拒绝
+  （记录不给脏工作树背书）。`--update` 连跑两次，记录逐字节相同
+  （sha256 `678077bb0100753db97f27e5ec38b5de5ed3282d9502b97af0629c8cda00f930`）。
+  完整红证读数见 `docs/evidence/baseline-manifest/README.md`。
+- **顺带收（同一笔）**：`setting-scale-*.json` 里写死的 `"file": "eval/screens/..."` 已删。
+  输出默认落在 `tmp/screens/...` 时它就在撒谎，而 `load()` 一律用 `OUT` 重拼，没有消费者。
+- **残留**：①`--update` 仍靠人跑——闸门能保证「变了就红」，不能保证「红之后没人乱点
+  `--update`」，但那已经是逐条 `old→new` 的显式动作，不再无声；②记录只覆盖
+  `eval/screens/`，`docs/evidence/` 下的证据图不在册（那些靠各自 README 的读数说话，
+  不是逐字节比较的输入）；③`check-setting-scale` 本身仍不在 browser job 的脚本列表里；
+  ④记录是**生成物**：合并冲突时不要手改 JSON，取任意一侧后跑 `--update` 重生成；
+  ⑤早于本笔的分支没带记录，`audit:baseline` 会判红（「没有记录」不等于「没变过」），
+  合入前 rebase 到带记录的主干即可。
 
 ### E14. 旧 `setting-scale-after` 基线出自 `2194c52` 构建，落后 350 个提交（2026-11-08 重拍）
 

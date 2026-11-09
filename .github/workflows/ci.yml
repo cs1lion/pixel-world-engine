@@ -29,6 +29,11 @@ jobs:
       - run: npm run check
       # 端口纪律 lint：脚本/配置/.env 里的禁用端口（5188/5191/5202/5203）命中即红。
       - run: npm run audit:ports
+      # 基线字节自证（E13）：`eval/screens/` 每张已跟踪的图都要和
+      # `.baseline-manifest.json` 里记的 sha256 对得上。基线被重拍覆盖过一次，
+      # 之后所有像素比较都会拿新字节当基准——`--write-baseline` 之后必须
+      # 显式 `npm run audit:baseline -- --update` 并把记录一起提交。
+      - run: npm run audit:baseline
       - run: npm test
       # 语义层：回放夹具（6 条 / 195 项断言）。只读文件与内存回放，不需要 preview。
       - run: npm run fixture:check

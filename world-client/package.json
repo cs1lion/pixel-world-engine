@@ -12,6 +12,7 @@
     "check": "node scripts/check-types.ts",
     "test": "node --import ./test/phaser-hooks.mjs --test \"test/**/*.test.ts\"",
     "test:inprocess": "node --import ./test/phaser-hooks.mjs --test --experimental-test-isolation=none \"test/**/*.test.ts\"",
+    "audit:baseline": "node scripts/audit-baseline.mjs",
     "audit:ports": "node scripts/audit-ports.ts --strict",
     "audit:skill-docs": "node scripts/audit-skill-docs.ts",
     "audit:verify-flows": "node scripts/audit-verify-flows.ts",
