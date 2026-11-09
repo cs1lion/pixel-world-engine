@@ -20,7 +20,7 @@
 
 | 文件 | 做什么 |
 | --- | --- |
-| `world-client/eval/screens/.baseline-manifest.json` | 166 个已跟踪文件的 sha256，17,061 字节 |
+| `world-client/eval/screens/.baseline-manifest.json` | 166 个已跟踪文件的指纹，17,174 字节；文本按 LF 归一、二进制按原字节 |
 | `world-client/scripts/lib/baseline-manifest.mjs` | 指纹、三分法 diff、确定性序列化、解析校验（纯函数） |
 | `world-client/scripts/audit-baseline.mjs` | 闸门：默认校验、`--update` 换基、`--dir` 供红证 |
 | `world-client/package.json` | `npm run audit:baseline` |
@@ -60,11 +60,33 @@
 
 ## 读数
 
-- 规模：166 个文件 / 8.1 MB；记录 17,061 字节。
+- 规模：166 个文件 / 8.1 MB；记录 17,174 字节（sha256 `c04a30bf11a3…`）。
 - 耗时（各 3 次，含 node 启动）：校验 604–662 ms，`--update` 664–702 ms（全量 sha256，没有缓存）。
 - 单测：`test/baseline-manifest.test.ts` 8 条（diff 三类、排序确定性、解析三种坏输入、
   排除记录自身、端到端改一字节定位）。
 - **基线字节未变**：`git diff --stat -- eval/screens/` 为空——这一笔只加记录，不碰底片。
+
+## 跨平台：第一次跑 CI 就红了
+
+PR #37 的 `world-client` job 24 秒红在 `npm run audit:baseline`：**12 个文本文件**
+（`setting-scale-*.json`、`stall-motion.json`、`scene-motion.html` …）全被判「字节变了」，
+而 154 个 PNG 一个没动。
+
+根因不是闸门坏了，是**我记错了「字节」**：本仓 `core.autocrlf=true`，`.json` / `.html`
+在库里是 `i/lf w/crlf`——Windows 工作区读到 CRLF，Linux runner checkout 出 LF。
+我拿 Windows 磁盘字节取 sha256，等于把「平台的行尾」当成了「基线的身份」。
+
+修法（记录版本 1 → 2）：
+
+- **文本按 LF 归一后取指纹**，二进制按原字节；
+- 文本/二进制不按扩展名猜，用 **git 自己的判据**：前 8000 字节里出现 NUL 即二进制。
+  PNG 里本来就有 2 个 `\r\n` 字节对，无条件替换会把它算出第三个指纹；
+- `--update` 顺带修了一个实现缺陷：记录版本不符时校验该红，但**换基路径**不该被自己
+  拦住——现在 `--update` 会声明「按重建处理，没有逐条 old→new」后继续。
+
+验证：把 12 个文本文件转成 LF 的**拷贝**上跑校验 → `记录 166 / 已跟踪 0 / 全部一致`；
+PNG 指纹不变（`01-salute.png` 仍是 `a5b6deda189a…`），`setting-scale-after.json` 变成 CI
+看到的那个值 `3720ae2c3ba5…`。这条闸门第一次红，红出的就是它自己该防的那类事。
 
 ## 没做什么
 

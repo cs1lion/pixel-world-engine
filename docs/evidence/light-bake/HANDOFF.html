@@ -165,7 +165,7 @@ d1b5bd3  docs(discipline): W2 把「不加 --force 也不安全」改成实测/�
 <li><strong>连续量走 alpha</strong>：呼吸、亮度这类连续量走 <code>Image</code> 的 <code>alpha</code>，<strong>不进闭包</strong>。</li>
 <li><strong>双缓冲 <code>a</code> / <code>b</code></strong>：新烘完才换指针，<strong>不许 <code>remove</code> 掉还在用的纹理</strong>。</li>
 <li><strong>每块先单层量差</strong>：每块单独烘一次，量<strong>逐字节差</strong>和<strong>最大色阶差</strong>，<strong>差非 0 就留活</strong>（这一层退回逐帧绘制，不烘）。</li>
-<li><strong>三层混一起测会把问题盖掉</strong>：招牌 α 叠色那次 max 差 <strong>31</strong> 就是教训（见 <code>docs/OPEN_ISSUES.md:1288–1292</code>）。</li>
+<li><strong>三层混一起测会把问题盖掉</strong>：招牌 α 叠色那次 max 差 <strong>31</strong> 就是教训（见 <code>docs/OPEN_ISSUES.md:1292–1296</code>）。</li>
 <li>第一步<strong>不是写代码</strong>，是出三块各自的单层烘焙差表。</li>
 </ul>
 <blockquote>
@@ -281,7 +281,7 @@ d1b5bd3  docs(discipline): W2 把「不加 --force 也不安全」改成实测/�
 </ul>
 <blockquote>
 <p><strong>【核】一个会毁掉读数的坑</strong>（保留）：O4 记载单时刻 <code>peakCommands</code> 会因村民走位漂 <strong>±120 条</strong>
-（<code>docs/OPEN_ISSUES.md:1234–1271</code>）。量「单层差」若读命令数，必须<strong>多时刻取最大</strong>或<strong>钉姿态采样</strong>，
+（<code>docs/OPEN_ISSUES.md:1238–1275</code>）。量「单层差」若读命令数，必须<strong>多时刻取最大</strong>或<strong>钉姿态采样</strong>，
 否则把走位噪声记成烘焙增量。逐字节截图差不受此影响，但两道闸的前后读数受影响。
 本轮各配置的 <code>totalCommands</code> 全为 28,339，正是「只量像素差、不量命令数」的结果。</p>
 </blockquote>
@@ -341,9 +341,9 @@ d1b5bd3  docs(discipline): W2 把「不加 --force 也不安全」改成实测/�
 <hr />
 <h2 id="4">4. 已收口，别再碰</h2>
 <ul>
-<li><strong>建筑烘焙</strong>：<code>check-ground-shadow</code> <strong>34,573 → 28,076</strong>（余量 <strong>6,590</strong>）、<code>check-render-budget</code> <strong>33,445 → 25,167</strong>（债务归零）；49 帧 + 40 张产物全 0 diff（<code>docs/OPEN_ISSUES.md:1273–1283</code>）。72 张烘焙 Image 在 <code>renderStats</code> 里记 <strong>0 条</strong>——是「从统计里消失」，不是 GPU 少画。</li>
+<li><strong>建筑烘焙</strong>：<code>check-ground-shadow</code> <strong>34,573 → 28,076</strong>（余量 <strong>6,590</strong>）、<code>check-render-budget</code> <strong>33,445 → 25,167</strong>（债务归零）；49 帧 + 40 张产物全 0 diff（<code>docs/OPEN_ISSUES.md:1277–1287</code>）。72 张烘焙 Image 在 <code>renderStats</code> 里记 <strong>0 条</strong>——是「从统计里消失」，不是 GPU 少画。</li>
 <li><strong>HD-2D P2</strong>：已按停手判据关闭，负面结论在 <code>docs/investigations/HD2D_P2_TILT_BAKE_NEGATIVE.md</code>（PR #34 已合）。<strong>不做 P3、不换实现重试</strong>；S-9 已关。</li>
-<li><strong>花径几何 / 作息</strong>：<code>x2..11</code>、中央 2 格净空、南口 6 宽、两人并排进花径停留，已落（<code>OPEN_ISSUES.md:1133–1137</code>）。别重开。</li>
+<li><strong>花径几何 / 作息</strong>：<code>x2..11</code>、中央 2 格净空、南口 6 宽、两人并排进花径停留，已落（<code>OPEN_ISSUES.md:1137–1141</code>）。别重开。</li>
 <li><strong>两条远端分支</strong>：<code>exp/hd2d-p1</code>（PR <strong>#30 仍 OPEN + draft</strong>，标题写明「仅供 CI/审阅，不合并」；含 H1/H3 高度渲染与 E15 号占用）、<code>feat/hd2d-p2</code>（无开放 PR）。
   <strong>【建议】都不合</strong>，保留只读实验记录；花径线也占 E15，撞号已有防御（提交前 grep、顺延 E16）。</li>
 </ul>
@@ -363,7 +363,7 @@ d1b5bd3  docs(discipline): W2 把「不加 --force 也不安全」改成实测/�
 <td>1</td>
 <td>12 条翻书核对单</td>
 <td><strong>按 B 档做，文档里如实标 B</strong>；拍图才升 A</td>
-<td>本机画册 99 页、无文字层，出处 <code>docs/SPEC_V2.md:12</code>（《The Art of Spirited Away》99 页扫描版）；p110–111 的降级清单在 <code>docs/OPEN_ISSUES.md:1082</code>。<strong>两者确实不是同一份来源</strong>，花墙/木栅/石垣/瓦顶/庭心石作/配膳间全是仓库转述</td>
+<td>本机画册 99 页、无文字层，出处 <code>docs/SPEC_V2.md:12</code>（《The Art of Spirited Away》99 页扫描版）；p110–111 的降级清单在 <code>docs/OPEN_ISSUES.md:1086</code>。<strong>两者确实不是同一份来源</strong>，花墙/木栅/石垣/瓦顶/庭心石作/配膳间全是仓库转述</td>
 </tr>
 <tr>
 <td>2</td>
@@ -375,13 +375,13 @@ d1b5bd3  docs(discipline): W2 把「不加 --force 也不安全」改成实测/�
 <td>3</td>
 <td>夜里补光 <strong>+306</strong></td>
 <td><strong>认它是「新增功能」，但这一轮不做</strong></td>
-<td>预算障碍已解封（余量 6,590），但 <code>OPEN_ISSUES.md:1165–1206</code> 的 11-09 更正实测：花径夜间平均亮度 <strong>61.4</strong>、<code>luma&lt;8</code> 为 <strong>0.00%</strong>，关掉 28 盏街灯主街也只变 <strong>11.80%</strong> 像素。边际观感撑不起一次 B2 单独记账；先吃 +0 的花墙形制与庭心石作</td>
+<td>预算障碍已解封（余量 6,590），但 <code>OPEN_ISSUES.md:1169–1210</code> 的 11-09 更正实测：花径夜间平均亮度 <strong>61.4</strong>、<code>luma&lt;8</code> 为 <strong>0.00%</strong>，关掉 28 盏街灯主街也只变 <strong>11.80%</strong> 像素。边际观感撑不起一次 B2 单独记账；先吃 +0 的花墙形制与庭心石作</td>
 </tr>
 <tr>
 <td>4</td>
 <td>配膳间 <strong>+1,008</strong></td>
 <td><strong>不做</strong></td>
-<td>零依据（C 档）与钱无关。本仓 <code>docs/</code> 全文只有 <code>OPEN_ISSUES.md:1230</code> 一处转述「设定集有配膳间，本包 placements 里没有」；设计手册原文不在本仓，<strong>「全文搜 0 处」无法在本树复核</strong></td>
+<td>零依据（C 档）与钱无关。本仓 <code>docs/</code> 全文只有 <code>OPEN_ISSUES.md:1234</code> 一处转述「设定集有配膳间，本包 placements 里没有」；设计手册原文不在本仓，<strong>「全文搜 0 处」无法在本树复核</strong></td>
 </tr>
 <tr>
 <td>+</td>

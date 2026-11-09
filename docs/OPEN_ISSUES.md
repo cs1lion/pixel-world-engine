@@ -524,6 +524,10 @@
   （记录不给脏工作树背书）。`--update` 连跑两次，记录逐字节相同
   （sha256 `678077bb0100753db97f27e5ec38b5de5ed3282d9502b97af0629c8cda00f930`）。
   完整红证读数见 `docs/evidence/baseline-manifest/README.md`。
+- **跨平台 [实测]**（2026-11-09 首次 CI）：Linux runner 把 **12 个文本文件**判成「字节变了」
+  （`.json` / `.html`；154 个 PNG 一个没动）——`core.autocrlf=true` 下它们在库里是
+  `i/lf w/crlf`，Windows 磁盘字节与 Linux checkout 字节本来就不同。已改为文本按 LF 归一、
+  二进制按原字节（判据同 git：前 8000 字节含 NUL），记录版本 **1→2**。
 - **顺带收（同一笔）**：`setting-scale-*.json` 里写死的 `"file": "eval/screens/..."` 已删。
   输出默认落在 `tmp/screens/...` 时它就在撒谎，而 `load()` 一律用 `OUT` 重拼，没有消费者。
 - **残留**：①`--update` 仍靠人跑——闸门能保证「变了就红」，不能保证「红之后没人乱点

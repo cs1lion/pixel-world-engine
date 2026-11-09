@@ -26,11 +26,11 @@ import { join, relative } from 'node:path';
 /** 记录文件名。与 `git ls-files` 的结果按名字排除，不按扩展名。 */
 export const MANIFEST_NAME = '.baseline-manifest.json';
 /** 记录格式版本。形状一改就抬版本，旧记录按「不可解析」判红，不猜。 */
-export const MANIFEST_VERSION = 1;
+export const MANIFEST_VERSION = 2;
 
 /** 落进记录的说明。写在文件里是为了让**打开记录的人**知道规矩，不依赖文档。 */
 export const MANIFEST_NOTE =
-  '字节指纹：本目录下的已跟踪基线。换基线必须显式 `npm run audit:baseline -- --update`，并与图放在同一个提交里说明为什么换。';
+  '字节指纹：本目录下的已跟踪基线。文本文件按 LF 归一后取指纹（CRLF 工作区与 Linux runner 必须同值），二进制按原字节。换基线必须显式 `npm run audit:baseline -- --update`，并与图放在同一个提交里说明为什么换。';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -41,7 +41,40 @@ export function hashBuffer(buffer) {
 
 /** 单文件指纹。文件不存在直接抛：调用方该先筛存在性，这里不替它兜。 */
 export function hashFile(absPath) {
-  return hashBuffer(readFileSync(absPath));
+  return fingerprintBytes(readFileSync(absPath));
+}
+
+/**
+ * git 自己的二进制判据：前 8000 字节里出现 NUL 就当二进制。
+ *
+ * 为什么不用扩展名：`.png` / `.json` 是习惯，不是事实；这条闸门要是靠扩展名
+ * 猜错了，二进制会被「归一」成另一份字节（PNG 里本来就有 `\r\n` 字节对），
+ * 指纹从此失去意义。
+ */
+export function isBinaryBuffer(buffer) {
+  const limit = Math.min(buffer.length, 8000);
+  for (let i = 0; i < limit; i += 1) {
+    if (buffer[i] === 0) return true;
+  }
+  return false;
+}
+
+/**
+ * 基线指纹：文本按 **LF 归一**后取 sha256，二进制按原字节。
+ *
+ * 为什么不直接对磁盘字节取指纹：这个仓库的 `core.autocrlf=true`，`.json` / `.html`
+ * 这类文本在库里是 `i/lf w/crlf`——Windows 工作区读到的是 CRLF，Linux runner
+ * checkout 出来的是 LF。同一份内容在两处得到两个指纹，闸门就会在 CI 上红一片
+ * （2026-11-09 第一次跑 CI 就红在这里：17 个文本文件全被判「字节变了」，PNG 反而
+ * 一个没动）。
+ *
+ * 「基线有没有变」不该由平台的行尾决定；而**入库字节**的口径就是 LF，所以归一
+ * 之后才是真正的「那份字节」。二进制不归一：PNG 里出现 `\r\n` 是巧合，不是行尾。
+ */
+export function fingerprintBytes(buffer) {
+  if (isBinaryBuffer(buffer)) return hashBuffer(buffer);
+  const text = buffer.toString('latin1').replace(/\r\n/g, '\n');
+  return hashBuffer(Buffer.from(text, 'latin1'));
 }
 
 /** 目录内若干文件的指纹表（键是目录相对的 posix 路径）。缺失的文件不进表。 */

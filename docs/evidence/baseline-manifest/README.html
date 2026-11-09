@@ -59,6 +59,7 @@
 <li><a href="#_2">修法</a></li>
 <li><a href="#_3">红证 [实测]</a></li>
 <li><a href="#_4">读数</a></li>
+<li><a href="#ci">跨平台：第一次跑 CI 就红了</a></li>
 <li><a href="#_5">没做什么</a></li>
 </ul>
 </div>
@@ -86,7 +87,7 @@
 <tbody>
 <tr>
 <td><code>world-client/eval/screens/.baseline-manifest.json</code></td>
-<td>166 个已跟踪文件的 sha256，17,061 字节</td>
+<td>166 个已跟踪文件的指纹，17,174 字节；文本按 LF 归一、二进制按原字节</td>
 </tr>
 <tr>
 <td><code>world-client/scripts/lib/baseline-manifest.mjs</code></td>
@@ -200,12 +201,30 @@
 ——那次是我的拷贝漏了文件，不是闸门的错，但正好当了一次「missing 真的会点名」的实证。</p>
 <h2 id="_4">读数</h2>
 <ul>
-<li>规模：166 个文件 / 8.1 MB；记录 17,061 字节。</li>
+<li>规模：166 个文件 / 8.1 MB；记录 17,174 字节（sha256 <code>c04a30bf11a3…</code>）。</li>
 <li>耗时（各 3 次，含 node 启动）：校验 604–662 ms，<code>--update</code> 664–702 ms（全量 sha256，没有缓存）。</li>
 <li>单测：<code>test/baseline-manifest.test.ts</code> 8 条（diff 三类、排序确定性、解析三种坏输入、
   排除记录自身、端到端改一字节定位）。</li>
 <li><strong>基线字节未变</strong>：<code>git diff --stat -- eval/screens/</code> 为空——这一笔只加记录，不碰底片。</li>
 </ul>
+<h2 id="ci">跨平台：第一次跑 CI 就红了</h2>
+<p>PR #37 的 <code>world-client</code> job 24 秒红在 <code>npm run audit:baseline</code>：<strong>12 个文本文件</strong>
+（<code>setting-scale-*.json</code>、<code>stall-motion.json</code>、<code>scene-motion.html</code> …）全被判「字节变了」，
+而 154 个 PNG 一个没动。</p>
+<p>根因不是闸门坏了，是<strong>我记错了「字节」</strong>：本仓 <code>core.autocrlf=true</code>，<code>.json</code> / <code>.html</code>
+在库里是 <code>i/lf w/crlf</code>——Windows 工作区读到 CRLF，Linux runner checkout 出 LF。
+我拿 Windows 磁盘字节取 sha256，等于把「平台的行尾」当成了「基线的身份」。</p>
+<p>修法（记录版本 1 → 2）：</p>
+<ul>
+<li><strong>文本按 LF 归一后取指纹</strong>，二进制按原字节；</li>
+<li>文本/二进制不按扩展名猜，用 <strong>git 自己的判据</strong>：前 8000 字节里出现 NUL 即二进制。
+  PNG 里本来就有 2 个 <code>\r\n</code> 字节对，无条件替换会把它算出第三个指纹；</li>
+<li><code>--update</code> 顺带修了一个实现缺陷：记录版本不符时校验该红，但<strong>换基路径</strong>不该被自己
+  拦住——现在 <code>--update</code> 会声明「按重建处理，没有逐条 old→new」后继续。</li>
+</ul>
+<p>验证：把 12 个文本文件转成 LF 的<strong>拷贝</strong>上跑校验 → <code>记录 166 / 已跟踪 0 / 全部一致</code>；
+PNG 指纹不变（<code>01-salute.png</code> 仍是 <code>a5b6deda189a…</code>），<code>setting-scale-after.json</code> 变成 CI
+看到的那个值 <code>3720ae2c3ba5…</code>。这条闸门第一次红，红出的就是它自己该防的那类事。</p>
 <h2 id="_5">没做什么</h2>
 <ul>
 <li><strong>不在闸门里自动 <code>--update</code></strong>：闸门只能保证「变了就红」，不能保证「红之后没人乱点

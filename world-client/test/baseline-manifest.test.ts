@@ -14,7 +14,9 @@ import { join, resolve } from 'node:path';
  */
 interface BaselineModule {
   MANIFEST_NAME?: string;
+  MANIFEST_VERSION?: number;
   hashBuffer?: (buffer: Buffer) => string;
+  fingerprintBytes?: (buffer: Buffer) => string;
   hashFile?: (absPath: string) => string;
   collectHashes?: (dir: string, names: string[]) => Record<string, string>;
   diffBaseline?: (
@@ -124,8 +126,10 @@ test('解析：往返一致；版本不符 / 指纹不是 64 位 / 非 JSON 都�
   const parsed = lib.parseManifest!(text);
   assert.deepEqual(parsed.files, { 'a.png': HASH_A });
 
-  assert.throws(() => lib.parseManifest!(JSON.stringify({ version: 99, files: {} })), /版本/);
-  assert.throws(() => lib.parseManifest!(JSON.stringify({ version: 1, files: { 'a.png': 'abc' } })), /64/);
+  const version = lib.MANIFEST_VERSION;
+  assert.equal(typeof version, 'number', '基线库缺 MANIFEST_VERSION');
+  assert.throws(() => lib.parseManifest!(JSON.stringify({ version: version! + 1, files: {} })), /版本/);
+  assert.throws(() => lib.parseManifest!(JSON.stringify({ version, files: { 'a.png': 'abc' } })), /64/);
   assert.throws(() => lib.parseManifest!('not json'), /JSON/);
 });
 
@@ -176,4 +180,25 @@ test('端到端：目录里改一个字节，diff 能定位到那一个文件', 
     const diff = lib.diffBaseline!(recorded, lib.collectHashes!(dir, ['shot.png']));
     assert.deepEqual(diff.changed.map((item) => item.name), ['shot.png']);
   });
+});
+
+test('指纹跨平台：文本 CRLF 与 LF 同值，二进制不归一', async () => {
+  const lib = await load();
+  assert.equal(typeof lib.fingerprintBytes, 'function', '基线库缺 fingerprintBytes');
+
+  const lf = Buffer.from('{\n  "a": 1\n}\n', 'latin1');
+  const crlf = Buffer.from('{\r\n  "a": 1\r\n}\r\n', 'latin1');
+  // Windows 工作区给 CRLF、Linux runner 给 LF；同一份入库字节必须同指纹。
+  assert.equal(lib.fingerprintBytes!(crlf), lib.fingerprintBytes!(lf));
+
+  // 二进制按原字节：PNG 里出现 `\r\n` 是巧合，不是行尾，归一会把指纹算错。
+  const bin = Buffer.from([0x89, 0x50, 0x0d, 0x0a, 0x1a, 0x00, 0x0d, 0x0a]);
+  assert.equal(lib.fingerprintBytes!(bin), lib.hashBuffer!(bin));
+  assert.notEqual(lib.fingerprintBytes!(bin), lib.fingerprintBytes!(Buffer.from([0x89, 0x50, 0x0a, 0x1a, 0x00, 0x0a])));
+
+  // 文本真的变了，归一之后仍然不同。
+  assert.notEqual(
+    lib.fingerprintBytes!(Buffer.from('{"a":1}\n', 'latin1')),
+    lib.fingerprintBytes!(Buffer.from('{"a":2}\n', 'latin1')),
+  );
 });

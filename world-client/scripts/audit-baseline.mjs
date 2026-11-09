@@ -58,12 +58,20 @@ try {
   process.exit(1);
 }
 
-let manifest;
+// 记录读不懂（版本不符 / 形状不对）时：**校验**必须红，但 `--update` 必须能走
+// ——重建记录正是为这种情况准备的路。两者分开，不把「读不懂」当成「不能动」。
+let manifest = null;
+let manifestError = null;
 try {
   manifest = readManifest(dir);
 } catch (error) {
-  console.error(`[基线] 判红：记录读不懂——${error instanceof Error ? error.message : String(error)}`);
+  manifestError = error;
+}
+
+if (manifestError !== null && !update) {
+  console.error(`[基线] 判红：记录读不懂——${manifestError instanceof Error ? manifestError.message : String(manifestError)}`);
   console.error('[基线] 读不懂的记录不能当「空记录」，也不能当「一致」：先查这个文件，再决定是修还是重建。');
+  console.error('[基线] 重建：node scripts/audit-baseline.mjs --update（会按当前磁盘内容重写记录）');
   process.exit(1);
 }
 
@@ -73,6 +81,10 @@ if (update) {
   if (tracked.length === 0) {
     console.error(`[基线] 判红：${label} 下没有已跟踪文件，没有可入账的基线。`);
     process.exit(1);
+  }
+  if (manifestError !== null) {
+    console.error(`[基线] 旧记录读不懂（${manifestError instanceof Error ? manifestError.message : String(manifestError)}）`);
+    console.error('[基线] 按「重建」处理：下面没有逐条 old→new，记录会整份换掉。');
   }
   const hashes = collectHashes(dir, tracked);
   const before = manifest?.files ?? {};
