@@ -59,7 +59,7 @@ import {
   type SmokeMotion,
 } from '../world/smoke-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
-import { bakeLayer } from './bake.ts';
+import { bakeLayer, bakeTexture } from './bake.ts';
 import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
@@ -311,6 +311,27 @@ const POOL_SMOOTHNESS = 12;
 
 /** 灯串每 2 格挂一盏；与 `settings/dengchao/lamp-street.ts` 的计数同一口径。 */
 const LANTERNS_PER_STRING = 6;
+
+/**
+ * 木栅的共享纹理名。
+ *
+ * 各段内容逐格相同，所以只烘一张、贴 N 次（见 `bakeTexture` 的说明）。
+ * 名字带 `scenery-` 前缀，与设定集其它构件分开，避免和建筑烘焙的 key 撞上。
+ */
+const FENCE_TEXTURE = 'scenery-fence-rail';
+
+/**
+ * 石垣的共享纹理名（两张：砌缝左右交错的两版），以及纹理高度。
+ *
+ * 与木栅同一套省钱理由：一格一段、贴 N 次，不各烘各的。两张而不是一张，
+ * 是因为单张平铺会在 16px 网格上形成等距竖缝的节奏，读成「贴了壁纸的墙」——
+ * 花墙那一轮已经吃过一次（点阵读成壁纸感）。交错一版就把节奏打散了。
+ *
+ * 高度 16px：笠石 3 + 墙身 11 + 墙脚影 2。村民约 18–20px 高，所以这是齐胸的
+ * 一道挡土墙——再高就会把花床后的视线全吃掉。
+ */
+const STONE_WALL_TEXTURES = ['scenery-stone-wall-a', 'scenery-stone-wall-b'] as const;
+const STONE_WALL_H = 16;
 
 /**
  * 灯周围「压低周边」的档位（世界 px）：`[inner, outer)` 的方框，alpha 由内到外递减。
@@ -571,60 +592,259 @@ export function createSettingScenery(
       g.fillStyle(c.trim, 0.8);
       g.fillRect(x + 6, y + 1, 1, 3);
     } else if (item.kind === 'statue') {
-      // 石作走 bake：静态、不随世界时间变化。原先是每件四条 `fillRect` 进 propRows
-      // 的行 Graphics，改成一枚 16×19 的纹理后每帧 0 条（实测 −29 条/件，
-      // 见 `docs/OPEN_ISSUES.md` N 节）。纹理原点在 (0,0)，所以图钉在 (x, y−3)，
-      // 与原 Graphics 的落地边逐像素对齐。
+      // 石作：**一座石灯籠**（宝珠 / 笠 / 火袋 / 中台 / 竿 / 两级基座六段，宽度一路收放）。
+      // 原先只有四条 `fillRect`：一块 16×8 的大方砖压在底下、一根 8 宽的柱子、
+      // 身上一道实色 `water` 横带——底座读不出来、纹样读不出来，整件像一块墓碑
+      // （`docs/OPEN_ISSUES.md` N 节第 4 条）。现在靠**轮廓的进出**做结构：
+      // 每一段都比下面一段窄或宽，接缝只在 `ink` 低透明下压一道，不用实体深色
+      // （花墙那一轮已证：实色 `deepShade` 一画就读成两块拼板之间的缝）。
+      //
+      // **火袋的窗是暗的**：这一处没有灯。给石作补光实测 +306 条，超出余量，
+      // 见 `docs/OPEN_ISSUES.md` O 节；夜里它就该是黑的，不许凭空发亮。
+      //
+      // 仍走 bake：整件一枚 16×24 纹理、每帧 0 条（原 16×19 也是 0 条，换形制不改
+      // 命令数）。纹理原点在 (0,0)，所以图钉在 (x, y−8)，让底边仍落在 y+16。
       const baked = bakeLayer(
         scene,
         `statue-${item.at.x}-${item.at.y}`,
         16,
-        19,
+        24,
         sceneryDepth(item.at.y, altitude),
         (g) => {
+          // 基座下层：最宽的一级，接地那行压暗。
           g.fillStyle(c.stone, 1);
-          g.fillRect(0, 11, 16, 8);
-          g.fillRect(4, 0, 8, 12);
+          g.fillRect(1, 20, 14, 4);
           g.fillStyle(c.plaza, 1);
-          g.fillRect(5, 1, 3, 8);
-          g.fillStyle(c.water, 1);
-          g.fillRect(2, 7, 12, 2);
+          g.fillRect(1, 20, 14, 1);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(1, 23, 14, 1);
+          // 石缝里长苔：两小撮，别铺成一条绿边。
+          g.fillStyle(c.moss, 0.35);
+          g.fillRect(2, 22, 2, 1);
+          g.fillRect(12, 21, 2, 1);
+          // 基座上层：收进两格，台面受光，底下压一道缝。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(3, 17, 10, 3);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(3, 17, 10, 1);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(3, 19, 10, 1);
+          // 竿：再收两格，左棱受光、右棱落影，读成一根**有厚度**的柱。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(5, 12, 6, 5);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(5, 12, 1, 5);
+          g.fillStyle(c.ink, 0.28);
+          g.fillRect(10, 12, 1, 5);
+          // 中台：托住火袋的一级，下沿三个凹口当莲弁纹样。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(4, 10, 8, 2);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(4, 10, 8, 1);
+          g.fillStyle(c.ink, 0.32);
+          g.fillRect(5, 11, 1, 1);
+          g.fillRect(7, 11, 1, 1);
+          g.fillRect(9, 11, 1, 1);
+          // 火袋：八宽的一段，正面开窗——**暗窗，不是灯窗**。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(4, 5, 8, 5);
+          g.fillStyle(c.ink, 0.7);
+          g.fillRect(6, 6, 4, 3);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(4, 9, 8, 1);
+          // 笠：顶面整行受光，出檐比火袋宽四格，檐底压深——这是全件最宽的一条
+          // 轮廓，读成「有檐的石头」而不是「一块方碑」。
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(4, 2, 8, 1);
+          g.fillStyle(c.stone, 1);
+          g.fillRect(2, 3, 12, 2);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(2, 3, 12, 1);
+          g.fillStyle(c.ink, 0.35);
+          g.fillRect(2, 4, 12, 1);
+          // 宝珠：两格的小顶，只让左上角受光。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(6, 1, 4, 1);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(7, 0, 2, 1);
         },
       );
-      baked.image.setPosition(x, y - 3);
+      baked.image.setPosition(x, y - 8);
     } else if (item.kind === 'flower_bed') {
-      // 花径的花圃（设定集 p110–111）：一条土床，上面两簇花。花床是死的，
-      // 也走 bake——每件一条 16×12 纹理，每帧 0 条。
+      // 花径花床（设定集 p110–111，**B 档：仓库转述，无一手画册证据**）：
+      // 按「修剪过的花墙」转述改形制——连贯、等高、平顶的一面绿篱。行距 16px
+      // 而纹理高 16px，上下两件首尾相接，接缝处不留底色（一留就散成一排花箱）；
+      // 纹理里也不画横向分带，否则每 16px 一道暗边，整面墙还是读成叠起来的四层。
+      // 仍走 bake：16 件不增不减、每帧 0 条、24 色内不新增色。
       //
-      // **降级**：24 色里没有粉紫，杜鹃 / 绣球画不出来；这一床只能用暖红
-      // （ember / terracotta）＋米白（plaster），读作小树丛，读不出一面
-      // 修剪过的花墙。这是与设定集的差距，不是还原。
+      // 花位与疏密都按格哈希算：同一张纹理要重复 16 次，位置一均匀就成壁纸斜纹；
+      // 让「密格」与「疏格」交错，才读成一段段花团而不是均匀的麻点。
+      //
+      // **仍是降级**：没有粉紫（杜鹃 / 绣球做不出来），花点只能用暖红
+      // （ember / terracotta）＋米白（plaster）；形制按转述推，不宣称还原。
+      const h = (item.at.x * 5 + item.at.y * 11) % 6;
+      const jx = h % 3;
+      const jy = h % 2;
       const baked = bakeLayer(
         scene,
         `flower_bed-${item.at.x}-${item.at.y}`,
         16,
-        12,
+        16,
         sceneryDepth(item.at.y, altitude),
         (g) => {
-          g.fillStyle(c.charcoal, 1);
-          g.fillRect(0, 9, 16, 3);
-          g.fillStyle(c.soil, 1);
-          g.fillRect(1, 7, 14, 3);
+          // 墙身先铺满苔绿：花团之间露出的绿就是叶隙，不留底色缝。
           g.fillStyle(c.moss, 1);
-          g.fillRect(1, 3, 6, 6);
-          g.fillRect(9, 4, 6, 5);
+          g.fillRect(0, 0, 16, 16);
+          // 叶隙压深，给花团之间一点厚度。
+          g.fillStyle(c.deepShade, 1);
+          g.fillRect(3 + jx, 8, 3, 1);
+          g.fillRect(12 - jx, 3 + jy, 2, 1);
+          // 花团：暖红为主、赭红做大块；米白只作零星花心，且不压在最上一行
+          // （每格同一高度都放米白，十六格连起来就是一道横向的浅色带）。
           g.fillStyle(c.ember, 1);
-          g.fillRect(1, 1, 6, 3);
-          g.fillRect(9, 2, 6, 3);
+          g.fillRect(1 + jx, 1 + jy, 4, 3);
+          g.fillRect(8 - jx, 6 - jy, 4, 3);
+          g.fillRect(2 + jx, 12, 4, 2);
           g.fillStyle(c.terracotta, 1);
-          g.fillRect(2, 4, 4, 2);
-          g.fillRect(10, 5, 4, 2);
+          g.fillRect(4 + jx, 5 + jy, 3, 3);
+          g.fillRect(11 - jx, 11 - jy, 3, 3);
           g.fillStyle(c.plaster, 1);
-          g.fillRect(3, 1, 2, 2);
-          g.fillRect(10, 2, 2, 2);
+          g.fillRect(6 + jx, 9 - jy, 2, 2);
         },
       );
       baked.image.setPosition(x, y - 4);
+    } else if (item.kind === 'fence') {
+      // 花径的木栅（设定集 p110–111 的「夹道栅栏」，**B 档：仓库转述，
+      // 无一手画册证据**）。形制按 B 档推，**只做东西向**，理由紧接着写。
+      //
+      // **南北向读不出来，这是实测结论，不是偷懒**。这套投影里「走向」和「高度」
+      // 都落在屏幕竖直方向：一道沿南北跑的栅栏，栏杆与立柱在屏幕上都是竖线，
+      // 谁遮谁都分不出，只能靠「线 + 立柱结」去暗示。四种画法各抓一张 1:1 图
+      // （2px 单线 / 每格一柱 / 5px 带暗面 / 加错位地影），全部读成「一根带节的
+      // 木杆」。东西向就不同：立柱竖着站、栏杆横着跑，两者正交，「立着」这件事
+      // 一眼直接读出来。所以栅栏只落在两列花床的**南端面**（人从南口进来先看到
+      // 的那一面），把通道口收住；南北向的长栏一件没做。
+      //
+      // 一件 = 一格，栏杆在格内第 9–10 px 横贯、上下件首尾相接成一条连续直线；
+      // 立柱每格一根，4px 宽、竖着站 8px。一件一格而不是一件带 `length` 的长条，
+      // 是因为 depth 必须按行算（`scenery-depth.ts`）：一根跨两格的长条只有一个
+      // depth，就没法与站在不同行的人分别判前后。
+      //
+      // **一张纹理贴 N 次**：各段内容逐格相同，各烘一张就是 N 次 `generateTexture`
+      // 加 N 张纹理来回切。这里只烘 `FENCE_TEXTURE`。
+      //
+      // **栅栏只是画**：`isWalkable` 不看 `scenery`（与树篱那条债同源，
+      // 见 `docs/OPEN_ISSUES.md` O1），人照样能穿过它走进花床。
+      if (!scene.textures.exists(FENCE_TEXTURE)) {
+        bakeTexture(scene, FENCE_TEXTURE, 16, 16, (g) => {
+          // 地影：整条栏杆往右下偏 2px 投一道影，栅栏才离地。
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(0, 11, 16, 2);
+          // 栏杆：2px 横贯，上沿受光、下沿压暗，读成一根有厚度的木料。
+          g.fillStyle(c.trim, 1);
+          g.fillRect(0, 9, 16, 2);
+          g.fillStyle(c.plaster, 0.45);
+          g.fillRect(0, 9, 16, 1);
+          g.fillStyle(c.timberDark, 0.5);
+          g.fillRect(0, 10, 16, 1);
+          // 立柱：4px 宽、从栏杆上沿再站高 4px；柱头受光、柱脚压深。
+          g.fillStyle(c.timber, 1);
+          g.fillRect(6, 5, 4, 8);
+          g.fillStyle(c.trim, 1);
+          g.fillRect(6, 5, 4, 1);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(6, 12, 4, 1);
+        });
+      }
+      // 原点取 (0,1)、钉在本格**下沿**：纹理里栏杆在第 9–10 px、立柱站到第 5 px，
+      // 只有以下沿为基线，栅栏才站在这一格的落地线上，而不是浮在格子上半截。
+      scene
+        .add.image(x, y + TILE_PX, FENCE_TEXTURE)
+        .setOrigin(0, 1)
+        .setDepth(sceneryDepth(item.at.y, altitude));
+    } else if (item.kind === 'stone_wall') {
+      // 花床北缘的矮石垣（设定集 p110–111 的「石垣」，**B 档：仓库转述，
+      // 无一手画册证据**）。一件 = 一格墙段，左右件首尾相接成一条连续的墙；
+      // 一件一格而不是带 `length` 的长条，理由与木栅同（depth 必须按行算）。
+      //
+      // **只做东西向**，理由与本文件的 `fence` 分支同源：这套投影里「走向」与
+      // 「高度」都落在屏幕竖直方向，南北向的墙在屏幕上只剩一条竖带。木栅那一轮
+      // 为此抓过四版 1:1 对照图（见 `docs/evidence/fence/README.md`），没有重试。
+      //
+      // **形制**：顶上 3px 是瓦葺压顶（亮瓦脊 + 暗瓦面），墙身按两皮错缝砌，
+      // 缝用 `ink` 的低透明度压——不是实色深线。花墙与石作两轮都证实：24 色里
+      // 一条实色深线画在中间调上，会读成「两块拼板之间的缝」，而不是「砌缝」。
+      //
+      // **落地影是「立着」的来源**：只画一道带砌缝的横条，1:1 下会读成一条
+      // 躺在地上的石板路；墙脚压两道渐淡的影，它才从地面立起来。
+      const variant = item.at.x % 2 === 0 ? 0 : 1;
+      const key = STONE_WALL_TEXTURES[variant];
+      if (!scene.textures.exists(key)) {
+        bakeTexture(scene, key, 16, STONE_WALL_H, (g) => {
+          // 墙身：条石错缝，画法与 `scene-artbook.ts` 的 `drawQuay` 同一套——
+          // stone 打底、ink 低透明压缝、顶上压一皮亮石。仓库里这道堤已经读成
+          // 「砌起来的石体」，别另发明一套。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(0, 0, 16, 14);
+          // 墙脚压一档（0.12，不是 0.28）：一色到底读成平板，压太狠又会和草地
+          // 糊成一片——0.28 试过，1:1 下墙身整段消失，只剩顶上一条白横梁。
+          g.fillStyle(c.soil, 0.12);
+          g.fillRect(0, 11, 16, 3);
+          // 横缝：两道（上皮 4–8、下皮 9–13）；竖缝错开半块。两版按 x 奇偶交替，
+          // 打散 16px 的等距节奏——单版平铺会读成壁纸。
+          for (const [rowY, offset] of [
+            [4, variant === 0 ? 6 : 2],
+            [9, variant === 0 ? 2 : 7],
+          ] as const) {
+            g.fillStyle(c.ink, 0.24);
+            g.fillRect(0, rowY, 16, 1);
+            g.fillRect(offset, rowY, 1, 5);
+            if (variant === 1) g.fillRect(offset > 8 ? offset - 8 : offset + 8, rowY, 1, 5);
+          }
+          // 一块受光的石头：整面墙同色会读成一张贴图，一块亮面就够破开。
+          g.fillStyle(c.plaza, 0.22);
+          g.fillRect(variant === 0 ? 8 : 3, 10, 3, 3);
+          // 苔：只长在墙脚与缝口。色板里 moss 的既定用途就是这个。
+          g.fillStyle(c.moss, 0.6);
+          g.fillRect(variant === 0 ? 1 : 11, 12, 2, 2);
+          // 瓦顶（p110–111 石垣的瓦葺压顶，**B 档**）：只换压顶那 3px，墙高仍是
+          // 16px。往上加 4–6px 能画出「出檐 + 瓦垄」两层，但会伸进 y19 那一行
+          // 北篱、把花床后的视线再吃掉一截，所以这一版不加高——代价是「瓦」只剩
+          // 一层明暗：**亮瓦脊 / 暗瓦面**。4px 一垄的沟在 1:1 下只是纹理，不是
+          // 轮廓，别指望它撑起「瓦」的读法。六版试错见
+          // `docs/evidence/wall-roof/README.md`。
+          g.fillStyle(c.charcoal, 1);
+          g.fillRect(0, 1, 16, 2);
+          // 瓦垄：4px 一垄，沟压 ink 0.5 一竖到底。**不做明暗错位的垄背**——
+          // 试过 1px 亮块错半垄，1:1 下读成一排白齿（锯齿），不是瓦。
+          for (let sx = 0; sx < 16; sx += 4) {
+            g.fillStyle(c.ink, 0.5);
+            g.fillRect(sx, 1, 1, 2);
+          }
+          // 瓦脊：顶行一道受光的棱（stone 0.55）。它是墙头**唯一**的亮边：瓦面
+          // 整块压暗、顶边也暗下去时（v4 实测），暗瓦面直接融进深色背景，墙头
+          // 就没有边界，整道墙看着矮了一截。瓦面换 `water`（v6）会读成一根蓝杆。
+          g.fillStyle(c.stone, 0.55);
+          g.fillRect(0, 0, 16, 1);
+          // 出檐下的投影：瓦顶比墙身探出一点，压在墙头上，下面这一行的影
+          // 就是「探出来」的全部来源。没有它，瓦面与墙身同宽、只差一档明暗，
+          // 整件读成一根架在空中的横梁——这一行是「墙」与「横杆」的分界。
+          // （试过 2px：帽与身断成两截，像白梁架在石墙上，因此只有 1px。）
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(0, 3, 16, 1);
+          // 墙脚：一道实影加一道渐淡的落影，墙才压在地上而不是浮着。
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(0, 14, 16, 1);
+          g.fillStyle(c.ink, 0.14);
+          g.fillRect(0, 15, 16, 1);
+        });
+      }
+      // 原点取 (0,1)、钉在本格**下沿**：与木栅同一套基线，墙脚正好落在花床
+      // 第一行的上沿，墙与花床相接而不互相压住。
+      scene
+        .add.image(x, y + TILE_PX, key)
+        .setOrigin(0, 1)
+        .setDepth(sceneryDepth(item.at.y, altitude));
     }
   }
 

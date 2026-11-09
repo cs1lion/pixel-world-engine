@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>花径 · fence</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#1">1. 做了什么</a></li>
+<li><a href="#2">2. 为什么只做东西向（这一笔的结论）</a></li>
+<li><a href="#3">3. 与石灯籠的前后关系</a></li>
+<li><a href="#4">4. 读数</a></li>
+<li><a href="#5">5. 没做的（别当待办捡回来／别当已完成）</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="2026-11-09">花径木栅 · 2026-11-09</h1>
+<p>设定集 p110–111 的「夹道栅栏」，原来的状态是一件都没有（<code>docs/OPEN_ISSUES.md</code> N 节第 3 条）。
+这一笔新增 <code>kind: 'fence'</code>，<strong>每帧 0 条命令、24 色不新增、不改通行</strong>。
+<strong>依据等级 B：只有仓库转述，没有一手画册证据</strong>（本机画册 PDF 99 页、无文字层，对不上
+p110–111）。所以这是「按转述推的近形」，<strong>不宣称还原设定集</strong>。</p>
+<h2 id="1">1. 做了什么</h2>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>改动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>world-client/src/settings/types.ts</code></td>
+<td><code>SettingScenery['kind']</code> 加 <code>'fence'</code></td>
+</tr>
+<tr>
+<td><code>world-client/src/settings/load.ts</code></td>
+<td>装载期闭集 <code>SCENERY_KINDS</code> 加 <code>'fence'</code></td>
+</tr>
+<tr>
+<td><code>world-client/src/render/bake.ts</code></td>
+<td>新增 <code>bakeTexture</code>（只烘纹理、不落图），<code>bakeLayer</code> 改为复用它</td>
+</tr>
+<tr>
+<td><code>world-client/src/render/setting-scenery.ts</code></td>
+<td><code>fence</code> 分支 + 共享纹理名 <code>FENCE_TEXTURE</code></td>
+</tr>
+<tr>
+<td><code>world-client/src/settings/dengchao/pack.ts</code></td>
+<td>4 件，落在两列花床的南端面 <code>y25</code></td>
+</tr>
+<tr>
+<td><code>world-client/test/fence.test.ts</code></td>
+<td>闭集 / 落地 / 未知 kind 仍 throw 三条断言</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一件 = 一格</strong>（4 件在 <code>(4,25) (5,25) (8,25) (9,25)</code>）。不是一件带 <code>length</code> 的长条，
+因为 depth 必须按行算（<code>world-client/src/render/scenery-depth.ts</code>）：一根跨多格的长条
+只有一个 depth，就没法与站在不同行的人分别判前后。</p>
+<p><strong>一张纹理贴 4 次</strong>。四段内容逐格相同，各烘一张就是 4 次 <code>generateTexture</code> 加 4 张
+纹理在渲染器里来回切——这正是 N 节「代价」那条警告过的（件数上去会变成多次纹理切换）。
+所以纹理只烘一张（<code>bakeTexture</code>），四件各自 <code>add.image</code> 复用同一个 key。</p>
+<h2 id="2">2. 为什么只做东西向（这一笔的结论）</h2>
+<p><strong>南北向的栅栏在这套投影里读不出来。</strong> 这不是省事，是四种画法都试过之后的结果：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>画法</th>
+<th>1:1 下的读法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1</td>
+<td>2px 单线 + 每格一根 4×4 立柱</td>
+<td>一根带节的木杆</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>立柱改成每两格一根、侧面换木色暗面</td>
+<td>一根木杆，节更稀</td>
+</tr>
+<tr>
+<td>v3</td>
+<td>加宽成 5px 带（地影 / 暗面 / 栏杆 / 受光棱）</td>
+<td>一根木条躺在地上</td>
+</tr>
+<tr>
+<td>v4</td>
+<td>2px 线 + 往右下错位 2px 的地影</td>
+<td>一根立起来的木杆，仍不是栅栏</td>
+</tr>
+</tbody>
+</table>
+<p>原因在几何上：<strong>这套投影里「走向」和「高度」都落在屏幕竖直方向</strong>。一道沿南北跑的
+栅栏，栏杆在屏幕上是竖线、立柱在屏幕上也是竖线，两者平行，谁遮谁都分不出；能用的
+只剩「线的两侧一亮一暗」和「错位地影」这两条弱线索，撑不起「一排竖直的立柱」。</p>
+<p>东西向就没有这个死结：立柱竖着站、栏杆横着跑，两者正交，「立着」这件事一眼读出来。
+所以栅栏只落在<strong>两列花床的南端面</strong>（人从南口进来先看到的那一面），把通道口收住。
+<strong>南北向的长栏一件没做</strong>——「夹道」这一点只兑现到通道口的两段矮栏，如实记账。</p>
+<p>废稿与成品都在 <code>world-client/tmp/garden-stone/fence{1,2,3,4,5}.png</code>（未跟踪）。</p>
+<h2 id="3">3. 与石灯籠的前后关系</h2>
+<p>栅栏与石灯籠都在 <code>(4,25)</code> 这一行上，取同一个 <code>sceneryDepth</code>，同 depth 时谁在前只剩
+<strong>创建顺序</strong>。<code>pack.ts</code> 里栅栏写在石作<strong>之前</strong>，于是石作压住那一段栏杆——栏杆从
+竿两侧的透明缝里露出来，读成「从石灯背后穿过去」，不是「从底座中间穿过去」。
+反过来写的话，栏杆会横切灯籠的底座。</p>
+<h2 id="4">4. 读数</h2>
+<ul>
+<li><strong>命令数不进统计</strong>：栅栏是 Image，<code>renderStats()</code> 只数 Graphics 的 commandBuffer，
+  所以 before / after 都是 <strong>20,085</strong>、<code>graphicsObjects</code> 都是 <strong>119</strong>。
+  「+0 条」的准确含义是「不进命令统计」，不是「GPU 少画」——真实代价是 1 次
+  <code>generateTexture</code> 加 1 张 16×16 纹理（4 件共用）。</li>
+<li><strong>逐像素差</strong>（<code>after3.png</code> → <code>fence5.png</code>，同机位同冻帧；矩形都是<strong>截图 px</strong>）：</li>
+<li>西侧两段 <code>(128,320)–(192,352)</code>：<strong>400 px / max 187</strong>（其中 80 px 落在石灯籠那一格里，
+    是栏杆从竿两侧透明缝露出来的部分）</li>
+<li>东侧两段 <code>(256,320)–(320,352)</code>：<strong>640 px / max 195</strong></li>
+<li>两列花床 <code>(128,192)–(320,320)</code>：<strong>0 px</strong>——这一笔没碰花床</li>
+<li>全图 <strong>1,040 px / max 195</strong>，bbox <code>(128,330)–(319,345)</code>，正好是两条栅栏，
+    没有零散异动（对比图 <code>f5wide-mark.png</code> 上只有两段红线）</li>
+<li><strong>确定性</strong>：同配置双跑 <strong>0 px / max 0</strong>。</li>
+<li><strong>预算闸</strong>：<code>check-ground-shadow</code> 绿，实测峰值 <strong>28,068</strong>、天花板 <code>34,666</code>、债务 0。
+  上一笔（庭心石作）读 <strong>28,076</strong>，差 <strong>−8</strong>——这是 O4 记的<strong>单时刻体态噪声</strong>
+  （±百余条），<strong>既不能算本笔的下降，也不能拿来调阈值</strong>。栅栏是 Image，不进命令统计。</li>
+<li>机位与口径：<code>?world=dengchao&amp;time=noon&amp;feed=off&amp;ledger=off&amp;debug=1&amp;now=960</code>、
+  1010×700、世界冻住、潮位钉 1、晴、灯 / 摊 / 幌 / 烟四支动态全关、180 帧沉降、
+  相机 <code>scrollX=0 / scrollY=240</code>（<code>centerCameraOn(72,400)</code>）。</li>
+<li>产物（未跟踪）：<code>world-client/tmp/garden-stone/{after3,fence5,fence6}.png</code>、
+  <code>f5wide-{base,cur,mark}.png</code>、<code>f5-*.png</code>。脚本 <code>world-client/tmp/garden-stone-shot.mjs</code>
+  （<code>LABEL=</code>）、分区统计 <code>world-client/tmp/fence-regions.mjs</code>。</li>
+</ul>
+<h2 id="5">5. 没做的（别当待办捡回来／别当已完成）</h2>
+<ul>
+<li><strong>南北向的夹道长栏</strong>：没做。理由见 §2，这是几何结论不是取舍。</li>
+<li><strong>石垣</strong>：同一分支另开一笔做掉了（花床北缘 <code>y20</code> 的一道矮墙，
+  <code>docs/evidence/stone-wall/README.md</code>）；<strong>瓦顶</strong>同日第三笔补上（只换压顶 3px，
+  见 <code>docs/evidence/wall-roof/README.md</code>）。</li>
+<li><strong>粉紫第 25 色</strong>：仍不开。花圃只有暖红 + 米白。</li>
+<li><strong>夜里补光 +306</strong>：没做，仍是「新增功能」。</li>
+<li><strong>A 档</strong>：翻书拍到 p110–111 才能升 A；在那之前所有形制判断都只是 B 档。</li>
+<li><strong>通行</strong>：<code>isWalkable</code> 不看 <code>scenery</code>，栅栏<strong>只是画</strong>——人和原来一样能从南口走进
+  花径、也能横穿栅栏。这与树篱那条债同源（<code>docs/OPEN_ISSUES.md</code> O1）。</li>
+</ul></main>
+</div>
+</body>
+</html>

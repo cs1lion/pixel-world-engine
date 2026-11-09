@@ -140,6 +140,7 @@ const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
   'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall', 'stele',
   'lamp_string', 'paving', 'shopfront', 'signpost',
   'boiler', 'coal_heap', 'quay', 'steps', 'drain', 'street_paving', 'shopfront_gable', 'ridge', 'far_tower', 'flower_bed',
+  'fence', 'stone_wall',
 ];
 
 /** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */
