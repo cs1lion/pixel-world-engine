@@ -8,6 +8,7 @@ import type { AgentToWorld } from '../world/bridge.ts';
 import type { RewindResult } from '../world/history/scene-history.ts';
 import type { WorldEvent, WorldSnapshot } from '../world/types.ts';
 import type { SettingSceneryMetrics } from '../render/setting-scale.ts';
+import type { BuildingBakeReading } from '../render/buildings.ts';
 import type { ActorPin, TrailPin } from '../render/pin-shot-state.ts';
 import { summarizeWorld } from '../world/world-state.ts';
 
@@ -415,6 +416,11 @@ export interface DebugOracle {
   debugSettingScale?(): SettingSceneryMetrics | null;
   /** 地面光池这一层的指令数：灯灭时应为 0（残留亮斑会让它不为 0）。 */
   debugLampPool?(): number;
+  /**
+   * 建筑烘焙自检读数：逐栋、逐层的 `Image` 落点 / 原点 / 缩放 / 纹理尺寸 / 四边 alpha。
+   * 落点必须等于 `buildingBakeBox(w, h)`，四边 alpha 必须为 0（贴边即已被裁）。
+   */
+  debugBuildingBake?(): readonly BuildingBakeReading[];
   feed(message: AgentToWorld): { ok: boolean; message: string };
   pushEvent(event: { kind: string; payload: Record<string, unknown> }): void;
   /**

@@ -91,6 +91,8 @@ jobs:
           curl -sf http://127.0.0.1:5211/ > /dev/null
           npm run test:persistence
           npm run test:render-budget
+          # 建筑烘焙对齐：逐件钉住 72 张 Image 的落点/原点/缩放/纹理尺寸/四边 alpha=0。
+          npm run test:building-bake
           npm run test:phases
           node scripts/check-phases-negative.mjs
         env:

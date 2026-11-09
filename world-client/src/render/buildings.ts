@@ -42,6 +42,120 @@ function contactAoEnabled(): boolean {
 
 export { contactAoUnknownBaseCount, lumaOf } from './contact-ao.ts';
 
+/**
+ * 静态层的绘制载体：bake 前是 Graphics，bake 后是 Image。
+ *
+ * 调用方只用到 `setAlpha` / `setVisible`，两种类型都有；类型放宽是为了让
+ * 「逐层烘焙」不必把整套 BuildingView 拆成两份。
+ */
+export type BuildingLayer = Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
+
+/**
+ * 逐层烘焙的留白：楼体外框之外的静态内容全在这个范围里。
+ *
+ * - 上 32：屋脊塔尖与烟囱顶（最上一笔在 `-22` 附近，留 10px 余量）。
+ * - 下 10：接地影铺到 `h + 4`、门口光池到 `doorY + 4`。
+ * - 左右各 8：接地影右侧铺到 `w + 4`、屋面挑檐到 `w + 3`。
+ *
+ * 为什么**按楼统一留白**而不是逐层求紧包围盒：紧包围盒要由每层的绘制常量反推，
+ * 一旦某层加一笔就悄悄越界（被裁 1px 不会有任何报错）；统一盒的代价只是每张
+ * 纹理多几 KB 透明边。越界由 `scripts/check-building-bake.mjs` 的「内容不得贴边」
+ * 断言兜住。
+ */
+const BAKE_PAD = { left: 8, right: 8, top: 32, bottom: 10 } as const;
+
+export interface BuildingBakeBox {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** 一张烘焙 Image 的自检读数（`?debug=1` 的 `debugBuildingBake` 上报）。 */
+export interface BuildingBakeLayerReading {
+  readonly key: string;
+  readonly layer: string;
+  readonly x: number;
+  readonly y: number;
+  readonly originX: number;
+  readonly originY: number;
+  readonly scaleX: number;
+  readonly scaleY: number;
+  readonly frameW: number | null;
+  readonly frameH: number | null;
+  /** 纹理四边最大 alpha；`null` = 读不到（不算通过）。 */
+  readonly borderAlpha: number | null;
+}
+
+export interface BuildingBakeReading {
+  readonly instanceId: string;
+  readonly w: number;
+  readonly h: number;
+  readonly box: BuildingBakeBox;
+  readonly layers: readonly BuildingBakeLayerReading[];
+}
+
+/** 一栋楼的统一烘焙盒（楼体局部坐标）。 */
+export function buildingBakeBox(w: number, h: number): BuildingBakeBox {
+  return {
+    x: -BAKE_PAD.left,
+    y: -BAKE_PAD.top,
+    w: w + BAKE_PAD.left + BAKE_PAD.right,
+    h: h + BAKE_PAD.top + BAKE_PAD.bottom,
+  };
+}
+
+/**
+ * 纹理四边的最大 alpha（0–255）。自检用：内容贴边 = 留白不够，已经被裁了 1px，
+ * 而画面不会报任何错。纹理源不是可读画布时返回 `null`——"读不到"不算通过。
+ */
+export function textureBorderAlpha(scene: Phaser.Scene, key: string): number | null {
+  const source = scene.textures.get(key)?.getSourceImage() as HTMLCanvasElement | undefined;
+  if (!source || typeof source.getContext !== 'function') return null;
+  const ctx = source.getContext('2d');
+  if (ctx === null) return null;
+  const { width, height } = source;
+  const edge = (x: number, y: number, w: number, h: number): number => {
+    const data = ctx.getImageData(x, y, w, h).data;
+    let max = 0;
+    for (let i = 3; i < data.length; i += 4) max = Math.max(max, data[i]!);
+    return max;
+  };
+  return Math.max(
+    edge(0, 0, width, 1),
+    edge(0, height - 1, width, 1),
+    edge(0, 0, 1, height),
+    edge(width - 1, 0, 1, height),
+  );
+}
+
+/**
+ * 把一静态层烘成一张 Image：绘制仍走原来那一笔，只是画进离屏 Graphics 再转纹理。
+ *
+ * 对齐口径：`translateCanvas(-box.x, -box.y)` 把局部坐标平移进纹理的正象限，
+ * Image 再放回 `(box.x, box.y)`。所以**纹理像素 1:1 落在原来的世界坐标上**，
+ * 不做任何取整/缩放；`box` 一变就必须同时改 Image 落点，二者是一对。
+ *
+ * 为什么逐层烘、不合并：各层 depth 不同，人物按落地行排序，会被夹在层与层之间。
+ * 合并层 = 静默改遮挡，所以这张函数只画一层。
+ */
+function bakeStaticLayer(
+  scene: Phaser.Scene,
+  building: PlacedBuilding,
+  layer: string,
+  box: BuildingBakeBox,
+  draw: (g: Phaser.GameObjects.Graphics) => void,
+): BuildingLayer {
+  const key = `building-bake:${building.instanceId}:${layer}`;
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const offscreen = scene.make.graphics({}, false);
+  offscreen.translateCanvas(-box.x, -box.y);
+  draw(offscreen);
+  offscreen.generateTexture(key, box.w, box.h);
+  offscreen.destroy();
+  return scene.add.image(box.x, box.y, key).setOrigin(0, 0);
+}
+
 export interface BuildingView {
   /** 地面层：三步投影 + 门口光池，depth = ALTITUDE + baseY - 2。 */
   readonly back: Phaser.GameObjects.Container;
@@ -55,19 +169,19 @@ export interface BuildingView {
    * 痕迹是墙上的东西，人走过去该挡住它。
    */
   readonly decal: Phaser.GameObjects.Graphics;
-  readonly chimney: Phaser.GameObjects.Graphics;
-  readonly window: Phaser.GameObjects.Graphics;
+  readonly chimney: BuildingLayer;
+  readonly window: BuildingLayer;
   readonly progress: Phaser.GameObjects.Graphics;
   /** 招牌图标（静态文字已改图标，D5-A）。 */
-  readonly sign: Phaser.GameObjects.Graphics;
+  readonly sign: BuildingLayer;
   /**
-   * 屋面层：屋顶 + 屋脊 + 烟囱口，**单独一张 Graphics**。
+   * 屋面层：屋顶 + 屋脊 + 烟囱口，**单独一张层**。
    *
    * 原来它和墙画在同一张 `g` 里，于是「进屋」时想收起屋顶就只能连墙一起收。
    * 拆开之后，剖面视图（屋顶可开 / 立面淡出 / 内景替换）才有地方下手——
-   * 三张 Graphics 的绘制顺序不变，画面逐像素相同。
+   * 三层的绘制顺序不变，画面逐像素相同。
    */
-  readonly roof: Phaser.GameObjects.Graphics;
+  readonly roof: BuildingLayer;
   /** 烟囱口的场景坐标，粒子发射器挂在这里。 */
   readonly chimneyWorld: Phaser.Math.Vector2;
   /** 屋顶上沿，Y-Sort 用。 */
@@ -91,10 +205,7 @@ export function createBuilding(
   const container = scene.add.container(px, py);
   const front = scene.add.container(px, py);
 
-  const g = scene.add.graphics();
-  // 屋面单独一张：见 `BuildingView.roof` 的注释。绘制顺序（墙 → 屋面 → 烟囱）
-  // 与拆开之前一致，所以街景那一帧不该有任何像素变化。
-  const roofG = scene.add.graphics();
+  const box = buildingBakeBox(w, h);
   const { roof, trim, window: windowColor } = building.palette;
   const roofH = roofHeight(h);
   const doorX = building.door.x * TILE_PX - px;
@@ -103,56 +214,102 @@ export function createBuilding(
   // 这里才批量。尺寸依据见 `building-proportions.ts`。
   const doorMetrics = DOOR;
 
-  drawGroundShadow(scene, back, building, w, h, px, py, groundBase);
-  drawWall(g, building, w, h, roofH, doorX);
-  drawRoof(roofG, building.silhouette, w, roofH, roof, trim);
-  drawChimney(roofG, w, roof, trim);
+  // 静态层逐层烘焙：每层仍是自己的 Graphics 笔画，只是画进离屏纹理再换成 Image。
+  // **一层一张，不合并**——各层 depth 不同，人会被夹在层与层之间（见 bakeStaticLayer）。
+  const backLayer = scene.add.graphics();
+  drawGroundShadow(backLayer, building, w, h, px, py, groundBase);
+  back.add([backLayer]);
 
-  const chimney = scene.add.graphics();
-  chimney.fillStyle(paletteFor().charcoal, 1);
-  chimney.fillRect(w - 16, -10, 9, 14);
-  chimney.fillStyle(paletteFor().soil, 1);
-  chimney.fillRect(w - 15, -10, 7, 2);
-  chimney.fillStyle(paletteFor().trim, 1);
-  chimney.fillRect(w - 16, -2, 9, 2);
-  chimney.fillStyle(paletteFor().ink, 1);
-  chimney.fillRect(w - 14, -9, 3, 2);
-  chimney.fillStyle(paletteFor().ember, 0.7);
-  chimney.fillRect(w - 13, -8, 1, 1);
-  chimney.fillStyle(paletteFor().warmLight, 0.8);
-  chimney.fillRect(w - 12, -8, 1, 1);
+  // 墙体层拆成「烘 → 活 → 烘 → 活 → 烘」五段，**顺序与原来那一支 drawWall 完全一致**。
+  //
+  // 为什么不能整层烘一张：板缝 / 木纹刺 / 石基砌缝是 α<1 的叠色，Canvas2D 烘焙
+  // 与 WebGL 直接绘制在半透明合成上有 ±1 的舍入差（实测 984 px / max 1，全落在
+  // 16px 节拍的板缝行上）。把这几笔留在活的 Graphics 上、只烘 α=1 的实体块，
+  // 就能逐字节等价。**不预乘、不手算混色**——那要靠猜 GPU 的舍入方式，换一套
+  // 设定集就可能悄悄差 1。
+  const wallBody = bakeStaticLayer(scene, building, 'wall-body', box, (target) =>
+    drawWallBody(target, building, w, h, roofH),
+  );
+  const wallDetail = scene.add.graphics();
+  drawWallDetail(wallDetail, building, w, h, roofH);
+  const wallBase = bakeStaticLayer(scene, building, 'wall-base', box, (target) =>
+    drawWallBase(target, w, h),
+  );
+  const wallBaseSeam = scene.add.graphics();
+  drawWallBaseSeams(wallBaseSeam, building, w, h);
+  const wallStruct = bakeStaticLayer(scene, building, 'wall-struct', box, (target) =>
+    drawWallStructure(target, building, w, h, roofH, doorX),
+  );
+  // 屋面单独一张：见 `BuildingView.roof` 的注释。绘制顺序（墙 → 屋面 → 烟囱）
+  // 与拆开之前一致，所以街景那一帧不该有任何像素变化。
+  const roofG = bakeStaticLayer(scene, building, 'roof', box, (target) => {
+    drawRoof(target, building.silhouette, w, roofH, roof, trim);
+    drawChimney(target, w, roof, trim);
+  });
 
-  const windowG = scene.add.graphics();
-  drawWindows(windowG, building, w, h, roofH, windowColor);
-  drawDoor(windowG, doorX, h, windowColor, doorMetrics);
+  const chimney = bakeStaticLayer(scene, building, 'chimney', box, (target) => {
+    target.fillStyle(paletteFor().charcoal, 1);
+    target.fillRect(w - 16, -10, 9, 14);
+    target.fillStyle(paletteFor().soil, 1);
+    target.fillRect(w - 15, -10, 7, 2);
+    target.fillStyle(paletteFor().trim, 1);
+    target.fillRect(w - 16, -2, 9, 2);
+    target.fillStyle(paletteFor().ink, 1);
+    target.fillRect(w - 14, -9, 3, 2);
+    target.fillStyle(paletteFor().ember, 0.7);
+    target.fillRect(w - 13, -8, 1, 1);
+    target.fillStyle(paletteFor().warmLight, 0.8);
+    target.fillRect(w - 12, -8, 1, 1);
+  });
 
+  const windowG = bakeStaticLayer(scene, building, 'window', box, (target) => {
+    drawWindows(target, building, w, h, roofH, windowColor);
+    drawDoor(target, doorX, h, windowColor, doorMetrics);
+  });
+
+  // 施工进度条：**不烘**。`updateBuilding` 每帧按工位状态（working / cooling /
+  // broken）重画，长度还跟着 `workstation.progress` 走、冷却时按 `time.now` 呼吸。
+  // 真要走烘焙，触发点是 `updateBuilding` 里这三态的切换（键要带 `进度档位`），
+  // 按帧呼吸的那一段只能留在活的 Graphics 上——否则进度条会永远停在第 0 帧。
   const progress = scene.add.graphics();
   progress.setVisible(false);
 
   // 痕迹层单独一张 Graphics，**不进任何容器**——它要有自己的 depth
   // （在 body 与 front 之间），而容器里的子对象共用容器的 depth。
   // 位置与容器相同，内部坐标就与楼体那一套一致。
+  //
+  // **不烘焙，且不许「顺手烘掉」**：这一层的内容会变 —— `drawBuildingDecals`
+  // 每次被调用都 `clear()` 重画（铺面痕迹跟着单子/契约走）。真要走烘焙，唯一
+  // 合法的触发点是那次 `drawBuildingDecals` 调用：取消单子、换契约、放新痕迹
+  // 都必须让这张纹理失效重建（键里要带痕迹集合的版本），否则世界会把痕迹钉死
+  // 在第一次画出来的那一天，而且不报错。重建理由同 `bakeLayer`：版本变了才重画。
   const decal = scene.add.graphics();
   decal.setPosition(px, py);
 
   // 静态招牌：不再画中文，按接的活画一枚像素图标（D5-A）。
   // 民居不挂牌：招牌是"这栋楼对外承接什么"的招牌，住家没有这回事。
+  //
+  // **不烘**：牌底是 `ink` α 0.55 的叠色，且 `updateBuilding` 会按忙闲改整块的
+  // `setAlpha`（1 / 0.72）。烘成纹理会把这两层 α 乘在一起再量化一次（实测
+  // 5,052 px / max 31），所以这一层留在活的 Graphics 上。
   const sign = scene.add.graphics();
   if (building.zone !== 'living') drawSignIcon(sign, building, w);
 
-  // roofG 紧跟 g：容器内按数组顺序绘制，屋面必须压在墙上。
-  container.add([g, roofG, chimney, windowG, progress, sign]);
+  // 容器内按数组顺序绘制：墙体五段保持原绘制顺序，屋面紧接在墙后（压在墙上）。
+  container.add([wallBody, wallDetail, wallBase, wallBaseSeam, wallStruct, roofG, chimney, windowG, progress, sign]);
 
   // 台阶：门洞口外侧 2px，落在门口格最上面 2px。**放在 body 层**而不是 front：
   // 角色站门口时脚在门口格底边（baseY+16），台阶在 baseY..baseY+2，物理上角色离
   // 观察者更近，台阶必须在他之后；放进 front（depth 比角色高）会盖住他的胸口。
-  const stepG = scene.add.graphics();
-  drawDoorStep(stepG, doorX, h, doorMetrics);
+  const stepG = bakeStaticLayer(scene, building, 'step', box, (target) =>
+    drawDoorStep(target, doorX, h, doorMetrics),
+  );
   container.add([stepG]);
 
   // 前檐层：前檐 3px + 门框外侧 1px —— 这两样才该压在角色身上。
-  const frontG = scene.add.graphics();
-  drawFrontLayer(frontG, w, h, doorX, roof, trim, doorMetrics);
+  const frontG = bakeStaticLayer(scene, building, 'front', box, (target) =>
+    drawFrontLayer(target, w, h, doorX, roof, trim, doorMetrics),
+  );
   front.add([frontG]);
 
   return {
@@ -228,8 +385,7 @@ export function drawBuildingDecals(
  * 出现即说明 `terrainBaseOf(...)` 取错位置，是红事，不是缺省行为。
  */
 function drawGroundShadow(
-  scene: Phaser.Scene,
-  back: Phaser.GameObjects.Container,
+  g: Phaser.GameObjects.Graphics,
   building: PlacedBuilding,
   w: number,
   h: number,
@@ -237,7 +393,6 @@ function drawGroundShadow(
   py: number,
   groundBase?: number,
 ): void {
-  const g = scene.add.graphics();
   // 最贴地的一步最深、最窄；往外两层逐级变淡变宽，整体向右下错开 2px。
   g.fillStyle(paletteFor().ink, 0.55);
   g.fillRect(2, h - 2, w - 2, 2);
@@ -264,7 +419,6 @@ function drawGroundShadow(
   g.fillRect(doorX - 11, doorY - 1, 22, 5);
   g.fillStyle(paletteFor().amber, 0.14);
   g.fillRect(doorX - 7, doorY, 14, 3);
-  back.add([g]);
 }
 
 /** 墙体材质的种子：由门位派生，同栋楼恒定，跨读档不重摆。 */
@@ -299,20 +453,33 @@ export function wallSeamRows(baseY: number, roofH: number, h: number, seed: numb
   return rows;
 }
 
-/** 墙体：平色 → 板壁木纹 + 地基砌缝 → 檐影 + 木梁 + 立面套件。 */
-function drawWall(
+/**
+ * 墙体：平色 → 板壁木纹 + 地基砌缝 → 檐影 + 木梁 + 立面套件。
+ *
+ * 原来是一支 `drawWall`。拆成五段（body / detail / base / baseSeam / structure）
+ * 只为逐字节烘焙：实体块去烘焙，α<1 的叠色留在活的 Graphics 上，顺序不变。
+ * 五段的绘制内容与改写前一一对应，**任何一笔的位置/颜色都不许在这里顺手"整理"**。
+ */
+function drawWallBody(
   g: Phaser.GameObjects.Graphics,
   building: PlacedBuilding,
   w: number,
   h: number,
   roofH: number,
-  doorX: number,
 ): void {
   const { body } = building.palette;
   g.fillStyle(body, 1);
   g.fillRect(0, roofH, w, h - roofH);
+}
 
-  // 板壁材质：横向板缝 + 短木纹刺。
+/** 板壁材质：横向板缝 + 短木纹刺。α 0.26–0.3，必须留在活的 Graphics 上。 */
+function drawWallDetail(
+  g: Phaser.GameObjects.Graphics,
+  building: PlacedBuilding,
+  w: number,
+  h: number,
+  roofH: number,
+): void {
   // 位置全部由门位派生（同一栋楼每一帧、每次读档都是同一张脸，不读时钟）。
   // 只在梁与柱之间画，避免和结构线叠成一张格子。
   const seed = wallSeed(building);
@@ -332,16 +499,26 @@ function drawWall(
       g.fillRect(sxp, syp, 2 + (i % 3), 1);
     }
   }
+}
 
-  // 地基：3px 石基 + 1px 压顶。楼不再直接插在草里。
+/** 地基：3px 石基 + 1px 压顶。楼不再直接插在草里。 */
+function drawWallBase(g: Phaser.GameObjects.Graphics, w: number, h: number): void {
   g.fillStyle(paletteFor().stone, 1);
   g.fillRect(0, h - 3, w, 3);
   g.fillStyle(paletteFor().plaza, 1);
   g.fillRect(0, h - 3, w, 1);
   g.fillStyle(paletteFor().soil, 1);
   g.fillRect(0, h - 1, w, 1);
+}
 
-  // 石基砌缝：把压顶下的 3px 石带切成 8–13px 的石块。
+/** 石基砌缝：把压顶下的 3px 石带切成 8–13px 的石块（含 α 0.22 的暗缝）。 */
+function drawWallBaseSeams(
+  g: Phaser.GameObjects.Graphics,
+  building: PlacedBuilding,
+  w: number,
+  h: number,
+): void {
+  const seed = wallSeed(building);
   // 缝只压 1px 高、ink 0.22：楼基是 `lamp-band` 逐列取 ΔY 的采样带之一，
   // 缝再深就会和灯池的暖光抢对比度（0.35 那版读数虽然没掉，但基线本身已
   // 由 76.9% 漂到 75.9%，不给自己多留暗像素）。
@@ -351,7 +528,17 @@ function drawWall(
     g.fillStyle(paletteFor().ink, 0.22);
     g.fillRect(bx + 1, h - 2, 1, 1);
   }
+}
 
+/** 檐影 + 木梁 + 边饰 + 立面套件：全是 α=1，可整体烘焙。 */
+function drawWallStructure(
+  g: Phaser.GameObjects.Graphics,
+  building: PlacedBuilding,
+  w: number,
+  h: number,
+  roofH: number,
+  doorX: number,
+): void {
   // 檐下阴影：2px 实心暗木色，不用 alpha 做材质。
   g.fillStyle(paletteFor().timberDark, 1);
   g.fillRect(0, roofH, w, 2);

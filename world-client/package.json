@@ -29,6 +29,7 @@
     "test:lamp-pool": "node scripts/check-lamp-pool.mjs",
     "test:lamp-band": "node scripts/check-lamp-band.mjs",
     "test:setting-scale": "node scripts/check-setting-scale.mjs",
+    "test:building-bake": "node scripts/check-building-bake.mjs",
     "test:buttons": "node scripts/check-buttons.mjs",
     "trace:record": "node scripts/trace-record.ts",
     "trace:replay": "node scripts/trace-replay.ts",
