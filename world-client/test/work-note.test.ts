@@ -5,7 +5,8 @@
  *      `villagerId` 是真正干活的那个人（不靠坐标猜），取走即清空。
  *   2. **落地侧**：模型的话只在「她仍站在这处、还是同一拍」时才写进牌子；
  *      她已经走开就不写——牌子不许挂错人、不许挂过时的话。
- *   3. **运输侧**：断网、超时、上游 500、`ok:false`，一律回 `null`，不抛不重试。
+ * 运输侧的断网/超时/坏响应那几条在 `work-note-client.test.ts`——那个文件的
+ * 被测模块本身是新的，没法在 base 上真出红，按 `site-output` 的先例单独登记。
  *
  * 这一组**不**断言"模型写了什么"——那是一个会漂的输出。只断言世界在这一路上
  * 不变坏：牌子有原文案兜底，产出账照记。
@@ -105,48 +106,6 @@ test('落地侧：写进去的是模型那句，不是原文案', () => {
   const villager = sim.snapshot().villagers.find((item) => item.id === note.villagerId)!;
   // 快照是渲染读的那一份：牌子要在屏上真的换了，不能只改内部字段。
   assert.equal(villager.routine, '弯腰把炭码齐');
-});
-
-test('运输侧：断网、超时、上游坏、空话，一律回 null 且不抛', async () => {
-  const { createWorkNoteClient } = await import('../src/world/work-note-client.ts');
-  const request = {
-    villagerId: 'v1',
-    site: 'boiler_annex#1',
-    siteName: '搬炭',
-    activity: 'work',
-    stock: 2,
-    day: 1,
-    people: [],
-    canonical: '搬炭',
-  };
-
-  const cases: Array<[string, () => Promise<Response>]> = [
-    ['断网', async () => { throw new Error('ECONNREFUSED'); }],
-    ['上游 500', async () => new Response('boom', { status: 500 })],
-    ['没听懂', async () => Response.json({ ok: false, text: null })],
-    ['空话', async () => Response.json({ ok: true, text: '   ' })],
-    ['字段不是字符串', async () => Response.json({ ok: true, text: 42 })],
-    ['JSON 坏', async () => new Response('{', { status: 200 })],
-  ];
-  for (const [label, impl] of cases) {
-    const client = createWorkNoteClient({ fetchImpl: impl as unknown as typeof fetch });
-    assert.equal(await client(request), null, `${label} 时不该拿到牌子文案`);
-  }
-
-  // 正常一条：去掉首尾空白再交出去。
-  const ok = createWorkNoteClient({
-    fetchImpl: (async () => Response.json({ ok: true, text: '  弯腰把炭码齐  ' })) as unknown as typeof fetch,
-  });
-  assert.equal(await ok(request), '弯腰把炭码齐');
-
-  // 超时：12s 没回就放弃，不许压着后面所有拍。
-  const hang = createWorkNoteClient({
-    timeoutMs: 20,
-    fetchImpl: ((_url: string, init?: RequestInit) => new Promise((_resolve, reject) => {
-      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
-    })) as unknown as typeof fetch,
-  });
-  assert.equal(await hang(request), null, '超时不该卡住世界');
 });
 
 test('牌子失败不影响世界：产出账照记，牌子保留原文案', () => {

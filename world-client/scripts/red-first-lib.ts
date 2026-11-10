@@ -51,6 +51,10 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     reason: '纯函数边界用例：依赖 src/render/art-assets.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
   },
   {
+    file: 'test/work-note-client.test.ts',
+    reason: '牌子运输侧：依赖 src/world/work-note-client.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件；世界侧仍在 test/work-note.test.ts 真出红',
+  },
+  {
     file: 'test/site-output.test.ts',
     reason: '场所产出账：依赖 src/world/site-output.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
   },
