@@ -258,6 +258,8 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
     terrainEdits: _terrainEdits,
     // v7 的外环自治状态同理：老档没有它，迁移只补 null（从 L0 重新开始）。
     autonomy: _autonomy,
+    // v8 的场所产出账同理：老档没有它，迁移只补空串。
+    siteOutput: _siteOutput,
     props: migratedProps,
     buildings: migratedBuildings,
     villagers: migratedVillagers,
@@ -288,6 +290,7 @@ test('v1→v2 迁移：除新增字段外，世界状态逐字段不变', () => 
   assert.equal(migrated.world.worldChangeVersion, 0, 'v1 没记过改变次数，从零开始');
   assert.equal(migrated.world.memory, '', 'v1 没有记忆，迁移后是空串（明确的「没有」）');
   assert.equal(migrated.world.autonomy, null, 'v1 没有外环状态，迁移后是 null（从 L0 重新开始）');
+  assert.equal(migrated.world.siteOutput, '', 'v1 没有产出账，迁移后是空串');
 
   const stripBuildings = (list: readonly PlacedBuilding[]): unknown[] =>
     list.map((building) => {

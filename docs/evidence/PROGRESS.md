@@ -734,7 +734,7 @@
 ### 没做到的
 
 - **「屋里有谁」这条只验到空房**：夜里 5 栋民居、中午工业楼，`insideAt` 都没有人。
-  模拟里只有 `working` 时才会 `visible=false`（`simulation.ts:3940`），而本机没有上游派活
+  模拟里只有 `working` 时才会 `visible=false`（`simulation.ts:4017`），而本机没有上游派活
   （`/api/memory/list` 404），所以这一天里没有人真的进屋。**有人时的站位/配色没有被验证**，
   也没有为了让截图好看去伪造在场者。
 

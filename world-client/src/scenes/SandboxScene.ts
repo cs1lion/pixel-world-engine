@@ -1170,6 +1170,17 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack === undefined || this.pack === null
         ? {}
         : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 场所产出物：由设定集声明（锅炉房出炭、大浴场出洗好的衣裳、集市成交）。
+      // 没声明的场所不进表，产出账就不记它——花径的 rest/stroll 是过日子不是作业。
+      ...(this.pack === undefined || this.pack === null
+        ? {}
+        : {
+          siteOutputs: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.output !== undefined)
+              .map((site) => [site.id, site.output!] as const),
+          ),
+        }),
       // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
       // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
       ...(harborSite === null

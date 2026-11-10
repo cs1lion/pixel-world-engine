@@ -148,7 +148,17 @@ import type {
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
 import type { AutonomyRoleState, MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_V7_FINGERPRINT } from './save.ts';
+import {
+  accrueOutput,
+  emptyOutputTally,
+  activityProduces,
+  outputSummary,
+  outputTotal,
+  parseOutputTally,
+  type OutputKind,
+  type SiteOutputTally,
+} from './site-output.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V8_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -352,6 +362,13 @@ export interface SimulationDeps {
    * 比不说好，但模型看到的是一个英文词。
    */
   readonly regionNames?: ReadonlyMap<string, string>;
+  /**
+   * 场所 id → 产出物（`SettingSite.output`）。给了才记产出账：
+   * 省略时世界照旧过日子，只是没有「今天出了多少」这一项（莞尔镇与旧夹具）。
+   *
+   * 由拿着设定集的调用方给，引擎不按场所 id 硬编码——换包就换产出。
+   */
+  readonly siteOutputs?: ReadonlyMap<string, OutputKind>;
   /**
    * 渡口在哪儿。给了就表示这张图有渡口：潮汐会驱动船班，并按世界时间
    * 每天报三次「潮位多少、船开没开」。
@@ -721,6 +738,14 @@ export class Simulation {
   private readonly blueprints: ReadonlyMap<string, PrefabBlueprint> | undefined;
   /** 地域 id → 给人看的叫法。现状里说「叠浪楼」不说 `bathhouse`。 */
   private readonly regionNames: ReadonlyMap<string, string> | undefined;
+  /** 场所 id → 产出物；由设定集给，省略则不记产出账。 */
+  private readonly siteOutputs: ReadonlyMap<string, OutputKind>;
+  /**
+   * 场所产出账（v8 存档字段）：走到场所那一刻记一趟作业。
+   *
+   * 只增不减——本轮不做消耗（用户 2026-11-10 拍板「先只累积」）。
+   */
+  private siteOutputTally: SiteOutputTally = emptyOutputTally();
   /** 渡口落点；undefined = 这张图没有渡口。 */
   private readonly harborAt: GridPoint | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
@@ -862,6 +887,7 @@ export class Simulation {
     this.wallClock = deps.wallClock ?? (() => Date.now());
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
+    this.siteOutputs = deps.siteOutputs ?? new Map<string, OutputKind>();
     this.harborAt = deps.harborAt;
     this.propReveals = deps.propReveals;
     this.authored = deps.authored === true;
@@ -1081,6 +1107,10 @@ export class Simulation {
       /** 兼容旧调用方：villager 等于 villagers[0]（主角色）。 */
       villager: villagers[0] as VillagerSnapshot,
       villagers,
+      siteOutput: (() => {
+        const reading = this.siteOutputReading();
+        return { total: reading.total, summary: reading.summary };
+      })(),
       buildings: this.buildings,
       startupBuildingIds: this.startupBuildingIds,
       workstations,
@@ -3814,7 +3844,45 @@ export class Simulation {
       this.stayAtWater(villager);
       return;
     }
+    this.creditSiteOutput(villager);
     villager.nextRoutineAt = this.now + this.dwellOf(villager);
+  }
+
+  /**
+   * 走到场所那一刻记一趟作业产出。
+   *
+   * 判据三条同时成立才记：这一拍有场所实例 id、活动是产出的那种（work/trade）、
+   * 设定集给这个场所声明了产出物。花径的 rest/stroll 不产，没声明的场所不产。
+   *
+   * **回查脚下这一拍**与 `dwellOf` 同一把尺子（`routineIndex - 1`）：
+   * `finishIdleLeg` 每条腿只调用一次，所以不需要「这拍记过没有」的标记，
+   * 也不会因为 `behavior.plan` 空转而重复记。
+   *
+   * 不 announce：产出账是世界事实的累计，不是一个新的世界事件；
+   * 真要让它进日报，由读账的那一方说（`outputSummary`）。
+   */
+  private creditSiteOutput(villager: Villager): void {
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    const beat = routineFor(
+      this.environment(),
+      beats,
+      Math.max(0, villager.routineIndex - 1),
+      shelterTarget(this.buildings, here),
+    );
+    if (beat.siteId === undefined || beat.activity === undefined) return;
+    if (!activityProduces(beat.activity)) return;
+    if (!this.siteOutputs.has(beat.siteId)) return;
+    this.siteOutputTally = accrueOutput(this.siteOutputTally, beat.siteId);
+  }
+
+  /** 场所产出账的只读视图：合计与一句可读摘要。 */
+  siteOutputReading(): { readonly total: number; readonly tally: SiteOutputTally; readonly summary: string } {
+    return {
+      total: outputTotal(this.siteOutputTally),
+      tally: this.siteOutputTally,
+      summary: outputSummary(this.siteOutputTally, this.siteOutputs),
+    };
   }
 
   /**
@@ -4488,6 +4556,11 @@ export class Simulation {
         memory: memoryState,
         // v6：玩家地形改动最终值；本阶段只序列化，没有写入者。
         terrainEdits: this.terrainEdits.map((edit) => ({ ...edit })),
+        // v8：场所产出账。账在 Simulation 手里，直接序列化，不经调用方。
+        // 空账写空串（与 `world.memory` 同口径）：`{}` 会被读成「有一段账但内容是空」。
+        siteOutput: Object.keys(this.siteOutputTally).length === 0
+          ? ''
+          : JSON.stringify(this.siteOutputTally),
         // v7：外环自治状态，由场景把 CreatorEngine 导出的快照递进来（A2）。
         autonomy: autonomyState?.map((snap) => ({
           ...snap,
@@ -4497,7 +4570,7 @@ export class Simulation {
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.feedReconciled,
-        schemaFingerprint: SCHEMA_V7_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V8_FINGERPRINT,
       },
     };
   }
@@ -4647,6 +4720,11 @@ export class Simulation {
     // 轨迹/夹具里的旧存档可能没有这一项：按「没改过地形」读，不编也不抛。
     sim.terrainEdits.length = 0;
     sim.terrainEdits.push(...(world.terrainEdits ?? []).map((edit) => ({ ...edit })));
+    // v8：场所产出账。空串 = 没有产出；坏 JSON 按「没有产出」读，不抛——
+    // 这一段是累计读数，不是世界不变量，读不出来不该让整份档变坏档。
+    // 只收非负整数项，其余跳过：账里出现字符串或负数说明档被改过，静默丢弃
+    // 比带着坏数继续跑更诚实（读数会少，但不会假）。
+    sim.siteOutputTally = parseOutputTally(world.siteOutput);
     sim.feedConnected = false;
     sim.feedLastReadAt = null;
     sim.feedCursor = 0;

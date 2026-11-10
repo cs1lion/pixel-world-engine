@@ -35,7 +35,7 @@ import type { WeatherState } from './weather.ts';
 import type { TideOverride } from './tide.ts';
 import type { AutonomyLevel, MetricWindow } from './creator/fuse.ts';
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 /** 槽位键沿用 v1：升 schema 不改存储键，老档才读得到、才谈得上迁移。 */
 export const SAVE_STORAGE_KEY = 'xiaoxi.pixel-world.save.v1';
 /** 已结算记录超过这个数就告警一次（每会话一次）。 */
@@ -80,6 +80,15 @@ export const SCHEMA_V5_FINGERPRINT = '3ca5663faee59423';
 export const SCHEMA_V6_FINGERPRINT = '042c2fb7730fb185';
 /** v7 冻结指纹。由 docs/save-v7.sample.json 算出，单测核对。待样例落盘后填入真值。 */
 export const SCHEMA_V7_FINGERPRINT = 'ab033c24db741ee3';
+/**
+ * v8 冻结指纹。由 docs/save-v8.sample.json 算出，单测核对。
+ *
+ * v8 只加一个**位置**：`world.siteOutput`。它存的是一段 JSON 字符串
+ * （场所 id → 累计产出），不是结构化对象——场所 id 是设定集里的事实，
+ * 静态路径集合穷举不了；字符串内部的形状由 `site-output.ts` 自己校验。
+ * 空串 = 这一段还没有任何产出。
+ */
+export const SCHEMA_V8_FINGERPRINT = '2b19c20ed864cf87';
 
 /** v1 冻结路径全集（99 条，来自 docs/save-v1.sample.json；指纹见上，单测核对）。
  * `assertSaveV1` 做**集合包含**校验：存档出现的每条叶子路径都必须在这个集合里；
@@ -525,6 +534,16 @@ export interface SaveWorldV7 extends SaveWorldV6 {
   readonly autonomy: readonly AutonomyRoleState[] | null;
 }
 
+/**
+ * v8 的世界形状 = v7 + `world.siteOutput`。
+ *
+ * 一段 JSON 字符串（场所 id → 累计产出），空串 = 没有产出。同 `world.memory`
+ * 的理由：键是设定集的事实，静态路径集合穷举不了。
+ */
+export interface SaveWorldV8 extends SaveWorldV7 {
+  readonly siteOutput: string;
+}
+
 /** v6 的世界形状（测试里的 `SaveWorld` 别名，供样例逐键核对）。 */
 export type SaveWorld = SaveWorldV6;
 
@@ -579,8 +598,14 @@ export interface WorldSaveV7 {
   readonly meta: SaveMeta;
 }
 
+export interface WorldSaveV8 {
+  readonly schemaVersion: 8;
+  readonly world: SaveWorldV8;
+  readonly meta: SaveMeta;
+}
+
 /** 运行期只认当前版本。v1–v6 只在迁移入口出现，不流进 Simulation。 */
-export type WorldSave = WorldSaveV7;
+export type WorldSave = WorldSaveV8;
 
 export type RawSave = Record<string, unknown>;
 
@@ -690,10 +715,26 @@ export const SAVE_V7_ALLOWED_PATHS: readonly string[] = [
   ...SAVE_V7_ADDED_PATHS,
 ];
 
+/**
+ * v8 在 v7 之上新增的叶子路径：**只有一条**。
+ *
+ * `world.siteOutput` 是一个 JSON 字符串（空串 = 没有产出），不是对象。
+ * 理由同 `world.memory`：场所 id 是设定集里的事实，静态路径集合穷举不了；
+ * 字符串内部由 `site-output.ts` 的闭集与装载校验管。
+ */
+export const SAVE_V8_ADDED_PATHS: readonly string[] = ['world.siteOutput'];
+
+/** v8 允许全集 = v7 全集 + 唯一新增的 `world.siteOutput`。 */
+export const SAVE_V8_ALLOWED_PATHS: readonly string[] = [
+  ...SAVE_V7_ALLOWED_PATHS,
+  ...SAVE_V8_ADDED_PATHS,
+];
+
 const SAVE_V4_PATH_SET = new Set(SAVE_V4_ALLOWED_PATHS);
 const SAVE_V5_PATH_SET = new Set(SAVE_V5_ALLOWED_PATHS);
 const SAVE_V6_PATH_SET = new Set(SAVE_V6_ALLOWED_PATHS);
 const SAVE_V7_PATH_SET = new Set(SAVE_V7_ALLOWED_PATHS);
+const SAVE_V8_PATH_SET = new Set(SAVE_V8_ALLOWED_PATHS);
 
 /** 对任意存档对象取指纹（跳过 meta.schemaFingerprint）。 */
 export function saveFingerprint(save: unknown): string {
@@ -878,7 +919,7 @@ function checkPointList(value: unknown, path: string): void {
  * `version` 决定查到哪一版为止：旧档在迁移前必须能过这一层，
  * 所以 v1 不查 `props[].sourceTaskKind` 与 `world.oracle`，v2 不查 v3 的三个字段。
  */
-function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5 | 6 | 7): void {
+function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8): void {
   const world = asRecord(raw.world, 'world');
 
   checkNumber(requireKey(world, 'now', 'world'), 'world.now', { min: 0 });
@@ -1224,6 +1265,13 @@ function validateWorldFields(raw: Record<string, unknown>, version: 1 | 2 | 3 | 
     }
   }
 
+  if (version >= 8) {
+    // ---- 场所产出账（v8）：JSON 字符串，空串 = 没有产出。
+    // 字符串内部（键是设定集里的场所 id）由 `site-output.ts` 自己校验；
+    // 存档白名单不展开它，理由同 `world.memory`。
+    checkString(requireKey(world, 'siteOutput', 'world'), 'world.siteOutput', { allowEmpty: true });
+  }
+
   // ---- 天气
   const weather = asRecord(requireKey(world, 'weather', 'world'), 'world.weather');
   checkEnum(requireKey(weather, 'kind', 'world.weather'), WEATHER_KINDS, 'world.weather.kind');
@@ -1286,8 +1334,8 @@ function validateMetaFields(raw: Record<string, unknown>): void {
  */
 export function validateSaveFields(
   raw: unknown,
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 = CURRENT_SCHEMA_VERSION,
-): asserts raw is WorldSaveV7 {
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = CURRENT_SCHEMA_VERSION,
+): asserts raw is WorldSaveV8 {
   if (!isObject(raw)) fail('存档', '不是对象');
   validateMetaFields(raw);
   validateWorldFields(raw, version);
@@ -1309,7 +1357,7 @@ export function validateSaveFields(
  * 迁移完成后到这里的存档是 **v6**——`CURRENT_SCHEMA_VERSION = 6`，而 `assertSave`
  * 第一件事就是拿它比（下面那个 `schemaVersion 不是 6` 的抛错）。
  */
-export function assertSave(raw: unknown): asserts raw is WorldSaveV7 {
+export function assertSave(raw: unknown): asserts raw is WorldSaveV8 {
   if (!isObject(raw)) throw new Error('存档不是对象');
   if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`schemaVersion 不是 ${CURRENT_SCHEMA_VERSION}（迁移没跑？）`);
@@ -1323,7 +1371,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV7 {
   if (typeof meta.schemaFingerprint !== 'string') {
     throw new Error('存档缺 meta.schemaFingerprint（当前版本要求该字段存在）');
   }
-  if (meta.schemaFingerprint !== SCHEMA_V7_FINGERPRINT) {
+  if (meta.schemaFingerprint !== SCHEMA_V8_FINGERPRINT) {
     throw new Error('存档指纹不符（字段变了但版本没升，或存档损坏）');
   }
   // 第 1 层：字段级类型/范围/存在性（含 weather/faith、各数组元素、done⊆settled）。
@@ -1336,7 +1384,7 @@ export function assertSave(raw: unknown): asserts raw is WorldSaveV7 {
     assertKeys(task as Record<string, unknown>, SAVE_TASK_KEYS, 'world.tasks[]');
   }
   // 第 3 层：路径集合包含校验——只防「新增路径」（顶层/world/meta/数组元素里多字段）。
-  const outside = collectSavePaths(raw).filter((path) => !SAVE_V7_PATH_SET.has(path));
+  const outside = collectSavePaths(raw).filter((path) => !SAVE_V8_PATH_SET.has(path));
   if (outside.length > 0) {
     throw new Error(
       `存档字段漂移：出现 v${CURRENT_SCHEMA_VERSION} 允许集合之外的路径：${outside.join(', ')}（字段变了但版本没升）`,
@@ -1485,7 +1533,7 @@ export function findOutOfWorldCoordinates(
  */
 function assertLegacySave(
   raw: unknown,
-  version: 1 | 2 | 3 | 4 | 5 | 6,
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7,
   fingerprint: string,
   pathSet: ReadonlySet<string>,
 ): void {
@@ -1564,6 +1612,11 @@ export function assertSaveV5(raw: unknown): asserts raw is WorldSaveV5 {
  */
 export function assertSaveV6(raw: unknown): asserts raw is WorldSaveV6 {
   assertLegacySave(raw, 6, SCHEMA_V6_FINGERPRINT, SAVE_V6_PATH_SET);
+}
+
+/** 只认 v7 形状的自证校验。v7→v8 迁移前用它，理由同 v1/v3/v4/v5/v6。 */
+export function assertSaveV7(raw: unknown): asserts raw is WorldSaveV7 {
+  assertLegacySave(raw, 7, SCHEMA_V7_FINGERPRINT, SAVE_V7_PATH_SET);
 }
 
 /** 逐级迁移链入口；任一步抛错都拒绝加载（ADR_SAVE §3）。 */
@@ -1732,6 +1785,22 @@ export const MIGRATIONS: Record<number, Migration> = {
   },
 
   /**
+   * v7 → v8：补场所产出账 `world.siteOutput`（见 SCHEMA_V8_FINGERPRINT 的注释）。
+   *
+   * 缺省是空串：旧档里世界从没记过产出，不能凭空造一段账。
+   */
+  7: (raw) => {
+    const world = isObject(raw.world) ? raw.world : {};
+    const meta = isObject(raw.meta) ? raw.meta : {};
+    return {
+      ...raw,
+      schemaVersion: 8,
+      world: { ...world, siteOutput: typeof world.siteOutput === 'string' ? world.siteOutput : '' },
+      meta: { ...meta, schemaFingerprint: SCHEMA_V8_FINGERPRINT },
+    };
+  },
+
+  /**
    * v6 → v7：补外环自治状态 `world.autonomy`（见 SCHEMA_V7_FINGERPRINT 的注释）。
    *
    * 缺省值是 null：旧档里没有外环状态，读作「没有自治记录，从 L0 重新开始」。
@@ -1758,6 +1827,7 @@ export function migrateSave(raw: RawSave): RawSave {
   if (version === 4) assertSaveV4(raw);
   if (version === 5) assertSaveV5(raw);
   if (version === 6) assertSaveV6(raw);
+  if (version === 7) assertSaveV7(raw);
   let current = raw;
   let cursor = version;
   while (cursor < CURRENT_SCHEMA_VERSION) {

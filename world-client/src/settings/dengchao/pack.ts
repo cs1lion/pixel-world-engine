@@ -112,6 +112,37 @@ export const DENGCHAO_CAST_ARCHIVES = {
       { to: '沉灯夫人', trust: 0.3, warmth: 0, debt: 0.1, familiarity: 0.5 },
     ],
   },
+  // 以下两人是**灯潮界原创**，设定集里没有对应人物，因此不进
+  // `DENGCHAO_CAST_ARTBOOK`（那张表只登记有 PDF 页码的五人）。
+  // 档案按各自已有的作息拍写，不替设定集编页码。
+  账房先生: {
+    aliases: ['管账的', '账房'],
+    identity: '账房，隶属账房与集市；原创角色，无设定集依据',
+    generation: '中年，镇上唯一认全部零钱的人',
+    origin: '灯潮界开市那年就在摊位间记账；没人见他来过，也没人见他走。',
+    cares: ['今日的账对得上', '旧账有人认'],
+    taboos: ['替他改一笔账', '赊了不记'],
+    routine: '07:30 镇心听人报今日的账；10:30 账房门口核账；14:00 街口说一笔旧账；开市时在摊位间对零钱。',
+    voice: '先报数，再报名字。',
+    bonds: [
+      { to: '沉灯夫人', trust: 0.35, warmth: 0.1, debt: 0, familiarity: 0.55 },
+      { to: '炉匠', trust: 0.25, warmth: 0.15, debt: -0.1, familiarity: 0.45 },
+    ],
+  },
+  洗衣妇: {
+    aliases: ['洗衣的', '晾布的'],
+    identity: '叠浪楼洗衣工，隶属叠浪楼；原创角色，无设定集依据',
+    generation: '壮年，手劲比说话大',
+    origin: '从积尘滩的废船上来，带着一只木盆；沉灯夫人让她留在叠浪楼后巷洗衣。',
+    cares: ['衣裳要干透', '退潮时滩边晾得开'],
+    taboos: ['满潮时催她晾布', '动她刚拧好的衣'],
+    routine: '06:30 镇心石边拧干最后一件；09:00 上叠浪楼收洗好的衣裳；退潮时 14:30 滩边晾布；17:00 把干净衣裳送到街尾。',
+    voice: '手上不停，话短。',
+    bonds: [
+      { to: '沉灯夫人', trust: 0.3, warmth: 0.05, debt: 0.15, familiarity: 0.5 },
+      { to: '汐', trust: 0.25, warmth: 0.3, debt: 0, familiarity: 0.4 },
+    ],
+  },
 } satisfies Readonly<Record<string, VillagerArchive>>;
 
 /**
@@ -345,16 +376,16 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 一个坐标锚表示不了整条街。这里取 `stall_north_1` 所在的那一格：判据是
     // 「这个坐标上有没有摊位」，不是位移。引擎自带的市面点 `marketSpot()`(40,26)
     // 是空街口、离最近摊 6 格——见 `docs/OPEN_ISSUES.md` O3。
-    { id: 'market', kind: 'market', x: 17, y: 26 },
+    { id: 'market', kind: 'market', x: 17, y: 26, output: 'trade' },
     // 锅炉房 = `boiler_annex#1`（显示名「炉底入口」；炉膛 (33,14)、煤堆 (34,16)、
     // 烟 (33,12) 都在它门旁 4–7 格内）。它不是建筑锚而是坐标锚，原因**不是**
     // 「这栋没有门」——它有门，门在 (31,17)。但门落在 bathhouse 区域（`requires: 'lamp'`），
     // 而炉匠 `carries: []`，走门等于静默失效（人永远到不了，牌子还写着搬炭）。
     // 所以锚在现状作息点 (33,15)：出区域、可走，距炉膛 1、煤堆 2。
-    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15 },
+    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15, output: 'coal' },
     // 大浴场清洗 = `wave_house#1`（叠浪楼）：建筑锚，id 就是 instanceId，
     // 落点由 `PlacedBuilding.door` 解析。洗衣妇有灯，进得去。
-    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1' },
+    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1', output: 'laundry' },
   ],
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
   // 它们是**设定集的话**，不是引擎的话——所以写在这儿，不写进 `grime.ts`。
@@ -469,7 +500,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { site: 'courtyard-east', activity: 'rest', label: '在花径里站一会儿', going: '去花径', dwellMs: 5200 },
       { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
     ] },
-    { name: '账房先生', at: { x: 34, y: 28 }, style: {
+    { name: '账房先生', at: { x: 34, y: 28 }, archive: DENGCHAO_CAST_ARCHIVES['账房先生'], style: {
       cloak: 'trim', cloakDark: 'charcoal', scarf: 'copper', scarfLit: 'pale', hair: 'timberDark',
       build: 'adult', head: 'bob', outfit: 'coat', accent: 'satchel', lamp: true,
     }, routine: [
@@ -481,7 +512,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       // 锚 (17,26) 上就是 `stall_north_1`，不是空街口。
       { site: 'market', activity: 'trade', label: '在摊位间对一遍零钱', dwellMs: 4800 },
     ] },
-    { name: '洗衣妇', at: { x: 37, y: 31 }, style: {
+    { name: '洗衣妇', at: { x: 37, y: 31 }, archive: DENGCHAO_CAST_ARCHIVES['洗衣妇'], style: {
       cloak: 'copper', cloakDark: 'deepShade', scarf: 'pale', scarfLit: 'plaster', hair: 'soil',
       build: 'adult', head: 'ponytail', outfit: 'apron', accent: 'none', lamp: true,
     }, routine: [

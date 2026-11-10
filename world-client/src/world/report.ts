@@ -23,7 +23,14 @@ export interface DailyReport {
   readonly clock: string;
 }
 
-const LINE_LIMIT = 3;
+/**
+ * 报纸最多几条短讯。
+ *
+ * 原来是 3（交付 / 造楼 / 摆件三类）。v8 加了「作业产出」这第四类世界事实：
+ * 作息里的 `work` / `trade` 现在真的产出东西，那是玩家最该看见的一行。
+ * 三条放不下四类，硬挤会静默丢掉其中一类——所以提到 4，不按类别砍。
+ */
+const LINE_LIMIT = 4;
 
 export function composeReport(snapshot: WorldSnapshot): DailyReport {
   const done = snapshot.tasks.filter((task) => task.status === 'done');
@@ -122,6 +129,12 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     );
   } else {
     lines.push('还没有交付。祭坛在等第一条神谕。');
+  }
+
+  // 作业产出：走到场所那一刻记的一趟活，累计在产出账里（v8）。
+  // 只在真有产出时写一行——空账说成「产出 0 份」是填充句，报纸不写填充句。
+  if (snapshot.siteOutput.total > 0) {
+    lines.push(`今日作业：${snapshot.siteOutput.summary}`);
   }
 
   // 这一句数的是**玩家这次玩起来之后造没造**。答案在快照里存着：

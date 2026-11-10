@@ -190,11 +190,15 @@ test('拆帧不变性：同一世界时刻，不同 delta 分片的环境帧投�
 
   // 场所相位是派生读数，不许落成存档字段——落了就违反「零状态」。
   const saveKeys = Object.keys(coarse.toSave().world);
+  // 判据是「派生相位不入档」，不是「键名里不许有 site」：
+  // `world.siteOutput` 是累计产出的**世界事实**（搬了多少炭、洗了多少件衣裳），
+  // 不是从时钟算出来的相位，所以它合法。这里只挡相位类键。
   assert.equal(
-    saveKeys.some((key) => /market|site|hours/i.test(key)),
+    saveKeys.some((key) => /market|siteHours|sitePhase|siteState|hours/i.test(key)),
     false,
     `存档里不许出现场所相位字段，实际有：${saveKeys.join(', ')}`,
   );
+  assert.ok(saveKeys.includes('siteOutput'), '产出账是世界事实，必须在档里');
 });
 
 test('回放：跨 08:00 / 17:00 / 19:00 的一条轨迹两跑，三层指纹一致', async () => {

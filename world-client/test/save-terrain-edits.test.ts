@@ -11,24 +11,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { WorldGrid, type GridSpec } from '../src/world/grid.ts';
-import { assertSave, type WorldSaveV7 } from '../src/world/save.ts';
+import { assertSave, type WorldSaveV8 } from '../src/world/save.ts';
 import type { GridPoint, TerrainEdit } from '../src/world/types.ts';
 import { LARGE_WORLD_SPEC, rebuildGridFromPlacements } from '../src/world/setup.ts';
 import { parseSaveText } from '../src/ui/save-store.ts';
 import { fnv1a64Hex } from '../src/world/save.ts';
 
-/** 与 `SCHEMA_V7_FINGERPRINT` 同值。写死在测试里是为了让 red-first 在 base 上
+/** 与 `SCHEMA_V8_FINGERPRINT` 同值。写死在测试里是为了让 red-first 在 base 上
  * 红在断言，而不是因为静态 import 了 base 上还不存在的导出而变成模块错误。 */
-const V7_FINGERPRINT = 'ab033c24db741ee3';
+const V8_FINGERPRINT = '2b19c20ed864cf87';
 
-const SAMPLE_URL = new URL('../../docs/save-v7.sample.json', import.meta.url);
-let cachedSample: WorldSaveV7 | null = null;
+const SAMPLE_URL = new URL('../../docs/save-v8.sample.json', import.meta.url);
+let cachedSample: WorldSaveV8 | null = null;
 
 /** 样例是新增文件。base 上它不存在时，这里红在断言上（而不是 ENOENT 崩溃）。 */
-function sampleV7(): WorldSaveV7 {
+function sampleV8(): WorldSaveV8 {
   if (cachedSample !== null) return cachedSample;
-  assert.ok(existsSync(SAMPLE_URL), 'docs/save-v7.sample.json 必须存在');
-  cachedSample = JSON.parse(readFileSync(SAMPLE_URL, 'utf8')) as WorldSaveV7;
+  assert.ok(existsSync(SAMPLE_URL), 'docs/save-v8.sample.json 必须存在');
+  cachedSample = JSON.parse(readFileSync(SAMPLE_URL, 'utf8')) as WorldSaveV8;
   return cachedSample;
 }
 
@@ -44,12 +44,12 @@ const EDITS: readonly TerrainEdit[] = [
   { x: 5, y: 6, terrain: 'mud', level: 1 },
 ];
 
-function withEdits(edits: readonly TerrainEdit[]): WorldSaveV7 {
-  const sample = sampleV7();
+function withEdits(edits: readonly TerrainEdit[]): WorldSaveV8 {
+  const sample = sampleV8();
   return {
     ...sample,
     world: { ...sample.world, terrainEdits: edits },
-    meta: { ...sample.meta, schemaFingerprint: V7_FINGERPRINT },
+    meta: { ...sample.meta, schemaFingerprint: V8_FINGERPRINT },
   };
 }
 
@@ -83,15 +83,15 @@ test('坏地形改动被拒：同格两条最终值 / level 越界 / 未知地�
     { x: 1, y: 1, terrain: 'stone', level: 4 },
   ])), /level 必须在 0\.\.3/);
 
-  const sample = sampleV7();
+  const sample = sampleV8();
   const unknown = {
     ...sample,
     world: {
       ...sample.world,
       terrainEdits: [{ x: 1, y: 1, terrain: 'lava', level: 0 }],
     },
-    meta: { ...sample.meta, schemaFingerprint: V7_FINGERPRINT },
-  } as unknown as WorldSaveV7;
+    meta: { ...sample.meta, schemaFingerprint: V8_FINGERPRINT },
+  } as unknown as WorldSaveV8;
   assert.throws(() => assertSave(unknown), /terrain 只能是/);
 
   const missing = {
@@ -100,8 +100,8 @@ test('坏地形改动被拒：同格两条最终值 / level 越界 / 未知地�
       ...sample.world,
       terrainEdits: [{ x: 1, y: 1, level: 0 }],
     },
-    meta: { ...sample.meta, schemaFingerprint: V7_FINGERPRINT },
-  } as unknown as WorldSaveV7;
+    meta: { ...sample.meta, schemaFingerprint: V8_FINGERPRINT },
+  } as unknown as WorldSaveV8;
   assert.throws(() => assertSave(missing), /terrainEdits\[0\]\.terrain 缺失/);
 });
 

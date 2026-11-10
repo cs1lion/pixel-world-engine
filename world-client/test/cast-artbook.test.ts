@@ -70,6 +70,37 @@ test('五个主要人物都有设定集页码与完整档案', () => {
   }
 });
 
+test('全部单位都有基础档案：身份、来历、牵挂、忌讳、动线、说话、两段关系', () => {
+  // 设定集五人要页码（上一条），但**所有**单位都要有档案——原创角色也不例外。
+  // 这条钉的是「加了人却忘了写设定」这种漏，不是要求原创角色编页码。
+  for (const villager of pack.villagers) {
+    const a = villager.archive;
+    assert.ok(a !== undefined, `${villager.name} 没有档案`);
+    assert.ok(a.identity.length > 0, `${villager.name} 缺身份`);
+    assert.ok(a.generation.length > 0, `${villager.name} 缺辈分`);
+    assert.ok(a.origin.length > 0, `${villager.name} 缺来历`);
+    assert.ok(a.cares.length > 0, `${villager.name} 缺牵挂`);
+    assert.ok(a.taboos.length > 0, `${villager.name} 缺忌讳`);
+    assert.ok(a.routine.length > 0, `${villager.name} 缺动线`);
+    assert.ok(a.voice.length > 0, `${villager.name} 缺说话风格`);
+    assert.equal(a.bonds.length, 2, `${villager.name} 的关系初值不是 2 段`);
+    for (const bond of a.bonds) {
+      assert.ok(
+        pack.villagers.some((item) => item.name === bond.to),
+        `${villager.name} 的关系指向不存在的 ${bond.to}`,
+      );
+      assert.notEqual(bond.to, villager.name, `${villager.name} 的关系指向自己`);
+    }
+  }
+  // 原创角色不该混进设定集页码表（那张表只登记有 PDF 依据的人）。
+  for (const name of ['账房先生', '洗衣妇']) {
+    assert.equal(DENGCHAO_CAST_ARTBOOK[name], undefined, `${name} 是原创角色，不该有设定集页码`);
+    const v = pack.villagers.find((item) => item.name === name);
+    assert.ok(v?.archive !== undefined, `${name} 必须在场且有档案`);
+    assert.match(v.archive.identity, /原创/, `${name} 的身份要如实标注原创`);
+  }
+});
+
 test('五个主要人物的衣色两两 ΔE76 ≥ 10', () => {
   const pairs: { a: string; b: string; de: number }[] = [];
   for (let i = 0; i < mainLooks.length; i += 1) {

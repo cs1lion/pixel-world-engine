@@ -1,7 +1,7 @@
 /** A2：外环自治状态入存档的往返验收。
  *
  * 用户拍板「扩展存档」要的是：刷新/重进后不再从 L0 重来。这里钉住四件事：
- *   1. 一份非 L0 的自治快照能落进 v7 存档并过 `assertSave`；
+ *   1. 一份非 L0 的自治快照能落进 v8 存档并过 `assertSave`；
  *   2. 用存档里的快照新建控制器，等级 / 指标窗口 / 世界日计数 / 熔断态逐一还原；
  *   3. 没有快照（新世界 / 旧档迁移）时全部角色仍是 L0；
  *   4. 角色对不上的快照静默跳过，不凭空造角色。
@@ -34,18 +34,18 @@ import {
 // 静态 import 会抛 SyntaxError，被 red-first 判成 compile 而不是合格的红
 //（OPEN_ISSUES B7，2026-11-08 已登记的已知误报）。
 const v7 = (await import('../src/world/save.ts')) as unknown as {
-  SAVE_V7_ALLOWED_PATHS?: readonly string[];
-  SCHEMA_V7_FINGERPRINT?: string;
+  SAVE_V8_ALLOWED_PATHS?: readonly string[];
+  SCHEMA_V8_FINGERPRINT?: string;
 };
-assert.equal(typeof v7.SAVE_V7_ALLOWED_PATHS, 'object', 'v7 路径集合必须存在');
-assert.equal(typeof v7.SCHEMA_V7_FINGERPRINT, 'string', 'v7 指纹常量必须存在');
-const SAVE_V7_ALLOWED_PATHS = v7.SAVE_V7_ALLOWED_PATHS!;
-const SCHEMA_V7_FINGERPRINT = v7.SCHEMA_V7_FINGERPRINT!;
+assert.equal(typeof v7.SAVE_V8_ALLOWED_PATHS, 'object', 'v7 路径集合必须存在');
+assert.equal(typeof v7.SCHEMA_V8_FINGERPRINT, 'string', 'v7 指纹常量必须存在');
+const SAVE_V8_ALLOWED_PATHS = v7.SAVE_V8_ALLOWED_PATHS!;
+const SCHEMA_V8_FINGERPRINT = v7.SCHEMA_V8_FINGERPRINT!;
 
 /** 从 v7 冻结样例取一份合法存档骨架，替换 autonomy 后校验。 */
 function baseSave(): WorldSave {
   return JSON.parse(
-    readFileSync(new URL('../../docs/save-v7.sample.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../docs/save-v8.sample.json', import.meta.url), 'utf8'),
   ) as WorldSave;
 }
 
@@ -98,7 +98,7 @@ function progressedSnapshots(): AutonomyRoleSnapshot[] {
   ];
 }
 
-test('非 L0 的自治快照能进 v7 存档、过完整校验', () => {
+test('非 L0 的自治快照能进 v8 存档、过完整校验', () => {
   const snaps = progressedSnapshots();
   const withAutonomy = {
     ...baseSave(),
@@ -106,11 +106,11 @@ test('非 L0 的自治快照能进 v7 存档、过完整校验', () => {
   } as WorldSave;
   assert.doesNotThrow(() => assertSave(withAutonomy), '带 autonomy 的存档必须合法');
   assert.equal(withAutonomy.schemaVersion, CURRENT_SCHEMA_VERSION);
-  const allowed = new Set(SAVE_V7_ALLOWED_PATHS);
+  const allowed = new Set(SAVE_V8_ALLOWED_PATHS);
   for (const path of collectSavePaths(withAutonomy)) {
-    assert.ok(allowed.has(path), `v7 允许集合漏了 ${path}`);
+    assert.ok(allowed.has(path), `v8 允许集合漏了 ${path}`);
   }
-  assert.equal(withAutonomy.meta.schemaFingerprint, SCHEMA_V7_FINGERPRINT);
+  assert.equal(withAutonomy.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
 });
 
 test('存档往返后等级、指标、天数、熔断态逐一还原，不再从 L0 重来', () => {

@@ -49,8 +49,20 @@ export interface RoutineBeatBase {
  */
 export type RoutineBeat = RoutineBeatBase &
   (
-    | { readonly site: SiteId; readonly activity: ActivityId }
-    | { readonly site?: undefined; readonly activity?: undefined }
+    | {
+      /** 场所**种类**：门控只认它（`SITE_FLAGS` / `siteBeatApplies` 以 kind 为键）。 */
+      readonly site: SiteId;
+      readonly activity: ActivityId;
+      /**
+       * 场所**实例 id**（包里 `sites[].id`，如 `boiler_annex#1`）。
+       *
+       * 与 `site` 分开是因为两个 `workshop` 产出不同东西：锅炉房出炭、
+       * 大浴场出洗好的衣裳。产出账按这一格记，门控仍按 `site`（种类）判。
+       * 旧夹具只给 `site` 时省略，产出账就不记——省略是「这拍没有产出归属」。
+       */
+      readonly siteId?: string;
+    }
+    | { readonly site?: undefined; readonly activity?: undefined; readonly siteId?: undefined }
   );
 
 /**

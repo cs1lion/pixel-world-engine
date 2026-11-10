@@ -97,7 +97,7 @@ export function routineProfiles(
       // 词与场所不匹配在装载期就已经 throw 了（`load.ts` 的交叉校验）。
       return siteStop === undefined || kind === undefined
         ? base
-        : { ...base, site: kind, activity: siteStop.activity };
+        : { ...base, site: kind, activity: siteStop.activity, siteId: siteStop.site };
     }),
   }));
 }

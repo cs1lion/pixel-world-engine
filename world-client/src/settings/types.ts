@@ -2,6 +2,7 @@
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import type { VillagerArchive } from '../world/villager-archive.ts';
+import type { OutputKind } from '../world/site-output.ts';
 import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
 import type { ActivityId, SiteKind } from '../world/timetable.ts';
@@ -32,6 +33,14 @@ export interface SettingSiteBase {
   readonly id: string;
   /** 闭集 `SITE_KINDS` 的元素；装载期校验，不在闭集里当场 throw。 */
   readonly kind: SiteKind;
+  /**
+   * 这个场所的作业产出什么（`OutputKind` 闭集，装载期校验）。
+   *
+   * **省略 = 这个场所不产东西**（花径的 rest/stroll 是过日子，不是作业）。
+   * 按场所 id 而不是 kind 声明：两个 `workshop` 产出不同东西——锅炉房出炭、
+   * 大浴场出洗好的衣裳。引擎不按 id 硬编码，换设定集就换产出。
+   */
+  readonly output?: OutputKind;
 }
 
 /** 落点里与「去哪」无关的那些字。 */
@@ -345,6 +354,8 @@ export interface RawSettingPack {
     readonly x?: number;
     readonly y?: number;
     readonly building?: string;
+    /** 未校验的原文；装载期按 `OUTPUT_KINDS` 收窄成 `OutputKind`。 */
+    readonly output?: string;
   }[];
   readonly prefabs: Record<string, unknown>;
   readonly placements: readonly SettingPlacement[];

@@ -510,6 +510,13 @@ export interface WorldSnapshot {
   readonly villagers: readonly VillagerSnapshot[];
   readonly buildings: readonly PlacedBuilding[];
   /**
+   * 场所产出账读数（v8）：作业真的产出的累计。
+   *
+   * `total` 是全账合计，`summary` 是按场所 id 排序的一句可读摘要（空账是空串）。
+   * 没有设定集声明产出物时恒为 0 / 空串——「没有产出」不说成「产出 0 份」。
+   */
+  readonly siteOutput: { readonly total: number; readonly summary: string };
+  /**
    * 开局（或读档）那一刻世界**已经有的**楼的实例 id。
    *
    * 有了它才能回答「这栋楼是玩家这次玩起来之后造的吗」——而不必去猜。

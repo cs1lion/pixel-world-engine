@@ -65,8 +65,8 @@
 - 代码：`setup.ts:624-642`（grep `export function rebuildGridFromPlacements`），
   读档入口 `setup.ts:661-671`（`buildWorldFromSave`），
   生产入口 `main.ts:82`（`buildWorldFromSave(save.world.buildings, pack.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR)`）。
-- 存档版本：`save.ts:38` `CURRENT_SCHEMA_VERSION = 7`（v7 又升了一版）；
-  v5 冻结指纹 `save.ts:72`；v5 新增路径 `save.ts:271`（`world.memory`）；
+- 存档版本：`save.ts:38` `CURRENT_SCHEMA_VERSION = 8`（v7/v8 又各升了一版）；
+  v5 冻结指纹 `save.ts:72`；v5 新增路径 `save.ts:280`（`world.memory`）；
   v5 允许路径全集 `save.ts:674-677`；迁移表 `save.ts:1569`；v4→v5 迁移 `save.ts:1699-1710`。
 
 ### 1.3 今天没有投影函数，只有逐格换算

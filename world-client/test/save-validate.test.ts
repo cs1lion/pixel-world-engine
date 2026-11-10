@@ -44,8 +44,8 @@ import {
 import * as saveModule from '../src/world/save.ts';
 
 /** v7 常量在 base 上不存在：从命名空间取，缺了让断言红，而不是模块错误（B7）。 */
-const SCHEMA_V7_FINGERPRINT =
-  (saveModule as unknown as { SCHEMA_V7_FINGERPRINT?: string }).SCHEMA_V7_FINGERPRINT ?? '';
+const SCHEMA_V8_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V8_FINGERPRINT?: string }).SCHEMA_V8_FINGERPRINT ?? '';
 import { parseSaveText, SaveStore, type StorageLike } from '../src/ui/save-store.ts';
 
 const rawPrefabs = JSON.parse(
@@ -54,9 +54,9 @@ const rawPrefabs = JSON.parse(
 const blueprints = parseBlueprintTable(rawPrefabs);
 /** v7 样例是新增文件；「提交 A」上没有它时退回 v6，让这一组红在断言而不是 ENOENT。 */
 const sampleText = readFileSync(
-  existsSync(new URL('../../docs/save-v7.sample.json', import.meta.url))
-    ? new URL('../../docs/save-v7.sample.json', import.meta.url)
-    : new URL('../../docs/save-v6.sample.json', import.meta.url),
+  existsSync(new URL('../../docs/save-v8.sample.json', import.meta.url))
+    ? new URL('../../docs/save-v8.sample.json', import.meta.url)
+    : new URL('../../docs/save-v7.sample.json', import.meta.url),
   'utf8',
 );
 
@@ -261,7 +261,7 @@ test('task-32：冻结样例仍能加载（read + importText + parseSaveText 三
   const sample = JSON.parse(sampleText) as WorldSave;
   assert.doesNotThrow(() => validateSaveFields(sample, CURRENT_SCHEMA_VERSION), '样例必须过字段级校验');
   assert.doesNotThrow(() => assertSave(sample), '样例必须过完整校验');
-  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V7_FINGERPRINT);
+  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
 
   const parsed = parseSaveText(sampleText);
   assert.equal(parsed.ok, true);
