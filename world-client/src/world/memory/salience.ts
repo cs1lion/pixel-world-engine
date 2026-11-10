@@ -159,6 +159,13 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   // 都得够，旁观者才写得进记忆（`(0.4 + 0.4 + 0.55 + 0.15) / 4 = 0.375`，
   // 高于 T_write 0.3）。门槛压在 0.4 以下，不把这条日常推到传说级。
   home_entry: { emotion: 0.4, surprise: 0.4, goalRelevance: 0.55, involvement: 0.15 },
+  // 一趟作业做出了东西（`work_output`）。**只该当事人记住**：她一天做了几趟、
+  // 镇上的炭多了几份，是她自己的一天；旁人没必要每趟都记一笔，否则七个人
+  // 一天几十趟，闲话全被这件事淹掉。
+  // 当事人：`(0.25 + 0.35 + 0.4 + 1) / 4 = 0.5`，过 `T_write`（0.3）；
+  // 旁观者：`(0.25 + 0.35 + 0.4 + 0.15) / 4 = 0.2875`，压在门槛下面。
+  // `surprise` 一列由 `importanceHint`（0.35）抬到这个数，见 `inputsFor`。
+  work_output: { emotion: 0.25, surprise: 0.15, goalRelevance: 0.4, involvement: 0.15 },
   tavern_feast: { emotion: 0.85, surprise: 0.4, goalRelevance: 0.4, involvement: 0.35 },
   unknown: { emotion: 0.3, surprise: 0.3, goalRelevance: 0.3, involvement: 0.2 },
 };

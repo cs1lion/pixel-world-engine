@@ -164,7 +164,7 @@ test('其余各 mode 都带着世界自己的状态，没有可编的空档', ()
 
 test('working 而没有铺子时，不许说她在祭坛边——她人不在那儿', () => {
   // 一条真事的回归。这一支曾经说「在祭坛边办「xxx」」，而**她不在祭坛**：
-  // 原地办的那种活（`startInPlace`，`simulation.ts:2296`）`path = []`，
+  // 原地办的那种活（`startInPlace`，`simulation.ts:2297`）`path = []`，
   // 根本不挪人——她站在接到活那一刻的位置，那一刻她可以在世界任何一格。
   //
   // 而这条路常见得很：`tasks.ts:13` 的 quick 活 `venue: 'in_place'`，

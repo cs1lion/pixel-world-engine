@@ -53,6 +53,18 @@ export const OUTPUT_LABELS: Readonly<Record<OutputKind, string>> = {
  * `work` / `trade` 产出；`rest` / `stroll` 不产——花径坐下与走看是过日子，
  * 不是作业。把它们也算成产出会让「今天出了多少」变成「今天走了多少趟」。
  */
+/**
+ * 一趟作业做完之后，事件流里那句话。
+ *
+ * `verb` 是「谁在做什么」（「炉匠搬炭」），产出物由 `kind` 决定后半句——
+ * 集市的是「做成了一笔买卖」，不是「得了一份成交」。文案是纯函数，
+ * 同一份输入永远同一句话：事件流要能被回放对着读。
+ */
+export function outputEventText(verb: string, kind: OutputKind): string {
+  if (kind === 'trade') return `${verb}，做成了一笔买卖`;
+  return `${verb}，得了一份${OUTPUT_LABELS[kind]}`;
+}
+
 export function activityProduces(activity: ActivityId): boolean {
   return activity === 'work' || activity === 'trade';
 }

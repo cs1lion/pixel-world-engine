@@ -300,6 +300,7 @@ function placeLabel(placeId: string | null, world: UnitStatusWorld): string {
 /** 原句没了时，按 kind 给一句人话；认不出就落到最后一句。 */
 const KIND_WHAT: Readonly<Record<string, string>> = {
   routine_done: '在镇上停了一会儿',
+  work_output: '做了一趟活，镇上多了一份东西',
   daily_water: '去河湾打了一趟水',
   daily_lamp: '把街灯点亮了',
   street_greet: '和人碰面问了个好',

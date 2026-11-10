@@ -28,6 +28,9 @@ import { routineProfiles, siteTargetResolver } from '../src/settings/index.ts';
 import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
 import { Simulation } from '../src/world/simulation.ts';
 import type { OutputKind } from '../src/world/site-output.ts';
+import { inputsFor, salienceOf } from '../src/world/memory/salience.ts';
+import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
+import type { WorldChange } from '../src/world/world-changes.ts';
 
 const MINUTE_MS = 60_000;
 
@@ -67,6 +70,7 @@ function makeSim(withOutputs: boolean) {
   const world = buildSettingWorld(pack);
   const resolve = siteTargetResolver(pack, world.grid, world.buildings);
   const profiles = routineProfiles(pack, resolve);
+  const changes: WorldChange[] = [];
   const siteOutputs = new Map<string, OutputKind>(
     (pack.sites ?? [])
       .filter((site) => site.output !== undefined)
@@ -84,8 +88,9 @@ function makeSim(withOutputs: boolean) {
     // 06:00 开工；工坊 06:00–17:00 开门。
     initialNow: 6 * 60 * MINUTE_MS,
     ...(withOutputs ? { siteOutputs } : {}),
+    onChange: (change: WorldChange) => { changes.push(change); },
   });
-  return { sim, pack, siteOutputs };
+  return { sim, pack, siteOutputs, changes };
 }
 
 /** 跑到 17:00 收工（11 个世界小时），每 5 世界秒一拍。 */
@@ -184,4 +189,79 @@ test('真世界：产出会攒下来，也会按世界日被消耗（库存不�
   // 这一条由上面那条纯函数用例钉住。**产出**则受拍点量化影响：粗分片下
   //  villagers 的拍点晚到最多一步，一天里少走半趟——这是既有行为
   //（`stepIdle` 只在帧边界判 `nextRoutineAt`），不是产出账引入的。
+});
+
+// ---------------------------------------------------------------- 产出物的名字与来历
+
+test('纯函数：产出事件的那句话按产出物说，成交不叫「一份成交」', async () => {
+  const { outputEventText } = await import('../src/world/site-output.ts');
+  assert.equal(outputEventText('炉匠搬炭', 'coal'), '炉匠搬炭，得了一份炭');
+  assert.equal(outputEventText('洗衣妇收衣裳', 'laundry'), '洗衣妇收衣裳，得了一份洗好的衣裳');
+  assert.equal(outputEventText('账房先生对零钱', 'trade'), '账房先生对零钱，做成了一笔买卖');
+  // 纯函数：同输入同输出，回放才读得通。
+  assert.equal(outputEventText('炉匠搬炭', 'coal'), outputEventText('炉匠搬炭', 'coal'));
+});
+
+test('真世界：每一趟产出都发一条 `work_output`，带着谁、在哪、做了什么', () => {
+  const { sim, changes } = makeSim(true);
+  runToWorkEnd(sim);
+  const produced = changes.filter(
+    (change): change is Extract<WorldChange, { change: 'world.event' }> =>
+      change.change === 'world.event' && change.kind === 'work_output',
+  );
+  assert.ok(produced.length > 0, '跑完一天一条产出事件都没发');
+
+  const reading = sim.siteOutputReading();
+  assert.equal(
+    produced.length,
+    reading.total,
+    `产出事件与产出账对不上：事件 ${produced.length} 条，账上 ${reading.total} 份`,
+  );
+
+  for (const event of produced) {
+    assert.ok(event.actorId !== null, '产出事件没有当事人，记忆层不知道是谁做的');
+    assert.ok(event.placeId.length > 0, '产出事件没有落点，痕迹无处可落');
+    assert.ok(event.text.length > 0);
+    assert.match(event.text, /得了一份|做成了一笔买卖/, `文案没有说清做成了什么：${event.text}`);
+  }
+  // 三个产出场所都出现过，且文案带对了东西。
+  const texts = produced.map((event) => event.text).join('\n');
+  assert.match(texts, /得了一份炭/);
+  assert.match(texts, /得了一份洗好的衣裳/);
+  assert.match(texts, /做成了一笔买卖/);
+  // 来历要落对地方：锅炉房的炭记在锅炉房那栋楼上，叠浪湖的衣裳记在湖边那栋。
+  // 记成「她脚下那一格」等于把这份炭的出处弄丢了——炉子是楼里那口。
+  const coalPlaces = produced.filter((event) => event.text.includes('得了一份炭')).map((event) => event.placeId);
+  const laundryPlaces = produced
+    .filter((event) => event.text.includes('洗好的衣裳'))
+    .map((event) => event.placeId);
+  assert.deepEqual([...new Set(coalPlaces)], ['boiler_annex#1'], `炭的来历记错了地方：${coalPlaces}`);
+  assert.deepEqual([...new Set(laundryPlaces)], ['wave_house#1'], `衣裳的来历记错了地方：${laundryPlaces}`);
+
+  // 花径不产，也就不该有落在花径上的产出事件（它的场所 id 没进产出表）。
+  assert.ok(
+    produced.every((event) => !event.text.includes('花径')),
+    '花径不是作业，却发了产出事件',
+  );
+});
+
+test('记忆分量：产出这趟事只该当事人记住，旁观者记不住（否则一天几十趟会霸屏）', () => {
+  const weights = DEFAULT_MEMORY_CONFIG.salienceWeights;
+  const threshold = DEFAULT_MEMORY_CONFIG.T_write;
+  const shared = {
+    kind: 'work_output',
+    importanceHint: 0.35,
+    valence: 0.2,
+    arousal: 0.25,
+  } as const;
+  const actor = salienceOf(
+    inputsFor({ ...shared, holderId: 'v1', actors: ['v1'] }),
+    weights,
+  );
+  const witness = salienceOf(
+    inputsFor({ ...shared, holderId: 'v2', actors: ['v1'] }),
+    weights,
+  );
+  assert.ok(actor.salience >= threshold, `当事人记不住自己做的活：${actor.salience}`);
+  assert.ok(witness.salience < threshold, `旁观者每条都记：${witness.salience} ≥ ${threshold}`);
 });

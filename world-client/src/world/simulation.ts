@@ -160,6 +160,7 @@ import {
   emptySites,
   consumeRoundsBetween,
   OUTPUT_CONSUME_INTERVAL_MS,
+  outputEventText,
   type OutputKind,
   type SiteOutputTally,
 } from './site-output.ts';
@@ -3899,7 +3900,19 @@ export class Simulation {
     if (beat.siteId === undefined || beat.activity === undefined) return;
     if (!activityProduces(beat.activity)) return;
     if (!this.siteOutputs.has(beat.siteId)) return;
+    const kind = this.siteOutputs.get(beat.siteId)!;
     this.siteOutputTally = accrueOutput(this.siteOutputTally, beat.siteId);
+    // 产出物的**名字与来历**：这一份是什么、谁做的、在哪、世界第几天。
+    // 走的是既有的 `world.event` 回写——事件流先记，记忆层再从那里读，
+    // 所以她自己今天做了几趟是真的记得的（`KIND_PRIORS.work_output`）。
+    this.announce({
+      change: 'world.event',
+      kind: 'work_output',
+      text: `${outputEventText(`${villager.name}${beat.label}`, kind)}。`,
+      placeId: this.sitePlaceId(beat.siteId, here),
+      where: here,
+      actorId: villager.id,
+    });
     // 顺带排一条「请模型换一种说法」的请求：牌子原文是权威事实，模型只改措辞。
     const people = this.villagers
       .filter((other) => other.id !== villager.id && other.visible
@@ -4903,6 +4916,40 @@ export class Simulation {
    * **它只读世界，不改世界。** 潮水本来就跨过了中线，村民本来就站在落点上；
    * 这里一个字段都不写回。所以它不可能让回放分叉，也不需要任何存档字段。
    */
+  /**
+   * 产出这件事该记在哪。
+   *
+   * **场所本身是楼，就记在那栋楼上**：这一份炭是锅炉房做出来的，不是
+   * 「她脚下那一格」做出来的。设定集里的场所 id 与楼实例 id 是同一个词
+   * （`boiler_annex#1`），所以这里能直接对上。
+   *
+   * 不是楼（集市这种露天的）才退回落点：够得着楼门就记在那栋楼上，
+   * 否则记脚下那一格。
+   */
+  private sitePlaceId(siteId: string, cell: GridPoint): string {
+    return this.buildings.some((building) => building.instanceId === siteId)
+      ? siteId
+      : this.footfallPlaceAt(cell);
+  }
+
+  /**
+   * 这一格的事该记在哪：够得着楼门就记在那栋楼上，否则记脚下那一格。
+   *
+   * 与 `stepAmbient` 同一把尺子（`ambient.ts` 的 `FOOTFALL_ATTRIBUTION_RADIUS`）。
+   * 不这么做的话，产出事件的落点只是脚下那一格，而格子上没有 Holder——
+   * 痕迹落得下，记忆层却没有任何一层读得到。
+   */
+  private footfallPlaceAt(cell: GridPoint): string {
+    return footfallPlace(
+      cell,
+      this.buildings.map((building) => ({
+        instanceId: building.instanceId,
+        x: building.door.x,
+        y: building.door.y,
+      })),
+    );
+  }
+
   private stepAmbient(prevNow: number): void {
     const dwellers: AmbientDweller[] = [];
     const doorways: FootfallDoor[] = this.buildings.map((building) => ({

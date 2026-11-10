@@ -37,6 +37,7 @@ export function soundKindOf(eventKind: string): SoundKind {
     case 'task_done':
     case 'milestone':
     case 'routine_done':
+    case 'work_output':
       return 'work';
     case 'conflict':
       return 'impact';
