@@ -59,6 +59,7 @@ import {
   type SmokeMotion,
 } from '../world/smoke-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
+import { hasArt } from './art-assets.ts';
 import { bakeLayer, bakeTexture } from './bake.ts';
 import {
   GROUND_SHADOW_DEPTH,
@@ -876,7 +877,7 @@ export function createSettingScenery(
 
   // 主楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
   const hall = pack.placements.find((p) => p.prefabId === 'wave_house');
-  if (hall !== undefined) {
+  if (hall !== undefined && !hasArt(scene, 'scenery', 'bathhouse_main')) {
     const x = hall.at.x * TILE_PX;
     const y = hall.at.y * TILE_PX;
     architecture.fillStyle(c.terracotta, 1);

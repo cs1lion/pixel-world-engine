@@ -32,6 +32,13 @@ KIND_PROMPT = {
         "single full-body {desc}, standing, facing front, three-quarter view, small chibi proportions "
         "(about 3 heads tall), simple readable costume, exactly one character only"
     ),
+    "scenery": (
+        "single {desc}, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, "
+        "NO perspective, NO three-quarter view, NO visible side wall, "
+        "NO ground or floor plane, NO people, NO other buildings, "
+        "symmetric front-facing, solid empty background, "
+        "in the painted bathhouse-town style of the reference images"
+    ),
 }
 
 
@@ -82,6 +89,13 @@ def main() -> int:
         if args.width is None:
             ap.error("building 需要 --width")
         img = pipeline.fit_to_footprint(img, args.width, margin_tiles=0.25)
+    elif args.kind == "scenery":
+        if args.width is None:
+            ap.error("scenery 需要 --width（逻辑像素宽）")
+        # scenery 的包围盒不是格数，直接按逻辑像素宽缩放
+        target_w = round(args.width * pipeline.ART_SCALE)
+        scale = target_w / img.width
+        img = img.resize((target_w, max(1, round(img.height * scale))), Image.LANCZOS)
     else:
         img = pipeline.fit_to_height(img, args.height or 30)
     out = pipeline.write_asset(

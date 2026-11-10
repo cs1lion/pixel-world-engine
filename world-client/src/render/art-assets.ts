@@ -10,7 +10,7 @@
 
 import Phaser from 'phaser';
 
-export type ArtKind = 'building' | 'villager';
+export type ArtKind = 'building' | 'villager' | 'scenery';
 
 interface ArtManifest {
   readonly artScale: number;
