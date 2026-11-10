@@ -298,7 +298,7 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 上层门面：`reaches()` `setup.ts:583-591`（`goal = isWalkable(to) ? to : nearestWalkable(to)`），
   `doorReaches()` `setup.ts:601-602`，`paveFrom()` `setup.ts:612-620`。
 - 生产调用点：`world-client/src/settings/load.ts:672`（门）、`:697`（村民巡游点），
-  `world-client/src/world/simulation.ts:3003`、`:3412`、`:4983`（目标改写/回家/默认点），
+  `world-client/src/world/simulation.ts:3013`、`:3448`、`:5173`（目标改写/回家/默认点），
   `world-client/src/world/routines.ts:72-79`（园子、长廊、摊位、河边四个点）。
 
 ### 4.2 具体判断：哪些测试会失效、为什么
@@ -359,7 +359,7 @@ reaches(grid, from, to)
 
 - `path` 内部：`passable(next)` 改成 `canStep(current, next, accept)`；
   `costAt(next)` 改成 `stepCost(current, next)`；**起点也要先判可站**（当前代码只判目标，
-  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2323` 的注释与代码不一致——顺手在这一处补齐）。
+  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2399` 的注释与代码不一致——顺手在这一处补齐）。
 - `pave-reachable` 的语义**保持**：端点自己可走时按端点算；不可走时允许改写，但改写候选必须
   **与目标同层**，是否可达仍由 `path` 判。`pave-reachable.test.ts:178` 的“树篱 hub、一门之隔”仍然为真；
   `:196` 的“真被围死的门”仍然为假——这两条是本次改动不能碰坏的既有语义。

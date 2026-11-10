@@ -165,6 +165,7 @@ import {
   type OutputKind,
   type SiteOutputTally,
   settleDemand,
+  canProduce,
 } from './site-output.ts';
 import { CURRENT_SCHEMA_VERSION, SCHEMA_V8_FINGERPRINT } from './save.ts';
 
@@ -761,6 +762,14 @@ export class Simulation {
   private readonly siteDemands: readonly OutputDemand[];
   private readonly siteNames: ReadonlyMap<string, string>;
   private readonly sitePoints: ReadonlyMap<string, GridPoint>;
+  /**
+   * 上一轮结算里**没拿到料**的需求方（`settleDemand` 的 short）。
+   *
+   * 运行时字段，不进存档：读档后从「都有料」起算，所以读档当天会照常产出，
+   * 下一次结算再按真实库存判。多扣一次的代价是「她白洗了一天衣裳」，
+   * 而落档多一个字段的代价是升存档版本——这里选前者。
+   */
+  private supplyShort: ReadonlySet<string> = new Set<string>();
   /**
    * 场所产出账（v8 存档字段）：走到场所那一刻记一趟作业。
    *
@@ -3918,6 +3927,13 @@ export class Simulation {
     if (beat.siteId === undefined || beat.activity === undefined) return;
     if (!activityProduces(beat.activity)) return;
     if (!this.siteOutputs.has(beat.siteId)) return;
+    // 缺料的场所这一趟白做：没有炭，衣裳洗不出来。
+    // 不记产出、也不发 `work_output`——她这趟真的没做出东西，
+    // 而缺料本身已经由 `supply_short` 记过一条。
+    if (!canProduce(beat.siteId, this.supplyShort)) {
+      this.log('info', `${villager.name}${beat.label}，可这里缺料，这一趟没有产出。`);
+      return;
+    }
     const kind = this.siteOutputs.get(beat.siteId)!;
     this.siteOutputTally = accrueOutput(this.siteOutputTally, beat.siteId);
     // 产出物的**名字与来历**：这一份是什么、谁做的、在哪、世界第几天。
@@ -3995,15 +4011,22 @@ export class Simulation {
     const rounds = consumeRoundsBetween(this.outputConsumeCursor, this.now);
     if (rounds <= 0) return;
     let tally = this.siteOutputTally;
+    // 这一轮（或这几轮）没拿到料的需求方。多轮取并集：离线很久回来时，
+    // 只要其中有任何一轮缺过，那一天就按「缺过料」算——产出停不停是
+    // 保守方向，不是记账方向。
+    const short = new Set<string>();
     // 每轮各自结算、各自报事：一天里两轮缺货是两条事实，合并成一条会丢
     // 「第几天缺的」。轮数由时刻差算是纯函数，所以分帧不影响轮数与顺序。
     for (let round = 0; round < rounds; round += 1) {
       const settled = settleDemand(tally, this.siteDemands, (kind) => this.supplierOf(kind));
       tally = settled.tally;
+      for (const missing of settled.short) short.add(missing.siteId);
       for (const used of settled.served) this.announceSupply(used, true);
       for (const missing of settled.short) this.announceSupply(missing, false);
     }
     this.siteOutputTally = tally;
+    // 整体替换，不累加：料回来了就该恢复，缺料不是会一直跟着她的债。
+    this.supplyShort = short;
     this.outputConsumeCursor += rounds * OUTPUT_CONSUME_INTERVAL_MS;
   }
 
