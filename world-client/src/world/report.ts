@@ -135,6 +135,9 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   // 只在真有产出时写一行——空账说成「产出 0 份」是填充句，报纸不写填充句。
   if (snapshot.siteOutput.total > 0) {
     lines.push(`今日作业：${snapshot.siteOutput.summary}`);
+  } else if (snapshot.siteOutput.emptySites.length > 0) {
+    // 库存见底：作业停了不是没发生，是攒下的用完了。一句「见底」比空着诚实。
+    lines.push(`库存见底：${snapshot.siteOutput.emptySites.join('、')} 已经没了，等下一趟作业。`);
   }
 
   // 这一句数的是**玩家这次玩起来之后造没造**。答案在快照里存着：

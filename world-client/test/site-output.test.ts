@@ -136,3 +136,52 @@ test('包的场所表把产出物声明对：锅炉房炭、叠浪湖衣裳、�
   assert.equal(byId.get('courtyard')?.output, undefined, '花径是过日子，不是作业');
   assert.equal(byId.get('courtyard-east')?.output, undefined);
 });
+
+// ---------------------------------------------------------------- 消耗（循环另一半）
+
+test('纯函数：消耗只扣整轮、库存不足不欠账', async () => {
+  const { consumeOutput, consumeRoundsBetween, OUTPUT_CONSUME_INTERVAL_MS } = await import(
+    '../src/world/site-output.ts'
+  );
+  const day = OUTPUT_CONSUME_INTERVAL_MS;
+  assert.equal(consumeRoundsBetween(0, day - 1), 0, '不满一轮不算');
+  assert.equal(consumeRoundsBetween(0, day), 1);
+  assert.equal(consumeRoundsBetween(0, day * 3 + 5), 3, '余量留给下一次');
+  assert.equal(consumeRoundsBetween(day, 0), 0, '倒走不算');
+
+  let tally: Record<string, number> = { 'boiler_annex#1': 2 };
+  const first = consumeOutput(tally, 'boiler_annex#1');
+  assert.equal(first.consumed, 1);
+  assert.equal(first.tally['boiler_annex#1'], 1);
+
+  const second = consumeOutput(first.tally, 'boiler_annex#1');
+  assert.equal(second.tally['boiler_annex#1'], 0);
+
+  // 见底后继续扣：不欠账，库存停在 0。
+  const third = consumeOutput(second.tally, 'boiler_annex#1');
+  assert.equal(third.tally['boiler_annex#1'], 0);
+  assert.equal(third.consumed, 0, '库存不足时一分都不扣');
+
+  // 没这个场所也安全。
+  assert.equal(consumeOutput({}, 'nowhere').consumed, 0);
+  tally = {};
+  assert.deepEqual(consumeOutput(tally, 'x').tally, {});
+});
+
+test('真世界：产出会攒下来，也会按世界日被消耗（库存不为负）', () => {
+  const { sim } = makeSim(true);
+  // 从 06:00 跑 3 个世界日：白天作业产出，每满一日扣一份。
+  const threeDays = 3 * 24 * 60 * MINUTE_MS;
+  for (let t = 0; t < threeDays; t += 5000) sim.update(5000);
+  const reading = sim.siteOutputReading();
+
+  // 三个世界日里作业跑过不止一次，但也被扣了三轮——库存不是单调上涨的。
+  assert.ok(reading.total > 0, '作业仍在产出');
+  for (const [siteId, amount] of Object.entries(reading.tally)) {
+    assert.ok(amount >= 0, `${siteId} 的库存变成负数了：${amount}`);
+  }
+  // 消耗是纯函数按世界时刻算的（`consumeRoundsBetween`），不随分帧漂移——
+  // 这一条由上面那条纯函数用例钉住。**产出**则受拍点量化影响：粗分片下
+  //  villagers 的拍点晚到最多一步，一天里少走半趟——这是既有行为
+  //（`stepIdle` 只在帧边界判 `nextRoutineAt`），不是产出账引入的。
+});

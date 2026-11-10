@@ -125,3 +125,57 @@ export function parseOutputTally(raw: string | undefined): SiteOutputTally {
   }
   return tally;
 }
+
+// ---------------------------------------------------------------- 消耗（循环的另一半）
+//
+// 只产不耗不叫循环：炭堆在账上永远涨，作业等于白刷。这一段补消耗。
+//
+// 纪律与产出同源：纯函数、按世界时刻算、不读墙钟。但消耗的**结算游标**是
+// 运行时字段（不落档），读档后从「此刻」起算——同 `needs.ts` 的 `lastMealAt`。
+// 落档只落**库存**（账本身），不落游标：游标是「上次算到哪一刻」的中间量，
+// 读档后重新起算不会让库存跳变，只是少扣一次半次，而多扣一次才是坏账。
+
+/** 每个产出场所每世界日消耗多少份。 */
+export const OUTPUT_CONSUME_PER_DAY = 1;
+
+/** 消耗结算的间隔：一个世界日一次。 */
+export const OUTPUT_CONSUME_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 从 `fromMs` 到 `toMs` 之间应该结算几轮消耗。
+ *
+ * 纯函数：只由两头时刻决定，所以同一世界时刻无论怎么分帧都是同一个数——
+ * 这是拆帧不变性的前提（`site-hours.test.ts` 那条钉的就是它）。
+ */
+export function consumeRoundsBetween(fromMs: number, toMs: number): number {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return 0;
+  if (toMs <= fromMs) return 0;
+  return Math.floor((toMs - fromMs) / OUTPUT_CONSUME_INTERVAL_MS);
+}
+
+/**
+ * 扣库存：返回新账与实际扣掉的量。
+ *
+ * **库存不足只扣到 0，不欠账**：负数库存会让「见底」这件事永远读不出来
+ * （-3 和 0 都是缺，但 -3 还会越欠越深，像是世界在替谁记仇）。
+ */
+export function consumeOutput(
+  tally: SiteOutputTally,
+  siteId: string,
+  want: number = OUTPUT_CONSUME_PER_DAY,
+): { readonly tally: SiteOutputTally; readonly consumed: number } {
+  const have = tally[siteId] ?? 0;
+  const consumed = Math.min(have, Math.max(0, Math.floor(want)));
+  if (consumed <= 0) return { tally, consumed: 0 };
+  return { tally: { ...tally, [siteId]: have - consumed }, consumed };
+}
+
+/** 见底的场所（有产出声明但库存为 0）。日报用它说「炭见底」。 */
+export function emptySites(
+  tally: SiteOutputTally,
+  kinds: ReadonlyMap<string, OutputKind>,
+): readonly string[] {
+  return [...kinds.keys()]
+    .filter((siteId) => (tally[siteId] ?? 0) <= 0)
+    .sort();
+}

@@ -14,8 +14,6 @@ import {
   SAVE_V3_ADDED_PATHS,
   SAVE_V4_ADDED_PATHS,
   SAVE_V5_ADDED_PATHS,
-  SAVE_V6_ALLOWED_PATHS,
-  SAVE_V7_ALLOWED_PATHS,
   SCHEMA_V1_FINGERPRINT,
   SCHEMA_V2_FINGERPRINT,
   SCHEMA_V4_FINGERPRINT,
@@ -40,6 +38,11 @@ const SCHEMA_V7_FINGERPRINT =
   (saveModule as unknown as { SCHEMA_V7_FINGERPRINT?: string }).SCHEMA_V7_FINGERPRINT ?? '';
 const SCHEMA_V8_FINGERPRINT =
   (saveModule as unknown as { SCHEMA_V8_FINGERPRINT?: string }).SCHEMA_V8_FINGERPRINT ?? '';
+// v6/v7 的允许集合在 base 上不存在：从命名空间取，缺了让断言红（B7）。
+const SAVE_V6_ALLOWED_PATHS: readonly string[] =
+  (saveModule as unknown as { SAVE_V6_ALLOWED_PATHS?: readonly string[] }).SAVE_V6_ALLOWED_PATHS ?? [];
+const SAVE_V7_ALLOWED_PATHS: readonly string[] =
+  (saveModule as unknown as { SAVE_V7_ALLOWED_PATHS?: readonly string[] }).SAVE_V7_ALLOWED_PATHS ?? [];
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
   ? true

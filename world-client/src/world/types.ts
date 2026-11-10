@@ -515,7 +515,12 @@ export interface WorldSnapshot {
    * `total` 是全账合计，`summary` 是按场所 id 排序的一句可读摘要（空账是空串）。
    * 没有设定集声明产出物时恒为 0 / 空串——「没有产出」不说成「产出 0 份」。
    */
-  readonly siteOutput: { readonly total: number; readonly summary: string };
+  readonly siteOutput: {
+    readonly total: number;
+    readonly summary: string;
+    /** 有产出声明但库存为 0 的场所 id（日报说「见底」）。 */
+    readonly emptySites: readonly string[];
+  };
   /**
    * 开局（或读档）那一刻世界**已经有的**楼的实例 id。
    *

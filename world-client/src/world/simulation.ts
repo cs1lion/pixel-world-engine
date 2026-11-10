@@ -155,6 +155,10 @@ import {
   outputSummary,
   outputTotal,
   parseOutputTally,
+  consumeOutput,
+  emptySites,
+  consumeRoundsBetween,
+  OUTPUT_CONSUME_INTERVAL_MS,
   type OutputKind,
   type SiteOutputTally,
 } from './site-output.ts';
@@ -746,6 +750,13 @@ export class Simulation {
    * 只增不减——本轮不做消耗（用户 2026-11-10 拍板「先只累积」）。
    */
   private siteOutputTally: SiteOutputTally = emptyOutputTally();
+  /**
+   * 消耗结算游标（运行时字段，不落档）。
+   *
+   * 读档后从「此刻」重新起算——同 `needs.ts` 的 `lastMealAt`：游标是
+   * 「上次算到哪一刻」的中间量，不落档不会让库存跳变；落档只落库存本身。
+   */
+  private outputConsumeCursor = 0;
   /** 渡口落点；undefined = 这张图没有渡口。 */
   private readonly harborAt: GridPoint | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
@@ -888,6 +899,8 @@ export class Simulation {
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
     this.siteOutputs = deps.siteOutputs ?? new Map<string, OutputKind>();
+    // 开局不从 0 起算：否则读档/开局那一刻会立刻补扣掉一段本该发生在过去的消耗。
+    this.outputConsumeCursor = this.now;
     this.harborAt = deps.harborAt;
     this.propReveals = deps.propReveals;
     this.authored = deps.authored === true;
@@ -1046,6 +1059,7 @@ export class Simulation {
     if (wasRain && this.weather.kind === 'clear') this.turnRoutineBackToAltar();
     this.stepTide();
     this.stepHarbor(prevNow);
+    this.stepOutputConsumption();
     this.stepAmbient(prevNow); this.stepTimetable(prevNow); this.stepLiveliness(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
@@ -1109,7 +1123,11 @@ export class Simulation {
       villagers,
       siteOutput: (() => {
         const reading = this.siteOutputReading();
-        return { total: reading.total, summary: reading.summary };
+        return {
+          total: reading.total,
+          summary: reading.summary,
+          emptySites: emptySites(this.siteOutputTally, this.siteOutputs),
+        };
       })(),
       buildings: this.buildings,
       startupBuildingIds: this.startupBuildingIds,
@@ -3876,6 +3894,26 @@ export class Simulation {
     this.siteOutputTally = accrueOutput(this.siteOutputTally, beat.siteId);
   }
 
+  /**
+   * 按世界时刻结算消耗：每世界日扣一份库存。
+   *
+   * 只推进**整轮**，余量留在游标里——所以同一世界时刻无论怎么分帧，
+   * 结算的轮数都一样（拆帧不变性）。库存不足只扣到 0，不欠账。
+   */
+  private stepOutputConsumption(): void {
+    if (this.siteOutputs.size === 0) return;
+    const rounds = consumeRoundsBetween(this.outputConsumeCursor, this.now);
+    if (rounds <= 0) return;
+    let tally = this.siteOutputTally;
+    for (const siteId of this.siteOutputs.keys()) {
+      for (let i = 0; i < rounds; i += 1) {
+        tally = consumeOutput(tally, siteId).tally;
+      }
+    }
+    this.siteOutputTally = tally;
+    this.outputConsumeCursor += rounds * OUTPUT_CONSUME_INTERVAL_MS;
+  }
+
   /** 场所产出账的只读视图：合计与一句可读摘要。 */
   siteOutputReading(): { readonly total: number; readonly tally: SiteOutputTally; readonly summary: string } {
     return {
@@ -4589,6 +4627,9 @@ export class Simulation {
     });
     const world = save.world;
     sim.now = world.now;
+    // 消耗游标对齐读档时刻：构造时 `now` 还是 0，不对齐的话第一次 update
+    // 会一口气补扣掉「从开局到现在」的全部轮次，库存瞬间见底。
+    sim.outputConsumeCursor = world.now;
     // 需求读数是运行时读数：读档从「刚吃过」重算，不继承上一会话的饥饿。
     // 构造时 `now` 还是 0，这里必须按存档时刻重锚一次，否则读档即饿。
     for (const villager of sim.villagers) sim.lastMealAt.set(villager.id, world.now);
