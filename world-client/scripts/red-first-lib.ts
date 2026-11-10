@@ -46,6 +46,10 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/eval-fixture-hash.test.ts',
     reason: '夹具哈希用例：参数化读夹具与基线，base 上可能本来就绿',
   },
+  {
+    file: 'test/art-building-scale.test.ts',
+    reason: '纯函数边界用例：依赖 src/render/art-assets.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
