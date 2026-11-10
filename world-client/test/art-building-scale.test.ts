@@ -6,7 +6,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { artBuildingScale } from '../src/render/art-assets.ts';
+// art-assets.ts 在 base 上不存在：动态 import + typeof 断言，让 base 上红在断言（B7）。
+const mod = (await import('../src/render/art-assets.ts')) as unknown as {
+  artBuildingScale?: (textureH: number, bodyH: number, artScale: number) => number;
+};
+assert.equal(typeof mod.artBuildingScale, 'function', 'artBuildingScale 必须存在');
+const artBuildingScale = mod.artBuildingScale!;
 
 const S = 2; // artScale
 
