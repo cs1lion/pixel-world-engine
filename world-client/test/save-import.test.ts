@@ -11,9 +11,13 @@ import {
   collectSavePaths,
   SAVE_STORAGE_KEY,
   SAVE_TASK_KEYS,
-  SCHEMA_V7_FINGERPRINT,
   type WorldSave,
 } from '../src/world/save.ts';
+import * as saveModule from '../src/world/save.ts';
+
+/** v7 常量在 base 上不存在：从命名空间取，缺了让断言红，而不是模块错误（B7）。 */
+const SCHEMA_V7_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V7_FINGERPRINT?: string }).SCHEMA_V7_FINGERPRINT ?? '';
 import {
   exportFileName,
   IMPORT_MAX_BYTES,

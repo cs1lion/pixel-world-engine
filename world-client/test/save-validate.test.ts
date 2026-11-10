@@ -35,13 +35,17 @@ import {
   TASK_SOURCES,
   TASK_STATUSES,
   validateSaveFields,
-  SCHEMA_V7_FINGERPRINT,
   VILLAGER_MODES,
   WEATHER_KINDS,
   WORK_ACCENTS,
   ZONES,
   type WorldSave,
 } from '../src/world/save.ts';
+import * as saveModule from '../src/world/save.ts';
+
+/** v7 常量在 base 上不存在：从命名空间取，缺了让断言红，而不是模块错误（B7）。 */
+const SCHEMA_V7_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V7_FINGERPRINT?: string }).SCHEMA_V7_FINGERPRINT ?? '';
 import { parseSaveText, SaveStore, type StorageLike } from '../src/ui/save-store.ts';
 
 const rawPrefabs = JSON.parse(

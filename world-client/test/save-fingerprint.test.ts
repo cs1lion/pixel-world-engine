@@ -20,7 +20,6 @@ import {
   SCHEMA_V4_FINGERPRINT,
   SCHEMA_V5_FINGERPRINT,
   SCHEMA_V6_FINGERPRINT,
-  SCHEMA_V7_FINGERPRINT,
   migrateSave,
   saveFingerprint,
   type SettledRecord,
@@ -32,6 +31,11 @@ import {
   type WorldSaveV6,
   type WorldSaveV7,
 } from '../src/world/save.ts';
+import * as saveModule from '../src/world/save.ts';
+
+/** v7 常量在 base 上不存在：从命名空间取，缺了让断言红，而不是模块错误（B7）。 */
+const SCHEMA_V7_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V7_FINGERPRINT?: string }).SCHEMA_V7_FINGERPRINT ?? '';
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
   ? true
