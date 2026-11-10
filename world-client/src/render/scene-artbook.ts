@@ -12,6 +12,7 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import { addSceneryImage } from './art-scenery.ts';
 
 export interface SceneArtbookClock {
   readonly phase: LampPhase;
@@ -67,11 +68,17 @@ export function createSceneArtbook(
     const x = item.at.x * TILE_PX;
     const y = item.at.y * TILE_PX;
     if (item.kind === 'ridge') {
-      drawFarRidge(backdrop, x, y, item.length ?? 0, c, farWindows, reflectors);
+      if (!addSceneryImage(scene, 'far_ridge', x, y, 5, farWindows, item.length ?? 0)) {
+        drawFarRidge(backdrop, x, y, item.length ?? 0, c, farWindows, reflectors);
+      }
     } else if (item.kind === 'far_tower') {
-      drawFarTower(backdrop, x, y, c, farWindows);
+      if (!addSceneryImage(scene, 'far_tower', x, y, 5, farWindows)) {
+        drawFarTower(backdrop, x, y, c, farWindows);
+      }
     } else if (item.kind === 'quay') {
-      drawQuay(quay, x, y, item.length ?? 0, c);
+      if (!addSceneryImage(scene, 'quay', x, y, 6, [], item.length ?? 0)) {
+        drawQuay(quay, x, y, item.length ?? 0, c);
+      }
     } else if (item.kind === 'steps') {
       drawSteps(ground, x, y, item.length ?? 0, c);
     } else if (item.kind === 'drain') {
@@ -79,17 +86,25 @@ export function createSceneArtbook(
     } else if (item.kind === 'street_paving') {
       drawStreetPaving(ground, x, y, item.length ?? 0, c);
     } else if (item.kind === 'shopfront_gable') {
-      drawGableShopfront(facade, x, y, item.length ?? 4, c, windows);
+      if (!addSceneryImage(scene, 'shopfront_gable', x, y, 1370, windows, item.length ?? 4)) {
+        drawGableShopfront(facade, x, y, item.length ?? 4, c, windows);
+      }
     } else if (item.kind === 'boiler') {
-      drawBoiler(facade, x, y, c);
+      if (!addSceneryImage(scene, 'boiler', x, y, 1370, windows)) {
+        drawBoiler(facade, x, y, c);
+      }
     } else if (item.kind === 'coal_heap') {
-      drawCoalHeap(facade, x, y, c);
+      if (!addSceneryImage(scene, 'coal_heap', x, y, 1370, windows)) {
+        drawCoalHeap(facade, x, y, c);
+      }
     }
   }
 
   // 主楼补绘：位置由 `setting-scenery.ts` 从摆放取后传进来，这里不写第二份坐标。
   if (hallAt !== undefined) {
-    drawBathhouse(architecture, hallAt.x, hallAt.y, c, windows);
+    if (!addSceneryImage(scene, 'bathhouse_main', hallAt.x, hallAt.y, 1417, windows)) {
+      drawBathhouse(architecture, hallAt.x, hallAt.y, c, windows);
+    }
   }
 
   return {

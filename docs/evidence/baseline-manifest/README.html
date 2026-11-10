@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>基线字节自证（E13）</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#_1">为什么</a></li>
+<li><a href="#_2">修法</a></li>
+<li><a href="#_3">红证 [实测]</a></li>
+<li><a href="#_4">读数</a></li>
+<li><a href="#ci">跨平台：第一次跑 CI 就红了</a></li>
+<li><a href="#_5">没做什么</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="e13">基线字节自证（E13）</h1>
+<p><strong>一句话</strong>：给 <code>eval/screens/</code> 的 166 个已跟踪文件记一份 sha256；字节一变就红，
+换基线必须显式 <code>--update</code> 并把记录和图放进同一个提交。</p>
+<h2 id="_1">为什么</h2>
+<p>这个仓库的像素证据全部建立在「拿这一次的截图去和一份固定的底片比」之上。
+底片与运行产物<strong>同名同址</strong>（<code>setting-scale-after.png</code> 既是量测输入，又是
+<code>--write-baseline</code> 的落盘目标），授权写入之后直接覆盖，<strong>没有任何机关会发现</strong>。</p>
+<p>后果不是「这一次读数错了」，是：之后每一次比较都拿新字节当基准，而旧字节只能
+翻 git 历史才拿得回来。「基线是 2026-11-08 那次重拍的已跟踪字节」这个前提，
+会在无声无息中失效。</p>
+<p><code>shot-output.mjs</code> 已经解决了「写哪儿」（缺省 <code>tmp/screens/</code>，显式授权才写基线），
+缺的是「<strong>字节还是不是那一份</strong>」。</p>
+<h2 id="_2">修法</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>world-client/eval/screens/.baseline-manifest.json</code></td>
+<td>166 个已跟踪文件的指纹，17,174 字节；文本按 LF 归一、二进制按原字节</td>
+</tr>
+<tr>
+<td><code>world-client/scripts/lib/baseline-manifest.mjs</code></td>
+<td>指纹、三分法 diff、确定性序列化、解析校验（纯函数）</td>
+</tr>
+<tr>
+<td><code>world-client/scripts/audit-baseline.mjs</code></td>
+<td>闸门：默认校验、<code>--update</code> 换基、<code>--dir</code> 供红证</td>
+</tr>
+<tr>
+<td><code>world-client/package.json</code></td>
+<td><code>npm run audit:baseline</code></td>
+</tr>
+<tr>
+<td><code>.github/workflows/ci.yml</code></td>
+<td><code>world-client</code> job 第 8 步（<code>audit:ports</code> 之后）</td>
+</tr>
+<tr>
+<td><code>scripts/lib/shot-output.mjs</code></td>
+<td>授权写基线时提示「写完必须 <code>--update</code> 并同提交」</td>
+</tr>
+<tr>
+<td><code>scripts/check-setting-scale.mjs</code></td>
+<td>删掉 <code>setting-scale-*.json</code> 里写死的 <code>"file"</code> 死字段</td>
+</tr>
+</tbody>
+</table>
+<p>三类漂移<strong>分开报</strong>，因为对应三种不同的错：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>含义</th>
+<th>该做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>changed</code></td>
+<td>记过、在、字节变了</td>
+<td><strong>有人换掉了基线</strong>（本条要抓的就是这个）</td>
+</tr>
+<tr>
+<td><code>missing</code></td>
+<td>记过、文件没了</td>
+<td>基线被删或改名</td>
+</tr>
+<tr>
+<td><code>unlisted</code></td>
+<td>在、没记过</td>
+<td>新基线没进记录，等于它从来不可自证</td>
+</tr>
+</tbody>
+</table>
+<p>两条「不许算通过」：<strong>记录不存在</strong>判红（「没有记录」只等于「从来不可自证」）；
+<strong>记录读不懂</strong>（版本不符 / 指纹不是 64 位）也判红，不退回空表。</p>
+<p>确定性：键排序、两空格、末尾换行。同样的输入必须写出逐字节相同的记录，
+否则「记录自己有没有被改过」又要靠人看 diff。</p>
+<h2 id="_3">红证 [实测]</h2>
+<p>全部在 <code>world-client/tmp/baseline-proof/</code> 的<strong>拷贝</strong>上做，没动仓库里的任何一个字节。</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>场景</th>
+<th>期望</th>
+<th>实测</th>
+<th>exit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>完整拷贝，原样</td>
+<td>通过</td>
+<td><code>记录 166 / 已跟踪 0 / 全部一致</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>追加一个 <code>\x00</code> 到 <code>01-salute.png</code></td>
+<td>只报 1 个 changed</td>
+<td><code>changed 1 / missing 0 / unlisted 0</code>，点名 <code>a5b6deda189a… → dd023d3d060d…</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>删掉 <code>02-working.png</code></td>
+<td>报 missing</td>
+<td><code>missing 1</code>，点名 <code>02-working.png</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>对未跟踪目录 <code>--update</code></td>
+<td>拒绝</td>
+<td><code>下没有已跟踪文件，没有可入账的基线</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>--update</code> 连跑两次</td>
+<td>记录逐字节相同</td>
+<td>sha256 都是 <code>c04a30bf11a3…</code>（v2 记录）</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>第 3 步前先跑过一次「只拷 <code>*.png</code> 不拷 <code>.json</code>/<code>.html</code>」的残缺拷贝，闸门<strong>正确点名了
+12 个 missing</strong>（<code>banner-smoke.json</code>、<code>setting-scale-after.json</code>、<code>scene-motion.html</code> …）
+——那次是我的拷贝漏了文件，不是闸门的错，但正好当了一次「missing 真的会点名」的实证。</p>
+<h2 id="_4">读数</h2>
+<ul>
+<li>规模：166 个文件（154 PNG + 9 JSON + 3 HTML）/ 8.1 MB；记录 17,174 字节（sha256 <code>c04a30bf11a3…</code>）。</li>
+<li>耗时（各 3 次，含 node 启动）：校验 604–662 ms，<code>--update</code> 664–702 ms（全量 sha256，没有缓存）。
+  同一份代码在更快的机器上 review 复现为 334–401 ms——这是机器读数，不是方法开销。</li>
+<li>单测：<code>test/baseline-manifest.test.ts</code> 11 条（diff 三类、排序确定性、解析三种坏输入、跨平台指纹、
+  「另有 N 个」的截断回归、加载器只吞「文件不在」（语法错必须原样抛）、
+  排除记录自身、端到端改一字节定位）。</li>
+<li><strong>基线字节未变</strong>：<code>git diff --stat -- eval/screens/</code> 为空——这一笔只加记录，不碰底片。</li>
+</ul>
+<h2 id="ci">跨平台：第一次跑 CI 就红了</h2>
+<p>PR #37 的 <code>world-client</code> job 24 秒红在 <code>npm run audit:baseline</code>：<strong>12 个文本文件</strong>
+（<code>setting-scale-*.json</code>、<code>stall-motion.json</code>、<code>scene-motion.html</code> …）全被判「字节变了」，
+而 154 个 PNG 一个没动。</p>
+<p>根因不是闸门坏了，是<strong>我记错了「字节」</strong>：本仓 <code>core.autocrlf=true</code>，<code>.json</code> / <code>.html</code>
+在库里是 <code>i/lf w/crlf</code>——Windows 工作区读到 CRLF，Linux runner checkout 出 LF。
+我拿 Windows 磁盘字节取 sha256，等于把「平台的行尾」当成了「基线的身份」。</p>
+<p>修法（记录版本 1 → 2）：</p>
+<ul>
+<li><strong>文本按 LF 归一后取指纹</strong>，二进制按原字节；</li>
+<li>文本/二进制不按扩展名猜，用 <strong>git 自己的判据</strong>：前 8000 字节里出现 NUL 即二进制。
+  PNG 里本来就有 2 个 <code>\r\n</code> 字节对，无条件替换会把它算出第三个指纹；</li>
+<li><code>--update</code> 顺带修了一个实现缺陷：记录版本不符时校验该红，但<strong>换基路径</strong>不该被自己
+  拦住——现在 <code>--update</code> 会声明「按重建处理，没有逐条 old→new」后继续。</li>
+</ul>
+<p>验证：把 12 个文本文件转成 LF 的<strong>拷贝</strong>上跑校验 → <code>记录 166 / 已跟踪 0 / 全部一致</code>；
+PNG 指纹不变（<code>01-salute.png</code> 仍是 <code>a5b6deda189a…</code>），<code>setting-scale-after.json</code> 变成 CI
+看到的那个值 <code>3720ae2c3ba5…</code>。第一次红是它自己的跨平台误报，不是基线被覆盖——
+但那句「字节与记录不符」正是它该说的话，只是这次说给了作者听。</p>
+<h2 id="_5">没做什么</h2>
+<ul>
+<li><strong>不在闸门里自动 <code>--update</code></strong>：闸门只能保证「变了就红」，不能保证「红之后没人乱点
+  <code>--update</code>」，但那已经是逐条 <code>old→new</code> 的显式动作，不再无声。</li>
+<li><strong>不覆盖 <code>docs/evidence/</code></strong>：那里是给人看的证据图，靠各自 README 的读数说话，
+  不是逐字节比较的输入。</li>
+<li><strong>不覆盖 <code>eval/live/</code></strong>：那儿有 5 张已跟踪的验收图（<code>01-online.png</code> … <code>05-dengchao-built.png</code>），
+  而写入路径更松——<code>scripts/accept-live.mjs:36</code> 的 <code>OUT</code> 是
+  <code>process.env.EVAL_LIVE_OUT ?? resolveShotDir('accept-live')</code>，<strong>环境变量一设就整条绕过
+  <code>resolveShotDir</code></strong>，连「这是仓库基线」的提示都不会出现。它们算不算必须自证的基线，
+  要单独定；在那之前，重拍 <code>eval/live/</code> 仍然是无声的。</li>
+<li><strong>没有让 <code>check-setting-scale</code> 进 browser job</strong>：这条闸门管字节，不管「那个脚本
+  有没有被跑过」，两件事不混。</li>
+</ul></main>
+</div>
+</body>
+</html>

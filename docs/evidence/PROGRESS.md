@@ -243,8 +243,9 @@
   - `index.html:888` `#hud-load`；`index.html:913` `#status`；`index.html:902` `#stage`；
     `index.html:921-925` `#oracle` + `#utterance`；`index.html:1072` `#paper-clock`。
   - `main.ts:92` 世界在模块顶层同步建好；`main.ts:123` `new Phaser.Game`；`main.ts:142` 立即启动场景。
-  - `SandboxScene.ts:571` create；580/587 烘焙地形；647-650 镜头 delayedCall(0) 平移到祭坛；
-    766 setPhase；780 默认时相 = `phaseAt(Date.now())`；1052-1061 游玩时钟从 0 起算。
+  - `SandboxScene.ts:793` preload（`?art=1` 时装位图素材）；`SandboxScene.ts:798` create；807/814 烘焙地形；881-884 镜头 delayedCall(0) 平移到祭坛；1069 setPhase；1081 默认时相；1072-1081 游玩时钟从 0 起算。
+  - `SandboxScene.ts:798` create；807/814 烘焙地形；881-884 镜头 delayedCall(0) 平移到祭坛；
+    1066 setPhase；1080 默认时相；1071-1080 游玩时钟与自动切换。
   - 默认时刻矛盾：报纸「第 0 分 00 秒」+ 天空按真实本地时相（正午）——未修（属 report/世界语义）。
   - 改前路径：0 次点击可见世界；聚焦(1) + 回车(2) 得到第一句回执；首屏没有任何「能做什么」的说明。
 - 方案（代价排序）
@@ -733,7 +734,7 @@
 ### 没做到的
 
 - **「屋里有谁」这条只验到空房**：夜里 5 栋民居、中午工业楼，`insideAt` 都没有人。
-  模拟里只有 `working` 时才会 `visible=false`（`simulation.ts:3940`），而本机没有上游派活
+  模拟里只有 `working` 时才会 `visible=false`（`simulation.ts:4017`），而本机没有上游派活
   （`/api/memory/list` 404），所以这一天里没有人真的进屋。**有人时的站位/配色没有被验证**，
   也没有为了让截图好看去伪造在场者。
 

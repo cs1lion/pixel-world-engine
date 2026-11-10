@@ -92,6 +92,31 @@ export interface BakedLayer {
 }
 
 /**
+ * 只烘纹理、不落图。
+ *
+ * 给「一张纹理要贴很多次」的构件用：木栅这类等距重复件的内容逐格相同，
+ * 每件各烘一张就是同一条 `generateTexture` 走 N 遍、N 张纹理在渲染器里
+ * 来回切（件数越多切得越碎）。一张纹理贴 N 次，纹理切换只有一次。
+ *
+ * `key` 必须是全局唯一的纹理名：同名会复用旧纹理，画面就停在上一版。
+ */
+export function bakeTexture(
+  scene: Phaser.Scene,
+  key: string,
+  width: number,
+  height: number,
+  draw: (g: Phaser.GameObjects.Graphics) => void,
+): void {
+  // 先画到一个不进场景的 Graphics 上。
+  const g = scene.make.graphics({}, false);
+  draw(g);
+  // 旧纹理要先删：同 key 的 generateTexture 会直接复用，画面不更新。
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  g.generateTexture(key, width, height);
+  g.destroy();
+}
+
+/**
  * 用 `draw` 画一遍，把结果存成纹理并贴到 `depth`。
  *
  * `key` 必须是全局唯一的纹理名：同名会复用旧纹理，画面就停在上一版。
@@ -107,13 +132,7 @@ export function bakeLayer(
   let image: Phaser.GameObjects.Image | null = null;
 
   const rebake = (): void => {
-    // 先画到一个不进场景的 Graphics 上。
-    const g = scene.make.graphics({}, false);
-    draw(g);
-    // 旧纹理要先删：同 key 的 generateTexture 会直接复用，画面不更新。
-    if (scene.textures.exists(key)) scene.textures.remove(key);
-    g.generateTexture(key, width, height);
-    g.destroy();
+    bakeTexture(scene, key, width, height, draw);
 
     if (image === null) {
       image = scene.add.image(0, 0, key).setOrigin(0, 0);

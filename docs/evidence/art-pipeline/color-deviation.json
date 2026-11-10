@@ -1,0 +1,78 @@
+{
+  "paletteSlots": 24,
+  "method": "RGB 欧氏距离到最近 24 色槽；alpha<=200 不计",
+  "assets": {
+    "building/boiler_annex": {
+      "uniqueColors": 5106,
+      "opaquePixels": 11462,
+      "meanDistance": 16.91,
+      "farOver40Ratio": 0.0381
+    },
+    "building/ferry_station": {
+      "uniqueColors": 10230,
+      "opaquePixels": 24628,
+      "meanDistance": 15.79,
+      "farOver40Ratio": 0.0304
+    },
+    "building/lamp_archive": {
+      "uniqueColors": 10354,
+      "opaquePixels": 11671,
+      "meanDistance": 24.6,
+      "farOver40Ratio": 0.0799
+    },
+    "building/lamp_lodge": {
+      "uniqueColors": 11569,
+      "opaquePixels": 14915,
+      "meanDistance": 30.99,
+      "farOver40Ratio": 0.1926
+    },
+    "building/lamp_workshop": {
+      "uniqueColors": 8476,
+      "opaquePixels": 13333,
+      "meanDistance": 29.69,
+      "farOver40Ratio": 0.2176
+    },
+    "building/ledger_house": {
+      "uniqueColors": 6318,
+      "opaquePixels": 10562,
+      "meanDistance": 23.51,
+      "farOver40Ratio": 0.0303
+    },
+    "building/soot_forge": {
+      "uniqueColors": 4897,
+      "opaquePixels": 12078,
+      "meanDistance": 19.16,
+      "farOver40Ratio": 0.0108
+    },
+    "building/tea_stall": {
+      "uniqueColors": 11882,
+      "opaquePixels": 17079,
+      "meanDistance": 22.03,
+      "farOver40Ratio": 0.1048
+    },
+    "building/waiting_shelter": {
+      "uniqueColors": 8026,
+      "opaquePixels": 9818,
+      "meanDistance": 24.96,
+      "farOver40Ratio": 0.1206
+    },
+    "building/wave_house": {
+      "uniqueColors": 40217,
+      "opaquePixels": 60855,
+      "meanDistance": 27.63,
+      "farOver40Ratio": 0.1111
+    },
+    "villager/v0": {
+      "uniqueColors": 664,
+      "opaquePixels": 715,
+      "meanDistance": 34.7,
+      "farOver40Ratio": 0.3161
+    },
+    "villager/v1": {
+      "uniqueColors": 802,
+      "opaquePixels": 969,
+      "meanDistance": 26.01,
+      "farOver40Ratio": 0.0609
+    }
+  }
+}

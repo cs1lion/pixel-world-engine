@@ -1,0 +1,253 @@
+{
+  "artScale": 2,
+  "assets": {
+    "building/boiler_annex": {
+      "prompt": "single ONE single small dark shed, low flat roof, one iron chimney, plain charcoal wooden wall with one small glowing furnace window, EXACTLY ONE BUILDING ONLY, no other buildings, no street, empty background, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_c2ksXq42x05b2uskUpzPI3ND11fI3jmq/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p49.png"
+      ],
+      "width": 144,
+      "height": 111,
+      "sha256": "500429308b3059c64aea49977c39a487e88aef5a8cec4bf7e33ff904723a512f",
+      "bytes": 22131
+    },
+    "building/ferry_station": {
+      "prompt": "single old wooden ferry waiting station by the water, weathered timber posts, flat tiled canopy, a bench and a route sign, quiet and worn, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_fUweTjezm2XvieNQ0YFSGR54TbS9A0le/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
+      "width": 208,
+      "height": 170,
+      "sha256": "2eea23098f93a7244b00dbee90e7ef0f66f703b0b1ec643593480d657af6f190",
+      "bytes": 51786
+    },
+    "building/lamp_archive": {
+      "prompt": "single lamp archive hall, verdigris-copper gabled roof, tall lattice windows, rows of scroll shelves visible inside, scholarly and calm, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_j0xznIrH3SR3vyA84XnK5EHV0WVh4iBP/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
+      "width": 144,
+      "height": 95,
+      "sha256": "87c671c4f44b4b96c8bf9ed37999c4817d222ba02a9091b9564f3e14c0cdac7c",
+      "bytes": 28974
+    },
+    "building/lamp_lodge": {
+      "prompt": "single small Japanese lantern lodge inn with a verdigris-copper gabled roof, glowing paper lanterns, wooden lattice windows, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_fb0pfoez5bHKfi0kUAc3iKRhswg8wLc5/output_a0e98fa3c25e42e380bd912bb4d6cba5.png",
+      "refs": [],
+      "width": 176,
+      "height": 128,
+      "sha256": "539c11d2a3d82ed29e87c8089ab937a84f798cb07f154739b37c69b6f6e717a0",
+      "bytes": 36388
+    },
+    "building/lamp_workshop": {
+      "prompt": "single A SINGLE isolated small shop building, centered, front view, flat tiled roof, one doorway, lattice windows, a few paper lanterns hanging under the eaves, plain wooden walls, ORTHOGRAPHIC FLAT SPRITE, no perspective, no street, no other buildings, no people, no ground, solid empty background, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Bswf2WYFriBHCNwDhNIrnBoRBH3u6cen/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p49.png"
+      ],
+      "width": 144,
+      "height": 109,
+      "sha256": "228c53ad32947f2d2d92ad1bc98227080bf161145a09d465540b5dba56a0b8ba",
+      "bytes": 29647
+    },
+    "building/ledger_house": {
+      "prompt": "single modest ledger keeper's house, dark timber gable roof, shuttered windows, a paper notice board, restrained and orderly, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_QF5yyB5YW1GhEcEuTzOGUlX75MoiB0xJ/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
+      "width": 144,
+      "height": 114,
+      "sha256": "6b371ba17000148b43bc58479bad74c3edd856a9d74b353a71a48d01d5fef994",
+      "bytes": 23914
+    },
+    "building/soot_forge": {
+      "prompt": "single ONE single low soot-black smith forge, flat roof, one heavy wooden door, one small chimney, dark walls with a faint orange glow in one window, EXACTLY ONE BUILDING ONLY, symmetric front view, no side wall, no ground, empty background, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_ShNgXBTNuysn7nptDpt6COXaybQ9a2kq/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p49.png"
+      ],
+      "width": 144,
+      "height": 107,
+      "sha256": "68c721e21d815bf8e4bfee371e9a8366a0fa7a24b6221a82ee559f0129680957",
+      "bytes": 21797
+    },
+    "building/tea_stall": {
+      "prompt": "single small Japanese tea stall shop with a flat tiled roof, red noren curtain, steaming kettle, hanging red lanterns, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_mi7k5NTkGWOHrVdITqgIXhrA2C9Ec0Yx/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
+      "width": 176,
+      "height": 112,
+      "sha256": "eb45d5ab383fe1addf5fed023abbc1b51603e46b3a25e0169e54984a6d973ab4",
+      "bytes": 38665
+    },
+    "building/waiting_shelter": {
+      "prompt": "single small roadside waiting shelter, simple copper-tiled flat roof, open front with two posts and a bench, no walls on the sides, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_ckv61TCnJQmAQNX3qkiYaZwW622hSDxT/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
+      "width": 144,
+      "height": 80,
+      "sha256": "46eddb2496faba71f10aba1563a338f9e5acd216d2d837072d100e096450aab3",
+      "bytes": 22898
+    },
+    "building/wave_house": {
+      "prompt": "single grand multi-storey bathhouse tower, layered tiled roofs, red lacquer pillars, hanging lanterns, ornate central entrance, the town's landmark, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_77tvFzpLSzHokOStZ989QdtHEJ07lWAt/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
+      "width": 240,
+      "height": 327,
+      "sha256": "0de2fd27afbb6c40837bf9e77afed5105ea4d6faf92fcc253c38c88dd4427fae",
+      "bytes": 138781
+    },
+    "scenery/bathhouse_main": {
+      "prompt": "single grand multi-storey Japanese bathhouse facade, layered copper-green tiled roofs with upturned eaves, red lacquer pillars and railings, rows of warm-lit lattice windows, ornate central entrance with curved gable and hanging lanterns, a tall brick chimney on the right, a vertical banner on the left, EXACTLY ONE BUILDING ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_OrsNoJ3yOrJT0V0VWONSnEJHtWvH8JYl/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p15.png",
+        "ref-p39.png",
+        "ref-p46.png"
+      ],
+      "width": 332,
+      "height": 381,
+      "sha256": "77de1091b39ab25f90cb0e082511489ca6702fcb10a8188d1faea620a8eed7f0",
+      "bytes": 205016
+    },
+    "scenery/boiler": {
+      "prompt": "single small brick furnace with iron flue pipe and brick chimney, glowing orange fire inside, dark sooty walls, EXACTLY ONE STRUCTURE ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_CeA9YPGkLsexJiVdwKdUrLSvVenCT9ML/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p48.png"
+      ],
+      "width": 74,
+      "height": 131,
+      "sha256": "ec9f25170aef591b12923a13dc86f9aa7e35db1b40af1487442d6f1e53f6e349",
+      "bytes": 15223
+    },
+    "scenery/coal_heap": {
+      "prompt": "single small pile of coal with a wooden bucket beside it, dark lumps stacked in layers, EXACTLY ONE PILE ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_67fiijOKE23dG0Vzt9iKYQSKR19oVENo/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p48.png"
+      ],
+      "width": 66,
+      "height": 27,
+      "sha256": "fe498dcc9b203c3cdb16ca574cbd80bf7694d16cd00832ea33ed68d3f7961407",
+      "bytes": 3402
+    },
+    "scenery/far_ridge": {
+      "prompt": "single distant shoreline with continuous roof ridge line and low mountain silhouettes, a few warm-lit windows scattered along the ridge, dark water below, panoramic horizontal strip, NO foreground buildings, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_FBthtawnkyXHuDKT1B77pz6tx3RoIHiP/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p3.png",
+        "ref-p41.png"
+      ],
+      "width": 1984,
+      "height": 614,
+      "sha256": "4fea2cda106829047a4ab5e0c4bc58eded31a4fdbd53872fd6e05263b38cf0ca",
+      "bytes": 559880
+    },
+    "scenery/far_tower": {
+      "prompt": "single small distant clock tower silhouette, square tower body with clock face, pointed roof, two warm-lit windows, EXACTLY ONE TOWER ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_GF71Ybd9QuLPWTTS6jpIOKmunMrf6Ddl/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p3.png"
+      ],
+      "width": 52,
+      "height": 67,
+      "sha256": "76ca990dfb334929969655de36d6a52e8901a1393506ed1a6ecb65adc97958a1",
+      "bytes": 5490
+    },
+    "scenery/quay": {
+      "prompt": "single stone quay wall with stepped entrance to water, mooring posts with ropes, a waiting stone bench, moss in the cracks, EXACTLY ONE STRUCTURE ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_uR7kNOXSb9pJCwMO3L9w31NGayzZwyo4/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p41.png"
+      ],
+      "width": 160,
+      "height": 174,
+      "sha256": "4cf9b556675e660afce15f497d34c95c2e2447b266ffab58cc849f0ea90fa73c",
+      "bytes": 43247
+    },
+    "scenery/shopfront_gable": {
+      "prompt": "single small Japanese shop front with curved plaster gable roof, round window at the apex, two vertical signboards, lattice door, red lanterns under the eaves, weathered plaster walls, EXACTLY ONE BUILDING ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_rvKw3HwTr5HbSiZDkow1JLsX26EXzAFw/output.png",
+      "refs": [],
+      "refFiles": [
+        "ref-p35.png",
+        "ref-p40.png"
+      ],
+      "width": 128,
+      "height": 194,
+      "sha256": "cc93026f4d093efeb114f3d3a4618af1a2cafceccad2ca7e7c59493c5a550da1",
+      "bytes": 37823
+    },
+    "villager/v0": {
+      "prompt": "single full-body young girl lost traveler in vermilion work clothes with white front apron, dark blue shorts, brown ponytail, carrying a wooden water bucket, standing, facing front, three-quarter view, small chibi proportions (about 3 heads tall), simple readable costume, exactly one character only, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_21jwgkP9tABVPsfGrZXt5nZ4BBZpvL8R/output_c9c9f016ff0d44ffb586f01a34a70f93.png",
+      "refs": [],
+      "width": 25,
+      "height": 60,
+      "sha256": "55bdc19809dee18259f59c8fe4077e1e47d97844336d1338f3070a631502c65b",
+      "bytes": 3782
+    },
+    "villager/v1": {
+      "prompt": "single full-body young boy named Xi in a pale white-teal long robe with blue sash, dark chin-length bob haircut, barefoot, holding a small glowing paper lantern, standing, facing front, three-quarter view, small chibi proportions (about 3 heads tall), simple readable costume, exactly one character only, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_1XgNYlRM8CQRMS4dpi7muutkTc5RSlwy/output_7e7c35550c7d4ab4aec54901eda0340a.png",
+      "refs": [],
+      "width": 33,
+      "height": 60,
+      "sha256": "fae4b216b05e98dfb56d88dee99c375193bc5c43bb532c819e03498325705496",
+      "bytes": 4440
+    }
+  }
+}

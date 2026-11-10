@@ -38,6 +38,7 @@ import {
   AutonomousFuseController,
   AutonomyLevel,
   evaluateFuseDecision,
+  type AutonomyRoleSnapshot,
   type CreatorRoleState,
 } from '../world/creator/fuse.ts';
 import type { BuiltWorld } from '../world/setup.ts';
@@ -78,6 +79,11 @@ export interface CreatorEngineOptions {
    * 同一张图。省略时才回退到 `buildSettingWorld(pack)`（测试与离线工具用）。
    */
   readonly world?: BuiltWorld;
+  /**
+   * A2：上一次会话落档的外环角色状态快照。给了就在初始化后恢复等级、
+   * 指标窗口与世界日计数；省略或 `null` 表示新世界，全部角色从 L0 起步。
+   */
+  readonly autonomy?: readonly AutonomyRoleSnapshot[] | null;
 }
 
 /** 造物引擎输出 */
@@ -223,6 +229,10 @@ export class CreatorEngine {
     // 4. 初始化熔断器（所有造物主角色从 L0 开始）。时钟是世界的，不是墙钟。
     this.fuseController = new AutonomousFuseController(options.worldTime);
     this.initializeAllRoles(options.targetLevel ?? CREATOR_ENGINE_CONFIG.defaultTargetLevel);
+    // A2：读档恢复。必须在 initRole 之后——否则会被随后那次初始化覆盖回 L0。
+    if (options.autonomy !== undefined && options.autonomy !== null) {
+      this.fuseController.restoreRoleSnapshots(options.autonomy);
+    }
 
     // 5. 初始化导演引擎
     this.directorEngine = new DirectorEngine();
@@ -533,6 +543,11 @@ export class CreatorEngine {
       if (state) acc.set(id, state);
       return acc;
     }, new Map<string, CreatorRoleState>());
+  }
+
+  /** A2：导出当前外环角色状态，交给场景写进存档。 */
+  exportAutonomy(): readonly AutonomyRoleSnapshot[] {
+    return this.fuseController.exportRoleSnapshots();
   }
 }
 

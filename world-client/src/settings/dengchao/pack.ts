@@ -112,6 +112,37 @@ export const DENGCHAO_CAST_ARCHIVES = {
       { to: '沉灯夫人', trust: 0.3, warmth: 0, debt: 0.1, familiarity: 0.5 },
     ],
   },
+  // 以下两人是**灯潮界原创**，设定集里没有对应人物，因此不进
+  // `DENGCHAO_CAST_ARTBOOK`（那张表只登记有 PDF 页码的五人）。
+  // 档案按各自已有的作息拍写，不替设定集编页码。
+  账房先生: {
+    aliases: ['管账的', '账房'],
+    identity: '账房，隶属账房与集市；原创角色，无设定集依据',
+    generation: '中年，镇上唯一认全部零钱的人',
+    origin: '灯潮界开市那年就在摊位间记账；没人见他来过，也没人见他走。',
+    cares: ['今日的账对得上', '旧账有人认'],
+    taboos: ['替他改一笔账', '赊了不记'],
+    routine: '07:30 镇心听人报今日的账；10:30 账房门口核账；14:00 街口说一笔旧账；开市时在摊位间对零钱。',
+    voice: '先报数，再报名字。',
+    bonds: [
+      { to: '沉灯夫人', trust: 0.35, warmth: 0.1, debt: 0, familiarity: 0.55 },
+      { to: '炉匠', trust: 0.25, warmth: 0.15, debt: -0.1, familiarity: 0.45 },
+    ],
+  },
+  洗衣妇: {
+    aliases: ['洗衣的', '晾布的'],
+    identity: '叠浪楼洗衣工，隶属叠浪楼；原创角色，无设定集依据',
+    generation: '壮年，手劲比说话大',
+    origin: '从积尘滩的废船上来，带着一只木盆；沉灯夫人让她留在叠浪楼后巷洗衣。',
+    cares: ['衣裳要干透', '退潮时滩边晾得开'],
+    taboos: ['满潮时催她晾布', '动她刚拧好的衣'],
+    routine: '06:30 镇心石边拧干最后一件；09:00 上叠浪楼收洗好的衣裳；退潮时 14:30 滩边晾布；17:00 把干净衣裳送到街尾。',
+    voice: '手上不停，话短。',
+    bonds: [
+      { to: '沉灯夫人', trust: 0.3, warmth: 0.05, debt: 0.15, familiarity: 0.5 },
+      { to: '汐', trust: 0.25, warmth: 0.3, debt: 0, familiarity: 0.4 },
+    ],
+  },
 } satisfies Readonly<Record<string, VillagerArchive>>;
 
 /**
@@ -345,16 +376,18 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 一个坐标锚表示不了整条街。这里取 `stall_north_1` 所在的那一格：判据是
     // 「这个坐标上有没有摊位」，不是位移。引擎自带的市面点 `marketSpot()`(40,26)
     // 是空街口、离最近摊 6 格——见 `docs/OPEN_ISSUES.md` O3。
-    { id: 'market', kind: 'market', x: 17, y: 26 },
+    // 集市是链条的末端：它把叠浪楼洗好的衣裳卖出去，换回一天里的成交数。
+    { id: 'market', kind: 'market', x: 17, y: 26, name: '集市', output: 'trade', consumes: 'laundry' },
     // 锅炉房 = `boiler_annex#1`（显示名「炉底入口」；炉膛 (33,14)、煤堆 (34,16)、
     // 烟 (33,12) 都在它门旁 4–7 格内）。它不是建筑锚而是坐标锚，原因**不是**
     // 「这栋没有门」——它有门，门在 (31,17)。但门落在 bathhouse 区域（`requires: 'lamp'`），
     // 而炉匠 `carries: []`，走门等于静默失效（人永远到不了，牌子还写着搬炭）。
     // 所以锚在现状作息点 (33,15)：出区域、可走，距炉膛 1、煤堆 2。
-    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15 },
+    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15, name: '炉底入口', output: 'coal' },
     // 大浴场清洗 = `wave_house#1`（叠浪楼）：建筑锚，id 就是 instanceId，
     // 落点由 `PlacedBuilding.door` 解析。洗衣妇有灯，进得去。
-    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1' },
+    // 叠浪楼是链条的中间：每天烧一份炭（浴池要热水），洗出一份衣裳（集市要）。
+    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1', name: '叠浪楼', output: 'laundry', consumes: 'coal' },
   ],
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
   // 它们是**设定集的话**，不是引擎的话——所以写在这儿，不写进 `grime.ts`。
@@ -469,7 +502,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { site: 'courtyard-east', activity: 'rest', label: '在花径里站一会儿', going: '去花径', dwellMs: 5200 },
       { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
     ] },
-    { name: '账房先生', at: { x: 34, y: 28 }, style: {
+    { name: '账房先生', at: { x: 34, y: 28 }, archive: DENGCHAO_CAST_ARCHIVES['账房先生'], style: {
       cloak: 'trim', cloakDark: 'charcoal', scarf: 'copper', scarfLit: 'pale', hair: 'timberDark',
       build: 'adult', head: 'bob', outfit: 'coat', accent: 'satchel', lamp: true,
     }, routine: [
@@ -481,7 +514,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
       // 锚 (17,26) 上就是 `stall_north_1`，不是空街口。
       { site: 'market', activity: 'trade', label: '在摊位间对一遍零钱', dwellMs: 4800 },
     ] },
-    { name: '洗衣妇', at: { x: 37, y: 31 }, style: {
+    { name: '洗衣妇', at: { x: 37, y: 31 }, archive: DENGCHAO_CAST_ARCHIVES['洗衣妇'], style: {
       cloak: 'copper', cloakDark: 'deepShade', scarf: 'pale', scarfLit: 'plaster', hair: 'soil',
       build: 'adult', head: 'ponytail', outfit: 'apron', accent: 'none', lamp: true,
     }, routine: [
@@ -505,10 +538,34 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 「花床」而不是一条花边）；中央 x6..7 是净空，两个人能并排站。庭心石作挪到
     // 西侧 (4,25)，不压在中央净空列上。花圃与石作都走 bake（静态纹理，每帧 0 条）
     // ——峰值指令净增 0，见 `docs/OPEN_ISSUES.md` N 节。
-    // 降级：没有粉紫（杜鹃 / 绣球做不出来），花墙读作小树丛；木栅 / 石垣 / 瓦顶本轮不做；
+    // 降级：没有粉紫（杜鹃 / 绣球做不出来）；**瓦顶 2026-11-09 补上**了（只换石垣
+    // 压顶那 3px、不加高，见下）；花墙形制 2026-11-09 已按「连贯、等高、平顶」改过
+    // 一版（仍是 **B 档**：依据只有仓库转述，本机画册对不上 p110–111，没有一手证据）；
+    // 庭心石作同日改成石灯籠（宝珠 / 笠 / 火袋 / 中台 / 竿 / 两级基座，仍是 B 档，
+    // 见 `docs/evidence/garden-stone/`）。
     // **石作不加灯**（+306 条，144 条余量吃穿），夜里这片是全黑的。
+    //
+    // 矮石垣（设定集 p110–111 的「石垣」，**B 档**：依据仍是仓库转述）。
+    // 只做**东西向**、只做**齐腰高**（总高 16px、村民 18–20px）：南北向的墙在这套
+    // 投影里只剩一条竖带，读不出「立着」，与木栅同一条限制（实测见
+    // `docs/evidence/fence/README.md`）；再高就会把花床后的视线全吃掉。
+    // 顶上 3px 是瓦葺压顶（亮瓦脊 / 暗瓦面，4px 一垄）——**只换压顶、不加高**，
+    // 理由是加高会伸进 y19 那一行北篱；六版废稿见 `docs/evidence/wall-roof/`。
+    // 落在花床北缘 y20、从 x3 铺到 x10——比花床（x4..9）左右各宽出一格，
+    // 墙才像把这块地围起来的边界，而不是两列花床各自的靠背。
+    ...[3, 4, 5, 6, 7, 8, 9, 10].map((x) => ({ kind: 'stone_wall' as const, at: { x, y: 20 } })),
+
     ...[4, 5].flatMap((x) => [21, 22, 23, 24].map((y) => ({ kind: 'flower_bed' as const, at: { x, y } }))),
     ...[8, 9].flatMap((x) => [21, 22, 23, 24].map((y) => ({ kind: 'flower_bed' as const, at: { x, y } }))),
+    // 木栅（设定集 p110–111 的「夹道栅栏」，**B 档**：依据仍是仓库转述）。
+    // 只落在两列花床的**南端面**（y25，每列 2 格），把通道口收住；南北向的长栏
+    // 一件没做——那套画法在 1:1 下读成「一根带节的木杆」，实测四种画法都不成立，
+    // 理由与 A/B 图在 `docs/evidence/fence/README.md`。
+    //
+    // **写在石作之前**：栅栏与石灯籠都在 (4,25) 的行上，取同一个 `sceneryDepth`，
+    // 同 depth 谁在前只剩创建顺序。石作在 (4,25) 站着，栅栏要走它**背后**——
+    // 所以石作写在后面，由它压住那一段栏杆，而不是让栏杆从底座中间穿过去。
+    ...[4, 5, 8, 9].map((x) => ({ kind: 'fence' as const, at: { x, y: 25 } })),
     { kind: 'statue', at: { x: 4, y: 25 } },
     // 碑立在镇心 (32,29) 旁边：世界共识刻在这儿，而不是刻在某栋楼的外墙上。
     // 碑上不写字（中文不进 canvas），字在 `#stele-panel` 里。

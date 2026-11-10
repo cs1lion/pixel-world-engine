@@ -47,6 +47,7 @@ import {
   type TrailPin,
 } from '../render/pin-shot-state.ts';
 import { animFsmEnabledOf } from '../animation/villager-anim-fsm-view.ts';
+import { artEnabledOf, preloadArt } from '../render/art-assets.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
@@ -269,6 +270,7 @@ import {
 } from '../world/memory-client.ts';
 import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
+import { createWorkNoteClient } from '../world/work-note-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
 import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
@@ -621,6 +623,18 @@ export class SandboxScene extends Phaser.Scene {
    */
   private creator: CreatorEngine | null = null;
   /**
+   * 作业牌子的模型客户端。**牌子的底稿永远在**：模型没配上、超时、断网，
+   * 都退回 `routineLabel` 的原文案，世界照常跑。
+   */
+  private readonly workNoteClient = createWorkNoteClient();
+  /**
+   * 同一天同一处、同一句底稿只问一次模型：作业一天发生十几次，
+   * 每次都问会让上游被打爆，而同一处同日说同一句话本来就该是同一句。
+   */
+  private readonly workNoteCache = new Map<string, string>();
+  /** 在飞请求的 key；同一时刻最多两个，免得慢请求排队压住后面所有拍。 */
+  private readonly workNoteInflight = new Set<string>();
+  /**
    * 等落地之后再结算的造物观测。键是 `instanceId`，由既有的
    * `building.built` 回写（`onChange`）触发结算——不另开定时器或轮询。
    */
@@ -787,6 +801,11 @@ export class SandboxScene extends Phaser.Scene {
           this.saveNotice = message;
         },
       });
+  }
+
+  preload(): void {
+    // 位图素材：默认装；`?art=0` 时这里什么也不做，渲染走原程序化路径。
+    if (artEnabledOf(new URLSearchParams(window.location.search))) preloadArt(this);
   }
 
   create(): void {
@@ -1164,6 +1183,33 @@ export class SandboxScene extends Phaser.Scene {
       ...(this.pack === undefined || this.pack === null
         ? {}
         : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 场所产出物：由设定集声明（锅炉房出炭、大浴场出洗好的衣裳、集市成交）。
+      // 没声明的场所不进表，产出账就不记它——花径的 rest/stroll 是过日子不是作业。
+      ...(this.pack === undefined || this.pack === null
+        ? {}
+        : {
+          siteOutputs: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.output !== undefined)
+              .map((site) => [site.id, site.output!] as const),
+          ),
+          // 需求方：产出账的对手方。设定集写谁要什么，引擎不点名。
+          siteDemands: (this.pack.sites ?? [])
+            .filter((site) => site.consumes !== undefined)
+            .map((site) => ({ siteId: site.id, kind: site.consumes! }))
+            .sort((a, b) => (a.siteId < b.siteId ? -1 : a.siteId > b.siteId ? 1 : 0)),
+          siteNames: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.name !== undefined)
+              .map((site) => [site.id, site.name!] as const),
+          ),
+          sitePoints: new Map(
+            (this.pack.sites ?? [])
+              .map((site) => [site.id, this.sitePointOf(site.id)] as const)
+              .filter((entry): entry is readonly [string, { x: number; y: number }] =>
+                entry[1] !== null),
+          ),
+        }),
       // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
       // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
       ...(harborSite === null
@@ -1419,6 +1465,8 @@ export class SandboxScene extends Phaser.Scene {
       worldSeed: creatorPack.id,
       worldTime: () => this.snapshot.now,
       world: this.world,
+      // A2：读档把上一次会话的自治等级/指标窗口还回引擎，不再从 L0 重来。
+      autonomy: this.loadedSave?.world.autonomy ?? null,
     });
     // 造物账本：只增外挂日志。世界 id 与种子都取设定集 id；文件在服务端。
     // 出队器不阻塞世界——服务端不在时，记录留在队里等下一次自动存档。
@@ -1455,7 +1503,7 @@ export class SandboxScene extends Phaser.Scene {
     this.focusListener();
 
     this.onPageHide = () => {
-      this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+      this.saveStore.write(this.buildSave());
       // 关页面前把「这一刻」也写进时钟基线；否则下一下开会把最后几秒
       // （或整整一个被节流的 5 秒窗）重复算进离线间隔。
       this.persistClockBaseline(true);
@@ -1724,6 +1772,7 @@ export class SandboxScene extends Phaser.Scene {
       for (const result of results) {
         this.speak(result);
       }
+      this.pumpWorkNotes();
       this.tick += 1;
       steps += 1;
     }
@@ -3764,9 +3813,71 @@ export class SandboxScene extends Phaser.Scene {
     };
   }
 
+  /**
+   * 排空作业牌子队列：能复用当日同款的直接落，其余的异步问模型。
+   *
+   * 三条克制：
+   *   1. **同日同处同底稿只问一次**（`workNoteCache`）——作业一天发生十几次，
+   *      每次都问会让上游被打爆；
+   *   2. **同时在飞最多两个**——慢请求不许排成队压住世界；
+   *   3. **失败什么都不做**——`routineLabel` 的原文案本来就是对的，
+   *      模型只是换一种说法。
+   */
+  private pumpWorkNotes(): void {
+    const notes = this.sim.drainWorkNotes();
+    if (notes.length === 0) return;
+    for (const note of notes) {
+      const key = `${note.site}|${note.day}|${note.canonical}`;
+      const cached = this.workNoteCache.get(key);
+      if (cached !== undefined) {
+        this.sim.applyWorkNarration(note.villagerId, note.site, cached);
+        continue;
+      }
+      if (this.workNoteInflight.has(key) || this.workNoteInflight.size >= 2) continue;
+      this.workNoteInflight.add(key);
+      void this.workNoteClient(note)
+        .then((text) => {
+          if (text === null) return;
+          this.workNoteCache.set(key, text);
+          this.sim.applyWorkNarration(note.villagerId, note.site, text);
+        })
+        .finally(() => this.workNoteInflight.delete(key));
+    }
+  }
+
+  /**
+   * 场所的落点坐标（需求事件的落点用它）。
+   *
+   * 解析器属于设定集，场景每次按当前 `buildings` 建一份——楼可能被玩家造出来
+   * 或拆掉，缓存一份就会让新楼的场所解析失败。sites 只有个位数，不值得缓存。
+   * 解不出（建筑锚那栋楼还没落地）就返回 `null`：那一条需求事件的落点退回祭坛，
+   * 而不是把世界卡住。
+   */
+  private sitePointOf(siteId: string): { x: number; y: number } | null {
+    if (this.pack === undefined || this.pack === null) return null;
+    try {
+      return siteTargetResolver(this.pack, this.world.grid, this.world.buildings)(siteId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 组装一份写单槽用的存档：世界的记忆段 + 外环自治快照（A2）。
+   *
+   * 两者都由场景从各自的持有者取来，`Simulation` 只负责搬运。历史快照那一路
+   * 不走这里（它刻意不带记忆与外环状态，见 `captureHistory`）。
+   */
+  private buildSave(): WorldSave {
+    return this.sim.toSave(
+      this.memory.toJSON(),
+      this.creator?.exportAutonomy() ?? null,
+    );
+  }
+
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
-    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+    const result = this.saveStore.write(this.buildSave());
     if (result.ok) {
       this.lastSaveKey = this.saveStateKey();
       this.lastSaveAt = this.snapshot.now;
@@ -3800,7 +3911,7 @@ export class SandboxScene extends Phaser.Scene {
     const changed = this.saveStateKey() !== this.lastSaveKey;
     const due = this.snapshot.now - this.lastSaveAt >= 30_000;
     if (!changed && !due) return;
-    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+    const result = this.saveStore.write(this.buildSave());
     if (!result.ok) {
       this.saveNotice = result.message;
       return;
@@ -4895,7 +5006,7 @@ export class SandboxScene extends Phaser.Scene {
     for (const villager of snapshot.villagers) {
       let view = this.villagerViews.get(villager.id);
       if (view === undefined) {
-        view = createVillager(this, 0, 0);
+        view = createVillager(this, 0, 0, villager.id);
         this.villagerViews.set(villager.id, view);
       }
       const style = this.pack?.villagers.find((item) => item.name === villager.name)?.style;

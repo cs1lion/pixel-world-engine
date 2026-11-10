@@ -120,7 +120,7 @@ export function resolveShotDir(script, options = {}) {
   }
   mkdirSync(target.dir, { recursive: true });
   const note = target.baseline && target.authorized
-    ? '（仓库基线，已显式授权）'
+    ? '（仓库基线，已显式授权；写完必须 `node scripts/audit-baseline.mjs --update` 并同提交）'
     : target.explicit === 'EVAL_OUT'
       ? '（显式 EVAL_OUT）'
       : '（未跟踪）';

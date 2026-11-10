@@ -14,6 +14,7 @@ import {
 import type { GridPoint, PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
 import { isSiteKind, siteDefOf, type SiteKind } from '../world/timetable.ts';
+import { isOutputKind, OUTPUT_KINDS, type OutputKind } from '../world/site-output.ts';
 import type {
   CompiledVillager,
   RawSettingPack,
@@ -140,6 +141,7 @@ const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
   'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall', 'stele',
   'lamp_string', 'paving', 'shopfront', 'signpost',
   'boiler', 'coal_heap', 'quay', 'steps', 'drain', 'street_paving', 'shopfront_gable', 'ridge', 'far_tower', 'flower_bed',
+  'fence', 'stone_wall',
 ];
 
 /** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */
@@ -293,6 +295,22 @@ function compileSites(
       throw new SettingPackError(`场所 ${site.id} 的 kind ${site.kind} 没有门控行`);
     }
     const kind: SiteKind = site.kind;
+    // 产出物闭集：写错就 throw，不留到运行期变成「产出了但没人认识」。
+    // 省略是表态（这个场所不产东西），空串不是省略。
+    if (site.output !== undefined && !isOutputKind(site.output)) {
+      throw new SettingPackError(
+        `场所 ${site.id} 的产出物 ${site.output} 不在闭集 ${OUTPUT_KINDS.join('/')}`,
+      );
+    }
+    if (site.consumes !== undefined && !isOutputKind(site.consumes)) {
+      throw new SettingPackError(
+        `场所 ${site.id} 要消耗的 ${site.consumes} 不在闭集 ${OUTPUT_KINDS.join('/')}`,
+      );
+    }
+    const output = site.output === undefined ? {} : { output: site.output as OutputKind };
+    const consumes = site.consumes === undefined ? {} : { consumes: site.consumes as OutputKind };
+    const name = site.name === undefined || site.name === '' ? {} : { name: site.name };
+    const extras = { ...output, ...consumes, ...name };
     const hasCoords = site.x !== undefined || site.y !== undefined;
     const hasBuilding = site.building !== undefined;
     if (hasCoords && hasBuilding) {
@@ -307,13 +325,13 @@ function compileSites(
       if (!buildingIds.has(site.building)) {
         throw new SettingPackError(`场所 ${site.id} 的建筑 ${site.building} 不在 placements 里`);
       }
-      return { id: site.id, kind, building: site.building };
+      return { id: site.id, kind, ...extras, building: site.building };
     }
     if (site.x === undefined || site.y === undefined) {
       throw new SettingPackError(`场所 ${site.id} 必须有坐标锚或建筑锚`);
     }
     inBounds({ x: site.x, y: site.y }, `场所 ${site.id}`);
-    return { id: site.id, kind, x: site.x, y: site.y };
+    return { id: site.id, kind, ...extras, x: site.x, y: site.y };
   });
 }
 

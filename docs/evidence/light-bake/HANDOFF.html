@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HANDOFF</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#0">0. 起点核验：先看这一节，有若干处与交接原文不一致</a></li>
+<li><a href="#1-pr-36">1. 第一件事：PR #36 —— 【核】已合，无需执行</a></li>
+<li><a href="#2-7102">2. 第二件事：光层烘焙，约 7,102 条</a><ul>
+<li><a href="#21">2.1 口径【原文，一条不改】</a></li>
+<li><a href="#22-0-2026-11-09-125x-133x">2.2 第 0 步已完成：三块单层差表实测（2026-11-09 12:5x 起、13:3x 完成）</a></li>
+<li><a href="#23">2.3 判据【原文】</a></li>
+<li><a href="#24">2.4 本轮实际做了什么 / 还没做什么</a></li>
+</ul>
+</li>
+<li><a href="#3">3. 硬边界【原文 + 仓内出处】</a></li>
+<li><a href="#4">4. 已收口，别再碰</a></li>
+<li><a href="#5">5. 待裁决四项 + 一条建议</a></li>
+<li><a href="#6">6. 接手人第一小时：可粘贴检查清单</a></li>
+<li><a href="#_1">一句话</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="handoff">光层烘焙 · 交接文档（HANDOFF）</h1>
+<blockquote>
+<p>2026-11-09 12:3x 生成。<strong>接手人不需要读任何会话记录</strong>，本文自包含。
+组成：起点核验 → 两件事 → 硬边界 → 已收口 → 待裁决 → 第一小时检查清单。
+标记：<strong>【核】</strong> = 本轮用当前仓库状态实测核对；<strong>【原文】</strong> = 交接原文，未改；<strong>【建议】</strong> = 可推翻的判断。
+配套：<code>DIFF-TABLE.md</code>（三块单层差表，第 0 步<strong>已实测完成</strong>）与同名 <code>.html</code> 预览。本线已收口，见 §2.4。</p>
+</blockquote>
+<hr />
+<h2 id="0">0. 起点核验：先看这一节，有若干处与交接原文不一致</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>【原文】</th>
+<th>【核】当前实测</th>
+<th>处置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main</code></td>
+<td><code>3a3f553</code></td>
+<td><strong><code>d1b5bd3</code></strong>（<code>main</code> = <code>origin/main</code> = <code>HEAD</code>，<code>git rev-parse</code> 三值相同）</td>
+<td><code>3a3f553</code> 是「建筑静态层逐层烘焙」，现在是 main 往前两笔的<strong>祖父</strong>。取基线一律用 <code>d1b5bd3</code></td>
+</tr>
+<tr>
+<td>工作树</td>
+<td>干净</td>
+<td>交接撰写时干净。<strong>收口后</strong>：实验装置已撤，<code>setting-scenery.ts</code> 与 HEAD 逐字一致；本线只剩未跟踪 <code>.workbuddy/</code>、<code>docs/evidence/light-bake/</code>、<code>world-client/tmp/light-bake/</code></td>
+<td><strong>另有三处 tracked 改动不是本线的</strong>：<code>CLAUDE.md</code>、<code>docs/evidence/ENVIRONMENT_BUILDABILITY.md</code>、<code>.githooks/pre-push</code>，是并行会话在做「main 远端保护」加固，仍在实时变化。<strong>本线一行都没碰它们，接手人也别 <code>git restore</code> 别人的文件</strong>。阈值 / 天花板 / 基线 / main / PR 一律没动</td>
+</tr>
+<tr>
+<td>PR #36</td>
+<td>四绿未合，分支 <code>docs/w2-junction</code>，<code>80329b6</code></td>
+<td><strong>已 MERGED</strong>，<code>mergedAt 2026-11-09T01:48:51Z</code>，<code>mergeCommit = d1b5bd3</code>，四项 check 全 SUCCESS</td>
+<td><strong>第一件事已完成，不要重复合、不要 force push、不要重建 PR</strong></td>
+</tr>
+<tr>
+<td><code>80329b6</code></td>
+<td>PR 分支提交</td>
+<td>是 <code>docs/w2-junction</code> 的原始第一笔；rebase 合入后 main 上对应 <code>6476c4a</code>，第二笔是 <code>d1b5bd3</code>。分支当前指 <code>674e022</code></td>
+<td>别按 <code>80329b6</code> 去 main 里找基线；它是 rebase 前的 SHA</td>
+</tr>
+<tr>
+<td>名为 AGENTS.md 的那份文件</td>
+<td>必读三份之一</td>
+<td><strong>本仓不存在</strong>（<code>find</code> 全仓无匹配）</td>
+<td>等效入口是根目录 <code>CLAUDE.md</code>（11 道闸门 / 权限边界 / 断点续跑）+ <code>GLOSSARY.md</code>。必读三份实际是：<code>CLAUDE.md</code>、<code>docs/ENGINEERING_DISCIPLINE.md</code>、<code>docs/OPEN_ISSUES.md</code> 的 O4</td>
+</tr>
+<tr>
+<td><code>25 张</code></td>
+<td>与「49 帧 / 40 张」并列成第三组</td>
+<td>是 <strong>40 张里的子集</strong>（原文「含 25 张基准 + 4× 裁剪」）</td>
+<td>等价证据是两组：49 帧穿行 + 40 张产物；写成三组是重复计数</td>
+</tr>
+<tr>
+<td>纪律条目数</td>
+<td>44 条</td>
+<td><strong>45 条</strong>：C1–7 / T1–4 / V1–5 / E1–8 / B1–5 / W1–4 / M1–6 / L1–3 / X1–3，编号连续无跳号</td>
+<td>按「44 条」去数会漏一条。W2 的 junction 四次事故在 W2 条目内，不受条数影响。O4 是 <code>OPEN_ISSUES.md</code> 里 O 节最后一节，其<strong>最新一条账确实是建筑烘焙</strong>（后面全是这一笔的等价证据与纪律，不是新账）</td>
+</tr>
+<tr>
+<td>main 受保护</td>
+<td>远端保护</td>
+<td><strong>2026-11-09 已开</strong>：必须走 PR、四项检查（<code>world-client</code> / <code>world-client-browser</code> / <code>repo-harness</code> / <code>server</code>）全绿才能合、禁强推/删除、<code>enforce_admins=true</code>。此前「API 404 = 没权限」是误判（404 意为「未受保护」）。本地 <code>.githooks/pre-push</code> 为第二道，<code>core.hooksPath = .githooks</code> 已装</td>
+<td>远端现在会挡直推（<code>GH006</code>）；<code>PWE_ALLOW_PUSH_MAIN=1</code> 只跳过本地那道。新 clone 没继承钩子时，远端仍兜底</td>
+</tr>
+</tbody>
+</table>
+<p>复核命令（接手人第一遍先跑）：</p>
+<pre><code class="language-bash">git status --short --branch
+git rev-parse main origin/main HEAD
+git log -6 --oneline --decorate
+gh pr view 36 --json number,state,mergedAt,mergeCommit,statusCheckRollup
+npm run check:hooks
+</code></pre>
+<hr />
+<h2 id="1-pr-36">1. 第一件事：PR #36 —— 【核】已合，无需执行</h2>
+<p>W2 那条 junction 纪律改写是纯文档，两笔已线性落在 main 上：</p>
+<pre><code>6476c4a  docs(discipline): W2 补 junction 三条禁令与取对照的正确顺序（第四次实测）
+d1b5bd3  docs(discipline): W2 把「不加 --force 也不安全」改成实测/推断分明   &lt;- main / HEAD
+</code></pre>
+<p>四项 CI：<code>world-client</code> / <code>world-client-browser</code> / <code>repo-harness</code> / <code>server</code> 全 <code>SUCCESS</code>。
+<strong>接手人从这里开始就是第二件事。</strong> 若你看到的仍是「未合」，先 <code>git fetch</code> 再复核，不要合并。</p>
+<hr />
+<h2 id="2-7102">2. 第二件事：光层烘焙，约 7,102 条</h2>
+<p>三块：灯压暗环 <strong>3,078</strong> / 地面光池 <strong>2,552</strong> / 灯体+灯绳 <strong>1,472</strong>。</p>
+<h3 id="21">2.1 口径【原文，一条不改】</h3>
+<ul>
+<li><strong>版本向量只放三轴</strong>：「亮/灭 × 潮位 × 相位」。</li>
+<li><strong>连续量走 alpha</strong>：呼吸、亮度这类连续量走 <code>Image</code> 的 <code>alpha</code>，<strong>不进闭包</strong>。</li>
+<li><strong>双缓冲 <code>a</code> / <code>b</code></strong>：新烘完才换指针，<strong>不许 <code>remove</code> 掉还在用的纹理</strong>。</li>
+<li><strong>每块先单层量差</strong>：每块单独烘一次，量<strong>逐字节差</strong>和<strong>最大色阶差</strong>，<strong>差非 0 就留活</strong>（这一层退回逐帧绘制，不烘）。</li>
+<li><strong>三层混一起测会把问题盖掉</strong>：招牌 α 叠色那次 max 差 <strong>31</strong> 就是教训（见 <code>docs/OPEN_ISSUES.md:1293–1297</code>）。</li>
+<li>第一步<strong>不是写代码</strong>，是出三块各自的单层烘焙差表。</li>
+</ul>
+<blockquote>
+<p><strong>【核】三轴里有一处要在动代码前补口径</strong>：潮位 <code>level</code> 是 0..1 的连续量
+（<code>lampPoolBands(level)</code> 连续改光池半径与强度），把它当版本向量的一轴，就必须先<strong>离散成档</strong>，
+否则每帧潮位都变、纹理每帧重烘，双缓冲 <code>a</code>/<code>b</code> 等于没有。口径不改，档数待定。</p>
+</blockquote>
+<h3 id="22-0-2026-11-09-125x-133x">2.2 第 0 步已完成：三块单层差表<strong>实测</strong>（2026-11-09 12:5x 起、13:3x 完成）</h3>
+<p>文件路径 <code>docs/evidence/light-bake/DIFF-TABLE.md</code> §3（+ <code>.html</code> 预览）。为量差临时加了
+<code>?bake=</code> 实验装置并起了 5211 服务（<strong>当时的临时装置，未提交、不进主线；收口时已撤，见 §2.4</strong>）；
+基线在产品代码未改时抓取，sha256 <code>ba55dd0ad14d4532</code>，与建筑烘焙 bisect 基线<strong>同哈希</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th style="text-align: right;">条数</th>
+<th style="text-align: right;">变化像素</th>
+<th style="text-align: right;">最大色阶差</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code> 自校验</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>0 px</strong></td>
+<td style="text-align: right;">0</td>
+<td>装置不污染画面</td>
+</tr>
+<tr>
+<td><code>blank</code> 全图空纹理对照</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>0 px</strong></td>
+<td style="text-align: right;">0</td>
+<td>全屏透明 quad <strong>无伪影</strong></td>
+</tr>
+<tr>
+<td><code>shade</code> 灯压暗环</td>
+<td style="text-align: right;">3,078</td>
+<td style="text-align: right;"><strong>32,688 px</strong></td>
+<td style="text-align: right;"><strong>14</strong></td>
+<td><strong>留活</strong></td>
+</tr>
+<tr>
+<td><code>pool</code> 地面光池</td>
+<td style="text-align: right;">2,552</td>
+<td style="text-align: right;"><strong>49,400 px</strong></td>
+<td style="text-align: right;"><strong>17</strong></td>
+<td><strong>留活</strong></td>
+</tr>
+<tr>
+<td><code>body</code> 灯体 + 灯绳（Image 插到末尾）</td>
+<td style="text-align: right;">1,472</td>
+<td style="text-align: right;"><strong>3,564 px</strong></td>
+<td style="text-align: right;"><strong>114</strong></td>
+<td><strong>留活</strong></td>
+</tr>
+<tr>
+<td><code>bodySorted</code> 同上但<strong>保序</strong></td>
+<td style="text-align: right;">1,472</td>
+<td style="text-align: right;"><strong>3,452 px</strong></td>
+<td style="text-align: right;"><strong>1</strong></td>
+<td><strong>留活</strong></td>
+</tr>
+</tbody>
+</table>
+<p>口径与归因见 <code>DIFF-TABLE.md</code> §3.1–3.4，四条要点：</p>
+<ol>
+<li><code>shade</code> / <code>pool</code> 是 α&lt;1 叠色「烘一张再叠回地面 = 两次合成」的<strong>本质差</strong>，与建筑
+   <code>back</code> max 1 / 招牌 max 31 同类。</li>
+<li><code>body</code> 的 max 114 是<strong>完全不同的颜色</strong>（暗青绿 → 暖橙灯笼色），源于 Image 后 <code>add</code>
+   改变了同 depth 的 displayList 顺序 —— <strong>装置引入</strong>。</li>
+<li><strong>保序对照已实测</strong>：<code>bodySorted</code> 把 Image 移回原索引后 max <strong>114 → 1</strong>，只剩 ±1 量化差，
+   与建筑 <code>back</code>（4,096 px / max 1）同量级同成因。上轮的推断被证实；<strong>但 1 仍非 0，仍留活</strong>。
+   包围盒纹理省不掉这一次额外合成，<code>blank</code> 已证全图透明 quad 无伪影 ⇒ 第二条岔路走到头了。</li>
+<li>第一次跑（烘在第一次 <code>update()</code>）的 34,284/max 32、52,716/max 18、5,996/max 177
+   是<strong>错帧脏读数，已作废</strong>；以显式触发后的 after2 / after3 为准。</li>
+</ol>
+<p><strong>结论：三块差全非 0 → 按「差非 0 就留活」，三块全部留活，本轮不烘任何一块。</strong>
+装置只量像素差，各配置 <code>totalCommands</code> 一律 <strong>28,339</strong>，<strong>没有产生命令数下降</strong>。
+<code>body</code> 在两次独立跑里 hash 同为 <code>42772f29599dcd8e</code>，读数可复现。</p>
+<p>差表里另外三条仍要带进后续决策：</p>
+<ol>
+<li><strong>3,078 不是「只有压暗环」</strong>：<code>root.19</code> 是整张 <code>lampLight</code>（depth 700）——三档 <code>ink</code> 压暗环 + 灯体光晕/灯芯 + 桥灯亮灭两态 + 店面窗光（见 <code>setting-scenery.ts</code> 的 <code>update()</code> 里 <code>lampLight</code> 那一段）。按「单层」量之前要先决定切不切开，否则「单层」指的不是一块。</li>
+<li><strong>1,472 在逐对象读数里没有单独成组</strong>：<code>lampRows</code> 与 <code>stallRows</code> / <code>bannerRows</code> 共用 <code>sceneryDepth(row, altitude)</code>，13xx–14xx 段 12 个 Graphics 混着别人的内容。实现时用 <code>__layerCmds</code>（建筑烘焙那套）单列，才有可核验的 1,472。</li>
+<li><strong>读数来自建筑烘焙工作期的旧构建</strong>（<code>world-client/tmp/budget-map/{noon,dusk,night}.json</code>）。建筑烘焙没碰 <code>setting-scenery.ts</code>，故条数在 main 上应仍成立——<strong>这是推断，未同构建复测</strong>。<code>34,037 / 34,613</code> 与建筑烘焙后的 <code>28,076</code> 不同源、不相减（B4）。</li>
+</ol>
+<p><strong>「烘前/烘后」三行现已由实测填上，没有拿建筑烘焙的差（4,096 px/max 1、招牌 max 31）
+或雾烘焙（max 2/255）顶数，也没有按 α 推一个数字填进去。</strong></p>
+<h3 id="23">2.3 判据【原文】</h3>
+<ol>
+<li>两道闸各自报<strong>改造前 / 改造后</strong>读数：<code>check-ground-shadow</code> 与 <code>check-render-budget</code>。</li>
+<li><strong>49 帧逐字节 0</strong>：16:00→20:00 每 5 分钟、潮位钉 1、晴、默认镜头、8 帧沉降；基线双跑 49/49 同哈希。</li>
+<li><strong>补 18:00 点灯与 05:00 熄灯前后各 5 分钟</strong>——亮/灭切换是版本向量的第一轴，只测稳态会漏掉换纹理那一帧。</li>
+<li><strong>一份烘焙 Image 的对齐断言</strong>：落点 / 原点 / 尺寸 / <strong>四边 alpha=0</strong>，照 <code>scripts/check-building-bake.mjs</code> 抄（每层一张、不重不漏）。</li>
+</ol>
+<h3 id="24">2.4 本轮实际做了什么 / 还没做什么</h3>
+<ul>
+<li><strong>已做</strong>：<code>?bake=shade|pool|body|bodySorted|blank</code> 实验装置（临时工作区改动，<strong>收口时已撤并导出
+  patch 存档</strong>）、<code>world-client/tmp/light-bake-shots.mjs</code>、改造前基线 + 六组截图与 after2 / after3
+  读数，逐块算 <code>count / max / maxAt / bbox</code>，并做 <code>body</code> vs <code>bodySorted</code> 的<strong>保序对照</strong>。
+  取改造前对照用「<strong>先跑基线再改代码</strong>」，未开 worktree、未用 <code>git stash</code>、未切分支
+  （W2 的目的已满足，见 §3）。</li>
+<li><strong>未做（不是遗漏）</strong>：两道闸前后读数 / 49 帧逐字节 0 / 18:00 点灯与 05:00 熄灯前后各 5 分钟 /
+  Image 四边 alpha=0 断言 —— 这四项是<strong>实现后的验收</strong>；三块都留活 ⇒ 本轮没有实现可验。</li>
+<li><strong>两个岔路的处理</strong>：① 收口 / ② 修保序重试 body —— <strong>② 已走完并关闭</strong>：保序把 body 的 max
+  从 114 压到 1，但 1 是两次合成的本质舍入，包围盒纹理也消不掉；三块结论不变，仍全部留活。
+  <strong>已按 ① 收口（2026-11-09）</strong>：<code>setting-scenery.ts</code> 用 <code>git restore --source=HEAD</code> 恢复，
+  对该文件 <code>git diff</code> 为空；原 +83 行装置导出为 <code>world-client/tmp/light-bake/light-bake-experiment.patch</code>
+  （104 行，<code>git apply</code> 可重放）。7,102 条不省。<strong>复跑必须先 apply patch</strong>，否则脚本读不到
+  <code>?bake=</code> 开关会得到全 0 的假绿，详见 <code>DIFF-TABLE.md</code> §5。要翻案只有「改判据允许容差 ≥1」或
+  「换合成路径」，两者都需单独裁决，<strong>不要在本轮差表上直接调参凑 0</strong>。</li>
+</ul>
+<blockquote>
+<p><strong>【核】一个会毁掉读数的坑</strong>（保留）：O4 记载单时刻 <code>peakCommands</code> 会因村民走位漂 <strong>±120 条</strong>
+（<code>docs/OPEN_ISSUES.md:1239–1276</code>）。量「单层差」若读命令数，必须<strong>多时刻取最大</strong>或<strong>钉姿态采样</strong>，
+否则把走位噪声记成烘焙增量。逐字节截图差不受此影响，但两道闸的前后读数受影响。
+本轮各配置的 <code>totalCommands</code> 全为 28,339，正是「只量像素差、不量命令数」的结果。</p>
+</blockquote>
+<hr />
+<h2 id="3">3. 硬边界【原文 + 仓内出处】</h2>
+<table>
+<thead>
+<tr>
+<th>边界</th>
+<th>原文</th>
+<th>【核】出处 / 复核</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>端口</td>
+<td>只用 <strong>5210–5299</strong> + <code>--strictPort</code></td>
+<td><code>ENGINEERING_DISCIPLINE.md:319–324</code>（W3）。<strong>坑</strong>：<code>audit:ports</code> 只禁 5188/5191/5202/5203，<strong>不检查 5210–5299 范围</strong>；连接前跑树身份闸 <code>/__tree-id</code>，避开 5212（给 accept-live）</td>
+</tr>
+<tr>
+<td>push</td>
+<td>push 前必须 <code>git fetch</code></td>
+<td>本地 hook 不查这个；靠人执行</td>
+</tr>
+<tr>
+<td>main</td>
+<td>受保护，走 PR</td>
+<td><strong>【核】远端已开保护</strong>：<code>gh api</code> 查 <code>branches/main/protection</code> 实测 <code>enforce_admins=true</code>、禁强推 / 禁删除、四项必需检查（world-client / browser / repo-harness / server）、<code>required_approving_review_count=0</code>。本地 <code>.githooks/pre-push</code> 是第二道，<code>core.hooksPath</code> 已装。交接原文「API 404 = 没权限」是误判，404 意为「当时未受保护」</td>
+</tr>
+<tr>
+<td>阈值</td>
+<td><strong>不许改阈值、不许改天花板</strong>（<code>check-ground-shadow</code> 34,666 / <code>check-render-budget</code> 33,488）</td>
+<td>常量实测：<code>check-ground-shadow.mjs:85</code> = <code>34_666</code>；<code>check-render-budget.mjs:106</code> = <code>33_488</code>（原文写作 34,666 / 33,488，<strong>同一常量、两种写法</strong>）；<code>scripts/policy-ceilings.json</code> 两个值同。<code>test/policy-ceilings.test.ts</code> 会红</td>
+</tr>
+<tr>
+<td>基线</td>
+<td><strong>不许重录基线</strong></td>
+<td><code>eval/screens/</code> 下已跟踪件；出图 gate 默认写 <code>world-client/tmp/screens/&lt;脚本名&gt;/</code>，写回基线须显式 <code>--write-baseline</code></td>
+</tr>
+<tr>
+<td>临时 worktree</td>
+<td><strong>不要开</strong>：<code>Remove-Item -Recurse</code>、<code>rmdir /s</code>、<code>git worktree remove --force</code> 三个都会顺 <code>node_modules</code> junction 删掉主树依赖，本机踩过<strong>四次</strong></td>
+<td><code>ENGINEERING_DISCIPLINE.md:304–316</code>（W2，四次事故逐条有读数）。回收后必跑 <code>npm ls --all | Select-String invalid</code>（须空）与 <code>npx vite build</code>（须成功）</td>
+</tr>
+<tr>
+<td>取改造前对照</td>
+<td>先提交 → <code>git switch --detach &lt;base&gt;</code> → 跑 → <code>git switch</code> 回；产物用 <code>git show HEAD:&lt;path&gt;</code> / <code>git archive</code>；<strong>不用 <code>git stash</code></strong></td>
+<td><code>ENGINEERING_DISCIPLINE.md:309</code>；共用同一份 <code>node_modules</code>，锁文件没变不重装</td>
+</tr>
+<tr>
+<td>红先</td>
+<td>像素等价重构<strong>不要求红先</strong>（revert 与纯重构在 base 上都会绿，硬凑是假红）；但<strong>提交信息必须写明为什么没有红先</strong>，并用「峰值下降实测 + 逐字节 0」替代</td>
+<td>建筑烘焙 <code>tmp/pr-body.md</code> §「无红先」是现成模板</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4">4. 已收口，别再碰</h2>
+<ul>
+<li><strong>建筑烘焙</strong>：<code>check-ground-shadow</code> <strong>34,573 → 28,076</strong>（余量 <strong>6,590</strong>）、<code>check-render-budget</code> <strong>33,445 → 25,167</strong>（债务归零）；49 帧 + 40 张产物全 0 diff（<code>docs/OPEN_ISSUES.md:1278–1288</code>）。72 张烘焙 Image 在 <code>renderStats</code> 里记 <strong>0 条</strong>——是「从统计里消失」，不是 GPU 少画。</li>
+<li><strong>HD-2D P2</strong>：已按停手判据关闭，负面结论在 <code>docs/investigations/HD2D_P2_TILT_BAKE_NEGATIVE.md</code>（PR #34 已合）。<strong>不做 P3、不换实现重试</strong>；S-9 已关。</li>
+<li><strong>花径几何 / 作息</strong>：<code>x2..11</code>、中央 2 格净空、南口 6 宽、两人并排进花径停留，已落（<code>OPEN_ISSUES.md:1138–1142</code>）。别重开。</li>
+<li><strong>两条远端分支</strong>：<code>exp/hd2d-p1</code>（PR <strong>#30 仍 OPEN + draft</strong>，标题写明「仅供 CI/审阅，不合并」；含 H1/H3 高度渲染与 E15 号占用）、<code>feat/hd2d-p2</code>（无开放 PR）。
+  <strong>【建议】都不合</strong>，保留只读实验记录；花径线也占 E15，撞号已有防御（提交前 grep、顺延 E16）。</li>
+</ul>
+<hr />
+<h2 id="5">5. 待裁决四项 + 一条建议</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>事项</th>
+<th>【建议】</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>12 条翻书核对单</td>
+<td><strong>按 B 档做，文档里如实标 B</strong>；拍图才升 A</td>
+<td>本机画册 99 页、无文字层，出处 <code>docs/SPEC_V2.md:12</code>（《The Art of Spirited Away》99 页扫描版）；p110–111 的降级清单在 <code>docs/OPEN_ISSUES.md:1087</code>。<strong>两者确实不是同一份来源</strong>，花墙/木栅/石垣/瓦顶/庭心石作/配膳间全是仓库转述</td>
+</tr>
+<tr>
+<td>2</td>
+<td>粉紫（第 25 色）</td>
+<td><strong>不开</strong>，维持现值 24</td>
+<td>藤紫原话语义是「神秘事件、神灵」，铺花床属换用途；杜鹃/绣球只有转述。加色需 <code>docs/adr/ADR_PALETTE_24.md</code> 走 ADR</td>
+</tr>
+<tr>
+<td>3</td>
+<td>夜里补光 <strong>+306</strong></td>
+<td><strong>认它是「新增功能」，但这一轮不做</strong></td>
+<td>预算障碍已解封（余量 6,590），但 <code>OPEN_ISSUES.md:1170–1211</code> 的 11-09 更正实测：花径夜间平均亮度 <strong>61.4</strong>、<code>luma&lt;8</code> 为 <strong>0.00%</strong>，关掉 28 盏街灯主街也只变 <strong>11.80%</strong> 像素。边际观感撑不起一次 B2 单独记账；先吃 +0 的花墙形制与庭心石作</td>
+</tr>
+<tr>
+<td>4</td>
+<td>配膳间 <strong>+1,008</strong></td>
+<td><strong>不做</strong></td>
+<td>零依据（C 档）与钱无关。本仓 <code>docs/</code> 全文只有 <code>OPEN_ISSUES.md:1235</code> 一处转述「设定集有配膳间，本包 placements 里没有」；设计手册原文不在本仓，<strong>「全文搜 0 处」无法在本树复核</strong></td>
+</tr>
+<tr>
+<td>+</td>
+<td>第二轮烘焙池（美术静态 4,450 / 摆件 3,353 / 街面+桥 3,913 / 辉光 2,160）</td>
+<td><strong>同意明写「不建议再做」</strong>：债务已归零，继续压只是数字好看</td>
+<td>同一把尺子下，<strong>光层 7,102 也落在「债务已归零」里</strong>。它排第 5「等额度」而额度已不是障碍——开工前把做它的理由（性能？帧率？还是数字）说清，否则差表量完仍不知道为什么烘</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6">6. 接手人第一小时：可粘贴检查清单</h2>
+<pre><code class="language-bash">cd /d/project/pixel-world-engine
+
+# 1) 起点（对照 §0）
+git status --short --branch
+git rev-parse main origin/main HEAD
+git log -6 --oneline --decorate
+git fetch
+gh pr view 36 --json number,state,mergedAt,mergeCommit
+npm run check:hooks
+
+# 2) 必读三份（AGENTS.md 本仓没有，读 CLAUDE.md）
+#    CLAUDE.md / docs/ENGINEERING_DISCIPLINE.md（W2 :304-316、W3 :319-324、B1-B5 :254-292）
+#    docs/OPEN_ISSUES.md 的 O4 :1177-1214 与建筑烘焙账 :1216-1261
+
+# 3) 差表与模板
+#    docs/evidence/light-bake/DIFF-TABLE.md
+#    world-client/scripts/check-building-bake.mjs（Image 对齐断言）
+#    world-client/tmp/bake-bisect.mjs（单层 diff 函数，一次性脚本、不提交）
+
+# 4) 起服务（端口在 5210-5299，避开 5212）
+cd world-client
+npm run dev -- --port 5211 --strictPort
+# 另开一个 shell，连接前树身份闸：
+#   PIXEL_WORLD_URL=http://127.0.0.1:5211/ ...
+
+# 5) 改造前对照：先提交 -&gt; git switch --detach d1b5bd3 -&gt; 跑 -&gt; git switch feat/light-bake
+#    产物导出用 git show HEAD:&lt;path&gt; 或 git archive；禁止 git stash / 临时 worktree
+#    注意：本树可能有并行会话留下的 tracked 改动（见 §0），切分支前先确认归属，
+#    别把别人的改动带过去，更不要 git restore 别人的文件（W1）
+</code></pre>
+<p><strong>停手线</strong>：任何一块单层烘完，逐字节差 ≠ 0 或最大色阶差 ≠ 0 → <strong>该块留活</strong>，不做「调参让它变绿」，不合并三块一起测。</p>
+<hr />
+<h2 id="_1">一句话</h2>
+<p><strong>PR #36 早已合、三块单层差表已实测（32,688/max 14、49,400/max 17、3,564/max 114；保序把 body 压到 3,452/max 1 但仍非 0）⇒ 三块全部留活；第二条岔路已走到头，装置已撤、patch 存档、7,102 条不省，本线收口，不要调参凑 0。</strong></p></main>
+</div>
+</body>
+</html>
