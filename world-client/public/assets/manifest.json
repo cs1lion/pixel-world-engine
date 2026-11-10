@@ -1,0 +1,45 @@
+{
+  "artScale": 2,
+  "assets": {
+    "building/lamp_lodge": {
+      "prompt": "single small Japanese lantern lodge inn with a verdigris-copper gabled roof, glowing paper lanterns, wooden lattice windows, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_fb0pfoez5bHKfi0kUAc3iKRhswg8wLc5/output_a0e98fa3c25e42e380bd912bb4d6cba5.png",
+      "refs": [],
+      "width": 176,
+      "height": 128,
+      "sha256": "539c11d2a3d82ed29e87c8089ab937a84f798cb07f154739b37c69b6f6e717a0",
+      "bytes": 36388
+    },
+    "building/tea_stall": {
+      "prompt": "single small Japanese tea stall shop with a flat tiled roof, red noren curtain, steaming kettle, hanging red lanterns, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_3Gb2LL7XPqlEkl3ZwXjzf6Asi8Da6fwD/output_53e566b45fe14217914a5b9538ffe8ad.png",
+      "refs": [],
+      "width": 176,
+      "height": 151,
+      "sha256": "2866cea23c99faf78e71161700386637d170bfc0ec67f08b5c3a0ce374c81388",
+      "bytes": 45749
+    },
+    "villager/v0": {
+      "prompt": "single full-body young girl lost traveler in vermilion work clothes with white front apron, dark blue shorts, brown ponytail, carrying a wooden water bucket, standing, facing front, three-quarter view, small chibi proportions (about 3 heads tall), simple readable costume, exactly one character only, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_21jwgkP9tABVPsfGrZXt5nZ4BBZpvL8R/output_c9c9f016ff0d44ffb586f01a34a70f93.png",
+      "refs": [],
+      "width": 25,
+      "height": 60,
+      "sha256": "55bdc19809dee18259f59c8fe4077e1e47d97844336d1338f3070a631502c65b",
+      "bytes": 3782
+    },
+    "villager/v1": {
+      "prompt": "single full-body young boy named Xi in a pale white-teal long robe with blue sash, dark chin-length bob haircut, barefoot, holding a small glowing paper lantern, standing, facing front, three-quarter view, small chibi proportions (about 3 heads tall), simple readable costume, exactly one character only, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_1XgNYlRM8CQRMS4dpi7muutkTc5RSlwy/output_7e7c35550c7d4ab4aec54901eda0340a.png",
+      "refs": [],
+      "width": 33,
+      "height": 60,
+      "sha256": "fae4b216b05e98dfb56d88dee99c375193bc5c43bb532c819e03498325705496",
+      "bytes": 4440
+    }
+  }
+}

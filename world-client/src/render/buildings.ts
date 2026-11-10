@@ -15,6 +15,7 @@
  * - 所有坐标取整；不用 fillCircle / fillEllipse 画建筑。
  */
 
+import { artKey, artScaleOf, hasArt } from './art-assets.ts';
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { PlacedBuilding, WorkstationSnapshot } from '../world/types.ts';
@@ -219,6 +220,37 @@ export function createBuilding(
   const backLayer = scene.add.graphics();
   drawGroundShadow(backLayer, building, w, h, px, py, groundBase);
   back.add([backLayer]);
+
+  // 位图素材（`?art=1` 且这个模板生成过图）：整栋换成一张生图，地面投影仍走上面那一层。
+  // 屋面槽就是这张图本身——进屋时收起屋面，整栋外立面一起收，内景接管。
+  // 招牌 / 烟囱 / 窗层不画：图里已经有灯笼与窗光，再叠程序化的会重复。
+  if (hasArt(scene, 'building', building.prefabId)) {
+    const image = scene.add
+      .image(w / 2, h + 2, artKey('building', building.prefabId))
+      .setOrigin(0.5, 1)
+      .setScale(1 / artScaleOf(scene));
+    const chimney = scene.add.graphics();
+    const windowG = scene.add.graphics();
+    const sign = scene.add.graphics();
+    const progress = scene.add.graphics();
+    progress.setVisible(false);
+    const decal = scene.add.graphics();
+    decal.setPosition(px, py);
+    container.add([image, chimney, windowG, sign, progress]);
+    return {
+      back,
+      container,
+      front,
+      decal,
+      chimney,
+      window: windowG,
+      progress,
+      sign,
+      roof: image,
+      chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
+      baseY: buildingBaseY(py, building.footprint.h),
+    };
+  }
 
   // 墙体层拆成「烘 → 活 → 烘 → 活 → 烘」五段，**顺序与原来那一支 drawWall 完全一致**。
   //
