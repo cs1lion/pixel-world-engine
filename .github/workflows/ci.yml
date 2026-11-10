@@ -98,6 +98,8 @@ jobs:
           npm run test:render-budget
           # 建筑烘焙对齐：逐件钉住 72 张 Image 的落点/原点/缩放/纹理尺寸/四边 alpha=0。
           npm run test:building-bake
+          # 位图素材装载：?art=1 全装且每张 200，?art=0 零请求、两跑无 pageerror。
+          npm run test:art-assets
           npm run test:phases
           node scripts/check-phases-negative.mjs
         env:

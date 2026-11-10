@@ -39,6 +39,36 @@ export function artScaleOf(scene: Phaser.Scene): number {
 }
 
 /**
+ * 位图建筑的显示缩放。
+ *
+ * `fit_to_footprint` 只按占地**宽度**缩放，高度完全由图的长宽比决定——
+ * 于是矮胖图（实测 `waiting_shelter` 仅 40 逻辑 px，楼体 48 px）贴在地上
+ * 像贴纸。这里给一个「至少占楼体高的 80%」的兜底，但不强行拉满：
+ * 拉满会把矮图纵向拉变形，比贴纸更难看。
+ *
+ * 上限是楼体 + 屋顶 + `BAKE_PAD.top` 留白，防止高图（`wave_house`）
+ * 把屋顶画进上方 HUD 区。屋顶高度口径与 `render/decal.ts::roofHeight` 一致。
+ *
+ * 宽度由生成端 `fit_to_footprint` 保证，这里只管高度。
+ * 纯函数：不碰 Phaser，可单测。
+ */
+export function artBuildingScale(
+  textureH: number,
+  bodyH: number,
+  artScale: number,
+): number {
+  const base = 1 / artScale;
+  const roofH = Math.max(10, Math.round(bodyH * 0.34));
+  const maxH = bodyH + roofH + 32; // BAKE_PAD.top
+  const floorH = bodyH * 0.8;
+  const atBase = textureH * base;
+  if (atBase >= maxH) return Math.min(base, maxH / textureH);
+  if (atBase >= floorH) return base;
+  // 放大到 floorH，但不能越过 maxH
+  return Math.min(floorH / textureH, maxH / textureH);
+}
+
+/**
  * 在场景 `preload` 里调用：先取清单，再按清单排队装图。
  * 清单取不到（没生成过素材）就静默跳过——没有素材等于没开。
  */
