@@ -22,7 +22,7 @@ SPEC §4.8 要求「换设定集 = 换一份配置包 + 可能改几个常量，
 
 默认世界继续走**原封不动的 `buildLargeWorld`**。`LEGACY_PACK` 是一份**描述符 stub**：它按引用复用 `WORLD`/`TERRAIN_COLORS`/`LARGE_WORLD_SPEC`/`LARGE_ALTAR`/`parseBlueprintTable(prefabs)`（`settings/index.ts:9-14`），`authored: false`，**不进 `loadSettingPack`**，直接当 `SettingPack` 供给走 pack 的通用代码（色板、存档槽、蓝图）。
 
-第二座镇子灯潮界是一份**真正写定的** `DENGCHAO_RAW`，走完整编译器（`loadSettingPack → buildSettingWorld`），`authored: true`（`load.ts:397`）。`selectSetting('?world=')` 分流：默认 → stub，`dengchao` → 编译后的包（`settings/index.ts:16-21`）。
+第二座镇子灯潮界是一份**真正写定的** `DENGCHAO_RAW`，走完整编译器（`loadSettingPack → buildSettingWorld`），`authored: true`（`load.ts:405`）。`selectSetting('?world=')` 分流：默认 → stub，`dengchao` → 编译后的包（`settings/index.ts:16-21`）。
 
 ## 理由
 

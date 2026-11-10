@@ -63,6 +63,12 @@ export function worldEventImportance(kind: WorldEventKind): number {
     case 'night_market':
     case 'market_close':
       return 0.35;
+    case 'supply_used':
+      // 货被用掉了。比一趟作业轻一点：它是别人的那趟活的后果。
+      return 0.3;
+    case 'supply_short':
+      // 缺货比用掉更值得记住：炉子凉了、集市空着，是那天的不顺。
+      return 0.45;
     case 'work_output':
       // 一趟作业做出了东西。与 `routine_done` 同档（0.35）：它不是大事，
       // 但**它是村子账本上真的多了一件东西**——够当事人自己记住，
@@ -110,6 +116,11 @@ export function worldEventValence(kind: WorldEventKind): number {
     case 'work_output':
       // 做了东西出来，方向明确为正，但只是日常的一份——不足以掀起情绪。
       return 0.2;
+    case 'supply_used':
+      return 0.05;
+    case 'supply_short':
+      // 缺货是明确的不顺，但不到事故级的情绪强度。
+      return -0.25;
     case 'home_entry':
       // 回家本身不是情绪事件（不是被赶出去，也不是出了事）。
       return 0.1;

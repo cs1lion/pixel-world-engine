@@ -15,9 +15,9 @@
 | 事实 | 位置 |
 |---|---|
 | `submitHumanApproval` 的 `approved` 参数在**全仓所有调用点都是 `true`**（src 4 处 + test 十余处），从没有 `false` | `engine.ts:358`、grep 全部调用点 |
-| 唯一生产记账点是落地成功后 `creator.submitHumanApproval('mapper', id, true, ...)` | `SandboxScene.ts:2224` |
+| 唯一生产记账点是落地成功后 `creator.submitHumanApproval('mapper', id, true, ...)` | `SandboxScene.ts:2240` |
 | 玩家造物 schema 失败（3434）只 `recordLedger`，**不进 fuse** | `SandboxScene.ts:3413-3450` |
-| `cancelCreation()` 只 `endCreation()`，说「取消了，世界没动」，不记任何账 | `SandboxScene.ts:3592` |
+| `cancelCreation()` 只 `endCreation()`，说「取消了，世界没动」，不记任何账 | `SandboxScene.ts:3608` |
 | 自动提议被拒（熔断/抽检不放行）只 `recordLedger` 后 `return`，不进 fuse | `SandboxScene.ts:2148-2150` |
 | `planCreation` 找不到合规落点返回 `null`，直接 `return`，不进 fuse | `SandboxScene.ts:2090`、`engine.ts:448` |
 

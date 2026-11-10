@@ -182,6 +182,69 @@ export function consumeOutput(
   return { tally: { ...tally, [siteId]: have - consumed }, consumed };
 }
 
+// ---------------------------------------------------------------- 需求方（对手方）
+//
+// 上一段只把账扣小一点，**没人拿走**：炭在账上凭空少一份，世界状态一个字不变。
+// 这一段补上「谁要」——需求方由设定集按场所声明（`SettingSite.consumes`），
+// 要的东西从**产出它的那个场所**划走。于是产出账第一次有了链条：
+//
+//   锅炉房出炭 → 叠浪楼烧炭、洗出衣裳 → 集市把衣裳卖成成交
+//
+// 三段都在设定集里，引擎不点名任何一个场所。
+
+/** 一个需求方要什么。由设定集的 `consumes` 生成，按 `siteId` 排序后处理。 */
+export interface OutputDemand {
+  readonly siteId: string;
+  readonly kind: OutputKind;
+}
+
+/** 一轮结算的结果：谁拿到了、谁没拿到。 */
+export interface DemandSettlement {
+  readonly tally: SiteOutputTally;
+  readonly served: readonly {
+    readonly siteId: string;
+    readonly kind: OutputKind;
+    readonly from: string;
+  }[];
+  readonly short: readonly { readonly siteId: string; readonly kind: OutputKind }[];
+}
+
+/**
+ * 结算一轮需求：每个需求方各取 `want` 份，从产出这种货的场所扣。
+ *
+ * **供给方由 `supplierOf` 给**，不在这个函数里猜：一个 kind 可能有好几个
+ * 场所都产（两个工坊都出炭），到底从谁的账上扣是设定集的事实，
+ * 不是这里能推的。`supplierOf` 返回 `null` 表示这个 kind 没人产——
+ * 那一轮记成「没拿到」，不是坏账、也不是崩溃。
+ *
+ * 需求方按 `siteId` 排序处理，同一个账本算出同一个结果：谁先来不该
+ * 取决于一个 `Map` 的插入顺序。
+ */
+export function settleDemand(
+  tally: SiteOutputTally,
+  demands: readonly OutputDemand[],
+  supplierOf: (kind: OutputKind) => string | null,
+  want: number = OUTPUT_CONSUME_PER_DAY,
+): DemandSettlement {
+  let next = tally;
+  const served: { siteId: string; kind: OutputKind; from: string }[] = [];
+  const short: { siteId: string; kind: OutputKind }[] = [];
+  const ask = Math.max(0, Math.floor(want));
+  const ordered = [...demands].sort((a, b) => (a.siteId < b.siteId ? -1 : a.siteId > b.siteId ? 1 : 0));
+  for (const demand of ordered) {
+    const from = supplierOf(demand.kind);
+    const have = from === null ? 0 : (next[from] ?? 0);
+    const took = Math.min(have, ask);
+    if (from === null || took <= 0) {
+      short.push({ siteId: demand.siteId, kind: demand.kind });
+      continue;
+    }
+    next = { ...next, [from]: have - took };
+    served.push({ siteId: demand.siteId, kind: demand.kind, from });
+  }
+  return { tally: next, served, short };
+}
+
 /** 见底的场所（有产出声明但库存为 0）。日报用它说「炭见底」。 */
 export function emptySites(
   tally: SiteOutputTally,

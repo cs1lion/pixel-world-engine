@@ -297,8 +297,8 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 兜底 `nearestWalkable(goal, accept)`：`grid.ts:487-503`，只按曼哈顿距离扫全图，**完全不看层、也不看能不能从起点到达**。
 - 上层门面：`reaches()` `setup.ts:583-591`（`goal = isWalkable(to) ? to : nearestWalkable(to)`），
   `doorReaches()` `setup.ts:601-602`，`paveFrom()` `setup.ts:612-620`。
-- 生产调用点：`world-client/src/settings/load.ts:664`（门）、`:697`（村民巡游点），
-  `world-client/src/world/simulation.ts:2985`、`:3412`、`:4983`（目标改写/回家/默认点），
+- 生产调用点：`world-client/src/settings/load.ts:672`（门）、`:697`（村民巡游点），
+  `world-client/src/world/simulation.ts:3003`、`:3412`、`:4983`（目标改写/回家/默认点），
   `world-client/src/world/routines.ts:72-79`（园子、长廊、摊位、河边四个点）。
 
 ### 4.2 具体判断：哪些测试会失效、为什么

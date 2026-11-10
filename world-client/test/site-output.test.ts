@@ -65,7 +65,7 @@ test('纯函数：闭集、累加、合计、摘要都不读墙钟', () => {
   assert.equal(Object.keys(emptyOutputTally()).length, 0);
 });
 
-function makeSim(withOutputs: boolean) {
+function makeSim(withOutputs: boolean, withEconomy = false, extraDemands: readonly { siteId: string; kind: OutputKind }[] = []) {
   const pack = loadSettingPack(DENGCHAO_RAW);
   const world = buildSettingWorld(pack);
   const resolve = siteTargetResolver(pack, world.grid, world.buildings);
@@ -75,6 +75,18 @@ function makeSim(withOutputs: boolean) {
     (pack.sites ?? [])
       .filter((site) => site.output !== undefined)
       .map((site) => [site.id, site.output!] as const),
+  );
+  // 需求方与显示名照设定集给，和场景那条接线同一份来源。
+  const siteDemands = (pack.sites ?? [])
+    .filter((site) => site.consumes !== undefined)
+    .map((site) => ({ siteId: site.id, kind: site.consumes! }));
+  const siteNames = new Map(
+    (pack.sites ?? [])
+      .filter((site) => site.name !== undefined)
+      .map((site) => [site.id, site.name!] as const),
+  );
+  const sitePoints = new Map(
+    (pack.sites ?? []).map((site) => [site.id, resolve(site.id)] as const),
   );
   const sim = new Simulation({
     grid: world.grid,
@@ -88,9 +100,10 @@ function makeSim(withOutputs: boolean) {
     // 06:00 开工；工坊 06:00–17:00 开门。
     initialNow: 6 * 60 * MINUTE_MS,
     ...(withOutputs ? { siteOutputs } : {}),
+    ...(withEconomy ? { siteDemands: [...siteDemands, ...extraDemands], siteNames, sitePoints } : {}),
     onChange: (change: WorldChange) => { changes.push(change); },
   });
-  return { sim, pack, siteOutputs, changes };
+  return { sim, pack, siteOutputs, siteDemands, changes };
 }
 
 /** 跑到 17:00 收工（11 个世界小时），每 5 世界秒一拍。 */
@@ -173,22 +186,17 @@ test('纯函数：消耗只扣整轮、库存不足不欠账', async () => {
   assert.deepEqual(consumeOutput(tally, 'x').tally, {});
 });
 
-test('真世界：产出会攒下来，也会按世界日被消耗（库存不为负）', () => {
+test('没有需求方时产出只累积，不假装消耗过（莞尔镇那种世界）', () => {
   const { sim } = makeSim(true);
-  // 从 06:00 跑 3 个世界日：白天作业产出，每满一日扣一份。
   const threeDays = 3 * 24 * 60 * MINUTE_MS;
   for (let t = 0; t < threeDays; t += 5000) sim.update(5000);
   const reading = sim.siteOutputReading();
-
-  // 三个世界日里作业跑过不止一次，但也被扣了三轮——库存不是单调上涨的。
   assert.ok(reading.total > 0, '作业仍在产出');
   for (const [siteId, amount] of Object.entries(reading.tally)) {
     assert.ok(amount >= 0, `${siteId} 的库存变成负数了：${amount}`);
   }
-  // 消耗是纯函数按世界时刻算的（`consumeRoundsBetween`），不随分帧漂移——
-  // 这一条由上面那条纯函数用例钉住。**产出**则受拍点量化影响：粗分片下
-  //  villagers 的拍点晚到最多一步，一天里少走半趟——这是既有行为
-  //（`stepIdle` 只在帧边界判 `nextRoutineAt`），不是产出账引入的。
+  // 没有 `consumes` 就没有对手方：账只涨不跌，也不该冒出缺货事件。
+  // 缺货是「有人要、没人给」，不传需求方的世界没有这件事。
 });
 
 // ---------------------------------------------------------------- 产出物的名字与来历
@@ -264,4 +272,90 @@ test('记忆分量：产出这趟事只该当事人记住，旁观者记不住�
   );
   assert.ok(actor.salience >= threshold, `当事人记不住自己做的活：${actor.salience}`);
   assert.ok(witness.salience < threshold, `旁观者每条都记：${witness.salience} ≥ ${threshold}`);
+});
+
+// ---------------------------------------------------------------- 需求方（对手方）
+
+test('纯函数：需求从产出它的场所扣，缺货只记「没拿到」，不欠账', async () => {
+  const { settleDemand } = await import('../src/world/site-output.ts');
+  const supplierOf = (kind: string) => (kind === 'coal' ? 'boiler' : kind === 'laundry' ? 'wash' : null);
+
+  // 两个需求方各要一份，从各自的供给方扣。
+  const first = settleDemand(
+    { boiler: 2, wash: 1 },
+    [{ siteId: 'bath', kind: 'coal' }, { siteId: 'market', kind: 'laundry' }],
+    supplierOf,
+  );
+  assert.deepEqual(first.tally, { boiler: 1, wash: 0 });
+  assert.equal(first.served.length, 2);
+  assert.deepEqual(first.served.find((item) => item.siteId === 'bath')?.from, 'boiler');
+  assert.deepEqual(first.served.find((item) => item.siteId === 'market')?.from, 'wash');
+  assert.deepEqual(first.short, []);
+
+  // 库存见底：下一次就记「没拿到」，账停在 0，不变成负数。
+  const second = settleDemand(first.tally, [{ siteId: 'bath', kind: 'coal' }], supplierOf);
+  assert.deepEqual(second.tally, { boiler: 0, wash: 0 });
+  assert.equal(second.served.length, 1);
+  const third = settleDemand(second.tally, [{ siteId: 'bath', kind: 'coal' }], supplierOf);
+  assert.deepEqual(third.short, [{ siteId: 'bath', kind: 'coal' }]);
+  assert.equal(third.tally.boiler, 0, '缺货不许把账扣成负数');
+
+  // 没人产这种货：也是「没拿到」，不是崩溃。
+  const nobody = settleDemand({}, [{ siteId: 'market', kind: 'trade' }], supplierOf);
+  assert.deepEqual(nobody.short, [{ siteId: 'market', kind: 'trade' }]);
+
+  // 处理顺序按 siteId：同一个账本算出同一个结果，不取决于入参顺序。
+  const a = settleDemand({ boiler: 1 }, [{ siteId: 'z', kind: 'coal' }, { siteId: 'a', kind: 'coal' }], supplierOf);
+  assert.deepEqual(a.served.map((item) => item.siteId), ['a'], '先按 siteId 排序，a 先拿到');
+  assert.deepEqual(a.short.map((item) => item.siteId), ['z']);
+});
+
+test('真世界：炭被叠浪楼取走、衣裳被集市取走，落点记在需求方', () => {
+  const { sim, changes } = makeSim(true, true);
+  const threeDays = 3 * 24 * 60 * MINUTE_MS;
+  for (let t = 0; t < threeDays; t += 5000) sim.update(5000);
+
+  const supply = changes.filter(
+    (change): change is Extract<WorldChange, { change: 'world.event' }> =>
+      change.change === 'world.event' && change.kind === 'supply_used',
+  );
+  assert.ok(supply.length >= 4, `三天里需求结算太少：${supply.length} 条`);
+
+  const texts = supply.map((event) => event.text);
+  assert.ok(texts.some((text) => text === '叠浪楼从炉底入口取走了一份炭。'), texts.join('\n'));
+  assert.ok(texts.some((text) => text === '集市从叠浪楼取走了一份洗好的衣裳。'), texts.join('\n'));
+
+  // 落点是需求方自己：集市是坐标锚（`place:x,y`），叠浪楼是那栋楼。
+  const bath = supply.find((event) => event.text.startsWith('叠浪楼'));
+  assert.equal(bath?.placeId, 'wave_house#1', '需求事件的落点必须是她取货的那个场所');
+  const market = supply.find((event) => event.text.startsWith('集市'));
+  assert.match(market?.placeId ?? '', /^place:\d+,\d+$/, '坐标锚的场所落点是格子');
+
+  // 供给足够时不该有缺货。
+  assert.equal(
+    changes.filter((change) => change.change === 'world.event' && change.kind === 'supply_short').length,
+    0,
+    '产能明明够，却报了缺货',
+  );
+});
+
+test('真世界：产能被吃光时真的报缺货，库存仍不为负', () => {
+  // 人为多要两份炭（每天 3 份需求对 2–3 份产能），把库存吃到见底——
+  // 这一条只为了走通缺货路径，不是设定集的主张。
+  const { sim, changes } = makeSim(true, true, [
+    { siteId: 'market', kind: 'coal' },
+    { siteId: 'market', kind: 'coal' },
+  ]);
+  const fiveDays = 5 * 24 * 60 * MINUTE_MS;
+  for (let t = 0; t < fiveDays; t += 5000) sim.update(5000);
+
+  const short = changes.filter(
+    (change): change is Extract<WorldChange, { change: 'world.event' }> =>
+      change.change === 'world.event' && change.kind === 'supply_short',
+  );
+  assert.ok(short.length > 0, '产能被吃光了却一条缺货都没报');
+  assert.match(short[0]!.text, /没等到/, `缺货文案不对：${short[0]!.text}`);
+  for (const [siteId, amount] of Object.entries(sim.siteOutputReading().tally)) {
+    assert.ok(amount >= 0, `${siteId} 的库存变成负数了：${amount}`);
+  }
 });

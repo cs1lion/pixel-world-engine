@@ -424,7 +424,7 @@ node --import ./test/phaser-hooks.mjs --test --test-concurrency=1 `
 
 **输入**：`environment.ts`、`observation-rules.ts`、`behavior.ts`、`behavior-rules.ts`、`needs.ts`、`delivery-failure.ts`；`scripts/behavior-decisions.ts`、`scripts/needs-probe.ts`。
 
-**判据**：环境标志闭集 10 项（`rain|storm|wet|fog|lowTide|highTide|quiet|workEnded|lampsLit|lampsOut`，`environment.ts:29-39`）；观察规则 9 个键、一次改变只命中一条（`observation-rules.ts:111-135`）；行为规则顺序 `[verification, pre-cover, sleep, rest, eat, routine]`（`behavior-rules.ts:71-78`）；需求速率 `1/3` 每天、饿阈 `0.9`、失败阈 `1`、跨阈约 2.7 天（`needs.ts:19-50`）；`delivery_failed` 载荷是 `{taskId, taskKind, reason:'hunger', repeat}`，文本 `${workerName}饿得手抖，${summary}这一趟没送到。`（`delivery-failure.ts:51-91`），服务端 `FAILURE_REASONS=("hunger",)`（`server/events/world_changes.py:113`）。`[实测]` 本次六文件通过。
+**判据**：环境标志闭集 10 项（`rain|storm|wet|fog|lowTide|highTide|quiet|workEnded|lampsLit|lampsOut`，`environment.ts:29-39`）；观察规则 9 个键、一次改变只命中一条（`observation-rules.ts:111-135`）；行为规则顺序 `[verification, pre-cover, sleep, rest, eat, routine]`（`behavior-rules.ts:71-78`）；需求速率 `1/3` 每天、饿阈 `0.9`、失败阈 `1`、跨阈约 2.7 天（`needs.ts:19-50`）；`delivery_failed` 载荷是 `{taskId, taskKind, reason:'hunger', repeat}`，文本 `${workerName}饿得手抖，${summary}这一趟没送到。`（`delivery-failure.ts:51-91`），服务端 `FAILURE_REASONS=("hunger",)`（`server/events/world_changes.py:116`）。`[实测]` 本次六文件通过。
 
 **反向用例**：`behavior-queue.test.ts:128` 交换规则顺序后 `orderedIds()` 变、决策结果变；`needs-failure.test.ts:72` 强制 `hunger===1` 后 `runUntilSettled==='failed'`、`deliveries.local===0`、气泡 `/没送到/`、`events.length===1`、`failure.reason==='hunger'`；`delivery-failure-event.test.ts:133` 室内失败只有同房间两个角色记得（`['worker','mate']`、`facts.length===1`、`entries.length===2`）；`observation-rules.test.ts:156` 断言源码里不允许直接写 `change.change === 'weather'` 分支。
 

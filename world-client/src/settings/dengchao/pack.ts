@@ -376,16 +376,18 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 一个坐标锚表示不了整条街。这里取 `stall_north_1` 所在的那一格：判据是
     // 「这个坐标上有没有摊位」，不是位移。引擎自带的市面点 `marketSpot()`(40,26)
     // 是空街口、离最近摊 6 格——见 `docs/OPEN_ISSUES.md` O3。
-    { id: 'market', kind: 'market', x: 17, y: 26, output: 'trade' },
+    // 集市是链条的末端：它把叠浪楼洗好的衣裳卖出去，换回一天里的成交数。
+    { id: 'market', kind: 'market', x: 17, y: 26, name: '集市', output: 'trade', consumes: 'laundry' },
     // 锅炉房 = `boiler_annex#1`（显示名「炉底入口」；炉膛 (33,14)、煤堆 (34,16)、
     // 烟 (33,12) 都在它门旁 4–7 格内）。它不是建筑锚而是坐标锚，原因**不是**
     // 「这栋没有门」——它有门，门在 (31,17)。但门落在 bathhouse 区域（`requires: 'lamp'`），
     // 而炉匠 `carries: []`，走门等于静默失效（人永远到不了，牌子还写着搬炭）。
     // 所以锚在现状作息点 (33,15)：出区域、可走，距炉膛 1、煤堆 2。
-    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15, output: 'coal' },
+    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15, name: '炉底入口', output: 'coal' },
     // 大浴场清洗 = `wave_house#1`（叠浪楼）：建筑锚，id 就是 instanceId，
     // 落点由 `PlacedBuilding.door` 解析。洗衣妇有灯，进得去。
-    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1', output: 'laundry' },
+    // 叠浪楼是链条的中间：每天烧一份炭（浴池要热水），洗出一份衣裳（集市要）。
+    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1', name: '叠浪楼', output: 'laundry', consumes: 'coal' },
   ],
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
   // 它们是**设定集的话**，不是引擎的话——所以写在这儿，不写进 `grime.ts`。

@@ -156,13 +156,15 @@ import {
   outputSummary,
   outputTotal,
   parseOutputTally,
-  consumeOutput,
   emptySites,
   consumeRoundsBetween,
   OUTPUT_CONSUME_INTERVAL_MS,
   outputEventText,
+  OUTPUT_LABELS,
+  type OutputDemand,
   type OutputKind,
   type SiteOutputTally,
+  settleDemand,
 } from './site-output.ts';
 import { CURRENT_SCHEMA_VERSION, SCHEMA_V8_FINGERPRINT } from './save.ts';
 
@@ -375,6 +377,15 @@ export interface SimulationDeps {
    * 由拿着设定集的调用方给，引擎不按场所 id 硬编码——换包就换产出。
    */
   readonly siteOutputs?: ReadonlyMap<string, OutputKind>;
+  /**
+   * 需求方：谁每天要一份什么（`SettingSite.consumes`）。给了才结算需求，
+   * 省略时产出只累积——没有需求方的世界不消耗，也不假装消耗过。
+   */
+  readonly siteDemands?: readonly OutputDemand[];
+  /** 场所 id → 显示名（`SettingSite.name`）。事件文案用它，缺省退回 id。 */
+  readonly siteNames?: ReadonlyMap<string, string>;
+  /** 场所 id → 落点坐标。需求事件的落点用它，缺省退回祭坛。 */
+  readonly sitePoints?: ReadonlyMap<string, GridPoint>;
   /**
    * 渡口在哪儿。给了就表示这张图有渡口：潮汐会驱动船班，并按世界时间
    * 每天报三次「潮位多少、船开没开」。
@@ -746,6 +757,10 @@ export class Simulation {
   private readonly regionNames: ReadonlyMap<string, string> | undefined;
   /** 场所 id → 产出物；由设定集给，省略则不记产出账。 */
   private readonly siteOutputs: ReadonlyMap<string, OutputKind>;
+  /** 需求方（按 siteId 排序前的原样）；省略时只累积不消耗。 */
+  private readonly siteDemands: readonly OutputDemand[];
+  private readonly siteNames: ReadonlyMap<string, string>;
+  private readonly sitePoints: ReadonlyMap<string, GridPoint>;
   /**
    * 场所产出账（v8 存档字段）：走到场所那一刻记一趟作业。
    *
@@ -908,6 +923,9 @@ export class Simulation {
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
     this.siteOutputs = deps.siteOutputs ?? new Map<string, OutputKind>();
+    this.siteDemands = deps.siteDemands ?? [];
+    this.siteNames = deps.siteNames ?? new Map<string, string>();
+    this.sitePoints = deps.sitePoints ?? new Map<string, GridPoint>();
     // 开局不从 0 起算：否则读档/开局那一刻会立刻补扣掉一段本该发生在过去的消耗。
     this.outputConsumeCursor = this.now;
     this.harborAt = deps.harborAt;
@@ -3973,17 +3991,59 @@ export class Simulation {
    * 结算的轮数都一样（拆帧不变性）。库存不足只扣到 0，不欠账。
    */
   private stepOutputConsumption(): void {
-    if (this.siteOutputs.size === 0) return;
+    if (this.siteDemands.length === 0) return;
     const rounds = consumeRoundsBetween(this.outputConsumeCursor, this.now);
     if (rounds <= 0) return;
     let tally = this.siteOutputTally;
-    for (const siteId of this.siteOutputs.keys()) {
-      for (let i = 0; i < rounds; i += 1) {
-        tally = consumeOutput(tally, siteId).tally;
-      }
+    // 每轮各自结算、各自报事：一天里两轮缺货是两条事实，合并成一条会丢
+    // 「第几天缺的」。轮数由时刻差算是纯函数，所以分帧不影响轮数与顺序。
+    for (let round = 0; round < rounds; round += 1) {
+      const settled = settleDemand(tally, this.siteDemands, (kind) => this.supplierOf(kind));
+      tally = settled.tally;
+      for (const used of settled.served) this.announceSupply(used, true);
+      for (const missing of settled.short) this.announceSupply(missing, false);
     }
     this.siteOutputTally = tally;
     this.outputConsumeCursor += rounds * OUTPUT_CONSUME_INTERVAL_MS;
+  }
+
+  /**
+   * 产出某样东西的场所。多个场所都产同一种时按 id 字典序取第一个：
+   * 同一个账本要算出同一个供给方，不能取决于 `Map` 的插入顺序。
+   */
+  private supplierOf(kind: OutputKind): string | null {
+    const candidates = [...this.siteOutputs.entries()]
+      .filter(([, produced]) => produced === kind)
+      .map(([siteId]) => siteId)
+      .sort();
+    return candidates[0] ?? null;
+  }
+
+  /** 需求方的一句话：拿到了 / 没等到。落点是需求方自己的场所。 */
+  private announceSupply(
+    demand: { readonly siteId: string; readonly kind: OutputKind; readonly from?: string },
+    served: boolean,
+  ): void {
+    const label = OUTPUT_LABELS[demand.kind];
+    const who = this.siteNameOf(demand.siteId);
+    const from = demand.from === undefined ? '' : this.siteNameOf(demand.from);
+    const point = this.sitePoints.get(demand.siteId) ?? this.altar;
+    this.announce({
+      change: 'world.event',
+      kind: served ? 'supply_used' : 'supply_short',
+      text: served
+        ? `${who}从${from}取走了一份${label}。`
+        : `${who}今天没等到${label}。`,
+      placeId: this.sitePlaceId(demand.siteId, point),
+      where: point,
+      actorId: null,
+    });
+  }
+
+  /** 场所显示名：设定集给了就用，没给才露出 id。 */
+  private siteNameOf(siteId: string): string {
+    const named = this.siteNames.get(siteId);
+    return named === undefined || named === '' ? siteId : named;
   }
 
   /** 场所产出账的只读视图：合计与一句可读摘要。 */

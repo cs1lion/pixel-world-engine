@@ -155,7 +155,7 @@ test('灯潮界原封不动照样起得来：这是守卫，不是误杀', () =>
 });
 
 test('读档路不查这一条：存档是照着一份当年通过的世界写的', () => {
-  // 读档分支不铺路（`load.ts:651` 直接 grid.place），一份没铺路的格子上
+  // 读档分支不铺路（`load.ts:659` 直接 grid.place），一份没铺路的格子上
   // `grid.path` 当然大多是空的。拿它判，每一份旧存档都别想再打开。
   const pack = walledInPack();
   const buildings = buildSettingWorld(loadSettingPack(DENGCHAO_RAW)).buildings;

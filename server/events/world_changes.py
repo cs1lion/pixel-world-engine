@@ -96,6 +96,9 @@ WORLD_EVENT_KINDS = (
     # 一趟作业做出了东西（产出物的名字与来历）。与 `routine_done` 分开：
     # 那条是「她停了一会儿」，这条是「炉匠搬炭，得了一份炭」。
     "work_output",
+    # 产出账的对手方：需求方把一份货用掉了 / 今天没等到。
+    "supply_used",
+    "supply_short",
 )
 
 #: `miracle` 事件里记的神迹名。**与 `rules/schema.py` 的 `MIRACLES` 不是同一个域**，

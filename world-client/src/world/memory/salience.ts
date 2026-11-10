@@ -166,6 +166,13 @@ const KIND_PRIORS: Readonly<Record<string, SalienceInputs>> = {
   // 旁观者：`(0.25 + 0.35 + 0.4 + 0.15) / 4 = 0.2875`，压在门槛下面。
   // `surprise` 一列由 `importanceHint`（0.35）抬到这个数，见 `inputsFor`。
   work_output: { emotion: 0.25, surprise: 0.15, goalRelevance: 0.4, involvement: 0.15 },
+  // 货被用掉 / 缺货（`supply_used` / `supply_short`）。这两条没有当事人
+  // （`actorId` 为 null），能不能进记忆**全看在场**：
+  // 用掉 `(0.15 + 0.3 + 0.35 + 0.15) / 4 = 0.2375` 压在门槛下——
+  // 一天两次的日常不必人人都记；缺货 `(0.45 + 0.45 + 0.45 + 0.15) / 4 = 0.375`
+  // 过 `T_write`：镇上真的出了状况，在场的人记得住。
+  supply_used: { emotion: 0.15, surprise: 0.2, goalRelevance: 0.35, involvement: 0.15 },
+  supply_short: { emotion: 0.45, surprise: 0.45, goalRelevance: 0.45, involvement: 0.15 },
   tavern_feast: { emotion: 0.85, surprise: 0.4, goalRelevance: 0.4, involvement: 0.35 },
   unknown: { emotion: 0.3, surprise: 0.3, goalRelevance: 0.3, involvement: 0.2 },
 };

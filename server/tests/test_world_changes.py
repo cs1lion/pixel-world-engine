@@ -217,6 +217,36 @@ def test_产出事件带得出名字与来历(client: TestClient) -> None:
     assert written[0]["payload"]["text"] == payload["text"]
     assert written[0]["payload"]["actorId"] == "v3"
 
+def test_需求方把货用掉_没等到_也是白名单里的事(client: TestClient) -> None:
+    """产出账的对手方：这两条一正一负，都得写进事件账。
+
+    `supply_used` 没有当事人（`actorId` 为 null）——是场所把货用掉了，
+    不是某个人做成了什么；`supply_short` 是镇上真的出了状况。
+    """
+    assert {"supply_used", "supply_short"} <= set(WORLD_EVENT_KINDS)
+    payloads = [
+        {
+            "kind": "supply_used",
+            "text": "叠浪楼从炉底入口取走了一份炭。",
+            "placeId": "wave_house#1",
+            "where": {"x": 33, "y": 17},
+            "actorId": None,
+        },
+        {
+            "kind": "supply_short",
+            "text": "叠浪楼今天没等到炭。",
+            "placeId": "wave_house#1",
+            "where": {"x": 33, "y": 17},
+            "actorId": None,
+        },
+    ]
+    for payload in payloads:
+        response = post(client, "world.event", payload)
+        assert response.status_code == 201, (payload["kind"], response.text)
+    stored = client.get("/api/events", params={"limit": 20}).json()["events"]
+    kinds = [item["payload"].get("kind") for item in stored]
+    assert "supply_used" in kinds and "supply_short" in kinds
+
 def test_船班播报也是同一扇窄门(client: TestClient) -> None:
     """渡口按世界时间每天报三次；它必须走白名单，不能自造一个 kind。"""
     assert "harbor_report" in WORLD_EVENT_KINDS

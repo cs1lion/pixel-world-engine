@@ -1193,6 +1193,22 @@ export class SandboxScene extends Phaser.Scene {
               .filter((site) => site.output !== undefined)
               .map((site) => [site.id, site.output!] as const),
           ),
+          // 需求方：产出账的对手方。设定集写谁要什么，引擎不点名。
+          siteDemands: (this.pack.sites ?? [])
+            .filter((site) => site.consumes !== undefined)
+            .map((site) => ({ siteId: site.id, kind: site.consumes! }))
+            .sort((a, b) => (a.siteId < b.siteId ? -1 : a.siteId > b.siteId ? 1 : 0)),
+          siteNames: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.name !== undefined)
+              .map((site) => [site.id, site.name!] as const),
+          ),
+          sitePoints: new Map(
+            (this.pack.sites ?? [])
+              .map((site) => [site.id, this.sitePointOf(site.id)] as const)
+              .filter((entry): entry is readonly [string, { x: number; y: number }] =>
+                entry[1] !== null),
+          ),
         }),
       // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
       // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
@@ -3826,6 +3842,23 @@ export class SandboxScene extends Phaser.Scene {
           this.sim.applyWorkNarration(note.villagerId, note.site, text);
         })
         .finally(() => this.workNoteInflight.delete(key));
+    }
+  }
+
+  /**
+   * 场所的落点坐标（需求事件的落点用它）。
+   *
+   * 解析器属于设定集，场景每次按当前 `buildings` 建一份——楼可能被玩家造出来
+   * 或拆掉，缓存一份就会让新楼的场所解析失败。sites 只有个位数，不值得缓存。
+   * 解不出（建筑锚那栋楼还没落地）就返回 `null`：那一条需求事件的落点退回祭坛，
+   * 而不是把世界卡住。
+   */
+  private sitePointOf(siteId: string): { x: number; y: number } | null {
+    if (this.pack === undefined || this.pack === null) return null;
+    try {
+      return siteTargetResolver(this.pack, this.world.grid, this.world.buildings)(siteId);
+    } catch {
+      return null;
     }
   }
 
