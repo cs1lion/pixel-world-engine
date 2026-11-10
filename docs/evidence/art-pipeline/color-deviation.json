@@ -1,0 +1,30 @@
+{
+  "paletteSlots": 24,
+  "method": "RGB 欧氏距离到最近 24 色槽；alpha<=200 不计",
+  "assets": {
+    "building/lamp_lodge": {
+      "uniqueColors": 11569,
+      "opaquePixels": 14915,
+      "meanDistance": 30.99,
+      "farOver40Ratio": 0.1926
+    },
+    "building/tea_stall": {
+      "uniqueColors": 11882,
+      "opaquePixels": 17079,
+      "meanDistance": 22.03,
+      "farOver40Ratio": 0.1048
+    },
+    "villager/v0": {
+      "uniqueColors": 664,
+      "opaquePixels": 715,
+      "meanDistance": 34.7,
+      "farOver40Ratio": 0.3161
+    },
+    "villager/v1": {
+      "uniqueColors": 802,
+      "opaquePixels": 969,
+      "meanDistance": 26.01,
+      "farOver40Ratio": 0.0609
+    }
+  }
+}
