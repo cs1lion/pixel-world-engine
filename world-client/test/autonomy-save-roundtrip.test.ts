@@ -26,11 +26,21 @@ import {
   assertSave,
   collectSavePaths,
   CURRENT_SCHEMA_VERSION,
-  SAVE_V7_ALLOWED_PATHS,
-  SCHEMA_V7_FINGERPRINT,
   type AutonomyRoleState,
   type WorldSave,
 } from '../src/world/save.ts';
+
+// v7 的两个新导出走动态 import + typeof 断言：base 上它们还不存在，
+// 静态 import 会抛 SyntaxError，被 red-first 判成 compile 而不是合格的红
+//（OPEN_ISSUES B7，2026-11-08 已登记的已知误报）。
+const v7 = (await import('../src/world/save.ts')) as unknown as {
+  SAVE_V7_ALLOWED_PATHS?: readonly string[];
+  SCHEMA_V7_FINGERPRINT?: string;
+};
+assert.equal(typeof v7.SAVE_V7_ALLOWED_PATHS, 'object', 'v7 路径集合必须存在');
+assert.equal(typeof v7.SCHEMA_V7_FINGERPRINT, 'string', 'v7 指纹常量必须存在');
+const SAVE_V7_ALLOWED_PATHS = v7.SAVE_V7_ALLOWED_PATHS!;
+const SCHEMA_V7_FINGERPRINT = v7.SCHEMA_V7_FINGERPRINT!;
 
 /** 从 v7 冻结样例取一份合法存档骨架，替换 autonomy 后校验。 */
 function baseSave(): WorldSave {
