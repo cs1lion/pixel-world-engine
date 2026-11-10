@@ -147,8 +147,8 @@ import type {
   WorldSnapshot,
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
-import type { MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_V6_FINGERPRINT } from './save.ts';
+import type { AutonomyRoleState, MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V7_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -4422,8 +4422,11 @@ export class Simulation {
    * `memoryState` 是记忆层交来的**字符串**（`MemoryRuntime.toJSON()`），缺省空串。
    * 世界内核不认识记忆层：适配发生在场景（`SandboxScene`），这里只负责把它放进
    * `world.memory` 这个位置，好让存档是「世界 + 关于世界的记忆」一份文件。
+   *
+   * `autonomyState` 同理：外环自治等级住在 `CreatorEngine` 里，不由世界内核维护。
+   * 场景在写档时把引擎导出的快照递进来，这里只搬运（A2）。省略当 null。
    */
-  toSave(memoryState: MemorySave = ''): WorldSave {
+  toSave(memoryState: MemorySave = '', autonomyState: readonly AutonomyRoleState[] | null = null): WorldSave {
     const villagers: SavedVillager[] = this.villagers.map((villager) => ({
       id: villager.id,
       name: villager.name,
@@ -4485,11 +4488,16 @@ export class Simulation {
         memory: memoryState,
         // v6：玩家地形改动最终值；本阶段只序列化，没有写入者。
         terrainEdits: this.terrainEdits.map((edit) => ({ ...edit })),
+        // v7：外环自治状态，由场景把 CreatorEngine 导出的快照递进来（A2）。
+        autonomy: autonomyState?.map((snap) => ({
+          ...snap,
+          metrics: { ...snap.metrics },
+        })) ?? null,
       },
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.feedReconciled,
-        schemaFingerprint: SCHEMA_V6_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V7_FINGERPRINT,
       },
     };
   }

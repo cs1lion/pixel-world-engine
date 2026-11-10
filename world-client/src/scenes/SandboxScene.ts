@@ -47,6 +47,7 @@ import {
   type TrailPin,
 } from '../render/pin-shot-state.ts';
 import { animFsmEnabledOf } from '../animation/villager-anim-fsm-view.ts';
+import { artEnabledOf, preloadArt } from '../render/art-assets.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
@@ -789,6 +790,11 @@ export class SandboxScene extends Phaser.Scene {
       });
   }
 
+  preload(): void {
+    // 位图素材：`?art=1` 才装；关闭时这里什么也不做，渲染路径与基线一字节不差。
+    if (artEnabledOf(new URLSearchParams(window.location.search))) preloadArt(this);
+  }
+
   create(): void {
     const originX = 0;
     const originY = 0;
@@ -1419,6 +1425,8 @@ export class SandboxScene extends Phaser.Scene {
       worldSeed: creatorPack.id,
       worldTime: () => this.snapshot.now,
       world: this.world,
+      // A2：读档把上一次会话的自治等级/指标窗口还回引擎，不再从 L0 重来。
+      autonomy: this.loadedSave?.world.autonomy ?? null,
     });
     // 造物账本：只增外挂日志。世界 id 与种子都取设定集 id；文件在服务端。
     // 出队器不阻塞世界——服务端不在时，记录留在队里等下一次自动存档。
@@ -1455,7 +1463,7 @@ export class SandboxScene extends Phaser.Scene {
     this.focusListener();
 
     this.onPageHide = () => {
-      this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+      this.saveStore.write(this.buildSave());
       // 关页面前把「这一刻」也写进时钟基线；否则下一下开会把最后几秒
       // （或整整一个被节流的 5 秒窗）重复算进离线间隔。
       this.persistClockBaseline(true);
@@ -3764,9 +3772,22 @@ export class SandboxScene extends Phaser.Scene {
     };
   }
 
+  /**
+   * 组装一份写单槽用的存档：世界的记忆段 + 外环自治快照（A2）。
+   *
+   * 两者都由场景从各自的持有者取来，`Simulation` 只负责搬运。历史快照那一路
+   * 不走这里（它刻意不带记忆与外环状态，见 `captureHistory`）。
+   */
+  private buildSave(): WorldSave {
+    return this.sim.toSave(
+      this.memory.toJSON(),
+      this.creator?.exportAutonomy() ?? null,
+    );
+  }
+
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
-    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+    const result = this.saveStore.write(this.buildSave());
     if (result.ok) {
       this.lastSaveKey = this.saveStateKey();
       this.lastSaveAt = this.snapshot.now;
@@ -3800,7 +3821,7 @@ export class SandboxScene extends Phaser.Scene {
     const changed = this.saveStateKey() !== this.lastSaveKey;
     const due = this.snapshot.now - this.lastSaveAt >= 30_000;
     if (!changed && !due) return;
-    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+    const result = this.saveStore.write(this.buildSave());
     if (!result.ok) {
       this.saveNotice = result.message;
       return;
@@ -4895,7 +4916,7 @@ export class SandboxScene extends Phaser.Scene {
     for (const villager of snapshot.villagers) {
       let view = this.villagerViews.get(villager.id);
       if (view === undefined) {
-        view = createVillager(this, 0, 0);
+        view = createVillager(this, 0, 0, villager.id);
         this.villagerViews.set(villager.id, view);
       }
       const style = this.pack?.villagers.find((item) => item.name === villager.name)?.style;
