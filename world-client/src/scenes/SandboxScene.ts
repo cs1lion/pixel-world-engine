@@ -270,6 +270,7 @@ import {
 } from '../world/memory-client.ts';
 import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
+import { createWorkNoteClient } from '../world/work-note-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
 import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
@@ -621,6 +622,18 @@ export class SandboxScene extends Phaser.Scene {
    * 没有设定集（莞尔镇）时用默认包：`selectSetting('')` 返回的就是它。
    */
   private creator: CreatorEngine | null = null;
+  /**
+   * 作业牌子的模型客户端。**牌子的底稿永远在**：模型没配上、超时、断网，
+   * 都退回 `routineLabel` 的原文案，世界照常跑。
+   */
+  private readonly workNoteClient = createWorkNoteClient();
+  /**
+   * 同一天同一处、同一句底稿只问一次模型：作业一天发生十几次，
+   * 每次都问会让上游被打爆，而同一处同日说同一句话本来就该是同一句。
+   */
+  private readonly workNoteCache = new Map<string, string>();
+  /** 在飞请求的 key；同一时刻最多两个，免得慢请求排队压住后面所有拍。 */
+  private readonly workNoteInflight = new Set<string>();
   /**
    * 等落地之后再结算的造物观测。键是 `instanceId`，由既有的
    * `building.built` 回写（`onChange`）触发结算——不另开定时器或轮询。
@@ -1743,6 +1756,7 @@ export class SandboxScene extends Phaser.Scene {
       for (const result of results) {
         this.speak(result);
       }
+      this.pumpWorkNotes();
       this.tick += 1;
       steps += 1;
     }
@@ -3781,6 +3795,38 @@ export class SandboxScene extends Phaser.Scene {
       saveBytesAfter: encode(saveAfter),
       saveEqual: saveBefore === saveAfter,
     };
+  }
+
+  /**
+   * 排空作业牌子队列：能复用当日同款的直接落，其余的异步问模型。
+   *
+   * 三条克制：
+   *   1. **同日同处同底稿只问一次**（`workNoteCache`）——作业一天发生十几次，
+   *      每次都问会让上游被打爆；
+   *   2. **同时在飞最多两个**——慢请求不许排成队压住世界；
+   *   3. **失败什么都不做**——`routineLabel` 的原文案本来就是对的，
+   *      模型只是换一种说法。
+   */
+  private pumpWorkNotes(): void {
+    const notes = this.sim.drainWorkNotes();
+    if (notes.length === 0) return;
+    for (const note of notes) {
+      const key = `${note.site}|${note.day}|${note.canonical}`;
+      const cached = this.workNoteCache.get(key);
+      if (cached !== undefined) {
+        this.sim.applyWorkNarration(note.villagerId, note.site, cached);
+        continue;
+      }
+      if (this.workNoteInflight.has(key) || this.workNoteInflight.size >= 2) continue;
+      this.workNoteInflight.add(key);
+      void this.workNoteClient(note)
+        .then((text) => {
+          if (text === null) return;
+          this.workNoteCache.set(key, text);
+          this.sim.applyWorkNarration(note.villagerId, note.site, text);
+        })
+        .finally(() => this.workNoteInflight.delete(key));
+    }
   }
 
   /**

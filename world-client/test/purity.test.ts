@@ -110,13 +110,17 @@ test('世界的网络入口是封闭的一份清单', () => {
   //   - events-client.ts：读只增日志（任务从这条流里长出来），并把世界做过的事回写；
   //   - intent-client.ts：把一句话发给意图模型（神谕那条路，与任务无关）；
   //   - memory-client.ts：读记忆目录（票据 #7 的编年史）。只读，不写——
-  //     写入走服务端，由「已经观测到的事」触发，不该由界面上的按钮触发。
+  //     写入走服务端，由「已经观测到的事」触发，不该由界面上的按钮触发；
+  //   - work-note-client.ts：只要一句牌子文案（作业的措辞），不改世界。
+  //     与 intent-client 同一条路但不同门：那一扇的返回会变成命令，
+  //     这一扇只变成牌子上的一行字，失败退回原文案。
   // 新增任何一扇门都必须先想清楚它是不是在重造已有的一扇。
   const ALLOWED = new Set([
     'world/events-client.ts',
     'world/feed.ts',
     'world/intent-client.ts',
     'world/memory-client.ts',
+    'world/work-note-client.ts',
   ]);
   const offenders: string[] = [];
   for (const file of files) {

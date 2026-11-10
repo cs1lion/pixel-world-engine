@@ -147,6 +147,7 @@ import type {
   WorldSnapshot,
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
+import type { WorkNoteRequest } from './work-note-client.ts';
 import type { AutonomyRoleState, MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
 import {
   accrueOutput,
@@ -757,6 +758,13 @@ export class Simulation {
    * 「上次算到哪一刻」的中间量，不落档不会让库存跳变；落档只落库存本身。
    */
   private outputConsumeCursor = 0;
+  /**
+   * 待写牌子的作业（场景每帧取走、异步问模型）。
+   *
+   * 队列在 `Simulation` 里、由场景排空：世界内核不做 IO（不 fetch），
+   * 但「哪一刻发生了作业」只有它知道。取走即清空，不会重复问。
+   */
+  private pendingWorkNotes: WorkNoteRequest[] = [];
   /** 渡口落点；undefined = 这张图没有渡口。 */
   private readonly harborAt: GridPoint | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
@@ -3892,6 +3900,57 @@ export class Simulation {
     if (!activityProduces(beat.activity)) return;
     if (!this.siteOutputs.has(beat.siteId)) return;
     this.siteOutputTally = accrueOutput(this.siteOutputTally, beat.siteId);
+    // 顺带排一条「请模型换一种说法」的请求：牌子原文是权威事实，模型只改措辞。
+    const people = this.villagers
+      .filter((other) => other.id !== villager.id && other.visible
+        && Math.abs(other.pos.x - here.x) <= 3 && Math.abs(other.pos.y - here.y) <= 3)
+      .map((other) => other.name);
+    this.pendingWorkNotes.push({
+      villagerId: villager.id,
+      site: beat.siteId,
+      siteName: beat.label,
+      activity: beat.activity,
+      stock: this.siteOutputTally[beat.siteId] ?? 0,
+      day: Math.floor(this.now / DAY_MS),
+      people,
+      canonical: beat.label,
+    });
+  }
+
+  /**
+   * 取走待写牌子的作业。取走即清空——同一条作业不会问两次。
+   *
+   * 场景每帧调一次；世界内核不 fetch，IO 在场景那一侧。
+   */
+  drainWorkNotes(): WorkNoteRequest[] {
+    if (this.pendingWorkNotes.length === 0) return [];
+    const out = this.pendingWorkNotes;
+    this.pendingWorkNotes = [];
+    return out;
+  }
+
+  /**
+   * 模型写好的牌子落回世界。
+   *
+   * 只在「她仍站在这处、还是同一拍」时才写：异步回来时她可能已经走开，
+   * 把新牌子挂到一个不在这儿的人身上就是让牌子说谎。
+   */
+  applyWorkNarration(villagerId: string, siteId: string, text: string): boolean {
+    // 空话等于没写：牌子宁可留着原文案，也不留一块空牌。
+    if (text.trim() === '') return false;
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined || villager.path.length > 0) return false;
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    const beat = routineFor(
+      this.environment(),
+      beats,
+      Math.max(0, villager.routineIndex - 1),
+      shelterTarget(this.buildings, here),
+    );
+    if (beat.siteId !== siteId) return false;
+    villager.routineLabel = text;
+    return true;
   }
 
   /**
