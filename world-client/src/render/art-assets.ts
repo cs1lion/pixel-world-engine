@@ -3,9 +3,11 @@
  * 素材由 `server/scripts/gen_asset.py` 离线生成，落在 `public/assets/<kind>/<id>.png`，
  * `manifest.json` 记着每件的尺寸与来历。运行时只读，不生成。
  *
- * **开关 `?art=1`，缺省关闭。** 关闭时一张纹理都不装，`hasArt` 恒为 `false`，
- * 渲染走原来的程序化绘制，一个字节都不变——所以 157 张基线与十一道闸门不受影响。
+ * **默认开，`?art=0` 才关。** 关闭时一张纹理都不装，`hasArt` 恒为 `false`，
+ * 渲染走原来的程序化绘制——这是排障与像素基线比对用的退路。
  * 打开与否的差别只在画面；世界与存档不知道有这回事。
+ * 装了图但清单里没有这一件（莞尔镇、没生成过的楼）时 `hasArt` 也是 `false`，
+ * 照样落到程序化路径：**素材缺一件不该让世界缺一块**。
  */
 
 import Phaser from 'phaser';
@@ -21,7 +23,10 @@ const MANIFEST_KEY = 'art-manifest';
 
 export function artEnabledOf(search: string | URLSearchParams): boolean {
   const params = typeof search === 'string' ? new URLSearchParams(search) : search;
-  return params.get('art') === '1';
+  // **默认开**（2026-11-10 起）。`?art=0` 是唯一的关法：它是排障与基线比对
+  // 用的退路，不是日常状态。理由见 `ADR_ART_DEFAULT_ON`：素材已经从 4 件长到
+  // 19 件、观感验收做过，再让它默认关着就等于用户永远看不到这批图。
+  return params.get('art') !== '0';
 }
 
 export function artKey(kind: ArtKind, id: string): string {

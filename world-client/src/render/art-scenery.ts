@@ -1,11 +1,11 @@
-/** 位图布景素材的渲染辅助（`?art=1` 时替代 scene-artbook 的程序化绘制）。
+/** 位图布景素材的渲染辅助（默认替代 scene-artbook 的程序化绘制）。
  *
  * 每件布景的包围盒与锚点偏移在 `SCENERY_BOXES` 里钉住——这些数来自
  * `scene-artbook.ts` 各 draw 函数的 fillRect 坐标范围，不是猜的。
  * 位图按包围盒宽缩放、底对齐到锚点 y，窗火锚点仍由程序化坐标给出
  * （位图里的窗位置与程序化不完全一致，但暖光叠层只要求"大致在窗上"）。
  *
- * `?art=0` 时 `hasArt` 恒 false，调用方走原程序化路径，一个字节不变。
+ * `?art=0` 时 `hasArt` 恒 false，调用方走原程序化路径。
  */
 
 import Phaser from 'phaser';

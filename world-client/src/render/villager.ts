@@ -54,7 +54,7 @@ export interface VillagerView {
    * 关掉开关时清成 `null`，下次打开重新从意图起，不会带着旧残影。
    */
   animState: AnimFsmState | null;
-  /** 位图立绘（`?art=1` 且生成过这个人的图）；有它时 `body` 不再绘制。 */
+  /** 位图立绘（默认开，且生成过这个人的图）；有它时 `body` 不再绘制。 */
   readonly sprite: Phaser.GameObjects.Image | null;
 }
 

@@ -6,8 +6,10 @@
  * 有没有 404，都得看网络层。这里钉四件事：
  *   1. `?art=1` 一定请求 `/assets/manifest.json`，且清单可解析；
  *   2. 清单里每一件素材都被请求，且响应 200（漏装 / 路径错 / 图被删都会红）；
- *   3. `?art=0` 一个 `/assets/` 请求都不发——缺省关闭，程序化路径逐字节不变；
- *   4. 两跑都没有 pageerror。
+ *   3. **不带 `art` 参数（默认）也装**——2026-11-10 起默认开，谁都不该靠记着
+ *      加参数才看得到这批素材；
+ *   4. `?art=0` 一个 `/assets/` 请求都不发——排障与基线比对的退路仍在；
+ *   5. 三跑都没有 pageerror。
  *
  * 这条闸门只管「装上了没有」，不管「好不好看」；观感由人眼与
  * `docs/evidence/art-pipeline/` 的对比图负责，别把两件事混成一件。
@@ -49,7 +51,8 @@ async function run(art) {
   });
   page.on('pageerror', (err) => errors.push(err.message));
 
-  await page.goto(`${BASE}?world=dengchao&time=noon&feed=off&art=${art}`, { waitUntil: 'load' });
+  const query = `world=dengchao&time=noon&feed=off${art === null ? '' : `&art=${art}`}`;
+  await page.goto(`${BASE}?${query}`, { waitUntil: 'load' });
   await page.waitForTimeout(4000);
 
   let manifest = null;
@@ -64,6 +67,7 @@ async function run(art) {
 }
 
 const on = await run('1');
+const byDefault = await run(null);
 const off = await run('0');
 await browser.close();
 
@@ -91,14 +95,20 @@ if (on.manifest === null) {
   console.log(`art=1: 清单 ${ids.length} 件，实际请求 ${on.requests.filter((r) => r.endsWith('.png')).length} 张 PNG`);
 }
 
-// 3. 关：零请求
+// 3. 默认（不写参数）：也装
+if (byDefault.statuses.get('manifest.json') !== 200) {
+  failures.push('默认（不带 art 参数）没请求 assets/manifest.json——默认开这条退化了');
+}
+console.log(`默认: 请求 ${byDefault.requests.filter((r) => r.endsWith('.png')).length} 张 PNG`);
+
+// 4. 关：零请求
 if (off.requests.length !== 0) {
   failures.push(`art=0 仍发了 ${off.requests.length} 个 /assets/ 请求：${off.requests.join(', ')}`);
 }
 console.log(`art=0: /assets/ 请求 ${off.requests.length} 个`);
 
-// 4. 两跑都无 pageerror
-for (const [label, r] of [['art=1', on], ['art=0', off]]) {
+// 5. 三跑都无 pageerror
+for (const [label, r] of [['art=1', on], ['默认', byDefault], ['art=0', off]]) {
   for (const err of r.errors) failures.push(`${label} pageerror: ${err}`);
 }
 
@@ -107,4 +117,4 @@ if (failures.length > 0) {
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log('素材装载冒烟通过：开则全装、关则零请求、两跑无 pageerror。');
+console.log('素材装载冒烟通过：默认与 art=1 全装、art=0 零请求、三跑无 pageerror。');

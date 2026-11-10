@@ -221,7 +221,7 @@ export function createBuilding(
   drawGroundShadow(backLayer, building, w, h, px, py, groundBase);
   back.add([backLayer]);
 
-  // 位图素材（`?art=1` 且这个模板生成过图）：整栋换成一张生图，地面投影仍走上面那一层。
+  // 位图素材（默认开，且这个模板生成过图）：整栋换成一张生图，地面投影仍走上面那一层。
   // 屋面槽就是这张图本身——进屋时收起屋面，整栋外立面一起收，内景接管。
   // 招牌 / 烟囱 / 窗层不画：图里已经有灯笼与窗光，再叠程序化的会重复。
   if (hasArt(scene, 'building', building.prefabId)) {

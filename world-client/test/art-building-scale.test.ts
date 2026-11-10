@@ -12,6 +12,9 @@ const mod = (await import('../src/render/art-assets.ts')) as unknown as {
 };
 assert.equal(typeof mod.artBuildingScale, 'function', 'artBuildingScale 必须存在');
 const artBuildingScale = mod.artBuildingScale!;
+const artEnabledOf = (mod as unknown as {
+  artEnabledOf?: (search: string | URLSearchParams) => boolean;
+}).artEnabledOf;
 
 const S = 2; // artScale
 
@@ -47,4 +50,16 @@ test('放大不会越过 maxH（矮楼 + 极矮但极宽比例的图）', () => 
 
 test('artScale=1 时基准缩放就是 1', () => {
   assert.equal(artBuildingScale(100, 64, 1), 1);
+});
+
+test('开关默认开：不写 art 参数就装图，`?art=0` 才关', () => {
+  assert.equal(typeof artEnabledOf, 'function', 'artEnabledOf 必须存在');
+  const on = artEnabledOf!;
+  assert.equal(on(''), true, '空查询串时必须默认装图');
+  assert.equal(on('?world=dengchao&time=noon&feed=off'), true, '日常那串参数不该把关掉');
+  assert.equal(on('?art=1'), true);
+  assert.equal(on('?art=0'), false, 'art=0 是唯一的关法');
+  // 认不得的值按默认（开）：写错一个字不该让画面悄悄退回程序化。
+  assert.equal(on('?art=true'), true);
+  assert.equal(on(new URLSearchParams('art=0')), false, '也认 URLSearchParams');
 });

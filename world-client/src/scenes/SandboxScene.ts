@@ -804,7 +804,7 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // 位图素材：`?art=1` 才装；关闭时这里什么也不做，渲染路径与基线一字节不差。
+    // 位图素材：默认装；`?art=0` 时这里什么也不做，渲染走原程序化路径。
     if (artEnabledOf(new URLSearchParams(window.location.search))) preloadArt(this);
   }
 
