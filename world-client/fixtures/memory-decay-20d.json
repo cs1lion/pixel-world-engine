@@ -103,7 +103,7 @@
         }
       },
       "creator": {
-        "fingerprint": "ec787f389e22c92fe4e4cf8e4172baf2c7f71654d2a490595319513d9f7ac9be",
+        "fingerprint": "92018c3affeef75224abc07026493d87c9f7c2a5453b3984b74d13dbff7eeb72",
         "business": {
           "dayCloses": [
             {
@@ -275,7 +275,7 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
+                "reason": "需要人工逐项确认",
                 "suggestedLevel": null
               },
               "proposal": {
@@ -301,8 +301,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "star_archive",
@@ -327,8 +327,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "workshop_plot",
@@ -353,8 +353,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "workshop_plot",
@@ -379,8 +379,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "ink_mill",
@@ -405,8 +405,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "star_archive",
@@ -431,8 +431,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "crawler_mine",
@@ -457,8 +457,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "homestead_ridge",
@@ -483,8 +483,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "cottage_oak",
@@ -509,8 +509,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "code_forge",
@@ -535,8 +535,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "code_forge",
@@ -561,8 +561,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "code_forge",
@@ -587,8 +587,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "ink_mill",
@@ -613,8 +613,8 @@
               "reasoning": "世界状态健康，无需干预",
               "fuse": {
                 "action": "requireReview",
-                "reason": "L0 阶段所有生成都要人工逐项确认",
-                "suggestedLevel": null
+                "reason": "通过率未达 L2 标准",
+                "suggestedLevel": 1
               },
               "proposal": {
                 "templateId": "code_forge",
@@ -913,12 +913,12 @@
           "roles": [
             {
               "roleId": "art_supervisor",
-              "currentLevel": 0,
+              "currentLevel": 2,
               "targetLevel": 3,
               "isFused": false,
               "lastRegressionPassed": null,
               "batches": 0,
-              "days": 20,
+              "days": 12,
               "totalCommands": 0,
               "schemaPassCount": 0,
               "conflictCount": 0,
@@ -927,12 +927,12 @@
             },
             {
               "roleId": "auditor",
-              "currentLevel": 0,
+              "currentLevel": 2,
               "targetLevel": 3,
               "isFused": false,
               "lastRegressionPassed": null,
               "batches": 0,
-              "days": 20,
+              "days": 12,
               "totalCommands": 0,
               "schemaPassCount": 0,
               "conflictCount": 0,
@@ -941,12 +941,12 @@
             },
             {
               "roleId": "director",
-              "currentLevel": 0,
+              "currentLevel": 2,
               "targetLevel": 3,
               "isFused": false,
               "lastRegressionPassed": null,
               "batches": 0,
-              "days": 20,
+              "days": 12,
               "totalCommands": 0,
               "schemaPassCount": 0,
               "conflictCount": 0,
@@ -955,12 +955,12 @@
             },
             {
               "roleId": "historian",
-              "currentLevel": 0,
+              "currentLevel": 2,
               "targetLevel": 3,
               "isFused": false,
               "lastRegressionPassed": null,
               "batches": 0,
-              "days": 20,
+              "days": 12,
               "totalCommands": 0,
               "schemaPassCount": 0,
               "conflictCount": 0,
@@ -969,12 +969,12 @@
             },
             {
               "roleId": "interpreter",
-              "currentLevel": 0,
+              "currentLevel": 2,
               "targetLevel": 3,
               "isFused": false,
               "lastRegressionPassed": null,
               "batches": 0,
-              "days": 20,
+              "days": 12,
               "totalCommands": 0,
               "schemaPassCount": 0,
               "conflictCount": 0,
@@ -983,12 +983,12 @@
             },
             {
               "roleId": "mapper",
-              "currentLevel": 0,
+              "currentLevel": 2,
               "targetLevel": 3,
               "isFused": false,
               "lastRegressionPassed": null,
               "batches": 0,
-              "days": 20,
+              "days": 12,
               "totalCommands": 0,
               "schemaPassCount": 0,
               "conflictCount": 0,
@@ -1097,98 +1097,126 @@
       "source": "memory.kindReadings",
       "path": "market_open.tickOfDay",
       "op": "eq",
-      "value": [28800000]
+      "value": [
+        28800000
+      ]
     },
     {
       "note": "收工只落在 17:00（61200000ms）这一拍；挪到别的时段即红",
       "source": "memory.kindReadings",
       "path": "work_end.tickOfDay",
       "op": "eq",
-      "value": [61200000]
+      "value": [
+        61200000
+      ]
     },
     {
       "note": "夜市只落在 19:00（68400000ms）这一拍；挪到别的时段即红",
       "source": "memory.kindReadings",
       "path": "night_market.tickOfDay",
       "op": "eq",
-      "value": [68400000]
+      "value": [
+        68400000
+      ]
     },
     {
       "note": "闭市只落在 22:00（79200000ms）这一拍；挪到别的时段即红",
       "source": "memory.kindReadings",
       "path": "market_close.tickOfDay",
       "op": "eq",
-      "value": [79200000]
+      "value": [
+        79200000
+      ]
     },
     {
       "note": "早市落在街口 marketSpot（place:56,33）；换地点即红",
       "source": "memory.kindReadings",
       "path": "market_open.places",
       "op": "eq",
-      "value": ["place:56,33"]
+      "value": [
+        "place:56,33"
+      ]
     },
     {
       "note": "收工落在街口 marketSpot（place:56,33）；换地点即红",
       "source": "memory.kindReadings",
       "path": "work_end.places",
       "op": "eq",
-      "value": ["place:56,33"]
+      "value": [
+        "place:56,33"
+      ]
     },
     {
       "note": "夜市落在街口 marketSpot（place:56,33）；换地点即红",
       "source": "memory.kindReadings",
       "path": "night_market.places",
       "op": "eq",
-      "value": ["place:56,33"]
+      "value": [
+        "place:56,33"
+      ]
     },
     {
       "note": "闭市落在街口 marketSpot（place:56,33）；换地点即红",
       "source": "memory.kindReadings",
       "path": "market_close.places",
       "op": "eq",
-      "value": ["place:56,33"]
+      "value": [
+        "place:56,33"
+      ]
     },
     {
       "note": "早市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
       "source": "memory.kindReadings",
       "path": "market_open.actorCounts",
       "op": "eq",
-      "value": [0]
+      "value": [
+        0
+      ]
     },
     {
       "note": "收工是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
       "source": "memory.kindReadings",
       "path": "work_end.actorCounts",
       "op": "eq",
-      "value": [0]
+      "value": [
+        0
+      ]
     },
     {
       "note": "夜市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
       "source": "memory.kindReadings",
       "path": "night_market.actorCounts",
       "op": "eq",
-      "value": [0]
+      "value": [
+        0
+      ]
     },
     {
       "note": "闭市是旁白事件，不记到任何居民头上（参与者人数恒为 0）",
       "source": "memory.kindReadings",
       "path": "market_close.actorCounts",
       "op": "eq",
-      "value": [0]
+      "value": [
+        0
+      ]
     },
     {
       "note": "街头问候的参与者始终是 v0+v1 这一对；换人或掉成单人即红",
       "source": "memory.kindReadings",
       "path": "street_greet.actorPairs",
       "op": "eq",
-      "value": ["v0+v1"]
+      "value": [
+        "v0+v1"
+      ]
     },
     {
       "note": "同街搭手的参与者始终是 v0+v1 这一对；换人或掉成单人即红",
       "source": "memory.kindReadings",
       "path": "street_together.actorPairs",
       "op": "eq",
-      "value": ["v0+v1"]
+      "value": [
+        "v0+v1"
+      ]
     },
     {
       "note": "每条街头问候都有真实落点（placeId 为空即红）",
