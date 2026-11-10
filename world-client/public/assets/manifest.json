@@ -12,14 +12,18 @@
       "bytes": 36388
     },
     "building/tea_stall": {
-      "prompt": "single small Japanese tea stall shop with a flat tiled roof, red noren curtain, steaming kettle, hanging red lanterns, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "single small Japanese tea stall shop with a flat tiled roof, red noren curtain, steaming kettle, hanging red lanterns, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_3Gb2LL7XPqlEkl3ZwXjzf6Asi8Da6fwD/output_53e566b45fe14217914a5b9538ffe8ad.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_mi7k5NTkGWOHrVdITqgIXhrA2C9Ec0Yx/output.png",
       "refs": [],
+      "refFiles": [
+        "ref-p19.png",
+        "ref-p49.png"
+      ],
       "width": 176,
-      "height": 151,
-      "sha256": "2866cea23c99faf78e71161700386637d170bfc0ec67f08b5c3a0ce374c81388",
-      "bytes": 45749
+      "height": 112,
+      "sha256": "eb45d5ab383fe1addf5fed023abbc1b51603e46b3a25e0169e54984a6d973ab4",
+      "bytes": 38665
     },
     "villager/v0": {
       "prompt": "single full-body young girl lost traveler in vermilion work clothes with white front apron, dark blue shorts, brown ponytail, carrying a wooden water bucket, standing, facing front, three-quarter view, small chibi proportions (about 3 heads tall), simple readable costume, exactly one character only, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
