@@ -668,6 +668,201 @@
       "sha256": "bf63228cd645e39dda0ffdf296556915a2227b7c831ca18047876d75b1c10251",
       "bytes": 15848
     },
+    "plate/cast-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "villager-sprite-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 1,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "1afaea367f33b23be4dc25c7ad8c83ad9df98ab05a2ae38c539773a8496bb76a",
+      "bytes": 56413
+    },
+    "plate/map-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "5635ce15df6f7b73f775913e4978326c6756e2bb01cd3aaeb8d28a6af75ece16",
+      "bytes": 144529
+    },
+    "plate/map-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "107f35618e347bd8142fa1f2086a2fdbf44d8b9d034c6395a3b4bc44ef915729",
+      "bytes": 143944
+    },
+    "plate/map-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "a98bda15b6433d5c0f6fb201e16ffcec64f4c1e35590a8d052235b98e7219334",
+      "bytes": 141405
+    },
+    "plate/map-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "978b639cc2082dfc67a6f52d04af67c3cd55b039c8cd1d324bbaa6b507a2ce1a",
+      "bytes": 141966
+    },
+    "plate/scholarly-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "scholarly-zone-buildings.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 1,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 320,
+      "sha256": "8e30e8a6139aa744a2f33df9c92e038419b104872481b0dd8b582722e4f16fd9",
+      "bytes": 167690
+    },
+    "plate/tileset-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-tileset-props-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 1,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 320,
+      "sha256": "716a9ff4f15fc8c9fc3d70a63bd3fea6e7b4853a045e4151fa9a1f2fa4ebae47",
+      "bytes": 195646
+    },
+    "plate/ui-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-engine-desktop-ui-mockup.jpg",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 359,
+      "sha256": "6b6bcf3883fc236a5bcb21b877f67efaf807732def7fa11012244b04448d7899",
+      "bytes": 248359
+    },
+    "plate/ui-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-engine-desktop-ui-mockup.jpg",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 359,
+      "sha256": "1ca05945568df992727e60cc30d3736132161ac46e61f3d3b9e6289298f79448",
+      "bytes": 233171
+    },
+    "plate/village-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "735feb708255e292e5327120f9aeda493f4a055aa4ac4863fa919b57e1f16241",
+      "bytes": 135357
+    },
+    "plate/village-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "c5e4668476803419be46028593554882c018be2373839132c01adbaa79adf057",
+      "bytes": 131063
+    },
+    "plate/village-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "28bbf04ff970773b56718cf00888cd99c515b8cff8b74a0b80d265411343fe0d",
+      "bytes": 140960
+    },
+    "plate/village-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "028d995523f68f9e72978db6457dd8d2fc983f201f3eb4dbde1135f69bb15a21",
+      "bytes": 116166
+    },
     "scenery/bathhouse_main": {
       "prompt": "A SINGLE grand multi-storey bathhouse facade, layered copper-green tiled roofs with upturned eaves, red lacquer pillars, rows of warm-lit lattice windows, ornate central entrance with curved gable, hanging lanterns, a tall brick chimney on the right. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",

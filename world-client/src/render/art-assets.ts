@@ -17,7 +17,7 @@ import Phaser from 'phaser';
  * 这三类只给 DOM 面板当徽记用，不进 Phaser 纹理查询——但一样走 `preloadArt`，
  * 所以 `?art=0` 时它们也一张都不装。
  */
-export type ArtKind = 'building' | 'villager' | 'scenery' | 'state' | 'icon' | 'emote';
+export type ArtKind = 'building' | 'villager' | 'scenery' | 'state' | 'icon' | 'emote' | 'plate';
 
 interface ArtManifest {
   readonly artScale: number;
@@ -71,6 +71,41 @@ const EMOTE_IDS: readonly string[] = [
 export function emoteIdFor(index: number): string {
   const i = ((Math.trunc(index) % EMOTE_IDS.length) + EMOTE_IDS.length) % EMOTE_IDS.length;
   return EMOTE_IDS[i]!;
+}
+
+/** 语义 -> 表情。十一张可用图各有一个入口，不靠行序碰运气。 */
+const EMOTE_BY_KIND: Readonly<Record<string, string>> = {
+  alert: 'emote-00', question: 'emote-01', sweat: 'emote-02', search: 'emote-03',
+  think: 'emote-04', talk: 'emote-05', storm: 'emote-06', calm: 'emote-07',
+  smoke: 'emote-08', water: 'emote-10', reward: 'emote-11',
+};
+
+export function emoteIdForKind(kind: string): string {
+  return EMOTE_BY_KIND[kind] ?? EMOTE_IDS[0]!;
+}
+
+/** 一句记忆 -> 该配哪张表情。听来的、当天的、往日的分三路，再按行序兜底。 */
+export function emoteIdForLine(line: { readonly age: string; readonly heardFrom: unknown }, index: number): string {
+  if (line.heardFrom !== null && line.heardFrom !== undefined) return emoteIdForKind('question');
+  if (line.age.includes('今天')) return emoteIdForKind('alert');
+  if (line.age.includes('昨天')) return emoteIdForKind('think');
+  return emoteIdFor(index);
+}
+
+/** 神谕祭坛三态：null = 待机，true = 降下，false = 出错 / 过载。 */
+export function altarStateId(ok: boolean | null): string {
+  return ok === null ? 'altar-00' : ok ? 'altar-01' : 'altar-02';
+}
+
+/** 日历周视图的构图贴片，按周序号轮转十三张。 */
+const PLATE_COUNT = 13;
+
+export function plateIdFor(index: number): string {
+  const i = ((Math.trunc(index) % PLATE_COUNT) + PLATE_COUNT) % PLATE_COUNT;
+  if (i < 4) return `map-0${i}`;
+  if (i < 8) return `village-0${i - 4}`;
+  if (i < 10) return `ui-0${i - 8}`;
+  return ['scholarly-00', 'tileset-00', 'cast-00'][i - 10]!;
 }
 
 export function hasArt(scene: Phaser.Scene, kind: ArtKind, id: string): boolean {

@@ -17,6 +17,10 @@ const assets = (await import('../src/render/art-assets.ts')) as unknown as {
   activityDecorId?: (activity: string) => string | null;
   villagerBadgeId?: (villagerId: string) => string;
   emoteIdFor?: (index: number) => string;
+  emoteIdForKind?: (kind: string) => string;
+  emoteIdForLine?: (line: { age: string; heardFrom: unknown }, index: number) => string;
+  altarStateId?: (ok: boolean | null) => string;
+  plateIdFor?: (index: number) => string;
   artEnabledOf?: (search: string) => boolean;
 };
 // `art-decor.ts` 是本轮新文件，base 上没有：把 import 失败吞成空对象，
@@ -36,6 +40,10 @@ assert.equal(typeof assets.artAssetPath, 'function', 'artAssetPath 必须存在'
 assert.equal(typeof assets.activityDecorId, 'function', 'activityDecorId 必须存在');
 assert.equal(typeof assets.villagerBadgeId, 'function', 'villagerBadgeId 必须存在');
 assert.equal(typeof assets.emoteIdFor, 'function', 'emoteIdFor 必须存在');
+assert.equal(typeof assets.emoteIdForKind, 'function', 'emoteIdForKind 必须存在');
+assert.equal(typeof assets.emoteIdForLine, 'function', 'emoteIdForLine 必须存在');
+assert.equal(typeof assets.altarStateId, 'function', 'altarStateId 必须存在');
+assert.equal(typeof assets.plateIdFor, 'function', 'plateIdFor 必须存在');
 assert.equal(typeof decor.appendDecor, 'function', 'appendDecor 必须存在');
 assert.equal(typeof decor.decorEnabled, 'function', 'decorEnabled 必须存在');
 assert.equal(typeof decor.decorUrl, 'function', 'decorUrl 必须存在');
@@ -44,6 +52,10 @@ const path = assets.artAssetPath!;
 const activityDecorId = assets.activityDecorId!;
 const villagerBadgeId = assets.villagerBadgeId!;
 const emoteIdFor = assets.emoteIdFor!;
+const emoteIdForKind = assets.emoteIdForKind!;
+const emoteIdForLine = assets.emoteIdForLine!;
+const altarStateId = assets.altarStateId!;
+const plateIdFor = assets.plateIdFor!;
 const appendDecor = decor.appendDecor!;
 const decorEnabled = decor.decorEnabled!;
 const decorUrl = decor.decorUrl!;
@@ -78,6 +90,36 @@ test('表情轮转跳过纯色块那一格（emote-09），负数也落在闭集
   assert.equal(emoteIdFor(11), 'emote-00', '第十一轮回到第一张，不越界');
 });
 
+test('表情语义表覆盖十一张可用图，认不得的语义落回第一张', () => {
+  const kinds = ['alert', 'question', 'sweat', 'search', 'think', 'talk',
+    'storm', 'calm', 'smoke', 'water', 'reward'];
+  const ids = kinds.map(emoteIdForKind);
+  assert.equal(new Set(ids).size, 11, '十一张各有一个入口');
+  assert.ok(!ids.includes('emote-09'), '色块那格不是表情');
+  assert.equal(emoteIdForKind('nonsense'), 'emote-00');
+});
+
+test('记忆行按性质选表情：听来的 / 当天的 / 往日的，都不是情绪读数', () => {
+  assert.equal(emoteIdForLine({ age: '昨天', heardFrom: { kind: 'person', name: '炉匠' } }, 0), 'emote-01');
+  assert.equal(emoteIdForLine({ age: '今天', heardFrom: null }, 0), 'emote-00');
+  assert.equal(emoteIdForLine({ age: '昨天', heardFrom: null }, 0), 'emote-04');
+  assert.equal(emoteIdForLine({ age: '3 天前', heardFrom: null }, 3), emoteIdFor(3), '其余按行序兜底');
+});
+
+test('祭坛三态：待机 / 降下 / 出错一一对应', () => {
+  assert.deepEqual([null, true, false].map(altarStateId),
+    ['altar-00', 'altar-01', 'altar-02']);
+});
+
+test('十三张画册贴片轮转，负数也落在闭集里', () => {
+  const ids = Array.from({ length: 13 }, (_, i) => plateIdFor(i));
+  assert.equal(new Set(ids).size, 13);
+  assert.ok(ids.includes('map-00') && ids.includes('village-03'));
+  assert.ok(ids.includes('ui-01') && ids.includes('cast-00'));
+  assert.equal(plateIdFor(-1), 'cast-00');
+  assert.equal(plateIdFor(13), 'map-00');
+});
+
 test('装饰是纯附加：不改宿主文字，只追加一个无文本的 img', () => {
   const dom = installFakeDom(['host']);
   try {
@@ -86,10 +128,10 @@ test('装饰是纯附加：不改宿主文字，只追加一个无文本的 img'
     assert.equal(appendDecor(host, 'state', 'workshop-01', 'art-state-icon'), true);
     assert.equal(host.textContent, '此刻有人在里面干活。');
     assert.equal((host as unknown as { children: unknown[] }).children.length, 1);
-    const img = (host as unknown as { children: { tag: string; className: string; attributes: Record<string, string> }[] }).children[0]!;
+    const img = (host as unknown as { children: { tag: string; className: string; src?: string }[] }).children[0]!;
     assert.equal(img.tag, 'img');
     assert.equal(img.className, 'art-state-icon');
-    assert.equal(img.attributes['src'], '/assets/state/workshop-01.png');
+    assert.equal(img.src, '/assets/state/workshop-01.png');
   } finally {
     dom.restore();
   }

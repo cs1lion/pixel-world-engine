@@ -414,6 +414,16 @@
          没有独立的绿色位（UI 预算 9 色已满），成功事件与「进度/亮灯」共用琥珀。 */
       #reply.good { color: var(--amber); }
       #reply.bad { color: var(--warn); }
+      /* 神谕祭坛三态图：与回执文字同一行，图坏了不影响那句话。 */
+      #reply .art-altar-state {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        margin-left: 6px;
+        vertical-align: -5px;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
       #save-io-reply {
         min-height: 1.2em;
         color: var(--dim);
@@ -728,6 +738,26 @@
       #daycard .daycard-row-line { color: var(--ink); font-size: 12px; }
       #daycard .daycard-row-what { color: var(--dim); font-size: 11px; }
       #daycard .daycard-row-bytes { color: var(--dim); font-size: 9px; text-align: right; }
+      /* 11-11 参考图装饰：周视图挂构图贴片，每日行挂表情。
+         挂在文字节点内部，不给 grid 多添一列；不引入新颜色。 */
+      #daycard .daycard-row-line .art-emote {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin-left: 4px;
+        vertical-align: -3px;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
+      #daycard .daycard-week .art-plate {
+        display: inline-block;
+        width: 28px;
+        height: 20px;
+        margin-left: 6px;
+        vertical-align: -5px;
+        object-fit: cover;
+        image-rendering: pixelated;
+      }
       .dbg-head {
         display: flex;
         gap: 6px;

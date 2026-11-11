@@ -202,6 +202,33 @@ test('结果来了就往回执那一行写，分得出办了与拒了', () => {
   }
 });
 
+test('回执那一行带祭坛三态图，待机 / 降下 / 拒收随回执切换', () => {
+  const { doc, byId } = fakeDocument();
+  const world = fakeApi();
+  const realDocument = globalThis.document;
+  globalThis.document = doc;
+  try {
+    bindOraclePanel(() => world.api);
+    const reply = byId('reply');
+    const lastDecor = (): FakeElement | undefined =>
+      reply.children.filter((child) => child.className === 'art-altar-state').at(-1);
+    const srcOf = (node: FakeElement | undefined): string | undefined =>
+      (node as unknown as { src?: string } | undefined)?.src;
+
+    assert.ok(lastDecor() !== undefined, '开局要挂待机那一态');
+    assert.equal(srcOf(lastDecor()), '/assets/state/altar-00.png');
+
+    world.emitResult({ ok: true, message: '雨落下来了。' });
+    assert.equal(srcOf(lastDecor()), '/assets/state/altar-01.png', '认出 / 降下');
+    world.emitResult({ ok: false, message: '接不住这句。' });
+    assert.equal(srcOf(lastDecor()), '/assets/state/altar-02.png', '拒收 / 出错');
+    // 图是纯附加，回执文字一个字不动。
+    assert.equal(reply.textContent, '接不住这句。');
+  } finally {
+    globalThis.document = realDocument;
+  }
+});
+
 test('空结果不擦回执：上游轮询绝大多数时候无话可说', () => {
   // 这一条钉的是用户看得见的那一半。上游轮询每次都带一个结果过来，而它
   // 绝大多数时候无话可说——从前景说话它一开口，用户那句话就没了。

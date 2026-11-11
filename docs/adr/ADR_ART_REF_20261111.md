@@ -3,7 +3,7 @@
 - status: pending-review
 - verified_at: 2026-11-11
 - verified_by: agent（本地十一道闸门读数见 `docs/evidence/art-ref-1111/README.md`）
-- evidence: `docs/art/reference-20261111/`, `server/scripts/art_ref_1111.py`, `world-client/src/ui/art-decor.ts`, `world-client/public/assets/manifest.json`
+- evidence: `docs/art/reference-20261111/`, `server/scripts/art_ref_1111.py`, `server/scripts/art_unify_1111.py`, `server/scripts/art_plates_1111.py`, `world-client/src/ui/art-decor.ts`, `world-client/public/assets/manifest.json`
 
 ## 1. 问题
 
@@ -17,7 +17,8 @@
 
 第一轮只补了村民层。用户看到 `world-mix-compare.png` 的实拍后追问「还有旧素材？
 截图看看 / 继续」——新村民是小型硬像素 chibi，旧建筑却是大幅水彩细节，两套笔触
-并排，于是第二轮把剩余 17 件旧位图也统一掉。本 ADR 同时记两轮。
+并排，于是第二轮把剩余 17 件旧位图也统一掉。第三轮用户要求「把这些都做完然后
+merge，再更新一版 readme」，把断点里登记的四条未做项一次清完。本 ADR 记三轮。
 
 ## 2. 决策
 
@@ -32,11 +33,10 @@
    固定画布，**一次模型调用都不花**。切出的像素就是参考图本身的像素，比让模型
    再画一遍更贴原稿。分两类如实记：
    - **已接线**：工坊四态 -> 楼面板状态行、角色图标 -> 村民面板徽记、
-     表情 -> 村民面板记忆行（按行序轮转）。
-   - **素材库，待接线**：祭坛三态、其余表情与 VFX。切出来是为了把参考图里
-     能用的像素固定下来，不是宣称已经上屏；消费方要接时再写。
-   构图稿（世界地图、桌面 UI、村庄 2×2、学者区建筑、tileset）不切：整张图是
-   构图与色板基准，切成碎格没有消费方。
+     表情 -> 村民面板记忆行（第三轮改为按语义选，见下）。
+   - 第三轮把祭坛三态与其余表情也接上了，不再是「素材库」。
+   构图稿（世界地图、桌面 UI、村庄 2×2、学者区建筑、tileset）第一轮没切，
+   第三轮改成「画册贴片」切法，见第 4 条。
 
 3. **统一（第二轮）**：10 栋建筑 + 7 件布景全部按同一套硬像素风格重画，
    见 `server/scripts/art_unify_1111.py`。风格锚点是村庄 2×2、学者区三栋、
@@ -45,9 +45,23 @@
    并按旧件宽高比做几何归一化，保证引擎的 `artBuildingScale` 口径不变。
    两道自动质检见 `docs/evidence/art-ref-1111/README.md` 的试错记录。
 
-**装饰只走 DOM，不进 Phaser 画布**：状态图、徽记、表情挂在村民面板与楼面板里，
-由 `world-client/src/ui/art-decor.ts` 运行时创建 `<img>`。这样不动世界渲染的
-绘制指令数，也不碰 `eval/screens/` 的像素基线。
+4. **收口（第三轮）**：四条未做项一次做完。
+   - **构图稿落地**：剩下六张整幅构图不抠底、只等分切格，做成 13 张带背景的
+     矩形画册贴片（`server/scripts/art_plates_1111.py`），接在日历抽屉的周视图
+     上；另做一份自包含画廊 `docs/art/reference-20261111/gallery.html` 供人翻。
+     贴片是「邮票」不是可抠底的物件，所以不用 `key_out`。
+   - **祭坛三态接线**：`altarStateId` 把待机 / 降下 / 拒收映射到三张状态图，
+     挂在 `world-client/src/ui/oracle-panel.ts` 的回执行里。
+   - **表情接线**：`emoteIdForKind` 给十一张可用表情各一个语义入口，
+     `emoteIdForLine` 让村民面板按「听来的 / 当天的 / 往日的」选图；日历每日行
+     再按「不平静 / 有事 / 平常」三路选图，平常按日号轮转。
+   - **程序化摆件换色**：`world-client/src/render/setting-scenery.ts` 的
+     `drawShopfront` 把米白灰泥墙改成暖木色，等量替换净 0 行（避免顶掉下游
+     行号引用），只换 24 色板里已有的色槽，不新增颜色。
+
+**装饰只走 DOM，不进 Phaser 画布**：状态图、徽记、表情、贴片挂在村民面板、
+楼面板、神谕回执与日历抽屉里，由 `world-client/src/ui/art-decor.ts` 运行时
+创建 `<img>`。这样不动世界渲染的绘制指令数，也不碰 `eval/screens/` 的像素基线。
 
 ## 3. 硬边界（都是被闸门逼出来的）
 
@@ -65,6 +79,10 @@
 - **原图不入库**：4K 原图单张 14–30 MB，过不了 pre-push 的 5 MB blob 闸；
   入库的是压到长边 768 的 JPEG（十张共约 1 MB）与联系表，放在
   `docs/art/reference-20261111/`。原图留在根目录本机使用。
+- **扫描面基线显式刷新**：新增四份文件把 `audit-ports` 的扫描面从 185 推到
+  187，越过 155×1.2 的过期线。按 `scripts/audit-scan-guard-lib.ts` 的政策
+  只刷新 `world-client/scripts/audit-scan-baseline.json` 的 `ports` 实测值并在
+  note 记日期 / 前后值 / 理由，**阈值一字不改**；不许靠调比例消红。
 
 ## 4. 不做什么，以及为什么
 
@@ -76,8 +94,12 @@
   反而消掉了混用。**判据是画面，不是件数**；这一条的翻案有截图为证。
 - **不改设定集**：十张图里的祭坛 / 工坊 / 学者区属于另一个世界观。本轮只借它们
   的笔触与配色做装饰，不往 `docs/SPEC.md` 里加地点、角色或规则。
-- **不把 UI 设计稿做成界面**：`pixel-world-engine-desktop-ui-mockup` 是构图参考，
-  落地它会动到整个 HUD 布局，超出「美术优化」这一刀，单独裁决更合适。
+- **不把 UI 设计稿做成界面，但让它可看可用**：`pixel-world-engine-desktop-ui-mockup`
+  是构图参考，落地它会动到整个 HUD 布局，超出「美术优化」这一刀。第三轮改成
+  切两张画册贴片进日历抽屉 + 收进画廊页；没改任何 HUD 结构。
+- **不把 tileset / 世界地图接成地面或小地图**：那会动 `tilemap` 与一整批像素
+  基线；它们只作构图与笔触基准。十张图至此都有消费方（生图锚点 / 切片 / 贴片），
+  但没有一张被硬塞进不合适的渲染层。
 
 ## 5. 验证
 
@@ -93,6 +115,12 @@
 - 第二轮重跑：`npm test` 2687 / 2678 pass / 0 fail；`check-art-assets` 53 件
   全装、`art=0` 零请求；`test:phases` 40 项、`test:persistence` 8 项、
   `test:render-budget` 硬闸 3 项、`test:building-bake` 72 张 Image 全过。
+- 第三轮：`npm test` 2693 / 2684 pass / 0 fail / 9 skip；`check-art-assets`
+  清单 66 件全装、默认也装、`art=0` 零请求；`smoke.mjs` 132 项全过；
+  `check-setting-scale` / `check-lamp-band` / `check-lamp-pool` /
+  `check-scene-depth` / `check-dengchao` 全绿；四道文档审计与
+  `audit-palette --strict` 全绿；`python -m pytest` 全绿。逐条读数与两处既有
+  假红的对照见 `docs/evidence/art-ref-1111/README.md`。
 
 ## 6. 代价
 
@@ -102,9 +130,14 @@
   36 个产物文件里只有两件是覆盖。装饰图另外只有面板打开时才创建节点。
 - 第二轮又替换了 17 件已有 PNG（件数不变、内容全换），共 24 次模型调用
   （7 村民 + 17 旧素材；其中几件触发了质检重试）。
-- **仍不是「全画面统一」**：`setting-scenery.ts` 的 `shopfront` 白色小店面、
-  灯笼、地砖、花径、树影是 24 色板程序化摆件，不是生图素材，也没有走
-  `hasArt`。它们仍是旧形制；要连这层一起换得动渲染层和一批像素基线，
-  单独裁决更合适，别把它记成「旧素材已清零」。
+- 清单最终 66 件：19 原有 + 34 净增 + 13 画册贴片。其中 46 件是 DOM 装饰
+  （state / icon / emote / plate），`preloadArt` 会把它们一并装进 Phaser 纹理
+  缓存，面板打开时 DOM 又请求一次，所以 `check-art-assets` 读到「清单 66 件、
+  实际请求 67 张」——多的一张是清单内路径的重复请求，判据仍通过。要省掉
+  这层重复得改装载判据，单独裁决。
+- **程序化层仍存在，但不再是「旧风格」**：`shopfront` 已换暖木色；灯笼、地砖、
+  花径、树影依旧是 24 色板程序化绘制，这是引擎的设计（世界色板 + 确定性渲染），
+  不是没换完的生图素材，也没有走 `hasArt`。把这一层也换成位图等于换掉世界
+  色板纪律，单独裁决。
 - 徽记是五张图轮转给七个人用，**不是身份对应**；要一人一图得再生成两张。
-- 表情按行序轮转，**不是情绪读数**：世界没有这条数据，不假装有。
+- 表情按语义与行序选图，**不是情绪读数**：世界没有这条数据，不假装有。

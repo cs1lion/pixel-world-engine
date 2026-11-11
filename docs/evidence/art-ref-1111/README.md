@@ -133,6 +133,65 @@ PIXEL_WORLD_URL=http://127.0.0.1:<port>/ node scripts/check-art-assets.mjs
 `test:render-budget` 硬闸 3 项、`test:building-bake` 72 张 Image 全过。
 两棵对照树的 `check-interact` L3-6 仍同样失败，与本轮无关（见上一节）。
 
+## 第三轮：四条未做项全清
+
+用户要求「把这些都做完然后 merge，再更新一版 readme」。断点里登记的四条对照如下。
+
+| 未做项 | 落地 |
+|---|---|
+| 六张构图稿只作基准 | 切成 13 张带背景的画册贴片 `plate/*`（`server/scripts/art_plates_1111.py`），接日历抽屉周视图；另做自包含画廊 `docs/art/reference-20261111/gallery.html` |
+| 祭坛三态 / 多数表情未接线 | 三态 -> 神谕回执行；十一张表情 -> 村民面板按语义选 + 日历每日行按性质选 |
+| 程序化摆件仍是旧形制 | `drawShopfront` 米白灰泥墙改暖木色，等量替换净 0 行 |
+| 没 push / 没开 PR | 见本轮末尾的合并回执 |
+
+**桌面 UI 设计稿没有做成界面**：切两张贴片进日历抽屉 + 收进画廊，HUD 一行没动。
+tileset / 世界地图也没接成地面或小地图——那会动 `tilemap` 与一整批像素基线。
+十张图至此都有消费方（生图锚点 / 切片 / 贴片），但没有一张被硬塞进不合适的渲染层。
+
+### 图
+
+- `plates-contact.png`：13 张画册贴片。
+- `daycard-final.png`：日历抽屉实拍，每周标题右侧一张构图贴片、每日行一张表情。
+  **口径要说清**：世界开局没有日摘要（`dayCards()` 返回空），这张是在浏览器里
+  给只读接口注入一份示例日卡后重绘拍的，只为证明装饰真的挂在 DOM 上；
+  不改产品代码、不写世界。`panels-final.png` 是同一时刻的全屏。
+- `world-unified-compare.png`：第二轮统一前后同机位对照。
+
+### 读数
+
+| 闸门 | 读数 |
+|---|---|
+| `npm run check` | 语法 0 处 / 语义 0 处 |
+| `npm test` | 2693 tests / 2684 pass / 0 fail / 9 skip |
+| `npm run red:first -- --base origin/main` | base 上红在断言 |
+| `npm run build` | built |
+| `audit-palette --strict` | 0 处超预算 |
+| `audit-references --strict` | 559 处行号引用，0 处存疑 |
+| `audit-citations --strict` | 受查 4294 处，未解析 0 处 |
+| `audit-sections --strict` | 节号全部对得上 |
+| `audit-claims --strict` | markers=3 passed=3 failed=0 / adr-schema 23 valid |
+| `audit-baseline` | 166 / 166 全部一致 |
+| `audit:ports` | 0 处禁用端口（扫描 187 个文件） |
+| `python -m pytest` | 全绿（1 skip） |
+| `check-art-assets` | 清单 66 件全装、默认也装、`art=0` 零请求、三跑无 pageerror |
+| `smoke.mjs` | 132 项全过 |
+| `test:phases` / `test:persistence` / `test:render-budget` / `test:building-bake` | 40 项 / 8 项 / 硬闸 3 项 / 72 张 Image 全过 |
+| `check-setting-scale` / `check-lamp-band` / `check-lamp-pool` / `check-scene-depth` / `check-dengchao` | 全绿 |
+
+**一处必须显式刷新的基线**：新增四份文件把 `audit-ports` 的扫描面从 185 推到
+187，越过 155×1.2=186 的过期线，闸门按设计判红。按 `scripts/audit-scan-guard-lib.ts`
+的政策把 `world-client/scripts/audit-scan-baseline.json` 的 `ports` 实测值刷成
+187，并在 note 记日期 / 前后值 / 理由；`minDrop=5`、`ratio=2%`、`STALE_RATIO=20%`
+三个阈值一字未改。references 559 仍在 529 的窗口内、claims markers 仍是 3，两项没动。
+
+**两处既有假红，与本轮无关**（都拿未改一行的 `origin/main` 对照树跑过）：
+
+- `check-interact` L3-6：本分支与 base 都稳定失败，其余 32 项两棵都过。
+- `check-ground-shadow`：本分支红 4 条（G2 摊位 dawn/noon/dusk、G3 boiler_annex），
+  base 红 5 条（同样 4 条外加 G3 lamp_archive）。判据是压暗环与接触暗部，
+  与墙面换色无关；这条闸门本来就没接 CI。两棵树分别跑在 5241 / 5242，
+  工作树身份闸都确认连的是自己的那一棵。
+
 ## 第一轮的试错记录（两处值得留下）
 
 1. **洋红底没那么纯**：11-11 锚点让模型把底色画成暗玫瑰紫，还带灯笼光晕与

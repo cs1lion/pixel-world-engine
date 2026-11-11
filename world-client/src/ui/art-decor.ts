@@ -35,11 +35,15 @@ export function appendDecor(
   id: string | null,
   className: string,
 ): boolean {
-  if (id === null || !decorEnabled()) return false;
+  // 装饰是附加物：没有 document（Node 单测收尾后、或假 DOM 已撤）就别挂，
+  // 不让一张可选的小图把回执 / 记忆行本身带崩。
+  if (id === null || !decorEnabled() || typeof document === 'undefined') return false;
   const img = document.createElement('img');
   img.className = className;
   img.alt = '';
-  img.setAttribute('src', decorUrl(kind, id));
+  // 用标准属性而不是 setAttribute：本仓有两套假 DOM（fake-dom.ts 与
+  // oracle-panel-reply.test.ts 自带的简化版），后者只认属性赋值。
+  img.src = decorUrl(kind, id);
   host.append(img);
   return true;
 }
