@@ -2,137 +2,253 @@
   "artScale": 2,
   "assets": {
     "building/boiler_annex": {
-      "prompt": "single ONE single small dark shed, low flat roof, one iron chimney, plain charcoal wooden wall with one small glowing furnace window, EXACTLY ONE BUILDING ONLY, no other buildings, no street, empty background, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE dark sooty boiler annex, low flat roof, one iron chimney, charcoal-dark wooden wall, one small glowing furnace window. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_c2ksXq42x05b2uskUpzPI3ND11fI3jmq/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_78GJ295wNcRTCAVrXXe3sd1ZIreyXRGF/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.3,
+      "generatedAspect": 0.97,
+      "normalizedTo": [
+        144,
+        111
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 144,
       "height": 111,
-      "sha256": "500429308b3059c64aea49977c39a487e88aef5a8cec4bf7e33ff904723a512f",
-      "bytes": 22131
+      "sha256": "706f659b4d182d3e0cfaa5ae867e70d40884e30aae4994666bc6eb6154ab418f",
+      "bytes": 11087
     },
     "building/ferry_station": {
-      "prompt": "single old wooden ferry waiting station by the water, weathered timber posts, flat tiled canopy, a bench and a route sign, quiet and worn, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE old wooden ferry waiting station, weathered timber posts, flat tiled canopy, a wooden bench and a blank route sign, quiet and worn. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_fUweTjezm2XvieNQ0YFSGR54TbS9A0le/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_meoJowBz7jpeotZNUbe4aSGSOjm8tKhR/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p19.png",
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.22,
+      "generatedAspect": 1.12,
+      "normalizedTo": [
+        208,
+        170
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 208,
       "height": 170,
-      "sha256": "2eea23098f93a7244b00dbee90e7ef0f66f703b0b1ec643593480d657af6f190",
-      "bytes": 51786
+      "sha256": "6acc24e59226412da1007b9d18819ac31bbc5b08dbaee0b0679456f4e2c311dc",
+      "bytes": 49540
     },
     "building/lamp_archive": {
-      "prompt": "single lamp archive hall, verdigris-copper gabled roof, tall lattice windows, rows of scroll shelves visible inside, scholarly and calm, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE lamp archive hall, verdigris-copper gabled roof, tall lattice windows, rows of scroll shelves visible inside, scholarly and calm. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette wide and low, clearly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_j0xznIrH3SR3vyA84XnK5EHV0WVh4iBP/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_pRyU8RzqGkUw9lfIDaMPZGnSOY1G2yls/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p19.png",
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.52,
+      "generatedAspect": 1.42,
+      "normalizedTo": [
+        144,
+        95
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 144,
       "height": 95,
-      "sha256": "87c671c4f44b4b96c8bf9ed37999c4817d222ba02a9091b9564f3e14c0cdac7c",
-      "bytes": 28974
+      "sha256": "6d212909a9adb45695f8c2184578cfcf642c7cc5ec99abbed78fc9a897c19bc6",
+      "bytes": 26501
     },
     "building/lamp_lodge": {
-      "prompt": "single small Japanese lantern lodge inn with a verdigris-copper gabled roof, glowing paper lanterns, wooden lattice windows, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small lantern lodge inn with a verdigris-copper gabled roof, glowing paper lanterns under the eaves, wooden lattice windows. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/t2i/task_fb0pfoez5bHKfi0kUAc3iKRhswg8wLc5/output_a0e98fa3c25e42e380bd912bb4d6cba5.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_mPLXWG9SSECFKU0cLRt3VlTuQ9rfZle1/output.png",
       "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.38,
+      "generatedAspect": 1.03,
+      "normalizedTo": [
+        176,
+        128
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 176,
       "height": 128,
-      "sha256": "539c11d2a3d82ed29e87c8089ab937a84f798cb07f154739b37c69b6f6e717a0",
-      "bytes": 36388
+      "sha256": "a0e5d4d736cf865476e7148ec6a9d4358ae1e183eced368f92f89838ac9a590c",
+      "bytes": 28481
     },
     "building/lamp_workshop": {
-      "prompt": "single A SINGLE isolated small shop building, centered, front view, flat tiled roof, one doorway, lattice windows, a few paper lanterns hanging under the eaves, plain wooden walls, ORTHOGRAPHIC FLAT SPRITE, no perspective, no street, no other buildings, no people, no ground, solid empty background, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small lantern-maker workshop, open front with paper lanterns drying on racks, warm light from inside, plain wood and plaster walls. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Bswf2WYFriBHCNwDhNIrnBoRBH3u6cen/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_CEOtiOUyHe38eOxenRIdO3r3hjJ2a9fz/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.32,
+      "generatedAspect": 0.94,
+      "normalizedTo": [
+        144,
+        109
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 144,
       "height": 109,
-      "sha256": "228c53ad32947f2d2d92ad1bc98227080bf161145a09d465540b5dba56a0b8ba",
-      "bytes": 29647
+      "sha256": "b8148ace24d6afa92b9ec0ad52f4583d8d94d34f0948348c0523020b89c6d50d",
+      "bytes": 19536
     },
     "building/ledger_house": {
-      "prompt": "single modest ledger keeper's house, dark timber gable roof, shuttered windows, a paper notice board, restrained and orderly, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE modest ledger keeper's house, dark timber gable roof, shuttered windows, a blank paper notice board, restrained and orderly. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_QF5yyB5YW1GhEcEuTzOGUlX75MoiB0xJ/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_VH5Up0VGmg8DgVm2AGcxdS0lXDnqXZgO/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p19.png",
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.26,
+      "generatedAspect": 0.91,
+      "normalizedTo": [
+        144,
+        114
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 144,
       "height": 114,
-      "sha256": "6b371ba17000148b43bc58479bad74c3edd856a9d74b353a71a48d01d5fef994",
-      "bytes": 23914
+      "sha256": "178d9cc9c5c717337ebc80040c71fae9ddb93e04429ed1c94be3c15bfe99d609",
+      "bytes": 18553
     },
     "building/soot_forge": {
-      "prompt": "single ONE single low soot-black smith forge, flat roof, one heavy wooden door, one small chimney, dark walls with a faint orange glow in one window, EXACTLY ONE BUILDING ONLY, symmetric front view, no side wall, no ground, empty background, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE soot-black smith forge, flat roof, heavy wooden doors, one small chimney, faint orange forge glow in one window. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_ShNgXBTNuysn7nptDpt6COXaybQ9a2kq/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_jUzPtseJ1SomgdJmduKin3X0lFFd7Kvk/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.35,
+      "generatedAspect": 1.18,
+      "normalizedTo": [
+        144,
+        107
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 144,
       "height": 107,
-      "sha256": "68c721e21d815bf8e4bfee371e9a8366a0fa7a24b6221a82ee559f0129680957",
-      "bytes": 21797
+      "sha256": "02a039ae6ccdcf9cc0a54f78228e94530cdd7b095bd0b8b4dadd3cd53e6993c0",
+      "bytes": 24428
     },
     "building/tea_stall": {
-      "prompt": "single small Japanese tea stall shop with a flat tiled roof, red noren curtain, steaming kettle, hanging red lanterns, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small tea stall shop with a flat tiled roof, red noren curtain, a steaming kettle on the counter, hanging red paper lanterns. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette wide and low, clearly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_mi7k5NTkGWOHrVdITqgIXhrA2C9Ec0Yx/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_RUhMfeolQV4bECc9clOByNKU6IPXfiSM/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p19.png",
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.57,
+      "generatedAspect": 1.74,
+      "normalizedTo": [
+        176,
+        112
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 176,
       "height": 112,
-      "sha256": "eb45d5ab383fe1addf5fed023abbc1b51603e46b3a25e0169e54984a6d973ab4",
-      "bytes": 38665
+      "sha256": "5cd92d2dbd351047a3577e80392581f99339ea1f8ee3e2f512a6132569af4396",
+      "bytes": 29483
     },
     "building/waiting_shelter": {
-      "prompt": "single small roadside waiting shelter, simple copper-tiled flat roof, open front with two posts and a bench, no walls on the sides, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small roadside waiting shelter, simple copper-tiled flat roof, open front with two posts and a bench, no side walls, wide and low. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette wide and low, clearly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_ckv61TCnJQmAQNX3qkiYaZwW622hSDxT/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_DqJvAOgKQ7wiY02cWFzJ9DD494PZCN2P/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p19.png",
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.8,
+      "generatedAspect": 2.04,
+      "normalizedTo": [
+        144,
+        80
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 144,
       "height": 80,
-      "sha256": "46eddb2496faba71f10aba1563a338f9e5acd216d2d837072d100e096450aab3",
-      "bytes": 22898
+      "sha256": "15a4091cb737e40b113bd64b9308f4396473d7b69a6e2e7294edeb841b8b53e1",
+      "bytes": 18042
     },
     "building/wave_house": {
-      "prompt": "single grand multi-storey bathhouse tower, layered tiled roofs, red lacquer pillars, hanging lanterns, ornate central entrance, the town's landmark, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, symmetric front-facing facade, in the painted bathhouse-town style of the reference images, front elevation view slightly from above, the whole building fully visible including roof, lit paper-lantern windows, wooden door, stone footing, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE a broad THREE-STOREY Japanese bathhouse with a WIDE horizontal facade filling the frame, three stacked rows of warm-lit lattice windows, ONE large layered dark tiled roof with upturned eaves, red lacquer pillars, hanging paper lanterns, ornate central entrance; NOT a pagoda, NOT a tower, NOT stacked tiny roofs. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_77tvFzpLSzHokOStZ989QdtHEJ07lWAt/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Oumh2p6f7crGAzCwSoC3OajB3iM8oqxM/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p19.png",
-        "ref-p49.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.73,
+      "generatedAspect": 1.18,
+      "normalizedTo": [
+        240,
+        329
+      ],
+      "normalizeMode": "contain",
       "width": 240,
-      "height": 327,
-      "sha256": "0de2fd27afbb6c40837bf9e77afed5105ea4d6faf92fcc253c38c88dd4427fae",
-      "bytes": 138781
+      "height": 329,
+      "sha256": "20e2feda3a903e434d7de5e790c65a15e5d9f1f826f4532d45760507993b96da",
+      "bytes": 89049
     },
     "emote/emote-00": {
       "source": "2026-11-11-reference-set",
@@ -553,99 +669,179 @@
       "bytes": 15848
     },
     "scenery/bathhouse_main": {
-      "prompt": "single grand multi-storey Japanese bathhouse facade, layered copper-green tiled roofs with upturned eaves, red lacquer pillars and railings, rows of warm-lit lattice windows, ornate central entrance with curved gable and hanging lanterns, a tall brick chimney on the right, a vertical banner on the left, EXACTLY ONE BUILDING ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE grand multi-storey bathhouse facade, layered copper-green tiled roofs with upturned eaves, red lacquer pillars, rows of warm-lit lattice windows, ornate central entrance with curved gable, hanging lanterns, a tall brick chimney on the right. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_OrsNoJ3yOrJT0V0VWONSnEJHtWvH8JYl/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_DVCwpzWqkqHccs5OnUvbmHwJBBlZYBJE/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p15.png",
-        "ref-p39.png",
-        "ref-p46.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.87,
+      "generatedAspect": 1.4,
+      "normalizedTo": [
+        332,
+        382
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 332,
-      "height": 381,
-      "sha256": "77de1091b39ab25f90cb0e082511489ca6702fcb10a8188d1faea620a8eed7f0",
-      "bytes": 205016
+      "height": 382,
+      "sha256": "4b102f1c3d4a5e81e9bd93582699760a55260ba0a95ed6e9464576adb191ab96",
+      "bytes": 138382
     },
     "scenery/boiler": {
-      "prompt": "single small brick furnace with iron flue pipe and brick chimney, glowing orange fire inside, dark sooty walls, EXACTLY ONE STRUCTURE ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small brick furnace with an iron flue pipe and brick chimney, glowing orange fire inside, dark sooty walls. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_CeA9YPGkLsexJiVdwKdUrLSvVenCT9ML/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_iksy0W3MHRKsp6c0fFdYQU2aSc2etLwh/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p48.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.56,
+      "generatedAspect": 0.65,
+      "normalizedTo": [
+        74,
+        132
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 74,
-      "height": 131,
-      "sha256": "ec9f25170aef591b12923a13dc86f9aa7e35db1b40af1487442d6f1e53f6e349",
-      "bytes": 15223
+      "height": 132,
+      "sha256": "3bed31934088cdebfe7b556bfd639e89389dda712ab9917fd76c02e479fb68b7",
+      "bytes": 16687
     },
     "scenery/coal_heap": {
-      "prompt": "single small pile of coal with a wooden bucket beside it, dark lumps stacked in layers, EXACTLY ONE PILE ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE a small LOW MOUND of chunky black coal lumps, rounded irregular black rocks with a few grey highlights, a small wooden bucket beside the mound; NO fence, NO planks, NO pallet, NO building, NO signboard. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette a very wide panoramic horizontal strip, much wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_67fiijOKE23dG0Vzt9iKYQSKR19oVENo/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_JyoavELmgxuZwE3qypMjnIybDgRSgRW3/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p48.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 2.44,
+      "generatedAspect": 2.04,
+      "normalizedTo": [
+        66,
+        27
+      ],
+      "normalizeMode": "cover",
+      "backgroundOk": true,
       "width": 66,
       "height": 27,
-      "sha256": "fe498dcc9b203c3cdb16ca574cbd80bf7694d16cd00832ea33ed68d3f7961407",
-      "bytes": 3402
+      "sha256": "596219d6905571020a4850b0a1614e19a54eb84e223a2641cb8a872ef20525fb",
+      "bytes": 3582
     },
     "scenery/far_ridge": {
-      "prompt": "single distant shoreline with continuous roof ridge line and low mountain silhouettes, a few warm-lit windows scattered along the ridge, dark water below, panoramic horizontal strip, NO foreground buildings, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE wide panoramic horizontal strip of a distant shoreline, continuous low roof ridge line and dark mountain silhouettes, a few warm-lit windows scattered along the ridge, dark water below, NO foreground buildings. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette a very wide panoramic horizontal strip, much wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_FBthtawnkyXHuDKT1B77pz6tx3RoIHiP/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_M3b5YzAhziSy9DRBqCbZUMHV28KEL1TX/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p3.png",
-        "ref-p41.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 3.23,
+      "generatedAspect": 3.78,
+      "normalizedTo": [
+        1984,
+        614
+      ],
+      "normalizeMode": "cover",
+      "backgroundOk": true,
       "width": 1984,
       "height": 614,
-      "sha256": "4fea2cda106829047a4ab5e0c4bc58eded31a4fdbd53872fd6e05263b38cf0ca",
-      "bytes": 559880
+      "sha256": "095a4a5cbe364a245cbc848debd3f05e873189ed252ccda3c1478e3b2cda5bd0",
+      "bytes": 450118
     },
     "scenery/far_tower": {
-      "prompt": "single small distant clock tower silhouette, square tower body with clock face, pointed roof, two warm-lit windows, EXACTLY ONE TOWER ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small distant clock tower silhouette, square tower body with a clock face, pointed roof, two warm-lit windows. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_GF71Ybd9QuLPWTTS6jpIOKmunMrf6Ddl/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_IQKOplbGCYy5njz6CsjXtopzJik7iZcg/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p3.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.78,
+      "generatedAspect": 0.6,
+      "normalizedTo": [
+        52,
+        67
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 52,
       "height": 67,
-      "sha256": "76ca990dfb334929969655de36d6a52e8901a1393506ed1a6ecb65adc97958a1",
-      "bytes": 5490
+      "sha256": "bed3db772dc535fedaef6418a7f673527a12866c5297ad4679a5cf7dbf451060",
+      "bytes": 5812
     },
     "scenery/quay": {
-      "prompt": "single stone quay wall with stepped entrance to water, mooring posts with ropes, a waiting stone bench, moss in the cracks, EXACTLY ONE STRUCTURE ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE stone quay wall with stepped entrance to the water, mooring posts with ropes, a waiting stone bench, moss in the cracks. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_uR7kNOXSb9pJCwMO3L9w31NGayzZwyo4/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_opVp4BbczW03Yjh9hyT67jY4RFgfKA7E/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p41.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.92,
+      "generatedAspect": 0.81,
+      "normalizedTo": [
+        160,
+        174
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 160,
       "height": 174,
-      "sha256": "4cf9b556675e660afce15f497d34c95c2e2447b266ffab58cc849f0ea90fa73c",
-      "bytes": 43247
+      "sha256": "5223af9d82a8e0c150995fe4ff9a088e5800b423b8958d71f88fad13e9673427",
+      "bytes": 45880
     },
     "scenery/shopfront_gable": {
-      "prompt": "single small Japanese shop front with curved plaster gable roof, round window at the apex, two vertical signboards, lattice door, red lanterns under the eaves, weathered plaster walls, EXACTLY ONE BUILDING ONLY, STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO people, NO other buildings, symmetric front-facing, solid empty background, in the painted bathhouse-town style of the reference images, hand-painted pixel art game asset, Studio Ghibli Spirited Away bathhouse-town mood, warm lantern light, dusk-teal and lacquer-red palette, weathered timber and tile, clean readable silhouette, crisp edges, no text, no watermark, no border, centered, solid flat pure magenta (#FF00FF) background with no gradient, no ground shadow, no floor, no cast shadow",
+      "prompt": "A SINGLE small shop front with a curved plaster gable roof, a round window at the apex, two blank vertical signboards, lattice door, red lanterns under the eaves, weathered plaster walls. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame BACKGROUND = FLAT PURE MAGENTA ONLY. NO SCENERY BEHIND THE BUILDING.",
       "model": "agnes-image-2.5-flash",
-      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_rvKw3HwTr5HbSiZDkow1JLsX26EXzAFw/output.png",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_w0oWj74QHrtjQybdt3Fv5YhQ640EiNxN/output.png",
       "refs": [],
       "refFiles": [
-        "ref-p35.png",
-        "ref-p40.png"
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
       ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.66,
+      "generatedAspect": 0.65,
+      "normalizedTo": [
+        128,
+        194
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
       "width": 128,
       "height": 194,
-      "sha256": "cc93026f4d093efeb114f3d3a4618af1a2cafceccad2ca7e7c59493c5a550da1",
-      "bytes": 37823
+      "sha256": "b9f0228345360e8ae368e775ed7dc3bae8591430ed607393b2ba33dcaa0eddac",
+      "bytes": 45924
     },
     "state/altar-00": {
       "source": "2026-11-11-reference-set",

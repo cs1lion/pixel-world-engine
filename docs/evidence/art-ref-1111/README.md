@@ -86,7 +86,54 @@ PIXEL_WORLD_URL=http://127.0.0.1:<port>/ node scripts/check-art-assets.mjs
 `?art=0` 零 `/assets/` 请求、三跑无 pageerror。装饰图是运行时按开关创建的，
 静态 `<img>` 会破坏第三条，所以没写进 `index.html`。
 
-## 试错记录（两处值得留下）
+## 第二轮：把剩下 17 件旧位图也统一
+
+用户看了 `world-mix-compare.png` 的实拍后追问「还有旧素材？截图看看 / 继续」。
+那张图把问题摆得很直：ART ON 一侧新村民是小型硬像素 chibi，旧建筑是大幅
+水彩细节的浴场镇；ART OFF 一侧全程序化反而统一，只是细节少。于是把
+10 栋建筑 + 7 件布景按同一套 11-11 硬像素风格全部重画。
+
+| 项 | 读数 |
+|---|---|
+| 脚本 | `server/scripts/art_unify_1111.py` |
+| 风格锚点 | 村庄 2×2 / 学者区三栋 / tileset 笔触（不用斜视角的工坊四态图） |
+| 产物 | 17 件 PNG 覆盖写入，尺寸与旧件逐像素一致（如 `wave_house` 240×329、`tea_stall` 176×112） |
+| 清单 | 仍 53 件，件数不变、内容全换；每件记 `origin` / `replaces` / `sourceAspect` / `generatedAspect` / `normalizedTo` |
+| 模型调用 | 15 件全量 + 3 件单独重试 + 质检重试若干，共 24 次左右 |
+
+`unified-assets-contact.png` 是 17 件统一后的成品；`world-unified.png` 是统一后
+同机位全屏实拍；`world-unified-compare.png` 把统一前后同一块镇心并排，是最直观
+的前后对比；`world-mix-compare.png` 保留第一轮的「混用 vs 全程序化」对照；
+`world-procedural.png` 是 `art=0` 基线。
+
+**确认过没有漏网的位图**：浏览器里列出场景 9 栋建筑的 `prefabId`，逐个都在
+清单的 10 个 `building/*` 里（多出的 `waiting_shelter` 没有实例）。画面里那栋
+白色小店面是 `setting-scenery.ts` 的 `shopfront` **程序化摆件**，与灯笼、地砖、
+花径同类，不是生图素材，也不走 `hasArt`；这一层仍是 24 色板旧形制，见 ADR 的代价条。
+
+### 三处试错（都留了自动兜底）
+
+1. **`wave_house` 被画成五层细塔**：模型把「multi-storey landmark」读成宝塔，
+   比例 0.35 对旧图 0.73；引擎 `artBuildingScale` 有高度上限，会被压成窄条。
+   改描述写死「THREE-STOREY、WIDE facade、NOT a pagoda」，再加几何归一化：
+   把内容等比装进与旧件同尺寸的透明画布，整体宽高比固定、主体完整保留。
+   比例偏差超过 35% 时用强化提示重生成一次，取更接近的那张。
+2. **`tea_stall` 没画洋红底**：模型改画了一整片棕色实景（火堆 + 布景），
+   泛洪抠底删不到，裁边后整张都是不透明背景。加 `background_ok`：四角必须
+   透明、不透明像素占比 ≤ 0.72（超宽条带放宽到 0.90），不合格就重试，
+   最多三次并把「BACKGROUND = FLAT PURE MAGENTA ONLY」单独再喊一遍。
+3. **`coal_heap` 被画成一排木栅栏**：33×15 逻辑像素的小物件，描述里
+   「coal lumps + wooden bucket」被理解成木板。单独把描述改成「LOW MOUND of
+   chunky black coal lumps, NO fence / NO planks」后重画，见 `coal-fixed` 效果。
+
+第二轮闸门读数：`npm run check` 0/0；`npm test` 2687 / 2678 pass / 0 fail / 9 skip；
+`python -m pytest` 全绿；四道文档审计全绿；`audit-palette --strict` 0 超预算；
+`audit-baseline` 166/166 一致；`check-art-assets` 53 件全装 / 默认也装 / `art=0`
+零请求 / 三跑无 pageerror；`test:phases` 40 项、`test:persistence` 8 项、
+`test:render-budget` 硬闸 3 项、`test:building-bake` 72 张 Image 全过。
+两棵对照树的 `check-interact` L3-6 仍同样失败，与本轮无关（见上一节）。
+
+## 第一轮的试错记录（两处值得留下）
 
 1. **洋红底没那么纯**：11-11 锚点让模型把底色画成暗玫瑰紫，还带灯笼光晕与
    脚下地影。原管线 `key_out` 的四角中位数 + 泛洪只能删掉底色，光晕留了下来。

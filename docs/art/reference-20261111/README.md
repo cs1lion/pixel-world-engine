@@ -33,10 +33,20 @@ python scripts/art_ref_1111.py slices             # 29 件切图，纯本地
 python scripts/art_ref_1111.py all                # 两条一起
 ```
 
+第二轮（把 17 件旧建筑 / 布景统一到同一风格）：
+
+```bash
+cd server
+python scripts/art_unify_1111.py                       # 10 栋建筑 + 7 件布景
+python scripts/art_unify_1111.py --only coal_heap      # 单件重画
+```
+
 脚本需要 `server/.env` 里的 `IMAGE_API_KEY`（只在本地，不入库），
 `--only v3` 可单件重试，`--source` 指到原图所在目录。切图规格、容差、
 画布与每件的来源格都记在 `world-client/public/assets/manifest.json`
 的 `cell` / `keyTolerance` / `canvas` 字段里；重跑同一份输入得到同一份清单。
+统一脚本另在每件记 `sourceAspect` / `generatedAspect` / `normalizedTo` /
+`backgroundOk`，可按读数复核哪件触发了重试。
 
 决策与硬边界见 `docs/adr/ADR_ART_REF_20261111.md`，闸门读数见
 `docs/evidence/art-ref-1111/README.md`。
