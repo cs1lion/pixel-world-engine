@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, planTestChanges, stripComments, type ChangedFile } from '../scripts/red-first-lib.ts';
+import { parseArgs, planTestChanges, type ChangedFile } from '../scripts/red-first-lib.ts';
 
 /**
  * 分类器在 base 上可能还不存在。用动态 import + 属性断言，让「缺实现」表现为
@@ -18,8 +18,9 @@ type ClassifierModule = {
     fileLine: number | null;
     context: string[];
   };
+  stripComments?: (source: string) => string;
 };
-const loadClassifier = async (): Promise<ClassifierModule> =>
+const loadLib = async (): Promise<ClassifierModule> =>
   (await import('../scripts/red-first-lib.ts')) as unknown as ClassifierModule;
 
 const change = (status: string, path: string): ChangedFile => ({ status, path });
@@ -96,7 +97,7 @@ test('parseArgs：支持 --base/--repo/--timeout/--keep，空 base 当未给', (
 });
 
 test('失败分类：断言失败才算合格的红', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     '✖ 正常新测试 (2ms)',
@@ -109,7 +110,7 @@ test('失败分类：断言失败才算合格的红', async () => {
 });
 
 test('失败分类：import 不存在判 module，不冒充断言', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     '✖ test/red-first-probe.test.ts',
@@ -119,27 +120,27 @@ test('失败分类：import 不存在判 module，不冒充断言', async () => 
 });
 
 test('失败分类：语法/类型失败判 compile', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   assert.equal(lib.classifyBaseFailure!("SyntaxError: Unexpected token 'export'"), 'compile');
   assert.equal(lib.classifyBaseFailure!('src/a.ts(3,5): error TS2322: Type is not assignable'), 'compile');
 });
 
 test('失败分类：进程崩溃判 crash', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   assert.equal(lib.classifyBaseFailure!('FATAL ERROR: Reached heap limit Allocation failed'), 'crash');
 });
 
 test('失败分类：没有任何测试信号判 unknown', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   assert.equal(lib.classifyBaseFailure!(''), 'unknown');
   assert.equal(lib.classifyBaseFailure!('some unexpected stderr noise'), 'unknown');
 });
 
 test('失败分类：import 错误与断言文字同时出现时，按 module 处理', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     'AssertionError [ERR_ASSERTION]: nope',
@@ -149,13 +150,13 @@ test('失败分类：import 错误与断言文字同时出现时，按 module �
 });
 
 test('失败分类：测试级超时按断言失败处理', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   assert.equal(lib.classifyBaseFailure!("failureType: 'testTimeoutFailure'"), 'assertion');
 });
 
 test('失败分类：断言消息里引用 Node 原文时，仍按断言处理', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.classifyBaseFailure, 'function');
   const output = [
     '✖ 无钩子（环境不支持）→ 判红 (4ms)',
@@ -165,7 +166,7 @@ test('失败分类：断言消息里引用 Node 原文时，仍按断言处理',
 });
 
 test('诊断：module 红要指到命中的规则、行号与出错文件', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.explainBaseFailure, 'function');
   const output = [
     '✖ test/check-setting-scale-probe.test.ts',
@@ -182,7 +183,7 @@ test('诊断：module 红要指到命中的规则、行号与出错文件', asyn
 });
 
 test('诊断：compile 红要找到错误消息上方那个出错文件与行号', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.explainBaseFailure, 'function');
   // 拼出来：源码里不留「路径 + 冒号 + 行号」的字面形状，否则 audit-references
   // 会把这条夹具当成一处真的引用去查（它连自己的测试数据一起审）。
@@ -201,7 +202,7 @@ test('诊断：compile 红要找到错误消息上方那个出错文件与行号
 });
 
 test('诊断：没有任何信号时字段留空，不编造现场', async () => {
-  const lib = await loadClassifier();
+  const lib = await loadLib();
   assert.equal(typeof lib.explainBaseFailure, 'function');
   const evidence = lib.explainBaseFailure!('some unexpected stderr noise');
   assert.equal(evidence.kind, 'unknown');
@@ -211,8 +212,13 @@ test('诊断：没有任何信号时字段留空，不编造现场', async () =>
 });
 
 // ---------------------------------------------------------------- stripComments
+//
+// stripComments 在 base 上不存在，用动态 import + typeof 断言——和分类器同一个
+// 模式，让「缺实现」表现为断言失败而不是模块解析失败。
 
-test('stripComments：去行注释、去块注释、去空白', () => {
+test('stripComments：去行注释、去块注释、去空白', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const src = [
     '// 行注释',
     'const x = 1; /* 块注释 */',
@@ -222,54 +228,69 @@ test('stripComments：去行注释、去块注释、去空白', () => {
     '*/',
     'const z = 3;',
   ].join('\n');
-  const out = stripComments(src);
+  const out = lib.stripComments!(src);
   assert.equal(out, 'constx=1;consty=2;constz=3;');
 });
 
-test('stripComments：字符串里的注释形状原样保留', () => {
+test('stripComments：字符串里的注释形状原样保留', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const src = 'const a = "// 不是注释"; const b = \'/* 也不是\';';
-  const out = stripComments(src);
-  // 字符串内空白保留，字符串外空白被剥掉。
+  const out = lib.stripComments!(src);
   assert.equal(out, 'consta="// 不是注释";constb=\'/* 也不是\';');
 });
 
-test('stripComments：模板字符串整体保留（含 ${} 插值）', () => {
+test('stripComments：模板字符串整体保留（含 ${} 插值）', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const src = 'const s = `hello // not a comment ${name} /* not either */`;';
-  // 模板外空白被剥，模板内整段原样：${} 不会被误当注释剥掉。
-  assert.equal(stripComments(src), 'consts=`hello // not a comment ${name} /* not either */`;');
+  const out = lib.stripComments!(src);
+  assert.equal(out, 'consts=`hello // not a comment ${name} /* not either */`;');
 });
 
-test('stripComments：同语义不同注释 → 同一骨架', () => {
+test('stripComments：同语义不同注释 → 同一骨架', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const a = 'const x = 1; // 注释\nconst y = 2;';
   const b = '/* 注释 */ const x = 1;\nconst y = 2; // 另一条';
-  assert.equal(stripComments(a), stripComments(b));
+  assert.equal(lib.stripComments!(a), lib.stripComments!(b));
 });
 
-test('stripComments：真改代码 → 骨架不同', () => {
+test('stripComments：真改代码 → 骨架不同', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const a = 'const x = 1;';
   const b = 'const x = 2;';
-  assert.notEqual(stripComments(a), stripComments(b));
+  assert.notEqual(lib.stripComments!(a), lib.stripComments!(b));
 });
 
-test('stripComments：字符串内容改了 → 骨架不同', () => {
+test('stripComments：字符串内容改了 → 骨架不同', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const a = 'const msg = "old";';
   const b = 'const msg = "new";';
-  assert.notEqual(stripComments(a), stripComments(b));
+  assert.notEqual(lib.stripComments!(a), lib.stripComments!(b));
 });
 
-test('stripComments：转义引号不终止字符串', () => {
+test('stripComments：转义引号不终止字符串', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const src = 'const s = "he said \\"// not a comment\\"";';
-  const out = stripComments(src);
+  const out = lib.stripComments!(src);
   assert.match(out, /he said \\"\/\/ not a comment/);
 });
 
-test('stripComments：空字符串与纯注释', () => {
-  assert.equal(stripComments(''), '');
-  assert.equal(stripComments('// just a comment'), '');
-  assert.equal(stripComments('/* block only */'), '');
+test('stripComments：空字符串与纯注释', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
+  assert.equal(lib.stripComments!(''), '');
+  assert.equal(lib.stripComments!('// just a comment'), '');
+  assert.equal(lib.stripComments!('/* block only */'), '');
 });
 
-test('stripComments：行尾注释后跟换行', () => {
+test('stripComments：行尾注释后跟换行', async () => {
+  const lib = await loadLib();
+  assert.equal(typeof lib.stripComments, 'function');
   const src = 'const x = 1; // trailing\nconst y = 2;';
-  assert.equal(stripComments(src), 'constx=1;consty=2;');
+  assert.equal(lib.stripComments!(src), 'constx=1;consty=2;');
 });
