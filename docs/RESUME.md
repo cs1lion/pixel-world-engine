@@ -2,11 +2,11 @@
 
 ## 当前断点
 
-- 最后 HEAD: 0f5fa2f (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 0f5fa2f..HEAD` 看
+- 最后 HEAD: a09c64b (docs/readme-2026-11-11)；本文件是记录之后多出来的一笔，用 `git log --oneline a09c64b..HEAD` 看
 - 未提交改动: 无
-- 已跑闸门（rebase 到 PR #39 合入后的新 main 之后全量重跑）: check ✅ / audit:ports ✅ (189 文件 / 0 禁用端口) / audit:baseline ✅ (166/166) / test ✅ (2713 tests, 2704 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅；浏览器：check-art-assets ✅ (66 件全装、art=0 零请求) / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张 / smoke ✅ 132 项 / setting-scale / lamp-band / lamp-pool / scene-depth / dengchao 全绿
-- 未跑/失败: `check-interact` L3-6 与 `check-ground-shadow` 的 G2/G3 判据都在未改一行的 `origin/main` 对照树上同样失败（base 还多一条），与本轮无关；`check:hooks` 首跑因新工作树没继承 `core.hooksPath` 报 FAIL，执行 `git config core.hooksPath .githooks` 后 OK。其余无。
-- 下一步命令: `git push -u origin feat/art-ref-1111 && gh pr create --base main --head feat/art-ref-1111 --fill`
+- 已跑闸门（本笔只改文档，仍全量重跑）: check ✅ / test ✅ (2713 tests, 2704 pass, 0 fail, 9 skip) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ (markers 仍是 3) / pytest ✅ / audit:ports ✅ (189 文件 / 0 禁用端口) / audit:baseline ✅ (166/166) / check:hooks ✅；浏览器 job 本笔未重跑（只改 README 与登记表，PR #40 已全绿过）
+- 未跑/失败: 两处既有假红（`check-interact` L3-6、`check-ground-shadow` 的 G2/G3）在 PR #40 已用未改一行的 `origin/main` 对照树确认与本轮无关；本笔没有新增失败。`red:first` 因本笔无 `world-client/` 测试 diff 按设计 SKIP。
+- 下一步命令: `git push -u origin docs/readme-2026-11-11 && gh pr create --base main --head docs/readme-2026-11-11 --fill`
 
 三轮做完的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
 立绘、切出 29 件状态/图标/表情素材、把其中三类接到 DOM 面板；第二轮把 10 栋
@@ -22,8 +22,9 @@ ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，读数与前后对比见
 2. 灯笼、地砖、花径、树影仍是 24 色板程序化绘制——这是引擎设计，不是
    没换完的生图素材；把这一层也位图化等于换掉世界色板纪律，单独裁决。
 3. 徽记五张轮转给七人、表情按语义与行序选图，都不是身份 / 情绪读数。
-4. main 有远端分支保护，必须走 PR 且四项必需检查全绿才能合；
-   用户还要求 merge 之后再更新一版根 README。
+4. PR #40 已合并（main `64fd05e`，四项必需检查全绿）。用户要求的
+   「merge 之后再更新一版根 README」就是当前这笔 `docs/readme-2026-11-11`，
+   还差 push / 开 PR / 等 CI / 合并四步。main 有远端分支保护，仍必须走 PR。
 
 ---
 

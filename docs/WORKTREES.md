@@ -37,7 +37,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | C:/Users/18712/AppData/Local/Temp/pwe-main-probe | (detached) | 合并线 | 2026-11-06 | 2026-11-13 | 临时对照工作树（用后移除，非长期资产；到期回收，不续期） |
 | D:/project/pixel-world-engine | main | cs1lion | 2026-10-25 | — | 主工作树（不回收） |
 | D:/project/pixel-world-engine/.cindy-worktrees/steady-turing | cindy/steady-turing | cindy 会话（steady-turing） | 2026-11-10 | 2026-11-24 | 已合入 main `dcfcb95`（经 PR #38，31 笔）；worktree 暂留作后续轮次，到期再判回收 |
-| D:/project/pwe-art-1111 | feat/art-ref-1111 | cindy 会话（art-ref-1111） | 2026-11-11 | 2026-11-25 | 活跃（11-11 参考图集三轮落地，待 PR 合并） |
+| D:/project/pwe-art-1111 | feat/art-ref-1111 | cindy 会话（art-ref-1111） | 2026-11-11 | 2026-11-25 | 已合入 main（经 PR #40，8 笔）；11-11 参考图集三轮落地，worktree 暂留作后续轮次，到期再判回收 |
 | D:/project/pwe-anim | feat/animation-express | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；动画表现力线） |
 | D:/project/pwe-anim-fsm | feat/anim-fsm | anim-fsm 线（在役会话） | 2026-11-06 | 2026-11-20 | 活跃（未合入 main；角色动画状态机 v1，未接管渲染） |
 | D:/project/pwe-audit-fix | fix/audit-standards-20261105 | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；审计标准修订线） |
