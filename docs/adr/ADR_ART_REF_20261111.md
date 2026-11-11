@@ -115,8 +115,9 @@ merge，再更新一版 readme」，把断点里登记的四条未做项一次�
 - 第二轮重跑：`npm test` 2687 / 2678 pass / 0 fail；`check-art-assets` 53 件
   全装、`art=0` 零请求；`test:phases` 40 项、`test:persistence` 8 项、
   `test:render-budget` 硬闸 3 项、`test:building-bake` 72 张 Image 全过。
-- 第三轮：`npm test` 2693 / 2684 pass / 0 fail / 9 skip；`check-art-assets`
-  清单 66 件全装、默认也装、`art=0` 零请求；`smoke.mjs` 132 项全过；
+- 第三轮（rebase 到 PR #39 合入后的新 main 并重跑）：`npm test` 2713 /
+  2704 pass / 0 fail / 9 skip；`check-art-assets` 清单 66 件全装、默认也装、
+  `art=0` 零请求；`smoke.mjs` 132 项全过；
   `check-setting-scale` / `check-lamp-band` / `check-lamp-pool` /
   `check-scene-depth` / `check-dengchao` 全绿；四道文档审计与
   `audit-palette --strict` 全绿；`python -m pytest` 全绿。逐条读数与两处既有

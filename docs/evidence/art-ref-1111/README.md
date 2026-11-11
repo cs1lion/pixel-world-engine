@@ -162,7 +162,7 @@ tileset / 世界地图也没接成地面或小地图——那会动 `tilemap` �
 | 闸门 | 读数 |
 |---|---|
 | `npm run check` | 语法 0 处 / 语义 0 处 |
-| `npm test` | 2693 tests / 2684 pass / 0 fail / 9 skip |
+| `npm test` | 2713 tests / 2704 pass / 0 fail / 9 skip（rebase 到新 main 后，main 侧自带的 20 项测试一并跑过） |
 | `npm run red:first -- --base origin/main` | base 上红在断言 |
 | `npm run build` | built |
 | `audit-palette --strict` | 0 处超预算 |
@@ -171,7 +171,7 @@ tileset / 世界地图也没接成地面或小地图——那会动 `tilemap` �
 | `audit-sections --strict` | 节号全部对得上 |
 | `audit-claims --strict` | markers=3 passed=3 failed=0 / adr-schema 23 valid |
 | `audit-baseline` | 166 / 166 全部一致 |
-| `audit:ports` | 0 处禁用端口（扫描 187 个文件） |
+| `audit:ports` | 0 处禁用端口（扫描 189 个文件；基线 187 仍在窗口内） |
 | `python -m pytest` | 全绿（1 skip） |
 | `check-art-assets` | 清单 66 件全装、默认也装、`art=0` 零请求、三跑无 pageerror |
 | `smoke.mjs` | 132 项全过 |
@@ -183,6 +183,12 @@ tileset / 世界地图也没接成地面或小地图——那会动 `tilemap` �
 的政策把 `world-client/scripts/audit-scan-baseline.json` 的 `ports` 实测值刷成
 187，并在 note 记日期 / 前后值 / 理由；`minDrop=5`、`ratio=2%`、`STALE_RATIO=20%`
 三个阈值一字未改。references 559 仍在 529 的窗口内、claims markers 仍是 3，两项没动。
+
+**一次 rebase**：开 PR 前 `origin/main` 前进了 5 笔（PR #39 合入），只有
+`docs/WORKTREES.md` 一行登记重叠。rebase 到新 main 后保留对方「已合入」的状态
+与本分支新增的登记表行，并重跑上表全部闸门——main 侧新增的
+`world-client/src/world/villager-decision-client.ts` 等文件把扫描面推到 189，
+仍在 187 基线的 20% 窗口内，不需要再刷基线。
 
 **两处既有假红，与本轮无关**（都拿未改一行的 `origin/main` 对照树跑过）：
 
