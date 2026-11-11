@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, planTestChanges, type ChangedFile } from '../scripts/red-first-lib.ts';
+import { parseArgs, planTestChanges, stripComments, type ChangedFile } from '../scripts/red-first-lib.ts';
 
 /**
  * 分类器在 base 上可能还不存在。用动态 import + 属性断言，让「缺实现」表现为
@@ -208,4 +208,68 @@ test('诊断：没有任何信号时字段留空，不编造现场', async () =>
   assert.equal(evidence.pattern, null);
   assert.equal(evidence.line, null);
   assert.deepEqual(evidence.context, []);
+});
+
+// ---------------------------------------------------------------- stripComments
+
+test('stripComments：去行注释、去块注释、去空白', () => {
+  const src = [
+    '// 行注释',
+    'const x = 1; /* 块注释 */',
+    '  const y = 2;  ',
+    '/*',
+    '  跨行块注释',
+    '*/',
+    'const z = 3;',
+  ].join('\n');
+  const out = stripComments(src);
+  assert.equal(out, 'constx=1;consty=2;constz=3;');
+});
+
+test('stripComments：字符串里的注释形状原样保留', () => {
+  const src = 'const a = "// 不是注释"; const b = \'/* 也不是\';';
+  const out = stripComments(src);
+  // 字符串内空白保留，字符串外空白被剥掉。
+  assert.equal(out, 'consta="// 不是注释";constb=\'/* 也不是\';');
+});
+
+test('stripComments：模板字符串整体保留（含 ${} 插值）', () => {
+  const src = 'const s = `hello // not a comment ${name} /* not either */`;';
+  // 模板外空白被剥，模板内整段原样：${} 不会被误当注释剥掉。
+  assert.equal(stripComments(src), 'consts=`hello // not a comment ${name} /* not either */`;');
+});
+
+test('stripComments：同语义不同注释 → 同一骨架', () => {
+  const a = 'const x = 1; // 注释\nconst y = 2;';
+  const b = '/* 注释 */ const x = 1;\nconst y = 2; // 另一条';
+  assert.equal(stripComments(a), stripComments(b));
+});
+
+test('stripComments：真改代码 → 骨架不同', () => {
+  const a = 'const x = 1;';
+  const b = 'const x = 2;';
+  assert.notEqual(stripComments(a), stripComments(b));
+});
+
+test('stripComments：字符串内容改了 → 骨架不同', () => {
+  const a = 'const msg = "old";';
+  const b = 'const msg = "new";';
+  assert.notEqual(stripComments(a), stripComments(b));
+});
+
+test('stripComments：转义引号不终止字符串', () => {
+  const src = 'const s = "he said \\"// not a comment\\"";';
+  const out = stripComments(src);
+  assert.match(out, /he said \\"\/\/ not a comment/);
+});
+
+test('stripComments：空字符串与纯注释', () => {
+  assert.equal(stripComments(''), '');
+  assert.equal(stripComments('// just a comment'), '');
+  assert.equal(stripComments('/* block only */'), '');
+});
+
+test('stripComments：行尾注释后跟换行', () => {
+  const src = 'const x = 1; // trailing\nconst y = 2;';
+  assert.equal(stripComments(src), 'constx=1;consty=2;');
 });
