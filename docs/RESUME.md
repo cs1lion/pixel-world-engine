@@ -1,5 +1,23 @@
 # 断点续跑
 
+## 当前断点
+
+- 最后 HEAD: 3f8193c (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 3f8193c..HEAD` 看
+- 未提交改动: 无
+- 已跑闸门: check ✅ / audit:ports ✅ / audit:baseline ✅ / test ✅ (2687 tests, 2678 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅ / fixture:check ✅；浏览器：check-art-assets ✅ / persistence ✅ / render-budget ✅ / phases ✅ / building-bake ✅ / check-interact 32/33（见下）
+- 未跑/失败: `check-interact` L3-6 稳定失败，但未改一行的 `origin/main` 对照树同样失败，与本轮无关；`check:hooks` 首跑因新工作树没继承 `core.hooksPath` 报 FAIL，执行 `git config core.hooksPath .githooks` 后 OK。其余无。
+- 下一步命令: `cd D:/project/pwe-art-1111/world-client && npm run check && npm test && npm run build`
+
+本轮做的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
+立绘、确定性切出 29 件状态/图标/表情素材、把其中三类接到 DOM 面板（`?art=0`
+仍零素材请求）；ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，读数与前后对比见
+`docs/evidence/art-ref-1111/README.md`。**未做**：十张图里的世界地图 / 桌面 UI
+设计稿 / 村庄 2×2 / 学者区建筑 / tileset 只作构图基准；建筑与布景的 17 件旧
+素材没重画（推倒会让风格从两层并排变三层混用）；祭坛三态与多数表情是素材库，
+未接线。这三条都要单独裁决，别当成「已做完」。
+
+---
+
 一次任务被中断（关窗口、换人、agent 上下文被清空）后，下一个人要能回答四个问题：
 
 1. 上次做到哪一步？
