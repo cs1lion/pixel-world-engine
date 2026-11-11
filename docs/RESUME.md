@@ -1,5 +1,32 @@
 # 断点续跑
 
+## 当前断点
+
+- 最后 HEAD: 0f5fa2f (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 0f5fa2f..HEAD` 看
+- 未提交改动: 无
+- 已跑闸门（rebase 到 PR #39 合入后的新 main 之后全量重跑）: check ✅ / audit:ports ✅ (189 文件 / 0 禁用端口) / audit:baseline ✅ (166/166) / test ✅ (2713 tests, 2704 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅；浏览器：check-art-assets ✅ (66 件全装、art=0 零请求) / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张 / smoke ✅ 132 项 / setting-scale / lamp-band / lamp-pool / scene-depth / dengchao 全绿
+- 未跑/失败: `check-interact` L3-6 与 `check-ground-shadow` 的 G2/G3 判据都在未改一行的 `origin/main` 对照树上同样失败（base 还多一条），与本轮无关；`check:hooks` 首跑因新工作树没继承 `core.hooksPath` 报 FAIL，执行 `git config core.hooksPath .githooks` 后 OK。其余无。
+- 下一步命令: `git push -u origin feat/art-ref-1111 && gh pr create --base main --head feat/art-ref-1111 --fill`
+
+三轮做完的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
+立绘、切出 29 件状态/图标/表情素材、把其中三类接到 DOM 面板；第二轮把 10 栋
+建筑 + 7 件布景按同一套硬像素风格全部重画；第三轮把六张构图稿切成 13 张画册
+贴片接日历抽屉、祭坛三态接神谕回执、十一张表情按语义接两个面板、程序化
+`shopfront` 换暖木色，并显式刷新 `audit-ports` 扫描面基线。清单最终 66 件。
+ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，读数与前后对比见
+`docs/evidence/art-ref-1111/README.md`。
+
+**剩下的边界，别当成已做完**：
+1. 桌面 UI 设计稿只切成贴片 + 收进画廊，没做成界面（会动整个 HUD）；
+   tileset / 世界地图没接成地面或小地图（会动一批像素基线）。
+2. 灯笼、地砖、花径、树影仍是 24 色板程序化绘制——这是引擎设计，不是
+   没换完的生图素材；把这一层也位图化等于换掉世界色板纪律，单独裁决。
+3. 徽记五张轮转给七人、表情按语义与行序选图，都不是身份 / 情绪读数。
+4. main 有远端分支保护，必须走 PR 且四项必需检查全绿才能合；
+   用户还要求 merge 之后再更新一版根 README。
+
+---
+
 一次任务被中断（关窗口、换人、agent 上下文被清空）后，下一个人要能回答四个问题：
 
 1. 上次做到哪一步？

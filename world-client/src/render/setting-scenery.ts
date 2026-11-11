@@ -1539,8 +1539,8 @@ function drawShopfront(
   }
   g.fillStyle(c.ink, 0.5);
   g.fillRect(x - 4, top - 1, width + 8, 1);
-  // 墙
-  g.fillStyle(c.plaster, 1);
+  // 墙：11-11 统一为暖木色（原米白灰泥），只换色槽不添行号漂移。
+  g.fillStyle(c.timber, 1);
   g.fillRect(x, top, width, SHOPFRONT_WALL_H);
   // 立面材质种子：由立面的世界位置派生，同一面店墙每一帧同一张脸。
   const seed = hash2(x, y + width);
@@ -1565,7 +1565,7 @@ function drawShopfront(
     g.fillRect(x + i + 1, baseY, 1, 1);
   }
   // 灰泥颗粒：亮粉是晒白的灰、暗点是泥渍。只铺在墙上，窗与门后面会盖住。
-  g.fillStyle(c.pale, 0.5);
+  g.fillStyle(c.plaster, 0.5);
   for (let i = 0; i < 12; i += 1) {
     const gx = x + 3 + ((seed >>> (i % 16)) % Math.max(1, width - 6));
     const gy = top + 3 + ((seed >>> ((i + 9) % 16)) % (SHOPFRONT_WALL_H - 7));
@@ -1590,7 +1590,7 @@ function drawShopfront(
   for (let i = 12; i < width - 2; i += 12) g.fillRect(x + i, top, 1, 40);
   // 木纹：外框与竖柱上长短不一的 1px 木刺（一档更亮的 timber），
   // 让木骨读成木头，不是一条深色带。
-  g.fillStyle(c.timber, 0.8);
+  g.fillStyle(c.warmLight, 0.8);
   for (let i = 0; i < 4; i += 1) {
     g.fillRect(x + 1, top + 5 + i * 9 + ((seed >>> i) % 3), 1, 2);
     g.fillRect(x + width - 2, top + 7 + i * 9 + ((seed >>> (i + 4)) % 3), 1, 2);

@@ -8,6 +8,8 @@
  */
 
 import type { HeardFrom, MemoryLine } from '../world/memory/voice.ts';
+import { emoteIdForLine, villagerBadgeId } from '../render/art-assets.ts';
+import { appendDecor } from './art-decor.ts';
 import { whenApi } from './when-api.ts';
 
 /**
@@ -66,7 +68,10 @@ export function bindVillagerPanel(getApi: () => VillagerOracle | undefined): voi
         panel.hidden = true;
         return;
       }
+      // 先写名字再挂图：给 textContent 赋值会清掉上次留下的子节点，
+      // 顺序反了徽记就只闪一帧。
       title.textContent = view.name;
+      appendDecor(title, 'icon', villagerBadgeId(view.id), 'art-badge');
       if (view.lines.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'villager-empty';
@@ -76,7 +81,7 @@ export function bindVillagerPanel(getApi: () => VillagerOracle | undefined): voi
         body.replaceChildren(empty);
       } else {
         body.replaceChildren(
-          ...view.lines.map((line) => {
+          ...view.lines.map((line, index) => {
             const quote = document.createElement('blockquote');
             quote.textContent = line.text;
             const when = document.createElement('span');
@@ -87,6 +92,10 @@ export function bindVillagerPanel(getApi: () => VillagerOracle | undefined): voi
                 ? line.age
                 : `${heardFromText(line.heardFrom)} · ${line.age}`;
             quote.append(when);
+            // 表情按这句话的性质选（听来的 / 当天的 / 往日的），再按行序兜底。
+            // 只作装饰：不是「这句话的情绪」，世界没有这个读数。
+            // 挂在 when 之后，引文原来的子节点顺序一个不动。
+            appendDecor(quote, 'emote', emoteIdForLine(line, index), 'art-emote');
             return quote;
           }),
         );

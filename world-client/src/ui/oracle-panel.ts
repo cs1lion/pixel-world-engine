@@ -5,6 +5,8 @@
  */
 
 import { TASK_PROFILES } from '../world/tasks.ts';
+import { altarStateId } from '../render/art-assets.ts';
+import { appendDecor } from './art-decor.ts';
 import type { DailyReport } from '../world/report.ts';
 import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import { whenApi } from './when-api.ts';
@@ -322,10 +324,16 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
 
   const show = (ok: boolean, message: string): void => {
     reply.textContent = message;
+    // 神谕祭坛三态图与回执同源：认出 / 降下 / 拒收，图只是把那句话配上
+    // 一张同状态的插画，回执本身仍由文字说清（图坏了不影响读数）。
+    // 必须先写 textContent 再挂图——赋值会清掉上次留下的子节点。
+    appendDecor(reply, 'state', altarStateId(ok), 'art-altar-state');
     // 成功用强调琥珀、失败用陶土；与非成功互斥，同一个位置只出一种。
     reply.classList.toggle('good', ok);
     reply.classList.toggle('bad', !ok);
   };
+  // 开局没有回执也要有「待机」那一态，别让祭坛位置空着。
+  appendDecor(reply, 'state', altarStateId(null), 'art-altar-state');
 
   // 投递时清空输入框，回执却要等模型才回来。记下刚发出去的那句，
   // 被上游拒收时把它放回输入框——否则玩家对着空框重打一遍。
