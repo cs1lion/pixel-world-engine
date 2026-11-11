@@ -83,7 +83,7 @@
 | 布景 | `render/scenery-depth.ts` | 行号 + 12 / 4 的偏移 |
 | 装饰 | `render/decor.ts` | 同样按 `py + ACTOR_DEPTH_OFFSET` |
 
-`ALTITUDE = 1000`：`SandboxScene.ts:301`（grep `const ALTITUDE = 1000`）。
+`ALTITUDE = 1000`：`SandboxScene.ts:303`（grep `const ALTITUDE = 1000`）。
 **已有 y 排序**：人物 +8、道具 +8、布景 +12/4、建筑 body 0 / decal 16 / front 32；
 地形整体在 -10，所以「地形永远在人下面」。今天没有任何东西按高度改屏幕 y。
 
@@ -298,7 +298,7 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 上层门面：`reaches()` `setup.ts:583-591`（`goal = isWalkable(to) ? to : nearestWalkable(to)`），
   `doorReaches()` `setup.ts:601-602`，`paveFrom()` `setup.ts:612-620`。
 - 生产调用点：`world-client/src/settings/load.ts:672`（门）、`:697`（村民巡游点），
-  `world-client/src/world/simulation.ts:3013`、`:3448`、`:5173`（目标改写/回家/默认点），
+  `world-client/src/world/simulation.ts:3048`、`:3483`、`:5204`（目标改写/回家/默认点），
   `world-client/src/world/routines.ts:72-79`（园子、长廊、摊位、河边四个点）。
 
 ### 4.2 具体判断：哪些测试会失效、为什么
@@ -359,7 +359,7 @@ reaches(grid, from, to)
 
 - `path` 内部：`passable(next)` 改成 `canStep(current, next, accept)`；
   `costAt(next)` 改成 `stepCost(current, next)`；**起点也要先判可站**（当前代码只判目标，
-  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2399` 的注释与代码不一致——顺手在这一处补齐）。
+  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2434` 的注释与代码不一致——顺手在这一处补齐）。
 - `pave-reachable` 的语义**保持**：端点自己可走时按端点算；不可走时允许改写，但改写候选必须
   **与目标同层**，是否可达仍由 `path` 判。`pave-reachable.test.ts:178` 的“树篱 hub、一门之隔”仍然为真；
   `:196` 的“真被围死的门”仍然为假——这两条是本次改动不能碰坏的既有语义。
@@ -662,7 +662,7 @@ world.terrainEdits: readonly {
 | `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:88` / `:100` |
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
 | `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
-| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:301` |
+| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:303` |
 | 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |
 | `pave-reachable.test.ts` 的 `nearestWalkable` 断言 | `world-client/test/pave-reachable.test.ts:177` |

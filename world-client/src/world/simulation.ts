@@ -64,6 +64,7 @@ import {
   routineBeats,
   routineFor,
   shelterTarget,
+  siteBeatApplies,
   tideBeatApplies,
   withMarketWords,
   type RoutineBeat,
@@ -91,6 +92,12 @@ import {
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
 import { BehaviorPlanner, GoalQueue, type BehaviorContext, type BehaviorGoal, type BehaviorRule } from './behavior.ts';
+import {
+  type VillagerDecisionModel,
+  type VillagerDecisionRequest,
+  type VillagerDecision,
+  type VillagerMemoryItem,
+} from './villager-decision-client.ts';
 import { needsAt, NEEDS_HUNGER_FAIL_THRESHOLD, type NeedsReading } from './needs.ts';
 import {
   fatigueReadingOf,
@@ -445,6 +452,19 @@ export interface SimulationDeps {
    * （`intent-prompt.ts` / `intent-schema.ts`），模型只负责产出一份 JSON。
    */
   readonly intentModel?: IntentModel;
+  /**
+   * 人物决策模型：作息换腿时问她下一步去哪儿。省略表示纯离线（不问 LLM，
+   * 照旧按作息表走）。与 `intentModel` 同一套纪律——这里只放客户端，
+   * 提示词与校验在世界侧（`villager-decision-client.ts`）。
+   *
+   * 失败一律回 `null`，世界照旧走作息——LLM 挂了人物照活。
+   */
+  readonly villagerDecisionModel?: VillagerDecisionModel;
+  /**
+   * 人物记忆读取器：给决策请求提供她最近记得的事。省略时传空记忆——
+   * 模型拿不到记忆就不许偏离作息，所以没有记忆的世界永远走作息。
+   */
+  readonly villagerMemoryReader?: (villagerId: string) => readonly VillagerMemoryItem[];
   /** 世界尺寸。给意图校验判坐标越界用；省略时从 grid 推。 */
   readonly worldSize?: { readonly width: number; readonly height: number };
   /**
@@ -500,6 +520,8 @@ interface Villager {
   nextRoutineAt: number;
   routineIndex: number;
   routineLabel: string | null;
+  /** 等 LLM 给这一步的主意：true 时 `planTick` 不挑作息，等 `applyDecision` 放行。 */
+  pendingDecision: boolean;
   /**
    * 赶路时牌子说的那句，与 `routineLabel` 是同一拍的两半。不进存档。
    * 为什么分两半、快照怎么挑，见 `snapshotVillager`。
@@ -790,6 +812,17 @@ export class Simulation {
    * 但「哪一刻发生了作业」只有它知道。取走即清空，不会重复问。
    */
   private pendingWorkNotes: WorkNoteRequest[] = [];
+  /**
+   * 待问 LLM 的决策（场景每帧取走、异步问模型）。
+   *
+   * 队列在 `Simulation` 里、由场景排空——世界内核不做 IO（不 fetch），
+   * 但「哪一刻换腿、该问谁」只有它知道。取走即清空，不会重复问。
+   */
+  private pendingDecisions: VillagerDecisionRequest[] = [];
+  /** 人物决策模型；null 时世界纯离线、不问 LLM。 */
+  private readonly villagerDecisionModel: VillagerDecisionModel | null;
+  /** 人物记忆读取器；null 时传空记忆（模型拿不到记忆就不许偏离）。 */
+  private readonly villagerMemoryReader: ((villagerId: string) => readonly VillagerMemoryItem[]) | null;
   /** 渡口落点；undefined = 这张图没有渡口。 */
   private readonly harborAt: GridPoint | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
@@ -941,6 +974,8 @@ export class Simulation {
     this.propReveals = deps.propReveals;
     this.authored = deps.authored === true;
     this.intentModel = deps.intentModel;
+    this.villagerDecisionModel = deps.villagerDecisionModel ?? null;
+    this.villagerMemoryReader = deps.villagerMemoryReader ?? null;
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
     this.buildings = [...deps.buildings];
@@ -970,6 +1005,7 @@ export class Simulation {
       nextRoutineAt: this.now + 1200 + index * 1400,
       routineIndex: index * 2,
       routineLabel: null,
+      pendingDecision: false,
       routineGoing: null,
       inPlaceUntil: 0,
       pendingRoute: [],
@@ -3534,6 +3570,8 @@ export class Simulation {
     // 它们登记成 `rest` 规则（`REST_RULE`），排在疲劳睡之后、吃与作息之前，
     // 这样「谁先问」仍是表里写着的顺序，不是代码位置。
     if (this.now < villager.nextRoutineAt) return;
+    // 等 LLM 给这一步的主意：决策没回来时不挑作息，等 `applyDecision` 放行。
+    if (villager.pendingDecision) return;
     // 一拍怎么选：按**登记顺序**问规则表，第一个命中的就是这一拍的目标。
     // 默认表仍写着旧链的三段（求证 → 盖布 → 作息），所以这里只是把「谁先问」
     // 从代码位置搬到了表里；判据与副作用都留在原来的那三个方法里。
@@ -3899,7 +3937,53 @@ export class Simulation {
       return;
     }
     this.creditSiteOutput(villager);
+    // 决策点：换腿时问 LLM 她下一步去哪儿。排队等场景取走、异步问，
+    // 期间 `pendingDecision` 闸住 `planTick` 不挑作息。LLM 没给或失败
+    // 时 `applyDecision` 不会调，`pendingDecision` 由 dwell 结束后自然放行。
+    if (this.villagerDecisionModel !== null) {
+      villager.pendingDecision = true;
+      const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+      const here = this.cellOf(villager.pos);
+      const beat = routineFor(
+        this.environment(),
+        beats,
+        villager.routineIndex,
+        shelterTarget(this.buildings, here),
+      );
+      const routineLabel = beat.label ?? villager.routineLabel ?? '（无）';
+      const availableSites = this.availableSitesFor(beats);
+      const memories = this.villagerMemoryReader?.(villager.id) ?? [];
+      this.pendingDecisions.push({
+        villagerName: villager.name,
+        routineLabel,
+        day: Math.floor(this.now / DAY_MS),
+        memories,
+        availableSites,
+      });
+    }
     villager.nextRoutineAt = this.now + this.dwellOf(villager);
+  }
+
+  /**
+   * 她能去的场所：作息表里出现过的场所 + 她当前所在的场所。
+   * 每处带可做的事（从 beat 的 activity 来）。
+   */
+  private availableSitesFor(
+    beats: readonly RoutineBeat[],
+  ): VillagerDecisionRequest['availableSites'] {
+    const seen = new Set<string>();
+    const sites: { siteId: string; siteName: string; activities: readonly string[] }[] = [];
+    for (const beat of beats) {
+      if (beat.siteId === undefined) continue;
+      if (seen.has(beat.siteId)) continue;
+      seen.add(beat.siteId);
+      sites.push({
+        siteId: beat.siteId,
+        siteName: this.siteNames.get(beat.siteId) ?? beat.siteId,
+        activities: beat.activity !== undefined ? [beat.activity] : [],
+      });
+    }
+    return sites;
   }
 
   /**
@@ -3997,6 +4081,68 @@ export class Simulation {
     );
     if (beat.siteId !== siteId) return false;
     villager.routineLabel = text;
+    return true;
+  }
+
+  /**
+   * 取走待问的决策。取走即清空——同一步不会问两次。
+   *
+   * 场景每帧调一次；世界内核不 fetch，IO 在场景那一侧。
+   */
+  drainVillagerDecisions(): VillagerDecisionRequest[] {
+    if (this.pendingDecisions.length === 0) return [];
+    const out = this.pendingDecisions;
+    this.pendingDecisions = [];
+    return out;
+  }
+
+  /**
+   * LLM 的决策落回世界。
+   *
+   * - `follow`：放行，让她照作息走。下一拍打作息表会正常挑拍。
+   * - `deviate`：改路，让她去模型选的场所。只认 `availableSites` 里的场所，
+   *   外面的直接拒绝、当作没给（世界不许被 LLM 带到不存在的地方）。
+   *
+   * 超时没调时 `pendingDecision` 会卡住世界——所以场景必须在失败时也调
+   * `applyDecision`（用 follow 放行），或者用一个超时兜底。
+   */
+  applyVillagerDecision(villagerId: string, decision: VillagerDecision): boolean {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return false;
+    villager.pendingDecision = false;
+    villager.nextRoutineAt = this.now;
+    if (decision.action === 'follow') return true;
+    // deviate：找她要去的场所，算出落点，设路径。
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    // 只认作息表里出现过的场所：LLM 选外面的直接拒绝，当作没给。
+    const matchIndex = beats.findIndex((item) => item.siteId === decision.siteId);
+    if (matchIndex === -1) return true;
+    const match = beats[matchIndex]!;
+    // 世界不许在场所关门时跑进去：与 `routineFor` 用同一套门控，
+    // 人到了一事无成比「说不行」更糟——拒绝偏离，当作没给，她照作息走。
+    if (match.siteId !== undefined && !siteBeatApplies(match.siteId, this.environment()))
+      return true;
+    // 下一拍指到这一拍之后：她走到时 `creditSiteOutput` 回查 `routineIndex - 1`
+    // 正好落在模型选的这一拍——产出记在偏离去的场所，而不是把上一趟作息
+    // 再记一遍；之后的挑拍也从这一拍之后接着走，作息不重头绕。
+    villager.routineIndex = matchIndex + 1;
+    const target = this.resolvedTarget(match);
+    if (target === null) return true;
+    const siteId = match.siteId ?? decision.siteId ?? '';
+    if (target.x === here.x && target.y === here.y) {
+      // 已经在那个场所：不走路，直接停。
+      const siteName = this.siteNames.get(siteId) ?? siteId;
+      villager.routineLabel = decision.reason || siteName;
+      villager.routineGoing = villager.routineLabel;
+      return true;
+    }
+    const route = this.routeTo(villager, target);
+    if (route.path.length === 0) return true;
+    villager.path = route.path;
+    const siteName = this.siteNames.get(siteId) ?? siteId;
+    villager.routineLabel = decision.reason || siteName;
+    villager.routineGoing = villager.routineLabel;
     return true;
   }
 

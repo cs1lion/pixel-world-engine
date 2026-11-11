@@ -271,6 +271,7 @@ import {
 import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
 import { createWorkNoteClient } from '../world/work-note-client.ts';
+import { createVillagerDecisionClient, type VillagerDecision } from '../world/villager-decision-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
 import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
@@ -627,6 +628,18 @@ export class SandboxScene extends Phaser.Scene {
    * 都退回 `routineLabel` 的原文案，世界照常跑。
    */
   private readonly workNoteClient = createWorkNoteClient();
+  /**
+   * 人物决策的模型客户端。**作息是默认**：模型没配上、超时、断网，
+   * 都退回作息表，世界照旧跑。
+   */
+  private readonly villagerDecisionClient = createVillagerDecisionClient();
+  /**
+   * 决策缓存：同一天同一人物同一份记忆只问一次——换腿一天发生几次，
+   * 每次都问没意义；记忆没变时同一个问题该有同一个答案。
+   */
+  private readonly decisionCache = new Map<string, VillagerDecision>();
+  /** 在飞的决策请求 key（villager id）；同一人物最多一个在飞。 */
+  private readonly decisionInflight = new Set<string>();
   /**
    * 同一天同一处、同一句底稿只问一次模型：作业一天发生十几次，
    * 每次都问会让上游被打爆，而同一处同日说同一句话本来就该是同一句。
@@ -1773,6 +1786,7 @@ export class SandboxScene extends Phaser.Scene {
         this.speak(result);
       }
       this.pumpWorkNotes();
+      this.pumpDecisions();
       this.tick += 1;
       steps += 1;
     }
@@ -3842,6 +3856,44 @@ export class SandboxScene extends Phaser.Scene {
           this.sim.applyWorkNarration(note.villagerId, note.site, text);
         })
         .finally(() => this.workNoteInflight.delete(key));
+    }
+  }
+
+  /**
+   * 人物决策泵：取走排队里的决策请求，异步问 LLM，回来后落回世界。
+   *
+   * 三条纪律：
+   * 1. **同日同人物同记忆只问一次**（`decisionCache`）——换腿一天发生几次；
+   * 2. **同一人物最多一个在飞**——慢请求不许排成队压住世界；
+   * 3. **失败时用 follow 放行**——LLM 挂了世界照旧走作息，人物照活。
+   */
+  private pumpDecisions(): void {
+    const requests = this.sim.drainVillagerDecisions();
+    if (requests.length === 0) return;
+    const byName = new Map(this.snapshot?.villagers.map((v) => [v.name, v.id]) ?? []);
+    for (const request of requests) {
+      const villagerId = byName.get(request.villagerName);
+      if (villagerId === undefined) continue;
+      const memoriesKey = JSON.stringify(request.memories);
+      const cacheKey = `${request.villagerName}|${request.day}|${memoriesKey}`;
+      const cached = this.decisionCache.get(cacheKey);
+      if (cached !== undefined) {
+        this.sim.applyVillagerDecision(villagerId, cached);
+        continue;
+      }
+      if (this.decisionInflight.has(villagerId)) continue;
+      this.decisionInflight.add(villagerId);
+      void this.villagerDecisionClient(request)
+        .then((decision) => {
+          if (decision === null) {
+            // 失败也放行：LLM 挂了世界照旧走作息。
+            this.sim.applyVillagerDecision(villagerId, { action: 'follow', reason: '' });
+            return;
+          }
+          this.decisionCache.set(cacheKey, decision);
+          this.sim.applyVillagerDecision(villagerId, decision);
+        })
+        .finally(() => this.decisionInflight.delete(villagerId));
     }
   }
 
