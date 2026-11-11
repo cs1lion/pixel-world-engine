@@ -21,6 +21,8 @@ import { TASK_PROFILES } from '../world/tasks.ts';
 import type { TraceLayer } from '../world/memory/types.ts';
 import type { WorkshopTask } from '../world/types.ts';
 import { whenApi } from './when-api.ts';
+import { activityDecorId } from '../render/art-assets.ts';
+import { appendDecor } from './art-decor.ts';
 
 /** 楼此刻在干什么。与 `WorkstationActivity` 的四个分支一一对应。 */
 export type BuildingActivity = 'idle' | 'operating' | 'overheating' | 'cooling';
@@ -155,9 +157,13 @@ export function bindBuildingPanel(getApi: () => BuildingOracle | undefined): voi
         node.textContent = text;
         return node;
       };
+      const stateRow = line('building-state', activityText(view.activity));
+      // 四态图与 `activityText` 同源，都是 `view.activity`；图只是把那句话
+      // 配上一张同一状态的插画，状态本身仍由文字说清（图坏了不影响读数）。
+      appendDecor(stateRow, 'state', activityDecorId(view.activity), 'art-state-icon');
       const rows: HTMLElement[] = [
         line('building-task', taskText(view.task)),
-        line('building-state', activityText(view.activity)),
+        stateRow,
         line('building-trace', traceText(view.traces)),
       ];
       if (view.traces.length > 0) {

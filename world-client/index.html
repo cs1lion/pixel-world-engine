@@ -808,6 +808,24 @@
         letter-spacing: 0.1em;
       }
       #villager-panel .villager-head button { font-size: 11px; padding: 3px 6px; }
+      /* 11-11 参考图装饰：固定尺寸 + 像素化，不引入新颜色，不改 flex 主轴。 */
+      #villager-panel .villager-head .art-badge {
+        flex: 0 0 24px;
+        width: 24px;
+        height: 24px;
+        margin-right: 4px;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
+      #villager-panel-body .art-emote {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin-left: 4px;
+        vertical-align: -2px;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
       #villager-panel-body blockquote {
         margin: 8px 0;
         padding-left: 8px;
@@ -928,6 +946,15 @@
       #building-panel-body .building-state,
       #building-panel-body .building-trace,
       #building-panel-body .building-history { color: var(--dim); font-size: 11px; }
+      #building-panel-body .building-state .art-state-icon {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        margin-right: 4px;
+        vertical-align: -6px;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
       #building-panel-body .building-trace-list {
         margin: 0 0 6px;
         padding-left: 16px;

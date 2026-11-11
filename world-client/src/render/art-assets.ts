@@ -12,7 +12,12 @@
 
 import Phaser from 'phaser';
 
-export type ArtKind = 'building' | 'villager' | 'scenery';
+/**
+ * 2026-11-11 参考图集带来的三类装饰素材。前三类贴在世界画布上（有 `hasArt` 消费方），
+ * 这三类只给 DOM 面板当徽记用，不进 Phaser 纹理查询——但一样走 `preloadArt`，
+ * 所以 `?art=0` 时它们也一张都不装。
+ */
+export type ArtKind = 'building' | 'villager' | 'scenery' | 'state' | 'icon' | 'emote';
 
 interface ArtManifest {
   readonly artScale: number;
@@ -31,6 +36,41 @@ export function artEnabledOf(search: string | URLSearchParams): boolean {
 
 export function artKey(kind: ArtKind, id: string): string {
   return `art:${kind}:${id}`;
+}
+
+/** DOM 装饰图的相对路径；与 `preloadArt` 用的是同一个 `BASE_URL` 前缀。 */
+export function artAssetPath(kind: ArtKind, id: string): string {
+  return `assets/${kind}/${id}.png`;
+}
+
+/** 楼的四态 -> 工坊四态切图。`id` 与切图脚本的 `workshop-0N` 一一对应。 */
+const ACTIVITY_DECOR: Readonly<Record<string, string>> = {
+  idle: 'workshop-00',
+  operating: 'workshop-01',
+  overheating: 'workshop-02',
+  cooling: 'workshop-03',
+};
+
+export function activityDecorId(activity: string): string | null {
+  return ACTIVITY_DECOR[activity] ?? null;
+}
+
+/** 七个村民共用五张角色徽记，按 id 序号轮转；不是身份对应，只作视觉区分。 */
+export function villagerBadgeId(villagerId: string): string {
+  const seq = /^v(\d+)$/.exec(villagerId);
+  const n = seq === null ? 0 : Number(seq[1]);
+  return `role-0${((n % 5) + 5) % 5}`;
+}
+
+/** 表情按序轮转。`emote-09` 是参考图里那格纯色块，不是表情，跳过。 */
+const EMOTE_IDS: readonly string[] = [
+  'emote-00', 'emote-01', 'emote-02', 'emote-03', 'emote-04', 'emote-05',
+  'emote-06', 'emote-07', 'emote-08', 'emote-10', 'emote-11',
+];
+
+export function emoteIdFor(index: number): string {
+  const i = ((Math.trunc(index) % EMOTE_IDS.length) + EMOTE_IDS.length) % EMOTE_IDS.length;
+  return EMOTE_IDS[i]!;
 }
 
 export function hasArt(scene: Phaser.Scene, kind: ArtKind, id: string): boolean {
