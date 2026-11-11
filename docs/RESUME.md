@@ -2,26 +2,28 @@
 
 ## 当前断点
 
-- 最后 HEAD: 2837380 (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 2837380..HEAD` 看
+- 最后 HEAD: 0f5fa2f (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 0f5fa2f..HEAD` 看
 - 未提交改动: 无
-- 已跑闸门: check ✅ / audit:ports ✅ / audit:baseline ✅ (166/166) / test ✅ (2687 tests, 2678 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅ / fixture:check ✅；浏览器：check-art-assets ✅ (53 件全装、art=0 零请求) / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / phases ✅ 40 项 / building-bake ✅ 72 张 / check-interact 32/33（见下）
-- 未跑/失败: `check-interact` L3-6 稳定失败，但未改一行的 `origin/main` 对照树同样失败，与本轮无关；`check:hooks` 首跑因新工作树没继承 `core.hooksPath` 报 FAIL，执行 `git config core.hooksPath .githooks` 后 OK。其余无。
-- 下一步命令: `cd D:/project/pwe-art-1111/world-client && npm run check && npm test && npm run build`
+- 已跑闸门（rebase 到 PR #39 合入后的新 main 之后全量重跑）: check ✅ / audit:ports ✅ (189 文件 / 0 禁用端口) / audit:baseline ✅ (166/166) / test ✅ (2713 tests, 2704 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅；浏览器：check-art-assets ✅ (66 件全装、art=0 零请求) / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张 / smoke ✅ 132 项 / setting-scale / lamp-band / lamp-pool / scene-depth / dengchao 全绿
+- 未跑/失败: `check-interact` L3-6 与 `check-ground-shadow` 的 G2/G3 判据都在未改一行的 `origin/main` 对照树上同样失败（base 还多一条），与本轮无关；`check:hooks` 首跑因新工作树没继承 `core.hooksPath` 报 FAIL，执行 `git config core.hooksPath .githooks` 后 OK。其余无。
+- 下一步命令: `git push -u origin feat/art-ref-1111 && gh pr create --base main --head feat/art-ref-1111 --fill`
 
-两轮做完的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
-立绘、确定性切出 29 件状态/图标/表情素材、把三类接到 DOM 面板；用户看过前后
-实拍后要求继续，第二轮又把 10 栋建筑 + 7 件布景按同一套硬像素风格全部重画
-（清单仍 53 件，内容全换）。ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，
-读数、三处试错与前后对比见 `docs/evidence/art-ref-1111/README.md`。
+三轮做完的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
+立绘、切出 29 件状态/图标/表情素材、把其中三类接到 DOM 面板；第二轮把 10 栋
+建筑 + 7 件布景按同一套硬像素风格全部重画；第三轮把六张构图稿切成 13 张画册
+贴片接日历抽屉、祭坛三态接神谕回执、十一张表情按语义接两个面板、程序化
+`shopfront` 换暖木色，并显式刷新 `audit-ports` 扫描面基线。清单最终 66 件。
+ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，读数与前后对比见
+`docs/evidence/art-ref-1111/README.md`。
 
-**仍未做，别当成已做完**：
-1. 十张图里的世界地图 / 桌面 UI 设计稿 / 村庄 2×2 / 学者区建筑 / tileset
-   只作构图基准，没落地为界面或新地点。
-2. 祭坛三态与多数表情是素材库，未接线。
-3. `setting-scenery.ts` 的 `shopfront` 白色小店面、灯笼、地砖、花径、树影
-   是 24 色板**程序化摆件**，不是生图素材也不走 `hasArt`，仍是旧形制。
-   换这层要动渲染层与一批像素基线，单独裁决。
-4. 没 push、没开 PR（main 有分支保护，必须走 PR）。
+**剩下的边界，别当成已做完**：
+1. 桌面 UI 设计稿只切成贴片 + 收进画廊，没做成界面（会动整个 HUD）；
+   tileset / 世界地图没接成地面或小地图（会动一批像素基线）。
+2. 灯笼、地砖、花径、树影仍是 24 色板程序化绘制——这是引擎设计，不是
+   没换完的生图素材；把这一层也位图化等于换掉世界色板纪律，单独裁决。
+3. 徽记五张轮转给七人、表情按语义与行序选图，都不是身份 / 情绪读数。
+4. main 有远端分支保护，必须走 PR 且四项必需检查全绿才能合；
+   用户还要求 merge 之后再更新一版根 README。
 
 ---
 
