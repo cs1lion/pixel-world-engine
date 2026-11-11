@@ -2,19 +2,26 @@
 
 ## 当前断点
 
-- 最后 HEAD: 3f8193c (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 3f8193c..HEAD` 看
+- 最后 HEAD: 2837380 (feat/art-ref-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline 2837380..HEAD` 看
 - 未提交改动: 无
-- 已跑闸门: check ✅ / audit:ports ✅ / audit:baseline ✅ / test ✅ (2687 tests, 2678 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅ / fixture:check ✅；浏览器：check-art-assets ✅ / persistence ✅ / render-budget ✅ / phases ✅ / building-bake ✅ / check-interact 32/33（见下）
+- 已跑闸门: check ✅ / audit:ports ✅ / audit:baseline ✅ (166/166) / test ✅ (2687 tests, 2678 pass, 0 fail, 9 skip) / red:first ✅ (base 上断言红) / build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / pytest ✅ / fixture:check ✅；浏览器：check-art-assets ✅ (53 件全装、art=0 零请求) / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / phases ✅ 40 项 / building-bake ✅ 72 张 / check-interact 32/33（见下）
 - 未跑/失败: `check-interact` L3-6 稳定失败，但未改一行的 `origin/main` 对照树同样失败，与本轮无关；`check:hooks` 首跑因新工作树没继承 `core.hooksPath` 报 FAIL，执行 `git config core.hooksPath .githooks` 后 OK。其余无。
 - 下一步命令: `cd D:/project/pwe-art-1111/world-client && npm run check && npm test && npm run build`
 
-本轮做的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
-立绘、确定性切出 29 件状态/图标/表情素材、把其中三类接到 DOM 面板（`?art=0`
-仍零素材请求）；ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，读数与前后对比见
-`docs/evidence/art-ref-1111/README.md`。**未做**：十张图里的世界地图 / 桌面 UI
-设计稿 / 村庄 2×2 / 学者区建筑 / tileset 只作构图基准；建筑与布景的 17 件旧
-素材没重画（推倒会让风格从两层并排变三层混用）；祭坛三态与多数表情是素材库，
-未接线。这三条都要单独裁决，别当成「已做完」。
+两轮做完的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
+立绘、确定性切出 29 件状态/图标/表情素材、把三类接到 DOM 面板；用户看过前后
+实拍后要求继续，第二轮又把 10 栋建筑 + 7 件布景按同一套硬像素风格全部重画
+（清单仍 53 件，内容全换）。ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，
+读数、三处试错与前后对比见 `docs/evidence/art-ref-1111/README.md`。
+
+**仍未做，别当成已做完**：
+1. 十张图里的世界地图 / 桌面 UI 设计稿 / 村庄 2×2 / 学者区建筑 / tileset
+   只作构图基准，没落地为界面或新地点。
+2. 祭坛三态与多数表情是素材库，未接线。
+3. `setting-scenery.ts` 的 `shopfront` 白色小店面、灯笼、地砖、花径、树影
+   是 24 色板**程序化摆件**，不是生图素材也不走 `hasArt`，仍是旧形制。
+   换这层要动渲染层与一批像素基线，单独裁决。
+4. 没 push、没开 PR（main 有分支保护，必须走 PR）。
 
 ---
 
