@@ -31,6 +31,36 @@
 ## 闸门读数
 
 命令一律在 `world-client/` 下执行，服务端那条在 `server/` 下。
+以下是 2026-11-11 在 `feat/art-ref-1111` 上实跑的读数（只贴首行 / 末行结论）：
+
+| 闸门 | 读数 |
+|---|---|
+| `npm run check` | 语法 0 处 / 语义 0 处 |
+| `npm run audit:ports` | 0 处禁用端口（扫描 185 个文件） |
+| `npm run audit:baseline` | 记录 166 个 / 已跟踪 166 个 / 全部一致 |
+| `npm test` | 2687 tests / 2678 pass / 0 fail / 9 skip |
+| `npm run red:first -- --base origin/main` | PASS：base 上按预期红（断言失败，exit=1） |
+| `npm run build` | built in 733ms |
+| `audit-palette --strict` | 0 处超预算 |
+| `audit-references --strict` | 559 处行号引用，0 处存疑 |
+| `audit-citations --strict` | 受查 4270 处，未解析 0 处 |
+| `audit-sections --strict` | 受查 188 处，节号全部对得上 |
+| `audit-claims --strict` | markers=3 passed=3 failed=0 / adr-schema 23 valid |
+| `python -m pytest`（server） | 全绿（1 skip） |
+| `check-art-assets` | art=1 清单 53 件、实际请求 53 张；默认也装 53 张；art=0 零请求；三跑无 pageerror |
+| `test:persistence` | 8 项通过 |
+| `test:render-budget` | 硬闸门 3 项通过；债务 0 条 |
+| `test:phases` | 40 项通过 |
+| `test:building-bake` | 9 栋 / 72 张烘焙 Image / 失败 0 条 |
+| `fixture:check` | 6 条夹具 / 195 项断言 / 6 通过 |
+
+**一处既有的假红，与本轮无关**：`check-interact` 的 L3-6（存档重开后点同一人）
+在本分支与未改一行的 `origin/main` 对照树上都稳定失败，报「左键点在莞尔的格子上，
+状态菜单没有出现」。同一脚本其余 32 项两棵树都通过。两棵对照树分别跑在
+5241 / 5242，工作树身份闸都确认连的是自己的那一棵。这不是本轮引入：本轮没碰
+`#unit-status` 的点击链路，也没有新的画布叠层。
+
+## 复现命令
 
 ```bash
 npm run check                # 语法 0 处 / 语义 0 处
