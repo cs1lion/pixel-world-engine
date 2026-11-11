@@ -169,7 +169,7 @@ test('working 而没有铺子时，不许说她在祭坛边——她人不在那
   //
   // 而这条路常见得很：`tasks.ts:13` 的 quick 活 `venue: 'in_place'`，
   // **每一条 quick 都走它**。两条来路都通到 `startInPlace`：神谕派活
-  // （`simulation.ts:2533`——「顺手看一眼」那个按钮 `index.html:628` 发的
+  // （`simulation.ts:2604`——「顺手看一眼」那个按钮 `index.html:628` 发的
   // 就是这条命令）与上游事件流（`simulation.ts:2238`）。不是罕见状态，是常态。
   //
   // 上一版还把「在祭坛边办「」」写成了 `assert.equal` 的期望值——那句话本身

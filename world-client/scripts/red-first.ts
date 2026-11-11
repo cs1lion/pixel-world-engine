@@ -49,7 +49,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { explainBaseFailure, parseArgs, planTestChanges, type ChangedFile } from './red-first-lib.ts';
+import { explainBaseFailure, parseArgs, planTestChanges, stripComments, type ChangedFile } from './red-first-lib.ts';
 
 interface RunResult {
   status: number;
@@ -94,6 +94,33 @@ function resolveBase(repo: string, explicit: string): { ref: string; source: str
   if (parent) return { ref: parent.trim(), source: 'HEAD~1' };
 
   throw new Error('找不到可用的 base：--base、origin/main、HEAD~1 都不可用');
+}
+
+/**
+ * 只改了注释 / 空白 / 行号的测试文件，按「没有实质改动」跳过。
+ *
+ * 起因：simulation.ts 每插一行，仓里十几个测试的**注释里**的行号引用就得跟着改
+ * （`audit-references` 盯着）。这些 diff 在 `red:first` 眼里是「测试变了」，
+ * 但拿到 base 上跑当然全绿——因为行为一个字没变，于是判 FAIL「不是先红后绿」。
+ * PR #39 就红在这上面。
+ *
+ * 判据是剥注释后的语义骨架逐字一致（`stripComments`）。有任一处真改动
+ * （断言、文案、导入、调用）都会留下来，不会被误判成「只是注释」。
+ * 只在 `M` 状态上查：`A`（新文件）base 上根本没有，必须跑；`D` 走原有分支。
+ */
+function commentOnlyChanges(repo: string, base: string, changes: ChangedFile[]): Set<string> {
+  const out = new Set<string>();
+  for (const change of changes) {
+    if (change.status !== 'M' || !change.path.endsWith('.ts')) continue;
+    try {
+      const before = git(['show', `${base}:${change.path}`], repo);
+      const after = git(['show', `HEAD:${change.path}`], repo);
+      if (stripComments(before) === stripComments(after)) out.add(change.path);
+    } catch {
+      // 读不出来（比如 base 上没有这个文件）就保守当「有改动」，照常跑。
+    }
+  }
+  return out;
 }
 
 function changedFiles(repo: string, base: string): ChangedFile[] {
@@ -185,7 +212,12 @@ function main(): void {
 
   const { ref: base, source } = resolveBase(repo, args.base || process.env.RED_FIRST_BASE || '');
   const changes = changedFiles(repo, base);
-  const plan = planTestChanges(changes);
+  const commentOnly = commentOnlyChanges(repo, base, changes);
+  for (const path of commentOnly) {
+    console.log(`red-first: skip ${path} — 只改了注释/空白/行号引用，行为无变化（base 上必绿，不是先红后绿）`);
+  }
+  const substantive = changes.filter((change) => !commentOnly.has(change.path));
+  const plan = planTestChanges(substantive);
 
   console.log(`red-first: base=${base} source=${source}`);
   if (plan.kind === 'skip') {

@@ -114,6 +114,9 @@ test('世界的网络入口是封闭的一份清单', () => {
   //   - work-note-client.ts：只要一句牌子文案（作业的措辞），不改世界。
   //     与 intent-client 同一条路但不同门：那一扇的返回会变成命令，
   //     这一扇只变成牌子上的一行字，失败退回原文案。
+  //   - villager-decision-client.ts：问一句「她这一趟去哪儿」。与 intent-client
+  //     同一条路但不同门：那一扇的返回会变成命令，这一扇只变成走哪条路的决定，
+  //     失败退回作息（世界照走，人物照活）。
   // 新增任何一扇门都必须先想清楚它是不是在重造已有的一扇。
   const ALLOWED = new Set([
     'world/events-client.ts',
@@ -121,6 +124,7 @@ test('世界的网络入口是封闭的一份清单', () => {
     'world/intent-client.ts',
     'world/memory-client.ts',
     'world/work-note-client.ts',
+    'world/villager-decision-client.ts',
   ]);
   const offenders: string[] = [];
   for (const file of files) {

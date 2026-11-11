@@ -359,3 +359,48 @@ test('真世界：产能被吃光时真的报缺货，库存仍不为负', () =>
     assert.ok(amount >= 0, `${siteId} 的库存变成负数了：${amount}`);
   }
 });
+
+// ---------------------------------------------------------------- 投入品影响产出
+
+test('纯函数：缺料的场所不产，没缺的照产', async () => {
+  const { canProduce } = await import('../src/world/site-output.ts');
+  const short = new Set(['wave_house#1']);
+  assert.equal(canProduce('wave_house#1', short), false, '缺了炭还在洗衣服');
+  assert.equal(canProduce('boiler_annex#1', short), true, '锅炉房自己不吃饭，不该跟着停');
+  assert.equal(canProduce('wave_house#1', new Set()), true, '料回来了就该恢复');
+});
+
+test('真世界：炭被吃光之后，叠浪楼真的洗不出衣裳（锅炉房照常出炭）', () => {
+  // 每天多要五份炭：锅炉房一天产 2–3 份，第二天起必然缺料。
+  const hungry = Array.from({ length: 5 }, () => ({ siteId: 'market', kind: 'coal' as const }));
+  const { sim, changes } = makeSim(true, true, hungry);
+  const fiveDays = 5 * 24 * 60 * MINUTE_MS;
+
+  for (let t = 0; t < fiveDays; t += 5000) sim.update(5000);
+
+  const events = changes.filter(
+    (change): change is Extract<WorldChange, { change: 'world.event' }> => change.change === 'world.event',
+  );
+  const firstShort = events.findIndex((event) => event.kind === 'supply_short');
+  assert.ok(firstShort >= 0, '产能被吃光了却一条缺货都没报');
+
+  const laundry = (list: typeof events) =>
+    list.filter((event) => event.kind === 'work_output' && event.placeId === 'wave_house#1');
+  // 缺料之前确实洗过：不然「之后没有」证明不了什么。
+  assert.ok(laundry(events.slice(0, firstShort)).length > 0, '缺料之前洗衣房一次都没产，这条用例没意义');
+  // 缺料之后一趟都没有：没有炭，衣裳洗不出来。
+  assert.equal(
+    laundry(events.slice(firstShort)).length,
+    0,
+    `缺料之后洗衣房还在产出 ${laundry(events.slice(firstShort)).length} 趟`,
+  );
+
+  // 对照：锅炉房不是需求方，缺料期间照样搬炭（它的产出事件还在）。
+  const coalAfter = changes.filter(
+    (change): change is Extract<WorldChange, { change: 'world.event' }> =>
+      change.change === 'world.event'
+      && change.kind === 'work_output'
+      && change.text.includes('得了一份炭'),
+  );
+  assert.ok(coalAfter.length >= 3, `锅炉房跟着停摆了：只剩 ${coalAfter.length} 条搬炭记录`);
+});

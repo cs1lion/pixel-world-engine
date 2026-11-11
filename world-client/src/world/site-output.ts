@@ -245,6 +245,20 @@ export function settleDemand(
   return { tally: next, served, short };
 }
 
+/**
+ * 这个场所今天还能不能产出。
+ *
+ * **投入品影响产出**：缺料的场所停一趟。上一轮需求没拿到的场所进
+ * `shortSites`，那一天它就不再产出——没有炭，衣裳洗不出来；这是链条里
+ * 「划账」变成「因果」的那一步。
+ *
+ * 集合每天重算（结算时整体替换），所以料回来了就恢复——这里不记「欠了几趟」，
+ * 那不是世界该背的账。
+ */
+export function canProduce(siteId: string, shortSites: ReadonlySet<string>): boolean {
+  return !shortSites.has(siteId);
+}
+
 /** 见底的场所（有产出声明但库存为 0）。日报用它说「炭见底」。 */
 export function emptySites(
   tally: SiteOutputTally,
