@@ -2,7 +2,12 @@
 
 > 一个可换设定集的像素世界引擎：世界自己跑，LLM 只能输出白名单内的结构化命令去改变它。
 
-![灯潮界：一句话建起一座候车亭，世界自己照常过日子](world-client/eval/live/05-dengchao-built.png)
+![一个玩家动作，走完一整轮世界：世界自己跑 → 玩家发起 → 世界按法则结算 → 反馈可复核且世界继续跑](docs/evidence/interaction-eval/README-story.png)
+
+图里四格是同一段真实浏览器演示的关键帧：点开炉匠的记忆面板，派活、给东西、问一句；
+回执分别是「给炉匠派了活。神谕已送达 炉匠铺。」「炉匠现在带着lamp。」
+「炉匠说：正赶着手上的活。」。完整动图（约 12 秒，无剪辑）见
+[`docs/evidence/interaction-eval/demo-interaction.mp4`](docs/evidence/interaction-eval/demo-interaction.mp4)。
 
 ## 这是什么
 
@@ -49,11 +54,48 @@
   圆角与柔和阴影做进 `world-client/index.html` 的 CSS；**只改视觉属性**，
   不重排 HUD、不新增按钮、不动 DOM 契约，画布包围盒与面板 rect 保持不变。
   并排对照见 `docs/evidence/art-ref-1111/ui-before-after.png`。
-- 素材清单（66 件，含每件的尺寸、sha256 与来源）：`world-client/public/assets/manifest.json`。
+- 素材清单（72 件，含每件的尺寸、sha256 与来源）：`world-client/public/assets/manifest.json`。
 - 生成脚本：`server/scripts/gen_asset.py`（单件）、`server/scripts/art_ref_1111.py`
   （立绘与切片）、`server/scripts/art_unify_1111.py`（旧素材统一）、
   `server/scripts/art_plates_1111.py`（画册贴片）。
 - 位图默认开，`?art=0` 一笔不装，回落到全程序化绘制——排障与像素基线比对都靠这条退路。
+
+## 交互
+
+**玩家下令，世界按自己的法则执行；世界可以拒绝，拒绝时说清原因；之后它仍按作息自己跑。**
+这是三条铁律的延伸，不是例外：`docs/SPEC.md` 的用户故事里就写着「居民按自己的作息活动，
+不是围着我转」和「世界拒绝我的时候会说清为什么」。
+
+点开一个村民的记忆面板，有三个动作：
+
+| 动作 | 排进世界的命令 | 世界怎么判 | 看得见的反馈 |
+| --- | --- | --- | --- |
+| 派活 · 写代码 | `assign`（点名 + 复用既有的派活路径） | 她手上有活、名字抵押或在呼吸段里就拒绝 | 回执 + 动作帧切到赶路 / 干活 |
+| 给一盏灯 | `setCarries`（给 / 收是同一个动作的来回） | 只改被点名那个人，不顺手递给旁边的人 | 回执 + `carries` 变化 |
+| 问一句 | `ask` | 世界按自己此刻的状态答，不调模型、不解析自由文本 | 回执 + 事件进日志 |
+
+三条设计约束：
+
+- **命令只排队，面板不直接改世界。** 所有动作走同一个入口，由下一个逻辑拍统一结算。
+- **不动白名单。** 这三个动作是玩家侧命令，不经 LLM，所以规则层的命令白名单、
+  提示词和 `docs/SPEC.md` 的命令表一条都没改——两份白名单不混用。
+- **确定性不破。** 动作帧只由快照与世界时间推导，不读墙钟、不用随机数；
+  世界冻住后帧号不再变，存档契约与 `schemaVersion` 都没动。
+
+## 交互评测（EDD）
+
+交互这块按 eval-driven development 做：**先写评测集、跑出可判红的基线，再一笔一个行为爬坡**，
+每笔改动用同一份评测集逐条比较，主集全绿之后才把评分器接进 CI 当阻断。
+
+- 数据集：`world-client/eval/interaction/main.json`（主集 10 条）与 `held-out.json`
+  （备用集 6 条，其中 2 条换世界时刻 / 相位 / 潮位档，防对固定开局过拟合）。
+- 评分器：`world-client/scripts/eval-interaction.mjs`。固定程序判别，不用 LLM 打分；
+  判的是「一轮往返之后世界留下了什么」——快照字段、事件、记忆、回执、存档字节、
+  DOM 可点性。有任意一条不过就 `exit 1`。
+- 爬坡：实验 0 是 4/16（12 条红在「功能还不存在」）→ 派活 7/10 → 给东西 8/10
+  → 问一句 10/10 → 素材收口 10/10；备用集 6/6。四条 keep-intact 用例全程没有变红。
+  逐条读数与实验序列：`docs/evidence/interaction-eval/BASELINE.md`。
+- 决策与取舍：`docs/adr/ADR_ACTIONS_INTERACTION_20261112.md`。
 
 ## 快速启动
 
@@ -96,9 +138,19 @@ node scripts/audit-claims.ts --strict
 cd ../server && python -m pytest
 ```
 
-另有浏览器验收 job（持久化、渲染预算、四刻可辨性、素材装载、建筑烘焙），只读、
-截图写到 runner 临时目录。多 worktree 并行时**必须给每棵树固定端口并显式设
+另有浏览器验收 job（持久化、渲染预算、四刻可辨性、素材装载、建筑烘焙、**村民交互评测主集**），
+只读、截图写到 runner 临时目录。多 worktree 并行时**必须给每棵树固定端口并显式设
 `PIXEL_WORLD_URL`**，否则会测到别人的世界；身份闸 `/__tree-id` 就是防这个的。
+
+交互评测单独跑（先 `npm run build` 并起 preview，端口指到本树）：
+
+```bash
+PIXEL_WORLD_URL=http://127.0.0.1:52xx/ node scripts/eval-interaction.mjs --split main
+PIXEL_WORLD_URL=http://127.0.0.1:52xx/ node scripts/eval-interaction.mjs --split heldout
+```
+
+主集接在 CI 里当阻断；备用集不进 CI，合并前或夜跑时手动跑——迭代过程中看它，
+就等于拿它调参，防过拟合就失效了。
 
 ## 工程纪律
 
