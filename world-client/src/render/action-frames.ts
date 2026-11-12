@@ -15,14 +15,14 @@
 import Phaser from 'phaser';
 import type { VillagerMode } from '../world/types.ts';
 
-export const ACTION_IDS = ['idle', 'walk', 'carry', 'work', 'rest', 'pour', 'cheer'] as const;
+export const ACTION_IDS = ['idle', 'walk', 'work', 'rest', 'pour', 'cheer'] as const;
 export type ActionId = (typeof ACTION_IDS)[number];
 
 /** 动作表网格：与 11-11 的 `villager-sprite-sheet.png` 同形，4 列 × 6 行。 */
 export const SHEET_COLS = 4;
 export const SHEET_ROWS = 6;
 
-/** 每行 → 动作 / 有效帧数 / 起始列。第 1 行由 walk 与 carry 共享。 */
+/** 每行 → 动作 / 有效帧数 / 起始列。走路独占一行四帧。 */
 export interface ActionRow {
   readonly action: ActionId;
   readonly row: number;
@@ -32,13 +32,37 @@ export interface ActionRow {
 
 export const ACTION_ROWS: readonly ActionRow[] = [
   { action: 'idle', row: 0, colOffset: 0, frames: 3 },
-  { action: 'walk', row: 1, colOffset: 0, frames: 2 },
-  { action: 'carry', row: 1, colOffset: 2, frames: 2 },
+  // 走路必须占满一行四帧：接触 / 下沉 / 经过 / 抬起。两帧正面步态读不出
+  // 抬脚，屏幕上就是平移——这是实测被指出的缺陷，别再退回两帧。
+  { action: 'walk', row: 1, colOffset: 0, frames: 4 },
   { action: 'work', row: 2, colOffset: 0, frames: 4 },
   { action: 'rest', row: 3, colOffset: 0, frames: 2 },
   { action: 'pour', row: 4, colOffset: 0, frames: 4 },
   { action: 'cheer', row: 5, colOffset: 0, frames: 4 },
 ];
+
+/**
+ * 每个动作的身体起伏（整数像素，负 = 抬高）。
+ *
+ * 与帧号绑定而不是与连续时间绑定：步态的「抬脚」正好落在经过帧上，
+ * 身体在那一帧抬高 1px，读成一步一顿。时间驱动的起伏会和位图帧错位，
+ * 看的人只见到整块抖动。
+ */
+const ACTION_BOB: Readonly<Record<ActionId, readonly number[]>> = {
+  idle: [0, -1, 0],
+  walk: [0, -1, 0, -1],
+  work: [0, 0, -1, 0],
+  rest: [0, 0],
+  pour: [0, 0, -1, 0],
+  cheer: [0, -1, -1, 0],
+};
+
+/** 该动作某一帧的身体起伏（px，负值向上）。 */
+export function actionBob(action: ActionId, frame: number): number {
+  const curve = ACTION_BOB[action];
+  const i = ((Math.trunc(frame) % curve.length) + curve.length) % curve.length;
+  return curve[i]!;
+}
 
 const ROW_OF: Readonly<Record<ActionId, ActionRow>> = Object.fromEntries(
   ACTION_ROWS.map((entry) => [entry.action, entry]),
@@ -81,7 +105,8 @@ export function actionOf(snapshot: {
   readonly carrying: string | null;
 }): ActionId {
   const carrying = snapshot.carrying !== null;
-  if (snapshot.walking) return carrying ? 'carry' : 'walk';
+  // 走路只有一套帧：拿着东西也在走，步态本来就该照常摆动。
+  if (snapshot.walking) return 'walk';
   if (snapshot.mode === 'working') return 'work';
   if (snapshot.mode === 'saluting') return 'idle'; // 行礼是姿态叠加，不另占一行
   if (snapshot.mode === 'sheltering') return 'rest';
