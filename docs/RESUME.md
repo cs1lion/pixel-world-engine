@@ -2,12 +2,18 @@
 
 ## 当前断点
 
-- 最后 HEAD: b39da56 (docs/readme-story)；本文件是记录之后多出来的一笔，用 `git log --oneline b39da56..HEAD` 看
+- 最后 HEAD: 54e625c (fix/walk-anim)；本文件是记录之后多出来的一笔，用 `git log --oneline 54e625c..HEAD` 看
 - 未提交改动: 无
-- 已跑闸门: check ✅ 0/0 / test ✅ (2721 tests, 2712 pass, 0 fail, 9 skip) / build ✅ / palette ✅ / references ✅ (559 处 0 存疑) / citations ✅ / sections ✅ / claims ✅ (markers 3, adr-schema 24 valid) / pytest ✅ / audit:ports ✅ (191 文件 / 0 禁用端口) / audit:baseline ✅ (166/166)；浏览器：EDD 主集 ✅ 10/10、备用集 ✅ 6/6、check-art-assets ✅ (72 件全装、art=0 零请求) / smoke ✅ 132 项 / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张
-- 未跑/失败: `check-interact` 32/33（只剩既有 L3-6）、`check-ground-shadow` 红 4 条既有 G2/G3，两者都在未改一行的 `origin/main` 对照树复现过。`red:first` 对本笔按「无 test 改动」SKIP。备用集 H1..H4 判据后补的纪律妥协仍如实记在 `docs/evidence/interaction-eval/BASELINE.md`。
-- 下一步命令: `git push -u origin docs/readme-story && gh pr create --base main --head docs/readme-story --fill`
+- 已跑闸门: check ✅ 0/0 / test ✅ (2723 tests, 2714 pass, 0 fail, 9 skip) / build ✅ / red:first ✅ (base 上红在断言) / palette ✅ / references ✅ (559 处 0 存疑) / citations ✅ / sections ✅ / claims ✅ / pytest ✅ / audit:ports ✅ (192 文件) / audit:baseline ✅ (166/166)；浏览器：EDD 主集 ✅ 10/10、备用集 ✅ 6/6、check-art-assets ✅、smoke ✅ 132 项 / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张
+- 未跑/失败: `check-interact` 32/33（只剩既有 L3-6）、`check-ground-shadow` 红 4 条既有 G2/G3，两者均在未改一行的 `origin/main` 对照树复现过。备用集 H1..H4 判据后补的妥协仍记在 `docs/evidence/interaction-eval/BASELINE.md`。
+- 下一步命令: `git push -u origin fix/walk-anim && gh pr create --base main --head fix/walk-anim --fill`
 
+第六轮：修「走路只是平移」。根因是素材——初版动作表走路只有两帧、正面、
+腿几乎不动；改成走路独占四帧（接触/下沉/经过/抬起），四帧条单独生成再合成
+（`server/scripts/art_walk_strip_1111.py`），身体起伏改为跟帧号走（`actionBob`）。
+客观判据是「腿区变化 / 头区变化」七件实测全部 ≥1.2，写进清单并由测试守门。
+证据：`walk-cycle-contact.png`、`walk-cycle-v3.gif`、`walk-in-game.png`。
+已知取舍：走路条比其它行更侧约 20°，正面待机切走路有一点转向感。
 五轮做完的：以 2026-11-11 十张参考图为锚点补齐七张村民立绘、29 件切片；
 第二轮统一 17 件旧建筑/布景；第三轮构图贴片 + 祭坛/表情接线 + 店面换色；
 第四轮主界面玻璃拟态视觉层 + 改前改后录屏（PR #40 / #41 / #42 均已合并）；
