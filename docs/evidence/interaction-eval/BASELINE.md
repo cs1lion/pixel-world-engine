@@ -111,3 +111,24 @@ L3-4 原样保留，「动作按钮不许漏进 unit-status」由本数据集的
 加进 `.github/workflows/ci.yml` 的 browser job，作为真阻断（有 fail 即
 `exit 1`，不用 `continue-on-error`）。备用集与环境变体维持合并前 / 夜跑，
 迭代过程中不看。
+
+## 合并前的验收复跑（README 叙事图与录屏这一笔）
+
+- `--split main --run final-main`：10/10。
+- `--split heldout --run final-heldout`：6/6。
+- 同一版本上 `npm test` 2721 / 2712 pass、`check-art-assets` 72 件全装且
+  `?art=0` 零请求、`smoke.mjs` 132 项、`test:phases` 40 项、
+  `test:persistence` 8 项、`test:render-budget` 硬闸 3 项、
+  `test:building-bake` 72 张、四道文档审计 + 色板审计全绿；
+  `check-interact` 32/33（只剩既有 L3-6）。
+
+## README 的两个附件
+
+- `README-story.png`：四格真实关键帧 + 因果箭头，每格带一条可复核的硬读数。
+  只用能讲清「世界自己跑 → 玩家发起 → 世界结算 → 反馈可复核」这条链的图；
+  纯好看的截图不放。
+- `demo-interaction.mp4`：约 12 秒、无剪辑的同一段演示，三个动作都是真实鼠标点击。
+
+录屏时修了一处叙事缺陷：“问一句”的回执原本会把内部 mode 直接念出来
+（“炉匠说：正toWork。”），改成说人话（“炉匠说：正赶着手上的活。”）。
+这是**展示层的措辞**，不动世界状态，主集 M6 判据不变且仍为绿。

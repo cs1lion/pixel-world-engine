@@ -2618,7 +2618,7 @@ export class Simulation {
     if (villager === undefined) {
       return { ok: false, message: `镇上没有 ${villagerId} 这个人。` };
     }
-    const what = villager.routineLabel ?? (villager.mode === 'idle' ? '这会儿歇着' : `正${villager.mode}`);
+    const what = villager.routineLabel ?? (villager.mode === 'idle' ? '这会儿歇着' : '正赶着手上的活'); // 回执说人话，不念内部 mode；作息标签由设定集给，没标签时不编地点进度
     const line = `${villager.name}说：${what}。`;
     this.log('info', `有人问「${text}」；${line}`);
     return { ok: true, message: line };
