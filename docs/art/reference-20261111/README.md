@@ -12,7 +12,7 @@
 | 文件 | 内容 | 本轮怎么用 |
 |---|---|---|
 | `pixel-world-map-16x9.jpg` | 五区世界地图：中央神谕祭坛、右蒸汽工坊、左书院天文台、下农田、上村庄 | 生图锚点 + 四张画册贴片 |
-| `pixel-world-engine-desktop-ui-mockup.jpg` | 桌面 UI 设计稿：玻璃 HUD、报纸弹窗、VERIFIED 差分抽屉 | 两张画册贴片；**未落地为界面** |
+| `pixel-world-engine-desktop-ui-mockup.jpg` | 桌面 UI 设计稿：玻璃 HUD、报纸弹窗、VERIFIED 差分抽屉 | 两张画册贴片 + 第四轮的主界面视觉层（玻璃 / 胶囊 / 状态点）；信息架构未重做 |
 | `pixel-village-asset-sheet.jpg` | 2×2 村庄素材：议事厅与篝火、酒馆、两栋小屋、农田 | 四张画册贴片 + 建筑重画锚点 |
 | `pixel-tileset-props-sheet.jpg` | 16×16 tileset：六种地形自动瓦片、施工四阶段、微道具 | 一张画册贴片 + 笔触锚点 |
 | `pixel-ui-emote-vfx-sprite-sheet.jpg` | 3×4 表情与 VFX：感叹号、问号、汗滴、放大镜、思考、气泡、闪电、烟、黑云、色块、水花、金币 | **切图**：`emote/*` |
