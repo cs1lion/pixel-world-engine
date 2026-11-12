@@ -1,6 +1,188 @@
 {
   "artScale": 2,
   "assets": {
+    "action/v0": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a young traveller girl with a brown ponytail, vermilion work tunic with a pale front panel, dark blue shorts, carrying a wooden water bucket. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_aGQwg8z3s4YWdaRwtvnLtitBIOVCP2QX/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v0.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "7de6144b73aab59541ac6f8a554c1740a2f5615d283865174b92896729ebd183",
+      "bytes": 323940
+    },
+    "action/v1": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a pale-robed boy with short dark hair, white and light-cyan robe with a blue sash, barefoot, holding a small paper lantern. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Z3uzL5FYHDCzN71PXFiOZqewGD2M5drw/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v1.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "a0e45c173eeff2b08a918583339285592f4e3ed01345cbdfb996c449e03bf7f8",
+      "bytes": 344437
+    },
+    "action/v2": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a tall narrow figure in a black hooded robe with a white featureless mask and dark purple eye slits, carrying a tall lamp pole. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_FkNtZ0TkxDxCqGSH0sbuqVJOHDr3h4uM/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v2.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "dbbf670311ecb37234b04dca7505578957c7c3ba13f860614a722a79278992a3",
+      "bytes": 298444
+    },
+    "action/v3": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a short stout elderly boiler keeper, bald with a white beard and round spectacles, dusty purple-grey work robe, holding a coal shovel. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Z55gr4FK46BMrqtBKryNlr4LuAWWli5a/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v3.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "34588415d92fc818200367888c5013f765f674f79b94f7886182c0627f341431",
+      "bytes": 392827
+    },
+    "action/v4": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a short wide matron with a tall white bun and a large nose, deep blue layered cloak with a gold sash, holding a folded fan. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Iz4E3pxWfcvCzUbGaJW4kH77riKX4sSK/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v4.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "b42f23812d3cf00dca7acee22f1f72f6631b53471f0ebfdebac00f56dc5639e6",
+      "bytes": 374690
+    },
+    "action/v5": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a neat bookkeeper with short dark hair, dark charcoal long coat with copper trim, a leather satchel and an abacus. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_pYbfm9ulxKT66q7rxjX7314RTpYNEQ3X/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v5.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 1,
+      "width": 384,
+      "height": 720,
+      "sha256": "96547775c41c2dfafd2cebff75517616a908254bd24b4eaf0cd0459ee0e46d9f",
+      "bytes": 331311
+    },
+    "action/v6": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a washerwoman with a dark brown ponytail, copper-brown dress with a pale apron, carrying a folded bundle of clean cloth. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_ih6b814b88cr5q8g8Gj9e8DAvgLdzpJ1/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v6.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "5cb418a18197ac848965a70810d457a0ff8ba759c9ac5acad990cc521d54ac5d",
+      "bytes": 350579
+    },
     "building/boiler_annex": {
       "prompt": "A SINGLE dark sooty boiler annex, low flat roof, one iron chimney, charcoal-dark wooden wall, one small glowing furnace window. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
       "model": "agnes-image-2.5-flash",
@@ -420,25 +602,6 @@
       "height": 96,
       "sha256": "a75efd14eea5a0050cec23907330c4a287cc78ffd3a64b3c1795b8043667287b",
       "bytes": 8188
-    },
-    "emote/emote-09": {
-      "source": "2026-11-11-reference-set",
-      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
-      "cell": {
-        "col": 0,
-        "row": 3,
-        "cols": 3,
-        "rows": 4,
-        "inset": 0.1,
-        "rowLimit": 4
-      },
-      "keyTolerance": 26,
-      "canvas": 96,
-      "origin": "deterministic slice; no model call",
-      "width": 96,
-      "height": 96,
-      "sha256": "07c713e87c232c32c2c43ad9ee354d7d25c73ecd63b4a305af7f54e05a0f9cc2",
-      "bytes": 6306
     },
     "emote/emote-10": {
       "source": "2026-11-11-reference-set",

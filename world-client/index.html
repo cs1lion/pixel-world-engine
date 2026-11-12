@@ -869,6 +869,27 @@
         font-size: 10px;
       }
       #villager-panel-body .villager-empty { color: var(--dim); margin: 10px 2px; }
+      /* 玩家对这个人发起的动作。独立容器：既不算进 body.children，
+         也不进 #unit-status 的 nodeCount 固定开销。 */
+      #villager-panel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line-faint);
+      }
+      #villager-panel-actions .villager-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      #villager-panel-actions .art-action-icon {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+        image-rendering: pixelated;
+      }
 
       /* 碑：点镇心旁边那块石头，看镇上认下了哪些事。
          与村民面板同一套硬投影语言，但落在**左下**——村民面板占了右侧，
@@ -1242,6 +1263,7 @@
         <button type="button" id="villager-panel-close">关闭</button>
       </div>
       <div id="villager-panel-body"></div>
+      <div id="villager-panel-actions" role="group" aria-label="对她做点什么"></div>
     </aside>
 
     <!-- 碑：点镇心旁边那块石头，看镇上认下了哪些事。

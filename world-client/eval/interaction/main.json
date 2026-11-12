@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "split": "main",
+  "spec": {
+    "behavior": "玩家点开村民记忆面板后，发起一个明确动作，世界按自己的法则结算并给出可见反馈",
+    "when": "玩家右键或长按某个村民，记忆面板打开，玩家点了其中一个动作按钮",
+    "do": [
+      "动作排进世界命令队列，由下一个逻辑拍统一结算",
+      "村民状态变化驱动语义动作帧切换",
+      "小素材与回执把结果摆到屏上",
+      "事件进日志、记忆落账，之后编年史与日历可读"
+    ],
+    "dont": [
+      "不直接改世界状态，不暂停时间",
+      "不让村民围着玩家转，不接管作息",
+      "不静默失败；拒绝要说清原因",
+      "不把动作按钮放进 unit-status，不改变它的 DOM 节点固定开销"
+    ],
+    "keepIntact": [
+      "世界自己跑（作息 / 潮汐 / 天气）",
+      "?art=0 时零素材请求",
+      "存档契约与 schemaVersion",
+      "冻结世界后画面逐字节稳定",
+      "既有 33 项只读交互断言"
+    ]
+  },
+  "examples": [
+    {
+      "id": "M1",
+      "name": "动作容器存在且落在记忆面板",
+      "check": "actionContainer",
+      "expect": { "selector": "#villager-panel-actions", "forbiddenIn": "#unit-status" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "M2",
+      "name": "三个可点动作：派活 / 给东西 / 问一句",
+      "check": "actionButtons",
+      "expect": { "count": 3, "actions": ["dispatch", "carry", "ask"] },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "M3",
+      "name": "每个动作按钮配一张清单内的语义图标",
+      "check": "actionIcons",
+      "expect": { "count": 3, "kind": "icon" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "M4",
+      "name": "派活往返：入队 → 下一逻辑拍结算 → 状态与回执",
+      "check": "dispatchRoundTrip",
+      "expect": { "action": "dispatch", "taskKind": "code" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "M5",
+      "name": "给东西往返：carries 变化 + 回执",
+      "check": "carryRoundTrip",
+      "expect": { "action": "carry", "field": "carries" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "M6",
+      "name": "问一句往返：世界自己给一句可核查的话并落账",
+      "check": "askRoundTrip",
+      "expect": { "action": "ask" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "K1",
+      "name": "keep-intact：面板打开时世界仍在推进",
+      "check": "worldStillRuns",
+      "expect": { "minAdvanceMs": 1 },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "K2",
+      "name": "keep-intact：?art=0 零素材请求",
+      "check": "artOffZeroRequests",
+      "expect": { "assetRequests": 0 },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "art": 0 }
+    },
+    {
+      "id": "K3",
+      "name": "keep-intact：动作表没让冻结画面的逐帧变化显著变大",
+      "check": "frozenNoRegression",
+      "expect": { "maxChangedRatio": 0.01, "maxRelativeIncrease": 0.5, "slackPixels": 400 },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "K4",
+      "name": "keep-intact：存档 schemaVersion 不因交互改变",
+      "check": "saveSchemaIntact",
+      "expect": { "field": "schemaVersion" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    }
+  ]
+}
