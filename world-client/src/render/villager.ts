@@ -16,6 +16,7 @@
 
 import { artKey, artScaleOf, hasArt } from './art-assets.ts';
 import {
+  actionBob,
   actionFrameAt,
   actionFrameName,
   actionOf,
@@ -239,14 +240,19 @@ export function updateVillager(
     // 位图立绘：朝左右用水平翻转，起伏沿用程序化小人的整数像素偏移（走路 / 呼吸）。
     // 立绘自带灯与衣色，不再叠 drawLamp / 伞 / 手持物。
     const spritePose = villagerPose(villager.mode, villager.walking, animTime);
+    let lift = spritePose.offsetY;
     if (view.actionSheet) {
       // 动作只由快照（mode / walking / carrying）与世界时间推导；冻结世界时
       // nowMs 不推进，帧号就不变，shotStable 的连 8 帧逐字节相同才成立。
       const action = actionOf(villager);
-      view.sprite.setFrame(actionFrameName(action, actionFrameAt(action, animTime)));
+      const frame = actionFrameAt(action, animTime);
+      view.sprite.setFrame(actionFrameName(action, frame));
+      // 起伏跟着帧号走：抬脚那一帧身体抬高 1px，读成一步一顿。
+      // 沿用时间驱动的 offsetY 会和位图帧错位，看起来只是整块在抖。
+      lift = actionBob(action, frame);
     }
     view.sprite.setFlipX(villager.facing === 'left');
-    view.sprite.setY(2 + spritePose.offsetY);
+    view.sprite.setY(2 + lift);
     view.sprite.setAlpha(lampBodyAlpha(oil));
     view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
     return;

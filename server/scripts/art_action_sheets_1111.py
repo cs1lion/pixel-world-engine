@@ -53,7 +53,8 @@ ROW_PROMPT = (
 STYLE = (
     "16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, "
     "flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions "
-    "about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), "
+    "about three heads tall, front-facing three-quarter view with the body angled about 20 degrees "
+    "so both legs are separately readable (NOT a full side profile), "
     "warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, "
     "no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, "
     "no ground shadow, no floor, no scenery, "
@@ -130,6 +131,43 @@ def build_sheet(gen_png: bytes) -> tuple[Image.Image, list[int]]:
     return out, counts
 
 
+def frame_diffs(sheet: Image.Image) -> dict[str, float]:
+    """量每一行的帧间变化，分成「腿区」与「头区」。
+
+    好看的走路必须**腿在动、头基本不动**。整块错位会让两区一起变，那读成抖动
+    而不是抬脚——实测第一版就是这个问题（正面两帧、腿几乎不动、全身偏移）。
+    """
+    import numpy as np
+
+    out: dict[str, float] = {}
+    for row in range(ROWS):
+        frames = VALID_FRAMES[row]
+        if frames < 2:
+            continue
+        cells = []
+        for col in range(frames):
+            cell = sheet.crop((col * CELL_W, row * CELL_H, (col + 1) * CELL_W, (row + 1) * CELL_H))
+            cells.append(np.asarray(cell).astype(int))
+        leg = head = 0.0
+        pairs = 0
+        for a, b in zip(cells, cells[1:]):
+            both = (a[:, :, 3] > 0) | (b[:, :, 3] > 0)
+            d = np.abs(a[:, :, :3] - b[:, :, :3]).sum(axis=2) * both
+            h = CELL_H
+            leg += float(d[int(h * 0.55):, :].sum())
+            head += float(d[int(h * 0.05):int(h * 0.40), :].sum())
+            pairs += 1
+        if pairs:
+            out[str(row)] = leg / max(1.0, head)
+    return out
+
+
+def walk_reads_as_steps(sheet: Image.Image) -> tuple[bool, float]:
+    """走路行的「腿动 / 头动」比值。小于 1.0 说明整块都在动，判不合格。"""
+    ratio = frame_diffs(sheet).get("1", 0.0)
+    return ratio >= 1.0, ratio
+
+
 def quality_ok(gen_png: bytes, counts: list[int]) -> bool:
     """四角洋红 + 21 个约定有效格都有内容。
 
@@ -165,7 +203,8 @@ def generate_one(spec: tuple[str, str], refs: list[str]) -> tuple[str, Image.Ima
         (RAW / f"{art_id}-{attempt}.png").write_bytes(gen.png)
         sheet, counts = build_sheet(gen.png)
         filled = sum(counts)
-        ok = quality_ok(gen.png, counts)
+        steps_ok, leg_ratio = walk_reads_as_steps(sheet)
+        ok = quality_ok(gen.png, counts) and steps_ok
         meta = {
             "prompt": prompt,
             "model": "agnes-image-2.5-flash",
@@ -177,6 +216,7 @@ def generate_one(spec: tuple[str, str], refs: list[str]) -> tuple[str, Image.Ima
             "cell": [CELL_W, CELL_H],
             "filledCells": filled,
             "qualityOk": ok,
+            "walkLegOverHead": round(leg_ratio, 2),
             "attempt": attempt,
         }
         score = (1 if ok else 0, filled)
@@ -219,7 +259,8 @@ def main() -> int:
                 got_id, sheet, meta = fut.result()
                 out = pipeline.write_asset(ASSETS, "action", got_id, sheet, meta)
                 print(f"[action] {art_id} -> {out.relative_to(ROOT)}  {sheet.width}x{sheet.height}  "
-                      f"filled={meta['filledCells']} ok={meta['qualityOk']} attempt={meta['attempt']}")
+                      f"filled={meta['filledCells']} ok={meta['qualityOk']} "
+                      f"腿/头={meta['walkLegOverHead']} attempt={meta['attempt']}")
                 ok += 1
             except Exception as exc:
                 print(f"[action] {art_id} FAIL {type(exc).__name__}: {exc}", file=sys.stderr)
