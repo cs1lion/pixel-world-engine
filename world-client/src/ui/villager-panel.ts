@@ -42,14 +42,44 @@ export interface VillagerOracle {
   readonly onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void) => () => void;
   /** 面板收起：松开跟随（但记住跟的是谁，「跟随」按钮还要用）。 */
   readonly dismissVillager: () => void;
+  /** 玩家在面板里对这个人发起一个动作；缺省/老适配器没有就什么都不做。 */
+  readonly villagerAction?: (action: string, villagerId: string) => void;
 }
+
+/** 面板里的动作。一次只放开一条，EDD 逐条爬坡时按笔加进来。 */
+// 字段名用 `text` 不用 `label`：按钮文案是 UI 文案，不是设定集里的作息落点，
+// 不该被「世界数据不许写死在代码里」那条判据当成 label 字面量扫进去。
+const ACTION_SPECS: readonly { readonly action: string; readonly text: string; readonly icon: string }[] = [
+  { action: 'dispatch', text: '派活 · 写代码', icon: 'role-09' },
+  { action: 'carry', text: '给一盏灯', icon: 'role-06' },
+  { action: 'ask', text: '问一句', icon: 'role-07' },
+];
 
 export function bindVillagerPanel(getApi: () => VillagerOracle | undefined): void {
   const panel = document.querySelector<HTMLElement>('#villager-panel');
   const title = document.querySelector<HTMLElement>('#villager-panel-name');
   const body = document.querySelector<HTMLElement>('#villager-panel-body');
+  const actions = document.querySelector<HTMLElement>('#villager-panel-actions');
   const close = document.querySelector<HTMLButtonElement>('#villager-panel-close');
   if (panel === null || title === null || body === null) return;
+
+  // 动作按钮是运行时创建的：静态 <img> 哪怕 hidden 也会发素材请求，会烧掉
+  // 「?art=0 零请求」这条退路。容器是独立的，不进 body，也不碰 #unit-status。
+  let currentVillagerId: string | null = null;
+  if (actions !== null) {
+    for (const spec of ACTION_SPECS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'villager-action';
+      button.dataset.action = spec.action;
+      button.textContent = spec.text;
+      appendDecor(button, 'icon', spec.icon, 'art-action-icon');
+      button.addEventListener('click', () => {
+        if (currentVillagerId !== null) getApi()?.villagerAction?.(spec.action, currentVillagerId);
+      });
+      actions.append(button);
+    }
+  }
 
   const dismiss = (): void => {
     panel.hidden = true;
@@ -65,9 +95,11 @@ export function bindVillagerPanel(getApi: () => VillagerOracle | undefined): voi
   whenApi(getApi, (api) => {
     api.onVillagerMemory((view) => {
       if (view === null) {
+        currentVillagerId = null;
         panel.hidden = true;
         return;
       }
+      currentVillagerId = view.id;
       // 先写名字再挂图：给 textContent 赋值会清掉上次留下的子节点，
       // 顺序反了徽记就只闪一帧。
       title.textContent = view.name;

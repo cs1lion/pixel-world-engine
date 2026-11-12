@@ -247,6 +247,17 @@ export type WorldCommand =
       readonly askedAtSeq: number;
     }
   | { readonly kind: 'dispatch'; readonly taskKind: TaskKind; readonly summary: string }
+  /**
+   * 玩家从村民面板点名派活。与 `dispatch` 的差别：那边由世界自己挑空闲的人，
+   * 这边指定了对象，所以「她现在接不了」必须说清原因，不能顺手改派给别人。
+   * 走同一个 `startDispatch`，不另造任务系统。
+   */
+  | { readonly kind: 'assign'; readonly villagerId: string; readonly taskKind: TaskKind; readonly summary: string }
+  /**
+   * 玩家问某个村民一句。世界按自己此刻的状态答，不调模型、不解析自由文本；
+   * `text` 只是把玩家这一问记进日志，让回执有据可查。
+   */
+  | { readonly kind: 'ask'; readonly villagerId: string; readonly text: string }
   | { readonly kind: 'complete'; readonly target?: string }
   | { readonly kind: 'cancelPending'; readonly id?: string }
   | { readonly kind: 'setWeather'; readonly weather: Weather }
@@ -1596,6 +1607,10 @@ export class Simulation {
         return this.applyIntent(command.intent, command.raw);
       case 'dispatch':
         return this.dispatch(command.taskKind, command.summary);
+      case 'assign':
+        return this.assignTo(command.villagerId, command.taskKind, command.summary);
+      case 'ask':
+        return this.askTo(command.villagerId, command.text);
       case 'complete':
         return this.completeManually(command.target);
       case 'cancelPending':
@@ -2595,6 +2610,37 @@ export class Simulation {
     if (free === null) return this.enqueuePendingDispatch(taskKind, summary);
     this.ensureAwake(free);
     return this.startDispatch(free, taskKind, summary);
+  }
+
+  /** 玩家问一句：答的是世界自己的事实，不是模型编的话。 */
+  private askTo(villagerId: string, text: string): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) {
+      return { ok: false, message: `镇上没有 ${villagerId} 这个人。` };
+    }
+    const what = villager.routineLabel ?? (villager.mode === 'idle' ? '这会儿歇着' : `正${villager.mode}`);
+    const line = `${villager.name}说：${what}。`;
+    this.log('info', `有人问「${text}」；${line}`);
+    return { ok: true, message: line };
+  }
+
+  /** 玩家点名派活：世界按自己的法则判断这个人接不接得了，不无条件照办。 */
+  private assignTo(villagerId: string, taskKind: TaskKind, summary: string): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) {
+      return { ok: false, message: `镇上没有 ${villagerId} 这个人。` };
+    }
+    if (!this.canTakeWork(villager)) {
+      return {
+        ok: false,
+        message: `${villager.name} 这会儿接不了活：手上有活、名字抵押了，或正在呼吸段里。`,
+      };
+    }
+    this.ensureAwake(villager);
+    const result = this.startDispatch(villager, taskKind, summary);
+    return result.ok
+      ? { ok: true, message: `给${villager.name}派了活。${result.message}` }
+      : result;
   }
 
   /** 真正派活给某个角色。调用方保证这个角色空闲。 */

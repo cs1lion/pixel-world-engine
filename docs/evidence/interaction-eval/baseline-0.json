@@ -1,0 +1,239 @@
+{
+  "run": "baseline-0",
+  "split": "all",
+  "base": "http://127.0.0.1:5241/",
+  "at": "2026-11-12T11:26:26.283Z",
+  "summary": {
+    "total": 16,
+    "passed": 4,
+    "failed": 12
+  },
+  "results": [
+    {
+      "split": "main",
+      "id": "M1",
+      "name": "动作容器存在且落在记忆面板",
+      "pass": false,
+      "firstLine": "#villager-panel-actions 应存在且只有一份",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M2",
+      "name": "三个可点动作：派活 / 给东西 / 问一句",
+      "pass": false,
+      "firstLine": "应有 3 个动作按钮",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M3",
+      "name": "每个动作按钮配一张清单内的语义图标",
+      "pass": false,
+      "firstLine": "每个动作按钮要有一张图标",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M4",
+      "name": "派活往返：入队 → 下一逻辑拍结算 → 状态与回执",
+      "pass": false,
+      "firstLine": "派活按钮不存在，往返无从发起",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M5",
+      "name": "给东西往返：carrying 变化 + 回执",
+      "pass": false,
+      "firstLine": "给东西按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M6",
+      "name": "问一句往返：世界自己给一句可核查的话并落账",
+      "pass": false,
+      "firstLine": "问一句按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "K1",
+      "name": "keep-intact：面板打开时世界仍在推进",
+      "pass": true,
+      "firstLine": "now 32460000 → 32478000",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "K2",
+      "name": "keep-intact：?art=0 零素材请求",
+      "pass": true,
+      "firstLine": "素材请求 0 个（已排除构建产物）",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "art": 0
+      }
+    },
+    {
+      "split": "main",
+      "id": "K3",
+      "name": "keep-intact：动作表没让冻结画面的逐帧变化显著变大",
+      "pass": true,
+      "firstLine": "冻结后变化 art=1 890 px / art=0 1050 px（未显著变大）",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "K4",
+      "name": "keep-intact：存档 schemaVersion 不因交互改变",
+      "pass": true,
+      "firstLine": "schemaVersion 8 → 8（读自真实存档）",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H1",
+      "name": "村民正忙时派活：排队或拒绝，且说清原因",
+      "pass": false,
+      "firstLine": "派活按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H2",
+      "name": "点名不在场的人：拒绝，不顺手改递给旁边那位",
+      "pass": false,
+      "firstLine": "给东西按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H3",
+      "name": "连点两次同一动作：不产生两条事件，不重复落账",
+      "pass": false,
+      "firstLine": "派活按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H4",
+      "name": "拒收路径：回执不是空串，且留在输入框的原文不丢",
+      "pass": false,
+      "firstLine": "问一句按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "V1",
+      "name": "环境变体：派活往返换一个世界时刻再跑",
+      "pass": false,
+      "firstLine": "派活按钮不存在，往返无从发起",
+      "env": {
+        "world": "dengchao",
+        "now": 780,
+        "phase": "dusk",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "V2",
+      "name": "环境变体：派活往返换一个潮位档再跑",
+      "pass": false,
+      "firstLine": "派活按钮不存在，往返无从发起",
+      "env": {
+        "world": "dengchao",
+        "now": 330,
+        "phase": "dawn",
+        "feed": "off",
+        "debug": 1,
+        "tide": 0.2
+      }
+    }
+  ]
+}

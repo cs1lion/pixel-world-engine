@@ -4825,6 +4825,20 @@ export class SandboxScene extends Phaser.Scene {
         this.closeVillagerPanel();
         this.cameraCtl.releaseFollow();
       },
+      /** 面板里的动作一律排队，由下一个逻辑拍结算：面板不直接改世界。 */
+      villagerAction: (action: string, villagerId: string): void => {
+        if (action === 'dispatch') {
+          this.sim.enqueue({ kind: 'assign', villagerId, taskKind: 'code', summary: '整理便笺' });
+        } else if (action === 'carry') {
+          // 给 / 收是同一个动作的来回：已有灯就收走，没有就给她一盏。
+          // 不无条件 set 成同一个值，否则第二次点就「什么都没发生」。
+          const held = this.snapshot.villagers.find((item) => item.id === villagerId)?.carries ?? [];
+          const next: readonly ('lamp' | 'shoes')[] = held.includes('lamp') ? [] : ['lamp'];
+          this.sim.enqueue({ kind: 'setCarries', villagerId, carries: next });
+        } else if (action === 'ask') {
+          this.sim.enqueue({ kind: 'ask', villagerId, text: '最近怎么样' });
+        }
+      },
       openStele: (): void => this.openStele(),
       onStele: (listener: (view: SteleView | null) => void): (() => void) => {
         if (this.lastSteleView !== null) listener(this.lastSteleView);

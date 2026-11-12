@@ -17,7 +17,7 @@ import Phaser from 'phaser';
  * 这三类只给 DOM 面板当徽记用，不进 Phaser 纹理查询——但一样走 `preloadArt`，
  * 所以 `?art=0` 时它们也一张都不装。
  */
-export type ArtKind = 'building' | 'villager' | 'scenery' | 'state' | 'icon' | 'emote' | 'plate';
+export type ArtKind = 'building' | 'villager' | 'scenery' | 'state' | 'icon' | 'emote' | 'plate' | 'action';
 
 interface ArtManifest {
   readonly artScale: number;
