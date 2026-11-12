@@ -2,30 +2,31 @@
 
 ## 当前断点
 
-- 最后 HEAD: a2eed15 (feat/ui-glass-1111)；本文件是记录之后多出来的一笔，用 `git log --oneline a2eed15..HEAD` 看
+- 最后 HEAD: 592cb98 (feat/actions-interaction)；本文件是记录之后多出来的一笔，用 `git log --oneline 592cb98..HEAD` 看
 - 未提交改动: 无
-- 已跑闸门: check ✅ / test ✅ (2713 tests, 2704 pass, 0 fail, 9 skip) / build ✅ / palette ✅ (新 CSS 没引入新色值) / references ✅ / citations ✅ / sections ✅ / claims ✅ (markers 仍是 3) / pytest ✅ / audit:ports ✅ (189 文件 / 0 禁用端口) / audit:baseline ✅ (166/166)；浏览器：check-art-assets ✅ / smoke ✅ 132 项 / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张；改前 / 改后各录一段屏
-- 未跑/失败: 三处点击类既有红都在未改一行的 `origin/main` 对照树（5242 / 5244）复现：`check-interact` L3-6（L2-1 / L3-5 在两棵树、多次运行间组合漂移，是抖动）、`check-buttons` 的 `#clock-align-check` 两处、`check-ground-shadow` 的 G2/G3。`check-buttons` 需要 dev server + 后端，preview 直接跑会 502（exit=2），是环境前置条件。`red:first` 因本笔无 `world-client/test/` diff 按设计 SKIP。
-- 下一步命令: `git push -u origin feat/ui-glass-1111 && gh pr create --base main --head feat/ui-glass-1111 --fill`
+- 已跑闸门: check ✅ 0/0 / test ✅ (2721 tests, 2712 pass, 0 fail, 9 skip) / build ✅ / palette ✅ / references ✅ (559 处 0 存疑) / citations ✅ / sections ✅ / claims ✅ (markers 3, adr-schema 24 valid) / pytest ✅ / audit:ports ✅ (191 文件 / 0 禁用端口) / audit:baseline ✅ (166/166)；浏览器：check-art-assets ✅ (72 件全装、art=0 零请求) / smoke ✅ 132 项 / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张；EDD 主集 ✅ 10/10、备用集 ✅ 6/6
+- 未跑/失败: `check-interact` 32/33（只剩既有 L3-6；未改的 L3-4 保持绿）、`check-ground-shadow` 红 4 条既有 G2/G3，两者都在未改一行的 `origin/main` 对照树复现过。一处纪律妥协如实登记：备用集 H1..H4 的判据是功能完成后才补齐的，严格 EDD 应先写（见 `docs/evidence/interaction-eval/BASELINE.md`）。
+- 下一步命令: `git push -u origin feat/actions-interaction && gh pr create --base main --head feat/actions-interaction --fill`
 
-四轮做完的：以 2026-11-11 根目录十张参考图为风格锚点，调 Agnes 补齐七张村民
-立绘、切出 29 件状态/图标/表情素材；第二轮把 10 栋建筑 + 7 件布景按同一套
-硬像素风格全部重画；第三轮把六张构图稿切成 13 张画册贴片接日历抽屉、
-祭坛三态接神谕回执、十一张表情按语义接两个面板、程序化 `shopfront` 换暖木色；
-第四轮按桌面 UI 设计稿把玻璃拟态 / 胶囊命令栏 / 状态点做进主界面 CSS，
-并录改前改后两段屏。清单最终 66 件。ADR 见 `docs/adr/ADR_ART_REF_20261111.md`，
-读数、实拍与录屏见 `docs/evidence/art-ref-1111/README.md`。
+五轮做完的：以 2026-11-11 十张参考图为锚点补齐七张村民立绘、29 件切片；
+第二轮统一 17 件旧建筑/布景；第三轮构图贴片 + 祭坛/表情接线 + 店面换色；
+第四轮主界面玻璃拟态视觉层 + 改前改后录屏（PR #40 / #41 / #42 均已合并）；
+第五轮按 EDD 先写评测集（实验 0 为 4/16）再一笔一个行为爬坡：
+C 方案 7 张分人动作表、村民面板 3 个动作（派活 / 给东西 / 问一句）、
+素材收口与主集接 CI。实验序列 baseline-0 → exp-1 7/10 → exp-2 8/10
+→ exp-3 10/10 → exp-4 10/10 → 备用集 6/6，逐条读数在
+`docs/evidence/interaction-eval/`。ADR 见 `docs/adr/ADR_ACTIONS_INTERACTION_20261112.md`。
 
 **剩下的边界，别当成已做完**：
-1. 桌面 UI 设计稿只落地了**视觉层**：玻璃 / 胶囊 / 状态点 / 圆角 / 柔阴影；
-   VERIFIED inspector 抽屉、报纸弹窗常驻化等**信息架构没重做**，HUD 没重排。
+1. 神谕自然语言入口没做：3 个动作只走面板 `WorldCommand`，规则层白名单、
+   提示词与 SPEC 都没动。要扩就按 ADR 第 6 节第二阶段的清单同步改。
+2. 桌面 UI 设计稿只落地视觉层；VERIFIED 抽屉、报纸弹窗常驻化等信息架构没重做。
    tileset / 世界地图没接成地面或小地图（会动一批像素基线）。
-2. 灯笼、地砖、花径、树影仍是 24 色板程序化绘制——这是引擎设计，不是
-   没换完的生图素材；把这一层也位图化等于换掉世界色板纪律，单独裁决。
-3. 徽记五张轮转给七人、表情按语义与行序选图，都不是身份 / 情绪读数。
-4. PR #40 / #41 已合并（main `a722100`，四项必需检查全绿）。当前
-   `feat/ui-glass-1111` 还差 push / 开 PR / 等 CI / 合并四步；main 有远端
-   分支保护，仍必须走 PR。
+3. 灯笼、地砖、花径、树影仍是 24 色板程序化绘制——这是引擎设计，不是
+   没换完的生图素材。
+4. 徽记五张轮转给七人、表情按语义与行序选图，都不是身份 / 情绪读数。
+5. 当前 `feat/actions-interaction` 还差 push / 开 PR / 等 CI / 合并四步；
+   main 有远端分支保护，必须走 PR 且四项必需检查全绿。
 
 ---
 
