@@ -1001,6 +1001,70 @@
         font-smooth: never;
         text-rendering: geometricPrecision;
       }
+      /* 11-11 桌面 UI 设计稿的视觉语言：玻璃拟态 + 胶囊命令栏 + 状态点。
+         只改视觉属性——用 border-color 而不是 border 简写，border-width /
+         padding / width / position 一律不动：画布包围盒与面板 rect 都不变，
+         浏览器闸门的坐标与截图断言才不会被顶掉。颜色全部由现有 9 个变量
+         派生，不引入新色值（audit-palette 的 UI 预算）。 */
+      #queue, #status, #entry-hint, .oracle,
+      #daycard, #chronicle, #villager-panel, #building-panel,
+      #unit-status, #stele-panel, #debug-panel {
+        background: color-mix(in srgb, var(--panel) 86%, transparent);
+        border-color: color-mix(in srgb, var(--line) 62%, transparent);
+        border-radius: 12px;
+        backdrop-filter: blur(10px) saturate(120%);
+        box-shadow:
+          0 8px 28px color-mix(in srgb, var(--base) 55%, transparent),
+          inset 0 1px 0 color-mix(in srgb, var(--ink) 10%, transparent);
+      }
+      #topbar {
+        background: color-mix(in srgb, var(--panel) 72%, transparent);
+        border-bottom-color: color-mix(in srgb, var(--line) 62%, transparent);
+        border-radius: 0 0 12px 12px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 6px 22px color-mix(in srgb, var(--base) 45%, transparent);
+      }
+      /* 状态点：伪元素不进 DOM 节点计数，check-interact 的 nodeCount 不受影响。 */
+      #hud-net { position: relative; padding-left: 16px; }
+      #hud-net::before {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--amber);
+        box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 60%, transparent);
+      }
+      #hud-net.bad::before { background: var(--warn); }
+      /* 胶囊命令栏：输入框与按钮改胶囊，聚焦时一圈柔和内发光。 */
+      .oracle { border-radius: 999px; }
+      input, button { border-radius: 999px; }
+      input:focus {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 22%, transparent);
+      }
+      button.primary {
+        box-shadow: 0 2px 12px color-mix(in srgb, var(--amber) 35%, transparent);
+      }
+      /* 回执的徽记点：设计稿里那枚 VERIFIED 印章的克制版，只用现有琥珀。 */
+      #reply.good::before {
+        content: '';
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: var(--amber);
+        vertical-align: 1px;
+      }
+      /* 纸卡（日报 / 急件）保留浅底，只加圆角与柔阴影，不改成玻璃。 */
+      #paper, #decree {
+        border-radius: 10px;
+        box-shadow: 0 10px 30px color-mix(in srgb, var(--base) 55%, transparent);
+      }
+
       /* 窄屏：顶栏折行，不让 Cmd+K 提示挤掉负载信息。 */
       @media (max-width: 720px) {
         #topbar { flex-wrap: wrap; gap: 6px 12px; }

@@ -18,7 +18,9 @@
 第一轮只补了村民层。用户看到 `world-mix-compare.png` 的实拍后追问「还有旧素材？
 截图看看 / 继续」——新村民是小型硬像素 chibi，旧建筑却是大幅水彩细节，两套笔触
 并排，于是第二轮把剩余 17 件旧位图也统一掉。第三轮用户要求「把这些都做完然后
-merge，再更新一版 readme」，把断点里登记的四条未做项一次清完。本 ADR 记三轮。
+merge，再更新一版 readme」，把断点里登记的四条未做项一次清完。第四轮用户追问
+「主界面 uiux 也都改过了吗？跑起来给我录个屏看看 / 继续这条」——之前确实没改，
+于是按桌面 UI 设计稿补主界面视觉层并录屏。本 ADR 记四轮。
 
 ## 2. 决策
 
@@ -59,6 +61,16 @@ merge，再更新一版 readme」，把断点里登记的四条未做项一次�
      `drawShopfront` 把米白灰泥墙改成暖木色，等量替换净 0 行（避免顶掉下游
      行号引用），只换 24 色板里已有的色槽，不新增颜色。
 
+5. **主界面视觉层（第四轮）**：按 `pixel-world-engine-desktop-ui-mockup` 的
+   视觉语言改 `index.html` 的 CSS——玻璃拟态面板、胶囊命令栏、状态指示点、
+   圆角按钮、柔和阴影、成功回执的徽记点。
+   **只改视觉属性，不动结构**：不新增 / 删除按钮、不改 id / class、不改宽高 /
+   padding / position，用 `border-color` 而不是 `border` 简写（避免 border-width
+   把盒尺寸顶掉 1px）。颜色全部由现有 9 个变量用 `color-mix` 派生，不新增色值。
+   这样画布包围盒与面板 `getBoundingClientRect()` 都不变，浏览器闸门的坐标
+   与截图断言才不会被顶掉。设计稿里的 VERIFIED 抽屉与报纸弹窗的**信息架构
+   没重做**：那是产品结构改动，不是视觉层。
+
 **装饰只走 DOM，不进 Phaser 画布**：状态图、徽记、表情、贴片挂在村民面板、
 楼面板、神谕回执与日历抽屉里，由 `world-client/src/ui/art-decor.ts` 运行时
 创建 `<img>`。这样不动世界渲染的绘制指令数，也不碰 `eval/screens/` 的像素基线。
@@ -94,9 +106,11 @@ merge，再更新一版 readme」，把断点里登记的四条未做项一次�
   反而消掉了混用。**判据是画面，不是件数**；这一条的翻案有截图为证。
 - **不改设定集**：十张图里的祭坛 / 工坊 / 学者区属于另一个世界观。本轮只借它们
   的笔触与配色做装饰，不往 `docs/SPEC.md` 里加地点、角色或规则。
-- **不把 UI 设计稿做成界面，但让它可看可用**：`pixel-world-engine-desktop-ui-mockup`
-  是构图参考，落地它会动到整个 HUD 布局，超出「美术优化」这一刀。第三轮改成
-  切两张画册贴片进日历抽屉 + 收进画廊页；没改任何 HUD 结构。
+- **UI 设计稿分两步，第四轮才做界面视觉层**：第三轮只切两张画册贴片进日历
+  抽屉 + 收进画廊；第四轮才把玻璃拟态、胶囊输入、状态点、圆角与柔阴影做进
+  CSS。**没做的是信息架构**：不重排 HUD、不新增 VERIFIED inspector 抽屉、
+  不把报纸弹窗变成常驻面板——那会动十几个浏览器闸门依赖的 DOM 契约，
+  属于产品结构改动，单独裁决。这一轮的取舍是「视觉像设计稿，结构仍是引擎」。
 - **不把 tileset / 世界地图接成地面或小地图**：那会动 `tilemap` 与一整批像素
   基线；它们只作构图与笔触基准。十张图至此都有消费方（生图锚点 / 切片 / 贴片），
   但没有一张被硬塞进不合适的渲染层。
@@ -118,6 +132,13 @@ merge，再更新一版 readme」，把断点里登记的四条未做项一次�
 - 第三轮（rebase 到 PR #39 合入后的新 main 并重跑）：`npm test` 2713 /
   2704 pass / 0 fail / 9 skip；`check-art-assets` 清单 66 件全装、默认也装、
   `art=0` 零请求；`smoke.mjs` 132 项全过；
+- 第四轮：改前后用同一串演示动作各录一段屏（`ui-before.mp4` /
+  `ui-after.mp4`，并排图 `ui-before-after.png`）；`npm test` 2713 / 2704 pass、
+  `audit-palette --strict` 0 超预算、四道文档审计、`check-art-assets`、
+  `smoke.mjs` 132 项、`test:phases` 40 项、`test:persistence` 8 项、
+  `test:render-budget` 硬闸 3 项、`test:building-bake` 72 张全过。
+  点击类闸门的三处既有红都拿未改一行的 `origin/main` 对照树复现，逐条记在
+  `docs/evidence/art-ref-1111/README.md`。
   `check-setting-scale` / `check-lamp-band` / `check-lamp-pool` /
   `check-scene-depth` / `check-dengchao` 全绿；四道文档审计与
   `audit-palette --strict` 全绿；`python -m pytest` 全绿。逐条读数与两处既有

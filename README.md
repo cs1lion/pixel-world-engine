@@ -43,8 +43,12 @@
 - 初版视觉基准：《千与千寻视觉设定集》，见 `docs/art/README.md`。
 - 第二套视觉基准：2026-11-11 提供的十张参考图（16-bit 硬像素、暖木色与琥珀灯光），
   副本、联系表与可浏览画廊见 `docs/art/reference-20261111/`。
-- 三轮落地的决策与取舍：`docs/adr/ADR_ART_REF_20261111.md`；闸门读数与前后实拍：
-  `docs/evidence/art-ref-1111/README.md`。
+- 四轮落地的决策与取舍：`docs/adr/ADR_ART_REF_20261111.md`；闸门读数、
+  前后实拍与改前 / 改后录屏：`docs/evidence/art-ref-1111/README.md`。
+- 主界面视觉层：第四轮按桌面 UI 设计稿把玻璃拟态、胶囊命令栏、状态点、
+  圆角与柔和阴影做进 `world-client/index.html` 的 CSS；**只改视觉属性**，
+  不重排 HUD、不新增按钮、不动 DOM 契约，画布包围盒与面板 rect 保持不变。
+  并排对照见 `docs/evidence/art-ref-1111/ui-before-after.png`。
 - 素材清单（66 件，含每件的尺寸、sha256 与来源）：`world-client/public/assets/manifest.json`。
 - 生成脚本：`server/scripts/gen_asset.py`（单件）、`server/scripts/art_ref_1111.py`
   （立绘与切片）、`server/scripts/art_unify_1111.py`（旧素材统一）、
