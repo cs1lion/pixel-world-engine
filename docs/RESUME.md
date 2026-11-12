@@ -2,11 +2,11 @@
 
 ## 当前断点
 
-- 最后 HEAD: 592cb98 (feat/actions-interaction)；本文件是记录之后多出来的一笔，用 `git log --oneline 592cb98..HEAD` 看
+- 最后 HEAD: b39da56 (docs/readme-story)；本文件是记录之后多出来的一笔，用 `git log --oneline b39da56..HEAD` 看
 - 未提交改动: 无
-- 已跑闸门: check ✅ 0/0 / test ✅ (2721 tests, 2712 pass, 0 fail, 9 skip) / build ✅ / palette ✅ / references ✅ (559 处 0 存疑) / citations ✅ / sections ✅ / claims ✅ (markers 3, adr-schema 24 valid) / pytest ✅ / audit:ports ✅ (191 文件 / 0 禁用端口) / audit:baseline ✅ (166/166)；浏览器：check-art-assets ✅ (72 件全装、art=0 零请求) / smoke ✅ 132 项 / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张；EDD 主集 ✅ 10/10、备用集 ✅ 6/6
-- 未跑/失败: `check-interact` 32/33（只剩既有 L3-6；未改的 L3-4 保持绿）、`check-ground-shadow` 红 4 条既有 G2/G3，两者都在未改一行的 `origin/main` 对照树复现过。一处纪律妥协如实登记：备用集 H1..H4 的判据是功能完成后才补齐的，严格 EDD 应先写（见 `docs/evidence/interaction-eval/BASELINE.md`）。
-- 下一步命令: `git push -u origin feat/actions-interaction && gh pr create --base main --head feat/actions-interaction --fill`
+- 已跑闸门: check ✅ 0/0 / test ✅ (2721 tests, 2712 pass, 0 fail, 9 skip) / build ✅ / palette ✅ / references ✅ (559 处 0 存疑) / citations ✅ / sections ✅ / claims ✅ (markers 3, adr-schema 24 valid) / pytest ✅ / audit:ports ✅ (191 文件 / 0 禁用端口) / audit:baseline ✅ (166/166)；浏览器：EDD 主集 ✅ 10/10、备用集 ✅ 6/6、check-art-assets ✅ (72 件全装、art=0 零请求) / smoke ✅ 132 项 / phases ✅ 40 项 / persistence ✅ 8 项 / render-budget ✅ 硬闸 3 项 / building-bake ✅ 72 张
+- 未跑/失败: `check-interact` 32/33（只剩既有 L3-6）、`check-ground-shadow` 红 4 条既有 G2/G3，两者都在未改一行的 `origin/main` 对照树复现过。`red:first` 对本笔按「无 test 改动」SKIP。备用集 H1..H4 判据后补的纪律妥协仍如实记在 `docs/evidence/interaction-eval/BASELINE.md`。
+- 下一步命令: `git push -u origin docs/readme-story && gh pr create --base main --head docs/readme-story --fill`
 
 五轮做完的：以 2026-11-11 十张参考图为锚点补齐七张村民立绘、29 件切片；
 第二轮统一 17 件旧建筑/布景；第三轮构图贴片 + 祭坛/表情接线 + 店面换色；
