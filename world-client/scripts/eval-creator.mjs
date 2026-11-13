@@ -124,16 +124,6 @@ async function runExample(browser, example) {
   }
 }
 
-/** 读一遍「落盘后重新解析出来」的世界账本。所有 check 共用这一条通道。 */
-async function readLedger(page) {
-  return page.evaluate(() => {
-    const api = window.__PIXEL_WORLD_DEBUG__;
-    const rawSave = api.exportSaveBytes();
-    const reloaded = api.inspectSaveBytes(rawSave);
-    return { bytes: rawSave, view: reloaded };
-  });
-}
-
 export const CHECKS = {
   /** M1 / H1 / V1：确定性选址——零重叠、留白边距、分区、淹没格。 */
   async slotAllocation(ctx, expect) {
