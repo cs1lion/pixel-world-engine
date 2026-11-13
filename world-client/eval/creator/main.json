@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "split": "main",
+  "spec": {
+    "behavior": "造物主创世与动态扩建闭环：蓝图确定性选址零重叠、门口自动连路、脚手架按逻辑拍施工落成、人工改位逆向生成空间规则、连续违规触发熔断降级",
+    "when": "通过调试桥下达运行时建造/升级指令、注入人工审校差异、或注入非法指令时",
+    "do": [
+      "M1: 合法蓝图在目标分区内算出满足 footprint + clearMargin 的零重叠坐标",
+      "M2: 建筑落位后自动生成从 door 到主干道的可通行路径（连通率 1.0）",
+      "M3: 新建建筑先进入 scaffolding 阶段并冒施工烟尘，推进指定逻辑拍后蜕变为 completed 并写入编年史",
+      "M4: 对已完成建筑原位升级时保留原坐标与道路连接，只换蓝图属性与外观",
+      "M5: 人工挪动（moved）后合成器产出可自证（isSelfJustifying）的空间约束补丁，并在下一次选址生效",
+      "M6: 连续注入非法坐标时熔断器触发 FUSE_TRIPPED 并从 L2 降级到 L1"
+    ],
+    "dont": [
+      "严禁在选址、修路或施工倒计时里使用 Date.now 或 Math.random",
+      "严禁只改 Phaser 视图而不写进存档字节（防假绿）",
+      "严禁在 Godot 迁移或脚手架施工上顺带改动命令白名单"
+    ],
+    "keepIntact": [
+      "K1: 造物主选址与施工期间世界时钟与居民作息照常推进（单拍均值不超 16.6ms）",
+      "K2: 页面全程零外部图片请求（结构上恒成立，作为棘轮）",
+      "K3: 相同开局 + 相同指令批次重放两次，状态哈希与网格快照逐字相同",
+      "K4: 存档 schemaVersion 不变，落盘字节包含 buildings、roads、creatorRules、fuseState"
+    ]
+  },
+  "examples": [
+    {
+      "id": "M1",
+      "name": "autoSlotZeroOverlap",
+      "check": "slotAllocation",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1101 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "region": "industrial" },
+      "expect": { "overlapCount": 0, "minClearMargin": 1, "inRegion": "industrial" }
+    },
+    {
+      "id": "M2",
+      "name": "doorToRoadConnectivity",
+      "check": "roadAutoPave",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1102 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "autoConnectRoad": true },
+      "expect": { "pathfindingConnectivity": 1.0, "doorWalkableToAltar": true }
+    },
+    {
+      "id": "M3",
+      "name": "scaffoldingToCompletedLifecycle",
+      "check": "constructionLifecycle",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1103 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "smithy_lv1", "constructionTicks": 3 },
+      "expect": { "stageAtTick1": "scaffolding", "smokeActiveAtTick1": true, "stageAtTick3": "completed", "chronicleAdded": true }
+    },
+    {
+      "id": "M4",
+      "name": "inPlaceBuildingUpgrade",
+      "check": "buildingUpgrade",
+      "env": { "world": "dengchao", "now": 600, "phase": "noon", "feed": "off", "debug": 1, "seed": 1104 },
+      "input": { "kind": "UpgradeBuilding", "toPrefabId": "smithy_lv2", "constructionTicks": 2 },
+      "expect": { "sameOrigin": true, "newPrefabId": "smithy_lv2", "roadPreserved": true }
+    },
+    {
+      "id": "M5",
+      "name": "humanMoveDiffToSpatialRule",
+      "check": "diffRuleSynthesis",
+      "env": { "world": "dengchao", "now": 600, "phase": "noon", "feed": "off", "debug": 1, "seed": 1105 },
+      "input": {
+        "kind": "ApplyHumanDiff",
+        "diffType": "moved",
+        "agentProposal": { "kind": "PlaceBuilding", "id": "cmd_1", "prefabId": "fish_dock", "origin": { "x": 18, "y": 14 } },
+        "userOutcome": { "kind": "PlaceBuilding", "id": "cmd_1", "prefabId": "fish_dock", "origin": { "x": 6, "y": 14 } }
+      },
+      "expect": { "patchKind": "SpatialConstraint", "selfJustifying": true, "enforcedOnNextPlace": true }
+    },
+    {
+      "id": "M6",
+      "name": "consecutiveViolationsTripFuse",
+      "check": "fuseDowngrade",
+      "env": { "world": "dengchao", "now": 600, "phase": "noon", "feed": "off", "debug": 1, "seed": 1106 },
+      "input": { "kind": "InjectViolations", "role": "LAYOUT_AND_BUILDING", "count": 3 },
+      "expect": { "isFused": true, "fromLevel": 2, "toLevel": 1, "lastEvent": "FUSE_TRIPPED" }
+    },
+    {
+      "id": "K1",
+      "name": "worldStillRunsWithinStepBudget",
+      "check": "worldStillRuns",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1107 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "expect": { "clockAdvanced": true, "maxAvgStepMs": 16.6 }
+    },
+    {
+      "id": "K2",
+      "name": "zeroExternalImageRequests",
+      "check": "zeroImageRequests",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "expect": { "imageNetworkRequests": 0 }
+    },
+    {
+      "id": "K3",
+      "name": "deterministicReplayBitExact",
+      "check": "deterministicReplay",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 4242 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "expect": { "stateHashMatch": true, "gridSnapshotMatch": true }
+    },
+    {
+      "id": "K4",
+      "name": "saveSchemaAndCreatorStateIntact",
+      "check": "saveSchemaIntact",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1108 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "expect": {
+        "schemaVersion": "unchanged",
+        "persistedFields": ["buildings", "roads", "creatorRules", "fuseState"]
+      }
+    }
+  ]
+}

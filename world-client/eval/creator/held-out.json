@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "split": "held-out",
+  "spec": {
+    "behavior": "造物主在满载、障碍、中途存档、熔断恢复与不同世界时刻下的泛化稳定性",
+    "when": "注入满载分区、门口障碍、施工中途导出存档、熔断后回归、或切换到夜晚/清晨时段时",
+    "do": [
+      "H1: 分区满载无法满足 footprint + clearMargin 时明确拒绝并返回 REGION_FULL，绝不压盖既有建筑或道路",
+      "H2: 门口正前方有不可通行障碍时，自动修路绕开并仍连通主干道",
+      "H3: 施工倒计时中途导出存档并重载，剩余拍数精确延续直至完工",
+      "H4: 熔断降级后回归批次通过率达 1.0 时，allowResumeToTarget 恢复到目标自治等级",
+      "V1: 夜晚高潮位下选址避开潮水淹没格",
+      "V2: 清晨档下存档结构与 creatorRules / fuseState 字段完整"
+    ],
+    "dont": [
+      "严禁对固定开局时刻（now 540 / noon）硬编码选址坐标",
+      "严禁在高潮位把非水生建筑放进淹没格"
+    ],
+    "keepIntact": [
+      "所有保留集用例保持零页面报错，且存档字节可逆回放"
+    ]
+  },
+  "examples": [
+    {
+      "id": "H1",
+      "name": "regionFullGracefulReject",
+      "check": "slotAllocation",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2101 },
+      "setup": [{ "kind": "FillZone", "region": "industrial" }],
+      "input": { "kind": "PlaceBuilding", "prefabId": "grand_foundry_6x6", "region": "industrial" },
+      "expect": { "shouldReject": true, "rejectCode": "REGION_FULL" }
+    },
+    {
+      "id": "H2",
+      "name": "roadDetourAroundObstacle",
+      "check": "roadAutoPave",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2102 },
+      "setup": [{ "kind": "PlantObstacleAtDoor", "prefabId": "workshop_lantern" }],
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "autoConnectRoad": true },
+      "expect": { "pathfindingConnectivity": 1.0, "doorWalkableToAltar": true }
+    },
+    {
+      "id": "H3",
+      "name": "midConstructionSaveReloadResume",
+      "check": "constructionLifecycle",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2103 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "smithy_lv1", "constructionTicks": 3 },
+      "expect": {
+        "reloadMidConstruction": true,
+        "stageAtTick1": "scaffolding",
+        "smokeActiveAtTick1": true,
+        "stageAtTick3": "completed",
+        "chronicleAdded": true
+      }
+    },
+    {
+      "id": "H4",
+      "name": "fuseRecoveryAfterCleanRegression",
+      "check": "fuseDowngrade",
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2104 },
+      "input": {
+        "kind": "InjectViolations",
+        "role": "LAYOUT_AND_BUILDING",
+        "count": 3,
+        "thenPassRegressionRate": 1.0
+      },
+      "expect": { "isFused": false, "fromLevel": 1, "toLevel": 2, "lastEvent": "RECOVERY" }
+    },
+    {
+      "id": "V1",
+      "name": "nightHighTideAvoidSubmergedSlots",
+      "check": "slotAllocation",
+      "env": { "world": "dengchao", "now": 1320, "phase": "night", "feed": "off", "debug": 1, "seed": 2201 },
+      "setup": [{ "kind": "SetTide", "level": 1.0, "durationMs": 60000 }],
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "region": "coastal_industrial" },
+      "expect": { "overlapCount": 0, "minClearMargin": 1, "submergedBuildingCount": 0 }
+    },
+    {
+      "id": "V2",
+      "name": "dawnPhaseSaveIntegrity",
+      "check": "saveSchemaIntact",
+      "env": { "world": "dengchao", "now": 360, "phase": "dawn", "feed": "off", "debug": 1, "seed": 2202 },
+      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "expect": {
+        "schemaVersion": "unchanged",
+        "persistedFields": ["buildings", "roads", "creatorRules", "fuseState"]
+      }
+    }
+  ]
+}
