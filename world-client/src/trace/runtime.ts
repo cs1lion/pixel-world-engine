@@ -357,7 +357,13 @@ export class TraceRuntime {
       }
     }
     if (change.change === 'building.built' && this.creator !== null) {
+      // 先判「这是不是造物主自己提的案」，再交给对应的结算：
+      // `settleLanding` 会把这个 id 从 pending 里删掉，顺序反了就永远判成「外来落地」。
+      const wasPending = this.pendingCreations.has(change.instanceId);
       this.settlementPromises.push(this.settleLanding(change.instanceId));
+      // 神谕 / 世界入口建的楼也走一遍落地后业务规则，与浏览器侧 `recordUnplannedLanding`
+      // 同口径：世界层账记下来，但**不**喂外环门禁（那不是外环提的案）。
+      if (!wasPending) this.settlementPromises.push(this.settleUnplannedLanding(change.instanceId));
     }
   }
 
@@ -453,6 +459,63 @@ export class TraceRuntime {
       spatialConstraintSatisfied: true,
       traceable: pending.traceable,
       replayHashConsistent: replay,
+      hasConflict: business.hasConflict,
+      invariantViolated: business.invariantViolated,
+    });
+  }
+
+  /**
+   * 非造物主提案的落地：跑一遍业务规则并记一条 landing，与浏览器侧同口径。
+   *
+   * 为什么必须有无头版本：同一个世界有两个执行器（`SandboxScene` 与 `TraceRuntime`）。
+   * 只有浏览器会检查神谕建的楼时，「同种子回放哈希一致」这类门禁就建立在一个
+   * 覆盖不全的账本上——两边都正常，数字不同。
+   *
+   * 不喂 fuse：`submitHumanApproval` / `recordCommandResult` 一次都不调。
+   * 外环的通过率只算它自己提的案（`ADR_SCHEMA_PASS_RATE_SEMANTICS`）。
+   */
+  private async settleUnplannedLanding(instanceId: string): Promise<void> {
+    const creator = this.creator;
+    if (creator === null) return;
+    const snapshot = this.sim.snapshot();
+    const building = snapshot.buildings.find((item) => item.instanceId === instanceId);
+    if (building === undefined) return;
+    const landed: LandedCreation = {
+      instanceId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+    };
+    // 全部读数在 await **之前**从这一份捕获快照算定。
+    // 评审指出：若楼在结算期间被拆，`this.world.grid` 已经不是落地那一刻的网格，
+    // await 之后再问 landingReachable 会拿到被改写过的答案。
+    // 生产规则其实禁止施工期拆除，但把读数冻在同一份快照上更稳，且行为不变。
+    const coverageRate = creationCoverage(snapshot, this.pack.blueprints);
+    const pathfindingConnected = landingReachable(this.world, landed);
+    const business = await checkLandedBuilding(
+      {
+        snapshot,
+        grid: this.world.grid,
+        altar: this.world.altar,
+        blueprints: this.pack.blueprints,
+      },
+      landed,
+    );
+    // 场景可能已经换了世界；那这次结果不属于任何引擎。
+    if (this.creator !== creator) return;
+    // 这个入口没有冻住落地前的 view，回放一致性**没跑**，记 null。
+    this.landings.push({
+      instanceId,
+      templateId: building.prefabId,
+      prefabId: building.prefabId,
+      origin: building.origin,
+      door: building.door,
+      coverageRate,
+      pathfindingConnected,
+      hasCollision: false,
+      spatialConstraintSatisfied: true,
+      traceable: false,
+      replayHashConsistent: null,
       hasConflict: business.hasConflict,
       invariantViolated: business.invariantViolated,
     });

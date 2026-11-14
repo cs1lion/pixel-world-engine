@@ -254,7 +254,7 @@ import {
 } from '../world/setup.ts';
 import { parsePhaseParam, phaseAt, type PhaseId } from '../render/day-phase.ts';
 import { createDecorView, type DecorView } from '../render/decor.ts';
-import { composeReport, type DailyReport } from '../world/report.ts';
+import { composeReport, type DailyReport } from '../world/report.ts'; import { buildingLandingOf, type LandingEntry } from '../world/landing-readout.ts';
 import { villagerModeLabel } from '../world/villager-words.ts';
 import { describePropSource } from '../world/faith.ts';
 import { createLazyAnimalese, type Animalese } from '../audio/animalese.ts';
@@ -784,7 +784,7 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 测试与 UI 都能读到同一份报纸；它从快照推导，不另存。 */
   report(): DailyReport {
-    return composeReport(this.reportSnapshot());
+    return composeReport(this.reportSnapshot(), this.landingEntries);
   }
 
   /**
@@ -2342,6 +2342,18 @@ export class SandboxScene extends Phaser.Scene {
 
       const now = this.sim.snapshot().now;
       const currentDay = Math.floor(now / DAY_MS);
+      this.rememberLanding({
+        instanceId,
+        prefabId: pending.plan.templateId,
+        displayName: pending.displayName,
+        origin: pending.origin,
+        day: currentDay,
+        landed: true,
+        pathfindingConnected,
+        hasConflict: business.hasConflict,
+        invariantViolated: business.invariantViolated,
+        violations: business.violations,
+      });
       const landing = buildLandingRecord({
         proposalId: pending.proposalId,
         worldId: this.ledgerWorldId,
@@ -2487,6 +2499,18 @@ export class SandboxScene extends Phaser.Scene {
     const coverageRate = creationCoverage(snapshot, this.blueprints);
     void checkLandedBuilding(businessWorld, landed).then((business) => {
       if (this.creator !== creator) return;
+      this.rememberLanding({
+        instanceId,
+        prefabId: building.prefabId,
+        displayName: building.displayName,
+        origin,
+        day: currentDay,
+        landed: true,
+        pathfindingConnected,
+        hasConflict: business.hasConflict,
+        invariantViolated: business.invariantViolated,
+        violations: business.violations,
+      });
       const landing = buildLandingRecord({
         proposalId,
         worldId: this.ledgerWorldId,
@@ -3439,6 +3463,7 @@ export class SandboxScene extends Phaser.Scene {
       task: building.boundTask,
       activity,
       traces: hints.map((hint) => ({ layer: hint.layer, visibility: hint.visibility })),
+      landing: buildingLandingOf(this.landingEntries, placeId),
     };
   }
 
@@ -3700,6 +3725,27 @@ export class SandboxScene extends Phaser.Scene {
     if (this.creation === null) return { ok: false, message: '不在造物模式。' };
     this.endCreation();
     return { ok: true, message: '取消了，世界没动。' };
+  }
+
+  /**
+   * 落地账的**会话内读侧缓存**：日报一行与楼面板脚注从这里读。
+   *
+   * 持久真相是服务端那份 JSONL 账本；这里只留本次会话最近的一批，供同步读取。
+   * 它不是第二份真相——内容就是刚写进账本的那几条，不另算指标。
+   *
+   * **声明在这个位置是有意的**：放在字段区会让整份文件的行号整体下移，
+   * 而 `docs/` 里有几处按行号指着这个文件的入口（`create`、`cancelCreation` 等），
+   * 位移一次就要重新对位一次。晚一点声明，行为完全一样。
+   */
+  private readonly landingEntries: LandingEntry[] = [];
+
+  /** 记一条读侧缓存，并裁掉过老的条目（账本才是持久真相，这里只服务当前会话）。 */
+  private rememberLanding(entry: LandingEntry): void {
+    this.landingEntries.push(entry);
+    const LIMIT = 200;
+    if (this.landingEntries.length > LIMIT) {
+      this.landingEntries.splice(0, this.landingEntries.length - LIMIT);
+    }
   }
 
   creating(): { readonly prefabId: string; readonly ghostAt: GridPoint | null } | null {
@@ -4944,7 +4990,7 @@ export class SandboxScene extends Phaser.Scene {
       },
       // 钉呈现态时报纸底栏的「第 N 分」也读同一个时刻：否则两跑会在底栏
       // 差一行字，而画面其余部分逐字节相同（戊类就是这么来的）。
-      report: (): DailyReport => composeReport(this.reportSnapshot()),
+      report: (): DailyReport => composeReport(this.reportSnapshot(), this.landingEntries),
       slab: (): readonly OracleRecord[] => this.snapshot.oracle,
       view: (): WorldSnapshot => this.view(),
       setPhase: (phase: PhaseId): void => this.setPhase(phase),
