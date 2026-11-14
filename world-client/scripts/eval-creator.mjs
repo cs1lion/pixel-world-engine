@@ -89,7 +89,10 @@ async function openPage(browser, example) {
     );
   }
 
-  return { context, page, pageErrors, imageRequests };
+  // 页面自身会加载设定集素材（`public/assets/**`，由 main 的绘制管线引入）。
+  // K2 要验的是「造物不新增请求」，所以基线必须取在造物之前。
+  const imageBaseline = imageRequests.length;
+  return { context, page, pageErrors, imageRequests, imageBaseline };
 }
 
 /** 跑一条用例：开页面 → 按序执行 setup → 交给对应的 check。 */
@@ -403,14 +406,22 @@ export const CHECKS = {
     return `clock(${res.before} → ${res.after}, ${res.avgStepMs.toFixed(2)}ms/拍)`;
   },
 
-  /** K2：页面全程零外部图片请求。这个仓的像素画面全是程序化烘焙，所以它应当是恒等式。 */
+  /**
+   * K2：造物**不新增**外部图片请求。
+   *
+   * 合并 main 之后这条口径必须改写：main 的绘制管线会加载 `public/assets/**`
+   * （设定集素材、角色图标），"整页零图片请求"这个前提已经不成立。
+   * 仍要守的不变量是——**造物这件事本身不该引入新素材**：楼与脚手架都是程序化烘焙。
+   * 所以拿页面加载完那一刻的请求数作基线，只看造物新增的那部分。
+   */
   async zeroImageRequests(ctx, expect) {
+    const added = ctx.imageRequests.slice(ctx.imageBaseline);
     assert.equal(
-      ctx.imageRequests.length,
+      added.length,
       expect.imageNetworkRequests,
-      `出现了 ${ctx.imageRequests.length} 个图片请求：${ctx.imageRequests.slice(0, 3).join(', ')}`,
+      `造物新增了 ${added.length} 个图片请求：${added.slice(0, 3).join(', ')}`,
     );
-    return 'zero-images';
+    return `zero-new-images(基线 ${ctx.imageBaseline})`;
   },
 
   /** K3：同开局同指令重放两次，状态哈希与网格快照逐字相同。 */

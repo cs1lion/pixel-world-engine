@@ -19,7 +19,7 @@
     ],
     "keepIntact": [
       "K1: 造物主选址与施工期间世界时钟与居民作息照常推进（单拍均值不超 16.6ms）",
-      "K2: 页面全程零外部图片请求（结构上恒成立，作为棘轮）",
+      "K2: 造物过程不新增外部图片请求（楼与脚手架都是程序化烘焙；页面基线不计入）",
       "K3: 相同开局 + 相同指令批次重放两次，状态哈希与网格快照逐字相同",
       "K4: 存档 schemaVersion 不变，落盘字节包含 buildings、roads、creatorRules、fuseState"
     ]
@@ -211,7 +211,7 @@
     },
     {
       "id": "K2",
-      "name": "zeroExternalImageRequests",
+      "name": "zeroNewImageRequests",
       "check": "zeroImageRequests",
       "env": {
         "world": "dengchao",
