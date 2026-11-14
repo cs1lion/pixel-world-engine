@@ -31,7 +31,10 @@
 于是同一段轨迹在浏览器与回放里账本不同口径。
 本笔补了 `settleUnplannedLanding` 与 `test/creator-landing-parity.test.ts`（3 条，先红后绿），
 并写了 `docs/adr/ADR_LANDING_AUDIT_PARITY.md`（用户选「只记世界层账」）。
-P1 尚未做的：landing 记录的读侧可见性（日报/编年史说得出「这栋楼是谁提的、落地检查结果」）。
+**P1 读侧也已落地**：`src/world/landing-readout.ts`（纯函数：来源分列、违规说出来、没记录就不写）
+接进了两处——`composeReport(snapshot, landings)` 的日报一行（短讯上限 4→5），
+和 `BuildingPanelView.landing` 的楼面板脚注（「外环提的；落地检查通过」）。
+会话内缓存 `landingEntries` 只服务读侧，持久真相仍是服务端 JSONL 账本。
 
 ## 合并 main 之后的两处前提变更（都已处理）
 
