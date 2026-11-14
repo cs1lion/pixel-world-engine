@@ -64,6 +64,7 @@ import {
   routineBeats,
   routineFor,
   shelterTarget,
+  siteBeatApplies,
   tideBeatApplies,
   withMarketWords,
   type RoutineBeat,
@@ -91,6 +92,12 @@ import {
 import { scheduledWeatherAt, scheduledWeatherState, weatherSlotsBetween } from './weather-cycle.ts';
 import { fogKeepsClose, stallsPackedFor, walkSpeedFactor } from './weather-effects.ts';
 import { BehaviorPlanner, GoalQueue, type BehaviorContext, type BehaviorGoal, type BehaviorRule } from './behavior.ts';
+import {
+  type VillagerDecisionModel,
+  type VillagerDecisionRequest,
+  type VillagerDecision,
+  type VillagerMemoryItem,
+} from './villager-decision-client.ts';
 import { needsAt, NEEDS_HUNGER_FAIL_THRESHOLD, type NeedsReading } from './needs.ts';
 import {
   fatigueReadingOf,
@@ -147,8 +154,27 @@ import type {
   WorldSnapshot,
 } from './types.ts';
 import { ORACLE_SLAB_LIMIT } from './types.ts';
-import type { MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_V6_FINGERPRINT } from './save.ts';
+import type { WorkNoteRequest } from './work-note-client.ts';
+import type { AutonomyRoleState, MemorySave, SavedVillager, SettledRecord, TideOverride, WorldSave } from './save.ts';
+import {
+  accrueOutput,
+  emptyOutputTally,
+  activityProduces,
+  outputSummary,
+  outputTotal,
+  parseOutputTally,
+  emptySites,
+  consumeRoundsBetween,
+  OUTPUT_CONSUME_INTERVAL_MS,
+  outputEventText,
+  OUTPUT_LABELS,
+  type OutputDemand,
+  type OutputKind,
+  type SiteOutputTally,
+  settleDemand,
+  canProduce,
+} from './site-output.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_V8_FINGERPRINT } from './save.ts';
 
 /**
  * 上游事件带的时间 → settled 用的 epoch 毫秒。
@@ -221,6 +247,17 @@ export type WorldCommand =
       readonly askedAtSeq: number;
     }
   | { readonly kind: 'dispatch'; readonly taskKind: TaskKind; readonly summary: string }
+  /**
+   * 玩家从村民面板点名派活。与 `dispatch` 的差别：那边由世界自己挑空闲的人，
+   * 这边指定了对象，所以「她现在接不了」必须说清原因，不能顺手改派给别人。
+   * 走同一个 `startDispatch`，不另造任务系统。
+   */
+  | { readonly kind: 'assign'; readonly villagerId: string; readonly taskKind: TaskKind; readonly summary: string }
+  /**
+   * 玩家问某个村民一句。世界按自己此刻的状态答，不调模型、不解析自由文本；
+   * `text` 只是把玩家这一问记进日志，让回执有据可查。
+   */
+  | { readonly kind: 'ask'; readonly villagerId: string; readonly text: string }
   | { readonly kind: 'complete'; readonly target?: string }
   | { readonly kind: 'cancelPending'; readonly id?: string }
   | { readonly kind: 'setWeather'; readonly weather: Weather }
@@ -353,6 +390,22 @@ export interface SimulationDeps {
    */
   readonly regionNames?: ReadonlyMap<string, string>;
   /**
+   * 场所 id → 产出物（`SettingSite.output`）。给了才记产出账：
+   * 省略时世界照旧过日子，只是没有「今天出了多少」这一项（莞尔镇与旧夹具）。
+   *
+   * 由拿着设定集的调用方给，引擎不按场所 id 硬编码——换包就换产出。
+   */
+  readonly siteOutputs?: ReadonlyMap<string, OutputKind>;
+  /**
+   * 需求方：谁每天要一份什么（`SettingSite.consumes`）。给了才结算需求，
+   * 省略时产出只累积——没有需求方的世界不消耗，也不假装消耗过。
+   */
+  readonly siteDemands?: readonly OutputDemand[];
+  /** 场所 id → 显示名（`SettingSite.name`）。事件文案用它，缺省退回 id。 */
+  readonly siteNames?: ReadonlyMap<string, string>;
+  /** 场所 id → 落点坐标。需求事件的落点用它，缺省退回祭坛。 */
+  readonly sitePoints?: ReadonlyMap<string, GridPoint>;
+  /**
    * 渡口在哪儿。给了就表示这张图有渡口：潮汐会驱动船班，并按世界时间
    * 每天报三次「潮位多少、船开没开」。
    *
@@ -410,6 +463,19 @@ export interface SimulationDeps {
    * （`intent-prompt.ts` / `intent-schema.ts`），模型只负责产出一份 JSON。
    */
   readonly intentModel?: IntentModel;
+  /**
+   * 人物决策模型：作息换腿时问她下一步去哪儿。省略表示纯离线（不问 LLM，
+   * 照旧按作息表走）。与 `intentModel` 同一套纪律——这里只放客户端，
+   * 提示词与校验在世界侧（`villager-decision-client.ts`）。
+   *
+   * 失败一律回 `null`，世界照旧走作息——LLM 挂了人物照活。
+   */
+  readonly villagerDecisionModel?: VillagerDecisionModel;
+  /**
+   * 人物记忆读取器：给决策请求提供她最近记得的事。省略时传空记忆——
+   * 模型拿不到记忆就不许偏离作息，所以没有记忆的世界永远走作息。
+   */
+  readonly villagerMemoryReader?: (villagerId: string) => readonly VillagerMemoryItem[];
   /** 世界尺寸。给意图校验判坐标越界用；省略时从 grid 推。 */
   readonly worldSize?: { readonly width: number; readonly height: number };
   /**
@@ -465,6 +531,8 @@ interface Villager {
   nextRoutineAt: number;
   routineIndex: number;
   routineLabel: string | null;
+  /** 等 LLM 给这一步的主意：true 时 `planTick` 不挑作息，等 `applyDecision` 放行。 */
+  pendingDecision: boolean;
   /**
    * 赶路时牌子说的那句，与 `routineLabel` 是同一拍的两半。不进存档。
    * 为什么分两半、快照怎么挑，见 `snapshotVillager`。
@@ -721,6 +789,51 @@ export class Simulation {
   private readonly blueprints: ReadonlyMap<string, PrefabBlueprint> | undefined;
   /** 地域 id → 给人看的叫法。现状里说「叠浪楼」不说 `bathhouse`。 */
   private readonly regionNames: ReadonlyMap<string, string> | undefined;
+  /** 场所 id → 产出物；由设定集给，省略则不记产出账。 */
+  private readonly siteOutputs: ReadonlyMap<string, OutputKind>;
+  /** 需求方（按 siteId 排序前的原样）；省略时只累积不消耗。 */
+  private readonly siteDemands: readonly OutputDemand[];
+  private readonly siteNames: ReadonlyMap<string, string>;
+  private readonly sitePoints: ReadonlyMap<string, GridPoint>;
+  /**
+   * 上一轮结算里**没拿到料**的需求方（`settleDemand` 的 short）。
+   *
+   * 运行时字段，不进存档：读档后从「都有料」起算，所以读档当天会照常产出，
+   * 下一次结算再按真实库存判。多扣一次的代价是「她白洗了一天衣裳」，
+   * 而落档多一个字段的代价是升存档版本——这里选前者。
+   */
+  private supplyShort: ReadonlySet<string> = new Set<string>();
+  /**
+   * 场所产出账（v8 存档字段）：走到场所那一刻记一趟作业。
+   *
+   * 只增不减——本轮不做消耗（用户 2026-11-10 拍板「先只累积」）。
+   */
+  private siteOutputTally: SiteOutputTally = emptyOutputTally();
+  /**
+   * 消耗结算游标（运行时字段，不落档）。
+   *
+   * 读档后从「此刻」重新起算——同 `needs.ts` 的 `lastMealAt`：游标是
+   * 「上次算到哪一刻」的中间量，不落档不会让库存跳变；落档只落库存本身。
+   */
+  private outputConsumeCursor = 0;
+  /**
+   * 待写牌子的作业（场景每帧取走、异步问模型）。
+   *
+   * 队列在 `Simulation` 里、由场景排空：世界内核不做 IO（不 fetch），
+   * 但「哪一刻发生了作业」只有它知道。取走即清空，不会重复问。
+   */
+  private pendingWorkNotes: WorkNoteRequest[] = [];
+  /**
+   * 待问 LLM 的决策（场景每帧取走、异步问模型）。
+   *
+   * 队列在 `Simulation` 里、由场景排空——世界内核不做 IO（不 fetch），
+   * 但「哪一刻换腿、该问谁」只有它知道。取走即清空，不会重复问。
+   */
+  private pendingDecisions: VillagerDecisionRequest[] = [];
+  /** 人物决策模型；null 时世界纯离线、不问 LLM。 */
+  private readonly villagerDecisionModel: VillagerDecisionModel | null;
+  /** 人物记忆读取器；null 时传空记忆（模型拿不到记忆就不许偏离）。 */
+  private readonly villagerMemoryReader: ((villagerId: string) => readonly VillagerMemoryItem[]) | null;
   /** 渡口落点；undefined = 这张图没有渡口。 */
   private readonly harborAt: GridPoint | undefined;
   /** 摆件种类 → 露话池。没有池子的种类不攒脏（`grime.ts` 的第三条规则）。 */
@@ -862,10 +975,18 @@ export class Simulation {
     this.wallClock = deps.wallClock ?? (() => Date.now());
     this.blueprints = deps.blueprints;
     this.regionNames = deps.regionNames;
+    this.siteOutputs = deps.siteOutputs ?? new Map<string, OutputKind>();
+    this.siteDemands = deps.siteDemands ?? [];
+    this.siteNames = deps.siteNames ?? new Map<string, string>();
+    this.sitePoints = deps.sitePoints ?? new Map<string, GridPoint>();
+    // 开局不从 0 起算：否则读档/开局那一刻会立刻补扣掉一段本该发生在过去的消耗。
+    this.outputConsumeCursor = this.now;
     this.harborAt = deps.harborAt;
     this.propReveals = deps.propReveals;
     this.authored = deps.authored === true;
     this.intentModel = deps.intentModel;
+    this.villagerDecisionModel = deps.villagerDecisionModel ?? null;
+    this.villagerMemoryReader = deps.villagerMemoryReader ?? null;
     this.worldSize = deps.worldSize ?? { width: deps.grid.width, height: deps.grid.height };
     this.onChange = deps.onChange;
     this.buildings = [...deps.buildings];
@@ -895,6 +1016,7 @@ export class Simulation {
       nextRoutineAt: this.now + 1200 + index * 1400,
       routineIndex: index * 2,
       routineLabel: null,
+      pendingDecision: false,
       routineGoing: null,
       inPlaceUntil: 0,
       pendingRoute: [],
@@ -1020,6 +1142,7 @@ export class Simulation {
     if (wasRain && this.weather.kind === 'clear') this.turnRoutineBackToAltar();
     this.stepTide();
     this.stepHarbor(prevNow);
+    this.stepOutputConsumption();
     this.stepAmbient(prevNow); this.stepTimetable(prevNow); this.stepLiveliness(prevNow);
     this.stepGrime(deltaMs);
     if (this.villagers.some((villager) => villager.mode === 'idle')) {
@@ -1081,6 +1204,14 @@ export class Simulation {
       /** 兼容旧调用方：villager 等于 villagers[0]（主角色）。 */
       villager: villagers[0] as VillagerSnapshot,
       villagers,
+      siteOutput: (() => {
+        const reading = this.siteOutputReading();
+        return {
+          total: reading.total,
+          summary: reading.summary,
+          emptySites: emptySites(this.siteOutputTally, this.siteOutputs),
+        };
+      })(),
       buildings: this.buildings,
       startupBuildingIds: this.startupBuildingIds,
       workstations,
@@ -1476,6 +1607,10 @@ export class Simulation {
         return this.applyIntent(command.intent, command.raw);
       case 'dispatch':
         return this.dispatch(command.taskKind, command.summary);
+      case 'assign':
+        return this.assignTo(command.villagerId, command.taskKind, command.summary);
+      case 'ask':
+        return this.askTo(command.villagerId, command.text);
       case 'complete':
         return this.completeManually(command.target);
       case 'cancelPending':
@@ -2477,6 +2612,37 @@ export class Simulation {
     return this.startDispatch(free, taskKind, summary);
   }
 
+  /** 玩家问一句：答的是世界自己的事实，不是模型编的话。 */
+  private askTo(villagerId: string, text: string): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) {
+      return { ok: false, message: `镇上没有 ${villagerId} 这个人。` };
+    }
+    const what = villager.routineLabel ?? (villager.mode === 'idle' ? '这会儿歇着' : '正赶着手上的活'); // 回执说人话，不念内部 mode；作息标签由设定集给，没标签时不编地点进度
+    const line = `${villager.name}说：${what}。`;
+    this.log('info', `有人问「${text}」；${line}`);
+    return { ok: true, message: line };
+  }
+
+  /** 玩家点名派活：世界按自己的法则判断这个人接不接得了，不无条件照办。 */
+  private assignTo(villagerId: string, taskKind: TaskKind, summary: string): CommandResult {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) {
+      return { ok: false, message: `镇上没有 ${villagerId} 这个人。` };
+    }
+    if (!this.canTakeWork(villager)) {
+      return {
+        ok: false,
+        message: `${villager.name} 这会儿接不了活：手上有活、名字抵押了，或正在呼吸段里。`,
+      };
+    }
+    this.ensureAwake(villager);
+    const result = this.startDispatch(villager, taskKind, summary);
+    return result.ok
+      ? { ok: true, message: `给${villager.name}派了活。${result.message}` }
+      : result;
+  }
+
   /** 真正派活给某个角色。调用方保证这个角色空闲。 */
   private startDispatch(villager: Villager, taskKind: TaskKind, summary: string): CommandResult {
     const profile = TASK_PROFILES[taskKind];
@@ -3450,6 +3616,8 @@ export class Simulation {
     // 它们登记成 `rest` 规则（`REST_RULE`），排在疲劳睡之后、吃与作息之前，
     // 这样「谁先问」仍是表里写着的顺序，不是代码位置。
     if (this.now < villager.nextRoutineAt) return;
+    // 等 LLM 给这一步的主意：决策没回来时不挑作息，等 `applyDecision` 放行。
+    if (villager.pendingDecision) return;
     // 一拍怎么选：按**登记顺序**问规则表，第一个命中的就是这一拍的目标。
     // 默认表仍写着旧链的三段（求证 → 盖布 → 作息），所以这里只是把「谁先问」
     // 从代码位置搬到了表里；判据与副作用都留在原来的那三个方法里。
@@ -3814,7 +3982,292 @@ export class Simulation {
       this.stayAtWater(villager);
       return;
     }
+    this.creditSiteOutput(villager);
+    // 决策点：换腿时问 LLM 她下一步去哪儿。排队等场景取走、异步问，
+    // 期间 `pendingDecision` 闸住 `planTick` 不挑作息。LLM 没给或失败
+    // 时 `applyDecision` 不会调，`pendingDecision` 由 dwell 结束后自然放行。
+    if (this.villagerDecisionModel !== null) {
+      villager.pendingDecision = true;
+      const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+      const here = this.cellOf(villager.pos);
+      const beat = routineFor(
+        this.environment(),
+        beats,
+        villager.routineIndex,
+        shelterTarget(this.buildings, here),
+      );
+      const routineLabel = beat.label ?? villager.routineLabel ?? '（无）';
+      const availableSites = this.availableSitesFor(beats);
+      const memories = this.villagerMemoryReader?.(villager.id) ?? [];
+      this.pendingDecisions.push({
+        villagerName: villager.name,
+        routineLabel,
+        day: Math.floor(this.now / DAY_MS),
+        memories,
+        availableSites,
+      });
+    }
     villager.nextRoutineAt = this.now + this.dwellOf(villager);
+  }
+
+  /**
+   * 她能去的场所：作息表里出现过的场所 + 她当前所在的场所。
+   * 每处带可做的事（从 beat 的 activity 来）。
+   */
+  private availableSitesFor(
+    beats: readonly RoutineBeat[],
+  ): VillagerDecisionRequest['availableSites'] {
+    const seen = new Set<string>();
+    const sites: { siteId: string; siteName: string; activities: readonly string[] }[] = [];
+    for (const beat of beats) {
+      if (beat.siteId === undefined) continue;
+      if (seen.has(beat.siteId)) continue;
+      seen.add(beat.siteId);
+      sites.push({
+        siteId: beat.siteId,
+        siteName: this.siteNames.get(beat.siteId) ?? beat.siteId,
+        activities: beat.activity !== undefined ? [beat.activity] : [],
+      });
+    }
+    return sites;
+  }
+
+  /**
+   * 走到场所那一刻记一趟作业产出。
+   *
+   * 判据三条同时成立才记：这一拍有场所实例 id、活动是产出的那种（work/trade）、
+   * 设定集给这个场所声明了产出物。花径的 rest/stroll 不产，没声明的场所不产。
+   *
+   * **回查脚下这一拍**与 `dwellOf` 同一把尺子（`routineIndex - 1`）：
+   * `finishIdleLeg` 每条腿只调用一次，所以不需要「这拍记过没有」的标记，
+   * 也不会因为 `behavior.plan` 空转而重复记。
+   *
+   * 不 announce：产出账是世界事实的累计，不是一个新的世界事件；
+   * 真要让它进日报，由读账的那一方说（`outputSummary`）。
+   */
+  private creditSiteOutput(villager: Villager): void {
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    const beat = routineFor(
+      this.environment(),
+      beats,
+      Math.max(0, villager.routineIndex - 1),
+      shelterTarget(this.buildings, here),
+    );
+    if (beat.siteId === undefined || beat.activity === undefined) return;
+    if (!activityProduces(beat.activity)) return;
+    if (!this.siteOutputs.has(beat.siteId)) return;
+    // 缺料的场所这一趟白做：没有炭，衣裳洗不出来。
+    // 不记产出、也不发 `work_output`——她这趟真的没做出东西，
+    // 而缺料本身已经由 `supply_short` 记过一条。
+    if (!canProduce(beat.siteId, this.supplyShort)) {
+      this.log('info', `${villager.name}${beat.label}，可这里缺料，这一趟没有产出。`);
+      return;
+    }
+    const kind = this.siteOutputs.get(beat.siteId)!;
+    this.siteOutputTally = accrueOutput(this.siteOutputTally, beat.siteId);
+    // 产出物的**名字与来历**：这一份是什么、谁做的、在哪、世界第几天。
+    // 走的是既有的 `world.event` 回写——事件流先记，记忆层再从那里读，
+    // 所以她自己今天做了几趟是真的记得的（`KIND_PRIORS.work_output`）。
+    this.announce({
+      change: 'world.event',
+      kind: 'work_output',
+      text: `${outputEventText(`${villager.name}${beat.label}`, kind)}。`,
+      placeId: this.sitePlaceId(beat.siteId, here),
+      where: here,
+      actorId: villager.id,
+    });
+    // 顺带排一条「请模型换一种说法」的请求：牌子原文是权威事实，模型只改措辞。
+    const people = this.villagers
+      .filter((other) => other.id !== villager.id && other.visible
+        && Math.abs(other.pos.x - here.x) <= 3 && Math.abs(other.pos.y - here.y) <= 3)
+      .map((other) => other.name);
+    this.pendingWorkNotes.push({
+      villagerId: villager.id,
+      site: beat.siteId,
+      siteName: beat.label,
+      activity: beat.activity,
+      stock: this.siteOutputTally[beat.siteId] ?? 0,
+      day: Math.floor(this.now / DAY_MS),
+      people,
+      canonical: beat.label,
+    });
+  }
+
+  /**
+   * 取走待写牌子的作业。取走即清空——同一条作业不会问两次。
+   *
+   * 场景每帧调一次；世界内核不 fetch，IO 在场景那一侧。
+   */
+  drainWorkNotes(): WorkNoteRequest[] {
+    if (this.pendingWorkNotes.length === 0) return [];
+    const out = this.pendingWorkNotes;
+    this.pendingWorkNotes = [];
+    return out;
+  }
+
+  /**
+   * 模型写好的牌子落回世界。
+   *
+   * 只在「她仍站在这处、还是同一拍」时才写：异步回来时她可能已经走开，
+   * 把新牌子挂到一个不在这儿的人身上就是让牌子说谎。
+   */
+  applyWorkNarration(villagerId: string, siteId: string, text: string): boolean {
+    // 空话等于没写：牌子宁可留着原文案，也不留一块空牌。
+    if (text.trim() === '') return false;
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined || villager.path.length > 0) return false;
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    const beat = routineFor(
+      this.environment(),
+      beats,
+      Math.max(0, villager.routineIndex - 1),
+      shelterTarget(this.buildings, here),
+    );
+    if (beat.siteId !== siteId) return false;
+    villager.routineLabel = text;
+    return true;
+  }
+
+  /**
+   * 取走待问的决策。取走即清空——同一步不会问两次。
+   *
+   * 场景每帧调一次；世界内核不 fetch，IO 在场景那一侧。
+   */
+  drainVillagerDecisions(): VillagerDecisionRequest[] {
+    if (this.pendingDecisions.length === 0) return [];
+    const out = this.pendingDecisions;
+    this.pendingDecisions = [];
+    return out;
+  }
+
+  /**
+   * LLM 的决策落回世界。
+   *
+   * - `follow`：放行，让她照作息走。下一拍打作息表会正常挑拍。
+   * - `deviate`：改路，让她去模型选的场所。只认 `availableSites` 里的场所，
+   *   外面的直接拒绝、当作没给（世界不许被 LLM 带到不存在的地方）。
+   *
+   * 超时没调时 `pendingDecision` 会卡住世界——所以场景必须在失败时也调
+   * `applyDecision`（用 follow 放行），或者用一个超时兜底。
+   */
+  applyVillagerDecision(villagerId: string, decision: VillagerDecision): boolean {
+    const villager = this.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return false;
+    villager.pendingDecision = false;
+    villager.nextRoutineAt = this.now;
+    if (decision.action === 'follow') return true;
+    // deviate：找她要去的场所，算出落点，设路径。
+    const beats = this.beats[Number(villager.id.slice(1))] ?? this.beats[0]!;
+    const here = this.cellOf(villager.pos);
+    // 只认作息表里出现过的场所：LLM 选外面的直接拒绝，当作没给。
+    const matchIndex = beats.findIndex((item) => item.siteId === decision.siteId);
+    if (matchIndex === -1) return true;
+    const match = beats[matchIndex]!;
+    // 世界不许在场所关门时跑进去：与 `routineFor` 用同一套门控，
+    // 人到了一事无成比「说不行」更糟——拒绝偏离，当作没给，她照作息走。
+    if (match.siteId !== undefined && !siteBeatApplies(match.siteId, this.environment()))
+      return true;
+    // 下一拍指到这一拍之后：她走到时 `creditSiteOutput` 回查 `routineIndex - 1`
+    // 正好落在模型选的这一拍——产出记在偏离去的场所，而不是把上一趟作息
+    // 再记一遍；之后的挑拍也从这一拍之后接着走，作息不重头绕。
+    villager.routineIndex = matchIndex + 1;
+    const target = this.resolvedTarget(match);
+    if (target === null) return true;
+    const siteId = match.siteId ?? decision.siteId ?? '';
+    if (target.x === here.x && target.y === here.y) {
+      // 已经在那个场所：不走路，直接停。
+      const siteName = this.siteNames.get(siteId) ?? siteId;
+      villager.routineLabel = decision.reason || siteName;
+      villager.routineGoing = villager.routineLabel;
+      return true;
+    }
+    const route = this.routeTo(villager, target);
+    if (route.path.length === 0) return true;
+    villager.path = route.path;
+    const siteName = this.siteNames.get(siteId) ?? siteId;
+    villager.routineLabel = decision.reason || siteName;
+    villager.routineGoing = villager.routineLabel;
+    return true;
+  }
+
+  /**
+   * 按世界时刻结算消耗：每世界日扣一份库存。
+   *
+   * 只推进**整轮**，余量留在游标里——所以同一世界时刻无论怎么分帧，
+   * 结算的轮数都一样（拆帧不变性）。库存不足只扣到 0，不欠账。
+   */
+  private stepOutputConsumption(): void {
+    if (this.siteDemands.length === 0) return;
+    const rounds = consumeRoundsBetween(this.outputConsumeCursor, this.now);
+    if (rounds <= 0) return;
+    let tally = this.siteOutputTally;
+    // 这一轮（或这几轮）没拿到料的需求方。多轮取并集：离线很久回来时，
+    // 只要其中有任何一轮缺过，那一天就按「缺过料」算——产出停不停是
+    // 保守方向，不是记账方向。
+    const short = new Set<string>();
+    // 每轮各自结算、各自报事：一天里两轮缺货是两条事实，合并成一条会丢
+    // 「第几天缺的」。轮数由时刻差算是纯函数，所以分帧不影响轮数与顺序。
+    for (let round = 0; round < rounds; round += 1) {
+      const settled = settleDemand(tally, this.siteDemands, (kind) => this.supplierOf(kind));
+      tally = settled.tally;
+      for (const missing of settled.short) short.add(missing.siteId);
+      for (const used of settled.served) this.announceSupply(used, true);
+      for (const missing of settled.short) this.announceSupply(missing, false);
+    }
+    this.siteOutputTally = tally;
+    // 整体替换，不累加：料回来了就该恢复，缺料不是会一直跟着她的债。
+    this.supplyShort = short;
+    this.outputConsumeCursor += rounds * OUTPUT_CONSUME_INTERVAL_MS;
+  }
+
+  /**
+   * 产出某样东西的场所。多个场所都产同一种时按 id 字典序取第一个：
+   * 同一个账本要算出同一个供给方，不能取决于 `Map` 的插入顺序。
+   */
+  private supplierOf(kind: OutputKind): string | null {
+    const candidates = [...this.siteOutputs.entries()]
+      .filter(([, produced]) => produced === kind)
+      .map(([siteId]) => siteId)
+      .sort();
+    return candidates[0] ?? null;
+  }
+
+  /** 需求方的一句话：拿到了 / 没等到。落点是需求方自己的场所。 */
+  private announceSupply(
+    demand: { readonly siteId: string; readonly kind: OutputKind; readonly from?: string },
+    served: boolean,
+  ): void {
+    const label = OUTPUT_LABELS[demand.kind];
+    const who = this.siteNameOf(demand.siteId);
+    const from = demand.from === undefined ? '' : this.siteNameOf(demand.from);
+    const point = this.sitePoints.get(demand.siteId) ?? this.altar;
+    this.announce({
+      change: 'world.event',
+      kind: served ? 'supply_used' : 'supply_short',
+      text: served
+        ? `${who}从${from}取走了一份${label}。`
+        : `${who}今天没等到${label}。`,
+      placeId: this.sitePlaceId(demand.siteId, point),
+      where: point,
+      actorId: null,
+    });
+  }
+
+  /** 场所显示名：设定集给了就用，没给才露出 id。 */
+  private siteNameOf(siteId: string): string {
+    const named = this.siteNames.get(siteId);
+    return named === undefined || named === '' ? siteId : named;
+  }
+
+  /** 场所产出账的只读视图：合计与一句可读摘要。 */
+  siteOutputReading(): { readonly total: number; readonly tally: SiteOutputTally; readonly summary: string } {
+    return {
+      total: outputTotal(this.siteOutputTally),
+      tally: this.siteOutputTally,
+      summary: outputSummary(this.siteOutputTally, this.siteOutputs),
+    };
   }
 
   /**
@@ -4422,8 +4875,11 @@ export class Simulation {
    * `memoryState` 是记忆层交来的**字符串**（`MemoryRuntime.toJSON()`），缺省空串。
    * 世界内核不认识记忆层：适配发生在场景（`SandboxScene`），这里只负责把它放进
    * `world.memory` 这个位置，好让存档是「世界 + 关于世界的记忆」一份文件。
+   *
+   * `autonomyState` 同理：外环自治等级住在 `CreatorEngine` 里，不由世界内核维护。
+   * 场景在写档时把引擎导出的快照递进来，这里只搬运（A2）。省略当 null。
    */
-  toSave(memoryState: MemorySave = ''): WorldSave {
+  toSave(memoryState: MemorySave = '', autonomyState: readonly AutonomyRoleState[] | null = null): WorldSave {
     const villagers: SavedVillager[] = this.villagers.map((villager) => ({
       id: villager.id,
       name: villager.name,
@@ -4485,11 +4941,21 @@ export class Simulation {
         memory: memoryState,
         // v6：玩家地形改动最终值；本阶段只序列化，没有写入者。
         terrainEdits: this.terrainEdits.map((edit) => ({ ...edit })),
+        // v8：场所产出账。账在 Simulation 手里，直接序列化，不经调用方。
+        // 空账写空串（与 `world.memory` 同口径）：`{}` 会被读成「有一段账但内容是空」。
+        siteOutput: Object.keys(this.siteOutputTally).length === 0
+          ? ''
+          : JSON.stringify(this.siteOutputTally),
+        // v7：外环自治状态，由场景把 CreatorEngine 导出的快照递进来（A2）。
+        autonomy: autonomyState?.map((snap) => ({
+          ...snap,
+          metrics: { ...snap.metrics },
+        })) ?? null,
       },
       meta: {
         savedAtWallClock: this.wallClock(),
         savedReconciled: this.feedReconciled,
-        schemaFingerprint: SCHEMA_V6_FINGERPRINT,
+        schemaFingerprint: SCHEMA_V8_FINGERPRINT,
       },
     };
   }
@@ -4508,6 +4974,9 @@ export class Simulation {
     });
     const world = save.world;
     sim.now = world.now;
+    // 消耗游标对齐读档时刻：构造时 `now` 还是 0，不对齐的话第一次 update
+    // 会一口气补扣掉「从开局到现在」的全部轮次，库存瞬间见底。
+    sim.outputConsumeCursor = world.now;
     // 需求读数是运行时读数：读档从「刚吃过」重算，不继承上一会话的饥饿。
     // 构造时 `now` 还是 0，这里必须按存档时刻重锚一次，否则读档即饿。
     for (const villager of sim.villagers) sim.lastMealAt.set(villager.id, world.now);
@@ -4639,6 +5108,11 @@ export class Simulation {
     // 轨迹/夹具里的旧存档可能没有这一项：按「没改过地形」读，不编也不抛。
     sim.terrainEdits.length = 0;
     sim.terrainEdits.push(...(world.terrainEdits ?? []).map((edit) => ({ ...edit })));
+    // v8：场所产出账。空串 = 没有产出；坏 JSON 按「没有产出」读，不抛——
+    // 这一段是累计读数，不是世界不变量，读不出来不该让整份档变坏档。
+    // 只收非负整数项，其余跳过：账里出现字符串或负数说明档被改过，静默丢弃
+    // 比带着坏数继续跑更诚实（读数会少，但不会假）。
+    sim.siteOutputTally = parseOutputTally(world.siteOutput);
     sim.feedConnected = false;
     sim.feedLastReadAt = null;
     sim.feedCursor = 0;
@@ -4717,6 +5191,40 @@ export class Simulation {
    * **它只读世界，不改世界。** 潮水本来就跨过了中线，村民本来就站在落点上；
    * 这里一个字段都不写回。所以它不可能让回放分叉，也不需要任何存档字段。
    */
+  /**
+   * 产出这件事该记在哪。
+   *
+   * **场所本身是楼，就记在那栋楼上**：这一份炭是锅炉房做出来的，不是
+   * 「她脚下那一格」做出来的。设定集里的场所 id 与楼实例 id 是同一个词
+   * （`boiler_annex#1`），所以这里能直接对上。
+   *
+   * 不是楼（集市这种露天的）才退回落点：够得着楼门就记在那栋楼上，
+   * 否则记脚下那一格。
+   */
+  private sitePlaceId(siteId: string, cell: GridPoint): string {
+    return this.buildings.some((building) => building.instanceId === siteId)
+      ? siteId
+      : this.footfallPlaceAt(cell);
+  }
+
+  /**
+   * 这一格的事该记在哪：够得着楼门就记在那栋楼上，否则记脚下那一格。
+   *
+   * 与 `stepAmbient` 同一把尺子（`ambient.ts` 的 `FOOTFALL_ATTRIBUTION_RADIUS`）。
+   * 不这么做的话，产出事件的落点只是脚下那一格，而格子上没有 Holder——
+   * 痕迹落得下，记忆层却没有任何一层读得到。
+   */
+  private footfallPlaceAt(cell: GridPoint): string {
+    return footfallPlace(
+      cell,
+      this.buildings.map((building) => ({
+        instanceId: building.instanceId,
+        x: building.door.x,
+        y: building.door.y,
+      })),
+    );
+  }
+
   private stepAmbient(prevNow: number): void {
     const dwellers: AmbientDweller[] = [];
     const doorways: FootfallDoor[] = this.buildings.map((building) => ({

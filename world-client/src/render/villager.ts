@@ -14,6 +14,15 @@
  * 动画采样仍在 `villager-frames.ts`（12fps、纯函数、整数像素）；这里只按帧号画。
  */
 
+import { artKey, artScaleOf, hasArt } from './art-assets.ts';
+import {
+  actionBob,
+  actionFrameAt,
+  actionFrameName,
+  actionOf,
+  actionTextureKey,
+  registerActionFrames,
+} from './action-frames.ts';
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import type { Vec2, VillagerSnapshot } from '../world/types.ts';
@@ -53,6 +62,10 @@ export interface VillagerView {
    * 关掉开关时清成 `null`，下次打开重新从意图起，不会带着旧残影。
    */
   animState: AnimFsmState | null;
+  /** 位图立绘（默认开，且生成过这个人的图）；有它时 `body` 不再绘制。 */
+  readonly sprite: Phaser.GameObjects.Image | null;
+  /** 这张图是不是 4×6 的语义动作表；是则每帧切格，否则仍是单张立绘。 */
+  readonly actionSheet: boolean;
 }
 
 /** 世界递下来的外观：设定集给的四个维度 + 颜色槽，以及「她提没提灯」。 */
@@ -65,6 +78,8 @@ export function createVillager(
   scene: Phaser.Scene,
   originX: number,
   originY: number,
+  /** 位图立绘的素材 id（villager.id）；缺省或没生成过图就走程序化小人。 */
+  artId?: string,
 ): VillagerView {
   // 接地不能只有一枚椭圆：椭圆说明「这里有团暗」，但脚和地面没有接触点，
   // 走起来会像浮着。这里用阶梯像素块代替矢量椭圆，再加一条 1px 接触线压在脚底。
@@ -82,7 +97,28 @@ export function createVillager(
 
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
-  return { container, body, shadow, lamp: newLamp(), animState: null };
+  let sprite: Phaser.GameObjects.Image | null = null;
+  // 一人一张 4×6 动作表优先；没生成过就退回单张立绘，再退回程序化小人。
+  // 「素材缺一件不该让世界缺一块」——这三条路共用同一个容器与脚底原点。
+  const actionSheet = artId !== undefined && registerActionFrames(scene, artId);
+  if (actionSheet) {
+    sprite = scene.add
+      .image(0, 2, actionTextureKey(artId!))
+      .setOrigin(0.5, 1)
+      .setScale(1 / artScaleOf(scene))
+      .setFrame(actionFrameName('idle', 0));
+    container.add(sprite);
+    body.setVisible(false);
+  } else if (artId !== undefined && hasArt(scene, 'villager', artId)) {
+    // 脚底贴在容器原点（= 脚底世界坐标）；素材按 1/artScale 缩回世界像素。
+    sprite = scene.add
+      .image(0, 2, artKey('villager', artId))
+      .setOrigin(0.5, 1)
+      .setScale(1 / artScaleOf(scene));
+    container.add(sprite);
+    body.setVisible(false);
+  }
+  return { container, body, shadow, lamp: newLamp(), animState: null, sprite, actionSheet };
 }
 
 /** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。 */
@@ -200,6 +236,27 @@ export function updateVillager(
     prev: view.animState,
   });
   // 每帧都显式写回 alpha：油补回来以后必须恢复，不能把上一帧的灰留在身上。
+  if (view.sprite !== null) {
+    // 位图立绘：朝左右用水平翻转，起伏沿用程序化小人的整数像素偏移（走路 / 呼吸）。
+    // 立绘自带灯与衣色，不再叠 drawLamp / 伞 / 手持物。
+    const spritePose = villagerPose(villager.mode, villager.walking, animTime);
+    let lift = spritePose.offsetY;
+    if (view.actionSheet) {
+      // 动作只由快照（mode / walking / carrying）与世界时间推导；冻结世界时
+      // nowMs 不推进，帧号就不变，shotStable 的连 8 帧逐字节相同才成立。
+      const action = actionOf(villager);
+      const frame = actionFrameAt(action, animTime);
+      view.sprite.setFrame(actionFrameName(action, frame));
+      // 起伏跟着帧号走：抬脚那一帧身体抬高 1px，读成一步一顿。
+      // 沿用时间驱动的 offsetY 会和位图帧错位，看起来只是整块在抖。
+      lift = actionBob(action, frame);
+    }
+    view.sprite.setFlipX(villager.facing === 'left');
+    view.sprite.setY(2 + lift);
+    view.sprite.setAlpha(lampBodyAlpha(oil));
+    view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
+    return;
+  }
   view.body.setAlpha(lampBodyAlpha(oil));
   view.body.clear();
   const look = appearance?.look ?? resolveLook(undefined);

@@ -42,21 +42,21 @@ import {
   type WorldSave,
 } from '../src/world/save.ts';
 import * as saveModule from '../src/world/save.ts';
-import { parseSaveText, SaveStore, type StorageLike } from '../src/ui/save-store.ts';
 
-/** v6 常量在「提交 A」上还不存在：从命名空间取，缺了让断言红，而不是模块错误。 */
-const SCHEMA_V6_FINGERPRINT =
-  (saveModule as unknown as { SCHEMA_V6_FINGERPRINT?: string }).SCHEMA_V6_FINGERPRINT ?? '';
+/** v7 常量在 base 上不存在：从命名空间取，缺了让断言红，而不是模块错误（B7）。 */
+const SCHEMA_V8_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V8_FINGERPRINT?: string }).SCHEMA_V8_FINGERPRINT ?? '';
+import { parseSaveText, SaveStore, type StorageLike } from '../src/ui/save-store.ts';
 
 const rawPrefabs = JSON.parse(
   readFileSync(new URL('../src/world/prefabs.json', import.meta.url), 'utf8'),
 ) as Record<string, Record<string, unknown>>;
 const blueprints = parseBlueprintTable(rawPrefabs);
-/** v6 样例是新增文件；「提交 A」上没有它时退回 v5，让这一组红在断言而不是 ENOENT。 */
+/** v7 样例是新增文件；「提交 A」上没有它时退回 v6，让这一组红在断言而不是 ENOENT。 */
 const sampleText = readFileSync(
-  existsSync(new URL('../../docs/save-v6.sample.json', import.meta.url))
-    ? new URL('../../docs/save-v6.sample.json', import.meta.url)
-    : new URL('../../docs/save-v5.sample.json', import.meta.url),
+  existsSync(new URL('../../docs/save-v8.sample.json', import.meta.url))
+    ? new URL('../../docs/save-v8.sample.json', import.meta.url)
+    : new URL('../../docs/save-v7.sample.json', import.meta.url),
   'utf8',
 );
 
@@ -251,6 +251,8 @@ const NULLABLE_PATHS: ReadonlySet<string> = new Set([
   'world.tideOverride',
   // v4：没有可露的话就是 null。置空是合法值不是变异。
   'world.props[].reveal',
+  // v7：没有外环状态就是 null。置空是合法值不是变异。
+  'world.autonomy',
 ]);
 
 /* ---------------------------------------------------------------- 用例 */
@@ -259,7 +261,7 @@ test('task-32：冻结样例仍能加载（read + importText + parseSaveText 三
   const sample = JSON.parse(sampleText) as WorldSave;
   assert.doesNotThrow(() => validateSaveFields(sample, CURRENT_SCHEMA_VERSION), '样例必须过字段级校验');
   assert.doesNotThrow(() => assertSave(sample), '样例必须过完整校验');
-  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
 
   const parsed = parseSaveText(sampleText);
   assert.equal(parsed.ok, true);

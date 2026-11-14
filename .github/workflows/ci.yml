@@ -98,8 +98,13 @@ jobs:
           npm run test:render-budget
           # 建筑烘焙对齐：逐件钉住 72 张 Image 的落点/原点/缩放/纹理尺寸/四边 alpha=0。
           npm run test:building-bake
+          # 位图素材装载：?art=1 全装且每张 200，?art=0 零请求、两跑无 pageerror。
+          npm run test:art-assets
           npm run test:phases
           node scripts/check-phases-negative.mjs
+          # 村民交互 EDD 主集：固定程序判别，逐条断言，有 fail 即 exit 1。
+          # 数据集与备用集见 world-client/eval/interaction/；备用集合并前另跑。
+          node scripts/eval-interaction.mjs --split main
         env:
           EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: |

@@ -10,6 +10,11 @@
  *      缩放 1、纹理尺寸等于盒尺寸——盒与落点是**一对**，错一个就整体移位。
  *   2. 四边 alpha 必须为 0：内容贴边 = 留白不够、已经被裁掉 1px，且不报错。
  *
+ * **显式 `?art=0`**：这条守的是**程序化分层烘焙**。位图素材默认开之后，
+ * 有图的楼整栋换成一张生图、根本不走 `bakeLayer`，于是「每栋每层都在」
+ * 这条判据在位图模式下必然为假——那是两条不同的渲染路径，不是回归。
+ * 位图那条路由 `check-art-assets.mjs` 守（清单里每张都请求且 200）。
+ *
  * 跑法：
  *   cd world-client && npm run dev
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ node scripts/check-building-bake.mjs
@@ -29,7 +34,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1010, height: 700 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
-await page.goto(`${BASE}?world=dengchao&time=dusk&feed=off&ledger=off&debug=1&now=960`, {
+await page.goto(`${BASE}?world=dengchao&time=dusk&feed=off&ledger=off&debug=1&now=960&art=0`, {
   waitUntil: 'load',
 });
 await page.waitForFunction(() => window.Oracle?.debugBuildingBake !== undefined, null, {

@@ -42,6 +42,8 @@ from events.world_changes import register_error_handler as register_world_change
 from memory.api import register_memory_routes
 from memory.writer import MemoryWriter
 from oracle.api import register_routes as register_oracle_routes
+from oracle.work_note import register_routes as register_work_note_routes
+from oracle.villager_decision import register_routes as register_villager_decision_routes
 
 #: 游标 `since` 的上限。SQLite 的 INTEGER 是 64 位有符号，超过它的数绑不进去，
 #: `sqlite3` 抛的是 OverflowError——不是 EventValidationError，于是 `ge=0` 放行的
@@ -104,6 +106,11 @@ def create_app(
     app.include_router(world_changes_router)
     # 意图解析与事件日志互不依赖：解析失败不该影响世界读日志，反之亦然。
     register_oracle_routes(app)
+    # 作业牌子：只写一句话，不改世界。与意图分开是有意的（失败面不同）。
+    register_work_note_routes(app)
+    # 人物决策：LLM 让她在作息换腿时有自己的主意。失败回 `{"ok": false}`，
+    # 世界照旧走作息——LLM 挂了人物照活。
+    register_villager_decision_routes(app)
     register_memory_routes(app)
     # 造物账本也是只增文件，但它与事件日志是两本账：不进 v5 存档，
     # 也不占 SQLite。路径与查询见 `creation_ledger/api.py`。

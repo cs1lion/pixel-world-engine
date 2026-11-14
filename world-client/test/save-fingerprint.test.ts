@@ -18,9 +18,9 @@ import {
   SCHEMA_V2_FINGERPRINT,
   SCHEMA_V4_FINGERPRINT,
   SCHEMA_V5_FINGERPRINT,
+  SCHEMA_V6_FINGERPRINT,
   migrateSave,
   saveFingerprint,
-  type SaveWorld,
   type SettledRecord,
   type WorldSaveV1,
   type WorldSaveV2,
@@ -28,38 +28,55 @@ import {
   type WorldSaveV4,
   type WorldSaveV5,
   type WorldSaveV6,
+  type WorldSaveV7,
+  type WorldSaveV8,
 } from '../src/world/save.ts';
 import * as saveModule from '../src/world/save.ts';
 
-/** v6 常量在「提交 A」上还不存在：从命名空间取，缺了让断言红，而不是模块错误。 */
-const SCHEMA_V6_FINGERPRINT =
-  (saveModule as unknown as { SCHEMA_V6_FINGERPRINT?: string }).SCHEMA_V6_FINGERPRINT ?? '';
+/** v7 常量在 base 上不存在：从命名空间取，缺了让断言红，而不是模块错误（B7）。 */
+const SCHEMA_V7_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V7_FINGERPRINT?: string }).SCHEMA_V7_FINGERPRINT ?? '';
+const SCHEMA_V8_FINGERPRINT =
+  (saveModule as unknown as { SCHEMA_V8_FINGERPRINT?: string }).SCHEMA_V8_FINGERPRINT ?? '';
+// v6/v7 的允许集合在 base 上不存在：从命名空间取，缺了让断言红（B7）。
+const SAVE_V6_ALLOWED_PATHS: readonly string[] =
+  (saveModule as unknown as { SAVE_V6_ALLOWED_PATHS?: readonly string[] }).SAVE_V6_ALLOWED_PATHS ?? [];
+const SAVE_V7_ALLOWED_PATHS: readonly string[] =
+  (saveModule as unknown as { SAVE_V7_ALLOWED_PATHS?: readonly string[] }).SAVE_V7_ALLOWED_PATHS ?? [];
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
   ? true
   : false;
 type Assert<T extends true> = T;
-// 编译期 Equal：当前版本的存档类型必须与 v6 冻结样例逐键一致。
-// v1–v5 的样例只用于「旧档仍能自证」，不再与运行期类型对齐。
-import type sampleJson from '../../docs/save-v6.sample.json';
-type _TopLevel = Assert<Equal<keyof typeof sampleJson, keyof WorldSaveV6>>;
-type _World = Assert<Equal<keyof (typeof sampleJson)['world'], keyof SaveWorld>>;
-type _Meta = Assert<Equal<keyof (typeof sampleJson)['meta'], keyof WorldSaveV6['meta']>>;
+// 编译期 Equal：当前版本的存档类型必须与 v7 冻结样例逐键一致。
+// v1–v6 的样例只用于「旧档仍能自证」，不再与运行期类型对齐。
+import type sampleJson from '../../docs/save-v8.sample.json';
+type _TopLevel = Assert<Equal<keyof typeof sampleJson, keyof WorldSaveV8>>;
+type _World = Assert<Equal<keyof (typeof sampleJson)['world'], keyof WorldSaveV8['world']>>;
+type _Meta = Assert<Equal<keyof (typeof sampleJson)['meta'], keyof WorldSaveV8['meta']>>;
 type _Settled = Assert<
   Equal<keyof (typeof sampleJson)['world']['settled'][number], keyof SettledRecord>
 >;
 export type _FingerprintAssertions = [_TopLevel, _World, _Meta, _Settled];
 
-/** v6 样例是新增文件；「提交 A」上没有它时把 v5 样例迁过来，让这一组红在断言而不是 ENOENT。 */
-const sample = existsSync(new URL('../../docs/save-v6.sample.json', import.meta.url))
+/** v7 样例是新增文件；「提交 A」上没有它时把 v6 样例迁过来，让这一组红在断言而不是 ENOENT。 */
+const sample = existsSync(new URL('../../docs/save-v8.sample.json', import.meta.url))
   ? (JSON.parse(
-      readFileSync(new URL('../../docs/save-v6.sample.json', import.meta.url), 'utf8'),
-    ) as WorldSaveV6)
+      readFileSync(new URL('../../docs/save-v8.sample.json', import.meta.url), 'utf8'),
+    ) as WorldSaveV8)
   : (migrateSave(
       JSON.parse(
-        readFileSync(new URL('../../docs/save-v5.sample.json', import.meta.url), 'utf8'),
+        readFileSync(new URL('../../docs/save-v7.sample.json', import.meta.url), 'utf8'),
       ) as unknown as Record<string, unknown>,
-    ) as unknown as WorldSaveV6);
+    ) as unknown as WorldSaveV8);
+
+const sampleV7 = JSON.parse(
+  readFileSync(new URL('../../docs/save-v7.sample.json', import.meta.url), 'utf8'),
+) as WorldSaveV7;
+
+const sampleV6 = JSON.parse(
+  readFileSync(new URL('../../docs/save-v6.sample.json', import.meta.url), 'utf8'),
+) as WorldSaveV6;
 
 const sampleV5 = JSON.parse(
   readFileSync(new URL('../../docs/save-v5.sample.json', import.meta.url), 'utf8'),
@@ -113,16 +130,16 @@ test('v5 样例：122 条叶子路径，指纹等于 v5 常量', () => {
   assert.equal(saveFingerprint(sampleV5), SCHEMA_V5_FINGERPRINT);
 });
 
-test('v6 样例：123 条叶子路径，指纹等于新常量', () => {
-  const paths = [...new Set(collectSavePaths(sample))].sort();
+test('v6 样例：123 条叶子路径，指纹等于 v6 常量（历史冻结）', () => {
+  const paths = [...new Set(collectSavePaths(sampleV6))].sort();
   assert.equal(paths.length, 123, 'v6 路径条数（v5 的 122 + 一条 world.terrainEdits[]）');
   assert.equal(fingerprintOfPaths(paths), SCHEMA_V6_FINGERPRINT);
-  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
-  assert.equal(saveFingerprint(sample), SCHEMA_V6_FINGERPRINT);
+  assert.equal(sampleV6.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+  assert.equal(saveFingerprint(sampleV6), SCHEMA_V6_FINGERPRINT);
 });
 
 test('v6 路径全集 = v5 全集 + 新增一条，没有漏加也没有重复', () => {
-  const v6Only = [...new Set(collectSavePaths(sample))].filter(
+  const v6Only = [...new Set(collectSavePaths(sampleV6))].filter(
     (path) =>
       !SAVE_V1_ALLOWED_PATHS.includes(path) &&
       !SAVE_V2_ADDED_PATHS.includes(path) &&
@@ -131,6 +148,36 @@ test('v6 路径全集 = v5 全集 + 新增一条，没有漏加也没有重复',
       !SAVE_V5_ADDED_PATHS.includes(path),
   );
   assert.deepEqual([...new Set(v6Only)].sort(), ['world.terrainEdits[]']);
+});
+
+test('v7 样例：124 条叶子路径，指纹等于 v7 常量（历史冻结）', () => {
+  const paths = [...new Set(collectSavePaths(sampleV7))].sort();
+  assert.equal(paths.length, 124, 'v7 路径条数（v6 的 123 + 一条 world.autonomy）');
+  assert.equal(fingerprintOfPaths(paths), SCHEMA_V7_FINGERPRINT);
+  assert.equal(sampleV7.meta.schemaFingerprint, SCHEMA_V7_FINGERPRINT);
+  assert.equal(saveFingerprint(sampleV7), SCHEMA_V7_FINGERPRINT);
+});
+
+test('v8 样例：125 条叶子路径，指纹等于当前常量', () => {
+  const paths = [...new Set(collectSavePaths(sample))].sort();
+  assert.equal(paths.length, 125, 'v8 路径条数（v7 的 124 + 一条 world.siteOutput）');
+  assert.equal(fingerprintOfPaths(paths), SCHEMA_V8_FINGERPRINT);
+  assert.equal(sample.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
+  assert.equal(saveFingerprint(sample), SCHEMA_V8_FINGERPRINT);
+});
+
+test('v8 路径全集 = v7 全集 + 新增一条', () => {
+  const v8Only = [...new Set(collectSavePaths(sample))].filter(
+    (path) => !SAVE_V7_ALLOWED_PATHS.includes(path),
+  );
+  assert.deepEqual([...new Set(v8Only)].sort(), ['world.siteOutput']);
+});
+
+test('v7 路径全集 = v6 全集 + 新增一条，没有漏加也没有重复', () => {
+  const v7Only = [...new Set(collectSavePaths(sampleV7))].filter(
+    (path) => !SAVE_V6_ALLOWED_PATHS.includes(path),
+  );
+  assert.deepEqual([...new Set(v7Only)].sort(), ['world.autonomy']);
 });
 
 test('v5 路径全集 = v4 全集 + 新增一条，没有漏加也没有重复', () => {
@@ -146,8 +193,10 @@ test('v5 路径全集 = v4 全集 + 新增一条，没有漏加也没有重复',
 
 test('样例能通过当前版本校验（字段与 v6 一致）', () => {
   assertSave(sample);
-  assert.equal(sample.schemaVersion, 6);
+  assert.equal(sample.schemaVersion, 8);
   assert.equal(sample.world.memory, '', '样例没有记忆，空串是明确的「没有」');
+  assert.equal(sample.world.autonomy, null, '旧档没有外环状态，从 L0 重新开始');
+  assert.equal(sample.world.siteOutput, '', '样例没有产出，空串是明确的「没有」');
   assert.deepEqual(sample.world.terrainEdits, [], '样例没有地形改动');
   assert.equal(sample.world.villagers.length, 2);
   assert.equal(sample.world.settled.length, 2);
@@ -180,16 +229,16 @@ test('变异探针：字段变了但版本没升 → 指纹变化、测试必须
     world: Record<string, unknown>;
   };
   mutated.world.unexpectedField = 1;
-  assert.notEqual(saveFingerprint(mutated), SCHEMA_V6_FINGERPRINT, '加字段必须改变指纹');
+  assert.notEqual(saveFingerprint(mutated), SCHEMA_V7_FINGERPRINT, '加字段必须改变指纹');
 
   const removed = JSON.parse(JSON.stringify(sample)) as Record<string, unknown> & {
     world: Record<string, unknown>;
   };
   delete removed.world.faith;
-  assert.notEqual(saveFingerprint(removed), SCHEMA_V6_FINGERPRINT, '删字段必须改变指纹');
+  assert.notEqual(saveFingerprint(removed), SCHEMA_V7_FINGERPRINT, '删字段必须改变指纹');
 
   // 加载时按 meta.schemaFingerprint 判坏档：值不符 → 拒绝。
-  const wrongMeta = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const wrongMeta = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     meta: { schemaFingerprint: string };
   };
   wrongMeta.meta.schemaFingerprint = 'deadbeefdeadbeef';
@@ -283,7 +332,7 @@ test('P2：伪造 meta 字段骗不过校验（改值 / 加字段都拒）', () 
   };
   // 加字段 + meta 里仍写着"看起来合法"的常量：指纹层放行，包含校验必须拒绝。
   spoofed.world.smuggledField = 1;
-  spoofed.meta.schemaFingerprint = SCHEMA_V6_FINGERPRINT;
+  spoofed.meta.schemaFingerprint = SCHEMA_V8_FINGERPRINT;
   assert.throws(() => assertSave(spoofed), /字段漂移/);
 });
 
@@ -312,7 +361,7 @@ test('v3 新增三个字段：tideOverride 非空时元素键也合法', () => {
   assert.throws(() => assertSave(withOverride), /指纹不符/, '指纹是冻结常量，重算值必须被拒');
 
   // 所以：换一条更贴近真实的路——覆盖生效时存档**仍然**写冻结指纹。
-  const live = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const live = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     world: { tideOverride: unknown };
   };
   live.world.tideOverride = { level: 0.8, until: 999_999 };
@@ -323,7 +372,7 @@ test('v3 新增三个字段：tideOverride 非空时元素键也合法', () => {
 });
 
 test('v3 新增三个字段：越界值被拒（灯油 >1 / 覆盖 >1 / 计数为负）', () => {
-  const lampOver = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const lampOver = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     world: { villagers: { lampOil: number }[] };
   };
   lampOver.world.villagers[0].lampOil = 1.5;
@@ -335,13 +384,13 @@ test('v3 新增三个字段：越界值被拒（灯油 >1 / 覆盖 >1 / 计数�
   delete lampMissing.world.villagers[0].lampOil;
   assert.throws(() => assertSave(lampMissing), /lampOil 缺失/);
 
-  const tideOver = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const tideOver = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     world: { tideOverride: { level: number; until: number } | null };
   };
   tideOver.world.tideOverride = { level: 2, until: 1 };
   assert.throws(() => assertSave(tideOver), /tideOverride\.level 必须在 0\.\.1/);
 
-  const negativeCount = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const negativeCount = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     world: { worldChangeVersion: number };
   };
   negativeCount.world.worldChangeVersion = -1;
@@ -363,7 +412,7 @@ test('v4 四个槽位：缺省值符合约定（名牌在身 / 两手空空 / �
 });
 
 test('v4 四个槽位：越界值被拒（污浊度 >1 / 名牌第三态 / 未知凭证）', () => {
-  const grimeOver = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const grimeOver = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     world: { props: { grime: number }[] };
   };
   grimeOver.world.props[0].grime = 1.4;
@@ -393,7 +442,7 @@ test('v4 四个槽位：越界值被拒（污浊度 >1 / 名牌第三态 / 未�
 });
 
 test('v4 槽位运行时才出现的形状也合法：carries 非空、reveal 有字', () => {
-  const live = JSON.parse(JSON.stringify(sample)) as WorldSaveV6 & {
+  const live = JSON.parse(JSON.stringify(sample)) as WorldSaveV7 & {
     world: { villagers: { carries: string[] }[]; props: { reveal: string | null }[] };
   };
   live.world.villagers[0].carries = ['lamp', 'shoes'];
@@ -403,35 +452,35 @@ test('v4 槽位运行时才出现的形状也合法：carries 非空、reveal �
 
 // --------------------------------------------- 迁移链
 
-test('v5→v6 迁移：只补空 terrainEdits，v5 样例自证后直接过当前校验', () => {
-  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV5))) as unknown as WorldSaveV6;
-  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v6 校验');
-  assert.equal(migrated.schemaVersion, 6);
-  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+test('v5→v8 迁移：补空 terrainEdits / autonomy / siteOutput，直接过当前校验', () => {
+  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV5))) as unknown as WorldSaveV8;
+  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v8 校验');
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
   assert.deepEqual(migrated.world.terrainEdits, [], '老档没改过地形，补空数组而不是编一条改动');
   assert.equal(migrated.world.memory, sampleV5.world.memory);
   assert.deepEqual(migrated.world.villagers.map((v) => v.id), sampleV5.world.villagers.map((v) => v.id));
 });
 
-test('v4→v6 迁移：v4 样例补空串 memory 与空 terrainEdits，迁移产物直接过当前校验', () => {
-  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV4))) as unknown as WorldSaveV6;
-  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v6 校验');
-  assert.equal(migrated.schemaVersion, 6);
-  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+test('v4→v8 迁移：v4 样例一路迁移，迁移产物直接过当前校验', () => {
+  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV4))) as unknown as WorldSaveV8;
+  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v8 校验');
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
   assert.equal(migrated.world.memory, '', '老档没有记忆段，补空串而不是塞一份假记忆');
   assert.deepEqual(migrated.world.terrainEdits, []);
   assert.deepEqual(migrated.world.villagers.map((v) => v.id), sampleV4.world.villagers.map((v) => v.id));
 });
 
-test('v3→v6 迁移：v3 样例完整可迁移，迁移产物直接过当前校验', () => {
-  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV3))) as unknown as WorldSaveV6;
-  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v6 校验');
-  assert.equal(migrated.schemaVersion, 6);
-  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+test('v3→v8 迁移：v3 样例完整可迁移，迁移产物直接过当前校验', () => {
+  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV3))) as unknown as WorldSaveV8;
+  assert.doesNotThrow(() => assertSave(migrated), '迁移产物必须直接过 v8 校验');
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
 });
 
-test('v3→v6 迁移：原有数据一个不丢', () => {
-  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV3))) as unknown as WorldSaveV6;
+test('v3→v8 迁移：原有数据一个不丢', () => {
+  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV3))) as unknown as WorldSaveV8;
   assert.deepEqual(
     migrated.world.villagers.map((v) => v.id),
     sampleV3.world.villagers.map((v) => v.id),
@@ -443,18 +492,18 @@ test('v3→v6 迁移：原有数据一个不丢', () => {
   assert.equal(migrated.world.now, sampleV3.world.now);
 });
 
-test('v2→v6 一条链走完：v2 样例迁移后直接过当前校验', () => {
-  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV2))) as unknown as WorldSaveV6;
+test('v2→v8 一条链走完：v2 样例迁移后直接过当前校验', () => {
+  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV2))) as unknown as WorldSaveV8;
   assert.doesNotThrow(() => assertSave(migrated));
-  assert.equal(migrated.schemaVersion, 6);
-  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
 });
 
-test('v1→v6 一条链走完：v1 样例迁移后直接过当前校验', () => {
-  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV1))) as unknown as WorldSaveV6;
+test('v1→v8 一条链走完：v1 样例迁移后直接过当前校验', () => {
+  const migrated = migrateSave(JSON.parse(JSON.stringify(sampleV1))) as unknown as WorldSaveV8;
   assert.doesNotThrow(() => assertSave(migrated));
-  assert.equal(migrated.schemaVersion, 6);
-  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V6_FINGERPRINT);
+  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.meta.schemaFingerprint, SCHEMA_V8_FINGERPRINT);
 });
 
 test('迁移链不洗白被改过的旧档：v2 / v3 / v4 / v5 各试一次', () => {

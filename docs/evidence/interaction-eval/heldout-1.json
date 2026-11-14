@@ -1,0 +1,98 @@
+{
+  "run": "heldout-1",
+  "split": "heldout",
+  "base": "http://127.0.0.1:5241/",
+  "at": "2026-11-12T11:53:27.749Z",
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0
+  },
+  "results": [
+    {
+      "split": "held-out",
+      "id": "H1",
+      "name": "村民正忙时派活：排队或拒绝，且说清原因",
+      "pass": true,
+      "firstLine": "第二次拒收并说明原因：「炉匠 这会儿接不了活：手上有活、名字抵押了，或正」",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H2",
+      "name": "点名不在场的人：拒绝，不顺手改递给旁边那位",
+      "pass": true,
+      "firstLine": "只有被点名的人 carries 变化",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H3",
+      "name": "连点两次同一动作：不产生两条事件，不重复落账",
+      "pass": true,
+      "firstLine": "两次点击后任务数 1 → 1",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "H4",
+      "name": "拒收路径：回执不是空串，且留在输入框的原文不丢",
+      "pass": true,
+      "firstLine": "拒收回执非空，任务数保持 1",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "V1",
+      "name": "环境变体：派活往返换一个世界时刻再跑",
+      "pass": true,
+      "firstLine": "mode 变化 + 回执「给炉匠派了活。神谕已送达 炉匠铺。」",
+      "env": {
+        "world": "dengchao",
+        "now": 780,
+        "phase": "dusk",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "held-out",
+      "id": "V2",
+      "name": "环境变体：派活往返换一个潮位档再跑",
+      "pass": true,
+      "firstLine": "mode 变化 + 回执「给炉匠派了活。神谕已送达 炉匠铺。」",
+      "env": {
+        "world": "dengchao",
+        "now": 330,
+        "phase": "dawn",
+        "feed": "off",
+        "debug": 1,
+        "tide": 0.2
+      }
+    }
+  ]
+}

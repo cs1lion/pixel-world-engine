@@ -416,6 +416,7 @@ export const RENDER_INPUT_TABLE: readonly RenderInputEntry[] = Object.freeze([
   { field: 'deliveries', reader: '-', handling: 'dom', note: '状态行读数' },
   { field: 'deliveriesByVillager', reader: '-', handling: 'dom', note: '日报读数' },
   { field: 'deliveryFailures', reader: '-', handling: 'dom', note: '日报读数' },
+  { field: 'siteOutput', reader: '-', handling: 'dom', note: '作业产出累计，日报读数；不随世界时刻变，不需要钉' },
   { field: 'feed', reader: 'statusLine（DOM）', handling: 'dom', note: '上游连接状态，只进 DOM' },
 ]);
 

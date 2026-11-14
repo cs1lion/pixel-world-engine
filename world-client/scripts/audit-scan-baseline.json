@@ -1,5 +1,5 @@
 {
-  "note": "扫描面地板（2026-11-08 刷新）：references 342→529，ports 156→155；刷新时父提交 7573cf3（本分支移植 main 的 74e4067），读数取同构建实跑（node scripts/audit-references.ts / node scripts/audit-ports.ts）。为什么必须刷：旧基线 342 对着当时 530 的实际面，按 max(minDrop=5, 2%) 算地板 335，塌掉 195 处（37%）都不会红——只判下降的地板不跟实际面更新就形同虚设。阈值规则不变：minDrop=5 与 ratio=2% 判塌陷；另按政策常数 STALE_RATIO=20% 判「基线过期」（实际超过基线 20% 即红），红了只能按实测刷新本文件并在此 note 记日期/commit/前后值，不许靠改比例消红。边界：正当增长跨过 20% 也会红，这是有意的——刷新是显式动作，要留 commit 与说明，同天花板棘轮。2026-11-08 第二次刷新（父提交 aa49a36）：claims markers 5→4——aa49a36 重写 README，把唯一一条 adr-count claim 标记（值 12）随之删掉（新 README 全文已无 ADR 计数/清单，实测 markers=4）；docs/adr 本身没变（adr-schema files=12 valid=12），所以这不是放宽受查面，是那处登记随内容一起没了。教训：受查面数量必须靠这份可刷新基线 + 过期判据来管，不能在测试里写死数字——写死的数字会把「内容变了」误报成「闸门坏了」。2026-11-08 第三次刷新（父提交 a476fb1 之后的文档修正）：claims markers 4→3——上一轮记下的第 4 条是 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` 里散文重复抄的 `iterations-tracked-count` 登记（与 `docs/iterations/README.md` 那条同值同义）。按 E8 把它收成一处：散文改成指向 `docs/iterations/README.md` 的权威登记、不再抄壳，重复登记因此消失；实测 markers=3（iterations-tracked-count、spec-authority、save-schema-version 各一条）。这不是受查面变窄，是同一件事的两条登记收敛成一条。",
+  "note": "扫描面地板（2026-11-08 刷新）：references 342→529，ports 156→155；刷新时父提交 7573cf3（本分支移植 main 的 74e4067），读数取同构建实跑（node scripts/audit-references.ts / node scripts/audit-ports.ts）。为什么必须刷：旧基线 342 对着当时 530 的实际面，按 max(minDrop=5, 2%) 算地板 335，塌掉 195 处（37%）都不会红——只判下降的地板不跟实际面更新就形同虚设。阈值规则不变：minDrop=5 与 ratio=2% 判塌陷；另按政策常数 STALE_RATIO=20% 判「基线过期」（实际超过基线 20% 即红），红了只能按实测刷新本文件并在此 note 记日期/commit/前后值，不许靠改比例消红。边界：正当增长跨过 20% 也会红，这是有意的——刷新是显式动作，要留 commit 与说明，同天花板棘轮。2026-11-08 第二次刷新（父提交 aa49a36）：claims markers 5→4——aa49a36 重写 README，把唯一一条 adr-count claim 标记（值 12）随之删掉（新 README 全文已无 ADR 计数/清单，实测 markers=4）；docs/adr 本身没变（adr-schema files=12 valid=12），所以这不是放宽受查面，是那处登记随内容一起没了。教训：受查面数量必须靠这份可刷新基线 + 过期判据来管，不能在测试里写死数字——写死的数字会把「内容变了」误报成「闸门坏了」。2026-11-08 第三次刷新（父提交 a476fb1 之后的文档修正）：claims markers 4→3——上一轮记下的第 4 条是 `docs/evidence/ENVIRONMENT_BUILDABILITY.md` 里散文重复抄的 `iterations-tracked-count` 登记（与 `docs/iterations/README.md` 那条同值同义）。按 E8 把它收成一处：散文改成指向 `docs/iterations/README.md` 的权威登记、不再抄壳，重复登记因此消失；实测 markers=3（iterations-tracked-count、spec-authority、save-schema-version 各一条）。这不是受查面变窄，是同一件事的两条登记收敛成一条。2026-11-11 第四次刷新（feat/art-ref-1111）：ports 155→187。触发点是 11-11 参考图集落地新增的四份文件（server/scripts 下的 art_ref_1111.py / art_unify_1111.py / art_plates_1111.py 与 docs/art/reference-20261111/gallery.html）；扫描面从 11-08 基线起陆续长到 185 仍在 20% 窗口内，本轮再 +2 到 187 才越过 155×1.2=186 的过期线。实测 node scripts/audit-ports.ts --strict：0 处禁用端口、扫描 187 个文件；node scripts/audit-references.ts --strict：559 处 0 存疑，仍在 529 的窗口内，故 references 与 claims 两项不动。阈值规则一字未改（minDrop=5 / ratio=2% / STALE_RATIO=20%），这是按政策做的显式刷新，不是放宽判据。",
   "threshold": {
     "minDrop": 5,
     "ratio": 0.02
@@ -9,7 +9,7 @@
       "checked": 529
     },
     "ports": {
-      "files": 155
+      "files": 187
     },
     "claims": {
       "markers": 3

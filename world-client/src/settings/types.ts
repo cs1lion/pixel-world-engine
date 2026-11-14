@@ -2,6 +2,7 @@
 import type { GridSpec } from '../world/grid.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import type { VillagerArchive } from '../world/villager-archive.ts';
+import type { OutputKind } from '../world/site-output.ts';
 import type { VillagerLookInput } from '../world/villager-look.ts';
 import type { CarryItem, GridPoint, PrefabBlueprint, PropKind, TerrainId } from '../world/types.ts';
 import type { ActivityId, SiteKind } from '../world/timetable.ts';
@@ -32,6 +33,32 @@ export interface SettingSiteBase {
   readonly id: string;
   /** 闭集 `SITE_KINDS` 的元素；装载期校验，不在闭集里当场 throw。 */
   readonly kind: SiteKind;
+  /**
+   * 这个场所的作业产出什么（`OutputKind` 闭集，装载期校验）。
+   *
+   * **省略 = 这个场所不产东西**（花径的 rest/stroll 是过日子，不是作业）。
+   * 按场所 id 而不是 kind 声明：两个 `workshop` 产出不同东西——锅炉房出炭、
+   * 大浴场出洗好的衣裳。引擎不按 id 硬编码，换设定集就换产出。
+   */
+  readonly output?: OutputKind;
+  /**
+   * 这个场所每天要消耗一份什么（`OutputKind` 闭集，装载期校验）。
+   *
+   * **这是产出账的对手方**：炭不是凭空少一份，是叠浪楼把它烧掉了。
+   * 要的东西从**产出它的那个场所**的账上扣，所以 `consumes` 与 `output`
+   * 通常不是同一个词——锅炉房出炭、叠浪楼烧炭、集市买走衣裳。
+   *
+   * 省略 = 这个场所不向谁要东西。找不到供给方时按「没拿到」记，
+   * 不欠账：世界缺货是一条事实，不是一笔债。
+   */
+  readonly consumes?: OutputKind;
+  /**
+   * 显示名（「叠浪楼」「炉底入口」）。省略就用 id 原样。
+   *
+   * 只用于事件文案与日报：`boiler_annex#1` 读起来像调试输出，
+   * 而记忆里那句话是给人看的。名字属于设定集，引擎不内置任何一张译名表。
+   */
+  readonly name?: string;
 }
 
 /** 落点里与「去哪」无关的那些字。 */
@@ -345,6 +372,12 @@ export interface RawSettingPack {
     readonly x?: number;
     readonly y?: number;
     readonly building?: string;
+    /** 未校验的原文；装载期按 `OUTPUT_KINDS` 收窄成 `OutputKind`。 */
+    readonly output?: string;
+    /** 同上：未校验，装载期按 `OUTPUT_KINDS` 收窄。 */
+    readonly consumes?: string;
+    /** 显示名；空串按省略处理（空名字比没名字更难读）。 */
+    readonly name?: string;
   }[];
   readonly prefabs: Record<string, unknown>;
   readonly placements: readonly SettingPlacement[];

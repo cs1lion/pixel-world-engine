@@ -1,0 +1,1478 @@
+{
+  "artScale": 2,
+  "assets": {
+    "action/v0": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a young traveller girl with a brown ponytail, vermilion work tunic with a pale front panel, dark blue shorts, carrying a wooden water bucket. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_aGQwg8z3s4YWdaRwtvnLtitBIOVCP2QX/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v0.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "f9a27cec49721aead1f11ff7e399a86ea1e80b2403cbb7c10c93d1718182d9f8",
+      "bytes": 315265,
+      "walkLegOverHead": 2.69,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "action/v1": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a pale-robed boy with short dark hair, white and light-cyan robe with a blue sash, barefoot, holding a small paper lantern. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Z3uzL5FYHDCzN71PXFiOZqewGD2M5drw/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v1.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "9975a0f9e21fc3dd6bd3e0a5bc2e3a557da50221bf6b2c4a458a872f48c483fa",
+      "bytes": 322325,
+      "walkLegOverHead": 5.4,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "action/v2": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a tall narrow figure in a black hooded robe with a white featureless mask and dark purple eye slits, carrying a tall lamp pole. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_FkNtZ0TkxDxCqGSH0sbuqVJOHDr3h4uM/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v2.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "a39aeeb3b056b0db78fd436f4c6bc033869b2538e47d4ca51f29b85feff80670",
+      "bytes": 267219,
+      "walkLegOverHead": 2.28,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "action/v3": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a short stout elderly boiler keeper, bald with a white beard and round spectacles, dusty purple-grey work robe, holding a coal shovel. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Z55gr4FK46BMrqtBKryNlr4LuAWWli5a/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v3.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "fd2c9d3abb61b7ff5fddf019d86fc6f92b87a87585677b9f5ac2d8016a99b337",
+      "bytes": 385317,
+      "walkLegOverHead": 1.33,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "action/v4": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a short wide matron with a tall white bun and a large nose, deep blue layered cloak with a gold sash, holding a folded fan. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Iz4E3pxWfcvCzUbGaJW4kH77riKX4sSK/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v4.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "92d74e8f34135bbb1d268ea7ced9ca4f7f7bff80f0693037977c8231c23ee8e1",
+      "bytes": 362352,
+      "walkLegOverHead": 1.5,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "action/v5": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a neat bookkeeper with short dark hair, dark charcoal long coat with copper trim, a leather satchel and an abacus. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_pYbfm9ulxKT66q7rxjX7314RTpYNEQ3X/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v5.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 1,
+      "width": 384,
+      "height": 720,
+      "sha256": "7dbc90766d6b54e514d3c7b5e39fa28919b440feccc805ba3bf4b4d6bc3bcff8",
+      "bytes": 304544,
+      "walkLegOverHead": 1.54,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "action/v6": {
+      "prompt": "A SINGLE 2D pixel-art RPG character action sprite sheet of ONE character: a washerwoman with a dark brown ponytail, copper-brown dress with a pale apron, carrying a folded bundle of clean cloth. LAYOUT: a STRICT evenly spaced grid of exactly 4 COLUMNS by 6 ROWS = 24 equal cells, thin faint dark separator lines are allowed but NO labels and NO panel frames. Each row is ONE action and each column is ONE animation frame of that action. The SAME single character, SAME scale, SAME outfit and SAME camera angle in EVERY non-empty cell, centered in its cell with generous empty magenta margin around it, nothing overlapping a neighbouring cell. ROW 1 (top): IDLE - three frames of the SAME character standing and breathing gently, then one EMPTY cell.\nROW 2: WALK then CARRY - first two frames the character walking empty-handed, last two frames pushing or carrying a small wooden cart / crate.\nROW 3: WORK - four frames hammering or working at a small bench, one frame with sparks.\nROW 4: REST - two frames wiping sweat or resting with arms folded, then TWO EMPTY cells.\nROW 5: POUR - four frames pouring water from a small bucket, one frame with a big splash.\nROW 6 (bottom): CHEER - four frames raising both arms with golden sparkles, a happy open-mouth expression.\n16-bit SNES-era pixel art, crisp hard square pixels, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, simple chibi proportions about three heads tall, FRONT-FACING three-quarter view (NOT a side profile), warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, no anti-aliasing, no blur, no text, no letters, no numbers, no watermark, no border, no ground shadow, no floor, no scenery, SOLID FLAT PURE MAGENTA (#FF00FF) background in EVERY cell including the empty ones. Keep this character's outfit, hair and proportions IDENTICAL in all 21 non-empty cells; the five empty cells must be completely flat magenta with nothing in them.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_ih6b814b88cr5q8g8Gj9e8DAvgLdzpJ1/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "villager/v6.png"
+      ],
+      "origin": "2026-11-12 semantic-action-sheet (C: per-character)",
+      "grid": [
+        4,
+        6
+      ],
+      "cell": [
+        96,
+        120
+      ],
+      "filledCells": 21,
+      "qualityOk": true,
+      "attempt": 0,
+      "width": 384,
+      "height": 720,
+      "sha256": "06590d839ceb560da330e2731dba802019884299fb18cce12ad8797b38daa190",
+      "bytes": 325836,
+      "walkLegOverHead": 1.56,
+      "walkFilledCells": 4,
+      "walkAttempt": 0,
+      "walkOrigin": "dedicated 4-frame walk strip, composited into row 2"
+    },
+    "building/boiler_annex": {
+      "prompt": "A SINGLE dark sooty boiler annex, low flat roof, one iron chimney, charcoal-dark wooden wall, one small glowing furnace window. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_78GJ295wNcRTCAVrXXe3sd1ZIreyXRGF/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.3,
+      "generatedAspect": 0.97,
+      "normalizedTo": [
+        144,
+        111
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 144,
+      "height": 111,
+      "sha256": "706f659b4d182d3e0cfaa5ae867e70d40884e30aae4994666bc6eb6154ab418f",
+      "bytes": 11087
+    },
+    "building/ferry_station": {
+      "prompt": "A SINGLE old wooden ferry waiting station, weathered timber posts, flat tiled canopy, a wooden bench and a blank route sign, quiet and worn. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_meoJowBz7jpeotZNUbe4aSGSOjm8tKhR/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.22,
+      "generatedAspect": 1.12,
+      "normalizedTo": [
+        208,
+        170
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 208,
+      "height": 170,
+      "sha256": "6acc24e59226412da1007b9d18819ac31bbc5b08dbaee0b0679456f4e2c311dc",
+      "bytes": 49540
+    },
+    "building/lamp_archive": {
+      "prompt": "A SINGLE lamp archive hall, verdigris-copper gabled roof, tall lattice windows, rows of scroll shelves visible inside, scholarly and calm. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette wide and low, clearly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_pRyU8RzqGkUw9lfIDaMPZGnSOY1G2yls/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.52,
+      "generatedAspect": 1.42,
+      "normalizedTo": [
+        144,
+        95
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 144,
+      "height": 95,
+      "sha256": "6d212909a9adb45695f8c2184578cfcf642c7cc5ec99abbed78fc9a897c19bc6",
+      "bytes": 26501
+    },
+    "building/lamp_lodge": {
+      "prompt": "A SINGLE small lantern lodge inn with a verdigris-copper gabled roof, glowing paper lanterns under the eaves, wooden lattice windows. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_mPLXWG9SSECFKU0cLRt3VlTuQ9rfZle1/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.38,
+      "generatedAspect": 1.03,
+      "normalizedTo": [
+        176,
+        128
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 176,
+      "height": 128,
+      "sha256": "a0e5d4d736cf865476e7148ec6a9d4358ae1e183eced368f92f89838ac9a590c",
+      "bytes": 28481
+    },
+    "building/lamp_workshop": {
+      "prompt": "A SINGLE small lantern-maker workshop, open front with paper lanterns drying on racks, warm light from inside, plain wood and plaster walls. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_CEOtiOUyHe38eOxenRIdO3r3hjJ2a9fz/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.32,
+      "generatedAspect": 0.94,
+      "normalizedTo": [
+        144,
+        109
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 144,
+      "height": 109,
+      "sha256": "b8148ace24d6afa92b9ec0ad52f4583d8d94d34f0948348c0523020b89c6d50d",
+      "bytes": 19536
+    },
+    "building/ledger_house": {
+      "prompt": "A SINGLE modest ledger keeper's house, dark timber gable roof, shuttered windows, a blank paper notice board, restrained and orderly. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_VH5Up0VGmg8DgVm2AGcxdS0lXDnqXZgO/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.26,
+      "generatedAspect": 0.91,
+      "normalizedTo": [
+        144,
+        114
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 144,
+      "height": 114,
+      "sha256": "178d9cc9c5c717337ebc80040c71fae9ddb93e04429ed1c94be3c15bfe99d609",
+      "bytes": 18553
+    },
+    "building/soot_forge": {
+      "prompt": "A SINGLE soot-black smith forge, flat roof, heavy wooden doors, one small chimney, faint orange forge glow in one window. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_jUzPtseJ1SomgdJmduKin3X0lFFd7Kvk/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.35,
+      "generatedAspect": 1.18,
+      "normalizedTo": [
+        144,
+        107
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 144,
+      "height": 107,
+      "sha256": "02a039ae6ccdcf9cc0a54f78228e94530cdd7b095bd0b8b4dadd3cd53e6993c0",
+      "bytes": 24428
+    },
+    "building/tea_stall": {
+      "prompt": "A SINGLE small tea stall shop with a flat tiled roof, red noren curtain, a steaming kettle on the counter, hanging red paper lanterns. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette wide and low, clearly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_RUhMfeolQV4bECc9clOByNKU6IPXfiSM/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.57,
+      "generatedAspect": 1.74,
+      "normalizedTo": [
+        176,
+        112
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 176,
+      "height": 112,
+      "sha256": "5cd92d2dbd351047a3577e80392581f99339ea1f8ee3e2f512a6132569af4396",
+      "bytes": 29483
+    },
+    "building/waiting_shelter": {
+      "prompt": "A SINGLE small roadside waiting shelter, simple copper-tiled flat roof, open front with two posts and a bench, no side walls, wide and low. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette wide and low, clearly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_DqJvAOgKQ7wiY02cWFzJ9DD494PZCN2P/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 1.8,
+      "generatedAspect": 2.04,
+      "normalizedTo": [
+        144,
+        80
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 144,
+      "height": 80,
+      "sha256": "15a4091cb737e40b113bd64b9308f4396473d7b69a6e2e7294edeb841b8b53e1",
+      "bytes": 18042
+    },
+    "building/wave_house": {
+      "prompt": "A SINGLE a broad THREE-STOREY Japanese bathhouse with a WIDE horizontal facade filling the frame, three stacked rows of warm-lit lattice windows, ONE large layered dark tiled roof with upturned eaves, red lacquer pillars, hanging paper lanterns, ornate central entrance; NOT a pagoda, NOT a tower, NOT stacked tiny roofs. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_Oumh2p6f7crGAzCwSoC3OajB3iM8oqxM/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.73,
+      "generatedAspect": 1.18,
+      "normalizedTo": [
+        240,
+        329
+      ],
+      "normalizeMode": "contain",
+      "width": 240,
+      "height": 329,
+      "sha256": "20e2feda3a903e434d7de5e790c65a15e5d9f1f826f4532d45760507993b96da",
+      "bytes": 89049
+    },
+    "emote/emote-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "ad847ddf1779441812f2c8db80c09bed476f33aa39a25933ea4d1ea4bf382ef4",
+      "bytes": 7075
+    },
+    "emote/emote-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "726977fc64c696495b36099a2584a2b08f702057b2d2f916af6d5e2ee299f94b",
+      "bytes": 9217
+    },
+    "emote/emote-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 2,
+        "row": 0,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "19d8c3c832c5e8cd65bc9efdcecad9f3c844f7977242ac93d3168ece0ac4c091",
+      "bytes": 6210
+    },
+    "emote/emote-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "0248be60c75047370e9cbe857f24555e192c2b4a21c019854e7d560914b945ba",
+      "bytes": 10510
+    },
+    "emote/emote-04": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "adf4f552f7923ac5bcb00a688fb96070f5be2b7a0f5a7b5829284539aee643e6",
+      "bytes": 6995
+    },
+    "emote/emote-05": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 2,
+        "row": 1,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "1bc0728ec7b1f66de8ef2f517e2f5f546bf07bde35a0a64f80e90670de97639b",
+      "bytes": 5371
+    },
+    "emote/emote-06": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 2,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "df9981eb636d66eaf9283c608fec06c44d7cc0b864545f11314524c2c8263650",
+      "bytes": 5763
+    },
+    "emote/emote-07": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 2,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "ddd3453722b3b3a34155c8527f921e6e3b00039413fc0f60424f220fbfdf49aa",
+      "bytes": 7054
+    },
+    "emote/emote-08": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 2,
+        "row": 2,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "a75efd14eea5a0050cec23907330c4a287cc78ffd3a64b3c1795b8043667287b",
+      "bytes": 8188
+    },
+    "emote/emote-10": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 3,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "990c61d3ea1bf9d5bcc20a0814c5821a0d6b33ccb7d568da2915a6f7fd3fca1d",
+      "bytes": 5532
+    },
+    "emote/emote-11": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-ui-emote-vfx-sprite-sheet.png",
+      "cell": {
+        "col": 2,
+        "row": 3,
+        "cols": 3,
+        "rows": 4,
+        "inset": 0.1,
+        "rowLimit": 4
+      },
+      "keyTolerance": 26,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "e3bb53d643bedab7f424ff360bc3d9a3ea35b9f30ef2c6247033e69fbe69d4e8",
+      "bytes": 7704
+    },
+    "icon/role-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "51a7c361c7a2db4d574b72e84fec8b600cf1cc00b01d3650e1ac9b631a496a8d",
+      "bytes": 17244
+    },
+    "icon/role-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "74ffb2499e137294606e9a23172bf1076bd144fc337594e99b379de9c7492871",
+      "bytes": 15867
+    },
+    "icon/role-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 2,
+        "row": 0,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "88d3c3d43be1834276183d0ca550034fb9ac36ae84be11750c9e76a9fe56ddd0",
+      "bytes": 15328
+    },
+    "icon/role-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 3,
+        "row": 0,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "c78a7d52d05702c46771f33b1ef2b37688123fddd6d9c03b9b90716f4756950f",
+      "bytes": 14175
+    },
+    "icon/role-04": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 4,
+        "row": 0,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "b2cfd0d9257cac1503f4e41328a2bc851b492216848e8ce89ed21e0320be0334",
+      "bytes": 13834
+    },
+    "icon/role-05": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "071e509265c035b614447cec0f57882e32625a8849bea9ef185a02d1ebda9cc3",
+      "bytes": 12346
+    },
+    "icon/role-06": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "f793dff65dda4ee6fc75c71b44d2eb4992465fb4dd013f4c2ed5d176e1255ff2",
+      "bytes": 9578
+    },
+    "icon/role-07": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 2,
+        "row": 1,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "0c975c140a0e6d8bd66a938fd6e186a86a4149072204a9bba1a9dbea34d86a6a",
+      "bytes": 12920
+    },
+    "icon/role-08": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 3,
+        "row": 1,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "1722ebaa454d4452e36b3fadd7cd47d16d45540f7a78bea4d93ebda064d626f5",
+      "bytes": 14121
+    },
+    "icon/role-09": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "agent-role-icon-sheet.png",
+      "cell": {
+        "col": 4,
+        "row": 1,
+        "cols": 5,
+        "rows": 4,
+        "inset": 0.05,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 96,
+      "origin": "deterministic slice; no model call",
+      "width": 96,
+      "height": 96,
+      "sha256": "bf63228cd645e39dda0ffdf296556915a2227b7c831ca18047876d75b1c10251",
+      "bytes": 15848
+    },
+    "plate/cast-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "villager-sprite-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 1,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "1afaea367f33b23be4dc25c7ad8c83ad9df98ab05a2ae38c539773a8496bb76a",
+      "bytes": 56413
+    },
+    "plate/map-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "5635ce15df6f7b73f775913e4978326c6756e2bb01cd3aaeb8d28a6af75ece16",
+      "bytes": 144529
+    },
+    "plate/map-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "107f35618e347bd8142fa1f2086a2fdbf44d8b9d034c6395a3b4bc44ef915729",
+      "bytes": 143944
+    },
+    "plate/map-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "a98bda15b6433d5c0f6fb201e16ffcec64f4c1e35590a8d052235b98e7219334",
+      "bytes": 141405
+    },
+    "plate/map-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-map-16x9.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "978b639cc2082dfc67a6f52d04af67c3cd55b039c8cd1d324bbaa6b507a2ce1a",
+      "bytes": 141966
+    },
+    "plate/scholarly-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "scholarly-zone-buildings.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 1,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 320,
+      "sha256": "8e30e8a6139aa744a2f33df9c92e038419b104872481b0dd8b582722e4f16fd9",
+      "bytes": 167690
+    },
+    "plate/tileset-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-tileset-props-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 1,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 320,
+      "sha256": "716a9ff4f15fc8c9fc3d70a63bd3fea6e7b4853a045e4151fa9a1f2fa4ebae47",
+      "bytes": 195646
+    },
+    "plate/ui-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-engine-desktop-ui-mockup.jpg",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 359,
+      "sha256": "6b6bcf3883fc236a5bcb21b877f67efaf807732def7fa11012244b04448d7899",
+      "bytes": 248359
+    },
+    "plate/ui-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-world-engine-desktop-ui-mockup.jpg",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 1
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 359,
+      "sha256": "1ca05945568df992727e60cc30d3736132161ac46e61f3d3b9e6289298f79448",
+      "bytes": 233171
+    },
+    "plate/village-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "735feb708255e292e5327120f9aeda493f4a055aa4ac4863fa919b57e1f16241",
+      "bytes": 135357
+    },
+    "plate/village-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "c5e4668476803419be46028593554882c018be2373839132c01adbaa79adf057",
+      "bytes": 131063
+    },
+    "plate/village-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "28bbf04ff970773b56718cf00888cd99c515b8cff8b74a0b80d265411343fe0d",
+      "bytes": 140960
+    },
+    "plate/village-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "pixel-village-asset-sheet.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 2,
+        "rows": 2
+      },
+      "origin": "deterministic plate; full rectangular crop, no keying, no model call",
+      "width": 320,
+      "height": 180,
+      "sha256": "028d995523f68f9e72978db6457dd8d2fc983f201f3eb4dbde1135f69bb15a21",
+      "bytes": 116166
+    },
+    "scenery/bathhouse_main": {
+      "prompt": "A SINGLE grand multi-storey bathhouse facade, layered copper-green tiled roofs with upturned eaves, red lacquer pillars, rows of warm-lit lattice windows, ornate central entrance with curved gable, hanging lanterns, a tall brick chimney on the right. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_DVCwpzWqkqHccs5OnUvbmHwJBBlZYBJE/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.87,
+      "generatedAspect": 1.4,
+      "normalizedTo": [
+        332,
+        382
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 332,
+      "height": 382,
+      "sha256": "4b102f1c3d4a5e81e9bd93582699760a55260ba0a95ed6e9464576adb191ab96",
+      "bytes": 138382
+    },
+    "scenery/boiler": {
+      "prompt": "A SINGLE small brick furnace with an iron flue pipe and brick chimney, glowing orange fire inside, dark sooty walls. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_iksy0W3MHRKsp6c0fFdYQU2aSc2etLwh/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.56,
+      "generatedAspect": 0.65,
+      "normalizedTo": [
+        74,
+        132
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 74,
+      "height": 132,
+      "sha256": "3bed31934088cdebfe7b556bfd639e89389dda712ab9917fd76c02e479fb68b7",
+      "bytes": 16687
+    },
+    "scenery/coal_heap": {
+      "prompt": "A SINGLE a small LOW MOUND of chunky black coal lumps, rounded irregular black rocks with a few grey highlights, a small wooden bucket beside the mound; NO fence, NO planks, NO pallet, NO building, NO signboard. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette a very wide panoramic horizontal strip, much wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_JyoavELmgxuZwE3qypMjnIybDgRSgRW3/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 2.44,
+      "generatedAspect": 2.04,
+      "normalizedTo": [
+        66,
+        27
+      ],
+      "normalizeMode": "cover",
+      "backgroundOk": true,
+      "width": 66,
+      "height": 27,
+      "sha256": "596219d6905571020a4850b0a1614e19a54eb84e223a2641cb8a872ef20525fb",
+      "bytes": 3582
+    },
+    "scenery/far_ridge": {
+      "prompt": "A SINGLE wide panoramic horizontal strip of a distant shoreline, continuous low roof ridge line and dark mountain silhouettes, a few warm-lit windows scattered along the ridge, dark water below, NO foreground buildings. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette a very wide panoramic horizontal strip, much wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_M3b5YzAhziSy9DRBqCbZUMHV28KEL1TX/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 3.23,
+      "generatedAspect": 3.78,
+      "normalizedTo": [
+        1984,
+        614
+      ],
+      "normalizeMode": "cover",
+      "backgroundOk": true,
+      "width": 1984,
+      "height": 614,
+      "sha256": "095a4a5cbe364a245cbc848debd3f05e873189ed252ccda3c1478e3b2cda5bd0",
+      "bytes": 450118
+    },
+    "scenery/far_tower": {
+      "prompt": "A SINGLE small distant clock tower silhouette, square tower body with a clock face, pointed roof, two warm-lit windows. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_IQKOplbGCYy5njz6CsjXtopzJik7iZcg/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.78,
+      "generatedAspect": 0.6,
+      "normalizedTo": [
+        52,
+        67
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 52,
+      "height": 67,
+      "sha256": "bed3db772dc535fedaef6418a7f673527a12866c5297ad4679a5cf7dbf451060",
+      "bytes": 5812
+    },
+    "scenery/quay": {
+      "prompt": "A SINGLE stone quay wall with stepped entrance to the water, mooring posts with ropes, a waiting stone bench, moss in the cracks. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette roughly four by three, slightly wider than tall. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_opVp4BbczW03Yjh9hyT67jY4RFgfKA7E/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.92,
+      "generatedAspect": 0.81,
+      "normalizedTo": [
+        160,
+        174
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 160,
+      "height": 174,
+      "sha256": "5223af9d82a8e0c150995fe4ff9a088e5800b423b8958d71f88fad13e9673427",
+      "bytes": 45880
+    },
+    "scenery/shopfront_gable": {
+      "prompt": "A SINGLE small shop front with a curved plaster gable roof, a round window at the apex, two blank vertical signboards, lattice door, red lanterns under the eaves, weathered plaster walls. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame, overall silhouette broad and compact, roughly as wide as it is tall, NOT a thin tower, NOT a pagoda, NOT a skinny spire. Keep the building filling most of the frame width; only three storeys; do not stack many tiny floors. The ENTIRE canvas background must be flat pure magenta (#FF00FF) and NOTHING else: no ground, no floor, no wall, no scenery, no painted backdrop, no gradient. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, warm amber glow in the windows, no anti-aliasing, no blur, no painterly shading, no photographic detail, no text, no letters, no watermark, no border, no ground shadow, no cast shadow, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient. STRICTLY FRONT ORTHOGRAPHIC ELEVATION flat 2D game sprite, EXACTLY ONE BUILDING ONLY, NO perspective, NO three-quarter view, NO visible side wall, NO ground or floor plane, NO street, NO other buildings, symmetric front-facing facade, whole building fully visible including roof, centered in frame BACKGROUND = FLAT PURE MAGENTA ONLY. NO SCENERY BEHIND THE BUILDING.",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_w0oWj74QHrtjQybdt3Fv5YhQ640EiNxN/output.png",
+      "refs": [],
+      "refFiles": [
+        "pixel-village-asset-sheet.png",
+        "scholarly-zone-buildings.png",
+        "pixel-tileset-props-sheet.png"
+      ],
+      "origin": "2026-11-11-reference-set-unify",
+      "replaces": "painted bathhouse-town style (2026-11-10 batch)",
+      "sourceAspect": 0.66,
+      "generatedAspect": 0.65,
+      "normalizedTo": [
+        128,
+        194
+      ],
+      "normalizeMode": "contain",
+      "backgroundOk": true,
+      "width": 128,
+      "height": 194,
+      "sha256": "b9f0228345360e8ae368e775ed7dc3bae8591430ed607393b2ba33dcaa0eddac",
+      "bytes": 45924
+    },
+    "state/altar-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "sacred-oracle-altar-states.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 3,
+        "rows": 1,
+        "inset": 0.08,
+        "rowLimit": 1
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "3f2375dcfa89ee9487a28318404ecb071443c89ee15c981ada57639277d1bec7",
+      "bytes": 74295
+    },
+    "state/altar-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "sacred-oracle-altar-states.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 3,
+        "rows": 1,
+        "inset": 0.08,
+        "rowLimit": 1
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "52838b2b6b91f605b1d52ceb8480df1bb616954cc719342b719c6123b02d54d5",
+      "bytes": 62683
+    },
+    "state/altar-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "sacred-oracle-altar-states.png",
+      "cell": {
+        "col": 2,
+        "row": 0,
+        "cols": 3,
+        "rows": 1,
+        "inset": 0.08,
+        "rowLimit": 1
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "e295d0c31074ec389373ed7c91f91f8c4264ec1bf51aa9c47f1c03d5bb49d9e2",
+      "bytes": 86084
+    },
+    "state/workshop-00": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "steampunk-coding-workshop-states.png",
+      "cell": {
+        "col": 0,
+        "row": 0,
+        "cols": 2,
+        "rows": 2,
+        "inset": 0.06,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "5710f1e9c006b3dd72cb51ce13d61ffddb59c859160fb4dd6f096bc173b3f4d7",
+      "bytes": 110089
+    },
+    "state/workshop-01": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "steampunk-coding-workshop-states.png",
+      "cell": {
+        "col": 1,
+        "row": 0,
+        "cols": 2,
+        "rows": 2,
+        "inset": 0.06,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "e6f311c550b9f2c4be5867d2e96085f240d6d1b79e3f0d39b568538eeb0a9fb6",
+      "bytes": 115172
+    },
+    "state/workshop-02": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "steampunk-coding-workshop-states.png",
+      "cell": {
+        "col": 0,
+        "row": 1,
+        "cols": 2,
+        "rows": 2,
+        "inset": 0.06,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "7d2d16ec0649701ce2902416e1a46db28dab6e1e6a74690eb38c6c6e83867133",
+      "bytes": 114018
+    },
+    "state/workshop-03": {
+      "source": "2026-11-11-reference-set",
+      "sheet": "steampunk-coding-workshop-states.png",
+      "cell": {
+        "col": 1,
+        "row": 1,
+        "cols": 2,
+        "rows": 2,
+        "inset": 0.06,
+        "rowLimit": 2
+      },
+      "keyTolerance": 58,
+      "canvas": 256,
+      "origin": "deterministic slice; no model call",
+      "width": 256,
+      "height": 256,
+      "sha256": "e1312b46c50888ff334d0344c7b7c2f6d4bf2ad4380b0280bc890745d64ef2ce",
+      "bytes": 109257
+    },
+    "villager/v0": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a young traveller girl with a brown ponytail, vermilion work tunic with a pale front panel, dark blue shorts, carrying a wooden water bucket. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_HZSLjeCSRRgeDRZKexJx3FPH7QjgLKz9/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 36,
+      "height": 60,
+      "sha256": "557478a516eae6c0f43241befef28616b0e8c42a35db5789bba00a736096e3b0",
+      "bytes": 5283
+    },
+    "villager/v1": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a pale-robed boy with short dark hair, white and light-cyan robe with a blue sash, barefoot, holding a small paper lantern. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_SzWV82fivevw8Ad7zdux881KtQ43c2FV/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 30,
+      "height": 60,
+      "sha256": "9856a73ca7f406220d151ae7672579049bc0403b4c31d162856b27a9c0f1084e",
+      "bytes": 5034
+    },
+    "villager/v2": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a tall narrow figure in a black hooded robe with a white featureless mask and dark purple eye slits, carrying a tall lamp pole. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_MxlPbXOm4hLNCz7cj6IRaEjMCkyLB13a/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 27,
+      "height": 60,
+      "sha256": "4997e5a0329082f8b57429ac2fecfbd7f7074cbe55656a4c1eff5cacf60c2597",
+      "bytes": 3715
+    },
+    "villager/v3": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a short stout elderly boiler keeper, bald with a white beard and round spectacles, dusty purple-grey work robe, holding a coal shovel. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_K2en3F6U74I1zSGnJ1bqr2ZoMyaM9jzE/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 38,
+      "height": 60,
+      "sha256": "571620e9580e2b8976fd0706835eeb345d85bad99e35c764e5a5cbff9d93996f",
+      "bytes": 5994
+    },
+    "villager/v4": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a short wide matron with a tall white bun and a large nose, deep blue layered cloak with a gold sash, holding a folded fan. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_LcLv1MUq57OxZYByIAfMIFAyTYOxUNCA/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 39,
+      "height": 60,
+      "sha256": "44a4b3a6fcc94f18aa73fcdc9eb124ea1aa40b694f84eaccac6ca84fb1dfced7",
+      "bytes": 5653
+    },
+    "villager/v5": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a neat bookkeeper with short dark hair, dark charcoal long coat with copper trim, a leather satchel and an abacus. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_wtKFIaeEYpzhQLpD0hcqjHfubrAKqxvt/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 28,
+      "height": 60,
+      "sha256": "56360a372c43bdef5ed19888a01f2dc4b236c36d6413420d8b97f93ac84e2f9c",
+      "bytes": 4275
+    },
+    "villager/v6": {
+      "prompt": "A SINGLE full-body chibi pixel-art RPG villager portrait, standing front-facing, exactly one character only, a washerwoman with a dark brown ponytail, copper-brown dress with a pale apron, carrying a folded bundle of clean cloth. 16-bit SNES-era pixel art, crisp hard square pixels, chunky readable silhouette, thin dark ink outline around every shape, flat fills with exactly one lighter side and one darker shadow step, warm autumn palette of weathered wood brown, terracotta, brass amber, moss green and dusk teal, simple chibi proportions about three heads tall, no anti-aliasing, no blur, no painterly shading, no text, no watermark, no border, no ground shadow, no floor, no cast shadow, no glow halo, no light bloom, centered, SOLID FLAT PURE MAGENTA (#FF00FF) background with no gradient",
+      "model": "agnes-image-2.5-flash",
+      "sourceUrl": "https://cos-platform-outputs.agnes-ai.cn/images/i2i/task_RQfBF1n7S6d9l7paf6j5yIEbQdw7HZrM/output.png",
+      "refs": [],
+      "refFiles": [
+        "villager-sprite-sheet.png",
+        "agent-role-icon-sheet.png",
+        "pixel-world-map-16x9.png"
+      ],
+      "origin": "2026-11-11-reference-set",
+      "width": 35,
+      "height": 60,
+      "sha256": "dc9c873a6e1edce8ac0c106d288d5ae728681b6102f08c10b9f67038410882b4",
+      "bytes": 5178
+    }
+  }
+}

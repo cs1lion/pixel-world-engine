@@ -46,6 +46,22 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/eval-fixture-hash.test.ts',
     reason: '夹具哈希用例：参数化读夹具与基线，base 上可能本来就绿',
   },
+  {
+    file: 'test/art-building-scale.test.ts',
+    reason: '纯函数边界用例：依赖 src/render/art-assets.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
+  },
+  {
+    file: 'test/work-note-client.test.ts',
+    reason: '牌子运输侧：依赖 src/world/work-note-client.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件；世界侧仍在 test/work-note.test.ts 真出红',
+  },
+  {
+    file: 'test/site-output.test.ts',
+    reason: '场所产出账：依赖 src/world/site-output.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
+  },
+  {
+    file: 'test/villager-decision-client.test.ts',
+    reason: '人物决策运输侧：依赖 src/world/villager-decision-client.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件；世界侧仍在 test/villager-decision.test.ts 真出红',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
@@ -60,6 +76,60 @@ export function toTestRelative(path: string): string | null {
 
 export function isSnapshotLikeTest(testRelativePath: string): string | null {
   return SNAPSHOT_BY_FILE.get(testRelativePath) ?? null;
+}
+
+/**
+ * 把 TypeScript 源码剥成「语义骨架」：去行注释、去块注释、去空白。
+ *
+ * 用途只有一个——判断两个版本的**行为是否一样**。字符串字面量里的内容
+ * 原样保留（测试文案、断言消息改了也是真改动，不该被剥掉）。模板字符串
+ * 同理原样保留：里面的 `${...}` 是表达式，剥注释会伤到它们，干脆整段留下。
+ *
+ * 这不是完整的 TS 解析器，**只服务 red-first 的一个判据**：
+ * 「这个测试文件本次是不是只改了注释」。宁可把「像注释的字符串」留下（误判成
+ * 有改动、多跑一次 base），也不能把真注释留下（漏判成有改动 → base 绿 → 判红）。
+ * 前者是误伤自己一次，后者是闸门失灵。
+ *
+ * 行注释后那个换行也被剥掉（不是恢复成代码）：否则同一段代码一行注释与一段
+ * 块注释会产出两个骨架——一行注释的版本末尾多一个换行、块注释的版本没有，
+ * 本来只改注释的文件会被当成改了代码。
+ */
+export function stripComments(source: string): string {
+  let out = '';
+  let i = 0;
+  let inLine = false;
+  let inBlock = false;
+  let quote: string | null = null;
+  const NEWLINE = String.fromCharCode(10);
+  const BACKSLASH = String.fromCharCode(92);
+  while (i < source.length) {
+    const c = source[i]!;
+    const next = source[i + 1];
+    if (inLine) {
+      if (c === NEWLINE) { inLine = false; }
+      i += 1;
+      continue;
+    }
+    if (inBlock) {
+      if (c === '*' && next === '/') { inBlock = false; i += 2; continue; }
+      i += 1;
+      continue;
+    }
+    if (quote !== null) {
+      out += c;
+      if (c === BACKSLASH) { out += source[i + 1] ?? ''; i += 2; continue; }
+      if (c === quote) quote = null;
+      i += 1;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { quote = c; out += c; i += 1; continue; }
+    if (c === '/' && next === '/') { inLine = true; i += 2; continue; }
+    if (c === '/' && next === '*') { inBlock = true; i += 2; continue; }
+    if (c === ' ' || c === NEWLINE || c === '\r' || c === '\t') { i += 1; continue; }
+    out += c;
+    i += 1;
+  }
+  return out;
 }
 
 /**
