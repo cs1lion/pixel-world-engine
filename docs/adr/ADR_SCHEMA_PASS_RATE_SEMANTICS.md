@@ -15,11 +15,17 @@
 | 事实 | 位置 |
 |---|---|
 | `submitHumanApproval` 的 `approved` 参数在**全仓所有调用点都是 `true`**（src 4 处 + test 十余处），从没有 `false` | `engine.ts:358`、grep 全部调用点 |
-| 唯一生产记账点是落地成功后 `creator.submitHumanApproval('mapper', id, true, ...)` | `SandboxScene.ts:2240` |
-| 玩家造物 schema 失败（3434）只 `recordLedger`，**不进 fuse** | `SandboxScene.ts:3413-3450` |
-| `cancelCreation()` 只 `endCreation()`，说「取消了，世界没动」，不记任何账 | `SandboxScene.ts:3608` |
-| 自动提议被拒（熔断/抽检不放行）只 `recordLedger` 后 `return`，不进 fuse | `SandboxScene.ts:2148-2150` |
-| `planCreation` 找不到合规落点返回 `null`，直接 `return`，不进 fuse | `SandboxScene.ts:2090`、`engine.ts:448` |
+| 唯一生产记账点是落地成功后 `creator.submitHumanApproval('mapper', id, true, ...)` | `SandboxScene.ts:2313` |
+| 玩家造物 schema 失败只 `recordLedger`，**不进 fuse** | `SandboxScene.ts:3509` |
+| `cancelCreation()` 只 `endCreation()`，说「取消了，世界没动」，不记任何账 | `SandboxScene.ts:3681` |
+| 自动提议被拒（熔断/抽检不放行）只 `recordLedger` 后 `return`，不进 fuse | `SandboxScene.ts:2237-2239` |
+| `planCreation` 找不到合规落点返回 `null`，直接 `return`，不进 fuse | `SandboxScene.ts:2182`、`engine.ts:448` |
+
+> **2026-11-14 重新对位**：上表五行原本按 `main` 的行号写，而 `feat/light-bake`
+> 删掉了 `SandboxScene.ts` 里 12 行（造物主 EDD 的 P0 收敛），合并后整体上移，
+> `2240` 那处甚至落进了空行——`audit-references` 当场判红。逐条按代码重新对位，
+> 数字以**合并后的这支分支**为准。行号会继续漂：`main` 前一轮刚给这个文件加了 181 行，
+> 下次再合还会动。复核方式不是看这张表，是 `grep` 那几个函数名。
 
 **结论：不是「漏了记账点」，是引擎 API 里根本没有「人的确认结果是拒绝」这个输入。**
 `schemaPassed` 实际测的是「这条造物有没有落地成功」，不是「Schema 校验通过率」。

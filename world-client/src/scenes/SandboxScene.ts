@@ -1525,7 +1525,58 @@ export class SandboxScene extends Phaser.Scene {
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
+    void this.registerCreatorDebugBridge();
     this.connectFeed();
+  }
+
+  /**
+   * 挂造物主 EDD 调试桥（`window.__PIXEL_WORLD_DEBUG__`）。
+   *
+   * **只在 `?debug=1` 下挂**，且刻意不扩 `window.Oracle`：那个对象是玩家与面板
+   * 的 API，挂载时要过十个接口子集的交集核对；把五个评测方法挂上去就是放宽生产面。
+   * 双下划线调试全局在本仓有先例（`__RAIN_SEED__` / `__CAPTURE_STATE__`）。
+   *
+   * 施工联动只做视图刷新：每拍把台账里的阶段刷到已有 `BuildingEntry.view` 上，
+   * 不新建容器、不改 back/container/front 三层深度。
+   */
+  private async registerCreatorDebugBridge(): Promise<void> {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debug') !== '1' && params.get('debug') !== '') return;
+    // 动态 import 有两个理由：① 调试桥不进生产主 bundle（只有 `?debug=1` 才加载）；
+    // ② 不在文件头加 import 行，ADR 与岸带设计里那些写死的 `SandboxScene.ts:NNN`
+    //    引用就不会因为这一笔位移。这个仓的行号引用是闸门查得到的，漂一格就红。
+    const { CreatorDebugBridge } = await import('../world/creator/debug-bridge.ts');
+    const parsedSeed = Number.parseInt(params.get('debugPinSeed') ?? '0', 10);
+    const seed = Number.isFinite(parsedSeed) ? parsedSeed >>> 0 : 0;
+
+    const bridge = new CreatorDebugBridge({
+      grid: this.world.grid,
+      blueprints: this.blueprints,
+      sim: this.sim,
+      saveStore: this.saveStore,
+      storage: window.localStorage,
+      seed,
+      currentSave: () => this.sim.toSave(this.memory.toJSON()),
+      // 只读探针：这栋楼的渲染层里有多少层用了 `art:` 外部贴图。
+      // K2 靠它把「网络没发请求」升级成「源头确实是程序化烘焙」——
+      // 素材在首屏预加载进 TextureManager，只数请求数会被缓存骗过去。
+      describeBuildingArt: (instanceId: string) => {
+        const entry = this.entries.find((item) => item.building.instanceId === instanceId);
+        if (entry === undefined) return { layers: 0, artLayers: 0 };
+        let layers = 0;
+        let artLayers = 0;
+        for (const container of [entry.view.back, entry.view.container, entry.view.front]) {
+          for (const child of container.list) {
+            const key = (child as { texture?: { key?: string } }).texture?.key;
+            if (typeof key !== 'string') continue;
+            layers += 1;
+            if (key.startsWith('art:')) artLayers += 1;
+          }
+        }
+        return { layers, artLayers };
+      },
+    });
+    (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__ = bridge;
   }
 
   /**
@@ -1575,6 +1626,7 @@ export class SandboxScene extends Phaser.Scene {
     this.memoryOutbox = null;
     this.creator = null;
     this.creationLedger = null;
+    delete (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__;
     this.pendingCreationObservations.clear();
     this.overlay?.dispose();
     this.overlay = null;
