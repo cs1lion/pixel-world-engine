@@ -486,6 +486,12 @@ export class TraceRuntime {
       origin: building.origin,
       door: building.door,
     };
+    // 全部读数在 await **之前**从这一份捕获快照算定。
+    // 评审指出：若楼在结算期间被拆，`this.world.grid` 已经不是落地那一刻的网格，
+    // await 之后再问 landingReachable 会拿到被改写过的答案。
+    // 生产规则其实禁止施工期拆除，但把读数冻在同一份快照上更稳，且行为不变。
+    const coverageRate = creationCoverage(snapshot, this.pack.blueprints);
+    const pathfindingConnected = landingReachable(this.world, landed);
     const business = await checkLandedBuilding(
       {
         snapshot,
@@ -504,8 +510,8 @@ export class TraceRuntime {
       prefabId: building.prefabId,
       origin: building.origin,
       door: building.door,
-      coverageRate: creationCoverage(snapshot, this.pack.blueprints),
-      pathfindingConnected: landingReachable(this.world, landed),
+      coverageRate,
+      pathfindingConnected,
       hasCollision: false,
       spatialConstraintSatisfied: true,
       traceable: false,

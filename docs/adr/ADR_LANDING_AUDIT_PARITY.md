@@ -33,6 +33,18 @@
   将来要单独立门禁时再另起 ADR，因为那要动 `MetricWindow` 与存档契约。
 - 不改 `schemaPassRate` / `manualModificationRate` 的既有定义。
 
+## §3.1 评审 minor checks 的边界（2026-11-14 复核）
+
+| 担心 | 复核结果 |
+| --- | --- |
+| 回放结束漏 `await` 结算 | 不成立。`TraceRuntime.step()` 每拍都 `await settlePendingLandings()`；`runTrace` 与 `runTraceWithRuntime` 都 `await runtime.step()` 到最后一拍，`fingerprintsAt` 在 await 之后取。已用「把 build 放在轨迹最后一拍」的测试钉住 |
+| 结算期间楼被拆、读数漂 | 生产 `demolish` 会拒「正在施工」，所以「结算完成前拆除」当前不可达；但仍把 `coverageRate` 与 `pathfindingConnected` 移到 `await checkLandedBuilding` **之前**从同一份捕获快照算定，不再在 await 之后读可变网格 |
+| 实体找不到 | `settleUnplannedLanding` 用**当前快照** `buildings.find`，找不到直接返回，不凭缓存形状补幽灵记录 |
+| 会话缓存上限 | 读侧缓存上限 200 是有意的：超出后旧楼回退为「无脚注」（`null`），绝不显示一条错的。持久真相仍是服务端 JSONL 账本；面板查询的 `placeId` 与写入的 `instanceId` 是同一个键 |
+| 「今日」的时钟 | `composeReport` 与场景的 `currentDay` 都用 `snapshot.now / DAY_MS`（虚拟世界钟），全文件不读 `Date.now` / `performance.now`。倍速与回放不漂 |
+| 长违规文案撑破面板 | `line()` 走 `textContent`（无 `innerHTML`）；`.building-landing` 加 `overflow-wrap: anywhere` |
+| ADR 硬编码行号 | `ADR_SCHEMA_PASS_RATE_SEMANTICS` 那张表全面改成方法/符号名，不再写 `SandboxScene.ts:NNN` |
+
 ## §4 验证
 
 `world-client/test/creator-landing-parity.test.ts` 用一条最小轨迹

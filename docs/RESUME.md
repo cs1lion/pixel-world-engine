@@ -22,6 +22,8 @@
   pytest ✅ / 评分器 ✅ 生产组 10/10 + 规格组 6/6
 - 未跑/失败: 无。外环**跨日提议**仍未取证（`speed=1` 下一个世界日 = 24 小时现实时间），
   没有伪造读数。
+- P1 评审 minor checks 已收口：最后一拍 await、读数冻在同一份快照、缓存上限回退为无脚注、
+  虚拟世界钟、CSS 长文本兜底、ADR 行号改符号名；`test/creator-landing-hardening.test.ts` 8 条钉住。
 - 下一步命令: `cd world-client && npm test && npm run check`
 
 **P1 已开工并落地一小步**（2026-11-14）：核实时发现 P1 的主体**main 已经做过**——

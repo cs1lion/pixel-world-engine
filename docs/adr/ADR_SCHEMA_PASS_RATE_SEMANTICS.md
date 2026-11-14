@@ -12,20 +12,20 @@
 
 ## 2. 逐调用点核实（不是推测）
 
-| 事实 | 位置 |
+| 事实 | 位置（按符号名，`grep` 即得） |
 |---|---|
-| `submitHumanApproval` 的 `approved` 参数在**全仓所有调用点都是 `true`**（src 4 处 + test 十余处），从没有 `false` | `engine.ts:358`、grep 全部调用点 |
-| 唯一生产记账点是落地成功后 `creator.submitHumanApproval('mapper', id, true, ...)` | `SandboxScene.ts:2331` |
-| 玩家造物 schema 失败只 `recordLedger`，**不进 fuse** | `SandboxScene.ts:3552` |
-| `cancelCreation()` 只 `endCreation()`，说「取消了，世界没动」，不记任何账 | `SandboxScene.ts:3724` |
-| 自动提议被拒（熔断/抽检不放行）只 `recordLedger` 后 `return`，不进 fuse | `SandboxScene.ts:2255-2257` |
-| `planCreation` 找不到合规落点返回 `null`，直接 `return`，不进 fuse | `SandboxScene.ts:2200`、`engine.ts:448` |
+| `submitHumanApproval` 的 `approved` 参数在**全仓所有调用点都是 `true`**（src 4 处 + test 十余处），从没有 `false` | `CreatorEngine.submitHumanApproval()` 的定义，以及全仓对该名的调用 |
+| 唯一生产记账点是落地成功后 `creator.submitHumanApproval('mapper', id, true, ...)` | `SandboxScene.settleCreationObservation()` 里的 `checkLandedBuilding(...).then` |
+| 玩家造物 schema 失败只 `recordLedger`，**不进 fuse** | `SandboxScene.confirmCreation()` 的 catch 分支 |
+| `cancelCreation()` 只 `endCreation()`，说「取消了，世界没动」，不记任何账 | `SandboxScene.cancelCreation()` |
+| 自动提议被拒（熔断/抽检不放行）只 `recordLedger` 后 `return`，不进 fuse | `SandboxScene.stepCreatorProposal()` 里 `creation.verdict === 'rejected'` 那一支 |
+| `planCreation` 找不到合规落点返回 `null`，直接 `return`，不进 fuse | `SandboxScene.stepCreatorProposal()` 里的 `proposal === null`；`CreatorEngine.planCreation()` |
 
-> **2026-11-14 重新对位**：上表五行原本按 `main` 的行号写，而 `feat/light-bake`
-> 删掉了 `SandboxScene.ts` 里 12 行（造物主 EDD 的 P0 收敛），合并后整体上移，
-> `2240` 那处甚至落进了空行——`audit-references` 当场判红。逐条按代码重新对位，
-> 数字以**合并后的这支分支**为准（2026-11-14 又随落地账读侧接线整体后移，已再次对位）。行号会继续漂：`main` 前一轮刚给这个文件加了 181 行，
-> 下次再合还会动。复核方式不是看这张表，是 `grep` 那几个函数名。
+> **2026-11-14 起，这张表不再写行号。**
+> 它原先按行号指着 `SandboxScene.ts`，而这个文件在两次接线里分别被删了 12 行、
+> 又下移了一次声明位置，表格被迫手工对位了三轮，`audit-references` 还红过一次。
+> 行号不是这张表要表达的事实，符号名才是。复核方式：`grep` 上表第二列里的方法名，
+> 不要拿某个数字去数行。`engine.ts` 那两处同理，也改成方法名。
 
 **结论：不是「漏了记账点」，是引擎 API 里根本没有「人的确认结果是拒绝」这个输入。**
 `schemaPassed` 实际测的是「这条造物有没有落地成功」，不是「Schema 校验通过率」。

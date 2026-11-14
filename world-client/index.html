@@ -997,6 +997,11 @@
       #building-panel-body .building-state,
       #building-panel-body .building-trace,
       #building-panel-body .building-history { color: var(--dim); font-size: 11px; }
+      /* 落地脚注里会原样抄账本的违规文案，可能很长。逐字断行，别把面板撑破。 */
+      #building-panel-body .building-landing {
+        color: var(--dim); font-size: 11px;
+        overflow-wrap: anywhere; white-space: normal;
+      }
       #building-panel-body .building-state .art-state-icon {
         display: inline-block;
         width: 20px;
