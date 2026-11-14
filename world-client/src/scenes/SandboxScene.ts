@@ -1557,6 +1557,24 @@ export class SandboxScene extends Phaser.Scene {
       storage: window.localStorage,
       seed,
       currentSave: () => this.sim.toSave(this.memory.toJSON()),
+      // 只读探针：这栋楼的渲染层里有多少层用了 `art:` 外部贴图。
+      // K2 靠它把「网络没发请求」升级成「源头确实是程序化烘焙」——
+      // 素材在首屏预加载进 TextureManager，只数请求数会被缓存骗过去。
+      describeBuildingArt: (instanceId: string) => {
+        const entry = this.entries.find((item) => item.building.instanceId === instanceId);
+        if (entry === undefined) return { layers: 0, artLayers: 0 };
+        let layers = 0;
+        let artLayers = 0;
+        for (const container of [entry.view.back, entry.view.container, entry.view.front]) {
+          for (const child of container.list) {
+            const key = (child as { texture?: { key?: string } }).texture?.key;
+            if (typeof key !== 'string') continue;
+            layers += 1;
+            if (key.startsWith('art:')) artLayers += 1;
+          }
+        }
+        return { layers, artLayers };
+      },
     });
     (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__ = bridge;
   }

@@ -19,9 +19,9 @@
     ],
     "keepIntact": [
       "K1: 造物主选址与施工期间世界时钟与居民作息照常推进（单拍均值不超 16.6ms）",
-      "K2: 造物过程不新增外部图片请求（楼与脚手架都是程序化烘焙；页面基线不计入）",
+      "K2: 造物过程不新增外部图片请求，且楼体渲染层不使用 art: 外部贴图（首屏预加载的素材不计入）",
       "K3: 相同开局 + 相同指令批次重放两次，状态哈希与网格快照逐字相同",
-      "K4: 存档 schemaVersion 不变，落盘字节包含 buildings、roads、creatorRules、fuseState"
+      "K4: 存档 schemaVersion 不变，落盘字节包含 buildings、roads 与 v8 原生的 world.autonomy"
     ]
   },
   "examples": [
@@ -272,8 +272,7 @@
         "persistedFields": [
           "buildings",
           "roads",
-          "creatorRules",
-          "fuseState"
+          "autonomy"
         ]
       },
       "mode": "production"

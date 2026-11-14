@@ -6,11 +6,11 @@
     "when": "注入满载分区、门口障碍、施工中途导出存档、熔断后回归、或切换到夜晚/清晨时段时",
     "do": [
       "H1: 分区满载无法满足 footprint + clearMargin 时明确拒绝并返回 REGION_FULL，绝不压盖既有建筑或道路",
-      "H2: 门口正前方有不可通行障碍时，自动修路绕开并仍连通主干道",
+      "H2: 障碍种在种障前的生产路线中段时，选址器不换地方（originDodged=false）、最终路线改变且不穿障碍、doorReaches 仍判连通",
       "H3: 施工倒计时中途导出存档并重载，剩余拍数精确延续直至完工",
       "H4: 熔断降级后回归批次通过率达 1.0 时，allowResumeToTarget 恢复到目标自治等级",
       "V1: 夜晚高潮位下选址避开潮水淹没格",
-      "V2: 清晨档下存档结构与 creatorRules / fuseState 字段完整"
+      "V2: 清晨档下存档结构与 v8 原生 world.autonomy 字段完整"
     ],
     "dont": [
       "严禁对固定开局时刻（now 540 / noon）硬编码选址坐标",
@@ -52,7 +52,7 @@
     },
     {
       "id": "H2",
-      "name": "roadDetourAroundObstacle",
+      "name": "roadDetourCounterfactual",
       "check": "roadAutoPave",
       "env": {
         "world": "dengchao",
@@ -75,7 +75,10 @@
       },
       "expect": {
         "pathfindingConnectivity": 1.0,
-        "doorWalkableToAltar": true
+        "doorWalkableToAltar": true,
+        "originDodged": false,
+        "routeChanged": true,
+        "roadCrossedObstacle": false
       },
       "mode": "spec"
     },
@@ -183,8 +186,7 @@
         "persistedFields": [
           "buildings",
           "roads",
-          "creatorRules",
-          "fuseState"
+          "autonomy"
         ]
       },
       "mode": "production"

@@ -114,7 +114,15 @@ async function runExample(browser, example) {
     }
 
     // 每个 check 拿到的 ctx 里带着自己那条用例：输入、期望、以及收集到的页面读数。
-    const ctx = { ...session, browser, example, expect: example.expect };
+    // 图片请求基线**取在派活前一刻**：首屏素材/图标可能在桥挂载之后才触发解码或延迟请求，
+    // 拿 openPage 时的计数当基线会把首屏尾包误算成「造物新增」。
+    const ctx = {
+      ...session,
+      browser,
+      example,
+      expect: example.expect,
+      imageBaseline: session.imageRequests.length,
+    };
     const detail = await CHECKS[example.check](ctx, example.expect, example);
     if (session.pageErrors.length > 0) {
       throw new Error(`页面报错：${session.pageErrors.join(' | ')}`);
@@ -182,6 +190,8 @@ export const CHECKS = {
         roadTileCount: reloaded.roads.length,
         blockedTiles: reloaded.blockedTiles ?? [],
         plan: reloaded.lastRoadPlan ?? null,
+        detour: reloaded.detour ?? null,
+        detourSkip: reloaded.detourSkip ?? null,
       };
     }, ctx.example.input);
 
@@ -194,12 +204,30 @@ export const CHECKS = {
       (cmd) => cmd.kind === 'PlantObstacleAtDoor',
     );
     if (hasObstacleSetup) {
-      assert.ok(res.blockedTiles.length > 0, 'setup 没有往生产网格种下任何障碍');
-      assert.ok(res.plan !== null, '没有铺路读数，无法证明生产真的铺了路');
-      const crossing = res.plan.path.filter((key) => res.blockedTiles.includes(key));
-      assert.equal(crossing.length, 0, `生产铺出的路穿过了障碍格：${crossing.join(', ')}`);
-      assert.ok(res.plan.pathLength > 0, '存档里没有新增道路格——生产没有铺路');
+      // 反事实判据（评审 2026-11-14 提出）：只断言「连通率 1.0」不够——
+      // 障碍不在原路线上时，随便一条畅通的路都会让用例 100% 假绿。
+      // 生产里能如实测到绕行的形状只有一种：楼已落成、路已铺出，截断那条路的中段，
+      // 再问生产要一次路线。所以这里证明三件事：障碍取自**原路线**、
+      // 新路线**变了**、且新路线**不穿障碍**、仍然**到得了祭坛**。
+      const detour = res.detour;
+      assert.ok(
+        detour !== null,
+        `没有反事实读数（detourSkip=${res.detourSkip ?? 'null'}）`,
+      );
+      assert.ok(detour.dryRunRoute.length >= 3, '种障前的生产路线太短，构不成绕行场景');
+      assert.ok(
+        detour.dryRunRoute.includes(`${detour.obstacle.x},${detour.obstacle.y}`),
+        `障碍 (${detour.obstacle.x},${detour.obstacle.y}) 不在种障前的生产路线上`,
+      );
+      assert.equal(detour.originDodged, false, '落位被换了地方，测的是选址不是绕行');
+      assert.equal(detour.roadCrossedObstacle, false, '截断后的路线仍然穿过障碍格');
+      assert.equal(detour.routeChanged, true, '截断之后路线逐字不变——说明绕行根本没发生');
+      assert.ok(res.plan !== null && res.plan.pathLength > 0, '存档里没有新增道路格——生产没有铺路');
       assert.equal(res.doorWalkableToAltar, true, 'doorReaches 判门口连不到祭坛');
+      // 报告里把三枚读数写出来：绿得能被人当场核对，而不是只写「PASS」。
+      return `road-detour(obstacle=${detour.obstacle.x},${detour.obstacle.y} `
+        + `dry=${detour.dryRunRoute.length} 格 → final=${detour.finalRoute.length} 格, `
+        + `crossed=${detour.roadCrossedObstacle}, connectivity=${res.connectivity})`;
     }
 
     assert.equal(res.rejected, false, `落位被拒绝：${res.rejectCode}`);
@@ -407,21 +435,37 @@ export const CHECKS = {
   },
 
   /**
-   * K2：造物**不新增**外部图片请求。
+   * K2：造物**不新增**外部图片请求，且楼体图层不是外部贴图。
    *
-   * 合并 main 之后这条口径必须改写：main 的绘制管线会加载 `public/assets/**`
-   * （设定集素材、角色图标），"整页零图片请求"这个前提已经不成立。
-   * 仍要守的不变量是——**造物这件事本身不该引入新素材**：楼与脚手架都是程序化烘焙。
-   * 所以拿页面加载完那一刻的请求数作基线，只看造物新增的那部分。
+   * 合并 main 之后口径改过一次：main 的绘制管线会加载 `public/assets/**`
+   * （设定集素材、角色图标），"整页零图片请求"已不可能。仍要守的不变量是
+   * **造物这件事本身不引入新素材**：楼与脚手架都是程序化烘焙。
+   *
+   * 只数请求数有个漏洞：素材在首屏就被 `preloadArt` 塞进 TextureManager，
+   * 于是「某栋楼偷偷绑了 building/*.png」也不会产生新请求，delta 仍是 0。
+   * 所以再加一条源头断言：这栋楼的渲染层里不许出现 `art:` 前缀的外部贴图。
    */
   async zeroImageRequests(ctx, expect) {
     const added = ctx.imageRequests.slice(ctx.imageBaseline);
+    const readout = await ctx.page.evaluate(() => {
+      const api = window.__PIXEL_WORLD_DEBUG__;
+      const view = api.inspectSaveBytes(api.exportSaveBytes());
+      return { artTextureLayers: view.artTextureLayers ?? null };
+    });
     assert.equal(
       added.length,
       expect.imageNetworkRequests,
       `造物新增了 ${added.length} 个图片请求：${added.slice(0, 3).join(', ')}`,
     );
-    return `zero-new-images(基线 ${ctx.imageBaseline})`;
+    const artLayers = readout.artTextureLayers;
+    if (artLayers !== null && artLayers !== undefined) {
+      assert.equal(
+        artLayers,
+        0,
+        `这栋楼有 ${artLayers} 层在用外部 art: 贴图——网络没请求，源头却不是程序化烘焙`,
+      );
+    }
+    return `zero-new-images(基线 ${ctx.imageBaseline}, artLayers=${artLayers ?? 'n/a'})`;
   },
 
   /** K3：同开局同指令重放两次，状态哈希与网格快照逐字相同。 */
@@ -476,14 +520,21 @@ export const CHECKS = {
       const raw = api.exportSaveBytes();
       const after = JSON.parse(raw);
       const buildings = Array.isArray(after.world?.buildings) ? after.world.buildings : [];
+      const world = after.world ?? {};
       return {
         before: before.schemaVersion,
         after: after.schemaVersion,
         // 真落盘：桥造的那栋楼必须出现在 SaveStore 写出的字节里，
         // 而不是只活在审计台账或 Phaser 视图里。
         newBuildingInSave: buildings.some((b) => b?.instanceId === placed?.instanceId),
-        hasBuildings: Array.isArray(after.world?.buildings),
-        hasRoads: Array.isArray(after.world?.roads),
+        hasBuildings: Array.isArray(world.buildings),
+        hasRoads: Array.isArray(world.roads),
+        // v8 原生：外环自治状态在 world.autonomy（合并 main 后由 ADR_SAVE_AUTONOMY_PERSIST 引入）。
+        // 生产组只认这一处，不算调试桥拼出来的侧车外壳。
+        hasAutonomy: 'autonomy' in world
+          && (world.autonomy === null || Array.isArray(world.autonomy)),
+        // 侧车字段：`creatorRules` / `fuseState` 来自调试桥打的包顶层，不是 v8 存档字段。
+        // 只有 spec 组用例才会把它们写进 persistedFields——那是夹具的可自证，不是生产验收。
         hasCreatorRules: 'creatorRules' in after,
         hasFuseState: 'fuseState' in after,
       };
@@ -495,6 +546,7 @@ export const CHECKS = {
     const fields = {
       buildings: res.hasBuildings,
       roads: res.hasRoads,
+      autonomy: res.hasAutonomy,
       creatorRules: res.hasCreatorRules,
       fuseState: res.hasFuseState,
     };

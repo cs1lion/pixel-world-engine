@@ -81,7 +81,46 @@ test('4. 评测不再把规格夹具当生产验收：数据集要显式分组',
   }
 });
 
-test('5. 生产锚点：选址与铺路的真入口必须还在', () => {
+test('5. 生产组的存档断言只认 v8 原生字段，不认调试侧车', () => {
+  const main = JSON.parse(readFileSync(join(ROOT, 'eval', 'creator', 'main.json'), 'utf8')) as {
+    readonly examples: readonly {
+      readonly id: string; readonly mode?: string;
+      readonly expect?: { readonly persistedFields?: readonly string[] };
+    }[];
+  };
+  for (const example of main.examples) {
+    const fields = example.expect?.persistedFields;
+    if (fields === undefined) continue;
+    assert.equal(example.mode, 'production', '带 persistedFields 的用例只该是生产组');
+    assert.ok(
+      fields.includes('autonomy'),
+      `${example.id} 没有断言 v8 原生的 world.autonomy——生产验收不该只验调试侧车`,
+    );
+    for (const sidecar of ['creatorRules', 'fuseState']) {
+      assert.equal(
+        fields.includes(sidecar),
+        false,
+        `${example.id} 把侧车字段 ${sidecar} 算进生产验收了；它只该出现在 spec 组`,
+      );
+    }
+  }
+});
+
+test('6. H2 必须是反事实路径差分，不许退回「只看连通率」', () => {
+  const held = JSON.parse(readFileSync(join(ROOT, 'eval', 'creator', 'held-out.json'), 'utf8')) as {
+    readonly examples: readonly { readonly id: string; readonly expect?: Record<string, unknown> }[];
+  };
+  const h2 = held.examples.find((example) => example.id === 'H2');
+  assert.ok(h2 !== undefined, 'H2 不能删：它是绕行的唯一证据');
+  for (const key of ['originDodged', 'routeChanged', 'roadCrossedObstacle', 'doorWalkableToAltar']) {
+    assert.ok(
+      h2.expect?.[key] !== undefined,
+      `H2.expect 缺 ${key}：只剩连通率的话，它就与 M2 同构，绕行根本没被验证`,
+    );
+  }
+});
+
+test('7. 生产锚点：选址与铺路的真入口必须还在', () => {
   assert.match(read('world/grid.ts'), /findBestSlot\s*\(/, 'WorldGrid.findBestSlot 不能删');
   assert.match(read('world/setup.ts'), /export function paveFrom/, 'paveFrom 不能删');
   assert.match(read('world/simulation.ts'), /CONSTRUCTION_MS/, '施工时钟不能删');

@@ -27,6 +27,26 @@ export interface FuseSnapshot {
   lastEvent: string;
 }
 
+/**
+ * H2 的反事实路径差分：种障前后各跑一次**生产** `grid.path`，用差集证明「真的绕了」。
+ * 没有它，H2 与 M2 同构——障碍种在别处、`findBestSlot` 换了地、连通率照样 1.0。
+ */
+export interface DetourReading {
+  /** 种障前生产选址器给的落点。 */
+  readonly plannedOrigin: GridPoint;
+  readonly obstacle: GridPoint;
+  /** 种障前的生产路线（格子键）。 */
+  readonly dryRunRoute: readonly string[];
+  /** 种障后落成建筑的实际路线（格子键）。 */
+  readonly finalRoute: readonly string[];
+  /** 选址器有没有因为障碍换地方——换了就等于这条用例没测到绕行。 */
+  readonly originDodged: boolean;
+  /** 最终路线是否穿过障碍格。 */
+  readonly roadCrossedObstacle: boolean;
+  /** 最终路线与种障前是否不同。 */
+  readonly routeChanged: boolean;
+}
+
 export interface RoadPlan {
   readonly blocked: readonly string[];
   /** 本次落地新增的道路格（来自存档 world.roads 的差集，不是自己算的 BFS 路径）。 */
@@ -52,6 +72,9 @@ export interface CreatorAuditState {
   seed: number;
   nextInstance: number;
   lastRoadPlan: RoadPlan | null;
+  detour: DetourReading | null;
+  /** 反事实种障为什么没成（spec 报告里直接显示，不用猜）。 */
+  detourSkip: string | null;
 }
 
 export const pointKey = (point: GridPoint): string => `${point.x},${point.y}`;
@@ -69,6 +92,8 @@ export function emptyAuditState(seed: number): CreatorAuditState {
     seed,
     nextInstance: 1,
     lastRoadPlan: null,
+    detour: null,
+    detourSkip: null,
   };
 }
 

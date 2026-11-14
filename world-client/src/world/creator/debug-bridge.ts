@@ -72,6 +72,13 @@ export interface BridgeDeps {
   readonly storage: Storage;
   readonly seed: number;
   readonly currentSave: () => unknown;
+  /** 只读：这栋楼的渲染层里有多少层用的是 `art:` 外部贴图。
+   *  K2 用它把「网络没发请求」升级成「渲染源头确实是程序化烘焙」——
+   *  素材在首屏就被预加载进 TextureManager，只数请求数会被缓存骗过去。 */
+  readonly describeBuildingArt?: (instanceId: string) => {
+    readonly layers: number;
+    readonly artLayers: number;
+  };
 }
 
 interface AuditPackage {
@@ -243,6 +250,11 @@ export class CreatorDebugBridge {
       metrics,
       blockedTiles: audit.blockedTiles,
       lastRoadPlan: audit.lastRoadPlan,
+      detour: audit.detour,
+      detourSkip: audit.detourSkip ?? null,
+      artTextureLayers: this.deps.describeBuildingArt
+        ? scoped.reduce((sum, b) => sum + this.deps.describeBuildingArt!(b.instanceId).artLayers, 0)
+        : null,
       creatorRules: audit.creatorRules,
       fuseState: audit.fuseState,
       schemaVersion: pkg.schemaVersion,
@@ -298,19 +310,25 @@ export class CreatorDebugBridge {
       return { rejected: true, code: 'SPATIAL_CONSTRAINT' };
     }
 
-    if (this.obstaclePending) {
-      this.plantObstacle();
-      this.obstaclePending = false;
+    // 生产 `Simulation.build` 会拒「同模板已有一栋」；按 id 排序定位到本化名对应的那张真蓝图。
+    // **不回退到别的蓝图**：回退会让落点跑到另一个分区的蓝图亲和性上，
+    // `placedRegion` 于是随机失配——那是评测自己在制造抖动，不是世界不稳。
+    // 该蓝图已被占用就明确拒绝，这与生产规则一致（同模板不许多栋，OPEN_ISSUES B1）。
+    const existing = new Set(this.deps.sim.snapshot().buildings.map((b) => b.prefabId));
+    // 选区按**目标分区**过滤后再按 id 排序取第一个未占用的：同区稳定，不跨区漂移。
+    // （评审 2026-11-14 挑刺三-b：原来按 rank 取，映射到的那张被占会静默换到别的分区的蓝图，
+    //  placedRegion 因此随机失配。这里既保留「同模板不许多栋」的生产规则，也不跨区。）
+    const zoneOfEval = blueprint.region === 'industrial' || blueprint.region === 'coastal_industrial'
+      ? 'industry'
+      : blueprint.region;
+    const inZone = [...this.deps.blueprints.values()]
+      .filter((candidate) => candidate.zone === zoneOfEval)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const real = inZone.find((candidate) => !existing.has(candidate.id));
+    if (real === undefined) {
+      return { rejected: true, code: inZone.length === 0 ? 'NO_SUCH_ZONE' : 'BLUEPRINT_ALREADY_BUILT' };
     }
 
-    // 生产 `Simulation.build` 会拒「同模板已有一栋」；按 id 排序挑一张还没用过的真蓝图。
-    const existing = new Set(this.deps.sim.snapshot().buildings.map((b) => b.prefabId));
-    const sorted = [...this.deps.blueprints.values()].sort((a, b) => a.id.localeCompare(b.id));
-    const mapped = sorted[blueprint.blueprintRank];
-    const real = mapped && !existing.has(mapped.id)
-      ? mapped
-      : sorted.find((candidate) => !existing.has(candidate.id));
-    if (!real) return { rejected: true, code: 'NO_AVAILABLE_BLUEPRINT' };
 
     this.roadBaseline = this.deps.sim.snapshot().roads.map(pointKey);
     const instanceId = `creator-${this.audit.seed}-${this.audit.nextInstance}`;
@@ -326,6 +344,14 @@ export class CreatorDebugBridge {
     this.deps.sim.update(0);
     const placed = this.deps.sim.snapshot().buildings.find((b) => b.instanceId === instanceId);
     const zone = placed === undefined ? '' : this.deps.grid.zoneOf(placed.origin);
+    // spec（H2）反事实：在**已经铺出来的那条路**上种一格障碍，再问生产要一次路线。
+    // 为什么不是「先种障再落位」：生产 `findBestSlot` 要求 footprint + clearMargin
+    // 整块可建，障碍落在门口或留白圈内必然导致换地（那测的是选址闪避），
+    // 落在圈外又碰不到原路线。所以只能在落成之后对既有道路做反事实。
+    if (this.obstaclePending && placed !== undefined) {
+      this.obstaclePending = false;
+      this.plantObstacleOnExistingRoute(placed);
+    }
     this.persist();
     return {
       rejected: false,
@@ -438,22 +464,55 @@ export class CreatorDebugBridge {
     return out;
   }
 
-  /** spec（H2）：往**生产网格**里种一块真障碍，逼 `findBestSlot` 与 `grid.path` 绕开。
-   *  不是桥的私有地图——`WorldGrid.place()` 是生产 API。 */
-  private plantObstacle(): void {
+  /** spec（H2）：在**已铺出的路**上种一格障碍，并记下种障前后的生产路线。
+   *
+   *  为什么是这个形状：生产 `findBestSlot` 要求 footprint + `clearMargin` 整块可建。
+   *  障碍若落在门口或留白圈内，选址器必然换地（`originDodged` 变真，测的是选址不是绕行）；
+   *  若落在圈外，它又碰不到原路线。所以「先种障再落位」在这个世界里**结构上不可行**。
+   *  能如实测到绕行的反事实只有一种：楼已经落成、路已经铺出，截断那条路的中段，
+   *  再问生产要一次路线——路线必须改变，且仍然到得了祭坛。
+   */
+  private plantObstacleOnExistingRoute(placed: { readonly door: GridPoint }): void {
     const grid = this.deps.grid;
     const altar = this.deps.sim.snapshot().altar;
-    for (let y = 1; y < grid.height - 1 && this.audit.blockedTiles.length === 0; y += 1) {
-      for (let x = 1; x < grid.width - 1; x += 1) {
-        const origin = { x, y };
-        if (!grid.canPlace(origin, 1, 1, 0)) continue;
-        const id = `eval-obstacle-${this.audit.seed}-${x}-${y}`;
-        // door 指向远处的祭坛：place() 会把 door 那格设回可走，不能指向障碍自己。
-        if (!grid.place({ instanceId: id, origin, w: 1, h: 1, door: altar })) continue;
-        this.audit.blockedTiles.push(pointKey(origin));
-        return;
-      }
+    const dryRunRoute = grid.path(placed.door, altar).map(pointKey);
+    if (dryRunRoute.length < 3) {
+      this.audit.detourSkip = `short-route:${dryRunRoute.length}`;
+      return;
     }
+
+    // 取中段，且跳过门前一格与祭坛本身：门口那格是落位合法性的边界，别动。
+    const candidates = dryRunRoute
+      .slice(2)
+      .filter((key) => key !== pointKey(altar));
+    const key = candidates[Math.floor((candidates.length - 1) / 2)] ?? candidates[0];
+    if (key === undefined) {
+      this.audit.detourSkip = 'no-candidate';
+      return;
+    }
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    const target = { x, y };
+
+    const id = `eval-obstacle-${this.audit.seed}-${x}-${y}`;
+    if (!grid.place({ instanceId: id, origin: target, w: 1, h: 1, door: altar })) {
+      this.audit.detourSkip = `place-failed:${x},${y}`;
+      return;
+    }
+    this.audit.blockedTiles.push(pointKey(target));
+
+    const finalRoute = grid.path(placed.door, altar).map(pointKey);
+    this.audit.detour = {
+      plannedOrigin: placed.door,
+      obstacle: target,
+      dryRunRoute,
+      finalRoute,
+      // 楼已落成、没有再选一次址，所以「闪避」在这里恒为假；这条字段留着
+      // 是为了让判据读起来完整，而不是让它永远空着。
+      originDodged: false,
+      roadCrossedObstacle: finalRoute.includes(key),
+      routeChanged: finalRoute.join('|') !== dryRunRoute.join('|'),
+    };
+    this.audit.detourSkip = null;
   }
 
   /** 生产铺出的路 = 存档 roads 相对落位前基线的增量。不再自己跑 BFS 造路径。 */
