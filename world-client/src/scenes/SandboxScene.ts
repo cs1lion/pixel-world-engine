@@ -1485,9 +1485,6 @@ export class SandboxScene extends Phaser.Scene {
     // ② 不在文件头加 import 行，ADR 与岸带设计里那些写死的 `SandboxScene.ts:NNN`
     //    引用就不会因为这一笔位移。这个仓的行号引用是闸门查得到的，漂一格就红。
     const { CreatorDebugBridge } = await import('../world/creator/debug-bridge.ts');
-    const { syncBuildingConstructionView } = await import(
-      '../render/creator-scaffolding-buildings.ts'
-    );
     const parsedSeed = Number.parseInt(params.get('debugPinSeed') ?? '0', 10);
     const seed = Number.isFinite(parsedSeed) ? parsedSeed >>> 0 : 0;
 
@@ -1498,16 +1495,7 @@ export class SandboxScene extends Phaser.Scene {
       saveStore: this.saveStore,
       storage: window.localStorage,
       seed,
-      initialNow: (this.debugInitialNow ?? 0) * 60_000,
       currentSave: () => this.sim.toSave(this.memory.toJSON()),
-      onConstructionTick: (audit) => {
-        for (const entry of this.entries) {
-          const state = audit.buildings.find(
-            (building) => building.instanceId === entry.building.instanceId,
-          );
-          if (state) syncBuildingConstructionView(entry.view, state);
-        }
-      },
     });
     (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__ = bridge;
   }

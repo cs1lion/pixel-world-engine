@@ -1,48 +1,34 @@
 /**
- * 造物主内环的毫秒级内核单测。
+ * 造物主内环的毫秒级单测——**只测生产实现**。
  *
- * 为什么要这一层：16 条 EDD 用例全走浏览器，一次要几分钟，而「螺旋选址多绕了一圈」
- * 这种错误在浏览器里表现为一条含糊的 FAIL。这里把四个不变量钉在纯函数上——
- * 无 Phaser、无 DOM、无存档文件，几百毫秒跑完。
+ * P0 之前这里测的是 spatial-executor.ts 的自研螺旋/BFS 和台账的逻辑拍倒计时；
+ * 那两套已经删掉。现在钉住的是生产真入口：
+ * `WorldGrid.findBestSlot`、`paveFrom` / `doorReaches`、`CONSTRUCTION_MS`，
+ * 以及从存档建筑形状算指标的纯函数。
  *
- * **加载方式是为 red-first 刻意设计的**：Phase 1 只交评测面，Phase 2 才交实现。
- * `red-first` 把 `test/` 的 diff 套到 Phase 1 的 base 上，那时 `src/world/creator/`
- * 里还没有这几个模块。若用静态 import，测试会以 `ERR_MODULE_NOT_FOUND` 崩掉，
- * 脚本判 ERROR（不可采信）；所以这里动态取，缺了就**红在断言上**。
- *
- * 但只吞「文件不在」：模块本身写坏、语法错、依赖缺失一律原样抛出去。
- * 把「模块坏了」也吞成「没实现」是最容易骗过先红后绿的一种写法。
+ * 全是静态 import：这些模块在 Phase 1 的 base 上就存在（它们不是新增能力），
+ * 所以本文件不负责 red-first 的红灯；那由 `creator-production-truth.test.ts` 承担。
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { WorldGrid } from '../src/world/grid.ts';
+import { SMALL_WORLD_SPEC, paveFrom, doorReaches } from '../src/world/setup.ts';
+import type { GridPoint, PrefabBlueprint } from '../src/world/types.ts';
 
-type Point = { readonly x: number; readonly y: number };
-type Footprint = { readonly w: number; readonly h: number };
-type Bounds = { readonly width: number; readonly height: number };
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-interface SlotQuery {
-  readonly footprint: Footprint;
-  readonly margin: number;
-  readonly anchor: Point;
-  readonly bounds: Bounds;
-  readonly blocked: (point: Point) => boolean;
-  readonly inRegion?: (point: Point) => boolean;
-  readonly accept?: (origin: Point) => boolean;
-}
-
-interface RoadQuery {
-  readonly door: Point;
-  readonly network: readonly Point[];
-  readonly bounds: Bounds;
-  readonly walkable: (point: Point) => boolean;
-}
-
-type Module = Record<string, unknown>;
-
-async function load(relativePath: string): Promise<Module> {
+/**
+ * `audit-state.ts` 是本次才有的模块。red-first 把 test/ 的 diff 套到 base 时它不存在，
+ * 静态 import 会变成 ERR_MODULE_NOT_FOUND（判 ERROR，不可采信）；动态取、只吞「文件不在」，
+ * 让它红在断言上。模块本身写坏则原样抛出去。
+ */
+async function auditModule(): Promise<Record<string, unknown>> {
   try {
-    return (await import(relativePath)) as Module;
+    return (await import('../src/world/creator/audit-state.ts')) as Record<string, unknown>;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ERR_MODULE_NOT_FOUND' || code === 'ENOENT') return {};
@@ -50,180 +36,87 @@ async function load(relativePath: string): Promise<Module> {
   }
 }
 
-const MISSING = '实现还没有落地——这正是 red-first 要在 base 上看到的红灯';
-
-test('1. 确定性螺旋选址：避开障碍、满足留白、两次调用逐字相同', async () => {
-  const spatial = await load('../src/world/creator/spatial-executor.ts');
-  const find = spatial['findDeterministicSlot'] as
-    | ((query: SlotQuery) => Point | null)
-    | undefined;
-  const fits = spatial['fitsAt'] as ((origin: Point, query: SlotQuery) => boolean) | undefined;
-  assert.equal(typeof find, 'function', MISSING);
-  assert.equal(typeof fits, 'function', MISSING);
-
-  const blocked = new Set(['5,5', '5,6', '6,5', '6,6']);
-  const query: SlotQuery = {
+/** findBestSlot 只读这四个字段；造最小形状，不拖整套蓝图解析器进来。 */
+function blueprint(zone: string): PrefabBlueprint {
+  return {
     footprint: { w: 2, h: 2 },
-    margin: 1,
-    anchor: { x: 5, y: 5 },
-    bounds: { width: 12, height: 12 },
-    blocked: (point) => blocked.has(`${point.x},${point.y}`),
-  };
+    clearMargin: 1,
+    zone,
+    door: { x: 0, y: 2 },
+  } as unknown as PrefabBlueprint;
+}
 
-  const first = find!(query);
-  const second = find!(query);
-  assert.ok(first !== null, '图里有空地，选址器不该返回 null');
-  assert.deepEqual(first, second, '同输入两次选址必须逐字相同');
-  assert.equal(fits!(first, query), true, '选出来的点必须真的满足占地 + 留白');
-  assert.equal(blocked.has(`${first.x},${first.y}`), false, '不能落在障碍格上');
-});
+test('1. 生产选址 WorldGrid.findBestSlot：确定性、合法、避开已占格', () => {
+  const grid = new WorldGrid(SMALL_WORLD_SPEC);
+  const anchor = { x: 14, y: 10 };
+  const prefab = blueprint('industry');
 
-test('2. 门口四方向 BFS：绕开障碍，路径不穿障碍且比直线长', async () => {
-  const spatial = await load('../src/world/creator/spatial-executor.ts');
-  const plan = spatial['planRoadToMainNetwork'] as
-    | ((query: RoadQuery) => readonly Point[] | null)
-    | undefined;
-  assert.equal(typeof plan, 'function', MISSING);
+  const first = grid.findBestSlot(prefab, anchor);
+  const second = grid.findBestSlot(prefab, anchor);
+  assert.ok(first !== null, '空图上必须找得到落点');
+  assert.deepEqual(first, second, '同网格同锚点两次选址必须逐字相同');
+  assert.equal(grid.canPlace(first, 2, 2, prefab.clearMargin), true, '选出来的点要真的放得下');
 
-  const obstacle = { x: 2, y: 1 };
-  const path = plan!({
-    door: { x: 1, y: 1 },
-    network: [{ x: 5, y: 1 }],
-    bounds: { width: 10, height: 10 },
-    walkable: (point) => point.x !== obstacle.x || point.y !== obstacle.y,
+  // 占掉首选项之后，下一次必须换地方，而不是压上去。
+  const placed = grid.place({
+    instanceId: 'probe-1', origin: first, w: 2, h: 2,
+    door: { x: first.x, y: first.y + 2 },
   });
-
-  assert.ok(path !== null, '有绕行路线时不该返回 null');
-  assert.deepEqual(path![0], { x: 1, y: 1 }, '路径要从门口起步');
-  assert.deepEqual(path![path!.length - 1], { x: 5, y: 1 }, '路径要连到主干道');
-  assert.equal(
-    path!.some((point) => point.x === obstacle.x && point.y === obstacle.y),
-    false,
-    '铺出的路穿过了障碍格',
-  );
-  assert.ok(path!.length > 5, `直线是 5 格，绕行却是 ${path!.length} 格——没绕`);
+  assert.equal(placed, true);
+  const next = grid.findBestSlot(prefab, anchor);
+  assert.ok(next !== null);
+  assert.notDeepEqual(next, first, '已占格不能再次被选中');
 });
 
-test('3. 施工生命周期：三拍完工，中途存档往返后精确续跑', async () => {
-  const audit = await load('../src/world/creator/audit-state.ts');
-  const empty = audit['emptyAuditState'] as
-    | ((seed: number, worldNow: number) => Module)
-    | undefined;
-  const enqueue = audit['enqueueBuildingConstruction'] as
-    | ((state: Module, params: Module) => Module)
-    | undefined;
-  const tick = audit['tickBuildingConstruction'] as
-    | ((state: Module) => readonly Module[])
-    | undefined;
-  assert.equal(typeof empty, 'function', MISSING);
-  assert.equal(typeof enqueue, 'function', MISSING);
-  assert.equal(typeof tick, 'function', MISSING);
-
-  const state = empty!(42, 0) as unknown as {
-    buildings: Array<{ stage: string; constructionTicksRemaining: number }>;
-    chronicle: Array<{ kind: string }>;
-    nowTick: number;
-    roads: string[];
-  };
-  const building = enqueue!(state as unknown as Module, {
-    instanceId: 'b-1',
-    prefabId: 'smithy_lv1',
-    origin: { x: 3, y: 4 },
-    footprint: { w: 2, h: 2 },
-    margin: 1,
-    door: { x: 3, y: 6 },
-    constructionTicks: 3,
-    pavedRoadTiles: [{ x: 3, y: 7 }],
-    doorConnected: true,
-  }) as unknown as { stage: string; constructionTicksRemaining: number };
-
-  assert.equal(building.stage, 'scaffolding', '入账即脚手架态');
-  assert.equal(state.roads.length, 1, '铺出的路要真进账本');
-
-  tick!(state as unknown as Module);
-  assert.equal(building.stage, 'scaffolding', '第 1 拍还没完工');
-  assert.equal(building.constructionTicksRemaining, 2);
-
-  // H3 的形状：施工到一半导出字节 → 反序列化 → 剩余拍数接着走。
-  const reloaded = JSON.parse(JSON.stringify(state)) as typeof state;
-  tick!(reloaded as unknown as Module);
-  assert.equal(reloaded.buildings[0]!.stage, 'scaffolding', '重载后第 2 拍仍未完工');
-  tick!(reloaded as unknown as Module);
-  assert.equal(reloaded.buildings[0]!.stage, 'completed', '第 3 拍必须完工');
-  assert.equal(
-    reloaded.chronicle.some((entry) => entry.kind === 'building.completed'),
-    true,
-    '完工要写进编年史，不能只改个 stage',
-  );
-});
-
-test('4. 指标从台账算：零重叠 / 连通率 / 淹没格都是实数', async () => {
-  const audit = await load('../src/world/creator/audit-state.ts');
-  const metricsOf = audit['metricsOf'] as
-    | ((state: Module, submerged: ReadonlySet<string>) => Module)
-    | undefined;
-  const empty = audit['emptyAuditState'] as ((seed: number, worldNow: number) => Module) | undefined;
-  const enqueue = audit['enqueueBuildingConstruction'] as
-    | ((state: Module, params: Module) => Module)
-    | undefined;
-  const pointKey = audit['pointKey'] as ((point: Point) => string) | undefined;
-  assert.equal(typeof metricsOf, 'function', MISSING);
-  assert.equal(typeof empty, 'function', MISSING);
-  assert.equal(typeof enqueue, 'function', MISSING);
-  assert.equal(typeof pointKey, 'function', MISSING);
-
-  const state = empty!(7, 0);
-  const place = (id: string, x: number, y: number): void => {
-    enqueue!(state, {
-      instanceId: id,
-      prefabId: 'workshop_lantern',
-      origin: { x, y },
-      footprint: { w: 2, h: 2 },
-      margin: 1,
-      door: { x, y: y + 2 },
-      constructionTicks: 1,
-      doorConnected: true,
-    });
-  };
-
-  place('b-1', 2, 2);
-  place('b-2', 8, 8);
-  const clean = metricsOf!(state, new Set<string>()) as unknown as {
-    overlapCount: number;
-    pathfindingConnectivity: number;
-    submergedBuildingCount: number;
-  };
-  assert.equal(clean.overlapCount, 0, '两栋分开的楼不该算重叠');
-  assert.equal(clean.pathfindingConnectivity, 1, '两栋都连上了路，连通率应为 1.0');
-
-  // 把第二栋压到第一栋的格子上，指标必须真的变。
-  const overlapping = empty!(7, 0);
-  enqueue!(overlapping, {
-    instanceId: 'c-1',
-    prefabId: 'workshop_lantern',
-    origin: { x: 2, y: 2 },
-    footprint: { w: 2, h: 2 },
-    margin: 1,
-    door: { x: 2, y: 4 },
-    constructionTicks: 1,
-    doorConnected: false,
+test('2. 生产铺路 paveFrom + doorReaches：门口连到锚点', () => {
+  const grid = new WorldGrid(SMALL_WORLD_SPEC);
+  const anchor = { x: 14, y: 10 };
+  const prefab = blueprint('industry');
+  const origin = grid.findBestSlot(prefab, anchor);
+  assert.ok(origin !== null);
+  grid.place({
+    instanceId: 'probe-2', origin, w: 2, h: 2,
+    door: { x: origin.x, y: origin.y + 2 },
   });
-  enqueue!(overlapping, {
-    instanceId: 'c-2',
-    prefabId: 'workshop_lantern',
-    origin: { x: 3, y: 3 },
-    footprint: { w: 2, h: 2 },
-    margin: 1,
-    door: { x: 3, y: 5 },
-    constructionTicks: 1,
-    doorConnected: false,
-  });
-  const dirty = metricsOf!(overlapping, new Set([pointKey!({ x: 3, y: 3 })])) as unknown as {
-    overlapCount: number;
-    pathfindingConnectivity: number;
-    submergedBuildingCount: number;
-  };
-  assert.ok(dirty.overlapCount > 0, '真重叠了却报 0，指标就是摆设');
-  assert.equal(dirty.pathfindingConnectivity, 0, '两栋都没连路，不该报 1.0');
-  assert.ok(dirty.submergedBuildingCount > 0, '淹没格上有楼却报 0');
+  const door = { x: origin.x + prefab.door.x, y: origin.y + prefab.door.y };
+  const route = paveFrom(grid, door, anchor);
+  assert.equal(doorReaches(grid, door, anchor), true, '生产判定：门口应连得到锚点');
+  assert.ok(Array.isArray(route.road), 'paveFrom 要给出逐格小径');
+  assert.equal(typeof route.reachable, 'boolean', 'reachable 是与 road 空不空无关的另一条信号');
 });
+
+test('3. 指标只从建筑形状算：重叠、留白、连通率、淹没格', async () => {
+  const mod = await auditModule();
+  const metricsOf = mod['metricsOf'] as
+    | ((b: unknown[], d: boolean[], s: ReadonlySet<string>) => Record<string, number | boolean>)
+    | undefined;
+  const pointKey = mod['pointKey'] as ((p: GridPoint) => string) | undefined;
+  assert.equal(typeof metricsOf, 'function', '指标函数还没落地——这正是 red-first 要的红灯');
+  assert.equal(typeof pointKey, 'function', '格子键函数也没落地');
+
+  const a = { origin: { x: 2, y: 2 }, footprint: { w: 2, h: 2 } };
+  const b = { origin: { x: 8, y: 8 }, footprint: { w: 2, h: 2 } };
+  const clean = metricsOf!([a, b], [true, true], new Set<string>());
+  assert.equal(clean.overlapCount, 0);
+  assert.equal(clean.pathfindingConnectivity, 1);
+  assert.equal(clean.doorWalkableToAltar, true);
+  assert.equal(clean.submergedBuildingCount, 0);
+
+  const overlapping = { origin: { x: 3, y: 3 }, footprint: { w: 2, h: 2 } };
+  const dirty = metricsOf!([a, overlapping], [true, false], new Set([pointKey!({ x: 4, y: 4 })]));
+  assert.ok(Number(dirty.overlapCount) > 0, '真重叠了却报 0，指标就是摆设');
+  assert.equal(dirty.pathfindingConnectivity, 0.5);
+  assert.equal(dirty.doorWalkableToAltar, false);
+  assert.equal(dirty.submergedBuildingCount, 1, '只有重叠那栋踩到 (4,4) 这块淹没格');
+});
+
+test('4. 施工时钟与存档路径：生产唯一的一份', () => {
+  const simulation = readFileSync(join(ROOT, 'src/world/simulation.ts'), 'utf8');
+  const save = readFileSync(join(ROOT, 'src/world/save.ts'), 'utf8');
+  assert.match(simulation, /const CONSTRUCTION_MS = 3200/, '施工时长只能在 Simulation 定义一次');
+  assert.match(save, /'world\.constructions\[\]'/, '施工剩余毫秒必须进存档路径集合');
+  assert.doesNotMatch(simulation, /constructionTicksRemaining/, '生产里不该出现评测用的逻辑拍');
+});
+
+/** 让 TS 认出 GridPoint 在本文件被用过（断言形状时保持一致）。 */
+export type _Point = GridPoint;

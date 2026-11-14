@@ -29,89 +29,254 @@
       "id": "M1",
       "name": "autoSlotZeroOverlap",
       "check": "slotAllocation",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1101 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "region": "industrial" },
-      "expect": { "overlapCount": 0, "minClearMargin": 1, "inRegion": "industrial" }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1101
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern",
+        "region": "industrial"
+      },
+      "expect": {
+        "overlapCount": 0,
+        "minClearMargin": 1,
+        "inRegion": "industrial"
+      },
+      "mode": "production"
     },
     {
       "id": "M2",
       "name": "doorToRoadConnectivity",
       "check": "roadAutoPave",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1102 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "autoConnectRoad": true },
-      "expect": { "pathfindingConnectivity": 1.0, "doorWalkableToAltar": true }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1102
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern",
+        "autoConnectRoad": true
+      },
+      "expect": {
+        "pathfindingConnectivity": 1.0,
+        "doorWalkableToAltar": true
+      },
+      "mode": "production"
     },
     {
       "id": "M3",
       "name": "scaffoldingToCompletedLifecycle",
       "check": "constructionLifecycle",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1103 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "smithy_lv1", "constructionTicks": 3 },
-      "expect": { "stageAtTick1": "scaffolding", "smokeActiveAtTick1": true, "stageAtTick3": "completed", "chronicleAdded": true }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1103
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "smithy_lv1",
+        "constructionTicks": 3
+      },
+      "expect": {
+        "stageAtTick1": "scaffolding",
+        "smokeActiveAtTick1": true,
+        "stageAtTick3": "completed",
+        "chronicleAdded": true
+      },
+      "mode": "production"
     },
     {
       "id": "M4",
       "name": "inPlaceBuildingUpgrade",
       "check": "buildingUpgrade",
-      "env": { "world": "dengchao", "now": 600, "phase": "noon", "feed": "off", "debug": 1, "seed": 1104 },
-      "input": { "kind": "UpgradeBuilding", "toPrefabId": "smithy_lv2", "constructionTicks": 2 },
-      "expect": { "sameOrigin": true, "newPrefabId": "smithy_lv2", "roadPreserved": true }
+      "env": {
+        "world": "dengchao",
+        "now": 600,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1104
+      },
+      "input": {
+        "kind": "UpgradeBuilding",
+        "toPrefabId": "smithy_lv2",
+        "constructionTicks": 2
+      },
+      "expect": {
+        "sameOrigin": true,
+        "newPrefabId": "smithy_lv2",
+        "roadPreserved": true
+      },
+      "mode": "spec"
     },
     {
       "id": "M5",
       "name": "humanMoveDiffToSpatialRule",
       "check": "diffRuleSynthesis",
-      "env": { "world": "dengchao", "now": 600, "phase": "noon", "feed": "off", "debug": 1, "seed": 1105 },
+      "env": {
+        "world": "dengchao",
+        "now": 600,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1105
+      },
       "input": {
         "kind": "ApplyHumanDiff",
         "diffType": "moved",
-        "agentProposal": { "kind": "PlaceBuilding", "id": "cmd_1", "prefabId": "fish_dock", "origin": { "x": 18, "y": 14 } },
-        "userOutcome": { "kind": "PlaceBuilding", "id": "cmd_1", "prefabId": "fish_dock", "origin": { "x": 6, "y": 14 } }
+        "agentProposal": {
+          "kind": "PlaceBuilding",
+          "id": "cmd_1",
+          "prefabId": "fish_dock",
+          "origin": {
+            "x": 18,
+            "y": 14
+          }
+        },
+        "userOutcome": {
+          "kind": "PlaceBuilding",
+          "id": "cmd_1",
+          "prefabId": "fish_dock",
+          "origin": {
+            "x": 6,
+            "y": 14
+          }
+        }
       },
-      "expect": { "patchKind": "SpatialConstraint", "selfJustifying": true, "enforcedOnNextPlace": true }
+      "expect": {
+        "patchKind": "SpatialConstraint",
+        "selfJustifying": true,
+        "enforcedOnNextPlace": true
+      },
+      "mode": "spec"
     },
     {
       "id": "M6",
       "name": "consecutiveViolationsTripFuse",
       "check": "fuseDowngrade",
-      "env": { "world": "dengchao", "now": 600, "phase": "noon", "feed": "off", "debug": 1, "seed": 1106 },
-      "input": { "kind": "InjectViolations", "role": "LAYOUT_AND_BUILDING", "count": 3 },
-      "expect": { "isFused": true, "fromLevel": 2, "toLevel": 1, "lastEvent": "FUSE_TRIPPED" }
+      "env": {
+        "world": "dengchao",
+        "now": 600,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1106
+      },
+      "input": {
+        "kind": "InjectViolations",
+        "role": "LAYOUT_AND_BUILDING",
+        "count": 3
+      },
+      "expect": {
+        "isFused": true,
+        "fromLevel": 2,
+        "toLevel": 1,
+        "lastEvent": "FUSE_TRIPPED"
+      },
+      "mode": "spec"
     },
     {
       "id": "K1",
       "name": "worldStillRunsWithinStepBudget",
       "check": "worldStillRuns",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1107 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
-      "expect": { "clockAdvanced": true, "maxAvgStepMs": 16.6 }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1107
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern"
+      },
+      "expect": {
+        "clockAdvanced": true,
+        "maxAvgStepMs": 16.6
+      },
+      "mode": "production"
     },
     {
       "id": "K2",
       "name": "zeroExternalImageRequests",
       "check": "zeroImageRequests",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
-      "expect": { "imageNetworkRequests": 0 }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern"
+      },
+      "expect": {
+        "imageNetworkRequests": 0
+      },
+      "mode": "production"
     },
     {
       "id": "K3",
       "name": "deterministicReplayBitExact",
       "check": "deterministicReplay",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 4242 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
-      "expect": { "stateHashMatch": true, "gridSnapshotMatch": true }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 4242
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern"
+      },
+      "expect": {
+        "stateHashMatch": true,
+        "gridSnapshotMatch": true
+      },
+      "mode": "production"
     },
     {
       "id": "K4",
       "name": "saveSchemaAndCreatorStateIntact",
       "check": "saveSchemaIntact",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 1108 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 1108
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern"
+      },
       "expect": {
         "schemaVersion": "unchanged",
-        "persistedFields": ["buildings", "roads", "creatorRules", "fuseState"]
-      }
+        "persistedFields": [
+          "buildings",
+          "roads",
+          "creatorRules",
+          "fuseState"
+        ]
+      },
+      "mode": "production"
     }
   ]
 }

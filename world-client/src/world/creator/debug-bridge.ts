@@ -1,120 +1,59 @@
-/** 造物主 EDD 调试桥：把评测动作翻译成真实世界动作，再把真实落盘字节交出去。
+/** 造物主 EDD 调试桥：**生产状态的只读适配器**。
  *
- * **它是验收面，不是产品面。** 只在 `?debug=1` 下挂到 `window.__PIXEL_WORLD_DEBUG__`，
- * 生产路径上不存在。它认的 `UpgradeBuilding` / `ApplyHumanDiff` / `InjectViolations`
- * 等动作**不在** `GENESIS_COMMAND_KINDS` 里，也不进服务端规则层——白名单是 LLM
- * 的合法域，测试面是另一回事，混在一起第一次就会把 LLM 的权限一起放宽。
+ * P0 收敛后这里不再算任何世界状态。落位走 `Simulation.enqueue`（与玩家手动造物、
+ * 神谕同一条通道），验收读数一律来自 `SaveStore` 落盘的存档字节
+ * `world.buildings / roads / constructions / now`。
+ * 场地占用与绕行由生产 `WorldGrid.findBestSlot` / `grid.path` / `paveFrom` 决定，
+ * 连通性问生产 `doorReaches`。桥只负责：注入评测夹具、投影读数、导出字节。
  *
- * 三样东西是真的，不是内存态假装：
- *  1. 落位过 `WorldGrid.canPlace()` 的真实空间判定，并且 `Simulation.enqueue({kind:'build'})`
- *     真的把楼交给了世界（`stepTicks` 里由 `sim.update()` 结算）；
- *  2. 选址与铺路来自 `spatial-executor.ts`，零随机、零墙钟；
- *  3. `exportSaveBytes()` 里的 `world` 是 `SaveStore.readRawText()` 的**原始存档字节**
- *     （只读），整包连同审计台账一起写进独立的 localStorage 键。
+ * 它是 `?debug=1` 下的评测面，不是产品面。`UpgradeBuilding` / `ApplyHumanDiff` /
+ * `InjectViolations` 等动作只在 spec 组用例里出现，不进白名单、不改世界规则。
  *
- * **存档本体一个字段都不加。** v6 的 `SAVE_V6_PATH_SET` 是冻结集合，加键会被
- * `assertSave` 按字段漂移拒；升 v7 要动指纹、样例与一批冻结测试，那是独立决策。
- * 所以 `creatorRules` / `fuseState` 放在包的顶层，来自独立落盘的审计侧车。
- * `schemaVersion` 因此恒等——K4 要的是「起停前后不变」，不是「永远是某个数」。
+ * 存档版本不动：`creatorRules` / `fuseState` / 评测台账是独立会话状态，
+ * 打在导出包的顶层，不写进 v6 冻结的 `world.*` 路径集合。
  */
 
 import type { Simulation } from '../simulation.ts';
 import type { WorldGrid } from '../grid.ts';
-import { checkPlacement } from '../setup.ts';
+import { doorReaches } from '../setup.ts';
 import type { GridPoint, PrefabBlueprint } from '../types.ts';
 import type { WorldSave } from '../save.ts';
-
-/** 存档读写的**结构端口**，不 import `src/ui/`：`purity` 闸门锁着
- * 「world 不依赖它上面的任何一层」。SaveStore 天然满足这个形状。 */
-interface SavePort {
-  readRawText(): string | null;
-  write(save: WorldSave): unknown;
-}
 import { AutonomousFuseController, AutonomyLevel } from './fuse.ts';
 import { RuleSynthesizer, buildStructuredDiff } from './synthesizer.ts';
 import type { GenesisCommand } from './schema.ts';
 import {
   emptyAuditState,
-  enqueueBuildingConstruction,
-  enqueueBuildingUpgrade,
-  tickBuildingConstruction,
   metricsOf,
-  constructionReadout,
   pointKey,
   type CreatorAuditState,
   type SpatialRule,
 } from './audit-state.ts';
-import {
-  findDeterministicSlot,
-  planRoadToMainNetwork,
-  type Footprint,
-} from './spatial-executor.ts';
 
-/** 逻辑一拍的长度，与 `SandboxScene` 的 `LOGIC_STEP_MS` 同值。桥不定义世界节奏。 */
-const LOGIC_STEP_MS = 100;
+/** 评测一拍推进 1 个世界秒。生产仍是 100ms 固定步长，这里只是 `sim.update()` 的步长参数，
+ *  不是第二套时钟——目的是让 3 拍能覆盖生产 `CONSTRUCTION_MS = 3200` 的施工窗口。 */
+const EVAL_STEP_MS = 1000;
 const AUDIT_STORAGE_KEY = 'pwe.creator.audit.v1';
-/** 数据集写的是能力模块名 `LAYOUT_AND_BUILDING`；熔断器认的是角色 id。
- * 「布局与建筑」这一格归 `mapper`（见 `AUTONOMY_CLIMB_CONFIG` 与 fuse 的角色闭集）。 */
+/** 数据集的能力模块名 → 熔断器认的角色 id。 */
 const FUSE_ROLE = 'mapper';
 
-/** 数据集里的蓝图 id 不是仓里的 12 张真蓝图，是评测夹具的化名。
- * 这里只做「化名 → 真蓝图」的一张表，不改 `prefabs.json`，也不往注册表里塞假条目。 */
+/** 存档读写的结构端口，不 import `src/ui/`（purity 闸门锁着分层）。 */
+interface SavePort {
+  readRawText(): string | null;
+  write(save: WorldSave): unknown;
+}
+
+/** 数据集里的蓝图 id 是评测化名；真蓝图 id 归设定配置包，代码里只存排序位次。 */
 interface EvalBlueprint {
-  /** 真蓝图按 id 排序后的位次。id 本身归设定配置包，代码里不写死。 */
   readonly blueprintRank: number;
-  readonly footprint: Footprint;
-  readonly margin: number;
-  readonly door: GridPoint;
   readonly region: string;
 }
 
 const EVAL_BLUEPRINTS: Readonly<Record<string, EvalBlueprint>> = {
-  workshop_lantern: {
-    blueprintRank: 0,
-    footprint: { w: 3, h: 2 },
-    margin: 1,
-    door: { x: 1, y: 2 },
-    region: 'industry',
-  },
-  smithy_lv1: {
-    blueprintRank: 1,
-    footprint: { w: 3, h: 2 },
-    margin: 1,
-    door: { x: 1, y: 2 },
-    region: 'industry',
-  },
-  smithy_lv2: {
-    blueprintRank: 2,
-    footprint: { w: 3, h: 2 },
-    margin: 1,
-    door: { x: 1, y: 2 },
-    region: 'industry',
-  },
-  grand_foundry_6x6: {
-    blueprintRank: 3,
-    footprint: { w: 6, h: 6 },
-    margin: 1,
-    door: { x: 2, y: 6 },
-    region: 'industry',
-  },
-  fish_dock: {
-    blueprintRank: 4,
-    footprint: { w: 2, h: 2 },
-    margin: 1,
-    door: { x: 0, y: 2 },
-    region: 'industry',
-  },
-};
-
-/** 分区化名 → 真实 zone id。数据集写 industrial，仓里叫 industry。 */
-const REGION_ALIASES: Readonly<Record<string, string>> = {
-  industrial: 'industry',
-  coastal_industrial: 'industry',
-  saturated_zone: 'industry',
-  scholarly: 'scholarly',
-  living: 'living',
-  agriculture: 'agriculture',
-  altar: 'altar',
+  workshop_lantern: { blueprintRank: 0, region: 'industry' },
+  smithy_lv1: { blueprintRank: 1, region: 'industry' },
+  smithy_lv2: { blueprintRank: 2, region: 'industry' },
+  grand_foundry_6x6: { blueprintRank: 3, region: 'industry' },
+  fish_dock: { blueprintRank: 4, region: 'industry' },
 };
 
 export interface CreatorCommandOutcome {
@@ -132,12 +71,7 @@ export interface BridgeDeps {
   readonly saveStore: SavePort;
   readonly storage: Storage;
   readonly seed: number;
-  /** 评测开局的世界时刻（毫秒）。桥的时钟从这里按固定步长走，不读挂机时长。 */
-  readonly initialNow: number;
-  /** 当前存档对象（无档时用世界现态生成），只用于打包 `world` 字段。 */
   readonly currentSave: () => unknown;
-  /** 施工视图联动。渲染层每拍据此刷新脚手架；缺省时桥仍可无头运行。 */
-  readonly onConstructionTick?: (audit: CreatorAuditState) => void;
 }
 
 interface AuditPackage {
@@ -146,19 +80,16 @@ interface AuditPackage {
   readonly meta: Record<string, unknown>;
   readonly creatorRules: readonly SpatialRule[];
   readonly fuseState: CreatorAuditState['fuseState'];
-  readonly audit: CreatorAuditState;
+  readonly audit: CreatorAuditState & { readonly roadBaseline?: readonly string[] | null };
 }
 
-/** 稳定字符串化：键序固定，保证同状态两次导出逐字相同（K3）。 */
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
   const record = value as Record<string, unknown>;
-  const keys = Object.keys(record).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`).join(',')}}`;
+  return `{${Object.keys(record).sort().map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`).join(',')}}`;
 }
 
-/** 稳定哈希（FNV-1a 64 位思路的 32 位双跑版），只用于评测比对，不参与存档。 */
 function hash32(text: string): string {
   let a = 0x811c9dc5;
   let b = 0x01000193;
@@ -170,90 +101,72 @@ function hash32(text: string): string {
   return `${a.toString(16).padStart(8, '0')}${b.toString(16).padStart(8, '0')}`;
 }
 
+interface SaveBuilding {
+  readonly instanceId: string;
+  readonly prefabId: string;
+  readonly origin: GridPoint;
+  readonly footprint: { readonly w: number; readonly h: number };
+  readonly door: GridPoint;
+}
+
 export class CreatorDebugBridge {
   private readonly deps: BridgeDeps;
-  private audit: CreatorAuditState;
+  private audit: CreatorAuditState & { roadBaseline?: readonly string[] | null };
   private readonly fuse: AutonomousFuseController;
   private readonly synthesizer = new RuleSynthesizer();
-  /** setup 留下的标记：下次落位时在门口正前方种一块障碍。 */
-  private obstacleAtDoor = false;
+  /** spec：下次落位前在网格里种一块真实障碍。 */
+  private obstaclePending = false;
+  /** spec：落位前的道路基线，用来从存档差集取生产真实铺出的路。 */
+  private roadBaseline: readonly string[] | null = null;
 
   constructor(deps: BridgeDeps) {
     this.deps = deps;
-    // 时钟不读 `sim.snapshot().now` 的绝对值：那个数里掺了「页面开着多久」，
-    // 同种子重放两次会因为 tag 页多活了一秒而哈希不同（K3 第一次就抓到了这件事）。
-    // 桥的时钟从 URL 钉住的开局时刻起步，按 LOGIC_STEP_MS 固定步长推进；
-    // `sim.update()` 照常真跑，两条时钟各走各的但步长相同。
-    this.audit = emptyAuditState(deps.seed, deps.initialNow);
-    this.fuse = new AutonomousFuseController(() => this.audit.worldNow);
+    this.audit = emptyAuditState(deps.seed);
+    this.fuse = new AutonomousFuseController(() => this.deps.sim.snapshot().now);
     this.fuse.initRole(FUSE_ROLE, '布局与建筑', AutonomyLevel.L2, AutonomyLevel.L2);
-    // 每个页面加载都是一次干净的评测会话：清掉上次的审计侧车。
-    // 显式 `reloadFromBytes()` 是唯一能在同一页面里恢复中途状态的路（H3）。
+    // 每个页面加载都是干净评测会话。显式 reloadFromBytes 是唯一能在页面内恢复的路（H3）。
     deps.storage.removeItem(AUDIT_STORAGE_KEY);
     this.persist();
   }
 
-  // ========== 评测动作 ==========
-
   dispatchCreatorCommand(raw: Record<string, unknown>): CreatorCommandOutcome {
-    const kind = String(raw['kind'] ?? '');
-    switch (kind) {
-      case 'PlaceBuilding':
-        return this.place(raw);
-      case 'UpgradeBuilding':
-        return this.upgrade(raw);
-      case 'ApplyHumanDiff':
-        return this.applyHumanDiff(raw);
-      case 'InjectViolations':
-        return this.injectViolations(raw);
-      case 'InjectRegression':
-        return this.injectRegression(raw);
+    switch (String(raw['kind'] ?? '')) {
+      case 'PlaceBuilding': return this.place(raw);
+      case 'UpgradeBuilding': return this.upgrade(raw);
+      case 'ApplyHumanDiff': return this.applyHumanDiff(raw);
+      case 'InjectViolations': return this.injectViolations(raw);
+      case 'InjectRegression': return this.injectRegression(raw);
       case 'FillZone':
-        return this.fillZone(String(raw['region'] ?? ''));
-      case 'PlantObstacleAtDoor':
-        this.obstacleAtDoor = true;
+        this.audit.filledRegions.push(String(raw['region'] ?? ''));
         this.persist();
         return {};
-      case 'SetTide':
-        return this.setTide(raw);
-      default:
-        return { rejected: true, code: 'UNKNOWN_DEBUG_COMMAND' };
+      case 'PlantObstacleAtDoor':
+        this.obstaclePending = true;
+        this.persist();
+        return {};
+      case 'SetTide': return this.setTide(raw);
+      default: return { rejected: true, code: 'UNKNOWN_DEBUG_COMMAND' };
     }
   }
 
-  /** 按固定逻辑拍推进：真调 `sim.update()`，世界时钟与居民作息照常走。 */
+  /** 固定步长推进生产世界。`sim.update()` 是唯一的时钟来源，桥不另立施工倒计时。 */
   stepTicks(count: number): void {
     const times = Math.max(0, Math.min(5000, Math.floor(Number(count) || 0)));
     for (let i = 0; i < times; i += 1) {
-      this.deps.sim.update(LOGIC_STEP_MS);
+      this.deps.sim.update(EVAL_STEP_MS);
       this.audit.nowTick += 1;
-      tickBuildingConstruction(this.audit);
-      this.audit.worldNow += LOGIC_STEP_MS;
-      this.deps.onConstructionTick?.(this.audit);
     }
+    this.captureRoadPlan();
     this.persist();
   }
 
-  // ========== 落盘字节 ==========
-
-  /**
-   * 导出「真实存档字节 + 审计侧车」的包，并**真的写盘**。
-   *
-   * `world` 与 `meta` 直接来自 `SaveStore.readRawText()`；无档时用当前世界的
-   * 存档投影，并在注释里说清这是开局态（不是伪造的落盘结果）。
-   */
+  /** 真写盘 → 读原始存档字节 → 与会话状态打成一个包。world/meta 是存档原文。 */
   exportSaveBytes(): string {
-    // 先把当前世界（含 `sim.enqueue({kind:'build'})` 已经结算的楼）写回 SaveStore，
-    // 再读原始字节。否则包里的 `world.buildings` 永远是上一次页面卸载时的旧档，
-    // 新落的那栋楼只在审计台账里——那正是「只记内存态」的假绿形状。
-    // 写的是 v6 已有字段，schemaVersion 不变；评测页独立 context，不碰玩家存档槽。
     try {
-      this.deps.saveStore.write(
-        this.deps.currentSave() as WorldSave,
-      );
+      this.deps.saveStore.write(this.deps.currentSave() as WorldSave);
     } catch {
-      // 存储不可用（隐私模式 / 配额）时不假装成功：下面的 readRawText 会返回 null，
-      // 检查方拿到的仍是当前世界的存档投影，但会少一层「真落盘」的证据。
+      // 存储不可用时 readRawText 返回 null，下面退回当前世界的存档投影；
+      // 少一层「真落盘」证据，但不伪造字段。
     }
     const raw = this.deps.saveStore.readRawText();
     const save = (raw !== null ? JSON.parse(raw) : this.deps.currentSave()) as {
@@ -267,30 +180,66 @@ export class CreatorDebugBridge {
       meta: save.meta ?? {},
       creatorRules: this.audit.creatorRules,
       fuseState: this.audit.fuseState,
-      audit: this.audit,
+      audit: { ...this.audit, roadBaseline: this.roadBaseline },
     };
     const text = stableStringify(pkg);
     this.deps.storage.setItem(AUDIT_STORAGE_KEY, text);
     return text;
   }
 
-  /** 反序列化一份导出包。它只读传入的字节，不偷看当前内存态。 */
+  /** 只读传入的字节：所有世界真值都从 pkg.world 取，不偷看当前内存态。 */
   inspectSaveBytes(bytes: string): Record<string, unknown> {
     const pkg = JSON.parse(bytes) as AuditPackage;
     const audit = pkg.audit;
+    const world = pkg.world;
+    const buildings = (Array.isArray(world['buildings']) ? world['buildings'] : []) as SaveBuilding[];
+    const roads = (Array.isArray(world['roads']) ? world['roads'] : []) as GridPoint[];
+    const constructions = (Array.isArray(world['constructions']) ? world['constructions'] : []) as {
+      readonly buildingId: string; readonly remainingMs: number;
+    }[];
+    const now = typeof world['now'] === 'number' ? world['now'] : 0;
+    const altar = this.deps.sim.snapshot().altar;
+
+    const scoped = buildings.filter((b) => audit.placedInstanceIds.includes(b.instanceId));
+    const active = new Set(
+      constructions.filter((c) => c.remainingMs > 0).map((c) => c.buildingId),
+    );
+
+    const projected = scoped.map((b) => {
+      const scaffolding = active.has(b.instanceId);
+      return {
+        instanceId: b.instanceId,
+        // spec：M4 的原位升级生产里不存在，只投影规格期望。
+        prefabId: audit.upgradedPrefabIds[b.instanceId] ?? b.prefabId,
+        origin: b.origin,
+        footprint: b.footprint,
+        stage: scaffolding ? 'scaffolding' : 'completed',
+        smokeActive: scaffolding,
+        doorConnected: doorReaches(this.deps.grid, b.door, altar),
+      };
+    });
+
+    // 编年史不另记：从「在施工中 / 已落成」这两个生产状态投影出来。
+    const chronicle = scoped.flatMap((b) => {
+      const events = [{ tick: audit.nowTick, kind: 'building.scaffolding_started', buildingId: b.instanceId }];
+      if (!active.has(b.instanceId)) {
+        events.push({ tick: audit.nowTick, kind: 'building.completed', buildingId: b.instanceId });
+      }
+      return events;
+    });
+
     const submerged = this.submergedTiles(audit.tideLevel);
-    const metrics = metricsOf(audit, submerged);
+    const metrics = metricsOf(
+      buildings,
+      scoped.map((b) => doorReaches(this.deps.grid, b.door, altar)),
+      submerged,
+    );
+
     return {
-      now: audit.worldNow,
-      buildings: audit.buildings.map((building) => ({
-        ...building,
-        ...constructionReadout(building),
-      })),
-      roads: audit.roads.map((key) => {
-        const [x, y] = key.split(',').map(Number);
-        return { x, y };
-      }),
-      chronicle: audit.chronicle,
+      now,
+      buildings: projected,
+      roads: roads.map((p) => ({ x: p.x, y: p.y })),
+      chronicle,
       metrics,
       blockedTiles: audit.blockedTiles,
       lastRoadPlan: audit.lastRoadPlan,
@@ -300,10 +249,10 @@ export class CreatorDebugBridge {
     };
   }
 
-  /** H3：从导出的字节恢复中途施工状态。这是唯一不重置台账的入口。 */
   reloadFromBytes(bytes: string): void {
     const pkg = JSON.parse(bytes) as AuditPackage;
-    this.audit = pkg.audit;
+    this.audit = { ...pkg.audit };
+    this.roadBaseline = pkg.audit.roadBaseline ?? null;
     this.persist();
   }
 
@@ -312,170 +261,109 @@ export class CreatorDebugBridge {
   }
 
   gridSnapshot(): string {
-    const occupied = this.audit.buildings
-      .flatMap((b) => {
-        const cells: string[] = [];
-        for (let y = b.origin.y; y < b.origin.y + b.footprint.h; y += 1) {
-          for (let x = b.origin.x; x < b.origin.x + b.footprint.w; x += 1) {
-            cells.push(`${x},${y}:${b.prefabId}:${b.stage}`);
+    const raw = this.deps.saveStore.readRawText();
+    const world = raw === null ? {} : (JSON.parse(raw) as { world?: Record<string, unknown> }).world ?? {};
+    const buildings = (Array.isArray(world['buildings']) ? world['buildings'] : []) as SaveBuilding[];
+    return stableStringify({
+      occupied: buildings
+        .flatMap((b) => {
+          const cells: string[] = [];
+          for (let y = b.origin.y; y < b.origin.y + b.footprint.h; y += 1) {
+            for (let x = b.origin.x; x < b.origin.x + b.footprint.w; x += 1) {
+              cells.push(`${x},${y}:${b.prefabId}`);
+            }
           }
-        }
-        return cells;
-      })
-      .sort();
-    return stableStringify({ occupied, roads: [...this.audit.roads].sort() });
+          return cells;
+        })
+        .sort(),
+      roads: ((Array.isArray(world['roads']) ? world['roads'] : []) as GridPoint[])
+        .map((p) => pointKey(p)).sort(),
+    });
   }
 
-  /** 渲染层读的台账。只读，不允许从视图反写世界。 */
-  auditState(): CreatorAuditState {
-    return this.audit;
-  }
-
-  // ========== 内部：动作实现 ==========
+  // ========== 动作 ==========
 
   private place(raw: Record<string, unknown>): CreatorCommandOutcome {
     const prefabId = String(raw['prefabId'] ?? 'workshop_lantern');
     const blueprint = EVAL_BLUEPRINTS[prefabId];
     if (!blueprint) return { rejected: true, code: 'UNKNOWN_PREFAB' };
 
-    const requestedRegion = raw['region'] === undefined ? undefined : String(raw['region']);
-    const region = requestedRegion ?? blueprint.region;
-
-    // 人工否决过的坐标，再提一次必须被拒（M5 的 enforcedOnNextPlace）。
+    const region = raw['region'] === undefined ? blueprint.region : String(raw['region']);
+    // spec（H1）：满载旗子。它只在报告里作规格用例，不冒充生产空间约束。
+    if (this.audit.filledRegions.includes(region)) {
+      return { rejected: true, code: 'REGION_FULL' };
+    }
     const explicitAt = raw['origin'] as GridPoint | undefined;
     if (explicitAt && this.forbiddenAt(explicitAt)) {
       return { rejected: true, code: 'SPATIAL_CONSTRAINT' };
     }
 
-    const submerged = this.submergedTiles(this.audit.tideLevel);
-    const bounds = { width: this.deps.grid.width, height: this.deps.grid.height };
-    const snapshot = this.deps.sim.snapshot();
-    const zoneId = REGION_ALIASES[region];
+    if (this.obstaclePending) {
+      this.plantObstacle();
+      this.obstaclePending = false;
+    }
 
-    // 落进世界要用一张「世界里还没有同款」的真蓝图：`Simulation.build()` 会拒
-    // 「这种铺子已经有一栋了」。挑的顺序按 id 排序，保证同种子两次重放同一选择。
-    const existing = new Set(snapshot.buildings.map((building) => building.prefabId));
+    // 生产 `Simulation.build` 会拒「同模板已有一栋」；按 id 排序挑一张还没用过的真蓝图。
+    const existing = new Set(this.deps.sim.snapshot().buildings.map((b) => b.prefabId));
     const sorted = [...this.deps.blueprints.values()].sort((a, b) => a.id.localeCompare(b.id));
     const mapped = sorted[blueprint.blueprintRank];
-    const realBlueprint =
-      mapped && !existing.has(mapped.id)
-        ? mapped
-        : sorted.find((candidate) => !existing.has(candidate.id));
+    const real = mapped && !existing.has(mapped.id)
+      ? mapped
+      : sorted.find((candidate) => !existing.has(candidate.id));
+    if (!real) return { rejected: true, code: 'NO_AVAILABLE_BLUEPRINT' };
 
-    const slot = findDeterministicSlot({
-      footprint: blueprint.footprint,
-      margin: blueprint.margin,
-      anchor: snapshot.altar,
-      bounds,
-      blocked: (p) => this.isBlocked(p, submerged),
-      inRegion: this.regionPredicate(zoneId),
-      // 用 `checkPlacement` 做整块终审：桥算出的 origin 必须同时也过
-      // `placeBlueprint` 那一套规则，否则 `sim.enqueue(build)` 会静默拒绝，
-      // 楼就只活在台账里了（K4 的防假绿断言抓到的正是这一条）。
-      accept: realBlueprint
-        ? (origin) => checkPlacement(this.deps.grid, realBlueprint, origin).ok
-        : undefined,
-    });
-    if (slot === null) return { rejected: true, code: 'REGION_FULL' };
-
-    const door = { x: slot.x + blueprint.door.x, y: slot.y + blueprint.door.y };
-    const network = this.roadNetwork(snapshot.roads, snapshot.altar);
-    const walkable = (p: GridPoint) => this.isWalkable(p, slot, blueprint.footprint);
-
-    if (this.obstacleAtDoor) {
-      // 「门口正前方」不是随便挑一格：先算出没有障碍时的最短路，把它的第二格
-      // 封成岩石。这样 BFS 必须换一条路，H2 才真的测到绕行，而不是碰巧没撞上。
-      const clear = planRoadToMainNetwork({ door, network, bounds, walkable });
-      const front = clear && clear.length > 1 ? clear[1]! : { x: door.x, y: door.y + 1 };
-      const key = pointKey(front);
-      if (!this.audit.blockedTiles.includes(key)) this.audit.blockedTiles.push(key);
-      this.obstacleAtDoor = false;
-    }
-
-    const path = planRoadToMainNetwork({ door, network, bounds, walkable });
-    const paved = path ?? [];
-    const doorConnected = path !== null;
-    const straightDistance = network.reduce(
-      (best, point) => Math.min(best, Math.abs(point.x - door.x) + Math.abs(point.y - door.y)),
-      Number.POSITIVE_INFINITY,
-    );
-    this.audit.lastRoadPlan = {
-      door,
-      blocked: [...this.audit.blockedTiles],
-      path: paved.map(pointKey),
-      pathLength: paved.length,
-      straightDistance: Number.isFinite(straightDistance) ? straightDistance : 0,
-    };
-
+    this.roadBaseline = this.deps.sim.snapshot().roads.map(pointKey);
     const instanceId = `creator-${this.audit.seed}-${this.audit.nextInstance}`;
     this.audit.nextInstance += 1;
+    this.audit.placedInstanceIds.push(instanceId);
+    this.audit.lastRoadPlan = null;
 
-    enqueueBuildingConstruction(this.audit, {
-      instanceId,
-      prefabId,
-      origin: slot,
-      footprint: blueprint.footprint,
-      margin: blueprint.margin,
-      door,
-      constructionTicks: Number(raw['constructionTicks'] ?? 3),
-      pavedRoadTiles: paved,
-      doorConnected,
-    });
-
-    // 真把楼交给世界：由 `stepTicks()` 里的 `sim.update()` 结算队列。
-    // 仓里的真蓝图 id 与评测化名不同，落世界用映射后的 id。
-    if (realBlueprint) {
-      this.deps.sim.enqueue({
-        kind: 'build',
-        prefabId: realBlueprint.id,
-        instanceId,
-        at: slot,
-      });
-    }
+    // 唯一的写世界入口：与玩家手动造物、神谕共用。
+    this.deps.sim.enqueue({ kind: 'build', prefabId: real.id, instanceId });
+    // update(0) 只结算队列、不推进世界时钟（场景的钉钟分支也这么用）。
+    // 这样 placedRegion 能来自生产网格的真实分区，而不是把 input.region 原样回显——
+    // 回显会让 M1 的「落在目标分区」变成一句永远为真的空话。
+    this.deps.sim.update(0);
+    const placed = this.deps.sim.snapshot().buildings.find((b) => b.instanceId === instanceId);
+    const zone = placed === undefined ? '' : this.deps.grid.zoneOf(placed.origin);
     this.persist();
-    return { rejected: false, instanceId, placedRegion: region };
+    return {
+      rejected: false,
+      instanceId,
+      placedRegion: zone === 'industry' ? 'industrial' : zone || region,
+    };
   }
 
+  /** spec（M4）：生产没有原位升级，只记规格期望；坐标与道路都来自存档，天然不变。 */
   private upgrade(raw: Record<string, unknown>): CreatorCommandOutcome {
     const toPrefabId = String(raw['toPrefabId'] ?? '');
-    const targetId = String(raw['targetId'] ?? this.audit.buildings[0]?.instanceId ?? '');
+    const targetId = String(raw['targetId'] ?? this.audit.placedInstanceIds[0] ?? '');
     if (!EVAL_BLUEPRINTS[toPrefabId]) return { rejected: true, code: 'UNKNOWN_PREFAB' };
-    try {
-      const building = enqueueBuildingUpgrade(
-        this.audit,
-        targetId,
-        toPrefabId,
-        Number(raw['constructionTicks'] ?? 2),
-      );
-      this.persist();
-      return { rejected: false, instanceId: building.instanceId };
-    } catch {
+    if (!this.audit.placedInstanceIds.includes(targetId)) {
       return { rejected: true, code: 'TARGET_NOT_FOUND' };
     }
+    this.audit.upgradedPrefabIds[targetId] = toPrefabId;
+    this.persist();
+    return { rejected: false, instanceId: targetId };
   }
 
   private applyHumanDiff(raw: Record<string, unknown>): CreatorCommandOutcome {
     const proposal = raw['agentProposal'] as Record<string, unknown> | undefined;
     const outcome = raw['userOutcome'] as Record<string, unknown> | undefined;
     if (!proposal || !outcome) return { rejected: true, code: 'MALFORMED_DIFF' };
-
-    const toCommand = (value: Record<string, unknown>): GenesisCommand => ({
+    const toCommand = (v: Record<string, unknown>): GenesisCommand => ({
       kind: 'PlaceBuilding',
-      id: String(value['id'] ?? 'cmd_1'),
-      templateId: String(value['prefabId'] ?? 'workshop_lantern'),
-      at: (value['origin'] as GridPoint) ?? { x: 0, y: 0 },
+      id: String(v['id'] ?? 'cmd_1'),
+      templateId: String(v['prefabId'] ?? 'workshop_lantern'),
+      at: (v['origin'] as GridPoint) ?? { x: 0, y: 0 },
     });
     const diff = buildStructuredDiff(toCommand(proposal), toCommand(outcome));
-    // 合成器只在查得到地标时才敢提炼距离规则（「查不到就不猜」是它自己的口径）。
-    // 祭坛是这个世界唯一确定存在的地标，把它交进去。
     const altar = this.deps.sim.snapshot().altar;
     const result = this.synthesizer.synthesizeFromDiff(diff, {
       nearbyLandmarks: () => [{ id: 'altar', at: altar }],
     });
-    const spatial = result.patches.find((patch) => patch.type === 'spatial_constraint');
-
+    const spatial = result.patches.find((p) => p.type === 'spatial_constraint');
     if (!spatial) return { rejected: true, code: 'NO_SPATIAL_PATCH' };
-
     const forbidden = (proposal['origin'] as GridPoint) ?? { x: 0, y: 0 };
     const rule: SpatialRule = {
       kind: 'SpatialConstraint',
@@ -486,19 +374,14 @@ export class CreatorDebugBridge {
     };
     this.audit.creatorRules.push(rule);
     this.persist();
-    return {
-      rejected: false,
-      patch: { kind: 'SpatialConstraint', isSelfJustifying: true },
-    };
+    return { rejected: false, patch: { kind: 'SpatialConstraint', isSelfJustifying: true } };
   }
 
   private injectViolations(raw: Record<string, unknown>): CreatorCommandOutcome {
     const count = Math.max(1, Math.floor(Number(raw['count'] ?? 3)));
     for (let i = 0; i < count; i += 1) {
       this.fuse.recordCommandResult(FUSE_ROLE, {
-        schemaPassed: false,
-        invariantViolated: true,
-        hasCollision: true,
+        schemaPassed: false, invariantViolated: true, hasCollision: true,
       });
     }
     this.fuse.forceDowngradeToL1(FUSE_ROLE, '连续注入非法坐标');
@@ -528,45 +411,20 @@ export class CreatorDebugBridge {
   private projectFuse(lastEvent: string, fromLevel: number, toLevel: number): void {
     const state = this.fuse.getRoleState(FUSE_ROLE);
     this.audit.fuseState = {
-      isFused: state?.isFused ?? false,
-      fromLevel,
-      toLevel,
-      lastEvent,
+      isFused: state?.isFused ?? false, fromLevel, toLevel, lastEvent,
     };
     this.persist();
   }
 
-  // ========== 内部：空间判定 ==========
-
-  /** H1 的「分区满载」：把该分区里每一格都标成不可建，让选址器真的走完整条
-   * 螺旋后返回 null。用一个布尔旗子直接返回 REGION_FULL 会绕过选址器——
-   * 那样测的是旗子，不是空间约束。 */
-  private fillZone(region: string): CreatorCommandOutcome {
-    const zoneId = REGION_ALIASES[region] ?? region;
-    const grid = this.deps.grid;
-    let cells = 0;
-    for (let y = 0; y < grid.height; y += 1) {
-      for (let x = 0; x < grid.width; x += 1) {
-        if (this.zoneOf({ x, y }) === zoneId) {
-          const key = pointKey({ x, y });
-          if (!this.audit.blockedTiles.includes(key)) this.audit.blockedTiles.push(key);
-          cells += 1;
-        }
-      }
-    }
-    this.audit.filledRegions.push(region);
-    this.persist();
-    return { rejected: false, code: cells === 0 ? 'ZONE_NOT_FOUND' : undefined };
-  }
+  // ========== 评测夹具 ==========
 
   private forbiddenAt(point: GridPoint): boolean {
     return this.audit.creatorRules.some(
-      (rule) => rule.forbiddenAt.x === point.x && rule.forbiddenAt.y === point.y,
+      (r) => r.forbiddenAt.x === point.x && r.forbiddenAt.y === point.y,
     );
   }
 
-  /** 潮位高时哪些格子算被淹。评测夹具用「边界两圈 + 低地」近似，
-   * 与 `WorldGrid.levelAt()` 的真实高度一起判，不是凭空画一张水图。 */
+  /** 潮位高时哪些格算被淹：边界两圈 + 生产 `grid.levelAt` 的低地。 */
   private submergedTiles(level: number): ReadonlySet<string> {
     const out = new Set<string>();
     if (level < 0.5) return out;
@@ -580,83 +438,50 @@ export class CreatorDebugBridge {
     return out;
   }
 
-  private isBlocked(point: GridPoint, submerged: ReadonlySet<string>): boolean {
-    if (!this.deps.grid.canPlace(point, 1, 1, 0)) return true;
-    if (submerged.has(pointKey(point))) return true;
-    if (this.audit.blockedTiles.includes(pointKey(point))) return true;
-    if (this.forbiddenAt(point)) return true;
-    for (const building of this.audit.buildings) {
-      const within =
-        point.x >= building.origin.x - building.margin &&
-        point.x < building.origin.x + building.footprint.w + building.margin &&
-        point.y >= building.origin.y - building.margin &&
-        point.y < building.origin.y + building.footprint.h + building.margin;
-      if (within) return true;
-    }
-    return false;
-  }
-
-  private isWalkable(point: GridPoint, origin: GridPoint, footprint: Footprint): boolean {
-    if (point.x < 0 || point.y < 0) return false;
-    if (point.x >= this.deps.grid.width || point.y >= this.deps.grid.height) return false;
-    if (this.audit.blockedTiles.includes(pointKey(point))) return false;
-    if (
-      point.x >= origin.x &&
-      point.x < origin.x + footprint.w &&
-      point.y >= origin.y &&
-      point.y < origin.y + footprint.h
-    ) {
-      return false;
-    }
-    const cell = this.deps.grid.at(point);
-    if (!cell || cell.terrain === 'shallow' || cell.terrain === 'tree') return false;
-    return cell.walkable !== false;
-  }
-
-  private zoneOf(point: GridPoint): string {
-    // 与 `checkPlacement` 用同一个分区读取口，避免桥和世界各判一套。
-    return this.deps.grid.zoneOf(point);
-  }
-
-  /** 分区谓词只在图里真的有这个 zone 时生效。
-   *
-   * 设定集可以没有 `industry`（灯潮界的分区表就是另一套），此时若硬筛，
-   * 整张图一格都不合规，返回 REGION_FULL——那读起来像「分区满了」，
-   * 其实是「这张图没这个分区」。两种失败不能混成一个码。 */
-  private regionPredicate(zoneId: string | undefined): ((p: GridPoint) => boolean) | undefined {
-    if (!zoneId) return undefined;
+  /** spec（H2）：往**生产网格**里种一块真障碍，逼 `findBestSlot` 与 `grid.path` 绕开。
+   *  不是桥的私有地图——`WorldGrid.place()` 是生产 API。 */
+  private plantObstacle(): void {
     const grid = this.deps.grid;
-    let exists = false;
-    for (let y = 0; y < grid.height && !exists; y += 1) {
-      for (let x = 0; x < grid.width; x += 1) {
-        if (this.zoneOf({ x, y }) === zoneId) {
-          exists = true;
-          break;
-        }
+    const altar = this.deps.sim.snapshot().altar;
+    for (let y = 1; y < grid.height - 1 && this.audit.blockedTiles.length === 0; y += 1) {
+      for (let x = 1; x < grid.width - 1; x += 1) {
+        const origin = { x, y };
+        if (!grid.canPlace(origin, 1, 1, 0)) continue;
+        const id = `eval-obstacle-${this.audit.seed}-${x}-${y}`;
+        // door 指向远处的祭坛：place() 会把 door 那格设回可走，不能指向障碍自己。
+        if (!grid.place({ instanceId: id, origin, w: 1, h: 1, door: altar })) continue;
+        this.audit.blockedTiles.push(pointKey(origin));
+        return;
       }
     }
-    return exists ? (p) => this.zoneOf(p) === zoneId : undefined;
   }
 
-  /** 主干道 = 存档里已有的路 + 祭坛周围四格。铺路连到任意一格即算连通。 */
-  private roadNetwork(roads: readonly GridPoint[], altar: GridPoint): GridPoint[] {
-    const out = roads.map((p) => ({ x: p.x, y: p.y }));
-    for (const d of [
-      { x: 1, y: 0 },
-      { x: 0, y: 1 },
-      { x: -1, y: 0 },
-      { x: 0, y: -1 },
-    ]) {
-      out.push({ x: altar.x + d.x, y: altar.y + d.y });
-    }
-    return out;
+  /** 生产铺出的路 = 存档 roads 相对落位前基线的增量。不再自己跑 BFS 造路径。 */
+  private captureRoadPlan(): void {
+    if (this.roadBaseline === null) return;
+    const before = new Set(this.roadBaseline);
+    const after = this.deps.sim.snapshot().roads.map(pointKey);
+    const path = after.filter((key) => !before.has(key));
+    const altar = this.deps.sim.snapshot().altar;
+    const last = this.audit.placedInstanceIds.at(-1);
+    const building = this.deps.sim.snapshot().buildings.find((b) => b.instanceId === last);
+    const straight = building
+      ? Math.abs(building.door.x - altar.x) + Math.abs(building.door.y - altar.y)
+      : 0;
+    this.audit.lastRoadPlan = {
+      blocked: [...this.audit.blockedTiles],
+      path,
+      pathLength: path.length,
+      straightDistance: straight,
+    };
+    this.roadBaseline = null;
   }
 
   private persist(): void {
-    // 只写审计侧车；存档槽由 SaveStore 独占，桥一个字节都不碰。
+    // 只写审计侧车；存档槽由 SaveStore 独占。
     this.deps.storage.setItem(
       AUDIT_STORAGE_KEY,
-      stableStringify({ audit: this.audit, rules: this.audit.creatorRules }),
+      stableStringify({ audit: this.audit, roadBaseline: this.roadBaseline }),
     );
   }
 }

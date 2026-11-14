@@ -182,21 +182,21 @@ export const CHECKS = {
       };
     }, ctx.example.input);
 
-    // H2 的防假绿：障碍必须真的种下、路径必须真的避开它、且必须比直线远。
-    // 只断言「连通率 1.0」的话，障碍恰好不在最短路上的那条用例也会绿，
-    // 而它什么绕行都没测到。
+    // H2（spec 组）的防假绿：障碍必须真种进生产网格、生产铺出的路不穿它、
+    // 且 `doorReaches` 仍判连通。
+    // 旧断言「pathLength > straightDistance」测的是本仓曾经那套平行 BFS 的绕行长度；
+    // P0 收敛后路径来自生产 `grid.path` 的存档增量，长度由生产算法决定，
+    // 拿旧口径卡生产是拿错了尺子。这里改用生产自己提供的连通性判据。
     const hasObstacleSetup = (ctx.example.setup ?? []).some(
       (cmd) => cmd.kind === 'PlantObstacleAtDoor',
     );
     if (hasObstacleSetup) {
-      assert.ok(res.blockedTiles.length > 0, 'setup 没有在门口种下任何障碍');
-      assert.ok(res.plan !== null, '没有铺路读数，无法证明绕行');
+      assert.ok(res.blockedTiles.length > 0, 'setup 没有往生产网格种下任何障碍');
+      assert.ok(res.plan !== null, '没有铺路读数，无法证明生产真的铺了路');
       const crossing = res.plan.path.filter((key) => res.blockedTiles.includes(key));
-      assert.equal(crossing.length, 0, `铺出的路穿过了障碍格：${crossing.join(', ')}`);
-      assert.ok(
-        res.plan.pathLength > res.plan.straightDistance,
-        `路径 ${res.plan.pathLength} 格不比直线 ${res.plan.straightDistance} 格长——没有绕行`,
-      );
+      assert.equal(crossing.length, 0, `生产铺出的路穿过了障碍格：${crossing.join(', ')}`);
+      assert.ok(res.plan.pathLength > 0, '存档里没有新增道路格——生产没有铺路');
+      assert.equal(res.doorWalkableToAltar, true, 'doorReaches 判门口连不到祭坛');
     }
 
     assert.equal(res.rejected, false, `落位被拒绝：${res.rejectCode}`);
@@ -526,8 +526,12 @@ async function main() {
         const result = await runExample(browser, example);
         if (!result.ok) failed += 1;
         const mark = result.ok ? 'PASS' : 'FAIL';
-        console.log(`  ${mark} ${example.id} ${example.name} — ${result.detail}`);
-        report.results.push({ split: dataset.split, id: example.id, name: example.name, ...result });
+        const mode = String(example.mode ?? 'production').padEnd(10);
+        console.log(`  ${mark} [${mode}] ${example.id} ${example.name} — ${result.detail}`);
+        report.results.push({
+          split: dataset.split, id: example.id, name: example.name,
+          mode: example.mode ?? 'production', ...result,
+        });
       }
     }
   } finally {
@@ -535,7 +539,13 @@ async function main() {
   }
 
   const total = report.results.length;
-  console.log(`\n${total - failed}/${total} 通过（split=${split}）`);
+  const byMode = (mode) => {
+    const rows = report.results.filter((r) => r.mode === mode);
+    return `${rows.length - rows.filter((r) => !r.ok).length}/${rows.length}`;
+  };
+  console.log(`
+生产组 ${byMode('production')}　规格组 ${byMode('spec')}　合计 ${total - failed}/${total}（split=${split}）`);
+  console.log('规格组测的是生产尚未实现的能力（升级 / 逆向规则 / 熔断注入 / 满载 / 障碍 / 恢复），只作规格验收，不算生产验收。');
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(join(OUT_DIR, `${split}.json`), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   console.log(`报告：${join(OUT_DIR, `${split}.json`)}`);

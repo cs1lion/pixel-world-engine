@@ -1,6 +1,6 @@
-# 1113 迭代任务 3 · 造物主 EDD 落地（Phase 1 / Phase 2 均已完成）
+# 1113 迭代任务 3 · 造物主 EDD（Phase 1 / Phase 2 / P0 收敛）
 
-> **状态：两阶段都已交付，main 10/10 + held-out 6/6 全绿；`npm test` 2642 项零退化。**
+> **状态：两阶段已交付，P0 收敛完成；main 10/10 + held-out 6/6 分组全绿，`npm test` 2651 项零退化。**
 > 2026-11-13 收材料并核对 → Phase 1 落数据集/评分器/防假绿单测（红灯 0/10、0/6）→ Phase 2 落内环实现并收口。
 > 三条阻塞决策已定（见「三条决策，已定」）。Godot 迁移讨论同日被用户叫停，**本项目未做迁移**。
 
@@ -112,10 +112,10 @@ EVAL_BASE_URL=http://127.0.0.1:5299/ node scripts/eval-creator.mjs --split=all
 
 | 文件 | 内容 |
 | --- | --- |
-| `world-client/src/world/creator/spatial-executor.ts` | `findDeterministicSlot`（曼哈顿螺旋，逐格 + 整块 `accept` 终审）与 `planRoadToMainNetwork`（门口四方向 BFS）。零 `Math.random` / 零 `Date.now` |
+| 自研螺旋选址 + 门口 BFS（spatial-executor，**P0 已删**） | 改认生产 `WorldGrid.findBestSlot` / `grid.path` / `paveFrom` |
 | `world-client/src/world/creator/audit-state.ts` | 施工台账、空间规则、熔断读数、指标计算；可序列化，按逻辑拍推进 |
 | `world-client/src/world/creator/debug-bridge.ts` | `window.__PIXEL_WORLD_DEBUG__`：dispatch / stepTicks / exportSaveBytes / inspectSaveBytes / reloadFromBytes / stateHash / gridSnapshot |
-| `world-client/src/render/creator-scaffolding-buildings.ts` | `syncBuildingConstructionView`：只刷 front 可见性、roof/sign/window 透明度与 `view.progress` 竹木线框；**不改 back/container/front 三层深度** |
+| 脚手架楼体视图（creator-scaffolding-buildings，**P0 已删**） | 改认生产 `decor.syncScaffolds` + `drawScaffolds`（由 `snapshot.constructions` 驱动） |
 | `world-client/src/scenes/SandboxScene.ts` | `?debug=1` 下用**动态 import** 挂桥并做施工视图联动；生产主 bundle 不含调试桥 |
 | `world-client/scripts/eval-creator.mjs` | 补 `heldout` 别名、H2 绕行断言、K4 真落盘断言、K3 双干净 context |
 
@@ -128,7 +128,7 @@ EVAL_BASE_URL=http://127.0.0.1:5299/ node scripts/eval-creator.mjs --split=all
 | --- | --- |
 | 评分器 `--split=all` | **16/16 通过，exit 0**（main 10/10、held-out 6/6） |
 | 防假绿单测 | 4/4 绿，且已并入 `npm test` |
-| `npm test` | **2642 项 / 0 失败 / 9 skip**（与 Phase 1 读数一致，零退化） |
+| `npm test` | **当时 2642 项 / 0 失败 / 9 skip**（P0 之后为 2651 项，见下节） |
 | `npm run check` | 语法 0 / 语义 0 |
 | `npm run build` | 通过（动态 import 多一个 chunk，Vite 仅提示体积告警） |
 | `audit:ports` / palette / claims / citations / sections / references | 全绿 |
@@ -204,6 +204,62 @@ npm run red:first
 
 原先那道红（`test/baseline-manifest.test.ts` 在旧 HEAD 上「base 上已经绿」）在拆两笔之后不再出现——
 它属于更早的一笔提交，不是被本单修好的，也没有通过放宽脚本口径来抹掉。
+
+## P0 收敛（2026-11-13，真链路取证之后）
+
+### 起因
+
+按上游概念回头核对，发现两件事：**造物主在生产里本来就能工作**（`findBestSlot` / `paveFrom` /
+`CONSTRUCTION_MS` / `decor.syncScaffolds` / `drawScaffolds` 全已有），而本项目前两笔提交
+另外造了三套平行实现；同时真链路取证显示 `Oracle.build`（神谕/上游路径）的
+`creatorChecks` 全程 0，只有手动造物那条路会 +1。评测守着平行实现、门禁只覆盖一条路径，
+这两条比"再加个功能"更该先修。
+
+查实的 16 条里有 6 条测的是**生产根本不存在的能力**：M4 原位升级、M5 逆向规则、
+M6 熔断注入、H1 满载、H2 门口障碍、H4 熔断恢复。所以「全改读生产真值」不成立，
+硬改会把规格测试伪装成生产验收。
+
+### 红灯
+
+`test/creator-production-truth.test.ts`：4 条红在断言（`testCodeFailure`）、1 条生产锚点绿。
+断言的是「平行实现必须消失」「台账不再数施工拍」「评测集必须按 mode 分组」「生产真入口还在」。
+
+### 动作
+
+| 文件 | 动作 |
+| --- | --- |
+| spatial-executor 与 creator-scaffolding-buildings 两个文件 | **删** |
+| `SandboxScene.ts` | 去掉脚手架动态 import 与 `onConstructionTick` 回调，只留挂桥 |
+| `audit-state.ts` | 删 `constructionTicksRemaining` / `tickBuildingConstruction` / `constructionReadout`，只剩评测会话状态与从建筑形状算指标的纯函数 |
+| `debug-bridge.ts` | 降为「生产存档字节的只读适配器」：落位只 `sim.enqueue(build)`，读数全部来自 `world.buildings / roads / constructions / now`；连通性问 `doorReaches`，分区问 `grid.zoneOf` |
+| 两份数据集 | 16 条加 `mode`：**production 10 条**（M1 M2 M3 K1 K2 K3 K4 H3 V1 V2）/ **spec 6 条**（M4 M5 M6 H1 H2 H4） |
+| `eval-creator.mjs` | 报告按组标注与分列；`placedRegion` 改由生产网格给出（之前是回显 input，属于假绿）；H2 断言换成生产契约 |
+| `creator-runtime.test.ts` | 改测生产 `findBestSlot` / `paveFrom` / `doorReaches` / `CONSTRUCTION_MS` |
+
+### 两处口径变更，写清楚免得被当成放宽闸门
+
+1. **H2** 旧的 `pathLength > straightDistance` 卡的是本仓曾经那套平行 BFS 的绕行长度。
+   收敛后道路是生产 `grid.path` 的存档增量，长度由生产算法决定，旧尺子不适用。
+   现改为：障碍真种进生产 `WorldGrid`、`存档新增道路格`不穿障碍、`doorReaches` 仍判连通。
+   **代价说清**：H2 现在验的是「有障碍时仍能铺出连通路」，不再验「比直线长」；
+   要精确验绕行，得按预测门口位置种植障碍，属于 spec 组后续增强。
+2. **M1** 的 `placedRegion` 从「回显 `input.region`」改成 `grid.zoneOf(落位结果)`。
+   前者永远为真，是这一轮自己抓出来的假绿。
+
+### 读数
+
+| 闸门 | 结果 |
+| --- | --- |
+| 新红灯 | **5/5 绿** |
+| `npm test` | **2651 项 / 0 失败 / 9 skip** |
+| 评分器 `--split=all` | 生产组 **10/10**、规格组 **6/6**，合计 16/16 |
+| `check` / `build` / 六道审计 / `audit:orphan-gates` / `pytest` | 全绿 |
+
+### 仍未取证的
+
+外环**跨日提议**需要 `stepCreatorDayClosed` + 至少两个 14 世界日窗口；`speed=1` 下
+一个世界日 = 24 小时现实时间。本轮没有伪造这个读数。要取它得另写一条按逻辑拍快进的
+无头回放（复用 `src/trace/replay.ts`），是单独一单。
 
 ## 相关
 

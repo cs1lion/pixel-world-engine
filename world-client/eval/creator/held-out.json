@@ -25,66 +25,169 @@
       "id": "H1",
       "name": "regionFullGracefulReject",
       "check": "slotAllocation",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2101 },
-      "setup": [{ "kind": "FillZone", "region": "industrial" }],
-      "input": { "kind": "PlaceBuilding", "prefabId": "grand_foundry_6x6", "region": "industrial" },
-      "expect": { "shouldReject": true, "rejectCode": "REGION_FULL" }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 2101
+      },
+      "setup": [
+        {
+          "kind": "FillZone",
+          "region": "industrial"
+        }
+      ],
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "grand_foundry_6x6",
+        "region": "industrial"
+      },
+      "expect": {
+        "shouldReject": true,
+        "rejectCode": "REGION_FULL"
+      },
+      "mode": "spec"
     },
     {
       "id": "H2",
       "name": "roadDetourAroundObstacle",
       "check": "roadAutoPave",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2102 },
-      "setup": [{ "kind": "PlantObstacleAtDoor", "prefabId": "workshop_lantern" }],
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "autoConnectRoad": true },
-      "expect": { "pathfindingConnectivity": 1.0, "doorWalkableToAltar": true }
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 2102
+      },
+      "setup": [
+        {
+          "kind": "PlantObstacleAtDoor",
+          "prefabId": "workshop_lantern"
+        }
+      ],
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern",
+        "autoConnectRoad": true
+      },
+      "expect": {
+        "pathfindingConnectivity": 1.0,
+        "doorWalkableToAltar": true
+      },
+      "mode": "spec"
     },
     {
       "id": "H3",
       "name": "midConstructionSaveReloadResume",
       "check": "constructionLifecycle",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2103 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "smithy_lv1", "constructionTicks": 3 },
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 2103
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "smithy_lv1",
+        "constructionTicks": 3
+      },
       "expect": {
         "reloadMidConstruction": true,
         "stageAtTick1": "scaffolding",
         "smokeActiveAtTick1": true,
         "stageAtTick3": "completed",
         "chronicleAdded": true
-      }
+      },
+      "mode": "production"
     },
     {
       "id": "H4",
       "name": "fuseRecoveryAfterCleanRegression",
       "check": "fuseDowngrade",
-      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1, "seed": 2104 },
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "seed": 2104
+      },
       "input": {
         "kind": "InjectViolations",
         "role": "LAYOUT_AND_BUILDING",
         "count": 3,
         "thenPassRegressionRate": 1.0
       },
-      "expect": { "isFused": false, "fromLevel": 1, "toLevel": 2, "lastEvent": "RECOVERY" }
+      "expect": {
+        "isFused": false,
+        "fromLevel": 1,
+        "toLevel": 2,
+        "lastEvent": "RECOVERY"
+      },
+      "mode": "spec"
     },
     {
       "id": "V1",
       "name": "nightHighTideAvoidSubmergedSlots",
       "check": "slotAllocation",
-      "env": { "world": "dengchao", "now": 1320, "phase": "night", "feed": "off", "debug": 1, "seed": 2201 },
-      "setup": [{ "kind": "SetTide", "level": 1.0, "durationMs": 60000 }],
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern", "region": "coastal_industrial" },
-      "expect": { "overlapCount": 0, "minClearMargin": 1, "submergedBuildingCount": 0 }
+      "env": {
+        "world": "dengchao",
+        "now": 1320,
+        "phase": "night",
+        "feed": "off",
+        "debug": 1,
+        "seed": 2201
+      },
+      "setup": [
+        {
+          "kind": "SetTide",
+          "level": 1.0,
+          "durationMs": 60000
+        }
+      ],
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern",
+        "region": "coastal_industrial"
+      },
+      "expect": {
+        "overlapCount": 0,
+        "minClearMargin": 1,
+        "submergedBuildingCount": 0
+      },
+      "mode": "production"
     },
     {
       "id": "V2",
       "name": "dawnPhaseSaveIntegrity",
       "check": "saveSchemaIntact",
-      "env": { "world": "dengchao", "now": 360, "phase": "dawn", "feed": "off", "debug": 1, "seed": 2202 },
-      "input": { "kind": "PlaceBuilding", "prefabId": "workshop_lantern" },
+      "env": {
+        "world": "dengchao",
+        "now": 360,
+        "phase": "dawn",
+        "feed": "off",
+        "debug": 1,
+        "seed": 2202
+      },
+      "input": {
+        "kind": "PlaceBuilding",
+        "prefabId": "workshop_lantern"
+      },
       "expect": {
         "schemaVersion": "unchanged",
-        "persistedFields": ["buildings", "roads", "creatorRules", "fuseState"]
-      }
+        "persistedFields": [
+          "buildings",
+          "roads",
+          "creatorRules",
+          "fuseState"
+        ]
+      },
+      "mode": "production"
     }
   ]
 }
