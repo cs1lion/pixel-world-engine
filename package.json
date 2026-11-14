@@ -6,6 +6,7 @@
     "check:hooks": "node scripts/check-hooks.mjs",
     "audit:orphan-gates": "node scripts/audit-orphan-gates.mjs",
     "worktrees:audit": "node scripts/worktrees-audit.mjs",
-    "ci:attempt1": "node scripts/ci-attempt1-audit.mjs"
+    "ci:attempt1": "node scripts/ci-attempt1-audit.mjs",
+    "audit:branches": "node scripts/audit-branches.mjs"
   }
 }

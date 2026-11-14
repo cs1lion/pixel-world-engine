@@ -116,6 +116,9 @@ jobs:
   # 仓库级手续：钩子自检与 worktree 登记巡检。只用 node 内置模块，不需要 npm ci。
   repo-harness:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -133,6 +136,15 @@ jobs:
       # 非 --strict：CI 里 main worktree 的绝对路径与登记表不同，严格模式会误红。
       - name: worktree 登记巡检
         run: npm run worktrees:audit
+      # 远端分支卫生：合入即删是默认，有意保留的分支必须写进
+      # docs/BRANCH_EXCEPTIONS.md；未登记 / 悬空 / 例外过期即红。
+      # 拿不到 origin 清单时脚本明确打印 SKIP 并只校验登记表，不会误判。
+      - name: 远端分支卫生巡检
+        # gh pr list 要读 OPEN PR 的 head，才能把并行 PR 的分支排除在「未登记」之外；
+        # 没有 token 时脚本会退化成只跳过自己，并行 PR 期间就会互相误判。
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run audit:branches -- --strict
       # 孤儿闸门：检查脚本 / 检查型 npm 脚本必须有 workflow 或 import 消费方；
       # 允许清单里的例外必须存在、带理由，且一接闸就要从清单删掉，否则这里红。
       - name: 孤儿闸门检测
