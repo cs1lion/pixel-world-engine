@@ -118,10 +118,10 @@ import {
   updateVillager,
   VILLAGER_H,
   VILLAGER_W,
-  villagerDepthAt,
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
+import { actorDepth } from '../render/ground.ts';
 import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
@@ -4704,7 +4704,7 @@ export class SandboxScene extends Phaser.Scene {
         return {
           x: foot.x,
           y: foot.y,
-          depth: villagerDepthAt(foot.y, ALTITUDE),
+          depth: actorDepth(cell.y, ALTITUDE),
           w: VILLAGER_W,
           h: VILLAGER_H,
         };
