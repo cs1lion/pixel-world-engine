@@ -175,6 +175,9 @@ export class SensorProbe {
       if (this.salute !== null) this.salute = stepOracleSalute(this.salute);
       this.beam?.advance(1);
     }
+    // 评测推进世界后算一遍道路增量，让反事实路线账目（plan.pathLength）有真值；
+    // 造物路径在桥自己的 stepTicks 里会算，这里补一次，两条推进路径结果一致。
+    this.bridge.captureRoadPlan();
   }
 
   /** 程序化音效触发（零外部音频网络请求；无 AudioContext 静默降级不抛异常）。 */

@@ -2939,6 +2939,25 @@ export class Simulation {
   }
 
   /**
+   * 补记一段已铺出的道路格（生产铺路与绕障重铺共用）。
+   *
+   * 道路只记在 `roads` 里（存档增量与规划读数），不回写网格：走不走到是网格的事，
+   * 铺了哪些格子只是「这一条小径存在」的事实。与 `spawnBuilding` 里那段去重同一条规则。
+   *
+   * 确定性：输入点数顺序不变，结果只由顺序决定，不碰时间源。
+   */
+  addPavedRoads(points: readonly GridPoint[]): number {
+    let added = 0;
+    for (const point of points) {
+      const key = `${point.x},${point.y}`;
+      if (this.roads.some((p) => `${p.x},${p.y}` === key)) continue;
+      this.roads.push(point);
+      added += 1;
+    }
+    return added;
+  }
+
+  /**
    * 开局（读档也是开局）那一刻就有的楼。之后 `build` 推进来的都不在这个集合里，
    * 于是「这次玩起来之后造的吗」是一个查得到的事实，不是一个猜出来的判据。
    *

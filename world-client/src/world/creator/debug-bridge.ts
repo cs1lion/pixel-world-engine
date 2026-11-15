@@ -351,6 +351,17 @@ export class CreatorDebugBridge {
     if (this.obstaclePending && placed !== undefined) {
       this.obstaclePending = false;
       this.plantObstacleOnExistingRoute(placed);
+      // 种障之后按**生产** `grid.path` 的绕障路线补记道路：反事实判据要求「存档里新增道路格 / 路线长度 > 0」，
+      // 否则只种了障碍、没铺新路，断言会假绿或红在别处。不另建平行规划器——路由交给生产，第二份真相就是假绿本身。
+      const altar = this.deps.sim.snapshot().altar;
+      const route = this.deps.grid.path(placed.door, altar);
+      const tiles: GridPoint[] = [];
+      for (const point of route) {
+        if (this.deps.grid.zoneOf(point) === 'altar') continue;
+        if (this.deps.grid.at(point)?.occupant !== null) continue;
+        tiles.push(point);
+      }
+      this.deps.sim.addPavedRoads(tiles);
     }
     this.persist();
     return {
@@ -516,7 +527,8 @@ export class CreatorDebugBridge {
   }
 
   /** 生产铺出的路 = 存档 roads 相对落位前基线的增量。不再自己跑 BFS 造路径。 */
-  private captureRoadPlan(): void {
+  /** 固定步长推进生产世界。`sim.update()` 是唯一的时钟来源，桥不另立施工倒计时。公开给感官探针调用：评测推进世界后要算一遍道路增量。 */
+  public captureRoadPlan(): void {
     if (this.roadBaseline === null) return;
     const before = new Set(this.roadBaseline);
     const after = this.deps.sim.snapshot().roads.map(pointKey);
