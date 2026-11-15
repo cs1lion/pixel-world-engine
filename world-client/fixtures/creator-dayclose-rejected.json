@@ -12,7 +12,8 @@
   "doesNotCover": [
     "人工 creatorBuild 被覆盖率/冲突拒绝：轨迹运行器没有拒绝人工提案的落账入口，人工提案一律 accepted=true",
     "造物账本 JSONL 的 rejected 行：回放不写 server 侧账本文件，只能审计 recorded.creator.business.proposals",
-    "L1 以上的门禁升级与回滚"
+    "L1 以上的门禁升级与回滚",
+    "街头互动与市面四拍：只在 23:50–00:02 的 12 分钟片段里跑，不跨 08:00/17:00/19:00/22:00，6 类新增事件均不出现"
   ],
   "trace": {
     "format": "pwe-trace/2",

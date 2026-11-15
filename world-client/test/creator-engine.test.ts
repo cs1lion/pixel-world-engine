@@ -363,4 +363,39 @@ describe('CreatorEngine 集成测试', () => {
     engine.closeWorldDay();
     assert.equal(engine.getRoleState('mapper')?.metrics.days, 1, '一个世界日只结算一次');
   });
+
+  test('A2：读档把外环等级还回引擎，刷新后不再从 L0 重来', () => {
+    // 造一份"上一次会话留下了 L2"的快照，走 CreatorEngine 的构造参数。
+    const persisted = [{
+      roleId: 'mapper' as const,
+      currentLevel: 2 as const,
+      targetLevel: 3 as const,
+      days: 9,
+      isFused: false,
+      metrics: {
+        batches: 2, days: 9, totalCommands: 5, schemaPassCount: 5,
+        conflictCount: 0, conflictChecks: 5, coverageRate: 0.97, coverageChecks: 5,
+        pathfindingChecks: 0, pathfindingConnectedCount: 0,
+        collisionChecks: 0, collisionFreeCount: 0,
+        constraintChecks: 0, constraintSatisfiedCount: 0,
+        traceabilityChecks: 0, traceableCount: 0,
+        replayChecks: 0, replayConsistentCount: 0,
+        manualModificationCount: 0, rollbackCount: 0,
+        invariantViolationCount: 0, invariantChecks: 5,
+      },
+    }];
+
+    const fresh = new CreatorEngine(TEST_PACK, ENGINE_OPTIONS);
+    assert.equal(fresh.getRoleState('mapper')?.currentLevel, 0, '没有快照时从 L0 起步');
+
+    const restored = new CreatorEngine(TEST_PACK, { ...ENGINE_OPTIONS, autonomy: persisted });
+    assert.equal(restored.getRoleState('mapper')?.currentLevel, 2, '读档后等级必须还是 L2');
+    assert.equal(restored.getRoleState('mapper')?.metrics.totalCommands, 5, '指标窗口一并还原');
+    // 别的角色没在快照里，仍是 L0。
+    assert.equal(restored.getRoleState('interpreter')?.currentLevel, 0);
+    // 再导出一次应与喂进去的一致（幂等）。
+    assert.deepEqual(restored.exportAutonomy(), fresh.exportAutonomy().map((s) =>
+      s.roleId === 'mapper' ? persisted[0] : s,
+    ));
+  });
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,6 +15,12 @@ import { fileURLToPath } from 'node:url';
  * 另附**只记录、不进断言**的分桶统计：每个未解析 eventRef 被旁证引用了 0 / 1 / ≥2 次，
  * 落到 docs/evidence/soak/witnessed-corroboration.json，并在 CI 日志里直接打出来。
  * 分桶不是闸门——详见 docs/evidence/soak/REPORT.md 对应小节。
+ *
+ * 为什么不直接写那份已跟踪文件：Windows 上 checkout 出来是 CRLF，而测试按 `\n` 写盘；
+ * 两者内容归一化后相同（`git diff` 为空），但 stat 变了，`git status` 永远多一条 M，
+ * 只能靠人工 `git checkout --` 收场，久了就分不清真实改动。这里改成默认只写
+ * `world-client/tmp/`（gitignore）并做 EOL 归一化后的内容比对；确需刷新证据时用
+ * `PWE_WRITE_WITNESSED=1` 显式写一次。
  */
 const worldClientRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(worldClientRoot, '..');
@@ -92,28 +98,40 @@ test('90 天快照：witnessed 条目的未解析 eventRef 仍有 claims/beliefs
   );
 
   // 落盘：无时间戳、键名与条目顺序固定，便于逐字节比对。
-  const outPath = resolve(repoRoot, 'docs/evidence/soak/witnessed-corroboration.json');
   const sorted = [...unresolved].sort(
     (a, b) => a.memoryId.localeCompare(b.memoryId) || a.eventRef.localeCompare(b.eventRef),
   );
-  writeFileSync(
-    outPath,
-    `${JSON.stringify(
-      {
-        source: 'docs/evidence/soak/soak-a/save-90d.json',
-        witnessedEntries: witnessed.length,
-        unresolvedEventRefs: unresolved.length,
-        buckets: {
-          refsWithoutCorroboration: noCorroboration,
-          refsWithSingleCorroboration: singleCorroboration,
-          refsWithMultipleCorroboration: multiCorroboration,
-        },
-        refs: sorted,
+  const payload = `${JSON.stringify(
+    {
+      source: 'docs/evidence/soak/soak-a/save-90d.json',
+      witnessedEntries: witnessed.length,
+      unresolvedEventRefs: unresolved.length,
+      buckets: {
+        refsWithoutCorroboration: noCorroboration,
+        refsWithSingleCorroboration: singleCorroboration,
+        refsWithMultipleCorroboration: multiCorroboration,
       },
-      null,
-      2,
-    )}\n`,
-  );
+      refs: sorted,
+    },
+    null,
+    2,
+  )}\n`;
+  // 默认只写 gitignore 下的临时副本，绝不碰已跟踪文件。
+  const tmpPath = resolve(worldClientRoot, 'tmp/witnessed-corroboration.json');
+  mkdirSync(dirname(tmpPath), { recursive: true });
+  writeFileSync(tmpPath, payload);
+  const outPath = resolve(repoRoot, 'docs/evidence/soak/witnessed-corroboration.json');
+  if (process.env.PWE_WRITE_WITNESSED === '1') {
+    writeFileSync(outPath, payload);
+  } else {
+    // 只比内容、不比行尾：Windows checkout 是 CRLF，CI 是 LF，归一化后才有可比性。
+    const tracked = readFileSync(outPath, 'utf8').replace(/\r\n/g, '\n');
+    assert.ok(
+      tracked === payload,
+      `已跟踪的旁证证据与本次读数不一致（${outPath}）。本测试默认不写它；`
+        + `要刷新请用 PWE_WRITE_WITNESSED=1 跑一次本文件。本次读数临时副本：${tmpPath}`,
+    );
+  }
 
   assert.equal(
     violations.length,

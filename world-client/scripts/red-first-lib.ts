@@ -46,6 +46,22 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/eval-fixture-hash.test.ts',
     reason: '夹具哈希用例：参数化读夹具与基线，base 上可能本来就绿',
   },
+  {
+    file: 'test/art-building-scale.test.ts',
+    reason: '纯函数边界用例：依赖 src/render/art-assets.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
+  },
+  {
+    file: 'test/work-note-client.test.ts',
+    reason: '牌子运输侧：依赖 src/world/work-note-client.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件；世界侧仍在 test/work-note.test.ts 真出红',
+  },
+  {
+    file: 'test/site-output.test.ts',
+    reason: '场所产出账：依赖 src/world/site-output.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件',
+  },
+  {
+    file: 'test/villager-decision-client.test.ts',
+    reason: '人物决策运输侧：依赖 src/world/villager-decision-client.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件；世界侧仍在 test/villager-decision.test.ts 真出红',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
@@ -60,6 +76,60 @@ export function toTestRelative(path: string): string | null {
 
 export function isSnapshotLikeTest(testRelativePath: string): string | null {
   return SNAPSHOT_BY_FILE.get(testRelativePath) ?? null;
+}
+
+/**
+ * 把 TypeScript 源码剥成「语义骨架」：去行注释、去块注释、去空白。
+ *
+ * 用途只有一个——判断两个版本的**行为是否一样**。字符串字面量里的内容
+ * 原样保留（测试文案、断言消息改了也是真改动，不该被剥掉）。模板字符串
+ * 同理原样保留：里面的 `${...}` 是表达式，剥注释会伤到它们，干脆整段留下。
+ *
+ * 这不是完整的 TS 解析器，**只服务 red-first 的一个判据**：
+ * 「这个测试文件本次是不是只改了注释」。宁可把「像注释的字符串」留下（误判成
+ * 有改动、多跑一次 base），也不能把真注释留下（漏判成有改动 → base 绿 → 判红）。
+ * 前者是误伤自己一次，后者是闸门失灵。
+ *
+ * 行注释后那个换行也被剥掉（不是恢复成代码）：否则同一段代码一行注释与一段
+ * 块注释会产出两个骨架——一行注释的版本末尾多一个换行、块注释的版本没有，
+ * 本来只改注释的文件会被当成改了代码。
+ */
+export function stripComments(source: string): string {
+  let out = '';
+  let i = 0;
+  let inLine = false;
+  let inBlock = false;
+  let quote: string | null = null;
+  const NEWLINE = String.fromCharCode(10);
+  const BACKSLASH = String.fromCharCode(92);
+  while (i < source.length) {
+    const c = source[i]!;
+    const next = source[i + 1];
+    if (inLine) {
+      if (c === NEWLINE) { inLine = false; }
+      i += 1;
+      continue;
+    }
+    if (inBlock) {
+      if (c === '*' && next === '/') { inBlock = false; i += 2; continue; }
+      i += 1;
+      continue;
+    }
+    if (quote !== null) {
+      out += c;
+      if (c === BACKSLASH) { out += source[i + 1] ?? ''; i += 2; continue; }
+      if (c === quote) quote = null;
+      i += 1;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { quote = c; out += c; i += 1; continue; }
+    if (c === '/' && next === '/') { inLine = true; i += 2; continue; }
+    if (c === '/' && next === '*') { inBlock = true; i += 2; continue; }
+    if (c === ' ' || c === NEWLINE || c === '\r' || c === '\t') { i += 1; continue; }
+    out += c;
+    i += 1;
+  }
+  return out;
 }
 
 /**
@@ -154,8 +224,11 @@ const MODULE_FAILURE = [
   /ERR_MODULE_NOT_FOUND/,
   /ERR_UNKNOWN_FILE_EXTENSION/,
   /ERR_UNSUPPORTED_ESM_URL_SCHEME/,
-  /Cannot find module/,
-  /Cannot find package/,
+  // 行首锚定：B14 的写法会把 Node 的原文（`Cannot find module …`）留在断言
+  // 消息里，那是「测试先于实现」的合格红，不是基础设施错误。真正的模块错误
+  // 总以 `Error [ERR_MODULE_NOT_FOUND]: …` 或 `Cannot find module …` 起行。
+  /^\s*(?:Error(?: \[[A-Z_]+\])?: )?Cannot find module\b/m,
+  /^\s*(?:Error(?: \[[A-Z_]+\])?: )?Cannot find package\b/m,
   /Failed to resolve import/,
 ];
 
@@ -189,11 +262,89 @@ const ASSERTION_FAILURE = [
 ];
 
 export function classifyBaseFailure(output: string): BaseFailureKind {
-  if (MODULE_FAILURE.some((pattern) => pattern.test(output))) return 'module';
-  if (COMPILE_FAILURE.some((pattern) => pattern.test(output))) return 'compile';
-  if (CRASH_FAILURE.some((pattern) => pattern.test(output))) return 'crash';
-  if (ASSERTION_FAILURE.some((pattern) => pattern.test(output))) return 'assertion';
-  return 'unknown';
+  return explainBaseFailure(output).kind;
+}
+
+/** 一次分类的现场：命中的是哪条规则、哪一行、哪个文件。 */
+export interface BaseFailureEvidence {
+  kind: BaseFailureKind;
+  /** 命中的正则源码；`unknown` 时为 null。 */
+  pattern: string | null;
+  /** 命中行在输出里的行号（1 起）。 */
+  line: number | null;
+  /** 命中的那一行（已 trim）。 */
+  matched: string | null;
+  /** 出错文件；输出里找不到时为 null。 */
+  file: string | null;
+  /** 出错文件里的行号（能解析到就带）。 */
+  fileLine: number | null;
+  /** 命中行前后各 4 行，供人直接看现场。 */
+  context: string[];
+}
+
+const SIGNALS: readonly { kind: BaseFailureKind; patterns: readonly RegExp[] }[] = [
+  { kind: 'module', patterns: MODULE_FAILURE },
+  { kind: 'compile', patterns: COMPILE_FAILURE },
+  { kind: 'crash', patterns: CRASH_FAILURE },
+  { kind: 'assertion', patterns: ASSERTION_FAILURE },
+];
+
+/**
+ * 测试文件的路径（可带 `file://` 前缀）都认；路径后面紧跟行号的也认。
+ * （注释里不写具体的文件路径或冒号加数字：`audit-references` / `audit-citations`
+ * 会把它们当成真的引用去查。）
+ */
+const FILE_HINT = /((?:file:\/\/\/)?[^\s()"']*?test[/\\][^\s:'"()]+\.(?:ts|tsx|mjs|js))(?::(\d+)(?::\d+)?)?/;
+
+/**
+ * 给出「为什么红」的现场，而不只是分类。
+ *
+ * 分类器扫的是**全量输出**，而闸门只打 `tail(output, 18)`——真因常常在截掉的
+ * 前面（2026-11-08：`kind=module` 的真因是另一份测试的 `ERR_MODULE_NOT_FOUND`，
+ * 日志尾部只剩一条形状正确的 shot-stable 断言，读日志的人会追错方向）。
+ * 所以这里把命中规则、行号、文件和上下文一并交出来。
+ */
+export function explainBaseFailure(output: string): BaseFailureEvidence {
+  const lines = output.split(/\r?\n/);
+  for (const signal of SIGNALS) {
+    for (const pattern of signal.patterns) {
+      const match = pattern.exec(output);
+      if (!match) continue;
+      const lineIndex = output.slice(0, match.index).split(/\r?\n/).length - 1;
+      const hint = findFileHint(lines, lineIndex);
+      return {
+        kind: signal.kind,
+        pattern: pattern.source,
+        line: lineIndex + 1,
+        matched: (lines[lineIndex] ?? '').trim(),
+        file: hint?.file ?? null,
+        fileLine: hint?.line ?? null,
+        context: lines.slice(Math.max(0, lineIndex - 4), Math.min(lines.length, lineIndex + 5)),
+      };
+    }
+  }
+  return { kind: 'unknown', pattern: null, line: null, matched: null, file: null, fileLine: null, context: [] };
+}
+
+function findFileHint(lines: readonly string[], hit: number): { file: string; line: number | null } | null {
+  // 先看命中行本身与下一行（`ERR_MODULE_NOT_FOUND` 的 `imported from …` 在下一行），
+  // 再往回找（`SyntaxError` 的文件头与源码行在错误消息上方）。
+  const offsets = [0, 1, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10];
+  for (const offset of offsets) {
+    const index = hit + offset;
+    if (index < 0 || index >= lines.length) continue;
+    const found = FILE_HINT.exec(lines[index] ?? '');
+    if (!found) continue;
+    return { file: stripFileUrl(found[1] ?? ''), line: found[2] ? Number(found[2]) : null };
+  }
+  return null;
+}
+
+/** `file:///tmp/x` → `/tmp/x`；`file:///C:/x` → `C:/x`。 */
+function stripFileUrl(raw: string): string {
+  if (!raw.startsWith('file:///')) return raw;
+  const rest = raw.slice('file:///'.length);
+  return /^[A-Za-z]:/.test(rest) ? rest : `/${rest}`;
 }
 
 /** 解析 `--base` / `--repo` / `--timeout` / `--keep`；空字符串的 base 视为未给。 */

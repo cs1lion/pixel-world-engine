@@ -12,6 +12,8 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import { stairFlight } from './stair-flight.ts';
+import { addSceneryImage } from './art-scenery.ts';
 
 export interface SceneArtbookClock {
   readonly phase: LampPhase;
@@ -67,29 +69,44 @@ export function createSceneArtbook(
     const x = item.at.x * TILE_PX;
     const y = item.at.y * TILE_PX;
     if (item.kind === 'ridge') {
-      drawFarRidge(backdrop, x, y, item.length ?? 0, c, farWindows, reflectors);
+      if (!addSceneryImage(scene, 'far_ridge', x, y, 5, farWindows, item.length ?? 0)) {
+        drawFarRidge(backdrop, x, y, item.length ?? 0, c, farWindows, reflectors);
+      }
     } else if (item.kind === 'far_tower') {
-      drawFarTower(backdrop, x, y, c, farWindows);
+      if (!addSceneryImage(scene, 'far_tower', x, y, 5, farWindows)) {
+        drawFarTower(backdrop, x, y, c, farWindows);
+      }
     } else if (item.kind === 'quay') {
-      drawQuay(quay, x, y, item.length ?? 0, c);
+      // main 的图片兜底优先；没接上素材时走程序化绘制，台阶参数由设定集给出。
+      if (!addSceneryImage(scene, 'quay', x, y, 6, [], item.length ?? 0)) {
+        drawQuay(quay, x, y, item.length ?? 0, item.treads, item.rise, c);
+      }
     } else if (item.kind === 'steps') {
-      drawSteps(ground, x, y, item.length ?? 0, c);
+      drawSteps(ground, x, y, item.length ?? 0, item.treads, item.rise, c);
     } else if (item.kind === 'drain') {
       drawDrain(ground, x, y, item.length ?? 0, c);
     } else if (item.kind === 'street_paving') {
       drawStreetPaving(ground, x, y, item.length ?? 0, c);
     } else if (item.kind === 'shopfront_gable') {
-      drawGableShopfront(facade, x, y, item.length ?? 4, c, windows);
+      if (!addSceneryImage(scene, 'shopfront_gable', x, y, 1370, windows, item.length ?? 4)) {
+        drawGableShopfront(facade, x, y, item.length ?? 4, c, windows);
+      }
     } else if (item.kind === 'boiler') {
-      drawBoiler(facade, x, y, c);
+      if (!addSceneryImage(scene, 'boiler', x, y, 1370, windows)) {
+        drawBoiler(facade, x, y, c);
+      }
     } else if (item.kind === 'coal_heap') {
-      drawCoalHeap(facade, x, y, c);
+      if (!addSceneryImage(scene, 'coal_heap', x, y, 1370, windows)) {
+        drawCoalHeap(facade, x, y, c);
+      }
     }
   }
 
   // 主楼补绘：位置由 `setting-scenery.ts` 从摆放取后传进来，这里不写第二份坐标。
   if (hallAt !== undefined) {
-    drawBathhouse(architecture, hallAt.x, hallAt.y, c, windows);
+    if (!addSceneryImage(scene, 'bathhouse_main', hallAt.x, hallAt.y, 1417, windows)) {
+      drawBathhouse(architecture, hallAt.x, hallAt.y, c, windows);
+    }
   }
 
   return {
@@ -488,6 +505,8 @@ function drawQuay(
   x: number,
   y: number,
   length: number,
+  treads: number | undefined,
+  rise: number | undefined,
   c: Palette,
 ): void {
   const w = length * TILE_PX;
@@ -512,12 +531,22 @@ function drawQuay(
   g.fillRect(x, y, w, 2);
   g.fillStyle(c.deepShade, 0.5);
   g.fillRect(x, y + h - 1, w, 1);
-  // 堤头三级踏步：在东端往下走到水面，越靠外越亮。
-  for (let step = 0; step < 3; step += 1) {
-    g.fillStyle(step === 0 ? c.plaza : c.stone, 1);
-    g.fillRect(x + w - 20 + step * 3, y + 2 + step * 4, 20 - step * 3, 4);
+  // 堤头踏步：在东端往下走到水面，越靠外越亮。级数/每级高来自数据（设定集 p41：三级）。
+  // 右沿钉在堤头（`insetSide: 'left'`），每级向左收 3px。
+  const flight = stairFlight({
+    x: x + w - 20,
+    y: y + 2,
+    width: 20,
+    treads,
+    rise,
+    run: 3,
+    insetSide: 'left',
+  });
+  for (const tread of flight.treads) {
+    g.fillStyle(tread.index === 0 ? c.plaza : c.stone, 1);
+    g.fillRect(tread.x, tread.y, tread.width, tread.height);
     g.fillStyle(c.ink, 0.3);
-    g.fillRect(x + w - 20 + step * 3, y + 6 + step * 4, 20 - step * 3, 1);
+    g.fillRect(tread.x, tread.footY, tread.width, 1);
   }
   // 系船石柱 + 绳：柱头只留一道浅檐，不做雕饰。
   for (const bx of [x + w / 4, x + (w * 3) / 4 - 4]) {
@@ -570,18 +599,22 @@ function drawSteps(
   x: number,
   y: number,
   length: number,
+  treads: number | undefined,
+  rise: number | undefined,
   c: Palette,
 ): void {
   const w = length * TILE_PX;
   g.fillStyle(c.stone, 1);
   g.fillRect(x - 3, y, w + 6, 18);
-  for (let step = 0; step < 4; step += 1) {
-    g.fillStyle(step % 2 === 0 ? c.plaza : c.stone, 1);
-    g.fillRect(x, y + step * 4, w, 4);
+  // 四级踏步：级数/每级高来自数据（设定集 p35/p40：四级、每级 4px、不内缩）。
+  const flight = stairFlight({ x, y, width: w, treads, rise });
+  for (const tread of flight.treads) {
+    g.fillStyle(tread.index % 2 === 0 ? c.plaza : c.stone, 1);
+    g.fillRect(tread.x, tread.y, tread.width, tread.height);
     g.fillStyle(c.ink, 0.32);
-    g.fillRect(x, y + step * 4 + 4, w, 1);
+    g.fillRect(tread.x, tread.footY, tread.width, 1);
     g.fillStyle(c.trim, 0.35);
-    g.fillRect(x, y + step * 4, w, 1);
+    g.fillRect(tread.x, tread.topY, tread.width, 1);
   }
   // 短挡墙：压住阶沿，墙头与地面同高。
   g.fillStyle(c.stone, 1);

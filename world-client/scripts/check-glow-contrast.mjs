@@ -1,0 +1,1216 @@
+/**
+ * 要点 4 的**读数工具**：发光块的亮度比、周边材质构成、通道峰值、局部压暗机制。
+ *
+ * **身份（2026-11-07 起）：只读数，不判定；退出码恒 0。不是闸门，也不在 CI。**
+ * 旧的绝对差阈值 `0.18 / 0.10` 没有实测来源，形式又随全屏 dim 漂移，已判定失效；
+ * `T_dusk` / `T_noon` 一律「未标定」，不得把它们当目标值引用。要进闸门，先按
+ * OPEN_ISSUES H1 的有界相对量 `D` 标定（`ANNULUS_FLOOR = 32`），标定前只输出读数。
+ *
+ * 量什么
+ * ------
+ * - **取样区域**：固定机位 = `lamp_post_10` 的池心 (832,522)，zoom 1，视口 1010×700。
+ *   在该帧 `debugLampUnits()` 里逐盏量灯体 8×8 世界像素，取最亮的一盏，再以它 8×8 内
+ *   最亮的像素为**中心**。patch = 中心 ±4 世界 px；annulus = 中心 ±16 世界 px 的方框
+ *   减去 patch（即「其外」）。
+ * - **单位**：世界像素（= 设计像素）。截图是 2× 渲染，所以截图里 patch 16×16、
+ *   annulus 64×64。另报一份截图像素口径（4×4 / 16×16 世界 px）作为灵敏度参照，
+ *   不参与任何判定。
+ * - **三个相位**：dusk / noon / dawn。noon 与 dusk 用**同一个世界中心**、同一机位；
+ *   noon 的灯强制关（`debugForceLamps(false)`），dusk / dawn 的灯强制开。
+ * - **亮度**：Rec.601 `0.299R+0.587G+0.114B`，取最终帧 8 位 sRGB，不做线性化。
+ *   `ratio = (meanL(patch) − meanL(annulus)) / 255`。这是**旧口径读数**，只为和历史
+ *   数字可比；它不是一个可用的阈值形式。
+ *
+ * 另外三项读数
+ * -----------
+ * - 地形 token：annulus 内最近 token 色（RGB 距离 ≤60，覆盖 ≥1% 才算「出现」）。
+ * - 通道峰值 / 裁剪像素数：ADD 叠到 255 时能看出来；只报读数，不判红。
+ * - 局部压暗机制：同一冻结帧、只拨 `debugLampLocalShade`，annulus 的回升量（luma）。
+ *   这是「机制有没有在压周边」的读数，不是阈值判定。
+ *
+ * 输出
+ * ----
+ * - 原始截图与整份读数 JSON：`tmp/screens/check-glow-contrast/`（本地、不入库）。
+ * - **标定产物**：`docs/evidence/glow-calibration/{dusk,noon}.png` 与其同名 `.json`
+ *   记录，外加逐盏灯的 `samples.json`。图是从**同一张原始帧缓冲**标注出来的（不拼帧），
+ *   记录里带原始帧 sha256 作为同帧证据；网格 4 世界 px 一格，patch / annulus 的边都落在
+ *   格线上，便于自己数格子。这里只放读数与几何，**可标定性的结论写在 OPEN_ISSUES K6**。
+ * - 不写 `eval/screens`。
+ *
+ * 跑法：
+ *   cd world-client && npm run dev -- --port 5211 --strictPort
+ *   PIXEL_WORLD_URL=http://127.0.0.1:5211/ node scripts/check-glow-contrast.mjs
+ */
+
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from '@playwright/test';
+import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { resolveShotDir } from './lib/shot-output.mjs';
+
+const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
+await assertTreeIdentity(BASE);
+const OUT = resolveShotDir('check-glow-contrast');
+mkdirSync(OUT, { recursive: true });
+/** 标定产物是证据，进仓；原始截图仍在 tmp。 */
+const CALIB = fileURLToPath(new URL('../../docs/evidence/glow-calibration/', import.meta.url));
+mkdirSync(CALIB, { recursive: true });
+
+/**
+ * 镜像 `src/render/day-phase.ts` 的 `PHASES.dusk.dim` / `PHASES.noon.dim` 与 palette ink。
+ * 两处必须同步改。dim 是整帧的不透明矩形叠加（phase-view.ts，depth 8009，位于灯层之上）：
+ * `L_after = α·L_dim + (1−α)·L_before`，所以可反解出 dim 前的亮度。
+ */
+const PHASE_DIM = {
+  dusk: { alpha: 0.16, rgb: [0x14, 0x11, 0x0d] }, // ink
+  noon: { alpha: 0, rgb: null },
+};
+const rec601 = (rgb) => 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+/** dim 后 → dim 前；α=0 时原样返回。8 位量化误差会被 1/(1−α) 放大（dusk ≈ 1.19×）。 */
+function unDim(luma, phase) {
+  const { alpha, rgb } = PHASE_DIM[phase];
+  if (alpha === 0) return luma;
+  return (luma - alpha * rec601(rgb)) / (1 - alpha);
+}
+/** 现判据：D = (meanL(patch) − meanL(annulus)) / max(meanL(annulus), 32)。 */
+const dReading = (patch, annulus) => (patch - annulus) / Math.max(annulus, 32);
+
+const MIN = 60_000;
+const STEADY_A = 1090 * MIN;
+/** 与 `check-lamp-pool.mjs` 的 SAMPLE 同一点：灯柱 (51,32) 的池心。 */
+const CAMERA = { x: 832, y: 522 };
+const PATCH_W = 8;
+const ANNULUS_W = 32;
+/**
+ * `setting-scenery.ts` 里 `LAMP_SHADE_RINGS` 的镜像（世界 px / alpha），用来把实测回升
+ * 反解成「几何覆盖率」再给压暗上限：外端 17 被 annulus 边 16 截断。两处必须同步改。
+ */
+const SHADE_RINGS = [
+  { from: 5, to: 9, alpha: 0.20 },
+  { from: 9, to: 13, alpha: 0.13 },
+  { from: 13, to: 16, alpha: 0.08 },
+];
+/** 调色板能拿到的最暗色（`palette-data.ts` 的 ink 0x14110d）。压暗的下限就是它。 */
+const INK_RGB = [0x14, 0x11, 0x0d];
+const INK_LUMA = 0.299 * INK_RGB[0] + 0.587 * INK_RGB[1] + 0.114 * INK_RGB[2];
+/** @deprecated 仅供 patchCeiling 读数（灯地盘）；不参与判定。 */
+const FOOTPRINT_DELTA = 5.0;
+/** 灯潮界的 7 个地形 token 色（`settings/dengchao/pack.ts` 的 terrainColors 解析结果）。 */
+const TERRAIN_TOKENS = [
+  { id: 'grass', rgb: [0x30, 0x45, 0x4a] },
+  { id: 'stone', rgb: [0x52, 0x66, 0x6a] },
+  { id: 'plaza', rgb: [0x7d, 0x89, 0x84] },
+  { id: 'farm', rgb: [0x3d, 0x51, 0x54] },
+  { id: 'soil(tree/mud)', rgb: [0x20, 0x2b, 0x35] },
+  { id: 'moss(shallow)', rgb: [0x47, 0x64, 0x5c] },
+  { id: 'charcoal(coal)', rgb: [0x2c, 0x34, 0x39] },
+];
+
+function initScript({ freezeAt }) {
+  try {
+    localStorage.clear();
+  } catch {
+    /* 忽略 */
+  }
+  let rng = 20261019;
+  Math.random = () => {
+    rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
+    return rng / 4294967296;
+  };
+  const state = { frame: 0, frozen: false };
+  window.__CAPTURE_STATE__ = state;
+  const realRaf = window.requestAnimationFrame.bind(window);
+  const frameMs = 1000 / 60;
+  performance.now = () => state.frame * frameMs;
+  window.requestAnimationFrame = (cb) => {
+    if (state.frozen) return 0;
+    return realRaf(() => {
+      state.frame += 1;
+      if (freezeAt > 0 && state.frame >= freezeAt) {
+        state.frozen = true;
+        cb(state.frame * frameMs);
+        return;
+      }
+      cb(state.frame * frameMs);
+    });
+  };
+}
+
+async function waitFrames(page, count) {
+  const from = await page.evaluate(() => window.__CAPTURE_STATE__.frame);
+  await page.waitForFunction(
+    ({ from, count }) => window.__CAPTURE_STATE__.frame >= from + count,
+    { from, count },
+    { timeout: 20000 },
+  );
+}
+
+async function openPage(browser, { phase, lampsOn }) {
+  const page = await browser.newPage({ viewport: { width: 1010, height: 700 } });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(initScript, { freezeAt: 0 });
+  await page.goto(
+    `${BASE}?world=dengchao&time=${phase}&feed=off&ledger=off&debug=1&now=1075`,
+    { waitUntil: 'load' },
+  );
+  await page.waitForFunction(() => window.Oracle?.view !== undefined, null, { timeout: 30000 });
+  const canvas = page.locator('canvas').first();
+  await canvas.waitFor();
+  const box = await canvas.boundingBox();
+  if (box === null) throw new Error('找不到 canvas');
+  await page.evaluate(() => {
+    for (const selector of [
+      '#topbar', '#status', '#minimap', '#queue', '#oracle', '#maintenance',
+      '#debug-panel', '#world-overlay', '#chronicle',
+    ]) {
+      const element = document.querySelector(selector);
+      if (element instanceof HTMLElement) element.style.visibility = 'hidden';
+    }
+  });
+  await waitFrames(page, 24);
+  await page.evaluate(() => window.Oracle.debugHoldWorld(true));
+  await page.evaluate((target) => {
+    const now = window.Oracle.debugStepWorld(0);
+    if (target > now) window.Oracle.debugStepWorld(target - now);
+  }, STEADY_A);
+  await waitFrames(page, 2);
+  await page.evaluate(([camera, lampsOn]) => {
+    for (const villager of window.Oracle.view().villagers) {
+      window.Oracle.debugPinVillager(villager.id, { x: 2, y: 2 });
+    }
+    window.Oracle.debugPinTide(1);
+    window.Oracle.debugSetWeather?.('clear');
+    window.Oracle.debugHideAmbience(true);
+    window.Oracle.debugHideBayMist(true);
+    window.Oracle.debugLampMotion({ ignite: false, breathe: false, sway: false });
+    window.Oracle.debugStallMotion({ cloth: false, fire: false });
+    window.Oracle.debugBannerMotion({ sway: false, shadow: false });
+    window.Oracle.debugSmokeMotion({ drift: false });
+    window.Oracle.debugForceLamps(lampsOn);
+    window.Oracle.centerCameraOn(camera.x, camera.y);
+  }, [CAMERA, lampsOn]);
+  await waitFrames(page, 40);
+  await page.evaluate(() => window.Oracle.debugHoldWorld(true));
+  await waitFrames(page, 2);
+  return {
+    page,
+    box,
+    errors,
+    camera: await page.evaluate(() => window.Oracle.camera()),
+    lamps: await page.evaluate(() => window.Oracle.debugLampUnits()),
+  };
+}
+
+const hashOf = (buf) => createHash('sha256').update(buf).digest('hex');
+
+async function shot(page, box, id) {
+  const file = join(OUT, `glow-${id}.png`);
+  await page.screenshot({ path: file, clip: box });
+  const buf = readFileSync(file);
+  return { file, buf, sha256: hashOf(buf), ...(await page.evaluate(() => ({
+    now: window.Oracle.debugStepWorld(0),
+    frame: window.__CAPTURE_STATE__.frame,
+    stats: window.Oracle.renderStats(),
+    camera: window.Oracle.camera(),
+  }))) };
+}
+
+/** 在给定世界方框内找最亮像素；返回截图内的像素中心。 */
+async function brightest(page, buf, cam, rectWorld) {
+  const b64 = buf.toString('base64');
+  return page.evaluate(async ({ b64, cam, rectWorld }) => {
+    const image = new Image();
+    await new Promise((res, rej) => {
+      image.onload = res;
+      image.onerror = rej;
+      image.src = `data:image/png;base64,${b64}`;
+    });
+    const c = document.createElement('canvas');
+    c.width = image.width;
+    c.height = image.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    const px = (wx) => (wx - cam.worldViewX) * 2 * cam.zoom;
+    const py = (wy) => (wy - cam.worldViewY) * 2 * cam.zoom;
+    const x0 = Math.max(0, Math.round(px(rectWorld.x0)));
+    const x1 = Math.min(c.width, Math.round(px(rectWorld.x1)));
+    const y0 = Math.max(0, Math.round(py(rectWorld.y0)));
+    const y1 = Math.min(c.height, Math.round(py(rectWorld.y1)));
+    let best = { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2), l: -1 };
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const i = (y * c.width + x) * 4;
+        const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        if (l > best.l) best = { x, y, l };
+      }
+    }
+    return best;
+  }, { b64, cam, rectWorld });
+}
+
+/**
+ * 通道裁剪检查：任一通道到 255 就是「靠 ADD 叠到饱和」，是这条改动的红线。
+ * 只统计世界帧（UI 已隐藏）；`pale` 最亮 216，不该有任何 255。
+ */
+async function channelStats(page, buf) {
+  const b64 = buf.toString('base64');
+  return page.evaluate(async ({ b64 }) => {
+    const image = new Image();
+    await new Promise((res, rej) => {
+      image.onload = res;
+      image.onerror = rej;
+      image.src = `data:image/png;base64,${b64}`;
+    });
+    const c = document.createElement('canvas');
+    c.width = image.width;
+    c.height = image.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    let maxR = 0;
+    let maxG = 0;
+    let maxB = 0;
+    let clipped = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (r > maxR) maxR = r;
+      if (g > maxG) maxG = g;
+      if (b > maxB) maxB = b;
+      if (r >= 255 || g >= 255 || b >= 255) clipped += 1;
+    }
+    return { maxR, maxG, maxB, clipped, pixels: data.length / 4 };
+  }, { b64 });
+}
+
+/**
+ * patch / annulus 读数。center 是**截图像素**，patchW / annulusW 是**世界像素**（8 / 32）。
+ * annulus 取外框减 patch；地形 token 计数也在这里做（同一帧的颜色，避免另开一页口径漂）。
+ */
+async function readPatchAnnulus(page, buf, cam, center, patchW, annulusW) {
+  const b64 = buf.toString('base64');
+  // 环界在 Node 侧算好传进去（page.evaluate 里看不到模块级常量）。
+  const ringEdges = annulusW >= 32
+    ? [SHADE_RINGS[0].from, SHADE_RINGS[1].from, SHADE_RINGS[2].from, annulusW / 2]
+    : [];
+  return page.evaluate(async ({ b64, cam, center, patchW, annulusW, ringEdges, tokens }) => {
+    const image = new Image();
+    await new Promise((res, rej) => {
+      image.onload = res;
+      image.onerror = rej;
+      image.src = `data:image/png;base64,${b64}`;
+    });
+    const c = document.createElement('canvas');
+    c.width = image.width;
+    c.height = image.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    const scale = 2 * cam.zoom;
+    const halfPatch = Math.round((patchW * scale) / 2);
+    const halfAnnulus = Math.round((annulusW * scale) / 2);
+    // 分环：与 `setting-scenery.ts` 的三档压暗环一一对应，用来反解「几何覆盖率」与压暗上限。
+    // 截图像素口径的灵敏度参照（annulus 16 世界 px）不分环，避免环界越界。
+    const rings = ringEdges.slice(1).map((to, i) => ({ from: ringEdges[i], to, sum: 0, n: 0 }));
+    const px0 = Math.max(0, center.x - halfPatch);
+    const px1 = Math.min(c.width, center.x + halfPatch);
+    const py0 = Math.max(0, center.y - halfPatch);
+    const py1 = Math.min(c.height, center.y + halfPatch);
+    const ox0 = Math.max(0, center.x - halfAnnulus);
+    const ox1 = Math.min(c.width, center.x + halfAnnulus);
+    const oy0 = Math.max(0, center.y - halfAnnulus);
+    const oy1 = Math.min(c.height, center.y + halfAnnulus);
+    let patchSum = 0;
+    let patchN = 0;
+    const patchLevels = new Set();
+    let annulusSum = 0;
+    let annulusN = 0;
+    const counts = new Map(tokens.map((token) => [token.id, 0]));
+    let classified = 0;
+    for (let y = oy0; y < oy1; y += 1) {
+      for (let x = ox0; x < ox1; x += 1) {
+        const i = (y * c.width + x) * 4;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const l = 0.299 * r + 0.587 * g + 0.114 * b;
+        const inPatch = x >= px0 && x < px1 && y >= py0 && y < py1;
+        if (inPatch) {
+          patchSum += l;
+          patchN += 1;
+          patchLevels.add(`${r},${g},${b}`);
+          continue;
+        }
+        annulusSum += l;
+        annulusN += 1;
+        const dWorld = Math.max(Math.abs(x - center.x), Math.abs(y - center.y)) / scale;
+        const ring = rings.find((row) => dWorld >= row.from && dWorld < row.to);
+        if (ring !== undefined) {
+          ring.sum += l;
+          ring.n += 1;
+        }
+        // 最近 token 色；距离 > 60 视为「不是地形」（墙、窗、灯、阴影都别算进来）。
+        let best = null;
+        for (const token of tokens) {
+          const d = Math.hypot(r - token.rgb[0], g - token.rgb[1], b - token.rgb[2]);
+          if (best === null || d < best.d) best = { id: token.id, d };
+        }
+        if (best !== null && best.d <= 60) {
+          counts.set(best.id, (counts.get(best.id) ?? 0) + 1);
+          classified += 1;
+        }
+      }
+    }
+    const patch = patchN ? patchSum / patchN : 0;
+    const annulus = annulusN ? annulusSum / annulusN : 0;
+    const tokenRows = [...counts.entries()]
+      .map(([id, n]) => ({ id, pixels: n, share: annulusN === 0 ? 0 : n / annulusN }))
+      .sort((a, b2) => b2.pixels - a.pixels);
+    return {
+      patch,
+      annulus,
+      ratio: (patch - annulus) / 255,
+      patchBox: [px0, py0, px1 - px0, py1 - py0],
+      annulusBox: [ox0, oy0, ox1 - ox0, oy1 - oy0],
+      patchPixels: patchN,
+      patchLevels: patchLevels.size,
+      annulusPixels: annulusN,
+      rings: rings.map((row) => ({ from: row.from, to: row.to, pixels: row.n, mean: row.n ? row.sum / row.n : 0 })),
+      tokenRows,
+      tokenCount: tokenRows.filter((row) => row.share >= 0.01).length,
+      classifiedShare: annulusN === 0 ? 0 : classified / annulusN,
+    };
+  }, { b64, cam, center, patchW, annulusW, ringEdges, tokens: TERRAIN_TOKENS });
+}
+
+/**
+ * patch 的亮度上限 —— 不新增色、不扩发光足迹时最多能做到多少。
+ *
+ * 「灯的地盘」= 同一帧开灯/关灯两张图里 luma 差 ≥5 的像素（灯芯、纸面、光池都算）。
+ * 上限 = 把地盘内每个像素都推到 patch 内实测最亮的那一个；地盘外的像素按关灯帧不动。
+ * 若这个上限仍低于反解需要的 patch，就说明「只调亮度到不了」，必须把发光块画得比
+ * 灯体更大——那是美术边界，不是调参。
+ */
+async function patchCeiling(page, onBuf, offBuf, cam, center, patchW) {
+  return page.evaluate(async ({ onB64, offB64, cam, center, patchW, delta }) => {
+    const load = async (b64) => {
+      const image = new Image();
+      await new Promise((res, rej) => {
+        image.onload = res;
+        image.onerror = rej;
+        image.src = `data:image/png;base64,${b64}`;
+      });
+      const c = document.createElement('canvas');
+      c.width = image.width;
+      c.height = image.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      return { data: ctx.getImageData(0, 0, c.width, c.height).data, width: c.width, height: c.height };
+    };
+    const luma = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const on = await load(onB64);
+    const off = await load(offB64);
+    const scale = 2 * cam.zoom;
+    const half = Math.round((patchW * scale) / 2);
+    const x0 = Math.max(0, center.x - half);
+    const x1 = Math.min(on.width, center.x + half);
+    const y0 = Math.max(0, center.y - half);
+    const y1 = Math.min(on.height, center.y + half);
+    let pixels = 0;
+    let footprint = 0;
+    let onSum = 0;
+    let footprintSumOn = 0;
+    let maxOn = 0;
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const i = (y * on.width + x) * 4;
+        const lOn = luma(on.data, i);
+        const lOff = luma(off.data, i);
+        pixels += 1;
+        onSum += lOn;
+        if (lOn > maxOn) maxOn = lOn;
+        if (Math.abs(lOn - lOff) >= delta) {
+          footprint += 1;
+          footprintSumOn += lOn;
+        }
+      }
+    }
+    const restSum = onSum - footprintSumOn;
+    return {
+      pixels,
+      footprintPixels: footprint,
+      footprintShare: pixels === 0 ? 0 : footprint / pixels,
+      patchOn: pixels === 0 ? 0 : onSum / pixels,
+      maxOn,
+      ceiling: pixels === 0 ? 0 : (restSum + footprint * maxOn) / pixels,
+    };
+  }, {
+    onB64: onBuf.toString('base64'),
+    offB64: offBuf.toString('base64'),
+    cam,
+    center,
+    patchW,
+    delta: FOOTPRINT_DELTA,
+  });
+}
+
+/**
+ * 分位数（线性插值）。样本量小，只用来表达离散度，**不用来定阈值**。
+ */
+function quantiles(values, probs) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (p) => {
+    if (sorted.length === 0) return null;
+    const pos = (sorted.length - 1) * p;
+    const lo = Math.floor(pos);
+    const hi = Math.min(sorted.length - 1, lo + 1);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  };
+  return Object.fromEntries(probs.map((p) => [`p${Math.round(p * 100)}`, at(p)]));
+}
+
+function spread(values) {
+  const finite = values.filter((v) => Number.isFinite(v));
+  if (finite.length === 0) return null;
+  const mean = finite.reduce((sum, v) => sum + v, 0) / finite.length;
+  return {
+    n: finite.length,
+    min: Math.min(...finite),
+    max: Math.max(...finite),
+    mean,
+    ...quantiles(finite, [0.1, 0.25, 0.5, 0.75, 0.9]),
+  };
+}
+
+/**
+ * 一张标定记录里「dim 前 / dim 后」两套亮度与两套 D。
+ * dim 是本相整帧的不透明矩形叠加，位于灯层之上（phase-view.ts DIM_DEPTH = 8009），
+ * 所以合成是 `L_after = α·L_dim + (1−α)·L_before`，可反解；α=0 的相位（noon）前后相同。
+ */
+function dimRecord(phase, patch, annulus) {
+  const { alpha, rgb } = PHASE_DIM[phase];
+  const before = { patch: unDim(patch, phase), annulus: unDim(annulus, phase) };
+  return {
+    phase,
+    dim: {
+      alpha,
+      color: rgb === null ? null : `0x${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`,
+      luma: rgb === null ? 0 : rec601(rgb),
+    },
+    dimSource: 'world-client/src/render/day-phase.ts PHASES[*].dim / dimColor；整帧 dim 矩形见 '
+      + 'world-client/src/render/phase-view.ts DIM_DEPTH = 8009（在灯/窗光池层之上）',
+    lumaAfterDim: { patch, annulus },
+    lumaBeforeDim: before,
+    lumaBeforeDimIsInferred: alpha !== 0,
+    inversion: alpha === 0
+      ? 'α = 0，dim 前后是同一批像素，直接量'
+      : 'L_before = (L_after − α·L_dim) / (1 − α)；8 位量化误差被 1/(1−α) 放大',
+    D: {
+      afterDim: dReading(patch, annulus),
+      beforeDim: dReading(before.patch, before.annulus),
+    },
+  };
+}
+
+/**
+ * 几何记录：两种口径都给。换算依据是渲染倍率 2×（画布 1010×700 CSS，世界视口 505×350）
+ * 与相机 zoom，即 `截图 px = (世界坐标 − camera.worldView) × 2 × zoom`。
+ */
+function geometryRecord(cam, centerImagePx, worldCenter, reading) {
+  const scale = 2 * cam.zoom;
+  const toWorldBox = ([x, y, w, h]) => [
+    cam.worldViewX + x / scale, cam.worldViewY + y / scale, w / scale, h / scale,
+  ];
+  const box = (size, screenshotBox, pixels) => ({
+    world: { size: `${size}×${size} world px`, box: toWorldBox(screenshotBox), pixels },
+    screenshot: { size: `${Math.round(size * scale)}×${Math.round(size * scale)} px`, box: screenshotBox, pixels },
+  });
+  return {
+    conversion: `截图 px = (世界坐标 − camera.worldView) × 2 × zoom；本帧 zoom = ${cam.zoom}，`
+      + `2× 为渲染倍率，故 1 世界 px = ${scale} 截图 px`,
+    scaleScreenshotPxPerWorldPx: scale,
+    center: { screenshotPx: centerImagePx, world: worldCenter },
+    patch: box(PATCH_W, reading.patchBox, reading.patchPixels),
+    annulus: box(ANNULUS_W, reading.annulusBox, reading.annulusPixels),
+    annulusNote: 'annulus 是外框 32×32 世界 px 减去中间 patch 的环带读数；外框边与 patch 边都在网格线上',
+  };
+}
+
+/**
+ * 标定图：把**同一张原始帧缓冲**画上 canvas，再叠加网格、边界与图例。
+ * 网格 = 4 世界 px = 8 截图 px，且对齐到取样中心 —— 于是 patch 边（±8 截图 px）与
+ * annulus 边（±32 截图 px）都正好落在格线上：patch = 2×2 格，annulus = 8×8 格。
+ * 叠加只发生在导出的图里，读数始终用未标注的原始缓冲。
+ */
+async function annotateFrame(page, { buf, cam, center, title, legend }) {
+  const b64 = buf.toString('base64');
+  const dataUrl = await page.evaluate(async ({ b64, cam, center, patchW, annulusW, title, legend }) => {
+    const image = new Image();
+    await new Promise((res, rej) => {
+      image.onload = res;
+      image.onerror = rej;
+      image.src = `data:image/png;base64,${b64}`;
+    });
+    const width = image.width;
+    const height = image.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+    const scale = 2 * cam.zoom;
+    const cell = Math.round(4 * scale);
+    const halfPatch = Math.round((patchW * scale) / 2);
+    const halfAnn = Math.round((annulusW * scale) / 2);
+    const x0 = (((center.x % cell) + cell) % cell);
+    const y0 = (((center.y % cell) + cell) % cell);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    for (let x = x0; x < width; x += cell) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, height);
+      ctx.stroke();
+    }
+    for (let y = y0; y < height; y += cell) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(width, y + 0.5);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.26)';
+    for (let x = x0; x < width; x += cell * 4) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, height);
+      ctx.stroke();
+    }
+    for (let y = y0; y < height; y += cell * 4) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(width, y + 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = '10px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (let x = x0; x < width; x += cell * 8) {
+      ctx.fillText(`${Math.round(cam.worldViewX + x / scale)}`, x + 2, 11);
+    }
+    for (let y = y0; y < height; y += cell * 8) {
+      ctx.fillText(`${Math.round(cam.worldViewY + y / scale)}`, 2, y + 10);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = '#2fe0ff';
+    ctx.strokeRect(center.x - halfAnn, center.y - halfAnn, halfAnn * 2, halfAnn * 2);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#ff3fd0';
+    ctx.strokeRect(center.x - halfPatch, center.y - halfPatch, halfPatch * 2, halfPatch * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(center.x - 12, center.y);
+    ctx.lineTo(center.x + 12, center.y);
+    ctx.moveTo(center.x, center.y - 12);
+    ctx.lineTo(center.x, center.y + 12);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = '12px monospace';
+    const pad = 10;
+    const lineH = 17;
+    const boxW = Math.max(
+      ctx.measureText(title).width,
+      ...legend.map((line) => ctx.measureText(line).width),
+    ) + pad * 2;
+    const boxH = lineH * (legend.length + 1) + pad * 2;
+    const bx = 12;
+    const by = height - boxH - 12;
+    ctx.fillStyle = 'rgba(4,6,8,0.84)';
+    ctx.fillRect(bx, by, boxW, boxH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 0.5, by + 0.5, boxW, boxH);
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(title, bx + pad, by + pad + 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    legend.forEach((line, i) => ctx.fillText(line, bx + pad, by + pad + lineH * (i + 1) + 8));
+    ctx.restore();
+
+    return canvas.toDataURL('image/png');
+  }, { b64, cam, center, patchW: PATCH_W, annulusW: ANNULUS_W, title, legend });
+  const out = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
+  const file = join(CALIB, `${title.split(' ')[0]}.png`);
+  writeFileSync(file, out);
+  return { file, bytes: out.length, sha256: hashOf(out) };
+}
+
+/**
+ * 逐盏灯采样：同一批帧缓冲（dusk 开灯 / dusk 关灯 / noon 关灯），每盏都量同一套几何。
+ * 这是「T 能不能标定」的证据：D 在灯与灯之间、亮灯与灭灯之间到底差多少，而不是单帧一个数。
+ */
+async function sampleLamps(page, frames, centers) {
+  return page.evaluate(async ({ frames, centers, patchW, annulusW, delta }) => {
+    const load = async (b64) => {
+      const image = new Image();
+      await new Promise((res, rej) => {
+        image.onload = res;
+        image.onerror = rej;
+        image.src = `data:image/png;base64,${b64}`;
+      });
+      const c = document.createElement('canvas');
+      c.width = image.width;
+      c.height = image.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      return { data: ctx.getImageData(0, 0, c.width, c.height).data, width: c.width, height: c.height };
+    };
+    const luma = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const loaded = [];
+    for (const frame of frames) loaded.push({ key: frame.key, cam: frame.cam, img: await load(frame.b64) });
+
+    const centerPx = (cam, world) => ({
+      x: Math.round((world.x - cam.worldViewX) * 2 * cam.zoom),
+      y: Math.round((world.y - cam.worldViewY) * 2 * cam.zoom),
+    });
+    const rects = (cam, world) => {
+      const scale = 2 * cam.zoom;
+      const cx = centerPx(cam, world).x;
+      const cy = centerPx(cam, world).y;
+      const halfPatch = Math.round((patchW * scale) / 2);
+      const halfAnn = Math.round((annulusW * scale) / 2);
+      return {
+        cx,
+        cy,
+        patch: [cx - halfPatch, cy - halfPatch, cx + halfPatch, cy + halfPatch],
+        annulus: [cx - halfAnn, cy - halfAnn, cx + halfAnn, cy + halfAnn],
+      };
+    };
+    const readOne = (img, cam, world) => {
+      const r = rects(cam, world);
+      const x0 = Math.max(0, r.annulus[0]);
+      const x1 = Math.min(img.width, r.annulus[2]);
+      const y0 = Math.max(0, r.annulus[1]);
+      const y1 = Math.min(img.height, r.annulus[3]);
+      let patchSum = 0;
+      let patchN = 0;
+      let annulusSum = 0;
+      let annulusN = 0;
+      let maxPatch = 0;
+      const levels = new Set();
+      for (let y = y0; y < y1; y += 1) {
+        for (let x = x0; x < x1; x += 1) {
+          const i = (y * img.width + x) * 4;
+          const l = luma(img.data, i);
+          const inPatch = x >= r.patch[0] && x < r.patch[2] && y >= r.patch[1] && y < r.patch[3];
+          if (inPatch) {
+            patchSum += l;
+            patchN += 1;
+            if (l > maxPatch) maxPatch = l;
+            levels.add(`${img.data[i]},${img.data[i + 1]},${img.data[i + 2]}`);
+          } else {
+            annulusSum += l;
+            annulusN += 1;
+          }
+        }
+      }
+      return {
+        centerPx: { x: r.cx, y: r.cy },
+        patch: patchN ? patchSum / patchN : 0,
+        annulus: annulusN ? annulusSum / annulusN : 0,
+        patchPixels: patchN,
+        annulusPixels: annulusN,
+        patchLevels: levels.size,
+        maxPatch,
+      };
+    };
+
+    const on = loaded.find((frame) => frame.key === 'dusk');
+    const off = loaded.find((frame) => frame.key === 'duskOff');
+    const rows = [];
+    for (const center of centers) {
+      const readings = {};
+      const imagePx = {};
+      for (const frame of loaded) {
+        const r = readOne(frame.img, frame.cam, center.world);
+        readings[frame.key] = r;
+        imagePx[frame.key] = r.centerPx;
+      }
+      let lamp = null;
+      if (on !== undefined && off !== undefined) {
+        const r = rects(on.cam, center.world);
+        let changed = 0;
+        let n = 0;
+        let sumDelta = 0;
+        for (let y = Math.max(0, r.patch[1]); y < Math.min(on.img.height, r.patch[3]); y += 1) {
+          for (let x = Math.max(0, r.patch[0]); x < Math.min(on.img.width, r.patch[2]); x += 1) {
+            const i = (y * on.img.width + x) * 4;
+            const d = luma(on.img.data, i) - luma(off.img.data, i);
+            n += 1;
+            sumDelta += d;
+            if (Math.abs(d) >= delta) changed += 1;
+          }
+        }
+        lamp = { footprintShare: n ? changed / n : 0, meanDelta: n ? sumDelta / n : 0 };
+      }
+      rows.push({ order: center.order, hanging: center.hanging, world: center.world, imagePx, readings, lamp });
+    }
+    return rows;
+  }, {
+    frames: frames.map((frame) => ({ key: frame.key, cam: frame.cam, b64: frame.buf.toString('base64') })),
+    centers,
+    patchW: PATCH_W,
+    annulusW: ANNULUS_W,
+    delta: FOOTPRINT_DELTA,
+  });
+}
+
+const browser = await chromium.launch({ headless: true });
+
+
+const duskScene = await openPage(browser, { phase: 'dusk', lampsOn: true });
+const duskShot = await shot(duskScene.page, duskScene.box, 'dusk');
+// 选「最亮的一盏」：逐盏量灯体 8×8 世界像素的最大亮度，取全局最大。
+// 只看视口内的灯——视口外的灯被 clamp 到边缘，量到的不是它自己。
+const view = {
+  x0: duskShot.camera.worldViewX + 8,
+  x1: duskShot.camera.worldViewX + duskShot.camera.width / (2 * duskShot.camera.zoom) - 8,
+  y0: duskShot.camera.worldViewY + 8,
+  y1: duskShot.camera.worldViewY + duskShot.camera.height / (2 * duskShot.camera.zoom) - 8,
+};
+const lampRows = [];
+for (const lamp of duskScene.lamps) {
+  if (lamp.x < view.x0 || lamp.x > view.x1 || lamp.y < view.y0 || lamp.y > view.y1) continue;
+  const rect = { x0: lamp.x - 4, x1: lamp.x + 4, y0: lamp.y - 4, y1: lamp.y + 4 };
+  const best = await brightest(duskScene.page, duskShot.buf, duskShot.camera, rect);
+  // 与「选定样本」同一口径：中心取该灯 8×8 内最亮的像素，不是灯体几何中心。
+  const bestWorld = {
+    x: duskShot.camera.worldViewX + best.x / (2 * duskShot.camera.zoom),
+    y: duskShot.camera.worldViewY + best.y / (2 * duskShot.camera.zoom),
+  };
+  lampRows.push({ order: lamp.order, hanging: lamp.hanging, world: { x: lamp.x, y: lamp.y }, best, bestWorld });
+}
+if (lampRows.length === 0) throw new Error('视口内没有灯，固定机位选错');
+lampRows.sort((a, b) => b.best.l - a.best.l);
+const chosen = lampRows[0];
+const center = { x: chosen.best.x, y: chosen.best.y };
+const worldCenter = {
+  x: duskShot.camera.worldViewX + center.x / (2 * duskShot.camera.zoom),
+  y: duskShot.camera.worldViewY + center.y / (2 * duskShot.camera.zoom),
+};
+const dusk = await readPatchAnnulus(duskScene.page, duskShot.buf, duskShot.camera, center, PATCH_W, ANNULUS_W);
+const duskImagePx = await readPatchAnnulus(duskScene.page, duskShot.buf, duskShot.camera, center, PATCH_W / 2, ANNULUS_W / 2);
+const duskChannels = await channelStats(duskScene.page, duskShot.buf);
+
+// 标定记录（dusk）：几何两种口径、dim 前后亮度、现判据 D。标注图从**这张** duskShot.buf
+// 出来，记录里带它的 sha256，所以「图 = 记录」可以逐字节核对。
+const duskDim = dimRecord('dusk', dusk.patch, dusk.annulus);
+const duskGeometry = geometryRecord(duskShot.camera, center, worldCenter, dusk);
+const duskLegend = [
+  `同一帧缓冲标注，原始帧 sha256 ${duskShot.sha256.slice(0, 16)}…；读数用未标注的缓冲`,
+  '网格 1 格 = 4 世界 px = 8 截图 px；patch = 2×2 格；annulus 外框 = 8×8 格（读数不含 patch）',
+  '洋红实线 = patch 边；青色虚线 = annulus 外框；白色十字 = 取样中心',
+  `中心：截图 (${center.x}, ${center.y}) px = 世界 (${worldCenter.x.toFixed(2)}, ${worldCenter.y.toFixed(2)})`,
+  `dim α=${PHASE_DIM.dusk.alpha} ink 0x14110d：meanL 后 patch ${dusk.patch.toFixed(2)} / annulus ${dusk.annulus.toFixed(2)}`,
+  `dim 前（反解）patch ${duskDim.lumaBeforeDim.patch.toFixed(2)} / annulus ${duskDim.lumaBeforeDim.annulus.toFixed(2)}`,
+  `D 后 dim ${duskDim.D.afterDim.toFixed(3)}；D 前 dim ${duskDim.D.beforeDim.toFixed(3)}`,
+  `第 ${chosen.order} 盏灯（${chosen.hanging ? '灯串' : '灯柱'}）@ 世界 ${chosen.world.x},${chosen.world.y}`,
+];
+const duskCalibArtifact = await annotateFrame(duskScene.page, {
+  buf: duskShot.buf,
+  cam: duskShot.camera,
+  center,
+  title: 'dusk 标定帧',
+  legend: duskLegend,
+});
+
+// 机制对照：同一冻结帧、同一机位，只关掉「局部压低周边」。annulus 的回升量就是
+// 「真把周边压暗」的证据；全屏 dim 在这一步完全不动，所以回升不可能来自 dim。
+await duskScene.page.evaluate(() => window.Oracle.debugLampLocalShade(false));
+const duskNoShadeShot = await shot(duskScene.page, duskScene.box, 'dusk-noshade');
+const duskNoShade = await readPatchAnnulus(
+  duskScene.page, duskNoShadeShot.buf, duskNoShadeShot.camera, center, PATCH_W, ANNULUS_W,
+);
+await duskScene.page.evaluate(() => window.Oracle.debugLampLocalShade(true));
+const duskNoShadeChannels = await channelStats(duskScene.page, duskNoShadeShot.buf);
+await duskScene.page.close();
+
+// 环境对照：同一机位、同一中心、灯全关。把 annulus 拆成「环境底色 + 光池贡献」两部分：
+// 光池只会往上加，所以关灯后的 annulus 是**任何光池改动都到不了的下限**。
+const duskOffScene = await openPage(browser, { phase: 'dusk', lampsOn: false });
+const duskOffShot = await shot(duskOffScene.page, duskOffScene.box, 'dusk-off');
+const duskOff = await readPatchAnnulus(
+  duskOffScene.page, duskOffShot.buf, duskOffShot.camera, center, PATCH_W, ANNULUS_W,
+);
+const duskOffChannels = await channelStats(duskOffScene.page, duskOffShot.buf);
+// patch 上限：用同一帧的开灯/关灯两张图量「灯的地盘」，再把地盘推满到实测最亮像素。
+const ceiling = await patchCeiling(
+  duskOffScene.page, duskShot.buf, duskOffShot.buf, duskShot.camera, center, PATCH_W,
+);
+await duskOffScene.page.close();
+
+const noonScene = await openPage(browser, { phase: 'noon', lampsOn: false });
+const noonShot = await shot(noonScene.page, noonScene.box, 'noon');
+// noon：同一世界中心 → 同一截图像素（相机/zoom 相同）。
+const noon = await readPatchAnnulus(noonScene.page, noonShot.buf, noonShot.camera, center, PATCH_W, ANNULUS_W);
+const noonImagePx = await readPatchAnnulus(noonScene.page, noonShot.buf, noonShot.camera, center, PATCH_W / 2, ANNULUS_W / 2);
+const noonChannels = await channelStats(noonScene.page, noonShot.buf);
+
+// 标定记录（noon）：α=0，dim 前后同一批像素；几何与 dusk 同一世界中心、同一视口。
+const noonDim = dimRecord('noon', noon.patch, noon.annulus);
+const noonGeometry = geometryRecord(noonShot.camera, center, worldCenter, noon);
+const noonLegend = [
+  `同一帧缓冲标注，原始帧 sha256 ${noonShot.sha256.slice(0, 16)}…；读数用未标注的缓冲`,
+  '网格 1 格 = 4 世界 px = 8 截图 px；patch = 2×2 格；annulus 外框 = 8×8 格（读数不含 patch）',
+  '洋红实线 = patch 边；青色虚线 = annulus 外框；白色十字 = 取样中心',
+  `中心：截图 (${center.x}, ${center.y}) px = 世界 (${worldCenter.x.toFixed(2)}, ${worldCenter.y.toFixed(2)})`,
+  `dim α=${PHASE_DIM.noon.alpha}（无 dim）：meanL patch ${noon.patch.toFixed(2)} / annulus ${noon.annulus.toFixed(2)}`,
+  `D（现判据，与 dim 前相同）${noonDim.D.afterDim.toFixed(3)}`,
+  `灯强制关；第 ${chosen.order} 盏灯（${chosen.hanging ? '灯串' : '灯柱'}）@ 世界 ${chosen.world.x},${chosen.world.y}`,
+];
+const noonCalibArtifact = await annotateFrame(noonScene.page, {
+  buf: noonShot.buf,
+  cam: noonShot.camera,
+  center,
+  title: 'noon 标定帧',
+  legend: noonLegend,
+});
+
+// 逐盏灯采样：三张已捕获的帧缓冲拿来做同一套几何，回答「D 在灯与灯之间、亮灯与灭灯之间差多少」。
+const lampSamples = await sampleLamps(noonScene.page, [
+  { key: 'dusk', buf: duskShot.buf, cam: duskShot.camera },
+  { key: 'duskOff', buf: duskOffShot.buf, cam: duskOffShot.camera },
+  { key: 'noon', buf: noonShot.buf, cam: noonShot.camera },
+], lampRows.map((row) => ({ order: row.order, hanging: row.hanging, world: row.bestWorld })));
+await noonScene.page.close();
+
+// 第三相（dawn）只作读数：KB 阈值只定义了 dusk / noon 两端，这里补一相看「非阈值相」的比值，
+// 防止把 dusk 的读数当成「所有相位都这样」。灯强制点亮——要量的是同一块发光在更亮的环境里
+// 还剩多少对比，关灯就成了量一张死灯。
+const dawnScene = await openPage(browser, { phase: 'dawn', lampsOn: true });
+const dawnShot = await shot(dawnScene.page, dawnScene.box, 'dawn');
+const dawn = await readPatchAnnulus(dawnScene.page, dawnShot.buf, dawnShot.camera, center, PATCH_W, ANNULUS_W);
+const dawnChannels = await channelStats(dawnScene.page, dawnShot.buf);
+await dawnScene.page.close();
+await browser.close();
+
+// ---- 逐盏灯读数：D 的分布 + 灭灯零假设分布。用来回答「能不能标定」，不用来定阈值 ----
+const perLamp = lampSamples.map((row, index) => {
+  const read = (key) => {
+    const r = row.readings[key];
+    return { patch: r.patch, annulus: r.annulus, D: dReading(r.patch, r.annulus), patchLevels: r.patchLevels };
+  };
+  const duskRow = read('dusk');
+  const before = { patch: unDim(duskRow.patch, 'dusk'), annulus: unDim(duskRow.annulus, 'dusk') };
+  return {
+    order: row.order,
+    hanging: row.hanging,
+    lampBodyWorld: lampRows[index].world,
+    centerWorld: row.world,
+    centerPx: row.imagePx,
+    dusk: {
+      ...duskRow,
+      patchBeforeDim: before.patch,
+      annulusBeforeDim: before.annulus,
+      DBeforeDim: dReading(before.patch, before.annulus),
+    },
+    duskOff: read('duskOff'),
+    noon: read('noon'),
+    lamp: row.lamp,
+  };
+});
+const sampleStats = {
+  lampsInView: lampRows.length,
+  sampled: perLamp.length,
+  duskLit: spread(perLamp.map((row) => row.dusk.D)),
+  duskLitBeforeDim: spread(perLamp.map((row) => row.dusk.DBeforeDim)),
+  duskUnlit: spread(perLamp.map((row) => row.duskOff.D)),
+  noonUnlit: spread(perLamp.map((row) => row.noon.D)),
+  duskLitMinusUnlit: spread(perLamp.map((row) => row.dusk.D - row.duskOff.D)),
+  lampFootprintShare: spread(perLamp.map((row) => (row.lamp === null ? NaN : row.lamp.footprintShare))),
+  lampPatchDelta: spread(perLamp.map((row) => (row.lamp === null ? NaN : row.lamp.meanDelta))),
+  patchLevelsDusk: spread(perLamp.map((row) => row.dusk.patchLevels)),
+};
+const cameras = { dusk: duskShot.camera, duskOff: duskOffShot.camera, noon: noonShot.camera };
+const cameraAgreement = ['dusk', 'duskOff', 'noon'].every((key) => {
+  const cam = cameras[key];
+  return cam.worldViewX === cameras.dusk.worldViewX
+    && cam.worldViewY === cameras.dusk.worldViewY
+    && cam.zoom === cameras.dusk.zoom
+    && cam.width === cameras.dusk.width
+    && cam.height === cameras.dusk.height;
+});
+
+// 地形 token 在 **noon** 帧计数：dusk 的相位 dim 会把地形色整体压偏，最近 token 分类
+// 会跟 dim 较劲；noon 无 dim，测的是材质本身。同一个 annulus 世界区域，只是换了相位。
+const duskTokenCrossCheck = dusk.tokenRows;
+const tokenRows = noon.tokenRows;
+
+// ratio 只是旧口径读数：0.18 / 0.10 已撤回，不再做「给定阈值反解 annulus 靶子」。
+// 机制读数：不是看 ratio，是看「关掉局部压暗后 annulus 回升多少」。只报数，不设门槛。
+const suppressionDelta = duskNoShade.annulus - dusk.annulus;
+const mechanism = {
+  implementation: '全屏相位 dim（压整帧）+ 灯/窗光池 + 每盏灯三档 ink 局部压暗（环带 5–17 世界 px）',
+  suppressionDelta,
+  annulusWithShade: dusk.annulus,
+  annulusWithoutShade: duskNoShade.annulus,
+  patchWithShade: dusk.patch,
+  patchWithoutShade: duskNoShade.patch,
+  patchDelta: duskNoShade.patch - dusk.patch,
+  note: '同一冻结帧、同一机位、同一全屏 dim，只拨 debugLampLocalShade；回升量即局部压低的净效应。',
+};
+
+// 压暗上限：把实测回升按 alpha 反解成「几何覆盖率」，再问「就算把 alpha 推到 1 全不透明，
+// 这套几何（环带 5–16 世界 px、画在 lampLight 层）最多还能压多少」。
+// 这一步是停手条件的判据：如果 alpha=1 都到不了 0.18，就不是调参问题。
+const shadeBound = (() => {
+  const rows = SHADE_RINGS.map((ring, i) => {
+    const on = dusk.rings[i];
+    const off = duskNoShade.rings[i];
+    if (on === undefined || off === undefined || off.pixels === 0) return null;
+    const drop = off.mean - on.mean;
+    const headroom = off.mean - INK_LUMA;
+    const coveredShare = ring.alpha > 0 && headroom > 0 ? Math.min(1, drop / (ring.alpha * headroom)) : 0;
+    return {
+      from: ring.from, to: ring.to, alpha: ring.alpha, pixels: on.pixels,
+      meanWithShade: on.mean, meanWithoutShade: off.mean, drop, headroom, coveredShare,
+      opaqueDrop: headroom * coveredShare,
+    };
+  }).filter((row) => row !== null);
+  const pixels = rows.reduce((sum, row) => sum + row.pixels, 0);
+  const maxDropLuma = pixels === 0 ? 0 : rows.reduce((sum, row) => sum + row.pixels * row.opaqueDrop, 0) / pixels;
+  const annulusIfOpaque = dusk.annulus - maxDropLuma;
+  return {
+    note: 'coveredShare = 实测回落 / (当前 alpha ×（关压暗时该环均值 − ink luma）) = 这环真正被压到的像素占比；'
+      + 'opaqueDrop = 该环在 alpha=1 时最多能压掉的 luma。',
+    inkLuma: INK_LUMA,
+    rings: rows,
+    maxDropLuma,
+    annulusIfOpaque,
+  };
+})();
+
+// 通道裁剪归属：灯开/灯关两帧裁剪数一样 ⇒ 这是既有 ADD 窗光，不是本轮灯改动引入。
+const clipping = {
+  duskOn: duskChannels.clipped,
+  duskOff: duskOffChannels.clipped,
+  duskNoShade: duskNoShadeChannels.clipped,
+  dawn: dawnChannels.clipped,
+  noon: noonChannels.clipped,
+  attributableToLamp: duskChannels.clipped !== duskOffChannels.clipped
+    || duskChannels.maxR !== duskOffChannels.maxR
+    || duskChannels.maxG !== duskOffChannels.maxG
+    || duskChannels.maxB !== duskOffChannels.maxB,
+};
+
+// ---- 标定记录：两张图 + 两条记录 + 逐盏样本。图与记录入仓 docs/evidence/ ----
+function calibrationRecord(phase, { shot, scene, reading, dim, geometry, artifact, legend }) {
+  return {
+    schema: 'glow-calibration/1',
+    phase,
+    purpose: '要点 4 的 T 标定记录：几何双口径、dim 前后亮度、现判据 D。只记本帧读数，阈值结论不在这里。',
+    frame: {
+      phase,
+      frameIndex: shot.frame,
+      worldTimeMs: shot.now,
+      camera: shot.camera,
+      viewport: { width: 1010, height: 700 },
+      clip: scene.box,
+      renderStats: {
+        frame: shot.stats?.frame ?? null,
+        graphicsObjects: shot.stats?.graphicsObjects ?? null,
+        totalCommands: shot.stats?.totalCommands ?? null,
+      },
+      rawShotFile: `world-client/tmp/screens/check-glow-contrast/${basename(shot.file)}`,
+      rawSha256: shot.sha256,
+    },
+    geometry,
+    luma: dim,
+    composition: {
+      tokenCount: reading.tokenCount,
+      tokensAbove1pct: reading.tokenRows.filter((row) => row.share >= 0.01),
+      classifiedShare: reading.classifiedShare,
+      patchColorLevels: reading.patchLevels,
+    },
+    image: {
+      file: `docs/evidence/glow-calibration/${phase}.png`,
+      bytes: artifact.bytes,
+      sha256: artifact.sha256,
+      annotatedFromRawSha256: shot.sha256,
+      note: '标注图与读数来自同一张原始帧缓冲；标注只画在导出图里，读数用未标注缓冲。',
+    },
+    legend,
+  };
+}
+
+const duskRecord = calibrationRecord('dusk', {
+  shot: duskShot,
+  scene: duskScene,
+  reading: dusk,
+  dim: duskDim,
+  geometry: duskGeometry,
+  artifact: duskCalibArtifact,
+  legend: duskLegend,
+});
+const noonRecord = calibrationRecord('noon', {
+  shot: noonShot,
+  scene: noonScene,
+  reading: noon,
+  dim: noonDim,
+  geometry: noonGeometry,
+  artifact: noonCalibArtifact,
+  legend: noonLegend,
+});
+const samplesRecord = {
+  schema: 'glow-calibration/samples/1',
+  purpose: '逐盏灯同一套几何的 D 分布：灯与灯之间、亮灯与灭灯之间的差，是「能不能标定」的证据。',
+  recorder: 'world-client/scripts/check-glow-contrast.mjs',
+  frames: {
+    dusk: { frameIndex: duskShot.frame, rawSha256: duskShot.sha256 },
+    duskOff: { frameIndex: duskOffShot.frame, rawSha256: duskOffShot.sha256 },
+    noon: { frameIndex: noonShot.frame, rawSha256: noonShot.sha256 },
+  },
+  window: { viewport: { width: 1010, height: 700 }, clip: { dusk: duskScene.box, noon: noonScene.box } },
+  cameras,
+  cameraAgreement,
+  sampling: {
+    patch: `${PATCH_W}×${PATCH_W} 世界 px`,
+    annulus: `${ANNULUS_W}×${ANNULUS_W} 世界 px（外框减 patch）`,
+    luma: 'Rec.601，最终帧 8 位 sRGB',
+    footprintDeltaLuma: FOOTPRINT_DELTA,
+  },
+  stats: sampleStats,
+  samples: perLamp,
+};
+writeFileSync(join(CALIB, 'dusk.json'), `${JSON.stringify(duskRecord, null, 2)}\n`);
+writeFileSync(join(CALIB, 'noon.json'), `${JSON.stringify(noonRecord, null, 2)}\n`);
+writeFileSync(join(CALIB, 'samples.json'), `${JSON.stringify(samplesRecord, null, 2)}\n`);
+
+const result = {
+  params: {
+    camera: CAMERA,
+    zoom: duskShot.camera.zoom,
+    viewport: { width: 1010, height: 700 },
+    now: STEADY_A,
+    phase: ['dusk', 'noon', 'dawn'],
+    lamps: { dusk: 'forced-on', noon: 'forced-off', dawn: 'forced-on（仅读数，KB 无阈值）' },
+    units: { patch: `${PATCH_W}×${PATCH_W} 世界 px`, annulus: `${ANNULUS_W}×${ANNULUS_W} 世界 px`, render: '2×' },
+    luma: 'Rec.601 0.299/0.587/0.114',
+    tokenRule: '最近地形 token 色，RGB 距离 ≤60，覆盖 ≥1% annulus 像素',
+  },
+  sample: {
+    rule: '该帧内 max(灯体 8×8 最亮像素) 的那一盏；中心 = 它 8×8 内最亮像素',
+    lamp: { order: chosen.order, hanging: chosen.hanging, world: chosen.world },
+    centerImagePx: center,
+    centerWorld: worldCenter,
+    maxLuma: chosen.best.l,
+    lampCount: lampRows.length,
+  },
+  dusk: {
+    patch: dusk.patch, annulus: dusk.annulus, ratio: dusk.ratio,
+    patchBox: dusk.patchBox, annulusBox: dusk.annulusBox,
+    tokenCountDuskFrame: dusk.tokenCount, tokensDuskFrame: duskTokenCrossCheck,
+    classifiedShare: dusk.classifiedShare,
+    imagePxVariant: { patch: duskImagePx.patch, annulus: duskImagePx.annulus, ratio: duskImagePx.ratio },
+    patchLevels: dusk.patchLevels,
+  },
+  noon: {
+    patch: noon.patch, annulus: noon.annulus, ratio: noon.ratio,
+    tokenCount: noon.tokenCount, tokens: tokenRows, classifiedShare: noon.classifiedShare,
+    imagePxVariant: { patch: noonImagePx.patch, annulus: noonImagePx.annulus, ratio: noonImagePx.ratio },
+  },
+  duskLampsOff: { patch: duskOff.patch, annulus: duskOff.annulus, ratio: duskOff.ratio },
+  // 第三相只报读数：KB 只定义了 dusk ≥0.18 与 noon <0.10 两端，dawn 不参与判定。
+  dawn: {
+    patch: dawn.patch, annulus: dawn.annulus, ratio: dawn.ratio,
+    patchLevels: dawn.patchLevels, tokenCount: dawn.tokenCount,
+    note: '灯强制点亮；只作读数，不作判定（KB 无 dawn 阈值）',
+  },
+  shadeBound,
+  patchCeilingReadings: ceiling,
+  clipping,
+  channels: { dusk: duskChannels, duskOff: duskOffChannels, duskNoShade: duskNoShadeChannels, dawn: dawnChannels, noon: noonChannels },
+  // 只读数、不判定：旧阈值 0.18 / 0.10 已失效，T_dusk / T_noon 未标定。
+  judgement: {
+    mode: 'read-only',
+    calibrated: { dusk: false, noon: false },
+    note: '0.18 / 0.10 已撤回，不得作为目标值；本脚本不产生红绿，退出码恒 0。',
+  },
+  calibration: {
+    outputDir: 'docs/evidence/glow-calibration/',
+    images: {
+      dusk: { file: 'docs/evidence/glow-calibration/dusk.png', sha256: duskCalibArtifact.sha256, rawSha256: duskShot.sha256 },
+      noon: { file: 'docs/evidence/glow-calibration/noon.png', sha256: noonCalibArtifact.sha256, rawSha256: noonShot.sha256 },
+    },
+    duskD: duskDim.D,
+    noonD: noonDim.D,
+    stats: sampleStats,
+    cameraAgreement,
+    note: '这里只放读数；T 能否标定的结论与「缺什么」写在 docs/OPEN_ISSUES.md K6。',
+  },
+  mechanism,
+  artifacts: {
+    dusk: { file: duskShot.file, bytes: duskShot.buf.length, sha256: duskShot.sha256 },
+    duskNoShade: { file: duskNoShadeShot.file, bytes: duskNoShadeShot.buf.length, sha256: duskNoShadeShot.sha256 },
+    duskOff: { file: duskOffShot.file, bytes: duskOffShot.buf.length, sha256: duskOffShot.sha256 },
+    noon: { file: noonShot.file, bytes: noonShot.buf.length, sha256: noonShot.sha256 },
+    dawn: { file: dawnShot.file, bytes: dawnShot.buf.length, sha256: dawnShot.sha256 },
+  },
+  errors: [...duskScene.errors, ...duskOffScene.errors, ...noonScene.errors, ...dawnScene.errors],
+};
+
+writeFileSync(join(OUT, 'glow-contrast.json'), `${JSON.stringify(result, null, 2)}\n`);
+
+const pct = (value) => `${(value * 100).toFixed(2)}%`;
+console.log(`样本：第 ${chosen.order} 盏灯（${chosen.hanging ? '灯串' : '灯柱'}）@ 世界 ${chosen.world.x},${chosen.world.y}，`
+  + `中心世界 ${worldCenter.x.toFixed(1)},${worldCenter.y.toFixed(1)}；候选 ${lampRows.length} 盏，峰值 ${chosen.best.l.toFixed(1)}`);
+console.log(`dusk  patch ${dusk.patch.toFixed(2)} / annulus ${dusk.annulus.toFixed(2)} → ratio ${dusk.ratio.toFixed(3)}`
+  + `（T_dusk 未标定；仅读数）；patch ${dusk.patchLevels} 级色（仅读数）`);
+console.log(`noon  patch ${noon.patch.toFixed(2)} / annulus ${noon.annulus.toFixed(2)} → ratio ${noon.ratio.toFixed(3)}`
+  + `（T_noon 未标定；仅读数）`);
+console.log(`dawn  patch ${dawn.patch.toFixed(2)} / annulus ${dawn.annulus.toFixed(2)} → ratio ${dawn.ratio.toFixed(3)}`
+  + `（未标定相；仅读数，灯强制点亮）`);
+console.log(`annulus 地形 token ${noon.tokenCount} 种（noon 帧，仅读数）：`
+  + `${tokenRows.filter((row) => row.share >= 0.01).map((row) => `${row.id} ${pct(row.share)}`).join(' / ') || '无'}`);
+console.log(`  dusk 帧同区域交叉核对：${dusk.tokenCount} 种（dim 会压偏色，仅读数）`);
+console.log(`截图像素口径参照：dusk ${duskImagePx.ratio.toFixed(3)} / noon ${noonImagePx.ratio.toFixed(3)}（不参与判定）`);
+console.log(`通道峰值：dusk ${duskChannels.maxR}/${duskChannels.maxG}/${duskChannels.maxB}（裁剪 ${duskChannels.clipped}）`
+  + `；dawn ${dawnChannels.maxR}/${dawnChannels.maxG}/${dawnChannels.maxB}（裁剪 ${dawnChannels.clipped}）`
+  + `；noon ${noonChannels.maxR}/${noonChannels.maxG}/${noonChannels.maxB}（裁剪 ${noonChannels.clipped}）`);
+console.log(`  裁剪归属：灯开 ${clipping.duskOn} / 灯关 ${clipping.duskOff} / 压暗关 ${clipping.duskNoShade}`
+  + ` ⇒ 本轮灯改动引入 = ${clipping.attributableToLamp ? '是' : '否（既有 ADD 窗光）'}（仅读数）`);
+console.log(`patch 上限（不新增色、不扩发光足迹）：灯地盘 ${ceiling.footprintPixels} 像素`
+  + `（${pct(ceiling.footprintShare)}），推满到 ${ceiling.maxOn.toFixed(1)} ⇒ patch 最多 ${ceiling.ceiling.toFixed(2)}（仅读数）`);
+console.log(`压暗上限（按 alpha 线性外推，偏松；仅读数）：`
+  + `${shadeBound.rings.map((row) => `[${row.from},${row.to}) α${row.alpha} 覆盖 ${pct(row.coveredShare)}`).join('  ')}`
+  + ` ⇒ annulus 最多降到 ${shadeBound.annulusIfOpaque.toFixed(2)}`);
+console.log(`机制读数：关掉压暗后 annulus ${mechanism.annulusWithoutShade.toFixed(2)}（亮着时 ${mechanism.annulusWithShade.toFixed(2)}），`
+  + `回升 ${suppressionDelta.toFixed(2)} luma；patch 变化 ${mechanism.patchDelta.toFixed(2)}（不设门槛）`);
+const d3 = (value) => (value === null ? 'n/a' : value.toFixed(3));
+console.log(`标定图：docs/evidence/glow-calibration/{dusk,noon}.png（同一帧缓冲标注，网格 4 世界 px = 8 截图 px）`);
+console.log(`dusk D：后 dim ${d3(duskDim.D.afterDim)}（dim 前 ${d3(duskDim.D.beforeDim)}；`
+  + `meanL 后 ${dusk.patch.toFixed(2)}/${dusk.annulus.toFixed(2)}，前 ${duskDim.lumaBeforeDim.patch.toFixed(2)}/${duskDim.lumaBeforeDim.annulus.toFixed(2)}）`);
+console.log(`noon D：${d3(noonDim.D.afterDim)}（无 dim；meanL ${noon.patch.toFixed(2)}/${noon.annulus.toFixed(2)}）`);
+const range = (stat) => (stat === null
+  ? 'n/a'
+  : `${stat.min.toFixed(3)}…${stat.max.toFixed(3)}（p10 ${d3(stat.p10)} / p50 ${d3(stat.p50)} / p90 ${d3(stat.p90)}，n=${stat.n}）`);
+console.log(`逐盏 ${perLamp.length}/${lampRows.length} 盏 D：dusk 亮灯 ${range(sampleStats.duskLit)}`);
+console.log(`  零假设：dusk 灭灯 ${range(sampleStats.duskUnlit)}；noon 灭灯 ${range(sampleStats.noonUnlit)}；`
+  + `亮−灭 ${range(sampleStats.duskLitMinusUnlit)}`);
+console.log(`  采样一致性：三帧相机相同 = ${cameraAgreement ? '是' : '否'}；`
+  + `patch 内灯足迹占比 ${range(sampleStats.lampFootprintShare)}`);
+console.log('[读数] 完成（不判定；T_dusk / T_noon 标定证据已落 docs/evidence/glow-calibration/；退出码 0）');

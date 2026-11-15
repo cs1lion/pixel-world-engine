@@ -5,13 +5,14 @@
  */
 
 import type { GridPoint, PlacedBuilding } from './types.ts';
-import { hasEnvironment, type EnvironmentFrame } from './environment.ts';
+import { hasEnvironment, type EnvironmentFlag, type EnvironmentFrame } from './environment.ts';
+import type { ActivityId, SiteId } from './timetable.ts';
 import { PACE } from './pace.ts';
-import type { MarketPhase } from './timetable.ts';
+// 场所开关从 EnvironmentFrame 的 flag 读：同一刻只有一份读数，不在这里按相位再算一次。
 
-export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'shelter';
+export type RoutineId = 'altar' | 'garden' | 'market' | 'river' | 'promenade' | 'courtyard' | 'shelter';
 
-export interface RoutineBeat {
+export interface RoutineBeatBase {
   readonly id: RoutineId;
   readonly label: string;
   /**
@@ -34,6 +35,35 @@ export interface RoutineBeat {
   readonly dwellMs: number;
   readonly tide?: 'low' | 'high';
 }
+
+/**
+ * 一拍日常。
+ *
+ * **带 `site` 必带 `activity`**（类型层面挡死）：到了场所之后做什么，不许由
+ * 行为层按 kind 猜，也不许只靠 `label` 的文字。不带 `site` 的拍是纯坐标落点，
+ * 不允许挂 `activity`。
+ *
+ * 「这个场所此刻允不允许这个词」由 `activityAllowedAt` 判；「开不开」不在作息里
+ * 判：`environment.ts` 已经从 `siteStateAt` 折成 flag，这里只读 flag——同一刻
+ * 只有一份读数。
+ */
+export type RoutineBeat = RoutineBeatBase &
+  (
+    | {
+      /** 场所**种类**：门控只认它（`SITE_FLAGS` / `siteBeatApplies` 以 kind 为键）。 */
+      readonly site: SiteId;
+      readonly activity: ActivityId;
+      /**
+       * 场所**实例 id**（包里 `sites[].id`，如 `boiler_annex#1`）。
+       *
+       * 与 `site` 分开是因为两个 `workshop` 产出不同东西：锅炉房出炭、
+       * 大浴场出洗好的衣裳。产出账按这一格记，门控仍按 `site`（种类）判。
+       * 旧夹具只给 `site` 时省略，产出账就不记——省略是「这拍没有产出归属」。
+       */
+      readonly siteId?: string;
+    }
+    | { readonly site?: undefined; readonly activity?: undefined; readonly siteId?: undefined }
+  );
 
 /**
  * 一圈日常：祭坛 → 农田边 → 河湾 → 街口 → 早市摊子 → 回祭坛。不涉及铺子，
@@ -105,17 +135,17 @@ export interface RoutineMap {
 }
 
 /**
- * 市面那一拍的说法跟着相位走；闭市时**这一拍整天不存在**。
+ * 市面那一拍的说法跟着帧里的场所开关走；闭市时**这一拍整天不存在**。
  *
  * 开市、夜市各是一段真的出门：人离开环线，多走一趟街口的摊位，停 20 分钟
  * 再回到环线上。落点与说法同一份事实——早市说守着摊子，夜市说看摊，闭市
  * 就不说，那一拍直接跳过。四个节点因此不只是四行字：08:00 之后街口多一处
  * 停留（人流密度变了），22:00 之后摊位那一拍消失。
  */
-export function withMarketWords(beat: RoutineBeat, phase: MarketPhase): RoutineBeat | null {
+export function withMarketWords(beat: RoutineBeat, frame: EnvironmentFrame): RoutineBeat | null {
   if (beat.id !== 'market') return beat;
-  if (phase === 'open') return beat;
-  if (phase === 'night') {
+  if (hasEnvironment(frame, 'marketOpen')) return beat;
+  if (hasEnvironment(frame, 'nightMarket')) {
     return { ...beat, label: '在夜市灯下看摊', going: '去夜市' };
   }
   return null;
@@ -199,7 +229,43 @@ export function routineFor(
   // 世界可以在做不到时说「现在不行」，但不能一边说一边做别的——
   // 那句话是给外面看的唯一凭据，说谎比不去更糟。
   if (!tideBeatApplies(tide, frame)) return fallbackTo(beats, beat);
+  if (!siteBeatApplies(beat.site, frame)) return fallbackTo(beats, beat);
   return beat;
+}
+
+/**
+ * 场所 → 环境帧 flag（**任一命中即算开**）。
+ *
+ * 表里没有的场所当场 throw，空表也 throw——空数组是「永不开的静默门」，
+ * 配置写错时没人会发现，所以装载期就拦掉。
+ *
+ * 集市是两态：午后（`marketOpen`）与入夜灯笼点亮（`nightMarket`），两个 flag
+ * 都算开；`some` 的语义与顺序无关，不许写成「取第一个」。
+ */
+export const SITE_FLAGS: Readonly<Record<string, readonly EnvironmentFlag[]>> = {
+  market: ['marketOpen', 'nightMarket'],
+  courtyard: ['courtyardOpen'],
+  workshop: ['workshopOpen'],
+};
+
+// 装载期校验：空数组就是永不开的门，直接 throw，不留到运行期变成「没人去」。
+for (const [site, flags] of Object.entries(SITE_FLAGS)) {
+  if (flags.length === 0) throw new Error(`场所 ${site} 的开关是空表`);
+}
+
+/**
+ * 这一拍的场所此刻开着吗。
+ *
+ * 与 `tideBeatApplies` 并列的第二条「现在去得了吗」。两个都只读帧 flag：
+ * 场所的时段在 `SITE_TABLE`，折成 flag 的是 `environment.ts`，这里不按分钟再判。
+ * 场所没登记就 throw——否则新加的场所会悄悄退回锚点，牌子还写着花径。
+ */
+export function siteBeatApplies(site: SiteId | undefined, frame: EnvironmentFrame): boolean {
+  if (site === undefined) return true;
+  const flags = SITE_FLAGS[site];
+  if (flags === undefined) throw new Error(`环境帧里没有场所 ${site} 的开关`);
+  if (flags.length === 0) throw new Error(`场所 ${site} 的开关是空表`);
+  return flags.some((flag) => frame.flags.has(flag));
 }
 
 /**

@@ -11,12 +11,13 @@
  * 跑法（cwd = world-client）：
  *   node scripts/verify-all.mjs            # 跑全部当前可跑的
  *   node scripts/verify-all.mjs --list     # 只列流程与状态
+ *   node scripts/verify-all.mjs --json     # 只输出注册表 JSON（给 audit:verify-flows 读）
  *   node scripts/verify-all.mjs --only palette-9,eval-ledger
  *   node scripts/verify-all.mjs --self-test  # 反向验证：注入必红项，确认整体退出非零
  * 退出码：任一 FAIL → 1；全部 pass/skip → 0。
  * 读数：tmp/verify-all/last-run.json 与 tmp/verify-all/logs/<id>.log
  */
-import { mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -30,25 +31,9 @@ const NODE = process.execPath;
 const PYTHON = process.env.PYTHON || 'python';
 const TEST_IMPORT = ['./test/phaser-hooks.mjs'];
 
-// 已知副作用：旁证测试会用 \n 覆盖写这份 JSON。入口在跑完后按原始字节还原，
-// 保证工作树不因为汇总入口产生新的改动。
-const PRESERVE = [resolve(ROOT, '..', 'docs/evidence/soak/witnessed-corroboration.json')];
-
-function snapshotPreserved() {
-  return PRESERVE.map((path) => ({
-    path,
-    exists: existsSync(path),
-    data: existsSync(path) ? readFileSync(path) : null,
-  }));
-}
-
-function restorePreserved(snapshots) {
-  for (const item of snapshots) {
-    if (item.exists) writeFileSync(item.path, item.data);
-    else if (existsSync(item.path)) unlinkSync(item.path);
-  }
-}
-
+// 旁证测试不再写已跟踪的 docs/evidence/soak/witnessed-corroboration.json：
+// 它默认只写 gitignore 的 `world-client/tmp/` 并做内容比对（见 E8）。
+// 因此这里不再需要备份/还原那份证据文件。
 const CHECKS = [
   {
     id: 'pin-contract',
@@ -140,9 +125,10 @@ const OUT_OF_AGGREGATE = [
 ];
 
 function parseArgs(argv) {
-  const args = { only: null, list: false, selfTest: false };
+  const args = { only: null, list: false, json: false, selfTest: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--list') args.list = true;
+    else if (argv[i] === '--json') args.json = true;
     else if (argv[i] === '--self-test') args.selfTest = true;
     else if (argv[i] === '--only') args.only = (argv[++i] || '').split(',').filter(Boolean);
   }
@@ -211,6 +197,22 @@ function main() {
     return 0;
   }
 
+  if (args.json) {
+    // 只读注册表，不跑任何命令：`when` 是纯 fs 检查，不 spawn。
+    const checks = CHECKS.map((check) => {
+      const reason = check.when ? check.when() : null;
+      return {
+        id: check.id,
+        title: check.title,
+        runnable: reason === null,
+        reason,
+        commands: check.commands,
+      };
+    });
+    process.stdout.write(`${JSON.stringify({ checks, outOfAggregate: OUT_OF_AGGREGATE }, null, 2)}\n`);
+    return 0;
+  }
+
   if (args.selfTest) {
     console.log('自检：注入一条必红命令，确认汇总入口能整体判红。');
     const results = [runCheck({
@@ -231,13 +233,7 @@ function main() {
 
   mkdirSync(OUT, { recursive: true });
   const started = Date.now();
-  const preserved = snapshotPreserved();
-  let results;
-  try {
-    results = selected.map(runCheck);
-  } finally {
-    restorePreserved(preserved);
-  }
+  const results = selected.map(runCheck);
   const summary = {
     generatedAt: new Date().toISOString(),
     cwd: ROOT,

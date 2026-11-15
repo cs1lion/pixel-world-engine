@@ -139,7 +139,14 @@ function fakeApi(): {
     injectBlocked: () => {},
     worldState: () => ({ line: '镇内 3 栋', missingWild: [], buildable: [] }),
     decree: () => null,
-    renderStats: () => ({ graphicsObjects: 0, totalCommands: 0, largest: [] }),
+    renderStats: () => ({
+      frame: 0,
+      graphicsObjects: 0,
+      totalCommands: 0,
+      top: { graphicsObjects: 0, totalCommands: 0 },
+      containers: [],
+      largest: [],
+    }),
     centerCameraOn: () => {},
     canPlaceAt: () => true,
     feed: () => ({ ok: true, message: '' }),
@@ -190,6 +197,33 @@ test('结果来了就往回执那一行写，分得出办了与拒了', () => {
     world.emitResult({ ok: false, message: '世界上还没有接 code 的铺子。' });
     assert.equal(reply.textContent, '世界上还没有接 code 的铺子。', '拒了也说理由');
     assert.equal(reply.className.includes('bad'), true, '拒了要标出来');
+  } finally {
+    globalThis.document = realDocument;
+  }
+});
+
+test('回执那一行带祭坛三态图，待机 / 降下 / 拒收随回执切换', () => {
+  const { doc, byId } = fakeDocument();
+  const world = fakeApi();
+  const realDocument = globalThis.document;
+  globalThis.document = doc;
+  try {
+    bindOraclePanel(() => world.api);
+    const reply = byId('reply');
+    const lastDecor = (): FakeElement | undefined =>
+      reply.children.filter((child) => child.className === 'art-altar-state').at(-1);
+    const srcOf = (node: FakeElement | undefined): string | undefined =>
+      (node as unknown as { src?: string } | undefined)?.src;
+
+    assert.ok(lastDecor() !== undefined, '开局要挂待机那一态');
+    assert.equal(srcOf(lastDecor()), '/assets/state/altar-00.png');
+
+    world.emitResult({ ok: true, message: '雨落下来了。' });
+    assert.equal(srcOf(lastDecor()), '/assets/state/altar-01.png', '认出 / 降下');
+    world.emitResult({ ok: false, message: '接不住这句。' });
+    assert.equal(srcOf(lastDecor()), '/assets/state/altar-02.png', '拒收 / 出错');
+    // 图是纯附加，回执文字一个字不动。
+    assert.equal(reply.textContent, '接不住这句。');
   } finally {
     globalThis.document = realDocument;
   }

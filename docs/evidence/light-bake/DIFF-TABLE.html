@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DIFF-TABLE</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#1">1. 条数与落点【测】</a></li>
+<li><a href="#2-alpha">2. 输入轴与 alpha 构成【测】</a></li>
+<li><a href="#3-2026-11-09">3. 差表【测】2026-11-09 实测：三块全部留活</a><ul>
+<li><a href="#31">3.1 口径</a></li>
+<li><a href="#32">3.2 实测</a></li>
+<li><a href="#33-0">3.3 归因（差 ≠ 0 就留活，但成因要分开）</a></li>
+<li><a href="#34">3.4 结论</a></li>
+</ul>
+</li>
+<li><a href="#4">4. 命令数差【算】</a></li>
+<li><a href="#5">5. 装置状态与复跑</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="0">光层烘焙 · 三块单层差表（第 0 步）</h1>
+<blockquote>
+<p>2026-11-09 · 分支 <code>feat/light-bake</code>（HEAD <code>d1b5bd3</code>，与 <code>main</code> / <code>origin/main</code> 同点）· 工作区干净</p>
+<p><strong>本轮一行代码没动</strong>：没有 <code>?bake=light-*</code> 开关、没有起服务、没有新截图。
+口径按已定死的四条执行（三轴版本向量 / 连续量走 alpha / 双缓冲 / 每块先单层量差），本表一条不改。
+本表是<strong>盘点 + 判据表</strong>，不是验收证据：「烘前/烘后」三行<strong>全部未量</strong>，原因与量法写在第三节。</p>
+</blockquote>
+<h2 id="1">1. 条数与落点【测】</h2>
+<p>读数源：<code>world-client/tmp/budget-map/{noon,dusk,night}.json</code>（<code>Oracle.debugCommandMap()</code>，2026-11-09 探针）。
+口径：1010×700 / <code>?world=dengchao&amp;time=&lt;phase&gt;&amp;debug=1&amp;now=1075</code> / 推到 18:10 / 潮位钉 1 / 晴 /
+氛围隐藏 / 三支动态关 / <code>frame≈160</code>。三份 <code>errors</code> 均为 0。</p>
+<table>
+<thead>
+<tr>
+<th>块</th>
+<th>对象</th>
+<th>depth</th>
+<th style="text-align: right;">noon</th>
+<th style="text-align: right;">dusk</th>
+<th style="text-align: right;">night</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>灯压暗环</td>
+<td><code>root.19</code></td>
+<td>700</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;"><strong>3,078</strong></td>
+<td style="text-align: right;"><strong>3,078</strong></td>
+<td>1 张 Graphics，<code>lampLight</code></td>
+</tr>
+<tr>
+<td>地面光池</td>
+<td><code>root.12</code></td>
+<td>3.2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;"><strong>2,552</strong></td>
+<td style="text-align: right;"><strong>2,552</strong></td>
+<td>1 张 Graphics，<code>lampPool</code></td>
+</tr>
+<tr>
+<td>灯体 + 灯绳</td>
+<td><code>lampRows</code>（按落地行分散）</td>
+<td><code>sceneryDepth(row, altitude)</code></td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>1,472</strong>（给定）</td>
+<td style="text-align: right;">—</td>
+<td>与 <code>stallRows</code> / <code>bannerRows</code> 共层</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td></td>
+<td></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>7,102</strong></td>
+<td style="text-align: right;"></td>
+<td>只在灯亮帧成立</td>
+</tr>
+</tbody>
+</table>
+<p>三条必须说清的：</p>
+<ol>
+<li><strong>3,078 不是「只有压暗环」</strong>。<code>root.19</code> 是整张 <code>lampLight</code>：三档 <code>ink</code> 压暗环 + 灯体光晕/灯芯 +
+   桥灯亮灭两态 + 店面窗光（见 <code>setting-scenery.ts</code> 的 <code>update()</code> 里 <code>lampLight</code> 那一段）。
+   「每块先单层量差」之前得先决定这一层
+   是整块烘还是按内容切开，否则「单层」指的不是一块。</li>
+<li><strong>1,472 在逐对象读数里没有单独成组</strong>。<code>lampRows</code> 按落地行建 Graphics，与摊位、幌布同用
+   <code>sceneryDepth(row, altitude)</code>；13xx–14xx 段 12 个 Graphics 混着别人的内容，本表不替它凑数。
+   实现时用 <code>__layerCmds</code>（建筑烘焙那套）单列，才有可核验的 1,472。</li>
+<li><strong>读数是建筑烘焙工作期的旧构建</strong>。建筑烘焙只改 <code>render/buildings.ts</code>，没碰 <code>setting-scenery.ts</code>，
+   所以三块条数在 main 上应仍成立 —— 这是【推断】，<strong>未在同一构建复测</strong>，别当现测。
+   另外 <code>34,037 / 34,613</code>（night / dusk 总量）与建筑烘焙后的 <code>28,076</code> 不是同一帧、同一构建，
+   <strong>不许相减</strong>（B4：读数按记录器同源）。</li>
+</ol>
+<h2 id="2-alpha">2. 输入轴与 alpha 构成【测】</h2>
+<p>来源 <code>world-client/src/render/setting-scenery.ts:914–918</code>；<code>update()</code> 开头 5 个 <code>clear()</code> 说明三块<strong>每帧整层重画</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>块</th>
+<th>离散输入</th>
+<th>连续输入</th>
+<th>alpha 写法</th>
+<th>几何随帧变</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>灯压暗环</td>
+<td><code>lit</code>、<code>localShade</code></td>
+<td>逐灯 <code>brightness</code>（ignite / breathe）、<code>sway</code> 1px、<code>level</code> 潮位</td>
+<td><code>ring.alpha × amount</code>（0.20 / 0.13 / 0.08）；光晕 <code>0.13 + level×0.02</code>、灯芯 <code>0.95 × amount</code>、窗光 0.20 / 0.10</td>
+<td>是（<code>sway.dx/dy</code>）</td>
+</tr>
+<tr>
+<td>地面光池</td>
+<td><code>lit</code></td>
+<td>潮位 <code>level</code>（同时改半径与强度）、逐灯 <code>brightness</code> → <code>gain</code></td>
+<td><code>band.alpha × gain</code> 逐圈；<code>fillEllipse</code> 半径由 <code>lampPoolBands(level)</code> 连续算</td>
+<td>是（半径随潮位）</td>
+</tr>
+<tr>
+<td>灯体 + 灯绳</td>
+<td><code>lit</code>、<code>motion.sway</code> 开关</td>
+<td><code>sway</code> 1px（灯绳只中段）、<code>brightness</code></td>
+<td>灯绳 <code>trim</code> α0.55 + <code>timberDark</code> <strong>α1</strong>；灯体亮 / 灭两态</td>
+<td>是（1px 摆）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>版本向量三轴已定死：「亮/灭 × 潮位 × 相位」</strong>（交接口径）。仓内可检索到的旧实现是 HD-2D P2
+留下的<strong>两轴</strong> <code>(terrainVersion, structuresVersion)</code>（<code>docs/investigations/HD2D_P2_TILT_BAKE_NEGATIVE.md:40</code>），
+不是本线要用的那三轴。按上表：<code>lit</code> 与 <code>phase</code> 直接是两轴；<strong>潮位 <code>level</code> 是连续量</strong>（0..1，
+<code>lampPoolBands(level)</code> 连续改半径与强度），进版本向量就意味着<strong>必须先离散成档</strong>，否则每帧潮位都变、
+纹理每帧重烘，双缓冲 <code>a</code>/<code>b</code> 就失去意义 —— 这是动代码前要补的最后一条口径，本表不替你定档数。
+呼吸 / 亮度 / <code>sway</code> 一律走 <code>Image.alpha</code> 与 <code>setPosition</code>，<strong>不进闭包、不烘进纹理</strong>；
+双缓冲新烘完才换指针，不许 <code>remove</code> 掉还在用的纹理。</p>
+<h2 id="3-2026-11-09">3. 差表【测】2026-11-09 实测：三块全部留活</h2>
+<h3 id="31">3.1 口径</h3>
+<ul>
+<li><strong>装置</strong>：<code>?bake=shade|pool|body|bodySorted</code> 一次只开一块；另设 <code>none</code>（自校验）与
+  <code>blank</code>（空层对照）。<code>bodySorted</code> 与 <code>body</code> 同样烘 <code>lampRows</code>，但把 Image 用
+  <code>scene.children.moveTo</code> 插回原 Graphics 的 displayList 索引，恢复<strong>同 depth 渲染顺序</strong>，
+  用来分离「保序问题」与「α 叠色本质差」这两种成因。</li>
+<li><strong>触发时机</strong>：冻世界 / 钉潮位 1 / 晴 / 氛围隐藏 / 三支动态关 → 200 帧沉降 → 显式置
+  <code>window.__LIGHT_BAKE_NOW__</code> → 再推进 2 帧。<strong>不在第一次 <code>update()</code> 烘</strong>（那时 debug 设置未生效）。</li>
+<li><strong>图</strong>：1010×700 视口下 canvas clip（960×640）；<code>shotStable</code> 连续 8 帧一致才截。</li>
+<li><strong>基线</strong>：产品代码未改时抓 <code>before-none.png</code>，sha256 前 16 位 <code>ba55dd0ad14d4532</code>
+  —— 与建筑烘焙 <code>tmp/building-bake/bisect</code> 的基线<strong>同哈希</strong>，口径同源。</li>
+<li><strong>比对</strong>：浏览器内解码 PNG，逐像素取 RGBA 四通道最大差；<code>count</code> = 非零差像素数，<code>max</code> = 最大色阶差。</li>
+<li><strong>烘法</strong>：把该块当帧 Graphics 的 <code>commandBuffer</code> 用 <code>generateTexture</code> 烘成 <strong>1024×768</strong> 全图纹理
+  （设定集 64×48 格 × 16px），贴回同一 depth 的 Image，隐藏原 Graphics。与
+  <code>buildings.ts:bakeStaticLayer</code> 同一条 Canvas2D 合成路径。</li>
+<li><strong>证据</strong>：<code>world-client/tmp/light-bake/</code> 下的 before.json / after2.json / after3.json 与各配置 PNG，
+  脚本 <code>world-client/tmp/light-bake-shots.mjs</code>。端口 5211 + <code>--strictPort</code>，连接前过树身份闸。
+  <code>body</code> 在两次独立跑（after2 / after3）里 hash 同为 <code>42772f29599dcd8e</code>，读数可复现。</li>
+</ul>
+<h3 id="32">3.2 实测</h3>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th style="text-align: right;">条数</th>
+<th style="text-align: right;">变化像素</th>
+<th style="text-align: right;">最大色阶差</th>
+<th>最大差点</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code>（自校验）</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>0 px</strong></td>
+<td style="text-align: right;">0</td>
+<td>—</td>
+<td>装置不污染画面</td>
+</tr>
+<tr>
+<td><code>blank</code>（全图空纹理对照）</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><strong>0 px</strong></td>
+<td style="text-align: right;">0</td>
+<td>—</td>
+<td>全屏透明 quad <strong>无伪影</strong></td>
+</tr>
+<tr>
+<td><code>shade</code> 灯压暗环（整张 <code>lampLight</code>）</td>
+<td style="text-align: right;">3,078</td>
+<td style="text-align: right;"><strong>32,688 px</strong></td>
+<td style="text-align: right;"><strong>14</strong></td>
+<td>(346,146) <code>[44,51,52]→[30,43,52]</code>；bbox (0,58,960,326)</td>
+<td><strong>留活</strong></td>
+</tr>
+<tr>
+<td><code>pool</code> 地面光池</td>
+<td style="text-align: right;">2,552</td>
+<td style="text-align: right;"><strong>49,400 px</strong></td>
+<td style="text-align: right;"><strong>17</strong></td>
+<td>(578,428) <code>[129,114,84]→[112,101,74]</code>；bbox (0,224,960,238)</td>
+<td><strong>留活</strong></td>
+</tr>
+<tr>
+<td><code>body</code> 灯体 + 灯绳（Image 插到末尾）</td>
+<td style="text-align: right;">1,472</td>
+<td style="text-align: right;"><strong>3,564 px</strong></td>
+<td style="text-align: right;"><strong>114</strong></td>
+<td>(20,196) <code>[73,101,97]→[187,145,107]</code>；bbox (0,178,958,182)</td>
+<td><strong>留活</strong></td>
+</tr>
+<tr>
+<td><code>bodySorted</code> 同上但<strong>保序</strong></td>
+<td style="text-align: right;">1,472</td>
+<td style="text-align: right;"><strong>3,452 px</strong></td>
+<td style="text-align: right;"><strong>1</strong></td>
+<td>(128,178) <code>[131,108,81]→[130,108,81]</code>；bbox (0,178,958,182)</td>
+<td><strong>留活</strong></td>
+</tr>
+</tbody>
+</table>
+<p>各配置的 <code>renderStats().totalCommands</code> 一律 <strong>28,339</strong>：Graphics 隐藏后 <code>commandBuffer</code> 仍被统计、
+Image 记 0。<strong>本实验不产生命令数下降，只量像素差</strong>，别把 28,339 当成「烘完的预算」。
+<code>after3</code> 里 <code>none</code> 仍为 0 diff，<code>body</code> 读数与 <code>after2</code> 逐项一致，说明加保序配置没有污染原有对照。</p>
+<h3 id="33-0">3.3 归因（差 ≠ 0 就留活，但成因要分开）</h3>
+<ul>
+<li><strong>shade / pool</strong>：差沿整条灯街分布（bbox 横跨 960 px，分桶散在多个 100×100 区），量级
+  max <strong>14 / 17</strong>，与建筑烘焙「未烘层」的 α&lt;1 叠色差同类（<code>back</code> 4,096 px/max 1、
+  招牌 5,052 px/max 31，<code>OPEN_ISSUES.md:1293–1297</code>）——烘一张再叠回地面 = <strong>两次合成</strong>。
+  <strong>本质差，留活。</strong></li>
+<li><strong>body —— 两种成因已用 <code>bodySorted</code> 对照分离【测】</strong>：</li>
+<li><code>body</code> 的 max <strong>114</strong> 是<strong>完全不同的颜色</strong>（暗青绿 → 暖橙灯笼色），来自<strong>同 depth 渲染顺序</strong>：
+    <code>add.image</code> 默认插到 displayList 末尾，盖住了本该盖住它的东西。这是<strong>装置引入的</strong>。</li>
+<li><code>bodySorted</code> 把 Image 移回原 Graphics 的索引后，max <strong>114 → 1</strong>，剩下 3,452 px 全是 ±1
+    量化差（样本 <code>[131,108,81]→[130,108,81]</code>）。<strong>上轮「114 是保序问题」的推断已被实测证实。</strong></li>
+<li>剩下的 max <strong>1</strong> 与建筑烘焙「未烘层」的 <code>back</code>（4,096 px / max 1）<strong>同量级、同成因</strong>：
+    烘一张再叠回地面 = <strong>两次合成</strong>的舍入。这是本质差，不是包围盒或顺序能消掉的。</li>
+<li><strong>仍非 0 ⇒ 按判据仍留活。</strong> 若将来要放宽到「容差 1 可接受」，那是改判据、要单独裁决，
+    本轮口径是「差非 0 就留活」，不改。</li>
+<li><strong>作废的脏读数</strong>：第一次跑（未显式触发、烘在第一次 <code>update()</code>）读到 shade 34,284 px/max 32、
+  pool 52,716/max 18、body 5,996/max 177 —— 烘到的是错帧内容。<strong>已作废，一切以 <code>after2</code> 为准。</strong></li>
+</ul>
+<h3 id="34">3.4 结论</h3>
+<p><strong>三块差全非 0 → 按「差非 0 就留活」，三块全部留活，本轮不烘任何一块</strong>，7,102 条的
+烘焙收益在本口径下拿不到。</p>
+<p><strong>上轮留的两个岔路，第二个已经走完并关闭</strong>：保序修复（<code>bodySorted</code>）把 body 的 max 从 114
+压到 1，证明那 114 是装置问题；但 <strong>1 仍是两次合成的舍入，不会因改成紧贴内容的包围盒纹理而变 0</strong>
+（<code>blank</code> 已证全图透明 quad 本身 0 伪影，包围盒能省的只有纹理尺寸，省不掉这一次额外合成）。
+所以「改包围盒 + 重试 body」没有可期待的收益，本线到此可以<strong>收口</strong>。</p>
+<p>结论只对<strong>本装置</strong>（全图纹理 + Canvas2D 烘一次 + 同 depth 顺序已保）成立；要翻案只有两条路，
+都要单独裁决而不是调参：<strong>改判据</strong>（允许容差 ≥1）或<strong>换合成路径</strong>（不走 <code>generateTexture</code> 再贴回）。
+本轮都没做。</p>
+<h2 id="4">4. 命令数差【算】</h2>
+<ul>
+<li>灯亮帧：三块全烘，<code>renderStats</code> 减 <strong>7,102</strong> 条；<code>Image +N</code> / <code>Graphics −N</code>，Image 在 <code>renderStats</code> 记 0
+  —— 与建筑烘焙 <code>OPEN_ISSUES.md:1285</code> 同义：是「从统计里消失」，不是 GPU 少画 7,102 个 quad。</li>
+<li>灯灭帧（noon）：<code>lampLight</code> 只剩 16、<code>lampPool</code> 为 0，<strong>省不到 7,102</strong>。所以只能写成
+  「灯亮帧的存量」，不能写成「峰值下降 7,102」。</li>
+<li>预算余量：建筑烘焙后 <code>check-ground-shadow</code> 余量 <strong>6,590</strong>（28,076 / 天花板 34,666）、债务 0；
+  <code>check-render-budget</code> 25,167 / 债务 0。这两个数与本表的 7,102 <strong>不同源、不相减</strong>。</li>
+<li><strong>本轮实测装置不产生命令数下降</strong>（各配置一律 28,339，见 §3.2）。上面两条是「若最终实现
+  真把三块烘掉」的推算，不是本轮读数。</li>
+</ul>
+<h2 id="5">5. 装置状态与复跑</h2>
+<ul>
+<li><strong>装置已撤（2026-11-09 收口）</strong>：<code>setting-scenery.ts</code> 已用 <code>git restore --source=HEAD</code>
+  恢复到 <code>d1b5bd3</code>，对该文件的 <code>git diff</code> 为空，产品代码回到交接起点。原 +83 行装置完整导出为
+  <code>world-client/tmp/light-bake/light-bake-experiment.patch</code>（104 行，<code>git apply</code> 可原样重放）。
+  它只服务于量差，<strong>不是</strong>三轴版本向量 / 连续量 alpha / 双缓冲 <code>a</code>-<code>b</code> 那套最终实现；
+  <code>bodySorted</code> 只是归因用的对照配置。装置缺省时画面 0 diff 已由 <code>none</code> 自校验钉住。</li>
+<li><strong>复跑前置条件</strong>：装置已不在代码里，直接跑脚本会读不到 <code>?bake=</code> 开关、得到全 0 的<strong>假绿</strong>。
+  必须先 <code>git apply</code> 那份 patch，跑完再 <code>git restore --source=HEAD</code> 撤掉。</li>
+<li>复跑（端口 5210–5299 + <code>--strictPort</code>；取改造前对照用 <code>git show HEAD:&lt;path&gt;</code> 导出，
+  <strong>不开 worktree、不用 stash</strong>，W2 纪律）：</li>
+</ul>
+<pre><code class="language-bash">cd world-client
+CODEBUDDY_SAFE_DELETE_ENABLED=0 npm run dev -- --port 5211 --strictPort
+# 阶段 A：装置未装时抓改造前基线
+LABEL=before CFGS=none PIXEL_WORLD_URL=http://127.0.0.1:5211/ node tmp/light-bake-shots.mjs
+# 阶段 B：装上装置，逐块量
+git apply tmp/light-bake/light-bake-experiment.patch
+LABEL=after CFGS=none,shade,pool,body,bodySorted,blank PIXEL_WORLD_URL=http://127.0.0.1:5211/ node tmp/light-bake-shots.mjs
+</code></pre>
+<ul>
+<li>本轮<strong>只做了单层量差</strong>。handoff 判据里的「两道闸前后读数 / 49 帧逐字节 0 /
+  18:00 点灯与 05:00 熄灯前后各 5 分钟 / Image 四边 alpha=0 断言」属于<strong>实现后的验收</strong>；
+  三块都留活 ⇒ 本轮没有实现可验，这四项未做，不是遗漏。</li>
+</ul></main>
+</div>
+</body>
+</html>

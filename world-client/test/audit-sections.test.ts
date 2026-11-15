@@ -223,8 +223,30 @@ test('真仓库是干净的，而且扫到了东西（防闸门悄悄塌掉）',
   //   一处 `§N` 指的是哪份文档」那一段，写明是「第一版」——是记录，不是现值。）
   assert.ok(r.checked > 100, `受查 ${r.checked} 处，扫描像是塌了`);
   assert.ok(r.viaGit, 'git 不可用，「已提交」是拿磁盘冒充的');
+  // 判据是「受查文件数必须等于目录里实际存在的文件数」：读入的必须一个不少。
+  // 这条比 `checked > 100` 严——后者挡住塌陷，前者挡住「少读一个而没人知道」。
+  assert.deepEqual(r.scanFailures, [], '真仓库里不该有读不成的受查文件');
+  assert.equal(r.scanned, r.listed, `读入 ${r.scanned} / 列出 ${r.listed}——扫描面不完整`);
   // 该跳的都跳了，而且跳的原因说得出名字——报不出跳过次数的判据等于没有判据。
   assert.ok(r.skips.size >= 2, `只有 ${r.skips.size} 类跳过`);
+});
+
+test('受查文件读不成：必须计数，不许 `continue` 了事', () => {
+  // 这条钉的是「悄悄少看」：原来 catch 之后直接 `continue`，跳过既不加计数、
+  // 也不打印，受查数悄悄缩水而闸门照样绿。现在必须留下一条 `scanFailures`，
+  // 且 `scanned` 对不上 `listed`——main 靠这两个数判红。
+  const f = fixture([]);
+  try {
+    const missing = path.join(f.root, 'docs', 'gone.md');
+    const r = auditSections({ root: f.root, files: f.files, scan: [missing] });
+    assert.equal(r.listed, 1, '列出了一处');
+    assert.equal(r.scanned, 0, '一处也没读成');
+    assert.equal(r.scanFailures.length, 1, '读失败必须计数');
+    assert.equal(r.scanFailures[0]!.path, missing);
+    assert.match(r.scanFailures[0]!.why, /ENOENT/, '失败原因要能查');
+  } finally {
+    f.cleanup();
+  }
 });
 
 test('SCAN_ROOTS 里每一个根都真的扫到了东西', () => {

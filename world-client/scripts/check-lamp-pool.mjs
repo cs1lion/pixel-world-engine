@@ -22,6 +22,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
 import { resolveShotDir } from './lib/shot-output.mjs';
+import { reportReadings } from './lib/lamp-pool-classify.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -180,8 +181,12 @@ function measure([r, g, b]) {
   const Y = 0.2126 * R + 0.7152 * G + 0.0722 * B;
   const Z = 0.0193 * R + 0.1192 * G + 0.9505 * B;
   const sum = X + Y + Z;
-  const x = sum === 0 ? 0 : X / sum;
-  const y = sum === 0 ? 0 : Y / sum;
+  if (sum === 0) {
+    // 纯黑没有色度信息：x=y=0 代进 McCamy 公式会算出约 2259K，那是编出来的读数。
+    return { luminance: Y, cct: null, rgb: [r, g, b], reason: '无有效像素' };
+  }
+  const x = X / sum;
+  const y = Y / sum;
   const n = (x - 0.332) / (0.1858 - y);
   const cct = 437 * n ** 3 + 3601 * n ** 2 + 6861 * n + 5514.7;
   return { luminance: Y, cct: Math.round(cct), rgb: [r, g, b] };
@@ -251,7 +256,8 @@ try {
   const encode = (file) => `data:image/png;base64,${readFileSync(file).toString('base64')}`;
   const marker = (shot, point, scale = 1) => `
     <div class="dot" style="left:${point.x * scale}px;top:${point.y * scale}px"></div>`;
-  const fmt = (m) => `Y ${m.luminance.toFixed(3)} · ${m.cct}K · rgb(${m.rgb.join(',')})`;
+  const fmt = (m) =>
+    `Y ${m.luminance.toFixed(3)} · ${m.cct === null ? '无有效像素' : `${m.cct}K`} · rgb(${m.rgb.join(',')})`;
 
   const card = (shot, label, note, w, h, scale = 1, point = null) => `
     <figure style="width:${w}px">
@@ -330,7 +336,7 @@ try {
   await browser.close();
 }
 
-const fmt = (m) => `Y ${m.luminance.toFixed(3)} ${m.cct}K`;
+const fmt = (m) => `Y ${m.luminance.toFixed(3)} ${m.cct === null ? '无有效像素' : `${m.cct}K`}`;
 for (const shot of Object.values(out)) {
   if (shot === null || typeof shot !== 'object' || !('cam' in shot)) continue;
   console.log(
@@ -350,3 +356,8 @@ console.log(
 );
 console.log(`绘制指令（灯亮满潮）：${out.lit.stats.totalCommands}，Graphics ${out.lit.stats.graphicsObjects}`);
 console.log(`并排图：${join(OUT, 'lamp-pool.png')}`);
+
+// 分类表在 `lib/lamp-pool-classify.mjs`：预期零光只记、不判红；
+// 「必须点亮」的位置采到纯黑才是判据前提不成立（退出码 1）。
+const exitCode = reportReadings(out);
+if (exitCode !== 0) process.exitCode = exitCode;

@@ -31,6 +31,7 @@ import Phaser from 'phaser';
 import type { SettingPack } from '../settings/types.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { lampStreetLitAt, type LampPhase } from '../world/lamp-street.ts';
+import { siteOpenAt } from '../world/timetable.ts';
 import {
   LAMP_MOTION_ON,
   lampBreathAt,
@@ -58,10 +59,13 @@ import {
   type SmokeMotion,
 } from '../world/smoke-motion.ts';
 import { createSceneArtbook, type ArtbookPoint } from './scene-artbook.ts';
+import { hasArt } from './art-assets.ts';
+import { bakeLayer, bakeTexture } from './bake.ts';
 import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
   groundShadowAt,
+  shadowSegments,
   type GroundShadowMotion,
 } from '../world/ground-shadow.ts';
 import { sceneryDepth } from './scenery-depth.ts';
@@ -154,6 +158,12 @@ export interface SettingSceneryClock {
   /** 调试灯态：给了就压过时钟判据（`debugForceLamps` 写这个口子）。 */
   readonly litOverride?: boolean;
   /**
+   * 局部压低周边的开关（`debugLampLocalShade` 写这个口子）。缺省开；
+   * 证据脚本在同一帧上关掉它，量 annulus 掉了多少——这是「真压低」与
+   * 「只是全屏 dim」的分界。
+   */
+  readonly localShade?: boolean;
+  /**
    * 三支动态的开关（`debugLampMotion` 写这个口子）。缺省全开——夜街本来就该是活的；
    * 关掉哪一支，那一支就变成常量，证据脚本靠这个取「关掉时帧差为 0」的对照。
    */
@@ -168,6 +178,14 @@ export interface SettingSceneryClock {
    * 为真时棚布**不摆**，摆的是 `weather-stalls` 那块盖布——两件交替，不同时动。
    */
   readonly packed?: boolean;
+  /**
+   * 场所此刻开没开（`siteOpenAt(presentedNow)` 的投影）。为假时摊位收起：
+   * 不画棚布、不画火盆，只留柜台。缺省视为开——旧调用方画面不变。
+   *
+   * 这个值**只许来自呈现时刻**（`presentedNow`），不许读 `scene.time.now` 或
+   * delta：E12 的教训是「按帧推进的微动在世界时间轴上不成立」。
+   */
+  readonly open?: boolean;
   /**
    * 幌布两支动态的开关（`debugBannerMotion` 写这个口子）：布身摆动、沿墙投影。
    * 缺省全开；关掉哪一支，那一支就退化成常量。
@@ -245,6 +263,7 @@ interface StallReadout {
   order: number;
   x: number;
   y: number;
+  open: boolean;
   awningSway: number;
   fireLevel: number;
   fireHeight: number;
@@ -293,6 +312,58 @@ const POOL_SMOOTHNESS = 12;
 
 /** 灯串每 2 格挂一盏；与 `settings/dengchao/lamp-street.ts` 的计数同一口径。 */
 const LANTERNS_PER_STRING = 6;
+
+/**
+ * 木栅的共享纹理名。
+ *
+ * 各段内容逐格相同，所以只烘一张、贴 N 次（见 `bakeTexture` 的说明）。
+ * 名字带 `scenery-` 前缀，与设定集其它构件分开，避免和建筑烘焙的 key 撞上。
+ */
+const FENCE_TEXTURE = 'scenery-fence-rail';
+
+/**
+ * 石垣的共享纹理名（两张：砌缝左右交错的两版），以及纹理高度。
+ *
+ * 与木栅同一套省钱理由：一格一段、贴 N 次，不各烘各的。两张而不是一张，
+ * 是因为单张平铺会在 16px 网格上形成等距竖缝的节奏，读成「贴了壁纸的墙」——
+ * 花墙那一轮已经吃过一次（点阵读成壁纸感）。交错一版就把节奏打散了。
+ *
+ * 高度 16px：笠石 3 + 墙身 11 + 墙脚影 2。村民约 18–20px 高，所以这是齐胸的
+ * 一道挡土墙——再高就会把花床后的视线全吃掉。
+ */
+const STONE_WALL_TEXTURES = ['scenery-stone-wall-a', 'scenery-stone-wall-b'] as const;
+const STONE_WALL_H = 16;
+
+/**
+ * 灯周围「压低周边」的档位（世界 px）：`[inner, outer)` 的方框，alpha 由内到外递减。
+ *
+ * - 内端 5：避开 8×8 的 patch（±4）与 4×6 的灯芯（竖向 ±3），压暗不许把发光块本身算进去；
+ * - 外端 17：盖住 KB 的 32×32 annulus（±16），再往外就不属于「周边」了；
+ * - 三档而不是一档：单档方框会读成一个硬边黑框，分三档才像一圈渐隐的暗部。
+ *
+ * alpha 0.20/0.13/0.08 是在 1× 下「看得出来、但不抢灯芯」的上限（见证据脚本的通道检查：
+ * 压暗只会降通道，不会产生 255 裁剪）。
+ */
+const LAMP_SHADE_RINGS = [
+  { inner: 5, outer: 9, alpha: 0.20 },
+  { inner: 9, outer: 13, alpha: 0.13 },
+  { inner: 13, outer: 17, alpha: 0.08 },
+] as const;
+
+/** 画一圈方框（中心挖空到 `inner`）：四边各一条。像素风里方框比圆环更稳、更省指令。 */
+function fillSquareRing(
+  g: Phaser.GameObjects.Graphics,
+  cx: number,
+  cy: number,
+  inner: number,
+  outer: number,
+): void {
+  const side = outer - inner;
+  g.fillRect(cx - outer, cy - outer, outer * 2, side);
+  g.fillRect(cx - outer, cy + inner, outer * 2, side);
+  g.fillRect(cx - outer, cy - inner, side, inner * 2);
+  g.fillRect(cx + inner, cy - inner, side, inner * 2);
+}
 
 export function createSettingScenery(
   scene: Phaser.Scene,
@@ -522,14 +593,259 @@ export function createSettingScenery(
       g.fillStyle(c.trim, 0.8);
       g.fillRect(x + 6, y + 1, 1, 3);
     } else if (item.kind === 'statue') {
-      const g = propLayer(item.at.y);
-      g.fillStyle(c.stone, 1);
-      g.fillRect(x, y + 8, 16, 8);
-      g.fillRect(x + 4, y - 3, 8, 12);
-      g.fillStyle(c.plaza, 1);
-      g.fillRect(x + 5, y - 2, 3, 8);
-      g.fillStyle(c.water, 1);
-      g.fillRect(x + 2, y + 4, 12, 2);
+      // 石作：**一座石灯籠**（宝珠 / 笠 / 火袋 / 中台 / 竿 / 两级基座六段，宽度一路收放）。
+      // 原先只有四条 `fillRect`：一块 16×8 的大方砖压在底下、一根 8 宽的柱子、
+      // 身上一道实色 `water` 横带——底座读不出来、纹样读不出来，整件像一块墓碑
+      // （`docs/OPEN_ISSUES.md` N 节第 4 条）。现在靠**轮廓的进出**做结构：
+      // 每一段都比下面一段窄或宽，接缝只在 `ink` 低透明下压一道，不用实体深色
+      // （花墙那一轮已证：实色 `deepShade` 一画就读成两块拼板之间的缝）。
+      //
+      // **火袋的窗是暗的**：这一处没有灯。给石作补光实测 +306 条，超出余量，
+      // 见 `docs/OPEN_ISSUES.md` O 节；夜里它就该是黑的，不许凭空发亮。
+      //
+      // 仍走 bake：整件一枚 16×24 纹理、每帧 0 条（原 16×19 也是 0 条，换形制不改
+      // 命令数）。纹理原点在 (0,0)，所以图钉在 (x, y−8)，让底边仍落在 y+16。
+      const baked = bakeLayer(
+        scene,
+        `statue-${item.at.x}-${item.at.y}`,
+        16,
+        24,
+        sceneryDepth(item.at.y, altitude),
+        (g) => {
+          // 基座下层：最宽的一级，接地那行压暗。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(1, 20, 14, 4);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(1, 20, 14, 1);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(1, 23, 14, 1);
+          // 石缝里长苔：两小撮，别铺成一条绿边。
+          g.fillStyle(c.moss, 0.35);
+          g.fillRect(2, 22, 2, 1);
+          g.fillRect(12, 21, 2, 1);
+          // 基座上层：收进两格，台面受光，底下压一道缝。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(3, 17, 10, 3);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(3, 17, 10, 1);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(3, 19, 10, 1);
+          // 竿：再收两格，左棱受光、右棱落影，读成一根**有厚度**的柱。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(5, 12, 6, 5);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(5, 12, 1, 5);
+          g.fillStyle(c.ink, 0.28);
+          g.fillRect(10, 12, 1, 5);
+          // 中台：托住火袋的一级，下沿三个凹口当莲弁纹样。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(4, 10, 8, 2);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(4, 10, 8, 1);
+          g.fillStyle(c.ink, 0.32);
+          g.fillRect(5, 11, 1, 1);
+          g.fillRect(7, 11, 1, 1);
+          g.fillRect(9, 11, 1, 1);
+          // 火袋：八宽的一段，正面开窗——**暗窗，不是灯窗**。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(4, 5, 8, 5);
+          g.fillStyle(c.ink, 0.7);
+          g.fillRect(6, 6, 4, 3);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(4, 9, 8, 1);
+          // 笠：顶面整行受光，出檐比火袋宽四格，檐底压深——这是全件最宽的一条
+          // 轮廓，读成「有檐的石头」而不是「一块方碑」。
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(4, 2, 8, 1);
+          g.fillStyle(c.stone, 1);
+          g.fillRect(2, 3, 12, 2);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(2, 3, 12, 1);
+          g.fillStyle(c.ink, 0.35);
+          g.fillRect(2, 4, 12, 1);
+          // 宝珠：两格的小顶，只让左上角受光。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(6, 1, 4, 1);
+          g.fillStyle(c.plaza, 1);
+          g.fillRect(7, 0, 2, 1);
+        },
+      );
+      baked.image.setPosition(x, y - 8);
+    } else if (item.kind === 'flower_bed') {
+      // 花径花床（设定集 p110–111，**B 档：仓库转述，无一手画册证据**）：
+      // 按「修剪过的花墙」转述改形制——连贯、等高、平顶的一面绿篱。行距 16px
+      // 而纹理高 16px，上下两件首尾相接，接缝处不留底色（一留就散成一排花箱）；
+      // 纹理里也不画横向分带，否则每 16px 一道暗边，整面墙还是读成叠起来的四层。
+      // 仍走 bake：16 件不增不减、每帧 0 条、24 色内不新增色。
+      //
+      // 花位与疏密都按格哈希算：同一张纹理要重复 16 次，位置一均匀就成壁纸斜纹；
+      // 让「密格」与「疏格」交错，才读成一段段花团而不是均匀的麻点。
+      //
+      // **仍是降级**：没有粉紫（杜鹃 / 绣球做不出来），花点只能用暖红
+      // （ember / terracotta）＋米白（plaster）；形制按转述推，不宣称还原。
+      const h = (item.at.x * 5 + item.at.y * 11) % 6;
+      const jx = h % 3;
+      const jy = h % 2;
+      const baked = bakeLayer(
+        scene,
+        `flower_bed-${item.at.x}-${item.at.y}`,
+        16,
+        16,
+        sceneryDepth(item.at.y, altitude),
+        (g) => {
+          // 墙身先铺满苔绿：花团之间露出的绿就是叶隙，不留底色缝。
+          g.fillStyle(c.moss, 1);
+          g.fillRect(0, 0, 16, 16);
+          // 叶隙压深，给花团之间一点厚度。
+          g.fillStyle(c.deepShade, 1);
+          g.fillRect(3 + jx, 8, 3, 1);
+          g.fillRect(12 - jx, 3 + jy, 2, 1);
+          // 花团：暖红为主、赭红做大块；米白只作零星花心，且不压在最上一行
+          // （每格同一高度都放米白，十六格连起来就是一道横向的浅色带）。
+          g.fillStyle(c.ember, 1);
+          g.fillRect(1 + jx, 1 + jy, 4, 3);
+          g.fillRect(8 - jx, 6 - jy, 4, 3);
+          g.fillRect(2 + jx, 12, 4, 2);
+          g.fillStyle(c.terracotta, 1);
+          g.fillRect(4 + jx, 5 + jy, 3, 3);
+          g.fillRect(11 - jx, 11 - jy, 3, 3);
+          g.fillStyle(c.plaster, 1);
+          g.fillRect(6 + jx, 9 - jy, 2, 2);
+        },
+      );
+      baked.image.setPosition(x, y - 4);
+    } else if (item.kind === 'fence') {
+      // 花径的木栅（设定集 p110–111 的「夹道栅栏」，**B 档：仓库转述，
+      // 无一手画册证据**）。形制按 B 档推，**只做东西向**，理由紧接着写。
+      //
+      // **南北向读不出来，这是实测结论，不是偷懒**。这套投影里「走向」和「高度」
+      // 都落在屏幕竖直方向：一道沿南北跑的栅栏，栏杆与立柱在屏幕上都是竖线，
+      // 谁遮谁都分不出，只能靠「线 + 立柱结」去暗示。四种画法各抓一张 1:1 图
+      // （2px 单线 / 每格一柱 / 5px 带暗面 / 加错位地影），全部读成「一根带节的
+      // 木杆」。东西向就不同：立柱竖着站、栏杆横着跑，两者正交，「立着」这件事
+      // 一眼直接读出来。所以栅栏只落在两列花床的**南端面**（人从南口进来先看到
+      // 的那一面），把通道口收住；南北向的长栏一件没做。
+      //
+      // 一件 = 一格，栏杆在格内第 9–10 px 横贯、上下件首尾相接成一条连续直线；
+      // 立柱每格一根，4px 宽、竖着站 8px。一件一格而不是一件带 `length` 的长条，
+      // 是因为 depth 必须按行算（`scenery-depth.ts`）：一根跨两格的长条只有一个
+      // depth，就没法与站在不同行的人分别判前后。
+      //
+      // **一张纹理贴 N 次**：各段内容逐格相同，各烘一张就是 N 次 `generateTexture`
+      // 加 N 张纹理来回切。这里只烘 `FENCE_TEXTURE`。
+      //
+      // **栅栏只是画**：`isWalkable` 不看 `scenery`（与树篱那条债同源，
+      // 见 `docs/OPEN_ISSUES.md` O1），人照样能穿过它走进花床。
+      if (!scene.textures.exists(FENCE_TEXTURE)) {
+        bakeTexture(scene, FENCE_TEXTURE, 16, 16, (g) => {
+          // 地影：整条栏杆往右下偏 2px 投一道影，栅栏才离地。
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(0, 11, 16, 2);
+          // 栏杆：2px 横贯，上沿受光、下沿压暗，读成一根有厚度的木料。
+          g.fillStyle(c.trim, 1);
+          g.fillRect(0, 9, 16, 2);
+          g.fillStyle(c.plaster, 0.45);
+          g.fillRect(0, 9, 16, 1);
+          g.fillStyle(c.timberDark, 0.5);
+          g.fillRect(0, 10, 16, 1);
+          // 立柱：4px 宽、从栏杆上沿再站高 4px；柱头受光、柱脚压深。
+          g.fillStyle(c.timber, 1);
+          g.fillRect(6, 5, 4, 8);
+          g.fillStyle(c.trim, 1);
+          g.fillRect(6, 5, 4, 1);
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(6, 12, 4, 1);
+        });
+      }
+      // 原点取 (0,1)、钉在本格**下沿**：纹理里栏杆在第 9–10 px、立柱站到第 5 px，
+      // 只有以下沿为基线，栅栏才站在这一格的落地线上，而不是浮在格子上半截。
+      scene
+        .add.image(x, y + TILE_PX, FENCE_TEXTURE)
+        .setOrigin(0, 1)
+        .setDepth(sceneryDepth(item.at.y, altitude));
+    } else if (item.kind === 'stone_wall') {
+      // 花床北缘的矮石垣（设定集 p110–111 的「石垣」，**B 档：仓库转述，
+      // 无一手画册证据**）。一件 = 一格墙段，左右件首尾相接成一条连续的墙；
+      // 一件一格而不是带 `length` 的长条，理由与木栅同（depth 必须按行算）。
+      //
+      // **只做东西向**，理由与本文件的 `fence` 分支同源：这套投影里「走向」与
+      // 「高度」都落在屏幕竖直方向，南北向的墙在屏幕上只剩一条竖带。木栅那一轮
+      // 为此抓过四版 1:1 对照图（见 `docs/evidence/fence/README.md`），没有重试。
+      //
+      // **形制**：顶上 3px 是瓦葺压顶（亮瓦脊 + 暗瓦面），墙身按两皮错缝砌，
+      // 缝用 `ink` 的低透明度压——不是实色深线。花墙与石作两轮都证实：24 色里
+      // 一条实色深线画在中间调上，会读成「两块拼板之间的缝」，而不是「砌缝」。
+      //
+      // **落地影是「立着」的来源**：只画一道带砌缝的横条，1:1 下会读成一条
+      // 躺在地上的石板路；墙脚压两道渐淡的影，它才从地面立起来。
+      const variant = item.at.x % 2 === 0 ? 0 : 1;
+      const key = STONE_WALL_TEXTURES[variant];
+      if (!scene.textures.exists(key)) {
+        bakeTexture(scene, key, 16, STONE_WALL_H, (g) => {
+          // 墙身：条石错缝，画法与 `scene-artbook.ts` 的 `drawQuay` 同一套——
+          // stone 打底、ink 低透明压缝、顶上压一皮亮石。仓库里这道堤已经读成
+          // 「砌起来的石体」，别另发明一套。
+          g.fillStyle(c.stone, 1);
+          g.fillRect(0, 0, 16, 14);
+          // 墙脚压一档（0.12，不是 0.28）：一色到底读成平板，压太狠又会和草地
+          // 糊成一片——0.28 试过，1:1 下墙身整段消失，只剩顶上一条白横梁。
+          g.fillStyle(c.soil, 0.12);
+          g.fillRect(0, 11, 16, 3);
+          // 横缝：两道（上皮 4–8、下皮 9–13）；竖缝错开半块。两版按 x 奇偶交替，
+          // 打散 16px 的等距节奏——单版平铺会读成壁纸。
+          for (const [rowY, offset] of [
+            [4, variant === 0 ? 6 : 2],
+            [9, variant === 0 ? 2 : 7],
+          ] as const) {
+            g.fillStyle(c.ink, 0.24);
+            g.fillRect(0, rowY, 16, 1);
+            g.fillRect(offset, rowY, 1, 5);
+            if (variant === 1) g.fillRect(offset > 8 ? offset - 8 : offset + 8, rowY, 1, 5);
+          }
+          // 一块受光的石头：整面墙同色会读成一张贴图，一块亮面就够破开。
+          g.fillStyle(c.plaza, 0.22);
+          g.fillRect(variant === 0 ? 8 : 3, 10, 3, 3);
+          // 苔：只长在墙脚与缝口。色板里 moss 的既定用途就是这个。
+          g.fillStyle(c.moss, 0.6);
+          g.fillRect(variant === 0 ? 1 : 11, 12, 2, 2);
+          // 瓦顶（p110–111 石垣的瓦葺压顶，**B 档**）：只换压顶那 3px，墙高仍是
+          // 16px。往上加 4–6px 能画出「出檐 + 瓦垄」两层，但会伸进 y19 那一行
+          // 北篱、把花床后的视线再吃掉一截，所以这一版不加高——代价是「瓦」只剩
+          // 一层明暗：**亮瓦脊 / 暗瓦面**。4px 一垄的沟在 1:1 下只是纹理，不是
+          // 轮廓，别指望它撑起「瓦」的读法。六版试错见
+          // `docs/evidence/wall-roof/README.md`。
+          g.fillStyle(c.charcoal, 1);
+          g.fillRect(0, 1, 16, 2);
+          // 瓦垄：4px 一垄，沟压 ink 0.5 一竖到底。**不做明暗错位的垄背**——
+          // 试过 1px 亮块错半垄，1:1 下读成一排白齿（锯齿），不是瓦。
+          for (let sx = 0; sx < 16; sx += 4) {
+            g.fillStyle(c.ink, 0.5);
+            g.fillRect(sx, 1, 1, 2);
+          }
+          // 瓦脊：顶行一道受光的棱（stone 0.55）。它是墙头**唯一**的亮边：瓦面
+          // 整块压暗、顶边也暗下去时（v4 实测），暗瓦面直接融进深色背景，墙头
+          // 就没有边界，整道墙看着矮了一截。瓦面换 `water`（v6）会读成一根蓝杆。
+          g.fillStyle(c.stone, 0.55);
+          g.fillRect(0, 0, 16, 1);
+          // 出檐下的投影：瓦顶比墙身探出一点，压在墙头上，下面这一行的影
+          // 就是「探出来」的全部来源。没有它，瓦面与墙身同宽、只差一档明暗，
+          // 整件读成一根架在空中的横梁——这一行是「墙」与「横杆」的分界。
+          // （试过 2px：帽与身断成两截，像白梁架在石墙上，因此只有 1px。）
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(0, 3, 16, 1);
+          // 墙脚：一道实影加一道渐淡的落影，墙才压在地上而不是浮着。
+          g.fillStyle(c.ink, 0.3);
+          g.fillRect(0, 14, 16, 1);
+          g.fillStyle(c.ink, 0.14);
+          g.fillRect(0, 15, 16, 1);
+        });
+      }
+      // 原点取 (0,1)、钉在本格**下沿**：与木栅同一套基线，墙脚正好落在花床
+      // 第一行的上沿，墙与花床相接而不互相压住。
+      scene
+        .add.image(x, y + TILE_PX, key)
+        .setOrigin(0, 1)
+        .setDepth(sceneryDepth(item.at.y, altitude));
     }
   }
 
@@ -561,7 +877,7 @@ export function createSettingScenery(
 
   // 主楼的红栏与逐层窗火独立于通用建筑轮廓，避免它被当成另一栋普通小屋。
   const hall = pack.placements.find((p) => p.prefabId === 'wave_house');
-  if (hall !== undefined) {
+  if (hall !== undefined && !hasArt(scene, 'scenery', 'bathhouse_main')) {
     const x = hall.at.x * TILE_PX;
     const y = hall.at.y * TILE_PX;
     architecture.fillStyle(c.terracotta, 1);
@@ -605,6 +921,8 @@ export function createSettingScenery(
       const lit = override ?? lampStreetLitAt(now, clock.phase, clock.autoAdvancing);
       // 三支动态的开关：缺省全开；关掉哪一支，那一支就退化成常量。
       const motion = clock.motion ?? LAMP_MOTION_ON;
+      // 局部压低周边的开关：缺省开（见 `SettingSceneryClock.localShade`）。
+      const localShade = clock.localShade ?? true;
       const phase = clock.phase;
       // 摊位落地投影：一层独立 Graphics（depth 3.1），只按相位给形状，不随帧插值。
       const groundShadows = clock.groundShadows ?? GROUND_SHADOW_MOTION_ON;
@@ -695,6 +1013,21 @@ export function createSettingScenery(
           layer.fillRect(rope.x + i * segment + shift, rope.y - 22 + sag, segment, 1);
         }
       }
+      // 局部压低周边：三档方框，内圈重、外圈轻，中心 8×8（patch）那一块留空给灯芯。
+      // 这一笔就是「发光靠压低周边」的实现：它压暗灯周围的既有颜色（ink 不新增色），
+      // 不抬灯自己的亮度；同一帧关掉（`?lampLocalShade=0`）量 annulus 的回升，
+      // 就是「真压低」与「只是全屏 dim」的分界（check-glow-contrast.mjs）。
+      if (lit && localShade) {
+        for (const unit of lampUnits) {
+          const amount = Math.min(1, brightness.get(unit) ?? 0);
+          if (amount <= 0.02) continue;
+          const sway = swayOf(unit);
+          for (const ring of LAMP_SHADE_RINGS) {
+            lampLight.fillStyle(c.ink, ring.alpha * amount);
+            fillSquareRing(lampLight, unit.x + sway.dx, unit.y + sway.dy, ring.inner, ring.outer);
+          }
+        }
+      }
       // 灯体周围一圈光晕 + 灯芯；落地的那一圈在 lampPool 里，不在这里。
       if (lit) {
         for (const unit of lampUnits) {
@@ -702,15 +1035,21 @@ export function createSettingScenery(
           if (amount <= 0.02) continue;
           const sway = swayOf(unit);
           lampLight.fillStyle(c.amber, (0.13 + level * 0.02) * Math.min(1, amount));
-          lampLight.fillRect(unit.x - 7 + sway.dx, unit.y - 4 + sway.dy, 14, 9);
+          lampLight.fillRect(unit.x - 5 + sway.dx, unit.y - 3 + sway.dy, 10, 7);
           lampLight.fillStyle(c.warmLight, 0.95 * Math.min(1, amount));
           lampLight.fillRect(unit.x - 2 + sway.dx, unit.y - 3 + sway.dy, 4, 6);
         }
       }
       for (const point of lights) {
+        if (lit && localShade) {
+          for (const ring of LAMP_SHADE_RINGS) {
+            lampLight.fillStyle(c.ink, ring.alpha);
+            fillSquareRing(lampLight, point.x, point.y, ring.inner, ring.outer);
+          }
+        }
         if (lit) {
           lampLight.fillStyle(c.amber, 0.13 + level * 0.02);
-          lampLight.fillRect(point.x - 7, point.y - 4, 14, 9);
+          lampLight.fillRect(point.x - 5, point.y - 3, 10, 7);
           lampLight.fillStyle(c.warmLight, 0.95);
           lampLight.fillRect(point.x - 2, point.y - 3, 4, 6);
         } else {
@@ -770,14 +1109,15 @@ export function createSettingScenery(
       // 火盆的焰与暖晕按世界时刻跳动；火不投地面光池，夜街光带读数不受影响。
       const stallMotion = clock.stalls ?? STALL_MOTION_ON;
       const packed = clock.packed ?? false;
+      const open = clock.open ?? (siteOpenAt(now) !== 'closed');
       stallReadout.length = 0;
       for (const unit of stallUnits) {
         const layer = stallRows.get(unit.row);
-        const cloth = stallMotion.cloth && !packed
+        const cloth = open && stallMotion.cloth && !packed
           ? stallClothSwayAt(now, unit.order)
           : { dx: 0, lift: 0 };
-        const fire = stallMotion.fire ? stallFireAt(now, unit.order) : { level: 0, height: 0 };
-        if (layer !== undefined) {
+        const fire = open && stallMotion.fire ? stallFireAt(now, unit.order) : { level: 0, height: 0 };
+        if (layer !== undefined && open) {
           drawStallAwningAt(layer, unit.x, unit.y, c, cloth.dx, cloth.lift);
           drawStallFireAt(layer, unit.x, unit.y, c, fire.level, fire.height);
         }
@@ -785,6 +1125,7 @@ export function createSettingScenery(
           order: unit.order,
           x: unit.x,
           y: unit.y,
+          open,
           awningSway: cloth.dx,
           fireLevel: fire.level,
           fireHeight: fire.height,
@@ -996,8 +1337,12 @@ function drawLampBodyAt(
     g.fillStyle(c.ink, 0.28);
     g.fillRect(x + 1, y + 1, 6, 8);
   } else {
-    g.fillStyle(c.ember, 0.32 + 0.68 * Math.min(1, amount));
+    const glow = Math.min(1, amount);
+    g.fillStyle(c.ember, 0.32 + 0.68 * glow);
     g.fillRect(x, y, 8, LAMP_BODY_H);
+    // 同灯串：灯罩本身透暖高光，中央亮芯另在 lampLight 里画（`有芯的光`）。
+    g.fillStyle(c.warmLight, 0.62 * glow);
+    g.fillRect(x + 1, y + 1, 6, 10);
   }
   g.fillStyle(c.trim, 1);
   g.fillRect(x, y, 8, 1);
@@ -1022,12 +1367,19 @@ function drawHangingLanternAt(
   g.fillRect(bx, by - 1, 7, 1);
   if (!lit) {
     g.fillStyle(paper, 1);
+    g.fillRect(bx, by, 7, 9);
   } else if (amount <= 0.02) {
     g.fillStyle(c.ink, 0.5);
+    g.fillRect(bx, by, 7, 9);
   } else {
-    g.fillStyle(paper, 0.35 + 0.65 * Math.min(1, amount));
+    const glow = Math.min(1, amount);
+    g.fillStyle(paper, 0.35 + 0.65 * glow);
+    g.fillRect(bx, by, 7, 9);
+    // 有芯的光：纸面本身透一层暖高光（既有 warmLight，不新增色）；中央亮芯另在
+    // lampLight 里画。两层叠起来才读成「有芯」——只画芯、纸面还是暗红，灯就不发光。
+    g.fillStyle(c.warmLight, 0.68 * glow);
+    g.fillRect(bx + 1, by + 1, 5, 7);
   }
-  g.fillRect(bx, by, 7, 9);
   g.fillStyle(c.trim, 1);
   g.fillRect(bx, by, 7, 1);
   g.fillStyle(c.pale, lit && amount <= 0.02 ? 0.35 : 0.75);
@@ -1117,11 +1469,23 @@ function drawStallGroundShadow(
   // 柜台底是 y+16：影子从那一行往下铺两行，朝一侧随相位拉长（正午短、黄昏长）。
   const dir = shape.dx >= 0 ? 1 : -1;
   const start = x + 2 + shape.dx + (dir > 0 ? 0 : -shape.span);
+  // 整条影子按影长切阶梯，**内段贴着柜台**；内芯也只压内段（压在梢上会读成倒挂）。
+  const segments = shadowSegments(start, 20 + shape.span, shape.alpha, dir);
+  for (const segment of segments) {
+    g.fillStyle(c.deepShade, segment.alpha);
+    g.fillRect(segment.x, y + 16, segment.width, 2);
+  }
+  const inner = segments.reduce<null | { x: number; width: number; alpha: number }>(
+    (deepest, segment) => (deepest === null || segment.alpha > deepest.alpha ? segment : deepest),
+    null,
+  );
+  if (inner !== null) {
+    g.fillStyle(c.ink, inner.alpha * 0.9);
+    g.fillRect(inner.x, y + 16, Math.min(16, inner.width), 1);
+  }
+  // 第二行下面那条 16px 外沿保持基 α（不参与阶梯）：它在地面更下一行，只做过渡。
   g.fillStyle(c.deepShade, shape.alpha);
-  g.fillRect(start, y + 16, 20 + shape.span, 2);
   g.fillRect(start + (dir > 0 ? 0 : 4), y + 18, 16, 1);
-  g.fillStyle(c.ink, shape.alpha * 0.9);
-  g.fillRect(start, y + 16, 16, 1);
 }
 
 /**
@@ -1175,8 +1539,8 @@ function drawShopfront(
   }
   g.fillStyle(c.ink, 0.5);
   g.fillRect(x - 4, top - 1, width + 8, 1);
-  // 墙
-  g.fillStyle(c.plaster, 1);
+  // 墙：11-11 统一为暖木色（原米白灰泥），只换色槽不添行号漂移。
+  g.fillStyle(c.timber, 1);
   g.fillRect(x, top, width, SHOPFRONT_WALL_H);
   // 立面材质种子：由立面的世界位置派生，同一面店墙每一帧同一张脸。
   const seed = hash2(x, y + width);
@@ -1201,7 +1565,7 @@ function drawShopfront(
     g.fillRect(x + i + 1, baseY, 1, 1);
   }
   // 灰泥颗粒：亮粉是晒白的灰、暗点是泥渍。只铺在墙上，窗与门后面会盖住。
-  g.fillStyle(c.pale, 0.5);
+  g.fillStyle(c.plaster, 0.5);
   for (let i = 0; i < 12; i += 1) {
     const gx = x + 3 + ((seed >>> (i % 16)) % Math.max(1, width - 6));
     const gy = top + 3 + ((seed >>> ((i + 9) % 16)) % (SHOPFRONT_WALL_H - 7));
@@ -1226,7 +1590,7 @@ function drawShopfront(
   for (let i = 12; i < width - 2; i += 12) g.fillRect(x + i, top, 1, 40);
   // 木纹：外框与竖柱上长短不一的 1px 木刺（一档更亮的 timber），
   // 让木骨读成木头，不是一条深色带。
-  g.fillStyle(c.timber, 0.8);
+  g.fillStyle(c.warmLight, 0.8);
   for (let i = 0; i < 4; i += 1) {
     g.fillRect(x + 1, top + 5 + i * 9 + ((seed >>> i) % 3), 1, 2);
     g.fillRect(x + width - 2, top + 7 + i * 9 + ((seed >>> (i + 4)) % 3), 1, 2);

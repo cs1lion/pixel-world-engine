@@ -1,0 +1,12 @@
+{
+  "schema": "pwe-claims-state-allowlist/1",
+  "declaredCount": 1,
+  "note": "只放「无论将来接不接闸门都不会变假」的句子：决策 / 取舍记录、结案结论。形状照 audit-citations 的白名单——每条必须写明为什么不是缺陷，且只对列出的 file + section 生效，不是全仓 token 赦免。没有「命中即全部忽略」的开关：未列出的命中一律算未允许，要加必须在这里显式写条目（并同步改 declaredCount）。",
+  "entries": [
+    {
+      "file": "docs/evidence/E7_SCREENS_CONSUMPTION.md",
+      "section": "## 七、E7 结案取舍",
+      "why": "这是 2026-11-07 的结案记录：在 A / B / C 三个方向里选了 B、否决了 A 与 C。它描述的是那次决策，不是对现状的断言——将来即使把这组证据改成回归闸门，这句话仍然为真，所以不会因为接线而变成假话；把它当成「状态句会腐烂」的缺陷会误伤决策记录。"
+    }
+  ]
+}

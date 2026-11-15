@@ -1,0 +1,154 @@
+{
+  "run": "exp-2",
+  "split": "main",
+  "base": "http://127.0.0.1:5241/",
+  "at": "2026-11-12T11:48:35.938Z",
+  "summary": {
+    "total": 10,
+    "passed": 8,
+    "failed": 2
+  },
+  "results": [
+    {
+      "split": "main",
+      "id": "M1",
+      "name": "动作容器存在且落在记忆面板",
+      "pass": true,
+      "firstLine": "容器存在，unit-status 内动作按钮 0 个",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M2",
+      "name": "三个可点动作：派活 / 给东西 / 问一句",
+      "pass": false,
+      "firstLine": "应有 3 个动作按钮",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M3",
+      "name": "每个动作按钮配一张清单内的语义图标",
+      "pass": true,
+      "firstLine": "2 张图标全部在清单内",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M4",
+      "name": "派活往返：入队 → 下一逻辑拍结算 → 状态与回执",
+      "pass": true,
+      "firstLine": "mode 变化 + 回执「给炉匠派了活。神谕已送达 炉匠铺。」",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M5",
+      "name": "给东西往返：carries 变化 + 回执",
+      "pass": true,
+      "firstLine": "carries 变化 + 回执",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "M6",
+      "name": "问一句往返：世界自己给一句可核查的话并落账",
+      "pass": false,
+      "firstLine": "问一句按钮不存在",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "K1",
+      "name": "keep-intact：面板打开时世界仍在推进",
+      "pass": true,
+      "firstLine": "now 32460000 → 32478000",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "K2",
+      "name": "keep-intact：?art=0 零素材请求",
+      "pass": true,
+      "firstLine": "素材请求 0 个（已排除构建产物）",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1,
+        "art": 0
+      }
+    },
+    {
+      "split": "main",
+      "id": "K3",
+      "name": "keep-intact：动作表没让冻结画面的逐帧变化显著变大",
+      "pass": true,
+      "firstLine": "冻结后变化 art=1 1326 px / art=0 1132 px（未显著变大）",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    },
+    {
+      "split": "main",
+      "id": "K4",
+      "name": "keep-intact：存档 schemaVersion 不因交互改变",
+      "pass": true,
+      "firstLine": "schemaVersion 8 → 8（读自真实存档）",
+      "env": {
+        "world": "dengchao",
+        "now": 540,
+        "phase": "noon",
+        "feed": "off",
+        "debug": 1
+      }
+    }
+  ]
+}

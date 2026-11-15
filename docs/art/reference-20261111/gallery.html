@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-11-11 参考图集 · 视觉基准画廊</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0 auto; padding: 32px 20px 64px; max-width: 1180px;
+    background: #14110d; color: #e8e2d2;
+    font: 14px/1.7 ui-monospace, "Cascadia Mono", "Noto Sans Mono CJK SC", monospace;
+  }
+  h1 { font-size: 20px; font-weight: 400; letter-spacing: .08em; color: #e3a13c; }
+  h2 { font-size: 14px; font-weight: 400; color: #8e968c; margin-top: 36px; }
+  p.lede { color: #8e968c; max-width: 760px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+  figure { margin: 0; border: 1px solid #2b322c; background: #171b18; padding: 8px; }
+  figure img { display: block; width: 100%; height: auto; image-rendering: auto; }
+  figcaption { padding: 8px 2px 2px; font-size: 12px; color: #8e968c; }
+  figcaption b { display: block; color: #e8e2d2; font-weight: 400; letter-spacing: .04em; }
+  .contact { margin-top: 28px; border: 1px solid #2b322c; }
+  .contact img { display: block; width: 100%; height: auto; }
+  code { color: #e3a13c; }
+</style>
+</head>
+<body>
+<h1>2026-11-11 参考图集 · 视觉基准画廊</h1>
+<p class="lede">
+  十张图由用户在 2026-11-11 提供，是与初版《千与千寻视觉设定集》不同的第二套视觉方向：
+  16-bit 农场 RPG 笔触、暖木色与琥珀灯光、硬像素边、一格一物。原图 4K / 5.5K 不入库，
+  这里放的是压到长边 768 的副本。初版基准见仓库里的 <code>docs/art/README.md</code>。
+</p>
+
+<h2>十张图</h2>
+<div class="grid">
+  <figure><img src="pixel-world-map-16x9.jpg" alt="五区世界地图">
+    <figcaption><b>世界地图 16:9</b>中央神谕祭坛、右蒸汽工坊、左书院天文台、下农田、上村庄。配色与密度的总锚点；切成四张画册贴片。</figcaption></figure>
+  <figure><img src="pixel-world-engine-desktop-ui-mockup.jpg" alt="桌面 UI 设计稿">
+    <figcaption><b>桌面 UI 设计稿</b>玻璃 HUD、报纸弹窗、VERIFIED 差分抽屉。切成两张贴片；第四轮又把玻璃拟态、胶囊命令栏与状态点做进主界面 CSS（只改视觉、不改 HUD 结构）。</figcaption></figure>
+  <figure><img src="pixel-village-asset-sheet.jpg" alt="村庄 2x2 素材">
+    <figcaption><b>村庄 2×2</b>议事厅与篝火、酒馆、两栋小屋、农田。四格各切一张贴片；也是建筑重画的风格锚点。</figcaption></figure>
+  <figure><img src="pixel-tileset-props-sheet.jpg" alt="16x16 tileset 与道具">
+    <figcaption><b>Tileset 与道具</b>六种地形自动瓦片、施工四阶段、微道具。整幅作贴片与笔触锚点，不接地面渲染。</figcaption></figure>
+  <figure><img src="pixel-ui-emote-vfx-sprite-sheet.jpg" alt="表情与 VFX 表">
+    <figcaption><b>表情与 VFX 3×4</b>感叹、问号、汗滴、放大镜、思考、气泡、闪电、烟、黑云、色块、水花、金币。切成 12 张 <code>emote/*</code>。</figcaption></figure>
+  <figure><img src="villager-sprite-sheet.jpg" alt="村民动作表">
+    <figcaption><b>村民动作表</b>草帽村民多方向帧。七张立绘的体型 / 描边 / 色阶锚点；整幅也作一张画册贴片。</figcaption></figure>
+  <figure><img src="agent-role-icon-sheet.jpg" alt="角色与装备图标表">
+    <figcaption><b>角色与装备 5×4</b>村长、游侠、矿工、法师、学者与装备。前两行切成 <code>icon/role-*</code>；也是立绘锚点。</figcaption></figure>
+  <figure><img src="sacred-oracle-altar-states.jpg" alt="祭坛三态">
+    <figcaption><b>祭坛三态</b>待机 / 降下神谕 / 过载。切成 <code>state/altar-*</code>，接在神谕回执上。</figcaption></figure>
+  <figure><img src="scholarly-zone-buildings.jpg" alt="学者区三栋">
+    <figcaption><b>学者区三栋</b>图书馆、天文台、驿站。整幅作贴片；也是建筑重画的正交形制锚点。</figcaption></figure>
+  <figure><img src="steampunk-coding-workshop-states.jpg" alt="工坊四态">
+    <figcaption><b>工坊四态</b>空闲 / 运转 / 过热 / 冷却。切成 <code>state/workshop-*</code>，接在楼面板的状态行。</figcaption></figure>
+</div>
+
+<h2>并排联系表</h2>
+<div class="contact"><img src="contact-sheet.png" alt="十张图并排缩略"></div>
+
+<h2>切出来的素材（真的挂上，不是清单里的死条目）</h2>
+<p class="lede">
+  下面每一张都来自本目录的参考图，路径指向引擎实际的
+  <code>world-client/public/assets/</code>。面板按钮用的是三枚图标；
+  其余构图贴片与道具图标在这里固定可见，不再靠「日历空态按周轮转」碰运气。
+</p>
+<div class="grid">
+  <figure><img src="../../../world-client/public/assets/plate/map-00.png" alt="地图贴片 00"><figcaption>plate/map-00 · 世界地图左上</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/map-01.png" alt="地图贴片 01"><figcaption>plate/map-01 · 世界地图右上</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/map-02.png" alt="地图贴片 02"><figcaption>plate/map-02 · 世界地图左下</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/map-03.png" alt="地图贴片 03"><figcaption>plate/map-03 · 世界地图右下</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/village-00.png" alt="村庄贴片 00"><figcaption>plate/village-00 · 议事厅与篝火</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/village-01.png" alt="村庄贴片 01"><figcaption>plate/village-01 · 酒馆</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/village-02.png" alt="村庄贴片 02"><figcaption>plate/village-02 · 小屋</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/village-03.png" alt="村庄贴片 03"><figcaption>plate/village-03 · 农田</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/ui-00.png" alt="UI 贴片 00"><figcaption>plate/ui-00 · 桌面 UI 稿左半</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/ui-01.png" alt="UI 贴片 01"><figcaption>plate/ui-01 · 桌面 UI 稿右半</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/scholarly-00.png" alt="学者区贴片"><figcaption>plate/scholarly-00 · 学者区三栋</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/tileset-00.png" alt="tileset 贴片"><figcaption>plate/tileset-00 · tileset 全貌</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/plate/cast-00.png" alt="角色动作贴片"><figcaption>plate/cast-00 · 角色动作表</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/icon/role-05.png" alt="手推车图标"><figcaption>icon/role-05 · 手推车（搬运语义）</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/icon/role-06.png" alt="蓝水晶图标"><figcaption>icon/role-06 · 蓝水晶 → 面板「给一盏灯」</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/icon/role-07.png" alt="卷轴图标"><figcaption>icon/role-07 · 卷轴 → 面板「问一句」</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/icon/role-08.png" alt="宝箱图标"><figcaption>icon/role-08 · 宝箱（交付语义）</figcaption></figure>
+  <figure><img src="../../../world-client/public/assets/icon/role-09.png" alt="文件堆图标"><figcaption>icon/role-09 · 文件堆 → 面板「派活 · 写代码」</figcaption></figure>
+</div>
+
+<h2>怎么复现</h2>
+<p class="lede">
+  生图与切图脚本在 <code>server/scripts/</code> 下：
+  <code>art_ref_1111.py</code>（七张立绘 + 29 件切片）、
+  <code>art_unify_1111.py</code>（17 件旧素材统一）、
+  <code>art_plates_1111.py</code>（13 张画册贴片）。
+  清单在 <code>world-client/public/assets/manifest.json</code>，决策与闸门读数见
+  <code>docs/adr/ADR_ART_REF_20261111.md</code>。
+</p>
+</body>
+</html>

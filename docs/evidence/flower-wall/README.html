@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>花径 · flower-wall</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#1">1. 改了什么</a></li>
+<li><a href="#2">2. 为什么去掉所有深色线</a></li>
+<li><a href="#3">3. 读数</a></li>
+<li><a href="#4">4. 没做的（别当待办捡回来 / 别当已完成）</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="0-2026-11-09">花墙形制（+0 条命令）· 2026-11-09</h1>
+<p>设定集 p110–111 的花径花床，本轮只改<strong>形制</strong>，不动件数、不动预算、不新增颜色。
+<strong>依据等级 B：只有仓库转述，没有一手画册证据</strong>（本机画册 PDF 99 页、无文字层，
+对不上 p110–111）。所以这是「按转述推的近形」，<strong>不宣称还原设定集</strong>。</p>
+<h2 id="1">1. 改了什么</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>改前</th>
+<th>改后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>纹理</td>
+<td>16×12</td>
+<td><strong>16×16</strong>（行距也是 16px，上下两件首尾相接）</td>
+</tr>
+<tr>
+<td>墙身</td>
+<td>上下两段 <code>moss</code>，中间留缝；底部 <code>charcoal</code>+<code>soil</code> 底座</td>
+<td>整块 <code>moss</code> 铺满，<strong>不留底色缝、不画底座</strong></td>
+</tr>
+<tr>
+<td>分带</td>
+<td>每格一道深色底座 ⇒ 每 16px 一条暗边</td>
+<td><strong>横向、竖向的深色线一条不留</strong></td>
+</tr>
+<tr>
+<td>花</td>
+<td>每格一坨 <code>ember</code> 顶在绿上（读作「一丛小树」）</td>
+<td>花团按格哈希错开（<code>ember</code> 为主、<code>terracotta</code> 打块、<code>plaster</code> 只作零星花心）</td>
+</tr>
+</tbody>
+</table>
+<p>源码：<code>world-client/src/render/setting-scenery.ts</code> 的 <code>flower_bed</code> 分支（<code>bakeLayer</code> 回调）。</p>
+<h2 id="2">2. 为什么去掉所有深色线</h2>
+<p>试过三种走法，前两种都退回了：</p>
+<ol>
+<li><strong>留 <code>charcoal</code> 底座</strong>：每 16px 一道暗边，整面墙读成「叠起来的四层花箱」。</li>
+<li><strong>左缘画 1px <code>deepShade</code> 竖线当花架立柱</strong>：<code>deepShade</code>（#1b303b）与地面几乎同色，
+   重复之后读成「几块绿板之间的缝」，比不画更糟。</li>
+<li><strong>全部去掉</strong>：墙身连续，靠花团的疏密与叶隙做结构 —— 采用。</li>
+</ol>
+<p>结论：<strong>在这套 24 色板下，任何深色分隔线都会被读成缝</strong>，因为墙身是绿、地面也偏暗，
+没有中间明度可用。要用「线」做结构，得先有第 25 色（ADR），本轮不做。</p>
+<h2 id="3">3. 读数</h2>
+<ul>
+<li><strong>件数 16 不变</strong>：<code>pack.ts</code> 两个 <code>flatMap</code> × 4 行，<code>world-client/test/flower-bed.test.ts</code> 的
+  「合法 / 在包里 / 在口袋格内」三条仍过。</li>
+<li><strong>命令数不是本改动的判据</strong>：花床走 <code>bakeLayer</code> ⇒ 每件一张 Image，<code>renderStats</code> 记 0 条。
+  实测 <code>totalCommands</code> before <strong>19,973</strong> / after <strong>20,085</strong>，差 <strong>112</strong>——这是 O4 记的
+  单时刻读数噪声（村民走位，±120），<strong>不能算作本改动的增量，也不能算作下降</strong>。</li>
+<li><strong>逐像素差（花床区）</strong>：<strong>14,280 px 变化、最大色阶差 136</strong>。
+  机位 <code>scrollX=0 / scrollY=208</code>、<code>?world=dengchao&amp;time=noon&amp;now=960</code>、世界冻结、潮位钉 1、
+  180 帧沉降；花床屏幕 bbox <code>(128,248)–(324,388)</code>。</li>
+<li><strong>区外差异归因</strong>：全图 bbox 会扩到 <code>(128,11)–(800,554)</code>，但落在花床之外的只有
+  <code>(720,400)/(720,480)</code> 两块 —— 那是「迷路人」的走位相差约 2px，<strong>不是形制改动</strong>。
+  同配置<strong>双跑 0 px / max 0</strong>，说明渲染本身是确定的。</li>
+<li>两版截图：<code>world-client/tmp/flower-wall/{before,after8}.png</code>（未跟踪），
+  对比图 <code>ab.png</code>、三联 <code>abc-1x.png</code>。脚本 <code>world-client/tmp/flower-wall-shot.mjs</code>。</li>
+</ul>
+<h2 id="4">4. 没做的（别当待办捡回来 / 别当已完成）</h2>
+<ul>
+<li><strong>粉紫第 25 色</strong>：仍不开。杜鹃 / 绣球做不出来，花点只有暖红 + 米白。</li>
+<li><strong>木栅</strong>：已于 2026-11-09 单独一笔做掉（<code>kind: 'fence'</code>，只做东西向的南端矮栏，
+  仍是 B 档，见 <code>docs/evidence/fence/README.md</code>）；<strong>石垣</strong>同一天另开一笔做掉
+  （花床北缘 <code>y20</code> 的矮墙，见 <code>docs/evidence/stone-wall/README.md</code>）；<strong>瓦顶</strong>同一天
+  第三笔补上（只换压顶 3px，见 <code>docs/evidence/wall-roof/README.md</code>）。</li>
+<li><strong>庭心石作</strong>：本笔没动（当时仍是通用 <code>statue</code> 的四条矩形）；同一天另开一笔改成
+  石灯籠，见 <code>docs/evidence/garden-stone/README.md</code>。</li>
+<li><strong>夜里补光 +306</strong>：没做，仍是「新增功能」而非「改错」。</li>
+<li><strong>A 档</strong>：翻书拍 12 张照片才升 A；本笔的所有形制判断在拍到之前都只是 B 档。</li>
+</ul></main>
+</div>
+</body>
+</html>

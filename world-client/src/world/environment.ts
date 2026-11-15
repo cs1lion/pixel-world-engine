@@ -16,15 +16,18 @@
 import type { Weather } from './types.ts';
 import { DAY_MS } from './memory/config.ts';
 import { TIDE_HIGH_MIN, TIDE_LOW_MAX } from './tide.ts';
-import { isQuietAt, minuteOfDay, TIMETABLE, type TimetableId } from './timetable.ts';
+import { isQuietAt, minuteOfDay, siteOpenAt, siteStateAt, TIMETABLE, type TimetableId } from './timetable.ts';
 import { lampStreetLitAt, type LampPhase } from './lamp-street.ts';
 
 /**
  * 一帧里成立的环境条件。
  *
- * 前七项是**世界自己就能算**的；灯的两项要渲染层的相位才定得下来（世界层的
+ * 前十项是**世界自己就能算**的；灯的两项要渲染层的相位才定得下来（世界层的
  * 昼夜跟墙钟，不在这一帧里），所以只在调用方给了 `lighting` 时登记。
  * 没有 `lighting` 时那一帧就只是「灯态未知」，不是「灯不亮」。
+ *
+ * 市面的两项是 `siteOpenAt(now)` 的投影：闭市时两项都不在，是**确定的关着**，
+ * 不是「未知」——场所相位只由世界时刻决定。
  */
 export type EnvironmentFlag =
   | 'rain'
@@ -35,6 +38,10 @@ export type EnvironmentFlag =
   | 'highTide'
   | 'quiet'
   | 'workEnded'
+  | 'marketOpen'
+  | 'nightMarket'
+  | 'courtyardOpen'
+  | 'workshopOpen'
   | 'lampsLit'
   | 'lampsOut';
 
@@ -90,6 +97,14 @@ export function environmentAt(
   if (tideLevel >= TIDE_HIGH_MIN) flags.add('highTide');
   if (isQuietAt(now)) flags.add('quiet');
   if (minute >= WORK_END_MINUTE) flags.add('workEnded');
+  const marketPhase = siteOpenAt(now);
+  if (marketPhase === 'open') flags.add('marketOpen');
+  if (marketPhase === 'night') flags.add('nightMarket');
+  // 花径：只有一份读数——「开不开」由 `siteStateAt` 按 SITE_TABLE 的时段算，
+  // 作息那边只问这一帧里的 flag，不按分钟再判一次。
+  if (siteStateAt('courtyard', now) === 'open') flags.add('courtyardOpen');
+  // 工坊：同一口径，只由 `siteStateAt('workshop')` 派生（三处工坊共用一扇门）。
+  if (siteStateAt('workshop', now) === 'open') flags.add('workshopOpen');
   if (lighting !== undefined) {
     if (lampStreetLitAt(now, lighting.phase, lighting.autoAdvancing)) flags.add('lampsLit');
     else flags.add('lampsOut');

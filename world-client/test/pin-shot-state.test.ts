@@ -423,13 +423,13 @@ test('21. 守卫：快照字段必须逐个登记，pin 的字段必须真在 Sh
   assert.deepEqual(pinnedFields.sort(), ['now', 'tide', 'trails', 'villagers']);
 });
 
-test('22. 摊牌：真实快照 25 个字段，表里 4 个 pin、10 个 stable、11 个 dom', () => {
+test('22. 摊牌：真实快照 26 个字段，表里 4 个 pin、10 个 stable、12 个 dom', () => {
   const snapshot = realSnapshot();
   const counts = { pin: 0, stable: 0, dom: 0 };
   for (const entry of RENDER_INPUT_TABLE) counts[entry.handling] += 1;
   assert.equal(Object.keys(snapshot).length, RENDER_INPUT_TABLE.length);
   // altar / weather 从 dom 挪到 stable：都是「画面上真的读」，只是不随时刻变。
-  assert.deepEqual(counts, { pin: 4, stable: 10, dom: 11 });
+  assert.deepEqual(counts, { pin: 4, stable: 10, dom: 12 });
 });
 
 const RENDER_DIR = fileURLToPath(new URL('../src/render/', import.meta.url));
@@ -463,7 +463,7 @@ test('23. dom 字段在绘制路径 0 命中（静态证明，不依赖某一次
   assert.ok(drawingFiles.length > 0, '绘制路径扫空了');
 
   const domFields = RENDER_INPUT_TABLE.filter((entry) => entry.handling === 'dom').map((e) => e.field);
-  assert.equal(domFields.length, 11);
+  assert.equal(domFields.length, 12);
 
   const hits: string[] = [];
   const scan = (label: string, text: string) => {
@@ -485,10 +485,10 @@ test('23. dom 字段在绘制路径 0 命中（静态证明，不依赖某一次
 
 // ------------------------------------------- 呈现态（快照之外）：雨幕
 
-test('24. 呈现态：雨幕钉不在 25 字段表里，实时浓淡变化不影响画面值', () => {
+test('24. 呈现态：雨幕钉不在 26 字段表里，实时浓淡变化不影响画面值', () => {
   // 关键分层：WeatherPin 是呈现态，不是 WorldSnapshot 的第 26 个字段。
-  assert.equal(RENDER_INPUT_TABLE.length, 25, '25 字段表不许因为雨幕变成 26');
-  assert.deepEqual(Object.keys(realSnapshot()).length, 25);
+  assert.equal(RENDER_INPUT_TABLE.length, 26, '26 字段表不许因为雨幕变成 27');
+  assert.deepEqual(Object.keys(realSnapshot()).length, 26);
 
   const pin = pinWeather(NO_SHOT_PIN, 0.86, 24);
   const first = presentedWeatherOf(pin, 0.85);

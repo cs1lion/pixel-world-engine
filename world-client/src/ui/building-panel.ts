@@ -21,6 +21,9 @@ import { TASK_PROFILES } from '../world/tasks.ts';
 import type { TraceLayer } from '../world/memory/types.ts';
 import type { WorkshopTask } from '../world/types.ts';
 import { whenApi } from './when-api.ts';
+import { activityDecorId } from '../render/art-assets.ts';
+import type { BuildingLandingView } from '../world/landing-readout.ts';
+import { appendDecor } from './art-decor.ts';
 
 /** 楼此刻在干什么。与 `WorkstationActivity` 的四个分支一一对应。 */
 export type BuildingActivity = 'idle' | 'operating' | 'overheating' | 'cooling';
@@ -55,6 +58,9 @@ export interface BuildingPanelView {
   readonly task: WorkshopTask | null;
   readonly activity: BuildingActivity;
   readonly traces: readonly BuildingTraceView[];
+  /** 造物落地账的脚注：谁提的、落地检查过没过。没有记录就是 `null`。
+   *  读侧纯函数在 `world/landing-readout.ts`；面板只负责把那句话摆出来。 */
+  readonly landing: BuildingLandingView | null;
 }
 
 export interface BuildingOracle {
@@ -155,11 +161,22 @@ export function bindBuildingPanel(getApi: () => BuildingOracle | undefined): voi
         node.textContent = text;
         return node;
       };
+      const stateRow = line('building-state', activityText(view.activity));
+      // 四态图与 `activityText` 同源，都是 `view.activity`；图只是把那句话
+      // 配上一张同一状态的插画，状态本身仍由文字说清（图坏了不影响读数）。
+      appendDecor(stateRow, 'state', activityDecorId(view.activity), 'art-state-icon');
       const rows: HTMLElement[] = [
         line('building-task', taskText(view.task)),
-        line('building-state', activityText(view.activity)),
-        line('building-trace', traceText(view.traces)),
+        stateRow,
       ];
+      if (view.landing !== null) {
+        // 谁提的 + 检查过没过。违规原文照抄账本，不在面板里改写成好听的话。
+        const suffix = view.landing.clean
+          ? '落地检查通过'
+          : `落地检查有问题：${view.landing.violations.join('；')}`;
+        rows.push(line('building-landing', `${view.landing.originLabel}提的；${suffix}`));
+      }
+      rows.push(line('building-trace', traceText(view.traces)));
       if (view.traces.length > 0) {
         const list = document.createElement('ul');
         list.className = 'building-trace-list';

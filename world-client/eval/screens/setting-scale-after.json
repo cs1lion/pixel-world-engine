@@ -14,20 +14,266 @@
   "zoom": 2,
   "clip": {
     "x": 265.5,
-    "y": 228.796875,
+    "y": 272.796875,
     "width": 480,
     "height": 320
   },
   "stats": {
-    "graphicsObjects": 46,
-    "totalCommands": 12363,
+    "frame": 116,
+    "graphicsObjects": 155,
+    "totalCommands": 30021,
+    "top": {
+      "graphicsObjects": 60,
+      "totalCommands": 17664
+    },
+    "containers": [
+      {
+        "path": "top[22]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 504,
+        "containers": 1
+      },
+      {
+        "path": "top[23]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 456,
+        "containers": 1
+      },
+      {
+        "path": "top[24]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 416,
+        "containers": 1
+      },
+      {
+        "path": "top[25]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 456,
+        "containers": 1
+      },
+      {
+        "path": "top[26]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 344,
+        "containers": 1
+      },
+      {
+        "path": "ferry_station#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "ferry_station#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 1019,
+        "containers": 1
+      },
+      {
+        "path": "ferry_station#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "boiler_annex#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "boiler_annex#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 858,
+        "containers": 1
+      },
+      {
+        "path": "boiler_annex#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "wave_house#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "lamp_lodge#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "tea_stall#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "wave_house#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 1076,
+        "containers": 1
+      },
+      {
+        "path": "lamp_lodge#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 908,
+        "containers": 1
+      },
+      {
+        "path": "tea_stall#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 920,
+        "containers": 1
+      },
+      {
+        "path": "wave_house#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "lamp_lodge#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "tea_stall#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "top[58]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 384,
+        "containers": 1
+      },
+      {
+        "path": "top[60]",
+        "depth": 1,
+        "graphicsObjects": 2,
+        "totalCommands": 456,
+        "containers": 1
+      },
+      {
+        "path": "lamp_archive#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "lamp_archive#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 881,
+        "containers": 1
+      },
+      {
+        "path": "ledger_house#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "ledger_house#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 907,
+        "containers": 1
+      },
+      {
+        "path": "lamp_archive#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "ledger_house#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "lamp_workshop#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "soot_forge#1.back",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 55,
+        "containers": 1
+      },
+      {
+        "path": "lamp_workshop#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 882,
+        "containers": 1
+      },
+      {
+        "path": "soot_forge#1.body",
+        "depth": 1,
+        "graphicsObjects": 7,
+        "totalCommands": 954,
+        "containers": 1
+      },
+      {
+        "path": "lamp_workshop#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      },
+      {
+        "path": "soot_forge#1.front",
+        "depth": 1,
+        "graphicsObjects": 1,
+        "totalCommands": 49,
+        "containers": 1
+      }
+    ],
     "largest": [
-      1584,
+      2399,
+      2010,
+      1800,
       1513,
-      1338,
-      1304,
-      1290
-    ]
+      1304
+    ],
+    "contactAoUnknownBase": 0
   },
   "metrics": {
     "personH": 30,
@@ -36,7 +282,8 @@
     "lampPostH": 58,
     "lampBodyBottom": 43
   },
-  "metricsSource": "渲染常量 setting-scale.ts",
+  "metricsSource": "渲染常量 setting-scale.ts（debugSettingScale 实测）",
+  "metricsFromBaselineConstant": false,
   "pins": {
     "hero": {
       "x": 600,
@@ -55,24 +302,25 @@
     "second": "迷路人"
   },
   "scanned": {
-    "frameH": 48,
-    "stoneH": 4,
+    "frameH": 13,
+    "wallBandH": 48,
+    "stoneH": 3,
     "bodyBottomH": 43,
     "refs": {
       "frame": [
-        65,
-        45,
-        50
+        61,
+        48,
+        55
       ],
       "stone": [
-        82,
-        102,
-        106
+        75,
+        96,
+        102
       ],
       "post": [
-        65,
-        45,
-        50
+        61,
+        48,
+        55
       ]
     },
     "metricsDriven": true

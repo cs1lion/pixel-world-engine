@@ -119,7 +119,7 @@ const ALL_HOLDERS: readonly string[] = [...VILLAGERS, ...BUILDING_IDS];
 /**
  * 默认世界（不走设定集）会有几个村民。
  *
- * 从 `simulation.ts:867` 那一行读，不重抄：那个兜底数组的字面量一改，
+ * 从 `simulation.ts:986` 那一行读，不重抄：那个兜底数组的字面量一改，
  * 这里必须跟着改，否则这条钉的是一个已经不属于代码的数。
  */
 function defaultWorldVillagerCount(): number {
@@ -203,7 +203,7 @@ function awarenessAtDayEnd(days: number): Awareness {
 
 test('出货的村子今天十六个 holder：七个居民 + 九栋楼', () => {
   assert.equal(VILLAGERS.length, 7, `灯潮界的居民是 ${VILLAGERS.join('、')}——加人或减人都会让 coverage_curve 的分母变，回来重算这个文件头里那张表`);
-  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:255 的 placements 是九条）`);
+  assert.equal(BUILDING_IDS.length, 9, `灯潮界落了 ${BUILDING_IDS.length} 栋楼（pack.ts:300 的 placements 是九条）`);
   assert.equal(defaultWorldVillagerCount(), 2, '默认世界的村民兜底不再是两个');
   // 两组数合起来才是分母：设定集 16。
   assert.equal(ALL_HOLDERS.length, 16, '设定集的 holder 总数现在是十六个');

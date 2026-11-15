@@ -5,6 +5,8 @@
  */
 
 import { TASK_PROFILES } from '../world/tasks.ts';
+import { altarStateId } from '../render/art-assets.ts';
+import { appendDecor } from './art-decor.ts';
 import type { DailyReport } from '../world/report.ts';
 import { WILD_PREFAB_OF, fillableGaps } from '../world/world-state.ts';
 import { whenApi } from './when-api.ts';
@@ -36,6 +38,33 @@ export function prepareUtterance(raw: string): UtteranceCheck {
     return { ok: false, reason: 'too-long', length: text.length };
   }
   return { ok: true, text };
+}
+
+/** 一个容器的子树读数；`graphicsObjects` / `totalCommands` 已含它内部所有嵌套容器。 */
+export interface RenderLayerReading {
+  /** 容器路径：楼体容器按楼号命名（`<id>.back` / `.body` / `.front`），其余用 `top[i]` 下标链。 */
+  readonly path: string;
+  /** 1 = 顶层容器；>1 = 嵌在别的容器里。 */
+  readonly depth: number;
+  readonly graphicsObjects: number;
+  readonly totalCommands: number;
+  /** 这棵子树里的容器总数（含自身）。 */
+  readonly containers: number;
+}
+
+/**
+ * 渲染统计：递归到容器里的全部 Graphics。
+ *
+ * 旧口径只数 `children.list` 的顶层 Graphics，楼体容器里的 99 个 Graphics 不在数里；
+ * `top` 保留单看顶层的那一份，`graphicsObjects` / `totalCommands` 是整场景合计。
+ */
+export interface RenderStats {
+  readonly frame: number;
+  readonly graphicsObjects: number;
+  readonly totalCommands: number;
+  readonly top: { readonly graphicsObjects: number; readonly totalCommands: number };
+  readonly containers: readonly RenderLayerReading[];
+  readonly largest: readonly number[];
 }
 
 export interface OracleApi {
@@ -71,12 +100,8 @@ export interface OracleApi {
   };
   /** 当前急件：上游 blocked 单的完整问题。 */
   readonly decree: () => { readonly taskId: string; readonly question: string; readonly title: string } | null;
-  /** 渲染统计：绘制对象数与指令总量。 */
-  readonly renderStats: () => {
-    readonly graphicsObjects: number;
-    readonly totalCommands: number;
-    readonly largest: readonly number[];
-  };
+  /** 渲染统计：绘制对象数与指令总量（递归含容器）。 */
+  readonly renderStats: () => RenderStats;
   /** 立刻把镜头中心对准世界坐标。 */
   readonly centerCameraOn: (x: number, y: number) => void;
   /** 只查询某格能不能建，不改变状态。 */
@@ -299,10 +324,16 @@ export function bindOraclePanel(getApi: () => OracleApi | undefined): void {
 
   const show = (ok: boolean, message: string): void => {
     reply.textContent = message;
+    // 神谕祭坛三态图与回执同源：认出 / 降下 / 拒收，图只是把那句话配上
+    // 一张同状态的插画，回执本身仍由文字说清（图坏了不影响读数）。
+    // 必须先写 textContent 再挂图——赋值会清掉上次留下的子节点。
+    appendDecor(reply, 'state', altarStateId(ok), 'art-altar-state');
     // 成功用强调琥珀、失败用陶土；与非成功互斥，同一个位置只出一种。
     reply.classList.toggle('good', ok);
     reply.classList.toggle('bad', !ok);
   };
+  // 开局没有回执也要有「待机」那一态，别让祭坛位置空着。
+  appendDecor(reply, 'state', altarStateId(null), 'art-altar-state');
 
   // 投递时清空输入框，回执却要等模型才回来。记下刚发出去的那句，
   // 被上游拒收时把它放回输入框——否则玩家对着空框重打一遍。

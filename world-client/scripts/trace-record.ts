@@ -23,7 +23,6 @@ const TRACES = resolve(CLIENT_ROOT, 'traces');
 const BASELINE_OUT = resolve(TRACES, 'outer-baseline-v5.json');
 const TRACE_OUT = resolve(TRACES, 'outer-two-days.json');
 const LEGACY_OUT = resolve(TRACES, 'night-rain-build.json');
-const HUGE = Number.MAX_SAFE_INTEGER;
 
 const STEP_MS = 60_000;
 const SEED_STEPS = 1_500;
@@ -163,11 +162,11 @@ function sizeOf(path: string): number {
 async function main(): Promise<void> {
   mkdirSync(TRACES, { recursive: true });
 
-  const legacyProbe = await runTrace(legacyInput({ from: 0, to: HUGE }));
+  const legacyProbe = await runTrace(legacyInput({ from: 0, to: 0 }), { openEventRange: true });
   const legacy = await recordTrace(legacyInput({ from: 0, to: legacyProbe.events.length }));
   writeFileSync(LEGACY_OUT, `${JSON.stringify(legacy, null, 2)}\n`, 'utf8');
 
-  const seedProbe = await runTrace(seedInput({ from: 0, to: HUGE }));
+  const seedProbe = await runTrace(seedInput({ from: 0, to: 0 }), { openEventRange: true });
   const seed = await recordTrace(seedInput({ from: 0, to: seedProbe.events.length }), {
     captureSave: true,
   });
@@ -176,7 +175,7 @@ async function main(): Promise<void> {
   writeFileSync(BASELINE_OUT, `${JSON.stringify(save, null, 2)}\n`, 'utf8');
   const baseline: TraceBaseline = { source: 'traces/outer-baseline-v5.json', save };
 
-  const probe = await runTrace(mainInput(baseline, { from: 0, to: HUGE }));
+  const probe = await runTrace(mainInput(baseline, { from: 0, to: 0 }), { openEventRange: true });
   const trace = await recordTrace(mainInput(baseline, { from: 0, to: probe.events.length }));
   writeFileSync(TRACE_OUT, `${JSON.stringify(trace, null, 2)}\n`, 'utf8');
 

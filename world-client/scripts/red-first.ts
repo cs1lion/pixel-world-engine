@@ -49,7 +49,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classifyBaseFailure, parseArgs, planTestChanges, type ChangedFile } from './red-first-lib.ts';
+import { explainBaseFailure, parseArgs, planTestChanges, stripComments, type ChangedFile } from './red-first-lib.ts';
 
 interface RunResult {
   status: number;
@@ -94,6 +94,33 @@ function resolveBase(repo: string, explicit: string): { ref: string; source: str
   if (parent) return { ref: parent.trim(), source: 'HEAD~1' };
 
   throw new Error('找不到可用的 base：--base、origin/main、HEAD~1 都不可用');
+}
+
+/**
+ * 只改了注释 / 空白 / 行号的测试文件，按「没有实质改动」跳过。
+ *
+ * 起因：simulation.ts 每插一行，仓里十几个测试的**注释里**的行号引用就得跟着改
+ * （`audit-references` 盯着）。这些 diff 在 `red:first` 眼里是「测试变了」，
+ * 但拿到 base 上跑当然全绿——因为行为一个字没变，于是判 FAIL「不是先红后绿」。
+ * PR #39 就红在这上面。
+ *
+ * 判据是剥注释后的语义骨架逐字一致（`stripComments`）。有任一处真改动
+ * （断言、文案、导入、调用）都会留下来，不会被误判成「只是注释」。
+ * 只在 `M` 状态上查：`A`（新文件）base 上根本没有，必须跑；`D` 走原有分支。
+ */
+function commentOnlyChanges(repo: string, base: string, changes: ChangedFile[]): Set<string> {
+  const out = new Set<string>();
+  for (const change of changes) {
+    if (change.status !== 'M' || !change.path.endsWith('.ts')) continue;
+    try {
+      const before = git(['show', `${base}:${change.path}`], repo);
+      const after = git(['show', `HEAD:${change.path}`], repo);
+      if (stripComments(before) === stripComments(after)) out.add(change.path);
+    } catch {
+      // 读不出来（比如 base 上没有这个文件）就保守当「有改动」，照常跑。
+    }
+  }
+  return out;
 }
 
 function changedFiles(repo: string, base: string): ChangedFile[] {
@@ -185,7 +212,12 @@ function main(): void {
 
   const { ref: base, source } = resolveBase(repo, args.base || process.env.RED_FIRST_BASE || '');
   const changes = changedFiles(repo, base);
-  const plan = planTestChanges(changes);
+  const commentOnly = commentOnlyChanges(repo, base, changes);
+  for (const path of commentOnly) {
+    console.log(`red-first: skip ${path} — 只改了注释/空白/行号引用，行为无变化（base 上必绿，不是先红后绿）`);
+  }
+  const substantive = changes.filter((change) => !commentOnly.has(change.path));
+  const plan = planTestChanges(substantive);
 
   console.log(`red-first: base=${base} source=${source}`);
   if (plan.kind === 'skip') {
@@ -243,17 +275,26 @@ function main(): void {
       return;
     }
 
-    const kind = classifyBaseFailure(result.output);
-    if (kind !== 'assertion') {
-      console.error(`red-first: ERROR 非断言失败（分类=${kind}）；这次红不可采信，不放行。`);
-      if (kind === 'compile' && /does not provide an export named/.test(result.output)) {
+    const failure = explainBaseFailure(result.output);
+    if (failure.kind !== 'assertion') {
+      console.error(`red-first: ERROR 非断言失败（分类=${failure.kind}）；这次红不可采信，不放行。`);
+      // 分类扫的是全量输出，tail 只有最后 18 行——真因常在截掉的前面。
+      // 这里把命中的规则、行号、出错文件和上下文单独打出来。
+      console.error(
+        `red-first: 命中 /${failure.pattern}/ @ 输出第 ${failure.line} 行` +
+          (failure.file === null
+            ? '；输出里没解析到出错文件'
+            : `；出错文件 ${failure.file}${failure.fileLine === null ? '' : `:${failure.fileLine}`}`),
+      );
+      for (const line of failure.context) console.error(`red-first:   | ${line.trimEnd()}`);
+      if (failure.kind === 'compile' && /does not provide an export named/.test(result.output)) {
         console.error(
           'red-first: 提示：测试静态 import 了 base 上还不存在的新导出。' +
             '改为动态 import + `typeof fn === "function"` 断言（见 docs/OPEN_ISSUES.md B7）。',
         );
       }
       console.error(tail(result.output));
-      console.error(`red-first: RESULT=ERROR kind=${kind} elapsed=${Date.now() - started}ms`);
+      console.error(`red-first: RESULT=ERROR kind=${failure.kind} elapsed=${Date.now() - started}ms`);
       process.exitCode = 2;
       return;
     }
