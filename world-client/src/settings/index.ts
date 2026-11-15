@@ -11,6 +11,7 @@ import {
   siteTargetResolver,
 } from './load.ts';
 import { DENGCHAO_RAW } from './dengchao/pack.ts';
+import { EMPTY_RAW } from './empty-map/pack-empty.ts';
 import { PACE, dwellMsForSetting } from '../world/pace.ts';
 import type { RoutineBeatBase, RoutineBeat } from '../world/routines.ts';
 
@@ -37,7 +38,9 @@ export function selectSetting(search: string): SettingPack {
   const id = new URLSearchParams(search).get('world');
   if (id === null || id === '' || id === 'default') return useSetting(LEGACY_PACK);
   if (id === 'dengchao') return useSetting(loadSettingPack(DENGCHAO_RAW));
-  throw new Error(`没有这个设定集：${id}。可试 ?world=dengchao，或省略参数进入莞尔镇。`);
+  if (id === 'empty-map') return useSetting(loadSettingPack(EMPTY_RAW));
+  throw new Error(`没有这个设定集：${id}。可试 ?world=dengchao，或省略参数进入莞尔镇；` +
+    `空景设定集可试 ?world=empty-map。`);
 }
 
 export function worldForSetting(pack: SettingPack, buildings?: Parameters<typeof buildSettingWorld>[1]) {

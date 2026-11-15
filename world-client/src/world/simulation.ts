@@ -2498,7 +2498,7 @@ export class Simulation {
    *
    * 换档时从**当前浓淡**接着走，不清零：从雨转暴雨不该先停一下再下大。
    */
-  private setWeather(weather: Weather): CommandResult {
+  setWeather(weather: Weather): CommandResult {
     if (weather === this.weather.kind) {
       // `ok: false` 表示"世界没变"，与"命令被拒"是两回事；调用方只把 ok 当"变了"用。
       return { ok: false, message: WEATHER_ALREADY[weather] };
@@ -2625,7 +2625,7 @@ export class Simulation {
   }
 
   /** 玩家点名派活：世界按自己的法则判断这个人接不接得了，不无条件照办。 */
-  private assignTo(villagerId: string, taskKind: TaskKind, summary: string): CommandResult {
+  assignTo(villagerId: string, taskKind: TaskKind, summary: string): CommandResult {
     const villager = this.villagers.find((item) => item.id === villagerId);
     if (villager === undefined) {
       return { ok: false, message: `镇上没有 ${villagerId} 这个人。` };

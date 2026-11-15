@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "split": "held-out",
+  "spec": {
+    "behavior": "躲雨选址与回退、行礼中途重置、音效零外部素材与无头降级、7 人声线在设定集变体下的合法性、存档在躲雨+行礼中途读档续演",
+    "when": "户外存在多栋建筑、空旷无建筑、行礼倒计时中途收到新神谕、无 AudioContext（SSR/无头）环境调用音频模块、切换至其他设定集、或 saluteTicksRemaining 与 weather 同时处于临界值时",
+    "do": [
+      "H1: 户外存在多栋建筑时，确定性选取曼哈顿距离最近的建筑 door（同距按 buildingId 字典序破平局）并触发 rain-shelter",
+      "H2: 极端空旷地图无任何建筑时，躲雨规则回退为常规作息，不崩溃、不卡死寻路",
+      "H3: 行礼第 1 拍中途收到新神谕时，平滑重置 saluteTicksRemaining = 2 并补发光柱",
+      "H4: 无 AudioContext（无头/SSR）环境下调用 animalese 与 sfx，零异常静默降级",
+      "H5: 切换至「莞尔镇」等设定集时，7 人声线映射依然具备合法默认兜底，不硬编码 dengchao",
+      "H6: 在 saluteTicksRemaining === 1 且 weather === 'rain' 时存档读档，第 2 拍准确完成行礼并转入避雨/执行"
+    ],
+    "dont": [
+      "严禁在躲雨决策、行礼倒计时或音节哈希中使用 Date.now 或 Math.random",
+      "严禁在无 AudioContext 环境下抛出未捕获异常",
+      "严禁用固定开局硬编码躲雨/行礼坐标，只断言确定性选址与状态"
+    ],
+    "keepIntact": [
+      "所有保留集用例零页面报错，且音频为纯 Web Audio 合成、零外部音频网络请求",
+      "保存档字节完整保留 weather、saluteTicksRemaining 与 shelterTargetId，读档后无缝续演"
+    ]
+  },
+  "examples": [
+    {
+      "id": "H1",
+      "name": "shelterWithMultipleBuildingsPicksNearest",
+      "check": "rainShelter",
+      "env": { "world": "dengchao", "now": 600, "weather": "rain", "seed": "sensory-h1" },
+      "input": { "villagerId": "v_scout", "isOutdoor": true, "hasForcedOracle": false },
+      "expect": { "activeRule": "rain-shelter", "targetIsBuildingDoor": true, "targetBuildingId": "b_near" },
+      "mode": "spec"
+    },
+    {
+      "id": "H2",
+      "name": "shelterFallbackWhenNoBuildingAvailable",
+      "check": "rainShelterFallback",
+      "env": { "world": "empty-map", "now": 600, "weather": "rain", "seed": "sensory-h2" },
+      "input": { "villagerId": "v_scout", "isOutdoor": true, "hasForcedOracle": false },
+      "expect": { "fallbackActive": true },
+      "mode": "spec"
+    },
+    {
+      "id": "H3",
+      "name": "saluteInterruptedByNewOracleResetsToTwoTicks",
+      "check": "saluteResetOnNewOracle",
+      "env": { "world": "dengchao", "now": 620, "weather": "clear", "seed": "sensory-h3" },
+      "input": { "command": "assign", "villagerId": "v_elder" },
+      "expect": { "resetToTwoTicks": true, "beamActive": true },
+      "mode": "spec"
+    },
+    {
+      "id": "H4",
+      "name": "headlessNoAudioContextGracefulNoop",
+      "check": "proceduralSfx",
+      "env": { "world": "dengchao", "now": 620 },
+      "input": { "triggers": ["rainAmbience", "oracleChime", "buildComplete", "footstep"] },
+      "expect": { "allTriggersHandled": true, "audioNetworkRequests": 0 },
+      "mode": "spec"
+    },
+    {
+      "id": "H5",
+      "name": "guanerTownSettingVoiceMapping",
+      "check": "animaleseProfiles",
+      "env": { "world": "guaner", "now": 620 },
+      "input": { "sampleText": "神谕已至" },
+      "expect": { "uniqueProfileCount": 7, "deterministicPitchSeries": true },
+      "mode": "spec"
+    },
+    {
+      "id": "H6",
+      "name": "saveReloadMidSaluteAndRain",
+      "check": "saveSchemaIntact",
+      "env": { "world": "dengchao", "now": 600 },
+      "input": { "villagerId": "v_elder", "wasSheltering": true },
+      "expect": { "persistedFields": ["weather", "saluteTicksRemaining", "shelterTargetId"] },
+      "mode": "spec"
+    }
+  ]
+}

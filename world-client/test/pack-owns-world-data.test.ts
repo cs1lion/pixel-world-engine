@@ -205,7 +205,7 @@ const CODE = new Map(FILES.map((f) => [f, codeKeepStrings(f)]));
  * 引擎文件里今天确实没有世界数据字面量。所以收窄不是"修一处红"，是把排除的
  * 理由从"这个目录"改成"这一份是包数据"——明天谁把数据写进 `load.ts`，它会响。
  */
-const isPackFile = (file: string) => rel(file) === 'settings/dengchao/pack.ts';
+const isPackFile = (file: string) => /^settings\/[^/]+\/pack.*\.ts$/.test(rel(file));
 
 // ------------------------------------------------------------------ 判据一：色值
 

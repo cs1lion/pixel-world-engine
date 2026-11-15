@@ -7,7 +7,8 @@ import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.ts';
 import { drawGroundDecals } from '../render/decal.ts';
-import { Simulation, type MiracleKind, type NewBuilding } from '../world/simulation.ts';
+import { SensorProbe } from '../ui/sensory-probe.ts';
+import { Simulation, type MiracleKind, type NewBuilding, type SimulationDeps } from '../world/simulation.ts';
 import type {
   CommandResult,
   GridPoint,
@@ -111,7 +112,6 @@ import {
   type BuildingBakeLayerReading,
 } from '../render/buildings.ts';
 import { contactAoUnknownBaseCount } from '../render/contact-ao.ts';
-import { actorDepth } from '../render/ground.ts';
 import {
   createVillager,
   drawVillagerGroundShadow,
@@ -121,6 +121,7 @@ import {
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
+import { actorDepth } from '../render/ground.ts';
 import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
@@ -1525,7 +1526,7 @@ export class SandboxScene extends Phaser.Scene {
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
-    void this.registerCreatorDebugBridge();
+    void this.registerCreatorDebugBridge(simDeps);
     this.connectFeed();
   }
 
@@ -1539,7 +1540,7 @@ export class SandboxScene extends Phaser.Scene {
    * 施工联动只做视图刷新：每拍把台账里的阶段刷到已有 `BuildingEntry.view` 上，
    * 不新建容器、不改 back/container/front 三层深度。
    */
-  private async registerCreatorDebugBridge(): Promise<void> {
+  private async registerCreatorDebugBridge(simDeps: SimulationDeps): Promise<void> {
     const params = new URLSearchParams(window.location.search);
     if (params.get('debug') !== '1' && params.get('debug') !== '') return;
     // 动态 import 有两个理由：① 调试桥不进生产主 bundle（只有 `?debug=1` 才加载）；
@@ -1576,7 +1577,15 @@ export class SandboxScene extends Phaser.Scene {
         return { layers, artLayers };
       },
     });
-    (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__ = bridge;
+    const probe = new SensorProbe({
+       sim: this.sim,
+
+      simDeps,
+      bridge,
+    });
+    // 感官评测面收敛在上层（world 内核不能 import 上层）：window 上挂探针，除感官方法外
+    // 把造物命令与存档读法委托给桥，两条路径读同一份世界真值。
+    (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__ = probe;
   }
 
   /**

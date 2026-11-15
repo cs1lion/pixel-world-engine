@@ -2,29 +2,37 @@
 
 ## 当前断点
 
-- 最后 HEAD: `299bc8b` (`origin/main`)——**PR #47 已合入 main**（merge commit `299bc8b`）；
-  本地分支 `feat/light-bake` 的 `9a77663` 已被包含，落后 main 一笔
-- 合入后 main 的 push CI：run `43572850706` **四项全 success**（server / repo-harness / world-client / world-client-browser）
-- 未提交改动: 只剩用户原有的四处改动；本单的作业已全部提交并推送：
+- 最后 HEAD: `2e3ad7f` (`chore/branch-hygiene`)，基于 `8bc6f17`（PR #51 台阶收敛、#52 夹具回放溯源已合入 main）；
+  本单感官评测（优先级 1 `feat/sensory-vfx-audio`）为未提交实现（落在此工作树，见未提交改动）。
+- 未提交改动: `git status --short` 摘要——
+  - modified: `docs/WORKTREES.md`、`docs/evidence/PROGRESS.md`、`world-client/src/audio/animalese.ts`、
+    `world-client/src/scenes/SandboxScene.ts`、`world-client/src/settings/index.ts`、
+    `world-client/src/world/behavior-rules.ts`、`world-client/src/world/simulation.ts`、
+    `world-client/test/pack-owns-world-data.test.ts`；
+  - untracked（感官评测 Phase 2 产物）: `world-client/eval/sensory/`、`world-client/scripts/eval-sensory.mjs`、
+    `world-client/src/audio/sfx.ts`、`world-client/src/render/fx-layer.ts`、
+    `world-client/src/settings/empty-map/`、`world-client/src/ui/sensory-probe.ts`、
+    `world-client/test/sensory-eval.test.ts`；
+  - 另有用户原有未跟踪图片与请求 json（未碰，本单不新增任何图片素材请求）。
+- 已跑闸门（2026-11-15 最新读数，优先级 1 Phase 2 全量 17 道闸门全绿）: check ✅ / test ✅ 2749 项（0 fail）/
+  build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / fixture:check ✅（6 条夹具 195 项）/
+  red:first SKIP（本分支无测试改动）/ ports ✅ / baseline ✅ / ledger ✅（metrics=25）/
+  verify-ledger-selfcheck ✅ / screens selfcheck ✅（5/5 预期）/ pytest ✅；
+  另 `worktrees-audit --strict` ✅、`audit:reports` ✅。感官评测 `eval-sensory.mjs` 16/16 全绿（main 10 + held-out 6）。
+- 未跑/失败: 无。
+- 下一步命令: 优先级 1 先提交并建 `feat/sensory-vfx-audio` 分支提 PR，审查通过后再拉取优先级 2。
 
-```text
- M .githooks/pre-push
- M CLAUDE.md
- M docs/RESUME.md
- M docs/evidence/ENVIRONMENT_BUILDABILITY.md
-?? .workbuddy/ 等未跟踪图片（用户原有，本单未碰）
-```
+## 优先级 1 感官评测（`feat/sensory-vfx-audio`）Phase 2 收口
 
-- 已跑闸门: check ✅ 0/0 / test ✅ 2736 项（2727 pass、0 fail、9 skip）/ build ✅ /
-  red:first ✅（合并后 base=355ec75，`PASS/RESULT=RED`）/ ports ✅ 0 处禁用端口 /
-  palette ✅ / references ✅ 559 处 0 存疑 / citations ✅ 4444 处 0 未解析 /
-  sections ✅ / claims ✅ markers=3、adr-schema 24/24 / audit:orphan-gates ✅ 0 未登记 /
-  pytest ✅ / 评分器 ✅ 生产组 10/10 + 规格组 6/6
-- 未跑/失败: 无。外环**跨日提议**仍未取证（`speed=1` 下一个世界日 = 24 小时现实时间），
-  没有伪造读数。
-- P1 评审 minor checks 已收口：最后一拍 await、读数冻在同一份快照、缓存上限回退为无脚注、
-  虚拟世界钟、CSS 长文本兜底、ADR 行号改符号名；`test/creator-landing-hardening.test.ts` 8 条钉住。
-- 下一步命令: `cd world-client && npm test && npm run check`
+- 2026-11-15：red:first 落盘后完成增量实现（行为规则 rain-shelter、fx-layer 金色光柱+2 拍行礼、
+  animalese 7 人声线、sfx 零外部素材+无头降级、debug-bridge 接入评测探针）并逐项修类型/口径；
+  因 phase 纯净规则（world 内核不 import 上层），感官评测面整体收进上层 `src/ui/sensory-probe.ts`，
+  world 桥只保留造物命令与存档读法，探针委托桥透传其余方法。
+- 无建筑回退（H2）：新增 `src/settings/empty-map/` 空景设定集（7 位村民、0 建筑落点，复用莞尔镇网格与 24 色、
+  `sites` 置空以避开建筑锚），`selectSetting` 注册 `world=empty-map`；`eval-sensory.mjs` 在 held-out 的 H2
+  先切到该世界再评测，确保「无建筑回退」是真实命中而非空指针假绿。
+- 全量验收：`eval-sensory.mjs` 16/16；`npm test` 2749 项全绿；17 道 CI 闸门全绿。
+- 细节与口径见 `docs/iterations/` 对应迭代记录（如已建）；工作树改动见上方「未提交改动」。
 
 **P1 已开工并落地一小步**（2026-11-14）：核实时发现 P1 的主体**main 已经做过**——
 `SandboxScene.recordUnplannedLanding` 早就把神谕/世界入口的落地也跑业务规则并写进造物账本，

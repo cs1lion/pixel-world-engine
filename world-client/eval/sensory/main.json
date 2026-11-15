@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "split": "main",
+  "spec": {
+    "behavior": "实时下雨进屋躲雨、神谕光柱行礼过渡、7人千人千音与零外部素材程序化音效",
+    "when": "切换 weather='rain'、触发神谕/面板指令或村民说话/劳作时",
+    "do": [
+      "M1: weather='rain' 且无强制神谕时，户外村民在 1 个逻辑拍内切换为 rain-shelter 并寻路至最近建筑 door",
+      "M2: 正在执行强制神谕（assign）的村民不被 rain-shelter 打断，继续完成当前神谕目标",
+      "M3: 收到神谕或面板动作时，fx-layer 触发金色像素光柱，村民先锁定 2 个逻辑拍执行 salute 行礼再开始寻路",
+      "M4: 7 位村民各自拥有唯一 voiceProfile（basePitch/wave/speedScale），Animalese 频率随角色与字符哈希确定性变化",
+      "M5: ProceduralSfxEngine 支持雨声白噪声、神谕钟声、建造琶音与步态轻音，且零外部音频网络请求",
+      "M6: 晴天恢复（weather='clear'）后，躲雨村民退出室内恢复常规作息或预覆盖规则"
+    ],
+    "dont": [
+      "严禁在躲雨决策、行礼倒计时或音节哈希中使用 Date.now 或 Math.random",
+      "严禁在无 AudioContext（如 Node/无头浏览器）环境下抛出未捕获异常"
+    ],
+    "keepIntact": [
+      "K1: 躲雨与光柱演出期间，单逻辑拍平均耗时小于 16.6ms",
+      "K2: ?art=0 模式下保持零外部图片与音频文件请求",
+      "K3: 相同初始存档与相同天气/神谕事件序列重放两次，状态哈希 100% 一致",
+      "K4: save-store 存档字节完整保留躲雨目标与 salute 剩余拍数，读档后无缝续演"
+    ]
+  },
+  "examples": [
+    {
+      "id": "M1",
+      "name": "outdoorVillagerSheltersOnRain",
+      "check": "rainShelter",
+      "env": { "world": "dengchao", "now": 600, "weather": "rain", "seed": "sensory-m1" },
+      "input": { "villagerId": "v_scout", "isOutdoor": true, "hasForcedOracle": false },
+      "expect": { "activeRule": "rain-shelter", "targetIsBuildingDoor": true, "bubbleTag": "rain_shelter" }
+    },
+    {
+      "id": "M2",
+      "name": "forcedOracleNotInterruptedByRain",
+      "check": "rainOraclePriority",
+      "env": { "world": "dengchao", "now": 600, "weather": "rain", "seed": "sensory-m2" },
+      "input": { "villagerId": "v_smith", "isOutdoor": true, "hasForcedOracle": true },
+      "expect": { "activeRuleNot": "rain-shelter", "oraclePreserved": true }
+    },
+    {
+      "id": "M3",
+      "name": "oracleBeamAndTwoTickSalute",
+      "check": "oracleSalute",
+      "env": { "world": "dengchao", "now": 620, "weather": "clear", "seed": "sensory-m3" },
+      "input": { "command": "assign", "villagerId": "v_elder" },
+      "expect": { "beamFxTriggered": true, "saluteTicksRemainingAtTick0": 2, "saluteTicksRemainingAtTick2": 0 }
+    },
+    {
+      "id": "M4",
+      "name": "sevenDistinctVillagerVoiceProfiles",
+      "check": "animaleseProfiles",
+      "env": { "world": "dengchao", "now": 620 },
+      "input": { "sampleText": "神谕已至" },
+      "expect": { "uniqueProfileCount": 7, "deterministicPitchSeries": true }
+    },
+    {
+      "id": "M5",
+      "name": "proceduralSfxZeroExternalAudio",
+      "check": "proceduralSfx",
+      "env": { "world": "dengchao", "now": 620 },
+      "input": { "triggers": ["rainAmbience", "oracleChime", "buildComplete", "footstep"] },
+      "expect": { "allTriggersHandled": true, "audioNetworkRequests": 0 }
+    },
+    {
+      "id": "M6",
+      "name": "rainClearsResumesRoutine",
+      "check": "rainClearResume",
+      "env": { "world": "dengchao", "now": 660, "weather": "clear", "seed": "sensory-m6" },
+      "input": { "villagerId": "v_scout", "wasSheltering": true },
+      "expect": { "exitedShelter": true, "activeRuleNot": "rain-shelter" }
+    },
+    {
+      "id": "K1",
+      "name": "stepBudgetWithin16Ms",
+      "check": "worldStillRuns",
+      "env": { "world": "dengchao", "now": 600, "weather": "rain" },
+      "expect": { "clockAdvanced": true, "maxAvgStepMs": 16.6 }
+    },
+    {
+      "id": "K2",
+      "name": "artOffZeroExternalRequests",
+      "check": "artOffZeroRequests",
+      "env": { "world": "dengchao", "now": 600, "art": 0 },
+      "expect": { "imageNetworkRequests": 0, "audioNetworkRequests": 0 }
+    },
+    {
+      "id": "K3",
+      "name": "deterministicReplayBitExact",
+      "check": "deterministicReplay",
+      "env": { "world": "dengchao", "now": 600, "seed": "sensory-replay-99" },
+      "expect": { "stateHashMatch": true }
+    },
+    {
+      "id": "K4",
+      "name": "saveRoundtripPreservesSensoryState",
+      "check": "saveSchemaIntact",
+      "env": { "world": "dengchao", "now": 600 },
+      "expect": { "persistedFields": ["weather", "saluteTicksRemaining", "shelterTargetId"] }
+    }
+  ]
+}

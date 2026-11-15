@@ -62,6 +62,14 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/villager-decision-client.test.ts',
     reason: '人物决策运输侧：依赖 src/world/villager-decision-client.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件；世界侧仍在 test/villager-decision.test.ts 真出红',
   },
+  {
+    file: 'test/sensory-eval.test.ts',
+    reason: '感官评测防假绿用例：依赖本次新增的 src/render/fx-layer.ts、src/audio/sfx.ts（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件，base 上会因缺模块报 ERROR 而非断言红',
+  },
+  {
+    file: 'test/pack-owns-world-data.test.ts',
+    reason: '设定集包归属判定适配：为新增的 empty-map 设定集放宽 isPackFile，该适配在 base（无 empty-map）上行为不变、仍全绿，base 上无红可证',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
