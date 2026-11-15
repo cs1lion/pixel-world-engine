@@ -18,6 +18,7 @@
 import { artBuildingScale, artKey, artScaleOf, hasArt } from './art-assets.ts';
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
+import { groundTopY } from './ground.ts';
 import type { PlacedBuilding, WorkstationSnapshot } from '../world/types.ts';
 import { paletteFor, type WorldColor, type WorldPalette } from '../world/theme.ts';
 import { BUILDING_DEPTH, buildingBaseY, layerDepth } from './building-depth.ts';
@@ -198,7 +199,7 @@ export function createBuilding(
   groundBase?: number,
 ): BuildingView {
   const px = originX + building.origin.x * TILE_PX;
-  const py = originY + building.origin.y * TILE_PX;
+  const py = originY + groundTopY(building.origin.y);
   const w = building.footprint.w * TILE_PX;
   const h = building.footprint.h * TILE_PX;
   // 三层容器同一个 (px, py)：内部坐标与单容器时代完全一致，只有 depth 不同。

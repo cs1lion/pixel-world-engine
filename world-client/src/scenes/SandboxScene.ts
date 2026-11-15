@@ -111,13 +111,13 @@ import {
   type BuildingBakeLayerReading,
 } from '../render/buildings.ts';
 import { contactAoUnknownBaseCount } from '../render/contact-ao.ts';
+import { actorDepth } from '../render/ground.ts';
 import {
   createVillager,
   drawVillagerGroundShadow,
   updateVillager,
   VILLAGER_H,
   VILLAGER_W,
-  villagerDepthAt,
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
@@ -4695,7 +4695,7 @@ export class SandboxScene extends Phaser.Scene {
         return {
           x: foot.x,
           y: foot.y,
-          depth: villagerDepthAt(foot.y, ALTITUDE),
+          depth: actorDepth(cell.y, ALTITUDE),
           w: VILLAGER_W,
           h: VILLAGER_H,
         };

@@ -312,6 +312,13 @@ export interface TraceBusiness {
 
 export interface TraceFile extends TraceInput {
   readonly recorded: TraceRecorded;
+  /**
+   * 录制时的 git HEAD（40 位十六进制），与 `recorded` 并排。
+   *
+   * 只作提示，不参与 `inputDigest`、指纹或任何校验：旧夹具没有这个字段，
+   * 回放时按「录制 commit 不可考」处理；与当前 HEAD 不一致也不判红。
+   */
+  readonly recordedAtCommit?: string;
 }
 
 /** 旧格式能读到哪一层、缺了什么。CLI 与生成器都照这一句说人话。 */

@@ -24,6 +24,7 @@ import {
   TraceFormatError,
   validateTrace,
 } from './format.ts';
+import { headCommit } from './provenance.ts';
 import type {
   TraceBusiness,
   TraceCheckpoint,
@@ -258,7 +259,11 @@ export async function recordTrace(input: TraceInput, options: RecordOptions = {}
       ? {}
       : { creator: { fingerprint: captured.creator.fingerprint, business: captured.creator.business } }),
   };
-  const file: TraceFile = { ...inputOf(input), recorded };
+  const commit = headCommit();
+  if (commit === null) {
+    throw new TraceFormatError('录制需要 git HEAD 作为 commit 锚，但当前目录不在 git 仓库里');
+  }
+  const file: TraceFile = { ...inputOf(input), recordedAtCommit: commit, recorded };
   return options.captureSave === true
     ? { ...file, artifacts: { save: runtime.save() } }
     : file;

@@ -6,10 +6,10 @@
  * **没有任何回归保护** —— 当时那 15 项断言是临时的、没入库。QA 指出这是真问题。
  * 这里把算术抽出来，`building-depth.test.ts` 就能直接锁住它。
  *
- * 角色一侧的口径（`villager.ts` 的 `villagerDepthAt`）：
- * `depth = ALTITUDE + 脚底 + 8`，其中 `脚底 = (pos.y + 1) * TILE_PX`。
- * 抽成 `actorDepthAt` 是为了能在 Node 里验算，那边怎么算仍以 `villager.ts` 为准——
- * 改一处必须改两处。
+ * 角色与深度公式的唯一来源是 `ground.ts`：
+ * `depth = ALTITUDE + (行号 + 1) * TILE_PX + 8`（抬层再减 `level × 0.5`）。
+ * 这里的 `actorDepthAt` 只是同一函数的转出，`villager.ts` 也调 `ground.actorDepth`——
+ * 阶段 0 起不再有两份平行写法。
  *
  * （这里原来写着两个行号，指的是同一行代码。它们在 2026-10-27 我往
  * `villager.ts` 文件头加了一段说明之后集体失效——那行现在在更下面，
@@ -18,9 +18,10 @@
  */
 
 import { TILE_PX } from '../world/setup.ts';
+import { ACTOR_DEPTH_OFFSET, actorDepth } from './ground.ts';
 
-/** 角色 depth 的偏移量，与 villager.ts 保持一致。改一处必须改两处。 */
-export const ACTOR_DEPTH_OFFSET = 8;
+/** 角色 depth 的偏移量（由 `ground.ts` 定义，这里转出给旧调用方/测试）。 */
+export { ACTOR_DEPTH_OFFSET };
 
 /**
  * 各层相对建筑落地线 baseY 的像素偏移。front 的推导见下方 frontOffset 说明。
@@ -35,9 +36,9 @@ export function buildingBaseY(originY: number, footprintH: number): number {
   return originY + footprintH * TILE_PX;
 }
 
-/** 角色站在某个格子上时的 depth。 */
-export function actorDepthAt(gridY: number, altitude: number): number {
-  return altitude + (gridY + 1) * TILE_PX + ACTOR_DEPTH_OFFSET;
+/** 角色站在某个格子上时的 depth（转出 `ground.actorDepth`，level 默认 0）。 */
+export function actorDepthAt(gridY: number, altitude: number, level = 0): number {
+  return actorDepth(gridY, altitude, level);
 }
 
 /** 建筑某一层的 depth。 */

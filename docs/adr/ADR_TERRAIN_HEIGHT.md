@@ -661,7 +661,8 @@ world.terrainEdits: readonly {
 | `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:124` / `:134` |
 | `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:88` / `:100` |
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
-| `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
+| `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts`（按函数名 grep；公式本体已搬到 `ground.ts`） |
+| `groundTopY` / `groundY` / `actorDepth` | `world-client/src/render/ground.ts`（本次新增，按符号名 grep） |
 | `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:303` |
 | 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |

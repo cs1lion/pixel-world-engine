@@ -4,12 +4,14 @@
  * 要证明的事：**等待时长不再进入画面**。
  *
  * 对照组：
- *   - 四钉（时刻 / 潮位 / 相机 / 缩放）+ 冻结前等待 1200ms 与 2800ms
- *     —— 这是钉住之前的三跑 0 差来源：等站定等来的，等待一变就破；
- *   - 五钉（再加 `pinActors`）+ 等待 1200 / 2800 / 5000ms
- *     —— 三档必须逐像素 0 差；
+ *   - `four-*`：**四钉（时刻 / 潮位 / 相机 / 缩放）+ 呈现态三钉**
+ *     （`pinActors` / `pinTrails` / `pinWeather`），等待 1200 / 2800ms
+ *     —— 名字沿用历史的「四钉」夹具，但渲染输入已全部钉住，三档必须逐字节 0 差；
+ *   - `five-*`：同一套钉，等待 1200 / 2800 / 5000ms，三档必须逐字节 0 差；
+ *   - `bare-*`：只签四钉、呈现态不钉 —— 历史负控，证明缺钉时等待/启动相位会进画面。
+ *     它跨进程本来就不稳定，只作对照，**不参与「0 差」结论**；
  *   - 反向用例：五钉里把莞尔的坐标故意偏移 1 格，必须判红，且差异块落在
- *     该角色的屏幕包围盒内。
+ *     该角色的屏幕包围盒内；痕迹反向用例只挪一格。
  *
  * 只拍 `#app canvas`：DOM overlay（名字/气泡）与纸面不在画布里，第五枚钉子
  * 管的是渲染层；画布正好 960×640，两跑尺寸必须一致。
@@ -53,6 +55,11 @@ const FIVE_WAITS = [1200, 2800, 5000];
 const TRAIL_PINS = [{ at: { x: 49, y: 36 }, strength: 2 }];
 /** trail 反向用例：只把这一格往西挪一格，其余一字不动。 */
 const TRAIL_SHIFT = [{ at: { x: 48, y: 36 }, strength: 2 }];
+/**
+ * 第七枚钉：雨幕呈现态。冻结时 `weatherIntensity` 已经是 0（dawn、feed=off），
+ * 但雨滴相位仍按真实帧 delta 累加——不钉的话等待时长会留下不同的粒子残余。
+ */
+const WEATHER_PIN = { intensity: 0, frames: 0 };
 
 /** 把 `#stage` 的绘制原点钉到整数 CSS 像素（与 smoke.mjs 同口径）。 */
 const snapStage = (page) =>
@@ -105,7 +112,8 @@ const results = [];
 const pngBytes = new Map();
 
 /**
- * 一次抓拍。`pin` 为 null = 只四钉；否则是五钉的角色集合。
+ * 一次抓拍。`pin` 为 null = bare 组（呈现态全裸，只留四钉）；
+ * 否则钉住角色、痕迹与雨幕三枚呈现态。
  */
 async function capture({
   name,
@@ -113,7 +121,9 @@ async function capture({
   pin,
   shift = 0,
   trails = TRAIL_PINS,
+  weather = WEATHER_PIN,
 }) {
+  // pin=null 的 bare 组连呈现态一起裸；其余组默认三钉全上。
   const context = await browser.newContext({ viewport: { width: 1010, height: 940 } });
   const page = await context.newPage();
   const errors = [];
@@ -138,13 +148,14 @@ async function capture({
   await page.waitForTimeout(waitMs);
 
   const before = await page.evaluate(
-    ({ actors, minuteMs, anchor, tile, dayMs, trailPins }) => {
+    ({ actors, minuteMs, anchor, tile, dayMs, trailPins, weatherPin }) => {
       const snapshot = window.Oracle.view();
       window.Oracle.freezeWorldClock();
       const now = Math.floor(snapshot.now / dayMs) * dayMs + minuteMs;
       window.Oracle.pinShotState(now, 0);
       if (actors !== null) window.Oracle.pinActors(actors);
       if (trailPins !== null) window.Oracle.pinTrails(trailPins);
+      if (weatherPin !== null) window.Oracle.pinWeather(weatherPin.intensity, weatherPin.frames);
       window.Oracle.setCameraMode('free');
       window.Oracle.centerCameraOn(anchor.x * tile, anchor.y * tile);
       const cam = window.Oracle.camera();
@@ -179,6 +190,7 @@ async function capture({
       tile: TILE_PX,
       dayMs: DAY_MS,
       trailPins: trails,
+      weatherPin: weather,
     },
   );
 
@@ -194,6 +206,7 @@ async function capture({
     fivePin: pin !== null,
     shift,
     trails,
+    weather,
     before,
     errors,
     bytes: shot.length,
@@ -211,10 +224,11 @@ async function capture({
 await mkdir(OUT, { recursive: true });
 
 const first = await capture({
-  name: 'four-1200',
+  name: 'bare-1200',
   waitMs: FOUR_WAITS[0],
   pin: null,
   trails: null,
+  weather: null,
 });
 // 确认默认世界就是两个角色；多出来的角色没钉住会污染「等待无关」的结论。
 if (first.before.villagers.length !== 2) {
@@ -225,7 +239,10 @@ if (first.before.villagers.length !== 2) {
 }
 
 for (const waitMs of FOUR_WAITS.slice(1)) {
-  await capture({ name: `four-${waitMs}`, waitMs, pin: null, trails: null });
+  await capture({ name: `bare-${waitMs}`, waitMs, pin: null, trails: null, weather: null });
+}
+for (const waitMs of FOUR_WAITS) {
+  await capture({ name: `four-${waitMs}`, waitMs, pin: true });
 }
 for (const waitMs of FIVE_WAITS) {
   await capture({ name: `five-${waitMs}`, waitMs, pin: true });
@@ -240,20 +257,22 @@ await browser.close();
 
 /*
  * 逐字节负控：像素读数由 `screens-diff.py` 出，这里只做二值判定。
- *   - 三档等待：必须与 five-1200 逐字节相同（改一处就抛）；
- *   - 两条反向用例：必须与 five-1200 不同（变成空操作就抛）。
+ *   - 全部呈现态钉住的等待档（four / five）：必须与 four-1200 逐字节相同；
+ *     连跨组（four-1200 vs five-1200）也必须相同——等待时长不许进入画面；
+ *   - 两条反向用例：必须与 four-1200 不同（变成空操作就抛）；
+ *   - bare-* 不参与：它故意不钉呈现态，跨进程本来就会差。
  * 判据用字节而不是「近似相等」：同一像素数组的 PNG 编码是确定的。
  */
-const baseline = pngBytes.get('five-1200');
-for (const name of ['five-2800', 'five-5000']) {
+const baseline = pngBytes.get('four-1200');
+for (const name of ['four-2800', 'five-1200', 'five-2800', 'five-5000']) {
   if (!baseline.equals(pngBytes.get(name))) {
-    throw new Error(`${name} 必须与 five-1200 逐字节相同，实测不同`);
+    throw new Error(`${name} 必须与 four-1200 逐字节相同，实测不同`);
   }
 }
 for (const name of ['five-shift', 'trail-shift']) {
   if (baseline.equals(pngBytes.get(name))) {
-    throw new Error(`${name} 是反向用例，必须与 five-1200 不同，实测相同`);
+    throw new Error(`${name} 是反向用例，必须与 four-1200 不同，实测相同`);
   }
 }
-console.log('逐字节负控：三档等待全同；两条反向全异');
+console.log('逐字节负控：four/five 全部等待档全同；两条反向全异；bare-* 只记录');
 console.log(`\n抓拍完成：${OUT}`);
