@@ -67,6 +67,10 @@ jobs:
       # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
       - run: pip install numpy==2.5.1 pillow==12.3.0
       - run: python scripts/verify-screens-diff-selfcheck.py
+      # 交付报告机器可读块的审计（R1–R7，规则见 docs/agents/reporting.md）。
+      # R6 只认 git 提交时间，不设 mtime / reportedAt 兜底；任一侧取不到可信提交时间时
+      # 如实记为未核验（不判红），让「没核到」可见而不是悄悄当通过。
+      - run: npm run audit:reports
 
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。

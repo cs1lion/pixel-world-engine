@@ -31,7 +31,7 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 服务端在 `server/`，CI 有第二个 job：`pip install -r requirements.txt` 然后
 `python -m pytest`。
 
-**这几条要一起跑，别只跑前两条。** CI 现在跑**十六道闸门**：前端 job 十五道，
+**这几条要一起跑，别只跑前两条。** CI 现在跑**十七道闸门**：前端 job 十五道，
 服务端 job 一道。后七道（色板 + 三份审引用 + `audit-claims` + 两条指标账本）的输出
 有个共同性质：**断言对不上、节号不存在、色板超预算、夹具回放漂了，全都只让输出变长，
 不会让 `check`/`test` 变红。** 所以只跑前三条的人会以为自己是绿的，而后面十几道
@@ -56,10 +56,11 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 | 14 | 指标账本自检 | `node scripts/verify-ledger-selfcheck.ts` | 前端 job |
 | 15 | 截图比对自检 | `python scripts/verify-screens-diff-selfcheck.py` | 前端 job |
 | 16 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
+| 17 | 交付报告审计 | `npm run audit:reports` | 前端 job |
 
 CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
 `test:building-bake` / `test:art-assets` / `test:phases`，只读、写到 runner
-临时目录）。它是验收，不在这十六道计数里。
+临时目录）。它是验收，不在这十七道计数里。
 
 ## 权限边界（远端 + 本地）
 
