@@ -20,7 +20,7 @@
  *     语义、计数与 20 世界秒的重试间隔都和旧 `avoiding` 逐字相同。
  */
 
-import type { GridPoint } from './types.ts';
+import type { GridPoint, Weather } from './types.ts';
 import type { BehaviorRule } from './behavior.ts';
 
 export const VERIFICATION_RULE: BehaviorRule = {
@@ -113,3 +113,72 @@ export const AVOIDANCE_GUARD: RoutineGuard = {
 };
 
 export const ROUTINE_GUARDS: readonly RoutineGuard[] = [AVOIDANCE_GUARD];
+
+/**
+ * 躲雨选址（rain-shelter）：下雨 + 户外 + 无强制神谕 + 有建筑时，确定性选最近建筑门。
+ *
+ * 这是 `world-client/eval/sensory` 的确定性选址判据：`scripts/eval-sensory.mjs`
+ * 通过调试桥用它算出 `activeRule` / `shelterTargetId` / `targetDoor` / `bubbleTag`。
+ * 世界侧的避雨执行（`simulation.ts` 的 `scatterToShelter`）用同一套选址规则驱动，
+ * 两处共用同一份纯函数，避免「牌子说的落点」与「脚走的落点」不一致。
+ *
+ * 严格约束：零 `Math.random()`、零 `Date.now()`、零外部音频请求——选址只看
+ * 已有建筑门点的曼哈顿距离与 id 字典序。
+ */
+export interface BuildingDoorRef {
+  readonly id: string;
+  readonly door: GridPoint;
+}
+
+export interface RainShelterDecision {
+  readonly triggered: boolean;
+  readonly rule: 'rain-shelter' | null;
+  readonly targetBuildingId: string | null;
+  readonly targetDoor: GridPoint | null;
+  readonly bubbleTag: 'rain_shelter' | null;
+}
+
+/**
+ * 实时下雨躲雨规则。
+ *
+ * 返回值即「这一拍躲雨判定」：`triggered === true` 表示户外村民应进入 `rain-shelter`。
+ * 晴天 / 强制神谕在身 / 无建筑 三种情况一律不触发，且不返回伪落点。
+ */
+export function evaluateRainShelterRule(input: {
+  readonly weather: Weather;
+  readonly villager: {
+    readonly id: string;
+    readonly pos: GridPoint;
+    readonly isOutdoor: boolean;
+    readonly hasForcedOracle: boolean;
+  };
+  readonly buildings: readonly BuildingDoorRef[];
+}): RainShelterDecision {
+  const { weather, villager, buildings } = input;
+  if (weather !== 'rain' || !villager.isOutdoor || villager.hasForcedOracle || buildings.length === 0) {
+    return { triggered: false, rule: null, targetBuildingId: null, targetDoor: null, bubbleTag: null };
+  }
+
+  // 确定性选取曼哈顿距离最近的建筑门点，距离相同时按 id 字典序破平局。
+  let best: BuildingDoorRef | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const b of buildings) {
+    const dist = Math.abs(b.door.x - villager.pos.x) + Math.abs(b.door.y - villager.pos.y);
+    if (dist < bestDist || (dist === bestDist && best !== null && b.id < best.id)) {
+      best = b;
+      bestDist = dist;
+    }
+  }
+
+  if (best === null) {
+    return { triggered: false, rule: null, targetBuildingId: null, targetDoor: null, bubbleTag: null };
+  }
+  return {
+    triggered: true,
+    rule: 'rain-shelter',
+    targetBuildingId: best.id,
+    targetDoor: { ...best.door },
+    bubbleTag: 'rain_shelter',
+  };
+}
+
