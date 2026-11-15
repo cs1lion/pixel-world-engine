@@ -486,7 +486,7 @@
 **部分存在**
 
 - 有路径意识，没有风险等级。
-- 有 CODEOWNERS，没有 required review（远端分支保护不可用，见 `CLAUDE.md` 的「权限边界」一节）。
+- 有 CODEOWNERS，没有 required review（远端已要求「必须走 PR」，但 approval 数为 0，见 `CLAUDE.md` 的「权限边界」一节）。
 - PR 模板没有 `Blast-Radius:` 字段。
 
 **完全没有**
@@ -589,11 +589,11 @@
 - `.github/CODEOWNERS` 按路径指定 reviewer，但所有路径都是 `@cs1lion`。
 - `.github/pull_request_template.md` 要求「改了什么 / 为什么 / 验证命令与读数」。
 - `.githooks/pre-push` 拒绝任何以 `refs/heads/main` 为目标的 push；`scripts/check-hooks.mjs` 把「钩子是否安装」变成可跑、可红的读数；CI 的 `repo-harness` job 会先读一次未安装状态，再安装并复核。
-- `CLAUDE.md` 的「权限边界」写明：远端分支保护 API 当前返回 404，所以把 main 的直推边界放在本地。
+- `CLAUDE.md` 的「权限边界」写明：**2026-11-09 起** main 已开远端保护（PR + 四项检查 + 禁强推/删除 + `enforce_admins`）；此前记的「API 返回 404」是误判——404 的意思是「分支未受保护」，不是没权限。本地 `.githooks/pre-push` 仍在，作为第二道。
 
 **部分存在**
 
-- 保护只覆盖「直推 main」，不覆盖「作者自己合并自己的分支」。本仓的实际合并是本地 `--no-ff` 合 main，然后 `PWE_ALLOW_PUSH_MAIN=1` push；`git log --merges` 里没有 PR 号。**作者、合并者、推送者是同一个人/同一个 AI。**
+- 保护自 2026-11-09 起覆盖「必须走 PR + 四项检查全绿 + 禁强推/删除」，但仍不覆盖「作者自己合并自己的分支」（approval 数为 0，单人仓做不到非作者 approve）。2026-11-09 之前的实际合并是本地 `--no-ff` 合 main 再 `PWE_ALLOW_PUSH_MAIN=1` push，`git log --merges` 里没有 PR 号。**作者、合并者、推送者是同一个人/同一个 AI。**
 - `CODEOWNERS` 只有走 PR 才触发；没有 PR，它等于没写。
 - `pre-push` 的 `PWE_ALLOW_PUSH_MAIN=1` 在 2026-11-07 之前于脚本开头直接 `exit 0`，**整条 pre-push 被跳过**（不只是 main 保护），blast radius、review trailer 等未来加在 pre-push 的检查也一起失效。**已修**：豁免改为只跳过 main 保护，第二道大文件检查（默认 5 MB）照跑；`npm run check:hooks` 在临时仓里真跑钩子，覆盖有/无豁免 × main/非 main × 小/大文件五条路径。仍拦不住的部分：`--no-verify` 依旧跳过整条钩子；本地钩子对 `git push --no-verify` 与直接操作远端无能为力。
 - 本文这次交付也是同一模式：分支 → 本地 `--no-ff` 合 main → `PWE_ALLOW_PUSH_MAIN=1` push；没有 PR，作者/合并者/推送者是同一个 AI。**这不是假设，是本次交付的实际流程。**
@@ -608,7 +608,7 @@
 
 **有条件能。** 两个条件，二选一或同时：
 
-1. **远端条件**：恢复 GitHub 分支保护/规则集权限，要求 PR + 至少 1 个非作者 approval + 状态检查通过。当前 `CLAUDE.md` 记录该 API 返回 404，所以这个条件现在不成立。
+1. **远端条件**：**已部分成立**（2026-11-09）：main 已开分支保护，要求 PR + 四项状态检查通过 + 禁强推/删除 + `enforce_admins=true`。仍缺「至少 1 个非作者 approval」——单人仓的自批问题远端解决不了，只能靠流程（见第 2 条）或第二方 review。
 2. **本地条件**：新增 scripts/merge-gate.mjs（建议新增），在 `--no-ff` 合并前检查：源分支 tip 有 `Reviewed-By:` trailer，且 reviewer 的模型家族/身份与作者不同；CI 对该 sha 通过；否则拒绝合并。同时把 `PWE_ALLOW_PUSH_MAIN=1` 的语义收窄到「只跳过直推 main 检查」，不跳过 review trailer 检查。
 
 **做不到的部分**：本地 gate 仍可被 `--no-verify` 或手工 `git merge` 绕过；它只能提高「误操作被发现」的概率，不是物理强制。**真正的物理强制只能来自远端分支保护。**
@@ -832,7 +832,7 @@
 6. **验收阶段 `create-verification` 能**：本仓已有流程总表、五道浏览器读数（2026-11-06）、截图判据；缺真实用户路径、artifact 留存、DOM 层。`SCREENS_CAPTURE_GATE` 已经暴露截图基线不稳（`01-salute` 24.765%）。
 7. **`blast radius` 能**：路径分类 + trailer 便宜且有效；但 `PWE_ALLOW_PUSH_MAIN=1` 会整条跳过 pre-push，必须先收窄豁免。
 8. **`interrogate` 不能（仓库内）**：没有跨家族 review；同一模型换角色无法被工具识别。
-9. **加固阶段的「作者不自批」有条件能**：远端分支保护当前 404，本地只有「拦直推 main」，不拦「作者自己合并自己的分支」；实际交付路径正是本地合并 + 豁免 push，`git log` 里没有 PR 号。
+9. **加固阶段的「作者不自批」有条件能**：远端保护自 2026-11-09 起会挡「直推 main」和「检查未通过就合」，但不挡「作者自己合并自己的分支」（approval 数为 0）；2026-11-09 之前的交付路径是本地合并 + 豁免 push，`git log` 里没有 PR 号。
 10. **`swarm` 不能（仓库内）**：没有云端多 agent 基础设施；10 路浏览器还会放大共享 runner 的墙钟脆弱性（E3）。
 11. **`show me your work` 有条件能**：`PROGRESS` / `DECISIONS` / `BUGS_FOUND` 已有雏形；缺统一字段与第二方核对。
 12. **`correct` 能（一部分）**：本仓已有引用、色板、渲染输入、账本、日期长度等结构性闸；但端口纪律、`worktrees --strict`、易变数字口径、不 `stash` 等仍只写在 markdown，没有检测。
