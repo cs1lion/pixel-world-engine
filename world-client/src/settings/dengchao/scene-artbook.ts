@@ -36,6 +36,9 @@ export interface ArtbookAsset {
     readonly kind: SettingScenery['kind'];
     readonly at: GridPoint;
     readonly length?: number;
+    /** 台阶类构件（`steps` / `quay`）的级数与每级高，交给 `render/stair-flight.ts`。 */
+    readonly treads?: number;
+    readonly rise?: number;
   };
 }
 
@@ -114,7 +117,8 @@ export const SCENE_ARTBOOK_ASSETS: readonly ArtbookAsset[] = [
       '堤面留一块较亮的候船石，石缝里长苔',
     ],
     // 横向口径：`length` 是**沿岸的横向格数**，不伸进湾里（伸进去会读成石柱）。
-    placement: { kind: 'quay', at: { x: 5, y: 7 }, length: 5 },
+    // 三级踏步：每级 4px 高、3px 收分，交给 `render/stair-flight.ts`。
+    placement: { kind: 'quay', at: { x: 5, y: 7 }, length: 5, treads: 3, rise: 4 },
   },
   {
     id: 'street_gable_west',
@@ -150,7 +154,8 @@ export const SCENE_ARTBOOK_ASSETS: readonly ArtbookAsset[] = [
       '四级石阶，每级 4px 高；阶沿压一条亮边，阶心留深影',
       '两侧短挡墙压住街面，挡墙头与阶沿同高；缝里长苔',
     ],
-    placement: { kind: 'steps', at: { x: 20, y: 31 }, length: 4 },
+    // 四级踏步：每级 4px 高、不内缩（直上直下），交给 `render/stair-flight.ts`。
+    placement: { kind: 'steps', at: { x: 20, y: 31 }, length: 4, treads: 4, rise: 4 },
   },
   {
     id: 'street_drain',
@@ -250,6 +255,10 @@ export function sceneArtbookScenery(): readonly SettingScenery[] {
       kind: place.kind,
       at: place.at,
       ...(place.length === undefined ? {} : { length: place.length }),
+      // 台阶形制（级数 / 每级高）必须跟着过一遍：`render/scene-artbook.ts` 不给缺省值，
+      // 漏了就在建场时当场抛，而不是悄悄退回写死的级数。
+      ...(place.treads === undefined ? {} : { treads: place.treads }),
+      ...(place.rise === undefined ? {} : { rise: place.rise }),
     }];
   });
 }

@@ -1,0 +1,202 @@
+{
+  "oldDir": "tmp/screens/stair-refactor/before",
+  "newDir": "tmp/screens/stair-refactor/mutant",
+  "structureSpec": null,
+  "structureFailures": [],
+  "records": [
+    {
+      "name": "ferry.png",
+      "oldSha256": "abad5f30a06ab8b68d05112e7aeb883337e8849fd1ca3ccd07ab89d1b6a38b81",
+      "newSha256": "abad5f30a06ab8b68d05112e7aeb883337e8849fd1ca3ccd07ab89d1b6a38b81",
+      "oldBytes": 33298,
+      "newBytes": 33298,
+      "identicalBytes": true,
+      "oldSize": [
+        961,
+        641
+      ],
+      "newSize": [
+        961,
+        641
+      ],
+      "comparable": true,
+      "exactChangedPx": 0,
+      "exactDiffPct": 0.0,
+      "visibleChangedPx": 0,
+      "visibleDiffPct": 0.0,
+      "exactBBox": [],
+      "visibleBBox": [],
+      "deltaHistogram": {
+        "gt0": 0,
+        "ge8": 0,
+        "ge32": 0,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [],
+      "regionsTotal": 0,
+      "structure": {
+        "components": 0,
+        "coveredPx": 0,
+        "largestAreaPx": 0,
+        "largestBbox": [],
+        "largestSize": [],
+        "blocks": []
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.0,
+        "overlapPx": 616001
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    },
+    {
+      "name": "street.png",
+      "oldSha256": "afee1acaa91b87009ab8bd5db5ea41476a948231d65dd1035300adc109359ed7",
+      "newSha256": "fb6e1d5e0b163ad7f62466211286e0b4e3e8f9d1af5e7b089e77bab3923240e3",
+      "oldBytes": 37319,
+      "newBytes": 37316,
+      "identicalBytes": false,
+      "oldSize": [
+        961,
+        641
+      ],
+      "newSize": [
+        961,
+        641
+      ],
+      "comparable": true,
+      "exactChangedPx": 1000,
+      "exactDiffPct": 0.1623,
+      "visibleChangedPx": 992,
+      "visibleDiffPct": 0.161,
+      "exactBBox": [
+        417,
+        335,
+        544,
+        344
+      ],
+      "visibleBBox": [
+        417,
+        335,
+        544,
+        344
+      ],
+      "deltaHistogram": {
+        "gt0": 1000,
+        "ge8": 992,
+        "ge32": 496,
+        "ge64": 0,
+        "ge128": 0
+      },
+      "meanSignedDeltaRGB": [
+        0.033,
+        0.033,
+        0.031
+      ],
+      "medianSignedDeltaRGB": [
+        0,
+        0,
+        0
+      ],
+      "regions": [
+        {
+          "areaPx": 736,
+          "bbox": [
+            417,
+            339,
+            540,
+            344
+          ],
+          "size": [
+            124,
+            6
+          ],
+          "oldColor": "#30454a",
+          "newColor": "#52666a",
+          "meanAbsDiff": 27.28804347826087
+        },
+        {
+          "areaPx": 256,
+          "bbox": [
+            417,
+            335,
+            544,
+            336
+          ],
+          "size": [
+            128,
+            2
+          ],
+          "oldColor": "#3d4d53",
+          "newColor": "#52666a",
+          "meanAbsDiff": 23.0
+        }
+      ],
+      "regionsTotal": 2,
+      "structure": {
+        "components": 2,
+        "coveredPx": 992,
+        "largestAreaPx": 736,
+        "largestBbox": [
+          417,
+          339,
+          540,
+          344
+        ],
+        "largestSize": [
+          124,
+          6
+        ],
+        "blocks": [
+          {
+            "areaPx": 736,
+            "bbox": [
+              417,
+              339,
+              540,
+              344
+            ],
+            "size": [
+              124,
+              6
+            ]
+          },
+          {
+            "areaPx": 256,
+            "bbox": [
+              417,
+              335,
+              544,
+              336
+            ],
+            "size": [
+              128,
+              2
+            ]
+          }
+        ]
+      },
+      "bestShift": {
+        "dx": 0,
+        "dy": 0,
+        "share": 0.001623,
+        "overlapPx": 616001
+      },
+      "bestShiftStep": 1,
+      "shiftGainPct": 0.0
+    }
+  ]
+}
