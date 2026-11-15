@@ -89,7 +89,18 @@
 
 `docs/hd2d-p2-negative`、`docs/w2-junction`、`feat/building-bake`、`feat/night-market` 本地还算 `ahead>0`，但 `git cherry` 全 `-`，改动已在 main。这类**不要**当成待合内容，也不要为它们建 PR。其余本地分支（`spike/depth-pipeline` 6 笔、`fix/fixture-check-revive` 10 笔、`feat/stair-flight` 5 笔等）是真有本地未合入提交，由各自 worktree 的 owner 决定去留。
 
-## 三、核实中发现的三处登记错误
+## 三、核实中更正的两处登记错误（已更正）
+
+以下两处是核对 `git ls-remote` / `git cat-file` / 提交与文件清单后，修正了登记口径；
+更正后不再作为待办挂在表里，后续巡检不再出现对应错误声明。
+
+1. **`pwe-docs-fix`（`docs/world-expansion-proposal`）的「已合入 main（经 `6df4324`）」声明是错的**。
+   `6df4324` 是 `docs/verifiable-flows-fix` 的 merge，改的是 `docs/evidence/` 三份文件；
+   提案文档在 main 上不存在。所以没有直接删，先打了归档 tag `archive/docs-world-expansion-proposal`。
+   **已更正**：登记表该行不再保留「已合入 main」表述，改以归档 tag 为准。
+2. **排查报告把 `feat/hd2d-p2` 写成「需确认是否已被 #34 否定归档」是错的**。
+   实际 13 笔 `git cherry` **全部 `+`**，一笔都没进 main；#34 只合入了 51 行负面结论文档。
+   **已更正**：按「被否的实验」归档（`archive/feat-hd2d-p2`），不是「已包含」。
 
 1. **`npm run worktrees:audit` 里 `pwe-docs-fix`（`docs/world-expansion-proposal`）标为「已合入 main（经 `6df4324`）」是错的**。`6df4324` 是 `docs/verifiable-flows-fix` 的 merge，改的是 `docs/evidence/` 三份文件；提案文档在 main 上不存在。所以没有直接删，先打了归档 tag。登记表这行需 owner 更正。
 2. 排查报告写 `feat/hd2d-p2`「需确认是否已被 #34 否定归档」——实际 13 笔 `git cherry` **全部 `+`**，一笔都没进 main；#34 只合入了 51 行负面结论文档。所以按「被否的实验」归档，不是「已包含」。

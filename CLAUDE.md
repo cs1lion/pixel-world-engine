@@ -61,15 +61,16 @@ CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
 `test:building-bake` / `test:art-assets` / `test:phases`，只读、写到 runner
 临时目录）。它是验收，不在这十六道计数里。
 
-## 权限边界（本地强制）
+## 权限边界（远端 + 本地）
 
-远端分支保护 API 在本仓当前凭据下返回 404，暂时上不了；所以 main 的直推边界放在本地：
+**main 已开远端分支保护（2026-11-09 起）**：必须走 PR、四项必要检查（`world-client` / `world-client-browser` / `repo-harness` / `server`）全绿才能合、禁强推、禁删除、`enforce_admins=true`（管理员不豁免）。此前"API 返回 404 所以上不了"是误判——404 的语义是「分支未受保护」，不是没权限。本地另有一道：
 
 - `.githooks/pre-push` 拒绝任何以 `refs/heads/main` 为目标的 push（含删除远端 main）。
 - 安装：`git config core.hooksPath .githooks`；自检：`npm run check:hooks`
-  （仓库根目录）。**没装时 push 不会报错，保护会安静消失**，所以这是一条必跑读数。
-- 豁免：`PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main`。只给灾难恢复用；
-  日常走分支 + PR。豁免**只跳过 main 保护**，第二道大文件检查（默认 5 MB）照跑；
+  （仓库根目录）。**没装时这一道会安静消失**（远端仍会拒直推 main），所以这仍是一条必跑读数。
+- 豁免：`PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main` 只跳过**本地**这一道；
+  远端保护仍会拒（`GH006`）。灾难恢复得先在 Settings → Branches 临时关掉保护，
+  或者走 PR 合入。大文件检查（默认 5 MB）不受这个豁免影响；
   `--no-verify` 才会跳过整条 pre-push。
 - 第二道：新增 blob ≥ `PWE_PREPUSH_MAX_BLOB_BYTES`（默认 5242880）即拒推，因为
   证据图/大快照进历史后只能重写历史才能删。确需放宽时用同名环境变量，
@@ -79,6 +80,12 @@ CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
   `.github/pull_request_template.md`，必填「改了什么 / 为什么 / 验证命令与读数」。
 
 ## Worktree 登记
+
+## 分支卫生与清理
+
+分支合并即自动删远端分支（`delete_branch_on_merge=true`），例外登记与巡检见
+`docs/BRANCH_HYGIENE.md`、`docs/BRANCH_EXCEPTIONS.md`；一次性的清理快照在
+`docs/BRANCH_AUDIT_20261115.md`（已到期，不再随状态更新，后续看例外表与 git log）。
 
 `docs/WORKTREES.md` 是登记表（路径 / 分支 / owner / 创建时间 / 预计回收时间 / 状态）。
 `npm run worktrees:audit` 列出未登记、过期未回收、已合入但仍在的 worktree；
