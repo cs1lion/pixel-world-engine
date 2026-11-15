@@ -192,6 +192,19 @@ export function actorFrameOf(pin: ShotPin, id: string): number | null {
 }
 
 /**
+ * 某个角色的钉子是否要求**稳态**。
+ *
+ * 三值有意区分：`null` = 没有姿态钉（交给状态机按 live 采样）；`true` = 稳态
+ * （缺省，等价于旧系统的 `frame` 钉）；`false` = 显式接受过渡混合。
+ * 缺省 `undefined` 归一到 `true`，与 `isActorPinValid` / `sameActor` 的口径一致。
+ */
+export function actorSettledOf(pin: ShotPin, id: string): boolean | null {
+  const actor = pin.actors.find((item) => item.id === id);
+  if (actor === undefined) return null;
+  return actor.settled ?? true;
+}
+
+/**
  * 把角色钉覆盖到渲染用的那份快照上。
  *
  * 只换**画什么**：位置、朝向、mode、walking、visible 五样。任务、路线、记忆、
@@ -403,6 +416,7 @@ export const RENDER_INPUT_TABLE: readonly RenderInputEntry[] = Object.freeze([
   { field: 'deliveries', reader: '-', handling: 'dom', note: '状态行读数' },
   { field: 'deliveriesByVillager', reader: '-', handling: 'dom', note: '日报读数' },
   { field: 'deliveryFailures', reader: '-', handling: 'dom', note: '日报读数' },
+  { field: 'siteOutput', reader: '-', handling: 'dom', note: '作业产出累计，日报读数；不随世界时刻变，不需要钉' },
   { field: 'feed', reader: 'statusLine（DOM）', handling: 'dom', note: '上游连接状态，只进 DOM' },
 ]);
 

@@ -104,3 +104,22 @@ test('涉水代价明显高于任何地形，但仍有限', () => {
   assert.ok(FLOODED_WALK_COST > 2.5, '涉水要比密林还贵，A* 才会主动绕开');
   assert.ok(Number.isFinite(FLOODED_WALK_COST), '涉水不能是不可通行的无穷大');
 });
+
+test('树的清水位高于草，这不是随手可调的装饰参数', () => {
+  // 机理（2026-11-08 实测）：潮位 0.31–0.42 之间，草（0.30）已经进水（代价 3.40），
+  // 树（0.42）还干着（代价 2.5）。所以那道「树篱」在这段潮位里比被淹草地便宜，
+  // 会变成抄近路的干通道——花径东篱延长后就真的被 NPC 穿过去了（见 OPEN_ISSUES O1）。
+  // 调这两个数会同时改动野外寻路与回放基线，改之前先读 O1。
+  assert.ok(TERRAIN_WATER_CLEARANCE, 'tide.ts 必须导出 TERRAIN_WATER_CLEARANCE');
+  const tree = TERRAIN_WATER_CLEARANCE!.tree;
+  const grass = TERRAIN_WATER_CLEARANCE!.grass;
+  assert.ok(
+    typeof tree === 'number' && typeof grass === 'number',
+    `tree / grass 的清水位必须是数字：${tree} / ${grass}`,
+  );
+  assert.ok(
+    tree > grass,
+    `树的清水位必须高于草（实际 tree=${tree}, grass=${grass}）：`
+    + '反过来的话，高潮窗口里树篱就不再是干通道，NPC 路线与全部回放基线会一起变',
+  );
+});

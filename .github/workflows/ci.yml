@@ -29,7 +29,14 @@ jobs:
       - run: npm run check
       # 端口纪律 lint：脚本/配置/.env 里的禁用端口（5188/5191/5202/5203）命中即红。
       - run: npm run audit:ports
+      # 基线字节自证（E13）：`eval/screens/` 每张已跟踪的图都要和
+      # `.baseline-manifest.json` 里记的 sha256 对得上。基线被重拍覆盖过一次，
+      # 之后所有像素比较都会拿新字节当基准——`--write-baseline` 之后必须
+      # 显式 `npm run audit:baseline -- --update` 并把记录一起提交。
+      - run: npm run audit:baseline
       - run: npm test
+      # 语义层：回放夹具（6 条 / 195 项断言）。只读文件与内存回放，不需要 preview。
+      - run: npm run fixture:check
       # 先红后绿：只把本次 `world-client/test/` 的 diff 套到 base 上再跑，必须红。
       # base 取自事件 sha（PR 用 base.sha，push main 用 before），避免浅克隆/local ref 失真。
       - name: red-first 红灯闸门
@@ -51,10 +58,16 @@ jobs:
       # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
       # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
       - run: node scripts/audit-claims.ts --strict
-      # 交付报告纪律（docs/agents/reporting.md）：带结构化块的报告复核产物哈希、
-      # 退出码、比对口径、提交状态与时间线。它自己也必须有消费方，否则
-      # chore/orphan-gates 合入后会把它当成新的未登记孤儿——接在这里就是登记。
-      - run: npm run audit:reports
+      # 指标账本的口径（25 条 metric）必须能复算；不接 verify-all 聚合器，
+      # 两条独立 step 各自可判红：eval-ledger 先算，selfcheck 再验分桶与必填字段。
+      - run: node scripts/eval-ledger.ts
+      - run: node scripts/verify-ledger-selfcheck.ts
+      # screens-diff 自检只喂合成图（200x200），不读 eval/screens 的截图基线，
+      # 所以 E7 删掉的 3 张基线不影响它。锁定版本是因为仓库没有 requirements.txt，
+      # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
+      - run: pip install numpy==2.5.1 pillow==12.3.0
+      - run: python scripts/verify-screens-diff-selfcheck.py
+
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
   # 三道都只读；EVAL_OUT 指到 runner 临时目录，保证仓库 eval/ 不被写脏。
@@ -83,7 +96,15 @@ jobs:
           curl -sf http://127.0.0.1:5211/ > /dev/null
           npm run test:persistence
           npm run test:render-budget
+          # 建筑烘焙对齐：逐件钉住 72 张 Image 的落点/原点/缩放/纹理尺寸/四边 alpha=0。
+          npm run test:building-bake
+          # 位图素材装载：?art=1 全装且每张 200，?art=0 零请求、两跑无 pageerror。
+          npm run test:art-assets
           npm run test:phases
+          node scripts/check-phases-negative.mjs
+          # 村民交互 EDD 主集：固定程序判别，逐条断言，有 fail 即 exit 1。
+          # 数据集与备用集见 world-client/eval/interaction/；备用集合并前另跑。
+          node scripts/eval-interaction.mjs --split main
         env:
           EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: |
@@ -95,6 +116,9 @@ jobs:
   # 仓库级手续：钩子自检与 worktree 登记巡检。只用 node 内置模块，不需要 npm ci。
   repo-harness:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -112,6 +136,22 @@ jobs:
       # 非 --strict：CI 里 main worktree 的绝对路径与登记表不同，严格模式会误红。
       - name: worktree 登记巡检
         run: npm run worktrees:audit
+      # 远端分支卫生：合入即删是默认，有意保留的分支必须写进
+      # docs/BRANCH_EXCEPTIONS.md；未登记 / 悬空 / 例外过期即红。
+      # 拿不到 origin 清单时脚本明确打印 SKIP 并只校验登记表，不会误判。
+      - name: 远端分支卫生巡检
+        # gh pr list 要读 OPEN PR 的 head，才能把并行 PR 的分支排除在「未登记」之外；
+        # 没有 token 时脚本会退化成只跳过自己，并行 PR 期间就会互相误判。
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run audit:branches -- --strict
+      # 孤儿闸门：检查脚本 / 检查型 npm 脚本必须有 workflow 或 import 消费方；
+      # 允许清单里的例外必须存在、带理由，且一接闸就要从清单删掉，否则这里红。
+      - name: 孤儿闸门检测
+        run: npm run audit:orphan-gates
+      # 回归：continue-on-error: true / `|| true` / if: false 的接线不算消费方（5 条用例）。
+      - name: 孤儿闸门检测自检
+        run: node --test scripts/orphan-gates-selftest.mjs
 
   server:
     runs-on: ubuntu-latest

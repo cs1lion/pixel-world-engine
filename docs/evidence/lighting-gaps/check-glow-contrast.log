@@ -1,0 +1,11 @@
+[工作树身份] 一致：D:\project\pwe-lighting（端口 5301，启动于 2026-11-07T08:38:13.680Z）
+[截图输出] check-glow-contrast → D:\project\pwe-lighting\world-client\tmp\screens\check-glow-contrast（未跟踪）
+样本：第 21 盏灯（灯串）@ 世界 652,404，中心世界 648.0,404.0；候选 10 盏，峰值 165.1
+dusk  patch 84.65 / annulus 81.49 → ratio 0.012（阈值 ≥0.18，不过）
+noon  patch 96.30 / annulus 89.63 → ratio 0.026（阈值 <0.1，过）
+annulus 地形 token 5 种（noon 帧，阈值 ≥3）：grass 26.15% / charcoal(coal) 19.17% / soil(tree/mud) 1.56% / plaza 1.46% / farm 1.04%
+  dusk 帧同区域交叉核对：5 种（dim 会压偏色，不作判定用）
+截图像素口径参照：dusk 0.017 / noon 0.020
+机制：全屏 dim + ADD 光池；局部压低周边 = 否（读数通过不代表机制实现）
+[判据] 红（1 条）
+  - dusk ratio 0.012 < 0.18

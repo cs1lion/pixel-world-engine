@@ -18,6 +18,22 @@ import { test } from 'node:test';
 
 import { auditReferences, invisibleNameRefs } from '../scripts/audit-references.ts';
 
+/**
+ * `silentWindow` 是随 E11 新增的导出，base 上还不存在。
+ *
+ * 静态 import 会让整份测试在链接阶段就以
+ * `SyntaxError: … does not provide an export named 'silentWindow'` 结束，
+ * red-first 判 `compile`（不可采信）——那是「测试没跑起来」，不是「先红」。
+ * 改成动态 import + 存在性断言（B7）：base 上红在 `typeof` 断言上。
+ */
+interface ScanGuardLib {
+  silentWindow?: (input: { baseline: number; allowed: number }) => unknown;
+}
+
+async function loadScanGuard(): Promise<ScanGuardLib> {
+  return (await import('../scripts/audit-scan-guard-lib.ts')) as unknown as ScanGuardLib;
+}
+
 /** 一份够用的假仓库：两个源文件 + 一份文档。 */
 function fixture(): string {
   const root = mkdtempSync(path.join(tmpdir(), 'pwe-refs-'));
@@ -248,13 +264,147 @@ test('代码里的键值对不是续引：少了前引号这个条件就会误�
 test('真仓库现在是干净的：0 处存疑', () => {
   // 这一条是那道真正的闸门。它不换 root，审的就是这个 checkout——
   // 谁改代码挪走了函数，这里当场红，而不是等某个后人在文档里照着错的行号改错地方。
-  const { checked, findings } = auditReferences();
+  const { checked, findings, problems, floor } = auditReferences();
   assert.ok(checked > 100, `该查到几百处引用，只查到 ${checked}——扫描范围是不是缩了`);
   assert.deepEqual(
     findings.map((f) => `${f.where}  ${f.ref} —— ${f.why}`),
     [],
     '仓库里有没有哪处行号引用对不上了',
   );
+  // 根一个都不能缺：缺了那片就是没查，不是查了没问题。
+  assert.deepEqual(problems, [], '真仓库的扫描根缺了，见上方报告');
+  // 地板要在：基线文件读成了、而且受查数没塌。
+  assert.equal(floor.kind, 'ok', `受查数相对基线塌了：${JSON.stringify(floor)}`);
+});
+
+test('扫描根不存在要进返回值，不许静默 `return out`', () => {
+  // 原来 `walk()` 对着不存在的根 `statSync` 失败就 `return out`，
+  // 调用方只看到受查数小了一点。这里用 `fixture()`（只有 docs 与两个 src 目录），
+  // 另外四个根一个都不在，必须逐个报出来。
+  const root = fixture();
+  try {
+    const r = auditReferences({ root, baselineFile: path.join(root, 'none.json') });
+    assert.deepEqual(
+      [...r.problems].map((p) => p.scanRoot).sort(),
+      ['GLOSSARY.md', 'README.md', 'server', 'world-client/scripts'].sort(),
+    );
+    const server = r.problems.find((p) => p.scanRoot === 'server');
+    assert.ok(server !== undefined);
+    assert.equal(server.expected, path.resolve(root, 'server'));
+    assert.equal(server.actual, 'ENOENT');
+    // 基线文件也不存在：没有地板同样是红，不许默认绿。
+    assert.equal(r.floor.kind, 'missing');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('受查数掉过阈值才报：max(5, 基线 2%)', () => {
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 6)}。\n`);
+    const baselineFile = path.join(root, 'baseline.json');
+    const actual = auditReferences({ root, baselineFile }).checked;
+    const write = (checked: number): void => {
+      writeFileSync(
+        baselineFile,
+        JSON.stringify({ threshold: { minDrop: 5, ratio: 0.02 }, audits: { references: { checked } } }),
+        'utf8',
+      );
+    };
+    // 与基线持平：在地板内。
+    write(actual);
+    assert.equal(auditReferences({ root, baselineFile }).floor.kind, 'ok');
+    // 掉 5：正好在允许范围内（判据是「超过」才红）。
+    write(actual + 5);
+    assert.equal(auditReferences({ root, baselineFile }).floor.kind, 'ok');
+    // 掉 8：超过 max(5, ceil(基线 × 2%) = 1) = 5，报。
+    write(actual + 8);
+    const floor = auditReferences({ root, baselineFile }).floor;
+    assert.equal(floor.kind, 'breach');
+    if (floor.kind === 'breach') assert.equal(floor.allowed, 5);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('基线缺 threshold.minDrop / ratio：地板判红，并打印缺的字段名', () => {
+  // 缺字段时 `allowedDrop` 会算出 NaN，`floor - actual > NaN` 恒 false——
+  // 地板判据把自己吞成绿。缺字段不是「阈值更宽松」，是判据失效，必须红。
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 6)}。\n`);
+    const baselineFile = path.join(root, 'baseline.json');
+    const audits = { references: { checked: 1 } };
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ threshold: { ratio: 0.02 }, audits }, 'threshold.minDrop'],
+      [{ threshold: { minDrop: 5 }, audits }, 'threshold.ratio'],
+      [{ threshold: { minDrop: null, ratio: 0.02 }, audits }, 'threshold.minDrop'],
+      [{ audits }, 'threshold'],
+    ];
+    for (const [payload, field] of cases) {
+      writeFileSync(baselineFile, JSON.stringify(payload), 'utf8');
+      const r = auditReferences({ root, baselineFile });
+      assert.equal(r.floor.kind, 'missing', `缺 ${field} 时地板不能判 ok`);
+      assert.ok(
+        typeof r.baselineWhy === 'string' && r.baselineWhy.includes(field),
+        `缺 ${field} 时要打印字段名，实际：${r.baselineWhy}`,
+      );
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('基线过期：实际超过基线 20% 就报；刷新到实测值才绿', () => {
+  // 反例：把基线人为调低到实际的一半（超出 100%）。旧地板只判下降，这种
+  // 过期基线会静默失效——实际面塌掉一半都不会红。过期判据必须开口。
+  const root = fixture();
+  try {
+    doc(root, `见 ${ref('a.ts', 1)}、${ref('a.ts', 2)}、${ref('a.ts', 6)}、${ref('a.ts', 7)}。\n`);
+    const baselineFile = path.join(root, 'baseline.json');
+    const actual = auditReferences({ root, baselineFile }).checked;
+    assert.equal(actual, 4, '四处坐标都要被数进去');
+    const write = (checked: number): void => {
+      writeFileSync(
+        baselineFile,
+        JSON.stringify({ threshold: { minDrop: 5, ratio: 0.02 }, audits: { references: { checked } } }),
+        'utf8',
+      );
+    };
+    // 基线 = 实际的一半：实际超出 100%，判「基线过期」。
+    write(Math.floor(actual / 2));
+    const stale = auditReferences({ root, baselineFile }).floor;
+    assert.equal(stale.kind, 'stale', `基线过期没报：${JSON.stringify(stale)}`);
+    if (stale.kind === 'stale') {
+      assert.equal(stale.baseline, 2);
+      assert.equal(stale.overPercent, 100);
+    }
+    // 调回实测值：绿。过期红只能靠刷新基线消除，不是靠改比例。
+    write(actual);
+    assert.equal(auditReferences({ root, baselineFile }).floor.kind, 'ok');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('无感塌陷窗口由基线实算，不写死', async () => {
+  const lib = await loadScanGuard();
+  assert.equal(typeof lib.silentWindow, 'function', '模块缺 silentWindow');
+  const silentWindow = lib.silentWindow!;
+  // 当前两个审计的实测基线：references 529 / ports 155。
+  assert.deepEqual(silentWindow({ baseline: 529, allowed: 11 }), {
+    floor: 518,
+    staleLine: 635,
+    gap: 117,
+    percent: 22,
+  });
+  assert.deepEqual(silentWindow({ baseline: 155, allowed: 5 }), {
+    floor: 150,
+    staleLine: 186,
+    gap: 36,
+    percent: 23,
+  });
 });
 
 // ---------------------------------------------- 「那东西就在这儿」也得真的是它

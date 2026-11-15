@@ -5,6 +5,8 @@
  */
 
 import type { TaskRecord, VillagerSnapshot, WorldSnapshot } from './types.ts';
+import { landingLineOf, summarizeLandings, type LandingEntry } from './landing-readout.ts';
+import { DAY_MS } from './memory/config.ts';
 import { describePropSource } from './faith.ts';
 import { NOT_SOMEWHERE, atAltar } from './villager-words.ts';
 
@@ -23,9 +25,23 @@ export interface DailyReport {
   readonly clock: string;
 }
 
-const LINE_LIMIT = 3;
+/**
+ * 报纸最多几条短讯。
+ *
+ * 原来是 3（交付 / 造楼 / 摆件三类）。v8 加了「作业产出」这第四类世界事实：
+ * 作息里的 `work` / `trade` 现在真的产出东西，那是玩家最该看见的一行。
+ * 三条放不下四类，硬挤会静默丢掉其中一类——所以提到 4，不按类别砍。
+ */
+const LINE_LIMIT = 5;
 
-export function composeReport(snapshot: WorldSnapshot): DailyReport {
+/**
+ * `landings` 是**造物落地账的读侧入口**（`landing-readout.ts`）。省略时这一行不出现——
+ * 旧调用方（测试、无账本的场景）行为不变。给了就必须按来源分列、违规说出来。
+ */
+export function composeReport(
+  snapshot: WorldSnapshot,
+  landings?: readonly LandingEntry[],
+): DailyReport {
   const done = snapshot.tasks.filter((task) => task.status === 'done');
   // 失败数从事件账数，不从任务状态推：`status = 'failed'` 只说这一单没成，
   // 事件账才记下谁、哪单、在哪、为什么、是不是重复失败。每次失败恰好一条。
@@ -33,6 +49,14 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
   const { feed: feedDelivered, local: localDelivered } = snapshot.deliveries;
   const delivered = feedDelivered + localDelivered;
   const lines: string[] = [];
+
+  // 造物落地那一行排在最前：它回答「今天世界长了什么」，比交付细节更该先看到。
+  // 来源分列（外环 / 你 / 神谕 / 世界）——合并成一个数会让人以为活都是外环干的。
+  if (landings !== undefined && landings.length > 0) {
+    const day = Math.floor(snapshot.now / DAY_MS);
+    const landingLine = landingLineOf(summarizeLandings(landings, day));
+    if (landingLine !== null) lines.push(landingLine);
+  }
 
   if (delivered > 0) {
     // 先按角色分账，再在每个人名下把上游来的与本地造的活分开；不合并成一个总数。
@@ -122,6 +146,15 @@ export function composeReport(snapshot: WorldSnapshot): DailyReport {
     );
   } else {
     lines.push('还没有交付。祭坛在等第一条神谕。');
+  }
+
+  // 作业产出：走到场所那一刻记的一趟活，累计在产出账里（v8）。
+  // 只在真有产出时写一行——空账说成「产出 0 份」是填充句，报纸不写填充句。
+  if (snapshot.siteOutput.total > 0) {
+    lines.push(`今日作业：${snapshot.siteOutput.summary}`);
+  } else if (snapshot.siteOutput.emptySites.length > 0) {
+    // 库存见底：作业停了不是没发生，是攒下的用完了。一句「见底」比空着诚实。
+    lines.push(`库存见底：${snapshot.siteOutput.emptySites.join('、')} 已经没了，等下一趟作业。`);
   }
 
   // 这一句数的是**玩家这次玩起来之后造没造**。答案在快照里存着：

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>花径 · stone-wall</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#1">1. 做了什么</a></li>
+<li><a href="#2-16px">2. 形制：16px 三段，齐胸</a></li>
+<li><a href="#3">3. 只做东西向（沿用木栅的结论，没有重试）</a></li>
+<li><a href="#4-11">4. 五版试错（每一版都抓了 1:1 图）</a></li>
+<li><a href="#5">5. 读数</a></li>
+<li><a href="#6">6. 没做的（别当待办捡回来／别当已完成）</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="2026-11-09">花径矮石垣 · 2026-11-09</h1>
+<p>设定集 p110–111 的「石垣」，原来的状态是一件都没有（<code>docs/OPEN_ISSUES.md</code> N 节第 3 条）。
+这一笔新增 <code>kind: 'stone_wall'</code>，<strong>每帧 0 条命令、24 色不新增、不改通行</strong>。
+<strong>依据等级 B：只有仓库转述，没有一手画册证据</strong>（本机画册 PDF 99 页、无文字层，对不上
+p110–111）。所以这是「按『石垣』二字推的近形」，<strong>不宣称还原设定集</strong>。</p>
+<h2 id="1">1. 做了什么</h2>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>改动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>world-client/src/settings/types.ts</code></td>
+<td><code>SettingScenery['kind']</code> 加 <code>'stone_wall'</code></td>
+</tr>
+<tr>
+<td><code>world-client/src/settings/load.ts</code></td>
+<td>装载期闭集 <code>SCENERY_KINDS</code> 加 <code>'stone_wall'</code></td>
+</tr>
+<tr>
+<td><code>world-client/src/render/setting-scenery.ts</code></td>
+<td><code>stone_wall</code> 分支 + 共享纹理名 <code>STONE_WALL_TEXTURES</code> / 高度 <code>STONE_WALL_H</code></td>
+</tr>
+<tr>
+<td><code>world-client/src/settings/dengchao/pack.ts</code></td>
+<td>8 件，花床北缘 <code>y20</code>，<code>x3..10</code></td>
+</tr>
+<tr>
+<td><code>world-client/test/stone-wall.test.ts</code></td>
+<td>闭集 / 落地 / <strong>连续</strong> / 未知 kind 仍 throw</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一件 = 一格</strong>（8 件在 <code>x3..10, y20</code>）。与木栅同一套理由：depth 必须按行算
+（<code>world-client/src/render/scenery-depth.ts</code>），跨多格的长条只有一个 depth，就没法与
+站在不同行的人分别判前后。</p>
+<p><strong>两张纹理贴 8 次</strong>。砌缝要左右错开（下节），两版按 <code>x</code> 奇偶交替使用；8 件共用 2 张，
+不是 8 次 <code>generateTexture</code>。</p>
+<p><strong>落在北篱那一行</strong>：O0 记的北篱是 <code>x2..11 × y19..20</code>，墙占 <code>y20</code>，<strong>不占任何可走格</strong>
+（可走内里是 <code>x4..9 × y21..27</code>）。</p>
+<h2 id="2-16px">2. 形制：16px 三段，齐胸</h2>
+<table>
+<thead>
+<tr>
+<th>段</th>
+<th>行</th>
+<th>画法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>笠石（压顶）</td>
+<td>0–2</td>
+<td><code>plaza</code> 压 <strong>0.55</strong>（不是纯 <code>plaza</code>），顶行再压 <code>pale</code> 0.2</td>
+</tr>
+<tr>
+<td>出檐影</td>
+<td>3</td>
+<td><code>ink</code> 0.3，一行</td>
+</tr>
+<tr>
+<td>墙身</td>
+<td>4–13</td>
+<td><code>stone</code> 打底，两皮错缝；缝用 <code>ink</code> 0.24（<strong>不是实色深线</strong>）</td>
+</tr>
+<tr>
+<td>墙脚</td>
+<td>14–15</td>
+<td><code>ink</code> 0.3 / 0.14 两行</td>
+</tr>
+</tbody>
+</table>
+<p>高度 16px，村民 18–20px——这是<strong>齐胸的挡土墙</strong>，不是把人挡住的院墙。再高会把花床后的
+视线全吃掉；再矮（12px 试过）读成一条横杆。</p>
+<p>砌缝的横竖都照 <code>scene-artbook.ts</code> 的 <code>drawQuay</code>（堤身：<code>stone</code> 底 + <code>ink</code> 0.24 缝 +
+顶上压一皮亮石）。仓库里那道堤已经读成「砌起来的石体」，没有另发明一套画法。</p>
+<p><strong>两版交替</strong>：单版平铺会在 16px 网格上形成等距竖缝的节奏，读成「贴了壁纸的墙」——
+花墙那一轮吃过一次（点阵读成壁纸感）。所以竖缝位置按 <code>x</code> 奇偶换一版。</p>
+<h2 id="3">3. 只做东西向（沿用木栅的结论，没有重试）</h2>
+<p>木栅那一轮已经用四张 1:1 对照图钉死：<strong>这套投影里「走向」和「高度」都落在屏幕竖直
+方向</strong>，南北向的栅栏栏杆与立柱在屏幕上都是竖线，谁遮谁都分不出，四种画法全部读成
+「一根带节的木杆」（见 <code>docs/evidence/fence/README.md</code> §2）。石垣的走向同样是屏幕
+竖直方向上的线，所以没有再抓四版——<strong>只做东西向的花床北缘一道</strong>，东西两翼的墙没做。</p>
+<p>这是几何结论，不是取舍。要补东西两翼，得先解决「竖线读不出体积」这件事本身。</p>
+<h2 id="4-11">4. 五版试错（每一版都抓了 1:1 图）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>画法</th>
+<th>1:1 下的读法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1</td>
+<td>12px：3px 压顶 + 6px 墙身 + 2px 影，压顶取纯 <code>plaza</code></td>
+<td>一条浅色横杆，和木栅没有区别</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>18px，照 <code>drawQuay</code> 的错缝砌（三皮）</td>
+<td>读成墙了，但太高、太亮，像一面水泥挡墙</td>
+</tr>
+<tr>
+<td>v3</td>
+<td>16px，墙脚压 <code>soil</code> <strong>0.28</strong></td>
+<td>墙身整个糊进草地，只剩顶上一条白横梁</td>
+</tr>
+<tr>
+<td>v4</td>
+<td>去掉压暗，压顶下方加 <strong>2px</strong> 投影</td>
+<td>帽与身断成两截，像一根白梁架在石墙上</td>
+</tr>
+<tr>
+<td>v5</td>
+<td>压顶改 <code>plaza</code> <strong>0.55</strong>、投影收成 1px</td>
+<td>成：一整道石体，压顶只亮一档</td>
+</tr>
+<tr>
+<td>v6</td>
+<td>墙脚影 0.34/0.18 → 0.30/0.14</td>
+<td>定稿（只是把脚下那道影压淡一档）</td>
+</tr>
+</tbody>
+</table>
+<p>两条可复用的经验：</p>
+<ol>
+<li><strong>压顶不能取调色板的亮档原色</strong>。灯潮界的 <code>plaza</code> 是 <code>#7d8984</code>，<code>stone</code> 是
+   <code>#52666a</code>；<code>plaza</code> 直接画上去，1:1 下是近白的一条，整件读成「悬空的白横梁」。
+   压 0.55 的 <code>plaza</code>，仍在石族里、只亮一档。</li>
+<li><strong>墙脚不能压太狠</strong>。0.28 的 <code>soil</code> 让墙身和草地同亮度，1:1 下墙身整段消失——
+   体积感是靠「墙身比草地亮」撑起来的，不是靠脚下那道影。</li>
+</ol>
+<h2 id="5">5. 读数</h2>
+<p>口径：<code>?world=dengchao&amp;time=noon&amp;feed=off&amp;ledger=off&amp;debug=1&amp;now=960</code>、1010×700、
+世界冻住、潮位钉 1、晴、灯 / 摊 / 幌 / 烟四支动态全关、180 帧沉降、
+相机 <code>scrollX=0 / scrollY=240</code>（<code>centerCameraOn(72,400)</code>）。</p>
+<ul>
+<li><strong>逐像素差</strong>（<code>fence5.png</code> → <code>wallF.png</code>，矩形都是<strong>截图 px</strong>）：</li>
+<li>石垣那一带 <code>(90,150)–(380,205)</code>：<strong>7,168 px / max 98</strong></li>
+<li>村民 <code>(725,415)–(785,495)</code>：<strong>928 px / max 203</strong>——这是噪声，不是改动
+    （下面「确定性」那条会把同一块地方也差出 928 px）</li>
+<li><strong>其余全部 0 px</strong></li>
+<li>全图 8,096 px，正好 = 7,168 + 928</li>
+<li><strong>确定性</strong>：同配置双跑，<strong>石垣那一带 0 px、其余 0 px，只有村民那块 928 px</strong>。
+  也就是说这一帧除了那名村民，逐像素确定；改动与噪声能干净地分开。</li>
+<li><strong>命令数不进统计</strong>：石垣是 Image，<code>renderStats()</code> 只数 Graphics 的 commandBuffer。
+  <code>graphicsObjects</code> 两边都是 <strong>119</strong>。
+  <strong><code>totalCommands</code> 这一笔读不稳</strong>：同一份代码连续两跑读到 <strong>20,429</strong> 与 <strong>20,085</strong>，
+  而两跑的像素差只落在那一块村民身上（928 px）。8 件石垣在场时两个值都出现过
+  （<code>wall1/wall2/wall4</code> 读 20,085，<code>wall6/wall7</code> 读 20,429）。
+  所以：<strong>这个 344 的摆动与村民状态同源，既不能算石垣的增量，也不能算任何一笔的增量。</strong>
+  附带一条：<code>docs/evidence/fence/README.md</code> §4 写的「O4 单时刻噪声 ±120」<strong>估小了</strong>——
+  实测摆动至少到 344。要拿这条读数做判据，得先把村民按住。</li>
+<li><strong>预算闸</strong>：<code>check-ground-shadow</code> 绿，实测峰值 <strong>28,076</strong>、天花板 <code>34,666</code>、债务 0。
+  与木栅那一笔读同值（28,076），与庭心石作那笔的 28,076 也同值——<strong>没有变化</strong>，
+  石垣是 Image 不进命令统计。</li>
+</ul>
+<h2 id="6">6. 没做的（别当待办捡回来／别当已完成）</h2>
+<ul>
+<li><strong>瓦顶</strong>：<strong>2026-11-09 同日补上</strong>——只换压顶那 3px（不加高），见
+  <code>docs/evidence/wall-roof/README.md</code>。§2 那张表写的是补瓦顶<strong>之前</strong>的笠石画法，
+  留作历史记录；定稿的顶上 3px 已经不是 <code>plaza</code> 压顶。</li>
+<li><strong>东西两翼的墙</strong>：没做，南北向读不出体积（§3）。</li>
+<li><strong>粉紫第 25 色</strong>：仍不开。</li>
+<li><strong>夜里补光 +306</strong>：没做，仍是「新增功能」。</li>
+<li><strong>A 档</strong>：翻书拍到 p110–111 才能升 A。</li>
+<li><strong>通行</strong>：<code>isWalkable</code> 不看 <code>scenery</code>，石垣<strong>只是画</strong>；不过它落在北篱那一行，
+  本来就不是可走格，所以这一笔没有引入新的「能穿过去的墙」。</li>
+</ul></main>
+</div>
+</body>
+</html>

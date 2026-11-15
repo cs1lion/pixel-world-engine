@@ -18,6 +18,8 @@ import { biomeAt } from '../world/biomes.ts';
 import { DRESSING } from '../world/dressing.ts';
 import { drawTileEdge, type EdgeNeighbors } from './terrain-edges.ts';
 import { drawRegionGrounding, type RegionSlots } from './region-paint.ts';
+import { resolveShoreConfig, shoreBandRects, waterLandEdgesFromGrid } from './shore-band.ts';
+import type { SettingShore } from '../settings/types.ts';
 
 type Terrain = TerrainId;
 
@@ -38,6 +40,11 @@ export function drawTerrain(
      * 这条缺席路径是有意的：第二座镇子多出来的那层地界不该漏到第一座上去。
      */
     readonly regions?: readonly RegionSlots[];
+    /**
+     * 岸线带参数。省略就一段都不画——旧设定集与未配置的包画面逐字节不变。
+     * 设定集只写选哪套预设，像素几何由 `render/shore-band.ts` 解析。
+     */
+    readonly shore?: readonly SettingShore[];
   },
 ): void {
   // 给了 target 就画进它：烘焙到纹理时用同一个 Graphics，
@@ -91,6 +98,7 @@ export function drawTerrain(
   drawFarmFence(scene, grid, originX, originY, palette, g);
   drawDressing(scene, grid, originX, originY, palette, g, altar);
   drawWaterline(grid, originX, originY, g, palette);
+  drawShoreBand(grid, originX, originY, g, palette, theme?.shore);
   // 地域三色最后画：地界要压在草簇、碎石、水线之上，才读得出「这块地归谁」。
   // 排在材质拼接边之后、网格线之前——前者是地形自己的语法，后者只是排查辅助。
   drawRegionGrounding(g, grid, originX, originY, palette, theme?.regions ?? []);
@@ -765,6 +773,44 @@ function drawWaterline(
       if (grid.at({ x, y: y + 1 })?.terrain === 'shallow') continue;
       g.fillRect(originX + x * TILE_PX, originY + (y + 1) * TILE_PX, TILE_PX - 3, 1);
     }
+  }
+}
+
+/**
+ * 岸线带：贴着浅滩的那一条陆格边，按设定集给的岸型铺一条带。
+ *
+ * 为什么画在这里而不是 tide-view：岸带是**地形纹理**的一部分，烘焙一次随
+ * 镜头缩放；潮汐的水幕/泡沫才是动态层。这里只认 `terrain === 'shallow'`
+ * 的永久水（灯潮界 790 格），不认 `isFloodedAt`——后者低潮时空集、高潮时
+ * 把 2343 格陆地都认成水（实测见设计稿 §3.3.1）。
+ *
+ * `shore` 缺席即返回，不新建 Graphics：岸带与地形共用同一个 `g`，
+ * 预算的 Graphics 差值是 0。
+ */
+function drawShoreBand(
+  grid: WorldGrid,
+  originX: number,
+  originY: number,
+  g: Phaser.GameObjects.Graphics,
+  palette: WorldPalette,
+  shore: readonly SettingShore[] | undefined,
+): void {
+  const configs = resolveShoreConfig(shore);
+  if (configs === null) return;
+  const edges = waterLandEdgesFromGrid(grid, (terrain) => terrain === 'shallow');
+  // 跨格落地时「目标格还是不是陆」要问网格：岸带不许画进浅滩，也不许画到图外。
+  const { pieces } = shoreBandRects(edges, configs, (cell) => {
+    if (cell.x < 0 || cell.y < 0 || cell.x >= grid.width || cell.y >= grid.height) return false;
+    return grid.at(cell)?.terrain !== 'shallow';
+  });
+  // 每段是实色平铺（alpha 1）：色阶读数按合成后的出画值算，不在这里再压暗。
+  let token: string | null = null;
+  for (const piece of pieces) {
+    if (piece.token !== token) {
+      token = piece.token;
+      g.fillStyle(palette[piece.token], 1);
+    }
+    g.fillRect(originX + piece.rect.x, originY + piece.rect.y, piece.rect.w, piece.rect.h);
   }
 }
 

@@ -2,7 +2,7 @@
 import { parseBlueprintTable } from '../world/blueprints.ts';
 import { WORLD } from '../world/palette-data.ts';
 import type { BuiltWorld } from '../world/setup.ts';
-import { doorReaches, placeBlueprint, reaches, rehydratePalettes, WorldSetupError } from '../world/setup.ts';
+import { doorReaches, placeBlueprint, reaches, rehydratePalettes, TILE_PX, WorldSetupError } from '../world/setup.ts';
 import type { WorldColor, WorldPalette } from '../world/theme.ts';
 import { WorldGrid } from '../world/grid.ts';
 import {
@@ -11,14 +11,20 @@ import {
   VILLAGER_HEADS,
   VILLAGER_OUTFITS,
 } from '../world/villager-look.ts';
-import type { PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
+import type { GridPoint, PlacedBuilding, PrefabBlueprint, PropKind, TerrainId, ZoneId } from '../world/types.ts';
 import { isCarryItem } from '../world/gate.ts';
+import { isSiteKind, siteDefOf, type SiteKind } from '../world/timetable.ts';
+import { isOutputKind, OUTPUT_KINDS, type OutputKind } from '../world/site-output.ts';
 import type {
   CompiledVillager,
   RawSettingPack,
   SettingPack,
+  SettingPlacement,
   SettingRoutineStop,
   SettingScenery,
+  SettingShore,
+  SettingSite,
+  ShoreStyleId,
 } from './types.ts';
 
 export class SettingPackError extends Error {}
@@ -28,6 +34,101 @@ const TOKENS = Object.keys(WORLD) as WorldColor[];
 
 /** 八种地形各自要落到一个色板槽上，一种都不能少。 */
 const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree', 'shallow', 'mud', 'coal'];
+
+/** 岸型闭集。与 `render/shore-band.ts` 的 `SHORE_PRESETS` 同一份名单。 */
+const SHORE_STYLES: readonly ShoreStyleId[] = ['straight', 'inset'];
+
+/** 岸型预设的退让量。与 `render/shore-band.ts` 的 `SHORE_PRESETS` 同一份数字。 */
+const SHORE_INSET: Readonly<Record<ShoreStyleId, number>> = { straight: 0, inset: 2 };
+
+/**
+ * 一组岸型参数：每个字段都在装载期查一遍。
+ *
+ * 漏查的后果都是「画面少一层/画错一层」而不是报错：`style` 写错时渲染侧
+ * 解析不出预设（这里拒，才不会到运行时才抛）；`depthPx = 0` 或段和凑不对
+ * 会画成缺段/0 带宽，这份配置等于没写，而截图差异是 0——正是 A1 验收要抓的
+ * 「存在但没人用」。
+ *
+ * `depthPx` 与每段长度都必须是 8 的倍数：段按 8px 切，给 30 会切出 6px 毛边段，
+ * 直接违反 J7 的「每段 ≥8px」。
+ */
+function validateShore(shore: SettingShore): SettingShore {
+  if (!SHORE_STYLES.includes(shore.style)) {
+    throw new SettingPackError(`shore.style ${String(shore.style)} 不是 straight / inset 之一`);
+  }
+  if (!Array.isArray(shore.land) || shore.land.length === 0) {
+    throw new SettingPackError('shore.land 必须是非空的地形数组');
+  }
+  for (const terrain of shore.land) {
+    if (!TERRAINS.includes(terrain)) {
+      throw new SettingPackError(`shore.land ${String(terrain)} 不是八种地形之一`);
+    }
+  }
+  if (!Number.isInteger(shore.depthPx) || shore.depthPx < 8 || shore.depthPx > 48 || shore.depthPx % 8 !== 0) {
+    throw new SettingPackError(`shore.depthPx ${String(shore.depthPx)} 必须是 8 的整数倍（8..48）`);
+  }
+  if (!Array.isArray(shore.steps) || shore.steps.length < 2 || shore.steps.length > 3) {
+    throw new SettingPackError(`shore.steps 必须是 2..3 段`);
+  }
+  let sum = 0;
+  shore.steps.forEach((step, index) => {
+    if (!TOKENS.includes(step.token)) {
+      throw new SettingPackError(`shore.steps[${index}].token ${String(step.token)} 不在 24 色里`);
+    }
+    if (!Number.isInteger(step.depthPx) || step.depthPx < 8 || step.depthPx % 8 !== 0) {
+      throw new SettingPackError(`shore.steps[${index}].depthPx ${String(step.depthPx)} 必须是 8 的整数倍`);
+    }
+    sum += step.depthPx;
+  });
+  if (sum !== shore.depthPx) {
+    throw new SettingPackError(`shore.steps 的长度和 ${sum} 不等于 shore.depthPx ${shore.depthPx}`);
+  }
+  if (shore.staggerPx !== 4 && shore.staggerPx !== 8) {
+    throw new SettingPackError(`shore.staggerPx ${String(shore.staggerPx)} 只能是 4 或 8`);
+  }
+  if (!Number.isInteger(shore.staggerLevels) || shore.staggerLevels < 2 || shore.staggerLevels > 4) {
+    throw new SettingPackError(`shore.staggerLevels ${String(shore.staggerLevels)} 必须是 2..4 的整数`);
+  }
+  if (!Number.isInteger(shore.staggerStep) || shore.staggerStep < 0 || shore.staggerStep >= shore.steps.length) {
+    throw new SettingPackError(`shore.staggerStep ${String(shore.staggerStep)} 必须是 steps 的合法下标`);
+  }
+  for (const [name, value] of [['maxTruncatedPx', shore.maxTruncatedPx], ['maxOverlapPx', shore.maxOverlapPx]] as const) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new SettingPackError(`shore.${name} ${String(value)} 必须是 ≥0 的整数`);
+    }
+  }
+  const furthest = SHORE_INSET[shore.style] + shore.depthPx + shore.staggerPx * (shore.staggerLevels - 1);
+  if (furthest > 3 * TILE_PX) {
+    throw new SettingPackError(
+      `shore 的 insetPx（${SHORE_INSET[shore.style]}）+ depthPx（${shore.depthPx}）+ staggerPx × (levels−1) = ${furthest} 超过 3 格 ${3 * TILE_PX}`,
+    );
+  }
+  return {
+    land: [...shore.land],
+    style: shore.style,
+    depthPx: shore.depthPx,
+    staggerPx: shore.staggerPx,
+    staggerLevels: shore.staggerLevels,
+    staggerStep: shore.staggerStep,
+    maxTruncatedPx: shore.maxTruncatedPx,
+    maxOverlapPx: shore.maxOverlapPx,
+    steps: shore.steps.map((step) => ({ token: step.token, depthPx: step.depthPx })),
+  };
+}
+
+/** 岸型表：每道陆地地形只能归一组，否则同一格有两种读法。 */
+function validateShoreTable(shore: readonly SettingShore[]): SettingShore[] {
+  if (shore.length === 0) throw new SettingPackError('shore 写了就不能是空数组（不想画就整项省掉）');
+  const claimed = new Set<string>();
+  return shore.map((entry) => {
+    const checked = validateShore(entry);
+    for (const terrain of checked.land) {
+      if (claimed.has(terrain)) throw new SettingPackError(`shore.land ${terrain} 被两组岸型同时声明`);
+      claimed.add(terrain);
+    }
+    return checked;
+  });
+}
 
 /**
  * 构件闭集。与 `SettingScenery['kind']` 是同一份名单，运行时再验一次。
@@ -39,7 +140,8 @@ const TERRAINS: readonly TerrainId[] = ['grass', 'stone', 'plaza', 'farm', 'tree
 const SCENERY_KINDS: readonly SettingScenery['kind'][] = [
   'lantern', 'track', 'statue', 'bridge', 'debris', 'sign', 'steam', 'banner', 'stall', 'stele',
   'lamp_string', 'paving', 'shopfront', 'signpost',
-  'boiler', 'coal_heap', 'quay', 'steps', 'drain', 'street_paving', 'shopfront_gable', 'ridge', 'far_tower',
+  'boiler', 'coal_heap', 'quay', 'steps', 'drain', 'street_paving', 'shopfront_gable', 'ridge', 'far_tower', 'flower_bed',
+  'fence', 'stone_wall',
 ];
 
 /** 摆件种类。露话池按它分（SPEC_V2 §4.6 的清洗即还原）。 */
@@ -159,6 +261,80 @@ function assertRoutineStop(stop: SettingRoutineStop, villagerName: string): void
   }
 }
 
+/** 带 `site` 的那一支：**必带 `activity`**，由类型定死。 */
+type SettingSiteStop = Extract<SettingRoutineStop, { readonly site: string }>;
+
+function isSiteStop(stop: SettingRoutineStop): stop is SettingSiteStop {
+  return 'site' in stop;
+}
+
+/**
+ * 场所锚点表：id 唯一、`kind` 在闭集里、锚在界内。
+ *
+ * 这里只验表本身；「锚能不能解析成可走格」要等网格建好，由
+ * `buildSettingWorld` 与 `siteTargetResolver` 负责。两处都 throw，不静默。
+ */
+function compileSites(
+  sites: RawSettingPack['sites'],
+  inBounds: (p: { x: number; y: number }, label: string) => void,
+  placements: readonly SettingPlacement[],
+): readonly SettingSite[] {
+  if (sites === undefined) return [];
+  // 建筑实例 id 与 `buildSettingWorld` 的生成口径一致：`${blueprint.id}#1`。
+  const buildingIds = new Set(placements.map((placement) => `${placement.prefabId}#1`));
+  const seen = new Set<string>();
+  return sites.map((site) => {
+    if (typeof site.id !== 'string' || site.id.trim() === '') {
+      throw new SettingPackError('场所 id 不能为空');
+    }
+    if (seen.has(site.id)) throw new SettingPackError(`场所 ${site.id} 重复`);
+    seen.add(site.id);
+    if (!isSiteKind(site.kind)) {
+      // kind 的事实源是 `SITE_TABLE`：表里没有这一行，门就永远不开，人也永远不去，
+      // 牌子还写着去——静默失效比报错难查。
+      throw new SettingPackError(`场所 ${site.id} 的 kind ${site.kind} 没有门控行`);
+    }
+    const kind: SiteKind = site.kind;
+    // 产出物闭集：写错就 throw，不留到运行期变成「产出了但没人认识」。
+    // 省略是表态（这个场所不产东西），空串不是省略。
+    if (site.output !== undefined && !isOutputKind(site.output)) {
+      throw new SettingPackError(
+        `场所 ${site.id} 的产出物 ${site.output} 不在闭集 ${OUTPUT_KINDS.join('/')}`,
+      );
+    }
+    if (site.consumes !== undefined && !isOutputKind(site.consumes)) {
+      throw new SettingPackError(
+        `场所 ${site.id} 要消耗的 ${site.consumes} 不在闭集 ${OUTPUT_KINDS.join('/')}`,
+      );
+    }
+    const output = site.output === undefined ? {} : { output: site.output as OutputKind };
+    const consumes = site.consumes === undefined ? {} : { consumes: site.consumes as OutputKind };
+    const name = site.name === undefined || site.name === '' ? {} : { name: site.name };
+    const extras = { ...output, ...consumes, ...name };
+    const hasCoords = site.x !== undefined || site.y !== undefined;
+    const hasBuilding = site.building !== undefined;
+    if (hasCoords && hasBuilding) {
+      throw new SettingPackError(`场所 ${site.id} 不能同时给坐标锚与建筑锚`);
+    }
+    if (hasBuilding) {
+      if (site.building !== site.id) {
+        throw new SettingPackError(
+          `场所 ${site.id} 的建筑锚必须用自己的 instanceId（收到 ${String(site.building)}）`,
+        );
+      }
+      if (!buildingIds.has(site.building)) {
+        throw new SettingPackError(`场所 ${site.id} 的建筑 ${site.building} 不在 placements 里`);
+      }
+      return { id: site.id, kind, ...extras, building: site.building };
+    }
+    if (site.x === undefined || site.y === undefined) {
+      throw new SettingPackError(`场所 ${site.id} 必须有坐标锚或建筑锚`);
+    }
+    inBounds({ x: site.x, y: site.y }, `场所 ${site.id}`);
+    return { id: site.id, kind, ...extras, x: site.x, y: site.y };
+  });
+}
+
 export function loadSettingPack(raw: RawSettingPack): SettingPack {
   if (!/^[a-z][a-z0-9-]*$/.test(raw.id)) throw new SettingPackError('设定集 id 不合法');
   if (raw.saveKey.length === 0) throw new SettingPackError('存档槽不能为空');
@@ -197,6 +373,8 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       return [terrain, color];
     }),
   ) as Record<TerrainId, number>;
+  // 岸线带：缺席是合法的（旧设定集不画），但写了就必须每一项都对。
+  const shore = raw.shore === undefined ? undefined : validateShoreTable(raw.shore);
   const { width, height } = raw.grid;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 30 || height < 20) {
     throw new SettingPackError('地图至少要有 30×20 格');
@@ -355,16 +533,34 @@ export function loadSettingPack(raw: RawSettingPack): SettingPack {
       carries: style?.lamp === true ? (['lamp'] as const) : [],
     };
   });
+  const sites = compileSites(raw.sites, inBounds, raw.placements);
+  // 场所 id → 种类：交叉校验要问「这个场所允许哪些词」，而许可挂在种类那一行。
+  const siteKinds = new Map(sites.map((site) => [site.id, site.kind]));
   for (const villager of villagers) {
     inBounds(villager.at, villager.name);
     if (villager.routine.length === 0) throw new SettingPackError(`${villager.name} 没有作息`);
     for (const stop of villager.routine) {
-      inBounds(stop, `${villager.name} 的作息`);
+      if (isSiteStop(stop)) {
+        const kind = siteKinds.get(stop.site);
+        if (kind === undefined) {
+          throw new SettingPackError(`${villager.name} 的作息指向未知场所 ${stop.site}`);
+        }
+        // 词与场所的交叉校验：这一笔的主判据。不匹配就在这里 throw，
+        // 不留到行为层静默退回锚点（那种失效没有牌子、也没有日志）。
+        const allowed = siteDefOf(kind).activities ?? [];
+        if (!allowed.includes(stop.activity)) {
+          throw new SettingPackError(
+            `${villager.name} 的作息「${stop.label}」：场所 ${stop.site}（kind ${kind}）不允许活动 ${String(stop.activity)}`,
+          );
+        }
+      } else {
+        inBounds(stop, `${villager.name} 的作息`);
+      }
       assertRoutineStop(stop, villager.name);
     }
   }
   const propReveals = compilePropReveals(raw.propReveals);
-  return { ...raw, palette, terrainColors, blueprints, villagers, propReveals, authored: true };
+  return { ...raw, palette, terrainColors, shore, blueprints, sites, villagers, propReveals, authored: true };
 }
 
 /**
@@ -410,6 +606,50 @@ function parseColor(value: string, name: string): number {
   return Number.parseInt(value.slice(1), 16);
 }
 
+/** 一个落点解析成「人站的那一格」：给坐标原样返回，给场所走 `resolveSite`。 */
+export function resolveStopPoint(
+  stop: SettingRoutineStop,
+  resolveSite: (site: string) => GridPoint,
+): GridPoint {
+  return isSiteStop(stop) ? resolveSite(stop.site) : { x: stop.x, y: stop.y };
+}
+
+/**
+ * 场所 → 格点。
+ *
+ * 给了网格就把锚落到最近的**可走格**（花圃是摆件但树篱是地形，锚不能压在上面）；
+ * 没给网格（只想算作息字句的路径）原样返回锚。两种情况解析不到都 throw——
+ * 静默落到 (0,0) 会让「作息把人送到花径」悄悄变成「送到地图西北角」。
+ */
+export function siteTargetResolver(
+  pack: SettingPack,
+  grid?: { nearestWalkable(p: GridPoint): GridPoint | null },
+  buildings?: readonly PlacedBuilding[],
+): (site: string) => GridPoint {
+  const sites = new Map((pack.sites ?? []).map((site) => [site.id, site]));
+  return (siteId) => {
+    const site = sites.get(siteId);
+    if (site === undefined) throw new SettingPackError(`未知场所 ${siteId}`);
+    // 建筑锚：落点取门。没有建筑表就 throw——不许悄悄退成坐标或 (0,0)。
+    if ('building' in site) {
+      if (buildings === undefined) {
+        throw new SettingPackError(`场所 ${siteId} 是建筑锚，但没有建筑表`);
+      }
+      const building = buildings.find((item) => item.instanceId === site.building);
+      if (building === undefined) throw new SettingPackError(`场所 ${siteId} 的建筑 ${site.building} 不存在`);
+      if (grid === undefined) return building.door;
+      const doorPoint = grid.nearestWalkable(building.door);
+      if (doorPoint === null) throw new SettingPackError(`场所 ${siteId} 解析不到可走格`);
+      return doorPoint;
+    }
+    const anchor = { x: site.x, y: site.y };
+    if (grid === undefined) return anchor;
+    const point = grid.nearestWalkable(anchor);
+    if (point === null) throw new SettingPackError(`场所 ${siteId} 解析不到可走格`);
+    return point;
+  };
+}
+
 /** 显式落位也走生产的占地/留白/门口检查；不能由设定集绕过世界法则。 */
 export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuilding[]): BuiltWorld {
   const grid = new WorldGrid({ ...pack.grid, terrain: pack.terrain, regions: pack.regions });
@@ -448,6 +688,7 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
     const id = grid.at(p)?.region;
     return id === undefined ? '这片区域' : (names.get(id) ?? id);
   };
+  const resolveSite = siteTargetResolver(pack, grid, buildings);
   for (const villager of pack.villagers) {
     if (!grid.isWalkable(villager.at)) throw new SettingPackError(`${villager.name} 出生点不可走`);
     // 生在一道她进不去的门里：她兜里那几件过不了脚下这道门，于是**一步也动不了**
@@ -462,7 +703,8 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
       );
     }
     for (const stop of villager.routine) {
-      if (!grid.isWalkable(stop)) throw new SettingPackError(`${villager.name} 的作息点不可走：${stop.label}`);
+      const point = resolveStopPoint(stop, resolveSite);
+      if (!grid.isWalkable(point)) throw new SettingPackError(`${villager.name} 的作息点不可走：${stop.label}`);
       // 这里的可达性**故意不过渡有仪式的门**：装载时还没有人知道她以后会带上什么，
       // 而门后的作息点完全可以是合法的（等她有了灯就走得到）。
       // 按两手空空判会把这种包误拒；门是运行时的事，不该在装载时夺权。
@@ -470,7 +712,7 @@ export function buildSettingWorld(pack: SettingPack, saved?: readonly PlacedBuil
       // 走 `reaches`，不自己写 `path(...).length === 0`：那个返回值在
       // 「作息点就踩在出生点上」时是空数组，照抄它会拒一份合法的包，
       // 还说「她 到不了 就站在起点上」——那句话是假话。
-      if (!reaches(grid, villager.at, stop)) {
+      if (!reaches(grid, villager.at, point)) {
         throw new SettingPackError(`${villager.name} 到不了 ${stop.label}`);
       }
     }

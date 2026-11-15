@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>花径 · garden-stone</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #1e2320; --dim: #5c645e;
+    --line: #d9ded7; --accent: #9a5b17; --accent-soft: #f5ead8; --mono: #b3401f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.75; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 28px 80px;
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+  nav { position: sticky; top: 24px; align-self: start; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  nav h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; color: var(--dim);
+    text-transform: uppercase; font-weight: 600; }
+  nav ul { margin: 0; padding-left: 16px; }
+  nav li { margin: 5px 0; }
+  nav a { color: var(--dim); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 30px 34px 44px; min-width: 0; }
+  h1 { font-size: 24px; margin: 0 0 18px; padding-bottom: 14px;
+    border-bottom: 2px solid var(--accent); letter-spacing: .01em; }
+  h2 { font-size: 18px; margin: 34px 0 14px; padding-left: 10px;
+    border-left: 3px solid var(--accent); }
+  h3 { font-size: 15px; margin: 24px 0 10px; }
+  blockquote { margin: 0 0 22px; padding: 12px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); color: #4a4136; font-size: 13.5px; }
+  blockquote p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px;
+    display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left;
+    vertical-align: top; min-width: 70px; }
+  th { background: #f0eee7; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #fbfaf7; }
+  td strong { color: var(--accent); }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px;
+    color: var(--mono); background: #f4f1ea; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f1ea; border: 1px solid var(--line); padding: 12px 14px;
+    overflow-x: auto; border-radius: 5px; }
+  pre code { background: none; padding: 0; color: var(--ink); }
+  ol, ul { padding-left: 24px; }
+  li { margin: 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 30px 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav { position: static; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><h2>目录</h2><div class="toc">
+<ul>
+<li><a href="#1">1. 改了什么</a></li>
+<li><a href="#2">2. 为什么这么画</a></li>
+<li><a href="#3">3. 读数</a></li>
+<li><a href="#4">4. 没做的（别当待办捡回来 / 别当已完成）</a></li>
+</ul>
+</div>
+</nav>
+  <main><h1 id="0-2026-11-09">庭心石作的形制（+0 条命令）· 2026-11-09</h1>
+<p>花径中央那件 <code>statue</code> 本轮只改<strong>形制</strong>：不动件数、不动位置、不动预算、不新增颜色。
+<strong>依据等级 B：只有仓库转述，没有一手画册证据</strong>（本机画册 PDF 99 页、无文字层，对不上
+p110–111）。所以这是「按转述推的近形」，<strong>不宣称还原设定集</strong>。</p>
+<h2 id="1">1. 改了什么</h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>改前（四条 <code>fillRect</code>）</th>
+<th>改后（石灯籠）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>纹理</td>
+<td>16×19 ＝ 1,216 byte</td>
+<td><strong>16×24 ＝ 1,536 byte</strong></td>
+</tr>
+<tr>
+<td>基座</td>
+<td>一块 16×8 的大方砖，没有分层</td>
+<td><strong>两级基座</strong>：14 宽 × 4 高 / 10 宽 × 3 高，中间压一道缝</td>
+</tr>
+<tr>
+<td>身</td>
+<td>一根 8 宽的柱</td>
+<td><strong>竿</strong>：6 宽 × 5 高，左棱受光、右棱落影</td>
+</tr>
+<tr>
+<td>台</td>
+<td>无</td>
+<td><strong>中台</strong>：8 宽 × 2 高，下沿三个凹口当莲弁纹样</td>
+</tr>
+<tr>
+<td>灯位</td>
+<td>无</td>
+<td><strong>火袋</strong>：8 宽 × 5 高，正面 <strong>4×3 的暗窗</strong>（不是灯窗）</td>
+</tr>
+<tr>
+<td>顶</td>
+<td>无</td>
+<td><strong>笠</strong>：12 宽出檐 + 8 宽顶面；<strong>宝珠</strong> 4 宽 × 2 高</td>
+</tr>
+<tr>
+<td>那道蓝带</td>
+<td>横贯 12 px 的实色 <code>water</code>，读成一条浮在石头上的蓝条</td>
+<td>删掉，改成基座与檐底的结构线</td>
+</tr>
+</tbody>
+</table>
+<p>源码：<code>world-client/src/render/setting-scenery.ts</code> 的 <code>statue</code> 分支（<code>bakeLayer</code> 回调）。
+广场那件 <code>(26,28)</code> 与庭心 <code>(4,25)</code> <strong>共用同一支形制</strong>，两处同步换掉。</p>
+<h2 id="2">2. 为什么这么画</h2>
+<ul>
+<li><strong>靠轮廓的进出做结构，不靠描边</strong>。六段各自比下面一段窄或宽：14 → 10 → 6 → 8 → 8 → 12，
+  剪影本身就能读出「叠石」。花墙那一轮已经证过：在 24 色下画一条实色 <code>deepShade</code> 分割线，
+  会被读成两块拼板之间的缝（见 <code>docs/evidence/flower-wall/README.md</code> §2）。</li>
+<li><strong>接缝一律用 <code>ink</code> 低透明压在石面上</strong>（0.28–0.35），与 <code>scene-artbook.ts</code> 的
+  <code>drawQuay</code> 同一套画法。这样缝仍是「石头上的阴影」，不是「石头之间的空隙」。
+  纹理内部是 2D canvas 合成，<code>alpha&lt;1</code> 叠在不透明石面上得到的是<strong>不透明</strong>结果，
+  不会透出草地。</li>
+<li><strong>窗要暗</strong>。这一处没有光源：给石作补灯实测 <strong>+306 条</strong>、超天花板（见
+  <code>docs/OPEN_ISSUES.md</code> O2）。所以火袋画的是暗窗——形制上有灯位、功能上没有灯，
+  夜里它就该是黑的。</li>
+<li><strong>不动位置</strong>。石作仍在 <code>(4,25)</code>，与上一行花圃在 <code>y392..396</code> 有 <strong>4px 几何重叠</strong>。
+  这是行序本来就允许的（花圃行 24、石作行 25，石作 depth 高 16），不是遮挡错误。
+  广场那件 <code>(26,28)</code> 的下半截本来就被街灯串挂的纸灯挡住（改前改后是同一条串、同一位置），
+  也不是这一笔造成的新遮挡。</li>
+</ul>
+<h2 id="3">3. 读数</h2>
+<ul>
+<li><strong>命令数不进统计</strong>：两件都走 <code>bakeLayer</code>，<code>renderStats().totalCommands</code> 里是 0 条。
+  实测 before 两跑 <strong>19,973 / 20,085</strong>、after 两跑 <strong>20,085 / 20,085</strong>（after 两跑逐字节
+  相同）。19,973 与 20,085 差 <strong>112</strong>，是 O4 记的单时刻噪声（村民走位，±120），
+  <strong>既不能算本改动的增量，也不能算下降</strong>。</li>
+<li><strong>逐像素差</strong>（<code>before.png</code> → <code>after2.png</code>，同机位同冻帧；下面的矩形都是<strong>截图 px</strong>，不是世界 px）：</li>
+<li>花径石作区 <code>(120,290)–(170,360)</code>：<strong>768 px / max 109</strong></li>
+<li>广场石作区 <code>(820,420)–(880,500)</code>：<strong>368 px / max 84</strong>——这一区还叠着一名村民的
+    走位差（before 里那个人不在这个位置），所以<strong>不能整块算成石作的改动</strong></li>
+<li>两排花圃区 <code>(120,120)–(400,300)</code>：<strong>0 px</strong>——这一笔没碰花圃</li>
+<li>全图 2,748 px，多出来的部分是两个走位的人（O4 噪声），不是形制改动</li>
+<li><strong>确定性</strong>：同配置双跑 <strong>0 px / max 0</strong>。</li>
+<li>机位与口径：<code>?world=dengchao&amp;time=noon&amp;feed=off&amp;ledger=off&amp;debug=1&amp;now=960</code>、
+  1010×700、世界冻住、潮位钉 1、晴、灯 / 摊 / 幌 / 烟四支动态全关、180 帧沉降；
+  相机 <code>scrollX=0 / scrollY=240</code>（花径）、<code>scrollX=184 / scrollY=296</code>（广场）。</li>
+<li>产物（未跟踪）：<code>world-client/tmp/garden-stone/{before,after2,after3,plaza}.png</code>、
+  <code>ab-garden-{base,cur,mark}.png</code>、<code>ab-plaza-{base,cur,mark}.png</code>。
+  脚本 <code>world-client/tmp/garden-stone-shot.mjs</code>（<code>LABEL=</code> / <code>CAM=plaza</code>），
+  分区统计 <code>world-client/tmp/garden-stone-regions.mjs</code>。</li>
+</ul>
+<h2 id="4">4. 没做的（别当待办捡回来 / 别当已完成）</h2>
+<ul>
+<li><strong>粉紫第 25 色</strong>：仍不开。花圃只有暖红 + 米白。</li>
+<li><strong>木栅</strong>：已于 2026-11-09 单独一笔做掉（只做东西向的南端矮栏，仍是 B 档，
+  见 <code>docs/evidence/fence/README.md</code>）；<strong>石垣</strong>同日另做（花床北缘的矮墙，见
+  <code>docs/evidence/stone-wall/README.md</code>）；<strong>瓦顶</strong>同日第三笔补上（只换压顶 3px，见
+  <code>docs/evidence/wall-roof/README.md</code>）。</li>
+<li><strong>夜里补光 +306</strong>：没做，仍是「新增功能」。暗窗是刻意的，不是忘了点灯。</li>
+<li><strong>A 档</strong>：翻书拍到 p110–111 才能升 A；在那之前所有形制判断都只是 B 档。</li>
+<li><strong>位置</strong>：<code>(4,25)</code> 与 <code>(26,28)</code> 都没挪。要挪是另一笔（会动 O0 记的几何与走位）。</li>
+</ul></main>
+</div>
+</body>
+</html>

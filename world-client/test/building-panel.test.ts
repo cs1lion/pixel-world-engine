@@ -69,6 +69,8 @@ const view = (over: Partial<BuildingPanelView> = {}): BuildingPanelView => ({
   task: 'writing',
   activity: 'idle',
   traces: [],
+  // 落地账脚注：默认没有记录（`null`），个别用例要验脚注时自己传。
+  landing: null,
   ...over,
 });
 

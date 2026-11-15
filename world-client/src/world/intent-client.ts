@@ -14,8 +14,10 @@ import type { IntentModel } from './intent-router.ts';
 import type { PrefabBlueprint } from './types.ts';
 import type { IntentContext } from './intent-context.ts';
 
-/** 超过这个时间就当没听懂。服务端自己有 8s，前端多给 2s 余量。 */
-export const INTENT_TIMEOUT_MS = 10_000;
+/** 超过这个时间就当没听懂。服务端默认 8s、`.env` 里可调；
+ * 2026-11-10 起接的是带延迟的真模型（实测 9–33s），前端留 40s，
+ * 要求 `LLM_TIMEOUT_SECONDS` ≤ 35。 */
+export const INTENT_TIMEOUT_MS = 40_000;
 
 export const INTENT_URL = '/api/world/intent';
 

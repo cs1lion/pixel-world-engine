@@ -112,6 +112,37 @@ export const DENGCHAO_CAST_ARCHIVES = {
       { to: '沉灯夫人', trust: 0.3, warmth: 0, debt: 0.1, familiarity: 0.5 },
     ],
   },
+  // 以下两人是**灯潮界原创**，设定集里没有对应人物，因此不进
+  // `DENGCHAO_CAST_ARTBOOK`（那张表只登记有 PDF 页码的五人）。
+  // 档案按各自已有的作息拍写，不替设定集编页码。
+  账房先生: {
+    aliases: ['管账的', '账房'],
+    identity: '账房，隶属账房与集市；原创角色，无设定集依据',
+    generation: '中年，镇上唯一认全部零钱的人',
+    origin: '灯潮界开市那年就在摊位间记账；没人见他来过，也没人见他走。',
+    cares: ['今日的账对得上', '旧账有人认'],
+    taboos: ['替他改一笔账', '赊了不记'],
+    routine: '07:30 镇心听人报今日的账；10:30 账房门口核账；14:00 街口说一笔旧账；开市时在摊位间对零钱。',
+    voice: '先报数，再报名字。',
+    bonds: [
+      { to: '沉灯夫人', trust: 0.35, warmth: 0.1, debt: 0, familiarity: 0.55 },
+      { to: '炉匠', trust: 0.25, warmth: 0.15, debt: -0.1, familiarity: 0.45 },
+    ],
+  },
+  洗衣妇: {
+    aliases: ['洗衣的', '晾布的'],
+    identity: '叠浪楼洗衣工，隶属叠浪楼；原创角色，无设定集依据',
+    generation: '壮年，手劲比说话大',
+    origin: '从积尘滩的废船上来，带着一只木盆；沉灯夫人让她留在叠浪楼后巷洗衣。',
+    cares: ['衣裳要干透', '退潮时滩边晾得开'],
+    taboos: ['满潮时催她晾布', '动她刚拧好的衣'],
+    routine: '06:30 镇心石边拧干最后一件；09:00 上叠浪楼收洗好的衣裳；退潮时 14:30 滩边晾布；17:00 把干净衣裳送到街尾。',
+    voice: '手上不停，话短。',
+    bonds: [
+      { to: '沉灯夫人', trust: 0.3, warmth: 0.05, debt: 0.15, familiarity: 0.5 },
+      { to: '汐', trust: 0.25, warmth: 0.3, debt: 0, familiarity: 0.4 },
+    ],
+  },
 } satisfies Readonly<Record<string, VillagerArchive>>;
 
 /**
@@ -177,6 +208,60 @@ export const DENGCHAO_RAW: RawSettingPack = {
     // 可 `copper` 在色板里的本义是铜绿**屋顶**，用它当滩涂本来就是借的。
     shallow: 'moss', mud: 'soil', coal: 'charcoal',
   },
+  // 岸线带（v3：构件化、跨 2–3 格，见 docs/P1_SHORE_BAND_DESIGN.md §6）：
+  // 24px 基值 = 3 段 × 8px，沿法线跨 2 格落地，末段按 hash2 逐格错位 0/4/8/12px，
+  // 总宽 24–36px。每组三档都是实色平铺，不叠 alpha。
+  //
+  // **石板段与草岸段是两组独立三档，不是一个 token 通吃**：`plaza` 是铺装色，
+  // 铺在草岸上会把岸读成码头/硬边（材质词义不对，不是看不见）。所以 stone 用
+  // `soil→farm→plaza`（`farm→plaza` 正午 23.0 / 22.21），grass 用
+  // `soil→farm→copper`（`farm→copper` 正午 13.0 / 13.06）。读数与穷举见 §6.5。
+  // 两组都用直岸（inset 0）：灯潮界行 15 的岸线是全格宽的北侧边，直岸段沿水线的
+  // 覆盖宽度是整格 16px，段与段之间不留缝。
+  //
+  // `staggerStep` 取 0（湿端）：错位加宽放在贴水的那一段，末段固定 8px。v3 的初版
+  // 把错位加在末段，正午 4× 下 `farm→plaza` 那一段被撑到 16~20px，读成一块亮板
+  // （不是「读成带」，是亮面太大），所以按 §6.5 的退回方案把加宽挪到湿端。
+  //
+  // `maxTruncatedPx` 是 0：截断必须当场失败，不许悄悄少画一段——24px 带的三格
+  // （行 15/16/17）在灯潮界都是陆格。
+  // `maxOverlapPx` 不是 0：灯潮界有 4 个拐角格（(7,9) 北+西 / (19,9) 北+东 /
+  // (28,14) 北+西 / (36,14) 北+东），北带与竖带必然在同一格的 `[d, d)²` 内相交，
+  // 裁掉的重叠是拐角结构而不是缺陷。石材段实测 2656 px（草岸段不在拐角，0），
+  // 这里写死实测基线当**回归棘轮**：重叠涨上去就抛，而不是放宽到某个安全大数。
+  // 它是棘轮、不是合格线——只保证不许变大，不代表 2656 可接受（见设计稿 §6.4）。
+  shore: [
+    {
+      land: ['stone'],
+      style: 'straight',
+      depthPx: 24,
+      staggerPx: 4,
+      staggerLevels: 4,
+      staggerStep: 0,
+      maxTruncatedPx: 0,
+      maxOverlapPx: 2656,
+      steps: [
+        { token: 'soil', depthPx: 8 },
+        { token: 'farm', depthPx: 8 },
+        { token: 'plaza', depthPx: 8 },
+      ],
+    },
+    {
+      land: ['grass'],
+      style: 'straight',
+      depthPx: 24,
+      staggerPx: 4,
+      staggerLevels: 4,
+      staggerStep: 0,
+      maxTruncatedPx: 0,
+      maxOverlapPx: 0,
+      steps: [
+        { token: 'soil', depthPx: 8 },
+        { token: 'farm', depthPx: 8 },
+        { token: 'copper', depthPx: 8 },
+      ],
+    },
+  ],
   grid: {
     width: 64, height: 48, border: 1,
     zones: [
@@ -197,6 +282,15 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { x: 28, y: 27, w: 9, h: 1, terrain: 'shallow' },
     { x: 28, y: 34, w: 9, h: 12, terrain: 'stone' },
     { x: 39, y: 35, w: 18, h: 8, terrain: 'mud' },
+    // 花径口袋（设定集 p110–111）：外框 x2..11 × y19..27（10 格宽）。
+    // 北侧 2 格树篱、东西各 2 格树篱；内里 x4..9 是草地。
+    // 参考图要求：中央净空 ≥2 格（两个人并排坐得下）、南口 ≥3 格宽。
+    // 小径仍走草地，不铺 plaza——plaza 的潮位清水位与草地不同，换成铺装会改掉
+    // `shore-band` 那条冻结的潮位格数 2343；南端 y27 的 x4..9 是 6 格宽的草口，
+    // 接 y28 起的广场。
+    { x: 2, y: 19, w: 10, h: 2, terrain: 'tree' },
+    { x: 2, y: 21, w: 2, h: 7, terrain: 'tree' },
+    { x: 10, y: 21, w: 2, h: 7, terrain: 'tree' },
   ],
   // 三色槽位（主色/点缀/禁用）逐个照 `docs/SPEC_V2.md` §4.1 那张表抄，
   // 不自己推——那张表是用户 2026-10-25 确认过的。五个都在表里，一格不差。
@@ -271,6 +365,30 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { prefabId: 'soot_forge', at: { x: 37, y: 34 } },
   ],
   hub: { x: 32, y: 29 },
+  // 场所锚点：作息里写 `site` 的落点按这张表解析，不再写死坐标。
+  // 花径中央净空只有 2 格宽（x6..7），两个人要并排站就各占一格——两个站位锚
+  // 同 kind `courtyard`，门控一样，只靠 id 区分落点。运行时由 `nearestWalkable`
+  // 落地，不在每条作息里各写一遍坐标——坐标一挪就得改每一处，迟早漏一条。
+  sites: [
+    { id: 'courtyard', kind: 'courtyard', x: 6, y: 24 },
+    { id: 'courtyard-east', kind: 'courtyard', x: 7, y: 24 },
+    // 集市：一条街有六摊（`lamp-street.ts` 的 `stall_*`，包络 x15..48 × y26..33），
+    // 一个坐标锚表示不了整条街。这里取 `stall_north_1` 所在的那一格：判据是
+    // 「这个坐标上有没有摊位」，不是位移。引擎自带的市面点 `marketSpot()`(40,26)
+    // 是空街口、离最近摊 6 格——见 `docs/OPEN_ISSUES.md` O3。
+    // 集市是链条的末端：它把叠浪楼洗好的衣裳卖出去，换回一天里的成交数。
+    { id: 'market', kind: 'market', x: 17, y: 26, name: '集市', output: 'trade', consumes: 'laundry' },
+    // 锅炉房 = `boiler_annex#1`（显示名「炉底入口」；炉膛 (33,14)、煤堆 (34,16)、
+    // 烟 (33,12) 都在它门旁 4–7 格内）。它不是建筑锚而是坐标锚，原因**不是**
+    // 「这栋没有门」——它有门，门在 (31,17)。但门落在 bathhouse 区域（`requires: 'lamp'`），
+    // 而炉匠 `carries: []`，走门等于静默失效（人永远到不了，牌子还写着搬炭）。
+    // 所以锚在现状作息点 (33,15)：出区域、可走，距炉膛 1、煤堆 2。
+    { id: 'boiler_annex#1', kind: 'workshop', x: 33, y: 15, name: '炉底入口', output: 'coal' },
+    // 大浴场清洗 = `wave_house#1`（叠浪楼）：建筑锚，id 就是 instanceId，
+    // 落点由 `PlacedBuilding.door` 解析。洗衣妇有灯，进得去。
+    // 叠浪楼是链条的中间：每天烧一份炭（浴池要热水），洗出一份衣裳（集市要）。
+    { id: 'wave_house#1', kind: 'workshop', building: 'wave_house#1', name: '叠浪楼', output: 'laundry', consumes: 'coal' },
+  ],
   // 露话池（SPEC_V2 §4.6 的清洗即还原）：每类摆件底下压着的那几句。
   // 它们是**设定集的话**，不是引擎的话——所以写在这儿，不写进 `grime.ts`。
   // 一件摆件落地时按「世界上已经有几件」取一句，于是同一个存档回放出同一句。
@@ -335,6 +453,11 @@ export const DENGCHAO_RAW: RawSettingPack = {
     }, routine: [
       { x: 32, y: 27, label: '点亮楼前的长灯', dwellMs: 5800 },
       { x: 19, y: 29, label: '在迎灯舍前照看来客', dwellMs: 5200 },
+      // 花径（设定集 p110–111）：14:00–17:00 才开。落点不写死坐标，由 `sites`
+      // 表的站位锚 + 地图可走格解析（见 `test/courtyard-routine.test.ts`）。
+      // 放在第三拍（下标 2）：开局的作息指针正好停在这里，14:00 出发、15:30 前后到。
+      // 活动词 `stroll` 是**引擎取值**：设定集只写了花径的「坐下」，没有「走看」。
+      { site: 'courtyard', activity: 'stroll', label: '在花径里看一会儿花', going: '去花径', dwellMs: 5200 },
       { x: 39, y: 29, label: '满潮时收起滩边的灯', dwellMs: 4800, tide: 'high' },
       { x: 50, y: 42, label: '趁退潮拾回还能用的灯芯', dwellMs: 6000, tide: 'low' },
     ] },
@@ -357,7 +480,10 @@ export const DENGCHAO_RAW: RawSettingPack = {
     }, routine: [
       { x: 39, y: 38, label: '在炉匠铺门口抖灰', dwellMs: 5600 },
       { x: 35, y: 30, label: '在镇心石边上歇脚', dwellMs: 5000 },
-      { x: 33, y: 15, label: '到炉底入口边上搬炭', dwellMs: 6000 },
+      // 锅炉房（设定集工坊三处之一）：`boiler_annex#1` 的坐标锚，白天才去。
+      // 06:00–17:00 是**引擎约定、无设定集依据**（设定集只给「白天斜射阳光」，没钟点）。
+      // 首拍 (39,38) 仍是字面坐标：它同时是锚点，门控在那里会空转（O3）。
+      { site: 'boiler_annex#1', activity: 'work', label: '到炉底入口边上搬炭', dwellMs: 6000 },
       { x: 24, y: 24, label: '在街边喝一碗热的', dwellMs: 4800 },
     ] },
     // 设定集：掌柜（PDF p.53；书页 104–105 的掌柜造型）。
@@ -369,23 +495,34 @@ export const DENGCHAO_RAW: RawSettingPack = {
       { x: 34, y: 29, label: '在镇心石边沉灯', dwellMs: 6000 },
       { x: 36, y: 29, label: '在镇心石边讲那年的潮', dwellMs: 5200 },
       { x: 27, y: 29, label: '沿街巡一遍还没灭的灯', dwellMs: 5000 },
+      // 两个人各占中央净空一格（x6 与 x7），并排站着；坐姿不在这一刀。
+      // 放在第四拍（下标 3）：她的作息指针起步在 3，14:00 出发、16:20 前后到。
+      // ⚠ 活动词 `rest` 与 label「站一会儿」不一致：**保留 `rest`**（设定集写的是
+      // 「坐下」）。接行为时要么改 label、要么改词，别当笔误删掉这一行。
+      { site: 'courtyard-east', activity: 'rest', label: '在花径里站一会儿', going: '去花径', dwellMs: 5200 },
       { x: 44, y: 28, label: '在茶摊前坐一会儿', dwellMs: 5600 },
     ] },
-    { name: '账房先生', at: { x: 34, y: 28 }, style: {
+    { name: '账房先生', at: { x: 34, y: 28 }, archive: DENGCHAO_CAST_ARCHIVES['账房先生'], style: {
       cloak: 'trim', cloakDark: 'charcoal', scarf: 'copper', scarfLit: 'pale', hair: 'timberDark',
       build: 'adult', head: 'bob', outfit: 'coat', accent: 'satchel', lamp: true,
     }, routine: [
       { x: 34, y: 30, label: '在镇心听人报今日的账', dwellMs: 4600 },
       { x: 30, y: 32, label: '在账房门口核今天的账', dwellMs: 5600 },
       { x: 23, y: 29, label: '去街口找人说一笔旧账', dwellMs: 5000 },
-      { x: 17, y: 26, label: '在摊位间对一遍零钱', dwellMs: 4800 },
+      // 集市两态（设定集：「午后阳光下的饮食街」/「入夜灯笼点亮」）。
+      // 08:00–17:00 与 19:00–22:00 都是**引擎约定、无设定集依据**（设定集没有钟点）；
+      // 锚 (17,26) 上就是 `stall_north_1`，不是空街口。
+      { site: 'market', activity: 'trade', label: '在摊位间对一遍零钱', dwellMs: 4800 },
     ] },
-    { name: '洗衣妇', at: { x: 37, y: 31 }, style: {
+    { name: '洗衣妇', at: { x: 37, y: 31 }, archive: DENGCHAO_CAST_ARCHIVES['洗衣妇'], style: {
       cloak: 'copper', cloakDark: 'deepShade', scarf: 'pale', scarfLit: 'plaster', hair: 'soil',
       build: 'adult', head: 'ponytail', outfit: 'apron', accent: 'none', lamp: true,
     }, routine: [
       { x: 36, y: 30, label: '在镇心石边拧干最后一件', dwellMs: 5000 },
-      { x: 33, y: 26, label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
+      // 大浴场清洗（设定集工坊三处之一）：`wave_house#1` 的建筑锚，落点取门。
+      // ⚠ 设定集对这一处**没有任何时间依据**——「斜射阳光」只属于锅炉房，
+      // 清洗那页连时间描述都是缺的。06:00–17:00 纯属引擎取值，不是还原。
+      { site: 'wave_house#1', activity: 'work', label: '上叠浪楼收洗好的衣裳', dwellMs: 5400 },
       { x: 52, y: 42, label: '把洗好的布晾在滩边', dwellMs: 6000, tide: 'low' },
       { x: 24, y: 31, label: '把干净衣裳送到街尾', dwellMs: 5400 },
     ] },
@@ -397,6 +534,39 @@ export const DENGCHAO_RAW: RawSettingPack = {
     { kind: 'track', at: { x: 2, y: 8 }, length: 60 },
     { kind: 'sign', at: { x: 19, y: 15 } },
     { kind: 'statue', at: { x: 26, y: 28 } },
+    // 花径（设定集 p110–111）：两列花床，每列 2 格宽 × 4 格深（厚 2 格才读得出
+    // 「花床」而不是一条花边）；中央 x6..7 是净空，两个人能并排站。庭心石作挪到
+    // 西侧 (4,25)，不压在中央净空列上。花圃与石作都走 bake（静态纹理，每帧 0 条）
+    // ——峰值指令净增 0，见 `docs/OPEN_ISSUES.md` N 节。
+    // 降级：没有粉紫（杜鹃 / 绣球做不出来）；**瓦顶 2026-11-09 补上**了（只换石垣
+    // 压顶那 3px、不加高，见下）；花墙形制 2026-11-09 已按「连贯、等高、平顶」改过
+    // 一版（仍是 **B 档**：依据只有仓库转述，本机画册对不上 p110–111，没有一手证据）；
+    // 庭心石作同日改成石灯籠（宝珠 / 笠 / 火袋 / 中台 / 竿 / 两级基座，仍是 B 档，
+    // 见 `docs/evidence/garden-stone/`）。
+    // **石作不加灯**（+306 条，144 条余量吃穿），夜里这片是全黑的。
+    //
+    // 矮石垣（设定集 p110–111 的「石垣」，**B 档**：依据仍是仓库转述）。
+    // 只做**东西向**、只做**齐腰高**（总高 16px、村民 18–20px）：南北向的墙在这套
+    // 投影里只剩一条竖带，读不出「立着」，与木栅同一条限制（实测见
+    // `docs/evidence/fence/README.md`）；再高就会把花床后的视线全吃掉。
+    // 顶上 3px 是瓦葺压顶（亮瓦脊 / 暗瓦面，4px 一垄）——**只换压顶、不加高**，
+    // 理由是加高会伸进 y19 那一行北篱；六版废稿见 `docs/evidence/wall-roof/`。
+    // 落在花床北缘 y20、从 x3 铺到 x10——比花床（x4..9）左右各宽出一格，
+    // 墙才像把这块地围起来的边界，而不是两列花床各自的靠背。
+    ...[3, 4, 5, 6, 7, 8, 9, 10].map((x) => ({ kind: 'stone_wall' as const, at: { x, y: 20 } })),
+
+    ...[4, 5].flatMap((x) => [21, 22, 23, 24].map((y) => ({ kind: 'flower_bed' as const, at: { x, y } }))),
+    ...[8, 9].flatMap((x) => [21, 22, 23, 24].map((y) => ({ kind: 'flower_bed' as const, at: { x, y } }))),
+    // 木栅（设定集 p110–111 的「夹道栅栏」，**B 档**：依据仍是仓库转述）。
+    // 只落在两列花床的**南端面**（y25，每列 2 格），把通道口收住；南北向的长栏
+    // 一件没做——那套画法在 1:1 下读成「一根带节的木杆」，实测四种画法都不成立，
+    // 理由与 A/B 图在 `docs/evidence/fence/README.md`。
+    //
+    // **写在石作之前**：栅栏与石灯籠都在 (4,25) 的行上，取同一个 `sceneryDepth`，
+    // 同 depth 谁在前只剩创建顺序。石作在 (4,25) 站着，栅栏要走它**背后**——
+    // 所以石作写在后面，由它压住那一段栏杆，而不是让栏杆从底座中间穿过去。
+    ...[4, 5, 8, 9].map((x) => ({ kind: 'fence' as const, at: { x, y: 25 } })),
+    { kind: 'statue', at: { x: 4, y: 25 } },
     // 碑立在镇心 (32,29) 旁边：世界共识刻在这儿，而不是刻在某栋楼的外墙上。
     // 碑上不写字（中文不进 canvas），字在 `#stele-panel` 里。
     { kind: 'stele', at: { x: 34, y: 28 } },

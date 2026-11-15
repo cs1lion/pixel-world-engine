@@ -28,6 +28,7 @@
 import { chromium } from '@playwright/test';
 import { waitFadeSettled } from './lib/capture.mjs';
 import { assertTreeIdentity } from './lib/tree-identity.mjs';
+import { assertSurfacePresent } from './lib/measure-surface.mjs';
 
 const BASE = process.env.PIXEL_WORLD_URL ?? `http://127.0.0.1:${process.env.PIXEL_WORLD_CLIENT_PORT ?? 5211}/`;
 
@@ -44,6 +45,10 @@ try {
   await page.addInitScript(() => localStorage.clear());
   await page.goto(`${BASE}?ledger=off&time=night&debug=1`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
+
+  // 测量面契约（scripts/lib/measure-surface.mjs）：隐藏 UI chrome 与逐帧会动的
+  // 名字/气泡；同时守卫「隐藏清单里的选择器在真实页面上都存在」，改名即红。
+  await assertSurfacePresent(page);
 
   const box = await page.locator('canvas').first().boundingBox();
 

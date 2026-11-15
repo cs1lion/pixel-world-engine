@@ -65,9 +65,9 @@
 - 代码：`setup.ts:624-642`（grep `export function rebuildGridFromPlacements`），
   读档入口 `setup.ts:661-671`（`buildWorldFromSave`），
   生产入口 `main.ts:82`（`buildWorldFromSave(save.world.buildings, pack.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR)`）。
-- 存档版本：`save.ts:37` `CURRENT_SCHEMA_VERSION = 6`（本阶段已升版）；
-  v5 冻结指纹 `save.ts:71`；v5 新增路径 `save.ts:268`（`world.memory`）；
-  v5 允许路径全集 `save.ts:598-602`；迁移表 `save.ts:1422`；v4→v5 迁移 `save.ts:1546-1560`。
+- 存档版本：`save.ts:38` `CURRENT_SCHEMA_VERSION = 8`（v7/v8 又各升了一版）；
+  v5 冻结指纹 `save.ts:72`；v5 新增路径 `save.ts:280`（`world.memory`）；
+  v5 允许路径全集 `save.ts:674-677`；迁移表 `save.ts:1569`；v4→v5 迁移 `save.ts:1699-1710`。
 
 ### 1.3 今天没有投影函数，只有逐格换算
 
@@ -75,15 +75,15 @@
 
 | 用途 | 位置 | 写法 |
 | --- | --- | --- |
-| 人物脚底 | `render/villager.ts:79-88`（grep `villagerFootAt`） | `x=(cell.x+0.5)*16`, `y=(cell.y+1)*16` |
-| 人物深度 | `villager.ts:91-94`（grep `villagerDepthAt`） | `ALTITUDE + footY + 8` |
+| 人物脚底 | `render/villager.ts:88-97`（grep `villagerFootAt`） | `x=(cell.x+0.5)*16`, `y=(cell.y+1)*16` |
+| 人物深度 | `villager.ts:100-102`（grep `villagerDepthAt`） | `ALTITUDE + footY + 8` |
 | 建筑容器 | `render/buildings.ts:67-70` | `px=origin.x*16`, `py=origin.y*16` |
 | 建筑落地线 | `render/building-depth.ts:34-41`（grep `buildingBaseY` / `actorDepthAt`） | `baseY=originY+footprintH*16`；`actorDepth=ALT+(gridY+1)*16+8` |
 | 道具 | `render/prop-depth.ts:18`、`:29-30` | `(at.y+0.8)*16`，深度 `+8` |
 | 布景 | `render/scenery-depth.ts` | 行号 + 12 / 4 的偏移 |
 | 装饰 | `render/decor.ts` | 同样按 `py + ACTOR_DEPTH_OFFSET` |
 
-`ALTITUDE = 1000`：`SandboxScene.ts:289`（grep `const ALTITUDE = 1000`）。
+`ALTITUDE = 1000`：`SandboxScene.ts:303`（grep `const ALTITUDE = 1000`）。
 **已有 y 排序**：人物 +8、道具 +8、布景 +12/4、建筑 body 0 / decal 16 / front 32；
 地形整体在 -10，所以「地形永远在人下面」。今天没有任何东西按高度改屏幕 y。
 
@@ -149,7 +149,10 @@ export interface GridSpec {
 5. 编译 `ramps` / `ladders` 成每个端点上的 `climb`：
    `{ kind: 'ramp' | 'stairs' | 'ladder', to: GridPoint }`；两端必须互指，否则构造时抛
    `WorldSetupError`（不静默取一侧）。
-6. `walkable` 由地形与层推导一次：`water` 恒 false；树篱恒 false；其余保持今天的行为。
+6. `walkable` 由地形与层推导一次：`water` 恒 false；**树（含树篱）今天恒 true（代价 2.5，不是阻挡物）**；其余保持今天的行为。
+   **（2026-11-08 事实更正）** 此条原写「树篱恒 false」，与代码不符：`WALK_COST.tree = 2.5`、
+   `isWalkable` 对 `tree` 为真。因此在潮位 0.31–0.42 的窗口里，树（`TERRAIN_WATER_CLEARANCE` 0.42）
+   比被淹草地（0.30，代价 3.40）便宜，树篱会被当成抄近路的干通道（详见 `OPEN_ISSUES.md` O1）。
 
 **为什么不做区域多边形**：分区矩形今天用于建造许可与群落叙事（`grid.ts:158-168`、`biomes.ts`）；
 高度是逐格的几何，且悬崖的“边”必须落在格边界上。用多边形表达会引入“多边形重叠时谁赢”的优先级，
@@ -294,9 +297,9 @@ occluderDepth(gridY, maxLevel) = ALTITUDE + (gridY + 1) * TILE_PX + 4 - maxLevel
 - 兜底 `nearestWalkable(goal, accept)`：`grid.ts:487-503`，只按曼哈顿距离扫全图，**完全不看层、也不看能不能从起点到达**。
 - 上层门面：`reaches()` `setup.ts:583-591`（`goal = isWalkable(to) ? to : nearestWalkable(to)`），
   `doorReaches()` `setup.ts:601-602`，`paveFrom()` `setup.ts:612-620`。
-- 生产调用点：`world-client/src/settings/load.ts:442`（门）、`:473`（村民巡游点），
-  `world-client/src/world/simulation.ts:2929`、`:3364`、`:4857`（目标改写/回家/默认点），
-  `world-client/src/world/routines.ts:54-61`（园子、长廊、摊位、河边四个点）。
+- 生产调用点：`world-client/src/settings/load.ts:672`（门）、`:697`（村民巡游点），
+  `world-client/src/world/simulation.ts:3048`、`:3483`、`:5204`（目标改写/回家/默认点），
+  `world-client/src/world/routines.ts:72-79`（园子、长廊、摊位、河边四个点）。
 
 ### 4.2 具体判断：哪些测试会失效、为什么
 
@@ -356,20 +359,20 @@ reaches(grid, from, to)
 
 - `path` 内部：`passable(next)` 改成 `canStep(current, next, accept)`；
   `costAt(next)` 改成 `stepCost(current, next)`；**起点也要先判可站**（当前代码只判目标，
-  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2315` 的注释与代码不一致——顺手在这一处补齐）。
+  起点不可走时 A* 仍会从墙里走出去，`simulation.ts:2434` 的注释与代码不一致——顺手在这一处补齐）。
 - `pave-reachable` 的语义**保持**：端点自己可走时按端点算；不可走时允许改写，但改写候选必须
   **与目标同层**，是否可达仍由 `path` 判。`pave-reachable.test.ts:178` 的“树篱 hub、一门之隔”仍然为真；
   `:196` 的“真被围死的门”仍然为假——这两条是本次改动不能碰坏的既有语义。
 - `doorReaches` / `paveFrom` / `loadSettingPack` / `simulation` 的目标改写全部迁到 `nearestWalkableOnLevel`；
   旧 `nearestWalkable` 删除或降为 `private`，不留“还能调”的入口。
 - **今天同一件事已经写了两遍**：`assertWorldInvariants` 与 `loadSettingPack` 各自写
-  `path(...).length === 0`（`setup.ts:572` 的注释自述，`settings/load.ts:442` 是另一处）。
+  `path(...).length === 0`（`setup.ts:572` 的注释自述，`settings/load.ts:472` 是另一处）。
   高度只改一处就会“落地能过、读档不能过”或反过来；本次必须收成一个 `reaches` / `canStep` 调用，
   两边都只调门面。
 - 建筑落位：`place()` 时检查 footprint 的层必须一致（或显式先铺平台），
   门口格必须能从祭坛到达；否则抛 `WorldSetupError`。门开在悬崖底、楼在崖顶这类图直接拒绝落地。
-- 出生点/巡游点：巡游点今天查 `reaches`（`world-client/src/settings/load.ts:473`），会自动走新判据；
-  **出生点今天只查 `isWalkable`**（同文件 `:452`），抬层后这不够——必须补
+- 出生点/巡游点：巡游点今天查 `reaches`（`world-client/src/settings/load.ts:697`），会自动走新判据；
+  **出生点今天只查 `isWalkable`**（同文件 `:675`），抬层后这不够——必须补
   `reaches(grid, anchor, spawn)`，否则“站在封闭台地上但可走”会被当成合法出生点。
 
 ### 4.4 水、潮与层的关系（不许再长第三个高度）
@@ -416,8 +419,8 @@ world.terrainEdits: readonly {
 
 ### 5.3 版本与兼容
 
-- `CURRENT_SCHEMA_VERSION` 5 → 6（`save.ts:37`）。
-- `MIGRATIONS[5]`：只补 `world.terrainEdits = []`，其余字段逐字不动（照 `save.ts:1546-1560` 的写法）。
+- `CURRENT_SCHEMA_VERSION` 5 → 7（`save.ts:38`）。
+- `MIGRATIONS[5]`：只补 `world.terrainEdits = []`，其余字段逐字不动（照 `save.ts:1699-1710` 的写法）。
 - 新冻结指纹 `SCHEMA_V6_FINGERPRINT`，由新样例 docs/save-v6.sample.json 算出；
   **v5 样例与 `SCHEMA_V5_FINGERPRINT` 保留**，v5 的 `assertSaveV5`/允许路径集合保留。
 - `SAVE_V6_ADDED_PATHS = ['world.terrainEdits']`；`SAVE_V6_ALLOWED_PATHS` 基于 v5 集合追加。
@@ -650,16 +653,16 @@ world.terrainEdits: readonly {
 | `path(` / `nearestWalkable` | `world-client/src/world/grid.ts:448` / `:541` |
 | `reaches` / `doorReaches` / `paveFrom` | `world-client/src/world/setup.ts:583` / `:601` / `:612` |
 | `rebuildGridFromPlacements` / `buildWorldFromSave` | `world-client/src/world/setup.ts:624` / `:661` |
-| `CURRENT_SCHEMA_VERSION` / `SCHEMA_V5_FINGERPRINT` | `world-client/src/world/save.ts:37` / `:71` |
-| `MIGRATIONS` / v4→v5 | `world-client/src/world/save.ts:1422` / `:1546` |
+| `CURRENT_SCHEMA_VERSION` / `SCHEMA_V5_FINGERPRINT` | `world-client/src/world/save.ts:38` / `:72` |
+| `MIGRATIONS` / v4→v5 | `world-client/src/world/save.ts:1569` / `:1699` |
 | `isFlooded` / `TERRAIN_WATER_CLEARANCE`（潮） | `world-client/src/world/tide.ts:180` / `:71` |
-| `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:52` |
+| `TERRAIN_EDGE_PRIORITY`（画边） | `world-client/src/render/terrain-edges.ts:54` |
 | `drawTerrain` | `world-client/src/render/tilemap.ts:24` |
-| `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:99` / `:133` |
-| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:79` / `:91` |
+| `bakeLayer` / `rebake` | `world-client/src/render/bake.ts:124` / `:134` |
+| `villagerFootAt` / `villagerDepthAt` | `world-client/src/render/villager.ts:88` / `:100` |
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
 | `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts:18` / `:29` |
-| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:289` |
+| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:303` |
 | 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |
 | `pave-reachable.test.ts` 的 `nearestWalkable` 断言 | `world-client/test/pave-reachable.test.ts:177` |

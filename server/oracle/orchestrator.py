@@ -236,34 +236,87 @@ def env_caller() -> ModelCaller:
             f"LLM_TIMEOUT_SECONDS 不是数字：{raw_timeout!r}，意图模型不可用"
         ) from exc
 
+    protocol = os.environ.get("LLM_PROTOCOL", "").strip().lower()
+    if protocol not in ("openai", "anthropic"):
+        # 没显式指定就按地址推断：网关的 Anthropic 兼容入口习惯以 `/anthropic` 结尾。
+        protocol = "anthropic" if base_url.endswith("/anthropic") else "openai"
+
+    if protocol == "anthropic":
+        return _anthropic_caller(api_key, base_url, model, timeout)
+    return _openai_caller(api_key, base_url, model, timeout)
+
+
+def _post(url: str, headers: dict[str, str], payload: dict[str, Any], timeout: float) -> Any:
+    import httpx
+
+    try:
+        response = httpx.post(url, headers=headers, json=payload, timeout=timeout)
+    except httpx.TimeoutException as exc:
+        raise ModelFailed(f"模型超时 {timeout}s") from exc
+    except httpx.HTTPError as exc:
+        raise ModelFailed(f"模型不可达：{exc}") from exc
+    if response.status_code >= 400:
+        raise ModelFailed(f"模型返回 {response.status_code}：{response.text[:200]}")
+    return response
+
+
+def _openai_caller(api_key: str, base_url: str, model: str, timeout: float) -> ModelCaller:
     def call(messages: list[dict[str, str]]) -> str:
-        import httpx
-
+        response = _post(
+            f"{base_url}/chat/completions",
+            {"authorization": f"Bearer {api_key}"},
+            # 温度 0：意图解析要的是稳定，不是文采。同一句话两次问出
+            # 不同答案的系统没法测试，也没法解释。
+            {"model": model, "temperature": 0, "messages": messages},
+            timeout,
+        )
         try:
-            response = httpx.post(
-                f"{base_url}/chat/completions",
-                headers={"authorization": f"Bearer {api_key}"},
-                json={
-                    "model": model,
-                    # 温度 0：意图解析要的是稳定，不是文采。同一句话两次问出
-                    # 不同答案的系统没法测试，也没法解释。
-                    "temperature": 0,
-                    "messages": messages,
-                },
-                timeout=timeout,
-            )
-        except httpx.TimeoutException as exc:
-            raise ModelFailed(f"模型超时 {timeout}s") from exc
-        except httpx.HTTPError as exc:
-            raise ModelFailed(f"模型不可达：{exc}") from exc
-
-        if response.status_code >= 400:
-            raise ModelFailed(f"模型返回 {response.status_code}：{response.text[:200]}")
-
-        try:
-            body = response.json()
-            return body["choices"][0]["message"]["content"] or ""
+            return response.json()["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise ModelFailed(f"模型返回的形状不认识：{exc}") from exc
+
+    return call
+
+
+#: 思考模型会先在 `thinking` 块里花 token。给小了，思考没完就被截断，
+#: 回来的内容里一个 `text` 块都没有（2026-11-10 实测 max_tokens=64 即如此）。
+ANTHROPIC_MAX_TOKENS = 4096
+
+
+def _anthropic_caller(api_key: str, base_url: str, model: str, timeout: float) -> ModelCaller:
+    """Anthropic Messages 形状：`system` 单列，答案取 `text` 块、忽略 `thinking` 块。"""
+
+    def call(messages: list[dict[str, str]]) -> str:
+        system = "\n\n".join(m["content"] for m in messages if m.get("role") == "system")
+        turns = [m for m in messages if m.get("role") != "system"]
+        payload: dict[str, Any] = {
+            "model": model,
+            "max_tokens": ANTHROPIC_MAX_TOKENS,
+            "messages": turns,
+        }
+        if system:
+            payload["system"] = system
+        if os.environ.get("LLM_THINKING", "off").strip().lower() == "off":
+            # 意图解析不需要思考：关掉后直接出 `text` 块，少烧 token、少等几秒。
+            payload["thinking"] = {"type": "disabled"}
+        response = _post(
+            f"{base_url}/v1/messages",
+            {
+                # 不同网关认不同的头，两个都带；多余的那个会被忽略。
+                "x-api-key": api_key,
+                "authorization": f"Bearer {api_key}",
+                "anthropic-version": "2023-06-01",
+            },
+            payload,
+            timeout,
+        )
+        try:
+            blocks = response.json()["content"]
+            text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise ModelFailed(f"模型返回的形状不认识：{exc}") from exc
+        if not text.strip():
+            raise ModelFailed("模型没有给出 text 块（可能思考被截断）")
+        return text
 
     return call

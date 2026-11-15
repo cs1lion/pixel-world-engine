@@ -1,0 +1,14 @@
+{
+  "MAX_COMMANDS_CEILING": {
+    "value": 33488,
+    "approved_at": "2026-11-07",
+    "approved_by": "用户（合并窗口）",
+    "reason": "实测峰值 33,445 + 43 政策余量（2 跑极差 0），原值自 palette-audit 合入时确立。"
+  },
+  "GROUND_SHADOW_PEAK_CEILING": {
+    "value": 34666,
+    "approved_at": "2026-11-07",
+    "approved_by": "用户（合并窗口）",
+    "reason": "G5 两级口径：设计目标 30,000 不动，本记录器自测峰值 + 政策余量 34,666；不得套用 render-budget 的 33,488。"
+  }
+}

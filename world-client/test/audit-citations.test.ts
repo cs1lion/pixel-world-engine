@@ -12,6 +12,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -152,4 +153,124 @@ test('真仓库今天没有白名单外的引用', () => {
   assert.ok(real.checked > 100, `只受查了 ${real.checked} 处，闸门大概没扫到东西`);
   // 白名单不能是空的：空的白名单配 0 处未解析，通常意味着扫描范围塌了。
   assert.ok(real.known > 0, '白名单内 0 处——要么判据变了，要么扫描范围空了');
+  // 扫描根一个都不能缺：缺了那片就是「没查」，不是「查了没问题」。
+  assert.deepEqual(real.problems, [], '真仓库的扫描根缺了，见上方报告');
+});
+
+test('扫描根不存在要进返回值，不许静默 `continue`', () => {
+  // 原来的行为：`if (!existsSync(abs)) continue;`——输出照样写「未解析 0 处」，
+  // 而这一片一个反引号都没查。这里造一个空目录当假仓库，七个根全不在，
+  // 一条都躲不掉。
+  const root = mkdtempSync(path.join(tmpdir(), 'pwe-cite-empty-'));
+  try {
+    const r = auditCitations({ root });
+    assert.equal(r.checked, 0, '根不存在时不该有受查数');
+    assert.equal(r.problems.length, 7, `只报出 ${r.problems.length} 个缺根`);
+    const docs = r.problems.find((p) => p.scanRoot === 'docs');
+    assert.ok(docs !== undefined, '`docs` 缺了必须报');
+    assert.equal(docs.expected, path.join(root, 'docs').split(path.sep).join('/'));
+    assert.equal(docs.actual, '不存在');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('结论不随 checkout 目录名变：仓名限定写法按 origin 剥前缀', () => {
+  // 同一份内容放进两个不同名的目录：pixel-world-engine 与 pwe-other。
+  // 老实现拿绝对路径做后缀匹配，只有目录名恰好叫 pixel-world-engine 的那个「碰巧」绿；
+  // 现在两边必须同一结论，且绿不能变成红。
+  const parent = mkdtempSync(path.join(tmpdir(), 'pwe-cite-names-'));
+  const repoName = ['pixel', 'world', 'engine'].join('-');
+  const acceptance = ['docs', ['DESIGN', 'ACCEPTANCE'].join('_')].join('/') + '.' + 'md';
+  const docPath = ['docs', 'd'].join('/') + '.' + 'md';
+  const fill = (root: string): void => {
+    for (const dir of ['docs', 'world-client/src/world', 'world-client/test', 'world-client/scripts', 'server']) {
+      mkdirSync(path.join(root, dir), { recursive: true });
+    }
+    writeFileSync(path.join(root, 'GLOSSARY.md'), '# g\n', 'utf8');
+    writeFileSync(path.join(root, 'README.md'), '# r\n', 'utf8');
+    writeFileSync(path.join(root, 'world-client', 'src', 'world', 'setup.ts'), 'export const setup = 1;\n', 'utf8');
+    writeFileSync(path.join(root, ...acceptance.split('/')), '# acceptance\n', 'utf8');
+    const ref = [repoName, acceptance].join('/');
+    writeFileSync(path.join(root, ...docPath.split('/')), `依据见 \`${ref}\`。\n`, 'utf8');
+    execFileSync('git', ['-C', root, 'init', '-q']);
+    execFileSync('git', ['-C', root, 'remote', 'add', 'origin', `git@github.com:cs1lion/${repoName}.git`]);
+  };
+  try {
+    const same = path.join(parent, 'pixel-world-engine');
+    const other = path.join(parent, 'pwe-other');
+    for (const root of [same, other]) fill(root);
+    const a = auditCitations({ root: same });
+    const b = auditCitations({ root: other });
+    assert.deepEqual(a.findings.map((f) => f.token), [], '目录名同名时不该有未解析');
+    assert.deepEqual(b.findings.map((f) => f.token), [], '换个目录名结论必须一样');
+    assert.equal(a.checked, b.checked, '两个目录名的受查数应一致');
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('忽略规则收敛扫描面，但不放宽判据', () => {
+  // 这条钉的是两半，缺一半都会把修复变成「为了变绿而放宽判据」：
+  //   1. 落在 `.gitignore` 里的路径不参与「引用是否存在」的判定——**即使本机磁盘
+  //      上真的有这个文件**。那正是「本地绿、CI 红」的根源：干净检出里没有 tmp 产物。
+  //   2. 忽略目录**之外**一条真的不存在的仓内路径，照旧必须报出来。
+  // 忽略判定交给 git 自己（与本仓同一条路）；假仓库只要有一份 `.gitignore` 就够。
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, '.gitignore'), 'tmp/\n', 'utf8');
+    // 忽略判定由 git 自己给，所以假仓库得是个仓库。
+    execFileSync('git', ['-C', root, 'init', '-q']);
+    // 本机跑过测试的状态：tmp 产物真的在磁盘上。它不能被当成仓内引用。
+    mkdirSync(path.join(root, 'tmp'), { recursive: true });
+    const onDisk = ['tmp', 'produced'].join('/') + '.json';
+    const absent = ['tmp', 'never-produced'].join('/') + '.json';
+    writeFileSync(path.join(root, ...onDisk.split('/')), '{}\n', 'utf8');
+
+    const r = auditDoc(
+      root,
+      [
+        `跑过测试后本机有 \`${onDisk}\`。`,
+        `换台机器就没有 \`${absent}\`。`,
+        `另有一条真的不存在的仓内路径 \`${phantom()}\`。`,
+      ].join('\n'),
+    );
+
+    // 第一半：两条 tmp 路径都落在忽略规则里，即使其中一条本机存在。
+    assert.deepEqual(
+      r.ignoredPaths,
+      [absent, onDisk].sort(),
+      '忽略规则内的路径必须一律不参与判定（含本机真的存在的那条）',
+    );
+    assert.equal(r.ignored, 2, '两处引用都该记成忽略未判定，并报得出数量');
+    // 第二半：忽略目录之外的不存在路径照旧要报——判据没放宽。
+    assert.deepEqual(r.findings.map((f) => f.token), [phantom()], '忽略目录外的坏路径必须照报');
+    assert.equal(r.trackedUnderIgnore, 0, '这个假仓库没有强塞进忽略目录的跟踪文件');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('被跟踪的文件永远不被忽略规则排除', () => {
+  // 手写解析器最容易错的地方：只看「路径匹配忽略规则」就判 ignored。
+  // git 的答案是：**被跟踪的文件不受忽略规则约束**。这条造一个
+  // 「既匹配 `tmp/`、又真的被跟踪」的文件，引用它必须判存在。
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, '.gitignore'), 'tmp/\n', 'utf8');
+    mkdirSync(path.join(root, 'tmp'), { recursive: true });
+    const forced = ['tmp', 'forced'].join('/') + '.json';
+    writeFileSync(path.join(root, ...forced.split('/')), '{}\n', 'utf8');
+    execFileSync('git', ['-C', root, 'init', '-q']);
+    // `-f`：无视忽略规则把它强塞进索引——正是要防的那种「产物被提交」。
+    execFileSync('git', ['-C', root, 'add', '-f', forced]);
+
+    const r = auditDoc(root, `引用了 \`${forced}\`。`);
+
+    assert.deepEqual(r.findings, [], '被跟踪的文件即使匹配忽略规则也必须判存在');
+    assert.equal(r.ignored, 0, '被跟踪的路径不能进「忽略未判定」计数');
+    assert.equal(r.trackedUnderIgnore, 1, '守卫要报出「被跟踪但在忽略规则下」的条数');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

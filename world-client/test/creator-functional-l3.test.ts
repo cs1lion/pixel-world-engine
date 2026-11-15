@@ -133,6 +133,11 @@ test('[L3] creationCoverage 在 0 分母时给 null，落地门禁与计数器�
     ...h.pack,
     blueprints: new Map(),
     placements: [],
+    // 场所里有建筑锚（`wave_house#1`）；一栋楼都不落时它解析不到，
+    // 而 `buildSettingWorld` 对未知建筑一律 throw。空世界连居民一起清掉，
+    // 测的是「蓝图数为 0」这一件事，不是「半份包能不能装」。
+    sites: [],
+    villagers: [],
   };
   const emptyWorld = buildSettingWorld(emptyPack);
   const emptySim = new Simulation({

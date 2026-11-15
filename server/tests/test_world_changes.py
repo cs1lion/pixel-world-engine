@@ -195,6 +195,58 @@ def test_每日小事的_kind_不能自己编(client: TestClient) -> None:
     assert "daily_fish" in response.json()["detail"]
 
 
+def test_产出事件带得出名字与来历(client: TestClient) -> None:
+    """一趟作业做出了东西，这条事实要能写进事件账——产出物的名字与来历。
+
+    与 `routine_done` 分开：那条是「她停了一会儿」，这条是「炉匠搬炭，
+    得了一份炭」。落点绑楼门（`boiler_annex#1`），当事人是干活的人。
+    """
+    assert "work_output" in WORLD_EVENT_KINDS
+    payload = {
+        "kind": "work_output",
+        "text": "炉匠搬炭，得了一份炭。",
+        "placeId": "boiler_annex#1",
+        "where": {"x": 12, "y": 9},
+        "actorId": "v3",
+    }
+    response = post(client, "world.event", payload)
+    assert response.status_code == 201, response.text
+    stored = client.get("/api/events", params={"limit": 20}).json()["events"]
+    written = [item for item in stored if item["payload"].get("kind") == "work_output"]
+    assert len(written) == 1, "产出事件没进事件账，记忆层就没有依据可引"
+    assert written[0]["payload"]["text"] == payload["text"]
+    assert written[0]["payload"]["actorId"] == "v3"
+
+def test_需求方把货用掉_没等到_也是白名单里的事(client: TestClient) -> None:
+    """产出账的对手方：这两条一正一负，都得写进事件账。
+
+    `supply_used` 没有当事人（`actorId` 为 null）——是场所把货用掉了，
+    不是某个人做成了什么；`supply_short` 是镇上真的出了状况。
+    """
+    assert {"supply_used", "supply_short"} <= set(WORLD_EVENT_KINDS)
+    payloads = [
+        {
+            "kind": "supply_used",
+            "text": "叠浪楼从炉底入口取走了一份炭。",
+            "placeId": "wave_house#1",
+            "where": {"x": 33, "y": 17},
+            "actorId": None,
+        },
+        {
+            "kind": "supply_short",
+            "text": "叠浪楼今天没等到炭。",
+            "placeId": "wave_house#1",
+            "where": {"x": 33, "y": 17},
+            "actorId": None,
+        },
+    ]
+    for payload in payloads:
+        response = post(client, "world.event", payload)
+        assert response.status_code == 201, (payload["kind"], response.text)
+    stored = client.get("/api/events", params={"limit": 20}).json()["events"]
+    kinds = [item["payload"].get("kind") for item in stored]
+    assert "supply_used" in kinds and "supply_short" in kinds
+
 def test_船班播报也是同一扇窄门(client: TestClient) -> None:
     """渡口按世界时间每天报三次；它必须走白名单，不能自造一个 kind。"""
     assert "harbor_report" in WORLD_EVENT_KINDS

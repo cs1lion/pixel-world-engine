@@ -18,6 +18,8 @@ import {
   weekViewOf,
   type DayCardView,
 } from '../world/memory/daycard.ts';
+import { emoteIdFor, emoteIdForKind, plateIdFor } from '../render/art-assets.ts';
+import { appendDecor } from './art-decor.ts';
 
 export interface DayCardRead {
   readonly cards: readonly DayCardView[];
@@ -127,7 +129,7 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
 
     // 按周切块，最近的周放最上面——日历先给人看「这一周安不安生」。
     const weeks = [...groupIntoWeeks(shown)].reverse();
-    for (const week of weeks) {
+    for (const [weekIndex, week] of weeks.entries()) {
       let view;
       try {
         view = weekViewOf(week.cards);
@@ -139,6 +141,8 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
       }
       const weekHead = element('div', 'daycard-week');
       weekHead.textContent = view.summary;
+      // 11-11 构图稿切出来的画册贴片按周轮转：纯装饰，不改这一周的读数。
+      appendDecor(weekHead, 'plate', plateIdFor(weekIndex), 'art-plate');
       list.append(weekHead);
 
       for (const card of [...week.cards].reverse()) {
@@ -151,6 +155,12 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
         const bytes = element('span', 'daycard-row-bytes');
         bytes.textContent = `${dayCardBytes(card)} B`;
         row.append(line, what, bytes);
+        // 表情按那天的性质选：不平静 / 有事 / 平常三路，平常再按日号轮转。
+        // 不是「情绪读数」——世界没有这条数据，不假装有。
+        const emote = card.tense ? emoteIdForKind('storm')
+          : card.e > 0 ? emoteIdForKind('alert') : emoteIdFor(card.d);
+        // 挂在第一行文字里而不是 row 上：row 是 grid，多一个子节点会多撑一行。
+        appendDecor(line, 'emote', emote, 'art-emote');
         list.append(row);
       }
     }

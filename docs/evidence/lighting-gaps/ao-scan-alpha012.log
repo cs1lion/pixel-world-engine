@@ -1,0 +1,34 @@
+[工作树身份] 一致：D:\project\pwe-lighting（端口 5301，启动于 2026-11-07T07:37:26.736Z）
+[截图输出] check-ground-shadow → D:\project\pwe-lighting\world-client\tmp\screens\check-ground-shadow（未跟踪）
+dawn: 摊位开/关 0.50%（1156px，影长 4,4,4,4,4,4） / 人物开/关 0.07%（24px）
+noon: 摊位开/关 0.45%（1040px，影长 1,1,1,1,1,1） / 人物开/关 0.02%（8px）
+dusk: 摊位开/关 0.55%（1260px，影长 7,7,7,7,7,7） / 人物开/关 0.17%（56px）
+night: 摊位开/关 0.00%（0px，影长 0,0,0,0,0,0） / 人物开/关 84.67%（27960px）
+全关同刻两页 0.00%（0px）；跨 t/t+1s 0.00%（0px，既有横条）
+暂停 0.00%（帧 +66）
+确定性 13/13；峰值指令 19179
+  [G2 摊位 dawn] inner 9.26% / mid 4.46% / outer 1.56%
+  [G2 人物 dawn] inner 5.91% / mid 1.28%
+  [G2 摊位 noon] inner 8.20% / mid 2.97% / outer 1.54%
+  [G2 人物 noon] inner 4.84%
+  [G2 摊位 dusk] inner 9.54% / mid 4.50% / outer 2.22%
+  [G2 人物 dusk] inner 13.09% / mid 5.14% / outer 3.30%
+  [G3] wave_house#1（scan）基底 46.34 → 开 46.18 → ΔL 0.17（深底，带外·放弃判红）
+  [G3] lamp_lodge#1（scan）基底 92.11 → 开 90.61 → ΔL 1.50（深底，带外·放弃判红）
+  [G3] tea_stall#1（scan）基底 64.90 → 开 62.90 → ΔL 2.00（深底，带外·放弃判红）
+  [G3] ferry_station#1（scan）基底 87.00 → 开 82.22 → ΔL 4.78（深底，带外·放弃判红）
+  [G3] lamp_workshop#1（scan）基底 41.32 → 开 41.39 → ΔL -0.07（深底，带外·放弃判红）
+  [G3] boiler_annex#1（scan）基底 116.40 → 开 112.44 → ΔL 3.97（可读基底）
+  [G3] ledger_house#1（scan）基底 77.79 → 开 74.18 → ΔL 3.61（深底，带外·放弃判红）
+  [G3] lamp_archive#1（scan）基底 134.09 → 开 123.73 → ΔL 10.35（可读基底）
+  [G3] soot_forge#1（scan）基底 90.55 → 开 85.35 → ΔL 5.19（深底，带外·放弃判红）
+  [G3] 阈值来源：既有 α0.16 阶梯实测 ΔL 14.00（测） → 上限 14 = 追平该阶（推），下限 6 = 0.4×该阶（推）
+  [G3 样本] 可读基底 2 例，覆盖 scan
+  [G1] D:\project\pwe-lighting\world-client\tmp\screens\check-ground-shadow\lighting-g1-dusk-4x.png (1d511d1efd3bdd3a58e4a8329f3ea2845249235e220403e907eaad4219e9ae87)
+口径 机位 摊位 x400/y470、人物 x400/y470、zoom 1、视口 1010×700、潮位 1、晴、相位 dawn/noon/dusk/night、depth 3.1
+[判据] 红（4 条）
+  - G3 可读基底样本只有 2 例，不足 3 例
+  - G3 可读基底缺 stone 一档
+  - G3 可读基底缺 plaza 一档
+  - G3 boiler_annex#1（scan）ΔL 3.97 < 下限 6（接触暗部读不出）
+EXIT=1

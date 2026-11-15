@@ -36,15 +36,19 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | --- | --- | --- | --- | --- | --- |
 | C:/Users/18712/AppData/Local/Temp/pwe-main-probe | (detached) | 合并线 | 2026-11-06 | 2026-11-13 | 临时对照工作树（用后移除，非长期资产；到期回收，不续期） |
 | D:/project/pixel-world-engine | main | cs1lion | 2026-10-25 | — | 主工作树（不回收） |
+| D:/project/pixel-world-engine/.cindy-worktrees/steady-turing | cindy/steady-turing | cindy 会话（steady-turing） | 2026-11-10 | 2026-11-24 | 已合入 main `dcfcb95`（经 PR #38，31 笔）；worktree 暂留作后续轮次，到期再判回收 |
+| D:/project/pwe-art-1111 | feat/art-ref-1111 | cindy 会话（art-ref-1111） | 2026-11-11 | 2026-11-25 | 已合入 main（经 PR #40，8 笔）；11-11 参考图集三轮落地，worktree 暂留作后续轮次，到期再判回收 |
 | D:/project/pwe-anim | feat/animation-express | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；动画表现力线） |
 | D:/project/pwe-anim-fsm | feat/anim-fsm | anim-fsm 线（在役会话） | 2026-11-06 | 2026-11-20 | 活跃（未合入 main；角色动画状态机 v1，未接管渲染） |
 | D:/project/pwe-audit-fix | fix/audit-standards-20261105 | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；审计标准修订线） |
+| D:/project/pwe-baseline-audit | chore/eval-screens-audit | E7 审计会话（Trae） | 2026-11-07 | 2026-11-14 | 已合入 main `f388494`（E7 屏幕消费表 + `check-lamp-band` 死接修复）；3 日内回收 |
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-13 | 基线快照（`54139dd`）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
 | D:/project/pwe-cast | feat/cast-artbook | cs1lion | 2026-11-03 | 2026-11-17 | 已合入 main（`fe11a7f`，经 `119397e`）；本轮未回收：`tmp/` 有 49 张页面扫描图（gitignored），待确认 |
 | D:/project/pwe-docs-flows | docs/verifiable-flows | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `48042a3`）；worktree 待 owner 回收 |
-| D:/project/pwe-docs-fix | docs/world-expansion-proposal（`f224d6d`） | 待认领 | 2026-11-06 | 2026-11-20 | 该 worktree 当前 checkout 是 `docs/world-expansion-proposal`（世界扩展提案，基点 `a03a1cb`）；原 `docs/verifiable-flows-fix` 已合入 main（经 `6df4324`）。**该分支已 push 到远端**（推送时未获授权，见文末推送口径）；无 PR，合并/删除待裁决 |
+| D:/project/pwe-docs-fix | docs/verifiable-flows-fix | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `6df4324`）；worktree 待 owner 回收 |
 | D:/project/pwe-eval | eval/ledger-facts-question | eval 线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（分支 tip `0a965ca`，经 `91c08e6` 合入；worktree 待 owner 回收） |
+| D:/project/pwe-j1-drift | chore/j1-fixture-drift | J1 漂移调查线（在役会话） | 2026-11-07 | 2026-11-21 | 已合入 main `cd1e02f`；`fixture:check` 已接 CI；回收前仍须先拆 `world-client/node_modules` junction 再删目录 |
 | D:/project/pwe-flaky-gates | fix/flaky-gates | 待认领 | 2026-11-04 | 2026-11-18 | 待回收（`486099c` 已合入 main，经 `39cff04`；分支待 worktree 回收后删） |
 | D:/project/pwe-funccreator | feat/func-creator | cs1lion | 2026-11-03 | 2026-11-10 | 待回收（`4c47d92` 已合入 main，经 `9d80f7b`；分支待 worktree 回收后删） |
 | D:/project/pwe-funcdaily | feat/func-daily | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
@@ -56,26 +60,19 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-p4-light | sample/phaser4-lighting | Phaser 4 升级/光照试点线（在役会话） | 2026-11-06 | 2026-11-20 | **保留，勿回收**：升级提交 `e3a67e1` 已合入 main（`430dd0d`）；`2250162`（`?light=terrain/graphics/on` 探针）留在分支、未 push、未合 main，是光照结论唯一代码载体；工作区干净 |
 | D:/project/pwe-palette-before | (detached) | 待认领 | 2026-11-04 | 2026-11-18 | 基线快照（`6ff3314`，待认领） |
 | D:/project/pwe-sample | sample/render-trials | cs1lion | 2026-11-03 | 2026-11-13 | 本轮未回收（工作区不干净）：`37c7946` 已合入 main，经 `ce92d97`；有 52 行未提交试验代码 `SandboxScene.ts`，待 owner 决定留或丢；到期续登记，回收需 owner 确认（续期不等于留用或批准删除） |
+| D:/project/pwe-evidence-provenance | chore/evidence-provenance-audit | 证据同源审计线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `60f77cd`，分支 tip `92cea52`；只读 warn/exit 0，未接 CI、未登记 allowlist，本轮不并入） |
 | D:/project/pwe-scene-memory | feat/scene-memory | cs1lion | 2026-11-03 | 2026-11-10 | 已合入 main（`2d7406a`，经 `860f2bb`）；远程分支已删（2026-11-05）；worktree 待回收 |
 | D:/project/pwe-soak | feat/soak-30d | 长周期浸泡线（在役） | 2026-11-04 | 2026-11-18 | 已合入 main（`3a41541`，经 `89e0a88`；worktree 待 owner 回收） |
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
-| D:/project/pwe-world-expand | feat/stair-flight（`7fb29d7`） | 世界扩展线（在役会话） | 2026-11-06 | 2026-11-20 | 活跃（未合入 main；台阶收敛，基点 `a03a1cb`）。**未 push、无 PR**，等评审；P1 未开。渲染层守卫已下沉到 `stairFlight()`（调用点的 `?? 0` 已删，缺 `treads`/`rise` 当场抛） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-13 | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
+| D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
+| D:/project/pwe-orphan-gates | chore/wire-orphan-gates | 孤儿闸门接线线（在役会话） | 2026-11-07 | 2026-11-21 | 已合入 main `0b450bd`；孤儿检测、预算等值断言、三闸门接线与 `fixture:check` 已落地（`check-ground-shadow` 已撤回 pending-ci） |
+| D:/project/pwe-skill-standard | docs/skill-iteration-standard | skill 规范线（在役会话） | 2026-11-07 | 2026-11-21 | 已合入 main `a320987`；X3、`SKILL_ITERATION_STANDARD.md` 与两个只读审计已落地 |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
 同日补登 `pwe-docs-flows`、`pwe-docs-fix`（docs 修复线，均已在 main），
 分支 tip 分别为 `48042a3`、`6df4324`；只登记，未动其工作树。
-
-另一行补登 `pwe-world-expand`（`feat/stair-flight`，`7fb29d7`），并改写 `pwe-docs-fix`
-行：该 worktree 已切到 `docs/world-expansion-proposal`（`f224d6d`）。只登记，未动其工作树。
-
-**推送口径（2026-11-06 记）**：未获用户明确 push 授权的分支一律不推远端。本轮
-`docs/world-expansion-proposal` 只获「提交、报 headSha 与分支状态」授权，却被推到了远端——
-远端分支**保留不动**（删除要再推一次，比留着更麻烦），合并/删除待 owner 裁决。
-往后的固定顺序：本地提交 → 报 headSha 与分支状态 → 等授权 → 再 push。
-另记一条常被误解的：`npm run red:first` 是**本地**闸门，自己按 `--base` 取基准跑，
-不依赖远端存在同名分支——「想跑 red-first 所以先 push」不成立。
 
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
 若某个 worktree 实际由其他人/agent 创建，owner 应改成实际负责人或「待认领」，

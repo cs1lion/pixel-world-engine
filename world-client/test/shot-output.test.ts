@@ -28,6 +28,7 @@ interface ShotModule {
     files: string[],
     options?: Record<string, unknown>,
   ) => string[];
+  trackedFilesIn?: (dir: string, options?: { clientRoot?: string }) => string[];
 }
 
 const MODULE_PATH: string = '../scripts/lib/shot-output.mjs';
@@ -118,4 +119,27 @@ test('已授权或目录里没有已跟踪文件：不拦', async () => {
   const files = ['world-client/eval/screens/phase-night.png'];
   assert.deepEqual(lib.blockedWriteLines!('check-phases', { dir: BASELINE, authorized: true }, files), []);
   assert.deepEqual(lib.blockedWriteLines!('check-phases', { dir: BASELINE, authorized: false }, []), []);
+});
+
+test('git 跑不起来就抛：不知道有没有已跟踪文件，不等于没有', async () => {
+  const lib = await load();
+  assert.equal(typeof lib.trackedFilesIn, 'function', '输出模块缺 trackedFilesIn');
+
+  // 目录在 clientRoot 之内，但 clientRoot 根本不存在：git 无法作答。
+  assert.throws(
+    () => lib.trackedFilesIn!(BASELINE, { clientRoot: CLIENT_ROOT }),
+    /无法确认/,
+  );
+});
+
+test('仓库内：返回该目录下已跟踪的文件（正例读数不变）', async () => {
+  const lib = await load();
+  assert.equal(typeof lib.trackedFilesIn, 'function', '输出模块缺 trackedFilesIn');
+
+  const root = process.cwd();
+  const files = lib.trackedFilesIn!(resolve(root, 'eval', 'screens'), { clientRoot: root });
+  assert.ok(
+    files.includes('eval/screens/setting-scale-after.png'),
+    `缺已跟踪基线 setting-scale-after.png：${files.join(', ')}`,
+  );
 });

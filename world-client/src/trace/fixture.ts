@@ -17,6 +17,8 @@ import { canonicalJson, traceProblems } from './format.ts';
 import type { TraceFile } from './format.ts';
 import type { ReplayRun } from './replay.ts';
 import type { TraceRuntime } from './runtime.ts';
+import { DAY_MS } from '../world/memory/config.ts';
+import type { WorldFact } from '../world/memory/types.ts';
 
 export const FIXTURE_FORMAT = 'pwe-fixture/1';
 export const FIXTURE_VERSION = 1;
@@ -31,6 +33,9 @@ export const FIXTURE_SOURCES = [
   'memory.fingerprint',
   'memory.consolidated',
   'memory.eventCounts',
+  'memory.factsByKind',
+  'memory.kindReadings',
+  'memory.beatOrder',
   'creator.business',
   'creator.fingerprint',
 ] as const;
@@ -178,8 +183,10 @@ function compare(actual: unknown, op: FixtureOp, expected: unknown): boolean {
     case 'exists':
       return actual !== undefined;
     case 'eq':
+      if (actual === undefined || expected === undefined) return actual === expected;
       return canonicalJson(actual) === canonicalJson(expected);
     case 'ne':
+      if (actual === undefined || expected === undefined) return actual !== expected;
       return canonicalJson(actual) !== canonicalJson(expected);
     case 'gte':
       return typeof actual === 'number' && typeof expected === 'number' && actual >= expected;
@@ -204,6 +211,7 @@ export function fixtureSources(
   for (const event of runtime.memoryEvents) {
     eventCounts[event.kind] = (eventCounts[event.kind] ?? 0) + 1;
   }
+  const byKind = factsByKind(runtime);
   return {
     world: runtime.snapshot(),
     'world.business': run.business,
@@ -214,9 +222,139 @@ export function fixtureSources(
     'memory.fingerprint': run.memory?.fingerprint ?? null,
     'memory.consolidated': consolidated,
     'memory.eventCounts': eventCounts,
+    'memory.factsByKind': byKind,
+    'memory.kindReadings': kindReadings(byKind),
+    'memory.beatOrder': beatOrder(byKind),
     'creator.business': creator,
     'creator.fingerprint': run.creator?.fingerprint ?? null,
   };
+}
+
+/**
+ * 按 `kind` 分组的事实视图。
+ *
+ * 断言引擎没有筛选/计数能力（`path` 只认取值），所以「某类事件几次、
+ * 落在哪些时段与地点、参与者是谁」必须先在这里摊成可读的只读视图。
+ */
+function factsByKind(runtime: TraceRuntime): Record<string, readonly WorldFact[]> {
+  const facts = runtime.memorySnapshot()?.world.facts ?? [];
+  const byKind: Record<string, WorldFact[]> = {};
+  for (const fact of facts) {
+    const list = byKind[fact.kind] ?? (byKind[fact.kind] = []);
+    list.push(fact);
+  }
+  return byKind;
+}
+
+interface KindReading {
+  readonly count: number;
+  /** 去重后升序的世界日。 */
+  readonly days: readonly number[];
+  /** 去重后升序的「日内毫秒偏移」，用它对固定时刻表拍点。 */
+  readonly tickOfDay: readonly number[];
+  readonly tickOfDayMin: number;
+  readonly tickOfDayMax: number;
+  /** 去重后升序的 placeId。 */
+  readonly places: readonly string[];
+  /** placeId 为空的事实条数（应当恒为 0）。 */
+  readonly emptyPlaces: number;
+  /** 去重后升序的参与者人数。 */
+  readonly actorCounts: readonly number[];
+  /** 去重后升序的参与者组合（`v0+v1`）；无参与者的事件不列入。 */
+  readonly actorPairs: readonly string[];
+}
+
+/** 每类事件的业务读数：数量、日子、时段、地点、参与者。 */
+function kindReadings(
+  byKind: Readonly<Record<string, readonly WorldFact[]>>,
+): Record<string, KindReading> {
+  const readings: Record<string, KindReading> = {};
+  for (const [kind, list] of Object.entries(byKind)) {
+    const ticks = uniqueNumbers(
+      list.map((fact) => fact.tick - Math.floor(fact.tick / DAY_MS) * DAY_MS),
+    );
+    readings[kind] = {
+      count: list.length,
+      days: uniqueNumbers(list.map((fact) => fact.day)),
+      tickOfDay: ticks,
+      tickOfDayMin: ticks[0] ?? -1,
+      tickOfDayMax: ticks[ticks.length - 1] ?? -1,
+      places: uniqueStrings(list.map((fact) => fact.placeId)),
+      emptyPlaces: list.filter((fact) => fact.placeId === '').length,
+      actorCounts: uniqueNumbers(list.map((fact) => fact.actors.length)),
+      actorPairs: uniqueStrings(
+        list.filter((fact) => fact.actors.length > 0).map((fact) => fact.actors.join('+')),
+      ),
+    };
+  }
+  return readings;
+}
+
+/** 市面四拍的固定次序：开市 → 收工 → 夜市 → 闭市。 */
+const MARKET_BEAT_ORDER = [
+  'market_open',
+  'work_end',
+  'night_market',
+  'market_close',
+] as const;
+
+interface BeatOrderDetail {
+  readonly day: number;
+  readonly expectedEarlier: string;
+  readonly expectedLater: string;
+  readonly earlierAt: number;
+  readonly laterAt: number;
+}
+
+interface BeatOrderReading {
+  /** 真正参与顺序核对的日子数（当天至少出现两拍）。 */
+  readonly checkedDays: number;
+  /** 逆序明细；空数组 = 所有被核对的日子都按固定次序发生。 */
+  readonly details: readonly BeatOrderDetail[];
+}
+
+/**
+ * 市面四拍的「同日顺序」读数。
+ *
+ * 只核对当天真的出现过的拍点：缺拍不伪造顺序，但 `checkedDays` 会告诉
+ * 断言「这条夹具到底核对了几天」，避免夹具提前结束时顺序断言空过。
+ */
+function beatOrder(byKind: Readonly<Record<string, readonly WorldFact[]>>): BeatOrderReading {
+  const days = uniqueNumbers(
+    MARKET_BEAT_ORDER.flatMap((kind) => (byKind[kind] ?? []).map((fact) => fact.day)),
+  );
+  const details: BeatOrderDetail[] = [];
+  let checkedDays = 0;
+  for (const day of days) {
+    const beats = MARKET_BEAT_ORDER.flatMap((kind) => {
+      const fact = (byKind[kind] ?? []).find((item) => item.day === day);
+      return fact === undefined ? [] : [{ kind, at: fact.tick }];
+    });
+    if (beats.length < 2) continue;
+    checkedDays += 1;
+    for (let index = 1; index < beats.length; index += 1) {
+      const earlier = beats[index - 1]!;
+      const later = beats[index]!;
+      if (later.at <= earlier.at) {
+        details.push({
+          day,
+          expectedEarlier: earlier.kind,
+          expectedLater: later.kind,
+          earlierAt: earlier.at,
+          laterAt: later.at,
+        });
+      }
+    }
+  }
+  return { checkedDays, details };
+}
+
+function uniqueNumbers(values: readonly number[]): readonly number[] {
+  return [...new Set(values)].sort((a, b) => a - b);
+}
+
+function uniqueStrings(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].sort();
 }
 
 /**

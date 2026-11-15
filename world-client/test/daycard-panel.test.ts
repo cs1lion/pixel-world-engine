@@ -94,6 +94,12 @@ function textOf(node: FakeElement): string {
   return [node.textContent, ...node.children.map((child) => textOf(child))].join(' ');
 }
 
+/** 按类名递归收节点：装饰图挂在文字节点内部，不是 list 的直接子节点。 */
+function collect(node: FakeElement, cls: string): FakeElement[] {
+  const hit = node.className.split(' ').includes(cls) ? [node] : [];
+  return [...hit, ...node.children.flatMap((child) => collect(child, cls))];
+}
+
 test('拉开日历：按周摆，每天一行，争执日一眼能看出来', () => {
   const dom = installFakeDom(IDS);
   try {
@@ -118,6 +124,28 @@ test('拉开日历：按周摆，每天一行，争执日一眼能看出来', ()
     assert.ok(note.includes('只读'), note);
     assert.ok(note.includes('存档未变'), note);
     assert.ok(note.includes('记忆未变'), note);
+  } finally {
+    dom.restore();
+  }
+});
+
+test('11-11 装饰：每段周一张构图贴片、每天一张表情，都是纯附加', () => {
+  const dom = installFakeDom(IDS);
+  try {
+    bindDayCardPanel(() => fakeApi());
+    dom.byId('daycard-open').click();
+    const list = dom.byId('daycard-list');
+    const plates = collect(list, 'art-plate');
+    const emotes = collect(list, 'art-emote');
+    assert.equal(plates.length, 2, '两段周各挂一张画册贴片');
+    assert.equal(emotes.length, 10, '十天各挂一张表情');
+    assert.equal(
+      (plates[0] as unknown as { src?: string }).src,
+      '/assets/plate/map-00.png',
+      '贴片路径来自清单',
+    );
+    // 装饰不改文字：原来那十天的读数一个字都不能少。
+    assert.ok(textOf(list).includes('第 13 天'), '挂图不该吃掉日历上的字');
   } finally {
     dom.restore();
   }

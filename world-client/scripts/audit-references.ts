@@ -3,7 +3,7 @@
  * 行号引用审计：文档与注释里写的「代码在那儿」，得真的是在那儿。
  *
  * 为什么单独立一项：这个仓库的信条是「说谎比不去更糟」。它在代码里说得最重的
- * 一处是 `src/world/routines.ts:132`（涨潮回落那段，不在文件开头——开头讲的是
+ * 一处是 `src/world/routines.ts:219`（涨潮回落那段，不在文件开头——开头讲的是
  * 日常作息）。那句只管世界对用户说的话，可同一个毛病在仓库自己身上一样成立——
  * `docs/adr/ADR_PACK_SKIPS_WORLD_BUDGET.md` 的待办 A 曾写「留白环
  * （`grid.ts:230-237`）」，而 `canPlace` 的留白环在 `grid.ts:333-340`；照着
@@ -57,6 +57,14 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import {
+  SCAN_BASELINE_PATH,
+  checkScanFloor,
+  failureWhy,
+  loadScanBaseline,
+  silentWindow,
+} from './audit-scan-guard-lib.ts';
+import type { ScanFloor, ScanRootProblem } from './audit-scan-guard-lib.ts';
 
 /** 仓库根。这个脚本从 `world-client/` 里被 CI 调用，但它管的是整座仓库的自述。 */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -331,6 +339,15 @@ export interface ReferenceAudit {
   /** 一共查了多少处。 */
   readonly checked: number;
   readonly findings: readonly ReferenceFinding[];
+  /**
+   * 期望的扫描根不存在。一条都不该有——根缺失 = 这片没查，绿是假的。
+   * 原来的 `walk()` 对着不存在的根静默 `return`，于是受查数悄悄缩水而输出照绿。
+   */
+  readonly problems: readonly ScanRootProblem[];
+  /** 受查数相对基线的地板判定。`missing` 也是红：没有基线就没有地板。 */
+  readonly floor: ScanFloor;
+  /** 基线文件本身读不成的原因；读成了就是 null。 */
+  readonly baselineWhy: string | null;
 }
 
 /**
@@ -429,9 +446,29 @@ function land(
 /**
  * 审一遍。`root` 可换，为的是测试能拿一份临时目录跑，不必动真仓库。
  */
-export function auditReferences({ root = ROOT }: { root?: string } = {}): ReferenceAudit {
+export function auditReferences({
+  root = ROOT,
+  baselineFile = SCAN_BASELINE_PATH,
+}: {
+  root?: string;
+  baselineFile?: string;
+} = {}): ReferenceAudit {
+  const problems: ScanRootProblem[] = [];
   const index: string[] = [];
-  for (const entry of SCAN_ROOTS) walk(path.resolve(root, entry), index);
+  for (const entry of SCAN_ROOTS) {
+    const abs = path.resolve(root, entry);
+    // 先单独问一句根在不在。`walk()` 自己的 `statSync` catch 是为了「多会话并发
+    // 写时文件在列举与访问之间消失」这种可容忍的竞态；对扫描根它却是灾难：
+    // 一个压根不存在的根也走同一条 `return out`，于是这片一个引用都没查，
+    // 而调用方只看到受查数小了一点。根缺失必须在返回值里活着出来。
+    try {
+      statSync(abs);
+    } catch (error) {
+      problems.push({ scanRoot: entry, expected: abs, actual: failureWhy(error) });
+      continue;
+    }
+    walk(abs, index);
+  }
   index.sort();
 
   const findings: ReferenceFinding[] = [];
@@ -512,12 +549,23 @@ export function auditReferences({ root = ROOT }: { root?: string } = {}): Refere
     });
   }
 
-  return { checked, findings };
+  const loaded = loadScanBaseline(baselineFile);
+  const floor: ScanFloor = loaded.ok
+    ? checkScanFloor(loaded.baseline, 'references', 'checked', checked)
+    : { kind: 'missing' };
+
+  return {
+    checked,
+    findings,
+    problems,
+    floor,
+    baselineWhy: loaded.ok ? null : loaded.why,
+  };
 }
 
 function main(): void {
   const strict = process.argv.includes('--strict');
-  const { checked, findings } = auditReferences();
+  const { checked, findings, problems, floor, baselineWhy } = auditReferences();
   const shown = findings.slice(0, 40);
   for (const finding of shown) {
     process.stdout.write(`${finding.where}  ${finding.ref} —— ${finding.why}\n`);
@@ -526,6 +574,45 @@ function main(): void {
     process.stdout.write(`……还有 ${findings.length - shown.length} 处\n`);
   }
   process.stdout.write(`共查 ${checked} 处行号引用，${findings.length} 处存疑\n`);
+
+  // 地板：受查数比上次核过的基线掉太多 = 扫描面塌了；涨太多 = 基线过期。
+  // 两个方向都是**无条件红**，与「有没有存疑」无关——存疑为 0 恰恰可能是
+  // 「没查到东西」的结果，而基线过期会让地板静默失效。
+  if (floor.kind === 'missing') {
+    process.stdout.write(
+      `扫描面基线没查成：${baselineWhy ?? '基线文件里没有 references.checked'}。没有地板就不是绿。\n`,
+    );
+    process.exitCode = 1;
+  } else if (floor.kind === 'breach') {
+    process.stdout.write(
+      `扫描面塌陷：受查 ${checked} 处，比基线 ${floor.baseline} 少 ` +
+        `${floor.baseline - checked} 处（允许最多降 ${floor.allowed} 处）。\n`,
+    );
+    process.exitCode = 1;
+  } else if (floor.kind === 'stale') {
+    process.stdout.write(
+      `基线过期：实际 ${checked}，基线 ${floor.baseline}，超出 ${floor.overPercent}%，` +
+        '请按实测刷新 baseline 并记入 note。\n',
+    );
+    process.exitCode = 1;
+  } else {
+    const win = silentWindow(floor);
+    process.stdout.write(`受查数在地板内（基线 ${floor.baseline}，允许降 ${floor.allowed}）。\n`);
+    process.stdout.write(
+      `无感塌陷窗口：${win.gap} 处（${win.percent}%）＝过期线 ${win.staleLine} − 地板 ${win.floor}。\n`,
+    );
+  }
+
+  if (problems.length > 0) {
+    process.stdout.write(`\n扫描面不完整：${problems.length} 个扫描根不存在。\n`);
+    for (const p of problems) {
+      process.stdout.write(
+        `  扫描根不存在：${p.scanRoot} —— 期望 ${p.expected}，实际 ${p.actual}\n`,
+      );
+    }
+    process.exitCode = 1;
+  }
+
   // 跟调色板那个不一样：这里没有预算可超，只有自述为真这一条。
   // 所以 `--strict` 的退出码只看有没有存疑，不看多少。
   if (strict && findings.length > 0) process.exitCode = 1;

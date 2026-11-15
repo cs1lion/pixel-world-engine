@@ -117,6 +117,14 @@ function walledInPack(): ReturnType<typeof loadSettingPack> {
     },
     // 孤屋在 (5,30)，门口在 (6,32)。四邻里 (6,31) 在它自己占地里，
     // 另外三格各摆一堵墙——门就开在世界外了。
+    // 这一份包只测门口可达性：场所表与指向场所的作息都摘掉。场所里有建筑锚
+    // （`wave_house#1`），它按新的落位表校验，而这里只摆了孤屋与三堵墙——
+    // 不摘的话会先报「建筑不在 placements 里」，到不了门口检查那一步。
+    sites: [],
+    villagers: DENGCHAO_RAW.villagers.map((villager) => ({
+      ...villager,
+      routine: villager.routine.filter((stop) => !('site' in stop)),
+    })),
     placements: [
       { prefabId: 'lonely_house', at: { x: 5, y: 30 } },
       { prefabId: 'wall_west', at: { x: 5, y: 32 } },
@@ -147,7 +155,7 @@ test('灯潮界原封不动照样起得来：这是守卫，不是误杀', () =>
 });
 
 test('读档路不查这一条：存档是照着一份当年通过的世界写的', () => {
-  // 读档分支不铺路（`load.ts:394` 直接 grid.place），一份没铺路的格子上
+  // 读档分支不铺路（`load.ts:659` 直接 grid.place），一份没铺路的格子上
   // `grid.path` 当然大多是空的。拿它判，每一份旧存档都别想再打开。
   const pack = walledInPack();
   const buildings = buildSettingWorld(loadSettingPack(DENGCHAO_RAW)).buildings;
@@ -199,7 +207,7 @@ test('一扇真被围死的门，在同一个格子上仍然报死', () => {
 // ---------------------------------------------- 同一个病，隔十一行还有一处
 
 test('作息点就踩在出生点上：这是连得出去的，不是到不了', () => {
-  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:335`/`:338`），
+  // `loadSettingPack` 对 `at` 和每个作息点只查越界（`load.ts:493`/`:501`），
   // 对 `at === stop` 一个字都没禁——而「她就站在那个点上」是一份完全合法的
   // 设定集：守夜人认路认到自己的脚底下。
   //

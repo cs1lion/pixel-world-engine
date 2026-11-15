@@ -1,0 +1,138 @@
+[
+  {
+    "name": "noon-low",
+    "path": "tmp/p1-shore/noshore/noon-low.png",
+    "tide": 0,
+    "pinned": {
+      "actors": [
+        "v0@23,29",
+        "v1@36,29",
+        "v2@33,30",
+        "v3@38,30",
+        "v4@35,31",
+        "v5@34,28",
+        "v6@37,31"
+      ],
+      "now": 43200000,
+      "tideLevel": 0,
+      "phase": "noon",
+      "weather": "rain",
+      "tide": {
+        "level": 0,
+        "label": "潮位被人拨住了（退潮见底）",
+        "rising": false,
+        "overridden": true
+      }
+    },
+    "fade": {
+      "settled": true,
+      "waitedMs": 138,
+      "frames": 3,
+      "maxFrames": 60
+    },
+    "camera": {
+      "scrollX": 560,
+      "scrollY": 88,
+      "zoom": 2,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 680,
+      "worldViewY": 168,
+      "mode": "free"
+    },
+    "probe": {
+      "dpr": 1,
+      "rect": {
+        "x": 25.5,
+        "y": 112.796875,
+        "w": 960,
+        "h": 640
+      },
+      "buffer": {
+        "w": 480,
+        "h": 320
+      }
+    },
+    "stats": {
+      "graphicsObjects": 61,
+      "totalCommands": 15118,
+      "largest": [
+        2399,
+        2010,
+        1513,
+        1304,
+        1290
+      ]
+    },
+    "errors": [],
+    "bytes": 13876
+  },
+  {
+    "name": "noon-high",
+    "path": "tmp/p1-shore/noshore/noon-high.png",
+    "tide": 1,
+    "pinned": {
+      "actors": [
+        "v0@23,29",
+        "v1@36,29",
+        "v2@33,30",
+        "v3@38,30",
+        "v4@35,31",
+        "v5@34,28",
+        "v6@37,31"
+      ],
+      "now": 43200000,
+      "tideLevel": 1,
+      "phase": "noon",
+      "weather": "rain",
+      "tide": {
+        "level": 1,
+        "label": "潮位被人拨住了（满潮）",
+        "rising": false,
+        "overridden": true
+      }
+    },
+    "fade": {
+      "settled": true,
+      "waitedMs": 195,
+      "frames": 3,
+      "maxFrames": 60
+    },
+    "camera": {
+      "scrollX": 560,
+      "scrollY": 88,
+      "zoom": 2,
+      "width": 480,
+      "height": 320,
+      "worldViewX": 680,
+      "worldViewY": 168,
+      "mode": "free"
+    },
+    "probe": {
+      "dpr": 1,
+      "rect": {
+        "x": 25.5,
+        "y": 112.796875,
+        "w": 960,
+        "h": 640
+      },
+      "buffer": {
+        "w": 480,
+        "h": 320
+      }
+    },
+    "stats": {
+      "graphicsObjects": 61,
+      "totalCommands": 15286,
+      "largest": [
+        2399,
+        2010,
+        1513,
+        1304,
+        1290
+      ]
+    },
+    "errors": [],
+    "bytes": 14068
+  }
+]

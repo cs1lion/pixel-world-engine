@@ -66,7 +66,7 @@
 - `CLAUDE.md` 给出仓库结构与权威边界：`docs/SPEC.md` 是唯一权威，禁止新增 `SPEC_*` 文件；迭代资料在 `docs/iterations/`；美术设定在 `docs/art/`。这不是口号——`audit-claims` 的 `spec-authority` 探针会数 `SPEC` 文件数、检查唯一权威标记和 `SPEC_V2.md` 的历史归档标记，对不上就红（`world-client/scripts/audit-claims.ts`）。
 - `docs/agents/domain.md` 明确要求「探索代码库之前先读 `GLOSSARY.md` 与 `docs/adr/`」，并规定输出要使用 `GLOSSARY.md` 的词。这是本仓对「先建立全局观」的书面约定。
 - `docs/adr/` 当前有 10 份 ADR（2026-11-06 本地读数：`adr-schema` files=10 valid=10；跑 `node world-client/scripts/audit-claims.ts --strict` 取当前值）；`audit-claims` 同时校验 ADR 的 `status / verified_at / evidence` 字段与证据路径。
-- `docs/iterations/README.md` 把外部设计资料按迭代任务分组，并写明「原样收存，附索引；不代表已排期」，还用 `<!-- claim: iterations-tracked-count=12 -->` 钉住入库文件数。
+- `docs/iterations/README.md` 把外部设计资料按迭代任务分组，并写明「原样收存，附索引；不代表已排期」；入库文件数由该文件自己的一条 `iterations-tracked-count` 登记钉住（值 12，权威只在 `docs/iterations/README.md`，别处不重复登记）。
 
 **部分存在**
 
@@ -425,7 +425,7 @@
 **部分存在**
 
 - **不是「真人操作路径」**：浏览器闸门大量依赖 `window.Oracle` 的调试方法（`pinShotState` / `pinActors` / `pinTrails` / `debugSetWeather` 等）。`docs/OPEN_ISSUES.md` E1 明确说这些方法与正常游玩路径没有类型隔离，生产也可达。照这套 SOP 点一遍，验的是「调试面 + 世界状态」，不是「玩家点按钮」。
-- **CI 只跑三道浏览器闸门**：`persistence` / `render-budget` / `phases`；`smoke` 与 `setting` 不在 CI。CI 的 `EVAL_OUT` 指向 `runner.temp`，跑完只检查工作区是否干净，**没有 `upload-artifact`**——截图不留在证据里。
+- **CI 只跑三道浏览器闸门**：`persistence` / `render-budget` / `phases`——判据＝[`.github/workflows/ci.yml`](file:///D:/project/pixel-world-engine/.github/workflows/ci.yml) 的 `world-client-browser` job step 列表；`smoke` 与 `setting` 不在其中（`audit-orphan-gates` 记为 `pending-ci`）。CI 的 `EVAL_OUT` 指向 `runner.temp`，跑完只检查工作区是否干净，**没有 `upload-artifact`**——截图不留在证据里。
 - **没有视频**：全仓没有视频录制脚本；截图是 PNG，不是「录一段真实用户路径」。
 - **DOM 层缺口**：`docs/evidence/VERIFIABLE_FLOWS.md` 流程 8 记录 `test:buttons` 因 `/api/memory/list` 回 404 退出 2，镇志抽屉点不到。
 - **截图基线本身不稳**：`docs/evidence/SCREENS_CAPTURE_GATE.md` 记录同一 HEAD 两跑，`01-salute` 可见差 24.765%、`03-deliver` 1.128%，原因是环境染色档位与烟柱粒子相位；该文档的结论是「第 0 步自证未通过」，没有重录基线。这说明「截图全等」在某些流程上还不是稳定判据。
@@ -595,7 +595,7 @@
 
 - 保护只覆盖「直推 main」，不覆盖「作者自己合并自己的分支」。本仓的实际合并是本地 `--no-ff` 合 main，然后 `PWE_ALLOW_PUSH_MAIN=1` push；`git log --merges` 里没有 PR 号。**作者、合并者、推送者是同一个人/同一个 AI。**
 - `CODEOWNERS` 只有走 PR 才触发；没有 PR，它等于没写。
-- `pre-push` 的 `PWE_ALLOW_PUSH_MAIN=1` 在脚本开头直接 `exit 0`，**整条 pre-push 被跳过**（不只是 main 保护）。这意味着一旦用豁免，blast radius、review trailer 等所有未来加在 pre-push 的检查也一起失效。
+- `pre-push` 的 `PWE_ALLOW_PUSH_MAIN=1` 在 2026-11-07 之前于脚本开头直接 `exit 0`，**整条 pre-push 被跳过**（不只是 main 保护），blast radius、review trailer 等未来加在 pre-push 的检查也一起失效。**已修**：豁免改为只跳过 main 保护，第二道大文件检查（默认 5 MB）照跑；`npm run check:hooks` 在临时仓里真跑钩子，覆盖有/无豁免 × main/非 main × 小/大文件五条路径。仍拦不住的部分：`--no-verify` 依旧跳过整条钩子；本地钩子对 `git push --no-verify` 与直接操作远端无能为力。
 - 本文这次交付也是同一模式：分支 → 本地 `--no-ff` 合 main → `PWE_ALLOW_PUSH_MAIN=1` push；没有 PR，作者/合并者/推送者是同一个 AI。**这不是假设，是本次交付的实际流程。**
 
 **完全没有**
@@ -805,7 +805,7 @@
 
 #### 风险
 
-**最可能半途而废在「把 markdown 当成已经建成了」。** 本仓已经有大量这种证据：端口纪律、`verify-all` 不接 CI、`worktrees:audit --strict`、易变数字口径、不 `stash`——这些都写在文档里，但只有一部分有闸。第二个风险是「结构化的成本被低估」：把一条规则变成 lint 要处理误报，而误报会让人关掉闸门；`audit-citations.ts` 的注释自己记录了「一条只产误报、不产真阳的判据比没有更糟」。
+**最可能半途而废在「把 markdown 当成已经建成了」。** 本仓已经有大量这种证据：端口纪律、`verify-all` 的接线状态（唯一权威陈述在 [ENGINEERING_DISCIPLINE.md](file:///D:/project/pixel-world-engine/docs/ENGINEERING_DISCIPLINE.md) V5，坐标指向 `audit-orphan-gates` 的盲区候选）、`worktrees:audit --strict`、易变数字口径、不 `stash`——这些都写在文档里，但只有一部分有闸。第二个风险是「结构化的成本被低估」：把一条规则变成 lint 要处理误报，而误报会让人关掉闸门；`audit-citations.ts` 的注释自己记录了「一条只产误报、不产真阳的判据比没有更糟」。
 
 ## 5. 如果真要建，建议的顺序与最小集合
 

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "split": "held-out",
+  "note": "迭代时不要看这一份。只在合并前或夜跑时跑一次；若主集分数上去而这里不动，就是对主集过拟合了。",
+  "examples": [
+    {
+      "id": "H1",
+      "name": "村民正忙时派活：排队或拒绝，且说清原因",
+      "check": "dispatchBusy",
+      "expect": { "action": "dispatch" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "H2",
+      "name": "点名不在场的人：拒绝，不顺手改递给旁边那位",
+      "check": "carryAbsent",
+      "expect": { "action": "carry" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "H3",
+      "name": "连点两次同一动作：不产生两条事件，不重复落账",
+      "check": "doubleClickOnce",
+      "expect": { "action": "dispatch" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "H4",
+      "name": "拒收路径：回执不是空串，且留在输入框的原文不丢",
+      "check": "rejectKeepsText",
+      "expect": { "action": "ask" },
+      "env": { "world": "dengchao", "now": 540, "phase": "noon", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "V1",
+      "name": "环境变体：派活往返换一个世界时刻再跑",
+      "check": "dispatchRoundTrip",
+      "expect": { "action": "dispatch", "taskKind": "research" },
+      "env": { "world": "dengchao", "now": 780, "phase": "dusk", "feed": "off", "debug": 1 }
+    },
+    {
+      "id": "V2",
+      "name": "环境变体：派活往返换一个潮位档再跑",
+      "check": "dispatchRoundTrip",
+      "expect": { "action": "dispatch", "taskKind": "writing" },
+      "env": { "world": "dengchao", "now": 330, "phase": "dawn", "feed": "off", "debug": 1, "tide": 0.2 }
+    }
+  ]
+}

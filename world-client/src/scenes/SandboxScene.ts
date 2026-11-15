@@ -28,6 +28,7 @@ import { DAY_MS } from '../world/memory/config.ts';
 import {
   NO_SHOT_PIN,
   actorFrameOf,
+  actorSettledOf,
   phaseInputOf,
   pinActors,
   pinShot,
@@ -45,6 +46,8 @@ import {
   type ShotPin,
   type TrailPin,
 } from '../render/pin-shot-state.ts';
+import { animFsmEnabledOf } from '../animation/villager-anim-fsm-view.ts';
+import { artEnabledOf, preloadArt } from '../render/art-assets.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
@@ -53,7 +56,7 @@ import { createIdbHistoryStore } from '../world/history/store.ts';
 import { observationsFor, type ObservationContext } from '../world/observation-rules.ts';
 import { dayCardOf, groupIntoWeeks, weekViewOf } from '../world/memory/daycard.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
-import type { OracleApi } from '../ui/oracle-panel.ts';
+import type { OracleApi, RenderLayerReading } from '../ui/oracle-panel.ts';
 import type { ClockStatusView, CreatorChecksView, DebugOracle } from '../ui/debug-panel.ts';
 import type { ClockAlignOracle, ClockAlignmentView } from '../ui/clock-align.ts';
 import {
@@ -98,7 +101,16 @@ type OracleSurfaces = OracleApi &
   ClockAlignOracle &
   UnitStatusOracle;
 import { drawTerrain } from '../render/tilemap.ts';
-import { createBuilding, drawBuildingDecals, updateBuilding, type BuildingView } from '../render/buildings.ts';
+import {
+  createBuilding,
+  drawBuildingDecals,
+  updateBuilding,
+  buildingBakeBox,
+  textureBorderAlpha,
+  type BuildingView,
+  type BuildingBakeLayerReading,
+} from '../render/buildings.ts';
+import { contactAoUnknownBaseCount } from '../render/contact-ao.ts';
 import {
   createVillager,
   drawVillagerGroundShadow,
@@ -242,7 +254,7 @@ import {
 } from '../world/setup.ts';
 import { parsePhaseParam, phaseAt, type PhaseId } from '../render/day-phase.ts';
 import { createDecorView, type DecorView } from '../render/decor.ts';
-import { composeReport, type DailyReport } from '../world/report.ts';
+import { composeReport, type DailyReport } from '../world/report.ts'; import { buildingLandingOf, type LandingEntry } from '../world/landing-readout.ts';
 import { villagerModeLabel } from '../world/villager-words.ts';
 import { describePropSource } from '../world/faith.ts';
 import { createLazyAnimalese, type Animalese } from '../audio/animalese.ts';
@@ -258,12 +270,14 @@ import {
 } from '../world/memory-client.ts';
 import type { WorldChange } from '../world/world-changes.ts';
 import { createIntentClient } from '../world/intent-client.ts';
+import { createWorkNoteClient } from '../world/work-note-client.ts';
+import { createVillagerDecisionClient, type VillagerDecision } from '../world/villager-decision-client.ts';
 import { SaveStore } from '../ui/save-store.ts';
 import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
 import type { SettingPack } from '../settings/types.ts';
 import { createSettingScenery, type SettingSceneryView } from '../render/setting-scenery.ts';
-import { routineProfiles, selectSetting } from '../settings/index.ts';
+import { routineProfiles, selectSetting, siteTargetResolver } from '../settings/index.ts';
 
 export interface ScenePayload {
   readonly world: BuiltWorld;
@@ -443,6 +457,12 @@ export class SandboxScene extends Phaser.Scene {
   private forcedLamps: boolean | null = null;
   /** 灯柱/灯串的三支动态开关；缺省全开，证据脚本逐支关掉取对照。 */
   private lampMotion: LampMotion = LAMP_MOTION_ON;
+  /**
+   * 灯周围「局部压低周边」的开关；`debugLampLocalShade` 写这里。缺省开。
+   * 证据脚本在同一冻结帧上关掉它，量 annulus 回升多少——用来区分
+   * 「真把周边压暗」和「只是全屏 dim」。
+   */
+  private lampLocalShade = true;
   /** 摊位两支动态开关（棚布/盖布摆动、火光跳动）；缺省全开。 */
   private stallMotion: StallMotion = STALL_MOTION_ON;
   /** 幌布两支动态开关（布身摆动、沿墙投影）；缺省全开。 */
@@ -550,6 +570,12 @@ export class SandboxScene extends Phaser.Scene {
    * 鸟与眨眼也会挪一两像素。钉住之后同一状态两跑逐字节相同，判据不动。
    */
   private shotPin: ShotPin = NO_SHOT_PIN;
+  /**
+   * 第二版动画状态机开关（`?animfsm=1`）。**缺省关闭**：关闭时
+   * `updateVillager` 走原路径，157 张基线必须逐字节不变。打开后也只有
+   * 「没钉姿态」或显式 `settled: false` 的角色由状态机接管。
+   */
+  private animFsmEnabled = false;
   /** 省电模式：窗口不在前台时为 true，渲染与逻辑都按 `minFrameIntervalMs` 跳帧。 */
   private backgroundMode = false;
   /** 两帧之间的最小间隔（毫秒）。前台为 1000/60，后台为 1000/12。 */
@@ -597,6 +623,30 @@ export class SandboxScene extends Phaser.Scene {
    * 没有设定集（莞尔镇）时用默认包：`selectSetting('')` 返回的就是它。
    */
   private creator: CreatorEngine | null = null;
+  /**
+   * 作业牌子的模型客户端。**牌子的底稿永远在**：模型没配上、超时、断网，
+   * 都退回 `routineLabel` 的原文案，世界照常跑。
+   */
+  private readonly workNoteClient = createWorkNoteClient();
+  /**
+   * 人物决策的模型客户端。**作息是默认**：模型没配上、超时、断网，
+   * 都退回作息表，世界照旧跑。
+   */
+  private readonly villagerDecisionClient = createVillagerDecisionClient();
+  /**
+   * 决策缓存：同一天同一人物同一份记忆只问一次——换腿一天发生几次，
+   * 每次都问没意义；记忆没变时同一个问题该有同一个答案。
+   */
+  private readonly decisionCache = new Map<string, VillagerDecision>();
+  /** 在飞的决策请求 key（villager id）；同一人物最多一个在飞。 */
+  private readonly decisionInflight = new Set<string>();
+  /**
+   * 同一天同一处、同一句底稿只问一次模型：作业一天发生十几次，
+   * 每次都问会让上游被打爆，而同一处同日说同一句话本来就该是同一句。
+   */
+  private readonly workNoteCache = new Map<string, string>();
+  /** 在飞请求的 key；同一时刻最多两个，免得慢请求排队压住后面所有拍。 */
+  private readonly workNoteInflight = new Set<string>();
   /**
    * 等落地之后再结算的造物观测。键是 `instanceId`，由既有的
    * `building.built` 回写（`onChange`）触发结算——不另开定时器或轮询。
@@ -734,7 +784,7 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 测试与 UI 都能读到同一份报纸；它从快照推导，不另存。 */
   report(): DailyReport {
-    return composeReport(this.reportSnapshot());
+    return composeReport(this.reportSnapshot(), this.landingEntries);
   }
 
   /**
@@ -766,6 +816,11 @@ export class SandboxScene extends Phaser.Scene {
       });
   }
 
+  preload(): void {
+    // 位图素材：默认装；`?art=0` 时这里什么也不做，渲染走原程序化路径。
+    if (artEnabledOf(new URLSearchParams(window.location.search))) preloadArt(this);
+  }
+
   create(): void {
     const originX = 0;
     const originY = 0;
@@ -790,7 +845,15 @@ export class SandboxScene extends Phaser.Scene {
 
     this.entries = this.world.buildings.map((building) => ({
       building,
-      view: createBuilding(this, building, originX, originY),
+      view: createBuilding(
+        this,
+        building,
+        originX,
+        originY,
+        // AO 落点是楼左下角外一格的地面：把那一格的地形底色交给建筑层，
+        // 建筑层才能拒绝「阴影色比基底还亮」的合成（见 `render/buildings.ts`）。
+        this.terrainBaseOf({ x: building.origin.x - 1, y: building.origin.y + building.footprint.h }),
+      ),
       emitter: createAccentEmitter(this, building.accent),
     }));
     // 覆盖层按**世界**尺寸建，不是画布尺寸：大世界里镜头只是世界的一小块。
@@ -990,6 +1053,8 @@ export class SandboxScene extends Phaser.Scene {
     });
     // 时相来源：?time= 显式指定（截图与调试用）> ?night=1（旧入口，等价于夜）> 真实本地时间。
     const params = new URLSearchParams(window.location.search);
+    // 第二版动画状态机：缺省关闭。打开与否只影响小人怎么画，不碰世界与存档。
+    this.animFsmEnabled = animFsmEnabledOf(params);
     // 验收机位要能关掉过渡：`?interior=instant` 时进门/退出不做动画，
     // 否则「冻结 1 秒画面 0 差异」这类对比会被过渡帧搅掉。
     this.interiorTransitionEnabled = params.get('interior') !== 'instant';
@@ -1124,13 +1189,40 @@ export class SandboxScene extends Phaser.Scene {
       stallsAt: this.stallCells,
       ...(this.pack?.villagers.length ? {
         villagerNames: this.pack.villagers.map((villager) => villager.name),
-        villagerProfiles: routineProfiles(this.pack),
+        villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid, this.world.buildings)),
       } : {}),
       // 地域的叫法。喂模型的世界现状要说「叠浪楼要一盏灯」，不说 `bathhouse`。
       // 没有设定集（莞尔镇）时这道门不存在，给张空表与不给等价。
       ...(this.pack === undefined || this.pack === null
         ? {}
         : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 场所产出物：由设定集声明（锅炉房出炭、大浴场出洗好的衣裳、集市成交）。
+      // 没声明的场所不进表，产出账就不记它——花径的 rest/stroll 是过日子不是作业。
+      ...(this.pack === undefined || this.pack === null
+        ? {}
+        : {
+          siteOutputs: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.output !== undefined)
+              .map((site) => [site.id, site.output!] as const),
+          ),
+          // 需求方：产出账的对手方。设定集写谁要什么，引擎不点名。
+          siteDemands: (this.pack.sites ?? [])
+            .filter((site) => site.consumes !== undefined)
+            .map((site) => ({ siteId: site.id, kind: site.consumes! }))
+            .sort((a, b) => (a.siteId < b.siteId ? -1 : a.siteId > b.siteId ? 1 : 0)),
+          siteNames: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.name !== undefined)
+              .map((site) => [site.id, site.name!] as const),
+          ),
+          sitePoints: new Map(
+            (this.pack.sites ?? [])
+              .map((site) => [site.id, this.sitePointOf(site.id)] as const)
+              .filter((entry): entry is readonly [string, { x: number; y: number }] =>
+                entry[1] !== null),
+          ),
+        }),
       // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
       // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
       ...(harborSite === null
@@ -1386,6 +1478,8 @@ export class SandboxScene extends Phaser.Scene {
       worldSeed: creatorPack.id,
       worldTime: () => this.snapshot.now,
       world: this.world,
+      // A2：读档把上一次会话的自治等级/指标窗口还回引擎，不再从 L0 重来。
+      autonomy: this.loadedSave?.world.autonomy ?? null,
     });
     // 造物账本：只增外挂日志。世界 id 与种子都取设定集 id；文件在服务端。
     // 出队器不阻塞世界——服务端不在时，记录留在队里等下一次自动存档。
@@ -1422,7 +1516,7 @@ export class SandboxScene extends Phaser.Scene {
     this.focusListener();
 
     this.onPageHide = () => {
-      this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+      this.saveStore.write(this.buildSave());
       // 关页面前把「这一刻」也写进时钟基线；否则下一下开会把最后几秒
       // （或整整一个被节流的 5 秒窗）重复算进离线间隔。
       this.persistClockBaseline(true);
@@ -1431,7 +1525,58 @@ export class SandboxScene extends Phaser.Scene {
     };
     window.addEventListener('pagehide', this.onPageHide);
     this.registerOracleApi();
+    void this.registerCreatorDebugBridge();
     this.connectFeed();
+  }
+
+  /**
+   * 挂造物主 EDD 调试桥（`window.__PIXEL_WORLD_DEBUG__`）。
+   *
+   * **只在 `?debug=1` 下挂**，且刻意不扩 `window.Oracle`：那个对象是玩家与面板
+   * 的 API，挂载时要过十个接口子集的交集核对；把五个评测方法挂上去就是放宽生产面。
+   * 双下划线调试全局在本仓有先例（`__RAIN_SEED__` / `__CAPTURE_STATE__`）。
+   *
+   * 施工联动只做视图刷新：每拍把台账里的阶段刷到已有 `BuildingEntry.view` 上，
+   * 不新建容器、不改 back/container/front 三层深度。
+   */
+  private async registerCreatorDebugBridge(): Promise<void> {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debug') !== '1' && params.get('debug') !== '') return;
+    // 动态 import 有两个理由：① 调试桥不进生产主 bundle（只有 `?debug=1` 才加载）；
+    // ② 不在文件头加 import 行，ADR 与岸带设计里那些写死的 `SandboxScene.ts:NNN`
+    //    引用就不会因为这一笔位移。这个仓的行号引用是闸门查得到的，漂一格就红。
+    const { CreatorDebugBridge } = await import('../world/creator/debug-bridge.ts');
+    const parsedSeed = Number.parseInt(params.get('debugPinSeed') ?? '0', 10);
+    const seed = Number.isFinite(parsedSeed) ? parsedSeed >>> 0 : 0;
+
+    const bridge = new CreatorDebugBridge({
+      grid: this.world.grid,
+      blueprints: this.blueprints,
+      sim: this.sim,
+      saveStore: this.saveStore,
+      storage: window.localStorage,
+      seed,
+      currentSave: () => this.sim.toSave(this.memory.toJSON()),
+      // 只读探针：这栋楼的渲染层里有多少层用了 `art:` 外部贴图。
+      // K2 靠它把「网络没发请求」升级成「源头确实是程序化烘焙」——
+      // 素材在首屏预加载进 TextureManager，只数请求数会被缓存骗过去。
+      describeBuildingArt: (instanceId: string) => {
+        const entry = this.entries.find((item) => item.building.instanceId === instanceId);
+        if (entry === undefined) return { layers: 0, artLayers: 0 };
+        let layers = 0;
+        let artLayers = 0;
+        for (const container of [entry.view.back, entry.view.container, entry.view.front]) {
+          for (const child of container.list) {
+            const key = (child as { texture?: { key?: string } }).texture?.key;
+            if (typeof key !== 'string') continue;
+            layers += 1;
+            if (key.startsWith('art:')) artLayers += 1;
+          }
+        }
+        return { layers, artLayers };
+      },
+    });
+    (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__ = bridge;
   }
 
   /**
@@ -1481,6 +1626,7 @@ export class SandboxScene extends Phaser.Scene {
     this.memoryOutbox = null;
     this.creator = null;
     this.creationLedger = null;
+    delete (window as unknown as { __PIXEL_WORLD_DEBUG__?: unknown }).__PIXEL_WORLD_DEBUG__;
     this.pendingCreationObservations.clear();
     this.overlay?.dispose();
     this.overlay = null;
@@ -1691,6 +1837,8 @@ export class SandboxScene extends Phaser.Scene {
       for (const result of results) {
         this.speak(result);
       }
+      this.pumpWorkNotes();
+      this.pumpDecisions();
       this.tick += 1;
       steps += 1;
     }
@@ -2194,6 +2342,18 @@ export class SandboxScene extends Phaser.Scene {
 
       const now = this.sim.snapshot().now;
       const currentDay = Math.floor(now / DAY_MS);
+      this.rememberLanding({
+        instanceId,
+        prefabId: pending.plan.templateId,
+        displayName: pending.displayName,
+        origin: pending.origin,
+        day: currentDay,
+        landed: true,
+        pathfindingConnected,
+        hasConflict: business.hasConflict,
+        invariantViolated: business.invariantViolated,
+        violations: business.violations,
+      });
       const landing = buildLandingRecord({
         proposalId: pending.proposalId,
         worldId: this.ledgerWorldId,
@@ -2339,6 +2499,18 @@ export class SandboxScene extends Phaser.Scene {
     const coverageRate = creationCoverage(snapshot, this.blueprints);
     void checkLandedBuilding(businessWorld, landed).then((business) => {
       if (this.creator !== creator) return;
+      this.rememberLanding({
+        instanceId,
+        prefabId: building.prefabId,
+        displayName: building.displayName,
+        origin,
+        day: currentDay,
+        landed: true,
+        pathfindingConnected,
+        hasConflict: business.hasConflict,
+        invariantViolated: business.invariantViolated,
+        violations: business.violations,
+      });
       const landing = buildLandingRecord({
         proposalId,
         worldId: this.ledgerWorldId,
@@ -2625,6 +2797,10 @@ export class SandboxScene extends Phaser.Scene {
     const seen = new Set<string>();
     for (const villager of this.pack.villagers) {
       for (const stop of villager.routine) {
+        // 场所落点不登记成地标：它由 `sites` 表解析，不是一格写死的坐标作息点。
+        // 登记进去会凭空多一个 place holder，改掉记忆读数与夹具——「把场所
+        // 本身登记成地标」是另一笔。
+        if ('site' in stop) continue;
         const key = `${stop.x},${stop.y}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -3287,6 +3463,7 @@ export class SandboxScene extends Phaser.Scene {
       task: building.boundTask,
       activity,
       traces: hints.map((hint) => ({ layer: hint.layer, visibility: hint.visibility })),
+      landing: buildingLandingOf(this.landingEntries, placeId),
     };
   }
 
@@ -3550,6 +3727,27 @@ export class SandboxScene extends Phaser.Scene {
     return { ok: true, message: '取消了，世界没动。' };
   }
 
+  /**
+   * 落地账的**会话内读侧缓存**：日报一行与楼面板脚注从这里读。
+   *
+   * 持久真相是服务端那份 JSONL 账本；这里只留本次会话最近的一批，供同步读取。
+   * 它不是第二份真相——内容就是刚写进账本的那几条，不另算指标。
+   *
+   * **声明在这个位置是有意的**：放在字段区会让整份文件的行号整体下移，
+   * 而 `docs/` 里有几处按行号指着这个文件的入口（`create`、`cancelCreation` 等），
+   * 位移一次就要重新对位一次。晚一点声明，行为完全一样。
+   */
+  private readonly landingEntries: LandingEntry[] = [];
+
+  /** 记一条读侧缓存，并裁掉过老的条目（账本才是持久真相，这里只服务当前会话）。 */
+  private rememberLanding(entry: LandingEntry): void {
+    this.landingEntries.push(entry);
+    const LIMIT = 200;
+    if (this.landingEntries.length > LIMIT) {
+      this.landingEntries.splice(0, this.landingEntries.length - LIMIT);
+    }
+  }
+
   creating(): { readonly prefabId: string; readonly ghostAt: GridPoint | null } | null {
     return this.creation;
   }
@@ -3727,9 +3925,109 @@ export class SandboxScene extends Phaser.Scene {
     };
   }
 
+  /**
+   * 排空作业牌子队列：能复用当日同款的直接落，其余的异步问模型。
+   *
+   * 三条克制：
+   *   1. **同日同处同底稿只问一次**（`workNoteCache`）——作业一天发生十几次，
+   *      每次都问会让上游被打爆；
+   *   2. **同时在飞最多两个**——慢请求不许排成队压住世界；
+   *   3. **失败什么都不做**——`routineLabel` 的原文案本来就是对的，
+   *      模型只是换一种说法。
+   */
+  private pumpWorkNotes(): void {
+    const notes = this.sim.drainWorkNotes();
+    if (notes.length === 0) return;
+    for (const note of notes) {
+      const key = `${note.site}|${note.day}|${note.canonical}`;
+      const cached = this.workNoteCache.get(key);
+      if (cached !== undefined) {
+        this.sim.applyWorkNarration(note.villagerId, note.site, cached);
+        continue;
+      }
+      if (this.workNoteInflight.has(key) || this.workNoteInflight.size >= 2) continue;
+      this.workNoteInflight.add(key);
+      void this.workNoteClient(note)
+        .then((text) => {
+          if (text === null) return;
+          this.workNoteCache.set(key, text);
+          this.sim.applyWorkNarration(note.villagerId, note.site, text);
+        })
+        .finally(() => this.workNoteInflight.delete(key));
+    }
+  }
+
+  /**
+   * 人物决策泵：取走排队里的决策请求，异步问 LLM，回来后落回世界。
+   *
+   * 三条纪律：
+   * 1. **同日同人物同记忆只问一次**（`decisionCache`）——换腿一天发生几次；
+   * 2. **同一人物最多一个在飞**——慢请求不许排成队压住世界；
+   * 3. **失败时用 follow 放行**——LLM 挂了世界照旧走作息，人物照活。
+   */
+  private pumpDecisions(): void {
+    const requests = this.sim.drainVillagerDecisions();
+    if (requests.length === 0) return;
+    const byName = new Map(this.snapshot?.villagers.map((v) => [v.name, v.id]) ?? []);
+    for (const request of requests) {
+      const villagerId = byName.get(request.villagerName);
+      if (villagerId === undefined) continue;
+      const memoriesKey = JSON.stringify(request.memories);
+      const cacheKey = `${request.villagerName}|${request.day}|${memoriesKey}`;
+      const cached = this.decisionCache.get(cacheKey);
+      if (cached !== undefined) {
+        this.sim.applyVillagerDecision(villagerId, cached);
+        continue;
+      }
+      if (this.decisionInflight.has(villagerId)) continue;
+      this.decisionInflight.add(villagerId);
+      void this.villagerDecisionClient(request)
+        .then((decision) => {
+          if (decision === null) {
+            // 失败也放行：LLM 挂了世界照旧走作息。
+            this.sim.applyVillagerDecision(villagerId, { action: 'follow', reason: '' });
+            return;
+          }
+          this.decisionCache.set(cacheKey, decision);
+          this.sim.applyVillagerDecision(villagerId, decision);
+        })
+        .finally(() => this.decisionInflight.delete(villagerId));
+    }
+  }
+
+  /**
+   * 场所的落点坐标（需求事件的落点用它）。
+   *
+   * 解析器属于设定集，场景每次按当前 `buildings` 建一份——楼可能被玩家造出来
+   * 或拆掉，缓存一份就会让新楼的场所解析失败。sites 只有个位数，不值得缓存。
+   * 解不出（建筑锚那栋楼还没落地）就返回 `null`：那一条需求事件的落点退回祭坛，
+   * 而不是把世界卡住。
+   */
+  private sitePointOf(siteId: string): { x: number; y: number } | null {
+    if (this.pack === undefined || this.pack === null) return null;
+    try {
+      return siteTargetResolver(this.pack, this.world.grid, this.world.buildings)(siteId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 组装一份写单槽用的存档：世界的记忆段 + 外环自治快照（A2）。
+   *
+   * 两者都由场景从各自的持有者取来，`Simulation` 只负责搬运。历史快照那一路
+   * 不走这里（它刻意不带记忆与外环状态，见 `captureHistory`）。
+   */
+  private buildSave(): WorldSave {
+    return this.sim.toSave(
+      this.memory.toJSON(),
+      this.creator?.exportAutonomy() ?? null,
+    );
+  }
+
   /** 手动存档：立即把当前世界写进单槽。 */
   saveNow(): CommandResult {
-    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+    const result = this.saveStore.write(this.buildSave());
     if (result.ok) {
       this.lastSaveKey = this.saveStateKey();
       this.lastSaveAt = this.snapshot.now;
@@ -3763,7 +4061,7 @@ export class SandboxScene extends Phaser.Scene {
     const changed = this.saveStateKey() !== this.lastSaveKey;
     const due = this.snapshot.now - this.lastSaveAt >= 30_000;
     if (!changed && !due) return;
-    const result = this.saveStore.write(this.sim.toSave(this.memory.toJSON()));
+    const result = this.saveStore.write(this.buildSave());
     if (!result.ok) {
       this.saveNotice = result.message;
       return;
@@ -4131,16 +4429,117 @@ export class SandboxScene extends Phaser.Scene {
         hasCallback: (this.game.loop as unknown as { callback?: unknown }).callback !== undefined,
         focused: document.visibilityState === 'visible' && document.hasFocus(),
       }),
-      /** 渲染统计：排查性能时看每帧有多少绘制指令。 */
+      /**
+       * 渲染统计：排查性能时看每帧有多少绘制指令。
+       *
+       * **递归遍历容器**，不只数顶层。楼体拆了三层容器（back / body / front），
+       * 容器里的 Graphics 不是 `children.list` 的成员；2026-11-07 之前这里只
+       * `filter` 顶层，11 栋楼的 99 个 Graphics / 11,090 条命令全在计数之外。
+       *
+       * 为什么不会重复计数：Phaser 的 `Container.add()` 会把子对象从场景显示
+       * 列表里摘掉，挂在容器里的对象**只有一个**父级；从显示列表根往下递归，
+       * 每个对象恰好走到一次。`visited` 只是兜底（同一对象被两条路径拿到时
+       * 直接跳过），不是主要依据。容器本身也是显示列表成员，但它只在递归入口
+       * 被消费一次，父容器不会再数它的子容器——`top` 与 `containers` 因此可加。
+       */
       renderStats: () => {
-        const graphics = this.children.list.filter(
-          (item) => item.type === 'Graphics',
-        ) as Phaser.GameObjects.Graphics[];
-        const counts = graphics.map((g) => g.commandBuffer?.length ?? 0);
+        const visited = new Set<Phaser.GameObjects.GameObject>();
+        const largest: number[] = [];
+        const containers: RenderLayerReading[] = [];
+        let topGraphics = 0;
+        let topCommands = 0;
+        let totalGraphics = 0;
+        let totalCommands = 0;
+
+        /** 楼体三层容器按楼号命名，免得读数里只剩一串下标。 */
+        const nameOf = (obj: Phaser.GameObjects.GameObject): string | null => {
+          for (const entry of this.entries) {
+            if (obj === entry.view.back) return `${entry.building.instanceId}.back`;
+            if (obj === entry.view.container) return `${entry.building.instanceId}.body`;
+            if (obj === entry.view.front) return `${entry.building.instanceId}.front`;
+          }
+          return null;
+        };
+        const commandsOf = (g: Phaser.GameObjects.Graphics): number => {
+          const n = g.commandBuffer?.length ?? 0;
+          largest.push(n);
+          return n;
+        };
+        /** 数一棵容器子树的全部 Graphics；返回值只含这棵子树。 */
+        const measureContainer = (
+          container: Phaser.GameObjects.Container,
+          path: string,
+          depth: number,
+        ): { graphicsObjects: number; totalCommands: number; containers: number } => {
+          if (visited.has(container)) return { graphicsObjects: 0, totalCommands: 0, containers: 0 };
+          visited.add(container);
+          // 先登记再递归：容器的读数要含整棵子树，嵌套容器自然排在其父之后。
+          const reading = {
+            path,
+            depth,
+            graphicsObjects: 0,
+            totalCommands: 0,
+            containers: 0,
+          };
+          containers.push(reading);
+          let graphicsObjects = 0;
+          let commands = 0;
+          let nested = 0;
+          const list = container.list as readonly Phaser.GameObjects.GameObject[];
+          list.forEach((child, index) => {
+            if (visited.has(child)) return;
+            if (child.type === 'Graphics') {
+              visited.add(child);
+              graphicsObjects += 1;
+              commands += commandsOf(child as Phaser.GameObjects.Graphics);
+            } else if (child.type === 'Container') {
+              const sub = measureContainer(
+                child as Phaser.GameObjects.Container,
+                nameOf(child) ?? `${path}[${index}]`,
+                depth + 1,
+              );
+              graphicsObjects += sub.graphicsObjects;
+              commands += sub.totalCommands;
+              nested += sub.containers;
+            }
+          });
+          reading.graphicsObjects = graphicsObjects;
+          reading.totalCommands = commands;
+          reading.containers = 1 + nested;
+          return { graphicsObjects, totalCommands: commands, containers: 1 + nested };
+        };
+
+        this.children.list.forEach((item, index) => {
+          if (visited.has(item)) return;
+          if (item.type === 'Graphics') {
+            visited.add(item);
+            topGraphics += 1;
+            topCommands += commandsOf(item as Phaser.GameObjects.Graphics);
+          } else if (item.type === 'Container') {
+            const sub = measureContainer(
+              item as Phaser.GameObjects.Container,
+              nameOf(item) ?? `top[${index}]`,
+              1,
+            );
+            totalGraphics += sub.graphicsObjects;
+            totalCommands += sub.totalCommands;
+          }
+        });
+        // `largest` 只报最大的 5 张；数组本体不留整份清单。
+        largest.sort((a, b) => b - a);
+        largest.length = Math.min(largest.length, 5);
         return {
-          graphicsObjects: graphics.length,
-          totalCommands: counts.reduce((sum, n) => sum + n, 0),
-          largest: [...counts].sort((a, b) => b - a).slice(0, 5),
+          frame: this.game.loop.frame,
+          // 兼容旧口径的两个数：含义从「顶层」改成「整场景」，读者见 `top`。
+          graphicsObjects: topGraphics + totalGraphics,
+          totalCommands: topCommands + totalCommands,
+          /** 直接挂在场景显示列表上的 Graphics（不在任何容器里）。 */
+          top: { graphicsObjects: topGraphics, totalCommands: topCommands },
+          /** 每个容器的子树读数；`depth` 1 的是顶层容器，>1 的嵌在它们里面。 */
+          containers,
+          largest,
+          /** 接触暗部「基底未知」次数：正常应为 0；非 0 说明 AO 落点那格取错了。 */
+          contactAoUnknownBase: contactAoUnknownBaseCount(),
         };
       },
       /** 立刻把镜头中心对准世界坐标（不带动画）。小地图跳转与测试都用它。 */
@@ -4311,6 +4710,14 @@ export class SandboxScene extends Phaser.Scene {
         return on;
       },
       /**
+       * 灯周围「局部压低周边」的开关。同一冻结帧上关掉它，annulus 会回升——
+       * 回升多少就是「真压低」的证据（check-glow-contrast.mjs 的机制项）。
+       */
+      debugLampLocalShade: (on: boolean): boolean => {
+        this.lampLocalShade = on;
+        return on;
+      },
+      /**
        * 灯柱/灯串的三支动态开关（渐次点亮、呼吸、风摆）。缺省全开；
        * 关掉哪一支，那一支的 t / t+1s 帧差必须归零，其余两支不受影响。
        */
@@ -4465,6 +4872,46 @@ export class SandboxScene extends Phaser.Scene {
        * （截图只能看出「没有暖斑」，看不出「上一帧的椭圆有没有被擦掉」）。
        */
       debugLampPool: (): number => this.settingScenery?.poolCommands() ?? 0,
+      /**
+       * 建筑烘焙自检：逐栋、逐层报 `Image` 的落点 / 原点 / 缩放 / 纹理尺寸，
+       * 以及纹理四边的最大 alpha。
+       *
+       * 两个判据（`scripts/check-building-bake.mjs` 消费）：
+       * 1. 落点必须等于 `buildingBakeBox(w, h)` —— 出版框和贴图落点是**一对**，
+       *    任何一件错 1px 都会让整栋楼的像素移位，而画面只是"看起来还行"；
+       * 2. 四边 alpha 必须是 0 —— 内容贴边说明留白不够、已被裁掉 1px 且不会报错。
+       */
+      debugBuildingBake: () =>
+        this.entries.map(({ building, view }) => {
+          const w = building.footprint.w * TILE_PX;
+          const h = building.footprint.h * TILE_PX;
+          const box = buildingBakeBox(w, h);
+          const layers: BuildingBakeLayerReading[] = [];
+          const prefix = `building-bake:${building.instanceId}:`;
+          const walk = (container: Phaser.GameObjects.Container): void => {
+            (container.list as readonly Phaser.GameObjects.GameObject[]).forEach((child) => {
+              if (child.type !== 'Image') return;
+              const image = child as Phaser.GameObjects.Image;
+              if (!image.texture.key.startsWith(prefix)) return;
+              layers.push({
+                key: image.texture.key,
+                layer: image.texture.key.slice(prefix.length),
+                x: image.x,
+                y: image.y,
+                originX: image.originX,
+                originY: image.originY,
+                scaleX: image.scaleX,
+                scaleY: image.scaleY,
+                frameW: image.frame?.width ?? null,
+                frameH: image.frame?.height ?? null,
+                borderAlpha: textureBorderAlpha(this, image.texture.key),
+              });
+            });
+          };
+          walk(view.container);
+          walk(view.front);
+          return { instanceId: building.instanceId, w, h, box, layers };
+        }),
       onVillagerMemory: (listener: (view: VillagerMemoryView | null) => void): (() => void) => {
         if (this.lastVillagerMemory !== null) listener(this.lastVillagerMemory);
         this.villagerMemoryListeners.add(listener);
@@ -4475,6 +4922,20 @@ export class SandboxScene extends Phaser.Scene {
         // 发现「离开跟随」，它自己也会收一次——`closeVillagerPanel` 幂等。
         this.closeVillagerPanel();
         this.cameraCtl.releaseFollow();
+      },
+      /** 面板里的动作一律排队，由下一个逻辑拍结算：面板不直接改世界。 */
+      villagerAction: (action: string, villagerId: string): void => {
+        if (action === 'dispatch') {
+          this.sim.enqueue({ kind: 'assign', villagerId, taskKind: 'code', summary: '整理便笺' });
+        } else if (action === 'carry') {
+          // 给 / 收是同一个动作的来回：已有灯就收走，没有就给她一盏。
+          // 不无条件 set 成同一个值，否则第二次点就「什么都没发生」。
+          const held = this.snapshot.villagers.find((item) => item.id === villagerId)?.carries ?? [];
+          const next: readonly ('lamp' | 'shoes')[] = held.includes('lamp') ? [] : ['lamp'];
+          this.sim.enqueue({ kind: 'setCarries', villagerId, carries: next });
+        } else if (action === 'ask') {
+          this.sim.enqueue({ kind: 'ask', villagerId, text: '最近怎么样' });
+        }
       },
       openStele: (): void => this.openStele(),
       onStele: (listener: (view: SteleView | null) => void): (() => void) => {
@@ -4529,7 +4990,7 @@ export class SandboxScene extends Phaser.Scene {
       },
       // 钉呈现态时报纸底栏的「第 N 分」也读同一个时刻：否则两跑会在底栏
       // 差一行字，而画面其余部分逐字节相同（戊类就是这么来的）。
-      report: (): DailyReport => composeReport(this.reportSnapshot()),
+      report: (): DailyReport => composeReport(this.reportSnapshot(), this.landingEntries),
       slab: (): readonly OracleRecord[] => this.snapshot.oracle,
       view: (): WorldSnapshot => this.view(),
       setPhase: (phase: PhaseId): void => this.setPhase(phase),
@@ -4709,7 +5170,7 @@ export class SandboxScene extends Phaser.Scene {
     for (const villager of snapshot.villagers) {
       let view = this.villagerViews.get(villager.id);
       if (view === undefined) {
-        view = createVillager(this, 0, 0);
+        view = createVillager(this, 0, 0, villager.id);
         this.villagerViews.set(villager.id, view);
       }
       const style = this.pack?.villagers.find((item) => item.name === villager.name)?.style;
@@ -4720,6 +5181,8 @@ export class SandboxScene extends Phaser.Scene {
       // 色板一路传到小人与灯：第二座镇子换掉 amber / cloak 时，人跟着换。
       // 第六个实参之后的 `actorFrameOf`：钉住时按帧号取姿态，未钉住返回 null，
       // `updateVillager` 走原来的时刻采样路径（逐字节不变）。
+      // 第八个之后的两项是第二版开关与钉子语义：`?animfsm=1` 且没有稳态姿态钉时
+      // 才由状态机接管；`settled` 缺省（`true`）保持旧路径，基线不动。
       updateVillager(
         view,
         villager,
@@ -4730,6 +5193,8 @@ export class SandboxScene extends Phaser.Scene {
         appearance,
         this.pack?.palette ?? paletteFor(),
         actorFrameOf(this.shotPin, villager.id),
+        this.animFsmEnabled,
+        actorSettledOf(this.shotPin, villager.id),
       );
     }
     // 人物脚下的日照投影：独立层 depth 3.1，压在光池之下、人物之下。
@@ -4769,6 +5234,7 @@ export class SandboxScene extends Phaser.Scene {
       phase: this.phaseView.currentPhase(),
       autoAdvancing: this.phaseView.isAutoAdvancing(),
       litOverride: this.forcedLamps ?? undefined,
+      localShade: this.lampLocalShade,
       motion: this.lampMotion,
       stalls: this.stallMotion,
       banners: this.bannerMotion,
@@ -4839,7 +5305,13 @@ export class SandboxScene extends Phaser.Scene {
       if (this.entries.some((entry) => entry.building.instanceId === building.instanceId)) continue;
       this.entries.push({
         building,
-        view: createBuilding(this, building, 0, 0),
+        view: createBuilding(
+          this,
+          building,
+          0,
+          0,
+          this.terrainBaseOf({ x: building.origin.x - 1, y: building.origin.y + building.footprint.h }),
+        ),
         emitter: createAccentEmitter(this, building.accent),
       });
     }

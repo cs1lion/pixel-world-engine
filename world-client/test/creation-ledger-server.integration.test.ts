@@ -98,7 +98,34 @@ interface RunningServer {
   stop(): Promise<void>;
 }
 
+interface StartupProbe {
+  readonly lastStatus: number | null;
+  readonly lastError: string | null;
+  readonly msSinceSpawn: number;
+}
+
+interface StartupDiagnostics {
+  startupFailureMessage?: (reason: string, logs: string, probe: StartupProbe) => string;
+  describeFetchError?: (error: unknown) => string;
+}
+
+/**
+ * 诊断格式化模块在 `scripts/lib/` 里（不在 test/），这样 red-first 把 test diff
+ * 套到 base 上时，base 缺这个模块 → 守卫返回 null、退回旧消息，集成用例照常能跑；
+ * 而新增的 `test/startup-diagnostics.test.ts` 会在 base 上红在 `typeof` 断言。
+ */
+let diagnosticsPromise: Promise<StartupDiagnostics | null> | null = null;
+function loadStartupDiagnostics(): Promise<StartupDiagnostics | null> {
+  if (diagnosticsPromise === null) {
+    const path = '../scripts/lib/startup-diagnostics.mjs';
+    diagnosticsPromise = import(path).catch(() => null);
+  }
+  return diagnosticsPromise;
+}
+
 async function startServer(dataDir: string): Promise<RunningServer> {
+  const diagnostics = await loadStartupDiagnostics();
+  const startedAt = Date.now();
   const port = await freePort();
   const child: ChildProcess = spawn(
     'python',
@@ -128,10 +155,13 @@ async function startServer(dataDir: string): Promise<RunningServer> {
   });
 
   const deadline = Date.now() + 20000;
+  let lastStatus: number | null = null;
+  let lastError: string | null = null;
   while (Date.now() < deadline) {
     if (exited) throw new Error(`服务进程提前退出：\n${logs}`);
     try {
       const response = await fetch(`${baseUrl}/api/creation-ledger/entries?worldId=probe`);
+      lastStatus = response.status;
       if (response.status === 200) {
         return {
           baseUrl,
@@ -146,13 +176,21 @@ async function startServer(dataDir: string): Promise<RunningServer> {
           },
         };
       }
-    } catch {
-      // 还没起来，继续等。
+    } catch (error) {
+      // 还没起来，继续等；但把最后一次的错误码留住，失败时才能报出来。
+      lastError = diagnostics?.describeFetchError
+        ? diagnostics.describeFetchError(error)
+        : String(error);
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   child.kill('SIGKILL');
-  throw new Error(`服务在 20 秒内没起来：\n${logs}`);
+  const probe = { lastStatus, lastError, msSinceSpawn: Date.now() - startedAt };
+  throw new Error(
+    diagnostics?.startupFailureMessage
+      ? diagnostics.startupFailureMessage('服务在 20 秒内没起来', logs, probe)
+      : `服务在 20 秒内没起来：\n${logs}`,
+  );
 }
 
 async function withServer<T>(run: (server: RunningServer, dataDir: string) => Promise<T>): Promise<T> {
@@ -365,3 +403,4 @@ test('两个 worldId 的账本与队列不串：同 recordId 各落各的，loca
     assert.deepEqual(rightQueue.load()?.records.map((item) => item.recordId), ['q-right']);
   });
 });
+

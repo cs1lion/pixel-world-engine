@@ -149,12 +149,29 @@ export interface CreatorRoleState {
   lastRegressionPassed?: boolean;
   /** 抽检用的确定性计数器，替代 `Math.random`。 */
   sampleTick: number;
+  /**
+   * C1：世界安静运行的累计天数（从 L0/每次升级后起算，不随指标窗口清零）。
+   * 它让「没有造物、只自己过日子」的世界也有机会证明稳定，从 L1 往上爬。
+   * 属派生量、不入存档：刷新后重新攒，等级本身由 A2 保留。
+   */
+  selfRunningDays: number;
+  /** 连续无冲突、无不变式违反、无回滚的天数；出事即归零。 */
+  cleanDays: number;
+  /** 上次日结算时的累计问题数，用来判断「这一天有没有新出事」。 */
+  lastIssueTotal: number;
+  /**
+   * C1：这个角色**整个生命周期**有没有过造物尝试。指标窗口升级即清零，
+   * 所以「造过但窗口清零」不能靠 `totalCommands === 0` 冒充「从没造过」。
+   * 属派生量、不入档：刷新后按新会话重新记，等级本身由 A2 保留。
+   */
+  everCreated: boolean;
 }
 
 /** 熔断器事件 */
 export type FuseEventType =
   | 'climb_attempt'       // 尝试升级
   | 'climb_success'       // 升级成功
+  | 'climb_self_running'  // C1：零造物世界靠自运行观察升级
   | 'downgrade_trigger'   // 降级触发
   | 'fuse_triggered'      // 熔断激活
   | 'isolation_branch_created' // 隔离分支创建
@@ -194,6 +211,10 @@ export const FUSE_CONFIG = {
 
   // 冷却时间（降级后至少多少天才能再次尝试升级）
   cooldownDaysAfterDowngrade: 7,
+
+  // C1：零造物世界的「自运行观察」通道——连续这么多天没出事，
+  // 且世界确实在跑，就允许绕过「必须有造物观测」的门禁往上升。
+  selfRunningRequiredDays: 7,
 } as const;
 
 // ========== 主类：双向熔断器 ==========
@@ -238,6 +259,10 @@ export class AutonomousFuseController {
       metrics: this.emptyMetrics(),
       isFused: false,
       sampleTick: 0,
+      selfRunningDays: 0,
+      cleanDays: 0,
+      lastIssueTotal: 0,
+      everCreated: false,
     });
     this.dayCounter.set(roleId, 0);
   }
@@ -272,6 +297,8 @@ export class AutonomousFuseController {
     const state = this.roleStates.get(roleId);
     if (!state || state.isFused) return;
 
+    // C1：只要真来过一条造物结果，这个角色就不再属于「零造物世界」。
+    state.everCreated = true;
     const m = state.metrics;
     m.totalCommands++;
     if (result.schemaPassed) m.schemaPassCount++;
@@ -339,6 +366,19 @@ export class AutonomousFuseController {
     if (state.isFused) return;
 
     state.metrics.days++;
+
+    // C1：世界又安稳地过了一天，就把「自运行观察」往前推一格。
+    // 问题数取累计值，只有当天没有新增冲突 / 违规 / 回滚时才算干净日。
+    const issueTotal = state.metrics.conflictCount
+      + state.metrics.invariantViolationCount
+      + state.metrics.rollbackCount;
+    state.selfRunningDays++;
+    if (issueTotal === state.lastIssueTotal) {
+      state.cleanDays++;
+    } else {
+      state.cleanDays = 0;
+    }
+    state.lastIssueTotal = issueTotal;
 
     // 冷却期内不尝试升级
     if (
@@ -460,6 +500,21 @@ export class AutonomousFuseController {
     };
   }
 
+  /** C1：这个角色是否够格走「自运行观察」升级通道。判据见 tryClimbUp 里那段。 */
+  private selfRunningQualified(state: CreatorRoleState): boolean {
+    if (state.isFused) return false;
+    // 只给真正的「零造物」安静世界：整个生命周期来过一条造物结果就走常规门禁。
+    // 用 everCreated 而不是 totalCommands——后者升级即清零，会把「造过但窗口清零」
+    // 冒充成「从没造过」，实测那样会把「不能白送」那道闸一起绕过去。
+    if (state.everCreated) return false;
+    if (state.selfRunningDays < FUSE_CONFIG.selfRunningRequiredDays) return false;
+    if (state.cleanDays < FUSE_CONFIG.selfRunningRequiredDays) return false;
+    const issues = state.metrics.conflictCount
+      + state.metrics.invariantViolationCount
+      + state.metrics.rollbackCount;
+    return issues === 0;
+  }
+
   private tryClimbUp(roleId: string): void {
     const state = this.roleStates.get(roleId);
     if (!state) return;
@@ -471,24 +526,42 @@ export class AutonomousFuseController {
 
     const rates = ratesOf(state.metrics);
 
-    // 证据要够：§2.2 是「连续 3 个迭代批次（或连续 14 个 world_day）」。
-    const enoughBatches = rates.batches >= FUSE_CONFIG.climbRequiredBatches;
-    const enoughDays = rates.days >= FUSE_CONFIG.climbRequiredDays;
-    if (!enoughBatches && !enoughDays) return;
-
-    // 自动检查通过率与人工修改率
-    if (rates.schemaPassRate === null) return;
-    if (rates.schemaPassRate < FUSE_CONFIG.autoCheckPassRateThreshold) return;
-    if (rates.manualModificationRate === null) return;
-    if (rates.manualModificationRate > FUSE_CONFIG.manualModificationRateThreshold) return;
-
-    // 质量门禁：按**将要升入的等级**逐项要求，且是累积的。
+    // C1：零造物世界的「自运行观察」通道。
     //
-    // 这是本文件最容易写松的一处。原来只查「观察过的项是否达标」，
-    // 于是质量项一个都没测的模块照样能升——「没测」被当成了「没问题」，
-    // 而 §3.3 里 L2 明写要「要素覆盖 ≥95%」。没测过就是没达标。
-    const nextLevel = (state.currentLevel + 1) as AutonomyLevel;
-    if (!qualityGatesFor(nextLevel, rates)) return;
+    // 卡住 C1 的是两处「没测过就不算」：schemaPassRate 为 null（没命令就没分母）、
+    // qualityGatesFor 要求 coverageRate/conflictChecks/invariantChecks 都非 0。
+    // 安静的世界这些永远是 0/null，于是在 L1 停死。
+    //
+    // 这条旁路**不是白送**，四条同时成立才放行：
+    //   1. 世界确实过了足够多天（selfRunningDays ≥ 7，且 endOfDay 真的被调过）；
+    //   2. 连续干净日 ≥ 7（期间无新增冲突 / 违规 / 回滚）；
+    //   3. 累计问题数仍为 0（不是「这次没查」而是「没出过事」）；
+    //   4. 没熔断。
+    // 只升**一级**，且只到 L2 为止（L3/L4 仍要真实的空间/回放证据，
+    // 那些门禁不是「造物次数」能替代的）。
+    const selfRunning = this.selfRunningQualified(state) && state.currentLevel + 1 <= AutonomyLevel.L2;
+
+    let viaSelfRunning = false;
+    if (!selfRunning) {
+      // 常规通道：证据要够（§2.2 连续 3 批或 14 个 world_day）。
+      const enoughBatches = rates.batches >= FUSE_CONFIG.climbRequiredBatches;
+      const enoughDays = rates.days >= FUSE_CONFIG.climbRequiredDays;
+      if (!enoughBatches && !enoughDays) return;
+
+      // 自动检查通过率与人工修改率——没测过（null）就是没达标，不猜。
+      if (rates.schemaPassRate === null) return;
+      if (rates.schemaPassRate < FUSE_CONFIG.autoCheckPassRateThreshold) return;
+      if (rates.manualModificationRate === null) return;
+      if (rates.manualModificationRate > FUSE_CONFIG.manualModificationRateThreshold) return;
+
+      // 质量门禁：按**将要升入的等级**逐项要求，且是累积的。
+      // 原来只查「观察过的项是否达标」，于是质量项一个都没测的模块照样能升——
+      // 「没测」被当成了「没问题」。这一层专防那件事。
+      const nextLevel = (state.currentLevel + 1) as AutonomyLevel;
+      if (!qualityGatesFor(nextLevel, rates)) return;
+    } else {
+      viaSelfRunning = true;
+    }
 
     const oldLevel = state.currentLevel;
     state.currentLevel = Math.min(oldLevel + 1, state.targetLevel) as AutonomyLevel;
@@ -496,8 +569,10 @@ export class AutonomousFuseController {
 
     this.logEvent(
       roleId,
-      'climb_success',
-      { passRate: rates.schemaPassRate, modificationRate: rates.manualModificationRate, rates },
+      viaSelfRunning ? 'climb_self_running' : 'climb_success',
+      viaSelfRunning
+        ? { selfRunningDays: state.selfRunningDays, cleanDays: state.cleanDays }
+        : { passRate: rates.schemaPassRate, modificationRate: rates.manualModificationRate, rates },
       oldLevel,
       state.currentLevel,
     );
@@ -609,6 +684,50 @@ export class AutonomousFuseController {
   getAllRoleIds(): string[] {
     return [...this.roleStates.keys()];
   }
+
+  /** 持久化快照：只带「重进后不从 L0 重来」所需的最小字段（A2）。 */
+  exportRoleSnapshots(): readonly AutonomyRoleSnapshot[] {
+    return this.getAllRoleIds().map((roleId) => {
+      const state = this.roleStates.get(roleId)!;
+      return {
+        roleId,
+        currentLevel: state.currentLevel,
+        targetLevel: state.targetLevel,
+        days: this.dayCounter.get(roleId) ?? 0,
+        isFused: state.isFused,
+        metrics: { ...state.metrics },
+      };
+    });
+  }
+
+  /**
+   * 从存档快照恢复。必须在 `initRole` 之后调用：等级、目标、指标窗口、
+   * 世界日计数、熔断态逐一写回；`sampleTick` 与审计日志不入档，
+   * 保持从 0 / 空开始（它们是可重算的派生量）。
+   *
+   * 角色对不上（设定集换了角色表）时静默跳过，不凭空造角色。
+   */
+  restoreRoleSnapshots(snapshots: readonly AutonomyRoleSnapshot[]): void {
+    for (const snap of snapshots) {
+      const state = this.roleStates.get(snap.roleId);
+      if (state === undefined) continue;
+      state.currentLevel = snap.currentLevel;
+      state.targetLevel = snap.targetLevel;
+      state.metrics = { ...snap.metrics };
+      state.isFused = snap.isFused;
+      this.dayCounter.set(snap.roleId, snap.days);
+    }
+  }
+}
+
+/** A2：外环角色状态的最小持久化形状（`save.ts` 的 `AutonomyRoleState` 与之对齐）。 */
+export interface AutonomyRoleSnapshot {
+  readonly roleId: string;
+  readonly currentLevel: AutonomyLevel;
+  readonly targetLevel: AutonomyLevel;
+  readonly days: number;
+  readonly isFused: boolean;
+  readonly metrics: MetricWindow;
 }
 
 // ========== 派生与判定 ==========

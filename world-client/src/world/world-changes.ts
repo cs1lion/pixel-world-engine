@@ -211,7 +211,32 @@ export type WorldEventKind =
   | 'market_open'
   | 'work_end'
   | 'night_market'
-  | 'market_close';
+  | 'market_close'
+  /**
+   * 一趟作业真的做出了东西：产出物的**名字与来历**。
+   *
+   * 与 `routine_done` 分开，因为这两件事在记忆里的分量不同：后者是「她在
+   * 镇上停了一会儿」，前者是「炉匠搬炭，得了一份炭」——一个村子的账本上
+   * 多了一件东西，谁做的、什么时候、在哪儿，都在这条里。
+   *
+   * 分量压在写入线上**只对当事人有效**（当事人记得自己今天做了几趟，
+   * 旁人不必每趟都记一笔），数值见 `memory/salience.ts` 的 `work_output`。
+   */
+  | 'work_output'
+  /**
+   * 需求方取走了一份货：叠浪楼烧掉一份炭、集市卖出一份衣裳。
+   *
+   * 这是产出账的**对手方**。与 `work_output` 分开放，因为两件事的当事人
+   * 不同：那是「某个人做出了东西」，这是「某个场所把东西用掉了」——
+   * 后者没有当事人（`actorId` 为 `null`），靠落点与在场的人进记忆。
+   */
+  | 'supply_used'
+  /**
+   * 需求方今天没拿到货：炉子没炭、集市没有衣裳可卖。
+   *
+   * 缺货是世界的一条事实，不该只体现在一个数变小上。
+   */
+  | 'supply_short';
 
 /** 服务端接受的全部 `change` 值。测试拿它对照 Python 侧的白名单。 */
 export const WORLD_CHANGE_KINDS: readonly WorldChange['change'][] = [
