@@ -31,7 +31,7 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 服务端在 `server/`，CI 有第二个 job：`pip install -r requirements.txt` 然后
 `python -m pytest`。
 
-**这几条要一起跑，别只跑前两条。** CI 现在跑**十七道闸门**：前端 job 十五道，
+**这几条要一起跑，别只跑前两条。** CI 现在跑**十七道闸门**：前端 job 十六道，
 服务端 job 一道。后七道（色板 + 三份审引用 + `audit-claims` + 两条指标账本）的输出
 有个共同性质：**断言对不上、节号不存在、色板超预算、夹具回放漂了，全都只让输出变长，
 不会让 `check`/`test` 变红。** 所以只跑前三条的人会以为自己是绿的，而后面十几道
