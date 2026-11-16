@@ -4136,15 +4136,23 @@ export class SandboxScene extends Phaser.Scene {
     return JSON.stringify(this.buildSave());
   }
 
-  /** 固定步长推进真实世界（评测 K3：单拍预算）。光柱状态机随拍推进。 */
+  /** 固定步长推进真实世界（评测 K3：单拍预算）。
+   *
+   *  步长恒为 1000ms：这是感官评测（PR #55）与造物桥同一条「拍」的口径——
+   *  一评测拍 = 一个世界秒（覆盖生产 `CONSTRUCTION_MS = 3200` 的施工窗口要 4 拍）。
+   *  #57 场景化时这里误用了渲染帧的 `LOGIC_STEP_MS = 100`，一拍只剩 1/10 世界秒，
+   *  `eval-creator` 的 M3/H2/H3 因此退化（施工完工不了、铺路窗口走不到）。 */
   evalStepTicks(count: number): void {
     const times = Math.max(0, Math.min(5000, Math.floor(Number(count) || 0)));
+    const EVAL_STEP_MS = 1000;
     for (let i = 0; i < times; i += 1) {
-      for (const result of this.sim.update(LOGIC_STEP_MS)) this.speak(result);
+      for (const result of this.sim.update(EVAL_STEP_MS)) this.speak(result);
       this.snapshot = this.sim.snapshot();
       this.stepMemory();
       this.captureHistory();
-      this.rewindBeam?.advance(1);
+      // 光柱时长是「逻辑拍」口径（durationTicks=2）：按世界时间折算回拍数推进，
+      // 与改造前逐拍 advance(1) 的熄灭节奏同速。
+      this.rewindBeam?.advance(EVAL_STEP_MS / LOGIC_STEP_MS);
     }
   }
 

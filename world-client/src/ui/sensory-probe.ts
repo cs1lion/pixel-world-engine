@@ -250,6 +250,10 @@ export class SensorProbe {
         for (let i = 0; i < times; i += 1) this.salute = stepOracleSalute(this.salute);
       }
       this.beam?.advance(times);
+      // 道路增量账目不能省：造物评测（eval-creator H2）靠推进后这一次
+      // captureRoadPlan 拿到 lastRoadPlan.pathLength；两条推进路径结果必须一致
+      //（#57 场景化时这里漏过一笔，H2 因此退化，2026-11-16 验收补回）。
+      this.bridge.captureRoadPlan();
       return;
     }
     for (let i = 0; i < times; i += 1) {
