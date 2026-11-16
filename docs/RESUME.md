@@ -2,7 +2,7 @@
 
 ## 当前断点
 
-- 最后 HEAD: `bb2f22f` 基点 + 本单一笔提交（`feat/time-rewind-trajectory`，PR #57 返工后）；
+- 最后 HEAD: `686676e`（`feat/time-rewind-trajectory`，PR #57 返工后一笔提交，基点 `bb2f22f`）；
   世界时间回溯 + Trajectory 因果分叉可观测性：评测与 UI 全部走真实世界（无合成控制器）。
 - 未提交改动: 无（本单已提交；返工三处：删孤儿 audit-reports.ts / red:first 桶导出+存在性断言 / 真实 UI 接入）。
 - 已跑闸门（2026-11-16 返工后最新读数，17 道全绿）: check ✅ / test ✅ 2779 项（0 fail，含 daycard 两段式 2 项新增）/
@@ -13,7 +13,7 @@
   另 `eval-rewind.mjs` 16/16（真实场景+真实 UI）、`eval-sensory.mjs` 16/16（回归不破坏）、
   `worktrees:audit` ✅、`audit:branches --strict` ✅。
 - 未跑/失败: 无。
-- 下一步命令: `git push -f origin feat/time-rewind-trajectory`（返工后强推更新 PR #57；CI 四项检查跑绿后合入）。
+- 下一步命令: PR #57 四项 CI 已全绿（world-client 1m37s / world-client-browser 9m10s / repo-harness 14s / server 17s，run 43848176559）；等待 owner 审阅合入，合入后按登记表回收本 worktree。
 
 ## time-rewind 工作树返工收口（`feat/time-rewind-trajectory`，PR #57）
 
