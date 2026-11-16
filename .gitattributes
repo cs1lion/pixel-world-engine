@@ -1,0 +1,11 @@
+# 交付证据里的 JSON 读数一律按入库 blob（LF）校验。
+#
+# 为什么：`audit-reports`（第十七道闸门）对 R1 产物读的是**工作区字节**
+# （`statSync` + sha256）。`docs/evidence/**/*.json` 的入库 blob 是 LF，
+# 而 Windows 的 `core.autocrlf=true` 会把工作区检出成 CRLF——同一份内容
+# 在两个平台上字节数与哈希都不一样，报告里的 bytes/sha256 只能对一边。
+# 把这一族钉成 `eol=lf` 后，各平台工作区与 blob 恒等，报告只记一份真值。
+#
+# 范围刻意收在 docs/evidence（被交付报告引用的证据读数）；不碰源码行尾，
+# 不触发全仓 renormalize。PNG 等二进制不受文本规则影响（git 自动识别）。
+docs/evidence/**/*.json text eol=lf

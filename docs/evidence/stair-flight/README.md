@@ -15,8 +15,8 @@
       "sha256": "abad5f30a06ab8b68d05112e7aeb883337e8849fd1ca3ccd07ab89d1b6a38b81" },
     { "path": "docs/evidence/stair-flight/after-ferry.png", "bytes": 33298,
       "sha256": "abad5f30a06ab8b68d05112e7aeb883337e8849fd1ca3ccd07ab89d1b6a38b81" },
-    { "path": "docs/evidence/stair-flight/reverse-diff.json", "bytes": 4251,
-      "sha256": "c42ab882ba7bca29758dcf21454fa3b733d30104fae86f43ed99d8a839c2d649" }
+    { "path": "docs/evidence/stair-flight/reverse-diff.json", "bytes": 4050,
+      "sha256": "ee0f2a4c68da05ff0d4e27fe1f55cba489f091a264a217ec0d242e1ff81c60c2" }
   ],
   "checks": [
     { "name": "npm run check", "exit": 0 },
