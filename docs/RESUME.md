@@ -2,27 +2,53 @@
 
 ## 当前断点
 
-- 最后 HEAD: `2e3ad7f` (`chore/branch-hygiene`)，基于 `8bc6f17`（PR #51 台阶收敛、#52 夹具回放溯源已合入 main）；
-  本单感官评测（优先级 1 `feat/sensory-vfx-audio`）为未提交实现（落在此工作树，见未提交改动）。
-- 未提交改动: `git status --short` 摘要——
-  - modified: `docs/WORKTREES.md`、`docs/evidence/PROGRESS.md`、`world-client/src/audio/animalese.ts`、
-    `world-client/src/scenes/SandboxScene.ts`、`world-client/src/settings/index.ts`、
-    `world-client/src/world/behavior-rules.ts`、`world-client/src/world/simulation.ts`、
-    `world-client/test/pack-owns-world-data.test.ts`；
-  - untracked（感官评测 Phase 2 产物）: `world-client/eval/sensory/`、`world-client/scripts/eval-sensory.mjs`、
-    `world-client/src/audio/sfx.ts`、`world-client/src/render/fx-layer.ts`、
-    `world-client/src/settings/empty-map/`、`world-client/src/ui/sensory-probe.ts`、
-    `world-client/test/sensory-eval.test.ts`；
-  - 另有用户原有未跟踪图片与请求 json（未碰，本单不新增任何图片素材请求）。
-- 已跑闸门（2026-11-15 最新读数，优先级 1 Phase 2 全量 17 道闸门全绿）: check ✅ / test ✅ 2749 项（0 fail）/
-  build ✅ / palette ✅ / references ✅ / citations ✅ / sections ✅ / claims ✅ / fixture:check ✅（6 条夹具 195 项）/
-  red:first SKIP（本分支无测试改动）/ ports ✅ / baseline ✅ / ledger ✅（metrics=25）/
-  verify-ledger-selfcheck ✅ / screens selfcheck ✅（5/5 预期）/ pytest ✅；
-  另 `worktrees-audit --strict` ✅、`audit:reports` ✅。感官评测 `eval-sensory.mjs` 16/16 全绿（main 10 + held-out 6）。
+- 最后 HEAD: `bb2f22f` 基点 + 本单一笔提交（`feat/time-rewind-trajectory`，PR #57 返工后）；
+  世界时间回溯 + Trajectory 因果分叉可观测性：评测与 UI 全部走真实世界（无合成控制器）。
+- 未提交改动: 无（本单已提交；返工三处：删孤儿 audit-reports.ts / red:first 桶导出+存在性断言 / 真实 UI 接入）。
+- 已跑闸门（2026-11-16 返工后最新读数，17 道全绿）: check ✅ / test ✅ 2779 项（0 fail，含 daycard 两段式 2 项新增）/
+  build ✅ / palette ✅ / references ✅（0 存疑）/ citations ✅（0 未解析）/ sections ✅ / claims ✅ /
+  fixture:check ✅（6 夹具 195 断言）/ red:first ✅ RESULT=RED（base=bb2f22f，分类=assertion）/
+  ports ✅ / baseline ✅ / eval-ledger ✅（metrics=25）/ verify-ledger-selfcheck ✅ /
+  screens selfcheck ✅（5/5）/ pytest ✅ / orphan-gates ✅（0 未登记）；
+  另 `eval-rewind.mjs` 16/16（真实场景+真实 UI）、`eval-sensory.mjs` 16/16（回归不破坏）、
+  `worktrees:audit` ✅、`audit:branches --strict` ✅。
 - 未跑/失败: 无。
-- 下一步命令: 优先级 1 先提交并建 `feat/sensory-vfx-audio` 分支提 PR，审查通过后再拉取优先级 2。
+- 下一步命令: `git push -f origin feat/time-rewind-trajectory`（返工后强推更新 PR #57；CI 四项检查跑绿后合入）。
 
-## 优先级 1 感官评测（`feat/sensory-vfx-audio`）Phase 2 收口
+## time-rewind 工作树返工收口（`feat/time-rewind-trajectory`，PR #57）
+
+- 2026-11-16 返工三处（用户审阅 PR #57 后指出）：
+  1. **孤儿闸门**：删掉误带入的孤儿脚本 audit-reports（base 上不存在、未登记 allowlist）；
+     本地 `audit-orphan-gates` 0 未登记。
+  2. **red:first**：`TrajectoryRecorder`/`PrunableHistoryStore` 统一从基线已存在的
+     `scene-history.ts`/`store.ts` 桶导出；测试只静态 import 这两个入口 + 存在性断言
+     （`typeof === 'function'`），base 上红在 AssertionError（分类=assertion），不再 ERR_MODULE_NOT_FOUND。
+  3. **评测与产品脱节**：删掉合成 rewind-controller（平行造假状态）；评测探针的回溯面全部委托
+     `SandboxScene` 真实方法（`resetWorldForEval`/`advanceWorldToDay`/`historyRestoreToDay`/
+     `injectCreatorBuildingForTest`），走真实 `SceneHistory`/`TrajectoryRecorder`/`Simulation`；
+     `daycard-panel.ts` 真正挂载行内两段式回溯按钮（[回溯此日]→[确认回溯 Dxx]/[取消]）与
+     `#daycard-note` 时光轨迹状态摘要，确认才调 `historyRestoreToDay`（真回滚），
+     打开面板与 `dayCardProof()` 保持 100% 纯读。
+- 附带修复：`patch.ts` 的 `keyFnFor` 认 `memory.world.*` 路径（真实快照多一层 world），
+  否则 entries/facts 按下标对齐导致还原指纹漂移（保真度自证因此才 100% 吻合）。
+- 真实 UI 验证（playwright）：D4 点「回溯此日」只展开确认（day 不变）→ 取消零变化 →
+  确认后世界真回滚到 D2、beliefs 65→39、状态栏显示 branch-1 与「指纹 100% 吻合」。
+
+## time-rewind 工作树 Phase 2 收口（`feat/time-rewind-trajectory`）
+
+- 2026-11-16：Phase 1 红绿已定（`eval-rewind.mjs` 0/16 预期红灯 = 缺 `restoreWorldToDay`）；
+  完成 Phase 2 两阶段落地——
+  1. 存储/历史层：`store.ts` 加 `pruneAfter(day)`（`MemoryHistoryStore` 与 `IdbHistoryStore` 实现）、
+     `scene-history.ts` 加 `restoreSave(day, fromDay)`（`doc.memory` 重新序列化填回 `save.world.memory`、重置 `previous` 差分基准，保原只读 `rewind` 契约），
+     轨迹锚点与保真度自证由 `trajectory-recorder.ts` 承载；
+  2. 场景/UI 层：`SandboxScene.historyRestoreToDay(day)`（恢复 Simulation、MemoryRuntime 与 SaveStore，联动神谕光柱+钟声）、
+     `daycard-panel.ts` 挂 `attachDayCardRewindAction` 两段式按钮 + `#daycard-note` 轨迹分支状态栏（不动 `dayCardProof` 纯读校验）、
+     评测驱动全部走场景真实世界（`resetWorldForEval`/`advanceWorldToDay`/`historyRestoreToDay`）、`sensory-probe.ts` 委托回溯方法。
+- 防假绿：5 项单测（EDD 防假绿 1–5）全绿；16 道闸门全绿；`eval-rewind.mjs` 16/16 全绿。
+- 细节与口径：轨迹账本/保真度/反事实对比、影子段归档、`compareBranches` 见 `src/world/history/trajectory-recorder.ts`；
+  历史层改动见 `src/world/history/scene-history.ts`、`store.ts`；UI 接入见 `src/scenes/SandboxScene.ts`、`daycard-panel.ts`、`sensory-probe.ts`。
+
+**P1 已开工并落地一小步**（2026-11-14）：核实时发现 P1 的主体**main 已经做过**——
 
 - 2026-11-15：red:first 落盘后完成增量实现（行为规则 rain-shelter、fx-layer 金色光柱+2 拍行礼、
   animalese 7 人声线、sfx 零外部素材+无头降级、debug-bridge 接入评测探针）并逐项修类型/口径；

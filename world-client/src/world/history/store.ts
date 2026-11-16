@@ -24,6 +24,13 @@
 
 import type { DiffOp } from './patch.ts';
 
+/**
+ * 可裁剪历史存储的别名：`HistoryStore` 自本单起必带 `pruneAfter`。
+ * 单测与上层统一从这里 import（基线已有本文件），不另开新模块入口——
+ * red:first 在 base 上缺的是这个导出，红在断言上而不是模块解析（B7）。
+ */
+export type PrunableHistoryStore = HistoryStore;
+
 export interface StoredBase {
   readonly day: number;
   readonly text: string;
@@ -49,6 +56,8 @@ export interface HistoryStore {
   /** 不晚于 `day` 的最近一份全量。没有就 `undefined`。 */
   latestBase(day: number): Promise<StoredBase | undefined>;
   getPatch(day: number): Promise<StoredPatch | undefined>;
+  /** 新增：截断并清除 day 之后的所有 base / patch / missing 记录（回溯前清掉未来悬空补丁） */
+  pruneAfter(day: number): Promise<string | null>;
   /** 有记录的日子的清单（全量 / 补丁 / 无记录）。按天升序。 */
   listDays(): Promise<readonly HistoryDay[]>;
 }
@@ -100,6 +109,21 @@ export class MemoryHistoryStore implements HistoryStore {
     for (const day of this.patches.keys()) days.push({ day, kind: 'patch' });
     for (const day of this.missing) days.push({ day, kind: 'missing' });
     return days.sort((a, b) => a.day - b.day);
+  }
+
+  /** 新增：截断并清除 day 之后的所有记录。返回清理结果摘要（供调用方提示）。 */
+  async pruneAfter(day: number): Promise<string | null> {
+    const before = this.bases.size + this.patches.size + this.missing.size;
+    for (const [d] of this.bases.entries()) {
+      if (d > day) this.bases.delete(d);
+    }
+    for (const [d] of this.patches.entries()) {
+      if (d > day) this.patches.delete(d);
+    }
+    for (const d of this.missing) {
+      if (d > day) this.missing.delete(d);
+    }
+    return before > 0 ? 'pruned' : null;
   }
 }
 
@@ -204,6 +228,28 @@ class IdbHistoryStore implements HistoryStore {
       }
     }
     return out.sort((a, b) => a.day - b.day);
+  }
+
+  /** 新增：截断并清除 day 之后的所有记录。返回清理结果摘要。 */
+  async pruneAfter(day: number): Promise<string | null> {
+    const countOf = async (name: string): Promise<number> => {
+      const store = await this.store(name, 'readonly');
+      return (await requestToPromise(store.getAllKeys()) as IDBValidKey[]).length;
+    };
+    const before = (await countOf(STORE_BASES)) +
+      (await countOf(STORE_PATCHES)) +
+      (await countOf(STORE_MISSING));
+    for (const kind of ['base', 'patch', 'missing'] as const) {
+      const name = kind === 'base' ? STORE_BASES : kind === 'patch' ? STORE_PATCHES : STORE_MISSING;
+      const store = await this.store(name, 'readwrite');
+      const keys = await requestToPromise(store.getAllKeys()) as IDBValidKey[];
+      for (const key of keys) {
+        const keyDay = Number(key);
+        if (!Number.isFinite(keyDay) || keyDay <= day) continue;
+        await requestToPromise(store.delete(keyDay));
+      }
+    }
+    return before > 0 ? 'pruned' : null;
   }
 }
 

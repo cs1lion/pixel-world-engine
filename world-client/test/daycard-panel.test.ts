@@ -194,3 +194,78 @@ test('没有日摘要：空态说清楚，不是一片空白', () => {
     dom.restore();
   }
 });
+
+test('行内回溯两段式：确认前零变化，确认才真回滚，取消零变化', async () => {
+  const dom = installFakeDom(IDS);
+  try {
+    const restored: number[] = [];
+    let resolveRestore: (() => void) | null = null;
+    const api: DayCardOracle = {
+      ...fakeApi(),
+      historyDays: () => [10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((day) => ({ day, kind: 'patch' })),
+      currentDay: () => 19,
+      trajectoryBanner: () => '时光轨迹: 主线 (branch-0) · D19',
+      historyRestoreToDay: (day: number) => {
+        restored.push(day);
+        // 可控 Promise：测试结束前 resolve，避免 paint() 在 dom.restore() 之后跑。
+        return new Promise<void>((resolve) => { resolveRestore = resolve; });
+      },
+    };
+    bindDayCardPanel(() => api);
+    dom.byId('daycard-open').click();
+
+    // 状态栏在 note 里（纯读展示）
+    assert.ok(textOf(dom.byId('daycard-note')).includes('时光轨迹'), 'note 要带轨迹状态摘要');
+
+    // 找第 13 天那一行的回溯按钮（有记录且不是今天）
+    const rows = dom.byId('daycard-list').byClass('daycard-row');
+    const row13 = rows.find((r) => textOf(r).includes('第 13 天'));
+    assert.ok(row13 !== undefined, '第 13 天要在');
+    const buttons = row13!.children.filter((c) => c.tag === 'button');
+    assert.equal(buttons.length, 3, '两段式三按钮：回溯此日 / 确认 / 取消');
+    const [open, confirm, cancel] = buttons;
+    assert.equal(confirm!.hidden, true, '确认按钮初始收起');
+    assert.equal(cancel!.hidden, true, '取消按钮初始收起');
+
+    // 点「回溯此日」：只展开确认态，不写世界
+    open!.click();
+    assert.equal(confirm!.hidden, false, '点了回溯此日要展开确认');
+    assert.deepEqual(restored, [], '展开确认态不得触发回滚');
+
+    // 点「取消」：收回，零变化
+    cancel!.click();
+    assert.equal(confirm!.hidden, true, '取消要收回确认态');
+    assert.deepEqual(restored, [], '取消不得触发回滚');
+
+    // 再展开并点「确认回溯 D13」：这才真回滚
+    open!.click();
+    confirm!.click();
+    assert.deepEqual(restored, [13], '确认才调 historyRestoreToDay(13)');
+    assert.equal(confirm!.hidden, true, '确认后收回');
+    // 在 dom.restore() 之前把回滚 Promise 收尾（paint 会重绘，需要假 DOM 还在）。
+    resolveRestore!();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 今天（第 19 天）不挂回溯按钮
+    const row19 = rows.find((r) => textOf(r).includes('第 19 天'));
+    assert.ok(row19 !== undefined);
+    assert.equal(row19!.children.filter((c) => c.tag === 'button').length, 0, '今天不挂回溯按钮');
+  } finally {
+    dom.restore();
+  }
+});
+
+test('没有历史层的日子不挂回溯按钮（纯读日历不受影响）', () => {
+  const dom = installFakeDom(IDS);
+  try {
+    bindDayCardPanel(() => fakeApi());
+    dom.byId('daycard-open').click();
+    const rows = dom.byId('daycard-list').byClass('daycard-row');
+    for (const row of rows) {
+      assert.equal(row.children.filter((c) => c.tag === 'button').length, 0, '无历史层不挂按钮');
+    }
+  } finally {
+    dom.restore();
+  }
+});

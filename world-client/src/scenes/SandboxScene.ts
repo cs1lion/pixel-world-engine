@@ -8,6 +8,8 @@ import { TILE_PX } from '../world/setup.ts';
 import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.ts';
 import { drawGroundDecals } from '../render/decal.ts';
 import { SensorProbe } from '../ui/sensory-probe.ts';
+import { createOracleBeamSpec, OracleBeamFx } from '../render/fx-layer.ts';
+import { ProceduralSfxEngine } from '../audio/sfx.ts';
 import { Simulation, type MiracleKind, type NewBuilding, type SimulationDeps } from '../world/simulation.ts';
 import type {
   CommandResult,
@@ -22,7 +24,7 @@ import type {
 import { beginPinchZoom, pinchZoomStep, type PinchZoomState } from '../render/pinch-zoom.ts';
 import { villagerAtCell } from '../world/types.ts';
 import { excerptBlockedQuestion } from '../world/types.ts';
-import { placeBlueprint, type BuiltWorld } from '../world/setup.ts';
+import { placeBlueprint, buildLargeWorld, buildWorldFromSave, LARGE_WORLD_SPEC, LARGE_ALTAR, type BuiltWorld } from '../world/setup.ts';
 import { tokenNameOf } from '../world/palette-data.ts';
 import { paletteFor, terrainFor, type WorldPalette } from '../world/theme.ts';
 import { DAY_MS } from '../world/memory/config.ts';
@@ -52,8 +54,9 @@ import { artEnabledOf, preloadArt } from '../render/art-assets.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
-import { SceneHistory, type RewindResult } from '../world/history/scene-history.ts';
-import { createIdbHistoryStore } from '../world/history/store.ts';
+import { SceneHistory, type RewindResult, type RewindRestoreResult } from '../world/history/scene-history.ts';
+import type { CounterfactualTrajectoryDiff, TrajectoryRewindSpan } from '../world/history/trajectory-recorder.ts';
+import { createIdbHistoryStore, MemoryHistoryStore } from '../world/history/store.ts';
 import { observationsFor, type ObservationContext } from '../world/observation-rules.ts';
 import { dayCardOf, groupIntoWeeks, weekViewOf } from '../world/memory/daycard.ts';
 import { memoryVoice } from '../world/memory/voice.ts';
@@ -278,7 +281,7 @@ import type { WorldSave } from '../world/save.ts';
 import { CURRENT_SCHEMA_VERSION } from '../world/save.ts';
 import type { SettingPack } from '../settings/types.ts';
 import { createSettingScenery, type SettingSceneryView } from '../render/setting-scenery.ts';
-import { routineProfiles, selectSetting, siteTargetResolver } from '../settings/index.ts';
+import { routineProfiles, selectSetting, siteTargetResolver, worldForSetting } from '../settings/index.ts';
 
 export interface ScenePayload {
   readonly world: BuiltWorld;
@@ -740,6 +743,10 @@ export class SandboxScene extends Phaser.Scene {
    * 与一份 `toSave()`，没有整档 `JSON.stringify`。
    */
   private history: SceneHistory | null = null;
+  /** 回溯演出：金色神谕光柱的状态机（与感官探针共用同一份，不另开第二套）。 */
+  private rewindBeam: OracleBeamFx | null = null;
+  /** 构造 Simulation 用的设定集依赖（回溯重建世界时复用同一份网格与设定集）。 */
+  private simDeps!: SimulationDeps;
   /** 已经记到哪一天（`-1` = 还没记过）。用来判「连续」还是「断了几天」。 */
   private lastHistoryDay = -1;
   /** 历史层降级的原因；进状态行，不吞掉。 */
@@ -821,6 +828,241 @@ export class SandboxScene extends Phaser.Scene {
     // 位图素材：默认装；`?art=0` 时这里什么也不做，渲染走原程序化路径。
     if (artEnabledOf(new URLSearchParams(window.location.search))) preloadArt(this);
   }
+
+  /** 构造 Simulation 依赖。create() 与评测重开（resetWorldForEval）共用同一份，
+   *  不另写第二套——onChange/onVitals 闭包引用 this.sim/this.memory，重建后自动指向新实例。 */
+  private buildSimDeps(): SimulationDeps {
+    const harborSite = harborSiteOf(this.pack);
+    return {
+      grid: this.world.grid,
+      buildings: this.world.buildings,
+      altar: this.world.altar,
+      villagerName: this.villagerName, worldSeed: this.pack?.id ?? 'wandong',
+      // 按种子排天：晴/雨/雾每 4 世界小时一槽。槽号与种子决定序列，
+      // 与帧率、墙钟无关；纯逻辑测试不传这一项，行为保持旧样。
+      // 只给设定集（灯潮界）开：旧镇的开场是晴，居民从街面起手；
+      // 让种子在开局就压一场雨会把那条基线整个改写（冒烟闸钉着「开场晴」）。
+      weatherCycle: this.pack?.authored === true,
+      // 记忆进行为也只给设定集开：昨天淋过雨的人今天 13:00 提前盖布。
+      // 摊子格是设定集的事实，引擎不自己编坐标。
+      weatherHabit: this.pack?.authored === true,
+      stallsAt: this.stallCells,
+      ...(this.pack?.villagers.length ? {
+        villagerNames: this.pack.villagers.map((villager) => villager.name),
+        villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid, this.world.buildings)),
+      } : {}),
+      // 地域的叫法。喂模型的世界现状要说「叠浪楼要一盏灯」，不说 `bathhouse`。
+      // 没有设定集（莞尔镇）时这道门不存在，给张空表与不给等价。
+      ...(this.pack === undefined || this.pack === null
+        ? {}
+        : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
+      // 场所产出物：由设定集声明（锅炉房出炭、大浴场出洗好的衣裳、集市成交）。
+      // 没声明的场所不进表，产出账就不记它——花径的 rest/stroll 是过日子不是作业。
+      ...(this.pack === undefined || this.pack === null
+        ? {}
+        : {
+          siteOutputs: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.output !== undefined)
+              .map((site) => [site.id, site.output!] as const),
+          ),
+          // 需求方：产出账的对手方。设定集写谁要什么，引擎不点名。
+          siteDemands: (this.pack.sites ?? [])
+            .filter((site) => site.consumes !== undefined)
+            .map((site) => ({ siteId: site.id, kind: site.consumes! }))
+            .sort((a, b) => (a.siteId < b.siteId ? -1 : a.siteId > b.siteId ? 1 : 0)),
+          siteNames: new Map(
+            (this.pack.sites ?? [])
+              .filter((site) => site.name !== undefined)
+              .map((site) => [site.id, site.name!] as const),
+          ),
+          sitePoints: new Map(
+            (this.pack.sites ?? [])
+              .map((site) => [site.id, this.sitePointOf(site.id)] as const)
+              .filter((entry): entry is readonly [string, { x: number; y: number }] =>
+                entry[1] !== null),
+          ),
+        }),
+      // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
+      // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
+      ...(harborSite === null
+        ? {}
+        : {
+            harborAt: {
+              x: harborSite.x + Math.floor(harborSite.w / 2),
+              y: harborSite.y + Math.floor(harborSite.h / 2),
+            },
+          }),
+      // 露话池（SPEC_V2 §4.6）。设定集一份都没给时这项整个不出现——
+      // 于是那本世界里没有一件摆件会脏，也没有一句编出来的话。
+      ...(this.pack?.propReveals !== undefined
+        ? { propReveals: this.pack.propReveals }
+        : {}),
+      // 设定集铺开的地图：迷雾整张掀掉。快照、建造闸、神迹闸因此是同一个数，
+      // 不会出现「屏幕没雾、闸说没长出来」。莞尔镇是 undefined，等同 false。
+      ...(this.pack?.authored === true ? { authored: true } : {}),
+      // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
+      onChange: (change: WorldChange, at: number): void => {
+        const client = this.eventsClient;
+        if (client !== null) {
+          // 日志先写，拿到 id 才谈记忆：`POST /api/memory/write` 要的 `evidence`
+          // 是日志里的事件 id，没有那一条就没有依据可引。
+          void client.record(change, at).then((result) => {
+            if (result.ok) this.queueMemory(change, at, result.id);
+          });
+        }
+        this.remember(change, at);
+        this.focusCameraOn(change);
+        // 落地之后的观测接在这一条既有的回写之后：楼已经进了 `Simulation`
+        // 的账本、网格也已经占格，可达性与回放才判得准。不另开一条通道。
+        if (change.change === 'building.built') {
+          // 下一次造物就把补算提示收掉：它是「上次离线发生了什么」，不是常驻广告。
+          this.clockReport = null;
+          // 造物引擎的提议在入队时就登记了；神谕/调试入口没有登记，
+          // 落地这一刻补记一条来源为 oracle/world 的账。
+          const wasPending = this.pendingCreationObservations.has(change.instanceId);
+          this.settleCreationObservation(change.instanceId);
+          if (!wasPending) this.recordUnplannedLanding(change.instanceId);
+        }
+        if (change.change === 'building.removed') {
+          // 7 日观测要区分「被拆」与「下落不明」：只有真发过拆除事件才算前者。
+          this.removedBuildingIds.add(change.instanceId);
+        }
+      },
+      // 造物神谕（「建一间书阁」）要靠它把词换成模板。
+      blueprints: this.blueprints,
+      // 规则认不出的话才问模型。没有 Key 时它会 503，世界照样离线可用。
+      intentModel: createIntentClient(() => this.blueprints, {
+        worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+      }),
+      worldSize: { width: this.world.grid.width, height: this.world.grid.height },
+      spawnBuilding: (
+        prefabId: string,
+        instanceId: string,
+        at?: GridPoint,
+        source?: { readonly taskId: string; readonly summary: string },
+      ): NewBuilding | null => {
+        const blueprint = this.blueprints.get(prefabId);
+        if (blueprint === undefined) return null;
+        return placeBlueprint(
+          this.world.grid,
+          blueprint,
+          instanceId,
+          this.world.altar,
+          at,
+          source,
+        );
+      },
+
+    };
+  }
+
+  /** 构造记忆运行时。create() 与评测重开共用；occlusion/insideAt 等闭包读 this.world/this.snapshot，
+   *  重建后自动指向新图。onEvent/onVitals 只开既有出口，不另加广播。 */
+  private buildMemoryRuntime(): MemoryRuntime {
+    return new MemoryRuntime({
+      worldId: this.pack?.id ?? 'world',
+      // 遮挡网格：不给的话「谁能看见一件事」就只能按 actors 算，而
+      // 神迹、新楼、拆楼、天气这几种改变的 actors 是空的——那就没人记得。
+      // `WorldGrid` 只要 `isWalkable` 就满足 `OcclusionGrid`，直接递。
+      occlusion: this.world.grid,
+      // 真实室内判定：人在楼体占地里就是「在屋里」。感知层因此能分清
+      // 屋里交活（同房间才看见）与门口起楼（室外八格可见）。每拍现算，
+      // 人走动不需要额外同步。
+      insideAt: (point) => this.buildingIdAt(point),
+      placeIndoor: (placeId) =>
+        this.snapshot?.buildings.some((building) => building.instanceId === placeId) ?? false,
+      // 记忆层的事件出口（写日志用）。**只开 `legend.formed` 一种**：
+      // `MemoryEventKind` 那 17 个里 16 个有发出方，一次全开就是 16 种新载荷、
+      // 16 个服务端校验函数——那是另一笔工作。这里开的这一条，是「传说变成
+      // 世界共识」在那本账上留下的唯一一笔。
+      //
+      // `?feed=off` 时 `eventsClient` 是 null：传说照旧在记忆里立起来、碑照旧
+      // 能读，只是镇志那一条不落。这是诚实的降级，不是失败。
+      onEvent: (event) => {
+        // 改名（协议 §11）：只有一件事要做——**开着的那一栋当场换名字**。
+        //
+        // 楼面板是「打开那一刻的快照」，不追着世界跑；而改名恰恰是它存在的
+        // 理由，所以这一条单独刷新。别的时候面板不动，与村民面板同一条。
+        //
+        // 它不进世界回写日志：`WorldChange` 那七个成员里没有地名，也不该为
+        // 它加第八个——改名是记忆层的读法，不是世界做成的一件事。
+        if (event.kind === 'toponym.changed') {
+          const renamed = event.payload as {
+            readonly placeId?: unknown;
+            readonly old?: unknown;
+            readonly new?: unknown;
+            readonly eventRef?: unknown;
+          };
+          // 与 `legend.formed` 同一条：收齐了才动。少一个字段就当没发生，
+          // 而不是拿半个载荷去改一个开着的面板。
+          if (
+            typeof renamed.placeId !== 'string'
+            || typeof renamed.old !== 'string'
+            || typeof renamed.new !== 'string'
+            || typeof renamed.eventRef !== 'string'
+          ) {
+            return;
+          }
+          if (this.lastBuildingView?.placeId === renamed.placeId) {
+            this.openBuilding(renamed.placeId);
+          }
+          return;
+        }
+        if (event.kind !== 'legend.formed') return;
+        const payload = event.payload as {
+          readonly legendId?: unknown;
+          readonly text?: unknown;
+          readonly placeId?: unknown;
+          readonly reach?: unknown;
+          readonly day?: unknown;
+        };
+        // 载荷形状由 `world.ts` 的 `updateLegends` 写死；这里只收齐了才记，
+        // 缺一个字段就整条不记——一条缺字段的「传说」比没有更糟，服务端会拒，
+        // 而拒的声音只出现在控制台里。
+        if (
+          typeof payload.legendId !== 'string'
+          || typeof payload.text !== 'string'
+          || typeof payload.placeId !== 'string'
+          || typeof payload.reach !== 'number'
+          || typeof payload.day !== 'number'
+        ) {
+          return;
+        }
+        void this.eventsClient?.record(
+          {
+            change: 'legend',
+            legendId: payload.legendId,
+            text: payload.text,
+            placeId: payload.placeId,
+            reach: payload.reach,
+            day: payload.day,
+          },
+          event.at,
+        );
+      },
+      onVitals: (vitals) => {
+        // 世界日结束：外环在这里按**真实天数**结算一次，并把心电图喂给导演。
+        // 这一步原先没有调用方——`CreatorEngine.processDayClosed` 与
+        // `closeWorldDay` 只存在于测试里。现在跨日是它们唯一的事实来源。
+        this.stepCreatorDayClosed(vitals);
+        // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
+        // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。
+        void this.eventsClient?.record(
+          {
+            change: 'world.vitals',
+            day: vitals.day,
+            meanValence: vitals.meanValence,
+            meanArousal: vitals.meanArousal,
+            infoEntropy: vitals.infoEntropy,
+            isolatedHoldersCount: vitals.isolatedHoldersCount,
+          },
+          (vitals.day + 1) * DAY_MS,
+        );
+      },
+    });
+  }
+
 
   create(): void {
     const originX = 0;
@@ -1170,236 +1412,18 @@ export class SandboxScene extends Phaser.Scene {
     // 捕获阶段先拦：按钮的默认点击发生在冒泡之后，冒泡阶段拦住也晚了。
     window.addEventListener('keydown', this.creationKeyListener, true);
 
+
     if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack, ALTITUDE);
     else this.drawAltar(originX, originY);
     this.groundShadowLayer = this.add.graphics().setDepth(GROUND_SHADOW_DEPTH);
 
-    const simDeps = {
-      grid: this.world.grid,
-      buildings: this.world.buildings,
-      altar: this.world.altar,
-      villagerName: this.villagerName, worldSeed: this.pack?.id ?? 'wandong',
-      // 按种子排天：晴/雨/雾每 4 世界小时一槽。槽号与种子决定序列，
-      // 与帧率、墙钟无关；纯逻辑测试不传这一项，行为保持旧样。
-      // 只给设定集（灯潮界）开：旧镇的开场是晴，居民从街面起手；
-      // 让种子在开局就压一场雨会把那条基线整个改写（冒烟闸钉着「开场晴」）。
-      weatherCycle: this.pack?.authored === true,
-      // 记忆进行为也只给设定集开：昨天淋过雨的人今天 13:00 提前盖布。
-      // 摊子格是设定集的事实，引擎不自己编坐标。
-      weatherHabit: this.pack?.authored === true,
-      stallsAt: this.stallCells,
-      ...(this.pack?.villagers.length ? {
-        villagerNames: this.pack.villagers.map((villager) => villager.name),
-        villagerProfiles: routineProfiles(this.pack, siteTargetResolver(this.pack, this.world.grid, this.world.buildings)),
-      } : {}),
-      // 地域的叫法。喂模型的世界现状要说「叠浪楼要一盏灯」，不说 `bathhouse`。
-      // 没有设定集（莞尔镇）时这道门不存在，给张空表与不给等价。
-      ...(this.pack === undefined || this.pack === null
-        ? {}
-        : { regionNames: new Map(this.pack.regions.map((region) => [region.id, region.name])) }),
-      // 场所产出物：由设定集声明（锅炉房出炭、大浴场出洗好的衣裳、集市成交）。
-      // 没声明的场所不进表，产出账就不记它——花径的 rest/stroll 是过日子不是作业。
-      ...(this.pack === undefined || this.pack === null
-        ? {}
-        : {
-          siteOutputs: new Map(
-            (this.pack.sites ?? [])
-              .filter((site) => site.output !== undefined)
-              .map((site) => [site.id, site.output!] as const),
-          ),
-          // 需求方：产出账的对手方。设定集写谁要什么，引擎不点名。
-          siteDemands: (this.pack.sites ?? [])
-            .filter((site) => site.consumes !== undefined)
-            .map((site) => ({ siteId: site.id, kind: site.consumes! }))
-            .sort((a, b) => (a.siteId < b.siteId ? -1 : a.siteId > b.siteId ? 1 : 0)),
-          siteNames: new Map(
-            (this.pack.sites ?? [])
-              .filter((site) => site.name !== undefined)
-              .map((site) => [site.id, site.name!] as const),
-          ),
-          sitePoints: new Map(
-            (this.pack.sites ?? [])
-              .map((site) => [site.id, this.sitePointOf(site.id)] as const)
-              .filter((entry): entry is readonly [string, { x: number; y: number }] =>
-                entry[1] !== null),
-          ),
-        }),
-      // 渡口落点：给 `Simulation` 一句「这张图有渡口」，它才会按世界时间报船班。
-      // 地点取渡口地域中心，用于面板的「渡口」与可达性；莞尔镇没有 ferry，不给。
-      ...(harborSite === null
-        ? {}
-        : {
-            harborAt: {
-              x: harborSite.x + Math.floor(harborSite.w / 2),
-              y: harborSite.y + Math.floor(harborSite.h / 2),
-            },
-          }),
-      // 露话池（SPEC_V2 §4.6）。设定集一份都没给时这项整个不出现——
-      // 于是那本世界里没有一件摆件会脏，也没有一句编出来的话。
-      ...(this.pack?.propReveals !== undefined
-        ? { propReveals: this.pack.propReveals }
-        : {}),
-      // 设定集铺开的地图：迷雾整张掀掉。快照、建造闸、神迹闸因此是同一个数，
-      // 不会出现「屏幕没雾、闸说没长出来」。莞尔镇是 undefined，等同 false。
-      ...(this.pack?.authored === true ? { authored: true } : {}),
-      // 世界做过的事记回日志。写不进去只是这一条没记上，世界照常过日子。
-      onChange: (change: WorldChange, at: number): void => {
-        const client = this.eventsClient;
-        if (client !== null) {
-          // 日志先写，拿到 id 才谈记忆：`POST /api/memory/write` 要的 `evidence`
-          // 是日志里的事件 id，没有那一条就没有依据可引。
-          void client.record(change, at).then((result) => {
-            if (result.ok) this.queueMemory(change, at, result.id);
-          });
-        }
-        this.remember(change, at);
-        this.focusCameraOn(change);
-        // 落地之后的观测接在这一条既有的回写之后：楼已经进了 `Simulation`
-        // 的账本、网格也已经占格，可达性与回放才判得准。不另开一条通道。
-        if (change.change === 'building.built') {
-          // 下一次造物就把补算提示收掉：它是「上次离线发生了什么」，不是常驻广告。
-          this.clockReport = null;
-          // 造物引擎的提议在入队时就登记了；神谕/调试入口没有登记，
-          // 落地这一刻补记一条来源为 oracle/world 的账。
-          const wasPending = this.pendingCreationObservations.has(change.instanceId);
-          this.settleCreationObservation(change.instanceId);
-          if (!wasPending) this.recordUnplannedLanding(change.instanceId);
-        }
-        if (change.change === 'building.removed') {
-          // 7 日观测要区分「被拆」与「下落不明」：只有真发过拆除事件才算前者。
-          this.removedBuildingIds.add(change.instanceId);
-        }
-      },
-      // 造物神谕（「建一间书阁」）要靠它把词换成模板。
-      blueprints: this.blueprints,
-      // 规则认不出的话才问模型。没有 Key 时它会 503，世界照样离线可用。
-      intentModel: createIntentClient(() => this.blueprints, {
-        worldSize: { width: this.world.grid.width, height: this.world.grid.height },
-      }),
-      worldSize: { width: this.world.grid.width, height: this.world.grid.height },
-      spawnBuilding: (
-        prefabId: string,
-        instanceId: string,
-        at?: GridPoint,
-        source?: { readonly taskId: string; readonly summary: string },
-      ): NewBuilding | null => {
-        const blueprint = this.blueprints.get(prefabId);
-        if (blueprint === undefined) return null;
-        return placeBlueprint(
-          this.world.grid,
-          blueprint,
-          instanceId,
-          this.world.altar,
-          at,
-          source,
-        );
-      },
-    };
+    const simDeps = this.buildSimDeps();
+    this.simDeps = simDeps;
     // 记忆世界先立起来：`simDeps.onChange` 会往里写，世界一开跑就会回调。
     //
     // 心电图的出口是**回写日志**——这是内环唯一被允许的对外广播
     // （补充设计 §0）。它不回到世界：世界不读自己抛出去的体检报告。
-    this.memory = new MemoryRuntime({
-      worldId: this.pack?.id ?? 'world',
-      // 遮挡网格：不给的话「谁能看见一件事」就只能按 actors 算，而
-      // 神迹、新楼、拆楼、天气这几种改变的 actors 是空的——那就没人记得。
-      // `WorldGrid` 只要 `isWalkable` 就满足 `OcclusionGrid`，直接递。
-      occlusion: this.world.grid,
-      // 真实室内判定：人在楼体占地里就是「在屋里」。感知层因此能分清
-      // 屋里交活（同房间才看见）与门口起楼（室外八格可见）。每拍现算，
-      // 人走动不需要额外同步。
-      insideAt: (point) => this.buildingIdAt(point),
-      placeIndoor: (placeId) =>
-        this.snapshot?.buildings.some((building) => building.instanceId === placeId) ?? false,
-      // 记忆层的事件出口（写日志用）。**只开 `legend.formed` 一种**：
-      // `MemoryEventKind` 那 17 个里 16 个有发出方，一次全开就是 16 种新载荷、
-      // 16 个服务端校验函数——那是另一笔工作。这里开的这一条，是「传说变成
-      // 世界共识」在那本账上留下的唯一一笔。
-      //
-      // `?feed=off` 时 `eventsClient` 是 null：传说照旧在记忆里立起来、碑照旧
-      // 能读，只是镇志那一条不落。这是诚实的降级，不是失败。
-      onEvent: (event) => {
-        // 改名（协议 §11）：只有一件事要做——**开着的那一栋当场换名字**。
-        //
-        // 楼面板是「打开那一刻的快照」，不追着世界跑；而改名恰恰是它存在的
-        // 理由，所以这一条单独刷新。别的时候面板不动，与村民面板同一条。
-        //
-        // 它不进世界回写日志：`WorldChange` 那七个成员里没有地名，也不该为
-        // 它加第八个——改名是记忆层的读法，不是世界做成的一件事。
-        if (event.kind === 'toponym.changed') {
-          const renamed = event.payload as {
-            readonly placeId?: unknown;
-            readonly old?: unknown;
-            readonly new?: unknown;
-            readonly eventRef?: unknown;
-          };
-          // 与 `legend.formed` 同一条：收齐了才动。少一个字段就当没发生，
-          // 而不是拿半个载荷去改一个开着的面板。
-          if (
-            typeof renamed.placeId !== 'string'
-            || typeof renamed.old !== 'string'
-            || typeof renamed.new !== 'string'
-            || typeof renamed.eventRef !== 'string'
-          ) {
-            return;
-          }
-          if (this.lastBuildingView?.placeId === renamed.placeId) {
-            this.openBuilding(renamed.placeId);
-          }
-          return;
-        }
-        if (event.kind !== 'legend.formed') return;
-        const payload = event.payload as {
-          readonly legendId?: unknown;
-          readonly text?: unknown;
-          readonly placeId?: unknown;
-          readonly reach?: unknown;
-          readonly day?: unknown;
-        };
-        // 载荷形状由 `world.ts` 的 `updateLegends` 写死；这里只收齐了才记，
-        // 缺一个字段就整条不记——一条缺字段的「传说」比没有更糟，服务端会拒，
-        // 而拒的声音只出现在控制台里。
-        if (
-          typeof payload.legendId !== 'string'
-          || typeof payload.text !== 'string'
-          || typeof payload.placeId !== 'string'
-          || typeof payload.reach !== 'number'
-          || typeof payload.day !== 'number'
-        ) {
-          return;
-        }
-        void this.eventsClient?.record(
-          {
-            change: 'legend',
-            legendId: payload.legendId,
-            text: payload.text,
-            placeId: payload.placeId,
-            reach: payload.reach,
-            day: payload.day,
-          },
-          event.at,
-        );
-      },
-      onVitals: (vitals) => {
-        // 世界日结束：外环在这里按**真实天数**结算一次，并把心电图喂给导演。
-        // 这一步原先没有调用方——`CreatorEngine.processDayClosed` 与
-        // `closeWorldDay` 只存在于测试里。现在跨日是它们唯一的事实来源。
-        this.stepCreatorDayClosed(vitals);
-        // `at` 是关账那一刻的世界时间（第 `day + 1` 天的零点），不是「现在」。
-        // 关账发生在跨日那一拍，用它自己的天界时刻，回放才对得上。
-        void this.eventsClient?.record(
-          {
-            change: 'world.vitals',
-            day: vitals.day,
-            meanValence: vitals.meanValence,
-            meanArousal: vitals.meanArousal,
-            infoEntropy: vitals.infoEntropy,
-            isolatedHoldersCount: vitals.isolatedHoldersCount,
-          },
-          (vitals.day + 1) * DAY_MS,
-        );
-      },
-    });
+    this.memory = this.buildMemoryRuntime();
     // 有档就重建世界；读档后标未对账，等首个成功读取从头折一遍。
     // 真实时钟模式把新世界的零点锚在本地时间的「今天已过了多久」，这样跨日
     // 恰在本地 00:00，而不是「开局满 24 小时」。读档不重锚：档里的 `now` 是
@@ -1578,10 +1602,29 @@ export class SandboxScene extends Phaser.Scene {
       },
     });
     const probe = new SensorProbe({
-       sim: this.sim,
-
+      sim: this.sim,
       simDeps,
       bridge,
+      // 回溯评测面：全部委托场景的真实世界与真实历史层（不另建合成世界）。
+      rewind: {
+        resetWorld: (req) => this.resetWorldForEval(req),
+        currentSim: () => this.sim,
+        advanceToDayAndClose: (day) => this.advanceWorldToDay(day),
+        restoreWorldToDay: (day) => this.historyRestoreToDay(day),
+        injectCreatorBuildingForTest: () => this.injectCreatorBuildingForTest(),
+        getCurrentDay: () => this.evalCurrentDay(),
+        getBeliefCount: () => this.evalBeliefCount(),
+        getPersistedSaveDay: () => this.evalPersistedSaveDay(),
+        getHistoryDays: () => this.historyDays(),
+        getTrajectoryLineage: () => this.evalTrajectoryLineage(),
+        compareTrajectoryBranches: (a, b, day) => this.evalCompareBranches(a, b, day),
+        getTrajectoryBanner: (day) => this.evalTrajectoryBanner(day),
+        getStateHash: () => this.evalStateHash(),
+        exportSaveJson: () => this.buildSaveJsonForEval(),
+        hasActiveFx: (name) => name === 'oracle-beam' && (this.rewindBeam?.isActive() ?? false),
+        stepTicks: (count) => this.evalStepTicks(count),
+        getHistoryRewindView: (day) => this.historyRewind(day),
+      },
     });
     // 感官评测面收敛在上层（world 内核不能 import 上层）：window 上挂探针，除感官方法外
     // 把造物命令与存档读法委托给桥，两条路径读同一份世界真值。
@@ -3885,6 +3928,227 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
+   * 场景热回滚：把活动世界、记忆层与主存档一起回滚到第 `day` 天，并触发
+   * PR #55 的金色神谕光柱（`oracle-beam`）与纯五度神谕钟声（`playOracleChime`）。
+   *
+   * 这是**与只读 `rewind(day)` 并行的真回滚通道**：只读接口保持向后兼容、
+   * `dayCardProof` 纯读契约不受影响；本方法只产出一份「可直接驱动 Simulation 与
+   * MemoryRuntime 的完整存档」，写回主档并热重载，不改 `SceneHistory` 的原只读视图。
+   * 目标日缺失时优雅拒绝（`reason=missing_day`），绝不损坏当前主档。
+   */
+  async historyRestoreToDay(day: number): Promise<RewindRestoreResult> {
+    if (this.history === null) {
+      return {
+        ok: false,
+        day,
+        reason: 'missing_day',
+        save: null,
+        memory: null,
+        fidelity: {
+          targetDay: day, expectedFingerprint: null, restoredFingerprint: '', fidelityMatch: false,
+        },
+        span: null,
+        oracleBeamTriggered: false,
+      };
+    }
+    const fromDay = this.evalCurrentDay();
+    const res = await this.history.restoreSave(day, fromDay);
+    if (!res.ok) {
+      return {
+        ok: false, day, reason: res.reason ?? 'missing_day', save: null, memory: null,
+        fidelity: res.fidelity, span: null, oracleBeamTriggered: false,
+      };
+    }
+    if (res.save === null || res.memory === null) {
+      return { ok: false, day, reason: 'missing_day', save: null, memory: null,
+        fidelity: res.fidelity, span: null, oracleBeamTriggered: false };
+    }
+
+    // 主档与活动世界同步回滚。网格按存档建筑重放（与读档同一条路），
+    // 回溯后新建的楼从网格占用里消失，不是只从存档数组里消失。
+    this.world = this.rebuildWorldForSave(res.save);
+    this.simDeps = this.buildSimDeps();
+    this.saveStore.write(res.save);
+    this.sim = Simulation.fromSave(res.save, this.simDeps);
+    this.memory = this.buildMemoryRuntime();
+    this.memory.fromJSON(JSON.stringify(res.memory));
+    this.snapshot = this.sim.snapshot();
+    this.seedCastGenesis();
+    this.lastHistoryDay = day;
+    this.rewindBeam = new OracleBeamFx(createOracleBeamSpec(this.snapshot.altar.x, this.snapshot.altar.y));
+    this.rewindBeam.begin();
+    new ProceduralSfxEngine().playOracleChime();
+    // 画面同步：回溯抹掉的楼/路从画布上消失（syncBuildings 按快照差集处置）。
+    this.renderSnapshot(0);
+
+    return {
+      ok: true,
+      day: res.day,
+      save: res.save,
+      memory: res.memory,
+      fidelity: res.fidelity,
+      span: res.span,
+      oracleBeamTriggered: true,
+    };
+  }
+
+  /** 按存档重建网格与建筑表（与 main.ts 读档同一条路：有设定集走包，没有走大世界）。 */
+  private rebuildWorldForSave(save: WorldSave): BuiltWorld {
+    if (this.pack?.authored === true) {
+      return worldForSetting(this.pack, save.world.buildings);
+    }
+    return buildWorldFromSave(save.world.buildings, this.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR);
+  }
+
+  // ------------------------------------------------------------ 回溯评测驱动（真实世界）
+  //
+  // 下面这组方法只供 `?debug=1` 的评测探针调用，全部走生产路径：
+  // 推进 = sim.update + stepMemory + captureHistory（与 update() 每帧同一条）；
+  // 回溯 = historyRestoreToDay（真实 restoreSave + 热重载）；
+  // 注入 = sim.enqueue build（与玩家造物同一条命令通道）。
+  // 不另建合成世界、不另存平行状态。
+
+  /** 评测重开：同一张图重建 sim/memory/history，清主档与轨迹账本（用例间隔离）。 */
+  resetWorldForEval(req: { readonly world?: string; readonly seed?: string | number; readonly now?: number }): void {
+    const seed = String(req.seed ?? 'rewind-default-seed');
+    const now = Number(req.now ?? 0) || 0;
+    // 重建网格（同一套设定集/蓝图，落位确定性由 buildWorld 保证）。
+    this.world = this.pack?.authored === true
+      ? worldForSetting(this.pack)
+      : buildLargeWorld(this.blueprints);
+    this.simDeps = { ...this.buildSimDeps(), worldSeed: seed, initialNow: now, wallClock: () => 0 };
+    this.sim = new Simulation(this.simDeps);
+    this.memory = this.buildMemoryRuntime();
+    this.snapshot = this.sim.snapshot();
+    this.seedCastGenesis();
+    this.lastHistoryDay = -1;
+    this.rewindBeam = null;
+    this.historyNotice = null;
+    // 历史层：评测用内存库（用例间隔离，不污染玩家的 IndexedDB）；
+    // 轨迹账本随历史层一起重建。产品路径仍走 createIdbHistoryStore（create() 里）。
+    const worldId = this.pack?.id ?? 'world';
+    this.history = new SceneHistory({
+      worldId,
+      store: new MemoryHistoryStore(),
+      onError: (message) => { this.historyNotice = `历史写入失败：${message}`; },
+    });
+    // 主档清成这一刻的干净世界（dayCardProof 的「存档未变」要有真实基线）。
+    this.saveStore.write(this.buildSave());
+    this.lastSaveKey = this.saveStateKey();
+    this.lastSaveAt = this.snapshot.now;
+    this.renderSnapshot(0);
+  }
+
+  /** 推进真实世界到第 `day` 天关账（closedThroughDay >= day）。每步走生产逻辑步长。 */
+  async advanceWorldToDay(day: number): Promise<void> {
+    if (this.memory === undefined) return;
+    const target = Math.max(0, Math.floor(day));
+    // 评测快进用 60s 步长（世界仍走同一条 update/关账路径，只是不逐 100ms 渲染）。
+    // 每步 syncHolders + tick：照面/传播/关账与生产同频语义；captureHistory 逐日落账。
+    const EVAL_ADVANCE_STEP_MS = 60_000;
+    let guard = 0;
+    while (this.memory.closedThroughDay < target && guard++ < 100_000) {
+      this.sim.setSocialContext(this.socialContextFromMemory());
+      this.sim.setWeatherHabitLedger(this.weatherHabitFromMemory());
+      this.sim.update(EVAL_ADVANCE_STEP_MS);
+      this.snapshot = this.sim.snapshot();
+      this.stepMemory();
+      this.captureHistory();
+    }
+    await this.history?.flush();
+    this.saveStore.write(this.buildSave());
+    this.lastSaveKey = this.saveStateKey();
+    this.lastSaveAt = this.snapshot.now;
+  }
+
+  /** 注入一栋真实建筑：从蓝图表里找第一栋还没建的（世界拒重复），走 sim.enqueue 命令通道。
+   *  不写死预制体 id（#13：预制体 id 归配置包）。 */
+  injectCreatorBuildingForTest(): void {
+    const standing = new Set(this.snapshot.buildings.map((b) => b.prefabId));
+    const prefabId = [...this.blueprints.keys()].find((id) => !standing.has(id));
+    if (prefabId === undefined) return;
+    const instanceId = `${prefabId}#eval-${this.snapshot.buildings.length + 1}`;
+    this.sim.enqueue({ kind: 'build', prefabId, instanceId });
+    for (const result of this.sim.update(LOGIC_STEP_MS)) this.speak(result);
+    this.snapshot = this.sim.snapshot();
+  }
+
+  /** 当前世界日（已关账口径）：回溯/推进/读数都以它为准。 */
+  evalCurrentDay(): number {
+    return this.memory?.closedThroughDay ?? 0;
+  }
+
+  evalBeliefCount(): number {
+    return this.memory?.toSnapshot().world.beliefs.length ?? 0;
+  }
+
+  /** 主档里落盘的世界日（读 saveStore 原文，不读内存态）。 */
+  evalPersistedSaveDay(): number {
+    const raw = this.saveStore.readRawText();
+    if (raw === null) return 0;
+    try {
+      const save = JSON.parse(raw) as { world?: { now?: number } };
+      const now = Number(save.world?.now ?? 0);
+      return Math.max(0, Math.floor(now / DAY_MS) - 1);
+    } catch {
+      return 0;
+    }
+  }
+
+  evalTrajectoryLineage(): {
+    readonly activeBranchId: string;
+    readonly rewindSpans: readonly TrajectoryRewindSpan[];
+  } {
+    const recorder = this.history?.recorder;
+    if (recorder === undefined) return { activeBranchId: 'branch-0', rewindSpans: [] };
+    return {
+      activeBranchId: recorder.getActiveBranchId(),
+      rewindSpans: recorder.getRewindSpans(),
+    };
+  }
+
+  evalCompareBranches(branchA: string, branchB: string, day: number): CounterfactualTrajectoryDiff | null {
+    return this.history?.recorder.compareBranches(branchA, branchB, day) ?? null;
+  }
+
+  evalTrajectoryBanner(currentDay: number): string {
+    return this.history?.recorder.formatStatusBanner(currentDay) ?? '时光轨迹: 主线 (branch-0)';
+  }
+
+  /** 确定性状态哈希：只取世界真值与轨迹血缘，不含墙钟/帧率/渲染态。 */
+  evalStateHash(): string {
+    const snap = this.snapshot;
+    const recorder = this.history?.recorder;
+    return JSON.stringify({
+      day: this.evalCurrentDay(),
+      now: snap.now,
+      weather: snap.weather,
+      buildings: snap.buildings.map((b) => b.instanceId).sort(),
+      roads: snap.roads.length,
+      beliefs: this.evalBeliefCount(),
+      activeBranchId: recorder?.getActiveBranchId() ?? 'branch-0',
+      rewindSpans: (recorder?.getRewindSpans() ?? []).map((s) => s.spanId),
+    });
+  }
+
+  /** 评测用存档字节：真实 buildSave()（含 world.memory），不另造投影。 */
+  buildSaveJsonForEval(): string {
+    return JSON.stringify(this.buildSave());
+  }
+
+  /** 固定步长推进真实世界（评测 K3：单拍预算）。光柱状态机随拍推进。 */
+  evalStepTicks(count: number): void {
+    const times = Math.max(0, Math.min(5000, Math.floor(Number(count) || 0)));
+    for (let i = 0; i < times; i += 1) {
+      for (const result of this.sim.update(LOGIC_STEP_MS)) this.speak(result);
+      this.snapshot = this.sim.snapshot();
+      this.stepMemory();
+      this.captureHistory();
+      this.rewindBeam?.advance(1);
+    }
+  }
+
+  /**
    * 日历屏：把 `world.memory` 的日摘要读成「每天一行」。
    *
    * **纯读**。只调 `dayDigests()` 与 `factDigest()`；不触发关账、不裁剪、
@@ -5048,12 +5312,19 @@ export class SandboxScene extends Phaser.Scene {
       saveStatus: () => this.saveStatus(),
       /** 只读回溯的时间轴：这一局里记过的日子。 */
       historyDays: () => this.historyDays(),
-      /** 点某一天，读那一天的场景/角色/时代。只读，不写主档。 */
+      /** 点某一天，读那一天的场景/角色/时代。只读，不写主档。
+       *   K2 复用场景的真实历史层，保证只读视图与当前世界日同口径。 */
       historyRewind: (day: number) => this.historyRewind(day),
       /** 日历屏：日摘要读成每天一行。只读，不改存档。 */
       dayCards: () => this.dayCards(),
       /** 纯读证明：建卡前后记忆与存档原文逐字节比较。 */
       dayCardProof: () => this.dayCardProof(),
+      /** 当前世界日（已关账口径）：日历行内回溯按钮据此判「不是今天」。 */
+      currentDay: () => this.evalCurrentDay(),
+      /** 时光轨迹分支状态摘要（纯读，给 #daycard-note）。 */
+      trajectoryBanner: (currentDay: number) => this.evalTrajectoryBanner(currentDay),
+      /** 真回滚：日历两段式确认的「确认」这一步才调它。 */
+      historyRestoreToDay: (day: number) => this.historyRestoreToDay(day),
       /**
        * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
        * `catchUp` 不再只活在状态行的一帧里；没有 setter。
