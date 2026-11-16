@@ -52,11 +52,13 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
-| D:/project/pwe-sensory | feat/sensory-vfx-audio | cs1lion | 2026-11-15 | 2026-11-29 | 活跃（未合入 main；视听反馈 + 实时躲雨，red:first 后接增量实现） |
-| D:/project/pwe-rewind | feat/time-rewind-trajectory | cinch 会话（time-rewind） | 2026-11-16 | 2026-11-30 | 活跃（未合入 main；基点 `bb2f22f`；世界时间回溯 + Trajectory 因果分叉可观测性，Phase 1+2 落地，已提交 `187e3fc`；17 道闸门与 eval 16/16 全绿） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
+
+**2026-11-16 巡检**：`pwe-rewind`（feat/time-rewind-trajectory）已合入 main（经 PR #57，`487b6e5`），
+worktree 已回收、本地分支已删，表项同步移除；同日发现 `pwe-sensory` 表项悬空——目录已不存在，
+其工作已合入 main（经 PR #55，`09a186ce`），按同一口径删掉表项。
 同日补登 `pwe-docs-flows`、`pwe-docs-fix`（docs 修复线，均已在 main），
 分支 tip 分别为 `48042a3`、`6df4324`；只登记，未动其工作树。
 

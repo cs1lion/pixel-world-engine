@@ -2,10 +2,11 @@
 # 本地强制检查（push 前）。这里有两道，互不替代：
 #
 #   1) main 保护：拒绝直接 push 到 refs/heads/main（含删除 main）。
-#      背景：GitHub 的分支保护 API 在本仓当前凭据下返回 404，远端规则暂时上不了，
-#      所以这条边界放在本地：只要装了 core.hooksPath=.githooks，任何一次 push 前
-#      Git 都会把待推引用交给这个脚本，目标分支是 main 就拦下。
-#      豁免：PWE_ALLOW_PUSH_MAIN=1 —— **只跳过这一条**，下面的第 2 道照跑。
+#      背景：2026-11-09 起 main 已开远端保护（PR + 四项检查 + 禁强推/删除 +
+#      enforce_admins），远端会直接拒直推。这一道是第二道，给「新 clone 未继承
+#      core.hooksPath」的情况留本地兜底：只要装了，push 前就把待推引用交过来，
+#      目标分支是 main 就拦下。
+#      豁免：PWE_ALLOW_PUSH_MAIN=1 —— **只跳过这一条**（远端仍会拒），第 2 道照跑。
 #
 #   2) 大文件检查：拒绝新增 blob ≥ PWE_PREPUSH_MAX_BLOB_BYTES（默认 5 MB）。
 #      理由：证据图/快照进历史后删不掉，只能重写历史；这类东西在本仓反复出现。

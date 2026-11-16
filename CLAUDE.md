@@ -31,7 +31,7 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 服务端在 `server/`，CI 有第二个 job：`pip install -r requirements.txt` 然后
 `python -m pytest`。
 
-**这几条要一起跑，别只跑前两条。** CI 现在跑**十六道闸门**：前端 job 十五道，
+**这几条要一起跑，别只跑前两条。** CI 现在跑**十七道闸门**：前端 job 十六道，
 服务端 job 一道。后七道（色板 + 三份审引用 + `audit-claims` + 两条指标账本）的输出
 有个共同性质：**断言对不上、节号不存在、色板超预算、夹具回放漂了，全都只让输出变长，
 不会让 `check`/`test` 变红。** 所以只跑前三条的人会以为自己是绿的，而后面十几道
@@ -56,20 +56,22 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 | 14 | 指标账本自检 | `node scripts/verify-ledger-selfcheck.ts` | 前端 job |
 | 15 | 截图比对自检 | `python scripts/verify-screens-diff-selfcheck.py` | 前端 job |
 | 16 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
+| 17 | 交付报告审计 | `npm run audit:reports` | 前端 job |
 
 CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
 `test:building-bake` / `test:art-assets` / `test:phases`，只读、写到 runner
-临时目录）。它是验收，不在这十六道计数里。
+临时目录）。它是验收，不在这十七道计数里。
 
-## 权限边界（本地强制）
+## 权限边界（远端 + 本地）
 
-远端分支保护 API 在本仓当前凭据下返回 404，暂时上不了；所以 main 的直推边界放在本地：
+**main 已开远端分支保护（2026-11-09 起）**：必须走 PR、四项必要检查（`world-client` / `world-client-browser` / `repo-harness` / `server`）全绿才能合、禁强推、禁删除、`enforce_admins=true`（管理员不豁免）。此前"API 返回 404 所以上不了"是误判——404 的语义是「分支未受保护」，不是没权限。本地另有一道：
 
 - `.githooks/pre-push` 拒绝任何以 `refs/heads/main` 为目标的 push（含删除远端 main）。
 - 安装：`git config core.hooksPath .githooks`；自检：`npm run check:hooks`
-  （仓库根目录）。**没装时 push 不会报错，保护会安静消失**，所以这是一条必跑读数。
-- 豁免：`PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main`。只给灾难恢复用；
-  日常走分支 + PR。豁免**只跳过 main 保护**，第二道大文件检查（默认 5 MB）照跑；
+  （仓库根目录）。**没装时这一道会安静消失**（远端仍会拒直推 main），所以这仍是一条必跑读数。
+- 豁免：`PWE_ALLOW_PUSH_MAIN=1 git push <remote> <ref>:main` 只跳过**本地**这一道；
+  远端保护仍会拒（`GH006`）。灾难恢复得先在 Settings → Branches 临时关掉保护，
+  或者走 PR 合入。大文件检查（默认 5 MB）不受这个豁免影响；
   `--no-verify` 才会跳过整条 pre-push。
 - 第二道：新增 blob ≥ `PWE_PREPUSH_MAX_BLOB_BYTES`（默认 5242880）即拒推，因为
   证据图/大快照进历史后只能重写历史才能删。确需放宽时用同名环境变量，
@@ -79,6 +81,12 @@ CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
   `.github/pull_request_template.md`，必填「改了什么 / 为什么 / 验证命令与读数」。
 
 ## Worktree 登记
+
+## 分支卫生与清理
+
+分支合并即自动删远端分支（`delete_branch_on_merge=true`），例外登记与巡检见
+`docs/BRANCH_HYGIENE.md`、`docs/BRANCH_EXCEPTIONS.md`；一次性的清理快照在
+`docs/BRANCH_AUDIT_20261115.md`（已到期，不再随状态更新，后续看例外表与 git log）。
 
 `docs/WORKTREES.md` 是登记表（路径 / 分支 / owner / 创建时间 / 预计回收时间 / 状态）。
 `npm run worktrees:audit` 列出未登记、过期未回收、已合入但仍在的 worktree；
