@@ -45,6 +45,52 @@ export interface DayCardProof {
 export interface DayCardOracle {
   readonly dayCards?: () => DayCardRead | null;
   readonly dayCardProof?: () => DayCardProof | null;
+  /** 历史已记到的日子（行内回溯按钮只给有记录的日子挂）。 */
+  readonly historyDays?: () => readonly { readonly day: number; readonly kind: string }[];
+  /** 当前世界日（已关账口径）。 */
+  readonly currentDay?: () => number;
+  /** 时光轨迹分支状态摘要（给 #daycard-note 展示；纯读）。 */
+  readonly trajectoryBanner?: (currentDay: number) => string;
+  /** 真回滚：两段式确认的「确认」这一步才调它（走场景 historyRestoreToDay）。 */
+  readonly historyRestoreToDay?: (day: number) => Promise<unknown>;
+}
+
+/**
+ * 给某一天的历史行挂两段式确认按钮：[回溯此日] → [确认回溯 Dxx] / [取消]。
+ *
+ * 纪律：**点「回溯此日」只是展开确认态，不写世界**；只有「确认回溯」才调
+ * `onConfirm`（场景的真回滚）。取消/再点一次收回确认态，零变化。
+ * 打开面板与 `dayCardProof()` 不经过这里——纯读契约不受影响。
+ */
+export function attachDayCardRewindAction(
+  rowEl: HTMLElement,
+  day: number,
+  onConfirm: (day: number) => void,
+): void {
+  const open = element('button', 'daycard-rewind-open');
+  open.type = 'button';
+  open.textContent = '回溯此日';
+  const confirm = element('button', 'daycard-rewind-confirm');
+  confirm.type = 'button';
+  confirm.textContent = `确认回溯 D${String(day).padStart(2, '0')}`;
+  confirm.hidden = true;
+  const cancel = element('button', 'daycard-rewind-cancel');
+  cancel.type = 'button';
+  cancel.textContent = '取消';
+  cancel.hidden = true;
+
+  const setArmed = (armed: boolean): void => {
+    confirm.hidden = !armed;
+    cancel.hidden = !armed;
+    open.textContent = armed ? '回溯此日…' : '回溯此日';
+  };
+  open.addEventListener('click', () => setArmed(confirm.hidden));
+  cancel.addEventListener('click', () => setArmed(false));
+  confirm.addEventListener('click', () => {
+    setArmed(false);
+    onConfirm(day);
+  });
+  rowEl.append(open, confirm, cancel);
 }
 
 type Range = 7 | 30 | 'all';
@@ -111,6 +157,14 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
     }
     note.textContent = parts.join(' · ');
     note.classList.toggle('bad', proof !== null && (!proof.memoryEqual || !proof.saveEqual));
+    // 时光轨迹状态摘要：纯读展示（当前分支/最近一次分叉保真度），不写任何东西。
+    const api = getApi();
+    const banner = api?.trajectoryBanner?.(api?.currentDay?.() ?? 0);
+    if (banner !== undefined && banner !== '') {
+      const bar = element('div', 'daycard-note-rewind');
+      bar.textContent = banner;
+      note.append(bar);
+    }
   };
 
   const paint = (): void => {
@@ -161,6 +215,18 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
           : card.e > 0 ? emoteIdForKind('alert') : emoteIdFor(card.d);
         // 挂在第一行文字里而不是 row 上：row 是 grid，多一个子节点会多撑一行。
         appendDecor(line, 'emote', emote, 'art-emote');
+        // 行内回溯：只给「有记录且不是今天」的日子挂两段式按钮。
+        // 确认才真回滚（走场景 historyRestoreToDay）；打开面板/纯读证明不经过这里。
+        const api = getApi();
+        const recorded = api?.historyDays?.() ?? [];
+        const currentDay = api?.currentDay?.() ?? -1;
+        const hasRecord = recorded.some((r) => r.day === card.d && r.kind !== 'missing');
+        if (hasRecord && card.d < currentDay && api?.historyRestoreToDay !== undefined) {
+          const restore = api.historyRestoreToDay;
+          attachDayCardRewindAction(row, card.d, (day) => {
+            void restore(day).then(() => paint());
+          });
+        }
         list.append(row);
       }
     }

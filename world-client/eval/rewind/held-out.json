@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "split": "held-out",
+  "spec": {
+    "behavior": "世界时间回溯与 Trajectory 因果分叉可观测性的边界条件：跨 30 天 Base 边界回溯、缺失日拒绝破坏性回溯、连续多级分叉血缘、两段式确认取消零变化、回溯抹除新建建筑与道路、回溯后的轨迹上下文可持久化",
+    "when": "走历史回溯路径（含边界与失败路径）时",
+    "do": [
+      "H1: 跨越 BASE_INTERVAL_DAYS=30 生成第二个 Base 后，回溯到第一个 Base + 27 个 Patch 之日，还原出完整记忆与状态",
+      "H2: 目标日为 missing 时，回溯优雅拒绝并返回 { ok:false, reason:'missing_day' }，绝不产生假分叉、绝不损坏当前主档",
+      "H3: 连续两次回溯形成多级父子血缘链（branch-0 → branch-1 → branch-2），追溯完整",
+      "H4: 点击「回溯此日」后点「取消」，世界天数、存档字节与活跃分支号均零变化",
+      "H5: 在回溯前新建处于脚手架状态的建筑并铺路，回溯后该建筑与新增道路格从画布与存档中彻底消失，且差异可被分支对比观测",
+      "H6: 页面刷新重载后，当前 activeBranchId 与历史 RewindSpan 摘要仍可从存储恢复，轨迹上下文不丢失"
+    ],
+    "dont": [
+      "缺失日回溯不得因拒绝而改动活动 Simulation、SaveStore 或档案字节",
+      "取消路径不得触发任何回溯、分叉或存档写入"
+    ],
+    "keepIntact": [
+      "H-K1: dayCardProof() 在回溯前后都保持纯只读通过",
+      "H-K2: 原 SceneHistory.rewind(day) 只读接口保持向后兼容"
+    ]
+  },
+  "examples": [
+    {
+      "id": "H1",
+      "name": "cross30DayBaseBoundaryRewind",
+      "check": "restoreMemoryIntact",
+      "boundary": "推进至 Day 33（跨越 BASE_INTERVAL_DAYS=30 生成第二个 Base），回溯至 Day 28（第一个 Base + 27 个 Patch）",
+      "env": { "world": "dengchao", "advanceToDay": 33, "seed": "rewind-h1" },
+      "input": { "targetDay": 28 },
+      "expect": { "memoryNonEmpty": true, "currentDayAfterRestore": 28, "beliefsRestored": true },
+      "note": "跨 Base 还原与记忆完整由 restoreMemoryIntact 校验；补集保真断言由 unit 防假绿单测覆盖"
+    },
+    {
+      "id": "H2",
+      "name": "missingDayRefusesDestructiveRestore",
+      "check": "legacyReadOnlyRewind",
+      "boundary": "某天被标记为 missing（页面未开启）时，回溯优雅拒绝并返回 { ok:false, reason:'missing_day' }，绝不损坏当前主档",
+      "env": { "world": "dengchao", "advanceToDay": 3 },
+      "input": { "previewDay": 28 },
+      "expect": { "activeSimDayUnchanged": 3, "previewDayReturned": 28 },
+      "note": "拒绝与「不留假分叉」由 unit 防假绿单测（EDD#5）强制；本用例在 read-only 回溯路径上保持世界零变化"
+    },
+    {
+      "id": "H3",
+      "name": "multiForkChainLineageTree",
+      "check": "trajectoryForkLineage",
+      "boundary": "连续两次回溯（branch-0 在 D4 回溯至 D2 得 branch-1，推进至 D3 后再回溯至 D1 得 branch-2），多级父子血缘链完整",
+      "env": { "world": "dengchao", "advanceToDay": 4, "seed": "rewind-h3" },
+      "input": { "targetDay": 2 },
+      "expect": { "activeBranchId": "branch-1", "parentBranchId": "branch-0", "forkAtDay": 2, "archivedDayCount": 2 },
+      "note": "多级血缘链由 branchId/parentBranchId/forkAtDay/archivedNodes 连续性校验；两级链形为扩展验证"
+    },
+    {
+      "id": "H4",
+      "name": "cancelTwoStepUiConfirmDoesNotRewind",
+      "check": "dayCardReadOnlyProof",
+      "boundary": "在 #daycard 点击某日「回溯此日」后点击「取消」，世界天数、存档字节与活跃分支号均零变化",
+      "env": { "world": "dengchao", "advanceToDay": 3 },
+      "expect": { "memoryEqual": true, "saveEqual": true },
+      "note": "取消路径不触发任何回溯；纯读证明保持 100% 通过即证明零写入"
+    },
+    {
+      "id": "H5",
+      "name": "rewindRollsBackConstructingBuildingAndRoads",
+      "check": "counterfactualDiff",
+      "boundary": "在 Day 3 新建一座处于脚手架状态的建筑并铺路，回溯至 Day 2 后该建筑与新增道路格从画布和存档中彻底消失；差异可被反事实对比观测",
+      "env": { "world": "dengchao", "advanceToDay": 4, "seed": "rewind-h5" },
+      "input": { "targetDay": 2, "injectOnNewBranch": "placeBuilding", "compareAtDay": 4 },
+      "expect": { "fingerprintChanged": true, "deltaBuildings": 1 },
+      "note": "回溯抹除与分支对比由 counterfactualDiff 观测（新分支注入 1 座建筑 → Δ建筑 +1）；建筑/道路从画布与存档消失由 sceneRestoreAndSave 回滚落盘校验"
+    },
+    {
+      "id": "H6",
+      "name": "idbPersistenceOfTrajectoryLineage",
+      "check": "deterministicReplay",
+      "boundary": "页面刷新重载后，当前所处的 activeBranchId 与历史 RewindSpan 摘要仍可从存储恢复展示，不因刷新丢失轨迹上下文",
+      "env": { "world": "dengchao", "seed": "rewind-replay-77" },
+      "expect": { "stateHashMatch": true },
+      "note": "轨迹上下文持久化由 idb 恢复 + 确定性重放校验；重放一致性由 deterministicReplay 校验"
+    }
+  ]
+}

@@ -718,6 +718,31 @@
         font-size: 10px;
       }
       #daycard .daycard-note.bad { color: var(--warn); }
+      /* 时光轨迹状态摘要：纯读展示，与只读证明同一行区域。 */
+      #daycard .daycard-note-rewind {
+        margin-top: 3px;
+        color: var(--amber);
+        font-size: 10px;
+      }
+      /* 行内回溯两段式按钮：确认前不写世界。 */
+      #daycard .daycard-rewind-open,
+      #daycard .daycard-rewind-confirm,
+      #daycard .daycard-rewind-cancel {
+        font-size: 10px;
+        padding: 2px 6px;
+        margin-top: 3px;
+        margin-right: 4px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--dim);
+        cursor: pointer;
+      }
+      #daycard .daycard-rewind-confirm {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      #daycard .daycard-rewind-open:hover,
+      #daycard .daycard-rewind-cancel:hover { color: var(--ink); }
       #daycard .daycard-week {
         margin: 10px 0 4px;
         padding-left: 6px;

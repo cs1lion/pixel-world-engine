@@ -23,12 +23,42 @@ import {
 import { VILLAGER_VOICE_PROFILES, computeAnimalesePitchSeries, type VillagerVoiceProfile } from '../audio/animalese.ts';
 import { ProceduralSfxEngine } from '../audio/sfx.ts';
 import { CreatorDebugBridge, type CreatorCommandOutcome } from '../world/creator/debug-bridge.ts';
+import type { RewindRestoreResult, RewindResult } from '../world/history/scene-history.ts';
+import type { CounterfactualTrajectoryDiff, TrajectoryRewindSpan } from '../world/history/trajectory-recorder.ts';
+
+/**
+ * 回溯评测面：由场景注入的真实世界驱动（不另建合成世界）。
+ * 每个方法都走生产路径：推进 = sim.update + 关账 + captureHistory；
+ * 回溯 = historyRestoreToDay（真实 restoreSave + 热重载）；注入 = sim.enqueue build。
+ */
+export interface RewindEvalSurface {
+  resetWorld(req: { readonly world?: string; readonly seed?: string | number; readonly now?: number }): void;
+  /** 场景重建后的当前 Simulation（探针的感官面跟着换引用，不读旧世界）。 */
+  currentSim(): Simulation;
+  advanceToDayAndClose(day: number): Promise<void>;
+  restoreWorldToDay(day: number): Promise<RewindRestoreResult>;
+  injectCreatorBuildingForTest(): void;
+  getCurrentDay(): number;
+  getBeliefCount(): number;
+  getPersistedSaveDay(): number;
+  getHistoryDays(): readonly { readonly day: number; readonly kind: string }[];
+  getTrajectoryLineage(): { readonly activeBranchId: string; readonly rewindSpans: readonly TrajectoryRewindSpan[] };
+  compareTrajectoryBranches(branchA: string, branchB: string, day: number): CounterfactualTrajectoryDiff | null;
+  getTrajectoryBanner(currentDay: number): string;
+  getStateHash(): string;
+  exportSaveJson(): string;
+  hasActiveFx(fxName: string): boolean;
+  stepTicks(count: number): void;
+  getHistoryRewindView(day: number): Promise<RewindResult | null>;
+}
 
 /** 探针依赖：当前世界实例 + 重建用的设定集依赖 + 桥（透传造物/存档方法）。 */
 export interface SensorProbeDeps {
   readonly sim: Simulation;
   readonly simDeps: SimulationDeps;
   readonly bridge: CreatorDebugBridge;
+  /** 回溯评测面：场景注入的真实世界驱动。省略 = 回溯面不可用（评测会拒）。 */
+  readonly rewind?: RewindEvalSurface | null;
 }
 
 /** 感官评测探针：世界规则的确定性判定 + 感官状态机，评测面全部收敛在这里。 */
@@ -36,6 +66,7 @@ export class SensorProbe {
   private sim: Simulation;
   private readonly simDeps: SimulationDeps;
   private readonly bridge: CreatorDebugBridge;
+  private rewind: RewindEvalSurface | null = null;
   /** 强制神谕在身的角色（用于躲雨优先级判据）。 */
   private forcedVillagers = new Set<string>();
   /** 当前触发的神谕光柱。 */
@@ -49,6 +80,7 @@ export class SensorProbe {
     this.sim = deps.sim;
     this.simDeps = deps.simDeps;
     this.bridge = deps.bridge;
+    this.rewind = deps.rewind ?? null;
     this.salute = beginOracleSalute();
   }
 
@@ -61,7 +93,16 @@ export class SensorProbe {
   }
 
   /** 重建干净世界（评测用）：同一份设定集依赖 + 指定种子与开局时刻，恢复确定性起点。 */
-  resetWorld(deps: { readonly seed: number; readonly now: number }): void {
+  resetWorld(deps: { readonly world?: string; readonly seed: number | string; readonly now: number }): void {
+    this.resetTickCount();
+    if (this.rewind !== null) {
+      // 回溯面在场：场景重建真实世界（grid/sim/memory/history 一起换），
+      // 探针的 sim 引用跟着换成场景重建后的那一份，两条路径读同一份世界真值。
+      this.rewind.resetWorld({ world: deps.world, seed: deps.seed, now: deps.now });
+      this.sim = this.rewind.currentSim();
+      return;
+    }
+    // 无回溯面（纯感官评测）：保持旧行为，只重建 Simulation。
     const seedNum = Number(deps.seed) >>> 0;
     const nowNum = Number(deps.now) || 0;
     this.sim = new Simulation({
@@ -69,7 +110,38 @@ export class SensorProbe {
       initialNow: nowNum,
       worldSeed: String(seedNum),
     });
-    this.resetTickCount();
+  }
+
+  // ------------------------------------------------------------ 回溯评测面
+  getCurrentDay(): number {
+    return this.rewind?.getCurrentDay() ?? 1;
+  }
+  getBeliefCount(): number {
+    return this.rewind?.getBeliefCount() ?? 0;
+  }
+  getPersistedSaveDay(): number {
+    return this.rewind?.getPersistedSaveDay() ?? 0;
+  }
+  getHistoryDays(): readonly { day: number; kind: string }[] {
+    return this.rewind?.getHistoryDays() ?? [];
+  }
+  getTrajectoryLineage(): { readonly activeBranchId: string; readonly rewindSpans: readonly unknown[] } {
+    return this.rewind?.getTrajectoryLineage() ?? { activeBranchId: 'branch-0', rewindSpans: [] };
+  }
+  compareTrajectoryBranches(branchA: string, branchB: string, day: number): unknown {
+    return this.rewind?.compareTrajectoryBranches(branchA, branchB, day) ?? null;
+  }
+  injectCreatorBuildingForTest(): void {
+    this.rewind?.injectCreatorBuildingForTest();
+  }
+  restoreWorldToDay(day: number): Promise<unknown> {
+    return this.rewind?.restoreWorldToDay(day) ?? Promise.reject(new Error('rewind disabled'));
+  }
+  advanceToDayAndClose(day: number): Promise<void> {
+    return this.rewind?.advanceToDayAndClose(day) ?? Promise.reject(new Error('rewind disabled'));
+  }
+  getHistoryRewindView(day: number): Promise<unknown> | null {
+    return this.rewind?.getHistoryRewindView(day) ?? null;
   }
 
   /** 切换天气（评测探针，世界内部走 `setWeather`）。 */
@@ -163,12 +235,23 @@ export class SensorProbe {
   /** 光柱是否处于激活态。 */
   hasActiveFx(fxName: string): boolean {
     if (fxName !== 'oracle-beam') return false;
-    return this.beam?.isActive() ?? false;
+    // 回溯演出走场景的真实 beam；其余路径用探针自己的 beam。
+    return (this.rewind?.hasActiveFx(fxName) ?? false) || (this.beam?.isActive() ?? false);
   }
 
   /** 固定步长推进生产世界（评测用：只推进世界与感官状态机，不另立时钟）。 */
   stepTicks(count: number): void {
     const times = Math.max(0, Math.min(5000, Math.floor(Number(count) || 0)));
+    if (this.rewind !== null) {
+      // 回溯面在场：走场景的真实推进（sim.update + 关账 + captureHistory + 光柱）。
+      this.rewind.stepTicks(times);
+      this.tickCount += times;
+      if (this.salute !== null) {
+        for (let i = 0; i < times; i += 1) this.salute = stepOracleSalute(this.salute);
+      }
+      this.beam?.advance(times);
+      return;
+    }
     for (let i = 0; i < times; i += 1) {
       this.sim.update(1000);
       this.tickCount += 1;
@@ -202,6 +285,8 @@ export class SensorProbe {
 
   /** 确定性状态哈希（评测 K3：同种子 + 同事件序列重放两次必须哈希一致；不碰时间源）。 */
   getStateHash(): string {
+    // 回溯面在场：用场景的真实世界哈希（含轨迹血缘），不掺感官态。
+    if (this.rewind !== null) return this.rewind.getStateHash();
     const snap = this.sim.snapshot();
     const curated = {
       now: snap.now,
@@ -225,7 +310,9 @@ export class SensorProbe {
 
   /** 评测用存档字节视图：投影躲雨目标与行礼剩余拍数进 `world.sensory`。 */
   exportSaveJson(): string {
-    const base = this.exportSaveBytes();
+    // 回溯面在场：底版用场景的真实 buildSave()（含完整 world.memory），
+    // 感官投影照旧叠加——两条评测（rewind 要 memory、sensory 要 sensory）读同一份真值。
+    const base = this.rewind !== null ? this.rewind.exportSaveJson() : this.exportSaveBytes();
     const pkg = JSON.parse(base) as { readonly world?: Record<string, unknown>; };
     const world = (pkg.world ?? {}) as Record<string, unknown>;
     const snap = this.sim.snapshot();

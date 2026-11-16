@@ -88,10 +88,24 @@ const KEYED: Readonly<Record<string, KeyFn>> = {
   'save.world.critters': (item) => String(item.id),
 };
 
-/** 走一遍路径表；`*` 匹配任意一段（只用于 `traces.<placeId>.entries`）。 */
+/** 走一遍路径表；`*` 匹配任意一段（只用于 `traces.<placeId>.entries`）。
+ *
+ * 真实 `HistoryDoc` 的记忆段在 `memory.world.*`（`MemoryRuntimeSnapshot` 的形状），
+ * 而表里的键写的是 `memory.*`（早期扁平形状）。两种都要认：不认 `world` 那一层的话，
+ * entries/facts 这些按 id 对齐的数组会退化成按下标对齐——新条目插进中间时，
+ * 补丁把「第 29 条」整个改写成另一件事，还原出来的文档与当日原档指纹对不上。
+ */
 function keyFnFor(path: readonly string[]): KeyFn | null {
   const direct = KEYED[path.join('.')];
   if (direct !== undefined) return direct;
+  // memory.world.<段> → memory.<段>（真实快照多一层 world）
+  if (path[0] === 'memory' && path[1] === 'world') {
+    const rest = KEYED[['memory', ...path.slice(2)].join('.')];
+    if (rest !== undefined) return rest;
+    if (path.length === 6 && path[2] === 'traces' && path[5] === 'entries') {
+      return KEYED['memory.traces.*.entries']!;
+    }
+  }
   if (path.length === 5 && path[0] === 'memory' && path[1] === 'traces' && path[4] === 'entries') {
     return KEYED['memory.traces.*.entries']!;
   }

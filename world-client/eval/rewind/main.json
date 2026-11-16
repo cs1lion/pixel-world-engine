@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "split": "main",
+  "spec": {
+    "behavior": "世界时间回溯与 Trajectory 因果分叉可观测闭环：完整还原存档与记忆、截断未来悬空补丁、记录分叉血缘与反事实差异、日历两段式确认触发神谕回溯演出",
+    "when": "通过日历面板点击回溯此日并确认，或调用 Oracle.historyRestoreToDay(day) 时",
+    "do": [
+      "M1: restoreSave(day) 还原出的 WorldSave 包含非空且完整的 world.memory 快照，恢复后村民记忆、信念与地点状态与第 day 日结时一致",
+      "M2: 回溯保真度自证（RewindFidelityProof）：通过 base+patches 还原的第 day 日状态指纹与该日首次关账时的 stateFingerprint 100% 吻合（fidelityMatch === true）",
+      "M3: 场景执行 historyRestoreToDay(targetDay) 后，当前世界天数、时钟、建筑、道路与主存档（save-store）立即回滚至 targetDay，并触发神谕光柱与钟声",
+      "M4: pruneAfter(targetDay) 清理 targetDay 之后的旧补丁并重置差分基准，回溯后继续推进至 targetDay+1 时正常生成连续 patch 且不标 missing",
+      "M5: TrajectoryLedger 记录完整分叉血缘（branchId / parentBranchId / forkAtDay / archivedSegments），支持查询回溯前后的轨迹树",
+      "M6: 回溯后在新分支注入不同神谕或天气并推进到同一天 D，compareTrajectoryBranches 准确输出新旧分支在 D 日的反事实差异（deltaBuildings / deltaBeliefs / fingerprintChanged）"
+    ],
+    "dont": [
+      "严禁在未点击二次确认前仅因打开 #daycard 或调用 dayCards() 而修改任何世界状态或存档字节",
+      "严禁回溯后将空字符串 world.memory 写回活动 Simulation 或 SaveStore"
+    ],
+    "keepIntact": [
+      "K1: dayCardProof() 纯读校验保持 100% 通过（memoryEqual === true && saveEqual === true）",
+      "K2: 原只读接口 SceneHistory.rewind(day) 保持向后兼容，供 debug-panel 只读预览使用",
+      "K3: 跨 30 天 Base 边界（如从 Day 35 回溯至 Day 28）与同周期内回溯均保持确定性单拍预算（小于 16.6ms）",
+      "K4: 存档 schemaVersion 与 pwe-trace/2 格式保持兼容，回溯后再导出存档可无损重放"
+    ]
+  },
+  "examples": [
+    {
+      "id": "M1",
+      "name": "restorePreservesFullWorldMemory",
+      "check": "restoreMemoryIntact",
+      "env": { "world": "dengchao", "advanceToDay": 4, "seed": "rewind-m1" },
+      "input": { "targetDay": 2 },
+      "expect": { "memoryNonEmpty": true, "currentDayAfterRestore": 2, "beliefsRestored": true }
+    },
+    {
+      "id": "M2",
+      "name": "bitExactRewindFidelityProof",
+      "check": "rewindFidelity",
+      "env": { "world": "dengchao", "advanceToDay": 5, "seed": "rewind-m2" },
+      "input": { "targetDay": 3 },
+      "expect": { "fidelityMatch": true, "fingerprintNonEmpty": true }
+    },
+    {
+      "id": "M3",
+      "name": "sceneAndSaveStoreRolledBackWithOracleFx",
+      "check": "sceneRestoreAndSave",
+      "env": { "world": "dengchao", "advanceToDay": 4, "seed": "rewind-m3" },
+      "input": { "targetDay": 2, "viaUiConfirm": true },
+      "expect": { "simDay": 2, "saveStoreDay": 2, "oracleBeamTriggered": true }
+    },
+    {
+      "id": "M4",
+      "name": "pruneFuturePatchesAndReAdvanceCleanly",
+      "check": "pruneAndReAdvance",
+      "env": { "world": "dengchao", "advanceToDay": 5, "seed": "rewind-m4" },
+      "input": { "targetDay": 2, "reAdvanceDays": 2 },
+      "expect": { "simDay": 4, "maxRecordedDay": 4, "day3Kind": "patch", "missingDaysCount": 0 }
+    },
+    {
+      "id": "M5",
+      "name": "trajectoryLineageForkRecorded",
+      "check": "trajectoryForkLineage",
+      "env": { "world": "dengchao", "advanceToDay": 4, "seed": "rewind-m5" },
+      "input": { "targetDay": 2 },
+      "expect": { "activeBranchId": "branch-1", "parentBranchId": "branch-0", "forkAtDay": 2, "archivedDayCount": 2 }
+    },
+    {
+      "id": "M6",
+      "name": "counterfactualBranchDiffAtSameDay",
+      "check": "counterfactualDiff",
+      "env": { "world": "dengchao", "advanceToDay": 4, "seed": "rewind-m6" },
+      "input": { "targetDay": 2, "injectOnNewBranch": "placeBuilding", "compareAtDay": 4 },
+      "expect": { "fingerprintChanged": true, "deltaBuildings": 1 }
+    },
+    {
+      "id": "K1",
+      "name": "dayCardProofRemainsPureReadOnly",
+      "check": "dayCardReadOnlyProof",
+      "env": { "world": "dengchao", "advanceToDay": 3 },
+      "expect": { "memoryEqual": true, "saveEqual": true }
+    },
+    {
+      "id": "K2",
+      "name": "legacyReadOnlyRewindStillWorks",
+      "check": "legacyReadOnlyRewind",
+      "env": { "world": "dengchao", "advanceToDay": 3 },
+      "input": { "previewDay": 1 },
+      "expect": { "activeSimDayUnchanged": 3, "previewDayReturned": 1 }
+    },
+    {
+      "id": "K3",
+      "name": "stepBudgetWithin16MsDuringRestore",
+      "check": "worldStillRuns",
+      "env": { "world": "dengchao", "advanceToDay": 3 },
+      "expect": { "clockAdvanced": true, "maxAvgStepMs": 16.6 }
+    },
+    {
+      "id": "K4",
+      "name": "deterministicReplayAfterRewind",
+      "check": "deterministicReplay",
+      "env": { "world": "dengchao", "seed": "rewind-replay-77" },
+      "expect": { "stateHashMatch": true }
+    }
+  ]
+}
