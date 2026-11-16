@@ -55,6 +55,10 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
+
+**2026-11-16 巡检**：`pwe-rewind`（feat/time-rewind-trajectory）已合入 main（经 PR #57，`487b6e5`），
+worktree 已回收、本地分支已删，表项同步移除；同日发现 `pwe-sensory` 表项悬空——目录已不存在，
+其工作已合入 main（经 PR #55，`09a186ce`），按同一口径删掉表项。
 同日补登 `pwe-docs-flows`、`pwe-docs-fix`（docs 修复线，均已在 main），
 分支 tip 分别为 `48042a3`、`6df4324`；只登记，未动其工作树。
 

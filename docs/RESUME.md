@@ -2,18 +2,16 @@
 
 ## 当前断点
 
-- 最后 HEAD: `686676e`（`feat/time-rewind-trajectory`，PR #57 返工后一笔提交，基点 `bb2f22f`）；
-  世界时间回溯 + Trajectory 因果分叉可观测性：评测与 UI 全部走真实世界（无合成控制器）。
-- 未提交改动: 无（本单已提交；返工三处：删孤儿 audit-reports.ts / red:first 桶导出+存在性断言 / 真实 UI 接入）。
-- 已跑闸门（2026-11-16 返工后最新读数，17 道全绿）: check ✅ / test ✅ 2779 项（0 fail，含 daycard 两段式 2 项新增）/
-  build ✅ / palette ✅ / references ✅（0 存疑）/ citations ✅（0 未解析）/ sections ✅ / claims ✅ /
-  fixture:check ✅（6 夹具 195 断言）/ red:first ✅ RESULT=RED（base=bb2f22f，分类=assertion）/
-  ports ✅ / baseline ✅ / eval-ledger ✅（metrics=25）/ verify-ledger-selfcheck ✅ /
-  screens selfcheck ✅（5/5）/ pytest ✅ / orphan-gates ✅（0 未登记）；
-  另 `eval-rewind.mjs` 16/16（真实场景+真实 UI）、`eval-sensory.mjs` 16/16（回归不破坏）、
-  `worktrees:audit` ✅、`audit:branches --strict` ✅。
+- 最后 HEAD: `487b6e5`（`main`，PR #57「世界时间回溯 + Trajectory 因果分叉可观测性」已合入）；
+  主仓已从 `chore/branch-hygiene` 切回 `main` 并快进到 `origin/main`（`487b6e5`）。
+- 未提交改动: 无已跟踪改动（对齐时按「main 为准」丢弃了与 PR #57 重叠的原型 daycard 改动与
+  旧 RESUME/WORKTREES 改动，均已备份到仓外 `../pwe-prerework-backup-20261116/`）；
+  另有 15 个未跟踪图片/JSON 资产（原样保留，不入仓）。
+- 已跑闸门: 本单收尾只改 `docs/`（RESUME / WORKTREES），未碰代码与测试；
+  合入前 PR #57 的四项 CI（world-client / world-client-browser / repo-harness / server）已全绿（run 43848176559）。
 - 未跑/失败: 无。
-- 下一步命令: PR #57 四项 CI 已全绿（world-client 1m37s / world-client-browser 9m10s / repo-harness 14s / server 17s，run 43848176559）；等待 owner 审阅合入，合入后按登记表回收本 worktree。
+- 下一步命令: 已回收 `D:/project/pwe-rewind` 工作树并删本地 `feat/time-rewind-trajectory` 分支；
+  `node scripts/worktrees-audit.mjs --strict` 确认 exit 0。
 
 ## time-rewind 工作树返工收口（`feat/time-rewind-trajectory`，PR #57）
 
