@@ -197,7 +197,17 @@ async function main() {
   let passed = 0;
 
   try {
-    await page.goto(args.url, { waitUntil: 'networkidle' });
+    // 调试桥只在 `?debug=1` 下挂载：与 eval-sensory 同一条补参纪律（#59 验收发现：
+    // 照抄指南命令不带 debug=1 时，16 条全部「缺桥」假红）。这里自动补齐，
+    // 调用方不带也能跑，带了不重复加。
+    const finalUrl = args.url.includes('debug=1')
+      ? args.url
+      : args.url.includes('?')
+        ? `${args.url}&debug=1`
+        : `${args.url}?debug=1`;
+    await page.goto(finalUrl, { waitUntil: 'networkidle' });
+    // 等桥挂载再跑用例：否则快速执行的用例会把「页面还没 create()」误读成「缺 API」。
+    await page.waitForFunction(() => Boolean(window.__PIXEL_WORLD_DEBUG__), null, { timeout: 15000 });
     for (const splitName of splits) {
       const dataset = await loadSplit(splitName);
       console.log(`\n=== Running rewind & trajectory eval split: ${splitName} (${dataset.examples.length} cases) ===`);

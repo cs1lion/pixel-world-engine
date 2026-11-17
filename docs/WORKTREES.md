@@ -39,7 +39,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-anim-fsm | feat/anim-fsm | anim-fsm 线（在役会话） | 2026-11-06 | 2026-11-20 | 活跃（未合入 main；角色动画状态机 v1，未接管渲染） |
 | D:/project/pwe-audit-fix | fix/audit-standards-20261105 | 待认领 | 2026-11-05 | 2026-11-19 | 活跃（未合入 main；审计标准修订线） |
 | D:/project/pwe-before | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 基线快照（`54139dd`）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
-| D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-11-17 | 活跃（未合入 main） |
+| D:/project/pwe-spike | spike/depth-pipeline | cs1lion | 2026-11-03 | 2026-12-01（2026-11-17 续期） | 活跃（未合入 main）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除）；本地领先 main 6 笔（1a/1b-1/1b-2 深度管线契约）且未推过远端，回收前先 `git push -u origin spike/depth-pipeline` |
 | D:/project/pwe-delivery-ledger | feat/delivery-ledger | 待认领 | 2026-11-06 | 2026-11-20 | 已登记（补登记）；未合入 main，待 owner 回收 |
 | D:/project/pwe-docs-fix | docs/verifiable-flows-fix | 待认领 | 2026-11-06 | 2026-11-20 | 已合入 main（经 `6df4324`）；worktree 待 owner 回收 |
 | D:/project/pwe-eval | eval/ledger-facts-question | eval 线（在役会话） | 2026-11-04 | 2026-11-18 | 已合入 main（分支 tip `0a965ca`，经 `91c08e6` 合入；worktree 待 owner 回收） |
