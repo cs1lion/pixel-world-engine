@@ -55,7 +55,6 @@ worktree 已回收、本地与远端分支已删，表项同步移除。
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
-| D:/project/pwe-world-bundle | feat/world-bundle-compiler | world-bundle 线（在役会话） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `469bbc7`；WorldBundle v1 契约 + Lore-to-World 资料编译器 + 本地 Ollama 适配器，等组合 1/2 合入后 rebase 转正） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
@@ -69,6 +68,9 @@ worktree 已回收、本地分支已删，表项同步移除；同日发现 `pwe
 **2026-11-19 巡检**：`pwe-oracle-hygiene`（`feat/oracle-prompt-hygiene`）已合入
 main（经 PR #61，`35754ad`），worktree 与本地分支已回收，表项按「已合入即清理」
 口径移除；其开工登记内容见该 PR 的提交说明。
+
+**2026-11-19 巡检**：`pwe-world-bundle`（`feat/world-bundle-compiler`）已合入
+main（经 PR #62，`49e523d`），worktree 已回收、本地分支已删，表项同步移除。
 
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
 若某个 worktree 实际由其他人/agent 创建，owner 应改成实际负责人或「待认领」，
