@@ -51,6 +51,7 @@ PWE_WORKTREE_TTL_DAYS=7 node scripts/worktrees-audit.mjs
 | D:/project/pwe-evidence-provenance | chore/evidence-provenance-audit | 证据同源审计线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `60f77cd`，分支 tip `92cea52`；只读 warn/exit 0，未接 CI、未登记 allowlist，本轮不并入） |
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
+| D:/project/pwe-hud-ux | feat/hud-and-villager-ux | cindy 会话（hud-ux） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `469bbc7`；组合 1：HUD 头像条/时钟天气牌、编年史贴边停靠、脚下快捷条） |
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
