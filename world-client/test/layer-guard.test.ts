@@ -15,7 +15,7 @@
  *    免 screens-diff、转正移出后补全 EDD）写在 `CLAUDE.md` 与
  *    `scripts/red-first-lib.ts` 的跳过清单里；这条静态扫描守的是它的另一面：
  *    实验代码不得被生产路径接走——`src/` 下除 labs 自己以外的任何文件都不得
- *    import `src/labs/**`。
+ *    import `src/labs/**`（静态 `from` 与动态 `import()` 同罪）。
  */
 
 import { test } from 'node:test';
@@ -91,6 +91,8 @@ test('labs 沙盒：实验原型不得被生产路径接走', () => {
     if (rel.startsWith('labs/')) continue; // labs 内部互 import 是它自己的事。
     const code = codeOf(file);
     if (/from\s+['"](\.\.\/)*labs\//.test(code)) offenders.push(`${file}: import src/labs`);
+    // 动态 import() 与静态 from 同罪：`await import('../labs/probe.ts')` 也是接走。
+    if (/import\s*\(\s*['"](\.\.\/)*labs\//.test(code)) offenders.push(`${file}: 动态 import src/labs`);
   }
   assert.deepEqual(offenders, [], `实验原型不得进生产路径：\n${offenders.join('\n')}`);
 });

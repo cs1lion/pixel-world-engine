@@ -10,14 +10,15 @@
  *     9 色 UI 基础语义 Token，且零外部图片请求（后者由 `check-art-assets.mjs`
  *     的 `?art=0` 零素材请求断言守，不在本脚本重复）。本脚本扫的就是这一层。
  *   - 表现层（`?art=1`，默认）：允许全色域像素图集、WebGL 光照与混合色调，
- *     不受 24 色预算约束。`src/render/art1/` 与资产图集目录（`public/assets/`）
+ *     不受 24 色预算约束。`src/render/art1/`、`src/render/fx-ambient/`（下一棒
+ *     PR-B 的环境暖光粒子实验区）与资产图集目录（`public/assets/`）
  *     在本脚本里显式放行，不计入世界层 / UI 层统计。
  *
  * 口径（用户明确要求）：
  *   1. 只统计源码里的“源色值”，不模拟运行时色调/透明度叠加；
  *   2. 世界层与 UI 层分开统计；
  *   3. 来源：世界 = ?art=0 兜底渲染路径（src/main.ts、src/render/ 递归但排除
- *            src/render/art1/、src/scenes/*.ts，含 palette.ts 的 token 定义）、
+ *            src/render/art1/、src/render/fx-ambient/、src/scenes/*.ts，含 palette.ts 的 token 定义）、
  *            src/world/prefabs.json 的 palette 槽位；
  *            UI   = index.html 的 <style>（CSS 变量与字面量）、src/ui/*.ts 的内联颜色；
  *   4. 除 0xRRGGBB 外，Phaser 文本颜色以 '#rrggbb' 字符串出现，同样计入（否则会漏 5 个画布文字色）；
@@ -109,6 +110,9 @@ function listFiles(relDir, ext) {
 /** 表现层放行目录：?art=1 的像素图集与 WebGL 光照混合色不属 24 色预算口径。 */
 const ART1_DIR = 'src/render/art1';
 
+/** 环境暖光粒子沙盒：PR-B 的实验区，与 art1 同列，不计入 24 色预算口径。 */
+const FX_AMBIENT_DIR = 'src/render/fx-ambient';
+
 /** 资产图集目录：位图素材清单与图集，同属表现层放行。 */
 const ATLAS_DIRS = ['public/assets'];
 
@@ -124,7 +128,7 @@ function listTsRecursive(relDir) {
     }
     for (const name of entries.sort()) {
       const rel = path.posix.join(dir, name);
-      if (rel === ART1_DIR || ATLAS_DIRS.includes(rel)) continue;
+      if (rel === ART1_DIR || rel === FX_AMBIENT_DIR || ATLAS_DIRS.includes(rel)) continue;
       const full = path.join(ROOT, rel);
       if (statSync(full).isDirectory()) {
         walk(rel);
