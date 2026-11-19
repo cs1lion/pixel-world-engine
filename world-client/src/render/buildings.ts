@@ -184,6 +184,13 @@ export interface BuildingView {
    * 三层的绘制顺序不变，画面逐像素相同。
    */
   readonly roof: BuildingLayer;
+  /**
+   * 位图素材楼的「屋面」就是整栋楼的生图（墙与屋顶在同一张图里，见
+   * `createBuilding` 里位图素材那一段）。掀屋顶对它们不成立：淡出屋面等于
+   * 淡出整栋楼，街景里也没有内景可露。只有程序化楼（默认 false）才进
+   * 掀屋顶状态机。
+   */
+  readonly roofIsWholeBuilding?: boolean;
   /** 烟囱口的场景坐标，粒子发射器挂在这里。 */
   readonly chimneyWorld: Phaser.Math.Vector2;
   /** 屋顶上沿，Y-Sort 用。 */
@@ -253,6 +260,7 @@ export function createBuilding(
       progress,
       sign,
       roof: image,
+      roofIsWholeBuilding: true,
       chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
       baseY: buildingBaseY(py, building.footprint.h),
     };
@@ -1164,4 +1172,120 @@ export function updateBuilding(
     view.progress.fillStyle(paletteFor().amber, 0.5 + 0.5 * Math.sin(scene.time.now / 120));
     view.progress.fillRect(4, -8, width, 3);
   }
+}
+
+// ---------------------------------------------------------------- 掀屋顶
+
+/**
+ * 旁观掀屋顶：悬停把屋面/前檐淡出、露出墙体结构，点击屋顶锁定常开，
+ * 点击空地盖回。状态机与 Phaser 解耦（纯函数 + 帧步进），单测能直接驱动。
+ *
+ * 不变量（这两条是被 `building-depth.test.ts` 锁死的三层深度序的延伸）：
+ * - 只改 alpha，不改 depth，不改容器子项顺序——back/container/front 的
+ *   遮挡关系一个字都不动；
+ * - 烟囱不淡：它的 alpha 归 `updateBuilding` 的忙闲态管（闲时本就该隐），
+ *   两处都写就会打架。
+ */
+export type RoofLiftState = 'closed' | 'opening' | 'lifted' | 'locked' | 'closing';
+
+export type RoofLiftEvent =
+  | 'hover'
+  | 'leave'
+  | 'click-roof'
+  | 'click-empty';
+
+/** 掀开后屋面/前檐的目标 alpha：看得见里面的墙，又读得出「这楼被掀了」。 */
+export const ROOF_LIFT_ALPHA = 0.15;
+/** 淡出/盖回时长（毫秒）：线性插值，步长与帧率解耦。 */
+const ROOF_LIFT_MS = 180;
+
+export function roofLiftNext(state: RoofLiftState, event: RoofLiftEvent): RoofLiftState {
+  switch (state) {
+    case 'closed':
+      return event === 'hover' || event === 'click-roof' ? 'opening' : 'closed';
+    case 'opening':
+      if (event === 'click-roof') return 'locked';
+      return event === 'leave' || event === 'click-empty' ? 'closing' : 'opening';
+    case 'lifted':
+      if (event === 'click-roof') return 'locked';
+      return event === 'leave' || event === 'click-empty' ? 'closing' : 'lifted';
+    case 'locked':
+      // 锁定的定义就是「离开也不盖回」；唯一的出口是点空地。
+      return event === 'click-empty' ? 'closing' : 'locked';
+    case 'closing':
+      if (event === 'click-roof') return 'locked';
+      return event === 'hover' ? 'opening' : 'closing';
+  }
+}
+
+/** 该状态对应的目标 alpha：只有 closed/closing 是盖回的 1。 */
+export function roofLiftTargetAlpha(state: RoofLiftState): number {
+  return state === 'closed' || state === 'closing' ? 1 : ROOF_LIFT_ALPHA;
+}
+
+/** 把 alpha 写到该写的两层：屋面与前檐。别的一律不碰。 */
+export function applyRoofLiftAlpha(view: BuildingView, alpha: number): void {
+  view.roof.setAlpha(alpha);
+  view.front.setAlpha(alpha);
+}
+
+export interface RoofLift {
+  /** 属于哪栋楼：场景层按 instanceId 存取时核对用。 */
+  readonly buildingId: string;
+  readonly state: () => RoofLiftState;
+  readonly alpha: () => number;
+  readonly handle: (event: RoofLiftEvent) => void;
+  /** 每帧步进：向目标 alpha 线性逼近，到点收尾状态。 */
+  readonly update: (deltaMs: number) => void;
+}
+
+export function createRoofLift(view: BuildingView, buildingId: string): RoofLift {
+  const liftable = view.roofIsWholeBuilding !== true;
+  let state: RoofLiftState = 'closed';
+  let alpha = 1;
+  let applied = 1;
+  const apply = (): void => {
+    if (!liftable || alpha === applied) return;
+    applyRoofLiftAlpha(view, alpha);
+    applied = alpha;
+  };
+  return {
+    buildingId,
+    state: () => state,
+    alpha: () => alpha,
+    handle(event) {
+      if (!liftable) return;
+      state = roofLiftNext(state, event);
+    },
+    update(deltaMs) {
+      if (!liftable) return;
+      const target = roofLiftTargetAlpha(state);
+      if (alpha !== target) {
+        const step = deltaMs / ROOF_LIFT_MS;
+        if (Math.abs(target - alpha) <= step) alpha = target;
+        else alpha += Math.sign(target - alpha) * step;
+      }
+      // 到点收尾：opening 落定成 lifted，closing 落定成 closed。
+      // 放在 if 外：悬停即走、一步都未动画到时也要能收尾。
+      if (alpha === target) {
+        if (state === 'opening') state = 'lifted';
+        else if (state === 'closing') state = 'closed';
+      }
+      apply();
+    },
+  };
+}
+
+/** 悬停命中判据：像素点是否落在楼体竖向范围内（地面线到屋脊）。
+ *
+ * 纯函数，场景层拿来按指针位置找楼；不碰 Phaser。
+ */
+export function buildingSpansPoint(args: {
+  readonly groundY: number;
+  readonly wallH: number;
+  readonly roofH: number;
+  readonly y: number;
+}): boolean {
+  const top = args.groundY - args.wallH - args.roofH;
+  return args.y >= top && args.y <= args.groundY;
 }

@@ -26,7 +26,7 @@ export interface WorldOverlay {
 }
 
 /** 从 stage 的计算样式取**真实**缩放（transform 矩阵的 x 缩放分量）。 */
-function readStageScale(stage: HTMLElement): number {
+export function readStageScale(stage: HTMLElement): number {
   const transform = getComputedStyle(stage).transform;
   if (transform === '' || transform === 'none') return 1;
   const matched = /matrix\(([^)]+)\)/.exec(transform);
