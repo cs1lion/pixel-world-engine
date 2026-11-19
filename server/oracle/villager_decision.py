@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Request
 
+from oracle import prompt_hygiene as hygiene
 from oracle.orchestrator import ModelFailed, ModelUnavailable, ModelCaller
 
 router = APIRouter()
@@ -36,41 +37,53 @@ def _system_prompt() -> str:
 
 
 def _user_prompt(body: dict[str, Any]) -> str:
-    name = str(body.get("villagerName") or "她")
-    day = body.get("day")
-    routine = str(body.get("routineLabel") or "（无）")
-    memories = body.get("memories") or []
-    sites = body.get("availableSites") or []
-
+    # 全部字段过 prompt_hygiene 再进提示词：空字段不进、长小数不进、
+    # 内部程序 id / 调试字段不进（只读白名单字段，其余一律当没有）。
+    name = hygiene.text(body.get("villagerName")) or "她"
     lines = [f"人物：{name}"]
-    if isinstance(day, int):
+    day = hygiene.whole_int(body.get("day"))
+    if day is not None:
         lines.append(f"第 {day} 天")
-    lines.append(f"作息说：{routine}")
+    lines.append(f"作息说：{hygiene.text(body.get('routineLabel')) or '（无）'}")
 
-    if isinstance(memories, list) and memories:
+    memories = body.get("memories")
+    rendered: list[str] = []
+    if isinstance(memories, list):
+        for item in memories[:hygiene.MAX_MEMORIES]:
+            if not isinstance(item, dict):
+                continue
+            mem_text = hygiene.text(item.get("text"))
+            if mem_text is None:
+                continue
+            mem_day = hygiene.whole_int(item.get("day"))
+            prefix = f"第 {mem_day} 天" if mem_day is not None else ""
+            rendered.append(f"{prefix} {mem_text}" if prefix else mem_text)
+    if rendered:
         lines.append("她记得：")
-        for item in memories[:10]:
-            if isinstance(item, dict):
-                text = str(item.get("text") or "")
-                mem_day = item.get("day")
-                prefix = f"第 {mem_day} 天" if isinstance(mem_day, int) else ""
-                if text:
-                    lines.append(f"  {prefix} {text}" if prefix else f"  {text}")
+        lines.extend(f"  {line}" for line in hygiene.unique(rendered))
     else:
         lines.append("她记得：（今天没什么特别的）")
 
-    if isinstance(sites, list) and sites:
-        lines.append("可选场所：")
+    sites = body.get("availableSites")
+    site_lines: list[str] = []
+    if isinstance(sites, list):
+        seen_ids: set[str] = set()
         for site in sites:
-            if isinstance(site, dict):
-                site_id = str(site.get("siteId") or "")
-                site_name = str(site.get("siteName") or site_id)
-                activities = site.get("activities")
-                if isinstance(activities, list) and activities:
-                    acts = "、".join(str(a) for a in activities)
-                    lines.append(f"  {site_id}（{site_name}）：{acts}")
-                else:
-                    lines.append(f"  {site_id}（{site_name}）")
+            if not isinstance(site, dict):
+                continue
+            site_id = hygiene.text(site.get("siteId"))
+            if site_id is None or site_id in seen_ids:
+                continue
+            seen_ids.add(site_id)
+            site_name = hygiene.text(site.get("siteName")) or site_id
+            acts = hygiene.str_items(site.get("activities"))
+            site_lines.append(
+                f"{site_id}（{site_name}）：{'、'.join(acts)}" if acts
+                else f"{site_id}（{site_name}）"
+            )
+    if site_lines:
+        lines.append("可选场所：")
+        lines.extend(f"  {line}" for line in site_lines)
 
     lines.append("请做决定。")
     return "\n".join(lines)

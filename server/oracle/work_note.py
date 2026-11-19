@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Request
 
+from oracle import prompt_hygiene as hygiene
 from oracle.orchestrator import ModelFailed, ModelUnavailable, ModelCaller
 
 router = APIRouter()
@@ -39,22 +40,24 @@ def _system_prompt() -> str:
 
 
 def _user_prompt(body: dict[str, Any]) -> str:
-    site = str(body.get("siteName") or body.get("site") or "这处")
-    activity = str(body.get("activity") or "work")
-    stock = body.get("stock")
-    day = body.get("day")
-    people = body.get("people") or []
-    canonical = body.get("canonical")
+    # 全部字段过 prompt_hygiene 再进提示词：空字段不进、长小数不进、
+    # 内部程序 id / 调试字段不进（只读白名单字段，其余一律当没有）。
+    site = hygiene.text(body.get("siteName")) or hygiene.text(body.get("site")) or "这处"
+    activity = hygiene.text(body.get("activity")) or "work"
     lines = [f"场所：{site}", f"活动：{activity}"]
-    if isinstance(canonical, str) and canonical.strip() != "":
+    canonical = hygiene.text(body.get("canonical"))
+    if canonical is not None:
         # 原牌子是**权威事实**：模型只换说法，不许改事实。
-        lines.append(f"现在牌子上写的是：{canonical.strip()}（请换一种说法，事实一个都不许变）")
-    if isinstance(stock, int):
+        lines.append(f"现在牌子上写的是：{canonical}（请换一种说法，事实一个都不许变）")
+    stock = hygiene.whole_int(body.get("stock"))
+    if stock is not None:
         lines.append(f"这里的存货：{stock} 份")
-    if isinstance(day, int):
+    day = hygiene.whole_int(body.get("day"))
+    if day is not None:
         lines.append(f"第 {day} 天")
-    if isinstance(people, list) and people:
-        lines.append(f"此刻在场：{'、'.join(str(p) for p in people)}")
+    people = hygiene.str_items(body.get("people"))
+    if people:
+        lines.append(f"此刻在场：{'、'.join(people)}")
     lines.append("请写这一句状态牌。")
     return "\n".join(lines)
 
