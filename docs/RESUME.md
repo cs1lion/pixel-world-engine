@@ -2,11 +2,11 @@
 
 ## 当前断点
 
-- 最后 HEAD: `b997869c`（`chore/unlock-presentation-gates`，worktree `D:/project/pwe-unlock-gates`；
-  基点 `49e523d` = origin/main，PR #62 合入后 rebase 跟上，两笔提交：`35e3464` 主体改造 +
-  `b997869c` labs 目录级免跑规则 + WORKTREES 补登记 + RESUME 收口）。
-  注：rebase 解冲突时 main 已收编 `pwe-world-bundle` 表项（该线自己登记的版本更准），
-  本分支删掉了重复的「待认领」版；`pwe-creator-overlay` 补登记保留。
+- 最后 HEAD: `de176de`（`chore/unlock-presentation-gates`，worktree `D:/project/pwe-unlock-gates`；
+  基点 = origin/main 含 PR #62/#66 合入后的最新 main。rebase 改写过历史，sha 以
+  `git log -1` 为准；三笔提交：主体改造 / labs 目录级免跑+补登记 / RESUME 收口）。
+  注：两次 rebase 解冲突都只动 `docs/WORKTREES.md` 表项——main 收编又撤下
+  `pwe-world-bundle` 行，本分支跟随；`pwe-creator-overlay` 补登记保留。
 - 未提交改动: 无已跟踪改动（上笔提交后仅剩 WORKTREES 补登记与本文件）；
   主仓 `D:/project/pixel-world-engine` 的 15 个未跟踪图片/JSON 资产原样保留，未入仓。
 - 已跑闸门: 17 道 CI 闸门全绿（rebase 到 `49e523d` 后全量重跑）——类型/端口/基线字节
