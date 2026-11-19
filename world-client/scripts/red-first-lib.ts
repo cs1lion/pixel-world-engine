@@ -205,6 +205,16 @@ export function planTestChanges(changes: ChangedFile[]): TestPlan {
       });
       continue;
     }
+    // labs 沙盒（2026-11-19 起）：实验原型的测试免跑 red-first——base 上没有
+    // 对应实现，红灯判据不成立；转正移出 labs 后再补全 EDD 评测。
+    // 目录级规则，不按文件名登记：沙盒里的文件是流动的，逐个登记必漏。
+    if (change.relative.startsWith('labs/')) {
+      skipped.push({
+        file: change.relative,
+        reason: 'labs 沙盒：实验原型免跑 red:first（base 上无对应实现）；转正移出 labs 后再补全 EDD 评测',
+      });
+      continue;
+    }
     const snapshotReason = isSnapshotLikeTest(change.relative);
     if (snapshotReason) {
       skipped.push({ file: change.relative, reason: snapshotReason });
