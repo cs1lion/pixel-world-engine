@@ -2,17 +2,19 @@
 
 ## 当前断点
 
-- 最后 HEAD: `cda6ee2`（`chore/unlock-presentation-gates`，worktree `D:/project/pwe-unlock-gates`；
-  基点 `6b57287` = origin/main，PR #64 之后）。本轮另有 `docs/WORKTREES.md` 补登记两行
-  （pwe-creator-overlay / pwe-world-bundle，11-19 巡检发现他人未登记）与本文件，见下一笔提交。
+- 最后 HEAD: `b997869c`（`chore/unlock-presentation-gates`，worktree `D:/project/pwe-unlock-gates`；
+  基点 `49e523d` = origin/main，PR #62 合入后 rebase 跟上，两笔提交：`35e3464` 主体改造 +
+  `b997869c` labs 目录级免跑规则 + WORKTREES 补登记 + RESUME 收口）。
+  注：rebase 解冲突时 main 已收编 `pwe-world-bundle` 表项（该线自己登记的版本更准），
+  本分支删掉了重复的「待认领」版；`pwe-creator-overlay` 补登记保留。
 - 未提交改动: 无已跟踪改动（上笔提交后仅剩 WORKTREES 补登记与本文件）；
   主仓 `D:/project/pixel-world-engine` 的 15 个未跟踪图片/JSON 资产原样保留，未入仓。
-- 已跑闸门: 17 道 CI 闸门全绿——类型/端口/基线字节（166/166）/单测 2801 项/夹具回放
-  6 条 195 项/先红后绿（RESULT=RED 在断言）/构建/色板 24+9 零越界/行号引用+符号锚点
-  551 处 0 存疑/文件引用/节号/标注断言+ADR schema 26 valid/指标账本 25 条/账本自检/
-  截图自检 5/5/服务端 pytest 579 passed 1 skipped/交付报告审计 issues=0；
-  三套 EDD 全绿（sensory 16/16、creator 16/16、rewind 16/16）；`check:hooks` 绿；
-  孤儿闸门 0 未登记。
+- 已跑闸门: 17 道 CI 闸门全绿（rebase 到 `49e523d` 后全量重跑）——类型/端口/基线字节
+  （166/166）/单测 2831 项 2821 pass 0 fail/夹具回放 6 条 195 项/先红后绿
+  （RESULT=RED 在断言）/构建/色板 24+9 零越界/行号引用+符号锚点 551 处 0 存疑/文件引用/
+  节号/标注断言+ADR schema 26 valid/指标账本 25 条/账本自检/截图自检 5/5/服务端 pytest
+  623 passed 1 skipped/交付报告审计 issues=0；三套 EDD 全绿（sensory 16/16、creator 16/16、
+  rewind 16/16）；`check:hooks` 绿；孤儿闸门 0 未登记。
 - 未跑/失败: `worktrees:audit --strict` exit 1——未登记项已清零（本分支补登记 2 行），
   剩余红是 6 个**过期未回收** worktree 的 owner 债务（`pwe-audit-fix`/`pwe-eval`/
   `pwe-flaky-gates`/`pwe-material`/`pwe-palette-before`/`pwe-verify`），main 基线同样红、
