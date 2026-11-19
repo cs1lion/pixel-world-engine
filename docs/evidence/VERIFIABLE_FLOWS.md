@@ -377,7 +377,7 @@ node --import ./test/phaser-hooks.mjs --test test/palette-budget.test.ts
 
 **输入**：`scripts/audit-palette.mjs`、`test/palette-budget.test.ts`、`docs/adr/ADR_PALETTE_24.md`、`docs/evidence/palette-9/*.txt`。
 
-**判据**：`BUDGET = {world:24, ui:9}`（`audit-palette.mjs:31`）；测试 `WORLD_BUDGET=24`、`UI_BUDGET=9`、`UNION_BUDGET=32`，共享色必须恰为 `[hex(WORLD.amber)]`（`palette-budget.test.ts:21-24,118-124`）；`--strict` 只在 `overBudgetWorld>0 || overBudgetUi>0` 时退出 1。九个 UI 槽是 U1 ink `#e8e2d2`、U2 paper-ink `#24211b`、U3 dim `#8e968c`、U4 panel `#171b18`、U5 line `#666a62`、U5b line-faint `#2b322c`、U6 amber `#e3a13c`、U7 base `#0c0f0d`、U8 warn `#c8876a`。边框对比的历史读数是 `line/base=3.49`、`line/panel=3.15`（2026-11-05 归档，出处 `palette-9/contrast.txt:9-17`；门槛 3.0 是判据，当前值跑 `audit-palette`）。`audit.txt` 记 2026-11-05 的世界/UI 引用条数（当时 335/183）与预算判定 24/9/32（24/9/32 是预算判据；引用条数当前值跑 `--json` 取）。
+**判据**：`BUDGET = {world:24, ui:9}`（`audit-palette.mjs:50`）；测试 `WORLD_BUDGET=24`、`UI_BUDGET=9`、`UNION_BUDGET=32`，共享色必须恰为 `[hex(WORLD.amber)]`（`palette-budget.test.ts:21-24,118-124`）；`--strict` 只在 `overBudgetWorld>0 || overBudgetUi>0` 时退出 1。九个 UI 槽是 U1 ink `#e8e2d2`、U2 paper-ink `#24211b`、U3 dim `#8e968c`、U4 panel `#171b18`、U5 line `#666a62`、U5b line-faint `#2b322c`、U6 amber `#e3a13c`、U7 base `#0c0f0d`、U8 warn `#c8876a`。边框对比的历史读数是 `line/base=3.49`、`line/panel=3.15`（2026-11-05 归档，出处 `palette-9/contrast.txt:9-17`；门槛 3.0 是判据，当前值跑 `audit-palette`）。`audit.txt` 记 2026-11-05 的世界/UI 引用条数（当时 335/183）与预算判定 24/9/32（24/9/32 是预算判据；引用条数当前值跑 `--json` 取）。
 
 **反向用例**：值层测试对 `WORLD`/`UI` 逐 token deepEqual 提案表，换值必红（`palette-budget.test.ts:109-116`）；另有一批 render/scenes 文件禁裸 `0xRRGGBB`（`:126-142`）。`--strict` 的红样是给 `index.html` 加第 10 个 UI hex（UI=10 → 退出 1），但这种构造要改文件，本次没有执行。`[实测]` 本次 `--strict` 与测试都通过。
 

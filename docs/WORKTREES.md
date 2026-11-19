@@ -55,6 +55,8 @@ worktree 已回收、本地与远端分支已删，表项同步移除。
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
+| D:/project/pwe-unlock-gates | chore/unlock-presentation-gates | cs1lion | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `6b57287`；表现层松绑与闸门分层改造：palette 分层、references 符号锚点、确定性防火墙、labs 沙盒） |
+| D:/project/pwe-creator-overlay | feat/creator-placement-overlay | 待认领 | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；tip `6c23334`；11-19 巡检发现时未登记，按「没登记的并行工作不应默认为正常」补登记，owner 待认领） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
@@ -67,7 +69,9 @@ worktree 已回收、本地分支已删，表项同步移除；同日发现 `pwe
 
 **2026-11-19 巡检**：`pwe-oracle-hygiene`（`feat/oracle-prompt-hygiene`）已合入
 main（经 PR #61，`35754ad`），worktree 与本地分支已回收，表项按「已合入即清理」
-口径移除；其开工登记内容见该 PR 的提交说明。
+口径移除；其开工登记内容见该 PR 的提交说明。同日 `pwe-creator-overlay` 建仓未登记，
+按上表口径补登记（owner 写「待认领」，实际负责人认领后改掉）；`pwe-world-bundle`
+由该线自己登记（world-bundle 线在役会话）；`pwe-unlock-gates`（本线）按「先登记再开工」登记。
 
 **2026-11-19 巡检**：`pwe-world-bundle`（`feat/world-bundle-compiler`）已合入
 main（经 PR #62，`49e523d`），worktree 已回收、本地分支已删，表项同步移除。

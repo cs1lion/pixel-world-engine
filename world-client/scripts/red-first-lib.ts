@@ -82,6 +82,10 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/pack-owns-world-data.test.ts',
     reason: '设定集包归属判定适配：为新增的 empty-map 设定集放宽 isPackFile，该适配在 base（无 empty-map）上行为不变、仍全绿，base 上无红可证',
   },
+  {
+    file: 'test/layer-guard.test.ts',
+    reason: '层边界守卫：守的是「无违规」状态（world 零时钟零随机、fx-ambient 防火墙、labs 沙盒），base 上同样全绿、base 上无红可证；交 npm test 与本文件断言守',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));
@@ -198,6 +202,16 @@ export function planTestChanges(changes: ChangedFile[]): TestPlan {
       skipped.push({
         file: change.relative,
         reason: '测试文件被删除：base 上没有可跑的测试，需人工核对是否只是删用例',
+      });
+      continue;
+    }
+    // labs 沙盒（2026-11-19 起）：实验原型的测试免跑 red-first——base 上没有
+    // 对应实现，红灯判据不成立；转正移出 labs 后再补全 EDD 评测。
+    // 目录级规则，不按文件名登记：沙盒里的文件是流动的，逐个登记必漏。
+    if (change.relative.startsWith('labs/')) {
+      skipped.push({
+        file: change.relative,
+        reason: 'labs 沙盒：实验原型免跑 red:first（base 上无对应实现）；转正移出 labs 后再补全 EDD 评测',
       });
       continue;
     }
