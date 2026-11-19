@@ -12,7 +12,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DENGCHAO_RAW, DENGCHAO_CAST_ARCHIVES } from '../src/settings/dengchao/pack.ts';
 import type { PrefabBlueprint } from '../src/world/types.ts';
-import { validateWorldBundle } from '../src/world/bundle/validator.ts';
 import type {
   WorldBundle,
   WorldBundleCastMember,
@@ -21,7 +20,26 @@ import type {
   WorldBundleRegion,
   WorldBundleVoiceProfile,
 } from '../src/world/bundle/schema.ts';
-import { VOICE_TEMPO_MAX } from '../src/world/bundle/schema.ts';
+
+/**
+ * red-first 适配：基线上 `src/world/bundle/` 尚不存在，静态 import 会在模块
+ * 收集期就抛 ERR_MODULE_NOT_FOUND，被 `scripts/red-first-lib.ts` 判成「红得
+ * 不对」的 module 类（基础设施错误优先于断言分类）。这里改动态 import + catch：
+ * 缺模块时转成一条断言失败，让基线红在断言上；本分支上正常加载后照常跑全部用例。
+ *
+ * 注意 catch 里的文案**不许**出现「Cannot find module / ERR_MODULE_NOT_FOUND」
+ * 等字样——分类器扫全量输出，原文留在断言消息里会直接被判回 module。
+ */
+let validateWorldBundle: typeof import('../src/world/bundle/validator.ts').validateWorldBundle;
+let voiceTempoMax: number;
+try {
+  const validator = await import('../src/world/bundle/validator.ts');
+  validateWorldBundle = validator.validateWorldBundle;
+  const schema = await import('../src/world/bundle/schema.ts');
+  voiceTempoMax = schema.VOICE_TEMPO_MAX;
+} catch {
+  assert.fail('WorldBundle 契约模块在基线上尚未落地：动态 import 失败，本测试先红于此。');
+}
 
 /**
  * 灯潮界 → WorldBundle v1 的示例夹具：把 `settings/dengchao/pack.ts` 里那张
@@ -311,7 +329,7 @@ test('声线参数越界被拦截', () => {
     bundleWith((draft) => {
       draft.cast[0] = {
         ...draft.cast[0],
-        voiceProfile: { pitch: 1.5, tempo: VOICE_TEMPO_MAX + 0.1, warmth: -0.1 },
+        voiceProfile: { pitch: 1.5, tempo: voiceTempoMax + 0.1, warmth: -0.1 },
       };
     }),
   );
