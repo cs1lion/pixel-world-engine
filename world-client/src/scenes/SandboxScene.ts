@@ -80,6 +80,7 @@ import {
 import type { SaveOracle } from '../ui/save-store.ts';
 import type { CameraOracle } from '../ui/camera-bar.ts';
 import type { VillagerMemoryView, VillagerOracle } from '../ui/villager-panel.ts';
+import { bindVillagerQuickBar, type QuickBarHandle, type QuickBarOracle } from '../ui/quick-bar.ts';
 import type { SteleOracle, SteleView } from '../ui/stele-panel.ts';
 import type { BuildingActivity, BuildingOracle, BuildingPanelView } from '../ui/building-panel.ts';
 import type { DayCardOracle, DayCardProof, DayCardRead } from '../ui/daycard-panel.ts';
@@ -445,6 +446,8 @@ export class SandboxScene extends Phaser.Scene {
   private suppressClickUp = false;
   private contextMenuListener: ((event: Event) => void) | null = null;
   private readonly villagerViews = new Map<string, VillagerView>();
+  /** 脚下快捷条（P1）：点人弹出，与名字/气泡同挂 #world-overlay。 */
+  private quickBar: QuickBarHandle | null = null;
   /** 人物脚下的日照投影层（depth 3.1，见 `world/ground-shadow.ts`）。 */
   private groundShadowLayer!: Phaser.GameObjects.Graphics;
   /** 人物/摊位落地投影开关；`debugGroundShadows` 写这个口子。 */
@@ -1519,6 +1522,11 @@ export class SandboxScene extends Phaser.Scene {
     void this.creationLedger.flush();
     const overlayRoot = document.querySelector<HTMLDivElement>('#world-overlay');
     if (overlayRoot !== null) this.overlay = createWorldOverlay(this, overlayRoot, this.pack?.regions);
+    // 脚下快捷条（P1）：点人弹出五个动作，与名字/气泡同挂 #world-overlay。
+    this.quickBar = bindVillagerQuickBar(
+      () => (window as unknown as { Oracle?: QuickBarOracle }).Oracle,
+      { scene: this },
+    );
     this.lastSaveKey = this.saveStateKey();
     // 省电模式：切到后台就降频。这是常驻窗口能不能长期开着的前提——
     // 用户写代码时如果它还跑满 60fps，笔记本会发烫。
@@ -1682,6 +1690,8 @@ export class SandboxScene extends Phaser.Scene {
     this.pendingCreationObservations.clear();
     this.overlay?.dispose();
     this.overlay = null;
+    this.quickBar?.dispose();
+    this.quickBar = null;
     if (this.nightKeyListener !== null) {
       window.removeEventListener('keydown', this.nightKeyListener);
       this.nightKeyListener = null;
@@ -3160,6 +3170,9 @@ export class SandboxScene extends Phaser.Scene {
     const villager = this.villagerAt(pointer);
     if (villager === null) return false;
     this.openUnitStatus({ kind: 'villager', id: villager.id });
+    // 左键点人：状态菜单照旧开（浏览器验收钉着它），脚下再冒一条轻量快捷条——
+    // 五个常做动作不必为此反复开合大侧边栏。
+    this.quickBar?.show(villager.id);
     return true;
   }
 
@@ -3307,6 +3320,9 @@ export class SandboxScene extends Phaser.Scene {
 
   /** 收起状态菜单。只改界面选择，不碰世界，也不暂停。 */
   dismissUnitStatus(): void {
+    // 快捷条与状态菜单同生共死：任何一条把它关掉的路径（点空白、Esc、
+    // 关按钮、开了别处）都顺脚把脚下的条也收走，不留无主的浮条。
+    this.quickBar?.hide();
     if (this.unitStatusSelection === null) return;
     this.unitStatusSelection = null;
     this.publishUnitStatus();
@@ -3356,6 +3372,36 @@ export class SandboxScene extends Phaser.Scene {
     const next: VillagerMemoryView = { id: villager.id, name: villager.name, lines };
     this.lastVillagerMemory = next;
     for (const listener of this.villagerMemoryListeners) listener(next);
+  }
+
+  /**
+   * 只飞不锁：镜头平滑落到她脚下，不开面板、不开跟随。
+   *
+   * 与 `lookAtVillager` 的区别是「看」与「跟」：头像条第一下是飞过去看，
+   * 再一下（或「跟随」按钮）才是锁。给飞也开记忆面板，等于没有「只是看看」。
+   */
+  flyToVillager(villagerId: string): boolean {
+    const villager = this.snapshot.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined || !villager.visible) return false;
+    const foot = villagerFootAt(villager.pos, 0, 0);
+    this.cameraCtl.panTo(foot.x, foot.y, 300);
+    return true;
+  }
+
+  /** 镜头锁住她，但不开面板。`lookAtVillager` 是「看+跟」，这里是纯「跟」。 */
+  followVillager(villagerId: string): boolean {
+    const view = this.villagerViews.get(villagerId);
+    if (view === undefined) return false;
+    this.cameraCtl.follow(view.container);
+    return true;
+  }
+
+  /** 开她的只读状态菜单。快捷条里的「资料」走这条，不与记忆面板互斥。 */
+  inspectVillager(villagerId: string): boolean {
+    const villager = this.snapshot.villagers.find((item) => item.id === villagerId);
+    if (villager === undefined) return false;
+    this.openUnitStatus({ kind: 'villager', id: villagerId });
+    return true;
   }
 
   /**
@@ -4956,6 +5002,14 @@ export class SandboxScene extends Phaser.Scene {
         return () => this.cameraModeListeners.delete(listener);
       },
       lookAtVillager: (villagerId: string): void => this.lookAtVillager(villagerId),
+      /** 只飞不锁：镜头平滑落到她脚下，不开面板、不开跟随。头像条第一下走这条。 */
+      flyToVillager: (villagerId: string): boolean => this.flyToVillager(villagerId),
+      /** 镜头锁住她（不开面板）。头像条的「跟随」与脚下快捷条的同名牌走这条。 */
+      followVillager: (villagerId: string): boolean => this.followVillager(villagerId),
+      /** 松开跟随，但记住跟的是谁（相机自己的 `releaseFollow` 语义）。 */
+      releaseCameraFollow: (): void => { this.cameraCtl.releaseFollow(); },
+      /** 开她的只读状态菜单（快捷条里的「资料」）。 */
+      inspectVillager: (villagerId: string): boolean => this.inspectVillager(villagerId),
       /**
        * 调试摆位：把某个村民的**画面**钉在固定格上（名字与气泡跟着走），
        * 只改这一帧要画的那份快照，不写世界、不进存档。`cell` 为 null 时解除。
@@ -5562,6 +5616,8 @@ export class SandboxScene extends Phaser.Scene {
 
     // 动态中文（名字/气泡）走 DOM overlay：按 canvas 实际位置每帧同步（D5-A）。
     this.overlay?.sync(snapshot);
+    // 脚下快捷条跟着她挪：她走路，条贴着她脚下走；她不见了，条自己收。
+    this.quickBar?.sync(snapshot);
     // 状态菜单开着时每帧重算锚点：镜头缩放/平移后不能错位。内容由 DOM 去重。
     if (this.unitStatusSelection !== null) this.publishUnitStatus();
 

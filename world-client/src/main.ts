@@ -19,6 +19,8 @@ import { bindChronicle } from './ui/chronicle-panel.ts';
 import { bindDayCardPanel, type DayCardOracle } from './ui/daycard-panel.ts';
 import { bindCameraBar, type CameraOracle } from './ui/camera-bar.ts';
 import { bindVillagerPanel, type VillagerOracle } from './ui/villager-panel.ts';
+import { bindVillageHud, type VillageHudOracle } from './ui/village-hud.ts';
+import { bindDockPanel } from './ui/dock-panel.ts';
 import { bindStelePanel, type SteleOracle } from './ui/stele-panel.ts';
 import { bindBuildingPanel, type BuildingOracle } from './ui/building-panel.ts';
 import { createMemoryClient } from './world/memory-client.ts';
@@ -234,6 +236,13 @@ bindCameraBar(cameraOracle);
 const villagerOracle = (): VillagerOracle | undefined =>
   (window as unknown as { Oracle?: VillagerOracle }).Oracle;
 bindVillagerPanel(villagerOracle);
+
+// 左上角头像条 + 镇志停靠。两个都是只读界面层：头像条读快照、点一下只是
+// 把镜头飞过去/锁过去；停靠只改布局，偏好记 localStorage，不碰世界。
+const villageHudOracle = (): VillageHudOracle | undefined =>
+  (window as unknown as { Oracle?: VillageHudOracle }).Oracle;
+bindVillageHud(villageHudOracle);
+bindDockPanel();
 
 // 碑面板。**这一行是最容易漏的那一环**：`stele.ts`、面板文件、`Oracle.stele()`
 // 全绿而这里不绑，屏幕上点那块石头什么也不会出来——而只看 Oracle 的验收也照样绿。

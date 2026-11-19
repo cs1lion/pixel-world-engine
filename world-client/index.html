@@ -1116,6 +1116,96 @@
         box-shadow: 0 10px 30px color-mix(in srgb, var(--base) 55%, transparent);
       }
 
+      /* 左上角头像条（P1）：时钟天气牌 + 至多 7 人头像条。颜色只走变量；
+         头像就是名字首字，?art=0 时也不挂任何素材。 */
+      #village-hud {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        pointer-events: none;
+      }
+      #village-hud > * { pointer-events: auto; }
+      #village-clock {
+        font-family: var(--font-pixel);
+        font-size: 11px;
+        color: var(--ink);
+        background: color-mix(in srgb, var(--panel) 86%, transparent);
+        border: 1px solid var(--line);
+        padding: 2px 6px;
+        white-space: nowrap;
+      }
+      #village-strip { display: flex; gap: 4px; }
+      .village-avatar {
+        position: relative;
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel) 86%, transparent);
+        color: var(--ink);
+        font: 12px/1 var(--font-pixel);
+        cursor: pointer;
+      }
+      .village-avatar.away { opacity: 0.45; }
+      .village-avatar.selected,
+      .village-avatar.following { border-color: var(--amber); }
+      .village-avatar.following { color: var(--amber); }
+      .village-avatar-face { display: block; }
+      .village-avatar-badge {
+        position: absolute;
+        top: -7px;
+        right: -4px;
+        font-size: 9px;
+        line-height: 1;
+        padding: 1px 2px;
+        background: var(--panel);
+        border: 1px solid var(--line-faint);
+        color: var(--amber);
+        white-space: nowrap;
+      }
+      .village-avatar-badge[hidden] { display: none; }
+      #village-follow {
+        align-self: flex-start;
+        font-size: 10px;
+        padding: 2px 6px;
+      }
+      /* 镇志停靠（P1）：贴边后占一整列，手柄在面板与画布之间拖宽；
+         body 上挂的类让 #stage 整列让位，主视野不被遮。宽度变量挂在 body，
+         面板与让位列读同一个数，不会各说各话。 */
+      #chronicle.docked { top: 0; bottom: 0; max-height: none; }
+      #chronicle.dock-left { left: 0; width: var(--dock-w, 340px); border-radius: 0; }
+      #chronicle.dock-right { right: 0; left: auto; width: var(--dock-w, 340px); border-radius: 0; }
+      .dock-resizer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        cursor: col-resize;
+      }
+      #chronicle.dock-left .dock-resizer { right: -3px; }
+      #chronicle.dock-right .dock-resizer { left: -3px; }
+      body.dock-left #stage { margin-left: var(--dock-w, 340px); }
+      body.dock-right #stage { margin-right: var(--dock-w, 340px); }
+      /* 脚下快捷条（P1）：挂在 #world-overlay 里，跟着投影走；
+         overlay 本身不吃事件，按钮自己要吃回来。 */
+      #villager-quick-bar {
+        position: absolute;
+        z-index: 8;
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        background: color-mix(in srgb, var(--panel) 86%, transparent);
+        border: 1px solid var(--line);
+        transform: translate(-50%, 0);
+        pointer-events: auto;
+        white-space: nowrap;
+      }
+      #villager-quick-bar[hidden] { display: none; }
+      #villager-quick-bar .quick-action { font-size: 11px; padding: 2px 6px; }
       /* 窄屏：顶栏折行，不让 Cmd+K 提示挤掉负载信息。 */
       @media (max-width: 720px) {
         #topbar { flex-wrap: wrap; gap: 6px 12px; }
@@ -1147,6 +1237,13 @@
     <div id="stage">
       <div id="app"></div>
       <div id="world-overlay"></div>
+      <!-- 左上角：时钟天气牌 + 村民头像条（P1）。与小地图同一套位置语言，
+           压在画布左上；头像与微标都是文字，?art=0 时也不发任何请求。 -->
+      <div id="village-hud" aria-label="时辰天气与村民">
+        <span id="village-clock" aria-live="off"></span>
+        <div id="village-strip" role="group" aria-label="村民头像条"></div>
+        <button type="button" id="village-follow" disabled>跟随</button>
+      </div>
       <div id="minimap" role="group" aria-label="世界小地图"></div>
     </div>
 
@@ -1255,6 +1352,9 @@
         <span class="chronicle-actions">
           <button type="button" id="chronicle-refresh">重读</button>
           <button type="button" id="chronicle-back" hidden>返回</button>
+          <button type="button" id="chronicle-dock-left">贴左</button>
+          <button type="button" id="chronicle-dock-right">贴右</button>
+          <button type="button" id="chronicle-dock-restore">还原</button>
           <button type="button" id="chronicle-close">关闭</button>
         </span>
       </div>
