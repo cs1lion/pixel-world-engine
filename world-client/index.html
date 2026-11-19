@@ -251,6 +251,20 @@
          与气泡分开两套样子，因为它们是两回事——气泡是「她此刻在说什么」，
          露话是「这东西底下一直压着什么」。气泡会走，露话不走。
          中文只能走 DOM：`no-cjk-canvas.test.ts` 禁 canvas 里的 .text()。 */
+      /* 造物主摆放遮罩的拒因浮层：中文只走 DOM（D5-A），颜色全用既有变量，
+         不进 canvas、不进色板预算。 */
+      .placement-label {
+        position: absolute;
+        transform: translate(-50%, -100%);
+        z-index: 7;
+        padding: 2px 4px;
+        font: 11px/1.3 var(--font-pixel);
+        color: var(--paper-ink);
+        background: color-mix(in srgb, var(--ink) 82%, transparent);
+        border: 1px solid var(--line);
+        white-space: nowrap;
+        pointer-events: none;
+      }
       .overlay-reveal {
         position: absolute;
         transform: translate(-50%, -100%);

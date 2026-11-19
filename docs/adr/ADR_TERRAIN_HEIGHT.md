@@ -83,7 +83,7 @@
 | 布景 | `render/scenery-depth.ts` | 行号 + 12 / 4 的偏移 |
 | 装饰 | `render/decor.ts` | 同样按 `py + ACTOR_DEPTH_OFFSET` |
 
-`ALTITUDE = 1000`：`SandboxScene.ts:303`（grep `const ALTITUDE = 1000`）。
+`ALTITUDE = 1000`：`SandboxScene.ts:315`（grep `const ALTITUDE = 1000`）。
 **已有 y 排序**：人物 +8、道具 +8、布景 +12/4、建筑 body 0 / decal 16 / front 32；
 地形整体在 -10，所以「地形永远在人下面」。今天没有任何东西按高度改屏幕 y。
 
@@ -663,7 +663,7 @@ world.terrainEdits: readonly {
 | `actorDepthAt` / `buildingBaseY` | `world-client/src/render/building-depth.ts:39` / `:34` |
 | `propFootY` / `propDepth` | `world-client/src/render/prop-depth.ts`（按函数名 grep；公式本体已搬到 `ground.ts`） |
 | `groundTopY` / `groundY` / `actorDepth` | `world-client/src/render/ground.ts`（本次新增，按符号名 grep） |
-| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:303` |
+| `const ALTITUDE = 1000` | `world-client/src/scenes/SandboxScene.ts:315` |
 | 地形烘焙入口 `bakeLayer(... -10 ...)` | `world-client/src/scenes/SandboxScene.ts:778` |
 | `MAX_COMMANDS = 30_000` | `world-client/scripts/check-render-budget.mjs:61` |
 | `pave-reachable.test.ts` 的 `nearestWalkable` 断言 | `world-client/test/pave-reachable.test.ts:177` |
