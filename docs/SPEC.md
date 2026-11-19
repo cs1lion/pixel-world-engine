@@ -684,6 +684,13 @@ v2 不推翻 v1 的引擎决策，补四件事：
 结论：11 色里 10 色有落点，`藤紫` 缺。**不为此加第 25 色**——等真正要画神灵时
 再走 ADR，而不是现在为了对齐手册破预算。
 
+**闸门分层（2026-11-19 起，见 `docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`）**：
+24 色预算只管逻辑兜底层（`?art=0`：程序化绘制兜底，必须严格 24 色世界调色板 +
+9 色 UI 基础语义 Token、零外部图片请求；后者由 `check-art-assets.mjs` 的 `?art=0`
+零素材请求断言守）；表现层（`?art=1`，默认开）允许全色域像素图集、WebGL 光照与
+混合色调，`src/render/art1/` 与资产图集目录（`public/assets/`）在 palette 闸眼里
+显式放行，不进世界层 / UI 层统计。
+
 ### 11.3 潮位：有期限的覆盖（用户 2026-10-25 确认）
 
 `tide.setLevel` 不再直接写潮位，而是写一条**覆盖**：
@@ -782,6 +789,14 @@ CI 增加一个 Python job。在那之前，世界侧必须能在没有服务端
 5. **配置包 → `buildWorld`**——第二份设定集启动，断言世界结构与色板映射。
 
 不新开「渲染截图对比」接缝：像素级回归成本高、脆，且色板预算已经有审计脚本。
+
+**层边界与沙盒（2026-11-19 起，见 `docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`）**：
+`src/world/**` 全目录零墙钟零随机（`test/layer-guard.test.ts`，唯一例外是
+`Simulation` 收下注入墙钟的默认值那一行）；`src/render/fx-ambient/**`（纯装饰环境
+动效）豁免视觉时钟与独立视觉 PRNG，但严禁向 WorldState 写入任何状态——不得
+import `src/world/**`、不得出现 `WorldState` 标识符；`src/labs/` 是实验沙盒，
+免 red:first 与 screens-diff，转正移出后再补全 EDD 评测。screens-diff 的 5/5 判定
+锁定 `?art=0` 基准模式（`check-shot-actor-pin.mjs`、`check-rain-pin.mjs` 头注）。
 
 **先例**：
 

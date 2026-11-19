@@ -47,8 +47,8 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 | 5 | 回放夹具 | `npm run fixture:check` | 前端 job |
 | 6 | 先红后绿 | `npm run red:first` | 前端 job |
 | 7 | 构建 | `npm run build` | 前端 job |
-| 8 | 色板预算 | `node scripts/audit-palette.mjs --strict` | 前端 job |
-| 9 | 行号引用 | `node scripts/audit-references.ts --strict` | 前端 job |
+| 8 | 色板预算（?art=0 兜底层 + UI Token） | `node scripts/audit-palette.mjs --strict` | 前端 job |
+| 9 | 行号引用 + 符号锚点 | `node scripts/audit-references.ts --strict` | 前端 job |
 | 10 | 文件引用 | `node scripts/audit-citations.ts --strict` | 前端 job |
 | 11 | 节号引用 | `node scripts/audit-sections.ts --strict` | 前端 job |
 | 12 | 标注断言 + ADR 字段 | `node scripts/audit-claims.ts --strict` | 前端 job |
@@ -61,6 +61,30 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
 `test:building-bake` / `test:art-assets` / `test:phases`，只读、写到 runner
 临时目录）。它是验收，不在这十七道计数里。
+
+## 闸门分层口径（2026-11-19 起）
+
+- **palette 24/24 只管逻辑兜底层与 UI Token**：`?art=0` 渲染路径必须严格 24 色世界
+  调色板 + 9 色 UI 基础语义 Token、零外部图片请求（后者由 `check-art-assets.mjs`
+  的 `?art=0` 零素材请求断言守）；`?art=1` 表现层允许全色域像素图集、WebGL 光照与
+  混合色调，`src/render/art1/` 与资产图集目录（`public/assets/`）放行。
+- **行号引用与符号锚点**：`audit-references.ts` 首选锚点是 `path#symbolName`
+  （函数/类/导出符号存在性校验），既有行号引用向后兼容；文档优先写符号锚点，
+  改代码不必再陪行号漂移。
+- **两条边界**（`test/layer-guard.test.ts` 静态守）：
+  a) `src/world/**` 继续 100% 禁绝 `Date.now()` / `Math.random()`（含
+  `performance.now` / `new Date(`），确保存档与 Trajectory 指纹确定性；
+  b) `src/render/fx-ambient/**`（纯装饰环境动效：风摆、飞鸟、涟漪、光晕呼吸、
+  镜头阻尼）豁免视觉时钟与独立视觉 PRNG，严禁向 WorldState 写入任何状态。
+- **labs 沙盒**：`world-client/src/labs/` 下实验原型免跑 red:first 与 screens-diff
+  （跳过登记在 `scripts/red-first-lib.ts`），转正移出 labs 后再补全 EDD 评测；
+  实验代码不得被生产路径 import。
+- **screens-diff 5/5 锁定 `?art=0`**：pin 夹具五项判定（三组基线 0/0/0 + 两条扰动
+  非零）只在程序化兜底基准模式执行，见 `check-shot-actor-pin.mjs` /
+  `check-rain-pin.mjs` 头注。
+
+决策全文：`docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`；规范口径见 `docs/SPEC.md`
+§11.2 与 §12。
 
 ## 权限边界（远端 + 本地）
 

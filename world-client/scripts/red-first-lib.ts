@@ -82,6 +82,10 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/pack-owns-world-data.test.ts',
     reason: '设定集包归属判定适配：为新增的 empty-map 设定集放宽 isPackFile，该适配在 base（无 empty-map）上行为不变、仍全绿，base 上无红可证',
   },
+  {
+    file: 'test/layer-guard.test.ts',
+    reason: '层边界守卫：守的是「无违规」状态（world 零时钟零随机、fx-ambient 防火墙、labs 沙盒），base 上同样全绿、base 上无红可证；交 npm test 与本文件断言守',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));

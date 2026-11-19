@@ -16,7 +16,7 @@
  *
  * 所以这里把它变成一条 CI 跑得到的断言，而不是一份「写完就对一次」的清单。
  *
- * 查五样：
+ * 查六样：
  *   1. **指的文件存在**。引用写作 `grid.ts:230-237` 时只有一个裸文件名，
  *      所以按「引用者目录 → 仓库根 → 全仓唯一后缀」的顺序找。后缀撞上多个
  *      文件时报出来并列出候选——那不是脚本猜得了的，是人得挑一个写清楚。
@@ -35,6 +35,15 @@
  *      坐标旁边，本身就是一句可验的断言：它说那一行是它。而这一样恰恰最容易
  *      悄悄烂掉——行号在文件里、那段也有代码，只是代码是**别的**，于是前三样
  *      全绿。见 `CALL_REF` 上那段记着的真事。
+ *   6. **符号锚点 `文件#符号`（首选锚点）**：`grid.ts#inRect` 这种写法不钉
+ *     行号，钉的是「那个符号在那份文件里」。行号每被一次提交推移一点就会烂
+ *     （前五样管的主要是这种烂法），符号名却要跟着定义一起改才能骗过这道闸——
+ *     改代码必爆行号漂移的根源被切断。符号存在性按声明形态认：
+ *     `function` / `class` / `interface` / `type` / `enum` / `const` / `let` / `var`
+ *     的声明、`export { … }` 名单、`export default`，以及 Python 的 `def` / `class`。
+ *     只「出现过」不算（调用也叫那个名）；必须在那儿**定义或导出**过。
+ *     符号锚点也可以再带行号（`grid.ts#inRect:120`），两样都查。
+ *     向后兼容：不带 `#` 的旧行号引用（第一到五样）一律照旧。
  *
  * 两处**不查**，都是有意的：
  *   - 网址里的 `:8080` 是端口。整段挖掉，不是「这行有网址就整行跳过」——
@@ -131,7 +140,7 @@ function hits(line: string): readonly Hit[] {
  * 实测（2026-10-27）全仓当时只有一处落在那种沉默里，就是它自己测试数据里的
  * 那一行。那是运气，不是设计——所以改成逐处判。
  */
-const URL_SPAN = /https?:\/\/\S*/g;
+const URL_SPAN = /https?:\/\/\S*|file:\/\/\S*/g;
 
 /** 把网址换成等长空白，剩下的才拿去找引用。
  *
@@ -214,6 +223,35 @@ const CALL_REF =
 
 /** 引用允许偏几行：ADR 常引函数上面那段注释，而注释里不一定再写一遍函数名。 */
 const CALL_REF_SLACK = 3;
+
+/**
+ * 符号锚点：`文件#符号`，可选再带 `:行号`（`文件#符号:123`）。
+ *
+ * 只认 ts / mjs / py —— md 没有函数/类/导出符号，Markdown 标题锚点
+ * （`SPEC.md#112-…`）不是这一样要管的东西，收进来只会误报。
+ * 符号名不许以 `L数字` 开头：那是 GitHub 的行锚点（`save.ts#L413`），
+ * 指向的是行不是符号，交给行号那一套判据，不在这里假装能判。
+ */
+const SYMBOL_REF = /([\w./-]+\.(?:ts|mjs|py))#([A-Za-z_$][\w$]*)(?::(\d+)(?:-(\d+))?)?/g;
+
+/**
+ * 那份文件里有没有这个符号的**声明或导出**。
+ *
+ * 故意不认「出现过」：`文件#符号` 若只要求符号在那份文件里被调用过，
+ * 等于什么都没查——调用到处都有，定义只在一处。认声明形态与 export 名单，
+ * 就是认「那个符号的本体在那儿」。Python 只多认 `def` / `class` 两种行首形态。
+ */
+function hasSymbol(text: string, name: string, file: string): boolean {
+  const decl = new RegExp(`\\b(?:function|class|interface|type|enum|const|let|var)\\s+${name}\\b`);
+  if (decl.test(text)) return true;
+  if (new RegExp(`\\bexport\\s*\\{[^}]*\\b${name}\\b`).test(text)) return true;
+  if (new RegExp(`\\bexport\\s+default\\s+${name}\\b`).test(text)) return true;
+  if (file.endsWith('.py')) {
+    if (new RegExp(`^def\\s+${name}\\b`, 'm').test(text)) return true;
+    if (new RegExp(`^class\\s+${name}\\b`, 'm').test(text)) return true;
+  }
+  return false;
+}
 
 /**
  * `CALL_REF` 看不见的那一批：名字挨着坐标，可名字后面跟的不是 `()`。
@@ -419,7 +457,7 @@ function resolveRef(ref: string, fromDir: string, index: readonly string[]): Res
  */
 function land(
   named: string,
-  first: string,
+  first: string | undefined,
   last: string | undefined,
   file: string,
   root: string,
@@ -434,6 +472,10 @@ function land(
     return { ok: false, why: `裸文件名撞上 ${resolved.candidates.length} 个文件（${names}）——写全路径` };
   }
   const target = readFileSync(resolved.file, 'utf8').split(/\r?\n/);
+  // 纯符号锚点（`文件#符号`，不带 `:行号`）：落点就是整份文件，span 不带坐标。
+  if (first === undefined) {
+    return { ok: true, lines: target, from: 1, to: target.length, span: path.relative(root, resolved.file) };
+  }
   const from = Number(first);
   const to = last === undefined ? from : Number(last);
   const span = `${path.relative(root, resolved.file)}:${first}${last === undefined ? '' : `-${last}`}`;
@@ -515,6 +557,29 @@ export function auditReferences({
             where,
             ref: named,
             why: `${landed.span} 那段里没有代码，只有空行或括号`,
+          });
+        }
+      }
+
+      // 第六样：符号锚点 `文件#符号`（可再带 `:行号`）。首选锚点——行号会漂，
+      // 符号不会。判据与上两段同构：落不了地、查无此符号，都说成是存疑。
+      for (const m of scanned.matchAll(SYMBOL_REF)) {
+        const named = m[1];
+        const name = m[2];
+        if (named === undefined || name === undefined) continue;
+        if (/^L\d/.test(name)) continue; // GitHub 行锚点（#L413）不是符号
+        checked += 1;
+        const where = `${path.relative(root, file)}:${at + 1}`;
+        const landed = land(named, m[3], m[4], file, root, index);
+        if (!landed.ok) {
+          findings.push({ where, ref: `${named}#${name}`, why: landed.why });
+          continue;
+        }
+        if (!hasSymbol(landed.lines.join('\n'), name, named)) {
+          findings.push({
+            where,
+            ref: `${named}#${name}`,
+            why: `${named}#${name} 那份文件里没有 ${name} 的声明或导出——符号锚点要求符号本体在那儿`,
           });
         }
       }
