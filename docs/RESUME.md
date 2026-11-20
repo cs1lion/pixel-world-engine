@@ -4,8 +4,9 @@
 
 - 最后 HEAD: `dbedd48`（本文档这笔提交紧随其后，**最终 sha 以 `git log -1` 为准**；
   分支 `feat/art1-visual-and-creator-ux`，worktree `D:/project/pwe-art1-visual`；
-  基点 = origin/main `d0bdf54`（含 PR #68），**stacked 在 PR #69 之上**（`8e32473`/`7c8f528`
-  两笔即造物落点遮罩 + 掀屋顶）。rebase 过两次改写过历史，sha 以 `git log -1` 为准。
+  基点 = origin/main `57aedd5`（含 PR #68/#70），**stacked 在 PR #69 之上**
+  （造物落点遮罩 + 掀屋顶那两笔）。rebase 过三次改写过历史（最后一次为跟 #70 的
+  CI 路径分流改造，只冲突 `CLAUDE.md` 一个表项，取两者并存），sha 以 `git log -1` 为准。
   本线八笔：PR-A 两笔（遮罩/掀屋顶 + 行号锚点修复）+ 图集注册表 + 渲染层接线
   + 自证读数与冒烟闸门 + `?atlas=1` 开关 + CI light lane + ADR/文档/账本收口。）
 - 未提交改动: 无。主仓 `D:/project/pixel-world-engine` 的 15 个未跟踪图片/JSON 资产
