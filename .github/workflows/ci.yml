@@ -277,6 +277,9 @@ jobs:
               npm run test:building-bake
               # 位图素材装载：?art=1 全装且每张 200，?art=0 零请求、两跑无 pageerror。
               npm run test:art-assets
+              # art1 表现层无头冒烟：图集两层接管、灯光有灯有记账、微动效在画、
+              # ?art=0 全回落、帧节奏贴 vsync。读数见 window.Oracle.debugArt1()。
+              npm run test:art1-smoke
               node scripts/check-phases-negative.mjs
               # 村民交互 EDD 主集：固定程序判别，逐条断言，有 fail 即 exit 1。
               # 数据集与备用集见 world-client/eval/interaction/；备用集合并前另跑。
