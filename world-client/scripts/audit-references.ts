@@ -246,6 +246,9 @@ function hasSymbol(text: string, name: string, file: string): boolean {
   if (decl.test(text)) return true;
   if (new RegExp(`\\bexport\\s*\\{[^}]*\\b${name}\\b`).test(text)) return true;
   if (new RegExp(`\\bexport\\s+default\\s+${name}\\b`).test(text)) return true;
+  // 类方法定义形态：行首缩进后名字 + 参数表 + 可选返回类型 + 函数体左括号。
+  // 调用语句（`  foo(x);`）结尾是分号，进不了这个形状——它认的是「定义本体」。
+  if (new RegExp(`^\\s*(?:async\\s+)?${name}\\s*\\([^)]*\\)\\s*(?::\\s*[\\w<>\\[\\]|, ]+)?\\s*\\{`, 'm').test(text)) return true;
   if (file.endsWith('.py')) {
     if (new RegExp(`^def\\s+${name}\\b`, 'm').test(text)) return true;
     if (new RegExp(`^class\\s+${name}\\b`, 'm').test(text)) return true;

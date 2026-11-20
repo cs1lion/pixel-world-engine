@@ -695,3 +695,27 @@ test('不是符号锚点的形状：一律不认、不计数', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('符号锚点认类方法定义，不认缩进调用语句', () => {
+  const root = fixture();
+  try {
+    writeFileSync(
+      path.join(root, 'world-client', 'src', 'd.ts'),
+      ['export class House {', '  openDoor(): void {', '    // 开门', '  }', '}', '', 'knock();', ''].join('\n'),
+      'utf8',
+    );
+    doc(
+      root,
+      [
+        `方法定义认（${sym('d.ts', 'openDoor')}）。`,
+        `只被调用的名字不认（${sym('d.ts', 'knock')}）。`,
+        '',
+      ].join('\n'),
+    );
+    const { findings } = auditReferences({ root });
+    assert.equal(findings.length, 1, '方法定义该认、纯调用该拒，正好一处存疑');
+    assert.match(WHY_OF(findings, 2), /声明或导出/, '纯调用被当成符号本体要说出来');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
