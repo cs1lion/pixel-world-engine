@@ -28,7 +28,7 @@ import {
   checkTypes,
   parseDiagnostics,
   tally,
-} from '../scripts/check-types.ts';
+} from '../../scripts/check-types.ts';
 
 /** 一个语法错（TS1110）和一个语义错（TS2322），两个文件互不 import。 */
 const SYNTAX_ERROR = 'export const broken: = 1;\n';
@@ -190,7 +190,7 @@ test('退出码透传到进程上：坏了就必须非零', (t) => {
   // 前几条走的是函数返回值，这一条走 main() 那条路——
   // 返回值对而退出码吞了，CI 会以为没事，那比没有这个脚本更糟。
   const tsconfig = fixture({ 'a.ts': SYNTAX_ERROR }, t);
-  const script = fileURLToPath(new URL('../scripts/check-types.ts', import.meta.url));
+  const script = fileURLToPath(new URL('../../scripts/check-types.ts', import.meta.url));
   const run = spawnSync(process.execPath, [script, '--tsconfig', tsconfig], {
     encoding: 'utf8',
   });
@@ -223,7 +223,7 @@ test('退出码透传到进程上：坏了就必须非零', (t) => {
  */
 test('仓库真 tsconfig 的 include 同时盖住 src 与 test', () => {
   const raw = readFileSync(
-    fileURLToPath(new URL('../tsconfig.json', import.meta.url)),
+    fileURLToPath(new URL('../../tsconfig.json', import.meta.url)),
     'utf8',
   );
   const config = JSON.parse(raw) as { include?: unknown; exclude?: unknown };

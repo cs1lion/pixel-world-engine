@@ -17,7 +17,7 @@ import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { auditCitations } from '../scripts/audit-citations.ts';
+import { auditCitations } from '../../scripts/audit-citations.ts';
 
 /** 拼一个不存在的文档路径。写死会被本脚本自己审到。 */
 function phantom(): string {

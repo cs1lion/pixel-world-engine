@@ -439,7 +439,7 @@ node tmp/stress/flake-repro.mjs --file world-client/test/intent-async.test.ts \
 
 测试分支：`feat/soak-30d`（worktree `D:\project\pwe-soak`，基线 `origin/main` `eab9e36`）。
 夹具：`world-client/test/soak-support.ts`；跑数：`node scripts/soak-30d.ts`（30 天）、`node scripts/soak-retrospect.ts`（90 天回溯审计）；读数与曲线：`docs/evidence/soak/REPORT.md`。
-`test/soak-30d.todo.test.ts` 现在**没有 `todo` 用例**（BUG-1 修完后已转正）。编号按本小节从 1 起，不与造物/交互混用。
+`test/nightly/soak-30d.todo.test.ts` 现在**没有 `todo` 用例**（BUG-1 修完后已转正）。编号按本小节从 1 起，不与造物/交互混用。
 
 状态：BUG-1 / BUG-3 / BUG-4 已修并翻正；BUG-2 改判为「场景边界 + 可达性测试」，不再是缺陷；BUG-5 的时间轴层**已修**（日摘要三档），事实原句层**部分修**（缺口仍在，见该条「剩下什么」）。
 

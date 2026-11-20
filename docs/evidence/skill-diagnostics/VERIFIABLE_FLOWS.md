@@ -86,7 +86,7 @@ skill：docs/evidence/VERIFIABLE_FLOWS.md
 | 文件 | 作用 |
 | --- | --- |
 | `world-client/scripts/audit-verify-flows.ts` | 按文件名把总表每行与注册表每项对上；四条判据：已入必须对上、未入必须对不上、注册项必须有行、入汇总必须读得出 |
-| `world-client/test/audit-verify-flows.test.ts` | 1 条对照 + 4 条坏样例，每条都只改一处 |
+| `world-client/test/meta/audit-verify-flows.test.ts` | 1 条对照 + 4 条坏样例，每条都只改一处 |
 | `world-client/scripts/verify-all.mjs` | 加 `--json`：把注册表原样吐出来给上者读，不解析源码 |
 
 「应该通过」的对照与四条坏样例：
@@ -99,7 +99,7 @@ skill：docs/evidence/VERIFIABLE_FLOWS.md
 坏样例：注册表多一条总表里没有的流程 → CHECK_WITHOUT_ROW
 ```
 
-`node --test test/audit-verify-flows.test.ts`：5 pass / 0 fail。真实文档当前 **0 处**——互指现在是成立的，这条断言的价值是**防漂移**，不是今天挑错。
+`node --test test/meta/audit-verify-flows.test.ts`：5 pass / 0 fail。真实文档当前 **0 处**——互指现在是成立的，这条断言的价值是**防漂移**，不是今天挑错。
 
 它拦不住什么（写死，免得被当成全能）：读不懂判据摘要与正文是否一致、读不懂「未执行」是否真的没执行、读不懂两处读数谁对、认不出「同一流程换了脚本但两边没共用一个文件名」。warn 期，未接 CI。
 

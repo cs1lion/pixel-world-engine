@@ -92,7 +92,7 @@
 
 ### B7. red-first 把「静态 import 新导出」的正常 TDD 判成 ERROR（已知误报）
 
-- **问题**：`red-first` 只把「断言失败」算合格的红。测试如果静态 `import { newThing } from '../scripts/...'`，而 base 上这个命名导出还不存在，Node 会报 `SyntaxError: ... does not provide an export named 'newThing'`；分类器按 `compile` 处理，闸门输出 `ERROR`（exit 2），不是 `PASS`。**[事实]**（实测：`world-client/test/red-first-lib.test.ts` 用静态 import 时本分支闸门为 ERROR；改成动态 import 后为 PASS）
+- **问题**：`red-first` 只把「断言失败」算合格的红。测试如果静态 `import { newThing } from '../scripts/...'`，而 base 上这个命名导出还不存在，Node 会报 `SyntaxError: ... does not provide an export named 'newThing'`；分类器按 `compile` 处理，闸门输出 `ERROR`（exit 2），不是 `PASS`。**[事实]**（实测：`world-client/test/meta/red-first-lib.test.ts` 用静态 import 时本分支闸门为 ERROR；改成动态 import 后为 PASS）
 - **触发条件**：本次改动在 `test/` 之外新增导出，且测试用静态 `import` 直接引用它。先写测试、后写实现的正常 TDD 正好命中。
 - **规避方式**：测试改为动态 import + 存在性断言：
   ```ts

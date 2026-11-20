@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { auditSkillDoc } from '../scripts/audit-skill-docs.ts';
+import { auditSkillDoc } from '../../scripts/audit-skill-docs.ts';
 
 /**
  * skill 文档结构闸门的行为锁：三组「坏样例 → 必须报具体位置与原因」，

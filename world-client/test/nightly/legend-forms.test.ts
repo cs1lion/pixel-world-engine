@@ -21,14 +21,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DENGCHAO_RAW } from '../src/settings/dengchao/pack.ts';
-import { buildSettingWorld, loadSettingPack } from '../src/settings/load.ts';
-import { routineProfiles, siteTargetResolver } from '../src/settings/index.ts';
-import { Simulation } from '../src/world/simulation.ts';
-import { MemoryRuntime } from '../src/world/memory/runtime.ts';
-import { observationOf } from '../src/world/memory/observe.ts';
-import type { WorldChange } from '../src/world/world-changes.ts';
-import { DAY_MS } from '../src/world/memory/config.ts';
+import { DENGCHAO_RAW } from '../../src/settings/dengchao/pack.ts';
+import { buildSettingWorld, loadSettingPack } from '../../src/settings/load.ts';
+import { routineProfiles, siteTargetResolver } from '../../src/settings/index.ts';
+import { Simulation } from '../../src/world/simulation.ts';
+import { MemoryRuntime } from '../../src/world/memory/runtime.ts';
+import { observationOf } from '../../src/world/memory/observe.ts';
+import type { WorldChange } from '../../src/world/world-changes.ts';
+import { DAY_MS } from '../../src/world/memory/config.ts';
 
 const PACK = loadSettingPack(DENGCHAO_RAW);
 const WORLD = buildSettingWorld(PACK);
