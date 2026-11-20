@@ -116,6 +116,11 @@ export interface AtlasLayerView {
   readonly active: boolean;
   /** 重贴整层（网格变化时调用；图集层是静态的，常规流程不会走到）。 */
   readonly rebuild: () => void;
+  /**
+   * 这一层的读数（证据用，不是判据）：接管与否、烘了几格、纹理多大。
+   * 无头冒烟靠它区分「图集上线了」与「清单在但一格都没贴」。
+   */
+  readonly stats: () => { readonly active: boolean; readonly cells: number; readonly widthPx: number; readonly heightPx: number };
   readonly destroy: () => void;
 }
 
@@ -150,8 +155,15 @@ export function createAtlasLayerView(
   const first = bake();
   if (first === null) return inactive();
   let image = first;
+  const stats = () => ({
+    active: true,
+    cells: cells.length,
+    widthPx: plan.width * TILE_PX,
+    heightPx: plan.height * TILE_PX,
+  });
   return {
     active: true,
+    stats,
     rebuild: () => {
       image.destroy();
       const next = bake();
@@ -164,8 +176,19 @@ export function createAtlasLayerView(
   };
 }
 
+/** 这一页是否走表现层（`?art=0` 才是关）。与 `art-assets.ts` 同一判据。 */
+export function artEnabledForAtlas(search: string | URLSearchParams): boolean {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search;
+  return params.get('art') !== '0';
+}
+
 function inactive(): AtlasLayerView {
-  return { active: false, rebuild: () => {}, destroy: () => {} };
+  return {
+    active: false,
+    rebuild: () => {},
+    stats: () => ({ active: false, cells: 0, widthPx: 0, heightPx: 0 }),
+    destroy: () => {},
+  };
 }
 
 /** 把整层计划展平成格数组（一次遍历，供烘焙与「有没有格」的判定共用）。 */

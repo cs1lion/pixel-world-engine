@@ -86,6 +86,26 @@ export const SNAPSHOT_LIKE_TESTS: SkipEntry[] = [
     file: 'test/layer-guard.test.ts',
     reason: '层边界守卫：守的是「无违规」状态（world 零时钟零随机、fx-ambient 防火墙、labs 沙盒），base 上同样全绿、base 上无红可证；交 npm test 与本文件断言守',
   },
+  {
+    file: 'test/atlas-registry.test.ts',
+    reason: 'art1 图集注册表：依赖 src/render/art1/atlas-registry.ts 与 public/assets/art1/ 真件（base 上不存在），red-first 只套 test/ diff 无法带入新 src 文件，base 上会因缺模块报 ERROR 而非断言红',
+  },
+  {
+    file: 'test/atlas-tiles.test.ts',
+    reason: 'art1 图集计划：依赖 src/render/art1/atlas-tiles.ts / atlas-buildings.ts（base 上不存在），同上，base 上缺模块而非断言红',
+  },
+  {
+    file: 'test/art1-lighting.test.ts',
+    reason: 'art1 光照纯函数：依赖 src/render/art1/lighting.ts（base 上不存在），同上，base 上缺模块而非断言红',
+  },
+  {
+    file: 'test/art1-light-pool.test.ts',
+    reason: 'art1 灯槽池：依赖 src/render/art1/lighting-pool.ts / lighting-sources.ts（base 上不存在），同上，base 上缺模块而非断言红',
+  },
+  {
+    file: 'test/fx-ambient.test.ts',
+    reason: 'fx-ambient 微动效：依赖 src/render/fx-ambient/ 三个模块（base 上不存在），同上，base 上缺模块而非断言红',
+  },
 ];
 
 const SNAPSHOT_BY_FILE = new Map(SNAPSHOT_LIKE_TESTS.map((entry) => [entry.file, entry.reason]));

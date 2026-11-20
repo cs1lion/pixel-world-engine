@@ -152,9 +152,19 @@ export interface MicroFxFrame {
   readonly tilePx?: number;
 }
 
+/** 本帧实际画了多少（证据读数，不是判据）。 */
+export interface MicroFxStats {
+  readonly grass: number;
+  readonly ripples: number;
+  readonly dots: number;
+  readonly hidden: boolean;
+}
+
 export interface MicroFxView {
   readonly update: (frame: MicroFxFrame) => void;
   readonly setHidden: (value: boolean) => void;
+  /** 上一帧的实画条数：无头冒烟用它证明「这一层真的在跑，而不是挂着没画」。 */
+  readonly stats: () => MicroFxStats;
   readonly destroy: () => void;
 }
 
@@ -174,13 +184,20 @@ export function createMicroFxView(
   const g = scene.add.graphics();
   g.setDepth(depth);
   let hidden = false;
+  let last: MicroFxStats = { grass: 0, ripples: 0, dots: 0, hidden: false };
 
   return {
+    stats: () => last,
     update(frame) {
       g.clear();
-      if (hidden) return;
+      if (hidden) {
+        last = { grass: 0, ripples: 0, dots: 0, hidden: true };
+        return;
+      }
       const tilePx = frame.tilePx ?? DEFAULT_TILE_PX;
       const budget = budgetFor(frame.view);
+      let grassDrawn = 0;
+      let rippleDrawn = 0;
 
       // 草尖：2×1 的亮色短横，跟着风水平挪 0..2px。
       g.fillStyle(palette.grassTint, 0.5);
@@ -192,6 +209,7 @@ export function createMicroFxView(
         const dx = grassSwayPx(blade, frame.nowMs, frame.wind);
         g.fillRect(blade.x * tilePx + 6 + dx, blade.y * tilePx + 11, 2, 1);
         drawn += 1;
+        grassDrawn += 1;
       }
 
       // 雨涟漪：1px 线宽的方框，尺寸随进度长到 8px。像素世界里四条短边
@@ -199,6 +217,7 @@ export function createMicroFxView(
       const ripples = rainRipplesFor(frame.view, frame.nowMs, frame.rainDensity).slice(0, budget.maxRipples);
       g.lineStyle(1, palette.rippleTint, 0.4);
       for (const ripple of ripples) {
+        rippleDrawn += 1;
         const r = 1 + Math.round(ripple.progress * 4);
         g.strokeRect(ripple.x * tilePx + 8 - r, ripple.y * tilePx + 8 - r, r * 2, r * 2);
       }
@@ -210,10 +229,14 @@ export function createMicroFxView(
         g.fillStyle(palette.dotTint, dot.alpha);
         g.fillRect(dot.x, dot.y, frame.night ? 1 : 2, 1);
       }
+      last = { grass: grassDrawn, ripples: rippleDrawn, dots: dots.length, hidden: false };
     },
     setHidden(value) {
       hidden = value;
-      if (value) g.clear();
+      if (value) {
+        g.clear();
+        last = { grass: 0, ripples: 0, dots: 0, hidden: true };
+      }
     },
     destroy() {
       g.destroy();

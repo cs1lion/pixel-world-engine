@@ -189,6 +189,7 @@ import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
 import { createAtlasLayerView, type AtlasLayerView } from '../render/art1/atlas-tiles.ts';
 import { preloadTileAtlas } from '../render/art1/atlas-registry.ts';
+import { artEnabledForAtlas } from '../render/art1/atlas-tiles.ts';
 import { createArtLighting, type ArtLightingHandle, type WarmLightSource } from '../render/art1/lighting.ts';
 import { assembleWarmSources, litWindowRatio } from '../render/art1/lighting-readings.ts';
 import { createMicroFxView, grassBladesFor, type MicroFxView } from '../render/fx-ambient/micro-fx.ts';
@@ -1155,13 +1156,11 @@ export class SandboxScene extends Phaser.Scene {
     this.atlasGroundView = createAtlasLayerView(this, this.world.grid, 'ground');
     this.atlasShoreView = createAtlasLayerView(this, this.world.grid, 'shore');
     // 光照层（`?art=1` + WebGL）：Canvas / 无头环境回空转壳，基线画面逐字节不变。
-    this.artLighting = createArtLighting(
-      this,
-      () => this.lightSources,
-      artEnabledOf(new URLSearchParams(window.location.search)),
-    );
+    // art1 三条线（图集 / 光照 / 微动效）共用一个闸：`?art=0` 是唯一的关法。
+    const art1 = artEnabledForAtlas(window.location.search);
+    this.artLighting = createArtLighting(this, () => this.lightSources, art1);
     // 环境微动效：只给一个常驻 Graphics，每帧 clear 重画（预算见 micro-fx 文件头）。
-    if (artEnabledOf(new URLSearchParams(window.location.search))) {
+    if (art1) {
       const fxPalette = this.pack?.palette ?? paletteFor();
       this.microFxView = createMicroFxView(this, {
         grassTint: fxPalette.moss,
@@ -5539,6 +5538,16 @@ export class SandboxScene extends Phaser.Scene {
       ),
       /** 全街 28 盏的渐次顺序与坐标（按世界 x 从西往东）。 */
       debugLampUnits: () => this.settingScenery?.lampUnits() ?? [],
+      /**
+       * `?art=1` 表现层的读数：图集两层、光照、微动效各自的「这帧真在跑吗」。
+       * 证据脚本用它区分「图层上线了」与「清单在但一格都没贴」。
+       */
+      debugArt1: () => ({
+        atlasGround: this.atlasGroundView?.stats() ?? { active: false, cells: 0, widthPx: 0, heightPx: 0 },
+        atlasShore: this.atlasShoreView?.stats() ?? { active: false, cells: 0, widthPx: 0, heightPx: 0 },
+        lighting: this.artLighting?.stats() ?? { active: false, capacity: 0, requests: 0, dropped: 0 },
+        microFx: this.microFxView?.stats() ?? { grass: 0, ripples: 0, dots: 0, hidden: true },
+      }),
       /** 把渲染用的潮位钉死（0..1）；`null` 交回快照。只压画面，不改世界。 */
       debugPinTide: (level: number | null): number | null => {
         this.pinnedTide = level === null ? null : Math.min(1, Math.max(0, level));

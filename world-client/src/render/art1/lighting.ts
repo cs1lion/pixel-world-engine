@@ -151,6 +151,8 @@ export interface ArtLightingHandle {
   readonly active: boolean;
   /** 上一帧被槽池挤掉的灯数（证据读数，不静默丢）。 */
   readonly droppedLastFrame: () => number;
+  /** 光照读数：槽容量 / 本帧请求数 / 挤掉数。无头冒烟用它证明这一层真在跑。 */
+  readonly stats: () => { readonly active: boolean; readonly capacity: number; readonly requests: number; readonly dropped: number };
   readonly update: (frame: LightingFrame, focus: { readonly x: number; readonly y: number }) => void;
   readonly destroy: () => void;
 }
@@ -175,12 +177,27 @@ export function createArtLighting(
     ? LightPool.create(scene.lights as unknown as import('./lighting-pool.ts').LightsManagerLike)
     : null;
   if (pool === null) {
-    return { active: false, droppedLastFrame: () => 0, update: () => {}, destroy: () => {} };
+    return {
+      active: false,
+      droppedLastFrame: () => 0,
+      stats: () => ({ active: false, capacity: 0, requests: 0, dropped: 0 }),
+      update: () => {},
+      destroy: () => {},
+    };
   }
+
+  /** 本帧进入挑选的请求数（`update` 里写、`stats` 里读）。 */
+  let lastRequests = 0;
 
   return {
     active: true,
     droppedLastFrame: () => pool.dropped,
+    stats: () => ({
+      active: true,
+      capacity: pool.capacity,
+      requests: lastRequests,
+      dropped: pool.dropped,
+    }),
     update(frame, focus) {
       const tint = ambientTintFor(frame.phase, frame.weatherIntensity, frame.raining);
       // 环境光的「强度」用混到黑表达：`setAmbientColor` 只吃颜色。
@@ -188,6 +205,7 @@ export function createArtLighting(
 
       const sources = sourcesOf();
       const requests: LightRequest[] = pool.warmRequests(sources, frame.nowMs);
+      lastRequests = requests.length;
       // 驻留建筑的窗口（基准强度 < 0.5 的灯）夜里跟着亮窗比例走。
       if (frame.phase === 'night') {
         for (let i = 0; i < requests.length; i += 1) {
