@@ -141,8 +141,8 @@ export function createAtlasLayerView(
   const sheetKey = atlasSheetKey('ground');
   if (!scene.textures.exists(sheetKey)) return inactive();
 
-  const plan = kind === 'ground' ? planAtlasGround(grid, manifest) : planAtlasShore(grid, manifest);
-  const cells = collectCells(plan);
+  let plan = kind === 'ground' ? planAtlasGround(grid, manifest) : planAtlasShore(grid, manifest);
+  let cells = collectCells(plan);
   // 整层一格都没登记：清单坏了/空的，不当成接管。
   if (cells.length === 0) return inactive();
 
@@ -165,6 +165,7 @@ export function createAtlasLayerView(
     active: true,
     stats,
     rebuild: () => {
+    plan = kind === 'ground' ? planAtlasGround(grid, manifest) : planAtlasShore(grid, manifest); cells = collectCells(plan);
       image.destroy();
       const next = bake();
       if (next !== null) image = next;
