@@ -105,7 +105,7 @@ test('buildWorldlineDiffReport 正确格式化差值与自证状态', () => {
       day: number;
       forkDay: number | null;
       fingerprintChanged: boolean;
-      metrics: readonly { key: string; label: string; formatted: string }[];
+      metrics: readonly { key: string;title : string; formatted: string }[];
     }
   >('buildWorldlineDiffReport');
 
@@ -142,7 +142,7 @@ test('buildWorldlineDiffReport 正确格式化差值与自证状态', () => {
   assert.equal(report.forkDay, 4);
   assert.equal(report.fingerprintChanged, true);
   assert.deepEqual(
-    report.metrics.map((m) => `${m.label}:${m.formatted}`),
+    report.metrics.map((m) => `${m.title}:${m.formatted}`),
     ['Δ建筑:+2', 'Δ道路:-1', 'Δ信念:0', 'Δ事实:+3'],
   );
 });
