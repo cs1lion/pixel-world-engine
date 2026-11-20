@@ -3630,7 +3630,7 @@ export class SandboxScene extends Phaser.Scene {
     this.creation = { prefabId, ghostAt: null };
     this.ghost.hide();
     // 铺遮罩：合法区亮出来，其余压暗。判据同一份（见 canPlaceBlueprintHere）。
-    this.placementOverlay?.enter(blueprint);
+    for (const lift of this.roofLifts.values()) { if (lift.state() === 'locked') lift.handle('click-empty'); } this.placementOverlay?.enter(blueprint);
     // 把焦点从按钮上拿走：否则回车会被浏览器当成「再点一次那个按钮」，
     // 模式刚确认又重新打开。焦点交给 body，键盘事件才由页面统一处理。
     (document.activeElement as HTMLElement | null)?.blur?.();
@@ -3697,7 +3697,7 @@ export class SandboxScene extends Phaser.Scene {
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     // 屋面带：墙顶以上到屋脊。点击这里才叫「点屋顶」。
     if (world.y < groundTopY(building.origin.y) - wallH) {
-      this.roofLifts.get(entry.building.instanceId)?.handle('click-roof');
+      for (const [id, lift] of this.roofLifts) { if (id !== building.instanceId && lift.state() === 'locked') lift.handle('click-empty'); } this.roofLifts.get(building.instanceId)?.handle('click-roof');
     }
   }
 
