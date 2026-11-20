@@ -16,6 +16,8 @@
  */
 
 import { artBuildingScale, artKey, artScaleOf, hasArt } from './art-assets.ts';
+import { buildingFramesFromScene, createAtlasBuildingView } from './art1/atlas-buildings.ts';
+import { atlasFirstEnabledOf } from './art1/atlas-registry.ts';
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { groundTopY } from './ground.ts';
@@ -36,6 +38,16 @@ export { BUILDING_DEPTH };
  * 开一页关着烘焙、同机位再开一页，拿两张同 ROI 的读数相减，才是这一块自己的 ΔL。
  * 非浏览器环境（单测）没有 window，按开处理。
  */
+/**
+ * `?atlas=1`：tile 图集抢在位图单件之前接管建筑。判据本体在
+ * `art1/atlas-registry.ts#atlasFirstEnabledOf`，这里只包一层「没有 window
+ * 就当关」——单测与无头环境不碰 URL。
+ */
+function atlasFirstEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  return atlasFirstEnabledOf(new URLSearchParams(window.location.search));
+}
+
 function contactAoEnabled(): boolean {
   if (typeof window === 'undefined') return true;
   const value = new URLSearchParams(window.location.search).get('contactAO');
@@ -191,6 +203,15 @@ export interface BuildingView {
    * 掀屋顶状态机。
    */
   readonly roofIsWholeBuilding?: boolean;
+  /**
+   * 屋面来自 **art1 图集的独立屋顶格**（`?art=1` 且清单登记了这栋楼）。
+   *
+   * 为什么单记一个字段：掀屋顶的成立条件是「屋面与楼体不是一张图」——
+   * `roofIsWholeBuilding !== true` 是必要条件但不是证据，位图分支与图集分支
+   * 都满足它。这个字段把「屋面是图集那一格」写死，冒烟脚本才数得出
+   * 「art=1 下有几栋楼真的可掀」，而不是靠推断。
+   */
+  readonly roofFromAtlas?: boolean;
   /** 烟囱口的场景坐标，粒子发射器挂在这里。 */
   readonly chimneyWorld: Phaser.Math.Vector2;
   /** 屋顶上沿，Y-Sort 用。 */
@@ -230,9 +251,10 @@ export function createBuilding(
   back.add([backLayer]);
 
   // 位图素材（默认开，且这个模板生成过图）：整栋换成一张生图，地面投影仍走上面那一层。
+  // `?atlas=1` 时这一支让位给 tile 图集（独立屋屋顶才能掀；默认不让，见下）。
   // 屋面槽就是这张图本身——进屋时收起屋面，整栋外立面一起收，内景接管。
   // 招牌 / 烟囱 / 窗层不画：图里已经有灯笼与窗光，再叠程序化的会重复。
-  if (hasArt(scene, 'building', building.prefabId)) {
+  if (hasArt(scene, 'building', building.prefabId) && !atlasFirstEnabled()) {
     const key = artKey('building', building.prefabId);
     const frame = scene.textures.get(key)?.getSourceImage();
     const scale = frame === undefined
@@ -264,6 +286,35 @@ export function createBuilding(
       chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
       baseY: buildingBaseY(py, building.footprint.h),
     };
+  }
+
+  // 图集建筑分支（`?art=1` 且图集清单登记了这栋楼）：四层各自平铺，
+  // **屋顶层是独立一格**——不是整栋楼一张图。于是 PR-A 的掀屋顶状态机
+  // 在图集楼上也成立：`roofIsWholeBuilding` 不为 true，屋面与前檐两层一起
+  // 淡出就能露内景。地面投影仍走上面那一层（back 容器里的 shadow）。
+  // 优先级在位图单件之后：`hasArt` 那一支已经在上面 return 了。
+  const atlasFrames = buildingFramesFromScene(scene, building.prefabId);
+  if (atlasFrames !== null) {
+    const atlas = createAtlasBuildingView(scene, building, atlasFrames, w, h, back, container, front);
+    if (atlas !== null) {
+      const decal = scene.add.graphics();
+      decal.setPosition(px, py);
+      return {
+        back,
+        container,
+        front,
+        decal,
+        chimney: atlas.chimney,
+        window: atlas.window,
+        progress: atlas.progress,
+        sign: atlas.sign,
+        roof: atlas.roof,
+        // 图集屋面是独立一格：可掀（`roofIsWholeBuilding` 不给 true）。
+        roofFromAtlas: true,
+        chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
+        baseY: buildingBaseY(py, building.footprint.h),
+      };
+    }
   }
 
   // 墙体层拆成「烘 → 活 → 烘 → 活 → 烘」五段，**顺序与原来那一支 drawWall 完全一致**。

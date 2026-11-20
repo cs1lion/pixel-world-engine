@@ -24,6 +24,8 @@ import {
   registerActionFrames,
 } from './action-frames.ts';
 import Phaser from 'phaser';
+import { createAtlasVillagerSprite, type AtlasVillagerSprite } from './art1/atlas-villagers.ts';
+import { atlasFirstEnabledOf } from './art1/atlas-registry.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { actorDepth, groundY } from './ground.ts';
 import type { Vec2, VillagerSnapshot } from '../world/types.ts';
@@ -67,6 +69,13 @@ export interface VillagerView {
   readonly sprite: Phaser.GameObjects.Image | null;
   /** 这张图是不是 4×6 的语义动作表；是则每帧切格，否则仍是单张立绘。 */
   readonly actionSheet: boolean;
+  /**
+   * 图集四帧步态精灵（`?art=1` 且图集清单登记了这个人、且没有动作表/立绘时）。
+   *
+   * 为什么在 `sprite` 之外另记一个字段：图集格的切换口径是「步态序号」，
+   * 立绘与动作表各自有一套帧名——只有拿到这个对象才知道该走哪条切格分支。
+   */
+  readonly atlasSprite: AtlasVillagerSprite | null;
 }
 
 /** 世界递下来的外观：设定集给的四个维度 + 颜色槽，以及「她提没提灯」。 */
@@ -99,9 +108,15 @@ export function createVillager(
   // 名字/气泡已迁 DOM overlay（D5-A）：canvas 里不再画中文。
   const container = scene.add.container(originX, originY, [shadow, body]);
   let sprite: Phaser.GameObjects.Image | null = null;
-  // 一人一张 4×6 动作表优先；没生成过就退回单张立绘，再退回程序化小人。
-  // 「素材缺一件不该让世界缺一块」——这三条路共用同一个容器与脚底原点。
-  const actionSheet = artId !== undefined && registerActionFrames(scene, artId);
+  let atlasSprite: AtlasVillagerSprite | null = null;
+  // 一人一张 4×6 动作表优先；没生成过就退回单张立绘，再退回图集四帧步态，
+  // 最后才是程序化小人。
+  // 「素材缺一件不该让世界缺一块」——这几条路共用同一个容器与脚底原点。
+  // 非浏览器环境（单测）没有 window：按关处理，图集步态只在页面里抢位。
+  const atlasFirst = typeof window === 'undefined'
+    ? false
+    : atlasFirstEnabledOf(new URLSearchParams(window.location.search));
+  const actionSheet = !atlasFirst && artId !== undefined && registerActionFrames(scene, artId);
   if (actionSheet) {
     sprite = scene.add
       .image(0, 2, actionTextureKey(artId!))
@@ -110,7 +125,7 @@ export function createVillager(
       .setFrame(actionFrameName('idle', 0));
     container.add(sprite);
     body.setVisible(false);
-  } else if (artId !== undefined && hasArt(scene, 'villager', artId)) {
+  } else if (!atlasFirst && artId !== undefined && hasArt(scene, 'villager', artId)) {
     // 脚底贴在容器原点（= 脚底世界坐标）；素材按 1/artScale 缩回世界像素。
     sprite = scene.add
       .image(0, 2, artKey('villager', artId))
@@ -118,8 +133,20 @@ export function createVillager(
       .setScale(1 / artScaleOf(scene));
     container.add(sprite);
     body.setVisible(false);
+  } else {
+    // 图集四帧步态（`?art=1` 且图集清单登记了这个人）：一格一个步态相位。
+    // 没登记 / 没装上回 null，落回程序化小人，谁也不挡谁的道。
+    // `artId` 就是 `villager.id`（`v0`…），没传 id 就没有可查的人，直接不接。
+    if (artId !== undefined) {
+      atlasSprite = createAtlasVillagerSprite(scene, artId);
+      if (atlasSprite !== null) {
+        sprite = atlasSprite.image;
+        container.add(sprite);
+        body.setVisible(false);
+      }
+    }
   }
-  return { container, body, shadow, lamp: newLamp(), animState: null, sprite, actionSheet };
+  return { container, body, shadow, lamp: newLamp(), animState: null, sprite, actionSheet, atlasSprite };
 }
 
 /** 脚底的世界像素：位置换算只写在这里，`updateVillager` 与调试摆位共用。
@@ -253,6 +280,21 @@ export function updateVillager(
       // 起伏跟着帧号走：抬脚那一帧身体抬高 1px，读成一步一顿。
       // 沿用时间驱动的 offsetY 会和位图帧错位，看起来只是整块在抖。
       lift = actionBob(action, frame);
+    } else if (view.atlasSprite !== null) {
+      // 图集四帧步态：帧号沿用程序化小人同一套采样（钉住时 poseFrame）。
+      // 停下的人用第一帧 + 呼吸起伏，不照抄程序化 idle 的两帧序号。
+      const pose = poseFrame === null
+        ? villagerPose(villager.mode, villager.walking, animTime)
+        : villagerPoseAtFrame(villager.mode, villager.walking, poseFrame);
+      view.atlasSprite.step({
+        frame: pose.frame,
+        walking: villager.walking,
+        facingLeft: villager.facing === 'left',
+        liftPx: pose.offsetY,
+        alpha: lampBodyAlpha(oil),
+      });
+      view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
+      return;
     }
     view.sprite.setFlipX(villager.facing === 'left');
     view.sprite.setY(2 + lift);

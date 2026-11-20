@@ -39,7 +39,9 @@ async function run(art) {
   const assetPath = (url) => {
     if (!url.includes('/assets/')) return null;
     const tail = url.split('/assets/')[1].split('?')[0];
-    return tail === 'manifest.json' || tail.endsWith('.png') ? tail : null;
+    // `art1/manifest.json` 是图集自己的清单（见下面的子清单核对）。
+    if (tail === 'manifest.json' || tail === 'art1/manifest.json') return tail;
+    return tail.endsWith('.png') ? tail : null;
   };
   page.on('request', (req) => {
     const key = assetPath(req.url());
@@ -62,8 +64,19 @@ async function run(art) {
       return res.ok ? res.json() : null;
     });
   }
+  // art1 图集子清单独立审：它有自己的 manifest 与 sheet 文件（`public/assets/art1/`），
+  // 不属于单件素材清单。请求过它的 manifest 就按同一套口径核对（在清单→必须被请求
+  // 且 200；请求了→必须在清单里），没有就是「图集没上线」，不算失败——
+  // 图集是可选表现层，缺件回退是它的设计口径（见 src/render/art1/atlas-registry.ts）。
+  let atlas = null;
+  if (art !== '0' && statuses.get('art1/manifest.json') === 200) {
+    atlas = await page.evaluate(async () => {
+      const res = await fetch(`${location.origin}${location.pathname}assets/art1/manifest.json`);
+      return res.ok ? res.json() : null;
+    });
+  }
   await page.close();
-  return { art, requests, statuses, errors, manifest };
+  return { art, requests, statuses, errors, manifest, atlas };
 }
 
 const on = await run('1');
@@ -87,10 +100,36 @@ if (on.manifest === null) {
     const status = on.statuses.get(key);
     if (status !== 200) failures.push(`${key} 响应 ${String(status)}，应为 200`);
   }
-  // 反过来：请求了但清单里没有的位图，也判红（防止孤儿图混进来）
+  // 反过来：请求了但清单里没有的位图，也判红（防止孤儿图混进来）。
+  // `art1/` 前缀的走图集自己的清单，不进单件清单的口径。
+  const atlasIds = new Set(Object.keys(on.atlas?.sheets ?? {}));
+  const atlasRequested = new Set();
   for (const key of on.requests) {
+    if (key.startsWith('art1/')) {
+      atlasRequested.add(key);
+      if (!key.endsWith('.png') && key !== 'art1/manifest.json') {
+        failures.push(`art1 请求了非 sheet 文件 ${key}`);
+      }
+      continue;
+    }
     if (key === 'manifest.json' || !key.endsWith('.png')) continue;
     if (!ids.includes(key.slice(0, -4))) failures.push(`请求了清单外的素材 ${key}`);
+  }
+  // 图集子清单：声明了的 sheet 必须被请求且 200；请求了但没声明的也判红。
+  if (on.atlas !== null) {
+    for (const [name, sheet] of Object.entries(on.atlas.sheets ?? {})) {
+      const key = `art1/${sheet.file}`;
+      if (!atlasRequested.has(key)) failures.push(`art1 清单有 ${name} 但没请求 ${key}`);
+      else if (on.statuses.get(key) !== 200) failures.push(`${key} 响应 ${String(on.statuses.get(key))}，应为 200`);
+    }
+    for (const key of atlasRequested) {
+      if (key === 'art1/manifest.json') continue;
+      const name = key.slice('art1/'.length, -4);
+      if (!(name in (on.atlas.sheets ?? {}))) failures.push(`请求了图集清单外的 sheet ${key}`);
+    }
+    console.log(`art1: 图集 ${Object.keys(on.atlas.sheets ?? {}).length} 张 sheet，请求 ${atlasRequested.size} 个文件`);
+  } else if (on.statuses.get('art1/manifest.json') !== undefined) {
+    failures.push(`art1/manifest.json 响应 ${String(on.statuses.get('art1/manifest.json'))}，200 时必须可解析`);
   }
   console.log(`art=1: 清单 ${ids.length} 件，实际请求 ${on.requests.filter((r) => r.endsWith('.png')).length} 张 PNG`);
 }

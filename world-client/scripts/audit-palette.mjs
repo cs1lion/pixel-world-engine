@@ -10,9 +10,14 @@
  *     9 色 UI 基础语义 Token，且零外部图片请求（后者由 `check-art-assets.mjs`
  *     的 `?art=0` 零素材请求断言守，不在本脚本重复）。本脚本扫的就是这一层。
  *   - 表现层（`?art=1`，默认）：允许全色域像素图集、WebGL 光照与混合色调，
- *     不受 24 色预算约束。`src/render/art1/`、`src/render/fx-ambient/`（下一棒
- *     PR-B 的环境暖光粒子实验区）与资产图集目录（`public/assets/`）
+ *     不受 24 色预算约束。`src/render/art1/`（tile 图集管线与灯光）、
+ *     `src/render/fx-ambient/`（环境微动效：草摆、涟漪、漂移点、镜头阻尼）
+ *     与资产图集目录（`public/assets/`，含 `public/assets/art1/` 的测试图集）
  *     在本脚本里显式放行，不计入世界层 / UI 层统计。
+ *     两个放行目录都已有实现（见 `docs/adr/ADR_ART1_ATLAS_PRESENTATION.md`）；
+ *     放行不是「那里不会有源色值」——`lighting.ts` 里就有 0xffc27a 这类
+ *     灯光色，它**必须**不属 24 色口径（加色光照用色板实色会被压成灰），
+ *     所以这条排除是实指而非预防。
  *
  * 口径（用户明确要求）：
  *   1. 只统计源码里的“源色值”，不模拟运行时色调/透明度叠加；
@@ -110,7 +115,7 @@ function listFiles(relDir, ext) {
 /** 表现层放行目录：?art=1 的像素图集与 WebGL 光照混合色不属 24 色预算口径。 */
 const ART1_DIR = 'src/render/art1';
 
-/** 环境暖光粒子沙盒：PR-B 的实验区，与 art1 同列，不计入 24 色预算口径。 */
+/** 环境微动效层：与本层自己的视觉时钟/PRNG 一起豁免，不计入 24 色预算口径。 */
 const FX_AMBIENT_DIR = 'src/render/fx-ambient';
 
 /** 资产图集目录：位图素材清单与图集，同属表现层放行。 */
@@ -665,7 +670,7 @@ const report = {
   layers: {
     baseline: '?art=0（逻辑兜底层：严格 24 色世界调色板 + 9 色 UI Token、零外部图片请求）',
     presentation: '?art=1（表现层：全色域像素图集、WebGL 光照与混合色调，放行）',
-    released: [ART1_DIR, ...ATLAS_DIRS],
+    released: [ART1_DIR, FX_AMBIENT_DIR, ...ATLAS_DIRS],
     art1Exists: existsSync(path.join(ROOT, ART1_DIR)),
   },
   counts: {

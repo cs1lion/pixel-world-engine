@@ -66,7 +66,7 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 
 CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`test:phases`〔脚本内
 四刻并发页〕 / `test:render-budget` / light〔`test:persistence`+`test:building-bake`
-+`test:art-assets`+`check-phases-negative`+`eval-interaction --split main`〕，只读、
++`test:art-assets`+`test:art1-smoke`+`check-phases-negative`+`eval-interaction --split main`〕，只读、
 写到 runner 临时目录；变更只落在 docs/test/scripts/server 等不进口浏览器断言面的
 目录时三条 lane 全跳过并正常 exit 0，push main 与每日 schedule 兜底跑全量）。分支
 保护强绑的检查名 `world-client-browser` 是一个同名**汇总 gate**（needs 三条 lane，
@@ -80,6 +80,11 @@ CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`tes
   调色板 + 9 色 UI 基础语义 Token、零外部图片请求（后者由 `check-art-assets.mjs`
   的 `?art=0` 零素材请求断言守）；`?art=1` 表现层允许全色域像素图集、WebGL 光照与
   混合色调，`src/render/art1/` 与资产图集目录（`public/assets/`）放行。
+- **图集不抢位图**：tile 图集（`art1/atlas-*`）默认**不**接管建筑与居民——位图单件
+  是已经过人眼验收的观感（`ADR_ART_DEFAULT_ON`）。`?atlas=1` 才显式抢位；
+  验收走 `check-art-assets.mjs`（单件装载）+ `check-art1-smoke.mjs`（图集接管），
+  后者带 `ATLAS_FIRST=1` 环境变量时多跑一轮 `?atlas=1`。详见
+  `docs/adr/ADR_ART1_ATLAS_PRESENTATION.md`。
 - **行号引用与符号锚点**：`audit-references.ts` 首选锚点是 `path#symbolName`
   （函数/类/导出符号存在性校验），既有行号引用向后兼容；文档优先写符号锚点，
   改代码不必再陪行号漂移。
@@ -95,6 +100,12 @@ CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`tes
   非零）只在程序化兜底基准模式执行，见 `check-shot-actor-pin.mjs` /
   `check-rain-pin.mjs` 头注。
 - **前置 `changes` job 路径分流与装依赖前跳过**：`.github/workflows/ci.yml` 顶部新增 `changes` job（`fetch-depth: 0` + `git diff --name-only` 对比 PR base SHA，非 `pull_request` 事件全量输出 `true`），输出 `server_changed`、`client_changed`、`browser_changed`、`workflow_changed`。各下游 job（`world-client`、`browser-lanes`、`server`）通过 `needs: changes` 在 `checkout` / `setup-node` / `setup-python` / `npm ci` / `pip install` 等装依赖步骤前用 `if:` 条件短路跳过，未命中路径时直接退出 `0` 以保持必需检查全绿。
+- **表现层新层的帧代价用同轮相对对照**：rAF 间隔被 vsync 钉死（16.67ms），
+  「中位 ≤ 16.6ms」这类绝对上限连 `?art=0` 基线都过不了（本机偶发 33ms GC 停顿）。
+  `check-art1-smoke.mjs` 的阻塞判据是 **art=1 帧中位不许比 art=0 慢超过 1.5ms**，
+  p95/max 只打印；绘制指令预算仍归 `check-render-budget.mjs`。同一教训见该脚本
+  把三类 fps 断言降为「只记录不阻塞」。
+
 - **CI 门控瘦身**：`red:first` 仅在 `main`/`schedule` 或 `scripts/`/`test/meta/` 变更时触发；`audit:docs` 合并 4 道文档元审计；`verify-screens-diff-selfcheck` 按 `screens_diff` 路径条件触发。
 - 
 决策全文：`docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`；规范口径见 `docs/SPEC.md`
