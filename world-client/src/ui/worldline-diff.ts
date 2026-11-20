@@ -113,7 +113,7 @@ export function resolveParityTarget(
 
 export interface WorldlineMetricDeltaItem {
   readonly key: 'buildings' | 'roads' | 'beliefs' | 'facts';
-  readonly label: string;
+  readonly title: string;
   readonly delta: number;
   readonly formatted: string;
 }
@@ -151,10 +151,10 @@ export function buildWorldlineDiffReport(
     fingerprintChanged: diff.fingerprintChanged,
     interventions: branch ? [...branch.interventions] : [],
     metrics: [
-      { key: 'buildings', label: 'Δ建筑', delta: diff.deltaBuildings, formatted: formatSignedDelta(diff.deltaBuildings) },
-      { key: 'roads', label: 'Δ道路', delta: diff.deltaRoads, formatted: formatSignedDelta(diff.deltaRoads) },
-      { key: 'beliefs', label: 'Δ信念', delta: diff.deltaBeliefs, formatted: formatSignedDelta(diff.deltaBeliefs) },
-      { key: 'facts', label: 'Δ事实', delta: diff.deltaFacts, formatted: formatSignedDelta(diff.deltaFacts) },
+      { key: 'buildings', title: 'Δ建筑', delta: diff.deltaBuildings, formatted: formatSignedDelta(diff.deltaBuildings) },
+      { key: 'roads', title: 'Δ道路', delta: diff.deltaRoads, formatted: formatSignedDelta(diff.deltaRoads) },
+      { key: 'beliefs', title: 'Δ信念', delta: diff.deltaBeliefs, formatted: formatSignedDelta(diff.deltaBeliefs) },
+      { key: 'facts', title: 'Δ事实', delta: diff.deltaFacts, formatted: formatSignedDelta(diff.deltaFacts) },
     ],
   };
 }
@@ -283,7 +283,7 @@ export function renderWorldlineDiffCard(
   for (const item of report.metrics) {
     const pill = document.createElement('span');
     pill.className = `worldline-diff-metric worldline-diff-metric-${item.key}`;
-    pill.textContent = `${item.label} ${item.formatted}`;
+    pill.textContent = `${item.title} ${item.formatted}`;
     metricsRow.append(pill);
   }
   root.append(metricsRow);
