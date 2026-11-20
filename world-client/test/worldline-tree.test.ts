@@ -19,7 +19,8 @@ interface MetricsInput {
 interface BadgeShape {
   readonly day: number;
   readonly kind: string;
-  readonly label: string;
+  readonly token?: string;
+  readonly delta?: number;
   readonly severity: number;
 }
 
@@ -114,6 +115,8 @@ test('detectTurnpoints 转折日打标上限 <= 2 且输出完全确定性', () 
   assert.equal(first[0]?.kind, 'phase_shift');
   assert.equal(first[1]?.kind, 'belief_surge');
   assert.deepEqual(first, second);
+  assert.equal(first[0]?.token, '雨季');
+  assert.equal(first[1]?.delta, 5);
 });
 
 test('多分支分叉与无损切回主线 branch-0', () => {
