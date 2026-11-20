@@ -4,7 +4,7 @@
  * 职责边界：
  * 1. 纯确定性转折日检测 `detectTurnpoints(prevMetrics, currMetrics, day)`：
  *    基于相邻两日业务向量（建筑增量、信念骤降/飙升、极端天气、阶段切换），
- *    每日最多输出 2 条中文短标签 `TurnpointBadge`。
+ *    每日最多输出 2 条结构化转折记录 `TurnpointBadge`（展示文案交由表现层/UI 格式化）。
  * 2. 多世界线树 `WorldlineTree`（默认 `maxBranches = 4`，始终保留 `branch-0` 主线）：
  *    支持日结记录、任意历史日分叉、蝴蝶干预印记（每线最多记前 3 条）、
  *    分支无损切换、对照父线最大天数 `getParityDay`、树摘要与确定性序列化/反序列化。
@@ -34,8 +34,9 @@ export type TurnpointKind =
 export interface TurnpointBadge {
   readonly day: number;
   readonly kind: TurnpointKind;
-  readonly label: string;
   readonly severity: number;
+  readonly token?: string;
+  readonly delta?: number;
 }
 
 export interface InterventionStamp {
@@ -131,41 +132,29 @@ const BELIEF_DELTA_ABS_THRESHOLD = 3;
 const BELIEF_DELTA_RATIO_THRESHOLD = 0.3;
 const BELIEF_RATIO_MIN_BASE = 4;
 
-const EXTREME_WEATHER_RULES: readonly { readonly token: string; readonly label: string }[] = [
-  { token: 'thunderstorm', label: '雷暴来袭' },
-  { token: 'snowstorm', label: '暴风雪' },
-  { token: 'blizzard', label: '暴风雪' },
-  { token: 'sandstorm', label: '沙尘暴' },
-  { token: 'hurricane', label: '飓风过境' },
-  { token: 'typhoon', label: '台风过境' },
-  { token: 'cyclone', label: '气旋风暴' },
-  { token: 'heatwave', label: '酷暑热浪' },
-  { token: 'heavy_rain', label: '特大暴雨' },
-  { token: 'drought', label: '持续大旱' },
-  { token: 'flood', label: '洪涝袭村' },
-  { token: 'storm', label: '暴风雨' },
-  { token: 'tempest', label: '狂风暴雨' },
-  { token: 'gale', label: '狂风骤起' },
-  { token: 'hail', label: '冰雹天气' },
-  { token: '雷暴', label: '雷暴来袭' },
-  { token: '暴风雪', label: '暴风雪' },
-  { token: '暴雪', label: '暴风雪' },
-  { token: '暴雨', label: '特大暴雨' },
-  { token: '暴风', label: '暴风雨' },
-  { token: '台风', label: '台风过境' },
-  { token: '干旱', label: '持续大旱' },
-  { token: '大旱', label: '持续大旱' },
-  { token: '洪水', label: '洪涝袭村' },
-  { token: '洪涝', label: '洪涝袭村' },
-  { token: '寒潮', label: '严寒骤降' },
-  { token: '极端', label: '极端天气' },
+const EXTREME_WEATHER_TOKENS: readonly string[] = [
+  'thunderstorm',
+  'snowstorm',
+  'blizzard',
+  'sandstorm',
+  'hurricane',
+  'typhoon',
+  'cyclone',
+  'heatwave',
+  'heavy_rain',
+  'drought',
+  'flood',
+  'storm',
+  'tempest',
 ];
 
-function matchExtremeWeatherLabel(weather: string): string | null {
+function matchExtremeWeatherToken(weather: string): string | null {
   const normalized = weather.trim().toLowerCase();
-  if (normalized.length === 0) return null;
-  for (const rule of EXTREME_WEATHER_RULES) {
-    if (normalized.includes(rule.token)) return rule.label;
+  if (!normalized) return null;
+  for (const token of EXTREME_WEATHER_TOKENS) {
+    if (normalized.includes(token)) {
+      return token;
+    }
   }
   return null;
 }
@@ -188,12 +177,13 @@ function normalizeMetrics(metrics: WorldlineDayMetrics): WorldlineDayMetrics {
   return phase === null ? base : { ...base, phase };
 }
 
-function cloneBadge(badge: TurnpointBadge): TurnpointBadge {
+function cloneBadge(b: TurnpointBadge): TurnpointBadge {
   return {
-    day: badge.day,
-    kind: badge.kind,
-    label: badge.label,
-    severity: badge.severity,
+    day: b.day,
+    kind: b.kind,
+    severity: b.severity,
+    ...(b.token !== undefined ? { token: b.token } : {}),
+    ...(b.delta !== undefined ? { delta: b.delta } : {}),
   };
 }
 
@@ -242,15 +232,15 @@ export function detectTurnpoints(
   }
 
   // 2. 极端天气（首次进入或首日即遭遇极端天气）
-  const extremeLabel = matchExtremeWeatherLabel(curr.weather);
+  const extremeToken = matchExtremeWeatherToken(curr.weather);
   const prevWeatherNorm = prev ? prev.weather.trim().toLowerCase() : '';
   const currWeatherNorm = curr.weather.trim().toLowerCase();
-  if (extremeLabel !== null && currWeatherNorm !== prevWeatherNorm) {
+  if (extremeToken !== null && currWeatherNorm !== prevWeatherNorm) {
     candidates.push({
       day,
       kind: 'extreme_weather',
-      label: extremeLabel,
       severity: 3,
+      token: extremeToken,
     });
   }
 
@@ -264,15 +254,15 @@ export function detectTurnpoints(
       candidates.push({
         day,
         kind: 'belief_drop',
-        label: `信念骤降(${beliefDelta})`,
-        severity: 2,
+      severity: 2,
+      delta: beliefDelta,
       });
     } else if (beliefDelta >= BELIEF_DELTA_ABS_THRESHOLD || (beliefDelta > 0 && ratioTriggered)) {
       candidates.push({
         day,
         kind: 'belief_surge',
-        label: `信念飙升(+${beliefDelta})`,
-        severity: 2,
+      severity: 2,
+      delta: beliefDelta,
       });
     }
   }
@@ -284,8 +274,8 @@ export function detectTurnpoints(
       candidates.push({
         day,
         kind: 'building_growth',
-        label: `新建+${buildingDelta}栋`,
-        severity: 1,
+      severity: 1,
+      delta: buildingDelta,
       });
     }
   }
