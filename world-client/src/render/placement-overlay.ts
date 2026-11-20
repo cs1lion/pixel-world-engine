@@ -296,7 +296,9 @@ export function createPlacementOverlay(
   let hover: { readonly cell: GridPoint; readonly w: number; readonly h: number } | null = null;
   let lastLabelText: string | null = null;
   let lastMaskTide: number | null = null;
-
+  let lastBuildingCount: number | null = null;
+    let lastPropCount: number | null = null;
+  
   const paintMask = (): void => {
     maskG.clear();
     if (blueprint === null) return;
@@ -427,8 +429,12 @@ export function createPlacementOverlay(
       if (blueprint === null) return;
       // 潮位连续变化，遮罩不必逐帧重铺：量化到 1/64 一档，变档才重画。
       const quantized = Math.round(tideLevel * 64);
-      if (lastMaskTide === null || lastMaskTide !== quantized) {
+      const buildingCount = deps.buildings().length;
+      const propCount = deps.props().length;
+      if (lastMaskTide === null || lastMaskTide !== quantized||lastBuildingCount !== buildingCount || lastPropCount !== propCount) {
         lastMaskTide = quantized;
+        lastBuildingCount = buildingCount;
+        lastPropCount = propCount;
         paintMask();
       }
       if (label.style.display === 'block') placeLabel();
@@ -437,6 +443,8 @@ export function createPlacementOverlay(
     exit() {
       blueprint = null;
       hover = null;
+      lastBuildingCount = null;
+      lastPropCount = null;
       lastMaskTide = null;
       lastLabelText = null;
       maskG.clear();
