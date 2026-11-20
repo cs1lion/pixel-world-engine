@@ -66,7 +66,7 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 
 CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`test:phases`〔脚本内
 四刻并发页〕 / `test:render-budget` / light〔`test:persistence`+`test:building-bake`
-+`test:art-assets`+`check-phases-negative`+`eval-interaction --split main`〕，只读、
++`test:art-assets`+`test:art1-smoke`+`check-phases-negative`+`eval-interaction --split main`〕，只读、
 写到 runner 临时目录；变更只落在 docs/test/scripts/server 等不进口浏览器断言面的
 目录时三条 lane 全跳过并正常 exit 0，push main 与每日 schedule 兜底跑全量）。分支
 保护强绑的检查名 `world-client-browser` 是一个同名**汇总 gate**（needs 三条 lane，

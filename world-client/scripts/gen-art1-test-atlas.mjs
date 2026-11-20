@@ -130,16 +130,24 @@ const GROUND = [
 const ground = new Canvas(8, 8);
 GROUND.forEach(([name, base], i) => ground.tile(i % 8, Math.floor(i / 8), base, 1000 + i));
 
-// 建筑：12 栋 × back/body/front/roof 4 帧 = 48 格，落在 16x8 sheet 内。
-const PREFABS = [
+// 建筑：两镇全部 22 个模板 × back/body/front/roof 4 帧 = 88 格，落在 16x8（128 格）sheet 内。
+// 为什么必须两镇都登记：莞尔镇模板来自 `src/world/prefabs.json`，设定集镇（灯潮界）
+// 的模板来自 `src/settings/dengchao/pack.ts` 的 `prefabs` 表——只登记一边，
+// 另一边就会整镇落回程序化（图集「缺一格就不接管」的口径在这里正好被用到）。
+const WAN_DONG = [
   'code_forge', 'star_archive', 'ink_house', 'workshop_plot', 'crawler_mine', 'ink_mill',
   'gear_tower', 'cottage_oak', 'cottage_plaster', 'cottage_stone', 'homestead_far', 'homestead_ridge',
 ];
+const DENG_CHAO = [
+  'wave_house', 'lamp_lodge', 'tea_stall', 'ferry_station', 'lamp_workshop', 'boiler_annex',
+  'waiting_shelter', 'ledger_house', 'lamp_archive', 'soot_forge',
+];
+const PREFABS = [...WAN_DONG, ...DENG_CHAO];
 const buildings = new Canvas(16, 8);
 PREFABS.forEach((id, b) => {
   // 四层各有色相倾向：back 暗、body 主色、front 暖、roof 最高明度——
   // 测试图集只要格位可分辨即可，不追求美术。
-  const hue = 180 + b * 22;
+  const hue = 140 + b * 8; // 22 栋铺开在 140..308，测试图集只要格位可分辨即可
   const layers = [
     [hue, hue * 0.7, hue * 0.5],
     [hue * 0.9, hue * 0.55, hue * 0.35],

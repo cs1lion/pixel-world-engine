@@ -5543,6 +5543,25 @@ export class SandboxScene extends Phaser.Scene {
        * 证据脚本用它区分「图层上线了」与「清单在但一格都没贴」。
        */
       debugArt1: () => ({
+        // 建筑图集分支：接管了几栋、其中几栋的屋面是独立屋顶格（= 可掀）。
+        atlasBuildings: (() => {
+          let atlas = 0;
+          let liftable = 0;
+          for (const entry of this.entries) {
+            if (entry.view.roofFromAtlas !== true) continue;
+            atlas += 1;
+            if (entry.view.roofIsWholeBuilding !== true) liftable += 1;
+          }
+          return { atlas, liftable, total: this.entries.length };
+        })(),
+        // 居民图集分支：几个人走了 4 帧步态精灵（`?atlas=1` 时应全员）。
+        atlasVillagers: (() => {
+          let atlas = 0;
+          for (const view of this.villagerViews.values()) {
+            if (view.atlasSprite !== null) atlas += 1;
+          }
+          return { atlas, total: this.villagerViews.size };
+        })(),
         atlasGround: this.atlasGroundView?.stats() ?? { active: false, cells: 0, widthPx: 0, heightPx: 0 },
         atlasShore: this.atlasShoreView?.stats() ?? { active: false, cells: 0, widthPx: 0, heightPx: 0 },
         lighting: this.artLighting?.stats() ?? { active: false, capacity: 0, requests: 0, dropped: 0 },

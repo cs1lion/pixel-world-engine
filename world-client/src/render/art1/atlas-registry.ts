@@ -77,6 +77,20 @@ export const ATLAS_MANIFEST_KEY = 'art1-atlas-manifest';
 /** 图集纹理键前缀：`art1:<sheet名>`，与单件位图的 `art:<kind>:<id>` 区开。 */
 export const ATLAS_SHEET_PREFIX = 'art1:';
 
+/**
+ * `?atlas=1`：让 **tile 图集**抢在位图单件（`art-assets.ts`）之前接管建筑与居民。
+ *
+ * 为什么默认关：位图单件是已经过人眼验收的观感（19→72 件素材、
+ * `ADR_ART_DEFAULT_ON`），图集这条新管线一上线就把它盖掉，等于拿验收过的
+ * 画面去赌新代码。默认关、显式开，两条路都能跑，冒烟与观感验收各查各的。
+ *
+ * 读数只在这里解析一次：建筑与居民两处都要它，写两份就会漂。
+ */
+export function atlasFirstEnabledOf(search: string | URLSearchParams): boolean {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search;
+  return params.get('atlas') === '1' || params.get('atlas') === 'on';
+}
+
 export function atlasSheetKey(sheet: string): string {
   return `${ATLAS_SHEET_PREFIX}${sheet}`;
 }

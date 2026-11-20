@@ -25,6 +25,7 @@ import {
 } from './action-frames.ts';
 import Phaser from 'phaser';
 import { createAtlasVillagerSprite, type AtlasVillagerSprite } from './art1/atlas-villagers.ts';
+import { atlasFirstEnabledOf } from './art1/atlas-registry.ts';
 import { TILE_PX } from '../world/setup.ts';
 import { actorDepth, groundY } from './ground.ts';
 import type { Vec2, VillagerSnapshot } from '../world/types.ts';
@@ -111,7 +112,11 @@ export function createVillager(
   // 一人一张 4×6 动作表优先；没生成过就退回单张立绘，再退回图集四帧步态，
   // 最后才是程序化小人。
   // 「素材缺一件不该让世界缺一块」——这几条路共用同一个容器与脚底原点。
-  const actionSheet = artId !== undefined && registerActionFrames(scene, artId);
+  // 非浏览器环境（单测）没有 window：按关处理，图集步态只在页面里抢位。
+  const atlasFirst = typeof window === 'undefined'
+    ? false
+    : atlasFirstEnabledOf(new URLSearchParams(window.location.search));
+  const actionSheet = !atlasFirst && artId !== undefined && registerActionFrames(scene, artId);
   if (actionSheet) {
     sprite = scene.add
       .image(0, 2, actionTextureKey(artId!))
@@ -120,7 +125,7 @@ export function createVillager(
       .setFrame(actionFrameName('idle', 0));
     container.add(sprite);
     body.setVisible(false);
-  } else if (artId !== undefined && hasArt(scene, 'villager', artId)) {
+  } else if (!atlasFirst && artId !== undefined && hasArt(scene, 'villager', artId)) {
     // 脚底贴在容器原点（= 脚底世界坐标）；素材按 1/artScale 缩回世界像素。
     sprite = scene.add
       .image(0, 2, artKey('villager', artId))

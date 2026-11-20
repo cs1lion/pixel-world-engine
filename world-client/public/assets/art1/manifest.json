@@ -118,6 +118,66 @@
       "body": 45,
       "front": 46,
       "roof": 47
+    },
+    "wave_house": {
+      "back": 48,
+      "body": 49,
+      "front": 50,
+      "roof": 51
+    },
+    "lamp_lodge": {
+      "back": 52,
+      "body": 53,
+      "front": 54,
+      "roof": 55
+    },
+    "tea_stall": {
+      "back": 56,
+      "body": 57,
+      "front": 58,
+      "roof": 59
+    },
+    "ferry_station": {
+      "back": 60,
+      "body": 61,
+      "front": 62,
+      "roof": 63
+    },
+    "lamp_workshop": {
+      "back": 64,
+      "body": 65,
+      "front": 66,
+      "roof": 67
+    },
+    "boiler_annex": {
+      "back": 68,
+      "body": 69,
+      "front": 70,
+      "roof": 71
+    },
+    "waiting_shelter": {
+      "back": 72,
+      "body": 73,
+      "front": 74,
+      "roof": 75
+    },
+    "ledger_house": {
+      "back": 76,
+      "body": 77,
+      "front": 78,
+      "roof": 79
+    },
+    "lamp_archive": {
+      "back": 80,
+      "body": 81,
+      "front": 82,
+      "roof": 83
+    },
+    "soot_forge": {
+      "back": 84,
+      "body": 85,
+      "front": 86,
+      "roof": 87
     }
   },
   "villagers": {
