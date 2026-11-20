@@ -94,6 +94,7 @@ CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`tes
 - **screens-diff 5/5 锁定 `?art=0`**：pin 夹具五项判定（三组基线 0/0/0 + 两条扰动
   非零）只在程序化兜底基准模式执行，见 `check-shot-actor-pin.mjs` /
   `check-rain-pin.mjs` 头注。
+- **前置 `changes` job 路径分流与装依赖前跳过**：`.github/workflows/ci.yml` 顶部新增 `changes` job（`fetch-depth: 0` + `git diff --name-only` 对比 PR base SHA，非 `pull_request` 事件全量输出 `true`），输出 `server_changed`、`client_changed`、`browser_changed`、`workflow_changed`。各下游 job（`world-client`、`browser-lanes`、`server`）通过 `needs: changes` 在 `checkout` / `setup-node` / `setup-python` / `npm ci` / `pip install` 等装依赖步骤前用 `if:` 条件短路跳过，未命中路径时直接退出 `0` 以保持必需检查全绿。
 
 决策全文：`docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`；规范口径见 `docs/SPEC.md`
 §11.2 与 §12。
