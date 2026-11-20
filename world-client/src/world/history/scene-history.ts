@@ -47,6 +47,28 @@ export type {
   TrajectoryRewindSpan,
   CounterfactualTrajectoryDiff,
 } from './trajectory-recorder.ts';
+export {
+  WorldlineTree,
+detectTurnpoints,
+MAIN_BRANCH_ID,
+DEFAULT_MAX_BRANCHES,
+MAX_TURNPOINTS_PER_DAY,
+MAX_INTERVENTIONS_PER_BRANCH,
+  } from './worldline-tree.ts';
+export type {
+  WorldlineDayMetrics,
+  TurnpointKind,
+  TurnpointBadge,
+  InterventionStamp,
+  WorldlineDayRecord,
+  WorldlineTreeOptions,
+  ForkResult,
+  SwitchBranchResult,
+  WorldlineBranchSummary,
+  WorldlineTreeSummary,
+  SerializedWorldlineBranch,
+  SerializedWorldlineTree,
+} from './worldline-tree.ts';
 
 type ListDoc = HistoryDoc;
 
