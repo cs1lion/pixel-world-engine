@@ -106,6 +106,8 @@ CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`tes
   p95/max 只打印；绘制指令预算仍归 `check-render-budget.mjs`。同一教训见该脚本
   把三类 fps 断言降为「只记录不阻塞」。
 
+- **CI 门控瘦身**：`red:first` 仅在 `main`/`schedule` 或 `scripts/`/`test/meta/` 变更时触发；`audit:docs` 合并 4 道文档元审计；`verify-screens-diff-selfcheck` 按 `screens_diff` 路径条件触发。
+- 
 决策全文：`docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`；规范口径见 `docs/SPEC.md`
 §11.2 与 §12。
 

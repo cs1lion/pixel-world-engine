@@ -57,6 +57,7 @@ worktree 已回收、本地与远端分支已删，表项同步移除。
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
 | D:/project/pwe-art1-visual | feat/art1-visual-and-creator-ux | cs1lion | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `d0bdf54`，stacked 在 PR #69 上；art1 可热替换 tile 图集管线 + 固定灯槽池光照 + fx-ambient 微动效 + `?atlas=1` 开关 + `test:art1-smoke` 闸门；造物落点/掀屋顶由 PR #69 承接；ADR `ADR_ART1_ATLAS_PRESENTATION.md`） |
 | D:/project/pwe-creator-overlay | feat/creator-placement-overlay | cindy 会话（creator-placement-overlay） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `beaa33a`；造物主摆放遮罩 + 旁观掀屋顶，已开 PR #69，只改 world-client/ 与文档） |
+| D:/project/pwe-creator-overlay | feat/creator-placement-overlay | cindy 会话（creator-placement-overlay） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `469bbc7`；造物主摆放遮罩 + 旁观掀屋顶，只改 world-client/ 与文档） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。

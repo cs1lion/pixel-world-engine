@@ -89,7 +89,8 @@ jobs:
              { [ "${{ github.event_name }}" = 'push' ] && [ "${{ github.ref }}" = 'refs/heads/main' ]; }; then
             echo "meta=true" >> "$GITHUB_OUTPUT"
             echo "nightly=true" >> "$GITHUB_OUTPUT"
-            echo "reports=true" >> "$GITHUB_OUTPUT"
+            echo "reports=true" >> "$GITHUB_OUTPUT" 
+            echo "screens_diff=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
@@ -104,7 +105,12 @@ jobs:
             echo "reports=true" >> "$GITHUB_OUTPUT"
           else
             echo "reports=false" >> "$GITHUB_OUTPUT"
-          fi
+          fi 
+          if printf '%s\n' "$CHANGED" | grep -qE '(scripts/.*screens|scripts/verify-screens-diff)'; then
+            echo "screens_diff=true" >> "$GITHUB_OUTPUT"
+           else
+             echo "screens_diff=false" >> "$GITHUB_OUTPUT"
+             fi
       - run: npm run check
         if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 端口纪律 lint：脚本/配置/.env 里的禁用端口（5188/5191/5202/5203）命中即红。
@@ -135,8 +141,8 @@ jobs:
       # 2026-11-19 起非阻断（continue-on-error）：近 20 次提交它 2 次红在
       # 「新测试 import 了 base 上还不存在的模块」（分类=module，exit 2）——
       # 那是测试纪律拦截，不是产品 Bug；红灯原文仍完整打在日志里交 review 核。
-      - name: red-first 红灯闸门
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+      - name: red-first 红灯闸门 
+        if: steps.unit-filter.outputs.meta == 'true' || needs.changes.outputs.workflow_changed == 'true'
         continue-on-error: true
         run: npm run red:first -- --base "${{ github.event.pull_request.base.sha || github.event.before }}"
         env:
@@ -147,34 +153,21 @@ jobs:
         if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 行号引用对不上就红。文档与注释里写的「代码在那儿」得真的是在那儿——
       # 这个仓库的信条是「说谎比不去更糟」，那句话也管仓库自己。
-      - run: node scripts/audit-references.ts --strict
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
-      # 不带行号的引用也管：`night.ts`、`docs/LARGE_WORLD.md` 这类只写文件名的，
-      # 上面那个正则（冒号加行号是硬条件）一处都看不见。六个幽灵引用全是这么漏进来的。
-      - run: node scripts/audit-citations.ts --strict
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
-      # 节号对不上也管：`SPEC_V2 §9`、`docs/adr/ADR_SAVE.md §9` 这种点名了文档、
-      # 而那份文档里没有这一节的。`villager.ts` 的「审计 §6.2」与 `day-phase.ts` 的
-      # 「§6 缺口 2」都是这一类，两处都靠人 review 才发现，没有任何机关会红。
-      - run: node scripts/audit-sections.ts --strict
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
-      # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
-      # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
-      - run: node scripts/audit-claims.ts --strict
+      - run: npm run audit:docs
         if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 指标账本的口径（25 条 metric）必须能复算；不接 verify-all 聚合器，
       # 两条独立 step 各自可判红：eval-ledger 先算，selfcheck 再验分桶与必填字段。
       - run: node scripts/eval-ledger.ts
         if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: node scripts/verify-ledger-selfcheck.ts
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        if: steps.unit-filter.outputs.meta == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # screens-diff 自检只喂合成图（200x200），不读 eval/screens 的截图基线，
       # 所以 E7 删掉的 3 张基线不影响它。锁定版本是因为仓库没有 requirements.txt，
       # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
       - run: pip install numpy==2.5.1 pillow==12.3.0
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        if: steps.unit-filter.outputs.screens_diff == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: python scripts/verify-screens-diff-selfcheck.py
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        if: steps.unit-filter.outputs.screens_diff == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 交付报告机器可读块的审计（R1–R7，规则见 docs/agents/reporting.md）。
       # R6 只认 git 提交时间，不设 mtime / reportedAt 兜底；任一侧取不到可信提交时间时
       # 如实记为未核验（不判红），让「没核到」可见而不是悄悄当通过。
