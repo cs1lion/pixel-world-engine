@@ -160,7 +160,7 @@ jobs:
       - run: node scripts/eval-ledger.ts
         if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: node scripts/verify-ledger-selfcheck.ts
-        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        if: steps.unit-filter.outputs.meta == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # screens-diff 自检只喂合成图（200x200），不读 eval/screens 的截图基线，
       # 所以 E7 删掉的 3 张基线不影响它。锁定版本是因为仓库没有 requirements.txt，
       # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
