@@ -132,7 +132,9 @@ export function hasTileAtlas(scene: Phaser.Scene): boolean {
 /** 读清单；没装或清单损坏回 `undefined`，调用方自行回退。 */
 export function atlasManifestOf(scene: Phaser.Scene): TileAtlasManifest | undefined {
   const manifest = scene.cache.json.get(ATLAS_MANIFEST_KEY) as TileAtlasManifest | undefined;
-  if (manifest === undefined || manifest.atlas !== ATLAS_KIND) return undefined;
+  if (manifest === null || typeof manifest !== 'object' || manifest.atlas !== ATLAS_KIND) return undefined;
+  const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+ if (!isObj(manifest.sheets) || !isObj(manifest.ground) || !isObj(manifest.shore) || !isObj(manifest.buildings) || !isObj(manifest.villagers)) return undefined;
   return manifest;
 }
 
