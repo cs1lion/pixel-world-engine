@@ -40,12 +40,11 @@
   },
   "road": 8,
   "water": {
-    "river": 9,
-    "lake": 10
+    "shallow": 9
   },
   "shore": {
-    "river": 11,
-    "lake": 12
+    "grass": 11,
+    "stone": 12
   },
   "buildings": {
     "code_forge": {

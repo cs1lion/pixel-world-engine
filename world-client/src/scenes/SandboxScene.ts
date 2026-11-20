@@ -187,6 +187,14 @@ import {
 import { createMinimapView, type MinimapView } from '../render/minimap.ts';
 import { createFogView, type FogView } from '../render/fog-view.ts';
 import { bakeLayer, type BakedLayer } from '../render/bake.ts';
+import { createAtlasLayerView, type AtlasLayerView } from '../render/art1/atlas-tiles.ts';
+import { preloadTileAtlas } from '../render/art1/atlas-registry.ts';
+import { createArtLighting, type ArtLightingHandle, type WarmLightSource } from '../render/art1/lighting.ts';
+import { assembleWarmSources, litWindowRatio } from '../render/art1/lighting-readings.ts';
+import { createMicroFxView, grassBladesFor, type MicroFxView } from '../render/fx-ambient/micro-fx.ts';
+import { createCameraGlide, type CameraGlide } from '../render/fx-ambient/avatar-glide.ts';
+import { litLampCountAt } from '../world/lamp-street.ts';
+import { FIREFLIES } from '../render/fireflies.ts';
 import {
   FRAME_CLAMP_MS,
   paceFrame,
@@ -391,6 +399,14 @@ interface PendingLedgerObservation {
   };
   readonly displayName: string;
 }
+
+/**
+ * 光源表重建的最小间隔（世界呈现时刻，毫秒）。
+ *
+ * 为什么要有下限：造物/拆除会让结构指纹变化，一场连续拆十几栋楼时每次都重数
+ * 世界等于每帧跑一遍 O(建筑+摆件)。1 秒的量级足够让「灯位反映最新世界」看不出迟到。
+ */
+const LIGHT_SOURCE_MIN_INTERVAL_MS = 1000;
 
 export class SandboxScene extends Phaser.Scene {
   private world!: BuiltWorld;
@@ -604,6 +620,39 @@ export class SandboxScene extends Phaser.Scene {
   /** 上次真正推进世界的时刻（Phaser 的 time 参数）。 */
   private lastAdvanceAt = 0;
   private terrainLayer!: BakedLayer;
+  /**
+   * `?art=1` 的图集地面 / 岸带层（`render/art1/atlas-tiles.ts`）。
+   *
+   * 没装图集时 `active` 为 false，这两个字段就是个空壳——程序化地形照旧，
+   * 场景不需要在别处判断 art 开关。层贴在 depth -9 / -8.5（烘焙地形 -10 之上）。
+   */
+  private atlasGroundView: AtlasLayerView | null = null;
+  private atlasShoreView: AtlasLayerView | null = null;
+  /**
+   * `?art=1` 的光照层。没启用（`?art=0` / Canvas / 无头）时 `active` 为 false，
+   * `update` 是空转——基线画面一个字节都不动，这条是 screens-diff 5/5 的前提。
+   */
+  private artLighting: ArtLightingHandle | null = null;
+  /** 当前这一轮的光源表（只在世界结构变化时重建，见 `updateLightingAndFx`）。 */
+  private lightSources: readonly WarmLightSource[] = [];
+  /** 上一次数世界时的结构指纹（建筑数 + 摆件数）。 */
+  private lightSourceFingerprint = -1;
+  /** 光源表重建的节流槽：下一次什么时候允许再数一遍世界。 */
+  private lightSourcesNextBuildAt = 0;
+  /** 环境微动效层（草摆/水波/夜萤）：同样受 `?art` 闸，基线不建。 */
+  private microFxView: MicroFxView | null = null;
+  /** 头像点击后的阻尼滑行；滑完自动交棒回 `cameraCtl`。 */
+  private cameraGlide: CameraGlide | null = null;
+  /** 本帧镜头归阻尼滑行管（true 时跟随写回让路）。 */
+  private glideHolding = false;
+  /**
+   * 头像点击走阻尼的开关（**不是** `?art` 的表现层开关）。
+   *
+   * 为什么默认关：`village-hud.test.ts` 钉着「点头像 → 调 `followVillager` 恰好一次」，
+   * `camera-controller.test.ts` 的 `cam.follow(...)` 调用序列也钉在桩上。阻尼接管那条路
+   * 会让这两处断言拿到空数组。转正要连带改那两份断言，那是另一件事，不在本轮。
+   */
+  private avatarDamping = false;
   /** 拖拽平移的起点（屏幕坐标）；null 表示没在拖。 */
   private dragFrom: { x: number; y: number } | null = null;
   /** 这一回按下之后指针挪过没有。挪过了就是拖镜头，没挪过才算点一下。 */
@@ -844,6 +893,8 @@ export class SandboxScene extends Phaser.Scene {
   preload(): void {
     // 位图素材：默认装；`?art=0` 时这里什么也不做，渲染走原程序化路径。
     if (artEnabledOf(new URLSearchParams(window.location.search))) preloadArt(this);
+    // 图集（tile sheet）走同一道 `?art` 闸：关了就是一个像素都不请求。
+    if (artEnabledOf(new URLSearchParams(window.location.search))) preloadTileAtlas(this);
   }
 
   /** 构造 Simulation 依赖。create() 与评测重开（resetWorldForEval）共用同一份，
@@ -1099,6 +1150,37 @@ export class SandboxScene extends Phaser.Scene {
       // 传祭坛坐标：地表细节按群落配方分化，镇内与郊野长得不一样。
       (g) => drawTerrain(this, this.world.grid, originX, originY, g, this.world.altar, this.pack ?? undefined),
     );
+    // 图集地面 / 岸带（`?art=1` 且图集装上了才 active）：盖在程序化地形之上，
+    // 拿图集的格替换同位置的程序化底色。没装上就是空壳，画面与从前逐字节一致。
+    this.atlasGroundView = createAtlasLayerView(this, this.world.grid, 'ground');
+    this.atlasShoreView = createAtlasLayerView(this, this.world.grid, 'shore');
+    // 光照层（`?art=1` + WebGL）：Canvas / 无头环境回空转壳，基线画面逐字节不变。
+    this.artLighting = createArtLighting(
+      this,
+      () => this.lightSources,
+      artEnabledOf(new URLSearchParams(window.location.search)),
+    );
+    // 环境微动效：只给一个常驻 Graphics，每帧 clear 重画（预算见 micro-fx 文件头）。
+    if (artEnabledOf(new URLSearchParams(window.location.search))) {
+      const fxPalette = this.pack?.palette ?? paletteFor();
+      this.microFxView = createMicroFxView(this, {
+        grassTint: fxPalette.moss,
+        rippleTint: fxPalette.water,
+        dotTint: fxPalette.amber,
+      });
+    }
+    // 阻尼滑行：起终点的 scroll 换算按「镜头中心落到该点」反推，不写第二套投影。反推式
+    // 是 `camera-math.ts#scrollForOrigin` 的特例（origin = 目标 - 半视野），参数名对得上。
+    this.cameraGlide = createCameraGlide({
+      scrollOf: (x, y) => {
+        const cam = this.cameras.main;
+        return { x: x - cam.width / 2 / cam.zoom, y: y - cam.height / 2 / cam.zoom };
+      },
+      currentScroll: () => ({ x: this.cameras.main.scrollX, y: this.cameras.main.scrollY }),
+      applyScroll: (x, y) => {
+        this.cameras.main.setScroll(x, y);
+      },
+    });
     ensureAccentTextures(this);
     this.decor = createDecorView(this, originX, originY);
     this.decor.redrawRoads([]);
@@ -1705,10 +1787,168 @@ export class SandboxScene extends Phaser.Scene {
     client.start();
   }
 
+  /**
+   * 一帧的表现层附加项：光照、微动效、阻尼滑行。
+   *
+   * 三件事都只在 `?art=1`（或 damping 开关）下有事做；基线模式下这里只有几次
+   * 空转调用，画面与改动前逐字节相同——screens-diff 5/5 就是靠这条站住的。
+   */
+  private updatePresentationFx(snapshot: WorldSnapshot, presentedNow: number, delta: number): void {
+    if (this.artLighting?.active === true || this.microFxView !== null) {
+      this.updateLightingAndFx(snapshot, presentedNow);
+    }
+    const glide = this.cameraGlide;
+    if (glide !== null && this.avatarDamping) {
+      this.glideHolding = glide.update(delta);
+    } else {
+      this.glideHolding = false;
+    }
+  }
+
+  /** 光照 + 微动效：结构指纹变了才重数一次世界（见 `lighting-readings.ts`）。 */
+  private updateLightingAndFx(snapshot: WorldSnapshot, presentedNow: number): void {
+    const phase = this.phaseView.currentPhase();
+    const camera = this.cameras.main;
+
+    if (this.artLighting?.active === true) {
+      // 「灯街共几盏」优先用设定集读数；旧镇没有设定集时数摆件表里的灯。
+      const lampTotal =
+        this.settingScenery?.lampCount() ?? snapshot.props.filter((item) => item.kind === 'lamp').length;
+      const fingerprint = snapshot.buildings.length * 4096 + snapshot.props.length;
+      if (fingerprint !== this.lightSourceFingerprint && presentedNow >= this.lightSourcesNextBuildAt) {
+        this.lightSourceFingerprint = fingerprint;
+        this.lightSourcesNextBuildAt = presentedNow + LIGHT_SOURCE_MIN_INTERVAL_MS;
+        this.lightSources = assembleWarmSources({
+          props: snapshot.props,
+          buildings: snapshot.buildings,
+          activeInstanceIds: new Set(
+            snapshot.workstations
+              .filter((station) => station.activity.kind !== 'idle')
+              .map((station) => station.buildingId),
+          ),
+          streetLamps: this.settingScenery?.lampUnits() ?? [],
+          beacon: this.beaconWorldPos(),
+          // 「该亮几盏」用 `world/lamp-street.ts` 的原判据，本层不自己判时刻。
+          litLampCount: litLampCountAt(snapshot.now, phase, lampTotal, this.phaseView.isAutoAdvancing()),
+        });
+      }
+
+      const wet = snapshot.weather === 'rain' || snapshot.weather === 'storm';
+      this.artLighting.update(
+        {
+          nowMs: presentedNow,
+          phase,
+          weatherIntensity: this.sim.weatherIntensity(),
+          raining: wet,
+          litWindows: litWindowRatio(
+            snapshot.workstations.filter((station) => station.activity.kind !== 'idle').length,
+            snapshot.buildings.length,
+          ),
+          // 神谕光柱与回溯金光共用 `fx-layer` 与 `rewindBeam` 的既有状态：
+          // 这里只递位置，不判「该不该亮」。
+          oracleActive: this.oracleBeamActive(),
+          oracleX: snapshot.altar.x * TILE_PX + TILE_PX / 2,
+          oracleY: snapshot.altar.y * TILE_PX,
+          rewindActive: this.rewindBeam?.isActive() ?? false,
+          focusX: camera.midPoint.x,
+          focusY: camera.midPoint.y,
+        },
+        { x: camera.midPoint.x, y: camera.midPoint.y },
+      );
+    }
+
+    this.microFxView?.update({
+      nowMs: presentedNow,
+      view: this.visibleCellView(camera),
+      // 草相只算可见区：世界再大也只数屏幕上那几百格（micro-fx 的预算口径）。
+      grass: grassBladesFor(this.grassCellsIn(camera)),
+      // 风增益是纯画面量：暴雨最大、夜里最小。它不是世界的事实，就不进世界。
+      wind:
+        snapshot.weather === 'storm' ? 1 : snapshot.weather === 'rain' ? 0.7 : phase === 'night' ? 0.25 : 0.45,
+      rainDensity:
+        snapshot.weather === 'rain' || snapshot.weather === 'storm'
+          ? Math.min(1, this.sim.weatherIntensity()) * 0.5
+          : 0,
+      dots: FIREFLIES.map((point, index) => ({
+        x: point.x,
+        y: point.y,
+        phase: index / FIREFLIES.length,
+      })),
+      night: phase === 'night' || phase === 'dusk',
+    });
+  }
+
+  /** 视野 → 格坐标矩形（与 `ambience-view.ts` 同一换算，不另写投影）。 */
+  private visibleCellView(camera: Phaser.Cameras.Scene2D.Camera): {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  } {
+    const view = camera.worldView;
+    return {
+      x: Math.floor(view.x / TILE_PX),
+      y: Math.floor(view.y / TILE_PX),
+      width: Math.ceil(view.width / TILE_PX),
+      height: Math.ceil(view.height / TILE_PX),
+    };
+  }
+
+  /** 可见区里哪些格是草地。夹在世界边界内，越界一格都不问。 */
+  private grassCellsIn(camera: Phaser.Cameras.Scene2D.Camera): {
+    readonly x: number;
+    readonly y: number;
+    readonly grass: boolean;
+  }[] {
+    const box = this.visibleCellView(camera);
+    const cells: { x: number; y: number; grass: boolean }[] = [];
+    const y0 = Math.max(0, box.y);
+    const x0 = Math.max(0, box.x);
+    const y1 = Math.min(this.world.grid.height, box.y + box.height);
+    const x1 = Math.min(this.world.grid.width, box.x + box.width);
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const cell = this.world.grid.at({ x, y });
+        if (cell === undefined || cell.terrain !== 'grass') continue;
+        cells.push({ x, y, grass: true });
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * 神谕/回溯这两束「正在发生的事」的光。
+   *
+   * 判据不在这儿：神谕光柱与回溯共用 `fx-layer.ts` 的 `OracleBeamFx`，本层只读
+   * 它此刻活不活。两个读数同头就是两套规则，迟早对不上。
+   */
+  private oracleBeamActive(): boolean {
+    return this.rewindBeam?.isActive() ?? false;
+  }
+
+  /** 灯塔的世界像素位置：设定集渡口图有，旧镇没有（回 null 就不点这盏）。 */
+  private beaconWorldPos(): { readonly x: number; readonly y: number } | null {
+    const site = harborSiteOf(this.pack);
+    if (site === null) return null;
+    return { x: site.x * TILE_PX + TILE_PX / 2, y: site.y * TILE_PX };
+  }
+
   shutdown(): void {
     // 烘焙的纹理不随场景销毁自动释放，必须手动清：否则热更新或重进场景时
     // 会留下同名旧纹理，下一次 generateTexture 直接复用，画面停在上一版。
     this.terrainLayer?.destroy();
+    this.atlasGroundView?.destroy();
+    this.atlasGroundView = null;
+    this.atlasShoreView?.destroy();
+    this.atlasShoreView = null;
+    this.artLighting?.destroy();
+    this.artLighting = null;
+    this.lightSources = [];
+    this.lightSourceFingerprint = -1;
+    this.lightSourcesNextBuildAt = 0;
+    this.microFxView?.destroy();
+    this.microFxView = null;
+    this.cameraGlide?.cancel();
     this.settingScenery?.destroy();
     this.settingScenery = null;
     this.tideView?.destroy();
@@ -1886,7 +2126,7 @@ export class SandboxScene extends Phaser.Scene {
       }
       this.snapshot = this.sim.snapshot();
       this.renderSnapshot(delta);
-      if (this.interiorMode === 'street') this.cameraCtl.update(delta);
+      if (this.interiorMode === 'street' && !this.glideHolding) this.cameraCtl.update(delta);
       else this.updateInterior();
       this.publishCameraMode();
       this.minimap?.update(this.paintingSnapshot(), this.cameraCtl.viewportRect());
@@ -1906,7 +2146,7 @@ export class SandboxScene extends Phaser.Scene {
     if (this.holdWorld) {
       this.accumulator = 0;
       this.renderSnapshot(delta);
-      this.cameraCtl.update(delta);
+      if (!this.glideHolding) this.cameraCtl.update(delta);
       return;
     }
     // 真实时钟：先看墙钟与单调时钟。暂停（回拨）时这一拍一步不走；离线跨了
@@ -1965,8 +2205,9 @@ export class SandboxScene extends Phaser.Scene {
     this.renderSnapshot(delta);
     // 内景期间相机归过渡管：导播 / 跟人 / 拖拽都在 `cameraCtl` 里，让它动一下
     // 就会把刚算好的镜头插值推回去。
-    if (this.interiorMode === 'street') this.cameraCtl.update(delta);
-    else this.updateInterior();
+    // 阻尼滑行接管的那一帧要让路：跟随写回会把滑行插值推回去（见 fx-ambient/avatar-glide.ts）。
+    if (this.interiorMode === 'street' && !this.glideHolding) this.cameraCtl.update(delta);
+    else if (!this.glideHolding) this.updateInterior();
     this.publishCameraMode();
     this.minimap?.update(this.paintingSnapshot(), this.cameraCtl.viewportRect());
     // 只在 update() 返回后写档（命令已结算，ADR_SAVE §4）。
@@ -5672,6 +5913,7 @@ export class SandboxScene extends Phaser.Scene {
         );
       }
     }
+    this.updatePresentationFx(snapshot, presentedNow, delta);
     this.weatherView.update(this.sim.weatherIntensity(), delta, this.shotPin.weather);
     this.weatherFogView?.update(this.sim.weatherFogDensity(), presentedNow);
     // 盖布两种来历：现在正在下雨（weather-effects），或记得昨天淋过雨、

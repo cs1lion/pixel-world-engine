@@ -57,9 +57,13 @@ export interface TileAtlasManifest {
   readonly ground: Readonly<Record<string, number>>;
   /** 石板路格索引（road 地形与街道铺面共用）。 */
   readonly road: number;
-  /** 水体 key → 格索引（河面、湖面等静/动水体）。 */
+  /** 水体 key → 格索引。键是**地形 id**：世界里「水」目前只有 `shallow` 一种
+   *  地形（潮位淹没是叠加层，不是地形），所以清单里通常只有一项；
+   *  以后多一种水体就加一个键，不需要改渲染代码。 */
   readonly water: Readonly<Record<string, number>>;
-  /** 海岸过渡 key → 格索引（水陆交界的渐变带）。 */
+  /** 海岸过渡 key → 格索引。键是**陆侧地形 id**：岸型由水边那块地是什么
+   *  决定（石岸与草岸不一样），这个读数与 `shore-band.ts` 的
+   *  `waterLandEdgesFromGrid` 同源。 */
   readonly shore: Readonly<Record<string, number>>;
   /** 建筑 prefabId → 四层格索引。 */
   readonly buildings: Readonly<Record<string, TileBuildingFrames>>;
@@ -131,6 +135,17 @@ export function groundTileOf(manifest: TileAtlasManifest, terrain: string): numb
 /** 建筑 prefabId → 四层格索引；清单没有这栋楼回 `null`。 */
 export function buildingFramesOf(manifest: TileAtlasManifest, prefabId: string): TileBuildingFrames | null {
   return manifest.buildings[prefabId] ?? null;
+}
+
+/** 水体地形 → 格索引；不是水（或清单没登记）回 `null`。 */
+export function waterTileOf(manifest: TileAtlasManifest, terrain: string): number | null {
+  return manifest.water[terrain] ?? null;
+}
+
+/** 岸型格索引：由水陆边的**陆侧地形**查。清单没有这种岸回 `null`，
+ *  调用方保留原来的程序化岸带——不能因为图集缺一格就把岸画没了。 */
+export function shoreTileOf(manifest: TileAtlasManifest, landTerrain: string): number | null {
+  return manifest.shore[landTerrain] ?? null;
 }
 
 /**

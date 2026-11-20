@@ -122,9 +122,9 @@ const GROUND = [
   ['grass', [86, 148, 74]], ['stone', [138, 138, 150]], ['plaza', [196, 188, 172]],
   ['farm', [172, 152, 84]], ['tree', [52, 96, 62]], ['shallow', [94, 168, 196]],
   ['mud', [124, 96, 66]], ['coal', [58, 58, 66]],
-  ['road', [168, 160, 146]], ['water-river', [58, 118, 196]], ['water-lake', [72, 138, 208]],
-  ['shore-river', [118, 158, 176]], ['shore-lake', [128, 168, 186]], ['spare-1', [40, 40, 48]],
-  ['spare-2', [48, 48, 56]], ['spare-3', [56, 56, 64]],
+  ['road', [168, 160, 146]], ['water-shallow', [58, 118, 196]],
+  ['shore-stone', [118, 158, 176]], ['shore-grass', [128, 168, 186]],
+  ['spare-1', [40, 40, 48]], ['spare-2', [48, 48, 56]], ['spare-3', [56, 56, 64]],
 ];
 
 const ground = new Canvas(8, 8);
@@ -171,8 +171,9 @@ const manifest = {
   },
   ground: Object.fromEntries(GROUND.slice(0, 8).map(([name], i) => [name, i])),
   road: 8,
-  water: { river: 9, lake: 10 },
-  shore: { river: 11, lake: 12 },
+  // 键是地形 id：世界的水只有 `shallow`，岸型按陆侧地形（`grass`/`stone`）分两种。
+  water: { shallow: 9 },
+  shore: { grass: 11, stone: 12 },
   buildings: Object.fromEntries(
     PREFABS.map((id, b) => [id, { back: b * 4, body: b * 4 + 1, front: b * 4 + 2, roof: b * 4 + 3 }]),
   ),

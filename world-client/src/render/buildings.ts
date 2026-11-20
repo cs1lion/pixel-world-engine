@@ -16,6 +16,7 @@
  */
 
 import { artBuildingScale, artKey, artScaleOf, hasArt } from './art-assets.ts';
+import { buildingFramesFromScene, createAtlasBuildingView } from './art1/atlas-buildings.ts';
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { groundTopY } from './ground.ts';
@@ -264,6 +265,33 @@ export function createBuilding(
       chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
       baseY: buildingBaseY(py, building.footprint.h),
     };
+  }
+
+  // 图集建筑分支（`?art=1` 且图集清单登记了这栋楼）：四层各自平铺，
+  // **屋顶层是独立一格**——不是整栋楼一张图。于是 PR-A 的掀屋顶状态机
+  // 在图集楼上也成立：`roofIsWholeBuilding` 不为 true，屋面与前檐两层一起
+  // 淡出就能露内景。地面投影仍走上面那一层（back 容器里的 shadow）。
+  // 优先级在位图单件之后：`hasArt` 那一支已经在上面 return 了。
+  const atlasFrames = buildingFramesFromScene(scene, building.prefabId);
+  if (atlasFrames !== null) {
+    const atlas = createAtlasBuildingView(scene, building, atlasFrames, w, h, back, container, front);
+    if (atlas !== null) {
+      const decal = scene.add.graphics();
+      decal.setPosition(px, py);
+      return {
+        back,
+        container,
+        front,
+        decal,
+        chimney: atlas.chimney,
+        window: atlas.window,
+        progress: atlas.progress,
+        sign: atlas.sign,
+        roof: atlas.roof,
+        chimneyWorld: new Phaser.Math.Vector2(px + w - 12, py - 4),
+        baseY: buildingBaseY(py, building.footprint.h),
+      };
+    }
   }
 
   // 墙体层拆成「烘 → 活 → 烘 → 活 → 烘」五段，**顺序与原来那一支 drawWall 完全一致**。

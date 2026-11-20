@@ -4,8 +4,8 @@
  * 承诺——查询函数多返回一个号，渲染层就会画错一格。清单与类型对齐也在这
  * 条里守着（读 `public/assets/art1/manifest.json` 真件，不抄副本）。
  *
- * 用例形态与 `villager-frames.test.ts` 同口径：纯函数 + 手捏 scene，
- * 不起 Phaser。
+ * 用例形态与 `anim-frames.test.ts`（同一个仓库里管帧采样的那组）同口径：
+ * 纯函数 + 手捏 scene，不起 Phaser。
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -23,7 +23,9 @@ import {
   hasTileAtlas,
   isAtlasTileSize,
   preloadTileAtlas,
+  shoreTileOf,
   villagerWalkFrameOf,
+  waterTileOf,
   type TileAtlasManifest,
 } from '../src/render/art1/atlas-registry.ts';
 
@@ -63,8 +65,12 @@ test('地形 / 石板路 / 水体 / 海岸槽位查询，未登记回 null', () 
   assert.equal(groundTileOf(realManifest, 'coal'), 7);
   assert.equal(groundTileOf(realManifest, 'lava'), null, '清单没有的地形必须回 null，不能瞎指一格');
   assert.equal(realManifest.road, 8, '石板路是独立槽位');
-  assert.equal(realManifest.water.river, 9);
-  assert.equal(realManifest.shore.river, 11);
+  // 水体/海岸的键是地形 id（世界里水只有 `shallow`）：清单里那几个名字
+  // 必须能在同一份清单里找到，不能指到一个渲染代码根本不问的键上。
+  assert.equal(waterTileOf(realManifest, 'shallow'), 9);
+  assert.equal(waterTileOf(realManifest, 'grass'), null, '陆地不是水');
+  assert.equal(shoreTileOf(realManifest, 'grass'), 11);
+  assert.equal(shoreTileOf(realManifest, 'water'), null, '岸型按陆侧地形查');
 });
 
 test('建筑四层格索引：back/body/front/roof 齐全，未登记楼回 null', () => {
@@ -81,7 +87,7 @@ test('居民 4 帧步态轮转；帧数不齐的村民宁可不可用', () => {
   assert.equal(villagerWalkFrameOf(realManifest, 'ghost', 0), null);
   const broken: TileAtlasManifest = {
     ...realManifest,
-    villagers: { ...realManifest.villagers, v0: [0, 1, 2] },
+    villagers: { ...realManifest.villagers, v0: [0, 1, 2] as unknown as readonly [number, number, number, number] },
   };
   assert.equal(villagerWalkFrameOf(broken, 'v0', 0), null, '不是 4 帧就拒绝，步态不能错位');
 });
