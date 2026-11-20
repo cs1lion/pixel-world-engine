@@ -245,13 +245,13 @@ const capturePass = async (scored) => {
 };
 
 // 预热轮（不计分）：路径与正式轮逐字相同，读数全部丢弃，不写截图、不判定。
-const warm = await capturePass(false).catch((error) => {
+const warm = await capturePhase('dawn', false).catch((error) => {
   console.log(`[预热轮] 不计分：预热失败（${error.message}），继续正式采样`);
   return null;
 });
 if (warm !== null) {
-  const means = PHASES.map((phase) => `${phase} ${warm.stats[phase].mean.toFixed(2)}`).join(' / ');
-  console.log(`[预热轮] 不计分：四刻亮度均值 ${means}（本轮读数全部丢弃）`);
+  const warmPhase = warm.shot.actual;
+  console.log(`[预热轮] 不计分：已完成单时段预热 ${warmPhase}（本轮读数全部丢弃）`);
 }
 
 const pass = await capturePass(true);
