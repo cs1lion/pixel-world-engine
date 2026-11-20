@@ -1199,3 +1199,89 @@ smoke 13 张（同一棵 HEAD `eae8553` 两跑，B1 vs B2，均 130 项全绿）
 - 05 由上一轮全绿变为 2/3 红：门边 292px 施工进展线，冻结点未归一的固有抖动；
   阈值 60–160 一字未动、无豁免，按既有口径记红，口径是否要改留待裁决。
 
+
+## 块 9 · art1 图集管线 + 固定灯槽池 + fx-ambient（表现层三条线落地，2026-11-20）
+
+- 分支 `feat/art1-visual-and-creator-ux`（worktree `D:/project/pwe-art1-visual`），
+  基点 origin/main `d0bdf54`，**stacked 在 PR #69**（造物落点遮罩 + 掀屋顶）之上。
+  决策全文 `docs/adr/ADR_ART1_ATLAS_PRESENTATION.md`。
+- 改了什么结构
+  - `src/render/art1/`：`atlas-registry.ts`（`TileAtlasManifest`：地形 8 + 石板路 +
+    水体 + 岸型 + 建筑 back/body/front/roof 四层 + 居民 4 帧；16/32 两种格）、
+    `atlas-tiles.ts`（整层离屏合成 + `sliceSourceHeight` 切片口径）、
+    `atlas-buildings.ts`（**独立屋顶层**）、`atlas-villagers.ts`（4 帧步态）、
+    `lighting.ts` / `lighting-pool.ts` / `lighting-sources.ts` / `lighting-readings.ts`。
+  - `src/render/fx-ambient/`：`visual-clock.ts`（本层唯一时间与随机入口）、
+    `micro-fx.ts`（草摆 / 涟漪 / 漂移点 + `budgetFor` 可见区封顶）、
+    `avatar-glide.ts`（临界阻尼弹簧）。
+  - `scripts/gen-art1-test-atlas.mjs`：自带最小 PNG 编码器（IHDR/IDAT/IEND +
+    mulberry32 确定性像素），产三张 CC0 测试图集 + `manifest.json`。
+  - `scripts/check-art1-smoke.mjs` + `npm run test:art1-smoke`（已进 CI 浏览器 light lane）；
+    `window.Oracle.debugArt1()` 自证读数。
+  - 配套：`check-art-assets.mjs` 给 `art1/` 子清单独立审；`audit-palette.mjs` 放行名单
+    补 `src/render/fx-ambient/`；`red-first-lib.ts` 五个新测试文件按文件级登记免跑；
+    `eval/ledger.json` 两条 palette 读数重录；`ADR_TERRAIN_HEIGHT.md` 2 处 +
+    `PROGRESS.md` 2 处行号引用改符号锚点（`ALTITUDE` / `create`，本轮接线后已漂）。
+- 关键读数（本机 preview 5211，headless Chromium）
+  - `?art=1`：图集地面 **3072 格**（1024×768，= 全图格数，整层接管）/ 岸带 **83 格** /
+    光照 **capacity 10、requests 29、dropped 19** / 微动效 **g130 r210 d8**。
+  - `?atlas=1`（`ATLAS_FIRST=1` 那一轮）：楼 **9/9 走图集且 9/9 可掀**、居民 **7/7 走图集步态**。
+  - `?art=0`：图集两层 off、光照 off、微动效 hidden；`/assets/` 请求 **0 个**。
+  - 帧节奏：art=1 中位 16.70ms 与 art=0 16.70ms **差值 0.00ms**（vsync 16.67ms）。
+  - 绘制指令峰值 **25,181**（昏+雨+灯全开，帧 2572）≤ 硬顶 33,488，**欠债 0 条**。
+    图集没有把预算按格数吹大（烘焙合成的直接结果：每层每帧一条 draw 指令）。
+  - 闸门：类型 0/0；端口 0；基线字节 166/166；`npm test` 2777 项 0 fail（本轮新增
+    62 项纯函数单测）；`test:meta` 115 项；夹具 6 条 195 项；`red:first` RESULT=RED
+    在断言；references 558 处 0 存疑；citations/sections 0；claims 3/3 + ADR 27 valid；
+    账本 25 条 ok + 自检 0；截图自检 5/5；pytest 623 passed 1 skipped；报告审计 issues=0。
+  - EDD 三套 16/16（**URL 口径见 `docs/RESUME.md`：sensory 要 `world=dengchao`，
+    rewind 要用默认莞尔镇，带错参数会假红**）。
+  - 浏览器既有闸门：`test:building-bake` 72 张全过、`test:persistence` 8 项、
+    `test:phases` 40 项、`check-phases-negative` 反例成立、`eval-interaction` 10/10。
+
+### 做到
+
+1. **图集可热替换**：换 `public/assets/art1/` 的 PNG 与 `manifest.json` 即可，渲染代码不动。
+2. **缺件整层回退**：manifest 坏 / 身份字段不对 / sheet 缺 / 清单没登记该地形该楼该人 →
+   一律 `active: false` 或 `null`，落回程序化。**不做半层混铺**。
+3. **掀屋顶在 `?art=1` 成立**：屋面拆成图集独立一格（`roofFromAtlas`），
+   PR-A 的 `roofLifts` 状态机一行没改。9/9 可掀是机器读数，不是推断。
+4. **灯数上限这件事被正面处理**：`maxLights` 缺省 10 vs 街灯 28 盏 → 固定灯槽池 +
+   每帧挑选 + `dropped` 记账。挤掉的灯**可见**，不静默丢。
+5. **fx-ambient 防火墙成立**：三个模块都不 import `src/world/`、不出现 `WorldState`，
+   连格边长都作入参递（`DEFAULT_TILE_PX`）；`layer-guard` 实测零违规。
+6. **表现层的帧代价可判**：同轮相对对照（art=1 vs art=0），不用绝对 16.6ms。
+
+### 没做到（明确不做，理由写进 ADR）
+
+- **头像阻尼跟随默认不接管**（`avatarDamping = false`）。转正要连带改
+  `village-hud.test.ts`「点头像 → 调 `followVillager` 恰好一次」与
+  `camera-controller.test.ts` 的 `cam.follow(...)` 调用序列两处断言。
+- **图集不抢位图**（默认）。位图单件已过人眼验收（`ADR_ART_DEFAULT_ON`），
+  抢位需要自己的验收对比图。
+- **没抬 `render.maxLights`**。真要把 28 盏灯全点上，得动 Phaser 配置并重测
+  着色器分支与绘制指令预算，不在本轮夹带。
+- 否决并写明理由的写法：Blitter 贴 tile（`Bob` 无缩放，32 格回不到 16 逻辑像素）、
+  TilemapLayer / `addTilesetImage`（与本仓 `WorldGrid` 账本对不上，等于旁边再存一份地形）、
+  一灯一对象按世界增删（超 `maxLights` 且牵动 `#define LIGHT_COUNT` 管线）、
+  `art=0` 也建表现层再靠 alpha 藏（基线必须逐字节不变）。
+
+### 没验证
+
+- **图集观感本身**：测试图集是确定性程序化色块（CC0，链路验收载体），
+  不是美术基准；真美术未产出，故本轮没有 `docs/evidence/` 的观感对比图。
+- **光照在真机 WebGL 上的观感**：headless 只能证明「灯建了、挑了、记账了、
+  帧没掉」；黄昏蓝调/雨夜压暗/暖光呼吸的**好不好看**没做人眼验收。
+- **Canvas 渲染器下的灯光路径**：判定为降级空转（Phaser 4 `setLighting` 标
+  `@webglOnly`，`runLightPipeline` 在无灯管线时早退），但没有真的用 Canvas 渲染器
+  跑过一整页——`lightsSupported` 为 false 那一支只由类型与源码阅读保证。
+- **`atlas=1` 与截图基线的关系**：screens-diff 5/5 与 `eval/screens` 166 项都跑在
+  `?art=0`，本轮没重录任何基线；`?atlas=1` 的画面从未进过像素判据。
+- 30 天/长时跑、存档 v5 往返、跨设定集（`empty-map`）下的图集路径未单独验证。
+
+### 遗留（本线之外）
+
+- `worktrees:audit --strict` 仍 exit 1：**未登记项已清零**（total=20 registered=20
+  unregistered=0），剩余红是 9 个过期未回收 + 6 个已合入仍在的 owner 债务，
+  main 基线同样红，非本轮引入。
+- 为核对 main 基线临时建的 `D:/project/pwe-main-probe` 已 `worktree remove --force` 清掉。
