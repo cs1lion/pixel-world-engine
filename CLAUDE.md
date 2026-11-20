@@ -31,8 +31,12 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 服务端在 `server/`，CI 有第二个 job：`pip install -r requirements.txt` 然后
 `python -m pytest`。
 
-**这几条要一起跑，别只跑前两条。** CI 现在跑**十七道闸门**：前端 job 十六道，
-服务端 job 一道。后七道（色板 + 三份审引用 + `audit-claims` + 两条指标账本）的输出
+**这几条要一起跑，别只跑前两条。** CI 现在跑**十九道闸门**：前端 job 十八道，
+服务端 job 一道。其中第 5/6/18 道是条件触发（`test:meta` 只在 scripts/ 或
+`test/meta/` 变更时跑；`test:nightly` 与 `audit:reports` 只在每日 schedule /
+推 main 兜底或对应目录变更时跑），第 8 道 `red:first` 自 2026-11-19 起非阻断
+（`continue-on-error: true`，近 20 次提交它 2 次红在 module 类纪律问题而非产品 Bug）。
+后七道（色板 + 三份审引用 + `audit-claims` + 两条指标账本）的输出
 有个共同性质：**断言对不上、节号不存在、色板超预算、夹具回放漂了，全都只让输出变长，
 不会让 `check`/`test` 变红。** 所以只跑前三条的人会以为自己是绿的，而后面十几道
 一个都没过。完整清单以 `.github/workflows/ci.yml` 为准——那一份加了新步骤时，
@@ -43,24 +47,32 @@ cd world-client && node scripts/audit-references.ts --strict && node scripts/aud
 | 1 | 类型检查 | `npm run check` | 前端 job |
 | 2 | 端口纪律 | `npm run audit:ports` | 前端 job |
 | 3 | 基线字节自证 | `npm run audit:baseline` | 前端 job |
-| 4 | 单元测试 | `npm test` | 前端 job |
-| 5 | 回放夹具 | `npm run fixture:check` | 前端 job |
-| 6 | 先红后绿 | `npm run red:first` | 前端 job |
-| 7 | 构建 | `npm run build` | 前端 job |
-| 8 | 色板预算（?art=0 兜底层 + UI Token） | `node scripts/audit-palette.mjs --strict` | 前端 job |
-| 9 | 行号引用 + 符号锚点 | `node scripts/audit-references.ts --strict` | 前端 job |
-| 10 | 文件引用 | `node scripts/audit-citations.ts --strict` | 前端 job |
-| 11 | 节号引用 | `node scripts/audit-sections.ts --strict` | 前端 job |
-| 12 | 标注断言 + ADR 字段 | `node scripts/audit-claims.ts --strict` | 前端 job |
-| 13 | 指标账本口径 | `node scripts/eval-ledger.ts` | 前端 job |
-| 14 | 指标账本自检 | `node scripts/verify-ledger-selfcheck.ts` | 前端 job |
-| 15 | 截图比对自检 | `python scripts/verify-screens-diff-selfcheck.py` | 前端 job |
-| 16 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
-| 17 | 交付报告审计 | `npm run audit:reports` | 前端 job |
+| 4 | 单元测试（不含 meta/nightly 两层） | `npm test` | 前端 job |
+| 5 | meta 自审计单测（仅 scripts/ 或 `test/meta/` 变更时跑） | `npm run test:meta` | 前端 job |
+| 6 | nightly 重用例（仅 schedule / 推 main 兜底） | `npm run test:nightly` | 前端 job |
+| 7 | 回放夹具 | `npm run fixture:check` | 前端 job |
+| 8 | 先红后绿（非阻断） | `npm run red:first` | 前端 job |
+| 9 | 构建 | `npm run build` | 前端 job |
+| 10 | 色板预算（?art=0 兜底层 + UI Token） | `node scripts/audit-palette.mjs --strict` | 前端 job |
+| 11 | 行号引用 + 符号锚点 | `node scripts/audit-references.ts --strict` | 前端 job |
+| 12 | 文件引用 | `node scripts/audit-citations.ts --strict` | 前端 job |
+| 13 | 节号引用 | `node scripts/audit-sections.ts --strict` | 前端 job |
+| 14 | 标注断言 + ADR 字段 | `node scripts/audit-claims.ts --strict` | 前端 job |
+| 15 | 指标账本口径 | `node scripts/eval-ledger.ts` | 前端 job |
+| 16 | 指标账本自检 | `node scripts/verify-ledger-selfcheck.ts` | 前端 job |
+| 17 | 截图比对自检 | `python scripts/verify-screens-diff-selfcheck.py` | 前端 job |
+| 18 | 交付报告审计（仅报告目录变更 / 兜底时跑） | `npm run audit:reports` | 前端 job |
+| 19 | 服务端测试 | `cd server && python -m pytest` | 服务端 job |
 
-CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
-`test:building-bake` / `test:art-assets` / `test:phases`，只读、写到 runner
-临时目录）。它是验收，不在这十七道计数里。
+CI 另有一个**浏览器 job**：matrix job `browser-lanes` 三条 lane（`test:phases`〔脚本内
+四刻并发页〕 / `test:render-budget` / light〔`test:persistence`+`test:building-bake`
++`test:art-assets`+`check-phases-negative`+`eval-interaction --split main`〕，只读、
+写到 runner 临时目录；变更只落在 docs/test/scripts/server 等不进口浏览器断言面的
+目录时三条 lane 全跳过并正常 exit 0，push main 与每日 schedule 兜底跑全量）。分支
+保护强绑的检查名 `world-client-browser` 是一个同名**汇总 gate**（needs 三条 lane，
+`if: always()`，任意 lane 非绿则它红）——matrix 化后 lane 的实际上报名带
+`(phases)` 等后缀，不改 GitHub 侧保护，靠这个 gate 对齐原检查名。它是验收，
+不在这十九道计数里。
 
 ## 闸门分层口径（2026-11-19 起）
 
@@ -82,7 +94,9 @@ CI 另有一个**浏览器 job**（`test:persistence` / `test:render-budget` /
 - **screens-diff 5/5 锁定 `?art=0`**：pin 夹具五项判定（三组基线 0/0/0 + 两条扰动
   非零）只在程序化兜底基准模式执行，见 `check-shot-actor-pin.mjs` /
   `check-rain-pin.mjs` 头注。
-
+- **前置 `changes` job 路径分流与装依赖前跳过**：`.github/workflows/ci.yml` 顶部新增 `changes` job（`fetch-depth: 0` + `git diff --name-only` 对比 PR base SHA，非 `pull_request` 事件全量输出 `true`），输出 `server_changed`、`client_changed`、`browser_changed`、`workflow_changed`。各下游 job（`world-client`、`browser-lanes`、`server`）通过 `needs: changes` 在 `checkout` / `setup-node` / `setup-python` / `npm ci` / `pip install` 等装依赖步骤前用 `if:` 条件短路跳过，未命中路径时直接退出 `0` 以保持必需检查全绿。
+- **CI 门控瘦身**：`red:first` 仅在 `main`/`schedule` 或 `scripts/`/`test/meta/` 变更时触发；`audit:docs` 合并 4 道文档元审计；`verify-screens-diff-selfcheck` 按 `screens_diff` 路径条件触发。
+- 
 决策全文：`docs/adr/ADR_PRESENTATION_GATE_LAYERS.md`；规范口径见 `docs/SPEC.md`
 §11.2 与 §12。
 

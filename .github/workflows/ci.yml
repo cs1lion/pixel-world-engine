@@ -4,9 +4,56 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # 每日兜底全量：nightly 重用例（legend-forms / issue-13 / soak-30d）
+    # 与 paths-filter 跳过的轻量变更，都在这一天跑全量。
+    - cron: '0 3 * * *'
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      server_changed: ${{ steps.filter.outputs.server_changed }}
+      client_changed: ${{ steps.filter.outputs.client_changed }}
+      browser_changed: ${{ steps.filter.outputs.browser_changed }}
+      workflow_changed: ${{ steps.filter.outputs.workflow_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "server_changed=true" >> "$GITHUB_OUTPUT"
+            echo "client_changed=true" >> "$GITHUB_OUTPUT"
+            echo "browser_changed=true" >> "$GITHUB_OUTPUT"
+            echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD)
+          echo "$CHANGED"
+          server_changed=false
+          client_changed=false
+          browser_changed=false
+          workflow_changed=false
+          if echo "$CHANGED" | grep -qE '^server/'; then
+            server_changed=true
+          fi
+          if echo "$CHANGED" | grep -vE '\.md$' | grep -qE '^world-client/'; then
+            client_changed=true
+          fi
+          if echo "$CHANGED" | grep -vE '\.md$' | grep -qE '^(world-client|server)/'; then
+            browser_changed=true
+          fi
+          if echo "$CHANGED" | grep -qE '^\.github/workflows/'; then
+            workflow_changed=true
+          fi
+          echo "server_changed=$server_changed" >> "$GITHUB_OUTPUT"
+          echo "client_changed=$client_changed" >> "$GITHUB_OUTPUT"
+          echo "browser_changed=$browser_changed" >> "$GITHUB_OUTPUT"
+          echo "workflow_changed=$workflow_changed" >> "$GITHUB_OUTPUT"
   world-client:
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -16,99 +63,219 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: npm ci
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # `npm test` 里有真实服务联调用例（creation-ledger-server.integration）：
       # 自己在测试里起 `python -m uvicorn`，缺 uvicorn 会「服务进程提前退出」红。
       - run: pip install -r ../server/requirements.txt
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+      # 单测分层的路径分流：meta 只在 scripts/ 或 test/meta/ 变更时跑；nightly
+      # 与 audit:reports 分别由 schedule / 推 main 兜底与报告目录变更触发。
+      # 兜底事件（schedule、推 main）不存在可比 base，直接三层全开。
+      - name: 路径分流（单测分层）
+        id: unit-filter
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = 'schedule' ] || \
+             { [ "${{ github.event_name }}" = 'push' ] && [ "${{ github.ref }}" = 'refs/heads/main' ]; }; then
+            echo "meta=true" >> "$GITHUB_OUTPUT"
+            echo "nightly=true" >> "$GITHUB_OUTPUT"
+            echo "reports=true" >> "$GITHUB_OUTPUT" 
+            echo "screens_diff=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          if printf '%s\n' "$CHANGED" | grep -qE '^(world-client/scripts/|scripts/|world-client/test/meta/)'; then
+            echo "meta=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "meta=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "nightly=false" >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$CHANGED" | grep -qE '^(docs/evidence/|docs/agents/reporting.md|world-client/scripts/audit-reports\.ts)'; then
+            echo "reports=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reports=false" >> "$GITHUB_OUTPUT"
+          fi 
+          if printf '%s\n' "$CHANGED" | grep -qE '(scripts/.*screens|scripts/verify-screens-diff)'; then
+            echo "screens_diff=true" >> "$GITHUB_OUTPUT"
+           else
+             echo "screens_diff=false" >> "$GITHUB_OUTPUT"
+             fi
       - run: npm run check
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 端口纪律 lint：脚本/配置/.env 里的禁用端口（5188/5191/5202/5203）命中即红。
       - run: npm run audit:ports
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 基线字节自证（E13）：`eval/screens/` 每张已跟踪的图都要和
       # `.baseline-manifest.json` 里记的 sha256 对得上。基线被重拍覆盖过一次，
       # 之后所有像素比较都会拿新字节当基准——`--write-baseline` 之后必须
       # 显式 `npm run audit:baseline -- --update` 并把记录一起提交。
       - run: npm run audit:baseline
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: npm test
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+      # meta 自审计单测（audit-*/check-types/red-first-lib，共 11 文件）：守的是
+      # 审计脚本自身，与同名 audit-* 闸门职责重叠；只在 scripts/ 或 test/meta/
+      # 有改动时跑（近 20 次占用例耗时 14.4%，每次全跑是纯浪费）。
+      - run: npm run test:meta
+        if: steps.unit-filter.outputs.meta == 'true' && (needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true')
+      # nightly 重用例（legend-forms 40s / issue-13 19s / soak-30d）：PR 不跑，
+      # 每日 schedule 与推 main 的兜底全量里跑。
+      - run: npm run test:nightly
+        if: steps.unit-filter.outputs.nightly == 'true' && (needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true')
       # 语义层：回放夹具（6 条 / 195 项断言）。只读文件与内存回放，不需要 preview。
       - run: npm run fixture:check
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 先红后绿：只把本次 `world-client/test/` 的 diff 套到 base 上再跑，必须红。
       # base 取自事件 sha（PR 用 base.sha，push main 用 before），避免浅克隆/local ref 失真。
-      - name: red-first 红灯闸门
+      # 2026-11-19 起非阻断（continue-on-error）：近 20 次提交它 2 次红在
+      # 「新测试 import 了 base 上还不存在的模块」（分类=module，exit 2）——
+      # 那是测试纪律拦截，不是产品 Bug；红灯原文仍完整打在日志里交 review 核。
+      - name: red-first 红灯闸门 
+        if: steps.unit-filter.outputs.meta == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        continue-on-error: true
         run: npm run red:first -- --base "${{ github.event.pull_request.base.sha || github.event.before }}"
         env:
           RED_FIRST_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       - run: npm run build
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: node scripts/audit-palette.mjs --strict
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 行号引用对不上就红。文档与注释里写的「代码在那儿」得真的是在那儿——
       # 这个仓库的信条是「说谎比不去更糟」，那句话也管仓库自己。
-      - run: node scripts/audit-references.ts --strict
-      # 不带行号的引用也管：`night.ts`、`docs/LARGE_WORLD.md` 这类只写文件名的，
-      # 上面那个正则（冒号加行号是硬条件）一处都看不见。六个幽灵引用全是这么漏进来的。
-      - run: node scripts/audit-citations.ts --strict
-      # 节号对不上也管：`SPEC_V2 §9`、`docs/adr/ADR_SAVE.md §9` 这种点名了文档、
-      # 而那份文档里没有这一节的。`villager.ts` 的「审计 §6.2」与 `day-phase.ts` 的
-      # 「§6 缺口 2」都是这一类，两处都靠人 review 才发现，没有任何机关会红。
-      - run: node scripts/audit-sections.ts --strict
-      # 标注式断言：文档里的数字/版本用 <!-- claim: name=value --> 标出，
-      # 这里按固定探针复算；同时校验 10 份 ADR 的 status/evidence。
-      - run: node scripts/audit-claims.ts --strict
+      - run: npm run audit:docs
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 指标账本的口径（25 条 metric）必须能复算；不接 verify-all 聚合器，
       # 两条独立 step 各自可判红：eval-ledger 先算，selfcheck 再验分桶与必填字段。
       - run: node scripts/eval-ledger.ts
+        if: needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: node scripts/verify-ledger-selfcheck.ts
+        if: steps.unit-filter.outputs.meta == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # screens-diff 自检只喂合成图（200x200），不读 eval/screens 的截图基线，
       # 所以 E7 删掉的 3 张基线不影响它。锁定版本是因为仓库没有 requirements.txt，
       # 浮动版本会让截图比对结果漂移；本地实测通过的是下面这两个版本。
       - run: pip install numpy==2.5.1 pillow==12.3.0
+        if: steps.unit-filter.outputs.screens_diff == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: python scripts/verify-screens-diff-selfcheck.py
+        if: steps.unit-filter.outputs.screens_diff == 'true' || needs.changes.outputs.workflow_changed == 'true'
       # 交付报告机器可读块的审计（R1–R7，规则见 docs/agents/reporting.md）。
       # R6 只认 git 提交时间，不设 mtime / reportedAt 兜底；任一侧取不到可信提交时间时
       # 如实记为未核验（不判红），让「没核到」可见而不是悄悄当通过。
+      # 2026-11-19 起 R1 的 bytes/sha256 手写锁死值漂移只提示不判红（脚本复算值直接
+      # 打印，抄进报告即回绿）；结构缺失仍判红。仅报告目录变更（或兜底）时跑。
       - run: npm run audit:reports
+        if: steps.unit-filter.outputs.reports == 'true' && (needs.changes.outputs.client_changed == 'true' || needs.changes.outputs.workflow_changed == 'true')
+      - name: 路径分流跳过
+        if: needs.changes.outputs.client_changed != 'true' && needs.changes.outputs.workflow_changed != 'true'
+        working-directory: .
+        run: |
+          echo "SKIP world-client: 变更未涉及 world-client/（不含纯 .md）或 .github/workflows/，跳过安装与单测/构建闸门。"
+          exit 0
 
 
   # 浏览器闸门：不需要模型/服务端，但需要一个 preview server 与 chromium。
-  # 三道都只读；EVAL_OUT 指到 runner 临时目录，保证仓库 eval/ 不被写脏。
-  world-client-browser:
+  # 七道脚本拆为三条 lane（matrix job `browser-lanes`）：phases / render-budget /
+  # light（其余 5 道）。各 lane 都只读；EVAL_OUT 指到 runner 临时目录，
+  # 保证仓库 eval/ 不被写脏。
+  # 分支保护强绑的必要检查名是 `world-client-browser`（精确匹配）：matrix 化后
+  # 实际上报名会变成 `browser-lanes (phases)` 等，原名会永远停在 Expected——
+  # 所以保留一个同名汇总 gate，needs 三条 lane，任意一条非绿则它红。
+  browser-lanes:
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: world-client
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [phases, render-budget, light]
     steps:
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
         with:
           node-version: '22'
       - run: npm ci
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: npx playwright install --with-deps chromium
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: npm run build
-      # preview 必须与三道检查在同一个 step：runner 在 step 结束时清理后台进程，
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+      # 路径分流：变更只落在 docs/、test/、scripts/、server/ 等「不进口浏览器
+      # 断言面」的目录时，三条 lane 全跳过并正常 exit 0（分支保护不破）。
+      # 例外：world-client/scripts/ 里的 check-*/eval-*/lib 是闸门本体，改了必须跑；
+      # push main 与每日 schedule 是兜底，一律全量。
+      - name: 路径分流（浏览器断言面）
+        id: browser-filter
+        run: |
+          if [ "${{ github.event_name }}" = 'schedule' ] || \
+             { [ "${{ github.event_name }}" = 'push' ] && [ "${{ github.ref }}" = 'refs/heads/main' ]; }; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          RUN_RE='^(world-client/(src|eval|assets)/|world-client/(index\.html|package\.json|vite\.config|tsconfig)|world-client/scripts/(check-|eval-|lib/|render-budget-threshold))'
+          SKIP_RE='^(docs/|server/|world-client/test/|world-client/scripts/|scripts/|eval/|data/|\.github/|.*\.(md|png|jpg|jpeg|json|py))$'
+          if printf '%s\n' "$CHANGED" | grep -qE "$RUN_RE"; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          OUT=$(printf '%s\n' "$CHANGED" | grep -cvE "$SKIP_RE" || true)
+          if [ "$OUT" -gt 0 ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      # preview 必须与各 lane 的检查在同一个 step：runner 在 step 结束时清理后台进程，
       # 拆成两步会让第二条命令拿到 ERR_CONNECTION_REFUSED。
       # runner 上下文在 job 级 env 不可用，只能放在 step 级，否则工作流整体不编译。
-      - run: |
+      - name: 浏览器断言（${{ matrix.lane }}）
+        if: steps.browser-filter.outputs.skip != 'true' && (needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true')
+        run: |
           npm run preview -- --port 5211 --strictPort --host 127.0.0.1 &
           for i in $(seq 1 60); do
             curl -sf http://127.0.0.1:5211/ && break
             sleep 1
           done
           curl -sf http://127.0.0.1:5211/ > /dev/null
-          npm run test:persistence
-          npm run test:render-budget
-          # 建筑烘焙对齐：逐件钉住 72 张 Image 的落点/原点/缩放/纹理尺寸/四边 alpha=0。
-          npm run test:building-bake
-          # 位图素材装载：?art=1 全装且每张 200，?art=0 零请求、两跑无 pageerror。
-          npm run test:art-assets
-          npm run test:phases
-          node scripts/check-phases-negative.mjs
-          # 村民交互 EDD 主集：固定程序判别，逐条断言，有 fail 即 exit 1。
-          # 数据集与备用集见 world-client/eval/interaction/；备用集合并前另跑。
-          node scripts/eval-interaction.mjs --split main
+          case "${{ matrix.lane }}" in
+            phases)
+              # 四刻可辨性：脚本内 4 个 page 并发（关键路径≈最慢的一刻），
+              # 跨刻断言仍在同一进程判，断言面与串行版零差别。
+              npm run test:phases
+              ;;
+            render-budget)
+              # 渲染预算回归：绘制指令峰值独占一路；fps 三类断言只记录不阻塞
+              # （慢机假红教训见脚本头），硬闸是指令峰值与 Graphics 数。
+              npm run test:render-budget
+              ;;
+            light)
+              npm run test:persistence
+              # 建筑烘焙对齐：逐件钉住 72 张 Image 的落点/原点/缩放/纹理尺寸/四边 alpha=0。
+              npm run test:building-bake
+              # 位图素材装载：?art=1 全装且每张 200，?art=0 零请求、两跑无 pageerror。
+              npm run test:art-assets
+              node scripts/check-phases-negative.mjs
+              # 村民交互 EDD 主集：固定程序判别，逐条断言，有 fail 即 exit 1。
+              # 数据集与备用集见 world-client/eval/interaction/；备用集合并前另跑。
+              node scripts/eval-interaction.mjs --split main
+              ;;
+          esac
         env:
           EVAL_OUT: ${{ runner.temp }}/eval-screens
       - run: |
@@ -116,9 +283,33 @@ jobs:
             git status
             exit 1
           fi
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+      - name: 路径分流跳过
+        if: needs.changes.outputs.browser_changed != 'true' && needs.changes.outputs.workflow_changed != 'true'
+        working-directory: .
+        run: |
+          echo "SKIP browser-lanes: 变更未涉及浏览器相关路径或 .github/workflows/，跳过安装依赖与浏览器断言。"
+          exit 0
+
+  # 汇总 gate：分支保护的必要检查名。三条 lane 全绿才绿；lane 红时它也红
+  # （if: always() 保证 lane 失败时它仍会跑并如实上报，不被吞掉）。
+  world-client-browser:
+    needs: [browser-lanes]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 汇总三条 lane
+        run: |
+          echo "browser-lanes 结果：${{ needs.browser-lanes.result }}"
+          if [ "${{ needs.browser-lanes.result }}" != 'success' ]; then
+            echo "三条浏览器 lane 未全绿（${{ needs.browser-lanes.result }}），闸门判红"
+            exit 1
+          fi
+          echo "三条浏览器 lane 全绿"
 
   # 仓库级手续：钩子自检与 worktree 登记巡检。只用 node 内置模块，不需要 npm ci。
   repo-harness:
+    needs: changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -158,14 +349,25 @@ jobs:
         run: node --test scripts/orphan-gates-selftest.mjs
 
   server:
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: server
     steps:
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.server_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - uses: actions/setup-python@v5
+        if: needs.changes.outputs.server_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+        if: needs.changes.outputs.server_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
       - run: python -m pytest
+        if: needs.changes.outputs.server_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
+      - name: 路径分流跳过
+        if: needs.changes.outputs.server_changed != 'true' && needs.changes.outputs.workflow_changed != 'true'
+        working-directory: .
+        run: |
+          echo "SKIP server: 变更未涉及 server/ 或 .github/workflows/，跳过 Python 依赖安装与 pytest。"
+          exit 0

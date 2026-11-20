@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { auditSections, SCAN_ROOTS, scanFiles } from '../scripts/audit-sections.ts';
+import { auditSections, SCAN_ROOTS, scanFiles } from '../../scripts/audit-sections.ts';
 
 /**
  * 节号存在性闸门的行为锁。
@@ -259,7 +259,7 @@ test('SCAN_ROOTS 里每一个根都真的扫到了东西', () => {
   //
   // 所以逐个根核，不问总数：目录要扫出它底下的文件，文件要扫到它自己。
   // 塌陷从来不是「少了很多」，是「少了几个而没人知道少了几个」。
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
   const scanned = new Set(
     scanFiles(root).map((abs) => path.relative(root, abs).split(path.sep).join('/')),
   );

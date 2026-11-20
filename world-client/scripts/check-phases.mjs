@@ -119,6 +119,76 @@ const decodeStats = async (shots) => {
  * `scored=false` 是预热轮：不写截图、不做任何判定，读数由调用方丢弃。
  * 采样路径必须与正式轮逐字相同，否则预热就只是「随便开个页面」。
  */
+/**
+ * 单刻采样：独立 page、独立等待链，四刻之间互不共享状态。
+ *
+ * 2026-11-19 起四刻并发（Promise.all）：每刻的大头是「居民落定 + 压暗收敛」
+ * 的墙钟等待，串行时四份等待直接相加；并发后关键路径≈最慢的一刻。
+ * 采样路径与旧串行版逐字相同，结果按 PHASES 顺序合回，下游断言无感知。
+ */
+const capturePhase = async (phase, scored) => {
+  const page = await context.newPage();
+  const phaseWaits = [];
+  const phaseErrors = [];
+  try {
+    page.on('pageerror', (error) => phaseErrors.push(`${phase}: ${error.message}`));
+    await page.addInitScript(() => localStorage.clear());
+    await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
+    // 渐变 FADE_MS = 900，等两倍确保拍到终态。
+    // ⚠ 这 2200ms 与下面的 60 帧是**冷启动预热**：只把采样窗口对齐到
+    // 「页面已渲染」，它们不保证两跑逐像素相同；逐像素一致靠后面钉法。
+    await page.waitForTimeout(2200);
+    const advanced = await page.evaluate(() => window.Oracle.ecoState().advanceCount);
+    await page.waitForFunction(
+      (target) => window.Oracle.ecoState().advanceCount >= target,
+      advanced + 60,
+      { timeout: 20000, polling: 50 },
+    );
+
+    // 钉住取景：等居民回屋要 20 秒以上，一过 15 秒导播就会接管并跟着走路的人
+    // 平移——四刻截图会各自落在不同位置，整幅对不上。开局这一帧本来就对准
+    // 祭坛（旧基线也是这个取景），切 free 后把中心点写死在那里。
+    const framing = await page.evaluate(() => {
+      const c = window.Oracle.camera();
+      const cx = c.worldViewX + c.width / (2 * c.zoom);
+      const cy = c.worldViewY + c.height / (2 * c.zoom);
+      window.Oracle.setCameraMode('free');
+      window.Oracle.centerCameraOn(cx, cy);
+      const after = window.Oracle.camera();
+      return { before: c, after };
+    });
+    // 先等两人回屋（街面不再有会动的精灵），再把世界时钟钉到 00:35 并冻住。
+    // 00:35 是他们各自坐下之后的固定时刻：萤火/窗灯的呼吸相位由此固定，
+    // 否则两跑的 `now` 差一秒，整片萤火都在不同的亮度上。
+    const folk = await waitVillagersSettled(page);
+    const pin = await page.evaluate(() => {
+      window.Oracle.jumpWorldClock(35);
+      const now = window.Oracle.freezeWorldClock();
+      return { now, pinned: window.Oracle.worldClockPinned() };
+    });
+
+    // 等压暗层渐变走完（取样区连续 3 帧不变），不再靠固定等待。
+    const box = await page.locator('canvas').first().boundingBox();
+    const fade = await waitFadeSettled(page, box);
+    phaseWaits.push({
+      shot: `phase-${phase}`,
+      waitedMs: folk.waitedMs + fade.waitedMs,
+      frames: fade.frames,
+      method: 'villagers-inside + clock-pin(00:35) + fade-probe',
+      villagersMs: folk.waitedMs,
+      fadeMs: fade.waitedMs,
+    });
+
+    const actual = await page.evaluate(() => window.Oracle.currentPhase());
+    const buffer = await page.locator('canvas').first().screenshot();
+    if (scored) await writeFile(`${OUT}/phase-${phase}.png`, buffer);
+    return { phase, shot: { buffer, actual }, fact: { framing, folk, pin, fade }, waits: phaseWaits, errors: phaseErrors };
+  } finally {
+    await page.close();
+  }
+};
+
 const capturePass = async (scored) => {
   const shots = {};
   const errors = [];
@@ -126,66 +196,13 @@ const capturePass = async (scored) => {
   /** 每张图的抓拍读数：实际等了多久（ms）、看了多少帧。只带出计分轮的。 */
   const waits = [];
 
-  for (const phase of PHASES) {
-    const page = await context.newPage();
-    try {
-      page.on('pageerror', (error) => errors.push(`${phase}: ${error.message}`));
-      await page.addInitScript(() => localStorage.clear());
-      await page.goto(`${BASE}?ledger=off&time=${phase}&debug=1`, { waitUntil: 'load' });
-      await page.waitForFunction(() => window.Oracle !== undefined, null, { timeout: 20000 });
-      // 渐变 FADE_MS = 900，等两倍确保拍到终态。
-      // ⚠ 这 2200ms 与下面的 60 帧是**冷启动预热**：只把采样窗口对齐到
-      // 「页面已渲染」，它们不保证两跑逐像素相同；逐像素一致靠后面钉法。
-      await page.waitForTimeout(2200);
-      const advanced = await page.evaluate(() => window.Oracle.ecoState().advanceCount);
-      await page.waitForFunction(
-        (target) => window.Oracle.ecoState().advanceCount >= target,
-        advanced + 60,
-        { timeout: 20000, polling: 50 },
-      );
-
-      // 钉住取景：等居民回屋要 20 秒以上，一过 15 秒导播就会接管并跟着走路的人
-      // 平移——四刻截图会各自落在不同位置，整幅对不上。开局这一帧本来就对准
-      // 祭坛（旧基线也是这个取景），切 free 后把中心点写死在那里。
-      const framing = await page.evaluate(() => {
-        const c = window.Oracle.camera();
-        const cx = c.worldViewX + c.width / (2 * c.zoom);
-        const cy = c.worldViewY + c.height / (2 * c.zoom);
-        window.Oracle.setCameraMode('free');
-        window.Oracle.centerCameraOn(cx, cy);
-        const after = window.Oracle.camera();
-        return { before: c, after };
-      });
-      // 先等两人回屋（街面不再有会动的精灵），再把世界时钟钉到 00:35 并冻住。
-      // 00:35 是他们各自坐下之后的固定时刻：萤火/窗灯的呼吸相位由此固定，
-      // 否则两跑的 `now` 差一秒，整片萤火都在不同的亮度上。
-      const folk = await waitVillagersSettled(page);
-      const pin = await page.evaluate(() => {
-        window.Oracle.jumpWorldClock(35);
-        const now = window.Oracle.freezeWorldClock();
-        return { now, pinned: window.Oracle.worldClockPinned() };
-      });
-
-      // 等压暗层渐变走完（取样区连续 3 帧不变），不再靠固定等待。
-      const box = await page.locator('canvas').first().boundingBox();
-      const fade = await waitFadeSettled(page, box);
-      waits.push({
-        shot: `phase-${phase}`,
-        waitedMs: folk.waitedMs + fade.waitedMs,
-        frames: fade.frames,
-        method: 'villagers-inside + clock-pin(00:35) + fade-probe',
-        villagersMs: folk.waitedMs,
-        fadeMs: fade.waitedMs,
-      });
-
-      const actual = await page.evaluate(() => window.Oracle.currentPhase());
-      const buffer = await page.locator('canvas').first().screenshot();
-      if (scored) await writeFile(`${OUT}/phase-${phase}.png`, buffer);
-      shots[phase] = { buffer, actual };
-      facts[phase] = { framing, folk, pin, fade };
-    } finally {
-      await page.close();
-    }
+  // 四刻并发（每刻一个独立 page）；Promise.all 保序，合回后与串行版同构。
+  const perPhase = await Promise.all(PHASES.map((phase) => capturePhase(phase, scored)));
+  for (const r of perPhase) {
+    shots[r.phase] = r.shot;
+    facts[r.phase] = r.fact;
+    waits.push(...r.waits);
+    errors.push(...r.errors);
   }
 
   // 夜雨必须隐藏萤火。产品没有 `?rain=` 入口——天气只能由神谕或台账改，
@@ -228,13 +245,13 @@ const capturePass = async (scored) => {
 };
 
 // 预热轮（不计分）：路径与正式轮逐字相同，读数全部丢弃，不写截图、不判定。
-const warm = await capturePass(false).catch((error) => {
+const warm = await capturePhase('dawn', false).catch((error) => {
   console.log(`[预热轮] 不计分：预热失败（${error.message}），继续正式采样`);
   return null;
 });
 if (warm !== null) {
-  const means = PHASES.map((phase) => `${phase} ${warm.stats[phase].mean.toFixed(2)}`).join(' / ');
-  console.log(`[预热轮] 不计分：四刻亮度均值 ${means}（本轮读数全部丢弃）`);
+  const warmPhase = warm.shot.actual;
+  console.log(`[预热轮] 不计分：已完成单时段预热 ${warmPhase}（本轮读数全部丢弃）`);
 }
 
 const pass = await capturePass(true);

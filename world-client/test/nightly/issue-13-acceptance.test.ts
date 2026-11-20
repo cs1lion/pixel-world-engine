@@ -50,9 +50,9 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { selectSetting } from '../src/settings/index.ts';
+import { selectSetting } from '../../src/settings/index.ts';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 /**
  * 哪些验收项还没满足。双向 diff：多一条红、少一条也红。
@@ -224,7 +224,7 @@ test('条件五：三条命令的口子都在，check 与 build 真跑过', () =
   };
   for (const [name, expected] of [
     ['check', 'node scripts/check-types.ts'],
-    ['test', '--import ./test/phaser-hooks.mjs --test "test/**/*.test.ts"'],
+    ['test', '--import ./test/phaser-hooks.mjs --test "test/*.test.ts"'],
     ['build', 'node scripts/check-types.ts && vite build'],
   ] as const) {
     assert.ok(
@@ -304,7 +304,7 @@ test('KNOWN_UNMET 的 why 引用的那两张表，行数与写下的相符', () 
   // 两张表在另一个文件里，且没有 export。所以读源文件、按表格体切。
   // 切法是「从 `const <表名>` 到下第一个独占一行的 `};`」——表里每一行都是
   // `  '键': {` 起头，行数与键的个数一致，不需要真解析 TypeScript。
-  const source = readFileSync(new URL('./pack-owns-world-data.test.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../pack-owns-world-data.test.ts', import.meta.url), 'utf8');
   const keysOf = (table: 'KNOWN_STOPS' | 'KNOWN_PREFABS'): readonly string[] => {
     const from = source.indexOf(`const ${table}`);
     assert.ok(from !== -1, `pack-owns-world-data.test.ts 里找不到 ${table} 了——这条判据失去对象`);

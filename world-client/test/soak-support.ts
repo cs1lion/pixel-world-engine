@@ -10,7 +10,7 @@
  * 4. 记忆层：每个 `world.event` 都翻成观察，跨日关账，关系账本与事实库一起长。
  *
  * 夹具只记录事实，不写期望。读数与断言分别留在 `scripts/soak-30d.ts`
- * 与 `test/soak-30d.todo.test.ts` 里。
+ * 与 `test/nightly/soak-30d.todo.test.ts` 里。
  *
  * 三条纪律：
  * - 步长固定 6000ms（= 默认倍率 60，一世界日 24 分钟）；不 sleep、不等真实时间；
