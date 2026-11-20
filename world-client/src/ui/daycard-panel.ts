@@ -20,6 +20,18 @@ import {
 } from '../world/memory/daycard.ts';
 import { emoteIdFor, emoteIdForKind, plateIdFor } from '../render/art-assets.ts';
 import { appendDecor } from './art-decor.ts';
+import type {
+  CounterfactualTrajectoryDiff,
+  TurnpointBadge,
+  WorldlineTreeSummary,
+} from '../world/history/scene-history.ts';
+import {
+  buildWorldlineDiffReport,
+  formatTurnpointBadge,
+  renderWorldlineDiffCard,
+  resolveParityTarget,
+  serializeButterflySlice,
+} from './worldline-diff.ts';
 
 export interface DayCardRead {
   readonly cards: readonly DayCardView[];
@@ -53,6 +65,18 @@ export interface DayCardOracle {
   readonly trajectoryBanner?: (currentDay: number) => string;
   /** 真回滚：两段式确认的「确认」这一步才调它（走场景 historyRestoreToDay）。 */
   readonly historyRestoreToDay?: (day: number) => Promise<unknown>;
+  /** 平行世界树只读摘要（供日历顶部切换条与对照日追赶计算）。*/
+  readonly worldlineSummary?: () => WorldlineTreeSummary | null;
+  /** 某天在当前世界线上的结构化转折徽章（最多 2 条，纯读）。*/
+  readonly worldlineTurnpoints?: (day: number) => readonly TurnpointBadge[];
+  /** 同日反事实对比数据（纯读，供《平行世界对照报》）。*/
+  readonly worldlineDiff?: (branchId: string, day?: number) => CounterfactualTrajectoryDiff | null;
+  /** 无损切换活跃世界线分支。*/
+  readonly worldlineSwitchBranch?: (branchId: string) => Promise<unknown>;
+  /** 一键确定性快进至目标对照日。*/
+  readonly worldlineFastForwardToDay?: (targetDay: number) => Promise<unknown>;
+  /** 导出改命切片回调。*/
+  readonly worldlineExportSlice?: (sliceJson: string) => void;
 }
 
 /**
@@ -165,6 +189,85 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
       bar.textContent = banner;
       note.append(bar);
     }
+    const summary = api?.worldlineSummary?.() ?? null;
+    if (summary !== null && summary.branches.length > 0) {
+      const bar = element('div', 'daycard-worldline-bar');
+      for (const branch of summary.branches) {
+        const btn = element('button', branch.isActive ? 'daycard-branch-btn is-active' : 'daycard-branch-btn');
+        btn.type = 'button';
+        const tag = branch.forkDay !== null ? `D${branch.forkDay}` : '主线';
+        const stamps = branch.interventions.length > 0 ? ` · ${branch.interventions.length}印记` : '';
+        btn.textContent = `${branch.branchId} (${tag}${stamps})`;
+        btn.disabled = branch.isActive || api?.worldlineSwitchBranch === undefined;
+        if (!branch.isActive && api?.worldlineSwitchBranch !== undefined) {
+          const switchBranch = api.worldlineSwitchBranch;
+          btn.addEventListener('click', () => {
+            void switchBranch(branch.branchId).then(() => paint());
+          });
+        }
+        bar.append(btn);
+      }
+
+      const activeBranch = summary.branches.find((b) => b.branchId === summary.activeBranchId) ?? null;
+      const parity = resolveParityTarget(summary, summary.activeBranchId, api?.currentDay?.() ?? 0);
+      if (parity.canFastForward && parity.targetParityDay !== null && api?.worldlineFastForwardToDay !== undefined) {
+        const ffBtn = element('button', 'daycard-fastforward-btn');
+        ffBtn.type = 'button';
+        const targetDay = parity.targetParityDay;
+        ffBtn.textContent = `快进至对照日 D${String(targetDay).padStart(2, '0')}`;
+        const fastForward = api.worldlineFastForwardToDay;
+        ffBtn.addEventListener('click', () => {
+          void fastForward(targetDay).then(() => paint());
+        });
+        bar.append(ffBtn);
+      }
+
+      const diffHost = element('div', 'daycard-worldline-diff-host');
+      diffHost.hidden = true;
+      if (parity.latestComparableDay !== null && api?.worldlineDiff !== undefined) {
+        const diffBtn = element('button', 'daycard-diff-toggle-btn');
+        diffBtn.type = 'button';
+        diffBtn.textContent = '查看《平行世界对照报》';
+        const getDiff = api.worldlineDiff;
+        const comparableDay = parity.latestComparableDay;
+        diffBtn.addEventListener('click', () => {
+          if (!diffHost.hidden) {
+            diffHost.hidden = true;
+            return;
+          }
+          const diff = getDiff(summary.activeBranchId, comparableDay);
+          if (diff === null) return;
+          diffHost.replaceChildren(
+            renderWorldlineDiffCard(buildWorldlineDiffReport(diff, activeBranch), {
+              onContinue: () => {
+                diffHost.hidden = true;
+              },
+              onReturnMain:
+                api?.worldlineSwitchBranch !== undefined
+                  ? () => {
+                      void api.worldlineSwitchBranch?.('branch-0').then(() => paint());
+                    }
+                  : undefined,
+              onExportSlice:
+                activeBranch !== null
+                  ? () => {
+                      const sliceJson = serializeButterflySlice(summary.worldId, activeBranch);
+                      if (api?.worldlineExportSlice !== undefined) {
+                        api.worldlineExportSlice(sliceJson);
+                      } else if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined) {
+                        void navigator.clipboard.writeText(sliceJson);
+                      }
+                    }
+                  : undefined,
+            }),
+          );
+          diffHost.hidden = false;
+        });
+        bar.append(diffBtn);
+      }
+
+      note.append(bar, diffHost);
+    }
   };
 
   const paint = (): void => {
@@ -218,6 +321,16 @@ export function bindDayCardPanel(getApi: () => DayCardOracle | undefined): void 
         // 行内回溯：只给「有记录且不是今天」的日子挂两段式按钮。
         // 确认才真回滚（走场景 historyRestoreToDay）；打开面板/纯读证明不经过这里。
         const api = getApi();
+        const turnpoints = api?.worldlineTurnpoints?.(card.d) ?? [];
+        if (turnpoints.length > 0) {
+          const badgesWrap = element('span', 'daycard-turnpoints');
+          for (const badge of turnpoints.slice(0, 2)) {
+            const pill = element('span', `daycard-turnpoint-badge daycard-turnpoint-${badge.kind}`);
+            pill.textContent = formatTurnpointBadge(badge);
+            badgesWrap.append(pill);
+          }
+          what.append(badgesWrap);
+        }
         const recorded = api?.historyDays?.() ?? [];
         const currentDay = api?.currentDay?.() ?? -1;
         const hasRecord = recorded.some((r) => r.day === card.d && r.kind !== 'missing');
