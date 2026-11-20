@@ -5,8 +5,21 @@
  * 口径（用户明确要求）：
  *   1. 只统计源码里的“源色值”，不模拟运行时色调/透明度叠加；
  *   2. 世界层与 UI 层分开统计；
- *   3. 来源：世界 = src/main.ts、src/render/*.ts（含 palette.ts 的 token 定义）、
- *            src/scenes/*.ts、src/world/prefabs.json 的 palette 槽位；
+ * 闸门分层（2026-11-19 起， chore/unlock-presentation-gates）：
+ *   - 逻辑兜底层（`?art=0`）：程序化绘制兜底，必须严格 24 色世界调色板 +
+ *     9 色 UI 基础语义 Token，且零外部图片请求（后者由 `check-art-assets.mjs`
+ *     的 `?art=0` 零素材请求断言守，不在本脚本重复）。本脚本扫的就是这一层。
+ *   - 表现层（`?art=1`，默认）：允许全色域像素图集、WebGL 光照与混合色调，
+ *     不受 24 色预算约束。`src/render/art1/`、`src/render/fx-ambient/`（下一棒
+ *     PR-B 的环境暖光粒子实验区）与资产图集目录（`public/assets/`）
+ *     在本脚本里显式放行，不计入世界层 / UI 层统计。
+ *
+ * 口径（用户明确要求）：
+ *   1. 只统计源码里的“源色值”，不模拟运行时色调/透明度叠加；
+ *   2. 世界层与 UI 层分开统计；
+ *   3. 来源：世界 = ?art=0 兜底渲染路径（src/main.ts、src/render/ 递归但排除
+ *            src/render/art1/、src/render/fx-ambient/、src/scenes/*.ts，含 palette.ts 的 token 定义）、
+ *            src/world/prefabs.json 的 palette 槽位；
  *            UI   = index.html 的 <style>（CSS 变量与字面量）、src/ui/*.ts 的内联颜色；
  *   4. 除 0xRRGGBB 外，Phaser 文本颜色以 '#rrggbb' 字符串出现，同样计入（否则会漏 5 个画布文字色）；
  *   5. alpha/透明度不单独算颜色；rgba() 只取 RGB 三分量归一为 #rrggbb。
@@ -22,7 +35,7 @@
  *   node scripts/audit-palette.mjs --strict   # 超预算时退出码 1（默认只报告，退出码 0）
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -94,9 +107,43 @@ function listFiles(relDir, ext) {
     .map((name) => path.posix.join(relDir, name));
 }
 
+/** 表现层放行目录：?art=1 的像素图集与 WebGL 光照混合色不属 24 色预算口径。 */
+const ART1_DIR = 'src/render/art1';
+
+/** 环境暖光粒子沙盒：PR-B 的实验区，与 art1 同列，不计入 24 色预算口径。 */
+const FX_AMBIENT_DIR = 'src/render/fx-ambient';
+
+/** 资产图集目录：位图素材清单与图集，同属表现层放行。 */
+const ATLAS_DIRS = ['public/assets'];
+
+/** 递归列目录下的 .ts 文件；放行目录（art1/ 与资产图集）跳过。 */
+function listTsRecursive(relDir) {
+  const out = [];
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(path.join(ROOT, dir));
+    } catch {
+      return; // 目录还不存在（如 src/render/art1/）：放行是约定，无目录即无文件可放。
+    }
+    for (const name of entries.sort()) {
+      const rel = path.posix.join(dir, name);
+      if (rel === ART1_DIR || rel === FX_AMBIENT_DIR || ATLAS_DIRS.includes(rel)) continue;
+      const full = path.join(ROOT, rel);
+      if (statSync(full).isDirectory()) {
+        walk(rel);
+      } else if (name.endsWith('.ts')) {
+        out.push(rel);
+      }
+    }
+  };
+  walk(relDir);
+  return out;
+}
+
 const WORLD_FILES = [
   'src/main.ts',
-  ...listFiles('src/render', '.ts'),
+  ...listTsRecursive('src/render'),
   ...listFiles('src/scenes', '.ts'),
 ];
 const UI_TS_FILES = listFiles('src/ui', '.ts');
@@ -615,6 +662,12 @@ const unusedTokens = [...unusedWorldTokens, ...unusedAliasTokens];
 const report = {
   root: ROOT,
   budget: BUDGET,
+  layers: {
+    baseline: '?art=0（逻辑兜底层：严格 24 色世界调色板 + 9 色 UI Token、零外部图片请求）',
+    presentation: '?art=1（表现层：全色域像素图集、WebGL 光照与混合色调，放行）',
+    released: [ART1_DIR, ...ATLAS_DIRS],
+    art1Exists: existsSync(path.join(ROOT, ART1_DIR)),
+  },
   counts: {
     world: worldColors.length,
     ui: uiColors.length,
@@ -701,6 +754,8 @@ function renderMarkdown(data) {
   lines.push('# 调色板审计（只报告）', '');
   lines.push(`- 根目录：\`${data.root}\``);
   lines.push(`- 口径：只统计源码源色值；不模拟运行时 alpha/光照叠加；世界层与 UI 层分开。`);
+  lines.push(`- 分层：${data.layers.baseline}；${data.layers.presentation}。`);
+  lines.push(`- 放行：${data.layers.released.join('、')}（?art=1 表现层，不计入统计；\`${ART1_DIR}\` 当前${data.layers.art1Exists ? '存在' : '未建'}）。`);
   lines.push(`- 预算：世界 ${data.budget.world} 色 / UI ${data.budget.ui} 色。`);
   lines.push('');
   lines.push('## 计数');
@@ -810,6 +865,8 @@ if (useJson) {
   console.log('调色板审计（只报告，不阻断）');
   console.log(`根目录：${report.root}`);
   console.log(`口径：只统计源码源色值；不模拟运行时 alpha/光照叠加；世界层与 UI 层分开。`);
+  console.log(`分层：${report.layers.baseline}；${report.layers.presentation}。`);
+  console.log(`放行：${report.layers.released.join('、')}（?art=1 表现层，不计入统计；${ART1_DIR} 当前${report.layers.art1Exists ? '存在' : '未建'}）。`);
   console.log('');
   console.log('## 计数');
   console.log(`世界层唯一色：${report.counts.world}（引用 ${report.counts.worldRefs} 处）  预算 ${BUDGET.world}，超出 ${report.counts.overBudgetWorld}`);

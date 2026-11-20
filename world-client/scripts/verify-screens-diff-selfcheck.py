@@ -5,6 +5,10 @@
   - 结构断言看最大连通块面积是否落在 [minArea, maxArea]；2900 与 3000 两档分界。
   - 同图两跑没有差区，必须报 no-diff-region 并退出 1。
 
+基准模式说明：本自检只喂合成图，不碰渲染模式。真实截图的 screens-diff 5/5
+判定（三组基线逐字节 0/0/0 + 两条扰动必须非零）由 check-shot-actor-pin.mjs /
+check-rain-pin.mjs 锁在 ?art=0 基准模式执行，见那两份脚本的头注。
+
 跑法（cwd 任意）：
   python world-client/scripts/verify-screens-diff-selfcheck.py
 产物：world-client/tmp/verify-flows/screens-diff/

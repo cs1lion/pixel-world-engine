@@ -16,6 +16,10 @@
  *   shift-intensity/rain-pin.png  （intensity = 0.86 + 0.01）
  * 之后用 `screens-diff.py` 配对；三组基线必须 0/0/0，两条扰动必须非零。
  *
+ * 基准模式锁定 `?art=0`（2026-11-19 起）：screens-diff 的 5/5 判定（三组基线
+ * 逐字节 0/0/0 + 两条扰动必须非零）只在程序化兜底渲染上成立；`?art=1` 的
+ * 位图图集与 WebGL 光照属表现层，不进基线、不参与这五项判定。
+ *
  * 跑法：
  *   node node_modules/vite/bin/vite.js --port 5211 --strictPort
  *   PIXEL_WORLD_URL=http://127.0.0.1:5211 node scripts/check-rain-pin.mjs
@@ -95,7 +99,7 @@ async function capture(browser, { label, pinFrames, pinIntensity }) {
       pinFrames,
       pinIntensity,
     });
-    await page.goto(`${BASE}?ledger=off&time=noon&debug=1`, { waitUntil: 'load' });
+    await page.goto(`${BASE}?ledger=off&time=noon&debug=1&art=0`, { waitUntil: 'load' });
     // 夹具接管了 rAF：轮询不能用 `raf`，否则最后一帧后没人再调度回调，永远等不到 done。
     await page.waitForFunction(() => window.__CAPTURE_STATE__?.done === true, null, {
       timeout: 30000,

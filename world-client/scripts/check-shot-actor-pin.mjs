@@ -21,6 +21,10 @@
  *   2. `node scripts/check-shot-actor-pin.mjs`
  *   3. 用 `scripts/screens-diff.py` 对三组图出三层读数（精确 / 可见 / 结构）。
  *
+ * 基准模式锁定 `?art=0`（2026-11-19 起）：screens-diff 的 5/5 判定（三组基线
+ * 逐字节 0/0/0 + 两条扰动必须非零）只在程序化兜底渲染上成立；`?art=1` 的
+ * 位图图集与 WebGL 光照属表现层，不进基线、不参与这五项判定。
+ *
  * 环境变量：`PIXEL_WORLD_URL`（默认 http://127.0.0.1:5211/）、
  * `EVAL_OUT`（默认 tmp/screens/check-shot-actor-pin）。
  */
@@ -35,7 +39,7 @@ await assertTreeIdentity(BASE);
 const OUT = resolveShotDir('check-shot-actor-pin');
 
 /** 默认大世界 05:00 开局；等待时长就是这之后到冻结之间的那段。 */
-const WORLD_URL = `${BASE}?feed=off&debug=1&time=dawn&now=300&speed=30`;
+const WORLD_URL = `${BASE}?feed=off&debug=1&time=dawn&now=300&speed=30&art=0`;
 const TILE_PX = 16;
 const DAY_MS = 86_400_000;
 /** 画面钉在当天 07:34（dawn），与 01 构图同一口径。 */

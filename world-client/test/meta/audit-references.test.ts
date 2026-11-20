@@ -612,3 +612,86 @@ test('盲区是数得出来的：CALL_REF 看不见的那批，今天冻在这�
     );
   }
 });
+
+// ---------------------------------------------------------------- 符号锚点
+//
+// `文件#符号` 是首选锚点（2026-11-19 起）：行号会漂，符号不会。下面每条用例
+// 的引用形状都**拼**出来，不在本文件源码里写完整的「文件名+井号+符号」——
+// 审计连自己的测试一起审，写死了它就把这一处当真引用去查（假文件名在真仓库
+// 里不存在，「真仓库 0 处存疑」那条会跟着红）。
+function sym(file: string, name: string, line?: number): string {
+  return `\`${file}#${name}${line === undefined ? '' : `:${line}`}\``;
+}
+
+test('符号锚点：符号在那份文件里定义或导出过，绿', () => {
+  const root = fixture();
+  try {
+    doc(root, `锚住一个真实存在的符号（${sym('a.ts', 'one')}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.deepEqual(findings, [], '符号锚点指着的符号在那儿，不该报');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('符号锚点：文件里只有调用、没有定义，照样开口', () => {
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, 'world-client', 'src', 'c.ts'), 'one();\n', 'utf8');
+    doc(root, `只调用了它的地方不算它的家（${sym('c.ts', 'one')}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.match(WHY_OF(findings, 1), /声明或导出/, '只有调用没有定义，符号锚点要说出来');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('符号锚点：符号不存在与行号越界，两样都开口', () => {
+  const root = fixture();
+  try {
+    doc(
+      root,
+      [
+        `没有这个符号（${sym('a.ts', 'nope')}）。`,
+        `符号在、行号越界（${sym('a.ts', 'one', 99)}）。`,
+        '',
+      ].join('\n'),
+    );
+    const { findings } = auditReferences({ root });
+    assert.match(WHY_OF(findings, 1), /声明或导出/, '符号不存在要说出来');
+    assert.match(WHY_OF(findings, 2), /越界/, '组合锚点的行号越界也要说出来');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('符号锚点带行号：两样都对，绿', () => {
+  const root = fixture();
+  try {
+    doc(root, `符号与行号一起钉（${sym('a.ts', 'one', 2)}）。\n`);
+    const { findings } = auditReferences({ root });
+    assert.deepEqual(findings, [], '符号在、行号在界内，不该报');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('不是符号锚点的形状：一律不认、不计数', () => {
+  const root = fixture();
+  try {
+    doc(
+      root,
+      [
+        `GitHub 行锚点（${sym('a.ts', 'L413')}）指向行不是符号。`,
+        `Markdown 标题锚点（${sym('d.md', 'one')}）不是代码符号。`,
+        `本地文件链接 file:///x/a.ts#L413 整段是网址。`,
+        '',
+      ].join('\n'),
+    );
+    const { checked, findings } = auditReferences({ root });
+    assert.equal(checked, 0, '这三种形状都不该被当成符号锚点计入受查面');
+    assert.deepEqual(findings, [], '不该认的形状也不该开口');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
