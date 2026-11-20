@@ -691,6 +691,14 @@ v2 不推翻 v1 的引擎决策，补四件事：
 混合色调，`src/render/art1/` 与资产图集目录（`public/assets/`）在 palette 闸眼里
 显式放行，不进世界层 / UI 层统计。
 
+**art1 图集管线（2026-11-20 起，见 `docs/adr/ADR_ART1_ATLAS_PRESENTATION.md`）**：
+`src/render/art1/` 的 tile 图集（清单 `public/assets/art1/manifest.json`，格 16/32
+两种）与固定灯槽池光照、`src/render/fx-ambient/` 的环境微动效，都受同一道
+`?art` 闸：`?art=0` 时一层都不建、一个请求都不发，画面与基线逐字节一致。
+图集默认不抢位图单件（后者已过人眼验收），`?atlas=1` 才显式接管；缺件整层回退
+程序化路径。验收读数挂 `window.Oracle.debugArt1()`，无头冒烟是
+`npm run test:art1-smoke`（CI 浏览器 light lane）。
+
 ### 11.3 潮位：有期限的覆盖（用户 2026-10-25 确认）
 
 `tide.setLevel` 不再直接写潮位，而是写一条**覆盖**：
