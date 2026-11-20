@@ -226,7 +226,7 @@ export function detectTurnpoints(
     candidates.push({
       day,
       kind: 'phase_shift',
-      token: `进入${currPhase}`,
+      token: currPhase,
       severity: 4,
     });
   }
