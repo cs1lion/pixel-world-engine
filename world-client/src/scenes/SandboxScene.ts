@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { TILE_PX } from '../world/setup.ts';
 import { cellPlaceId, footfallPlace, type FootfallDoor } from '../world/ambient.ts';
-import { drawGroundDecals } from '../render/decal.ts';
+import { drawGroundDecals, roofHeight } from '../render/decal.ts';
 import { SensorProbe } from '../ui/sensory-probe.ts';
 import { createOracleBeamSpec, OracleBeamFx } from '../render/fx-layer.ts';
 import { ProceduralSfxEngine } from '../audio/sfx.ts';
@@ -108,13 +108,21 @@ type OracleSurfaces = OracleApi &
 import { drawTerrain } from '../render/tilemap.ts';
 import {
   createBuilding,
+  createRoofLift,
   drawBuildingDecals,
   updateBuilding,
   buildingBakeBox,
+  buildingSpansPoint,
   textureBorderAlpha,
   type BuildingView,
   type BuildingBakeLayerReading,
+  type RoofLift,
 } from '../render/buildings.ts';
+import {
+  createPlacementOverlay,
+  type CreationCheck,
+  type PlacementOverlay,
+} from '../render/placement-overlay.ts';
 import { contactAoUnknownBaseCount } from '../render/contact-ao.ts';
 import {
   createVillager,
@@ -125,7 +133,7 @@ import {
   villagerFootAt,
   type VillagerView,
 } from '../render/villager.ts';
-import { actorDepth } from '../render/ground.ts';
+import { actorDepth, groundTopY } from '../render/ground.ts';
 import {
   GROUND_SHADOW_DEPTH,
   GROUND_SHADOW_MOTION_ON,
@@ -553,6 +561,12 @@ export class SandboxScene extends Phaser.Scene {
   /** 造物模式会话。null 表示不在造物模式里。 */
   private creation: { readonly prefabId: string; ghostAt: GridPoint | null } | null = null;
   private ghost!: GhostView;
+  /** 造物模式摆放遮罩：beginCreation 铺、endCreation 收。 */
+  private placementOverlay: PlacementOverlay | null = null;
+  /** 旁观掀屋顶：每栋楼一个状态机，按 instanceId 存取。 */
+  private readonly roofLifts = new Map<string, RoofLift>();
+  /** 当前悬停在哪栋楼上（null = 没悬在任何楼体）。 */
+  private roofHoverId: string | null = null;
   private cameraCtl!: CameraController;
   private minimap: MinimapView | null = null;
   private fogView: FogView | null = null;
@@ -1102,6 +1116,7 @@ export class SandboxScene extends Phaser.Scene {
       ),
       emitter: createAccentEmitter(this, building.accent),
     }));
+    for (const entry of this.entries) this.trackRoofLift(entry);
     // 覆盖层按**世界**尺寸建，不是画布尺寸：大世界里镜头只是世界的一小块。
     const worldPx = {
       w: this.world.grid.width * TILE_PX,
@@ -1116,6 +1131,21 @@ export class SandboxScene extends Phaser.Scene {
     this.phaseView = createPhaseView(this, worldPx.w, worldPx.h, this.pack?.palette.deepShade);
     this.ambienceView = createAmbienceView(this);
     this.ghost = createGhostView(this);
+    // 造物模式摆放遮罩：判据全部向场景层要（见 placement-overlay.ts 文件头），
+    // 这里只接线，不长第二套规则。
+    this.placementOverlay = createPlacementOverlay(this, {
+      palette: this.worldPalette(),
+      grid: this.world.grid,
+      altar: this.world.altar,
+      isLegal: (cell) => {
+        const session = this.creation;
+        if (session === null) return false;
+        const blueprint = this.blueprints.get(session.prefabId);
+        return blueprint !== undefined && this.canPlaceBlueprintHere(blueprint, cell).ok;
+      },
+      buildings: () => this.snapshot.buildings,
+      props: () => this.snapshot.props,
+    });
     // 设定集（authored）的整张图都是「已经到过的地方」：`visibleFog()` 的揭示半径
     // 已经盖满全图，雾体本身一格都不画；而边缘雾团仍沿那个半径绕圈，圆心天然落在
     // 图外——屏幕上什么也看不到，审计却数得出「14 团全在图外」。
@@ -1234,6 +1264,9 @@ export class SandboxScene extends Phaser.Scene {
         this.interiorClick(pointer);
         return;
       }
+      // 掀屋顶：点屋顶锁定常开，点空地盖回。只是视觉层，不拦后面
+      // 「点人/点碑/点楼/洗地」的既有分工。造物模式下摆放优先，不掀屋顶。
+      if (this.creation === null) this.roofLiftClick(pointer);
       // 点到人就是「看她」：镜头跟过去，面板读出她记得的事。
       // 其次点碑：镇上认下的事都在那块石头上。
       // 再其次点楼：它叫什么、接过什么活、墙上留着什么。
@@ -1414,6 +1447,18 @@ export class SandboxScene extends Phaser.Scene {
     };
     // 捕获阶段先拦：按钮的默认点击发生在冒泡之后，冒泡阶段拦住也晚了。
     window.addEventListener('keydown', this.creationKeyListener, true);
+
+    // 旁观掀屋顶的指针：平时（不造物、街景）才管，悬停即掀、离开即合。
+    // 单独挂一个监听器，与造物模式那一份互不打扰。
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.creation !== null || this.interiorMode !== 'street') return;
+      const entry = this.roofLiftEntryAt(pointer);
+      const id = entry?.building.instanceId ?? null;
+      if (id === this.roofHoverId) return;
+      if (this.roofHoverId !== null) this.roofLifts.get(this.roofHoverId)?.handle('leave');
+      if (id !== null) this.roofLifts.get(id)?.handle('hover');
+      this.roofHoverId = id;
+    });
 
 
     if (this.pack?.authored === true) this.settingScenery = createSettingScenery(this, this.pack, ALTITUDE);
@@ -1692,6 +1737,10 @@ export class SandboxScene extends Phaser.Scene {
     this.overlay = null;
     this.quickBar?.dispose();
     this.quickBar = null;
+    this.placementOverlay?.dispose();
+    this.placementOverlay = null;
+    this.roofLifts.clear();
+    this.roofHoverId = null;
     if (this.nightKeyListener !== null) {
       window.removeEventListener('keydown', this.nightKeyListener);
       this.nightKeyListener = null;
@@ -3580,6 +3629,8 @@ export class SandboxScene extends Phaser.Scene {
     }
     this.creation = { prefabId, ghostAt: null };
     this.ghost.hide();
+    // 铺遮罩：合法区亮出来，其余压暗。判据同一份（见 canPlaceBlueprintHere）。
+    for (const lift of this.roofLifts.values()) { if (lift.state() === 'locked') lift.handle('click-empty'); } this.placementOverlay?.enter(blueprint);
     // 把焦点从按钮上拿走：否则回车会被浏览器当成「再点一次那个按钮」，
     // 模式刚确认又重新打开。焦点交给 body，键盘事件才由页面统一处理。
     (document.activeElement as HTMLElement | null)?.blur?.();
@@ -3595,7 +3646,59 @@ export class SandboxScene extends Phaser.Scene {
     this.creation = { ...session, ghostAt: cell };
     const check = this.canPlaceBlueprintHere(blueprint, cell);
     this.ghost.show(cell, blueprint, check.ok);
+    this.placementOverlay?.showHover({ cell, blueprint, check });
     this.publishCreationHint(check.ok ? '可以建在这里，回车确认。' : check.message);
+  }
+
+  /** 给一栋楼挂上掀屋顶状态机（开局列楼与读档重建时各叫一次）。 */
+  private trackRoofLift(entry: BuildingEntry): void {
+    this.roofLifts.set(
+      entry.building.instanceId,
+      createRoofLift(entry.view, entry.building.instanceId),
+    );
+  }
+
+  /** 指针落在哪栋楼的楼体上（含屋面带）。 */
+  private roofLiftEntryAt(pointer: Phaser.Input.Pointer): BuildingEntry | null {
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    for (const entry of this.entries) {
+      const building = entry.building;
+      const px = building.origin.x * TILE_PX;
+      const wallH = building.footprint.h * TILE_PX;
+      if (
+        world.x >= px
+        && world.x < px + building.footprint.w * TILE_PX
+        && buildingSpansPoint({
+          groundY: groundTopY(building.origin.y),
+          wallH,
+          roofH: roofHeight(wallH),
+          y: world.y,
+        })
+      ) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 点屋顶锁定常开，点空地盖回；点楼体非屋顶部分不动掀屋顶状态。
+   *
+   * 只是视觉层：不拦后面「点人/点碑/点楼/洗地」的既有分工。
+   */
+  private roofLiftClick(pointer: Phaser.Input.Pointer): void {
+    const entry = this.roofLiftEntryAt(pointer);
+    if (entry === null) {
+      for (const lift of this.roofLifts.values()) lift.handle('click-empty');
+      return;
+    }
+    const building = entry.building;
+    const wallH = building.footprint.h * TILE_PX;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    // 屋面带：墙顶以上到屋脊。点击这里才叫「点屋顶」。
+    if (world.y < groundTopY(building.origin.y) - wallH) {
+      for (const [id, lift] of this.roofLifts) { if (id !== building.instanceId && lift.state() === 'locked') lift.handle('click-empty'); } this.roofLifts.get(building.instanceId)?.handle('click-roof');
+    }
   }
 
   /** 确认施工。没有幽灵位置时拒绝，不猜一个地方。 */
@@ -3767,12 +3870,22 @@ export class SandboxScene extends Phaser.Scene {
   private canPlaceBlueprintHere(
     blueprint: PrefabBlueprint,
     cell: GridPoint,
-  ): { ok: true } | { ok: false; message: string } {
+  ): CreationCheck {
     if (fogAt(cell, this.snapshot.fog)) {
-      return { ok: false, message: '那里还没长出来，先让世界走到那儿。' };
+      return { ok: false, reason: 'fog', message: '那里还没长出来，先让世界走到那儿。' };
     }
     const check = checkPlacement(this.world.grid, blueprint, cell);
-    if (!check.ok) return { ok: false, message: hintFor(check.reason) };
+    if (!check.ok) return { ok: false, reason: check.reason, message: hintFor(check.reason) };
+    // 潮位：楼体会泡在当前的水里。读的是同一格潮位（`grid.isFloodedAt`，与
+    // 派活「门口在水里不接活」同源），不是新规则——只是把生产本来就管的
+    // 水位读数补进落位预检，让「预览说的」与「确认做的」仍是同一份。
+    for (let y = cell.y; y < cell.y + blueprint.footprint.h; y += 1) {
+      for (let x = cell.x; x < cell.x + blueprint.footprint.w; x += 1) {
+        if (this.world.grid.isFloodedAt({ x, y })) {
+          return { ok: false, reason: 'tide', message: '潮位淹没了这里，等水退了再建。' };
+        }
+      }
+    }
 
     // 群落：郊野铺子必须在郊野圈，镇内铺子在工坊环内。
     //
@@ -3812,6 +3925,7 @@ export class SandboxScene extends Phaser.Scene {
     if (!biomeRingAllows(blueprint.id, cell, this.world.altar)) {
       return {
         ok: false,
+        reason: 'ring',
         message: wild ? '这种铺子要建在郊野，离镇子远一点。' : '这种铺子要建在镇子里。',
       };
     }
@@ -3864,6 +3978,7 @@ export class SandboxScene extends Phaser.Scene {
   private endCreation(): void {
     this.creation = null;
     this.ghost.hide();
+    this.placementOverlay?.exit();
     this.publishCreationHint('');
   }
 
@@ -5478,6 +5593,7 @@ export class SandboxScene extends Phaser.Scene {
         (item) => item.buildingId === entry.building.instanceId,
       );
       updateBuilding(this, entry.view, entry.building, workstation, ALTITUDE);
+      this.roofLifts.get(entry.building.instanceId)?.update(delta);
       this.refreshDecals(entry);
       const operating = workstation?.activity.kind === 'operating';
       const broken = workstation?.activity.kind === 'overheating';
@@ -5571,6 +5687,8 @@ export class SandboxScene extends Phaser.Scene {
     // 潮位同理：判据覆写（`pinnedTide`）优先于拍摄钉住；两者都没有时用快照值。
     const tideLevel = this.pinnedTide ?? presentedTideOf(this.shotPin, env.tideLevel);
     this.tideView.update(tideLevel);
+    // 造物遮罩跟着潮位走（潮位闸是摆放判据的一部分），浮层跟着相机走。
+    this.placementOverlay?.frame(tideLevel);
     if (this.snapshot.harbor !== null) this.harborView?.update(this.snapshot.harbor);
     this.settingScenery?.update(tideLevel, presentedNow, {
       phase: this.phaseView.currentPhase(),
@@ -5658,6 +5776,7 @@ export class SandboxScene extends Phaser.Scene {
         ),
         emitter: createAccentEmitter(this, building.accent),
       });
+      this.trackRoofLift(this.entries[this.entries.length - 1]!);
     }
     this.refreshRuins(standing);
   }
@@ -5668,6 +5787,7 @@ export class SandboxScene extends Phaser.Scene {
     entry.view.container.destroy(true);
     entry.view.front.destroy(true);
     entry.view.decal.destroy();
+    this.roofLifts.delete(entry.building.instanceId);
     entry.emitter.destroy?.();
     this.decalSignatures.delete(entry.building.instanceId);
   }
