@@ -16,8 +16,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SoakRun, type SoakSummary } from './soak-support.ts';
-import { DEFAULT_MEMORY_CONFIG } from '../src/world/memory/config.ts';
+import { SoakRun, type SoakSummary } from '../soak-support.ts';
+import { DEFAULT_MEMORY_CONFIG } from '../../src/world/memory/config.ts';
 
 const SEED = 'soak-todo';
 const DAYS = 8;

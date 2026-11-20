@@ -101,7 +101,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 /**
  * 闸门自己声明的扫描范围。**导出是为了让测试能核它**：列了七个根却只扫五个，
  * 这种塌陷从输出上看不出来（`checked` 少几处，而少几处是正常的）。
- * `test/audit-sections.test.ts` 有一条逐个根核「真的扫到了东西」。
+ * `test/meta/audit-sections.test.ts` 有一条逐个根核「真的扫到了东西」。
  */
 export const SCAN_ROOTS: readonly string[] = [
   'docs',

@@ -7,7 +7,7 @@ import {
   loadRegistry,
   parseFlowRows,
   type Registry,
-} from '../scripts/audit-verify-flows.ts';
+} from '../../scripts/audit-verify-flows.ts';
 
 /**
  * 互指闸门的行为锁：每一个「坏样例」都只改一处，并配一份同源的对照
@@ -16,7 +16,7 @@ import {
  * 只锁结构：它读不懂「判据写得对不对」，测试也不假装它懂。
  */
 
-const ROOT = resolve(import.meta.dirname, '..', '..');
+const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 const DOC = resolve(ROOT, 'docs/evidence/VERIFIABLE_FLOWS.md');
 const TEXT = readFileSync(DOC, 'utf8');
 const REGISTRY = loadRegistry(ROOT);

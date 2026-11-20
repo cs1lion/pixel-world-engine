@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, planTestChanges, type ChangedFile } from '../scripts/red-first-lib.ts';
+import { parseArgs, planTestChanges, type ChangedFile } from '../../scripts/red-first-lib.ts';
 
 /**
  * 分类器在 base 上可能还不存在。用动态 import + 属性断言，让「缺实现」表现为
@@ -21,7 +21,7 @@ type ClassifierModule = {
   stripComments?: (source: string) => string;
 };
 const loadLib = async (): Promise<ClassifierModule> =>
-  (await import('../scripts/red-first-lib.ts')) as unknown as ClassifierModule;
+  (await import('../../scripts/red-first-lib.ts')) as unknown as ClassifierModule;
 
 const change = (status: string, path: string): ChangedFile => ({ status, path });
 

@@ -16,7 +16,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { auditReferences, invisibleNameRefs } from '../scripts/audit-references.ts';
+import { auditReferences, invisibleNameRefs } from '../../scripts/audit-references.ts';
 
 /**
  * `silentWindow` 是随 E11 新增的导出，base 上还不存在。
@@ -31,7 +31,7 @@ interface ScanGuardLib {
 }
 
 async function loadScanGuard(): Promise<ScanGuardLib> {
-  return (await import('../scripts/audit-scan-guard-lib.ts')) as unknown as ScanGuardLib;
+  return (await import('../../scripts/audit-scan-guard-lib.ts')) as unknown as ScanGuardLib;
 }
 
 /** 一份够用的假仓库：两个源文件 + 一份文档。 */

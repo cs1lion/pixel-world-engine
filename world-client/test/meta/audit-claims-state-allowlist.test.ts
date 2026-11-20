@@ -26,7 +26,7 @@ interface StateModule {
   loadAllowlist?: (options?: { root?: string; path?: string }) => AllowlistReport;
 }
 
-const MODULE_PATH = new URL('../scripts/audit-claims-state.ts', import.meta.url).href;
+const MODULE_PATH = new URL('../../scripts/audit-claims-state.ts', import.meta.url).href;
 
 async function load(): Promise<StateModule> {
   let mod: StateModule | null = null;

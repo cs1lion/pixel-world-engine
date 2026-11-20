@@ -429,7 +429,7 @@ export const DENGCHAO_RAW: RawSettingPack = {
   //
   // 作息点的落点集中在 (33..37, 28..31) 这一小片：`talkDistance = 2`，
   // 只有人真的凑到两格内才算照面。**挪开这批落点，信念就涨不动、传说立不起来
-  // ——而那时所有单元测试还是绿的。** `test/legend-forms.test.ts` 量的正是这件事。
+  // ——而那时所有单元测试还是绿的。** `test/nightly/legend-forms.test.ts` 量的正是这件事。
   villagers: [
     // 外观四维：这七个人靠「体型 / 头型 / 衣型 / 配饰」分开，不再挤两个色槽。
     // 衣色仍是 24 源色里的 token；七个底色两两 ΔE76 ≥ 10（灯潮界实测最小 15.5，
