@@ -55,7 +55,8 @@ worktree 已回收、本地与远端分支已删，表项同步移除。
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
-| D:/project/pwe-creator-overlay | feat/creator-placement-overlay | cindy 会话（creator-placement-overlay） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `469bbc7`；造物主摆放遮罩 + 旁观掀屋顶，只改 world-client/ 与文档） |
+| D:/project/pwe-art1-visual | feat/art1-visual-and-creator-ux | cs1lion | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `7c8f528`，stacked 在 PR #69 上；路线 A 视觉升级 PR-B：art1 可热替换图集管线 + Light2D + fx-ambient 微动效；造物落点/掀屋顶由 PR #69 承接） |
+| D:/project/pwe-creator-overlay | feat/creator-placement-overlay | cindy 会话（creator-placement-overlay） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `beaa33a`；造物主摆放遮罩 + 旁观掀屋顶，已开 PR #69，只改 world-client/ 与文档） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
