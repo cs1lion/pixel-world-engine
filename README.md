@@ -1,5 +1,13 @@
-# pixel-world-engine
-![TypeScript Phaser 3](//img.shields.io/badge/TypeScript-Phaser_3-blue) ![Backend FastAPI](//img.shields.io/badge/Backend-FastAPI-green) ![Tests 240+ Passing](//img.shields.io/badge/Tests-240%2B_Passing-brightgreen)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.svg">
+    <img alt="pixel-world-engine — Decoupled Autonomous Pixel-World Simulation Engine" src="./assets/hero-dark.svg" width="100%">
+  </picture>
+</p>
+
+ # pixel-world-engine
+![TypeScript Phaser 4](//img.shields.io/badge/TypeScript-Phaser_4-blue) ![Backend FastAPI](//img.shields.io/badge/Backend-FastAPI-green) ![Tests 240+ Passing](//img.shields.io/badge/Tests-240%2B_Passing-brightgreen)
 > 一个可换设定集的像素世界引擎：世界自己跑，LLM 只能输出白名单内的结构化命令去改变它。
 
 ![一个玩家动作，走完一整轮世界：世界自己跑 → 玩家发起 → 世界按法则结算 → 反馈可复核且世界继续跑](docs/evidence/interaction-eval/README-story.png)
@@ -21,6 +29,11 @@
 2. **白名单 Schema 约束下的 Agent 生成与外环熔断**：模型只能说规则表里有的一句话。
 3. **基于 Markdown + YAML Frontmatter 的三道关记忆时间线**：记忆写在 `memory/entries/`
    下，按世界日序号命名（`day-0000.md`），人可读、可 diff，事件链与编年史同源。
+
+### Design Decisions & Non-Goals
+- **Why offline-first fixed-timestep simulation**: Querying an LLM per tick destroys frame rate and determinism. World time, tides, schedules, and decay run locally without any model; the LLM only acts as an outer-loop proposer.
+- **Why Markdown + YAML memory timeline**: Storing agent history in readable, day-indexed files under `memory/entries/` keeps memory inspectable, diffable, and auditable.
+- **Non-Goal**: Letting models mutate raw world state or coordinates directly — every proposal must clear schema whitelists, rule checks, and outer-loop circuit breakers.
 
 ## 目录
 

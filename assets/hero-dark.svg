@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 316" width="840" height="316" role="img" aria-label="pixel-world-engine — Decoupled Autonomous Pixel-World Simulation Engine">
+  <defs>
+    <pattern id="pwe-grid-dark" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="2" height="2" fill="#1E293B" opacity="0.65"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="840" height="316" rx="8" fill="#0D1117"/>
+  <rect x="0" y="34" width="840" height="282" rx="8" fill="url(#pwe-grid-dark)"/>
+  <rect x="1" y="1" width="838" height="314" rx="7" fill="none" stroke="#30363D" stroke-width="1.5"/>
+  <g shape-rendering="crispEdges">
+    <rect x="1" y="1" width="838" height="4" fill="#161B22"/>
+    <rect x="24" y="1" width="144" height="4" fill="#10B981"/>
+    <rect x="176" y="1" width="84" height="4" fill="#38BDF8"/>
+    <rect x="268" y="1" width="44" height="4" fill="#A78BFA"/>
+  </g>
+  <rect x="1" y="5" width="838" height="30" fill="#161B22"/>
+  <line x1="1" y1="35" x2="839" y2="35" stroke="#30363D" stroke-width="1"/>
+  <g shape-rendering="crispEdges">
+    <rect x="18" y="15" width="9" height="9" fill="#334155"/>
+    <rect x="33" y="15" width="9" height="9" fill="#334155"/>
+    <rect x="48" y="15" width="9" height="9" fill="#10B981"/>
+  </g>
+  <text x="420" y="24" text-anchor="middle" fill="#8B949E" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12">cs1lion/pixel-world-engine — deterministic runtime</text>
+  <g shape-rendering="crispEdges">
+    <rect x="28" y="52" width="10" height="10" fill="#10B981"/>
+    <rect x="40" y="52" width="10" height="10" fill="#10B981"/>
+    <rect x="52" y="52" width="10" height="10" fill="#38BDF8"/>
+    <rect x="28" y="64" width="10" height="10" fill="#38BDF8"/>
+    <rect x="40" y="64" width="10" height="10" fill="#F59E0B"/>
+    <rect x="52" y="64" width="10" height="10" fill="#10B981"/>
+    <rect x="28" y="76" width="10" height="10" fill="#1E293B"/>
+    <rect x="40" y="76" width="10" height="10" fill="#38BDF8"/>
+    <rect x="52" y="76" width="10" height="10" fill="#1E293B"/>
+  </g>
+  <text x="78" y="68" fill="#10B981" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="16" font-weight="700">pixel-world-engine</text>
+  <text x="78" y="88" fill="#8B949E" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">The world runs deterministically on its own; LLMs only propose whitelisted structured commands.</text>
+  <line x1="28" y1="104" x2="812" y2="104" stroke="#21262D" stroke-width="1"/>
+  <text x="28" y="128" fill="#7D8590" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12.5" font-weight="600">RUNTIME</text>
+  <text x="122" y="128" fill="#E6EDF3" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12.5">Phaser 4 + FastAPI + DOM Overlay · Fixed-timestep simulation (offline-capable)</text>
+  <text x="28" y="152" fill="#7D8590" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12.5" font-weight="600">MEMORY</text>
+  <text x="122" y="152" fill="#E6EDF3" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12.5">3-Gate Memory Timeline (Markdown + YAML Frontmatter in memory/entries/)</text>
+  <text x="28" y="176" fill="#7D8590" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12.5" font-weight="600">GUARDS</text>
+  <text x="122" y="176" fill="#3FB950" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12.5">Schema whitelist · Outer-loop circuit breaker · 240+ deterministic test gates</text>
+  <g shape-rendering="crispEdges">
+    <rect x="28" y="198" width="174" height="42" fill="#161B22" stroke="#475569" stroke-width="2"/>
+    <rect x="226" y="198" width="174" height="42" fill="#0F1D2E" stroke="#38BDF8" stroke-width="2"/>
+    <rect x="424" y="198" width="174" height="42" fill="#0D261D" stroke="#10B981" stroke-width="2"/>
+    <rect x="622" y="198" width="190" height="42" fill="#1E1730" stroke="#A78BFA" stroke-width="2"/>
+    <rect x="208" y="216" width="12" height="6" fill="#475569"/>
+    <rect x="406" y="216" width="12" height="6" fill="#38BDF8"/>
+    <rect x="604" y="216" width="12" height="6" fill="#10B981"/>
+  </g>
+  <text x="115" y="224" text-anchor="middle" fill="#C9D1D9" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="13" font-weight="700">01 · SIMULATE</text>
+  <text x="313" y="224" text-anchor="middle" fill="#7DD3FC" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="13" font-weight="700">02 · PROPOSE</text>
+  <text x="511" y="224" text-anchor="middle" fill="#6EE7B7" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="13" font-weight="700">03 · WHITELIST</text>
+  <text x="717" y="224" text-anchor="middle" fill="#DDD6FE" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="13" font-weight="700">04 · TIMELINE</text>
+  <line x1="28" y1="258" x2="812" y2="258" stroke="#21262D" stroke-width="1"/>
+  <g shape-rendering="crispEdges">
+    <rect x="28" y="272" width="522" height="8" fill="#A78BFA"/>
+    <rect x="554" y="272" width="100" height="8" fill="#F59E0B"/>
+    <rect x="658" y="272" width="94" height="8" fill="#38BDF8"/>
+    <rect x="756" y="272" width="56" height="8" fill="#10B981"/>
+  </g>
+  <text x="28" y="298" fill="#DDD6FE" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12">TypeScript 67.0%</text>
+  <text x="554" y="298" fill="#FCD34D" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12">JS 12.9%</text>
+  <text x="658" y="298" fill="#7DD3FC" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12">HTML 12.3%</text>
+  <text x="756" y="298" fill="#6EE7B7" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12">Py 7.8%</text>
+</svg>
