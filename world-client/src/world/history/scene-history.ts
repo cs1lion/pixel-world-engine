@@ -30,7 +30,7 @@ import type { MemoryEntry, TurningPoint } from '../memory/types.ts';
 import type { WorldSave, WorldSave as SaveDoc } from '../save.ts';
 import { applyOps, diffDoc, type HistoryDoc } from './patch.ts';
 import { TrajectoryRecorder } from './trajectory-recorder.ts';
-import type { RewindFidelityProof, TrajectoryRewindSpan } from './trajectory-recorder.ts';
+import type { RewindFidelityProof, TrajectoryRewindSpan , TrajectoryNode} from './trajectory-recorder.ts';
 import type { HistoryDay, HistoryStore } from './store.ts';
 
 /**
@@ -69,6 +69,8 @@ export type {
   SerializedWorldlineBranch,
   SerializedWorldlineTree,
 } from './worldline-tree.ts';
+export { WorldlineSession } from './worldline-session.ts';
+export type { WorldlineSwitchSnapshotResult } from './worldline-session.ts';
 
 type ListDoc = HistoryDoc;
 
@@ -165,7 +167,8 @@ export class SceneHistory {
   private previous: HistoryDoc | null = null;
   private queue: Promise<void> = Promise.resolve();
   private readonly recorded = new Map<number, HistoryDay['kind']>();
-
+  public lastCapturedNode: TrajectoryNode | null = null;
+  
   constructor(options: SceneHistoryOptions & { readonly everyDays?: number }) {
     this.worldId = options.worldId;
     this.store = options.store;
@@ -184,7 +187,7 @@ export class SceneHistory {
     const isBase = prev === null || day - prev.day !== 1 || day % this.everyDays === 0;
     this.previous = doc;
     this.recorded.set(day, isBase ? 'base' : 'patch');
-    this.trajectoryRecorder.recordDayCapture(doc);
+    this.lastCapturedNode = this.trajectoryRecorder.recordDayCapture(doc);
     this.queue = this.queue
       .then(async () => {
         if (isBase) {
