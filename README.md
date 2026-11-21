@@ -1,5 +1,13 @@
-# pixel-world-engine
-![TypeScript Phaser 3](//img.shields.io/badge/TypeScript-Phaser_3-blue) ![Backend FastAPI](//img.shields.io/badge/Backend-FastAPI-green) ![Tests 240+ Passing](//img.shields.io/badge/Tests-240%2B_Passing-brightgreen)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.svg">
+    <img alt="pixel-world-engine — Decoupled Autonomous Pixel-World Simulation Engine" src="./assets/hero-dark.svg" width="100%">
+  </picture>
+</p>
+
+ # pixel-world-engine
+![TypeScript Phaser 4](//img.shields.io/badge/TypeScript-Phaser_4-blue) ![Backend FastAPI](//img.shields.io/badge/Backend-FastAPI-green) ![Tests 240+ Passing](//img.shields.io/badge/Tests-240%2B_Passing-brightgreen)
 > 一个可换设定集的像素世界引擎：世界自己跑，LLM 只能输出白名单内的结构化命令去改变它。
 
 ![一个玩家动作，走完一整轮世界：世界自己跑 → 玩家发起 → 世界按法则结算 → 反馈可复核且世界继续跑](docs/evidence/interaction-eval/README-story.png)
