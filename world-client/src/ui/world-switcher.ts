@@ -13,7 +13,7 @@ export interface WorldCatalogEntry {
 }
 
 export const REGISTERED_WORLDS: readonly WorldCatalogEntry[] = [
-  { id: 'dengchao', title: '灯潮界', note: '7 人精绘海港灯街 · 推荐主力世界' },
+  { id: 'dengchao', title: '灯潮界', note: '7 人精绘海港夜景 · 推荐主力世界' },
   { id: 'default', title: '莞尔镇', note: '传统起点小镇 · 经典基线世界' },
   { id: 'empty-map', title: '空景', note: '极简空地 · 感官与布局测试场' },
 ];
@@ -124,23 +124,26 @@ export function bindWorldSwitcherAndLlmBar(): void {
     })
       .then(async (res) => {
         const ms = Math.round(performance.now() - startedAt);
-        const bodyText = await res.text();
-        if (!res.ok) {
-          toast.textContent = `大模型调用返回 ${res.status}（${ms}ms）：${bodyText.slice(0, 120) || '请检查后端服务日志'}`;
-          return;
-        }
-        let summary = bodyText.slice(0, 160);
+            let data: Record<string, unknown> | null = null;
         try {
-          const data = JSON.parse(bodyText) as Record<string, unknown>;
-          const speech = data['reply'] ?? data['summary'] ?? data['intent'] ?? data['message'];
-          if (typeof speech === 'string' && speech.trim()) {
-            summary = speech.trim();
-          }
-        } catch {
-          // 保留原文截断
+          data = (await res.json()) as Record<string, unknown>;
+          } catch {
+          data = null;
         }
+          if (!res.ok) {
+            const detail = typeof data?.['detail'] === 'string' ? data['detail'] : '请检查后端服务日志';
+            toast.textContent = `大模型调用返回 ${res.status}（${ms}ms）：${detail.slice(0, 120)}`;
+            return;
+          }
+            const speech = data?.['reply'] ?? data?.['summary'] ?? data?.['intent'] ?? data?.['message'];
+        const summary =
+            typeof speech === 'string' && speech.trim()
+            ? speech.trim()
+          : data !== null
+            ? JSON.stringify(data).slice(0, 160)
+          : '已收到大模型响应';
         toast.textContent = `✓ 大模型已响应（${ms}ms）：${summary}`;
-      })
+        })
       .catch((err: unknown) => {
         toast.textContent = `无法连接大模型接口（/api/world/intent）：${err instanceof Error ? err.message : String(err)}`;
       })
