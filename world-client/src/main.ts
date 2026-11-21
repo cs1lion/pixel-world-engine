@@ -23,7 +23,6 @@ import { bindVillageHud, type VillageHudOracle } from './ui/village-hud.ts';
 import { bindDockPanel } from './ui/dock-panel.ts';
 import { bindStelePanel, type SteleOracle } from './ui/stele-panel.ts';
 import { bindBuildingPanel, type BuildingOracle } from './ui/building-panel.ts';
-import { bindWorldSwitcherAndLlmBar } from './ui/world-switcher.ts';
 import { createMemoryClient } from './world/memory-client.ts';
 import {
   SaveStore,
@@ -355,3 +354,4 @@ saveImportFile?.addEventListener('change', () => {
   };
   reader.readAsText(file);
 });
+import { bindWorldSwitcherAndLlmBar } from './ui/world-switcher.ts';
