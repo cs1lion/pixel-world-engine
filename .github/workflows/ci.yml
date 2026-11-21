@@ -220,8 +220,15 @@ jobs:
       # 断言面」的目录时，三条 lane 全跳过并正常 exit 0（分支保护不破）。
       # 例外：world-client/scripts/ 里的 check-*/eval-*/lib 是闸门本体，改了必须跑；
       # push main 与每日 schedule 是兜底，一律全量。
+      #
+      # 本步的 `if:` 与上面装依赖几步同一条件，一道都不能缺：分流要靠 `git diff` 读
+      # 变更清单，而 checkout 本身就被同一条件短路。缺守卫时，纯文档 PR
+      # （browser_changed=false）会在没 checkout 的空工作区里跑这一步，直接撞 job 级
+      # `working-directory: world-client` 不存在 → bash 进程启动失败 → 三条 lane 全红，
+      # 汇总 gate `world-client-browser` 跟着红（2026-11-21 PR #80 首次踩到）。
       - name: 路径分流（浏览器断言面）
         id: browser-filter
+        if: needs.changes.outputs.browser_changed == 'true' || needs.changes.outputs.workflow_changed == 'true'
         run: |
           if [ "${{ github.event_name }}" = 'schedule' ] || \
              { [ "${{ github.event_name }}" = 'push' ] && [ "${{ github.ref }}" = 'refs/heads/main' ]; }; then
