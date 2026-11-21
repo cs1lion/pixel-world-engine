@@ -1403,6 +1403,108 @@
     border-color: var(--amber);
     color: var(--amber);
   }
+  /* 顶栏世界切换器与「全员大模型」快捷条（纯 CSS 变量） */
+  .world-switch-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .world-switch-btn,
+  .llm-quick-btn {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    color: var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .llm-quick-btn {
+    border-color: color-mix(in srgb, var(--amber) 65%, var(--line));
+    color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+  }
+  .world-switch-btn:hover,
+  .llm-quick-btn:hover:not(:disabled) {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .llm-quick-btn:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+  .world-switch-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 40;
+    min-width: 240px;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 97%, var(--base));
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--base) 65%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .world-switch-menu[hidden] {
+    display: none;
+  }
+  .world-switch-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+  }
+  .world-switch-item:hover {
+    border-color: var(--line);
+    background: color-mix(in srgb, var(--base) 45%, transparent);
+  }
+  .world-switch-item.is-current {
+    border-color: color-mix(in srgb, var(--amber) 60%, var(--line));
+    background: color-mix(in srgb, var(--amber) 12%, transparent);
+  }
+  .world-switch-name {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .world-switch-item.is-current .world-switch-name {
+    color: var(--amber);
+  }
+  .world-switch-note {
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .llm-live-toast {
+    width: 100%;
+    max-width: 960px;
+    box-sizing: border-box;
+    margin-top: 6px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--line));
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .llm-live-toast[hidden] {
+    display: none;
+  }
     </style>
   </head>
   <body>

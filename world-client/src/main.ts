@@ -226,6 +226,7 @@ bindChronicle({ client: createMemoryClient() });
 const dayCardOracle = (): DayCardOracle | undefined =>
   (window as unknown as { Oracle?: DayCardOracle }).Oracle;
 bindDayCardPanel(dayCardOracle);
+bindWorldSwitcherAndLlmBar();
 
 // 取景三按钮与村民面板。两个都只读场景暴露的那一面：一个改镜头模式，
 // 一个把「她记得什么」摆出来——都不改仿真。
@@ -353,3 +354,4 @@ saveImportFile?.addEventListener('change', () => {
   };
   reader.readAsText(file);
 });
+import { bindWorldSwitcherAndLlmBar } from './ui/world-switcher.ts';
