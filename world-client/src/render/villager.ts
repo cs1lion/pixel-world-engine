@@ -116,12 +116,13 @@ export function createVillager(
   const atlasFirst = typeof window === 'undefined'
     ? false
     : atlasFirstEnabledOf(new URLSearchParams(window.location.search));
+  const VILLAGER_ART_FIT = 0.62;
   const actionSheet = !atlasFirst && artId !== undefined && registerActionFrames(scene, artId);
   if (actionSheet) {
     sprite = scene.add
       .image(0, 2, actionTextureKey(artId!))
       .setOrigin(0.5, 1)
-      .setScale(1 / artScaleOf(scene))
+      .setScale(VILLAGER_ART_FIT / artScaleOf(scene))
       .setFrame(actionFrameName('idle', 0));
     container.add(sprite);
     body.setVisible(false);
@@ -130,7 +131,7 @@ export function createVillager(
     sprite = scene.add
       .image(0, 2, artKey('villager', artId))
       .setOrigin(0.5, 1)
-      .setScale(1 / artScaleOf(scene));
+      .setScale(VILLAGER_ART_FIT / artScaleOf(scene));
     container.add(sprite);
     body.setVisible(false);
   } else {
