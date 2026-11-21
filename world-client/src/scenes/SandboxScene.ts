@@ -54,7 +54,7 @@ import { artEnabledOf, preloadArt } from '../render/art-assets.ts';
 import { MemoryRuntime } from '../world/memory/runtime.ts';
 import { archiveMemoryText, type VillagerArchive } from '../world/villager-archive.ts';
 import type { LandmarkEvent } from '../world/memory/landmark.ts';
-import { SceneHistory, type RewindResult, type RewindRestoreResult } from '../world/history/scene-history.ts';
+import { SceneHistory, WorldlineSession, type RewindResult, type RewindRestoreResult, type TurnpointBadge, type WorldlineTreeSummary } from '../world/history/scene-history.ts';
 import type { CounterfactualTrajectoryDiff, TrajectoryRewindSpan } from '../world/history/trajectory-recorder.ts';
 import { createIdbHistoryStore, MemoryHistoryStore } from '../world/history/store.ts';
 import { observationsFor, type ObservationContext } from '../world/observation-rules.ts';
@@ -810,6 +810,11 @@ export class SandboxScene extends Phaser.Scene {
    * 与一份 `toSave()`，没有整档 `JSON.stringify`。
    */
   private history: SceneHistory | null = null;
+  /**
+   * 平行世界线的运行时协调器（Copy-on-Write）：分叉血缘、转折徽章、分支快照与
+   * 同日反事实对比都只存这一份。场景不在别处再抄一份分支表，避免第二口径。
+   */
+  private worldline: WorldlineSession | null = null;
   /** 回溯演出：金色神谕光柱的状态机（与感官探针共用同一份，不另开第二套）。 */
   private rewindBeam: OracleBeamFx | null = null;
   /** 构造 Simulation 用的设定集依赖（回溯重建世界时复用同一份网格与设定集）。 */
@@ -4284,6 +4289,17 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   /**
+   * 世界线会话的懒初始化。日结算路径（`captureHistory`）与面板读取都走这儿：
+   * 面板可能在任何一天第一次打开，而 `worldline` 只在第一笔日账落下时才建。
+   *
+   * 用 `'world'` 这个稳定 `worldId`：世界线树按它分区，换 id 会把已记的日子读到空树里。
+   */
+  private ensureWorldline(): WorldlineSession {
+    if (this.worldline === null) this.worldline = new WorldlineSession({ worldId: 'world' });
+    return this.worldline;
+  }
+
+  /**
    * 关过账就记一份历史。**连续的一天才记补丁，断了就记全量 + 标缺。**
    *
    * 判据分两半：
@@ -4303,12 +4319,19 @@ export class SandboxScene extends Phaser.Scene {
       this.lastHistoryDay = closed;
       return;
     }
-    this.history.capture(closed, {
+    const doc = {
       day: closed,
       // 世界那段不带记忆字符串：记忆视图由快照单独给（见 `HistoryDoc`）。
       save: this.sim.toSave(''),
       memory: this.memory.toSnapshot(),
-    });
+    };
+    this.history.capture(closed, doc);
+    // 同一份快照抄进世界线会话（Copy-on-Write：会话内部自己深拷贝，之后世界怎么改
+    // 都不回写这份账）。`lastCapturedNode` 为 null 说明账本那一步没落账，不补记。
+    const captured = this.history.lastCapturedNode;
+    if (captured !== null) {
+      this.ensureWorldline().recordDay(closed, captured.metrics, captured.stateFingerprint, doc);
+    }
     this.lastHistoryDay = closed;
   }
 
@@ -4381,6 +4404,9 @@ export class SandboxScene extends Phaser.Scene {
     new ProceduralSfxEngine().playOracleChime();
     // 画面同步：回溯抹掉的楼/路从画布上消失（syncBuildings 按快照差集处置）。
     this.renderSnapshot(0);
+    // 开一条新世界线：从当前活跃线在第 `day` 天分叉，原线历史完整保留。
+    // 只记分叉血缘，上面那步热重载已经做完，不改它的任何读数。
+    this.ensureWorldline().forkAt(day, fromDay);
 
     return {
       ok: true,
@@ -4399,6 +4425,93 @@ export class SandboxScene extends Phaser.Scene {
       return worldForSetting(this.pack, save.world.buildings);
     }
     return buildWorldFromSave(save.world.buildings, this.blueprints, LARGE_WORLD_SPEC, LARGE_ALTAR);
+  }
+
+  // ------------------------------------------------------- 平行世界线（WorldlineSession）
+  //
+  // 下面五个方法只把 `WorldlineSession` 桥到 `window.Oracle`，给 `daycard-panel.ts`
+  // 自动读取。纪律：摘要/徽章/对比三个是**纯读**，不写会话也不写主档；只有切线与
+  // 快进会改世界，且快进走的是与 `advanceWorldToDay` 完全相同的推进路。
+
+  /** 世界线树的只读摘要（日历顶部切换条据此画每个分支）；还没落过日账时为 null。 */
+  worldlineSummary(): WorldlineTreeSummary | null {
+    return this.worldline?.getTreeSummary() ?? null;
+  }
+
+  /** 某一天在当前世界线上的结构化转折徽章（纯读，最多 2 条）。 */
+  worldlineTurnpoints(day: number): readonly TurnpointBadge[] {
+    return this.worldline?.getDayTurnpoints(day) ?? [];
+  }
+
+  /** 某分支与父线在同一天的反事实对比（《平行世界对照报》的数据源）；不可比时为 null。 */
+  worldlineDiff(branchId: string, day?: number): CounterfactualTrajectoryDiff | null {
+    return this.worldline?.compareWithParent(branchId, day) ?? null;
+  }
+
+  /**
+   * 无损切到另一条世界线：会话给出那条线最新一天的快照，场景按
+   * `historyRestoreToDay` 同一条热重载路把它装回活动世界与主档。
+   *
+   * “无损”的含义：切线不丢任何一天的账——`switchBranch` 只改活跃分支，
+   * 每条线的快照存在会话自己的 Copy-on-Write 副本里。目标线还没日落账时
+   * 只切活跃分支（没东西可装），仍算成功；切线失败（分支不存在）返回 false。
+   */
+  async worldlineSwitchBranch(branchId: string): Promise<boolean> {
+    const res = this.ensureWorldline().switchBranch(branchId);
+    if (!res.ok) return false;
+    // 目标线还没落过日账：只切活跃分支，没有可装回的存档。
+    if (res.doc === null) return true;
+
+    const doc = res.doc;
+    this.world = this.rebuildWorldForSave(doc.save);
+    this.simDeps = this.buildSimDeps();
+    this.saveStore.write(doc.save);
+    this.sim = Simulation.fromSave(doc.save, this.simDeps);
+    this.memory = this.buildMemoryRuntime();
+    this.memory.fromJSON(JSON.stringify(doc.memory));
+    this.snapshot = this.sim.snapshot();
+    this.seedCastGenesis();
+    // 已记到切进来的那一天：否则下一次日结算会把这段日子当成「断了几天」而全标 missing。
+    this.lastHistoryDay = doc.day;
+    this.rewindBeam = new OracleBeamFx(createOracleBeamSpec(this.snapshot.altar.x, this.snapshot.altar.y));
+    this.rewindBeam.begin();
+    new ProceduralSfxEngine().playOracleChime();
+    this.renderSnapshot(0);
+    await this.history?.flush();
+    return true;
+  }
+
+  /**
+   * 从当前活跃世界线一键确定性快进到 `targetDay`（对照日追赶）。
+   *
+   * 与 `advanceWorldToDay` 同一条推进路（60s 步长、同序的 social/weather 注入、
+   * 逐日 `captureHistory` 落账），差别只在每 24 步让出一帧：这一段可能跳过几十天，
+   * 不让出去整个页面会卡在同步循环里，日历与切换条一起无响应。快进不改分叉血缘，
+   * 新落的日账记在当前活跃线上，对照报据此就能算出两条线的同日子。
+   */
+  async worldlineFastForwardToDay(targetDay: number): Promise<void> {
+    if (this.memory === undefined) return;
+    const target = Math.max(0, Math.floor(targetDay));
+    const FAST_FORWARD_STEP_MS = 60_000;
+    const YIELD_EVERY_STEPS = 24;
+    let steps = 0;
+    let guard = 0;
+    while (this.memory.closedThroughDay < target && guard++ < 100_000) {
+      this.sim.setSocialContext(this.socialContextFromMemory());
+      this.sim.setWeatherHabitLedger(this.weatherHabitFromMemory());
+      this.sim.update(FAST_FORWARD_STEP_MS);
+      this.snapshot = this.sim.snapshot();
+      this.stepMemory();
+      this.captureHistory();
+      // 每 24 步交还主线程：让画面与面板能呼吸，不拚到浏览器判定页面挂死。
+      if (++steps % YIELD_EVERY_STEPS === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    await this.history?.flush();
+    this.saveStore.write(this.buildSave());
+    this.lastSaveKey = this.saveStateKey();
+    this.lastSaveAt = this.snapshot.now;
+    new ProceduralSfxEngine().playOracleChime();
+    this.renderSnapshot(0);
   }
 
   // ------------------------------------------------------------ 回溯评测驱动（真实世界）
@@ -5771,6 +5884,18 @@ export class SandboxScene extends Phaser.Scene {
       trajectoryBanner: (currentDay: number) => this.evalTrajectoryBanner(currentDay),
       /** 真回滚：日历两段式确认的「确认」这一步才调它。 */
       historyRestoreToDay: (day: number) => this.historyRestoreToDay(day),
+      /** 平行世界树只读摘要（日历顶部切换条 + 对照日追赶计算）。纯读。 */
+      worldlineSummary: (): WorldlineTreeSummary | null => this.worldlineSummary(),
+      /** 某天的转折徽章（日历行内）。纯读。 */
+      worldlineTurnpoints: (day: number): readonly TurnpointBadge[] => this.worldlineTurnpoints(day),
+      /** 同日反事实对比（《平行世界对照报》）。纯读。 */
+      worldlineDiff: (branchId: string, day?: number): CounterfactualTrajectoryDiff | null =>
+        this.worldlineDiff(branchId, day),
+      /** 无损切到另一条世界线（切完走与回溯同一条热重载路）。 */
+      worldlineSwitchBranch: (branchId: string): Promise<boolean> => this.worldlineSwitchBranch(branchId),
+      /** 分片快进至对照日：每 24 步让出一帧，不卡住日历。 */
+      worldlineFastForwardToDay: (targetDay: number): Promise<void> =>
+        this.worldlineFastForwardToDay(targetDay),
       /**
        * 真实时钟的只读状态：模式、暂停、提示与最近一次补算。
        * `catchUp` 不再只活在状态行的一帧里；没有 setter。
