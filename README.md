@@ -22,6 +22,11 @@
 3. **基于 Markdown + YAML Frontmatter 的三道关记忆时间线**：记忆写在 `memory/entries/`
    下，按世界日序号命名（`day-0000.md`），人可读、可 diff，事件链与编年史同源。
 
+### Design Decisions & Non-Goals
+- **Why offline-first fixed-timestep simulation**: Querying an LLM per tick destroys frame rate and determinism. World time, tides, schedules, and decay run locally without any model; the LLM only acts as an outer-loop proposer.
+- **Why Markdown + YAML memory timeline**: Storing agent history in readable, day-indexed files under `memory/entries/` keeps memory inspectable, diffable, and auditable.
+- **Non-Goal**: Letting models mutate raw world state or coordinates directly — every proposal must clear schema whitelists, rule checks, and outer-loop circuit breakers.
+
 ## 目录
 
 | 路径 | 职责 |
