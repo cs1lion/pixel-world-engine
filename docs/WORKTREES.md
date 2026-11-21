@@ -55,8 +55,6 @@ worktree 已回收、本地与远端分支已删，表项同步移除。
 | D:/project/pwe-verify | verify/stall-motion（`25ecc77`） | 一次性独立复核树（证据已入分支，合并后可清理） | 2026-11-04 | 2026-11-18 | 活跃（未合入 main；证据已入 `verify/stall-motion`，合并后可清理） |
 | D:/project/pwe-warmup-baseline | (detached) | cs1lion | 2026-11-03 | 2026-11-29（2026-11-15 续期） | 待回收（基线快照）；到期续登记，回收需 owner 确认（续期只表示尚未处理，不等于宣布留用或批准删除） |
 | D:/project/pwe-p1-shore | feat/shore-band | P1 岸线带线（在役会话） | 2026-11-07 | 2026-11-21 | 活跃（未合入 main；基点 `f1dfa00`；组件与灯潮界配置已实现，证据见 `docs/evidence/p1-shore/`） |
-| D:/project/pwe-art1-visual | feat/art1-visual-and-creator-ux | cs1lion | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `d0bdf54`，stacked 在 PR #69 上；art1 可热替换 tile 图集管线 + 固定灯槽池光照 + fx-ambient 微动效 + `?atlas=1` 开关 + `test:art1-smoke` 闸门；造物落点/掀屋顶由 PR #69 承接；ADR `ADR_ART1_ATLAS_PRESENTATION.md`） |
-| D:/project/pwe-creator-overlay | feat/creator-placement-overlay | cindy 会话（creator-placement-overlay） | 2026-11-19 | 2026-12-03 | 活跃（未合入 main；基点 `beaa33a`；造物主摆放遮罩 + 旁观掀屋顶，已开 PR #69，只改 world-client/ 与文档） |
 
 **2026-11-06 巡检**：`pwe-a3`（detached @ `ae89fc6`）表项悬空——目录已不存在，
 按 `--strict` 的「表项悬空」口径删掉表项；未动任何工作树。
@@ -79,6 +77,15 @@ main（经 PR #62，`49e523d`），worktree 已回收、本地分支已删，表
 **2026-11-19 巡检**：`pwe-unlock-gates`（`chore/unlock-presentation-gates`）已合入
 main（经 PR #65，`6d831a7`），worktree 已回收、本地分支已删，表项按「已合入即清理」
 口径移除。
+
+**2026-11-21 巡检**：`pwe-art1-visual`（`feat/art1-visual-and-creator-ux`）已合入
+main（经 PR #72，`56ac3bcb`；CI 后续修正 PR #76）；本地与远端分支已删。
+目录残留 orphan 副本（非 worktree、无 `.git`），逐文件比对确认全部 813 个文件
+（不含 node_modules/tmp/traces）均为 PR #72 合并前某笔提交的旧状态、无未合入内容
+（含 6 个 main 与 PR #72 tip 都不同的文件，逐一对回分支中间提交），已连同
+193 MB node_modules 一起删除；`pwe-creator-overlay`（`feat/creator-placement-overlay`）
+已合入 main（经 PR #69，`05882d5`），worktree 与目录已不存在、分支已删，
+两条表项按「已合入即清理」口径移除。
 
 **owner 口径**：本仓当前只有一位人类维护者，表里统一登记为 `cs1lion`。
 若某个 worktree 实际由其他人/agent 创建，owner 应改成实际负责人或「待认领」，
