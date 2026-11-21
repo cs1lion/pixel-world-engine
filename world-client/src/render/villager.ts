@@ -83,6 +83,7 @@ export interface VillagerAppearance {
   readonly look: VillagerLook;
   readonly lamp: boolean;
 }
+const VILLAGER_ART_FIT = 0.62;
 
 export function createVillager(
   scene: Phaser.Scene,
@@ -116,7 +117,6 @@ export function createVillager(
   const atlasFirst = typeof window === 'undefined'
     ? false
     : atlasFirstEnabledOf(new URLSearchParams(window.location.search));
-  const VILLAGER_ART_FIT = 0.62;
   const actionSheet = !atlasFirst && artId !== undefined && registerActionFrames(scene, artId);
   if (actionSheet) {
     sprite = scene.add
@@ -297,10 +297,19 @@ export function updateVillager(
       view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
       return;
     }
-    view.sprite.setFlipX(villager.facing === 'left');
-    view.sprite.setY(2 + lift);
+       const walkPhase = villager.walking ? animTime * 0.011 : 0;
+       const stride = villager.walking ? Math.sin(walkPhase) : 0;
+       const bounce = villager.walking ? Math.abs(Math.sin(walkPhase)) * 3.2 : 0;
+       const baseScale = VILLAGER_ART_FIT / artScaleOf(view.sprite.scene);
+        view.sprite.setFlipX(villager.facing === 'left');
+       view.sprite.setY(2 + lift - bounce);
+       view.sprite.setRotation(stride * 0.055);
+       view.sprite.setScale(
+         baseScale * (villager.walking ? 1 + Math.abs(stride) * 0.03 : 1),
+         baseScale * (villager.walking ? 1 - Math.abs(stride) * 0.04 : 1),
+       );
+       view.shadow.setAlpha(villager.walking ? 0.24 : 0.35);
     view.sprite.setAlpha(lampBodyAlpha(oil));
-    view.shadow.setAlpha(villager.walking ? 0.28 : 0.35);
     return;
   }
   view.body.setAlpha(lampBodyAlpha(oil));
