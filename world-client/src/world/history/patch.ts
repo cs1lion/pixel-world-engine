@@ -184,7 +184,13 @@ function diffArray(
         }
       }
       if (samePrefix && prev.length > 0) {
-        ops.push({ path: [...path], append: next.slice(prev.length) });
+        const appended = next.slice(prev.length);
+        // 空 append 不发：「前缀逐位相同 + 没新增」就是同一列，没有可记的变化。
+        // 更要紧的是这种 op 落在**按键数组的元素路径**上时，applyOps 只能在元素
+        // 槽位上执行 `container[index] = op.value`，写进去的就是 undefined：
+        // `fanout.counts` 这种逐对重建的原始值数组每天都会踩中（2026-11-21 实机
+        // 回溯踩到的 `Iterator value null` 就是它）。
+        if (appended.length > 0) ops.push({ path: [...path], append: appended });
         return;
       }
     }
@@ -287,6 +293,11 @@ export function applyOps(doc: HistoryDoc, ops: readonly DiffOp[]): void {
         if (index >= 0) container.splice(index, 1);
         continue;
       }
+      // 元素槽位只认「有值就写」。order/append 属于数组本身，落到元素路径上
+      // （main 在 2026-11-21 之前写进库的日补丁里就有这种空 append）时无视它：
+      // 写 `op.value` 就是写 undefined，还原出的 `fanout.counts` 带洞，
+      // 下游 `new Map(...)` 当场抛——旧补丁无视后元素保持基线里的原值，正是它该有的值。
+      if (op.value === undefined) continue;
       const index = fn === null
         ? Number(last)
         : container.findIndex((item) => fn(item) === last);

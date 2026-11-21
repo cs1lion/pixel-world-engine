@@ -111,6 +111,48 @@ test('差分往返：改字段、增删元素、数组换顺序，全都还原�
   assert.deepEqual(JSON.parse(JSON.stringify(copy)), JSON.parse(JSON.stringify(next)));
 });
 
+test('逐对重建的按键数组：未变行不出空 append，还原后没有 undefined 洞', () => {
+  // 实机回归（2026-11-21）：`fanout.counts` 这种 [pairKey, count] 原始值对每天
+  // 整列重建，旧版 `diffArray` 的 samePrefix 按引用比，同值新对象被判「前缀全同」，
+  // 在**元素路径**上发空 `append: []`；`applyOps` 的按键分支只认赋值，
+  // 于是 `container[index] = undefined`，还原出的 counts 带洞，
+  // 下游 `new Map(counts)` 报 `Iterator value null is not an entry object`。
+  const mkCounts = (rows: readonly (readonly [string, number])[]): HistoryDoc =>
+    ({
+      day: 0,
+      save: { schemaVersion: 5, world: {}, meta: {} },
+      memory: { world: { fanout: { day: 0, counts: rows.map((row) => [...row]) } } },
+    }) as unknown as HistoryDoc;
+  // 逐日重建：同样两行，但全是新数组新对象（引用全不同）。
+  const prev = mkCounts([['a\u0000c1', 3], ['a\u0000c2', 5]]);
+  const next = mkCounts([['a\u0000c1', 3], ['a\u0000c2', 5], ['b\u0000c3', 1]]);
+
+  const ops = diffDoc(prev, next);
+  for (const op of ops) {
+    if (op.append !== undefined && op.append.length === 0) {
+      assert.fail(`未变行不该出空 append 算子：${JSON.stringify(op.path)}`);
+    }
+  }
+  const copy = JSON.parse(JSON.stringify(prev)) as HistoryDoc;
+  applyOps(copy, ops);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(copy)),
+    JSON.parse(JSON.stringify(next)),
+    '未变行保持原值，新增行落进来',
+  );
+
+  // 已写进老库的毒算子（main 在修复前的日补丁里就有：未变行的空 append
+  // 落在了元素路径上）回放时必须被无视：元素槽位写 op.value 就是写 undefined，
+  // 无视才能还原出干净的数组。
+  const legacy = [
+    { path: ['memory', 'world', 'fanout', 'counts', 'a\u0000c1\u00003'], append: [] },
+  ] as unknown as Parameters<typeof applyOps>[1];
+  const replay = JSON.parse(JSON.stringify(prev)) as HistoryDoc;
+  applyOps(replay, legacy);
+  const counts = (replay.memory as { world: { fanout: { counts: readonly unknown[] } } }).world.fanout.counts;
+  assert.doesNotThrow(() => new Map(counts as readonly (readonly [string, number])[]), '旧库回放不再炸 new Map');
+});
+
 test('回溯到第 N 天：角色记得的那几条与当时记录一致', async () => {
   const { sim, memory } = scripted();
   const store = new MemoryHistoryStore();
